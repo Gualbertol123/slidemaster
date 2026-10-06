@@ -115,6 +115,26 @@ Run `Install Slide Builder.bat` (step 5 prints the file-server round trip) or
 `python tools\loadtest.py --real-folder "T:\Slide Builder" --scenario same`. Results and options
 (including when a central server is worth it): [`docs/LOADTEST.md`](docs/LOADTEST.md).
 
+### Updating from GitHub (keeps every saved deck)
+
+Double-click **`Update Slide Builder.bat`** in the Slide Builder folder (one person, for everybody on the
+shared folder). The first time it *connects the folder you already have* to GitHub, in place; later it
+downloads only what changed. Do not use `git clone` for this: clone always creates a new
+`slidemaster` folder inside the current one. (If that already happened, the update offers to delete
+that second copy when it holds no saved work.)
+
+What it never changes, because it is not part of the repository: `backend\data\` (decks, cell edits,
+deck styles, defaults, preferences, backups), `backend\logo*`, `slide_builder_settings*.txt`, the
+workbooks, `export\` and `engine\`. Before every update those setups are copied to
+`backend\data\backups\before-update-<time>\` (the last 5 are kept); a program file that was changed by hand
+is copied there too before it is replaced. Afterwards every saved deck is opened with the new version to
+check it. Only one person can update at a time. Then everybody restarts Slide Builder (close the black
+window, start it again) and reloads the page.
+
+Without git on the PC the same script downloads a ZIP and copies only the program files.
+`Update Slide Builder.bat --check` only tells whether there is an update; `--branch main` follows another
+branch from then on.
+
 ### Upgrading from v2
 
 Replace the program files (keep the workbooks, `logo.png` and `slide_builder_settings.txt`) and start
@@ -131,6 +151,7 @@ documents that already exist.
 Slide Builder\                      ROOT – what the user sees
 ├─ Install Slide Builder.bat        first-time set-up (Python packages, export engine, shortcut, checks)
 ├─ Start Slide Builder.bat
+├─ Update Slide Builder.bat         connect to GitHub / update (tools\update.py) – saved setups untouched
 ├─ README.md, docs\
 ├─ tools\loadtest.py               simulates 10 users on the shared folder (docs/LOADTEST.md)
 ├─ *.xlsx / *.xlsm / *.xlsb / *.xls workbooks placed here appear in the app's Open menu

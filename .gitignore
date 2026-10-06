@@ -15,3 +15,10 @@ backend/slide_builder_settings.txt.unreadable-*
 
 __pycache__/
 *.pyc
+
+# Saved setups stay out of the repository, so updating from GitHub never touches them
+backend/data/
+backend/logo*.*
+backend/slide_builder_settings*.txt
+/slidemaster/
+*.update-tmp
