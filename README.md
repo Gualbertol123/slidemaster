@@ -1,290 +1,450 @@
-# Slide Builder 3 — developer & user guide
+# Slide Builder
 
-Slide Builder turns tables in an Excel workbook into presentation slides (16:9, 1600 × 900 CSS px =
-13.333 × 7.5 in) and exports them as PDF / PNG. It was built for a weekly banking report
-(“IBD – Total Banks Loans & Deposits”) and runs on locked-down corporate Windows PCs: no admin rights,
-no installs beyond Python, Edge with DevTools disabled by policy, SSL-inspecting proxy, network drives.
+Slide Builder turns tables in Excel workbooks into presentation slides (16:9, 1600 × 900 CSS px =
+13.333 × 7.5 in) and exports them as PDF or PNG. It was built for a weekly banking report and runs on
+locked-down corporate Windows PCs: no admin rights, nothing to install beyond Python, Edge DevTools
+possibly disabled by policy, an SSL-inspecting proxy, and the app living in a **shared network folder**
+that several people use **at the same time, on the same or on different workbooks**.
 
-Two visual designs: **Excel** (faithful copy of the workbook formatting) and **Liquid Glass** (an
-iOS 26-style light design that keeps the workbook's meaning: headers, totals, green/red formatting).
+Two visual designs: **Excel** (a faithful copy of the workbook's formatting) and **Liquid Glass** (a
+light, iOS-26-style design that keeps the workbook's meaning: headers, totals, green/red signals).
 
-**Version 3** keeps the deployment model (one folder on a shared drive, each user starts their own
-local helper) but is rebuilt so that **several people can work at the same time, on the same or on
-different workbooks, without overwriting each other**. Why and how: [`docs/REVIEW.md`](docs/REVIEW.md)
-(review of v2.3, including why this is not a Next.js app), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-(storage, locking, sync, HTTP API), [`docs/RENDERING.md`](docs/RENDERING.md) (reading and rendering).
+This README is the map. Deeper documents:
+
+| Document | Read it for |
+|---|---|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | **the contract**: data files, document shape, every operation, locking protocol, HTTP API, saved-format versions |
+| [`docs/RENDERING.md`](docs/RENDERING.md) | how a workbook is read and turned into each design; every table/edit feature's implementation |
+| [`docs/REVIEW.md`](docs/REVIEW.md) | the review of v2 that led to this rebuild (and why it is not a Next.js app) |
+| [`docs/LOADTEST.md`](docs/LOADTEST.md) | 10 simulated users on a shared folder: what is slow and why, options |
+| [`backend/README-backend.md`](backend/README-backend.md) | the helper's module map and command line |
+
+**Contents** — [1 What it does](#1-what-it-does) · [2 Using it](#2-using-it) · [3 How it works](#3-how-it-works) ·
+[4 Repository map](#4-repository-map) · [5 Saved data and format upgrades](#5-saved-data-and-format-upgrades) ·
+[6 Concurrency](#6-concurrency-model) · [7 HTTP API](#7-http-api) · [8 Rendering](#8-rendering-pipeline) ·
+[9 Development](#9-development) · [10 Where to change what](#10-where-to-change-what) ·
+[11 Security](#11-security) · [12 Gotchas](#12-gotchas) · [13 Limitations](#13-known-limitations)
 
 ---
 
-## 1. Quick start
+## 1. What it does
+
+### Workbooks
+* Opens `.xlsx/.xlsm` from the shared folder (or any file via *Browse*); `.xlsb/.xls` are converted to
+  `.xlsx` with the installed Excel (Windows). Hidden sheets are skipped on purpose.
+* Reads values, number formats (Italian separators by default, locale tags), fonts, fills, borders,
+  merges, hidden rows/columns, conditional formatting (cell-value and simple expression rules),
+  pictures, shapes and text boxes. Formulas are **not** recalculated (cached values are shown).
+* Tables are found by **"x" markers** in the corners of a region, or picked as ranges in the wizard
+  (with optional "grows" to follow new rows).
+
+### Wizard (3 steps: sheets → tables → slides)
+* Choose sheets; detect/pick tables (drag on a sheet preview, type a range, Shift+arrows, Enter adds);
+  arrange slides; optional **cover** (title, subtitle, date, note) and **contents/index** slide (with or
+  without subtitles); per-slide logo on/off. Cover and index are ordinary slides that can be moved.
+
+### Editing on the slide (Excel-like)
+* Click/drag/Shift+click/Shift+arrows to select; type or F2 to edit; Enter/Tab move; Del clears;
+  Ctrl+B/I; Ctrl+Z/Y (undo **only your own** changes); PgUp/PgDn change slide; Ctrl+S saves now.
+* Text size, bold, italic, text colour, alignment, role (header/total/body/note), **cell colour** (replaces
+  the Excel colour; recolours the block in Liquid Glass), **highlight** (a capsule around the value),
+  clear format, restore the Excel text. Titles/subtitles: double-click on the slide.
+* **Merge / unmerge** cells (also cells merged in Excel – the workbook is never changed).
+* **Format painter** (click = once, double-click = sticky, Esc stops): copies size, bold/italic, text
+  colour, cell colour, highlight, alignment, role, **conditional formatting** (the source's rules applied
+  to the target's own values, like Excel) and **colour scales**; a block is tiled as a pattern.
+
+### Tables
+* Column widths / row heights: drag a border (double-click = Excel size) or type W/H.
+* Drag a **table border** to stretch columns (left/right) or rows (top/bottom); the corner handle
+  scales proportionally; the grip moves a table next to/above/below another.
+* **Same size** (on a slide, or across slides via *Sizes…*), copy sizes between tables, reset.
+* Align the tables of a slide **left/centre/right and top/middle/bottom**.
+* **Gridlines** per table: horizontal and vertical separately – as in Excel, all, or none.
+* **Colour scales** ("variable conditional formatting"): deeper green/red with the size of the number,
+  per row, per column or whole range, on the cell colour and/or the number colour.
+* **Text boxes** above/below/left/right of a table, fitted to it; size, bold, italic, horizontal and
+  vertical alignment, optional **bubble** (glass card / framed box).
+
+### Deck (shared by everyone working on the workbook)
+* Design (Excel / Liquid Glass), glass strength, background colour strength, **colour theme** (Aurora,
+  Ocean, Forest, Sunset, Graphite, Intesa Sanpaolo, Custom: 4 background + 2 accent colours), corner
+  roundness, contrast, logo (file, bubble on/off, hidden per slide), **page numbers** (position, font,
+  size, format, style, start, cover), **footer** (`{date}`, `{workbook}`, `{title}`). *Use as default for
+  new decks* stores the style in `config.json`.
+
+### Export
+* PDF (exact = images at 3×, or vector), current slide as PDF/PNG, all slides as PNG, copy to clipboard.
+  Rendered by a headless browser from the **same DOM the user sees**; when no engine works the page
+  renders the slides itself and the helper only assembles the PDF. Files go to `export\`.
+
+### Working together, updating, keeping data safe
+* Several people on the same workbook: changes are merged field by field; others' changes appear within
+  ~3 s with their name; presence shows who else is in the workbook; typing is never overwritten by
+  autosave or by others' changes.
+* `Update Slide Builder.bat` connects the folder to GitHub in place and updates it without touching
+  saved setups; saved setups in an older format are **converted automatically** with the old file kept
+  (§5).
+
+---
+
+## 2. Using it
 
 | Who | What to do |
 |---|---|
-| User, first time on a PC | Double-click **`Install Slide Builder.bat`** (next to `Start Slide Builder.bat`). It checks Python, installs the optional packages and the export engine, checks that you can write in the shared folder, puts a **Slide Builder** shortcut on your desktop and starts the helper once as a test. No administrator rights needed; safe to run again. |
-| User | Double-click the **Slide Builder** desktop shortcut or `Start Slide Builder.bat`. A console window opens (keep it open) and the app opens in the browser at `http://127.0.0.1:8765/`. |
-| User, export engine only | Click the status pill at the top right (“Export: …”) → **Install export engine**, or run `backend\Install export engine.bat`. |
-| Developer | See §6. Users never need Node.js: the built app (`backend/slide_builder.html`) is committed. |
+| User, first time on a PC | **`Install Slide Builder.bat`**: checks Python (≥ 3.8), installs the optional `playwright` package and the export engine, checks write access and speed of the shared folder, creates a desktop shortcut, self-tests. No admin rights; safe to repeat. |
+| User | **`Start Slide Builder.bat`** (or the shortcut): a console window (keep it open) starts the local helper and opens `http://127.0.0.1:8765/`. |
+| One person, to update everyone | **`Update Slide Builder.bat`** (§5.4). Then everybody restarts Slide Builder and reloads the page. |
+| Export engine only | status pill "Export: …" → *Install export engine*, or `backend\Install export engine.bat`. |
+| Developer | §9. Users never need Node.js: the built app `backend/slide_builder.html` is committed. |
 
-Requirements: Python ≥ 3.8 – any newer version too (3.9+ for the optional `playwright` package), Windows 10/11
-(macOS/Linux work for development). The helper uses only the Python standard library.
+Installer steps (`backend/slidebuilder/firstrun.py`): 1 Python · 2 pip/ensurepip · 3 packages
+(`--user`; behind SSL inspection retried with `--use-feature=truststore`, verification never disabled)
+· 4 export engine (Chrome for Testing via Python `urllib`; on a share it lives in
+`%LOCALAPPDATA%\SlideBuilder\engine`) · 5 shared folder (lock file, `export\` write, round-trip time) ·
+6 shortcut (`.lnk`, or a `.bat` when PowerShell is restricted) · 7 self-test. Exit 0 when 1, 5, 7 pass.
 
-### First-time set-up (`Install Slide Builder.bat`)
-
-The installer looks for Python with `py -3`, then `python`. If neither is found it explains where to
-get it: the company software portal, or python.org's Windows installer with the **per-user install**
-(“Install Now” without admin privileges, tick “Add python.exe to PATH”) – no administrator rights are
-needed. It then runs `python backend\slide_builder.py --install`, which prints numbered steps with
-`OK` / `WARN` / `FAIL` and a summary:
-
-| Step | What it does | If it fails |
-|---|---|---|
-| 1 Python | version (printed exactly as detected), 32/64-bit, virtual environment | FAIL below 3.8; WARN on 3.8 (Playwright skipped) |
-| 2 pip | `python -m pip --version`, else `python -m ensurepip --user` | WARN – packages skipped |
-| 3 Packages | `pip install --user -r backend\requirements.txt` (only `playwright` today). Behind an SSL-inspecting proxy a certificate error is retried with `--use-feature=truststore` (Windows certificate store) when pip 22.2–24.1 and Python 3.10+; pip 24.2+ already uses it. Verification is never switched off. | WARN – exports work without it |
-| 4 Export engine | the same installer as `Install export engine.bat` (Chrome for Testing, downloaded by Python; on a network share it goes to `%LOCALAPPDATA%`) | WARN – exports are rendered in the app window |
-| 5 Shared folder | creates/deletes a lock file in `backend\data\locks`, writes a file in `export\`, measures the file-server round trip (median of 20 create+stat+replace+delete cycles; > 30 ms makes saving noticeably slower) | FAIL – ask IT for *Modify* rights |
-| 6 Shortcut | “Slide Builder” on the desktop: a `.lnk` via PowerShell/WScript.Shell, or – when PowerShell or COM is blocked (Constrained Language Mode) – a small `Slide Builder.bat` that opens the app folder and starts it | WARN |
-| 7 Self-test | starts the helper on a free port, calls `/api/ping`, stops it | FAIL |
-
-Exit code 0 when steps 1, 5 and 7 passed (warnings allowed), 1 otherwise. Both `.bat` files use
-`pushd`, so they also work when the folder is opened as `\\server\share\…`.
-
-### Working together
-
-* Everybody opens the app from the same shared folder. Presets, cell edits and the deck's style are
-  stored **per workbook** in `backend\data\workbooks\` and are shared.
-* Changes are saved as small operations and merged by the helper under a lock on the share: two
-  people editing different cells, slides or settings never lose each other's work. If both change the
-  **same** cell property, the later change wins.
-* Other people's changes appear within ~3 seconds; the status bar says who made them, and the top bar
-  shows who else has the workbook open.
-* **Undo only undoes your own changes**, even if others changed the workbook since.
-* If someone changes the slides while you are in the wizard, saving the wizard asks before replacing
-  their changes.
-* Design, glass strength, colour, page numbers and logo belong to the deck (the workbook). *Options ›
-  Use as default for new decks* makes the current style the default for workbooks without one.
-* Personal things stay personal: the workbook reopened at start-up, the default PDF mode, the zoom.
-* If saving fails (share unreachable, file locked), changes stay queued, the status bar says
-  “Not saved yet – retrying”, and nothing is ever replaced by an empty or older copy.
-
-### Table tools
-
-* **Column widths / row heights:** drag a border on the slide (double-click = Excel size), or type
-  **W / H** in the second toolbar row for the selected columns/rows.
-* **⇔ Same size** makes the tables of the current slide exactly the same size; **Sizes…** does it for
-  tables on different slides, copies column widths between tables, aligns and resets.
-* **Align** the tables of a slide left, centre or right.
-* **Text boxes** above, below, left or right of a table (the + on the table, or the arrows in the
-  toolbar): as wide as the table above/below, as high on the sides; double-click to write.
-* **Colour scale** on selected cells: deeper green/red with the size of the number, per row, per
-  column or over the whole selection, for the cell colour and/or the number colour.
-* **Options › Look:** corner roundness, background contrast, glass bubble around the logo.
-* **Cell colour** (paint-bucket menu, upper half) replaces the colour the cell has in Excel – e.g. a
-  merged navy header can be made red; in Liquid Glass the whole block takes the new colour. *No colour*
-  removes it, *Colour from Excel* goes back. The lower half (**Highlight**) puts a coloured capsule
-  around the value instead.
-* **Merge / Unmerge** the selected cells, including cells merged in the Excel file. The workbook is
-  never changed; the merge is stored with the table in the preset.
-* **Format** (painter, like Excel): select cells, click *Format*, then click or drag over other cells –
-  on any table or slide. A block of cells is repeated as a pattern. Double-click *Format* to paint
-  several times; Esc stops. Text is never copied.
-* **Options › Footer:** a footer on every slide (optionally the cover), with `{date}`, `{workbook}`,
-  `{title}`, in any corner or centred, plain or as a glass capsule; it moves aside for the page number
-  and logo when they share a corner.
-* **Text boxes:** align the text left/centre/right and top/middle/bottom; **◯ Bubble** puts the box on a
-  card like the tables (glass in Liquid Glass, a framed box in Excel).
-* **Tables:** align them top/middle/bottom as well as left/centre/right (also in *Sizes…* for several
-  slides); drag a table's **border** to make it wider/narrower (left/right) or taller/shorter (top/bottom),
-  the round corner handle keeps the proportions.
-* **Gridlines:** per table, horizontal and vertical separately: as in Excel, all, or none.
-* **Format** also copies conditional formatting (the rules are applied to the painted cells' own values,
-  like Excel), colour scales, the cell colour and the text colour.
-* **Contents page:** *Subtitles* in the toolbar (or *with subtitles* in the wizard) shows or hides the
-  slide subtitles in the list.
-* **Options › Colour theme:** Aurora, Ocean, Forest, Sunset, Graphite, **Intesa Sanpaolo** (green and
-  orange) or **Custom** (four background colours, two accents). The theme colours the Liquid Glass
-  background and the accents (cover, index numbers, titles in Excel, heading rules). The Intesa
-  Sanpaolo colours follow the public brand colours; use Custom if your brand guide gives other values.
-* **Options › Logo:** untick *Bubble around the logo* to show the logo on its own.
-* Typing is safe: while you type in a settings box or edit a cell, title or text box on the slide,
-  autosave and other people's changes never put the old text back; the slide redraws once you finish.
-
-### How fast is the shared folder?
-
-Run `Install Slide Builder.bat` (step 5 prints the file-server round trip) or
-`python tools\loadtest.py --real-folder "T:\Slide Builder" --scenario same`. Results and options
-(including when a central server is worth it): [`docs/LOADTEST.md`](docs/LOADTEST.md).
-
-### Updating from GitHub (keeps every saved deck)
-
-Double-click **`Update Slide Builder.bat`** in the Slide Builder folder (one person, for everybody on the
-shared folder). The first time it *connects the folder you already have* to GitHub, in place; later it
-downloads only what changed. Do not use `git clone` for this: clone always creates a new
-`slidemaster` folder inside the current one. (If that already happened, the update offers to delete
-that second copy when it holds no saved work.)
-
-What it never changes, because it is not part of the repository: `backend\data\` (decks, cell edits,
-deck styles, defaults, preferences, backups), `backend\logo*`, `slide_builder_settings*.txt`, the
-workbooks, `export\` and `engine\`. Before every update those setups are copied to
-`backend\data\backups\before-update-<time>\` (the last 5 are kept); a program file that was changed by hand
-is copied there too before it is replaced. Afterwards every saved deck is opened with the new version to
-check it. Only one person can update at a time. Then everybody restarts Slide Builder (close the black
-window, start it again) and reloads the page.
-
-Without git on the PC the same script downloads a ZIP and copies only the program files.
-`Update Slide Builder.bat --check` only tells whether there is an update; `--branch main` follows another
-branch from then on.
-
-### Upgrading from v2
-
-Replace the program files (keep the workbooks, `logo.png` and `slide_builder_settings.txt`) and start
-the app once. The first helper to start imports the v2 settings (presets, cell edits, design, page
-numbers → shared defaults; your last file and PDF mode → your preferences) and renames the old file to
-`slide_builder_settings.v2-backup.txt`. The import runs once, under a lock, and never overwrites
-documents that already exist.
+**From v2:** keep `backend\slide_builder_settings.txt`; the first helper to start imports it (presets,
+cell edits, style → shared defaults, last file → preferences), once, under a lock, never overwriting
+existing documents, and renames it `slide_builder_settings.v2-backup.txt` (`slidebuilder/migrate.py`).
 
 ---
 
-## 2. Folder layout
+## 3. How it works
 
 ```
-Slide Builder\                      ROOT – what the user sees
-├─ Install Slide Builder.bat        first-time set-up (Python packages, export engine, shortcut, checks)
-├─ Start Slide Builder.bat
-├─ Update Slide Builder.bat         connect to GitHub / update (tools\update.py) – saved setups untouched
-├─ README.md, docs\
-├─ tools\loadtest.py               simulates 10 users on the shared folder (docs/LOADTEST.md)
-├─ *.xlsx / *.xlsm / *.xlsb / *.xls workbooks placed here appear in the app's Open menu
-├─ export\                          every exported PDF / PNG is written here
-├─ engine\                          Chrome for Testing (optional; mirrored to %LOCALAPPDATA% on shares)
+┌─────────────────── browser tab: backend/slide_builder.html (ONE self-contained file) ──────────────────┐
+│ xlsx/    read the workbook (index first, sheets on demand), styles, number formats, CF, drawings,       │
+│          table regions and per-cell geometry                                                            │
+│ model/   types · operations (+ inverses for undo) · presets → runtime slides · deck style & themes      │
+│ render/  edits on top of the workbook · Excel design · scene model + Liquid Glass · slide layout ·       │
+│          cover/index · page numbers/footer · wallpaper                                                   │
+│ sync/    API client · DocSync (pending ops, polling, authors) · offline store when opened as file://    │
+│ editor/  stage (hit testing, selection, inline edit, drag handles) · tables · painter · export · keys   │
+│ ui/, wizard/   Preact chrome: top bar, ribbons, dialogs, 3-step wizard                                  │
+└───────────────▲───────────────────────────────────────────────────▲─────────────────────────────────────┘
+                │ HTTP on 127.0.0.1 + per-start token                │ slide HTML + CSS (exports)
+┌───────────────┴────────── helper: backend/slidebuilder (Python standard library) ┴──────────────────────┐
+│ server (Host/Origin/token/format checks) · store (docs, upgrades, backups) · ops · locks · fsclock ·    │
+│ presence · workbooks (stable reads) · exports + engines (Playwright → DevTools → headless) · pdf ·      │
+│ convert (Excel COM, GDI+) · migrate (v2) · firstrun/installer                                           │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+      one helper per PC  ⇄  the same shared folder (SMB): workbooks, backend/data/, export/ — the only channel
+```
+
+Principles:
+* **All parsing and rendering is in the browser.** The helper moves bytes, stores documents, merges
+  operations under file locks, and drives a headless browser for exports.
+* **Documents change only through operations** (`preset.set`, `slide.patch`, `table.patch`,
+  `cell.patch`, `style.patch`), implemented identically in TypeScript and Python and tested against
+  `shared/ops-vectors.json`. Clients never write whole documents.
+* **The workbook is never modified.** Everything the user changes lives in `backend/data/`.
+* **No runtime dependencies on users' PCs**: one HTML file + standard-library Python.
+
+### Life of an edit (e.g. Ctrl+B on a cell)
+1. `editor/keys.ts` → `editor/edit.ts applySel()` diffs each selected cell's `CellEdit` and builds
+   `cell.patch` operations → `state/app.ts change(label, ops)`.
+2. `sync/docsync.ts apply()` applies them locally (`model/ops.ts`), stores the inverse for undo, shows
+   the result immediately, and sends them ~300 ms later: `POST /api/workbooks/<name>/ops`
+   (`sync/api.ts`, headers `X-SB-Token`, `X-SB-Formats`).
+3. `server.py` checks Host/Origin/token/formats → `store.update_workbook()`: lock
+   `data/locks/wb-<key>.lock` → read latest (converting an older format, §5.3) → `ops.apply_ops()` →
+   atomic write → rolling backup → unlock → returns the new document.
+4. Every other open page polls `GET …/doc?since=<rev>` every 3 s and re-renders only changed tables
+   (`state/app.ts onDocChange` → `editor/stage.ts refreshStage`).
+
+### Life of a workbook open
+`GET /files/<name>` (stable read) → `xlsx/workbook.ts` index + sheet parsing → document
+`GET …/doc` → `model/preset.ts runtimeSlides()` builds `RuntimeSlide`s with `TableLayout`s
+(`xlsx/layout.ts buildLayout`, applying user sizes/merges) → `render/slide.ts buildSlide()` per slide.
+
+### Export
+`editor/export.ts` collects the slide HTML + `#slidecss`/`#wallcss` → `POST /api/export` →
+`exports.py`/`engines.py` render in a headless browser (Playwright, else DevTools websocket, else command
+line), `pdf.py` writes the PDF → unique temp file renamed into `export\` (` (2)` if the target is open).
+
+---
+
+## 4. Repository map
+
+```
+/                                    ROOT = the folder users see (on the shared drive)
+├─ Install Slide Builder.bat         first-time set-up         → backend\slide_builder.py --install
+├─ Start Slide Builder.bat           start the helper + app     → backend\slide_builder.py
+├─ Update Slide Builder.bat          update from GitHub         → tools\update.py
+├─ *.xlsx …                          users' workbooks (not in git)
+├─ export\  engine\                  exports / Chrome for Testing (not in git)
+├─ README.md  docs\                  documentation (table above)
+├─ shared\ops-vectors.json           operation test vectors, run by BOTH test suites
+├─ tools\
+│  ├─ update.py                      connect folder to GitHub in place / update; ZIP fallback; keeps saved setups
+│  └─ loadtest.py                    N simulated users on a (simulated or real) shared folder
 ├─ backend\
-│  ├─ slide_builder.py              entry point (the helper)
-│  ├─ slide_builder.html            the app (BUILT from frontend\ – do not edit)
-│  ├─ slidebuilder\                 helper package (one module per concern, see README-backend.md)
-│  ├─ tests\                        helper tests (unittest)
-│  ├─ Install export engine.bat
-│  ├─ logo.png                      logo shown on slides (file name configurable per deck)
-│  └─ data\                         ALL shared state – see docs/ARCHITECTURE.md §3
-│     ├─ config.json                defaults for new decks
-│     ├─ workbooks\<name>-<hash>.json   one document per workbook (preset, style, cell edits, revision log)
-│     ├─ users\<user>.json          personal preferences
-│     ├─ presence\, locks\          who is working where; short-lived lock files
-│     └─ backups\<workbook>\<rev>.json  rolling copies (last 30, at most one per 5 min)
-├─ frontend\                        sources of the app (TypeScript + Preact), tests – developers only
-└─ shared\ops-vectors.json          operation semantics, tested by both the helper and the app
+│  ├─ slide_builder.py               entry point (calls slidebuilder.main)
+│  ├─ slide_builder.html             THE APP – built from frontend\, committed, never edit by hand
+│  ├─ Install export engine.bat · requirements.txt (optional playwright) · README-backend.md
+│  ├─ data\                          ALL saved state (not in git) – §5
+│  ├─ slidebuilder\                  the helper package
+│  │  ├─ main.py          command line; start-up: v2 import, format upgrades, port probe, browser
+│  │  ├─ server.py        HTTP API (§7), security checks, error → status mapping
+│  │  ├─ store.py         documents: retried reads, atomic writes, ops under locks, backups, format upgrades
+│  │  ├─ upgrade.py       saved-format versions (SCHEMA) and upgrade steps (§5.3)
+│  │  ├─ ops.py           operation semantics (mirror of frontend/src/model/ops.ts)
+│  │  ├─ locks.py         O_EXCL lock files across PCs (wait, stale recovery, owner token, keepalive)
+│  │  ├─ fsclock.py       the file server's clock (ages of shared files)
+│  │  ├─ presence.py      who has which workbook open (heartbeat files)
+│  │  ├─ workbooks.py     listing + stable reads of workbooks
+│  │  ├─ exports.py       export orchestration, atomic placement in export\
+│  │  ├─ engines.py       browser discovery, engine self-tests, rendering; engine mirror to %LOCALAPPDATA%
+│  │  ├─ cdp.py           minimal websocket + DevTools protocol client
+│  │  ├─ pdf.py           PDF writer (JPEG/PNG pages)
+│  │  ├─ convert.py       .xlsb/.xls → .xlsx (Excel COM), EMF/WMF/TIFF → PNG (GDI+) – Windows only
+│  │  ├─ migrate.py       one-time import of the v2 settings file
+│  │  ├─ firstrun.py      --install (first-time set-up);  installer.py: --setup (export engine)
+│  │  ├─ paths.py         folder layout + env overrides;  util.py: logging, identity, names, atomic writes
+│  │  └─ simfs.py         SIMULATION ONLY: added latency for load tests
+│  └─ tests\                         unittest, one file per module (+ fixtures\saved\: §5.3)
+└─ frontend\                         sources of the app (developers only; Node 20+)
+   ├─ package.json · vite.config.ts (single-file build → ../backend/slide_builder.html) · playwright.config.ts
+   ├─ src\
+   │  ├─ main.tsx                    mounts the app, injects ui/app/slide CSS
+   │  ├─ xlsx\   workbook.ts (zip, index, fast sheet parser) · layout.ts (table regions, cell boxes, borders,
+   │  │          merges incl. user merges, CF evaluation) · numfmt.ts · color.ts · drawing.ts · types.ts · util.ts
+   │  ├─ model\  types.ts (ALL persistent types + FORMATS) · ops.ts (operations, inverses) ·
+   │  │          preset.ts (preset → RuntimeSlide, layout cache) · style.ts (style layers, themes)
+   │  ├─ render\ context.ts (RenderCtx, cache keys) · edits.ts (effItems: edits, gridlines, painted CF, scales) ·
+   │  │          excel.ts · glass.ts (scene model + Liquid Glass) · slide.ts (layout of tables/notes, buildSlide) ·
+   │  │          scales.ts · cover.ts (cover, index) · pagenumbers.ts (page numbers, footer) · wallpaper.ts (themes)
+   │  ├─ sync\   api.ts (helper client; localStorage backend for file://) · docsync.ts (pending ops, polling)
+   │  ├─ state\  store.ts (app state, subscriptions) · app.ts (open, change, undo, doc changes, presence) · dialogs.ts
+   │  ├─ editor\ stage.ts (slide editing, hit testing, drags, inline editors) · edit.ts (selection, applySel) ·
+   │  │          tables.ts (sizes, same size, align, merge) · painter.ts · keys.ts · export.ts · thumbs.ts · issues.ts
+   │  ├─ ui\     App.tsx · Topbar.tsx (open, design, Options: theme/page numbers/footer/logo/look) · Ribbon.tsx
+   │  │          (cell formatting) · TableTools.tsx (second row: sizes, scales, tables, gridlines, text boxes) ·
+   │  │          TablesDialog.tsx · Dialogs.tsx · Dropdown.tsx · Field.tsx (draft-keeping input)
+   │  ├─ wizard\ Wizard.tsx · detect.ts (table suggestions)
+   │  └─ styles\ slide.css (EXPORTED with slides) · ui.css · app.css (chrome only)
+   ├─ tests\     Vitest: ops (vectors), numfmt, docsync, tables/rendering, build freshness; fixtures\ (generated .xlsx)
+   └─ e2e\       app.spec.ts (Playwright: two helpers = two users on one folder) · parity.mjs (v2 ↔ v3 renderer diff)
 ```
 
-To recover an older version of a deck, copy a file from `backend\data\backups\…` over the workbook's
-document in `backend\data\workbooks\` (with nobody editing that workbook).
-
 ---
 
-## 3. Architecture
+## 5. Saved data and format upgrades
 
+### 5.1 What is saved where (`backend/data/`, never in git)
 ```
-┌──────────────────────── browser tab (slide_builder.html, one self-contained file) ─────────────────┐
-│ xlsx/     workbook index + fast sheet parser, styles, number formats, CF, drawings, table layout    │
-│ render/   Excel design · scene model + Liquid Glass · slide layout · cover/index · page numbers      │
-│ model/    types · operations (+ inverses for undo) · presets → runtime slides · deck style            │
-│ sync/     API client (token) · DocSync: pending ops, polling, authors · offline store (file://)      │
-│ editor/   stage (hit testing, selection, inline edit, table move/resize) · thumbnails · export       │
-│ ui/, wizard/   Preact components: top bar, ribbon, dialogs, 3-step wizard                            │
-└──────────────▲───────────────────────────────────────────────▲──────────────────────────────────────┘
-               │ HTTP 127.0.0.1 + per-start token                │ static HTML of slides (export)
-┌──────────────┴──────────── backend/slidebuilder (Python stdlib) ┴──────────────────────────────────┐
-│ server: Host/Origin/token checks · store: per-workbook docs, ops merged under O_EXCL lock files       │
-│ (file-server clock, stale-lock recovery, atomic replace, backups) · presence · migration            │
-│ exports: Playwright → DevTools → headless command line; PDF writer · converters (Excel COM, GDI+)    │
-└─────────────────────────────────────────────────────────────────────────────────────────────────────┘
-          every helper (one per PC) ⇄ the same shared folder (SMB) – the only coordination channel
+data/
+├─ config.json                     shared defaults for new decks                   {schema, rev, defaults:{style}}
+├─ workbooks/<key>.json            one document per workbook                       {schema, workbook, rev, preset, style, edits, log, …}
+├─ users/<user>.json               personal preferences                            {schema, lastFile, pdfMode, zoom}
+├─ presence/  locks/               heartbeats, lock files (short-lived)
+├─ migrated.json                   marker: v2 settings were imported
+├─ app-version.json                installed version (ZIP updates only)
+└─ backups/
+   ├─ <key>/<rev>.json             rolling copies of each workbook document (last 30, ≤ 1 per 5 min)
+   ├─ upgrades/<kind>/<file>.v<n>.<time>.json   the file as it was before a format upgrade (kept)
+   └─ before-update-<time>/        saved setups (+ replaced program files) before each update (last 5)
 ```
+`<key>` = workbook file name made Windows-safe + `-` + 10 hex chars of `sha1(name.lower())`. The full
+shape of each document and every field is in `docs/ARCHITECTURE.md` §3; the types are
+`frontend/src/model/types.ts`. Restoring a deck: copy a backup over `workbooks/<key>.json` while nobody
+edits it (an older-format backup is converted automatically).
 
-* **All parsing and rendering happens in the browser.** The helper never parses Excel; it moves bytes,
-  stores documents, merges operations, and drives a headless browser for exports.
-* **Exports render the exact DOM the user sees**, at 3× (4800 × 2700): screen and PDF cannot drift.
-* **No dependencies at run time** on users' PCs (no Node.js): the app is one HTML file, the helper is
-  standard-library Python.
-* A central server could replace the helpers later by implementing the API in `docs/ARCHITECTURE.md`
-  §5 – the front end would not change.
+### 5.2 What a document holds
+* `preset` – sheets, **tables** (`markers` or `range`, plus `name`, `cols`/`rows` size overrides,
+  `scales`, `merges`, `gridH`/`gridV`) and **slides** (`cover`/`index`/`content`: title, subtitle, date,
+  note, tables, layout bands & weights, logo, align/valign, fixed scale, `notes` = text boxes, `subs`).
+* `style` – the deck's style layer (design, glass, colour, theme, radius, contrast, logo, logoBubble,
+  `pn` page numbers, `footer`). Effective style = built-in ← `config.defaults.style` ← `doc.style`.
+* `edits[sheet][A1]` – per-cell `CellEdit`: text (+ `orig` = Excel text it replaced), sz, b, i, color,
+  fill (highlight), bg (cell colour), cf (painted conditional format), align, role.
+* `rev`, `updated` (file-server time), `updatedBy`, `log` (last 20 authors), `backupAt`.
+
+### 5.3 Format versions: saved setups keep working after every update
+Every saved file carries `"schema"` (workbook 3, config 3, prefs 1 today; files written before the
+numbers existed count as those versions). `backend/slidebuilder/upgrade.py` holds the current numbers
+(`SCHEMA`) and one **step function per version change**. Whenever the store reads a file
+(`store._load`):
+* **older format** → under the file's lock it is re-read, the original is copied to
+  `backups/upgrades/<kind>/<file>.v<old>.<time>.json`, the steps are applied in order (3→4→5…), the
+  result is written atomically. Exactly once, even with several PCs reading at the same time. At
+  start-up `store.upgrade_all()` converts every file, so decks nobody opens are converted too;
+* **newer format** (written by an already-updated PC) → never changed; HTTP 409 "restart Slide
+  Builder";
+* the page sends `X-SB-Formats` with every change; a helper with different formats answers 409 and the
+  page shows "Slide Builder was updated – reload the page" instead of writing old-format data.
+  `FORMATS` in `frontend/src/model/types.ts` must equal `SCHEMA` (a test checks it).
+
+`backend/tests/fixtures/saved/` contains real examples of every released format; `tests/test_upgrade.py`
+reads all of them on every test run, simulates future upgrades (conversion, chaining, one backup,
+concurrency, too-new files) and checks the page/helper agreement. **How to change the stored format:**
+see §10.
+
+### 5.4 Updating the program (`Update Slide Builder.bat` → `tools/update.py`)
+* With git: the existing folder becomes the working copy **in place** (`git init` + fetch + forced
+  checkout of tracked files only; later `fetch` + `reset --hard` to the followed branch). Never
+  `git clean`; never `git clone` into the folder (that creates a nested copy – the script offers to
+  delete one that holds no saved work).
+* Without git: downloads the branch ZIP and writes only program files (atomic replace).
+* Never written: `backend/data/`, `backend/logo*`, `slide_builder_settings*.txt`, workbooks, `export/`,
+  `engine/` (also excluded by `.gitignore`). Before each update the saved setups (and any hand-edited
+  program file) go to `backups/before-update-<time>/`; afterwards every deck is opened with the new code.
+  One update at a time (lock). Options: `--check`, `--branch <name>`, `--zip`.
+* After an update, everyone restarts Slide Builder and reloads the page; saved setups are converted to a
+  newer format automatically on the first start (§5.3).
 
 ---
 
-## 4. Export
-
-Unchanged from v2 in behaviour (engines are self-tested in the background; failing ones are disabled
-for the session; in-window rendering as the last resort). New in v3: files are written to a unique
-temporary name and renamed into place, so two people exporting the same workbook never produce a
-garbled PDF; a target that is open in a viewer gets a ` (2)` suffix. Names: `<workbook> - slides.pdf`,
-`… (vector).pdf`, `<workbook> - <slide>.pdf` (current slide), `<workbook> - <slide>.png`.
-
-Programs cannot run reliably from network shares, so on a share the engine is installed in / copied to
-`%LOCALAPPDATA%\SlideBuilder\engine` (under a per-PC lock).
-
----
-
-## 5. Security
-
-The helper listens on 127.0.0.1 only. v3 adds: `Host` header check (blocks DNS rebinding), a random
-token per helper start injected into the served page and required on every API call (blocks other web
-pages from calling the helper), `Origin` check, request size limits, and file serving restricted to
-workbook/image extensions inside the app folder.
+## 6. Concurrency model
+* **Operations merged under file locks.** Lock = `data/locks/<name>.lock` created with `O_CREAT|O_EXCL`
+  (atomic on SMB), body `{user, host, pid, at, token}`; wait ≤ 10 s; stale after 15 s by the
+  **file server's clock** (`fsclock.py`), owner token checked on release. Locks: `wb-<key>`, `config`,
+  `user-<name>`, `migrate`, `export-<name>`, `update`, installer locks.
+* **Field-level merge**: each operation touches only its fields; maps (`notes`, `cols`, `rows`, `scales`,
+  `merges`, `pn`, `footer`, `theme`) merge entry by entry. Same field at the same time → later wins.
+* **Never lose data**: unreadable file → 503 and retry, never replaced by an empty one; writes are
+  temp-file + fsync + `os.replace`; clients keep unsent operations and retry with back-off.
+* **Undo** applies the stored inverse operations of *your* change only.
+* Clients: `DocSync` keeps `server` + in-flight + pending ops, polls `?since=rev` every 3 s, names
+  remote authors from `doc.log`. The stage never redraws while an inline editor is open; settings inputs
+  (`ui/Field.tsx`) keep the typed draft while focused.
+* Load test and the measured cost of each step: `docs/LOADTEST.md` (`tools/loadtest.py`).
 
 ---
 
-## 6. Development
+## 7. HTTP API
+Helper on `127.0.0.1:8765` (next free port if busy). Every `/api/*`, `/files/*`, `/assets/*` request needs
+`X-SB-Token` (injected into the served page); Host and Origin are checked; POST/PUT with an
+`X-SB-Formats` header must match the helper's formats. Full request/response shapes: ARCHITECTURE §5.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /` | the app with the token injected |
+| `GET /api/ping` · `GET /api/health` | liveness (no token) · version, user, folders, export engine state |
+| `GET /api/files` · `GET /files/<name>` | workbooks in the folder · workbook bytes (stable read) |
+| `GET /api/workbooks/<name>/doc?since=rev` | document (204 if unchanged) |
+| `POST /api/workbooks/<name>/ops` | apply operations → `{doc, applied, skipped}` |
+| `GET /api/workbooks/<name>/history` | rolling backups |
+| `GET /api/config` · `POST /api/config/ops` | shared defaults |
+| `GET /api/me` · `PUT /api/me` | user, host, personal preferences |
+| `POST /api/presence` · `POST /api/presence/leave` | heartbeat → others in the workbook |
+| `POST /api/export` · `POST /api/assemble` | render + write exports · PDF from page-rendered images |
+| `POST /api/convert-workbook` · `POST /api/convert` | .xlsb/.xls → .xlsx · EMF/WMF/TIFF → PNG (Windows) |
+| `POST /api/upload` · `GET /api/upload/<id>` | temporary in-memory uploads (local files) |
+| `POST /api/open` · `POST /api/engine/restart` · `GET/POST /api/engine/install` | open file/folder · engines |
+| `GET /assets/<name>` | images (logo) from `backend/` or the root |
+
+Status codes: 400 · 403 (Host/token/Origin/file type) · 404 · 409 (format mismatch: newer file or
+outdated page) · 413 · 501 (converter unavailable) · 503 (unreadable, lock busy, workbook being saved,
+no engine – clients retry).
+
+---
+
+## 8. Rendering pipeline
+1. `xlsx/layout.ts buildLayout(sheet, region, sizes)` → `TableLayout`: visible rows/cols, x/y/w/h maps
+   (user widths/heights applied), one `Item` per cell box (merges = workbook merges − user splits + user
+   merges), fonts, fills, borders, conditional format (`evalCF`), number-format text.
+2. `render/edits.ts effItems(L, ctx)` → effective items: gridlines, painted conditional formats, cell
+   edits, cell colour vs highlight, colour scales (`render/scales.ts`). Cached per `tableKey`.
+3. Design: `render/excel.ts` (absolutely positioned divs) or `render/glass.ts` (scene model: containers,
+   surfaces, frames, grids, rules, signals, media → glass materials, capsules, hairlines, ink colours by
+   role; columns widened for the font via `glassGeom`).
+4. `render/slide.ts`: `computeLayout` places tables in bands with their text boxes (scale k = largest that
+   fits, or the slide's fixed scale; align/valign); `buildSlide` adds title, cover/index, page number,
+   footer, logo, theme variables; `placeGlass` positions the blurred wallpaper copy behind each glass
+   element. `render/wallpaper.ts` paints the theme wallpaper (canvas → data URL in `#wallcss`).
+5. The editor (`editor/stage.ts`) adds overlays (`.hits`, `.hbox` handles) only in interactive mode;
+   thumbnails/exports use the same `buildSlide`.
+
+Caches: per-table string keys (`tableKey`: sheet edits + table def + radius) for effective items, HTML and
+glass geometry; layout cache in `model/preset.ts`. Details of every design rule: `docs/RENDERING.md`.
+
+---
+
+## 9. Development
 
 ```
 cd frontend
-npm install                 # once; Node 20+ (developer machine only)
-npm run build               # type-check + build → ../backend/slide_builder.html (commit it)
-npm test                    # unit tests (Vitest): operations, number formats, sync, “built file is up to date”
-npm run test:e2e            # Playwright: two helpers (two users) on one shared folder, wizard, merge, undo, export
-node e2e/parity.mjs <v2 html> ../backend/slide_builder.html tests/fixtures/*.xlsx   # v2 ↔ v3 renderer comparison
+npm install                  # once (Node 20+, developer machine only)
+npm run build                # type-check + single-file build → ../backend/slide_builder.html  (commit it)
+npm test                     # Vitest unit tests (incl. "built file is up to date")
+npm run test:e2e             # Playwright: two helpers (users anna/bob) on one temp shared folder
+node e2e/parity.mjs <old html> ../backend/slide_builder.html tests/fixtures/*.xlsx   # renderer diff
 
 cd backend
-python -m unittest discover -s tests -v                 # helper tests (locks, store, migration, HTTP, …)
-python slide_builder.py [--port 8765] [--no-browser] [--setup]
+python -m unittest discover -s tests -v                  # helper tests (Python 3.8+)
+python slide_builder.py [--port 8765] [--no-browser] [--setup] [--install]
 ```
 
-* Test workbooks are generated by `frontend/tests/fixtures/make_fixtures.py` (needs `openpyxl`).
-* E2E/Playwright on a machine without a downloaded browser: `CHROME=/path/to/chrome npm run test:e2e`.
-* Changing an operation's meaning: update `docs/ARCHITECTURE.md` §3.2, `shared/ops-vectors.json`,
-  `frontend/src/model/ops.ts` and `backend/slidebuilder/ops.py` together – both test suites check the vectors.
-* Environment switches for the helper (testing): see `backend/README-backend.md`.
-* `npm audit` reports advisories in build-time-only packages (e.g. `braces` via the single-file
-  plugin). They are not part of the shipped HTML and process only the project's own files.
+| Test suite | Covers |
+|---|---|
+| `frontend/tests/ops.test.ts` + `backend/tests/test_ops.py` | every vector in `shared/ops-vectors.json`, inverses (undo) |
+| `frontend/tests/tables.test.ts` | layout, sizes, same size, scales, merges, cell colour, footer, themes, gridlines, painted CF, valign |
+| `frontend/tests/numfmt.test.ts`, `docsync.test.ts`, `build.test.ts` | number formats · sync queue/retry/undo · committed HTML is fresh |
+| `frontend/e2e/app.spec.ts` | wizard, two users merging edits, export, table tools, painter, gridlines, themes, typing under concurrent changes |
+| `backend/tests/test_store.py`, `test_locks.py`, `test_fsclock.py` | multi-process saves, stale locks, clock skew |
+| `backend/tests/test_upgrade.py` | saved-format examples, automatic upgrades, too-new files, page/helper formats |
+| `backend/tests/test_update.py` | connect-in-place, update, ZIP mode, protected paths, update lock |
+| `test_http.py`, `test_migrate.py`, `test_exports.py`, `test_firstrun.py`, `test_installer.py`, … | API & security, v2 import, exports, installer |
+
+Notes: test workbooks are generated by `frontend/tests/fixtures/make_fixtures.py` (openpyxl). Without a
+downloaded browser use `CHROME=/path/to/chrome`. Helper environment switches (`SLIDEBUILDER_ROOT`,
+`SLIDEBUILDER_DATA`, `SLIDEBUILDER_USER`, …): `backend/slidebuilder/paths.py`, `backend/README-backend.md`.
 
 ---
 
-## 7. Gotchas
+## 10. Where to change what
 
-1. **Never edit `backend/slide_builder.html`** – edit `frontend/src` and `npm run build`. The unit
-   tests fail if the committed file is stale.
-2. **Slide CSS is exported**: exports send `#slidecss` (`frontend/src/styles/slide.css`) + `#wallcss`
-   only. Anything a slide needs must live there or in inline styles; images must be data URLs.
-3. **Glass surfaces need `placeGlass()`** after any geometry change (`applyLayout()` does it). A new
-   glass element must have class `wb` and inline `left/top/width/height`.
-4. **Keep the hot paths cheap**: no per-cell listeners or elements; reuse the per-table caches.
-5. **Hidden sheets stay hidden** – the reader skips them on purpose (user requirement).
-6. **Never write a whole shared document from a client.** Changes are operations, applied by the
-   helper to the latest version under the lock. Never treat an unreadable file as empty.
-7. **Times on shared files come from the file server's clock** (`fsclock.py`), not the PC's.
-8. Corporate Windows: Edge DevTools may be disabled, headless Edge may hang, `T:\` shares cannot run
-   executables, TLS is intercepted (use Python `urllib`, not Node, for downloads), the console may be
-   cp1252, PowerShell may be in Constrained Language Mode.
+| Task | Touch |
+|---|---|
+| **New saved field** (on a slide/table/cell/style) | `model/types.ts` (type + `Op` patch type) → key lists in `model/ops.ts` **and** `backend/slidebuilder/ops.py` → a vector in `shared/ops-vectors.json` → `docs/ARCHITECTURE.md` §3 table → UI (`ui/*.tsx`) → rendering (`render/*`) → if it changes a table's HTML, add it to `tableKey` (`render/context.ts`) → tests. An optional new field needs **no** format change. |
+| **Change the meaning/shape of saved data** (rename, restructure, new default that must apply to old decks) | raise `SCHEMA[kind]` in `backend/slidebuilder/upgrade.py` and add `@step(kind, old)` converting n → n+1; raise `FORMATS` in `frontend/src/model/types.ts`; add a test in `test_upgrade.py`; **add** a new example `fixtures/saved/<kind>.v<n+1>.json` (never edit the old ones); document in ARCHITECTURE §3.3. |
+| New cell formatting button | `ui/Ribbon.tsx` → `editor/edit.ts applySel` (new `CellEdit` key → also `KEYS` there) → `render/edits.ts` → painter (`editor/painter.ts Fmt`) |
+| Table geometry / alignment / drag handles | `editor/tables.ts`, `editor/stage.ts` (`wireTableHandles`, `startEdgeDrag`), `render/slide.ts computeLayout` |
+| Liquid Glass look | `render/glass.ts`, `styles/slide.css` (exported), `render/wallpaper.ts`, themes in `model/style.ts` |
+| Excel look | `render/excel.ts`, `xlsx/layout.ts` (borders, fills, merges), `xlsx/numfmt.ts` |
+| Reading something new from .xlsx | `xlsx/workbook.ts` (sheet XML), `xlsx/drawing.ts`, `xlsx/types.ts` |
+| Deck options (Options menu) | `ui/Topbar.tsx` + `model/style.ts` (defaults, resolve) + `style.patch` keys/maps in both `ops` files |
+| Wizard | `wizard/Wizard.tsx`, `wizard/detect.ts`, `model/preset.ts` |
+| Saving, polling, conflicts | `sync/docsync.ts`, `state/app.ts onDocChange`, `backend/slidebuilder/store.py` |
+| HTTP endpoint | `backend/slidebuilder/server.py` + `sync/api.ts` + ARCHITECTURE §5 + `test_http.py` |
+| Export | `editor/export.ts`, `backend/slidebuilder/exports.py`, `engines.py`, `pdf.py` |
+| Install / start / update | `*.bat`, `backend/slidebuilder/firstrun.py`, `installer.py`, `main.py`, `tools/update.py` |
+
+---
+
+## 11. Security
+The helper listens on 127.0.0.1 only; `Host` check (DNS rebinding), random token per start required on
+every API call (other web pages cannot call it), `Origin` check, body size limits, file serving limited
+to workbook/image extensions inside the app folder.
+
+## 12. Gotchas
+1. **Never edit `backend/slide_builder.html`** – edit `frontend/src`, `npm run build`, commit both (a
+   unit test fails on a stale build).
+2. **Exports only carry `#slidecss` (`styles/slide.css`) + `#wallcss`** – anything a slide needs must
+   be there or inline; images must be data URLs.
+3. New glass elements need class `wb` and inline `left/top/width/height`; `applyLayout()`/`placeGlass()`
+   must run after geometry changes.
+4. Keep hot paths cheap: no per-cell listeners/elements; reuse the per-table caches.
+5. Hidden sheets stay hidden (user requirement).
+6. Never write a whole shared document from a client; never treat an unreadable file as empty.
+7. Times on shared files come from the file server's clock (`fsclock.py`).
+8. Corporate Windows: DevTools may be disabled, headless Edge may hang, executables cannot run from
+   `T:\`, TLS is intercepted (download with Python `urllib`), consoles may be cp1252, PowerShell may be
+   in Constrained Language Mode, git on a share needs `safe.directory` (the update script passes it).
 9. The placeholder `__SB_TOKEN__` is replaced everywhere in the served page – never write it in code.
+10. Preact controlled inputs reset to the prop on every re-render: inputs for shared settings must use
+    `ui/Field.tsx`, and the stage defers redraws while an inline editor is open.
 
----
-
-## 8. Known limitations / ideas
-
-* Charts are not redrawn (paste them as pictures); data bars, colour scales and icon sets are not
-  reproduced (reported in the side panel).
-* Formulas are not recalculated – cached values from the last Excel save are shown.
-* Cell edits are keyed by address; inserting rows above a table moves *format* edits to other cells
-  (text edits pause and are listed in the side panel).
-* Merging is per field: two people changing the same cell's text at the same moment → the later wins.
-* The in-window export fallback (no engine available) cannot render web fonts and `backdrop-filter`
-  exactly; the cover's automatic date is in English (“6 October 2026”); a workbook reopened at start-up
-  with x-marker tables and no preset gets one slide per "slide" sheet without asking.
-* Next steps: Web Worker for parsing, PPTX export, a central server (same API) for real-time sync.
+## 13. Known limitations
+* Charts are not redrawn (paste as pictures); Excel data bars/colour scales/icon sets are not reproduced
+  (Slide Builder's own colour scales are).
+* Formulas are not recalculated. Cell edits are keyed by address: inserting rows above a table moves
+  format edits (text edits pause and are listed in the side panel).
+* Two people changing the same field at the same moment: the later wins.
+* The offline mode (page opened as `file://`, data in the browser's localStorage) is for emergencies:
+  no sharing, no exports, no format upgrades.
+* The in-window export fallback cannot render web fonts and `backdrop-filter` exactly; the cover's
+  automatic date is in English.
+* Ideas: Web Worker parsing, PPTX export, a central server implementing the same API.

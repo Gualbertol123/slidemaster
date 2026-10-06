@@ -1,0 +1,166 @@
+{
+ "schema": 3,
+ "workbook": "Weekly IBD.xlsx",
+ "rev": 42,
+ "updated": 1791300000000,
+ "updatedBy": "anna",
+ "preset": {
+  "sheets": [
+   "SLIDE_1",
+   "SLIDE_2"
+  ],
+  "version": 3,
+  "tables": [
+   {
+    "id": "t1",
+    "sheet": "SLIDE_1",
+    "kind": "markers",
+    "anchor": "B3",
+    "index": 0,
+    "name": "Loans",
+    "cols": {
+     "3": 120,
+     "4": 80.5
+    },
+    "rows": {
+     "6": 24
+    },
+    "scales": {
+     "s1": {
+      "range": "E6:E18",
+      "dir": "col",
+      "mode": "zero",
+      "fill": true,
+      "ink": false
+     }
+    },
+    "merges": {
+     "D4:F4": "merge",
+     "C5:J5": "split"
+    },
+    "gridH": "off",
+    "gridV": "on"
+   },
+   {
+    "id": "t2",
+    "sheet": "SLIDE_2",
+    "kind": "range",
+    "range": "B3:F20",
+    "grow": true
+   }
+  ],
+  "slides": [
+   {
+    "id": "c",
+    "type": "cover",
+    "title": "IBD Weekly",
+    "subtitle": "Week 41",
+    "date": null,
+    "note": "Commercial planning",
+    "tables": []
+   },
+   {
+    "id": "i",
+    "type": "index",
+    "title": "Contents",
+    "tables": [],
+    "subs": false
+   },
+   {
+    "id": "s1",
+    "type": "content",
+    "title": "Loans & deposits",
+    "subtitle": "EUR m",
+    "tables": [
+     "t1",
+     "t2"
+    ],
+    "layout": {
+     "bands": [
+      [
+       0,
+       1
+      ]
+     ],
+     "w": [
+      1,
+      0.8
+     ]
+    },
+    "logo": false,
+    "align": "left",
+    "valign": "top",
+    "scale": 0.92,
+    "notes": {
+     "t1:bottom": {
+      "text": "Source: ECB",
+      "size": 16,
+      "b": true,
+      "align": "center",
+      "valign": "middle",
+      "bubble": true
+     }
+    }
+   }
+  ]
+ },
+ "style": {
+  "design": "glass",
+  "glass": "medium",
+  "color": 40,
+  "logo": "logo.png",
+  "radius": 60,
+  "contrast": 55,
+  "logoBubble": false,
+  "pn": {
+   "on": true,
+   "pos": "br",
+   "format": "nN"
+  },
+  "footer": {
+   "on": true,
+   "text": "Confidential · {date}",
+   "pos": "bl"
+  },
+  "theme": {
+   "id": "intesa"
+  }
+ },
+ "edits": {
+  "SLIDE_1": {
+   "C4": {
+    "bg": "#FF3B30",
+    "b": true,
+    "color": "#FFFFFF",
+    "align": "center"
+   },
+   "C6": {
+    "orig": "Alpha",
+    "text": "Alfa",
+    "fill": "#34C759"
+   },
+   "I6": {
+    "cf": "SLIDE_1!E6"
+   },
+   "J7": {
+    "cf": "none",
+    "sz": 12,
+    "i": true,
+    "role": "header"
+   }
+  }
+ },
+ "log": [
+  {
+   "rev": 41,
+   "by": "bob",
+   "at": 1791299990000
+  },
+  {
+   "rev": 42,
+   "by": "anna",
+   "at": 1791300000000
+  }
+ ],
+ "backupAt": 1791300000000
+}

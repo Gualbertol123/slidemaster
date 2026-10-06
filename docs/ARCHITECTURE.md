@@ -35,9 +35,12 @@ a random `client` id. Presence and `updatedBy` use these.
 data/
 ├─ config.json                 shared defaults for new decks          {schema, rev, updated, updatedBy, defaults:{style}}
 ├─ workbooks/<key>.json        one document per workbook (below)
-├─ users/<user>.json           personal preferences                   {lastFile, pdfMode, zoom}
+├─ users/<user>.json           personal preferences                   {schema, lastFile, pdfMode, zoom}
 ├─ presence/<user>@<host>.json heartbeat                              {user, host, client, workbook, at}
 ├─ backups/<key>/<rev>.json    rolling copies of workbook docs (last 30, at most one per 5 min)
+├─ backups/upgrades/<kind>/<file>.v<n>.<time>.json   a file as it was before a format upgrade (§3.3)
+├─ backups/before-update-<time>/   saved setups copied by tools/update.py before an update (last 5)
+├─ app-version.json            version installed by a ZIP update (tools/update.py)
 ├─ locks/<name>.lock           lock files (§4)
 └─ migrated.json               marker: v2 settings were imported
 ```
@@ -127,6 +130,32 @@ different cells, slides or style keys never lose each other's work; the same fie
 **Undo** on the client is the inverse operation computed from the values before the change, so it
 never reverts somebody else's change.
 
+### 3.3 Format versions and automatic upgrades
+
+Every saved file has `"schema"`: the format it is written in. Current formats are `SCHEMA` in
+`backend/slidebuilder/upgrade.py` (`workbook` 3, `config` 3, `prefs` 1); a file without the field is
+the first numbered version of its kind. The helper is the only writer and stamps the current format on
+every write.
+
+* **Reading an older file** (`store._load`): take the file's lock (`wb-<key>`, `config`,
+  `user-<name>`), re-read, copy the file byte for byte to
+  `data/backups/upgrades/<kind>/<file>.v<old>.<YYYYMMDD-HHMMSS>.json` (never overwriting an earlier
+  copy), apply the step functions `n → n+1` in order, write atomically, release. Concurrent readers on
+  other PCs wait for the lock and then find the converted file, so each file is converted once.
+  At start-up `store.upgrade_all()` converts every file; failures are logged and retried on the next read.
+* **Reading a newer file** (written by a PC already running a newer version): nothing is written;
+  `StoreTooNew` → HTTP 409 with "close Slide Builder and start it again".
+* **Pages**: every POST/PUT carries `X-SB-Formats: workbook=3;config=3;prefs=1` (`FORMATS` in
+  `frontend/src/model/types.ts`). If it differs from the helper's `SCHEMA` the request is refused with
+  409 and the page shows "Slide Builder was updated – reload the page"; its unsent changes are not
+  written in an old format. Requests without the header (pages built before this check) are accepted.
+* **A missing step** (format raised without a step) raises an error and leaves the file untouched.
+
+Changing the format: raise `SCHEMA[kind]`, add `@step(kind, n)` (convert the document in place), raise
+`FORMATS`, add a test and a new example file in `backend/tests/fixtures/saved/` (old examples are never
+edited: `test_upgrade.py` reads every one of them on each run). Adding an optional field does not need
+a new format – readers ignore unknown keys and treat missing keys as defaults.
+
 ## 4. Locking protocol (works across PCs on SMB)
 
 * Lock = create `data/locks/<name>.lock` with `os.open(O_CREAT | O_EXCL | O_WRONLY)`, write
@@ -180,7 +209,7 @@ All responses JSON unless stated. Security for every request:
 | `POST /api/engine/install` · `GET /api/engine/install` | – | `{running, done, ok, lines[]}` |
 | `GET /assets/<name>` | – | image bytes (image extensions only) from `backend/`, then ROOT |
 
-Status codes: 400 bad request · 403 Host/token/Origin or file type · 404 · 411/413 body · 501 converter
+Status codes: 400 bad request · 403 Host/token/Origin or file type · 404 · 409 format mismatch (a file newer than this helper, or a page built for other formats – §3.3) · 411/413 body · 501 converter
 not available · 503 document unreadable, lock busy, workbook still being saved, or no export engine
 (clients keep their pending operations and retry). `/api/me` preferences contain `null` for unset keys.
 

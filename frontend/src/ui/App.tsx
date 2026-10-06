@@ -73,7 +73,7 @@ function Canvas() {
   );
 }
 
-const SAVE_TEXT: Record<string, string> = { pending: "Unsaved changes…", saving: "Saving…", saved: "✓ Saved", local: "Saved in this browser only (helper not running)", error: "⚠ Not saved yet – retrying: " };
+const SAVE_TEXT: Record<string, string> = { pending: "Unsaved changes…", saving: "Saving…", saved: "✓ Saved", local: "Saved in this browser only (helper not running)", error: "⚠ Not saved yet – retrying: ", outdated: "⚠ " };
 function Status() {
   useApp();
   const st = S.sync?.state, err = S.sync?.error || "";
@@ -84,7 +84,7 @@ function Status() {
       <span>Arrows move · Shift extends · type or F2 to edit · Del clears · Ctrl+B/I · Ctrl+Z/Y · PgUp/PgDn slides</span>
       <span class="spacer" />
       {S.remote && <span id="sbRemote" class="remote">Updated by {S.remote.by} {ago < 1 ? "just now" : ago + " min ago"}</span>}
-      <span id="sbSave" class={st === "error" ? "err" : st === "saved" ? "ok" : ""}>{st ? SAVE_TEXT[st] + (st === "error" ? err : "") : ""}</span>
+      <span id="sbSave" class={st === "error" || st === "outdated" ? "err" : st === "saved" ? "ok" : ""}>{st ? SAVE_TEXT[st] + (st === "error" || st === "outdated" ? err : "") : ""}</span>
     </footer>
   );
 }

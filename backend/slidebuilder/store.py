@@ -10,17 +10,19 @@ import copy
 import json
 import os
 import re
+import shutil
 import sys
 import threading
 import time
 
 from . import paths
+from . import upgrade as _up
 from .fsclock import fs_now, fs_now_ms
 from .locks import Lock
 from .ops import apply_ops
 from .util import current_user, doc_key, log, remove_quietly, safe_component, write_atomic
 
-SCHEMA = 3
+SCHEMA = _up.SCHEMA["workbook"]
 BACKUP_KEEP = 30
 BACKUP_EVERY = 300.0          # seconds: at most one backup per 5 minutes (plus always rev 1)
 PREF_DEFAULTS = {"lastFile": None, "pdfMode": None, "zoom": None}
@@ -28,6 +30,10 @@ PREF_DEFAULTS = {"lastFile": None, "pdfMode": None, "zoom": None}
 
 class StoreUnreadable(RuntimeError):
     """An existing document could not be read (HTTP 503). Nothing was written."""
+
+
+class StoreTooNew(StoreUnreadable):
+    """The document was saved by a newer Slide Builder (HTTP 409). Nothing was written."""
 
 
 # --------------------------------------------------------------------------- low level
@@ -65,6 +71,66 @@ def write_json(path, obj):
     write_atomic(path, data)
 
 
+# --------------------------------------------------------------------------- format upgrades (upgrade.py)
+def _load(kind, path, default, lock_name, locked):
+    """read a saved file; an older format is converted once (old file → backups/upgrades/) under the
+    file's lock - `locked` = the caller already holds it"""
+    doc = read_json(path, default)
+    if not isinstance(doc, dict):
+        return doc
+    try:
+        if not _up.needs_upgrade(kind, doc):
+            return doc
+        if not os.path.exists(path):              # a default document: always the current format
+            return _up.upgrade(kind, doc)[0]
+        if locked:
+            return _upgrade_file(kind, path, doc)
+        with Lock(lock_name):
+            doc = read_json(path, default)       # another helper may have converted it meanwhile
+            if not isinstance(doc, dict) or not _up.needs_upgrade(kind, doc):
+                return doc
+            return _upgrade_file(kind, path, doc)
+    except _up.TooNew as e:
+        raise StoreTooNew("%s: %s" % (os.path.basename(path), e))
+
+
+def _upgrade_file(kind, path, doc):
+    old = _up.version_of(kind, doc)
+    new, _ = _up.upgrade(kind, doc)
+    bp = _up.backup_path(paths.DATA, kind, path, old)
+    os.makedirs(os.path.dirname(bp), exist_ok=True)
+    base, n = bp[:-5], 1
+    while os.path.exists(bp):                    # never overwrite an earlier backup
+        n += 1
+        bp = "%s-%d.json" % (base, n)
+    shutil.copy2(path, bp)                       # the file exactly as it was
+    write_json(path, new)
+    log("converted %s from format %d to %d - the old file is in %s" % (os.path.basename(path), old, _up.SCHEMA[kind], os.path.relpath(bp, paths.DATA)))
+    return new
+
+
+def upgrade_all():
+    """at start-up: convert every saved setup that is in an older format (never fails the start)"""
+    done = []
+    jobs = [("config", config_path(), "config")]
+    for sub_, kind, lock_prefix in (("workbooks", "workbook", "wb-"), ("users", "prefs", "user-")):
+        folder = paths.data_dir(sub_)
+        for n in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+            if n.endswith(".json"):
+                jobs.append((kind, os.path.join(folder, n), lock_prefix + n[:-5]))
+    for kind, path, lock_name in jobs:
+        if not os.path.exists(path):
+            continue
+        try:
+            before = read_json(path, None)
+            if isinstance(before, dict) and _up.needs_upgrade(kind, before):
+                _load(kind, path, None, lock_name, False)
+                done.append(os.path.basename(path))
+        except Exception as e:                   # noqa: BLE001 - one bad file never stops the others
+            log("%s was not converted now (%s) - it is converted when it is opened" % (os.path.basename(path), e))
+    return done
+
+
 # --------------------------------------------------------------------------- workbook documents
 def workbook_key(name):
     return doc_key(name)
@@ -92,8 +158,9 @@ def _normalise_workbook(doc, name):
     return doc
 
 
-def read_workbook(name):
-    return _normalise_workbook(read_json(workbook_path(name), lambda: default_workbook(name)), name)
+def read_workbook(name, locked=False):
+    key = workbook_key(name)
+    return _normalise_workbook(_load("workbook", workbook_path(name), lambda: default_workbook(name), "wb-" + key, locked), name)
 
 
 def workbook_exists(name):
@@ -132,7 +199,7 @@ def update_workbook(name, ops, user=None, now=None):
 
 
 def _update_locked(name, key, ops, user, now):
-    doc = read_workbook(name)
+    doc = read_workbook(name, locked=True)
     new, applied, skipped = apply_ops(doc, ops, user, now if now is not None else server_now_ms())
     if applied:
         new["schema"] = SCHEMA
@@ -160,6 +227,7 @@ def create_workbook_if_missing(name, doc):
     with Lock("wb-" + key):
         if os.path.exists(workbook_path(name)):
             return False
+        doc = dict(doc, schema=SCHEMA)
         write_json(workbook_path(name), doc)
         _backup(key, doc)
         return True
@@ -217,18 +285,18 @@ def config_path():
 
 
 def default_config():
-    return {"schema": SCHEMA, "rev": 0, "updated": None, "updatedBy": None, "defaults": {"style": {}}}
+    return {"schema": _up.SCHEMA["config"], "rev": 0, "updated": None, "updatedBy": None, "defaults": {"style": {}}}
 
 
-def read_config():
-    doc = read_json(config_path(), default_config)
+def read_config(locked=False):
+    doc = _load("config", config_path(), default_config, "config", locked)
     if not isinstance(doc, dict):
         raise StoreUnreadable("config.json is not a JSON object")
     if not isinstance(doc.get("defaults"), dict):
         doc["defaults"] = {}
     if not isinstance(doc["defaults"].get("style"), dict):
         doc["defaults"]["style"] = {}
-    doc.setdefault("schema", SCHEMA)
+    doc.setdefault("schema", _up.SCHEMA["config"])
     doc.setdefault("rev", 0)
     return doc
 
@@ -242,10 +310,11 @@ def update_config(ops, user=None, now=None, only_if_missing=False):
     user = user or current_user()
     with Lock("config"):
         if only_if_missing and os.path.exists(config_path()):
-            return read_config(), 0, list(range(len(ops)))
-        doc = read_config()
+            return read_config(locked=True), 0, list(range(len(ops)))
+        doc = read_config(locked=True)
         new, applied, skipped = apply_ops(doc, ops, user, now if now is not None else server_now_ms(), kind="config")
         if applied:
+            new["schema"] = _up.SCHEMA["config"]
             write_json(config_path(), new)
         return new, applied, skipped
 
@@ -256,10 +325,12 @@ def user_path(user=None):
 
 
 def read_prefs(user=None):
-    stored = read_json(user_path(user), dict)
+    path = user_path(user)
+    stored = _load("prefs", path, dict, "user-" + os.path.basename(path)[:-5], False)
     out = dict(PREF_DEFAULTS)
     if isinstance(stored, dict):
         out.update(stored)
+    out.pop("schema", None)              # the format number is the store's business
     return out
 
 
@@ -267,7 +338,14 @@ def write_prefs(prefs, user=None):
     """Personal file: whole replace (atomic)."""
     if not isinstance(prefs, dict):
         raise ValueError("prefs must be an object")
-    write_json(user_path(user), prefs)
+    path = user_path(user)
+    current = read_json(path, None) if os.path.exists(path) else None
+    if isinstance(current, dict):
+        try:
+            _up.needs_upgrade("prefs", current)
+        except _up.TooNew as e:
+            raise StoreTooNew("%s: %s" % (os.path.basename(path), e))
+    write_json(path, dict(prefs, schema=_up.SCHEMA["prefs"]))
 
 
 def prefs_exist(user=None):

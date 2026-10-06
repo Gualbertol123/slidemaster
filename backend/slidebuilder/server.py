@@ -26,7 +26,7 @@ from .engines import EngineError
 from .exports import ExportError, assemble, export
 from .installer import install_status, start_install
 from .locks import LockTimeout
-from .store import StoreUnreadable
+from .store import StoreTooNew, StoreUnreadable
 from .util import WriteFailed, current_host, current_user, log, open_with_os, safe_path, valid_workbook_name
 from .workbooks import Unstable, find_workbook, list_workbooks, stable_read
 
@@ -36,6 +36,19 @@ UPLOAD_MAX = 8
 UPLOAD_TTL = 2 * 3600
 TOKEN_PLACEHOLDER = b"__SB_TOKEN__"
 TOKEN_HEADER = "X-SB-Token"
+FORMATS_HEADER = "X-SB-Formats"
+
+
+def formats_match(header):
+    """X-SB-Formats: workbook=3;config=3;prefs=1 - the data formats the page was built for"""
+    if not header:
+        return True
+    from .upgrade import SCHEMA
+    try:
+        page = dict((k.strip(), int(v)) for k, v in (x.split("=", 1) for x in header.split(";") if x.strip()))
+    except ValueError:
+        return True
+    return all(page.get(k, v) == v for k, v in SCHEMA.items())
 IMAGE_EXT = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif",
              ".svg": "image/svg+xml", ".webp": "image/webp", ".bmp": "image/bmp", ".ico": "image/x-icon"}
 WORKBOOK_TYPES = {".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -194,6 +207,10 @@ class Handler(BaseHTTPRequestHandler):
                 tok = (query.get("t") or [""])[0]
             if not tok or not hmac.compare_digest(tok.encode("utf-8"), self.app.token.encode("utf-8")):
                 raise HttpError(403, "forbidden (token)")
+        # a page loaded before an update speaks the old data formats: its changes are refused (the page
+        # asks to reload). Pages without the header (built before formats were numbered) are accepted.
+        if self.command in ("POST", "PUT") and path.startswith("/api/") and not formats_match(self.headers.get(FORMATS_HEADER)):
+            raise HttpError(409, "Slide Builder was updated - reload the page (F5) to continue; your last change was not saved")
 
     # ------------------------------------------------------------------ dispatch
     def handle_one_request(self):
@@ -234,6 +251,8 @@ class Handler(BaseHTTPRequestHandler):
             self._error(403, "forbidden")
         except FileNotFoundError:
             self._error(404, "not found")
+        except StoreTooNew as e:
+            self._error(409, str(e))
         except (StoreUnreadable, WriteFailed, LockTimeout, Unstable) as e:
             log("busy: %s" % e)
             self._error(503, str(e))

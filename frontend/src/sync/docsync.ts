@@ -5,11 +5,12 @@
    the latest version (field by field), so nobody's work is overwritten. Other people's changes
    arrive by polling (`?since=<rev>`). If saving fails the operations stay queued and are retried –
    a failed read or write never resets the document. */
-import type { Op, WorkbookDoc } from "../model/types";
+import { FORMATS, type Op, type WorkbookDoc } from "../model/types";
 import { applyOps, inverseOf, applyOp } from "../model/ops";
 import type { Backend } from "./api";
 
-export type SaveState = "saved" | "pending" | "saving" | "error" | "local";
+export type SaveState = "saved" | "pending" | "saving" | "error" | "local" | "outdated";
+const OUTDATED = "Slide Builder was updated – reload the page (F5) to continue.";
 export interface Change { local: boolean; by?: string; presetChanged: boolean; styleChanged: boolean; editsChanged: boolean }
 
 export class DocSync {
@@ -68,7 +69,7 @@ export class DocSync {
   private schedule(ms: number) { if (this.timer) clearTimeout(this.timer); this.timer = setTimeout(() => { this.timer = null; void this.flush(); }, ms); }
 
   async flush(): Promise<void> {
-    if (this.inflight || !this.pending.length) return;
+    if (this.inflight || !this.pending.length || this.state === "outdated") return;
     this.inflight = this.pending; this.pending = [];
     if (this.api.served) this.state = "saving";
     const prev = this.view;
@@ -82,6 +83,8 @@ export class DocSync {
       if (this.pending.length) this.schedule(50);
     } catch (e) {
       this.pending = [...this.inflight!, ...this.pending]; this.inflight = null;
+      // the helper speaks a newer data format than this page: retrying cannot help, reloading does
+      if ((e as { status?: number }).status === 409) { this.state = "outdated"; this.error = (e as Error).message || OUTDATED; this.emit(prev, false); return; }
       this.state = "error"; this.error = (e as Error).message || String(e);
       this.retry = Math.min(this.retry + 1, 5);
       this.emit(prev, false);
@@ -94,6 +97,7 @@ export class DocSync {
     let doc: WorkbookDoc | null;
     try { doc = await this.api.getDoc(this.name, this.server.rev); } catch { return; }
     if (!doc || this.inflight || doc.rev === this.server.rev) return;
+    if (typeof doc.schema === "number" && doc.schema > FORMATS.workbook) { this.state = "outdated"; this.error = OUTDATED; this.emit(this.view, false); return; }
     const prev = this.view, by = this.authors(doc, this.server.rev);
     this.server = doc; this.recompute();
     this.emit(prev, false, by);

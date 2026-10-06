@@ -28,7 +28,8 @@ optional packages only – the helper itself stays standard-library only.
 | `fsclock` | the file server's clock (`fs_now(dir)`): ages of shared files never compare a server mtime with this PC's clock |
 | `locks` | `Lock(name)` – O_EXCL lock files in `data/locks`, 10 s wait, 15 s stale, owner token, keepalive |
 | `ops` | `apply_ops(doc, ops, user, now_ms, kind)` – §3.2 semantics (shared with the front end) |
-| `store` | workbook docs, `config.json`, `users/<user>.json`, backups; retried reads, `StoreUnreadable` |
+| `store` | workbook docs, `config.json`, `users/<user>.json`, backups; retried reads, `StoreUnreadable`; format upgrades on read (`StoreTooNew` → 409) |
+| `upgrade` | saved-format versions (`SCHEMA`) and the upgrade steps n → n+1 (ARCHITECTURE §3.3) |
 | `presence` | heartbeat files `data/presence/<user>@<host>.json` |
 | `workbooks` | listing of workbooks, path-safe lookup, stable read (`X-SB-Mtime` / `X-SB-Size`) |
 | `migrate` | one-time import of `slide_builder_settings.txt` (v2) under lock `migrate` |

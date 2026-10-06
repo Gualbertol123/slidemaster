@@ -81,3 +81,25 @@ describe("DocSync", () => {
     expect(seen).toEqual(["bob"]); expect(a.view.style.design).toBe("excel");
   });
 });
+
+describe("DocSync after Slide Builder was updated", () => {
+  it("a helper with other data formats (409): no retries, the page asks to reload, the change is not written", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    const api = { served: true, async getDoc() { return null; }, async postOps() { calls++; throw Object.assign(new Error("Slide Builder was updated - reload the page (F5)"), { status: 409 }); } } as unknown as Backend;
+    const a = new DocSync(api, "W.xlsx", emptyDoc("W.xlsx"), "ca", "anna");
+    a.apply([cell("A1", { b: true })]);
+    await a.flush();
+    expect(a.state).toBe("outdated"); expect(a.error).toMatch(/reload/);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(calls).toBe(1);
+    vi.useRealTimers();
+  });
+  it("a document in a newer format is not applied", async () => {
+    const newer = { ...emptyDoc("W.xlsx"), rev: 5, schema: 99 };
+    const api = { served: true, async getDoc() { return newer; }, async postOps() { throw new Error("x"); } } as unknown as Backend;
+    const a = new DocSync(api, "W.xlsx", emptyDoc("W.xlsx"), "ca", "anna");
+    await a.poll();
+    expect(a.state).toBe("outdated"); expect(a.server.rev).toBe(0);
+  });
+});

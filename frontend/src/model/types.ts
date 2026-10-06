@@ -36,13 +36,16 @@ export interface CellEdit { text?: string; orig?: string; sz?: number; b?: boole
   /** conditional formatting copied with the format painter: the rules of "Sheet!A1" applied to this cell ("none" = no rules) */ cf?: string; align?: string; role?: string }
 export type Edits = Record<string, Record<string, CellEdit>>;
 
+/** data formats this page reads and writes – the same numbers as SCHEMA in backend/slidebuilder/upgrade.py
+    (a test checks it). Sent with every change; a helper with other formats refuses it ("reload the page"). */
+export const FORMATS = { workbook: 3, config: 3, prefs: 1 } as const;
 export interface WorkbookDoc {
-  schema: 3; workbook: string; rev: number; updated?: number; updatedBy?: string;
+  schema: number; workbook: string; rev: number; updated?: number; updatedBy?: string;
   preset: Preset | null; style: StylePatch; edits: Edits;
   /** last 20 revisions (written by the helper): who changed what, so clients can name remote authors */
   log?: { rev: number; by: string | null; at: number | null }[];
 }
-export interface ConfigDoc { schema: 3; rev: number; updated?: number; updatedBy?: string; defaults: { style: StylePatch } }
+export interface ConfigDoc { schema: number; rev: number; updated?: number; updatedBy?: string; defaults: { style: StylePatch } }
 export interface Prefs { lastFile?: string | null; pdfMode?: "exact" | "vector" | null; zoom?: number | "fit" | null }
 
 type Nullable<T> = { [K in keyof T]?: T[K] | null };

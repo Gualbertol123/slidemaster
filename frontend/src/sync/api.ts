@@ -1,6 +1,6 @@
 /* Talking to the helper (docs/ARCHITECTURE.md §5). When the page is opened from disk (file://)
    an in-browser backend keeps documents in localStorage and exports are disabled. */
-import type { ConfigDoc, Op, Prefs, WorkbookDoc } from "../model/types";
+import { FORMATS, type ConfigDoc, type Op, type Prefs, type WorkbookDoc } from "../model/types";
 import { applyOps, emptyDoc } from "../model/ops";
 
 export interface EngineRow { name: string; label: string; state: "ok" | "blocked" | "missing" | "untested"; detail: string }
@@ -46,6 +46,7 @@ const SERVED = location.protocol.startsWith("http") && !!TOKEN && !TOKEN.startsW
 async function req(path: string, init: RequestInit & { json?: unknown } = {}): Promise<Response> {
   const headers = new Headers(init.headers || {});
   headers.set("X-SB-Token", TOKEN);
+  headers.set("X-SB-Formats", Object.entries(FORMATS).map(([k, v]) => k + "=" + v).join(";"));
   let body = init.body;
   if (init.json !== undefined) { headers.set("Content-Type", "application/json"); body = JSON.stringify(init.json); }
   const r = await fetch(path, { ...init, headers, body, cache: "no-store" });

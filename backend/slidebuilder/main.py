@@ -55,6 +55,13 @@ def main(argv=None):
         migrate()
     except Exception as e:                       # never block the start-up; the file stays for the next start
         log("the v2 settings could not be imported now (%s) - will retry at the next start" % e)
+    try:
+        from .store import upgrade_all
+        done = upgrade_all()                      # saved setups in an older format → current (old files kept)
+        if done:
+            log("converted %d saved setup(s) to the current format; the old files are in data/backups/upgrades" % len(done))
+    except Exception as e:                       # never block the start-up; files are converted when opened
+        log("saved setups were not converted now (%s)" % e)
 
     httpd = None
     for port in range(args.port, args.port + 20):

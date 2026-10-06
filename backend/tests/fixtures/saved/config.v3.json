@@ -1,0 +1,23 @@
+{
+ "schema": 3,
+ "rev": 5,
+ "updated": 1791200000000,
+ "updatedBy": "anna",
+ "defaults": {
+  "style": {
+   "design": "glass",
+   "theme": {
+    "id": "custom",
+    "c1": "#123456",
+    "c2": "#00953B",
+    "c3": "#F28C00",
+    "c4": "#5B6770",
+    "a1": "#00953B",
+    "a2": "#F28C00"
+   },
+   "pn": {
+    "on": true
+   }
+  }
+ }
+}
