@@ -285,5 +285,24 @@ test.describe.serial("two people, one shared folder", () => {
     await a.close(); await b.close();
   });
 
+  test("wizard on a sheet larger than the preview: the selection box sits exactly on the selected cells", async ({ page }) => {
+    await openApp(page, BOB);
+    await openWorkbook(page, "big.xlsx");
+    await expect(page.locator(".wiz")).toBeVisible();
+    await page.check('.sheetrow input[value="WM_ALL_STOCK_new"]');
+    await page.click('[data-a="next"]');                                          // sheets → tables
+    await expect(page.locator(".clipnote")).toBeVisible();                        // "Showing A1:… – type larger ranges…"
+    const near = (a: { x: number; y: number; width: number; height: number }, b: typeof a) =>
+      Math.abs(a.x - b.x) < 1.5 && Math.abs(a.y - b.y) < 1.5 && Math.abs(a.x + a.width - b.x - b.width) < 1.5 && Math.abs(a.y + a.height - b.y - b.height) < 1.5;
+    const td = (r: number, c: number) => page.locator(`.wgrid-in td[data-r="${r}"][data-c="${c}"]`);
+    await td(5, 4).click();
+    await expect(page.locator("#wRange")).toHaveValue("D5:D5");
+    expect(near((await page.locator(".ovb.sel").boundingBox())!, (await td(5, 4).boundingBox())!)).toBe(true);
+    await page.keyboard.press("Shift+ArrowRight"); await page.keyboard.press("Shift+ArrowDown");
+    const box = (await page.locator(".ovb.sel").boundingBox())!, tl = (await td(5, 4).boundingBox())!, br = (await td(6, 5).boundingBox())!;
+    expect(near(box, { x: tl.x, y: tl.y, width: br.x + br.width - tl.x, height: br.y + br.height - tl.y })).toBe(true);
+    await page.click('[data-x="close"]'); await page.click('.modal [data-a="ok"]');
+  });
+
   test("no page errors", async () => { expect(errors).toEqual([]); });
 });

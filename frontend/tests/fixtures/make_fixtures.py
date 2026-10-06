@@ -75,5 +75,25 @@ def plain():
             ws.cell(row=r, column=c, value=(f"P{r}" if c == 1 else r * c * 10.5) if r > 3 else f"Col {c}")
     wb.save(os.path.join(HERE, "plain.xlsx"))
 
-report(); plain()
+def big():
+    """a sheet larger than the wizard preview (400 rows / 80 columns): the preview shows a note above
+    the grid - selections and suggestions must still sit exactly on their cells"""
+    wb = Workbook(); ws = wb.active; ws.title = "WM_ALL_STOCK_new"
+    ws.column_dimensions["A"].width = 3; ws.column_dimensions["B"].hidden = True; ws.column_dimensions["C"].width = 30
+    hdr = Font(bold=True, color="FFFFFF")
+    ws["C5"] = "(mln Euro at last fixed exchange rate)"
+    for j, t in enumerate(["Stock", "Stock", "Stock", "EOM Bdg"]):
+        c = ws.cell(row=4, column=4 + j, value=t); c.fill = navy; c.font = hdr
+        c = ws.cell(row=5, column=4 + j, value=f"0{j + 1}/09/26"); c.fill = navy; c.font = hdr
+    ws.merge_cells("D3:G3"); ws["D3"] = "Total"
+    for r in range(6, 450):
+        ws.cell(row=r, column=3, value=f"Row {r}")
+        for c in range(4, 8):
+            ws.cell(row=r, column=c, value=r * c)
+    ws.cell(row=2, column=90, value="far right")
+    wb.save(os.path.join(HERE, "big.xlsx"))
+
+import sys
+for name in (sys.argv[1:] or ["report", "plain", "big"]):
+    globals()[name]()
 print("ok")

@@ -333,8 +333,12 @@ function drawGrid(S: Sheet, W: W, onPick: () => void): HTMLElement {
 function boxFor(grid: Element, r1: number, c1: number, r2: number, c2: number) {
   const tl = grid.querySelector<HTMLElement>(`td[data-r="${r1}"][data-c="${c1}"]`);
   const br = grid.querySelector<HTMLElement>(`td[data-r="${r2}"][data-c="${c2}"]`) || [...grid.querySelectorAll<HTMLElement>("td[data-r]")].pop();
-  if (!tl || !br) return null;
-  return { x: tl.offsetLeft, y: tl.offsetTop, w: br.offsetLeft + br.offsetWidth - tl.offsetLeft, h: br.offsetTop + br.offsetHeight - tl.offsetTop };
+  const ov = grid.querySelector<HTMLElement>(".wov");
+  if (!tl || !br || !ov) return null;
+  // measured against the overlay layer itself: offsetTop/Left of a cell are relative to the <table>,
+  // which sits lower when the "Showing A1:…" note of a large sheet is above it
+  const o = ov.getBoundingClientRect(), a = tl.getBoundingClientRect(), b = br.getBoundingClientRect();
+  return { x: a.left - o.left, y: a.top - o.top, w: b.right - a.left, h: b.bottom - a.top };
 }
 function paintOverlays(S: Sheet, W: W, tables: TableDef[], onAdd: (r: string) => boolean) {
   const grid = W.grids[S.name]; const ov = grid?.querySelector<HTMLElement>(".wov"); if (!grid || !ov) return;
