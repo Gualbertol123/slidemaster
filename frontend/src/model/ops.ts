@@ -6,8 +6,9 @@ import type { CellEdit, Op, WorkbookDoc, StylePatch } from "./types";
 const SLIDE_KEYS = ["title", "subtitle", "date", "note", "logo", "layout", "align", "scale"] as const;
 const SLIDE_MAPS = ["notes"] as const;
 const TABLE_KEYS = ["name"] as const;
-const TABLE_MAPS = ["cols", "rows", "scales"] as const;
-const CELL_KEYS = ["text", "orig", "sz", "b", "i", "color", "fill", "align", "role"] as const;
+const TABLE_MAPS = ["cols", "rows", "scales", "merges"] as const;
+const CELL_KEYS = ["text", "orig", "sz", "b", "i", "color", "fill", "bg", "align", "role"] as const;
+const STYLE_MAPS = ["pn", "footer"] as const;
 const STYLE_KEYS = ["design", "glass", "color", "logo", "radius", "contrast", "logoBubble"] as const;
 const REF = /^[A-Z]{1,3}[0-9]{1,7}$/;
 const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
@@ -68,7 +69,7 @@ function mapMerge(target: Record<string, unknown>, key: string, v: unknown) {
 }
 export function applyStylePatch(style: Record<string, unknown>, patch: Record<string, unknown>) {
   for (const k of STYLE_KEYS) if (k in patch) { const v = patch[k]; if (v === null) delete style[k]; else style[k] = clone(v); }
-  if ("pn" in patch) mapMerge(style, "pn", patch.pn);
+  for (const k of STYLE_MAPS) if (k in patch) mapMerge(style, k, patch[k]);
 }
 /** inverse of a patch on `cur` with plain keys and map-merge keys */
 function inversePatch(cur: Record<string, unknown>, patch: Record<string, unknown>, maps: readonly string[]) {
@@ -108,7 +109,7 @@ export function inverseOf(doc: Doc, op: Op): Op | null {
       for (const k of keys) patch[k] = (e as Record<string, unknown>)[k] === undefined ? null : clone((e as Record<string, unknown>)[k]);
       return { op: "cell.patch", sheet: op.sheet, ref: op.ref, patch } as Op;
     }
-    case "style.patch": return { op: "style.patch", patch: inversePatch(doc.style as Record<string, unknown>, op.patch as Record<string, unknown>, ["pn"]) } as Op;
+    case "style.patch": return { op: "style.patch", patch: inversePatch(doc.style as Record<string, unknown>, op.patch as Record<string, unknown>, STYLE_MAPS) } as Op;
   }
   return null;
 }

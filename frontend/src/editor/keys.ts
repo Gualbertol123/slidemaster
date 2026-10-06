@@ -4,6 +4,7 @@ import { DLG } from "../state/dialogs";
 import { gotoSlide, undo } from "../state/app";
 import { applySel, clearSel, clearText, moveSel, selectAll } from "./edit";
 import { openInline, patchNote, selectNote } from "./stage";
+import { stopPainter } from "./painter";
 
 export function installKeys() {
   document.addEventListener("keydown", e => {
@@ -15,6 +16,7 @@ export function installKeys() {
     if (mod && k === "y" && !inField) { e.preventDefault(); undo(true); return; }
     if (mod && k === "s") { e.preventDefault(); void S.sync?.flush(); return; }
     if (inField || !S.slides.length) return;
+    if (e.key === "Escape" && S.painter) { stopPainter(); return; }
     if (e.key === "PageDown" || (e.key === "ArrowDown" && e.altKey)) { e.preventDefault(); gotoSlide(S.cur + 1); return; }
     if (e.key === "PageUp" || (e.key === "ArrowUp" && e.altKey)) { e.preventDefault(); gotoSlide(S.cur - 1); return; }
     if (S.noteSel && !S.sel) {

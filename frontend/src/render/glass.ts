@@ -140,6 +140,7 @@ function buildScene(L: TableLayout, its: Item[], G: GlassGeom): Scene {
   for (const [k, list] of [...comps]) {
     const t = tone(structFill(list[0]));
     if (t !== "pos" && t !== "neg") continue;
+    if (list.some(n => n.it.userBg)) continue;            // a cell colour chosen by the user is a block colour, not a status
     const withText = list.filter(n => n.it.text);
     if (withText.length * 2 >= list.length) { withText.forEach(n => statusCells.add(n)); comps.delete(k); }
   }
@@ -457,7 +458,9 @@ export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boo
     let ink: string;
     const bgTint = t.bg && t.bg.c && tinted.get(t.bg.c);
     const own = it.nfColor || f.color || "#000000", ownTone = tone(own);
-    if (it.userColor) ink = it.userColor;
+    // white text on a coloured block (Excel style) reads as the block's deep ink on the pale glass tint
+    if (it.userColor && bgTint && lum(it.userColor) > .82) ink = deepInk(bgTint);
+    else if (it.userColor) ink = it.userColor;
     else if (it.scaleInk) ink = it.scaleInk;
     else if (cap) ink = (cap.tone === "pos" || cap.tone === "neg") ? (cap.strong ? "#FFFFFF" : cap.tone === "pos" ? SYS.greenInk : SYS.redInk) : (lum(cap.fill || "#999") < .55 ? "#FFFFFF" : SYS.label);
     else if (it.ctype === "e") ink = SYS.label3;

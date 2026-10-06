@@ -26,6 +26,8 @@ export const S = {
   sel: null as Sel | null,
   /** selected text box ("<tableId>:<side>") */
   noteSel: null as string | null,
+  /** format painter: copied formats (rows × cols), sticky = keep painting */
+  painter: null as { pattern: (import("../editor/painter").Fmt | null)[][]; sticky: boolean } | null,
   zoom: "fit" as "fit" | number,
   busy: null as { text: string; frac: number | null } | null,
   exporting: false,

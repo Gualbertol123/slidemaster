@@ -91,11 +91,11 @@ defined once, here, and tested on both sides with `shared/ops-vectors.json`.
 |---|---|---|
 | `preset.set` | `preset` (object or null) | replace `doc.preset` (deep copy). Used by the wizard. |
 | `slide.patch` | `id`, `patch` | on the slide with that id: keys `title, subtitle, date, note, logo, layout, align, scale`: `null` → delete, else set. Key `notes` is a **map merge** (see below). Other keys ignored. Unknown slide (or no preset) → op **skipped**. |
-| `table.patch` | `id`, `patch` | on `doc.preset.tables[id]`: key `name`: `null` → delete, else set; keys `cols`, `rows`, `scales` are **map merges**. Other keys ignored. Unknown table (or no preset) → skipped. |
-| `cell.patch` | `sheet`, `ref`, `patch` | on `doc.edits[sheet][ref]` (created if missing): for each key in `text, orig, sz, b, i, color, fill, align, role`: `null` → delete, else set. Then: if `text` is absent, delete `orig`; if no keys remain, delete the cell; if the sheet has no cells, delete the sheet. |
-| `style.patch` | `patch` | on `doc.style`: keys `design, glass, color, logo, radius, contrast, logoBubble`: `null` → delete, else set; key `pn` is a map merge. |
+| `table.patch` | `id`, `patch` | on `doc.preset.tables[id]`: key `name`: `null` → delete, else set; keys `cols`, `rows`, `scales`, `merges` are **map merges**. Other keys ignored. Unknown table (or no preset) → skipped. |
+| `cell.patch` | `sheet`, `ref`, `patch` | on `doc.edits[sheet][ref]` (created if missing): for each key in `text, orig, sz, b, i, color, fill, bg, align, role`: `null` → delete, else set. Then: if `text` is absent, delete `orig`; if no keys remain, delete the cell; if the sheet has no cells, delete the sheet. |
+| `style.patch` | `patch` | on `doc.style`: keys `design, glass, color, logo, radius, contrast, logoBubble`: `null` → delete, else set; keys `pn` and `footer` are map merges. |
 
-**Map merge** (`pn`, `notes`, `cols`, `rows`, `scales`): value `null` → delete the whole map; an object →
+**Map merge** (`pn`, `footer`, `notes`, `cols`, `rows`, `scales`, `merges`): value `null` → delete the whole map; an object →
 each entry is set (replacing that entry entirely) or deleted when `null`; a map left empty is deleted.
 So two people changing different columns, rules or text boxes never overwrite each other.
 
@@ -103,6 +103,9 @@ So two people changing different columns, rules or text boxes never overwrite ea
 |---|---|
 | `table.cols` / `table.rows` | `{"<sheet column/row number>": px}` – width/height override in table pixels (Excel 100 %); fixed: Liquid Glass does not widen these columns |
 | `table.scales` | `{"<rule id>": {range:"D6:F18", dir:"row"\|"col"\|"all", mode:"zero"\|"minmax", fill:bool, ink:bool, invert?:bool}}` – colour scales: deeper green/red with the size of the number, per row, per column or over the whole range |
+| `table.merges` | `{"C4:D5": "merge" \| "split"}` – merge cells (the top-left value is shown) or split a merge from the workbook (key = its range) |
+| cell `bg` | cell colour that **replaces** the Excel colour (`"none"` removes it); in Liquid Glass it recolours the block. `fill` stays a highlight (a capsule in Liquid Glass) |
+| `style.footer` | `{on, text, pos, size, style, cover}` – footer on every slide like the page number; `{date}`, `{workbook}`, `{title}` are replaced |
 | `slide.align` | `"left"\|"center"\|"right"` – horizontal alignment of the tables (default centre) |
 | `slide.scale` | fixed table scale (null = fit to the slide); set by "Make same size" so tables on different slides match |
 | `slide.notes` | `{"<tableId>:<top\|bottom\|left\|right>": {text, size?, b?, i?, align?, color?, w?, h?}}` – text boxes around a table: top/bottom as wide as the table, left/right as high |

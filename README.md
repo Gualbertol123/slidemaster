@@ -79,6 +79,18 @@ Exit code 0 when steps 1, 5 and 7 passed (warnings allowed), 1 otherwise. Both `
 * **Colour scale** on selected cells: deeper green/red with the size of the number, per row, per
   column or over the whole selection, for the cell colour and/or the number colour.
 * **Options › Look:** corner roundness, background contrast, glass bubble around the logo.
+* **Cell colour** (paint-bucket menu, upper half) replaces the colour the cell has in Excel – e.g. a
+  merged navy header can be made red; in Liquid Glass the whole block takes the new colour. *No colour*
+  removes it, *Colour from Excel* goes back. The lower half (**Highlight**) puts a coloured capsule
+  around the value instead.
+* **Merge / Unmerge** the selected cells, including cells merged in the Excel file. The workbook is
+  never changed; the merge is stored with the table in the preset.
+* **Format** (painter, like Excel): select cells, click *Format*, then click or drag over other cells –
+  on any table or slide. A block of cells is repeated as a pattern. Double-click *Format* to paint
+  several times; Esc stops. Text is never copied.
+* **Options › Footer:** a footer on every slide (optionally the cover), with `{date}`, `{workbook}`,
+  `{title}`, in any corner or centred, plain or as a glass capsule; it moves aside for the page number
+  and logo when they share a corner.
 
 ### How fast is the shared folder?
 

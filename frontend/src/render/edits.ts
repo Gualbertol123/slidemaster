@@ -32,6 +32,8 @@ export function effItems(L: TableLayout, ctx: RenderCtx): Item[] {
       if (e.b !== undefined) { o.font.b = e.b; o.userB = e.b; }
       if (e.i !== undefined) { o.font.i = e.i; o.userI = e.i; }
       if (e.color) { o.userColor = e.color; o.color = e.color; o.nfColor = null; }
+      // cell colour: replaces the Excel colour (the block colour in Liquid Glass); conditional formats stay on top
+      if (e.bg) { const bg = e.bg === "none" ? null : e.bg; o.baseFill = bg; o.userBg = e.bg; if (!(it.cf && it.cf.fill)) o.fill = bg; }
       if (e.fill) { if (e.fill === "none") { o.fill = null; o.cf = null; o.baseFill = null; o.noFill = true; } else { o.fill = e.fill; o.userFill = e.fill; } }
       if (e.align) o.align = e.align;
       if (e.role) o.role = e.role;
@@ -47,5 +49,5 @@ export function effText(ctx: RenderCtx, it: Item): string { const e = cellEditOf
 export function effFmt(ctx: RenderCtx, it: Item) {
   const e = cellEditOf(ctx, it);
   return { sz: e.sz || it.font.sz || 11, b: e.b !== undefined ? e.b : !!it.font.b, i: e.i !== undefined ? e.i : !!it.font.i,
-    color: e.color || null, fill: e.fill || null, align: e.align || null, role: e.role || "auto" };
+    color: e.color || null, fill: e.fill || null, bg: e.bg || null, align: e.align || null, role: e.role || "auto" };
 }

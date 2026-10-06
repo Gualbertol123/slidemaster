@@ -209,3 +209,22 @@ number chrome, logo bubble, Excel shapes; CSS `--rk`). `style.contrast` (0–100
 `--wfade` (wallpaper towards white), `--gfade` (white veil on glass surfaces, an extra background layer –
 `placeGlass` positions three layers) and `--wallf` (wallpaper saturation/brightness). `style.logoBubble =
 false` draws the logo without its glass bubble.
+
+### 4.6 Cell colour, merges, footer, format painter (v3.2)
+* **Cell colour** – `CellEdit.bg` (`"#RRGGBB"` or `"none"`). In `effItems` it replaces the Excel fill:
+  `baseFill` (structure) and `fill` (unless a conditional format colours the cell) both become the new
+  colour and `userBg` is set. Liquid Glass builds its blocks from `baseFill`, so a recoloured header
+  becomes one tinted block in the new colour (status capsules are not used for such cells; white text on
+  it is drawn in the block's deep ink). `CellEdit.fill` is still the *highlight* – a capsule (Signal).
+* **Merges** – `TableDef.merges` maps `"C4:J4"` → `"merge" | "split"`. `effectiveMerges` (xlsx/layout.ts)
+  takes the workbook merges, drops split ones and any overlapping a user merge, then adds the user
+  merges; `buildLayout` uses the result, so both designs and the editor follow. Merging stores
+  `"merge"` and clears user merges inside the range; unmerging a user merge deletes it, a workbook merge
+  stores `"split"`.
+* **Footer** – `style.footer {on,text,pos,size,style,cover}`, drawn by `footerHtml` (render/pagenumbers.ts)
+  after the page number. When it shares a corner with the page number or the logo it is moved inwards
+  next to them; centred footers sit at the slide centre.
+* **Format painter** (editor/painter.ts) – the source selection becomes a pattern of `Fmt` (size, bold,
+  italic, colour, cell colour, highlight, alignment, role), tiled over the target selection when the
+  mouse selection ends. Values equal to the target's own Excel format are not stored.
+

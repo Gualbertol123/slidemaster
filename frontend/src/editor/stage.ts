@@ -9,6 +9,7 @@ import { glassGeom, gItem } from "../render/glass";
 import { effFmt, effText } from "../render/edits";
 import { activeItem, commitText, curSlide, itemAt, selItems, setSel } from "./edit";
 import { selCols, selRows, setColWidth, setRowHeight, shownColW, shownRowH } from "./tables";
+import { applyPainter } from "./painter";
 import type { Note, Side } from "../model/types";
 
 let host: HTMLElement | null = null;
@@ -110,7 +111,7 @@ export function paintSel() {
 
 /* ---- slide interaction: cells + table move/resize ---- */
 let DRAG: { t: number } | null = null;
-addEventListener("pointerup", () => { DRAG = null; });
+addEventListener("pointerup", () => { const was = DRAG; DRAG = null; if (was && S.painter) applyPainter(); });
 /* column / row borders: hovering within 5 screen px of a border shows a resize cursor; dragging sets the
    width/height (for every selected column/row when the border belongs to the selection) */
 type Border = { kind: "col" | "row"; key: number; start: number; size: number; pos: number };

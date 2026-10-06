@@ -35,7 +35,7 @@ export function growG(S: Sheet, g: Range): Range {
 
 /** per-workbook cache of range layouts (cleared when a workbook is opened) */
 export const LCACHE = new Map<string, { wb: Workbook; L: TableLayout }>();
-const hasExtras = (def: TableDef) => !!(def.cols || def.rows || def.scales);
+const hasExtras = (def: TableDef) => !!(def.cols || def.rows || def.scales || def.merges);
 export function resolveTable(wb: Workbook, def: TableDef): TableLayout | null {
   const S = wb.sheets.find(s => s.name === def.sheet); if (!S) return null;
   let L: TableLayout | null = null, g: Range | null = null;
@@ -48,9 +48,9 @@ export function resolveTable(wb: Workbook, def: TableDef): TableLayout | null {
   }
   if (!L && g) {
     // own layout per table definition when it has sizes or colour scales (they must not leak to other tables)
-    const key = S.name + "|" + JSON.stringify(g) + (hasExtras(def) ? "|" + def.id + "|" + JSON.stringify([def.cols, def.rows]) : "");
+    const key = S.name + "|" + JSON.stringify(g) + (hasExtras(def) ? "|" + def.id + "|" + JSON.stringify([def.cols, def.rows, def.merges]) : "");
     const hit = LCACHE.get(key);
-    if (!hit || hit.wb !== wb) { const b = buildLayout(S, g, { cols: def.cols, rows: def.rows }); if (b) LCACHE.set(key, { wb, L: b }); else LCACHE.delete(key); }
+    if (!hit || hit.wb !== wb) { const b = buildLayout(S, g, { cols: def.cols, rows: def.rows, merges: def.merges }); if (b) LCACHE.set(key, { wb, L: b }); else LCACHE.delete(key); }
     L = LCACHE.get(key)?.L || null;
   }
   if (!L) return null;

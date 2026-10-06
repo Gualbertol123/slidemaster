@@ -69,3 +69,28 @@ describe("slide layout with text boxes, alignment and fixed scale", () => {
     const big = computeLayout(slide([T], { scale: 50 }), ctx()); expect(big.reduced).toBe(true); expect(big.boxes[0].scale).toBeCloseTo(big.fit);
   });
 });
+
+describe("merges, cell colour, footer", () => {
+  it("user merges replace overlapping workbook merges; split removes one", async () => {
+    const { effectiveMerges, rangeKey } = await import("../src/xlsx/layout");
+    const S = { merges: [{ r1: 4, c1: 4, r2: 4, c2: 5 }, { r1: 5, c1: 3, r2: 5, c2: 10 }] } as any;
+    expect(effectiveMerges(S).map(rangeKey)).toEqual(["D4:E4", "C5:J5"]);
+    expect(effectiveMerges(S, { "D4:F4": "merge", "C5:J5": "split", "A1:A1": "merge" }).map(rangeKey)).toEqual(["D4:F4"]);
+  });
+  it("a cell colour replaces the Excel colour and becomes the block colour", async () => {
+    const { effItems } = await import("../src/render/edits");
+    const T = fakeTable([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
+    T.items.forEach((it: any) => { it.font = {}; it.baseFill = "#1F3864"; it.fill = "#1F3864"; it.L = T; });
+    const c = ctx(); c.edits = { S: { B2: { bg: "#FF3B30" }, C2: { bg: "none" } } };
+    const eff = effItems(T, c);
+    expect([eff[0].fill, eff[0].baseFill, eff[0].userBg]).toEqual(["#FF3B30", "#FF3B30", "#FF3B30"]);
+    expect([eff[1].fill, eff[1].baseFill]).toEqual([null, null]);
+    expect(eff[2].fill).toBe("#1F3864");
+  });
+  it("footer placeholders", async () => {
+    const { footerText } = await import("../src/render/pagenumbers");
+    const c = ctx(); c.workbook = "report.xlsx"; c.slides = [{ title: "Loans" }] as any;
+    c.style.footer = { ...c.style.footer, on: true, text: "Confidential · {workbook} · {title} · {date}" };
+    expect(footerText(c, 0, "6 Oct 2026")).toBe("Confidential · report · Loans · 6 Oct 2026");
+  });
+});

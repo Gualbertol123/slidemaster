@@ -967,5 +967,148 @@
       "applied": 1,
       "skipped": []
     }
+  },
+  {
+    "name": "cell.patch bg (cell colour that replaces the Excel colour) sets and deletes",
+    "doc": {
+      "preset": null,
+      "style": {},
+      "edits": {
+        "S": {
+          "B2": {
+            "fill": "#34C759"
+          }
+        }
+      }
+    },
+    "ops": [
+      {
+        "op": "cell.patch",
+        "sheet": "S",
+        "ref": "B2",
+        "patch": {
+          "bg": "#FF3B30",
+          "fill": null
+        }
+      },
+      {
+        "op": "cell.patch",
+        "sheet": "S",
+        "ref": "C2",
+        "patch": {
+          "bg": "none"
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {},
+      "edits": {
+        "S": {
+          "B2": {
+            "bg": "#FF3B30"
+          },
+          "C2": {
+            "bg": "none"
+          }
+        }
+      },
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "table.patch merges: merge and split entries merged key by key",
+    "doc": {
+      "preset": {
+        "sheets": [],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C5",
+            "merges": {
+              "B2:C2": "merge"
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "merges": {
+            "B2:C2": null,
+            "D4:E4": "split",
+            "B3:C4": "merge"
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C5",
+            "merges": {
+              "D4:E4": "split",
+              "B3:C4": "merge"
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "style.patch footer is merged key by key like pn",
+    "doc": {
+      "preset": null,
+      "style": {
+        "footer": {
+          "on": true,
+          "text": "Draft"
+        }
+      },
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "style.patch",
+        "patch": {
+          "footer": {
+            "text": "Confidential – {date}",
+            "pos": "bl",
+            "on": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {
+        "footer": {
+          "text": "Confidential – {date}",
+          "pos": "bl"
+        }
+      },
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
   }
 ]

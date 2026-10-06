@@ -6,7 +6,7 @@ import { backend, type FileInfo } from "../sync/api";
 import { doExport, type ExportKind } from "../editor/export";
 import { Dropdown } from "./Dropdown";
 import { PN_FONTS } from "../render/pagenumbers";
-import type { PageNumbers } from "../model/types";
+import type { Footer, PageNumbers } from "../model/types";
 
 /* sliders: preview the number at once, apply (one operation, one undo step) when the hand rests */
 const sliderTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -41,6 +41,7 @@ function OpenMenu() {
 function Options() {
   const st = style(), p = st.pn, has = !!S.sync;
   const pn = (patch: Partial<PageNumbers>, coalesce?: string) => styleChange("Page numbers", { pn: patch }, coalesce);
+  const ft = st.footer, fo = (patch: Partial<Footer>, coalesce?: string) => styleChange("Footer", { footer: patch }, coalesce);
   return (
     <Dropdown right menuClass="optmenu" button={(_o, toggle) => <button class="btn" id="optBtn" title="Page numbers and logo" disabled={!has} onClick={toggle}>⚙ Options</button>}>
       {() => <>
@@ -65,6 +66,23 @@ function Options() {
           <label></label><label class="ck"><input type="checkbox" id="pnCover" checked={p.cover} onChange={e => pn({ cover: (e.target as HTMLInputElement).checked })} /> also on the cover</label>
         </div>
         <div class="optnote">The same style is used on every slide of this deck, in both designs. The index slide always lists these page numbers.</div>
+        <div class="sep" />
+        <div class="opthd">Footer</div>
+        <label class="ck big"><input type="checkbox" id="ftOn" checked={ft.on} onChange={e => fo({ on: (e.target as HTMLInputElement).checked })} /> Show a footer on every slide</label>
+        <div class={"optgrid" + (ft.on ? "" : " off")} id="ftBox">
+          <label>Text</label><input id="ftText" style="width:100%" placeholder="e.g. Confidential · {workbook} · {date}" value={ft.text}
+            onKeyDown={e => { e.stopPropagation(); if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} onChange={e => fo({ text: (e.target as HTMLInputElement).value })} />
+          <label>Position</label>
+          <div class="posgrid" id="ftPos">
+            {([["tl", "◤", "Top left"], ["tc", "▲", "Top centre"], ["tr", "◥", "Top right"], ["bl", "◣", "Bottom left"], ["bc", "▼", "Bottom centre"], ["br", "◢", "Bottom right"]] as const).map(([k, g, t]) =>
+              <button key={k} data-pos={k} title={t} class={ft.pos === k ? "on" : ""} onClick={() => fo({ pos: k })}>{g}</button>)}
+          </div>
+          <label>Size</label><div class="row"><input type="range" id="ftSize" min="9" max="28" step="1" value={ft.size} onInput={e => { const v = +(e.target as HTMLInputElement).value, el = (e.target as HTMLElement).nextElementSibling; if (el) el.textContent = v + " px"; debounced("ftsize", () => fo({ size: v }, "ftsize")); }} /><span class="cv">{ft.size} px</span></div>
+          <label>Style</label>
+          <div class="seg small" id="ftStyle">{(["plain", "capsule"] as const).map(k => <button key={k} class={ft.style === k ? "on" : ""} onClick={() => fo({ style: k })}>{k === "capsule" ? "Glass capsule" : "Plain text"}</button>)}</div>
+          <label></label><label class="ck"><input type="checkbox" id="ftCover" checked={ft.cover} onChange={e => fo({ cover: (e.target as HTMLInputElement).checked })} /> also on the cover</label>
+        </div>
+        <div class="optnote">{"{date}"} = today, {"{workbook}"} = file name, {"{title}"} = slide title. Next to the page number when both are in the same corner.</div>
         <div class="sep" />
         <div class="opthd">Logo</div>
         <div class="optrow"><label for="logoInput">Logo file (backend folder)</label>

@@ -8,7 +8,8 @@ import { tableKey, type RenderCtx } from "./context";
 import { renderExcel } from "./excel";
 import { glassGeom, renderGlass } from "./glass";
 import { coverHtml, indexHtml } from "./cover";
-import { pageNoBox, pageNoFor, pageNoHtml } from "./pagenumbers";
+import { footerHtml, pageNoBox, pageNoFor, pageNoHtml } from "./pagenumbers";
+import { todayLabel } from "./cover";
 import { cache } from "./edits";
 
 export const SLIDE_W = 1600, SLIDE_H = 900;
@@ -138,6 +139,7 @@ export function buildSlide(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: S
   }
   if (R.type === "index") h += indexHtml(R, ctx, glassy);
   if (pageNo !== null) h += pageNoHtml(ctx, pageNo, glassy, !!logo, cover);
+  h += footerHtml(ctx, idx, glassy, !!logo, cover, pageNo, todayLabel());
   R.tables.forEach((t, i) => {
     h += `<div class="tw" data-i="${i}" style="width:${tableW(t, ctx)}px;height:${t.H}px">${tableHtml(R, i, ctx, opts.thumb)}${opts.interactive ? `<div class="hits" data-t="${i}" style="width:${tableW(t, ctx)}px;height:${t.H}px"><div class="hov"></div></div>` : ""}</div>`;
     const ns = notesOf(R, i);

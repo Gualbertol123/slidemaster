@@ -2,6 +2,8 @@ import { S, useApp } from "../state/store";
 import { change, ctx, style, undo } from "../state/app";
 import { activeItem, applySel, commitText, curSlide, selItems, setSize, editOf } from "../editor/edit";
 import { boldAll, italAll } from "../editor/keys";
+import { startPainter, stopPainter } from "../editor/painter";
+import { canMerge, mergeSel, mergedInSel, unmergeSel } from "../editor/tables";
 import { effFmt, effText, keyOf } from "../render/edits";
 import { slideHasLogo } from "../render/slide";
 import { A1 } from "../xlsx/util";
@@ -14,14 +16,25 @@ const INKS: [string, string][] = [["#0B0D17", "Black"], ["#5B6274", "Dark grey"]
   ["#B25000", "Orange"], ["#6B2FB3", "Purple"], ["#FFFFFF", "White"], ["#1C4F8C", "Navy"], ["#C42B1C", "Bright red"], ["#1F9D55", "Bright green"]];
 
 function Swatches(p: { kind: "fill" | "ink"; close: () => void }) {
-  const list = p.kind === "fill" ? FILLS : INKS;
-  const set = (v: string) => { p.close(); if (p.kind === "fill") applySel(v ? "Fill colour" : "Automatic fill", e => { if (v) e.fill = v; else delete e.fill; }); else applySel(v ? "Text colour" : "Automatic text colour", e => { if (v) e.color = v; else delete e.color; }); };
-  return <>
-    <div class="hd">{p.kind === "fill" ? "Fill / highlight" : "Text colour"}</div>
-    <div class="swatches">{list.map(([c, n]) => <button key={c} title={n} data-v={c} style={{ background: c }} onClick={() => set(c)} />)}</div>
-    <div class="wide">{p.kind === "fill" && <button data-v="none" onClick={() => set("none")}>No fill</button>}<button data-v="" onClick={() => set("")}>{p.kind === "fill" ? "Automatic (Excel)" : "Automatic"}</button></div>
-  </>;
+  const sw = (list: [string, string][], set: (v: string) => void, attr: string) =>
+    <div class="swatches">{list.map(([c, n]) => <button key={c} title={n} {...{ [attr]: c }} style={{ background: c }} onClick={() => { p.close(); set(c); }} />)}</div>;
+  if (p.kind === "ink") {
+    const set = (v: string) => applySel(v ? "Text colour" : "Automatic text colour", e => { if (v) e.color = v; else delete e.color; });
+    return <><div class="hd">Text colour</div>{sw(INKS, set, "data-v")}<div class="wide"><button data-v="" onClick={() => { p.close(); set(""); }}>Automatic</button></div></>;
+  }
+  const bg = (v: string | null) => applySel(v === null ? "Excel cell colour" : "Cell colour", e => { if (v === null) delete e.bg; else { e.bg = v; delete e.fill; } });
+  const hl = (v: string | null) => applySel(v === null ? "Remove highlight" : "Highlight", e => { if (v === null) delete e.fill; else e.fill = v; });
+  return <div class="fillmenu">
+    <div class="hd">Cell colour <small>replaces the colour from Excel (in Liquid Glass: the colour of the block)</small></div>
+    {sw(FILLS.concat(BLOCKS), v => bg(v), "data-bg")}
+    <div class="wide"><button data-bg="none" onClick={() => { p.close(); bg("none"); }}>No colour</button><button data-bg="" onClick={() => { p.close(); bg(null); }}>Colour from Excel</button></div>
+    <div class="sep" />
+    <div class="hd">Highlight <small>a capsule on the cell; green/red keep their positive/negative meaning</small></div>
+    {sw(FILLS, v => hl(v), "data-v")}
+    <div class="wide"><button data-v="" onClick={() => { p.close(); hl(null); }}>Remove highlight</button></div>
+  </div>;
 }
+const BLOCKS: [string, string][] = [["#1F3864", "Dark navy"], ["#2F5597", "Blue"], ["#404040", "Charcoal"], ["#F2F2F2", "Very light grey"]];
 
 export function Ribbon() {
   useApp();
@@ -49,7 +62,7 @@ export function Ribbon() {
         <button {...tb({ id: "boldBtn", title: "Bold (Ctrl+B)", active: has && boldAll() })} onClick={() => { const on = !boldAll(); applySel("Bold", e => { e.b = on; }); }}><b>B</b></button>
         <button {...tb({ id: "italBtn", title: "Italic (Ctrl+I)", active: has && italAll() })} onClick={() => { const on = !italAll(); applySel("Italic", e => { e.i = on; }); }}><i style="font-family:Georgia,serif">I</i></button>
         <Dropdown button={(_o, t) => <button class="tb colorbtn" id="inkBtn" disabled={!has} title="Text colour" onClick={t}><span>A</span><i class="sw" style={{ background: f?.color || "#0B0D17" }} /></button>}>{close => <Swatches kind="ink" close={close} />}</Dropdown>
-        <Dropdown button={(_o, t) => <button class="tb colorbtn" id="fillBtn" disabled={!has} title="Fill – green and red keep their positive/negative meaning in Liquid Glass" onClick={t}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 8.5 8.5 3l4.5 4.5-5.5 5.5z" /><path d="M13.5 10.5s1.2 1.4 1.2 2.2a1.2 1.2 0 0 1-2.4 0c0-.8 1.2-2.2 1.2-2.2z" fill="currentColor" /></svg><i class="sw" style={{ background: f?.fill && f.fill !== "none" ? f.fill : "linear-gradient(90deg,#34C759 50%,#FF3B30 50%)" }} /></button>}>{close => <Swatches kind="fill" close={close} />}</Dropdown>
+        <Dropdown button={(_o, t) => <button class="tb colorbtn" id="fillBtn" disabled={!has} title="Cell colour (replaces the Excel colour) or highlight" onClick={t}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 8.5 8.5 3l4.5 4.5-5.5 5.5z" /><path d="M13.5 10.5s1.2 1.4 1.2 2.2a1.2 1.2 0 0 1-2.4 0c0-.8 1.2-2.2 1.2-2.2z" fill="currentColor" /></svg><i class="sw" style={{ background: f?.bg && f.bg !== "none" ? f.bg : f?.fill && f.fill !== "none" ? f.fill : "linear-gradient(90deg,#34C759 50%,#FF3B30 50%)" }} /></button>}>{close => <Swatches kind="fill" close={close} />}</Dropdown>
       </div>
       <div class="grp">
         {(["left", "center", "right"] as const).map(a => <button key={a} {...tb({ "data-align": a, title: a === "center" ? "Centre" : "Align " + a, active: aligns.size === 1 && aligns.has(a) })} onClick={() => applySel("Alignment", e => { e.align = a; })}>
@@ -62,7 +75,12 @@ export function Ribbon() {
           <button key={k} {...tb({ "data-role": k, title: t, active: roles.size === 1 && roles.has(k) })} onClick={() => applySel("Role: " + l, e => { if (k === "auto") delete e.role; else e.role = k; })}>{l}</button>)}
       </div>
       <div class="grp">
-        <button {...tb({ id: "clearFmt", title: "Remove your formatting from the selection" })} onClick={() => applySel("Clear formatting", e => { for (const k of ["sz", "b", "i", "color", "fill", "align", "role"] as const) delete e[k]; })}>Clear format</button>
+        <button {...tb({ id: "clearFmt", title: "Remove your formatting from the selection" })} onClick={() => applySel("Clear formatting", e => { for (const k of ["sz", "b", "i", "color", "fill", "bg", "align", "role"] as const) delete e[k]; })}>Clear format</button>
+        <button class={"tb" + (S.painter ? " on" : "")} id="painterBtn" disabled={!has && !S.painter} title="Copy format: click, then click or drag over the cells to paste. Double-click to paste several times; Esc stops."
+          onClick={() => S.painter ? stopPainter() : startPainter(false)} onDblClick={() => startPainter(true)}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="1.5" width="10" height="4" rx="1" /><path d="M12 3.5h1.5v3.5H7.5v2" /><rect x="6" y="9.5" width="3" height="5" rx="1" /></svg>Format</button>
+        <button {...tb({ id: "mergeBtn", title: "Merge the selected cells (the top-left value is kept)" })} disabled={!canMerge()} onClick={mergeSel}>Merge</button>
+        <button {...tb({ id: "unmergeBtn", title: "Split merged cells in the selection" })} disabled={!mergedInSel().length} onClick={unmergeSel}>Unmerge</button>
         <button {...tb({ id: "resetText", title: "Show the Excel value again" })} onClick={() => applySel("Restore Excel text", e => { delete e.text; delete e.orig; })}>Restore text</button>
         <button class="tb" id="resetLayout" title="Automatic table positions for this slide" disabled={!(R && R.cfg.layout)} onClick={() => slidePatch("Reset layout", { layout: null })}>Reset layout</button>
       </div>

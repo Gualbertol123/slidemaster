@@ -8,7 +8,8 @@ import type { TableLayout } from "../xlsx/types";
 import type { Layout, Op, RuntimeSlide, TableDef } from "../model/types";
 import { computeLayout, layoutOf, tableW } from "../render/slide";
 import { glassGeom } from "../render/glass";
-import { curSlide, selTable } from "./edit";
+import { curSlide, selItems, selTable } from "./edit";
+import { A1, parseRange } from "../xlsx/util";
 
 const r1 = (v: number) => Math.round(v * 10) / 10;
 /** width of a column as shown (Liquid Glass may have widened it) */
@@ -105,3 +106,22 @@ export function alignTables(align: "left" | "center" | "right", slideIdx: number
   if (ops.length) change("Align tables " + align, ops);
 }
 export const currentTableRefs = (): TableRef[] => (curSlide()?.tables || []).map((L, i) => ({ slide: S.cur, i, L })).filter(r => r.L.def);
+
+/* ---- merge / unmerge (like Excel: the top-left value is kept) ---- */
+import { rangeKey } from "../xlsx/layout";
+export function canMerge(): boolean { const s = S.sel; return !!s && !!selTable()?.def && (s.r2 > s.r1 || s.c2 > s.c1); }
+export function mergedInSel() { return selItems().filter(it => it.b.m); }
+export function mergeSel() {
+  const T = selTable(), s = S.sel; if (!T?.def || !s || !canMerge()) return;
+  const key = A1(s.r1, s.c1) + ":" + A1(s.r2, s.c2), cur = T.def.merges || {}, patch: Record<string, "merge" | null> = {};
+  // a new merge replaces user merges inside it
+  for (const [k, v] of Object.entries(cur)) if (v === "merge" && k !== key) { const g = parseRange(k); if (g.r1 <= s.r2 && g.r2 >= s.r1 && g.c1 <= s.c2 && g.c2 >= s.c1) patch[k] = null; }
+  patch[key] = "merge";
+  change("Merge cells", [tablePatch(T.def, { merges: patch })]);
+}
+export function unmergeSel() {
+  const T = selTable(); if (!T?.def) return;
+  const cur = T.def.merges || {}, patch: Record<string, "split" | null> = {};
+  for (const it of mergedInSel()) { const k = rangeKey(it.b.m!); patch[k] = cur[k] === "merge" ? null : "split"; }
+  if (Object.keys(patch).length) change("Unmerge cells", [tablePatch(T.def, { merges: patch })]);
+}

@@ -87,6 +87,8 @@ export interface Item {
   /* effective values after user edits */
   /** colour scale result (variable conditional formatting) */
   scaleFill?: string; scaleInk?: string;
+  /** user cell colour (replaces the Excel colour) */
+  userBg?: string;
   edited?: boolean; userB?: boolean; userI?: boolean; userColor?: string; userFill?: string; noFill?: boolean; role?: string;
   L?: TableLayout;
 }

@@ -43,7 +43,7 @@ export function moveSel(dr: number, dc: number, extend: boolean) {
 export function selectAll() { const sel = S.sel, T = selTable(); if (!sel || !T) return; setSel(sel.t, { r: T.rows[0], c: T.cols[0] }, { r: T.rows[T.rows.length - 1], c: T.cols[T.cols.length - 1] }); }
 
 /* ---- edits ---- */
-const KEYS = ["text", "orig", "sz", "b", "i", "color", "fill", "align", "role"] as const;
+const KEYS = ["text", "orig", "sz", "b", "i", "color", "fill", "bg", "align", "role"] as const;
 export function editOf(it: Item): CellEdit { return (ctx().edits[it.L!.sheet.name] || {})[keyOf(it)] || {}; }
 /** fn changes a copy of each selected cell's edit; the differences become cell.patch operations */
 export function applySel(label: string, fn: (e: CellEdit, it: Item) => void, items = selItems()) {

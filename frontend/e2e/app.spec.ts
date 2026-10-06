@@ -157,5 +157,41 @@ test.describe.serial("two people, one shared folder", () => {
     await page.click('[data-x="close"]'); await page.click('.modal [data-a="ok"]');
   });
 
+  test("header colour, merge/unmerge, format painter, footer", async ({ page }) => {
+    await openApp(page, ANNA);
+    await expect(page.locator(".thumb")).toHaveCount(4);
+    await page.locator('.thumb[data-i="2"]').click();
+    const drag = async (from: string, to: string) => {
+      const cell = (t: string) => page.locator("#stage .slide .t", { hasText: new RegExp("^" + t + "$") }).first();
+      const f = (await cell(from).boundingBox())!, l = (await cell(to).boundingBox())!;
+      await page.mouse.move(f.x + 6, f.y + f.height / 2); await page.mouse.down();
+      await page.mouse.move(l.x + 6, l.y + l.height / 2, { steps: 4 }); await page.mouse.up();
+    };
+    // header row: a cell colour that replaces the Excel colour
+    await drag("Bank", "Note");
+    await page.click("#fillBtn"); await page.click('[data-bg="#FF3B30"]'); await saved(page);
+    let e = doc().edits.SLIDE_1;
+    for (const r of ["C4", "D4", "J4"]) expect(e[r].bg).toBe("#FF3B30");
+    // merge two header cells, split the workbook's merged "Domestic" row
+    await page.keyboard.press("Escape"); await drag("Loans", "Deposits");
+    await page.click("#mergeBtn"); await saved(page);
+    await selectCell(page, "Domestic"); await page.click("#unmergeBtn"); await saved(page);
+    expect(doc().preset.tables.find((t: any) => t.sheet === "SLIDE_1").merges).toEqual({ "D4:F4": "merge", "C5:J5": "split" });
+    // format painter: copy the header format onto the bank names
+    await selectCell(page, "Bank"); await page.click("#painterBtn");
+    await expect(page.locator("body")).toHaveClass(/painting/);
+    await drag("Alpha", "Gamma"); await saved(page);
+    await expect(page.locator("body")).not.toHaveClass(/painting/);
+    e = doc().edits.SLIDE_1;
+    for (const r of ["C6", "C7", "C8"]) expect(e[r].bg).toBe("#FF3B30");
+    // footer on every slide
+    await page.click("#optBtn"); await page.check("#ftOn");
+    await page.fill("#ftText", "Confidential · {workbook}"); await page.keyboard.press("Enter");
+    await page.click('#ftPos [data-pos="bc"]'); await page.keyboard.press("Escape"); await saved(page);
+    expect(doc().style.footer).toMatchObject({ on: true, text: "Confidential · {workbook}", pos: "bc" });
+    await expect(page.locator("#stage .slide .footer")).toContainText("Confidential · report");
+    await page.screenshot({ path: path.join(process.env.SB_E2E_TMP!, "header.png") });
+  });
+
   test("no page errors", async () => { expect(errors).toEqual([]); });
 });

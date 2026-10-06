@@ -62,3 +62,7 @@
 .slide .hbox .addnote.bottom{bottom:calc(-30px - var(--nb,0px))}
 .slide .hbox .addnote.left{left:calc(-30px - var(--nl,0px))}
 .slide .hbox .addnote.right{right:calc(-30px - var(--nr,0px))}
+/* v3.2: fill menu, format painter */
+.fillmenu .hd small{display:block;font-weight:400;color:var(--mute);font-size:11px;text-transform:none;letter-spacing:0;margin-top:1px}
+body.painting .slide .hits{cursor:copy}
+.optmenu{max-height:calc(100vh - 80px);overflow:auto}

@@ -1,6 +1,6 @@
 /* Tables: "x" marker regions and the geometry/style of every visible cell in a region. */
 import { formatValue } from "./numfmt";
-import { A1, colToNum, inRange, splitRef } from "./util";
+import { A1, colToNum, inRange, parseRange, splitRef } from "./util";
 import type { Range } from "./util";
 import type { Box, BorderSide, Cell, Dxf, Item, Pic, Rect, Sheet, TableLayout } from "./types";
 
@@ -35,7 +35,22 @@ const stripUndef = <T extends object>(o: T): Partial<T> => { const r: Partial<T>
 
 /* ===================== layout of one region (g = marker cells, exclusive) ===================== */
 /** sizes: user overrides in table pixels, keyed by sheet column / row number (as strings) */
-export interface Sizes { cols?: Record<string, number>; rows?: Record<string, number> }
+export interface Sizes { cols?: Record<string, number>; rows?: Record<string, number>; merges?: Record<string, "merge" | "split"> }
+export const rangeKey = (m: Range) => A1(m.r1, m.c1) + ":" + A1(m.r2, m.c2);
+const overlaps = (a: Range, b: Range) => a.r1 <= b.r2 && a.r2 >= b.r1 && a.c1 <= b.c2 && a.c2 >= b.c1;
+/** the workbook's merged ranges, minus the ones the user split, plus the ones the user merged
+    (a user merge replaces every workbook merge it overlaps; later user merges never overlap earlier ones) */
+export function effectiveMerges(S: Sheet, user?: Record<string, "merge" | "split">): Range[] {
+  if (!user) return S.merges;
+  const split = new Set(Object.entries(user).filter(([, v]) => v === "split").map(([k]) => k));
+  const added: Range[] = [];
+  for (const [k, v] of Object.entries(user)) {
+    if (v !== "merge") continue;
+    const g = parseRange(k); if (!(g.r2 >= g.r1 && g.c2 >= g.c1) || (g.r1 === g.r2 && g.c1 === g.c2)) continue;
+    if (!added.some(a => overlaps(a, g))) added.push(g);
+  }
+  return [...S.merges.filter(m => !split.has(rangeKey(m)) && !added.some(a => overlaps(a, m))), ...added];
+}
 export function buildLayout(S: Sheet, g: Range, sizes?: Sizes): TableLayout | null {
   const rows: number[] = [], cols: number[] = [];
   let hr = 0, hc = 0;
@@ -51,7 +66,7 @@ export function buildLayout(S: Sheet, g: Range, sizes?: Sizes): TableLayout | nu
 
   // merges intersecting region → visible boxes
   const mergeOf = new Map<string, Box>(); const boxes: Box[] = [];
-  for (const m of S.merges) {
+  for (const m of effectiveMerges(S, sizes?.merges)) {
     if (m.r2 <= g.r1 || m.r1 >= g.r2 || m.c2 <= g.c1 || m.c1 >= g.c2) continue;
     const mr = rows.filter(r => r >= m.r1 && r <= m.r2), mc = cols.filter(c => c >= m.c1 && c <= m.c2);
     if (!mr.length || !mc.length) continue;
