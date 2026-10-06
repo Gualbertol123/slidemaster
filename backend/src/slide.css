@@ -1,0 +1,168 @@
+/* ======================= slide: 1600 x 900 CSS px = 13.333 x 7.5 in ======================= */
+.slide{width:1600px;height:900px;position:relative;overflow:hidden;background:#fff;color:#1D1D1F}
+.slide .xt{position:absolute;left:0;top:0}
+.slide .tw{position:absolute;transform-origin:0 0}
+.slide .t{position:absolute;display:flex;padding:0 3px;white-space:nowrap;line-height:1.15;overflow:hidden;box-sizing:border-box}
+.slide .t.ov{overflow:visible}
+.slide .t.wrap{white-space:normal;word-break:break-word}
+.slide .t span{display:block;max-width:100%}
+.slide .t.ov span{max-width:none}
+.slide .xt .b{position:absolute;box-sizing:border-box}
+.slide .xt img{position:absolute}
+.slide .pic{position:absolute;overflow:hidden}
+.slide .pic img{position:absolute;display:block;max-width:none}
+.slide .pic.missing{display:flex;align-items:center;justify-content:center;border:1.5px dashed rgba(196,43,28,.6);background:rgba(255,240,238,.7);color:#B42318;font:600 11px/1.2 'Segoe UI',sans-serif;text-align:center}
+.slide .tbox{position:absolute;box-sizing:border-box;display:flex;flex-direction:column;padding:4px 8px;line-height:1.25;color:#000;overflow:hidden;font-size:14.67px}
+.slide.glass .tbox.gtb{font-family:-apple-system,'SF Pro Text','Segoe UI Variable Text','Segoe UI',Arial,sans-serif;color:#0B0D17;padding:8px 12px;z-index:3}
+.slide.glass .pic.gpic{border-radius:10px;box-shadow:0 14px 30px -14px rgba(28,40,100,.4),0 0 0 1px rgba(255,255,255,.7)}
+.slide.glass .pic.gcut{overflow:visible;filter:drop-shadow(0 3px 5px rgba(28,40,100,.28))}
+.slide.glass .pic.gink{mix-blend-mode:multiply;z-index:4}
+
+/* ---------------- Excel design ---------------- */
+.slide.excel{font-family:"Century Gothic","CenturyGothic","URW Gothic","AppleGothic",Arial,sans-serif}
+.slide.excel .title{position:absolute;left:54px;top:16px;right:150px;font-size:44px;font-weight:700;color:#1C4F8C;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slide.excel .subtitle{position:absolute;left:56px;top:76px;right:150px;font-size:18px;color:#5B6B82;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.slide.excel .logowrap{position:absolute;right:38px;bottom:14px;height:32px}
+.slide.excel .logowrap img{height:32px;max-width:280px;object-fit:contain;display:block}
+
+/* ---------------- Liquid Glass design (light) ----------------
+   --gi (0.35 subtle · 0.65 medium · 1 strong) scales lensing, rims, sheen and shadows.
+   Every surface = tint over a blurred, slightly magnified copy of the wallpaper + specular rim + sheen. */
+.slide.glass{--gi:.35;font-family:-apple-system,"SF Pro Display","Segoe UI Variable Display","Segoe UI","Helvetica Neue",Inter,Arial,sans-serif;background:var(--wallbase,#E9EDF6);color:#0B0D17}
+.slide.glass .wall{position:absolute;inset:0;background-image:var(--wall);background-size:100% 100%}
+.slide.glass .title{position:absolute;left:58px;top:20px;right:170px;font-size:48px;font-weight:700;letter-spacing:-1px;color:#0B0D17;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  text-shadow:0 1px 0 rgba(255,255,255,.6)}
+.slide.glass .subtitle{position:absolute;left:60px;top:82px;right:170px;font-size:19px;font-weight:520;color:rgba(18,22,44,.62);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slide.glass .t{font-family:-apple-system,"SF Pro Text","Segoe UI Variable Text","Segoe UI","Helvetica Neue",Inter,Arial,sans-serif;letter-spacing:-.12px;z-index:3}
+
+.gls{position:absolute;box-sizing:border-box;isolation:isolate}
+.gls.wb{background-image:var(--tint,linear-gradient(rgba(255,255,255,.5),rgba(255,255,255,.5))),var(--wallblur);background-repeat:no-repeat}
+.gls::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:var(--rim,1.25px);pointer-events:none;
+  background:linear-gradient(135deg,rgba(255,255,255,calc(.55 + .45*var(--gi))) 0%,rgba(255,255,255,calc(.6*var(--gi))) 13%,rgba(255,255,255,calc(.1*var(--gi))) 36%,rgba(255,255,255,0) 52%,rgba(255,255,255,calc(.16*var(--gi))) 72%,rgba(255,255,255,calc(.35 + .55*var(--gi))) 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.gls::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(130% 85% at 16% -20%,rgba(255,255,255,calc(var(--sheen,.6)*var(--gi))) 0%,rgba(255,255,255,calc(.16*var(--gi))) 36%,rgba(255,255,255,0) 56%),
+             radial-gradient(80% 55% at 88% 120%,rgba(255,255,255,calc(.34*var(--gi))) 0%,rgba(255,255,255,0) 55%)}
+
+/* cards */
+.gls.card{box-shadow:0 22px 48px -24px rgba(28,40,100,calc(.14 + .22*var(--gi))),0 6px 16px -8px rgba(28,40,100,calc(.06 + .1*var(--gi))),
+  inset 0 0 0 .5px rgba(255,255,255,.6),inset 0 1px 1px rgba(255,255,255,.95),
+  inset 0 -16px 30px -20px rgba(40,60,150,calc(.22*var(--gi))),inset 0 16px 32px -22px rgba(255,255,255,calc(.8*var(--gi)))}
+.gls.list{--tint:linear-gradient(180deg,rgba(255,255,255,calc(.86 - .14*var(--gi))),rgba(255,255,255,calc(.78 - .18*var(--gi))))}
+.gls.head{--tint:linear-gradient(180deg,rgba(255,255,255,calc(.78 - .18*var(--gi))),rgba(240,244,255,calc(.66 - .22*var(--gi))))}
+.gls.tile{--tint:linear-gradient(118deg,rgba(255,255,255,calc(.92 - .12*var(--gi))) 0%,rgba(255,255,255,calc(.76 - .24*var(--gi))) 50%,rgba(255,255,255,calc(.86 - .16*var(--gi))) 100%);--rim:calc(1px + 1px*var(--gi));--sheen:.75;
+  box-shadow:0 26px 52px -24px rgba(28,40,100,calc(.16 + .26*var(--gi))),0 8px 18px -10px rgba(28,40,100,calc(.08 + .14*var(--gi))),
+  inset 0 0 0 .5px rgba(255,255,255,.65),inset 0 1.5px 1px rgba(255,255,255,1),
+  inset 0 -18px 32px -20px rgba(40,60,150,calc(.26*var(--gi))),inset 0 18px 32px -20px rgba(255,255,255,calc(.9*var(--gi)))}
+.gls.seg{--tint:linear-gradient(180deg,rgba(255,255,255,calc(.7 - .15*var(--gi))),rgba(255,255,255,calc(.42 - .14*var(--gi))));--rim:1px;--sheen:.45;
+  box-shadow:inset 0 1px 1px rgba(255,255,255,.9),0 2px 8px -3px rgba(28,40,100,calc(.06 + .12*var(--gi)))}
+.xt.gx .emphband{position:absolute;border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,.3));box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 1px 3px rgba(28,40,100,.08)}
+.xt.gx .headband{position:absolute;border-radius:20px 20px 6px 6px;background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(232,240,255,.4));box-shadow:inset 0 1px 0 rgba(255,255,255,.95)}
+.xt.gx .hsep{position:absolute;height:1px;background:linear-gradient(90deg,rgba(30,40,80,0),rgba(30,40,80,.14) 5%,rgba(30,40,80,.14) 95%,rgba(30,40,80,0));box-shadow:0 1px 0 rgba(255,255,255,.6)}
+.xt.gx .hsep.strong{background:linear-gradient(90deg,rgba(30,40,80,.05),rgba(30,40,80,.22) 4%,rgba(30,40,80,.22) 96%,rgba(30,40,80,.05))}
+.xt.gx .vsep{position:absolute;width:1px;background:linear-gradient(180deg,rgba(30,40,80,0),rgba(30,40,80,.16),rgba(30,40,80,0));box-shadow:1px 0 0 rgba(255,255,255,.5)}
+
+/* value capsules: semantic colour stays strong, the glass effect follows --gi */
+.gls.pill{--rim:1px;--sheen:.5;box-shadow:inset 0 1px 1px rgba(255,255,255,calc(.4 + .45*var(--gi))),0 2px 6px -2px rgba(28,40,100,calc(.08 + .14*var(--gi)))}
+.gls.pill.pos{--tint:linear-gradient(180deg,rgba(64,208,102,calc(.66 - .06*var(--gi))),rgba(46,190,84,calc(.56 - .12*var(--gi))))}
+.gls.pill.neg{--tint:linear-gradient(180deg,rgba(255,82,72,calc(.6 - .06*var(--gi))),rgba(245,52,42,calc(.5 - .12*var(--gi))))}
+.gls.pill.strong.pos{--tint:linear-gradient(180deg,rgba(64,208,102,.76),rgba(46,190,84,.62))}
+.gls.pill.strong.neg{--tint:linear-gradient(180deg,rgba(255,82,72,.72),rgba(245,52,42,.58))}
+.gls.pill.muted{--tint:linear-gradient(180deg,rgba(120,126,155,.2),rgba(120,126,155,.12))}
+.gls.pill.solid{--rim:1.2px}
+.gls.pill.solid.pos{background:linear-gradient(180deg,#5FE085 0%,#34C759 55%,#2AB04D 100%);box-shadow:0 6px 14px -6px rgba(30,160,70,calc(.3 + .3*var(--gi))),inset 0 1px 1px rgba(255,255,255,.65),inset 0 -2px 4px rgba(0,70,20,.18)}
+.gls.pill.solid.neg{background:linear-gradient(180deg,#FF776D 0%,#FF3B30 55%,#E2261C 100%);box-shadow:0 6px 14px -6px rgba(215,40,30,calc(.28 + .28*var(--gi))),inset 0 1px 1px rgba(255,255,255,.6),inset 0 -2px 4px rgba(90,0,0,.18)}
+.gls.pill.solid.other{box-shadow:0 6px 14px -6px rgba(28,40,100,.3),inset 0 1px 1px rgba(255,255,255,.6)}
+
+/* icons, chrome */
+.gls.icon{--tint:linear-gradient(145deg,rgba(255,255,255,.78),rgba(255,255,255,.42));--rim:1.2px;padding:2.5px;box-shadow:0 4px 10px -3px rgba(28,40,100,calc(.14 + .2*var(--gi))),inset 0 1px 1px rgba(255,255,255,.95)}
+.gls.icon img{position:relative;z-index:0;display:block;width:100%;height:100%;border-radius:50%;object-fit:cover}
+.gls.chrome{--tint:linear-gradient(180deg,rgba(255,255,255,calc(.8 - .16*var(--gi))),rgba(255,255,255,calc(.62 - .2*var(--gi))));box-shadow:0 14px 30px -16px rgba(28,40,100,calc(.14 + .22*var(--gi))),inset 0 0 0 .5px rgba(255,255,255,.6),inset 0 1.5px 1px rgba(255,255,255,.95)}
+
+.slide.glass .logowrap{display:flex;align-items:center;justify-content:center;padding:9px 18px}
+.slide.glass .pageno span,.slide.glass .logowrap img{position:relative;z-index:2}
+.slide.glass .logowrap img{height:100%;max-width:100%;object-fit:contain;display:block}
+
+/* ---------------- cover ---------------- */
+.slide .cv-block{position:absolute;left:120px;top:0;bottom:170px;width:760px;display:flex;flex-direction:column;justify-content:flex-end;z-index:3}
+.slide .cv-kicker{font-size:19px;font-weight:700;letter-spacing:2.4px;text-transform:uppercase;margin-bottom:18px}
+.slide .cv-title{font-weight:700;letter-spacing:-1.6px;line-height:1.04;overflow-wrap:anywhere}
+.slide .cv-bar{width:72px;height:6px;border-radius:3px;margin:30px 0 24px}
+.slide .cv-sub{font-size:28px;line-height:1.3;min-height:36px}
+/* glass */
+.slide.glass .cv-block.g .cv-kicker{color:rgba(18,22,44,.55)}
+.slide.glass .cv-block.g .cv-title{color:#0B0D17;text-shadow:0 1px 0 rgba(255,255,255,.6)}
+.slide.glass .cv-block.g .cv-bar{background:linear-gradient(90deg,#3B82F6,#8B5CF6)}
+.slide.glass .cv-block.g .cv-sub{color:rgba(18,22,44,.66);font-weight:500}
+.slide.glass .cv-orb{--tint:linear-gradient(145deg,rgba(255,255,255,calc(.6 - .12*var(--gi))),rgba(147,170,255,calc(.16 + .1*(1 - var(--amt,.35)))) 70%,rgba(190,160,255,calc(.14 + .1*(1 - var(--amt,.35)))));--sheen:.8}
+.slide.glass .cv-tile{--tint:linear-gradient(145deg,rgba(255,255,255,calc(.68 - .12*var(--gi))),rgba(120,200,255,calc(.12 + .1*(1 - var(--amt,.35)))))}
+.slide.glass .cv-chip{display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:600;color:#0B0D17}
+.slide.glass .cv-chip span{position:relative;z-index:2}
+/* excel */
+.slide.excel .cvx-panel{position:absolute;left:1080px;top:0;width:520px;height:900px;background:linear-gradient(160deg,#1C4F8C,#0E3463);overflow:hidden}
+.slide.excel .cvx-band{position:absolute;left:-120px;top:520px;width:900px;height:120px;background:rgba(255,255,255,.07);transform:rotate(-32deg)}
+.slide.excel .cvx-band.b2{top:700px;height:60px;background:rgba(255,255,255,.05)}
+.slide.excel .cv-block.x .cv-kicker{color:#1C4F8C}
+.slide.excel .cv-block.x .cv-title{color:#14213D}
+.slide.excel .cv-block.x .cv-bar{background:#1C4F8C}
+.slide.excel .cv-block.x .cv-sub{color:#5B6B82}
+.slide.excel .cvx-rule{position:absolute;left:120px;top:752px;width:860px;height:1px;background:#D5DCE8}
+.slide.excel .cvx-date{position:absolute;left:120px;top:770px;font-size:20px;color:#5B6B82}
+.slide.excel .logowrap.big{right:580px;bottom:72px;height:48px}
+.slide.excel .logowrap.big img{height:48px;max-width:300px}
+
+/* ---------------- index ---------------- */
+.slide .ix-row{position:absolute;display:flex;align-items:center;gap:22px;box-sizing:border-box}
+.slide .ix-n{flex:none;text-align:center;border-radius:50%;font-weight:700;font-variant-numeric:tabular-nums}
+.slide .ix-txt{display:flex;flex-direction:column;min-width:0;max-width:70%}
+.slide .ix-t{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slide .ix-s{font-size:.66em;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slide .ix-lead{flex:1;align-self:center;height:0;border-bottom:2px dotted;opacity:.35;margin:0 4px;transform:translateY(.35em)}
+.slide .ix-p{flex:none;font-variant-numeric:tabular-nums;font-weight:600;min-width:40px;text-align:right}
+.slide .ix-sep{position:absolute;height:1px}
+.slide .ix-empty{position:absolute;left:110px;top:200px;font-size:22px;color:#8A94A6}
+.slide.glass .ix-row.g{z-index:3;color:#0B0D17;font-family:-apple-system,"SF Pro Text","Segoe UI Variable Text","Segoe UI",Arial,sans-serif}
+.slide.glass .ix-row.g .ix-n{background:linear-gradient(180deg,rgba(59,130,246,.2),rgba(139,92,246,.16));color:#1E3A8A;box-shadow:inset 0 1px 1px rgba(255,255,255,.8)}
+.slide.glass .ix-row.g .ix-s{color:rgba(18,22,44,.55)}
+.slide.glass .ix-row.g .ix-lead{color:rgba(18,22,44,.6)}
+.slide.glass .ix-row.g .ix-p{color:rgba(18,22,44,.7)}
+.slide.glass .ix-sep.g{z-index:3;background:linear-gradient(90deg,rgba(30,40,80,.12),rgba(30,40,80,.12) 94%,rgba(30,40,80,0))}
+.slide.excel .ix-row.x{color:#14213D}
+.slide.excel .ix-row.x .ix-n{background:#1C4F8C;color:#fff}
+.slide.excel .ix-row.x .ix-s{color:#6B7A90}
+.slide.excel .ix-row.x .ix-lead{color:#6B7A90}
+.slide.excel .ix-row.x .ix-p{color:#1C4F8C}
+.slide.excel .ix-sep{background:#E1E6EF}
+.slide .emptyslide{position:absolute;left:0;right:0;top:400px;text-align:center;font:500 22px/1.4 "Segoe UI",sans-serif;color:rgba(18,22,44,.45)}
+
+/* ---------------- page numbers ---------------- */
+.slide .pageno{position:absolute;z-index:5;font-variant-numeric:tabular-nums;white-space:nowrap}
+.slide.glass .pageno.gls{display:flex;align-items:center;justify-content:center;font-weight:650;color:#0B0D17}
+.slide.glass .pageno.gls span{position:relative;z-index:2}
+.slide.glass .pageno.plain{color:rgba(18,22,44,.62);font-weight:600}
+.slide.excel .pageno.plain{color:#1C4F8C;font-weight:700}
+
+/* value capsules (lightweight: tint + highlight, no wallpaper copy) */
+.slide .cap{position:absolute;box-sizing:border-box;border-top:1px solid rgba(255,255,255,.55)}
+.slide .cap.pos{background:linear-gradient(180deg,rgba(64,208,102,.62),rgba(46,190,84,.46))}
+.slide .cap.neg{background:linear-gradient(180deg,rgba(255,82,72,.56),rgba(245,52,42,.4))}
+.slide .cap.strong.pos{background:linear-gradient(180deg,rgba(64,208,102,.78),rgba(46,190,84,.62))}
+.slide .cap.strong.neg{background:linear-gradient(180deg,rgba(255,82,72,.74),rgba(245,52,42,.58))}
+.slide .cap.muted{background:rgba(120,126,155,.14);box-shadow:none}
+.slide .cap.solid.pos{background:linear-gradient(180deg,#5FE085 0%,#34C759 55%,#2AB04D 100%);box-shadow:0 5px 12px -6px rgba(30,160,70,.5),inset 0 1px 1px rgba(255,255,255,.6)}
+.slide .cap.solid.neg{background:linear-gradient(180deg,#FF776D 0%,#FF3B30 55%,#E2261C 100%);box-shadow:0 5px 12px -6px rgba(215,40,30,.45),inset 0 1px 1px rgba(255,255,255,.55)}
+.slide .cap.solid.other{box-shadow:0 5px 12px -6px rgba(28,40,100,.3),inset 0 1px 1px rgba(255,255,255,.5)}
+.slide.excel .cap{box-shadow:none}
+
+/* rendering isolation: a change inside one table does not re-layout or repaint the rest of the slide */
+.slide .tw{contain:layout style}
+.slide .xt{contain:layout style}
+
+/* scene materials (Liquid Glass): chips, nested panels, tinted glass, accent rules */
+.gls.chip{--tint:linear-gradient(180deg,rgba(255,255,255,.92),rgba(255,255,255,.8));--rim:1px;--sheen:.5;
+  box-shadow:0 2px 7px -3px rgba(28,40,100,calc(.16 + .14*var(--gi))),inset 0 1px 1px rgba(255,255,255,.95),inset 0 0 0 .5px rgba(30,40,80,.06)}
+.gls.panel{--tint:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,.38));--rim:1px;--sheen:.45;
+  box-shadow:inset 0 1px 1px rgba(255,255,255,.9),inset 0 0 0 .5px rgba(255,255,255,.5),0 3px 10px -6px rgba(28,40,100,calc(.12 + .12*var(--gi)))}
+.gls.tinted{--sheen:.5}
+.xt.gx .rule.accent{position:absolute;border-radius:1px;background:linear-gradient(90deg,#3B82F6,#8B5CF6 70%,rgba(139,92,246,.15))}

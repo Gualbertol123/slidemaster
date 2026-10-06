@@ -1,0 +1,15 @@
+# Generated at runtime (see README §2)
+export/
+engine/
+backend/slide_builder_settings.txt
+backend/slide_builder_settings.txt.unreadable-*
+
+# User workbooks
+*.xlsx
+*.xlsm
+*.xlsb
+*.xls
+~$*
+
+__pycache__/
+*.pyc
