@@ -1,4 +1,4 @@
-"""Command line entry point: ``python slide_builder.py [--port 8765] [--no-browser] [--setup]``."""
+"""Command line entry point: ``python slide_builder.py [--port 8765] [--no-browser] [--setup] [--install]``."""
 import argparse
 import atexit
 import json
@@ -30,10 +30,17 @@ def main(argv=None):
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--no-browser", action="store_true", help="do not open the app automatically")
     ap.add_argument("--setup", action="store_true", help="install the export engine (Playwright + Chromium) into this folder")
+    ap.add_argument("--install", action="store_true", help="first-time set-up on this PC (Python packages, export engine, shared-folder check, desktop shortcut, self-test)")
     args = ap.parse_args(argv)
     if args.setup:
         from .installer import setup
         sys.exit(setup())
+    if args.install:
+        from .firstrun import run_install
+        sys.exit(run_install())
+    if os.environ.get("SLIDEBUILDER_SIM_FS_MS") is not None:      # load tests only (tools/loadtest.py)
+        from . import simfs
+        log("SIMULATION: +%g ms per data-folder file operation (SLIDEBUILDER_SIM_FS_MS) - not for real use" % simfs.install())
 
     from .engines import find_local_engine
     from .migrate import migrate

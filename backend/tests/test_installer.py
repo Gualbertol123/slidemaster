@@ -62,7 +62,7 @@ class InstallLockTests(TempDirs):
     def test_setup_runs_under_both_locks(self):
         seen = {}
 
-        def fake():
+        def fake(pip=True):
             seen["shared"] = os.path.exists(os.path.join(paths.DATA, "locks", "install.lock"))
             seen["local"] = os.path.exists(os.path.join(self.local_locks, "install.lock"))
             return 0

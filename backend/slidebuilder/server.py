@@ -52,6 +52,20 @@ code{background:#f2f2f5;padding:2px 6px;border-radius:4px}</style></head><body>
 <p>then reload this page. The helper itself is running.</p></body></html>"""
 
 
+def timing_header():
+    """``X-SB-Timing: lock_wait_ms=..;write_ms=..;fs_ops=..`` on POST .../ops - only when
+    SLIDEBUILDER_TIMING or SLIDEBUILDER_SIM_FS_MS is set (load tests); clients may ignore it."""
+    if not (os.environ.get("SLIDEBUILDER_TIMING") or os.environ.get("SLIDEBUILDER_SIM_FS_MS") is not None):
+        return None
+    t = store.last_timing()
+    if not t:
+        return None
+    parts = ["lock_wait_ms=%.1f" % t["lock_wait_ms"], "write_ms=%.1f" % t["write_ms"]]
+    if t.get("fs_ops") is not None:
+        parts.append("fs_ops=%d" % t["fs_ops"])
+    return {"X-SB-Timing": ";".join(parts)}
+
+
 class HttpError(Exception):
     def __init__(self, code, msg):
         super().__init__(msg)
@@ -332,7 +346,7 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(ops, list):
                 raise HttpError(400, "ops must be a list")
             doc, applied, skipped = store.update_workbook(name, ops)
-            return self._send(200, {"doc": doc, "applied": applied, "skipped": skipped})
+            return self._send(200, {"doc": doc, "applied": applied, "skipped": skipped}, headers=timing_header())
         if path == "/api/config/ops":
             ops = self._json().get("ops")
             if not isinstance(ops, list):

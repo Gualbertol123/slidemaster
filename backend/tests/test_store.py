@@ -25,25 +25,44 @@ class StoreTests(TempDirs):
         self.assertFalse(os.path.exists(store.workbook_path("New.xlsx")))
 
     def test_update_writes_and_backs_up(self):
-        doc, applied, skipped = store.update_workbook("Book.xlsx", [{"op": "style.patch", "patch": {"color": 50}}], "alice")
+        t0 = 1_800_000_000_000
+        doc, applied, skipped = store.update_workbook("Book.xlsx", [{"op": "style.patch", "patch": {"color": 50}}], "alice", now=t0)
         self.assertEqual((doc["rev"], applied, skipped, doc["updatedBy"]), (1, 1, [], "alice"))
         with open(store.workbook_path("Book.xlsx")) as f:
             self.assertEqual(json.load(f)["style"], {"color": 50})
         backups = os.path.join(paths.DATA, "backups", doc_key("Book.xlsx"))
         self.assertEqual(os.listdir(backups), ["1.json"])
         # within 5 minutes: no new backup
-        store.update_workbook("Book.xlsx", [{"op": "style.patch", "patch": {"color": 60}}], "bob")
+        store.update_workbook("Book.xlsx", [{"op": "style.patch", "patch": {"color": 60}}], "bob", now=t0 + 60_000)
         self.assertEqual(os.listdir(backups), ["1.json"])
-        # older than 5 minutes: a new backup
-        old = time.time() - 400
-        os.utime(os.path.join(backups, "1.json"), (old, old))
-        store.update_workbook("Book.xlsx", [{"op": "style.patch", "patch": {"color": 70}}], "bob")
+        # 5 minutes after the last backup: a new one
+        store.update_workbook("Book.xlsx", [{"op": "style.patch", "patch": {"color": 70}}], "bob", now=t0 + 301_000)
         self.assertEqual(sorted(os.listdir(backups)), ["1.json", "3.json"])
         hist = store.history("Book.xlsx")
         self.assertEqual([h["rev"] for h in hist], [3, 1])
         self.assertEqual(hist[0]["updatedBy"], "bob")
         # no leftovers
         self.assertEqual([n for n in os.listdir(os.path.dirname(store.workbook_path("Book.xlsx"))) if n.endswith(".tmp")], [])
+
+    def test_a_normal_save_does_not_touch_the_backup_folder(self):
+        store.update_workbook("Quiet.xlsx", [{"op": "style.patch", "patch": {"color": 1}}], "a")
+        folder = os.path.join(paths.DATA, "backups", doc_key("Quiet.xlsx"))
+        for i in range(40):                        # many old backups (steady state)
+            with open(os.path.join(folder, "%d.json" % (1000 + i)), "w") as f:
+                f.write("{}")
+        real_listdir, real_getmtime, touched = os.listdir, os.path.getmtime, []
+        def spy_listdir(p="."):
+            if str(p).startswith(folder): touched.append(p)
+            return real_listdir(p)
+        def spy_getmtime(p):
+            if str(p).startswith(folder): touched.append(p)
+            return real_getmtime(p)
+        os.listdir, os.path.getmtime = spy_listdir, spy_getmtime
+        try:
+            store.update_workbook("Quiet.xlsx", [{"op": "style.patch", "patch": {"color": 2}}], "a")
+        finally:
+            os.listdir, os.path.getmtime = real_listdir, real_getmtime
+        self.assertEqual(touched, [])
 
     def test_revision_log_names_each_author_and_is_capped(self):
         for i in range(25):

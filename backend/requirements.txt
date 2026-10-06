@@ -1,0 +1,4 @@
+# Optional Python packages for Slide Builder. The helper itself needs only the Python standard
+# library; without these packages everything still works (exports just take a little longer).
+# Installed by "Install Slide Builder.bat":  python -m pip install --user -r requirements.txt
+playwright; python_version >= "3.9"

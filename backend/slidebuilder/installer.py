@@ -102,7 +102,7 @@ def _download(url, dest):
     sys.stdout.write("\r   %6.1f MB done        \n" % (done / 1048576.0))
     os.replace(dest + ".part", dest)
 
-def _setup():
+def _setup(pip=True):
     """Install the export engine into ./engine: Chrome for Testing (downloaded by Python, so company
     certificates and proxy settings from Windows are used) and, on Python 3.9+, the 'playwright' package."""
     plat = _platform()
@@ -113,8 +113,10 @@ def _setup():
     print("=" * 66)
     os.makedirs(paths.ENGINE_DIR, exist_ok=True)
 
-    # 1) optional: playwright package (needs Python 3.9+)
-    if sys.version_info >= (3, 9):
+    # 1) optional: playwright package (needs Python 3.9+); --install does this itself (requirements.txt)
+    if not pip:
+        print("\n1/3  Python packages: done by the first-time installer - skipped here.")
+    elif sys.version_info >= (3, 9):
         in_venv = sys.prefix != getattr(sys, "base_prefix", sys.prefix)
         cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "playwright", "--disable-pip-version-check"] + ([] if in_venv else ["--user"])
         print("\n1/3  Python package 'playwright' (optional, makes exports faster)")
@@ -232,8 +234,9 @@ def _holder(e):
     return "%s@%s" % (h.get("user", "?"), h.get("host", "?")) if h else "another process"
 
 
-def setup():
-    """Install the export engine, holding the install locks for the whole run (C9)."""
+def setup(pip=True):
+    """Install the export engine, holding the install locks for the whole run (C9).
+    pip=False: do not install the 'playwright' package (the first-time installer already did)."""
     on_network = is_network_path(paths.ROOT)
     held = []
     try:
@@ -247,7 +250,7 @@ def setup():
             print(" Wait until it has finished, then run the installer again if exports still do not work.")
             print("=" * 66)
             return 1
-        return _setup()
+        return _setup(pip=pip)
     finally:
         for l in reversed(held):
             l.release()

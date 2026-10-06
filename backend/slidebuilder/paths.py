@@ -11,6 +11,8 @@ them somewhere else with :func:`configure` or the environment variables
 
     SLIDEBUILDER_ROOT   root folder (workbooks, export\\, engine\\)
     SLIDEBUILDER_DATA   data folder
+    SLIDEBUILDER_APP_FILE   the app page to serve instead of backend/slide_builder.html (testing aid,
+                        used by tools/loadtest.py when the app has not been built)
 """
 import os
 import tempfile
@@ -18,7 +20,7 @@ import tempfile
 PACKAGE = os.path.dirname(os.path.abspath(__file__))
 BACKEND = os.path.dirname(PACKAGE)
 ENTRY = os.path.join(BACKEND, "slide_builder.py")
-APP_FILE = os.path.join(BACKEND, "slide_builder.html")
+APP_FILE = os.environ.get("SLIDEBUILDER_APP_FILE") or os.path.join(BACKEND, "slide_builder.html")
 SETTINGS_NAME = "slide_builder_settings.txt"
 SETTINGS_BACKUP_NAME = "slide_builder_settings.v2-backup.txt"
 WORKBOOK_EXT = (".xlsx", ".xlsm", ".xlsb", ".xls")

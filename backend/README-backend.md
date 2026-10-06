@@ -7,7 +7,16 @@ everything except the Excel/GDI+ converters also runs on Linux/macOS. The bindin
 ```
 python slide_builder.py [--port 8765] [--no-browser]    # what "Start Slide Builder.bat" runs
 python slide_builder.py --setup                          # what "Install export engine.bat" runs
+python slide_builder.py --install                        # what "Install Slide Builder.bat" (root) runs
 ```
+
+`--install` is the first-time set-up (`slidebuilder/firstrun.py`): Python check, pip/ensurepip,
+`pip install --user -r requirements.txt` (optional `playwright`; certificate errors behind SSL
+inspection are retried with `--use-feature=truststore` when pip 22.2–24.1 on Python 3.10+, never with
+`--trusted-host`), the export engine (`installer.setup(pip=False)`), a shared-folder check (lock file,
+`export\` write, file-server round trip), a desktop shortcut (`.lnk` via PowerShell, `.bat` fallback)
+and a self-test (`/api/ping` on a free port). Exit code 0/1; idempotent. `requirements.txt` lists
+optional packages only – the helper itself stays standard-library only.
 
 ## Module map (`slidebuilder/`)
 
@@ -29,6 +38,8 @@ python slide_builder.py --setup                          # what "Install export 
 | `exports` | `/api/export` + `/api/assemble`: render, then atomic rename into `export\` (` (2)` when locked) |
 | `convert` | EMF/WMF/TIFF → PNG (GDI+, PowerShell) and .xlsb/.xls → .xlsx (Excel COM) – Windows only (ported) |
 | `installer` | `--setup` (Chrome for Testing download, Playwright) under install locks; background runner for the app |
+| `firstrun` | `--install`: first-time set-up on a PC (7 steps, OK/WARN/FAIL, summary, exit code) |
+| `simfs` | **load tests only**: adds simulated SMB latency to data-folder file calls when `SLIDEBUILDER_SIM_FS_MS` is set; never imported otherwise |
 | `server` | HTTP API, security checks (Host, token, Origin, body limits), upload store |
 | `main` | command line, "already running" probe (`/api/ping`), migration, start-up |
 
@@ -42,6 +53,9 @@ python slide_builder.py --setup                          # what "Install export 
 | `SLIDEBUILDER_BROWSER` | force a browser executable |
 | `SLIDEBUILDER_ENGINES` | `playwright,devtools,cli` subset, or `none` |
 | `SLIDEBUILDER_FORCE_NETWORK` | treat ROOT as a network drive (testing the engine mirror) |
+| `SLIDEBUILDER_APP_FILE` | serve this page instead of `slide_builder.html` (testing aid) |
+| `SLIDEBUILDER_SIM_FS_MS` | **simulation for load tests**: +N ms (±25 %) per data-folder file operation that would be an SMB round trip (open, stat/exists/getmtime, replace/rename, remove, listdir, makedirs, fsync); `0` only counts them. Implies `SLIDEBUILDER_TIMING`. Never set it for real use. |
+| `SLIDEBUILDER_TIMING` | add `X-SB-Timing: lock_wait_ms=…;write_ms=…[;fs_ops=…]` to `POST /api/workbooks/<name>/ops` responses (lock acquisition incl. waiting for others / work under the lock / file operations of that save). Clients may ignore it. |
 
 ## Tests
 
@@ -60,5 +74,14 @@ python3 -m unittest discover -s tests -v
 * `test_exports`, `test_workbooks`, `test_installer`, `test_main` – export naming/atomicity with a fake engine,
   stable reads, C9 locks, entry point
 * `test_engine_cli` – renders a real slide when a Chromium is found in `/opt/pw-browsers` (skipped otherwise)
+* `test_firstrun` – `--install`: truststore retry decision, venv/`--user`, ensurepip, shortcut fallback `.bat`
+  on a temp desktop (and `.lnk` replacing it), shared-folder probe, exit codes, two runs in a row, real self-test
+* `test_simfs` – latency simulation only touches data-folder calls, can be removed again; `X-SB-Timing` only when enabled
+
+## Load test
+
+`tools/loadtest.py` (standard library only) starts one helper per simulated user on a shared temp
+folder (or `--real-folder T:\…`) and measures saving, lock waits, visibility of other people's edits
+and correctness. Method and results: [`docs/LOADTEST.md`](../docs/LOADTEST.md).
 
 Multi-process tests use the `spawn` start method (same as Windows).

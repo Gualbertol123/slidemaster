@@ -10,6 +10,8 @@ import copy
 import json
 import os
 import re
+import sys
+import threading
 import time
 
 from . import paths
@@ -99,24 +101,57 @@ def workbook_exists(name):
 
 
 LOG_KEEP = 20
+_timing = threading.local()
+
+
+def last_timing():
+    """{lock_wait_ms, write_ms, fs_ops} of this thread's last update_workbook (X-SB-Timing, load tests)."""
+    return getattr(_timing, "value", None)
+
+
+def _fs_count():
+    simfs = sys.modules.get(__package__ + ".simfs")
+    return simfs.count() if simfs is not None and simfs.installed() else None
 
 
 def update_workbook(name, ops, user=None, now=None):
     """lock -> read latest -> apply -> write -> backup -> unlock. Returns (doc, applied, skipped)."""
     user = user or current_user()
     key = workbook_key(name)
-    with Lock("wb-" + key):
-        doc = read_workbook(name)
-        new, applied, skipped = apply_ops(doc, ops, user, now if now is not None else server_now_ms())
-        if applied:
-            new["schema"] = SCHEMA
-            new["workbook"] = doc.get("workbook") or name
-            # short revision log: lets clients name everybody whose changes they just received
-            log_ = [x for x in (doc.get("log") or []) if isinstance(x, dict)][-(LOG_KEEP - 1):]
-            new["log"] = log_ + [{"rev": new["rev"], "by": new.get("updatedBy"), "at": new.get("updated")}]
-            write_json(workbook_path(name), new)
+    _timing.value = None
+    n0, t0 = _fs_count(), time.perf_counter()
+    lock = Lock("wb-" + key).acquire()
+    t1 = time.perf_counter()
+    try:
+        return _update_locked(name, key, ops, user, now)
+    finally:
+        lock.release()
+        t2, n1 = time.perf_counter(), _fs_count()
+        _timing.value = {"lock_wait_ms": (t1 - t0) * 1000.0, "write_ms": (t2 - t1) * 1000.0,
+                         "fs_ops": (n1 - n0) if n0 is not None else None}
+
+
+def _update_locked(name, key, ops, user, now):
+    doc = read_workbook(name)
+    new, applied, skipped = apply_ops(doc, ops, user, now if now is not None else server_now_ms())
+    if applied:
+        new["schema"] = SCHEMA
+        new["workbook"] = doc.get("workbook") or name
+        # short revision log: lets clients name everybody whose changes they just received
+        log_ = [x for x in (doc.get("log") or []) if isinstance(x, dict)][-(LOG_KEEP - 1):]
+        new["log"] = log_ + [{"rev": new["rev"], "by": new.get("updatedBy"), "at": new.get("updated")}]
+        # backups: the document remembers when its last backup was taken (file-server time), so a
+        # normal save never lists or stats the backup folder while holding the lock (that cost
+        # 30 extra round trips per save once 30 backups existed - see docs/LOADTEST.md)
+        at = new.get("updated") if isinstance(new.get("updated"), (int, float)) else server_now_ms()
+        last = doc.get("backupAt")
+        due = new["rev"] == 1 or not isinstance(last, (int, float)) or at - last >= BACKUP_EVERY * 1000 or at < last
+        if due:
+            new["backupAt"] = at
+        write_json(workbook_path(name), new)
+        if due:
             _backup(key, new)
-        return new, applied, skipped
+    return new, applied, skipped
 
 
 def create_workbook_if_missing(name, doc):
@@ -150,16 +185,11 @@ def _backup_revs(folder):
 
 
 def _backup(key, doc):
-    """Keep a copy: always for rev 1, otherwise at most one per 5 minutes; keep the last 30.
-    A failing backup never fails the write it belongs to."""
+    """Write a copy of `doc` and keep the last 30. The caller decides when (rev 1, then at most one
+    per 5 minutes via doc["backupAt"]). A failing backup never fails the write it belongs to."""
     try:
         rev = int(doc.get("rev") or 0)
         folder = _backup_dir(key)
-        existing = _backup_revs(folder)
-        if rev != 1 and existing:
-            newest = max(os.path.getmtime(p) for _, p in existing)
-            if fs_now(folder) - newest < BACKUP_EVERY:          # file server's clock, not this PC's
-                return False
         write_json(os.path.join(folder, "%d.json" % rev), doc)
         for _, p in _backup_revs(folder)[:-BACKUP_KEEP]:
             remove_quietly(p)

@@ -20,12 +20,34 @@ different workbooks, without overwriting each other**. Why and how: [`docs/REVIE
 
 | Who | What to do |
 |---|---|
-| User | Double-click `Start Slide Builder.bat`. A console window opens (keep it open) and the app opens in the browser at `http://127.0.0.1:8765/`. |
-| User, first time on a PC | Click the status pill at the top right (“Export: …”) → **Install export engine**, or run `backend\Install export engine.bat`. |
+| User, first time on a PC | Double-click **`Install Slide Builder.bat`** (next to `Start Slide Builder.bat`). It checks Python, installs the optional packages and the export engine, checks that you can write in the shared folder, puts a **Slide Builder** shortcut on your desktop and starts the helper once as a test. No administrator rights needed; safe to run again. |
+| User | Double-click the **Slide Builder** desktop shortcut or `Start Slide Builder.bat`. A console window opens (keep it open) and the app opens in the browser at `http://127.0.0.1:8765/`. |
+| User, export engine only | Click the status pill at the top right (“Export: …”) → **Install export engine**, or run `backend\Install export engine.bat`. |
 | Developer | See §6. Users never need Node.js: the built app (`backend/slide_builder.html`) is committed. |
 
-Requirements: Python ≥ 3.8 (3.9+ for the optional `playwright` package), Windows 10/11
+Requirements: Python ≥ 3.8 – any newer version too (3.9+ for the optional `playwright` package), Windows 10/11
 (macOS/Linux work for development). The helper uses only the Python standard library.
+
+### First-time set-up (`Install Slide Builder.bat`)
+
+The installer looks for Python with `py -3`, then `python`. If neither is found it explains where to
+get it: the company software portal, or python.org's Windows installer with the **per-user install**
+(“Install Now” without admin privileges, tick “Add python.exe to PATH”) – no administrator rights are
+needed. It then runs `python backend\slide_builder.py --install`, which prints numbered steps with
+`OK` / `WARN` / `FAIL` and a summary:
+
+| Step | What it does | If it fails |
+|---|---|---|
+| 1 Python | version (printed exactly as detected), 32/64-bit, virtual environment | FAIL below 3.8; WARN on 3.8 (Playwright skipped) |
+| 2 pip | `python -m pip --version`, else `python -m ensurepip --user` | WARN – packages skipped |
+| 3 Packages | `pip install --user -r backend\requirements.txt` (only `playwright` today). Behind an SSL-inspecting proxy a certificate error is retried with `--use-feature=truststore` (Windows certificate store) when pip 22.2–24.1 and Python 3.10+; pip 24.2+ already uses it. Verification is never switched off. | WARN – exports work without it |
+| 4 Export engine | the same installer as `Install export engine.bat` (Chrome for Testing, downloaded by Python; on a network share it goes to `%LOCALAPPDATA%`) | WARN – exports are rendered in the app window |
+| 5 Shared folder | creates/deletes a lock file in `backend\data\locks`, writes a file in `export\`, measures the file-server round trip (median of 20 create+stat+replace+delete cycles; > 30 ms makes saving noticeably slower) | FAIL – ask IT for *Modify* rights |
+| 6 Shortcut | “Slide Builder” on the desktop: a `.lnk` via PowerShell/WScript.Shell, or – when PowerShell or COM is blocked (Constrained Language Mode) – a small `Slide Builder.bat` that opens the app folder and starts it | WARN |
+| 7 Self-test | starts the helper on a free port, calls `/api/ping`, stops it | FAIL |
+
+Exit code 0 when steps 1, 5 and 7 passed (warnings allowed), 1 otherwise. Both `.bat` files use
+`pushd`, so they also work when the folder is opened as `\\server\share\…`.
 
 ### Working together
 
@@ -45,6 +67,25 @@ Requirements: Python ≥ 3.8 (3.9+ for the optional `playwright` package), Windo
 * If saving fails (share unreachable, file locked), changes stay queued, the status bar says
   “Not saved yet – retrying”, and nothing is ever replaced by an empty or older copy.
 
+### Table tools
+
+* **Column widths / row heights:** drag a border on the slide (double-click = Excel size), or type
+  **W / H** in the second toolbar row for the selected columns/rows.
+* **⇔ Same size** makes the tables of the current slide exactly the same size; **Sizes…** does it for
+  tables on different slides, copies column widths between tables, aligns and resets.
+* **Align** the tables of a slide left, centre or right.
+* **Text boxes** above, below, left or right of a table (the + on the table, or the arrows in the
+  toolbar): as wide as the table above/below, as high on the sides; double-click to write.
+* **Colour scale** on selected cells: deeper green/red with the size of the number, per row, per
+  column or over the whole selection, for the cell colour and/or the number colour.
+* **Options › Look:** corner roundness, background contrast, glass bubble around the logo.
+
+### How fast is the shared folder?
+
+Run `Install Slide Builder.bat` (step 5 prints the file-server round trip) or
+`python tools\loadtest.py --real-folder "T:\Slide Builder" --scenario same`. Results and options
+(including when a central server is worth it): [`docs/LOADTEST.md`](docs/LOADTEST.md).
+
 ### Upgrading from v2
 
 Replace the program files (keep the workbooks, `logo.png` and `slide_builder_settings.txt`) and start
@@ -59,8 +100,10 @@ documents that already exist.
 
 ```
 Slide Builder\                      ROOT – what the user sees
+├─ Install Slide Builder.bat        first-time set-up (Python packages, export engine, shortcut, checks)
 ├─ Start Slide Builder.bat
 ├─ README.md, docs\
+├─ tools\loadtest.py               simulates 10 users on the shared folder (docs/LOADTEST.md)
 ├─ *.xlsx / *.xlsm / *.xlsb / *.xls workbooks placed here appear in the app's Open menu
 ├─ export\                          every exported PDF / PNG is written here
 ├─ engine\                          Chrome for Testing (optional; mirrored to %LOCALAPPDATA% on shares)
