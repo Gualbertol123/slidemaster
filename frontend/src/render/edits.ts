@@ -1,0 +1,39 @@
+/* Cell edits applied on top of the workbook: text (only while the Excel value is unchanged),
+   size, bold, italic, colours, alignment, role. */
+import { A1 } from "../xlsx/util";
+import type { Item, TableLayout } from "../xlsx/types";
+import type { CellEdit } from "../model/types";
+import { isNumText, sheetKey, type RenderCtx } from "./context";
+
+export const keyOf = (it: Item) => A1(it.b.src.r, it.b.src.c);
+export function cache<T>(L: TableLayout, name: string, key: string, make: () => T): T {
+  const c = L._cache || (L._cache = {});
+  const hit = c[name] as { key: string; v: T } | undefined;
+  if (hit && hit.key === key) return hit.v;
+  const v = make(); c[name] = { key, v }; return v;
+}
+export function effItems(L: TableLayout, ctx: RenderCtx): Item[] {
+  return cache(L, "eff", ctx.workbook + "|" + sheetKey(ctx, L.sheet), () => {
+    const cells = ctx.edits[L.sheet.name] || {};
+    return L.items.map(it => {
+      const e = cells[keyOf(it)]; if (!e) return it;
+      const o: Item = Object.assign({}, it); o.font = Object.assign({}, it.font);
+      if (e.text !== undefined && e.orig === it.text) { o.text = e.text; o.edited = true; if (!it.text && o.text) { o.isText = !isNumText(o.text); o.ctype = o.isText ? "s" : "n"; } }
+      if (e.sz) o.font.sz = e.sz;
+      if (e.b !== undefined) { o.font.b = e.b; o.userB = e.b; }
+      if (e.i !== undefined) { o.font.i = e.i; o.userI = e.i; }
+      if (e.color) { o.userColor = e.color; o.color = e.color; o.nfColor = null; }
+      if (e.fill) { if (e.fill === "none") { o.fill = null; o.cf = null; o.baseFill = null; o.noFill = true; } else { o.fill = e.fill; o.userFill = e.fill; } }
+      if (e.align) o.align = e.align;
+      if (e.role) o.role = e.role;
+      return o;
+    });
+  });
+}
+export function cellEditOf(ctx: RenderCtx, it: Item): CellEdit { return (ctx.edits[it.L!.sheet.name] || {})[keyOf(it)] || {}; }
+export function effText(ctx: RenderCtx, it: Item): string { const e = cellEditOf(ctx, it); return e.text !== undefined && e.orig === it.text ? e.text : it.text; }
+export function effFmt(ctx: RenderCtx, it: Item) {
+  const e = cellEditOf(ctx, it);
+  return { sz: e.sz || it.font.sz || 11, b: e.b !== undefined ? e.b : !!it.font.b, i: e.i !== undefined ? e.i : !!it.font.i,
+    color: e.color || null, fill: e.fill || null, align: e.align || null, role: e.role || "auto" };
+}

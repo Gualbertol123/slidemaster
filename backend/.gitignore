@@ -1,0 +1,3 @@
+# runtime state of the helper (ARCHITECTURE §3) and the imported v2 settings
+data/
+slide_builder_settings.v2-backup*.txt

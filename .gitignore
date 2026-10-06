@@ -10,6 +10,8 @@ backend/slide_builder_settings.txt.unreadable-*
 *.xlsb
 *.xls
 ~$*
+# …except the generated test workbooks
+!frontend/tests/fixtures/*.xlsx
 
 __pycache__/
 *.pyc
