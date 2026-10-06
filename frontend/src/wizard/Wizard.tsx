@@ -166,10 +166,10 @@ export function Wizard({ req }: { req: WizardReq }) {
           <div class="wtlist" id="wtlist">{S && (tablesOf(S.name).length ? tablesOf(S.name).map((t, k) => {
             const r = defRange(S, t), L = resolveTable(wb, t), n = L ? L.rows.length * L.cols.length : 0;
             return <div class="wtrow" data-id={t.id} key={t.id}>
-              <div class="row"><b>T{k + 1}</b><input class="nmin" value={t.name || ""} placeholder={S.title || S.name} onKeyDown={e => e.stopPropagation()} onChange={e => { t.name = (e.target as HTMLInputElement).value.trim() || undefined; }} />
+              <div class="row"><b>T{k + 1}</b><input class="nmin" value={t.name || ""} placeholder={S.title || S.name} onKeyDown={e => e.stopPropagation()} onInput={e => { t.name = (e.target as HTMLInputElement).value.trim() || undefined; }} />
                 <button class="btn icon del" title="Remove" onClick={() => { W.tables = W.tables.filter(x => x !== t); W.slides.forEach(s => s.tables = s.tables.filter(id => id !== t.id)); render(); }}>✕</button></div>
               <div class="row">{t.kind === "markers" ? <span class="rng">between “x” cells · {r || "?"}</span> : <>
-                <input class="rgin" value={t.range} spellcheck={false} onKeyDown={e => e.stopPropagation()} onChange={e => { const el = e.target as HTMLInputElement, v = el.value.trim().toUpperCase(); if (validRange(v) && t.kind === "range") { t.range = v; render(); } else el.classList.add("bad"); }} />
+                <input class="rgin" key={t.id + t.range} defaultValue={t.range} spellcheck={false} onKeyDown={e => e.stopPropagation()} onChange={e => { const el = e.target as HTMLInputElement, v = el.value.trim().toUpperCase(); if (validRange(v) && t.kind === "range") { t.range = v; render(); } else el.classList.add("bad"); }} />
                 <label class="ck"><input type="checkbox" class="grow" checked={t.kind === "range" && !!t.grow} onChange={e => { if (t.kind === "range") t.grow = (e.target as HTMLInputElement).checked; render(); }} /> grows</label></>}</div>
               <div class="meta">{L ? `${L.rows.length}×${L.cols.length} visible` : "empty / not found"}{n > 3000 && <span style="color:var(--warn)"> · {n.toLocaleString()} cells – text will be very small on one slide and editing is slower; consider a smaller range</span>}{usedIn(t.id) ? ` · on ${usedIn(t.id)} slide(s)` : ""}</div>
             </div>;
@@ -223,7 +223,8 @@ export function Wizard({ req }: { req: WizardReq }) {
             if (s.type === "cover") return <div class="scard special" key={s.id} data-id={s.id}>{head}
               <div class="row">{txt("subtitle", "Subtitle", "cvSub")}{txt("date", todayLabel() + " (automatic)", "cvDate")}</div>
               <div class="row">{txt("note", "Small line above the title, e.g. IBD · Weekly update", "cvNote")}{logo}</div></div>;
-            if (s.type === "index") return <div class="scard special" key={s.id} data-id={s.id}>{head}<div class="row"><span class="meta" style="flex:1">Lists the content slides with their page numbers.</span>{logo}</div></div>;
+            if (s.type === "index") return <div class="scard special" key={s.id} data-id={s.id}>{head}<div class="row"><span class="meta" style="flex:1">Lists the content slides with their page numbers.</span>
+              <label class="ck"><input type="checkbox" id="ixSubs" checked={s.subs !== false} onChange={e => { if ((e.target as HTMLInputElement).checked) delete s.subs; else s.subs = false; render(); }} /> with subtitles</label>{logo}</div></div>;
             return <div class={"scard" + (W.focusSlide === s.id ? " focus" : "")} key={s.id} data-id={s.id} onClick={e => { if ((e.target as Element).closest("button,input")) return; W.focusSlide = s.id; render(); }}>
               {head}
               <div class="row">{txt("subtitle", "Subtitle (optional)")}{logo}</div>

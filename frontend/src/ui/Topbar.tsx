@@ -5,8 +5,10 @@ import { openInstaller } from "../state/dialogs";
 import { backend, type FileInfo } from "../sync/api";
 import { doExport, type ExportKind } from "../editor/export";
 import { Dropdown } from "./Dropdown";
+import { Field } from "./Field";
 import { PN_FONTS } from "../render/pagenumbers";
-import type { Footer, PageNumbers } from "../model/types";
+import type { Footer, PageNumbers, Theme } from "../model/types";
+import { THEMES, themeOf } from "../model/style";
 
 /* sliders: preview the number at once, apply (one operation, one undo step) when the hand rests */
 const sliderTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -38,6 +40,29 @@ function OpenMenu() {
   );
 }
 
+/* colour theme: built-in themes (incl. the Intesa Sanpaolo corporate colours) or a custom one */
+type TKey = "c1" | "c2" | "c3" | "c4" | "a1" | "a2";
+function ThemePicker() {
+  const st = style(), cur = themeOf(st);
+  const th = (patch: Partial<Theme>, coalesce?: string) => styleChange("Colour theme", { theme: patch }, coalesce);
+  const swatch = (t: { c1: string; c2: string; c3: string; c4: string; a1: string }) => <i class="thsw" style={{ background: `linear-gradient(135deg,${t.c1},${t.c2} 40%,${t.c3} 75%,${t.c4})` }}><b style={{ background: t.a1 }} /></i>;
+  const custom = () => th({ id: "custom", c1: cur.c1, c2: cur.c2, c3: cur.c3, c4: cur.c4, a1: cur.a1, a2: cur.a2 });
+  const pick = (k: TKey, label: string) => <label class="thpick" title={label}><input type="color" data-tk={k} value={cur[k]}
+    onInput={e => { const v = (e.target as HTMLInputElement).value.toUpperCase(); debounced("theme" + k, () => th({ id: "custom", [k]: v }, "theme" + k), 250); }} /><span>{label}</span></label>;
+  return <>
+    <div class="opthd">Colour theme</div>
+    <div class="themes" id="themeList">
+      {THEMES.map(t => <button key={t.id} data-theme={t.id} class={cur.id === t.id ? "on" : ""} title={t.name} onClick={() => th({ id: t.id })}>{swatch(t)}<span>{t.name}</span></button>)}
+      <button data-theme="custom" class={cur.id === "custom" ? "on" : ""} title="Your own colours" onClick={custom}>{swatch(cur.id === "custom" ? cur : { c1: "#fff", c2: "#ddd", c3: "#bbb", c4: "#999", a1: "#666" })}<span>Custom</span></button>
+    </div>
+    {cur.id === "custom" && <div class="thcustom" id="themeCustom">
+      <span class="lbl">Background</span>{pick("c1", "1")}{pick("c2", "2")}{pick("c3", "3")}{pick("c4", "4")}
+      <span class="lbl">Accents</span>{pick("a1", "1")}{pick("a2", "2")}
+    </div>}
+    <div class="optnote">Background colours of Liquid Glass and the accent colour of titles, cover, index and page numbers (both designs). The “Colour” slider sets how strong the background is.</div>
+  </>;
+}
+
 function Options() {
   const st = style(), p = st.pn, has = !!S.sync;
   const pn = (patch: Partial<PageNumbers>, coalesce?: string) => styleChange("Page numbers", { pn: patch }, coalesce);
@@ -45,10 +70,12 @@ function Options() {
   return (
     <Dropdown right menuClass="optmenu" button={(_o, toggle) => <button class="btn" id="optBtn" title="Page numbers and logo" disabled={!has} onClick={toggle}>⚙ Options</button>}>
       {() => <>
+        <ThemePicker />
+        <div class="sep" />
         <div class="opthd">Page numbers</div>
         <label class="ck big"><input type="checkbox" id="pnOn" checked={p.on} onChange={e => pn({ on: (e.target as HTMLInputElement).checked })} /> Show page numbers on every slide</label>
         <div class={"optgrid" + (p.on ? "" : " off")} id="pnBox">
-          <label>Start at</label><input id="pnStart" type="number" min="0" step="1" style="width:80px" value={p.start} onKeyDown={e => e.stopPropagation()} onChange={e => { const v = parseInt((e.target as HTMLInputElement).value, 10); pn({ start: isFinite(v) ? v : 1 }); }} />
+          <label>Start at</label><Field id="pnStart" type="number" min="0" step="1" style="width:80px" value={String(p.start)} onCommit={v => { const n = parseInt(v, 10); pn({ start: isFinite(n) ? n : 1 }); }} />
           <label>Position</label>
           <div class="posgrid" id="pnPos">
             {([["tl", "◤", "Top left"], ["tc", "▲", "Top centre"], ["tr", "◥", "Top right"], ["bl", "◣", "Bottom left"], ["bc", "▼", "Bottom centre"], ["br", "◢", "Bottom right"]] as const).map(([k, g, t]) =>
@@ -70,8 +97,7 @@ function Options() {
         <div class="opthd">Footer</div>
         <label class="ck big"><input type="checkbox" id="ftOn" checked={ft.on} onChange={e => fo({ on: (e.target as HTMLInputElement).checked })} /> Show a footer on every slide</label>
         <div class={"optgrid" + (ft.on ? "" : " off")} id="ftBox">
-          <label>Text</label><input id="ftText" style="width:100%" placeholder="e.g. Confidential · {workbook} · {date}" value={ft.text}
-            onKeyDown={e => { e.stopPropagation(); if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} onChange={e => fo({ text: (e.target as HTMLInputElement).value })} />
+          <label>Text</label><Field id="ftText" style="width:100%" placeholder="e.g. Confidential · {workbook} · {date}" value={ft.text} onCommit={v => fo({ text: v })} />
           <label>Position</label>
           <div class="posgrid" id="ftPos">
             {([["tl", "◤", "Top left"], ["tc", "▲", "Top centre"], ["tr", "◥", "Top right"], ["bl", "◣", "Bottom left"], ["bc", "▼", "Bottom centre"], ["br", "◢", "Bottom right"]] as const).map(([k, g, t]) =>
@@ -86,9 +112,9 @@ function Options() {
         <div class="sep" />
         <div class="opthd">Logo</div>
         <div class="optrow"><label for="logoInput">Logo file (backend folder)</label>
-          <input id="logoInput" placeholder="logo.png" style="width:150px" value={st.logo} onKeyDown={e => { e.stopPropagation(); if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-            onChange={e => { S.logoMissing = false; styleChange("Logo", { logo: (e.target as HTMLInputElement).value.trim() }); }} /></div>
-        <div class="optnote">Hide it on single slides with the Logo button in the toolbar.</div>
+          <Field id="logoInput" placeholder="logo.png" style="width:150px" value={st.logo} onCommit={v => { S.logoMissing = false; styleChange("Logo", { logo: v.trim() }); }} /></div>
+        <label class="ck big"><input type="checkbox" id="logoBubble" checked={st.logoBubble} onChange={e => styleChange(st.logoBubble ? "Remove logo bubble" : "Logo bubble", { logoBubble: (e.target as HTMLInputElement).checked ? null : false })} /> Bubble around the logo{st.design === "excel" ? " (Liquid Glass)" : ""}</label>
+        <div class="optnote">Untick to show the logo on its own, without the glass bubble. Hide the logo on single slides with the Logo button in the toolbar.</div>
         <div class="sep" />
         <div class="opthd">Look</div>
         <div class="optgrid">
@@ -96,7 +122,6 @@ function Options() {
             onInput={e => { const v = +(e.target as HTMLInputElement).value, el = (e.target as HTMLElement).nextElementSibling; if (el) el.textContent = v === 0 ? "square" : v + " %"; debounced("radius", () => styleChange("Corner roundness", { radius: v }, "radius")); }} /><span class="cv">{st.radius === 0 ? "square" : st.radius + " %"}</span></div>
           {st.design === "glass" && <><label>Contrast</label><div class="row"><input type="range" id="contrastRange" min="0" max="100" step="5" value={st.contrast}
             onInput={e => { const v = +(e.target as HTMLInputElement).value, el = (e.target as HTMLElement).nextElementSibling; if (el) el.textContent = v < 50 ? "softer" : v > 50 ? "stronger" : "as designed"; debounced("contrast", () => styleChange("Contrast", { contrast: v }, "contrast")); }} /><span class="cv">{st.contrast < 50 ? "softer" : st.contrast > 50 ? "stronger" : "as designed"}</span></div></>}
-          {st.design === "glass" && <><label></label><label class="ck"><input type="checkbox" id="logoBubble" checked={st.logoBubble} onChange={e => styleChange("Logo bubble", { logoBubble: (e.target as HTMLInputElement).checked ? null : false })} /> glass bubble around the logo</label></>}
         </div>
         <div class="optnote">Corners: roundness of tables, bubbles and the logo (0 = square). Contrast: how much the tables and bubbles stand out from the background.</div>
         <div class="sep" />

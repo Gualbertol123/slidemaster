@@ -90,12 +90,12 @@ defined once, here, and tested on both sides with `shared/ops-vectors.json`.
 | op | fields | effect |
 |---|---|---|
 | `preset.set` | `preset` (object or null) | replace `doc.preset` (deep copy). Used by the wizard. |
-| `slide.patch` | `id`, `patch` | on the slide with that id: keys `title, subtitle, date, note, logo, layout, align, scale`: `null` → delete, else set. Key `notes` is a **map merge** (see below). Other keys ignored. Unknown slide (or no preset) → op **skipped**. |
-| `table.patch` | `id`, `patch` | on `doc.preset.tables[id]`: key `name`: `null` → delete, else set; keys `cols`, `rows`, `scales`, `merges` are **map merges**. Other keys ignored. Unknown table (or no preset) → skipped. |
-| `cell.patch` | `sheet`, `ref`, `patch` | on `doc.edits[sheet][ref]` (created if missing): for each key in `text, orig, sz, b, i, color, fill, bg, align, role`: `null` → delete, else set. Then: if `text` is absent, delete `orig`; if no keys remain, delete the cell; if the sheet has no cells, delete the sheet. |
-| `style.patch` | `patch` | on `doc.style`: keys `design, glass, color, logo, radius, contrast, logoBubble`: `null` → delete, else set; keys `pn` and `footer` are map merges. |
+| `slide.patch` | `id`, `patch` | on the slide with that id: keys `title, subtitle, date, note, logo, layout, align, valign, scale, subs`: `null` → delete, else set. Key `notes` is a **map merge** (see below). Other keys ignored. Unknown slide (or no preset) → op **skipped**. |
+| `table.patch` | `id`, `patch` | on `doc.preset.tables[id]`: keys `name, gridH, gridV`: `null` → delete, else set; keys `cols`, `rows`, `scales`, `merges` are **map merges**. Other keys ignored. Unknown table (or no preset) → skipped. |
+| `cell.patch` | `sheet`, `ref`, `patch` | on `doc.edits[sheet][ref]` (created if missing): for each key in `text, orig, sz, b, i, color, fill, bg, cf, align, role`: `null` → delete, else set. Then: if `text` is absent, delete `orig`; if no keys remain, delete the cell; if the sheet has no cells, delete the sheet. |
+| `style.patch` | `patch` | on `doc.style`: keys `design, glass, color, logo, radius, contrast, logoBubble`: `null` → delete, else set; keys `pn`, `footer` and `theme` are map merges. |
 
-**Map merge** (`pn`, `footer`, `notes`, `cols`, `rows`, `scales`, `merges`): value `null` → delete the whole map; an object →
+**Map merge** (`pn`, `footer`, `theme`, `notes`, `cols`, `rows`, `scales`, `merges`): value `null` → delete the whole map; an object →
 each entry is set (replacing that entry entirely) or deleted when `null`; a map left empty is deleted.
 So two people changing different columns, rules or text boxes never overwrite each other.
 
@@ -107,8 +107,13 @@ So two people changing different columns, rules or text boxes never overwrite ea
 | cell `bg` | cell colour that **replaces** the Excel colour (`"none"` removes it); in Liquid Glass it recolours the block. `fill` stays a highlight (a capsule in Liquid Glass) |
 | `style.footer` | `{on, text, pos, size, style, cover}` – footer on every slide like the page number; `{date}`, `{workbook}`, `{title}` are replaced |
 | `slide.align` | `"left"\|"center"\|"right"` – horizontal alignment of the tables (default centre) |
+| `table.gridH` / `table.gridV` | `"on"` = a line at every row (H) / column (V) edge, `"off"` = none; unset = the borders from Excel |
+| cell `cf` | conditional formatting copied with the format painter: `"Sheet!C6"` = the rules covering that cell, applied to this cell's value (relative references shifted like Excel); `"none"` = no rules |
+| `slide.valign` | `"top"\|"middle"\|"bottom"` – vertical position of the tables in the content area (default: slightly above the middle) |
+| `slide.subs` | index slide only: `false` hides the slide subtitles in the contents list |
+| `style.theme` | `{id, c1, c2, c3, c4, a1, a2}` – colour theme: `id` names a built-in theme (`aurora`, `ocean`, `forest`, `sunset`, `graphite`, `intesa`) or `custom`, whose colours are c1–c4 (background) and a1/a2 (accents) |
 | `slide.scale` | fixed table scale (null = fit to the slide); set by "Make same size" so tables on different slides match |
-| `slide.notes` | `{"<tableId>:<top\|bottom\|left\|right>": {text, size?, b?, i?, align?, color?, w?, h?}}` – text boxes around a table: top/bottom as wide as the table, left/right as high |
+| `slide.notes` | `{"<tableId>:<top\|bottom\|left\|right>": {text, size?, b?, i?, align?, valign?, bubble?, color?, w?, h?}}` – text boxes around a table: top/bottom as wide as the table, left/right as high |
 | `style.radius` | corner roundness, % of the default (0–200, default 100) |
 | `style.contrast` | contrast between background and glass surfaces (0–100, default 50) |
 | `style.logoBubble` | `false` = logo without its glass bubble |

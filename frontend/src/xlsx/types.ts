@@ -82,7 +82,7 @@ export interface Item {
   b: Box; bx: number; by: number; bw: number; bh: number;
   fill: string | null; top?: BorderSide | null; left?: BorderSide | null; right?: BorderSide | null; bottom?: BorderSide | null;
   text: string; font: Font; color: string; align: string; valign: string; wrap: boolean; indent: number; rot: number;
-  isText: boolean; merged: boolean; baseFill: string | null; cf: Dxf | null; nfColor: string | null; ctype: CellType;
+  isText: boolean; merged: boolean; baseFill: string | null; /** font colour before conditional formatting */ baseColor?: string; cf: Dxf | null; nfColor: string | null; ctype: CellType;
   tw?: number; ov?: boolean;
   /* effective values after user edits */
   /** colour scale result (variable conditional formatting) */

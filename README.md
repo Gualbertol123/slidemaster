@@ -91,6 +91,23 @@ Exit code 0 when steps 1, 5 and 7 passed (warnings allowed), 1 otherwise. Both `
 * **Options › Footer:** a footer on every slide (optionally the cover), with `{date}`, `{workbook}`,
   `{title}`, in any corner or centred, plain or as a glass capsule; it moves aside for the page number
   and logo when they share a corner.
+* **Text boxes:** align the text left/centre/right and top/middle/bottom; **◯ Bubble** puts the box on a
+  card like the tables (glass in Liquid Glass, a framed box in Excel).
+* **Tables:** align them top/middle/bottom as well as left/centre/right (also in *Sizes…* for several
+  slides); drag a table's **border** to make it wider/narrower (left/right) or taller/shorter (top/bottom),
+  the round corner handle keeps the proportions.
+* **Gridlines:** per table, horizontal and vertical separately: as in Excel, all, or none.
+* **Format** also copies conditional formatting (the rules are applied to the painted cells' own values,
+  like Excel), colour scales, the cell colour and the text colour.
+* **Contents page:** *Subtitles* in the toolbar (or *with subtitles* in the wizard) shows or hides the
+  slide subtitles in the list.
+* **Options › Colour theme:** Aurora, Ocean, Forest, Sunset, Graphite, **Intesa Sanpaolo** (green and
+  orange) or **Custom** (four background colours, two accents). The theme colours the Liquid Glass
+  background and the accents (cover, index numbers, titles in Excel, heading rules). The Intesa
+  Sanpaolo colours follow the public brand colours; use Custom if your brand guide gives other values.
+* **Options › Logo:** untick *Bubble around the logo* to show the logo on its own.
+* Typing is safe: while you type in a settings box or edit a cell, title or text box on the slide,
+  autosave and other people's changes never put the old text back; the slide redraws once you finish.
 
 ### How fast is the shared folder?
 

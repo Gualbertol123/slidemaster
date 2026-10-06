@@ -1110,5 +1110,192 @@
       "applied": 1,
       "skipped": []
     }
+  },
+  {
+    "name": "slide.patch valign and subs; table.patch gridlines",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C3"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ]
+          },
+          {
+            "id": "s2",
+            "type": "index",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "valign": "top"
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s2",
+        "patch": {
+          "subs": false
+        }
+      },
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "gridH": "off",
+          "gridV": "on"
+        }
+      },
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "gridV": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C3",
+            "gridH": "off"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "valign": "top"
+          },
+          {
+            "id": "s2",
+            "type": "index",
+            "tables": [],
+            "subs": false
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 4,
+      "skipped": []
+    }
+  },
+  {
+    "name": "cell.patch cf (painted conditional formatting)",
+    "doc": {
+      "preset": null,
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "cell.patch",
+        "sheet": "S",
+        "ref": "B2",
+        "patch": {
+          "cf": "S!E6",
+          "bg": "#FF3B30"
+        }
+      },
+      {
+        "op": "cell.patch",
+        "sheet": "S",
+        "ref": "B3",
+        "patch": {
+          "cf": "none"
+        }
+      },
+      {
+        "op": "cell.patch",
+        "sheet": "S",
+        "ref": "B3",
+        "patch": {
+          "cf": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {},
+      "edits": {
+        "S": {
+          "B2": {
+            "cf": "S!E6",
+            "bg": "#FF3B30"
+          }
+        }
+      },
+      "applied": 3,
+      "skipped": []
+    }
+  },
+  {
+    "name": "style.patch theme is a map merge",
+    "doc": {
+      "preset": null,
+      "style": {
+        "theme": {
+          "id": "custom",
+          "c1": "#112233"
+        }
+      },
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "style.patch",
+        "patch": {
+          "theme": {
+            "id": "intesa",
+            "c2": "#00953B"
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {
+        "theme": {
+          "id": "intesa",
+          "c1": "#112233",
+          "c2": "#00953B"
+        }
+      },
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
   }
 ]

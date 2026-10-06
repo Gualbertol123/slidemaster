@@ -43,10 +43,10 @@ export function moveSel(dr: number, dc: number, extend: boolean) {
 export function selectAll() { const sel = S.sel, T = selTable(); if (!sel || !T) return; setSel(sel.t, { r: T.rows[0], c: T.cols[0] }, { r: T.rows[T.rows.length - 1], c: T.cols[T.cols.length - 1] }); }
 
 /* ---- edits ---- */
-const KEYS = ["text", "orig", "sz", "b", "i", "color", "fill", "bg", "align", "role"] as const;
+const KEYS = ["text", "orig", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role"] as const;
 export function editOf(it: Item): CellEdit { return (ctx().edits[it.L!.sheet.name] || {})[keyOf(it)] || {}; }
 /** fn changes a copy of each selected cell's edit; the differences become cell.patch operations */
-export function applySel(label: string, fn: (e: CellEdit, it: Item) => void, items = selItems()) {
+export function applySel(label: string, fn: (e: CellEdit, it: Item) => void, items = selItems(), extra: Op[] = []) {
   const ops: Op[] = [];
   for (const it of items) {
     const before = editOf(it), after: CellEdit = { ...before };
@@ -55,7 +55,7 @@ export function applySel(label: string, fn: (e: CellEdit, it: Item) => void, ite
     for (const k of KEYS) { const a = (before as Record<string, unknown>)[k], b = (after as Record<string, unknown>)[k]; if (a !== b) patch[k] = b === undefined ? null : b; }
     if (Object.keys(patch).length) ops.push({ op: "cell.patch", sheet: it.L!.sheet.name, ref: keyOf(it), patch } as Op);
   }
-  if (ops.length) change(label, ops);
+  if (ops.length || extra.length) change(label, [...ops, ...extra]);
 }
 export function setText(it: Item, val: string) {
   applySel("Edit text", e => { if (val === it.text) { delete e.text; delete e.orig; } else { e.orig = it.text; e.text = val; } }, [it]);

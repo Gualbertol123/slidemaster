@@ -93,6 +93,7 @@ export function buildLayout(S: Sheet, g: Range, sizes?: Sizes): TableLayout | nu
     if (ri2 === rows.length - 1) bottom = own("bottom") || null;
     let fill = xf.fill;
     const font = Object.assign({}, S.ctx.defaultFont, stripUndef(xf.font || {}));
+    const baseColor = font.color || "#000000";
     const cf = evalCF(S, b.src.r, b.src.c);
     if (cf) { if (cf.fill) fill = cf.fill; if (cf.color) font.color = cf.color; if (cf.b !== undefined) font.b = cf.b; if (cf.i !== undefined) font.i = cf.i; }
     let text = "", nfColor: string | null = null;
@@ -102,7 +103,7 @@ export function buildLayout(S: Sheet, g: Range, sizes?: Sizes): TableLayout | nu
     if (align === "centerContinuous") align = "center";
     if (align === "fill" || align === "justify" || align === "distributed") align = "left";
     items.push({ b, bx, by, bw, bh, fill, top, left, right, bottom, text, font, color: nfColor || font.color || "#000000", align, valign: xf.v || "bottom", wrap: !!xf.wrap, indent: xf.indent || 0, rot: xf.rot || 0, isText: !!cell && cell.t === "s", merged: !!b.m,
-      baseFill: xf.fill, cf, nfColor, ctype: cell ? cell.t : "blank" });
+      baseFill: xf.fill, baseColor, cf, nfColor, ctype: cell ? cell.t : "blank" });
   }
   // text overflow into empty neighbours (Excel behaviour for unwrapped text)
   const occupied = new Set(items.filter(i => i.text).map(i => i.b.r + "," + i.b.c));
@@ -174,11 +175,13 @@ const cmp = (op: string, v: number | string, a: number | string | null, b?: numb
 };
 const OPS: Record<string, string> = { "=": "equal", "<>": "notEqual", ">": "greaterThan", ">=": "greaterThanOrEqual", "<": "lessThan", "<=": "lessThanOrEqual" };
 
-export function evalCF(S: Sheet, r: number, c: number): Dxf | null {
-  const cell = S.get(r, c);
-  for (const rule of S.cfRules) {
-    if (!rule.ranges.some(g => inRange(g, r, c))) continue;
-    const o = rule.ranges[0], dr = r - o.r1, dc = c - o.c1;           // relative refs are written for the first cell of sqref
+/** the conditional format of cell r,c. from = use the rules that cover another cell instead (format painter):
+    they are applied to this cell's value, relative references shifted by the distance – like Excel copies them */
+export function evalCF(S: Sheet, r: number, c: number, from?: { S: Sheet; r: number; c: number }): Dxf | null {
+  const cell = S.get(r, c), src = from || { S, r, c };
+  for (const rule of src.S.cfRules) {
+    if (!rule.ranges.some(g => inRange(g, src.r, src.c))) continue;
+    const o = rule.ranges[0], dr = r - o.r1, dc = c - o.c1;   // relative refs are written for the first cell of sqref (shifted to r,c)
     let hit = false;
     if (rule.type === "cellIs") {
       if (!cell || cell.t === "blank" || cell.t === "e") continue;
@@ -198,3 +201,5 @@ export function evalCF(S: Sheet, r: number, c: number): Dxf | null {
   return null;
 }
 export { splitRef };
+/** does any conditional-format rule cover this cell */
+export const hasCF = (S: Sheet, r: number, c: number) => S.cfRules.some(rule => rule.ranges.some(g => inRange(g, r, c)));

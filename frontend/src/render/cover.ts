@@ -33,7 +33,8 @@ export function coverHtml(R: RuntimeSlide, glassy: boolean, rk = 1): string {
 
 export function indexHtml(R: RuntimeSlide, ctx: RenderCtx, glassy: boolean): string {
   const items: { n: number; title: string; sub: string; page: string }[] = [];
-  ctx.slides.forEach((S, i) => { if (S.type === "content") items.push({ n: items.length + 1, title: S.title, sub: S.subtitle || "", page: String(pageNumber(ctx, i)) }); });
+  const subs = R.cfg.subs !== false;            // the index slide can hide the slide subtitles
+  ctx.slides.forEach((S, i) => { if (S.type === "content") items.push({ n: items.length + 1, title: S.title, sub: subs ? S.subtitle || "" : "", page: String(pageNumber(ctx, i)) }); });
   if (!items.length) return `<div class="ix-empty">No content slides yet</div>`;
   const two = items.length > 7, per = two ? Math.ceil(items.length / 2) : items.length;
   const top0 = R.subtitle ? 150 : 132, avail = 812 - top0 - 28;

@@ -298,3 +298,11 @@ table.xs td.mk{background:#FFF4CC!important;color:#9A6B00;font-weight:700;text-a
 .posgrid button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .seg.small{height:28px}
 .seg.small button{padding:0 10px;font-size:12px}
+/* table borders: drag to stretch columns / rows */
+.slide .hbox .edge{position:absolute;pointer-events:auto}
+.slide .hbox .edge.l,.slide .hbox .edge.r{top:0;bottom:0;width:10px;cursor:ew-resize}
+.slide .hbox .edge.l{left:-11px}.slide .hbox .edge.r{right:-11px}
+.slide .hbox .edge.t,.slide .hbox .edge.b{left:0;right:0;height:10px;cursor:ns-resize}
+.slide .hbox .edge.t{top:-11px}.slide .hbox .edge.b{bottom:-11px}
+.slide .hbox .edge:hover{background:rgba(10,102,216,.18);border-radius:4px}
+.slide .hbox .edgetip{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#0A66D8;color:#fff;font:600 15px/1 var(--font);padding:6px 10px;border-radius:6px;pointer-events:none}

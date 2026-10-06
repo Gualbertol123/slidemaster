@@ -12,6 +12,8 @@ export interface RenderCtx {
   workbook: string;
   /** URL of the logo (helper) or "" */
   logoSrc: string;
+  /** a loaded sheet of the workbook by name (painted conditional formats refer to their source sheet) */
+  sheet?: (name: string) => Sheet | null;
   /** export / thumbnail rendering: hide placeholders for missing pictures */
   forExport?: boolean;
   _keys?: Map<string, string>;
@@ -27,6 +29,6 @@ export function sheetKey(ctx: RenderCtx, S: Sheet): string {
 /** cache key of one table: its sheet's edits + its own sizes/scales + the deck settings that change its HTML */
 export function tableKey(ctx: RenderCtx, L: import("../xlsx/types").TableLayout): string {
   const d = L.def;
-  return ctx.workbook + "|" + sheetKey(ctx, L.sheet) + "|" + (d ? JSON.stringify([d.cols, d.rows, d.scales, d.merges]) : "") + "|" + ctx.style.radius;
+  return ctx.workbook + "|" + sheetKey(ctx, L.sheet) + "|" + (d ? JSON.stringify([d.cols, d.rows, d.scales, d.merges, d.gridH, d.gridV]) : "") + "|" + ctx.style.radius;
 }
 export const isNumText = (t: unknown) => /^[-+(]?[\d.\s]*\d[\d.,\s]*%?\)?$/.test(String(t).trim());

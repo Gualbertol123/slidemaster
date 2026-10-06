@@ -94,3 +94,39 @@ describe("merges, cell colour, footer", () => {
     expect(footerText(c, 0, "6 Oct 2026")).toBe("Confidential · report · Loans · 6 Oct 2026");
   });
 });
+
+describe("round 4: themes, gridlines, painted conditional formats, vertical alignment", () => {
+  it("themes: built-in by id, custom with stored colours", async () => {
+    const { themeOf } = await import("../src/model/style");
+    const s = resolveStyle({ theme: { id: "intesa" } });
+    expect(themeOf(s)).toMatchObject({ id: "intesa", a1: "#00953B", a2: "#F28C00" });
+    const c = themeOf(resolveStyle({ theme: { id: "custom", c1: "#123456", a1: "#zzz" } }));
+    expect(c).toMatchObject({ id: "custom", c1: "#123456", a1: "#3B82F6" });      // invalid colours fall back to Aurora
+  });
+  it("gridlines on/off replace the borders of every cell", async () => {
+    const { effItems, GRIDLINE } = await import("../src/render/edits");
+    const T = fakeTable([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
+    T.items.forEach((it: any) => { it.font = {}; it.L = T; it.top = { style: "medium", color: "#000" }; });
+    T.def = { id: "t1", gridH: "off", gridV: "on" };
+    const eff = effItems(T, ctx());
+    expect(eff.every((it: any) => !it.top && !it.bottom)).toBe(true);
+    expect(eff.every((it: any) => it.left === GRIDLINE)).toBe(true);
+    expect(eff.filter((it: any) => it.right === GRIDLINE).length).toBe(3);          // only the last column draws its right edge
+  });
+  it("painted conditional format: the source's rules on the target's value, references shifted", async () => {
+    const { evalCF } = await import("../src/xlsx/layout");
+    const cells = new Map<string, any>([["6,5", { t: "n", v: 2 }], ["6,9", { t: "n", v: -3 }], ["7,9", { t: "n", v: 4 }]]);
+    const S = { name: "S", get: (r: number, c: number) => cells.get(r + "," + c) || null,
+      cfRules: [{ ranges: [{ r1: 6, c1: 5, r2: 18, c2: 5 }], type: "cellIs", op: "greaterThan", formulas: ["0"], dxf: { fill: "#C6EFCE" }, priority: 1, stop: false }] } as any;
+    expect(evalCF(S, 6, 9)).toBeNull();                                               // I6 has no rules of its own
+    expect(evalCF(S, 6, 9, { S, r: 6, c: 5 })).toBeNull();                            // -3 is not > 0
+    expect(evalCF(S, 7, 9, { S, r: 6, c: 5 })).toEqual({ fill: "#C6EFCE" });          // 4 > 0
+  });
+  it("tables can sit at the top, middle or bottom of the content area", () => {
+    const T = fakeTable([[1, 2, 3], [4, 5, 6], [7, 8, 9]], 300, 90);
+    const y = (valign?: string) => computeLayout(slide([T], { valign, scale: 1 }), ctx()).boxes[0].y;
+    expect(y("top")).toBe(104);
+    expect(y("bottom")).toBeCloseTo(104 + 718 - 90, 5);
+    expect(y("middle")).toBeCloseTo(104 + (718 - 90) / 2, 5);
+  });
+});

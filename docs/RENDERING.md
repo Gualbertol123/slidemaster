@@ -228,3 +228,24 @@ false` draws the logo without its glass bubble.
   italic, colour, cell colour, highlight, alignment, role), tiled over the target selection when the
   mouse selection ends. Values equal to the target's own Excel format are not stored.
 
+### 4.7 Round 4 (v3.3)
+* **Themes** – `style.theme {id, c1…c4, a1, a2}`; `themeOf(style)` (model/style.ts) returns a built-in
+  `ThemeDef` or the custom colours. `makeWall` paints the wallpaper from c1–c4 (pastel gradient, blobs,
+  ribbons; Aurora keeps its hand-tuned values, so the default output is unchanged). Accents are CSS
+  variables set on the slide by `themeVars` (`--a1/--a2/--a1rgb/--a2rgb` glass, `--x1/--x2` Excel,
+  `--ixink`), with the Aurora values as CSS fallbacks.
+* **Gridlines** – `TableDef.gridH/gridV` (`"on"|"off"`), applied in `effItems` (`withGrid`) to the item
+  borders, so both designs follow; Liquid Glass also drops its automatic row separators for `gridH:"off"`
+  and draws every vertical rule for `gridV:"on"`.
+* **Painted conditional formatting** – `CellEdit.cf = "Sheet!C6"`: `evalCF(S, r, c, from)` takes the rules
+  covering the source cell and evaluates them on the target's value, relative references shifted like
+  Excel copies them; `"none"` removes the cell's own rules. The painter also adds a colour-scale rule over
+  the painted range and copies the text colour without the conditional colour (`Item.baseColor`).
+* **Vertical alignment** – `SlideDef.valign` (`top|middle|bottom`) places the bands in `computeLayout`.
+* **Text boxes** – `Note.valign` (flex `justify-content`) and `Note.bubble` (a `.notebub` glass card or
+  framed box behind the text, placed by `applyLayout`; the box gets 20 px more height).
+* **Glass blocks next to each other** no longer overlap: the outward padding of a block is clipped at the
+  midpoint to a neighbour of the same depth (3 px gap each side).
+* **Redraws while editing** – `renderStage` waits while an `.inline-edit` is open and runs when it closes;
+  settings boxes use `ui/Field.tsx`, which keeps the typed draft while focused.
+

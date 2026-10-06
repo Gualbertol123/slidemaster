@@ -4,7 +4,7 @@ import { useState } from "preact/hooks";
 import { S, emit, useApp } from "../state/store";
 import { DLG } from "../state/dialogs";
 import { tableName } from "../model/preset";
-import { allTables, alignTables, copySizes, makeSameSize, resetSizes, type TableRef } from "../editor/tables";
+import { allTables, alignTables, valignTables, copySizes, makeSameSize, resetSizes, type TableRef } from "../editor/tables";
 import { tableW } from "../render/slide";
 import { ctx } from "../state/app";
 
@@ -48,7 +48,8 @@ export function TablesDialog() {
             <button class="btn" id="tdCopy" disabled={!source || !pick.length} onClick={() => { if (source) { copySizes(source.L, pick); setMsg("Sizes copied."); } }}>Copy to the chosen tables</button>
             <div class="sep" />
             <div class="opthd">Align the tables on the chosen slides</div>
-            <div class="row">{(["left", "center", "right"] as const).map(a => <button key={a} class="btn" onClick={() => { alignTables(a, [...new Set(pick.map(r => r.slide))]); setMsg("Aligned " + a + "."); }}>{a === "left" ? "◧ Left" : a === "center" ? "▣ Centre" : "◨ Right"}</button>)}</div>
+            <div class="row">{(["left", "center", "right"] as const).map(a => <button key={a} class="btn" onClick={() => { alignTables(a, [...new Set(pick.map(r => r.slide))]); setMsg("Aligned " + a + "."); }}>{a === "left" ? "◧ Left" : a === "center" ? "▣ Centre" : "◨ Right"}</button>)}
+              {(["top", "middle", "bottom"] as const).map(v => <button key={v} class="btn" onClick={() => { valignTables(v, [...new Set(pick.map(r => r.slide))]); setMsg("Aligned " + v + "."); }}>{v === "top" ? "⬒ Top" : v === "middle" ? "▣ Middle" : "⬓ Bottom"}</button>)}</div>
             <div class="sep" />
             <button class="btn" id="tdReset" disabled={!pick.length} onClick={() => { resetSizes(pick); setMsg("Back to the sizes from Excel."); }}>Reset to Excel sizes</button>
           </div>

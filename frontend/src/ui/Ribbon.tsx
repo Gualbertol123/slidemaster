@@ -8,6 +8,7 @@ import { effFmt, effText, keyOf } from "../render/edits";
 import { slideHasLogo } from "../render/slide";
 import { A1 } from "../xlsx/util";
 import { Dropdown } from "./Dropdown";
+import { Field } from "./Field";
 import type { Op } from "../model/types";
 
 const FILLS: [string, string][] = [["#34C759", "Green (positive)"], ["#FF3B30", "Red (negative)"], ["#FF9500", "Orange"], ["#FFCC00", "Yellow"], ["#007AFF", "Blue"], ["#5856D6", "Indigo"],
@@ -54,8 +55,7 @@ export function Ribbon() {
       <div class="grp">
         <span class="lbl">Size</span>
         <button {...tb({ id: "sizeDown", title: "Smaller text" })} onClick={() => setSize(v => v > 12 ? v - 2 : v - 1)}>A−</button>
-        <input class="sizebox" id="sizeBox" disabled={!has} title="Text size in points (Enter to apply)" value={sizes.size === 1 && f ? String(f.sz) : ""}
-          onKeyDown={e => { e.stopPropagation(); if (e.key === "Enter") { const v = parseFloat((e.target as HTMLInputElement).value.replace(",", ".")); if (!isNaN(v)) setSize(() => v); (e.target as HTMLInputElement).blur(); } }} />
+        <Field class="sizebox" id="sizeBox" disabled={!has} title="Text size in points (Enter to apply)" value={sizes.size === 1 && f ? String(f.sz) : ""} onCommit={v => { const n = parseFloat(v.replace(",", ".")); if (!isNaN(n)) setSize(() => n); }} />
         <button {...tb({ id: "sizeUp", title: "Larger text" })} onClick={() => setSize(v => v >= 12 ? v + 2 : v + 1)}>A+</button>
       </div>
       <div class="grp">
@@ -88,6 +88,8 @@ export function Ribbon() {
         <span class="lbl">Slide</span>
         <button class={"tb" + (logoOn ? " on" : "")} id="logoToggle" disabled={!R || !logoName} title={R && !logoOn ? "The logo is hidden on this slide – click to show it" : "Hide the logo on this slide"}
           onClick={() => slidePatch(logoOn ? "Hide logo" : "Show logo", { logo: logoOn ? false : null })}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="3.5" width="13" height="9" rx="2" /><path d="m3.5 10.5 3-3 2 2 1.5-1.5 2.5 2.5" /></svg>Logo</button>
+        {R?.type === "index" && <button class={"tb" + (R.cfg.subs !== false ? " on" : "")} id="ixSubs" title={R.cfg.subs !== false ? "Hide the slide subtitles in the contents list" : "Show the slide subtitles in the contents list"}
+          onClick={() => slidePatch(R.cfg.subs !== false ? "Hide subtitles in contents" : "Show subtitles in contents", { subs: R.cfg.subs !== false ? false : null })}>Subtitles</button>}
       </div>
     </nav>
   );

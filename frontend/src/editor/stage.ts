@@ -8,7 +8,7 @@ import { applyLayout, buildSlide, computeLayout, GX, GY, layoutOf, tableHtml, ta
 import { glassGeom, gItem } from "../render/glass";
 import { effFmt, effText } from "../render/edits";
 import { activeItem, commitText, curSlide, itemAt, selItems, setSel } from "./edit";
-import { selCols, selRows, setColWidth, setRowHeight, shownColW, shownRowH } from "./tables";
+import { selCols, selRows, setColWidth, setRowHeight, shownColW, shownRowH, stretchTable } from "./tables";
 import { applyPainter } from "./painter";
 import type { Note, Side } from "../model/types";
 
@@ -25,8 +25,15 @@ export const slideScale = () => wrapEl()?._scale || 1;
 /* geometry of a cell on screen (Liquid Glass widens columns) */
 function cellBox(it: Item): Item { if (ctx().style.design !== "glass" || !it.L) return it; return gItem(it, glassGeom(it.L, ctx())); }
 
+/* while a cell, title or text box is being edited on the slide, redraws (autosave, other people's changes)
+   wait: rebuilding the slide would throw away the editor and what is being typed */
+let pendingRender = false;
+const editorOpen = () => !!host?.querySelector(".inline-edit");
+function afterEdit() { setTimeout(() => { if (pendingRender && !editorOpen()) { pendingRender = false; renderStage(); } }, 0); }
 export function renderStage() {
   if (!host) return;
+  if (editorOpen()) { pendingRender = true; return; }
+  pendingRender = false;
   host.innerHTML = "";
   const R = curSlide(); if (!R) return;
   const wrap = document.createElement("div") as HTMLDivElement & { _scale?: number }; wrap.className = "stagewrap";
@@ -214,6 +221,29 @@ function wireTableHandles(slide: HTMLElement, R: RuntimeSlide, hb: HTMLElement) 
     const up = () => { hb.removeEventListener("pointermove", move); hb.removeEventListener("pointerup", up); hb.classList.remove("active"); slidePatch("Resize table", R, { layout: lay }); };
     hb.addEventListener("pointermove", move); hb.addEventListener("pointerup", up);
   });
+  // borders of the table: drag to stretch the columns (left/right) or rows (top/bottom)
+  hb.querySelectorAll<HTMLElement>(".edge").forEach(edge => edge.addEventListener("pointerdown", e => {
+    e.preventDefault(); e.stopPropagation();
+    const side = edge.dataset.edge as "l" | "r" | "t" | "b", horiz = side === "l" || side === "r";
+    const sc = slideScale(), sx = e.clientX, sy = e.clientY, b = computeLayout(R, ctx()).boxes[i];
+    const tip = document.createElement("div"); tip.className = "edgetip"; hb.appendChild(tip);
+    hb.classList.add("active");          // listeners on the window: a redraw during the drag (sync) must not lose it
+    let f = 1;
+    const move = (ev: PointerEvent) => {
+      const d = (horiz ? ev.clientX - sx : ev.clientY - sy) / sc * (side === "l" || side === "t" ? -1 : 1);
+      f = Math.max(.2, Math.min(5, ((horiz ? b.w : b.h) + d) / (horiz ? b.w : b.h)));
+      const w = horiz ? b.w * f : b.h * f;
+      if (horiz) Object.assign(hb.style, { width: w + "px", left: (side === "l" ? b.x + b.w - w : b.x) + "px" });
+      else Object.assign(hb.style, { height: w + "px", top: (side === "t" ? b.y + b.h - w : b.y) + "px" });
+      tip.textContent = Math.round(f * 100) + " %";
+    };
+    const up = () => {
+      removeEventListener("pointermove", move); removeEventListener("pointerup", up); hb.classList.remove("active"); tip.remove();
+      if (Math.abs(f - 1) < .005) { if (hb.isConnected) applyLayout(slide, R, ctx()); return; }
+      const L = curSlide()?.tables[i]; if (L && curSlide().id === R.id) stretchTable(L, horiz ? "x" : "y", f);
+    };
+    addEventListener("pointermove", move); addEventListener("pointerup", up);
+  }));
   hb.querySelector<HTMLElement>(".grip")!.addEventListener("pointerdown", e => {
     e.preventDefault(); e.stopPropagation();
     const c = ctx(), sc = slideScale(), rect = slide.getBoundingClientRect();
@@ -262,7 +292,7 @@ export function openInline(initial?: string) {
   wrap.appendChild(inp); inp.focus(); if (initial === undefined) inp.select(); else inp.setSelectionRange(inp.value.length, inp.value.length);
   INLINE = inp;
   let done = false;
-  const finish = (ok: boolean, move?: [number, number]) => { if (done) return; done = true; INLINE = null; const v = inp.value; inp.remove(); if (ok) commitText(v, move); };
+  const finish = (ok: boolean, move?: [number, number]) => { if (done) return; done = true; INLINE = null; const v = inp.value; inp.remove(); if (ok) commitText(v, move); afterEdit(); };
   inp.addEventListener("keydown", e => {
     e.stopPropagation();
     if (e.key === "Enter") { e.preventDefault(); finish(true, [e.shiftKey ? -1 : 1, 0]); }
@@ -280,7 +310,7 @@ function editSlideText(R: RuntimeSlide, el: HTMLElement) {
   Object.assign(inp.style, { left: (r.left - wr.left - 4) + "px", top: (r.top - wr.top - 4) + "px", width: Math.max(320, r.width + 40) + "px", height: (r.height + 8) + "px", fontSize: Math.max(14, r.height * 0.62) + "px", fontWeight: key === "title" ? "700" : "500" });
   wrap.appendChild(inp); inp.focus(); inp.select();
   let done = false;
-  const finish = (ok: boolean) => { if (done) return; done = true; const v = inp.value.trim(); inp.remove(); if (ok) slidePatch(key === "title" ? "Edit title" : "Edit subtitle", R, { [key]: v || null }); };
+  const finish = (ok: boolean) => { if (done) return; done = true; const v = inp.value.trim(); inp.remove(); if (ok) slidePatch(key === "title" ? "Edit title" : "Edit subtitle", R, { [key]: v || null }); afterEdit(); };
   inp.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Enter") finish(true); if (e.key === "Escape") finish(false); });
   inp.addEventListener("blur", () => finish(true));
 }
@@ -316,7 +346,7 @@ function editNote(R: RuntimeSlide, el: HTMLElement) {
   wrap.appendChild(ta); ta.focus(); ta.select();
   let done = false;
   const finish = (ok: boolean) => {
-    if (done) return; done = true; const v = ta.value; ta.remove();
+    if (done) return; done = true; const v = ta.value; ta.remove(); afterEdit();
     if (!ok) return;
     // an empty box that was never written is removed again
     if (!v.trim()) { change("Remove text box", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: null } } } as Op]); S.noteSel = null; return; }

@@ -5,7 +5,7 @@ import { change } from "../state/app";
 import { DLG } from "../state/dialogs";
 import { emit } from "../state/store";
 import { curSlide, selTable } from "../editor/edit";
-import { alignTables, currentTableRefs, makeSameSize, selCols, selRows, setColWidth, setRowHeight, shownColW, shownRowH } from "../editor/tables";
+import { alignTables, valignTables, currentTableRefs, makeSameSize, selCols, selRows, setColWidth, setRowHeight, shownColW, shownRowH } from "../editor/tables";
 import { noteOf, patchNote } from "../editor/stage";
 import { scaleColors } from "../render/scales";
 import { A1, uid, esc } from "../xlsx/util";
@@ -53,6 +53,15 @@ function ScaleMenu({ close }: { close: () => void }) {
   </div>;
 }
 
+/* gridlines of a table: as in Excel, all on, or none – separately for horizontal and vertical lines */
+function GridMenu({ close, T }: { close: () => void; T: import("../xlsx/types").TableLayout }) {
+  const set = (k: "gridH" | "gridV", v: "on" | "off" | null) => { if (!T.def) return; change(v === "on" ? "Add gridlines" : v === "off" ? "Remove gridlines" : "Gridlines from Excel", [{ op: "table.patch", id: T.def.id, patch: { [k]: v } } as Op]); close(); };
+  const row = (k: "gridH" | "gridV", label: string) => <><label>{label}</label><div class="seg small" data-grid={k}>
+    {([[null, "As in Excel"], ["on", "All"], ["off", "None"]] as const).map(([v, l]) => <button key={String(v)} data-v={String(v)} class={(T.def?.[k] ?? null) === v ? "on" : ""} onClick={() => set(k, v)}>{l}</button>)}</div></>;
+  return <div class="scalemenu"><div class="hd">Gridlines of this table</div>
+    <div class="optgrid">{row("gridH", "Horizontal")}{row("gridV", "Vertical")}</div></div>;
+}
+
 export function TableRibbon() {
   useApp();
   const R = curSlide(), T = selTable(), cols = selCols(), rows = selRows(), hasSel = !!(T && S.sel);
@@ -85,6 +94,12 @@ export function TableRibbon() {
           onClick={() => { const r = makeSameSize(currentTableRefs(), { width: true, height: true, target: "largest" }); if (!r.ok) toast(esc(r.why)); }}>⇔ Same size</button>
         {(["left", "center", "right"] as const).map(a => <button key={a} class={"tb" + (align === a ? " on" : "")} data-talign={a} disabled={!R || !R.tables.length} title={`Align the tables ${a === "center" ? "in the centre" : "to the " + a}`} onClick={() => alignTables(a)}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">{a === "left" ? <><path d="M2 1.5v13" /><rect x="4" y="3.5" width="9" height="3" /><rect x="4" y="9.5" width="6" height="3" /></> : a === "center" ? <><path d="M8 1.5v13" /><rect x="3" y="3.5" width="10" height="3" /><rect x="4.5" y="9.5" width="7" height="3" /></> : <><path d="M14 1.5v13" /><rect x="3" y="3.5" width="9" height="3" /><rect x="6" y="9.5" width="6" height="3" /></>}</svg></button>)}
+        {(["top", "middle", "bottom"] as const).map(v => <button key={v} class={"tb" + (R?.cfg.valign === v ? " on" : "")} data-tvalign={v} disabled={!R || !R.tables.length}
+          title={R?.cfg.valign === v ? "Back to the default position (click again)" : `Move the tables to the ${v === "middle" ? "middle" : v} of the slide`} onClick={() => valignTables(R?.cfg.valign === v ? null : v)}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">{v === "top" ? <><path d="M1.5 2h13" /><rect x="3.5" y="4" width="3" height="9" /><rect x="9.5" y="4" width="3" height="6" /></> : v === "middle" ? <><path d="M1.5 8h13" /><rect x="3.5" y="3" width="3" height="10" /><rect x="9.5" y="4.5" width="3" height="7" /></> : <><path d="M1.5 14h13" /><rect x="3.5" y="3" width="3" height="9" /><rect x="9.5" y="6" width="3" height="6" /></>}</svg></button>)}
+        <Dropdown menuClass="wide" button={(_o, t) => <button class="tb" id="gridBtn" disabled={!(tIdx >= 0 && R?.tables[tIdx]?.def)} title="Add or remove horizontal / vertical gridlines of the table" onClick={t}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="2.5" width="13" height="11" /><path d="M1.5 6.2h13M1.5 9.8h13M5.8 2.5v11M10.2 2.5v11" /></svg>Gridlines</button>}>
+          {close => R && tIdx >= 0 ? <GridMenu close={close} T={R.tables[tIdx]} /> : null}</Dropdown>
         <button class="tb" id="tablesDlg" disabled={!S.slides.some(x => x.tables.length)} title="Match sizes of tables on several slides, copy column widths between tables" onClick={() => { DLG.tables = true; emit(); }}>Sizes…</button>
       </div>
       <div class="grp">
@@ -96,7 +111,9 @@ export function TableRibbon() {
           <button class="tb" title="Larger text" onClick={() => patchNote("Text box size", { size: Math.min(72, (note.size || 18) + 2) })}>A+</button>
           <button class={"tb" + (note.b ? " on" : "")} title="Bold" onClick={() => patchNote("Text box bold", { b: !note.b })}><b>B</b></button>
           <button class={"tb" + (note.i ? " on" : "")} title="Italic" onClick={() => patchNote("Text box italic", { i: !note.i })}><i style="font-family:Georgia,serif">I</i></button>
-          {(["left", "center", "right"] as const).map(a => <button key={a} class={"tb" + (note.align === a ? " on" : "")} title={"Align " + a} onClick={() => patchNote("Text box alignment", { align: a })}>{a === "left" ? "⇤" : a === "center" ? "↔" : "⇥"}</button>)}
+          {(["left", "center", "right"] as const).map(a => <button key={a} class={"tb" + (note.align === a ? " on" : "")} data-nalign={a} title={"Align text " + a} onClick={() => patchNote("Text box alignment", { align: a })}>{a === "left" ? "⇤" : a === "center" ? "↔" : "⇥"}</button>)}
+          {(["top", "middle", "bottom"] as const).map(v => <button key={v} class={"tb" + (note.valign === v ? " on" : "")} data-nvalign={v} title={"Text at the " + v + " of the box"} onClick={() => patchNote("Text box vertical alignment", { valign: v })}>{v === "top" ? "⤒" : v === "middle" ? "↕" : "⤓"}</button>)}
+          <button class={"tb" + (note.bubble ? " on" : "")} id="noteBubble" title="Bubble around the text box, like the tables" onClick={() => patchNote(note.bubble ? "Text box without bubble" : "Text box in a bubble", { bubble: !note.bubble })}>◯ Bubble</button>
           <button class="tb" title="Delete the text box (Del)" onClick={() => patchNote("Remove text box", null)}>🗑</button>
         </>}
       </div>

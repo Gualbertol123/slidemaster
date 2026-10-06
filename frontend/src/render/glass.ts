@@ -382,11 +382,30 @@ export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boo
   /* ---- containers → materials ---- */
   const tinted = new Map<Container, string>();          // container → colour when its children sit on a coloured material
   const order = sc.containers.slice().sort((a, b) => (a.depth || 0) - (b.depth || 0) || sc.area(b) - sc.area(a));
+  // padded outlines first: blocks that sit next to each other share the space between them (with a gap)
+  // instead of each growing over its neighbour
+  const geo = new Map<Container, { x0: number; y0: number; x1: number; y1: number; small: boolean }>();
   for (const c of order) {
     const depth = c.depth || 0, small = c.h <= rowMed * 1.7 && c.cells !== 99;
-    const fill = c.kind === "surface" ? c.color : c.fill, cls = fill ? fillClass(fill) : null;
     const pad = depth === 0 && !small ? 10 : 0, inset = small || depth > 0 ? 2.5 : 0;
-    const x = c.x - pad + inset, y = c.y - pad * .6 + inset, w = c.w + 2 * pad - 2 * inset, h = c.h + 1.2 * pad - 2 * inset;
+    geo.set(c, { x0: c.x - pad + inset, y0: c.y - pad * .6 + inset, x1: c.x + c.w + pad - inset, y1: c.y + c.h + pad * .6 - inset, small });
+  }
+  const GAP = 3, nested = (a: Container, b: Container) => a.x <= b.x + .5 && a.y <= b.y + .5 && a.x + a.w >= b.x + b.w - .5 && a.y + a.h >= b.y + b.h - .5;
+  for (const c of order) {
+    const g = geo.get(c)!;
+    for (const o of sc.containers) {
+      if (o === c || (o.depth || 0) !== (c.depth || 0) || nested(o, c) || nested(c, o)) continue;
+      const ovY = Math.min(c.y + c.h, o.y + o.h) - Math.max(c.y, o.y), ovX = Math.min(c.x + c.w, o.x + o.w) - Math.max(c.x, o.x);
+      if (ovY > 0 && o.x >= c.x + c.w - 1) g.x1 = Math.min(g.x1, (c.x + c.w + o.x) / 2 - GAP);          // neighbour on the right
+      else if (ovY > 0 && o.x + o.w <= c.x + 1) g.x0 = Math.max(g.x0, (o.x + o.w + c.x) / 2 + GAP);  // on the left
+      else if (ovX > 0 && o.y >= c.y + c.h - 1) g.y1 = Math.min(g.y1, (c.y + c.h + o.y) / 2 - GAP);  // below
+      else if (ovX > 0 && o.y + o.h <= c.y + 1) g.y0 = Math.max(g.y0, (o.y + o.h + c.y) / 2 + GAP);  // above
+    }
+  }
+  for (const c of order) {
+    const depth = c.depth || 0, small = geo.get(c)!.small;
+    const fill = c.kind === "surface" ? c.color : c.fill, cls = fill ? fillClass(fill) : null;
+    const gg = geo.get(c)!, x = gg.x0, y = gg.y0, w = Math.max(1, gg.x1 - gg.x0), h = Math.max(1, gg.y1 - gg.y0);
     const rad = Math.min(h / 2, w / 2, (small ? Math.min(h / 2, 13) : Math.max(8, Math.min(26 - depth * 6, h / 2, w / 2))) * rk);
     if (c.kind === "surface" && cls === "white" && depth === 0) continue;                       // white on white: nothing to draw
     let mat: string, extra = "";
@@ -412,11 +431,13 @@ export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boo
     if (r.dir === "h") {
       if (r.heading) lines += `<div class="rule accent" style="${R(r.x, r.y - 1, r.w!, 2)}"></div>`;
       else lines += `<div class="hsep" style="${R(r.x + 6, r.y, r.w! - 12, 1)}"></div>`;
-    } else if (r.sep || (r.parent && r.parent.kind === "grid")) lines += `<div class="vsep" style="${R(r.x, r.y + 5, 1, r.h! - 10)}"></div>`;
+    } else if (r.sep || (r.parent && r.parent.kind === "grid") || L.def?.gridV === "on") lines += `<div class="vsep" style="${R(r.x, r.y + 5, 1, r.h! - 10)}"></div>`;
   }
-  for (const c of sc.containers) if (c.seps) for (const y of c.seps) lines += `<div class="hsep" style="${R(c.x + 12, y, c.w - 24, 1)}"></div>`;
+  // gridlines switched off on the table: no automatic separators either
+  const noH = L.def?.gridH === "off";
+  if (!noH) for (const c of sc.containers) if (c.seps) for (const y of c.seps) lines += `<div class="hsep" style="${R(c.x + 12, y, c.w - 24, 1)}"></div>`;
   // a merged title over several columns (group header) gets a hairline under it
-  for (const t of sc.texts) if (t.it.merged && t.n.c1 > t.n.c0 && t.n.r1 === t.n.r0 && sc.texts.some(o => o.n.r0 === t.n.r1 + 1 && o.n.c0 >= t.n.c0 && o.n.c1 <= t.n.c1) && t.role !== "heading")
+  if (!noH) for (const t of sc.texts) if (t.it.merged && t.n.c1 > t.n.c0 && t.n.r1 === t.n.r0 && sc.texts.some(o => o.n.r0 === t.n.r1 + 1 && o.n.c0 >= t.n.c0 && o.n.c1 <= t.n.c1) && t.role !== "heading")
     lines += `<div class="hsep" style="${R(t.x + 14, t.y + t.h - 1, t.w - 28, 1)}"></div>`;
 
   /* ---- signals: conditional / semantic colours become capsules ---- */

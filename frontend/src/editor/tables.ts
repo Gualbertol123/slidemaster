@@ -38,6 +38,15 @@ export function setRowHeight(L: TableLayout, rows: number[], px: number | null, 
   change(label, [tablePatch(L.def, { rows: m })]);
 }
 
+/** stretch a table: every column (axis "x") or row ("y") times f – dragging a table border */
+export function stretchTable(L: TableLayout, axis: "x" | "y", f: number) {
+  if (!L.def || !isFinite(f) || Math.abs(f - 1) < .005) return;
+  const m: Record<string, number> = {};
+  if (axis === "x") for (const c of L.cols) m[c] = r1(Math.max(4, shownColW(L, c) * f));
+  else for (const r of L.rows) m[r] = r1(Math.max(4, shownRowH(L, r) * f));
+  change(axis === "x" ? "Table width" : "Table height", [tablePatch(L.def, axis === "x" ? { cols: m } : { rows: m })]);
+}
+
 /** every table of the deck with where it is shown */
 export interface TableRef { slide: number; i: number; L: TableLayout }
 export function allTables(): TableRef[] {
@@ -104,6 +113,11 @@ export function makeSameSize(refs: TableRef[], opts: { width: boolean; height: b
 export function alignTables(align: "left" | "center" | "right", slideIdx: number[] = [S.cur]) {
   const ops = slideIdx.map(i => S.slides[i]).filter(R => R && R.tables.length).map(R => ({ op: "slide.patch", id: R.id, patch: { align: align === "center" ? null : align } } as Op));
   if (ops.length) change("Align tables " + align, ops);
+}
+/** vertical position of the tables in the content area; null = the default (slightly above the middle) */
+export function valignTables(v: "top" | "middle" | "bottom" | null, slideIdx: number[] = [S.cur]) {
+  const ops = slideIdx.map(i => S.slides[i]).filter(R => R && R.tables.length).map(R => ({ op: "slide.patch", id: R.id, patch: { valign: v } } as Op));
+  if (ops.length) change(v ? "Align tables " + v : "Default vertical position", ops);
 }
 export const currentTableRefs = (): TableRef[] => (curSlide()?.tables || []).map((L, i) => ({ slide: S.cur, i, L })).filter(r => r.L.def);
 

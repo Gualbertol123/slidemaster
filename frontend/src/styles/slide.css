@@ -20,7 +20,7 @@
 
 /* ---------------- Excel design ---------------- */
 .slide.excel{font-family:"Century Gothic","CenturyGothic","URW Gothic","AppleGothic",Arial,sans-serif}
-.slide.excel .title{position:absolute;left:54px;top:16px;right:150px;font-size:44px;font-weight:700;color:#1C4F8C;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slide.excel .title{position:absolute;left:54px;top:16px;right:150px;font-size:44px;font-weight:700;color:var(--x1,#1C4F8C);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .slide.excel .subtitle{position:absolute;left:56px;top:76px;right:150px;font-size:18px;color:#5B6B82;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .slide.excel .logowrap{position:absolute;right:38px;bottom:14px;height:32px}
@@ -93,19 +93,19 @@
 /* glass */
 .slide.glass .cv-block.g .cv-kicker{color:rgba(18,22,44,.55)}
 .slide.glass .cv-block.g .cv-title{color:#0B0D17;text-shadow:0 1px 0 rgba(255,255,255,.6)}
-.slide.glass .cv-block.g .cv-bar{background:linear-gradient(90deg,#3B82F6,#8B5CF6)}
+.slide.glass .cv-block.g .cv-bar{background:linear-gradient(90deg,var(--a1,#3B82F6),var(--a2,#8B5CF6))}
 .slide.glass .cv-block.g .cv-sub{color:rgba(18,22,44,.66);font-weight:500}
 .slide.glass .cv-orb{--tint:linear-gradient(145deg,rgba(255,255,255,calc(.6 - .12*var(--gi))),rgba(147,170,255,calc(.16 + .1*(1 - var(--amt,.35)))) 70%,rgba(190,160,255,calc(.14 + .1*(1 - var(--amt,.35)))));--sheen:.8}
 .slide.glass .cv-tile{--tint:linear-gradient(145deg,rgba(255,255,255,calc(.68 - .12*var(--gi))),rgba(120,200,255,calc(.12 + .1*(1 - var(--amt,.35)))))}
 .slide.glass .cv-chip{display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:600;color:#0B0D17}
 .slide.glass .cv-chip span{position:relative;z-index:2}
 /* excel */
-.slide.excel .cvx-panel{position:absolute;left:1080px;top:0;width:520px;height:900px;background:linear-gradient(160deg,#1C4F8C,#0E3463);overflow:hidden}
+.slide.excel .cvx-panel{position:absolute;left:1080px;top:0;width:520px;height:900px;background:linear-gradient(160deg,var(--x1,#1C4F8C),var(--x2,#0E3463));overflow:hidden}
 .slide.excel .cvx-band{position:absolute;left:-120px;top:520px;width:900px;height:120px;background:rgba(255,255,255,.07);transform:rotate(-32deg)}
 .slide.excel .cvx-band.b2{top:700px;height:60px;background:rgba(255,255,255,.05)}
-.slide.excel .cv-block.x .cv-kicker{color:#1C4F8C}
+.slide.excel .cv-block.x .cv-kicker{color:var(--x1,#1C4F8C)}
 .slide.excel .cv-block.x .cv-title{color:#14213D}
-.slide.excel .cv-block.x .cv-bar{background:#1C4F8C}
+.slide.excel .cv-block.x .cv-bar{background:var(--x1,#1C4F8C)}
 .slide.excel .cv-block.x .cv-sub{color:#5B6B82}
 .slide.excel .cvx-rule{position:absolute;left:120px;top:752px;width:860px;height:1px;background:#D5DCE8}
 .slide.excel .cvx-date{position:absolute;left:120px;top:770px;font-size:20px;color:#5B6B82}
@@ -123,16 +123,16 @@
 .slide .ix-sep{position:absolute;height:1px}
 .slide .ix-empty{position:absolute;left:110px;top:200px;font-size:22px;color:#8A94A6}
 .slide.glass .ix-row.g{z-index:3;color:#0B0D17;font-family:-apple-system,"SF Pro Text","Segoe UI Variable Text","Segoe UI",Arial,sans-serif}
-.slide.glass .ix-row.g .ix-n{background:linear-gradient(180deg,rgba(59,130,246,.2),rgba(139,92,246,.16));color:#1E3A8A;box-shadow:inset 0 1px 1px rgba(255,255,255,.8)}
+.slide.glass .ix-row.g .ix-n{background:linear-gradient(180deg,rgba(var(--a1rgb,59,130,246),.2),rgba(var(--a2rgb,139,92,246),.16));color:var(--ixink,#1E3A8A);box-shadow:inset 0 1px 1px rgba(255,255,255,.8)}
 .slide.glass .ix-row.g .ix-s{color:rgba(18,22,44,.55)}
 .slide.glass .ix-row.g .ix-lead{color:rgba(18,22,44,.6)}
 .slide.glass .ix-row.g .ix-p{color:rgba(18,22,44,.7)}
 .slide.glass .ix-sep.g{z-index:3;background:linear-gradient(90deg,rgba(30,40,80,.12),rgba(30,40,80,.12) 94%,rgba(30,40,80,0))}
 .slide.excel .ix-row.x{color:#14213D}
-.slide.excel .ix-row.x .ix-n{background:#1C4F8C;color:#fff}
+.slide.excel .ix-row.x .ix-n{background:var(--x1,#1C4F8C);color:#fff}
 .slide.excel .ix-row.x .ix-s{color:#6B7A90}
 .slide.excel .ix-row.x .ix-lead{color:#6B7A90}
-.slide.excel .ix-row.x .ix-p{color:#1C4F8C}
+.slide.excel .ix-row.x .ix-p{color:var(--x1,#1C4F8C)}
 .slide.excel .ix-sep{background:#E1E6EF}
 .slide .emptyslide{position:absolute;left:0;right:0;top:400px;text-align:center;font:500 22px/1.4 "Segoe UI",sans-serif;color:rgba(18,22,44,.45)}
 
@@ -141,7 +141,7 @@
 .slide.glass .pageno.gls{display:flex;align-items:center;justify-content:center;font-weight:650;color:#0B0D17}
 .slide.glass .pageno.gls span{position:relative;z-index:2}
 .slide.glass .pageno.plain{color:rgba(18,22,44,.62);font-weight:600}
-.slide.excel .pageno.plain{color:#1C4F8C;font-weight:700}
+.slide.excel .pageno.plain{color:var(--x1,#1C4F8C);font-weight:700}
 
 /* value capsules (lightweight: tint + highlight, no wallpaper copy) */
 .slide .cap{position:absolute;box-sizing:border-box;border-top:1px solid rgba(255,255,255,.55)}
@@ -165,7 +165,7 @@
 .gls.panel{--tint:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,.38));--rim:1px;--sheen:.45;
   box-shadow:inset 0 1px 1px rgba(255,255,255,.9),inset 0 0 0 .5px rgba(255,255,255,.5),0 3px 10px -6px rgba(28,40,100,calc(.12 + .12*var(--gi)))}
 .gls.tinted{--sheen:.5}
-.xt.gx .rule.accent{position:absolute;border-radius:1px;background:linear-gradient(90deg,#3B82F6,#8B5CF6 70%,rgba(139,92,246,.15))}
+.xt.gx .rule.accent{position:absolute;border-radius:1px;background:linear-gradient(90deg,var(--a1,#3B82F6),var(--a2,#8B5CF6) 70%,rgba(var(--a2rgb,139,92,246),.15))}
 
 /* ---- v3.1: corner roundness (--rk), contrast (--wfade/--gfade/--wallf), text boxes, plain logo ---- */
 .slide.glass .wall{filter:var(--wallf,none)}
@@ -179,3 +179,7 @@
 .slide.glass .tnote{color:#0B0D17;font-weight:500}
 .slide.excel .tnote{font-family:'Century Gothic','URW Gothic',Arial,sans-serif}
 .slide .tnote.empty{color:rgba(18,22,44,.38);font-style:italic;border:1.5px dashed rgba(10,102,216,.45);border-radius:8px}
+/* text boxes in a bubble (v3.3) */
+.slide .notebub{position:absolute;box-sizing:border-box;pointer-events:none}
+.slide .notebub.x{background:#fff;border:1px solid #BFBFBF;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.slide .tnote.bub{padding:10px 18px}

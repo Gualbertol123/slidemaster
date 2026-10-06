@@ -19,11 +19,11 @@ let ctxCache: { key: unknown[]; ctx: RenderCtx } | null = null;
 export function style() { return resolveStyle(S.config.defaults.style, S.sync?.view.style); }
 export function ctx(): RenderCtx {
   const v = S.sync?.view;
-  const key = [v, S.slides, S.config, S.file?.name];
+  const key = [v, S.slides, S.config, S.file?.name, S.wb];
   if (ctxCache && ctxCache.key.every((k, i) => k === key[i])) return ctxCache.ctx;
   const st = style();
   const c: RenderCtx = { style: st, edits: v?.edits || {}, slides: S.slides, preset: v?.preset || null, workbook: S.file?.name || "",
-    logoSrc: st.logo.trim() ? backend.assetUrl(st.logo.trim()) : "" };
+    logoSrc: st.logo.trim() ? backend.assetUrl(st.logo.trim()) : "", sheet: n => S.wb?.sheets.find(x => x.name === n) || null };
   ctxCache = { key, ctx: c };
   return c;
 }

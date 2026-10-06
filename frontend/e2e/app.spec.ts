@@ -193,5 +193,97 @@ test.describe.serial("two people, one shared folder", () => {
     await page.screenshot({ path: path.join(process.env.SB_E2E_TMP!, "header.png") });
   });
 
+  test("painter copies conditional formats; gridlines, vertical align, border drag, text box bubble, contents subtitles, themes", async ({ page }) => {
+    await openApp(page, ANNA);
+    await expect(page.locator(".thumb")).toHaveCount(4);
+    await page.locator('.thumb[data-i="2"]').click();
+    const cell = (t: string) => page.locator("#stage .slide .t", { hasText: new RegExp("^" + t + "$") }).first();
+    const drag = async (from: string, to: string) => {
+      const f = (await cell(from).boundingBox())!, l = (await cell(to).boundingBox())!;
+      await page.mouse.move(f.x + 6, f.y + f.height / 2); await page.mouse.down();
+      await page.mouse.move(l.x + 6, l.y + l.height / 2, { steps: 4 }); await page.mouse.up();
+    };
+    const tdef = () => doc().preset.tables.find((t: any) => t.sheet === "SLIDE_1");
+    const sdef = (i: number) => doc().preset.slides[i];
+
+    // format painter: the conditional format of Δ w/w (green when > 0) travels to the dates
+    const caps = await page.locator("#stage .slide > .tw").first().locator(".cap").count();
+    await selectCell(page, "\\+2,5"); await page.click("#painterBtn");
+    await drag("01/01/2024", "03/03/2024"); await saved(page);
+    const e = doc().edits.SLIDE_1;
+    for (const r of ["I6", "I7", "I8"]) expect(e[r].cf).toBe("SLIDE_1!E6");
+    await expect.poll(() => page.locator("#stage .slide > .tw").first().locator(".cap").count()).toBeGreaterThanOrEqual(caps + 3);
+
+    // gridlines: no horizontal lines, vertical lines everywhere
+    await selectCell(page, "Zeta");
+    await page.click("#gridBtn"); await page.click('[data-grid="gridH"] [data-v="off"]'); await saved(page);
+    await page.click("#gridBtn"); await page.click('[data-grid="gridV"] [data-v="on"]'); await saved(page);
+    expect(tdef()).toMatchObject({ gridH: "off", gridV: "on" });
+
+    // tables at the top of the slide
+    await page.click('[data-tvalign="top"]'); await saved(page);
+    expect(sdef(2).valign).toBe("top");
+
+    // drag the right border of the table: every column gets narrower
+    const edge = (await page.locator('.hbox[data-i="0"] .edge.r').boundingBox())!;
+    await page.mouse.move(edge.x + 4, edge.y + edge.height / 4); await page.mouse.down();       // (the + button sits in the middle)
+    await page.mouse.move(edge.x - 150, edge.y + edge.height / 4, { steps: 5 }); await page.mouse.up();
+    await expect.poll(() => Object.keys(tdef().cols || {}).length, { timeout: 10_000 }).toBe(7);      // C…J without the hidden column
+
+    // text box below the table, in a bubble, centred both ways
+    await selectCell(page, "Zeta"); await page.click('[data-addnote="bottom"]');
+    await page.locator("textarea.note-edit").fill("Source: ECB"); await page.keyboard.press("Control+Enter"); await saved(page);
+    await page.locator("#stage .tnote", { hasText: "Source: ECB" }).click();
+    await page.click("#noteBubble"); await saved(page);
+    await page.click('[data-nvalign="middle"]'); await saved(page);
+    await page.click('[data-nalign="center"]'); await saved(page);
+    expect(Object.values(sdef(2).notes)).toContainEqual(expect.objectContaining({ text: "Source: ECB", bubble: true, valign: "middle", align: "center" }));
+    await expect(page.locator("#stage .notebub")).toHaveCount(1);
+    await page.screenshot({ path: path.join(process.env.SB_E2E_TMP!, "round4-slide.png") });
+
+    // contents page without subtitles
+    await page.locator('.thumb[data-i="1"]').click();
+    await expect(page.locator("#stage .ix-s")).not.toHaveCount(0);
+    await page.click("#ixSubs"); await saved(page);
+    expect(sdef(1).subs).toBe(false);
+    await expect(page.locator("#stage .ix-s")).toHaveCount(0);
+
+    // colour themes: Intesa Sanpaolo, then a custom one
+    await page.click("#optBtn"); await page.click('[data-theme="intesa"]'); await saved(page);
+    expect(doc().style.theme.id).toBe("intesa");
+    await expect.poll(() => page.locator("#stage .slide").evaluate(el => (el as HTMLElement).style.getPropertyValue("--a1"))).toBe("#00953B");
+    await page.screenshot({ path: path.join(process.env.SB_E2E_TMP!, "round4-intesa.png") });
+    await page.click('[data-theme="custom"]'); await saved(page);
+    await page.locator('[data-tk="c1"]').fill("#123456");
+    await expect.poll(() => doc().style.theme, { timeout: 10_000 }).toMatchObject({ id: "custom", c1: "#123456", a1: "#00953B" });
+    await page.click('[data-theme="aurora"]'); await page.keyboard.press("Escape"); await saved(page);
+  });
+
+  test("typing is never overwritten by autosave or other people's changes; logo bubble can be removed", async ({ browser }) => {
+    const a = await browser.newPage(), b = await browser.newPage();
+    await openApp(a, ANNA); await openApp(b, BOB);
+    await expect(a.locator(".thumb")).toHaveCount(4); await expect(b.locator(".thumb")).toHaveCount(4);
+    await a.locator('.thumb[data-i="2"]').click(); await b.locator('.thumb[data-i="2"]').click();
+    // anna starts typing a footer, bob changes the deck meanwhile (a poll and re-render arrive at anna)
+    await a.click("#optBtn"); await a.locator("#ftText").click(); await a.keyboard.press("Control+a"); await a.keyboard.type("Draft for");
+    await selectCell(b, "Kappa"); await b.keyboard.press("Control+b"); await saved(b);
+    await a.waitForTimeout(4500);
+    await expect(a.locator("#ftText")).toHaveValue("Draft for");
+    await a.keyboard.type(" review"); await a.keyboard.press("Enter"); await saved(a);
+    expect(doc().style.footer.text).toBe("Draft for review");
+    // the logo bubble switch is in the Logo section
+    await a.click("#logoBubble"); await saved(a);
+    expect(doc().style.logoBubble).toBe(false);
+    await a.click("#logoBubble"); await a.keyboard.press("Escape"); await saved(a);
+    // anna edits a cell while bob's change arrives: the editor and her text survive
+    await selectCell(a, "Lambda"); await a.keyboard.type("Lamb");
+    await selectCell(b, "Kappa"); await b.keyboard.press("Control+i"); await saved(b);
+    await a.waitForTimeout(4500);
+    await expect(a.locator("input.inline-edit")).toHaveValue("Lamb");
+    await a.keyboard.type("da 2"); await a.keyboard.press("Enter"); await saved(a);
+    expect(doc().edits.SLIDE_1.C16).toMatchObject({ orig: "Lambda", text: "Lambda 2" });
+    await a.close(); await b.close();
+  });
+
   test("no page errors", async () => { expect(errors).toEqual([]); });
 });

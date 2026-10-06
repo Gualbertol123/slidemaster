@@ -2,7 +2,8 @@
 import { esc } from "../xlsx/util";
 import type { TableLayout } from "../xlsx/types";
 import type { Layout, Note, RuntimeSlide, Side } from "../model/types";
-import { glassLevel } from "../model/style";
+import { glassLevel, themeOf } from "../model/style";
+import { darken, hexRgb } from "../xlsx/color";
 import { tableName } from "../model/preset";
 import { tableKey, type RenderCtx } from "./context";
 import { renderExcel } from "./excel";
@@ -49,7 +50,7 @@ export function notesOf(R: RuntimeSlide, i: number): Partial<Record<Side, Note>>
   return out;
 }
 /** height of a text box above/below a table: explicit, or from its lines (wrapping is handled by shrinking the font) */
-const noteH = (n: Note) => n.h || Math.max(30, Math.max(1, String(n.text || "").split("\n").length) * (n.size || 18) * 1.3 + 12);
+const noteH = (n: Note) => n.h || Math.max(30, Math.max(1, String(n.text || "").split("\n").length) * (n.size || 18) * 1.3 + 12) + (n.bubble ? 20 : 0);
 const noteW = (n: Note) => n.w || NOTE_W;
 
 /** Tables (plus their text boxes) in bands. k = largest scale ≤ MAXK that fits the content area – or the
@@ -74,7 +75,8 @@ export function computeLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay
   const boxes: TBox[] = []; let y = 0;
   const dims = bands.map(b => ({ w: b.reduce((s, i) => s + unitW(i, k), 0) + GX * (b.length - 1), h: Math.max(...b.map(i => unitH(i, k))) }));
   const Htot = dims.reduce((s, d) => s + d.h, 0) + GY * (bands.length - 1);
-  const top = A.y + Math.max(0, (A.h - Htot) / 2 * 0.35);
+  const free = Math.max(0, A.h - Htot), va = R.cfg.valign;
+  const top = A.y + (va === "top" ? 0 : va === "middle" ? free / 2 : va === "bottom" ? free : free / 2 * 0.35);
   const align = R.cfg.align || "center";
   bands.forEach((b, bi) => {
     let x = A.x + (align === "left" ? 0 : align === "right" ? A.w - dims[bi].w : (A.w - dims[bi].w) / 2);
@@ -116,6 +118,11 @@ export function contrastVars(contrast: number): Record<string, string> {
   return { "--wfade": "0", "--gfade": (u * .9).toFixed(3), "--wallf": `saturate(${(1 + u * 1.4).toFixed(3)}) brightness(${(1 - u * .36).toFixed(3)})` };
 }
 
+/** accent colours of the theme as CSS variables (none for the default theme: the CSS has its values) */
+export function themeVars(ctx: RenderCtx): Record<string, string> {
+  const t = themeOf(ctx.style); if (t.id === "aurora") return {};
+  return { "--a1": t.a1, "--a2": t.a2, "--a1rgb": hexRgb(t.a1).join(","), "--a2rgb": hexRgb(t.a2).join(","), "--x1": t.x, "--x2": darken(t.x, .6), "--ixink": darken(t.a1, .55) };
+}
 export interface SlideOpts { interactive?: boolean; thumb?: boolean }
 export type SlideEl = HTMLDivElement & { _rid?: string };
 export function buildSlide(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: SlideOpts = {}): SlideEl {
@@ -123,6 +130,7 @@ export function buildSlide(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: S
   const slide = document.createElement("div") as SlideEl;
   slide.className = "slide " + d + (R.type !== "content" ? " " + R.type : "");
   slide.style.setProperty("--rk", String(rk));
+  for (const [k, v] of Object.entries(themeVars(ctx))) slide.style.setProperty(k, v);
   if (glassy) {
     slide.style.setProperty("--gi", String(glassLevel(ctx.style))); slide.style.setProperty("--amt", String((+ctx.style.color || 0) / 100));
     for (const [k, v] of Object.entries(contrastVars(ctx.style.contrast))) slide.style.setProperty(k, v);
@@ -147,11 +155,15 @@ export function buildSlide(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: S
       const n = ns[side]; if (!n) continue;
       const txt = String(n.text || "");
       if (!txt.trim() && !opts.interactive) continue;
-      const st = [`font-size:${n.size || 18}px`, n.b ? "font-weight:700" : "", n.i ? "font-style:italic" : "", n.color ? `color:${n.color}` : "", `text-align:${n.align || (side === "left" ? "right" : "left")}`].filter(Boolean).join(";");
-      h += `<div class="tnote ${side}${txt.trim() ? "" : " empty"}" data-note="${esc(noteKey(R, i, side))}" data-i="${i}" data-side="${side}" style="${st}">${txt.trim() ? esc(txt) : "Double-click to write"}</div>`;
+      const st = [`font-size:${n.size || 18}px`, n.b ? "font-weight:700" : "", n.i ? "font-style:italic" : "", n.color ? `color:${n.color}` : "", `text-align:${n.align || (side === "left" ? "right" : "left")}`,
+        n.valign ? `justify-content:${n.valign === "top" ? "flex-start" : n.valign === "middle" ? "center" : "flex-end"}` : ""].filter(Boolean).join(";");
+      // a bubble behind the text: a glass card like the tables' (Liquid Glass) or a framed box (Excel)
+      if (n.bubble && txt.trim()) h += glassy ? `<div class="gls wb card notebub" data-i="${i}" data-side="${side}" style="border-radius:${Math.round(22 * rk)}px"></div>`
+        : `<div class="notebub x" data-i="${i}" data-side="${side}" style="border-radius:${Math.round(8 * rk)}px"></div>`;
+      h += `<div class="tnote ${side}${n.bubble ? " bub" : ""}${txt.trim() ? "" : " empty"}" data-note="${esc(noteKey(R, i, side))}" data-i="${i}" data-side="${side}" style="${st}">${txt.trim() ? esc(txt) : "Double-click to write"}</div>`;
     }
   });
-  if (opts.interactive) h += R.tables.map((t, i) => `<div class="hbox" data-i="${i}"><div class="grip" title="Drag to move this table">⠿ ${esc(tableName(t, ctx.preset))}</div><div class="size" title="Drag to resize"></div>${SIDES.map(sd => `<button class="addnote ${sd}" data-side="${sd}" title="Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd}">+</button>`).join("")}</div>`).join("") + `<div class="dropmark"></div>`;
+  if (opts.interactive) h += R.tables.map((t, i) => `<div class="hbox" data-i="${i}"><div class="grip" title="Drag to move this table">⠿ ${esc(tableName(t, ctx.preset))}</div><div class="size" title="Drag to resize (keeps the proportions)"></div>${(["l", "r", "t", "b"] as const).map(e => `<div class="edge ${e}" data-edge="${e}" title="Drag to make the table ${e === "l" || e === "r" ? "wider or narrower" : "taller or shorter"}"></div>`).join("")}${SIDES.map(sd => `<button class="addnote ${sd}" data-side="${sd}" title="Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd}">+</button>`).join("")}</div>`).join("") + `<div class="dropmark"></div>`;
   if (R.type === "content" && !R.tables.length && opts.interactive) h += `<div class="emptyslide">No tables on this slide – add some with the wizard.</div>`;
   if (logo) {
     const lx = cover ? 1150 : 1256, ly = cover ? 800 : 832, lw = cover ? 400 : 314, lh = cover ? 68 : 52;
@@ -178,6 +190,11 @@ export function applyLayout(slide: HTMLElement, R: RuntimeSlide, ctx: RenderCtx,
   slide.querySelectorAll<HTMLElement>(":scope > .tnote").forEach(el => {
     const nb = boxes[+el.dataset.i!]?.notes[el.dataset.side as Side]; if (!nb) { el.style.display = "none"; return; }
     Object.assign(el.style, { display: "", left: nb.x + "px", top: nb.y + "px", width: nb.w + "px", height: nb.h + "px" });
+  });
+  slide.querySelectorAll<HTMLElement>(":scope > .notebub").forEach(el => {
+    const nb = boxes[+el.dataset.i!]?.notes[el.dataset.side as Side]; if (!nb) { el.style.display = "none"; return; }
+    Object.assign(el.style, { display: "", left: nb.x + "px", top: nb.y + "px", width: nb.w + "px", height: nb.h + "px" });
+    if (glassy) placeGlass(el, nb.x, nb.y, nb.w, nb.h, 1, gi);
   });
   if (glassy) slide.querySelectorAll<HTMLElement>(":scope > .chrome.wb").forEach(g => placeGlass(g, parseFloat(g.style.left), parseFloat(g.style.top), parseFloat(g.style.width), parseFloat(g.style.height), 1, gi));
   slide.querySelectorAll<HTMLElement>(":scope > .hbox").forEach(el => {
