@@ -25,7 +25,7 @@ import { esc, median } from "../xlsx/util";
 import { IMGMETA } from "../xlsx/drawing";
 import type { BorderSide, Item, Pic, Rect, TableLayout } from "../xlsx/types";
 import { cache, effItems } from "./edits";
-import { isNumText, sheetKey, type RenderCtx } from "./context";
+import { isNumText, tableKey, type RenderCtx } from "./context";
 import { picHtml, rotBox, rotSpan, shapeTransform, textboxInner } from "./excel";
 
 export const SYS = { green: "#34C759", greenInk: "#136B2E", red: "#FF3B30", redInk: "#A8101A", label: "#0B0D17", label2: "rgba(18,22,44,.68)", label3: "rgba(18,22,44,.46)" };
@@ -34,7 +34,7 @@ export const SYS = { green: "#34C759", greenInk: "#136B2E", red: "#FF3B30", redI
    Geometry is cached per table and per set of cell edits. */
 export interface GlassGeom { key: string; W: number; X: Map<number, number>; Wc: Map<number, number>; map: (px: number) => number }
 export function glassGeom(L: TableLayout, ctx: RenderCtx): GlassGeom {
-  const key = ctx.workbook + "|" + sheetKey(ctx, L.sheet);
+  const key = tableKey(ctx, L);
   return cache(L, "gg", key, () => {
     const need = new Map<number, number>();
     for (const it of effItems(L, ctx)) {
@@ -43,7 +43,8 @@ export function glassGeom(L: TableLayout, ctx: RenderCtx): GlassGeom {
       need.set(it.b.c, Math.max(need.get(it.b.c) || 0, w));
     }
     const X = new Map<number, number>(), Wc = new Map<number, number>(); let x = 0;
-    for (const c of L.cols) { const w0 = L.colW.get(c)!, w = Math.min(Math.max(w0, need.get(c) || 0), Math.max(w0 * 3, w0 + 60)); X.set(c, x); Wc.set(c, w); x += w; }
+    // columns the user sized keep exactly that width; the others widen for the system font where needed
+    for (const c of L.cols) { const w0 = L.colW.get(c)!, w = L.fixedCols?.has(c) ? w0 : Math.min(Math.max(w0, need.get(c) || 0), Math.max(w0 * 3, w0 + 60)); X.set(c, x); Wc.set(c, w); x += w; }
     const ends = L.cols.map(c => [L.colX.get(c)!, L.colW.get(c)!, X.get(c)!, Wc.get(c)!]);
     const map = (px: number) => { for (const [ox, ow, nx, nw] of ends) { if (px <= ox + ow + .01) return nx + (ow ? (Math.max(0, px - ox)) * nw / ow : 0); } return x + (px - L.W); };
     return { key, W: x, X, Wc, map };
@@ -244,7 +245,7 @@ function buildScene(L: TableLayout, its: Item[], G: GlassGeom): Scene {
   const texts: SText[] = nodes.filter(n => n.it.text).map(n => ({ n, it: n.it, x: n.it.bx, y: n.it.by, w: n.it.bw, h: n.it.bh }));
   const signals: Signal[] = nodes.filter(n => {
     const it = n.it, ft = tone(it.fill);
-    return statusCells.has(n) || (it.cf && it.cf.fill && it.text) || it.userFill || (ft && ft !== "muted" && !structFill(n));
+    return statusCells.has(n) || (it.cf && it.cf.fill && it.text) || it.userFill || (it.scaleFill && it.text) || (ft && ft !== "muted" && !structFill(n));
   }).map(n => ({ n, it: n.it }));
   const media: Media[] = L.pics.map(p => Object.assign({}, p, { x: G.map(p.x + p.w / 2) - p.w / 2 }));
   const tboxes: Rect[] = L.texts.map(t => { const x0 = G.map(t.x); return Object.assign({}, t, { x: x0, w: G.map(t.x + t.w) - x0 }); });
@@ -372,7 +373,7 @@ function deepInk(hex: string) { const [h, s, l] = hexToHsl(hex.replace("#", ""))
 export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boolean } = {}): string {
   const G0 = glassGeom(L, ctx);
   const sc = inferRoles(buildScene(L, effItems(L, ctx).map(it => gItem(it, G0)), G0));    // Glass geometry (columns widened for the system font)
-  const rowMed = median(L.rows.map(r => L.rowH.get(r)!)) || 20;
+  const rowMed = median(L.rows.map(r => L.rowH.get(r)!)) || 20, rk = ctx.style.radius / 100;
   let shells = "", lines = "", caps = "", pics = "", texts = "", tbx = "";
   const R = (x: number, y: number, w: number, h: number) => `left:${x.toFixed(1)}px;top:${y.toFixed(1)}px;width:${Math.max(0, w).toFixed(1)}px;height:${Math.max(0, h).toFixed(1)}px`;
   const glass = (cls: string, x: number, y: number, w: number, h: number, rad: number, extra = "") => `<div class="gls wb ${cls}" style="${R(x, y, w, h)};border-radius:${Math.max(0, rad).toFixed(1)}px;${extra}"></div>`;
@@ -385,7 +386,7 @@ export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boo
     const fill = c.kind === "surface" ? c.color : c.fill, cls = fill ? fillClass(fill) : null;
     const pad = depth === 0 && !small ? 10 : 0, inset = small || depth > 0 ? 2.5 : 0;
     const x = c.x - pad + inset, y = c.y - pad * .6 + inset, w = c.w + 2 * pad - 2 * inset, h = c.h + 1.2 * pad - 2 * inset;
-    const rad = small ? Math.min(h / 2, 13) : Math.max(8, Math.min(26 - depth * 6, h / 2, w / 2));
+    const rad = Math.min(h / 2, w / 2, (small ? Math.min(h / 2, 13) : Math.max(8, Math.min(26 - depth * 6, h / 2, w / 2))) * rk);
     if (c.kind === "surface" && cls === "white" && depth === 0) continue;                       // white on white: nothing to draw
     let mat: string, extra = "";
     if (cls === "dark") { mat = depth === 0 ? "card tinted" : "panel tinted"; extra = tintGrad(fill!, .32, .88); tinted.set(c, fill!); }
@@ -423,8 +424,9 @@ export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boo
     const it = s.it, ft = tone(it.fill) || (it.cf && it.cf.fill ? tone(it.cf.fill) : null) || "other";
     const holder = s.parent && s.parent.kind === "frame" && s.parent.cells === 1 ? s.parent : null;
     const box = holder && holder.drawn ? holder.drawn : { x: it.bx + 3, y: it.by + 3.5, w: it.bw - 6, h: it.bh - 7 };
-    const rad = Math.min(box.h / 2, holder ? 13 : 99);
+    const rad = Math.min(box.h / 2, (holder ? 13 : box.h / 2) * rk);
     const strong = !!s.parent && (s.parent.kind === "frame" && (s.parent.cells || 0) > 1 && sc.texts.some(t => t.parent === s.parent && t.role === "emphasis"));
+    if (it.scaleFill) { caps += `<div class="cap scale" style="${R(box.x, box.y, box.w, box.h)};border-radius:${rad}px;background:linear-gradient(180deg,${rgba(it.scaleFill, .95)},${rgba(it.scaleFill, .8)})"></div>`; capOf.set(it, { tone: "scale", strong: false, fill: it.scaleFill }); continue; }
     if (ft === "pos" || ft === "neg") caps += `<div class="cap ${strong ? "solid " : ""}${ft}" style="${R(box.x, box.y, box.w, box.h)};border-radius:${rad}px"></div>`;
     else { const base = it.fill || "#8E8E93"; caps += `<div class="cap" style="${R(box.x, box.y, box.w, box.h)};border-radius:${rad}px;background:linear-gradient(180deg,${rgba(base, .55)},${rgba(base, .38)})"></div>`; }
     capOf.set(it, { tone: ft, strong, fill: it.fill });
@@ -442,7 +444,7 @@ export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boo
     else pics += picHtml(p, meta.alpha ? "gcut" : "gpic", !!ctx.forExport);
   }
   for (const tb of sc.tboxes) {
-    const r = Math.min(18, Math.min(tb.w, tb.h) / 2);
+    const r = Math.min(18 * rk, Math.min(tb.w, tb.h) / 2);
     if (tb.fill || tb.line) tbx += glass("card list", tb.x, tb.y, tb.w, tb.h, r, tb.fill && !isWhiteish(tb.fill) ? tintGrad(tb.fill, .5, .9) : "");
     tbx += `<div class="tbox gtb" style="${R(tb.x, tb.y, tb.w, tb.h)};justify-content:${tb.anchorV === "ctr" ? "center" : tb.anchorV === "b" ? "flex-end" : "flex-start"};${shapeTransform(tb)}">${textboxInner(tb.paras, c => tone(c) === "neg" ? SYS.redInk : tone(c) === "pos" ? SYS.greenInk : lum(c) < .45 || lum(c) > .93 ? SYS.label : darken(c, .7))}</div>`;
   }
@@ -456,6 +458,7 @@ export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boo
     const bgTint = t.bg && t.bg.c && tinted.get(t.bg.c);
     const own = it.nfColor || f.color || "#000000", ownTone = tone(own);
     if (it.userColor) ink = it.userColor;
+    else if (it.scaleInk) ink = it.scaleInk;
     else if (cap) ink = (cap.tone === "pos" || cap.tone === "neg") ? (cap.strong ? "#FFFFFF" : cap.tone === "pos" ? SYS.greenInk : SYS.redInk) : (lum(cap.fill || "#999") < .55 ? "#FFFFFF" : SYS.label);
     else if (it.ctype === "e") ink = SYS.label3;
     else if (ownTone === "neg") ink = SYS.redInk;

@@ -70,6 +70,23 @@ class OpsDetails(unittest.TestCase):
         self.assertEqual(skipped, list(range(len(ops))))
         self.assertEqual(out["rev"], 0)
 
+    def test_table_patch_validation_and_copies(self):
+        doc = {"rev": 0, "preset": {"sheets": [], "tables": [{"id": "t1"}], "slides": [{"id": "s1"}]}, "style": {}, "edits": {}}
+        rule = {"range": "B2:B5", "dir": "col"}
+        note = {"text": "A"}
+        ops = [{"op": "table.patch", "id": 1, "patch": {"name": "x"}},             # id not a string
+               {"op": "table.patch", "id": "t1", "patch": None},                  # patch not an object
+               {"op": "table.patch", "id": "t1", "patch": {"scales": {"r": rule}, "cols": 5}},  # cols not a map: ignored
+               {"op": "slide.patch", "id": "s1", "patch": {"notes": {"t1:top": note}}}]
+        out, applied, skipped = apply_ops(doc, ops, "u", 1)
+        self.assertEqual((applied, skipped), (2, [0, 1]))
+        rule["dir"] = "row"
+        note["text"] = "B"
+        self.assertEqual(out["preset"]["tables"][0], {"id": "t1", "scales": {"r": {"range": "B2:B5", "dir": "col"}}})
+        self.assertEqual(out["preset"]["slides"][0]["notes"], {"t1:top": {"text": "A"}})
+        out2, applied, _ = apply_ops({"rev": 0, "preset": None}, [{"op": "table.patch", "id": "t1", "patch": {}}], "u", 1)
+        self.assertEqual(applied, 0)
+
     def test_config_only_accepts_style_patch(self):
         cfg = {"rev": 3, "defaults": {"style": {"design": "glass"}}}
         ops = [{"op": "style.patch", "patch": {"color": 50, "pn": {"on": True}}},

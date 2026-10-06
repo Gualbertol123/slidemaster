@@ -9,8 +9,9 @@ import { PN_FONTS } from "../render/pagenumbers";
 import type { PageNumbers } from "../model/types";
 
 /* sliders: preview the number at once, apply (one operation, one undo step) when the hand rests */
-let sliderTimer: ReturnType<typeof setTimeout> | null = null;
-function debounced(fn: () => void, ms = 140) { if (sliderTimer) clearTimeout(sliderTimer); sliderTimer = setTimeout(fn, ms); }
+const sliderTimers = new Map<string, ReturnType<typeof setTimeout>>();
+/** one timer per slider: moving one slider never cancels another slider's pending change */
+function debounced(key: string, fn: () => void, ms = 140) { const t = sliderTimers.get(key); if (t) clearTimeout(t); sliderTimers.set(key, setTimeout(() => { sliderTimers.delete(key); fn(); }, ms)); }
 const fmtTime = (s: number) => new Date(s * 1000).toLocaleString([], { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
 function OpenMenu() {
@@ -56,7 +57,7 @@ function Options() {
           <select id="pnFont" value={p.font} onChange={e => pn({ font: (e.target as HTMLSelectElement).value })}>
             {Object.keys(PN_FONTS).map(k => <option key={k} value={k}>{({ auto: "Same as the slide", segoe: "Segoe UI", arial: "Arial", calibri: "Calibri", gothic: "Century Gothic", georgia: "Georgia", verdana: "Verdana", mono: "Consolas" } as Record<string, string>)[k]}</option>)}
           </select>
-          <label>Size</label><div class="row"><input type="range" id="pnSize" min="10" max="32" step="1" value={p.size} onInput={e => { const v = +(e.target as HTMLInputElement).value, el = (e.target as HTMLElement).nextElementSibling; if (el) el.textContent = v + " px"; debounced(() => pn({ size: v }, "pnsize")); }} /><span class="cv">{p.size} px</span></div>
+          <label>Size</label><div class="row"><input type="range" id="pnSize" min="10" max="32" step="1" value={p.size} onInput={e => { const v = +(e.target as HTMLInputElement).value, el = (e.target as HTMLElement).nextElementSibling; if (el) el.textContent = v + " px"; debounced("pnsize", () => pn({ size: v }, "pnsize")); }} /><span class="cv">{p.size} px</span></div>
           <label>Format</label>
           <select id="pnFormat" value={p.format} onChange={e => pn({ format: (e.target as HTMLSelectElement).value as PageNumbers["format"] })}><option value="n">3</option><option value="nN">3 / 12</option><option value="page">Page 3</option><option value="p">p. 3</option></select>
           <label>Style</label>
@@ -70,6 +71,16 @@ function Options() {
           <input id="logoInput" placeholder="logo.png" style="width:150px" value={st.logo} onKeyDown={e => { e.stopPropagation(); if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
             onChange={e => { S.logoMissing = false; styleChange("Logo", { logo: (e.target as HTMLInputElement).value.trim() }); }} /></div>
         <div class="optnote">Hide it on single slides with the Logo button in the toolbar.</div>
+        <div class="sep" />
+        <div class="opthd">Look</div>
+        <div class="optgrid">
+          <label>Corners</label><div class="row"><input type="range" id="radiusRange" min="0" max="200" step="10" value={st.radius}
+            onInput={e => { const v = +(e.target as HTMLInputElement).value, el = (e.target as HTMLElement).nextElementSibling; if (el) el.textContent = v === 0 ? "square" : v + " %"; debounced("radius", () => styleChange("Corner roundness", { radius: v }, "radius")); }} /><span class="cv">{st.radius === 0 ? "square" : st.radius + " %"}</span></div>
+          {st.design === "glass" && <><label>Contrast</label><div class="row"><input type="range" id="contrastRange" min="0" max="100" step="5" value={st.contrast}
+            onInput={e => { const v = +(e.target as HTMLInputElement).value, el = (e.target as HTMLElement).nextElementSibling; if (el) el.textContent = v < 50 ? "softer" : v > 50 ? "stronger" : "as designed"; debounced("contrast", () => styleChange("Contrast", { contrast: v }, "contrast")); }} /><span class="cv">{st.contrast < 50 ? "softer" : st.contrast > 50 ? "stronger" : "as designed"}</span></div></>}
+          {st.design === "glass" && <><label></label><label class="ck"><input type="checkbox" id="logoBubble" checked={st.logoBubble} onChange={e => styleChange("Logo bubble", { logoBubble: (e.target as HTMLInputElement).checked ? null : false })} /> glass bubble around the logo</label></>}
+        </div>
+        <div class="optnote">Corners: roundness of tables, bubbles and the logo (0 = square). Contrast: how much the tables and bubbles stand out from the background.</div>
         <div class="sep" />
         <div class="opthd">This deck's style</div>
         <div class="optnote">Design, colour, page numbers and logo are saved with this workbook and shared with everybody who opens it.</div>
@@ -148,7 +159,7 @@ export function Topbar() {
         {(["subtle", "medium", "strong"] as const).map(g => <button key={g} data-glass={g} disabled={!has} class={st.glass === g ? "on" : ""} onClick={() => styleChange("Glass strength", { glass: g })}>{g[0].toUpperCase() + g.slice(1)}</button>)}
       </div>}
       {st.design === "glass" && <div class="colorctl" id="colorCtl" title="Background colour: from plain white to full colour">
-        <span class="lbl">Colour</span><input type="range" id="colorRange" min="0" max="100" step="5" disabled={!has} value={st.color} onInput={e => { const v = +(e.target as HTMLInputElement).value; document.getElementById("colorVal")!.textContent = v + "%"; debounced(() => styleChange("Background colour", { color: v }, "color")); }} /><span id="colorVal" class="cv">{st.color}%</span>
+        <span class="lbl">Colour</span><input type="range" id="colorRange" min="0" max="100" step="5" disabled={!has} value={st.color} onInput={e => { const v = +(e.target as HTMLInputElement).value; document.getElementById("colorVal")!.textContent = v + "%"; debounced("color", () => styleChange("Background colour", { color: v }, "color")); }} /><span id="colorVal" class="cv">{st.color}%</span>
       </div>}
       <Options />
       <ServerPill />

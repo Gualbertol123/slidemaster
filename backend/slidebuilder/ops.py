@@ -7,9 +7,13 @@ import copy
 import re
 
 REF_RE = re.compile(r"^[A-Z]{1,3}[0-9]{1,7}$")
-SLIDE_KEYS = ("title", "subtitle", "date", "note", "logo", "layout")
+SLIDE_KEYS = ("title", "subtitle", "date", "note", "logo", "layout", "align", "scale")
+SLIDE_MAPS = ("notes",)
+TABLE_KEYS = ("name",)
+TABLE_MAPS = ("cols", "rows", "scales")
 CELL_KEYS = ("text", "orig", "sz", "b", "i", "color", "fill", "align", "role")
-STYLE_KEYS = ("design", "glass", "color", "logo")
+STYLE_KEYS = ("design", "glass", "color", "logo", "radius", "contrast", "logoBubble")
+STYLE_MAPS = ("pn",)
 
 
 def _set_or_delete(target, key, value):
@@ -17,6 +21,44 @@ def _set_or_delete(target, key, value):
         target.pop(key, None)
     else:
         target[key] = copy.deepcopy(value)
+
+
+def _map_merge(target, key, value):
+    """Map merge (§3.2): null deletes the whole map; an object sets (deep copy, replacing the
+    entry) or deletes (null) each entry; a map left empty is deleted. Other values are ignored."""
+    if value is None:
+        target.pop(key, None)
+        return
+    if not isinstance(value, dict):
+        return
+    current = target.get(key)
+    merged = dict(current) if isinstance(current, dict) else {}
+    for k, v in value.items():
+        if isinstance(k, str):
+            _set_or_delete(merged, k, v)
+    if merged:
+        target[key] = merged
+    else:
+        target.pop(key, None)
+
+
+def _apply_patch(target, patch, keys, maps):
+    for k in keys:
+        if k in patch:
+            _set_or_delete(target, k, patch[k])
+    for k in maps:
+        if k in patch:
+            _map_merge(target, k, patch[k])
+
+
+def _preset_list(doc, name):
+    preset = doc.get("preset")
+    items = preset.get(name) if isinstance(preset, dict) else None
+    return items if isinstance(items, list) else None
+
+
+def _find_by_id(items, item_id):
+    return next((x for x in items if isinstance(x, dict) and x.get("id") == item_id), None)
 
 
 def _preset_set(doc, op):
@@ -33,16 +75,23 @@ def _slide_patch(doc, op):
     sid, patch = op.get("id"), op.get("patch")
     if not isinstance(sid, str) or not isinstance(patch, dict):
         return False
-    preset = doc.get("preset")
-    slides = preset.get("slides") if isinstance(preset, dict) else None
-    if not isinstance(slides, list):
-        return False
-    slide = next((s for s in slides if isinstance(s, dict) and s.get("id") == sid), None)
+    slides = _preset_list(doc, "slides")
+    slide = _find_by_id(slides, sid) if slides is not None else None
     if slide is None:
         return False
-    for k in SLIDE_KEYS:
-        if k in patch:
-            _set_or_delete(slide, k, patch[k])
+    _apply_patch(slide, patch, SLIDE_KEYS, SLIDE_MAPS)
+    return True
+
+
+def _table_patch(doc, op):
+    tid, patch = op.get("id"), op.get("patch")
+    if not isinstance(tid, str) or not isinstance(patch, dict):
+        return False
+    tables = _preset_list(doc, "tables")
+    table = _find_by_id(tables, tid) if tables is not None else None
+    if table is None:
+        return False
+    _apply_patch(table, patch, TABLE_KEYS, TABLE_MAPS)
     return True
 
 
@@ -78,23 +127,7 @@ def _style_patch(style, op):
     patch = op.get("patch")
     if not isinstance(patch, dict):
         return False
-    for k in STYLE_KEYS:
-        if k in patch:
-            _set_or_delete(style, k, patch[k])
-    if "pn" in patch:
-        pn_patch = patch["pn"]
-        if pn_patch is None:
-            style.pop("pn", None)
-        elif isinstance(pn_patch, dict):
-            pn = style.get("pn")
-            pn = dict(pn) if isinstance(pn, dict) else {}
-            for k, v in pn_patch.items():
-                if isinstance(k, str):
-                    _set_or_delete(pn, k, v)
-            if pn:
-                style["pn"] = pn
-            else:
-                style.pop("pn", None)
+    _apply_patch(style, patch, STYLE_KEYS, STYLE_MAPS)
     return True
 
 
@@ -134,6 +167,8 @@ def apply_ops(doc, ops, user, now_ms, kind="workbook"):
                 ok = _preset_set(doc, op)
             elif t == "slide.patch":
                 ok = _slide_patch(doc, op)
+            elif t == "table.patch":
+                ok = _table_patch(doc, op)
             elif t == "cell.patch":
                 ok = _cell_patch(doc, op)
             elif t == "style.patch":

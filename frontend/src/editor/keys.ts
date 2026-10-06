@@ -3,11 +3,11 @@ import { S } from "../state/store";
 import { DLG } from "../state/dialogs";
 import { gotoSlide, undo } from "../state/app";
 import { applySel, clearSel, clearText, moveSel, selectAll } from "./edit";
-import { openInline } from "./stage";
+import { openInline, patchNote, selectNote } from "./stage";
 
 export function installKeys() {
   document.addEventListener("keydown", e => {
-    if (DLG.dialog || DLG.wizard || DLG.installer) return;
+    if (DLG.dialog || DLG.wizard || DLG.installer || DLG.tables) return;
     const t = e.target as HTMLElement;
     const inField = t.matches("input,select,textarea");
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
@@ -17,6 +17,12 @@ export function installKeys() {
     if (inField || !S.slides.length) return;
     if (e.key === "PageDown" || (e.key === "ArrowDown" && e.altKey)) { e.preventDefault(); gotoSlide(S.cur + 1); return; }
     if (e.key === "PageUp" || (e.key === "ArrowUp" && e.altKey)) { e.preventDefault(); gotoSlide(S.cur - 1); return; }
+    if (S.noteSel && !S.sel) {
+      if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); patchNote("Remove text box", null); return; }
+      if (e.key === "Escape") { selectNote(null); return; }
+      if (e.key === "Enter" || e.key === "F2") { e.preventDefault(); document.querySelector<HTMLElement>(`#stage .tnote[data-note="${CSS.escape(S.noteSel)}"]`)?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); return; }
+      return;
+    }
     if (!S.sel) return;
     if (mod && k === "b") { e.preventDefault(); const on = !boldAll(); applySel("Bold", ed => { ed.b = on; }); return; }
     if (mod && k === "i") { e.preventDefault(); const on = !italAll(); applySel("Italic", ed => { ed.i = on; }); return; }

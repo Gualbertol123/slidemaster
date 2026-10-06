@@ -163,3 +163,49 @@ Test any change with layouts of very different kinds (see §10) – not only the
   commit one `slide.patch {layout}` on pointer-up.
 * Remote changes arrive via `DocSync.poll()` every 3 s; `onDocChange` rebuilds slides only when the
   preset changed, otherwise it swaps changed cells in place (`refreshStage`).
+
+---
+
+## 4. Table tools (v3.1)
+
+### 4.1 Column widths and row heights
+`table.cols` / `table.rows` (`{"<sheet column or row>": px}`, table pixels = Excel at 100 %) are passed to
+`buildLayout(S, g, sizes)`; a table with sizes or colour scales gets its **own** layout object
+(`resolveTable`, cached by id + sizes) so two tables on the same "x" region never share overrides.
+Sized columns are listed in `L.fixedCols`; Liquid Glass keeps them exactly (`glassGeom` only widens the
+others). On the slide (`editor/stage.ts`): within 4 screen px of a border the cursor becomes a resize
+cursor; dragging shows a guide and the width, and applies to every selected column/row when the border
+belongs to the selection; double-click a border = Excel size. The toolbar's **W / H** boxes set exact
+values for the selection.
+
+### 4.2 Same size, copy sizes, alignment (`editor/tables.ts`)
+* **Make same size**: target width/height = largest, smallest or first; every column/row of each table
+  is scaled (`shownColW × target / width`) and fixed, the tables get weight 1 on their slides, and when
+  they are on several slides those slides get one common `slide.scale` = the smallest "fit" scale among
+  them (computed on simulated layouts before anything is written), so the tables are the same size on
+  screen and in the PDF. One operation batch = one undo step.
+* **Copy sizes**: position by position (k-th visible column → k-th).
+* **Align**: `slide.align` left / centre / right moves each band to the content area's edge.
+* `computeLayout` uses the fixed scale if set, reduced only if it would not fit (`reduced` is reported).
+
+### 4.3 Text boxes around tables
+`slide.notes["<tableId>:<side>"]`. `computeLayout` treats a table plus its boxes as one unit:
+left/right boxes have a fixed width (`w`, default 240 px) and the table's height; top/bottom boxes have a
+height (`h`, or lines × font size) and the table's width; gap 14 px. The scale `k` is found by binary
+search so that all units fit the content area. Fonts shrink (down to 9 px) until the text fits, measured
+off-screen (`fitNotes`), so thumbnails and exports match the editor.
+
+### 4.4 Colour scales (`render/scales.ts`)
+`table.scales[id] = {range, dir: row|col|all, mode: zero|minmax, fill, ink, invert?}`. Numbers in the range
+(Excel values, not edited text) are grouped per row, per column or all together. *zero*: positives
+green, negatives red, strength = value ÷ largest (or most negative) value of the group; *minmax*: lowest
+red → highest green. Strength t gives `scaleColors(t)`: fill = white→green/red at 10–82 %, ink = light→deep
+green/red. Applied in `effItems` under explicit user colours. Excel design: cell fill/text colour; Liquid
+Glass: a capsule in the scale colour (`.cap.scale`) and the ink.
+
+### 4.5 Deck look
+`style.radius` (0–200 %) multiplies every corner radius (glass containers, capsules, cover/index/page
+number chrome, logo bubble, Excel shapes; CSS `--rk`). `style.contrast` (0–100, 50 = as designed) sets
+`--wfade` (wallpaper towards white), `--gfade` (white veil on glass surfaces, an extra background layer –
+`placeGlass` positions three layers) and `--wallf` (wallpaper saturation/brightness). `style.logoBubble =
+false` draws the logo without its glass bubble.

@@ -24,6 +24,8 @@ export const S = {
   slides: [] as RuntimeSlide[],
   cur: 0,
   sel: null as Sel | null,
+  /** selected text box ("<tableId>:<side>") */
+  noteSel: null as string | null,
   zoom: "fit" as "fit" | number,
   busy: null as { text: string; frac: number | null } | null,
   exporting: false,

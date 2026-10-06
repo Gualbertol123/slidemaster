@@ -224,7 +224,7 @@ export function undo(redo = false) {
   toast((redo ? "Redo: " : "Undo: ") + esc(a.label));
   emit(); STAGE.paintSel();
 }
-export const styleChange = (label: string, patch: StylePatch, coalesce?: string) => change(label, [{ op: "style.patch", patch } as Op], coalesce);
+export const styleChange = (label: string, patch: Extract<Op, { op: "style.patch" }>["patch"], coalesce?: string) => change(label, [{ op: "style.patch", patch } as Op], coalesce);
 export async function saveStyleAsDefault() {
   const st = S.sync?.view.style; if (!st) return;
   try { const r = await backend.configOps([{ op: "style.patch", patch: JSON.parse(JSON.stringify(st)) } as Op]); S.config = r.doc; toast("This deck's style is now the default for new decks."); emit(); }

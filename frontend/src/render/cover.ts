@@ -7,11 +7,11 @@ import { pageNumber } from "./pagenumbers";
 export function todayLabel(locale = "en-GB") { return new Date().toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" }); }
 function coverTitleSize(t: string) { const n = String(t || "").length; return n > 52 ? 52 : n > 40 ? 60 : n > 28 ? 68 : 80; }
 
-export function coverHtml(R: RuntimeSlide, glassy: boolean): string {
+export function coverHtml(R: RuntimeSlide, glassy: boolean, rk = 1): string {
   const c = R.cfg, date = c.date || todayLabel(), note = c.note || "", t = R.title || "", fs = coverTitleSize(t);
   if (glassy) return `
     <div class="gls wb chrome cv-orb" style="left:1000px;top:96px;width:560px;height:560px;border-radius:50%"></div>
-    <div class="gls wb chrome cv-tile" style="left:900px;top:470px;width:290px;height:290px;border-radius:76px"></div>
+    <div class="gls wb chrome cv-tile" style="left:900px;top:470px;width:290px;height:290px;border-radius:${Math.round(76 * rk)}px"></div>
     <div class="gls wb chrome cv-orb small" style="left:1300px;top:540px;width:220px;height:220px;border-radius:50%"></div>
     <div class="cv-block g">
       ${note ? `<div class="cv-kicker">${esc(note)}</div>` : ""}
@@ -19,7 +19,7 @@ export function coverHtml(R: RuntimeSlide, glassy: boolean): string {
       <div class="cv-bar"></div>
       <div class="cv-sub" data-edit="subtitle">${esc(R.subtitle || "")}</div>
     </div>
-    <div class="gls wb chrome cv-chip" style="left:120px;top:742px;width:${Math.round(56 + date.length * 11.5)}px;height:52px;border-radius:26px"><span>${esc(date)}</span></div>`;
+    <div class="gls wb chrome cv-chip" style="left:120px;top:742px;width:${Math.round(56 + date.length * 11.5)}px;height:52px;border-radius:${Math.min(26, 26 * rk)}px"><span>${esc(date)}</span></div>`;
   return `
     <div class="cvx-panel"><div class="cvx-band"></div><div class="cvx-band b2"></div></div>
     <div class="cv-block x">
@@ -44,7 +44,7 @@ export function indexHtml(R: RuntimeSlide, ctx: RenderCtx, glassy: boolean): str
   [items.slice(0, per), items.slice(per)].forEach((list, k) => {
     if (!list.length) return;
     const x = x0 + k * (colW + 40), H = list.length * rowH + 28;
-    if (glassy) h += `<div class="gls wb chrome card ix-card" style="left:${x}px;top:${top}px;width:${colW}px;height:${H}px;border-radius:30px"></div>`;
+    if (glassy) h += `<div class="gls wb chrome card ix-card" style="left:${x}px;top:${top}px;width:${colW}px;height:${H}px;border-radius:${Math.round(30 * ctx.style.radius / 100)}px"></div>`;
     list.forEach((it, j) => {
       const y = top + 14 + j * rowH;
       h += `<div class="ix-row${glassy ? " g" : " x"}" style="left:${x + 24}px;top:${y}px;width:${colW - 48}px;height:${rowH}px;font-size:${fs}px">

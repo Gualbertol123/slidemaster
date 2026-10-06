@@ -166,3 +166,16 @@
   box-shadow:inset 0 1px 1px rgba(255,255,255,.9),inset 0 0 0 .5px rgba(255,255,255,.5),0 3px 10px -6px rgba(28,40,100,calc(.12 + .12*var(--gi)))}
 .gls.tinted{--sheen:.5}
 .xt.gx .rule.accent{position:absolute;border-radius:1px;background:linear-gradient(90deg,#3B82F6,#8B5CF6 70%,rgba(139,92,246,.15))}
+
+/* ---- v3.1: corner roundness (--rk), contrast (--wfade/--gfade/--wallf), text boxes, plain logo ---- */
+.slide.glass .wall{filter:var(--wallf,none)}
+.slide.glass .wall::after{content:"";position:absolute;inset:0;background:rgba(255,255,255,var(--wfade,0))}
+.gls.wb{background-image:linear-gradient(rgba(255,255,255,var(--gfade,0)),rgba(255,255,255,var(--gfade,0))),var(--tint,linear-gradient(rgba(255,255,255,.5),rgba(255,255,255,.5))),var(--wallblur)}
+.slide.glass .pic.gpic{border-radius:calc(10px*var(--rk,1))}
+.slide.glass .logowrap.plain{position:absolute;padding:6px 0}
+.slide .tnote{position:absolute;box-sizing:border-box;padding:4px 6px;line-height:1.28;white-space:pre-wrap;overflow-wrap:anywhere;overflow:hidden;color:#16181D;display:flex;flex-direction:column}
+.slide .tnote.top{justify-content:flex-end}
+.slide .tnote.bottom,.slide .tnote.left,.slide .tnote.right{justify-content:flex-start}
+.slide.glass .tnote{color:#0B0D17;font-weight:500}
+.slide.excel .tnote{font-family:'Century Gothic','URW Gothic',Arial,sans-serif}
+.slide .tnote.empty{color:rgba(18,22,44,.38);font-style:italic;border:1.5px dashed rgba(10,102,216,.45);border-radius:8px}

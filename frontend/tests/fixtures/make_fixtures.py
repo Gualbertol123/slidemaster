@@ -48,6 +48,17 @@ def report():
     ws2["B12"] = "Source: treasury"; ws2["B12"].font = Font(italic=True, size=9)
     ws2.column_dimensions["B"].width = 22; ws2.column_dimensions["D"].width = 14
 
+    ws5 = wb.create_sheet("SLIDE_3 pair")                # two tables of different size side by side
+    ws5["A1"] = "Loans vs deposits by region"
+    for (r0, c0, nrow, ncol, w) in ((3, 2, 6, 3, 12), (3, 7, 9, 4, 9)):
+        ws5.cell(row=r0, column=c0, value="x"); ws5.cell(row=r0 + nrow + 2, column=c0 + ncol + 1, value="x")
+        for j in range(ncol):
+            h = ws5.cell(row=r0 + 1, column=c0 + 1 + j, value=["Region", "Q1", "Q2", "Q3"][j]); h.font = Font(bold=True); h.fill = grey
+            ws5.column_dimensions[ws5.cell(row=1, column=c0 + 1 + j).column_letter].width = w + 2 * j
+        for i in range(nrow):
+            ws5.cell(row=r0 + 2 + i, column=c0 + 1, value="R%d" % (i + 1))
+            for j in range(1, ncol):
+                ws5.cell(row=r0 + 2 + i, column=c0 + 1 + j, value=round((i - 3) * 37.5 + j * 11.25, 2)).number_format = "#,##0.0"
     ws3 = wb.create_sheet("Hidden data"); ws3["A1"] = "secret"; ws3.sheet_state = "hidden"
     ws4 = wb.create_sheet("Numbers")
     samples = [(1234.5, "#,##0.00"), (0.000123, "0.00E+00"), (1.5, "# ?/?"), (12345678901234, "General"), (0.1 + 0.2, "General"), (45000.75, "dd mmm yyyy hh:mm AM/PM"),

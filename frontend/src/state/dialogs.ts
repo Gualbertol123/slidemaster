@@ -8,7 +8,7 @@ export interface DialogButton { id: string; label: string; primary?: boolean; da
 export interface DialogReq { title: string; sub?: string; html: string; buttons: DialogButton[]; width?: number; resolve: (v: string | null) => void }
 export interface WizardReq { wb: Workbook; name: string; preset: Preset; resolve: (p: Preset | null) => void }
 
-export const DLG = { dialog: null as DialogReq | null, wizard: null as WizardReq | null, installer: false };
+export const DLG = { dialog: null as DialogReq | null, wizard: null as WizardReq | null, installer: false, tables: false };
 
 export function ask(title: string, html: string, buttons: DialogButton[], opts: { sub?: string; width?: number } = {}): Promise<string | null> {
   return new Promise(resolve => {

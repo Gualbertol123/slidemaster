@@ -90,9 +90,25 @@ defined once, here, and tested on both sides with `shared/ops-vectors.json`.
 | op | fields | effect |
 |---|---|---|
 | `preset.set` | `preset` (object or null) | replace `doc.preset` (deep copy). Used by the wizard. |
-| `slide.patch` | `id`, `patch` | on the slide with that id: for each key in `title, subtitle, date, note, logo, layout`: `null` → delete, else set. Other keys ignored. Unknown slide → op **skipped**. |
+| `slide.patch` | `id`, `patch` | on the slide with that id: keys `title, subtitle, date, note, logo, layout, align, scale`: `null` → delete, else set. Key `notes` is a **map merge** (see below). Other keys ignored. Unknown slide (or no preset) → op **skipped**. |
+| `table.patch` | `id`, `patch` | on `doc.preset.tables[id]`: key `name`: `null` → delete, else set; keys `cols`, `rows`, `scales` are **map merges**. Other keys ignored. Unknown table (or no preset) → skipped. |
 | `cell.patch` | `sheet`, `ref`, `patch` | on `doc.edits[sheet][ref]` (created if missing): for each key in `text, orig, sz, b, i, color, fill, align, role`: `null` → delete, else set. Then: if `text` is absent, delete `orig`; if no keys remain, delete the cell; if the sheet has no cells, delete the sheet. |
-| `style.patch` | `patch` | on `doc.style`: keys `design, glass, color, logo`: `null` → delete, else set; key `pn`: `null` → delete `pn`, object → merged key by key into `doc.style.pn` (inner `null` deletes; empty `pn` is deleted). |
+| `style.patch` | `patch` | on `doc.style`: keys `design, glass, color, logo, radius, contrast, logoBubble`: `null` → delete, else set; key `pn` is a map merge. |
+
+**Map merge** (`pn`, `notes`, `cols`, `rows`, `scales`): value `null` → delete the whole map; an object →
+each entry is set (replacing that entry entirely) or deleted when `null`; a map left empty is deleted.
+So two people changing different columns, rules or text boxes never overwrite each other.
+
+| Field | Meaning |
+|---|---|
+| `table.cols` / `table.rows` | `{"<sheet column/row number>": px}` – width/height override in table pixels (Excel 100 %); fixed: Liquid Glass does not widen these columns |
+| `table.scales` | `{"<rule id>": {range:"D6:F18", dir:"row"\|"col"\|"all", mode:"zero"\|"minmax", fill:bool, ink:bool, invert?:bool}}` – colour scales: deeper green/red with the size of the number, per row, per column or over the whole range |
+| `slide.align` | `"left"\|"center"\|"right"` – horizontal alignment of the tables (default centre) |
+| `slide.scale` | fixed table scale (null = fit to the slide); set by "Make same size" so tables on different slides match |
+| `slide.notes` | `{"<tableId>:<top\|bottom\|left\|right>": {text, size?, b?, i?, align?, color?, w?, h?}}` – text boxes around a table: top/bottom as wide as the table, left/right as high |
+| `style.radius` | corner roundness, % of the default (0–200, default 100) |
+| `style.contrast` | contrast between background and glass surfaces (0–100, default 50) |
+| `style.logoBubble` | `false` = logo without its glass bubble |
 
 Any other op, or an op with missing/invalid fields, is skipped. If at least one op was applied:
 `rev += 1`, `updated = now`, `updatedBy = user`. Field-level merging means two people editing

@@ -85,6 +85,8 @@ export interface Item {
   isText: boolean; merged: boolean; baseFill: string | null; cf: Dxf | null; nfColor: string | null; ctype: CellType;
   tw?: number; ov?: boolean;
   /* effective values after user edits */
+  /** colour scale result (variable conditional formatting) */
+  scaleFill?: string; scaleInk?: string;
   edited?: boolean; userB?: boolean; userI?: boolean; userColor?: string; userFill?: string; noFill?: boolean; role?: string;
   L?: TableLayout;
 }
@@ -95,6 +97,8 @@ export interface TableLayout {
   items: Item[]; pics: Pic[]; rects: Rect[]; texts: Rect[];
   hiddenRows: number; hiddenCols: number; errors: string[];
   colX: Map<number, number>; colW: Map<number, number>; rowY: Map<number, number>; rowH: Map<number, number>;
+  /** columns whose width the user set (Liquid Glass keeps them exactly) */
+  fixedCols?: Set<number>;
   /* attached at runtime */
   sheet: Sheet;
   def?: import("../model/types").TableDef;

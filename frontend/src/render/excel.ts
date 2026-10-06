@@ -34,7 +34,7 @@ export function rotSpan(rot: number, text: string) {
 }
 
 export function renderExcel(L: TableLayout, ctx: RenderCtx, opts: { noText?: boolean } = {}): string {
-  const items = effItems(L, ctx);
+  const items = effItems(L, ctx), rr = Math.round(8 * ctx.style.radius / 100);
   let h = `<div class="xt" style="width:${L.W}px;height:${L.H}px">`;
   for (const it of items) {
     const st = [`left:${it.bx}px`, `top:${it.by}px`, `width:${it.bw}px`, `height:${it.bh}px`];
@@ -60,8 +60,8 @@ export function renderExcel(L: TableLayout, ctx: RenderCtx, opts: { noText?: boo
     if (it.rot) { h += `<div class="t ov" style="${st.join(";")};${rotBox()}">${rotSpan(it.rot, it.text)}</div>`; continue; }
     h += `<div class="${cls}" style="${st.join(";")}">${esc(it.text)}</div>`;
   }
-  for (const r of L.rects) h += `<div style="position:absolute;box-sizing:border-box;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;${r.fill ? `background:${r.fill};` : ""}${r.line ? `border:${r.line.w}px solid ${r.line.color};` : ""}${r.ellipse ? "border-radius:50%;" : r.round ? "border-radius:8px;" : ""}${shapeTransform(r)}"></div>`;
-  for (const tb of L.texts as Rect[]) h += `<div class="tbox" style="left:${tb.x}px;top:${tb.y}px;width:${tb.w}px;height:${tb.h}px;${tb.fill ? `background:${tb.fill};` : ""}${tb.line ? `border:${tb.line.w}px solid ${tb.line.color};` : ""}${tb.round ? "border-radius:8px;" : ""}justify-content:${tb.anchorV === "ctr" ? "center" : tb.anchorV === "b" ? "flex-end" : "flex-start"};font-family:${XLFONT};${shapeTransform(tb)}">${textboxInner(tb.paras)}</div>`;
+  for (const r of L.rects) h += `<div style="position:absolute;box-sizing:border-box;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;${r.fill ? `background:${r.fill};` : ""}${r.line ? `border:${r.line.w}px solid ${r.line.color};` : ""}${r.ellipse ? "border-radius:50%;" : r.round ? `border-radius:${rr}px;` : ""}${shapeTransform(r)}"></div>`;
+  for (const tb of L.texts as Rect[]) h += `<div class="tbox" style="left:${tb.x}px;top:${tb.y}px;width:${tb.w}px;height:${tb.h}px;${tb.fill ? `background:${tb.fill};` : ""}${tb.line ? `border:${tb.line.w}px solid ${tb.line.color};` : ""}${tb.round ? `border-radius:${rr}px;` : ""}justify-content:${tb.anchorV === "ctr" ? "center" : tb.anchorV === "b" ? "flex-end" : "flex-start"};font-family:${XLFONT};${shapeTransform(tb)}">${textboxInner(tb.paras)}</div>`;
   for (const p of L.pics) h += picHtml(p, undefined, !!ctx.forExport);
   return h + `</div>`;
 }

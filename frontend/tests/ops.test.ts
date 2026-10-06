@@ -38,3 +38,18 @@ describe("inverse operations", () => {
     expect(d.edits.S).toEqual({ A1: { b: true }, C3: { b: true } });
   });
 });
+
+describe("inverse of map merges", () => {
+  const base = () => ({ preset: { sheets: [], tables: [{ id: "t", sheet: "S", kind: "range" as const, range: "A1:B2", cols: { "2": 80 } }], slides: [{ id: "s", type: "content" as const, tables: ["t"], notes: { "t:top": { text: "A" } } }] }, style: { radius: 100 }, edits: {} });
+  const cases: Op[] = [
+    { op: "table.patch", id: "t", patch: { cols: { "2": 120, "3": 50 }, name: "X" } },
+    { op: "table.patch", id: "t", patch: { cols: null } },
+    { op: "slide.patch", id: "s", patch: { notes: { "t:top": null, "t:left": { text: "L" } }, align: "left", scale: .7 } },
+    { op: "style.patch", patch: { radius: 40, contrast: 80, logoBubble: false } },
+  ];
+  for (const op of cases) it(op.op + " " + JSON.stringify((op as any).patch).slice(0, 40) + " round-trips", () => {
+    const d: any = base(); const inv = inverseOf(d, op)!;
+    applyOp(d, op); applyOp(d, inv);
+    expect(d).toEqual(base());
+  });
+});

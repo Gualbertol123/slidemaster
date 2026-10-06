@@ -1,94 +1,971 @@
 [
   {
     "name": "cell.patch creates the sheet map and the cell",
-    "doc": {"preset": null, "style": {}, "edits": {}},
-    "ops": [{"op": "cell.patch", "sheet": "S1", "ref": "C7", "patch": {"b": true, "sz": 14}}],
-    "expect": {"preset": null, "style": {}, "edits": {"S1": {"C7": {"b": true, "sz": 14}}}, "applied": 1, "skipped": []}
+    "doc": {
+      "preset": null,
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "cell.patch",
+        "sheet": "S1",
+        "ref": "C7",
+        "patch": {
+          "b": true,
+          "sz": 14
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {},
+      "edits": {
+        "S1": {
+          "C7": {
+            "b": true,
+            "sz": 14
+          }
+        }
+      },
+      "applied": 1,
+      "skipped": []
+    }
   },
   {
     "name": "cell.patch null deletes a key and keeps the others",
-    "doc": {"preset": null, "style": {}, "edits": {"S1": {"C7": {"b": true, "sz": 14}}}},
-    "ops": [{"op": "cell.patch", "sheet": "S1", "ref": "C7", "patch": {"b": null}}],
-    "expect": {"preset": null, "style": {}, "edits": {"S1": {"C7": {"sz": 14}}}, "applied": 1, "skipped": []}
+    "doc": {
+      "preset": null,
+      "style": {},
+      "edits": {
+        "S1": {
+          "C7": {
+            "b": true,
+            "sz": 14
+          }
+        }
+      }
+    },
+    "ops": [
+      {
+        "op": "cell.patch",
+        "sheet": "S1",
+        "ref": "C7",
+        "patch": {
+          "b": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {},
+      "edits": {
+        "S1": {
+          "C7": {
+            "sz": 14
+          }
+        }
+      },
+      "applied": 1,
+      "skipped": []
+    }
   },
   {
     "name": "cell.patch removing the last key removes the cell and the sheet",
-    "doc": {"preset": null, "style": {}, "edits": {"S1": {"C7": {"sz": 14}}, "S2": {"A1": {"b": true}}}},
-    "ops": [{"op": "cell.patch", "sheet": "S1", "ref": "C7", "patch": {"sz": null}}],
-    "expect": {"preset": null, "style": {}, "edits": {"S2": {"A1": {"b": true}}}, "applied": 1, "skipped": []}
+    "doc": {
+      "preset": null,
+      "style": {},
+      "edits": {
+        "S1": {
+          "C7": {
+            "sz": 14
+          }
+        },
+        "S2": {
+          "A1": {
+            "b": true
+          }
+        }
+      }
+    },
+    "ops": [
+      {
+        "op": "cell.patch",
+        "sheet": "S1",
+        "ref": "C7",
+        "patch": {
+          "sz": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {},
+      "edits": {
+        "S2": {
+          "A1": {
+            "b": true
+          }
+        }
+      },
+      "applied": 1,
+      "skipped": []
+    }
   },
   {
     "name": "cell.patch without text drops orig",
-    "doc": {"preset": null, "style": {}, "edits": {"S1": {"C7": {"text": "New", "orig": "Old", "b": true}}}},
-    "ops": [{"op": "cell.patch", "sheet": "S1", "ref": "C7", "patch": {"text": null}}],
-    "expect": {"preset": null, "style": {}, "edits": {"S1": {"C7": {"b": true}}}, "applied": 1, "skipped": []}
+    "doc": {
+      "preset": null,
+      "style": {},
+      "edits": {
+        "S1": {
+          "C7": {
+            "text": "New",
+            "orig": "Old",
+            "b": true
+          }
+        }
+      }
+    },
+    "ops": [
+      {
+        "op": "cell.patch",
+        "sheet": "S1",
+        "ref": "C7",
+        "patch": {
+          "text": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {},
+      "edits": {
+        "S1": {
+          "C7": {
+            "b": true
+          }
+        }
+      },
+      "applied": 1,
+      "skipped": []
+    }
   },
   {
     "name": "cell.patch ignores unknown keys; only orig left means the cell is removed",
-    "doc": {"preset": null, "style": {}, "edits": {}},
-    "ops": [{"op": "cell.patch", "sheet": "S1", "ref": "A1", "patch": {"orig": "x", "evil": 1}}],
-    "expect": {"preset": null, "style": {}, "edits": {}, "applied": 1, "skipped": []}
+    "doc": {
+      "preset": null,
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "cell.patch",
+        "sheet": "S1",
+        "ref": "A1",
+        "patch": {
+          "orig": "x",
+          "evil": 1
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
   },
   {
     "name": "two users editing different cells both survive (sequential batches)",
-    "doc": {"preset": null, "style": {}, "edits": {}},
+    "doc": {
+      "preset": null,
+      "style": {},
+      "edits": {}
+    },
     "ops": [
-      {"op": "cell.patch", "sheet": "S1", "ref": "A1", "patch": {"text": "A", "orig": "a"}},
-      {"op": "cell.patch", "sheet": "S1", "ref": "B2", "patch": {"fill": "#34C759"}}
+      {
+        "op": "cell.patch",
+        "sheet": "S1",
+        "ref": "A1",
+        "patch": {
+          "text": "A",
+          "orig": "a"
+        }
+      },
+      {
+        "op": "cell.patch",
+        "sheet": "S1",
+        "ref": "B2",
+        "patch": {
+          "fill": "#34C759"
+        }
+      }
     ],
-    "expect": {"preset": null, "style": {}, "edits": {"S1": {"A1": {"text": "A", "orig": "a"}, "B2": {"fill": "#34C759"}}}, "applied": 2, "skipped": []}
+    "expect": {
+      "preset": null,
+      "style": {},
+      "edits": {
+        "S1": {
+          "A1": {
+            "text": "A",
+            "orig": "a"
+          },
+          "B2": {
+            "fill": "#34C759"
+          }
+        }
+      },
+      "applied": 2,
+      "skipped": []
+    }
   },
   {
     "name": "slide.patch sets and deletes allowed keys only",
-    "doc": {"preset": {"sheets": [], "tables": [], "slides": [{"id": "s1", "type": "content", "title": "Old", "tables": [], "logo": false}]}, "style": {}, "edits": {}},
-    "ops": [{"op": "slide.patch", "id": "s1", "patch": {"title": "New", "logo": null, "layout": {"bands": [[0]], "w": [1]}, "type": "cover", "tables": ["x"]}}],
-    "expect": {"preset": {"sheets": [], "tables": [], "slides": [{"id": "s1", "type": "content", "title": "New", "tables": [], "layout": {"bands": [[0]], "w": [1]}}]}, "style": {}, "edits": {}, "applied": 1, "skipped": []}
+    "doc": {
+      "preset": {
+        "sheets": [],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "title": "Old",
+            "tables": [],
+            "logo": false
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "title": "New",
+          "logo": null,
+          "layout": {
+            "bands": [
+              [
+                0
+              ]
+            ],
+            "w": [
+              1
+            ]
+          },
+          "type": "cover",
+          "tables": [
+            "x"
+          ]
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "title": "New",
+            "tables": [],
+            "layout": {
+              "bands": [
+                [
+                  0
+                ]
+              ],
+              "w": [
+                1
+              ]
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
   },
   {
     "name": "slide.patch on an unknown slide is skipped",
-    "doc": {"preset": {"sheets": [], "tables": [], "slides": []}, "style": {}, "edits": {}},
-    "ops": [{"op": "slide.patch", "id": "nope", "patch": {"title": "X"}}],
-    "expect": {"preset": {"sheets": [], "tables": [], "slides": []}, "style": {}, "edits": {}, "applied": 0, "skipped": [0]}
+    "doc": {
+      "preset": {
+        "sheets": [],
+        "tables": [],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "nope",
+        "patch": {
+          "title": "X"
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [],
+        "tables": [],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 0,
+      "skipped": [
+        0
+      ]
+    }
   },
   {
     "name": "slide.patch without a preset is skipped",
-    "doc": {"preset": null, "style": {}, "edits": {}},
-    "ops": [{"op": "slide.patch", "id": "s1", "patch": {"title": "X"}}],
-    "expect": {"preset": null, "style": {}, "edits": {}, "applied": 0, "skipped": [0]}
+    "doc": {
+      "preset": null,
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "title": "X"
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {},
+      "edits": {},
+      "applied": 0,
+      "skipped": [
+        0
+      ]
+    }
   },
   {
     "name": "preset.set replaces the preset",
-    "doc": {"preset": {"sheets": ["A"], "tables": [], "slides": []}, "style": {}, "edits": {}},
-    "ops": [{"op": "preset.set", "preset": {"sheets": ["B"], "tables": [{"id": "t", "sheet": "B", "kind": "range", "range": "A1:B2"}], "slides": [{"id": "s", "type": "content", "tables": ["t"]}]}}],
-    "expect": {"preset": {"sheets": ["B"], "tables": [{"id": "t", "sheet": "B", "kind": "range", "range": "A1:B2"}], "slides": [{"id": "s", "type": "content", "tables": ["t"]}]}, "style": {}, "edits": {}, "applied": 1, "skipped": []}
+    "doc": {
+      "preset": {
+        "sheets": [
+          "A"
+        ],
+        "tables": [],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "preset.set",
+        "preset": {
+          "sheets": [
+            "B"
+          ],
+          "tables": [
+            {
+              "id": "t",
+              "sheet": "B",
+              "kind": "range",
+              "range": "A1:B2"
+            }
+          ],
+          "slides": [
+            {
+              "id": "s",
+              "type": "content",
+              "tables": [
+                "t"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "B"
+        ],
+        "tables": [
+          {
+            "id": "t",
+            "sheet": "B",
+            "kind": "range",
+            "range": "A1:B2"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s",
+            "type": "content",
+            "tables": [
+              "t"
+            ]
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
   },
   {
     "name": "preset.set null clears the preset",
-    "doc": {"preset": {"sheets": [], "tables": [], "slides": []}, "style": {}, "edits": {}},
-    "ops": [{"op": "preset.set", "preset": null}],
-    "expect": {"preset": null, "style": {}, "edits": {}, "applied": 1, "skipped": []}
+    "doc": {
+      "preset": {
+        "sheets": [],
+        "tables": [],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "preset.set",
+        "preset": null
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
   },
   {
     "name": "style.patch merges pn key by key",
-    "doc": {"preset": null, "style": {"design": "glass", "pn": {"on": true, "size": 16}}, "edits": {}},
-    "ops": [{"op": "style.patch", "patch": {"design": "excel", "pn": {"size": 20, "on": null}, "bogus": 1}}],
-    "expect": {"preset": null, "style": {"design": "excel", "pn": {"size": 20}}, "edits": {}, "applied": 1, "skipped": []}
+    "doc": {
+      "preset": null,
+      "style": {
+        "design": "glass",
+        "pn": {
+          "on": true,
+          "size": 16
+        }
+      },
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "style.patch",
+        "patch": {
+          "design": "excel",
+          "pn": {
+            "size": 20,
+            "on": null
+          },
+          "bogus": 1
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {
+        "design": "excel",
+        "pn": {
+          "size": 20
+        }
+      },
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
   },
   {
     "name": "style.patch removing the last pn key removes pn; null deletes design",
-    "doc": {"preset": null, "style": {"design": "glass", "pn": {"on": true}}, "edits": {}},
-    "ops": [{"op": "style.patch", "patch": {"design": null, "pn": {"on": null}}}],
-    "expect": {"preset": null, "style": {}, "edits": {}, "applied": 1, "skipped": []}
+    "doc": {
+      "preset": null,
+      "style": {
+        "design": "glass",
+        "pn": {
+          "on": true
+        }
+      },
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "style.patch",
+        "patch": {
+          "design": null,
+          "pn": {
+            "on": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
   },
   {
     "name": "invalid and unknown ops are skipped, valid ones applied",
-    "doc": {"preset": null, "style": {}, "edits": {}},
+    "doc": {
+      "preset": null,
+      "style": {},
+      "edits": {}
+    },
     "ops": [
-      {"op": "nope"},
-      {"op": "cell.patch", "sheet": "S1", "patch": {"b": true}},
-      {"op": "cell.patch", "sheet": "S1", "ref": "A1", "patch": "bad"},
-      {"op": "style.patch", "patch": {"color": 50}}
+      {
+        "op": "nope"
+      },
+      {
+        "op": "cell.patch",
+        "sheet": "S1",
+        "patch": {
+          "b": true
+        }
+      },
+      {
+        "op": "cell.patch",
+        "sheet": "S1",
+        "ref": "A1",
+        "patch": "bad"
+      },
+      {
+        "op": "style.patch",
+        "patch": {
+          "color": 50
+        }
+      }
     ],
-    "expect": {"preset": null, "style": {"color": 50}, "edits": {}, "applied": 1, "skipped": [0, 1, 2]}
+    "expect": {
+      "preset": null,
+      "style": {
+        "color": 50
+      },
+      "edits": {},
+      "applied": 1,
+      "skipped": [
+        0,
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "table.patch merges column widths key by key",
+    "doc": {
+      "preset": {
+        "sheets": [],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C5",
+            "cols": {
+              "2": 80,
+              "3": 90
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "cols": {
+            "3": 120,
+            "2": null,
+            "4": 60
+          },
+          "rows": {
+            "7": 30
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C5",
+            "cols": {
+              "3": 120,
+              "4": 60
+            },
+            "rows": {
+              "7": 30
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "table.patch removing the last entry removes the map; null removes a whole map; name set/delete",
+    "doc": {
+      "preset": {
+        "sheets": [],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C5",
+            "cols": {
+              "2": 80
+            },
+            "rows": {
+              "7": 30
+            },
+            "name": "Old"
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "cols": {
+            "2": null
+          },
+          "rows": null,
+          "name": "New",
+          "kind": "markers"
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C5",
+            "name": "New"
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "table.patch scales: one rule per id",
+    "doc": {
+      "preset": {
+        "sheets": [],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C5",
+            "scales": {
+              "a": {
+                "range": "B2:B5",
+                "dir": "col"
+              }
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "scales": {
+            "b": {
+              "range": "C2:C5",
+              "dir": "row",
+              "fill": true
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C5",
+            "scales": {
+              "a": {
+                "range": "B2:B5",
+                "dir": "col"
+              },
+              "b": {
+                "range": "C2:C5",
+                "dir": "row",
+                "fill": true
+              }
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "table.patch on an unknown table or without a preset is skipped",
+    "doc": {
+      "preset": {
+        "sheets": [],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C5"
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.patch",
+        "id": "zz",
+        "patch": {
+          "name": "X"
+        }
+      },
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": "bad"
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C5"
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 0,
+      "skipped": [
+        0,
+        1
+      ]
+    }
+  },
+  {
+    "name": "slide.patch align/scale set and notes merged per box",
+    "doc": {
+      "preset": {
+        "sheets": [],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "notes": {
+              "t1:top": {
+                "text": "A"
+              },
+              "t1:left": {
+                "text": "B"
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "align": "left",
+          "scale": 0.8,
+          "notes": {
+            "t1:top": {
+              "text": "A2",
+              "size": 20
+            },
+            "t1:left": null,
+            "t1:bottom": {
+              "text": "C"
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "align": "left",
+            "scale": 0.8,
+            "notes": {
+              "t1:top": {
+                "text": "A2",
+                "size": 20
+              },
+              "t1:bottom": {
+                "text": "C"
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.patch removing the last note removes notes",
+    "doc": {
+      "preset": {
+        "sheets": [],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "notes": {
+              "t1:top": {
+                "text": "A"
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "notes": {
+            "t1:top": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "style.patch accepts radius, contrast and logoBubble",
+    "doc": {
+      "preset": null,
+      "style": {
+        "radius": 100
+      },
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "style.patch",
+        "patch": {
+          "radius": 40,
+          "contrast": 70,
+          "logoBubble": false
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {
+        "radius": 40,
+        "contrast": 70,
+        "logoBubble": false
+      },
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
   }
 ]

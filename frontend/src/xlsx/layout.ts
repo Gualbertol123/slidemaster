@@ -34,15 +34,19 @@ export function findRegions(S: Sheet): TableLayout[] {
 const stripUndef = <T extends object>(o: T): Partial<T> => { const r: Partial<T> = {}; for (const k in o) if (o[k] !== undefined && o[k] !== null) r[k] = o[k]; return r; };
 
 /* ===================== layout of one region (g = marker cells, exclusive) ===================== */
-export function buildLayout(S: Sheet, g: Range): TableLayout | null {
+/** sizes: user overrides in table pixels, keyed by sheet column / row number (as strings) */
+export interface Sizes { cols?: Record<string, number>; rows?: Record<string, number> }
+export function buildLayout(S: Sheet, g: Range, sizes?: Sizes): TableLayout | null {
   const rows: number[] = [], cols: number[] = [];
   let hr = 0, hc = 0;
   for (let r = g.r1 + 1; r < g.r2; r++) S.rowHidden(r) ? hr++ : rows.push(r);
   for (let c = g.c1 + 1; c < g.c2; c++) S.colHidden(c) ? hc++ : cols.push(c);
   if (!rows.length || !cols.length) return null;
   const y = new Map<number, number>(), x = new Map<number, number>(), h = new Map<number, number>(), w = new Map<number, number>();
-  let acc = 0; for (const r of rows) { y.set(r, acc); h.set(r, S.rowPx(r)); acc += h.get(r)!; } const H = acc;
-  acc = 0; for (const c of cols) { x.set(c, acc); w.set(c, S.colPx(c)); acc += w.get(c)!; } const W = acc;
+  const oc = sizes?.cols || {}, or = sizes?.rows || {}, fixedCols = new Set<number>();
+  const px = (o: Record<string, number>, k: number, d: number) => { const v = +o[k]; return isFinite(v) && v > 0 ? Math.round(v * 10) / 10 : d; };
+  let acc = 0; for (const r of rows) { y.set(r, acc); h.set(r, px(or, r, S.rowPx(r))); acc += h.get(r)!; } const H = acc;
+  acc = 0; for (const c of cols) { x.set(c, acc); w.set(c, px(oc, c, S.colPx(c))); if (oc[c] !== undefined) fixedCols.add(c); acc += w.get(c)!; } const W = acc;
   const rIdx = new Map(rows.map((r, i) => [r, i])), cIdx = new Map(cols.map((c, i) => [c, i]));
 
   // merges intersecting region → visible boxes
@@ -119,7 +123,7 @@ export function buildLayout(S: Sheet, g: Range): TableLayout | null {
       else if (o.kind === "text") texts.push({ ...box, fill: o.fill, line: o.line, round: /round/i.test(o.prst), paras: o.paras, anchorV: o.anchorV });
     }
   }
-  return { g, rows, cols, W, H, items, pics, rects, texts, hiddenRows: hr, hiddenCols: hc, errors, colX: x, colW: w, rowY: y, rowH: h, sheet: S };
+  return { g, rows, cols, W, H, items, pics, rects, texts, hiddenRows: hr, hiddenCols: hc, errors, colX: x, colW: w, rowY: y, rowH: h, sheet: S, fixedCols };
 }
 
 /* ===================== conditional formatting =====================

@@ -15,6 +15,9 @@ interface W {
   step: 1 | 2 | 3; sheets: Set<string>; tables: TableDef[]; slides: SlideDef[];
   cur: string | null; sel: { r1: number; c1: number; r2: number; c2: number } | null;
   suggest: Record<string, string[]>; focusSlide: string | null; grids: Record<string, HTMLElement>; grow: boolean;
+  /** keyboard: where a Shift+arrow / Shift+click selection starts, and the moving corner */
+  anchor?: { r: number; c: number }; active?: { r: number; c: number };
+  addSel?: () => void;
 }
 const defRange = (S: Sheet | undefined, d: TableDef) => d.kind === "markers"
   ? (() => { if (!S) return null; const T = S.tables.find(t => A1(t.g.r1, t.g.c1) === d.anchor) || S.tables[d.index]; return T ? gToRange(T.g) : null; })()
@@ -41,7 +44,11 @@ export function Wizard({ req }: { req: WizardReq }) {
   const close = (v: Preset | null) => req.resolve(v);
   const askClose = async () => { if (await confirmBox("Close the wizard?", "Your changes in the wizard will be lost.", "Close without saving", true)) close(null); };
   useEffect(() => {
-    const key = (e: KeyboardEvent) => { if (e.key === "Escape" && !DLG.dialog && !(e.target as HTMLElement).matches("input")) { e.stopPropagation(); void askClose(); } };
+    const key = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest && t.closest(".wgrid-in") && W.sel) return;            // Escape in the grid clears the selection first
+      if (e.key === "Escape" && !DLG.dialog && !t.matches("input")) { e.stopPropagation(); void askClose(); }
+    };
     document.addEventListener("keydown", key, true); return () => document.removeEventListener("keydown", key, true);
   }, []);
 
@@ -169,7 +176,7 @@ export function Wizard({ req }: { req: WizardReq }) {
           }) : <div class="meta" style="padding:8px 2px">No tables yet: drag across the cells of a table, or click a dashed suggestion.</div>)}</div>
         </div>
       </div>,
-      <><span class="hint">Drag across cells to select a table · dashed boxes are suggestions (click to add) · hidden rows/columns are skipped on the slide.</span><button class="btn" data-a="back" onClick={() => void go(1)}>Back</button><button class="btn primary" data-a="next" onClick={() => void go(3)}>Next · Slides</button></>,
+      <><span class="hint">Drag across cells (or Shift+click, Shift+arrows; Enter adds) to select a table · dashed boxes are suggestions (click to add) · hidden rows/columns are skipped on the slide.</span><button class="btn" data-a="back" onClick={() => void go(1)}>Back</button><button class="btn primary" data-a="next" onClick={() => void go(3)}>Next · Slides</button></>,
     ];
   }
 
@@ -256,10 +263,11 @@ function SheetGrid({ S, W, tables, onAdd, onPick }: { S: Sheet; W: W; tables: Ta
   useEffect(() => {
     const el = host.current!; el.innerHTML = "";
     let grid = W.grids[S.name];
-    if (!grid) { grid = drawGrid(S, W, onPick); W.grids[S.name] = grid; }
+    if (!grid) { grid = drawGrid(S, W, () => onPick()); W.grids[S.name] = grid; }
     el.appendChild(grid);
   }, [S]);
   useEffect(() => { paintOverlays(S, W, tables, onAdd); });
+  W.addSel = () => { if (W.sel) onAdd(A1(W.sel.r1, W.sel.c1) + ":" + A1(W.sel.r2, W.sel.c2)); };
   return <div class="wgrid" id="wgrid" ref={host} />;
 }
 let gridUp: (() => void) | null = null;
@@ -295,8 +303,26 @@ function drawGrid(S: Sheet, W: W, onPick: () => void): HTMLElement {
   if (U.clipped) grid.insertAdjacentHTML("afterbegin", `<div class="clipnote">Showing A1:${A1(R2, C2)} – type larger ranges in the box on the right.</div>`);
   let anchor: { r: number; c: number } | null = null;
   const cellOf = (e: Event) => { const td = (e.target as Element).closest<HTMLElement>("td[data-r]"); return td ? { r: +td.dataset.r!, c: +td.dataset.c! } : null; };
-  grid.addEventListener("pointerdown", e => { const c = cellOf(e); if (!c) return; e.preventDefault(); anchor = c; W.sel = { r1: c.r, c1: c.c, r2: c.r, c2: c.c }; onPick(); });
-  grid.addEventListener("pointerover", e => { if (!anchor || !(e.buttons & 1)) return; const c = cellOf(e); if (!c) return; W.sel = { r1: Math.min(anchor.r, c.r), c1: Math.min(anchor.c, c.c), r2: Math.max(anchor.r, c.r), c2: Math.max(anchor.c, c.c) }; onPick(); });
+  const span = (a: { r: number; c: number }, b: { r: number; c: number }) => { W.anchor = a; W.active = b; W.sel = { r1: Math.min(a.r, b.r), c1: Math.min(a.c, b.c), r2: Math.max(a.r, b.r), c2: Math.max(a.c, b.c) }; onPick(); };
+  grid.tabIndex = 0;                                    // keyboard: arrows move, Shift+arrows extend, Enter adds the table
+  grid.addEventListener("pointerdown", e => {
+    const c = cellOf(e); if (!c) return; e.preventDefault(); grid.focus({ preventScroll: true });
+    if (e.shiftKey && W.anchor) { anchor = W.anchor; span(W.anchor, c); } else { anchor = c; span(c, c); }
+  });
+  grid.addEventListener("pointerover", e => { if (!anchor || !(e.buttons & 1)) return; const c = cellOf(e); if (!c) return; span(anchor, c); });
+  const visible = (r: number, c: number) => !S.rowHidden(r) && !S.colHidden(c);
+  grid.addEventListener("keydown", e => {
+    const d: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+    if (d[e.key]) {
+      e.preventDefault(); e.stopPropagation();
+      const from = W.active || { r: 1, c: 1 }; let { r, c } = from;
+      do { r = Math.max(1, Math.min(R2, r + d[e.key][0])); c = Math.max(1, Math.min(C2, c + d[e.key][1])); } while (!visible(r, c) && r > 1 && c > 1 && r < R2 && c < C2);
+      const to = { r, c };
+      if (e.shiftKey) span(W.anchor || from, to); else span(to, to);
+      grid.querySelector(`td[data-r="${r}"][data-c="${c}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    } else if (e.key === "Enter" && W.sel) { e.preventDefault(); e.stopPropagation(); W.addSel?.(); }
+    else if (e.key === "Escape" && W.sel) { e.stopPropagation(); W.sel = null; W.anchor = W.active = undefined; onPick(); }
+  });
   // one shared listener for all grids (v2 added one per grid drawn)
   if (gridUp) removeEventListener("pointerup", gridUp);
   gridUp = () => { anchor = null; };

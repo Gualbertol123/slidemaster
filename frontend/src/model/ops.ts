@@ -3,9 +3,12 @@
    shared/ops-vectors.json. Keep them in sync. */
 import type { CellEdit, Op, WorkbookDoc, StylePatch } from "./types";
 
-const SLIDE_KEYS = ["title", "subtitle", "date", "note", "logo", "layout"] as const;
+const SLIDE_KEYS = ["title", "subtitle", "date", "note", "logo", "layout", "align", "scale"] as const;
+const SLIDE_MAPS = ["notes"] as const;
+const TABLE_KEYS = ["name"] as const;
+const TABLE_MAPS = ["cols", "rows", "scales"] as const;
 const CELL_KEYS = ["text", "orig", "sz", "b", "i", "color", "fill", "align", "role"] as const;
-const STYLE_KEYS = ["design", "glass", "color", "logo"] as const;
+const STYLE_KEYS = ["design", "glass", "color", "logo", "radius", "contrast", "logoBubble"] as const;
 const REF = /^[A-Z]{1,3}[0-9]{1,7}$/;
 const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
 const clone = <T>(x: T): T => x === undefined ? x : JSON.parse(JSON.stringify(x));
@@ -26,6 +29,15 @@ export function applyOp(doc: Doc, op: Op | Record<string, unknown>): boolean {
       const s = doc.preset.slides.find(x => x.id === o.id) as unknown as Record<string, unknown> | undefined;
       if (!s) return false;
       for (const k of SLIDE_KEYS) if (k in o.patch) { const v = o.patch[k]; if (v === null) delete s[k]; else s[k] = clone(v); }
+      for (const k of SLIDE_MAPS) if (k in o.patch) mapMerge(s, k, o.patch[k]);
+      return true;
+    }
+    case "table.patch": {
+      if (typeof o.id !== "string" || !isObj(o.patch) || !doc.preset) return false;
+      const t = doc.preset.tables.find(x => x.id === o.id) as unknown as Record<string, unknown> | undefined;
+      if (!t) return false;
+      for (const k of TABLE_KEYS) if (k in o.patch) { const v = o.patch[k]; if (v === null) delete t[k]; else t[k] = clone(v); }
+      for (const k of TABLE_MAPS) if (k in o.patch) mapMerge(t, k, o.patch[k]);
       return true;
     }
     case "cell.patch": {
@@ -46,17 +58,30 @@ export function applyOp(doc: Doc, op: Op | Record<string, unknown>): boolean {
   }
   return false;
 }
+/** map merge: null deletes the map; an object sets (replaces) or deletes (null) each entry; empty maps are removed */
+function mapMerge(target: Record<string, unknown>, key: string, v: unknown) {
+  if (v === null) { delete target[key]; return; }
+  if (!isObj(v)) return;
+  const m = (isObj(target[key]) ? target[key] : {}) as Record<string, unknown>;
+  for (const [k, x] of Object.entries(v)) { if (x === null) delete m[k]; else m[k] = clone(x); }
+  if (Object.keys(m).length) target[key] = m; else delete target[key];
+}
 export function applyStylePatch(style: Record<string, unknown>, patch: Record<string, unknown>) {
   for (const k of STYLE_KEYS) if (k in patch) { const v = patch[k]; if (v === null) delete style[k]; else style[k] = clone(v); }
-  if ("pn" in patch) {
-    const v = patch.pn;
-    if (v === null) delete style.pn;
-    else if (isObj(v)) {
-      const pn = (isObj(style.pn) ? style.pn : {}) as Record<string, unknown>;
-      for (const [k, x] of Object.entries(v)) { if (x === null) delete pn[k]; else pn[k] = clone(x); }
-      if (Object.keys(pn).length) style.pn = pn; else delete style.pn;
-    }
+  if ("pn" in patch) mapMerge(style, "pn", patch.pn);
+}
+/** inverse of a patch on `cur` with plain keys and map-merge keys */
+function inversePatch(cur: Record<string, unknown>, patch: Record<string, unknown>, maps: readonly string[]) {
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(patch)) {
+    const p = patch[k];
+    if (maps.includes(k) && isObj(p)) {
+      const m = (isObj(cur[k]) ? cur[k] : {}) as Record<string, unknown>, inv: Record<string, unknown> = {};
+      for (const kk of Object.keys(p)) inv[kk] = m[kk] === undefined ? null : clone(m[kk]);
+      out[k] = inv;
+    } else out[k] = cur[k] === undefined ? null : clone(cur[k]);
   }
+  return out;
 }
 export function applyOps<T extends Doc>(doc: T, ops: (Op | Record<string, unknown>)[]): { doc: T; applied: number; skipped: number[] } {
   const d = clone(doc); let applied = 0; const skipped: number[] = [];
@@ -70,9 +95,11 @@ export function inverseOf(doc: Doc, op: Op): Op | null {
     case "preset.set": return { op: "preset.set", preset: clone(doc.preset) };
     case "slide.patch": {
       const s = doc.preset?.slides.find(x => x.id === op.id) as unknown as Record<string, unknown> | undefined; if (!s) return null;
-      const patch: Record<string, unknown> = {};
-      for (const k of Object.keys(op.patch)) patch[k] = s[k] === undefined ? null : clone(s[k]);
-      return { op: "slide.patch", id: op.id, patch } as Op;
+      return { op: "slide.patch", id: op.id, patch: inversePatch(s, op.patch as Record<string, unknown>, SLIDE_MAPS) } as Op;
+    }
+    case "table.patch": {
+      const t = doc.preset?.tables.find(x => x.id === op.id) as unknown as Record<string, unknown> | undefined; if (!t) return null;
+      return { op: "table.patch", id: op.id, patch: inversePatch(t, op.patch as Record<string, unknown>, TABLE_MAPS) } as Op;
     }
     case "cell.patch": {
       const e = (doc.edits[op.sheet] || {})[op.ref] || ({} as CellEdit) as Record<string, unknown>;
@@ -81,17 +108,7 @@ export function inverseOf(doc: Doc, op: Op): Op | null {
       for (const k of keys) patch[k] = (e as Record<string, unknown>)[k] === undefined ? null : clone((e as Record<string, unknown>)[k]);
       return { op: "cell.patch", sheet: op.sheet, ref: op.ref, patch } as Op;
     }
-    case "style.patch": {
-      const st = doc.style as Record<string, unknown>, patch: Record<string, unknown> = {};
-      for (const k of Object.keys(op.patch)) {
-        if (k === "pn" && isObj(op.patch.pn)) {
-          const cur = (isObj(st.pn) ? st.pn : {}) as Record<string, unknown>, p: Record<string, unknown> = {};
-          for (const kk of Object.keys(op.patch.pn)) p[kk] = cur[kk] === undefined ? null : clone(cur[kk]);
-          patch.pn = p;
-        } else patch[k] = st[k] === undefined ? null : clone(st[k]);
-      }
-      return { op: "style.patch", patch } as Op;
-    }
+    case "style.patch": return { op: "style.patch", patch: inversePatch(doc.style as Record<string, unknown>, op.patch as Record<string, unknown>, ["pn"]) } as Op;
   }
   return null;
 }

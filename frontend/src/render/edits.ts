@@ -3,7 +3,8 @@
 import { A1 } from "../xlsx/util";
 import type { Item, TableLayout } from "../xlsx/types";
 import type { CellEdit } from "../model/types";
-import { isNumText, sheetKey, type RenderCtx } from "./context";
+import { isNumText, tableKey, type RenderCtx } from "./context";
+import { applyScales } from "./scales";
 
 export const keyOf = (it: Item) => A1(it.b.src.r, it.b.src.c);
 export function cache<T>(L: TableLayout, name: string, key: string, make: () => T): T {
@@ -13,10 +14,18 @@ export function cache<T>(L: TableLayout, name: string, key: string, make: () => 
   const v = make(); c[name] = { key, v }; return v;
 }
 export function effItems(L: TableLayout, ctx: RenderCtx): Item[] {
-  return cache(L, "eff", ctx.workbook + "|" + sheetKey(ctx, L.sheet), () => {
+  return cache(L, "eff", tableKey(ctx, L), () => {
     const cells = ctx.edits[L.sheet.name] || {};
+    const scaled = applyScales(L, L.def?.scales);
     return L.items.map(it => {
-      const e = cells[keyOf(it)]; if (!e) return it;
+      const e = cells[keyOf(it)], sc = scaled.get(it);
+      if (!e && !sc) return it;
+      if (!e) {
+        const o: Item = Object.assign({}, it);
+        if (sc!.fill) { o.fill = sc!.fill; o.scaleFill = sc!.fill; }
+        if (sc!.ink) { o.color = sc!.ink; o.scaleInk = sc!.ink; o.nfColor = null; }
+        return o;
+      }
       const o: Item = Object.assign({}, it); o.font = Object.assign({}, it.font);
       if (e.text !== undefined && e.orig === it.text) { o.text = e.text; o.edited = true; if (!it.text && o.text) { o.isText = !isNumText(o.text); o.ctype = o.isText ? "s" : "n"; } }
       if (e.sz) o.font.sz = e.sz;
@@ -26,6 +35,9 @@ export function effItems(L: TableLayout, ctx: RenderCtx): Item[] {
       if (e.fill) { if (e.fill === "none") { o.fill = null; o.cf = null; o.baseFill = null; o.noFill = true; } else { o.fill = e.fill; o.userFill = e.fill; } }
       if (e.align) o.align = e.align;
       if (e.role) o.role = e.role;
+      // colour scales sit under explicit user colours
+      if (sc && sc.fill && !e.fill) { o.fill = sc.fill; o.scaleFill = sc.fill; }
+      if (sc && sc.ink && !e.color) { o.color = sc.ink; o.scaleInk = sc.ink; o.nfColor = null; }
       return o;
     });
   });

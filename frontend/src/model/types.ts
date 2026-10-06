@@ -2,19 +2,27 @@
 import type { TableLayout } from "../xlsx/types";
 
 export interface Layout { bands: number[][]; w: number[] }
+/** colour scale: deeper green/red with the size of the number (per row, per column or the whole range) */
+export interface ScaleRule { range: string; dir: "row" | "col" | "all"; mode: "zero" | "minmax"; fill: boolean; ink: boolean; invert?: boolean }
+interface TableExtras { name?: string; cols?: Record<string, number>; rows?: Record<string, number>; scales?: Record<string, ScaleRule> }
 export type TableDef =
-  | { id: string; sheet: string; kind: "markers"; anchor: string; index: number; name?: string }
-  | { id: string; sheet: string; kind: "range"; range: string; grow?: boolean; name?: string };
+  | ({ id: string; sheet: string; kind: "markers"; anchor: string; index: number } & TableExtras)
+  | ({ id: string; sheet: string; kind: "range"; range: string; grow?: boolean } & TableExtras);
 export type SlideType = "cover" | "index" | "content";
+export type Side = "top" | "bottom" | "left" | "right";
+/** text box next to a table; key in SlideDef.notes = "<tableId>:<side>" */
+export interface Note { text: string; size?: number; b?: boolean; i?: boolean; align?: "left" | "center" | "right"; color?: string; w?: number; h?: number }
 export interface SlideDef {
   id: string; type: SlideType;
   title?: string | null; subtitle?: string | null; date?: string | null; note?: string | null;
   tables: string[]; layout?: Layout | null; logo?: boolean;
+  align?: "left" | "center" | "right"; scale?: number; notes?: Record<string, Note>;
 }
 export interface Preset { sheets: string[]; tables: TableDef[]; slides: SlideDef[]; version?: number; updated?: number }
 
 export interface PageNumbers { on: boolean; start: number; pos: "tl" | "tc" | "tr" | "bl" | "bc" | "br"; font: string; size: number; format: "n" | "nN" | "page" | "p"; style: "capsule" | "plain"; cover: boolean }
-export interface Style { design: "glass" | "excel"; glass: "subtle" | "medium" | "strong"; color: number; logo: string; pn: PageNumbers }
+export interface Style { design: "glass" | "excel"; glass: "subtle" | "medium" | "strong"; color: number; logo: string; pn: PageNumbers;
+  /** corner roundness, % of default (0–200) */ radius: number; /** background ↔ surfaces contrast 0–100 (50 = as designed) */ contrast: number; logoBubble: boolean }
 export type StylePatch = Partial<Omit<Style, "pn">> & { pn?: Partial<PageNumbers> };
 
 export interface CellEdit { text?: string; orig?: string; sz?: number; b?: boolean; i?: boolean; color?: string; fill?: string; align?: string; role?: string }
@@ -32,7 +40,8 @@ export interface Prefs { lastFile?: string | null; pdfMode?: "exact" | "vector" 
 type Nullable<T> = { [K in keyof T]?: T[K] | null };
 export type Op =
   | { op: "preset.set"; preset: Preset | null }
-  | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout">> }
+  | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "scale">> & { notes?: Record<string, Note | null> | null } }
+  | { op: "table.patch"; id: string; patch: { name?: string | null; cols?: Record<string, number | null> | null; rows?: Record<string, number | null> | null; scales?: Record<string, ScaleRule | null> | null } }
   | { op: "cell.patch"; sheet: string; ref: string; patch: Nullable<CellEdit> }
   | { op: "style.patch"; patch: Nullable<Omit<StylePatch, "pn">> & { pn?: Nullable<PageNumbers> | null } };
 

@@ -9,6 +9,8 @@ import { slideIssues } from "../editor/issues";
 import { presetOf } from "./util";
 import { Topbar } from "./Topbar";
 import { Ribbon, FxBar, selStatus } from "./Ribbon";
+import { TableRibbon } from "./TableTools";
+import { TablesDialog } from "./TablesDialog";
 import { Dialogs } from "./Dialogs";
 import { Wizard } from "../wizard/Wizard";
 import { esc } from "../xlsx/util";
@@ -120,6 +122,7 @@ export function App() {
           {!backend.served && <div class="banner show" id="bannerOffline">Opened directly from disk: work is kept in this browser only and exports are off. Start <b>Start Slide Builder.bat</b> to share presets with colleagues and export PDFs.</div>}
           {S.changedOnDisk && <div class="banner info show" id="bannerChanged">The workbook was saved again in Excel. <button class="btn" onClick={() => void guard(reloadWorkbook)}>Reload now</button></div>}
           <Ribbon />
+          <TableRibbon />
           <FxBar />
         </div>
         <div class="main">
@@ -136,6 +139,7 @@ export function App() {
       <Busy />
       <Dialogs />
       {DLG.wizard && <Wizard req={DLG.wizard} />}
+      {DLG.tables && <TablesDialog />}
     </>
   );
 }
