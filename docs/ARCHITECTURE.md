@@ -124,6 +124,7 @@ So two people changing different columns, rules or text boxes never overwrite ea
 | `style.colors` | colour overrides over the theme: `{accent, bg, head, headInk, total, totalInk, ink, pos, neg, stripe, rule}` (hex); `palette()` in `model/style.ts` = theme defaults + these |
 | `style.text` | deck text styles, one entry per kind of text: `{"title"\|"subtitle"\|"table"\|"note"\|"index"\|"pageno": {font?, size?, b?, i?, color?, align?}}` (size in slide px; `table` uses only `font`; `pageno` covers page numbers and footer and wins over the older `pn.font`) |
 | `slide.fmt` | formatting of one slide's texts over the deck style: `{"title"\|"subtitle"\|"note"\|"date": {font?, size?, b?, i?, color?, align?}}` (`note`/`date` = cover note and date) |
+| note `x`, `y` | a text box moved by the user: its top-left corner on the slide (slide px); with `w`/`h` it is drawn there and takes no room from the tables |
 | note `span` | left/right box only: a column beside all the tables of the slide, as tall as all of them (tables use the remaining width) |
 | note `auto` | automated comment settings `{mode?:"summary"\|"sections" (missing = sections), kinds?[], tables?[] (more table ids of the slide), groups[], title?, top, minAbs?, exclude?[], noun, detail:"full"\|"short", share, breadth, missing}`: the text is written from the table at render time (`model/comment.ts`, `render/comment.ts`); `text` is then empty |
 | cell `font` / note `font` | font family chosen for a cell / text box (a library, Windows or Google font name) |

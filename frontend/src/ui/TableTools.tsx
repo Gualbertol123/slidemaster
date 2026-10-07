@@ -8,7 +8,7 @@ import { applySel, curSlide, selItems, selTable } from "../editor/edit";
 import { effFmt } from "../render/edits";
 import { slideHasLogo } from "../render/slide";
 import { alignTables, canMerge, mergeSel, mergedInSel, unmergeSel, valignTables, currentTableRefs, makeSameSize, selCols, selRows, setColWidth, setRowHeight, shownColW, shownRowH } from "../editor/tables";
-import { noteOf, patchNote } from "../editor/stage";
+import { attachNote, noteOf, patchNote } from "../editor/stage";
 import { scaleColors } from "../render/scales";
 import { A1, uid, esc } from "../xlsx/util";
 import type { Op, ScaleRule, Side } from "../model/types";
@@ -125,6 +125,7 @@ export function TableRibbon() {
         <button class={"tb" + (note?.bubble ? " on" : "")} id="noteBubble" disabled={!note} title="Bubble around the selected text box, like the tables (glass card / framed box)" onClick={() => note && patchNote(note.bubble ? "Text box without bubble" : "Text box in a bubble", { bubble: !note.bubble })}>◯</button>
         <button class={"tb" + (note?.auto ? " on" : "")} id="commentBtn" disabled={!R || !R.tables.length} title="Automated comment: a commentary written from the table's numbers (headline, main contributors, downside), updated when the numbers change"
           onClick={() => { DLG.comment = { table: S.noteSel ? Math.max(0, R!.tables.findIndex(t => (t.id || "") === S.noteSel!.split(":")[0])) : Math.max(0, tIdx) }; emit(); }}>✎ Comment…</button>
+        <button class="tb" id="noteAttach" disabled={!(note && note.x != null)} title="Put the moved text box back next to its table (drag a text box to place it anywhere)" onClick={attachNote}>⤺ Attach</button>
         <button class="tb" id="noteDelete" disabled={!note} title="Delete the selected text box (Del)" onClick={() => patchNote("Remove text box", null)}>🗑</button>
       </div>
       <div class="grp">

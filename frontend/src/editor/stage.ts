@@ -71,6 +71,7 @@ export function refreshStage() {
   const slide = wrapEl()?.querySelector<SlideEl>(".slide"), R = curSlide();
   if (!slide || !R || slide._rid !== R.id || slide.querySelectorAll(":scope > .tw").length !== R.tables.length) return renderStage();
   if (Object.values(R.cfg.notes || {}).some(n => n.auto)) return renderStage();     // automated comments follow the numbers
+  if (slide._notes !== JSON.stringify(R.cfg.notes || {})) return renderStage();      // a text box was added, moved or changed
   const c = ctx();
   slide.querySelectorAll<HTMLElement & { _html?: string }>(":scope > .tw").forEach(tw => {
     const i = +tw.dataset.i!, L = R.tables[i], html = tableHtml(R, i, c);
@@ -203,7 +204,7 @@ function wireSlide(slide: HTMLElement, R: RuntimeSlide) {
     el.addEventListener("pointermove", e => { if (!(e.buttons & 1)) { const ed = noteEdge(el, e); el.style.cursor = ed ? (ed === "l" || ed === "r" ? "ew-resize" : "ns-resize") : ""; } });
     el.addEventListener("pointerdown", e => {
       e.stopPropagation(); selectNote(el.dataset.note!);
-      const ed = noteEdge(el, e); if (ed) { e.preventDefault(); stretchNote(slide, R, el, ed, e); }
+      const ed = noteEdge(el, e); if (ed) { e.preventDefault(); stretchNote(slide, R, el, ed, e); } else moveNote(slide, R, el, e);
     });
     el.addEventListener("dblclick", e => { e.stopPropagation(); editNote(R, el); });
   });
@@ -351,7 +352,7 @@ const STRETCH: Record<Side, NEdge[]> = { right: ["r", "b"], left: ["l", "b"], to
 function noteEdge(el: HTMLElement, e: PointerEvent | MouseEvent): NEdge | null {
   const r = el.getBoundingClientRect(), tol = 7;
   const near: Record<NEdge, boolean> = { l: Math.abs(e.clientX - r.left) <= tol, r: Math.abs(e.clientX - r.right) <= tol, t: Math.abs(e.clientY - r.top) <= tol, b: Math.abs(e.clientY - r.bottom) <= tol };
-  return STRETCH[el.dataset.side as Side].find(k => near[k]) || null;
+  return (el.classList.contains("free") ? (["l", "r", "t", "b"] as NEdge[]) : STRETCH[el.dataset.side as Side]).find(k => near[k]) || null;
 }
 const SNAP = 8;
 function snapTargets(slide: HTMLElement, R: RuntimeSlide, self: HTMLElement): { x: number[]; y: number[] } {
@@ -389,9 +390,55 @@ function stretchNote(slide: HTMLElement, R: RuntimeSlide, el: HTMLElement, edge:
   const up = () => {
     removeEventListener("pointermove", move); removeEventListener("pointerup", up); guide.remove();
     if (Math.abs(size - (horiz ? w0 : h0)) < 1) return;
-    change(horiz ? "Text box width" : "Text box height", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: { ...cur, [horiz ? "w" : "h"]: Math.round(size) } } } } as Op]);
+    const next: Note = { ...cur, [horiz ? "w" : "h"]: Math.round(size) };
+    // a free box dragged by its left/top edge also moves
+    if (el.classList.contains("free")) { next.x = Math.round(parseFloat(el.style.left)); next.y = Math.round(parseFloat(el.style.top)); }
+    change(horiz ? "Text box width" : "Text box height", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: next } } } as Op]);
   };
   addEventListener("pointermove", move); addEventListener("pointerup", up);
+}
+/* moving: drag a text box by its body to put it anywhere on the slide (e.g. below one table and beside
+   another). It snaps – left/right edges and top/bottom edges – to tables, other boxes and the content area. */
+function moveNote(slide: HTMLElement, R: RuntimeSlide, el: HTMLElement, e: PointerEvent) {
+  if (e.button !== 0 || el.querySelector("textarea") || editorOpen()) return;
+  const sc = slideScale(), key = el.dataset.note!, cur = (R.cfg.notes || {})[key]; if (!cur) return;
+  const x0 = parseFloat(el.style.left), y0 = parseFloat(el.style.top), w = parseFloat(el.style.width), h = parseFloat(el.style.height);
+  const sx = e.clientX, sy = e.clientY; let started = false, nx = x0, ny = y0;
+  let targets: { x: number[]; y: number[] } | null = null, gv: HTMLElement | null = null, gh: HTMLElement | null = null;
+  const bub = slide.querySelector<HTMLElement>(`.notebub[data-i="${el.dataset.i}"][data-side="${el.dataset.side}"]`);
+  const snap = (a: number, size: number, list: number[]) => {
+    let best: { d: number; line: number } | null = null;
+    for (const t of list) for (const edge of [a, a + size]) { const d = t - edge; if (Math.abs(d) <= SNAP && (!best || Math.abs(d) < Math.abs(best.d))) best = { d, line: t }; }
+    return best;
+  };
+  const move = (ev: PointerEvent) => {
+    const dx = (ev.clientX - sx) / sc, dy = (ev.clientY - sy) / sc;
+    if (!started) {
+      if (Math.hypot(dx, dy) < 4) return;                         // a click (select, double-click to edit) is not a move
+      started = true; targets = snapTargets(slide, R, el); el.classList.add("moving");
+      gv = document.createElement("div"); gv.className = "snapline v"; gh = document.createElement("div"); gh.className = "snapline h"; slide.append(gv, gh);
+    }
+    nx = Math.max(0, Math.min(1600 - w, x0 + dx)); ny = Math.max(0, Math.min(900 - h, y0 + dy));
+    const bx = snap(nx, w, targets!.x), by = snap(ny, h, targets!.y);
+    if (bx) nx += bx.d; if (by) ny += by.d;
+    gv!.style.display = bx ? "block" : "none"; if (bx) gv!.style.left = bx.line + "px";
+    gh!.style.display = by ? "block" : "none"; if (by) gh!.style.top = by.line + "px";
+    const st = { left: nx + "px", top: ny + "px" }; Object.assign(el.style, st); if (bub) Object.assign(bub.style, st);
+  };
+  const up = () => {
+    removeEventListener("pointermove", move); removeEventListener("pointerup", up);
+    if (!started) return;
+    gv?.remove(); gh?.remove(); el.classList.remove("moving");
+    const { span: _s, ...rest } = cur;
+    change("Move text box", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: { ...rest, x: Math.round(nx), y: Math.round(ny), w: Math.round(w), h: Math.round(h) } } } } as Op]);
+  };
+  addEventListener("pointermove", move); addEventListener("pointerup", up);
+}
+/** puts a moved text box back next to its table */
+export function attachNote() {
+  const R = curSlide(), key = S.noteSel, cur = key && R?.cfg.notes?.[key]; if (!R || !key || !cur) return;
+  const { x: _x, y: _y, ...rest } = cur;
+  change("Text box back next to the table", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: rest } } } as Op]);
 }
 let pendingNoteEdit: string | null = null;
 const noteKeyOf = (R: RuntimeSlide, i: number, side: Side) => (R.tables[i].id || String(i)) + ":" + side;

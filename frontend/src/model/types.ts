@@ -20,6 +20,7 @@ export type TextRole = "title" | "subtitle" | "table" | "note" | "index" | "page
 export type SlideTextKey = "title" | "subtitle" | "note" | "date";
 export interface Note { text: string; font?: string; size?: number; b?: boolean; i?: boolean; align?: "left" | "center" | "right"; valign?: "top" | "middle" | "bottom"; color?: string; w?: number; h?: number;
   /** draw the text box as a card (glass bubble / Excel-style box) */ bubble?: boolean;
+  /** placed freely on the slide at x/y (slide px) after being moved; unset = next to its table */ x?: number; y?: number;
   /** left/right box only: a column beside ALL the tables of the slide, as tall as all of them */ span?: boolean;
   /** automated comment: the text is written from the table's numbers with these settings (model/comment.ts) */ auto?: import("./comment").CommentCfg }
 export interface SlideDef {

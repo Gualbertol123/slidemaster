@@ -47,7 +47,7 @@ export function layoutOf(R: RuntimeSlide): Layout {
   if (!R._auto || R._auto.w.length !== R.tables.length) R._auto = defaultLayout(R);
   return R._auto;
 }
-export interface NoteBox { x: number; y: number; w: number; h: number }
+export interface NoteBox { x: number; y: number; w: number; h: number; /** placed freely on the slide (moved by the user) */ free?: boolean }
 export interface TBox { i: number; band: number; x: number; y: number; w: number; h: number; scale: number; notes: Partial<Record<Side, NoteBox>> }
 export const NOTE_GAP = 14, NOTE_W = 240;
 export const SIDES: Side[] = ["top", "bottom", "left", "right"];
@@ -77,6 +77,9 @@ export function computeLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay
   // text boxes "beside all tables" (span): a column at the left/right of the content area, as tall as all
   // the tables; the tables are laid out in the remaining width
   const spans: { i: number; side: "left" | "right"; n: Note }[] = [];
+  // text boxes moved by the user sit where they were put and take no room from the tables
+  const frees: { i: number; side: Side; n: Note }[] = [];
+  N.forEach((ns, i) => SIDES.forEach(sd => { const n = ns[sd]; if (n && n.x != null && n.y != null) { frees.push({ i, side: sd, n }); delete ns[sd]; } }));
   N.forEach((ns, i) => (["left", "right"] as const).forEach(sd => { const n = ns[sd]; if (n?.span) { spans.push({ i, side: sd, n }); delete ns[sd]; } }));
   const colR = Math.max(0, ...spans.filter(x => x.side === "right").map(x => noteW(x.n))), colL = Math.max(0, ...spans.filter(x => x.side === "left").map(x => noteW(x.n)));
   const A = { ...A0, x: A0.x + (colL ? colL + NOTE_GAP * 2 : 0), w: A0.w - (colL ? colL + NOTE_GAP * 2 : 0) - (colR ? colR + NOTE_GAP * 2 : 0) };
@@ -125,6 +128,7 @@ export function computeLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay
       boxes[i].notes[side] = { x: side === "right" ? Math.min(A0.x + A0.w - wN, right + NOTE_GAP * 2) : Math.max(A0.x, left - NOTE_GAP * 2 - wN), y: top, w: wN, h };
     }
   }
+  for (const { i, side, n } of frees) boxes[i].notes[side] = { x: n.x!, y: n.y!, w: n.w || NOTE_W, h: n.h || noteH(n), free: true };
   return { boxes, k, fit, reduced: !!fixed && fit < fixed - 1e-6 };
 }
 
@@ -165,7 +169,7 @@ export function themeVars(ctx: RenderCtx): Record<string, string> {
   return v;
 }
 export interface SlideOpts { interactive?: boolean; thumb?: boolean }
-export type SlideEl = HTMLDivElement & { _rid?: string };
+export type SlideEl = HTMLDivElement & { _rid?: string; /** the text boxes it was drawn with */ _notes?: string };
 export function buildSlide(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: SlideOpts = {}): SlideEl {
   const d = ctx.style.design, glassy = d === "glass", rk = ctx.style.radius / 100;
   const slide = document.createElement("div") as SlideEl;
@@ -201,7 +205,7 @@ export function buildSlide(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: S
       // a bubble behind the text: a glass card like the tables' (Liquid Glass) or a framed box (Excel)
       if (n.bubble && txt.trim()) h += glassy ? `<div class="gls wb card notebub" data-i="${i}" data-side="${side}" style="border-radius:${Math.round(22 * rk)}px"></div>`
         : `<div class="notebub x" data-i="${i}" data-side="${side}" style="border-radius:${Math.round(8 * rk)}px"></div>`;
-      h += `<div class="tnote ${side}${n.bubble ? " bub" : ""}${n.auto ? " auto" : ""}${txt.trim() ? "" : " empty"}" data-note="${esc(noteKey(R, i, side))}" data-i="${i}" data-side="${side}" style="${st}">${!txt.trim() ? "Double-click to write" : hasMarkup(txt) ? richText(txt) : esc(txt)}</div>`;
+      h += `<div class="tnote ${side}${n.bubble ? " bub" : ""}${n.auto ? " auto" : ""}${n.x != null && n.y != null ? " free" : ""}${txt.trim() ? "" : " empty"}" data-note="${esc(noteKey(R, i, side))}" data-i="${i}" data-side="${side}" style="${st}">${!txt.trim() ? "Double-click to write" : hasMarkup(txt) ? richText(txt) : esc(txt)}</div>`;
     }
   });
   if (opts.interactive) h += R.tables.map((t, i) => `<div class="hbox" data-i="${i}"><div class="grip" title="Drag to move this table">⠿ ${esc(tableName(t, ctx.preset))}</div><div class="size" title="Drag to resize (keeps the proportions)"></div>${(["l", "r", "t", "b"] as const).map(e => `<div class="edge ${e}" data-edge="${e}" title="Drag to make the table ${e === "l" || e === "r" ? "wider or narrower" : "taller or shorter"}"></div>`).join("")}${SIDES.map(sd => `<button class="addnote ${sd}" data-side="${sd}" title="Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd}">+</button>`).join("")}</div>`).join("") + `<div class="dropmark"></div>`;
@@ -215,7 +219,7 @@ export function buildSlide(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: S
       : `<div class="logowrap${cover ? " big" : ""}"><img class="logo" src="${esc(logo)}" alt=""></div>`;
   }
   slide.innerHTML = h;
-  slide._rid = R.id;
+  slide._rid = R.id; slide._notes = JSON.stringify(R.cfg.notes || {});
   const boxes = applyLayout(slide, R, ctx);
   fitNotes(slide, boxes, d);
   return slide;
@@ -241,8 +245,8 @@ export function applyLayout(slide: HTMLElement, R: RuntimeSlide, ctx: RenderCtx,
   slide.querySelectorAll<HTMLElement>(":scope > .hbox").forEach(el => {
     const b = boxes[+el.dataset.i!]; if (!b) return;
     Object.assign(el.style, { left: b.x + "px", top: b.y + "px", width: b.w + "px", height: b.h + "px" });
-    // handles move outwards past the table's text boxes
-    const n = b.notes;
+    // handles move outwards past the table's text boxes (not past boxes placed elsewhere on the slide)
+    const n = Object.fromEntries(Object.entries(b.notes).filter(([, x]) => x && !x.free)) as TBox["notes"];
     el.style.setProperty("--nt", (n.top ? b.y - n.top.y : 0) + "px"); el.style.setProperty("--nb", (n.bottom ? n.bottom.y + n.bottom.h - b.y - b.h : 0) + "px");
     el.style.setProperty("--nl", (n.left ? b.x - n.left.x : 0) + "px"); el.style.setProperty("--nr", (n.right ? n.right.x + n.right.w - b.x - b.w : 0) + "px");
   });

@@ -390,6 +390,30 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#stage .snapline")).toHaveCount(0);
   });
 
+  test("the + button puts a text box there at once; text boxes move anywhere, snap, and attach back", async ({ page }) => {
+    await openApp(page, BOB);
+    await expect(page.locator(".thumb")).toHaveCount(1);                                   // weekly.xlsx (last file)
+    const wdoc = () => { const d = path.join(data(), "workbooks"), f = fs.readdirSync(d).find(n => n.startsWith("weekly.xlsx"))!; return JSON.parse(fs.readFileSync(path.join(d, f), "utf8")); };
+    const notes = () => wdoc().preset.slides[0].notes || {};
+    // + below the second table: the box is there immediately, ready for typing
+    await page.locator('#stage .stagewrap').hover();
+    await page.locator('#stage .hbox[data-i="1"] .addnote.bottom').click();
+    await expect(page.locator("textarea.note-edit")).toBeVisible();
+    await page.keyboard.type("Source: ECB"); await page.keyboard.press("Control+Enter");
+    const box = page.locator("#stage .tnote", { hasText: "Source: ECB" });
+    await expect(box).toBeVisible();
+    // drag it by its body: it becomes free and stays where it was dropped
+    const b = (await box.boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2 + 60, b.y + b.height / 2 - 40, { steps: 8 }); await page.mouse.up();
+    await expect.poll(() => { const n: any = Object.values(notes()).find((x: any) => x.text === "Source: ECB"); return n && n.x != null && n.y != null; }, { timeout: 10_000 }).toBe(true);
+    await expect(page.locator("#stage .tnote.free", { hasText: "Source: ECB" })).toBeVisible();
+    // and back next to its table
+    await page.locator("#stage .tnote.free", { hasText: "Source: ECB" }).click();
+    await page.click("#noteAttach");
+    await expect.poll(() => { const n: any = Object.values(notes()).find((x: any) => x.text === "Source: ECB"); return n && n.x; }, { timeout: 10_000 }).toBeUndefined();
+  });
+
   test("wizard on a sheet larger than the preview: the selection box sits exactly on the selected cells", async ({ page }) => {
     await openApp(page, BOB);
     await openWorkbook(page, "big.xlsx");

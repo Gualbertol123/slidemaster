@@ -90,6 +90,11 @@ This README is the map. Deeper documents:
   comparison headers – each with its own title and numbers.
 * Comments are **live**: they are stored as settings and rewritten from the numbers whenever the workbook
   (or a cell on the slide) changes. Editing a comment's text by hand turns it into fixed text.
+* The **+** buttons around a table (and the arrows in the toolbar) put a text box there at once, ready to type.
+* **Drag a text box by its body to place it anywhere** – e.g. below one table and beside another of a
+  different size. It snaps (left/right and top/bottom edges) to tables, other boxes and the content area, with
+  guide lines; a moved box keeps its place and takes no room from the tables. **⤺ Attach** puts it back next
+  to its table.
 * Text boxes **stretch**: drag their outer edge (side boxes: far edge and bottom; boxes above/below: outer
   and right edge). The edge snaps to the edges of tables, other text boxes and the content area, and a pink
   guide line shows what it lines up with.

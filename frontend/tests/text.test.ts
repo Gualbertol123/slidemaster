@@ -118,3 +118,14 @@ describe("text boxes beside all tables", () => {
     expect(n.x + n.w).toBeLessThanOrEqual(1550);
   });
 });
+
+describe("text boxes placed freely", () => {
+  it("a moved box keeps its place and size and takes no room from the tables", () => {
+    const L = { id: "a", def: { id: "a" }, items: [], W: 600, H: 200, g: { r1: 1, c1: 1, r2: 20, c2: 5 }, rows: [], cols: [], sheet: { name: "S" } } as any;
+    const plain = computeLayout(slide({ tables: ["a"] }, { tables: [L] }), ctx({}, "excel")).boxes[0];
+    const R = slide({ tables: ["a"], notes: { "a:right": { text: "x", x: 1200, y: 640, w: 300, h: 120 } } }, { tables: [L] });
+    const b = computeLayout(R, ctx({}, "excel")).boxes[0];
+    expect(b.notes.right).toEqual({ x: 1200, y: 640, w: 300, h: 120, free: true });
+    expect(b.w).toBeCloseTo(plain.w, 5);                                   // the table did not shrink
+  });
+});
