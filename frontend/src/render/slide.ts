@@ -12,7 +12,8 @@ import { coverHtml, indexHtml } from "./cover";
 import { footerHtml, pageNoBox, pageNoFor, pageNoHtml } from "./pagenumbers";
 import { todayLabel } from "./cover";
 import { cache } from "./edits";
-import { effNote, fmtCss, slideTextFmt, titleGeom } from "./text";
+import { effNote, fmtCss, hasMarkup, richText, slideTextFmt, titleGeom } from "./text";
+import { commentText } from "./comment";
 
 export const SLIDE_W = 1600, SLIDE_H = 900;
 export const GX = 36, GY = 28, MAXK = 2.0;
@@ -52,7 +53,12 @@ export const noteKey = (R: RuntimeSlide, i: number, side: Side) => (R.tables[i].
 /** the text boxes of table i, with the deck's text box style applied */
 export function notesOf(R: RuntimeSlide, i: number, ctx?: RenderCtx): Partial<Record<Side, Note>> {
   const out: Partial<Record<Side, Note>> = {}, all = R.cfg.notes || {};
-  for (const side of SIDES) { const n = all[noteKey(R, i, side)]; if (n) out[side] = ctx ? effNote(ctx, n) : n; }
+  for (const side of SIDES) {
+    const n = all[noteKey(R, i, side)]; if (!n) continue;
+    const e = ctx ? effNote(ctx, n) : n;
+    // automated comment: written from the table's current numbers
+    out[side] = ctx && n.auto && R.tables[i] ? { ...e, text: commentText(R.tables[i], n.auto, ctx) } : e;
+  }
   return out;
 }
 /** height of a text box above/below a table: explicit, or from its lines (wrapping is handled by shrinking the font) */
@@ -166,7 +172,7 @@ export function buildSlide(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: S
       // a bubble behind the text: a glass card like the tables' (Liquid Glass) or a framed box (Excel)
       if (n.bubble && txt.trim()) h += glassy ? `<div class="gls wb card notebub" data-i="${i}" data-side="${side}" style="border-radius:${Math.round(22 * rk)}px"></div>`
         : `<div class="notebub x" data-i="${i}" data-side="${side}" style="border-radius:${Math.round(8 * rk)}px"></div>`;
-      h += `<div class="tnote ${side}${n.bubble ? " bub" : ""}${txt.trim() ? "" : " empty"}" data-note="${esc(noteKey(R, i, side))}" data-i="${i}" data-side="${side}" style="${st}">${txt.trim() ? esc(txt) : "Double-click to write"}</div>`;
+      h += `<div class="tnote ${side}${n.bubble ? " bub" : ""}${n.auto ? " auto" : ""}${txt.trim() ? "" : " empty"}" data-note="${esc(noteKey(R, i, side))}" data-i="${i}" data-side="${side}" style="${st}">${!txt.trim() ? "Double-click to write" : hasMarkup(txt) ? richText(txt) : esc(txt)}</div>`;
     }
   });
   if (opts.interactive) h += R.tables.map((t, i) => `<div class="hbox" data-i="${i}"><div class="grip" title="Drag to move this table">⠿ ${esc(tableName(t, ctx.preset))}</div><div class="size" title="Drag to resize (keeps the proportions)"></div>${(["l", "r", "t", "b"] as const).map(e => `<div class="edge ${e}" data-edge="${e}" title="Drag to make the table ${e === "l" || e === "r" ? "wider or narrower" : "taller or shorter"}"></div>`).join("")}${SIDES.map(sd => `<button class="addnote ${sd}" data-side="${sd}" title="Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd}">+</button>`).join("")}</div>`).join("") + `<div class="dropmark"></div>`;
@@ -231,7 +237,7 @@ function fitNotes(slide: HTMLElement, boxes: TBox[], design: string) {
   for (const el of Array.from(notes)) {
     const nb = boxes[+el.dataset.i!]?.notes[el.dataset.side as Side]; if (!nb) continue;
     const m = measurer.box;
-    m.className = el.className; m.style.cssText = el.style.cssText; m.textContent = el.textContent;
+    m.className = el.className; m.style.cssText = el.style.cssText; m.innerHTML = el.innerHTML;
     Object.assign(m.style, { left: "0px", top: "0px", width: nb.w + "px", height: "auto", display: "block" });
     let size = parseFloat(el.style.fontSize) || 18;
     while (size > 9) { m.style.fontSize = size + "px"; if (m.scrollHeight <= nb.h + 1 && m.scrollWidth <= nb.w + 1) break; size -= 1; }

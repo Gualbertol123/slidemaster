@@ -3,6 +3,7 @@
 import type { Note, RuntimeSlide, SlideTextKey, TextFmt, TextRole } from "../model/types";
 import { fontStack } from "../model/fonts";
 import type { RenderCtx } from "./context";
+import { esc } from "../xlsx/util";
 
 export const deckFmt = (ctx: RenderCtx, role: TextRole): TextFmt => ctx.style.text?.[role] || {};
 const ROLE_OF: Record<SlideTextKey, TextRole | null> = { title: "title", subtitle: "subtitle", note: null, date: null };
@@ -42,4 +43,17 @@ export function titleGeom(R: RuntimeSlide, ctx: RenderCtx) {
   const t = slideTextFmt(ctx, R, "title").size || b.title, s = slideTextFmt(ctx, R, "subtitle").size || b.sub;
   const dt = Math.max(0, (t - b.title) * 1.2), ds = R.subtitle ? Math.max(0, (s - b.sub) * 1.3) : 0;
   return { subTop: b.subTop + dt, push: dt + ds };
+}
+
+/** text box markup (used by automated comments, available to any text box): "# title", "## heading",
+    "**bold**", "[[+476]]" = a number coloured by its sign; other lines are paragraphs */
+export const hasMarkup = (t: string) => /^#{1,2} |\*\*.+?\*\*|\[\[[^\]]+\]\]/m.test(t);
+export function richText(t: string): string {
+  return String(t).split("\n").map(line => {
+    const h = esc(line).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+      .replace(/\[\[([^\]]+)\]\]/g, (_m, x: string) => `<span class="${/^\+/.test(x) ? "up" : /^-/.test(x) ? "down" : "flat"}">${x}</span>`);
+    if (line.startsWith("## ")) return `<div class="nh">${h.slice(3)}</div>`;
+    if (line.startsWith("# ")) return `<div class="nt">${h.slice(2)}</div>`;
+    return line.trim() ? `<div class="np">${h}</div>` : `<div class="gap"></div>`;
+  }).join("");
 }

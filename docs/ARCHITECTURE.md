@@ -122,6 +122,7 @@ So two people changing different columns, rules or text boxes never overwrite ea
 | `style.logoBubble` | `false` = logo without its glass bubble |
 | `style.text` | deck text styles, one entry per kind of text: `{"title"\|"subtitle"\|"table"\|"note"\|"index"\|"pageno": {font?, size?, b?, i?, color?, align?}}` (size in slide px; `table` uses only `font`; `pageno` covers page numbers and footer and wins over the older `pn.font`) |
 | `slide.fmt` | formatting of one slide's texts over the deck style: `{"title"\|"subtitle"\|"note"\|"date": {font?, size?, b?, i?, color?, align?}}` (`note`/`date` = cover note and date) |
+| note `auto` | automated comment settings `{groups[], title?, top, minAbs?, exclude?[], noun, detail:"full"\|"short", share, breadth, missing}`: the text is written from the table at render time (`model/comment.ts`, `render/comment.ts`); `text` is then empty |
 | cell `font` / note `font` | font family chosen for a cell / text box (a library, Windows or Google font name) |
 
 Any other op, or an op with missing/invalid fields, is skipped. If at least one op was applied:

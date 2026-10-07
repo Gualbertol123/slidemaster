@@ -67,6 +67,52 @@ def report():
         c = ws4.cell(row=2 + k, column=2, value=v); c.number_format = f
     wb.save(os.path.join(HERE, "report.xlsx"))
 
+def weekly():
+    """two tables like the weekly banking report (made-up numbers): weeks, budget, Δ groups with Abs./% columns"""
+    wb = Workbook(); ws = wb.active; ws.title = "LOANS_DEPOSITS"
+    ws["A1"] = "Total Banks Loans & Deposits"; ws["A1"].font = Font(bold=True, size=16)
+    ws["A2"] = "(mln Euro at last fixed exchange rate)"
+    banks = ["VUB", "PBZ", "BIB", "Alex", "CIB", "ISP SLO", "ISP RO", "ISP ALB", "ISP BiH", "EximBank", "Pravex"]
+    blue = PatternFill("solid", fgColor="1F4E79"); wf = Font(bold=True, color="FFFFFF", italic=True)
+    groups = ["Δ vs. Budget", "Δ vs. Prev. Week", "Δ vs. EoM Aug 2026", "Δ vs. Q2", "Δ vs. BoY"]
+    def table(top, name, seed):
+        ws.cell(row=top, column=2, value="x"); ws.cell(row=top + 17, column=18, value="x")
+        r1, r2 = top + 1, top + 2
+        for i, (h, d) in enumerate([("Week37", "11/09/26"), ("Week38", "18/09/26"), ("Week39", "25/09/26")]):
+            for r, v in ((r1, h), (r2, d)):
+                c = ws.cell(row=r, column=4 + i, value=v); c.fill = blue; c.font = wf; c.alignment = Alignment(horizontal="center")
+        ws.merge_cells(start_row=r1, start_column=7, end_row=r2, end_column=7)
+        c = ws.cell(row=r1, column=7, value="Eom Budget"); c.fill = blue; c.font = wf; c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        for g, name_g in enumerate(groups):
+            col = 8 + 2 * g
+            ws.merge_cells(start_row=r1, start_column=col, end_row=r1, end_column=col + 1)
+            c = ws.cell(row=r1, column=col, value=name_g); c.fill = blue; c.font = wf; c.alignment = Alignment(horizontal="center")
+            for k, sub in enumerate(["Abs.", "%"]):
+                c = ws.cell(row=r2, column=col + k, value=sub); c.fill = blue; c.font = wf; c.alignment = Alignment(horizontal="center")
+        rows = []
+        for k, b in enumerate(banks):
+            base = 1000 * (k + 2) + seed * 37
+            wk = [base - 30 * ((k * 7 + seed) % 5), base - 12 * ((k * 3 + seed) % 4), base]
+            budget = None if b in ("EximBank", "Pravex") else base - ((k * 53 + seed * 11) % 190) + 80
+            ref = [budget, wk[1], base - 140 + (k * 29 + seed) % 260, base - 220 + (k * 41) % 400, base - 600 + (k * 61) % 900]
+            rows.append([b] + wk + [budget] + [x for v in ref for x in ((None, None) if v is None else (base - v, (base - v) / v))])
+        tot = [name] + [sum(r[i] for r in rows if r[i] is not None) for i in range(1, 5)]
+        for g in range(5):
+            refsum = sum(r[3] - r[5 + 2 * g] for r in rows if r[5 + 2 * g] is not None)
+            ab = sum(r[5 + 2 * g] for r in rows if r[5 + 2 * g] is not None); tot += [ab, ab / refsum]
+        for k, vals in enumerate([tot] + rows):
+            r = top + 4 + k + (1 if k else 0)
+            for i, v in enumerate(vals):
+                c = ws.cell(row=r, column=3 + i, value=v)
+                if i == 0: c.font = Font(bold=k == 0)
+                elif i >= 5: c.number_format = "+#,##0;-#,##0;0" if i % 2 == 1 else "+0.0%;-0.0%;0.0%"
+                else: c.number_format = "#,##0"
+                if k == 0: c.font = Font(bold=True)
+    table(4, "TOTAL BANKS LOANS", 1)
+    table(24, "TOTAL BANKS DEPOSITS", 2)
+    for col, w in zip("ABC", [2, 3, 22]): ws.column_dimensions[col].width = w
+    wb.save(os.path.join(HERE, "weekly.xlsx"))
+
 def plain():
     wb = Workbook(); ws = wb.active; ws.title = "Data"
     ws["A1"] = "Products"
@@ -94,6 +140,6 @@ def big():
     wb.save(os.path.join(HERE, "big.xlsx"))
 
 import sys
-for name in (sys.argv[1:] or ["report", "plain", "big"]):
+for name in (sys.argv[1:] or ["report", "plain", "big", "weekly"]):
     globals()[name]()
 print("ok")

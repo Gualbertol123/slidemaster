@@ -19,7 +19,8 @@ export type TextRole = "title" | "subtitle" | "table" | "note" | "index" | "page
 /** slide texts that can be formatted one by one (stored in SlideDef.fmt) */
 export type SlideTextKey = "title" | "subtitle" | "note" | "date";
 export interface Note { text: string; font?: string; size?: number; b?: boolean; i?: boolean; align?: "left" | "center" | "right"; valign?: "top" | "middle" | "bottom"; color?: string; w?: number; h?: number;
-  /** draw the text box as a card (glass bubble / Excel-style box) */ bubble?: boolean }
+  /** draw the text box as a card (glass bubble / Excel-style box) */ bubble?: boolean;
+  /** automated comment: the text is written from the table's numbers with these settings (model/comment.ts) */ auto?: import("./comment").CommentCfg }
 export interface SlideDef {
   id: string; type: SlideType;
   title?: string | null; subtitle?: string | null; date?: string | null; note?: string | null;

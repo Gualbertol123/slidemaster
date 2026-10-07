@@ -12,6 +12,7 @@ import { Ribbon, FxBar, selStatus } from "./Ribbon";
 import { TableRibbon } from "./TableTools";
 import { TablesDialog } from "./TablesDialog";
 import { TextStylesDialog } from "./TextStylesDialog";
+import { CommentDialog } from "./CommentDialog";
 import { Dialogs } from "./Dialogs";
 import { Wizard } from "../wizard/Wizard";
 import { esc } from "../xlsx/util";
@@ -141,6 +142,7 @@ export function App() {
       {DLG.wizard && <Wizard req={DLG.wizard} />}
       {DLG.tables && <TablesDialog />}
       {DLG.textStyles && <TextStylesDialog />}
+      {DLG.comment && <CommentDialog />}
       <Dialogs />{/* last: confirmations open above the wizard and the other dialogs */}
     </>
   );

@@ -9,7 +9,8 @@ export interface DialogReq { title: string; sub?: string; html: string; buttons:
 export interface WizardReq { wb: Workbook; name: string; preset: Preset; resolve: (p: Preset | null) => void }
 
 export const DLG = { dialog: null as DialogReq | null, wizard: null as WizardReq | null, installer: false, tables: false,
-  /** text styles & fonts dialog: which tab is open */ textStyles: null as "styles" | "fonts" | null };
+  /** text styles & fonts dialog: which tab is open */ textStyles: null as "styles" | "fonts" | null,
+  /** automated comment dialog for table `table` of the current slide */ comment: null as { table: number } | null };
 
 export function ask(title: string, html: string, buttons: DialogButton[], opts: { sub?: string; width?: number } = {}): Promise<string | null> {
   return new Promise(resolve => {

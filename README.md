@@ -57,6 +57,22 @@ This README is the map. Deeper documents:
 * The second row is layout only: cells (W/H, role, merge, colour scale), tables (same size, position,
   gridlines, sizes, reset), text boxes (add, bubble, delete), slide (logo, contents subtitles).
 
+### Automated comments
+* **✎ Comment…** (second toolbar row) writes an analyst-style commentary next to a table: a title, then one
+  section per comparison found in the headers (“Δ vs. Budget” → *Budget Performance*, “Δ vs. Prev. Week” →
+  *Weekly Momentum*, EoM/Q/BoY/YoY…). Each section has a headline for the total row (“… as of week 25/09/26 are
+  above Budget by +476 (+3,5%)”), the main positive and negative contributors with their Abs./% values,
+  concentration (“largely driven by VUB, ~86%”), breadth, and rows without data. Numbers are green/red.
+* The table is read automatically: label column, total row (“TOTAL …”), rows, latest period (week + date),
+  comparison groups with Abs. and % columns (merged headers understood).
+* Options: sections, full/short, contributors per side, materiality threshold, rows to leave out, what rows
+  are called (countries, banks…), placement (right/left/above/below, width), bubble. Live preview.
+* **Also on N similar tables** puts the same kind of comment on every table of the deck with the same
+  comparison headers – each with its own title and numbers.
+* Comments are **live**: they are stored as settings and rewritten from the numbers whenever the workbook
+  (or a cell on the slide) changes. Editing a comment's text by hand turns it into fixed text.
+* Any text box understands the same markup: `# title`, `## heading`, `**bold**`, `[[+12,3]]` (coloured by sign).
+
 ### Editing on the slide (Excel-like)
 * Click/drag/Shift+click/Shift+arrows to select; type or F2 to edit; Enter/Tab move; Del clears;
   Ctrl+B/I; Ctrl+Z/Y (undo **only your own** changes); PgUp/PgDn change slide; Ctrl+S saves now.

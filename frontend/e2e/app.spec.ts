@@ -335,6 +335,35 @@ test.describe.serial("two people, one shared folder", () => {
     await a.close(); await b.close();
   });
 
+  test("automated comments: written from the numbers, on all similar tables, follow the numbers", async ({ page }) => {
+    await openApp(page, BOB);
+    await openWorkbook(page, "weekly.xlsx");
+    await page.click('[data-a="next"]'); await page.click('[data-a="next"]'); await page.click('[data-a="finish"]');
+    await expect(page.locator(".thumb")).toHaveCount(1);
+    await page.click("#commentBtn");
+    await expect(page.locator(".cmtfound")).toContainText("TOTAL BANKS LOANS");
+    await expect(page.locator(".cmtfound")).toContainText("Week39 25/09/26");
+    await expect(page.locator("#cmtPreview")).toContainText("vs Budget – Budget Performance");
+    await expect(page.locator("#cmtPreview")).toContainText("No Budget data is available for EximBank and Pravex.");
+    await page.locator('#cmtGroups [data-group="Δ vs. Prev. Week"]').uncheck();
+    await expect(page.locator("#cmtPreview")).not.toContainText("Weekly Momentum");
+    await page.click("#cmtAll");                                                  // the deposits table has the same headers
+    const wdoc = () => { const d = path.join(data(), "workbooks"), f = fs.readdirSync(d).find(n => n.startsWith("weekly.xlsx"))!; return JSON.parse(fs.readFileSync(path.join(d, f), "utf8")); };
+    await expect.poll(() => Object.values(wdoc().preset.slides[0].notes || {}).filter((n: any) => n.auto).length, { timeout: 10_000 }).toBe(2);
+    const notes = page.locator("#stage .tnote.auto");
+    await expect(notes).toHaveCount(2);
+    await expect(notes.first()).toContainText("Total Banks Loans");
+    await expect(notes.nth(1)).toContainText("Total Banks Deposits");
+    await expect(notes.first().locator(".down, .up").first()).toBeVisible();
+    // changing a number on the slide rewrites the comment
+    const before = await notes.first().textContent();
+    await selectCell(page, "VUB"); await page.keyboard.press("ArrowRight"); await page.keyboard.press("ArrowRight"); await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowRight"); await page.keyboard.press("ArrowRight");        // Δ vs. Budget Abs. of VUB
+    await page.keyboard.type("900"); await page.keyboard.press("Enter");
+    await expect.poll(() => notes.first().textContent(), { timeout: 10_000 }).not.toBe(before);
+    await expect(notes.first()).toContainText("VUB (+900");
+  });
+
   test("wizard on a sheet larger than the preview: the selection box sits exactly on the selected cells", async ({ page }) => {
     await openApp(page, BOB);
     await openWorkbook(page, "big.xlsx");

@@ -1,6 +1,6 @@
 /* The slide being edited: imperative DOM for speed (one overlay per table, binary-search hit
    testing, only changed cells are swapped after an edit). */
-import { S, emit, STAGE } from "../state/store";
+import { S, emit, STAGE, toast } from "../state/store";
 import { change, ctx, setZoom } from "../state/app";
 import type { Item, TableLayout } from "../xlsx/types";
 import type { Layout, Op, RuntimeSlide } from "../model/types";
@@ -13,6 +13,7 @@ import { applyPainter } from "./painter";
 import type { Note, Side, SlideTextKey } from "../model/types";
 import { selectSlideText } from "./textfmt";
 import { todayLabel } from "../render/cover";
+import { commentText } from "../render/comment";
 
 let host: HTMLElement | null = null;
 export function mountStage(el: HTMLElement) {
@@ -69,6 +70,7 @@ function patchTable(oldEl: Element, newEl: Element) {
 export function refreshStage() {
   const slide = wrapEl()?.querySelector<SlideEl>(".slide"), R = curSlide();
   if (!slide || !R || slide._rid !== R.id || slide.querySelectorAll(":scope > .tw").length !== R.tables.length) return renderStage();
+  if (Object.values(R.cfg.notes || {}).some(n => n.auto)) return renderStage();     // automated comments follow the numbers
   const c = ctx();
   slide.querySelectorAll<HTMLElement & { _html?: string }>(":scope > .tw").forEach(tw => {
     const i = +tw.dataset.i!, L = R.tables[i], html = tableHtml(R, i, c);
@@ -358,18 +360,27 @@ export function patchNote(label: string, patch: Partial<Note> | null) {
 function editNote(R: RuntimeSlide, el: HTMLElement) {
   const wrap = wrapEl(); if (!wrap) return;
   const key = el.dataset.note!, cur = (R.cfg.notes || {})[key] || { text: "" };
+  // an automated comment shows its current text; changing it turns it into fixed text
+  const T = R.tables[+el.dataset.i!], gen = cur.auto && T ? commentText(T, cur.auto, ctx()) : null;
   selectNote(key);
   const wr = wrap.getBoundingClientRect(), r = el.getBoundingClientRect();
-  const ta = document.createElement("textarea"); ta.className = "inline-edit note-edit"; ta.value = cur.text || "";
+  const ta = document.createElement("textarea"); ta.className = "inline-edit note-edit"; ta.value = gen ?? (cur.text || "");
   Object.assign(ta.style, { left: (r.left - wr.left - 2) + "px", top: (r.top - wr.top - 2) + "px", width: Math.max(160, r.width + 4) + "px", height: Math.max(48, r.height + 4) + "px",
     fontSize: Math.max(12, (parseFloat(el.style.fontSize) || 18) * slideScale()) + "px", textAlign: el.style.textAlign || "left" });
-  wrap.appendChild(ta); ta.focus(); ta.select();
+  wrap.appendChild(ta); ta.focus(); if (gen === null) ta.select();
   let done = false;
   const finish = (ok: boolean) => {
     if (done) return; done = true; const v = ta.value; ta.remove(); afterEdit();
     if (!ok) return;
     // an empty box that was never written is removed again
     if (!v.trim()) { change("Remove text box", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: null } } } as Op]); S.noteSel = null; return; }
+    if (gen !== null) {
+      if (v === gen) return;
+      const { auto: _a, ...rest } = cur;
+      change("Edit comment", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: { ...rest, text: v } } } } as Op]);
+      toast("The comment is now fixed text – it no longer follows the numbers. Use <b>Comment…</b> to write it automatically again.");
+      return;
+    }
     if (v !== cur.text) change("Edit text box", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: { ...cur, text: v } } } } as Op]);
   };
   ta.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Escape") finish(false); if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) finish(true); });
