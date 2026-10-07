@@ -50,11 +50,16 @@ export function layoutOf(R: RuntimeSlide): Layout {
 export interface NoteBox { x: number; y: number; w: number; h: number; /** placed freely on the slide (moved by the user) */ free?: boolean }
 export interface TBox { i: number; band: number; x: number; y: number; w: number; h: number; scale: number; notes: Partial<Record<Side, NoteBox>> }
 export const NOTE_GAP = 14, NOTE_W = 240;
+/** the slide's notes section: a text box of the slide (not of a table), key in SlideDef.notes */
+export const MEMO_KEY = "slide:notes";
+/** where the notes section is: where the user put it, else where the footer goes (bottom left) */
+export const memoBox = (n: Note) => ({ x: n.x ?? 56, y: n.y ?? 832, w: n.w || 900, h: n.h || 44 });
 export const SIDES: Side[] = ["top", "bottom", "left", "right"];
 export const noteKey = (R: RuntimeSlide, i: number, side: Side) => (R.tables[i].id || String(i)) + ":" + side;
 /** the text boxes of table i, with the deck's text box style applied */
 export function notesOf(R: RuntimeSlide, i: number, ctx?: RenderCtx): Partial<Record<Side, Note>> {
   const out: Partial<Record<Side, Note>> = {}, all = R.cfg.notes || {};
+  if (ctx && ctx.style.design === "excel") return out;                 // raw Excel: nothing added to the workbook's tables
   for (const side of SIDES) {
     const n = all[noteKey(R, i, side)]; if (!n) continue;
     const e = ctx ? effNote(ctx, n) : n;
@@ -208,7 +213,18 @@ export function buildSlide(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: S
       h += `<div class="tnote ${side}${n.bubble ? " bub" : ""}${n.auto ? " auto" : ""}${n.x != null && n.y != null ? " free" : ""}${txt.trim() ? "" : " empty"}" data-note="${esc(noteKey(R, i, side))}" data-i="${i}" data-side="${side}" style="${st}">${!txt.trim() ? "Double-click to write" : hasMarkup(txt) || n.pgap != null ? richText(txt) : esc(txt)}</div>`;
     }
   });
-  if (opts.interactive) h += R.tables.map((t, i) => `<div class="hbox" data-i="${i}"><div class="grip" title="Drag to move this table">⠿ ${esc(tableName(t, ctx.preset))}</div><div class="size" title="Drag to resize (keeps the proportions)"></div>${(["l", "r", "t", "b"] as const).map(e => `<div class="edge ${e}" data-edge="${e}" title="Drag to make the table ${e === "l" || e === "r" ? "wider or narrower" : "taller or shorter"}"></div>`).join("")}${SIDES.map(sd => `<button class="addnote ${sd}" data-side="${sd}" title="Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd}">+</button>`).join("")}</div>`).join("") + `<div class="dropmark"></div>`;
+  // the slide's notes section (sources, footnotes…): a text box of the slide itself, placed where the user
+  // put it – by default where the footer is; not in raw Excel
+  const memo = d === "excel" ? null : (R.cfg.notes || {})[MEMO_KEY];
+  if (memo && (String(memo.text || "").trim() || opts.interactive)) {
+    const n = effNote(ctx, memo), txt = String(n.text || ""), mb = memoBox(memo);
+    const pos = `left:${mb.x}px;top:${mb.y}px;width:${mb.w}px;height:${mb.h}px`;
+    const st = [pos, `font-size:${n.size || 13}px`, fmtCss({ font: n.font, b: n.b || undefined, i: n.i || undefined, color: n.color }, { size: false, align: false }), `text-align:${n.align || "left"}`,
+      n.lh ? `line-height:${n.lh}` : "", n.pgap != null ? `--pgap:${n.pgap}em` : "", `justify-content:${n.valign === "top" ? "flex-start" : n.valign === "bottom" ? "flex-end" : "center"}`].filter(Boolean).join(";");
+    if (n.bubble && txt.trim()) h += glassy ? `<div class="gls wb card notebub memo" data-i="-1" data-side="bottom" style="${pos};border-radius:${Math.round(16 * rk)}px"></div>` : `<div class="notebub x memo" data-i="-1" data-side="bottom" style="${pos};border-radius:${Math.round(8 * rk)}px"></div>`;
+    h += `<div class="tnote memo free bottom${n.bubble ? " bub" : ""}${txt.trim() ? "" : " empty"}" data-note="${MEMO_KEY}" data-i="-1" data-side="bottom" style="${st}">${!txt.trim() ? "Notes – double-click to write" : hasMarkup(txt) || n.pgap != null ? richText(txt) : esc(txt)}</div>`;
+  }
+  if (opts.interactive) h += R.tables.map((t, i) => `<div class="hbox" data-i="${i}"><div class="grip" title="Drag to move this table">⠿ ${esc(tableName(t, ctx.preset))}</div><div class="size" title="Drag to resize (keeps the proportions)"></div>${(["l", "r", "t", "b"] as const).map(e => `<div class="edge ${e}" data-edge="${e}" title="Drag to make the table ${e === "l" || e === "r" ? "wider or narrower" : "taller or shorter"}"></div>`).join("")}${d === "excel" ? "" : SIDES.map(sd => `<button class="addnote ${sd}" data-side="${sd}" title="Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd}">+</button>`).join("")}</div>`).join("") + `<div class="dropmark"></div>`;
   if (R.type === "content" && !R.tables.length && opts.interactive) h += `<div class="emptyslide">No tables on this slide – add some with the wizard.</div>`;
   if (logo) {
     const lx = cover ? 1150 : 1256, ly = cover ? 800 : 832, lw = cover ? 400 : 314, lh = cover ? 68 : 52;
@@ -232,11 +248,12 @@ export function applyLayout(slide: HTMLElement, R: RuntimeSlide, ctx: RenderCtx,
     el.style.left = b.x + "px"; el.style.top = b.y + "px"; el.style.transform = `scale(${b.scale})`;
     if (glassy) el.querySelectorAll<HTMLElement>(".wb").forEach(g => placeGlass(g, b.x + parseFloat(g.style.left) * b.scale, b.y + parseFloat(g.style.top) * b.scale, parseFloat(g.style.width) * b.scale, parseFloat(g.style.height) * b.scale, b.scale, gi));
   });
-  slide.querySelectorAll<HTMLElement>(":scope > .tnote").forEach(el => {
+  slide.querySelectorAll<HTMLElement>(":scope > .tnote:not(.memo)").forEach(el => {
     const nb = boxes[+el.dataset.i!]?.notes[el.dataset.side as Side]; if (!nb) { el.style.display = "none"; return; }
     Object.assign(el.style, { display: "", left: nb.x + "px", top: nb.y + "px", width: nb.w + "px", height: nb.h + "px" });
   });
-  slide.querySelectorAll<HTMLElement>(":scope > .notebub").forEach(el => {
+  slide.querySelectorAll<HTMLElement>(":scope > .notebub.memo").forEach(el => { if (glassy) placeGlass(el, parseFloat(el.style.left), parseFloat(el.style.top), parseFloat(el.style.width), parseFloat(el.style.height), 1, gi); });
+  slide.querySelectorAll<HTMLElement>(":scope > .notebub:not(.memo)").forEach(el => {
     const nb = boxes[+el.dataset.i!]?.notes[el.dataset.side as Side]; if (!nb) { el.style.display = "none"; return; }
     Object.assign(el.style, { display: "", left: nb.x + "px", top: nb.y + "px", width: nb.w + "px", height: nb.h + "px" });
     if (glassy) placeGlass(el, nb.x, nb.y, nb.w, nb.h, 1, gi);
@@ -268,7 +285,7 @@ function fitNotes(slide: HTMLElement, boxes: TBox[], design: string) {
   }
   measurer.host.className = "slide " + (design === "clean" ? "excel clean" : design);
   for (const el of Array.from(notes)) {
-    const nb = boxes[+el.dataset.i!]?.notes[el.dataset.side as Side]; if (!nb) continue;
+    const nb = el.classList.contains("memo") ? { w: parseFloat(el.style.width), h: parseFloat(el.style.height) } : boxes[+el.dataset.i!]?.notes[el.dataset.side as Side]; if (!nb) continue;
     const m = measurer.box;
     m.className = el.className; m.style.cssText = el.style.cssText; m.innerHTML = el.innerHTML;
     Object.assign(m.style, { left: "0px", top: "0px", width: nb.w + "px", height: "auto", display: "block" });

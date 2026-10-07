@@ -45,7 +45,10 @@ export interface Style { design: Design; glass: "subtle" | "medium" | "strong"; 
   /** corner roundness, % of default (0–200) */ radius: number; /** background ↔ surfaces contrast 0–100 (50 = as designed) */ contrast: number; logoBubble: boolean; footer: Footer; theme: Theme;
   /** text styles of the deck, per kind of text */ text: Partial<Record<TextRole, TextFmt>>;
   /** colour overrides over the theme */ colors: Partial<Record<ColorKey, string>> }
-export type StylePatch = Partial<Omit<Style, "pn" | "footer" | "theme" | "text" | "colors">> & { pn?: Partial<PageNumbers>; footer?: Partial<Footer>; theme?: Partial<Theme>; text?: Partial<Record<TextRole, TextFmt>>; colors?: Partial<Record<ColorKey, string>> };
+/** theme, colours and text styles – shared by all designs, or for one design only (StylePatch.designs) */
+export interface Look { theme?: Partial<Theme>; colors?: Partial<Record<ColorKey, string>>; text?: Partial<Record<TextRole, TextFmt>> }
+export type StylePatch = Partial<Omit<Style, "pn" | "footer" | "theme" | "text" | "colors">> & { pn?: Partial<PageNumbers>; footer?: Partial<Footer>; theme?: Partial<Theme>; text?: Partial<Record<TextRole, TextFmt>>; colors?: Partial<Record<ColorKey, string>>;
+  /** settings for one design only, over the shared ones */ designs?: Partial<Record<Design, Look>> };
 
 /** fill = highlight (a capsule in Liquid Glass); bg = cell colour that replaces the Excel colour ("none" removes it) */
 export interface CellEdit { text?: string; orig?: string; font?: string; sz?: number; b?: boolean; i?: boolean; color?: string; fill?: string; bg?: string;
@@ -70,7 +73,7 @@ export type Op =
   | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "valign" | "scale" | "subs">> & { notes?: Record<string, Note | null> | null; fmt?: Partial<Record<SlideTextKey, TextFmt | null>> | null } }
   | { op: "table.patch"; id: string; patch: { name?: string | null; gridH?: "on" | "off" | null; gridV?: "on" | "off" | null; cols?: Record<string, number | null> | null; rows?: Record<string, number | null> | null; scales?: Record<string, ScaleRule | null> | null; merges?: Record<string, "merge" | "split" | null> | null } }
   | { op: "cell.patch"; sheet: string; ref: string; patch: Nullable<CellEdit> }
-  | { op: "style.patch"; patch: Nullable<Omit<StylePatch, "pn" | "footer" | "theme" | "text" | "colors">> & { pn?: Nullable<PageNumbers> | null; footer?: Nullable<Footer> | null; theme?: Nullable<Theme> | null; text?: Partial<Record<TextRole, TextFmt | null>> | null; colors?: Partial<Record<ColorKey, string | null>> | null } };
+  | { op: "style.patch"; patch: Nullable<Omit<StylePatch, "pn" | "footer" | "theme" | "text" | "colors">> & { pn?: Nullable<PageNumbers> | null; footer?: Nullable<Footer> | null; theme?: Nullable<Theme> | null; text?: Partial<Record<TextRole, TextFmt | null>> | null; colors?: Partial<Record<ColorKey, string | null>> | null; designs?: Partial<Record<Design, Look | null>> | null } };
 
 /* ---- runtime ---- */
 export interface RuntimeSlide {

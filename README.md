@@ -46,6 +46,17 @@ This README is the map. Deeper documents:
   without subtitles); per-slide logo on/off. Cover and index are ordinary slides that can be moved.
 
 ### Designs and colours
+* **Excel is raw Excel**: the workbook's tables with their own colours – no text boxes, comments or notes
+  section, no deck colours on the tables (title, logo, page number and footer stay). Excel Refined and Liquid
+  Glass have everything.
+* **Design…** › *Apply to*: **This design only** (default – Liquid Glass, Excel and Excel Refined each keep their
+  own theme, colours and text styles) or **All designs** (one setting everywhere; it also clears what a design
+  had set for itself).
+* **Notes section** (row 2 › ✎ Notes): a text box of the slide itself for sources and footnotes, starting
+  where the footer is; drag it anywhere – it snaps to the page number and footer, e.g. right next to them.
+* **Logo**: Options › Logo › *Choose…* copies a picture into the shared folder. The file name is also found
+  in the main folder and `backend`, whatever its upper/lower case; the “not found” warning follows the latest
+  load.
 * Top bar: **Liquid Glass · Excel · Excel Refined**. Excel Refined detects each table's header band, total rows,
   body rows and spacers (same detection as the automated comments) and redraws them with the deck palette;
   number columns shrink evenly when the design font is wider than Excel's. Cell colours, text colours and roles

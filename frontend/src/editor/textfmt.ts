@@ -73,7 +73,7 @@ function noteTarget(key: string): TextTarget | null {
   const shown: Shown = { font: e.font || null, pt: px2pt(e.size || 18), b: !!e.b, i: !!e.i, color: e.color || null, align: e.align || null, valign: e.valign || null, lh: e.lh ?? null, pgap: e.pgap ?? null };
   const write = (label: string, next: Note) => change(label, [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: next } } } as Op]);
   return {
-    kind: "note", label: "Text box", shown, can: { valign: true, fill: false, spacing: true },
+    kind: "note", label: key === "slide:notes" ? "Notes" : "Text box", shown, can: { valign: true, fill: false, spacing: true },
     apply(label, p) {
       const next: Note = { ...cur };
       const set = <K extends keyof Note>(k: K, v: Note[K] | null | undefined) => { if (v === null || v === undefined || v === "") delete next[k]; else next[k] = v; };

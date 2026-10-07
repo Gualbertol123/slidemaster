@@ -4,7 +4,7 @@ import { S, emit, STAGE, toast } from "../state/store";
 import { change, ctx, setZoom } from "../state/app";
 import type { Item, TableLayout } from "../xlsx/types";
 import type { Layout, Op, RuntimeSlide } from "../model/types";
-import { applyLayout, buildSlide, computeLayout, GX, GY, layoutOf, tableHtml, tableW, type SlideEl } from "../render/slide";
+import { MEMO_KEY, applyLayout, buildSlide, computeLayout, GX, GY, layoutOf, tableHtml, tableW, type SlideEl } from "../render/slide";
 import { glassGeom, gItem } from "../render/glass";
 import { effFmt, effText } from "../render/edits";
 import { activeItem, commitText, curSlide, itemAt, selItems, setSel } from "./edit";
@@ -43,7 +43,11 @@ export function renderStage() {
   const slide = buildSlide(R, S.cur, ctx(), { interactive: true });
   wrap.appendChild(slide); host.appendChild(wrap);
   slide.querySelectorAll<HTMLElement & { _html?: string }>(":scope > .tw").forEach(tw => { tw._html = tableHtml(R, +tw.dataset.i!, ctx()); });
-  slide.querySelectorAll<HTMLImageElement>("img.logo").forEach(img => img.addEventListener("error", () => { (img.parentNode as HTMLElement).style.display = "none"; if (!S.logoMissing) { S.logoMissing = true; emit(); } }));
+  // the logo warning follows the latest load: a failure earlier (e.g. before the file was copied) does not stick
+  slide.querySelectorAll<HTMLImageElement>("img.logo").forEach(img => {
+    img.addEventListener("error", () => { (img.parentNode as HTMLElement).style.display = "none"; if (!S.logoMissing) { S.logoMissing = true; emit(); } });
+    img.addEventListener("load", () => { if (S.logoMissing) { S.logoMissing = false; emit(); } });
+  });
   wireSlide(slide, R);
   fitStage(); paintSel();
 }
@@ -356,16 +360,15 @@ function noteEdge(el: HTMLElement, e: PointerEvent | MouseEvent): NEdge | null {
 }
 const SNAP = 8;
 function snapTargets(slide: HTMLElement, R: RuntimeSlide, self: HTMLElement): { x: number[]; y: number[] } {
-  const b = computeLayout(R, ctx()).boxes, A = { x0: 50, x1: 1550, y1: 822 }, xs = [A.x0, A.x1], ys = [A.y1];
-  for (const t of b) {
-    if (!t) continue;
-    xs.push(t.x, t.x + t.w); ys.push(t.y, t.y + t.h);
-    for (const [sd, n] of Object.entries(t.notes)) {
-      if (!n || (String(t.i) === self.dataset.i && sd === self.dataset.side)) continue;
-      xs.push(n.x, n.x + n.w); ys.push(n.y, n.y + n.h);
-    }
-  }
-  void slide; return { x: xs, y: ys };
+  const b = computeLayout(R, ctx()).boxes, xs = [50, 1550], ys = [822];
+  for (const t of b) if (t) { xs.push(t.x, t.x + t.w); ys.push(t.y, t.y + t.h); }
+  // other text boxes, the notes section, page number and footer – as drawn
+  slide.querySelectorAll<HTMLElement>(":scope > .tnote, :scope > .pageno").forEach(el => {
+    if (el === self || el.style.display === "none") return;
+    const x = parseFloat(el.style.left), y = parseFloat(el.style.top), w = parseFloat(el.style.width), h = parseFloat(el.style.height);
+    if ([x, y, w, h].every(isFinite)) { xs.push(x, x + w); ys.push(y, y + h); }
+  });
+  return { x: xs, y: ys };
 }
 function stretchNote(slide: HTMLElement, R: RuntimeSlide, el: HTMLElement, edge: NEdge, e: PointerEvent) {
   const sc = slideScale(), key = el.dataset.note!, cur = (R.cfg.notes || {})[key]; if (!cur) return;
@@ -433,6 +436,13 @@ function moveNote(slide: HTMLElement, R: RuntimeSlide, el: HTMLElement, e: Point
     change("Move text box", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: { ...rest, x: Math.round(nx), y: Math.round(ny), w: Math.round(w), h: Math.round(h) } } } } as Op]);
   };
   addEventListener("pointermove", move); addEventListener("pointerup", up);
+}
+/** adds the slide's notes section (where the footer is) and opens it for typing; selects it when it exists */
+export function addSlideNotes() {
+  const R = curSlide(); if (!R) return;
+  if ((R.cfg.notes || {})[MEMO_KEY]) { selectNote(MEMO_KEY); return; }
+  pendingNoteEdit = MEMO_KEY;
+  change("Add notes", [{ op: "slide.patch", id: R.id, patch: { notes: { [MEMO_KEY]: { text: "", size: 13, color: "#5B6274" } } } } as Op]);
 }
 /** puts a moved text box back next to its table */
 export function attachNote() {

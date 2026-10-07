@@ -14,7 +14,7 @@ function fakeTable(vals: number[][], W = 300, H = 90, id = "t1") {
   const sheet = { name: "S", get: (r: number, c: number) => cells.get(r + "," + c) || null };
   return { id, def: { id }, sheet, items, W, H, g: { r1: 1, c1: 1, r2: 5, c2: 5 }, rows: [2, 3, 4], cols: [2, 3, 4] } as any;
 }
-const ctx = (): RenderCtx => ({ style: { ...resolveStyle(), design: "excel" }, edits: {}, slides: [], preset: null, workbook: "w", logoSrc: "" });
+const ctx = (): RenderCtx => ({ style: { ...resolveStyle(), design: "clean" }, edits: {}, slides: [], preset: null, workbook: "w", logoSrc: "" });
 const slide = (tables: any[], cfg: any = {}) => ({ id: "s", type: "content", tables, missing: 0, title: "T", subtitle: "", label: "T", cfg: { id: "s", type: "content", tables: tables.map(t => t.id), ...cfg } } as any);
 
 describe("colour scales", () => {

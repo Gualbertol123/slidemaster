@@ -5,7 +5,7 @@
 import { useRef, useState } from "preact/hooks";
 import { S, emit, useApp } from "../state/store";
 import { DLG, confirmBox } from "../state/dialogs";
-import { saveStyleAsDefault, style, styleChange } from "../state/app";
+import { LOOK, lookAt, lookChange, saveStyleAsDefault, style } from "../state/app";
 import { FONTS, addGoogleFont, inLibrary, removeFont, uploadFontFiles } from "../state/fonts";
 import { GOOGLE_POPULAR, fontStack } from "../model/fonts";
 import { COLOR_KEYS, palette } from "../model/style";
@@ -16,6 +16,7 @@ import { esc } from "../xlsx/util";
 import { Field } from "./Field";
 import { FontPicker } from "./FontPicker";
 
+const DESIGN_NAME = { glass: "Liquid Glass", excel: "Excel", clean: "Excel Refined" } as const;
 type Cap = "size" | "b" | "i" | "color" | "align" | "lh";
 const ROLES: { role: TextRole; name: string; hint: string; caps: Cap[] }[] = [
   { role: "title", name: "Slide titles", hint: "every slide; the cover title keeps its automatic size", caps: ["size", "b", "i", "color", "align"] },
@@ -32,7 +33,7 @@ function StyleRow({ role, name, hint, caps }: typeof ROLES[number]) {
   const set = (patch: Partial<Record<keyof TextFmt, unknown>>, label = "Text style: " + name) => {
     const next: Record<string, unknown> = { ...f };
     for (const [k, v] of Object.entries(patch)) { if (v === null || v === undefined || v === "") delete next[k]; else next[k] = v; }
-    styleChange(label, { text: { [role]: Object.keys(next).length ? next as TextFmt : null } });
+    lookChange(label, { text: { [role]: Object.keys(next).length ? next as TextFmt : null } });
   };
   const has = (c: Cap) => caps.includes(c);
   return <div class="tsrow" data-role={role}>
@@ -48,14 +49,14 @@ function StyleRow({ role, name, hint, caps }: typeof ROLES[number]) {
       <option value="">Align: auto</option><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select> : <span />}
     {has("lh") ? <select class="tsalign" value={f.lh ? String(f.lh) : ""} title="Line spacing" data-lh="" onChange={e => set({ lh: parseFloat((e.target as HTMLSelectElement).value) || null })}>
       <option value="">Lines: auto</option>{[1, 1.15, 1.3, 1.5, 1.75, 2].map(v => <option key={v} value={String(v)}>Lines {v}</option>)}</select> : <span />}
-    <button class="btn" disabled={!Object.keys(f).length} title="Back to the design's look for this kind of text" onClick={() => styleChange("Reset text style: " + name, { text: { [role]: null } })}>Reset</button>
+    <button class="btn" disabled={!(lookAt().text || {})[role]} title="Back to the design's look for this kind of text (at this scope)" onClick={() => lookChange("Reset text style: " + name, { text: { [role]: null } })}>Reset</button>
   </div>;
 }
 
 /* colours: the theme preset, then any colour of it overridden – the same settings for every design */
 function ColorsTab() {
-  const st = style(), P = palette(st), o = st.colors || {}, d = st.design;
-  const set = (k: string, v: string | null) => styleChange(v ? "Colour: " + k : "Theme colour: " + k, { colors: { [k]: v } }, v ? "color" + k : undefined);
+  const st = style(), P = palette(st), o = (lookAt().colors || {}) as Record<string, string>, d = st.design;
+  const set = (k: string, v: string | null) => lookChange(v ? "Colour: " + k : "Theme colour: " + k, { colors: { [k]: v } }, v ? "color" + k : undefined);
   const any = Object.keys(o).length > 0;
   return <div class="colorstab">
     <ThemePicker />
@@ -72,7 +73,7 @@ function ColorsTab() {
       })}
     </div>
     <div class="row" style="margin-top:10px;gap:8px">
-      <button class="btn" id="colorsReset" disabled={!any} onClick={() => styleChange("Theme colours", { colors: null })}>Reset all to the theme</button>
+      <button class="btn" id="colorsReset" disabled={!any} onClick={() => lookChange("Theme colours", { colors: null })}>Reset all to the theme</button>
       <span class="optnote" style="margin:0">Excel keeps the workbook's colours except the ones you set here. Excel Refined and Liquid Glass use all of them.</span>
     </div>
   </div>;
@@ -122,6 +123,10 @@ export function TextStylesDialog() {
     <div class="modal" onKeyDown={e => { if (e.key === "Escape") close(); }}>
       <div class="dlg tsdlg">
         <div class="dlghd"><b>Design: colours, text &amp; fonts</b><span>Start from a theme, then change any colour, font or size – for the whole deck and every design. Formatting you give a single cell, text box or title with the toolbar stays on top.</span></div>
+        {tab !== "fonts" && <div class="scope"><span>Apply to</span><div class="seg small" id="lookScope">
+          <button data-scope="design" class={LOOK.scope === "design" ? "on" : ""} onClick={() => { LOOK.scope = "design"; emit(); }}>This design only – {DESIGN_NAME[style().design]}</button>
+          <button data-scope="all" class={LOOK.scope === "all" ? "on" : ""} onClick={() => { LOOK.scope = "all"; emit(); }}>All designs</button></div>
+          <small>{LOOK.scope === "design" ? "Changes here apply only when this design is chosen; switch design at the top to give the others their own look." : "Changes here apply to every design (and replace what a design had set for itself)."}</small></div>}
         <div class="seg tabs"><button class={tab === "colors" ? "on" : ""} id="tabColors" onClick={() => setTab("colors")}>Colours</button><button class={tab === "styles" ? "on" : ""} id="tabStyles" onClick={() => setTab("styles")}>Text styles</button><button class={tab === "fonts" ? "on" : ""} id="tabFonts" onClick={() => setTab("fonts")}>Fonts ({FONTS.lib.length})</button></div>
         <div class="dlgbody">
           {tab === "colors" ? <ColorsTab /> : tab === "styles" ? <>

@@ -8,7 +8,7 @@ import { applySel, curSlide, selItems, selTable } from "../editor/edit";
 import { effFmt } from "../render/edits";
 import { slideHasLogo } from "../render/slide";
 import { alignTables, canMerge, mergeSel, mergedInSel, unmergeSel, valignTables, currentTableRefs, makeSameSize, selCols, selRows, setColWidth, setRowHeight, shownColW, shownRowH } from "../editor/tables";
-import { attachNote, noteOf, patchNote } from "../editor/stage";
+import { addSlideNotes, attachNote, noteOf, patchNote } from "../editor/stage";
 import { scaleColors } from "../render/scales";
 import { A1, uid, esc } from "../xlsx/util";
 import type { Op, ScaleRule, Side } from "../model/types";
@@ -82,6 +82,8 @@ export function TableRibbon() {
     setTimeout(() => document.querySelector<HTMLElement>(`#stage .tnote[data-note="${CSS.escape(key)}"]`)?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })), 120);
   };
   const align = R?.cfg.align || "center";
+  // raw Excel shows the workbook only: no text boxes, no comments
+  const raw = style().design === "excel", rawTip = "Excel shows the workbook as it is – text boxes and comments are in Excel Refined and Liquid Glass";
   return (
     <nav class="ribbon ribbon2">
       <div class="grp" title="Size of the selected columns and rows, in table pixels (Excel at 100 %). Or drag a border on the slide; double-click a border for the Excel size.">
@@ -120,15 +122,16 @@ export function TableRibbon() {
       </div>
       <div class="grp">
         <span class="lbl">Text box</span>
-        {(["top", "bottom", "left", "right"] as const).map(sd => <button key={sd} class="tb" data-addnote={sd} disabled={!R || tIdx < 0} title={`Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd} of the table`} onClick={() => addNote(sd)}>
+        {(["top", "bottom", "left", "right"] as const).map(sd => <button key={sd} class="tb" data-addnote={sd} disabled={!R || tIdx < 0 || raw} title={raw ? rawTip : `Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd} of the table`} onClick={() => addNote(sd)}>
           {sd === "top" ? "↑" : sd === "bottom" ? "↓" : sd === "left" ? "←" : "→"}</button>)}
         <button class={"tb" + (note?.bubble ? " on" : "")} id="noteBubble" disabled={!note} title="Bubble around the selected text box, like the tables (glass card / framed box)" onClick={() => note && patchNote(note.bubble ? "Text box without bubble" : "Text box in a bubble", { bubble: !note.bubble })}>◯</button>
-        <button class={"tb" + (note?.auto ? " on" : "")} id="commentBtn" disabled={!R || !R.tables.length} title="Automated comment: a commentary written from the table's numbers (headline, main contributors, downside), updated when the numbers change"
+        <button class={"tb" + (note?.auto ? " on" : "")} id="commentBtn" disabled={!R || !R.tables.length || raw} title={raw ? rawTip : "Automated comment: a commentary written from the table's numbers (headline, main contributors, downside), updated when the numbers change"}
           onClick={() => { DLG.comment = { table: S.noteSel ? Math.max(0, R!.tables.findIndex(t => (t.id || "") === S.noteSel!.split(":")[0])) : Math.max(0, tIdx) }; emit(); }}>✎ Comment…</button>
-        <button class="tb" id="noteAttach" disabled={!(note && note.x != null)} title="Put the moved text box back next to its table (drag a text box to place it anywhere)" onClick={attachNote}>⤺ Attach</button>
+        <button class="tb" id="noteAttach" disabled={!(note && note.x != null) || S.noteSel === "slide:notes"} title="Put the moved text box back next to its table (drag a text box to place it anywhere)" onClick={attachNote}>⤺ Attach</button>
         <button class="tb" id="noteDelete" disabled={!note} title="Delete the selected text box (Del)" onClick={() => patchNote("Remove text box", null)}>🗑</button>
       </div>
       <div class="grp">
+        <button class={"tb" + (R?.cfg.notes?.["slide:notes"] ? " on" : "")} id="slideNotes" disabled={!R || raw} title={raw ? rawTip : "Notes section of this slide (sources, footnotes…): starts where the footer is – drag it anywhere, e.g. next to the page number"} onClick={addSlideNotes}>✎ Notes</button>
         <button class={"tb" + (logoOn ? " on" : "")} id="logoToggle" disabled={!R || !logoName} title={R && !logoOn ? "The logo is hidden on this slide – click to show it" : "Hide the logo on this slide"}
           onClick={() => slidePatch(logoOn ? "Hide logo" : "Show logo", { logo: logoOn ? false : null })}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="3.5" width="13" height="9" rx="2" /><path d="m3.5 10.5 3-3 2 2 1.5-1.5 2.5 2.5" /></svg>Logo</button>
         {R?.type === "index" && <button class={"tb" + (R.cfg.subs !== false ? " on" : "")} id="ixSubs" title={R.cfg.subs !== false ? "Hide the slide subtitles in the contents list" : "Show the slide subtitles in the contents list"}

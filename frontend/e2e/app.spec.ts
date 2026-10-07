@@ -248,27 +248,37 @@ test.describe.serial("two people, one shared folder", () => {
     expect(sdef(1).subs).toBe(false);
     await expect(page.locator("#stage .ix-s")).toHaveCount(0);
 
-    // colour themes: Intesa Sanpaolo, then a custom one
-    await page.click("#themeBtn"); await page.click('[data-theme="intesa"]'); await saved(page);
-    expect(doc().style.theme.id).toBe("intesa");
+    // colour themes (for this design only, the default): Intesa Sanpaolo, then a custom one
+    await page.click("#themeBtn");
+    await expect(page.locator('#lookScope [data-scope="design"]')).toHaveClass(/on/);
+    await page.click('[data-theme="intesa"]'); await saved(page);
+    expect(doc().style.designs.glass.theme.id).toBe("intesa");
     await expect.poll(() => page.locator("#stage .slide").evaluate(el => (el as HTMLElement).style.getPropertyValue("--a1"))).toBe("#00953B");
     await page.screenshot({ path: path.join(process.env.SB_E2E_TMP!, "round4-intesa.png") });
     await page.click('[data-theme="custom"]'); await saved(page);
     await page.locator('[data-tk="c1"]').fill("#123456");
-    await expect.poll(() => doc().style.theme, { timeout: 10_000 }).toMatchObject({ id: "custom", c1: "#123456", a1: "#00953B" });
+    await expect.poll(() => doc().style.designs.glass.theme, { timeout: 10_000 }).toMatchObject({ id: "custom", c1: "#123456", a1: "#00953B" });
     await page.click('[data-theme="aurora"]'); await saved(page);
-    // the third design and colours of your own over the theme
+    // the third design gets its own colours; Liquid Glass does not see them
     await page.click('.tsdlg [data-a="close"]');
     await page.locator('.thumb[data-i="2"]').click(); await page.click('[data-design="clean"]'); await saved(page);
     await expect(page.locator("#stage .slide.clean .xt.cx").first()).toBeVisible();
     await page.click("#themeBtn");
     await page.locator('[data-color="head"] input').evaluate(el => { (el as HTMLInputElement).value = "#5b2c83"; el.dispatchEvent(new Event("change", { bubbles: true })); });
-    await expect.poll(() => doc().style.colors, { timeout: 10_000 }).toEqual({ head: "#5B2C83" });
+    await expect.poll(() => doc().style.designs?.clean?.colors, { timeout: 10_000 }).toEqual({ head: "#5B2C83" });
+    expect(doc().style.colors).toBeUndefined();
     // (a header cell coloured by hand earlier keeps its own colour: cell colours win over the deck's)
     await expect.poll(() => page.locator("#stage .slide .xt.cx .chead").evaluateAll(els => els.map(el => getComputedStyle(el).backgroundColor))).toContain("rgb(232, 225, 238)");   // the pale sub-header in the new header colour
-    await page.click("#colorsReset"); await page.click('.tsdlg [data-a="close"]');
+    // all designs: one accent everywhere, and the design's own value for it goes
+    await page.click('#lookScope [data-scope="all"]');
+    await page.locator('[data-color="accent"] input').evaluate(el => { (el as HTMLInputElement).value = "#aa0000"; el.dispatchEvent(new Event("change", { bubbles: true })); });
+    await expect.poll(() => doc().style.colors, { timeout: 10_000 }).toEqual({ accent: "#AA0000" });
+    await page.click("#colorsReset");                                                     // for all designs: the design's own colours go too
+    await expect(page.locator("#colorsReset")).toBeDisabled();
+    await page.click('#lookScope [data-scope="design"]'); await expect(page.locator("#colorsReset")).toBeDisabled(); await page.click('.tsdlg [data-a="close"]');
     await page.click('[data-design="glass"]'); await saved(page);
     expect(doc().style.colors).toBeUndefined();
+    expect(doc().style.designs?.clean?.colors).toBeUndefined();
   });
 
   test("typing is never overwritten by autosave or other people's changes; logo bubble can be removed", async ({ browser }) => {
@@ -325,7 +335,7 @@ test.describe.serial("two people, one shared folder", () => {
     // deck text styles: every text box of the deck in one place
     await a.click("#textStylesBtn");
     await a.locator('.tsrow[data-role="note"] .fontbtn').click(); await a.click('.fontmenu [data-font="Trebuchet MS"]');
-    await expect.poll(() => doc().style.text?.note, { timeout: 10_000 }).toEqual({ font: "Trebuchet MS" });
+    await expect.poll(() => doc().style.designs?.glass?.text?.note, { timeout: 10_000 }).toEqual({ font: "Trebuchet MS" });   // for this design (the default scope)
     // fonts: an uploaded font goes to the shared library – bob gets it too
     await a.click("#tabFonts");
     const file = path.join(process.env.SB_E2E_TMP!, "CorpSans-Bold.ttf"); fs.writeFileSync(file, sfnt("Corp Sans", 700));
@@ -342,7 +352,7 @@ test.describe.serial("two people, one shared folder", () => {
     await b.click('.tsdlg [data-a="close"]');
     // back to the design's look for the next tests
     await a.click("#textStylesBtn"); await a.locator('.tsrow[data-role="note"] .btn', { hasText: "Reset" }).click();
-    await expect.poll(() => doc().style.text, { timeout: 10_000 }).toBeUndefined();
+    await expect.poll(() => doc().style.designs?.glass?.text, { timeout: 10_000 }).toBeUndefined();
     await a.click('.tsdlg [data-a="close"]');
     await a.close(); await b.close();
   });
@@ -421,6 +431,41 @@ test.describe.serial("two people, one shared folder", () => {
     await page.locator("#stage .tnote.free", { hasText: "Source: ECB" }).click();
     await page.click("#noteAttach");
     await expect.poll(() => { const n: any = Object.values(notes()).find((x: any) => x.text === "Source: ECB"); return n && n.x; }, { timeout: 10_000 }).toBeUndefined();
+  });
+
+  test("notes section of a slide: where the footer is, movable next to the page number; raw Excel adds nothing; menus open", async ({ page }) => {
+    await openApp(page, BOB);
+    await expect(page.locator(".thumb")).toHaveCount(1);
+    const wdoc = () => { const d = path.join(data(), "workbooks"), f = fs.readdirSync(d).find(n => n.startsWith("weekly.xlsx"))!; return JSON.parse(fs.readFileSync(path.join(d, f), "utf8")); };
+    // the Options menu is visible (not cut off by the top bar)
+    await page.click("#optBtn");
+    await expect(page.locator("#pnOn")).toBeVisible();
+    await page.check("#pnOn"); await saved(page);
+    await page.keyboard.press("Escape");
+    // notes: added where the footer is, typed at once
+    await page.click("#slideNotes");
+    await expect(page.locator("textarea.note-edit")).toBeVisible();
+    await page.keyboard.type("Source: internal data; figures not audited"); await page.keyboard.press("Control+Enter");
+    const memo = page.locator("#stage .tnote.memo");
+    await expect(memo).toContainText("Source: internal data");
+    const mb = (await memo.boundingBox())!, slide = (await page.locator("#stage .slide").boundingBox())!;
+    expect(mb.y).toBeGreaterThan(slide.y + slide.height * .85);                          // at the bottom, like the footer
+    // move it: its bottom edge lines up with the page number (guide line), and it stays there
+    const pn = (await page.locator("#stage .slide .pageno").first().boundingBox())!;
+    await page.mouse.move(mb.x + 30, mb.y + mb.height / 2); await page.mouse.down();
+    await page.mouse.move(mb.x + 60, mb.y + mb.height / 2 - 30, { steps: 6 });
+    await page.mouse.move(mb.x + 60, pn.y + pn.height - mb.height / 2 + 2, { steps: 4 });
+    await expect(page.locator("#stage .snapline.h")).toBeVisible();
+    await page.mouse.up();
+    await expect.poll(() => wdoc().preset.slides[0].notes["slide:notes"].x, { timeout: 10_000 }).toBeGreaterThan(56);
+    // raw Excel: the workbook only – no comments, no text boxes, no notes
+    await page.click('[data-design="excel"]'); await saved(page);
+    await expect(page.locator("#stage .tnote")).toHaveCount(0);
+    await expect(page.locator("#stage .addnote")).toHaveCount(0);
+    await expect(page.locator("#commentBtn")).toBeDisabled();
+    await page.click('[data-design="glass"]'); await saved(page);
+    await expect(memo).toBeVisible();
+    await page.click("#optBtn"); await page.uncheck("#pnOn"); await saved(page); await page.keyboard.press("Escape");
   });
 
   test("wizard on a sheet larger than the preview: the selection box sits exactly on the selected cells", async ({ page }) => {

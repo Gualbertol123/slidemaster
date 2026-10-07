@@ -64,7 +64,7 @@ describe("deck text styles", () => {
     // the larger deck size makes the box above a table taller
     const L = { id: "t1", def: { id: "t1" }, items: [], W: 300, H: 90, g: { r1: 1, c1: 1, r2: 5, c2: 5 }, rows: [], cols: [], sheet: { name: "S" } } as any;
     const R = slide({ tables: ["t1"], notes: { "t1:top": { text: "a\nb" } } }, { tables: [L] });
-    const small = computeLayout(R, ctx({}, "excel")).boxes[0].notes.top!.h, big = computeLayout(R, ctx({ text: { note: { size: 36 } } }, "excel")).boxes[0].notes.top!.h;
+    const small = computeLayout(R, ctx({}, "clean")).boxes[0].notes.top!.h, big = computeLayout(R, ctx({ text: { note: { size: 36 } } }, "clean")).boxes[0].notes.top!.h;
     expect(big).toBeGreaterThan(small);
   });
   it("a larger title pushes the subtitle and the tables down", () => {
@@ -109,7 +109,7 @@ describe("text boxes beside all tables", () => {
   it("a spanning box takes a column next to every table, as tall as all of them", () => {
     const L = (id: string) => ({ id, def: { id }, items: [], W: 600, H: 200, g: { r1: id === "a" ? 1 : 30, c1: 1, r2: id === "a" ? 20 : 50, c2: 5 }, rows: [], cols: [], sheet: { name: "S" } } as any);
     const R = slide({ tables: ["a", "b"], notes: { "a:right": { text: "x", span: true, w: 400 } } }, { tables: [L("a"), L("b")] });
-    const { boxes } = computeLayout(R, ctx({}, "excel"));
+    const { boxes } = computeLayout(R, ctx({}, "clean"));
     const n = boxes[0].notes.right!, right = Math.max(boxes[0].x + boxes[0].w, boxes[1].x + boxes[1].w);
     expect(n.w).toBe(400);
     expect(n.x).toBeGreaterThan(right);                                              // beside both tables, not over the second
@@ -122,9 +122,9 @@ describe("text boxes beside all tables", () => {
 describe("text boxes placed freely", () => {
   it("a moved box keeps its place and size and takes no room from the tables", () => {
     const L = { id: "a", def: { id: "a" }, items: [], W: 600, H: 200, g: { r1: 1, c1: 1, r2: 20, c2: 5 }, rows: [], cols: [], sheet: { name: "S" } } as any;
-    const plain = computeLayout(slide({ tables: ["a"] }, { tables: [L] }), ctx({}, "excel")).boxes[0];
+    const plain = computeLayout(slide({ tables: ["a"] }, { tables: [L] }), ctx({}, "clean")).boxes[0];
     const R = slide({ tables: ["a"], notes: { "a:right": { text: "x", x: 1200, y: 640, w: 300, h: 120 } } }, { tables: [L] });
-    const b = computeLayout(R, ctx({}, "excel")).boxes[0];
+    const b = computeLayout(R, ctx({}, "clean")).boxes[0];
     expect(b.notes.right).toEqual({ x: 1200, y: 640, w: 300, h: 120, free: true });
     expect(b.w).toBeCloseTo(plain.w, 5);                                   // the table did not shrink
   });

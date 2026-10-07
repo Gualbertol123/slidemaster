@@ -1542,5 +1542,56 @@
       "applied": 1,
       "skipped": []
     }
+  },
+  {
+    "name": "style.patch designs is a map merge: one design's own settings replaced, the others stay",
+    "doc": {
+      "preset": null,
+      "style": {
+        "designs": {
+          "glass": {
+            "theme": {
+              "id": "intesa"
+            }
+          },
+          "clean": {
+            "colors": {
+              "head": "#112233"
+            }
+          }
+        }
+      },
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "style.patch",
+        "patch": {
+          "designs": {
+            "clean": {
+              "colors": {
+                "head": "#445566"
+              }
+            },
+            "glass": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {
+        "designs": {
+          "clean": {
+            "colors": {
+              "head": "#445566"
+            }
+          }
+        }
+      },
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
   }
 ]

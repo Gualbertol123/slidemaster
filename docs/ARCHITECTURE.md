@@ -122,6 +122,8 @@ So two people changing different columns, rules or text boxes never overwrite ea
 | `style.logoBubble` | `false` = logo without its glass bubble |
 | `style.design` | `"glass"` (Liquid Glass), `"excel"` (pure Excel) or `"clean"` (Excel Refined) |
 | `style.colors` | colour overrides over the theme: `{accent, bg, head, headInk, total, totalInk, ink, pos, neg, stripe, rule}` (hex); `palette()` in `model/style.ts` = theme defaults + these |
+| `style.designs` | `{glass?, excel?, clean?: {theme?, colors?, text?}}` – a design's own look over the shared one (map merge per design) |
+| `slide.notes["slide:notes"]` | the slide's notes section (a text box of the slide, `x/y/w/h`; default at the footer position) |
 | `style.text` | deck text styles, one entry per kind of text: `{"title"\|"subtitle"\|"table"\|"note"\|"index"\|"pageno": {font?, size?, b?, i?, color?, align?}}` (size in slide px; `table` uses only `font`; `pageno` covers page numbers and footer and wins over the older `pn.font`) |
 | `slide.fmt` | formatting of one slide's texts over the deck style: `{"title"\|"subtitle"\|"note"\|"date": {font?, size?, b?, i?, color?, align?}}` (`note`/`date` = cover note and date) |
 | note `lh`, `pgap` | line spacing (1 = single) and space between paragraphs (in lines); `style.text.note.lh` sets the deck default |
@@ -215,6 +217,7 @@ All responses JSON unless stated. Security for every request:
 | `GET /api/workbooks/<name>/doc?since=<rev>` | – | `204` when `doc.rev == since`, else `{doc}` |
 | `POST /api/workbooks/<name>/ops` | `{ops, client}` | `{doc, applied, skipped:[index…]}` |
 | `GET /api/workbooks/<name>/history` | – | `{backups:[{rev, updated, updatedBy}]}` |
+| `POST /api/logo?name=` | picture bytes (≤ 10 MB, PNG/JPG/GIF/WEBP/BMP) | `{name}` – saved in `data/assets`; `/assets/<name>` looks in data/assets, backend, the main folder (any case) |
 | `GET /api/fonts` | – | font library `{schema, fonts:[…]}` (§3.4) |
 | `POST /api/fonts?family=&weight=&style=&source=&name=&range=` | font file bytes (≤ 15 MB; TTF/OTF/WOFF/WOFF2 checked by signature) | font library |
 | `DELETE /api/fonts?family=` | – | font library |

@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
-import { S, useApp } from "../state/store";
-import { guard, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, style, styleChange, setPrefs } from "../state/app";
+import { S, toast, useApp } from "../state/store";
+import { esc } from "../xlsx/util";
+import { guard, lookChange, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, style, styleChange, setPrefs } from "../state/app";
 import { openInstaller } from "../state/dialogs";
 import { backend, type FileInfo } from "../sync/api";
 import { doExport, type ExportKind } from "../editor/export";
@@ -44,7 +45,7 @@ function OpenMenu() {
 type TKey = "c1" | "c2" | "c3" | "c4" | "a1" | "a2";
 export function ThemePicker() {
   const st = style(), cur = themeOf(st);
-  const th = (patch: Partial<Theme>, coalesce?: string) => styleChange("Colour theme", { theme: patch }, coalesce);
+  const th = (patch: Partial<Theme>, coalesce?: string) => lookChange("Colour theme", { theme: patch }, coalesce);
   const swatch = (t: { c1: string; c2: string; c3: string; c4: string; a1: string }) => <i class="thsw" style={{ background: `linear-gradient(135deg,${t.c1},${t.c2} 40%,${t.c3} 75%,${t.c4})` }}><b style={{ background: t.a1 }} /></i>;
   const custom = () => th({ id: "custom", c1: cur.c1, c2: cur.c2, c3: cur.c3, c4: cur.c4, a1: cur.a1, a2: cur.a2 });
   const pick = (k: TKey, label: string) => <label class="thpick" title={label}><input type="color" data-tk={k} value={cur[k]}
@@ -107,8 +108,13 @@ function Options() {
         <div class="optnote">{"{date}"} = today, {"{workbook}"} = file name, {"{title}"} = slide title. Next to the page number when both are in the same corner.</div>
         <div class="sep" />
         <div class="opthd">Logo</div>
-        <div class="optrow"><label for="logoInput">Logo file (backend folder)</label>
-          <Field id="logoInput" placeholder="logo.png" style="width:150px" value={st.logo} onCommit={v => { S.logoMissing = false; styleChange("Logo", { logo: v.trim() }); }} /></div>
+        <div class="optrow"><label for="logoInput">Logo file</label>
+          <Field id="logoInput" placeholder="logo.png" style="width:150px" value={st.logo} onCommit={v => { S.logoMissing = false; styleChange("Logo", { logo: v.trim() }); }} />
+          <label class="btn" title="Choose the logo picture – it is copied into the Slide Builder folder for everybody">Choose…<input type="file" id="logoFile" hidden accept=".png,.jpg,.jpeg,.gif,.webp,.bmp" onChange={async e => {
+            const t = e.target as HTMLInputElement, f = t.files?.[0]; t.value = ""; if (!f) return;
+            try { const name = await backend.uploadLogo(f.name, await f.arrayBuffer()); S.logoMissing = false; styleChange("Logo", { logo: name }); toast(`Logo <b>${esc(name)}</b> saved in the Slide Builder folder.`); }
+            catch (err) { toast("⚠ " + esc((err as Error).message), [], true); }
+          }} /></label></div>
         <label class="ck big"><input type="checkbox" id="logoBubble" checked={st.logoBubble} onChange={e => styleChange(st.logoBubble ? "Remove logo bubble" : "Logo bubble", { logoBubble: (e.target as HTMLInputElement).checked ? null : false })} /> Bubble around the logo{st.design === "excel" ? " (Liquid Glass)" : ""}</label>
         <div class="optnote">Untick to show the logo on its own, without the glass bubble. Hide the logo on single slides with the Logo button in the toolbar.</div>
         <div class="sep" />
@@ -192,11 +198,11 @@ export function Topbar() {
       <Others />
       <div class="spacer" />
       <div class="seg" title="Slide design (saved with this workbook)">
-        {([["glass", "Liquid Glass", "Light glass surfaces over a coloured background"], ["excel", "Excel", "The tables exactly as in the workbook"], ["clean", "Excel Refined", "The workbook's tables in one consistent, polished style"]] as const).map(([d, l, t]) =>
+        {([["glass", <><span class="lg">Liquid </span>Glass</>, "Liquid Glass: light glass surfaces over a coloured background"], ["excel", "Excel", "Excel: the workbook's tables exactly as they are – nothing added"], ["clean", <><span class="lg">Excel </span>Refined</>, "Excel Refined: the workbook's tables in one consistent, polished style, with comments and text boxes"]] as const).map(([d, l, t]) =>
           <button key={d} data-design={d} disabled={!has} title={t} class={st.design === d ? "on" : ""} onClick={() => styleChange("Design", { design: d })}>{l}</button>)}
       </div>
       <button class="btn" id="themeBtn" disabled={!has} title="Colour theme, your own colours, text styles and fonts – for every design" onClick={() => openFontManager("colors")}>
-        <i class="thdot" style={{ background: `conic-gradient(${themeOf(st).c1},${themeOf(st).c2},${themeOf(st).c3},${themeOf(st).c4},${themeOf(st).c1})` }} />Design…</button>
+        <i class="thdot" style={{ background: `conic-gradient(${themeOf(st).c1},${themeOf(st).c2},${themeOf(st).c3},${themeOf(st).c4},${themeOf(st).c1})` }} /><span class="lbl2">Design…</span></button>
       {st.design === "glass" && <div class="seg" id="glassSeg" title="Strength of the glass effect">
         {(["subtle", "medium", "strong"] as const).map(g => <button key={g} data-glass={g} disabled={!has} class={st.glass === g ? "on" : ""} onClick={() => styleChange("Glass strength", { glass: g })}>{g[0].toUpperCase() + g.slice(1)}</button>)}
       </div>}

@@ -57,12 +57,23 @@ describe("designs and colours", () => {
     expect(o).toContain("background:#5B2C83");
     expect(o).toContain("background:rgba(0,119,182,0.13)");
   });
-  it("pure Excel keeps the workbook's colours unless a colour is overridden", () => {
+  it("Excel is raw: the workbook's colours, whatever the deck's colours say; no text boxes", async () => {
     const pure = renderExcel(table(), ctx({ design: "excel" }));
     expect(pure).toContain("background:#1F4E79"); expect(pure).toContain("background:#00B050");
-    const o = renderExcel(table(), ctx({ design: "excel", colors: { head: "#5B2C83", pos: "#0077B6" } }));
-    expect(o).not.toContain("background:#1F4E79"); expect(o).toContain("background:#5B2C83");
-    expect(o).toContain("background:#0077B6"); expect(o).toContain("background:#FF0000");   // red untouched
+    expect(renderExcel(table(), ctx({ design: "excel", colors: { head: "#5B2C83", pos: "#0077B6" } }))).toBe(pure);
+    const { notesOf } = await import("../src/render/slide");
+    const R: any = { tables: [{ id: "t" }], cfg: { notes: { "t:right": { text: "x" } } } };
+    expect(notesOf(R, 0, ctx({ design: "excel" }))).toEqual({});
+    expect(notesOf(R, 0, ctx({ design: "clean" })).right?.text).toBe("x");
+  });
+  it("each design can have its own colours, text styles and theme over the shared ones", () => {
+    const st = { colors: { accent: "#111111", pos: "#00AA00" }, designs: { clean: { colors: { accent: "#222222" }, text: { title: { font: "Lato" } }, theme: { id: "intesa" } } } } as any;
+    expect(palette(resolveStyle({ ...st, design: "clean" })).accent).toBe("#222222");
+    expect(palette(resolveStyle({ ...st, design: "clean" })).pos).toBe("#00AA00");                 // shared value still applies
+    expect(resolveStyle({ ...st, design: "clean" }).text.title).toEqual({ font: "Lato" });
+    expect(resolveStyle({ ...st, design: "clean" }).theme.id).toBe("intesa");
+    expect(palette(resolveStyle({ ...st, design: "glass" })).accent).toBe("#111111");
+    expect(resolveStyle({ ...st, design: "glass" }).text.title).toBeUndefined();
   });
   it("accent, green/red and background overrides reach every design as CSS variables", () => {
     const v = themeVars(ctx({ design: "glass", colors: { accent: "#AA0000", pos: "#0077B6", bg: "#F5F5F0" } }));

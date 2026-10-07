@@ -1,23 +1,30 @@
 /* Deck style = built-in defaults ← shared defaults (config.json) ← this workbook's style. */
-import type { ColorKey, Footer, PageNumbers, Style, StylePatch, TextFmt, TextRole, Theme } from "./types";
+import type { ColorKey, Look, Footer, PageNumbers, Style, StylePatch, TextFmt, TextRole, Theme } from "./types";
 
 export const BUILTIN_PN: PageNumbers = { on: false, start: 1, pos: "br", font: "auto", size: 16, format: "n", style: "capsule", cover: false };
 export const BUILTIN_FOOTER: Footer = { on: false, text: "", pos: "bl", size: 14, style: "plain", cover: false };
 export const BUILTIN_STYLE: Style = { design: "glass", glass: "subtle", color: 35, logo: "logo.png", pn: BUILTIN_PN, radius: 100, contrast: 50, logoBubble: true, footer: BUILTIN_FOOTER, theme: { id: "aurora", c1: "", c2: "", c3: "", c4: "", a1: "", a2: "" }, text: {}, colors: {} };
 export const TEXT_ROLES: TextRole[] = ["title", "subtitle", "table", "note", "index", "pageno"];
 
+/** the "look" of a deck – theme, colours, text styles – from one layer (shared, or one design's own) */
+function applyLook(s: Style, l: Look) {
+  if (l.theme) for (const [k, v] of Object.entries(l.theme)) if (v !== undefined && v !== null) (s.theme as unknown as Record<string, unknown>)[k] = v;
+  if (l.colors && typeof l.colors === "object") for (const k of COLOR_KEYS.map(x => x.key)) { const v = l.colors[k]; if (typeof v === "string" && HEXC.test(v)) s.colors[k] = v.toUpperCase(); }
+  // text styles: an entry for a kind of text replaces the earlier layer's entry as a whole
+  if (l.text && typeof l.text === "object") for (const r of TEXT_ROLES) { const f = l.text[r]; if (f && typeof f === "object") s.text[r] = cleanFmt(f); }
+}
 export function resolveStyle(...layers: (StylePatch | null | undefined)[]): Style {
   const s: Style = { ...BUILTIN_STYLE, pn: { ...BUILTIN_PN }, footer: { ...BUILTIN_FOOTER }, theme: { ...BUILTIN_STYLE.theme }, text: {}, colors: {} };
   for (const l of layers) {
     if (!l) continue;
     for (const k of ["design", "glass", "color", "logo", "radius", "contrast", "logoBubble"] as const) if (l[k] !== undefined && l[k] !== null) (s as unknown as Record<string, unknown>)[k] = l[k];
     if (l.pn) for (const [k, v] of Object.entries(l.pn)) if (v !== undefined && v !== null) (s.pn as unknown as Record<string, unknown>)[k] = v;
-    if (l.theme) for (const [k, v] of Object.entries(l.theme)) if (v !== undefined && v !== null) (s.theme as unknown as Record<string, unknown>)[k] = v;
     if (l.footer) for (const [k, v] of Object.entries(l.footer)) if (v !== undefined && v !== null) (s.footer as unknown as Record<string, unknown>)[k] = v;
-    // text styles: a deck's entry for a kind of text replaces the shared default's entry as a whole
-    if (l.colors && typeof l.colors === "object") for (const k of COLOR_KEYS.map(x => x.key)) { const v = l.colors[k]; if (typeof v === "string" && HEXC.test(v)) s.colors[k] = v.toUpperCase(); }
-    if (l.text && typeof l.text === "object") for (const r of TEXT_ROLES) { const f = l.text[r]; if (f && typeof f === "object") s.text[r] = cleanFmt(f); }
+    applyLook(s, l);
   }
+  if (s.design !== "excel" && s.design !== "clean") s.design = "glass";
+  // settings made for one design only (Design… › "This design") sit on top of the shared ones
+  for (const l of layers) { const d = l?.designs?.[s.design]; if (d && typeof d === "object") applyLook(s, d); }
   if (s.design !== "excel" && s.design !== "clean") s.design = "glass";
   if (!["subtle", "medium", "strong"].includes(s.glass)) s.glass = "subtle";
   s.color = Math.max(0, Math.min(100, +s.color || 0));
@@ -79,13 +86,13 @@ export function cleanFmt(f: TextFmt): TextFmt {
 export const COLOR_KEYS: { key: ColorKey; name: string; hint: string; designs: ("glass" | "excel" | "clean")[] }[] = [
   { key: "accent", name: "Accent", hint: "titles, cover, contents numbers, rules", designs: ["glass", "excel", "clean"] },
   { key: "bg", name: "Slide background", hint: "behind everything (Liquid Glass: Colour theme)", designs: ["excel", "clean"] },
-  { key: "head", name: "Table header", hint: "header band of the tables", designs: ["excel", "clean"] },
-  { key: "headInk", name: "Header text", hint: "text on the header band", designs: ["excel", "clean"] },
-  { key: "total", name: "Total rows", hint: "background of total rows", designs: ["excel", "clean"] },
-  { key: "totalInk", name: "Total text", hint: "text of total rows", designs: ["excel", "clean"] },
-  { key: "ink", name: "Table text", hint: "numbers and labels", designs: ["glass", "excel", "clean"] },
-  { key: "pos", name: "Positive", hint: "green values / cells", designs: ["glass", "excel", "clean"] },
-  { key: "neg", name: "Negative", hint: "red values / cells", designs: ["glass", "excel", "clean"] },
+  { key: "head", name: "Table header", hint: "header band of the tables", designs: ["clean"] },
+  { key: "headInk", name: "Header text", hint: "text on the header band", designs: ["clean"] },
+  { key: "total", name: "Total rows", hint: "background of total rows", designs: ["clean"] },
+  { key: "totalInk", name: "Total text", hint: "text of total rows", designs: ["clean"] },
+  { key: "ink", name: "Table text", hint: "numbers and labels", designs: ["glass", "clean"] },
+  { key: "pos", name: "Positive", hint: "green values / cells", designs: ["glass", "clean"] },
+  { key: "neg", name: "Negative", hint: "red values / cells", designs: ["glass", "clean"] },
   { key: "stripe", name: "Row stripes", hint: "every other row", designs: ["clean"] },
   { key: "rule", name: "Lines", hint: "row separators", designs: ["clean"] },
 ];

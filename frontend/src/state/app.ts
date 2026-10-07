@@ -256,3 +256,43 @@ export function gotoSlide(i: number) {
   S.cur = i; S.sel = null; emit(); STAGE.render();
 }
 export function setZoom(z: "fit" | number) { S.zoom = z; setPrefs({ zoom: z }); emit(); STAGE.fit(); }
+
+/* ---------------------------------------------------------------- look: theme, colours, text styles
+   Design… edits either the current design only ("design") or all designs ("all"). Writing for all designs
+   also removes that setting from each design's own settings, so it really applies everywhere. */
+export const LOOK = { scope: "design" as "design" | "all" };
+type LookPart = { theme?: Record<string, unknown> | null; colors?: Record<string, unknown> | null; text?: Record<string, unknown> | null };
+const mergeMap = (cur: Record<string, unknown> | undefined, patch: Record<string, unknown> | null) => {
+  if (patch === null) return null;
+  const out: Record<string, unknown> = { ...(cur || {}) };
+  for (const [k, v] of Object.entries(patch)) { if (v === null || v === undefined) delete out[k]; else out[k] = v; }
+  return Object.keys(out).length ? out : null;
+};
+export function lookChange(label: string, part: LookPart, coalesce?: string) {
+  const st = S.sync?.view.style || {}, d = style().design, designs = (st.designs || {}) as Record<string, Record<string, Record<string, unknown> | undefined>>;
+  if (LOOK.scope === "design") {
+    const cur = designs[d] || {}, next: Record<string, unknown> = { ...cur };
+    for (const k of ["theme", "colors", "text"] as const) if (k in part) { const m = mergeMap(cur[k], part[k]!); if (m) next[k] = m; else delete next[k]; }
+    styleChange(label, { designs: { [d]: Object.keys(next).length ? next : null } } as never, coalesce);
+    return;
+  }
+  // all designs: the shared setting, and the same keys taken out of every design's own settings
+  const dpatch: Record<string, unknown> = {};
+  for (const [dn, entry] of Object.entries(designs)) {
+    if (!entry) continue;
+    const next: Record<string, unknown> = { ...entry };
+    for (const k of ["theme", "colors", "text"] as const) if (k in part && entry[k]) {
+      const keys = part[k] === null ? Object.keys(entry[k]!) : Object.keys(part[k]!);
+      const m = { ...entry[k] }; keys.forEach(x => delete (m as Record<string, unknown>)[x]);
+      if (Object.keys(m).length) next[k] = m; else delete next[k];
+    }
+    if (JSON.stringify(next) !== JSON.stringify(entry)) dpatch[dn] = Object.keys(next).length ? next : null;
+  }
+  styleChange(label, { ...part, ...(Object.keys(dpatch).length ? { designs: dpatch } : {}) } as never, coalesce);
+}
+/** the look set at the current scope (to show what can be reset there) */
+export function lookAt(): { theme?: Record<string, unknown>; colors?: Record<string, string>; text?: Record<string, unknown> } {
+  const st = (S.sync?.view.style || {}) as Record<string, unknown>;
+  if (LOOK.scope === "all") return st as never;
+  return ((st.designs as Record<string, unknown> | undefined)?.[style().design] || {}) as never;
+}

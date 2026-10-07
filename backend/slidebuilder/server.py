@@ -28,7 +28,7 @@ from .fonts import FONT_MAX, FontError, add_face, font_file, read_library, remov
 from .installer import install_status, start_install
 from .locks import LockTimeout
 from .store import StoreTooNew, StoreUnreadable
-from .util import WriteFailed, current_host, current_user, log, open_with_os, safe_path, valid_workbook_name
+from .util import WriteFailed, current_host, current_user, log, open_with_os, safe_component, safe_path, valid_workbook_name, write_atomic
 from .workbooks import Unstable, find_workbook, list_workbooks, stable_read
 
 JSON_LIMIT = 2 * 1024 * 1024
@@ -78,6 +78,35 @@ def timing_header():
     if t.get("fs_ops") is not None:
         parts.append("fs_ops=%d" % t["fs_ops"])
     return {"X-SB-Timing": ";".join(parts)}
+
+
+LOGO_MAX = 10 * 1024 * 1024
+
+
+def asset_dirs():
+    """where pictures such as the logo are looked for: data/assets (chosen in the app), backend, the main folder"""
+    return [paths.data_dir("assets"), paths.BACKEND, paths.ROOT]
+
+
+def find_asset(name):
+    """the file for an asset name: exact, then by file name only (\"backend\\logo.png\" works too), then ignoring
+    upper/lower case (a file copied as LOGO.PNG on a share); None when there is none"""
+    base = os.path.basename(name.replace("\\", "/"))
+    for d in asset_dirs():
+        for cand in (name, base):
+            try:
+                p = safe_path(cand, d)
+            except PermissionError:
+                continue
+            if os.path.isfile(p):
+                return p
+        try:
+            hit = next((n for n in os.listdir(d) if n.lower() == base.lower()), None)
+        except OSError:
+            hit = None
+        if hit and os.path.isfile(os.path.join(d, hit)):
+            return os.path.join(d, hit)
+    return None
 
 
 class HttpError(Exception):
@@ -331,10 +360,8 @@ class Handler(BaseHTTPRequestHandler):
         ext = os.path.splitext(name)[1].lower()
         if ext not in IMAGE_EXT:
             raise PermissionError("not an image")
-        p = safe_path(name, paths.BACKEND)
-        if not os.path.isfile(p):
-            p = safe_path(name, paths.ROOT)
-        if not os.path.isfile(p):
+        p = find_asset(name)
+        if not p:
             raise FileNotFoundError(name)
         with open(p, "rb") as f:
             data = f.read()
@@ -439,6 +466,17 @@ class Handler(BaseHTTPRequestHandler):
                     raise FileNotFoundError(req["name"])
             open_with_os(target)
             return self._send(200, {"ok": True})
+        if path == "/api/logo":                          # a picture chosen in the app: kept in data/assets for everybody
+            name = os.path.basename((q.get("name") or [""])[0].replace("\\", "/")).strip()
+            ext = os.path.splitext(name)[1].lower()
+            if ext not in IMAGE_EXT or ext == ".svg":
+                raise HttpError(400, "choose a PNG, JPG, GIF, WEBP or BMP picture")
+            data = self._body(LOGO_MAX)
+            if not data:
+                raise HttpError(400, "the picture is empty")
+            safe = safe_component(name, 80)
+            write_atomic(os.path.join(paths.data_dir("assets"), safe), data)
+            return self._send(200, {"name": safe})
         if path == "/api/fonts":                         # one font file; family/weight/style in the query
             one = lambda k, d=None: (q.get(k) or [d])[0]
             return self._send(200, add_face(one("family"), one("weight", "400"), one("style", "normal"), self._body(FONT_MAX),

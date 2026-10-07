@@ -43,6 +43,8 @@ export interface Backend {
   addFont(f: { family: string; weight: number; style: "normal" | "italic"; source: "upload" | "google"; name: string; range?: string }, data: ArrayBuffer): Promise<LibraryFont[]>;
   removeFont(family: string): Promise<LibraryFont[]>;
   fontUrl(file: string): string;
+  /** copies a picture into the shared folder (data/assets); returns the name to use */
+  uploadLogo(name: string, data: ArrayBuffer): Promise<string>;
 }
 
 const TOKEN = (document.querySelector('meta[name="sb-token"]') as HTMLMetaElement | null)?.content || "";
@@ -112,6 +114,7 @@ export const helper: Backend = {
   },
   async removeFont(family) { return (await json<{ fonts: LibraryFont[] }>(req("/api/fonts?family=" + encodeURIComponent(family), { method: "DELETE" }))).fonts || []; },
   fontUrl: file => "/fonts/" + encodeURIComponent(file) + "?t=" + encodeURIComponent(TOKEN),
+  async uploadLogo(name, data) { return (await json<{ name: string }>(req("/api/logo?name=" + encodeURIComponent(name), { method: "POST", body: data }))).name; },
 };
 
 /* ---- opened from disk: everything stays in this browser ---- */
@@ -160,5 +163,6 @@ export const offline: Backend = {
   },
   async removeFont(family) { const lib = LS.get<LibraryFont[]>("fonts", []).filter(x => x.family.toLowerCase() !== family.toLowerCase()); LS.set("fonts", lib); return lib; },
   fontUrl: file => file,
+  uploadLogo: offlineOnly,
 };
 export const backend: Backend = SERVED ? helper : offline;

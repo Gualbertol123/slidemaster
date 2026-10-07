@@ -75,3 +75,21 @@ class FontLibrary(test_http.HttpBase):
         self.assertEqual(st, 403)
         st, _ = self.jreq("DELETE", "/api/fonts?family=X", headers={"X-SB-Formats": "workbook=99;config=3;prefs=1"})
         self.assertEqual(st, 409)
+
+
+class LogoFiles(test_http.HttpBase):
+    def test_logo_found_by_name_case_and_folder_and_uploaded(self):
+        from sbtest import make_png
+        png = make_png()
+        with open(os.path.join(paths.ROOT, "Logo.PNG"), "wb") as f:
+            f.write(png)
+        for name in ("logo.png", "Logo.PNG", "backend/logo.png"):         # other case, a folder typed in the name
+            st, h, data = self.req("GET", "/assets/" + urllib.parse.quote(name))
+            self.assertEqual((st, data), (200, png), name)
+        self.assertEqual(self.req("GET", "/assets/other.png")[0], 404)
+        st, body = self.jreq("POST", "/api/logo?name=" + urllib.parse.quote("brand logo.png"), png, headers={"Content-Type": "application/octet-stream"})
+        self.assertEqual((st, body), (200, {"name": "brand_logo.png"}))
+        self.assertTrue(os.path.isfile(os.path.join(paths.DATA, "assets", "brand_logo.png")))
+        self.assertEqual(self.req("GET", "/assets/brand_logo.png")[2], png)
+        self.assertEqual(self.jreq("POST", "/api/logo?name=x.svg", b"<svg/>", headers={"Content-Type": "application/octet-stream"})[0], 400)
+        self.assertEqual(self.jreq("POST", "/api/logo?name=x.png", b"", token=False, headers={"Content-Type": "application/octet-stream"})[0], 403)
