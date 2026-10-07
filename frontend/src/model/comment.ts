@@ -30,6 +30,8 @@ export interface CommentCfg {
   kinds?: Group["kind"][];
   /** more tables of the same slide covered by this comment (table ids) */
   tables?: string[];
+  /** false = no title line / no bold name at the start of each paragraph / no bullet points */
+  showTitle?: boolean; names?: boolean; bullets?: boolean;
 }
 export const DEFAULT_COMMENT: CommentCfg = { groups: [], top: 2, noun: "country", detail: "full", share: true, breadth: true, missing: true, mode: "summary" };
 export const SUMMARY_KINDS: Group["kind"][] = ["week", "target", "month"];
@@ -258,7 +260,11 @@ export function writeSummary(parts: SummaryPart[], cfg: CommentCfg, title: strin
       const abs = b.head ? num(cell(b.head.r, g.abs)) : `[[${t > 0 ? "+" : ""}${fmtPlain(t)}]]`, pct = b.head ? num(cell(b.head.r, g.pct)) : "";
       return `${abs}${pct && g.kind === "week" ? ` (${pct})` : ""} ${SHORT_VS[g.kind]!(g)}`;
     }).filter(Boolean);
-    let txt = `**${name}**: ${facts.join(" · ")}.`;
+    // the block's name leads its paragraph – unless switched off, or it would only repeat the title
+    const repeat = cfg.showTitle !== false && blocks.length === 1 && name.trim().toLowerCase() === title.trim().toLowerCase();
+    const lead = cfg.names === false || repeat ? "" : `**${name}**: `;
+    let txt = `${lead}${facts.join(" · ")}.`;
+    txt = txt.charAt(0).toUpperCase() + txt.slice(1);
     // the week (or the first comparison): how good, who drives it, who offsets it
     const main = groups[0], mt = totOf(main) || 0;
     const contrib = rows.map(e => ({ e, x: v(e.r, main) })).filter((c): c is { e: Row; x: number } => c.x !== null && c.x !== 0);
@@ -293,4 +299,12 @@ export function writeSummary(parts: SummaryPart[], cfg: CommentCfg, title: strin
   }
   if (!lines.length) return "# " + title + "\nNo comparison columns (e.g. “Δ vs. Prev. Week”, “Δ vs. Budget”) were found.";
   return ["# " + title, ...lines.flatMap((l, i) => i ? ["", l] : [l])].join("\n");
+}
+
+/** the comment's layout options, for both kinds of comment: title line and bullet points */
+export function shapeComment(text: string, cfg: CommentCfg): string {
+  let lines = text.split("\n");
+  if (cfg.showTitle === false) { lines = lines.filter(l => !l.startsWith("# ")); while (lines[0] === "") lines.shift(); }
+  if (cfg.bullets === false) lines = lines.map(l => l.replace(/^• /, ""));
+  return lines.join("\n");
 }

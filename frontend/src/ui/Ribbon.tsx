@@ -76,6 +76,16 @@ export function Ribbon() {
         {(["left", "center", "right"] as const).map(a => <button key={a} {...tb({ "data-align": a, title: a === "center" ? "Centre" : "Align " + a, active: f?.align === a })} onClick={() => t?.apply("Alignment", { align: a })}>
           <svg viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.6"><path d={ALIGN_ICON[a]} /></svg></button>)}
         <button {...tb({ "data-align": "auto", title: cells ? "Alignment from Excel" : "Alignment of the design", style: "font-size:11px", active: has && !f?.align })} onClick={() => t?.apply("Alignment", { align: null })}>Auto</button>
+        <Dropdown button={(_o, tg) => <button class="tb" id="spacingBtn" disabled={!t?.can.spacing} title={t?.can.spacing ? "Line and paragraph spacing" : "Line spacing – for text boxes"} onClick={tg}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 3.5h7M7 8h7M7 12.5h7" /><path d="M3 2v12M1.5 3.5 3 2l1.5 1.5M1.5 12.5 3 14l1.5-1.5" /></svg></button>}>
+          {close => t ? <div class="spacemenu">
+            <div class="hd">Line spacing</div>
+            <div class="row">{[1, 1.15, 1.3, 1.5, 1.75, 2].map(v => <button key={v} data-lh={v} class={(f?.lh ?? 1.28) === v ? "picked" : ""} onClick={() => { close(); t.apply("Line spacing", { lh: v }); }}>{v.toFixed(v % 1 ? 2 : 1).replace(/0$/, "")}</button>)}</div>
+            <div class="hd">Space between paragraphs</div>
+            <div class="row">{([[0, "None"], [.5, "Small"], [1, "Medium"], [1.5, "Large"]] as const).map(([v, l]) => <button key={v} data-pgap={v} class={f?.pgap === v ? "picked" : ""} onClick={() => { close(); t.apply("Paragraph spacing", { pgap: v }); }}>{l}</button>)}</div>
+            <div class="wide"><button onClick={() => { close(); t.apply("Spacing of the design", { lh: null, pgap: null }); }}>As designed</button></div>
+          </div> : null}
+        </Dropdown>
         {(["top", "middle", "bottom"] as const).map(v => <button key={v} {...tb({ "data-valign": v, off: !t?.can.valign, title: t?.can.valign ? "Text at the " + v : "Vertical position – for text boxes", active: f?.valign === v })}
           onClick={() => t?.apply("Vertical alignment", { valign: f?.valign === v ? null : v })}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d={VALIGN_ICON[v]} /></svg></button>)}
       </div>

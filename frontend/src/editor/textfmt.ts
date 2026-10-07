@@ -13,15 +13,15 @@ import { applySel, curSlide, selItems } from "./edit";
 export type Align = "left" | "center" | "right";
 export type VAlign = "top" | "middle" | "bottom";
 /** current formatting of the target; null = not set / mixed */
-export interface Shown { font: string | null; pt: number | null; b: boolean; i: boolean; color: string | null; align: Align | null; valign: VAlign | null }
-export interface FmtPatch { font?: string | null; pt?: number | null; b?: boolean; i?: boolean; color?: string | null; align?: Align | null; valign?: VAlign | null }
+export interface Shown { font: string | null; pt: number | null; b: boolean; i: boolean; color: string | null; align: Align | null; valign: VAlign | null; lh?: number | null; pgap?: number | null }
+export interface FmtPatch { lh?: number | null; pgap?: number | null; font?: string | null; pt?: number | null; b?: boolean; i?: boolean; color?: string | null; align?: Align | null; valign?: VAlign | null }
 export interface TextTarget {
   kind: "cells" | "note" | "slide";
   /** what the controls act on, e.g. "Cells B4:D9", "Text box", "Title" */
   label: string;
   shown: Shown;
   /** controls that do not apply to this kind of text */
-  can: { valign: boolean; fill: boolean };
+  can: { valign: boolean; fill: boolean; spacing?: boolean };
   apply(label: string, p: FmtPatch): void;
   clear(): void;
 }
@@ -70,10 +70,10 @@ function slideTarget(key: SlideTextKey): TextTarget | null {
 function noteTarget(key: string): TextTarget | null {
   const R = curSlide(), cur = R?.cfg.notes?.[key]; if (!R || !cur) return null;
   const e = effNote(ctx(), cur);
-  const shown: Shown = { font: e.font || null, pt: px2pt(e.size || 18), b: !!e.b, i: !!e.i, color: e.color || null, align: e.align || null, valign: e.valign || null };
+  const shown: Shown = { font: e.font || null, pt: px2pt(e.size || 18), b: !!e.b, i: !!e.i, color: e.color || null, align: e.align || null, valign: e.valign || null, lh: e.lh ?? null, pgap: e.pgap ?? null };
   const write = (label: string, next: Note) => change(label, [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: next } } } as Op]);
   return {
-    kind: "note", label: "Text box", shown, can: { valign: true, fill: false },
+    kind: "note", label: "Text box", shown, can: { valign: true, fill: false, spacing: true },
     apply(label, p) {
       const next: Note = { ...cur };
       const set = <K extends keyof Note>(k: K, v: Note[K] | null | undefined) => { if (v === null || v === undefined || v === "") delete next[k]; else next[k] = v; };
@@ -84,6 +84,8 @@ function noteTarget(key: string): TextTarget | null {
       if ("color" in p) set("color", p.color);
       if ("align" in p) set("align", p.align);
       if ("valign" in p) set("valign", p.valign);
+      if ("lh" in p) set("lh", p.lh);
+      if ("pgap" in p) set("pgap", p.pgap);
       write(label, next);
     },
     clear() { write("Clear formatting", { text: cur.text, ...(cur.bubble ? { bubble: true } : {}), ...(cur.w ? { w: cur.w } : {}), ...(cur.h ? { h: cur.h } : {}) }); },

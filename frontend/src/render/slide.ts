@@ -64,7 +64,7 @@ export function notesOf(R: RuntimeSlide, i: number, ctx?: RenderCtx): Partial<Re
   return out;
 }
 /** height of a text box above/below a table: explicit, or from its lines (wrapping is handled by shrinking the font) */
-const noteH = (n: Note) => n.h || Math.max(30, Math.max(1, String(n.text || "").split("\n").length) * (n.size || 18) * 1.3 + 12) + (n.bubble ? 20 : 0);
+const noteH = (n: Note) => n.h || Math.max(30, Math.max(1, String(n.text || "").split("\n").length) * (n.size || 18) * (n.lh || 1.28) + 12) + (n.bubble ? 20 : 0);
 const noteW = (n: Note) => n.w || NOTE_W;
 
 /** Tables (plus their text boxes) in bands. k = largest scale ≤ MAXK that fits the content area – or the
@@ -200,12 +200,12 @@ export function buildSlide(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: S
       const n = ns[side]; if (!n) continue;
       const txt = String(n.text || "");
       if (!txt.trim() && !opts.interactive) continue;
-      const st = [`font-size:${n.size || 18}px`, fmtCss({ font: n.font, b: n.b || undefined, i: n.i || undefined, color: n.color }, { size: false, align: false }), `text-align:${n.align || (side === "left" ? "right" : "left")}`,
+      const st = [`font-size:${n.size || 18}px`, fmtCss({ font: n.font, b: n.b || undefined, i: n.i || undefined, color: n.color }, { size: false, align: false }), `text-align:${n.align || (side === "left" ? "right" : "left")}`, n.lh ? `line-height:${n.lh}` : "", n.pgap != null ? `--pgap:${n.pgap}em` : "",
         n.valign ? `justify-content:${n.valign === "top" ? "flex-start" : n.valign === "middle" ? "center" : "flex-end"}` : ""].filter(Boolean).join(";");
       // a bubble behind the text: a glass card like the tables' (Liquid Glass) or a framed box (Excel)
       if (n.bubble && txt.trim()) h += glassy ? `<div class="gls wb card notebub" data-i="${i}" data-side="${side}" style="border-radius:${Math.round(22 * rk)}px"></div>`
         : `<div class="notebub x" data-i="${i}" data-side="${side}" style="border-radius:${Math.round(8 * rk)}px"></div>`;
-      h += `<div class="tnote ${side}${n.bubble ? " bub" : ""}${n.auto ? " auto" : ""}${n.x != null && n.y != null ? " free" : ""}${txt.trim() ? "" : " empty"}" data-note="${esc(noteKey(R, i, side))}" data-i="${i}" data-side="${side}" style="${st}">${!txt.trim() ? "Double-click to write" : hasMarkup(txt) ? richText(txt) : esc(txt)}</div>`;
+      h += `<div class="tnote ${side}${n.bubble ? " bub" : ""}${n.auto ? " auto" : ""}${n.x != null && n.y != null ? " free" : ""}${txt.trim() ? "" : " empty"}" data-note="${esc(noteKey(R, i, side))}" data-i="${i}" data-side="${side}" style="${st}">${!txt.trim() ? "Double-click to write" : hasMarkup(txt) || n.pgap != null ? richText(txt) : esc(txt)}</div>`;
     }
   });
   if (opts.interactive) h += R.tables.map((t, i) => `<div class="hbox" data-i="${i}"><div class="grip" title="Drag to move this table">⠿ ${esc(tableName(t, ctx.preset))}</div><div class="size" title="Drag to resize (keeps the proportions)"></div>${(["l", "r", "t", "b"] as const).map(e => `<div class="edge ${e}" data-edge="${e}" title="Drag to make the table ${e === "l" || e === "r" ? "wider or narrower" : "taller or shorter"}"></div>`).join("")}${SIDES.map(sd => `<button class="addnote ${sd}" data-side="${sd}" title="Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd}">+</button>`).join("")}</div>`).join("") + `<div class="dropmark"></div>`;

@@ -5,7 +5,7 @@ import type { TableLayout } from "../xlsx/types";
 import type { RenderCtx } from "./context";
 import { tableKey } from "./context";
 import { cache, effItems } from "./edits";
-import { analyse, cleanHead, parseNum, writeComment, writeSummary, type Analysis, type CommentCfg, type Grid } from "../model/comment";
+import { analyse, cleanHead, parseNum, shapeComment, writeComment, writeSummary, type Analysis, type CommentCfg, type Grid } from "../model/comment";
 import type { RuntimeSlide } from "../model/types";
 import { tableName } from "../model/preset";
 
@@ -31,10 +31,10 @@ export function commentTables(R: RuntimeSlide, L: TableLayout, cfg: CommentCfg):
   return [L, ...more];
 }
 export function commentText(L: TableLayout, cfg: CommentCfg, ctx: RenderCtx, R?: RuntimeSlide): string {
-  if ((cfg.mode ?? "sections") === "sections") return writeComment(analysisOf(L, ctx), cfg, tableName(L, ctx.preset));
+  if ((cfg.mode ?? "sections") === "sections") return shapeComment(writeComment(analysisOf(L, ctx), cfg, tableName(L, ctx.preset)), cfg);
   const tables = R ? commentTables(R, L, cfg) : [L];
   const parts = tables.map(T => ({ a: analysisOf(T, ctx), name: cleanHead(tableName(T, ctx.preset).replace(/\s*·.*$/, "")) }));
   const blocks = parts.reduce((n, p) => n + p.a.blocks.length, 0);
   const title = (cfg.title || "").trim() || (blocks > 1 && R ? R.title : parts[0].a.blocks[0]?.head ? cleanHead(parts[0].a.blocks[0].head!.label) : parts[0].name);
-  return writeSummary(parts, cfg, title);
+  return shapeComment(writeSummary(parts, cfg, title), cfg);
 }

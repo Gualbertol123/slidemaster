@@ -189,7 +189,8 @@
 .slide.excel .tnote .nt{color:var(--x1,#1C4F8C)}
 .slide .tnote .nh{font-weight:700;line-height:1.25;color:var(--a1,#3B82F6)}
 .slide.excel .tnote .nh{color:#2F75B5}
-.slide .tnote .gap{height:.5em}
+.slide .tnote .gap{height:var(--pgap,.5em)}
+.slide .tnote:not(.auto) .np + .np{margin-top:var(--pgap,0em)}
 .slide .tnote .up{color:#1F9D55;font-weight:700}
 .slide .tnote .down{color:#D92D20;font-weight:700}
 .slide .tnote .flat{font-weight:700}

@@ -90,6 +90,10 @@ This README is the map. Deeper documents:
   comparison headers – each with its own title and numbers.
 * Comments are **live**: they are stored as settings and rewritten from the numbers whenever the workbook
   (or a cell on the slide) changes. Editing a comment's text by hand turns it into fixed text.
+* Comment **Layout** options: title on/off, the name at the start of each paragraph on/off (never repeated
+  when it would only echo the title), bullet points on/off.
+* **Spacing** (text toolbar, text boxes): line spacing 1 – 2 and space between paragraphs; a deck-wide line
+  spacing for all text boxes is in Design… › Text styles.
 * The **+** buttons around a table (and the arrows in the toolbar) put a text box there at once, ready to type.
 * **Drag a text box by its body to place it anywhere** – e.g. below one table and beside another of a
   different size. It snaps (left/right and top/bottom edges) to tables, other boxes and the content area, with

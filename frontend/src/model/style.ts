@@ -69,6 +69,7 @@ export function cleanFmt(f: TextFmt): TextFmt {
   if (typeof f.i === "boolean") o.i = f.i;
   if (typeof f.color === "string" && HEXC.test(f.color)) o.color = f.color;
   if (f.align === "left" || f.align === "center" || f.align === "right") o.align = f.align;
+  if (isFinite(+(f.lh as number)) && +(f.lh as number) > 0) o.lh = Math.max(.8, Math.min(3, +(f.lh as number)));
   return o;
 }
 

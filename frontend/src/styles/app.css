@@ -103,7 +103,7 @@ body.painting .slide .hits{cursor:copy}
 .dlg.tsdlg{width:min(960px,96vw)}
 .tsdlg .tabs{margin:0 18px 8px;align-self:flex-start}
 .tsgrid{display:flex;flex-direction:column;gap:2px}
-.tsrow{display:grid;grid-template-columns:minmax(170px,1fr) 176px 84px 30px 30px 74px 104px auto;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.tsrow{display:grid;grid-template-columns:minmax(150px,1fr) 176px 84px 30px 30px 74px 104px 96px auto;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
 .tsrow:last-child{border-bottom:0}
 .tsname{display:flex;flex-direction:column;min-width:0}
 .tsname b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -189,3 +189,7 @@ body.painting .slide .hits{cursor:copy}
 #stage .slide .tnote.sel{box-shadow:inset 0 0 0 1px rgba(10,102,216,.25)}
 #stage .slide .tnote:not(.empty){cursor:move}
 #stage .slide .tnote.moving{opacity:.9;box-shadow:0 10px 28px -10px rgba(10,30,80,.35)}
+.spacemenu{padding:2px 4px 4px;min-width:250px}
+.spacemenu .row{display:flex;gap:4px;padding:2px 6px 8px}
+.menu .spacemenu .row button{width:auto;flex:1;justify-content:center;border:1px solid var(--line);padding:5px 4px;font-size:12px}
+.cmtchecks.row3{flex-direction:row;flex-wrap:wrap;gap:6px 16px}

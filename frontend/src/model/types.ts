@@ -13,12 +13,13 @@ export type SlideType = "cover" | "index" | "content";
 export type Side = "top" | "bottom" | "left" | "right";
 /** text box next to a table; key in SlideDef.notes = "<tableId>:<side>" */
 /** formatting of one piece of slide text (titles, cover texts, text boxes, deck text styles); size in slide px */
-export interface TextFmt { font?: string; size?: number; b?: boolean; i?: boolean; color?: string; align?: "left" | "center" | "right" }
+export interface TextFmt { font?: string; size?: number; b?: boolean; i?: boolean; color?: string; align?: "left" | "center" | "right";
+  /** line spacing (1 = single) */ lh?: number }
 /** deck-wide text styles: one per kind of text, so all text of a kind is edited in one place */
 export type TextRole = "title" | "subtitle" | "table" | "note" | "index" | "pageno";
 /** slide texts that can be formatted one by one (stored in SlideDef.fmt) */
 export type SlideTextKey = "title" | "subtitle" | "note" | "date";
-export interface Note { text: string; font?: string; size?: number; b?: boolean; i?: boolean; align?: "left" | "center" | "right"; valign?: "top" | "middle" | "bottom"; color?: string; w?: number; h?: number;
+export interface Note { text: string; font?: string; size?: number; /** line spacing (1 = single) */ lh?: number; /** space between paragraphs, in lines */ pgap?: number; b?: boolean; i?: boolean; align?: "left" | "center" | "right"; valign?: "top" | "middle" | "bottom"; color?: string; w?: number; h?: number;
   /** draw the text box as a card (glass bubble / Excel-style box) */ bubble?: boolean;
   /** placed freely on the slide at x/y (slide px) after being moved; unset = next to its table */ x?: number; y?: number;
   /** left/right box only: a column beside ALL the tables of the slide, as tall as all of them */ span?: boolean;

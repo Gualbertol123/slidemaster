@@ -16,7 +16,7 @@ export function slideTextFmt(ctx: RenderCtx, R: RuntimeSlide, key: SlideTextKey)
 /** a text box's format: the deck's text box style, then the box's own settings */
 export function effNote(ctx: RenderCtx, n: Note): Note {
   const d = deckFmt(ctx, "note");
-  return { ...defined({ font: d.font, size: d.size, b: d.b, i: d.i, color: d.color, align: d.align }), ...defined(n) } as Note;
+  return { ...defined({ font: d.font, size: d.size, b: d.b, i: d.i, color: d.color, align: d.align, lh: d.lh }), ...defined(n) } as Note;
 }
 function defined<T extends object>(o: T): Partial<T> {
   const out: Partial<T> = {};
@@ -33,6 +33,7 @@ export function fmtCss(f: TextFmt, opts: { size?: boolean; align?: boolean } = {
   if (f.i !== undefined) st.push(`font-style:${f.i ? "italic" : "normal"}`);
   if (f.color) st.push(`color:${f.color}`);
   if (opts.align !== false && f.align) st.push(`text-align:${f.align}`);
+  if (f.lh) st.push(`line-height:${+f.lh}`);
   return st.map(x => x.replace(/"/g, "'")).join(";");      // used inside style="…"
 }
 

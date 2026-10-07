@@ -109,6 +109,12 @@ export function CommentDialog() {
             <div class="opthd">Sections</div>
             {!a.groups.length && <div class="optnote">No comparison columns found. Comments need headers like “Δ vs. Budget”, “vs. Prev. Week”, “Var. YoY”, with Abs. and/or % columns.</div>}
             <div class="cmtchecks" id="cmtGroups">{a.groups.map(g => <label key={g.id} class="ck"><input type="checkbox" data-group={g.id} checked={groups.includes(g.id)} disabled={g.abs === null} onChange={e => toggleGroup(g.id, (e.target as HTMLInputElement).checked)} />{headingOf(g)}</label>)}</div></>}
+            <div class="opthd">Layout</div>
+            <div class="cmtchecks row3" id="cmtShape">
+              <label class="ck"><input type="checkbox" data-shape="title" checked={cfg.showTitle !== false} onChange={e => set({ showTitle: (e.target as HTMLInputElement).checked ? undefined : false })} />Title</label>
+              {summary && <label class="ck"><input type="checkbox" data-shape="names" checked={cfg.names !== false} onChange={e => set({ names: (e.target as HTMLInputElement).checked ? undefined : false })} />Name at the start of each paragraph</label>}
+              <label class="ck"><input type="checkbox" data-shape="bullets" checked={cfg.bullets !== false} onChange={e => set({ bullets: (e.target as HTMLInputElement).checked ? undefined : false })} />Bullet points</label>
+            </div>
             <div class="opthd">Content</div>
             <div class="cmtgrid">
               <label>Length</label><div class="seg small">{(["full", "short"] as const).map(d => <button key={d} class={cfg.detail === d ? "on" : ""} onClick={() => set({ detail: d })}>{d === "full" ? (summary ? "With plan drivers" : "Full analysis") : "Short"}</button>)}</div>

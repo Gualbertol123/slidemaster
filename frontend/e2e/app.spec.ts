@@ -363,6 +363,9 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(prev).toContainText("vs EoM Aug");
     await expect(prev).not.toContainText("25/09/26");                                     // no dates
     await expect(prev).toContainText(/(Strong|Solid|Slightly positive|Weak|Slightly negative|Flat|Positive|Negative) week|weekly decline/);
+    await page.locator('#cmtShape [data-shape="bullets"]').uncheck();
+    await expect(prev).not.toContainText("•");
+    await page.locator('#cmtShape [data-shape="bullets"]').check();
     await page.locator('#cmtKinds [data-kind="month"]').uncheck();
     await expect(prev).not.toContainText("vs EoM");
     await page.click("#cmtInsert");
@@ -402,6 +405,12 @@ test.describe.serial("two people, one shared folder", () => {
     await page.keyboard.type("Source: ECB"); await page.keyboard.press("Control+Enter");
     const box = page.locator("#stage .tnote", { hasText: "Source: ECB" });
     await expect(box).toBeVisible();
+    // line and paragraph spacing
+    await box.click();
+    await page.click("#spacingBtn"); await page.click('.spacemenu [data-lh="1.5"]');
+    await page.click("#spacingBtn"); await page.click('.spacemenu [data-pgap="1"]');
+    await expect.poll(() => { const n: any = Object.values(notes()).find((x: any) => x.text === "Source: ECB"); return n && [n.lh, n.pgap]; }, { timeout: 10_000 }).toEqual([1.5, 1]);
+    await expect(box).toHaveCSS("line-height", /px/);
     // drag it by its body: it becomes free and stays where it was dropped
     const b = (await box.boundingBox())!;
     await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();

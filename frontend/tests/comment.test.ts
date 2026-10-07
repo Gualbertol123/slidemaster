@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyse, defaultGroups, parseNum, signatureOf, writeComment, writeSummary, DEFAULT_COMMENT, type Grid } from "../src/model/comment";
+import { analyse, defaultGroups, parseNum, shapeComment, signatureOf, writeComment, writeSummary, DEFAULT_COMMENT, type Grid } from "../src/model/comment";
 
 /* the weekly loans table: merged group headers over Abs./% columns, a total row, entities, empty budget cells */
 const H1 = ["(mln Euro at last fixed exchange rate)", "Week37", "Week38", "Week39", "Eom Budget", "Δ vs. Budget", "Δ vs. Budget", "Δ vs. Prev. Week", "Δ vs. Prev. Week", "Δ vs. BoY", "Δ vs. BoY"];
@@ -99,5 +99,18 @@ describe("summary comments", () => {
     expect(t).toContain("The week closes 33% of the gap to Budget.");
     expect(t).toContain("• **Total Banks Loans**:");                       // the second table's block
     expect(t.split("\n").filter(l => l.startsWith("•")).length).toBe(3);
+  });
+});
+
+describe("comment layout options", () => {
+  it("a single block does not repeat the title; title, names and bullets can be switched off", () => {
+    const one = writeSummary([{ a: analyse(grid()), name: "Banks" }], DEFAULT_COMMENT, "Total Banks Loans");
+    expect(one.split("\n")[0]).toBe("# Total Banks Loans");
+    expect(one.split("\n")[1]).toMatch(/^• \[\[\+101\]\]/);                                  // straight to the numbers
+    const two = writeSummary([{ a: analyse(subGrid()), name: "Loans" }], { ...DEFAULT_COMMENT, names: false }, "Loans");
+    expect(two).not.toContain("**Retail Loans**:");
+    const bare = shapeComment(two, { ...DEFAULT_COMMENT, showTitle: false, bullets: false });
+    expect(bare.startsWith("[[+101]]")).toBe(true);
+    expect(bare).not.toMatch(/^# |^• /m);
   });
 });

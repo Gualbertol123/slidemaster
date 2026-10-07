@@ -16,12 +16,12 @@ import { esc } from "../xlsx/util";
 import { Field } from "./Field";
 import { FontPicker } from "./FontPicker";
 
-type Cap = "size" | "b" | "i" | "color" | "align";
+type Cap = "size" | "b" | "i" | "color" | "align" | "lh";
 const ROLES: { role: TextRole; name: string; hint: string; caps: Cap[] }[] = [
   { role: "title", name: "Slide titles", hint: "every slide; the cover title keeps its automatic size", caps: ["size", "b", "i", "color", "align"] },
   { role: "subtitle", name: "Subtitles", hint: "under the titles, and on the cover", caps: ["size", "b", "i", "color", "align"] },
   { role: "table", name: "Tables", hint: "all cells; sizes, bold and colours stay as in Excel or as you set them", caps: [] },
-  { role: "note", name: "Text boxes", hint: "next to the tables", caps: ["size", "b", "i", "color", "align"] },
+  { role: "note", name: "Text boxes", hint: "next to the tables · line spacing", caps: ["size", "b", "i", "color", "align", "lh"] },
   { role: "index", name: "Contents list", hint: "entries of the index slide", caps: ["size", "color"] },
   { role: "pageno", name: "Page numbers & footer", hint: "sizes and positions: Options", caps: ["b", "i", "color"] },
 ];
@@ -46,6 +46,8 @@ function StyleRow({ role, name, hint, caps }: typeof ROLES[number]) {
       {f.color ? <button class="btn icon" title="Colour of the design" onClick={() => set({ color: null })}>✕</button> : <small>auto</small>}</label> : <span />}
     {has("align") ? <select class="tsalign" value={f.align || ""} title="Alignment" onChange={e => set({ align: (e.target as HTMLSelectElement).value || null })}>
       <option value="">Align: auto</option><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select> : <span />}
+    {has("lh") ? <select class="tsalign" value={f.lh ? String(f.lh) : ""} title="Line spacing" data-lh="" onChange={e => set({ lh: parseFloat((e.target as HTMLSelectElement).value) || null })}>
+      <option value="">Lines: auto</option>{[1, 1.15, 1.3, 1.5, 1.75, 2].map(v => <option key={v} value={String(v)}>Lines {v}</option>)}</select> : <span />}
     <button class="btn" disabled={!Object.keys(f).length} title="Back to the design's look for this kind of text" onClick={() => styleChange("Reset text style: " + name, { text: { [role]: null } })}>Reset</button>
   </div>;
 }
