@@ -64,11 +64,12 @@ export async function doExport(kind: ExportKind) {
   S.exporting = true; emit();
   try {
     await S.sync?.flush();
-    const pdfMode = S.prefs.pdfMode || "exact";
+    // PDFs are text and tables (vector) unless pictures of the slides are asked for explicitly
+    const pdfMode = S.prefs.pdfMode || "vector";
     const all = S.slides.map((_, i) => i);
     const spec = {
       "pdf": { format: "pdf", mode: pdfMode, idx: all }, "pdf-exact": { format: "pdf", mode: "exact", idx: all }, "pdf-vector": { format: "pdf", mode: "vector", idx: all },
-      "pdf-current": { format: "pdf", mode: "exact", idx: [S.cur] }, "png-current": { format: "png", idx: [S.cur] }, "png-all": { format: "png", idx: all }, "copy": { format: "png", idx: [S.cur], inline: true },
+      "pdf-current": { format: "pdf", mode: pdfMode, idx: [S.cur] }, "png-current": { format: "png", idx: [S.cur] }, "png-all": { format: "png", idx: all }, "copy": { format: "png", idx: [S.cur], inline: true },
     }[kind] as { format: "pdf" | "png"; mode?: "exact" | "vector"; idx: number[]; inline?: boolean };
     if (kind === "pdf-exact" || kind === "pdf-vector") setPrefs({ pdfMode: spec.mode });
     let j: (ExportRes & { downloaded?: boolean }) | null = null, fallback = false, note = "";
@@ -112,7 +113,7 @@ export async function exportVersions(designs: Design[] | null) {
         const name = `${stem} - ${v.name}${designs ? " - " + DESIGN_LABEL[d] : ""}.xlsx`;
         let j: ExportRes | null = null;
         if (S.health?.engine?.state === "ready") {
-          try { j = await backend.exportSlides({ name, format: "pdf", mode: "exact", scale: 4, all: true, ...(await exportPayload(all, base)) }); }
+          try { j = await backend.exportSlides({ name, format: "pdf", mode: S.prefs.pdfMode || "vector", scale: 4, all: true, ...(await exportPayload(all, base)) }); }
           catch (e) { if (!((e instanceof ApiError && (e.status === 503 || e.status === 0)) || e instanceof TypeError)) throw e; }
         }
         if (!j) j = await exportInWindow("pdf", all, false, base, name);

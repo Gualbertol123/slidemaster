@@ -152,7 +152,7 @@ function ServerPill() {
 
 function ExportButton() {
   const can = backend.served && !!S.health && S.slides.length > 0 && !S.exporting;
-  const mode = S.prefs.pdfMode || "exact";
+  const mode = S.prefs.pdfMode || "vector";
   const item = (k: ExportKind, label: string, small?: string, close?: () => void) =>
     <button data-x={k} class={k === "pdf-" + mode ? "cur" : ""} onClick={() => { close?.(); void doExport(k); }}>{label}{small && <small>{small}</small>}</button>;
   return (
@@ -162,8 +162,8 @@ function ExportButton() {
     </>}>
       {close => <>
         <div class="hd">PDF – all slides, saved in the export folder</div>
-        {item("pdf-exact", "PDF · exact", "identical to screen, sharp 480 dpi pages", close)}
-        {item("pdf-vector", "PDF · vector", "selectable text", close)}
+        {item("pdf-vector", "PDF · text & tables", "real text and lines, sharp at any zoom – no pictures", close)}
+        {item("pdf-exact", "PDF · as pictures", "each slide as a 480 dpi image", close)}
         {item("pdf-current", "PDF · current slide only", undefined, close)}
         <div class="sep" />
         <div class="hd">Images (4800 × 2700)</div>

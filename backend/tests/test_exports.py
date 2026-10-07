@@ -29,7 +29,7 @@ class ExportTests(TempDirs):
         rgba = make_png(4, 4)[:25] + b"\x06" + make_png(4, 4)[26:]            # colour type 6 (alpha): not embeddable
         jpeg = b"\xff\xd8\xff\xc0\x00\x11\x08\x00\x09\x00\x10\x03" + b"\x00" * 40 + b"\xff\xd9"
         e.render = lambda css, slides, kind, scale: (e.calls.append(kind), ([rgba] if kind == "png" else [jpeg]), "Fake")[1:]
-        r = exports.export({"name": "W.xlsx", "format": "pdf", "slides": ["a"], "names": ["x"]}, e)
+        r = exports.export({"name": "W.xlsx", "format": "pdf", "mode": "exact", "slides": ["a"], "names": ["x"]}, e)
         self.assertEqual(e.calls, ["png", "jpeg"])
         self.assertTrue(r["ok"])
 
@@ -40,28 +40,32 @@ class ExportTests(TempDirs):
         e = FakeEngine()
         r = exports.export({"name": "Weekly.xlsx", "format": "pdf", "mode": "exact", "slides": ["<p>1</p>", "<p>2</p>"],
                             "names": ["Cover", "P/L"], "scale": 2}, e)
-        self.assertEqual(r["files"], ["Weekly - slides.pdf"])
+        self.assertEqual(r["files"], ["Weekly - slides (images).pdf"])
         self.assertEqual((r["ok"], r["engine"]), (True, "Fake"))
         self.assertEqual(e.calls[-1], ("png", 2.0, 2))                 # lossless pages: sharp text and lines
-        with open(os.path.join(paths.EXPORT_DIR, "Weekly - slides.pdf"), "rb") as f:
+        with open(os.path.join(paths.EXPORT_DIR, "Weekly - slides (images).pdf"), "rb") as f:
             pdf = f.read()
         self.assertTrue(pdf.startswith(b"%PDF-1.4"))
         self.assertEqual(pdf.count(b"/Type /Page "), 2)
 
-        r = exports.export({"name": "Weekly.xlsx", "format": "pdf", "slides": ["<p>1</p>"], "names": ["P/L"]}, e)
-        self.assertEqual(r["files"], ["Weekly - P_L.pdf"])
+        r = exports.export({"name": "Weekly.xlsx", "format": "pdf", "mode": "exact", "slides": ["<p>1</p>"], "names": ["P/L"]}, e)
+        self.assertEqual(r["files"], ["Weekly - P_L (images).pdf"])
         self.assertEqual(e.calls[-1], ("png", 3.0, 1))
-        r = exports.export({"name": "Weekly.xlsx", "format": "pdf", "slides": ["<p>1</p>"], "names": ["P/L"], "all": True}, e)
-        self.assertEqual(r["files"], ["Weekly - slides.pdf"])
+        r = exports.export({"name": "Weekly.xlsx", "format": "pdf", "mode": "exact", "slides": ["<p>1</p>"], "names": ["P/L"], "all": True}, e)
+        self.assertEqual(r["files"], ["Weekly - slides (images).pdf"])
+        r = exports.export({"name": "Weekly.xlsx", "format": "pdf", "slides": ["<p>1</p>", "<p>2</p>"]}, e)
+        self.assertEqual(e.calls[-1], ("vector", 1, 2))                                  # no mode: text and tables
         r = exports.export({"name": "Weekly.xlsx", "format": "pdf", "mode": "vector", "slides": ["a", "b"]}, e)
-        self.assertEqual(r["files"], ["Weekly - slides (vector).pdf"])
+        self.assertEqual(r["files"], ["Weekly - slides.pdf"])                     # text and tables: the default
+        r = exports.export({"name": "Weekly.xlsx", "format": "pdf", "mode": "vector", "slides": ["a"], "names": ["P/L"]}, e)
+        self.assertEqual(r["files"], ["Weekly - P_L.pdf"])
         r = exports.export({"name": "Weekly.xlsx", "format": "png", "slides": ["a", "b"], "names": ["Cover", "P/L"]}, e)
         self.assertEqual(r["files"], ["Weekly - Cover.png", "Weekly - P_L.png"])
         r = exports.export({"name": "Weekly.xlsx", "format": "png", "slides": ["a"], "inline": True}, e)
         self.assertNotIn("files", r)
         self.assertTrue(r["images"][0].startswith("data:image/png;base64,"))
-        self.assertEqual(self.ls(), ["Weekly - Cover.png", "Weekly - P_L.pdf", "Weekly - P_L.png",
-                                     "Weekly - slides (vector).pdf", "Weekly - slides.pdf"])
+        self.assertEqual(self.ls(), ["Weekly - Cover.png", "Weekly - P_L (images).pdf", "Weekly - P_L.pdf", "Weekly - P_L.png",
+                                     "Weekly - slides (images).pdf", "Weekly - slides.pdf"])
 
     def test_nothing_to_export(self):
         with self.assertRaises(exports.ExportError):

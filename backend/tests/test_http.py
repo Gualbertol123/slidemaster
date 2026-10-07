@@ -278,7 +278,7 @@ class HttpTests(HttpBase):
 
     def test_export_and_assemble(self):
         st, r = self.jreq("POST", "/api/export", {"name": "Deck.xlsx", "format": "pdf", "mode": "exact", "css": "", "slides": ["a", "b"], "names": ["A", "B"], "scale": 1})
-        self.assertEqual((st, r["files"], r["engine"]), (200, ["Deck - slides.pdf"], "Fake"))
+        self.assertEqual((st, r["files"], r["engine"]), (200, ["Deck - slides (images).pdf"], "Fake"))
         png = "data:image/png;base64," + base64.b64encode(make_png()).decode()
         st, r = self.jreq("POST", "/api/assemble", {"name": "Deck.xlsx", "images": [png]})
         self.assertEqual((st, r), (200, {"ok": True, "files": ["Deck - slides.pdf"]}))

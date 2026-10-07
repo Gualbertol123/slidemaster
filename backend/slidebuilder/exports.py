@@ -67,17 +67,20 @@ def export(req, engine, export_dir=None):
         raise ExportError("nothing to export")
     if not isinstance(names, list):
         names = []
-    fmt, mode = req.get("format", "pdf"), req.get("mode", "exact")
+    fmt, mode = req.get("format", "pdf"), req.get("mode", "vector")      # text and tables unless pictures are asked for
     try:
         scale = max(1, min(4, float(req.get("scale") or 3)))
     except (TypeError, ValueError):
         scale = 3
     base = clean_name(os.path.splitext(str(name))[0] or "slides")
     files = []
+    suffix = " - slides.pdf" if len(slides) > 1 or req.get("all") else " - %s.pdf" % clean_name(str(names[0]) if names else "slide")
     if fmt == "pdf" and mode == "vector":
+        # the default: real text and tables (selectable, sharp at any zoom) – no pictures of the slides
         pdf, used = engine.render(css, slides, "vector", 1)
-        files.append(save_export(base + " - slides (vector).pdf", pdf, export_dir))
+        files.append(save_export(base + suffix, pdf, export_dir))
     elif fmt == "pdf":
+        suffix = suffix[:-4] + " (images).pdf"
         # lossless pages: PNG keeps text and thin lines sharp (JPEG blurred white numbers on coloured cells);
         # an engine whose PNGs the PDF writer cannot take (e.g. with transparency) falls back to JPEG
         shots, used = engine.render(css, slides, "png", scale)
@@ -86,7 +89,6 @@ def export(req, engine, export_dir=None):
         except ValueError:
             shots, used = engine.render(css, slides, "jpeg", scale)
             pdf = jpegs_to_pdf(shots, base)
-        suffix = " - slides.pdf" if len(slides) > 1 or req.get("all") else " - %s.pdf" % clean_name(str(names[0]) if names else "slide")
         files.append(save_export(base + suffix, pdf, export_dir))
     else:
         shots, used = engine.render(css, slides, "png", scale)

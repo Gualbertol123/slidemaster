@@ -45,7 +45,7 @@ export function cellHtml(it: { text: string; scripts?: [number, number, "sup" | 
     if (a < at || b > t.length) continue;
     h += esc(t.slice(at, a)) + `<${k}>${esc(t.slice(a, b))}</${k}>`; at = b;
   }
-  return h + esc(t.slice(at));
+  return `<span>${h + esc(t.slice(at))}</span>`;          // one run: the cell's flex box must not treat <sup> as its own item
 }
 export function renderExcel(L: TableLayout, ctx: RenderCtx, opts: { noText?: boolean } = {}): string {
   // raw Excel: the workbook's own formatting (plus the user's cell edits) – no deck colours

@@ -28,8 +28,8 @@ describe("rich text: superscript and subscript", () => {
     expect(sst).toEqual(["plain", "LEGAL ENTITIES MF (1)", "H2O & co"]);
     expect(runs).toEqual([undefined, [[18, 21, "sup"]], [[1, 2, "sub"]]]);
     expect(richRuns("<t>x</t>")).toEqual({ text: "x" });
-    expect(cellHtml({ text: sst[1], scripts: runs[1] })).toBe("LEGAL ENTITIES MF <sup>(1)</sup>");
-    expect(cellHtml({ text: "H2O & co", scripts: runs[2] })).toBe("H<sub>2</sub>O &amp; co");
+    expect(cellHtml({ text: sst[1], scripts: runs[1] })).toBe("<span>LEGAL ENTITIES MF <sup>(1)</sup></span>");
+    expect(cellHtml({ text: "H2O & co", scripts: runs[2] })).toBe("<span>H<sub>2</sub>O &amp; co</span>");
     expect(cellHtml({ text: "edited", scripts: [[0, 2, "sup"]], edited: true })).toBe("edited");     // a text edit drops Excel's formatting
   });
 });

@@ -98,6 +98,7 @@ test.describe.serial("two people, one shared folder", () => {
     const pdf = fs.readFileSync(path.join(root(), "export", "report - slides.pdf"));
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
     expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) || []).length).toBe(4);
+    expect(pdf.toString("latin1")).toContain("/Font");                                   // real text, not pictures of slides
   });
 
   test("table tools: same size, alignment, widths, text boxes, colour scale, Shift+arrows", async ({ browser }) => {
@@ -504,6 +505,10 @@ test.describe.serial("two people, one shared folder", () => {
     const files = fs.readdirSync(path.join(root(), "export")).filter(f => f.startsWith("weekly - "));
     for (const n of ["weekly - Chief - Liquid Glass", "weekly - All - Liquid Glass", "weekly - Chief - Excel", "weekly - All - Excel"])
       expect(files.some(f => f.startsWith(n))).toBe(true);
+    // all text and tables: the Excel PDFs contain fonts and no pictures at all
+    const xl = fs.readFileSync(path.join(root(), "export", files.find(f => f.startsWith("weekly - All - Excel"))!)).toString("latin1");
+    expect(xl).toContain("/Font");
+    expect(xl).not.toMatch(/\/Subtype\s*\/Image/);
   });
 
   test("wizard on a sheet larger than the preview: the selection box sits exactly on the selected cells", async ({ page }) => {

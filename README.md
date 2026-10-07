@@ -81,6 +81,12 @@ This README is the map. Deeper documents:
 * The second row is layout only: cells (W/H, role, merge, colour scale), tables (same size, position,
   gridlines, sizes, reset), text boxes (add, bubble, delete), slide (logo, contents subtitles).
 
+### PDFs are text and tables
+* Export PDF writes **real text and tables** (vector, selectable, sharp at any zoom) – in every design and every
+  version; pictures that are content (logo, flags) stay pictures, and Liquid Glass keeps its frosted
+  background as a picture behind the text. *PDF · as pictures* (480 dpi PNG pages) remains in the Export menu.
+  Only when no export engine works at all are slides rendered as pictures in the app window.
+
 ### Versions (e.g. Chief and All)
 * ✦ Wizard › **4 · Versions**: create any number of named versions (chips for Chief and All, or type a name).
   Pick a version, drag across the cells it must not show and press **Remove** – they are drawn completely
