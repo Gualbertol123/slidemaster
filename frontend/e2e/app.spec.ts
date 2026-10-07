@@ -347,33 +347,47 @@ test.describe.serial("two people, one shared folder", () => {
     await a.close(); await b.close();
   });
 
-  test("automated comments: written from the numbers, on all similar tables, follow the numbers", async ({ page }) => {
+  test("automated comments: one short summary for the slide's tables, follows the numbers; text boxes stretch and snap", async ({ page }) => {
     await openApp(page, BOB);
     await openWorkbook(page, "weekly.xlsx");
     await page.click('[data-a="next"]'); await page.click('[data-a="next"]'); await page.click('[data-a="finish"]');
     await expect(page.locator(".thumb")).toHaveCount(1);
     await page.click("#commentBtn");
-    await expect(page.locator(".cmtfound")).toContainText("TOTAL BANKS LOANS");
-    await expect(page.locator(".cmtfound")).toContainText("Week39 25/09/26");
-    await expect(page.locator("#cmtPreview")).toContainText("vs Budget – Budget Performance");
-    await expect(page.locator("#cmtPreview")).toContainText("No Budget data is available for EximBank and Pravex.");
-    await page.locator('#cmtGroups [data-group="Δ vs. Prev. Week"]').uncheck();
-    await expect(page.locator("#cmtPreview")).not.toContainText("Weekly Momentum");
-    await page.click("#cmtAll");                                                  // the deposits table has the same headers
+    await expect(page.locator('#cmtMode [data-mode="summary"]')).toHaveClass(/on/);
+    await expect(page.locator("#cmtTables input:checked")).toHaveCount(2);                 // both tables of the slide
+    const prev = page.locator("#cmtPreview");
+    await expect(prev).toContainText("Total Banks Loans:");
+    await expect(prev).toContainText("Total Banks Deposits:");
+    await expect(prev).toContainText("w/w");
+    await expect(prev).toContainText("vs Budget");
+    await expect(prev).toContainText("vs EoM Aug");
+    await expect(prev).not.toContainText("25/09/26");                                     // no dates
+    await expect(prev).toContainText(/(Strong|Solid|Slightly positive|Weak|Slightly negative|Flat|Positive|Negative) week|weekly decline/);
+    await page.locator('#cmtKinds [data-kind="month"]').uncheck();
+    await expect(prev).not.toContainText("vs EoM");
+    await page.click("#cmtInsert");
     const wdoc = () => { const d = path.join(data(), "workbooks"), f = fs.readdirSync(d).find(n => n.startsWith("weekly.xlsx"))!; return JSON.parse(fs.readFileSync(path.join(d, f), "utf8")); };
-    await expect.poll(() => Object.values(wdoc().preset.slides[0].notes || {}).filter((n: any) => n.auto).length, { timeout: 10_000 }).toBe(2);
-    const notes = page.locator("#stage .tnote.auto");
-    await expect(notes).toHaveCount(2);
-    await expect(notes.first()).toContainText("Total Banks Loans");
-    await expect(notes.nth(1)).toContainText("Total Banks Deposits");
-    await expect(notes.first().locator(".down, .up").first()).toBeVisible();
+    await expect.poll(() => Object.values(wdoc().preset.slides[0].notes || {}).filter((n: any) => n.auto).length, { timeout: 10_000 }).toBe(1);
+    const auto: any = Object.values(wdoc().preset.slides[0].notes).find((n: any) => n.auto);
+    expect(auto.auto).toMatchObject({ mode: "summary", kinds: ["week", "target"] });
+    expect(auto.auto.tables).toHaveLength(1);
+    const note = page.locator("#stage .tnote.auto");
+    await expect(note).toHaveCount(1);
+    await expect(note).toContainText("Total Banks Deposits");
     // changing a number on the slide rewrites the comment
-    const before = await notes.first().textContent();
-    await selectCell(page, "VUB"); await page.keyboard.press("ArrowRight"); await page.keyboard.press("ArrowRight"); await page.keyboard.press("ArrowRight");
-    await page.keyboard.press("ArrowRight"); await page.keyboard.press("ArrowRight");        // Δ vs. Budget Abs. of VUB
+    const before = await note.textContent();
+    await selectCell(page, "VUB");
+    for (let k = 0; k < 5; k++) await page.keyboard.press("ArrowRight");                // Δ vs. Budget Abs. of VUB
     await page.keyboard.type("900"); await page.keyboard.press("Enter");
-    await expect.poll(() => notes.first().textContent(), { timeout: 10_000 }).not.toBe(before);
-    await expect(notes.first()).toContainText("VUB (+900");
+    await expect.poll(() => note.textContent(), { timeout: 10_000 }).not.toBe(before);
+    // stretch the comment by its bottom edge: it snaps to the bottom of a table, with a guide line
+    const nb = (await note.boundingBox())!, tw = (await page.locator("#stage .slide > .tw").nth(0).boundingBox())!;   // the comment spans both tables: shorten it to the first one
+    await page.mouse.move(nb.x + nb.width / 2, nb.y + nb.height - 2); await page.mouse.down();
+    await page.mouse.move(nb.x + nb.width / 2, tw.y + tw.height + 3, { steps: 6 });
+    await expect(page.locator("#stage .snapline.h")).toBeVisible();
+    await page.mouse.up();
+    await expect.poll(() => (Object.values(wdoc().preset.slides[0].notes).find((n: any) => n.auto) as any).h, { timeout: 10_000 }).toBeGreaterThan(0);
+    await expect(page.locator("#stage .snapline")).toHaveCount(0);
   });
 
   test("wizard on a sheet larger than the preview: the selection box sits exactly on the selected cells", async ({ page }) => {

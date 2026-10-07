@@ -23,14 +23,24 @@ export interface CommentCfg {
   detail: "short" | "full";
   /** concentration ("largely driven by X, ~86 %"), breadth, missing data sentences */
   share: boolean; breadth: boolean; missing: boolean;
+  /** "summary": one short paragraph per block joining week, Budget and EoM (default for new comments);
+      "sections": one section per comparison (comments made before summaries existed) */
+  mode?: "summary" | "sections";
+  /** summary: the comparisons it joins, by kind (default week, target, month) */
+  kinds?: Group["kind"][];
+  /** more tables of the same slide covered by this comment (table ids) */
+  tables?: string[];
 }
-export const DEFAULT_COMMENT: CommentCfg = { groups: [], top: 3, noun: "country", detail: "full", share: true, breadth: true, missing: true };
+export const DEFAULT_COMMENT: CommentCfg = { groups: [], top: 2, noun: "country", detail: "full", share: true, breadth: true, missing: true, mode: "summary" };
+export const SUMMARY_KINDS: Group["kind"][] = ["week", "target", "month"];
 
 export interface Row { label: string; r: number }
 export interface Group { id: string; name: string; abs: number | null; pct: number | null; kind: "target" | "week" | "month" | "quarter" | "year" | "yoy" | "other"; vs: string }
 export interface Analysis {
   labelCol: number; total: Row | null; entities: Row[]; groups: Group[];
   /** every row with a label and numbers (total rows included), top to bottom */ rows: Row[];
+  /** sub-tables: a total/heading row (bold or "Total…") and the rows under it; one block when there is none */
+  blocks: { head: Row | null; rows: Row[] }[];
   /** latest period: column header and its date, e.g. "Week39", "25/09/26" */
   period: { name: string; date: string } | null;
   grid: Grid;
@@ -100,7 +110,18 @@ export function analyse(grid: Grid): Analysis {
   const totals = dataRows.filter(d => TOTAL.test(d.label));
   const total = totals[0] || null;
   const entities = dataRows.filter(d => !TOTAL.test(d.label) && !/^(of which|di cui|o\/w)\b/i.test(d.label) && !(d.r < (total?.r ?? -1) && grid[d.r][labelCol].bold));
-  return { labelCol, total, entities, groups, period, grid, rows: dataRows };
+  // blocks: every bold or "Total…" row with numbers heads the rows below it (a total at the very end heads the rows above)
+  const isHead = (d: Row) => TOTAL.test(d.label) || grid[d.r][labelCol].bold;
+  const headRows = dataRows.filter(isHead), blocks: Analysis["blocks"] = [];
+  if (!headRows.length || headRows.length === dataRows.length) blocks.push({ head: headRows.length === 1 ? headRows[0] : null, rows: dataRows.filter(d => !isHead(d)) });
+  else {
+    let cur: Analysis["blocks"][number] | null = null;
+    for (const d of dataRows) {
+      if (isHead(d)) { if (cur && !cur.head && d === dataRows[dataRows.length - 1]) cur.head = d; else blocks.push(cur = { head: d, rows: [] }); }
+      else { if (!cur) blocks.push(cur = { head: null, rows: [] }); cur.rows.push(d); }
+    }
+  }
+  return { labelCol, total, entities, groups, period, grid, rows: dataRows, blocks: blocks.filter(b => b.head || b.rows.length) };
 }
 
 function cleanGroup(g: string) { return g.replace(/[Δ∆]/g, "").replace(/\bvs\.?/i, "vs").replace(/\s+/g, " ").trim(); }
@@ -200,3 +221,76 @@ function fmtPlain(n: number) { return Math.abs(n) >= 100 ? Math.round(n).toLocal
 
 /** the "headers" of a table, to find similar tables elsewhere in the deck */
 export const signatureOf = (a: Analysis) => a.groups.map(g => g.id.toLowerCase().replace(/\s+/g, " ")).join("|");
+
+/* ---- summary: short, joint, decisive ----
+   One paragraph per block (sub-table): "Retail Loans: +101 w/w (+0,2%) · +476 vs Budget · +454 vs EoM.
+   Solid week, driven by VUB (+40) and PBZ (+38); ISP ALB (-12) offsets part of it. Above Budget mainly
+   thanks to VUB (+440)." – no dates, the strongest facts only. */
+const SHORT_VS: Partial<Record<Group["kind"], (g: Group) => string>> = {
+  week: () => "w/w", target: g => "vs " + g.vs.replace(/^the\s+/i, ""), month: g => "vs " + g.vs.replace(/\s*20\d\d\s*$/, ""), quarter: g => "vs " + g.vs, year: () => "YTD", yoy: () => "YoY", other: g => "vs " + g.vs,
+};
+/** "(1)" footnote markers and all-caps out of a row label */
+export const cleanHead = (s: string) => prettyLabel(s.replace(/\s*\(\d+\)\s*$/, "").replace(/\s*\*+\s*$/, ""));
+function weekWord(v: number, p: number | null): string {
+  if (!v) return "Flat week";
+  const q = p === null ? null : Math.abs(p);
+  if (v > 0) return q === null ? "Positive week" : q >= .01 ? "Strong week" : q >= .003 ? "Solid week" : "Slightly positive week";
+  return q === null ? "Negative week" : q >= .01 ? "Sharp weekly decline" : q >= .003 ? "Weak week" : "Slightly negative week";
+}
+export interface SummaryPart { a: Analysis; name: string }
+export function writeSummary(parts: SummaryPart[], cfg: CommentCfg, title: string): string {
+  const kinds = cfg.kinds?.length ? cfg.kinds : SUMMARY_KINDS, top = Math.max(1, Math.min(4, cfg.top || 2));
+  const ex = new Set((cfg.exclude || []).map(x => x.toLowerCase()));
+  const lines: string[] = [];
+  const blocks = parts.flatMap(p => p.a.blocks.map(b => ({ p, b })));
+  for (const { p, b } of blocks) {
+    const a = p.a, groups = kinds.map(k => a.groups.find(g => g.kind === k && g.abs !== null)).filter((g): g is Group => !!g);
+    if (!groups.length) continue;
+    const cell = (r: number, c: number | null) => c === null ? undefined : a.grid[r]?.[c];
+    const v = (r: number, g: Group) => cell(r, g.abs)?.v ?? null;
+    const rows = b.rows.filter(e => !ex.has(e.label.toLowerCase()));
+    const sum = (g: Group) => rows.reduce((s, e) => s + (v(e.r, g) || 0), 0);
+    const totOf = (g: Group) => b.head ? v(b.head.r, g) : sum(g);
+    const name = b.head ? cleanHead(b.head.label) : blocks.length > 1 ? p.name : (cfg.title || p.name);
+    // headline: the joint numbers
+    const facts = groups.map(g => {
+      const t = totOf(g); if (t === null) return "";
+      const abs = b.head ? num(cell(b.head.r, g.abs)) : `[[${t > 0 ? "+" : ""}${fmtPlain(t)}]]`, pct = b.head ? num(cell(b.head.r, g.pct)) : "";
+      return `${abs}${pct && g.kind === "week" ? ` (${pct})` : ""} ${SHORT_VS[g.kind]!(g)}`;
+    }).filter(Boolean);
+    let txt = `**${name}**: ${facts.join(" · ")}.`;
+    // the week (or the first comparison): how good, who drives it, who offsets it
+    const main = groups[0], mt = totOf(main) || 0;
+    const contrib = rows.map(e => ({ e, x: v(e.r, main) })).filter((c): c is { e: Row; x: number } => c.x !== null && c.x !== 0);
+    const big = Math.max(0, ...contrib.map(c => Math.abs(c.x)));
+    const material = (x: number) => Math.abs(x) >= Math.max(cfg.minAbs || 0, big * .08);
+    const same = contrib.filter(c => Math.sign(c.x) === Math.sign(mt) && material(c.x)).sort((x, y) => Math.abs(y.x) - Math.abs(x.x));
+    const opp = contrib.filter(c => Math.sign(c.x) === -Math.sign(mt) && material(c.x)).sort((x, y) => Math.abs(y.x) - Math.abs(x.x));
+    const nm = (c: { e: Row }, g: Group) => `**${c.e.label}** (${num(cell(c.e.r, g.abs))})`;
+    const word = main.kind === "week" ? weekWord(mt, b.head ? cell(b.head.r, main.pct)?.v ?? null : null) : mt > 0 ? "Positive" : mt < 0 ? "Negative" : "Flat";
+    let s2 = word;
+    if (mt && same.length) {
+      const lead = same[0], share = Math.round(Math.abs(lead.x / mt) * 100);
+      s2 += same.length === 1 || share >= 60 ? `, ${share >= 100 ? "entirely" : "mostly"} ${mt > 0 ? "from" : "due to"} ${nm(lead, main)}${share < 100 && share >= 60 ? ` (${share}%)` : ""}`
+        : `, driven by ${join(same.slice(0, top).map(c => nm(c, main)))}`;
+    }
+    if (mt && opp.length) s2 += `; ${join(opp.slice(0, top).map(c => nm(c, main)))} ${opp.length === 1 && top >= 1 ? "goes" : "go"} the other way`;
+    txt += " " + s2 + ".";
+    // the plan: above/below and who explains it
+    const tg = groups.find(g => g.kind === "target");
+    if (tg && tg !== main && cfg.detail === "full") {
+      const t = totOf(tg);
+      const cs = rows.map(e => ({ e, x: v(e.r, tg) })).filter((c): c is { e: Row; x: number } => c.x !== null && c.x !== 0 && Math.sign(c.x) === Math.sign(t || 0)).sort((x, y) => Math.abs(y.x) - Math.abs(x.x));
+      if (t && cs.length) txt += ` ${t > 0 ? "Above" : "Below"} ${tg.vs} mainly ${t > 0 ? "thanks to" : "because of"} ${join(cs.slice(0, Math.min(top, 2)).map(c => nm(c, tg)))}.`;
+      // the week against the gap: closing it, or widening it
+      // the week against the plan: closing the gap, or eating into the lead
+      if (t && mt && main.kind === "week" && Math.sign(t) !== Math.sign(mt)) {
+        const share = Math.round(Math.abs(mt) / (Math.abs(t) + Math.abs(mt)) * 100);
+        if (share >= 5) txt += mt > 0 ? ` The week closes ${share}% of the gap to ${tg.vs}.` : ` The week takes ${share}% off the lead over ${tg.vs}.`;
+      }
+    }
+    lines.push("• " + txt);
+  }
+  if (!lines.length) return "# " + title + "\nNo comparison columns (e.g. “Δ vs. Prev. Week”, “Δ vs. Budget”) were found.";
+  return ["# " + title, ...lines.flatMap((l, i) => i ? ["", l] : [l])].join("\n");
+}

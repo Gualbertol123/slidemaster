@@ -104,3 +104,17 @@ function sfnt(family: string, weight: number, italic: boolean): ArrayBuffer {
   out.set(name, head); out.set(os2, head + name.length);
   return out.buffer;
 }
+
+describe("text boxes beside all tables", () => {
+  it("a spanning box takes a column next to every table, as tall as all of them", () => {
+    const L = (id: string) => ({ id, def: { id }, items: [], W: 600, H: 200, g: { r1: id === "a" ? 1 : 30, c1: 1, r2: id === "a" ? 20 : 50, c2: 5 }, rows: [], cols: [], sheet: { name: "S" } } as any);
+    const R = slide({ tables: ["a", "b"], notes: { "a:right": { text: "x", span: true, w: 400 } } }, { tables: [L("a"), L("b")] });
+    const { boxes } = computeLayout(R, ctx({}, "excel"));
+    const n = boxes[0].notes.right!, right = Math.max(boxes[0].x + boxes[0].w, boxes[1].x + boxes[1].w);
+    expect(n.w).toBe(400);
+    expect(n.x).toBeGreaterThan(right);                                              // beside both tables, not over the second
+    expect(n.y).toBe(boxes[0].y);
+    expect(n.h).toBeCloseTo(boxes[1].y + boxes[1].h - boxes[0].y, 0);              // from the top of the first to the bottom of the last
+    expect(n.x + n.w).toBeLessThanOrEqual(1550);
+  });
+});

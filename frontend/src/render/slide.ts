@@ -59,7 +59,7 @@ export function notesOf(R: RuntimeSlide, i: number, ctx?: RenderCtx): Partial<Re
     const n = all[noteKey(R, i, side)]; if (!n) continue;
     const e = ctx ? effNote(ctx, n) : n;
     // automated comment: written from the table's current numbers
-    out[side] = ctx && n.auto && R.tables[i] ? { ...e, text: commentText(R.tables[i], n.auto, ctx) } : e;
+    out[side] = ctx && n.auto && R.tables[i] ? { ...e, text: commentText(R.tables[i], n.auto, ctx, R) } : e;
   }
   return out;
 }
@@ -71,12 +71,21 @@ const noteW = (n: Note) => n.w || NOTE_W;
     slide's fixed scale (set by "Make same size"), reduced only if it would not fit. */
 export function computeLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay?: Layout): { boxes: TBox[]; k: number; fit: number; reduced: boolean } {
   if (!R.tables.length) return { boxes: [], k: 1, fit: 1, reduced: false };
-  lay = lay || layoutOf(R); const ww = w || lay.w; const T = R.tables, A = areaFor(R, ctx);
+  lay = lay || layoutOf(R); const ww = w || lay.w; const T = R.tables, A0 = areaFor(R, ctx);
   const bands = lay.bands.filter(b => b.length);
   const N = T.map((_, i) => notesOf(R, i, ctx));
+  // text boxes "beside all tables" (span): a column at the left/right of the content area, as tall as all
+  // the tables; the tables are laid out in the remaining width
+  const spans: { i: number; side: "left" | "right"; n: Note }[] = [];
+  N.forEach((ns, i) => (["left", "right"] as const).forEach(sd => { const n = ns[sd]; if (n?.span) { spans.push({ i, side: sd, n }); delete ns[sd]; } }));
+  const colR = Math.max(0, ...spans.filter(x => x.side === "right").map(x => noteW(x.n))), colL = Math.max(0, ...spans.filter(x => x.side === "left").map(x => noteW(x.n)));
+  const A = { ...A0, x: A0.x + (colL ? colL + NOTE_GAP * 2 : 0), w: A0.w - (colL ? colL + NOTE_GAP * 2 : 0) - (colR ? colR + NOTE_GAP * 2 : 0) };
   const ex = N.map(n => ({ l: n.left ? noteW(n.left) + NOTE_GAP : 0, r: n.right ? noteW(n.right) + NOTE_GAP : 0, t: n.top ? noteH(n.top) + NOTE_GAP : 0, b: n.bottom ? noteH(n.bottom) + NOTE_GAP : 0 }));
-  const unitW = (i: number, k: number) => tableW(T[i], ctx) * ww[i] * k + ex[i].l + ex[i].r;
-  const unitH = (i: number, k: number) => T[i].H * ww[i] * k + ex[i].t + ex[i].b;
+  // text boxes stretched by the user: a side box taller than its table, a box above/below wider than it
+  const sideH = (i: number) => Math.max(N[i].left?.h || 0, N[i].right?.h || 0);
+  const tbW = (i: number) => Math.max(N[i].top?.w || 0, N[i].bottom?.w || 0);
+  const unitW = (i: number, k: number) => Math.max(tableW(T[i], ctx) * ww[i] * k, tbW(i)) + ex[i].l + ex[i].r;
+  const unitH = (i: number, k: number) => Math.max(T[i].H * ww[i] * k, sideH(i)) + ex[i].t + ex[i].b;
   const fits = (k: number) => {
     let h = GY * (bands.length - 1);
     for (const b of bands) { let bw = GX * (b.length - 1); for (const i of b) bw += unitW(i, k); if (bw > A.w + .01) return false; h += Math.max(...b.map(i => unitH(i, k))); }
@@ -97,15 +106,25 @@ export function computeLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay
     for (const i of b) {
       const sc = k * ww[i], tw = tableW(T[i], ctx) * sc, th = T[i].H * sc;
       const bx = x + ex[i].l, by = top + y + ex[i].t, n = N[i], notes: TBox["notes"] = {};
-      if (n.top) notes.top = { x: bx, y: by - ex[i].t, w: tw, h: ex[i].t - NOTE_GAP };
-      if (n.bottom) notes.bottom = { x: bx, y: by + th + NOTE_GAP, w: tw, h: ex[i].b - NOTE_GAP };
-      if (n.left) notes.left = { x: bx - ex[i].l, y: by, w: ex[i].l - NOTE_GAP, h: th };
-      if (n.right) notes.right = { x: bx + tw + NOTE_GAP, y: by, w: ex[i].r - NOTE_GAP, h: th };
+      const sh = Math.max(th, sideH(i));
+      if (n.top) notes.top = { x: bx, y: by - ex[i].t, w: n.top.w || tw, h: ex[i].t - NOTE_GAP };
+      if (n.bottom) notes.bottom = { x: bx, y: sh + by + NOTE_GAP, w: n.bottom.w || tw, h: ex[i].b - NOTE_GAP };
+      if (n.left) notes.left = { x: bx - ex[i].l, y: by, w: ex[i].l - NOTE_GAP, h: n.left.h || th };
+      if (n.right) notes.right = { x: bx + tw + NOTE_GAP, y: by, w: ex[i].r - NOTE_GAP, h: n.right.h || th };
       boxes[i] = { i, band: bi, x: bx, y: by, w: tw, h: th, scale: sc, notes };
       x += unitW(i, k) + GX;
     }
     y += dims[bi].h + GY;
   });
+  // the spanning column sits next to the tables actually drawn (not the far edge of the slide)
+  if (spans.length) {
+    const xs = boxes.filter(Boolean).flatMap(b => [b.x, b.x + b.w, ...Object.values(b.notes).flatMap(n => n ? [n.x, n.x + n.w] : [])]);
+    const left = Math.min(...xs), right = Math.max(...xs);
+    for (const { i, side, n } of spans) {
+      const wN = noteW(n), h = n.h || Htot;
+      boxes[i].notes[side] = { x: side === "right" ? Math.min(A0.x + A0.w - wN, right + NOTE_GAP * 2) : Math.max(A0.x, left - NOTE_GAP * 2 - wN), y: top, w: wN, h };
+    }
+  }
   return { boxes, k, fit, reduced: !!fixed && fit < fixed - 1e-6 };
 }
 

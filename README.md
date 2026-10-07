@@ -70,6 +70,13 @@ This README is the map. Deeper documents:
   gridlines, sizes, reset), text boxes (add, bubble, delete), slide (logo, contents subtitles).
 
 ### Automated comments
+* **Summary** (default): one short paragraph per block, joining previous week, Budget and EoM – no dates.
+  It judges the week (strong / solid / slightly positive / weak / sharp decline, from its %), names who drives it
+  (with their share when one dominates) and who goes the other way, explains Budget, and says how much of the
+  gap to Budget the week closes. Sub-tables inside one table (a bold or “Total…” row with the rows under it,
+  e.g. “RETAIL LOANS (1)” + countries, “LEGAL ENTITIES LOANS (1)” + countries) each get their paragraph.
+  One comment can cover **several tables of the slide** (ticked in the dialog) and then sits **beside all
+  tables** in its own column, as tall as the tables. **Detailed** keeps the section-per-comparison text below.
 * **✎ Comment…** (second toolbar row) writes an analyst-style commentary next to a table: a title, then one
   section per comparison found in the headers (“Δ vs. Budget” → *Budget Performance*, “Δ vs. Prev. Week” →
   *Weekly Momentum*, EoM/Q/BoY/YoY…). Each section has a headline for the total row (“… as of week 25/09/26 are
@@ -83,6 +90,9 @@ This README is the map. Deeper documents:
   comparison headers – each with its own title and numbers.
 * Comments are **live**: they are stored as settings and rewritten from the numbers whenever the workbook
   (or a cell on the slide) changes. Editing a comment's text by hand turns it into fixed text.
+* Text boxes **stretch**: drag their outer edge (side boxes: far edge and bottom; boxes above/below: outer
+  and right edge). The edge snaps to the edges of tables, other text boxes and the content area, and a pink
+  guide line shows what it lines up with.
 * Any text box understands the same markup: `# title`, `## heading`, `**bold**`, `[[+12,3]]` (coloured by sign).
 
 ### Editing on the slide (Excel-like)

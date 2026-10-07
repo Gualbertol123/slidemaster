@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyse, defaultGroups, parseNum, signatureOf, writeComment, DEFAULT_COMMENT, type Grid } from "../src/model/comment";
+import { analyse, defaultGroups, parseNum, signatureOf, writeComment, writeSummary, DEFAULT_COMMENT, type Grid } from "../src/model/comment";
 
 /* the weekly loans table: merged group headers over Abs./% columns, a total row, entities, empty budget cells */
 const H1 = ["(mln Euro at last fixed exchange rate)", "Week37", "Week38", "Week39", "Eom Budget", "Δ vs. Budget", "Δ vs. Budget", "Δ vs. Prev. Week", "Δ vs. Prev. Week", "Δ vs. BoY", "Δ vs. BoY"];
@@ -40,7 +40,7 @@ describe("automated comments", () => {
     expect(signatureOf(a)).toBe("δ vs. budget|δ vs. prev. week|δ vs. boy");
   });
   it("writes the budget and weekly sections like the report", () => {
-    const t = writeComment(analyse(grid()), { ...DEFAULT_COMMENT, title: "Retail Loans" });
+    const t = writeComment(analyse(grid()), { ...DEFAULT_COMMENT, top: 3, title: "Retail Loans" });
     expect(t).toContain("# Retail Loans");
     expect(t).toContain("## vs Budget – Budget Performance");
     expect(t).toContain("• **Retail Loans** as of week 25/09/26 are above Budget by [[+476]] ([[+3,5%]]). The strongest positive contributions versus Budget are recorded in **VUB** ([[+440]], [[+20,0%]]), **BIB** ([[+61]], [[+1,8%]]) and **ISP BiH** ([[+5]], [[+1,1%]]).");
@@ -60,5 +60,44 @@ describe("automated comments", () => {
     expect(t).not.toContain("Alex");                 // -1 is below the threshold
     expect(t).not.toContain("largely driven");
     expect(t).not.toContain("Weekly");
+  });
+});
+
+/* one registered table with two sub-tables, like "RETAIL LOANS (1)" + countries, "LEGAL ENTITIES LOANS (1)" + countries */
+const SUB_H1 = ["", "Stock", "Δ vs. Budget", "Δ vs. Prev. Week", "Δ vs. Prev. Week", "Δ vs. EoM Aug 2026"];
+const SUB_H2 = ["", "25/09/26", "Abs.", "Abs.", "%", "Abs."];
+const SUB = [
+  ["RETAIL LOANS (1)", "1000", "476", "101", "0,8%", "454"],
+  ["VUB", "400", "440", "70", "1,0%", "300"], ["PBZ", "300", "61", "38", "1,2%", "100"], ["BIB", "300", "-25", "-7", "-0,2%", "54"],
+  ["LEGAL ENTITIES LOANS (1)", "2000", "-120", "-40", "-0,1%", "-30"],
+  ["VUB", "900", "-150", "-38", "-0,4%", "-20"], ["PBZ", "600", "40", "-6", "-0,1%", "-15"], ["BIB", "500", "-10", "4", "0,1%", "5"],
+];
+function subGrid(): Grid {
+  const cell = (t: string, anchor = true, bold = false) => ({ text: t, v: anchor ? parseNum(t) : null, anchor, bold });
+  const head = (row: string[]) => row.map((t, i) => cell(t, i === 0 || row[i - 1] !== t));
+  return [head(SUB_H1), head(SUB_H2), ...SUB.map(r => r.map((t, j) => cell(t, true, j === 0 && /LOANS/.test(r[0]))))];
+}
+
+describe("summary comments", () => {
+  it("finds the sub-tables of one table", () => {
+    const a = analyse(subGrid());
+    expect(a.blocks.map(b => [b.head?.label, b.rows.map(r => r.label).join(",")])).toEqual([["RETAIL LOANS (1)", "VUB,PBZ,BIB"], ["LEGAL ENTITIES LOANS (1)", "VUB,PBZ,BIB"]]);
+  });
+  it("one short paragraph per block: week + Budget + EoM, how good, who drives it, no dates", () => {
+    const t = writeSummary([{ a: analyse(subGrid()), name: "Loans" }], DEFAULT_COMMENT, "Loans");
+    expect(t).toBe([
+      "# Loans",
+      "• **Retail Loans**: [[+101]] ([[+0,8%]]) w/w · [[+476]] vs Budget · [[+454]] vs EoM Aug. Solid week, mostly from **VUB** ([[+70]]) (69%); **BIB** ([[-7]]) goes the other way. Above Budget mainly thanks to **VUB** ([[+440]]) and **PBZ** ([[+61]]).",
+      "",
+      "• **Legal Entities Loans**: [[-40]] ([[-0,1%]]) w/w · [[-120]] vs Budget · [[-30]] vs EoM Aug. Slightly negative week, mostly due to **VUB** ([[-38]]) (95%); **BIB** ([[+4]]) goes the other way. Below Budget mainly because of **VUB** ([[-150]]) and **BIB** ([[-10]]).",
+    ].join("\n"));
+    expect(t).not.toMatch(/25\/09|week 2/);
+  });
+  it("the week against the plan; tables joined into one comment", () => {
+    const g = subGrid(); g[2 + 4][3] = { text: "60", v: 60, anchor: true, bold: false };     // legal entities: +60 w/w while below budget
+    const t = writeSummary([{ a: analyse(g), name: "Loans" }, { a: analyse(grid()), name: "Banks" }], DEFAULT_COMMENT, "Loans & Deposits");
+    expect(t).toContain("The week closes 33% of the gap to Budget.");
+    expect(t).toContain("• **Total Banks Loans**:");                       // the second table's block
+    expect(t.split("\n").filter(l => l.startsWith("•")).length).toBe(3);
   });
 });

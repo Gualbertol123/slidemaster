@@ -180,3 +180,10 @@ body.painting .slide .hits{cursor:copy}
 .topbar .fname{flex-shrink:1}
 .topbar > *:not(.fname):not(.spacer){flex-shrink:0}
 @media (max-width:1680px){.topbar .presence > span{display:none}.topbar .pill{max-width:150px;overflow:hidden;text-overflow:ellipsis}}
+.cmtmode{width:100%;margin-bottom:6px}
+.cmtmode button{flex:1;font-size:12px}
+/* stretching text boxes: guide line when an edge lines up with a table or another box */
+.slide .snapline{position:absolute;display:none;pointer-events:none;z-index:60;background:#FF2D92}
+.slide .snapline.v{top:0;bottom:0;width:1.5px}
+.slide .snapline.h{left:0;right:0;height:1.5px}
+#stage .slide .tnote.sel{box-shadow:inset 0 0 0 1px rgba(10,102,216,.25)}

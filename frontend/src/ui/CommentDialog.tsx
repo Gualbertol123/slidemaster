@@ -8,8 +8,8 @@ import { S, emit, useApp, toast } from "../state/store";
 import { DLG } from "../state/dialogs";
 import { change, ctx } from "../state/app";
 import { curSlide } from "../editor/edit";
-import { DEFAULT_COMMENT, defaultGroups, headingOf, prettyLabel, signatureOf, writeComment, type CommentCfg } from "../model/comment";
-import { analysisOf } from "../render/comment";
+import { DEFAULT_COMMENT, SUMMARY_KINDS, cleanHead, defaultGroups, headingOf, prettyLabel, signatureOf, type CommentCfg, type Group } from "../model/comment";
+import { analysisOf, commentTables, commentText } from "../render/comment";
 import { richText } from "../render/text";
 import { noteKey, SIDES } from "../render/slide";
 import { tableName } from "../model/preset";
@@ -31,8 +31,13 @@ export function CommentDialog() {
   const [ti, setTi] = useState(Math.min(start, Math.max(0, (R?.tables.length || 1) - 1)));
   const L = R?.tables[ti], a = useMemo(() => L ? analysisOf(L, c) : null, [L, c]);
   const old = R ? existing(R, ti) : null;
-  const [cfg, setCfg] = useState<CommentCfg>(() => old?.note.auto ? { ...DEFAULT_COMMENT, ...old.note.auto } : { ...DEFAULT_COMMENT, groups: a ? defaultGroups(a) : [] });
+  // comments written before summaries existed keep their sections; a new comment on a slide with several
+  // tables covers all of them
+  const [cfg, setCfg] = useState<CommentCfg>(() => old?.note.auto ? { ...DEFAULT_COMMENT, mode: "sections", ...old.note.auto }
+    : { ...DEFAULT_COMMENT, groups: a ? defaultGroups(a) : [], tables: (R?.tables || []).filter((_, i) => i !== ti).map(t => t.def?.id || t.id || "").filter(Boolean) });
   const [side, setSide] = useState<Side>(old?.side || "right");
+  // a comment on several tables sits in a column beside all of them
+  const [span, setSpan] = useState<boolean>(old ? !!old.note.span : (R?.tables.length || 0) > 1);
   const [size, setSize] = useState<number>(old?.note.w || old?.note.h || 440);
   const [bubble, setBubble] = useState(old ? !!old.note.bubble : true);
   const close = () => { DLG.comment = null; emit(); };
@@ -42,18 +47,28 @@ export function CommentDialog() {
   const toggleGroup = (id: string, on: boolean) => set({ groups: a.groups.map(g => g.id).filter(x => x === id ? on : groups.includes(x)) });
   const ex = new Set((cfg.exclude || []).map(x => x.toLowerCase()));
   const toggleEnt = (label: string, on: boolean) => set({ exclude: on ? (cfg.exclude || []).filter(x => x.toLowerCase() !== label.toLowerCase()) : [...(cfg.exclude || []), label] });
-  const text = writeComment(a, { ...cfg, groups }, tableName(L, c.preset));
+  const summary = (cfg.mode ?? "sections") === "summary";
+  const text = commentText(L, { ...cfg, groups }, c, R);
+  const covered = summary ? commentTables(R, L, cfg) : [L];
+  const blocks = covered.flatMap(T => analysisOf(T, c).blocks);
+  const kindsHere = [...new Set(covered.flatMap(T => analysisOf(T, c).groups.filter(g => g.abs !== null).map(g => g.kind)))];
+  const kinds = cfg.kinds?.length ? cfg.kinds : SUMMARY_KINDS.filter(k => kindsHere.includes(k));
+  const KIND_LABEL: Record<Group["kind"], string> = { week: "Previous week", target: "Budget / plan", month: "End of month", quarter: "Quarter", year: "Beginning of year", yoy: "Year on year", other: "Other" };
+  const tid = (T: typeof L) => T.def?.id || T.id || "";
+  const toggleTable = (id: string, on: boolean) => set({ tables: on ? [...(cfg.tables || []), id] : (cfg.tables || []).filter(x => x !== id) });
+  const entityLabels = [...new Set(covered.flatMap(T => analysisOf(T, c).entities.map(e => e.label)))];
   // similar tables: the same comparison headers, anywhere in the deck
   const sig = signatureOf(a);
   const similar = sig ? S.slides.flatMap((X, si) => X.tables.map((T, i) => ({ X, si, i, T }))).filter(x => !(x.X.id === R.id && x.i === ti) && signatureOf(analysisOf(x.T, c)) === sig) : [];
 
   const noteFor = (keep: Note | undefined, own: boolean): Note => {
     const auto: CommentCfg = { ...cfg, groups };
-    if (!own) { delete auto.title; delete auto.exclude; }        // other tables: their own title and rows
+    if (!own) { delete auto.title; delete auto.exclude; delete auto.tables; }        // other tables: their own title and rows
     const n: Note = { ...(keep || {}), text: "", auto, bubble };
     delete n.w; delete n.h;
     if (side === "left" || side === "right") n.w = size; else n.h = size;
     if (!bubble) delete n.bubble;
+    if (span && (side === "left" || side === "right")) n.span = true; else delete n.span;
     return n;
   };
   const opsFor = (X: RuntimeSlide, i: number, own: boolean): Record<string, Note | null> => {
@@ -84,28 +99,35 @@ export function CommentDialog() {
           <div class="cmtset">
             {R.tables.length > 1 && <label class="cmtrow"><span>Table</span><select id="cmtTable" value={ti} onChange={e => setTi(+(e.target as HTMLSelectElement).value)}>
               {R.tables.map((T, i) => <option key={i} value={i}>{tableName(T, c.preset)}</option>)}</select></label>}
-            <div class="cmtfound">Found: {a.total ? <>total <b>{a.total.label}</b></> : "no total row (the sum of the rows is used)"} · {a.entities.length} rows{a.period ? <> · latest <b>{a.period.name}{a.period.date ? " " + a.period.date : ""}</b></> : ""} · {a.groups.length} comparison{a.groups.length === 1 ? "" : "s"}</div>
+            <div class="seg small cmtmode" id="cmtMode">{(["summary", "sections"] as const).map(m => <button key={m} data-mode={m} class={(cfg.mode ?? "sections") === m ? "on" : ""} onClick={() => set({ mode: m })}>{m === "summary" ? "Summary – short, joint" : "Detailed – one section per comparison"}</button>)}</div>
+            {summary && R.tables.length > 1 && <><div class="opthd">Tables in this comment</div>
+              <div class="cmtchecks" id="cmtTables">{R.tables.map((T, i) => <label key={i} class="ck"><input type="checkbox" checked={i === ti || (cfg.tables || []).includes(tid(T))} disabled={i === ti} onChange={e => toggleTable(tid(T), (e.target as HTMLInputElement).checked)} />{tableName(T, c.preset)}</label>)}</div></>}
+            <div class="cmtfound">Found: {summary ? <>{blocks.length} block{blocks.length === 1 ? "" : "s"} – {blocks.map(b => b.head ? cleanHead(b.head.label) : "rows without a total").join(", ")}</> : a.total ? <>total <b>{a.total.label}</b></> : "no total row (the sum of the rows is used)"}{!summary && <> · {a.entities.length} rows</>}{a.period ? <> · latest <b>{a.period.name}{a.period.date ? " " + a.period.date : ""}</b></> : ""}</div>
             <label class="cmtrow"><span>Title</span><input id="cmtTitle" class="txt" placeholder={a.total ? prettyLabel(a.total.label) : tableName(L, c.preset)} value={cfg.title || ""} onInput={e => set({ title: (e.target as HTMLInputElement).value })} onKeyDown={e => e.stopPropagation()} /></label>
+            {summary ? <><div class="opthd">Joins</div>
+              <div class="cmtchecks" id="cmtKinds">{kindsHere.map(k => <label key={k} class="ck"><input type="checkbox" data-kind={k} checked={kinds.includes(k)} onChange={e => { const on = (e.target as HTMLInputElement).checked; set({ kinds: (["week", "target", "month", "quarter", "year", "yoy", "other"] as Group["kind"][]).filter(x => x === k ? on : kinds.includes(x)) }); }} />{KIND_LABEL[k]}{k === "week" ? " – judged: how good, who drives it" : ""}</label>)}</div></> : <>
             <div class="opthd">Sections</div>
             {!a.groups.length && <div class="optnote">No comparison columns found. Comments need headers like “Δ vs. Budget”, “vs. Prev. Week”, “Var. YoY”, with Abs. and/or % columns.</div>}
-            <div class="cmtchecks" id="cmtGroups">{a.groups.map(g => <label key={g.id} class="ck"><input type="checkbox" data-group={g.id} checked={groups.includes(g.id)} disabled={g.abs === null} onChange={e => toggleGroup(g.id, (e.target as HTMLInputElement).checked)} />{headingOf(g)}</label>)}</div>
+            <div class="cmtchecks" id="cmtGroups">{a.groups.map(g => <label key={g.id} class="ck"><input type="checkbox" data-group={g.id} checked={groups.includes(g.id)} disabled={g.abs === null} onChange={e => toggleGroup(g.id, (e.target as HTMLInputElement).checked)} />{headingOf(g)}</label>)}</div></>}
             <div class="opthd">Content</div>
             <div class="cmtgrid">
-              <label>Length</label><div class="seg small">{(["full", "short"] as const).map(d => <button key={d} class={cfg.detail === d ? "on" : ""} onClick={() => set({ detail: d })}>{d === "full" ? "Full analysis" : "Short"}</button>)}</div>
-              <label>Name the top</label><select id="cmtTop" value={cfg.top} onChange={e => set({ top: +(e.target as HTMLSelectElement).value })}>{[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n} contributor{n > 1 ? "s" : ""} per side</option>)}</select>
+              <label>Length</label><div class="seg small">{(["full", "short"] as const).map(d => <button key={d} class={cfg.detail === d ? "on" : ""} onClick={() => set({ detail: d })}>{d === "full" ? (summary ? "With plan drivers" : "Full analysis") : "Short"}</button>)}</div>
+              <label>Name the top</label><select id="cmtTop" value={cfg.top} onChange={e => set({ top: +(e.target as HTMLSelectElement).value })}>{[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n} name{n > 1 ? "s" : ""} per side</option>)}</select>
               <label>Ignore below</label><input id="cmtMin" type="number" min="0" step="any" class="txt" placeholder="0 (all movements)" value={cfg.minAbs ?? ""} onInput={e => { const v = parseFloat((e.target as HTMLInputElement).value); set({ minAbs: isFinite(v) && v > 0 ? v : undefined }); }} onKeyDown={e => e.stopPropagation()} />
               <label>Rows are</label><select id="cmtNoun" value={cfg.noun} onChange={e => set({ noun: (e.target as HTMLSelectElement).value })}>{NOUNS.map(n => <option key={n} value={n}>{n === "entity" ? "entities" : n.endsWith("y") ? n.slice(0, -1) + "ies" : n + "s"}</option>)}</select>
             </div>
-            {cfg.detail === "full" && <div class="cmtchecks">
+            {!summary && cfg.detail === "full" && <div class="cmtchecks">
               <label class="ck"><input type="checkbox" checked={cfg.share} onChange={e => set({ share: (e.target as HTMLInputElement).checked })} />Concentration (“largely driven by…, ~86%”)</label>
               <label class="ck"><input type="checkbox" checked={cfg.breadth} onChange={e => set({ breadth: (e.target as HTMLInputElement).checked })} />Broad-based moves</label>
               <label class="ck"><input type="checkbox" checked={cfg.missing} onChange={e => set({ missing: (e.target as HTMLInputElement).checked })} />Rows without data</label>
             </div>}
             <div class="opthd">Rows to include</div>
-            <div class="cmtents">{a.entities.map(e => <label key={e.label} class="ck"><input type="checkbox" checked={!ex.has(e.label.toLowerCase())} onChange={ev => toggleEnt(e.label, (ev.target as HTMLInputElement).checked)} />{e.label}</label>)}</div>
+            <div class="cmtents">{entityLabels.map(l => <label key={l} class="ck"><input type="checkbox" checked={!ex.has(l.toLowerCase())} onChange={ev => toggleEnt(l, (ev.target as HTMLInputElement).checked)} />{l}</label>)}</div>
             <div class="opthd">Placement</div>
             <div class="cmtgrid">
-              <label>Where</label><select id="cmtSide" value={side} onChange={e => { const s = (e.target as HTMLSelectElement).value as Side; setSide(s); setSize(s === "left" || s === "right" ? 440 : 220); }}>{SIDES.map(s => <option key={s} value={s}>{SIDE_LABEL[s]}</option>)}</select>
+              <label>Where</label><select id="cmtSide" value={span ? "span-" + side : side} onChange={e => { const v = (e.target as HTMLSelectElement).value, sp = v.startsWith("span-"), s = (sp ? v.slice(5) : v) as Side; setSpan(sp); setSide(s); setSize(s === "left" || s === "right" ? 440 : 220); }}>
+                {R.tables.length > 1 && <><option value="span-right">Beside all tables – right</option><option value="span-left">Beside all tables – left</option></>}
+                {SIDES.map(s => <option key={s} value={s}>{SIDE_LABEL[s]}{R.tables.length > 1 ? " (this table)" : ""}</option>)}</select>
               <label>{side === "left" || side === "right" ? "Width" : "Height"}</label><div class="row"><input type="range" min={side === "left" || side === "right" ? 240 : 100} max={side === "left" || side === "right" ? 800 : 500} step="10" value={size} onInput={e => setSize(+(e.target as HTMLInputElement).value)} /><span class="cv">{size} px</span></div>
               <label></label><label class="ck"><input type="checkbox" checked={bubble} onChange={e => setBubble((e.target as HTMLInputElement).checked)} />In a bubble (glass card / framed box)</label>
             </div>
@@ -116,7 +138,7 @@ export function CommentDialog() {
           {old && <button class="btn" id="cmtRemove" onClick={remove}>Remove comment</button>}
           <span class="hint">The text size shrinks to fit the box; make it wider or pick fewer sections for larger text.</span>
           <button class="btn" onClick={close}>Cancel</button>
-          {similar.length > 0 && <button class="btn" id="cmtAll" title={similar.map(x => `${x.si + 1}. ${tableName(x.T, c.preset)}`).join("\n")} onClick={() => insert(true)}>Also on {similar.length} similar table{similar.length > 1 ? "s" : ""}</button>}
+          {similar.length > 0 && !(summary && (cfg.tables || []).length) && <button class="btn" id="cmtAll" title={similar.map(x => `${x.si + 1}. ${tableName(x.T, c.preset)}`).join("\n")} onClick={() => insert(true)}>Also on {similar.length} similar table{similar.length > 1 ? "s" : ""}</button>}
           <button class="btn primary" id="cmtInsert" disabled={!a.groups.length} onClick={() => insert(false)}>{old ? "Update comment" : "Insert comment"}</button>
         </div>
       </div>

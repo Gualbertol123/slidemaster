@@ -200,7 +200,11 @@ function wireSlide(slide: HTMLElement, R: RuntimeSlide) {
     change("Add text box", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: { text: "" } } } } as Op]);
   }));
   slide.querySelectorAll<HTMLElement>(".tnote").forEach(el => {
-    el.addEventListener("pointerdown", e => { e.stopPropagation(); selectNote(el.dataset.note!); });
+    el.addEventListener("pointermove", e => { if (!(e.buttons & 1)) { const ed = noteEdge(el, e); el.style.cursor = ed ? (ed === "l" || ed === "r" ? "ew-resize" : "ns-resize") : ""; } });
+    el.addEventListener("pointerdown", e => {
+      e.stopPropagation(); selectNote(el.dataset.note!);
+      const ed = noteEdge(el, e); if (ed) { e.preventDefault(); stretchNote(slide, R, el, ed, e); }
+    });
     el.addEventListener("dblclick", e => { e.stopPropagation(); editNote(R, el); });
   });
   if (pendingNoteEdit) { const el = slide.querySelector<HTMLElement>(`.tnote[data-note="${CSS.escape(pendingNoteEdit)}"]`); pendingNoteEdit = null; if (el) setTimeout(() => editNote(R, el), 30); }
@@ -339,6 +343,56 @@ export const isInlineOpen = () => !!INLINE;
 export { STAGE };
 
 /* ---- text boxes ---- */
+/* stretching: the outer edges of a text box can be dragged (a box beside a table: its far edge and its
+   bottom; a box above/below: its outer edge and its right edge). The dragged edge snaps to the edges of
+   the tables, other text boxes and the content area, and a guide line shows what it lines up with. */
+type NEdge = "l" | "r" | "t" | "b";
+const STRETCH: Record<Side, NEdge[]> = { right: ["r", "b"], left: ["l", "b"], top: ["t", "r"], bottom: ["b", "r"] };
+function noteEdge(el: HTMLElement, e: PointerEvent | MouseEvent): NEdge | null {
+  const r = el.getBoundingClientRect(), tol = 7;
+  const near: Record<NEdge, boolean> = { l: Math.abs(e.clientX - r.left) <= tol, r: Math.abs(e.clientX - r.right) <= tol, t: Math.abs(e.clientY - r.top) <= tol, b: Math.abs(e.clientY - r.bottom) <= tol };
+  return STRETCH[el.dataset.side as Side].find(k => near[k]) || null;
+}
+const SNAP = 8;
+function snapTargets(slide: HTMLElement, R: RuntimeSlide, self: HTMLElement): { x: number[]; y: number[] } {
+  const b = computeLayout(R, ctx()).boxes, A = { x0: 50, x1: 1550, y1: 822 }, xs = [A.x0, A.x1], ys = [A.y1];
+  for (const t of b) {
+    if (!t) continue;
+    xs.push(t.x, t.x + t.w); ys.push(t.y, t.y + t.h);
+    for (const [sd, n] of Object.entries(t.notes)) {
+      if (!n || (String(t.i) === self.dataset.i && sd === self.dataset.side)) continue;
+      xs.push(n.x, n.x + n.w); ys.push(n.y, n.y + n.h);
+    }
+  }
+  void slide; return { x: xs, y: ys };
+}
+function stretchNote(slide: HTMLElement, R: RuntimeSlide, el: HTMLElement, edge: NEdge, e: PointerEvent) {
+  const sc = slideScale(), key = el.dataset.note!, cur = (R.cfg.notes || {})[key]; if (!cur) return;
+  const x0 = parseFloat(el.style.left), y0 = parseFloat(el.style.top), w0 = parseFloat(el.style.width), h0 = parseFloat(el.style.height);
+  const horiz = edge === "l" || edge === "r", targets = snapTargets(slide, R, el);
+  const guide = document.createElement("div"); guide.className = "snapline " + (horiz ? "v" : "h"); slide.appendChild(guide);
+  const bub = slide.querySelector<HTMLElement>(`.notebub[data-i="${el.dataset.i}"][data-side="${el.dataset.side}"]`);
+  const sx = e.clientX, sy = e.clientY; let size = horiz ? w0 : h0;
+  const move = (ev: PointerEvent) => {
+    const d = (horiz ? ev.clientX - sx : ev.clientY - sy) / sc * (edge === "l" || edge === "t" ? -1 : 1);
+    size = Math.max(horiz ? 120 : 40, (horiz ? w0 : h0) + d);
+    // the moving edge, in slide px, and the nearest edge it can line up with
+    const pos = edge === "r" ? x0 + size : edge === "l" ? x0 + w0 - size : edge === "b" ? y0 + size : y0 + h0 - size;
+    let best: number | null = null;
+    for (const t of horiz ? targets.x : targets.y) if (Math.abs(t - pos) <= SNAP && (best === null || Math.abs(t - pos) < Math.abs(best - pos))) best = t;
+    if (best !== null) size += (edge === "r" || edge === "b" ? 1 : -1) * (best - pos);
+    guide.style.display = best === null ? "none" : "block";
+    if (best !== null) Object.assign(guide.style, horiz ? { left: best + "px" } : { top: best + "px" });
+    const st = horiz ? { width: size + "px", ...(edge === "l" ? { left: x0 + w0 - size + "px" } : {}) } : { height: size + "px", ...(edge === "t" ? { top: y0 + h0 - size + "px" } : {}) };
+    Object.assign(el.style, st); if (bub) Object.assign(bub.style, st);
+  };
+  const up = () => {
+    removeEventListener("pointermove", move); removeEventListener("pointerup", up); guide.remove();
+    if (Math.abs(size - (horiz ? w0 : h0)) < 1) return;
+    change(horiz ? "Text box width" : "Text box height", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: { ...cur, [horiz ? "w" : "h"]: Math.round(size) } } } } as Op]);
+  };
+  addEventListener("pointermove", move); addEventListener("pointerup", up);
+}
 let pendingNoteEdit: string | null = null;
 const noteKeyOf = (R: RuntimeSlide, i: number, side: Side) => (R.tables[i].id || String(i)) + ":" + side;
 export function noteOf(key: string): Note | null { return (curSlide()?.cfg.notes || {})[key] || null; }
@@ -361,7 +415,7 @@ function editNote(R: RuntimeSlide, el: HTMLElement) {
   const wrap = wrapEl(); if (!wrap) return;
   const key = el.dataset.note!, cur = (R.cfg.notes || {})[key] || { text: "" };
   // an automated comment shows its current text; changing it turns it into fixed text
-  const T = R.tables[+el.dataset.i!], gen = cur.auto && T ? commentText(T, cur.auto, ctx()) : null;
+  const T = R.tables[+el.dataset.i!], gen = cur.auto && T ? commentText(T, cur.auto, ctx(), R) : null;
   selectNote(key);
   const wr = wrap.getBoundingClientRect(), r = el.getBoundingClientRect();
   const ta = document.createElement("textarea"); ta.className = "inline-edit note-edit"; ta.value = gen ?? (cur.text || "");
