@@ -31,6 +31,7 @@ export interface SlideDef {
   align?: "left" | "center" | "right"; valign?: "top" | "middle" | "bottom"; scale?: number; notes?: Record<string, Note>;
   /** index slide: show the subtitles of the slides (default true) */ subs?: boolean;
   /** formatting of this slide's title, subtitle, cover note and date (over the deck text styles) */ fmt?: Partial<Record<SlideTextKey, TextFmt>>;
+  /** table sizing of one design (over layout/scale, which older decks share between designs) */ sizes?: Partial<Record<Design, { layout?: Layout; scale?: number }>>;
 }
 /** a named version of the deck (e.g. "Chief", "All"): the cells removed from it, per sheet ("C5:D9" ranges) */
 export interface DeckVersion { id: string; name: string; hide: Record<string, string[]> }
@@ -73,7 +74,7 @@ export interface Prefs { lastFile?: string | null; pdfMode?: "exact" | "vector" 
 type Nullable<T> = { [K in keyof T]?: T[K] | null };
 export type Op =
   | { op: "preset.set"; preset: Preset | null }
-  | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "valign" | "scale" | "subs">> & { notes?: Record<string, Note | null> | null; fmt?: Partial<Record<SlideTextKey, TextFmt | null>> | null } }
+  | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "valign" | "scale" | "subs">> & { notes?: Record<string, Note | null> | null; sizes?: Partial<Record<Design, { layout?: Layout; scale?: number } | null>> | null; fmt?: Partial<Record<SlideTextKey, TextFmt | null>> | null } }
   | { op: "table.patch"; id: string; patch: { name?: string | null; gridH?: "on" | "off" | null; gridV?: "on" | "off" | null; cols?: Record<string, number | null> | null; rows?: Record<string, number | null> | null; scales?: Record<string, ScaleRule | null> | null; merges?: Record<string, "merge" | "split" | null> | null } }
   | { op: "cell.patch"; sheet: string; ref: string; patch: Nullable<CellEdit> }
   | { op: "style.patch"; patch: Nullable<Omit<StylePatch, "pn" | "footer" | "theme" | "text" | "colors">> & { pn?: Nullable<PageNumbers> | null; footer?: Nullable<Footer> | null; theme?: Nullable<Theme> | null; text?: Partial<Record<TextRole, TextFmt | null>> | null; colors?: Partial<Record<ColorKey, string | null>> | null; designs?: Partial<Record<Design, Look | null>> | null } };

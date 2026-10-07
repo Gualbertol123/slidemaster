@@ -4,7 +4,7 @@
 import type { CellEdit, Op, WorkbookDoc, StylePatch } from "./types";
 
 const SLIDE_KEYS = ["title", "subtitle", "date", "note", "logo", "layout", "align", "scale", "valign", "subs"] as const;
-const SLIDE_MAPS = ["notes", "fmt"] as const;
+const SLIDE_MAPS = ["notes", "fmt", "sizes"] as const;
 const TABLE_KEYS = ["name", "gridH", "gridV"] as const;
 const TABLE_MAPS = ["cols", "rows", "scales", "merges"] as const;
 const CELL_KEYS = ["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role"] as const;

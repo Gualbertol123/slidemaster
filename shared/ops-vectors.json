@@ -1593,5 +1593,133 @@
       "applied": 1,
       "skipped": []
     }
+  },
+  {
+    "name": "slide.patch sizes is a map merge: each design keeps its own table sizing",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S1"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "layout": {
+              "bands": [
+                [
+                  0
+                ]
+              ],
+              "w": [
+                1
+              ]
+            },
+            "scale": 0.8,
+            "sizes": {
+              "glass": {
+                "scale": 0.7
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "layout": null,
+          "scale": null,
+          "sizes": {
+            "excel": {
+              "layout": {
+                "bands": [
+                  [
+                    0
+                  ]
+                ],
+                "w": [
+                  1
+                ]
+              },
+              "scale": 1.1
+            },
+            "clean": {
+              "layout": {
+                "bands": [
+                  [
+                    0
+                  ]
+                ],
+                "w": [
+                  1
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "sizes": {
+            "glass": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S1"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "sizes": {
+              "excel": {
+                "layout": {
+                  "bands": [
+                    [
+                      0
+                    ]
+                  ],
+                  "w": [
+                    1
+                  ]
+                },
+                "scale": 1.1
+              },
+              "clean": {
+                "layout": {
+                  "bands": [
+                    [
+                      0
+                    ]
+                  ],
+                  "w": [
+                    1
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
   }
 ]

@@ -3,7 +3,7 @@ import { cleanFamily, fontFaceCss, fontStack, guessFromName, parseGoogleCss, rea
 import { cleanFmt, resolveStyle } from "../src/model/style";
 import { coverHtml, indexHtml } from "../src/render/cover";
 import { pageNoHtml } from "../src/render/pagenumbers";
-import { areaFor, computeLayout } from "../src/render/slide";
+import { areaFor, computeLayout, sizingPatch } from "../src/render/slide";
 import { effNote, fmtCss, slideTextFmt, titleGeom } from "../src/render/text";
 import type { RenderCtx } from "../src/render/context";
 import type { StylePatch } from "../src/model/types";
@@ -127,5 +127,27 @@ describe("text boxes placed freely", () => {
     const b = computeLayout(R, ctx({}, "clean")).boxes[0];
     expect(b.notes.right).toEqual({ x: 1200, y: 640, w: 300, h: 120, free: true });
     expect(b.w).toBeCloseTo(plain.w, 5);                                   // the table did not shrink
+  });
+});
+
+describe("table sizing per design", () => {
+  const L = { id: "a", def: { id: "a" }, items: [], W: 600, H: 200, g: { r1: 1, c1: 1, r2: 20, c2: 5 }, rows: [], cols: [], sheet: { name: "S" } } as any;
+  it("raw Excel is not shrunk by text boxes, nor by a scale made with them", () => {
+    const notes = { "a:right": { text: "x", w: 500 } };
+    const clean = computeLayout(slide({ tables: ["a"], notes }, { tables: [L] }), ctx({}, "clean")).boxes[0].w;
+    const excel = computeLayout(slide({ tables: ["a"], notes }, { tables: [L] }), ctx({}, "excel")).boxes[0].w;
+    expect(excel).toBeGreaterThan(clean * 1.2);
+    // an older deck's shared fixed scale (set in Excel Refined with the text box): Excel grows by the same room
+    const shared = slide({ tables: ["a"], notes, scale: 0.5 }, { tables: [L] });
+    const kClean = computeLayout(shared, ctx({}, "clean")).k, kExcel = computeLayout(shared, ctx({}, "excel")).k;
+    expect(kClean).toBeCloseTo(0.5, 5);
+    expect(kExcel).toBeGreaterThan(0.6);
+  });
+  it("each design uses its own sizing, else the shared one", () => {
+    const R = slide({ tables: ["a"], scale: 0.5, sizes: { excel: { scale: 0.9 } } }, { tables: [L] });
+    expect(computeLayout(R, ctx({}, "excel")).k).toBeCloseTo(0.9, 5);
+    expect(computeLayout(R, ctx({}, "clean")).k).toBeCloseTo(0.5, 5);
+    const p = sizingPatch(R, ctx({}, "glass"), { scale: 0.7 });
+    expect(p).toEqual({ layout: null, scale: null, sizes: { clean: { scale: 0.5 }, glass: { scale: 0.7 } } });   // Excel keeps its own entry
   });
 });

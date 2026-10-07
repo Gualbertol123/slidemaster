@@ -6,7 +6,7 @@ import { change, ctx, style } from "../state/app";
 import { DLG } from "../state/dialogs";
 import { applySel, curSlide, selItems, selTable } from "../editor/edit";
 import { effFmt } from "../render/edits";
-import { slideHasLogo } from "../render/slide";
+import { sizingOf, sizingPatch, slideHasLogo } from "../render/slide";
 import { alignTables, canMerge, mergeSel, mergedInSel, unmergeSel, valignTables, currentTableRefs, makeSameSize, selCols, selRows, setColWidth, setRowHeight, shownColW, shownRowH } from "../editor/tables";
 import { addSlideNotes, attachNote, noteOf, patchNote } from "../editor/stage";
 import { scaleColors } from "../render/scales";
@@ -118,7 +118,7 @@ export function TableRibbon() {
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="2.5" width="13" height="11" /><path d="M1.5 6.2h13M1.5 9.8h13M5.8 2.5v11M10.2 2.5v11" /></svg>Gridlines</button>}>
           {close => R && tIdx >= 0 ? <GridMenu close={close} T={R.tables[tIdx]} /> : null}</Dropdown>
         <button class="tb" id="tablesDlg" disabled={!S.slides.some(x => x.tables.length)} title="Match sizes of tables on several slides, copy column widths between tables" onClick={() => { DLG.tables = true; emit(); }}>Sizes…</button>
-        <button class="tb" id="resetLayout" title="Automatic table positions for this slide" disabled={!(R && R.cfg.layout)} onClick={() => slidePatch("Reset layout", { layout: null })}>Reset layout</button>
+        <button class="tb" id="resetLayout" title="Automatic table positions for this slide (in this design)" disabled={!(R && sizingOf(R, ctx()).layout)} onClick={() => R && slidePatch("Reset layout", sizingPatch(R, ctx(), { scale: sizingOf(R, ctx()).scale }))}>Reset layout</button>
       </div>
       <div class="grp">
         <span class="lbl">Text box</span>

@@ -3,7 +3,7 @@ import { A1, esc } from "../xlsx/util";
 import type { Sheet } from "../xlsx/types";
 import type { RuntimeSlide } from "../model/types";
 import { tableName } from "../model/preset";
-import { computeLayout } from "../render/slide";
+import { computeLayout, sizingOf } from "../render/slide";
 import type { RenderCtx } from "../render/context";
 
 export interface Issue { cls: "" | "ok" | "warn" | "err"; html: string }
@@ -36,6 +36,6 @@ export function slideIssues(R: RuntimeSlide, ctx: RenderCtx): Issue[] {
       out.push({ cls: "", html: `${n} edited cell${n > 1 ? "s" : ""} on ${esc(S.name)}` + (stale ? ` · <span class="warn">${stale} text edit${stale > 1 ? "s" : ""} paused: the Excel value changed (rows inserted above the table, or new figures)</span>` : "") });
     }
   }
-  if (R.cfg.layout) out.push({ cls: "ok", html: "Custom table layout saved" });
+  if (sizingOf(R, ctx).layout) out.push({ cls: "ok", html: "Custom table layout saved" });
   return out;
 }

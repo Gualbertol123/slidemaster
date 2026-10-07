@@ -8,7 +8,7 @@ import re
 
 REF_RE = re.compile(r"^[A-Z]{1,3}[0-9]{1,7}$")
 SLIDE_KEYS = ("title", "subtitle", "date", "note", "logo", "layout", "align", "scale", "valign", "subs")
-SLIDE_MAPS = ("notes", "fmt")
+SLIDE_MAPS = ("notes", "fmt", "sizes")
 TABLE_KEYS = ("name", "gridH", "gridV")
 TABLE_MAPS = ("cols", "rows", "scales", "merges")
 CELL_KEYS = ("text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role")

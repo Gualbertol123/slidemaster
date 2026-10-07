@@ -238,7 +238,7 @@ export function Wizard({ req }: { req: WizardReq }) {
       else { const s: SlideDef = { id: uid(), type, title: type === "index" ? "Contents" : null, subtitle: null, tables: [] }; const at = type === "cover" ? 0 : (W.slides[0]?.type === "cover" ? 1 : 0); W.slides.splice(at, 0, s); }
       render();
     };
-    const addTo = (s: SlideDef, id: string) => { if (!s.tables.includes(id)) { s.tables.push(id); s.layout = null; } W.focusSlide = s.id; render(); };
+    const addTo = (s: SlideDef, id: string) => { if (!s.tables.includes(id)) { s.tables.push(id); s.layout = null; delete s.sizes; } W.focusSlide = s.id; render(); };
     const autoTitle = (s: SlideDef) => { const t = W.tables.find(x => x.id === s.tables[0]); const S = t && byName(t.sheet); return S ? (S.title || S.name) : "Slide title"; };
     const pool = sheetsChosen().filter(S => tablesOf(S.name).length);
     let n = 0;
@@ -282,12 +282,12 @@ export function Wizard({ req }: { req: WizardReq }) {
                 onDrop={e => {
                   e.preventDefault(); (e.currentTarget as HTMLElement).classList.remove("over");
                   const id = e.dataTransfer!.getData("text/id"), from = e.dataTransfer!.getData("text/from"); if (!id) return;
-                  if (from) { const f = W.slides.find(x => x.id === from); if (f && f !== s) { f.tables = f.tables.filter(x => x !== id); f.layout = null; } }
+                  if (from) { const f = W.slides.find(x => x.id === from); if (f && f !== s) { f.tables = f.tables.filter(x => x !== id); f.layout = null; delete f.sizes; } }
                   addTo(s, id);
                 }}>
                 {s.tables.length ? s.tables.map(id => { const t = W.tables.find(x => x.id === id); return t ? <span key={id} class="tchip in" draggable data-id={id} data-from={s.id}
                   onDragStart={e => { e.dataTransfer!.setData("text/id", id); e.dataTransfer!.setData("text/from", s.id); }}><b>{tLabel(t)}</b>
-                  <button title="Remove from slide" onClick={() => { s.tables = s.tables.filter(x => x !== id); s.layout = null; render(); }}>✕</button></span> : null; }) : <span class="dropnote">Drop tables here</span>}
+                  <button title="Remove from slide" onClick={() => { s.tables = s.tables.filter(x => x !== id); s.layout = null; delete s.sizes; render(); }}>✕</button></span> : null; }) : <span class="dropnote">Drop tables here</span>}
               </div></div>;
           }) : <p class="meta">No slides yet.</p>}</div>
         </div>

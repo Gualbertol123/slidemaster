@@ -7,6 +7,7 @@ import { buildLayout } from "../xlsx/layout";
 import type { TableLayout } from "../xlsx/types";
 import type { Layout, Op, RuntimeSlide, TableDef } from "../model/types";
 import { computeLayout, layoutOf, tableW } from "../render/slide";
+import type { RenderCtx } from "../render/context";
 import { glassGeom } from "../render/glass";
 import { curSlide, selItems, selTable } from "./edit";
 import { A1, parseRange } from "../xlsx/util";
@@ -72,7 +73,14 @@ export function copySizes(from: TableLayout, to: TableRef[], what: { cols: boole
 export function resetSizes(refs: TableRef[]) {
   const ops = [...uniqueDefs(refs).values()].filter(L => L.def!.cols || L.def!.rows).map(L => tablePatch(L.def!, { cols: null, rows: null }));
   const slides = new Set(refs.map(r => r.slide));
-  for (const s of slides) if (S.slides[s].cfg.scale) ops.push({ op: "slide.patch", id: S.slides[s].id, patch: { scale: null } } as Op);
+  // the fixed scale goes in every design (each keeps its own arrangement)
+  for (const s of slides) {
+    const R = S.slides[s], sizes = R.cfg.sizes || {};
+    if (!R.cfg.scale && !Object.values(sizes).some(e => e?.scale)) continue;
+    const next: Record<string, unknown> = {};
+    for (const [d, e] of Object.entries(sizes)) if (e?.scale) next[d] = e.layout ? { layout: e.layout } : null;
+    ops.push({ op: "slide.patch", id: R.id, patch: { scale: null, ...(Object.keys(next).length ? { sizes: next } : {}) } } as Op);
+  }
   if (ops.length) change("Reset table sizes", ops);
 }
 
@@ -96,16 +104,25 @@ export function makeSameSize(refs: TableRef[], opts: { width: boolean; height: b
     if (nl) { nl.def = { ...L.def!, ...sizes } as TableDef; nl.id = L.id; nl.items.forEach(it => { it.L = nl; }); newL.set(L.def!.id, nl); }
   });
   // same weight on every slide, and one common scale across slides
-  const slides = [...new Set(refs.map(r => r.slide))];
-  const tmp = slides.map(si => {
-    const R = S.slides[si], base = layoutOf(R);
-    const w = base.w.map((v, i) => (R.tables[i].def && defs.has(R.tables[i].def!.id)) ? 1 : v);
-    const lay: Layout = { bands: JSON.parse(JSON.stringify(base.bands)), w };
-    const tR: RuntimeSlide = { ...R, cfg: { ...R.cfg, scale: undefined, layout: lay }, tables: R.tables.map(L => (L.def && newL.get(L.def.id)) || L), _auto: undefined };
-    return { R, lay, fit: computeLayout(tR, x).fit };
-  });
-  const common = Math.min(...tmp.map(t => t.fit));
-  for (const t of tmp) ops.push({ op: "slide.patch", id: t.R.id, patch: { layout: t.lay, scale: slides.length > 1 ? Math.round(common * 10000) / 10000 : null } } as Op);
+  // – worked out for each design on its own (the designs draw tables at different sizes, and raw Excel
+  // has no text boxes taking room)
+  const slides = [...new Set(refs.map(r => r.slide))], sizes = new Map<string, Record<string, unknown>>();
+  for (const d of ["glass", "excel", "clean"] as const) {
+    const xd: RenderCtx = { ...x, style: { ...x.style, design: d } };
+    const tmp = slides.map(si => {
+      const R = S.slides[si], base = layoutOf(R, xd);
+      const w = base.w.map((v, i) => (R.tables[i].def && defs.has(R.tables[i].def!.id)) ? 1 : v);
+      const lay: Layout = { bands: JSON.parse(JSON.stringify(base.bands)), w };
+      const tR: RuntimeSlide = { ...R, cfg: { ...R.cfg, scale: undefined, layout: lay, sizes: undefined }, tables: R.tables.map(L => (L.def && newL.get(L.def.id)) || L), _auto: undefined };
+      return { R, lay, fit: computeLayout(tR, xd).fit };
+    });
+    const common = Math.min(...tmp.map(t => t.fit));
+    for (const t of tmp) {
+      const m = sizes.get(t.R.id) || {}; sizes.set(t.R.id, m);
+      m[d] = { layout: t.lay, ...(slides.length > 1 ? { scale: Math.round(common * 10000) / 10000 } : {}) };
+    }
+  }
+  for (const [id, m] of sizes) ops.push({ op: "slide.patch", id, patch: { layout: null, scale: null, sizes: m } } as Op);
   change("Make tables the same size", ops);
   return { ok: true, why: "" };
 }

@@ -50,6 +50,8 @@ This README is the map. Deeper documents:
 * **Excel is raw Excel**: the workbook's tables with their own colours – no text boxes, comments or notes
   section, no deck colours on the tables (title, logo, page number and footer stay). Excel Refined and Liquid
   Glass have everything.
+* **Table sizes are kept per design**: with no text boxes, Excel fills the slide on its own; moving or
+  resizing tables, *Reset layout* and fixed scales apply to the design you are in (*Make same size* sets all three).
 * **Design…** › *Apply to*: **This design only** (default – Liquid Glass, Excel and Excel Refined each keep their
   own theme, colours and text styles) or **All designs** (one setting everywhere; it also clears what a design
   had set for itself).

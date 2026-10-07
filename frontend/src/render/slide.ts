@@ -41,8 +41,40 @@ export function validLayout(L: Layout | null | undefined, n: number): L is Layou
   if (!L || !Array.isArray(L.bands) || !Array.isArray(L.w) || L.w.length !== n) return false;
   const seen = L.bands.flat(); return seen.length === n && new Set(seen).size === n && seen.every(i => Number.isInteger(i) && i >= 0 && i < n);
 }
-export function layoutOf(R: RuntimeSlide): Layout {
-  const saved = R.cfg && R.cfg.layout;
+/* Table sizing (arrangement, weights, fixed scale) is kept per design: the designs draw the tables at
+   different sizes and only Liquid Glass and Excel Refined have text boxes, so sizing set in one design
+   must not shrink the tables of another. Older decks have one shared sizing (cfg.layout/cfg.scale): it
+   is used by every design without its own; raw Excel corrects the shared scale for the room the text
+   boxes took in the design it was made in. */
+export function sizingOf(R: RuntimeSlide, ctx: RenderCtx): { layout?: Layout | null; scale?: number | null; own: boolean } {
+  const own = R.cfg?.sizes?.[ctx.style.design];
+  if (own) return { layout: own.layout, scale: own.scale, own: true };
+  return { layout: R.cfg?.layout, scale: R.cfg?.scale, own: false };
+}
+/** a slide.patch that gives the current design its own sizing; designs still on the shared sizing
+    keep what they show now (it is copied into their own entries) */
+export function sizingPatch(R: RuntimeSlide, ctx: RenderCtx, entry: { layout?: Layout | null; scale?: number | null }) {
+  const sizes: Record<string, unknown> = {}, d = ctx.style.design;
+  if (R.cfg.layout || R.cfg.scale) for (const o of DESIGNS) if (o !== d && !R.cfg.sizes?.[o]) {
+    const oc = { ...ctx, style: { ...ctx.style, design: o } }, sc = fixedScale(R, oc);
+    sizes[o] = clean({ layout: R.cfg.layout, scale: sc ? Math.round(sc * 10000) / 10000 : null });
+  }
+  sizes[d] = Object.keys(clean(entry)).length ? clean(entry) : null;
+  return { layout: null, scale: null, sizes };
+}
+const DESIGNS = ["glass", "excel", "clean"] as const;
+const clean = (e: { layout?: Layout | null; scale?: number | null }) => ({ ...(e.layout ? { layout: e.layout } : {}), ...(e.scale ? { scale: e.scale } : {}) });
+/** the fixed scale of the slide in this design ("Make same size"), 0 = none */
+function fixedScale(R: RuntimeSlide, ctx: RenderCtx): number {
+  const sz = sizingOf(R, ctx), s = sz.scale && sz.scale > 0 ? sz.scale : 0;
+  if (!s || sz.own || ctx.style.design !== "excel" || !R.cfg.notes || !Object.keys(R.cfg.notes).length) return s;
+  // shared scale made with text boxes: grow it by as much as the missing text boxes let the tables grow
+  const withNotes = computeLayout({ ...R, cfg: { ...R.cfg, scale: undefined } }, { ...ctx, style: { ...ctx.style, design: "clean" } }).fit;
+  const bare = computeLayout({ ...R, cfg: { ...R.cfg, scale: undefined } }, ctx).fit;
+  return withNotes > 0 ? s * bare / withNotes : s;
+}
+export function layoutOf(R: RuntimeSlide, ctx?: RenderCtx): Layout {
+  const saved = ctx ? sizingOf(R, ctx).layout : R.cfg && R.cfg.layout;
   if (validLayout(saved, R.tables.length)) return saved;
   if (!R._auto || R._auto.w.length !== R.tables.length) R._auto = defaultLayout(R);
   return R._auto;
@@ -76,7 +108,7 @@ const noteW = (n: Note) => n.w || NOTE_W;
     slide's fixed scale (set by "Make same size"), reduced only if it would not fit. */
 export function computeLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay?: Layout): { boxes: TBox[]; k: number; fit: number; reduced: boolean } {
   if (!R.tables.length) return { boxes: [], k: 1, fit: 1, reduced: false };
-  lay = lay || layoutOf(R); const ww = w || lay.w; const T = R.tables, A0 = areaFor(R, ctx);
+  lay = lay || layoutOf(R, ctx); const ww = w || lay.w; const T = R.tables, A0 = areaFor(R, ctx);
   const bands = lay.bands.filter(b => b.length);
   const N = T.map((_, i) => notesOf(R, i, ctx));
   // text boxes "beside all tables" (span): a column at the left/right of the content area, as tall as all
@@ -101,7 +133,7 @@ export function computeLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay
   };
   let lo = 0.01, hi = MAXK;
   if (fits(hi)) lo = hi; else for (let n = 0; n < 40; n++) { const m = (lo + hi) / 2; if (fits(m)) lo = m; else hi = m; }
-  const fit = lo, fixed = R.cfg.scale && R.cfg.scale > 0 ? R.cfg.scale : 0;
+  const fit = lo, fixed = fixedScale(R, ctx);
   const k = fixed ? Math.min(fixed, fit) : fit;
   const boxes: TBox[] = []; let y = 0;
   const dims = bands.map(b => ({ w: b.reduce((s, i) => s + unitW(i, k), 0) + GX * (b.length - 1), h: Math.max(...b.map(i => unitH(i, k))) }));

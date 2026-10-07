@@ -4,7 +4,7 @@ import { S, emit, STAGE, toast } from "../state/store";
 import { change, ctx, setZoom } from "../state/app";
 import type { Item, TableLayout } from "../xlsx/types";
 import type { Layout, Op, RuntimeSlide } from "../model/types";
-import { MEMO_KEY, applyLayout, buildSlide, computeLayout, GX, GY, layoutOf, tableHtml, tableW, type SlideEl } from "../render/slide";
+import { MEMO_KEY, applyLayout, buildSlide, computeLayout, GX, GY, layoutOf, sizingOf, sizingPatch, tableHtml, tableW, type SlideEl } from "../render/slide";
 import { glassGeom, gItem } from "../render/glass";
 import { effFmt, effText } from "../render/edits";
 import { activeItem, commitText, curSlide, itemAt, selItems, setSel } from "./edit";
@@ -236,7 +236,7 @@ function wireTableHandles(slide: HTMLElement, R: RuntimeSlide, hb: HTMLElement) 
   hb.querySelector<HTMLElement>(".size")!.addEventListener("pointerdown", e => {
     e.preventDefault(); e.stopPropagation();
     const c = ctx(), sc = slideScale(), sx = e.clientX, sy = e.clientY;
-    const start = computeLayout(R, c).boxes[i], base = layoutOf(R), w0 = base.w.slice(), T = R.tables[i];
+    const start = computeLayout(R, c).boxes[i], base = layoutOf(R, c), w0 = base.w.slice(), T = R.tables[i];
     const lay: Layout = { bands: JSON.parse(JSON.stringify(base.bands)), w: w0.slice() };
     hb.setPointerCapture(e.pointerId); hb.classList.add("active");
     const move = (ev: PointerEvent) => {
@@ -246,7 +246,7 @@ function wireTableHandles(slide: HTMLElement, R: RuntimeSlide, hb: HTMLElement) 
       lay.w = w0.slice(); lay.w[i] = Math.round(lo * 1000) / 1000;
       applyLayout(slide, R, c, lay.w, lay);
     };
-    const up = () => { hb.removeEventListener("pointermove", move); hb.removeEventListener("pointerup", up); hb.classList.remove("active"); slidePatch("Resize table", R, { layout: lay }); };
+    const up = () => { hb.removeEventListener("pointermove", move); hb.removeEventListener("pointerup", up); hb.classList.remove("active"); slidePatch("Resize table", R, sizingPatch(R, c, { ...sizingOf(R, c), layout: lay })); };
     hb.addEventListener("pointermove", move); hb.addEventListener("pointerup", up);
   });
   // borders of the table: drag to stretch the columns (left/right) or rows (top/bottom)
@@ -294,12 +294,12 @@ function wireTableHandles(slide: HTMLElement, R: RuntimeSlide, hb: HTMLElement) 
     const up = () => {
       hb.removeEventListener("pointermove", move); hb.removeEventListener("pointerup", up); hb.classList.remove("active"); mark.style.display = "none";
       if (!drop) return;
-      const lay: Layout = JSON.parse(JSON.stringify(layoutOf(R)));
+      const lay: Layout = JSON.parse(JSON.stringify(layoutOf(R, c)));
       const bands = lay.bands.map(b => b.filter(x => x !== i)); const bi = bands.findIndex(b => b.includes(drop!.t));
       if (drop.zone === "left" || drop.zone === "right") { const p = bands[bi].indexOf(drop.t); bands[bi].splice(drop.zone === "left" ? p : p + 1, 0, i); }
       else bands.splice(drop.zone === "top" ? bi : bi + 1, 0, [i]);
       lay.bands = bands.filter(b => b.length);
-      slidePatch("Move table", R, { layout: lay });
+      slidePatch("Move table", R, sizingPatch(R, c, { ...sizingOf(R, c), layout: lay }));
     };
     hb.addEventListener("pointermove", move); hb.addEventListener("pointerup", up);
   });
