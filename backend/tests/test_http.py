@@ -30,7 +30,9 @@ class FakeExporter(FakeEngine):
         pass
 
 
-class HttpTests(TempDirs):
+class HttpBase(TempDirs):
+    """a helper on a free port with a fake export engine (also used by test_fonts.py)"""
+
     def setUp(self):
         super().setUp()
         self.app_file = os.path.join(self.tmp, "slide_builder.html")
@@ -75,6 +77,8 @@ class HttpTests(TempDirs):
     def wb(name):
         return "/api/workbooks/" + urllib.parse.quote(name, safe="")
 
+
+class HttpTests(HttpBase):
     # ---- security
     def test_ping_needs_no_token(self):
         self.assertEqual(self.jreq("GET", "/api/ping", token=False), (200, {"app": APP_NAME, "version": VERSION}))

@@ -2,8 +2,8 @@
 
 Security for every request (findings S1-S5):
 * ``Host`` must be ``127.0.0.1:<port>`` or ``localhost:<port>``                 -> else 403
-* ``/api/*`` (except ``/api/ping``), ``/files/*`` and ``/assets/*`` need ``X-SB-Token``
-  (``/assets/*`` may pass ``?t=`` instead)                                       -> else 403
+* ``/api/*`` (except ``/api/ping``), ``/files/*``, ``/assets/*`` and ``/fonts/*`` need ``X-SB-Token``
+  (``/assets/*`` and ``/fonts/*`` may pass ``?t=`` instead)                      -> else 403
 * an ``Origin`` header, when present, must be ``http://127.0.0.1:<port>`` / ``http://localhost:<port>``
 * bodies: 2 MB for JSON documents/ops, 300 MB for uploads/exports/conversions    -> else 413
 * error bodies are ``{"error": "<message>"}`` without tracebacks
@@ -24,6 +24,7 @@ from . import APP_NAME, VERSION, paths, presence, store
 from .convert import convert_picture, convert_workbook
 from .engines import EngineError
 from .exports import ExportError, assemble, export
+from .fonts import FONT_MAX, FontError, add_face, font_file, read_library, remove_family
 from .installer import install_status, start_install
 from .locks import LockTimeout
 from .store import StoreTooNew, StoreUnreadable
@@ -201,15 +202,15 @@ class Handler(BaseHTTPRequestHandler):
             raise HttpError(403, "forbidden (origin)")
         if path == "/api/ping":
             return
-        if path.startswith("/api/") or path.startswith("/files/") or path.startswith("/assets/"):
+        if path.startswith(("/api/", "/files/", "/assets/", "/fonts/")):
             tok = self.headers.get(TOKEN_HEADER) or ""
-            if not tok and path.startswith("/assets/"):
+            if not tok and path.startswith(("/assets/", "/fonts/")):
                 tok = (query.get("t") or [""])[0]
             if not tok or not hmac.compare_digest(tok.encode("utf-8"), self.app.token.encode("utf-8")):
                 raise HttpError(403, "forbidden (token)")
         # a page loaded before an update speaks the old data formats: its changes are refused (the page
         # asks to reload). Pages without the header (built before formats were numbered) are accepted.
-        if self.command in ("POST", "PUT") and path.startswith("/api/") and not formats_match(self.headers.get(FORMATS_HEADER)):
+        if self.command in ("POST", "PUT", "DELETE") and path.startswith("/api/") and not formats_match(self.headers.get(FORMATS_HEADER)):
             raise HttpError(409, "Slide Builder was updated - reload the page (F5) to continue; your last change was not saved")
 
     # ------------------------------------------------------------------ dispatch
@@ -258,7 +259,7 @@ class Handler(BaseHTTPRequestHandler):
             self._error(503, str(e))
         except EngineError as e:
             self._error(503, str(e))
-        except ExportError as e:
+        except (ExportError, FontError) as e:
             self._error(400, str(e))
         except Exception:
             traceback.print_exc()
@@ -281,6 +282,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"workbooks": list_workbooks(), "folder": paths.ROOT})
         if path == "/api/engine/install":
             return self._send(200, install_status())
+        if path == "/api/fonts":
+            return self._send(200, read_library())
+        if path.startswith("/fonts/"):
+            data, ctype = font_file(urllib.parse.unquote(path[len("/fonts/"):]))
+            return self._send(200, data, ctype)
         if path.startswith("/files/"):
             return self._workbook_file(urllib.parse.unquote(path[len("/files/"):]))
         if path.startswith("/assets/"):
@@ -354,6 +360,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True})
         return False
 
+    # ------------------------------------------------------------------ DELETE
+    def _delete(self, path, q):
+        if path == "/api/fonts":
+            family = (q.get("family") or [""])[0]
+            if not family:
+                raise HttpError(400, "family is required")
+            return self._send(200, remove_family(family))
+        return False
+
     # ------------------------------------------------------------------ POST
     def _post(self, path, q):
         if path.startswith("/api/workbooks/"):
@@ -424,6 +439,11 @@ class Handler(BaseHTTPRequestHandler):
                     raise FileNotFoundError(req["name"])
             open_with_os(target)
             return self._send(200, {"ok": True})
+        if path == "/api/fonts":                         # one font file; family/weight/style in the query
+            one = lambda k, d=None: (q.get(k) or [d])[0]
+            return self._send(200, add_face(one("family"), one("weight", "400"), one("style", "normal"), self._body(FONT_MAX),
+                                            ext=os.path.splitext(one("name", "") or "")[1], source=one("source", "upload"),
+                                            unicode_range=one("range")))
         if path == "/api/engine/restart":
             self._body(JSON_LIMIT)
             self.app.engine.restart()

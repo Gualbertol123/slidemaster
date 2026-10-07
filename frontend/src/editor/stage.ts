@@ -10,7 +10,9 @@ import { effFmt, effText } from "../render/edits";
 import { activeItem, commitText, curSlide, itemAt, selItems, setSel } from "./edit";
 import { selCols, selRows, setColWidth, setRowHeight, shownColW, shownRowH, stretchTable } from "./tables";
 import { applyPainter } from "./painter";
-import type { Note, Side } from "../model/types";
+import type { Note, Side, SlideTextKey } from "../model/types";
+import { selectSlideText } from "./textfmt";
+import { todayLabel } from "../render/cover";
 
 let host: HTMLElement | null = null;
 export function mountStage(el: HTMLElement) {
@@ -105,6 +107,8 @@ function pointToCell(hits: HTMLElement, e: PointerEvent | MouseEvent) {
 export function paintSel() {
   const slide = host?.querySelector(".slide"); if (!slide) return;
   slide.querySelectorAll(".selbox,.actbox").forEach(e => e.remove());
+  slide.querySelectorAll(".tsel").forEach(e => e.classList.remove("tsel"));
+  if (S.textSel) slide.querySelector(`[data-edit="${S.textSel}"]`)?.classList.add("tsel");
   const sel = S.sel; if (!sel || !curSlide()) return;
   const its = selItems().map(cellBox); if (!its.length) return;
   const hits = slide.querySelector(`.hits[data-t="${sel.t}"]`); if (!hits) return;
@@ -200,7 +204,20 @@ function wireSlide(slide: HTMLElement, R: RuntimeSlide) {
   if (pendingNoteEdit) { const el = slide.querySelector<HTMLElement>(`.tnote[data-note="${CSS.escape(pendingNoteEdit)}"]`); pendingNoteEdit = null; if (el) setTimeout(() => editNote(R, el), 30); }
   if (S.noteSel) { const el = slide.querySelector<HTMLElement>(`.tnote[data-note="${CSS.escape(S.noteSel)}"]`); if (el) paintNoteSel(); else S.noteSel = null; }
   slide.querySelectorAll<HTMLElement>(".hbox").forEach(hb => wireTableHandles(slide, R, hb));
-  slide.querySelectorAll<HTMLElement>("[data-edit]").forEach(el => el.addEventListener("dblclick", () => editSlideText(R, el)));
+  // titles, subtitles, cover note and date: click selects (the toolbar formats them), double-click edits
+  slide.querySelectorAll<HTMLElement>("[data-edit]").forEach(el => {
+    el.addEventListener("pointerdown", e => { e.stopPropagation(); selectSlideText(el.dataset.edit as SlideTextKey); });
+    el.addEventListener("dblclick", () => editSlideText(R, el));
+  });
+  // a click on the empty slide clears every selection
+  slide.addEventListener("pointerdown", e => {
+    if ((e.target as Element).closest(".hits,.tnote,.hbox,[data-edit]")) return;
+    if (S.sel || S.noteSel || S.textSel) { S.sel = null; S.textSel = null; selectNote(null); }
+  });
+}
+export function editSelectedText() {
+  const el = S.textSel && host?.querySelector<HTMLElement>(`.slide [data-edit="${S.textSel}"]`), R = curSlide();
+  if (el && R) editSlideText(R, el);
 }
 const slidePatch = (label: string, R: RuntimeSlide, patch: Record<string, unknown>) => change(label, [{ op: "slide.patch", id: R.id, patch } as Op]);
 function wireTableHandles(slide: HTMLElement, R: RuntimeSlide, hb: HTMLElement) {
@@ -301,16 +318,18 @@ export function openInline(initial?: string) {
   });
   inp.addEventListener("blur", () => finish(true));
 }
-/* titles and subtitles: double-click on the slide to edit (stored in the preset) */
+/* titles, subtitles, cover note and date: double-click on the slide to edit (stored in the preset) */
+const TEXT_LABEL: Record<SlideTextKey, string> = { title: "Edit title", subtitle: "Edit subtitle", note: "Edit cover note", date: "Edit date" };
 function editSlideText(R: RuntimeSlide, el: HTMLElement) {
-  const key = el.dataset.edit as "title" | "subtitle", wrap = wrapEl(); if (!wrap) return;
-  const wr = wrap.getBoundingClientRect(), r = el.getBoundingClientRect();
+  const key = el.dataset.edit as SlideTextKey, wrap = wrapEl(); if (!wrap) return;
+  const wr = wrap.getBoundingClientRect(), r = el.getBoundingClientRect(), cs = getComputedStyle(el), sc = slideScale();
   const inp = document.createElement("input"); inp.className = "inline-edit";
-  inp.value = key === "title" ? R.title : (R.subtitle || "");
-  Object.assign(inp.style, { left: (r.left - wr.left - 4) + "px", top: (r.top - wr.top - 4) + "px", width: Math.max(320, r.width + 40) + "px", height: (r.height + 8) + "px", fontSize: Math.max(14, r.height * 0.62) + "px", fontWeight: key === "title" ? "700" : "500" });
+  inp.value = key === "title" ? R.title : key === "subtitle" ? (R.subtitle || "") : key === "date" ? (R.cfg.date || todayLabel()) : (R.cfg.note || "");
+  Object.assign(inp.style, { left: (r.left - wr.left - 4) + "px", top: (r.top - wr.top - 4) + "px", width: Math.max(320, r.width + 40) + "px", height: Math.max(28, r.height + 8) + "px",
+    fontSize: Math.max(14, parseFloat(cs.fontSize) * sc) + "px", fontWeight: cs.fontWeight, fontStyle: cs.fontStyle, fontFamily: cs.fontFamily });
   wrap.appendChild(inp); inp.focus(); inp.select();
   let done = false;
-  const finish = (ok: boolean) => { if (done) return; done = true; const v = inp.value.trim(); inp.remove(); if (ok) slidePatch(key === "title" ? "Edit title" : "Edit subtitle", R, { [key]: v || null }); afterEdit(); };
+  const finish = (ok: boolean) => { if (done) return; done = true; const v = inp.value.trim(); inp.remove(); if (ok) slidePatch(TEXT_LABEL[key], R, { [key]: v || null }); afterEdit(); };
   inp.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Enter") finish(true); if (e.key === "Escape") finish(false); });
   inp.addEventListener("blur", () => finish(true));
 }
@@ -322,7 +341,8 @@ let pendingNoteEdit: string | null = null;
 const noteKeyOf = (R: RuntimeSlide, i: number, side: Side) => (R.tables[i].id || String(i)) + ":" + side;
 export function noteOf(key: string): Note | null { return (curSlide()?.cfg.notes || {})[key] || null; }
 export function selectNote(key: string | null) {
-  S.noteSel = key; if (key) { S.sel = null; paintSel(); }
+  S.noteSel = key; if (key) { S.sel = null; S.textSel = null; }
+  paintSel();
   paintNoteSel(); emit();
 }
 function paintNoteSel() {

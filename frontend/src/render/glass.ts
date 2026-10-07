@@ -27,6 +27,7 @@ import type { BorderSide, Item, Pic, Rect, TableLayout } from "../xlsx/types";
 import { cache, effItems } from "./edits";
 import { isNumText, tableKey, type RenderCtx } from "./context";
 import { picHtml, rotBox, rotSpan, shapeTransform, textboxInner } from "./excel";
+import { fontStack } from "../model/fonts";
 
 export const SYS = { green: "#34C759", greenInk: "#136B2E", red: "#FF3B30", redInk: "#A8101A", label: "#0B0D17", label2: "rgba(18,22,44,.68)", label3: "rgba(18,22,44,.46)" };
 
@@ -501,6 +502,7 @@ export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boo
     if (it.indent) st.push(`padding-left:${9 + it.indent * 9}px`); else if (it.align === "left") st.push("padding-left:10px"); else if (it.align === "right") st.push("padding-right:10px");
     if (role === "caption" || it.userI === true || (f.i && it.userI !== false && role !== "value")) st.push("font-style:italic");
     if (t.num) st.push("font-variant-numeric:tabular-nums");
+    const font = it.userFont || ctx.style.text?.table?.font; if (font) st.push(`font-family:${fontStack(font)}`);
     if (cap && cap.strong) st.push("text-shadow:0 1px 1px rgba(0,0,0,.2)");
     const cls = ["t", it.wrap ? "wrap" : "", it.ov ? "ov" : ""].filter(Boolean).join(" ");
     if (it.rot) { texts += `<div class="t ov" style="${st.join(";")};${rotBox()}">${rotSpan(it.rot, it.text)}</div>`; continue; }

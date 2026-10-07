@@ -1,95 +1,93 @@
+/* First toolbar row: TEXT. One set of controls for every text on a slide – table cells, text boxes,
+   titles, subtitles, the cover note and date. They act on what is selected (named at the left); the
+   row never changes shape. Deck-wide text styles and the font library: "Text styles…". */
 import { S, useApp } from "../state/store";
-import { change, ctx, style, undo } from "../state/app";
-import { activeItem, applySel, commitText, curSlide, selItems, setSize, editOf } from "../editor/edit";
-import { boldAll, italAll } from "../editor/keys";
+import { ctx, undo } from "../state/app";
+import { activeItem, applySel, commitText, curSlide, selItems, editOf } from "../editor/edit";
 import { startPainter, stopPainter } from "../editor/painter";
-import { canMerge, mergeSel, mergedInSel, unmergeSel } from "../editor/tables";
+import { SLIDE_TEXT_LABEL, stepSize, textTarget, type Align, type TextTarget, type VAlign } from "../editor/textfmt";
 import { effFmt, effText, keyOf } from "../render/edits";
-import { slideHasLogo } from "../render/slide";
 import { A1 } from "../xlsx/util";
 import { Dropdown } from "./Dropdown";
 import { Field } from "./Field";
-import type { Op } from "../model/types";
+import { FontPicker, openFontManager } from "./FontPicker";
 
 const FILLS: [string, string][] = [["#34C759", "Green (positive)"], ["#FF3B30", "Red (negative)"], ["#FF9500", "Orange"], ["#FFCC00", "Yellow"], ["#007AFF", "Blue"], ["#5856D6", "Indigo"],
   ["#AF52DE", "Purple"], ["#30B0C7", "Teal"], ["#8E8E93", "Grey"], ["#D1D1D6", "Light grey"], ["#0B4F97", "Navy"], ["#FFFFFF", "White"]];
 const INKS: [string, string][] = [["#0B0D17", "Black"], ["#5B6274", "Dark grey"], ["#8E8E93", "Grey"], ["#A8101A", "Red"], ["#136B2E", "Green"], ["#0A58CA", "Blue"],
   ["#B25000", "Orange"], ["#6B2FB3", "Purple"], ["#FFFFFF", "White"], ["#1C4F8C", "Navy"], ["#C42B1C", "Bright red"], ["#1F9D55", "Bright green"]];
+const BLOCKS: [string, string][] = [["#1F3864", "Dark navy"], ["#2F5597", "Blue"], ["#404040", "Charcoal"], ["#F2F2F2", "Very light grey"]];
 
-function Swatches(p: { kind: "fill" | "ink"; close: () => void }) {
-  const sw = (list: [string, string][], set: (v: string) => void, attr: string) =>
-    <div class="swatches">{list.map(([c, n]) => <button key={c} title={n} {...{ [attr]: c }} style={{ background: c }} onClick={() => { p.close(); set(c); }} />)}</div>;
-  if (p.kind === "ink") {
-    const set = (v: string) => applySel(v ? "Text colour" : "Automatic text colour", e => { if (v) e.color = v; else delete e.color; });
-    return <><div class="hd">Text colour</div>{sw(INKS, set, "data-v")}<div class="wide"><button data-v="" onClick={() => { p.close(); set(""); }}>Automatic</button></div></>;
-  }
+const swatches = (list: [string, string][], set: (v: string) => void, attr: string, close: () => void) =>
+  <div class="swatches">{list.map(([c, n]) => <button key={c} title={n} {...{ [attr]: c }} style={{ background: c }} onClick={() => { close(); set(c); }} />)}</div>;
+
+function InkMenu({ t, close }: { t: TextTarget; close: () => void }) {
+  const set = (v: string | null) => t.apply(v ? "Text colour" : "Automatic text colour", { color: v });
+  return <>
+    <div class="hd">Text colour</div>{swatches(INKS, set, "data-v", close)}
+    <div class="wide"><button data-v="" onClick={() => { close(); set(null); }}>Automatic</button>
+      <label class="custom" title="Any colour"><input type="color" value={t.shown.color || "#0B0D17"} onChange={e => { close(); set((e.target as HTMLInputElement).value.toUpperCase()); }} />Custom…</label></div>
+  </>;
+}
+function FillMenu({ close }: { close: () => void }) {
   const bg = (v: string | null) => applySel(v === null ? "Excel cell colour" : "Cell colour", e => { if (v === null) delete e.bg; else { e.bg = v; delete e.fill; } });
   const hl = (v: string | null) => applySel(v === null ? "Remove highlight" : "Highlight", e => { if (v === null) delete e.fill; else e.fill = v; });
   return <div class="fillmenu">
     <div class="hd">Cell colour <small>replaces the colour from Excel (in Liquid Glass: the colour of the block)</small></div>
-    {sw(FILLS.concat(BLOCKS), v => bg(v), "data-bg")}
-    <div class="wide"><button data-bg="none" onClick={() => { p.close(); bg("none"); }}>No colour</button><button data-bg="" onClick={() => { p.close(); bg(null); }}>Colour from Excel</button></div>
+    {swatches(FILLS.concat(BLOCKS), v => bg(v), "data-bg", close)}
+    <div class="wide"><button data-bg="none" onClick={() => { close(); bg("none"); }}>No colour</button><button data-bg="" onClick={() => { close(); bg(null); }}>Colour from Excel</button></div>
     <div class="sep" />
     <div class="hd">Highlight <small>a capsule on the cell; green/red keep their positive/negative meaning</small></div>
-    {sw(FILLS, v => hl(v), "data-v")}
-    <div class="wide"><button data-v="" onClick={() => { p.close(); hl(null); }}>Remove highlight</button></div>
+    {swatches(FILLS, v => hl(v), "data-v", close)}
+    <div class="wide"><button data-v="" onClick={() => { close(); hl(null); }}>Remove highlight</button></div>
   </div>;
 }
-const BLOCKS: [string, string][] = [["#1F3864", "Dark navy"], ["#2F5597", "Blue"], ["#404040", "Charcoal"], ["#F2F2F2", "Very light grey"]];
+
+const ALIGN_ICON: Record<Align, string> = { left: "M2 3.5h12M2 6.5h8M2 9.5h12M2 12.5h8", center: "M2 3.5h12M4 6.5h8M2 9.5h12M4 12.5h8", right: "M2 3.5h12M6 6.5h8M2 9.5h12M6 12.5h8" };
+const VALIGN_ICON: Record<VAlign, string> = { top: "M2 2.5h12M8 5v8M5.5 7.5 8 5l2.5 2.5", middle: "M2 8h12M8 1.5v4M8 10.5v4M6 3.5l2 2 2-2M6 12.5l2-2 2 2", bottom: "M2 13.5h12M8 3v8M5.5 8.5 8 11l2.5-2.5" };
 
 export function Ribbon() {
   useApp();
-  const R = curSlide(), it = activeItem(), its = selItems(), has = !!(R && it), c = ctx();
-  const f = it ? effFmt(c, it) : null;
-  const sizes = new Set(its.map(x => effFmt(c, x).sz));
-  const roles = new Set(its.map(x => effFmt(c, x).role)), aligns = new Set(its.map(x => effFmt(c, x).align || "auto"));
-  const logoOn = !!R && slideHasLogo(R), logoName = style().logo.trim();
-  const slidePatch = (label: string, patch: Record<string, unknown>) => R && change(label, [{ op: "slide.patch", id: R.id, patch } as Op]);
-  const tb = ({ active, ...props }: Record<string, unknown>) => ({ class: "tb" + (active ? " on" : ""), disabled: !has, ...props });
+  const t = textTarget(), has = !!t, f = t?.shown, cells = t?.kind === "cells";
+  const fillSw = cells ? (() => { const x = effFmt(ctx(), activeItem()!); return x.bg && x.bg !== "none" ? x.bg : x.fill && x.fill !== "none" ? x.fill : null; })() : null;
+  const tb = ({ active, off, ...props }: Record<string, unknown>) => ({ class: "tb" + (active ? " on" : ""), disabled: !has || !!off, ...props });
   return (
     <nav class="ribbon">
       <div class="grp">
         <button class="tb" id="undoBtn" title="Undo (Ctrl+Z) – only your own changes" disabled={!S.undo.length} onClick={() => undo(false)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5.5 3.5 2.5 6.5l3 3" /><path d="M2.5 6.5h7a4 4 0 0 1 0 8H7" /></svg></button>
         <button class="tb" id="redoBtn" title="Redo (Ctrl+Y)" disabled={!S.redo.length} onClick={() => undo(true)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m10.5 3.5 3 3-3 3" /><path d="M13.5 6.5h-7a4 4 0 0 0 0 8H9" /></svg></button>
       </div>
-      <div class="grp">
-        <span class="lbl">Size</span>
-        <button {...tb({ id: "sizeDown", title: "Smaller text" })} onClick={() => setSize(v => v > 12 ? v - 2 : v - 1)}>A−</button>
-        <Field class="sizebox" id="sizeBox" disabled={!has} title="Text size in points (Enter to apply)" value={sizes.size === 1 && f ? String(f.sz) : ""} onCommit={v => { const n = parseFloat(v.replace(",", ".")); if (!isNaN(n)) setSize(() => n); }} />
-        <button {...tb({ id: "sizeUp", title: "Larger text" })} onClick={() => setSize(v => v >= 12 ? v + 2 : v + 1)}>A+</button>
+      <div class="grp textgrp">
+        <span class={"target" + (t ? " on" : "")} id="textTarget" title={t ? "The text controls change: " + t.label : "Click a cell, a text box, a title or a subtitle on the slide"}>{t ? t.label : "No text selected"}</span>
+        <FontPicker id="fontBtn" disabled={!has} value={f?.font ?? null} placeholder={cells && ctx().style.design === "excel" ? "Font from Excel" : "Design font"}
+          title="Font (more fonts: Google Fonts or your own files)" onPick={v => t?.apply("Font", { font: v })} />
+        <button {...tb({ id: "sizeDown", title: "Smaller text" })} onClick={() => stepSize(-1)}>A−</button>
+        <Field class="sizebox" id="sizeBox" disabled={!has} title="Text size in points (Enter to apply)" value={f?.pt != null ? String(f.pt) : ""}
+          onCommit={v => { const n = parseFloat(v.replace(",", ".")); if (isFinite(n) && n > 0) t?.apply("Text size", { pt: n }); }} />
+        <button {...tb({ id: "sizeUp", title: "Larger text" })} onClick={() => stepSize(1)}>A+</button>
       </div>
       <div class="grp">
-        <button {...tb({ id: "boldBtn", title: "Bold (Ctrl+B)", active: has && boldAll() })} onClick={() => { const on = !boldAll(); applySel("Bold", e => { e.b = on; }); }}><b>B</b></button>
-        <button {...tb({ id: "italBtn", title: "Italic (Ctrl+I)", active: has && italAll() })} onClick={() => { const on = !italAll(); applySel("Italic", e => { e.i = on; }); }}><i style="font-family:Georgia,serif">I</i></button>
-        <Dropdown button={(_o, t) => <button class="tb colorbtn" id="inkBtn" disabled={!has} title="Text colour" onClick={t}><span>A</span><i class="sw" style={{ background: f?.color || "#0B0D17" }} /></button>}>{close => <Swatches kind="ink" close={close} />}</Dropdown>
-        <Dropdown button={(_o, t) => <button class="tb colorbtn" id="fillBtn" disabled={!has} title="Cell colour (replaces the Excel colour) or highlight" onClick={t}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 8.5 8.5 3l4.5 4.5-5.5 5.5z" /><path d="M13.5 10.5s1.2 1.4 1.2 2.2a1.2 1.2 0 0 1-2.4 0c0-.8 1.2-2.2 1.2-2.2z" fill="currentColor" /></svg><i class="sw" style={{ background: f?.bg && f.bg !== "none" ? f.bg : f?.fill && f.fill !== "none" ? f.fill : "linear-gradient(90deg,#34C759 50%,#FF3B30 50%)" }} /></button>}>{close => <Swatches kind="fill" close={close} />}</Dropdown>
+        <button {...tb({ id: "boldBtn", title: "Bold (Ctrl+B)", active: !!f?.b })} onClick={() => t?.apply("Bold", { b: !f!.b })}><b>B</b></button>
+        <button {...tb({ id: "italBtn", title: "Italic (Ctrl+I)", active: !!f?.i })} onClick={() => t?.apply("Italic", { i: !f!.i })}><i style="font-family:Georgia,serif">I</i></button>
+        <Dropdown button={(_o, tg) => <button class="tb colorbtn" id="inkBtn" disabled={!has} title="Text colour" onClick={tg}><span>A</span><i class="sw" style={{ background: f?.color || "#0B0D17" }} /></button>}>{close => t ? <InkMenu t={t} close={close} /> : null}</Dropdown>
+        <Dropdown button={(_o, tg) => <button class="tb colorbtn" id="fillBtn" disabled={!cells} title={cells ? "Cell colour (replaces the Excel colour) or highlight" : "Cell colour – for table cells (text boxes: Bubble)"} onClick={tg}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 8.5 8.5 3l4.5 4.5-5.5 5.5z" /><path d="M13.5 10.5s1.2 1.4 1.2 2.2a1.2 1.2 0 0 1-2.4 0c0-.8 1.2-2.2 1.2-2.2z" fill="currentColor" /></svg><i class="sw" style={{ background: fillSw || "linear-gradient(90deg,#34C759 50%,#FF3B30 50%)" }} /></button>}>{close => <FillMenu close={close} />}</Dropdown>
       </div>
       <div class="grp">
-        {(["left", "center", "right"] as const).map(a => <button key={a} {...tb({ "data-align": a, title: a === "center" ? "Centre" : "Align " + a, active: aligns.size === 1 && aligns.has(a) })} onClick={() => applySel("Alignment", e => { e.align = a; })}>
-          <svg viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.6"><path d={a === "left" ? "M2 3.5h12M2 6.5h8M2 9.5h12M2 12.5h8" : a === "center" ? "M2 3.5h12M4 6.5h8M2 9.5h12M4 12.5h8" : "M2 3.5h12M6 6.5h8M2 9.5h12M6 12.5h8"} /></svg></button>)}
-        <button {...tb({ "data-align": "auto", title: "Alignment from Excel", style: "font-size:11px", active: aligns.size === 1 && aligns.has("auto") })} onClick={() => applySel("Alignment", e => { delete e.align; })}>Auto</button>
+        {(["left", "center", "right"] as const).map(a => <button key={a} {...tb({ "data-align": a, title: a === "center" ? "Centre" : "Align " + a, active: f?.align === a })} onClick={() => t?.apply("Alignment", { align: a })}>
+          <svg viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.6"><path d={ALIGN_ICON[a]} /></svg></button>)}
+        <button {...tb({ "data-align": "auto", title: cells ? "Alignment from Excel" : "Alignment of the design", style: "font-size:11px", active: has && !f?.align })} onClick={() => t?.apply("Alignment", { align: null })}>Auto</button>
+        {(["top", "middle", "bottom"] as const).map(v => <button key={v} {...tb({ "data-valign": v, off: !t?.can.valign, title: t?.can.valign ? "Text at the " + v : "Vertical position – for text boxes", active: f?.valign === v })}
+          onClick={() => t?.apply("Vertical alignment", { valign: f?.valign === v ? null : v })}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d={VALIGN_ICON[v]} /></svg></button>)}
       </div>
       <div class="grp">
-        <span class="lbl">Role</span>
-        {([["auto", "Auto", "Detected from the Excel formatting"], ["header", "Header", "Column/row header"], ["total", "Total", "Highlighted total (tile)"], ["body", "Body", "Normal data"], ["caption", "Note", "Small note"]] as const).map(([k, l, t]) =>
-          <button key={k} {...tb({ "data-role": k, title: t, active: roles.size === 1 && roles.has(k) })} onClick={() => applySel("Role: " + l, e => { if (k === "auto") delete e.role; else e.role = k; })}>{l}</button>)}
-      </div>
-      <div class="grp">
-        <button {...tb({ id: "clearFmt", title: "Remove your formatting from the selection" })} onClick={() => applySel("Clear formatting", e => { for (const k of ["sz", "b", "i", "color", "fill", "bg", "align", "role"] as const) delete e[k]; })}>Clear format</button>
-        <button class={"tb" + (S.painter ? " on" : "")} id="painterBtn" disabled={!has && !S.painter} title="Copy format: click, then click or drag over the cells to paste. Double-click to paste several times; Esc stops."
+        <button {...tb({ id: "clearFmt", title: "Remove your formatting from the selected text (back to the text style)" })} onClick={() => t?.clear()}>Clear format</button>
+        <button class={"tb" + (S.painter ? " on" : "")} id="painterBtn" disabled={!cells && !S.painter} title="Copy the format of table cells: click, then click or drag over the cells to paste. Double-click to paste several times; Esc stops."
           onClick={() => S.painter ? stopPainter() : startPainter(false)} onDblClick={() => startPainter(true)}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="1.5" width="10" height="4" rx="1" /><path d="M12 3.5h1.5v3.5H7.5v2" /><rect x="6" y="9.5" width="3" height="5" rx="1" /></svg>Format</button>
-        <button {...tb({ id: "mergeBtn", title: "Merge the selected cells (the top-left value is kept)" })} disabled={!canMerge()} onClick={mergeSel}>Merge</button>
-        <button {...tb({ id: "unmergeBtn", title: "Split merged cells in the selection" })} disabled={!mergedInSel().length} onClick={unmergeSel}>Unmerge</button>
-        <button {...tb({ id: "resetText", title: "Show the Excel value again" })} onClick={() => applySel("Restore Excel text", e => { delete e.text; delete e.orig; })}>Restore text</button>
-        <button class="tb" id="resetLayout" title="Automatic table positions for this slide" disabled={!(R && R.cfg.layout)} onClick={() => slidePatch("Reset layout", { layout: null })}>Reset layout</button>
       </div>
       <div class="grp">
-        <span class="lbl">Slide</span>
-        <button class={"tb" + (logoOn ? " on" : "")} id="logoToggle" disabled={!R || !logoName} title={R && !logoOn ? "The logo is hidden on this slide – click to show it" : "Hide the logo on this slide"}
-          onClick={() => slidePatch(logoOn ? "Hide logo" : "Show logo", { logo: logoOn ? false : null })}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="3.5" width="13" height="9" rx="2" /><path d="m3.5 10.5 3-3 2 2 1.5-1.5 2.5 2.5" /></svg>Logo</button>
-        {R?.type === "index" && <button class={"tb" + (R.cfg.subs !== false ? " on" : "")} id="ixSubs" title={R.cfg.subs !== false ? "Hide the slide subtitles in the contents list" : "Show the slide subtitles in the contents list"}
-          onClick={() => slidePatch(R.cfg.subs !== false ? "Hide subtitles in contents" : "Show subtitles in contents", { subs: R.cfg.subs !== false ? false : null })}>Subtitles</button>}
+        <button class="tb" id="textStylesBtn" disabled={!S.sync} title="Fonts, sizes and colours of ALL titles, subtitles, tables, text boxes, contents and page numbers in this deck – and the font library" onClick={() => openFontManager("styles")}>
+          <span class="aa">Aa</span>Text styles…</button>
       </div>
     </nav>
   );
@@ -100,6 +98,7 @@ export function FxBar() {
   const R = curSlide(), it = activeItem(), its = selItems(), sel = S.sel;
   const name = it && sel ? it.L!.sheet.name + "!" + (its.length > 1 ? `${A1(sel.r1, sel.c1)}:${A1(sel.r2, sel.c2)}` : keyOf(it)) : R ? "—" : "";
   const value = it ? effText(ctx(), it) : "";
+  const edited = selItems().some(x => editOf(x).text !== undefined);
   return (
     <div class="fxbar">
       <div class="namebox" id="nameBox">{name}</div>
@@ -109,6 +108,8 @@ export function FxBar() {
         placeholder={it ? (it.text ? "" : "(empty cell)") : R ? "Click a cell to select it · double-click or type to edit" : "Open a workbook to start"}
         onKeyDown={e => { e.stopPropagation(); const t = e.target as HTMLInputElement; if (e.key === "Enter") { e.preventDefault(); commitText(t.value, [1, 0]); t.blur(); } if (e.key === "Escape") { t.value = value; t.blur(); } }} />
       <span class="fxhint">Enter ↵ apply · Esc cancel</span>
+      <button class="tb" id="resetText" disabled={!edited} title={edited ? `Show the Excel value again: “${it!.text}”` : "Shows the Excel value again after you changed a cell's text"}
+        onClick={() => applySel("Restore Excel text", e => { delete e.text; delete e.orig; })}>↺ Excel value</button>
     </div>
   );
 }
@@ -116,6 +117,8 @@ export function FxBar() {
 export function selStatus(): string {
   const R = curSlide(), it = activeItem(), its = selItems();
   if (!R) return "";
+  if (S.noteSel) return "Text box selected · double-click or Enter to write · Del removes it";
+  if (S.textSel) return `${SLIDE_TEXT_LABEL[S.textSel]} selected · double-click or Enter to edit the text`;
   if (!it) return `Slide ${S.cur + 1} of ${S.slides.length}`;
   const e = editOf(it);
   return `${its.length} cell${its.length > 1 ? "s" : ""} selected` + (e.text !== undefined && e.orig !== it.text ? " · text edit paused (Excel value changed)" : e.text !== undefined ? ` · Excel value: “${it.text}”` : "");

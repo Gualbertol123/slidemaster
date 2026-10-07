@@ -93,12 +93,12 @@ defined once, here, and tested on both sides with `shared/ops-vectors.json`.
 | op | fields | effect |
 |---|---|---|
 | `preset.set` | `preset` (object or null) | replace `doc.preset` (deep copy). Used by the wizard. |
-| `slide.patch` | `id`, `patch` | on the slide with that id: keys `title, subtitle, date, note, logo, layout, align, valign, scale, subs`: `null` → delete, else set. Key `notes` is a **map merge** (see below). Other keys ignored. Unknown slide (or no preset) → op **skipped**. |
+| `slide.patch` | `id`, `patch` | on the slide with that id: keys `title, subtitle, date, note, logo, layout, align, valign, scale, subs`: `null` → delete, else set. Keys `notes` and `fmt` are **map merges** (see below). Other keys ignored. Unknown slide (or no preset) → op **skipped**. |
 | `table.patch` | `id`, `patch` | on `doc.preset.tables[id]`: keys `name, gridH, gridV`: `null` → delete, else set; keys `cols`, `rows`, `scales`, `merges` are **map merges**. Other keys ignored. Unknown table (or no preset) → skipped. |
-| `cell.patch` | `sheet`, `ref`, `patch` | on `doc.edits[sheet][ref]` (created if missing): for each key in `text, orig, sz, b, i, color, fill, bg, cf, align, role`: `null` → delete, else set. Then: if `text` is absent, delete `orig`; if no keys remain, delete the cell; if the sheet has no cells, delete the sheet. |
-| `style.patch` | `patch` | on `doc.style`: keys `design, glass, color, logo, radius, contrast, logoBubble`: `null` → delete, else set; keys `pn`, `footer` and `theme` are map merges. |
+| `cell.patch` | `sheet`, `ref`, `patch` | on `doc.edits[sheet][ref]` (created if missing): for each key in `text, orig, font, sz, b, i, color, fill, bg, cf, align, role`: `null` → delete, else set. Then: if `text` is absent, delete `orig`; if no keys remain, delete the cell; if the sheet has no cells, delete the sheet. |
+| `style.patch` | `patch` | on `doc.style`: keys `design, glass, color, logo, radius, contrast, logoBubble`: `null` → delete, else set; keys `pn`, `footer`, `theme` and `text` are map merges. |
 
-**Map merge** (`pn`, `footer`, `theme`, `notes`, `cols`, `rows`, `scales`, `merges`): value `null` → delete the whole map; an object →
+**Map merge** (`pn`, `footer`, `theme`, `text`, `notes`, `fmt`, `cols`, `rows`, `scales`, `merges`): value `null` → delete the whole map; an object →
 each entry is set (replacing that entry entirely) or deleted when `null`; a map left empty is deleted.
 So two people changing different columns, rules or text boxes never overwrite each other.
 
@@ -120,6 +120,9 @@ So two people changing different columns, rules or text boxes never overwrite ea
 | `style.radius` | corner roundness, % of the default (0–200, default 100) |
 | `style.contrast` | contrast between background and glass surfaces (0–100, default 50) |
 | `style.logoBubble` | `false` = logo without its glass bubble |
+| `style.text` | deck text styles, one entry per kind of text: `{"title"\|"subtitle"\|"table"\|"note"\|"index"\|"pageno": {font?, size?, b?, i?, color?, align?}}` (size in slide px; `table` uses only `font`; `pageno` covers page numbers and footer and wins over the older `pn.font`) |
+| `slide.fmt` | formatting of one slide's texts over the deck style: `{"title"\|"subtitle"\|"note"\|"date": {font?, size?, b?, i?, color?, align?}}` (`note`/`date` = cover note and date) |
+| cell `font` / note `font` | font family chosen for a cell / text box (a library, Windows or Google font name) |
 
 Any other op, or an op with missing/invalid fields, is skipped. If at least one op was applied:
 `rev += 1`, `updated = now`, `updatedBy = user`. Field-level merging means two people editing
@@ -129,6 +132,15 @@ different cells, slides or style keys never lose each other's work; the same fie
 
 **Undo** on the client is the inverse operation computed from the values before the change, so it
 never reverts somebody else's change.
+
+### 3.4 Font library (`data/fonts/`)
+
+Shared by everybody using the folder, independent of workbooks: `data/fonts/fonts.json`
+`{schema:1, fonts:[{family, source:"upload"|"google", faces:[{file, weight, style, range?}], by, at}]}` plus the
+font files (`<Family>-<weight>[i]-<sha1>.<ext>`). Written under the `fonts` lock; a file is written before the
+index refers to it; files no family refers to are deleted. Google fonts are downloaded **by the page**
+(latin + latin-ext subsets) and stored like uploads, so slides and exports never need Google later. Exports
+embed the fonts a slide uses as data URLs. Code: `backend/slidebuilder/fonts.py`, `frontend/src/state/fonts.ts`.
 
 ### 3.3 Format versions and automatic upgrades
 
@@ -197,6 +209,10 @@ All responses JSON unless stated. Security for every request:
 | `GET /api/workbooks/<name>/doc?since=<rev>` | – | `204` when `doc.rev == since`, else `{doc}` |
 | `POST /api/workbooks/<name>/ops` | `{ops, client}` | `{doc, applied, skipped:[index…]}` |
 | `GET /api/workbooks/<name>/history` | – | `{backups:[{rev, updated, updatedBy}]}` |
+| `GET /api/fonts` | – | font library `{schema, fonts:[…]}` (§3.4) |
+| `POST /api/fonts?family=&weight=&style=&source=&name=&range=` | font file bytes (≤ 15 MB; TTF/OTF/WOFF/WOFF2 checked by signature) | font library |
+| `DELETE /api/fonts?family=` | – | font library |
+| `GET /fonts/<file>` | – (token header or `?t=`) | a font file |
 | `POST /api/presence` | `{client, workbook}` | `{others:[{user, host, client, workbook, at}]}` – others seen in the last 25 s |
 | `POST /api/presence/leave` | `{client}` | `{ok}` |
 | `POST /api/upload?name=` · `GET /api/upload/<id>` | bytes | `{id, name}` · bytes (in memory, max 8 entries, 2 h) |

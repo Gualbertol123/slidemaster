@@ -11,6 +11,7 @@ import { Topbar } from "./Topbar";
 import { Ribbon, FxBar, selStatus } from "./Ribbon";
 import { TableRibbon } from "./TableTools";
 import { TablesDialog } from "./TablesDialog";
+import { TextStylesDialog } from "./TextStylesDialog";
 import { Dialogs } from "./Dialogs";
 import { Wizard } from "../wizard/Wizard";
 import { esc } from "../xlsx/util";
@@ -137,9 +138,10 @@ export function App() {
       </div>
       <Toast />
       <Busy />
-      <Dialogs />
       {DLG.wizard && <Wizard req={DLG.wizard} />}
       {DLG.tables && <TablesDialog />}
+      {DLG.textStyles && <TextStylesDialog />}
+      <Dialogs />{/* last: confirmations open above the wizard and the other dialogs */}
     </>
   );
 }

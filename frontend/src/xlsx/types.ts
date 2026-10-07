@@ -89,7 +89,7 @@ export interface Item {
   scaleFill?: string; scaleInk?: string;
   /** user cell colour (replaces the Excel colour) */
   userBg?: string;
-  edited?: boolean; userB?: boolean; userI?: boolean; userColor?: string; userFill?: string; noFill?: boolean; role?: string;
+  edited?: boolean; /** font chosen on the slide (cell edit) */ userFont?: string; userB?: boolean; userI?: boolean; userColor?: string; userFill?: string; noFill?: boolean; role?: string;
   L?: TableLayout;
 }
 export interface Pic { x: number; y: number; w: number; h: number; rot: number; flipH: boolean; flipV: boolean; name: string; src?: string | null; crop?: Crop | null; unsupported?: string }

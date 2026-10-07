@@ -28,6 +28,7 @@ export function setSel(t: number, anchor: { r: number; c: number }, active: { r:
   for (let k = 0; k < 4; k++) for (const it of T.items) if (it.b.r <= r2 && it.b.r2 >= r1 && it.b.c <= c2 && it.b.c2 >= c1) { r1 = Math.min(r1, it.b.r); r2 = Math.max(r2, it.b.r2); c1 = Math.min(c1, it.b.c); c2 = Math.max(c2, it.b.c2); }
   S.sel = { t, anchor: { r: a.b.r, c: a.b.c }, ar: b.b.r, ac: b.b.c, r1, r2, c1, c2 };
   if (S.noteSel) { S.noteSel = null; document.querySelectorAll(".tnote.sel").forEach(e => e.classList.remove("sel")); }
+  S.textSel = null;
   STAGE.paintSel(); emit();
 }
 export function clearSel() { S.sel = null; STAGE.paintSel(); emit(); }
@@ -43,7 +44,7 @@ export function moveSel(dr: number, dc: number, extend: boolean) {
 export function selectAll() { const sel = S.sel, T = selTable(); if (!sel || !T) return; setSel(sel.t, { r: T.rows[0], c: T.cols[0] }, { r: T.rows[T.rows.length - 1], c: T.cols[T.cols.length - 1] }); }
 
 /* ---- edits ---- */
-const KEYS = ["text", "orig", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role"] as const;
+const KEYS = ["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role"] as const;
 export function editOf(it: Item): CellEdit { return (ctx().edits[it.L!.sheet.name] || {})[keyOf(it)] || {}; }
 /** fn changes a copy of each selected cell's edit; the differences become cell.patch operations */
 export function applySel(label: string, fn: (e: CellEdit, it: Item) => void, items = selItems(), extra: Op[] = []) {

@@ -6,7 +6,7 @@ import { backend, type FileInfo } from "../sync/api";
 import { doExport, type ExportKind } from "../editor/export";
 import { Dropdown } from "./Dropdown";
 import { Field } from "./Field";
-import { PN_FONTS } from "../render/pagenumbers";
+import { openFontManager } from "./FontPicker";
 import type { Footer, PageNumbers, Theme } from "../model/types";
 import { THEMES, themeOf } from "../model/style";
 
@@ -81,10 +81,6 @@ function Options() {
             {([["tl", "◤", "Top left"], ["tc", "▲", "Top centre"], ["tr", "◥", "Top right"], ["bl", "◣", "Bottom left"], ["bc", "▼", "Bottom centre"], ["br", "◢", "Bottom right"]] as const).map(([k, g, t]) =>
               <button key={k} data-pos={k} title={t} class={p.pos === k ? "on" : ""} onClick={() => pn({ pos: k })}>{g}</button>)}
           </div>
-          <label>Font</label>
-          <select id="pnFont" value={p.font} onChange={e => pn({ font: (e.target as HTMLSelectElement).value })}>
-            {Object.keys(PN_FONTS).map(k => <option key={k} value={k}>{({ auto: "Same as the slide", segoe: "Segoe UI", arial: "Arial", calibri: "Calibri", gothic: "Century Gothic", georgia: "Georgia", verdana: "Verdana", mono: "Consolas" } as Record<string, string>)[k]}</option>)}
-          </select>
           <label>Size</label><div class="row"><input type="range" id="pnSize" min="10" max="32" step="1" value={p.size} onInput={e => { const v = +(e.target as HTMLInputElement).value, el = (e.target as HTMLElement).nextElementSibling; if (el) el.textContent = v + " px"; debounced("pnsize", () => pn({ size: v }, "pnsize")); }} /><span class="cv">{p.size} px</span></div>
           <label>Format</label>
           <select id="pnFormat" value={p.format} onChange={e => pn({ format: (e.target as HTMLSelectElement).value as PageNumbers["format"] })}><option value="n">3</option><option value="nN">3 / 12</option><option value="page">Page 3</option><option value="p">p. 3</option></select>
@@ -92,7 +88,7 @@ function Options() {
           <div class="seg small" id="pnStyle">{(["capsule", "plain"] as const).map(k => <button key={k} class={p.style === k ? "on" : ""} onClick={() => pn({ style: k })}>{k === "capsule" ? "Glass capsule" : "Plain text"}</button>)}</div>
           <label></label><label class="ck"><input type="checkbox" id="pnCover" checked={p.cover} onChange={e => pn({ cover: (e.target as HTMLInputElement).checked })} /> also on the cover</label>
         </div>
-        <div class="optnote">The same style is used on every slide of this deck, in both designs. The index slide always lists these page numbers.</div>
+        <div class="optnote">The same style is used on every slide of this deck, in both designs. The index slide always lists these page numbers. Font and colour: <a href="#" onClick={e => { e.preventDefault(); openFontManager("styles"); }}>Text styles</a>.</div>
         <div class="sep" />
         <div class="opthd">Footer</div>
         <label class="ck big"><input type="checkbox" id="ftOn" checked={ft.on} onChange={e => fo({ on: (e.target as HTMLInputElement).checked })} /> Show a footer on every slide</label>

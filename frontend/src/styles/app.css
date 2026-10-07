@@ -76,3 +76,68 @@ body.painting .slide .hits{cursor:copy}
 .thcustom .lbl{font-size:11px;color:#6B7280;margin-left:4px}
 .thpick{display:flex;align-items:center;gap:2px;font-size:10px;color:#6B7280}
 .thpick input{width:28px;height:24px;padding:0;border:1px solid #D9DCE3;border-radius:5px;background:none;cursor:pointer}
+/* v3.4: one text toolbar for every text, text styles & fonts */
+.ribbon .target{max-width:150px;height:24px;line-height:24px;padding:0 9px;border-radius:12px;background:#F1F2F5;color:var(--mute);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ribbon .target.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.tb.fontbtn{width:168px;justify-content:space-between;border-color:var(--line2);background:#fff;padding:0 8px}
+.tb.fontbtn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.tb.fontbtn .caret{font-style:normal;font-size:10px;color:var(--mute);font-family:var(--font)}
+.tb .aa{font-family:Georgia,serif;font-weight:700;font-size:14px;margin-right:2px}
+.menu .picked{background:var(--accent-soft);color:var(--accent)}
+.menu.fontmenu{width:310px;padding:6px}
+.fontsearch{width:100%;height:30px;border:1px solid var(--line2);border-radius:7px;padding:0 9px;margin-bottom:4px}
+.fontlist{max-height:min(380px,55vh);overflow:auto}
+.menu .fontlist .hd small{color:var(--mute);font-size:10.5px;margin-left:4px}
+.menu .fontitem{font-size:14.5px;padding:6px 10px}
+.menu .fontitem.add{color:var(--accent);font-family:var(--font);font-size:13px}
+.fontacts{display:flex;gap:6px}
+.menu .fontacts button{justify-content:center;border:1px solid var(--line);font-size:12.5px;padding:6px}
+.menu .fontacts button:disabled{opacity:.45;cursor:not-allowed}
+.menu .wide label.custom{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);border-radius:7px;padding:4px 6px;cursor:pointer}
+.menu .wide label.custom input{width:22px;height:18px;padding:0;border:0;background:none}
+/* selectable slide texts (title, subtitle, cover note, date) */
+#stage .slide [data-edit]{cursor:default}
+#stage .slide [data-edit]:hover{outline:1px dashed rgba(10,102,216,.55);outline-offset:3px}
+#stage .slide .tsel,#stage .slide .tsel:hover{outline:2px solid #0A66D8;outline-offset:3px}
+/* text styles & fonts dialog */
+.dlg.tsdlg{width:min(960px,96vw)}
+.tsdlg .tabs{margin:0 18px 8px;align-self:flex-start}
+.tsgrid{display:flex;flex-direction:column;gap:2px}
+.tsrow{display:grid;grid-template-columns:minmax(170px,1fr) 176px 84px 30px 30px 74px 104px auto;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.tsrow:last-child{border-bottom:0}
+.tsname{display:flex;flex-direction:column;min-width:0}
+.tsname b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tsname small{color:var(--mute);font-size:11px;line-height:1.3}
+.tssize{display:flex;align-items:center;gap:4px;font-size:11.5px;color:var(--mute)}
+.tssize .sizebox{width:56px}
+.tbgap{width:30px}
+.tscolor{display:flex;align-items:center;gap:4px}
+.tscolor input{width:30px;height:26px;padding:0;border:1px solid var(--line2);border-radius:6px;background:#fff}
+.tscolor .btn.icon{width:24px;height:24px}
+.tscolor small{color:var(--mute);font-size:11px}
+.tsalign{height:30px;border:1px solid var(--line2);border-radius:7px;padding:0 4px;background:#fff;font-size:12px}
+.fontstab .row{display:flex;gap:8px;align-items:center}
+.fontstab .txt{flex:1;height:32px;border:1px solid var(--line2);border-radius:var(--r);padding:0 10px}
+.fontlib{border:1px solid var(--line);border-radius:10px;max-height:34vh;overflow:auto}
+.fontlib .none{padding:12px;color:var(--mute)}
+.fontrow{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line)}
+.fontrow:last-child{border-bottom:0}
+.fontrow .sample{font-size:18px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fontrow .sample span{color:var(--mute);font-size:15px;margin-left:8px}
+.fontrow small{color:var(--mute);font-size:11.5px;white-space:nowrap}
+.fontrow .btn.icon{width:26px;height:26px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{border:1px solid var(--line2);background:#fff;border-radius:14px;padding:3px 10px;font-size:13px}
+.chip:hover:not(:disabled){background:var(--accent-soft);border-color:#C7DBF6}
+.busyfont{font-weight:400;color:var(--mute);margin-left:8px;font-size:11.5px}
+.busyfont .spin{border-color:rgba(10,102,216,.25);border-top-color:var(--accent);width:11px;height:11px;vertical-align:-1px}
+.posmenu{padding:2px 4px 4px}
+.posmenu .row{display:flex;gap:4px;padding:2px 6px 6px}
+.menu .posmenu .row button{width:auto;flex:1;justify-content:center;border:1px solid var(--line);padding:6px}
+.menu .posmenu .row button.on{background:var(--accent-soft);border-color:#C7DBF6;color:var(--accent)}
+/* the toolbar keeps its width whatever is selected (no wrapping, no jumping slide) */
+.ribbon .target{width:124px;flex:none;text-align:center}
+#roleBtn{width:104px;justify-content:space-between}
+.tb.mergebtn{width:72px}
+.fxbar #resetText{height:26px;font-size:12px;margin-left:6px;white-space:nowrap}
+.tsdlg .dlgbody{flex:1;min-height:0;overflow:auto}

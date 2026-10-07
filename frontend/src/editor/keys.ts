@@ -2,13 +2,14 @@
 import { S } from "../state/store";
 import { DLG } from "../state/dialogs";
 import { gotoSlide, undo } from "../state/app";
-import { applySel, clearSel, clearText, moveSel, selectAll } from "./edit";
-import { openInline, patchNote, selectNote } from "./stage";
+import { clearSel, clearText, moveSel, selectAll } from "./edit";
+import { editSelectedText, openInline, patchNote, selectNote } from "./stage";
+import { selectSlideText, toggleBold, toggleItalic } from "./textfmt";
 import { stopPainter } from "./painter";
 
 export function installKeys() {
   document.addEventListener("keydown", e => {
-    if (DLG.dialog || DLG.wizard || DLG.installer || DLG.tables) return;
+    if (DLG.dialog || DLG.wizard || DLG.installer || DLG.tables || DLG.textStyles) return;
     const t = e.target as HTMLElement;
     const inField = t.matches("input,select,textarea");
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
@@ -19,15 +20,22 @@ export function installKeys() {
     if (e.key === "Escape" && S.painter) { stopPainter(); return; }
     if (e.key === "PageDown" || (e.key === "ArrowDown" && e.altKey)) { e.preventDefault(); gotoSlide(S.cur + 1); return; }
     if (e.key === "PageUp" || (e.key === "ArrowUp" && e.altKey)) { e.preventDefault(); gotoSlide(S.cur - 1); return; }
-    if (S.noteSel && !S.sel) {
+    if ((S.noteSel || S.textSel) && !S.sel) {
+      if (mod && k === "b") { e.preventDefault(); toggleBold(); return; }
+      if (mod && k === "i") { e.preventDefault(); toggleItalic(); return; }
+      if (S.textSel) {
+        if (e.key === "Escape") { selectSlideText(null); return; }
+        if (e.key === "Enter" || e.key === "F2") { e.preventDefault(); editSelectedText(); }
+        return;
+      }
       if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); patchNote("Remove text box", null); return; }
       if (e.key === "Escape") { selectNote(null); return; }
-      if (e.key === "Enter" || e.key === "F2") { e.preventDefault(); document.querySelector<HTMLElement>(`#stage .tnote[data-note="${CSS.escape(S.noteSel)}"]`)?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); return; }
+      if (e.key === "Enter" || e.key === "F2") { e.preventDefault(); document.querySelector<HTMLElement>(`#stage .tnote[data-note="${CSS.escape(S.noteSel!)}"]`)?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); return; }
       return;
     }
     if (!S.sel) return;
-    if (mod && k === "b") { e.preventDefault(); const on = !boldAll(); applySel("Bold", ed => { ed.b = on; }); return; }
-    if (mod && k === "i") { e.preventDefault(); const on = !italAll(); applySel("Italic", ed => { ed.i = on; }); return; }
+    if (mod && k === "b") { e.preventDefault(); toggleBold(); return; }
+    if (mod && k === "i") { e.preventDefault(); toggleItalic(); return; }
     if (mod && k === "a") { e.preventDefault(); selectAll(); return; }
     const arrows: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
     if (arrows[e.key]) { e.preventDefault(); moveSel(arrows[e.key][0], arrows[e.key][1], e.shiftKey); return; }
@@ -39,8 +47,3 @@ export function installKeys() {
     if (e.key.length === 1 && !mod && !e.altKey) { e.preventDefault(); openInline(e.key); }
   });
 }
-import { selItems } from "./edit";
-import { effFmt } from "../render/edits";
-import { ctx } from "../state/app";
-export const boldAll = () => { const its = selItems(); return its.length > 0 && its.every(x => effFmt(ctx(), x).b); };
-export const italAll = () => { const its = selItems(); return its.length > 0 && its.every(x => effFmt(ctx(), x).i); };

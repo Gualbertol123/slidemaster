@@ -26,6 +26,8 @@ export const S = {
   sel: null as Sel | null,
   /** selected text box ("<tableId>:<side>") */
   noteSel: null as string | null,
+  /** selected slide text: title, subtitle, cover note or date */
+  textSel: null as import("../model/types").SlideTextKey | null,
   /** format painter: copied formats (rows × cols), sticky = keep painting */
   painter: null as { pattern: (import("../editor/painter").Fmt | null)[][]; sticky: boolean } | null,
   zoom: "fit" as "fit" | number,

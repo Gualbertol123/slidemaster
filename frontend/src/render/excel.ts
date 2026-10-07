@@ -4,6 +4,7 @@ import { bcss } from "../xlsx/layout";
 import type { Para, Pic, Rect, TableLayout } from "../xlsx/types";
 import { effItems } from "./edits";
 import type { RenderCtx } from "./context";
+import { fontStack } from "../model/fonts";
 
 export const XLFONT = `'Century Gothic','CenturyGothic','URW Gothic','AppleGothic',Arial,sans-serif`;
 
@@ -49,7 +50,7 @@ export function renderExcel(L: TableLayout, ctx: RenderCtx, opts: { noText?: boo
     if (!it.text) continue;
     const f = it.font, tw = it.tw || it.bw;
     const st = [`left:${it.bx}px`, `top:${it.by}px`, `width:${tw}px`, `height:${it.bh}px`,
-      `font-family:'${(f.name || "").replace(/['"]/g, "")}',${XLFONT}`, `font-size:${((f.sz || 11) * 96 / 72).toFixed(2)}px`, `color:${it.color || "#000"}`,
+      it.userFont || ctx.style.text?.table?.font ? `font-family:${fontStack(it.userFont || ctx.style.text!.table!.font, XLFONT)}` : `font-family:'${(f.name || "").replace(/['"]/g, "")}',${XLFONT}`, `font-size:${((f.sz || 11) * 96 / 72).toFixed(2)}px`, `color:${it.color || "#000"}`,
       `justify-content:${it.align === "right" ? "flex-end" : it.align === "center" ? "center" : "flex-start"}`,
       `align-items:${it.valign === "top" ? "flex-start" : it.valign === "center" ? "center" : "flex-end"}`, `text-align:${it.align}`];
     if (f.b) st.push("font-weight:700"); if (f.i) st.push("font-style:italic");

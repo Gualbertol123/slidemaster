@@ -47,6 +47,7 @@ export function effItems(L: TableLayout, ctx: RenderCtx): Item[] {
         if (dxf) { if (dxf.fill) o.fill = dxf.fill; if (dxf.color) { o.font.color = dxf.color; o.color = it.nfColor || dxf.color; } if (dxf.b !== undefined) o.font.b = dxf.b; if (dxf.i !== undefined) o.font.i = dxf.i; }
       }
       if (e.text !== undefined && e.orig === it.text) { o.text = e.text; o.edited = true; if (!it.text && o.text) { o.isText = !isNumText(o.text); o.ctype = o.isText ? "s" : "n"; } }
+      if (e.font) { o.font.name = e.font; o.userFont = e.font; }
       if (e.sz) o.font.sz = e.sz;
       if (e.b !== undefined) { o.font.b = e.b; o.userB = e.b; }
       if (e.i !== undefined) { o.font.i = e.i; o.userI = e.i; }
@@ -73,6 +74,6 @@ export function cellEditOf(ctx: RenderCtx, it: Item): CellEdit { return (ctx.edi
 export function effText(ctx: RenderCtx, it: Item): string { const e = cellEditOf(ctx, it); return e.text !== undefined && e.orig === it.text ? e.text : it.text; }
 export function effFmt(ctx: RenderCtx, it: Item) {
   const e = cellEditOf(ctx, it);
-  return { sz: e.sz || it.font.sz || 11, b: e.b !== undefined ? e.b : !!it.font.b, i: e.i !== undefined ? e.i : !!it.font.i,
+  return { font: e.font || null, sz: e.sz || it.font.sz || 11, b: e.b !== undefined ? e.b : !!it.font.b, i: e.i !== undefined ? e.i : !!it.font.i,
     color: e.color || null, fill: e.fill || null, bg: e.bg || null, align: e.align || null, role: e.role || "auto" };
 }

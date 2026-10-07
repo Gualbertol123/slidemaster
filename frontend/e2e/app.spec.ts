@@ -111,7 +111,7 @@ test.describe.serial("two people, one shared folder", () => {
     // same size + left alignment (one undo step each)
     await a.click("#sameSize"); await saved(a);
     let r = await rects(a); expect(Math.abs(r[0].w - r[1].w)).toBeLessThan(1.5); expect(Math.abs(r[0].h - r[1].h)).toBeLessThan(1.5);
-    await a.click('[data-talign="left"]'); await saved(a);
+    await a.click("#posBtn"); await a.click('[data-talign="left"]'); await saved(a);
     const k = (await a.locator("#stage .slide").boundingBox())!.width / 1600;
     r = await rects(a); expect(r[0].x - await slideX(a)).toBeCloseTo(50 * k, 0);
 
@@ -221,7 +221,7 @@ test.describe.serial("two people, one shared folder", () => {
     expect(tdef()).toMatchObject({ gridH: "off", gridV: "on" });
 
     // tables at the top of the slide
-    await page.click('[data-tvalign="top"]'); await saved(page);
+    await page.click("#posBtn"); await page.click('[data-tvalign="top"]'); await saved(page);
     expect(sdef(2).valign).toBe("top");
 
     // drag the right border of the table: every column gets narrower
@@ -235,8 +235,8 @@ test.describe.serial("two people, one shared folder", () => {
     await page.locator("textarea.note-edit").fill("Source: ECB"); await page.keyboard.press("Control+Enter"); await saved(page);
     await page.locator("#stage .tnote", { hasText: "Source: ECB" }).click();
     await page.click("#noteBubble"); await saved(page);
-    await page.click('[data-nvalign="middle"]'); await saved(page);
-    await page.click('[data-nalign="center"]'); await saved(page);
+    await page.click('[data-valign="middle"]'); await saved(page);
+    await page.click('[data-align="center"]'); await saved(page);
     expect(Object.values(sdef(2).notes)).toContainEqual(expect.objectContaining({ text: "Source: ECB", bubble: true, valign: "middle", align: "center" }));
     await expect(page.locator("#stage .notebub")).toHaveCount(1);
     await page.screenshot({ path: path.join(process.env.SB_E2E_TMP!, "round4-slide.png") });
@@ -285,6 +285,56 @@ test.describe.serial("two people, one shared folder", () => {
     await a.close(); await b.close();
   });
 
+  test("one text toolbar for cells, titles and text boxes; deck text styles; shared font library", async ({ browser }) => {
+    const a = await browser.newPage(), b = await browser.newPage();
+    await openApp(a, ANNA); await openApp(b, BOB);
+    await expect(a.locator(".thumb")).toHaveCount(4);
+    await a.locator('.thumb[data-i="2"]').click();
+    const sdef = (i: number) => doc().preset.slides[i];
+    // nothing selected: the controls say so instead of changing shape
+    await expect(a.locator("#textTarget")).toHaveText("No text selected");
+    await expect(a.locator("#boldBtn")).toBeDisabled();
+    // the title: click selects it, the same controls format it (sizes in points)
+    await a.locator("#stage .slide .title").click();
+    await expect(a.locator("#textTarget")).toHaveText("Title");
+    await a.fill("#sizeBox", "40"); await a.press("#sizeBox", "Enter");
+    await expect.poll(() => sdef(2).fmt?.title?.size, { timeout: 10_000 }).toBe(53.3);
+    await a.click("#fontBtn"); await a.click('.fontmenu [data-font="Georgia"]');
+    await a.click('[data-align="center"]');
+    await expect.poll(() => sdef(2).fmt?.title, { timeout: 10_000 }).toMatchObject({ font: "Georgia", align: "center", size: 53.3 });
+    await expect(a.locator("#stage .slide .title")).toHaveCSS("font-family", /Georgia/);
+    await a.click("#clearFmt");
+    await expect.poll(() => sdef(2).fmt, { timeout: 10_000 }).toBeUndefined();
+    // a cell: same font menu
+    await selectCell(a, "Theta");
+    await expect(a.locator("#textTarget")).toHaveText(/^Cell /);
+    await a.click("#fontBtn"); await a.click('.fontmenu [data-font="Verdana"]');
+    await expect.poll(() => Object.values(doc().edits.SLIDE_1 || {}).some((e: any) => e.font === "Verdana"), { timeout: 10_000 }).toBe(true);
+    // deck text styles: every text box of the deck in one place
+    await a.click("#textStylesBtn");
+    await a.locator('.tsrow[data-role="note"] .fontbtn').click(); await a.click('.fontmenu [data-font="Trebuchet MS"]');
+    await expect.poll(() => doc().style.text?.note, { timeout: 10_000 }).toEqual({ font: "Trebuchet MS" });
+    // fonts: an uploaded font goes to the shared library – bob gets it too
+    await a.click("#tabFonts");
+    const file = path.join(process.env.SB_E2E_TMP!, "CorpSans-Bold.ttf"); fs.writeFileSync(file, sfnt("Corp Sans", 700));
+    await a.setInputFiles(".fontstab input[type=file]", file);
+    await expect(a.locator('#fontLib [data-family="Corp Sans"]')).toBeVisible();
+    const lib = JSON.parse(fs.readFileSync(path.join(data(), "fonts", "fonts.json"), "utf8"));
+    expect(lib.fonts[0]).toMatchObject({ family: "Corp Sans", source: "upload", by: "anna", faces: [{ weight: 700, style: "normal" }] });
+    await a.click('.tsdlg [data-a="close"]');
+    await openWorkbook(b, "report.xlsx"); await b.click('[data-a="continue"]'); await expect(b.locator(".thumb")).toHaveCount(4);
+    await b.click("#textStylesBtn"); await b.click("#tabFonts");
+    await expect(b.locator('#fontLib [data-family="Corp Sans"]')).toBeVisible();
+    await b.locator('#fontLib [data-family="Corp Sans"] .btn.icon').click(); await b.click('.modal [data-a="ok"]');
+    await expect(b.locator('#fontLib [data-family="Corp Sans"]')).toHaveCount(0);
+    await b.click('.tsdlg [data-a="close"]');
+    // back to the design's look for the next tests
+    await a.click("#textStylesBtn"); await a.locator('.tsrow[data-role="note"] .btn', { hasText: "Reset" }).click();
+    await expect.poll(() => doc().style.text, { timeout: 10_000 }).toBeUndefined();
+    await a.click('.tsdlg [data-a="close"]');
+    await a.close(); await b.close();
+  });
+
   test("wizard on a sheet larger than the preview: the selection box sits exactly on the selected cells", async ({ page }) => {
     await openApp(page, BOB);
     await openWorkbook(page, "big.xlsx");
@@ -306,3 +356,18 @@ test.describe.serial("two people, one shared folder", () => {
 
   test("no page errors", async () => { expect(errors).toEqual([]); });
 });
+
+/** a minimal TrueType file: name table (family) + OS/2 (weight) – enough for the upload and its name detection */
+function sfnt(family: string, weight: number): Buffer {
+  const str = Buffer.from(family, "utf16le").swap16(), name = Buffer.alloc(18 + str.length);
+  name.writeUInt16BE(1, 2); name.writeUInt16BE(18, 4);
+  name.writeUInt16BE(3, 6); name.writeUInt16BE(1, 8); name.writeUInt16BE(0x409, 10); name.writeUInt16BE(1, 12); name.writeUInt16BE(str.length, 14);
+  str.copy(name, 18);
+  const os2 = Buffer.alloc(78); os2.writeUInt16BE(weight, 4);
+  const head = 12 + 32, out = Buffer.alloc(head + name.length + os2.length);
+  out.writeUInt32BE(0x00010000, 0); out.writeUInt16BE(2, 4);
+  const rec = (i: number, tag: string, off: number, len: number) => { out.write(tag, 12 + i * 16, "latin1"); out.writeUInt32BE(off, 12 + i * 16 + 8); out.writeUInt32BE(len, 12 + i * 16 + 12); };
+  rec(0, "OS/2", head + name.length, os2.length); rec(1, "name", head, name.length);
+  name.copy(out, head); os2.copy(out, head + name.length);
+  return out;
+}

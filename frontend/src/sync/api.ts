@@ -2,6 +2,7 @@
    an in-browser backend keeps documents in localStorage and exports are disabled. */
 import { FORMATS, type ConfigDoc, type Op, type Prefs, type WorkbookDoc } from "../model/types";
 import { applyOps, emptyDoc } from "../model/ops";
+import type { LibraryFont } from "../model/fonts";
 
 export interface EngineRow { name: string; label: string; state: "ok" | "blocked" | "missing" | "untested"; detail: string }
 export interface Engine { state: "ready" | "starting" | "idle" | "unavailable"; browser: string | null; local: boolean; error: string | null; engines: EngineRow[] }
@@ -37,6 +38,11 @@ export interface Backend {
   engineRestart(): Promise<void>;
   engineInstall(start: boolean): Promise<InstallState>;
   assetUrl(name: string): string;
+  /** shared font library (helper: data/fonts; from disk: Google Fonts only, kept in this browser) */
+  fonts(): Promise<LibraryFont[]>;
+  addFont(f: { family: string; weight: number; style: "normal" | "italic"; source: "upload" | "google"; name: string; range?: string }, data: ArrayBuffer): Promise<LibraryFont[]>;
+  removeFont(family: string): Promise<LibraryFont[]>;
+  fontUrl(file: string): string;
 }
 
 const TOKEN = (document.querySelector('meta[name="sb-token"]') as HTMLMetaElement | null)?.content || "";
@@ -99,6 +105,13 @@ export const helper: Backend = {
   async engineRestart() { await req("/api/engine/restart", { method: "POST" }); },
   engineInstall: start => json(req("/api/engine/install", { method: start ? "POST" : "GET" })),
   assetUrl: name => "/assets/" + encodeURIComponent(name) + "?t=" + encodeURIComponent(TOKEN),
+  async fonts() { return (await json<{ fonts: LibraryFont[] }>(req("/api/fonts"))).fonts || []; },
+  async addFont(f, data) {
+    const q = new URLSearchParams({ family: f.family, weight: String(f.weight), style: f.style, source: f.source, name: f.name, ...(f.range ? { range: f.range } : {}) });
+    return (await json<{ fonts: LibraryFont[] }>(req("/api/fonts?" + q, { method: "POST", body: data }))).fonts || [];
+  },
+  async removeFont(family) { return (await json<{ fonts: LibraryFont[] }>(req("/api/fonts?family=" + encodeURIComponent(family), { method: "DELETE" }))).fonts || []; },
+  fontUrl: file => "/fonts/" + encodeURIComponent(file) + "?t=" + encodeURIComponent(TOKEN),
 };
 
 /* ---- opened from disk: everything stays in this browser ---- */
@@ -137,5 +150,15 @@ export const offline: Backend = {
   async engineRestart() { /* nothing */ },
   engineInstall: offlineOnly,
   assetUrl: name => encodeURI(name),
+  /* from disk: Google fonts are remembered by name in this browser and loaded from Google */
+  async fonts() { return LS.get<LibraryFont[]>("fonts", []); },
+  async addFont(f) {
+    if (f.source !== "google") offlineOnly();
+    const lib = LS.get<LibraryFont[]>("fonts", []).filter(x => x.family.toLowerCase() !== f.family.toLowerCase());
+    lib.push({ family: f.family, source: "google", faces: [] }); lib.sort((a, b) => a.family.localeCompare(b.family));
+    LS.set("fonts", lib); return lib;
+  },
+  async removeFont(family) { const lib = LS.get<LibraryFont[]>("fonts", []).filter(x => x.family.toLowerCase() !== family.toLowerCase()); LS.set("fonts", lib); return lib; },
+  fontUrl: file => file,
 };
 export const backend: Backend = SERVED ? helper : offline;

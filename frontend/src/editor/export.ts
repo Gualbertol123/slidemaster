@@ -7,6 +7,7 @@ import { openInstaller } from "../state/dialogs";
 import { backend, ApiError, type ExportRes } from "../sync/api";
 import { buildSlide } from "../render/slide";
 import { esc } from "../xlsx/util";
+import { embeddedFontCss } from "../state/fonts";
 
 export type ExportKind = "pdf" | "pdf-exact" | "pdf-vector" | "pdf-current" | "png-current" | "png-all" | "copy";
 
@@ -22,7 +23,7 @@ async function exportPayload(idx: number[]) {
     for (const img of Array.from(s.querySelectorAll<HTMLImageElement>("img.logo"))) { try { img.setAttribute("src", await toDataUrl(img.src)); } catch { img.parentNode && (img.parentNode as HTMLElement).remove(); } }
     slides.push(s.outerHTML);
   }
-  return { css: slideCss(), slides, names: idx.map(i => S.slides[i].label) };
+  return { css: slideCss() + "\n" + await embeddedFontCss(slides.join("")), slides, names: idx.map(i => S.slides[i].label) };
 }
 
 async function clientRender(i: number, scale: number, type: string): Promise<string> {
@@ -30,8 +31,9 @@ async function clientRender(i: number, scale: number, type: string): Promise<str
   const slide = buildSlide(S.slides[i], i, c);
   slide.querySelectorAll(".pic.missing").forEach(e => e.remove());
   for (const img of Array.from(slide.querySelectorAll<HTMLImageElement>("img.logo"))) { try { img.src = await toDataUrl(img.src); } catch { img.parentNode && (img.parentNode as HTMLElement).remove(); } }
-  const css = Array.from(document.querySelectorAll("style")).map(s => s.textContent).join("\n");
   const xml = new XMLSerializer().serializeToString(slide);
+  // fonts as data URLs: an SVG image cannot load the helper's font files
+  const css = Array.from(document.querySelectorAll("style")).filter(s => s.id !== "fontcss").map(s => s.textContent).join("\n") + "\n" + await embeddedFontCss(xml);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${1600 * scale}" height="${900 * scale}" viewBox="0 0 1600 900"><foreignObject x="0" y="0" width="1600" height="900"><div xmlns="http://www.w3.org/1999/xhtml"><style>${css}</style>${xml}</div></foreignObject></svg>`;
   const img = new Image();
   await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error("render failed")); img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg); });

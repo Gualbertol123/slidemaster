@@ -1,6 +1,7 @@
 /* Page numbers: pageNumber(i) = start + i (the cover counts as a page). */
 import { esc } from "../xlsx/util";
 import type { RenderCtx } from "./context";
+import { deckFmt, fmtCss } from "./text";
 
 export function pageNumber(ctx: RenderCtx, i: number) { const p = ctx.style.pn; return (isFinite(+p.start) ? +p.start : 1) + i; }
 /** label shown on slide i, or null */
@@ -27,9 +28,15 @@ export function pageNoGeom(ctx: RenderCtx, label: string, glassy: boolean, hasLo
   if (p.pos === "bl" && hasLogo && cover) left = 1600 - 44 - w;
   return { left, top, w, h, size, capsule };
 }
+/** font, weight, style and colour of page numbers and footer: the deck's text style (the older page-number font as fallback) */
+function pnCss(ctx: RenderCtx): string {
+  const f = deckFmt(ctx, "pageno"), legacy = PN_FONTS[ctx.style.pn.font] || null;
+  const css = fmtCss({ ...f, size: undefined, align: undefined });
+  return (!f.font && legacy ? `font-family:${legacy.replace(/"/g, "'")};` : "") + (css ? css + ";" : "");
+}
 export function pageNoHtml(ctx: RenderCtx, label: string, glassy: boolean, hasLogo: boolean, cover: boolean): string {
-  const p = ctx.style.pn, font = PN_FONTS[p.font] || null, { left, top, w, h, size, capsule } = pageNoGeom(ctx, label, glassy, hasLogo, cover);
-  const st = `left:${left}px;top:${top}px;width:${w}px;height:${h}px;font-size:${size}px;${font ? `font-family:${font};` : ""}`;
+  const p = ctx.style.pn, { left, top, w, h, size, capsule } = pageNoGeom(ctx, label, glassy, hasLogo, cover);
+  const st = `left:${left}px;top:${top}px;width:${w}px;height:${h}px;font-size:${size}px;${pnCss(ctx)}`;
   return capsule ? `<div class="gls wb chrome pageno" style="${st}border-radius:${Math.min(h / 2, h / 2 * ctx.style.radius / 100)}px"><span>${esc(label)}</span></div>`
     : `<div class="pageno plain" style="${st}line-height:${h}px;text-align:${p.pos[1] === "l" ? "left" : p.pos[1] === "c" ? "center" : "right"}">${esc(label)}</div>`;
 }
@@ -57,7 +64,7 @@ export function footerHtml(ctx: RenderCtx, i: number, glassy: boolean, hasLogo: 
     else if (f.pos[1] === "r") left = g.left - 16 - w;
     else y = f.pos[0] === "b" ? g.top - h - 6 : g.top + g.h + 6;
   }
-  const st = `left:${left}px;top:${y}px;width:${w}px;height:${h}px;font-size:${size}px;`;
+  const st = `left:${left}px;top:${y}px;width:${w}px;height:${h}px;font-size:${size}px;${pnCss(ctx)}`;
   return capsule ? `<div class="gls wb chrome pageno footer" style="${st}border-radius:${Math.min(h / 2, h / 2 * ctx.style.radius / 100)}px"><span>${esc(label)}</span></div>`
     : `<div class="pageno plain footer" style="${st}line-height:${h}px;text-align:${f.pos[1] === "l" ? "left" : f.pos[1] === "c" ? "center" : "right"}">${esc(label)}</div>`;
 }

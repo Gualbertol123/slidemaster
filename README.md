@@ -43,6 +43,20 @@ This README is the map. Deeper documents:
   arrange slides; optional **cover** (title, subtitle, date, note) and **contents/index** slide (with or
   without subtitles); per-slide logo on/off. Cover and index are ordinary slides that can be moved.
 
+### Text: one toolbar, one place for the whole deck
+* The first toolbar row formats **whatever text is selected** – table cells, a text box, the title, the
+  subtitle, the cover note or date (click to select, double-click to edit). It always has the same controls:
+  font, size (pt), bold, italic, colour, alignment, vertical position (text boxes), clear format. The chip at
+  its left names what it acts on. Cell-only tools (cell colour, format painter) are greyed out for other text.
+* **Text styles…** sets every text of a kind at once for the deck: slide titles, subtitles, tables, text boxes,
+  contents list, page numbers & footer (font, size, bold, italic, colour, alignment). Single-text formatting
+  sits on top. *Use as default for new decks* includes them.
+* **Fonts**: the fonts of every Windows PC, any **Google Font** (picked from the menu or typed by name) and
+  your **own font files** (.ttf/.otf/.woff/.woff2, family/weight/style read from the file). Added fonts are
+  saved in the shared folder (`backend/data/fonts`) for everybody and embedded in exports.
+* The second row is layout only: cells (W/H, role, merge, colour scale), tables (same size, position,
+  gridlines, sizes, reset), text boxes (add, bubble, delete), slide (logo, contents subtitles).
+
 ### Editing on the slide (Excel-like)
 * Click/drag/Shift+click/Shift+arrows to select; type or F2 to edit; Enter/Tab move; Del clears;
   Ctrl+B/I; Ctrl+Z/Y (undo **only your own** changes); PgUp/PgDn change slide; Ctrl+S saves now.

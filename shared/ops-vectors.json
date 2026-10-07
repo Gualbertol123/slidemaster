@@ -1297,5 +1297,214 @@
       "applied": 1,
       "skipped": []
     }
+  },
+  {
+    "name": "slide.patch fmt is a map merge: one text's format is replaced, the others stay",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S1"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "fmt": {
+              "subtitle": {
+                "i": true
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "fmt": {
+            "title": {
+              "font": "Roboto",
+              "size": 56,
+              "b": true
+            }
+          }
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "fmt": {
+            "subtitle": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S1"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "fmt": {
+              "title": {
+                "font": "Roboto",
+                "size": 56,
+                "b": true
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "cell.patch sets and deletes the font",
+    "doc": {
+      "preset": null,
+      "style": {},
+      "edits": {
+        "S1": {
+          "B2": {
+            "b": true
+          }
+        }
+      }
+    },
+    "ops": [
+      {
+        "op": "cell.patch",
+        "sheet": "S1",
+        "ref": "B2",
+        "patch": {
+          "font": "Inter"
+        }
+      },
+      {
+        "op": "cell.patch",
+        "sheet": "S1",
+        "ref": "C3",
+        "patch": {
+          "font": "Lato"
+        }
+      },
+      {
+        "op": "cell.patch",
+        "sheet": "S1",
+        "ref": "C3",
+        "patch": {
+          "font": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {},
+      "edits": {
+        "S1": {
+          "B2": {
+            "b": true,
+            "font": "Inter"
+          }
+        }
+      },
+      "applied": 3,
+      "skipped": []
+    }
+  },
+  {
+    "name": "style.patch text is a map merge per kind of text; an empty map is removed",
+    "doc": {
+      "preset": null,
+      "style": {
+        "text": {
+          "note": {
+            "size": 16
+          }
+        },
+        "design": "glass"
+      },
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "style.patch",
+        "patch": {
+          "text": {
+            "title": {
+              "font": "Montserrat",
+              "color": "#123456"
+            }
+          }
+        }
+      },
+      {
+        "op": "style.patch",
+        "patch": {
+          "text": {
+            "note": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {
+        "text": {
+          "title": {
+            "font": "Montserrat",
+            "color": "#123456"
+          }
+        },
+        "design": "glass"
+      },
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "style.patch text null removes every text style",
+    "doc": {
+      "preset": null,
+      "style": {
+        "text": {
+          "title": {
+            "b": false
+          }
+        }
+      },
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "style.patch",
+        "patch": {
+          "text": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
   }
 ]

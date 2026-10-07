@@ -13,6 +13,7 @@ import { resolveStyle } from "../model/style";
 import type { Op, Preset, Prefs, StylePatch } from "../model/types";
 import type { RenderCtx } from "../render/context";
 import { makeWall } from "../render/wallpaper";
+import { loadFonts, watchFontLoads } from "./fonts";
 
 /* ---------------------------------------------------------------- render context */
 let ctxCache: { key: unknown[]; ctx: RenderCtx } | null = null;
@@ -34,6 +35,7 @@ export async function boot() {
   S.health = await backend.health();
   try { const me = await backend.me(); S.user = me.user; S.host = me.host; S.prefs = me.prefs || {}; } catch { /* keep defaults */ }
   try { S.config = await backend.config(); } catch { /* defaults */ }
+  watchFontLoads(); await loadFonts();
   if (S.prefs.zoom != null) S.zoom = S.prefs.zoom;
   makeWall(style());
   emit();
@@ -58,6 +60,7 @@ async function tick() {
       if (f && S.file.mtime && f.mtime > S.file.mtime + 0.5 && !S.changedOnDisk) { S.changedOnDisk = true; emit(); }
     }
   }
+  if (tickN % 10 === 0) void loadFonts();               // fonts colleagues added
   if (tickN % 10 === 0) { try { const c = await backend.config(); if (c.rev !== S.config.rev) { S.config = c; onStyleChanged(); } } catch { /* later */ } }
 }
 async function heartbeat() {

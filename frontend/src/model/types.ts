@@ -12,7 +12,13 @@ export type TableDef =
 export type SlideType = "cover" | "index" | "content";
 export type Side = "top" | "bottom" | "left" | "right";
 /** text box next to a table; key in SlideDef.notes = "<tableId>:<side>" */
-export interface Note { text: string; size?: number; b?: boolean; i?: boolean; align?: "left" | "center" | "right"; valign?: "top" | "middle" | "bottom"; color?: string; w?: number; h?: number;
+/** formatting of one piece of slide text (titles, cover texts, text boxes, deck text styles); size in slide px */
+export interface TextFmt { font?: string; size?: number; b?: boolean; i?: boolean; color?: string; align?: "left" | "center" | "right" }
+/** deck-wide text styles: one per kind of text, so all text of a kind is edited in one place */
+export type TextRole = "title" | "subtitle" | "table" | "note" | "index" | "pageno";
+/** slide texts that can be formatted one by one (stored in SlideDef.fmt) */
+export type SlideTextKey = "title" | "subtitle" | "note" | "date";
+export interface Note { text: string; font?: string; size?: number; b?: boolean; i?: boolean; align?: "left" | "center" | "right"; valign?: "top" | "middle" | "bottom"; color?: string; w?: number; h?: number;
   /** draw the text box as a card (glass bubble / Excel-style box) */ bubble?: boolean }
 export interface SlideDef {
   id: string; type: SlideType;
@@ -20,6 +26,7 @@ export interface SlideDef {
   tables: string[]; layout?: Layout | null; logo?: boolean;
   align?: "left" | "center" | "right"; valign?: "top" | "middle" | "bottom"; scale?: number; notes?: Record<string, Note>;
   /** index slide: show the subtitles of the slides (default true) */ subs?: boolean;
+  /** formatting of this slide's title, subtitle, cover note and date (over the deck text styles) */ fmt?: Partial<Record<SlideTextKey, TextFmt>>;
 }
 export interface Preset { sheets: string[]; tables: TableDef[]; slides: SlideDef[]; version?: number; updated?: number }
 
@@ -28,11 +35,12 @@ export interface Footer { on: boolean; text: string; pos: "tl" | "tc" | "tr" | "
 /** colour theme: c1–c4 = wallpaper colours, a1/a2 = accent (cover bar, index numbers, heading rules) */
 export interface Theme { id: string; c1: string; c2: string; c3: string; c4: string; a1: string; a2: string }
 export interface Style { design: "glass" | "excel"; glass: "subtle" | "medium" | "strong"; color: number; logo: string; pn: PageNumbers;
-  /** corner roundness, % of default (0–200) */ radius: number; /** background ↔ surfaces contrast 0–100 (50 = as designed) */ contrast: number; logoBubble: boolean; footer: Footer; theme: Theme }
-export type StylePatch = Partial<Omit<Style, "pn" | "footer" | "theme">> & { pn?: Partial<PageNumbers>; footer?: Partial<Footer>; theme?: Partial<Theme> };
+  /** corner roundness, % of default (0–200) */ radius: number; /** background ↔ surfaces contrast 0–100 (50 = as designed) */ contrast: number; logoBubble: boolean; footer: Footer; theme: Theme;
+  /** text styles of the deck, per kind of text */ text: Partial<Record<TextRole, TextFmt>> }
+export type StylePatch = Partial<Omit<Style, "pn" | "footer" | "theme" | "text">> & { pn?: Partial<PageNumbers>; footer?: Partial<Footer>; theme?: Partial<Theme>; text?: Partial<Record<TextRole, TextFmt>> };
 
 /** fill = highlight (a capsule in Liquid Glass); bg = cell colour that replaces the Excel colour ("none" removes it) */
-export interface CellEdit { text?: string; orig?: string; sz?: number; b?: boolean; i?: boolean; color?: string; fill?: string; bg?: string;
+export interface CellEdit { text?: string; orig?: string; font?: string; sz?: number; b?: boolean; i?: boolean; color?: string; fill?: string; bg?: string;
   /** conditional formatting copied with the format painter: the rules of "Sheet!A1" applied to this cell ("none" = no rules) */ cf?: string; align?: string; role?: string }
 export type Edits = Record<string, Record<string, CellEdit>>;
 
@@ -51,10 +59,10 @@ export interface Prefs { lastFile?: string | null; pdfMode?: "exact" | "vector" 
 type Nullable<T> = { [K in keyof T]?: T[K] | null };
 export type Op =
   | { op: "preset.set"; preset: Preset | null }
-  | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "valign" | "scale" | "subs">> & { notes?: Record<string, Note | null> | null } }
+  | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "valign" | "scale" | "subs">> & { notes?: Record<string, Note | null> | null; fmt?: Partial<Record<SlideTextKey, TextFmt | null>> | null } }
   | { op: "table.patch"; id: string; patch: { name?: string | null; gridH?: "on" | "off" | null; gridV?: "on" | "off" | null; cols?: Record<string, number | null> | null; rows?: Record<string, number | null> | null; scales?: Record<string, ScaleRule | null> | null; merges?: Record<string, "merge" | "split" | null> | null } }
   | { op: "cell.patch"; sheet: string; ref: string; patch: Nullable<CellEdit> }
-  | { op: "style.patch"; patch: Nullable<Omit<StylePatch, "pn" | "footer" | "theme">> & { pn?: Nullable<PageNumbers> | null; footer?: Nullable<Footer> | null; theme?: Nullable<Theme> | null } };
+  | { op: "style.patch"; patch: Nullable<Omit<StylePatch, "pn" | "footer" | "theme" | "text">> & { pn?: Nullable<PageNumbers> | null; footer?: Nullable<Footer> | null; theme?: Nullable<Theme> | null; text?: Partial<Record<TextRole, TextFmt | null>> | null } };
 
 /* ---- runtime ---- */
 export interface RuntimeSlide {

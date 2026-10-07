@@ -1,18 +1,21 @@
 /* Deck style = built-in defaults ← shared defaults (config.json) ← this workbook's style. */
-import type { Footer, PageNumbers, Style, StylePatch, Theme } from "./types";
+import type { Footer, PageNumbers, Style, StylePatch, TextFmt, TextRole, Theme } from "./types";
 
 export const BUILTIN_PN: PageNumbers = { on: false, start: 1, pos: "br", font: "auto", size: 16, format: "n", style: "capsule", cover: false };
 export const BUILTIN_FOOTER: Footer = { on: false, text: "", pos: "bl", size: 14, style: "plain", cover: false };
-export const BUILTIN_STYLE: Style = { design: "glass", glass: "subtle", color: 35, logo: "logo.png", pn: BUILTIN_PN, radius: 100, contrast: 50, logoBubble: true, footer: BUILTIN_FOOTER, theme: { id: "aurora", c1: "", c2: "", c3: "", c4: "", a1: "", a2: "" } };
+export const BUILTIN_STYLE: Style = { design: "glass", glass: "subtle", color: 35, logo: "logo.png", pn: BUILTIN_PN, radius: 100, contrast: 50, logoBubble: true, footer: BUILTIN_FOOTER, theme: { id: "aurora", c1: "", c2: "", c3: "", c4: "", a1: "", a2: "" }, text: {} };
+export const TEXT_ROLES: TextRole[] = ["title", "subtitle", "table", "note", "index", "pageno"];
 
 export function resolveStyle(...layers: (StylePatch | null | undefined)[]): Style {
-  const s: Style = { ...BUILTIN_STYLE, pn: { ...BUILTIN_PN }, footer: { ...BUILTIN_FOOTER }, theme: { ...BUILTIN_STYLE.theme } };
+  const s: Style = { ...BUILTIN_STYLE, pn: { ...BUILTIN_PN }, footer: { ...BUILTIN_FOOTER }, theme: { ...BUILTIN_STYLE.theme }, text: {} };
   for (const l of layers) {
     if (!l) continue;
     for (const k of ["design", "glass", "color", "logo", "radius", "contrast", "logoBubble"] as const) if (l[k] !== undefined && l[k] !== null) (s as unknown as Record<string, unknown>)[k] = l[k];
     if (l.pn) for (const [k, v] of Object.entries(l.pn)) if (v !== undefined && v !== null) (s.pn as unknown as Record<string, unknown>)[k] = v;
     if (l.theme) for (const [k, v] of Object.entries(l.theme)) if (v !== undefined && v !== null) (s.theme as unknown as Record<string, unknown>)[k] = v;
     if (l.footer) for (const [k, v] of Object.entries(l.footer)) if (v !== undefined && v !== null) (s.footer as unknown as Record<string, unknown>)[k] = v;
+    // text styles: a deck's entry for a kind of text replaces the shared default's entry as a whole
+    if (l.text && typeof l.text === "object") for (const r of TEXT_ROLES) { const f = l.text[r]; if (f && typeof f === "object") s.text[r] = cleanFmt(f); }
   }
   if (s.design !== "excel") s.design = "glass";
   if (!["subtle", "medium", "strong"].includes(s.glass)) s.glass = "subtle";
@@ -53,4 +56,17 @@ function darkAccent(h: string) {
   const n = parseInt(h.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255, L = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   const k = L > .45 ? .45 / L : 1, f = (v: number) => Math.round(v * k).toString(16).padStart(2, "0");
   return ("#" + f(r) + f(g) + f(b)).toUpperCase();
+}
+
+const HEXC = /^#[0-9A-Fa-f]{6}$/;
+/** only valid values of a text format survive (documents are shared and may come from older pages) */
+export function cleanFmt(f: TextFmt): TextFmt {
+  const o: TextFmt = {};
+  if (typeof f.font === "string" && f.font.trim()) o.font = f.font.trim().slice(0, 80);
+  if (isFinite(+(f.size as number)) && +(f.size as number) > 0) o.size = Math.max(6, Math.min(200, +(f.size as number)));
+  if (typeof f.b === "boolean") o.b = f.b;
+  if (typeof f.i === "boolean") o.i = f.i;
+  if (typeof f.color === "string" && HEXC.test(f.color)) o.color = f.color;
+  if (f.align === "left" || f.align === "center" || f.align === "right") o.align = f.align;
+  return o;
 }

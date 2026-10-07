@@ -8,12 +8,12 @@ import re
 
 REF_RE = re.compile(r"^[A-Z]{1,3}[0-9]{1,7}$")
 SLIDE_KEYS = ("title", "subtitle", "date", "note", "logo", "layout", "align", "scale", "valign", "subs")
-SLIDE_MAPS = ("notes",)
+SLIDE_MAPS = ("notes", "fmt")
 TABLE_KEYS = ("name", "gridH", "gridV")
 TABLE_MAPS = ("cols", "rows", "scales", "merges")
-CELL_KEYS = ("text", "orig", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role")
+CELL_KEYS = ("text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role")
 STYLE_KEYS = ("design", "glass", "color", "logo", "radius", "contrast", "logoBubble")
-STYLE_MAPS = ("pn", "footer", "theme")
+STYLE_MAPS = ("pn", "footer", "theme", "text")
 
 
 def _set_or_delete(target, key, value):

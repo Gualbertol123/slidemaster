@@ -12,10 +12,15 @@ import { coverHtml, indexHtml } from "./cover";
 import { footerHtml, pageNoBox, pageNoFor, pageNoHtml } from "./pagenumbers";
 import { todayLabel } from "./cover";
 import { cache } from "./edits";
+import { effNote, fmtCss, slideTextFmt, titleGeom } from "./text";
 
 export const SLIDE_W = 1600, SLIDE_H = 900;
 export const GX = 36, GY = 28, MAXK = 2.0;
-export const areaFor = (R: RuntimeSlide) => R.subtitle ? { x: 50, y: 126, w: 1500, h: 696 } : { x: 50, y: 104, w: 1500, h: 718 };
+export function areaFor(R: RuntimeSlide, ctx?: RenderCtx) {
+  const a = R.subtitle ? { x: 50, y: 126, w: 1500, h: 696 } : { x: 50, y: 104, w: 1500, h: 718 };
+  const push = ctx ? Math.min(200, titleGeom(R, ctx).push) : 0;          // larger titles push the tables down
+  return push ? { ...a, y: a.y + push, h: a.h - push } : a;
+}
 export const tableW = (L: TableLayout, ctx: RenderCtx) => ctx.style.design === "glass" ? glassGeom(L, ctx).W : L.W;
 
 export function defaultLayout(R: RuntimeSlide): Layout {
@@ -44,9 +49,10 @@ export interface TBox { i: number; band: number; x: number; y: number; w: number
 export const NOTE_GAP = 14, NOTE_W = 240;
 export const SIDES: Side[] = ["top", "bottom", "left", "right"];
 export const noteKey = (R: RuntimeSlide, i: number, side: Side) => (R.tables[i].id || String(i)) + ":" + side;
-export function notesOf(R: RuntimeSlide, i: number): Partial<Record<Side, Note>> {
+/** the text boxes of table i, with the deck's text box style applied */
+export function notesOf(R: RuntimeSlide, i: number, ctx?: RenderCtx): Partial<Record<Side, Note>> {
   const out: Partial<Record<Side, Note>> = {}, all = R.cfg.notes || {};
-  for (const side of SIDES) { const n = all[noteKey(R, i, side)]; if (n) out[side] = n; }
+  for (const side of SIDES) { const n = all[noteKey(R, i, side)]; if (n) out[side] = ctx ? effNote(ctx, n) : n; }
   return out;
 }
 /** height of a text box above/below a table: explicit, or from its lines (wrapping is handled by shrinking the font) */
@@ -57,9 +63,9 @@ const noteW = (n: Note) => n.w || NOTE_W;
     slide's fixed scale (set by "Make same size"), reduced only if it would not fit. */
 export function computeLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay?: Layout): { boxes: TBox[]; k: number; fit: number; reduced: boolean } {
   if (!R.tables.length) return { boxes: [], k: 1, fit: 1, reduced: false };
-  lay = lay || layoutOf(R); const ww = w || lay.w; const T = R.tables, A = areaFor(R);
+  lay = lay || layoutOf(R); const ww = w || lay.w; const T = R.tables, A = areaFor(R, ctx);
   const bands = lay.bands.filter(b => b.length);
-  const N = T.map((_, i) => notesOf(R, i));
+  const N = T.map((_, i) => notesOf(R, i, ctx));
   const ex = N.map(n => ({ l: n.left ? noteW(n.left) + NOTE_GAP : 0, r: n.right ? noteW(n.right) + NOTE_GAP : 0, t: n.top ? noteH(n.top) + NOTE_GAP : 0, b: n.bottom ? noteH(n.bottom) + NOTE_GAP : 0 }));
   const unitW = (i: number, k: number) => tableW(T[i], ctx) * ww[i] * k + ex[i].l + ex[i].r;
   const unitH = (i: number, k: number) => T[i].H * ww[i] * k + ex[i].t + ex[i].b;
@@ -139,23 +145,23 @@ export function buildSlide(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: S
   const logo = slideHasLogo(R) ? ctx.logoSrc : "", cover = R.type === "cover";
   let h = glassy ? `<div class="wall"></div>` : "";
   // a page number in the top-left corner pushes the title to the right
-  const shift = pageNo !== null && ctx.style.pn.pos === "tl" ? pageNoBox(ctx, pageNo, glassy).w + 22 : 0, sh = shift ? ` style="left:${56 + shift}px"` : "";
-  if (cover) h += coverHtml(R, glassy, rk);
+  const shift = pageNo !== null && ctx.style.pn.pos === "tl" ? pageNoBox(ctx, pageNo, glassy).w + 22 : 0, sh = shift ? `left:${56 + shift}px;` : "";
+  if (cover) h += coverHtml(R, glassy, rk, ctx);
   else {
-    h += `<div class="title" data-edit="title"${sh}>${esc(R.title)}</div>`;
-    if (R.subtitle) h += `<div class="subtitle" data-edit="subtitle"${sh}>${esc(R.subtitle)}</div>`;
+    h += `<div class="title" data-edit="title" style="${sh}${fmtCss(slideTextFmt(ctx, R, "title"))}">${esc(R.title)}</div>`;
+    if (R.subtitle) h += `<div class="subtitle" data-edit="subtitle" style="${sh}top:${titleGeom(R, ctx).subTop}px;${fmtCss(slideTextFmt(ctx, R, "subtitle"))}">${esc(R.subtitle)}</div>`;
   }
   if (R.type === "index") h += indexHtml(R, ctx, glassy);
   if (pageNo !== null) h += pageNoHtml(ctx, pageNo, glassy, !!logo, cover);
   h += footerHtml(ctx, idx, glassy, !!logo, cover, pageNo, todayLabel());
   R.tables.forEach((t, i) => {
     h += `<div class="tw" data-i="${i}" style="width:${tableW(t, ctx)}px;height:${t.H}px">${tableHtml(R, i, ctx, opts.thumb)}${opts.interactive ? `<div class="hits" data-t="${i}" style="width:${tableW(t, ctx)}px;height:${t.H}px"><div class="hov"></div></div>` : ""}</div>`;
-    const ns = notesOf(R, i);
+    const ns = notesOf(R, i, ctx);
     for (const side of SIDES) {
       const n = ns[side]; if (!n) continue;
       const txt = String(n.text || "");
       if (!txt.trim() && !opts.interactive) continue;
-      const st = [`font-size:${n.size || 18}px`, n.b ? "font-weight:700" : "", n.i ? "font-style:italic" : "", n.color ? `color:${n.color}` : "", `text-align:${n.align || (side === "left" ? "right" : "left")}`,
+      const st = [`font-size:${n.size || 18}px`, fmtCss({ font: n.font, b: n.b || undefined, i: n.i || undefined, color: n.color }, { size: false, align: false }), `text-align:${n.align || (side === "left" ? "right" : "left")}`,
         n.valign ? `justify-content:${n.valign === "top" ? "flex-start" : n.valign === "middle" ? "center" : "flex-end"}` : ""].filter(Boolean).join(";");
       // a bubble behind the text: a glass card like the tables' (Liquid Glass) or a framed box (Excel)
       if (n.bubble && txt.trim()) h += glassy ? `<div class="gls wb card notebub" data-i="${i}" data-side="${side}" style="border-radius:${Math.round(22 * rk)}px"></div>`
