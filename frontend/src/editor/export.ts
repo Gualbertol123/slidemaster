@@ -35,9 +35,11 @@ async function clientRender(i: number, scale: number, type: string, base: Render
   slide.querySelectorAll(".pic.missing").forEach(e => e.remove());
   for (const img of Array.from(slide.querySelectorAll<HTMLImageElement>("img.logo"))) { try { img.src = await toDataUrl(img.src); } catch { img.parentNode && (img.parentNode as HTMLElement).remove(); } }
   const xml = new XMLSerializer().serializeToString(slide);
-  // fonts as data URLs: an SVG image cannot load the helper's font files
-  const css = Array.from(document.querySelectorAll("style")).filter(s => s.id !== "fontcss").map(s => s.textContent).join("\n") + "\n" + await embeddedFontCss(xml);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${1600 * scale}" height="${900 * scale}" viewBox="0 0 1600 900"><foreignObject x="0" y="0" width="1600" height="900"><div xmlns="http://www.w3.org/1999/xhtml"><style>${css}</style>${xml}</div></foreignObject></svg>`;
+  // the same CSS the export engine gets (slide styles only – the app's own styles must not reach the
+  // slide), fonts as data URLs (an SVG image cannot load the helper's font files); escaped, because the
+  // SVG is XML: a "<" or "&" in the CSS (the wallpaper is an inline SVG) made the whole picture fail
+  const css = (slideCss() + "\n" + await embeddedFontCss(xml)).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${1600 * scale}" height="${900 * scale}" viewBox="0 0 1600 900"><foreignObject x="0" y="0" width="1600" height="900"><div xmlns="http://www.w3.org/1999/xhtml" style="width:1600px;height:900px;margin:0;overflow:hidden"><style>${css}</style>${xml}</div></foreignObject></svg>`;
   const img = new Image();
   await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error("render failed")); img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg); });
   const cv = document.createElement("canvas"); cv.width = 1600 * scale; cv.height = 900 * scale;

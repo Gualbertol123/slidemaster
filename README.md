@@ -1,7 +1,7 @@
 # Slide Builder
 
-Slide Builder turns tables in Excel workbooks into presentation slides (16:9, 1600 × 900 CSS px =
-13.333 × 7.5 in) and exports them as PDF or PNG. It was built for a weekly banking report and runs on
+Slide Builder turns tables in Excel workbooks into presentation slides (16:9, 1600 × 900 CSS px; one PDF
+page = one slide, 1200 × 675 pt) and exports them as PDF or PNG. It was built for a weekly banking report and runs on
 locked-down corporate Windows PCs: no admin rights, nothing to install beyond Python, Edge DevTools
 possibly disabled by policy, an SSL-inspecting proxy, and the app living in a **shared network folder**
 that several people use **at the same time, on the same or on different workbooks**.
@@ -88,6 +88,11 @@ This README is the map. Deeper documents:
   version; pictures that are content (logo, flags) stay pictures, and Liquid Glass keeps its frosted
   background as a picture behind the text. *PDF · as pictures* (480 dpi PNG pages) remains in the Export menu.
   Only when no export engine works at all are slides rendered as pictures in the app window.
+* **No white bars**: each PDF page is exactly one slide, unscaled (the browser never shrinks or splits it).
+  Every export is checked before it is saved – one 16:9 page per slide (a page the browser rounded up by a
+  fraction of a point is trimmed to the slide), pictures exactly one slide (a larger capture is cut, a smaller
+  one refused) and the slides laid out where their pages are. Output that fails is not saved: the next
+  engine renders it instead.
 
 ### Versions (e.g. Chief and All)
 * ✦ Wizard › **4 · Versions**: create any number of named versions (chips for Chief and All, or type a name).

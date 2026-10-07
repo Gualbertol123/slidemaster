@@ -25,7 +25,7 @@ SETTINGS_NAME = "slide_builder_settings.txt"
 SETTINGS_BACKUP_NAME = "slide_builder_settings.v2-backup.txt"
 WORKBOOK_EXT = (".xlsx", ".xlsm", ".xlsb", ".xls")
 SLIDE_W, SLIDE_H = 1600, 900            # CSS px of one slide
-PAGE_W_IN, PAGE_H_IN = 13.333, 7.5      # PowerPoint 16:9
+PAGE_W_IN, PAGE_H_IN = SLIDE_W / 96, SLIDE_H / 96   # one PDF page = one slide at 1 CSS px = 1/96 in (16:9, 1200 x 675 pt)
 
 # Programs cannot run reliably from network drives (T:\, \\server\share), so there the engine lives on this PC:
 LOCAL_ENGINE_DIR = os.path.join(os.environ.get("LOCALAPPDATA") or tempfile.gettempdir(), "SlideBuilder", "engine")

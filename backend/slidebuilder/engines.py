@@ -17,8 +17,8 @@ import time
 from . import paths
 from .cdp import CDP
 from .locks import Lock
-from .paths import PAGE_H_IN, PAGE_W_IN, SLIDE_H, SLIDE_W
-from .pdf import png_crop_height, png_first_column
+from .paths import SLIDE_H, SLIDE_W
+from .pdf import pdf_fit_pages, pdf_page_boxes, picture_size, png_crop, png_crop_height, png_first_column
 from .util import NO_WINDOW, file_url, log
 
 if os.path.isdir(paths.ENGINE_DIR):
@@ -130,10 +130,18 @@ def find_browser():
     return None
 
 # --------------------------------------------------------------------------- export engines
-EXPORT_CSS = ("@page{size:13.333in 7.5in;margin:0}html,body{margin:0;padding:0;background:#fff}"
-              ".page{position:relative;width:1600px;height:900px;overflow:hidden;break-after:page;page-break-after:always}"
-              ".page:last-child{break-after:auto;page-break-after:auto}@media print{.page{zoom:.8}}"
-              "*{-webkit-print-color-adjust:exact;print-color-adjust:exact}")
+# Page geometry, the same in every engine and browser version: one PDF page is exactly one slide,
+# 1600 x 900 CSS px (1200 x 675 pt, 16:9), so nothing is scaled when printing. Scaling the slides down to
+# 13.333 x 7.5 in (CSS zoom before; a transform does not survive page breaks) depended on the browser
+# version and left white strips on some; a PDF page of any size is scaled by the viewer or printer anyway.
+PAGE_PX_W, PAGE_PX_H = SLIDE_W, SLIDE_H
+EXPORT_CSS = ("@page{size:%(w)dpx %(h)dpx;margin:0}"
+              "html,body{margin:0;padding:0;background:#fff;width:%(w)dpx}"
+              ".page{position:relative;display:block;width:%(w)dpx;height:%(h)dpx;overflow:hidden;margin:0;padding:0;"
+              "break-after:page;page-break-after:always;break-inside:avoid}"
+              ".page:last-child{break-after:auto;page-break-after:auto}"
+              ".page>*{position:absolute;left:0;top:0;margin:0}"
+              "*{-webkit-print-color-adjust:exact;print-color-adjust:exact}" % {"w": SLIDE_W, "h": SLIDE_H})
 
 def compose(css, slides):
     return ("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>%s</style><style>%s</style></head><body>%s</body></html>"
@@ -143,11 +151,60 @@ WAIT_JS = ("async () => { if (document.fonts) await document.fonts.ready;"
            " await Promise.all([...document.images].map(i => i.decode ? i.decode().catch(() => {}) : 0));"
            " await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); return true; }")
 
+# Checked in the browser before anything is printed or captured: every slide must be exactly where its page
+# is – 1600 x 900 one under the other on screen, 1280 x 720 per page in print layout. Returns "" or what is off.
+GEOMETRY_JS = ("(print) => { const W = %(sw)d, H = %(sh)d, bad = [];"
+               " const pages = [...document.querySelectorAll('body > .page')];"
+               " pages.forEach((p, i) => { const s = p.firstElementChild; if (!s) { bad.push('page ' + (i + 1) + ' is empty'); return; }"
+               "  const r = s.getBoundingClientRect(), q = p.getBoundingClientRect();"
+               "  const off = Math.max(Math.abs(r.width - W), Math.abs(r.height - H), Math.abs(r.left - q.left), Math.abs(r.top - q.top), Math.abs(q.width - W), Math.abs(q.height - H));"
+               "  if (off > 0.75) bad.push('page ' + (i + 1) + ': slide ' + r.width.toFixed(1) + 'x' + r.height.toFixed(1) + ' at ' + (r.left - q.left).toFixed(1) + ',' + (r.top - q.top).toFixed(1) + ' on a ' + q.width.toFixed(1) + 'x' + q.height.toFixed(1) + ' page'); });"
+               " return bad.slice(0, 3).join('; '); }") % {"sw": SLIDE_W, "sh": SLIDE_H}
+
 
 class EngineError(RuntimeError):
     def __init__(self, msg, permanent=False):
         super().__init__(msg)
         self.permanent = permanent
+
+
+def check_geometry(problem, where="screen"):
+    """what GEOMETRY_JS found off: the browser does not lay the pages out as asked – try the next engine"""
+    if problem:
+        raise EngineError("pages laid out wrongly in %s (%s)" % (where, problem))
+
+
+def check_output(out, kind, n, scale):
+    """Every export is checked before it is saved, so a browser that scales or pads pages differently can
+    never leave white bars: a PDF must have one 16:9 page per slide; a picture must be exactly one slide
+    (a larger capture is cut to the slide, a smaller one is refused). Raises EngineError -> next engine."""
+    if kind == "vector":
+        if not isinstance(out, (bytes, bytearray)) or not out.startswith(b"%PDF"):
+            raise EngineError("the browser did not write a PDF")
+        try:
+            out, trimmed = pdf_fit_pages(bytes(out), SLIDE_W / SLIDE_H)
+        except ValueError as ex:
+            raise EngineError("the PDF pages do not fit the slides (%s)" % ex)
+        boxes = pdf_page_boxes(out)
+        if boxes is not None:                  # None: page objects compressed – nothing to read, trust it
+            if len(boxes) != n:
+                raise EngineError("the PDF has %d pages for %d slides" % (len(boxes), n))
+            for k, b in enumerate(boxes):
+                if b and abs(b[0] / b[1] - SLIDE_W / SLIDE_H) > 0.001:
+                    raise EngineError("page %d of the PDF is %.0f x %.0f pt, not 16:9" % (k + 1, b[0], b[1]))
+        return out
+    if len(out) != n:
+        raise EngineError("%d pictures for %d slides" % (len(out), n))
+    W, H = int(round(SLIDE_W * scale)), int(round(SLIDE_H * scale))
+    fixed = []
+    for k, img in enumerate(out):
+        w, h = picture_size(img)
+        if w < W - 1 or h < H - 1:
+            raise EngineError("slide %d came out %dx%d instead of %dx%d" % (k + 1, w, h, W, H))
+        fixed.append(png_crop(img, W, H) if (w > W or h > H) and img[:4] == b"\x89PNG" else img)
+        if (w > W + 1 or h > H + 1) and img[:4] != b"\x89PNG":
+            raise EngineError("slide %d came out %dx%d instead of %dx%d" % (k + 1, w, h, W, H))
+    return fixed
 
 
 class PlaywrightEngine:
@@ -238,8 +295,11 @@ class PlaywrightEngine:
             try:
                 page.set_content(compose(css, slides), wait_until="load", timeout=180000)
                 page.evaluate(WAIT_JS)
+                check_geometry(page.evaluate(GEOMETRY_JS, False))
                 if kind == "vector":
-                    return page.pdf(width="13.333in", height="7.5in", print_background=True, prefer_css_page_size=True,
+                    page.emulate_media(media="print")
+                    check_geometry(page.evaluate(GEOMETRY_JS, True), "print")
+                    return page.pdf(width="%dpx" % PAGE_PX_W, height="%dpx" % PAGE_PX_H, print_background=True, prefer_css_page_size=True,
                                     margin={"top": "0", "right": "0", "bottom": "0", "left": "0"})
                 out = []
                 for i in range(len(slides)):
@@ -314,6 +374,10 @@ class DevToolsEngine:
     def page(self, method, params=None, timeout=120):
         return self.cdp.call(method, params, timeout=timeout, session=self.session)
 
+    def _eval(self, expr):
+        r = self.page("Runtime.evaluate", {"expression": expr, "returnByValue": True})
+        return r.get("result", {}).get("value")
+
     def selftest(self):
         if self.proc is None or self.proc.poll() is not None or self.cdp is None:
             self.stop()
@@ -337,8 +401,14 @@ class DevToolsEngine:
                 if r.get("result", {}).get("value") == "complete":
                     break
             self.page("Runtime.evaluate", {"expression": "(%s)()" % WAIT_JS, "awaitPromise": True, "returnByValue": True})
+            check_geometry(self._eval("(%s)(false)" % GEOMETRY_JS))
             if kind == "vector":
-                pdf = self.page("Page.printToPDF", {"paperWidth": PAGE_W_IN, "paperHeight": PAGE_H_IN, "marginTop": 0, "marginBottom": 0,
+                self.page("Emulation.setEmulatedMedia", {"media": "print"})
+                try:
+                    check_geometry(self._eval("(%s)(true)" % GEOMETRY_JS), "print")
+                finally:
+                    self.page("Emulation.setEmulatedMedia", {"media": ""})
+                pdf = self.page("Page.printToPDF", {"paperWidth": SLIDE_W / 96, "paperHeight": SLIDE_H / 96, "marginTop": 0, "marginBottom": 0,
                                                     "marginLeft": 0, "marginRight": 0, "printBackground": True, "preferCSSPageSize": True}, timeout=300)
                 return base64.b64decode(pdf["data"])
             out = []
@@ -566,7 +636,7 @@ class Exporter:
                 if not e.installed() or e.name in self.disabled:
                     continue
                 try:
-                    out = e.render(css, slides, kind, scale)
+                    out = check_output(e.render(css, slides, kind, scale), kind, len(slides), scale)
                     self.last = e.name
                     self.tested.add(e.name)
                     return out, e.label

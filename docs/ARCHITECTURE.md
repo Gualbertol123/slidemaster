@@ -229,7 +229,7 @@ All responses JSON unless stated. Security for every request:
 | `POST /api/upload?name=` · `GET /api/upload/<id>` | bytes | `{id, name}` · bytes (in memory, max 8 entries, 2 h) |
 | `POST /api/convert-workbook?name=` | bytes | `.xlsx` bytes (Excel COM, Windows) or 501 |
 | `POST /api/convert?ext=` | bytes | PNG bytes (GDI+, Windows) or 501 |
-| `POST /api/export` | `{name, format:"pdf"\|"png", mode:"exact"\|"vector", css, slides[], names[], scale, inline?, all?}` | `{ok, files[], engine, seconds}` or `{ok, images[]}` (inline). 503 when no engine works. |
+| `POST /api/export` | `{name, format:"pdf"\|"png", mode:"exact"\|"vector", css, slides[], names[], scale, inline?, all?}` | `{ok, files[], engine, seconds}` or `{ok, images[]}` (inline). 503 when no engine works. Pages are 1600 × 900 CSS px, unscaled (`engines.EXPORT_CSS`); each engine's output passes `engines.check_output` (page count, 16:9 boxes – rounding trimmed by `pdf.pdf_fit_pages` –, picture sizes) and the layout check `GEOMETRY_JS`, else the next engine renders it. |
 | `POST /api/assemble` | `{name, images[]}` (JPEG data URLs) | `{ok, files[]}` |
 | `POST /api/open` | `{name}` or `{folder:true}` | `{ok}` |
 | `POST /api/engine/restart` | – | `{ok}` |

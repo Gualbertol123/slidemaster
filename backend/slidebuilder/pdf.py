@@ -1,5 +1,6 @@
 """PDF writer for image pages (JPEG, or PNG embedded losslessly) and small PNG helpers."""
 import datetime as _dt
+import re
 import struct
 import zlib
 
@@ -92,6 +93,124 @@ def png_crop_height(data, new_h):
         return struct.pack(">I", len(b)) + t + b + struct.pack(">I", zlib.crc32(t + b) & 0xFFFFFFFF)
     return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, new_h, depth, ctype, comp, filt, inter))
             + chunk(b"IDAT", zlib.compress(raw, 6)) + chunk(b"IEND", b""))
+
+def picture_size(data):
+    """(width, height) of a PNG or JPEG"""
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return struct.unpack(">II", data[16:24])
+    w, h, _ = jpeg_size(data)
+    return w, h
+
+def png_crop(data, new_w, new_h):
+    """Keep the top-left new_w x new_h of an 8-bit PNG. Rows are cut at the bottom and bytes at the right
+    end of each row: PNG row filters only look left and up, so the kept bytes decode unchanged."""
+    pos, idat, ihdr = 8, [], None
+    while pos < len(data):
+        ln = struct.unpack(">I", data[pos:pos + 4])[0]
+        typ, body = data[pos + 4:pos + 8], data[pos + 8:pos + 8 + ln]
+        if typ == b"IHDR":
+            ihdr = body
+        elif typ == b"IDAT":
+            idat.append(body)
+        pos += 12 + ln
+    w, h, depth, ctype, comp, filt, inter = struct.unpack(">IIBBBBB", ihdr)
+    if (w <= new_w and h <= new_h) or depth != 8 or inter or ctype not in (0, 2, 4, 6):
+        return data
+    bpp = {0: 1, 2: 3, 4: 2, 6: 4}[ctype]
+    nw, nh = min(w, new_w), min(h, new_h)
+    raw, stride = zlib.decompress(b"".join(idat)), 1 + w * bpp
+    rows = b"".join(raw[y * stride: y * stride + 1 + nw * bpp] for y in range(nh))
+    def chunk(t, b):
+        return struct.pack(">I", len(b)) + t + b + struct.pack(">I", zlib.crc32(t + b) & 0xFFFFFFFF)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", nw, nh, depth, ctype, comp, filt, inter))
+            + chunk(b"IDAT", zlib.compress(rows, 6)) + chunk(b"IEND", b""))
+
+_PAGE = re.compile(rb"/Type\s*/Page(?![a-zA-Z])")
+_BOX = re.compile(rb"/MediaBox\s*\[\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*\]")
+
+def pdf_page_boxes(data):
+    """[(width, height) or None per page] of a PDF written by Chrome, or None when its page objects
+    cannot be read (compressed object streams). A box inherited from /Pages counts for each page."""
+    if b"/ObjStm" in data:
+        return None
+    objs = re.split(rb"\bendobj\b", data)
+    pages, inherited = [], None
+    for o in objs:
+        m = _BOX.search(o)
+        box = (float(m.group(3)) - float(m.group(1)), float(m.group(4)) - float(m.group(2))) if m else None
+        if _PAGE.search(o):
+            pages.append(box)
+        elif box and re.search(rb"/Type\s*/Pages\b", o):
+            inherited = box
+    return [b or inherited for b in pages] if pages else None
+
+def _xref(data):
+    """object offsets from a PDF's single classic xref table: (xref_pos, [(entry_pos, offset)]), or None
+    (xref streams, incremental updates – then the PDF is left as it is)"""
+    m = list(re.finditer(rb"startxref\s+(\d+)", data))
+    if len(m) != 1 or data.count(b"\nxref") + data.startswith(b"xref") != 1:
+        return None
+    pos = int(m[0].group(1))
+    if data[pos:pos + 4] != b"xref":
+        return None
+    i, entries = pos + 4, []
+    while True:
+        h = re.compile(rb"\s*(\d+) (\d+)[ \t]*\r?\n").match(data, i)
+        if not h:
+            break
+        i = h.end()
+        for _ in range(int(h.group(2))):
+            e = data[i:i + 20]
+            if not re.match(rb"\d{10} \d{5} [nf]", e):
+                return None
+            if e[17:18] == b"n":
+                entries.append((i, int(e[:10])))
+            i += 20
+    return (pos, entries) if entries else None
+
+def pdf_fit_pages(data, aspect, slack=2.5):
+    """Make every page exactly `aspect` (width/height) by trimming a box that the browser rounded up by a
+    fraction of a point (Chrome rounds page sizes to 1/300 in: a 900 px slide became a 675.12 pt page with a
+    hairline of white below it). The slide is drawn from the top-left corner, so the top-left is kept.
+    Returns (data, trimmed pages), or raises ValueError when a page is off by more than `slack` pt."""
+    xr = _xref(data)
+    if not xr:
+        return data, 0
+    xref_pos, entries = xr
+    edits = []                                              # (start, end, new bytes)
+    for _, off in entries:
+        end = data.find(b"endobj", off)
+        st = data.find(b"stream", off, end if end > 0 else None)
+        head = data[off:st if st > 0 else end]
+        if not _PAGE.search(head):
+            continue
+        m = _BOX.search(head)
+        if not m:
+            continue
+        x0, y0, x1, y1 = (float(v) for v in m.groups())
+        w, h = x1 - x0, y1 - y0
+        if abs(w / h - aspect) < 1e-4:
+            continue
+        nw, nh = (h * aspect, h) if w / h > aspect else (w, w / aspect)
+        if w - nw > slack or h - nh > slack:
+            raise ValueError("page is %.2f x %.2f pt, %.2f x %.2f expected" % (w, h, nw, nh))
+        box = b"/MediaBox [%s %s %s %s]" % tuple(("%.4f" % v).rstrip("0").rstrip(".").encode() for v in (x0, y1 - nh, x0 + nw, y1))
+        edits.append((off + m.start(), off + m.end(), box))
+    if not edits:
+        return data, 0
+    out, last, shifts = bytearray(), 0, []
+    for a, b, rep in sorted(edits):
+        out += data[last:a] + rep
+        shifts.append((a, len(rep) - (b - a)))
+        last = b
+    out += data[last:]
+    moved = lambda pos: pos + sum(d for at, d in shifts if at < pos)
+    for entry_pos, off in entries:                          # same-length rewrite of each xref entry
+        p = moved(entry_pos)
+        out[p:p + 10] = b"%010d" % moved(off)
+    m = list(re.finditer(rb"startxref\s+(\d+)", bytes(out)))[-1]
+    out[m.start(1):m.end(1)] = str(moved(xref_pos)).encode()
+    return bytes(out), len(edits)
 
 def jpegs_to_pdf(jpegs, title):
     pw, ph = PAGE_W_IN * 72, PAGE_H_IN * 72

@@ -99,6 +99,10 @@ test.describe.serial("two people, one shared folder", () => {
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
     expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) || []).length).toBe(4);
     expect(pdf.toString("latin1")).toContain("/Font");                                   // real text, not pictures of slides
+    // one page per slide, exactly the slide's shape: no white strips from rounding or scaling
+    const boxes = [...pdf.toString("latin1").matchAll(/\/MediaBox \[([\d. ]+)\]/g)].map(m => m[1].trim().split(/\s+/).map(Number));
+    expect(boxes).toHaveLength(4);
+    for (const [x0, y0, x1, y1] of boxes) expect((x1 - x0) / (y1 - y0)).toBeCloseTo(16 / 9, 4);
   });
 
   test("table tools: same size, alignment, widths, text boxes, colour scale, Shift+arrows", async ({ browser }) => {
