@@ -102,7 +102,7 @@ export function buildLayout(S: Sheet, g: Range, sizes?: Sizes): TableLayout | nu
     if (align === "general") align = cell && (cell.t === "n" || cell.t === "d") ? "right" : cell && (cell.t === "b" || cell.t === "e") ? "center" : "left";
     if (align === "centerContinuous") align = "center";
     if (align === "fill" || align === "justify" || align === "distributed") align = "left";
-    items.push({ b, bx, by, bw, bh, fill, top, left, right, bottom, text, font, color: nfColor || font.color || "#000000", align, valign: xf.v || "bottom", wrap: !!xf.wrap, indent: xf.indent || 0, rot: xf.rot || 0, isText: !!cell && cell.t === "s", merged: !!b.m,
+    items.push({ ...(cell?.scr && cell.t === "s" && text === cell.v ? { scripts: cell.scr } : {}), b, bx, by, bw, bh, fill, top, left, right, bottom, text, font, color: nfColor || font.color || "#000000", align, valign: xf.v || "bottom", wrap: !!xf.wrap, indent: xf.indent || 0, rot: xf.rot || 0, isText: !!cell && cell.t === "s", merged: !!b.m,
       baseFill: xf.fill, baseColor, cf, nfColor, ctype: cell ? cell.t : "blank" });
   }
   // text overflow into empty neighbours (Excel behaviour for unwrapped text)

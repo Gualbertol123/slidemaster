@@ -8,7 +8,7 @@ import { effNote, fmtCss, slideTextFmt, titleGeom } from "../src/render/text";
 import type { RenderCtx } from "../src/render/context";
 import type { StylePatch } from "../src/model/types";
 
-const ctx = (deck: StylePatch = {}, design: "glass" | "excel" = "glass"): RenderCtx =>
+const ctx = (deck: StylePatch = {}, design: "glass" | "excel" | "clean" = "glass"): RenderCtx =>
   ({ style: { ...resolveStyle(deck), design }, edits: {}, slides: [], preset: null, workbook: "w", logoSrc: "" });
 const slide = (cfg: any = {}, extra: any = {}) => ({ id: "s", type: "content", tables: [], missing: 0, title: "Loans", subtitle: "", label: "Loans",
   cfg: { id: "s", type: "content", tables: [], ...cfg }, ...extra } as any);

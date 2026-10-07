@@ -109,6 +109,10 @@ def weekly():
                 else: c.number_format = "#,##0"
                 if k == 0: c.font = Font(bold=True)
     table(4, "TOTAL BANKS LOANS", 1)
+    # a footnote mark in superscript, like "LEGAL ENTITIES MF (1)" in the report
+    from openpyxl.cell.rich_text import CellRichText, TextBlock
+    from openpyxl.cell.text import InlineFont
+    ws.cell(row=8, column=3).value = CellRichText("TOTAL BANKS LOANS ", TextBlock(InlineFont(b=True, vertAlign="superscript"), "(1)"))
     table(24, "TOTAL BANKS DEPOSITS", 2)
     # like the report: green/red cells on the Δ columns, a framed total row
     g, rd = PatternFill("solid", fgColor="00B050"), PatternFill("solid", fgColor="FF0000")

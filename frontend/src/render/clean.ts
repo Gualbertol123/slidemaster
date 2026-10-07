@@ -7,7 +7,7 @@ import { lum, tone } from "../xlsx/color";
 import type { Rect, TableLayout } from "../xlsx/types";
 import type { RenderCtx } from "./context";
 import { effItems } from "./edits";
-import { picHtml, rotBox, rotSpan, shapeTransform, textboxInner } from "./excel";
+import { cellHtml, picHtml, rotBox, rotSpan, shapeTransform, textboxInner } from "./excel";
 import { rolesOf, type RowKind } from "./roles";
 import { mix, palette } from "../model/style";
 import { fontStack } from "../model/fonts";
@@ -90,7 +90,7 @@ export function renderClean(L: TableLayout, ctx: RenderCtx, opts: { noText?: boo
     else st.push(it.align === "right" ? "padding-right:7px" : it.align === "center" ? "" : "padding-left:7px");
     const cl = ["t", it.wrap ? "wrap" : "", it.ov && cls !== "chead" ? "ov" : ""].filter(Boolean).join(" ");
     if (it.rot) { text += `<div class="t ov" style="${st.filter(Boolean).join(";")};${rotBox()}">${rotSpan(it.rot, it.text)}</div>`; continue; }
-    text += `<div class="${cl}" style="${st.filter(Boolean).join(";")}">${esc(it.text)}</div>`;
+    text += `<div class="${cl}" style="${st.filter(Boolean).join(";")}">${cellHtml(it)}</div>`;
   }
   let extra = "";
   for (const r of L.rects) extra += `<div style="position:absolute;box-sizing:border-box;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;${r.fill ? `background:${r.fill};` : ""}${r.line ? `border:${r.line.w}px solid ${r.line.color};` : ""}${r.ellipse ? "border-radius:50%;" : r.round ? `border-radius:${rad * 2}px;` : ""}${shapeTransform(r)}"></div>`;

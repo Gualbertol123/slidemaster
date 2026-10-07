@@ -468,6 +468,44 @@ test.describe.serial("two people, one shared folder", () => {
     await page.click("#optBtn"); await page.uncheck("#pnOn"); await saved(page); await page.keyboard.press("Escape");
   });
 
+  test("versions: Chief and All made in the wizard, cells removed in All, every version × design exported; superscripts", async ({ page }) => {
+    await openApp(page, BOB);
+    await expect(page.locator(".thumb")).toHaveCount(1);
+    // Excel's superscript "(1)" stays raised on the slide
+    await expect(page.locator("#stage .slide .t sup", { hasText: "(1)" }).first()).toBeVisible();
+    await page.click("#wizardBtn");
+    await page.click('[data-a="next"]'); await page.click('[data-a="next"]');                // sheets → tables → slides
+    await page.click('[data-a="versions"]');
+    await page.click('[data-addv="Chief"]'); await page.click('[data-addv="All"]');
+    await page.fill("#wNewVersion", "Board"); await page.click("#wAddVersion");
+    await expect(page.locator("#wVersions .wvrow")).toHaveCount(3);
+    await page.locator('#wVersions .wvrow[data-v="All"]').click();
+    // remove VUB's and PBZ's Δ vs. Budget (H10:I11 on the sheet) in "All"
+    await page.locator('.wgrid-in td[data-r="10"][data-c="8"]').click();
+    await page.locator('.wgrid-in td[data-r="11"][data-c="9"]').click({ modifiers: ["Shift"] });
+    await expect(page.locator("#wCutRange")).toHaveValue("H10:I11");
+    await page.click("#wCut");
+    await expect(page.locator("#wCuts .wcut")).toHaveCount(1);
+    await page.locator('#wVersions .wvrow[data-v="Board"] .del').click();
+    await page.click('[data-a="finish"]');
+    const wdoc = () => { const d = path.join(data(), "workbooks"), f = fs.readdirSync(d).find(n => n.startsWith("weekly.xlsx"))!; return JSON.parse(fs.readFileSync(path.join(d, f), "utf8")); };
+    await expect.poll(() => (wdoc().preset.versions || []).map((v: any) => [v.name, v.hide]), { timeout: 10_000 })
+      .toEqual([["Chief", {}], ["All", { LOANS_DEPOSITS: ["H10:I11"] }]]);
+    // the slide shown as "All": those cells are empty; as the full deck they are back
+    const vub = () => page.locator("#stage .slide > .tw").first().locator(".t").count();         // texts drawn in the loans table
+    const before = await vub();
+    await page.selectOption("#versionSel", { label: "All" });
+    await expect.poll(vub).toBe(before - 4);                                                       // 2 rows × Abs. + %
+    await page.selectOption("#versionSel", { label: "Full deck" });
+    await expect.poll(vub).toBe(before);
+    // every version in Liquid Glass and Excel: four PDFs
+    await page.click("#exportMenuBtn"); await page.click('[data-x="versions-2"]');
+    await expect(page.locator("#toast")).toContainText("Saved 4 PDFs", { timeout: 60_000 });
+    const files = fs.readdirSync(path.join(root(), "export")).filter(f => f.startsWith("weekly - "));
+    for (const n of ["weekly - Chief - Liquid Glass", "weekly - All - Liquid Glass", "weekly - Chief - Excel", "weekly - All - Excel"])
+      expect(files.some(f => f.startsWith(n))).toBe(true);
+  });
+
   test("wizard on a sheet larger than the preview: the selection box sits exactly on the selected cells", async ({ page }) => {
     await openApp(page, BOB);
     await openWorkbook(page, "big.xlsx");

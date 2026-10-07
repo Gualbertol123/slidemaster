@@ -15,7 +15,7 @@ export function gridOf(L: TableLayout, ctx: RenderCtx): Grid {
     const g: Grid = L.rows.map(() => L.cols.map(() => ({ text: "", v: null, anchor: false, bold: false })));
     for (const it of effItems(L, ctx)) {
       const raw = L.sheet.get?.(it.b.src.r, it.b.src.c);
-      const v = !it.edited && raw && raw.t === "n" && typeof raw.v === "number" ? raw.v : parseNum(it.text);
+      const v = it.removed ? null : !it.edited && raw && raw.t === "n" && typeof raw.v === "number" ? raw.v : parseNum(it.text);
       for (const r of L.rows) if (r >= it.b.r && r <= it.b.r2) for (const c of L.cols) if (c >= it.b.c && c <= it.b.c2) {
         const anchor = r === it.b.r && c === it.b.c;
         g[ri.get(r)!][ci.get(c)!] = { text: String(it.text || ""), v: anchor ? v : null, anchor, bold: !!it.font?.b };

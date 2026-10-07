@@ -83,3 +83,19 @@ describe("designs and colours", () => {
     expect(themeVars(ctx({ design: "excel" }))).toEqual({});
   });
 });
+
+describe("versions", () => {
+  it("cells removed in a version are drawn empty and leave the comments' numbers", async () => {
+    const { effItems } = await import("../src/render/edits");
+    const { gridOf } = await import("../src/render/comment");
+    const L = table(), v = { id: "v1", name: "All", hide: { S: ["D7:D8"] } };       // Δ column of VUB and PBZ
+    const full = effItems(L, ctx({ design: "clean" })), cut = effItems(L, { ...ctx({ design: "clean" }), version: v });
+    const at = (its: any[], r: number, c: number) => its.find(x => x.b.src.r === r && x.b.src.c === c);
+    expect(at(full, 7, 4).text).toBe("5"); expect(at(full, 7, 4).fill).toBe("#00B050");
+    expect(at(cut, 7, 4)).toMatchObject({ text: "", fill: null, removed: true });
+    expect(at(cut, 9, 4).text).toBe("10");                                                 // outside the range: kept
+    const g = gridOf(L, { ...ctx({ design: "clean" }), version: v });
+    expect(g[5][2].v).toBeNull();                                                          // no number for the comment either
+    expect(renderClean(L, { ...ctx({ design: "clean" }), version: v })).not.toContain(">5<");
+  });
+});

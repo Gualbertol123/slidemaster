@@ -10,10 +10,12 @@ export type Border = Partial<Record<Side, BorderSide>>;
 export interface Xf { fmt: string; font: Font; fill: string | null; border: Border; h: string; v: string; wrap: boolean; indent: number; rot: number }
 export interface Dxf { fill?: string; color?: string; b?: boolean; i?: boolean }
 export type CellType = "s" | "n" | "b" | "e" | "d" | "blank";
-export interface Cell { r: number; c: number; v: string | number | boolean | null; t: CellType; xf: Xf; fmt: string }
+/** a raised or lowered part of a cell's text: [start, end, kind] (Excel rich text, e.g. a footnote "(1)") */
+export type Script = [number, number, "sup" | "sub"];
+export interface Cell { r: number; c: number; v: string | number | boolean | null; t: CellType; xf: Xf; fmt: string; scr?: Script[] }
 export interface CFRule { ranges: Range[]; type: string; op: string | null; priority: number; stop: boolean; dxf: Dxf | null; formulas: string[] }
 
-export interface Shared { sst: string[]; xfs: Xf[]; dxfs: Dxf[]; defaultFont: Font; color: ColorFn; theme: string[]; mdw: number }
+export interface Shared { sst: string[]; sstRuns?: (Script[] | undefined)[]; xfs: Xf[]; dxfs: Dxf[]; defaultFont: Font; color: ColorFn; theme: string[]; mdw: number }
 
 export interface AnchorPos { c: number; r: number; co: number; ro: number }
 export interface Crop { l: number; t: number; r: number; b: number }
@@ -89,6 +91,8 @@ export interface Item {
   scaleFill?: string; scaleInk?: string;
   /** user cell colour (replaces the Excel colour) */
   userBg?: string;
+  /** superscript / subscript parts of the text (from Excel) */ scripts?: Script[];
+  /** removed in the version being shown (drawn empty) */ removed?: boolean;
   edited?: boolean; /** font chosen on the slide (cell edit) */ userFont?: string; userB?: boolean; userI?: boolean; userColor?: string; userFill?: string; noFill?: boolean; role?: string;
   L?: TableLayout;
 }

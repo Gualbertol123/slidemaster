@@ -1,4 +1,4 @@
-/* Editing wizard — 1 Sheets · 2 Tables · 3 Slides.
+/* Editing wizard — 1 Sheets · 2 Tables · 3 Slides · 4 Versions (named versions with removed cells).
    v3: cover and index are ordinary entries of the slide list and can be moved like any slide. */
 import { useEffect, useRef, useState } from "preact/hooks";
 import { DLG, confirmBox, alertBox, type WizardReq } from "../state/dialogs";
@@ -6,13 +6,14 @@ import { showBusy, hideBusy } from "../state/store";
 import { A1, esc, fmtMB, numToCol, uid } from "../xlsx/util";
 import { formatValue } from "../xlsx/numfmt";
 import type { Sheet } from "../xlsx/types";
-import type { Preset, SlideDef, TableDef } from "../model/types";
+import type { DeckVersion, Preset, SlideDef, TableDef } from "../model/types";
 import { SLIDE_RX, gToRange, rangeToG, resolveTable, validRange } from "../model/preset";
 import { todayLabel } from "../render/cover";
 import { detectTables, usedRange } from "./detect";
 
 interface W {
-  step: 1 | 2 | 3; sheets: Set<string>; tables: TableDef[]; slides: SlideDef[];
+  step: 1 | 2 | 3 | 4; sheets: Set<string>; tables: TableDef[]; slides: SlideDef[];
+  /** step 4: the deck's versions and the one being edited */ versions: DeckVersion[]; vcur: string | null;
   cur: string | null; sel: { r1: number; c1: number; r2: number; c2: number } | null;
   suggest: Record<string, string[]>; focusSlide: string | null; grids: Record<string, HTMLElement>; grow: boolean;
   /** keyboard: where a Shift+arrow / Shift+click selection starts, and the moving corner */
@@ -35,7 +36,9 @@ export function Wizard({ req }: { req: WizardReq }) {
       step: 1, sheets: new Set((P.sheets && P.sheets.length ? P.sheets : P.tables.map(t => t.sheet)).filter(inMeta)),
       tables: P.tables.filter(t => inMeta(t.sheet)), slides: P.slides.map(s => ({ ...s, tables: (s.tables || []).slice() })),
       cur: null, sel: null, suggest: {}, focusSlide: null, grids: {}, grow: false,
+      versions: (P.versions || []).map(v => ({ ...v, hide: JSON.parse(JSON.stringify(v.hide || {})) })), vcur: null,
     };
+    w.vcur = w.versions[0]?.id || null;
     if (!w.sheets.size) meta.filter(m => SLIDE_RX.test(m.name) && !(byName(m.name) || {} as Sheet).error).forEach(m => w.sheets.add(m.name));
     ref.current = w;
   }
@@ -66,11 +69,12 @@ export function Wizard({ req }: { req: WizardReq }) {
       }
     } finally { hideBusy(); }
   }
-  async function go(s: 1 | 2 | 3) {
+  async function go(s: 1 | 2 | 3 | 4) {
     if (s >= 2) { try { await ensureChosen(); } catch (e) { await alertBox("Could not read the sheets", esc((e as Error).message || e)); return; } }
     W.step = s;
-    if (s === 2 && (!W.cur || !W.sheets.has(W.cur))) W.cur = sheetsChosen()[0]?.name || null;
-    if (s === 3) syncSlides();
+    if ((s === 2 || s === 4) && (!W.cur || !W.sheets.has(W.cur))) W.cur = sheetsChosen()[0]?.name || null;
+    if (s === 3 || s === 4) syncSlides();
+    W.sel = null;
     render();
   }
   function syncSlides() {
@@ -92,20 +96,23 @@ export function Wizard({ req }: { req: WizardReq }) {
       if (o.logo !== false) delete o.logo;
       return o;
     });
-    close({ sheets: [...W.sheets], tables: W.tables.map(t => { const o = { ...t }; if (!o.name) delete o.name; return o; }), slides });
+    const versions = W.versions.filter(v => v.name.trim()).map(v => ({ id: v.id, name: v.name.trim(),
+      hide: Object.fromEntries(Object.entries(v.hide).filter(([sh, rs]) => W.sheets.has(sh) && rs.length)) }));
+    close({ sheets: [...W.sheets], tables: W.tables.map(t => { const o = { ...t }; if (!o.name) delete o.name; return o; }), slides, ...(versions.length ? { versions } : {}) });
   }
 
-  const steps = ["Sheets", "Tables", "Slides"];
+  const steps = ["Sheets", "Tables", "Slides", "Versions"];
   let body, foot;
   if (W.step === 1) [body, foot] = stepSheets();
   else if (W.step === 2) [body, foot] = stepTables();
-  else [body, foot] = stepSlides();
+  else if (W.step === 3) [body, foot] = stepSlides();
+  else [body, foot] = stepVersions();
   return (
     <div class="wiz">
       <div class="wizbox">
         <div class="wizhd"><b>Editing wizard</b><span>{name}</span>
           <ol class="steps">{steps.map((s, i) => <li key={s} class={W.step === i + 1 ? "on" : W.step > i + 1 ? "done" : ""} data-go={i + 1}
-            onClick={() => { const n = (i + 1) as 1 | 2 | 3; if (n < W.step || W.sheets.size) void go(n); }}>{i + 1} · {s}</li>)}</ol>
+            onClick={() => { const n = (i + 1) as 1 | 2 | 3 | 4; if (n < W.step || W.sheets.size) void go(n); }}>{i + 1} · {s}</li>)}</ol>
           <button class="btn icon" data-x="close" title="Close" onClick={() => void askClose()}>✕</button></div>
         <div class="wizbody">{body}</div>
         <div class="wizft">{foot}</div>
@@ -139,6 +146,49 @@ export function Wizard({ req }: { req: WizardReq }) {
         {other.length > 0 && <p class="meta" style="margin-top:8px">Not listed: {other.map(x => x.name + " (" + x.why + ")").join(", ")}</p>}
       </div>,
       <><span class="hint">Next: pick the tables on each sheet.</span><button class="btn" data-a="cancel" onClick={() => close(null)}>Cancel</button><button class="btn primary" data-a="next" disabled={!W.sheets.size} onClick={() => void go(2)}>Next · Tables</button></>,
+    ];
+  }
+
+  /* ---------- step 4: versions – the same deck with some cells removed, e.g. "Chief" (everything) and "All" */
+  function stepVersions() {
+    const chosen = sheetsChosen().filter(sh => tablesOf(sh.name).length), S = byName(W.cur) && tablesOf(W.cur!).length ? byName(W.cur) : chosen[0];
+    if (S && W.cur !== S.name) W.cur = S.name;
+    const V = W.versions.find(v => v.id === W.vcur) || null;
+    const addVersion = (name: string) => { const n = name.trim(); if (!n || W.versions.some(v => v.name.toLowerCase() === n.toLowerCase())) return false; const v = { id: uid(), name: n, hide: {} }; W.versions.push(v); W.vcur = v.id; render(); return true; };
+    const cut = (range: string) => {
+      const r = range.trim().toUpperCase(); if (!S || !V || !validRange(r)) return false;
+      const list = V.hide[S.name] || (V.hide[S.name] = []); if (!list.includes(r)) list.push(r);
+      W.sel = null; render(); return true;
+    };
+    const cuts = V ? Object.entries(V.hide).flatMap(([sh, rs]) => rs.map(r => ({ sh, r }))) : [];
+    return [
+      <div class="wiz2 wiz4">
+        <div class="wtabs">{chosen.map(sh => <button key={sh.name} class={"wtab" + (sh.name === S?.name ? " on" : "")} onClick={() => { W.cur = sh.name; W.sel = null; render(); }}><span>{sh.name}</span><span class="badge2">{V ? (V.hide[sh.name] || []).length : 0}</span></button>)}</div>
+        <div class="wgridwrap">{S && <SheetGrid S={S} W={W} tables={tablesOf(S.name)} onAdd={cut} onPick={() => render()} />}</div>
+        <div class="wside">
+          <div class="lbl">Versions</div>
+          <div class="wvlist" id="wVersions">
+            {!W.versions.length && <div class="meta">No versions yet: the deck is exported as it is. Add versions to export the same slides for different audiences, with some cells removed.</div>}
+            {W.versions.map(v => <div key={v.id} class={"wvrow" + (v.id === W.vcur ? " on" : "")} data-v={v.name} onClick={() => { W.vcur = v.id; render(); }}>
+              <input type="radio" checked={v.id === W.vcur} />
+              <input class="nmin" value={v.name} onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()} onInput={e => { v.name = (e.target as HTMLInputElement).value; }} onBlur={() => render()} />
+              <span class="meta">{Object.values(v.hide).reduce((n, rs) => n + rs.length, 0) || "nothing"} removed</span>
+              <button class="btn icon del" title="Delete this version" onClick={e => { e.stopPropagation(); W.versions = W.versions.filter(x => x !== v); if (W.vcur === v.id) W.vcur = W.versions[0]?.id || null; render(); }}>✕</button>
+            </div>)}
+          </div>
+          <NewVersion onAdd={addVersion} suggest={["Chief", "All"].filter(n => !W.versions.some(v => v.name.toLowerCase() === n.toLowerCase()))} />
+          {V && <>
+            <div class="lbl" style="margin-top:10px">Remove cells in “{V.name}”</div>
+            <div class="row"><input id="wCutRange" readOnly placeholder="drag across cells on the sheet" value={W.sel ? A1(W.sel.r1, W.sel.c1) + ":" + A1(W.sel.r2, W.sel.c2) : ""} />
+              <button class="btn primary" id="wCut" disabled={!W.sel} onClick={() => W.sel && cut(A1(W.sel.r1, W.sel.c1) + ":" + A1(W.sel.r2, W.sel.c2))}>Remove</button></div>
+            <div class="meta">Removed cells are shown completely empty in this version (no value, no colour). Enter also removes the selection.</div>
+            <div class="wtlist" id="wCuts">{cuts.length ? cuts.map(({ sh, r }) => <div class="wcut" key={sh + r}><code>{sh}!{r}</code>
+              <button class="btn icon del" title="Keep these cells" onClick={() => { V.hide[sh] = (V.hide[sh] || []).filter(x => x !== r); if (!V.hide[sh].length) delete V.hide[sh]; render(); }}>✕</button></div>)
+              : <div class="meta" style="padding:6px 2px">Nothing removed – this version shows everything.</div>}</div>
+          </>}
+        </div>
+      </div>,
+      <><span class="hint">Pick a version, then drag across the cells it must not show and press Remove. Each version is exported separately (Export ▾ › every version).</span><button class="btn" data-a="back" onClick={() => void go(3)}>Back</button><button class="btn primary" data-a="finish" onClick={() => void finish()}>Save preset & show slides</button></>,
     ];
   }
 
@@ -242,11 +292,17 @@ export function Wizard({ req }: { req: WizardReq }) {
           }) : <p class="meta">No slides yet.</p>}</div>
         </div>
       </div>,
-      <><span class="hint">Drag tables between slides · click a slide to highlight it, then click tables to add them.</span><button class="btn" data-a="back" onClick={() => void go(2)}>Back</button><button class="btn primary" data-a="finish" onClick={() => void finish()}>Save preset & show slides</button></>,
+      <><span class="hint">Drag tables between slides · click a slide to highlight it, then click tables to add them.</span><button class="btn" data-a="back" onClick={() => void go(2)}>Back</button><button class="btn" data-a="versions" onClick={() => void go(4)}>Next · Versions{W.versions.length ? ` (${W.versions.length})` : ""}</button><button class="btn primary" data-a="finish" onClick={() => void finish()}>Save preset & show slides</button></>,
     ];
   }
 }
 
+function NewVersion({ onAdd, suggest }: { onAdd: (n: string) => boolean; suggest: string[] }) {
+  const [v, setV] = useState("");
+  return <><div class="row" style="margin-top:6px"><input id="wNewVersion" placeholder="New version, e.g. Board" value={v} onKeyDown={e => { e.stopPropagation(); if (e.key === "Enter" && onAdd(v)) setV(""); }} onInput={e => setV((e.target as HTMLInputElement).value)} />
+    <button class="btn" id="wAddVersion" disabled={!v.trim()} onClick={() => { if (onAdd(v)) setV(""); }}>Add version</button></div>
+    {suggest.length > 0 && <div class="chips">{suggest.map(n => <button key={n} class="chip" data-addv={n} onClick={() => onAdd(n)}>+ {n}</button>)}</div>}</>;
+}
 function RangeInput({ W, onAdd, onChange }: { W: W; onAdd: (r: string) => boolean; onChange: () => void }) {
   const [v, setV] = useState("");
   const shown = W.sel ? A1(W.sel.r1, W.sel.c1) + ":" + A1(W.sel.r2, W.sel.c2) : v;
@@ -346,8 +402,14 @@ function paintOverlays(S: Sheet, W: W, tables: TableDef[], onAdd: (r: string) =>
   tables.forEach((t, k) => {
     const r = defRange(S, t); if (!r) return; const g = rangeToG(r);
     const b = boxFor(grid, g.r1 + 1, g.c1 + 1, g.r2 - 1, g.c2 - 1); if (!b) return;
-    h += `<div class="ovb tbl" data-id="${t.id}" style="left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px"><span>T${k + 1}${t.kind === "range" && t.grow ? " ↓" : ""}</span></div>`;
+    h += `<div class="ovb tbl${W.step === 4 ? " ghost" : ""}" data-id="${t.id}" style="left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px"><span>T${k + 1}${t.kind === "range" && t.grow ? " ↓" : ""}</span></div>`;
   });
+  if (W.step === 4) {
+    const V = W.versions.find(v => v.id === W.vcur);
+    (V?.hide[S.name] || []).forEach(r => { const g = rangeToG(r), b = boxFor(grid, g.r1 + 1, g.c1 + 1, g.r2 - 1, g.c2 - 1); if (b) h += `<div class="ovb cut" style="left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px"></div>`; });
+    if (W.sel) { const b = boxFor(grid, W.sel.r1, W.sel.c1, W.sel.r2, W.sel.c2); if (b) h += `<div class="ovb sel" style="left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px"></div>`; }
+    ov.innerHTML = h; return;
+  }
   (W.suggest[S.name] || []).forEach(r => {
     if (tables.some(t => defRange(S, t) === r)) return;
     const g = rangeToG(r), b = boxFor(grid, g.r1 + 1, g.c1 + 1, g.r2 - 1, g.c2 - 1); if (!b) return;

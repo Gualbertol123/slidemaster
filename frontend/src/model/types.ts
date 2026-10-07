@@ -32,7 +32,10 @@ export interface SlideDef {
   /** index slide: show the subtitles of the slides (default true) */ subs?: boolean;
   /** formatting of this slide's title, subtitle, cover note and date (over the deck text styles) */ fmt?: Partial<Record<SlideTextKey, TextFmt>>;
 }
-export interface Preset { sheets: string[]; tables: TableDef[]; slides: SlideDef[]; version?: number; updated?: number }
+/** a named version of the deck (e.g. "Chief", "All"): the cells removed from it, per sheet ("C5:D9" ranges) */
+export interface DeckVersion { id: string; name: string; hide: Record<string, string[]> }
+export interface Preset { sheets: string[]; tables: TableDef[]; slides: SlideDef[]; version?: number; updated?: number;
+  /** named versions for export (wizard › Versions) */ versions?: DeckVersion[] }
 
 export interface PageNumbers { on: boolean; start: number; pos: "tl" | "tc" | "tr" | "bl" | "bc" | "br"; font: string; size: number; format: "n" | "nN" | "page" | "p"; style: "capsule" | "plain"; cover: boolean }
 export interface Footer { on: boolean; text: string; pos: "tl" | "tc" | "tr" | "bl" | "bc" | "br"; size: number; style: "capsule" | "plain"; cover: boolean }
@@ -65,7 +68,7 @@ export interface WorkbookDoc {
   log?: { rev: number; by: string | null; at: number | null }[];
 }
 export interface ConfigDoc { schema: number; rev: number; updated?: number; updatedBy?: string; defaults: { style: StylePatch } }
-export interface Prefs { lastFile?: string | null; pdfMode?: "exact" | "vector" | null; zoom?: number | "fit" | null }
+export interface Prefs { lastFile?: string | null; pdfMode?: "exact" | "vector" | null; zoom?: number | "fit" | null; /** version shown on screen, per workbook */ versions?: Record<string, string> | null }
 
 type Nullable<T> = { [K in keyof T]?: T[K] | null };
 export type Op =

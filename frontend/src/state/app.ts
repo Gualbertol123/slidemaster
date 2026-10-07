@@ -20,11 +20,12 @@ let ctxCache: { key: unknown[]; ctx: RenderCtx } | null = null;
 export function style() { return resolveStyle(S.config.defaults.style, S.sync?.view.style); }
 export function ctx(): RenderCtx {
   const v = S.sync?.view;
-  const key = [v, S.slides, S.config, S.file?.name, S.wb];
+  const key = [v, S.slides, S.config, S.file?.name, S.wb, S.version];
   if (ctxCache && ctxCache.key.every((k, i) => k === key[i])) return ctxCache.ctx;
   const st = style();
   const c: RenderCtx = { style: st, edits: v?.edits || {}, slides: S.slides, preset: v?.preset || null, workbook: S.file?.name || "",
-    logoSrc: st.logo.trim() ? backend.assetUrl(st.logo.trim()) : "", sheet: n => S.wb?.sheets.find(x => x.name === n) || null };
+    logoSrc: st.logo.trim() ? backend.assetUrl(st.logo.trim()) : "", sheet: n => S.wb?.sheets.find(x => x.name === n) || null,
+    version: (v?.preset?.versions || []).find(x => x.id === S.version) || null };
   ctxCache = { key, ctx: c };
   return c;
 }
@@ -163,6 +164,8 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   S.slides = runtimeSlides(wb, sync.view.preset, name);
   presetSig = JSON.stringify(sync.view.preset);
   if (src === "folder") setPrefs({ lastFile: name });
+  const vid = S.prefs.versions?.[name] || "";                 // the version this person looked at last
+  S.version = (sync.view.preset?.versions || []).some(x => x.id === vid) ? vid : "";
   S.sel = null; S.cur = Math.min(S.cur, Math.max(0, S.slides.length - 1)); S.logoMissing = false;
   S.changedOnDisk = false; S.opening = ""; S.remote = null;
   makeWall(style());
@@ -295,4 +298,11 @@ export function lookAt(): { theme?: Record<string, unknown>; colors?: Record<str
   const st = (S.sync?.view.style || {}) as Record<string, unknown>;
   if (LOOK.scope === "all") return st as never;
   return ((st.designs as Record<string, unknown> | undefined)?.[style().design] || {}) as never;
+}
+
+/* ---------------------------------------------------------------- versions (wizard › Versions) */
+/** shows the deck as one of its versions ("" = full); remembered per workbook in the personal preferences */
+export function showVersion(id: string) {
+  S.version = id; if (S.file) setPrefs({ versions: { ...(S.prefs.versions || {}), [S.file.name]: id } });
+  emit(); STAGE.render(); THUMBS.render();
 }

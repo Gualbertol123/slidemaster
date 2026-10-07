@@ -78,9 +78,16 @@ def export(req, engine, export_dir=None):
         pdf, used = engine.render(css, slides, "vector", 1)
         files.append(save_export(base + " - slides (vector).pdf", pdf, export_dir))
     elif fmt == "pdf":
-        shots, used = engine.render(css, slides, "jpeg", scale)
+        # lossless pages: PNG keeps text and thin lines sharp (JPEG blurred white numbers on coloured cells);
+        # an engine whose PNGs the PDF writer cannot take (e.g. with transparency) falls back to JPEG
+        shots, used = engine.render(css, slides, "png", scale)
+        try:
+            pdf = jpegs_to_pdf(shots, base)
+        except ValueError:
+            shots, used = engine.render(css, slides, "jpeg", scale)
+            pdf = jpegs_to_pdf(shots, base)
         suffix = " - slides.pdf" if len(slides) > 1 or req.get("all") else " - %s.pdf" % clean_name(str(names[0]) if names else "slide")
-        files.append(save_export(base + suffix, jpegs_to_pdf(shots, base), export_dir))
+        files.append(save_export(base + suffix, pdf, export_dir))
     else:
         shots, used = engine.render(css, slides, "png", scale)
         if req.get("inline"):

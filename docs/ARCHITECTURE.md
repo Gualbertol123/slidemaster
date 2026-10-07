@@ -122,6 +122,7 @@ So two people changing different columns, rules or text boxes never overwrite ea
 | `style.logoBubble` | `false` = logo without its glass bubble |
 | `style.design` | `"glass"` (Liquid Glass), `"excel"` (pure Excel) or `"clean"` (Excel Refined) |
 | `style.colors` | colour overrides over the theme: `{accent, bg, head, headInk, total, totalInk, ink, pos, neg, stripe, rule}` (hex); `palette()` in `model/style.ts` = theme defaults + these |
+| `preset.versions` | `[{id, name, hide:{<sheet>: ["H10:I11", …]}}]` – named versions; the cells in `hide` are drawn empty in that version |
 | `style.designs` | `{glass?, excel?, clean?: {theme?, colors?, text?}}` – a design's own look over the shared one (map merge per design) |
 | `slide.notes["slide:notes"]` | the slide's notes section (a text box of the slide, `x/y/w/h`; default at the footer position) |
 | `style.text` | deck text styles, one entry per kind of text: `{"title"\|"subtitle"\|"table"\|"note"\|"index"\|"pageno": {font?, size?, b?, i?, color?, align?}}` (size in slide px; `table` uses only `font`; `pageno` covers page numbers and footer and wins over the older `pn.font`) |

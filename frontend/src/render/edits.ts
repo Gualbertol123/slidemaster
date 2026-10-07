@@ -1,6 +1,6 @@
 /* Cell edits applied on top of the workbook: text (only while the Excel value is unchanged),
    size, bold, italic, colours, alignment, role. */
-import { A1, splitRef } from "../xlsx/util";
+import { A1, parseRange, splitRef } from "../xlsx/util";
 import { evalCF } from "../xlsx/layout";
 import type { Dxf } from "../xlsx/types";
 import type { BorderSide, Item, TableLayout } from "../xlsx/types";
@@ -25,11 +25,18 @@ function withGrid(L: TableLayout, it: Item): Item {
   if (gv === "off") { o.left = null; o.right = null; } else if (gv === "on") { o.left = GRIDLINE; o.right = it.b.c2 >= lastC ? GRIDLINE : null; }
   return o;
 }
+/** cells removed in a version: drawn completely empty (no value, no colour, no highlight) – borders stay */
+function removedCell(it: Item): Item {
+  return { ...it, text: "", fill: null, baseFill: null, cf: null, scaleFill: undefined, scaleInk: undefined, userFill: undefined, userBg: undefined, scripts: undefined, removed: true };
+}
 export function effItems(L: TableLayout, ctx: RenderCtx): Item[] {
   return cache(L, "eff", tableKey(ctx, L), () => {
     const cells = ctx.edits[L.sheet.name] || {};
     const scaled = applyScales(L, L.def?.scales);
-    return L.items.map(it0 => {
+    const cut = (ctx.version?.hide[L.sheet.name] || []).map(parseRange);
+    const isCut = (it: Item) => cut.some(g => it.b.src.r >= g.r1 && it.b.src.r <= g.r2 && it.b.src.c >= g.c1 && it.b.src.c <= g.c2);
+    return L.items.map(it0 => cut.length && isCut(it0) ? removedCell(it0) : it0).map(it0 => {
+      if (it0.removed) return it0;
       const it = withGrid(L, it0);
       const e = cells[keyOf(it)], sc = scaled.get(it0);
       if (!e && !sc) return it;

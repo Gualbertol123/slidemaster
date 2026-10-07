@@ -23,6 +23,8 @@ export const S = {
   sync: null as DocSync | null,
   slides: [] as RuntimeSlide[],
   cur: 0,
+  /** id of the deck version shown ("" = full deck) */
+  version: "",
   sel: null as Sel | null,
   /** selected text box ("<tableId>:<side>") */
   noteSel: null as string | null,

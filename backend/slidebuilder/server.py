@@ -360,6 +360,8 @@ class Handler(BaseHTTPRequestHandler):
         ext = os.path.splitext(name)[1].lower()
         if ext not in IMAGE_EXT:
             raise PermissionError("not an image")
+        if ".." in name.replace("\\", "/").split("/"):
+            raise PermissionError("outside folder")
         p = find_asset(name)
         if not p:
             raise FileNotFoundError(name)

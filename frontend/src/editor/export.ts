@@ -2,7 +2,10 @@
    (blocked by policy), slides are rendered in this window (SVG foreignObject → JPEG) and the helper
    only assembles the PDF. */
 import { S, emit, toast } from "../state/store";
-import { ctx, setPrefs } from "../state/app";
+import { ctx, setPrefs, style } from "../state/app";
+import { resolveStyle } from "../model/style";
+import type { RenderCtx } from "../render/context";
+import type { Design } from "../model/types";
 import { openInstaller } from "../state/dialogs";
 import { backend, ApiError, type ExportRes } from "../sync/api";
 import { buildSlide } from "../render/slide";
@@ -15,8 +18,8 @@ const toDataUrl = async (url: string) => { const b = await (await fetch(url)).bl
 const slideCss = () => [document.getElementById("slidecss")?.textContent || "", document.getElementById("wallcss")?.textContent || ""].join("\n");
 
 /** the exact slide DOM + slide CSS, self-contained (pictures and logo as data URLs) */
-async function exportPayload(idx: number[]) {
-  const c = { ...ctx(), forExport: true }, slides: string[] = [];
+async function exportPayload(idx: number[], base: RenderCtx = ctx()) {
+  const c = { ...base, forExport: true }, slides: string[] = [];
   for (const i of idx) {
     const s = buildSlide(S.slides[i], i, c);
     s.querySelectorAll(".pic.missing").forEach(e => e.remove());
@@ -26,8 +29,8 @@ async function exportPayload(idx: number[]) {
   return { css: slideCss() + "\n" + await embeddedFontCss(slides.join("")), slides, names: idx.map(i => S.slides[i].label) };
 }
 
-async function clientRender(i: number, scale: number, type: string): Promise<string> {
-  const c = { ...ctx(), forExport: true };
+async function clientRender(i: number, scale: number, type: string, base: RenderCtx = ctx()): Promise<string> {
+  const c = { ...base, forExport: true };
   const slide = buildSlide(S.slides[i], i, c);
   slide.querySelectorAll(".pic.missing").forEach(e => e.remove());
   for (const img of Array.from(slide.querySelectorAll<HTMLImageElement>("img.logo"))) { try { img.src = await toDataUrl(img.src); } catch { img.parentNode && (img.parentNode as HTMLElement).remove(); } }
@@ -41,10 +44,10 @@ async function clientRender(i: number, scale: number, type: string): Promise<str
   const x = cv.getContext("2d")!; x.fillStyle = "#fff"; x.fillRect(0, 0, cv.width, cv.height); x.drawImage(img, 0, 0, cv.width, cv.height);
   return cv.toDataURL(type, .95);
 }
-async function exportInWindow(format: "pdf" | "png", idx: number[], inline: boolean): Promise<ExportRes & { downloaded?: boolean }> {
-  const scale = 3, name = S.file!.name;
+async function exportInWindow(format: "pdf" | "png", idx: number[], inline: boolean, base: RenderCtx = ctx(), name = S.file!.name): Promise<ExportRes & { downloaded?: boolean }> {
+  const scale = 3;
   if (format === "pdf") {
-    const images: string[] = []; for (const i of idx) images.push(await clientRender(i, scale, "image/jpeg"));
+    const images: string[] = []; for (const i of idx) images.push(await clientRender(i, scale, "image/jpeg", base));
     return backend.assemble(name, images);
   }
   const png = await clientRender(idx[0], scale, "image/png");
@@ -71,7 +74,7 @@ export async function doExport(kind: ExportKind) {
     let j: (ExportRes & { downloaded?: boolean }) | null = null, fallback = false, note = "";
     const usable = S.health?.engine?.state === "ready";      // while engines are still being tested, don't wait: render here
     if (usable) {
-      try { j = await backend.exportSlides({ name: S.file.name, format: spec.format, mode: spec.mode, scale: 3, inline: spec.inline, all: spec.idx.length === S.slides.length && spec.idx.length > 1, ...(await exportPayload(spec.idx)) }); }
+      try { j = await backend.exportSlides({ name: S.file.name, format: spec.format, mode: spec.mode, scale: spec.format === "pdf" ? 4 : 3, inline: spec.inline, all: spec.idx.length === S.slides.length && spec.idx.length > 1, ...(await exportPayload(spec.idx)) }); }
       catch (e) { if ((e instanceof ApiError && (e.status === 503 || e.status === 0)) || e instanceof TypeError) { fallback = true; console.warn(e); } else throw e; }
     } else fallback = true;
     if (fallback) { j = await exportInWindow(spec.format, spec.idx, !!spec.inline); note = " · rendered in the app window"; }
@@ -88,5 +91,37 @@ export async function doExport(kind: ExportKind) {
     if (fallback && S.health?.engine?.state !== "starting") acts.push({ label: "Install export engine", fn: openInstaller });
     toast(`Saved <b>${esc(j.files!.join(", "))}</b> in the export folder` + (j.seconds ? ` · ${j.seconds}s` : "") + (j.engine ? ` · ${esc(j.engine)}` : "") + note, acts);
   } catch (e) { console.error(e); toast("⚠ Export failed: " + esc((e as Error).message || e), [], true); }
+  finally { S.exporting = false; emit(); }
+}
+
+/* ---- every version (wizard › Versions), in the current design or in several designs: one PDF each,
+   named "<workbook> - <version> - <design>" ---- */
+const DESIGN_LABEL: Record<Design, string> = { glass: "Liquid Glass", excel: "Excel", clean: "Excel Refined" };
+export async function exportVersions(designs: Design[] | null) {
+  if (!S.slides.length || !S.file || S.exporting) return;
+  if (!backend.served) { toast("Exports run through the helper: start Slide Builder with Start Slide Builder.bat.", [], true); return; }
+  const versions = S.sync?.view.preset?.versions || [];
+  if (!versions.length) { toast("No versions yet: open the ✦ Wizard › 4 · Versions to create them (e.g. Chief and All)."); return; }
+  S.exporting = true; emit();
+  const done: string[] = [], stem = S.file.name.replace(/\.[^.]+$/, ""), all = S.slides.map((_, i) => i);
+  try {
+    await S.sync?.flush();
+    for (const d of designs || [style().design]) {
+      for (const v of versions) {
+        const base: RenderCtx = { ...ctx(), style: resolveStyle(S.config.defaults.style, { ...(S.sync?.view.style || {}), design: d }), version: v };
+        const name = `${stem} - ${v.name}${designs ? " - " + DESIGN_LABEL[d] : ""}.xlsx`;
+        let j: ExportRes | null = null;
+        if (S.health?.engine?.state === "ready") {
+          try { j = await backend.exportSlides({ name, format: "pdf", mode: "exact", scale: 4, all: true, ...(await exportPayload(all, base)) }); }
+          catch (e) { if (!((e instanceof ApiError && (e.status === 503 || e.status === 0)) || e instanceof TypeError)) throw e; }
+        }
+        if (!j) j = await exportInWindow("pdf", all, false, base, name);
+        done.push(...(j.files || []));
+        S.busy = { text: `Exported ${done.length} of ${versions.length * (designs || [0]).length}…`, frac: done.length / (versions.length * (designs || [0]).length) }; emit();
+      }
+    }
+    S.busy = null;
+    toast(`Saved <b>${done.length}</b> PDFs in the export folder: ${esc(done.join(", "))}`, [{ label: "Show folder", fn: () => { void backend.open({ folder: true }); } }]);
+  } catch (e) { console.error(e); S.busy = null; toast("⚠ Export failed: " + esc((e as Error).message || e), [], true); }
   finally { S.exporting = false; emit(); }
 }

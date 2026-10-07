@@ -46,6 +46,7 @@ This README is the map. Deeper documents:
   without subtitles); per-slide logo on/off. Cover and index are ordinary slides that can be moved.
 
 ### Designs and colours
+* Excel rich text keeps its **superscripts and subscripts** (e.g. a footnote “(1)”) in every design.
 * **Excel is raw Excel**: the workbook's tables with their own colours – no text boxes, comments or notes
   section, no deck colours on the tables (title, logo, page number and footer stay). Excel Refined and Liquid
   Glass have everything.
@@ -79,6 +80,14 @@ This README is the map. Deeper documents:
   saved in the shared folder (`backend/data/fonts`) for everybody and embedded in exports.
 * The second row is layout only: cells (W/H, role, merge, colour scale), tables (same size, position,
   gridlines, sizes, reset), text boxes (add, bubble, delete), slide (logo, contents subtitles).
+
+### Versions (e.g. Chief and All)
+* ✦ Wizard › **4 · Versions**: create any number of named versions (chips for Chief and All, or type a name).
+  Pick a version, drag across the cells it must not show and press **Remove** – they are drawn completely
+  empty in that version (value, colour, highlight; comments ignore them too). Saved with the workbook.
+* Top bar › **Version**: see the deck as the full deck or as any version (remembered per person and workbook).
+* Export ▾ › **every version** (this design), **every version × Liquid Glass + Excel**, or × all three
+  designs – one PDF each, named `<workbook> - <version> - <design>`.
 
 ### Automated comments
 * **Summary** (default): one short paragraph per block, joining previous week, Budget and EoM – no dates.

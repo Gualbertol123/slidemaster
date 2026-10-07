@@ -24,6 +24,15 @@ class FakeEngine:
 
 
 class ExportTests(TempDirs):
+    def test_exact_pdf_falls_back_to_jpeg_for_pngs_it_cannot_embed(self):
+        e = FakeEngine()
+        rgba = make_png(4, 4)[:25] + b"\x06" + make_png(4, 4)[26:]            # colour type 6 (alpha): not embeddable
+        jpeg = b"\xff\xd8\xff\xc0\x00\x11\x08\x00\x09\x00\x10\x03" + b"\x00" * 40 + b"\xff\xd9"
+        e.render = lambda css, slides, kind, scale: (e.calls.append(kind), ([rgba] if kind == "png" else [jpeg]), "Fake")[1:]
+        r = exports.export({"name": "W.xlsx", "format": "pdf", "slides": ["a"], "names": ["x"]}, e)
+        self.assertEqual(e.calls, ["png", "jpeg"])
+        self.assertTrue(r["ok"])
+
     def ls(self):
         return sorted(os.listdir(paths.EXPORT_DIR))
 
@@ -33,7 +42,7 @@ class ExportTests(TempDirs):
                             "names": ["Cover", "P/L"], "scale": 2}, e)
         self.assertEqual(r["files"], ["Weekly - slides.pdf"])
         self.assertEqual((r["ok"], r["engine"]), (True, "Fake"))
-        self.assertEqual(e.calls[-1], ("jpeg", 2.0, 2))
+        self.assertEqual(e.calls[-1], ("png", 2.0, 2))                 # lossless pages: sharp text and lines
         with open(os.path.join(paths.EXPORT_DIR, "Weekly - slides.pdf"), "rb") as f:
             pdf = f.read()
         self.assertTrue(pdf.startswith(b"%PDF-1.4"))
@@ -41,7 +50,7 @@ class ExportTests(TempDirs):
 
         r = exports.export({"name": "Weekly.xlsx", "format": "pdf", "slides": ["<p>1</p>"], "names": ["P/L"]}, e)
         self.assertEqual(r["files"], ["Weekly - P_L.pdf"])
-        self.assertEqual(e.calls[-1], ("jpeg", 3.0, 1))
+        self.assertEqual(e.calls[-1], ("png", 3.0, 1))
         r = exports.export({"name": "Weekly.xlsx", "format": "pdf", "slides": ["<p>1</p>"], "names": ["P/L"], "all": True}, e)
         self.assertEqual(r["files"], ["Weekly - slides.pdf"])
         r = exports.export({"name": "Weekly.xlsx", "format": "pdf", "mode": "vector", "slides": ["a", "b"]}, e)

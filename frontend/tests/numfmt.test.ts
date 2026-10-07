@@ -18,3 +18,18 @@ describe("dates", () => {
   it("12-hour clock with AM/PM", () => { expect(f(45000.75, "h:mm AM/PM", "d")).toBe("6:00 PM"); });
   it("elapsed hours", () => { expect(f(1.5, "[h]:mm", "d")).toBe("36:00"); });
 });
+
+import { parseSSTRich, richRuns } from "../src/xlsx/workbook";
+import { cellHtml } from "../src/render/excel";
+describe("rich text: superscript and subscript", () => {
+  it("keeps the plain text and remembers the raised / lowered parts", () => {
+    const xml = `<sst><si><t>plain</t></si><si><r><t xml:space="preserve">LEGAL ENTITIES MF </t></r><r><rPr><vertAlign val="superscript"/><sz val="8"/></rPr><t>(1)</t></r></si><si><r><t>H</t></r><r><rPr><vertAlign val="subscript"/></rPr><t>2</t></r><r><t>O &amp; co</t></r></si></sst>`;
+    const { sst, runs } = parseSSTRich(xml);
+    expect(sst).toEqual(["plain", "LEGAL ENTITIES MF (1)", "H2O & co"]);
+    expect(runs).toEqual([undefined, [[18, 21, "sup"]], [[1, 2, "sub"]]]);
+    expect(richRuns("<t>x</t>")).toEqual({ text: "x" });
+    expect(cellHtml({ text: sst[1], scripts: runs[1] })).toBe("LEGAL ENTITIES MF <sup>(1)</sup>");
+    expect(cellHtml({ text: "H2O & co", scripts: runs[2] })).toBe("H<sub>2</sub>O &amp; co");
+    expect(cellHtml({ text: "edited", scripts: [[0, 2, "sup"]], edited: true })).toBe("edited");     // a text edit drops Excel's formatting
+  });
+});

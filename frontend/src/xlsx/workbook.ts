@@ -7,7 +7,7 @@ import { readDrawing, analyzeImages } from "./drawing";
 import { findRegions } from "./layout";
 import { all, kid, kids, parseRange, parseXml, readRels, resolvePath, splitRef, zget, fmtMB, nextFrame, WorkbookError, NS_R } from "./util";
 import type { Range } from "./util";
-import type { Border, Cell, CellType, CFRule, ColInfo, Dxf, Font, Progress, RowInfo, Shared, Sheet, SheetMeta, Workbook, Xf } from "./types";
+import type { Border, Cell, CellType, CFRule, ColInfo, Dxf, Font, Progress, RowInfo, Script, Shared, Sheet, SheetMeta, Workbook, Xf } from "./types";
 
 const XENT: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };
 export function xdec(s: string): string {
@@ -20,16 +20,27 @@ export function xattrs(s: string): Record<string, string> {
   while ((m = re.exec(s))) o[m[1].replace(/^[A-Za-z0-9]+:(?=[A-Za-z])/, "")] = xdec(m[2]);
   return o;
 }
-export function parseSST(xml: string): string[] {
-  const out: string[] = [], re = /<(?:\w+:)?si(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?si>|<(?:\w+:)?si\s*\/>/g; let m: RegExpExecArray | null;
-  while ((m = re.exec(xml))) {
-    let inner = m[1] || "";
-    if (inner.indexOf("rPh") >= 0) inner = inner.replace(/<(?:\w+:)?rPh\b[\s\S]*?<\/(?:\w+:)?rPh>/g, "");
-    let txt = "", t: RegExpExecArray | null; const tr = /<(?:\w+:)?t(?:\s[^>]*)?>([^<]*)<\/(?:\w+:)?t>/g;
-    while ((t = tr.exec(inner))) txt += t[1];
-    out.push(xdec(txt));
+export function parseSST(xml: string): string[] { return parseSSTRich(xml).sst; }
+/** the text of a string item plus its superscript / subscript runs (rich text: <r><rPr><vertAlign …/></rPr><t>…</t></r>) */
+export function richRuns(inner: string): { text: string; scr?: Script[] } {
+  if (inner.indexOf("rPh") >= 0) inner = inner.replace(/<(?:\w+:)?rPh\b[\s\S]*?<\/(?:\w+:)?rPh>/g, "");
+  const tr = /<(?:\w+:)?t(?:\s[^>]*)?>([^<]*)<\/(?:\w+:)?t>/g;
+  if (inner.indexOf("vertAlign") < 0) { let txt = "", t: RegExpExecArray | null; while ((t = tr.exec(inner))) txt += t[1]; return { text: xdec(txt) }; }
+  let text = ""; const scr: Script[] = [], rr = /<(?:\w+:)?r(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?r>/g; let r: RegExpExecArray | null;
+  while ((r = rr.exec(inner))) {
+    let part = "", t: RegExpExecArray | null; tr.lastIndex = 0; while ((t = tr.exec(r[1]))) part += t[1];
+    part = xdec(part);
+    const va = /<(?:\w+:)?vertAlign\s+val="(superscript|subscript)"/.exec(r[1]);
+    if (va && part) scr.push([text.length, text.length + part.length, va[1] === "superscript" ? "sup" : "sub"]);
+    text += part;
   }
-  return out;
+  if (!text) { let txt = "", t: RegExpExecArray | null; tr.lastIndex = 0; while ((t = tr.exec(inner))) txt += t[1]; text = xdec(txt); }
+  return scr.length ? { text, scr } : { text };
+}
+export function parseSSTRich(xml: string): { sst: string[]; runs: (Script[] | undefined)[] } {
+  const sst: string[] = [], runs: (Script[] | undefined)[] = [], re = /<(?:\w+:)?si(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?si>|<(?:\w+:)?si\s*\/>/g; let m: RegExpExecArray | null;
+  while ((m = re.exec(xml))) { const x = richRuns(m[1] || ""); sst.push(x.text); runs.push(x.scr); }
+  return { sst, runs };
 }
 const entrySize = (f: JSZip.JSZipObject | null) => ((f as unknown as { _data?: { uncompressedSize?: number } } | null)?._data?.uncompressedSize) || 0;
 export const BIG_BYTES = 12 * 1048576;                       // above this (uncompressed sheet XML) sheets are read on demand
@@ -91,12 +102,12 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
     }
   }
   const color = makeColor(theme);
-  let sst: string[] = [];
+  let sst: string[] = [], sstRuns: (Script[] | undefined)[] = [];
   const ss = rel(/sharedStrings$/);
   if (ss && zget(zip, ss.target)) {
     if (progress) progress("Reading the shared text table" + (wb.ssSize > 2 * 1048576 ? " (" + fmtMB(wb.ssSize) + ")" : "") + "…", null);
     await nextFrame();
-    sst = parseSST(await zget(zip, ss.target)!.async("string"));
+    const rich = parseSSTRich(await zget(zip, ss.target)!.async("string")); sst = rich.sst; sstRuns = rich.runs;
   }
   const numFmts: Record<string, string> = Object.assign({}, BUILTIN);
   let fonts: Font[] = [], fills: (string | null)[] = [], borders: Border[] = [], xfs: Xf[] = [], dxfs: Dxf[] = [];
@@ -163,7 +174,7 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
       return m > 3 ? Math.round(m) : 7;
     } catch { return 7; }
   })();
-  return wb.shared = { sst, xfs, dxfs, defaultFont, color, theme, mdw };
+  return wb.shared = { sst, sstRuns, xfs, dxfs, defaultFont, color, theme, mdw };
 }
 
 async function ensureSheets(wb: Workbook, names: string[], progress?: Progress): Promise<Sheet[]> {
@@ -273,15 +284,16 @@ export async function readSheet(zip: JSZip, sh: SheetMeta, ctx: Shared, tick?: (
         const vm = body ? vRe.exec(body) : null, vt = vm ? vm[1] : null;
         const xf = ctx.xfs[+(a.s || 0)] || ctx.xfs[0] || ({} as Xf);
         let v: Cell["v"] = null, type: CellType = "blank";
-        if (t === "s" && vt != null) { v = ctx.sst[+vt] ?? ""; type = "s"; }
-        else if (t === "inlineStr") { const im = isRe.exec(body); if (im) { let s = "", q: RegExpExecArray | null; tRe.lastIndex = 0; while ((q = tRe.exec(im[1]))) s += q[1]; v = xdec(s); type = "s"; } }
+        let scr: Script[] | undefined;
+        if (t === "s" && vt != null) { v = ctx.sst[+vt] ?? ""; type = "s"; scr = ctx.sstRuns?.[+vt]; }
+        else if (t === "inlineStr") { const im = isRe.exec(body); if (im) { const x = richRuns(im[1]); v = x.text; scr = x.scr; type = "s"; } }
         else if (t === "str" && vt != null) { v = xdec(vt); type = "s"; }
         else if (t === "b" && vt != null) { v = vt === "1"; type = "b"; }
         else if (t === "e" && vt != null) { v = vt; type = "e"; }
         else if (t === "d" && vt != null) { v = (Date.parse(vt) / 86400000) + 25569; type = "d"; }
         else if (vt != null && vt !== "") { v = +vt; type = isDateFmt(xf.fmt) ? "d" : "n"; }
         if (type === "s" && v === "") type = "blank";
-        cells.set(r + "," + ref.c, { r, c: ref.c, v, t: type, xf, fmt: xf.fmt });
+        cells.set(r + "," + ref.c, scr ? { r, c: ref.c, v, t: type, xf, fmt: xf.fmt, scr } : { r, c: ref.c, v, t: type, xf, fmt: xf.fmt });
       }
     }
     if (++n % 4000 === 0 && tick) { tick(Math.min(.95, rowRe.lastIndex / Math.max(1, data.length))); await nextFrame(); }

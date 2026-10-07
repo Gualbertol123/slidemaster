@@ -1,10 +1,10 @@
 import { useState } from "preact/hooks";
 import { S, toast, useApp } from "../state/store";
 import { esc } from "../xlsx/util";
-import { guard, lookChange, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, style, styleChange, setPrefs } from "../state/app";
+import { guard, lookChange, showVersion, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, style, styleChange, setPrefs } from "../state/app";
 import { openInstaller } from "../state/dialogs";
 import { backend, type FileInfo } from "../sync/api";
-import { doExport, type ExportKind } from "../editor/export";
+import { doExport, exportVersions, type ExportKind } from "../editor/export";
 import { Dropdown } from "./Dropdown";
 import { Field } from "./Field";
 import { openFontManager } from "./FontPicker";
@@ -162,7 +162,7 @@ function ExportButton() {
     </>}>
       {close => <>
         <div class="hd">PDF – all slides, saved in the export folder</div>
-        {item("pdf-exact", "PDF · exact", "identical to screen, 360 dpi", close)}
+        {item("pdf-exact", "PDF · exact", "identical to screen, sharp 480 dpi pages", close)}
         {item("pdf-vector", "PDF · vector", "selectable text", close)}
         {item("pdf-current", "PDF · current slide only", undefined, close)}
         <div class="sep" />
@@ -170,9 +170,23 @@ function ExportButton() {
         {item("copy", "Copy current slide", "paste into PowerPoint", close)}
         {item("png-current", "PNG · current slide", undefined, close)}
         {item("png-all", "PNG · every slide", undefined, close)}
+        <div class="sep" />
+        <div class="hd">Versions (✦ Wizard › Versions)</div>
+        <button data-x="versions" disabled={!(S.sync?.view.preset?.versions || []).length} onClick={() => { close(); void exportVersions(null); }}>PDF · every version<small>{(S.sync?.view.preset?.versions || []).map(v => v.name).join(", ") || "none yet"} · this design</small></button>
+        <button data-x="versions-2" disabled={!(S.sync?.view.preset?.versions || []).length} onClick={() => { close(); void exportVersions(["glass", "excel"]); }}>PDF · every version × Liquid Glass + Excel<small>{2 * (S.sync?.view.preset?.versions || []).length} files</small></button>
+        <button data-x="versions-3" disabled={!(S.sync?.view.preset?.versions || []).length} onClick={() => { close(); void exportVersions(["glass", "excel", "clean"]); }}>PDF · every version × all three designs</button>
       </>}
     </Dropdown>
   );
+}
+
+/* which version of the deck is on screen: the full deck, or a version with its removed cells empty */
+function VersionPicker() {
+  const vs = S.sync?.view.preset?.versions || [];
+  if (!vs.length) return null;
+  return <label class="verpick" title="Version shown on screen (✦ Wizard › Versions); exports: Export ▾ › every version">
+    <span>Version</span><select id="versionSel" value={S.version} onChange={e => showVersion((e.target as HTMLSelectElement).value)}>
+      <option value="">Full deck</option>{vs.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>;
 }
 
 function Others() {
@@ -195,6 +209,7 @@ export function Topbar() {
       <button class="btn icon" id="reloadBtn" title="Reload the workbook from disk (after saving in Excel)" disabled={f?.src !== "folder"} onClick={() => void guard(reloadWorkbook)}>↻</button>
       <button class="btn" id="wizardBtn" disabled={!S.wb} title="Choose sheets and tables, arrange slides, cover and index" onClick={() => void guard(openWizard)}>✦ Wizard</button>
       <div class="fname" id="fileName">{S.opening ? <>Opening <b>{S.opening}</b>…</> : f ? <><b>{f.name}</b> · {n} slide{n === 1 ? "" : "s"}{f.src === "upload" ? " · not in the folder" : f.src === "local" ? " · preview only" : ""}</> : "No workbook"}</div>
+      <VersionPicker />
       <Others />
       <div class="spacer" />
       <div class="seg" title="Slide design (saved with this workbook)">

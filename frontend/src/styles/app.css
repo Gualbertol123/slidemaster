@@ -197,3 +197,17 @@ body.painting .slide .hits{cursor:copy}
 .tsdlg .scope{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 18px 10px;padding:8px 10px;border-radius:10px;background:#F6F7F9}
 .tsdlg .scope > span{font-size:12px;font-weight:600;color:#3B4252}
 .tsdlg .scope small{color:var(--mute);font-size:11.5px;flex-basis:100%}
+/* versions: top bar picker, wizard step 4 */
+.verpick{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--mute);white-space:nowrap}
+.verpick select{height:30px;border:1px solid var(--line2);border-radius:7px;padding:0 6px;background:#fff;font-weight:600;color:var(--ink)}
+.wvlist{display:flex;flex-direction:column;gap:4px;margin:4px 0}
+.wvrow{display:flex;align-items:center;gap:6px;padding:5px 6px;border:1px solid var(--line);border-radius:8px;cursor:pointer}
+.wvrow.on{border-color:#C7DBF6;background:var(--accent-soft)}
+.wvrow .nmin{flex:1;min-width:0}
+.wvrow .meta{white-space:nowrap}
+.wcut{display:flex;align-items:center;gap:6px;padding:3px 2px}
+.wcut code{flex:1}
+.wov .ovb.cut{border:2px solid #D92D20;background:repeating-linear-gradient(135deg,rgba(217,45,32,.18) 0 6px,rgba(217,45,32,.06) 6px 12px)}
+#wCutRange{flex:1}
+.menu button:disabled{opacity:.45;cursor:default}
+.wov .ovb.ghost,.wov .ovb.cut{pointer-events:none}        /* step 4: cells inside tables are picked through the outlines */

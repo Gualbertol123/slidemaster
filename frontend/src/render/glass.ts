@@ -26,7 +26,7 @@ import { IMGMETA } from "../xlsx/drawing";
 import type { BorderSide, Item, Pic, Rect, TableLayout } from "../xlsx/types";
 import { cache, effItems } from "./edits";
 import { isNumText, tableKey, type RenderCtx } from "./context";
-import { picHtml, rotBox, rotSpan, shapeTransform, textboxInner } from "./excel";
+import { cellHtml, picHtml, rotBox, rotSpan, shapeTransform, textboxInner } from "./excel";
 import { fontStack } from "../model/fonts";
 import { mix } from "../model/style";
 
@@ -509,7 +509,7 @@ export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boo
     if (cap && cap.strong) st.push("text-shadow:0 1px 1px rgba(0,0,0,.2)");
     const cls = ["t", it.wrap ? "wrap" : "", it.ov ? "ov" : ""].filter(Boolean).join(" ");
     if (it.rot) { texts += `<div class="t ov" style="${st.join(";")};${rotBox()}">${rotSpan(it.rot, it.text)}</div>`; continue; }
-    texts += `<div class="${cls}" style="${st.join(";")}">${esc(it.text)}</div>`;
+    texts += `<div class="${cls}" style="${st.join(";")}">${cellHtml(it)}</div>`;
   }
   return `<div class="xt gx" style="width:${sc.G.W}px;height:${L.H}px">${shells}${lines}${caps}${pics}${texts}${tbx}</div>`;
 }
