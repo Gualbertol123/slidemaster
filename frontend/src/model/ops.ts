@@ -8,7 +8,7 @@ const SLIDE_MAPS = ["notes", "fmt"] as const;
 const TABLE_KEYS = ["name", "gridH", "gridV"] as const;
 const TABLE_MAPS = ["cols", "rows", "scales", "merges"] as const;
 const CELL_KEYS = ["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role"] as const;
-const STYLE_MAPS = ["pn", "footer", "theme", "text"] as const;
+const STYLE_MAPS = ["pn", "footer", "theme", "text", "colors"] as const;
 const STYLE_KEYS = ["design", "glass", "color", "logo", "radius", "contrast", "logoBubble"] as const;
 const REF = /^[A-Z]{1,3}[0-9]{1,7}$/;
 const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);

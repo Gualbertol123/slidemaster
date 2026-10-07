@@ -145,13 +145,13 @@
 
 /* value capsules (lightweight: tint + highlight, no wallpaper copy) */
 .slide .cap{position:absolute;box-sizing:border-box;border-top:1px solid rgba(255,255,255,.55)}
-.slide .cap.pos{background:linear-gradient(180deg,rgba(64,208,102,.62),rgba(46,190,84,.46))}
-.slide .cap.neg{background:linear-gradient(180deg,rgba(255,82,72,.56),rgba(245,52,42,.4))}
-.slide .cap.strong.pos{background:linear-gradient(180deg,rgba(64,208,102,.78),rgba(46,190,84,.62))}
-.slide .cap.strong.neg{background:linear-gradient(180deg,rgba(255,82,72,.74),rgba(245,52,42,.58))}
+.slide .cap.pos{background:linear-gradient(180deg,rgba(var(--posrgb,64,208,102),.62),rgba(var(--posrgb,46,190,84),.46))}
+.slide .cap.neg{background:linear-gradient(180deg,rgba(var(--negrgb,255,82,72),.56),rgba(var(--negrgb,245,52,42),.4))}
+.slide .cap.strong.pos{background:linear-gradient(180deg,rgba(var(--posrgb,64,208,102),.78),rgba(var(--posrgb,46,190,84),.62))}
+.slide .cap.strong.neg{background:linear-gradient(180deg,rgba(var(--negrgb,255,82,72),.74),rgba(var(--negrgb,245,52,42),.58))}
 .slide .cap.muted{background:rgba(120,126,155,.14);box-shadow:none}
-.slide .cap.solid.pos{background:linear-gradient(180deg,#5FE085 0%,#34C759 55%,#2AB04D 100%);box-shadow:0 5px 12px -6px rgba(30,160,70,.5),inset 0 1px 1px rgba(255,255,255,.6)}
-.slide .cap.solid.neg{background:linear-gradient(180deg,#FF776D 0%,#FF3B30 55%,#E2261C 100%);box-shadow:0 5px 12px -6px rgba(215,40,30,.45),inset 0 1px 1px rgba(255,255,255,.55)}
+.slide .cap.solid.pos{background:linear-gradient(180deg,rgba(var(--posrgb,95,224,133),.9) 0%,rgb(var(--posrgb,52,199,89)) 55%,rgb(var(--posrgb,42,176,77)) 100%);box-shadow:0 5px 12px -6px rgba(30,160,70,.5),inset 0 1px 1px rgba(255,255,255,.6)}
+.slide .cap.solid.neg{background:linear-gradient(180deg,rgba(var(--negrgb,255,119,109),.9) 0%,rgb(var(--negrgb,255,59,48)) 55%,rgb(var(--negrgb,226,38,28)) 100%);box-shadow:0 5px 12px -6px rgba(215,40,30,.45),inset 0 1px 1px rgba(255,255,255,.55)}
 .slide .cap.solid.other{box-shadow:0 5px 12px -6px rgba(28,40,100,.3),inset 0 1px 1px rgba(255,255,255,.5)}
 .slide.excel .cap{box-shadow:none}
 
@@ -193,3 +193,15 @@
 .slide .tnote .up{color:#1F9D55;font-weight:700}
 .slide .tnote .down{color:#D92D20;font-weight:700}
 .slide .tnote .flat{font-weight:700}
+
+/* ---------------- Excel Refined design (v3.6): the Excel slide, one font, palette colours ---------------- */
+.slide.excel{background:var(--slidebg,#fff)}
+.slide.clean{font-family:'Segoe UI Variable Display','Segoe UI',Calibri,Arial,sans-serif;color:#1F2430}
+.slide.clean::before{content:"";position:absolute;left:56px;top:0;width:88px;height:6px;border-radius:0 0 3px 3px;background:var(--x1,#1C4F8C)}
+.slide.clean.cover::before{display:none}
+.slide.clean .title{font-weight:700;letter-spacing:-.6px;top:22px}
+.slide.clean .subtitle{color:#6B7385}
+.slide.clean .tnote{font-family:'Segoe UI Variable Text','Segoe UI',Calibri,Arial,sans-serif}
+.slide.clean .pageno.plain{font-weight:600}
+.xt.cx .t{letter-spacing:-.05px}
+.slide.clean .notebub.x{border-color:#E1E5EC;box-shadow:0 1px 3px rgba(20,30,60,.06),0 8px 24px -12px rgba(20,30,60,.18)}

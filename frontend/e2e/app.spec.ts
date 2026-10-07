@@ -249,14 +249,26 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#stage .ix-s")).toHaveCount(0);
 
     // colour themes: Intesa Sanpaolo, then a custom one
-    await page.click("#optBtn"); await page.click('[data-theme="intesa"]'); await saved(page);
+    await page.click("#themeBtn"); await page.click('[data-theme="intesa"]'); await saved(page);
     expect(doc().style.theme.id).toBe("intesa");
     await expect.poll(() => page.locator("#stage .slide").evaluate(el => (el as HTMLElement).style.getPropertyValue("--a1"))).toBe("#00953B");
     await page.screenshot({ path: path.join(process.env.SB_E2E_TMP!, "round4-intesa.png") });
     await page.click('[data-theme="custom"]'); await saved(page);
     await page.locator('[data-tk="c1"]').fill("#123456");
     await expect.poll(() => doc().style.theme, { timeout: 10_000 }).toMatchObject({ id: "custom", c1: "#123456", a1: "#00953B" });
-    await page.click('[data-theme="aurora"]'); await page.keyboard.press("Escape"); await saved(page);
+    await page.click('[data-theme="aurora"]'); await saved(page);
+    // the third design and colours of your own over the theme
+    await page.click('.tsdlg [data-a="close"]');
+    await page.locator('.thumb[data-i="2"]').click(); await page.click('[data-design="clean"]'); await saved(page);
+    await expect(page.locator("#stage .slide.clean .xt.cx").first()).toBeVisible();
+    await page.click("#themeBtn");
+    await page.locator('[data-color="head"] input').evaluate(el => { (el as HTMLInputElement).value = "#5b2c83"; el.dispatchEvent(new Event("change", { bubbles: true })); });
+    await expect.poll(() => doc().style.colors, { timeout: 10_000 }).toEqual({ head: "#5B2C83" });
+    // (a header cell coloured by hand earlier keeps its own colour: cell colours win over the deck's)
+    await expect.poll(() => page.locator("#stage .slide .xt.cx .chead").evaluateAll(els => els.map(el => getComputedStyle(el).backgroundColor))).toContain("rgb(232, 225, 238)");   // the pale sub-header in the new header colour
+    await page.click("#colorsReset"); await page.click('.tsdlg [data-a="close"]');
+    await page.click('[data-design="glass"]'); await saved(page);
+    expect(doc().style.colors).toBeUndefined();
   });
 
   test("typing is never overwritten by autosave or other people's changes; logo bubble can be removed", async ({ browser }) => {
@@ -378,6 +390,7 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#wRange")).toHaveValue("D5:D5");
     expect(near((await page.locator(".ovb.sel").boundingBox())!, (await td(5, 4).boundingBox())!)).toBe(true);
     await page.keyboard.press("Shift+ArrowRight"); await page.keyboard.press("Shift+ArrowDown");
+    await expect(page.locator("#wRange")).toHaveValue("D5:E6"); await expect(page.locator(".ovb.sel")).toBeVisible();   // redrawn before measuring
     const box = (await page.locator(".ovb.sel").boundingBox())!, tl = (await td(5, 4).boundingBox())!, br = (await td(6, 5).boundingBox())!;
     expect(near(box, { x: tl.x, y: tl.y, width: br.x + br.width - tl.x, height: br.y + br.height - tl.y })).toBe(true);
     await page.click('[data-x="close"]'); await page.click('.modal [data-a="ok"]');

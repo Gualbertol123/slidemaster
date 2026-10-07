@@ -7,6 +7,8 @@ import { darken, hexRgb } from "../xlsx/color";
 import { tableName } from "../model/preset";
 import { tableKey, type RenderCtx } from "./context";
 import { renderExcel } from "./excel";
+import { renderClean } from "./clean";
+import { palette } from "../model/style";
 import { glassGeom, renderGlass } from "./glass";
 import { coverHtml, indexHtml } from "./cover";
 import { footerHtml, pageNoBox, pageNoFor, pageNoHtml } from "./pagenumbers";
@@ -110,8 +112,8 @@ export function computeLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay
 export function tableHtml(R: RuntimeSlide, i: number, ctx: RenderCtx, thumb = false): string {
   const L = R.tables[i], d = ctx.style.design, key = d + "|" + glassLevel(ctx.style) + "|" + tableKey(ctx, L) + "|" + (ctx.forExport ? 1 : 0);
   if (thumb && L.items.length > 1200)              // thumbnails of big tables: shapes only, no text
-    return cache(L, "thtml", key, () => d === "glass" ? renderGlass(L, ctx, { noText: true }) : renderExcel(L, ctx, { noText: true }));
-  return cache(L, "html", key, () => d === "glass" ? renderGlass(L, ctx) : renderExcel(L, ctx));
+    return cache(L, "thtml", key, () => d === "glass" ? renderGlass(L, ctx, { noText: true }) : d === "clean" ? renderClean(L, ctx, { noText: true }) : renderExcel(L, ctx, { noText: true }));
+  return cache(L, "html", key, () => d === "glass" ? renderGlass(L, ctx) : d === "clean" ? renderClean(L, ctx) : renderExcel(L, ctx));
 }
 export function placeGlass(el: HTMLElement, ex: number, ey: number, ew: number, eh: number, sc: number, gi: number) {
   const LENS = 1 + .06 * gi;
@@ -132,15 +134,23 @@ export function contrastVars(contrast: number): Record<string, string> {
 
 /** accent colours of the theme as CSS variables (none for the default theme: the CSS has its values) */
 export function themeVars(ctx: RenderCtx): Record<string, string> {
-  const t = themeOf(ctx.style); if (t.id === "aurora") return {};
-  return { "--a1": t.a1, "--a2": t.a2, "--a1rgb": hexRgb(t.a1).join(","), "--a2rgb": hexRgb(t.a2).join(","), "--x1": t.x, "--x2": darken(t.x, .6), "--ixink": darken(t.a1, .55) };
+  const t = themeOf(ctx.style), o = ctx.style.colors || {}, P = palette(ctx.style), v: Record<string, string> = {};
+  if (t.id !== "aurora" || o.accent) {
+    const a1 = o.accent || t.a1, x = o.accent || t.x;
+    Object.assign(v, { "--a1": a1, "--a2": o.accent ? a1 : t.a2, "--a1rgb": hexRgb(a1).join(","), "--a2rgb": hexRgb(o.accent ? a1 : t.a2).join(","), "--x1": x, "--x2": darken(x, .6), "--ixink": darken(a1, .55) });
+  }
+  // overrides that every design reads from CSS variables
+  if (o.pos) v["--posrgb"] = hexRgb(P.pos).join(",");
+  if (o.neg) v["--negrgb"] = hexRgb(P.neg).join(",");
+  if (o.bg && ctx.style.design !== "glass") v["--slidebg"] = P.bg;
+  return v;
 }
 export interface SlideOpts { interactive?: boolean; thumb?: boolean }
 export type SlideEl = HTMLDivElement & { _rid?: string };
 export function buildSlide(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: SlideOpts = {}): SlideEl {
   const d = ctx.style.design, glassy = d === "glass", rk = ctx.style.radius / 100;
   const slide = document.createElement("div") as SlideEl;
-  slide.className = "slide " + d + (R.type !== "content" ? " " + R.type : "");
+  slide.className = "slide " + (d === "clean" ? "excel clean" : d) + (R.type !== "content" ? " " + R.type : "");
   slide.style.setProperty("--rk", String(rk));
   for (const [k, v] of Object.entries(themeVars(ctx))) slide.style.setProperty(k, v);
   if (glassy) {
@@ -233,7 +243,7 @@ function fitNotes(slide: HTMLElement, boxes: TBox[], design: string) {
     const box = document.createElement("div"); host.appendChild(box); document.body.appendChild(host);
     measurer = { host, box };
   }
-  measurer.host.className = "slide " + design;
+  measurer.host.className = "slide " + (design === "clean" ? "excel clean" : design);
   for (const el of Array.from(notes)) {
     const nb = boxes[+el.dataset.i!]?.notes[el.dataset.side as Side]; if (!nb) continue;
     const m = measurer.box;

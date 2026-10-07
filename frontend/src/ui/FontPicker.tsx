@@ -18,7 +18,7 @@ function preview(families: string[]) {
   document.head.appendChild(link);
 }
 
-export function openFontManager(tab: "styles" | "fonts" = "fonts") { DLG.textStyles = tab; emit(); void loadFonts(); }   // fonts colleagues just added
+export function openFontManager(tab: "colors" | "styles" | "fonts" = "fonts") { DLG.textStyles = tab; emit(); void loadFonts(); }   // fonts colleagues just added
 
 export function FontPicker(p: { value: string | null; onPick: (font: string | null) => void; disabled?: boolean; id?: string; placeholder?: string; title?: string }) {
   const [q, setQ] = useState("");

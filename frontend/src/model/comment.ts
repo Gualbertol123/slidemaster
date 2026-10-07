@@ -30,6 +30,7 @@ export interface Row { label: string; r: number }
 export interface Group { id: string; name: string; abs: number | null; pct: number | null; kind: "target" | "week" | "month" | "quarter" | "year" | "yoy" | "other"; vs: string }
 export interface Analysis {
   labelCol: number; total: Row | null; entities: Row[]; groups: Group[];
+  /** every row with a label and numbers (total rows included), top to bottom */ rows: Row[];
   /** latest period: column header and its date, e.g. "Week39", "25/09/26" */
   period: { name: string; date: string } | null;
   grid: Grid;
@@ -37,7 +38,7 @@ export interface Analysis {
 
 const NUMLIKE = /^[-+(−]?[\d.,\s']*\d[\d.,\s']*%?\)?$/;
 const COMPARE = /Δ|∆|\bvs\.?\b|\bvar\.?\b|delta|change|chg|diff/i;
-const TOTAL = /^\s*(grand\s+)?tot(al|ale|\.)?\b|\btotal\b|\btotale\b/i;
+export const TOTAL = /^\s*(grand\s+)?tot(al|ale|\.)?\b|\btotal\b|\btotale\b/i;
 const PERIODISH = /week|wk|\bw\d|month|\bm\d|date|\d{1,2}[/.-]\d{1,2}|20\d\d|\bq[1-4]\b|eom|eoq|ytd|actual|current/i;
 const PLANISH = /budget|bdg|plan|target|forecast|fcst|objective/i;
 const DATEISH = /\d{1,2}[/.-]\d{1,2}([/.-]\d{2,4})?/;
@@ -99,7 +100,7 @@ export function analyse(grid: Grid): Analysis {
   const totals = dataRows.filter(d => TOTAL.test(d.label));
   const total = totals[0] || null;
   const entities = dataRows.filter(d => !TOTAL.test(d.label) && !/^(of which|di cui|o\/w)\b/i.test(d.label) && !(d.r < (total?.r ?? -1) && grid[d.r][labelCol].bold));
-  return { labelCol, total, entities, groups, period, grid };
+  return { labelCol, total, entities, groups, period, grid, rows: dataRows };
 }
 
 function cleanGroup(g: string) { return g.replace(/[Δ∆]/g, "").replace(/\bvs\.?/i, "vs").replace(/\s+/g, " ").trim(); }

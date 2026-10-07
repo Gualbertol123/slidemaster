@@ -5,6 +5,36 @@ import type { Para, Pic, Rect, TableLayout } from "../xlsx/types";
 import { effItems } from "./edits";
 import type { RenderCtx } from "./context";
 import { fontStack } from "../model/fonts";
+import { mix, palette } from "../model/style";
+import { lum, tone } from "../xlsx/color";
+import { rolesOf } from "./roles";
+import type { Item } from "../xlsx/types";
+
+/** pure Excel keeps the workbook's colours; only the colours the user overrode replace them:
+    header band, total rows, green/red cells and numbers, black text */
+function overrides(L: TableLayout, ctx: RenderCtx): ((it: Item) => { fill: string | null; color: string }) | null {
+  const o = ctx.style.colors || {};
+  if (!o.head && !o.headInk && !o.total && !o.totalInk && !o.pos && !o.neg && !o.ink) return null;
+  const P = palette(ctx.style), roles = rolesOf(L, ctx);
+  return it => {
+    let fill = it.fill, color = it.color || "#000000";
+    const k = it.role === "header" ? "header" : it.role === "total" ? "total" : roles.kind.get(it.b.r);
+    const user = !!it.userBg, userInk = !!it.userColor;
+    if (k === "header" && fill && lum(fill) < .97) {
+      if (o.head && !user) fill = lum(fill) > .8 ? mix(P.head, "#FFFFFF", .86) : P.head;
+      if ((o.headInk || o.head) && !userInk) color = lum(fill!) > .6 ? P.head : P.headInk;
+    } else {
+      const t = tone(fill);
+      if (!user && (t === "pos" && o.pos || t === "neg" && o.neg)) { const c = t === "pos" ? P.pos : P.neg; fill = lum(it.fill!) > .75 ? mix(c, "#FFFFFF", .78) : c; }
+      else if (k === "total" && o.total && !user && fill && lum(fill) > .3) fill = P.total;
+      const ct = tone(color);
+      if (!userInk && ct === "pos" && o.pos) color = P.pos; else if (!userInk && ct === "neg" && o.neg) color = P.neg;
+      else if (!userInk && k === "total" && o.totalInk) color = P.totalInk;
+      else if (!userInk && o.ink && lum(color) < .25 && !(fill && lum(fill) < .45)) color = P.ink;
+    }
+    return { fill, color };
+  };
+}
 
 export const XLFONT = `'Century Gothic','CenturyGothic','URW Gothic','AppleGothic',Arial,sans-serif`;
 
@@ -35,7 +65,7 @@ export function rotSpan(rot: number, text: string) {
 }
 
 export function renderExcel(L: TableLayout, ctx: RenderCtx, opts: { noText?: boolean } = {}): string {
-  const items = effItems(L, ctx), rr = Math.round(8 * ctx.style.radius / 100);
+  const ov = overrides(L, ctx), items = ov ? effItems(L, ctx).map(it => ({ ...it, ...ov(it) })) : effItems(L, ctx), rr = Math.round(8 * ctx.style.radius / 100);
   let h = `<div class="xt" style="width:${L.W}px;height:${L.H}px">`;
   for (const it of items) {
     const st = [`left:${it.bx}px`, `top:${it.by}px`, `width:${it.bw}px`, `height:${it.bh}px`];

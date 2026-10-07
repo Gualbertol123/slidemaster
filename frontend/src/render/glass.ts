@@ -28,8 +28,9 @@ import { cache, effItems } from "./edits";
 import { isNumText, tableKey, type RenderCtx } from "./context";
 import { picHtml, rotBox, rotSpan, shapeTransform, textboxInner } from "./excel";
 import { fontStack } from "../model/fonts";
+import { mix } from "../model/style";
 
-export const SYS = { green: "#34C759", greenInk: "#136B2E", red: "#FF3B30", redInk: "#A8101A", label: "#0B0D17", label2: "rgba(18,22,44,.68)", label3: "rgba(18,22,44,.46)" };
+export const SYS0 = { green: "#34C759", greenInk: "#136B2E", red: "#FF3B30", redInk: "#A8101A", label: "#0B0D17", label2: "rgba(18,22,44,.68)", label3: "rgba(18,22,44,.46)" };
 
 /* Liquid Glass uses its own font, so columns are widened where the text needs it (never narrowed).
    Geometry is cached per table and per set of cell edits. */
@@ -373,6 +374,8 @@ function tintGrad(hex: string, strength: number, alpha = .8) { return `--tint:li
 function deepInk(hex: string) { const [h, s, l] = hexToHsl(hex.replace("#", "")); return "#" + hslToHex(h, Math.min(1, s * 1.1 + .08), Math.min(.3, l * .75)); }
 
 export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boolean } = {}): string {
+  // colour overrides (green/red values, table text) for this table only
+  const o = ctx.style.colors || {}, SYS = { ...SYS0, ...(o.pos ? { greenInk: mix(o.pos, "#000000", .3) } : {}), ...(o.neg ? { redInk: mix(o.neg, "#000000", .2) } : {}), ...(o.ink ? { label: o.ink } : {}) };
   const G0 = glassGeom(L, ctx);
   const sc = inferRoles(buildScene(L, effItems(L, ctx).map(it => gItem(it, G0)), G0));    // Glass geometry (columns widened for the system font)
   const rowMed = median(L.rows.map(r => L.rowH.get(r)!)) || 20, rk = ctx.style.radius / 100;

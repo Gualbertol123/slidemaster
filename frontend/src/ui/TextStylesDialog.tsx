@@ -8,6 +8,8 @@ import { DLG, confirmBox } from "../state/dialogs";
 import { saveStyleAsDefault, style, styleChange } from "../state/app";
 import { FONTS, addGoogleFont, inLibrary, removeFont, uploadFontFiles } from "../state/fonts";
 import { GOOGLE_POPULAR, fontStack } from "../model/fonts";
+import { COLOR_KEYS, palette } from "../model/style";
+import { ThemePicker } from "./Topbar";
 import type { TextFmt, TextRole } from "../model/types";
 import { backend } from "../sync/api";
 import { esc } from "../xlsx/util";
@@ -45,6 +47,32 @@ function StyleRow({ role, name, hint, caps }: typeof ROLES[number]) {
     {has("align") ? <select class="tsalign" value={f.align || ""} title="Alignment" onChange={e => set({ align: (e.target as HTMLSelectElement).value || null })}>
       <option value="">Align: auto</option><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select> : <span />}
     <button class="btn" disabled={!Object.keys(f).length} title="Back to the design's look for this kind of text" onClick={() => styleChange("Reset text style: " + name, { text: { [role]: null } })}>Reset</button>
+  </div>;
+}
+
+/* colours: the theme preset, then any colour of it overridden – the same settings for every design */
+function ColorsTab() {
+  const st = style(), P = palette(st), o = st.colors || {}, d = st.design;
+  const set = (k: string, v: string | null) => styleChange(v ? "Colour: " + k : "Theme colour: " + k, { colors: { [k]: v } }, v ? "color" + k : undefined);
+  const any = Object.keys(o).length > 0;
+  return <div class="colorstab">
+    <ThemePicker />
+    <div class="sep" />
+    <div class="opthd">Your colours <small>override the theme · empty = from the theme</small></div>
+    <div class="colgrid" id="colorOverrides">
+      {COLOR_KEYS.map(c => {
+        const on = c.designs.includes(d), set_ = !!o[c.key];
+        return <div class={"colrow" + (on ? "" : " off")} key={c.key} data-color={c.key} title={on ? "" : "Not used by this design"}>
+          <label class="colsw"><input type="color" value={P[c.key]} onChange={e => set(c.key, (e.target as HTMLInputElement).value.toUpperCase())} /></label>
+          <div class="colname"><b>{c.name}</b><small>{c.hint}{on ? "" : " · " + c.designs.map(x => x === "glass" ? "Liquid Glass" : x === "excel" ? "Excel" : "Refined").join(", ") + " only"}</small></div>
+          {set_ ? <button class="btn" title="Back to the theme's colour" onClick={() => set(c.key, null)}>Theme</button> : <small class="from">theme</small>}
+        </div>;
+      })}
+    </div>
+    <div class="row" style="margin-top:10px;gap:8px">
+      <button class="btn" id="colorsReset" disabled={!any} onClick={() => styleChange("Theme colours", { colors: null })}>Reset all to the theme</button>
+      <span class="optnote" style="margin:0">Excel keeps the workbook's colours except the ones you set here. Excel Refined and Liquid Glass use all of them.</span>
+    </div>
   </div>;
 }
 
@@ -87,20 +115,20 @@ export function TextStylesDialog() {
   useApp();
   const tab = DLG.textStyles || "styles";
   const close = () => { DLG.textStyles = null; emit(); };
-  const setTab = (t: "styles" | "fonts") => { DLG.textStyles = t; emit(); };
+  const setTab = (t: "colors" | "styles" | "fonts") => { DLG.textStyles = t; emit(); };
   return (
     <div class="modal" onKeyDown={e => { if (e.key === "Escape") close(); }}>
       <div class="dlg tsdlg">
-        <div class="dlghd"><b>Text styles &amp; fonts</b><span>How every text of a kind looks in this deck. Formatting you give a single cell, text box or title with the toolbar stays on top.</span></div>
-        <div class="seg tabs"><button class={tab === "styles" ? "on" : ""} id="tabStyles" onClick={() => setTab("styles")}>Text styles</button><button class={tab === "fonts" ? "on" : ""} id="tabFonts" onClick={() => setTab("fonts")}>Fonts ({FONTS.lib.length})</button></div>
+        <div class="dlghd"><b>Design: colours, text &amp; fonts</b><span>Start from a theme, then change any colour, font or size – for the whole deck and every design. Formatting you give a single cell, text box or title with the toolbar stays on top.</span></div>
+        <div class="seg tabs"><button class={tab === "colors" ? "on" : ""} id="tabColors" onClick={() => setTab("colors")}>Colours</button><button class={tab === "styles" ? "on" : ""} id="tabStyles" onClick={() => setTab("styles")}>Text styles</button><button class={tab === "fonts" ? "on" : ""} id="tabFonts" onClick={() => setTab("fonts")}>Fonts ({FONTS.lib.length})</button></div>
         <div class="dlgbody">
-          {tab === "styles" ? <>
+          {tab === "colors" ? <ColorsTab /> : tab === "styles" ? <>
             <div class="tsgrid">{ROLES.map(r => <StyleRow key={r.role} {...r} />)}</div>
             <div class="optnote" style="margin-top:10px">Saved with this workbook and shared with everybody who opens it. More fonts: the Fonts tab.</div>
           </> : <FontsTab />}
         </div>
         <div class="dlgft">
-          {tab === "styles" && <button class="btn" id="tsDefault" disabled={!S.sync} title="New decks start with this deck's style, including these text styles" onClick={() => void saveStyleAsDefault()}>Use as default for new decks</button>}
+          {tab !== "fonts" && <button class="btn" id="tsDefault" disabled={!S.sync} title="New decks start with this deck's style, including these text styles" onClick={() => void saveStyleAsDefault()}>Use as default for new decks</button>}
           <span style="flex:1" />
           <button class="btn primary" data-a="close" onClick={close}>Done</button>
         </div>

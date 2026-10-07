@@ -35,10 +35,14 @@ export interface PageNumbers { on: boolean; start: number; pos: "tl" | "tc" | "t
 export interface Footer { on: boolean; text: string; pos: "tl" | "tc" | "tr" | "bl" | "bc" | "br"; size: number; style: "capsule" | "plain"; cover: boolean }
 /** colour theme: c1–c4 = wallpaper colours, a1/a2 = accent (cover bar, index numbers, heading rules) */
 export interface Theme { id: string; c1: string; c2: string; c3: string; c4: string; a1: string; a2: string }
-export interface Style { design: "glass" | "excel"; glass: "subtle" | "medium" | "strong"; color: number; logo: string; pn: PageNumbers;
+/** colours that override the theme (all designs; some only apply to the Excel designs, see model/style.ts COLOR_KEYS) */
+export type ColorKey = "accent" | "bg" | "head" | "headInk" | "total" | "totalInk" | "ink" | "pos" | "neg" | "stripe" | "rule";
+export type Design = "glass" | "excel" | "clean";
+export interface Style { design: Design; glass: "subtle" | "medium" | "strong"; color: number; logo: string; pn: PageNumbers;
   /** corner roundness, % of default (0–200) */ radius: number; /** background ↔ surfaces contrast 0–100 (50 = as designed) */ contrast: number; logoBubble: boolean; footer: Footer; theme: Theme;
-  /** text styles of the deck, per kind of text */ text: Partial<Record<TextRole, TextFmt>> }
-export type StylePatch = Partial<Omit<Style, "pn" | "footer" | "theme" | "text">> & { pn?: Partial<PageNumbers>; footer?: Partial<Footer>; theme?: Partial<Theme>; text?: Partial<Record<TextRole, TextFmt>> };
+  /** text styles of the deck, per kind of text */ text: Partial<Record<TextRole, TextFmt>>;
+  /** colour overrides over the theme */ colors: Partial<Record<ColorKey, string>> }
+export type StylePatch = Partial<Omit<Style, "pn" | "footer" | "theme" | "text" | "colors">> & { pn?: Partial<PageNumbers>; footer?: Partial<Footer>; theme?: Partial<Theme>; text?: Partial<Record<TextRole, TextFmt>>; colors?: Partial<Record<ColorKey, string>> };
 
 /** fill = highlight (a capsule in Liquid Glass); bg = cell colour that replaces the Excel colour ("none" removes it) */
 export interface CellEdit { text?: string; orig?: string; font?: string; sz?: number; b?: boolean; i?: boolean; color?: string; fill?: string; bg?: string;
@@ -63,7 +67,7 @@ export type Op =
   | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "valign" | "scale" | "subs">> & { notes?: Record<string, Note | null> | null; fmt?: Partial<Record<SlideTextKey, TextFmt | null>> | null } }
   | { op: "table.patch"; id: string; patch: { name?: string | null; gridH?: "on" | "off" | null; gridV?: "on" | "off" | null; cols?: Record<string, number | null> | null; rows?: Record<string, number | null> | null; scales?: Record<string, ScaleRule | null> | null; merges?: Record<string, "merge" | "split" | null> | null } }
   | { op: "cell.patch"; sheet: string; ref: string; patch: Nullable<CellEdit> }
-  | { op: "style.patch"; patch: Nullable<Omit<StylePatch, "pn" | "footer" | "theme" | "text">> & { pn?: Nullable<PageNumbers> | null; footer?: Nullable<Footer> | null; theme?: Nullable<Theme> | null; text?: Partial<Record<TextRole, TextFmt | null>> | null } };
+  | { op: "style.patch"; patch: Nullable<Omit<StylePatch, "pn" | "footer" | "theme" | "text" | "colors">> & { pn?: Nullable<PageNumbers> | null; footer?: Nullable<Footer> | null; theme?: Nullable<Theme> | null; text?: Partial<Record<TextRole, TextFmt | null>> | null; colors?: Partial<Record<ColorKey, string | null>> | null } };
 
 /* ---- runtime ---- */
 export interface RuntimeSlide {

@@ -6,8 +6,10 @@ locked-down corporate Windows PCs: no admin rights, nothing to install beyond Py
 possibly disabled by policy, an SSL-inspecting proxy, and the app living in a **shared network folder**
 that several people use **at the same time, on the same or on different workbooks**.
 
-Two visual designs: **Excel** (a faithful copy of the workbook's formatting) and **Liquid Glass** (a
-light, iOS-26-style design that keeps the workbook's meaning: headers, totals, green/red signals).
+Three visual designs: **Excel** (a faithful copy of the workbook's formatting), **Excel Refined** (the same
+tables in one consistent, polished style: header band, tinted totals, striped rows, soft green/red tiles, one
+font) and **Liquid Glass** (a light, iOS-26-style design that keeps the workbook's meaning). In every design a
+colour theme sets the defaults and **Design…** overrides any colour, font or size.
 
 This README is the map. Deeper documents:
 
@@ -42,6 +44,16 @@ This README is the map. Deeper documents:
 * Choose sheets; detect/pick tables (drag on a sheet preview, type a range, Shift+arrows, Enter adds);
   arrange slides; optional **cover** (title, subtitle, date, note) and **contents/index** slide (with or
   without subtitles); per-slide logo on/off. Cover and index are ordinary slides that can be moved.
+
+### Designs and colours
+* Top bar: **Liquid Glass · Excel · Excel Refined**. Excel Refined detects each table's header band, total rows,
+  body rows and spacers (same detection as the automated comments) and redraws them with the deck palette;
+  number columns shrink evenly when the design font is wider than Excel's. Cell colours, text colours and roles
+  set by hand still win.
+* **Design…** (top bar) → *Colours*: pick a theme, then override any colour – accent, slide background, table
+  header and its text, total rows and their text, table text, positive, negative, row stripes, lines. Pure Excel
+  keeps the workbook's colours except the ones you override; Excel Refined and Liquid Glass use the palette.
+  *Text styles* and *Fonts* are tabs of the same dialog.
 
 ### Text: one toolbar, one place for the whole deck
 * The first toolbar row formats **whatever text is selected** – table cells, a text box, the title, the

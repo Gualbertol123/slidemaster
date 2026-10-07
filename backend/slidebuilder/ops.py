@@ -13,7 +13,7 @@ TABLE_KEYS = ("name", "gridH", "gridV")
 TABLE_MAPS = ("cols", "rows", "scales", "merges")
 CELL_KEYS = ("text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role")
 STYLE_KEYS = ("design", "glass", "color", "logo", "radius", "contrast", "logoBubble")
-STYLE_MAPS = ("pn", "footer", "theme", "text")
+STYLE_MAPS = ("pn", "footer", "theme", "text", "colors")
 
 
 def _set_or_delete(target, key, value):

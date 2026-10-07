@@ -160,3 +160,23 @@ body.painting .slide .hits{cursor:copy}
 .cmtprev.slide{width:auto;height:auto;min-height:0;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:18px 22px;background:#fff}
 .cmtprev .tnote{position:static;display:block;font-size:15px;overflow:visible;padding:0}
 #stage .slide .tnote.auto{cursor:default}
+/* design dialog: colours tab, topbar Design button */
+.thdot{width:14px;height:14px;border-radius:50%;display:inline-block;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+.colorstab .sep{height:1px;background:var(--line);margin:12px 0}
+.colorstab .opthd small{font-weight:400;color:var(--mute);margin-left:6px}
+.colgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 18px}
+.colrow{display:flex;align-items:center;gap:10px;padding:5px 6px;border-radius:8px}
+.colrow:hover{background:#F6F7F9}
+.colrow.off{opacity:.45}
+.colsw input{width:34px;height:28px;padding:0;border:1px solid var(--line2);border-radius:7px;background:#fff;cursor:pointer}
+.colname{display:flex;flex-direction:column;flex:1;min-width:0}
+.colname b{font-size:13px}
+.colname small{color:var(--mute);font-size:11px}
+.colrow .from{color:var(--mute);font-size:11px}
+.colrow .btn{height:26px;font-size:12px;padding:0 8px}
+/* the window width is the limit: the top bar compresses (file name, presence) instead of widening the app */
+.app{grid-template-columns:minmax(0,1fr)}
+.topbar{min-width:0;overflow:hidden}
+.topbar .fname{flex-shrink:1}
+.topbar > *:not(.fname):not(.spacer){flex-shrink:0}
+@media (max-width:1680px){.topbar .presence > span{display:none}.topbar .pill{max-width:150px;overflow:hidden;text-overflow:ellipsis}}

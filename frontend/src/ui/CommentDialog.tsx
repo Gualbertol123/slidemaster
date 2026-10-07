@@ -110,7 +110,7 @@ export function CommentDialog() {
               <label></label><label class="ck"><input type="checkbox" checked={bubble} onChange={e => setBubble((e.target as HTMLInputElement).checked)} />In a bubble (glass card / framed box)</label>
             </div>
           </div>
-          <div class={"cmtprev slide " + c.style.design}><div class="tnote auto" id="cmtPreview" dangerouslySetInnerHTML={{ __html: richText(text) }} /></div>
+          <div class={"cmtprev slide " + (c.style.design === "clean" ? "excel clean" : c.style.design)}><div class="tnote auto" id="cmtPreview" dangerouslySetInnerHTML={{ __html: richText(text) }} /></div>
         </div>
         <div class="dlgft">
           {old && <button class="btn" id="cmtRemove" onClick={remove}>Remove comment</button>}

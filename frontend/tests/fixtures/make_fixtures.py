@@ -110,6 +110,14 @@ def weekly():
                 if k == 0: c.font = Font(bold=True)
     table(4, "TOTAL BANKS LOANS", 1)
     table(24, "TOTAL BANKS DEPOSITS", 2)
+    # like the report: green/red cells on the Δ columns, a framed total row
+    g, rd = PatternFill("solid", fgColor="00B050"), PatternFill("solid", fgColor="FF0000")
+    for top in (4, 24):
+        rng = "H%d:Q%d" % (top + 4, top + 16)
+        ws.conditional_formatting.add(rng, CellIsRule(operator="greaterThan", formula=["0"], fill=g, font=Font(color="FFFFFF")))
+        ws.conditional_formatting.add(rng, CellIsRule(operator="lessThan", formula=["0"], fill=rd, font=Font(color="FFFFFF")))
+        for col in range(3, 18):
+            ws.cell(row=top + 4, column=col).border = Border(top=thin, bottom=thin, left=thin if col == 3 else None, right=thin if col == 17 else None)
     for col, w in zip("ABC", [2, 3, 22]): ws.column_dimensions[col].width = w
     wb.save(os.path.join(HERE, "weekly.xlsx"))
 

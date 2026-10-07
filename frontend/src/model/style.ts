@@ -1,13 +1,13 @@
 /* Deck style = built-in defaults ← shared defaults (config.json) ← this workbook's style. */
-import type { Footer, PageNumbers, Style, StylePatch, TextFmt, TextRole, Theme } from "./types";
+import type { ColorKey, Footer, PageNumbers, Style, StylePatch, TextFmt, TextRole, Theme } from "./types";
 
 export const BUILTIN_PN: PageNumbers = { on: false, start: 1, pos: "br", font: "auto", size: 16, format: "n", style: "capsule", cover: false };
 export const BUILTIN_FOOTER: Footer = { on: false, text: "", pos: "bl", size: 14, style: "plain", cover: false };
-export const BUILTIN_STYLE: Style = { design: "glass", glass: "subtle", color: 35, logo: "logo.png", pn: BUILTIN_PN, radius: 100, contrast: 50, logoBubble: true, footer: BUILTIN_FOOTER, theme: { id: "aurora", c1: "", c2: "", c3: "", c4: "", a1: "", a2: "" }, text: {} };
+export const BUILTIN_STYLE: Style = { design: "glass", glass: "subtle", color: 35, logo: "logo.png", pn: BUILTIN_PN, radius: 100, contrast: 50, logoBubble: true, footer: BUILTIN_FOOTER, theme: { id: "aurora", c1: "", c2: "", c3: "", c4: "", a1: "", a2: "" }, text: {}, colors: {} };
 export const TEXT_ROLES: TextRole[] = ["title", "subtitle", "table", "note", "index", "pageno"];
 
 export function resolveStyle(...layers: (StylePatch | null | undefined)[]): Style {
-  const s: Style = { ...BUILTIN_STYLE, pn: { ...BUILTIN_PN }, footer: { ...BUILTIN_FOOTER }, theme: { ...BUILTIN_STYLE.theme }, text: {} };
+  const s: Style = { ...BUILTIN_STYLE, pn: { ...BUILTIN_PN }, footer: { ...BUILTIN_FOOTER }, theme: { ...BUILTIN_STYLE.theme }, text: {}, colors: {} };
   for (const l of layers) {
     if (!l) continue;
     for (const k of ["design", "glass", "color", "logo", "radius", "contrast", "logoBubble"] as const) if (l[k] !== undefined && l[k] !== null) (s as unknown as Record<string, unknown>)[k] = l[k];
@@ -15,9 +15,10 @@ export function resolveStyle(...layers: (StylePatch | null | undefined)[]): Styl
     if (l.theme) for (const [k, v] of Object.entries(l.theme)) if (v !== undefined && v !== null) (s.theme as unknown as Record<string, unknown>)[k] = v;
     if (l.footer) for (const [k, v] of Object.entries(l.footer)) if (v !== undefined && v !== null) (s.footer as unknown as Record<string, unknown>)[k] = v;
     // text styles: a deck's entry for a kind of text replaces the shared default's entry as a whole
+    if (l.colors && typeof l.colors === "object") for (const k of COLOR_KEYS.map(x => x.key)) { const v = l.colors[k]; if (typeof v === "string" && HEXC.test(v)) s.colors[k] = v.toUpperCase(); }
     if (l.text && typeof l.text === "object") for (const r of TEXT_ROLES) { const f = l.text[r]; if (f && typeof f === "object") s.text[r] = cleanFmt(f); }
   }
-  if (s.design !== "excel") s.design = "glass";
+  if (s.design !== "excel" && s.design !== "clean") s.design = "glass";
   if (!["subtle", "medium", "strong"].includes(s.glass)) s.glass = "subtle";
   s.color = Math.max(0, Math.min(100, +s.color || 0));
   s.radius = Math.max(0, Math.min(200, isFinite(+s.radius) ? +s.radius : 100));
@@ -69,4 +70,34 @@ export function cleanFmt(f: TextFmt): TextFmt {
   if (typeof f.color === "string" && HEXC.test(f.color)) o.color = f.color;
   if (f.align === "left" || f.align === "center" || f.align === "right") o.align = f.align;
   return o;
+}
+
+/* ---- colours: theme preset + overrides, the same for every design ----
+   Every colour a slide uses comes from palette(): the theme gives the defaults, Style.colors overrides any
+   of them. "Pure" Excel keeps the workbook's own colours and uses only the overrides that were set. */
+export const COLOR_KEYS: { key: ColorKey; name: string; hint: string; designs: ("glass" | "excel" | "clean")[] }[] = [
+  { key: "accent", name: "Accent", hint: "titles, cover, contents numbers, rules", designs: ["glass", "excel", "clean"] },
+  { key: "bg", name: "Slide background", hint: "behind everything (Liquid Glass: Colour theme)", designs: ["excel", "clean"] },
+  { key: "head", name: "Table header", hint: "header band of the tables", designs: ["excel", "clean"] },
+  { key: "headInk", name: "Header text", hint: "text on the header band", designs: ["excel", "clean"] },
+  { key: "total", name: "Total rows", hint: "background of total rows", designs: ["excel", "clean"] },
+  { key: "totalInk", name: "Total text", hint: "text of total rows", designs: ["excel", "clean"] },
+  { key: "ink", name: "Table text", hint: "numbers and labels", designs: ["glass", "excel", "clean"] },
+  { key: "pos", name: "Positive", hint: "green values / cells", designs: ["glass", "excel", "clean"] },
+  { key: "neg", name: "Negative", hint: "red values / cells", designs: ["glass", "excel", "clean"] },
+  { key: "stripe", name: "Row stripes", hint: "every other row", designs: ["clean"] },
+  { key: "rule", name: "Lines", hint: "row separators", designs: ["clean"] },
+];
+export type Palette = Record<ColorKey, string>;
+export function mix(a: string, b: string, t: number): string {
+  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16), ch = (p: number, s: number) => (p >> s) & 255;
+  const f = (s: number) => Math.round(ch(pa, s) + (ch(pb, s) - ch(pa, s)) * t).toString(16).padStart(2, "0");
+  return ("#" + f(16) + f(8) + f(0)).toUpperCase();
+}
+/** the colours of the deck: theme defaults, then the user's overrides */
+export function palette(s: Style): Palette {
+  const t = themeOf(s), x = t.x;
+  const base: Palette = { accent: x, bg: "#FFFFFF", head: x, headInk: "#FFFFFF", total: mix(x, "#FFFFFF", .88), totalInk: darkAccent(mix(x, "#000000", .25)),
+    ink: "#1F2430", pos: "#1E8E3E", neg: "#D93025", stripe: mix(x, "#FFFFFF", .965), rule: mix(x, "#FFFFFF", .86) };
+  return { ...base, ...(s.colors || {}) };
 }

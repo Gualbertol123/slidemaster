@@ -42,7 +42,7 @@ function OpenMenu() {
 
 /* colour theme: built-in themes (incl. the Intesa Sanpaolo corporate colours) or a custom one */
 type TKey = "c1" | "c2" | "c3" | "c4" | "a1" | "a2";
-function ThemePicker() {
+export function ThemePicker() {
   const st = style(), cur = themeOf(st);
   const th = (patch: Partial<Theme>, coalesce?: string) => styleChange("Colour theme", { theme: patch }, coalesce);
   const swatch = (t: { c1: string; c2: string; c3: string; c4: string; a1: string }) => <i class="thsw" style={{ background: `linear-gradient(135deg,${t.c1},${t.c2} 40%,${t.c3} 75%,${t.c4})` }}><b style={{ background: t.a1 }} /></i>;
@@ -70,7 +70,7 @@ function Options() {
   return (
     <Dropdown right menuClass="optmenu" button={(_o, toggle) => <button class="btn" id="optBtn" title="Page numbers and logo" disabled={!has} onClick={toggle}>⚙ Options</button>}>
       {() => <>
-        <ThemePicker />
+        <div class="optnote">Colour theme, colours and fonts: <a href="#" onClick={e => { e.preventDefault(); openFontManager("colors"); }}>Design…</a></div>
         <div class="sep" />
         <div class="opthd">Page numbers</div>
         <label class="ck big"><input type="checkbox" id="pnOn" checked={p.on} onChange={e => pn({ on: (e.target as HTMLInputElement).checked })} /> Show page numbers on every slide</label>
@@ -192,8 +192,11 @@ export function Topbar() {
       <Others />
       <div class="spacer" />
       <div class="seg" title="Slide design (saved with this workbook)">
-        {(["glass", "excel"] as const).map(d => <button key={d} data-design={d} disabled={!has} class={st.design === d ? "on" : ""} onClick={() => styleChange("Design", { design: d })}>{d === "glass" ? "Liquid Glass" : "Excel"}</button>)}
+        {([["glass", "Liquid Glass", "Light glass surfaces over a coloured background"], ["excel", "Excel", "The tables exactly as in the workbook"], ["clean", "Excel Refined", "The workbook's tables in one consistent, polished style"]] as const).map(([d, l, t]) =>
+          <button key={d} data-design={d} disabled={!has} title={t} class={st.design === d ? "on" : ""} onClick={() => styleChange("Design", { design: d })}>{l}</button>)}
       </div>
+      <button class="btn" id="themeBtn" disabled={!has} title="Colour theme, your own colours, text styles and fonts – for every design" onClick={() => openFontManager("colors")}>
+        <i class="thdot" style={{ background: `conic-gradient(${themeOf(st).c1},${themeOf(st).c2},${themeOf(st).c3},${themeOf(st).c4},${themeOf(st).c1})` }} />Design…</button>
       {st.design === "glass" && <div class="seg" id="glassSeg" title="Strength of the glass effect">
         {(["subtle", "medium", "strong"] as const).map(g => <button key={g} data-glass={g} disabled={!has} class={st.glass === g ? "on" : ""} onClick={() => styleChange("Glass strength", { glass: g })}>{g[0].toUpperCase() + g.slice(1)}</button>)}
       </div>}

@@ -1506,5 +1506,41 @@
       "applied": 1,
       "skipped": []
     }
+  },
+  {
+    "name": "style.patch colors is a map merge: one colour overridden, the others stay",
+    "doc": {
+      "preset": null,
+      "style": {
+        "colors": {
+          "head": "#112233"
+        },
+        "design": "clean"
+      },
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "style.patch",
+        "patch": {
+          "colors": {
+            "pos": "#0077B6",
+            "head": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {
+        "colors": {
+          "pos": "#0077B6"
+        },
+        "design": "clean"
+      },
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
   }
 ]
