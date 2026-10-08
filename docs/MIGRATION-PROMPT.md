@@ -29,9 +29,10 @@ numbers, supports named "versions" with cells removed, and exports through a hea
 
 ## Read first (in this order)
 
-1. `README.md` – the complete engineering guide: features, architecture, data model, every module,
-   flows, concurrency, HTTP API, rendering, export, testing, gotchas. Treat it as the specification of
-   current behaviour.
+1. `README.md` – the complete engineering guide: features (§1), deployment (§2), architecture (§3),
+   data model and operations (§4), every front-end and back-end module (§5, §7), the flows end to end
+   (§6), HTTP API (§8), concurrency (§9), export engine (§10), tests (§11), gotchas and known technical
+   debt (§14–§15). Treat it as the specification of current behaviour.
 2. `docs/ARCHITECTURE.md` – the binding contract: saved files, document shape, every operation and its
    merge semantics, locking protocol, HTTP API, format versions.
 3. `docs/RENDERING.md` – how workbooks are read and how each design is drawn (scene model of Liquid
@@ -42,7 +43,7 @@ numbers, supports named "versions" with cells removed, and exports through a hea
 6. Then the code: `frontend/src/**`, `backend/slidebuilder/**`, `shared/ops-vectors.json`, the tests
    (`frontend/tests`, `frontend/e2e/app.spec.ts`, `backend/tests`), `tools/`.
 
-Run the existing tests to see the system working (commands in README §Development). Build and start
+Run the existing tests to see the system working (commands in README §11). Build and start
 the app, open the test workbooks in `frontend/tests/fixtures/`, go through the wizard, edit, switch
 designs, export. Measure before you judge.
 

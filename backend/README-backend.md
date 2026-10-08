@@ -33,10 +33,11 @@ optional packages only – the helper itself stays standard-library only.
 | `presence` | heartbeat files `data/presence/<user>@<host>.json` |
 | `workbooks` | listing of workbooks, path-safe lookup, stable read (`X-SB-Mtime` / `X-SB-Size`) |
 | `migrate` | one-time import of `slide_builder_settings.txt` (v2) under lock `migrate` |
-| `pdf` | PDF writer for JPEG/PNG pages, PNG helpers (ported from v2.3) |
+| `pdf` | PDF writer for JPEG/PNG pages, PNG crop, page-box reading and fitting (`pdf_fit_pages`: cuts each page to the #FFFFFE marker the slide was drawn on) |
 | `cdp` | minimal websocket + DevTools client (ported) |
 | `engines` | browser discovery, Playwright / DevTools / command-line engines, `Exporter`, engine mirror (ported; mirror under a lock on this PC) |
 | `exports` | `/api/export` + `/api/assemble`: render, then atomic rename into `export\` (` (2)` when locked) |
+| `fonts` | shared font library `data/fonts/` (fonts.json + files; signature-checked uploads, lock `fonts`) |
 | `convert` | EMF/WMF/TIFF → PNG (GDI+, PowerShell) and .xlsb/.xls → .xlsx (Excel COM) – Windows only (ported) |
 | `installer` | `--setup` (Chrome for Testing download, Playwright) under install locks; background runner for the app |
 | `firstrun` | `--install`: first-time set-up on a PC (7 steps, OK/WARN/FAIL, summary, exit code) |
@@ -56,6 +57,7 @@ optional packages only – the helper itself stays standard-library only.
 | `SLIDEBUILDER_FORCE_NETWORK` | treat ROOT as a network drive (testing the engine mirror) |
 | `SLIDEBUILDER_APP_FILE` | serve this page instead of `slide_builder.html` (testing aid) |
 | `SLIDEBUILDER_SIM_FS_MS` | **simulation for load tests**: +N ms (±25 %) per data-folder file operation that would be an SMB round trip (open, stat/exists/getmtime, replace/rename, remove, listdir, makedirs, fsync); `0` only counts them. Implies `SLIDEBUILDER_TIMING`. Never set it for real use. |
+| `PLAYWRIGHT_BROWSERS_PATH` | set by the helper to `engine/` when that folder exists |
 | `SLIDEBUILDER_TIMING` | add `X-SB-Timing: lock_wait_ms=…;write_ms=…[;fs_ops=…]` to `POST /api/workbooks/<name>/ops` responses (lock acquisition incl. waiting for others / work under the lock / file operations of that save). Clients may ignore it. |
 
 ## Tests
@@ -77,6 +79,8 @@ python3 -m unittest discover -s tests -v
 * `test_engine_cli` – renders a real slide when a Chromium is found in `/opt/pw-browsers` (skipped otherwise)
 * `test_firstrun` – `--install`: truststore retry decision, venv/`--user`, ensurepip, shortcut fallback `.bat`
   on a temp desktop (and `.lnk` replacing it), shared-folder probe, exit codes, two runs in a row, real self-test
+* `test_fonts` – font library and logo upload/lookup; `test_export_geometry` – page fitting, marker detection, picture checks;
+  `test_upgrade` – saved-format examples and upgrades; `test_update` – the GitHub updater
 * `test_simfs` – latency simulation only touches data-folder calls, can be removed again; `X-SB-Timing` only when enabled
 
 ## Load test

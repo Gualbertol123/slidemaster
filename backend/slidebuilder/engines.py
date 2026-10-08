@@ -154,7 +154,7 @@ WAIT_JS = ("async () => { if (document.fonts) await document.fonts.ready;"
            " await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); return true; }")
 
 # Checked in the browser before anything is printed or captured: every slide must be exactly where its page
-# is – 1600 x 900 one under the other on screen, 1280 x 720 per page in print layout. Returns "" or what is off.
+# is – 1600 x 900 at the page's origin, on screen and in print media (pages are not scaled). Returns "" or what is off.
 GEOMETRY_JS = ("(print) => { const W = %(sw)d, H = %(sh)d, bad = [];"
                " const pages = [...document.querySelectorAll('body > .page')];"
                " pages.forEach((p, i) => { const s = p.firstElementChild; if (!s) { bad.push('page ' + (i + 1) + ' is empty'); return; }"

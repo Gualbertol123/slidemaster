@@ -35,7 +35,7 @@ a random `client` id. Presence and `updatedBy` use these.
 data/
 ├─ config.json                 shared defaults for new decks          {schema, rev, updated, updatedBy, defaults:{style}}
 ├─ workbooks/<key>.json        one document per workbook (below)
-├─ users/<user>.json           personal preferences                   {schema, lastFile, pdfMode, zoom}
+├─ users/<user>.json           personal preferences                   {schema, lastFile, pdfMode, zoom, versions}
 ├─ presence/<user>@<host>.json heartbeat                              {user, host, client, workbook, at}
 ├─ backups/<key>/<rev>.json    rolling copies of workbook docs (last 30, at most one per 5 min)
 ├─ backups/upgrades/<kind>/<file>.v<n>.<time>.json   a file as it was before a format upgrade (§3.3)
@@ -93,12 +93,12 @@ defined once, here, and tested on both sides with `shared/ops-vectors.json`.
 | op | fields | effect |
 |---|---|---|
 | `preset.set` | `preset` (object or null) | replace `doc.preset` (deep copy). Used by the wizard. |
-| `slide.patch` | `id`, `patch` | on the slide with that id: keys `title, subtitle, date, note, logo, layout, align, valign, scale, subs`: `null` → delete, else set. Keys `notes` and `fmt` are **map merges** (see below). Other keys ignored. Unknown slide (or no preset) → op **skipped**. |
-| `table.patch` | `id`, `patch` | on `doc.preset.tables[id]`: keys `name, gridH, gridV`: `null` → delete, else set; keys `cols`, `rows`, `scales`, `merges` are **map merges**. Other keys ignored. Unknown table (or no preset) → skipped. |
+| `slide.patch` | `id`, `patch` | on the slide with that id: keys `title, subtitle, date, note, logo, layout, align, valign, scale, subs`: `null` → delete, else set. Keys `notes`, `fmt` and `sizes` are **map merges** (see below). Other keys ignored. Unknown slide (or no preset) → op **skipped**. |
+| `table.patch` | `id`, `patch` | on `doc.preset.tables[id]`: keys `name, gridH, gridV`: `null` → delete, else set; keys `cols`, `rows`, `scales`, `merges`, `sizes` are **map merges**. Other keys ignored. Unknown table (or no preset) → skipped. |
 | `cell.patch` | `sheet`, `ref`, `patch` | on `doc.edits[sheet][ref]` (created if missing): for each key in `text, orig, font, sz, b, i, color, fill, bg, cf, align, role`: `null` → delete, else set. Then: if `text` is absent, delete `orig`; if no keys remain, delete the cell; if the sheet has no cells, delete the sheet. |
-| `style.patch` | `patch` | on `doc.style`: keys `design, glass, color, logo, radius, contrast, logoBubble`: `null` → delete, else set; keys `pn`, `footer`, `theme`, `text` and `colors` are map merges. |
+| `style.patch` | `patch` | on `doc.style`: keys `design, glass, color, logo, radius, contrast, logoBubble`: `null` → delete, else set; keys `pn`, `footer`, `theme`, `text`, `colors` and `designs` are map merges. |
 
-**Map merge** (`pn`, `footer`, `theme`, `text`, `colors`, `notes`, `fmt`, `cols`, `rows`, `scales`, `merges`): value `null` → delete the whole map; an object →
+**Map merge** (`pn`, `footer`, `theme`, `text`, `colors`, `designs`, `notes`, `fmt`, `sizes`, `cols`, `rows`, `scales`, `merges`): value `null` → delete the whole map; an object →
 each entry is set (replacing that entry entirely) or deleted when `null`; a map left empty is deleted.
 So two people changing different columns, rules or text boxes never overwrite each other.
 
@@ -258,12 +258,4 @@ At start-up, under lock `migrate`, if `backend/slide_builder_settings.txt` exist
 
 ## 7. Front end modules (`frontend/src`)
 
-| Folder | Content |
-|---|---|
-| `xlsx/` | workbook index + lazy sheet parser, styles/theme, number formats, conditional formats, drawings, table regions and layout (`buildLayout`) |
-| `render/` | Excel design, scene model + Liquid Glass, wallpaper, slide composition, cover/index, page numbers, slide layout (bands) |
-| `model/` | types, document operations (same semantics as §3.2), presets → runtime slides |
-| `sync/` | API client (token), document sync (pending ops, polling, presence), offline store for `file://` |
-| `editor/` | stage (imperative DOM, hit testing, selection, inline edit, table move/resize), keyboard |
-| `ui/` | Preact components: top bar, ribbon, formula bar, thumbnails, issues, menus, dialogs, toasts |
-| `wizard/` | 3-step wizard (sheets, tables, slides) and table detection |
+See `README.md` §5 for the module-by-module description (xlsx, model, render, sync, state, editor, ui, wizard, styles).
