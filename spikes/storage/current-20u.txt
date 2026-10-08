@@ -1,0 +1,11 @@
+== scenario same, 20 users, simulated 15 ms
+   ops/s 9.80, POST p50 1434 ms p95 5280 ms, lock wait p95 5163 ms, visible p50 4477 ms, errors 0, lost 0/251
+== scenario same, 20 users, simulated 40 ms
+   ops/s 9.80, POST p50 3786 ms p95 9128 ms, lock wait p95 8829 ms, visible p50 12030 ms, errors 20, lost 0/251
+
+| scenario | fs ms | ops/s | saves/s | ops/save | POST p50 | p95 | p99 | max | lock wait p50/p95 | write p50/p95 | SMB ops/save | visible p50/p95 | errors | lost |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| same | 15.0 | 9.80 | 7.66 | 1.28 | 1434 | 5280 | 8162 | 8749 | 1325 / 5163 | 111 / 188 | 27 | 4477 / 10122 | 0 | 0/251 |
+| same | 40.0 | 9.80 | 3.43 | 2.85 | 3786 | 9128 | 10694 | 10710 | 3413 / 8829 | 298 / 511 | 44 | 12030 / 27937 | 20 | 0/251 |
+
+Times in ms. 'lost' = acknowledged cell edits missing from the final document / acknowledged.

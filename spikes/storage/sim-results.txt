@@ -1,0 +1,8 @@
+{"proto": "journal", "users": 10, "fs_ms": 15.0, "poll_s": 1.5, "ops_acked": 124, "save_p50": 32, "save_p95": 37, "lockwait_p95": null, "visible_p50": 1119, "visible_p95": 1918, "converged": true, "lost": 0}
+{"proto": "journal", "users": 10, "fs_ms": 40.0, "poll_s": 1.5, "ops_acked": 129, "save_p50": 82, "save_p95": 95, "lockwait_p95": null, "visible_p50": 1273, "visible_p95": 2338, "converged": true, "lost": 0}
+{"proto": "journal", "users": 20, "fs_ms": 15.0, "poll_s": 1.5, "ops_acked": 259, "save_p50": 32, "save_p95": 37, "lockwait_p95": null, "visible_p50": 1220, "visible_p95": 2135, "converged": true, "lost": 0}
+{"proto": "journal", "users": 20, "fs_ms": 40.0, "poll_s": 1.5, "ops_acked": 265, "save_p50": 82, "save_p95": 96, "lockwait_p95": null, "visible_p50": 1773, "visible_p95": 3138, "converged": true, "lost": 0}
+{"proto": "lock", "users": 10, "fs_ms": 15.0, "poll_s": 3.0, "ops_acked": 133, "save_p50": 155, "save_p95": 392, "lockwait_p95": 280, "visible_p50": 1031, "visible_p95": 2375, "converged": true, "lost": 0}
+{"proto": "lock", "users": 10, "fs_ms": 40.0, "poll_s": 3.0, "ops_acked": 121, "save_p50": 1689, "save_p95": 5457, "lockwait_p95": 5195, "visible_p50": 4029, "visible_p95": 9347, "converged": true, "lost": 0}
+{"proto": "lock", "users": 20, "fs_ms": 15.0, "poll_s": 3.0, "ops_acked": 246, "save_p50": 762, "save_p95": 3181, "lockwait_p95": 3070, "visible_p50": 2157, "visible_p95": 5578, "converged": true, "lost": 0}
+{"proto": "lock", "users": 20, "fs_ms": 40.0, "poll_s": 3.0, "ops_acked": 241, "save_p50": 2638, "save_p95": 8764, "lockwait_p95": 8486, "visible_p50": 7859, "visible_p95": 19707, "converged": false, "lost": 4}

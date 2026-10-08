@@ -1,0 +1,22 @@
+{
+ "baseline/out-current-excel.pdf": {
+  "open_ms": 4.0,
+  "render_ms_per_page_median": 14.9,
+  "render_ms_total": 343
+ },
+ "baseline/out-current-glass.pdf": {
+  "open_ms": 7.0,
+  "render_ms_per_page_median": 766.5,
+  "render_ms_total": 15611
+ },
+ "pdfwriter/out-native-excel.pdf": {
+  "open_ms": 0.4,
+  "render_ms_per_page_median": 6.9,
+  "render_ms_total": 143
+ },
+ "pdfwriter/out-native-glass.pdf": {
+  "open_ms": 0.2,
+  "render_ms_per_page_median": 107.8,
+  "render_ms_total": 2134
+ }
+}

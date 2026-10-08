@@ -19,6 +19,7 @@ the HTTP API (§8), concurrency and failure handling (§9), the export engine (�
 | [`docs/LOADTEST.md`](docs/LOADTEST.md) | 10 simulated users on a shared folder: measured costs, bottlenecks, options |
 | [`docs/REVIEW.md`](docs/REVIEW.md) | review of the previous generation (v2) and why the current architecture was chosen (and why not Next.js) |
 | [`docs/MIGRATION-PROMPT.md`](docs/MIGRATION-PROMPT.md) | brief for designing a full rebuild on a new local stack |
+| [`docs/next/`](docs/next/00-summary.md) | **design of the rebuild (Slide Builder 4)**: summary, measured baseline, options, architecture, migration, test/parity plan, phased plan, ADRs; spikes in `spikes/` |
 | [`backend/README-backend.md`](backend/README-backend.md) | helper command line, module table, environment variables |
 
 **Contents** — [1 Product](#1-what-the-product-does) · [2 Deployment](#2-deployment-and-running-it) ·

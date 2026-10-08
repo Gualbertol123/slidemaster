@@ -1,0 +1,214 @@
+{
+ "machine": "4 vCPU Intel(R) Xeon(R) Processor @ 2.10GHz, linux",
+ "chrome": "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+ "runs": {
+  "open_deck20": {
+   "wizard_ms": 316,
+   "finish_to_slides_ms": 268,
+   "longtasks": {
+    "count": 2,
+    "maxMs": 83,
+    "totalMs": 138
+   },
+   "stageNodes": 688,
+   "pageHtmlKB": 1470
+  },
+  "edit_bold_to_saved_ms": [
+   3848,
+   1811,
+   5348,
+   1819,
+   3324
+  ],
+  "edit_render": {
+   "count": 0,
+   "maxMs": 0,
+   "totalMs": 0
+  },
+  "export_glass_0": {
+   "ms": 10732,
+   "toast": "Saved deck20 - slides.pdf in the export folder · 10.1s · Chrome (DevTools)\nOpen\nShow folder",
+   "bytes": 24668819,
+   "kb_per_page": 1204.5,
+   "pages": 20,
+   "page_pt": [
+    1200,
+    675
+   ],
+   "fonts": {
+    "None": "/Type3"
+   },
+   "type3": 1,
+   "images": 14,
+   "image_mpix": 1.8,
+   "text_chars_p2": 2465,
+   "longtasks": {
+    "count": 1,
+    "maxMs": 108,
+    "totalMs": 108
+   }
+  },
+  "export_glass_1": {
+   "ms": 9408,
+   "toast": "Saved deck20 - slides.pdf in the export folder · 9s · Chrome (DevTools)\nOpen\nShow folder",
+   "bytes": 24668819,
+   "kb_per_page": 1204.5,
+   "pages": 20,
+   "page_pt": [
+    1200,
+    675
+   ],
+   "fonts": {
+    "None": "/Type3"
+   },
+   "type3": 1,
+   "images": 14,
+   "image_mpix": 1.8,
+   "text_chars_p2": 2465,
+   "longtasks": {
+    "count": 1,
+    "maxMs": 70,
+    "totalMs": 70
+   }
+  },
+  "export_excel_0": {
+   "ms": 2536,
+   "toast": "Saved deck20 - slides.pdf in the export folder · 2s · Chrome (DevTools)\nOpen\nShow folder",
+   "bytes": 2737834,
+   "kb_per_page": 133.7,
+   "pages": 20,
+   "page_pt": [
+    1200,
+    675
+   ],
+   "fonts": {
+    "/AAAAAA+LiberationSans-Bold": "/Type0",
+    "/BAAAAA+LiberationSans": "/Type0",
+    "/CAAAAA+Carlito-BoldItalic": "/Type0",
+    "/DAAAAA+Carlito-Bold": "/Type0",
+    "/EAAAAA+Carlito-Regular": "/Type0"
+   },
+   "type3": 0,
+   "images": 0,
+   "image_mpix": 0,
+   "text_chars_p2": 2344,
+   "longtasks": {
+    "count": 1,
+    "maxMs": 111,
+    "totalMs": 111
+   }
+  },
+  "export_excel_1": {
+   "ms": 2196,
+   "toast": "Saved deck20 - slides.pdf in the export folder · 1.7s · Chrome (DevTools)\nOpen\nShow folder",
+   "bytes": 2737834,
+   "kb_per_page": 133.7,
+   "pages": 20,
+   "page_pt": [
+    1200,
+    675
+   ],
+   "fonts": {
+    "/AAAAAA+LiberationSans-Bold": "/Type0",
+    "/BAAAAA+LiberationSans": "/Type0",
+    "/CAAAAA+Carlito-BoldItalic": "/Type0",
+    "/DAAAAA+Carlito-Bold": "/Type0",
+    "/EAAAAA+Carlito-Regular": "/Type0"
+   },
+   "type3": 0,
+   "images": 0,
+   "image_mpix": 0,
+   "text_chars_p2": 2344,
+   "longtasks": {
+    "count": 1,
+    "maxMs": 127,
+    "totalMs": 127
+   }
+  },
+  "export_clean_0": {
+   "ms": 2290,
+   "toast": "Saved deck20 - slides.pdf in the export folder · 1.8s · Chrome (DevTools)\nOpen\nShow folder",
+   "bytes": 2737834,
+   "kb_per_page": 133.7,
+   "pages": 20,
+   "page_pt": [
+    1200,
+    675
+   ],
+   "fonts": {
+    "/AAAAAA+LiberationSans-Bold": "/Type0",
+    "/BAAAAA+LiberationSans": "/Type0",
+    "/CAAAAA+Carlito-BoldItalic": "/Type0",
+    "/DAAAAA+Carlito-Bold": "/Type0",
+    "/EAAAAA+Carlito-Regular": "/Type0"
+   },
+   "type3": 0,
+   "images": 0,
+   "image_mpix": 0,
+   "text_chars_p2": 2344,
+   "longtasks": {
+    "count": 1,
+    "maxMs": 99,
+    "totalMs": 99
+   }
+  },
+  "export_clean_1": {
+   "ms": 2199,
+   "toast": "Saved deck20 - slides.pdf in the export folder · 1.7s · Chrome (DevTools)\nOpen\nShow folder",
+   "bytes": 2737834,
+   "kb_per_page": 133.7,
+   "pages": 20,
+   "page_pt": [
+    1200,
+    675
+   ],
+   "fonts": {
+    "/AAAAAA+LiberationSans-Bold": "/Type0",
+    "/BAAAAA+LiberationSans": "/Type0",
+    "/CAAAAA+Carlito-BoldItalic": "/Type0",
+    "/DAAAAA+Carlito-Bold": "/Type0",
+    "/EAAAAA+Carlito-Regular": "/Type0"
+   },
+   "type3": 0,
+   "images": 0,
+   "image_mpix": 0,
+   "text_chars_p2": 2344,
+   "longtasks": {
+    "count": 1,
+    "maxMs": 111,
+    "totalMs": 111
+   }
+  },
+  "export_glass_pictures": {
+   "ms": 90039,
+   "bytes": 124659495,
+   "kb_per_page": 6086.9,
+   "pages": 20,
+   "page_pt": [
+    1200,
+    675
+   ],
+   "fonts": {},
+   "type3": 0,
+   "images": 20,
+   "image_mpix": 460.8,
+   "text_chars_p2": 0
+  },
+  "open_big30": {
+   "fileMB": 30.4,
+   "index_to_wizard_ms": 336,
+   "longtasks_index": {
+    "count": 0,
+    "maxMs": 0,
+    "totalMs": 0
+   },
+   "parse_one_sheet_ms": 6093,
+   "longtasks_parse": {
+    "count": 35,
+    "maxMs": 561,
+    "totalMs": 4483
+   },
+   "heapMB": 336
+  }
+ }
+}

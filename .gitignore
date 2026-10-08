@@ -22,3 +22,8 @@ backend/logo*.*
 backend/slide_builder_settings*.txt
 /slidemaster/
 *.update-tmp
+
+# spikes: generated outputs
+spikes/**/out-*.pdf
+spikes/**/node_modules/
+spikes/parser/package-lock.json
