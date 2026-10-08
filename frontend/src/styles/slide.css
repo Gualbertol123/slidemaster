@@ -167,8 +167,7 @@
 .gls.tinted{--sheen:.5}
 .xt.gx .rule.accent{position:absolute;border-radius:1px;background:linear-gradient(90deg,var(--a1,#3B82F6),var(--a2,#8B5CF6) 70%,rgba(var(--a2rgb,139,92,246),.15))}
 
-/* ---- v3.1: corner roundness (--rk), contrast (--wfade/--gfade/--wallf), text boxes, plain logo ---- */
-.slide.glass .wall{filter:var(--wallf,none)}
+/* ---- v3.1: corner roundness (--rk), contrast (--wfade/--gfade; the wallpaper is deepened in render/wallpaper.ts), text boxes, plain logo ---- */
 .slide.glass .wall::after{content:"";position:absolute;inset:0;background:rgba(255,255,255,var(--wfade,0))}
 .gls.wb{background-image:linear-gradient(rgba(255,255,255,var(--gfade,0)),rgba(255,255,255,var(--gfade,0))),var(--tint,linear-gradient(rgba(255,255,255,.5),rgba(255,255,255,.5))),var(--wallblur)}
 .slide.glass .pic.gpic{border-radius:calc(10px*var(--rk,1))}
@@ -197,13 +196,7 @@
 
 /* ---------------- Excel Refined design (v3.6): the Excel slide, one font, palette colours ---------------- */
 .slide.excel{background:var(--slidebg,#fff)}
-.slide.clean{font-family:'Segoe UI Variable Display','Segoe UI',Calibri,Arial,sans-serif;color:#1F2430}
-.slide.clean::before{content:"";position:absolute;left:56px;top:0;width:88px;height:6px;border-radius:0 0 3px 3px;background:var(--x1,#1C4F8C)}
-.slide.clean.cover::before{display:none}
-.slide.clean .title{font-weight:700;letter-spacing:-.6px;top:22px}
-.slide.clean .subtitle{color:#6B7385}
 .slide.clean .tnote{font-family:'Segoe UI Variable Text','Segoe UI',Calibri,Arial,sans-serif}
-.slide.clean .pageno.plain{font-weight:600}
 .xt.cx .t{letter-spacing:-.05px}
 .slide.clean .notebub.x{border-color:#E1E5EC;box-shadow:0 1px 3px rgba(20,30,60,.06),0 8px 24px -12px rgba(20,30,60,.18)}
 

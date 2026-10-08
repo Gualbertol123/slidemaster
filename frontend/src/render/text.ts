@@ -40,7 +40,7 @@ export function fmtCss(f: TextFmt, opts: { size?: boolean; align?: boolean } = {
 /* titles: a larger title or subtitle pushes the subtitle and the tables down */
 const BASE = { glass: { title: 48, sub: 19, subTop: 82 }, excel: { title: 44, sub: 18, subTop: 76 } };
 export function titleGeom(R: RuntimeSlide, ctx: RenderCtx) {
-  const b = BASE[ctx.style.design === "excel" ? "excel" : "glass"];
+  const b = BASE[ctx.style.design === "glass" ? "glass" : "excel"];
   const t = slideTextFmt(ctx, R, "title").size || b.title, s = slideTextFmt(ctx, R, "subtitle").size || b.sub;
   const dt = Math.max(0, (t - b.title) * 1.2), ds = R.subtitle ? Math.max(0, (s - b.sub) * 1.3) : 0;
   return { subTop: b.subTop + dt, push: dt + ds };

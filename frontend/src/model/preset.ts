@@ -3,7 +3,7 @@ import { buildLayout } from "../xlsx/layout";
 import { A1, parseRange, uid } from "../xlsx/util";
 import type { Range } from "../xlsx/util";
 import type { Sheet, TableLayout, Workbook } from "../xlsx/types";
-import type { Preset, RuntimeSlide, SlideDef, TableDef } from "./types";
+import type { Design, Preset, RuntimeSlide, SlideDef, TableDef, TableSizes } from "./types";
 
 export const SLIDE_RX = /slide/i;
 export const visibleSheets = (wb: Workbook) => wb.sheets.filter(S => !S.hidden);
@@ -35,22 +35,28 @@ export function growG(S: Sheet, g: Range): Range {
 
 /** per-workbook cache of range layouts (cleared when a workbook is opened) */
 export const LCACHE = new Map<string, { wb: Workbook; L: TableLayout }>();
-const hasExtras = (def: TableDef) => !!(def.cols || def.rows || def.scales || def.merges);
-export function resolveTable(wb: Workbook, def: TableDef): TableLayout | null {
+/** column widths and row heights of a table in one design: its own, else the shared ones (older decks) */
+export function tableSizes(def: TableDef, design?: Design): TableSizes {
+  const own = design ? def.sizes?.[design] : undefined;
+  return own || { ...(def.cols ? { cols: def.cols } : {}), ...(def.rows ? { rows: def.rows } : {}) };
+}
+const hasExtras = (def: TableDef, z: TableSizes) => !!(z.cols || z.rows || def.scales || def.merges);
+export function resolveTable(wb: Workbook, def: TableDef, design?: Design): TableLayout | null {
+  const z = tableSizes(def, design);
   const S = wb.sheets.find(s => s.name === def.sheet); if (!S) return null;
   let L: TableLayout | null = null, g: Range | null = null;
   if (def.kind === "markers") {
     const T = S.tables.find(T => A1(T.g.r1, T.g.c1) === def.anchor) || S.tables[def.index] || null;
-    if (T && !hasExtras(def)) L = T;                       // shared layout of the "x" region
+    if (T && !hasExtras(def, z)) L = T;                       // shared layout of the "x" region
     else if (T) g = T.g;
   } else if (validRange(def.range)) {
     g = rangeToG(def.range); if (def.grow) g = growG(S, g);
   }
   if (!L && g) {
     // own layout per table definition when it has sizes or colour scales (they must not leak to other tables)
-    const key = S.name + "|" + JSON.stringify(g) + (hasExtras(def) ? "|" + def.id + "|" + JSON.stringify([def.cols, def.rows, def.merges]) : "");
+    const key = S.name + "|" + JSON.stringify(g) + (hasExtras(def, z) ? "|" + def.id + "|" + JSON.stringify([z.cols, z.rows, def.merges]) : "");
     const hit = LCACHE.get(key);
-    if (!hit || hit.wb !== wb) { const b = buildLayout(S, g, { cols: def.cols, rows: def.rows, merges: def.merges }); if (b) LCACHE.set(key, { wb, L: b }); else LCACHE.delete(key); }
+    if (!hit || hit.wb !== wb) { const b = buildLayout(S, g, { cols: z.cols, rows: z.rows, merges: def.merges }); if (b) LCACHE.set(key, { wb, L: b }); else LCACHE.delete(key); }
     L = LCACHE.get(key)?.L || null;
   }
   if (!L) return null;
@@ -80,10 +86,11 @@ export function defaultPreset(wb: Workbook): Preset {
 }
 
 /** runtime slides: preset slides with their tables resolved against the workbook */
-export function runtimeSlides(wb: Workbook, preset: Preset | null, workbookName: string): RuntimeSlide[] {
+/** the slides of a preset with their tables, sized for `design` (column widths and row heights are per design) */
+export function runtimeSlides(wb: Workbook, preset: Preset | null, workbookName: string, design?: Design): RuntimeSlide[] {
   if (!preset) return [];
   const T: Record<string, TableLayout> = {};
-  for (const def of preset.tables || []) { const L = resolveTable(wb, def); if (L) T[def.id] = L; }
+  for (const def of preset.tables || []) { const L = resolveTable(wb, def, design); if (L) T[def.id] = L; }
   return (preset.slides || []).map(ps => {
     const tables = (ps.tables || []).map(id => T[id]).filter(Boolean);
     const S0 = tables[0] && tables[0].sheet;

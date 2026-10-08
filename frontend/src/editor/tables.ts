@@ -6,7 +6,8 @@ import { change, ctx } from "../state/app";
 import { buildLayout } from "../xlsx/layout";
 import type { TableLayout } from "../xlsx/types";
 import type { Layout, Op, RuntimeSlide, TableDef } from "../model/types";
-import { computeLayout, layoutOf, tableW } from "../render/slide";
+import { computeLayout, layoutOf, sizingChange, sizingOf, tableW } from "../render/slide";
+import { tableSizes } from "../model/preset";
 import type { RenderCtx } from "../render/context";
 import { glassGeom } from "../render/glass";
 import { curSlide, selItems, selTable } from "./edit";
@@ -24,19 +25,34 @@ export function selCols(): number[] { const T = selTable(), s = S.sel; return T 
 export function selRows(): number[] { const T = selTable(), s = S.sel; return T && s ? T.rows.filter(r => r >= s.r1 && r <= s.r2) : []; }
 
 const tablePatch = (def: TableDef, patch: Record<string, unknown>): Op => ({ op: "table.patch", id: def.id, patch } as Op);
+type SizeMap = Record<string, number | null>;
+/** column widths / row heights are kept per design: the change goes into the current design's own sizes
+    (made from the shared ones of older decks the first time); null entries go back to Excel's size */
+function sizePatch(def: TableDef, ch: { cols?: SizeMap | null; rows?: SizeMap | null }): Op {
+  const cur = tableSizes(def, ctx().style.design);
+  const merge = (base: Record<string, number> | undefined, m: SizeMap | null | undefined) => {
+    if (m === undefined) return base;
+    if (m === null) return undefined;
+    const o: Record<string, number> = { ...(base || {}) };
+    for (const [k, v] of Object.entries(m)) { if (v === null) delete o[k]; else o[k] = v; }
+    return Object.keys(o).length ? o : undefined;
+  };
+  const cols = merge(cur.cols, ch.cols), rows = merge(cur.rows, ch.rows);
+  return tablePatch(def, { sizes: { [ctx().style.design]: { ...(cols ? { cols } : {}), ...(rows ? { rows } : {}) } } });
+}
 
 /** px = null → back to the Excel width */
 export function setColWidth(L: TableLayout, cols: number[], px: number | null, label = "Column width") {
   if (!L.def || !cols.length) return;
   const m: Record<string, number | null> = {};
   for (const c of cols) m[c] = px === null ? null : r1(Math.max(4, px));
-  change(label, [tablePatch(L.def, { cols: m })]);
+  change(label, [sizePatch(L.def, { cols: m })]);
 }
 export function setRowHeight(L: TableLayout, rows: number[], px: number | null, label = "Row height") {
   if (!L.def || !rows.length) return;
   const m: Record<string, number | null> = {};
   for (const r of rows) m[r] = px === null ? null : r1(Math.max(4, px));
-  change(label, [tablePatch(L.def, { rows: m })]);
+  change(label, [sizePatch(L.def, { rows: m })]);
 }
 
 /** stretch a table: every column (axis "x") or row ("y") times f – dragging a table border */
@@ -45,7 +61,7 @@ export function stretchTable(L: TableLayout, axis: "x" | "y", f: number) {
   const m: Record<string, number> = {};
   if (axis === "x") for (const c of L.cols) m[c] = r1(Math.max(4, shownColW(L, c) * f));
   else for (const r of L.rows) m[r] = r1(Math.max(4, shownRowH(L, r) * f));
-  change(axis === "x" ? "Table width" : "Table height", [tablePatch(L.def, axis === "x" ? { cols: m } : { rows: m })]);
+  change(axis === "x" ? "Table width" : "Table height", [sizePatch(L.def, axis === "x" ? { cols: m } : { rows: m })]);
 }
 
 /** every table of the deck with where it is shown */
@@ -62,24 +78,21 @@ export function copySizes(from: TableLayout, to: TableRef[], what: { cols: boole
   const ops: Op[] = [];
   for (const L of uniqueDefs(to).values()) {
     if (L.def!.id === from.def?.id) continue;
-    const patch: Record<string, unknown> = {};
+    const patch: { cols?: SizeMap; rows?: SizeMap } = {};
     if (what.cols) { const m: Record<string, number> = {}; L.cols.forEach((c, k) => { const src = from.cols[k]; if (src !== undefined) m[c] = r1(shownColW(from, src)); }); patch.cols = m; }
     if (what.rows) { const m: Record<string, number> = {}; L.rows.forEach((r, k) => { const src = from.rows[k]; if (src !== undefined) m[r] = r1(shownRowH(from, src)); }); patch.rows = m; }
-    ops.push(tablePatch(L.def!, patch));
+    ops.push(sizePatch(L.def!, patch));
   }
   if (ops.length) change("Copy table sizes", ops);
 }
 
 export function resetSizes(refs: TableRef[]) {
-  const ops = [...uniqueDefs(refs).values()].filter(L => L.def!.cols || L.def!.rows).map(L => tablePatch(L.def!, { cols: null, rows: null }));
-  const slides = new Set(refs.map(r => r.slide));
-  // the fixed scale goes in every design (each keeps its own arrangement)
-  for (const s of slides) {
-    const R = S.slides[s], sizes = R.cfg.sizes || {};
-    if (!R.cfg.scale && !Object.values(sizes).some(e => e?.scale)) continue;
-    const next: Record<string, unknown> = {};
-    for (const [d, e] of Object.entries(sizes)) if (e?.scale) next[d] = e.layout ? { layout: e.layout } : null;
-    ops.push({ op: "slide.patch", id: R.id, patch: { scale: null, ...(Object.keys(next).length ? { sizes: next } : {}) } } as Op);
+  const c = ctx(), d = c.style.design;
+  const ops: Op[] = [...uniqueDefs(refs).values()].filter(L => { const z = tableSizes(L.def!, d); return z.cols || z.rows; }).map(L => sizePatch(L.def!, { cols: null, rows: null }));
+  // the fixed scale of the slides goes too (in this design; their arrangement stays)
+  for (const s of new Set(refs.map(r => r.slide))) {
+    const R = S.slides[s];
+    if (sizingOf(R, c).scale) ops.push({ op: "slide.patch", id: R.id, patch: sizingChange(R, c, { scale: null }) } as Op);
   }
   if (ops.length) change("Reset table sizes", ops);
 }
@@ -96,44 +109,37 @@ export function makeSameSize(refs: TableRef[], opts: { width: boolean; height: b
   const Wt = pick(Ws), Ht = pick(Hs);
   const ops: Op[] = [], newL = new Map<string, TableLayout>();
   list.forEach((L, k) => {
-    const patch: Record<string, unknown> = {}, sizes: { cols?: Record<string, number>; rows?: Record<string, number> } = { cols: { ...(L.def!.cols || {}) }, rows: { ...(L.def!.rows || {}) } };
+    const z = tableSizes(L.def!, x.style.design);
+    const patch: { cols?: SizeMap; rows?: SizeMap } = {}, sizes: { cols?: Record<string, number>; rows?: Record<string, number> } = { cols: { ...(z.cols || {}) }, rows: { ...(z.rows || {}) } };
     if (opts.width) { const f = Wt / Ws[k], m: Record<string, number> = {}; for (const c of L.cols) m[c] = r1(shownColW(L, c) * f); patch.cols = m; sizes.cols = m; }
     if (opts.height) { const f = Ht / Hs[k], m: Record<string, number> = {}; for (const r of L.rows) m[r] = r1(shownRowH(L, r) * f); patch.rows = m; sizes.rows = m; }
-    ops.push(tablePatch(L.def!, patch));
+    ops.push(sizePatch(L.def!, patch));
     const nl = buildLayout(L.sheet, L.g, sizes);
     if (nl) { nl.def = { ...L.def!, ...sizes } as TableDef; nl.id = L.id; nl.items.forEach(it => { it.L = nl; }); newL.set(L.def!.id, nl); }
   });
   // same weight on every slide, and one common scale across slides
-  // – worked out for each design on its own (the designs draw tables at different sizes, and raw Excel
-  // has no text boxes taking room)
-  const slides = [...new Set(refs.map(r => r.slide))], sizes = new Map<string, Record<string, unknown>>();
-  for (const d of ["glass", "excel", "clean"] as const) {
-    const xd: RenderCtx = { ...x, style: { ...x.style, design: d } };
-    const tmp = slides.map(si => {
-      const R = S.slides[si], base = layoutOf(R, xd);
-      const w = base.w.map((v, i) => (R.tables[i].def && defs.has(R.tables[i].def!.id)) ? 1 : v);
-      const lay: Layout = { bands: JSON.parse(JSON.stringify(base.bands)), w };
-      const tR: RuntimeSlide = { ...R, cfg: { ...R.cfg, scale: undefined, layout: lay, sizes: undefined }, tables: R.tables.map(L => (L.def && newL.get(L.def.id)) || L), _auto: undefined };
-      return { R, lay, fit: computeLayout(tR, xd).fit };
-    });
-    const common = Math.min(...tmp.map(t => t.fit));
-    for (const t of tmp) {
-      const m = sizes.get(t.R.id) || {}; sizes.set(t.R.id, m);
-      m[d] = { layout: t.lay, ...(slides.length > 1 ? { scale: Math.round(common * 10000) / 10000 } : {}) };
-    }
-  }
-  for (const [id, m] of sizes) ops.push({ op: "slide.patch", id, patch: { layout: null, scale: null, sizes: m } } as Op);
+  // – all in the current design (sizes and positions are per design)
+  const slides = [...new Set(refs.map(r => r.slide))];
+  const tmp = slides.map(si => {
+    const R = S.slides[si], base = layoutOf(R, x);
+    const w = base.w.map((v, i) => (R.tables[i].def && defs.has(R.tables[i].def!.id)) ? 1 : v);
+    const lay: Layout = { bands: JSON.parse(JSON.stringify(base.bands)), w };
+    const tR: RuntimeSlide = { ...R, cfg: { ...R.cfg, scale: undefined, layout: lay, sizes: { ...R.cfg.sizes, [x.style.design]: { layout: lay } } }, tables: R.tables.map(L => (L.def && newL.get(L.def.id)) || L), _auto: undefined };
+    return { R, lay, fit: computeLayout(tR, x).fit };
+  });
+  const common = Math.min(...tmp.map(t => t.fit));
+  for (const t of tmp) ops.push({ op: "slide.patch", id: t.R.id, patch: sizingChange(t.R, x, { layout: t.lay, scale: slides.length > 1 ? Math.round(common * 10000) / 10000 : null }) } as Op);
   change("Make tables the same size", ops);
   return { ok: true, why: "" };
 }
 
 export function alignTables(align: "left" | "center" | "right", slideIdx: number[] = [S.cur]) {
-  const ops = slideIdx.map(i => S.slides[i]).filter(R => R && R.tables.length).map(R => ({ op: "slide.patch", id: R.id, patch: { align: align === "center" ? null : align } } as Op));
+  const c = ctx(), ops = slideIdx.map(i => S.slides[i]).filter(R => R && R.tables.length).map(R => ({ op: "slide.patch", id: R.id, patch: sizingChange(R, c, { align: align === "center" ? null : align }) } as Op));
   if (ops.length) change("Align tables " + align, ops);
 }
 /** vertical position of the tables in the content area; null = the default (slightly above the middle) */
 export function valignTables(v: "top" | "middle" | "bottom" | null, slideIdx: number[] = [S.cur]) {
-  const ops = slideIdx.map(i => S.slides[i]).filter(R => R && R.tables.length).map(R => ({ op: "slide.patch", id: R.id, patch: { valign: v } } as Op));
+  const c = ctx(), ops = slideIdx.map(i => S.slides[i]).filter(R => R && R.tables.length).map(R => ({ op: "slide.patch", id: R.id, patch: sizingChange(R, c, { valign: v }) } as Op));
   if (ops.length) change(v ? "Align tables " + v : "Default vertical position", ops);
 }
 export const currentTableRefs = (): TableRef[] => (curSlide()?.tables || []).map((L, i) => ({ slide: S.cur, i, L })).filter(r => r.L.def);

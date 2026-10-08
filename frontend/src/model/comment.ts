@@ -32,6 +32,8 @@ export interface CommentCfg {
   tables?: string[];
   /** false = no title line / no bold name at the start of each paragraph / no bullet points */
   showTitle?: boolean; names?: boolean; bullets?: boolean;
+  /** written after every amount, e.g. "+476 mln" (default "mln"; "" = none). Percentages keep their "%". */
+  unit?: string;
 }
 export const DEFAULT_COMMENT: CommentCfg = { groups: [], top: 2, noun: "country", detail: "full", share: true, breadth: true, missing: true, mode: "summary" };
 export const SUMMARY_KINDS: Group["kind"][] = ["week", "target", "month"];
@@ -302,8 +304,16 @@ export function writeSummary(parts: SummaryPart[], cfg: CommentCfg, title: strin
 }
 
 /** the comment's layout options, for both kinds of comment: title line and bullet points */
+export const DEFAULT_UNIT = "mln";
+/** an amount with the unit after it; percentages, points and amounts that already carry a unit stay as they are */
+export function withUnit(x: string, unit: string): string {
+  const u = unit.trim();
+  if (!u || /[%‰]\s*$|\b(pp|bp|bps|p\.p\.)\s*$/i.test(x) || /\d\s*[^\d\s.,)]+\s*$/.test(x)) return x;
+  return x + " " + u;
+}
 export function shapeComment(text: string, cfg: CommentCfg): string {
-  let lines = text.split("\n");
+  const unit = cfg.unit ?? DEFAULT_UNIT;
+  let lines = text.replace(/\[\[([^\]]+)\]\]/g, (_m, x: string) => `[[${withUnit(x, unit)}]]`).split("\n");
   if (cfg.showTitle === false) { lines = lines.filter(l => !l.startsWith("# ")); while (lines[0] === "") lines.shift(); }
   if (cfg.bullets === false) lines = lines.map(l => l.replace(/^• /, ""));
   return lines.join("\n");

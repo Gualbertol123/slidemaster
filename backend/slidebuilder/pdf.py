@@ -145,7 +145,7 @@ def pdf_page_boxes(data):
     return [b or inherited for b in pages] if pages else None
 
 def _xref(data):
-    """object offsets from a PDF's single classic xref table: (xref_pos, [(entry_pos, offset)]), or None
+    """object offsets from a PDF's single classic xref table: (xref_pos, [(entry_pos, offset, number)]), or None
     (xref streams, incremental updates – then the PDF is left as it is)"""
     m = list(re.finditer(rb"startxref\s+(\d+)", data))
     if len(m) != 1 or data.count(b"\nxref") + data.startswith(b"xref") != 1:
@@ -158,27 +158,81 @@ def _xref(data):
         h = re.compile(rb"\s*(\d+) (\d+)[ \t]*\r?\n").match(data, i)
         if not h:
             break
-        i = h.end()
-        for _ in range(int(h.group(2))):
+        i, first = h.end(), int(h.group(1))
+        for k in range(int(h.group(2))):
             e = data[i:i + 20]
             if not re.match(rb"\d{10} \d{5} [nf]", e):
                 return None
             if e[17:18] == b"n":
-                entries.append((i, int(e[:10])))
+                entries.append((i, int(e[:10]), first + k))
             i += 20
     return (pos, entries) if entries else None
 
+# Each page box of an export is painted in this colour (#FFFFFE, invisible under the slide): finding where it
+# was drawn in a page's content tells exactly where the browser put the slide on the page.
+MARKER_RGB = (1.0, 1.0, 254 / 255)
+_TOK = re.compile(rb"/[^\s/\[\]()<>{}]*|\((?:\\.|[^\\)])*\)|<<|>>|<[0-9A-Fa-f\s]*>|\[|\]|[-+]?(?:\d+\.?\d*|\.\d+)|[A-Za-z'\"*]+")
+
+def _stream(data, off):
+    end = data.find(b"endobj", off)
+    m = re.compile(rb"stream\r?\n").search(data, off, end)
+    if not m:
+        return None
+    raw = data[m.end():data.rfind(b"endstream", m.end(), end)]
+    if b"/FlateDecode" in data[off:m.start()]:
+        try:
+            raw = zlib.decompressobj().decompress(raw)
+        except zlib.error:
+            return None
+    return raw
+
+def drawn_marker(content, limit=400000):
+    """bounding box (x0, y0, x1, y1, in pt) of the first rectangle filled with MARKER_RGB, or None"""
+    ctm, stack, ops, fill, rect = [1, 0, 0, 1, 0, 0], [], [], None, None
+    for t in _TOK.findall(content[:limit]):
+        c = t[:1]
+        if c.isdigit() or c in b"-+.":
+            ops.append(float(t)); continue
+        if c in b"/([<]" or t in (b">>", b"<<"):
+            ops = []; continue
+        if t == b"q":
+            stack.append(ctm)
+        elif t == b"Q":
+            ctm = stack.pop() if stack else ctm
+        elif t == b"cm" and len(ops) >= 6:
+            a1, b1, c1, d1, e1, f1 = ops[-6:]; a2, b2, c2, d2, e2, f2 = ctm
+            ctm = [a1 * a2 + b1 * c2, a1 * b2 + b1 * d2, c1 * a2 + d1 * c2, c1 * b2 + d1 * d2, e1 * a2 + f1 * c2 + e2, e1 * b2 + f1 * d2 + f2]
+        elif t == b"rg" and len(ops) >= 3:
+            fill = tuple(ops[-3:])
+        elif t == b"re" and len(ops) >= 4:
+            x, y, w, h = ops[-4:]
+            pts = [(x, y), (x + w, y), (x, y + h), (x + w, y + h)]
+            a, b_, c_, d, e, f = ctm
+            xs = [a * px + c_ * py + e for px, py in pts]; ys = [b_ * px + d * py + f for px, py in pts]
+            rect = (min(xs), min(ys), max(xs), max(ys))
+        elif t in (b"f", b"F", b"f*", b"B", b"B*"):
+            if rect and fill and all(abs(u - v) < 0.0015 for u, v in zip(fill, MARKER_RGB)):
+                return rect
+            rect = None
+        elif t == b"n":
+            rect = None
+        ops = []
+    return None
+
 def pdf_fit_pages(data, aspect, slack=2.5):
-    """Make every page exactly `aspect` (width/height) by trimming a box that the browser rounded up by a
-    fraction of a point (Chrome rounds page sizes to 1/300 in: a 900 px slide became a 675.12 pt page with a
-    hairline of white below it). The slide is drawn from the top-left corner, so the top-left is kept.
-    Returns (data, trimmed pages), or raises ValueError when a page is off by more than `slack` pt."""
+    """Make every page exactly the slide. Where the page's marker box was drawn (MARKER_RGB) is the slide:
+    the page is cut to it, whatever the browser did – rounded the paper up (Chrome rounds to 1/300 in: a
+    900 px slide became a 675.12 pt page with a white hairline) or drew the slide smaller (Windows display
+    scaling: a slide on two thirds of the page). Without a marker, a box a fraction of a point off the
+    slide's shape is trimmed (keeping the top-left, where the slide is drawn).
+    Returns (data, pages changed), or raises ValueError when a page cannot be made to fit."""
     xr = _xref(data)
     if not xr:
         return data, 0
     xref_pos, entries = xr
+    where = {num: off for _, off, num in entries}
     edits = []                                              # (start, end, new bytes)
-    for _, off in entries:
+    for _, off, _num in entries:
         end = data.find(b"endobj", off)
         st = data.find(b"stream", off, end if end > 0 else None)
         head = data[off:st if st > 0 else end]
@@ -189,13 +243,29 @@ def pdf_fit_pages(data, aspect, slack=2.5):
             continue
         x0, y0, x1, y1 = (float(v) for v in m.groups())
         w, h = x1 - x0, y1 - y0
-        if abs(w / h - aspect) < 1e-4:
-            continue
-        nw, nh = (h * aspect, h) if w / h > aspect else (w, w / aspect)
-        if w - nw > slack or h - nh > slack:
-            raise ValueError("page is %.2f x %.2f pt, %.2f x %.2f expected" % (w, h, nw, nh))
-        box = b"/MediaBox [%s %s %s %s]" % tuple(("%.4f" % v).rstrip("0").rstrip(".").encode() for v in (x0, y1 - nh, x0 + nw, y1))
-        edits.append((off + m.start(), off + m.end(), box))
+        mk, c = None, re.search(rb"/Contents\s*(?:\[\s*)?(\d+)\s+0\s+R", head)
+        if c and int(c.group(1)) in where:
+            content = _stream(data, where[int(c.group(1))])
+            mk = drawn_marker(content) if content else None
+        if mk:
+            mx0, my0 = max(x0, mk[0]), max(y0, mk[1])
+            mx1, my1 = min(x1, mk[2]), min(y1, mk[3])
+            mw, mh = mx1 - mx0, my1 - my0
+            if mw < 1 or mh < 1 or abs(mw / mh - aspect) > 0.01:
+                raise ValueError("the slide was drawn %.1f x %.1f pt on a %.1f x %.1f pt page" % (mk[2] - mk[0], mk[3] - mk[1], w, h))
+            if max(abs(mx0 - x0), abs(my0 - y0), abs(mx1 - x1), abs(my1 - y1)) < 0.005:
+                continue
+            nx0, ny0, nx1, ny1 = mx0, my0, mx1, my1
+        else:
+            if abs(w / h - aspect) < 1e-4:
+                continue
+            nw, nh = (h * aspect, h) if w / h > aspect else (w, w / aspect)
+            if w - nw > slack or h - nh > slack:
+                raise ValueError("page is %.2f x %.2f pt, %.2f x %.2f expected" % (w, h, nw, nh))
+            nx0, ny0, nx1, ny1 = x0, y1 - nh, x0 + nw, y1
+        box = b"/MediaBox [%s %s %s %s]" % tuple(("%.2f" % v).rstrip("0").rstrip(".").encode() for v in (nx0, ny0, nx1, ny1))
+        if box != m.group(0):
+            edits.append((off + m.start(), off + m.end(), box))
     if not edits:
         return data, 0
     out, last, shifts = bytearray(), 0, []
@@ -205,7 +275,7 @@ def pdf_fit_pages(data, aspect, slack=2.5):
         last = b
     out += data[last:]
     moved = lambda pos: pos + sum(d for at, d in shifts if at < pos)
-    for entry_pos, off in entries:                          # same-length rewrite of each xref entry
+    for entry_pos, off, _num in entries:                    # same-length rewrite of each xref entry
         p = moved(entry_pos)
         out[p:p + 10] = b"%010d" % moved(off)
     m = list(re.finditer(rb"startxref\s+(\d+)", bytes(out)))[-1]

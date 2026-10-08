@@ -81,7 +81,7 @@ export function TableRibbon() {
     change("Add text box", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: { text: "" } } } } as Op]);
     setTimeout(() => document.querySelector<HTMLElement>(`#stage .tnote[data-note="${CSS.escape(key)}"]`)?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })), 120);
   };
-  const align = R?.cfg.align || "center";
+  const sz = R ? sizingOf(R, ctx()) : null, align = sz?.align || "center";
   // raw Excel shows the workbook only: no text boxes, no comments
   const raw = style().design === "excel", rawTip = "Excel shows the workbook as it is – text boxes and comments are in Excel Refined and Liquid Glass";
   return (
@@ -109,8 +109,8 @@ export function TableRibbon() {
         {(["left", "center", "right"] as const).map(a => <button key={a} class={"tb" + (align === a ? " on" : "")} data-talign={a} disabled={!R || !R.tables.length} title={`Align the tables ${a === "center" ? "in the centre" : "to the " + a}`} onClick={() => alignTables(a)}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">{a === "left" ? <><path d="M2 1.5v13" /><rect x="4" y="3.5" width="9" height="3" /><rect x="4" y="9.5" width="6" height="3" /></> : a === "center" ? <><path d="M8 1.5v13" /><rect x="3" y="3.5" width="10" height="3" /><rect x="4.5" y="9.5" width="7" height="3" /></> : <><path d="M14 1.5v13" /><rect x="3" y="3.5" width="9" height="3" /><rect x="6" y="9.5" width="6" height="3" /></>}</svg></button>)}
           </div><div class="hd">Up and down</div><div class="row">
-        {(["top", "middle", "bottom"] as const).map(v => <button key={v} class={"tb" + (R?.cfg.valign === v ? " on" : "")} data-tvalign={v} disabled={!R || !R.tables.length}
-          title={R?.cfg.valign === v ? "Back to the default position (click again)" : `Move the tables to the ${v === "middle" ? "middle" : v} of the slide`} onClick={() => valignTables(R?.cfg.valign === v ? null : v)}>
+        {(["top", "middle", "bottom"] as const).map(v => <button key={v} class={"tb" + (sz?.valign === v ? " on" : "")} data-tvalign={v} disabled={!R || !R.tables.length}
+          title={sz?.valign === v ? "Back to the default position (click again)" : `Move the tables to the ${v === "middle" ? "middle" : v} of the slide`} onClick={() => valignTables(sz?.valign === v ? null : v)}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">{v === "top" ? <><path d="M1.5 2h13" /><rect x="3.5" y="4" width="3" height="9" /><rect x="9.5" y="4" width="3" height="6" /></> : v === "middle" ? <><path d="M1.5 8h13" /><rect x="3.5" y="3" width="3" height="10" /><rect x="9.5" y="4.5" width="3" height="7" /></> : <><path d="M1.5 14h13" /><rect x="3.5" y="3" width="3" height="9" /><rect x="9.5" y="6" width="3" height="6" /></>}</svg></button>)}
           </div></div>}
         </Dropdown>

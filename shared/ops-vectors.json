@@ -1721,5 +1721,96 @@
       "applied": 2,
       "skipped": []
     }
+  },
+  {
+    "name": "table.patch sizes is a map merge: each design keeps its own column widths and row heights",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S1"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S1",
+            "kind": "range",
+            "range": "A1:C3",
+            "cols": {
+              "2": 40
+            },
+            "sizes": {
+              "glass": {
+                "cols": {
+                  "2": 60
+                }
+              }
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "sizes": {
+            "excel": {
+              "cols": {
+                "2": 80
+              },
+              "rows": {
+                "3": 20
+              }
+            }
+          }
+        }
+      },
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "sizes": {
+            "glass": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S1"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S1",
+            "kind": "range",
+            "range": "A1:C3",
+            "cols": {
+              "2": 40
+            },
+            "sizes": {
+              "excel": {
+                "cols": {
+                  "2": 80
+                },
+                "rows": {
+                  "3": 20
+                }
+              }
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
   }
 ]

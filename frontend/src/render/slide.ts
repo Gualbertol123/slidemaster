@@ -1,13 +1,12 @@
 /* Slide composition: tables arranged in bands, title, cover/index, page number, logo. */
 import { esc } from "../xlsx/util";
 import type { TableLayout } from "../xlsx/types";
-import type { Layout, Note, RuntimeSlide, Side } from "../model/types";
+import type { Layout, Note, RuntimeSlide, Side, SlideSizing } from "../model/types";
 import { glassLevel, themeOf } from "../model/style";
 import { darken, hexRgb } from "../xlsx/color";
 import { tableName } from "../model/preset";
 import { tableKey, type RenderCtx } from "./context";
 import { renderExcel } from "./excel";
-import { renderClean } from "./clean";
 import { palette } from "../model/style";
 import { glassGeom, renderGlass } from "./glass";
 import { coverHtml, indexHtml } from "./cover";
@@ -46,24 +45,28 @@ export function validLayout(L: Layout | null | undefined, n: number): L is Layou
    must not shrink the tables of another. Older decks have one shared sizing (cfg.layout/cfg.scale): it
    is used by every design without its own; raw Excel corrects the shared scale for the room the text
    boxes took in the design it was made in. */
-export function sizingOf(R: RuntimeSlide, ctx: RenderCtx): { layout?: Layout | null; scale?: number | null; own: boolean } {
+export type Sizing = { layout?: Layout | null; scale?: number | null; align?: SlideSizing["align"] | null; valign?: SlideSizing["valign"] | null };
+export function sizingOf(R: RuntimeSlide, ctx: RenderCtx): Sizing & { own: boolean } {
   const own = R.cfg?.sizes?.[ctx.style.design];
-  if (own) return { layout: own.layout, scale: own.scale, own: true };
-  return { layout: R.cfg?.layout, scale: R.cfg?.scale, own: false };
+  if (own) return { layout: own.layout, scale: own.scale, align: own.align, valign: own.valign, own: true };
+  return { layout: R.cfg?.layout, scale: R.cfg?.scale, align: R.cfg?.align, valign: R.cfg?.valign, own: false };
 }
 /** a slide.patch that gives the current design its own sizing; designs still on the shared sizing
     keep what they show now (it is copied into their own entries) */
-export function sizingPatch(R: RuntimeSlide, ctx: RenderCtx, entry: { layout?: Layout | null; scale?: number | null }) {
+export function sizingPatch(R: RuntimeSlide, ctx: RenderCtx, entry: Sizing) {
   const sizes: Record<string, unknown> = {}, d = ctx.style.design;
-  if (R.cfg.layout || R.cfg.scale) for (const o of DESIGNS) if (o !== d && !R.cfg.sizes?.[o]) {
+  if (R.cfg.layout || R.cfg.scale || R.cfg.align || R.cfg.valign) for (const o of DESIGNS) if (o !== d && !R.cfg.sizes?.[o]) {
     const oc = { ...ctx, style: { ...ctx.style, design: o } }, sc = fixedScale(R, oc);
-    sizes[o] = clean({ layout: R.cfg.layout, scale: sc ? Math.round(sc * 10000) / 10000 : null });
+    sizes[o] = clean({ layout: R.cfg.layout, scale: sc ? Math.round(sc * 10000) / 10000 : null, align: R.cfg.align, valign: R.cfg.valign });
   }
-  sizes[d] = Object.keys(clean(entry)).length ? clean(entry) : null;
-  return { layout: null, scale: null, sizes };
+  // an entry that sets nothing still marks the design as having its own (automatic) sizing
+  sizes[d] = clean(entry);
+  return { layout: null, scale: null, align: null, valign: null, sizes };
 }
+/** a sizing patch that changes only some fields of the current design's sizing */
+export const sizingChange = (R: RuntimeSlide, ctx: RenderCtx, ch: Sizing) => { const { own: _o, ...cur } = sizingOf(R, ctx); return sizingPatch(R, ctx, { ...cur, ...ch }); };
 const DESIGNS = ["glass", "excel", "clean"] as const;
-const clean = (e: { layout?: Layout | null; scale?: number | null }) => ({ ...(e.layout ? { layout: e.layout } : {}), ...(e.scale ? { scale: e.scale } : {}) });
+const clean = (e: Sizing): SlideSizing => ({ ...(e.layout ? { layout: e.layout } : {}), ...(e.scale ? { scale: e.scale } : {}), ...(e.align && e.align !== "center" ? { align: e.align } : {}), ...(e.valign ? { valign: e.valign } : {}) });
 /** the fixed scale of the slide in this design ("Make same size"), 0 = none */
 function fixedScale(R: RuntimeSlide, ctx: RenderCtx): number {
   const sz = sizingOf(R, ctx), s = sz.scale && sz.scale > 0 ? sz.scale : 0;
@@ -138,9 +141,9 @@ export function computeLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay
   const boxes: TBox[] = []; let y = 0;
   const dims = bands.map(b => ({ w: b.reduce((s, i) => s + unitW(i, k), 0) + GX * (b.length - 1), h: Math.max(...b.map(i => unitH(i, k))) }));
   const Htot = dims.reduce((s, d) => s + d.h, 0) + GY * (bands.length - 1);
-  const free = Math.max(0, A.h - Htot), va = R.cfg.valign;
+  const sz = sizingOf(R, ctx), free = Math.max(0, A.h - Htot), va = sz.valign;
   const top = A.y + (va === "top" ? 0 : va === "middle" ? free / 2 : va === "bottom" ? free : free / 2 * 0.35);
-  const align = R.cfg.align || "center";
+  const align = sz.align || "center";
   bands.forEach((b, bi) => {
     let x = A.x + (align === "left" ? 0 : align === "right" ? A.w - dims[bi].w : (A.w - dims[bi].w) / 2);
     for (const i of b) {
@@ -172,8 +175,9 @@ export function computeLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay
 export function tableHtml(R: RuntimeSlide, i: number, ctx: RenderCtx, thumb = false): string {
   const L = R.tables[i], d = ctx.style.design, key = d + "|" + glassLevel(ctx.style) + "|" + tableKey(ctx, L) + "|" + (ctx.forExport ? 1 : 0);
   if (thumb && L.items.length > 1200)              // thumbnails of big tables: shapes only, no text
-    return cache(L, "thtml", key, () => d === "glass" ? renderGlass(L, ctx, { noText: true }) : d === "clean" ? renderClean(L, ctx, { noText: true }) : renderExcel(L, ctx, { noText: true }));
-  return cache(L, "html", key, () => d === "glass" ? renderGlass(L, ctx) : d === "clean" ? renderClean(L, ctx) : renderExcel(L, ctx));
+    return cache(L, "thtml", key, () => d === "glass" ? renderGlass(L, ctx, { noText: true }) : renderExcel(L, ctx, { noText: true }));
+  // Excel Refined = the Excel tables exactly as in the workbook (same colours); it only adds text boxes and comments
+  return cache(L, "html", key, () => d === "glass" ? renderGlass(L, ctx) : renderExcel(L, ctx));
 }
 export function placeGlass(el: HTMLElement, ex: number, ey: number, ew: number, eh: number, sc: number, gi: number) {
   const LENS = 1 + .06 * gi;
@@ -187,9 +191,9 @@ export const slideHasLogo = (R: RuntimeSlide) => !(R.cfg && R.cfg.logo === false
     higher deepens the wallpaper and whitens the glass surfaces */
 export function contrastVars(contrast: number): Record<string, string> {
   const ct = Math.max(0, Math.min(100, contrast)) / 100;
-  if (ct < .5) { const f = (.5 - ct) * 1.4; return { "--wfade": f.toFixed(3), "--gfade": (f * .6).toFixed(3), "--wallf": "none" }; }
+  if (ct < .5) { const f = (.5 - ct) * 1.4; return { "--wfade": f.toFixed(3), "--gfade": (f * .6).toFixed(3) }; }
   const u = ct - .5;
-  return { "--wfade": "0", "--gfade": (u * .9).toFixed(3), "--wallf": `saturate(${(1 + u * 1.4).toFixed(3)}) brightness(${(1 - u * .36).toFixed(3)})` };
+  return { "--wfade": "0", "--gfade": (u * .9).toFixed(3) };              // the deeper wallpaper itself: render/wallpaper.ts
 }
 
 /** accent colours of the theme as CSS variables (none for the default theme: the CSS has its values) */

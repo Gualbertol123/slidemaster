@@ -134,10 +134,12 @@ def find_browser():
 # 1600 x 900 CSS px (1200 x 675 pt, 16:9), so nothing is scaled when printing. Scaling the slides down to
 # 13.333 x 7.5 in (CSS zoom before; a transform does not survive page breaks) depended on the browser
 # version and left white strips on some; a PDF page of any size is scaled by the viewer or printer anyway.
+# Each page box is painted #FFFFFE (hidden under the slide): pdf.pdf_fit_pages finds where it was drawn
+# and cuts the page to it, so a slide drawn smaller (e.g. Windows display scaling) still fills its page.
 PAGE_PX_W, PAGE_PX_H = SLIDE_W, SLIDE_H
 EXPORT_CSS = ("@page{size:%(w)dpx %(h)dpx;margin:0}"
               "html,body{margin:0;padding:0;background:#fff;width:%(w)dpx}"
-              ".page{position:relative;display:block;width:%(w)dpx;height:%(h)dpx;overflow:hidden;margin:0;padding:0;"
+              ".page{position:relative;display:block;width:%(w)dpx;height:%(h)dpx;overflow:hidden;margin:0;padding:0;background:#FFFFFE;"
               "break-after:page;page-break-after:always;break-inside:avoid}"
               ".page:last-child{break-after:auto;page-break-after:auto}"
               ".page>*{position:absolute;left:0;top:0;margin:0}"
@@ -261,7 +263,8 @@ class PlaywrightEngine:
         for kw, label in tries:
             b = None
             try:
-                b = self.pw.chromium.launch(headless=True, timeout=30000, **kw)
+                # scale 1 whatever Windows' display scaling says: 125/150 % shrank the slides on PDF pages
+                b = self.pw.chromium.launch(headless=True, timeout=30000, args=["--force-device-scale-factor=1"], **kw)
                 pg = b.new_page()                      # a company policy can let the browser start but block pages
                 pg.set_content("<p>ok</p>", timeout=20000)
                 pg.close()
@@ -341,7 +344,8 @@ class DevToolsEngine:
         self.tmp = tempfile.mkdtemp(prefix="slidebuilder_")
         args = [self.exe, "--headless=new", "--remote-debugging-port=0", "--user-data-dir=" + self.tmp, "--no-first-run",
                 "--no-default-browser-check", "--hide-scrollbars", "--mute-audio", "--disable-extensions",
-                "--disable-background-networking", "--force-color-profile=srgb", "--remote-allow-origins=*", "about:blank"]
+                "--disable-background-networking", "--force-color-profile=srgb", "--remote-allow-origins=*",
+                "--force-device-scale-factor=1", "about:blank"]            # not Windows' display scaling (shrank PDF slides)
         if hasattr(os, "geteuid") and os.geteuid() == 0:
             args.insert(1, "--no-sandbox")
         self.proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=NO_WINDOW)
@@ -523,7 +527,7 @@ class CommandLineEngine:
                 doc, out = os.path.join(work, "all.html"), os.path.join(work, "out.pdf")
                 with open(doc, "w", encoding="utf-8") as f:
                     f.write(compose(css, slides))
-                return self._run(["--no-pdf-header-footer", "--print-to-pdf-no-header", "--print-to-pdf=" + out, "--virtual-time-budget=8000", file_url(doc)], out, 300)
+                return self._run(["--force-device-scale-factor=1", "--no-pdf-header-footer", "--print-to-pdf-no-header", "--print-to-pdf=" + out, "--virtual-time-budget=8000", file_url(doc)], out, 300)
             from concurrent.futures import ThreadPoolExecutor
             extra = self._calibrate()
             def one(i):

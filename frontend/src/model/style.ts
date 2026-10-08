@@ -83,18 +83,13 @@ export function cleanFmt(f: TextFmt): TextFmt {
 /* ---- colours: theme preset + overrides, the same for every design ----
    Every colour a slide uses comes from palette(): the theme gives the defaults, Style.colors overrides any
    of them. "Pure" Excel keeps the workbook's own colours and uses only the overrides that were set. */
+/** colours that can be overridden in Design… (Excel and Excel Refined keep the workbook's table colours) */
 export const COLOR_KEYS: { key: ColorKey; name: string; hint: string; designs: ("glass" | "excel" | "clean")[] }[] = [
   { key: "accent", name: "Accent", hint: "titles, cover, contents numbers, rules", designs: ["glass", "excel", "clean"] },
   { key: "bg", name: "Slide background", hint: "behind everything (Liquid Glass: Colour theme)", designs: ["excel", "clean"] },
-  { key: "head", name: "Table header", hint: "header band of the tables", designs: ["clean"] },
-  { key: "headInk", name: "Header text", hint: "text on the header band", designs: ["clean"] },
-  { key: "total", name: "Total rows", hint: "background of total rows", designs: ["clean"] },
-  { key: "totalInk", name: "Total text", hint: "text of total rows", designs: ["clean"] },
-  { key: "ink", name: "Table text", hint: "numbers and labels", designs: ["glass", "clean"] },
-  { key: "pos", name: "Positive", hint: "green values / cells", designs: ["glass", "clean"] },
-  { key: "neg", name: "Negative", hint: "red values / cells", designs: ["glass", "clean"] },
-  { key: "stripe", name: "Row stripes", hint: "every other row", designs: ["clean"] },
-  { key: "rule", name: "Lines", hint: "row separators", designs: ["clean"] },
+  { key: "ink", name: "Table text", hint: "numbers and labels", designs: ["glass"] },
+  { key: "pos", name: "Positive", hint: "green values / cells", designs: ["glass"] },
+  { key: "neg", name: "Negative", hint: "red values / cells", designs: ["glass"] },
 ];
 export type Palette = Record<ColorKey, string>;
 export function mix(a: string, b: string, t: number): string {

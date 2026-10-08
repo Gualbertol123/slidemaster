@@ -2,7 +2,7 @@
    (blocked by policy), slides are rendered in this window (SVG foreignObject → JPEG) and the helper
    only assembles the PDF. */
 import { S, emit, toast } from "../state/store";
-import { ctx, setPrefs, style } from "../state/app";
+import { ctx, setPrefs, slidesFor, style } from "../state/app";
 import { resolveStyle } from "../model/style";
 import type { RenderCtx } from "../render/context";
 import type { Design } from "../model/types";
@@ -11,6 +11,7 @@ import { backend, ApiError, type ExportRes } from "../sync/api";
 import { buildSlide } from "../render/slide";
 import { esc } from "../xlsx/util";
 import { embeddedFontCss } from "../state/fonts";
+import { PRINT_CSS, printReady } from "../render/printcss";
 
 export type ExportKind = "pdf" | "pdf-exact" | "pdf-vector" | "pdf-current" | "png-current" | "png-all" | "copy";
 
@@ -18,20 +19,21 @@ const toDataUrl = async (url: string) => { const b = await (await fetch(url)).bl
 const slideCss = () => [document.getElementById("slidecss")?.textContent || "", document.getElementById("wallcss")?.textContent || ""].join("\n");
 
 /** the exact slide DOM + slide CSS, self-contained (pictures and logo as data URLs) */
-async function exportPayload(idx: number[], base: RenderCtx = ctx()) {
-  const c = { ...base, forExport: true }, slides: string[] = [];
+async function exportPayload(idx: number[], base: RenderCtx = ctx(), vector = false) {
+  const c = { ...base, forExport: true }, slides: string[] = [], src = slidesFor(base.style.design);
   for (const i of idx) {
-    const s = buildSlide(S.slides[i], i, c);
+    const s = buildSlide(src[i], i, c);
     s.querySelectorAll(".pic.missing").forEach(e => e.remove());
     for (const img of Array.from(s.querySelectorAll<HTMLImageElement>("img.logo"))) { try { img.setAttribute("src", await toDataUrl(img.src)); } catch { img.parentNode && (img.parentNode as HTMLElement).remove(); } }
-    slides.push(s.outerHTML);
+    slides.push(vector ? printReady(s.outerHTML) : s.outerHTML);
   }
-  return { css: slideCss() + "\n" + await embeddedFontCss(slides.join("")), slides, names: idx.map(i => S.slides[i].label) };
+  // text & tables: shadows and fonts the PDF can draw as vector (no pictures, no glyph-by-glyph fonts)
+  return { css: (vector ? printReady(slideCss()) + "\n" + PRINT_CSS : slideCss()) + "\n" + await embeddedFontCss(slides.join("")), slides, names: idx.map(i => S.slides[i].label) };
 }
 
 async function clientRender(i: number, scale: number, type: string, base: RenderCtx = ctx()): Promise<string> {
   const c = { ...base, forExport: true };
-  const slide = buildSlide(S.slides[i], i, c);
+  const slide = buildSlide(slidesFor(base.style.design)[i], i, c);
   slide.querySelectorAll(".pic.missing").forEach(e => e.remove());
   for (const img of Array.from(slide.querySelectorAll<HTMLImageElement>("img.logo"))) { try { img.src = await toDataUrl(img.src); } catch { img.parentNode && (img.parentNode as HTMLElement).remove(); } }
   const xml = new XMLSerializer().serializeToString(slide);
@@ -77,7 +79,7 @@ export async function doExport(kind: ExportKind) {
     let j: (ExportRes & { downloaded?: boolean }) | null = null, fallback = false, note = "";
     const usable = S.health?.engine?.state === "ready";      // while engines are still being tested, don't wait: render here
     if (usable) {
-      try { j = await backend.exportSlides({ name: S.file.name, format: spec.format, mode: spec.mode, scale: spec.format === "pdf" ? 4 : 3, inline: spec.inline, all: spec.idx.length === S.slides.length && spec.idx.length > 1, ...(await exportPayload(spec.idx)) }); }
+      try { j = await backend.exportSlides({ name: S.file.name, format: spec.format, mode: spec.mode, scale: spec.format === "pdf" ? 4 : 3, inline: spec.inline, all: spec.idx.length === S.slides.length && spec.idx.length > 1, ...(await exportPayload(spec.idx, ctx(), spec.format === "pdf" && spec.mode !== "exact")) }); }
       catch (e) { if ((e instanceof ApiError && (e.status === 503 || e.status === 0)) || e instanceof TypeError) { fallback = true; console.warn(e); } else throw e; }
     } else fallback = true;
     if (fallback) { j = await exportInWindow(spec.format, spec.idx, !!spec.inline); note = " · rendered in the app window"; }
@@ -115,7 +117,7 @@ export async function exportVersions(designs: Design[] | null) {
         const name = `${stem} - ${v.name}${designs ? " - " + DESIGN_LABEL[d] : ""}.xlsx`;
         let j: ExportRes | null = null;
         if (S.health?.engine?.state === "ready") {
-          try { j = await backend.exportSlides({ name, format: "pdf", mode: S.prefs.pdfMode || "vector", scale: 4, all: true, ...(await exportPayload(all, base)) }); }
+          try { j = await backend.exportSlides({ name, format: "pdf", mode: S.prefs.pdfMode || "vector", scale: 4, all: true, ...(await exportPayload(all, base, (S.prefs.pdfMode || "vector") === "vector")) }); }
           catch (e) { if (!((e instanceof ApiError && (e.status === 503 || e.status === 0)) || e instanceof TypeError)) throw e; }
         }
         if (!j) j = await exportInWindow("pdf", all, false, base, name);

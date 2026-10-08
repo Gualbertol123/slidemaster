@@ -16,7 +16,10 @@ function applyWallCss(w: Wall) {
 }
 export function makeWall(style: Style) {
   const gi = glassLevel(style), amt = Math.max(0, Math.min(100, +style.color || 0)) / 100, th = themeOf(style);
-  const key = gi + "|" + amt + "|" + [th.c1, th.c2, th.c3, th.c4].join();
+  // contrast above the middle deepens the wallpaper: baked into the picture (a CSS filter on it made Chrome
+  // print every page's background as a 300 dpi picture – huge, slow PDFs)
+  const u = Math.max(0, Math.min(100, style.contrast ?? 50) / 100 - .5);
+  const key = gi + "|" + amt + "|" + u.toFixed(3) + "|" + [th.c1, th.c2, th.c3, th.c4].join();
   const hit = WALLS.get(key); if (hit) return applyWallCss(hit);
   const W = 1600, H = 900, k = (.4 + .6 * gi) * amt;                // amount 0 = plain white, 1 = full colour
   const mix = (hex: string, t: number) => { const [r, g, b] = hexRgb(hex); const m = (v: number) => Math.round(255 + (v - 255) * t); return `rgb(${m(r)},${m(g)},${m(b)})`; };
@@ -42,7 +45,12 @@ export function makeWall(style: Style) {
     for (let i = 0; i < d.length; i += 4) { seed = (seed * 1103515245 + 12345) & 0x7fffffff; const n = (((seed >> 16) & 7) - 3.5) * Math.min(1, amt * 2); d[i] += n; d[i + 1] += n; d[i + 2] += n; }
     x.putImageData(id, 0, 0);
   }
-  const sharp = c.toDataURL("image/jpeg", .94);
+  let sharp = c.toDataURL("image/jpeg", .94);
+  if (u > .001) {
+    const f = document.createElement("canvas"); f.width = W; f.height = H; const z = f.getContext("2d")!;
+    z.filter = `saturate(${(1 + u * 1.4).toFixed(3)}) brightness(${(1 - u * .36).toFixed(3)})`; z.drawImage(c, 0, 0);
+    sharp = f.toDataURL("image/jpeg", .94);
+  }
   const b = document.createElement("canvas"); b.width = W / 2; b.height = H / 2; const y = b.getContext("2d")!;
   y.filter = `blur(${12 + 8 * gi}px) saturate(${1 + .4 * gi * amt}) brightness(${1 + .08 * amt})`; y.drawImage(c, -50, -50, W / 2 + 100, H / 2 + 100);
   const blur = b.toDataURL("image/jpeg", .92);

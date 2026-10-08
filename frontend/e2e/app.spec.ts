@@ -103,6 +103,7 @@ test.describe.serial("two people, one shared folder", () => {
     const boxes = [...pdf.toString("latin1").matchAll(/\/MediaBox \[([\d. ]+)\]/g)].map(m => m[1].trim().split(/\s+/).map(Number));
     expect(boxes).toHaveLength(4);
     for (const [x0, y0, x1, y1] of boxes) expect((x1 - x0) / (y1 - y0)).toBeCloseTo(16 / 9, 4);
+    expect(pdf.length).toBeLessThan(3_000_000);                // Liquid Glass, 4 slides: no page-sized pictures (was 8.7 MB)
   });
 
   test("table tools: same size, alignment, widths, text boxes, colour scale, Shift+arrows", async ({ browser }) => {
@@ -129,7 +130,7 @@ test.describe.serial("two people, one shared folder", () => {
     await b.locator("textarea.note-edit").fill("Loans grew everywhere"); await b.keyboard.press("Control+Enter");
     await saved(a); await saved(b);
     let d = doc(); const pair = d.preset.slides[3], t0 = d.preset.tables.find((t: any) => t.id === pair.tables[0]);
-    expect(t0.cols).toMatchObject({ "3": 150, "4": 150 });                       // anna's widths…
+    expect(t0.sizes.glass.cols).toMatchObject({ "3": 150, "4": 150 });           // anna's widths (in this design only)…
     expect(Object.values(pair.notes).map((n: any) => n.text)).toEqual(["Loans grew everywhere"]);   // …and bob's text box
     await expect(a.locator("#stage .tnote", { hasText: "Loans grew everywhere" })).toHaveCount(1, { timeout: 10_000 });
 
@@ -227,13 +228,13 @@ test.describe.serial("two people, one shared folder", () => {
 
     // tables at the top of the slide
     await page.click("#posBtn"); await page.click('[data-tvalign="top"]'); await saved(page);
-    expect(sdef(2).valign).toBe("top");
+    expect(sdef(2).sizes[doc().style.design || "glass"].valign).toBe("top");     // per design
 
     // drag the right border of the table: every column gets narrower
     const edge = (await page.locator('.hbox[data-i="0"] .edge.r').boundingBox())!;
     await page.mouse.move(edge.x + 4, edge.y + edge.height / 4); await page.mouse.down();       // (the + button sits in the middle)
     await page.mouse.move(edge.x - 150, edge.y + edge.height / 4, { steps: 5 }); await page.mouse.up();
-    await expect.poll(() => Object.keys(tdef().cols || {}).length, { timeout: 10_000 }).toBe(7);      // C…J without the hidden column
+    await expect.poll(() => Object.keys(tdef().sizes?.[doc().style.design || "glass"]?.cols || {}).length, { timeout: 10_000 }).toBe(7);      // C…J without the hidden column
 
     // text box below the table, in a bubble, centred both ways
     await selectCell(page, "Zeta"); await page.click('[data-addnote="bottom"]');
@@ -267,13 +268,18 @@ test.describe.serial("two people, one shared folder", () => {
     // the third design gets its own colours; Liquid Glass does not see them
     await page.click('.tsdlg [data-a="close"]');
     await page.locator('.thumb[data-i="2"]').click(); await page.click('[data-design="clean"]'); await saved(page);
-    await expect(page.locator("#stage .slide.clean .xt.cx").first()).toBeVisible();
+    // Excel Refined draws the tables exactly as Excel does (the workbook's colours) – it only adds text boxes
+    const tableOf = () => page.locator("#stage .slide > .tw").first().innerHTML();
+    const refined = await tableOf();
+    await page.click('[data-design="excel"]'); await saved(page);
+    expect(await tableOf()).toBe(refined);
+    await page.click('[data-design="clean"]'); await saved(page);
     await page.click("#themeBtn");
-    await page.locator('[data-color="head"] input').evaluate(el => { (el as HTMLInputElement).value = "#5b2c83"; el.dispatchEvent(new Event("change", { bubbles: true })); });
-    await expect.poll(() => doc().style.designs?.clean?.colors, { timeout: 10_000 }).toEqual({ head: "#5B2C83" });
+    await expect(page.locator('[data-color="head"]')).toHaveCount(0);                 // no table colours to override
+    await page.locator('[data-color="accent"] input').evaluate(el => { (el as HTMLInputElement).value = "#5b2c83"; el.dispatchEvent(new Event("change", { bubbles: true })); });
+    await expect.poll(() => doc().style.designs?.clean?.colors, { timeout: 10_000 }).toEqual({ accent: "#5B2C83" });
     expect(doc().style.colors).toBeUndefined();
-    // (a header cell coloured by hand earlier keeps its own colour: cell colours win over the deck's)
-    await expect.poll(() => page.locator("#stage .slide .xt.cx .chead").evaluateAll(els => els.map(el => getComputedStyle(el).backgroundColor))).toContain("rgb(232, 225, 238)");   // the pale sub-header in the new header colour
+    expect(await tableOf()).toBe(refined);                                              // the tables keep the workbook's colours
     // all designs: one accent everywhere, and the design's own value for it goes
     await page.click('#lookScope [data-scope="all"]');
     await page.locator('[data-color="accent"] input').evaluate(el => { (el as HTMLInputElement).value = "#aa0000"; el.dispatchEvent(new Event("change", { bubbles: true })); });

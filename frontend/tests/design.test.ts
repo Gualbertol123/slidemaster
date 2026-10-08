@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { palette, resolveStyle } from "../src/model/style";
-import { renderClean } from "../src/render/clean";
 import { renderExcel } from "../src/render/excel";
 import { rolesOf } from "../src/render/roles";
 import { themeVars } from "../src/render/slide";
@@ -37,25 +36,20 @@ describe("designs and colours", () => {
     const intesa = palette(resolveStyle({ theme: { id: "intesa" } }));
     expect(intesa.accent).toBe("#006A35");
     expect(intesa.head).toBe("#006A35");
-    const P = palette(resolveStyle({ theme: { id: "intesa" }, colors: { head: "#5b2c83", pos: "blue" as any } }));
-    expect(P.head).toBe("#5B2C83");
+    const P = palette(resolveStyle({ theme: { id: "intesa" }, colors: { accent: "#5b2c83", pos: "blue" as any } }));
+    expect(P.accent).toBe("#5B2C83");
     expect(P.pos).toBe("#1E8E3E");
   });
   it("finds header, total, body and spacer rows", () => {
     const k = rolesOf(table(), ctx()).kind;
     expect([...k.values()]).toEqual(["header", "header", "spacer", "total", "spacer", "body", "body", "body"]);
   });
-  it("Excel Refined: palette header band, tinted total, striped body, soft green/red tiles", () => {
-    const P = palette(resolveStyle({ design: "clean" }));
-    const h = renderClean(table(), ctx({ design: "clean" }));
-    expect(h).toContain(`background:${P.head}`);
-    expect(h).toContain(`background:${P.total};border-top:2px solid ${P.accent}`);
-    expect(h).toContain(`background:${P.stripe}`);
-    expect(h).toContain("background:rgba(30,142,62,0.13)");          // +5 on green
-    expect(h).toContain("background:rgba(217,48,37,0.13)");          // -3 on red
-    const o = renderClean(table(), ctx({ design: "clean", colors: { head: "#5B2C83", pos: "#0077B6" } }));
-    expect(o).toContain("background:#5B2C83");
-    expect(o).toContain("background:rgba(0,119,182,0.13)");
+  it("Excel Refined draws the tables exactly like Excel (the workbook's colours); it only adds text boxes", async () => {
+    const { tableHtml } = await import("../src/render/slide");
+    const R: any = { tables: [table()], cfg: {} };
+    const ex = tableHtml(R, 0, ctx({ design: "excel" })), cl = tableHtml(R, 0, ctx({ design: "clean", colors: { pos: "#0077B6" } }));
+    expect(cl).toBe(ex);
+    expect(cl).toContain("background:#1F4E79"); expect(cl).toContain("background:#00B050");
   });
   it("Excel is raw: the workbook's colours, whatever the deck's colours say; no text boxes", async () => {
     const pure = renderExcel(table(), ctx({ design: "excel" }));
@@ -96,6 +90,6 @@ describe("versions", () => {
     expect(at(cut, 9, 4).text).toBe("10");                                                 // outside the range: kept
     const g = gridOf(L, { ...ctx({ design: "clean" }), version: v });
     expect(g[5][2].v).toBeNull();                                                          // no number for the comment either
-    expect(renderClean(L, { ...ctx({ design: "clean" }), version: v })).not.toContain(">5<");
+    expect(renderExcel(L, { ...ctx({ design: "clean" }), version: v })).not.toContain(">5<");
   });
 });

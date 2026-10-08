@@ -5,7 +5,9 @@ export interface Layout { bands: number[][]; w: number[] }
 /** colour scale: deeper green/red with the size of the number (per row, per column or the whole range) */
 export interface ScaleRule { range: string; dir: "row" | "col" | "all"; mode: "zero" | "minmax"; fill: boolean; ink: boolean; invert?: boolean }
 interface TableExtras { name?: string; cols?: Record<string, number>; rows?: Record<string, number>; scales?: Record<string, ScaleRule>; merges?: Record<string, "merge" | "split">;
-  /** gridlines: "on" draws a line at every row/column edge, "off" removes them; unset = as in Excel */ gridH?: "on" | "off"; gridV?: "on" | "off" }
+  /** gridlines: "on" draws a line at every row/column edge, "off" removes them; unset = as in Excel */ gridH?: "on" | "off"; gridV?: "on" | "off";
+  /** column widths / row heights of one design (over cols/rows, which older decks share between designs) */ sizes?: Partial<Record<Design, TableSizes>> }
+export interface TableSizes { cols?: Record<string, number>; rows?: Record<string, number> }
 export type TableDef =
   | ({ id: string; sheet: string; kind: "markers"; anchor: string; index: number } & TableExtras)
   | ({ id: string; sheet: string; kind: "range"; range: string; grow?: boolean } & TableExtras);
@@ -31,8 +33,10 @@ export interface SlideDef {
   align?: "left" | "center" | "right"; valign?: "top" | "middle" | "bottom"; scale?: number; notes?: Record<string, Note>;
   /** index slide: show the subtitles of the slides (default true) */ subs?: boolean;
   /** formatting of this slide's title, subtitle, cover note and date (over the deck text styles) */ fmt?: Partial<Record<SlideTextKey, TextFmt>>;
-  /** table sizing of one design (over layout/scale, which older decks share between designs) */ sizes?: Partial<Record<Design, { layout?: Layout; scale?: number }>>;
+  /** table sizing of one design (over layout/scale, which older decks share between designs) */ sizes?: Partial<Record<Design, SlideSizing>>;
 }
+/** how one design shows a slide's tables: arrangement and weights, fixed scale, alignment */
+export interface SlideSizing { layout?: Layout; scale?: number; align?: "left" | "center" | "right"; valign?: "top" | "middle" | "bottom" }
 /** a named version of the deck (e.g. "Chief", "All"): the cells removed from it, per sheet ("C5:D9" ranges) */
 export interface DeckVersion { id: string; name: string; hide: Record<string, string[]> }
 export interface Preset { sheets: string[]; tables: TableDef[]; slides: SlideDef[]; version?: number; updated?: number;
@@ -74,8 +78,8 @@ export interface Prefs { lastFile?: string | null; pdfMode?: "exact" | "vector" 
 type Nullable<T> = { [K in keyof T]?: T[K] | null };
 export type Op =
   | { op: "preset.set"; preset: Preset | null }
-  | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "valign" | "scale" | "subs">> & { notes?: Record<string, Note | null> | null; sizes?: Partial<Record<Design, { layout?: Layout; scale?: number } | null>> | null; fmt?: Partial<Record<SlideTextKey, TextFmt | null>> | null } }
-  | { op: "table.patch"; id: string; patch: { name?: string | null; gridH?: "on" | "off" | null; gridV?: "on" | "off" | null; cols?: Record<string, number | null> | null; rows?: Record<string, number | null> | null; scales?: Record<string, ScaleRule | null> | null; merges?: Record<string, "merge" | "split" | null> | null } }
+  | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "valign" | "scale" | "subs">> & { notes?: Record<string, Note | null> | null; sizes?: Partial<Record<Design, SlideSizing | null>> | null; fmt?: Partial<Record<SlideTextKey, TextFmt | null>> | null } }
+  | { op: "table.patch"; id: string; patch: { name?: string | null; gridH?: "on" | "off" | null; gridV?: "on" | "off" | null; cols?: Record<string, number | null> | null; rows?: Record<string, number | null> | null; scales?: Record<string, ScaleRule | null> | null; merges?: Record<string, "merge" | "split" | null> | null; sizes?: Partial<Record<Design, TableSizes | null>> | null } }
   | { op: "cell.patch"; sheet: string; ref: string; patch: Nullable<CellEdit> }
   | { op: "style.patch"; patch: Nullable<Omit<StylePatch, "pn" | "footer" | "theme" | "text" | "colors">> & { pn?: Nullable<PageNumbers> | null; footer?: Nullable<Footer> | null; theme?: Nullable<Theme> | null; text?: Partial<Record<TextRole, TextFmt | null>> | null; colors?: Partial<Record<ColorKey, string | null>> | null; designs?: Partial<Record<Design, Look | null>> | null } };
 

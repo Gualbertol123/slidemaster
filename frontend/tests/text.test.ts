@@ -148,6 +148,20 @@ describe("table sizing per design", () => {
     expect(computeLayout(R, ctx({}, "excel")).k).toBeCloseTo(0.9, 5);
     expect(computeLayout(R, ctx({}, "clean")).k).toBeCloseTo(0.5, 5);
     const p = sizingPatch(R, ctx({}, "glass"), { scale: 0.7 });
-    expect(p).toEqual({ layout: null, scale: null, sizes: { clean: { scale: 0.5 }, glass: { scale: 0.7 } } });   // Excel keeps its own entry
+    expect(p).toEqual({ layout: null, scale: null, align: null, valign: null, sizes: { clean: { scale: 0.5 }, glass: { scale: 0.7 } } });   // Excel keeps its own entry
+  });
+  it("alignment is per design too", () => {
+    const R = slide({ tables: ["a"], align: "left" }, { tables: [L] });
+    const left = computeLayout(R, ctx({}, "excel")).boxes[0].x;
+    const R2 = slide({ tables: ["a"], sizes: { glass: { align: "right" }, excel: {} } }, { tables: [L] });
+    expect(computeLayout(R2, ctx({}, "excel")).boxes[0].x).toBeGreaterThan(left);          // Excel: centred (its own, empty entry)
+    expect(computeLayout(R2, ctx({}, "glass")).boxes[0].x).toBeGreaterThan(computeLayout(R2, ctx({}, "excel")).boxes[0].x);
+  });
+  it("column widths and row heights are per design", async () => {
+    const { tableSizes } = await import("../src/model/preset");
+    const def: any = { id: "t", cols: { 3: 50 }, sizes: { excel: { cols: { 3: 90 } } } };
+    expect(tableSizes(def, "excel")).toEqual({ cols: { 3: 90 } });
+    expect(tableSizes(def, "glass")).toEqual({ cols: { 3: 50 } });                         // older decks: the shared sizes
+    expect(tableSizes({ id: "t", sizes: { clean: {} } } as any, "clean")).toEqual({});      // own entry: Excel's sizes
   });
 });

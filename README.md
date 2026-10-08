@@ -7,8 +7,7 @@ possibly disabled by policy, an SSL-inspecting proxy, and the app living in a **
 that several people use **at the same time, on the same or on different workbooks**.
 
 Three visual designs: **Excel** (a faithful copy of the workbook's formatting), **Excel Refined** (the same
-tables in one consistent, polished style: header band, tinted totals, striped rows, soft green/red tiles, one
-font) and **Liquid Glass** (a light, iOS-26-style design that keeps the workbook's meaning). In every design a
+tables, exactly as in Excel, plus text boxes, automated comments and a notes section) and **Liquid Glass** (a light, iOS-26-style design that keeps the workbook's meaning). In every design a
 colour theme sets the defaults and **Design…** overrides any colour, font or size.
 
 This README is the map. Deeper documents:
@@ -50,8 +49,9 @@ This README is the map. Deeper documents:
 * **Excel is raw Excel**: the workbook's tables with their own colours – no text boxes, comments or notes
   section, no deck colours on the tables (title, logo, page number and footer stay). Excel Refined and Liquid
   Glass have everything.
-* **Table sizes are kept per design**: with no text boxes, Excel fills the slide on its own; moving or
-  resizing tables, *Reset layout* and fixed scales apply to the design you are in (*Make same size* sets all three).
+* **Table sizes and positions are kept per design**: column widths, row heights, table size and position,
+  alignment, *Make same size*, *Reset layout* and fixed scales all apply to the design you are in only. With no
+  text boxes, Excel fills the slide on its own. Older decks start from their shared sizes in every design.
 * **Design…** › *Apply to*: **This design only** (default – Liquid Glass, Excel and Excel Refined each keep their
   own theme, colours and text styles) or **All designs** (one setting everywhere; it also clears what a design
   had set for itself).
@@ -60,13 +60,11 @@ This README is the map. Deeper documents:
 * **Logo**: Options › Logo › *Choose…* copies a picture into the shared folder. The file name is also found
   in the main folder and `backend`, whatever its upper/lower case; the “not found” warning follows the latest
   load.
-* Top bar: **Liquid Glass · Excel · Excel Refined**. Excel Refined detects each table's header band, total rows,
-  body rows and spacers (same detection as the automated comments) and redraws them with the deck palette;
-  number columns shrink evenly when the design font is wider than Excel's. Cell colours, text colours and roles
-  set by hand still win.
-* **Design…** (top bar) → *Colours*: pick a theme, then override any colour – accent, slide background, table
-  header and its text, total rows and their text, table text, positive, negative, row stripes, lines. Pure Excel
-  keeps the workbook's colours except the ones you override; Excel Refined and Liquid Glass use the palette.
+* Top bar: **Liquid Glass · Excel · Excel Refined**. Excel Refined shows the tables exactly as Excel does (the
+  workbook's colours); what it adds is text boxes, automated comments and the notes section.
+* **Design…** (top bar) → *Colours*: pick a theme, then override the accent and the slide background (all
+  designs) and, in Liquid Glass, the table text and positive/negative colours. Excel and Excel Refined keep the
+  workbook's table colours.
   *Text styles* and *Fonts* are tabs of the same dialog.
 
 ### Text: one toolbar, one place for the whole deck
@@ -93,6 +91,13 @@ This README is the map. Deeper documents:
   fraction of a point is trimmed to the slide), pictures exactly one slide (a larger capture is cut, a smaller
   one refused) and the slides laid out where their pages are. Output that fails is not saved: the next
   engine renders it instead.
+* **Each page fills its sheet**: every page box is painted a hidden marker colour (#FFFFFE); after printing,
+  the page is cut to where the browser actually drew it – so Windows display scaling (125 %/150 %), which made
+  the browser draw slides smaller, cannot leave white space. Engines also run at scale 1.
+* **Small, fast PDFs**: soft shadows are drawn as a few sharp vector layers, the glass rims as borders, the
+  wallpaper's contrast is baked into its picture (shared by all pages) and variable fonts (Segoe UI Variable)
+  give way to classic Segoe UI – Chrome turned each of these into large pictures or glyph-by-glyph fonts, which
+  made Acrobat build pages bit by bit. A 4-slide Liquid Glass PDF went from 8.7 MB to about 1.2 MB.
 
 ### Versions (e.g. Chief and All)
 * ✦ Wizard › **4 · Versions**: create any number of named versions (chips for Chief and All, or type a name).
@@ -103,6 +108,8 @@ This README is the map. Deeper documents:
   designs – one PDF each, named `<workbook> - <version> - <design>`.
 
 ### Automated comments
+* Amounts carry their unit: **“+476 mln”** by default (percentages keep their %). *Unit after amounts* in the
+  Comment dialog changes it per comment (empty = none).
 * **Summary** (default): one short paragraph per block, joining previous week, Budget and EoM – no dates.
   It judges the week (strong / solid / slightly positive / weak / sharp decline, from its %), names who drives it
   (with their share when one dominates) and who goes the other way, explains Budget, and says how much of the

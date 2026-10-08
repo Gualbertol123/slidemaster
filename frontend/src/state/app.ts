@@ -10,7 +10,7 @@ import { esc, fmtMB, nextFrame, WorkbookError } from "../xlsx/util";
 import type { Workbook } from "../xlsx/types";
 import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "../model/preset";
 import { resolveStyle } from "../model/style";
-import type { Op, Preset, Prefs, StylePatch } from "../model/types";
+import type { Design, Op, Preset, Prefs, RuntimeSlide, StylePatch } from "../model/types";
 import type { RenderCtx } from "../render/context";
 import { makeWall } from "../render/wallpaper";
 import { loadFonts, watchFontLoads } from "./fonts";
@@ -161,7 +161,7 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   S.undo = []; S.redo = [];
   if (newPreset) sync.apply([{ op: "preset.set", preset: newPreset }]);
   sync.on(onDocChange);
-  S.slides = runtimeSlides(wb, sync.view.preset, name);
+  S.slides = runtimeSlides(wb, sync.view.preset, name, style().design); slidesDesign = style().design;
   presetSig = JSON.stringify(sync.view.preset);
   if (src === "folder") setPrefs({ lastFile: name });
   const vid = S.prefs.versions?.[name] || "";                 // the version this person looked at last
@@ -184,7 +184,7 @@ async function onDocChange(c: Change) {
       presetSig = sig;
       await wb.ensure(presetSheets(sync.view.preset), showBusy); hideBusy();
       const keep = S.slides[S.cur]?.id;
-      S.slides = runtimeSlides(wb, sync.view.preset, S.file.name);
+      S.slides = runtimeSlides(wb, sync.view.preset, S.file.name, style().design); slidesDesign = style().design;
       const i = S.slides.findIndex(R => R.id === keep);
       S.cur = i >= 0 ? i : Math.max(0, Math.min(S.cur, S.slides.length - 1));
       if (!c.local) S.sel = null;
@@ -200,14 +200,31 @@ async function onDocChange(c: Change) {
     if (cfg.title !== R.cfg.title || cfg.subtitle !== R.cfg.subtitle || cfg.logo !== R.cfg.logo || cfg.date !== R.cfg.date || cfg.note !== R.cfg.note) titles = true;
     R.cfg = cfg;
   }
-  if (titles) { S.slides = runtimeSlides(wb, sync.view.preset, S.file.name); }
+  if (titles) { S.slides = runtimeSlides(wb, sync.view.preset, S.file.name, style().design); slidesDesign = style().design; }
   if (c.styleChanged) return onStyleChanged();
   emit();
   if (titles) { STAGE.render(); THUMBS.render(); }
   else if (c.local) { STAGE.refresh(); THUMBS.refresh(S.cur); }
   else { STAGE.refresh(); THUMBS.render(); }
 }
-function onStyleChanged() { makeWall(style()); emit(); STAGE.render(); THUMBS.render(); }
+function onStyleChanged() {
+  // column widths and row heights are per design: another design needs its own table layouts
+  const d = style().design;
+  if (d !== slidesDesign && S.wb && S.file) {
+    const keep = S.slides[S.cur]?.id;
+    S.slides = runtimeSlides(S.wb, S.sync?.view.preset || null, S.file.name, d); slidesDesign = d;
+    const i = S.slides.findIndex(R => R.id === keep); if (i >= 0) S.cur = i;
+    S.sel = null;
+  }
+  makeWall(style()); emit(); STAGE.render(); THUMBS.render();
+}
+let slidesDesign: Design | null = null;
+/** the slides as `design` shows them (the current ones, or resolved again for another design – exports) */
+export function slidesFor(design: Design): RuntimeSlide[] {
+  if (design === slidesDesign || !S.wb || !S.file) return S.slides;
+  const other = runtimeSlides(S.wb, S.sync?.view.preset || null, S.file.name, design);
+  return S.slides.map(R => other.find(x => x.id === R.id) || R);
+}
 
 /** every edit goes through here: ops are applied locally, queued for the helper, and undoable */
 export function change(label: string, ops: Op[], coalesce?: string) {

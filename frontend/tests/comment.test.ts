@@ -110,7 +110,15 @@ describe("comment layout options", () => {
     const two = writeSummary([{ a: analyse(subGrid()), name: "Loans" }], { ...DEFAULT_COMMENT, names: false }, "Loans");
     expect(two).not.toContain("**Retail Loans**:");
     const bare = shapeComment(two, { ...DEFAULT_COMMENT, showTitle: false, bullets: false });
-    expect(bare.startsWith("[[+101]]")).toBe(true);
+    expect(bare.startsWith("[[+101 mln]]")).toBe(true);
     expect(bare).not.toMatch(/^# |^• /m);
+  });
+  it("amounts get the unit (mln by default), percentages and amounts with a unit stay", async () => {
+    const { withUnit } = await import("../src/model/comment");
+    expect(shapeComment("Up [[+476]] ([[+2,1%]]), [[-0,5 pp]]", DEFAULT_COMMENT)).toBe("Up [[+476 mln]] ([[+2,1%]]), [[-0,5 pp]]");
+    expect(shapeComment("Up [[+476]]", { ...DEFAULT_COMMENT, unit: "bn" })).toBe("Up [[+476 bn]]");
+    expect(shapeComment("Up [[+476]]", { ...DEFAULT_COMMENT, unit: "" })).toBe("Up [[+476]]");
+    expect(withUnit("+2,0 m", "mln")).toBe("+2,0 m");
+    expect(withUnit("-1.234", "mln")).toBe("-1.234 mln");
   });
 });

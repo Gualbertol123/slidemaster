@@ -8,7 +8,7 @@ import { S, emit, useApp, toast } from "../state/store";
 import { DLG } from "../state/dialogs";
 import { change, ctx } from "../state/app";
 import { curSlide } from "../editor/edit";
-import { DEFAULT_COMMENT, SUMMARY_KINDS, cleanHead, defaultGroups, headingOf, prettyLabel, signatureOf, type CommentCfg, type Group } from "../model/comment";
+import { DEFAULT_COMMENT, DEFAULT_UNIT, SUMMARY_KINDS, cleanHead, defaultGroups, headingOf, prettyLabel, signatureOf, type CommentCfg, type Group } from "../model/comment";
 import { analysisOf, commentTables, commentText } from "../render/comment";
 import { richText } from "../render/text";
 import { noteKey, SIDES } from "../render/slide";
@@ -120,6 +120,7 @@ export function CommentDialog() {
               <label>Length</label><div class="seg small">{(["full", "short"] as const).map(d => <button key={d} class={cfg.detail === d ? "on" : ""} onClick={() => set({ detail: d })}>{d === "full" ? (summary ? "With plan drivers" : "Full analysis") : "Short"}</button>)}</div>
               <label>Name the top</label><select id="cmtTop" value={cfg.top} onChange={e => set({ top: +(e.target as HTMLSelectElement).value })}>{[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n} name{n > 1 ? "s" : ""} per side</option>)}</select>
               <label>Ignore below</label><input id="cmtMin" type="number" min="0" step="any" class="txt" placeholder="0 (all movements)" value={cfg.minAbs ?? ""} onInput={e => { const v = parseFloat((e.target as HTMLInputElement).value); set({ minAbs: isFinite(v) && v > 0 ? v : undefined }); }} onKeyDown={e => e.stopPropagation()} />
+              <label>Unit after amounts</label><input id="cmtUnit" class="txt" placeholder="none" value={cfg.unit ?? DEFAULT_UNIT} onInput={e => set({ unit: (e.target as HTMLInputElement).value.trim() === DEFAULT_UNIT ? undefined : (e.target as HTMLInputElement).value.trim() })} onKeyDown={e => e.stopPropagation()} title="Written after every amount, e.g. +476 mln (percentages keep their %). Empty = no unit." />
               <label>Rows are</label><select id="cmtNoun" value={cfg.noun} onChange={e => set({ noun: (e.target as HTMLSelectElement).value })}>{NOUNS.map(n => <option key={n} value={n}>{n === "entity" ? "entities" : n.endsWith("y") ? n.slice(0, -1) + "ies" : n + "s"}</option>)}</select>
             </div>
             {!summary && cfg.detail === "full" && <div class="cmtchecks">

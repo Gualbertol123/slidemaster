@@ -74,7 +74,7 @@ function ColorsTab() {
     </div>
     <div class="row" style="margin-top:10px;gap:8px">
       <button class="btn" id="colorsReset" disabled={!any} onClick={() => lookChange("Theme colours", { colors: null })}>Reset all to the theme</button>
-      <span class="optnote" style="margin:0">Excel keeps the workbook's colours except the ones you set here. Excel Refined and Liquid Glass use all of them.</span>
+      <span class="optnote" style="margin:0">Excel and Excel Refined keep the workbook's table colours; Liquid Glass uses all of them.</span>
     </div>
   </div>;
 }
