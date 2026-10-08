@@ -10,7 +10,7 @@ One object per cell costs 242 MB for 1.56 M cells. Every user re-parses every wo
 ## Decision
 * Sheets are typed-array columns (row, col, kind, num, str, xf) with v3's `Sheet` facade, so v3's
   layout, CF, formats and comment code run unchanged.
-* Phase 4, if real-share measurements need it: the first opener writes
+* M6, if real-share measurements need it (PLAN S6.2): the first opener writes
   `data/v4/cache/<crc32>-<size>.sbc` (deflated columns); later openers load it.
 * The key comes from the zip central directory, so no hashing is needed and unchanged sheets of an edited
   workbook stay cached.

@@ -19,7 +19,7 @@ The rebuild changes every renderer. The only reliable reference is the running v
 
 ## Consequences
 + Regressions are visible as data; the visual sign-off is focused on heat maps.
-− Building the corpus and anonymising real decks takes time (Phase 0).
+− Building the corpus and anonymising real decks takes time (M0, PLAN S0.5).
 
 ## Evidence and alternatives
 05.

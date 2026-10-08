@@ -235,4 +235,4 @@ These match B4–B6 in 03 §6.2:
 Also:
 * **History** (`GET …/history`, used by the side panel) lists compaction backups (`backups/v4/<key>/`)
   instead of 5-minute rolling backups. The journal itself is a complete edit history since the last
-  compaction, so restoring "as of 10:42" becomes possible: fold records with `at ≤ t` (Phase 4, optional).
+  compaction, so restoring "as of 10:42" becomes possible: fold records with `at ≤ t` (M6, optional).

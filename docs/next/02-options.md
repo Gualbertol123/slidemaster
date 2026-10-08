@@ -112,11 +112,11 @@ needed to reach the budget.
 
 | Option | Pol | Perf | Fid | Rel | Eff | Mnt | Score | Verdict |
 |---|---|---|---|---|---|---|---|---|
-| **D2 TS reader in a worker, columnar SheetStore** | 5 | 4 | 5 | 5 | 5 | 5 | **53** | **chosen** (phase 1) |
-| D1 D2 + parsed-sheet cache on the share, keyed by part CRC-32 + size | 5 | 5 | 5 | 4 | 4 | 4 | 51 | **added in phase 4 if measured necessary**: D2 alone meets the targets for one user; the cache pays off when several people open the same 30 MB workbook over a slow link |
+| **D2 TS reader in a worker, columnar SheetStore** | 5 | 4 | 5 | 5 | 5 | 5 | **53** | **chosen** (M2) |
+| D1 D2 + parsed-sheet cache on the share, keyed by part CRC-32 + size | 5 | 5 | 5 | 4 | 4 | 4 | 51 | **added in M6 if measured necessary**: D2 alone meets the targets for one user; the cache pays off when several people open the same 30 MB workbook over a slow link |
 | D3 `calamine` (Rust, MIT) via WASM | 5 | 5 | 3 | 4 | 2 | 3 | 44 | rejected: reads values, not the styles, borders, drawings and CF that Slide Builder needs |
 | D4 Excel COM to export values | 2 | 1 | 3 | 2 | 3 | 2 | 23 | rejected: slow (seconds to minutes), PowerShell COM is blocked in Constrained Language Mode (`convert.py:113`) |
-| D5 Native `.xlsb` (BIFF12) reader in TS | 5 | 4 | 4 | 4 | 2 | 3 | 44 | **added in phase 4**: removes the COM dependency for `.xlsb` (B10). `.xls` (BIFF8) stays on COM: rare in this team |
+| D5 Native `.xlsb` (BIFF12) reader in TS | 5 | 4 | 4 | 4 | 2 | 3 | 44 | **added in M6**: removes the COM dependency for `.xlsb` (B10). `.xls` (BIFF8) stays on COM: rare in this team |
 
 **The cache key matters.** The zip central directory already holds a CRC-32 and the size of every part.
 Nothing has to be hashed, and when someone edits one sheet in Excel the other sheets' caches stay valid.
@@ -127,7 +127,7 @@ Measured: 3.1 MB on the share for the 75.7 MB sheet; it loads in 205 ms.
 | Option | Pol | Perf | Fid | Rel | Eff | Mnt | Score | Verdict |
 |---|---|---|---|---|---|---|---|---|
 | **E1 Snapshot + per-writer append-only journals, Lamport order, compaction under a lock** | 5 | 5 | 5 | 4 | 3 | 3 | **49** | **chosen** |
-| E2 Single document under a lock, trimmed to the minimum round trips (LOADTEST option A, completed) | 5 | 2 | 5 | 4 | 5 | 4 | 46 | rejected as the target (spike below); it is the fallback switch if E1 fails the field test on the real share |
+| E2 Single document under a lock, trimmed to the minimum round trips (LOADTEST option A, completed) | 5 | 2 | 5 | 4 | 5 | 4 | 46 | rejected as the target (spike below); its fallback form is a single shared journal appended under the lock (same API, same fold in the core) if E1 fails the field test on the real share |
 | E3 SQLite on the share (any journal mode) | – | – | – | – | – | – | – | **H**: SQLite documents that locking on network filesystems is unreliable, and WAL needs shared memory on one host, so WAL does not work over SMB. Risk of corruption |
 | E4 SQLite or LMDB **locally** + sync through files | 4 | 4 | 4 | 2 | 1 | 2 | 35 | rejected: a sync protocol is still needed (= E1), plus a second store |
 | E5 SharePoint/OneDrive synced folder | – | – | – | – | – | – | – | **H**: lock files do not work across sync clients; conflicts become copies |
@@ -177,6 +177,15 @@ runs (full table in 04 §2.5):
 | I2 Status quo: `git reset --hard` of a repository that contains the built page | rejected: a 460 KB generated file in every commit (P8); no side-by-side versions |
 | I3 MSIX / ClickOnce | rejected: MSIX sideloading needs policy; ClickOnce needs a .NET app and signing |
 | I4 winget / Intune / SCCM | not ours to operate. It would be welcome if IT offered it, but it is not needed |
+
+## K. UI framework
+
+| Option | Verdict |
+|---|---|
+| **K1 React 19 SPA + Zustand selector store; document owned by the core worker; stage = React components placing display-list SVG** | **chosen** (ADR-012). The problem in v3 is the global `S` + `emit()` that re-renders 15 components on every change, not the library. React adds the mainstream tooling (Profiler, Testing Library, `useTransition`, React Compiler) for the largest UI task, the stage rewrite. The port is mechanical (same JSX and hooks) |
+| K2 Keep Preact, fix only the store | about 2 weeks cheaper and the same runtime smoothness; rejected to avoid `preact/compat` edge cases and to gain the tooling during the stage rewrite |
+| K3 Solid / Svelte | rejected: a full rewrite of 170 KB of components for no measured gain |
+| K4 Next.js / any server-rendered framework | **H**: no server (REVIEW §6) |
 
 ## J. What a "markedly faster, lighter, more reliable" rebuild does NOT need
 

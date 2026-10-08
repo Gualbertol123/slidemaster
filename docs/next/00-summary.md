@@ -5,6 +5,8 @@
 **Keep the deployment; replace the engine.** Users still start a Python standard-library helper and work in
 an Edge window, and the shared folder is still the only channel between PCs. Behind that, five changes:
 
+0. **A proper React 19 app.** It uses a small selector-based store instead of today's global object that
+   re-renders every component on any change (ADR-012).
 1. **One TypeScript core in Web Workers.** It is the only implementation of the document, its operations,
    the Excel reader, the layout, the three designs and the automated comments, and it never blocks the
    window. The Python copy of the operation semantics is deleted.
@@ -49,17 +51,21 @@ The spikes, with instructions to reproduce, are in `spikes/`.
 
 ## Effort
 
-**27 calendar weeks, 52 engineer-weeks** (2 engineers + 0.5 QA/pilot), plus 20 % contingency. The work is
+**28 calendar weeks, 54 engineer-weeks** (2 engineers + 0.5 QA/pilot), plus 20 % contingency. The work is
 in six phases, and every phase ships (`06-plan.md`):
 
-| Phase | Ships as | Content | Weeks |
+| Milestone | Ships as | Content | Weeks |
 |---|---|---|---|
-| 0 | v3.4 | capture v3 as golden data, release pipeline, share and policy field tests | 3 |
-| 1 | v3.5 | core in workers | 5 |
-| 2 | v3.6 | display list and native export | 6 |
-| 3 | v3.7 | screen from the display list | 4 |
-| 4 | **v4.0** | journal storage and per-deck cut-over | 5 |
-| 5 | v4.1 | native `.xlsb` reader, hardening | 4 |
+| M0 | v3.4 | foundations: CI, release ZIPs and updater, v3 quick fixes, golden capture, field tests | 3 |
+| M1 | v3.5 | the UI becomes a proper React 19 app with a selector-based store | 3 |
+| M2 | v3.6 | core in workers | 4 |
+| M3 | v3.7 | display list and native export | 6 |
+| M4 | v3.8 | the screen draws the display list | 4 |
+| M5 | **v4.0** | journal storage and per-deck cut-over | 5 |
+| M6 | v4.1 | native `.xlsb` reader, hardening | 3 |
+
+**[`PLAN.md`](PLAN.md) is the step-by-step plan an agent follows:** a drawing of the end state, about 45 steps
+with "done when" checks, human gates, the timeline and the feature preservation map.
 
 About 70 % of v3's TypeScript moves unchanged: number formats, layout, CF, the Liquid Glass scene
 inference, comments, UI and wizard.
@@ -67,7 +73,7 @@ inference, comments, UI and wizard.
 ## Top risks
 
 1. **The bank's real share behaves differently from the simulation** (append visibility, antivirus, DFS).
-   It is tested on the real share in Phase 0, before any storage code is written. The fallback is a
+   It is tested on the real share in M0, before any storage code is written. The fallback is a
    single-document lean-lock protocol behind the same helper API.
 2. **Users do not accept Liquid Glass as drawn from the display list** (stepped shadows, rim), or wrapping
    differs from v3. This is handled by a golden pixel and geometry harness against v3, a pilot sign-off
@@ -88,4 +94,5 @@ inference, comments, UI and wizard.
 | `04-data-and-migration.md` | storage protocol, formats, coexistence, cut-over, rollback |
 | `05-test-and-parity.md` | test strategy, Windows policy matrix, full parity checklist |
 | `06-plan.md` | phases, effort, reuse map, risk register, non-goals, benchmarks |
-| `adr/001…011` | one record per decision |
+| `PLAN.md` | **the executable plan: what it will look like, and every step to get there** |
+| `adr/001…012` | one record per decision |

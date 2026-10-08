@@ -25,7 +25,7 @@ round trips (lean lock) still gives 7.9 / 19.7 s in the simulation.
   edit history.
 − New code with subtle cases (torn tails, rotation, compaction), covered by the invariant tests (05 §3.6).
 − Same-field conflicts resolve by Lamport order instead of arrival order (B4).
-− Depends on SMB append/read coherence: verified on the real share first (Phase 0, R1). Fallback: E2.
+− Depends on SMB append/read coherence: verified on the real share first (M0, PLAN S0.6, R1). Fallback: one shared journal appended under the deck lock (same endpoints, same fold; the helper never interprets ops).
 
 ## Evidence and alternatives
 `spikes/storage/journal_sim.py` (04 §2.5). Rejected: SQLite on SMB (unsafe), OneDrive (breaks locks), coordinator (needs inbound ports), DB server (none).

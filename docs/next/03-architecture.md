@@ -25,7 +25,7 @@ result: sections §1–§6 match points 1–6 of the brief. Storage details are 
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ Edge (app window: msedge --app=http://127.0.0.1:<port>/ ; falls back to the default browser)          │
 │ ┌─ UI thread ──────────────────────────────┐  ┌─ core worker (×1) ────────────────────────────────┐  │
-│ │ Preact chrome (top bar, ribbons, dialogs,│  │ xlsx reader → SheetStore (columnar)               │  │
+│ │ React 19 app (top bar, ribbons, dialogs, │  │ xlsx reader → SheetStore (columnar)               │  │
 │ │  wizard) · Stage: SVG from display lists │◄─┤ preset → TableLayout → effItems → design → Scene  │  │
 │ │  + DOM overlays (selection, handles,     │  │ → DisplayList (per table, cached)                 │  │
 │ │  inline editors) · DocSync (ops, undo)   │─►│ text: HarfBuzz hb.wasm shaping + font metrics     │  │
@@ -39,7 +39,7 @@ result: sections §1–§6 match points 1–6 of the brief. Storage details are 
 │ ┌──────────────┴──────────────────────────────────────────────────────────────────────────────────┐ │
 │ │ helper: python app\<ver>\helper\slide_builder.py   (standard library only, ~2 500 lines)          │ │
 │ │ static files · storage primitives (journal append/read-from, snapshot CAS, locks, presence)       │ │
-│ │ workbook stable read + (phase 4) parsed-sheet cache · font library (+ system font capture) ·          │ │
+│ │ workbook stable read + (M6) parsed-sheet cache · font library (+ system font capture) ·          │ │
 │ │ export file save (atomic, " (2)") · Excel COM / GDI+ conversion · update / self-test              │ │
 │ └──────────────┬──────────────────────────────────────────────────────────────────────────────────┘ │
 └────────────────┼─────────────────────────────────────────────────────────────────────────────────────┘
@@ -53,8 +53,8 @@ result: sections §1–§6 match points 1–6 of the brief. Storage details are 
 
 | Process | Language | Responsibility | Never does |
 |---|---|---|---|
-| UI thread | TypeScript + Preact | input, selection, overlays, chrome, DocSync (apply op, inverse, queue), mounting SVG produced from display lists | parse, lay out, measure text, write PDF |
-| core worker | TypeScript (+ `hb.wasm`) | read workbooks, keep the SheetStore, resolve presets, lay out tables and slides, measure and shape text, build scenes and display lists, write automated comments | touch the DOM or the network except via the helper API |
+| UI thread | TypeScript + React 19 + Zustand | input, selection, overlays, chrome, drag previews (pure layout functions), mounting SVG produced from display lists; holds a read-only mirror of the document view | parse, measure text, write PDF, own the document |
+| core worker | TypeScript (+ `hb.wasm`) | **own the document** (DocSync, undo stack) and the workbook; read workbooks, keep the SheetStore, resolve presets, lay out tables and slides, measure and shape text, build scenes and display lists, write automated comments | touch the DOM or the network except via the helper API |
 | export worker | TypeScript (+ `hb-subset.wasm`) | PDF and PNG from display lists | anything stateful |
 | helper | Python ≥ 3.8 stdlib | files on the share, locks, presence, conversions, update | apply or interpret operations (the TypeScript core is the only implementation) |
 
@@ -62,7 +62,8 @@ result: sections §1–§6 match points 1–6 of the brief. Storage details are 
 
 | Dependency | Version (pin) | Licence | Size in bundle | Why |
 |---|---|---|---|---|
-| preact | 10.29.x | MIT | 11 KB | unchanged UI library |
+| react, react-dom | 19.x | MIT | ≈ 60 KB gzipped | the UI (ADR-012); replaces Preact 10.29 |
+| zustand | 5.x | MIT | ≈ 1 KB | UI store with selectors; replaces the global `S` + `emit()` |
 | fflate | 0.8.2 | MIT | 9 KB (inflate + deflate) | synchronous zip read in workers (replaces JSZip, which is MIT-or-GPL and async-only); deflate for PDF streams and cache files |
 | harfbuzzjs: `hb.wasm`, `hb-subset.wasm` | 0.4.12 (HarfBuzz 11.x) | MIT (HarfBuzz: "Old MIT") | 371 KB + 608 KB | identical text shaping for layout, screen and PDF; font subsetting for TrueType **and** CFF; instancing of variable fonts to static ones (§2.5) |
 | *(dev only)* vite, vite-plugin-singlefile, typescript, vitest, @playwright/test | as today | MIT / Apache-2.0 | – | build and tests; never on users' PCs |
@@ -346,7 +347,7 @@ data/v4/decks/<key>/            <key> = v3 doc_key(name) (util.doc_key, unchange
   (stdlib) as a **wake-up hint** that triggers an immediate poll. SMB2 CHANGE_NOTIFY is supported by
   Windows file servers, but it is unreliable on some NAS firmware and through DFS, and events can be
   coalesced. Polling therefore remains the source of truth. The feature ships disabled and is turned on
-  after the field test (06 Phase 2).
+  after the field test (PLAN S0.6, S6.3).
 
 ---
 
@@ -356,7 +357,7 @@ data/v4/decks/<key>/            <key> = v3 doc_key(name) (util.doc_key, unchange
 
 | Stage | Input → output | Cache key (invalidated by) | Where |
 |---|---|---|---|
-| R1 read | `.xlsx` bytes → SheetStore per sheet | zip central directory: **CRC-32 + size of each sheet part** (+ sharedStrings, styles) | core worker. **Phase 4, if field measurements need it** (ADR-008): parsed sheets are written to `data/v4/cache/<crc>-<size>.sbc` (deflated columns, 3.1 MB for the 75 MB sheet, loads in 205 ms); the next user, or the same user tomorrow, skips parsing. Unchanged sheets of an edited workbook keep their cache |
+| R1 read | `.xlsx` bytes → SheetStore per sheet | zip central directory: **CRC-32 + size of each sheet part** (+ sharedStrings, styles) | core worker. **M6, if field measurements need it** (ADR-008): parsed sheets are written to `data/v4/cache/<crc>-<size>.sbc` (deflated columns, 3.1 MB for the 75 MB sheet, loads in 205 ms); the next user, or the same user tomorrow, skips parsing. Unchanged sheets of an edited workbook keep their cache |
 | R2 resolve | preset table def + sheet → `TableLayout` | v3 `LCACHE` key + growing-range end | core |
 | R3 effective items | layout + edits/version/scales/merges → items | v3 `tableKey` (`render/context.ts`), extended with the font hashes | core |
 | R4 design | items → Scene → table display list (in table px) | `design + glass level + tableKey` (as `tableHtml` today, `slide.ts:175-181`) | core |
@@ -465,7 +466,7 @@ Details are in 05 §3.4. In short:
 * Text positions are compared as data: every PDF `TJ` run's origin, read back with `pypdf`, must match the
   DL text node to within 0.05 pt.
 * It runs in CI for every fixture × design × version. Acrobat is checked manually once per release on
-  Windows (06 Phase 3).
+  Windows (PLAN S3.8, W14).
 
 ---
 
@@ -481,7 +482,7 @@ The whole interaction model stays:
 * table handles, text-box snapping, Design… and Text styles, the comment dialog, versions, the export menu,
   presence, own-changes-only undo.
 
-The Preact components in `ui/` and `wizard/` move as they are; only their calls into the renderer change.
+The components in `ui/` and `wizard/` are ported to React 19 (same JSX and hooks), with a selector-based store; only their state access and their calls into the renderer change (ADR-012, PLAN M1).
 This is a rebuild of the engine, not a redesign of the product.
 
 ### 6.2 What changes for users (every behaviour change, numbered as in 04 §6 and 06)
@@ -497,7 +498,7 @@ This is a rebuild of the engine, not a redesign of the product.
 | B7 | Text wrapping, overflow and fitting are computed from font files. A few cells may wrap or shrink differently from v3 (listed by the parity harness, accepted per case) | same layout on every PC |
 | B8 | Opening a large workbook never freezes the window; a second user opening the same workbook skips parsing | worker + shared cache |
 | B9 | "PDF as pictures" is 2× resolution (was 4×) | 125 MB → ≈ 15 MB |
-| B10 | `.xlsb` is read natively (Phase 4), with no Excel COM. `.xls` and IRM-protected files still use Excel | Constrained Language Mode blocks PowerShell COM |
+| B10 | `.xlsb` is read natively (M6), with no Excel COM. `.xls` and IRM-protected files still use Excel | Constrained Language Mode blocks PowerShell COM |
 | B11 | Version export names become `<workbook> - <version> - <design>.pdf` as documented (today `… - slides.pdf` is appended) | matches the README |
 | B12 | The program starts in an Edge app window rather than a browser tab (a browser tab is still possible) | looks like an app; less tab confusion |
 

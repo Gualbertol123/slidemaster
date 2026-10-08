@@ -22,7 +22,7 @@ reproduce that data. A difference is either fixed or listed as an accepted behav
 | **W** | Windows policy matrix (§3.7) on real corporate PCs | per release candidate |
 | **M** | Manual check by a pilot user (for things only a human judges: Acrobat, "looks right") | per release candidate |
 
-## 2. Capturing v3 before rewriting (phase 0 deliverables)
+## 2. Capturing v3 before rewriting (M0 deliverables, PLAN S0.5)
 
 1. **Corpus** (`tests/corpus/`):
    * the 4 fixtures (`frontend/tests/fixtures`);
@@ -49,7 +49,7 @@ reproduce that data. A difference is either fixed or listed as an accepted behav
    capture runs once per v3 release kept as the reference, and the goldens are committed. They are data,
    not code.
 3. **Op vectors** stay the canonical contract for document changes. A capture of real journals of user
-   sessions (`tools/record-ops`, Phase 2 pilot) adds realistic sequences.
+   sessions (`tools/record-ops`, M3 pilot) adds realistic sequences.
 4. **Saved formats:** `backend/tests/fixtures/saved/*` stay and are read by v4's migration tests. New
    examples are added and none are edited.
 
@@ -149,7 +149,7 @@ This must run on real corporate PCs (a VM image of the bank's standard build is 
 | W3 | "Programs may not run from T:\" | runs (python and msedge are local) | engine mirrored |
 | W4 | Edge DevTools disabled (`DeveloperToolsAvailability = 2`) and headless disabled | runs, exports work | DevTools engine disabled |
 | W5 | Edge `--app` mode blocked or Edge not default | falls back to the default browser | – |
-| W6 | PowerShell Constrained Language Mode | everything works except `.xls` conversion (`.xlsb` native from phase 4); the desktop shortcut falls back to a `.bat` (as v3) | `.xlsb`/`.xls` conversion fails |
+| W6 | PowerShell Constrained Language Mode | everything works except `.xls` conversion (`.xlsb` native from M6); the desktop shortcut falls back to a `.bat` (as v3) | `.xlsb`/`.xls` conversion fails |
 | W7 | TLS-intercepting proxy with a corporate root CA | `Update Slide Builder.bat` downloads with the Windows trust store; Google fonts are fetched by Edge (system trust) | same |
 | W8 | Console cp1252 | all helper output ASCII-safe (as v3) | same |
 | W9 | Display scaling 125/150/175 % | stage crisp; PDF page exactly 1200 × 675 pt (no device-scale dependency at all) | forced DSF 1 |

@@ -22,7 +22,7 @@ side-by-side install and no instant rollback.
 ## Consequences
 + The same one-click friction; instant rollback; reproducible builds; smaller diffs.
 − Requires GitHub Releases through the proxy (R11; manual ZIP fallback).
-− The first switch is shipped in Phase 0 on v3 itself.
+− The first switch is shipped in M0 on v3 itself (PLAN S0.3).
 
 ## Evidence and alternatives
 02 §I.
