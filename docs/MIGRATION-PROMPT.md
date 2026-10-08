@@ -54,7 +54,7 @@ designs, export. Measure before you judge.
 * **Programs started from the network share may be blocked** (AppLocker/WDAC, "executables cannot run
   from T:\"); the current system therefore mirrors the browser engine to `%LOCALAPPDATA%`. Antivirus
   scans every new executable. Any native binary you propose must survive this (state how).
-* **Python 3.8+ is available**; Node.js is **not** on users' PCs (developers only). Microsoft Edge is
+* **Python 3.8+ is available**;  Microsoft Edge is
   installed but its DevTools/remote debugging and headless mode may be disabled by policy. Excel is
   installed (COM automation is available but slow).
 * **TLS is intercepted** by a corporate proxy (custom root CA); downloads must work through it without
