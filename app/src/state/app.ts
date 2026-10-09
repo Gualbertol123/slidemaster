@@ -300,7 +300,9 @@ export function gotoSlide(i: number) {
   patchAll({ deck: { cur: i }, selection: { sel: null } }); STAGE.render();
 }
 /** the stage follows ui.zoom (editor/stage.ts) */
-export function setZoom(z: "fit" | number) { patch("ui", { zoom: z }); setPrefs({ zoom: z }); }
+/** the stage re-fits when the zoom changes (editor/stage.ts follows ui.zoom); "Fit" pressed again re-fits too
+    (the panels above the stage may have changed its size since) */
+export function setZoom(z: "fit" | number) { const unchanged = get().ui.zoom === z; patch("ui", { zoom: z }); setPrefs({ zoom: z }); if (unchanged) STAGE.fit(); }
 
 /* ---------------------------------------------------------------- look: theme, colours, text styles
    Design… edits either the current design only ("design") or all designs ("all"). Writing for all designs

@@ -38,6 +38,7 @@ import { setSel } from "../src/editor/edit";
 import { toast } from "../src/state/store";
 import { indexWorkbook } from "../src/xlsx/workbook";
 import { defaultPreset } from "../src/model/preset";
+import { backend, type Health, type Other } from "../src/sync/api";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const updated = () => [...counts.keys()].sort();
@@ -89,6 +90,28 @@ describe("render counts", () => {
     await settle();
     report("10 polls, nothing new");
     expect(updated()).toEqual([]);
+  });
+
+  it("a poll from the helper that brings equal answers (new objects, new seen-at times) re-renders nothing", async () => {
+    // the offline backend answers null / []; the helper answers a new object on every poll
+    const health = (): Health => ({ app: "Slide Builder", version: "3.4.0", user: "anna", host: "pc-anna", folder: "T:\\Slide Builder", export: "T:\\Slide Builder\\export", engine: { state: "ready", browser: "Chrome", local: false, error: null, engines: [{ name: "DevTools", label: "DevTools · Chrome", state: "ok", detail: "" }] } });
+    let at = 1000;
+    const bob = (): Other[] => [{ user: "bob", host: "pc-bob", client: "c-bob", workbook: "report.xlsx", at: at++ }];
+    const h = vi.spyOn(backend, "health").mockImplementation(async () => health());
+    const p = vi.spyOn(backend, "presence").mockImplementation(async () => bob());
+    try {
+      const poll = async () => { for (let i = 0; i < 10; i++) { await tick(); await heartbeat(); } };
+      await act(poll);                                  // the first answers are news: the pill and "bob is here"
+      await settle();
+      expect(get().ui.health?.user).toBe("anna");
+      expect(get().ui.others.map(o => o.user)).toEqual(["bob"]);
+      counts.clear();
+      await act(poll);
+      await settle();
+      report("10 helper polls, equal answers");
+      expect(h).toHaveBeenCalled(); expect(p).toHaveBeenCalled();
+      expect(updated()).toEqual([]);
+    } finally { h.mockRestore(); p.mockRestore(); }
   });
 
   it("a toast re-renders only Toast", async () => {

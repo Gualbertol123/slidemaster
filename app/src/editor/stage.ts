@@ -20,19 +20,23 @@ export function mountStage(el: HTMLElement) {
   host = el;
   STAGE.render = renderStage; STAGE.refresh = refreshStage; STAGE.paintSel = paintSel; STAGE.fit = fitStage;
   removeEventListener("resize", fitStage); addEventListener("resize", fitStage);
-  // the stage follows the slices it draws: the selection (cells, slide text, text box, painter) and the zoom.
-  // Slides are redrawn by the document changes (state/app.ts), which know whether a refresh is enough.
   unsubscribe?.();
+  unsubscribe = followStore({ sel: paintSel, note: paintNoteSel, painting: on => document.body.classList.toggle("painting", on), zoom: fitStage });
+  renderStage();
+}
+/** the stage follows the slices it draws: the selection (cells, slide text, text box, painter) and the zoom.
+    Slides are redrawn by the document changes (state/app.ts), which know whether a refresh is enough.
+    Returns the unsubscribe. */
+export function followStore(on: { sel: () => void; note: () => void; painting: (on: boolean) => void; zoom: () => void }) {
   const subs = [
     useStore.subscribe(s => s.selection, (now, was) => {
-      if (now.sel !== was.sel || now.textSel !== was.textSel) paintSel();
-      if (now.noteSel !== was.noteSel) paintNoteSel();
-      if (!now.painter !== !was.painter) document.body.classList.toggle("painting", !!now.painter);
+      if (now.sel !== was.sel || now.textSel !== was.textSel) on.sel();
+      if (now.noteSel !== was.noteSel) on.note();
+      if (!now.painter !== !was.painter) on.painting(!!now.painter);
     }),
-    useStore.subscribe(s => s.ui.zoom, () => fitStage()),
+    useStore.subscribe(s => s.ui.zoom, () => on.zoom()),
   ];
-  unsubscribe = () => subs.forEach(f => f());
-  renderStage();
+  return () => subs.forEach(f => f());
 }
 const wrapEl = () => host?.querySelector<HTMLElement & { _scale?: number }>(".stagewrap") || null;
 export const slideScale = () => wrapEl()?._scale || 1;
