@@ -10,7 +10,7 @@ numbers measured twice). Measured numbers go into the step's line.
 - [x] S0.1 · CI, PROGRESS.md, one check command — [PR #1](https://github.com/Gualbertol123/slidemaster/pull/1). `npm run check`; `.github/workflows/ci.yml` (unit, helper 3.8 + 3.12, e2e, and parity from S0.5). Baseline 114 Vitest / 131 helper / 15 e2e. Surprises: Chrome's sandbox needs `kernel.apparmor_restrict_unprivileged_userns=0` on ubuntu-24.04; runners pinned to ubuntu-24.04 (26.04 has no Python 3.8); the helper listened with a backlog of 5, so a burst of requests waited 1 s for a TCP retry (now 128, with a test); an intermittent CI e2e failure (see Waiting for). verified: tests ✓ clean clone ✓ review ✓
 - [x] S0.2 · Release pipeline — [PR #1](https://github.com/Gualbertol123/slidemaster/pull/1). `tools/make_release.py` (reproducible ZIP + MANIFEST.json, `--verify`, `--notes`), `release.yml` on `v*`. The test tag is for a person (Waiting for). verified: tests ✓ clean clone ✓ review ✓
 - [x] S0.3 · Side-by-side installs, current.json, Edge app window — [PR #1](https://github.com/Gualbertol123/slidemaster/pull/1). `update.py --release/--zip <file>/--use`, `--selftest`, Start file reads `app\current.json` with `python -c`, Edge `--app` (B12). Rehearsed on a copy of a share folder (install, flip, rollback, start, data untouched). Not run on real Windows cmd.exe/Edge (W5, W6 in field-results.md). verified: tests ✓ clean clone ✓ review ✓
-- [ ] S0.4 · v3 quick fixes found in the review
+- [x] S0.4 · v3 quick fixes found in the review — [PR #1](https://github.com/Gualbertol123/slidemaster/pull/1). B6 (save state notifies), B13 (`/api/files/<name>/stat`, list only on the Open menu), presence from one directory listing. Share operations per user per minute, idle: 910 → 78; editing: 1217 → 398 (Measurements). Side effect: the e2e suite runs in ~2 min instead of ~4 (no more waiting for the 3 s tick). verified: tests ✓ clean clone ✓ review ✓
 - [ ] S0.5 · Capture v3 as golden data
 - [ ] S0.6 · Field tests on the real environment
 - [ ] S0.7 · Ship v3.4
@@ -81,3 +81,6 @@ numbers measured twice). Measured numbers go into the step's line.
 |---|---|---|---|
 | S0.1 | e2e suite, local (15 tests) | 4.2 min | 4.1 min |
 | S0.2 | release ZIP 3.4.0 | 803 103 bytes, 35 files, sha256 6ee579c4… | identical bytes on a second build |
+| S0.4 | share file operations per user per minute, 10 idle users, mixed decks, 20 more decks (`tools/loadtest.py --users 10 --scenario mixed --duration 60 --count-ops --extra-books 20 --idle`; before: `--client v3.3 --helper <b2166d3>/backend/slide_builder.py`) | 909.8 → 78.2 (data 637.9 → 65.5, workbook folder 271.9 → 12.7) | 917.5 → 77.2 |
+| S0.4 | the same while everybody edits (no `--idle`) | 1217.4 → 397.2 | 1217.4 → 398.1 |
+| S0.4 | e2e suite, local, after B6 | 1.8 min | 2.0 min |

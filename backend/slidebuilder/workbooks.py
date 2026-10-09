@@ -1,5 +1,6 @@
 """Workbooks in the app folder: listing and stable reads (ARCHITECTURE §5, finding C8)."""
 import os
+import stat as stat_module
 import time
 
 from . import paths
@@ -57,6 +58,26 @@ def find_workbook(name):
     p = safe_path(name, paths.HOME_BACKEND)
     if os.path.isfile(p):
         return p
+    raise FileNotFoundError(name)
+
+
+def stat_workbook(name):
+    """{"name", "mtime", "size"} of one workbook with a single stat (the changed-on-disk banner asks every
+    6 s; listing the folder and reading every deck document for that was most of the share traffic)"""
+    n = name.replace("\\", "/").rsplit("/", 1)[-1]
+    if not is_workbook_name(n):
+        raise PermissionError("not a workbook")
+    for folder in (paths.ROOT, paths.HOME_BACKEND):
+        try:
+            st = os.stat(safe_path(name, folder))
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+        except PermissionError:                  # outside the folders (safe_path) or not allowed: 403
+            raise
+        except OSError as e:                     # the share dropped, a name Windows refuses: "try again", no traceback
+            raise StoreUnreadable("%s cannot be checked right now (%s)" % (n, e))
+        if stat_module.S_ISREG(st.st_mode):
+            return {"name": n, "mtime": st.st_mtime, "size": st.st_size}
     raise FileNotFoundError(name)
 
 

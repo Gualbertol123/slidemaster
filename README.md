@@ -217,7 +217,7 @@ data/
 ├─ users/<user>.json               personal preferences                  {schema:1, lastFile, pdfMode, zoom, versions}
 ├─ fonts/fonts.json + font files   shared font library                   {schema:1, fonts:[{family, source, faces[], by, at}]}
 ├─ assets/                         logos uploaded via Options › Logo
-├─ presence/<user>@<host>.json     heartbeats (who has which workbook open)
+├─ presence/hb~<user>~<host>~<client>~<workbook>.json   heartbeats (who has which workbook open; read from the listing)
 ├─ locks/<name>.lock               lock files (short-lived)
 ├─ migrated.json                   marker: v2 settings were imported
 ├─ app-version.json                installed version (ZIP updates only)
@@ -355,7 +355,7 @@ exactly this text), mounts `<App/>`, installs the keyboard handler and calls `bo
 | `sync/api.ts` | The `Backend` interface; `helper` (HTTP: adds `X-SB-Token` from `<meta name="sb-token">` and `X-SB-Formats`; `ApiError`) and `offline` (localStorage, for a page opened as `file://`). `backend = SERVED ? helper : offline`. |
 | `sync/docsync.ts` | **`DocSync`**: `server` doc + `inflight` + `pending` ops → `view`. `apply(ops)` (local, returns inverse), `flush()` (one request in flight, 300 ms debounce, retry 2–32 s, 409 → `outdated`), `poll()` (`?since=rev`, rebase), `on(listener)` with `Change {local, by, presetChanged, styleChanged, editsChanged}`. |
 | `state/store.ts` | The global mutable state **`S`** (health, user, prefs, config, file, wb, sync, slides, cur, version, selections `sel`/`noteSel`/`textSel`, painter, zoom, undo/redo, toast, busy…), `emit()` (microtask-batched re-render of every `useApp()` component), `STAGE`/`THUMBS` controller hooks filled by the editor. |
-| `state/app.ts` | Actions: `boot`, `openFromFolder`/`openLocalFile`/`openBuffer`, `onDocChange`, `onStyleChanged`, **`change(label, ops, coalesce?)`**, `undo`, `styleChange`, `lookChange` (scope: this design / all), `slidesFor(design)`, `showVersion`, `ctx()` (memoised `RenderCtx`), `style()`, `tick` (poll 3 s, health/changed-on-disk 6 s, fonts/config 30 s), presence heartbeat 10 s. |
+| `state/app.ts` | Actions: `boot`, `openFromFolder`/`openLocalFile`/`openBuffer`, `onDocChange`, `onStyleChanged`, **`change(label, ops, coalesce?)`**, `undo`, `styleChange`, `lookChange` (scope: this design / all), `slidesFor(design)`, `showVersion`, `ctx()` (memoised `RenderCtx`), `style()`, `tick` (poll 3 s, health + one-stat changed-on-disk check 6 s, fonts/config 30 s; the workbook list is read at start and when the Open menu opens), presence heartbeat 10 s. |
 | `state/dialogs.ts` | Promise-based dialogs (`ask`, `confirmBox`, `runWizard`, installer) – `DLG` flags rendered by `ui/`. |
 | `state/fonts.ts` | Font library in the page: `loadFonts`, `@font-face` in `<style id="fontcss">`, `addGoogleFont` (downloads faces, uploads them to the helper), `uploadFontFiles`, `embeddedFontCss(html)` (fonts used by exported slides as data URLs). |
 
@@ -492,7 +492,7 @@ the browser → `serve_forever`.
 | `store.py` | Documents: retried reads (`StoreUnreadable` → 503, never replaced by empty), atomic writes, format upgrades on read, `update_workbook` under the lock, revision log, rolling backups (`backupAt` in the doc → a normal save never lists the backup folder), history, config and personal prefs. |
 | `ops.py` | Operation semantics (mirror of `model/ops.ts`). |
 | `upgrade.py` | `SCHEMA`, `@step(kind, n)` upgrade functions (none yet), `TooNew`. |
-| `presence.py` | Heartbeat files `presence/<user>@<host>.json`; others seen in the last 25 s; cleanup after 24 h. |
+| `presence.py` | One heartbeat file per user@host whose **name** carries user, host, client and workbook; others = one directory listing, freshness from its modification times on the file-server clock (no file opened); old-format `<user>@<host>.json` still read; others seen in the last 25 s; cleanup after 24 h. |
 | `workbooks.py` | Listing (ROOT then `backend/`), path-safe lookup, **stable read** (size/mtime unchanged before/after, zip end record present; retried; `Unstable` → 503 while Excel is still saving). |
 | `fonts.py` | Font library: signature-checked files (≤ 15 MB, ≤ 64 faces/family), written before the index, under lock `fonts`; unreferenced files swept. |
 | `exports.py` | `/api/export` (modes, file naming) and `/api/assemble`; `save_export`: temp file → under lock `export-<name>` renamed into place; a target open in a viewer (locked) → ` (2)`, ` (3)`… |
@@ -547,7 +547,7 @@ JSON bodies ≤ 2 MB, uploads/exports ≤ 300 MB. Full shapes: `docs/ARCHITECTUR
 |---|---|
 | `GET /` | the app with the token injected (`__SB_TOKEN__` replaced; `<meta name="sb-token">`) |
 | `GET /api/ping` (no token) · `GET /api/health` | liveness · version, user, folders, export engine status |
-| `GET /api/files` · `GET /files/<name>` | workbooks in the folder (with doc rev/author) · workbook bytes (stable read) |
+| `GET /api/files` · `GET /api/files/<name>/stat` · `GET /files/<name>` | workbooks in the folder (with doc rev/author; reads every deck, so only on demand) · one workbook's `{name, mtime, size}` (one stat, the changed-on-disk banner) · workbook bytes (stable read) |
 | `GET /api/workbooks/<name>/doc?since=rev` | the document (204 if unchanged) |
 | `POST /api/workbooks/<name>/ops` | `{ops, client}` → `{doc, applied, skipped}` |
 | `GET /api/workbooks/<name>/history` | rolling backups |

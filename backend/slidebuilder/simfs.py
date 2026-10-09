@@ -11,7 +11,10 @@ folder sleeps ``SLIDEBUILDER_SIM_FS_MS`` milliseconds (+-25 % jitter) before doi
 
     open() / os.open()            (create or open for read/write)
     os.replace / os.rename        os.stat / os.path.exists / os.path.getmtime / os.path.isfile
-    os.remove / os.unlink         os.listdir      os.makedirs      os.fsync
+    os.remove / os.unlink         os.listdir      os.scandir       os.makedirs      os.fsync
+
+A directory listing (listdir / scandir) is one charge: on Windows the listing also carries every
+entry's size and times, so ``DirEntry.stat()`` costs no further round trip (and is not charged).
 
 Reads, writes and closes of an already open handle are not charged; real SMB2 adds round trips
 for those too (a small read is often compounded with the open, a close is one more), so the
@@ -126,7 +129,7 @@ def _make_os():
         "open": _wrap_path(os.open), "stat": _wrap_path(os.stat),
         "replace": _wrap_two(os.replace), "rename": _wrap_two(os.rename),
         "remove": _wrap_path(os.remove), "unlink": _wrap_path(os.unlink),
-        "listdir": _wrap_path(os.listdir), "makedirs": _wrap_path(os.makedirs),
+        "listdir": _wrap_path(os.listdir), "scandir": _wrap_path(os.scandir), "makedirs": _wrap_path(os.makedirs),
         "fsync": _fsync,
     })
 

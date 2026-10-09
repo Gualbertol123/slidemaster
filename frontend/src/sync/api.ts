@@ -24,6 +24,8 @@ export interface Backend {
   config(): Promise<ConfigDoc>;
   configOps(ops: Op[]): Promise<OpsResult<ConfigDoc>>;
   files(): Promise<FileInfo[]>;
+  /** one stat of one workbook (the changed-on-disk banner); null when it is gone or there is no helper */
+  fileStat(name: string): Promise<{ mtime: number; size: number } | null>;
   readFile(name: string): Promise<{ buf: ArrayBuffer; mtime: number; size: number }>;
   getDoc(name: string, since?: number): Promise<WorkbookDoc | null>;
   postOps(name: string, ops: Op[], client: string): Promise<OpsResult<WorkbookDoc>>;
@@ -77,6 +79,10 @@ export const helper: Backend = {
   config: () => json(req("/api/config")),
   configOps: ops => json(req("/api/config/ops", { method: "POST", json: { ops } })),
   async files() { return (await json<{ workbooks: FileInfo[] }>(req("/api/files"))).workbooks || []; },
+  async fileStat(name) {
+    try { return await json<{ mtime: number; size: number }>(req("/api/files/" + encodeURIComponent(name) + "/stat")); }
+    catch (e) { if ((e as ApiError).status === 404) return null; throw e; }
+  },
   async readFile(name) {
     const r = await req("/files/" + encodeURIComponent(name));
     return { buf: await r.arrayBuffer(), mtime: +(r.headers.get("X-SB-Mtime") || 0), size: +(r.headers.get("X-SB-Size") || 0) };
@@ -136,6 +142,7 @@ export const offline: Backend = {
     return { doc, applied: r.applied, skipped: r.skipped };
   },
   async files() { return []; },
+  async fileStat() { return null; },
   readFile: offlineOnly,
   async getDoc(name, since) { const d = LS.get<WorkbookDoc>("doc:" + name, emptyDoc(name)); return since !== undefined && d.rev === since ? null : d; },
   async postOps(name, ops) {

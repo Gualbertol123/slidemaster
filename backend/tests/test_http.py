@@ -11,7 +11,7 @@ from unittest import mock
 
 from sbtest import TempDirs, make_png, make_xlsx_bytes
 
-from slidebuilder import APP_NAME, VERSION, paths, server, store, workbooks
+from slidebuilder import APP_NAME, VERSION, paths, presence, server, store, workbooks
 from test_exports import FakeEngine
 
 TOKEN = "test-token-123"
@@ -212,10 +212,11 @@ class HttpTests(HttpBase):
         with mock.patch.dict(os.environ, {"SLIDEBUILDER_USER": "alice", "SLIDEBUILDER_HOST": "pcA"}):
             r = self.jreq("POST", "/api/presence", {"client": "ca", "workbook": None})[1]
             self.assertEqual([o["user"] for o in r["others"]], ["bob"])
+            mine = os.path.join(paths.DATA, "presence", presence.file_name("alice", "pcA", "ca", None))
             self.assertEqual(self.jreq("POST", "/api/presence/leave", {"client": "wrong"}), (200, {"ok": True}))
-            self.assertTrue(os.path.exists(os.path.join(paths.DATA, "presence", "alice@pcA.json")))
+            self.assertTrue(os.path.exists(mine))
             self.assertEqual(self.jreq("POST", "/api/presence/leave", {"client": "ca"}), (200, {"ok": True}))
-            self.assertFalse(os.path.exists(os.path.join(paths.DATA, "presence", "alice@pcA.json")))
+            self.assertFalse(os.path.exists(mine))
         with mock.patch.dict(os.environ, {"SLIDEBUILDER_USER": "bob", "SLIDEBUILDER_HOST": "pcB"}):
             self.assertEqual(self.jreq("POST", "/api/presence", {"client": "cb", "workbook": "W.xlsx"})[1], {"others": []})
         # a heartbeat older than 25 s is not reported
@@ -264,6 +265,28 @@ class HttpTests(HttpBase):
             t.join()
         self.assertEqual(len(took), 60)
         self.assertLess(max(took), 0.9, "a connection waited for a SYN retry: the listen backlog is too small")
+
+    def test_file_stat(self):
+        """GET /api/files/<name>/stat: one stat for the changed-on-disk banner, no deck document read (B13)"""
+        data = make_xlsx_bytes()
+        p = os.path.join(paths.ROOT, "Book One.xlsx")
+        with open(p, "wb") as f:
+            f.write(data)
+        with mock.patch.object(workbooks, "read_workbook", side_effect=AssertionError("no deck read")):
+            st, r = self.jreq("GET", "/api/files/" + urllib.parse.quote("Book One.xlsx") + "/stat")
+        self.assertEqual(st, 200)
+        self.assertEqual((r["name"], r["size"]), ("Book One.xlsx", len(data)))
+        self.assertAlmostEqual(r["mtime"], os.path.getmtime(p), places=3)
+        self.assertEqual(self.jreq("GET", "/api/files/Missing.xlsx/stat")[0], 404)
+        for bad in ("/api/files/..%2F..%2Fetc%2Fpasswd/stat", "/api/files/slide_builder.py/stat", "/api/files/%2Fetc%2Fhosts.xlsx/stat",
+                    "/api/files/..%2Fx.xlsx/stat"):
+            self.assertIn(self.jreq("GET", bad)[0], (403, 404), bad)
+        with mock.patch.object(workbooks.os, "stat", side_effect=OSError(64, "The specified network name is no longer available")):
+            st, r = self.jreq("GET", "/api/files/" + urllib.parse.quote("Book One.xlsx") + "/stat")
+        self.assertEqual(st, 503)                                     # "try again", not a 500 with a traceback
+        os.makedirs(os.path.join(paths.ROOT, "Folder.xlsx"))
+        self.assertEqual(self.jreq("GET", "/api/files/Folder.xlsx/stat")[0], 404)
+        self.assertEqual(self.jreq("GET", "/api/files/" + urllib.parse.quote("Book One.xlsx") + "/stat", token=False)[0], 403)
 
     def test_incomplete_workbook_is_503(self):
         with open(os.path.join(paths.ROOT, "Half.xlsx"), "wb") as f:
