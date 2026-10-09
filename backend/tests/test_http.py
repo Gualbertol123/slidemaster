@@ -288,6 +288,13 @@ class HttpTests(HttpBase):
         self.assertEqual(self.jreq("GET", "/api/files/Folder.xlsx/stat")[0], 404)
         self.assertEqual(self.jreq("GET", "/api/files/" + urllib.parse.quote("Book One.xlsx") + "/stat", token=False)[0], 403)
 
+    def test_fieldcheck_page(self):
+        """the field-test page (PLAN S0.6) from the helper, without a token, like the app page"""
+        st, h, body = self.req("GET", "/fieldcheck", token=False)
+        self.assertEqual(st, 200)
+        self.assertTrue(h["content-type"].startswith("text/html"))
+        self.assertIn(b"Slide Builder field check", body)
+
     def test_incomplete_workbook_is_503(self):
         with open(os.path.join(paths.ROOT, "Half.xlsx"), "wb") as f:
             f.write(make_xlsx_bytes()[:-40])

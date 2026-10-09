@@ -298,6 +298,8 @@ class Handler(BaseHTTPRequestHandler):
     def _get(self, path, q):
         if path in ("/", "/index.html", "/slide_builder.html"):
             return self._page()
+        if path in ("/fieldcheck", "/fieldcheck.html"):            # field test page (PLAN S0.6), same origin as the app
+            return self._fieldcheck()
         if path == "/api/ping":
             return self._send(200, {"app": APP_NAME, "version": VERSION})
         if path == "/api/health":
@@ -351,6 +353,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(503, NOT_BUILT, "text/html; charset=utf-8")
         html = html.replace(TOKEN_PLACEHOLDER, self.app.token.encode("ascii"))
         return self._send(200, html, "text/html; charset=utf-8")
+
+    def _fieldcheck(self):
+        """tools/fieldcheck.html next to the program (a checkout or a release folder; 404 when absent)"""
+        with open(os.path.join(os.path.dirname(paths.BACKEND), "tools", "fieldcheck.html"), "rb") as f:
+            return self._send(200, f.read(), "text/html; charset=utf-8")
 
     def _workbook_file(self, name):
         p = find_workbook(name)

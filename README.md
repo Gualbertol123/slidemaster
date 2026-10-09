@@ -554,6 +554,7 @@ JSON bodies ≤ 2 MB, uploads/exports ≤ 300 MB. Full shapes: `docs/ARCHITECTUR
 | `GET /api/config` · `POST /api/config/ops` | shared defaults (style.patch only) |
 | `GET /api/me` · `PUT /api/me` | user, host, personal preferences (whole replace) |
 | `POST /api/presence` · `POST /api/presence/leave` | heartbeat → others in the folder |
+| `GET /fieldcheck` (no token) | `tools/fieldcheck.html`, the field-test page of the browser's capabilities (PLAN S0.6), on the app's origin |
 | `GET/POST/DELETE /api/fonts` · `GET /fonts/<file>` | font library · font files |
 | `POST /api/logo?name=` · `GET /assets/<name>` | upload a logo to `data/assets` · images from data/assets, `backend/`, ROOT (case-insensitive) |
 | `POST /api/export` · `POST /api/assemble` | render + write exports · PDF from page-rendered images |
