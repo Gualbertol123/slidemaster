@@ -10,8 +10,8 @@ at a time. Each step has the same parts:
 The *why* behind each step lives in `00`–`06` and `adr/`; this file is the *what* and the *in which order*.
 It turns every finding of `01-current-system.md` into a concrete task.
 
-**To run it with coding agents, use [`PROMPTS.md`](PROMPTS.md):** one self-contained prompt per step, sent in
-order, plus a review prompt for every pull request.
+**To run it with coding agents, use [`PROMPTS.md`](PROMPTS.md):** ten self-contained prompts, one per milestone
+(plus a final audit), sent in order and resumable after human gates, each with built-in double checking.
 
 **Objective, in the user's words: keep and keep developing every current feature, make sure everything
 makes logical sense, and make it all smooth and fast.** Every step below serves one of those three. If a
@@ -21,10 +21,12 @@ step would break a feature listed in `05-test-and-parity.md` §4, it is wrong.
 
 ## Part A · How to work through this plan (rules for the agent)
 
-1. **One step = one branch = one pull request.**
-   * Branch `v4/<step-id>-<short-name>`, e.g. `v4/S2.3-columnar-sheets`.
-   * The PR title starts with the step id.
-   * Do not start a step until every step it depends on is merged (the graph is in Part D).
+1. **One prompt (milestone) = one branch = one pull request; one commit per step.**
+   * Branch `v4/M<n>-<name>`, e.g. `v4/M2-core-workers`, matching the prompts in `PROMPTS.md`.
+   * Commits are titled "S2.3 · <title>".
+   * Do not start a step until every step it depends on is ticked (the graph is in Part D).
+   * Every step passes the **double-check protocol** of `PROMPTS.md` before it is ticked: tests, the same
+     tests from a clean clone, an independent review against the checklist, numbers measured twice.
 2. **Keep `PROGRESS.md` at the repository root.**
    * Step S0.1 creates it with one checkbox line per step.
    * Tick the line in the same PR. Add the PR link and a one-line note of anything surprising.

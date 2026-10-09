@@ -95,5 +95,5 @@ inference, comments, UI and wizard.
 | `05-test-and-parity.md` | test strategy, Windows policy matrix, full parity checklist |
 | `06-plan.md` | phases, effort, reuse map, risk register, non-goals, benchmarks |
 | `PLAN.md` | **the executable plan: what it will look like, and every step to get there** |
-| `PROMPTS.md` | **one copy-paste prompt per step for coding agents, sent in order, plus a review prompt** |
+| `PROMPTS.md` | **ten copy-paste prompts for coding agents (one per milestone + a final audit), with built-in double checking** |
 | `adr/001…012` | one record per decision |
