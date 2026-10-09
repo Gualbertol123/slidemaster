@@ -10,6 +10,9 @@ at a time. Each step has the same parts:
 The *why* behind each step lives in `00`–`06` and `adr/`; this file is the *what* and the *in which order*.
 It turns every finding of `01-current-system.md` into a concrete task.
 
+**To run it with coding agents, use [`PROMPTS.md`](PROMPTS.md):** one self-contained prompt per step, sent in
+order, plus a review prompt for every pull request.
+
 **Objective, in the user's words: keep and keep developing every current feature, make sure everything
 makes logical sense, and make it all smooth and fast.** Every step below serves one of those three. If a
 step would break a feature listed in `05-test-and-parity.md` §4, it is wrong.
