@@ -1,4 +1,4 @@
-# Slide Builder helper (backend) – v3.0
+# Slide Builder helper (backend) – v3.4.0
 
 Python standard library only, Python 3.8+. Windows is the target (app folder on an SMB share);
 everything except the Excel/GDI+ converters also runs on Linux/macOS. The binding contract is
@@ -8,6 +8,7 @@ everything except the Excel/GDI+ converters also runs on Linux/macOS. The bindin
 python slide_builder.py [--port 8765] [--no-browser]    # what "Start Slide Builder.bat" runs
 python slide_builder.py --setup                          # what "Install export engine.bat" runs
 python slide_builder.py --install                        # what "Install Slide Builder.bat" (root) runs
+python slide_builder.py --selftest                       # can this version use the shared folder? (read-only; tools/update.py)
 ```
 
 `--install` is the first-time set-up (`slidebuilder/firstrun.py`): Python check, pip/ensurepip,
@@ -22,15 +23,16 @@ optional packages only – the helper itself stays standard-library only.
 
 | Module | Concern |
 |---|---|
-| `__init__` | `APP_NAME`, `VERSION = "3.0"` |
-| `paths` | folder layout (ROOT, BACKEND, DATA, export, engine); `configure()` / env overrides |
+| `__init__` | `APP_NAME`, `VERSION = "3.4.0"` |
+| `paths` | folder layout (ROOT, BACKEND, DATA, export, engine); `HOME_BACKEND` / `INSTALL_HOME`: a version in `app\<ver>\backend` uses the main folder's data and files; `configure()` / env overrides |
+| `selftest` | `--selftest`: reads every saved setup without writing, probes create/rename/delete in `data/locks` |
 | `util` | logging, identity (user/host), name safety, `doc_key()`, `safe_path()`, atomic writes |
 | `fsclock` | the file server's clock (`fs_now(dir)`): ages of shared files never compare a server mtime with this PC's clock |
 | `locks` | `Lock(name)` – O_EXCL lock files in `data/locks`, 10 s wait, 15 s stale, owner token, keepalive |
 | `ops` | `apply_ops(doc, ops, user, now_ms, kind)` – §3.2 semantics (shared with the front end) |
 | `store` | workbook docs, `config.json`, `users/<user>.json`, backups; retried reads, `StoreUnreadable`; format upgrades on read (`StoreTooNew` → 409) |
 | `upgrade` | saved-format versions (`SCHEMA`) and the upgrade steps n → n+1 (ARCHITECTURE §3.3) |
-| `presence` | heartbeat files `data/presence/<user>@<host>.json` |
+| `presence` | heartbeat files `data/presence/hb~<user>~<host>~<client>~<workbook>.json`; others from one directory listing (old `<user>@<host>.json` still read) |
 | `workbooks` | listing of workbooks, path-safe lookup, stable read (`X-SB-Mtime` / `X-SB-Size`) |
 | `migrate` | one-time import of `slide_builder_settings.txt` (v2) under lock `migrate` |
 | `pdf` | PDF writer for JPEG/PNG pages, PNG crop, page-box reading and fitting (`pdf_fit_pages`: cuts each page to the #FFFFFE marker the slide was drawn on) |
@@ -80,7 +82,9 @@ python3 -m unittest discover -s tests -v
 * `test_firstrun` – `--install`: truststore retry decision, venv/`--user`, ensurepip, shortcut fallback `.bat`
   on a temp desktop (and `.lnk` replacing it), shared-folder probe, exit codes, two runs in a row, real self-test
 * `test_fonts` – font library and logo upload/lookup; `test_export_geometry` – page fitting, marker detection, picture checks;
-  `test_upgrade` – saved-format examples and upgrades; `test_update` – the GitHub updater
+  `test_upgrade` – saved-format examples and upgrades; `test_update` – the GitHub updater and side-by-side releases
+* `test_presence` – presence from file names and listing times; `test_release` – release ZIP and its manifest check;
+  `test_sharetest` – the field-test protocols with local processes; `test_anonymise` – the corpus anonymiser
 * `test_simfs` – latency simulation only touches data-folder calls, can be removed again; `X-SB-Timing` only when enabled
 
 ## Load test

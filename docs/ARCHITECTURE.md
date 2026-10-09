@@ -228,6 +228,7 @@ All responses JSON unless stated. Security for every request:
 | `GET /fonts/<file>` | – (token header or `?t=`) | a font file |
 | `POST /api/presence` | `{client, workbook}` | `{others:[{user, host, client, workbook, at}]}` – others seen in the last 25 s |
 | `POST /api/presence/leave` | `{client}` | `{ok}` |
+| `GET /fieldcheck` (no token) | – | `tools/fieldcheck.html`: the field-test page of the browser's capabilities, on the app's origin |
 | `POST /api/upload?name=` · `GET /api/upload/<id>` | bytes | `{id, name}` · bytes (in memory, max 8 entries, 2 h) |
 | `POST /api/convert-workbook?name=` | bytes | `.xlsx` bytes (Excel COM, Windows) or 501 |
 | `POST /api/convert?ext=` | bytes | PNG bytes (GDI+, Windows) or 501 |
