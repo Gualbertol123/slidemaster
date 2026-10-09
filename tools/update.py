@@ -36,6 +36,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import unicodedata
 import urllib.request
 import zipfile
 
@@ -337,6 +338,87 @@ def update_with_zip(root, repo, branch, stamp, check_only, zip_url=None):
         json.dump({"sha": sha, "branch": branch, "at": datetime.datetime.now().isoformat(timespec="seconds"), "by": user()}, f, indent=1)
     say("Updated: %d program files written%s." % (written, (" (previous versions in the backup folder)" if saved else "")))
     return True
+
+
+# --------------------------------------------------------------------------- release ZIPs (MANIFEST.json)
+MANIFEST = "MANIFEST.json"
+VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$")
+
+
+def sha256_bytes(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+WINDOWS_RESERVED = re.compile(r"^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$", re.I)
+BAD_CHARS = re.compile(r'[\x00-\x1f<>"|?*:\\]')
+CORE_FILES = ("backend/slide_builder.py",)
+
+
+def safe_member(name):
+    """a ZIP entry that stays inside the folder it is extracted to and that Windows can create as named:
+    no drive, no .., no backslashes, no device names (CON, AUX.txt ...), no part ending in "." or " ",
+    no control characters or <>"|?*"""
+    if not name or name.startswith("/") or BAD_CHARS.search(name):
+        return False
+    for part in name.rstrip("/").split("/"):
+        if part in ("", ".", "..") or part[-1] in ". " or WINDOWS_RESERVED.match(part):
+            return False
+    return True
+
+
+def _fold(name):
+    """the name as Windows compares it (case-insensitive, one Unicode form)"""
+    return unicodedata.normalize("NFC", name).casefold()
+
+
+def verify_release(zf):
+    """check an open release ZIP against its MANIFEST.json: every listed file present with its size and
+    SHA-256, nothing extra, every path safe and unique on Windows. Returns the manifest; raises
+    ValueError with the reason."""
+    all_names = zf.namelist()
+    bad = [n for n in all_names if not safe_member(n)]
+    if bad:
+        raise ValueError("unsafe path in the ZIP: %r" % bad[0])
+    folded = [_fold(n.rstrip("/")) for n in all_names]
+    if len(set(folded)) != len(folded):
+        dup = next(n for n in all_names if folded.count(_fold(n.rstrip("/"))) > 1)
+        raise ValueError("two entries with the same name on Windows: %r" % dup)
+    names = [n for n in all_names if not n.endswith("/")]
+    if MANIFEST not in names:
+        raise ValueError("the ZIP has no %s" % MANIFEST)
+    try:
+        man = json.loads(zf.read(MANIFEST).decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        raise ValueError("%s cannot be read" % MANIFEST)
+    files = man.get("files") if isinstance(man, dict) else None
+    version = man.get("version") if isinstance(man, dict) else None
+    if not isinstance(files, dict) or not files:
+        raise ValueError("%s lists no files" % MANIFEST)
+    for n, meta in files.items():
+        if (not isinstance(meta, dict) or not isinstance(meta.get("size"), int) or isinstance(meta.get("size"), bool)
+                or not isinstance(meta.get("sha256"), str) or not re.match(r"^[0-9a-f]{64}$", meta["sha256"])):
+            raise ValueError("%s has a bad entry for %s" % (MANIFEST, n))
+    if not isinstance(version, str) or not VERSION_RE.match(version):
+        raise ValueError("%s has no valid version" % MANIFEST)
+    if man.get("app") not in (None, "slide-builder"):
+        raise ValueError("not a Slide Builder release (app %r)" % man.get("app"))
+    missing_core = [c for c in CORE_FILES if c not in files]
+    if missing_core:
+        raise ValueError("the release has no %s" % missing_core[0])
+    listed, present = set(files), set(names) - {MANIFEST}
+    unsafe = [n for n in listed if not safe_member(n)]
+    if unsafe:
+        raise ValueError("unsafe path in %s: %r" % (MANIFEST, sorted(unsafe)[0]))
+    if present - listed:
+        raise ValueError("file not in %s: %s" % (MANIFEST, sorted(present - listed)[0]))
+    if listed - present:
+        raise ValueError("file missing from the ZIP: %s" % sorted(listed - present)[0])
+    for n in sorted(listed):
+        data = zf.read(n)
+        want = files[n]
+        if len(data) != want["size"] or sha256_bytes(data) != want["sha256"]:
+            raise ValueError("file damaged (size or SHA-256 differs): %s" % n)
+    return man
 
 
 # --------------------------------------------------------------------------- after the update

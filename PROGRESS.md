@@ -8,7 +8,7 @@ numbers measured twice). Measured numbers go into the step's line.
 
 ### M0 · Foundations on v3 (v3.4)
 - [x] S0.1 · CI, PROGRESS.md, one check command — [PR #1](https://github.com/Gualbertol123/slidemaster/pull/1). `npm run check`; `.github/workflows/ci.yml` (unit, helper 3.8 + 3.12, e2e, and parity from S0.5). Baseline 114 Vitest / 131 helper / 15 e2e. Surprises: Chrome's sandbox needs `kernel.apparmor_restrict_unprivileged_userns=0` on ubuntu-24.04; runners pinned to ubuntu-24.04 (26.04 has no Python 3.8); the helper listened with a backlog of 5, so a burst of requests waited 1 s for a TCP retry (now 128, with a test); an intermittent CI e2e failure (see Waiting for). verified: tests ✓ clean clone ✓ review ✓
-- [ ] S0.2 · Release pipeline
+- [x] S0.2 · Release pipeline — [PR #1](https://github.com/Gualbertol123/slidemaster/pull/1). `tools/make_release.py` (reproducible ZIP + MANIFEST.json, `--verify`, `--notes`), `release.yml` on `v*`. The test tag is for a person (Waiting for). verified: tests ✓ clean clone ✓ review ✓
 - [ ] S0.3 · Side-by-side installs, current.json, Edge app window
 - [ ] S0.4 · v3 quick fixes found in the review
 - [ ] S0.5 · Capture v3 as golden data
@@ -73,9 +73,11 @@ numbers measured twice). Measured numbers go into the step's line.
 ## Waiting for
 
 - **CI e2e, intermittent (S0.1):** `e2e/app.spec.ts:471` (notes section) failed in 2 of about 12 CI runs before S0.4 (save stayed "Unsaved changes…"; never reproduced locally in 9 runs, CI uses Chromium 153, local 141). A likely cause was fixed (the helper's listen backlog, 1 s TCP retries under request bursts). If it fails again, the helper logs are now in the CI output: please look at that run with me.
+- **Test the release pipeline (S0.2, a person):** after merging, `git tag v3.4.0-rc1 && git push origin v3.4.0-rc1`; check the GitHub release has `slidebuilder-3.4.0-rc1.zip` + `.sha256` and that `python tools/make_release.py --verify slidebuilder-3.4.0-rc1.zip` says OK; then delete the pre-release and the tag.
 
 ## Measurements
 
 | Step | What | Run 1 | Run 2 |
 |---|---|---|---|
 | S0.1 | e2e suite, local (15 tests) | 4.2 min | 4.1 min |
+| S0.2 | release ZIP 3.4.0 | 803 103 bytes, 35 files, sha256 6ee579c4… | identical bytes on a second build |

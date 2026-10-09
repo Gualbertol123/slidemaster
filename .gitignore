@@ -27,3 +27,4 @@ backend/slide_builder_settings*.txt
 spikes/**/out-*.pdf
 spikes/**/node_modules/
 spikes/parser/package-lock.json
+dist/
