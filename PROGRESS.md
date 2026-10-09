@@ -13,7 +13,7 @@ numbers measured twice). Measured numbers go into the step's line.
 - [x] S0.4 · v3 quick fixes found in the review — [PR #1](https://github.com/Gualbertol123/slidemaster/pull/1). B6 (save state notifies), B13 (`/api/files/<name>/stat`, list only on the Open menu), presence from one directory listing. Share operations per user per minute, idle: 910 → 78; editing: 1217 → 398 (Measurements). Side effect: the e2e suite runs in ~2 min instead of ~4 (no more waiting for the 3 s tick). verified: tests ✓ clean clone ✓ review ✓
 - [x] S0.5 · Capture v3 as golden data — [PR #1](https://github.com/Gualbertol123/slidemaster/pull/1). `tests/corpus/` (9 workbooks, 14 decks), `tools/capture-v3.mjs`, `tools/parity.mjs` + `npm run parity` + CI job, `tools/anonymise.py`; `golden/` 135 slides, 36 screenshots (a chosen set: tests/corpus/pixels.json). Parity on v3: 0 differences, twice (MANIFEST `git` 842ec5f is the pre-rebase commit the capture ran on; its `page` sha256 equals the committed page). Geometry/pixels are compared only where Chromium and fonts equal the capture's; the hosted CI runner compares texts and styles. 5 real decks: Waiting for. verified: tests ✓ clean clone ✓ review ✓
 - [ ] S0.6 · Field tests on the real environment — [PR #1](https://github.com/Gualbertol123/slidemaster/pull/1). Kit done and tests ✓ clean clone ✓ review ✓: `tools/sharetest.py`, `tools/fieldcheck.html` (+ `GET /fieldcheck`), `docs/next/field-results.md`, `docs/next/field/acrobat-*.pdf`. **Not ticked: gate G0 is for people** (Waiting for). Found on this Linux container: a module-type Blob worker fails from file:// (classic ones pass).
-- [ ] S0.7 · Ship v3.4 — [PR #1](https://github.com/Gualbertol123/slidemaster/pull/1). Prepared up to the tag: version 3.4.0, `CHANGELOG.md`, `docs/next/release-checklist.md`; checklist steps 2–4 run on temp copies (ZIP 35 files, verifies, reproducible; rehearsal install / self-test / start / rollback OK). **Not ticked: the tag and the share update are for a person** (Waiting for).
+- [x] S0.7 · Ship v3.4 — [PR #1](https://github.com/Gualbertol123/slidemaster/pull/1), shipped 2026-10-09: [v3.4.0](https://github.com/Gualbertol123/slidemaster/releases/tag/v3.4.0) (`slidebuilder-3.4.0.zip`, 281,569 bytes, + `.sha256`). Version 3.4.0, `CHANGELOG.md`, `docs/next/release-checklist.md`; checklist steps 2–4 run on temp copies (ZIP 35 files, verifies, reproducible; rehearsal install / self-test / start / rollback OK), then again on a corporate Windows 11 PC (field-results.md §0). CI green on `main` before the tag; `release` workflow green. Share update (step 6) on the install folder `C:\Users\U508169\Downloads\claude\Slide Builder` (Decisions): v3.3 → plain update to `main` → `--release 3.4.0` through the corporate proxy (GitHub digest ✓, MANIFEST ✓, self-test ✓), starts 3.4.0. verified: tests ✓ clean clone ✓ review ✓
 
 ### M1 · The React app (v3.5)
 - [x] S1.1 · React API on the Preact runtime — [PR #2](https://github.com/Gualbertol123/slidemaster/pull/2). Vite/Vitest alias `react`, `react-dom`, `react-dom/client`, `react/jsx-runtime` → `preact/compat`; `jsxImportSource: "react"` with `@types/react` 19.2; an AST codemod renamed ~590 JSX attributes (template-string HTML keeps `class=`). New `ui/Input.tsx`: React's `onChange` fires per input and its controlled inputs restore the value after every event, which would break the 3 colour pickers (they commit on the native `change`, now `onCommit`), the 5 sliders and the wizard's boxes that store text without re-rendering. E15 also fails on console errors/warnings (4 fixture-caused browser messages allowed; a probe `console.warn` fails it). Page 464,826 → 473,244 bytes (gzip 153,654 → 155,956, +1.5 %). Review found: JSX runtime aliased to `preact/jsx-runtime` (compat mappings only active by import accident) → `preact/compat/jsx-runtime`; wizard version radio without handler → `readOnly`; Ribbon `tb()` spread `class`/string `style` (untyped, missed by tsc) → fixed. Parity 0 differences (full comparison), twice. verified: tests ✓ clean clone ✓ review ✓
@@ -70,9 +70,17 @@ numbers measured twice). Measured numbers go into the step's line.
 
 (Human decisions the plan needs, e.g. gate G0 outcomes. An agent never writes here on its own.)
 
+- 2026-10-09 · M0 merged and v3.4.0 shipped with S0.6 open: gate G0 runs in parallel (PLAN Part C), results
+  due before M3 (Acrobat, fonts) and M5 (storage).
+- 2026-10-09 · The work runs locally on one PC: the checkout `C:\Users\U508169\Downloads\claude\slidemaster`,
+  and the install folder `C:\Users\U508169\Downloads\claude\Slide Builder` takes the place of `T:\Slide Builder`
+  in every "update the share" step. The product owner authorised the agent to merge PR #1 and to push the
+  v3.4.0 tag.
+- 2026-10-09 · The v3.4.0-rc1 pipeline test is replaced by the real v3.4.0 release (the workflow, the assets
+  and the updater's digest check all passed on it).
+
 ## Waiting for
 
-- **Test the release pipeline (S0.2, a person):** after merging, `git tag v3.4.0-rc1 && git push origin v3.4.0-rc1`; check the GitHub release has `slidebuilder-3.4.0-rc1.zip` + `.sha256` and that `python tools/make_release.py --verify slidebuilder-3.4.0-rc1.zip` says OK; then delete the pre-release and the tag.
 - **5 real decks (S0.5, product owner):** 5 workbooks from the share with their saved decks (`backend\data\workbooks\<name>-<hash>.json`). They are anonymised with `python tools/anonymise.py REAL.xlsx tests/corpus/workbooks/realN.xlsx --deck <deck>.json --deck-out tests/corpus/decks/realN.json --rename "<bank>=Bank A" …` (which names must be renamed?), reviewed by you, then captured into `golden/`.
 - **Gate G0 (S0.6, people on the real share and PCs)** - fill in `docs/next/field-results.md`:
   1. `tools/sharetest.py` from 3–5 PCs (one over VPN), 10 writers in total, `--rdcw` → **storage decision**: journals meet 05 §3.5, or `STORAGE=lean-lock` in M5 (ADR-006);
@@ -83,12 +91,6 @@ numbers measured twice). Measured numbers go into the step's line.
   6. ReadDirectoryChangesW result → whether S6.3 is done.
   Then write the decisions under "Decisions".
 - **Reference machine for full parity (S0.5, decision):** geometry, pixels and PDF text of `golden/` are only compared where Chromium and the installed fonts equal the capture's (`golden/MANIFEST.json` → `environment`: this Linux container, Chromium 141). Hosted CI compares texts and styles only. The GG/GP gates of M3/M4 need a decided reference: keep this container image, or pick a machine (e.g. a pinned CI image or a Windows PC) and re-capture `v3.4.0` there as new goldens. Which one?
-- **Ship v3.4 (S0.7, a person)** - after PR #1 is merged and CI is green on `main`, follow `docs/next/release-checklist.md`:
-  * set `## 3.4.0 - <date>` in `CHANGELOG.md`, commit to `main`;
-  * `git tag -a v3.4.0 -m "Slide Builder 3.4.0" && git push origin v3.4.0`, check the `release` workflow and the release assets;
-  * on one PC: `"T:\Slide Builder\Update Slide Builder.bat"` once (a normal update to `main`: the share's old updater has no `--release`), then `"T:\Slide Builder\Update Slide Builder.bat" --release 3.4.0` (the switch to side-by-side versions); everybody restarts Slide Builder;
-  * rollback if needed: rename `T:\Slide Builder\app\current.json` (Start falls back to `backend\`);
-  * then tick S0.7 here with the date and the release link.
 
 ## Measurements
 

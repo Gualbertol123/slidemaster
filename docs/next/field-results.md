@@ -12,6 +12,25 @@ under "Decisions" in `PROGRESS.md` (PLAN S0.6: storage protocol, Acrobat recipe,
 | PCs (name · Windows build · Edge version · Python version) | |
 | Slide Builder version | v3.4 on a copy of the share folder: update it once as usual (that brings the new updater), then `Update Slide Builder.bat --release 3.4.0` |
 
+## 0. Release rehearsal on one corporate Windows PC (not a G0 result)
+
+2026-10-09, one PC (Windows 11 build 22631, Edge 154.0.4258.62, Python 3.12.7, console code page 65001),
+on a **local copy** of a v3.3 folder (a `git archive` of `b2166d3` with the saved-setup fixtures of
+`backend/tests/fixtures/saved/` as its data); the real share was not touched. Release checklist step 4 with
+the ZIP built on this PC from `8cc385c`:
+
+| Check | Result |
+|---|---|
+| Helper tests, Python 3.12 on Windows | 180 run, OK (4 skipped: 3 need a Chromium under `/opt/pw-browsers`, 1 is Linux-only) |
+| `make_release.py` twice, `--verify` | 35 files, verifies; the two builds are byte-identical. Not identical to a CI build: `core.autocrlf=true` checks `.py` files out with CRLF |
+| `update.py --zip slidebuilder-3.4.0.zip` on the v3.3 copy | backups written, MANIFEST verified, self-test passed, `app\current.json` = 3.4.0 |
+| `Start Slide Builder.bat` through cmd.exe | reads `app\current.json` with Python, starts 3.4.0 from `app\3.4.0\backend` on the copy's `backend\data` |
+| Edge `--app` window (B12) | an app window without tabs or address bar (Edge was already running: the launch was handed to it); a saved deck opened from the Open menu showed its slides |
+| Saved setups after the update and a session | byte-identical; new files only in `backups\before-update-*`, `presence\` (new file-name format) and `users\<me>.json` |
+| First-release rollback: `current.json` renamed | Start runs `backend\` (the old program) |
+| `--use` between 3.4.0 and 3.4.0-rc1 | switches both ways; `previous` recorded |
+| `tools/fieldcheck.html` headless | not run: headless Edge hung on this PC (policy?); open it by hand as in §2 |
+
 ## 1. Share test (`tools/sharetest.py`)
 
 `tools\sharetest.py` is in the repository (a checkout of `main`), not in the release ZIP: copy it to each PC,
