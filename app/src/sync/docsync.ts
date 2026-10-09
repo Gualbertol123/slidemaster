@@ -73,7 +73,8 @@ export class DocSync {
   async flush(): Promise<void> {
     if (this.inflight || !this.pending.length || this.state === "outdated") return;
     this.inflight = this.pending; this.pending = [];
-    if (this.api.served) this.state = "saving";
+    // "Saving…" is a save state too (B6): the status bar shows it at once, not at its next re-render
+    if (this.api.served) { const was: [SaveState, string] = [this.state, this.error]; this.state = "saving"; this.emit(this.view, false, undefined, was); }
     const prev = this.view, before: [SaveState, string] = [this.state, this.error];
     try {
       const r = await this.api.postOps(this.name, this.inflight, this.client);

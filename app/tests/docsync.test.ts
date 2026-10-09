@@ -41,9 +41,8 @@ describe("DocSync", () => {
     expect(seen.map(x => x.state)).toEqual(["pending"]);
     await vi.advanceTimersByTimeAsync(300);                     // the debounced save runs and returns
     expect(a.state).toBe("saved");
-    expect(seen.map(x => x.state)).toEqual(["pending", "saved"]);
-    const last = seen[1].c;
-    expect([last.stateChanged, last.local, last.editsChanged, last.presetChanged, last.styleChanged]).toEqual([true, false, false, false, false]);
+    expect(seen.map(x => x.state)).toEqual(["pending", "saving", "saved"]);     // "Saving…" is announced too
+    for (const x of seen.slice(1)) expect([x.c.stateChanged, x.c.local, x.c.editsChanged, x.c.presetChanged, x.c.styleChanged]).toEqual([true, false, false, false, false]);
     // a failed save is announced at once too, and so is the successful retry
     srv.failNext(1);
     a.apply([cell("A2", { i: true })]);
@@ -90,7 +89,8 @@ describe("DocSync", () => {
     const srv = fakeServer();
     const a = new DocSync(srv.api("anna"), "W.xlsx", emptyDoc("W.xlsx"), "ca", "anna");
     const b = new DocSync(srv.api("bob"), "W.xlsx", emptyDoc("W.xlsx"), "cb", "bob");
-    const seen: (string | undefined)[] = []; b.on(c => { if (!c.local) seen.push(c.by); });
+    // remote document changes (save-state notices, e.g. "Saving…", change no document and name nobody)
+    const seen: (string | undefined)[] = []; b.on(c => { if (!c.local && (c.editsChanged || c.presetChanged || c.styleChanged)) seen.push(c.by); });
     a.apply([cell("A1", { b: true })]); await a.flush();
     b.apply([cell("B2", { b: true })]); await b.flush();          // bob never polled: anna's edit comes with his save
     expect(seen).toEqual(["anna"]); expect(b.view.edits.S.A1).toEqual({ b: true });
