@@ -5,19 +5,19 @@ are for a person** (agents never push tags and never touch the real share, PLAN 
 `X.Y.Z` is the new version, `P.Q.R` the one the share runs now.
 
 ## 1. Content
-- [ ] The milestone's PR is merged into `main`; CI is green on `main` (unit, helper 3.8 + 3.12, e2e, parity).
+- [ ] The milestone's PR is merged into `main`; CI is green on `main` (unit, core, helper 3.8 + 3.12, e2e, parity).
 - [ ] Every step of the milestone is ticked in `PROGRESS.md` with its numbers.
 - [ ] `CHANGELOG.md` has a `## X.Y.Z - <date>` section; every user-visible change in it is in PLAN B1–B14.
-- [ ] `VERSION = "X.Y.Z"` in `backend/slidebuilder/__init__.py`; `"version": "X.Y.Z"` in `frontend/package.json`
-      and `frontend/package-lock.json` (both places in the lock file).
+- [ ] `VERSION = "X.Y.Z"` in `backend/slidebuilder/__init__.py`; `"version": "X.Y.Z"` in `package.json`,
+      `app/package.json`, `core/package.json` and in `package-lock.json` (every place that names them).
 
 ## 2. Checks on a clean clone
 ```
-git clone https://github.com/gualbertol123/slidemaster.git /tmp/rel && cd /tmp/rel/frontend
-npm ci && npm run build && git diff --exit-code -- ../backend/slide_builder.html   # the committed page is fresh
-npm run check                                                                         # typecheck + unit tests
-cd .. && python3.8 -m unittest discover -s backend/tests && python3.12 -m unittest discover -s backend/tests
-cd frontend && npm run test:e2e && npm run parity
+git clone https://github.com/gualbertol123/slidemaster.git /tmp/rel && cd /tmp/rel
+npm ci && npm run build && git diff --exit-code -- backend/slide_builder.html      # the committed page is fresh
+npm run check                                                                         # typecheck (core, app) + unit tests
+python3.8 -m unittest discover -s backend/tests && python3.12 -m unittest discover -s backend/tests
+npm run test:e2e && npm run parity
 ```
 - [ ] all green; `npm run parity` reports 0 unaccepted differences.
 

@@ -1,6 +1,6 @@
 # Slide Builder 3 – architecture and API contract
 
-This is the contract between the browser app (`frontend/`, built into
+This is the contract between the browser app (`app/`, built into
 `backend/slide_builder.html`) and the local helper (`backend/slidebuilder/`). A future central
 server (Node/Next.js, Python, …) can replace the helper by implementing the same endpoints.
 
@@ -18,7 +18,7 @@ Slide Builder\                     ROOT
 ├─ engine\                          Chrome for Testing (optional; mirrored to %LOCALAPPDATA% on shares)
 └─ backend\
    ├─ slide_builder.py              entry point (thin)
-   ├─ slide_builder.html            the app (BUILT from frontend/)
+   ├─ slide_builder.html            the app (BUILT from app/)
    ├─ slidebuilder\                 helper package
    ├─ logo.png
    └─ data\                         ALL persistent state (see §3)
@@ -151,7 +151,7 @@ Shared by everybody using the folder, independent of workbooks: `data/fonts/font
 font files (`<Family>-<weight>[i]-<sha1>.<ext>`). Written under the `fonts` lock; a file is written before the
 index refers to it; files no family refers to are deleted. Google fonts are downloaded **by the page**
 (latin + latin-ext subsets) and stored like uploads, so slides and exports never need Google later. Exports
-embed the fonts a slide uses as data URLs. Code: `backend/slidebuilder/fonts.py`, `frontend/src/state/fonts.ts`.
+embed the fonts a slide uses as data URLs. Code: `backend/slidebuilder/fonts.py`, `app/src/state/fonts.ts`.
 
 ### 3.3 Format versions and automatic upgrades
 
@@ -169,7 +169,7 @@ every write.
 * **Reading a newer file** (written by a PC already running a newer version): nothing is written;
   `StoreTooNew` → HTTP 409 with "close Slide Builder and start it again".
 * **Pages**: every POST/PUT carries `X-SB-Formats: workbook=3;config=3;prefs=1` (`FORMATS` in
-  `frontend/src/model/types.ts`). If it differs from the helper's `SCHEMA` the request is refused with
+  `app/src/model/types.ts`). If it differs from the helper's `SCHEMA` the request is refused with
   409 and the page shows "Slide Builder was updated – reload the page"; its unsent changes are not
   written in an old format. Requests without the header (pages built before this check) are accepted.
 * **A missing step** (format raised without a step) raises an error and leaves the file untouched.
@@ -258,6 +258,6 @@ At start-up, under lock `migrate`, if `backend/slide_builder_settings.txt` exist
 * documents that already exist are not overwritten; the old file is kept, renamed
   `slide_builder_settings.v2-backup.txt`; `migrated.json` records what was imported.
 
-## 7. Front end modules (`frontend/src`)
+## 7. Front end modules (`app/src`)
 
 See `README.md` §5 for the module-by-module description (xlsx, model, render, sync, state, editor, ui, wizard, styles).

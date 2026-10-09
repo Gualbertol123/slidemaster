@@ -3,7 +3,7 @@
      node tools/parity.mjs                         capture the current build (tools/capture-v3.mjs) and compare with golden/
      node tools/parity.mjs --actual DIR            compare an existing capture instead
      node tools/parity.mjs --decks a,b --no-pdf    a subset (faster while working)
-     npm run parity                                (from frontend/) the same as the first line
+     npm run parity                                (from the root or app/) the same as the first line
 
    Compared, per deck × design × version:
      slide-<n>.json   the same elements in the same order; texts, font family, weight, style, colours and

@@ -23,7 +23,7 @@ the HTTP API (§8), concurrency and failure handling (§9), the export engine (�
 | [`backend/README-backend.md`](backend/README-backend.md) | helper command line, module table, environment variables |
 
 **Contents** — [1 Product](#1-what-the-product-does) · [2 Deployment](#2-deployment-and-running-it) ·
-[3 Architecture](#3-architecture) · [4 Data model](#4-data-model) · [5 Front end](#5-front-end-frontendsrc) ·
+[3 Architecture](#3-architecture) · [4 Data model](#4-data-model) · [5 Front end](#5-front-end-appsrc) ·
 [6 Flows](#6-key-flows-end-to-end) · [7 Back end](#7-back-end-the-helper-backendslidebuilder) ·
 [8 HTTP API](#8-http-api) · [9 Concurrency](#9-concurrency-and-failure-model) ·
 [10 Export engine](#10-export-engine) · [11 Development](#11-development-and-tests) ·
@@ -133,7 +133,7 @@ T:\Slide Builder\                          ROOT – the shared folder users see
 ├─ engine\                                 Chrome for Testing headless shell (optional, not in git)
 └─ backend\
    ├─ slide_builder.py                     entry point
-   ├─ slide_builder.html                   THE APP: one self-contained HTML file built from frontend\
+   ├─ slide_builder.html                   THE APP: one self-contained HTML file built from app\
    ├─ slidebuilder\                        the helper package (Python standard library only)
    └─ data\                                ALL saved state (not in git) – §4.1
 ```
@@ -162,7 +162,7 @@ overwriting existing documents, and renames it `slide_builder_settings.v2-backup
 ## 3. Architecture
 
 ```
-┌──────────────── browser tab: backend/slide_builder.html (ONE self-contained file, Preact + TS) ───────────────┐
+┌──────────────── browser tab: backend/slide_builder.html (ONE self-contained file, React + TS) ────────────────┐
 │ xlsx/    unzip (JSZip) + regex sheet parser, styles, number formats, conditional formats, drawings,           │
 │          "x" table regions, per-cell geometry (TableLayout)                                                    │
 │ model/   persistent types · operations (+ inverses) · preset → runtime slides · style layering & themes ·      │
@@ -170,10 +170,10 @@ overwriting existing documents, and renames it `slide_builder_settings.v2-backup
 │ render/  edits on top of the workbook · Excel design · Liquid Glass scene model · slide layout & composition ·│
 │          cover/contents · page numbers/footer · wallpaper · comment text · PDF-ready CSS                         │
 │ sync/    HTTP client (token, formats) · DocSync (optimistic ops, batching, retry, polling) · offline store     │
-│ state/   global app state S · actions (open, change, undo, doc changes, presence) · dialogs · font library      │
+│ state/   one Zustand store in slices · actions (open, change, undo, doc changes, presence) · dialogs · fonts    │
 │ editor/  stage (imperative DOM: hit testing, selection, inline editors, drags, snapping) · tables · painter ·   │
 │          unified text toolbar · keyboard · thumbnails · export · side-panel issues                              │
-│ ui/, wizard/   Preact chrome: top bar, ribbons, dialogs, 4-step wizard                                          │
+│ ui/, wizard/   React 19 chrome: top bar, ribbons, dialogs, 4-step wizard                                        │
 └──────────────▲──────────────────────────────────────────────────────────────────▲──────────────────────────────┘
                │ HTTP on 127.0.0.1 (X-SB-Token, X-SB-Formats)                       │ slide HTML + CSS for exports
 ┌──────────────┴──────────── helper: backend/slidebuilder (Python ≥ 3.8 standard library) ──────────┴──────────────┐
@@ -273,7 +273,7 @@ data/
 * **Effective sizing** of a slide/table in a design = its own `sizes[design]` entry if present (even
   empty), else the shared `layout/scale/align/valign` or `cols/rows` of older decks
   (`render/slide.ts sizingOf`, `model/preset.ts tableSizes`).
-* The full field table is `docs/ARCHITECTURE.md` §3; the TypeScript types are `frontend/src/model/types.ts`.
+* The full field table is `docs/ARCHITECTURE.md` §3; the TypeScript types are `app/src/model/types.ts`.
 
 ### 4.3 Operations
 | op | fields | plain keys (`null` deletes, else set) | map keys (map merge) |
@@ -294,7 +294,7 @@ applying it (`model/ops.ts inverseOf`) – that is the undo.
 
 ### 4.4 Format versions (`schema`)
 Current formats: `SCHEMA = {workbook: 3, config: 3, prefs: 1}` (`backend/slidebuilder/upgrade.py`) =
-`FORMATS` (`frontend/src/model/types.ts`; a test checks they match). On every read (`store._load`):
+`FORMATS` (`app/src/model/types.ts`; a test checks they match). On every read (`store._load`):
 * **older file** → under its lock, re-read, copy to `backups/upgrades/…`, apply `@step(kind, n)`
   functions n → n+1 in order, write atomically. Exactly once even with several PCs. `store.upgrade_all()`
   converts every file at start-up.
@@ -306,10 +306,10 @@ Current formats: `SCHEMA = {workbook: 3, config: 3, prefs: 1}` (`backend/slidebu
 
 ---
 
-## 5. Front end (`frontend/src`)
+## 5. Front end (`app/src`)
 
-TypeScript, Preact for the chrome, imperative DOM for slides (for speed). Runtime dependencies: `preact`,
-`jszip`. Built by Vite + `vite-plugin-singlefile` into `backend/slide_builder.html`. `main.tsx` injects
+TypeScript, React 19 components for the chrome, imperative DOM for slides (for speed). Runtime
+dependencies: `react`, `react-dom`, `zustand` (pinned exactly) and `jszip`. Built by Vite + `vite-plugin-singlefile` into `backend/slide_builder.html`. `main.tsx` injects
 `ui.css`+`app.css` as `<style id="uicss">` and `slide.css` as **`<style id="slidecss">`** (exports send
 exactly this text), mounts `<App/>`, installs the keyboard handler and calls `boot()`.
 
@@ -354,15 +354,15 @@ exactly this text), mounts `<App/>`, installs the keyboard handler and calls `bo
 |---|---|
 | `sync/api.ts` | The `Backend` interface; `helper` (HTTP: adds `X-SB-Token` from `<meta name="sb-token">` and `X-SB-Formats`; `ApiError`) and `offline` (localStorage, for a page opened as `file://`). `backend = SERVED ? helper : offline`. |
 | `sync/docsync.ts` | **`DocSync`**: `server` doc + `inflight` + `pending` ops → `view`. `apply(ops)` (local, returns inverse), `flush()` (one request in flight, 300 ms debounce, retry 2–32 s, 409 → `outdated`), `poll()` (`?since=rev`, rebase), `on(listener)` with `Change {local, by, presetChanged, styleChanged, editsChanged}`. |
-| `state/store.ts` | The global mutable state **`S`** (health, user, prefs, config, file, wb, sync, slides, cur, version, selections `sel`/`noteSel`/`textSel`, painter, zoom, undo/redo, toast, busy…), `emit()` (microtask-batched re-render of every `useApp()` component), `STAGE`/`THUMBS` controller hooks filled by the editor. |
-| `state/app.ts` | Actions: `boot`, `openFromFolder`/`openLocalFile`/`openBuffer`, `onDocChange`, `onStyleChanged`, **`change(label, ops, coalesce?)`**, `undo`, `styleChange`, `lookChange` (scope: this design / all), `slidesFor(design)`, `showVersion`, `ctx()` (memoised `RenderCtx`), `style()`, `tick` (poll 3 s, health + one-stat changed-on-disk check 6 s, fonts/config 30 s; the workbook list is read at start and when the Open menu opens), presence heartbeat 10 s. |
-| `state/dialogs.ts` | Promise-based dialogs (`ask`, `confirmBox`, `runWizard`, installer) – `DLG` flags rendered by `ui/`. |
-| `state/fonts.ts` | Font library in the page: `loadFonts`, `@font-face` in `<style id="fontcss">`, `addGoogleFont` (downloads faces, uploads them to the helper), `uploadFontFiles`, `embeddedFontCss(html)` (fonts used by exported slides as data URLs). |
+| `state/store.ts` | **One Zustand store** (`useStore`, `subscribeWithSelector`) in slices: `doc` (the `DocSync`, a read-only mirror of its `view` and save state, shared config, font library), `deck` (file, wb, slides, cur, version, undo/redo, remote, opening), `selection` (`sel`/`noteSel`/`textSel`, painter), `ui` (zoom, busy, toast, dialogs, design scope, banners, health, presence, exporting), `prefs` (user, host, client, prefs). Components select what they render (`useStore(s => s.selection.sel)`; `ui/hooks.ts`: `useCtx`, `useStyle`); other code reads `get()` and writes `patch(slice, …)`/`patchAll`. A poll that brings nothing new keeps the old objects (`same`), so nothing re-renders. `STAGE`/`THUMBS` controller hooks filled by the editor. |
+| `state/app.ts` | The store's actions (module functions writing the store): `boot`, `openFromFolder`/`openLocalFile`/`openBuffer`, `onDocChange`, `onStyleChanged`, **`change(label, ops, coalesce?)`**, `undo`, `styleChange`, `lookChange` (scope: this design / all), `slidesFor(design)`, `showVersion`, `ctx()` (memoised `RenderCtx`), `style()`, `tick` (poll 3 s, health + one-stat changed-on-disk check 6 s, fonts/config 30 s; the workbook list is read at start and when the Open menu opens), presence heartbeat 10 s. |
+| `state/dialogs.ts` | Promise-based dialogs (`ask`, `confirmBox`, `runWizard`, installer); which one is open: `ui.dialogs` in the store, rendered by `ui/`. |
+| `state/fonts.ts` | Font library in the page (store: `doc.fonts`, `ui.fontBusy`): `loadFonts`, `@font-face` in `<style id="fontcss">`, `addGoogleFont` (downloads faces, uploads them to the helper), `uploadFontFiles`, `embeddedFontCss(html)` (fonts used by exported slides as data URLs). |
 
 ### 5.5 `editor/` – the slide editor
 | File | Responsibility |
 |---|---|
-| `stage.ts` | Imperative stage: `renderStage` (full build, deferred while an inline editor is open), `refreshStage` (re-renders only changed tables and patches changed DOM nodes), `fitStage`/zoom, hit testing (one `.hits` overlay per table + binary search over column/row edges), selection painting, column/row border drags, inline cell editor, slide-text and text-box editors, table handles (resize = binary search of the layout weight, edge stretch, grip move between bands), text box move/stretch with snapping guides, notes section, logo load state. |
+| `stage.ts` | Imperative stage: `renderStage` (full build, deferred while an inline editor is open), `refreshStage` (re-renders only changed tables and patches changed DOM nodes), `fitStage`/zoom, hit testing (one `.hits` overlay per table + binary search over column/row edges), selection painting, column/row border drags, inline cell editor, slide-text and text-box editors, table handles (resize = binary search of the layout weight, edge stretch, grip move between bands), text box move/stretch with snapping guides, notes section, logo load state. Subscribes to the store's `selection` slice (paints cells, slide text, text box, painter cursor) and `ui.zoom` (fit); slides are redrawn by `state/app.ts` on document changes (it knows whether a refresh is enough). |
 | `edit.ts` | Selection model (`setSel`, `moveSel`, merged-block expansion), `applySel(label, fn)` (diffs `CellEdit`s → `cell.patch`), `commitText`. |
 | `tables.ts` | Column/row sizes, stretch, same size, copy/reset sizes, align/valign, merge/unmerge – **per design** (`sizePatch`, `sizingChange`). |
 | `textfmt.ts` | The **unified text toolbar**: `textTarget()` → cells / text box / slide text with the same `apply`/`clear` interface (cells store pt, others px). |
@@ -371,7 +371,7 @@ exactly this text), mounts `<App/>`, installs the keyboard handler and calls `bo
 | `keys.ts`, `thumbs.ts`, `issues.ts` | Global keyboard; lazy thumbnails (IntersectionObserver); side-panel notes (missing tables, hidden rows, stale text edits…). |
 
 ### 5.6 `ui/`, `wizard/`, `styles/`
-* `ui/App.tsx` (layout, thumbnails, canvas, status bar, dialogs), `Topbar.tsx` (open, wizard, version
+* `ui/App.tsx` (layout, dialogs), `Chrome.tsx` (thumbnails, issues, canvas, status bar, busy, toast), `Topbar.tsx` (open, wizard, version
   picker, presence, design switch, Design…, glass/colour sliders, Options, export menu, engine pill),
   `Ribbon.tsx` (row 1: text toolbar + formula bar), `TableTools.tsx` (row 2: cells, tables, text boxes,
   slide), `TextStylesDialog.tsx` (Design…: colours, text styles, fonts), `CommentDialog.tsx` (live
@@ -398,7 +398,7 @@ served: reopen `prefs.lastFile`, start `tick` (3 s) and the presence heartbeat (
 3. `LCACHE.clear()`, `GET /api/workbooks/<name>/doc`.
 4. Preset: continue with the saved one, or the wizard (with `defaultPreset` as draft); then
    `wb.ensure(presetSheets)` parses only the sheets used.
-5. New `DocSync`; `runtimeSlides(wb, preset, name, design)` → `S.slides`; restore the person's last
+5. New `DocSync`; `runtimeSlides(wb, preset, name, design)` → `deck.slides` (one store update with the new document); restore the person's last
    version; `makeWall`; `STAGE.render()`, `THUMBS.render()`.
 
 ### 6.3 Making an edit (e.g. Ctrl+B on cells)
@@ -448,7 +448,7 @@ options) → markup → `richText`. Because it runs on every render, comments fo
 versions. Comment-bearing slides always get a full re-render on refresh.
 
 ### 6.8 Versions
-Defined in wizard step 4 → `preset.versions`. `S.version` (remembered in `prefs.versions[workbook]`) →
+Defined in wizard step 4 → `preset.versions`. `deck.version` (remembered in `prefs.versions[workbook]`) →
 `ctx().version` → `effItems` blanks the hidden ranges (borders kept) → `tableKey` includes the hides →
 comments ignore the blanked numbers. `exportVersions(designs)` builds a `RenderCtx` per design × version.
 
@@ -522,7 +522,8 @@ network drive) · `SLIDEBUILDER_SIM_FS_MS`, `SLIDEBUILDER_TIMING` (load tests; `
   clone (it offers to delete one that holds no saved work). `-c safe.directory=*` for shares.
 * Without git: downloads the branch ZIP and writes only program files (atomic replace,
   `data/app-version.json`).
-* Never written: `backend/data/`, `backend/logo*`, v2 settings, workbooks, `export/`, `engine/`. Saved
+* Never written: `backend/data/`, `backend/logo*`, v2 settings, workbooks, `export/`, `engine/`, `app/` (the
+  side-by-side versions; the repository's `app/` sources are developer-only and come only with git). Saved
   setups (and any locally modified program file) are copied to `backups/before-update-<time>/` first;
   afterwards every saved deck is test-loaded with the new code. One update at a time. Options: `--check`,
   `--branch`, `--zip`, `--yes`.
@@ -612,7 +613,7 @@ All engines run at **device scale factor 1** for PDFs (Windows display scaling u
 * Modes: `vector` (default; real text and tables), `exact` = PNG pages at `scale` packed losslessly by
   `pdf.jpegs_to_pdf` (file name "(images)"), `png` files, `inline` PNG for the clipboard.
 
-### 10.3 Keeping PDFs light (`frontend/src/render/printcss.ts`)
+### 10.3 Keeping PDFs light (`app/src/render/printcss.ts`)
 Chrome prints what it cannot draw as vector as 300 dpi pictures and embeds variable/CFF fonts glyph by
 glyph (Type 3 – slow in Acrobat). For vector exports the page therefore sends: blurred `box-shadow`s
 replaced by 5 sharp layers of fading strength (`vectorShadow`), "Segoe UI Variable"/"SF Pro" removed from
@@ -624,33 +625,36 @@ the wallpaper's contrast baked into its image (no CSS filter). A 4-slide Liquid 
 
 ## 11. Development and tests
 ```
-cd frontend
-npm install                  # once (Node 20+; developers only)
-npm run build                # type-check + single-file build → ../backend/slide_builder.html  (commit it)
-npm test                     # Vitest unit tests (incl. "the built file is up to date")
-npm run check                # typecheck + Vitest (what CI runs, after npm run build)
+npm ci                       # once, at the root (Node 22; developers only): npm workspaces app/ and core/
+npm run build                # type-check + single-file build of app/ → backend/slide_builder.html  (commit it)
+npm test                     # Vitest unit tests of app/ (incl. "the built file is up to date")
+npm run check                # core/ typecheck (no DOM) + app/ typecheck + Vitest (what CI runs, after npm run build)
 npm run parity               # v3 against golden/ (tools/capture-v3.mjs + tools/parity.mjs; needs pypdf)
 npm run test:e2e             # Playwright: two real helpers (users anna/bob) on one temp shared folder
-node e2e/parity.mjs <old.html> ../backend/slide_builder.html tests/fixtures/*.xlsx   # renderer diff vs. an older build
+cd app && node e2e/parity.mjs <old.html> ../backend/slide_builder.html tests/fixtures/*.xlsx   # renderer diff vs. an older build
 
 cd backend
 python -m unittest discover -s tests -v                  # helper tests (Python 3.8+)
 python slide_builder.py [--port 8765] [--no-browser] [--setup] [--install] [--selftest]
 python ../tools/loadtest.py --users 10 --scenario same --fs-ms 15        # load test (docs/LOADTEST.md)
 ```
-Without a downloaded browser set `CHROME=/path/to/chrome` (e2e) or `SLIDEBUILDER_BROWSER`. Test
-workbooks are generated by `frontend/tests/fixtures/make_fixtures.py` (openpyxl).
+The root scripts run the same scripts of the workspace (`npm run <x> -w app`); inside `app/` they work as
+well. `core/` is pure TypeScript for the workers of v4 (`lib: ES2022 + WebWorker`, no DOM types; empty until
+S2.1 of `docs/next/PLAN.md`). Without a downloaded browser set `CHROME=/path/to/chrome` (e2e) or `SLIDEBUILDER_BROWSER`. Test
+workbooks are generated by `app/tests/fixtures/make_fixtures.py` (openpyxl).
 
 | Suite | Covers |
 |---|---|
-| `frontend/tests/ops.test.ts` + `backend/tests/test_ops.py` | every case of `shared/ops-vectors.json`; inverses |
-| `frontend/tests/docsync.test.ts` | merging two users, retries, rebasing, own-changes-only undo, authors, 409 |
-| `frontend/tests/tables.test.ts`, `text.test.ts`, `design.test.ts` | layout, sizes, same size, per-design sizing, scales, merges, gridlines, painted CF, themes, text styles, fonts, text boxes, designs, versions |
-| `frontend/tests/comment.test.ts`, `numfmt.test.ts`, `printcss.test.ts`, `build.test.ts` | automated comments · number formats & superscripts · PDF CSS · committed build is fresh |
-| `frontend/e2e/app.spec.ts` | 15 scenarios: wizard, two users merging, export, table tools, painter, gridlines, themes, typing under concurrent changes, text toolbar & fonts, comments, text boxes, notes section, versions × designs |
+| `app/tests/ops.test.ts` + `backend/tests/test_ops.py` | every case of `shared/ops-vectors.json`; inverses |
+| `app/tests/docsync.test.ts` | merging two users, retries, rebasing, own-changes-only undo, authors, 409 |
+| `app/tests/tables.test.ts`, `text.test.ts`, `design.test.ts` | layout, sizes, same size, per-design sizing, scales, merges, gridlines, painted CF, themes, text styles, fonts, text boxes, designs, versions |
+| `app/tests/comment.test.ts`, `numfmt.test.ts`, `printcss.test.ts`, `build.test.ts` | automated comments · number formats & superscripts · PDF CSS · committed build is fresh |
+| `app/tests/renders.test.tsx`, `stage-follow.test.tsx` (jsdom, React's development build; any console error or warning fails them) | render counts per change (selection, polls, toasts) · the stage's store subscriptions, Fit |
+| `app/e2e/app.spec.ts` | 15 scenarios: wizard, two users merging, export, table tools, painter, gridlines, themes, typing under concurrent changes, text toolbar & fonts, comments, text boxes, notes section, versions × designs |
+| `app/e2e/file.spec.ts` | the page opened from file:// without the helper: choose a workbook, wizard, edit a cell, kept across a reload |
 | `backend/tests/test_store.py`, `test_locks.py`, `test_fsclock.py` | multi-process saves, stale locks, clock skew |
 | `backend/tests/test_upgrade.py` | saved-format examples, upgrades once, too-new files, page/helper formats |
-| `backend/tests/test_presence.py`, `test_release.py`, `test_sharetest.py`, `test_anonymise.py` · `frontend/tests/parity.test.ts` | presence from one listing · release ZIP + manifest · field-test protocols · corpus anonymiser · parity rules (ΔE, PNG, modes) |
+| `backend/tests/test_presence.py`, `test_release.py`, `test_sharetest.py`, `test_anonymise.py` · `app/tests/parity.test.ts` | presence from one listing · release ZIP + manifest · field-test protocols · corpus anonymiser · parity rules (ΔE, PNG, modes) |
 | `backend/tests/test_http.py`, `test_fonts.py` | API, security checks, fonts, logos |
 | `backend/tests/test_exports.py`, `test_export_geometry.py`, `test_engine_cli.py` | naming/atomicity, page fitting (marker, rounding, shrunk slides), real Chromium PDFs edge to edge |
 | `backend/tests/test_update.py`, `test_migrate.py`, `test_firstrun.py`, `test_installer.py`, `test_workbooks.py`, `test_main.py`, `test_simfs.py` | updater, v2 import, installer, stable reads, entry point, load-test hook |
@@ -685,7 +689,7 @@ cannot call the helper); `Origin` check; body limits; files served only by exten
 events and link updates off. TLS is never disabled (downloads use the system/corporate trust store).
 
 ## 14. Gotchas
-1. **Never edit `backend/slide_builder.html`** – edit `frontend/src`, `npm run build`, commit both (a unit
+1. **Never edit `backend/slide_builder.html`** – edit `app/src`, `npm run build`, commit both (a unit
    test fails on a stale build).
 2. **Exports carry only `#slidecss` + `#wallcss` + embedded fonts** – anything a slide needs must be in
    `styles/slide.css` or inline; images must be data URLs.
@@ -701,7 +705,10 @@ events and link updates off. TLS is never disabled (downloads use the system/cor
    share, TLS is intercepted, consoles may be cp1252, PowerShell may be constrained, git on a share needs
    `safe.directory`.
 9. The placeholder `__SB_TOKEN__` is replaced everywhere in the served page – never write it in code.
-10. Preact controlled inputs reset on every re-render: inputs for shared settings use `ui/Field.tsx`.
+10. Controlled inputs reset on every re-render: inputs for shared settings use `ui/Field.tsx`. Sliders, colour
+    pickers and boxes that store their text without re-rendering use `ui/Input.tsx` (the value is written
+    on render, never put back after an event; `onCommit` is the browser's `change`, React's `onChange`
+    fires on every input).
 11. Table sizes are **per design**: read them with `sizingOf`/`tableSizes`, write them with
     `sizingPatch`/`sizingChange`/`sizePatch` – never `cfg.layout`/`def.cols` directly.
 
@@ -728,7 +735,8 @@ events and link updates off. TLS is never disabled (downloads use the system/cor
 ├─ Install / Start / Update Slide Builder.bat
 ├─ README.md · docs/                   documentation (table at the top)
 ├─ CHANGELOG.md · PROGRESS.md          releases · progress of the rebuild (docs/next/PLAN.md)
-├─ .github/workflows/                  ci.yml (unit, helper, e2e, parity) · release.yml (tag v* → release ZIP)
+├─ package.json · package-lock.json   npm workspaces app/ and core/ (developers only; node_modules/ at the root)
+├─ .github/workflows/                  ci.yml (unit, core, helper, e2e, parity) · release.yml (tag v* → release ZIP)
 ├─ shared/ops-vectors.json             operation test vectors (both test suites)
 ├─ tests/corpus/ · golden/             parity corpus (workbooks, saved decks) · goldens of v3 (never edited)
 ├─ tools/  update.py (GitHub update in place / ZIP / side-by-side releases) · make_release.py · loadtest.py (N simulated users)
@@ -738,9 +746,10 @@ events and link updates off. TLS is never disabled (downloads use the system/cor
 │  ├─ slidebuilder/                    the helper package (§7.2)
 │  ├─ tests/                           unittest; fixtures/saved/ (released data formats)
 │  └─ data/                            saved state (not in git, §4.1)
-└─ frontend/
+├─ core/                              pure TypeScript, no DOM (tsconfig lib ES2022 + WebWorker); empty until S2.1
+└─ app/                               the browser app (on a share, app\<ver>\ and app\current.json sit next to it: §2)
    ├─ package.json · vite.config.ts (single-file build → ../backend/slide_builder.html) · playwright.config.ts
    ├─ src/  main.tsx · xlsx/ · model/ · render/ · sync/ · state/ · editor/ · ui/ · wizard/ · styles/   (§5)
    ├─ tests/   Vitest unit tests; fixtures/ (generated .xlsx + make_fixtures.py)
-   └─ e2e/     app.spec.ts (Playwright, two helpers = two users) · parity.mjs (renderer diff)
+   └─ e2e/     app.spec.ts (Playwright, two helpers = two users) · file.spec.ts (from file://) · parity.mjs (renderer diff)
 ```

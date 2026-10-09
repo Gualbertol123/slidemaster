@@ -1,0 +1,19 @@
+{
+  "name": "slide-builder",
+  "version": "3.5.0",
+  "private": true,
+  "description": "Slide Builder. Workspaces: app/ (the browser app, built into backend/slide_builder.html) and core/ (pure TypeScript, no DOM). The helper (backend/) is Python, standard library only.",
+  "workspaces": [
+    "app",
+    "core"
+  ],
+  "scripts": {
+    "build": "npm run build -w app",
+    "typecheck": "npm run typecheck -w core && npm run typecheck -w app",
+    "check": "npm run typecheck -w core && npm run check -w app",
+    "test": "npm run test -w app",
+    "test:e2e": "npm run test:e2e -w app",
+    "parity": "npm run parity -w app",
+    "bench": "npm run bench -w app"
+  }
+}

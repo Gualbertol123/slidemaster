@@ -14,7 +14,7 @@ with Chromium 1194. Re-run them on a corporate Windows PC in Phase 0 (`06-plan.m
 
 ## Prerequisites
 
-* Node ≥ 22.18 (runs `.ts` files directly) and the repository's `frontend/node_modules` (`cd frontend && npm ci`).
+* Node ≥ 22.18 (runs `.ts` files directly) and the repository's `node_modules` (`npm ci` at the root: npm workspaces).
 * Python 3.8+ with `openpyxl`, `pypdf` and `pypdfium2` (dev machines only), plus `Pillow` for the blurred
   wallpaper asset.
 * Chromium for the baseline: `CHROME=/path/to/chrome`, default `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.

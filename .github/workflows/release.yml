@@ -21,15 +21,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json }
+        with: { node-version: 22, cache: npm, cache-dependency-path: package-lock.json }
       - uses: actions/setup-python@v5
         with: { python-version: "3.8" }
       - name: build the page (must equal the committed one)
-        working-directory: frontend
         run: |
           npm ci
           npm run build
-          git diff --exit-code -- ../backend/slide_builder.html
+          git diff --exit-code -- backend/slide_builder.html
       - name: assemble and verify the ZIP
         run: |
           VER="${GITHUB_REF_NAME#v}"

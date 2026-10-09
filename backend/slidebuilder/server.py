@@ -61,8 +61,8 @@ NOT_BUILT = """<!DOCTYPE html><html><head><meta charset="utf-8"><title>Slide Bui
 code{background:#f2f2f5;padding:2px 6px;border-radius:4px}</style></head><body>
 <h1>Slide Builder has not been built</h1>
 <p>The app file <code>backend/slide_builder.html</code> is missing. It is generated from the
-<code>frontend</code> folder. On a developer machine run:</p>
-<p><code>cd frontend &amp;&amp; npm run build</code></p>
+<code>app</code> folder. On a developer machine run:</p>
+<p><code>cd app &amp;&amp; npm run build</code></p>
 <p>then reload this page. The helper itself is running.</p></body></html>"""
 
 

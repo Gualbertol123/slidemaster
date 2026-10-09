@@ -61,7 +61,7 @@ class ReleaseTest(unittest.TestCase):
             "backend/slide_builder_settings.txt": "v2",
             "backend/report.xlsx": b"PK",
             "backend/.gitignore": "data/",
-            "frontend/src/main.tsx": "",
+            "app/src/main.tsx": "",
         })
         self.out = os.path.join(self.tmp, "dist")
 
@@ -233,7 +233,7 @@ class RealTreeTest(unittest.TestCase):
             path, man = mr.build(REPO, "0.0.0-test", tmp, check_version=False)
             self.assertIn("backend/slide_builder.html", man["files"])
             self.assertIn("backend/slidebuilder/server.py", man["files"])
-            self.assertFalse([n for n in man["files"] if n.startswith(("backend/data/", "backend/tests/", "frontend/", "docs/"))])
+            self.assertFalse([n for n in man["files"] if n.startswith(("backend/data/", "backend/tests/", "app/", "docs/"))])
             with zipfile.ZipFile(path) as z:
                 mr.update.verify_release(z)
         finally:

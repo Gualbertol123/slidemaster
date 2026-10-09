@@ -4,4 +4,4 @@ See docs/ARCHITECTURE.md for the contract this package implements and backend/RE
 for the module map.
 """
 APP_NAME = "slide-builder"
-VERSION = "3.4.0"
+VERSION = "3.5.0"
