@@ -3,7 +3,7 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## 3.5.0 - unreleased
+## 3.5.0 - 2026-10-09
 
 What users notice
 * Nothing changes in the slides, the exports or the saved setups (checked against 3.4 on every test deck).
