@@ -40,11 +40,11 @@ numbers, supports named "versions" with cells removed, and exports through a hea
 4. `docs/LOADTEST.md` – measured behaviour with 10 users on a shared folder; where time goes.
 5. `docs/REVIEW.md` – the review of the previous generation and why the current architecture was chosen
    (including why it is not a Next.js server app). Do not repeat the mistakes it lists.
-6. Then the code: `frontend/src/**`, `backend/slidebuilder/**`, `shared/ops-vectors.json`, the tests
-   (`frontend/tests`, `frontend/e2e/app.spec.ts`, `backend/tests`), `tools/`.
+6. Then the code: `app/src/**`, `backend/slidebuilder/**`, `shared/ops-vectors.json`, the tests
+   (`app/tests`, `app/e2e/app.spec.ts`, `backend/tests`), `tools/`.
 
 Run the existing tests to see the system working (commands in README §11). Build and start
-the app, open the test workbooks in `frontend/tests/fixtures/`, go through the wizard, edit, switch
+the app, open the test workbooks in `app/tests/fixtures/`, go through the wizard, edit, switch
 designs, export. Measure before you judge.
 
 ## Hard constraints of the environment (non-negotiable unless you prove a safe alternative)
@@ -94,7 +94,7 @@ format upgrades of saved data, the installer, the updater, and offline/fallback 
 * **Export speed and weight.** Every export starts or drives a headless Chromium, ships the whole
   slide DOM + CSS over HTTP, prints, then post-processes the PDF (page boxes, marker detection).
   Chrome rasterises some CSS (blurred shadows, masks, filters) into 300 dpi images and embeds CFF or
-  variable fonts as Type 3; the current code works around this (`frontend/src/render/printcss.ts`,
+  variable fonts as Type 3; the current code works around this (`app/src/render/printcss.ts`,
   `backend/slidebuilder/pdf.py`). Ask whether a native PDF writer (drawing text, rectangles, rounded
   rectangles and gradients directly from the scene model) would be faster, smaller and more exact.
 * **Parsing in the UI thread.** The workbook is unzipped and parsed in the page (regex parser over the

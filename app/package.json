@@ -1,5 +1,5 @@
 {
-  "name": "slide-builder-frontend",
+  "name": "@slide-builder/app",
   "version": "3.4.0",
   "private": true,
   "type": "module",

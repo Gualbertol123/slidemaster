@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 describe("built app", () => {
-  it("backend/slide_builder.html is up to date with frontend/src (run `npm run build`)", async () => {
+  it("backend/slide_builder.html is up to date with app/src (run `npm run build`)", async () => {
     const out = fs.mkdtempSync(path.join(os.tmpdir(), "sb-build-"));
     process.env.NODE_ENV = "production";
     await build({ mode: "production", root: path.join(here, ".."), configFile: path.join(here, "../vite.config.ts"), logLevel: "silent", build: { outDir: out, emptyOutDir: true } });

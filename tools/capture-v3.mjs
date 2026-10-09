@@ -15,8 +15,8 @@
      <out>/MANIFEST.json                              git sha, page sha256, Chromium version, fonts, clock
    Decks are data: tests/corpus/decks/<id>.json = {workbook, ops} – the ops are applied through the helper's
    API to a copy of tests/corpus/workbooks/<workbook> named <id>.<ext>, exactly as the app saves them.
-   Needs frontend/node_modules (Playwright), python3 with pypdf (dev only) for pdf.json. */
-import { chromium } from "../frontend/node_modules/playwright/index.mjs";
+   Needs node_modules (Playwright; `npm ci` at the root), python3 with pypdf (dev only) for pdf.json. */
+import { chromium } from "../node_modules/playwright/index.mjs";
 import { spawn, execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";

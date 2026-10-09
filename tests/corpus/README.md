@@ -4,7 +4,7 @@ Inputs of the golden capture (`docs/next/05-test-and-parity.md` §2, PLAN S0.5).
 
 | Path | What | Made by |
 |---|---|---|
-| `workbooks/report.xlsx`, `plain.xlsx`, `big.xlsx`, `weekly.xlsx` | the e2e fixtures | copies of `frontend/tests/fixtures` (`make_fixtures.py`) |
+| `workbooks/report.xlsx`, `plain.xlsx`, `big.xlsx`, `weekly.xlsx` | the e2e fixtures | copies of `app/tests/fixtures` (`make_fixtures.py`) |
 | `workbooks/deck20.xlsx` | 20 slide sheets × 2 weekly-report tables | `python tools/make_corpus.py` |
 | `workbooks/edge-*.xlsx`, `edge-macro.xlsm` | number formats and locale tags, rich text, merges, hidden rows/columns, colour scales and rule CF, 1904 dates, pictures (cropped, rotated, flipped, SVG), shapes, text boxes, a group, a macro-enabled file | `python tools/make_corpus.py` |
 | `big30.xlsx` (not committed, ~30 MB) | 3 × 130 000-row data sheets, for opening speed | `python tools/make_corpus.py big30` |

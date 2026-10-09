@@ -21,7 +21,7 @@ to **285/870 ms**, and edits became visible to others after 1.4 s instead of 11 
 * It starts **one helper process per simulated user** (`SLIDEBUILDER_USER=userK`,
   `SLIDEBUILDER_HOST=pcK`). All of them share one ROOT and data folder, like 10 PCs running the app
   from the same share. Each helper's token is read from `<meta name="sb-token">` in `GET /`.
-* Each simulated user behaves like the app (`frontend/src/sync/docsync.ts`, `state/app.ts`):
+* Each simulated user behaves like the app (`app/src/sync/docsync.ts`, `state/app.ts`):
   * one edit every 1–3 s with random jitter: 85 % `cell.patch`, 10 % `slide.patch`, 5 % `style.patch`;
   * edits are sent the way DocSync sends them: 300 ms debounce, one request in flight, and edits
     queued in the meantime go in the next batch. Failures are retried after 2–32 s;

@@ -1,8 +1,8 @@
 /* Baseline of the CURRENT Slide Builder (v3): open, render, edit round trip, export per design.
    node measure.mjs <workbooks dir> [out.json]
-   Needs: frontend/node_modules (Playwright), python3, Chromium (CHROME env or /opt/pw-browsers).
+   Needs: node_modules (Playwright; `npm ci` at the root), python3, Chromium (CHROME env or /opt/pw-browsers).
    Starts one real helper (backend/slide_builder.py) on a temp ROOT/DATA, like Start Slide Builder.bat. */
-import { chromium } from "../../frontend/node_modules/playwright/index.mjs";
+import { chromium } from "../../node_modules/playwright/index.mjs";
 import { spawn, execFileSync } from "node:child_process";
 import fs from "node:fs"; import os from "node:os"; import path from "node:path"; import { fileURLToPath } from "node:url";
 const HERE = path.dirname(fileURLToPath(import.meta.url)), REPO = path.resolve(HERE, "../..");

@@ -1,7 +1,10 @@
-# CI for every push and pull request (PLAN S0.1). Three jobs, all must be green:
-#   unit   - build the page, check that the committed page is fresh, then typecheck + Vitest
+# CI for every push and pull request (PLAN S0.1). All jobs must be green:
+#   unit   - build the page, check that the committed page is fresh, then typecheck + Vitest (app/)
+#   core   - core/ type-checked on its own: no DOM types (lib ES2022 + WebWorker, PLAN S1.2)
 #   helper - the Python helper's unittest suite on the oldest (3.8) and a current (3.12) Python
 #   e2e    - Playwright: two real helpers sharing one temp folder, driven in Chromium
+#   parity - v3 against golden/
+# npm workspaces: one lockfile and node_modules/ at the root; the scripts run from the root.
 name: ci
 on:
   push:
@@ -19,17 +22,25 @@ concurrency:
 jobs:
   unit:
     runs-on: ubuntu-24.04
-    defaults: { run: { working-directory: frontend } }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json }
+        with: { node-version: 22, cache: npm, cache-dependency-path: package-lock.json }
       - run: npm ci
       # build first: tests/build.test.ts compares backend/slide_builder.html with a fresh build
       - run: npm run build
       - name: committed page matches the sources
-        run: git diff --exit-code -- ../backend/slide_builder.html || (echo "backend/slide_builder.html is stale - run npm run build and commit it" && exit 1)
-      - run: npm run check
+        run: git diff --exit-code -- backend/slide_builder.html || (echo "backend/slide_builder.html is stale - run npm run build and commit it" && exit 1)
+      - run: npm run check -w app
+
+  core:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: package-lock.json }
+      - run: npm ci
+      - run: npm run typecheck -w core
 
   helper:
     runs-on: ubuntu-24.04
@@ -45,11 +56,10 @@ jobs:
   e2e:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    defaults: { run: { working-directory: frontend } }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json }
+        with: { node-version: 22, cache: npm, cache-dependency-path: package-lock.json }
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: npm ci
@@ -64,7 +74,7 @@ jobs:
           npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
-        with: { name: playwright-report, path: "frontend/test-results/", if-no-files-found: ignore }
+        with: { name: playwright-report, path: "app/test-results/", if-no-files-found: ignore }
 
   parity:
     # v3 against its goldens (golden/, tools/parity.mjs). Texts are compared on any machine; geometry, pixels
@@ -72,11 +82,10 @@ jobs:
     # a hosted runner does not - the report says which mode ran.
     runs-on: ubuntu-24.04
     timeout-minutes: 40
-    defaults: { run: { working-directory: frontend } }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json }
+        with: { node-version: 22, cache: npm, cache-dependency-path: package-lock.json }
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: npm ci

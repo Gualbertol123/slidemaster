@@ -1,10 +1,10 @@
 /* Parser spike: node parse_bench.mjs <big30.xlsx> [sheet path]
    1. unzip one sheet (JSZip, as today) vs fflate (proposed, sync, runs in a Worker)
-   2. today's regex parser loop (frontend/src/xlsx/workbook.ts readSheet, cells → Map<string, Cell>)
+   2. today's regex parser loop (app/src/xlsx/workbook.ts readSheet, cells → Map<string, Cell>)
    3. proposed: a single pass over the bytes into COLUMNAR typed arrays (no per-cell objects)
    4. the shared parsed-sheet cache: size on the share and load time (deflated columns) */
 import fs from "node:fs";
-import JSZip from "../../frontend/node_modules/jszip/lib/index.js";
+import JSZip from "../../node_modules/jszip/lib/index.js";
 import { unzipSync, inflateSync, deflateSync, strFromU8 } from "fflate";
 const file = process.argv[2], part = process.argv[3] || "xl/worksheets/sheet3.xml";
 const buf = fs.readFileSync(file), res = {};

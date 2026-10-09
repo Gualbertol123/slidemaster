@@ -62,7 +62,9 @@ LOCK_STALE_S = 30 * 60
 KEEP_BACKUPS = 5
 KEEP_VERSIONS = 3
 
-# never written by the ZIP update (git never touches them either: they are not in the repository)
+# never written by the ZIP update (git never touches them either: they are not in the repository). app/ holds
+# the side-by-side versions (app/<ver>/, app/current.json); the repository's app/ (the browser app's sources,
+# which only developers need) is skipped with them - git checks those sources out next to the versions.
 PROTECTED_DIRS = ("backend/data/", "export/", "engine/", ".git/", "slidemaster/", "app/")
 PROTECTED_RE = re.compile(r"(^|/)(~\$[^/]*|[^/]*\.(xlsx|xlsm|xlsb|xls))$|^backend/(logo[^/]*|slide_builder_settings[^/]*)$", re.I)
 
@@ -619,7 +621,8 @@ def clear_leftovers(root):
     """versions renamed to <ver>.old-* and interrupted installs <ver>.part (no PC runs those)"""
     d = app_dir(root)
     for n in os.listdir(d) if os.path.isdir(d) else []:
-        if ".old-" in n or n.endswith(".part"):
+        # only version folders: app/ also holds the browser app's sources in a git checkout
+        if VERSION_RE.match(n.split(".old-")[0] if ".old-" in n else n[:-5] if n.endswith(".part") else ""):
             try:
                 remove_tree(os.path.join(d, n))
             except OSError:

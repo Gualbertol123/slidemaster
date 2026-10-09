@@ -3,7 +3,7 @@
     python tools/make_corpus.py                    the committed workbooks (fixtures, deck20, edge cases)
     python tools/make_corpus.py big30 [OUTDIR]     the 30 MB workbook (not committed: generate it when needed)
 
-    report/plain/big/weekly.xlsx  copies of the e2e fixtures (frontend/tests/fixtures, make_fixtures.py)
+    report/plain/big/weekly.xlsx  copies of the e2e fixtures (app/tests/fixtures, make_fixtures.py)
     deck20.xlsx       20 sheets SLIDE_01..SLIDE_20, two weekly-report tables each ("x" markers, merged blue
                       headers, delta groups, +/- formats, CF green/red, a superscript) -> 20 slides x 2 tables
     big30.xlsx        3 data sheets of 130k rows x 12 columns (~30 MB): opening/parsing a large workbook
@@ -29,7 +29,7 @@ import zipfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 OUT = os.path.join(REPO, "tests", "corpus", "workbooks")
-FIXTURES = os.path.join(REPO, "frontend", "tests", "fixtures")
+FIXTURES = os.path.join(REPO, "app", "tests", "fixtures")
 FIXED = datetime.datetime(2026, 1, 1, 0, 0, 0)
 
 from openpyxl import Workbook  # noqa: E402  (dev-only dependency, after the docstring)

@@ -1,0 +1,14 @@
+{
+  "name": "@slide-builder/core",
+  "version": "3.4.0",
+  "private": true,
+  "type": "module",
+  "description": "The Slide Builder core: pure TypeScript with no DOM (it runs in workers from M2 of docs/next/PLAN.md). Empty until S2.1.",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

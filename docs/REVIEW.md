@@ -72,7 +72,7 @@ is rewritten **in full** by every helper.
 | F14 | Low | Escape in the wizard asks `confirm()`; native dialogs block the page and are blocked in some managed browsers. |
 | F15 | Low | `defaultPreset` creates one slide per sheet with "x" tables without asking when the workbook is reopened at start-up – surprising if markers were added by someone else. |
 
-Verification of the rebuild: `frontend/e2e/parity.mjs` renders the same workbooks with v2.3 and
+Verification of the rebuild: `app/e2e/parity.mjs` renders the same workbooks with v2.3 and
 v3 in the same browser; every table is byte-identical in both designs except where the fixes above
 apply (number formats, CF relative references).
 

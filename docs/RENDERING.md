@@ -1,7 +1,7 @@
 # Slide Builder – how workbooks become slides
 
 The reading and rendering algorithms were carried over from v2.3 unchanged in behaviour (verified
-by `frontend/e2e/parity.mjs`, which renders the same workbooks with both versions and compares the
+by `app/e2e/parity.mjs`, which renders the same workbooks with both versions and compares the
 HTML), except for the fixes listed in `docs/REVIEW.md` (number formats, conditional formats).
 This file describes them; `docs/ARCHITECTURE.md` describes storage, sync and the HTTP API.
 

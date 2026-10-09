@@ -14,7 +14,7 @@ The ZIP holds what a shared folder needs to run one version side by side with ot
     MANIFEST.json         {"app", "version", "commit", "files": {path: {"sha256", "size"}}}
 
 The ZIP is reproducible: files in sorted order, fixed timestamps, no build time in the manifest.
-The page is NOT built here (that needs Node): run `npm run build` in frontend/ first.
+The page is NOT built here (that needs Node): run `npm run build` (root or app/) first.
 """
 import argparse
 import hashlib
@@ -106,7 +106,7 @@ def release_files(root):
     missing = [f for f in REQUIRED if f not in out]
     if missing:
         raise SystemExit("cannot build a release, missing: %s%s" % (", ".join(missing),
-                         " (run `npm run build` in frontend/)" if "backend/slide_builder.html" in missing else ""))
+                         " (run `npm run build`)" if "backend/slide_builder.html" in missing else ""))
     return sorted(set(out))
 
 
@@ -170,18 +170,18 @@ def release_notes(root, version):
 
 
 def run_tests(root):
-    """the helper tests, and the frontend checks when npm is installed (what CI runs)"""
+    """the helper tests, and the app and core checks when npm is installed (what CI runs)"""
     say("Running the helper tests...")
     if subprocess.call([sys.executable, "-m", "unittest", "discover", "-s", os.path.join(root, "backend", "tests")], cwd=root):
         raise SystemExit("helper tests failed - no release built")
     npm = "npm.cmd" if os.name == "nt" else "npm"
     try:
-        rc = subprocess.call([npm, "run", "check"], cwd=os.path.join(root, "frontend"))
+        rc = subprocess.call([npm, "run", "check"], cwd=root)
     except OSError:
-        say("npm not found: frontend checks skipped (CI runs them)")
+        say("npm not found: app and core checks skipped (CI runs them)")
         return
     if rc:
-        raise SystemExit("frontend checks failed - no release built")
+        raise SystemExit("app or core checks failed - no release built")
 
 
 def main(argv=None):

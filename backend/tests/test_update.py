@@ -388,6 +388,15 @@ class ReleaseInstallTest(unittest.TestCase):
         self.install("3.7.0")
         self.assertEqual(sorted(os.listdir(os.path.join(self.root, "app"))), ["3.5.0", "3.6.0", "3.7.0", "current.json"])
 
+    def test_leftovers_are_only_version_folders(self):
+        """app/ also holds the browser app's sources in a git checkout (S1.2): cleaning up leaves them alone"""
+        self.install("3.4.0")
+        app = os.path.join(self.root, "app")
+        for n in ("src", "e2e", "notes.part", "x.old-1", "3.3.0.old-abc", "3.6.0.part"):
+            os.makedirs(os.path.join(app, n))
+        update.clear_leftovers(self.root)
+        self.assertEqual(sorted(os.listdir(app)), ["3.4.0", "current.json", "e2e", "notes.part", "src", "x.old-1"])
+
     def test_pointer_replace_is_retried(self):
         self.install("3.4.0")
         real, calls = os.replace, []
