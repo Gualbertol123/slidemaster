@@ -124,4 +124,5 @@ numbers measured twice). Measured numbers go into the step's line.
 | S1.4 | built page (bytes raw / gzip -9), two builds | 659,609 / 212,518 (S1.3: 483,809 / 160,628) | 659,609 / 212,518 (identical bytes) |
 | S1.4 | render counts (`npm run bench`), as S1.3 | 4 · 4 · 0 · 0 · 1 (Toast) | 4 · 4 · 0 · 0 · 1 (Toast) |
 | S1.4 | React Compiler trial (rejected) | render counts 4 · 4 · 0 · 0 · 1; e2e 1 failed; parity 48 differences; page 692,296 bytes | – (not kept) |
+| S1.5 | release ZIP 3.5.0, built twice at 391aa24 (`make_release.py --no-tests`; tests run separately; the bytes change with any commit) | 342,390 bytes, 35 files, verifies | identical bytes |
 | S1.5 | e2e (16 tests) and parity on the final M1 page, corporate Windows PC | 16 passed, 1.6 min · parity 0 differences (text-only) | 16 passed, 1.6 min · parity 0 differences |
