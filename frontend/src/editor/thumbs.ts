@@ -13,7 +13,7 @@ function fill(fr: HTMLElement, i: number) {
   if (!S.slides[i]) return;
   fr.innerHTML = ""; fr.appendChild(buildSlide(S.slides[i], i, ctx(), { thumb: true })); fr.dataset.done = "1";
 }
-/** frames are created by the Preact list (ui/Thumbs.tsx); this fills them */
+/** frames are created by the React list (ui/Thumbs.tsx); this fills them */
 export function renderThumbs() {
   if (!box) return;
   io?.disconnect();

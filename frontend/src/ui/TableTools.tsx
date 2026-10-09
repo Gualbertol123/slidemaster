@@ -1,6 +1,6 @@
 /* Second toolbar row: LAYOUT – table cells (size, role, merge, colour scale), tables on the slide,
    text boxes around tables, slide options. Text formatting lives in the first row only. */
-import { useState } from "preact/hooks";
+import { useState } from "react";
 import { S, emit, useApp, toast } from "../state/store";
 import { change, ctx, style } from "../state/app";
 import { DLG } from "../state/dialogs";
@@ -18,8 +18,8 @@ const uniq = (a: number[]) => [...new Set(a.map(v => Math.round(v)))];
 
 function SizeBox({ label, title, values, disabled, onSet }: { label: string; title: string; values: number[]; disabled: boolean; onSet: (v: number | null) => void }) {
   const u = uniq(values), shown = u.length === 1 ? String(u[0]) : "";
-  return <label class="szf" title={title}><span>{label}</span>
-    <input key={label + shown + disabled} class="sizebox" disabled={disabled} defaultValue={shown} placeholder={u.length > 1 ? "…" : ""}
+  return <label className="szf" title={title}><span>{label}</span>
+    <input key={label + shown + disabled} className="sizebox" disabled={disabled} defaultValue={shown} placeholder={u.length > 1 ? "…" : ""}
       onKeyDown={e => { e.stopPropagation(); const t = e.target as HTMLInputElement; if (e.key === "Enter") { const v = parseFloat(t.value.replace(",", ".")); if (isFinite(v) && v > 0) onSet(v); t.blur(); } if (e.key === "Escape") { t.value = shown; t.blur(); } }} />
     <small>px</small></label>;
 }
@@ -37,31 +37,31 @@ function ScaleMenu({ close }: { close: () => void }) {
   };
   const remove = (id: string) => T?.def && change("Remove colour scale", [{ op: "table.patch", id: T.def.id, patch: { scales: { [id]: null } } } as Op]);
   const bar = (neg: boolean) => [0, .25, .5, .75, 1].map(t => scaleColors(t, neg));
-  const seg = <V extends string>(v: V, set: (x: V) => void, opts: [V, string][]) => <div class="seg small">{opts.map(([k, l]) => <button key={k} class={v === k ? "on" : ""} onClick={() => set(k)}>{l}</button>)}</div>;
-  return <div class="scalemenu">
-    <div class="hd">Colour scale {sel ? <>on <b>{range}</b></> : "– select cells first"}</div>
-    <div class="optgrid">
+  const seg = <V extends string>(v: V, set: (x: V) => void, opts: [V, string][]) => <div className="seg small">{opts.map(([k, l]) => <button key={k} className={v === k ? "on" : ""} onClick={() => set(k)}>{l}</button>)}</div>;
+  return <div className="scalemenu">
+    <div className="hd">Colour scale {sel ? <>on <b>{range}</b></> : "– select cells first"}</div>
+    <div className="optgrid">
       <label>Compare</label>{seg(dir, setDir, [["row", "Across each row"], ["col", "Down each column"], ["all", "Whole selection"]])}
       <label>Colours</label>{seg(mode, setMode, [["zero", "+ green / − red"], ["minmax", "Low red → high green"]])}
-      <label>Apply to</label><div class="row"><label class="ck"><input type="checkbox" checked={fill} onChange={e => setFill((e.target as HTMLInputElement).checked)} /> Cell colour</label>
-        <label class="ck"><input type="checkbox" checked={ink} onChange={e => setInk((e.target as HTMLInputElement).checked)} /> Number colour</label>
-        <label class="ck"><input type="checkbox" checked={invert} onChange={e => setInvert((e.target as HTMLInputElement).checked)} /> Reverse</label></div>
-      <label>Preview</label><div class="scaleprev">{[...bar(!invert ? true : false).reverse(), ...bar(!invert ? false : true)].map((c, i) => <i key={i} style={{ background: fill ? c.fill : "#fff", color: ink ? c.ink : "#333" }}>{i < 5 ? "−" : "+"}</i>)}</div>
+      <label>Apply to</label><div className="row"><label className="ck"><input type="checkbox" checked={fill} onChange={e => setFill((e.target as HTMLInputElement).checked)} /> Cell colour</label>
+        <label className="ck"><input type="checkbox" checked={ink} onChange={e => setInk((e.target as HTMLInputElement).checked)} /> Number colour</label>
+        <label className="ck"><input type="checkbox" checked={invert} onChange={e => setInvert((e.target as HTMLInputElement).checked)} /> Reverse</label></div>
+      <label>Preview</label><div className="scaleprev">{[...bar(!invert ? true : false).reverse(), ...bar(!invert ? false : true)].map((c, i) => <i key={i} style={{ background: fill ? c.fill : "#fff", color: ink ? c.ink : "#333" }}>{i < 5 ? "−" : "+"}</i>)}</div>
     </div>
-    <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn primary" id="scaleApply" disabled={!sel || (!fill && !ink)} onClick={apply}>Apply to selection</button></div>
-    {rules.length > 0 && <><div class="sep" /><div class="hd">On this table</div>
-      {rules.map(([id, r]) => <div class="scalerule" key={id}><code>{r.range}</code> · {r.dir === "row" ? "rows" : r.dir === "col" ? "columns" : "whole range"} · {r.mode === "zero" ? "± around zero" : "low → high"} · {[r.fill && "cell", r.ink && "number"].filter(Boolean).join(" + ")}{r.invert ? " · reversed" : ""}
-        <button class="btn icon" title="Remove" onClick={() => remove(id)}>✕</button></div>)}</>}
+    <div className="row" style={{ justifyContent: "flex-end", marginTop: "8px" }}><button className="btn primary" id="scaleApply" disabled={!sel || (!fill && !ink)} onClick={apply}>Apply to selection</button></div>
+    {rules.length > 0 && <><div className="sep" /><div className="hd">On this table</div>
+      {rules.map(([id, r]) => <div className="scalerule" key={id}><code>{r.range}</code> · {r.dir === "row" ? "rows" : r.dir === "col" ? "columns" : "whole range"} · {r.mode === "zero" ? "± around zero" : "low → high"} · {[r.fill && "cell", r.ink && "number"].filter(Boolean).join(" + ")}{r.invert ? " · reversed" : ""}
+        <button className="btn icon" title="Remove" onClick={() => remove(id)}>✕</button></div>)}</>}
   </div>;
 }
 
 /* gridlines of a table: as in Excel, all on, or none – separately for horizontal and vertical lines */
 function GridMenu({ close, T }: { close: () => void; T: import("../xlsx/types").TableLayout }) {
   const set = (k: "gridH" | "gridV", v: "on" | "off" | null) => { if (!T.def) return; change(v === "on" ? "Add gridlines" : v === "off" ? "Remove gridlines" : "Gridlines from Excel", [{ op: "table.patch", id: T.def.id, patch: { [k]: v } } as Op]); close(); };
-  const row = (k: "gridH" | "gridV", label: string) => <><label>{label}</label><div class="seg small" data-grid={k}>
-    {([[null, "As in Excel"], ["on", "All"], ["off", "None"]] as const).map(([v, l]) => <button key={String(v)} data-v={String(v)} class={(T.def?.[k] ?? null) === v ? "on" : ""} onClick={() => set(k, v)}>{l}</button>)}</div></>;
-  return <div class="scalemenu"><div class="hd">Gridlines of this table</div>
-    <div class="optgrid">{row("gridH", "Horizontal")}{row("gridV", "Vertical")}</div></div>;
+  const row = (k: "gridH" | "gridV", label: string) => <><label>{label}</label><div className="seg small" data-grid={k}>
+    {([[null, "As in Excel"], ["on", "All"], ["off", "None"]] as const).map(([v, l]) => <button key={String(v)} data-v={String(v)} className={(T.def?.[k] ?? null) === v ? "on" : ""} onClick={() => set(k, v)}>{l}</button>)}</div></>;
+  return <div className="scalemenu"><div className="hd">Gridlines of this table</div>
+    <div className="optgrid">{row("gridH", "Horizontal")}{row("gridV", "Vertical")}</div></div>;
 }
 
 const ROLES = [["auto", "Auto", "Detected from the Excel formatting"], ["header", "Header", "Column/row header"], ["total", "Total", "Highlighted total (tile)"], ["body", "Body", "Normal data"], ["caption", "Note", "Small note"]] as const;
@@ -85,56 +85,56 @@ export function TableRibbon() {
   // raw Excel shows the workbook only: no text boxes, no comments
   const raw = style().design === "excel", rawTip = "Excel shows the workbook as it is – text boxes and comments are in Excel Refined and Liquid Glass";
   return (
-    <nav class="ribbon ribbon2">
-      <div class="grp" title="Size of the selected columns and rows, in table pixels (Excel at 100 %). Or drag a border on the slide; double-click a border for the Excel size.">
-        <span class="lbl">Cells</span>
+    <nav className="ribbon ribbon2">
+      <div className="grp" title="Size of the selected columns and rows, in table pixels (Excel at 100 %). Or drag a border on the slide; double-click a border for the Excel size.">
+        <span className="lbl">Cells</span>
         <SizeBox label="W" title="Width of the selected columns (Enter to apply)" disabled={!hasSel} values={T ? cols.map(c => shownColW(T, c)) : []} onSet={v => T && setColWidth(T, cols, v)} />
         <SizeBox label="H" title="Height of the selected rows (Enter to apply)" disabled={!hasSel} values={T ? rows.map(r => shownRowH(T, r)) : []} onSet={v => T && setRowHeight(T, rows, v)} />
-        <button class="tb" id="sizeReset" disabled={!hasSel} title="Back to the widths and heights from Excel for the selected columns and rows"
+        <button className="tb" id="sizeReset" disabled={!hasSel} title="Back to the widths and heights from Excel for the selected columns and rows"
           onClick={() => { if (!T?.def) return; change("Excel sizes", [{ op: "table.patch", id: T.def.id, patch: { cols: Object.fromEntries(cols.map(c => [c, null])), rows: Object.fromEntries(rows.map(r => [r, null])) } } as Op]); }}>Excel size</button>
-        <Dropdown button={(_o, t) => <button class="tb" id="roleBtn" disabled={!hasSel} title="Role of the selected cells: how Liquid Glass draws them" onClick={t}>Role: {role ? ROLES.find(r => r[0] === role)?.[1] : "–"} ▾</button>}>
-          {close => <>{ROLES.map(([k, l, t]) => <button key={k} data-role={k} class={role === k ? "picked" : ""} onClick={() => { close(); applySel("Role: " + l, e => { if (k === "auto") delete e.role; else e.role = k; }); }}>{l}<small>{t}</small></button>)}</>}
+        <Dropdown button={(_o, t) => <button className="tb" id="roleBtn" disabled={!hasSel} title="Role of the selected cells: how Liquid Glass draws them" onClick={t}>Role: {role ? ROLES.find(r => r[0] === role)?.[1] : "–"} ▾</button>}>
+          {close => <>{ROLES.map(([k, l, t]) => <button key={k} data-role={k} className={role === k ? "picked" : ""} onClick={() => { close(); applySel("Role: " + l, e => { if (k === "auto") delete e.role; else e.role = k; }); }}>{l}<small>{t}</small></button>)}</>}
         </Dropdown>
-        {mergedInSel().length ? <button class="tb mergebtn" id="unmergeBtn" title="Split the merged cells in the selection" onClick={unmergeSel}>Unmerge</button>
-          : <button class="tb mergebtn" id="mergeBtn" title="Merge the selected cells (the top-left value is kept)" disabled={!canMerge()} onClick={mergeSel}>Merge</button>}
-        <Dropdown menuClass="wide" button={(_o, t) => <button class="tb" id="scaleBtn" disabled={!hasSel} title="Colour scale: deeper green/red the bigger the number" onClick={t}>
-          <i class="scaleico" />Colour scale</button>}>{close => <ScaleMenu close={close} />}</Dropdown>
+        {mergedInSel().length ? <button className="tb mergebtn" id="unmergeBtn" title="Split the merged cells in the selection" onClick={unmergeSel}>Unmerge</button>
+          : <button className="tb mergebtn" id="mergeBtn" title="Merge the selected cells (the top-left value is kept)" disabled={!canMerge()} onClick={mergeSel}>Merge</button>}
+        <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="scaleBtn" disabled={!hasSel} title="Colour scale: deeper green/red the bigger the number" onClick={t}>
+          <i className="scaleico" />Colour scale</button>}>{close => <ScaleMenu close={close} />}</Dropdown>
       </div>
-      <div class="grp">
-        <button class="tb" id="sameSize" disabled={!R || R.tables.length < 2} title="Make the tables on this slide exactly the same size"
+      <div className="grp">
+        <button className="tb" id="sameSize" disabled={!R || R.tables.length < 2} title="Make the tables on this slide exactly the same size"
           onClick={() => { const r = makeSameSize(currentTableRefs(), { width: true, height: true, target: "largest" }); if (!r.ok) toast(esc(r.why)); }}>⇔ Same size</button>
-        <Dropdown button={(_o, t) => <button class="tb" id="posBtn" disabled={!R || !R.tables.length} title="Position of the tables on the slide" onClick={t}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1.5v13" /><rect x="3" y="3.5" width="10" height="3" /><rect x="4.5" y="9.5" width="7" height="3" /></svg>Position ▾</button>}>
-          {close => <div class="posmenu" onClick={e => { if ((e.target as Element).closest("button")) close(); }}><div class="hd">Across the slide</div><div class="row">
-        {(["left", "center", "right"] as const).map(a => <button key={a} class={"tb" + (align === a ? " on" : "")} data-talign={a} disabled={!R || !R.tables.length} title={`Align the tables ${a === "center" ? "in the centre" : "to the " + a}`} onClick={() => alignTables(a)}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">{a === "left" ? <><path d="M2 1.5v13" /><rect x="4" y="3.5" width="9" height="3" /><rect x="4" y="9.5" width="6" height="3" /></> : a === "center" ? <><path d="M8 1.5v13" /><rect x="3" y="3.5" width="10" height="3" /><rect x="4.5" y="9.5" width="7" height="3" /></> : <><path d="M14 1.5v13" /><rect x="3" y="3.5" width="9" height="3" /><rect x="6" y="9.5" width="6" height="3" /></>}</svg></button>)}
-          </div><div class="hd">Up and down</div><div class="row">
-        {(["top", "middle", "bottom"] as const).map(v => <button key={v} class={"tb" + (sz?.valign === v ? " on" : "")} data-tvalign={v} disabled={!R || !R.tables.length}
+        <Dropdown button={(_o, t) => <button className="tb" id="posBtn" disabled={!R || !R.tables.length} title="Position of the tables on the slide" onClick={t}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 1.5v13" /><rect x="3" y="3.5" width="10" height="3" /><rect x="4.5" y="9.5" width="7" height="3" /></svg>Position ▾</button>}>
+          {close => <div className="posmenu" onClick={e => { if ((e.target as Element).closest("button")) close(); }}><div className="hd">Across the slide</div><div className="row">
+        {(["left", "center", "right"] as const).map(a => <button key={a} className={"tb" + (align === a ? " on" : "")} data-talign={a} disabled={!R || !R.tables.length} title={`Align the tables ${a === "center" ? "in the centre" : "to the " + a}`} onClick={() => alignTables(a)}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">{a === "left" ? <><path d="M2 1.5v13" /><rect x="4" y="3.5" width="9" height="3" /><rect x="4" y="9.5" width="6" height="3" /></> : a === "center" ? <><path d="M8 1.5v13" /><rect x="3" y="3.5" width="10" height="3" /><rect x="4.5" y="9.5" width="7" height="3" /></> : <><path d="M14 1.5v13" /><rect x="3" y="3.5" width="9" height="3" /><rect x="6" y="9.5" width="6" height="3" /></>}</svg></button>)}
+          </div><div className="hd">Up and down</div><div className="row">
+        {(["top", "middle", "bottom"] as const).map(v => <button key={v} className={"tb" + (sz?.valign === v ? " on" : "")} data-tvalign={v} disabled={!R || !R.tables.length}
           title={sz?.valign === v ? "Back to the default position (click again)" : `Move the tables to the ${v === "middle" ? "middle" : v} of the slide`} onClick={() => valignTables(sz?.valign === v ? null : v)}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">{v === "top" ? <><path d="M1.5 2h13" /><rect x="3.5" y="4" width="3" height="9" /><rect x="9.5" y="4" width="3" height="6" /></> : v === "middle" ? <><path d="M1.5 8h13" /><rect x="3.5" y="3" width="3" height="10" /><rect x="9.5" y="4.5" width="3" height="7" /></> : <><path d="M1.5 14h13" /><rect x="3.5" y="3" width="3" height="9" /><rect x="9.5" y="6" width="3" height="6" /></>}</svg></button>)}
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">{v === "top" ? <><path d="M1.5 2h13" /><rect x="3.5" y="4" width="3" height="9" /><rect x="9.5" y="4" width="3" height="6" /></> : v === "middle" ? <><path d="M1.5 8h13" /><rect x="3.5" y="3" width="3" height="10" /><rect x="9.5" y="4.5" width="3" height="7" /></> : <><path d="M1.5 14h13" /><rect x="3.5" y="3" width="3" height="9" /><rect x="9.5" y="6" width="3" height="6" /></>}</svg></button>)}
           </div></div>}
         </Dropdown>
-        <Dropdown menuClass="wide" button={(_o, t) => <button class="tb" id="gridBtn" disabled={!(tIdx >= 0 && R?.tables[tIdx]?.def)} title="Add or remove horizontal / vertical gridlines of the table" onClick={t}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="2.5" width="13" height="11" /><path d="M1.5 6.2h13M1.5 9.8h13M5.8 2.5v11M10.2 2.5v11" /></svg>Gridlines</button>}>
+        <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="gridBtn" disabled={!(tIdx >= 0 && R?.tables[tIdx]?.def)} title="Add or remove horizontal / vertical gridlines of the table" onClick={t}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="1.5" y="2.5" width="13" height="11" /><path d="M1.5 6.2h13M1.5 9.8h13M5.8 2.5v11M10.2 2.5v11" /></svg>Gridlines</button>}>
           {close => R && tIdx >= 0 ? <GridMenu close={close} T={R.tables[tIdx]} /> : null}</Dropdown>
-        <button class="tb" id="tablesDlg" disabled={!S.slides.some(x => x.tables.length)} title="Match sizes of tables on several slides, copy column widths between tables" onClick={() => { DLG.tables = true; emit(); }}>Sizes…</button>
-        <button class="tb" id="resetLayout" title="Automatic table positions for this slide (in this design)" disabled={!(R && sizingOf(R, ctx()).layout)} onClick={() => R && slidePatch("Reset layout", sizingPatch(R, ctx(), { scale: sizingOf(R, ctx()).scale }))}>Reset layout</button>
+        <button className="tb" id="tablesDlg" disabled={!S.slides.some(x => x.tables.length)} title="Match sizes of tables on several slides, copy column widths between tables" onClick={() => { DLG.tables = true; emit(); }}>Sizes…</button>
+        <button className="tb" id="resetLayout" title="Automatic table positions for this slide (in this design)" disabled={!(R && sizingOf(R, ctx()).layout)} onClick={() => R && slidePatch("Reset layout", sizingPatch(R, ctx(), { scale: sizingOf(R, ctx()).scale }))}>Reset layout</button>
       </div>
-      <div class="grp">
-        <span class="lbl">Text box</span>
-        {(["top", "bottom", "left", "right"] as const).map(sd => <button key={sd} class="tb" data-addnote={sd} disabled={!R || tIdx < 0 || raw} title={raw ? rawTip : `Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd} of the table`} onClick={() => addNote(sd)}>
+      <div className="grp">
+        <span className="lbl">Text box</span>
+        {(["top", "bottom", "left", "right"] as const).map(sd => <button key={sd} className="tb" data-addnote={sd} disabled={!R || tIdx < 0 || raw} title={raw ? rawTip : `Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd} of the table`} onClick={() => addNote(sd)}>
           {sd === "top" ? "↑" : sd === "bottom" ? "↓" : sd === "left" ? "←" : "→"}</button>)}
-        <button class={"tb" + (note?.bubble ? " on" : "")} id="noteBubble" disabled={!note} title="Bubble around the selected text box, like the tables (glass card / framed box)" onClick={() => note && patchNote(note.bubble ? "Text box without bubble" : "Text box in a bubble", { bubble: !note.bubble })}>◯</button>
-        <button class={"tb" + (note?.auto ? " on" : "")} id="commentBtn" disabled={!R || !R.tables.length || raw} title={raw ? rawTip : "Automated comment: a commentary written from the table's numbers (headline, main contributors, downside), updated when the numbers change"}
+        <button className={"tb" + (note?.bubble ? " on" : "")} id="noteBubble" disabled={!note} title="Bubble around the selected text box, like the tables (glass card / framed box)" onClick={() => note && patchNote(note.bubble ? "Text box without bubble" : "Text box in a bubble", { bubble: !note.bubble })}>◯</button>
+        <button className={"tb" + (note?.auto ? " on" : "")} id="commentBtn" disabled={!R || !R.tables.length || raw} title={raw ? rawTip : "Automated comment: a commentary written from the table's numbers (headline, main contributors, downside), updated when the numbers change"}
           onClick={() => { DLG.comment = { table: S.noteSel ? Math.max(0, R!.tables.findIndex(t => (t.id || "") === S.noteSel!.split(":")[0])) : Math.max(0, tIdx) }; emit(); }}>✎ Comment…</button>
-        <button class="tb" id="noteAttach" disabled={!(note && note.x != null) || S.noteSel === "slide:notes"} title="Put the moved text box back next to its table (drag a text box to place it anywhere)" onClick={attachNote}>⤺ Attach</button>
-        <button class="tb" id="noteDelete" disabled={!note} title="Delete the selected text box (Del)" onClick={() => patchNote("Remove text box", null)}>🗑</button>
+        <button className="tb" id="noteAttach" disabled={!(note && note.x != null) || S.noteSel === "slide:notes"} title="Put the moved text box back next to its table (drag a text box to place it anywhere)" onClick={attachNote}>⤺ Attach</button>
+        <button className="tb" id="noteDelete" disabled={!note} title="Delete the selected text box (Del)" onClick={() => patchNote("Remove text box", null)}>🗑</button>
       </div>
-      <div class="grp">
-        <button class={"tb" + (R?.cfg.notes?.["slide:notes"] ? " on" : "")} id="slideNotes" disabled={!R || raw} title={raw ? rawTip : "Notes section of this slide (sources, footnotes…): starts where the footer is – drag it anywhere, e.g. next to the page number"} onClick={addSlideNotes}>✎ Notes</button>
-        <button class={"tb" + (logoOn ? " on" : "")} id="logoToggle" disabled={!R || !logoName} title={R && !logoOn ? "The logo is hidden on this slide – click to show it" : "Hide the logo on this slide"}
-          onClick={() => slidePatch(logoOn ? "Hide logo" : "Show logo", { logo: logoOn ? false : null })}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="3.5" width="13" height="9" rx="2" /><path d="m3.5 10.5 3-3 2 2 1.5-1.5 2.5 2.5" /></svg>Logo</button>
-        {R?.type === "index" && <button class={"tb" + (R.cfg.subs !== false ? " on" : "")} id="ixSubs" title={R.cfg.subs !== false ? "Hide the slide subtitles in the contents list" : "Show the slide subtitles in the contents list"}
+      <div className="grp">
+        <button className={"tb" + (R?.cfg.notes?.["slide:notes"] ? " on" : "")} id="slideNotes" disabled={!R || raw} title={raw ? rawTip : "Notes section of this slide (sources, footnotes…): starts where the footer is – drag it anywhere, e.g. next to the page number"} onClick={addSlideNotes}>✎ Notes</button>
+        <button className={"tb" + (logoOn ? " on" : "")} id="logoToggle" disabled={!R || !logoName} title={R && !logoOn ? "The logo is hidden on this slide – click to show it" : "Hide the logo on this slide"}
+          onClick={() => slidePatch(logoOn ? "Hide logo" : "Show logo", { logo: logoOn ? false : null })}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="3.5" width="13" height="9" rx="2" /><path d="m3.5 10.5 3-3 2 2 1.5-1.5 2.5 2.5" /></svg>Logo</button>
+        {R?.type === "index" && <button className={"tb" + (R.cfg.subs !== false ? " on" : "")} id="ixSubs" title={R.cfg.subs !== false ? "Hide the slide subtitles in the contents list" : "Show the slide subtitles in the contents list"}
           onClick={() => slidePatch(R.cfg.subs !== false ? "Hide subtitles in contents" : "Show subtitles in contents", { subs: R.cfg.subs !== false ? false : null })}>Subtitles</button>}
       </div>
     </nav>

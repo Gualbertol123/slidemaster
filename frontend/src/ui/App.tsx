@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useRef } from "react";
 import { S, useApp, THUMBS } from "../state/store";
 import { ctx, gotoSlide, guard, reloadWorkbook, setZoom, style } from "../state/app";
 import { DLG } from "../state/dialogs";
@@ -26,12 +26,12 @@ function Thumbs() {
   useEffect(() => { ref.current?.querySelector(".thumb.on")?.scrollIntoView({ block: "nearest" }); }, [S.cur]);
   const c = ctx();
   return (
-    <div class="thumbs" id="thumbs" ref={ref}>
+    <div className="thumbs" id="thumbs" ref={ref}>
       {S.slides.map((R, i) => {
         const issues = slideIssues(R, c).filter(x => x.cls === "warn" || x.cls === "err").length;
-        return <button key={R.id} class={"thumb" + (i === S.cur ? " on" : "")} data-i={i} onClick={() => gotoSlide(i)}>
-          <div class="frame" data-i={i} />
-          <div class="cap"><span class="n">{i + 1}</span><b>{R.label}</b>{R.type !== "content" && <span class="tag">{R.type}</span>}{issues > 0 && <span class="badge">{issues}</span>}</div>
+        return <button key={R.id} className={"thumb" + (i === S.cur ? " on" : "")} data-i={i} onClick={() => gotoSlide(i)}>
+          <div className="frame" data-i={i} />
+          <div className="cap"><span className="n">{i + 1}</span><b>{R.label}</b>{R.type !== "content" && <span className="tag">{R.type}</span>}{issues > 0 && <span className="badge">{issues}</span>}</div>
         </button>;
       })}
     </div>
@@ -40,13 +40,13 @@ function Thumbs() {
 
 function Issues() {
   useApp();
-  const R = S.slides[S.cur]; if (!R) return <div class="issues" id="issues" />;
+  const R = S.slides[S.cur]; if (!R) return <div className="issues" id="issues" />;
   const c = ctx(), P = presetOf();
   const used = new Set(S.slides.flatMap(x => x.cfg.tables || []));
   const unused = P ? P.tables.filter(t => !used.has(t.id)).length : 0;
   const html = `<h4>Slide ${S.cur + 1} · ${esc(R.label)}</h4><ul>${slideIssues(R, c).map(x => `<li class="${x.cls}">${x.html}</li>`).join("")}${S.logoMissing ? `<li class="warn">Logo “${esc(style().logo)}” not found in the folder</li>` : ""}</ul>` +
     `<h4 style="margin-top:10px">Preset</h4><ul><li>${P ? P.tables.length : 0} table${P && P.tables.length === 1 ? "" : "s"} · ${S.slides.length} slide${S.slides.length === 1 ? "" : "s"}${unused ? ` · <span class="warn">${unused} table${unused > 1 ? "s" : ""} not on any slide</span>` : ""}</li></ul>`;
-  return <div class="issues" id="issues" dangerouslySetInnerHTML={{ __html: html }} />;
+  return <div className="issues" id="issues" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 function Canvas() {
@@ -55,21 +55,21 @@ function Canvas() {
   useEffect(() => { if (ref.current) mountStage(ref.current); }, []);
   const has = S.slides.length > 0;
   return (
-    <section class="canvas">
-      <div id="stage" ref={ref} style="position:absolute;inset:0" />
-      {!has && <div class="empty" id="emptyState" style="display:flex">
-        <div class="drop">
-          <div class="big">Open a workbook</div>
+    <section className="canvas">
+      <div id="stage" ref={ref} style={{ position: "absolute", inset: "0" }} />
+      {!has && <div className="empty" id="emptyState" style={{ display: "flex" }}>
+        <div className="drop">
+          <div className="big">Open a workbook</div>
           <p>A wizard lets you pick the sheets and the tables (drag across the cells, or use the suggestions),<br />then arrange them on slides with an optional cover and index. Tables between two “x” cells are found automatically.<br />Everything is saved with the workbook, for you and your colleagues.<br />
-            <span style="font-size:12px">Workbooks placed in the main <b>Slide Builder</b> folder appear in the Open menu · exports go to the <b>export</b> folder.</span></p>
-          <button class="btn primary" id="emptyOpen" onClick={() => (backend.served ? document.getElementById("openBtn") : document.getElementById("fileInput"))?.click()}>Open workbook</button>
-          <p style="font-size:12px">…or drop an .xlsx file anywhere on this window.</p>
+            <span style={{ fontSize: "12px" }}>Workbooks placed in the main <b>Slide Builder</b> folder appear in the Open menu · exports go to the <b>export</b> folder.</span></p>
+          <button className="btn primary" id="emptyOpen" onClick={() => (backend.served ? document.getElementById("openBtn") : document.getElementById("fileInput"))?.click()}>Open workbook</button>
+          <p style={{ fontSize: "12px" }}>…or drop an .xlsx file anywhere on this window.</p>
         </div>
       </div>}
-      {has && <div class="zoomctl" id="zoomctl" style="display:flex">
+      {has && <div className="zoomctl" id="zoomctl" style={{ display: "flex" }}>
         <button id="zoomOut" title="Zoom out" onClick={() => zoomBy(1 / 1.25)}>−</button><span id="zoomVal" />{/* text set by the stage */}
         <button id="zoomIn" title="Zoom in" onClick={() => zoomBy(1.25)}>+</button>
-        <button id="zoomFit" title="Fit" style="width:auto;padding:0 8px" onClick={() => setZoom("fit")}>Fit</button>
+        <button id="zoomFit" title="Fit" style={{ width: "auto", padding: "0 8px" }} onClick={() => setZoom("fit")}>Fit</button>
       </div>}
     </section>
   );
@@ -81,12 +81,12 @@ function Status() {
   const st = S.sync?.state, err = S.sync?.error || "";
   const ago = S.remote ? Math.round((Date.now() - S.remote.at) / 60000) : 0;
   return (
-    <footer class="statusbar">
+    <footer className="statusbar">
       <span id="sbSel">{selStatus()}</span>
       <span>Arrows move · Shift extends · type or F2 to edit · Del clears · Ctrl+B/I · Ctrl+Z/Y · PgUp/PgDn slides</span>
-      <span class="spacer" />
-      {S.remote && <span id="sbRemote" class="remote">Updated by {S.remote.by} {ago < 1 ? "just now" : ago + " min ago"}</span>}
-      <span id="sbSave" class={st === "error" || st === "outdated" ? "err" : st === "saved" ? "ok" : ""}>{st ? SAVE_TEXT[st] + (st === "error" || st === "outdated" ? err : "") : ""}</span>
+      <span className="spacer" />
+      {S.remote && <span id="sbRemote" className="remote">Updated by {S.remote.by} {ago < 1 ? "just now" : ago + " min ago"}</span>}
+      <span id="sbSave" className={st === "error" || st === "outdated" ? "err" : st === "saved" ? "ok" : ""}>{st ? SAVE_TEXT[st] + (st === "error" || st === "outdated" ? err : "") : ""}</span>
     </footer>
   );
 }
@@ -95,14 +95,14 @@ function Busy() {
   useApp();
   if (!S.busy) return null;
   const f = S.busy.frac;
-  return <div id="busy" style="display:flex"><div class="busybox"><div class="busytxt">{S.busy.text}</div>
-    <div class="busybar"><i class={f == null ? "indet" : ""} style={{ width: f == null ? "35%" : Math.round(Math.max(.03, Math.min(1, f)) * 100) + "%" }} /></div>
-    <div class="busyhint">Large workbooks: only the sheets you choose are read.</div></div></div>;
+  return <div id="busy" style={{ display: "flex" }}><div className="busybox"><div className="busytxt">{S.busy.text}</div>
+    <div className="busybar"><i className={f == null ? "indet" : ""} style={{ width: f == null ? "35%" : Math.round(Math.max(.03, Math.min(1, f)) * 100) + "%" }} /></div>
+    <div className="busyhint">Large workbooks: only the sheets you choose are read.</div></div></div>;
 }
 function Toast() {
   useApp();
   const t = S.toast;
-  return <div class={"toast" + (t ? " show" : "") + (t?.err ? " err" : "")} id="toast">
+  return <div className={"toast" + (t ? " show" : "") + (t?.err ? " err" : "")} id="toast">
     {t && <><span dangerouslySetInnerHTML={{ __html: t.html }} />{(t.actions || []).map(a => <button key={a.label} onClick={() => { S.toast = null; a.fn(); }}>{a.label}</button>)}</>}
   </div>;
 }
@@ -118,18 +118,18 @@ export function App() {
   }, []);
   return (
     <>
-      <div class="app">
+      <div className="app">
         <Topbar />
         <div>
-          {!backend.served && <div class="banner show" id="bannerOffline">Opened directly from disk: work is kept in this browser only and exports are off. Start <b>Start Slide Builder.bat</b> to share presets with colleagues and export PDFs.</div>}
-          {S.changedOnDisk && <div class="banner info show" id="bannerChanged">The workbook was saved again in Excel. <button class="btn" onClick={() => void guard(reloadWorkbook)}>Reload now</button></div>}
+          {!backend.served && <div className="banner show" id="bannerOffline">Opened directly from disk: work is kept in this browser only and exports are off. Start <b>Start Slide Builder.bat</b> to share presets with colleagues and export PDFs.</div>}
+          {S.changedOnDisk && <div className="banner info show" id="bannerChanged">The workbook was saved again in Excel. <button className="btn" onClick={() => void guard(reloadWorkbook)}>Reload now</button></div>}
           <Ribbon />
           <TableRibbon />
           <FxBar />
         </div>
-        <div class="main">
-          <aside class="nav">
-            <div class="navhd"><span>SLIDES <span id="slideCount" style="font-weight:500;margin-left:4px">{S.slides.length || ""}</span></span></div>
+        <div className="main">
+          <aside className="nav">
+            <div className="navhd"><span>SLIDES <span id="slideCount" style={{ fontWeight: "500", marginLeft: "4px" }}>{S.slides.length || ""}</span></span></div>
             <Thumbs />
             <Issues />
           </aside>

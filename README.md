@@ -308,8 +308,9 @@ Current formats: `SCHEMA = {workbook: 3, config: 3, prefs: 1}` (`backend/slidebu
 
 ## 5. Front end (`frontend/src`)
 
-TypeScript, Preact for the chrome, imperative DOM for slides (for speed). Runtime dependencies: `preact`,
-`jszip`. Built by Vite + `vite-plugin-singlefile` into `backend/slide_builder.html`. `main.tsx` injects
+TypeScript, React-API components for the chrome (run by Preact through `preact/compat` until S1.4 of
+`docs/next/PLAN.md`: Vite aliases `react`/`react-dom`), imperative DOM for slides (for speed). Runtime
+dependencies: `preact`, `jszip`. Built by Vite + `vite-plugin-singlefile` into `backend/slide_builder.html`. `main.tsx` injects
 `ui.css`+`app.css` as `<style id="uicss">` and `slide.css` as **`<style id="slidecss">`** (exports send
 exactly this text), mounts `<App/>`, installs the keyboard handler and calls `boot()`.
 
@@ -701,7 +702,10 @@ events and link updates off. TLS is never disabled (downloads use the system/cor
    share, TLS is intercepted, consoles may be cp1252, PowerShell may be constrained, git on a share needs
    `safe.directory`.
 9. The placeholder `__SB_TOKEN__` is replaced everywhere in the served page – never write it in code.
-10. Preact controlled inputs reset on every re-render: inputs for shared settings use `ui/Field.tsx`.
+10. Controlled inputs reset on every re-render: inputs for shared settings use `ui/Field.tsx`. Sliders, colour
+    pickers and boxes that store their text without re-rendering use `ui/Input.tsx` (the value is written
+    on render, never put back after an event; `onCommit` is the browser's `change`, React's `onChange`
+    fires on every input).
 11. Table sizes are **per design**: read them with `sizingOf`/`tableSizes`, write them with
     `sizingPatch`/`sizingChange`/`sizePatch` – never `cfg.layout`/`def.cols` directly.
 

@@ -1,5 +1,5 @@
 /* Slide Builder 3 – browser app. Built into ONE self-contained file: ../backend/slide_builder.html */
-import { render } from "preact";
+import { createRoot } from "react-dom/client";
 import uiCss from "./styles/ui.css?raw";
 import extraCss from "./styles/app.css?raw";
 import slideCss from "./styles/slide.css?raw";
@@ -20,6 +20,6 @@ import { resolveStyle } from "./model/style";
 const add = (id: string, css: string) => { const s = document.createElement("style"); s.id = id; s.textContent = css; document.head.appendChild(s); };
 add("uicss", uiCss + "\n" + extraCss);
 add("slidecss", slideCss);
-render(<App />, document.getElementById("root")!);
+createRoot(document.getElementById("root")!).render(<App />);
 installKeys();
 void boot();

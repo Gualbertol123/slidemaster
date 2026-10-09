@@ -1,10 +1,10 @@
-import type { ComponentChildren } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import type { ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /** a button with a menu; closes on outside click, Escape, or when an item calls close() */
 export function Dropdown(props: {
-  button: (open: boolean, toggle: () => void) => ComponentChildren;
-  children: (close: () => void) => ComponentChildren;
+  button: (open: boolean, toggle: () => void) => ReactNode;
+  children: (close: () => void) => ReactNode;
   right?: boolean; menuClass?: string; style?: Record<string, string>; onOpen?: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -18,9 +18,9 @@ export function Dropdown(props: {
   }, [open]);
   const toggle = () => { const o = !open; setOpen(o); if (o) props.onOpen?.(); };
   return (
-    <div class="dd" ref={ref} style={props.style}>
+    <div className="dd" ref={ref} style={props.style}>
       {props.button(open, toggle)}
-      <div class={"menu" + (props.right ? " right" : "") + (props.menuClass ? " " + props.menuClass : "") + (open ? " open" : "")}>
+      <div className={"menu" + (props.right ? " right" : "") + (props.menuClass ? " " + props.menuClass : "") + (open ? " open" : "")}>
         {open && props.children(() => setOpen(false))}
       </div>
     </div>

@@ -1,6 +1,6 @@
 /* Font menu used everywhere a font is chosen (toolbar, text styles): the shared library first, then the
    fonts every Windows PC has, then popular Google fonts (picking one adds it to the library). */
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "react";
 import { emit } from "../state/store";
 import { DLG } from "../state/dialogs";
 import { FONTS, addGoogleFont, inLibrary, loadFonts, uploadFontFiles } from "../state/fonts";
@@ -27,24 +27,24 @@ export function FontPicker(p: { value: string | null; onPick: (font: string | nu
   const match = (f: string) => !q.trim() || f.toLowerCase().includes(q.trim().toLowerCase());
   const google = GOOGLE_POPULAR.filter(f => !inLibrary(f));
   const item = (f: string, close: () => void, onPick = () => p.onPick(f)) =>
-    <button key={f} data-font={f} class={"fontitem" + (p.value === f ? " picked" : "")} style={{ fontFamily: fontStack(f) }} onClick={() => { close(); onPick(); }}>{f}</button>;
+    <button key={f} data-font={f} className={"fontitem" + (p.value === f ? " picked" : "")} style={{ fontFamily: fontStack(f) }} onClick={() => { close(); onPick(); }}>{f}</button>;
   const exact = q.trim() && ![...lib, ...SYSTEM_FONTS, ...GOOGLE_POPULAR].some(f => f.toLowerCase() === q.trim().toLowerCase()) ? q.trim() : "";
   return (
     <Dropdown menuClass="fontmenu" onOpen={() => { setQ(""); preview(google); void loadFonts(); }} button={(_o, toggle) =>
-      <button class="tb fontbtn" id={p.id} disabled={p.disabled} title={p.title || "Font"} onClick={toggle} style={{ fontFamily: p.value ? fontStack(p.value) : undefined }}>
-        <span>{p.value || p.placeholder || "Default font"}</span><i class="caret">▾</i></button>}>
+      <button className="tb fontbtn" id={p.id} disabled={p.disabled} title={p.title || "Font"} onClick={toggle} style={{ fontFamily: p.value ? fontStack(p.value) : undefined }}>
+        <span>{p.value || p.placeholder || "Default font"}</span><i className="caret">▾</i></button>}>
       {close => <>
         <SearchBox value={q} onInput={setQ} />
-        <div class="fontlist">
-          {match("Default") && <button class={"fontitem" + (p.value === null ? " picked" : "")} data-font="" onClick={() => { close(); p.onPick(null); }}><i>{p.placeholder || "Default font"}</i></button>}
-          {lib.some(match) && <><div class="hd">Font library <small>shared · saved in the Slide Builder folder</small></div>{lib.filter(match).map(f => item(f, close))}</>}
-          {SYSTEM_FONTS.some(match) && <><div class="hd">On every Windows PC</div>{SYSTEM_FONTS.filter(match).map(f => item(f, close))}</>}
-          {google.some(match) && <><div class="hd">Google Fonts <small>added to the library when picked</small></div>
+        <div className="fontlist">
+          {match("Default") && <button className={"fontitem" + (p.value === null ? " picked" : "")} data-font="" onClick={() => { close(); p.onPick(null); }}><i>{p.placeholder || "Default font"}</i></button>}
+          {lib.some(match) && <><div className="hd">Font library <small>shared · saved in the Slide Builder folder</small></div>{lib.filter(match).map(f => item(f, close))}</>}
+          {SYSTEM_FONTS.some(match) && <><div className="hd">On every Windows PC</div>{SYSTEM_FONTS.filter(match).map(f => item(f, close))}</>}
+          {google.some(match) && <><div className="hd">Google Fonts <small>added to the library when picked</small></div>
             {google.filter(match).map(f => item(f, close, () => void addGoogleFont(f).then(ok => ok && p.onPick(f))))}</>}
-          {exact && <button class="fontitem add" onClick={() => { close(); void addGoogleFont(exact).then(ok => ok && p.onPick(exact)); }}>+ Add “{exact}” from Google Fonts</button>}
+          {exact && <button className="fontitem add" onClick={() => { close(); void addGoogleFont(exact).then(ok => ok && p.onPick(exact)); }}>+ Add “{exact}” from Google Fonts</button>}
         </div>
-        <div class="sep" />
-        <div class="fontacts">
+        <div className="sep" />
+        <div className="fontacts">
           <button disabled={!backend.served} title={backend.served ? "TrueType, OpenType or web fonts (.ttf .otf .woff .woff2)" : "Needs the helper (Start Slide Builder.bat)"} onClick={() => fileRef.current?.click()}>⤒ Upload font files…</button>
           <button onClick={() => { close(); openFontManager("fonts"); }}>Manage fonts…</button>
         </div>
@@ -60,6 +60,6 @@ export function FontPicker(p: { value: string | null; onPick: (font: string | nu
 function SearchBox({ value, onInput }: { value: string; onInput: (v: string) => void }) {
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => { setTimeout(() => ref.current?.focus(), 20); }, []);
-  return <input ref={ref} class="fontsearch" placeholder="Search or type a Google font name…" value={value}
-    onInput={e => onInput((e.target as HTMLInputElement).value)} onKeyDown={e => { if (e.key !== "Escape") e.stopPropagation(); }} />;
+  return <input ref={ref} className="fontsearch" placeholder="Search or type a Google font name…" value={value}
+    onChange={e => onInput((e.target as HTMLInputElement).value)} onKeyDown={e => { if (e.key !== "Escape") e.stopPropagation(); }} />;
 }

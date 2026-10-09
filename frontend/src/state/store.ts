@@ -1,6 +1,6 @@
-/* Application state + a tiny subscription mechanism for the Preact chrome.
+/* Application state + a tiny subscription mechanism for the chrome components.
    The slide stage and thumbnails are imperative (performance); they register controllers below. */
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useState } from "react";
 import type { Workbook } from "../xlsx/types";
 import type { ConfigDoc, Prefs, RuntimeSlide } from "../model/types";
 import type { Health, Other } from "../sync/api";
@@ -48,7 +48,7 @@ export type AppState = typeof S;
 
 const subs = new Set<() => void>();
 let queued = false;
-/** re-render the Preact chrome (batched) */
+/** re-render the chrome (batched) */
 export function emit() {
   if (queued) return; queued = true;
   queueMicrotask(() => { queued = false; subs.forEach(f => f()); });

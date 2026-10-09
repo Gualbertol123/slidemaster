@@ -3,7 +3,7 @@
    The comment is a text box with settings, not fixed text: it is rewritten whenever the numbers change.
    "Apply to all similar tables" puts the same kind of comment on every table of the deck with the same
    comparison headers (each with its own title and numbers). */
-import { useMemo, useState } from "preact/hooks";
+import { useMemo, useState } from "react";
 import { S, emit, useApp, toast } from "../state/store";
 import { DLG } from "../state/dialogs";
 import { change, ctx } from "../state/app";
@@ -92,61 +92,61 @@ export function CommentDialog() {
   const remove = () => { if (old) { change("Remove comment", [{ op: "slide.patch", id: R.id, patch: { notes: { [noteKey(R, ti, old.side)]: null } } } as Op]); close(); } };
 
   return (
-    <div class="modal" onKeyDown={e => { if (e.key === "Escape") close(); }}>
-      <div class="dlg cmtdlg">
-        <div class="dlghd"><b>Automated comment</b><span>A commentary written from the table's numbers – it rewrites itself when the workbook changes.</span></div>
-        <div class="dlgbody cmtbody">
-          <div class="cmtset">
-            {R.tables.length > 1 && <label class="cmtrow"><span>Table</span><select id="cmtTable" value={ti} onChange={e => setTi(+(e.target as HTMLSelectElement).value)}>
+    <div className="modal" onKeyDown={e => { if (e.key === "Escape") close(); }}>
+      <div className="dlg cmtdlg">
+        <div className="dlghd"><b>Automated comment</b><span>A commentary written from the table's numbers – it rewrites itself when the workbook changes.</span></div>
+        <div className="dlgbody cmtbody">
+          <div className="cmtset">
+            {R.tables.length > 1 && <label className="cmtrow"><span>Table</span><select id="cmtTable" value={ti} onChange={e => setTi(+(e.target as HTMLSelectElement).value)}>
               {R.tables.map((T, i) => <option key={i} value={i}>{tableName(T, c.preset)}</option>)}</select></label>}
-            <div class="seg small cmtmode" id="cmtMode">{(["summary", "sections"] as const).map(m => <button key={m} data-mode={m} class={(cfg.mode ?? "sections") === m ? "on" : ""} onClick={() => set({ mode: m })}>{m === "summary" ? "Summary – short, joint" : "Detailed – one section per comparison"}</button>)}</div>
-            {summary && R.tables.length > 1 && <><div class="opthd">Tables in this comment</div>
-              <div class="cmtchecks" id="cmtTables">{R.tables.map((T, i) => <label key={i} class="ck"><input type="checkbox" checked={i === ti || (cfg.tables || []).includes(tid(T))} disabled={i === ti} onChange={e => toggleTable(tid(T), (e.target as HTMLInputElement).checked)} />{tableName(T, c.preset)}</label>)}</div></>}
-            <div class="cmtfound">Found: {summary ? <>{blocks.length} block{blocks.length === 1 ? "" : "s"} – {blocks.map(b => b.head ? cleanHead(b.head.label) : "rows without a total").join(", ")}</> : a.total ? <>total <b>{a.total.label}</b></> : "no total row (the sum of the rows is used)"}{!summary && <> · {a.entities.length} rows</>}{a.period ? <> · latest <b>{a.period.name}{a.period.date ? " " + a.period.date : ""}</b></> : ""}</div>
-            <label class="cmtrow"><span>Title</span><input id="cmtTitle" class="txt" placeholder={a.total ? prettyLabel(a.total.label) : tableName(L, c.preset)} value={cfg.title || ""} onInput={e => set({ title: (e.target as HTMLInputElement).value })} onKeyDown={e => e.stopPropagation()} /></label>
-            {summary ? <><div class="opthd">Joins</div>
-              <div class="cmtchecks" id="cmtKinds">{kindsHere.map(k => <label key={k} class="ck"><input type="checkbox" data-kind={k} checked={kinds.includes(k)} onChange={e => { const on = (e.target as HTMLInputElement).checked; set({ kinds: (["week", "target", "month", "quarter", "year", "yoy", "other"] as Group["kind"][]).filter(x => x === k ? on : kinds.includes(x)) }); }} />{KIND_LABEL[k]}{k === "week" ? " – judged: how good, who drives it" : ""}</label>)}</div></> : <>
-            <div class="opthd">Sections</div>
-            {!a.groups.length && <div class="optnote">No comparison columns found. Comments need headers like “Δ vs. Budget”, “vs. Prev. Week”, “Var. YoY”, with Abs. and/or % columns.</div>}
-            <div class="cmtchecks" id="cmtGroups">{a.groups.map(g => <label key={g.id} class="ck"><input type="checkbox" data-group={g.id} checked={groups.includes(g.id)} disabled={g.abs === null} onChange={e => toggleGroup(g.id, (e.target as HTMLInputElement).checked)} />{headingOf(g)}</label>)}</div></>}
-            <div class="opthd">Layout</div>
-            <div class="cmtchecks row3" id="cmtShape">
-              <label class="ck"><input type="checkbox" data-shape="title" checked={cfg.showTitle !== false} onChange={e => set({ showTitle: (e.target as HTMLInputElement).checked ? undefined : false })} />Title</label>
-              {summary && <label class="ck"><input type="checkbox" data-shape="names" checked={cfg.names !== false} onChange={e => set({ names: (e.target as HTMLInputElement).checked ? undefined : false })} />Name at the start of each paragraph</label>}
-              <label class="ck"><input type="checkbox" data-shape="bullets" checked={cfg.bullets !== false} onChange={e => set({ bullets: (e.target as HTMLInputElement).checked ? undefined : false })} />Bullet points</label>
+            <div className="seg small cmtmode" id="cmtMode">{(["summary", "sections"] as const).map(m => <button key={m} data-mode={m} className={(cfg.mode ?? "sections") === m ? "on" : ""} onClick={() => set({ mode: m })}>{m === "summary" ? "Summary – short, joint" : "Detailed – one section per comparison"}</button>)}</div>
+            {summary && R.tables.length > 1 && <><div className="opthd">Tables in this comment</div>
+              <div className="cmtchecks" id="cmtTables">{R.tables.map((T, i) => <label key={i} className="ck"><input type="checkbox" checked={i === ti || (cfg.tables || []).includes(tid(T))} disabled={i === ti} onChange={e => toggleTable(tid(T), (e.target as HTMLInputElement).checked)} />{tableName(T, c.preset)}</label>)}</div></>}
+            <div className="cmtfound">Found: {summary ? <>{blocks.length} block{blocks.length === 1 ? "" : "s"} – {blocks.map(b => b.head ? cleanHead(b.head.label) : "rows without a total").join(", ")}</> : a.total ? <>total <b>{a.total.label}</b></> : "no total row (the sum of the rows is used)"}{!summary && <> · {a.entities.length} rows</>}{a.period ? <> · latest <b>{a.period.name}{a.period.date ? " " + a.period.date : ""}</b></> : ""}</div>
+            <label className="cmtrow"><span>Title</span><input id="cmtTitle" className="txt" placeholder={a.total ? prettyLabel(a.total.label) : tableName(L, c.preset)} value={cfg.title || ""} onChange={e => set({ title: (e.target as HTMLInputElement).value })} onKeyDown={e => e.stopPropagation()} /></label>
+            {summary ? <><div className="opthd">Joins</div>
+              <div className="cmtchecks" id="cmtKinds">{kindsHere.map(k => <label key={k} className="ck"><input type="checkbox" data-kind={k} checked={kinds.includes(k)} onChange={e => { const on = (e.target as HTMLInputElement).checked; set({ kinds: (["week", "target", "month", "quarter", "year", "yoy", "other"] as Group["kind"][]).filter(x => x === k ? on : kinds.includes(x)) }); }} />{KIND_LABEL[k]}{k === "week" ? " – judged: how good, who drives it" : ""}</label>)}</div></> : <>
+            <div className="opthd">Sections</div>
+            {!a.groups.length && <div className="optnote">No comparison columns found. Comments need headers like “Δ vs. Budget”, “vs. Prev. Week”, “Var. YoY”, with Abs. and/or % columns.</div>}
+            <div className="cmtchecks" id="cmtGroups">{a.groups.map(g => <label key={g.id} className="ck"><input type="checkbox" data-group={g.id} checked={groups.includes(g.id)} disabled={g.abs === null} onChange={e => toggleGroup(g.id, (e.target as HTMLInputElement).checked)} />{headingOf(g)}</label>)}</div></>}
+            <div className="opthd">Layout</div>
+            <div className="cmtchecks row3" id="cmtShape">
+              <label className="ck"><input type="checkbox" data-shape="title" checked={cfg.showTitle !== false} onChange={e => set({ showTitle: (e.target as HTMLInputElement).checked ? undefined : false })} />Title</label>
+              {summary && <label className="ck"><input type="checkbox" data-shape="names" checked={cfg.names !== false} onChange={e => set({ names: (e.target as HTMLInputElement).checked ? undefined : false })} />Name at the start of each paragraph</label>}
+              <label className="ck"><input type="checkbox" data-shape="bullets" checked={cfg.bullets !== false} onChange={e => set({ bullets: (e.target as HTMLInputElement).checked ? undefined : false })} />Bullet points</label>
             </div>
-            <div class="opthd">Content</div>
-            <div class="cmtgrid">
-              <label>Length</label><div class="seg small">{(["full", "short"] as const).map(d => <button key={d} class={cfg.detail === d ? "on" : ""} onClick={() => set({ detail: d })}>{d === "full" ? (summary ? "With plan drivers" : "Full analysis") : "Short"}</button>)}</div>
+            <div className="opthd">Content</div>
+            <div className="cmtgrid">
+              <label>Length</label><div className="seg small">{(["full", "short"] as const).map(d => <button key={d} className={cfg.detail === d ? "on" : ""} onClick={() => set({ detail: d })}>{d === "full" ? (summary ? "With plan drivers" : "Full analysis") : "Short"}</button>)}</div>
               <label>Name the top</label><select id="cmtTop" value={cfg.top} onChange={e => set({ top: +(e.target as HTMLSelectElement).value })}>{[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n} name{n > 1 ? "s" : ""} per side</option>)}</select>
-              <label>Ignore below</label><input id="cmtMin" type="number" min="0" step="any" class="txt" placeholder="0 (all movements)" value={cfg.minAbs ?? ""} onInput={e => { const v = parseFloat((e.target as HTMLInputElement).value); set({ minAbs: isFinite(v) && v > 0 ? v : undefined }); }} onKeyDown={e => e.stopPropagation()} />
-              <label>Unit after amounts</label><input id="cmtUnit" class="txt" placeholder="none" value={cfg.unit ?? DEFAULT_UNIT} onInput={e => set({ unit: (e.target as HTMLInputElement).value.trim() === DEFAULT_UNIT ? undefined : (e.target as HTMLInputElement).value.trim() })} onKeyDown={e => e.stopPropagation()} title="Written after every amount, e.g. +476 mln (percentages keep their %). Empty = no unit." />
+              <label>Ignore below</label><input id="cmtMin" type="number" min="0" step="any" className="txt" placeholder="0 (all movements)" value={cfg.minAbs ?? ""} onChange={e => { const v = parseFloat((e.target as HTMLInputElement).value); set({ minAbs: isFinite(v) && v > 0 ? v : undefined }); }} onKeyDown={e => e.stopPropagation()} />
+              <label>Unit after amounts</label><input id="cmtUnit" className="txt" placeholder="none" value={cfg.unit ?? DEFAULT_UNIT} onChange={e => set({ unit: (e.target as HTMLInputElement).value.trim() === DEFAULT_UNIT ? undefined : (e.target as HTMLInputElement).value.trim() })} onKeyDown={e => e.stopPropagation()} title="Written after every amount, e.g. +476 mln (percentages keep their %). Empty = no unit." />
               <label>Rows are</label><select id="cmtNoun" value={cfg.noun} onChange={e => set({ noun: (e.target as HTMLSelectElement).value })}>{NOUNS.map(n => <option key={n} value={n}>{n === "entity" ? "entities" : n.endsWith("y") ? n.slice(0, -1) + "ies" : n + "s"}</option>)}</select>
             </div>
-            {!summary && cfg.detail === "full" && <div class="cmtchecks">
-              <label class="ck"><input type="checkbox" checked={cfg.share} onChange={e => set({ share: (e.target as HTMLInputElement).checked })} />Concentration (“largely driven by…, ~86%”)</label>
-              <label class="ck"><input type="checkbox" checked={cfg.breadth} onChange={e => set({ breadth: (e.target as HTMLInputElement).checked })} />Broad-based moves</label>
-              <label class="ck"><input type="checkbox" checked={cfg.missing} onChange={e => set({ missing: (e.target as HTMLInputElement).checked })} />Rows without data</label>
+            {!summary && cfg.detail === "full" && <div className="cmtchecks">
+              <label className="ck"><input type="checkbox" checked={cfg.share} onChange={e => set({ share: (e.target as HTMLInputElement).checked })} />Concentration (“largely driven by…, ~86%”)</label>
+              <label className="ck"><input type="checkbox" checked={cfg.breadth} onChange={e => set({ breadth: (e.target as HTMLInputElement).checked })} />Broad-based moves</label>
+              <label className="ck"><input type="checkbox" checked={cfg.missing} onChange={e => set({ missing: (e.target as HTMLInputElement).checked })} />Rows without data</label>
             </div>}
-            <div class="opthd">Rows to include</div>
-            <div class="cmtents">{entityLabels.map(l => <label key={l} class="ck"><input type="checkbox" checked={!ex.has(l.toLowerCase())} onChange={ev => toggleEnt(l, (ev.target as HTMLInputElement).checked)} />{l}</label>)}</div>
-            <div class="opthd">Placement</div>
-            <div class="cmtgrid">
+            <div className="opthd">Rows to include</div>
+            <div className="cmtents">{entityLabels.map(l => <label key={l} className="ck"><input type="checkbox" checked={!ex.has(l.toLowerCase())} onChange={ev => toggleEnt(l, (ev.target as HTMLInputElement).checked)} />{l}</label>)}</div>
+            <div className="opthd">Placement</div>
+            <div className="cmtgrid">
               <label>Where</label><select id="cmtSide" value={span ? "span-" + side : side} onChange={e => { const v = (e.target as HTMLSelectElement).value, sp = v.startsWith("span-"), s = (sp ? v.slice(5) : v) as Side; setSpan(sp); setSide(s); setSize(s === "left" || s === "right" ? 440 : 220); }}>
                 {R.tables.length > 1 && <><option value="span-right">Beside all tables – right</option><option value="span-left">Beside all tables – left</option></>}
                 {SIDES.map(s => <option key={s} value={s}>{SIDE_LABEL[s]}{R.tables.length > 1 ? " (this table)" : ""}</option>)}</select>
-              <label>{side === "left" || side === "right" ? "Width" : "Height"}</label><div class="row"><input type="range" min={side === "left" || side === "right" ? 240 : 100} max={side === "left" || side === "right" ? 800 : 500} step="10" value={size} onInput={e => setSize(+(e.target as HTMLInputElement).value)} /><span class="cv">{size} px</span></div>
-              <label></label><label class="ck"><input type="checkbox" checked={bubble} onChange={e => setBubble((e.target as HTMLInputElement).checked)} />In a bubble (glass card / framed box)</label>
+              <label>{side === "left" || side === "right" ? "Width" : "Height"}</label><div className="row"><input type="range" min={side === "left" || side === "right" ? 240 : 100} max={side === "left" || side === "right" ? 800 : 500} step="10" value={size} onChange={e => setSize(+(e.target as HTMLInputElement).value)} /><span className="cv">{size} px</span></div>
+              <label></label><label className="ck"><input type="checkbox" checked={bubble} onChange={e => setBubble((e.target as HTMLInputElement).checked)} />In a bubble (glass card / framed box)</label>
             </div>
           </div>
-          <div class={"cmtprev slide " + (c.style.design === "clean" ? "excel clean" : c.style.design)}><div class="tnote auto" id="cmtPreview" dangerouslySetInnerHTML={{ __html: richText(text) }} /></div>
+          <div className={"cmtprev slide " + (c.style.design === "clean" ? "excel clean" : c.style.design)}><div className="tnote auto" id="cmtPreview" dangerouslySetInnerHTML={{ __html: richText(text) }} /></div>
         </div>
-        <div class="dlgft">
-          {old && <button class="btn" id="cmtRemove" onClick={remove}>Remove comment</button>}
-          <span class="hint">The text size shrinks to fit the box; make it wider or pick fewer sections for larger text.</span>
-          <button class="btn" onClick={close}>Cancel</button>
-          {similar.length > 0 && !(summary && (cfg.tables || []).length) && <button class="btn" id="cmtAll" title={similar.map(x => `${x.si + 1}. ${tableName(x.T, c.preset)}`).join("\n")} onClick={() => insert(true)}>Also on {similar.length} similar table{similar.length > 1 ? "s" : ""}</button>}
-          <button class="btn primary" id="cmtInsert" disabled={!a.groups.length} onClick={() => insert(false)}>{old ? "Update comment" : "Insert comment"}</button>
+        <div className="dlgft">
+          {old && <button className="btn" id="cmtRemove" onClick={remove}>Remove comment</button>}
+          <span className="hint">The text size shrinks to fit the box; make it wider or pick fewer sections for larger text.</span>
+          <button className="btn" onClick={close}>Cancel</button>
+          {similar.length > 0 && !(summary && (cfg.tables || []).length) && <button className="btn" id="cmtAll" title={similar.map(x => `${x.si + 1}. ${tableName(x.T, c.preset)}`).join("\n")} onClick={() => insert(true)}>Also on {similar.length} similar table{similar.length > 1 ? "s" : ""}</button>}
+          <button className="btn primary" id="cmtInsert" disabled={!a.groups.length} onClick={() => insert(false)}>{old ? "Update comment" : "Insert comment"}</button>
         </div>
       </div>
     </div>

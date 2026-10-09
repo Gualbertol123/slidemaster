@@ -16,7 +16,7 @@ numbers measured twice). Measured numbers go into the step's line.
 - [ ] S0.7 · Ship v3.4 — [PR #1](https://github.com/Gualbertol123/slidemaster/pull/1). Prepared up to the tag: version 3.4.0, `CHANGELOG.md`, `docs/next/release-checklist.md`; checklist steps 2–4 run on temp copies (ZIP 35 files, verifies, reproducible; rehearsal install / self-test / start / rollback OK). **Not ticked: the tag and the share update are for a person** (Waiting for).
 
 ### M1 · The React app (v3.5)
-- [ ] S1.1 · React API on the Preact runtime
+- [x] S1.1 · React API on the Preact runtime — [PR #2](https://github.com/Gualbertol123/slidemaster/pull/2). Vite/Vitest alias `react`, `react-dom`, `react-dom/client`, `react/jsx-runtime` → `preact/compat`; `jsxImportSource: "react"` with `@types/react` 19.2; an AST codemod renamed ~590 JSX attributes (template-string HTML keeps `class=`). New `ui/Input.tsx`: React's `onChange` fires per input and its controlled inputs restore the value after every event, which would break the 3 colour pickers (they commit on the native `change`, now `onCommit`), the 5 sliders and the wizard's boxes that store text without re-rendering. E15 also fails on console errors/warnings (4 fixture-caused browser messages allowed; a probe `console.warn` fails it). Page 464,826 → 473,244 bytes (gzip 153,654 → 155,956, +1.5 %). Review found: JSX runtime aliased to `preact/jsx-runtime` (compat mappings only active by import accident) → `preact/compat/jsx-runtime`; wizard version radio without handler → `readOnly`; Ribbon `tb()` spread `class`/string `style` (untyped, missed by tsc) → fixed. Parity 0 differences (full comparison), twice. verified: tests ✓ clean clone ✓ review ✓
 - [ ] S1.2 · Repository layout
 - [ ] S1.3 · Store with selectors replaces the global S
 - [ ] S1.4 · Switch to real React 19
@@ -103,3 +103,4 @@ numbers measured twice). Measured numbers go into the step's line.
 | S0.6 | `tools/sharetest.py local --folder <temp dir> --workers 3 --duration 30 --think 0.5 1.5` on a local disk (tool check, **not** a field result): journal save p50/p95, visible p50/p95 | 0.9/1.9 ms, 1077/1707 ms | 1.0/2.1 ms, 1054/1736 ms |
 | S0.6 | the same, lean lock (p95s rest on ~80 saves: one lock contention moves them) | 3.6/16.0 ms, 586/1416 ms | 3.9/13.1 ms, 592/1414 ms |
 | S0.7 | release checklist steps 2–4 on temp copies | ZIP verifies; rehearsal install → self-test PASSED → start (3.4.0, share data) → rollback → forward | same on a second copy (rc1 then 3.4.0) |
+| S1.1 | built page `backend/slide_builder.html` (bytes raw / gzip -9), two builds | 473,244 / 155,956 (before: 464,826 / 153,654) | 473,244 / 155,956 (identical bytes) |

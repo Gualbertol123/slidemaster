@@ -1,6 +1,6 @@
 /* Editing wizard — 1 Sheets · 2 Tables · 3 Slides · 4 Versions (named versions with removed cells).
    v3: cover and index are ordinary entries of the slide list and can be moved like any slide. */
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "react";
 import { DLG, confirmBox, alertBox, type WizardReq } from "../state/dialogs";
 import { showBusy, hideBusy } from "../state/store";
 import { A1, esc, fmtMB, numToCol, uid } from "../xlsx/util";
@@ -10,6 +10,7 @@ import type { DeckVersion, Preset, SlideDef, TableDef } from "../model/types";
 import { SLIDE_RX, gToRange, rangeToG, resolveTable, validRange } from "../model/preset";
 import { todayLabel } from "../render/cover";
 import { detectTables, usedRange } from "./detect";
+import { Input } from "../ui/Input";
 
 interface W {
   step: 1 | 2 | 3 | 4; sheets: Set<string>; tables: TableDef[]; slides: SlideDef[];
@@ -108,14 +109,14 @@ export function Wizard({ req }: { req: WizardReq }) {
   else if (W.step === 3) [body, foot] = stepSlides();
   else [body, foot] = stepVersions();
   return (
-    <div class="wiz">
-      <div class="wizbox">
-        <div class="wizhd"><b>Editing wizard</b><span>{name}</span>
-          <ol class="steps">{steps.map((s, i) => <li key={s} class={W.step === i + 1 ? "on" : W.step > i + 1 ? "done" : ""} data-go={i + 1}
+    <div className="wiz">
+      <div className="wizbox">
+        <div className="wizhd"><b>Editing wizard</b><span>{name}</span>
+          <ol className="steps">{steps.map((s, i) => <li key={s} className={W.step === i + 1 ? "on" : W.step > i + 1 ? "done" : ""} data-go={i + 1}
             onClick={() => { const n = (i + 1) as 1 | 2 | 3 | 4; if (n < W.step || W.sheets.size) void go(n); }}>{i + 1} · {s}</li>)}</ol>
-          <button class="btn icon" data-x="close" title="Close" onClick={() => void askClose()}>✕</button></div>
-        <div class="wizbody">{body}</div>
-        <div class="wizft">{foot}</div>
+          <button className="btn icon" data-x="close" title="Close" onClick={() => void askClose()}>✕</button></div>
+        <div className="wizbody">{body}</div>
+        <div className="wizft">{foot}</div>
       </div>
     </div>
   );
@@ -128,24 +129,24 @@ export function Wizard({ req }: { req: WizardReq }) {
     const toggle = (n: string, on: boolean) => { if (on) W.sheets.add(n); else W.sheets.delete(n); render(); };
     const quick = (q: string) => { W.sheets.clear(); meta.forEach(m => { if (!(byName(m.name) || {} as Sheet).error && (q === "all" || (q === "slide" && SLIDE_RX.test(m.name)))) W.sheets.add(m.name); }); render(); };
     return [
-      <div class="wizcol">
-        <p class="lead">Choose the sheets you want to work with. Sheets whose name contains “slide” are pre-selected{hiddenN ? `; ${hiddenN} hidden sheet${hiddenN > 1 ? "s are" : " is"} not listed` : ""}.{lazy && <><br /><b>Large workbook:</b> only the sheets you select are read – pick only what you need.</>}</p>
-        <div class="dlgtools" style="padding:0 0 8px"><button class="btn" onClick={() => quick("slide")}>Only “slide” sheets</button><button class="btn" onClick={() => quick("all")}>All</button><button class="btn" onClick={() => quick("none")}>None</button>
-          <span class="cnt">{W.sheets.size} of {meta.length} selected{mb ? ` · ${fmtMB(mb)} to read` : ""}</span></div>
-        <div class="sheetlist big">{meta.map(m => {
-          const S = byName(m.name), sz = m.size ? <span class="sz">{fmtMB(m.size)}</span> : null;
-          if (S && S.error) return <label class="sheetrow hid" key={m.name}><input type="checkbox" disabled /><span class="nm">{S.name}</span><span class="chip red">could not be read</span><span class="meta">{S.error}</span></label>;
+      <div className="wizcol">
+        <p className="lead">Choose the sheets you want to work with. Sheets whose name contains “slide” are pre-selected{hiddenN ? `; ${hiddenN} hidden sheet${hiddenN > 1 ? "s are" : " is"} not listed` : ""}.{lazy && <><br /><b>Large workbook:</b> only the sheets you select are read – pick only what you need.</>}</p>
+        <div className="dlgtools" style={{ padding: "0 0 8px" }}><button className="btn" onClick={() => quick("slide")}>Only “slide” sheets</button><button className="btn" onClick={() => quick("all")}>All</button><button className="btn" onClick={() => quick("none")}>None</button>
+          <span className="cnt">{W.sheets.size} of {meta.length} selected{mb ? ` · ${fmtMB(mb)} to read` : ""}</span></div>
+        <div className="sheetlist big">{meta.map(m => {
+          const S = byName(m.name), sz = m.size ? <span className="sz">{fmtMB(m.size)}</span> : null;
+          if (S && S.error) return <label className="sheetrow hid" key={m.name}><input type="checkbox" disabled /><span className="nm">{S.name}</span><span className="chip red">could not be read</span><span className="meta">{S.error}</span></label>;
           const box = <input type="checkbox" value={m.name} checked={W.sheets.has(m.name)} onChange={e => toggle(m.name, (e.target as HTMLInputElement).checked)} />;
-          if (!S) return <label class="sheetrow" key={m.name}>{box}<span class="nm">{m.name}</span>{SLIDE_RX.test(m.name) && <span class="chip">slide</span>}{sz}<span class="meta">not read yet – it is read only if you select it</span></label>;
+          if (!S) return <label className="sheetrow" key={m.name}>{box}<span className="nm">{m.name}</span>{SLIDE_RX.test(m.name) && <span className="chip">slide</span>}{sz}<span className="meta">not read yet – it is read only if you select it</span></label>;
           const U = usedRange(S), nT = S.tables.length;
           if (!W.suggest[S.name]) W.suggest[S.name] = detectTables(S);
           const nS = W.suggest[S.name].length, mine = tablesOf(S.name).length;
-          return <label class="sheetrow" key={m.name}>{box}<span class="nm">{S.name}</span>{SLIDE_RX.test(S.name) && <span class="chip">slide</span>}{nT > 0 && <span class="chip green">{nT} × table</span>}{sz}
-            <span class="meta">{S.title || "—"} · used range A1:{A1(U.r2, U.c2)} · {mine ? mine + " table(s) defined" : nS ? nS + " possible table(s) found" : "no table found"}</span></label>;
+          return <label className="sheetrow" key={m.name}>{box}<span className="nm">{S.name}</span>{SLIDE_RX.test(S.name) && <span className="chip">slide</span>}{nT > 0 && <span className="chip green">{nT} × table</span>}{sz}
+            <span className="meta">{S.title || "—"} · used range A1:{A1(U.r2, U.c2)} · {mine ? mine + " table(s) defined" : nS ? nS + " possible table(s) found" : "no table found"}</span></label>;
         })}</div>
-        {other.length > 0 && <p class="meta" style="margin-top:8px">Not listed: {other.map(x => x.name + " (" + x.why + ")").join(", ")}</p>}
+        {other.length > 0 && <p className="meta" style={{ marginTop: "8px" }}>Not listed: {other.map(x => x.name + " (" + x.why + ")").join(", ")}</p>}
       </div>,
-      <><span class="hint">Next: pick the tables on each sheet.</span><button class="btn" data-a="cancel" onClick={() => close(null)}>Cancel</button><button class="btn primary" data-a="next" disabled={!W.sheets.size} onClick={() => void go(2)}>Next · Tables</button></>,
+      <><span className="hint">Next: pick the tables on each sheet.</span><button className="btn" data-a="cancel" onClick={() => close(null)}>Cancel</button><button className="btn primary" data-a="next" disabled={!W.sheets.size} onClick={() => void go(2)}>Next · Tables</button></>,
     ];
   }
 
@@ -162,33 +163,33 @@ export function Wizard({ req }: { req: WizardReq }) {
     };
     const cuts = V ? Object.entries(V.hide).flatMap(([sh, rs]) => rs.map(r => ({ sh, r }))) : [];
     return [
-      <div class="wiz2 wiz4">
-        <div class="wtabs">{chosen.map(sh => <button key={sh.name} class={"wtab" + (sh.name === S?.name ? " on" : "")} onClick={() => { W.cur = sh.name; W.sel = null; render(); }}><span>{sh.name}</span><span class="badge2">{V ? (V.hide[sh.name] || []).length : 0}</span></button>)}</div>
-        <div class="wgridwrap">{S && <SheetGrid S={S} W={W} tables={tablesOf(S.name)} onAdd={cut} onPick={() => render()} />}</div>
-        <div class="wside">
-          <div class="lbl">Versions</div>
-          <div class="wvlist" id="wVersions">
-            {!W.versions.length && <div class="meta">No versions yet: the deck is exported as it is. Add versions to export the same slides for different audiences, with some cells removed.</div>}
-            {W.versions.map(v => <div key={v.id} class={"wvrow" + (v.id === W.vcur ? " on" : "")} data-v={v.name} onClick={() => { W.vcur = v.id; render(); }}>
-              <input type="radio" checked={v.id === W.vcur} />
-              <input class="nmin" value={v.name} onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()} onInput={e => { v.name = (e.target as HTMLInputElement).value; }} onBlur={() => render()} />
-              <span class="meta">{Object.values(v.hide).reduce((n, rs) => n + rs.length, 0) || "nothing"} removed</span>
-              <button class="btn icon del" title="Delete this version" onClick={e => { e.stopPropagation(); W.versions = W.versions.filter(x => x !== v); if (W.vcur === v.id) W.vcur = W.versions[0]?.id || null; render(); }}>✕</button>
+      <div className="wiz2 wiz4">
+        <div className="wtabs">{chosen.map(sh => <button key={sh.name} className={"wtab" + (sh.name === S?.name ? " on" : "")} onClick={() => { W.cur = sh.name; W.sel = null; render(); }}><span>{sh.name}</span><span className="badge2">{V ? (V.hide[sh.name] || []).length : 0}</span></button>)}</div>
+        <div className="wgridwrap">{S && <SheetGrid S={S} W={W} tables={tablesOf(S.name)} onAdd={cut} onPick={() => render()} />}</div>
+        <div className="wside">
+          <div className="lbl">Versions</div>
+          <div className="wvlist" id="wVersions">
+            {!W.versions.length && <div className="meta">No versions yet: the deck is exported as it is. Add versions to export the same slides for different audiences, with some cells removed.</div>}
+            {W.versions.map(v => <div key={v.id} className={"wvrow" + (v.id === W.vcur ? " on" : "")} data-v={v.name} onClick={() => { W.vcur = v.id; render(); }}>
+              <input type="radio" readOnly checked={v.id === W.vcur} />
+              <Input className="nmin" value={v.name} onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()} onChange={e => { v.name = (e.target as HTMLInputElement).value; }} onBlur={() => render()} />
+              <span className="meta">{Object.values(v.hide).reduce((n, rs) => n + rs.length, 0) || "nothing"} removed</span>
+              <button className="btn icon del" title="Delete this version" onClick={e => { e.stopPropagation(); W.versions = W.versions.filter(x => x !== v); if (W.vcur === v.id) W.vcur = W.versions[0]?.id || null; render(); }}>✕</button>
             </div>)}
           </div>
           <NewVersion onAdd={addVersion} suggest={["Chief", "All"].filter(n => !W.versions.some(v => v.name.toLowerCase() === n.toLowerCase()))} />
           {V && <>
-            <div class="lbl" style="margin-top:10px">Remove cells in “{V.name}”</div>
-            <div class="row"><input id="wCutRange" readOnly placeholder="drag across cells on the sheet" value={W.sel ? A1(W.sel.r1, W.sel.c1) + ":" + A1(W.sel.r2, W.sel.c2) : ""} />
-              <button class="btn primary" id="wCut" disabled={!W.sel} onClick={() => W.sel && cut(A1(W.sel.r1, W.sel.c1) + ":" + A1(W.sel.r2, W.sel.c2))}>Remove</button></div>
-            <div class="meta">Removed cells are shown completely empty in this version (no value, no colour). Enter also removes the selection.</div>
-            <div class="wtlist" id="wCuts">{cuts.length ? cuts.map(({ sh, r }) => <div class="wcut" key={sh + r}><code>{sh}!{r}</code>
-              <button class="btn icon del" title="Keep these cells" onClick={() => { V.hide[sh] = (V.hide[sh] || []).filter(x => x !== r); if (!V.hide[sh].length) delete V.hide[sh]; render(); }}>✕</button></div>)
-              : <div class="meta" style="padding:6px 2px">Nothing removed – this version shows everything.</div>}</div>
+            <div className="lbl" style={{ marginTop: "10px" }}>Remove cells in “{V.name}”</div>
+            <div className="row"><input id="wCutRange" readOnly placeholder="drag across cells on the sheet" value={W.sel ? A1(W.sel.r1, W.sel.c1) + ":" + A1(W.sel.r2, W.sel.c2) : ""} />
+              <button className="btn primary" id="wCut" disabled={!W.sel} onClick={() => W.sel && cut(A1(W.sel.r1, W.sel.c1) + ":" + A1(W.sel.r2, W.sel.c2))}>Remove</button></div>
+            <div className="meta">Removed cells are shown completely empty in this version (no value, no colour). Enter also removes the selection.</div>
+            <div className="wtlist" id="wCuts">{cuts.length ? cuts.map(({ sh, r }) => <div className="wcut" key={sh + r}><code>{sh}!{r}</code>
+              <button className="btn icon del" title="Keep these cells" onClick={() => { V.hide[sh] = (V.hide[sh] || []).filter(x => x !== r); if (!V.hide[sh].length) delete V.hide[sh]; render(); }}>✕</button></div>)
+              : <div className="meta" style={{ padding: "6px 2px" }}>Nothing removed – this version shows everything.</div>}</div>
           </>}
         </div>
       </div>,
-      <><span class="hint">Pick a version, then drag across the cells it must not show and press Remove. Each version is exported separately (Export ▾ › every version).</span><button class="btn" data-a="back" onClick={() => void go(3)}>Back</button><button class="btn primary" data-a="finish" onClick={() => void finish()}>Save preset & show slides</button></>,
+      <><span className="hint">Pick a version, then drag across the cells it must not show and press Remove. Each version is exported separately (Export ▾ › every version).</span><button className="btn" data-a="back" onClick={() => void go(3)}>Back</button><button className="btn primary" data-a="finish" onClick={() => void finish()}>Save preset & show slides</button></>,
     ];
   }
 
@@ -201,32 +202,32 @@ export function Wizard({ req }: { req: WizardReq }) {
       W.tables.push({ id: uid(), sheet: S.name, kind: "range", range: v, grow: W.grow }); W.sel = null; render(); return true;
     };
     return [
-      <div class="wiz2">
-        <div class="wtabs">{chosen.map(s => <button key={s.name} class={"wtab" + (s.name === W.cur ? " on" : "")} onClick={() => { W.cur = s.name; W.sel = null; render(); }}><span>{s.name}</span><span class="badge2">{tablesOf(s.name).length}</span></button>)}</div>
-        <div class="wgridwrap">{S && <SheetGrid S={S} W={W} tables={tablesOf(S.name)} onAdd={r => add(r)} onPick={() => render()} />}</div>
-        <div class="wside">
-          <div class="wsel"><div class="lbl">Selection</div>
+      <div className="wiz2">
+        <div className="wtabs">{chosen.map(s => <button key={s.name} className={"wtab" + (s.name === W.cur ? " on" : "")} onClick={() => { W.cur = s.name; W.sel = null; render(); }}><span>{s.name}</span><span className="badge2">{tablesOf(s.name).length}</span></button>)}</div>
+        <div className="wgridwrap">{S && <SheetGrid S={S} W={W} tables={tablesOf(S.name)} onAdd={r => add(r)} onPick={() => render()} />}</div>
+        <div className="wside">
+          <div className="wsel"><div className="lbl">Selection</div>
             <RangeInput W={W} onAdd={add} onChange={() => render()} />
-            <label class="ck"><input type="checkbox" id="wGrow" checked={W.grow} onChange={e => { W.grow = (e.target as HTMLInputElement).checked; }} /> grows when rows are added below</label></div>
-          {S && <div class="wtools">
-            {S.tables.length > 0 && <button class="btn" id="wMarkers" onClick={() => { S.tables.forEach((T, i) => { const a = A1(T.g.r1, T.g.c1); if (!W.tables.some(t => t.sheet === S.name && t.kind === "markers" && t.anchor === a)) W.tables.push({ id: uid(), sheet: S.name, kind: "markers", anchor: a, index: i }); }); render(); }}>Use “x” tables ({S.tables.length})</button>}
-            <button class="btn" id="wDetect" onClick={() => { (W.suggest[S.name] || []).forEach(r => { if (!W.tables.some(t => t.sheet === S.name && defRange(S, t) === r)) W.tables.push({ id: uid(), sheet: S.name, kind: "range", range: r, grow: false }); }); render(); }}>Add detected tables ({(W.suggest[S.name] || []).length})</button>
+            <label className="ck"><Input type="checkbox" id="wGrow" checked={W.grow} onChange={e => { W.grow = (e.target as HTMLInputElement).checked; }} /> grows when rows are added below</label></div>
+          {S && <div className="wtools">
+            {S.tables.length > 0 && <button className="btn" id="wMarkers" onClick={() => { S.tables.forEach((T, i) => { const a = A1(T.g.r1, T.g.c1); if (!W.tables.some(t => t.sheet === S.name && t.kind === "markers" && t.anchor === a)) W.tables.push({ id: uid(), sheet: S.name, kind: "markers", anchor: a, index: i }); }); render(); }}>Use “x” tables ({S.tables.length})</button>}
+            <button className="btn" id="wDetect" onClick={() => { (W.suggest[S.name] || []).forEach(r => { if (!W.tables.some(t => t.sheet === S.name && defRange(S, t) === r)) W.tables.push({ id: uid(), sheet: S.name, kind: "range", range: r, grow: false }); }); render(); }}>Add detected tables ({(W.suggest[S.name] || []).length})</button>
           </div>}
-          <div class="lbl" style="margin-top:6px">Tables on this sheet</div>
-          <div class="wtlist" id="wtlist">{S && (tablesOf(S.name).length ? tablesOf(S.name).map((t, k) => {
+          <div className="lbl" style={{ marginTop: "6px" }}>Tables on this sheet</div>
+          <div className="wtlist" id="wtlist">{S && (tablesOf(S.name).length ? tablesOf(S.name).map((t, k) => {
             const r = defRange(S, t), L = resolveTable(wb, t), n = L ? L.rows.length * L.cols.length : 0;
-            return <div class="wtrow" data-id={t.id} key={t.id}>
-              <div class="row"><b>T{k + 1}</b><input class="nmin" value={t.name || ""} placeholder={S.title || S.name} onKeyDown={e => e.stopPropagation()} onInput={e => { t.name = (e.target as HTMLInputElement).value.trim() || undefined; }} />
-                <button class="btn icon del" title="Remove" onClick={() => { W.tables = W.tables.filter(x => x !== t); W.slides.forEach(s => s.tables = s.tables.filter(id => id !== t.id)); render(); }}>✕</button></div>
-              <div class="row">{t.kind === "markers" ? <span class="rng">between “x” cells · {r || "?"}</span> : <>
-                <input class="rgin" key={t.id + t.range} defaultValue={t.range} spellcheck={false} onKeyDown={e => e.stopPropagation()} onChange={e => { const el = e.target as HTMLInputElement, v = el.value.trim().toUpperCase(); if (validRange(v) && t.kind === "range") { t.range = v; render(); } else el.classList.add("bad"); }} />
-                <label class="ck"><input type="checkbox" class="grow" checked={t.kind === "range" && !!t.grow} onChange={e => { if (t.kind === "range") t.grow = (e.target as HTMLInputElement).checked; render(); }} /> grows</label></>}</div>
-              <div class="meta">{L ? `${L.rows.length}×${L.cols.length} visible` : "empty / not found"}{n > 3000 && <span style="color:var(--warn)"> · {n.toLocaleString()} cells – text will be very small on one slide and editing is slower; consider a smaller range</span>}{usedIn(t.id) ? ` · on ${usedIn(t.id)} slide(s)` : ""}</div>
+            return <div className="wtrow" data-id={t.id} key={t.id}>
+              <div className="row"><b>T{k + 1}</b><Input className="nmin" value={t.name || ""} placeholder={S.title || S.name} onKeyDown={e => e.stopPropagation()} onChange={e => { t.name = (e.target as HTMLInputElement).value.trim() || undefined; }} />
+                <button className="btn icon del" title="Remove" onClick={() => { W.tables = W.tables.filter(x => x !== t); W.slides.forEach(s => s.tables = s.tables.filter(id => id !== t.id)); render(); }}>✕</button></div>
+              <div className="row">{t.kind === "markers" ? <span className="rng">between “x” cells · {r || "?"}</span> : <>
+                <Input className="rgin" key={t.id + t.range} defaultValue={t.range} spellCheck={false} onKeyDown={e => e.stopPropagation()} onCommit={e => { const el = e.target as HTMLInputElement, v = el.value.trim().toUpperCase(); if (validRange(v) && t.kind === "range") { t.range = v; render(); } else el.classList.add("bad"); }} />
+                <label className="ck"><input type="checkbox" className="grow" checked={t.kind === "range" && !!t.grow} onChange={e => { if (t.kind === "range") t.grow = (e.target as HTMLInputElement).checked; render(); }} /> grows</label></>}</div>
+              <div className="meta">{L ? `${L.rows.length}×${L.cols.length} visible` : "empty / not found"}{n > 3000 && <span style={{ color: "var(--warn)" }}> · {n.toLocaleString()} cells – text will be very small on one slide and editing is slower; consider a smaller range</span>}{usedIn(t.id) ? ` · on ${usedIn(t.id)} slide(s)` : ""}</div>
             </div>;
-          }) : <div class="meta" style="padding:8px 2px">No tables yet: drag across the cells of a table, or click a dashed suggestion.</div>)}</div>
+          }) : <div className="meta" style={{ padding: "8px 2px" }}>No tables yet: drag across the cells of a table, or click a dashed suggestion.</div>)}</div>
         </div>
       </div>,
-      <><span class="hint">Drag across cells (or Shift+click, Shift+arrows; Enter adds) to select a table · dashed boxes are suggestions (click to add) · hidden rows/columns are skipped on the slide.</span><button class="btn" data-a="back" onClick={() => void go(1)}>Back</button><button class="btn primary" data-a="next" onClick={() => void go(3)}>Next · Slides</button></>,
+      <><span className="hint">Drag across cells (or Shift+click, Shift+arrows; Enter adds) to select a table · dashed boxes are suggestions (click to add) · hidden rows/columns are skipped on the slide.</span><button className="btn" data-a="back" onClick={() => void go(1)}>Back</button><button className="btn primary" data-a="next" onClick={() => void go(3)}>Next · Slides</button></>,
     ];
   }
 
@@ -243,75 +244,75 @@ export function Wizard({ req }: { req: WizardReq }) {
     const pool = sheetsChosen().filter(S => tablesOf(S.name).length);
     let n = 0;
     return [
-      <div class="wiz3">
-        <div class="pool"><div class="lbl" style="font-size:12px">TABLES</div>
-          {pool.length ? pool.map(S => <div class="pgrp" key={S.name}><div class="lbl">{S.name}</div>{tablesOf(S.name).map(t => {
+      <div className="wiz3">
+        <div className="pool"><div className="lbl" style={{ fontSize: "12px" }}>TABLES</div>
+          {pool.length ? pool.map(S => <div className="pgrp" key={S.name}><div className="lbl">{S.name}</div>{tablesOf(S.name).map(t => {
             const L = resolveTable(wb, t);
-            return <div key={t.id} class={"tchip" + (usedIn(t.id) ? "" : " free")} draggable data-id={t.id} title="Drag onto a slide, or click to add it to the highlighted slide"
+            return <div key={t.id} className={"tchip" + (usedIn(t.id) ? "" : " free")} draggable data-id={t.id} title="Drag onto a slide, or click to add it to the highlighted slide"
               onDragStart={e => { e.dataTransfer!.setData("text/id", t.id); e.dataTransfer!.setData("text/from", ""); }}
               onClick={() => { const s = W.slides.find(x => x.id === W.focusSlide && x.type === "content") || [...W.slides].reverse().find(x => x.type === "content"); if (s) addTo(s, t.id); }}>
               <b>{tLabel(t)}</b><span>{L ? L.rows.length + "×" + L.cols.length : "?"}{usedIn(t.id) ? ` · on ${usedIn(t.id)}` : " · unused"}</span></div>;
-          })}</div>) : <p class="meta">No tables defined. Go back to step 2.</p>}
+          })}</div>) : <p className="meta">No tables defined. Go back to step 2.</p>}
         </div>
-        <div class="deck">
-          <div class="extra">
-            <label class="ck big"><input type="checkbox" id="cvOn" checked={!!cover} onChange={e => setSpecial("cover", (e.target as HTMLInputElement).checked)} /> Cover slide</label>
-            <label class="ck big"><input type="checkbox" id="ixOn" checked={!!index} onChange={e => setSpecial("index", (e.target as HTMLInputElement).checked)} /> Index slide (list of slides with page numbers)</label>
-            <span class="meta">Cover and index appear in the list below; move them with ↑ ↓ like any slide.</span>
+        <div className="deck">
+          <div className="extra">
+            <label className="ck big"><input type="checkbox" id="cvOn" checked={!!cover} onChange={e => setSpecial("cover", (e.target as HTMLInputElement).checked)} /> Cover slide</label>
+            <label className="ck big"><input type="checkbox" id="ixOn" checked={!!index} onChange={e => setSpecial("index", (e.target as HTMLInputElement).checked)} /> Index slide (list of slides with page numbers)</label>
+            <span className="meta">Cover and index appear in the list below; move them with ↑ ↓ like any slide.</span>
           </div>
-          <div class="row" style="margin:10px 0 6px"><b style="font-size:13px">Slides</b><span style="flex:1" />
-            <button class="btn" id="perSheet" onClick={async () => { if (!W.slides.some(s => s.type === "content") || await confirmBox("Replace the slides?", "Replace the current content slides with one slide per sheet?", "Replace")) { oneSlidePerSheet(); render(); } }}>One slide per sheet</button>
-            <button class="btn" id="addSlide" onClick={() => { const s: SlideDef = { id: uid(), type: "content", title: null, subtitle: null, tables: [], layout: null }; W.slides.push(s); W.focusSlide = s.id; render(); }}>+ New slide</button></div>
-          <div class="slist">{W.slides.length ? W.slides.map((s, i) => {
+          <div className="row" style={{ margin: "10px 0 6px" }}><b style={{ fontSize: "13px" }}>Slides</b><span style={{ flex: "1" }} />
+            <button className="btn" id="perSheet" onClick={async () => { if (!W.slides.some(s => s.type === "content") || await confirmBox("Replace the slides?", "Replace the current content slides with one slide per sheet?", "Replace")) { oneSlidePerSheet(); render(); } }}>One slide per sheet</button>
+            <button className="btn" id="addSlide" onClick={() => { const s: SlideDef = { id: uid(), type: "content", title: null, subtitle: null, tables: [], layout: null }; W.slides.push(s); W.focusSlide = s.id; render(); }}>+ New slide</button></div>
+          <div className="slist">{W.slides.length ? W.slides.map((s, i) => {
             const move = (d: number) => { const j = i + d; if (j < 0 || j >= W.slides.length) return; W.slides.splice(i, 1); W.slides.splice(j, 0, s); render(); };
-            const txt = (k: "title" | "subtitle" | "date" | "note", ph: string, id?: string) => <input id={id} class={k === "title" ? "stitle" : "ssub"} value={s[k] || ""} placeholder={ph} onKeyDown={e => e.stopPropagation()} onInput={e => { s[k] = (e.target as HTMLInputElement).value || null; }} />;
-            const logo = <label class="ck"><input type="checkbox" class="slogo" checked={s.logo !== false} onChange={e => { if ((e.target as HTMLInputElement).checked) delete s.logo; else s.logo = false; }} /> Logo</label>;
-            const head = <div class="row"><span class="sn">{s.type === "content" ? ++n : s.type === "cover" ? "C" : "I"}</span>
+            const txt = (k: "title" | "subtitle" | "date" | "note", ph: string, id?: string) => <Input id={id} className={k === "title" ? "stitle" : "ssub"} value={s[k] || ""} placeholder={ph} onKeyDown={e => e.stopPropagation()} onChange={e => { s[k] = (e.target as HTMLInputElement).value || null; }} />;
+            const logo = <label className="ck"><Input type="checkbox" className="slogo" checked={s.logo !== false} onChange={e => { if ((e.target as HTMLInputElement).checked) delete s.logo; else s.logo = false; }} /> Logo</label>;
+            const head = <div className="row"><span className="sn">{s.type === "content" ? ++n : s.type === "cover" ? "C" : "I"}</span>
               {s.type === "cover" ? txt("title", name.replace(/\.[^.]+$/, ""), "cvTitle") : s.type === "index" ? txt("title", "Contents", "ixTitle") : txt("title", autoTitle(s))}
-              <button class="btn icon" title="Move up" onClick={() => move(-1)}>↑</button><button class="btn icon" title="Move down" onClick={() => move(1)}>↓</button>
-              <button class="btn icon" title="Delete slide" onClick={() => { W.slides.splice(i, 1); render(); }}>✕</button></div>;
-            if (s.type === "cover") return <div class="scard special" key={s.id} data-id={s.id}>{head}
-              <div class="row">{txt("subtitle", "Subtitle", "cvSub")}{txt("date", todayLabel() + " (automatic)", "cvDate")}</div>
-              <div class="row">{txt("note", "Small line above the title, e.g. IBD · Weekly update", "cvNote")}{logo}</div></div>;
-            if (s.type === "index") return <div class="scard special" key={s.id} data-id={s.id}>{head}<div class="row"><span class="meta" style="flex:1">Lists the content slides with their page numbers.</span>
-              <label class="ck"><input type="checkbox" id="ixSubs" checked={s.subs !== false} onChange={e => { if ((e.target as HTMLInputElement).checked) delete s.subs; else s.subs = false; render(); }} /> with subtitles</label>{logo}</div></div>;
-            return <div class={"scard" + (W.focusSlide === s.id ? " focus" : "")} key={s.id} data-id={s.id} onClick={e => { if ((e.target as Element).closest("button,input")) return; W.focusSlide = s.id; render(); }}>
+              <button className="btn icon" title="Move up" onClick={() => move(-1)}>↑</button><button className="btn icon" title="Move down" onClick={() => move(1)}>↓</button>
+              <button className="btn icon" title="Delete slide" onClick={() => { W.slides.splice(i, 1); render(); }}>✕</button></div>;
+            if (s.type === "cover") return <div className="scard special" key={s.id} data-id={s.id}>{head}
+              <div className="row">{txt("subtitle", "Subtitle", "cvSub")}{txt("date", todayLabel() + " (automatic)", "cvDate")}</div>
+              <div className="row">{txt("note", "Small line above the title, e.g. IBD · Weekly update", "cvNote")}{logo}</div></div>;
+            if (s.type === "index") return <div className="scard special" key={s.id} data-id={s.id}>{head}<div className="row"><span className="meta" style={{ flex: "1" }}>Lists the content slides with their page numbers.</span>
+              <label className="ck"><input type="checkbox" id="ixSubs" checked={s.subs !== false} onChange={e => { if ((e.target as HTMLInputElement).checked) delete s.subs; else s.subs = false; render(); }} /> with subtitles</label>{logo}</div></div>;
+            return <div className={"scard" + (W.focusSlide === s.id ? " focus" : "")} key={s.id} data-id={s.id} onClick={e => { if ((e.target as Element).closest("button,input")) return; W.focusSlide = s.id; render(); }}>
               {head}
-              <div class="row">{txt("subtitle", "Subtitle (optional)")}{logo}</div>
-              <div class="drop" onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLElement).classList.add("over"); }} onDragLeave={e => (e.currentTarget as HTMLElement).classList.remove("over")}
+              <div className="row">{txt("subtitle", "Subtitle (optional)")}{logo}</div>
+              <div className="drop" onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLElement).classList.add("over"); }} onDragLeave={e => (e.currentTarget as HTMLElement).classList.remove("over")}
                 onDrop={e => {
                   e.preventDefault(); (e.currentTarget as HTMLElement).classList.remove("over");
                   const id = e.dataTransfer!.getData("text/id"), from = e.dataTransfer!.getData("text/from"); if (!id) return;
                   if (from) { const f = W.slides.find(x => x.id === from); if (f && f !== s) { f.tables = f.tables.filter(x => x !== id); f.layout = null; delete f.sizes; } }
                   addTo(s, id);
                 }}>
-                {s.tables.length ? s.tables.map(id => { const t = W.tables.find(x => x.id === id); return t ? <span key={id} class="tchip in" draggable data-id={id} data-from={s.id}
+                {s.tables.length ? s.tables.map(id => { const t = W.tables.find(x => x.id === id); return t ? <span key={id} className="tchip in" draggable data-id={id} data-from={s.id}
                   onDragStart={e => { e.dataTransfer!.setData("text/id", id); e.dataTransfer!.setData("text/from", s.id); }}><b>{tLabel(t)}</b>
-                  <button title="Remove from slide" onClick={() => { s.tables = s.tables.filter(x => x !== id); s.layout = null; delete s.sizes; render(); }}>✕</button></span> : null; }) : <span class="dropnote">Drop tables here</span>}
+                  <button title="Remove from slide" onClick={() => { s.tables = s.tables.filter(x => x !== id); s.layout = null; delete s.sizes; render(); }}>✕</button></span> : null; }) : <span className="dropnote">Drop tables here</span>}
               </div></div>;
-          }) : <p class="meta">No slides yet.</p>}</div>
+          }) : <p className="meta">No slides yet.</p>}</div>
         </div>
       </div>,
-      <><span class="hint">Drag tables between slides · click a slide to highlight it, then click tables to add them.</span><button class="btn" data-a="back" onClick={() => void go(2)}>Back</button><button class="btn" data-a="versions" onClick={() => void go(4)}>Next · Versions{W.versions.length ? ` (${W.versions.length})` : ""}</button><button class="btn primary" data-a="finish" onClick={() => void finish()}>Save preset & show slides</button></>,
+      <><span className="hint">Drag tables between slides · click a slide to highlight it, then click tables to add them.</span><button className="btn" data-a="back" onClick={() => void go(2)}>Back</button><button className="btn" data-a="versions" onClick={() => void go(4)}>Next · Versions{W.versions.length ? ` (${W.versions.length})` : ""}</button><button className="btn primary" data-a="finish" onClick={() => void finish()}>Save preset & show slides</button></>,
     ];
   }
 }
 
 function NewVersion({ onAdd, suggest }: { onAdd: (n: string) => boolean; suggest: string[] }) {
   const [v, setV] = useState("");
-  return <><div class="row" style="margin-top:6px"><input id="wNewVersion" placeholder="New version, e.g. Board" value={v} onKeyDown={e => { e.stopPropagation(); if (e.key === "Enter" && onAdd(v)) setV(""); }} onInput={e => setV((e.target as HTMLInputElement).value)} />
-    <button class="btn" id="wAddVersion" disabled={!v.trim()} onClick={() => { if (onAdd(v)) setV(""); }}>Add version</button></div>
-    {suggest.length > 0 && <div class="chips">{suggest.map(n => <button key={n} class="chip" data-addv={n} onClick={() => onAdd(n)}>+ {n}</button>)}</div>}</>;
+  return <><div className="row" style={{ marginTop: "6px" }}><input id="wNewVersion" placeholder="New version, e.g. Board" value={v} onKeyDown={e => { e.stopPropagation(); if (e.key === "Enter" && onAdd(v)) setV(""); }} onChange={e => setV((e.target as HTMLInputElement).value)} />
+    <button className="btn" id="wAddVersion" disabled={!v.trim()} onClick={() => { if (onAdd(v)) setV(""); }}>Add version</button></div>
+    {suggest.length > 0 && <div className="chips">{suggest.map(n => <button key={n} className="chip" data-addv={n} onClick={() => onAdd(n)}>+ {n}</button>)}</div>}</>;
 }
 function RangeInput({ W, onAdd, onChange }: { W: W; onAdd: (r: string) => boolean; onChange: () => void }) {
   const [v, setV] = useState("");
   const shown = W.sel ? A1(W.sel.r1, W.sel.c1) + ":" + A1(W.sel.r2, W.sel.c2) : v;
   const ref = useRef<HTMLInputElement>(null);
   const add = () => { if (!onAdd(shown)) { ref.current?.classList.add("bad"); setTimeout(() => ref.current?.classList.remove("bad"), 900); } else setV(""); };
-  return <div class="row"><input id="wRange" ref={ref} placeholder="drag on the sheet, or type C4:T56" spellcheck={false} value={shown}
+  return <div className="row"><input id="wRange" ref={ref} placeholder="drag on the sheet, or type C4:T56" spellCheck={false} value={shown}
     onKeyDown={e => { e.stopPropagation(); if (e.key === "Enter") add(); }}
-    onInput={e => { const val = (e.target as HTMLInputElement).value; setV(val); if (validRange(val)) { const g = rangeToG(val); W.sel = { r1: g.r1 + 1, c1: g.c1 + 1, r2: g.r2 - 1, c2: g.c2 - 1 }; } else W.sel = null; onChange(); }} />
-    <button class="btn primary" id="wAdd" onClick={add}>Add table</button></div>;
+    onChange={e => { const val = (e.target as HTMLInputElement).value; setV(val); if (validRange(val)) { const g = rangeToG(val); W.sel = { r1: g.r1 + 1, c1: g.c1 + 1, r2: g.r2 - 1, c2: g.c2 - 1 }; } else W.sel = null; onChange(); }} />
+    <button className="btn primary" id="wAdd" onClick={add}>Add table</button></div>;
 }
 
 /* the spreadsheet view is built once per sheet and re-attached afterwards (adding/removing tables stays instant) */
@@ -325,7 +326,7 @@ function SheetGrid({ S, W, tables, onAdd, onPick }: { S: Sheet; W: W; tables: Ta
   }, [S]);
   useEffect(() => { paintOverlays(S, W, tables, onAdd); });
   W.addSel = () => { if (W.sel) onAdd(A1(W.sel.r1, W.sel.c1) + ":" + A1(W.sel.r2, W.sel.c2)); };
-  return <div class="wgrid" id="wgrid" ref={host} />;
+  return <div className="wgrid" id="wgrid" ref={host} />;
 }
 let gridUp: (() => void) | null = null;
 function drawGrid(S: Sheet, W: W, onPick: () => void): HTMLElement {

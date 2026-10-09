@@ -11,6 +11,17 @@ const wbFile = (name: string) => { const d = path.join(data(), "workbooks"); con
 const docFile = () => wbFile("report.xlsx");
 const doc = () => JSON.parse(fs.readFileSync(docFile()!, "utf8"));
 const errors: string[] = [];
+/* browser messages the fixtures cause on purpose; any other console error or warning fails E15:
+   the decks' default logo "logo.png" is not in the test folder (the app shows "Logo not found"), the helper
+   has no favicon, and the uploaded test fonts are name-table stubs (sfnt() below) that Chrome cannot decode */
+const EXPECTED = [/^console\.error: Failed to load resource: .* 404 .* @ \/assets\/logo\.png[?:]/, /^console\.error: Failed to load resource: .* 404 .* @ \/favicon\.ico:/,
+  /^console\.warning: Failed to decode downloaded font: http:\/\/127\.0\.0\.1:\d+\/fonts\/CorpSans-/];
+/** Chrome's font sanitiser names no file: its warning is expected only next to a stub font's decode warning */
+const unexpected = (list: string[]) => {
+  const stubs = list.filter(e => EXPECTED[2].test(e)).length;
+  let ots = 0;
+  return list.filter(e => !EXPECTED.some(x => x.test(e)) && !(/^console\.warning: OTS parsing error: /.test(e) && ++ots <= stubs));
+};
 
 /* what the page asked the helpers and what came back - printed when a test fails, so a failure on CI
    shows where a save stopped (request never sent, refused, unanswered, or written to another file) */
@@ -28,6 +39,8 @@ test.afterEach(async ({ page }, info) => {
 });
 async function openApp(page: Page, url: string) {
   page.on("pageerror", e => errors.push(e.message));
+  // E15: console errors and warnings fail the run too (React reports misuse there)
+  page.on("console", m => { if (m.type() === "error" || m.type() === "warning") errors.push("console." + m.type() + ": " + m.text() + " @ " + (m.location().url || "").replace(url, "/") + ":" + m.location().lineNumber); });
   page.on("pageerror", e => trail.push(at() + " pageerror " + e.message));
   page.on("console", m => { if (m.type() === "error" || m.type() === "warning") trail.push(at() + " console." + m.type() + " " + m.text()); });
   // every helper request with its start, answer and duration (presence and file checks run every few seconds)
@@ -576,7 +589,7 @@ test.describe.serial("two people, one shared folder", () => {
     await page.click('[data-x="close"]'); await page.click('.modal [data-a="ok"]');
   });
 
-  test("no page errors", async () => { expect(errors).toEqual([]); });
+  test("no page errors, console errors or warnings", async () => { expect(unexpected(errors)).toEqual([]); });
 });
 
 /** a minimal TrueType file: name table (family) + OS/2 (weight) – enough for the upload and its name detection */
