@@ -94,7 +94,7 @@ def _backup_name(settings_file):
 
 def move_flat_layout():
     """Settings file left over from the old flat layout (in ROOT) moves into backend (C10: under the lock)."""
-    if os.path.normcase(paths.ROOT) == os.path.normcase(paths.BACKEND):
+    if os.path.normcase(paths.ROOT) == os.path.normcase(paths.HOME_BACKEND):
         return False
     old = os.path.join(paths.ROOT, paths.SETTINGS_NAME)
     if os.path.isfile(old) and not os.path.exists(paths.SETTINGS_FILE):

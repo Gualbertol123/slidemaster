@@ -21,7 +21,7 @@ def is_workbook_name(n):
 def list_workbooks():
     """Workbooks in the main folder (and, for older setups, in backend), newest first, with doc info."""
     out, seen = [], set()
-    for d in (paths.ROOT, paths.BACKEND):
+    for d in (paths.ROOT, paths.HOME_BACKEND):
         try:
             names = os.listdir(d)
         except OSError:
@@ -54,7 +54,7 @@ def find_workbook(name):
     p = safe_path(name, paths.ROOT)
     if os.path.isfile(p):
         return p
-    p = safe_path(name, paths.BACKEND)
+    p = safe_path(name, paths.HOME_BACKEND)
     if os.path.isfile(p):
         return p
     raise FileNotFoundError(name)

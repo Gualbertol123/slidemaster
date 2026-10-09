@@ -133,7 +133,7 @@ def _setup(pip=True):
         print("   The app folder is on a network drive; programs cannot run reliably from there,")
         print("   so the engine goes on this PC: %s" % paths.LOCAL_ENGINE_DIR)
     os.makedirs(target_dir, exist_ok=True)
-    zips = [os.path.join(d, n) for d in (paths.ENGINE_DIR, paths.ROOT, paths.BACKEND, paths.LOCAL_ENGINE_DIR) if os.path.isdir(d) for n in os.listdir(d)
+    zips = [os.path.join(d, n) for d in (paths.ENGINE_DIR, paths.ROOT, paths.HOME_BACKEND, paths.LOCAL_ENGINE_DIR) if os.path.isdir(d) for n in os.listdir(d)
             if n.lower().startswith("chrome-headless-shell") and n.lower().endswith(".zip")]
     if _exe_in(target_dir):
         print("   already installed: %s" % _exe_in(target_dir))

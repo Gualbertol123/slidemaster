@@ -28,3 +28,6 @@ spikes/**/out-*.pdf
 spikes/**/node_modules/
 spikes/parser/package-lock.json
 dist/
+
+# side-by-side program versions on a share (tools/update.py --release)
+/app/

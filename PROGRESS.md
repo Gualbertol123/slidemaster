@@ -9,7 +9,7 @@ numbers measured twice). Measured numbers go into the step's line.
 ### M0 · Foundations on v3 (v3.4)
 - [x] S0.1 · CI, PROGRESS.md, one check command — [PR #1](https://github.com/Gualbertol123/slidemaster/pull/1). `npm run check`; `.github/workflows/ci.yml` (unit, helper 3.8 + 3.12, e2e, and parity from S0.5). Baseline 114 Vitest / 131 helper / 15 e2e. Surprises: Chrome's sandbox needs `kernel.apparmor_restrict_unprivileged_userns=0` on ubuntu-24.04; runners pinned to ubuntu-24.04 (26.04 has no Python 3.8); the helper listened with a backlog of 5, so a burst of requests waited 1 s for a TCP retry (now 128, with a test); an intermittent CI e2e failure (see Waiting for). verified: tests ✓ clean clone ✓ review ✓
 - [x] S0.2 · Release pipeline — [PR #1](https://github.com/Gualbertol123/slidemaster/pull/1). `tools/make_release.py` (reproducible ZIP + MANIFEST.json, `--verify`, `--notes`), `release.yml` on `v*`. The test tag is for a person (Waiting for). verified: tests ✓ clean clone ✓ review ✓
-- [ ] S0.3 · Side-by-side installs, current.json, Edge app window
+- [x] S0.3 · Side-by-side installs, current.json, Edge app window — [PR #1](https://github.com/Gualbertol123/slidemaster/pull/1). `update.py --release/--zip <file>/--use`, `--selftest`, Start file reads `app\current.json` with `python -c`, Edge `--app` (B12). Rehearsed on a copy of a share folder (install, flip, rollback, start, data untouched). Not run on real Windows cmd.exe/Edge (W5, W6 in field-results.md). verified: tests ✓ clean clone ✓ review ✓
 - [ ] S0.4 · v3 quick fixes found in the review
 - [ ] S0.5 · Capture v3 as golden data
 - [ ] S0.6 · Field tests on the real environment

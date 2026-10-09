@@ -85,7 +85,7 @@ LOGO_MAX = 10 * 1024 * 1024
 
 def asset_dirs():
     """where pictures such as the logo are looked for: data/assets (chosen in the app), backend, the main folder"""
-    return [paths.data_dir("assets"), paths.BACKEND, paths.ROOT]
+    return [paths.data_dir("assets"), paths.HOME_BACKEND, paths.ROOT]
 
 
 def find_asset(name):

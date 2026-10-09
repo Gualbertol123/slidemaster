@@ -125,7 +125,8 @@ folder without touching saved setups; saved data in an older format is converted
 ```
 T:\Slide Builder\                          ROOT – the shared folder users see
 ├─ Install Slide Builder.bat               first-time set-up on a PC → backend\slide_builder.py --install
-├─ Start Slide Builder.bat                 start the helper + open the app → backend\slide_builder.py
+├─ Start Slide Builder.bat                 start the helper + open the app → app\<current>\backend\ or backend\slide_builder.py
+├─ app\current.json  app\<ver>\            side-by-side program versions (tools\update.py --release, §7.5)
 ├─ Update Slide Builder.bat                update the program from GitHub → tools\update.py
 ├─ *.xlsx …                                users' workbooks (not in git)
 ├─ export\                                 exported PDFs/PNGs (not in git)
@@ -138,14 +139,14 @@ T:\Slide Builder\                          ROOT – the shared folder users see
 ```
 Every user runs **their own helper** on their own PC (`Start Slide Builder.bat`). The helper listens on
 `http://127.0.0.1:8765/` (next free port up to +20; if a Slide Builder already answers there, it just
-opens the browser) and serves the app page with a random per-start token injected. The helpers never
+opens the app) and serves the app page with a random per-start token injected. The helpers never
 talk to each other: **the shared folder is the only channel**, coordinated with lock files (§9).
 
 ### 2.2 Who does what
 | Who | What |
 |---|---|
 | User, first time on a PC | `Install Slide Builder.bat`: Python ≥ 3.8 check, pip/ensurepip, optional `playwright` package (`--user`; behind SSL inspection retried with `--use-feature=truststore`, never `--trusted-host`), export engine (Chrome for Testing downloaded with Python `urllib`; on a network share it is placed in `%LOCALAPPDATA%\SlideBuilder\engine` because executables may not run from the share), shared-folder check (lock file, `export\` write, round-trip time; > 30 ms warns), desktop shortcut (`.lnk`, or a `.bat` if PowerShell is restricted), self-test. No admin rights; idempotent. Code: `backend/slidebuilder/firstrun.py`, `installer.py`. |
-| User, daily | `Start Slide Builder.bat` (or the shortcut). Keep the console window open. |
+| User, daily | `Start Slide Builder.bat` (or the shortcut). Keep the console window open. The app opens in an Edge app window (`msedge --app=<url>`, no tabs or address bar; a normal browser tab when Edge is missing; `SLIDEBUILDER_APP_WINDOW=0` forces the tab). |
 | One person, to update everyone | `Update Slide Builder.bat` (§7.5). Everybody then restarts Slide Builder and reloads the page. |
 | Export engine only | status pill "Export: …" → *Install export engine*, or `backend\Install export engine.bat` (`--setup`). |
 | Developer | §11. Users never need Node.js: the built `backend/slide_builder.html` is committed. |
@@ -525,6 +526,14 @@ network drive) · `SLIDEBUILDER_SIM_FS_MS`, `SLIDEBUILDER_TIMING` (load tests; `
   setups (and any locally modified program file) are copied to `backups/before-update-<time>/` first;
   afterwards every saved deck is test-loaded with the new code. One update at a time. Options: `--check`,
   `--branch`, `--zip`, `--yes`.
+* **Side-by-side releases** (`--release [latest|X.Y.Z]`, `--zip <file.zip>` offline, `--use X.Y.Z` to roll
+  back): the release ZIP of `tools/make_release.py` is checked against GitHub's asset digest (when the API
+  gives one) and always against its `MANIFEST.json`, extracted to `app\<ver>.part\` and renamed to
+  `app\<ver>\`. The new version's `slide_builder.py --selftest` (reads every deck, `config.json` and
+  preference file without writing; create/rename/delete probe in `data\locks`) must pass before
+  `app\current.json` is replaced atomically. The newest 3 versions stay (and the previous one).
+  `Start Slide Builder.bat` starts the version named in `app\current.json`, else `backend\`. A version in
+  `app\<ver>\` uses the main folder's workbooks, `export\` and `backend\data\` (`paths.HOME_BACKEND`).
 
 ---
 
