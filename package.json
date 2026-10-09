@@ -1,6 +1,6 @@
 {
   "name": "slide-builder",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "private": true,
   "description": "Slide Builder. Workspaces: app/ (the browser app, built into backend/slide_builder.html) and core/ (pure TypeScript, no DOM). The helper (backend/) is Python, standard library only.",
   "workspaces": [

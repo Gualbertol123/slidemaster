@@ -1,4 +1,4 @@
-# Slide Builder helper (backend) – v3.4.0
+# Slide Builder helper (backend) – v3.5.0
 
 Python standard library only, Python 3.8+. Windows is the target (app folder on an SMB share);
 everything except the Excel/GDI+ converters also runs on Linux/macOS. The binding contract is
@@ -23,7 +23,7 @@ optional packages only – the helper itself stays standard-library only.
 
 | Module | Concern |
 |---|---|
-| `__init__` | `APP_NAME`, `VERSION = "3.4.0"` |
+| `__init__` | `APP_NAME`, `VERSION = "3.5.0"` |
 | `paths` | folder layout (ROOT, BACKEND, DATA, export, engine); `HOME_BACKEND` / `INSTALL_HOME`: a version in `app\<ver>\backend` uses the main folder's data and files; `configure()` / env overrides |
 | `selftest` | `--selftest`: reads every saved setup without writing, probes create/rename/delete in `data/locks` |
 | `util` | logging, identity (user/host), name safety, `doc_key()`, `safe_path()`, atomic writes |

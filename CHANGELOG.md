@@ -3,6 +3,23 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 3.5.0 - unreleased
+
+What users notice
+* Nothing changes in the slides, the exports or the saved setups (checked against 3.4 on every test deck).
+* A few things on screen now update at once instead of with the next background check (up to 10 seconds
+  later): a message disappears as soon as its button ("Open", "Show folder") is clicked; the export-engine
+  status after an install; the undo/redo buttons after undoing a change of another workbook; "Updated by …
+  n min ago" keeps counting on its own (accepted in PROGRESS.md, Decisions, 2026-10-09).
+
+Under the hood (no visible change)
+* The screen around the slides is now real React 19 (it was Preact running the same code). The page is
+  larger (about 660 kB instead of 480 kB) and still opens from disk without the helper.
+* One store with selectors replaces the global state: a selection change redraws only the toolbars, the
+  formula bar and the status bar; a background check that brings nothing new redraws nothing.
+* The sources moved from `frontend/` to `app/`, with an empty `core/` package next to it for the next
+  milestone (npm workspaces).
+
 ## 3.4.0 - 2026-10-09
 
 What users notice
