@@ -3,7 +3,7 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## 3.4.0 - unreleased
+## 3.4.0 - 2026-10-09
 
 What users notice
 * **"✓ Saved" appears as soon as the change is on the shared folder**, instead of up to 3 seconds later
