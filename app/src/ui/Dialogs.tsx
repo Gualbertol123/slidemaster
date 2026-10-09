@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useStore } from "../state/store";
 import { closeInstaller } from "../state/dialogs";
 import { setHealth } from "../state/app";
@@ -22,8 +22,8 @@ function Dialog() {
       <div className="dlg" style={{ width: `min(${d.width || 560}px,92vw)` }}>
         <div className="dlghd"><b>{d.title}</b>{d.sub && <span>{d.sub}</span>}</div>
         <div className="dlgbody" dangerouslySetInnerHTML={{ __html: d.html }} />
-        <div className="dlgft">{d.buttons.map((b, i) => <>{i === d.buttons.length - (d.buttons.length > 2 ? 2 : 1) && <span style={{ flex: "1" }} />}
-          <button key={b.id} data-a={b.id} className={"btn" + (b.primary ? " primary" : "") + (b.danger ? " danger" : "")} onClick={() => d.resolve(b.id)}>{b.label}</button></>)}</div>
+        <div className="dlgft">{d.buttons.map((b, i) => <Fragment key={b.id}>{i === d.buttons.length - (d.buttons.length > 2 ? 2 : 1) && <span style={{ flex: "1" }} />}
+          <button data-a={b.id} className={"btn" + (b.primary ? " primary" : "") + (b.danger ? " danger" : "")} onClick={() => d.resolve(b.id)}>{b.label}</button></Fragment>)}</div>
       </div>
     </div>
   );

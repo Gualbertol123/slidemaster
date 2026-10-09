@@ -1,4 +1,5 @@
 /* Slide Builder 3 – browser app. Built into ONE self-contained file: ../backend/slide_builder.html */
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import uiCss from "./styles/ui.css?raw";
 import extraCss from "./styles/app.css?raw";
@@ -20,6 +21,8 @@ import { resolveStyle } from "./model/style";
 const add = (id: string, css: string) => { const s = document.createElement("style"); s.id = id; s.textContent = css; document.head.appendChild(s); };
 add("uicss", uiCss + "\n" + extraCss);
 add("slidecss", slideCss);
-createRoot(document.getElementById("root")!).render(<App />);
+// StrictMode in development only (`npm run dev`): it runs every effect twice to show the ones that are not
+// idempotent; the built page renders once
+createRoot(document.getElementById("root")!).render(import.meta.env.DEV ? <StrictMode><App /></StrictMode> : <App />);
 installKeys();
 void boot();

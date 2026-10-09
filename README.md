@@ -162,7 +162,7 @@ overwriting existing documents, and renames it `slide_builder_settings.v2-backup
 ## 3. Architecture
 
 ```
-┌──────────────── browser tab: backend/slide_builder.html (ONE self-contained file, Preact + TS) ───────────────┐
+┌──────────────── browser tab: backend/slide_builder.html (ONE self-contained file, React + TS) ────────────────┐
 │ xlsx/    unzip (JSZip) + regex sheet parser, styles, number formats, conditional formats, drawings,           │
 │          "x" table regions, per-cell geometry (TableLayout)                                                    │
 │ model/   persistent types · operations (+ inverses) · preset → runtime slides · style layering & themes ·      │
@@ -170,10 +170,10 @@ overwriting existing documents, and renames it `slide_builder_settings.v2-backup
 │ render/  edits on top of the workbook · Excel design · Liquid Glass scene model · slide layout & composition ·│
 │          cover/contents · page numbers/footer · wallpaper · comment text · PDF-ready CSS                         │
 │ sync/    HTTP client (token, formats) · DocSync (optimistic ops, batching, retry, polling) · offline store     │
-│ state/   global app state S · actions (open, change, undo, doc changes, presence) · dialogs · font library      │
+│ state/   one Zustand store in slices · actions (open, change, undo, doc changes, presence) · dialogs · fonts    │
 │ editor/  stage (imperative DOM: hit testing, selection, inline editors, drags, snapping) · tables · painter ·   │
 │          unified text toolbar · keyboard · thumbnails · export · side-panel issues                              │
-│ ui/, wizard/   Preact chrome: top bar, ribbons, dialogs, 4-step wizard                                          │
+│ ui/, wizard/   React 19 chrome: top bar, ribbons, dialogs, 4-step wizard                                        │
 └──────────────▲──────────────────────────────────────────────────────────────────▲──────────────────────────────┘
                │ HTTP on 127.0.0.1 (X-SB-Token, X-SB-Formats)                       │ slide HTML + CSS for exports
 ┌──────────────┴──────────── helper: backend/slidebuilder (Python ≥ 3.8 standard library) ──────────┴──────────────┐
@@ -308,9 +308,8 @@ Current formats: `SCHEMA = {workbook: 3, config: 3, prefs: 1}` (`backend/slidebu
 
 ## 5. Front end (`app/src`)
 
-TypeScript, React-API components for the chrome (run by Preact through `preact/compat` until S1.4 of
-`docs/next/PLAN.md`: Vite aliases `react`/`react-dom`), imperative DOM for slides (for speed). Runtime
-dependencies: `preact`, `jszip`. Built by Vite + `vite-plugin-singlefile` into `backend/slide_builder.html`. `main.tsx` injects
+TypeScript, React 19 components for the chrome, imperative DOM for slides (for speed). Runtime
+dependencies: `react`, `react-dom`, `zustand` (pinned exactly) and `jszip`. Built by Vite + `vite-plugin-singlefile` into `backend/slide_builder.html`. `main.tsx` injects
 `ui.css`+`app.css` as `<style id="uicss">` and `slide.css` as **`<style id="slidecss">`** (exports send
 exactly this text), mounts `<App/>`, installs the keyboard handler and calls `boot()`.
 
