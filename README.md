@@ -355,15 +355,15 @@ exactly this text), mounts `<App/>`, installs the keyboard handler and calls `bo
 |---|---|
 | `sync/api.ts` | The `Backend` interface; `helper` (HTTP: adds `X-SB-Token` from `<meta name="sb-token">` and `X-SB-Formats`; `ApiError`) and `offline` (localStorage, for a page opened as `file://`). `backend = SERVED ? helper : offline`. |
 | `sync/docsync.ts` | **`DocSync`**: `server` doc + `inflight` + `pending` ops → `view`. `apply(ops)` (local, returns inverse), `flush()` (one request in flight, 300 ms debounce, retry 2–32 s, 409 → `outdated`), `poll()` (`?since=rev`, rebase), `on(listener)` with `Change {local, by, presetChanged, styleChanged, editsChanged}`. |
-| `state/store.ts` | The global mutable state **`S`** (health, user, prefs, config, file, wb, sync, slides, cur, version, selections `sel`/`noteSel`/`textSel`, painter, zoom, undo/redo, toast, busy…), `emit()` (microtask-batched re-render of every `useApp()` component), `STAGE`/`THUMBS` controller hooks filled by the editor. |
-| `state/app.ts` | Actions: `boot`, `openFromFolder`/`openLocalFile`/`openBuffer`, `onDocChange`, `onStyleChanged`, **`change(label, ops, coalesce?)`**, `undo`, `styleChange`, `lookChange` (scope: this design / all), `slidesFor(design)`, `showVersion`, `ctx()` (memoised `RenderCtx`), `style()`, `tick` (poll 3 s, health + one-stat changed-on-disk check 6 s, fonts/config 30 s; the workbook list is read at start and when the Open menu opens), presence heartbeat 10 s. |
-| `state/dialogs.ts` | Promise-based dialogs (`ask`, `confirmBox`, `runWizard`, installer) – `DLG` flags rendered by `ui/`. |
-| `state/fonts.ts` | Font library in the page: `loadFonts`, `@font-face` in `<style id="fontcss">`, `addGoogleFont` (downloads faces, uploads them to the helper), `uploadFontFiles`, `embeddedFontCss(html)` (fonts used by exported slides as data URLs). |
+| `state/store.ts` | **One Zustand store** (`useStore`, `subscribeWithSelector`) in slices: `doc` (the `DocSync`, a read-only mirror of its `view` and save state, shared config, font library), `deck` (file, wb, slides, cur, version, undo/redo, remote, opening), `selection` (`sel`/`noteSel`/`textSel`, painter), `ui` (zoom, busy, toast, dialogs, design scope, banners, health, presence, exporting), `prefs` (user, host, client, prefs). Components select what they render (`useStore(s => s.selection.sel)`; `ui/hooks.ts`: `useCtx`, `useStyle`); other code reads `get()` and writes `patch(slice, …)`/`patchAll`. A poll that brings nothing new keeps the old objects (`same`), so nothing re-renders. `STAGE`/`THUMBS` controller hooks filled by the editor. |
+| `state/app.ts` | The store's actions (module functions writing the store): `boot`, `openFromFolder`/`openLocalFile`/`openBuffer`, `onDocChange`, `onStyleChanged`, **`change(label, ops, coalesce?)`**, `undo`, `styleChange`, `lookChange` (scope: this design / all), `slidesFor(design)`, `showVersion`, `ctx()` (memoised `RenderCtx`), `style()`, `tick` (poll 3 s, health + one-stat changed-on-disk check 6 s, fonts/config 30 s; the workbook list is read at start and when the Open menu opens), presence heartbeat 10 s. |
+| `state/dialogs.ts` | Promise-based dialogs (`ask`, `confirmBox`, `runWizard`, installer); which one is open: `ui.dialogs` in the store, rendered by `ui/`. |
+| `state/fonts.ts` | Font library in the page (store: `doc.fonts`, `ui.fontBusy`): `loadFonts`, `@font-face` in `<style id="fontcss">`, `addGoogleFont` (downloads faces, uploads them to the helper), `uploadFontFiles`, `embeddedFontCss(html)` (fonts used by exported slides as data URLs). |
 
 ### 5.5 `editor/` – the slide editor
 | File | Responsibility |
 |---|---|
-| `stage.ts` | Imperative stage: `renderStage` (full build, deferred while an inline editor is open), `refreshStage` (re-renders only changed tables and patches changed DOM nodes), `fitStage`/zoom, hit testing (one `.hits` overlay per table + binary search over column/row edges), selection painting, column/row border drags, inline cell editor, slide-text and text-box editors, table handles (resize = binary search of the layout weight, edge stretch, grip move between bands), text box move/stretch with snapping guides, notes section, logo load state. |
+| `stage.ts` | Imperative stage: `renderStage` (full build, deferred while an inline editor is open), `refreshStage` (re-renders only changed tables and patches changed DOM nodes), `fitStage`/zoom, hit testing (one `.hits` overlay per table + binary search over column/row edges), selection painting, column/row border drags, inline cell editor, slide-text and text-box editors, table handles (resize = binary search of the layout weight, edge stretch, grip move between bands), text box move/stretch with snapping guides, notes section, logo load state. Subscribes to the store's `selection` slice (paints cells, slide text, text box, painter cursor) and `ui.zoom` (fit); slides are redrawn by `state/app.ts` on document changes (it knows whether a refresh is enough). |
 | `edit.ts` | Selection model (`setSel`, `moveSel`, merged-block expansion), `applySel(label, fn)` (diffs `CellEdit`s → `cell.patch`), `commitText`. |
 | `tables.ts` | Column/row sizes, stretch, same size, copy/reset sizes, align/valign, merge/unmerge – **per design** (`sizePatch`, `sizingChange`). |
 | `textfmt.ts` | The **unified text toolbar**: `textTarget()` → cells / text box / slide text with the same `apply`/`clear` interface (cells store pt, others px). |
@@ -372,7 +372,7 @@ exactly this text), mounts `<App/>`, installs the keyboard handler and calls `bo
 | `keys.ts`, `thumbs.ts`, `issues.ts` | Global keyboard; lazy thumbnails (IntersectionObserver); side-panel notes (missing tables, hidden rows, stale text edits…). |
 
 ### 5.6 `ui/`, `wizard/`, `styles/`
-* `ui/App.tsx` (layout, thumbnails, canvas, status bar, dialogs), `Topbar.tsx` (open, wizard, version
+* `ui/App.tsx` (layout, dialogs), `Chrome.tsx` (thumbnails, issues, canvas, status bar, busy, toast), `Topbar.tsx` (open, wizard, version
   picker, presence, design switch, Design…, glass/colour sliders, Options, export menu, engine pill),
   `Ribbon.tsx` (row 1: text toolbar + formula bar), `TableTools.tsx` (row 2: cells, tables, text boxes,
   slide), `TextStylesDialog.tsx` (Design…: colours, text styles, fonts), `CommentDialog.tsx` (live
@@ -399,7 +399,7 @@ served: reopen `prefs.lastFile`, start `tick` (3 s) and the presence heartbeat (
 3. `LCACHE.clear()`, `GET /api/workbooks/<name>/doc`.
 4. Preset: continue with the saved one, or the wizard (with `defaultPreset` as draft); then
    `wb.ensure(presetSheets)` parses only the sheets used.
-5. New `DocSync`; `runtimeSlides(wb, preset, name, design)` → `S.slides`; restore the person's last
+5. New `DocSync`; `runtimeSlides(wb, preset, name, design)` → `deck.slides` (one store update with the new document); restore the person's last
    version; `makeWall`; `STAGE.render()`, `THUMBS.render()`.
 
 ### 6.3 Making an edit (e.g. Ctrl+B on cells)
@@ -449,7 +449,7 @@ options) → markup → `richText`. Because it runs on every render, comments fo
 versions. Comment-bearing slides always get a full re-render on refresh.
 
 ### 6.8 Versions
-Defined in wizard step 4 → `preset.versions`. `S.version` (remembered in `prefs.versions[workbook]`) →
+Defined in wizard step 4 → `preset.versions`. `deck.version` (remembered in `prefs.versions[workbook]`) →
 `ctx().version` → `effItems` blanks the hidden ranges (borders kept) → `tableKey` includes the hides →
 comments ignore the blanked numbers. `exportVersions(designs)` builds a `RenderCtx` per design × version.
 

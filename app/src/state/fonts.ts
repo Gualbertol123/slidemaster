@@ -1,11 +1,12 @@
 /* The shared font library in the page: loads it, declares its @font-face rules, adds Google fonts
    and uploaded files, and embeds the fonts a deck uses into exports. */
-import { S, emit, STAGE, THUMBS, toast } from "./store";
+import { get, patch, STAGE, THUMBS, toast } from "./store";
 import { backend } from "../sync/api";
 import { cleanFamily, fontFaceCss, googleCssUrl, parseGoogleCss, readFontInfo, type LibraryFont } from "../model/fonts";
 import { esc } from "../xlsx/util";
 
-export const FONTS = { lib: [] as LibraryFont[], loaded: false, busy: "" };
+/* the library is in the store (doc.fonts); a font being added: ui.fontBusy */
+const lib = () => get().doc.fonts;
 
 function styleEl(id: string) {
   let el = document.getElementById(id) as HTMLStyleElement | null;
@@ -14,14 +15,14 @@ function styleEl(id: string) {
 }
 /** declares the library's fonts in the page (from disk: Google stylesheets) */
 function declare() {
-  if (backend.served) styleEl("fontcss").textContent = fontFaceCss(FONTS.lib, f => backend.fontUrl(f));
-  else styleEl("fontcss").textContent = FONTS.lib.filter(f => f.source === "google").map(f => `@import url(${JSON.stringify(googleCssUrl(f.family))});`).join("\n");
+  if (backend.served) styleEl("fontcss").textContent = fontFaceCss(lib(), f => backend.fontUrl(f));
+  else styleEl("fontcss").textContent = lib().filter(f => f.source === "google").map(f => `@import url(${JSON.stringify(googleCssUrl(f.family))});`).join("\n");
 }
 let sig = "";
-function setLib(lib: LibraryFont[]) {
-  const s = JSON.stringify(lib); FONTS.loaded = true;
+function setLib(fonts: LibraryFont[]) {
+  const s = JSON.stringify(fonts);
   if (s === sig) return;
-  sig = s; FONTS.lib = lib; declare(); emit();
+  sig = s; patch("doc", { fonts }); declare();
 }
 export async function loadFonts() { try { setLib(await backend.fonts()); } catch { /* helper busy: next time */ } }
 
@@ -30,11 +31,11 @@ let redraw: ReturnType<typeof setTimeout> | null = null;
 export function watchFontLoads() {
   document.fonts?.addEventListener?.("loadingdone", () => {
     if (redraw) clearTimeout(redraw);
-    redraw = setTimeout(() => { redraw = null; if (S.slides.length) { STAGE.render(); THUMBS.render(); } }, 150);
+    redraw = setTimeout(() => { redraw = null; if (get().deck.slides.length) { STAGE.render(); THUMBS.render(); } }, 150);
   });
 }
 
-export const inLibrary = (family: string) => FONTS.lib.some(f => f.family.toLowerCase() === family.toLowerCase());
+export const inLibrary = (family: string) => lib().some(f => f.family.toLowerCase() === family.toLowerCase());
 
 /** adds a Google font to the shared library: its files are saved in the Slide Builder folder, so slides
     and exports work even where Google cannot be reached later */
@@ -42,7 +43,7 @@ export async function addGoogleFont(name: string): Promise<boolean> {
   const family = cleanFamily(name);
   if (!family) return false;
   if (inLibrary(family)) return true;
-  FONTS.busy = family; emit();
+  patch("ui", { fontBusy: family });
   try {
     let css = "";
     // not every family has bold or italic: ask for less until Google answers
@@ -54,33 +55,33 @@ export async function addGoogleFont(name: string): Promise<boolean> {
     const faces = parseGoogleCss(css);
     if (!faces.length) throw new Error(`“${family}” is not a Google font – check the spelling on fonts.google.com`);
     if (!backend.served) { setLib(await backend.addFont({ family, weight: 400, style: "normal", source: "google", name: "" }, new ArrayBuffer(0))); return true; }
-    let lib: LibraryFont[] = FONTS.lib;
+    let fonts: LibraryFont[] = lib();
     for (const f of faces) {
       const data = await (await fetch(f.url)).arrayBuffer();
-      lib = await backend.addFont({ family, weight: f.weight, style: f.style, source: "google", name: f.url.split("/").pop() || "font.woff2", range: f.range }, data);
+      fonts = await backend.addFont({ family, weight: f.weight, style: f.style, source: "google", name: f.url.split("/").pop() || "font.woff2", range: f.range }, data);
     }
-    setLib(lib);
+    setLib(fonts);
     toast(`Font <b>${esc(family)}</b> added – it is saved in the Slide Builder folder for everybody.`);
     return true;
   } catch (e) { toast("⚠ " + esc((e as Error).message || e), [], true); return false; }
-  finally { FONTS.busy = ""; emit(); }
+  finally { patch("ui", { fontBusy: "" }); }
 }
 
 /** font files chosen by the user (TTF, OTF, WOFF, WOFF2): family, weight and style are read from each file */
 export async function uploadFontFiles(files: File[]): Promise<string[]> {
   if (!backend.served) { toast("Uploading fonts needs the helper: start Slide Builder with Start Slide Builder.bat.", [], true); return []; }
   const added = new Set<string>(), failed: string[] = [];
-  let lib: LibraryFont[] | null = null;
-  FONTS.busy = files.length === 1 ? files[0].name : files.length + " files"; emit();
+  let fonts: LibraryFont[] | null = null;
+  patch("ui", { fontBusy: files.length === 1 ? files[0].name : files.length + " files" });
   try {
     for (const file of files) {
       try {
         const buf = await file.arrayBuffer(), info = await readFontInfo(buf, file.name);
-        lib = await backend.addFont({ family: info.family, weight: info.weight, style: info.style, source: "upload", name: file.name }, buf);
+        fonts = await backend.addFont({ family: info.family, weight: info.weight, style: info.style, source: "upload", name: file.name }, buf);
         added.add(info.family);
       } catch (e) { failed.push(`${file.name}: ${(e as Error).message}`); }
     }
-  } finally { FONTS.busy = ""; if (lib) setLib(lib); else emit(); }
+  } finally { patch("ui", { fontBusy: "" }); if (fonts) setLib(fonts); }
   if (added.size) toast(`Added <b>${esc([...added].join(", "))}</b> to the font library – saved for everybody.`);
   if (failed.length) toast("⚠ " + esc(failed.join(" · ")), [], true);
   return [...added];
@@ -105,7 +106,7 @@ function dataUrl(file: string): Promise<string> {
 /** @font-face rules with embedded files for the library fonts that appear in `html` */
 export async function embeddedFontCss(html: string): Promise<string> {
   if (!backend.served) return "";
-  const low = html.toLowerCase(), used = FONTS.lib.filter(f => low.includes(cleanFamily(f.family).toLowerCase()));   // quoted or not: the browser may re-serialise styles
+  const low = html.toLowerCase(), used = lib().filter(f => low.includes(cleanFamily(f.family).toLowerCase()));   // quoted or not: the browser may re-serialise styles
   if (!used.length) return "";
   const urls = new Map<string, string>();
   for (const f of used) for (const x of f.faces) { try { urls.set(x.file, await dataUrl(x.file)); } catch { /* left out: the fallback font is used */ } }

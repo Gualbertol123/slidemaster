@@ -1,5 +1,5 @@
 /* Selection (Excel-like) and cell edits expressed as operations. */
-import { S, emit, STAGE } from "../state/store";
+import { get, patch } from "../state/store";
 import { change, ctx } from "../state/app";
 import type { Item, TableLayout } from "../xlsx/types";
 import type { CellEdit, Op } from "../model/types";
@@ -14,26 +14,24 @@ function gridOf(T: GridLayout) {
   return T._grid = m;
 }
 export function itemAt(T: TableLayout, r: number, c: number) { return gridOf(T).get(r + "," + c) || T.items.find(it => it.b.src.r === r && it.b.src.c === c); }
-export const curSlide = () => S.slides[S.cur];
-export function selTable() { return S.sel ? curSlide()?.tables[S.sel.t] : undefined; }
+export const curSlide = () => get().deck.slides[get().deck.cur];
+export function selTable() { const { sel } = get().selection; return sel ? curSlide()?.tables[sel.t] : undefined; }
 export function selItems(): Item[] {
-  const sel = S.sel, T = selTable(); if (!sel || !T) return [];
+  const sel = get().selection.sel, T = selTable(); if (!sel || !T) return [];
   return T.items.filter(it => it.b.r <= sel.r2 && it.b.r2 >= sel.r1 && it.b.c <= sel.c2 && it.b.c2 >= sel.c1);
 }
-export function activeItem(): Item | null { const T = selTable(); return S.sel && T ? itemAt(T, S.sel.ar, S.sel.ac) || null : null; }
+export function activeItem(): Item | null { const T = selTable(), { sel } = get().selection; return sel && T ? itemAt(T, sel.ar, sel.ac) || null : null; }
 export function setSel(t: number, anchor: { r: number; c: number }, active: { r: number; c: number }) {
   const T = curSlide()?.tables[t]; if (!T) return;
   const a = itemAt(T, anchor.r, anchor.c), b = itemAt(T, active.r, active.c); if (!a || !b) return;
   let r1 = Math.min(a.b.r, b.b.r), r2 = Math.max(a.b.r2, b.b.r2), c1 = Math.min(a.b.c, b.b.c), c2 = Math.max(a.b.c2, b.b.c2);
   for (let k = 0; k < 4; k++) for (const it of T.items) if (it.b.r <= r2 && it.b.r2 >= r1 && it.b.c <= c2 && it.b.c2 >= c1) { r1 = Math.min(r1, it.b.r); r2 = Math.max(r2, it.b.r2); c1 = Math.min(c1, it.b.c); c2 = Math.max(c2, it.b.c2); }
-  S.sel = { t, anchor: { r: a.b.r, c: a.b.c }, ar: b.b.r, ac: b.b.c, r1, r2, c1, c2 };
-  if (S.noteSel) { S.noteSel = null; document.querySelectorAll(".tnote.sel").forEach(e => e.classList.remove("sel")); }
-  S.textSel = null;
-  STAGE.paintSel(); emit();
+  // one update: the stage paints the cells and takes the mark off a text box that was selected
+  patch("selection", { sel: { t, anchor: { r: a.b.r, c: a.b.c }, ar: b.b.r, ac: b.b.c, r1, r2, c1, c2 }, noteSel: null, textSel: null });
 }
-export function clearSel() { S.sel = null; STAGE.paintSel(); emit(); }
+export function clearSel() { patch("selection", { sel: null }); }
 export function moveSel(dr: number, dc: number, extend: boolean) {
-  const sel = S.sel, T = selTable(); if (!sel || !T) return;
+  const sel = get().selection.sel, T = selTable(); if (!sel || !T) return;
   const it = itemAt(T, sel.ar, sel.ac); if (!it) return;
   let ri = T.rows.indexOf(dr > 0 ? it.b.r2 : it.b.r), ci = T.cols.indexOf(dc > 0 ? it.b.c2 : it.b.c);
   ri = Math.max(0, Math.min(T.rows.length - 1, ri + dr)); ci = Math.max(0, Math.min(T.cols.length - 1, ci + dc));
@@ -41,7 +39,7 @@ export function moveSel(dr: number, dc: number, extend: boolean) {
   if (extend) setSel(sel.t, sel.anchor, { r: target.b.r, c: target.b.c });
   else setSel(sel.t, { r: target.b.r, c: target.b.c }, { r: target.b.r, c: target.b.c });
 }
-export function selectAll() { const sel = S.sel, T = selTable(); if (!sel || !T) return; setSel(sel.t, { r: T.rows[0], c: T.cols[0] }, { r: T.rows[T.rows.length - 1], c: T.cols[T.cols.length - 1] }); }
+export function selectAll() { const sel = get().selection.sel, T = selTable(); if (!sel || !T) return; setSel(sel.t, { r: T.rows[0], c: T.cols[0] }, { r: T.rows[T.rows.length - 1], c: T.cols[T.cols.length - 1] }); }
 
 /* ---- edits ---- */
 const KEYS = ["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role"] as const;

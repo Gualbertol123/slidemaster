@@ -1,6 +1,6 @@
 /* The slide being edited: imperative DOM for speed (one overlay per table, binary-search hit
    testing, only changed cells are swapped after an edit). */
-import { S, emit, STAGE, toast } from "../state/store";
+import { get, patch, patchAll, STAGE, toast, useStore } from "../state/store";
 import { change, ctx, setZoom } from "../state/app";
 import type { Item, TableLayout } from "../xlsx/types";
 import type { Layout, Op, RuntimeSlide } from "../model/types";
@@ -15,11 +15,23 @@ import { selectSlideText } from "./textfmt";
 import { todayLabel } from "../render/cover";
 import { commentText } from "../render/comment";
 
-let host: HTMLElement | null = null;
+let host: HTMLElement | null = null, unsubscribe: (() => void) | null = null;
 export function mountStage(el: HTMLElement) {
   host = el;
   STAGE.render = renderStage; STAGE.refresh = refreshStage; STAGE.paintSel = paintSel; STAGE.fit = fitStage;
-  addEventListener("resize", fitStage);
+  removeEventListener("resize", fitStage); addEventListener("resize", fitStage);
+  // the stage follows the slices it draws: the selection (cells, slide text, text box, painter) and the zoom.
+  // Slides are redrawn by the document changes (state/app.ts), which know whether a refresh is enough.
+  unsubscribe?.();
+  const subs = [
+    useStore.subscribe(s => s.selection, (now, was) => {
+      if (now.sel !== was.sel || now.textSel !== was.textSel) paintSel();
+      if (now.noteSel !== was.noteSel) paintNoteSel();
+      if (!now.painter !== !was.painter) document.body.classList.toggle("painting", !!now.painter);
+    }),
+    useStore.subscribe(s => s.ui.zoom, () => fitStage()),
+  ];
+  unsubscribe = () => subs.forEach(f => f());
   renderStage();
 }
 const wrapEl = () => host?.querySelector<HTMLElement & { _scale?: number }>(".stagewrap") || null;
@@ -40,13 +52,13 @@ export function renderStage() {
   host.innerHTML = "";
   const R = curSlide(); if (!R) return;
   const wrap = document.createElement("div") as HTMLDivElement & { _scale?: number }; wrap.className = "stagewrap";
-  const slide = buildSlide(R, S.cur, ctx(), { interactive: true });
+  const slide = buildSlide(R, get().deck.cur, ctx(), { interactive: true });
   wrap.appendChild(slide); host.appendChild(wrap);
   slide.querySelectorAll<HTMLElement & { _html?: string }>(":scope > .tw").forEach(tw => { tw._html = tableHtml(R, +tw.dataset.i!, ctx()); });
   // the logo warning follows the latest load: a failure earlier (e.g. before the file was copied) does not stick
   slide.querySelectorAll<HTMLImageElement>("img.logo").forEach(img => {
-    img.addEventListener("error", () => { (img.parentNode as HTMLElement).style.display = "none"; if (!S.logoMissing) { S.logoMissing = true; emit(); } });
-    img.addEventListener("load", () => { if (S.logoMissing) { S.logoMissing = false; emit(); } });
+    img.addEventListener("error", () => { (img.parentNode as HTMLElement).style.display = "none"; if (!get().ui.logoMissing) patch("ui", { logoMissing: true }); });
+    img.addEventListener("load", () => { if (get().ui.logoMissing) patch("ui", { logoMissing: false }); });
   });
   wireSlide(slide, R);
   fitStage(); paintSel();
@@ -55,11 +67,11 @@ export function fitStage() {
   const wrap = wrapEl(); if (!host || !wrap) return;
   const cw = host.clientWidth, ch = host.clientHeight;
   const fit = Math.min((cw - 56) / 1600, (ch - 64) / 900);
-  const s = S.zoom === "fit" ? fit : S.zoom;
+  const zoom = get().ui.zoom, s = zoom === "fit" ? fit : zoom;
   const slide = wrap.querySelector<HTMLElement>(".slide")!; slide.style.transform = `scale(${s})`;
   wrap.style.width = 1600 * s + "px"; wrap.style.height = 900 * s + "px";
   wrap.style.left = Math.max(16, (cw - 1600 * s) / 2) + "px"; wrap.style.top = Math.max(16, (ch - 900 * s) / 2) + "px";
-  host.style.overflow = S.zoom === "fit" ? "hidden" : "auto";
+  host.style.overflow = zoom === "fit" ? "hidden" : "auto";
   wrap._scale = s;
   const zv = document.getElementById("zoomVal"); if (zv) zv.textContent = Math.round(s * 100) + "%";
 }
@@ -115,8 +127,8 @@ export function paintSel() {
   const slide = host?.querySelector(".slide"); if (!slide) return;
   slide.querySelectorAll(".selbox,.actbox").forEach(e => e.remove());
   slide.querySelectorAll(".tsel").forEach(e => e.classList.remove("tsel"));
-  if (S.textSel) slide.querySelector(`[data-edit="${S.textSel}"]`)?.classList.add("tsel");
-  const sel = S.sel; if (!sel || !curSlide()) return;
+  if (get().selection.textSel) slide.querySelector(`[data-edit="${get().selection.textSel}"]`)?.classList.add("tsel");
+  const sel = get().selection.sel; if (!sel || !curSlide()) return;
   const its = selItems().map(cellBox); if (!its.length) return;
   const hits = slide.querySelector(`.hits[data-t="${sel.t}"]`); if (!hits) return;
   const x0 = Math.min(...its.map(a => a.bx)), y0 = Math.min(...its.map(a => a.by)), x1 = Math.max(...its.map(a => a.bx + a.bw)), y1 = Math.max(...its.map(a => a.by + a.bh));
@@ -129,7 +141,7 @@ export function paintSel() {
 
 /* ---- slide interaction: cells + table move/resize ---- */
 let DRAG: { t: number } | null = null;
-addEventListener("pointerup", () => { const was = DRAG; DRAG = null; if (was && S.painter) applyPainter(); });
+addEventListener("pointerup", () => { const was = DRAG; DRAG = null; if (was && get().selection.painter) applyPainter(); });
 /* column / row borders: hovering within 5 screen px of a border shows a resize cursor; dragging sets the
    width/height (for every selected column/row when the border belongs to the selection) */
 type Border = { kind: "col" | "row"; key: number; start: number; size: number; pos: number };
@@ -162,7 +174,7 @@ function startEdgeDrag(h: HTMLElement, e: PointerEvent, edge: Border) {
   const up = () => {
     h.removeEventListener("pointermove", move); h.removeEventListener("pointerup", up); guide.remove(); tip.remove();
     if (Math.abs(size - edge.size) < .5) return;
-    const sel = S.sel && S.sel.t === t ? (edge.kind === "col" ? selCols() : selRows()) : [];
+    const sel = get().selection.sel?.t === t ? (edge.kind === "col" ? selCols() : selRows()) : [];
     const keys = sel.includes(edge.key) ? sel : [edge.key];
     if (edge.kind === "col") setColWidth(T, keys, size); else setRowHeight(T, keys, size);
   };
@@ -176,7 +188,8 @@ function wireSlide(slide: HTMLElement, R: RuntimeSlide) {
     const it = pointToCell(h, e); if (!it) return;
     e.preventDefault(); (document.getElementById("fxInput") as HTMLInputElement | null)?.blur();
     const t = +h.dataset.t!, cell = { r: it.b.r, c: it.b.c };
-    if (e.shiftKey && S.sel && S.sel.t === t) setSel(t, S.sel.anchor, cell); else setSel(t, cell, cell);
+    const cur = get().selection.sel;
+    if (e.shiftKey && cur && cur.t === t) setSel(t, cur.anchor, cell); else setSel(t, cell, cell);
     DRAG = { t };
   });
   let hovT = 0;
@@ -187,7 +200,8 @@ function wireSlide(slide: HTMLElement, R: RuntimeSlide) {
     const it = pointToCell(h, e); if (!it) return;
     const g = cellBox(it), hv = h.querySelector<HTMLElement>(".hov")!;
     Object.assign(hv.style, { display: "block", left: g.bx + "px", top: g.by + "px", width: g.bw + "px", height: g.bh + "px" });
-    if (DRAG && (e.buttons & 1) && +h.dataset.t! === DRAG.t && S.sel && (S.sel.ar !== it.b.r || S.sel.ac !== it.b.c)) setSel(DRAG.t, S.sel.anchor, { r: it.b.r, c: it.b.c });
+    const cur = get().selection.sel;
+    if (DRAG && (e.buttons & 1) && +h.dataset.t! === DRAG.t && cur && (cur.ar !== it.b.r || cur.ac !== it.b.c)) setSel(DRAG.t, cur.anchor, { r: it.b.r, c: it.b.c });
   });
   slide.addEventListener("pointerleave", () => slide.querySelectorAll<HTMLElement>(".hov").forEach(x => x.style.display = "none"));
   slide.addEventListener("dblclick", e => {
@@ -213,7 +227,8 @@ function wireSlide(slide: HTMLElement, R: RuntimeSlide) {
     el.addEventListener("dblclick", e => { e.stopPropagation(); editNote(R, el); });
   });
   if (pendingNoteEdit) { const el = slide.querySelector<HTMLElement>(`.tnote[data-note="${CSS.escape(pendingNoteEdit)}"]`); pendingNoteEdit = null; if (el) setTimeout(() => editNote(R, el), 30); }
-  if (S.noteSel) { const el = slide.querySelector<HTMLElement>(`.tnote[data-note="${CSS.escape(S.noteSel)}"]`); if (el) paintNoteSel(); else S.noteSel = null; }
+  const noteSel = get().selection.noteSel;
+  if (noteSel) { const el = slide.querySelector<HTMLElement>(`.tnote[data-note="${CSS.escape(noteSel)}"]`); if (el) paintNoteSel(); else patch("selection", { noteSel: null }); }
   slide.querySelectorAll<HTMLElement>(".hbox").forEach(hb => wireTableHandles(slide, R, hb));
   // titles, subtitles, cover note and date: click selects (the toolbar formats them), double-click edits
   slide.querySelectorAll<HTMLElement>("[data-edit]").forEach(el => {
@@ -223,11 +238,12 @@ function wireSlide(slide: HTMLElement, R: RuntimeSlide) {
   // a click on the empty slide clears every selection
   slide.addEventListener("pointerdown", e => {
     if ((e.target as Element).closest(".hits,.tnote,.hbox,[data-edit]")) return;
-    if (S.sel || S.noteSel || S.textSel) { S.sel = null; S.textSel = null; selectNote(null); }
+    const { sel, noteSel, textSel } = get().selection;
+    if (sel || noteSel || textSel) patch("selection", { sel: null, textSel: null, noteSel: null });
   });
 }
 export function editSelectedText() {
-  const el = S.textSel && host?.querySelector<HTMLElement>(`.slide [data-edit="${S.textSel}"]`), R = curSlide();
+  const el = get().selection.textSel && host?.querySelector<HTMLElement>(`.slide [data-edit="${get().selection.textSel}"]`), R = curSlide();
   if (el && R) editSlideText(R, el);
 }
 const slidePatch = (label: string, R: RuntimeSlide, patch: Record<string, unknown>) => change(label, [{ op: "slide.patch", id: R.id, patch } as Op]);
@@ -308,7 +324,7 @@ function wireTableHandles(slide: HTMLElement, R: RuntimeSlide, hb: HTMLElement) 
 /* ---- inline editing ---- */
 let INLINE: HTMLInputElement | null = null;
 export function openInline(initial?: string) {
-  const it = activeItem(); const wrap = wrapEl(); const sel = S.sel;
+  const it = activeItem(); const wrap = wrapEl(); const sel = get().selection.sel;
   if (!it || INLINE || !wrap || !sel) return;
   const R = curSlide(), hits = wrap.querySelector<HTMLElement>(`.hits[data-t="${sel.t}"]`); if (!hits) return;
   const T = R.tables[sel.t], g = cellBox(it), rc = hits.getBoundingClientRect(), k = rc.width / tableW(T, ctx());
@@ -446,27 +462,27 @@ export function addSlideNotes() {
 }
 /** puts a moved text box back next to its table */
 export function attachNote() {
-  const R = curSlide(), key = S.noteSel, cur = key && R?.cfg.notes?.[key]; if (!R || !key || !cur) return;
+  const R = curSlide(), key = get().selection.noteSel, cur = key && R?.cfg.notes?.[key]; if (!R || !key || !cur) return;
   const { x: _x, y: _y, ...rest } = cur;
   change("Text box back next to the table", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: rest } } } as Op]);
 }
 let pendingNoteEdit: string | null = null;
 const noteKeyOf = (R: RuntimeSlide, i: number, side: Side) => (R.tables[i].id || String(i)) + ":" + side;
 export function noteOf(key: string): Note | null { return (curSlide()?.cfg.notes || {})[key] || null; }
+/** selects a text box (null: none); the subscription in mountStage paints it */
 export function selectNote(key: string | null) {
-  S.noteSel = key; if (key) { S.sel = null; S.textSel = null; }
-  paintSel();
-  paintNoteSel(); emit();
+  patch("selection", key ? { noteSel: key, sel: null, textSel: null } : { noteSel: null });
 }
 function paintNoteSel() {
   host?.querySelectorAll(".tnote.sel").forEach(e => e.classList.remove("sel"));
-  if (S.noteSel) host?.querySelector(`.tnote[data-note="${CSS.escape(S.noteSel)}"]`)?.classList.add("sel");
+  const key = get().selection.noteSel;
+  if (key) host?.querySelector(`.tnote[data-note="${CSS.escape(key)}"]`)?.classList.add("sel");
 }
 export function patchNote(label: string, patch: Partial<Note> | null) {
-  const R = curSlide(), key = S.noteSel; if (!R || !key) return;
+  const R = curSlide(), key = get().selection.noteSel; if (!R || !key) return;
   const cur = noteOf(key); if (!cur && patch) return;
   change(label, [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: patch === null ? null : { ...cur, ...patch } } } } as Op]);
-  if (patch === null) S.noteSel = null;
+  if (patch === null) patchAll({ selection: { noteSel: null } });
 }
 function editNote(R: RuntimeSlide, el: HTMLElement) {
   const wrap = wrapEl(); if (!wrap) return;
@@ -484,7 +500,7 @@ function editNote(R: RuntimeSlide, el: HTMLElement) {
     if (done) return; done = true; const v = ta.value; ta.remove(); afterEdit();
     if (!ok) return;
     // an empty box that was never written is removed again
-    if (!v.trim()) { change("Remove text box", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: null } } } as Op]); S.noteSel = null; return; }
+    if (!v.trim()) { change("Remove text box", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: null } } } as Op]); patch("selection", { noteSel: null }); return; }
     if (gen !== null) {
       if (v === gen) return;
       const { auto: _a, ...rest } = cur;

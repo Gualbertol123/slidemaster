@@ -1,9 +1,8 @@
 /* Font menu used everywhere a font is chosen (toolbar, text styles): the shared library first, then the
    fonts every Windows PC has, then popular Google fonts (picking one adds it to the library). */
 import { useEffect, useRef, useState } from "react";
-import { emit } from "../state/store";
-import { DLG } from "../state/dialogs";
-import { FONTS, addGoogleFont, inLibrary, loadFonts, uploadFontFiles } from "../state/fonts";
+import { setDialogs, useStore } from "../state/store";
+import { addGoogleFont, inLibrary, loadFonts, uploadFontFiles } from "../state/fonts";
 import { GOOGLE_POPULAR, SYSTEM_FONTS, fontStack } from "../model/fonts";
 import { backend } from "../sync/api";
 import { Dropdown } from "./Dropdown";
@@ -18,12 +17,12 @@ function preview(families: string[]) {
   document.head.appendChild(link);
 }
 
-export function openFontManager(tab: "colors" | "styles" | "fonts" = "fonts") { DLG.textStyles = tab; emit(); void loadFonts(); }   // fonts colleagues just added
+export function openFontManager(tab: "colors" | "styles" | "fonts" = "fonts") { setDialogs({ textStyles: tab }); void loadFonts(); }   // fonts colleagues just added
 
 export function FontPicker(p: { value: string | null; onPick: (font: string | null) => void; disabled?: boolean; id?: string; placeholder?: string; title?: string }) {
   const [q, setQ] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
-  const lib = FONTS.lib.map(f => f.family);
+  const lib = useStore(s => s.doc.fonts).map(f => f.family);
   const match = (f: string) => !q.trim() || f.toLowerCase().includes(q.trim().toLowerCase());
   const google = GOOGLE_POPULAR.filter(f => !inLibrary(f));
   const item = (f: string, close: () => void, onPick = () => p.onPick(f)) =>

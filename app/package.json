@@ -11,17 +11,23 @@
     "check": "tsc --noEmit && vitest run",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "parity": "node ../tools/parity.mjs"
+    "parity": "node ../tools/parity.mjs",
+    "bench": "vitest run --project react --silent=false tests/renders.test.tsx"
   },
   "dependencies": {
     "jszip": "^3.10.2",
-    "preact": "^10.29.8"
+    "preact": "^10.29.8",
+    "zustand": "5.0.15"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
+    "@testing-library/react": "16.3.3",
     "@types/node": "^22.20.5",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
+    "jsdom": "30.0.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
     "typescript": "^5.9.3",
     "vite": "^7.3.7",
     "vite-plugin-singlefile": "^2.3.3",

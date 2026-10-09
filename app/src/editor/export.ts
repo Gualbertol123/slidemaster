@@ -1,7 +1,7 @@
 /* Export: the helper renders the exact slide DOM in a headless browser. When no engine works
    (blocked by policy), slides are rendered in this window (SVG foreignObject → JPEG) and the helper
    only assembles the PDF. */
-import { S, emit, toast } from "../state/store";
+import { get, hideBusy, patch, showBusy, toast } from "../state/store";
 import { ctx, setPrefs, slidesFor, style } from "../state/app";
 import { resolveStyle } from "../model/style";
 import type { RenderCtx } from "../render/context";
@@ -28,7 +28,7 @@ async function exportPayload(idx: number[], base: RenderCtx = ctx(), vector = fa
     slides.push(vector ? printReady(s.outerHTML) : s.outerHTML);
   }
   // text & tables: shadows and fonts the PDF can draw as vector (no pictures, no glyph-by-glyph fonts)
-  return { css: (vector ? printReady(slideCss()) + "\n" + PRINT_CSS : slideCss()) + "\n" + await embeddedFontCss(slides.join("")), slides, names: idx.map(i => S.slides[i].label) };
+  return { css: (vector ? printReady(slideCss()) + "\n" + PRINT_CSS : slideCss()) + "\n" + await embeddedFontCss(slides.join("")), slides, names: idx.map(i => get().deck.slides[i].label) };
 }
 
 async function clientRender(i: number, scale: number, type: string, base: RenderCtx = ctx()): Promise<string> {
@@ -48,7 +48,7 @@ async function clientRender(i: number, scale: number, type: string, base: Render
   const x = cv.getContext("2d")!; x.fillStyle = "#fff"; x.fillRect(0, 0, cv.width, cv.height); x.drawImage(img, 0, 0, cv.width, cv.height);
   return cv.toDataURL(type, .95);
 }
-async function exportInWindow(format: "pdf" | "png", idx: number[], inline: boolean, base: RenderCtx = ctx(), name = S.file!.name): Promise<ExportRes & { downloaded?: boolean }> {
+async function exportInWindow(format: "pdf" | "png", idx: number[], inline: boolean, base: RenderCtx = ctx(), name = get().deck.file!.name): Promise<ExportRes & { downloaded?: boolean }> {
   const scale = 3;
   if (format === "pdf") {
     const images: string[] = []; for (const i of idx) images.push(await clientRender(i, scale, "image/jpeg", base));
@@ -56,30 +56,31 @@ async function exportInWindow(format: "pdf" | "png", idx: number[], inline: bool
   }
   const png = await clientRender(idx[0], scale, "image/png");
   if (inline) return { ok: true, images: [png] };
-  const a = document.createElement("a"); a.href = png; a.download = name.replace(/\.[^.]+$/, "") + " - " + S.slides[idx[0]].label + ".png"; a.click();
+  const a = document.createElement("a"); a.href = png; a.download = name.replace(/\.[^.]+$/, "") + " - " + get().deck.slides[idx[0]].label + ".png"; a.click();
   return { ok: true, files: [], downloaded: true };
 }
 
 export async function doExport(kind: ExportKind) {
-  if (!S.slides.length || !S.file) return;
+  const { file } = get().deck;
+  if (!get().deck.slides.length || !file) return;
   if (!backend.served) { toast("Exports run through the helper: start Slide Builder with Start Slide Builder.bat.", [], true); return; }
-  if (S.file.src === "local") { toast("This workbook was opened without the helper. Open it again from the Open menu.", [], true); return; }
-  if (S.exporting) return;
-  S.exporting = true; emit();
+  if (file.src === "local") { toast("This workbook was opened without the helper. Open it again from the Open menu.", [], true); return; }
+  if (get().ui.exporting) return;
+  patch("ui", { exporting: true });
   try {
-    await S.sync?.flush();
+    await get().doc.sync?.flush();
     // PDFs are text and tables (vector) unless pictures of the slides are asked for explicitly
-    const pdfMode = S.prefs.pdfMode || "vector";
-    const all = S.slides.map((_, i) => i);
+    const pdfMode = get().prefs.prefs.pdfMode || "vector";
+    const all = get().deck.slides.map((_, i) => i);
     const spec = {
       "pdf": { format: "pdf", mode: pdfMode, idx: all }, "pdf-exact": { format: "pdf", mode: "exact", idx: all }, "pdf-vector": { format: "pdf", mode: "vector", idx: all },
-      "pdf-current": { format: "pdf", mode: pdfMode, idx: [S.cur] }, "png-current": { format: "png", idx: [S.cur] }, "png-all": { format: "png", idx: all }, "copy": { format: "png", idx: [S.cur], inline: true },
+      "pdf-current": { format: "pdf", mode: pdfMode, idx: [get().deck.cur] }, "png-current": { format: "png", idx: [get().deck.cur] }, "png-all": { format: "png", idx: all }, "copy": { format: "png", idx: [get().deck.cur], inline: true },
     }[kind] as { format: "pdf" | "png"; mode?: "exact" | "vector"; idx: number[]; inline?: boolean };
     if (kind === "pdf-exact" || kind === "pdf-vector") setPrefs({ pdfMode: spec.mode });
     let j: (ExportRes & { downloaded?: boolean }) | null = null, fallback = false, note = "";
-    const usable = S.health?.engine?.state === "ready";      // while engines are still being tested, don't wait: render here
+    const usable = get().ui.health?.engine?.state === "ready";      // while engines are still being tested, don't wait: render here
     if (usable) {
-      try { j = await backend.exportSlides({ name: S.file.name, format: spec.format, mode: spec.mode, scale: spec.format === "pdf" ? 4 : 3, inline: spec.inline, all: spec.idx.length === S.slides.length && spec.idx.length > 1, ...(await exportPayload(spec.idx, ctx(), spec.format === "pdf" && spec.mode !== "exact")) }); }
+      try { j = await backend.exportSlides({ name: file.name, format: spec.format, mode: spec.mode, scale: spec.format === "pdf" ? 4 : 3, inline: spec.inline, all: spec.idx.length === get().deck.slides.length && spec.idx.length > 1, ...(await exportPayload(spec.idx, ctx(), spec.format === "pdf" && spec.mode !== "exact")) }); }
       catch (e) { if ((e instanceof ApiError && (e.status === 503 || e.status === 0)) || e instanceof TypeError) { fallback = true; console.warn(e); } else throw e; }
     } else fallback = true;
     if (fallback) { j = await exportInWindow(spec.format, spec.idx, !!spec.inline); note = " · rendered in the app window"; }
@@ -93,40 +94,41 @@ export async function doExport(kind: ExportKind) {
     }
     const f = j.files![0];
     const acts = [{ label: "Open", fn: () => { void backend.open({ name: f }); } }, { label: "Show folder", fn: () => { void backend.open({ folder: true }); } }];
-    if (fallback && S.health?.engine?.state !== "starting") acts.push({ label: "Install export engine", fn: openInstaller });
+    if (fallback && get().ui.health?.engine?.state !== "starting") acts.push({ label: "Install export engine", fn: openInstaller });
     toast(`Saved <b>${esc(j.files!.join(", "))}</b> in the export folder` + (j.seconds ? ` · ${j.seconds}s` : "") + (j.engine ? ` · ${esc(j.engine)}` : "") + note, acts);
   } catch (e) { console.error(e); toast("⚠ Export failed: " + esc((e as Error).message || e), [], true); }
-  finally { S.exporting = false; emit(); }
+  finally { patch("ui", { exporting: false }); }
 }
 
 /* ---- every version (wizard › Versions), in the current design or in several designs: one PDF each,
    named "<workbook> - <version> - <design>" ---- */
 const DESIGN_LABEL: Record<Design, string> = { glass: "Liquid Glass", excel: "Excel", clean: "Excel Refined" };
 export async function exportVersions(designs: Design[] | null) {
-  if (!S.slides.length || !S.file || S.exporting) return;
+  const { file } = get().deck;
+  if (!get().deck.slides.length || !file || get().ui.exporting) return;
   if (!backend.served) { toast("Exports run through the helper: start Slide Builder with Start Slide Builder.bat.", [], true); return; }
-  const versions = S.sync?.view.preset?.versions || [];
+  const versions = get().doc.view?.preset?.versions || [];
   if (!versions.length) { toast("No versions yet: open the ✦ Wizard › 4 · Versions to create them (e.g. Chief and All)."); return; }
-  S.exporting = true; emit();
-  const done: string[] = [], stem = S.file.name.replace(/\.[^.]+$/, ""), all = S.slides.map((_, i) => i);
+  patch("ui", { exporting: true });
+  const done: string[] = [], stem = file.name.replace(/\.[^.]+$/, ""), all = get().deck.slides.map((_, i) => i);
   try {
-    await S.sync?.flush();
+    await get().doc.sync?.flush();
     for (const d of designs || [style().design]) {
       for (const v of versions) {
-        const base: RenderCtx = { ...ctx(), style: resolveStyle(S.config.defaults.style, { ...(S.sync?.view.style || {}), design: d }), version: v };
+        const base: RenderCtx = { ...ctx(), style: resolveStyle(get().doc.config.defaults.style, { ...(get().doc.view?.style || {}), design: d }), version: v };
         const name = `${stem} - ${v.name}${designs ? " - " + DESIGN_LABEL[d] : ""}.xlsx`;
         let j: ExportRes | null = null;
-        if (S.health?.engine?.state === "ready") {
-          try { j = await backend.exportSlides({ name, format: "pdf", mode: S.prefs.pdfMode || "vector", scale: 4, all: true, ...(await exportPayload(all, base, (S.prefs.pdfMode || "vector") === "vector")) }); }
+        if (get().ui.health?.engine?.state === "ready") {
+          try { j = await backend.exportSlides({ name, format: "pdf", mode: get().prefs.prefs.pdfMode || "vector", scale: 4, all: true, ...(await exportPayload(all, base, (get().prefs.prefs.pdfMode || "vector") === "vector")) }); }
           catch (e) { if (!((e instanceof ApiError && (e.status === 503 || e.status === 0)) || e instanceof TypeError)) throw e; }
         }
         if (!j) j = await exportInWindow("pdf", all, false, base, name);
         done.push(...(j.files || []));
-        S.busy = { text: `Exported ${done.length} of ${versions.length * (designs || [0]).length}…`, frac: done.length / (versions.length * (designs || [0]).length) }; emit();
+        showBusy(`Exported ${done.length} of ${versions.length * (designs || [0]).length}…`, done.length / (versions.length * (designs || [0]).length));
       }
     }
-    S.busy = null;
+    hideBusy();
     toast(`Saved <b>${done.length}</b> PDFs in the export folder: ${esc(done.join(", "))}`, [{ label: "Show folder", fn: () => { void backend.open({ folder: true }); } }]);
-  } catch (e) { console.error(e); S.busy = null; toast("⚠ Export failed: " + esc((e as Error).message || e), [], true); }
-  finally { S.exporting = false; emit(); }
+  } catch (e) { console.error(e); hideBusy(); toast("⚠ Export failed: " + esc((e as Error).message || e), [], true); }
+  finally { patch("ui", { exporting: false }); }
 }

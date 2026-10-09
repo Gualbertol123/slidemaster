@@ -1,25 +1,25 @@
 /* "Table sizes" dialog: tables of the whole deck, grouped by slide. Make chosen tables exactly the
    same size (also across slides), copy column widths / row heights from one table, align, reset. */
 import { useState } from "react";
-import { S, emit, useApp } from "../state/store";
-import { DLG } from "../state/dialogs";
+import { get, setDialogs, useStore } from "../state/store";
+import { useCtx } from "./hooks";
 import { tableName } from "../model/preset";
 import { allTables, alignTables, valignTables, copySizes, makeSameSize, resetSizes, type TableRef } from "../editor/tables";
 import { tableW } from "../render/slide";
 import { ctx } from "../state/app";
 
 export function TablesDialog() {
-  useApp();
-  const refs = allTables(), c = ctx();
+  const slides = useStore(s => s.deck.slides), c = useCtx();
+  const refs = allTables();
   const keyOf = (r: TableRef) => r.slide + ":" + r.i;
-  const [chosen, setChosen] = useState<Set<string>>(() => new Set(refs.filter(r => r.slide === S.cur).map(keyOf)));
+  const [chosen, setChosen] = useState<Set<string>>(() => new Set(refs.filter(r => r.slide === get().deck.cur).map(keyOf)));
   const [w, setW] = useState(true), [h, setH] = useState(true), [target, setTarget] = useState<"largest" | "smallest" | "first">("largest");
-  const [src, setSrc] = useState(() => keyOf(refs.find(r => r.slide === S.cur) || refs[0]));
+  const [src, setSrc] = useState(() => keyOf(refs.find(r => r.slide === get().deck.cur) || refs[0]));
   const [msg, setMsg] = useState("");
-  const close = () => { DLG.tables = false; emit(); };
+  const close = () => setDialogs({ tables: false });
   const pick = refs.filter(r => chosen.has(keyOf(r)));
   const toggle = (k: string, on: boolean) => { const n = new Set(chosen); if (on) n.add(k); else n.delete(k); setChosen(n); };
-  const bySlide = S.slides.map((R, si) => ({ R, si, list: refs.filter(r => r.slide === si) })).filter(x => x.list.length);
+  const bySlide = slides.map((R, si) => ({ R, si, list: refs.filter(r => r.slide === si) })).filter(x => x.list.length);
   const source = refs.find(r => keyOf(r) === src);
   return (
     <div className="modal">

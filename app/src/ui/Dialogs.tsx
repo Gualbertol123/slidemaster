@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { S, useApp } from "../state/store";
-import { DLG, closeInstaller } from "../state/dialogs";
+import { useStore } from "../state/store";
+import { closeInstaller } from "../state/dialogs";
+import { setHealth } from "../state/app";
 import { backend, type InstallState } from "../sync/api";
 
 function Dialog() {
-  const d = DLG.dialog!;
+  const d = useStore(s => s.ui.dialogs.dialog)!;
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -30,7 +31,7 @@ function Dialog() {
 
 /* export engine installer, run by the helper (downloads Chrome for Testing into the engine folder) */
 function Installer() {
-  const e = S.health?.engine;
+  const e = useStore(s => s.ui.health?.engine);
   const [st, setSt] = useState<InstallState | null>(null);
   const logRef = useRef<HTMLPreElement>(null);
   useEffect(() => {
@@ -39,7 +40,7 @@ function Installer() {
     return () => clearInterval(t);
   }, [st && st.done, !!st]);
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [st]);
-  useEffect(() => { if (st?.done) { setTimeout(async () => { S.health = await backend.health(); }, 2500); } }, [st?.done]);
+  useEffect(() => { if (st?.done) { setTimeout(async () => { setHealth(await backend.health()); }, 2500); } }, [st?.done]);
   const go = async () => { try { setSt(await backend.engineInstall(true)); } catch (err) { setSt({ running: false, done: true, ok: false, lines: [String((err as Error).message)] }); } };
   return (
     <div className="modal">
@@ -61,6 +62,6 @@ function Installer() {
 }
 
 export function Dialogs() {
-  useApp();
-  return <>{DLG.dialog && <Dialog />}{DLG.installer && <Installer />}</>;
+  const dialog = useStore(s => !!s.ui.dialogs.dialog), installer = useStore(s => s.ui.dialogs.installer);
+  return <>{dialog && <Dialog />}{installer && <Installer />}</>;
 }

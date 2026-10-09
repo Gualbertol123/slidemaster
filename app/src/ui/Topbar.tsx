@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { S, toast, useApp } from "../state/store";
+import { patch, toast, useStore } from "../state/store";
 import { esc } from "../xlsx/util";
-import { guard, lookChange, showVersion, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, style, styleChange, setPrefs } from "../state/app";
+import { guard, lookChange, showVersion, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, setHealth, styleChange, setPrefs } from "../state/app";
 import { openInstaller } from "../state/dialogs";
 import { backend, type FileInfo } from "../sync/api";
 import { doExport, exportVersions, type ExportKind } from "../editor/export";
@@ -11,6 +11,7 @@ import { openFontManager } from "./FontPicker";
 import type { Footer, PageNumbers, Theme } from "../model/types";
 import { THEMES, themeOf } from "../model/style";
 import { Input } from "./Input";
+import { useStyle } from "./hooks";
 
 /* sliders: preview the number at once, apply (one operation, one undo step) when the hand rests */
 const sliderTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -19,6 +20,7 @@ function debounced(key: string, fn: () => void, ms = 140) { const t = sliderTime
 const fmtTime = (s: number) => new Date(s * 1000).toLocaleString([], { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
 function OpenMenu() {
+  const file = useStore(s => s.deck.file);
   const [files, setFiles] = useState<FileInfo[] | null>(null);
   const load = () => { setFiles(null); void backend.files().then(setFiles).catch(() => setFiles([])); };
   return (
@@ -36,7 +38,7 @@ function OpenMenu() {
           <div className="sep" />
         </>}
         <button onClick={() => { close(); (document.getElementById("fileInput") as HTMLInputElement).click(); }}>Browse for a workbook…</button>
-        {S.file?.src === "folder" && <button onClick={() => { close(); void guard(reloadWorkbook); }}>Reload “{S.file.name}” from disk<small>after saving in Excel</small></button>}
+        {file?.src === "folder" && <button onClick={() => { close(); void guard(reloadWorkbook); }}>Reload “{file.name}” from disk<small>after saving in Excel</small></button>}
       </>}
     </Dropdown>
   );
@@ -45,7 +47,7 @@ function OpenMenu() {
 /* colour theme: built-in themes (incl. the Intesa Sanpaolo corporate colours) or a custom one */
 type TKey = "c1" | "c2" | "c3" | "c4" | "a1" | "a2";
 export function ThemePicker() {
-  const st = style(), cur = themeOf(st);
+  const st = useStyle(), cur = themeOf(st);
   const th = (patch: Partial<Theme>, coalesce?: string) => lookChange("Colour theme", { theme: patch }, coalesce);
   const swatch = (t: { c1: string; c2: string; c3: string; c4: string; a1: string }) => <i className="thsw" style={{ background: `linear-gradient(135deg,${t.c1},${t.c2} 40%,${t.c3} 75%,${t.c4})` }}><b style={{ background: t.a1 }} /></i>;
   const custom = () => th({ id: "custom", c1: cur.c1, c2: cur.c2, c3: cur.c3, c4: cur.c4, a1: cur.a1, a2: cur.a2 });
@@ -66,7 +68,7 @@ export function ThemePicker() {
 }
 
 function Options() {
-  const st = style(), p = st.pn, has = !!S.sync;
+  const st = useStyle(), p = st.pn, has = useStore(s => !!s.doc.sync);
   const pn = (patch: Partial<PageNumbers>, coalesce?: string) => styleChange("Page numbers", { pn: patch }, coalesce);
   const ft = st.footer, fo = (patch: Partial<Footer>, coalesce?: string) => styleChange("Footer", { footer: patch }, coalesce);
   return (
@@ -110,10 +112,10 @@ function Options() {
         <div className="sep" />
         <div className="opthd">Logo</div>
         <div className="optrow"><label htmlFor="logoInput">Logo file</label>
-          <Field id="logoInput" placeholder="logo.png" style={{ width: "150px" }} value={st.logo} onCommit={v => { S.logoMissing = false; styleChange("Logo", { logo: v.trim() }); }} />
+          <Field id="logoInput" placeholder="logo.png" style={{ width: "150px" }} value={st.logo} onCommit={v => { patch("ui", { logoMissing: false }); styleChange("Logo", { logo: v.trim() }); }} />
           <label className="btn" title="Choose the logo picture – it is copied into the Slide Builder folder for everybody">Choose…<input type="file" id="logoFile" hidden accept=".png,.jpg,.jpeg,.gif,.webp,.bmp" onChange={async e => {
             const t = e.target as HTMLInputElement, f = t.files?.[0]; t.value = ""; if (!f) return;
-            try { const name = await backend.uploadLogo(f.name, await f.arrayBuffer()); S.logoMissing = false; styleChange("Logo", { logo: name }); toast(`Logo <b>${esc(name)}</b> saved in the Slide Builder folder.`); }
+            try { const name = await backend.uploadLogo(f.name, await f.arrayBuffer()); patch("ui", { logoMissing: false }); styleChange("Logo", { logo: name }); toast(`Logo <b>${esc(name)}</b> saved in the Slide Builder folder.`); }
             catch (err) { toast("⚠ " + esc((err as Error).message), [], true); }
           }} /></label></div>
         <label className="ck big"><input type="checkbox" id="logoBubble" checked={st.logoBubble} onChange={e => styleChange(st.logoBubble ? "Remove logo bubble" : "Logo bubble", { logoBubble: (e.target as HTMLInputElement).checked ? null : false })} /> Bubble around the logo{st.design === "excel" ? " (Liquid Glass)" : ""}</label>
@@ -137,14 +139,14 @@ function Options() {
 }
 
 function ServerPill() {
-  const h = S.health;
+  const h = useStore(s => s.ui.health);
   if (!backend.served) return <span className="pill err" id="srv"><i className="dot" />Helper not running</span>;
   if (!h) return <span className="pill err" id="srv"><i className="dot" />Helper stopped</span>;
   const e = h.engine, ok = e.state === "ready", st = e.state === "starting" || e.state === "idle";
   const title = (e.engines || []).map(x => `${x.label}: ${x.state}${x.detail ? " – " + x.detail : ""}`).join("\n") + "\n\nClick to retry. Install the recommended engine once with “Install export engine”.";
   const click = async () => {
     if (!ok && !st || !e.local) return openInstaller();
-    await backend.engineRestart(); setTimeout(() => void backend.health().then(x => { S.health = x; }), 1500);
+    await backend.engineRestart(); setTimeout(() => void backend.health().then(setHealth), 1500);
   };
   return <span className={"pill " + (ok ? "ok" : st ? "warn" : "err")} id="srv" title={title} style={{ cursor: "pointer" }} onClick={() => void click()}>
     <i className="dot" />{ok ? "Export: " + (e.browser || "ready") : st ? "Testing export engines…" : "Export: in-window only · install engine"}
@@ -152,13 +154,14 @@ function ServerPill() {
 }
 
 function ExportButton() {
-  const can = backend.served && !!S.health && S.slides.length > 0 && !S.exporting;
-  const mode = S.prefs.pdfMode || "vector";
+  const health = useStore(s => !!s.ui.health), slides = useStore(s => s.deck.slides.length), exporting = useStore(s => s.ui.exporting);
+  const mode = useStore(s => s.prefs.prefs.pdfMode) || "vector", versions = useStore(s => s.doc.view?.preset?.versions) || [];
+  const can = backend.served && health && slides > 0 && !exporting;
   const item = (k: ExportKind, label: string, small?: string, close?: () => void) =>
     <button data-x={k} className={k === "pdf-" + mode ? "cur" : ""} onClick={() => { close?.(); void doExport(k); }}>{label}{small && <small>{small}</small>}</button>;
   return (
     <Dropdown right style={{ display: "flex" }} button={(_o, toggle) => <>
-      <button className="btn primary split" id="exportBtn" disabled={!can} onClick={() => void doExport("pdf")}>{S.exporting ? <><span className="spin" />Rendering…</> : "Export PDF"}</button>
+      <button className="btn primary split" id="exportBtn" disabled={!can} onClick={() => void doExport("pdf")}>{exporting ? <><span className="spin" />Rendering…</> : "Export PDF"}</button>
       <button className="btn primary caret" id="exportMenuBtn" disabled={!can} onClick={toggle}>▾</button>
     </>}>
       {close => <>
@@ -173,9 +176,9 @@ function ExportButton() {
         {item("png-all", "PNG · every slide", undefined, close)}
         <div className="sep" />
         <div className="hd">Versions (✦ Wizard › Versions)</div>
-        <button data-x="versions" disabled={!(S.sync?.view.preset?.versions || []).length} onClick={() => { close(); void exportVersions(null); }}>PDF · every version<small>{(S.sync?.view.preset?.versions || []).map(v => v.name).join(", ") || "none yet"} · this design</small></button>
-        <button data-x="versions-2" disabled={!(S.sync?.view.preset?.versions || []).length} onClick={() => { close(); void exportVersions(["glass", "excel"]); }}>PDF · every version × Liquid Glass + Excel<small>{2 * (S.sync?.view.preset?.versions || []).length} files</small></button>
-        <button data-x="versions-3" disabled={!(S.sync?.view.preset?.versions || []).length} onClick={() => { close(); void exportVersions(["glass", "excel", "clean"]); }}>PDF · every version × all three designs</button>
+        <button data-x="versions" disabled={!versions.length} onClick={() => { close(); void exportVersions(null); }}>PDF · every version<small>{versions.map(v => v.name).join(", ") || "none yet"} · this design</small></button>
+        <button data-x="versions-2" disabled={!versions.length} onClick={() => { close(); void exportVersions(["glass", "excel"]); }}>PDF · every version × Liquid Glass + Excel<small>{2 * versions.length} files</small></button>
+        <button data-x="versions-3" disabled={!versions.length} onClick={() => { close(); void exportVersions(["glass", "excel", "clean"]); }}>PDF · every version × all three designs</button>
       </>}
     </Dropdown>
   );
@@ -183,33 +186,34 @@ function ExportButton() {
 
 /* which version of the deck is on screen: the full deck, or a version with its removed cells empty */
 function VersionPicker() {
-  const vs = S.sync?.view.preset?.versions || [];
+  const vs = useStore(s => s.doc.view?.preset?.versions) || [], version = useStore(s => s.deck.version);
   if (!vs.length) return null;
   return <label className="verpick" title="Version shown on screen (✦ Wizard › Versions); exports: Export ▾ › every version">
-    <span>Version</span><select id="versionSel" value={S.version} onChange={e => showVersion((e.target as HTMLSelectElement).value)}>
+    <span>Version</span><select id="versionSel" value={version} onChange={e => showVersion((e.target as HTMLSelectElement).value)}>
       <option value="">Full deck</option>{vs.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>;
 }
 
 function Others() {
-  const here = S.others.filter(o => S.file && o.workbook === S.file.name);
+  const others = useStore(s => s.ui.others), file = useStore(s => s.deck.file), me = useStore(s => s.prefs.user);
+  const here = others.filter(o => file && o.workbook === file.name);
   if (!here.length) return null;
-  const names = [...new Set(here.map(o => o.user + (o.user === S.user ? " (another window)" : "")))];
+  const names = [...new Set(here.map(o => o.user + (o.user === me ? " (another window)" : "")))];
   return <span className="presence" id="presence" title={"Also editing this workbook: " + names.join(", ") + "\nChanges are merged automatically; the same cell edited by two people keeps the last change."}>
     {names.slice(0, 3).map(n => <i key={n}>{n.slice(0, 2).toUpperCase()}</i>)}<span>{names.length === 1 ? names[0] + " is also here" : names.length + " others here"}</span>
   </span>;
 }
 
 export function Topbar() {
-  useApp();
-  const st = style(), has = !!S.sync, f = S.file, n = S.slides.length;
+  const st = useStyle(), has = useStore(s => !!s.doc.sync), f = useStore(s => s.deck.file), n = useStore(s => s.deck.slides.length);
+  const wb = useStore(s => !!s.deck.wb), opening = useStore(s => s.deck.opening);
   return (
     <header className="topbar">
       <div className="brand"><i />Slide Builder</div>
       <OpenMenu />
       <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xlsb,.xls" hidden onChange={e => { const t = e.target as HTMLInputElement; const file = t.files?.[0]; if (file) void guard(() => openLocalFile(file)); t.value = ""; }} />
       <button className="btn icon" id="reloadBtn" title="Reload the workbook from disk (after saving in Excel)" disabled={f?.src !== "folder"} onClick={() => void guard(reloadWorkbook)}>↻</button>
-      <button className="btn" id="wizardBtn" disabled={!S.wb} title="Choose sheets and tables, arrange slides, cover and index" onClick={() => void guard(openWizard)}>✦ Wizard</button>
-      <div className="fname" id="fileName">{S.opening ? <>Opening <b>{S.opening}</b>…</> : f ? <><b>{f.name}</b> · {n} slide{n === 1 ? "" : "s"}{f.src === "upload" ? " · not in the folder" : f.src === "local" ? " · preview only" : ""}</> : "No workbook"}</div>
+      <button className="btn" id="wizardBtn" disabled={!wb} title="Choose sheets and tables, arrange slides, cover and index" onClick={() => void guard(openWizard)}>✦ Wizard</button>
+      <div className="fname" id="fileName">{opening ? <>Opening <b>{opening}</b>…</> : f ? <><b>{f.name}</b> · {n} slide{n === 1 ? "" : "s"}{f.src === "upload" ? " · not in the folder" : f.src === "local" ? " · preview only" : ""}</> : "No workbook"}</div>
       <VersionPicker />
       <Others />
       <div className="spacer" />

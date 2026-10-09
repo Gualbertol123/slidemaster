@@ -1,7 +1,7 @@
 /* Table geometry tools: column widths / row heights (typed or dragged), copying sizes between tables,
    "make same size" (also across slides), horizontal alignment. Everything becomes table.patch /
    slide.patch operations (one undo step per action). */
-import { S } from "../state/store";
+import { get } from "../state/store";
 import { change, ctx } from "../state/app";
 import { buildLayout } from "../xlsx/layout";
 import type { TableLayout } from "../xlsx/types";
@@ -21,8 +21,8 @@ export function shownColW(L: TableLayout, c: number): number {
 }
 export const shownRowH = (L: TableLayout, r: number) => L.rowH.get(r)!;
 
-export function selCols(): number[] { const T = selTable(), s = S.sel; return T && s ? T.cols.filter(c => c >= s.c1 && c <= s.c2) : []; }
-export function selRows(): number[] { const T = selTable(), s = S.sel; return T && s ? T.rows.filter(r => r >= s.r1 && r <= s.r2) : []; }
+export function selCols(): number[] { const T = selTable(), s = get().selection.sel; return T && s ? T.cols.filter(c => c >= s.c1 && c <= s.c2) : []; }
+export function selRows(): number[] { const T = selTable(), s = get().selection.sel; return T && s ? T.rows.filter(r => r >= s.r1 && r <= s.r2) : []; }
 
 const tablePatch = (def: TableDef, patch: Record<string, unknown>): Op => ({ op: "table.patch", id: def.id, patch } as Op);
 type SizeMap = Record<string, number | null>;
@@ -68,7 +68,7 @@ export function stretchTable(L: TableLayout, axis: "x" | "y", f: number) {
 export interface TableRef { slide: number; i: number; L: TableLayout }
 export function allTables(): TableRef[] {
   const out: TableRef[] = [];
-  S.slides.forEach((R, slide) => R.tables.forEach((L, i) => { if (L.def) out.push({ slide, i, L }); }));
+  get().deck.slides.forEach((R, slide) => R.tables.forEach((L, i) => { if (L.def) out.push({ slide, i, L }); }));
   return out;
 }
 const uniqueDefs = (refs: TableRef[]) => { const m = new Map<string, TableLayout>(); for (const r of refs) if (!m.has(r.L.def!.id)) m.set(r.L.def!.id, r.L); return m; };
@@ -91,7 +91,7 @@ export function resetSizes(refs: TableRef[]) {
   const ops: Op[] = [...uniqueDefs(refs).values()].filter(L => { const z = tableSizes(L.def!, d); return z.cols || z.rows; }).map(L => sizePatch(L.def!, { cols: null, rows: null }));
   // the fixed scale of the slides goes too (in this design; their arrangement stays)
   for (const s of new Set(refs.map(r => r.slide))) {
-    const R = S.slides[s];
+    const R = get().deck.slides[s];
     if (sizingOf(R, c).scale) ops.push({ op: "slide.patch", id: R.id, patch: sizingChange(R, c, { scale: null }) } as Op);
   }
   if (ops.length) change("Reset table sizes", ops);
@@ -121,7 +121,7 @@ export function makeSameSize(refs: TableRef[], opts: { width: boolean; height: b
   // – all in the current design (sizes and positions are per design)
   const slides = [...new Set(refs.map(r => r.slide))];
   const tmp = slides.map(si => {
-    const R = S.slides[si], base = layoutOf(R, x);
+    const R = get().deck.slides[si], base = layoutOf(R, x);
     const w = base.w.map((v, i) => (R.tables[i].def && defs.has(R.tables[i].def!.id)) ? 1 : v);
     const lay: Layout = { bands: JSON.parse(JSON.stringify(base.bands)), w };
     const tR: RuntimeSlide = { ...R, cfg: { ...R.cfg, scale: undefined, layout: lay, sizes: { ...R.cfg.sizes, [x.style.design]: { layout: lay } } }, tables: R.tables.map(L => (L.def && newL.get(L.def.id)) || L), _auto: undefined };
@@ -133,23 +133,23 @@ export function makeSameSize(refs: TableRef[], opts: { width: boolean; height: b
   return { ok: true, why: "" };
 }
 
-export function alignTables(align: "left" | "center" | "right", slideIdx: number[] = [S.cur]) {
-  const c = ctx(), ops = slideIdx.map(i => S.slides[i]).filter(R => R && R.tables.length).map(R => ({ op: "slide.patch", id: R.id, patch: sizingChange(R, c, { align: align === "center" ? null : align }) } as Op));
+export function alignTables(align: "left" | "center" | "right", slideIdx: number[] = [get().deck.cur]) {
+  const c = ctx(), ops = slideIdx.map(i => get().deck.slides[i]).filter(R => R && R.tables.length).map(R => ({ op: "slide.patch", id: R.id, patch: sizingChange(R, c, { align: align === "center" ? null : align }) } as Op));
   if (ops.length) change("Align tables " + align, ops);
 }
 /** vertical position of the tables in the content area; null = the default (slightly above the middle) */
-export function valignTables(v: "top" | "middle" | "bottom" | null, slideIdx: number[] = [S.cur]) {
-  const c = ctx(), ops = slideIdx.map(i => S.slides[i]).filter(R => R && R.tables.length).map(R => ({ op: "slide.patch", id: R.id, patch: sizingChange(R, c, { valign: v }) } as Op));
+export function valignTables(v: "top" | "middle" | "bottom" | null, slideIdx: number[] = [get().deck.cur]) {
+  const c = ctx(), ops = slideIdx.map(i => get().deck.slides[i]).filter(R => R && R.tables.length).map(R => ({ op: "slide.patch", id: R.id, patch: sizingChange(R, c, { valign: v }) } as Op));
   if (ops.length) change(v ? "Align tables " + v : "Default vertical position", ops);
 }
-export const currentTableRefs = (): TableRef[] => (curSlide()?.tables || []).map((L, i) => ({ slide: S.cur, i, L })).filter(r => r.L.def);
+export const currentTableRefs = (): TableRef[] => (curSlide()?.tables || []).map((L, i) => ({ slide: get().deck.cur, i, L })).filter(r => r.L.def);
 
 /* ---- merge / unmerge (like Excel: the top-left value is kept) ---- */
 import { rangeKey } from "../xlsx/layout";
-export function canMerge(): boolean { const s = S.sel; return !!s && !!selTable()?.def && (s.r2 > s.r1 || s.c2 > s.c1); }
+export function canMerge(): boolean { const s = get().selection.sel; return !!s && !!selTable()?.def && (s.r2 > s.r1 || s.c2 > s.c1); }
 export function mergedInSel() { return selItems().filter(it => it.b.m); }
 export function mergeSel() {
-  const T = selTable(), s = S.sel; if (!T?.def || !s || !canMerge()) return;
+  const T = selTable(), s = get().selection.sel; if (!T?.def || !s || !canMerge()) return;
   const key = A1(s.r1, s.c1) + ":" + A1(s.r2, s.c2), cur = T.def.merges || {}, patch: Record<string, "merge" | null> = {};
   // a new merge replaces user merges inside it
   for (const [k, v] of Object.entries(cur)) if (v === "merge" && k !== key) { const g = parseRange(k); if (g.r1 <= s.r2 && g.r2 >= s.r1 && g.c1 <= s.c2 && g.c2 >= s.c1) patch[k] = null; }

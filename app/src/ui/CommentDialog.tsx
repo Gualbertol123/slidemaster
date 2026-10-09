@@ -4,8 +4,8 @@
    "Apply to all similar tables" puts the same kind of comment on every table of the deck with the same
    comparison headers (each with its own title and numbers). */
 import { useMemo, useState } from "react";
-import { S, emit, useApp, toast } from "../state/store";
-import { DLG } from "../state/dialogs";
+import { get, setDialogs, useStore, toast } from "../state/store";
+import { useCtx, useCurSlide } from "./hooks";
 import { change, ctx } from "../state/app";
 import { curSlide } from "../editor/edit";
 import { DEFAULT_COMMENT, DEFAULT_UNIT, SUMMARY_KINDS, cleanHead, defaultGroups, headingOf, prettyLabel, signatureOf, type CommentCfg, type Group } from "../model/comment";
@@ -25,9 +25,8 @@ function existing(R: RuntimeSlide, i: number): { side: Side; note: Note } | null
 }
 
 export function CommentDialog() {
-  useApp();
-  const R = curSlide(), c = ctx();
-  const start = DLG.comment?.table ?? 0;
+  const R = useCurSlide(), c = useCtx(), slides = useStore(s => s.deck.slides);
+  const start = useStore(s => s.ui.dialogs.comment?.table) ?? 0;
   const [ti, setTi] = useState(Math.min(start, Math.max(0, (R?.tables.length || 1) - 1)));
   const L = R?.tables[ti], a = useMemo(() => L ? analysisOf(L, c) : null, [L, c]);
   const old = R ? existing(R, ti) : null;
@@ -40,7 +39,7 @@ export function CommentDialog() {
   const [span, setSpan] = useState<boolean>(old ? !!old.note.span : (R?.tables.length || 0) > 1);
   const [size, setSize] = useState<number>(old?.note.w || old?.note.h || 440);
   const [bubble, setBubble] = useState(old ? !!old.note.bubble : true);
-  const close = () => { DLG.comment = null; emit(); };
+  const close = () => setDialogs({ comment: null });
   if (!R || !L || !a) return null;
   const set = (p: Partial<CommentCfg>) => setCfg({ ...cfg, ...p });
   const groups = cfg.groups.length ? cfg.groups : defaultGroups(a);
@@ -59,7 +58,7 @@ export function CommentDialog() {
   const entityLabels = [...new Set(covered.flatMap(T => analysisOf(T, c).entities.map(e => e.label)))];
   // similar tables: the same comparison headers, anywhere in the deck
   const sig = signatureOf(a);
-  const similar = sig ? S.slides.flatMap((X, si) => X.tables.map((T, i) => ({ X, si, i, T }))).filter(x => !(x.X.id === R.id && x.i === ti) && signatureOf(analysisOf(x.T, c)) === sig) : [];
+  const similar = sig ? slides.flatMap((X, si) => X.tables.map((T, i) => ({ X, si, i, T }))).filter(x => !(x.X.id === R.id && x.i === ti) && signatureOf(analysisOf(x.T, c)) === sig) : [];
 
   const noteFor = (keep: Note | undefined, own: boolean): Note => {
     const auto: CommentCfg = { ...cfg, groups };
@@ -83,7 +82,7 @@ export function CommentDialog() {
     const add = (X: RuntimeSlide, i: number, own: boolean) => bySlide.set(X.id, { ...(bySlide.get(X.id) || {}), ...opsFor(X, i, own) });
     add(R, ti, true);
     if (all) for (const x of similar) add(x.X, x.i, false);
-    const replacing = [...bySlide.entries()].some(([id, m]) => { const X = S.slides.find(s => s.id === id)!; return Object.keys(m).some(k => X.cfg.notes?.[k] && !X.cfg.notes[k].auto && X.cfg.notes[k].text.trim()); });
+    const replacing = [...bySlide.entries()].some(([id, m]) => { const X = get().deck.slides.find(s => s.id === id)!; return Object.keys(m).some(k => X.cfg.notes?.[k] && !X.cfg.notes[k].auto && X.cfg.notes[k].text.trim()); });
     if (replacing) { toast("A text box with your own text is already there – pick another side, or delete that text box first.", [], true); return; }
     change(all ? `Comments on ${similar.length + 1} tables` : "Automated comment", [...bySlide.entries()].map(([id, notes]) => ({ op: "slide.patch", id, patch: { notes } } as Op)));
     close();

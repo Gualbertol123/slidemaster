@@ -1,8 +1,8 @@
 /* Editing wizard — 1 Sheets · 2 Tables · 3 Slides · 4 Versions (named versions with removed cells).
    v3: cover and index are ordinary entries of the slide list and can be moved like any slide. */
 import { useEffect, useRef, useState } from "react";
-import { DLG, confirmBox, alertBox, type WizardReq } from "../state/dialogs";
-import { showBusy, hideBusy } from "../state/store";
+import { confirmBox, alertBox, type WizardReq } from "../state/dialogs";
+import { get, showBusy, hideBusy } from "../state/store";
 import { A1, esc, fmtMB, numToCol, uid } from "../xlsx/util";
 import { formatValue } from "../xlsx/numfmt";
 import type { Sheet } from "../xlsx/types";
@@ -51,7 +51,7 @@ export function Wizard({ req }: { req: WizardReq }) {
     const key = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       if (t.closest && t.closest(".wgrid-in") && W.sel) return;            // Escape in the grid clears the selection first
-      if (e.key === "Escape" && !DLG.dialog && !t.matches("input")) { e.stopPropagation(); void askClose(); }
+      if (e.key === "Escape" && !get().ui.dialogs.dialog && !t.matches("input")) { e.stopPropagation(); void askClose(); }
     };
     document.addEventListener("keydown", key, true); return () => document.removeEventListener("keydown", key, true);
   }, []);

@@ -5,7 +5,7 @@
    and undo typing in the wizard's boxes, which store the text without re-rendering.
    `onCommit` is the browser's own `change` event (when a colour picker closes, or a box is left after an
    edit); React's `onChange` fires on every input. */
-import { useEffect, useLayoutEffect, useRef, type InputHTMLAttributes } from "react";
+import { useLayoutEffect, useRef, type InputHTMLAttributes } from "react";
 
 type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "checked" | "defaultChecked"> & {
   value?: string | number; checked?: boolean; onCommit?: (e: Event) => void;
@@ -18,7 +18,9 @@ export function Input({ value, checked, onCommit, defaultValue, ...rest }: Props
     if (value !== undefined && el.value !== String(value)) el.value = String(value);
     if (checked !== undefined && el.checked !== checked) el.checked = checked;
   });
-  useEffect(() => {
+  // attached as soon as the element exists (a layout effect): a passive effect can run a frame later, and
+  // a change that comes before it would be lost
+  useLayoutEffect(() => {
     const el = ref.current; if (!el) return;
     const f = (e: Event) => commit.current?.(e);
     el.addEventListener("change", f);

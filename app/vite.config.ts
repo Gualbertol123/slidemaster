@@ -2,8 +2,8 @@ import { defineConfig } from "vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
 
 // The components are written against the React API; until S1.4 (PLAN M1) Preact runs them through
-// preact/compat. The same aliases serve the build and Vitest.
-const alias = [
+// preact/compat. The same aliases serve the build and the unit tests (vitest.config.ts).
+export const alias = [
   { find: /^react-dom\/client$/, replacement: "preact/compat/client" },
   { find: /^react\/jsx-runtime$/, replacement: "preact/compat/jsx-runtime" },
   { find: /^react\/jsx-dev-runtime$/, replacement: "preact/compat/jsx-dev-runtime" },
@@ -25,5 +25,4 @@ export default defineConfig({
     rollupOptions: { input: "slide_builder.html" },
     reportCompressedSize: false,
   },
-  test: { environment: "node", include: ["tests/**/*.test.ts"] },
 } as any);

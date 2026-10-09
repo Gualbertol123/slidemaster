@@ -1,8 +1,8 @@
 /* First toolbar row: TEXT. One set of controls for every text on a slide – table cells, text boxes,
    titles, subtitles, the cover note and date. They act on what is selected (named at the left); the
    row never changes shape. Deck-wide text styles and the font library: "Text styles…". */
-import { S, useApp } from "../state/store";
-import { ctx, undo } from "../state/app";
+import { get, useStore } from "../state/store";
+import { undo } from "../state/app";
 import { activeItem, applySel, commitText, curSlide, selItems, editOf } from "../editor/edit";
 import { startPainter, stopPainter } from "../editor/painter";
 import { SLIDE_TEXT_LABEL, stepSize, textTarget, type Align, type TextTarget, type VAlign } from "../editor/textfmt";
@@ -12,6 +12,7 @@ import { Dropdown } from "./Dropdown";
 import { Field } from "./Field";
 import { FontPicker, openFontManager } from "./FontPicker";
 import { Input } from "./Input";
+import { useCtx, useCurSlide } from "./hooks";
 
 const FILLS: [string, string][] = [["#34C759", "Green (positive)"], ["#FF3B30", "Red (negative)"], ["#FF9500", "Orange"], ["#FFCC00", "Yellow"], ["#007AFF", "Blue"], ["#5856D6", "Indigo"],
   ["#AF52DE", "Purple"], ["#30B0C7", "Teal"], ["#8E8E93", "Grey"], ["#D1D1D6", "Light grey"], ["#0B4F97", "Navy"], ["#FFFFFF", "White"]];
@@ -48,19 +49,22 @@ const ALIGN_ICON: Record<Align, string> = { left: "M2 3.5h12M2 6.5h8M2 9.5h12M2 
 const VALIGN_ICON: Record<VAlign, string> = { top: "M2 2.5h12M8 5v8M5.5 7.5 8 5l2.5 2.5", middle: "M2 8h12M8 1.5v4M8 10.5v4M6 3.5l2 2 2-2M6 12.5l2-2 2 2", bottom: "M2 13.5h12M8 3v8M5.5 8.5 8 11l2.5-2.5" };
 
 export function Ribbon() {
-  useApp();
+  const canUndo = useStore(s => s.deck.undo.length > 0), canRedo = useStore(s => s.deck.redo.length > 0);
+  const painter = useStore(s => !!s.selection.painter), open = useStore(s => !!s.doc.sync);
+  useStore(s => s.selection); useCurSlide();                 // what the text target is computed from
+  const c = useCtx();
   const t = textTarget(), has = !!t, f = t?.shown, cells = t?.kind === "cells";
-  const fillSw = cells ? (() => { const x = effFmt(ctx(), activeItem()!); return x.bg && x.bg !== "none" ? x.bg : x.fill && x.fill !== "none" ? x.fill : null; })() : null;
+  const fillSw = cells ? (() => { const x = effFmt(c, activeItem()!); return x.bg && x.bg !== "none" ? x.bg : x.fill && x.fill !== "none" ? x.fill : null; })() : null;
   const tb = ({ active, off, ...props }: Record<string, unknown>) => ({ className: "tb" + (active ? " on" : ""), disabled: !has || !!off, ...props });
   return (
     <nav className="ribbon">
       <div className="grp">
-        <button className="tb" id="undoBtn" title="Undo (Ctrl+Z) – only your own changes" disabled={!S.undo.length} onClick={() => undo(false)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5.5 3.5 2.5 6.5l3 3" /><path d="M2.5 6.5h7a4 4 0 0 1 0 8H7" /></svg></button>
-        <button className="tb" id="redoBtn" title="Redo (Ctrl+Y)" disabled={!S.redo.length} onClick={() => undo(true)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m10.5 3.5 3 3-3 3" /><path d="M13.5 6.5h-7a4 4 0 0 0 0 8H9" /></svg></button>
+        <button className="tb" id="undoBtn" title="Undo (Ctrl+Z) – only your own changes" disabled={!canUndo} onClick={() => undo(false)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5.5 3.5 2.5 6.5l3 3" /><path d="M2.5 6.5h7a4 4 0 0 1 0 8H7" /></svg></button>
+        <button className="tb" id="redoBtn" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={() => undo(true)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m10.5 3.5 3 3-3 3" /><path d="M13.5 6.5h-7a4 4 0 0 0 0 8H9" /></svg></button>
       </div>
       <div className="grp textgrp">
         <span className={"target" + (t ? " on" : "")} id="textTarget" title={t ? "The text controls change: " + t.label : "Click a cell, a text box, a title or a subtitle on the slide"}>{t ? t.label : "No text selected"}</span>
-        <FontPicker id="fontBtn" disabled={!has} value={f?.font ?? null} placeholder={cells && ctx().style.design === "excel" ? "Font from Excel" : "Design font"}
+        <FontPicker id="fontBtn" disabled={!has} value={f?.font ?? null} placeholder={cells && c.style.design === "excel" ? "Font from Excel" : "Design font"}
           title="Font (more fonts: Google Fonts or your own files)" onPick={v => t?.apply("Font", { font: v })} />
         <button {...tb({ id: "sizeDown", title: "Smaller text" })} onClick={() => stepSize(-1)}>A−</button>
         <Field className="sizebox" id="sizeBox" disabled={!has} title="Text size in points (Enter to apply)" value={f?.pt != null ? String(f.pt) : ""}
@@ -92,12 +96,12 @@ export function Ribbon() {
       </div>
       <div className="grp">
         <button {...tb({ id: "clearFmt", title: "Remove your formatting from the selected text (back to the text style)" })} onClick={() => t?.clear()}>Clear format</button>
-        <button className={"tb" + (S.painter ? " on" : "")} id="painterBtn" disabled={!cells && !S.painter} title="Copy the format of table cells: click, then click or drag over the cells to paste. Double-click to paste several times; Esc stops."
-          onClick={() => S.painter ? stopPainter() : startPainter(false)} onDoubleClick={() => startPainter(true)}>
+        <button className={"tb" + (painter ? " on" : "")} id="painterBtn" disabled={!cells && !painter} title="Copy the format of table cells: click, then click or drag over the cells to paste. Double-click to paste several times; Esc stops."
+          onClick={() => painter ? stopPainter() : startPainter(false)} onDoubleClick={() => startPainter(true)}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="2" y="1.5" width="10" height="4" rx="1" /><path d="M12 3.5h1.5v3.5H7.5v2" /><rect x="6" y="9.5" width="3" height="5" rx="1" /></svg>Format</button>
       </div>
       <div className="grp">
-        <button className="tb" id="textStylesBtn" disabled={!S.sync} title="Fonts, sizes and colours of ALL titles, subtitles, tables, text boxes, contents and page numbers in this deck – and the font library" onClick={() => openFontManager("styles")}>
+        <button className="tb" id="textStylesBtn" disabled={!open} title="Fonts, sizes and colours of ALL titles, subtitles, tables, text boxes, contents and page numbers in this deck – and the font library" onClick={() => openFontManager("styles")}>
           <span className="aa">Aa</span>Text styles…</button>
       </div>
     </nav>
@@ -105,10 +109,10 @@ export function Ribbon() {
 }
 
 export function FxBar() {
-  useApp();
-  const R = curSlide(), it = activeItem(), its = selItems(), sel = S.sel;
+  const sel = useStore(s => s.selection.sel), R = useCurSlide(), c = useCtx();
+  const it = activeItem(), its = selItems();
   const name = it && sel ? it.L!.sheet.name + "!" + (its.length > 1 ? `${A1(sel.r1, sel.c1)}:${A1(sel.r2, sel.c2)}` : keyOf(it)) : R ? "—" : "";
-  const value = it ? effText(ctx(), it) : "";
+  const value = it ? effText(c, it) : "";
   const edited = selItems().some(x => editOf(x).text !== undefined);
   return (
     <div className="fxbar">
@@ -126,11 +130,11 @@ export function FxBar() {
 }
 
 export function selStatus(): string {
-  const R = curSlide(), it = activeItem(), its = selItems();
+  const R = curSlide(), it = activeItem(), its = selItems(), { selection: { noteSel, textSel }, deck } = get();
   if (!R) return "";
-  if (S.noteSel) return "Text box selected · double-click or Enter to write · Del removes it";
-  if (S.textSel) return `${SLIDE_TEXT_LABEL[S.textSel]} selected · double-click or Enter to edit the text`;
-  if (!it) return `Slide ${S.cur + 1} of ${S.slides.length}`;
+  if (noteSel) return "Text box selected · double-click or Enter to write · Del removes it";
+  if (textSel) return `${SLIDE_TEXT_LABEL[textSel]} selected · double-click or Enter to edit the text`;
+  if (!it) return `Slide ${deck.cur + 1} of ${deck.slides.length}`;
   const e = editOf(it);
   return `${its.length} cell${its.length > 1 ? "s" : ""} selected` + (e.text !== undefined && e.orig !== it.text ? " · text edit paused (Excel value changed)" : e.text !== undefined ? ` · Excel value: “${it.text}”` : "");
 }

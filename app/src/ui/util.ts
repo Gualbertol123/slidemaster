@@ -1,2 +1,2 @@
-import { S } from "../state/store";
-export const presetOf = () => S.sync?.view.preset || null;
+import { get } from "../state/store";
+export const presetOf = () => get().doc.view?.preset || null;

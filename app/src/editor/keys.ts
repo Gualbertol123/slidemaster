@@ -1,6 +1,5 @@
 /* Excel-like keyboard. */
-import { S } from "../state/store";
-import { DLG } from "../state/dialogs";
+import { get } from "../state/store";
 import { gotoSlide, undo } from "../state/app";
 import { clearSel, clearText, moveSel, selectAll } from "./edit";
 import { editSelectedText, openInline, patchNote, selectNote } from "./stage";
@@ -9,31 +8,32 @@ import { stopPainter } from "./painter";
 
 export function installKeys() {
   document.addEventListener("keydown", e => {
-    if (DLG.dialog || DLG.wizard || DLG.installer || DLG.tables || DLG.textStyles || DLG.comment) return;
+    const D = get().ui.dialogs;
+    if (D.dialog || D.wizard || D.installer || D.tables || D.textStyles || D.comment) return;
     const t = e.target as HTMLElement;
     const inField = t.matches("input,select,textarea");
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
     if (mod && k === "z" && !inField) { e.preventDefault(); undo(e.shiftKey); return; }
     if (mod && k === "y" && !inField) { e.preventDefault(); undo(true); return; }
-    if (mod && k === "s") { e.preventDefault(); void S.sync?.flush(); return; }
-    if (inField || !S.slides.length) return;
-    if (e.key === "Escape" && S.painter) { stopPainter(); return; }
-    if (e.key === "PageDown" || (e.key === "ArrowDown" && e.altKey)) { e.preventDefault(); gotoSlide(S.cur + 1); return; }
-    if (e.key === "PageUp" || (e.key === "ArrowUp" && e.altKey)) { e.preventDefault(); gotoSlide(S.cur - 1); return; }
-    if ((S.noteSel || S.textSel) && !S.sel) {
+    if (mod && k === "s") { e.preventDefault(); void get().doc.sync?.flush(); return; }
+    if (inField || !get().deck.slides.length) return;
+    if (e.key === "Escape" && get().selection.painter) { stopPainter(); return; }
+    if (e.key === "PageDown" || (e.key === "ArrowDown" && e.altKey)) { e.preventDefault(); gotoSlide(get().deck.cur + 1); return; }
+    if (e.key === "PageUp" || (e.key === "ArrowUp" && e.altKey)) { e.preventDefault(); gotoSlide(get().deck.cur - 1); return; }
+    if ((get().selection.noteSel || get().selection.textSel) && !get().selection.sel) {
       if (mod && k === "b") { e.preventDefault(); toggleBold(); return; }
       if (mod && k === "i") { e.preventDefault(); toggleItalic(); return; }
-      if (S.textSel) {
+      if (get().selection.textSel) {
         if (e.key === "Escape") { selectSlideText(null); return; }
         if (e.key === "Enter" || e.key === "F2") { e.preventDefault(); editSelectedText(); }
         return;
       }
       if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); patchNote("Remove text box", null); return; }
       if (e.key === "Escape") { selectNote(null); return; }
-      if (e.key === "Enter" || e.key === "F2") { e.preventDefault(); document.querySelector<HTMLElement>(`#stage .tnote[data-note="${CSS.escape(S.noteSel!)}"]`)?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); return; }
+      if (e.key === "Enter" || e.key === "F2") { e.preventDefault(); document.querySelector<HTMLElement>(`#stage .tnote[data-note="${CSS.escape(get().selection.noteSel!)}"]`)?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); return; }
       return;
     }
-    if (!S.sel) return;
+    if (!get().selection.sel) return;
     if (mod && k === "b") { e.preventDefault(); toggleBold(); return; }
     if (mod && k === "i") { e.preventDefault(); toggleItalic(); return; }
     if (mod && k === "a") { e.preventDefault(); selectAll(); return; }

@@ -2,7 +2,7 @@
    the title, the subtitle, the cover note or date – is a "text target" with the same formatting
    actions; the toolbar never changes shape depending on the selection. Sizes are shown in points
    (as in Excel and PowerPoint): cells store points, slide texts store slide pixels (1 pt = 4/3 px). */
-import { S, emit, STAGE } from "../state/store";
+import { get, patch } from "../state/store";
 import { change, ctx } from "../state/app";
 import type { Note, Op, SlideTextKey, TextFmt } from "../model/types";
 import { effFmt } from "../render/edits";
@@ -36,9 +36,7 @@ const one = <T>(xs: T[]): T | null => xs.length && xs.every(x => x === xs[0]) ? 
 
 /* ---- slide texts (title, subtitle, cover note, date) ---- */
 export function selectSlideText(key: SlideTextKey | null) {
-  S.textSel = key;
-  if (key) { S.sel = null; S.noteSel = null; }
-  STAGE.paintSel(); emit();
+  patch("selection", key ? { textSel: key, sel: null, noteSel: null } : { textSel: key });     // the stage paints it
 }
 function domOf(key: SlideTextKey) { return document.querySelector<HTMLElement>(`#stage .slide [data-edit="${key}"]`); }
 
@@ -94,7 +92,7 @@ function noteTarget(key: string): TextTarget | null {
 
 /* ---- table cells ---- */
 function cellTarget(): TextTarget | null {
-  const its = selItems(), sel = S.sel, T = curSlide()?.tables[sel?.t ?? -1]; if (!its.length || !sel || !T) return null;
+  const its = selItems(), sel = get().selection.sel, T = curSlide()?.tables[sel?.t ?? -1]; if (!its.length || !sel || !T) return null;
   const c = ctx(), fs = its.map(x => effFmt(c, x)), deck = c.style.text?.table?.font || null;
   const shown: Shown = { font: one(fs.map(f => f.font || deck)), pt: one(fs.map(f => f.sz)), b: fs.every(f => f.b), i: fs.every(f => f.i),
     color: one(fs.map(f => f.color)), align: one(fs.map(f => f.align)) as Align | null, valign: null };
@@ -117,9 +115,10 @@ function cellTarget(): TextTarget | null {
 
 /** the text the formatting controls act on, or null when nothing is selected */
 export function textTarget(): TextTarget | null {
-  if (S.sel) return cellTarget();
-  if (S.noteSel) return noteTarget(S.noteSel);
-  if (S.textSel) return slideTarget(S.textSel);
+  const { sel, noteSel, textSel } = get().selection;
+  if (sel) return cellTarget();
+  if (noteSel) return noteTarget(noteSel);
+  if (textSel) return slideTarget(textSel);
   return null;
 }
 /** A−/A+: cells change one by one (each keeps its own size relation), other texts as one */

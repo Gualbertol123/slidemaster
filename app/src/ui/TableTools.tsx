@@ -1,10 +1,9 @@
 /* Second toolbar row: LAYOUT – table cells (size, role, merge, colour scale), tables on the slide,
    text boxes around tables, slide options. Text formatting lives in the first row only. */
 import { useState } from "react";
-import { S, emit, useApp, toast } from "../state/store";
-import { change, ctx, style } from "../state/app";
-import { DLG } from "../state/dialogs";
-import { applySel, curSlide, selItems, selTable } from "../editor/edit";
+import { setDialogs, useStore, toast } from "../state/store";
+import { change } from "../state/app";
+import { applySel, selItems, selTable } from "../editor/edit";
 import { effFmt } from "../render/edits";
 import { sizingOf, sizingPatch, slideHasLogo } from "../render/slide";
 import { alignTables, canMerge, mergeSel, mergedInSel, unmergeSel, valignTables, currentTableRefs, makeSameSize, selCols, selRows, setColWidth, setRowHeight, shownColW, shownRowH } from "../editor/tables";
@@ -13,6 +12,7 @@ import { scaleColors } from "../render/scales";
 import { A1, uid, esc } from "../xlsx/util";
 import type { Op, ScaleRule, Side } from "../model/types";
 import { Dropdown } from "./Dropdown";
+import { useCtx, useCurSlide, useStyle } from "./hooks";
 
 const uniq = (a: number[]) => [...new Set(a.map(v => Math.round(v)))];
 
@@ -25,7 +25,7 @@ function SizeBox({ label, title, values, disabled, onSet }: { label: string; tit
 }
 
 function ScaleMenu({ close }: { close: () => void }) {
-  const T = selTable(), sel = S.sel;
+  const T = selTable(), sel = useStore(s => s.selection.sel);
   const [dir, setDir] = useState<ScaleRule["dir"]>("col"), [mode, setMode] = useState<ScaleRule["mode"]>("zero");
   const [fill, setFill] = useState(true), [ink, setInk] = useState(false), [invert, setInvert] = useState(false);
   const rules = Object.entries(T?.def?.scales || {});
@@ -67,12 +67,13 @@ function GridMenu({ close, T }: { close: () => void; T: import("../xlsx/types").
 const ROLES = [["auto", "Auto", "Detected from the Excel formatting"], ["header", "Header", "Column/row header"], ["total", "Total", "Highlighted total (tile)"], ["body", "Body", "Normal data"], ["caption", "Note", "Small note"]] as const;
 
 export function TableRibbon() {
-  useApp();
-  const R = curSlide(), T = selTable(), cols = selCols(), rows = selRows(), hasSel = !!(T && S.sel), its = selItems();
-  const tIdx = S.sel ? S.sel.t : (R && R.tables.length === 1 ? 0 : -1);
-  const note = S.noteSel ? noteOf(S.noteSel) : null;
-  const roles = new Set(its.map(x => effFmt(ctx(), x).role)), role = roles.size === 1 ? [...roles][0] : null;
-  const logoOn = !!R && slideHasLogo(R), logoName = style().logo.trim();
+  const sel = useStore(s => s.selection.sel), noteSel = useStore(s => s.selection.noteSel), anyTables = useStore(s => s.deck.slides.some(x => x.tables.length));
+  const R = useCurSlide(), c = useCtx(), st = useStyle();
+  const T = selTable(), cols = selCols(), rows = selRows(), hasSel = !!(T && sel), its = selItems();
+  const tIdx = sel ? sel.t : (R && R.tables.length === 1 ? 0 : -1);
+  const note = noteSel ? noteOf(noteSel) : null;
+  const roles = new Set(its.map(x => effFmt(c, x).role)), role = roles.size === 1 ? [...roles][0] : null;
+  const logoOn = !!R && slideHasLogo(R), logoName = st.logo.trim();
   const slidePatch = (label: string, patch: Record<string, unknown>) => R && change(label, [{ op: "slide.patch", id: R.id, patch } as Op]);
   const addNote = (side: Side) => {
     if (!R || tIdx < 0) { toast("Click a cell of the table first."); return; }
@@ -81,9 +82,9 @@ export function TableRibbon() {
     change("Add text box", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: { text: "" } } } } as Op]);
     setTimeout(() => document.querySelector<HTMLElement>(`#stage .tnote[data-note="${CSS.escape(key)}"]`)?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })), 120);
   };
-  const sz = R ? sizingOf(R, ctx()) : null, align = sz?.align || "center";
+  const sz = R ? sizingOf(R, c) : null, align = sz?.align || "center";
   // raw Excel shows the workbook only: no text boxes, no comments
-  const raw = style().design === "excel", rawTip = "Excel shows the workbook as it is – text boxes and comments are in Excel Refined and Liquid Glass";
+  const raw = st.design === "excel", rawTip = "Excel shows the workbook as it is – text boxes and comments are in Excel Refined and Liquid Glass";
   return (
     <nav className="ribbon ribbon2">
       <div className="grp" title="Size of the selected columns and rows, in table pixels (Excel at 100 %). Or drag a border on the slide; double-click a border for the Excel size.">
@@ -117,8 +118,8 @@ export function TableRibbon() {
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="gridBtn" disabled={!(tIdx >= 0 && R?.tables[tIdx]?.def)} title="Add or remove horizontal / vertical gridlines of the table" onClick={t}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="1.5" y="2.5" width="13" height="11" /><path d="M1.5 6.2h13M1.5 9.8h13M5.8 2.5v11M10.2 2.5v11" /></svg>Gridlines</button>}>
           {close => R && tIdx >= 0 ? <GridMenu close={close} T={R.tables[tIdx]} /> : null}</Dropdown>
-        <button className="tb" id="tablesDlg" disabled={!S.slides.some(x => x.tables.length)} title="Match sizes of tables on several slides, copy column widths between tables" onClick={() => { DLG.tables = true; emit(); }}>Sizes…</button>
-        <button className="tb" id="resetLayout" title="Automatic table positions for this slide (in this design)" disabled={!(R && sizingOf(R, ctx()).layout)} onClick={() => R && slidePatch("Reset layout", sizingPatch(R, ctx(), { scale: sizingOf(R, ctx()).scale }))}>Reset layout</button>
+        <button className="tb" id="tablesDlg" disabled={!anyTables} title="Match sizes of tables on several slides, copy column widths between tables" onClick={() => setDialogs({ tables: true })}>Sizes…</button>
+        <button className="tb" id="resetLayout" title="Automatic table positions for this slide (in this design)" disabled={!(R && sizingOf(R, c).layout)} onClick={() => R && slidePatch("Reset layout", sizingPatch(R, c, { scale: sizingOf(R, c).scale }))}>Reset layout</button>
       </div>
       <div className="grp">
         <span className="lbl">Text box</span>
@@ -126,8 +127,8 @@ export function TableRibbon() {
           {sd === "top" ? "↑" : sd === "bottom" ? "↓" : sd === "left" ? "←" : "→"}</button>)}
         <button className={"tb" + (note?.bubble ? " on" : "")} id="noteBubble" disabled={!note} title="Bubble around the selected text box, like the tables (glass card / framed box)" onClick={() => note && patchNote(note.bubble ? "Text box without bubble" : "Text box in a bubble", { bubble: !note.bubble })}>◯</button>
         <button className={"tb" + (note?.auto ? " on" : "")} id="commentBtn" disabled={!R || !R.tables.length || raw} title={raw ? rawTip : "Automated comment: a commentary written from the table's numbers (headline, main contributors, downside), updated when the numbers change"}
-          onClick={() => { DLG.comment = { table: S.noteSel ? Math.max(0, R!.tables.findIndex(t => (t.id || "") === S.noteSel!.split(":")[0])) : Math.max(0, tIdx) }; emit(); }}>✎ Comment…</button>
-        <button className="tb" id="noteAttach" disabled={!(note && note.x != null) || S.noteSel === "slide:notes"} title="Put the moved text box back next to its table (drag a text box to place it anywhere)" onClick={attachNote}>⤺ Attach</button>
+          onClick={() => setDialogs({ comment: { table: noteSel ? Math.max(0, R!.tables.findIndex(t => (t.id || "") === noteSel.split(":")[0])) : Math.max(0, tIdx) } })}>✎ Comment…</button>
+        <button className="tb" id="noteAttach" disabled={!(note && note.x != null) || noteSel === "slide:notes"} title="Put the moved text box back next to its table (drag a text box to place it anywhere)" onClick={attachNote}>⤺ Attach</button>
         <button className="tb" id="noteDelete" disabled={!note} title="Delete the selected text box (Del)" onClick={() => patchNote("Remove text box", null)}>🗑</button>
       </div>
       <div className="grp">
