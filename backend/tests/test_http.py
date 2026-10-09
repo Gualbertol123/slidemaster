@@ -244,6 +244,27 @@ class HttpTests(HttpBase):
         for bad in ("/files/..%2F..%2Fetc%2Fpasswd", "/files/../slide_builder.py", "/files/slide_builder.py", "/files/%2Fetc%2Fpasswd"):
             self.assertIn(self.req("GET", bad)[0], (403, 404), bad)
 
+    def test_burst_of_connections_is_not_refused(self):
+        """a page asks for fonts, pictures and a save at once: no connection may wait for a TCP retry (>= 1 s)"""
+        import socket
+        import threading
+        took = []
+
+        def one():
+            t = time.time()
+            s = socket.create_connection(("127.0.0.1", self.port), timeout=30)
+            s.sendall(b"GET /api/ping HTTP/1.0\r\nHost: 127.0.0.1:%d\r\n\r\n" % self.port)
+            s.recv(1000)
+            s.close()
+            took.append(time.time() - t)
+        threads = [threading.Thread(target=one) for _ in range(60)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(len(took), 60)
+        self.assertLess(max(took), 0.9, "a connection waited for a SYN retry: the listen backlog is too small")
+
     def test_incomplete_workbook_is_503(self):
         with open(os.path.join(paths.ROOT, "Half.xlsx"), "wb") as f:
             f.write(make_xlsx_bytes()[:-40])

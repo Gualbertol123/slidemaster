@@ -497,6 +497,10 @@ class Handler(BaseHTTPRequestHandler):
 class Server(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
+    # socketserver listens with a backlog of 5: a page that asks for fonts, pictures and a save at once
+    # overflowed it, and a refused connection is only retried by the PC after 1, 2, 4 ... s (a save then
+    # stayed "Unsaved changes" for seconds). The operating system caps this value anyway.
+    request_queue_size = 128
 
 
 def make_server(port, app=None, host="127.0.0.1"):
