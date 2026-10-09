@@ -1,0 +1,22 @@
+{"scale":1,"w":1600,"h":900,"slide":1,"label":"SLIDE","items":[
+{"cls":"title","x":54,"y":16,"w":1396,"h":61.6,"text":"A macro-enabled workbook","font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"44px","weight":"700","color":"rgb(28, 79, 140)"},
+{"cls":"tw","x":623,"y":194.6,"w":354,"h":200,"font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"13px","weight":"400","color":"rgb(29, 29, 31)"},
+{"cls":"t","x":623,"y":194.6,"w":118,"h":40,"text":"Name","font":"Calibri, \"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"14.67px","weight":"700","color":"rgb(255, 255, 255)","style":"italic"},
+{"cls":"t","x":741,"y":194.6,"w":118,"h":40,"text":"Q1","font":"Calibri, \"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"14.67px","weight":"700","color":"rgb(255, 255, 255)","style":"italic"},
+{"cls":"t ov","x":859,"y":194.6,"w":118,"h":40,"text":"Q2","font":"Calibri, \"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"14.67px","weight":"700","color":"rgb(255, 255, 255)","style":"italic"},
+{"cls":"t","x":623,"y":234.6,"w":118,"h":40,"text":"Line 1","font":"Calibri, \"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"14.67px","weight":"400","color":"rgb(0, 0, 0)"},
+{"cls":"t","x":741,"y":234.6,"w":118,"h":40,"text":"100","font":"Calibri, \"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"14.67px","weight":"400","color":"rgb(0, 0, 0)"},
+{"cls":"t","x":859,"y":234.6,"w":118,"h":40,"text":"95","font":"Calibri, \"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"14.67px","weight":"400","color":"rgb(0, 0, 0)"},
+{"cls":"t","x":623,"y":274.6,"w":118,"h":40,"text":"Line 2","font":"Calibri, \"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"14.67px","weight":"400","color":"rgb(0, 0, 0)"},
+{"cls":"t","x":741,"y":274.6,"w":118,"h":40,"text":"107","font":"Calibri, \"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"14.67px","weight":"400","color":"rgb(0, 0, 0)"},
+{"cls":"t","x":859,"y":274.6,"w":118,"h":40,"text":"104","font":"Calibri, \"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"14.67px","weight":"400","color":"rgb(0, 0, 0)"},
+{"cls":"t","x":623,"y":314.6,"w":118,"h":40,"text":"Line 3","font":"Calibri, \"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"14.67px","weight":"400","color":"rgb(0, 0, 0)"},
+{"cls":"t","x":741,"y":314.6,"w":118,"h":40,"text":"114","font":"Calibri, \"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"14.67px","weight":"400","color":"rgb(0, 0, 0)"},
+{"cls":"t","x":859,"y":314.6,"w":118,"h":40,"text":"113","font":"Calibri, \"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"14.67px","weight":"400","color":"rgb(0, 0, 0)"},
+{"cls":"t","x":623,"y":354.6,"w":118,"h":40,"text":"Line 4","font":"Calibri, \"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"14.67px","weight":"400","color":"rgb(0, 0, 0)"},
+{"cls":"t","x":741,"y":354.6,"w":118,"h":40,"text":"121","font":"Calibri, \"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"14.67px","weight":"400","color":"rgb(0, 0, 0)"},
+{"cls":"t","x":859,"y":354.6,"w":118,"h":40,"text":"122","font":"Calibri, \"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"14.67px","weight":"400","color":"rgb(0, 0, 0)"},
+{"cls":"edge t","x":623,"y":183.6,"w":354,"h":10,"text":"","font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"13px","weight":"400","color":"rgb(29, 29, 31)"},
+{"cls":"logowrap","x":1466,"y":854,"w":96,"h":32,"font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"13px","weight":"400","color":"rgb(29, 29, 31)"},
+{"cls":"logo","x":1466,"y":854,"w":96,"h":32,"font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"13px","weight":"400","color":"rgb(29, 29, 31)"}
+]}

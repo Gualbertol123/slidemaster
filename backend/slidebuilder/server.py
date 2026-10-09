@@ -29,7 +29,7 @@ from .installer import install_status, start_install
 from .locks import LockTimeout
 from .store import StoreTooNew, StoreUnreadable
 from .util import WriteFailed, current_host, current_user, log, open_with_os, safe_component, safe_path, valid_workbook_name, write_atomic
-from .workbooks import Unstable, find_workbook, list_workbooks, stable_read
+from .workbooks import Unstable, find_workbook, list_workbooks, stable_read, stat_workbook
 
 JSON_LIMIT = 2 * 1024 * 1024
 BIG_LIMIT = 300 * 1024 * 1024
@@ -85,7 +85,7 @@ LOGO_MAX = 10 * 1024 * 1024
 
 def asset_dirs():
     """where pictures such as the logo are looked for: data/assets (chosen in the app), backend, the main folder"""
-    return [paths.data_dir("assets"), paths.BACKEND, paths.ROOT]
+    return [paths.data_dir("assets"), paths.HOME_BACKEND, paths.ROOT]
 
 
 def find_asset(name):
@@ -298,6 +298,8 @@ class Handler(BaseHTTPRequestHandler):
     def _get(self, path, q):
         if path in ("/", "/index.html", "/slide_builder.html"):
             return self._page()
+        if path in ("/fieldcheck", "/fieldcheck.html"):            # field test page (PLAN S0.6), same origin as the app
+            return self._fieldcheck()
         if path == "/api/ping":
             return self._send(200, {"app": APP_NAME, "version": VERSION})
         if path == "/api/health":
@@ -309,6 +311,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"user": current_user(), "host": current_host(), "prefs": store.read_prefs()})
         if path == "/api/files":
             return self._send(200, {"workbooks": list_workbooks(), "folder": paths.ROOT})
+        if path.startswith("/api/files/") and path.endswith("/stat"):
+            return self._send(200, stat_workbook(urllib.parse.unquote(path[len("/api/files/"):-len("/stat")])))
         if path == "/api/engine/install":
             return self._send(200, install_status())
         if path == "/api/fonts":
@@ -349,6 +353,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(503, NOT_BUILT, "text/html; charset=utf-8")
         html = html.replace(TOKEN_PLACEHOLDER, self.app.token.encode("ascii"))
         return self._send(200, html, "text/html; charset=utf-8")
+
+    def _fieldcheck(self):
+        """tools/fieldcheck.html next to the program (a checkout or a release folder; 404 when absent)"""
+        with open(os.path.join(os.path.dirname(paths.BACKEND), "tools", "fieldcheck.html"), "rb") as f:
+            return self._send(200, f.read(), "text/html; charset=utf-8")
 
     def _workbook_file(self, name):
         p = find_workbook(name)
@@ -497,6 +506,10 @@ class Handler(BaseHTTPRequestHandler):
 class Server(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
+    # socketserver listens with a backlog of 5: a page that asks for fonts, pictures and a save at once
+    # overflowed it, and a refused connection is only retried by the PC after 1, 2, 4 ... s (a save then
+    # stayed "Unsaved changes" for seconds). The operating system caps this value anyway.
+    request_queue_size = 128
 
 
 def make_server(port, app=None, host="127.0.0.1"):

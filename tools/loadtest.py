@@ -9,7 +9,18 @@ drives them over HTTP the way the app does:
   edits are queued and sent like the app's DocSync: 300 ms debounce, one request in flight, the
   operations queued meanwhile go in the next batch, failures are retried with 2-32 s back-off;
 * ``GET .../doc?since=<rev>`` every 3 s (skipped while a save is in flight, like the app);
-* ``POST /api/presence`` every 10 s.
+* ``POST /api/presence`` every 10 s;
+* the workbook check of the changed-on-disk banner every 6 s, as the chosen app version does it
+  (``--client``): v3.4 asks ``GET /api/files/<name>/stat`` (one stat) and reads the list
+  ``GET /api/files`` only at start and when the Open menu opens (``--open-menu-s``, default every 5 min);
+  v3.3 read the whole list (every workbook, every deck document) every 6 s.
+
+Share traffic: ``--count-ops`` counts every file operation of the helpers on the share - the data folder
+(the simulated SMB round trips of simfs.py) AND the workbook folder (listing, stat, open of workbooks) -
+and reports them per user per minute. ``--helper <path>/backend/slide_builder.py`` drives another
+version of the helper (e.g. a checkout of an older release) with the same traffic, for before/after
+numbers. ``--extra-books N`` puts N more workbooks with saved decks into the folder (a real share has
+many), ``--idle`` makes the users watch without editing.
 
 Scenarios: ``same`` (everybody on one workbook), ``different`` (one workbook each), ``mixed`` (half
 and half). Measured: ops/s, POST .../ops latency, lock wait vs. work under the lock (``X-SB-Timing``),
@@ -51,7 +62,60 @@ APP_FILE = os.path.join(REPO, "backend", "slide_builder.html")
 TOKEN_RE = re.compile(r'<meta\s+name="sb-token"\s+content="([^"]+)"')
 STUB_PAGE = '<!DOCTYPE html><html><head><meta name="sb-token" content="__SB_TOKEN__"></head><body>load test</body></html>'
 SLIDES = ["s1", "s2", "s3", "s4"]
-POLL_S, PRESENCE_S, DEBOUNCE_S = 3.0, 10.0, 0.3
+POLL_S, PRESENCE_S, DEBOUNCE_S, FILES_S = 3.0, 10.0, 0.3, 6.0
+
+# Runs the helper with a counter of its share operations (any version that has slidebuilder/simfs.py):
+# data-folder operations through simfs, workbook-folder operations of the workbooks module, written to
+# SB_FSOPS_FILE twice a second as {"data": n, "root": n}.
+COUNTING_BOOT = r"""
+import builtins, json, os, sys, threading, time
+entry = sys.argv[1]
+sys.argv = [entry] + sys.argv[2:]
+sys.path.insert(0, os.path.dirname(entry))
+from slidebuilder import paths, simfs
+counts, guard = {"data": 0, "root": 0}, threading.Lock()
+real_rtt = simfs._rtt
+def rtt():
+    with guard:
+        counts["data"] += 1
+    real_rtt()
+simfs._rtt = rtt
+simfs.install()
+from slidebuilder import workbooks
+def in_root(p):
+    try:
+        p = os.path.abspath(os.fspath(p))
+    except TypeError:
+        return False
+    data = paths.DATA.rstrip(os.sep) + os.sep
+    return p.startswith(paths.ROOT.rstrip(os.sep) + os.sep) and not p.startswith(data) or p == paths.ROOT
+def wrap(fn):
+    def w(path, *a, **k):
+        if in_root(path):
+            with guard:
+                counts["root"] += 1
+            if simfs._state["ms"]:
+                time.sleep(simfs._state["ms"] / 1000.0)
+        return fn(path, *a, **k)
+    return w
+real_os = workbooks.os
+over = {n: wrap(getattr(real_os, n)) for n in ("listdir", "scandir", "stat", "open") if hasattr(real_os, n)}
+over["path"] = simfs._Proxy(real_os.path, {n: wrap(getattr(real_os.path, n)) for n in ("exists", "isfile", "getmtime", "getsize")})
+workbooks.os = simfs._Proxy(real_os, over)
+workbooks.open = wrap(builtins.open)
+def dump():
+    out = os.environ["SB_FSOPS_FILE"]
+    while True:
+        with guard:
+            snap = dict(counts)
+        with open(out + ".tmp", "w") as f:
+            json.dump(snap, f)
+        os.replace(out + ".tmp", out)
+        time.sleep(0.5)
+threading.Thread(target=dump, daemon=True).start()
+from slidebuilder.main import main
+main()
+"""
 
 
 # --------------------------------------------------------------------------- helpers (processes)
@@ -64,7 +128,7 @@ def free_port():
 
 
 class Helper:
-    def __init__(self, k, root, data, fs_ms, app_file):
+    def __init__(self, k, root, data, fs_ms, app_file, entry=ENTRY, count_file=None):
         self.k, self.user = k, "user%d" % k
         env = dict(os.environ, SLIDEBUILDER_ROOT=root, SLIDEBUILDER_DATA=data, SLIDEBUILDER_USER=self.user,
                    SLIDEBUILDER_HOST="pc%d" % k, SLIDEBUILDER_ENGINES="none", SLIDEBUILDER_TIMING="1",
@@ -76,9 +140,15 @@ class Helper:
             env["SLIDEBUILDER_APP_FILE"] = app_file
         self.port = None
         self.lines = []
-        self.proc = subprocess.Popen([sys.executable, "-u", ENTRY, "--port", str(free_port()), "--no-browser"],
-                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                                     env=env, cwd=os.path.dirname(ENTRY))
+        self.count_file = count_file
+        args = ["--port", str(free_port()), "--no-browser"]
+        if count_file:
+            env["SB_FSOPS_FILE"] = count_file
+            cmd = [sys.executable, "-u", "-c", COUNTING_BOOT, entry] + args
+        else:
+            cmd = [sys.executable, "-u", entry] + args
+        self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                     env=env, cwd=os.path.dirname(entry))
         self._found = threading.Event()
         threading.Thread(target=self._read, daemon=True).start()
 
@@ -99,6 +169,16 @@ class Helper:
         if status != 200 or not m:
             raise RuntimeError("helper %d: no <meta name=\"sb-token\"> in GET / (status %s)" % (self.k, status))
         self.token = m.group(1)
+
+    def share_ops(self):
+        """{"data": n, "root": n} so far (with --count-ops)"""
+        for _ in range(20):
+            try:
+                with open(self.count_file, encoding="utf-8") as f:
+                    return json.load(f)
+            except (OSError, ValueError):
+                time.sleep(0.1)
+        return {"data": 0, "root": 0}
 
     def stop(self):
         if self.proc.poll() is None:
@@ -277,6 +357,27 @@ class User:
                 self._err("presence connection: %s" % type(e).__name__)
             stop.wait(PRESENCE_S)
 
+    # ---- the workbook check of the changed-on-disk banner, and the Open menu
+    def files(self, stop):
+        """v3.3: the whole list every 6 s. v3.4: one stat every 6 s, the list when the Open menu opens."""
+        from urllib.parse import quote
+        time.sleep(self.rng.uniform(0, FILES_S))
+        next_menu = time.monotonic() + self.rng.uniform(0, self.run.open_menu_s) if self.run.open_menu_s else float("inf")
+        while not stop.is_set():
+            if self.run.client == "v3.3":
+                path = "/api/files"
+            elif time.monotonic() >= next_menu:
+                path, next_menu = "/api/files", time.monotonic() + self.run.open_menu_s
+            else:
+                path = "/api/files/%s/stat" % quote(self.wb, safe="")
+            try:
+                status, _, _ = request(self.h.port, self.h.token, "GET", path)
+                if status != 200:
+                    self._err("files HTTP %d" % status)
+            except OSError as e:
+                self._err("files connection: %s" % type(e).__name__)
+            stop.wait(FILES_S)
+
 
 # --------------------------------------------------------------------------- one run
 def pct(values, p):
@@ -315,8 +416,11 @@ def workbooks_for(scenario, n):
 
 
 class Run:
-    def __init__(self, scenario, users, duration, fs_ms, real_folder=None, verbose=True, backups=0):
+    def __init__(self, scenario, users, duration, fs_ms, real_folder=None, verbose=True, backups=0,
+                 client="v3.4", open_menu_s=300.0, entry=ENTRY, count_ops=False, extra_books=0, idle=False):
         self.scenario, self.n, self.duration, self.fs_ms = scenario, users, duration, fs_ms
+        self.client, self.open_menu_s, self.entry, self.count_ops = client, open_menu_s, entry, count_ops
+        self.extra_books, self.idle = extra_books, idle
         self.backups = backups
         self.think = (1.0, 3.0)
         self.real_folder, self.verbose = real_folder, verbose
@@ -350,12 +454,17 @@ class Run:
         helpers = []
         try:
             self.log("  starting %d helpers (folder %s)..." % (self.n, base))
-            helpers = [Helper(k, root, data, fs_ms, app_file) for k in range(self.n)]
+            helpers = [Helper(k, root, data, fs_ms, app_file, self.entry,
+                              os.path.join(base, "fsops-%d.json" % k) if self.count_ops else None) for k in range(self.n)]
             for h in helpers:
                 h.wait_ready()
             books = workbooks_for(self.scenario, self.n)
+            extra = ["Other %02d.xlsx" % i for i in range(self.extra_books)]
+            for wb in sorted(set(books)) + extra:          # the workbooks themselves (the list shows them)
+                with open(os.path.join(root, wb), "wb") as f:
+                    f.write(b"PK\x03\x04" + b"\0" * 2000)
             preset = {"sheets": [], "tables": [], "slides": [{"id": s, "type": "content", "tables": []} for s in SLIDES]}
-            for wb in sorted(set(books)):
+            for wb in sorted(set(books)) + extra:
                 status, _, _ = request(helpers[0].port, helpers[0].token, "POST", wb_path(wb) + "/ops",
                                        {"ops": [{"op": "preset.set", "preset": preset}], "client": "setup"})
                 assert status == 200, status
@@ -368,22 +477,34 @@ class Run:
             self.drain_deadline = float("inf")
             threads = []
             for u in users:
-                threads += [threading.Thread(target=u.editor, args=(stop_edit,), daemon=True),
+                threads += [threading.Thread(target=u.editor if not self.idle else (lambda stop: None), args=(stop_edit,), daemon=True),
                             threading.Thread(target=u.flusher, args=(lambda: self.drain_deadline,), daemon=True),
                             threading.Thread(target=u.poller, args=(stop_bg,), daemon=True),
-                            threading.Thread(target=u.presence, args=(stop_bg,), daemon=True)]
+                            threading.Thread(target=u.presence, args=(stop_bg,), daemon=True),
+                            threading.Thread(target=u.files, args=(stop_bg,), daemon=True)]
+            for h in helpers:                  # the app reads the list once when it starts
+                request(h.port, h.token, "GET", "/api/files")
+            if self.count_ops:
+                time.sleep(1.5)                # the counters are written every 0.5 s: let the set-up settle
+            ops0 = [h.share_ops() for h in helpers] if self.count_ops else None
             t_start = time.monotonic()
             for t in threads:
                 t.start()
             self.log("  running %s for %d s (fs latency: %s)..." % (self.scenario, self.duration,
                      "real folder" if self.real_folder else "%g ms simulated" % (fs_ms or 0)))
             time.sleep(self.duration)
+            if self.count_ops:                 # share traffic of the steady state (before the drain)
+                time.sleep(1.0)                # the counters are written every 0.5 s: about 0.25 s old on average
+                ops1 = [h.share_ops() for h in helpers]
+                minutes = (time.monotonic() - 0.25 - t_start) / 60.0
+                self.share = {kind: sum(b[kind] - a[kind] for a, b in zip(ops0, ops1)) / float(self.n) / minutes
+                              for kind in ("data", "root")}
             stop_edit.set()
             t_edit_end = time.monotonic()
             # drain: queued edits still get saved (like a user who stops typing); pollers keep running
             self.drain_deadline = t_edit_end + 30.0
             self.editing_done.set()
-            for t in threads[1::4]:
+            for t in threads[1::5]:
                 t.join(max(0.0, self.drain_deadline - time.monotonic()) + 1)
             time.sleep(POLL_S + 0.5)                 # one more poll round so others can see the last edits
             stop_bg.set()
@@ -445,6 +566,9 @@ class Run:
             "errors": errors, "errors_total": sum(errors.values()),
             "acked_cells": acked, "lost_cells": lost, "unsent_cells": unsent,
             "doc_bytes": {wb: len(json.dumps(d)) for wb, d in final_docs.items()},
+            "client": self.client, "idle": self.idle, "extra_books": self.extra_books,
+            "share_ops_per_user_min": ({k: round(v, 1) for k, v in self.share.items()}
+                                       if self.count_ops else None),
         }
 
 
@@ -488,6 +612,13 @@ def main(argv=None):
     ap.add_argument("--think", nargs=2, type=float, default=[1.0, 3.0], metavar=("MIN", "MAX"),
                     help="seconds between two edits of one user (default 1 3; smaller = stress test)")
     ap.add_argument("--backups", type=int, default=0, help="seed N old backups per workbook (steady state is 30; default 0 = fresh folder)")
+    ap.add_argument("--client", choices=["v3.3", "v3.4"], default="v3.4",
+                    help="how the app checks the workbook for the changed-on-disk banner (default v3.4: one stat)")
+    ap.add_argument("--open-menu-s", type=float, default=300.0, help="v3.4: the Open menu is opened every N s (default 300; 0 = never)")
+    ap.add_argument("--helper", default=ENTRY, help="the helper to run (default: this checkout's backend/slide_builder.py)")
+    ap.add_argument("--count-ops", action="store_true", help="count the helpers' file operations on the share (per user per minute)")
+    ap.add_argument("--extra-books", type=int, default=0, help="N more workbooks with saved decks in the folder (default 0)")
+    ap.add_argument("--idle", action="store_true", help="users only watch (no edits): the background traffic alone")
     ap.add_argument("--json", help="write all results to this file")
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args(argv)
@@ -498,7 +629,9 @@ def main(argv=None):
     for ms in latencies:
         for sc in args.scenario:
             print("== scenario %s, %d users, %s" % (sc, args.users, "real folder %s" % args.real_folder if args.real_folder else "simulated %g ms" % ms), flush=True)
-            run = Run(sc, args.users, args.duration, ms, args.real_folder, verbose=not args.quiet, backups=args.backups)
+            run = Run(sc, args.users, args.duration, ms, args.real_folder, verbose=not args.quiet, backups=args.backups,
+                      client=args.client, open_menu_s=args.open_menu_s, entry=os.path.abspath(args.helper),
+                      count_ops=args.count_ops, extra_books=args.extra_books, idle=args.idle)
             run.think = tuple(args.think)
             r = run.execute()
             r["think_s"] = list(args.think)
@@ -506,6 +639,10 @@ def main(argv=None):
             print("   ops/s %.2f, POST p50 %s ms p95 %s ms, lock wait p95 %s ms, visible p50 %s ms, errors %d, lost %d/%d"
                   % (r["ops_per_s"], fmt(r["post_ms"]["p50"]), fmt(r["post_ms"]["p95"]), fmt(r["lock_wait_ms"]["p95"]),
                      fmt(r["visible_ms"]["p50"]), r["errors_total"], r["lost_cells"], r["acked_cells"]), flush=True)
+            if r["share_ops_per_user_min"]:
+                so = r["share_ops_per_user_min"]
+                print("   share operations per user per minute: %.1f (data folder %.1f, workbook folder %.1f) - client %s"
+                      % (so["data"] + so["root"], so["data"], so["root"], args.client), flush=True)
             if args.json:
                 with open(args.json, "w", encoding="utf-8") as f:
                     json.dump(results, f, indent=1)

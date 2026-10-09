@@ -125,7 +125,8 @@ folder without touching saved setups; saved data in an older format is converted
 ```
 T:\Slide Builder\                          ROOT – the shared folder users see
 ├─ Install Slide Builder.bat               first-time set-up on a PC → backend\slide_builder.py --install
-├─ Start Slide Builder.bat                 start the helper + open the app → backend\slide_builder.py
+├─ Start Slide Builder.bat                 start the helper + open the app → app\<current>\backend\ or backend\slide_builder.py
+├─ app\current.json  app\<ver>\            side-by-side program versions (tools\update.py --release, §7.5)
 ├─ Update Slide Builder.bat                update the program from GitHub → tools\update.py
 ├─ *.xlsx …                                users' workbooks (not in git)
 ├─ export\                                 exported PDFs/PNGs (not in git)
@@ -138,14 +139,14 @@ T:\Slide Builder\                          ROOT – the shared folder users see
 ```
 Every user runs **their own helper** on their own PC (`Start Slide Builder.bat`). The helper listens on
 `http://127.0.0.1:8765/` (next free port up to +20; if a Slide Builder already answers there, it just
-opens the browser) and serves the app page with a random per-start token injected. The helpers never
+opens the app) and serves the app page with a random per-start token injected. The helpers never
 talk to each other: **the shared folder is the only channel**, coordinated with lock files (§9).
 
 ### 2.2 Who does what
 | Who | What |
 |---|---|
 | User, first time on a PC | `Install Slide Builder.bat`: Python ≥ 3.8 check, pip/ensurepip, optional `playwright` package (`--user`; behind SSL inspection retried with `--use-feature=truststore`, never `--trusted-host`), export engine (Chrome for Testing downloaded with Python `urllib`; on a network share it is placed in `%LOCALAPPDATA%\SlideBuilder\engine` because executables may not run from the share), shared-folder check (lock file, `export\` write, round-trip time; > 30 ms warns), desktop shortcut (`.lnk`, or a `.bat` if PowerShell is restricted), self-test. No admin rights; idempotent. Code: `backend/slidebuilder/firstrun.py`, `installer.py`. |
-| User, daily | `Start Slide Builder.bat` (or the shortcut). Keep the console window open. |
+| User, daily | `Start Slide Builder.bat` (or the shortcut). Keep the console window open. The app opens in an Edge app window (`msedge --app=<url>`, no tabs or address bar; a normal browser tab when Edge is missing; `SLIDEBUILDER_APP_WINDOW=0` forces the tab). |
 | One person, to update everyone | `Update Slide Builder.bat` (§7.5). Everybody then restarts Slide Builder and reloads the page. |
 | Export engine only | status pill "Export: …" → *Install export engine*, or `backend\Install export engine.bat` (`--setup`). |
 | Developer | §11. Users never need Node.js: the built `backend/slide_builder.html` is committed. |
@@ -216,7 +217,7 @@ data/
 ├─ users/<user>.json               personal preferences                  {schema:1, lastFile, pdfMode, zoom, versions}
 ├─ fonts/fonts.json + font files   shared font library                   {schema:1, fonts:[{family, source, faces[], by, at}]}
 ├─ assets/                         logos uploaded via Options › Logo
-├─ presence/<user>@<host>.json     heartbeats (who has which workbook open)
+├─ presence/hb~<user>~<host>~<client>~<workbook>.json   heartbeats (who has which workbook open; read from the listing)
 ├─ locks/<name>.lock               lock files (short-lived)
 ├─ migrated.json                   marker: v2 settings were imported
 ├─ app-version.json                installed version (ZIP updates only)
@@ -354,7 +355,7 @@ exactly this text), mounts `<App/>`, installs the keyboard handler and calls `bo
 | `sync/api.ts` | The `Backend` interface; `helper` (HTTP: adds `X-SB-Token` from `<meta name="sb-token">` and `X-SB-Formats`; `ApiError`) and `offline` (localStorage, for a page opened as `file://`). `backend = SERVED ? helper : offline`. |
 | `sync/docsync.ts` | **`DocSync`**: `server` doc + `inflight` + `pending` ops → `view`. `apply(ops)` (local, returns inverse), `flush()` (one request in flight, 300 ms debounce, retry 2–32 s, 409 → `outdated`), `poll()` (`?since=rev`, rebase), `on(listener)` with `Change {local, by, presetChanged, styleChanged, editsChanged}`. |
 | `state/store.ts` | The global mutable state **`S`** (health, user, prefs, config, file, wb, sync, slides, cur, version, selections `sel`/`noteSel`/`textSel`, painter, zoom, undo/redo, toast, busy…), `emit()` (microtask-batched re-render of every `useApp()` component), `STAGE`/`THUMBS` controller hooks filled by the editor. |
-| `state/app.ts` | Actions: `boot`, `openFromFolder`/`openLocalFile`/`openBuffer`, `onDocChange`, `onStyleChanged`, **`change(label, ops, coalesce?)`**, `undo`, `styleChange`, `lookChange` (scope: this design / all), `slidesFor(design)`, `showVersion`, `ctx()` (memoised `RenderCtx`), `style()`, `tick` (poll 3 s, health/changed-on-disk 6 s, fonts/config 30 s), presence heartbeat 10 s. |
+| `state/app.ts` | Actions: `boot`, `openFromFolder`/`openLocalFile`/`openBuffer`, `onDocChange`, `onStyleChanged`, **`change(label, ops, coalesce?)`**, `undo`, `styleChange`, `lookChange` (scope: this design / all), `slidesFor(design)`, `showVersion`, `ctx()` (memoised `RenderCtx`), `style()`, `tick` (poll 3 s, health + one-stat changed-on-disk check 6 s, fonts/config 30 s; the workbook list is read at start and when the Open menu opens), presence heartbeat 10 s. |
 | `state/dialogs.ts` | Promise-based dialogs (`ask`, `confirmBox`, `runWizard`, installer) – `DLG` flags rendered by `ui/`. |
 | `state/fonts.ts` | Font library in the page: `loadFonts`, `@font-face` in `<style id="fontcss">`, `addGoogleFont` (downloads faces, uploads them to the helper), `uploadFontFiles`, `embeddedFontCss(html)` (fonts used by exported slides as data URLs). |
 
@@ -475,11 +476,11 @@ the Excel/GDI+ converters also runs on Linux/macOS (tests run there).
 
 ### 7.1 Start-up (`main.py`)
 Arguments: `--port` (8765), `--no-browser`, `--setup` (export engine install), `--install` (first-time
-set-up). Steps: simulated-latency hook if `SLIDEBUILDER_SIM_FS_MS` (load tests only) → create `export/`,
+set-up), `--selftest` (read-only check of the shared folder for this version; used by `tools/update.py`). Steps: simulated-latency hook if `SLIDEBUILDER_SIM_FS_MS` (load tests only) → create `export/`,
 `engine/`, `data/` → v2 migration (`migrate.migrate`, errors logged) → `store.upgrade_all()` → port probe
-(`GET /api/ping` on each port; if a Slide Builder answers, open the browser and exit) → `App()` (token =
+(`GET /api/ping` on each port; if a Slide Builder answers, open the app and exit) → `App()` (token =
 `secrets.token_urlsafe(24)`) → banner → engine self-tests in a background thread (`Exporter.warm`) → open
-the browser → `serve_forever`.
+the app (an Edge app window, `msedge --app=<url>`, else a browser tab) → `serve_forever`.
 
 ### 7.2 Module map
 | Module | Responsibility |
@@ -491,7 +492,7 @@ the browser → `serve_forever`.
 | `store.py` | Documents: retried reads (`StoreUnreadable` → 503, never replaced by empty), atomic writes, format upgrades on read, `update_workbook` under the lock, revision log, rolling backups (`backupAt` in the doc → a normal save never lists the backup folder), history, config and personal prefs. |
 | `ops.py` | Operation semantics (mirror of `model/ops.ts`). |
 | `upgrade.py` | `SCHEMA`, `@step(kind, n)` upgrade functions (none yet), `TooNew`. |
-| `presence.py` | Heartbeat files `presence/<user>@<host>.json`; others seen in the last 25 s; cleanup after 24 h. |
+| `presence.py` | One heartbeat file per user@host whose **name** carries user, host, client and workbook; others = one directory listing, freshness from its modification times on the file-server clock (no file opened); old-format `<user>@<host>.json` still read; others seen in the last 25 s; cleanup after 24 h. |
 | `workbooks.py` | Listing (ROOT then `backend/`), path-safe lookup, **stable read** (size/mtime unchanged before/after, zip end record present; retried; `Unstable` → 503 while Excel is still saving). |
 | `fonts.py` | Font library: signature-checked files (≤ 15 MB, ≤ 64 faces/family), written before the index, under lock `fonts`; unreferenced files swept. |
 | `exports.py` | `/api/export` (modes, file naming) and `/api/assemble`; `save_export`: temp file → under lock `export-<name>` renamed into place; a target open in a viewer (locked) → ` (2)`, ` (3)`… |
@@ -525,6 +526,14 @@ network drive) · `SLIDEBUILDER_SIM_FS_MS`, `SLIDEBUILDER_TIMING` (load tests; `
   setups (and any locally modified program file) are copied to `backups/before-update-<time>/` first;
   afterwards every saved deck is test-loaded with the new code. One update at a time. Options: `--check`,
   `--branch`, `--zip`, `--yes`.
+* **Side-by-side releases** (`--release [latest|X.Y.Z]`, `--zip <file.zip>` offline, `--use X.Y.Z` to roll
+  back): the release ZIP of `tools/make_release.py` is checked against GitHub's asset digest (when the API
+  gives one) and always against its `MANIFEST.json`, extracted to `app\<ver>.part\` and renamed to
+  `app\<ver>\`. The new version's `slide_builder.py --selftest` (reads every deck, `config.json` and
+  preference file without writing; create/rename/delete probe in `data\locks`) must pass before
+  `app\current.json` is replaced atomically. The newest 3 versions stay (and the previous one).
+  `Start Slide Builder.bat` starts the version named in `app\current.json`, else `backend\`. A version in
+  `app\<ver>\` uses the main folder's workbooks, `export\` and `backend\data\` (`paths.HOME_BACKEND`).
 
 ---
 
@@ -538,13 +547,14 @@ JSON bodies ≤ 2 MB, uploads/exports ≤ 300 MB. Full shapes: `docs/ARCHITECTUR
 |---|---|
 | `GET /` | the app with the token injected (`__SB_TOKEN__` replaced; `<meta name="sb-token">`) |
 | `GET /api/ping` (no token) · `GET /api/health` | liveness · version, user, folders, export engine status |
-| `GET /api/files` · `GET /files/<name>` | workbooks in the folder (with doc rev/author) · workbook bytes (stable read) |
+| `GET /api/files` · `GET /api/files/<name>/stat` · `GET /files/<name>` | workbooks in the folder (with doc rev/author; reads every deck, so only on demand) · one workbook's `{name, mtime, size}` (one stat, the changed-on-disk banner) · workbook bytes (stable read) |
 | `GET /api/workbooks/<name>/doc?since=rev` | the document (204 if unchanged) |
 | `POST /api/workbooks/<name>/ops` | `{ops, client}` → `{doc, applied, skipped}` |
 | `GET /api/workbooks/<name>/history` | rolling backups |
 | `GET /api/config` · `POST /api/config/ops` | shared defaults (style.patch only) |
 | `GET /api/me` · `PUT /api/me` | user, host, personal preferences (whole replace) |
 | `POST /api/presence` · `POST /api/presence/leave` | heartbeat → others in the folder |
+| `GET /fieldcheck` (no token) | `tools/fieldcheck.html`, the field-test page of the browser's capabilities (PLAN S0.6), on the app's origin |
 | `GET/POST/DELETE /api/fonts` · `GET /fonts/<file>` | font library · font files |
 | `POST /api/logo?name=` · `GET /assets/<name>` | upload a logo to `data/assets` · images from data/assets, `backend/`, ROOT (case-insensitive) |
 | `POST /api/export` · `POST /api/assemble` | render + write exports · PDF from page-rendered images |
@@ -618,12 +628,14 @@ cd frontend
 npm install                  # once (Node 20+; developers only)
 npm run build                # type-check + single-file build → ../backend/slide_builder.html  (commit it)
 npm test                     # Vitest unit tests (incl. "the built file is up to date")
+npm run check                # typecheck + Vitest (what CI runs, after npm run build)
+npm run parity               # v3 against golden/ (tools/capture-v3.mjs + tools/parity.mjs; needs pypdf)
 npm run test:e2e             # Playwright: two real helpers (users anna/bob) on one temp shared folder
 node e2e/parity.mjs <old.html> ../backend/slide_builder.html tests/fixtures/*.xlsx   # renderer diff vs. an older build
 
 cd backend
 python -m unittest discover -s tests -v                  # helper tests (Python 3.8+)
-python slide_builder.py [--port 8765] [--no-browser] [--setup] [--install]
+python slide_builder.py [--port 8765] [--no-browser] [--setup] [--install] [--selftest]
 python ../tools/loadtest.py --users 10 --scenario same --fs-ms 15        # load test (docs/LOADTEST.md)
 ```
 Without a downloaded browser set `CHROME=/path/to/chrome` (e2e) or `SLIDEBUILDER_BROWSER`. Test
@@ -638,6 +650,7 @@ workbooks are generated by `frontend/tests/fixtures/make_fixtures.py` (openpyxl)
 | `frontend/e2e/app.spec.ts` | 15 scenarios: wizard, two users merging, export, table tools, painter, gridlines, themes, typing under concurrent changes, text toolbar & fonts, comments, text boxes, notes section, versions × designs |
 | `backend/tests/test_store.py`, `test_locks.py`, `test_fsclock.py` | multi-process saves, stale locks, clock skew |
 | `backend/tests/test_upgrade.py` | saved-format examples, upgrades once, too-new files, page/helper formats |
+| `backend/tests/test_presence.py`, `test_release.py`, `test_sharetest.py`, `test_anonymise.py` · `frontend/tests/parity.test.ts` | presence from one listing · release ZIP + manifest · field-test protocols · corpus anonymiser · parity rules (ΔE, PNG, modes) |
 | `backend/tests/test_http.py`, `test_fonts.py` | API, security checks, fonts, logos |
 | `backend/tests/test_exports.py`, `test_export_geometry.py`, `test_engine_cli.py` | naming/atomicity, page fitting (marker, rounding, shrunk slides), real Chromium PDFs edge to edge |
 | `backend/tests/test_update.py`, `test_migrate.py`, `test_firstrun.py`, `test_installer.py`, `test_workbooks.py`, `test_main.py`, `test_simfs.py` | updater, v2 import, installer, stable reads, entry point, load-test hook |
@@ -714,8 +727,12 @@ events and link updates off. TLS is never disabled (downloads use the system/cor
 /                                      ROOT (the shared folder)
 ├─ Install / Start / Update Slide Builder.bat
 ├─ README.md · docs/                   documentation (table at the top)
+├─ CHANGELOG.md · PROGRESS.md          releases · progress of the rebuild (docs/next/PLAN.md)
+├─ .github/workflows/                  ci.yml (unit, helper, e2e, parity) · release.yml (tag v* → release ZIP)
 ├─ shared/ops-vectors.json             operation test vectors (both test suites)
-├─ tools/  update.py (GitHub update in place / ZIP) · loadtest.py (N simulated users)
+├─ tests/corpus/ · golden/             parity corpus (workbooks, saved decks) · goldens of v3 (never edited)
+├─ tools/  update.py (GitHub update in place / ZIP / side-by-side releases) · make_release.py · loadtest.py (N simulated users)
+│          capture-v3.mjs · parity.mjs · pdftext.py · make_corpus.py · anonymise.py · sharetest.py · fieldcheck.html
 ├─ backend/
 │  ├─ slide_builder.py · slide_builder.html (BUILT) · Install export engine.bat · requirements.txt (optional playwright)
 │  ├─ slidebuilder/                    the helper package (§7.2)

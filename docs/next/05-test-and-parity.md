@@ -26,7 +26,7 @@ reproduce that data. A difference is either fixed or listed as an accepted behav
 
 1. **Corpus** (`tests/corpus/`):
    * the 4 fixtures (`frontend/tests/fixtures`);
-   * `deck20.xlsx` and `big30.xlsx` (`spikes/baseline/make_workbooks.py`);
+   * `deck20.xlsx` and `big30.xlsx` (`tools/make_corpus.py`, moved from `spikes/baseline/make_workbooks.py`);
    * **anonymised copies of 5 real decks** from the share, workbook plus saved document, with numbers
      scrambled by `tools/anonymise.py`. Labels are kept where they drive comment analysis (Budget, Week,
      Δ…);

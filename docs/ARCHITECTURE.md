@@ -36,7 +36,7 @@ data/
 ├─ config.json                 shared defaults for new decks          {schema, rev, updated, updatedBy, defaults:{style}}
 ├─ workbooks/<key>.json        one document per workbook (below)
 ├─ users/<user>.json           personal preferences                   {schema, lastFile, pdfMode, zoom, versions}
-├─ presence/<user>@<host>.json heartbeat                              {user, host, client, workbook, at}
+├─ presence/hb~<user>~<host>~<client>~<workbook>.json heartbeat     {user, host, client, workbook, at} (parts %-encoded; the name is enough)
 ├─ backups/<key>/<rev>.json    rolling copies of workbook docs (last 30, at most one per 5 min)
 ├─ backups/upgrades/<kind>/<file>.v<n>.<time>.json   a file as it was before a format upgrade (§3.3)
 ├─ backups/before-update-<time>/   saved setups copied by tools/update.py before an update (last 5)
@@ -215,6 +215,7 @@ All responses JSON unless stated. Security for every request:
 | `GET /api/me` | – | `{user, host, prefs:{lastFile, pdfMode, zoom}}` |
 | `PUT /api/me` | `{prefs}` | `{ok}` (personal file: whole replace) |
 | `GET /api/files` | – | `{workbooks:[{name, mtime, size, rev, updated, updatedBy}], folder}` (doc fields null when no doc) |
+| `GET /api/files/<name>/stat` | – | `{name, mtime, size}` of one workbook (one stat; 404 when gone) |
 | `GET /api/ping` | – (no token) | `{app, version}` – used by the “already running” probe |
 | `GET /files/<name>` | – | workbook bytes (workbook extensions only); headers `X-SB-Mtime`, `X-SB-Size`. Read is stable: retried while size/mtime change or the zip is incomplete; 503 if still changing. |
 | `GET /api/workbooks/<name>/doc?since=<rev>` | – | `204` when `doc.rev == since`, else `{doc}` |
@@ -227,6 +228,7 @@ All responses JSON unless stated. Security for every request:
 | `GET /fonts/<file>` | – (token header or `?t=`) | a font file |
 | `POST /api/presence` | `{client, workbook}` | `{others:[{user, host, client, workbook, at}]}` – others seen in the last 25 s |
 | `POST /api/presence/leave` | `{client}` | `{ok}` |
+| `GET /fieldcheck` (no token) | – | `tools/fieldcheck.html`: the field-test page of the browser's capabilities, on the app's origin |
 | `POST /api/upload?name=` · `GET /api/upload/<id>` | bytes | `{id, name}` · bytes (in memory, max 8 entries, 2 h) |
 | `POST /api/convert-workbook?name=` | bytes | `.xlsx` bytes (Excel COM, Windows) or 501 |
 | `POST /api/convert?ext=` | bytes | PNG bytes (GDI+, Windows) or 501 |

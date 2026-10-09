@@ -1,0 +1,33 @@
+{
+ "workbook": "plain.xlsx",
+ "ops": [
+  {
+   "op": "preset.set",
+   "preset": {
+    "sheets": [
+     "Data"
+    ],
+    "tables": [
+     {
+      "id": "plainT1",
+      "sheet": "Data",
+      "kind": "range",
+      "range": "A3:E11"
+     }
+    ],
+    "slides": [
+     {
+      "id": "plainS1",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "plainT1"
+      ],
+      "layout": null
+     }
+    ]
+   }
+  }
+ ]
+}

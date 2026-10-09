@@ -1,0 +1,36 @@
+{
+ "workbook": "edge-macro.xlsm",
+ "ops": [
+  {
+   "op": "preset.set",
+   "preset": {
+    "sheets": [
+     "SLIDE"
+    ],
+    "tables": [
+     {
+      "id": "xbigjqv",
+      "sheet": "SLIDE",
+      "kind": "markers",
+      "anchor": "B3",
+      "index": 0
+     }
+    ],
+    "slides": [
+     {
+      "id": "nf7zfyb",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "xbigjqv"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     }
+    ]
+   }
+  }
+ ]
+}

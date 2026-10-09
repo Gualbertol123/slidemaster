@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { DocSync } from "../src/sync/docsync";
+import { DocSync, type Change } from "../src/sync/docsync";
 import { applyOps, emptyDoc } from "../src/model/ops";
 import type { Backend } from "../src/sync/api";
 import type { Op, WorkbookDoc } from "../src/model/types";
@@ -30,6 +30,30 @@ describe("DocSync", () => {
     expect(srv.doc.edits.S).toEqual({ A1: { b: true }, B2: { fill: "#34C759" } });
     expect(a.view.edits).toEqual(srv.doc.edits); expect(b.view.edits).toEqual(srv.doc.edits);
     expect(srv.doc.rev).toBe(2);
+  });
+  it("listeners hear about the save as soon as it is on the share, not at the next poll (B6)", async () => {
+    vi.useFakeTimers();
+    const srv = fakeServer();
+    const a = new DocSync(srv.api("anna"), "W.xlsx", emptyDoc("W.xlsx"), "ca", "anna");
+    const seen: { state: string; c: Change }[] = [];
+    a.on(c => seen.push({ state: a.state, c }));
+    a.apply([cell("A1", { b: true })]);
+    expect(seen.map(x => x.state)).toEqual(["pending"]);
+    await vi.advanceTimersByTimeAsync(300);                     // the debounced save runs and returns
+    expect(a.state).toBe("saved");
+    expect(seen.map(x => x.state)).toEqual(["pending", "saved"]);
+    const last = seen[1].c;
+    expect([last.stateChanged, last.local, last.editsChanged, last.presetChanged, last.styleChanged]).toEqual([true, false, false, false, false]);
+    // a failed save is announced at once too, and so is the successful retry
+    srv.failNext(1);
+    a.apply([cell("A2", { i: true })]);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(a.state).toBe("error"); expect(seen.at(-1)!.state).toBe("error"); expect(seen.at(-1)!.c.stateChanged).toBe(true);
+    await vi.advanceTimersByTimeAsync(2100);
+    expect(a.state).toBe("saved"); expect(seen.at(-1)!.state).toBe("saved");
+    // a poll that brings nothing new announces nothing
+    const n = seen.length; await a.poll(); expect(seen.length).toBe(n);
+    vi.useRealTimers();
   });
   it("a failed save keeps the changes queued and retries", async () => {
     vi.useFakeTimers();

@@ -1,0 +1,6 @@
+{"scale":1,"w":1600,"h":900,"slide":2,"label":"Only a missing table","items":[
+{"cls":"title","x":54,"y":16,"w":1396,"h":61.6,"text":"Only a missing table","font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"44px","weight":"700","color":"rgb(28, 79, 140)"},
+{"cls":"emptyslide","x":0,"y":400,"w":1600,"h":30.8,"text":"No tables on this slide – add some with the wizard.","font":"\"Segoe UI\", sans-serif","size":"22px","weight":"500","color":"rgba(18, 22, 44, 0.45)"},
+{"cls":"logowrap","x":1466,"y":854,"w":96,"h":32,"font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"13px","weight":"400","color":"rgb(29, 29, 31)"},
+{"cls":"logo","x":1466,"y":854,"w":96,"h":32,"font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"13px","weight":"400","color":"rgb(29, 29, 31)"}
+]}

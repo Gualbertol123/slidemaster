@@ -1,0 +1,576 @@
+{
+ "workbook": "deck20.xlsx",
+ "ops": [
+  {
+   "op": "preset.set",
+   "preset": {
+    "sheets": [
+     "SLIDE_01",
+     "SLIDE_02",
+     "SLIDE_03",
+     "SLIDE_04",
+     "SLIDE_05",
+     "SLIDE_06",
+     "SLIDE_07",
+     "SLIDE_08",
+     "SLIDE_09",
+     "SLIDE_10",
+     "SLIDE_11",
+     "SLIDE_12",
+     "SLIDE_13",
+     "SLIDE_14",
+     "SLIDE_15",
+     "SLIDE_16",
+     "SLIDE_17",
+     "SLIDE_18",
+     "SLIDE_19",
+     "SLIDE_20"
+    ],
+    "tables": [
+     {
+      "id": "x0r1235",
+      "sheet": "SLIDE_01",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "k5zx6i9",
+      "sheet": "SLIDE_01",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "r7fohe4",
+      "sheet": "SLIDE_02",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "umvn5vq",
+      "sheet": "SLIDE_02",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "66vnbnw",
+      "sheet": "SLIDE_03",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "3sk9i4y",
+      "sheet": "SLIDE_03",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "ylckej2",
+      "sheet": "SLIDE_04",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "zm2o0bf",
+      "sheet": "SLIDE_04",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "xemkjbv",
+      "sheet": "SLIDE_05",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "18sw9r7",
+      "sheet": "SLIDE_05",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "dw91i55",
+      "sheet": "SLIDE_06",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "geqtc1o",
+      "sheet": "SLIDE_06",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "8zzc5of",
+      "sheet": "SLIDE_07",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "tudd3k9",
+      "sheet": "SLIDE_07",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "jgfpju3",
+      "sheet": "SLIDE_08",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "9n0kuxr",
+      "sheet": "SLIDE_08",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "2qvotry",
+      "sheet": "SLIDE_09",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "l60f6mt",
+      "sheet": "SLIDE_09",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "9fp6rlx",
+      "sheet": "SLIDE_10",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "ss50tc5",
+      "sheet": "SLIDE_10",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "pee1odh",
+      "sheet": "SLIDE_11",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "xndo61v",
+      "sheet": "SLIDE_11",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "lj0d1ne",
+      "sheet": "SLIDE_12",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "zeajuhe",
+      "sheet": "SLIDE_12",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "r39gzeu",
+      "sheet": "SLIDE_13",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "ui4o08r",
+      "sheet": "SLIDE_13",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "555c0gw",
+      "sheet": "SLIDE_14",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "ayeum7q",
+      "sheet": "SLIDE_14",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "p5h4f2s",
+      "sheet": "SLIDE_15",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "zp0hc51",
+      "sheet": "SLIDE_15",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "ar86i3e",
+      "sheet": "SLIDE_16",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "lzpkvg1",
+      "sheet": "SLIDE_16",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "sq8b0yy",
+      "sheet": "SLIDE_17",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "5eb67mi",
+      "sheet": "SLIDE_17",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "y83htfd",
+      "sheet": "SLIDE_18",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "yzzprkz",
+      "sheet": "SLIDE_18",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "2znqwoj",
+      "sheet": "SLIDE_19",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "u9ypyf4",
+      "sheet": "SLIDE_19",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     },
+     {
+      "id": "c0hznay",
+      "sheet": "SLIDE_20",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "nt0wzj9",
+      "sheet": "SLIDE_20",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     }
+    ],
+    "slides": [
+     {
+      "id": "cz9uvf0",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "x0r1235",
+       "k5zx6i9"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "cicrqvk",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "r7fohe4",
+       "umvn5vq"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "uo7fu2j",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "66vnbnw",
+       "3sk9i4y"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "1y2m147",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "ylckej2",
+       "zm2o0bf"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "7qm5tos",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "xemkjbv",
+       "18sw9r7"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "nhyqb4w",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "dw91i55",
+       "geqtc1o"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "up37dmt",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "8zzc5of",
+       "tudd3k9"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "4zuvvzz",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "jgfpju3",
+       "9n0kuxr"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "rf2bocr",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "2qvotry",
+       "l60f6mt"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "3ae5kt6",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "9fp6rlx",
+       "ss50tc5"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "ift0h1f",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "pee1odh",
+       "xndo61v"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "611vj03",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "lj0d1ne",
+       "zeajuhe"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "49cryug",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "r39gzeu",
+       "ui4o08r"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "pf87l65",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "555c0gw",
+       "ayeum7q"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "umepqn0",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "p5h4f2s",
+       "zp0hc51"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "014yfbk",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "ar86i3e",
+       "lzpkvg1"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "ydibbpo",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "sq8b0yy",
+       "5eb67mi"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "d253vyu",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "y83htfd",
+       "yzzprkz"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "rc5irjs",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "2znqwoj",
+       "u9ypyf4"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "q0qqiml",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "c0hznay",
+       "nt0wzj9"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     }
+    ]
+   }
+  }
+ ]
+}

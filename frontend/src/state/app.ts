@@ -56,9 +56,9 @@ async function tick() {
   if (S.sync) await S.sync.poll();
   if (tickN % 2 === 0) {
     S.health = await backend.health(); emit();
-    if (S.file && S.file.src === "folder") {
-      const f = (await backend.files().catch(() => [])).find(x => x.name === S.file!.name);
-      if (f && S.file.mtime && f.mtime > S.file.mtime + 0.5 && !S.changedOnDisk) { S.changedOnDisk = true; emit(); }
+    if (S.file && S.file.src === "folder" && !S.changedOnDisk) {      // one stat; the list is read when the Open menu opens (B13)
+      const file = S.file, f = await backend.fileStat(file.name).catch(() => null);
+      if (f && S.file === file && file.mtime && f.mtime > file.mtime + 0.5) { S.changedOnDisk = true; emit(); }
     }
   }
   if (tickN % 10 === 0) void loadFonts();               // fonts colleagues added
@@ -177,6 +177,8 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
 let presetSig = "";
 async function onDocChange(c: Change) {
   const sync = S.sync, wb = S.wb; if (!sync || !wb || !S.file) return;
+  // only the save state changed ("Saving…" → "✓ Saved", an error): the status bar, not the slides
+  if (!c.local && !c.presetChanged && !c.styleChanged && !c.editsChanged) { emit(); return; }
   if (c.by) { S.remote = { by: c.by, at: Date.now() }; }
   if (c.presetChanged) {
     const sig = JSON.stringify(sync.view.preset);

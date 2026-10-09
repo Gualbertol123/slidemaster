@@ -21,6 +21,7 @@ const helper = (user: string, port: number) => ({
   url: `http://127.0.0.1:${port}/api/ping`,
   env: { SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: user, SLIDEBUILDER_HOST: "pc-" + user, SLIDEBUILDER_BROWSER: chrome, NO_PROXY: "*" },
   reuseExistingServer: false, timeout: 90_000,
+  stdout: "pipe" as const, stderr: "pipe" as const,          // the helpers' logs appear in the test output (CI diagnosis)
 });
 export default defineConfig({
   testDir: "e2e",

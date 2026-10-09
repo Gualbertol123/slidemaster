@@ -11,7 +11,8 @@ import type { Backend } from "./api";
 
 export type SaveState = "saved" | "pending" | "saving" | "error" | "local" | "outdated";
 const OUTDATED = "Slide Builder was updated – reload the page (F5) to continue.";
-export interface Change { local: boolean; by?: string; presetChanged: boolean; styleChanged: boolean; editsChanged: boolean }
+/** `stateChanged`: the save state (`state`, `error`) changed, e.g. "saving" → "saved"; the status bar shows it at once */
+export interface Change { local: boolean; by?: string; presetChanged: boolean; styleChanged: boolean; editsChanged: boolean; stateChanged: boolean }
 
 export class DocSync {
   server: WorkbookDoc;
@@ -29,15 +30,16 @@ export class DocSync {
     this.state = api.served ? "saved" : "local";
   }
   on(fn: (c: Change) => void) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
-  private emit(prev: WorkbookDoc, local: boolean, by?: string) {
+  private emit(prev: WorkbookDoc, local: boolean, by?: string, prevState?: [SaveState, string]) {
     const v = this.view;
     const c: Change = {
       local, by,
       presetChanged: JSON.stringify(prev.preset) !== JSON.stringify(v.preset),
       styleChanged: JSON.stringify(prev.style) !== JSON.stringify(v.style),
       editsChanged: JSON.stringify(prev.edits) !== JSON.stringify(v.edits),
+      stateChanged: !!prevState && (prevState[0] !== this.state || prevState[1] !== this.error),
     };
-    if (c.presetChanged || c.styleChanged || c.editsChanged || local) this.listeners.forEach(f => f(c));
+    if (c.presetChanged || c.styleChanged || c.editsChanged || c.stateChanged || local) this.listeners.forEach(f => f(c));
   }
   private recompute() { this.view = applyOps(this.server, [...(this.inflight || []), ...this.pending]).doc; this.view.rev = this.server.rev; }
   /** people other than me who made the revisions after `since` */
@@ -72,22 +74,22 @@ export class DocSync {
     if (this.inflight || !this.pending.length || this.state === "outdated") return;
     this.inflight = this.pending; this.pending = [];
     if (this.api.served) this.state = "saving";
-    const prev = this.view;
+    const prev = this.view, before: [SaveState, string] = [this.state, this.error];
     try {
       const r = await this.api.postOps(this.name, this.inflight, this.client);
       const by = this.authors(r.doc, this.server.rev);
       this.server = r.doc; this.inflight = null; this.retry = 0; this.error = "";
       this.recompute();
       this.state = this.pending.length ? "pending" : (this.api.served ? "saved" : "local");
-      this.emit(prev, false, by);
+      this.emit(prev, false, by, before);
       if (this.pending.length) this.schedule(50);
     } catch (e) {
       this.pending = [...this.inflight!, ...this.pending]; this.inflight = null;
       // the helper speaks a newer data format than this page: retrying cannot help, reloading does
-      if ((e as { status?: number }).status === 409) { this.state = "outdated"; this.error = (e as Error).message || OUTDATED; this.emit(prev, false); return; }
+      if ((e as { status?: number }).status === 409) { this.state = "outdated"; this.error = (e as Error).message || OUTDATED; this.emit(prev, false, undefined, before); return; }
       this.state = "error"; this.error = (e as Error).message || String(e);
       this.retry = Math.min(this.retry + 1, 5);
-      this.emit(prev, false);
+      this.emit(prev, false, undefined, before);
       this.schedule(1000 * Math.pow(2, this.retry));        // 2 s … 32 s, the changes stay queued
     }
   }
@@ -97,7 +99,7 @@ export class DocSync {
     let doc: WorkbookDoc | null;
     try { doc = await this.api.getDoc(this.name, this.server.rev); } catch { return; }
     if (!doc || this.inflight || doc.rev === this.server.rev) return;
-    if (typeof doc.schema === "number" && doc.schema > FORMATS.workbook) { this.state = "outdated"; this.error = OUTDATED; this.emit(this.view, false); return; }
+    if (typeof doc.schema === "number" && doc.schema > FORMATS.workbook) { const before: [SaveState, string] = [this.state, this.error]; this.state = "outdated"; this.error = OUTDATED; this.emit(this.view, false, undefined, before); return; }
     const prev = this.view, by = this.authors(doc, this.server.rev);
     this.server = doc; this.recompute();
     this.emit(prev, false, by);

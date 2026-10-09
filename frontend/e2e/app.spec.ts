@@ -6,12 +6,36 @@ import path from "node:path";
 
 const ANNA = "http://127.0.0.1:8951/", BOB = "http://127.0.0.1:8952/";
 const root = () => process.env.SB_E2E_ROOT!, data = () => process.env.SB_E2E_DATA!;
-const docFile = () => { const d = path.join(data(), "workbooks"); const f = fs.readdirSync(d).find(n => n.startsWith("report.xlsx")); return f ? path.join(d, f) : null; };
+/** the helper's document of a workbook: "<name>-<hash>.json" (a save briefly adds "<that>.<uuid>.tmp" next to it) */
+const wbFile = (name: string) => { const d = path.join(data(), "workbooks"); const f = fs.readdirSync(d).find(n => n.startsWith(name + "-") && /-[0-9a-f]{10}\.json$/.test(n)); return f ? path.join(d, f) : null; };
+const docFile = () => wbFile("report.xlsx");
 const doc = () => JSON.parse(fs.readFileSync(docFile()!, "utf8"));
 const errors: string[] = [];
 
+/* what the page asked the helpers and what came back - printed when a test fails, so a failure on CI
+   shows where a save stopped (request never sent, refused, unanswered, or written to another file) */
+let trail: string[] = [];
+const at = () => "+" + (Date.now() - started) + "ms";       // since the test started
+let started = 0;
+test.beforeEach(() => { trail = []; started = Date.now(); });
+test.afterEach(async ({ page }, info) => {
+  if (info.status === info.expectedStatus) return;
+  let state = "";
+  try { state = await page.locator("#sbSave").innerText({ timeout: 1000 }); } catch { state = "(no status bar)"; }
+  let files: string[] = [];
+  try { files = fs.readdirSync(path.join(data(), "workbooks")); } catch { /* none yet */ }
+  console.log(["--- trail of " + info.title + " (last 150 events)", ...trail.slice(-150), "save status: " + state, "workbooks: " + files.join(", ")].join("\n"));
+});
 async function openApp(page: Page, url: string) {
   page.on("pageerror", e => errors.push(e.message));
+  page.on("pageerror", e => trail.push(at() + " pageerror " + e.message));
+  page.on("console", m => { if (m.type() === "error" || m.type() === "warning") trail.push(at() + " console." + m.type() + " " + m.text()); });
+  // every helper request with its start, answer and duration (presence and file checks run every few seconds)
+  const ids = new Map<object, number>(); let n = 0;
+  const short = (u: string) => u.replace(url, "/").replace(/[?&]t=[^&]*/, "");
+  page.on("request", r => { if (!r.url().startsWith(url)) return; ids.set(r, ++n); trail.push(at() + " #" + n + " -> " + r.method() + " " + short(r.url()) + (r.method() === "POST" ? " " + (r.postData() || "").slice(0, 200) : "")); });
+  page.on("requestfinished", async r => { if (!ids.has(r)) return; const res = await r.response().catch(() => null); trail.push(at() + " #" + ids.get(r) + " <- " + (res ? res.status() : "?") + " in " + Math.round(r.timing().responseEnd) + " ms"); });
+  page.on("requestfailed", r => { if (ids.has(r)) trail.push(at() + " #" + ids.get(r) + " xx " + (r.failure()?.errorText || "")); });
   await page.goto(url);
   await expect(page.locator("#srv")).toContainText(/Export|Testing/);
 }
@@ -24,6 +48,15 @@ async function selectCell(page: Page, text: string) {
   const box = (await page.locator("#stage .slide .t", { hasText: new RegExp("^" + text + "$") }).first().boundingBox())!;
   await page.mouse.click(box.x + 8, box.y + box.height / 2);
 }
+/** a user's preferences are saved 400 ms after a change; a test whose successor relies on "re-opens the last
+    workbook" waits for them ("✓ Saved" shows at once since B6, so it no longer gives them time) */
+const lastFileSaved = (user: string, name: string) => expect.poll(() => {
+  try { return JSON.parse(fs.readFileSync(path.join(data(), "users", user + ".json"), "utf8")).lastFile; } catch { return null; }
+}, { timeout: 10_000 }).toBe(name);
+/** expect.poll on what the helpers wrote: a read that throws (the document is not written yet, or the field is
+    not there yet) counts as "not yet" and is retried - expect.poll fails at once when its callback throws */
+const pollFile = <T>(read: () => T, opts?: { timeout?: number }) =>
+  expect.poll(() => { try { return read(); } catch (e) { return "not saved yet: " + (e as Error).message; } }, opts);
 const saved = (page: Page) => expect(page.locator("#sbSave")).toHaveText("✓ Saved", { timeout: 10_000 });
 
 test.describe.serial("two people, one shared folder", () => {
@@ -44,6 +77,7 @@ test.describe.serial("two people, one shared folder", () => {
     expect(d.preset.slides.map((s: { type: string }) => s.type)).toEqual(["cover", "index", "content", "content"]);
     expect(d.preset.slides[0].title).toBe("IBD Weekly");
     expect(d.updatedBy).toBe("anna");
+    await lastFileSaved("anna", "report.xlsx");                 // the next tests re-open it
   });
 
   test("edits by anna and bob on the same workbook are merged, and each sees the other", async ({ browser }) => {
@@ -145,7 +179,7 @@ test.describe.serial("two people, one shared folder", () => {
 
     // corners and contrast are deck settings
     await a.click("#optBtn"); await a.locator("#radiusRange").fill("0"); await a.locator("#contrastRange").fill("80"); await a.keyboard.press("Escape");
-    await expect.poll(() => doc().style, { timeout: 10_000 }).toMatchObject({ radius: 0, contrast: 80 });   // sliders apply after a short pause
+    await pollFile(() => doc().style, { timeout: 10_000 }).toMatchObject({ radius: 0, contrast: 80 });   // sliders apply after a short pause
     await a.close(); await b.close();
   });
 
@@ -234,7 +268,7 @@ test.describe.serial("two people, one shared folder", () => {
     const edge = (await page.locator('.hbox[data-i="0"] .edge.r').boundingBox())!;
     await page.mouse.move(edge.x + 4, edge.y + edge.height / 4); await page.mouse.down();       // (the + button sits in the middle)
     await page.mouse.move(edge.x - 150, edge.y + edge.height / 4, { steps: 5 }); await page.mouse.up();
-    await expect.poll(() => Object.keys(tdef().sizes?.[doc().style.design || "glass"]?.cols || {}).length, { timeout: 10_000 }).toBe(7);      // C…J without the hidden column
+    await pollFile(() => Object.keys(tdef().sizes?.[doc().style.design || "glass"]?.cols || {}).length, { timeout: 10_000 }).toBe(7);      // C…J without the hidden column
 
     // text box below the table, in a bubble, centred both ways
     await selectCell(page, "Zeta"); await page.click('[data-addnote="bottom"]');
@@ -263,7 +297,7 @@ test.describe.serial("two people, one shared folder", () => {
     await page.screenshot({ path: path.join(process.env.SB_E2E_TMP!, "round4-intesa.png") });
     await page.click('[data-theme="custom"]'); await saved(page);
     await page.locator('[data-tk="c1"]').fill("#123456");
-    await expect.poll(() => doc().style.designs.glass.theme, { timeout: 10_000 }).toMatchObject({ id: "custom", c1: "#123456", a1: "#00953B" });
+    await pollFile(() => doc().style.designs.glass.theme, { timeout: 10_000 }).toMatchObject({ id: "custom", c1: "#123456", a1: "#00953B" });
     await page.click('[data-theme="aurora"]'); await saved(page);
     // the third design gets its own colours; Liquid Glass does not see them
     await page.click('.tsdlg [data-a="close"]');
@@ -277,13 +311,13 @@ test.describe.serial("two people, one shared folder", () => {
     await page.click("#themeBtn");
     await expect(page.locator('[data-color="head"]')).toHaveCount(0);                 // no table colours to override
     await page.locator('[data-color="accent"] input').evaluate(el => { (el as HTMLInputElement).value = "#5b2c83"; el.dispatchEvent(new Event("change", { bubbles: true })); });
-    await expect.poll(() => doc().style.designs?.clean?.colors, { timeout: 10_000 }).toEqual({ accent: "#5B2C83" });
+    await pollFile(() => doc().style.designs?.clean?.colors, { timeout: 10_000 }).toEqual({ accent: "#5B2C83" });
     expect(doc().style.colors).toBeUndefined();
     expect(await tableOf()).toBe(refined);                                              // the tables keep the workbook's colours
     // all designs: one accent everywhere, and the design's own value for it goes
     await page.click('#lookScope [data-scope="all"]');
     await page.locator('[data-color="accent"] input').evaluate(el => { (el as HTMLInputElement).value = "#aa0000"; el.dispatchEvent(new Event("change", { bubbles: true })); });
-    await expect.poll(() => doc().style.colors, { timeout: 10_000 }).toEqual({ accent: "#AA0000" });
+    await pollFile(() => doc().style.colors, { timeout: 10_000 }).toEqual({ accent: "#AA0000" });
     await page.click("#colorsReset");                                                     // for all designs: the design's own colours go too
     await expect(page.locator("#colorsReset")).toBeDisabled();
     await page.click('#lookScope [data-scope="design"]'); await expect(page.locator("#colorsReset")).toBeDisabled(); await page.click('.tsdlg [data-a="close"]');
@@ -331,22 +365,22 @@ test.describe.serial("two people, one shared folder", () => {
     await a.locator("#stage .slide .title").click();
     await expect(a.locator("#textTarget")).toHaveText("Title");
     await a.fill("#sizeBox", "40"); await a.press("#sizeBox", "Enter");
-    await expect.poll(() => sdef(2).fmt?.title?.size, { timeout: 10_000 }).toBe(53.3);
+    await pollFile(() => sdef(2).fmt?.title?.size, { timeout: 10_000 }).toBe(53.3);
     await a.click("#fontBtn"); await a.click('.fontmenu [data-font="Georgia"]');
     await a.click('[data-align="center"]');
-    await expect.poll(() => sdef(2).fmt?.title, { timeout: 10_000 }).toMatchObject({ font: "Georgia", align: "center", size: 53.3 });
+    await pollFile(() => sdef(2).fmt?.title, { timeout: 10_000 }).toMatchObject({ font: "Georgia", align: "center", size: 53.3 });
     await expect(a.locator("#stage .slide .title")).toHaveCSS("font-family", /Georgia/);
     await a.click("#clearFmt");
-    await expect.poll(() => sdef(2).fmt, { timeout: 10_000 }).toBeUndefined();
+    await pollFile(() => sdef(2).fmt, { timeout: 10_000 }).toBeUndefined();
     // a cell: same font menu
     await selectCell(a, "Theta");
     await expect(a.locator("#textTarget")).toHaveText(/^Cell /);
     await a.click("#fontBtn"); await a.click('.fontmenu [data-font="Verdana"]');
-    await expect.poll(() => Object.values(doc().edits.SLIDE_1 || {}).some((e: any) => e.font === "Verdana"), { timeout: 10_000 }).toBe(true);
+    await pollFile(() => Object.values(doc().edits.SLIDE_1 || {}).some((e: any) => e.font === "Verdana"), { timeout: 10_000 }).toBe(true);
     // deck text styles: every text box of the deck in one place
     await a.click("#textStylesBtn");
     await a.locator('.tsrow[data-role="note"] .fontbtn').click(); await a.click('.fontmenu [data-font="Trebuchet MS"]');
-    await expect.poll(() => doc().style.designs?.glass?.text?.note, { timeout: 10_000 }).toEqual({ font: "Trebuchet MS" });   // for this design (the default scope)
+    await pollFile(() => doc().style.designs?.glass?.text?.note, { timeout: 10_000 }).toEqual({ font: "Trebuchet MS" });   // for this design (the default scope)
     // fonts: an uploaded font goes to the shared library – bob gets it too
     await a.click("#tabFonts");
     const file = path.join(process.env.SB_E2E_TMP!, "CorpSans-Bold.ttf"); fs.writeFileSync(file, sfnt("Corp Sans", 700));
@@ -363,7 +397,7 @@ test.describe.serial("two people, one shared folder", () => {
     await b.click('.tsdlg [data-a="close"]');
     // back to the design's look for the next tests
     await a.click("#textStylesBtn"); await a.locator('.tsrow[data-role="note"] .btn', { hasText: "Reset" }).click();
-    await expect.poll(() => doc().style.designs?.glass?.text, { timeout: 10_000 }).toBeUndefined();
+    await pollFile(() => doc().style.designs?.glass?.text, { timeout: 10_000 }).toBeUndefined();
     await a.click('.tsdlg [data-a="close"]');
     await a.close(); await b.close();
   });
@@ -390,8 +424,8 @@ test.describe.serial("two people, one shared folder", () => {
     await page.locator('#cmtKinds [data-kind="month"]').uncheck();
     await expect(prev).not.toContainText("vs EoM");
     await page.click("#cmtInsert");
-    const wdoc = () => { const d = path.join(data(), "workbooks"), f = fs.readdirSync(d).find(n => n.startsWith("weekly.xlsx"))!; return JSON.parse(fs.readFileSync(path.join(d, f), "utf8")); };
-    await expect.poll(() => Object.values(wdoc().preset.slides[0].notes || {}).filter((n: any) => n.auto).length, { timeout: 10_000 }).toBe(1);
+    const wdoc = () => JSON.parse(fs.readFileSync(wbFile("weekly.xlsx")!, "utf8"));
+    await pollFile(() => Object.values(wdoc().preset.slides[0].notes || {}).filter((n: any) => n.auto).length, { timeout: 10_000 }).toBe(1);
     const auto: any = Object.values(wdoc().preset.slides[0].notes).find((n: any) => n.auto);
     expect(auto.auto).toMatchObject({ mode: "summary", kinds: ["week", "target"] });
     expect(auto.auto.tables).toHaveLength(1);
@@ -410,14 +444,15 @@ test.describe.serial("two people, one shared folder", () => {
     await page.mouse.move(nb.x + nb.width / 2, tw.y + tw.height + 3, { steps: 6 });
     await expect(page.locator("#stage .snapline.h")).toBeVisible();
     await page.mouse.up();
-    await expect.poll(() => (Object.values(wdoc().preset.slides[0].notes).find((n: any) => n.auto) as any).h, { timeout: 10_000 }).toBeGreaterThan(0);
+    await pollFile(() => (Object.values(wdoc().preset.slides[0].notes).find((n: any) => n.auto) as any).h, { timeout: 10_000 }).toBeGreaterThan(0);
     await expect(page.locator("#stage .snapline")).toHaveCount(0);
+    await lastFileSaved("bob", "weekly.xlsx");                    // the next tests re-open it
   });
 
   test("the + button puts a text box there at once; text boxes move anywhere, snap, and attach back", async ({ page }) => {
     await openApp(page, BOB);
     await expect(page.locator(".thumb")).toHaveCount(1);                                   // weekly.xlsx (last file)
-    const wdoc = () => { const d = path.join(data(), "workbooks"), f = fs.readdirSync(d).find(n => n.startsWith("weekly.xlsx"))!; return JSON.parse(fs.readFileSync(path.join(d, f), "utf8")); };
+    const wdoc = () => JSON.parse(fs.readFileSync(wbFile("weekly.xlsx")!, "utf8"));
     const notes = () => wdoc().preset.slides[0].notes || {};
     // + below the second table: the box is there immediately, ready for typing
     await page.locator('#stage .stagewrap').hover();
@@ -430,24 +465,24 @@ test.describe.serial("two people, one shared folder", () => {
     await box.click();
     await page.click("#spacingBtn"); await page.click('.spacemenu [data-lh="1.5"]');
     await page.click("#spacingBtn"); await page.click('.spacemenu [data-pgap="1"]');
-    await expect.poll(() => { const n: any = Object.values(notes()).find((x: any) => x.text === "Source: ECB"); return n && [n.lh, n.pgap]; }, { timeout: 10_000 }).toEqual([1.5, 1]);
+    await pollFile(() => { const n: any = Object.values(notes()).find((x: any) => x.text === "Source: ECB"); return n && [n.lh, n.pgap]; }, { timeout: 10_000 }).toEqual([1.5, 1]);
     await expect(box).toHaveCSS("line-height", /px/);
     // drag it by its body: it becomes free and stays where it was dropped
     const b = (await box.boundingBox())!;
     await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
     await page.mouse.move(b.x + b.width / 2 + 60, b.y + b.height / 2 - 40, { steps: 8 }); await page.mouse.up();
-    await expect.poll(() => { const n: any = Object.values(notes()).find((x: any) => x.text === "Source: ECB"); return n && n.x != null && n.y != null; }, { timeout: 10_000 }).toBe(true);
+    await pollFile(() => { const n: any = Object.values(notes()).find((x: any) => x.text === "Source: ECB"); return n && n.x != null && n.y != null; }, { timeout: 10_000 }).toBe(true);
     await expect(page.locator("#stage .tnote.free", { hasText: "Source: ECB" })).toBeVisible();
     // and back next to its table
     await page.locator("#stage .tnote.free", { hasText: "Source: ECB" }).click();
     await page.click("#noteAttach");
-    await expect.poll(() => { const n: any = Object.values(notes()).find((x: any) => x.text === "Source: ECB"); return n && n.x; }, { timeout: 10_000 }).toBeUndefined();
+    await pollFile(() => { const n: any = Object.values(notes()).find((x: any) => x.text === "Source: ECB"); return n && n.x; }, { timeout: 10_000 }).toBeUndefined();
   });
 
   test("notes section of a slide: where the footer is, movable next to the page number; raw Excel adds nothing; menus open", async ({ page }) => {
     await openApp(page, BOB);
     await expect(page.locator(".thumb")).toHaveCount(1);
-    const wdoc = () => { const d = path.join(data(), "workbooks"), f = fs.readdirSync(d).find(n => n.startsWith("weekly.xlsx"))!; return JSON.parse(fs.readFileSync(path.join(d, f), "utf8")); };
+    const wdoc = () => JSON.parse(fs.readFileSync(wbFile("weekly.xlsx")!, "utf8"));
     // the Options menu is visible (not cut off by the top bar)
     await page.click("#optBtn");
     await expect(page.locator("#pnOn")).toBeVisible();
@@ -468,7 +503,7 @@ test.describe.serial("two people, one shared folder", () => {
     await page.mouse.move(mb.x + 60, pn.y + pn.height - mb.height / 2 + 2, { steps: 4 });
     await expect(page.locator("#stage .snapline.h")).toBeVisible();
     await page.mouse.up();
-    await expect.poll(() => wdoc().preset.slides[0].notes["slide:notes"].x, { timeout: 10_000 }).toBeGreaterThan(56);
+    await pollFile(() => wdoc().preset.slides[0].notes["slide:notes"].x, { timeout: 10_000 }).toBeGreaterThan(56);
     // raw Excel: the workbook only – no comments, no text boxes, no notes
     await page.click('[data-design="excel"]'); await saved(page);
     await expect(page.locator("#stage .tnote")).toHaveCount(0);
@@ -499,8 +534,8 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#wCuts .wcut")).toHaveCount(1);
     await page.locator('#wVersions .wvrow[data-v="Board"] .del').click();
     await page.click('[data-a="finish"]');
-    const wdoc = () => { const d = path.join(data(), "workbooks"), f = fs.readdirSync(d).find(n => n.startsWith("weekly.xlsx"))!; return JSON.parse(fs.readFileSync(path.join(d, f), "utf8")); };
-    await expect.poll(() => (wdoc().preset.versions || []).map((v: any) => [v.name, v.hide]), { timeout: 10_000 })
+    const wdoc = () => JSON.parse(fs.readFileSync(wbFile("weekly.xlsx")!, "utf8"));
+    await pollFile(() => (wdoc().preset.versions || []).map((v: any) => [v.name, v.hide]), { timeout: 10_000 })
       .toEqual([["Chief", {}], ["All", { LOANS_DEPOSITS: ["H10:I11"] }]]);
     // the slide shown as "All": those cells are empty; as the full deck they are back
     const vub = () => page.locator("#stage .slide > .tw").first().locator(".t").count();         // texts drawn in the loans table

@@ -1,15 +1,18 @@
 """tools/update.py: connecting an existing folder to GitHub in place and updating it never touches the
 saved setups (decks, defaults, preferences, logo, v2 settings, workbooks, exports)."""
+import hashlib
 import importlib.util
 import io
 import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
 from contextlib import redirect_stdout
+from unittest import mock
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 spec = importlib.util.spec_from_file_location("sb_update", os.path.join(REPO, "tools", "update.py"))
@@ -154,6 +157,275 @@ class UpdateTest(unittest.TestCase):
             self.assertTrue(update.is_protected(p), p)
         for p in ("backend/slide_builder.html", "backend/slidebuilder/store.py", "README.md", "tools/update.py"):
             self.assertFalse(update.is_protected(p), p)
+
+
+# --------------------------------------------------------------------------- side-by-side releases (S0.3)
+spec_mr = importlib.util.spec_from_file_location("sb_make_release_u", os.path.join(REPO, "tools", "make_release.py"))
+make_release = importlib.util.module_from_spec(spec_mr)
+spec_mr.loader.exec_module(make_release)
+
+
+def tree_hashes(root, skip=()):
+    """{relative path: sha256} of every file below root, except under the `skip` sub-folders"""
+    out = {}
+    for base, dirs, files in os.walk(root):
+        r = os.path.relpath(base, root).replace(os.sep, "/")
+        dirs[:] = [d for d in dirs if (d if r == "." else r + "/" + d) not in skip]
+        for f in files:
+            with open(os.path.join(base, f), "rb") as fh:
+                out[os.path.relpath(os.path.join(base, f), root).replace(os.sep, "/")] = hashlib.sha256(fh.read()).hexdigest()
+    return out
+
+
+class ReleaseInstallTest(unittest.TestCase):
+    """--release / --zip <file> / --use: app/<ver> side by side, app/current.json, self-test gate"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.dist = tempfile.mkdtemp(prefix="sb-dist-")
+        cls.zips = {}
+        for v in ("3.4.0", "3.5.0", "3.6.0", "3.7.0"):
+            cls.zips[v] = make_release.build(REPO, v, cls.dist, check_version=False)[0]
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.dist, ignore_errors=True)
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="sb-rel-")
+        self.root = os.path.join(self.tmp, "Slide Builder")
+        os.makedirs(os.path.join(self.root, "backend"))
+        write(self.root, SAVED)
+        write(self.root, {"Start Slide Builder.bat": "old start file", "tools/update.py": "# old updater\n"})
+        self.data = os.path.join(self.root, "backend", "data")
+
+    def tearDown(self):
+        update.remove_tree(self.tmp)
+
+    def saved_state(self):
+        # the data folder minus what the updater itself owns (its lock, the before-update backups);
+        # the workbooks, exports and the user's files next to the program
+        return (tree_hashes(self.data, skip=("backups", "locks")),
+                {p: read(self.root, p) for p in SAVED if not p.startswith("backend/data/")})
+
+    def pointer(self):
+        with open(os.path.join(self.root, "app", "current.json"), encoding="utf-8") as f:
+            return json.load(f)
+
+    def install(self, v):
+        return run("--root", self.root, "--zip", self.zips[v], "--yes")
+
+    def test_install_offline(self):
+        before = self.saved_state()
+        rc, out = self.install("3.4.0")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("self-test passed", out)
+        self.assertEqual(self.pointer()["version"], "3.4.0")
+        app = os.path.join(self.root, "app")
+        self.assertEqual(sorted(os.listdir(app)), ["3.4.0", "current.json"])
+        update.check_installed(os.path.join(app, "3.4.0"))
+        # the main folder's start file now knows app/current.json; the old one is in the backup folder
+        self.assertIn("app\\current.json", read(self.root, "Start Slide Builder.bat"))
+        self.assertNotEqual(read(self.root, "tools/update.py"), "# old updater\n")
+        self.assertEqual(self.saved_state(), before)
+        out.encode("ascii")
+        # the same ZIP again: nothing is extracted twice
+        rc, out = self.install("3.4.0")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("already installed", out)
+
+    def test_flip_rollback_and_prune(self):
+        before = self.saved_state()
+        for v in ("3.4.0", "3.5.0"):
+            rc, out = self.install(v)
+            self.assertEqual(rc, 0, out)
+        self.assertEqual((self.pointer()["version"], self.pointer()["previous"]), ("3.5.0", "3.4.0"))
+        rc, out = run("--root", self.root, "--use", "3.4.0")          # roll back
+        self.assertEqual(rc, 0, out)
+        self.assertEqual((self.pointer()["version"], self.pointer()["previous"]), ("3.4.0", "3.5.0"))
+        with self.assertRaises(SystemExit) as e:
+            run("--root", self.root, "--use", "9.9.9")
+        self.assertIn("not installed", str(e.exception))
+        self.assertEqual(self.pointer()["version"], "3.4.0")
+        # a changed program file: --use refuses that version
+        with open(os.path.join(self.root, "app", "3.5.0", "backend", "slide_builder.py"), "a") as f:
+            f.write("# edited\n")
+        with self.assertRaises(SystemExit) as e:
+            run("--root", self.root, "--use", "3.5.0")
+        self.assertIn("damaged", str(e.exception))
+        for v in ("3.6.0", "3.7.0"):
+            rc, out = self.install(v)
+            self.assertEqual(rc, 0, out)
+        # the newest 3 stay (and the current and previous ones): 3.4.0 goes
+        self.assertEqual(update.installed_versions(self.root), ["3.5.0", "3.6.0", "3.7.0"])
+        self.assertEqual(self.pointer()["version"], "3.7.0")
+        self.assertEqual(self.saved_state(), before)
+
+    def release_json(self, digest):
+        api = os.path.join(self.tmp, "api", "releases")
+        os.makedirs(api, exist_ok=True)
+        z = self.zips["3.4.0"]
+        body = {"tag_name": "v3.4.0", "assets": [{"name": os.path.basename(z), "digest": digest,
+                                                  "browser_download_url": "file:///" + z.replace(os.sep, "/").lstrip("/")}]}
+        with open(os.path.join(api, "latest"), "w") as f:
+            json.dump(body, f)
+        return "file:///" + os.path.join(self.tmp, "api").replace(os.sep, "/").lstrip("/")
+
+    def test_release_digest(self):
+        with open(self.zips["3.4.0"], "rb") as f:
+            good = "sha256:" + hashlib.sha256(f.read()).hexdigest()
+        api = self.release_json("sha256:" + "0" * 64)
+        with self.assertRaises(SystemExit) as e:
+            run("--root", self.root, "--release", "--api-url", api)
+        self.assertIn("does not match GitHub's checksum", str(e.exception))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "app", "3.4.0")))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "app", "current.json")))
+        api = self.release_json(good)
+        rc, out = run("--root", self.root, "--check", "--release", "--api-url", api)
+        self.assertIn("An update is available: none -> 3.4.0", out)
+        rc, out = run("--root", self.root, "--release", "latest", "--api-url", api)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("checksum matches", out)
+        self.assertEqual(self.pointer()["version"], "3.4.0")
+        rc, out = run("--root", self.root, "--release", "--api-url", api)
+        self.assertIn("Already up to date (version 3.4.0)", out)
+        # no digest in the API answer (older GitHub): MANIFEST.json alone
+        api = self.release_json(None)
+        os.remove(os.path.join(self.root, "app", "current.json"))
+        rc, out = run("--root", self.root, "--release", "--api-url", api)
+        self.assertEqual(rc, 0, out)
+
+    def test_bad_zip_refused(self):
+        bad = os.path.join(self.tmp, "bad.zip")
+        with zipfile.ZipFile(self.zips["3.4.0"]) as a, zipfile.ZipFile(bad, "w") as b:
+            for n in a.namelist():
+                b.writestr(n, b"evil" if n == "backend/slidebuilder/server.py" else a.read(n))
+        with self.assertRaises(SystemExit) as e:
+            run("--root", self.root, "--zip", bad)
+        self.assertIn("not a valid Slide Builder release", str(e.exception))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "app", "3.4.0")))
+
+    def test_interrupted_install_leaves_nothing(self):
+        # a crash half-way through the extraction (here: right before the final check)
+        real = update.check_installed
+        with mock.patch.object(update, "check_installed", side_effect=KeyboardInterrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                self.install("3.4.0")
+        app = os.path.join(self.root, "app")
+        self.assertEqual(os.listdir(app), [])
+        # a .part left by a power cut is cleared by the next install
+        write(self.root, {"app/3.4.0.part/backend/half.py": "x"})
+        self.assertEqual(update.installed_versions(self.root), [])
+        self.assertIs(update.check_installed, real)
+        rc, out = self.install("3.4.0")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(sorted(os.listdir(app)), ["3.4.0", "current.json"])
+
+    def test_selftest_gates_the_pointer(self):
+        self.assertEqual(self.install("3.4.0")[0], 0)
+        # a deck saved by a newer version: 3.5.0 cannot read it, so it must not become current
+        too_new = os.path.join(self.data, "workbooks", "new.xlsx-9f9f.json")
+        write(self.root, {"backend/data/workbooks/new.xlsx-9f9f.json": json.dumps({"schema": 99, "workbook": "new.xlsx"})})
+        before = self.saved_state()
+        with self.assertRaises(SystemExit) as e:
+            self.install("3.5.0")
+        self.assertIn("self-test of version 3.5.0 failed", str(e.exception))
+        self.assertIn("new.xlsx-9f9f.json", str(e.exception))
+        self.assertEqual(self.pointer()["version"], "3.4.0")
+        self.assertFalse(os.path.exists(os.path.join(self.root, "app", "3.5.0")))
+        self.assertEqual(self.saved_state(), before)       # read-only: the too-new deck is unchanged
+        with open(too_new) as f:
+            self.assertEqual(json.load(f)["schema"], 99)
+
+    def test_installed_version_uses_the_main_folder(self):
+        """app/<ver>/backend/slide_builder.py, started without any environment, finds the main folder's data"""
+        self.assertEqual(self.install("3.4.0")[0], 0)
+        env = {k: v for k, v in os.environ.items() if not k.startswith("SLIDEBUILDER_")}
+        entry = os.path.join(self.root, "app", "3.4.0", "backend", "slide_builder.py")
+        r = subprocess.run([sys.executable, entry, "--selftest"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           universal_newlines=True, env=env, cwd=self.tmp)
+        self.assertEqual(r.returncode, 0, r.stdout)
+        line = next(x for x in r.stdout.splitlines() if x.startswith("  data   : "))
+        self.assertEqual(os.path.realpath(line[len("  data   : "):]), os.path.realpath(self.data))
+        self.assertIn("3 saved setup(s) read", r.stdout)          # the deck, config.json, anna's preferences
+
+    def test_one_click_update_follows_releases(self):
+        """a folder with app/current.json: a plain "Update Slide Builder.bat" looks for releases, not backend/"""
+        api = self.release_json(None)
+        self.assertEqual(self.install("3.4.0")[0], 0)
+        rc, out = run("--root", self.root, "--api-url", api, "--yes")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("side-by-side versions", out)
+        self.assertIn("Already up to date (version 3.4.0)", out)
+        rc, out = run("--root", self.root, "--check", "--api-url", api)
+        self.assertIn("Already up to date (version 3.4.0)", out)
+
+    def test_reinstall_keeps_previous_and_says_nothing_changed(self):
+        self.install("3.4.0"); self.install("3.5.0")
+        rc, out = self.install("3.5.0")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("was already the current version", out)
+        self.assertNotIn("Done.", out)
+        self.assertEqual((self.pointer()["version"], self.pointer()["previous"]), ("3.5.0", "3.4.0"))
+        rc, out = run("--root", self.root, "--use", "3.5.0")
+        self.assertEqual(self.pointer()["previous"], "3.4.0")
+
+    def test_version_in_use_is_not_half_deleted(self):
+        for v in ("3.4.0", "3.5.0", "3.6.0"):
+            self.install(v)
+        real = os.rename
+
+        def busy(src, dst):          # Windows: a PC runs 3.4.0, its folder cannot be renamed
+            if os.path.basename(src) == "3.4.0":
+                raise PermissionError("in use")
+            return real(src, dst)
+        with mock.patch.object(update.os, "rename", busy):
+            rc, out = self.install("3.7.0")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("version 3.4.0 stays for now", out)
+        update.check_installed(os.path.join(self.root, "app", "3.4.0"))         # whole, still runnable
+        # no longer in use: the next update removes it, and nothing named .old-* is left over
+        self.install("3.7.0")
+        self.assertEqual(sorted(os.listdir(os.path.join(self.root, "app"))), ["3.5.0", "3.6.0", "3.7.0", "current.json"])
+
+    def test_pointer_replace_is_retried(self):
+        self.install("3.4.0")
+        real, calls = os.replace, []
+
+        def flaky(src, dst):         # a PC reads current.json right now (Windows sharing violation)
+            if dst.endswith("current.json") and len(calls) < 2:
+                calls.append(dst)
+                raise PermissionError("sharing violation")
+            return real(src, dst)
+        with mock.patch.object(update.os, "replace", flaky), mock.patch.object(update.time, "sleep"):
+            rc, out = self.install("3.5.0")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.pointer()["version"], "3.5.0")
+        self.assertEqual(len(calls), 2)
+        with mock.patch.object(update.os, "replace", side_effect=PermissionError("locked")), mock.patch.object(update.time, "sleep"):
+            with self.assertRaises(SystemExit) as e:
+                run("--root", self.root, "--use", "3.4.0")
+        self.assertIn("current version is unchanged", str(e.exception))
+        self.assertEqual(self.pointer()["version"], "3.5.0")
+        self.assertFalse([n for n in os.listdir(os.path.join(self.root, "app")) if n.endswith(".update-tmp")])
+
+    def test_install_detection_needs_a_version_folder(self):
+        sys.path.insert(0, os.path.join(REPO, "backend"))
+        from slidebuilder import paths
+        fake = os.path.join(self.tmp, "app", "Slide Builder")       # a release ZIP unpacked as a main folder
+        write(self.tmp, {"app/Slide Builder/MANIFEST.json": "{}", "app/3.4.0/MANIFEST.json": "{}"})
+        with mock.patch.object(paths, "BACKEND", os.path.join(fake, "backend")):
+            self.assertIsNone(paths._install_home())
+        with mock.patch.object(paths, "BACKEND", os.path.join(self.tmp, "app", "3.4.0", "backend")):
+            self.assertEqual(paths._install_home(), self.tmp)
+
+    def test_git_and_zip_updates_never_touch_app(self):
+        self.assertTrue(update.is_protected("app/3.4.0/backend/slide_builder.py"))
+        self.assertTrue(update.is_protected("app/current.json"))
+
+    def test_version_order(self):
+        vs = ["3.10.0", "3.4.0", "3.4.0-rc1", "3.9.2"]
+        self.assertEqual(sorted(vs, key=update.version_key), ["3.4.0-rc1", "3.4.0", "3.9.2", "3.10.0"])
 
 
 if __name__ == "__main__":

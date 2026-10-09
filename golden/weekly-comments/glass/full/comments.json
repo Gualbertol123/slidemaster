@@ -1,0 +1,95 @@
+[
+ {
+  "slide": 1,
+  "key": "l4tsxhl:bottom",
+  "cfg": {
+   "groups": [],
+   "top": 2,
+   "noun": "bank",
+   "detail": "full",
+   "share": true,
+   "breadth": true,
+   "missing": true,
+   "mode": "summary"
+  },
+  "text": "Total Banks Loans\n• +192 mln (+0,2%) w/w · -43 mln vs Budget · +454 mln vs EoM Aug. Slightly positive week, driven by BIB (+36 mln) and ISP RO (+36 mln). Below Budget mainly because of ISP ALB (-78 mln) and VUB (-69 mln). The week closes 82% of the gap to Budget."
+ },
+ {
+  "slide": 1,
+  "key": "l4tsxhl:left",
+  "cfg": {
+   "groups": [],
+   "top": 2,
+   "noun": "country",
+   "detail": "full",
+   "share": true,
+   "breadth": true,
+   "missing": true,
+   "mode": "summary",
+   "tables": [
+    "dj7beg8"
+   ],
+   "minAbs": 50,
+   "kinds": [
+    "target",
+    "month"
+   ]
+  },
+  "text": "Total Banks Loans & Deposits\n• Total Banks Loans: -43 mln vs Budget · +454 mln vs EoM Aug. Negative, entirely due to ISP ALB (-78 mln); Alex (+90 mln) and ISP RO (+59 mln) go the other way.\n• Total Banks Deposits: +56 mln vs Budget · +443 mln vs EoM Aug. Positive, entirely from Alex (+101 mln); ISP ALB (-67 mln) and VUB (-58 mln) go the other way."
+ },
+ {
+  "slide": 1,
+  "key": "l4tsxhl:right",
+  "cfg": {
+   "groups": [],
+   "top": 1,
+   "noun": "country",
+   "detail": "short",
+   "share": true,
+   "breadth": true,
+   "missing": true,
+   "mode": "sections"
+  },
+  "text": "Total Banks Loans (1)\nvs Budget – Budget Performance\n• Total Banks Loans (1) as of week 25/09/26 is below Budget by -43 mln (-0,1%). The shortfall is mainly driven by ISP ALB (-78 mln, -0,9%).\n• Partly offsetting, positive contributions come from Alex (+90 mln, +1,8%).\nvs Prev. Week – Weekly Momentum\n• Total Banks Loans (1) increased by +192 mln (+0,2%) versus the previous week. The strongest positive contributions are recorded in BIB (+36 mln, +0,9%)."
+ },
+ {
+  "slide": 1,
+  "key": "dj7beg8:bottom",
+  "cfg": {
+   "groups": [],
+   "top": 2,
+   "noun": "country",
+   "detail": "full",
+   "share": true,
+   "breadth": true,
+   "missing": true,
+   "mode": "summary",
+   "kinds": [
+    "week"
+   ],
+   "unit": "",
+   "bullets": false
+  },
+  "text": "Total Banks Deposits\n+180 (+0,2%) w/w. Slightly positive week, driven by Alex (+36) and ISP ALB (+36)."
+ },
+ {
+  "slide": 1,
+  "key": "dj7beg8:right",
+  "cfg": {
+   "groups": [],
+   "top": 3,
+   "noun": "country",
+   "detail": "full",
+   "share": false,
+   "breadth": false,
+   "missing": false,
+   "mode": "sections",
+   "names": false,
+   "showTitle": false,
+   "exclude": [
+    "VUB"
+   ]
+  },
+  "text": "vs Budget – Budget Performance\n• Total Banks Deposits as of week 25/09/26 are above Budget by +56 mln (+0,1%). The strongest positive contributions versus Budget are recorded in Alex (+101 mln, +2,0%), ISP RO (+70 mln, +0,9%) and BIB (+48 mln, +1,2%).\n• On the downside, the main negative deviations versus Budget are recorded in ISP ALB (-67 mln, -0,7%), CIB (-36 mln, -0,6%) and ISP BiH (-14 mln, -0,1%).\nvs Prev. Week – Weekly Momentum\n• Total Banks Deposits increased by +180 mln (+0,2%) versus the previous week. The strongest positive contributions are recorded in Alex (+36 mln, +0,7%), ISP ALB (+36 mln, +0,4%) and CIB (+24 mln, +0,4%).\n• No material negative country contribution was recorded during the week, with the remaining countries broadly stable or positive."
+ }
+]

@@ -1,0 +1,65 @@
+{
+ "workbook": "report.xlsx",
+ "ops": [
+  {
+   "op": "preset.set",
+   "preset": {
+    "sheets": [
+     "SLIDE_1",
+     "SLIDE_2 panel",
+     "SLIDE_3 pair"
+    ],
+    "tables": [
+     {
+      "id": "dhnms9c",
+      "sheet": "SLIDE_1",
+      "kind": "markers",
+      "anchor": "B3",
+      "index": 0
+     },
+     {
+      "id": "ybyk4v2",
+      "sheet": "SLIDE_3 pair",
+      "kind": "markers",
+      "anchor": "B3",
+      "index": 0
+     },
+     {
+      "id": "62de08x",
+      "sheet": "SLIDE_3 pair",
+      "kind": "markers",
+      "anchor": "G3",
+      "index": 1
+     }
+    ],
+    "slides": [
+     {
+      "id": "u9t3fqb",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "dhnms9c"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "9lywu2f",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "ybyk4v2",
+       "62de08x"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     }
+    ]
+   }
+  }
+ ]
+}

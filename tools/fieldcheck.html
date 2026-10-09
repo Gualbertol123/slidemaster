@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slide Builder field check</title>
+<style>
+  body { font: 14px/1.45 "Segoe UI", system-ui, sans-serif; margin: 24px; color: #1b1f24; background: #fff; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  table { border-collapse: collapse; margin: 16px 0; }
+  td, th { border: 1px solid #c9ced6; padding: 6px 10px; text-align: left; vertical-align: top; }
+  .PASS { color: #0a7a2f; font-weight: 600; } .FAIL { color: #b3261e; font-weight: 600; } .INFO { color: #4a5568; }
+  textarea { width: 100%; max-width: 900px; height: 150px; font: 12px ui-monospace, Consolas, monospace; }
+  .note { color: #4a5568; max-width: 900px; }
+</style>
+</head>
+<body>
+<h1>Slide Builder · field check (PLAN S0.6, rows W1–W14)</h1>
+<p class="note">Open this page twice on the PC under test: once by double-clicking the file (<code>file://</code>), once from the
+helper (start Slide Builder, then open <code>http://127.0.0.1:8765/fieldcheck</code> in the same browser). Copy the box at
+the bottom into <code>docs/next/field-results.md</code>. Nothing is sent anywhere.</p>
+<table id="out"><tr><th>Check</th><th>Result</th><th>Detail</th></tr></table>
+<p class="note"><b>Fonts from a file</b> (what the export needs from M3 on): choose a font file, for example
+<code>C:\Windows\Fonts\calibri.ttf</code> or a font from the Slide Builder font library, and three more rows appear.
+<input type="file" id="fontFile" accept=".ttf,.otf,.woff,.woff2"></p>
+<textarea id="json" readonly></textarea>
+<script>
+/* Each check resolves to [PASS|FAIL|INFO, detail]. Plain ES2017, no modules, no network. */
+const rows = [];
+// (module (func (export "add") (param i32 i32) (result i32) local.get 0 local.get 1 i32.add))
+const WASM = new Uint8Array([0,97,115,109,1,0,0,0,1,7,1,96,2,127,127,1,127,3,2,1,0,7,7,1,3,97,100,100,0,0,10,9,1,7,0,32,0,32,1,106,11]);
+const timeout = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error("no answer in " + ms + " ms")), ms))]);
+function blobWorker(code, opts) {
+  const url = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
+  const w = new Worker(url, opts);
+  return timeout(new Promise((ok, no) => { w.onmessage = e => ok(e.data); w.onerror = e => no(new Error(e.message || "worker error")); }), 5000)
+    .finally(() => { w.terminate(); URL.revokeObjectURL(url); });
+}
+const checks = [
+  ["Page origin", async () => ["INFO", location.protocol === "file:" ? "file:// (opened from disk)" : location.origin]],
+  ["Browser", async () => ["INFO", navigator.userAgent]],
+  ["App window (Edge --app)", async () => ["INFO", (matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: minimal-ui)").matches ? "app window" : "normal tab / window")
+    + "; toolbar visible: " + (window.toolbar ? window.toolbar.visible : "?") + ", menubar visible: " + (window.menubar ? window.menubar.visible : "?")]],
+  ["Blob worker (classic)", async () => { const r = await blobWorker("postMessage(6 * 7)"); return [r === 42 ? "PASS" : "FAIL", "answer " + r]; }],
+  ["Blob worker (module)", async () => { const r = await blobWorker("postMessage(6 * 7)", { type: "module" }); return [r === 42 ? "PASS" : "FAIL", "answer " + r]; }],
+  ["WebAssembly in the page", async () => { const { instance } = await WebAssembly.instantiate(WASM); const r = instance.exports.add(40, 2); return [r === 42 ? "PASS" : "FAIL", "add(40, 2) = " + r]; }],
+  ["WebAssembly in a worker", async () => {
+    const url = URL.createObjectURL(new Blob(["onmessage = async e => { try { const { instance } = await WebAssembly.instantiate(e.data); postMessage(instance.exports.add(40, 2)); } catch (x) { postMessage('error: ' + x.message); } }"], { type: "text/javascript" }));
+    const w = new Worker(url);
+    const ans = await timeout(new Promise((ok, no) => { w.onmessage = e => ok(e.data); w.onerror = e => no(new Error(e.message || "worker error")); w.postMessage(WASM); }), 5000)
+      .finally(() => { w.terminate(); URL.revokeObjectURL(url); });
+    return [ans === 42 ? "PASS" : "FAIL", "add(40, 2) = " + ans];
+  }],
+  ["WebAssembly.compile (no eval)", async () => { const m = await WebAssembly.compile(WASM); return [m instanceof WebAssembly.Module ? "PASS" : "FAIL", "compiled"]; }],
+  ["OffscreenCanvas in a worker", async () => {
+    if (typeof OffscreenCanvas === "undefined") return ["FAIL", "OffscreenCanvas missing"];
+    const r = await blobWorker("const c = new OffscreenCanvas(32, 18); const g = c.getContext('2d'); g.fillStyle = '#1f4e79'; g.fillRect(0, 0, 32, 18); c.convertToBlob({ type: 'image/png' }).then(b => postMessage(b.size), e => postMessage('error: ' + e.message))");
+    return [typeof r === "number" && r > 0 ? "PASS" : "FAIL", "PNG of " + r + " bytes"];
+  }],
+  ["createImageBitmap", async () => { const b = await createImageBitmap(new ImageData(4, 4)); return [b.width === 4 ? "PASS" : "FAIL", b.width + "x" + b.height]; }],
+  ["System font by name (Segoe UI / Arial)", async () => { const f = new FontFace("SBCheck", "local('Segoe UI'), local('Arial')"); try { await f.load(); return ["PASS", "local font loaded"]; } catch (e) { return ["INFO", "no local Segoe UI/Arial: " + e.message]; } }],
+  ["Downloads (Blob URL + a[download])", async () => { const a = document.createElement("a"); return ["download" in a ? "PASS" : "FAIL", "supported (not clicked)"]; }],
+  ["Device pixel ratio (display scaling)", async () => ["INFO", String(devicePixelRatio)]],
+];
+async function runChecks(list) {
+  const table = document.getElementById("out");
+  for (const [name, fn] of list) {
+    let res;
+    try { res = await fn(); } catch (e) { res = ["FAIL", (e && e.message) || String(e)]; }
+    rows.push({ check: name, result: res[0], detail: res[1] });
+    const tr = document.createElement("tr");
+    tr.innerHTML = "<td></td><td></td><td></td>";
+    tr.children[0].textContent = name; tr.children[1].textContent = res[0]; tr.children[1].className = res[0]; tr.children[2].textContent = res[1];
+    table.appendChild(tr);
+  }
+  const summary = { at: new Date().toISOString(), origin: location.protocol === "file:" ? "file" : "helper", failed: rows.filter(r => r.result === "FAIL").map(r => r.check), rows };
+  document.getElementById("json").value = JSON.stringify(summary, null, 1);
+  document.title = (summary.failed.length ? "FAIL" : "PASS") + " - Slide Builder field check";
+  window.__fieldcheck = summary;
+}
+/* the worker font check: the font bytes go to a worker that loads them and draws text on an OffscreenCanvas */
+async function workerFont(bytes) {
+  const url = URL.createObjectURL(new Blob(["onmessage = async e => { try { const f = new FontFace('SBW', e.data); await f.load(); self.fonts.add(f); const c = new OffscreenCanvas(200, 40); const g = c.getContext('2d'); g.font = '24px SBW'; g.fillText('Δ 1.234,5 € %', 4, 30); postMessage(Math.round(g.measureText('Δ 1.234,5 € %').width)); } catch (x) { postMessage('error: ' + x.message); } }"], { type: "text/javascript" }));
+  const w = new Worker(url);
+  const ans = await timeout(new Promise((ok, no) => { w.onmessage = e => ok(e.data); w.onerror = e => no(new Error(e.message || "worker error")); w.postMessage(bytes, [bytes]); }), 8000)
+    .finally(() => { w.terminate(); URL.revokeObjectURL(url); });
+  return [typeof ans === "number" && ans > 0 ? "PASS" : "FAIL", typeof ans === "number" ? "text drawn, " + ans + " px wide" : String(ans)];
+}
+document.getElementById("fontFile").addEventListener("change", async e => {
+  const file = e.target.files && e.target.files[0]; if (!file) return;
+  const bytes = await file.arrayBuffer();
+  await runChecks([
+    ["FontFace from bytes (page) - " + file.name, async () => { const f = new FontFace("SBFile", bytes.slice(0)); await f.load(); document.fonts.add(f); return ["PASS", bytes.byteLength + " bytes"]; }],
+    ["FontFace from bytes + OffscreenCanvas text (worker) - " + file.name, () => workerFont(bytes.slice(0))],
+  ]);
+});
+runChecks(checks);
+</script>
+</body>
+</html>

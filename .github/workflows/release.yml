@@ -1,0 +1,47 @@
+# Release on a version tag (PLAN S0.2): the full CI, then the ZIP, its manifest check, a GitHub Release.
+#   git tag v3.4.0 && git push origin v3.4.0      (a human does this; see docs/next/release-checklist.md)
+# Tags with a suffix (v3.4.0-rc1) become pre-releases. The tag must match VERSION in
+# backend/slidebuilder/__init__.py (or start with it, followed by "-").
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: tests
+    runs-on: ubuntu-24.04            # like ci.yml: ubuntu 26.04 has no Python 3.8
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.8" }
+      - name: build the page (must equal the committed one)
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+          git diff --exit-code -- ../backend/slide_builder.html
+      - name: assemble and verify the ZIP
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          python tools/make_release.py --no-tests --version "$VER" --out dist
+          python tools/make_release.py --verify "dist/slidebuilder-$VER.zip"
+          sha256sum "dist/slidebuilder-$VER.zip" | tee "dist/slidebuilder-$VER.zip.sha256"
+      - name: publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          PRE=""; case "$VER" in *-*) PRE="--prerelease";; esac
+          python tools/make_release.py --notes "$VER" > dist/notes.md
+          gh release create "$GITHUB_REF_NAME" "dist/slidebuilder-$VER.zip" "dist/slidebuilder-$VER.zip.sha256" \
+            --title "Slide Builder $VER" --notes-file dist/notes.md $PRE

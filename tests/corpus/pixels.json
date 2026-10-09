@@ -1,0 +1,15 @@
+{
+ "_": "Slides whose screenshots are kept as goldens (version 'full', every design). Glass slides are ~1 MB each, so only this set is committed; geometry and text are kept for every slide. tools/capture-v3.mjs --all-pixels writes every screenshot.",
+ "weekly-options": "all",
+ "weekly-comments": "all",
+ "report-looks": "all",
+ "edge-pictures": "all",
+ "edge-formats": [
+  1
+ ],
+ "deck20": [
+  1
+ ],
+ "weekly-looks": "all",
+ "missing-table": "all"
+}

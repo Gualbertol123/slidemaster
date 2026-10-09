@@ -12,6 +12,8 @@ backend/slide_builder_settings.txt.unreadable-*
 ~$*
 # …except the generated test workbooks
 !frontend/tests/fixtures/*.xlsx
+!tests/corpus/workbooks/*.xlsx
+!tests/corpus/workbooks/*.xlsm
 
 __pycache__/
 *.pyc
@@ -27,3 +29,11 @@ backend/slide_builder_settings*.txt
 spikes/**/out-*.pdf
 spikes/**/node_modules/
 spikes/parser/package-lock.json
+dist/
+
+# side-by-side program versions on a share (tools/update.py --release)
+/app/
+
+# parity: the HTML report, and the 30 MB workbook (python tools/make_corpus.py big30)
+tests/parity/report/
+tests/corpus/workbooks/big30.xlsx

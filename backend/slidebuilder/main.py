@@ -1,8 +1,9 @@
-"""Command line entry point: ``python slide_builder.py [--port 8765] [--no-browser] [--setup] [--install]``."""
+"""Command line entry point: ``python slide_builder.py [--port 8765] [--no-browser] [--setup] [--install] [--selftest]``."""
 import argparse
 import atexit
 import json
 import os
+import subprocess
 import sys
 import threading
 import webbrowser
@@ -20,6 +21,55 @@ def port_in_use_by_us(port):
         return False
 
 
+EDGE_APP_PATHS = r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe"
+
+
+def _edge_from_registry():
+    """msedge.exe from the App Paths key (per user, then per machine); None when absent"""
+    try:
+        import winreg
+    except ImportError:
+        return None
+    for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        try:
+            with winreg.OpenKey(hive, EDGE_APP_PATHS) as k:
+                value = winreg.QueryValue(k, None)
+        except OSError:
+            continue
+        if value:
+            return value.strip().strip('"')
+    return None
+
+
+def find_edge(environ=None, registry=_edge_from_registry):
+    """Microsoft Edge on this PC (Program Files, Program Files (x86), App Paths); None off Windows or without it"""
+    env = os.environ if environ is None else environ
+    if os.name != "nt" and environ is None:
+        return None
+    for base in (env.get("PROGRAMFILES(X86)"), env.get("PROGRAMFILES"), env.get("PROGRAMW6432")):
+        if base:
+            p = os.path.join(base, "Microsoft", "Edge", "Application", "msedge.exe")
+            if os.path.isfile(p):
+                return p
+    p = registry()
+    return p if p and os.path.isfile(p) else None
+
+
+def open_app(url, edge=None, popen=subprocess.Popen, browser=webbrowser.open):
+    """the app in an Edge app window (no tabs, no address bar); a normal browser tab when Edge is missing,
+    fails to start, or SLIDEBUILDER_APP_WINDOW=0. Returns "edge" or "browser"."""
+    if os.environ.get("SLIDEBUILDER_APP_WINDOW", "1") != "0":
+        edge = edge if edge is not None else find_edge()
+        if edge:
+            try:
+                popen([edge, "--app=" + url], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True)
+                return "edge"
+            except OSError as e:
+                log("Edge could not open the app window (%s) - opening a browser tab" % e)
+    browser(url)
+    return "browser"
+
+
 def main(argv=None):
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -31,7 +81,11 @@ def main(argv=None):
     ap.add_argument("--no-browser", action="store_true", help="do not open the app automatically")
     ap.add_argument("--setup", action="store_true", help="install the export engine (Playwright + Chromium) into this folder")
     ap.add_argument("--install", action="store_true", help="first-time set-up on this PC (Python packages, export engine, shared-folder check, desktop shortcut, self-test)")
+    ap.add_argument("--selftest", action="store_true", help="check that this program can use the shared folder (read-only for saved setups); exit 0 = yes")
     args = ap.parse_args(argv)
+    if args.selftest:
+        from .selftest import run
+        sys.exit(run())
     if args.setup:
         from .installer import setup
         sys.exit(setup())
@@ -68,7 +122,7 @@ def main(argv=None):
         if port_in_use_by_us(port):
             log("Slide Builder is already running on port %d - opening it." % port)
             if not args.no_browser:
-                webbrowser.open("http://127.0.0.1:%d/" % port)
+                open_app("http://127.0.0.1:%d/" % port)
             return
         try:
             httpd = make_server(port, App())
@@ -95,7 +149,7 @@ def main(argv=None):
     print("=" * 64)
     threading.Thread(target=app.engine.warm, daemon=True).start()
     if not args.no_browser:
-        threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+        threading.Timer(0.6, lambda: open_app(url)).start()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

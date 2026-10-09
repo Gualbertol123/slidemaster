@@ -1,0 +1,135 @@
+{
+ "workbook": "weekly.xlsx",
+ "ops": [
+  {
+   "op": "preset.set",
+   "preset": {
+    "sheets": [
+     "LOANS_DEPOSITS"
+    ],
+    "tables": [
+     {
+      "id": "l4tsxhl",
+      "sheet": "LOANS_DEPOSITS",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "dj7beg8",
+      "sheet": "LOANS_DEPOSITS",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     }
+    ],
+    "slides": [
+     {
+      "id": "p2knyyz",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "l4tsxhl",
+       "dj7beg8"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     }
+    ]
+   }
+  },
+  {
+   "op": "slide.patch",
+   "id": "p2knyyz",
+   "patch": {
+    "notes": {
+     "l4tsxhl:bottom": {
+      "text": "",
+      "auto": {
+       "groups": [],
+       "top": 2,
+       "noun": "bank",
+       "detail": "full",
+       "share": true,
+       "breadth": true,
+       "missing": true,
+       "mode": "summary"
+      }
+     },
+     "l4tsxhl:right": {
+      "text": "",
+      "auto": {
+       "groups": [],
+       "top": 1,
+       "noun": "country",
+       "detail": "short",
+       "share": true,
+       "breadth": true,
+       "missing": true,
+       "mode": "sections"
+      }
+     },
+     "dj7beg8:bottom": {
+      "text": "",
+      "auto": {
+       "groups": [],
+       "top": 2,
+       "noun": "country",
+       "detail": "full",
+       "share": true,
+       "breadth": true,
+       "missing": true,
+       "mode": "summary",
+       "kinds": [
+        "week"
+       ],
+       "unit": "",
+       "bullets": false
+      }
+     },
+     "dj7beg8:right": {
+      "text": "",
+      "auto": {
+       "groups": [],
+       "top": 3,
+       "noun": "country",
+       "detail": "full",
+       "share": false,
+       "breadth": false,
+       "missing": false,
+       "mode": "sections",
+       "names": false,
+       "showTitle": false,
+       "exclude": [
+        "VUB"
+       ]
+      }
+     },
+     "l4tsxhl:left": {
+      "text": "",
+      "auto": {
+       "groups": [],
+       "top": 2,
+       "noun": "country",
+       "detail": "full",
+       "share": true,
+       "breadth": true,
+       "missing": true,
+       "mode": "summary",
+       "tables": [
+        "dj7beg8"
+       ],
+       "minAbs": 50,
+       "kinds": [
+        "target",
+        "month"
+       ]
+      }
+     }
+    }
+   }
+  }
+ ]
+}
