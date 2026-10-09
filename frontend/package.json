@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit && vitest run",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "parity": "node ../tools/parity.mjs"
   },
   "dependencies": {
     "jszip": "^3.10.2",

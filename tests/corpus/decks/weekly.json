@@ -1,0 +1,44 @@
+{
+ "workbook": "weekly.xlsx",
+ "ops": [
+  {
+   "op": "preset.set",
+   "preset": {
+    "sheets": [
+     "LOANS_DEPOSITS"
+    ],
+    "tables": [
+     {
+      "id": "l4tsxhl",
+      "sheet": "LOANS_DEPOSITS",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "dj7beg8",
+      "sheet": "LOANS_DEPOSITS",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     }
+    ],
+    "slides": [
+     {
+      "id": "p2knyyz",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "l4tsxhl",
+       "dj7beg8"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     }
+    ]
+   }
+  }
+ ]
+}

@@ -1,0 +1,122 @@
+{
+ "workbook": "weekly.xlsx",
+ "ops": [
+  {
+   "op": "preset.set",
+   "preset": {
+    "sheets": [
+     "LOANS_DEPOSITS"
+    ],
+    "tables": [
+     {
+      "id": "l4tsxhl",
+      "sheet": "LOANS_DEPOSITS",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "dj7beg8",
+      "sheet": "LOANS_DEPOSITS",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     }
+    ],
+    "slides": [
+     {
+      "id": "p2knyyz",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "l4tsxhl",
+       "dj7beg8"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     }
+    ]
+   }
+  },
+  {
+   "op": "style.patch",
+   "patch": {
+    "theme": {
+     "id": "intesa"
+    },
+    "glass": "medium",
+    "color": 60,
+    "footer": {
+     "on": true,
+     "text": "{workbook} · {title} · {date}",
+     "pos": "bc",
+     "size": 13,
+     "style": "capsule",
+     "cover": false
+    }
+   }
+  },
+  {
+   "op": "cell.patch",
+   "sheet": "LOANS_DEPOSITS",
+   "ref": "C12",
+   "patch": {
+    "role": "total"
+   }
+  },
+  {
+   "op": "cell.patch",
+   "sheet": "LOANS_DEPOSITS",
+   "ref": "C14",
+   "patch": {
+    "role": "header"
+   }
+  },
+  {
+   "op": "cell.patch",
+   "sheet": "LOANS_DEPOSITS",
+   "ref": "D15",
+   "patch": {
+    "role": "caption"
+   }
+  },
+  {
+   "op": "slide.patch",
+   "id": "p2knyyz",
+   "patch": {
+    "logo": false,
+    "notes": {
+     "l4tsxhl:left": {
+      "text": "# Highlights\n**Loans** grew [[+476]] mln\nDeposits [[-12]] mln over the week",
+      "span": true,
+      "lh": 1.5,
+      "pgap": 1,
+      "valign": "middle"
+     },
+     "dj7beg8:bottom": {
+      "text": "",
+      "auto": {
+       "groups": [],
+       "top": 2,
+       "noun": "bank",
+       "detail": "short",
+       "share": true,
+       "breadth": true,
+       "missing": true,
+       "mode": "summary",
+       "title": "Deposits overview"
+      }
+     },
+     "l4tsxhl:top": {
+      "text": "Centred, at the bottom of its box",
+      "align": "center",
+      "valign": "bottom",
+      "h": 90
+     }
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,48 @@
+{
+ "git": "842ec5f6e14da5cc21541a335c079ed8cc4ab643",
+ "page": "8aaf99b6aa0e18c92b2469f766ec5fce8aa40744d2e15341b5edf636644e486b",
+ "clock": "2026-10-01T10:00:00+02:00",
+ "locale": "en-GB",
+ "timezone": "Europe/Rome",
+ "viewport": "1900x1250@1",
+ "designs": [
+  "glass",
+  "excel",
+  "clean"
+ ],
+ "decks": [
+  "big",
+  "deck20",
+  "edge-1904",
+  "edge-formats",
+  "edge-macro",
+  "edge-pictures",
+  "missing-table",
+  "plain",
+  "report",
+  "report-looks",
+  "weekly",
+  "weekly-comments",
+  "weekly-looks",
+  "weekly-options"
+ ],
+ "slides": 135,
+ "environment": {
+  "chromium": "141.0.7390.37",
+  "chrome": "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+  "platform": "linux 6.18.44-fc-v80",
+  "fonts": 103,
+  "fontsSha256": "e0df1ccf09cebcd218fe3b5afcd95d766c3e2ebd18ad2bec066b40116f7dec19"
+ },
+ "fontsUsed": [
+  "\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif",
+  "\"DejaVu Serif\", Georgia, \"Times New Roman\", serif",
+  "\"Liberation Sans\", \"Segoe UI\", Arial, sans-serif",
+  "\"Segoe UI Variable Text\", \"Segoe UI\", Calibri, Arial, sans-serif",
+  "\"Segoe UI\", sans-serif",
+  "-apple-system, \"SF Pro Display\", \"Segoe UI Variable Display\", \"Segoe UI\", \"Helvetica Neue\", Inter, Arial, sans-serif",
+  "-apple-system, \"SF Pro Text\", \"Segoe UI Variable Text\", \"Segoe UI\", \"Helvetica Neue\", Inter, Arial, sans-serif",
+  "-apple-system, \"SF Pro Text\", \"Segoe UI Variable Text\", \"Segoe UI\", Arial, sans-serif",
+  "Calibri, \"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif"
+ ]
+}

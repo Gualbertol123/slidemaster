@@ -1,0 +1,14 @@
+{"scale":1,"w":1600,"h":900,"slide":2,"label":"Index","items":[
+{"cls":"title","x":54,"y":16,"w":1396,"h":61.6,"text":"Contents","font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"44px","weight":"700","color":"rgb(28, 79, 140)"},
+{"cls":"ix-row x","x":294,"y":361,"w":1012,"h":112,"text":"01\nLoans & deposits\n(mln Euro at last fixed exchange rate)\n3","font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"30px","weight":"400","color":"rgb(20, 33, 61)"},
+{"cls":"ix-n","x":294,"y":392,"w":50,"h":50,"text":"01","font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"19px","weight":"700","color":"rgb(255, 255, 255)","bg":"rgb(28, 79, 140)"},
+{"cls":"ix-txt","x":366,"y":380.7,"w":328.8,"h":72.7,"text":"Loans & deposits\n(mln Euro at last fixed exchange rate)","font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"30px","weight":"400","color":"rgb(20, 33, 61)"},
+{"cls":"ix-t","x":366,"y":380.7,"w":328.8,"h":42,"text":"Loans & deposits","font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"30px","weight":"650","color":"rgb(20, 33, 61)"},
+{"cls":"ix-s","x":366,"y":425.7,"w":328.8,"h":27.7,"text":"(mln Euro at last fixed exchange rate)","font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"19.8px","weight":"400","color":"rgb(107, 122, 144)"},
+{"cls":"ix-lead","x":720.8,"y":426.5,"w":519.3,"h":2,"text":"","font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"30px","weight":"400","color":"rgb(107, 122, 144)"},
+{"cls":"ix-p","x":1266,"y":396,"w":40,"h":42,"text":"3","font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"30px","weight":"600","color":"rgb(28, 79, 140)"},
+{"cls":"pageno plain","x":1191,"y":846,"w":47,"h":20,"text":"2 / 3","font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"14px","weight":"700","color":"rgb(28, 79, 140)"},
+{"cls":"pageno plain footer","x":56,"y":849,"w":217,"h":17,"text":"Confidential - internal use only","font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"12px","weight":"700","color":"rgb(28, 79, 140)"},
+{"cls":"logowrap","x":1466,"y":854,"w":96,"h":32,"font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"13px","weight":"400","color":"rgb(29, 29, 31)"},
+{"cls":"logo","x":1466,"y":854,"w":96,"h":32,"font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"13px","weight":"400","color":"rgb(29, 29, 31)"}
+]}

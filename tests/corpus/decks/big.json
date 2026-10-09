@@ -1,0 +1,33 @@
+{
+ "workbook": "big.xlsx",
+ "ops": [
+  {
+   "op": "preset.set",
+   "preset": {
+    "sheets": [
+     "WM_ALL_STOCK_new"
+    ],
+    "tables": [
+     {
+      "id": "bigT1",
+      "sheet": "WM_ALL_STOCK_new",
+      "kind": "range",
+      "range": "C3:G30"
+     }
+    ],
+    "slides": [
+     {
+      "id": "bigS1",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "bigT1"
+      ],
+      "layout": null
+     }
+    ]
+   }
+  }
+ ]
+}

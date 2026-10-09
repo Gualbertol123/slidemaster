@@ -1,0 +1,214 @@
+{
+ "workbook": "weekly.xlsx",
+ "ops": [
+  {
+   "op": "preset.set",
+   "preset": {
+    "sheets": [
+     "LOANS_DEPOSITS"
+    ],
+    "tables": [
+     {
+      "id": "l4tsxhl",
+      "sheet": "LOANS_DEPOSITS",
+      "kind": "markers",
+      "anchor": "B4",
+      "index": 0
+     },
+     {
+      "id": "dj7beg8",
+      "sheet": "LOANS_DEPOSITS",
+      "kind": "markers",
+      "anchor": "B24",
+      "index": 1
+     }
+    ],
+    "slides": [
+     {
+      "id": "cover1",
+      "type": "cover",
+      "title": "Weekly report",
+      "subtitle": "Loans and deposits",
+      "date": null,
+      "tables": []
+     },
+     {
+      "id": "index1",
+      "type": "index",
+      "title": "Contents",
+      "tables": [],
+      "subs": true
+     },
+     {
+      "id": "p2knyyz",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "l4tsxhl",
+       "dj7beg8"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     }
+    ],
+    "versions": [
+     {
+      "id": "vChief",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "vAll",
+      "name": "All",
+      "hide": {
+       "LOANS_DEPOSITS": [
+        "H10:I11"
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "slide.patch",
+   "id": "p2knyyz",
+   "patch": {
+    "title": "Loans & deposits",
+    "subtitle": "(mln Euro at last fixed exchange rate)",
+    "notes": {
+     "l4tsxhl:right": {
+      "text": "A text box to the right, as a card",
+      "bubble": true
+     },
+     "l4tsxhl:top": {
+      "text": "A text box moved anywhere",
+      "x": 1180,
+      "y": 96,
+      "w": 330,
+      "h": 70,
+      "b": true,
+      "align": "center"
+     },
+     "dj7beg8:bottom": {
+      "text": "",
+      "auto": {
+       "groups": [],
+       "top": 2,
+       "noun": "bank",
+       "detail": "full",
+       "share": true,
+       "breadth": true,
+       "missing": true,
+       "mode": "summary"
+      }
+     },
+     "slide:notes": {
+      "text": "Source: internal data; figures not audited",
+      "size": 13,
+      "color": "#5B6274"
+     }
+    }
+   }
+  },
+  {
+   "op": "table.patch",
+   "id": "l4tsxhl",
+   "patch": {
+    "scales": {
+     "s1": {
+      "range": "D10:F20",
+      "dir": "col",
+      "mode": "minmax",
+      "fill": true,
+      "ink": false
+     }
+    },
+    "gridH": "on",
+    "gridV": "off",
+    "merges": {
+     "C17:C18": "merge"
+    },
+    "sizes": {
+     "excel": {
+      "cols": {
+       "3": 180
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "table.patch",
+   "id": "dj7beg8",
+   "patch": {
+    "name": "Deposits",
+    "rows": {
+     "30": 34
+    }
+   }
+  },
+  {
+   "op": "cell.patch",
+   "sheet": "LOANS_DEPOSITS",
+   "ref": "C10",
+   "patch": {
+    "b": true,
+    "fill": "#FFD60A"
+   }
+  },
+  {
+   "op": "cell.patch",
+   "sheet": "LOANS_DEPOSITS",
+   "ref": "D12",
+   "patch": {
+    "bg": "#DDEBF7",
+    "color": "#C00000",
+    "i": true
+   }
+  },
+  {
+   "op": "cell.patch",
+   "sheet": "LOANS_DEPOSITS",
+   "ref": "E14",
+   "patch": {
+    "sz": 15,
+    "align": "left"
+   }
+  },
+  {
+   "op": "cell.patch",
+   "sheet": "LOANS_DEPOSITS",
+   "ref": "D16",
+   "patch": {
+    "cf": "LOANS_DEPOSITS!H10"
+   }
+  },
+  {
+   "op": "style.patch",
+   "patch": {
+    "logo": "logo.png",
+    "logoBubble": true,
+    "pn": {
+     "on": true,
+     "start": 1,
+     "pos": "br",
+     "font": "",
+     "size": 14,
+     "format": "nN",
+     "style": "capsule",
+     "cover": false
+    },
+    "footer": {
+     "on": true,
+     "text": "Confidential - internal use only",
+     "pos": "bl",
+     "size": 12,
+     "style": "plain",
+     "cover": false
+    }
+   }
+  }
+ ]
+}

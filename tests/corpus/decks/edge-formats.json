@@ -1,0 +1,56 @@
+{
+ "workbook": "edge-formats.xlsx",
+ "ops": [
+  {
+   "op": "preset.set",
+   "preset": {
+    "sheets": [
+     "FORMATS",
+     "LAYOUT"
+    ],
+    "tables": [
+     {
+      "id": "45ya7b2",
+      "sheet": "FORMATS",
+      "kind": "markers",
+      "anchor": "B3",
+      "index": 0
+     },
+     {
+      "id": "53a3gi3",
+      "sheet": "LAYOUT",
+      "kind": "markers",
+      "anchor": "B3",
+      "index": 0
+     }
+    ],
+    "slides": [
+     {
+      "id": "zcpv1t0",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "45ya7b2"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "xzaa5bs",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "53a3gi3"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     }
+    ]
+   }
+  }
+ ]
+}

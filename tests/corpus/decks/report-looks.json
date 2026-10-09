@@ -1,0 +1,156 @@
+{
+ "workbook": "report.xlsx",
+ "ops": [
+  {
+   "op": "preset.set",
+   "preset": {
+    "sheets": [
+     "SLIDE_1",
+     "SLIDE_2 panel",
+     "SLIDE_3 pair"
+    ],
+    "tables": [
+     {
+      "id": "dhnms9c",
+      "sheet": "SLIDE_1",
+      "kind": "markers",
+      "anchor": "B3",
+      "index": 0
+     },
+     {
+      "id": "ybyk4v2",
+      "sheet": "SLIDE_3 pair",
+      "kind": "markers",
+      "anchor": "B3",
+      "index": 0
+     },
+     {
+      "id": "62de08x",
+      "sheet": "SLIDE_3 pair",
+      "kind": "markers",
+      "anchor": "G3",
+      "index": 1
+     }
+    ],
+    "slides": [
+     {
+      "id": "u9t3fqb",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "dhnms9c"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "9lywu2f",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "ybyk4v2",
+       "62de08x"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     }
+    ]
+   }
+  },
+  {
+   "op": "style.patch",
+   "patch": {
+    "glass": "strong",
+    "color": 80,
+    "radius": 150,
+    "contrast": 70,
+    "theme": {
+     "id": "custom",
+     "c1": "#0B3D91",
+     "c2": "#1E6FD9",
+     "c3": "#7FB2F0",
+     "c4": "#E8F1FB",
+     "a1": "#C0392B",
+     "a2": "#F39C12"
+    },
+    "colors": {
+     "accent": "#7030A0",
+     "head": "#203864",
+     "headInk": "#FFFFFF",
+     "pos": "#00B050",
+     "neg": "#C00000",
+     "stripe": "#F2F2F2"
+    },
+    "text": {
+     "title": {
+      "font": "DejaVu Serif",
+      "size": 40,
+      "b": true,
+      "color": "#1F3864"
+     },
+     "subtitle": {
+      "i": true
+     },
+     "table": {
+      "size": 14
+     },
+     "note": {
+      "i": true
+     },
+     "pageno": {
+      "size": 16
+     }
+    },
+    "pn": {
+     "on": true,
+     "start": 3,
+     "pos": "tr",
+     "format": "page",
+     "style": "plain",
+     "cover": true
+    },
+    "designs": {
+     "excel": {
+      "colors": {
+       "head": "#375623"
+      },
+      "text": {
+       "title": {
+        "font": "Liberation Sans"
+       }
+      }
+     },
+     "clean": {
+      "theme": {
+       "a1": "#2E7D32"
+      }
+     }
+    }
+   }
+  },
+  {
+   "op": "slide.patch",
+   "id": "u9t3fqb",
+   "patch": {
+    "fmt": {
+     "title": {
+      "i": true,
+      "align": "center"
+     }
+    },
+    "sizes": {
+     "excel": {
+      "scale": 0.8,
+      "align": "left",
+      "valign": "top"
+     }
+    },
+    "align": "right"
+   }
+  }
+ ]
+}

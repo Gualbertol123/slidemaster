@@ -26,7 +26,7 @@ with Chromium 1194. Re-run them on a corporate Windows PC in Phase 0 (`06-plan.m
 ## baseline/
 
 ```
-python3 baseline/make_workbooks.py /tmp/wb            # deck20.xlsx (20 slides x 2 weekly tables), big30.xlsx (30 MB)
+python3 ../tools/make_corpus.py deck20 big30 /tmp/wb   # deck20.xlsx (20 slides x 2 weekly tables), big30.xlsx (30 MB) - moved to tools/ in S0.5
 node baseline/measure.mjs /tmp/wb baseline/baseline.json
 python3 pdfwriter/render_cost.py baseline/out-current-glass.pdf pdfwriter/out-native-glass.pdf
 ```
