@@ -212,7 +212,9 @@ def _update_locked(name, key, ops, user, now):
         # 30 extra round trips per save once 30 backups existed - see docs/LOADTEST.md)
         at = new.get("updated") if isinstance(new.get("updated"), (int, float)) else server_now_ms()
         last = doc.get("backupAt")
-        due = new["rev"] == 1 or not isinstance(last, (int, float)) or at - last >= BACKUP_EVERY * 1000 or at < last
+        # a clock set back (more than the spacing) backs up again; a few ms back is the probe's mtime
+        # granularity (fsclock), not a new timeline
+        due = new["rev"] == 1 or not isinstance(last, (int, float)) or at - last >= BACKUP_EVERY * 1000 or at < last - BACKUP_EVERY * 1000
         if due:
             new["backupAt"] = at
         write_json(workbook_path(name), new)
