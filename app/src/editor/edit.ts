@@ -1,9 +1,9 @@
 /* Selection (Excel-like) and cell edits expressed as operations. */
 import { get, patch } from "../state/store";
 import { change, ctx } from "../state/app";
-import type { Item, TableLayout } from "../xlsx/types";
-import type { CellEdit, Op } from "../model/types";
-import { keyOf } from "../render/edits";
+import type { Item, TableLayout } from "@slide-builder/core/xlsx/types";
+import type { CellEdit, Op } from "@slide-builder/core/model/types";
+import { keyOf } from "@slide-builder/core/render/edits";
 
 /* ---- selection ---- */
 type GridLayout = TableLayout & { _grid?: Map<string, Item> };

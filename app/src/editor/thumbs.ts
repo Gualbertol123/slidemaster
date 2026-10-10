@@ -1,7 +1,7 @@
 /* Slide thumbnails, filled lazily when they scroll into view. */
 import { get, THUMBS } from "../state/store";
 import { ctx } from "../state/app";
-import { buildSlide } from "../render/slide";
+import { buildSlide } from "../render/slidedom";
 
 let box: HTMLElement | null = null, io: IntersectionObserver | null = null;
 export function mountThumbs(el: HTMLElement) {

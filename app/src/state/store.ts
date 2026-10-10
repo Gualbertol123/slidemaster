@@ -12,9 +12,9 @@
    subscribe to the slices they draw (editor/stage.ts, editor/thumbs.ts). */
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import type { Workbook } from "../xlsx/types";
-import type { ConfigDoc, Op, Prefs, RuntimeSlide, SlideTextKey, WorkbookDoc } from "../model/types";
-import type { LibraryFont } from "../model/fonts";
+import type { Workbook } from "@slide-builder/core/xlsx/types";
+import type { ConfigDoc, Op, Prefs, RuntimeSlide, SlideTextKey, WorkbookDoc } from "@slide-builder/core/model/types";
+import type { LibraryFont } from "@slide-builder/core/model/fonts";
 import type { Health, Other } from "../sync/api";
 import type { DocSync, SaveState } from "../sync/docsync";
 import type { Fmt } from "../editor/painter";

@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { confirmBox, alertBox, type WizardReq } from "../state/dialogs";
 import { get, showBusy, hideBusy } from "../state/store";
-import { A1, esc, fmtMB, numToCol, uid } from "../xlsx/util";
-import { formatValue } from "../xlsx/numfmt";
-import type { Sheet } from "../xlsx/types";
-import type { DeckVersion, Preset, SlideDef, TableDef } from "../model/types";
-import { SLIDE_RX, gToRange, rangeToG, resolveTable, validRange } from "../model/preset";
-import { todayLabel } from "../render/cover";
+import { A1, esc, fmtMB, numToCol, uid } from "@slide-builder/core/xlsx/util";
+import { formatValue } from "@slide-builder/core/xlsx/numfmt";
+import type { Sheet } from "@slide-builder/core/xlsx/types";
+import type { DeckVersion, Preset, SlideDef, TableDef } from "@slide-builder/core/model/types";
+import { SLIDE_RX, gToRange, rangeToG, resolveTable, validRange } from "@slide-builder/core/model/preset";
+import { todayLabel } from "@slide-builder/core/render/cover";
 import { detectTables, usedRange } from "./detect";
 import { Input } from "../ui/Input";
 

@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     projects: [
       { esbuild: { jsx: "automatic", jsxImportSource: "react" }, test: { name: "unit", environment: "node", include: ["tests/**/*.test.ts"] } },
-      { esbuild: { jsx: "automatic", jsxImportSource: "react" }, test: { name: "react", environment: "jsdom", include: ["tests/**/*.test.tsx"], setupFiles: ["tests/setup-console.ts"] } },
+      { esbuild: { jsx: "automatic", jsxImportSource: "react" }, test: { name: "react", environment: "jsdom", include: ["tests/**/*.test.tsx"], setupFiles: ["tests/setup-console.ts", "tests/setup-platform.ts"] } },
     ],
   },
 });

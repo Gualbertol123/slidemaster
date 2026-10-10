@@ -4,16 +4,16 @@ import { get, patch, patchAll, same, STAGE, THUMBS, toast, showBusy, hideBusy } 
 import { ask, runWizard } from "./dialogs";
 import { backend } from "../sync/api";
 import { DocSync, type Change } from "../sync/docsync";
-import { indexWorkbook } from "../xlsx/workbook";
-import { setPictureConverter } from "../xlsx/drawing";
-import { esc, fmtMB, nextFrame, WorkbookError } from "../xlsx/util";
-import type { Workbook } from "../xlsx/types";
-import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "../model/preset";
-import { resolveStyle } from "../model/style";
-import type { Design, Op, Preset, Prefs, RuntimeSlide, StylePatch } from "../model/types";
+import { indexWorkbook } from "@slide-builder/core/xlsx/workbook";
+import { setPictureConverter } from "@slide-builder/core/xlsx/drawing";
+import { esc, fmtMB, nextFrame, WorkbookError } from "@slide-builder/core/xlsx/util";
+import type { Workbook } from "@slide-builder/core/xlsx/types";
+import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "@slide-builder/core/model/preset";
+import { resolveStyle } from "@slide-builder/core/model/style";
+import type { Design, Op, Preset, Prefs, RuntimeSlide, StylePatch } from "@slide-builder/core/model/types";
 import type { AppState } from "./store";
-import type { RenderCtx } from "../render/context";
-import { makeWall } from "../render/wallpaper";
+import type { RenderCtx } from "@slide-builder/core/render/context";
+import { applyWall } from "../render/wall";
 import { loadFonts, watchFontLoads } from "./fonts";
 
 /* ---------------------------------------------------------------- render context */
@@ -41,7 +41,7 @@ export async function boot() {
   try { patch("doc", { config: await backend.config() }); } catch { /* defaults */ }
   watchFontLoads(); await loadFonts();
   const zoom = get().prefs.prefs.zoom; if (zoom != null) patch("ui", { zoom });
-  makeWall(style());
+  applyWall(style());
   if (backend.served) {
     const files = await backend.files().catch(() => []);
     const last = get().prefs.prefs.lastFile;
@@ -183,7 +183,7 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
     selection: { sel: null },
     ui: { logoMissing: false, changedOnDisk: false },
   });
-  makeWall(style());
+  applyWall(style());
   STAGE.render(); THUMBS.render();
   void heartbeat();
 }
@@ -237,7 +237,7 @@ function onStyleChanged() {
     const i = slides.findIndex(R => R.id === keep);
     patchAll({ deck: { slides, ...(i >= 0 ? { cur: i } : {}) }, selection: { sel: null } });
   }
-  makeWall(style()); STAGE.render(); THUMBS.render();
+  applyWall(style()); STAGE.render(); THUMBS.render();
 }
 let slidesDesign: Design | null = null;
 /** the slides as `design` shows them (the current ones, or resolved again for another design – exports) */

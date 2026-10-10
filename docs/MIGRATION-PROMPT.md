@@ -94,7 +94,7 @@ format upgrades of saved data, the installer, the updater, and offline/fallback 
 * **Export speed and weight.** Every export starts or drives a headless Chromium, ships the whole
   slide DOM + CSS over HTTP, prints, then post-processes the PDF (page boxes, marker detection).
   Chrome rasterises some CSS (blurred shadows, masks, filters) into 300 dpi images and embeds CFF or
-  variable fonts as Type 3; the current code works around this (`app/src/render/printcss.ts`,
+  variable fonts as Type 3; the current code works around this (`core/src/render/printcss.ts`,
   `backend/slidebuilder/pdf.py`). Ask whether a native PDF writer (drawing text, rectangles, rounded
   rectangles and gradients directly from the scene model) would be faster, smaller and more exact.
 * **Parsing in the UI thread.** The workbook is unzipped and parsed in the page (regex parser over the

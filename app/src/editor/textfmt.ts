@@ -4,10 +4,10 @@
    (as in Excel and PowerPoint): cells store points, slide texts store slide pixels (1 pt = 4/3 px). */
 import { get, patch } from "../state/store";
 import { change, ctx } from "../state/app";
-import type { Note, Op, SlideTextKey, TextFmt } from "../model/types";
-import { effFmt } from "../render/edits";
-import { effNote, slideTextFmt } from "../render/text";
-import { A1 } from "../xlsx/util";
+import type { Note, Op, SlideTextKey, TextFmt } from "@slide-builder/core/model/types";
+import { effFmt } from "@slide-builder/core/render/edits";
+import { effNote, slideTextFmt } from "@slide-builder/core/render/text";
+import { A1 } from "@slide-builder/core/xlsx/util";
 import { applySel, curSlide, selItems } from "./edit";
 
 export type Align = "left" | "center" | "right";

@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { DocSync, type Change } from "../src/sync/docsync";
-import { applyOps, emptyDoc } from "../src/model/ops";
+import { applyOps, emptyDoc } from "@slide-builder/core/model/ops";
 import type { Backend } from "../src/sync/api";
-import type { Op, WorkbookDoc } from "../src/model/types";
+import type { Op, WorkbookDoc } from "@slide-builder/core/model/types";
 
 /** an in-memory helper: applies ops to the latest document, like backend/slidebuilder/store.py */
 function fakeServer() {

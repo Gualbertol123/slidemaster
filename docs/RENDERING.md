@@ -9,7 +9,7 @@ In v3 nothing reads globals: renderers receive a `RenderCtx` (`render/context.ts
 style, the cell edits, the slides and the workbook name. Per-table caches (`L._cache`) are keyed by
 the JSON of that sheet's edits, so a change by another user re-renders only the tables it touches.
 
-## 1. Reading workbooks (`src/xlsx/`)
+## 1. Reading workbooks (`core/src/xlsx/`)
 
 **Index first, parse on demand.** `indexWorkbook()` only unzips the directory, reads
 `_rels/.rels` → workbook part → sheet list. Hidden sheets are never listed nor read; chart/dialog/macro
@@ -21,7 +21,8 @@ up front so the wizard can show titles and table suggestions; larger ones show s
 sheetData – far faster and lighter on 50k-row sheets) and yields to the UI every 4000 rows for the
 progress bar. `parseSST()` does the same for shared strings. Handles: namespace prefixes, rows/cells
 without `r`, `<v xml:space=…>`, inline strings, rich text, `_xHHHH_` escapes. Styles, theme and
-drawings are small and use DOMParser. A parity test against the old DOM parser was run on all test
+drawings are small and are read by the core's XML tokenizer (`core/src/xlsx/xml.ts`, a tree with DOM semantics;
+`core/tests/xml.test.ts` checks it against DOMParser on every corpus workbook). A parity test against the old DOM parser was run on all test
 workbooks (identical cells, merges, hidden rows, CF, pictures, tables).
 
 **Robustness:** case-insensitive / %-encoded part names (`zget`), damaged sheets become
@@ -44,11 +45,11 @@ objects collapse, “move but don't size” objects move. `analyzeImages()` samp
 badges (flags) from photos/logos (used by Glass).
 
 **Column widths** use Excel's max-digit-width formula with the workbook's default font measured on a
-canvas; row heights are pt × 96/72.
+canvas (the page's `TextMeasurer`); row heights are pt × 96/72.
 
 ---
 
-## 2. Rendering (`src/render/`, `styles/slide.css`)
+## 2. Rendering (`core/src/render/`, `app/src/render/slidedom.ts`, `styles/slide.css`)
 
 ### 2.1 Slide layout (`render/slide.ts`)
 `computeLayout(R, w)`: tables are arranged in **bands** (`layout.bands`), each table scaled by

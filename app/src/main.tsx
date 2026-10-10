@@ -4,15 +4,19 @@ import { createRoot } from "react-dom/client";
 import uiCss from "./styles/ui.css?raw";
 import extraCss from "./styles/app.css?raw";
 import slideCss from "./styles/slide.css?raw";
+import { installBrowserPlatform } from "./platform";
 import { App } from "./ui/App";
 import { boot } from "./state/app";
 import { installKeys } from "./editor/keys";
-import { indexWorkbook, readWorkbook } from "./xlsx/workbook";
-import { buildLayout } from "./xlsx/layout";
-import { formatValue } from "./xlsx/numfmt";
-import { renderExcel } from "./render/excel";
-import { renderGlass } from "./render/glass";
-import { resolveStyle } from "./model/style";
+import { indexWorkbook, readWorkbook } from "@slide-builder/core/xlsx/workbook";
+import { buildLayout } from "@slide-builder/core/xlsx/layout";
+import { formatValue } from "@slide-builder/core/xlsx/numfmt";
+import { renderExcel } from "@slide-builder/core/render/excel";
+import { renderGlass } from "@slide-builder/core/render/glass";
+import { resolveStyle } from "@slide-builder/core/model/style";
+
+// the core measures text and draws canvases through the page (core/src/platform.ts)
+installBrowserPlatform();
 
 // hooks for automated tests (parity with v2, end-to-end); not used by the app itself
 (window as unknown as Record<string, unknown>).__sbTest = { indexWorkbook, readWorkbook, buildLayout, formatValue, renderExcel, renderGlass, resolveStyle };

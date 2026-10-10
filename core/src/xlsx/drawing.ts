@@ -3,6 +3,7 @@ import type JSZip from "jszip";
 import { NAMED } from "./color";
 import { all, hashStr, kid, kids, parseXml, readRels, zget, NS_R } from "./util";
 import type { Anchor, AnchorPos, Crop, Drawing, DrawObj, Frac, Line, Para, Shared } from "./types";
+import { platform, type XmlElement } from "../platform";
 
 const IMG_MIME: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", bmp: "image/bmp", svg: "image/svg+xml", webp: "image/webp", ico: "image/x-icon" };
 const CONVERTIBLE: Record<string, 1> = { emf: 1, wmf: 1, tif: 1, tiff: 1, wdp: 1, jxr: 1 };
@@ -19,17 +20,17 @@ export function setPictureConverter(fn: Converter | null) { converter = fn; }
 export function emuPx(v: string | number | null | undefined) { return (+(v as number) || 0) / 9525; }
 
 interface Xfrm { x: number; y: number; w: number; h: number; chx: number; chy: number; chw: number; chh: number; rot: number; flipH: boolean; flipV: boolean }
-function xfrmOf(el: Element): Xfrm | null {
+function xfrmOf(el: XmlElement): Xfrm | null {
   const pr = kid(el, "spPr") || kid(el, "grpSpPr"); const x = pr && kid(pr, "xfrm"); if (!x) return null;
   const off = kid(x, "off"), ext = kid(x, "ext"), co = kid(x, "chOff"), ce = kid(x, "chExt");
-  const g = (e: Element | null, a: string) => e ? +(e.getAttribute(a) || 0) : 0;
+  const g = (e: XmlElement | null, a: string) => e ? +(e.getAttribute(a) || 0) : 0;
   return { x: g(off, "x"), y: g(off, "y"), w: g(ext, "cx"), h: g(ext, "cy"), chx: g(co, "x"), chy: g(co, "y"), chw: g(ce, "cx"), chh: g(ce, "cy"),
     rot: +(x.getAttribute("rot") || 0) / 60000, flipH: x.getAttribute("flipH") === "1", flipV: x.getAttribute("flipV") === "1" };
 }
-interface Collected { type: string; el: Element; frac: Frac; x: Xfrm | null }
+interface Collected { type: string; el: XmlElement; frac: Frac; x: Xfrm | null }
 const OBJ = ["pic", "sp", "grpSp", "graphicFrame", "cxnSp", "AlternateContent"];
 // walk an anchor's content, mapping group children into fractions of the anchor rectangle
-function collectObjects(el: Element, frame: Frac, parentX: Xfrm | null, out: Collected[]) {
+function collectObjects(el: XmlElement, frame: Frac, parentX: Xfrm | null, out: Collected[]) {
   const n = el.localName;
   let f = frame;
   if (parentX && n !== "AlternateContent") {
@@ -49,8 +50,8 @@ async function convertImage(bytes: Uint8Array, b64: string, ext: string): Promis
   CONVERT_CACHE.set(key, res);
   return res;
 }
-const runText = (r: Element) => all(r, "t").map(t => t.textContent).join("");
-export function drawColor(el: Element, ctx: Pick<Shared, "theme">): string | null {
+const runText = (r: XmlElement) => all(r, "t").map(t => t.textContent).join("");
+export function drawColor(el: XmlElement, ctx: Pick<Shared, "theme">): string | null {
   const c = kids(el, "srgbClr")[0] || kids(el, "schemeClr")[0] || kids(el, "prstClr")[0] || kids(el, "sysClr")[0];
   if (!c) return null;
   const v = c.getAttribute("val") || "";
@@ -69,8 +70,8 @@ export async function readDrawing(zip: JSZip, sheetPath: string, ctx: Pick<Share
   const dx = parseXml(await zget(zip, dr.target)!.async("string"));
   const dRels = await readRels(zip, dr.target);
   const root = dx.documentElement;
-  const txt = (el: Element, n: string) => all(el, n)[0]?.textContent || "0";
-  const pos = (el: Element): AnchorPos => ({ c: +txt(el, "col") + 1, r: +txt(el, "row") + 1, co: emuPx(txt(el, "colOff")), ro: emuPx(txt(el, "rowOff")) });
+  const txt = (el: XmlElement, n: string) => all(el, n)[0]?.textContent || "0";
+  const pos = (el: XmlElement): AnchorPos => ({ c: +txt(el, "col") + 1, r: +txt(el, "row") + 1, co: emuPx(txt(el, "colOff")), ro: emuPx(txt(el, "rowOff")) });
   for (const a of Array.from(root.children)) {
     const t = a.localName; if (!/Anchor$/.test(t)) continue;
     const A: Anchor = { type: t === "twoCellAnchor" ? "two" : t === "oneCellAnchor" ? "one" : "abs", editAs: a.getAttribute("editAs") || (t === "twoCellAnchor" ? "twoCell" : "oneCell"), objects: [] };
@@ -136,15 +137,15 @@ export async function readDrawing(zip: JSZip, sheetPath: string, ctx: Pick<Share
 
 /** small analysis so Liquid Glass can tell round badges (flags, icons) from ordinary pictures */
 export async function analyzeImages(srcs: (string | null | undefined)[]) {
-  if (typeof document === "undefined" || typeof Image === "undefined") return;
+  const cf = platform().canvas; if (!cf) return;
   for (const src of srcs) {
     if (!src || IMGMETA.has(src)) continue;
     const meta: ImgMeta = { round: false, alpha: false, w: 0, h: 0 };
     try {
-      const img = new Image(); img.src = src; await img.decode();
-      meta.w = img.naturalWidth; meta.h = img.naturalHeight;
-      const N = 32, c = document.createElement("canvas"); c.width = N; c.height = N;
-      const x = c.getContext("2d", { willReadFrequently: true })!; x.drawImage(img, 0, 0, N, N);
+      const img = await cf.decode(src);
+      meta.w = img.width; meta.h = img.height;
+      const N = 32, c = cf.create(N, N, { willReadFrequently: true })!;
+      const x = c.ctx; x.drawImage(img.image, 0, 0, N, N);
       const d = x.getImageData(0, 0, N, N).data;
       const px = (i: number, j: number) => { const k = (j * N + i) * 4; return [d[k], d[k + 1], d[k + 2], d[k + 3]]; };
       const empty = (p: number[]) => p[3] < 40 || (p[0] > 236 && p[1] > 236 && p[2] > 236);
@@ -164,8 +165,8 @@ export async function analyzeImages(srcs: (string | null | undefined)[]) {
       if (meta.whiteBg) {
         // key the white background out (un-blending against white), so the graphic sits on any surface
         const k = Math.min(1, 1600 / Math.max(meta.w, 1)), W = Math.max(1, Math.round(meta.w * k)), H = Math.max(1, Math.round(meta.h * k));
-        const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
-        const g = cv.getContext("2d")!; g.drawImage(img, 0, 0, W, H);
+        const cv = cf.create(W, H)!;
+        const g = cv.ctx; g.drawImage(img.image, 0, 0, W, H);
         const id = g.getImageData(0, 0, W, H), q = id.data;
         for (let i = 0; i < q.length; i += 4) {
           const a = Math.max(255 - q[i], 255 - q[i + 1], 255 - q[i + 2]) / 255;          // distance from white
@@ -173,7 +174,7 @@ export async function analyzeImages(srcs: (string | null | undefined)[]) {
           const A = Math.min(1, a * 1.15);
           q[i] = 255 - (255 - q[i]) / A; q[i + 1] = 255 - (255 - q[i + 1]) / A; q[i + 2] = 255 - (255 - q[i + 2]) / A; q[i + 3] = Math.round(A * 255);
         }
-        g.putImageData(id, 0, 0); meta.keyed = cv.toDataURL("image/png");
+        g.putImageData(id, 0, 0); meta.keyed = await cv.toDataURL("image/png");
       }
     } catch { /* keep defaults */ }
     IMGMETA.set(src, meta);

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { patch, toast, useStore } from "../state/store";
-import { esc } from "../xlsx/util";
+import { esc } from "@slide-builder/core/xlsx/util";
 import { guard, lookChange, showVersion, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, setHealth, styleChange, setPrefs } from "../state/app";
 import { openInstaller } from "../state/dialogs";
 import { backend, type FileInfo } from "../sync/api";
@@ -8,8 +8,8 @@ import { doExport, exportVersions, type ExportKind } from "../editor/export";
 import { Dropdown } from "./Dropdown";
 import { Field } from "./Field";
 import { openFontManager } from "./FontPicker";
-import type { Footer, PageNumbers, Theme } from "../model/types";
-import { THEMES, themeOf } from "../model/style";
+import type { Footer, PageNumbers, Theme } from "@slide-builder/core/model/types";
+import { THEMES, themeOf } from "@slide-builder/core/model/style";
 import { Input } from "./Input";
 import { useStyle } from "./hooks";
 

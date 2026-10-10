@@ -3,12 +3,24 @@
   "version": "3.5.0",
   "private": true,
   "type": "module",
-  "description": "The Slide Builder core: pure TypeScript with no DOM (it runs in workers from M2 of docs/next/PLAN.md). Empty until S2.1.",
+  "description": "The Slide Builder core: pure TypeScript with no DOM (it runs in workers from M2 of docs/next/PLAN.md). Hosts install what it needs from them through src/platform.ts.",
   "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
   "scripts": {
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p . && tsc --noEmit -p tests",
+    "check": "tsc --noEmit -p . && tsc --noEmit -p tests && vitest run",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "jszip": "^3.10.2"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "@types/node": "^22.20.5",
+    "jsdom": "30.0.1",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.3"
   }
 }

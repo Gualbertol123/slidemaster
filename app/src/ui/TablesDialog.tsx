@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { get, setDialogs, useStore } from "../state/store";
 import { useCtx } from "./hooks";
-import { tableName } from "../model/preset";
+import { tableName } from "@slide-builder/core/model/preset";
 import { allTables, alignTables, valignTables, copySizes, makeSameSize, resetSizes, type TableRef } from "../editor/tables";
-import { tableW } from "../render/slide";
+import { tableW } from "@slide-builder/core/render/slide";
 import { ctx } from "../state/app";
 
 export function TablesDialog() {

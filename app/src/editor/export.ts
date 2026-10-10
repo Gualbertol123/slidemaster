@@ -3,15 +3,15 @@
    only assembles the PDF. */
 import { get, hideBusy, patch, showBusy, toast } from "../state/store";
 import { ctx, setPrefs, slidesFor, style } from "../state/app";
-import { resolveStyle } from "../model/style";
-import type { RenderCtx } from "../render/context";
-import type { Design } from "../model/types";
+import { resolveStyle } from "@slide-builder/core/model/style";
+import type { RenderCtx } from "@slide-builder/core/render/context";
+import type { Design } from "@slide-builder/core/model/types";
 import { openInstaller } from "../state/dialogs";
 import { backend, ApiError, type ExportRes } from "../sync/api";
-import { buildSlide } from "../render/slide";
-import { esc } from "../xlsx/util";
+import { buildSlide } from "../render/slidedom";
+import { esc } from "@slide-builder/core/xlsx/util";
 import { embeddedFontCss } from "../state/fonts";
-import { PRINT_CSS, printReady } from "../render/printcss";
+import { PRINT_CSS, printReady } from "@slide-builder/core/render/printcss";
 
 export type ExportKind = "pdf" | "pdf-exact" | "pdf-vector" | "pdf-current" | "png-current" | "png-all" | "copy";
 
