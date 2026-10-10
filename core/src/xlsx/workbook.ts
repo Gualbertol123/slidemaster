@@ -7,6 +7,7 @@ import { readDrawing, analyzeImages } from "./drawing";
 import { findRegions } from "./layout";
 import { all, kid, kids, parseRange, parseXml, readRels, resolvePath, splitRef, zget, fmtMB, nextFrame, WorkbookError, NS_R } from "./util";
 import type { Range } from "./util";
+import { platform, type XmlElement } from "../platform";
 import type { Border, Cell, CellType, CFRule, ColInfo, Dxf, Font, Progress, RowInfo, Script, Shared, Sheet, SheetMeta, Workbook, Xf } from "./types";
 
 const XENT: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };
@@ -115,14 +116,14 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
   if (st && zget(zip, st.target)) {
     const sx = parseXml(await zget(zip, st.target)!.async("string"));
     for (const nf of all(sx, "numFmt")) numFmts[nf.getAttribute("numFmtId") || ""] = nf.getAttribute("formatCode") || "General";
-    const on = (e: Element | null) => !!e && e.getAttribute("val") !== "0" && e.getAttribute("val") !== "false";
-    const parseFont = (f: Element | null): Font => f ? ({
+    const on = (e: XmlElement | null) => !!e && e.getAttribute("val") !== "0" && e.getAttribute("val") !== "false";
+    const parseFont = (f: XmlElement | null): Font => f ? ({
       name: kid(f, "name")?.getAttribute("val") || undefined, sz: kid(f, "sz") ? +kid(f, "sz")!.getAttribute("val")! : undefined,
       b: on(kid(f, "b")), i: on(kid(f, "i")),
       u: !!kid(f, "u") && kid(f, "u")!.getAttribute("val") !== "none", s: on(kid(f, "strike")),
       color: color(kid(f, "color"), null),
     }) : {};
-    const parseFill = (f: Element | null, isDxf: boolean): string | null => {
+    const parseFill = (f: XmlElement | null, isDxf: boolean): string | null => {
       if (!f) return null;
       const pf = kid(f, "patternFill");
       if (pf) {
@@ -138,7 +139,7 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
       if (gf) { const stp = all(gf, "stop"); if (stp.length) return color(kid(stp[0], "color"), null); }
       return null;
     };
-    const parseBorder = (b: Element | null): Border => {
+    const parseBorder = (b: XmlElement | null): Border => {
       const o: Border = {}; if (!b) return o;
       for (const side of ["left", "right", "top", "bottom"] as const) {
         const e = kid(b, side);
@@ -168,9 +169,7 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
   const defaultFont = fonts[0] || { name: "Calibri", sz: 11 };
   const mdw = (() => {
     try {
-      const c = document.createElement("canvas").getContext("2d"); if (!c) return 7;
-      c.font = `${(defaultFont.sz || 11) * 96 / 72}px "${defaultFont.name || "Calibri"}", Calibri, Arial`;
-      let m = 0; for (const d of "0123456789") m = Math.max(m, c.measureText(d).width);
+      const m = platform().text.maxDigitWidth(`${(defaultFont.sz || 11) * 96 / 72}px "${defaultFont.name || "Calibri"}", Calibri, Arial`);
       return m > 3 ? Math.round(m) : 7;
     } catch { return 7; }
   })();

@@ -5,8 +5,8 @@
    the latest version (field by field), so nobody's work is overwritten. Other people's changes
    arrive by polling (`?since=<rev>`). If saving fails the operations stay queued and are retried –
    a failed read or write never resets the document. */
-import { FORMATS, type Op, type WorkbookDoc } from "../model/types";
-import { applyOps, inverseOf, applyOp } from "../model/ops";
+import { FORMATS, type Op, type WorkbookDoc } from "@slide-builder/core/model/types";
+import { applyOps, inverseOf, applyOp } from "@slide-builder/core/model/ops";
 import type { Backend } from "./api";
 
 export type SaveState = "saved" | "pending" | "saving" | "error" | "local" | "outdated";

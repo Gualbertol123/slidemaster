@@ -2,18 +2,19 @@
    testing, only changed cells are swapped after an edit). */
 import { get, patch, patchAll, STAGE, toast, useStore } from "../state/store";
 import { change, ctx, setZoom } from "../state/app";
-import type { Item, TableLayout } from "../xlsx/types";
-import type { Layout, Op, RuntimeSlide } from "../model/types";
-import { MEMO_KEY, applyLayout, buildSlide, computeLayout, GX, GY, layoutOf, sizingOf, sizingPatch, tableHtml, tableW, type SlideEl } from "../render/slide";
-import { glassGeom, gItem } from "../render/glass";
-import { effFmt, effText } from "../render/edits";
+import type { Item, TableLayout } from "@slide-builder/core/xlsx/types";
+import type { Layout, Op, RuntimeSlide } from "@slide-builder/core/model/types";
+import { MEMO_KEY, computeLayout, GX, GY, layoutOf, sizingOf, sizingPatch, tableHtml, tableW } from "@slide-builder/core/render/slide";
+import { applyLayout, buildSlide, type SlideEl } from "../render/slidedom";
+import { glassGeom, gItem } from "@slide-builder/core/render/glass";
+import { effFmt, effText } from "@slide-builder/core/render/edits";
 import { activeItem, commitText, curSlide, itemAt, selItems, setSel } from "./edit";
 import { selCols, selRows, setColWidth, setRowHeight, shownColW, shownRowH, stretchTable } from "./tables";
 import { applyPainter } from "./painter";
-import type { Note, Side, SlideTextKey } from "../model/types";
+import type { Note, Side, SlideTextKey } from "@slide-builder/core/model/types";
 import { selectSlideText } from "./textfmt";
-import { todayLabel } from "../render/cover";
-import { commentText } from "../render/comment";
+import { todayLabel } from "@slide-builder/core/render/cover";
+import { commentText } from "@slide-builder/core/render/comment";
 
 let host: HTMLElement | null = null, unsubscribe: (() => void) | null = null;
 export function mountStage(el: HTMLElement) {

@@ -15,6 +15,7 @@ import { todayLabel } from "./cover";
 import { cache } from "./edits";
 import { effNote, fmtCss, hasMarkup, richText, slideTextFmt, titleGeom } from "./text";
 import { commentText } from "./comment";
+import type { NoteMeasure, TextMeasurer } from "../platform";
 
 export const SLIDE_W = 1600, SLIDE_H = 900;
 export const GX = 36, GY = 28, MAXK = 2.0;
@@ -179,13 +180,6 @@ export function tableHtml(R: RuntimeSlide, i: number, ctx: RenderCtx, thumb = fa
   // Excel Refined = the Excel tables exactly as in the workbook (same colours); it only adds text boxes and comments
   return cache(L, "html", key, () => d === "glass" ? renderGlass(L, ctx) : renderExcel(L, ctx));
 }
-export function placeGlass(el: HTMLElement, ex: number, ey: number, ew: number, eh: number, sc: number, gi: number) {
-  const LENS = 1 + .06 * gi;
-  const cx = ex + ew / 2, cy = ey + eh / 2;
-  // layers: contrast veil · tint · blurred wallpaper (only the last one is positioned on the slide)
-  el.style.backgroundSize = `100% 100%, 100% 100%, ${(1600 * LENS / sc).toFixed(2)}px ${(900 * LENS / sc).toFixed(2)}px`;
-  el.style.backgroundPosition = `0 0, 0 0, ${(-(ex + (LENS - 1) * cx) / sc).toFixed(2)}px ${(-(ey + (LENS - 1) * cy) / sc).toFixed(2)}px`;
-}
 export const slideHasLogo = (R: RuntimeSlide) => !(R.cfg && R.cfg.logo === false);
 /** contrast 0…100 (50 = as designed): lower fades the wallpaper (and glass) towards white,
     higher deepens the wallpaper and whitens the glass surfaces */
@@ -210,16 +204,16 @@ export function themeVars(ctx: RenderCtx): Record<string, string> {
   return v;
 }
 export interface SlideOpts { interactive?: boolean; thumb?: boolean }
-export type SlideEl = HTMLDivElement & { _rid?: string; /** the text boxes it was drawn with */ _notes?: string };
-export function buildSlide(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: SlideOpts = {}): SlideEl {
+/** a slide as markup: the slide element's class and CSS variables, and its inner HTML (placed and fitted by the page) */
+export interface SlideMarkup { className: string; vars: [string, string][]; html: string }
+export function slideMarkup(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: SlideOpts = {}): SlideMarkup {
   const d = ctx.style.design, glassy = d === "glass", rk = ctx.style.radius / 100;
-  const slide = document.createElement("div") as SlideEl;
-  slide.className = "slide " + (d === "clean" ? "excel clean" : d) + (R.type !== "content" ? " " + R.type : "");
-  slide.style.setProperty("--rk", String(rk));
-  for (const [k, v] of Object.entries(themeVars(ctx))) slide.style.setProperty(k, v);
+  const className = "slide " + (d === "clean" ? "excel clean" : d) + (R.type !== "content" ? " " + R.type : "");
+  const vars: [string, string][] = [["--rk", String(rk)]];
+  for (const [k, v] of Object.entries(themeVars(ctx))) vars.push([k, v]);
   if (glassy) {
-    slide.style.setProperty("--gi", String(glassLevel(ctx.style))); slide.style.setProperty("--amt", String((+ctx.style.color || 0) / 100));
-    for (const [k, v] of Object.entries(contrastVars(ctx.style.contrast))) slide.style.setProperty(k, v);
+    vars.push(["--gi", String(glassLevel(ctx.style))], ["--amt", String((+ctx.style.color || 0) / 100)]);
+    for (const [k, v] of Object.entries(contrastVars(ctx.style.contrast))) vars.push([k, v]);
   }
   const pageNo = pageNoFor(ctx, idx);
   const logo = slideHasLogo(R) ? ctx.logoSrc : "", cover = R.type === "cover";
@@ -270,64 +264,12 @@ export function buildSlide(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: S
         : `<div class="logowrap plain" style="left:${lx}px;top:${ly}px;width:${lw}px;height:${lh}px"><img class="logo" src="${esc(logo)}" alt=""></div>`)
       : `<div class="logowrap${cover ? " big" : ""}"><img class="logo" src="${esc(logo)}" alt=""></div>`;
   }
-  slide.innerHTML = h;
-  slide._rid = R.id; slide._notes = JSON.stringify(R.cfg.notes || {});
-  const boxes = applyLayout(slide, R, ctx);
-  fitNotes(slide, boxes, d);
-  return slide;
-}
-export function applyLayout(slide: HTMLElement, R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay?: Layout): TBox[] {
-  const { boxes } = computeLayout(R, ctx, w, lay);
-  const glassy = slide.classList.contains("glass"), gi = glassLevel(ctx.style);
-  slide.querySelectorAll<HTMLElement>(":scope > .tw").forEach(el => {
-    const b = boxes[+el.dataset.i!]; if (!b) return;
-    el.style.left = b.x + "px"; el.style.top = b.y + "px"; el.style.transform = `scale(${b.scale})`;
-    if (glassy) el.querySelectorAll<HTMLElement>(".wb").forEach(g => placeGlass(g, b.x + parseFloat(g.style.left) * b.scale, b.y + parseFloat(g.style.top) * b.scale, parseFloat(g.style.width) * b.scale, parseFloat(g.style.height) * b.scale, b.scale, gi));
-  });
-  slide.querySelectorAll<HTMLElement>(":scope > .tnote:not(.memo)").forEach(el => {
-    const nb = boxes[+el.dataset.i!]?.notes[el.dataset.side as Side]; if (!nb) { el.style.display = "none"; return; }
-    Object.assign(el.style, { display: "", left: nb.x + "px", top: nb.y + "px", width: nb.w + "px", height: nb.h + "px" });
-  });
-  slide.querySelectorAll<HTMLElement>(":scope > .notebub.memo").forEach(el => { if (glassy) placeGlass(el, parseFloat(el.style.left), parseFloat(el.style.top), parseFloat(el.style.width), parseFloat(el.style.height), 1, gi); });
-  slide.querySelectorAll<HTMLElement>(":scope > .notebub:not(.memo)").forEach(el => {
-    const nb = boxes[+el.dataset.i!]?.notes[el.dataset.side as Side]; if (!nb) { el.style.display = "none"; return; }
-    Object.assign(el.style, { display: "", left: nb.x + "px", top: nb.y + "px", width: nb.w + "px", height: nb.h + "px" });
-    if (glassy) placeGlass(el, nb.x, nb.y, nb.w, nb.h, 1, gi);
-  });
-  if (glassy) slide.querySelectorAll<HTMLElement>(":scope > .chrome.wb").forEach(g => placeGlass(g, parseFloat(g.style.left), parseFloat(g.style.top), parseFloat(g.style.width), parseFloat(g.style.height), 1, gi));
-  slide.querySelectorAll<HTMLElement>(":scope > .hbox").forEach(el => {
-    const b = boxes[+el.dataset.i!]; if (!b) return;
-    Object.assign(el.style, { left: b.x + "px", top: b.y + "px", width: b.w + "px", height: b.h + "px" });
-    // handles move outwards past the table's text boxes (not past boxes placed elsewhere on the slide)
-    const n = Object.fromEntries(Object.entries(b.notes).filter(([, x]) => x && !x.free)) as TBox["notes"];
-    el.style.setProperty("--nt", (n.top ? b.y - n.top.y : 0) + "px"); el.style.setProperty("--nb", (n.bottom ? n.bottom.y + n.bottom.h - b.y - b.h : 0) + "px");
-    el.style.setProperty("--nl", (n.left ? b.x - n.left.x : 0) + "px"); el.style.setProperty("--nr", (n.right ? n.right.x + n.right.w - b.x - b.w : 0) + "px");
-  });
-  return boxes;
+  return { className, vars, html: h };
 }
 
-/* text boxes: the font shrinks (never below 9 px) until the text fits its box – measured off-screen,
-   so it also works for thumbnails and exports, which are built detached from the page */
-let measurer: { host: HTMLElement; box: HTMLElement } | null = null;
-function fitNotes(slide: HTMLElement, boxes: TBox[], design: string) {
-  const notes = slide.querySelectorAll<HTMLElement>(":scope > .tnote:not(.empty)");
-  if (!notes.length || typeof document === "undefined" || !document.body) return;
-  if (!measurer) {
-    const host = document.createElement("div");
-    host.setAttribute("aria-hidden", "true");
-    host.style.cssText = "position:absolute;left:-20000px;top:0;width:1600px;height:900px;visibility:hidden;pointer-events:none;overflow:hidden";
-    const box = document.createElement("div"); host.appendChild(box); document.body.appendChild(host);
-    measurer = { host, box };
-  }
-  measurer.host.className = "slide " + (design === "clean" ? "excel clean" : design);
-  for (const el of Array.from(notes)) {
-    const nb = el.classList.contains("memo") ? { w: parseFloat(el.style.width), h: parseFloat(el.style.height) } : boxes[+el.dataset.i!]?.notes[el.dataset.side as Side]; if (!nb) continue;
-    const m = measurer.box;
-    m.className = el.className; m.style.cssText = el.style.cssText; m.innerHTML = el.innerHTML;
-    Object.assign(m.style, { left: "0px", top: "0px", width: nb.w + "px", height: "auto", display: "block" });
-    let size = parseFloat(el.style.fontSize) || 18;
-    while (size > 9) { m.style.fontSize = size + "px"; if (m.scrollHeight <= nb.h + 1 && m.scrollWidth <= nb.w + 1) break; size -= 1; }
-    el.style.fontSize = size + "px";
-  }
+/** text boxes: the font shrinks (never below 9 px) until the text fits its box */
+export function fitNoteSize(note: NoteMeasure, start: number, m: TextMeasurer): number {
+  let size = start;
+  while (size > 9) { if (m.noteFits(note, size)) break; size -= 1; }
+  return size;
 }
-

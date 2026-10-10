@@ -1,6 +1,6 @@
 /* Parser spike: node parse_bench.mjs <big30.xlsx> [sheet path]
    1. unzip one sheet (JSZip, as today) vs fflate (proposed, sync, runs in a Worker)
-   2. today's regex parser loop (app/src/xlsx/workbook.ts readSheet, cells → Map<string, Cell>)
+   2. today's regex parser loop (v3: app/src/xlsx/workbook.ts readSheet, now core/src/xlsx/workbook.ts, cells → Map<string, Cell>)
    3. proposed: a single pass over the bytes into COLUMNAR typed arrays (no per-cell objects)
    4. the shared parsed-sheet cache: size on the share and load time (deflated columns) */
 import fs from "node:fs";

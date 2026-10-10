@@ -2,8 +2,8 @@
    and uploaded files, and embeds the fonts a deck uses into exports. */
 import { get, patch, STAGE, THUMBS, toast } from "./store";
 import { backend } from "../sync/api";
-import { cleanFamily, fontFaceCss, googleCssUrl, parseGoogleCss, readFontInfo, type LibraryFont } from "../model/fonts";
-import { esc } from "../xlsx/util";
+import { cleanFamily, fontFaceCss, googleCssUrl, parseGoogleCss, readFontInfo, type LibraryFont } from "@slide-builder/core/model/fonts";
+import { esc } from "@slide-builder/core/xlsx/util";
 
 /* the library is in the store (doc.fonts); a font being added: ui.fontBusy */
 const lib = () => get().doc.fonts;

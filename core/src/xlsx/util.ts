@@ -1,14 +1,18 @@
 /* Small helpers shared by the workbook reader and the renderers. */
 import type JSZip from "jszip";
+import { platform, type XmlDocument, type XmlElement } from "../platform";
 
 export interface Range { r1: number; c1: number; r2: number; c2: number }
 
 export const NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
-export const parseXml = (s: string): Document => new DOMParser().parseFromString(s, "application/xml");
-export const kids = (el: Element | Document | null | undefined, n: string): Element[] =>
-  Array.from(el ? el.childNodes : []).filter((x): x is Element => x.nodeType === 1 && (x as Element).localName === n);
-export const kid = (el: Element | Document | null | undefined, n: string): Element | null => kids(el, n)[0] || null;
-export const all = (el: Element | Document | null | undefined, n: string): Element[] =>
+export const parseXml = (s: string): XmlDocument => {
+  const xml = platform().xml; if (!xml) throw new Error("no XML parser");
+  return xml.parse(s);
+};
+export const kids = (el: XmlElement | XmlDocument | null | undefined, n: string): XmlElement[] =>
+  Array.from(el ? el.children : []).filter(x => x.localName === n);
+export const kid = (el: XmlElement | XmlDocument | null | undefined, n: string): XmlElement | null => kids(el, n)[0] || null;
+export const all = (el: XmlElement | XmlDocument | null | undefined, n: string): XmlElement[] =>
   el ? Array.from(el.getElementsByTagNameNS("*", n)) : [];
 
 const ESC: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };

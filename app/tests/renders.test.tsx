@@ -29,15 +29,15 @@ vi.mock("../src/ui/TableTools", async orig => profiled(orig as never, ["TableRib
 vi.mock("../src/ui/Dialogs", async orig => profiled(orig as never, ["Dialogs"]));
 vi.mock("../src/editor/stage", async orig => ({ ...(await orig() as object), mountStage: () => { /* imperative */ } }));
 vi.mock("../src/editor/thumbs", async orig => ({ ...(await orig() as object), mountThumbs: () => { /* imperative */ } }));
-vi.mock("../src/render/wallpaper", async orig => ({ ...(await orig() as object), makeWall: () => { /* canvas */ } }));
+vi.mock("../src/render/wall", async orig => ({ ...(await orig() as object), applyWall: () => { /* canvas */ } }));
 
 import { App } from "../src/ui/App";
 import { get } from "../src/state/store";
 import { heartbeat, openLocalFile, tick } from "../src/state/app";
 import { setSel } from "../src/editor/edit";
 import { toast } from "../src/state/store";
-import { indexWorkbook } from "../src/xlsx/workbook";
-import { defaultPreset } from "../src/model/preset";
+import { indexWorkbook } from "@slide-builder/core/xlsx/workbook";
+import { defaultPreset } from "@slide-builder/core/model/preset";
 import { backend, type Health, type Other } from "../src/sync/api";
 
 const here = path.dirname(fileURLToPath(import.meta.url));

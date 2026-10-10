@@ -10,8 +10,8 @@
   "scripts": {
     "build": "npm run build -w app",
     "typecheck": "npm run typecheck -w core && npm run typecheck -w app",
-    "check": "npm run typecheck -w core && npm run check -w app",
-    "test": "npm run test -w app",
+    "check": "npm run check -w core && npm run check -w app",
+    "test": "npm run test -w core && npm run test -w app",
     "test:e2e": "npm run test:e2e -w app",
     "parity": "npm run parity -w app",
     "bench": "npm run bench -w app"

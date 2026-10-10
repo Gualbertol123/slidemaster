@@ -1,8 +1,8 @@
 /* In-app dialogs (v2 used window.confirm/alert, which block the page and are disabled in some
    managed browsers). Rendered by ui/Dialogs.tsx; which dialog is open lives in the store (ui.dialogs). */
 import { setDialogs } from "./store";
-import type { Workbook } from "../xlsx/types";
-import type { Preset } from "../model/types";
+import type { Workbook } from "@slide-builder/core/xlsx/types";
+import type { Preset } from "@slide-builder/core/model/types";
 
 export interface DialogButton { id: string; label: string; primary?: boolean; danger?: boolean }
 export interface DialogReq { title: string; sub?: string; html: string; buttons: DialogButton[]; width?: number; resolve: (v: string | null) => void }

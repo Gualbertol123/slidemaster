@@ -169,7 +169,7 @@ every write.
 * **Reading a newer file** (written by a PC already running a newer version): nothing is written;
   `StoreTooNew` → HTTP 409 with "close Slide Builder and start it again".
 * **Pages**: every POST/PUT carries `X-SB-Formats: workbook=3;config=3;prefs=1` (`FORMATS` in
-  `app/src/model/types.ts`). If it differs from the helper's `SCHEMA` the request is refused with
+  `core/src/model/types.ts`). If it differs from the helper's `SCHEMA` the request is refused with
   409 and the page shows "Slide Builder was updated – reload the page"; its unsent changes are not
   written in an old format. Requests without the header (pages built before this check) are accepted.
 * **A missing step** (format raised without a step) raises an error and leaves the file untouched.

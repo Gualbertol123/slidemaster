@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { setDialogs, useStore } from "../state/store";
 import { addGoogleFont, inLibrary, loadFonts, uploadFontFiles } from "../state/fonts";
-import { GOOGLE_POPULAR, SYSTEM_FONTS, fontStack } from "../model/fonts";
+import { GOOGLE_POPULAR, SYSTEM_FONTS, fontStack } from "@slide-builder/core/model/fonts";
 import { backend } from "../sync/api";
 import { Dropdown } from "./Dropdown";
 

@@ -15,7 +15,7 @@
     "bench": "vitest run --project react --silent=false tests/renders.test.tsx"
   },
   "dependencies": {
-    "jszip": "^3.10.2",
+    "@slide-builder/core": "3.5.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "zustand": "5.0.15"

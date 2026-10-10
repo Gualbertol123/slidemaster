@@ -1,10 +1,10 @@
 /* Side panel notes for the current slide: what is on it, what could not be reproduced. */
-import { A1, esc } from "../xlsx/util";
-import type { Sheet } from "../xlsx/types";
-import type { RuntimeSlide } from "../model/types";
-import { tableName } from "../model/preset";
-import { computeLayout, sizingOf } from "../render/slide";
-import type { RenderCtx } from "../render/context";
+import { A1, esc } from "@slide-builder/core/xlsx/util";
+import type { Sheet } from "@slide-builder/core/xlsx/types";
+import type { RuntimeSlide } from "@slide-builder/core/model/types";
+import { tableName } from "@slide-builder/core/model/preset";
+import { computeLayout, sizingOf } from "@slide-builder/core/render/slide";
+import type { RenderCtx } from "@slide-builder/core/render/context";
 
 export interface Issue { cls: "" | "ok" | "warn" | "err"; html: string }
 export function slideIssues(R: RuntimeSlide, ctx: RenderCtx): Issue[] {
