@@ -163,7 +163,7 @@ overwriting existing documents, and renames it `slide_builder_settings.v2-backup
 
 ```
 ┌──────────────── browser tab: backend/slide_builder.html (ONE self-contained file, React + TS) ────────────────┐
-│ xlsx/    unzip (JSZip) + regex sheet parser, styles, number formats, conditional formats, drawings,           │
+│ xlsx/    unzip (fflate) + byte scanner into columns, styles, number formats, conditional formats, drawings,   │
 │          "x" table regions, per-cell geometry (TableLayout)                                                    │
 │ model/   persistent types · operations (+ inverses) · preset → runtime slides · style layering & themes ·      │
 │          automated comment analysis/writing · font catalogue                                                    │
@@ -309,7 +309,7 @@ Current formats: `SCHEMA = {workbook: 3, config: 3, prefs: 1}` (`backend/slidebu
 ## 5. Front end (`core/src` + `app/src`)
 
 TypeScript, React 19 components for the chrome, imperative DOM for slides (for speed). Runtime
-dependencies: `react`, `react-dom`, `zustand` (pinned exactly) and, in `core/`, `jszip`. Reading workbooks, the model and
+dependencies: `react`, `react-dom`, `zustand` and, in `core/`, `fflate` (all pinned exactly). Reading workbooks, the model and
 the renderers (§5.1–5.3) are **pure TypeScript in `core/src`** (no DOM: they will run in a worker, PLAN M2);
 what they need from a page goes through `core/src/platform.ts` — `TextMeasurer` (Excel's digit width on a
 canvas, fitting text boxes in an off-screen slide) and `CanvasFactory` (wallpaper, picture analysis) —
@@ -323,7 +323,7 @@ exactly this text), mounts `<App/>`, installs the keyboard handler and calls `bo
 ### 5.1 `core/src/xlsx/` – reading workbooks
 | File | Responsibility |
 |---|---|
-| `workbook.ts` | `indexWorkbook(buf)`: sniff (`D0CF11E0` → `CFB` = .xls/encrypted, `.bin` part → `XLSB`, not zip → error), JSZip, sheet list (hidden and chart sheets skipped), uncompressed sizes; `big` when > 12 MB sheet XML or > 6 MB file. `wb.ensure(names)` parses sheets lazily: `loadShared` once (theme, shared strings with rich-text runs, styles, number formats, fonts, fills, borders, `cellXfs`, `dxfs` – read with the core's XML tokenizer `xml.ts`; max digit width measured by the platform's `TextMeasurer`), `readSheet` = **regex parser** over the XML string (no DOMParser for `sheetData`; yields every 4000 rows), merges, conditional formats, drawings, `findRegions`. `makeSheet` adds geometry methods (`colPx` = Excel's width formula, `rowPx` = pt × 96/72, cumulative offsets, `cellAt`). |
+| `workbook.ts` | `indexWorkbook(buf)`: sniff (`D0CF11E0` → `CFB` = .xls/encrypted, `.bin` part → `XLSB`, not zip → error), the zip's central directory (`zip.ts`, fflate inflates parts on demand), sheet list (hidden and chart sheets skipped), uncompressed sizes; `big` when > 12 MB sheet XML or > 6 MB file. `wb.ensure(names)` parses sheets lazily: `loadShared` once (theme, shared strings with rich-text runs, styles, number formats, fonts, fills, borders, `cellXfs`, `dxfs` – read with the core's XML tokenizer `xml.ts`; max digit width measured by the platform's `TextMeasurer`), `readSheet` = **byte scanner** (`sheetstore.ts`) over `sheetData` into typed-array columns (13 bytes a cell; yields every 4000 rows when reporting progress), v3's regular expressions for the rest of the sheet (merges, conditional formats, columns), drawings, `findRegions`. `makeSheet` adds geometry methods over the columns (`cells`/`rowInfo` are read-only map views; a `Cell` object is made on request) (`colPx` = Excel's width formula, `rowPx` = pt × 96/72, cumulative offsets, `cellAt`). |
 | `layout.ts` | `findRegions(S)`: pairs "x" markers (top-left with the nearest bottom-right whose rectangle holds no other marker). `buildLayout(S, g, sizes)` → **`TableLayout`**: visible rows/cols, x/y/w/h maps (user sizes applied), one `Item` per cell or merged block (`effectiveMerges` = workbook merges − user splits + user merges), borders (shared edges → heavier style), fonts, fills, number-format text and colour, alignment, text overflow into empty neighbours, conditional formatting (`evalCF`, also with `from` for painted formats), pictures/shapes/text boxes (hidden rows/cols collapse anchored objects). |
 | `numfmt.ts` | `formatValue(cell)`: Excel number formats → text (sections, colours, locale tags, %, fractions, exponents, thousands scaling, General, dates/times incl. elapsed and Italian names). Separators: "." thousands, "," decimals. |
 | `drawing.ts` | `readDrawing`: anchors (two/one/absolute), groups, crop, rotation/flip, SVG preferred, EMF/WMF/TIFF via the helper (`setPictureConverter`), shapes and text boxes, charts listed (not drawn). `analyzeImages` samples each picture (round badge, white background → keyed transparent copy) for Liquid Glass. |
@@ -638,6 +638,8 @@ npm test                     # Vitest: core/ (pure unit tests, ops vectors) and 
 npm run check                # core/ typecheck (no DOM) + Vitest, app/ typecheck + Vitest (what CI runs, after npm run build)
 npm run parity               # v3 against golden/ (tools/capture-v3.mjs + tools/parity.mjs; needs pypdf)
 npm run test:e2e             # Playwright: two real helpers (users anna/bob) on one temp shared folder
+npm run bench                # benchmarks with thresholds: big30 parse (core; needs python tools/make_corpus.py big30
+                             #   tests/corpus/workbooks, openpyxl) and render counts (app)
 cd app && node e2e/parity.mjs <old.html> ../backend/slide_builder.html tests/fixtures/*.xlsx   # renderer diff vs. an older build
 
 cd backend
@@ -653,6 +655,7 @@ workbooks are generated by `app/tests/fixtures/make_fixtures.py` (openpyxl).
 |---|---|
 | `core/tests/ops.test.ts` + `backend/tests/test_ops.py` | every case of `shared/ops-vectors.json`; inverses |
 | `core/tests/xml.test.ts` (jsdom in this test only) | the core's XML tokenizer = DOMParser: rels, workbook, theme, styles, drawings of every corpus workbook and of a synthetic one (`zipbuild.ts`: gradient fills, custom theme, prefixed styles with BOM/CRLF, AlternateContent, charts, anchors; empty parts); entities, CDATA, namespaces, line ends, deep trees |
+| `core/tests/sheetstore.test.ts` (+ `sheet-v3.ts`, v3's parser kept as the reference) | every cell of every corpus sheet (big30 too when generated) equal to v3's regex parser: values, types, styles, runs, lookups, row info; crafted sheets with every cell shape (types, dates by format, rich/phonetic runs, escapes, prefixes, no `r`, unsorted/duplicates, unclosed tags) |
 | `app/tests/docsync.test.ts` | merging two users, retries, rebasing, own-changes-only undo, authors, 409 |
 | `core/tests/tables.test.ts`, `text.test.ts`, `design.test.ts` | layout, sizes, same size, per-design sizing, scales, merges, gridlines, painted CF, themes, text styles, fonts, text boxes, designs, versions |
 | `core/tests/comment.test.ts`, `numfmt.test.ts`, `printcss.test.ts` · `app/tests/build.test.ts` | automated comments · number formats & superscripts · PDF CSS · committed build is fresh |
@@ -863,7 +866,9 @@ core/            package.json · tsconfig.json (ES2022 + WebWorker, no DOM) · v
 ├─ src/
 │  ├─ platform.ts                      what the core needs from its host: TextMeasurer, CanvasFactory (XmlParser: tests)
 │  ├─ xlsx/                            reading workbooks
-│  │  ├─ workbook.ts                   index first, sheets on demand (fast regex parser)
+│  │  ├─ workbook.ts                   index first, sheets on demand
+│  │  ├─ sheetstore.ts                 byte scanner → columns of typed arrays; the Sheet's cells/rows views
+│  │  ├─ zip.ts · strings.ts           .xlsx container (fflate) · v3's text decoding (entities, _xHHHH_, rich runs)
 │  │  ├─ layout.ts                     "x" marker regions, geometry and style of every cell
 │  │  ├─ numfmt.ts                     Excel number formats → text
 │  │  ├─ color.ts                      indexed/theme/tint colours, colour maths
@@ -887,7 +892,8 @@ core/            package.json · tsconfig.json (ES2022 + WebWorker, no DOM) · v
 │  │  ├─ wallpaper.ts                  Liquid Glass wallpaper
 │  │  ├─ printcss.ts                   light slides for PDF
 │  │  └─ context.ts                    everything a renderer needs, passed explicitly
-└─ tests/                              Vitest (node): ops vectors, model, number formats, renderers
+├─ tests/                              Vitest (node): ops vectors, model, number formats, renderers, XML, sheet scanner
+└─ bench/                              npm run bench -w core: big30 parse time and memory (vitest.bench.config.ts)
 tools/
 ├─ update.py                           update in place, --release / --zip / --use (side-by-side versions)
 ├─ make_release.py                     release ZIP + MANIFEST.json; --verify, --notes

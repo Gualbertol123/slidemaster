@@ -1,5 +1,5 @@
 /* Small helpers shared by the workbook reader and the renderers. */
-import type JSZip from "jszip";
+import type { Zip, ZipEntry } from "./zip";
 import { platform, type XmlDocument, type XmlElement } from "../platform";
 import { coreXml } from "./xml";
 
@@ -46,19 +46,17 @@ export function relsPath(p: string): string {
   return i < 0 ? "_rels/" + p + ".rels" : p.slice(0, i) + "/_rels/" + p.slice(i + 1) + ".rels";
 }
 
-type ZipWithIndex = JSZip & { __idx?: Map<string, JSZip.JSZipObject> };
 /** zip lookups tolerate different letter case and %-encoded names (some tools write them that way) */
-export function zget(zip: JSZip, path: string | null | undefined): JSZip.JSZipObject | null {
+export function zget(zip: Zip, path: string | null | undefined): ZipEntry | null {
   if (!path) return null;
   const f = zip.file(path); if (f) return f;
-  const z = zip as ZipWithIndex;
-  if (!z.__idx) { const m = new Map<string, JSZip.JSZipObject>(); zip.forEach((p, e) => { if (!e.dir) m.set(p.toLowerCase(), e); }); z.__idx = m; }
+  if (!zip.lower) { const m = new Map<string, ZipEntry>(); zip.forEach((p, e) => { if (!e.dir) m.set(p.toLowerCase(), e); }); zip.lower = m; }
   let dec = path; try { dec = decodeURIComponent(path); } catch { /* keep */ }
-  return zip.file(dec) || z.__idx.get(dec.toLowerCase()) || z.__idx.get(path.toLowerCase()) || null;
+  return zip.file(dec) || zip.lower.get(dec.toLowerCase()) || zip.lower.get(path.toLowerCase()) || null;
 }
 
 export interface Rel { target: string; type: string; external: boolean }
-export async function readRels(zip: JSZip, part: string): Promise<Record<string, Rel>> {
+export async function readRels(zip: Zip, part: string): Promise<Record<string, Rel>> {
   const f = zget(zip, relsPath(part)); const map: Record<string, Rel> = {};
   if (!f) return map;
   const x = parseXml(await f.async("string"));

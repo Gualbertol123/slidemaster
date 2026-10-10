@@ -3,5 +3,5 @@
   // (../tsconfig.json: ES2022 + WebWorker only)
   "extends": "../tsconfig.json",
   "compilerOptions": { "lib": ["ES2022", "DOM", "DOM.Iterable"], "types": ["node"] },
-  "include": [".", "../vitest.config.ts"]
+  "include": [".", "../bench", "../vitest.config.ts", "../vitest.bench.config.ts"]
 }

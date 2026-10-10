@@ -1,5 +1,5 @@
 /* Drawings: pictures, groups, text boxes, shapes – and a small image analysis used by Liquid Glass. */
-import type JSZip from "jszip";
+import type { Zip } from "./zip";
 import { NAMED } from "./color";
 import { all, hashStr, kid, kids, parseXml, readRels, zget, NS_R } from "./util";
 import type { Anchor, AnchorPos, Crop, Drawing, DrawObj, Frac, Line, Para, Shared } from "./types";
@@ -62,7 +62,7 @@ export function drawColor(el: XmlElement, ctx: Pick<Shared, "theme">): string | 
   return "#" + (ctx.theme[map[v]] || "000000");
 }
 
-export async function readDrawing(zip: JSZip, sheetPath: string, ctx: Pick<Shared, "theme">): Promise<Drawing> {
+export async function readDrawing(zip: Zip, sheetPath: string, ctx: Pick<Shared, "theme">): Promise<Drawing> {
   const res: Drawing = { anchors: [], charts: [], unsupported: [], skipped: 0 };
   const shRels = await readRels(zip, sheetPath);
   const dr = Object.values(shRels).find(r => /\/drawing$/.test(r.type));
