@@ -89,7 +89,6 @@ numbers measured twice). Measured numbers go into the step's line.
 
 ## Waiting for
 
-- **CommentDialog typing (found in the S1.4 review, as old as v3, product owner):** in the automated-comment dialog the "Unit after amounts" box trims on every keystroke (a space typed at the end disappears: "mln EUR" only by typing the space mid-word) and "Ignore below" erases a typed "0" (so "0.5" cannot be typed from the start). A fix changes what users see (not in B1–B14): fix it in a later step?
 - **5 real decks (S0.5, product owner):** 5 workbooks from the share with their saved decks (`backend\data\workbooks\<name>-<hash>.json`). They are anonymised with `python tools/anonymise.py REAL.xlsx tests/corpus/workbooks/realN.xlsx --deck <deck>.json --deck-out tests/corpus/decks/realN.json --rename "<bank>=Bank A" …` (which names must be renamed?), reviewed by you, then captured into `golden/`.
 - **Gate G0 (S0.6, people on the real share and PCs)** - fill in `docs/next/field-results.md`:
   1. `tools/sharetest.py` from 3–5 PCs (one over VPN), 10 writers in total, `--rdcw` → **storage decision**: journals meet 05 §3.5, or `STORAGE=lean-lock` in M5 (ADR-006);

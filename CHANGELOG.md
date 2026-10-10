@@ -3,6 +3,13 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## Unreleased
+
+What users notice
+* **Comment… dialog: the "Unit after amounts" and "Ignore below" boxes keep what you type.** A space can be
+  typed at the end of the unit ("mln EUR"), and "Ignore below" accepts numbers that start with 0 ("0.5").
+  Before, each key press cleaned the box. Approved by the product owner on 2026-10-10 (PROGRESS.md).
+
 ## 3.5.0 - 2026-10-09
 
 What users notice

@@ -436,11 +436,19 @@ test.describe.serial("two people, one shared folder", () => {
     await page.locator('#cmtShape [data-shape="bullets"]').check();
     await page.locator('#cmtKinds [data-kind="month"]').uncheck();
     await expect(prev).not.toContainText("vs EoM");
+    // the boxes keep what is typed key by key: a space inside the unit, a number that starts with "0"
+    await page.locator("#cmtUnit").click(); await page.keyboard.press("Control+a");
+    await page.keyboard.type("mln EUR");
+    await expect(page.locator("#cmtUnit")).toHaveValue("mln EUR");
+    await page.locator("#cmtMin").click(); await page.keyboard.type("0.5");
+    await expect(page.locator("#cmtMin")).toHaveValue("0.5");
+    await page.keyboard.press("Control+a"); await page.keyboard.press("Backspace");        // back to "all movements"
     await page.click("#cmtInsert");
     const wdoc = () => JSON.parse(fs.readFileSync(wbFile("weekly.xlsx")!, "utf8"));
     await pollFile(() => Object.values(wdoc().preset.slides[0].notes || {}).filter((n: any) => n.auto).length, { timeout: 10_000 }).toBe(1);
     const auto: any = Object.values(wdoc().preset.slides[0].notes).find((n: any) => n.auto);
-    expect(auto.auto).toMatchObject({ mode: "summary", kinds: ["week", "target"] });
+    expect(auto.auto).toMatchObject({ mode: "summary", kinds: ["week", "target"], unit: "mln EUR" });
+    expect(auto.auto.minAbs).toBeUndefined();
     expect(auto.auto.tables).toHaveLength(1);
     const note = page.locator("#stage .tnote.auto");
     await expect(note).toHaveCount(1);
