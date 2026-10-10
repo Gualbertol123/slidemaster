@@ -3,7 +3,7 @@
    its own (OffscreenCanvas), and without any the core falls back the way v3 did outside a page (Excel's
    default digit width of 7 px, no picture analysis, text boxes keep their size). */
 
-/* ---- XML ---- (a DOM Element satisfies these; so will the core's own tokenizer tree, S2.2) */
+/* ---- XML ---- (the core's tokenizer tree implements these, and so does a DOM Element) */
 export interface XmlElement {
   readonly localName: string;
   readonly textContent: string | null;
@@ -19,6 +19,8 @@ export interface XmlDocument {
   readonly children: ArrayLike<XmlElement>;
   getElementsByTagNameNS(ns: string, localName: string): ArrayLike<XmlElement>;
 }
+/** the core reads XML with its own tokenizer (xlsx/xml.ts); only the equivalence test installs another (DOMParser):
+    the page and the workers never set one */
 export interface XmlParser { parse(xml: string): XmlDocument }
 
 /* ---- text measurement ---- */
@@ -53,7 +55,7 @@ export interface CanvasFactory {
   decode(src: string): Promise<DecodedImage>;
 }
 
-export interface Platform { text: TextMeasurer; canvas: CanvasFactory | null; xml: XmlParser | null }
+export interface Platform { text: TextMeasurer; canvas: CanvasFactory | null; /** null = the core's tokenizer */ xml: XmlParser | null }
 
 const NONE: Platform = { text: { maxDigitWidth: () => 0, noteFits: () => true }, canvas: null, xml: null };
 let current: Platform = NONE;

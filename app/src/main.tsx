@@ -15,7 +15,7 @@ import { renderExcel } from "@slide-builder/core/render/excel";
 import { renderGlass } from "@slide-builder/core/render/glass";
 import { resolveStyle } from "@slide-builder/core/model/style";
 
-// the core measures text, draws canvases and parses XML through the page (core/src/platform.ts)
+// the core measures text and draws canvases through the page (core/src/platform.ts)
 installBrowserPlatform();
 
 // hooks for automated tests (parity with v2, end-to-end); not used by the app itself

@@ -10,14 +10,16 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit -p .",
-    "check": "tsc --noEmit -p . && vitest run",
+    "typecheck": "tsc --noEmit -p . && tsc --noEmit -p tests",
+    "check": "tsc --noEmit -p . && tsc --noEmit -p tests && vitest run",
     "test": "vitest run"
   },
   "dependencies": {
     "jszip": "^3.10.2"
   },
   "devDependencies": {
+    "@types/node": "^22.20.5",
+    "jsdom": "30.0.1",
     "typescript": "^5.9.3",
     "vitest": "^5.0.3"
   }

@@ -21,7 +21,8 @@ up front so the wizard can show titles and table suggestions; larger ones show s
 sheetData – far faster and lighter on 50k-row sheets) and yields to the UI every 4000 rows for the
 progress bar. `parseSST()` does the same for shared strings. Handles: namespace prefixes, rows/cells
 without `r`, `<v xml:space=…>`, inline strings, rich text, `_xHHHH_` escapes. Styles, theme and
-drawings are small and use DOMParser (the page's `XmlParser`, `core/src/platform.ts`). A parity test against the old DOM parser was run on all test
+drawings are small and are read by the core's XML tokenizer (`core/src/xlsx/xml.ts`, a tree with DOM semantics;
+`core/tests/xml.test.ts` checks it against DOMParser on every corpus workbook). A parity test against the old DOM parser was run on all test
 workbooks (identical cells, merges, hidden rows, CF, pictures, tables).
 
 **Robustness:** case-insensitive / %-encoded part names (`zget`), damaged sheets become

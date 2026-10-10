@@ -1,14 +1,14 @@
 /* Small helpers shared by the workbook reader and the renderers. */
 import type JSZip from "jszip";
 import { platform, type XmlDocument, type XmlElement } from "../platform";
+import { coreXml } from "./xml";
 
 export interface Range { r1: number; c1: number; r2: number; c2: number }
 
 export const NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
-export const parseXml = (s: string): XmlDocument => {
-  const xml = platform().xml; if (!xml) throw new Error("no XML parser");
-  return xml.parse(s);
-};
+/** styles, theme, rels, workbook and drawings: the core's own tokenizer (xml.ts), unless the host installed
+    another parser (the equivalence test runs DOMParser through the same readers) */
+export const parseXml = (s: string): XmlDocument => (platform().xml || coreXml).parse(s);
 export const kids = (el: XmlElement | XmlDocument | null | undefined, n: string): XmlElement[] =>
   Array.from(el ? el.children : []).filter(x => x.localName === n);
 export const kid = (el: XmlElement | XmlDocument | null | undefined, n: string): XmlElement | null => kids(el, n)[0] || null;

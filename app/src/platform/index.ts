@@ -1,6 +1,7 @@
 /* The page's implementations of the core's platform (core/src/platform.ts): canvas text metrics, an off-screen
-   slide for fitting text boxes, <canvas> surfaces and DOMParser. Installed once at start-up (main.tsx). */
-import { setPlatform, type CanvasFactory, type Ctx2D, type NoteMeasure, type TextMeasurer, type XmlParser } from "@slide-builder/core/platform";
+   slide for fitting text boxes and <canvas> surfaces (XML: the core's own tokenizer). Installed once at
+   start-up (main.tsx). */
+import { setPlatform, type CanvasFactory, type Ctx2D, type NoteMeasure, type TextMeasurer } from "@slide-builder/core/platform";
 
 let measurer: { host: HTMLElement; box: HTMLElement; note: NoteMeasure | null } | null = null;
 export const browserText: TextMeasurer = {
@@ -43,8 +44,6 @@ export const browserCanvas: CanvasFactory = {
   },
 };
 
-export const browserXml: XmlParser = { parse: s => new DOMParser().parseFromString(s, "application/xml") };
-
 export function installBrowserPlatform() {
-  setPlatform({ text: browserText, canvas: typeof document !== "undefined" ? browserCanvas : null, xml: browserXml });
+  setPlatform({ text: browserText, canvas: typeof document !== "undefined" ? browserCanvas : null });
 }
