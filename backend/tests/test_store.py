@@ -85,6 +85,19 @@ class StoreTests(TempDirs):
         revs = sorted(int(n.split(".")[0]) for n in os.listdir(os.path.join(paths.DATA, "backups", doc_key("Many.xlsx"))))
         self.assertEqual(revs, list(range(6, 36)))
 
+    def test_backup_spacing_ignores_clock_jitter_but_not_a_clock_set_back(self):
+        # each save reads the file server's clock from a probe file's mtime, which is a few ms coarse:
+        # a save right after rev 1 can read a time a little BEFORE rev 1's - that is not a clock set back
+        t = 1_800_000_000_000
+        backups = lambda: sorted(os.listdir(os.path.join(paths.DATA, "backups", doc_key("J.xlsx"))))
+        store.update_workbook("J.xlsx", [{"op": "style.patch", "patch": {"color": 1}}], "u", now=t)
+        store.update_workbook("J.xlsx", [{"op": "style.patch", "patch": {"color": 2}}], "u", now=t - 5)
+        store.update_workbook("J.xlsx", [{"op": "style.patch", "patch": {"color": 3}}], "u", now=t + 3)
+        self.assertEqual(backups(), ["1.json"])
+        # the server clock really went back (more than the backup spacing): back up again
+        store.update_workbook("J.xlsx", [{"op": "style.patch", "patch": {"color": 4}}], "u", now=t - 2 * int(store.BACKUP_EVERY * 1000))
+        self.assertEqual(backups(), ["1.json", "4.json"])
+
     def test_no_write_when_nothing_applied(self):
         doc, applied, skipped = store.update_workbook("Book.xlsx", [{"op": "nope"}], "u")
         self.assertEqual((applied, skipped, doc["rev"]), (0, [0], 0))
