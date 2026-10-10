@@ -730,26 +730,164 @@ events and link updates off. TLS is never disabled (downloads use the system/cor
 ---
 
 ## 16. Repository map
+
+Every file in git, folder by folder (generated corpora, goldens and fixtures are summarised). On a share,
+`app\<ver>\`, `app\current.json` and `backend\data\` sit next to these (§2, §4.1); they are not in git.
+
+### Top level
 ```
 /                                      ROOT (the shared folder)
-├─ Install / Start / Update Slide Builder.bat
-├─ README.md · docs/                   documentation (table at the top)
-├─ CHANGELOG.md · PROGRESS.md          releases · progress of the rebuild (docs/next/PLAN.md)
-├─ package.json · package-lock.json   npm workspaces app/ and core/ (developers only; node_modules/ at the root)
-├─ .github/workflows/                  ci.yml (unit, core, helper, e2e, parity) · release.yml (tag v* → release ZIP)
-├─ shared/ops-vectors.json             operation test vectors (both test suites)
-├─ tests/corpus/ · golden/             parity corpus (workbooks, saved decks) · goldens of v3 (never edited)
-├─ tools/  update.py (GitHub update in place / ZIP / side-by-side releases) · make_release.py · loadtest.py (N simulated users)
-│          capture-v3.mjs · parity.mjs · pdftext.py · make_corpus.py · anonymise.py · sharetest.py · fieldcheck.html
-├─ backend/
-│  ├─ slide_builder.py · slide_builder.html (BUILT) · Install export engine.bat · requirements.txt (optional playwright)
-│  ├─ slidebuilder/                    the helper package (§7.2)
-│  ├─ tests/                           unittest; fixtures/saved/ (released data formats)
-│  └─ data/                            saved state (not in git, §4.1)
-├─ core/                              pure TypeScript, no DOM (tsconfig lib ES2022 + WebWorker); empty until S2.1
-└─ app/                               the browser app (on a share, app\<ver>\ and app\current.json sit next to it: §2)
-   ├─ package.json · vite.config.ts (single-file build → ../backend/slide_builder.html) · playwright.config.ts
-   ├─ src/  main.tsx · xlsx/ · model/ · render/ · sync/ · state/ · editor/ · ui/ · wizard/ · styles/   (§5)
-   ├─ tests/   Vitest unit tests; fixtures/ (generated .xlsx + make_fixtures.py)
-   └─ e2e/     app.spec.ts (Playwright, two helpers = two users) · file.spec.ts (from file://) · parity.mjs (renderer diff)
+├─ Install Slide Builder.bat           first-time set-up on a PC (firstrun.py: Python check, shortcut)
+├─ Start Slide Builder.bat             starts app\current.json's version, else backend\ (no PowerShell)
+├─ Update Slide Builder.bat            tools\update.py: git/ZIP update in place, or side-by-side releases
+├─ README.md                           this guide
+├─ CHANGELOG.md                        user-visible changes per release
+├─ PROGRESS.md                         the rebuild's steps, decisions, waiting-for and measurements
+├─ package.json · package-lock.json    npm workspaces app/ and core/ (developers only; node_modules/ at the root)
+├─ .gitattributes · .gitignore         .bat files keep CRLF · ignores data/, app\<ver>\, build output
+├─ .github/workflows/
+│  ├─ ci.yml                           unit · core · helper (Python 3.8 + 3.12) · e2e · parity
+│  └─ release.yml                      on a tag v*: tests, release ZIP + .sha256, GitHub release
+├─ shared/ops-vectors.json             operation test vectors, run by both the TS and the Python tests
+├─ tests/
+│  ├─ corpus/                          parity corpus: workbooks/, decks/ (op lists), assets/, pixels.json
+│  └─ parity/accepted.json             parity differences accepted by a person (empty)
+├─ golden/                             v3 goldens per deck/design/version: slide-<n>.json/.png, pdf.json,
+│                                      comments.json, issues.json; MANIFEST.json (never edited, add only)
+├─ spikes/                             design-phase experiments (baseline, parser, pdfwriter, fonts, storage)
+├─ docs/                               see "Documentation" below
+├─ tools/                              see below
+├─ backend/                            the helper (Python, standard library only), §7
+├─ core/                               pure TypeScript, no DOM; empty until PLAN S2.1
+└─ app/                                the browser app (React 19 + TypeScript), §5
+```
+
+### `backend/` – the helper (§7)
+```
+backend/
+├─ slide_builder.py                    entry point (→ slidebuilder.main)
+├─ slide_builder.html                  BUILT page (npm run build); never edit by hand
+├─ Install export engine.bat           optional Playwright + Chrome for Testing (installer.py)
+├─ requirements.txt                    optional: playwright (the helper itself needs nothing)
+├─ README-backend.md                   module table and conventions of the helper
+├─ slidebuilder/
+│  ├─ __init__.py                      APP_NAME, VERSION
+│  ├─ main.py                          command line: --port, --no-browser, --setup, --install, --selftest; Edge --app window
+│  ├─ server.py                        HTTP API on 127.0.0.1 (§8) and its security checks (Host, token, origin)
+│  ├─ paths.py                         folder layout: ROOT, DATA, export\, engine\
+│  ├─ store.py                         documents in data/: retried reads, atomic writes, backups
+│  ├─ ops.py                           document operations (same rules as app/src/model/ops.ts)
+│  ├─ upgrade.py                       saved-format versions and their automatic upgrade
+│  ├─ migrate.py                       one-time import of v2 settings
+│  ├─ locks.py                         cross-PC lock files (O_CREAT|O_EXCL, stale-lock recovery)
+│  ├─ fsclock.py                       the file server's clock (ages from SMB mtimes, not the PC clock)
+│  ├─ presence.py                      who else is here: heartbeat file names, one directory listing
+│  ├─ workbooks.py                     workbook list, stable reads, per-file stat
+│  ├─ fonts.py                         shared font library in data/fonts
+│  ├─ engines.py                       export engines (Playwright, DevTools, command line), self-tests
+│  ├─ cdp.py                           tiny websocket + Chrome DevTools protocol client
+│  ├─ exports.py                       writing into export\ (temp file, then rename)
+│  ├─ pdf.py                           PDF writer for image pages, PNG helpers
+│  ├─ convert.py                       Windows-only conversions (EMF/WMF/TIFF pictures, .xls via Excel)
+│  ├─ installer.py                     export-engine installer and its background runner
+│  ├─ firstrun.py                      first-time set-up on a locked-down PC
+│  ├─ selftest.py                      --selftest: can this version run on this folder (read-only)
+│  ├─ simfs.py                         SIMULATION ONLY: network latency for tools/loadtest.py
+│  └─ util.py                          logging, identity, names, atomic file writes
+└─ tests/                              unittest: one test_<module>.py per module, sbtest.py (helpers),
+                                       workers.py (multi-process), fixtures/saved/ (released data formats)
+```
+
+### `app/` – the browser app (§5)
+```
+app/
+├─ package.json · tsconfig.json
+├─ slide_builder.html                  Vite entry page (the built copy goes to ../backend/)
+├─ vite.config.ts                      single-file build (vite-plugin-singlefile)
+├─ vitest.config.ts                    projects "unit" (node) and "react" (jsdom)
+├─ playwright.config.ts                two helpers = two users (anna, bob) on one temp folder
+├─ src/
+│  ├─ main.tsx                         injects the CSS, mounts <App/>, keyboard, boot()
+│  ├─ xlsx/                            reading workbooks
+│  │  ├─ workbook.ts                   index first, sheets on demand (fast regex parser)
+│  │  ├─ layout.ts                     "x" marker regions, geometry and style of every cell
+│  │  ├─ numfmt.ts                     Excel number formats → text
+│  │  ├─ color.ts                      indexed/theme/tint colours, colour maths
+│  │  ├─ drawing.ts                    pictures, groups, text boxes, shapes
+│  │  └─ types.ts · util.ts            reader data structures · small helpers
+│  ├─ model/                           what is saved
+│  │  ├─ types.ts                      persistent data and runtime slides
+│  │  ├─ ops.ts                        document operations: the ONLY way documents change
+│  │  ├─ preset.ts                     tables and slides of a deck
+│  │  ├─ style.ts                      deck style: defaults ← shared config ← workbook
+│  │  ├─ comment.ts                    automated comment analysis and writing
+│  │  └─ fonts.ts                      Windows, Google and library fonts
+│  ├─ render/                          slides as HTML
+│  │  ├─ slide.ts                      slide composition: bands, title, cover/index, page number, logo
+│  │  ├─ excel.ts · glass.ts           Excel design · Liquid Glass (scene model)
+│  │  ├─ edits.ts · text.ts · roles.ts cell edits · text styles · row roles
+│  │  ├─ scales.ts                     colour scales
+│  │  ├─ cover.ts · pagenumbers.ts     cover and index slides · page numbers
+│  │  ├─ comment.ts                    automated comments on slides
+│  │  ├─ wallpaper.ts                  Liquid Glass wallpaper
+│  │  ├─ printcss.ts                   light slides for PDF
+│  │  └─ context.ts                    everything a renderer needs, passed explicitly
+│  ├─ sync/
+│  │  ├─ api.ts                        the helper's API; offline backend in localStorage (file://)
+│  │  └─ docsync.ts                    one shared document: optimistic ops, batching, retries, polling
+│  ├─ state/
+│  │  ├─ store.ts                      ONE Zustand store: slices doc · deck · selection · ui · prefs
+│  │  ├─ app.ts                        actions: boot, open, change, undo/redo, polls, presence
+│  │  ├─ dialogs.ts                    in-app dialogs (no window.confirm)
+│  │  └─ fonts.ts                      the font library in the page (@font-face, uploads)
+│  ├─ editor/                          the slide being edited (imperative DOM)
+│  │  ├─ stage.ts                      overlays, hit testing, inline editors, drags; follows the store
+│  │  ├─ edit.ts                       selection and cell edits as operations
+│  │  ├─ tables.ts · painter.ts        widths/heights/same size · format painter
+│  │  ├─ textfmt.ts                    one text toolbar for every text
+│  │  ├─ keys.ts                       Excel-like keyboard
+│  │  ├─ thumbs.ts                     lazy thumbnails
+│  │  ├─ export.ts                     exports through the helper, or in this window
+│  │  └─ issues.ts                     side-panel notes
+│  ├─ ui/                              React components
+│  │  ├─ App.tsx · Chrome.tsx          layout · slide list, issues, stage frame, status bar, toast
+│  │  ├─ Topbar.tsx · Ribbon.tsx       top bar (open, design, options) · TEXT toolbar and formula bar
+│  │  ├─ TableTools.tsx                LAYOUT toolbar
+│  │  ├─ Dialogs.tsx · TablesDialog.tsx · TextStylesDialog.tsx · CommentDialog.tsx
+│  │  ├─ Dropdown.tsx · FontPicker.tsx menus · font menu
+│  │  ├─ Input.tsx · Field.tsx         uncontrolled input · text box that keeps its draft while focused
+│  │  └─ hooks.ts · util.ts            shared store hooks · small helpers
+│  ├─ wizard/
+│  │  ├─ Wizard.tsx                    1 Sheets · 2 Tables · 3 Slides · 4 Versions
+│  │  └─ detect.ts                     table suggestions
+│  └─ styles/                          ui.css + app.css (the chrome) · slide.css (slides; sent to exports)
+├─ tests/                              Vitest: *.test.ts (node), *.test.tsx (jsdom, fail on console
+│                                      warnings: setup-console.ts); fixtures/ (generated .xlsx)
+└─ e2e/
+   ├─ app.spec.ts                      two users on one folder (15 scenarios)
+   ├─ file.spec.ts                     the page from file:// without the helper
+   └─ parity.mjs                       renderer diff (v2 era)
+```
+
+### `core/`, `tools/` and documentation
+```
+core/            package.json · tsconfig.json (ES2022 + WebWorker, no DOM) · src/index.ts (empty until S2.1)
+tools/
+├─ update.py                           update in place, --release / --zip / --use (side-by-side versions)
+├─ make_release.py                     release ZIP + MANIFEST.json; --verify, --notes
+├─ capture-v3.mjs · parity.mjs         golden capture · parity against the goldens (npm run parity)
+├─ pdftext.py                          PDF text as JSON (dev only: pypdf)
+├─ make_corpus.py · anonymise.py       corpus workbooks (dev only: openpyxl) · scramble a real workbook
+├─ loadtest.py                         N simulated users through the real helper
+├─ sharetest.py                        field test of the share from several PCs (gate G0)
+└─ fieldcheck.html                     browser capabilities on a PC (gate G0)
+docs/
+├─ ARCHITECTURE.md · RENDERING.md · LOADTEST.md   the v3 contract · how slides are drawn · load-test results
+├─ REVIEW.md · MIGRATION-PROMPT.md                 historical: the v3 review and rebuild brief
+└─ next/                               the Slide Builder 4 rebuild
+   ├─ 00-summary.md … 06-plan.md       design: current system, options, architecture, data, tests, plan
+   ├─ PLAN.md · PROMPTS.md             the executable plan · the ten milestone prompts
+   ├─ adr/001-…012-*.md                architecture decisions
+   ├─ release-checklist.md             used for every release
+   └─ field-results.md · field/        gate G0 results template · Acrobat test PDFs
 ```
