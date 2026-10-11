@@ -68,7 +68,7 @@ export function ThemePicker() {
 }
 
 function Options() {
-  const st = useStyle(), p = st.pn, has = useStore(s => !!s.doc.sync);
+  const st = useStyle(), p = st.pn, has = useStore(s => s.doc.open);
   const pn = (patch: Partial<PageNumbers>, coalesce?: string) => styleChange("Page numbers", { pn: patch }, coalesce);
   const ft = st.footer, fo = (patch: Partial<Footer>, coalesce?: string) => styleChange("Footer", { footer: patch }, coalesce);
   return (
@@ -204,7 +204,7 @@ function Others() {
 }
 
 export function Topbar() {
-  const st = useStyle(), has = useStore(s => !!s.doc.sync), f = useStore(s => s.deck.file), n = useStore(s => s.deck.slides.length);
+  const st = useStyle(), has = useStore(s => s.doc.open), f = useStore(s => s.deck.file), n = useStore(s => s.deck.slides.length);
   const wb = useStore(s => !!s.deck.wb), opening = useStore(s => s.deck.opening);
   return (
     <header className="topbar">

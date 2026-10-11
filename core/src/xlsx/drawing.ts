@@ -137,6 +137,12 @@ export async function readDrawing(zip: Zip, sheetPath: string, ctx: Pick<Shared,
 
 /** small analysis so Liquid Glass can tell round badges (flags, icons) from ordinary pictures */
 export async function analyzeImages(srcs: (string | null | undefined)[]) {
+  const images = platform().images;
+  if (images) {
+    const todo = [...new Set(srcs.filter((s): s is string => !!s && !IMGMETA.has(s)))];
+    if (todo.length) for (const [src, meta] of await images(todo)) IMGMETA.set(src, meta);
+    return;
+  }
   const cf = platform().canvas; if (!cf) return;
   for (const src of srcs) {
     if (!src || IMGMETA.has(src)) continue;

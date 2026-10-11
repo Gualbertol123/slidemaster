@@ -51,6 +51,8 @@ export interface Sheet {
   ctx: Shared;
   title: string; subtitle: string;
   tables: TableLayout[];
+  /** the columns behind cells and rowInfo (absent for a broken sheet) */
+  cols?: { cells: import("./sheetstore").SheetColumns; rows: import("./sheetstore").RowColumns };
   get(r: number, c: number): Cell | null;
   rowHidden(r: number): boolean;
   colHidden(c: number): boolean;

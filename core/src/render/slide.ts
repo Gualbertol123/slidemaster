@@ -173,9 +173,17 @@ export function computeLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay
   return { boxes, k, fit, reduced: !!fixed && fit < fixed - 1e-6 };
 }
 
+/** which HTML of table i a slide shows, and its cache key: "thtml" = shapes only (thumbnails of big tables) */
+export function tableHtmlKey(R: RuntimeSlide, i: number, ctx: RenderCtx, thumb = false): { kind: "html" | "thtml"; key: string } {
+  const L = R.tables[i], key = ctx.style.design + "|" + glassLevel(ctx.style) + "|" + tableKey(ctx, L) + "|" + (ctx.forExport ? 1 : 0)
+    // the layout itself (per-design sizes and grown ranges are not in tableKey: a new layout object had an empty cache)
+    + "|" + JSON.stringify(L.g) + "|" + [...L.colW.values()].join() + "|" + [...L.rowH.values()].join();
+  return { kind: thumb && L.items.length > 1200 ? "thtml" : "html", key };
+}
 export function tableHtml(R: RuntimeSlide, i: number, ctx: RenderCtx, thumb = false): string {
-  const L = R.tables[i], d = ctx.style.design, key = d + "|" + glassLevel(ctx.style) + "|" + tableKey(ctx, L) + "|" + (ctx.forExport ? 1 : 0);
-  if (thumb && L.items.length > 1200)              // thumbnails of big tables: shapes only, no text
+  const L = R.tables[i], d = ctx.style.design, { kind, key } = tableHtmlKey(R, i, ctx, thumb);
+  const given = ctx.htmlOf?.(L.id || "", kind, key); if (given !== undefined) return given;      // drawn by the core worker
+  if (kind === "thtml")                            // thumbnails of big tables: shapes only, no text
     return cache(L, "thtml", key, () => d === "glass" ? renderGlass(L, ctx, { noText: true }) : renderExcel(L, ctx, { noText: true }));
   // Excel Refined = the Excel tables exactly as in the workbook (same colours); it only adds text boxes and comments
   return cache(L, "html", key, () => d === "glass" ? renderGlass(L, ctx) : renderExcel(L, ctx));

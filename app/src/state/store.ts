@@ -1,7 +1,8 @@
 /* Application state: ONE Zustand store in slices (docs/next/PLAN.md Part B §2, ADR-012).
-     doc        the open workbook's shared document: its DocSync, a read-only mirror of its view and save
-                state (set by state/app.ts after every change), the shared config and the font library
-     deck       the open workbook and its slides, the current slide and version, undo/redo
+     doc        the open workbook's shared document: a read-only mirror of its view and save state (the core
+                worker owns the document: state/app.ts mirrors its snapshots), the shared config, the font library
+     deck       the open workbook (a read-only mirror of the worker's) and its slides, the current slide and
+                version, what undo/redo would do
      selection  cells, text box, slide text, format painter
      ui         zoom, busy, toast, dialogs, banners, helper health, presence, exporting
      prefs      who I am and my personal preferences
@@ -16,13 +17,13 @@ import type { Workbook } from "@slide-builder/core/xlsx/types";
 import type { ConfigDoc, Op, Prefs, RuntimeSlide, SlideTextKey, WorkbookDoc } from "@slide-builder/core/model/types";
 import type { LibraryFont } from "@slide-builder/core/model/fonts";
 import type { Health, Other } from "../sync/api";
-import type { DocSync, SaveState } from "../sync/docsync";
+import type { SaveState } from "@slide-builder/core/sync/docsync";
+import type { HistorySummary } from "@slide-builder/core/sync/history";
 import type { Fmt } from "../editor/painter";
 import type { DialogReq, WizardReq } from "./dialogs";
 
 export interface Sel { t: number; anchor: { r: number; c: number }; ar: number; ac: number; r1: number; r2: number; c1: number; c2: number }
 export interface OpenFile { name: string; src: "folder" | "upload" | "local"; id: string; mtime: number; size: number }
-export interface UndoEntry { file: string; label: string; undo: Op[]; redo: Op[]; coalesce?: string; at?: number }
 export interface ToastMsg { id: number; html: string; err?: boolean; actions?: { label: string; fn: () => void }[] }
 export interface Painter { pattern: (Fmt | null)[][]; sticky: boolean }
 export interface Dialogs {
@@ -33,8 +34,9 @@ export interface Dialogs {
 
 export interface AppState {
   doc: {
-    sync: DocSync | null;
-    /** mirror of sync.view, read-only: it changes through ops (state/app.ts change()) */
+    /** a workbook's document is open (the core worker has it) */
+    open: boolean;
+    /** mirror of the worker's view, read-only: it changes through ops (state/app.ts change()) */
     view: WorkbookDoc | null;
     save: SaveState | null; error: string;
     config: ConfigDoc;
@@ -43,7 +45,7 @@ export interface AppState {
   deck: {
     file: OpenFile | null; wb: Workbook | null; slides: RuntimeSlide[]; cur: number;
     /** id of the deck version shown ("" = full deck) */ version: string;
-    undo: UndoEntry[]; redo: UndoEntry[];
+    /** what Undo/Redo would do (the history lives in the core worker) */ history: HistorySummary;
     /** the last change by somebody else */ remote: { by: string; at: number } | null;
     /** workbook being opened (top bar) */ opening: string;
   };
@@ -66,8 +68,8 @@ export interface AppState {
 type Slice = keyof AppState;
 
 export const initialState = (): AppState => ({
-  doc: { sync: null, view: null, save: null, error: "", config: { schema: 3, rev: 0, defaults: { style: {} } } as ConfigDoc, fonts: [] },
-  deck: { file: null, wb: null, slides: [], cur: 0, version: "", undo: [], redo: [], remote: null, opening: "" },
+  doc: { open: false, view: null, save: null, error: "", config: { schema: 3, rev: 0, defaults: { style: {} } } as ConfigDoc, fonts: [] },
+  deck: { file: null, wb: null, slides: [], cur: 0, version: "", history: { undo: 0, redo: 0, undoLabel: "", redoLabel: "" }, remote: null, opening: "" },
   selection: { sel: null, noteSel: null, textSel: null, painter: null },
   ui: {
     zoom: "fit", busy: null, exporting: false, toast: null, lookScope: "design", fontBusy: "", changedOnDisk: false, logoMissing: false, health: null, others: [],

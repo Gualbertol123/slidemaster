@@ -1,6 +1,6 @@
 /* Excel-like keyboard. */
 import { get } from "../state/store";
-import { gotoSlide, undo } from "../state/app";
+import { flushDoc, gotoSlide, undo } from "../state/app";
 import { clearSel, clearText, moveSel, selectAll } from "./edit";
 import { editSelectedText, openInline, patchNote, selectNote } from "./stage";
 import { selectSlideText, toggleBold, toggleItalic } from "./textfmt";
@@ -15,7 +15,7 @@ export function installKeys() {
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
     if (mod && k === "z" && !inField) { e.preventDefault(); undo(e.shiftKey); return; }
     if (mod && k === "y" && !inField) { e.preventDefault(); undo(true); return; }
-    if (mod && k === "s") { e.preventDefault(); void get().doc.sync?.flush(); return; }
+    if (mod && k === "s") { e.preventDefault(); void flushDoc(); return; }
     if (inField || !get().deck.slides.length) return;
     if (e.key === "Escape" && get().selection.painter) { stopPainter(); return; }
     if (e.key === "PageDown" || (e.key === "ArrowDown" && e.altKey)) { e.preventDefault(); gotoSlide(get().deck.cur + 1); return; }

@@ -49,8 +49,8 @@ const ALIGN_ICON: Record<Align, string> = { left: "M2 3.5h12M2 6.5h8M2 9.5h12M2 
 const VALIGN_ICON: Record<VAlign, string> = { top: "M2 2.5h12M8 5v8M5.5 7.5 8 5l2.5 2.5", middle: "M2 8h12M8 1.5v4M8 10.5v4M6 3.5l2 2 2-2M6 12.5l2-2 2 2", bottom: "M2 13.5h12M8 3v8M5.5 8.5 8 11l2.5-2.5" };
 
 export function Ribbon() {
-  const canUndo = useStore(s => s.deck.undo.length > 0), canRedo = useStore(s => s.deck.redo.length > 0);
-  const painter = useStore(s => !!s.selection.painter), open = useStore(s => !!s.doc.sync);
+  const canUndo = useStore(s => s.deck.history.undo > 0), canRedo = useStore(s => s.deck.history.redo > 0);
+  const painter = useStore(s => !!s.selection.painter), open = useStore(s => s.doc.open);
   useStore(s => s.selection); useCurSlide();                 // what the text target is computed from
   const c = useCtx();
   const t = textTarget(), has = !!t, f = t?.shown, cells = t?.kind === "cells";

@@ -120,7 +120,7 @@ function FontsTab() {
 }
 
 export function TextStylesDialog() {
-  const tab = useStore(s => s.ui.dialogs.textStyles) || "styles", scope = useStore(s => s.ui.lookScope), open = useStore(s => !!s.doc.sync);
+  const tab = useStore(s => s.ui.dialogs.textStyles) || "styles", scope = useStore(s => s.ui.lookScope), open = useStore(s => s.doc.open);
   const fonts = useStore(s => s.doc.fonts.length), design = useStyle().design;
   const close = () => setDialogs({ textStyles: null });
   const setTab = (t: "colors" | "styles" | "fonts") => setDialogs({ textStyles: t });

@@ -138,9 +138,9 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
     });
   }
   const defaultFont = fonts[0] || { name: "Calibri", sz: 11 };
-  const mdw = (() => {
+  const mdw = await (async () => {
     try {
-      const m = platform().text.maxDigitWidth(`${(defaultFont.sz || 11) * 96 / 72}px "${defaultFont.name || "Calibri"}", Calibri, Arial`);
+      const m = await platform().text.maxDigitWidth(`${(defaultFont.sz || 11) * 96 / 72}px "${defaultFont.name || "Calibri"}", Calibri, Arial`);
       return m > 3 ? Math.round(m) : 7;
     } catch { return 7; }
   })();
@@ -178,8 +178,8 @@ export function brokenSheet(name: string, e: unknown, ctx: Shared): Sheet {
   });
 }
 
-type SheetInit = Pick<Sheet, "name" | "cells" | "rowInfo" | "colRanges" | "merges" | "cfRules" | "unsupportedCF" | "drawing" | "defColW" | "defRowH" | "zeroH" | "ctx"> & { error?: string };
-function makeSheet(init: SheetInit, store?: SheetColumns): Sheet {
+export type SheetInit = Pick<Sheet, "name" | "cells" | "rowInfo" | "colRanges" | "merges" | "cfRules" | "unsupportedCF" | "drawing" | "defColW" | "defRowH" | "zeroH" | "ctx"> & { error?: string };
+export function makeSheet(init: SheetInit, store?: SheetColumns): Sheet {
   const { cells, rowInfo, colRanges, defColW, defRowH, zeroH, ctx } = init;
   const cs = [0, 0], rs = [0, 0];               // cumulative starts (1-based): cs[c] = x of column c
   const colInfo = (c: number): ColInfo | undefined => {
@@ -291,6 +291,7 @@ export async function parseSheet(zip: Zip, sh: SheetMeta, bytes: Uint8Array, ctx
   cfRules.sort((a, b) => a.priority - b.priority);
   const drawing = await readDrawing(zip, sh.path, ctx);
   const S = makeSheet({ name: sh.name, cells, rowInfo, colRanges, merges, cfRules, unsupportedCF, drawing, defColW, defRowH, zeroH, ctx }, store);
+  S.cols = { cells: store, rows };
   S.title = textOf(S, 1, 1);
   S.subtitle = textOf(S, 2, 1); if (S.subtitle.toLowerCase() === "x") S.subtitle = "";
   S.tables = findRegions(S);

@@ -169,8 +169,9 @@ overwriting existing documents, and renames it `slide_builder_settings.v2-backup
 │          automated comment analysis/writing · font catalogue                                                    │
 │ render/  edits on top of the workbook · Excel design · Liquid Glass scene model · slide layout & composition ·│
 │          cover/contents · page numbers/footer · wallpaper · comment text · PDF-ready CSS                         │
-│ sync/    HTTP client (token, formats) · DocSync (optimistic ops, batching, retry, polling) · offline store     │
-│ state/   one Zustand store in slices · actions (open, change, undo, doc changes, presence) · dialogs · fonts    │
+│ core worker (Blob URL): owns the workbook · DocSync (ops, batching, retry, polling) · undo/redo · table HTML    │
+│ sync/    HTTP client (token, formats) · offline store · rpc/ the typed messages to and from the core worker    │
+│ state/   one Zustand store in slices (read-only mirrors of the worker's document and sheets) · actions · dialogs │
 │ editor/  stage (imperative DOM: hit testing, selection, inline editors, drags, snapping) · tables · painter ·   │
 │          unified text toolbar · keyboard · thumbnails · export · side-panel issues                              │
 │ ui/, wizard/   React 19 chrome: top bar, ribbons, dialogs, 4-step wizard                                        │
@@ -356,13 +357,37 @@ exactly this text), mounts `<App/>`, installs the keyboard handler and calls `bo
 | `printcss.ts` | `printReady` / `PRINT_CSS`: makes slides light for vector PDF (blurred shadows → stepped sharp layers, variable fonts → classic, glass rim mask → border). §10.3. |
 | `roles.ts` | `rolesOf` (header/total/body rows) – used only by a unit test today (was the old Excel Refined renderer). |
 
-### 5.4 `sync/`, `state/` – data flow
+### 5.4 The core worker, `sync/`, `state/` – data flow
+**The core worker owns the open workbook, its shared document and undo/redo** (PLAN S2.4, Part B §2). It is a
+classic worker built into the page at build time (`app/vite.config.ts` bundles `core/src/workers/core.worker.ts`
+into a string; `app/src/rpc/client.ts` starts it from a Blob URL, so it also runs from `file://`; where no worker
+can start – the component tests – the same host runs in the page behind the same messages). The messages are
+`core/src/rpc/messages.ts` over `core/src/rpc/port.ts` (typed calls both ways, events, transferables):
+* the page **calls** `index` (read a workbook: a copy of the bytes is transferred), `ensure`/`sheets` (read sheets),
+  `start` (the document opens), `apply(label, ops, coalesce)`, `undo(redo)`, `flush`, `poll`, `inputs` (version,
+  shared default style), `html` (tables of another design/version/export);
+* the worker **sends** `slices` (`core/src/xlsx/slice.ts`: the sheets the deck uses as typed-array slices – whole when
+  small, else the rectangle its tables, their grown ranges and their conditional formats' operands need), `html`
+  (the table HTML of the current design and version, new keys only), `doc` (view, save state, history, what
+  changed, how many of the page's calls it includes), `progress`, `error` – after a change in that order;
+* the worker **asks** the page for `getDoc`/`postOps` (the page's backend: HTTP with its token, or localStorage
+  from `file://`), `digitWidth` (Excel's digit width with the page's fonts), `analyzeImages` (a worker cannot
+  decode SVG) and `convertPicture`.
+
+The page holds **read-only mirrors**: `deck.wb` (`core/src/xlsx/mirror.ts`: the hydrated slices; the pure code –
+`runtimeSlides`, layouts, hit testing, drags, the format painter, comments, the wizard until S2.5 – runs on it and
+reads the same cells), `doc.view` and `deck.history`. `change()` sends ops to the worker and shows them on the view
+mirror at once (predicted with the core's ops, so code that reads the document right after a change sees it; the
+worker's snapshots are rebased on calls it has not confirmed yet). Tables are drawn with the worker's HTML
+(`RenderCtx.htmlOf`, keyed by table id and `tableHtmlKey`); without it for a key the page draws the table itself
+(`coreStats.localHtml` counts that; the e2e from `file://` expects 0).
 | File | Responsibility |
 |---|---|
 | `sync/api.ts` | The `Backend` interface; `helper` (HTTP: adds `X-SB-Token` from `<meta name="sb-token">` and `X-SB-Formats`; `ApiError`) and `offline` (localStorage, for a page opened as `file://`). `backend = SERVED ? helper : offline`. |
-| `sync/docsync.ts` | **`DocSync`**: `server` doc + `inflight` + `pending` ops → `view`. `apply(ops)` (local, returns inverse), `flush()` (one request in flight, 300 ms debounce, retry 2–32 s, 409 → `outdated`), `poll()` (`?since=rev`, rebase), `on(listener)` with `Change {local, by, presetChanged, styleChanged, editsChanged}`. |
-| `state/store.ts` | **One Zustand store** (`useStore`, `subscribeWithSelector`) in slices: `doc` (the `DocSync`, a read-only mirror of its `view` and save state, shared config, font library), `deck` (file, wb, slides, cur, version, undo/redo, remote, opening), `selection` (`sel`/`noteSel`/`textSel`, painter), `ui` (zoom, busy, toast, dialogs, design scope, banners, health, presence, exporting), `prefs` (user, host, client, prefs). Components select what they render (`useStore(s => s.selection.sel)`; `ui/hooks.ts`: `useCtx`, `useStyle`); other code reads `get()` and writes `patch(slice, …)`/`patchAll`. A poll that brings nothing new keeps the old objects (`same`), so nothing re-renders. `STAGE`/`THUMBS` controller hooks filled by the editor. |
-| `state/app.ts` | The store's actions (module functions writing the store): `boot`, `openFromFolder`/`openLocalFile`/`openBuffer`, `onDocChange`, `onStyleChanged`, **`change(label, ops, coalesce?)`**, `undo`, `styleChange`, `lookChange` (scope: this design / all), `slidesFor(design)`, `showVersion`, `ctx()` (memoised `RenderCtx`), `style()`, `tick` (poll 3 s, health + one-stat changed-on-disk check 6 s, fonts/config 30 s; the workbook list is read at start and when the Open menu opens), presence heartbeat 10 s. |
+| `core/src/sync/docsync.ts` (in the worker) | **`DocSync`**: `server` doc + `inflight` + `pending` ops → `view`. `apply(ops)` (local, returns inverse), `flush()` (one request in flight, 300 ms debounce, retry 2–32 s, 409 → `outdated`), `poll()` (`?since=rev`, rebase), `on(listener)` with `Change {local, by, presetChanged, styleChanged, editsChanged}`. |
+| `core/src/sync/history.ts` (in the worker) | Undo/redo of my own changes: inverse ops per step, 1.5 s coalescing per key, 200 steps, entries per workbook; `summary()` is what the page shows. |
+| `state/store.ts` | **One Zustand store** (`useStore`, `subscribeWithSelector`) in slices: `doc` (`open`, a read-only mirror of the worker's `view` and save state, shared config, font library), `deck` (file, the workbook mirror `wb`, slides, cur, version, `history` (what undo/redo would do), remote, opening), `selection` (`sel`/`noteSel`/`textSel`, painter), `ui` (zoom, busy, toast, dialogs, design scope, banners, health, presence, exporting), `prefs` (user, host, client, prefs). Components select what they render (`useStore(s => s.selection.sel)`; `ui/hooks.ts`: `useCtx`, `useStyle`); other code reads `get()` and writes `patch(slice, …)`/`patchAll`. A poll that brings nothing new keeps the old objects (`same`), so nothing re-renders. `STAGE`/`THUMBS` controller hooks filled by the editor. |
+| `state/app.ts` | The store's actions (module functions writing the store) and the page's end of the core worker (`core()`, `htmlFor`, `flushDoc`): `boot`, `openFromFolder`/`openLocalFile`/`openBuffer`, `onWorkerDoc` → `onDocChange`, `onStyleChanged`, **`change(label, ops, coalesce?)`** (to the worker), `undo`, `styleChange`, `lookChange` (scope: this design / all), `slidesFor(design)`, `showVersion`, `ctx()` (memoised `RenderCtx`), `style()`, `tick` (poll 3 s, health + one-stat changed-on-disk check 6 s, fonts/config 30 s; the workbook list is read at start and when the Open menu opens), presence heartbeat 10 s. |
 | `state/dialogs.ts` | Promise-based dialogs (`ask`, `confirmBox`, `runWizard`, installer); which one is open: `ui.dialogs` in the store, rendered by `ui/`. |
 | `state/fonts.ts` | Font library in the page (store: `doc.fonts`, `ui.fontBusy`): `loadFonts`, `@font-face` in `<style id="fontcss">`, `addGoogleFont` (downloads faces, uploads them to the helper), `uploadFontFiles`, `embeddedFontCss(html)` (fonts used by exported slides as data URLs). |
 
@@ -400,20 +425,23 @@ served: reopen `prefs.lastFile`, start `tick` (3 s) and the presence heartbeat (
 ### 6.2 Opening a workbook
 1. Bytes: `GET /files/<name>` (stable read; `X-SB-Mtime/Size`), or a dropped/browsed file (uploaded to the
    helper's memory store when served).
-2. `indexWorkbook`; `.xlsb/.xls/encrypted` → `POST /api/convert-workbook` (Excel COM) → re-index. Small
-   workbooks are parsed completely, big ones lazily.
+2. The worker's `index` (a copy of the bytes; `indexWorkbook` there); `.xlsb/.xls/encrypted` → `POST /api/convert-workbook`
+   (Excel COM) → index again. Small workbooks are parsed completely, big ones lazily; the page gets the slices.
 3. `LCACHE.clear()`, `GET /api/workbooks/<name>/doc`.
-4. Preset: continue with the saved one, or the wizard (with `defaultPreset` as draft); then
-   `wb.ensure(presetSheets)` parses only the sheets used.
-5. New `DocSync`; `runtimeSlides(wb, preset, name, design)` → `deck.slides` (one store update with the new document); restore the person's last
-   version; `makeWall`; `STAGE.render()`, `THUMBS.render()`.
+4. Preset: continue with the saved one, or the wizard (with `defaultPreset` as draft, on the mirror); then the
+   worker's `ensure(presetSheets)` parses only the sheets used.
+5. The worker's `start` (its `DocSync`, the first table HTML); `runtimeSlides(wb, preset, name, design)` on the mirror →
+   `deck.slides` (one store update with the new document); restore the person's last version; wallpaper;
+   `STAGE.render()`, `THUMBS.render()`.
 
 ### 6.3 Making an edit (e.g. Ctrl+B on cells)
 1. `editor/keys.ts` → `toggleBold()` → `applySel` diffs the selected cells' `CellEdit`s → `cell.patch` ops →
    **`change(label, ops)`**.
-2. `DocSync.apply`: for each op compute `inverseOf` on the current view, apply locally, push to `pending`,
-   emit (the stage updates at once), schedule a flush in 300 ms. `change` stores an undo entry (same
-   `coalesce` key within 1.5 s → one entry, e.g. a slider drag).
+2. The page shows the ops on its view mirror (save state "pending") and calls the worker's `apply`. There
+   `DocSync.apply`: for each op compute `inverseOf` on the current view, apply locally, push to `pending`, emit,
+   schedule a flush in 300 ms; the history stores an undo entry (same `coalesce` key within 1.5 s → one entry,
+   e.g. a slider drag). The worker redraws the changed tables and sends their HTML, then the snapshot; the page
+   updates the stage.
 3. `flush`: `POST /api/workbooks/<name>/ops {ops, client}` (one request in flight).
 4. Helper: Host/Origin/token/format checks → `store.update_workbook`: lock `wb-<key>` → read latest
    (upgrading an older format) → `ops.apply_ops` → atomic write → rolling backup if due → unlock → `{doc,
@@ -424,15 +452,15 @@ served: reopen `prefs.lastFile`, start `tick` (3 s) and the presence heartbeat (
    errors → retry after 2, 4, … 32 s.
 
 ### 6.4 Seeing other people's changes
-Every 3 s `DocSync.poll()` → `GET …/doc?since=<rev>` (204 if unchanged) → rebase → `onDocChange`:
+Every 3 s the worker's `poll` (`DocSync.poll()`) → `GET …/doc?since=<rev>` (204 if unchanged) → rebase → `onDocChange`:
 preset changed → rebuild runtime slides + full render; titles/logo changed → rebuild; style changed →
 `onStyleChanged` (re-resolve slides if the design changed; wallpaper; full render); otherwise
 `STAGE.refresh()` (only tables whose `tableHtml` changed are patched) and thumbnails. The stage never
 redraws while an inline editor is open; settings inputs use `ui/Field.tsx`.
 
 ### 6.5 Undo/redo
-`undo()` pops the user's own entry (same workbook) and applies its stored inverse ops as **new** ops via
-`change`. Inverses only touch the fields this user changed, so another user's later change to other
+`undo()` asks the worker: it pops the user's own entry (same workbook) and applies its stored inverse ops as
+**new** ops (`core/src/sync/history.ts`). Inverses only touch the fields this user changed, so another user's later change to other
 fields survives.
 
 ### 6.6 Rendering a slide and the layout algorithm
@@ -656,7 +684,8 @@ workbooks are generated by `app/tests/fixtures/make_fixtures.py` (openpyxl).
 | `core/tests/ops.test.ts` + `backend/tests/test_ops.py` | every case of `shared/ops-vectors.json`; inverses |
 | `core/tests/xml.test.ts` (jsdom in this test only) | the core's XML tokenizer = DOMParser: rels, workbook, theme, styles, drawings of every corpus workbook and of a synthetic one (`zipbuild.ts`: gradient fills, custom theme, prefixed styles with BOM/CRLF, AlternateContent, charts, anchors; empty parts); entities, CDATA, namespaces, line ends, deep trees |
 | `core/tests/sheetstore.test.ts` (+ `sheet-v3.ts`, v3's parser kept as the reference) | every cell of every corpus sheet (big30 too when generated) equal to v3's regex parser: values, types, styles, runs, lookups, row info; crafted sheets with every cell shape (types, dates by format, rich/phonetic runs, escapes, prefixes, no `r`, unsorted/duplicates, unclosed tags) |
-| `app/tests/docsync.test.ts` | merging two users, retries, rebasing, own-changes-only undo, authors, 409 |
+| `core/tests/host.test.ts`, `slice.test.ts` | the core worker's host through its messages (slices → HTML → snapshot, acks, undo/redo labels and coalescing, two people, per-design sizes give new HTML keys) · every corpus deck gives the same slides, layouts, effective items and table HTML from slices as from the workbook (whole and cut to rectangles; conditional-format operands outside the table) |
+| `core/tests/docsync.test.ts` | merging two users, retries, rebasing, own-changes-only undo, authors, 409 |
 | `core/tests/tables.test.ts`, `text.test.ts`, `design.test.ts` | layout, sizes, same size, per-design sizing, scales, merges, gridlines, painted CF, themes, text styles, fonts, text boxes, designs, versions |
 | `core/tests/comment.test.ts`, `numfmt.test.ts`, `printcss.test.ts` · `app/tests/build.test.ts` | automated comments · number formats & superscripts · PDF CSS · committed build is fresh |
 | `app/tests/renders.test.tsx`, `stage-follow.test.tsx` (jsdom, React's development build; any console error or warning fails them) | render counts per change (selection, polls, toasts) · the stage's store subscriptions, Fit |
@@ -684,7 +713,7 @@ workbooks are generated by `app/tests/fixtures/make_fixtures.py` (openpyxl).
 | Automated comment wording | `model/comment.ts` (`writeSummary`, `writeComment`), options in `ui/CommentDialog.tsx`. |
 | Deck options | `ui/Topbar.tsx`, `ui/TextStylesDialog.tsx`, `model/style.ts`, style keys/maps in both `ops` files. |
 | Wizard | `wizard/Wizard.tsx`, `wizard/detect.ts`, `model/preset.ts`. |
-| Saving, polling, conflicts | `sync/docsync.ts`, `state/app.ts onDocChange`, `backend/slidebuilder/store.py`. |
+| Saving, polling, conflicts | `core/src/sync/docsync.ts`, `core/src/worker/host.ts`, `state/app.ts onDocChange`, `backend/slidebuilder/store.py`. |
 | HTTP endpoint | `server.py` + `sync/api.ts` + ARCHITECTURE §5 + `test_http.py`. |
 | Export | `editor/export.ts`, `render/printcss.ts`, `exports.py`, `engines.py`, `pdf.py`. |
 | Install / start / update | `*.bat`, `firstrun.py`, `installer.py`, `main.py`, `tools/update.py`. |
@@ -735,7 +764,7 @@ events and link updates off. TLS is never disabled (downloads use the system/cor
 * Debt noted during the last review: `render/roles.ts` is only used by a test; `commentText` treats a
   missing `mode` as "sections" (legacy) while new comments default to "summary"; the installer's zip
   clean-up has a disabled branch (`and False`); `tools/loadtest.py`'s `seed_backups` docstring predates
-  `backupAt`; workbook parsing runs on the UI thread.
+  `backupAt`.
 
 ---
 
@@ -822,12 +851,12 @@ app/
 │  ├─ render/
 │  │  ├─ slidedom.ts                   a slide element from the core's markup: placing, glass, text-box fitting
 │  │  └─ wall.ts                       the Liquid Glass wallpaper into the page's CSS
+│  ├─ rpc/client.ts                    the core worker from a Blob URL (or in the page), its typed port
 │  ├─ sync/
-│  │  ├─ api.ts                        the helper's API; offline backend in localStorage (file://)
-│  │  └─ docsync.ts                    one shared document: optimistic ops, batching, retries, polling
+│  │  └─ api.ts                        the helper's API; offline backend in localStorage (file://)
 │  ├─ state/
 │  │  ├─ store.ts                      ONE Zustand store: slices doc · deck · selection · ui · prefs
-│  │  ├─ app.ts                        actions: boot, open, change, undo/redo, polls, presence
+│  │  ├─ app.ts                        actions: boot, open, change, undo/redo, polls, presence; the worker's mirrors
 │  │  ├─ dialogs.ts                    in-app dialogs (no window.confirm)
 │  │  └─ fonts.ts                      the font library in the page (@font-face, uploads)
 │  ├─ editor/                          the slide being edited (imperative DOM)
@@ -865,10 +894,14 @@ app/
 core/            package.json · tsconfig.json (ES2022 + WebWorker, no DOM) · vitest.config.ts (node)
 ├─ src/
 │  ├─ platform.ts                      what the core needs from its host: TextMeasurer, CanvasFactory (XmlParser: tests)
+│  ├─ rpc/                             port.ts (typed postMessage RPC) · messages.ts (page ⇄ core worker)
+│  ├─ worker/host.ts · workers/core.worker.ts   the core worker: owns workbook, document, undo/redo; its entry
+│  ├─ sync/                            docsync.ts (one shared document: ops, batching, retries, polling) · history.ts (undo/redo)
 │  ├─ xlsx/                            reading workbooks
 │  │  ├─ workbook.ts                   index first, sheets on demand
 │  │  ├─ sheetstore.ts                 byte scanner → columns of typed arrays; the Sheet's cells/rows views
 │  │  ├─ zip.ts · strings.ts           .xlsx container (fflate) · v3's text decoding (entities, _xHHHH_, rich runs)
+│  │  ├─ slice.ts · mirror.ts          sheet slices for the page · the page's read-only workbook mirror
 │  │  ├─ layout.ts                     "x" marker regions, geometry and style of every cell
 │  │  ├─ numfmt.ts                     Excel number formats → text
 │  │  ├─ color.ts                      indexed/theme/tint colours, colour maths

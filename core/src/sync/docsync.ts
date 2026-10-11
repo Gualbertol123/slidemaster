@@ -5,9 +5,15 @@
    the latest version (field by field), so nobody's work is overwritten. Other people's changes
    arrive by polling (`?since=<rev>`). If saving fails the operations stay queued and are retried –
    a failed read or write never resets the document. */
-import { FORMATS, type Op, type WorkbookDoc } from "@slide-builder/core/model/types";
-import { applyOps, inverseOf, applyOp } from "@slide-builder/core/model/ops";
-import type { Backend } from "./api";
+import { FORMATS, type Op, type WorkbookDoc } from "../model/types";
+import { applyOps, inverseOf, applyOp } from "../model/ops";
+
+/** what DocSync needs of the helper's API (the page's backend; in the core worker, a proxy to it) */
+export interface DocApi {
+  served: boolean;
+  getDoc(name: string, since?: number): Promise<WorkbookDoc | null>;
+  postOps(name: string, ops: Op[], client: string): Promise<{ doc: WorkbookDoc }>;
+}
 
 export type SaveState = "saved" | "pending" | "saving" | "error" | "local" | "outdated";
 const OUTDATED = "Slide Builder was updated – reload the page (F5) to continue.";
@@ -25,7 +31,7 @@ export class DocSync {
   error = "";
   private listeners = new Set<(c: Change) => void>();
 
-  constructor(private api: Backend, readonly name: string, doc: WorkbookDoc, private client: string, private me: string) {
+  constructor(private api: DocApi, readonly name: string, doc: WorkbookDoc, private client: string, private me: string) {
     this.server = doc; this.view = doc;
     this.state = api.served ? "saved" : "local";
   }

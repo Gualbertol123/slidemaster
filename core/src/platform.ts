@@ -33,8 +33,9 @@ export interface NoteMeasure {
   w: number; h: number;
 }
 export interface TextMeasurer {
-  /** the widest of the digits 0–9 in px for a CSS font shorthand (Excel's "maximum digit width"); 0 = unknown */
-  maxDigitWidth(cssFont: string): number;
+  /** the widest of the digits 0–9 in px for a CSS font shorthand (Excel's "maximum digit width"); 0 = unknown.
+      In the core worker it is asked of the page (the page's fonts) */
+  maxDigitWidth(cssFont: string): number | Promise<number>;
   /** whether the text box's content fits its box at this font size */
   noteFits(note: NoteMeasure, size: number): boolean;
 }
@@ -55,7 +56,11 @@ export interface CanvasFactory {
   decode(src: string): Promise<DecodedImage>;
 }
 
-export interface Platform { text: TextMeasurer; canvas: CanvasFactory | null; /** null = the core's tokenizer */ xml: XmlParser | null }
+export interface Platform {
+  text: TextMeasurer; canvas: CanvasFactory | null; /** null = the core's tokenizer */ xml: XmlParser | null;
+  /** pictures analysed elsewhere (the core worker asks the page: a worker cannot decode SVG); else on `canvas` */
+  images?: (srcs: string[]) => Promise<[string, import("./xlsx/drawing").ImgMeta][]>;
+}
 
 const NONE: Platform = { text: { maxDigitWidth: () => 0, noteFits: () => true }, canvas: null, xml: null };
 let current: Platform = NONE;

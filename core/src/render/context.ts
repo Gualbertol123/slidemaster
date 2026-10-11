@@ -18,6 +18,8 @@ export interface RenderCtx {
   version?: import("../model/types").DeckVersion | null;
   /** export / thumbnail rendering: hide placeholders for missing pictures */
   forExport?: boolean;
+  /** table HTML already drawn elsewhere (the page: by the core worker), by table id, kind and cache key */
+  htmlOf?: (id: string, kind: "html" | "thtml", key: string) => string | undefined;
   _keys?: Map<string, string>;
 }
 

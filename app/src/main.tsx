@@ -6,7 +6,7 @@ import extraCss from "./styles/app.css?raw";
 import slideCss from "./styles/slide.css?raw";
 import { installBrowserPlatform } from "./platform";
 import { App } from "./ui/App";
-import { boot } from "./state/app";
+import { boot, coreStats } from "./state/app";
 import { installKeys } from "./editor/keys";
 import { indexWorkbook, readWorkbook } from "@slide-builder/core/xlsx/workbook";
 import { buildLayout } from "@slide-builder/core/xlsx/layout";
@@ -19,7 +19,7 @@ import { resolveStyle } from "@slide-builder/core/model/style";
 installBrowserPlatform();
 
 // hooks for automated tests (parity with v2, end-to-end); not used by the app itself
-(window as unknown as Record<string, unknown>).__sbTest = { indexWorkbook, readWorkbook, buildLayout, formatValue, renderExcel, renderGlass, resolveStyle };
+(window as unknown as Record<string, unknown>).__sbTest = { indexWorkbook, readWorkbook, buildLayout, formatValue, renderExcel, renderGlass, resolveStyle, coreStats };
 
 // slide.css lives in its own <style id="slidecss">: exports send exactly this text to the export engine
 const add = (id: string, css: string) => { const s = document.createElement("style"); s.id = id; s.textContent = css; document.head.appendChild(s); };
