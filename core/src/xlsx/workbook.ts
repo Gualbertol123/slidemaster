@@ -5,7 +5,7 @@ import { BUILTIN, formatValue } from "./numfmt";
 import { makeColor } from "./color";
 import { readDrawing, analyzeImages } from "./drawing";
 import { findRegions } from "./layout";
-import { all, kid, kids, parseRange, parseXml, readRels, resolvePath, zget, fmtMB, nextFrame, WorkbookError, NS_R } from "./util";
+import { all, kid, kids, parseRange, parseXml, readRels, resolvePath, zget, fmtMB, nextFrame, pacer, WorkbookError, NS_R } from "./util";
 import { Zip, type ZipEntry } from "./zip";
 import { CellMap, RowMap, SheetScanner, cellAt, cellIndex, type SheetColumns } from "./sheetstore";
 import { xattrs, xdec, parseSSTRich } from "./strings";
@@ -152,11 +152,11 @@ async function ensureSheets(wb: Workbook, names: string[], progress?: Progress):
   if (!todo.length) return [];
   const ctx = await loadShared(wb, progress);
   const total = todo.reduce((s, m) => s + Math.max(m.size, 1), 0); let done = 0;
-  const added: Sheet[] = [];
+  const added: Sheet[] = [], pace = pacer();
   for (const [k, m] of todo.entries()) {
     const label = `Reading “${m.name}” (${k + 1} of ${todo.length}${m.size > 1048576 ? ", " + fmtMB(m.size) : ""})…`;
     if (progress) progress(label, done / total);
-    await nextFrame();
+    { const w = pace(); if (w) await w; }                // not one timer per sheet: ~4 ms each in a worker (deck20: 20 sheets)
     let S: Sheet;
     try { S = await readSheet(wb.zip, m, ctx, f => progress && progress(label, (done + f * Math.max(m.size, 1)) / total)); S.hidden = false; }
     catch (e) { console.error("sheet " + m.name, e); S = brokenSheet(m.name, e, ctx); }
@@ -242,8 +242,9 @@ const utf8 = new TextDecoder("utf-8");
 
 export async function readSheet(zip: Zip, sh: SheetMeta, ctx: Shared, tick?: (f: number) => void): Promise<Sheet> {
   const entry = zget(zip, sh.path)!;
-  // the inflate counts as the first 20 % of the progress
-  const bytes = tick ? await zip.bytesAsync(entry, f => { tick(.2 * f); return nextFrame(); }) : zip.bytes(entry);
+  // the inflate counts as the first 20 % of the progress; one call (in 1 MB slices with a yield between, as when the
+  // page's thread read sheets, it took ~15 % longer in the worker)
+  const bytes = zip.bytes(entry); if (tick) tick(.2);
   return parseSheet(zip, sh, bytes, ctx, tick && (f => tick(.2 + .8 * f)));
 }
 /** a sheet from its inflated XML (readSheet without the inflate) */
@@ -270,7 +271,7 @@ export async function parseSheet(zip: Zip, sh: SheetMeta, bytes: Uint8Array, ctx
   }
   const scan = new SheetScanner(bytes, sd0 < 0 ? 0 : sd0, sd0 < 0 ? 0 : sd1 < 0 ? bytes.length : sd1, ctx, defRowH);
   if (!tick) scan.run();
-  else while (!scan.run(4000)) { tick(Math.min(.95, scan.progress)); await nextFrame(); }
+  else { const pace = pacer(); while (!scan.run(4000)) { tick(Math.min(.95, scan.progress)); const w = pace(); if (w) await w; } }
   const { cells: store, rows } = scan.finish();
   const cells = new CellMap(store, ctx), rowInfo = new RowMap(rows);
   const merges: Range[] = []; { const re = /<(?:\w+:)?mergeCell\b[^>]*?\bref="([^"]+)"/g; let q: RegExpExecArray | null; while ((q = re.exec(xml))) merges.push(parseRange(q[1])); }

@@ -670,7 +670,8 @@ npm run check                # core/ typecheck (no DOM) + Vitest, app/ typecheck
 npm run parity               # v3 against golden/ (tools/capture-v3.mjs + tools/parity.mjs; needs pypdf)
 npm run test:e2e             # Playwright: two real helpers (users anna/bob) on one temp shared folder
 npm run bench                # benchmarks with thresholds: big30 parse (core; needs python tools/make_corpus.py big30
-                             #   tests/corpus/workbooks, openpyxl) and render counts (app)
+                             #   tests/corpus/workbooks, openpyxl), render counts (app) and the page in Chromium with a
+                             #   real helper (tools/bench.mjs: deck20 open, big30 sheet read, long tasks, heap)
 cd app && node e2e/parity.mjs <old.html> ../backend/slide_builder.html tests/fixtures/*.xlsx   # renderer diff vs. an older build
 
 cd backend

@@ -150,6 +150,12 @@ export function hydrateSheet(s: SheetSlice, ctx: Shared): Sheet {
   if (s.cells && s.rows) S.cols = { cells: s.cells, rows: s.rows };
   S.hidden = s.hidden; if (s.size !== undefined) S.size = s.size;
   S.title = s.title; S.subtitle = s.subtitle; S.unpaired = s.unpaired;
-  S.tables = s.regions.map(g => buildLayout(S, g)).filter((x): x is NonNullable<typeof x> => !!x);
+  // the marker tables are laid out when first read: the worker has them already, and opening deck20 laid out all
+  // 20 sheets' tables on the page's thread before the wizard (~30 ms, PLAN S2.6)
+  let tables: Sheet["tables"] | null = null;
+  Object.defineProperty(S, "tables", {
+    get: () => tables ??= s.regions.map(g => buildLayout(S, g)).filter((x): x is NonNullable<typeof x> => !!x),
+    set: (v: Sheet["tables"]) => { tables = v; }, enumerable: true, configurable: true,
+  });
   return S;
 }

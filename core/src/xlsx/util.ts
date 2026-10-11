@@ -71,6 +71,12 @@ export class WorkbookError extends Error {
 
 export const fmtMB = (b: number) => b >= 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
 export const nextFrame = () => new Promise<void>(r => setTimeout(r, 0));
+/** a yield (nextFrame) at most every `ms`, else null: a long read in the worker still answers other calls and sends
+    its progress, without a pause per slice (PLAN S2.6: a timer yield per 4000 rows cost ~0.7 s on a 130k-row sheet) */
+export function pacer(ms = 200): () => Promise<void> | null {
+  let last = performance.now();
+  return () => { const t = performance.now(); if (t - last < ms) return null; last = t; return nextFrame(); };
+}
 export const median = (a: number[]) => { if (!a.length) return 0; const s = a.slice().sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
 /** FNV-1a over a string – used as a content key (not for security) */
 export function hashStr(s: string): string {

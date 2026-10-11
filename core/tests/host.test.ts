@@ -52,6 +52,8 @@ describe("core host", () => {
     await until(() => p.seen.some(e => e.k === "slices"));
     const preset = await p.port.call("defaultPreset", {});
     expect(preset.tables.length).toBeGreaterThan(0);
+    // by number: the workbook being opened (S2.6: the page asks the worker instead of laying out its mirror)
+    expect((await p.port.call("defaultPreset", { book: info.book })).tables.map(t => t.sheet)).toEqual(preset.tables.map(t => t.sheet));
     const st = await p.port.call("start", { name: "report.xlsx", doc: srv.getDoc()!, preset, inputs });
     expect(st.view.preset).toEqual(preset);
     expect(st.history).toEqual({ undo: 0, redo: 0, undoLabel: "", redoLabel: "" });

@@ -56,7 +56,7 @@ export class CoreHost {
     h("getSheetWindow", a => { const S = this.sheetOf(a.book, a.sheet); return S ? sheetWindow(S, a.r0, a.r1, a.c0, a.c1) : null; });
     h("detectTables", a => { const S = this.sheetOf(a.book, a.sheet); return S ? detectTables(S) : []; });
     h("getCell", a => { const S = this.sheetOf(a.book, a.sheet); return S ? cellInfo(S, a.ref) : null; });
-    h("defaultPreset", () => { if (!this.candidate) throw new Error("no workbook"); return defaultPreset(this.candidate); });
+    h("defaultPreset", a => { const wb = a.book !== undefined ? this.bookOf(a.book) : this.candidate; if (!wb) throw new Error("no workbook"); return defaultPreset(wb); });
     h("start", a => this.start(a.name, a.doc, a.preset, a.inputs));
     // the page waits for the redraw (the HTML of the new version or default style arrives before the answer)
     h("inputs", a => { this.inputs = a; return this.later(() => this.refresh(null)); });

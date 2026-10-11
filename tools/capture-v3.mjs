@@ -70,7 +70,9 @@ export async function startHelper() {
     if (!r.ok && r.status !== 204) throw new Error(`${method} ${p}: HTTP ${r.status} ${await r.text()}`);
     return r.status === 204 ? null : r.json();
   };
-  return { tmp, root, data, url, api, log: () => log, stop: () => { proc.kill(); fs.rmSync(tmp, { recursive: true, force: true }); } };
+  // the helper starts its export browser: on Windows killing the helper alone leaves that browser running (taskkill /T stops the tree)
+  const kill = () => { if (process.platform !== "win32") return proc.kill(); try { execFileSync("taskkill", ["/pid", String(proc.pid), "/T", "/F"], { stdio: "ignore" }); } catch { /* gone already */ } };
+  return { tmp, root, data, url, api, log: () => log, stop: () => { kill(); fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5 }); } };
 }
 const wbPath = name => "/api/workbooks/" + encodeURIComponent(name);
 

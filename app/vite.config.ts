@@ -15,7 +15,9 @@ function coreWorker(): Plugin {
     async load(id) {
       if (id !== ID) return null;
       const root = path.join(here, "..");
-      const r = await build({ entryPoints: [path.join(root, "core/src/workers/core.worker.ts")], bundle: true, format: "iife", target: "es2020",
+      // es2022 as core's tsconfig: lowered to es2020, class fields become defineProperty calls and the sheet scanner
+      // ran 3× slower (big30: ~1 s instead of ~0.35 s; PLAN S2.6). Chromium has run es2022 since 94 (the field PC: Edge 154)
+      const r = await build({ entryPoints: [path.join(root, "core/src/workers/core.worker.ts")], bundle: true, format: "iife", target: "es2022",
         minify: true, legalComments: "none", write: false, metafile: true, logLevel: "silent", absWorkingDir: root });
       for (const f of Object.keys(r.metafile!.inputs)) this.addWatchFile(path.resolve(root, f));
       return "export default " + JSON.stringify(r.outputFiles[0].text) + ";";
@@ -32,7 +34,7 @@ export default defineConfig({
   build: {
     outDir: "../backend",
     emptyOutDir: false,
-    target: "es2020",
+    target: "es2022",                     // as the worker (above)
     assetsInlineLimit: 100_000_000,
     cssCodeSplit: false,
     rollupOptions: { input: "slide_builder.html" },

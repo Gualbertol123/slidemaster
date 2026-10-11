@@ -214,12 +214,22 @@ async function presetBox(name: string, p: Preset): Promise<"continue" | "wizard"
   return r === "continue" || r === "wizard" ? r : null;
 }
 
+/** the mirror's marker tables are laid out on first use (core/src/xlsx/slice.ts): here one sheet per idle moment
+    while the wizard or the preset question is open, so neither the wizard nor the first slide waits for them */
+function layOutWhileIdle(wb: MirrorWorkbook) {
+  const todo = wb.sheets.slice();
+  const later = (f: () => void) => { if (typeof requestIdleCallback === "function") requestIdleCallback(f, { timeout: 500 }); else setTimeout(f, 0); };
+  const next = () => { const S = todo.shift(); if (!S || (openingWb !== wb && get().deck.wb !== wb)) return; void S.tables; later(next); };
+  later(next);
+}
+
 /** while the worker starts a document, its snapshots are for the next workbook, not the one shown */
 let starting = false;
 async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "upload" | "local", id: string, mtime: number, size: number, askUser: boolean, again: () => Promise<ArrayBuffer>) {
   patch("deck", { opening: name });
   let wb: MirrorWorkbook;
   try { wb = await loadWorkbook(buf, name, again); } finally { hideBusy(); }
+  layOutWhileIdle(wb);
   LCACHE.clear();
   const doc = (await backend.getDoc(name))!;
   let preset = doc.preset, newPreset: Preset | null = null;
@@ -229,7 +239,7 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
       if (!choice) { patch("deck", { opening: "" }); return; }
       if (choice === "wizard") { const np = await runWizard(wb, name, preset); if (np) newPreset = np; }
     } else if (!preset) {
-      const draft = defaultPreset(wb);
+      const draft = await core().call("defaultPreset", { book: wb.book });  // the worker has the tables laid out (PLAN S2.6)
       if (!askUser && !wb.big && draft.slides.length) newPreset = draft;        // start-up / reload: "x" workbooks open as before
       else {
         const np = await runWizard(wb, name, draft);

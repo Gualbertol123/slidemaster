@@ -45,7 +45,8 @@ export interface CoreMethods {
   getSheetWindow(a: { book: number; sheet: string; r0: number; r1: number; c0: number; c1: number }): SheetWindow | null;
   detectTables(a: { book: number; sheet: string }): string[];
   getCell(a: { book: number; sheet: string; ref: string }): CellInfo | null;
-  defaultPreset(a: Record<string, never>): Preset;
+  /** `book`: the workbook being opened (without: the candidate, else the open one) */
+  defaultPreset(a: { book?: number }): Preset;
   /** the indexed workbook becomes the open one, with its document; `preset` = a new preset to save first */
   start(a: { name: string; doc: WorkbookDoc; preset: Preset | null; inputs: ViewInputs }): DocState;
   inputs(a: ViewInputs): void;

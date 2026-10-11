@@ -1,7 +1,7 @@
 /* Reading .xlsx containers with fflate (PLAN S2.3; JSZip before): the central directory is read once, parts
-   are inflated on demand – synchronously for small parts, or in slices with a yield in between for a large
-   sheet on the page's thread (zip.bytesAsync). Stored and deflated entries; Zip64 sizes and offsets. */
-import { Inflate, inflateSync } from "fflate";
+   are inflated on demand, in one call (the core worker reads them since S2.4; the sliced inflate that kept the
+   page's thread responsive was removed in S2.6). Stored and deflated entries; Zip64 sizes and offsets. */
+import { inflateSync } from "fflate";
 
 export class ZipEntry {
   constructor(private readonly zip: Zip,
@@ -85,24 +85,10 @@ export class Zip {
     const raw = this.raw(e);
     if (e.method === 0) return raw.slice();
     if (e.method !== 8) throw new ZipError(`"${e.name}" uses an unsupported compression (${e.method}).`);
-    const out = new Uint8Array(e.size); let n = 0, over = false;
-    const inf = new Inflate(chunk => { if (over || n + chunk.length > out.length) { over = true; return; } out.set(chunk, n); n += chunk.length; });
-    inf.push(raw, true);
-    if (over) return inflateSync(raw);                              // larger than the directory says
-    return n === out.length ? out : out.subarray(0, n);
-  }
-  /** the same, inflated in slices with `pause(fraction done)` awaited in between (keeps the page's thread responsive) */
-  async bytesAsync(e: ZipEntry, pause: (f: number) => Promise<void>, slice = 1 << 20): Promise<Uint8Array> {
-    const raw = this.raw(e);
-    if (e.method !== 8 || raw.length <= slice) return this.bytes(e);
-    const out = new Uint8Array(e.size); let n = 0, over = false;
-    const inf = new Inflate(chunk => { if (over || n + chunk.length > out.length) { over = true; return; } out.set(chunk, n); n += chunk.length; });
-    for (let p = 0; p < raw.length; p += slice) {
-      inf.push(raw.subarray(p, Math.min(raw.length, p + slice)), p + slice >= raw.length);
-      if (p + slice < raw.length) await pause(p / raw.length);
-    }
-    if (over) return inflateSync(raw);                              // larger than the directory says
-    return n === out.length ? out : out.subarray(0, n);
+    // straight into a buffer one byte larger than the directory's size (the streaming inflater's chunks cost a
+    // big30 sheet 150–300 ms more in the worker, PLAN S2.6): a filled extra byte means more data than the directory says
+    const out = inflateSync(raw, { out: new Uint8Array(e.size + 1) });
+    return out.length <= e.size ? out : inflateSync(raw);
   }
   text(e: ZipEntry): string { return utf8.decode(this.bytes(e)); }
   base64(e: ZipEntry): string { return base64(this.bytes(e)); }
