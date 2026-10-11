@@ -87,8 +87,13 @@ export class Zip {
     if (e.method !== 8) throw new ZipError(`"${e.name}" uses an unsupported compression (${e.method}).`);
     // straight into a buffer one byte larger than the directory's size (the streaming inflater's chunks cost a
     // big30 sheet 150–300 ms more in the worker, PLAN S2.6): a filled extra byte means more data than the directory says
-    const out = inflateSync(raw, { out: new Uint8Array(e.size + 1) });
-    return out.length <= e.size ? out : inflateSync(raw);
+    // stored blocks throw when the buffer is too small, and a size far beyond deflate's ratio is not believed (JSZip
+    // ignored the directory's sizes): both inflate without a size
+    if (e.size > raw.length * 1100 + 1024) return inflateSync(raw);
+    try {
+      const out = inflateSync(raw, { out: new Uint8Array(e.size + 1) });
+      return out.length <= e.size ? out : inflateSync(raw);
+    } catch (err) { if (err instanceof RangeError) return inflateSync(raw); throw err; }
   }
   text(e: ZipEntry): string { return utf8.decode(this.bytes(e)); }
   base64(e: ZipEntry): string { return base64(this.bytes(e)); }

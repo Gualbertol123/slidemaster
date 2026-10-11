@@ -3,12 +3,27 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## Unreleased
+## 3.6.0 - unreleased
 
 What users notice
+* **Opening a large workbook no longer freezes the window** (B8). The workbook is read in the background:
+  the window keeps responding, the progress bar moves, and a 130,000-row sheet appears in the wizard in
+  under a second (about 3 seconds in 3.5). The wizard's preview of a large sheet fills in row block by row
+  block instead of all at once.
 * **Comment… dialog: the "Unit after amounts" and "Ignore below" boxes keep what you type.** A space can be
   typed at the end of the unit ("mln EUR"), and "Ignore below" accepts numbers that start with 0 ("0.5").
   Before, each key press cleaned the box. Approved by the product owner on 2026-10-10 (PROGRESS.md).
+* Nothing else changes in the slides, the exports or the saved setups (checked against 3.5 on every test deck).
+
+Under the hood (no visible change)
+* The workbook, the shared document and undo/redo live in a background worker ("core"); the page keeps
+  read-only copies of the parts it shows. The page uses about 15 MB of memory with a 130,000-row sheet
+  open instead of about 300 MB.
+* Workbooks are read with a small XML reader and a columnar sheet store instead of the browser's XML parser
+  and one object per cell; JSZip is replaced by fflate.
+* The page needs a browser from 2021 or later (Chromium 94+: Edge and Chrome on every supported PC).
+* `npm run bench` measures the page in Chromium too (open a 20-slide deck, read a 130,000-row sheet, long
+  tasks, memory); CI fails above the limits.
 
 ## 3.5.0 - 2026-10-09
 

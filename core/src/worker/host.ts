@@ -57,7 +57,7 @@ export class CoreHost {
     h("detectTables", a => { const S = this.sheetOf(a.book, a.sheet); return S ? detectTables(S) : []; });
     h("getCell", a => { const S = this.sheetOf(a.book, a.sheet); return S ? cellInfo(S, a.ref) : null; });
     h("defaultPreset", a => { const wb = a.book !== undefined ? this.bookOf(a.book) : this.candidate; if (!wb) throw new Error("no workbook"); return defaultPreset(wb); });
-    h("start", a => this.start(a.name, a.doc, a.preset, a.inputs));
+    h("start", a => this.start(a.book, a.name, a.doc, a.preset, a.inputs));
     // the page waits for the redraw (the HTML of the new version or default style arrives before the answer)
     h("inputs", a => { this.inputs = a; return this.later(() => this.refresh(null)); });
     h("apply", a => {
@@ -126,8 +126,12 @@ export class CoreHost {
     this.sentSharedFor.add(this.candidateBook);
     this.port.emit("slices", transfer({ book: this.candidateBook, shared: wb.shared ? sliceShared(wb.shared) : null, sheets }, sheets.flatMap(sliceTransfer)));
   }
-  private async start(name: string, doc: WorkbookDoc, preset: Preset | null, inputs: ViewInputs): Promise<DocState> {
-    if (!this.candidate) throw new Error("no workbook");
+  private async start(book: number | undefined, name: string, doc: WorkbookDoc, preset: Preset | null, inputs: ViewInputs): Promise<DocState> {
+    const cand = this.candidate, gone = () => !cand || cand !== this.candidate || (book !== undefined && book !== this.candidateBook);
+    if (gone()) throw new Error(cand ? "this workbook is no longer being opened" : "no workbook");
+    // the slides' sheets are read before the document changes owner: a sheet that fails leaves the open one as it was
+    await cand!.ensure(presetSheets(preset || doc.preset), this.progress); this.port.emit("progress", null);
+    if (gone()) throw new Error("this workbook is no longer being opened");
     this.sync?.dispose();
     if (this.wbBook && this.wbBook !== this.candidateBook) { this.sentBoxes.delete(this.wbBook); this.sentSharedFor.delete(this.wbBook); }
     this.wb = this.candidate; this.wbBook = this.candidateBook; this.candidate = null; this.name = name; this.inputs = inputs;
@@ -136,8 +140,13 @@ export class CoreHost {
     const sync = this.sync = new DocSync(this.api, name, doc, this.client, this.me);
     if (preset) sync.apply([{ op: "preset.set", preset }]);
     sync.on(c => this.later(() => this.onChange(sync, c)));
-    await this.wb.ensure(presetSheets(sync.view.preset), this.progress); this.port.emit("progress", null);
-    await this.refresh(null, true);
+    try {
+      await cand!.ensure(presetSheets(sync.view.preset), this.progress); this.port.emit("progress", null);
+      await this.refresh(null, true);
+    } catch (e) {                                            // no document is open here now (the page closes its own)
+      sync.dispose(); this.sync = null; this.wb = null; this.wbBook = 0; this.name = "";
+      throw e;
+    }
     return this.state();
   }
   /** the helper's API, through the page */

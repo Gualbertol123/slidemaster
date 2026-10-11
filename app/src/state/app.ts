@@ -22,6 +22,7 @@ import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "@slide-build
 import { resolveStyle } from "@slide-builder/core/model/style";
 import type { Design, Op, Preset, Prefs, RuntimeSlide, StylePatch } from "@slide-builder/core/model/types";
 import type { AppState } from "./store";
+import { initialState } from "./store";
 import type { RenderCtx } from "@slide-builder/core/render/context";
 import { applyWall } from "../render/wall";
 import { loadFonts, watchFontLoads } from "./fonts";
@@ -254,7 +255,13 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   const version = ((newPreset || preset)?.versions || []).some(x => x.id === vid) ? vid : "";
   starting = true; pending.length = 0;
   let st;
-  try { st = await core().call("start", { name, doc, preset: newPreset, inputs: { ...viewInputs(name), version } }); }
+  try { st = await core().call("start", { book: wb.book, name, doc, preset: newPreset, inputs: { ...viewInputs(name), version } }); }
+  catch (e) {
+    // the worker no longer holds the document shown: close it here too, so no edit can reach another file's document
+    if (get().doc.open) { const s0 = initialState(); patchAll({ doc: { ...s0.doc, config: get().doc.config, fonts: get().doc.fonts }, deck: s0.deck, selection: s0.selection }); STAGE.render(); THUMBS.render(); }
+    else patch("deck", { opening: "" });
+    throw e;
+  }
   finally { starting = false; }
   const design = resolveStyle(get().doc.config.defaults.style, st.view.style).design;
   const slides = runtimeSlides(wb, st.view.preset, name, design); slidesDesign = design;

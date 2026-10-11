@@ -112,7 +112,8 @@ const worst = {
   open_deck20_ms: Math.max(...runs.map(r => r.deck20.open_ms)),
   read_big30_ms: Math.max(...runs.map(r => r.big30.read_sheet_ms)),
   longest_task_ms: Math.max(0, ...runs.flatMap(r => [...r.deck20.longtasks, ...r.big30.longtasks])),
-  heap_mb: Math.max(...runs.map(r => r.big30.heap_mb ?? 0)),
+  // no performance.memory (another browser): not measured counts as over the limit, never as 0
+  heap_mb: runs.some(r => r.big30.heap_mb == null) ? Infinity : Math.max(...runs.map(r => r.big30.heap_mb)),
 };
 const info = { longest_startup_task_ms: Math.max(0, ...runs.flatMap(r => r.boot.longtasks)), longest_first_draw_task_ms: Math.max(0, ...runs.flatMap(r => r.deck20.first_draw_longtasks)) };
 const out = { page: path.relative(REPO, BACKEND) || BACKEND, chrome: CHROME, machine: `${os.cpus().length} × ${os.cpus()[0].model.trim()}, ${process.platform}`, limits: LIMITS, worst, info, runs };

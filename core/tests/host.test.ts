@@ -212,4 +212,29 @@ describe("what the wizard and the formula bar read (S2.5)", () => {
     expect(texts).toContain("1.234.568");                         // "#,##0" as Excel shows it
     expect(w.cells.some(c => c.right)).toBe(true);
   });
+
+  it("start is tied to the workbook being opened: an older one is refused and the open document stays (milestone review)", async () => {
+    const srv = server(), p = page(srv, "anna");
+    await p.port.call("init", { served: true, client: "c1", me: "anna" });
+    const first = await p.port.call("index", transfer({ buf: book("report.xlsx") }, []));
+    const preset = await p.port.call("defaultPreset", { book: first.book });
+    await p.port.call("start", { book: first.book, name: "report.xlsx", doc: srv.getDoc()!, preset, inputs });
+    const a = await p.port.call("index", transfer({ buf: book("report.xlsx") }, []));
+    const b = await p.port.call("index", transfer({ buf: book("report.xlsx") }, []));
+    expect(b.book).toBeGreaterThan(a.book);
+    await expect(p.port.call("start", { book: a.book, name: "other.xlsx", doc: srv.getDoc()!, preset: null, inputs })).rejects.toThrow(/no longer being opened/);
+    // the first workbook's document is still the open one: an edit reaches it
+    const sheet = preset.tables[0].sheet;
+    expect((await p.port.call("apply", { label: "B", ops: [{ op: "cell.patch", sheet, ref: "C5", patch: { b: true } } as Op] })).changed).toBe(true);
+  });
+
+  it("a crashed other side: the calls waiting for it fail (failPending)", async () => {
+    const [x, y] = pair();
+    const callee = new Port<{ hang(a: Record<string, never>): number }, object, object, object>(y);
+    callee.handle("hang", () => new Promise<number>(() => { /* never answers */ }));
+    const caller = new Port<object, { hang(a: Record<string, never>): number }, object, object>(x);
+    const pending = caller.call("hang", {});
+    caller.failPending(new Error("stopped"));
+    await expect(pending).rejects.toThrow("stopped");
+  });
 });

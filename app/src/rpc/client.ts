@@ -15,8 +15,11 @@ export function connectCore(src: string = WORKER_SRC): CoreConnection {
     try {
       const url = URL.createObjectURL(new Blob([src], { type: "text/javascript" }));
       const worker = new Worker(url);                       // classic (a module Blob worker fails from file://, PROGRESS S0.6)
-      worker.addEventListener("error", e => console.error("core worker:", e.message));
-      return { port: new Port(worker as unknown as Wire), worker };
+      const port: CorePort = new Port(worker as unknown as Wire);
+      // an error that reaches the worker's top (e.g. out of memory on a huge workbook) may have stopped it: what waits
+      // for an answer fails with a message instead of leaving "Opening…" on screen
+      worker.addEventListener("error", e => { console.error("core worker:", e.message); port.failPending(new Error("The workbook reader stopped (" + (e.message || "error") + "). Reload the page to continue.")); });
+      return { port, worker };
     } catch (e) { console.warn("core worker unavailable, running in the page:", e); }
   }
   const [page, core] = pair();

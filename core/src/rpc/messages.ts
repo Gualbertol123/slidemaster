@@ -48,7 +48,8 @@ export interface CoreMethods {
   /** `book`: the workbook being opened (without: the candidate, else the open one) */
   defaultPreset(a: { book?: number }): Preset;
   /** the indexed workbook becomes the open one, with its document; `preset` = a new preset to save first */
-  start(a: { name: string; doc: WorkbookDoc; preset: Preset | null; inputs: ViewInputs }): DocState;
+  /** `book`: the workbook index gave (refused when another one is being opened since) */
+  start(a: { book?: number; name: string; doc: WorkbookDoc; preset: Preset | null; inputs: ViewInputs }): DocState;
   inputs(a: ViewInputs): void;
   apply(a: { label: string; ops: Op[]; coalesce?: string }): { changed: boolean };
   undo(a: { redo: boolean }): { label: string | null; changed: boolean };

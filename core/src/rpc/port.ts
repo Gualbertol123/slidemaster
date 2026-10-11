@@ -26,6 +26,8 @@ export class Port<Local extends object, Remote extends object, InEvents extends 
   constructor(private readonly wire: Wire) {
     wire.onmessage = e => { void this.receive(e.data as Msg); };
   }
+  /** the other side is gone (a worker that crashed): the calls waiting for it fail instead of waiting for ever */
+  failPending(e: Error) { const w = [...this.waiting.values()]; this.waiting.clear(); for (const x of w) x.err(e); }
   /** answer calls of `m` from the other side */
   handle<K extends keyof Local & string>(m: K, fn: (a: Arg<Local[K]>) => Res<Local[K]> | Transfer<Res<Local[K]>> | Promise<Res<Local[K]> | Transfer<Res<Local[K]>>>) { (this.handlers as Record<string, unknown>)[m] = fn; }
   call<K extends keyof Remote & string>(m: K, arg: Arg<Remote[K]> | Transfer<Arg<Remote[K]>>): Promise<Res<Remote[K]>> {
