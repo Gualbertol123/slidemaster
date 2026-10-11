@@ -63,7 +63,7 @@ describe("slices give the page the same deck", () => {
     const boxes = sliceBoxes(wb, layouts, view.edits as never, mode === "whole" ? Infinity : 0);
     if (mode === "rectangles") expect([...boxes.values()].every(b => b !== null)).toBe(true);
     const slices = [...boxes].map(([name, box]) => structuredClone(sliceSheet(wb.sheets.find(s => s.name === name)!, box)));
-    const mirror = new MirrorWorkbook({ meta: wb.meta, skipped: wb.skipped, hiddenSheets: wb.hiddenSheets, extLinks: wb.extLinks, total: wb.total, ssSize: wb.ssSize, big: wb.big, book: 1 }, async () => ({ shared: null, sheets: [] }));
+    const mirror = new MirrorWorkbook({ meta: wb.meta, skipped: wb.skipped, hiddenSheets: wb.hiddenSheets, extLinks: wb.extLinks, total: wb.total, ssSize: wb.ssSize, big: wb.big, book: 1 }, async () => { /* nothing to read */ });
     mirror.receive(structuredClone(sliceShared(wb.shared!)), slices);
     expect(picture(mirror, view)).toBe(full);
   }, 120_000);
@@ -102,7 +102,7 @@ describe("slices hold the cells conditional formats read", () => {
     const layouts = runtimeSlides(wb, view.preset, "W.xlsx", "excel").flatMap(R => R.tables.map(L => ({ sheet: L.sheet, g: L.g })));
     const boxes = sliceBoxes(wb, layouts, {}, 0);
     expect(boxes.get("S")).toEqual({ r1: 1, c1: 2, r2: 10, c2: 7 });   // B1 and column C joined the table's rectangle
-    const mirror = new MirrorWorkbook({ meta: wb.meta, skipped: [], hiddenSheets: [], extLinks: 0, total: 0, ssSize: 0, big: false, book: 1 }, async () => ({ shared: null, sheets: [] }));
+    const mirror = new MirrorWorkbook({ meta: wb.meta, skipped: [], hiddenSheets: [], extLinks: 0, total: 0, ssSize: 0, big: false, book: 1 }, async () => { /* nothing to read */ });
     mirror.receive(sliceShared(wb.shared!), [...boxes].map(([n, b]) => structuredClone(sliceSheet(wb.sheets.find(s => s.name === n)!, b))));
     expect(picture(mirror, view)).toBe(full);
   });

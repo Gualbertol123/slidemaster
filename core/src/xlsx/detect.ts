@@ -1,7 +1,7 @@
 /* Table suggestions: blocks of filled cells (one empty row is bridged; an empty column separates tables). */
-import { tone } from "@slide-builder/core/xlsx/color";
-import { A1 } from "@slide-builder/core/xlsx/util";
-import type { Cell, Sheet } from "@slide-builder/core/xlsx/types";
+import { tone } from "./color";
+import { A1 } from "./util";
+import type { Cell, Sheet } from "./types";
 
 export function usedRange(S: Sheet) {
   let r2 = 1, c2 = 1;

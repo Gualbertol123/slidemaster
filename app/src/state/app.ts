@@ -165,29 +165,29 @@ export async function openFromFolder(name: string, ask = true) {
   showBusy(`Opening “${name}”…`, null);
   let file;
   try { file = await backend.readFile(name); } finally { hideBusy(); }
-  await openBuffer(file.buf, name, "folder", "", file.mtime, file.size, ask);
+  await openBuffer(file.buf, name, "folder", "", file.mtime, file.size, ask, async () => (await backend.readFile(name)).buf);
 }
 export async function openLocalFile(f: File) {
   const buf = await f.arrayBuffer();
   const inFolder = (await backend.files().catch(() => [])).find(x => x.name === f.name && x.size === f.size);
-  if (inFolder) return openBuffer(buf, f.name, "folder", "", inFolder.mtime, inFolder.size, true);
+  if (inFolder) return openBuffer(buf, f.name, "folder", "", inFolder.mtime, inFolder.size, true, () => f.arrayBuffer());
   let id = "";
   if (backend.served) { try { id = await backend.upload(f.name, buf); } catch { /* preview only */ } }
-  await openBuffer(buf, f.name, id ? "upload" : "local", id, 0, f.size, true);
+  await openBuffer(buf, f.name, id ? "upload" : "local", id, 0, f.size, true, () => f.arrayBuffer());
 }
 export async function reloadWorkbook() { const { file } = get().deck; if (file && file.src === "folder") await openFromFolder(file.name, false); }
 
-/** the worker reads the workbook (a copy of the bytes: the page may still need them); the page gets its mirror */
+/** the worker reads the workbook (the bytes move to it: no copy on this thread); the page gets its mirror */
 async function indexInWorker(buf: ArrayBuffer): Promise<MirrorWorkbook> {
   openingWb = null; earlySlices = [];
-  const copy = buf.slice(0);
-  const info = await core().call("index", transfer({ buf: copy }, [copy]));
-  const wb = openingWb = new MirrorWorkbook(info, async (book, names) => { const r = await core().call("sheets", { book, names }); LCACHE.clear(); return { shared: r.shared, sheets: r.sheets }; });
+  const info = await core().call("index", transfer({ buf }, [buf]));
+  const wb = openingWb = new MirrorWorkbook(info, async (book, names) => { await core().call("ensure", { book, names }); });
   for (const e of earlySlices) if (e.book === wb.book) receiveSlices(wb, e);
   earlySlices = [];
   return wb;
 }
-async function loadWorkbook(buf: ArrayBuffer, name: string): Promise<MirrorWorkbook> {
+/** `again`: the file's bytes once more (the first ones moved to the worker), for Excel's conversion */
+async function loadWorkbook(buf: ArrayBuffer, name: string, again: () => Promise<ArrayBuffer>): Promise<MirrorWorkbook> {
   let wb: MirrorWorkbook;
   showBusy(`Opening “${name}” (${fmtMB(buf.byteLength)})…`, null); await nextFrame();
   try { wb = await indexInWorker(buf); }                     // small workbooks are read completely (the wizard can then show
@@ -198,7 +198,7 @@ async function loadWorkbook(buf: ArrayBuffer, name: string): Promise<MirrorWorkb
     if (!backend.served) throw new Error(`“${name}” is ${what}. Start the app with Start Slide Builder.bat so Excel can convert it, or save it in Excel as .xlsx.`);
     showBusy(`Converting “${name}” with Excel…`, null);
     let out: ArrayBuffer;
-    try { out = await backend.convertWorkbook(name, buf); }
+    try { out = await backend.convertWorkbook(name, await again()); }
     catch (e2) { throw new Error(`“${name}” is ${what} and Excel could not convert it: ${(e2 as Error).message}. Save it in Excel as .xlsx (File › Save As › Excel Workbook) and open that copy.`); }
     try { wb = await indexInWorker(out); toast(`“${esc(name)}” was converted by Excel for reading – the original file is unchanged.`); }
     catch (e3) { throw new Error((e3 as { code?: string }).code === "CFB" ? `“${name}” is protected (password or sensitivity label with encryption). Remove the protection or save an unprotected .xlsx copy.` : (e3 as Error).message); }
@@ -216,10 +216,10 @@ async function presetBox(name: string, p: Preset): Promise<"continue" | "wizard"
 
 /** while the worker starts a document, its snapshots are for the next workbook, not the one shown */
 let starting = false;
-async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "upload" | "local", id: string, mtime: number, size: number, askUser: boolean) {
+async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "upload" | "local", id: string, mtime: number, size: number, askUser: boolean, again: () => Promise<ArrayBuffer>) {
   patch("deck", { opening: name });
   let wb: MirrorWorkbook;
-  try { wb = await loadWorkbook(buf, name); } finally { hideBusy(); }
+  try { wb = await loadWorkbook(buf, name, again); } finally { hideBusy(); }
   LCACHE.clear();
   const doc = (await backend.getDoc(name))!;
   let preset = doc.preset, newPreset: Preset | null = null;

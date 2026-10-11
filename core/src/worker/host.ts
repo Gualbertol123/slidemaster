@@ -7,6 +7,8 @@
 import { indexWorkbook } from "../xlsx/workbook";
 import { setPictureConverter } from "../xlsx/drawing";
 import { sliceBoxes, sliceShared, sliceSheet, sliceTransfer, type SharedSlice, type SheetSlice } from "../xlsx/slice";
+import { cellInfo, sheetInfo, sheetWindow, tableSize } from "../xlsx/sheetview";
+import { detectTables } from "../xlsx/detect";
 import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "../model/preset";
 import { resolveStyle } from "../model/style";
 import { tableHtml, tableHtmlKey } from "../render/slide";
@@ -46,7 +48,14 @@ export class CoreHost {
     h("init", a => { this.served = a.served; this.client = a.client; this.me = a.me; setPictureConverter(a.served ? (bytes, ext) => this.port.call("convertPicture", { bytes, ext }) : null); });
     h("index", a => this.index(a.buf));
     h("ensure", a => this.ensure(a.book, a.names));
-    h("sheets", a => this.sheets(a.book, a.names));
+    h("getSheetMeta", async a => {
+      const wb = this.bookOf(a.book);
+      if (a.load) await this.ensure(a.book, a.names);
+      return { sheets: wb.sheets.filter(S => a.names.includes(S.name)).map(sheetInfo), sizes: (a.tables || []).map(t => [t.id, tableSize(wb, t)] as [string, [number, number] | null]) };
+    });
+    h("getSheetWindow", a => { const S = this.sheetOf(a.book, a.sheet); return S ? sheetWindow(S, a.r0, a.r1, a.c0, a.c1) : null; });
+    h("detectTables", a => { const S = this.sheetOf(a.book, a.sheet); return S ? detectTables(S) : []; });
+    h("getCell", a => { const S = this.sheetOf(a.book, a.sheet); return S ? cellInfo(S, a.ref) : null; });
     h("defaultPreset", () => { if (!this.candidate) throw new Error("no workbook"); return defaultPreset(this.candidate); });
     h("start", a => this.start(a.name, a.doc, a.preset, a.inputs));
     // the page waits for the redraw (the HTML of the new version or default style arrives before the answer)
@@ -102,12 +111,9 @@ export class CoreHost {
     await wb.ensure(names, this.progress); this.port.emit("progress", null);
     if (wb === this.wb) await this.sendSlices(); else this.sendCandidateSlices();
   }
-  private async sheets(book: number, names: string[]) {
-    const wb = this.bookOf(book);
-    await wb.ensure(names, this.progress); this.port.emit("progress", null);
-    const sheets = wb.sheets.filter(S => names.includes(S.name)).map(S => sliceSheet(S, null));
-    return transfer({ shared: wb.shared ? sliceShared(wb.shared) : null, sheets }, sheets.flatMap(sliceTransfer));
-  }
+  /** a loaded sheet of workbook `book` */
+  private sheetOf(book: number, name: string) { return this.bookOf(book).sheets.find(S => S.name === name) || null; }
+
   /** before start: the candidate's loaded sheets (whole when small), for the wizard and the first preset */
   private sendCandidateSlices() {
     const wb = this.candidate; if (!wb) return;

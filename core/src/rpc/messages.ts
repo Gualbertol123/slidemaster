@@ -7,6 +7,8 @@ import type { DeckVersion, Op, Preset, Style, WorkbookDoc } from "../model/types
 import type { SheetMeta } from "../xlsx/types";
 import type { SharedSlice, SheetSlice } from "../xlsx/slice";
 import type { ImgMeta } from "../xlsx/drawing";
+import type { CellInfo, SheetInfo, SheetWindow } from "../xlsx/sheetview";
+import type { TableDef } from "../model/types";
 import type { HistorySummary } from "../sync/history";
 import type { Change, SaveState } from "../sync/docsync";
 
@@ -36,8 +38,13 @@ export interface CoreMethods {
   /** read sheets of workbook `book` (progress events while reading); the page gets their slices with the next
       "slices" event; a workbook that is neither the open one nor the one being opened is refused */
   ensure(a: { book: number; names: string[] }): void;
-  /** whole slices of sheets (the wizard: until S2.5 it reads cells on the page) */
-  sheets(a: { book: number; names: string[] }): { shared: SharedSlice | null; sheets: SheetSlice[] };
+  /* what the wizard and the formula bar read of workbook `book`'s sheets (S2.5): summaries, windows of cells,
+     suggestions, one cell – never a whole sheet */
+  /** the sheets' summaries (`load`: read them first; else the loaded ones only) and the sizes of table definitions */
+  getSheetMeta(a: { book: number; names: string[]; load: boolean; tables?: TableDef[] }): { sheets: SheetInfo[]; sizes: [string, [number, number] | null][] };
+  getSheetWindow(a: { book: number; sheet: string; r0: number; r1: number; c0: number; c1: number }): SheetWindow | null;
+  detectTables(a: { book: number; sheet: string }): string[];
+  getCell(a: { book: number; sheet: string; ref: string }): CellInfo | null;
   defaultPreset(a: Record<string, never>): Preset;
   /** the indexed workbook becomes the open one, with its document; `preset` = a new preset to save first */
   start(a: { name: string; doc: WorkbookDoc; preset: Preset | null; inputs: ViewInputs }): DocState;

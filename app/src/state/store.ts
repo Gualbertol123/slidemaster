@@ -13,7 +13,7 @@
    subscribe to the slices they draw (editor/stage.ts, editor/thumbs.ts). */
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import type { Workbook } from "@slide-builder/core/xlsx/types";
+import type { MirrorWorkbook } from "@slide-builder/core/xlsx/mirror";
 import type { ConfigDoc, Op, Prefs, RuntimeSlide, SlideTextKey, WorkbookDoc } from "@slide-builder/core/model/types";
 import type { LibraryFont } from "@slide-builder/core/model/fonts";
 import type { Health, Other } from "../sync/api";
@@ -43,7 +43,7 @@ export interface AppState {
     fonts: LibraryFont[];
   };
   deck: {
-    file: OpenFile | null; wb: Workbook | null; slides: RuntimeSlide[]; cur: number;
+    file: OpenFile | null; /** the read-only mirror of the workbook the core worker owns */ wb: MirrorWorkbook | null; slides: RuntimeSlide[]; cur: number;
     /** id of the deck version shown ("" = full deck) */ version: string;
     /** what Undo/Redo would do (the history lives in the core worker) */ history: HistorySummary;
     /** the last change by somebody else */ remote: { by: string; at: number } | null;

@@ -142,15 +142,15 @@ describe("opening another workbook while one is open", () => {
     const b = await p.port.call("index", { buf: book("big.xlsx") });
     expect(b.book).not.toBe(a.book);
     const names = b.meta.map(m => m.name);
-    const whole = await p.port.call("sheets", { book: b.book, names });
-    expect(whole.sheets.map(s => s.name)).toEqual(names);                       // B's sheets, not A's
+    const read = await p.port.call("getSheetMeta", { book: b.book, names, load: true });
+    expect(read.sheets.map(s => s.name)).toEqual(names);                        // B's sheets, not A's
     await p.port.call("ensure", { book: b.book, names });
     await expect(p.port.call("ensure", { book: 999, names })).rejects.toThrow(/no longer open/);
     const slicesForB = p.seen.filter(e => e.k === "slices" && (e.v as { book: number }).book === b.book);
     expect(slicesForB.length).toBeGreaterThan(0);
     const st = await p.port.call("start", { name: "big.xlsx", doc: emptyDoc("big.xlsx"), preset: null, inputs: { ...inputs, workbook: "big.xlsx" } });
     expect(st.history).toEqual({ undo: 0, redo: 0, undoLabel: "", redoLabel: "" });   // as v3: a new workbook, no history
-    await expect(p.port.call("sheets", { book: a.book, names })).rejects.toThrow(/no longer open/);
+    await expect(p.port.call("getSheetMeta", { book: a.book, names, load: false })).rejects.toThrow(/no longer open/);
   });
 
   it("after an undo the page gets the HTML of the restored state again", async () => {
@@ -168,5 +168,46 @@ describe("opening another workbook while one is open", () => {
     await p.port.call("undo", { redo: false });
     await until(() => !p.last().view.edits[sheet]?.C5);
     expect(latest()).toEqual(before);
+  });
+});
+
+describe("what the wizard and the formula bar read (S2.5)", () => {
+  it("summaries, windows, suggestions, cells and table sizes come from the worker's sheets", async () => {
+    const { readWorkbook } = await import("../src/xlsx/workbook");
+    const { sheetInfo, sheetWindow, cellInfo, tableSize } = await import("../src/xlsx/sheetview");
+    const { detectTables } = await import("../src/xlsx/detect");
+    const { defaultPreset } = await import("../src/model/preset");
+    for (const name of ["report.xlsx", "deck20.xlsx", "edge-formats.xlsx", "edge-pictures.xlsx"]) {
+      const full = await readWorkbook(book(name)), p = page(server(), "anna");
+      await p.port.call("init", { served: false, client: "c", me: "anna" });
+      const info = await p.port.call("index", { buf: book(name) });
+      const names = info.meta.map(m => m.name), tables = defaultPreset(full).tables;
+      const meta = await p.port.call("getSheetMeta", { book: info.book, names, load: true, tables });
+      expect(meta.sheets).toEqual(full.sheets.map(sheetInfo));
+      expect(meta.sizes).toEqual(tables.map(t => [t.id, tableSize(full, t)]));
+      // the same sizes as resolveTable, also for a marker table with its own sizes and for grown ranges
+      const { resolveTable, gToRange } = await import("../src/model/preset");
+      const more = [...tables, ...full.sheets.flatMap(S => S.tables.slice(0, 1).flatMap(T => [
+        { id: "m" + S.name, sheet: S.name, kind: "markers" as const, anchor: "", index: 0, cols: { [String(T.cols[0])]: 99 } },
+        { id: "g" + S.name, sheet: S.name, kind: "range" as const, range: gToRange(T.g), grow: true },
+      ]))];
+      expect(more.map(t => tableSize(full, t))).toEqual(more.map(t => { const L = resolveTable(full, t as never); return L ? [L.rows.length, L.cols.length] : null; }));
+      for (const S of full.sheets) {
+        const R2 = Math.max(S.tables.length ? 30 : 20, sheetInfo(S).used.r2 + 3), C2 = Math.max(10, sheetInfo(S).used.c2 + 2);
+        expect(await p.port.call("getSheetWindow", { book: info.book, sheet: S.name, r0: 1, r1: R2, c0: 1, c1: C2 })).toEqual(sheetWindow(S, 1, R2, 1, C2));
+        expect(await p.port.call("detectTables", { book: info.book, sheet: S.name })).toEqual(detectTables(S));
+        for (const ref of ["A1", "B2", "C5", "D6", "H10"]) expect(await p.port.call("getCell", { book: info.book, sheet: S.name, ref })).toEqual(cellInfo(S, ref));
+      }
+      expect(await p.port.call("getSheetWindow", { book: info.book, sheet: "no such sheet", r0: 1, r1: 2, c0: 1, c1: 2 })).toBeNull();
+    }
+  }, 120_000);
+  it("a window holds the cells the preview shows: text as Excel shows it, fill, colour, bold, numbers right", async () => {
+    const { readWorkbook } = await import("../src/xlsx/workbook");
+    const { sheetWindow } = await import("../src/xlsx/sheetview");
+    const wb = await readWorkbook(book("edge-formats.xlsx")), S = wb.sheets[0], w = sheetWindow(S, 1, 30, 1, 6);
+    expect(w.rows.length).toBe(30); expect(w.cols.length).toBe(6);
+    const texts = w.cells.map(c => c.text);
+    expect(texts).toContain("1.234.568");                         // "#,##0" as Excel shows it
+    expect(w.cells.some(c => c.right)).toBe(true);
   });
 });
