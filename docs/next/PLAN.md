@@ -545,7 +545,8 @@ Legend: **⏱** adds a benchmark gate · **🚦** human gate · **⇢** ships to
     * rotation;
     * `<sup>`/`<sub>` runs;
     * pictures, shapes, text boxes.
-  * Text **positions follow v3's rules** (use v3's canvas metrics through `TextMeasurer`) so that parity
+  * Text **positions follow v3's rules** (measured by the page's browser layout through `TextMeasurer`'s
+    `measureRuns`/`breakLines`, called from the core worker; PROGRESS Decisions 2026-10-12, 3) so that parity
     can be exact; HarfBuzz measurement comes in S4.4.
 * **Done when:** GG and GP against the Excel and Excel Refined goldens are within tolerance, with 0
   unexplained differences.
