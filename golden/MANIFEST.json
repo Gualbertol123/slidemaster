@@ -1,5 +1,5 @@
 {
- "git": "842ec5f6e14da5cc21541a335c079ed8cc4ab643",
+ "git": "df30223a1f34c126c4fab04822be0817ffbf9eca",
  "page": "8aaf99b6aa0e18c92b2469f766ec5fce8aa40744d2e15341b5edf636644e486b",
  "clock": "2026-10-01T10:00:00+02:00",
  "locale": "en-GB",
@@ -28,11 +28,11 @@
  ],
  "slides": 135,
  "environment": {
-  "chromium": "141.0.7390.37",
-  "chrome": "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
-  "platform": "linux 6.18.44-fc-v80",
-  "fonts": 103,
-  "fontsSha256": "e0df1ccf09cebcd218fe3b5afcd95d766c3e2ebd18ad2bec066b40116f7dec19"
+  "chromium": "153.0.8010.12",
+  "chrome": "C:\\Users\\U508169\\AppData\\Local\\ms-playwright\\chromium-1243\\chrome-win64\\chrome.exe",
+  "platform": "win32 10.0.22631",
+  "fonts": 357,
+  "fontsSha256": "d872a1586b95300c4cd199c73e2841985bc2c254758a8d4e7d00af70acabb997"
  },
  "fontsUsed": [
   "\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif",

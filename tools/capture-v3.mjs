@@ -1,10 +1,13 @@
 /* Golden capture of the CURRENT Slide Builder (docs/next/05-test-and-parity.md §2, PLAN S0.5).
 
-     node tools/capture-v3.mjs [--out golden] [--decks id,id] [--no-pdf]     capture every deck of tests/corpus/decks/
+     node tools/capture-v3.mjs [--out golden] [--decks id,id] [--no-pdf] [--backend DIR]
+                                                                              capture every deck of tests/corpus/decks/
+       --backend DIR  another build's backend folder (its helper and committed page, e.g. a worktree of v3.4.0's
+                      backend/) – how the goldens are re-captured on a new reference machine (decision 2026-10-12)
      node tools/capture-v3.mjs --make-decks [--rewrite]                       add missing tests/corpus/decks/*.json
 
    One real helper (backend/slide_builder.py, the committed page) on a temp folder, one Chromium (CHROME or
-   /opt/pw-browsers), a frozen clock (page.clock.setFixedTime), locale en-GB, time zone Europe/Rome, zoom 100 %.
+   Playwright's own), a frozen clock (page.clock.setFixedTime), locale en-GB, time zone Europe/Rome, zoom 100 %.
    For every deck × design (glass, excel, clean) × version ("full" + the deck's versions) it writes
      <out>/<deck>/<design>/<version>/slide-<n>.json   geometry, text, font and colour of every .t .wb .tw .tnote,
                                                      title, subtitle, logo, page number, footer, cover/contents parts
@@ -15,7 +18,7 @@
      <out>/MANIFEST.json                              git sha, page sha256, Chromium version, fonts, clock
    Decks are data: tests/corpus/decks/<id>.json = {workbook, ops} – the ops are applied through the helper's
    API to a copy of tests/corpus/workbooks/<workbook> named <id>.<ext>, exactly as the app saves them.
-   Needs node_modules (Playwright; `npm ci` at the root), python3 with pypdf (dev only) for pdf.json. */
+   Needs node_modules (Playwright; `npm ci` at the root), Python (python3; python on Windows) with pypdf (dev only) for pdf.json. */
 import { chromium } from "../node_modules/playwright/index.mjs";
 import { spawn, execFileSync } from "node:child_process";
 import crypto from "node:crypto";
@@ -27,7 +30,9 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)), REPO = path.resolve(HERE, "..");
 const CORPUS = path.join(REPO, "tests", "corpus"), DECKS = path.join(CORPUS, "decks"), BOOKS = path.join(CORPUS, "workbooks");
-export const CHROME = process.env.CHROME || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+// the browser: CHROME, else Playwright's own Chromium (pinned by the lockfile); Windows has "python", not python3
+export const CHROME = process.env.CHROME || chromium.executablePath();
+const PY = process.platform === "win32" ? "python" : "python3";
 export const CLOCK = "2026-10-01T10:00:00+02:00";
 export const DESIGNS = ["glass", "excel", "clean"];
 const FORMATS = "workbook=3;config=3;prefs=1";
@@ -40,14 +45,27 @@ const TEXT_SEL = ".t, .title, .subtitle, .pageno, .footer, .tnote, .memo, .tbox,
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const arg = (name, def) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : def; };
+/** the build captured: this checkout's backend/ (helper + committed page), or --backend DIR */
+const BACKEND = path.resolve(arg("--backend", path.join(REPO, "backend")));
 export const sha256 = b => crypto.createHash("sha256").update(b).digest("hex");
 const freePort = () => new Promise(ok => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => ok(p)); }); });
 function sh(cmd, args) { try { return execFileSync(cmd, args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch { return null; } }
 
 /** the environment a capture depends on: same fingerprint = geometry and pixels are comparable */
 export function environment(browserVersion) {
-  const fonts = (sh("fc-list", ["--format", "%{family}|%{style}|%{fontversion}\n"]) || "").split("\n").filter(Boolean).sort();
+  const fonts = (process.platform === "win32" ? windowsFonts() : (sh("fc-list", ["--format", "%{family}|%{style}|%{fontversion}\n"]) || "").split("\n")).filter(Boolean).sort();
   return { chromium: browserVersion, chrome: CHROME, platform: `${process.platform} ${os.release()}`, fonts: fonts.length, fontsSha256: sha256(fonts.join("\n")) };
+}
+
+/** Windows: the installed font files (the system's and this user's), by name and size – fc-list does not exist there */
+function windowsFonts() {
+  const dirs = [path.join(process.env.WINDIR || "C:\\Windows", "Fonts"), path.join(process.env.LOCALAPPDATA || "", "Microsoft", "Windows", "Fonts")];
+  const out = [];
+  for (const d of dirs) {
+    let names = []; try { names = fs.readdirSync(d); } catch { continue; }
+    for (const n of names) if (/\.(ttf|otf|ttc)$/i.test(n)) { try { out.push(n.toLowerCase() + "|" + fs.statSync(path.join(d, n)).size); } catch { /* unreadable */ } }
+  }
+  return out;
 }
 
 // ------------------------------------------------------------------------------------------- helper process
@@ -56,9 +74,10 @@ export async function startHelper() {
   fs.mkdirSync(root, { recursive: true }); fs.mkdirSync(data, { recursive: true });
   fs.copyFileSync(path.join(CORPUS, "assets", "logo.png"), path.join(root, "logo.png"));
   const port = await freePort(), url = `http://127.0.0.1:${port}/`;
-  const proc = spawn("python3", [path.join(REPO, "backend/slide_builder.py"), "--no-browser", "--port", String(port)], {
+  // export engines: the browser's DevTools and command line (not a Python "playwright" package this PC may have)
+  const proc = spawn(PY, [path.join(BACKEND, "slide_builder.py"), "--no-browser", "--port", String(port)], {
     env: { ...process.env, SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: "golden", SLIDEBUILDER_HOST: "pc-golden",
-      SLIDEBUILDER_BROWSER: CHROME, SLIDEBUILDER_APP_WINDOW: "0", NO_PROXY: "*", no_proxy: "*" }, stdio: ["ignore", "pipe", "pipe"] });
+      SLIDEBUILDER_BROWSER: CHROME, SLIDEBUILDER_ENGINES: "devtools,cli", SLIDEBUILDER_APP_WINDOW: "0", NO_PROXY: "*", no_proxy: "*" }, stdio: ["ignore", "pipe", "pipe"] });
   let log = ""; proc.stdout.on("data", d => log += d); proc.stderr.on("data", d => log += d);
   let up = false;
   for (let i = 0; i < 300 && !up; i++) { try { up = (await fetch(url + "api/ping")).ok; } catch { /* starting */ } if (!up) await sleep(200); }
@@ -137,8 +156,8 @@ async function exportPdf(page, h, dir) {
     const f = fs.readdirSync(exp).find(n => n.endsWith(".pdf"));
     if (f && !(await page.locator("#exportBtn").innerText()).includes("Rendering")) {
       await sleep(200);
-      const out = execFileSync("python3", [path.join(HERE, "pdftext.py"), path.join(exp, f)], { encoding: "utf8", maxBuffer: 64 << 20 });
-      fs.writeFileSync(path.join(dir, "pdf.json"), out);
+      const out = execFileSync(PY, [path.join(HERE, "pdftext.py"), path.join(exp, f)], { encoding: "utf8", maxBuffer: 64 << 20 });
+      fs.writeFileSync(path.join(dir, "pdf.json"), out.replace(/\r\n/g, "\n"));     // Python on Windows prints CRLF
       return f;
     }
     await sleep(100);
@@ -197,7 +216,7 @@ export async function capture(out, opts = {}) {
       }
     }
     if (errors.length) throw new Error("page errors:\n" + errors.join("\n"));
-    const manifest = { git: sh("git", ["-C", REPO, "rev-parse", "HEAD"]), page: sha256(fs.readFileSync(path.join(REPO, "backend/slide_builder.html"))),
+    const manifest = { git: sh("git", ["-C", BACKEND, "rev-parse", "HEAD"]), page: sha256(fs.readFileSync(path.join(BACKEND, "slide_builder.html"))),
       clock: CLOCK, locale: "en-GB", timezone: "Europe/Rome", viewport: "1900x1250@1", designs: DESIGNS, decks, slides: total, environment: env,
       fontsUsed: [...new Set(walk(out).filter(f => f.endsWith(".json") && /slide-\d+\.json$/.test(f))
         .flatMap(f => JSON.parse(fs.readFileSync(f, "utf8")).items.map(x => x.font)))].sort() };
