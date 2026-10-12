@@ -50,7 +50,15 @@ export function core(): CorePort {
   port.on("html", list => { for (const [id, kind, key, h] of list) tableHtmls.set(id + "|" + kind, { key, html: h }); });
   port.on("doc", ev => onWorkerDoc(ev));
   port.on("progress", p => { if (p) showBusy(p.text, p.frac); else hideBusy(); });
-  port.on("error", e => console.error("core worker: " + e.message + (e.stack ? "\n" + e.stack : "")));
+  port.on("retiredSaved", () => { unsavedElsewhere = false; });
+  // an error in the worker's own work (e.g. a sheet read after a colleague's change): shown, never a busy screen left up
+  port.on("error", e => { console.error("core worker: " + e.message + (e.stack ? "\n" + e.stack : "")); hideBusy(); toast("⚠ " + esc(e.message), [], true); });
+  // the worker stopped: nothing can be read or saved any more – say so, and stop taking edits
+  port.onClose(e => {
+    hideBusy(); patch("deck", { opening: "" });
+    if (get().doc.open) patch("doc", { save: "error", error: e.message });
+    toast("⚠ " + esc(e.message) + " <b>Reload the page (F5).</b>", [], true);
+  });
   return port;
 }
 function receiveSlices(wb: MirrorWorkbook, e: { shared: SharedSlice | null; sheets: SheetSlice[] }) {
@@ -117,6 +125,11 @@ export async function boot() {
     void heartbeat();
     addEventListener("pagehide", () => backend.leave(get().prefs.client));
   }
+  // closing the window while changes are not on the share (or in this browser's storage) yet: the browser asks first
+  addEventListener("beforeunload", e => {
+    const s = get().doc.save;
+    if (unsavedElsewhere || (get().doc.open && (pending.length || s === "pending" || s === "saving" || s === "error"))) { e.preventDefault(); e.returnValue = ""; }
+  });
 }
 let tickN = 0;
 /** one poll: other people's changes, helper health, the file on disk, fonts, shared config (every 3 s) */
@@ -157,24 +170,38 @@ export function setPrefs(p: Partial<Prefs>) {
 /* ---------------------------------------------------------------- errors */
 export async function guard(fn: () => Promise<unknown> | unknown) {
   try { await fn(); }
-  catch (e) { console.error(e); hideBusy(); patch("deck", { opening: "" }); toast("⚠ " + esc((e as Error).message || e), [], true); }
+  catch (e) {
+    if ((e as { code?: string }).code === "SUPERSEDED") return;     // a newer open took over: it shows its own progress
+    console.error(e); hideBusy(); patch("deck", { opening: "" }); toast("⚠ " + esc((e as Error).message || e), [], true);
+  }
 }
 
 /* ---------------------------------------------------------------- opening workbooks */
 export async function openFromFolder(name: string, ask = true) {
   patch("deck", { opening: name });
+  const gen = ++openGen;
   showBusy(`Opening “${name}”…`, null);
   let file;
   try { file = await backend.readFile(name); } finally { hideBusy(); }
-  await openBuffer(file.buf, name, "folder", "", file.mtime, file.size, ask, async () => (await backend.readFile(name)).buf);
+  if (gen !== openGen) return;
+  await openBuffer(file.buf, name, "folder", "", file.mtime, file.size, ask, async () => (await backend.readFile(name)).buf, gen);
 }
+/** opens are numbered: a newer open (a second drop, Browse… during an upload) makes an older one give up quietly */
+let openGen = 0;
+/** a workbook left while its changes were failing to save (the worker keeps retrying them): closing the window asks */
+let unsavedElsewhere = false;
+const superseded = () => Object.assign(new Error("superseded"), { code: "SUPERSEDED" });
 export async function openLocalFile(f: File) {
+  patch("deck", { opening: f.name });                       // from the start: the drop guard and Open… see it at once
+  const gen = ++openGen;
   const buf = await f.arrayBuffer();
   const inFolder = (await backend.files().catch(() => [])).find(x => x.name === f.name && x.size === f.size);
-  if (inFolder) return openBuffer(buf, f.name, "folder", "", inFolder.mtime, inFolder.size, true, () => f.arrayBuffer());
+  if (gen !== openGen) return;
+  if (inFolder) return openBuffer(buf, f.name, "folder", "", inFolder.mtime, inFolder.size, true, () => f.arrayBuffer(), gen);
   let id = "";
   if (backend.served) { try { id = await backend.upload(f.name, buf); } catch { /* preview only */ } }
-  await openBuffer(buf, f.name, id ? "upload" : "local", id, 0, f.size, true, () => f.arrayBuffer());
+  if (gen !== openGen) return;
+  await openBuffer(buf, f.name, id ? "upload" : "local", id, 0, f.size, true, () => f.arrayBuffer(), gen);
 }
 export async function reloadWorkbook() { const { file } = get().deck; if (file && file.src === "folder") await openFromFolder(file.name, false); }
 
@@ -194,6 +221,7 @@ async function loadWorkbook(buf: ArrayBuffer, name: string, again: () => Promise
   try { wb = await indexInWorker(buf); }                     // small workbooks are read completely (the wizard can then show
   catch (e) {                                                // titles and table suggestions for every sheet); large ones sheet by sheet
     const code = (e as { code?: string }).code;
+    if (code === "ENCRYPTED") throw new Error(`“${name}” is protected (password or sensitivity label with encryption). Remove the protection or save an unprotected .xlsx copy.`);
     if (code !== "XLSB" && code !== "CFB") throw e;
     const what = code === "XLSB" ? "an Excel Binary Workbook (.xlsb)" : "an old .xls workbook or a protected file";
     if (!backend.served) throw new Error(`“${name}” is ${what}. Start the app with Start Slide Builder.bat so Excel can convert it, or save it in Excel as .xlsx.`);
@@ -202,7 +230,10 @@ async function loadWorkbook(buf: ArrayBuffer, name: string, again: () => Promise
     try { out = await backend.convertWorkbook(name, await again()); }
     catch (e2) { throw new Error(`“${name}” is ${what} and Excel could not convert it: ${(e2 as Error).message}. Save it in Excel as .xlsx (File › Save As › Excel Workbook) and open that copy.`); }
     try { wb = await indexInWorker(out); toast(`“${esc(name)}” was converted by Excel for reading – the original file is unchanged.`); }
-    catch (e3) { throw new Error((e3 as { code?: string }).code === "CFB" ? `“${name}” is protected (password or sensitivity label with encryption). Remove the protection or save an unprotected .xlsx copy.` : (e3 as Error).message); }
+    catch (e3) {
+      if ((e3 as { code?: string }).code === "SUPERSEDED") throw e3;    // another open came meanwhile (openBuffer decides)
+      throw new Error((e3 as { code?: string }).code === "CFB" ? `“${name}” is protected (password or sensitivity label with encryption). Remove the protection or save an unprotected .xlsx copy.` : (e3 as Error).message);
+    }
   }
   return wb;
 }
@@ -226,30 +257,45 @@ function layOutWhileIdle(wb: MirrorWorkbook) {
 
 /** while the worker starts a document, its snapshots are for the next workbook, not the one shown */
 let starting = false;
-async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "upload" | "local", id: string, mtime: number, size: number, askUser: boolean, again: () => Promise<ArrayBuffer>) {
+async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "upload" | "local", id: string, mtime: number, size: number, askUser: boolean, again: () => Promise<ArrayBuffer>, gen: number) {
   patch("deck", { opening: name });
+  const stale = () => { if (gen !== openGen) throw superseded(); };
   let wb: MirrorWorkbook;
-  try { wb = await loadWorkbook(buf, name, again); } finally { hideBusy(); }
+  try { wb = await loadWorkbook(buf, name, again); }
+  catch (e) {
+    // the worker refused it because another index came after it: quiet only if this page started a newer open
+    if ((e as { code?: string }).code === "SUPERSEDED") { if (gen !== openGen) throw superseded(); throw new Error(`Opening “${name}” was interrupted – open it again.`); }
+    throw e;
+  }
+  finally { hideBusy(); }
+  stale();
   layOutWhileIdle(wb);
   LCACHE.clear();
   const doc = (await backend.getDoc(name))!;
+  stale();
+  // the open workbook has changes the helper does not have yet: switching keeps saving them (the worker retries),
+  // but say so when saving is failing, so nobody closes the window thinking they are safe
+  if (get().doc.open && get().doc.save === "error") unsavedElsewhere = true;
+  if (get().doc.open && get().doc.save === "error") toast("⚠ The changes to “" + esc(get().deck.file?.name || "") + "” are not saved yet – they keep being retried. Keep this window open until they are saved.", [], true);
   let preset = doc.preset, newPreset: Preset | null = null;
   try {
     if (preset && askUser) {
       const choice = await presetBox(name, preset);
-      if (!choice) { patch("deck", { opening: "" }); return; }
+      if (!choice) { if (gen === openGen) patch("deck", { opening: "" }); return; }
       if (choice === "wizard") { const np = await runWizard(wb, name, preset); if (np) newPreset = np; }
     } else if (!preset) {
       const draft = await core().call("defaultPreset", { book: wb.book });  // the worker has the tables laid out (PLAN S2.6)
       if (!askUser && !wb.big && draft.slides.length) newPreset = draft;        // start-up / reload: "x" workbooks open as before
       else {
         const np = await runWizard(wb, name, draft);
-        if (!np) { patch("deck", { opening: "" }); return; }
+        if (!np) { if (gen === openGen) patch("deck", { opening: "" }); return; }
         newPreset = np;
       }
     }
+    stale();
     await core().call("ensure", { book: wb.book, names: presetSheets(newPreset || preset) });   // only the sheets the slides use
   } finally { hideBusy(); }
+  stale();
 
   const vid = get().prefs.prefs.versions?.[name] || "";         // the version this person looked at last
   const version = ((newPreset || preset)?.versions || []).some(x => x.id === vid) ? vid : "";
@@ -257,12 +303,19 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   let st;
   try { st = await core().call("start", { book: wb.book, name, doc, preset: newPreset, inputs: { ...viewInputs(name), version } }); }
   catch (e) {
+    // refused before the switch (another open came first): the worker still has the open document, and so does the page
+    if ((e as { code?: string }).code === "NOT_STARTED") { patch("deck", { opening: "" }); throw gen !== openGen ? superseded() : e; }
     // the worker no longer holds the document shown: close it here too, so no edit can reach another file's document
     if (get().doc.open) { const s0 = initialState(); patchAll({ doc: { ...s0.doc, config: get().doc.config, fonts: get().doc.fonts }, deck: s0.deck, selection: s0.selection }); STAGE.render(); THUMBS.render(); }
     else patch("deck", { opening: "" });
     throw e;
   }
   finally { starting = false; }
+  base = st.view; predicted = { base, key: "" };
+  openingWb = null;                                          // now the open one (deck.wb)
+  // the HTML of tables this document does not have (the previous workbook's) is dropped; the new HTML came with start
+  const ids = new Set((st.view.preset?.tables || []).map(t => t.id));
+  for (const k of [...tableHtmls.keys()]) if (!ids.has(k.slice(0, k.lastIndexOf("|")))) tableHtmls.delete(k);
   const design = resolveStyle(get().doc.config.defaults.style, st.view.style).design;
   const slides = runtimeSlides(wb, st.view.preset, name, design); slidesDesign = design;
   presetSig = JSON.stringify(st.view.preset);
@@ -284,16 +337,28 @@ let presetSig = "";
 /** my apply/undo calls the worker has not confirmed yet (their ops are shown on the mirror meanwhile) */
 let seq = 0;
 const pending: { seq: number; ops: Op[]; undo?: boolean }[] = [];
+/** the worker's last document (snapshots whose document did not change do not carry it), and what the mirror's
+    prediction was computed from (that document and my unconfirmed calls) */
+let base: AppState["doc"]["view"] = null, predicted: { base: AppState["doc"]["view"]; key: string } = { base: null, key: "" };
 /** a snapshot from the worker: the document mirror, the save state, the history; then redraw what changed */
 function onWorkerDoc(ev: DocEvent) {
   if (starting || !get().doc.open) return;
   while (pending.length && pending[0].seq <= ev.ack) pending.shift();
-  const ops = pending.flatMap(p => p.ops), view = ops.length ? applyOps(ev.view, ops).doc : ev.view;
+  const d = get().doc, h = get().deck.history;
+  if (ev.view) base = ev.view;
+  const key = pending.map(p => p.seq).join(",");
+  let view = d.view;
+  if (predicted.base !== base || predicted.key !== key) {
+    if (pending.length) view = applyOps(base!, pending.flatMap(p => p.ops)).doc;
+    // all of mine confirmed: the worker's document – unless it equals what the mirror predicted, then the mirror's
+    // object stays (nothing re-renders); compared once per confirmed change, never per snapshot
+    else if (!(predicted.key && same(d.view, base))) view = base;
+  }
+  predicted = { base, key };
   // while calls are on their way, the snapshot does not know them yet: still "pending", not "✓ Saved"
   const save = pending.length && (ev.save === "saved" || ev.save === "local") ? unsaved() : ev.save;
-  const d = get().doc, h = get().deck.history;
   const docPatch: Partial<AppState["doc"]> = {};
-  if (!same(d.view, view)) docPatch.view = view;               // the same document: the same object (nothing re-renders)
+  if (view !== d.view) docPatch.view = view;               // the same document: the same object (nothing re-renders)
   if (d.save !== save) docPatch.save = save;
   if (d.error !== ev.error) docPatch.error = ev.error;
   patchAll({ ...(Object.keys(docPatch).length ? { doc: docPatch } : {}), ...(same(h, ev.history) ? {} : { deck: { history: ev.history } }) });
@@ -357,9 +422,11 @@ export function slidesFor(design: Design): RuntimeSlide[] {
     the mirror shows them at once */
 export function change(label: string, ops: Op[], coalesce?: string) {
   const { doc: { open, view }, deck: { file } } = get(); if (!open || !file || !view || starting) return;
+  if (port?.closed) { toast("⚠ " + esc(port.closed.message), [], true); return; }
   const r = applyOps(view, ops);
   if (!r.applied) return;
   pending.push({ seq: ++seq, ops });
+  predicted = { base, key: pending.map(p => p.seq).join(",") };
   patch("doc", { view: r.doc, save: unsaved() });             // as DocSync did: "✓ Saved" only once the helper has it
   void core().call("apply", { label, ops, coalesce }).catch(e => console.error(e));
 }
@@ -370,6 +437,7 @@ export function undo(redo = false) {
   // an edit (or undo) the worker has not confirmed yet counts too: the history mirror comes with its snapshot
   const h = get().deck.history, canUndo = h.undo > 0 || pending.some(p => p.ops.length), canRedo = h.redo > 0 || pending.some(p => p.undo);
   if (!get().doc.open || starting || !(redo ? canRedo : canUndo)) return;
+  if (port?.closed) { toast("⚠ " + esc(port.closed.message), [], true); return; }
   pending.push({ seq: ++seq, ops: [], undo: !redo });
   if (get().doc.save !== "outdated") patch("doc", { save: unsaved() });      // as DocSync did: "pending" until the helper has it
   void core().call("undo", { redo }).then(r => {

@@ -15,13 +15,19 @@ export function connectCore(src: string = WORKER_SRC): CoreConnection {
     try {
       const url = URL.createObjectURL(new Blob([src], { type: "text/javascript" }));
       const worker = new Worker(url);                       // classic (a module Blob worker fails from file://, PROGRESS S0.6)
+      URL.revokeObjectURL(url);                             // the worker has started loading it
       const port: CorePort = new Port(worker as unknown as Wire);
-      // an error that reaches the worker's top (e.g. out of memory on a huge workbook) may have stopped it: what waits
-      // for an answer fails with a message instead of leaving "Opening…" on screen
-      worker.addEventListener("error", e => { console.error("core worker:", e.message); port.failPending(new Error("The workbook reader stopped (" + (e.message || "error") + "). Reload the page to continue.")); });
+      // the worker reports its own errors as "error" events and keeps running (core.worker.ts); an error that still
+      // reaches this side means it could not start or was stopped (e.g. out of memory on a huge workbook): what waits,
+      // and every later call, fails with a message instead of leaving "Opening…" or "Saving…" on screen
+      const stop = (why: string) => { console.error("core worker:", why); port.close(new Error("The workbook reader stopped (" + why + "). Reload the page to continue.")); worker.terminate(); };
+      worker.addEventListener("error", e => stop(e.message || "error"));
+      worker.addEventListener("messageerror", () => stop("a message could not be read"));
       return { port, worker };
     } catch (e) { console.warn("core worker unavailable, running in the page:", e); }
   }
+  // a browser that has workers but refused this one (tests without workers stay quiet): the page does the work
+  if (src && typeof Worker !== "undefined") console.error("core worker: not available here; the workbook is read on the page (a large one can make the window wait)");
   const [page, core] = pair();
   serve(new Port<CoreMethods, PageMethods, PageEvents, CoreEvents>(core));
   return { port: new Port(page), worker: null };

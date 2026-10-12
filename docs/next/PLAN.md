@@ -269,7 +269,7 @@ Element ids and `data-*` attributes are kept, so the 15 e2e scenarios guard ever
 |---|---|---|
 | B1 | No export engine: the "Export: …" pill, Install engine dialog and in-window fallback are gone; exports also work offline (`file://`, as downloads) | S3.7, S4.5 |
 | B2 | Liquid Glass text uses static Segoe UI on screen, as the PDF already does | S4.4 |
-| B3 | Soft shadows drawn as 6 sharp layers on screen too, as in today's PDFs (setting: true blur on screen only) | S4.1 |
+| B3 | Soft shadows drawn as 5 sharp layers on screen too, as in today's PDFs (setting: true blur on screen only) | S4.1 |
 | B4 | Simultaneous edits of the **same field** ordered by Lamport clock, not save arrival (still last-writer-wins, still converges) | S5.2 |
 | B5 | Others' edits appear within ≈ 1–2 s (was 1.5–3 s; up to 28 s on slow shares) | S5.2 |
 | B6 | "✓ Saved" as soon as the edit is on the share (was up to one 3 s tick late) | S0.4 |
@@ -545,7 +545,8 @@ Legend: **⏱** adds a benchmark gate · **🚦** human gate · **⇢** ships to
     * rotation;
     * `<sup>`/`<sub>` runs;
     * pictures, shapes, text boxes.
-  * Text **positions follow v3's rules** (use v3's canvas metrics through `TextMeasurer`) so that parity
+  * Text **positions follow v3's rules** (measured by the page's browser layout through `TextMeasurer`'s
+    `measureRuns`/`breakLines`, called from the core worker; PROGRESS Decisions 2026-10-12, 3) so that parity
     can be exact; HarfBuzz measurement comes in S4.4.
 * **Done when:** GG and GP against the Excel and Excel Refined goldens are within tolerance, with 0
   unexplained differences.
@@ -556,7 +557,7 @@ Legend: **⏱** adds a benchmark gate · **🚦** human gate · **⇢** ships to
 * **Do:**
   * Keep `buildScene`, `inferRoles` and the material decisions.
   * Implement each material as the recipe in `03-architecture.md` §4.3: clip + blurred wallpaper image,
-    tint gradients, rim, 6-layer shadows, capsules, hairlines, accent rules, icons, keyed pictures, tinted
+    tint gradients, rim, 5-layer shadows, capsules, hairlines, accent rules, icons, keyed pictures, tinted
     blocks.
   * Generate the wallpaper in the worker (OffscreenCanvas): two JPEGs, shared.
 * **Done when:** GG is within tolerance; the GP report is produced for every theme × glass level ×
@@ -610,7 +611,7 @@ Legend: **⏱** adds a benchmark gate · **🚦** human gate · **⇢** ships to
     * `InlineCellEditor`, `TextBoxEditor`, `SlideTextEditor`.
   * Hit testing uses DL `hit` nodes with v3's binary search over column/row edges (`cellFromPoint`).
   * The stage keeps v3's rule: never redraw under an open editor (E8).
-  * Shadows use the 6-layer recipe, and the "true blur on screen" setting is in Options (B3).
+  * Shadows use the 5-layer recipe, and the "true blur on screen" setting is in Options (B3).
 * **Done when:** all e2e are green with no test changes except selectors documented in the PR; ⏱
   keypress → pixels p95 is under 50 ms (bench).
 
@@ -794,8 +795,8 @@ Each feature area of `05-test-and-parity.md` §4 is touched by these steps and g
 | Budget | From step | Limit |
 |---|---|---|
 | Open 20-slide deck → first slide | S2.6 | 400 ms |
-| Read a 130k-row sheet | S2.3 / S2.6 | 1 s (Node: 0.5 s), memory < 150 MB in the page |
-| Longest main-thread task while opening or editing | S2.6 | 50 ms |
+| Read a 130k-row sheet | S2.3 / S2.6 | 1 s (Node: 0.5 s), memory < 150 MB in the page and its core worker together |
+| Longest main-thread task while opening or editing | S2.6 | 50 ms (drawing the first slide after Finish: 150 ms, decisions 1.a and 2026-10-12) |
 | Keypress → pixels, cell edit | S4.1 | 50 ms p95 |
 | Drag frame | S4.2 | 16 ms |
 | Selection change re-renders | S1.3 | ≤ 5 components |

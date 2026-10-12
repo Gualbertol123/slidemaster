@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /* Two helpers = two people on two PCs, sharing one app folder (workbooks + data), like on the network drive. */
@@ -15,11 +16,16 @@ if (fresh) {
   for (const f of ["report.xlsx", "plain.xlsx", "big.xlsx", "weekly.xlsx"]) fs.copyFileSync(path.join(__dirname, "tests/fixtures", f), path.join(root, f));
 }
 process.env.SB_E2E_TMP = tmp; process.env.SB_E2E_ROOT = root; process.env.SB_E2E_DATA = data;
-const chrome = process.env.CHROME || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+// the browser: CHROME, else Playwright's own Chromium (npx playwright install chromium), the same on every OS
+const chrome = process.env.CHROME || createRequire(import.meta.url)("playwright").chromium.executablePath();
+// Windows has "python" (python3 is the Microsoft Store's placeholder there)
+const PY = process.platform === "win32" ? "python" : "python3";
 const helper = (user: string, port: number) => ({
-  command: `python3 ../backend/slide_builder.py --no-browser --port ${port}`,
+  command: `${PY} ../backend/slide_builder.py --no-browser --port ${port}`,
   url: `http://127.0.0.1:${port}/api/ping`,
-  env: { SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: user, SLIDEBUILDER_HOST: "pc-" + user, SLIDEBUILDER_BROWSER: chrome, NO_PROXY: "*" },
+  // export engines: the browser's DevTools and command line, as on CI – not the Python "playwright" package that
+  // Install Slide Builder.bat may have put on this PC (the export test expects "Export: Chrome…")
+  env: { SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: user, SLIDEBUILDER_HOST: "pc-" + user, SLIDEBUILDER_BROWSER: chrome, SLIDEBUILDER_ENGINES: "devtools,cli", NO_PROXY: "*" },
   reuseExistingServer: false, timeout: 90_000,
   stdout: "pipe" as const, stderr: "pipe" as const,          // the helpers' logs appear in the test output (CI diagnosis)
 });

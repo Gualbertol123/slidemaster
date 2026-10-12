@@ -26,11 +26,18 @@ export class Port<Local extends object, Remote extends object, InEvents extends 
   constructor(private readonly wire: Wire) {
     wire.onmessage = e => { void this.receive(e.data as Msg); };
   }
-  /** the other side is gone (a worker that crashed): the calls waiting for it fail instead of waiting for ever */
+  private dead: Error | null = null;
+  private closeListeners = new Set<(e: Error) => void>();
+  /** the calls waiting for the other side fail instead of waiting for ever */
   failPending(e: Error) { const w = [...this.waiting.values()]; this.waiting.clear(); for (const x of w) x.err(e); }
+  /** the other side is gone (a worker that crashed): what waits fails, and every later call fails at once */
+  close(e: Error) { if (this.dead) return; this.dead = e; this.failPending(e); for (const f of this.closeListeners) f(e); }
+  get closed(): Error | null { return this.dead; }
+  onClose(fn: (e: Error) => void): () => void { this.closeListeners.add(fn); return () => this.closeListeners.delete(fn); }
   /** answer calls of `m` from the other side */
   handle<K extends keyof Local & string>(m: K, fn: (a: Arg<Local[K]>) => Res<Local[K]> | Transfer<Res<Local[K]>> | Promise<Res<Local[K]> | Transfer<Res<Local[K]>>>) { (this.handlers as Record<string, unknown>)[m] = fn; }
   call<K extends keyof Remote & string>(m: K, arg: Arg<Remote[K]> | Transfer<Arg<Remote[K]>>): Promise<Res<Remote[K]>> {
+    if (this.dead) return Promise.reject(this.dead);
     const id = ++this.seq;
     return new Promise((ok, err) => {
       this.waiting.set(id, { ok: ok as (v: unknown) => void, err });

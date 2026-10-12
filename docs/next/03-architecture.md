@@ -396,7 +396,7 @@ The target is under 50 ms from keypress to pixels (§6.3), against about 100–3
 | Frosted glass (`--wallblur` positioned per element by `placeGlass`) | `group{clip: rrect}` → `image wallblur` at the lens transform (`LENS = 1 + .06·gi`, the v3 formula) | **one** 800 × 450 JPEG XObject (≈ 12 KB) drawn under each card's clip: a vector clip of a shared image. Not a raster per card |
 | Tint and veil (`linear-gradient` with alpha, `--tint`, `--gfade`) | `rect` fill `linear` with alpha stops | axial **shading** with a luminosity **soft mask**, both defined in the unit box and **shared by every shape with the same gradient style** (spike: 2 shading/mask pairs serve 6 000 capsules) |
 | Rim (gradient ring cut with `mask-composite`) | `rect` stroke 1.25 px, per-side colours approximated by a 2-stop gradient stroke | stroked path with a shading pattern (or 4 straight segments). Same as `PRINT_CSS` today, but on screen too |
-| Soft shadow (`box-shadow 0 22px 48px -24px`) | `shadow` | **6 sharp rounded rectangles** of 1/6 alpha each, growing over 60 % of the blur (v3's `vectorShadow`, `printcss.ts:22-48`, with STEPS = 6). **The screen draws the same 6 layers**, so screen and PDF agree. Option: SVG `feGaussianBlur` on screen only, if users prefer the softer look (behaviour change B3) |
+| Soft shadow (`box-shadow 0 22px 48px -24px`) | `shadow` | **5 sharp rounded rectangles** of 1/5 alpha each, growing over 60 % of the blur (v3's `vectorShadow`, `core/src/render/printcss.ts`, STEPS = 5 as in today's PDFs; decision 2026-10-12). **The screen draws the same 5 layers**, so screen and PDF agree. Option: SVG `feGaussianBlur` on screen only, if users prefer the softer look (behaviour change B3) |
 | Capsules (signals, colour scales) | `rect` r = h/2, linear alpha fill; `shadow` when solid | shared shading + mask; one shadow ExtGState |
 | Hairlines and accent rules (`.hsep`, `.vsep`, `.rule.accent`) | `rect` 1 px with a 4-stop horizontal gradient (fade at the ends) | shared shading |
 | Tinted blocks (`tintGrad`) and deep ink (`deepInk`) | colours computed exactly as v3 (`glass.ts:371-374`) | solid or shared shading |
@@ -491,7 +491,7 @@ This is a rebuild of the engine, not a redesign of the product.
 |---|---|---|
 | B1 | Export no longer needs an "export engine". The status pill "Export: …", the Install engine dialog and the in-window fallback disappear. Exports also work in the `file://` emergency mode (as a download) | no headless browser |
 | B2 | Liquid Glass text uses classic Segoe UI on screen, as it already does in the PDF. Windows 11 users stop seeing Segoe UI Variable | screen = PDF |
-| B3 | Soft shadows are drawn as 6 sharp layers on screen too (as in today's PDFs). A setting can bring back true blur on screen only | screen = PDF |
+| B3 | Soft shadows are drawn as 5 sharp layers on screen too (as in today's PDFs). A setting can bring back true blur on screen only | screen = PDF |
 | B4 | Concurrent edits to the **same field** are resolved by Lamport order instead of save arrival order. It is still last-writer-wins, and both users still converge | lock-free saving |
 | B5 | Others' edits appear after ≈ 1–2 s instead of ≈ 1.5–3 s (up to 28 s on slow shares) | journals + 1.5 s poll |
 | B6 | "✓ Saved" appears when the record is flushed (≈ 30–90 ms), not on the next tick (01 P10) | bug fix |

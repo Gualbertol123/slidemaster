@@ -88,14 +88,22 @@ export class CoreHost {
 
   /* ---------------------------------------------------------------- opening */
   private async index(buf: ArrayBuffer): Promise<WorkbookInfo> {
+    // the number is taken before reading, so the newest open always wins whichever read finishes first: an older
+    // call still reading, or one that finishes later, fails (SUPERSEDED) instead of answering with another's number
+    // the previous candidate's records go – not the open workbook's (after start the two numbers are the same)
+    if (this.candidateBook && this.candidateBook !== this.wbBook) { this.sentBoxes.delete(this.candidateBook); this.sentSharedFor.delete(this.candidateBook); }
+    const book = this.candidateBook = ++this.books;
+    this.candidate = null;
+    const superseded = () => { if (this.candidateBook !== book) throw Object.assign(new Error("another workbook is being opened"), { code: "SUPERSEDED" }); };
     const wb = await indexWorkbook(buf);
-    if (this.candidate) { this.sentBoxes.delete(this.candidateBook); this.sentSharedFor.delete(this.candidateBook); }
-    this.candidate = wb; this.candidateBook = ++this.books;
+    superseded();
+    this.candidate = wb;
     // small workbooks are read completely (the wizard shows titles and table suggestions for every sheet)
-    if (!wb.big) await wb.ensure(wb.meta.map(m => m.name), this.progress);
-    this.port.emit("progress", null);
+    try { if (!wb.big) await wb.ensure(wb.meta.map(m => m.name), this.progress); }
+    finally { this.port.emit("progress", null); }
+    superseded();
     this.sendCandidateSlices();
-    return { meta: wb.meta, skipped: wb.skipped, hiddenSheets: wb.hiddenSheets, extLinks: wb.extLinks, total: wb.total, ssSize: wb.ssSize, big: wb.big, book: this.candidateBook };
+    return { meta: wb.meta, skipped: wb.skipped, hiddenSheets: wb.hiddenSheets, extLinks: wb.extLinks, total: wb.total, ssSize: wb.ssSize, big: wb.big, book };
   }
   private progress = (text: string, frac: number | null) => this.port.emit("progress", { text, frac });
   /** the workbook a call is about: the one being opened, or the open one (by the number index gave it) */
@@ -108,7 +116,7 @@ export class CoreHost {
   private get book() { const wb = this.candidate || this.wb; if (!wb) throw new Error("no workbook"); return wb; }
   private async ensure(book: number, names: string[]) {
     const wb = this.bookOf(book);
-    await wb.ensure(names, this.progress); this.port.emit("progress", null);
+    try { await wb.ensure(names, this.progress); } finally { this.port.emit("progress", null); }
     if (wb === this.wb) await this.sendSlices(); else this.sendCandidateSlices();
   }
   /** a loaded sheet of workbook `book` */
@@ -122,32 +130,43 @@ export class CoreHost {
       const k = JSON.stringify(box); if (sent.get(name) === k) continue;
       sent.set(name, k); sheets.push(sliceSheet(wb.sheets.find(s => s.name === name)!, box));
     }
-    if (!sheets.length && this.sentSharedFor.has(this.candidateBook)) return;
-    this.sentSharedFor.add(this.candidateBook);
-    this.port.emit("slices", transfer({ book: this.candidateBook, shared: wb.shared ? sliceShared(wb.shared) : null, sheets }, sheets.flatMap(sliceTransfer)));
+    // the shared parts (styles, strings – large for a big workbook) travel once, with the first sheet that needs them:
+    // the mirror needs them only to read sheets, and sending them alone would copy them onto the page for nothing
+    if (!sheets.length) return;
+    const shared: SharedSlice | null = wb.shared && !this.sentSharedFor.has(this.candidateBook) ? sliceShared(wb.shared) : null;
+    if (shared) this.sentSharedFor.add(this.candidateBook);
+    this.port.emit("slices", transfer({ book: this.candidateBook, shared, sheets }, sheets.flatMap(sliceTransfer)));
   }
   private async start(book: number | undefined, name: string, doc: WorkbookDoc, preset: Preset | null, inputs: ViewInputs): Promise<DocState> {
     const cand = this.candidate, gone = () => !cand || cand !== this.candidate || (book !== undefined && book !== this.candidateBook);
-    if (gone()) throw new Error(cand ? "this workbook is no longer being opened" : "no workbook");
+    // failures before the switch carry NOT_STARTED: the open document stays open here and on the page
+    const notStarted = (e: unknown) => Object.assign(e instanceof Error ? e : new Error(String(e)), { code: "NOT_STARTED" });
+    if (gone()) throw notStarted(new Error(cand ? "this workbook is no longer being opened" : "no workbook"));
     // the slides' sheets are read before the document changes owner: a sheet that fails leaves the open one as it was
-    await cand!.ensure(presetSheets(preset || doc.preset), this.progress); this.port.emit("progress", null);
-    if (gone()) throw new Error("this workbook is no longer being opened");
-    this.sync?.dispose();
+    try { await cand!.ensure(presetSheets(preset || doc.preset), this.progress); }
+    catch (e) { throw notStarted(e); }
+    finally { this.port.emit("progress", null); }
+    if (gone()) throw notStarted(new Error("this workbook is no longer being opened"));
+    // the previous document stops showing, but what it has not saved yet is still saved (and retried)
+    const left = this.name;
+    this.sync?.retire(() => this.port.emit("retiredSaved", { name: left }));
     if (this.wbBook && this.wbBook !== this.candidateBook) { this.sentBoxes.delete(this.wbBook); this.sentSharedFor.delete(this.wbBook); }
     this.wb = this.candidate; this.wbBook = this.candidateBook; this.candidate = null; this.name = name; this.inputs = inputs;
     LCACHE.clear(); this.sentHtml.clear(); this.slidesDesign = null; this.presetSig = ""; this.boxSig = "";
     this.history.undo = []; this.history.redo = [];         // a newly opened workbook starts without history (as v3)
+    this.sentView = { obj: null, json: "" };
     const sync = this.sync = new DocSync(this.api, name, doc, this.client, this.me);
     if (preset) sync.apply([{ op: "preset.set", preset }]);
     sync.on(c => this.later(() => this.onChange(sync, c)));
     try {
-      await cand!.ensure(presetSheets(sync.view.preset), this.progress); this.port.emit("progress", null);
+      try { await cand!.ensure(presetSheets(sync.view.preset), this.progress); } finally { this.port.emit("progress", null); }
       await this.refresh(null, true);
     } catch (e) {                                            // no document is open here now (the page closes its own)
       sync.dispose(); this.sync = null; this.wb = null; this.wbBook = 0; this.name = "";
       throw e;
     }
-    return this.state();
+    const st = this.state(); this.sentView = { obj: st.view, json: viewJson(st.view) };
+    return st;
   }
   /** the helper's API, through the page */
   private readonly api: DocApi = (() => {
@@ -163,7 +182,7 @@ export class CoreHost {
   private later(fn: () => Promise<void> | void): Promise<void> { return this.queue = this.queue.then(fn).catch(e => this.port.emit("error", { message: String((e as Error)?.message || e), stack: (e as Error)?.stack })); }
   private async onChange(sync: DocSync, c: Change) {
     if (sync !== this.sync) return;
-    if (c.presetChanged) { await this.wb!.ensure(presetSheets(sync.view.preset), this.progress); this.port.emit("progress", null); }
+    if (c.presetChanged) { try { await this.wb!.ensure(presetSheets(sync.view.preset), this.progress); } finally { this.port.emit("progress", null); } }
     await this.refresh(c);
   }
   private style(): Style { return resolveStyle(this.inputs.defaults as never, this.sync?.view.style) as Style; }
@@ -205,7 +224,7 @@ export class CoreHost {
     const edits = (this.sync.view.edits || {}) as Record<string, Record<string, { cf?: string }>>;
     const cfs = Object.values(edits).flatMap(e => Object.values(e || {}).flatMap(x => x && x.cf ? [x.cf] : []));
     const sig = wb.sheets.map(S => S.name).join("\n") + "|" + this.presetSig + "|" + JSON.stringify(cfs);
-    if (sig === this.boxSig && this.sentSharedFor.has(this.wbBook)) return;
+    if (sig === this.boxSig) return;
     this.boxSig = sig;
     const layouts = this.slides.flatMap(R => R.tables.map(L => ({ sheet: L.sheet, g: L.g })));
     const boxes = sliceBoxes(wb, layouts, edits), sheets: SheetSlice[] = [], sent = this.boxesFor(this.wbBook);
@@ -214,9 +233,9 @@ export class CoreHost {
       sent.set(name, k);
       sheets.push(sliceSheet(wb.sheets.find(s => s.name === name)!, box));
     }
-    if (sheets.length || !this.sentSharedFor.has(this.wbBook)) {
+    if (sheets.length) {                                         // the shared parts once, with the first sheets (as above)
       const shared: SharedSlice | null = wb.shared && !this.sentSharedFor.has(this.wbBook) ? sliceShared(wb.shared) : null;
-      this.sentSharedFor.add(this.wbBook);
+      if (shared) this.sentSharedFor.add(this.wbBook);
       this.port.emit("slices", transfer({ book: this.wbBook, shared, sheets }, sheets.flatMap(sliceTransfer)));
     }
   }
@@ -246,7 +265,20 @@ export class CoreHost {
     const s = this.sync!;
     return { view: s.view, save: s.state, error: s.error, history: this.history.summary() };
   }
-  private sendDoc(c: Change | null) { if (this.sync) this.port.emit("doc", { ...this.state(), change: c, ack: this.ack }); }
+  /** the view the page has: a snapshot whose document did not change (only the save state, the history or the
+      revision number) is sent without it, so the page neither receives nor compares a copy of the document */
+  private sentView: { obj: WorkbookDoc | null; json: string } = { obj: null, json: "" };
+  private sendDoc(c: Change | null) {
+    if (!this.sync) return;
+    const { view, ...st } = this.state();
+    let send: WorkbookDoc | undefined = view;
+    if (view === this.sentView.obj) send = undefined;
+    else { const json = viewJson(view); if (json === this.sentView.json) send = undefined; this.sentView = { obj: view, json }; }
+    this.port.emit("doc", { ...st, ...(send ? { view: send } : {}), change: c, ack: this.ack });
+  }
 }
+/** a document's content without the helper's bookkeeping: a save rewrites the revision, time, author, log, backup
+    time and format number (store.py) – none of which the page shows – so a save alone gives the same JSON */
+const viewJson = (v: WorkbookDoc) => { const { rev, updated, updatedBy, log, schema, backupAt, ...content } = v as WorkbookDoc & Record<string, unknown>; void rev; void updated; void updatedBy; void log; void schema; void backupAt; return JSON.stringify(content); };
 /** the host behind a port (one per worker) */
 export const serve = (port: HostPort) => new CoreHost(port);

@@ -53,13 +53,23 @@ const TOKEN = (document.querySelector('meta[name="sb-token"]') as HTMLMetaElemen
 // the helper replaces the placeholder in <meta name="sb-token">; never spell it out here (it would be replaced too)
 const SERVED = location.protocol.startsWith("http") && !!TOKEN && !TOKEN.startsWith("__SB_");
 
-async function req(path: string, init: RequestInit & { json?: unknown } = {}): Promise<Response> {
+/** how long a request may take before it counts as failed (a hung share must not leave "Saving…" or "Opening…" for
+    ever: DocSync then retries, an open shows the error); reading, uploading and converting a workbook take longer */
+const WAIT_MS = 60_000, WAIT_LONG_MS = 300_000;
+async function req(path: string, init: RequestInit & { json?: unknown; timeout?: number } = {}): Promise<Response> {
   const headers = new Headers(init.headers || {});
   headers.set("X-SB-Token", TOKEN);
   headers.set("X-SB-Formats", Object.entries(FORMATS).map(([k, v]) => k + "=" + v).join(";"));
   let body = init.body;
   if (init.json !== undefined) { headers.set("Content-Type", "application/json"); body = JSON.stringify(init.json); }
-  const r = await fetch(path, { ...init, headers, body, cache: "no-store" });
+  const ms = init.timeout ?? WAIT_MS;
+  const signal = typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(ms) : undefined;
+  let r: Response;
+  try { r = await fetch(path, { ...init, headers, body, cache: "no-store", ...(signal ? { signal } : {}) }); }
+  catch (e) {
+    if (timedOut(e)) throw new ApiError(0, `The helper did not answer within ${Math.round(ms / 1000)} s (is the shared folder slow or unreachable?).`);
+    throw e;
+  }
   if (!r.ok && r.status !== 204) {
     let msg = r.statusText || ("HTTP " + r.status);
     try { const j = await r.clone().json(); if (j && j.error) msg = j.error; } catch { /* not JSON */ }
@@ -67,7 +77,13 @@ async function req(path: string, init: RequestInit & { json?: unknown } = {}): P
   }
   return r;
 }
-const json = async <T>(p: Promise<Response>): Promise<T> => (await p).json() as Promise<T>;
+/** the body of an answer; the request's time limit also covers reading it */
+const timedOut = (e: unknown) => (e as Error)?.name === "TimeoutError" || (e as Error)?.name === "AbortError";
+const json = async <T>(p: Promise<Response>): Promise<T> => {
+  const r = await p;
+  try { return await r.json() as T; }
+  catch (e) { if (timedOut(e)) throw new ApiError(0, "The helper's answer did not arrive in time (is the shared folder slow or unreachable?)."); throw e; }
+};
 const blobToDataUrl = (b: Blob) => new Promise<string>(ok => { const fr = new FileReader(); fr.onload = () => ok(fr.result as string); fr.readAsDataURL(b); });
 const wbPath = (name: string) => "/api/workbooks/" + encodeURIComponent(name);
 
@@ -84,8 +100,11 @@ export const helper: Backend = {
     catch (e) { if ((e as ApiError).status === 404) return null; throw e; }
   },
   async readFile(name) {
-    const r = await req("/files/" + encodeURIComponent(name));
-    return { buf: await r.arrayBuffer(), mtime: +(r.headers.get("X-SB-Mtime") || 0), size: +(r.headers.get("X-SB-Size") || 0) };
+    const r = await req("/files/" + encodeURIComponent(name), { timeout: WAIT_LONG_MS });
+    let buf: ArrayBuffer;
+    try { buf = await r.arrayBuffer(); }
+    catch (e) { if (timedOut(e)) throw new ApiError(0, "Reading the workbook from the shared folder took too long."); throw e; }
+    return { buf, mtime: +(r.headers.get("X-SB-Mtime") || 0), size: +(r.headers.get("X-SB-Size") || 0) };
   },
   async getDoc(name, since) {
     const r = await req(wbPath(name) + "/doc" + (since !== undefined ? "?since=" + since : ""));
@@ -97,8 +116,8 @@ export const helper: Backend = {
   leave(client) {
     try { fetch("/api/presence/leave", { method: "POST", keepalive: true, headers: { "X-SB-Token": TOKEN, "Content-Type": "application/json" }, body: JSON.stringify({ client }) }); } catch { /* page closing */ }
   },
-  async upload(name, buf) { return (await json<{ id: string }>(req("/api/upload?name=" + encodeURIComponent(name), { method: "POST", body: buf }))).id; },
-  async convertWorkbook(name, buf) { return (await req("/api/convert-workbook?name=" + encodeURIComponent(name), { method: "POST", body: buf })).arrayBuffer(); },
+  async upload(name, buf) { return (await json<{ id: string }>(req("/api/upload?name=" + encodeURIComponent(name), { method: "POST", body: buf, timeout: WAIT_LONG_MS }))).id; },
+  async convertWorkbook(name, buf) { return (await req("/api/convert-workbook?name=" + encodeURIComponent(name), { method: "POST", body: buf, timeout: WAIT_LONG_MS })).arrayBuffer(); },
   async convertPicture(bytes, ext) {
     try { const r = await req("/api/convert?ext=" + encodeURIComponent(ext), { method: "POST", body: bytes as unknown as BodyInit }); return await blobToDataUrl(await r.blob()); } catch { return null; }
   },
@@ -108,10 +127,10 @@ export const helper: Backend = {
     if (!res.ok) throw new ApiError(res.status, j.error || "export failed");
     return j;
   },
-  assemble: (name, images) => json(req("/api/assemble", { method: "POST", json: { name, images } })),
+  assemble: (name, images) => json(req("/api/assemble", { method: "POST", json: { name, images }, timeout: WAIT_LONG_MS })),
   async open(target) { await req("/api/open", { method: "POST", json: target }); },
   async engineRestart() { await req("/api/engine/restart", { method: "POST" }); },
-  engineInstall: start => json(req("/api/engine/install", { method: start ? "POST" : "GET" })),
+  engineInstall: start => json(req("/api/engine/install", { method: start ? "POST" : "GET", timeout: WAIT_LONG_MS })),
   assetUrl: name => "/assets/" + encodeURIComponent(name) + "?t=" + encodeURIComponent(TOKEN),
   async fonts() { return (await json<{ fonts: LibraryFont[] }>(req("/api/fonts"))).fonts || []; },
   async addFont(f, data) {
@@ -126,7 +145,8 @@ export const helper: Backend = {
 /* ---- opened from disk: everything stays in this browser ---- */
 const LS = {
   get<T>(k: string, d: T): T { try { const v = localStorage.getItem("sb3:" + k); return v ? JSON.parse(v) as T : d; } catch { return d; } },
-  set(k: string, v: unknown) { try { localStorage.setItem("sb3:" + k, JSON.stringify(v)); } catch { /* full or blocked */ } },
+  /** false when the browser refused (storage full or blocked) */
+  set(k: string, v: unknown): boolean { try { localStorage.setItem("sb3:" + k, JSON.stringify(v)); return true; } catch { return false; } },
 };
 const offlineOnly = () => { throw new ApiError(0, "Start the helper (Start Slide Builder.bat) for this."); };
 export const offline: Backend = {
@@ -149,7 +169,8 @@ export const offline: Backend = {
     const cur = LS.get<WorkbookDoc>("doc:" + name, emptyDoc(name));
     const r = applyOps(cur, ops);
     if (r.applied) { r.doc.rev = cur.rev + 1; r.doc.updated = Date.now(); r.doc.updatedBy = ""; }
-    LS.set("doc:" + name, r.doc);
+    // not stored: the save fails (the status bar shows it and the changes stay queued), never a false "saved"
+    if (!LS.set("doc:" + name, r.doc)) throw new ApiError(507, "This browser's storage is full or blocked: the changes are not saved. Start the helper (Start Slide Builder.bat) to keep working.");
     return r;
   },
   async presence() { return []; },

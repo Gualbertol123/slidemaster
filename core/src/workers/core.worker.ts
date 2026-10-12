@@ -6,7 +6,7 @@ import { serve } from "../worker/host";
 import { setPlatform } from "../platform";
 import type { CoreEvents, CoreMethods, PageEvents, PageMethods } from "../rpc/messages";
 
-const scope = self as unknown as Wire & { addEventListener(t: string, f: (e: { message?: string; reason?: unknown; error?: unknown }) => void): void };
+const scope = self as unknown as Wire & { addEventListener(t: string, f: (e: { message?: string; reason?: unknown; error?: unknown; preventDefault(): void }) => void): void };
 const port = new Port<CoreMethods, PageMethods, PageEvents, CoreEvents>(scope);
 setPlatform({
   text: { maxDigitWidth: font => port.call("digitWidth", { font }), noteFits: () => true },
@@ -14,6 +14,7 @@ setPlatform({
   images: srcs => port.call("analyzeImages", { srcs }),
 });
 const report = (e: unknown) => port.emit("error", { message: String((e as Error)?.message || e), stack: (e as Error)?.stack });
-scope.addEventListener("error", e => report(e.error || e.message));
+// reported to the page, which shows it; the worker keeps running (an error reaching the page means it stopped)
+scope.addEventListener("error", e => { report(e.error || e.message); e.preventDefault(); });
 scope.addEventListener("unhandledrejection", e => report(e.reason));
 serve(port);

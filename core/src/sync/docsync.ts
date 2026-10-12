@@ -27,6 +27,9 @@ export class DocSync {
   private inflight: Op[] | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private retry = 0;
+  private polling = false;
+  private retired = false;
+  private onRetiredSaved: (() => void) | null = null;
   state: SaveState;
   error = "";
   private listeners = new Set<(c: Change) => void>();
@@ -90,6 +93,7 @@ export class DocSync {
       this.state = this.pending.length ? "pending" : (this.api.served ? "saved" : "local");
       this.emit(prev, false, by, before);
       if (this.pending.length) this.schedule(50);
+      else if (this.retired && this.onRetiredSaved) { const f = this.onRetiredSaved; this.onRetiredSaved = null; f(); }
     } catch (e) {
       this.pending = [...this.inflight!, ...this.pending]; this.inflight = null;
       // the helper speaks a newer data format than this page: retrying cannot help, reloading does
@@ -100,16 +104,25 @@ export class DocSync {
       this.schedule(1000 * Math.pow(2, this.retry));        // 2 s … 32 s, the changes stay queued
     }
   }
-  /** fetch changes made by others */
+  /** fetch changes made by others: one poll at a time, and an answer older than what is known is ignored (on a slow
+      share an answer can arrive after a newer save or poll; taking it would roll the document back) */
   async poll(): Promise<void> {
-    if (this.inflight) return;
+    if (this.inflight || this.polling || this.retired) return;
+    this.polling = true;
     let doc: WorkbookDoc | null;
-    try { doc = await this.api.getDoc(this.name, this.server.rev); } catch { return; }
-    if (!doc || this.inflight || doc.rev === this.server.rev) return;
+    try { doc = await this.api.getDoc(this.name, this.server.rev); } catch { return; } finally { this.polling = false; }
+    if (!doc || this.inflight || doc.rev <= this.server.rev) return;
     if (typeof doc.schema === "number" && doc.schema > FORMATS.workbook) { const before: [SaveState, string] = [this.state, this.error]; this.state = "outdated"; this.error = OUTDATED; this.emit(this.view, false, undefined, before); return; }
     const prev = this.view, by = this.authors(doc, this.server.rev);
     this.server = doc; this.recompute();
     this.emit(prev, false, by);
   }
   dispose() { if (this.timer) clearTimeout(this.timer); this.listeners.clear(); }
+  /** another workbook is opened: this document is no longer shown or polled, but what it has not saved yet is still
+      saved (a failed save keeps being retried) instead of being dropped */
+  retire(onSaved?: () => void) {
+    this.listeners.clear(); this.retired = true;
+    if (!this.busy) { if (this.timer) { clearTimeout(this.timer); this.timer = null; } onSaved?.(); }
+    else this.onRetiredSaved = onSaved || null;                 // called once what was queued is on the share
+  }
 }

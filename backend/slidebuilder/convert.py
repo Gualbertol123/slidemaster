@@ -113,10 +113,16 @@ def convert_workbook(data, name):
         ps = ("$ErrorActionPreference='Stop';$xl=New-Object -ComObject Excel.Application;"
               "try{ $xl.Visible=$false; $xl.DisplayAlerts=$false; $xl.AskToUpdateLinks=$false; $xl.EnableEvents=$false;"
               " try{ $xl.AutomationSecurity=3 }catch{};"
-              " $wb=$xl.Workbooks.Open('%s',0,$true); $wb.SaveAs('%s',51); $wb.Close($false) }"
+              " $m=[System.Reflection.Missing]::Value;"
+              # a password that cannot match: a protected file fails at once instead of waiting on Excel's
+              # invisible password prompt until the timeout (a file without a password ignores it)
+              " $wb=$xl.Workbooks.Open('%s',0,$true,$m,'slidebuilder-no-password'); $wb.SaveAs('%s',51); $wb.Close($false) }"
               "finally{ $xl.Quit(); [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($xl) }") % (q(src), q(dst))
-        r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", ps],
-                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=240, creationflags=NO_WINDOW)
+        try:
+            r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", ps],
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=240, creationflags=NO_WINDOW)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("Excel did not finish within 4 minutes")
         if not os.path.exists(dst):
             err = (r.stderr or b"").decode("utf-8", "replace").strip().splitlines()
             raise RuntimeError("Excel could not open or save it" + (": " + err[0][:200] if err else ""))

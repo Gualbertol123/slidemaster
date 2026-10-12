@@ -34,11 +34,13 @@ function page(srv: ReturnType<typeof server>, who: string) {
   port.handle("digitWidth", () => 0);
   port.handle("convertPicture", () => null);
   port.handle("analyzeImages", () => []);
-  const seen: { k: string; v: unknown }[] = [], docs: DocEvent[] = [];
+  // a snapshot carries the document only when it changed: the page keeps the last one (as app.ts does)
+  const seen: { k: string; v: unknown }[] = [], docs: (DocEvent & { view: WorkbookDoc })[] = [];
+  let view = null as unknown as WorkbookDoc;
   const html = new Map<string, string>();
   port.on("slices", v => seen.push({ k: "slices", v }));
   port.on("html", v => { seen.push({ k: "html", v }); for (const [id, kind, key, h] of v) html.set(id + "|" + kind + "|" + key, h); });
-  port.on("doc", v => { seen.push({ k: "doc", v }); docs.push(v); });
+  port.on("doc", v => { seen.push({ k: "doc", v }); if (v.view) view = v.view; docs.push({ ...v, view }); });
   return { port, seen, docs, html, last: () => docs[docs.length - 1] };
 }
 const inputs = { defaults: {}, logoSrc: "", version: "", workbook: "report.xlsx" };

@@ -17,10 +17,29 @@ export { xdec, xattrs, parseSST, parseSSTRich, richRuns } from "./strings";
 const entrySize = (f: ZipEntry | null) => f?.size || 0;
 export const BIG_BYTES = 12 * 1048576;                       // above this (uncompressed sheet XML) sheets are read on demand
 
+/** whether a compound file holds an "EncryptedPackage" stream (an encrypted Office Open XML file; MS-OFFCRYPTO).
+    Only directory entries count: they are 128 bytes, aligned to 128 (sectors are 512 or 4096 bytes after a 512-byte
+    header), with the name in UTF-16LE and its byte length, terminator included, at offset 64 – so the same text in a
+    cell of a real .xls or in an embedded object is not taken for it */
+export function isEncryptedPackage(bytes: Uint8Array): boolean {
+  const name = "EncryptedPackage", n = name.length * 2, first = name.charCodeAt(0);
+  for (let i = 512; i + 128 <= bytes.length; i += 128) {
+    if (bytes[i] !== first || bytes[i + 1] !== 0 || (bytes[i + 64] | (bytes[i + 65] << 8)) !== n + 2) continue;
+    let k = 1;
+    while (k < name.length && bytes[i + 2 * k] === name.charCodeAt(k) && bytes[i + 2 * k + 1] === 0) k++;
+    if (k === name.length) return true;
+  }
+  return false;
+}
+
 export async function indexWorkbook(buf: ArrayBuffer): Promise<Workbook> {
   const head = new Uint8Array(buf, 0, Math.min(8, buf.byteLength));
-  if (head[0] === 0xD0 && head[1] === 0xCF && head[2] === 0x11 && head[3] === 0xE0)
+  if (head[0] === 0xD0 && head[1] === 0xCF && head[2] === 0x11 && head[3] === 0xE0) {
+    // an encrypted .xlsx is a compound file with an "EncryptedPackage" stream: Excel cannot convert it without the
+    // password (an invisible Excel would wait on its prompt), so it is refused here with its own code
+    if (isEncryptedPackage(new Uint8Array(buf))) throw new WorkbookError("ENCRYPTED", "This workbook is protected (a password or a sensitivity label with encryption).");
     throw new WorkbookError("CFB", "This file is an old .xls workbook or is encrypted (password or sensitivity-label protection).");
+  }
   if (!(head[0] === 0x50 && head[1] === 0x4B)) throw new WorkbookError("NOTZIP", "This file is not an Excel workbook.");
   let zip: Zip;
   try { zip = new Zip(new Uint8Array(buf)); } catch (e) { throw new WorkbookError("NOTZIP", "The workbook could not be unpacked (" + ((e as Error).message || e) + ")."); }

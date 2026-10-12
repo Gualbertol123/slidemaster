@@ -71,6 +71,10 @@ const lastFileSaved = (user: string, name: string) => expect.poll(() => {
 const pollFile = <T>(read: () => T, opts?: { timeout?: number }) =>
   expect.poll(() => { try { return read(); } catch (e) { return "not saved yet: " + (e as Error).message; } }, opts);
 const saved = (page: Page) => expect(page.locator("#sbSave")).toHaveText("✓ Saved", { timeout: 10_000 });
+/** the next poll answer that brings a newer document to this page (a colleague's change has arrived), then a short
+    moment for the worker to apply it and the page to redraw: a test waits for the change itself, not for a time */
+const nextChange = (page: Page) => page.waitForResponse(r => /\/doc\?since=/.test(r.url()) && r.status() === 200, { timeout: 15_000 })
+  .then(() => page.waitForTimeout(500));
 
 test.describe.serial("two people, one shared folder", () => {
   test("anna creates the deck with the wizard", async ({ page }) => {
@@ -116,7 +120,7 @@ test.describe.serial("two people, one shared folder", () => {
     // each sees the other's change after the next poll (≤ 3 s)
     await expect(b.locator("#stage .slide .t", { hasText: /^Alfa$/ })).toHaveCount(1, { timeout: 10_000 });
     await expect(b.locator("#sbRemote")).toContainText("anna");
-    await a.waitForTimeout(3500);
+    await expect(a.locator("#sbRemote")).toContainText("bob", { timeout: 10_000 });     // bob's bold has reached anna
     await selectCell(a, "Gamma");
     await expect(a.locator("#boldBtn")).toHaveClass(/on/);
 
@@ -346,8 +350,9 @@ test.describe.serial("two people, one shared folder", () => {
     await a.locator('.thumb[data-i="2"]').click(); await b.locator('.thumb[data-i="2"]').click();
     // anna starts typing a footer, bob changes the deck meanwhile (a poll and re-render arrive at anna)
     await a.click("#optBtn"); await a.locator("#ftText").click(); await a.keyboard.press("Control+a"); await a.keyboard.type("Draft for");
+    let arrived = nextChange(a);
     await selectCell(b, "Kappa"); await b.keyboard.press("Control+b"); await saved(b);
-    await a.waitForTimeout(4500);
+    await arrived;
     await expect(a.locator("#ftText")).toHaveValue("Draft for");
     await a.keyboard.type(" review"); await a.keyboard.press("Enter"); await saved(a);
     expect(doc().style.footer.text).toBe("Draft for review");
@@ -357,8 +362,9 @@ test.describe.serial("two people, one shared folder", () => {
     await a.click("#logoBubble"); await a.keyboard.press("Escape"); await saved(a);
     // anna edits a cell while bob's change arrives: the editor and her text survive
     await selectCell(a, "Lambda"); await a.keyboard.type("Lamb");
+    arrived = nextChange(a);
     await selectCell(b, "Kappa"); await b.keyboard.press("Control+i"); await saved(b);
-    await a.waitForTimeout(4500);
+    await arrived;
     await expect(a.locator("input.inline-edit")).toHaveValue("Lamb");
     await a.keyboard.type("da 2"); await a.keyboard.press("Enter"); await saved(a);
     expect(doc().edits.SLIDE_1.C16).toMatchObject({ orig: "Lambda", text: "Lambda 2" });

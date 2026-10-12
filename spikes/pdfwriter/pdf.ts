@@ -21,7 +21,7 @@ export interface Doc { slides: Slide[]; fonts: Map<string, Font>; images: Map<st
 
 const enc = new TextEncoder();
 const n2 = (v: number) => { const r = Math.round(v * 100) / 100; return Object.is(r, -0) ? "0" : String(r); };
-const SHADOW_STEPS = 6;
+const SHADOW_STEPS = 5;                       // v3's printcss.ts STEPS (decision 2026-10-12)
 
 export function writePdf(doc: Doc, opts: { compress?: boolean } = {}): Uint8Array {
   const compress = opts.compress !== false;

@@ -7,7 +7,7 @@
 {"cls":"cv-bar","x":120,"y":663.6,"w":72,"h":6,"text":"","font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"13px","weight":"400","color":"rgb(29, 29, 31)","bg":"rgb(28, 79, 140)"},
 {"cls":"cv-sub","x":120,"y":693.6,"w":760,"h":36.4,"text":"Loans and deposits","font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"28px","weight":"400","color":"rgb(91, 107, 130)"},
 {"cls":"cvx-rule","x":120,"y":752,"w":860,"h":1,"text":"","font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"13px","weight":"400","color":"rgb(29, 29, 31)","bg":"rgb(213, 220, 232)"},
-{"cls":"cvx-date","x":120,"y":770,"w":137.9,"h":28,"text":"1 October 2026","font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"20px","weight":"400","color":"rgb(91, 107, 130)"},
+{"cls":"cvx-date","x":120,"y":770,"w":149.4,"h":28,"text":"1 October 2026","font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"20px","weight":"400","color":"rgb(91, 107, 130)"},
 {"cls":"logowrap big","x":876,"y":780,"w":144,"h":48,"font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"13px","weight":"400","color":"rgb(29, 29, 31)"},
 {"cls":"logo","x":876,"y":780,"w":144,"h":48,"font":"\"Century Gothic\", CenturyGothic, \"URW Gothic\", AppleGothic, Arial, sans-serif","size":"13px","weight":"400","color":"rgb(29, 29, 31)"}
 ]}

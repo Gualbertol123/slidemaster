@@ -201,5 +201,3 @@ export function evalCF(S: Sheet, r: number, c: number, from?: { S: Sheet; r: num
   return null;
 }
 export { splitRef };
-/** does any conditional-format rule cover this cell */
-export const hasCF = (S: Sheet, r: number, c: number) => S.cfRules.some(rule => rule.ranges.some(g => inRange(g, r, c)));
