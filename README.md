@@ -503,7 +503,12 @@ network error, engine not ready): **in-window fallback** – each slide is seria
 `GET /api/fonts` → `@font-face` rules pointing at `/fonts/<file>?t=<token>`. Adding a Google font: the page
 fetches the css2 stylesheet, keeps latin/latin-ext faces, downloads each face and `POST`s it to
 `/api/fonts` (stored once in `data/fonts`, so slides and exports never need Google again). Uploaded files
-are read with `readFontInfo` for family/weight/style. Exports embed the faces a slide uses as data URLs.
+are read with `readFontInfo` for family/weight/style; a **variable** font is first made a static face at that
+weight by the core worker (`staticFont`, hb-subset: every axis pinned, no fvar/gvar left), so no export embeds a
+variable font (PLAN S3.2; a WOFF2 the core cannot read is stored as it is). Exports embed the faces a slide uses as
+data URLs. For the native PDF (M3) the core reads the PC's Windows fonts through `GET /sysfonts`, and
+`POST /api/fonts/capture` records a font's fingerprint (fingerprint mode, G0 decision R7: Windows fonts are not
+copied to the share).
 
 ---
 
@@ -577,7 +582,7 @@ network drive) · `SLIDEBUILDER_SIM_FS_MS`, `SLIDEBUILDER_TIMING` (load tests; `
 ---
 
 ## 8. HTTP API
-The helper listens on `127.0.0.1:<port>` only. Every `/api/*`, `/files/*`, `/assets/*`, `/fonts/*` request
+The helper listens on `127.0.0.1:<port>` only. Every `/api/*`, `/files/*`, `/assets/*`, `/fonts/*`, `/sysfonts*` request
 needs `X-SB-Token` (`/assets` and `/fonts` may use `?t=`); `Host` must be `127.0.0.1:<port>` or
 `localhost:<port>`; a present `Origin` must match; POST/PUT/DELETE with a non-matching `X-SB-Formats` → 409.
 JSON bodies ≤ 2 MB, uploads/exports ≤ 300 MB. Full shapes: `docs/ARCHITECTURE.md` §5.
@@ -595,6 +600,8 @@ JSON bodies ≤ 2 MB, uploads/exports ≤ 300 MB. Full shapes: `docs/ARCHITECTUR
 | `POST /api/presence` · `POST /api/presence/leave` | heartbeat → others in the folder |
 | `GET /fieldcheck` (no token) | `tools/fieldcheck.html`, the field-test page of the browser's capabilities (PLAN S0.6), on the app's origin |
 | `GET/POST/DELETE /api/fonts` · `GET /fonts/<file>` | font library · font files |
+| `GET /sysfonts` · `GET /sysfonts/<file>` | this PC's Windows fonts (`%WINDIR%\Fonts` and the per-user fonts folder; `SLIDEBUILDER_SYSFONTS` in tests): `{fonts: [{file, family, subfamily, weight, italic, faces, size}]}` · one listed `.ttf`/`.otf`/`.ttc` file |
+| `POST /api/fonts/capture?file=` | fingerprint of a Windows font (SHA-1, version, metrics, `OS/2.fsType` → `embeddable`) into `data/fonts/system/fingerprints.json`; `otherBuilds` = other PCs' builds of the same file. Nothing is copied (G0, R7) |
 | `POST /api/logo?name=` · `GET /assets/<name>` | upload a logo to `data/assets` · images from data/assets, `backend/`, ROOT (case-insensitive) |
 | `POST /api/export` · `POST /api/assemble` | render + write exports · PDF from page-rendered images |
 | `POST /api/convert-workbook` · `POST /api/convert` | .xlsb/.xls → .xlsx · EMF/WMF/TIFF → PNG (Windows; else 501) |

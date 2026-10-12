@@ -40,6 +40,7 @@ optional packages only – the helper itself stays standard-library only.
 | `engines` | browser discovery, Playwright / DevTools / command-line engines, `Exporter`, engine mirror (ported; mirror under a lock on this PC) |
 | `exports` | `/api/export` + `/api/assemble`: render, then atomic rename into `export\` (` (2)` when locked) |
 | `fonts` | shared font library `data/fonts/` (fonts.json + files; signature-checked uploads, lock `fonts`) |
+| `sysfonts` | this PC's Windows fonts for the core (`GET /sysfonts`, names read with `struct`), and `POST /api/fonts/capture`: fingerprint mode (G0 R7), `data/fonts/system/fingerprints.json` under lock `fonts` |
 | `convert` | EMF/WMF/TIFF → PNG (GDI+, PowerShell) and .xlsb/.xls → .xlsx (Excel COM) – Windows only (ported) |
 | `installer` | `--setup` (Chrome for Testing download, Playwright) under install locks; background runner for the app |
 | `firstrun` | `--install`: first-time set-up on a PC (7 steps, OK/WARN/FAIL, summary, exit code) |

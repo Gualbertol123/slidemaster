@@ -69,8 +69,11 @@ export function measure(f: Font, s: string): number {
 }
 /** the variation tables of a font (a variable font: never embedded as it is; CFF2 is not valid in a PDF at all) */
 export const variableTables = (f: Font) => ["fvar", "gvar", "CFF2", "HVAR", "avar"].filter(t => f.tables.has(t));
-/** whether the font may be embedded in a document (OS/2.fsType: restricted-licence bit 1 alone forbids it) */
-export const embeddable = (f: Font) => (f.fsType & 0x000f) !== 0x0002;
+/** whether the font's outlines may be embedded in a document (OS/2.fsType: the restricted-licence usage 0x0002, or
+    0x0200 "bitmap embedding only", forbid it) */
+export const embeddable = (f: Font) => (f.fsType & 0x000f) !== 0x0002 && !(f.fsType & 0x0200);
+/** OS/2.fsType 0x0100: the font may be embedded, but only whole */
+export const noSubset = (f: Font) => !!(f.fsType & 0x0100);
 
 /** a font file holding only the glyphs in `used` (+ .notdef and composite components) */
 export function subset(f: Font, used: Set<number>): Uint8Array {

@@ -56,6 +56,10 @@ export interface TextNode {
   t: "text";
   /** font family key; b / i choose the face (the font registry maps them to a file for the PDF) */
   font: string; b?: boolean; i?: boolean;
+  /** the CSS font-family list the screen backends draw with (the page's fallbacks), default the key */
+  css?: string;
+  /** a CSS font weight other than b's 400 / 700 (e.g. 520, 600) */
+  weight?: number;
   /** px */
   size: number;
   /** start of the run on its baseline */
@@ -68,6 +72,8 @@ export interface TextNode {
   gids?: number[]; adv?: number[];
   /** the UTF-16 offset in src of each glyph's cluster (HarfBuzz's cluster): a ligature maps back to its letters */
   cl?: number[];
+  /** each glyph's offset from its pen position, px, y up (HarfBuzz's x/y_offset: a mark on its base) */
+  dx?: number[]; dy?: number[];
   fill: Paint;
   decoration?: { underline?: boolean; strike?: boolean };
   /** a decorative copy (a title's text shadow, ADR-004 amendment): drawn, but not selectable or searchable text
@@ -88,6 +94,8 @@ export interface HitNode { t: "hit"; kind: string; id: string; x: number; y: num
 
 export type Node = RectNode | PathNode | LineNode | ImageNode | ShadowNode | TextNode | GroupNode | HitNode;
 export type DisplayList = Node[];
+/** the CSS weight of a text node */
+export const weightOf = (n: TextNode) => n.weight ?? (n.b ? 700 : 400);
 export const NODE_TYPES = ["rect", "path", "line", "image", "shadow", "text", "group", "hit"] as const;
 
 /* ---- validators: what a design hands a backend is checked in tests and before an export ---- */
@@ -198,10 +206,12 @@ function nodeErrors(node: unknown, at: string, out: string[]) {
       if (!num(n.size) || n.size <= 0) out.push(`${at}.size: > 0`);
       if (!num(n.x) || !num(n.y)) out.push(`${at}: x, y`);
       if (typeof n.src !== "string") out.push(`${at}.src: not a string`);
+      if (n.weight !== undefined && (!num(n.weight) || n.weight < 1 || n.weight > 1000)) out.push(`${at}.weight: 1–1000`);
       if (n.w !== undefined && (!num(n.w) || n.w < 0)) out.push(`${at}.w: ≥ 0`);
       if (n.gids !== undefined || n.adv !== undefined) {
         const g = n.gids as unknown[], a = n.adv as unknown[];
         if (!Array.isArray(g) || !Array.isArray(a) || g.length !== a.length || !g.every(v => num(v) && v >= 0 && Number.isInteger(v)) || !a.every(num)) out.push(`${at}: gids and adv of equal length`);
+        for (const k of ["dx", "dy"] as const) { const o = n[k] as unknown[] | undefined; if (o !== undefined && (!Array.isArray(o) || !Array.isArray(g) || o.length !== g.length || !o.every(num))) out.push(`${at}.${k}: one offset per glyph`); }
         const cl = n.cl as unknown[] | undefined;
         if (cl !== undefined && (!Array.isArray(cl) || !Array.isArray(g) || cl.length !== g.length || !cl.every(v => num(v) && Number.isInteger(v) && v >= 0 && v <= (n.src as string).length))) out.push(`${at}.cl: one offset in src per glyph`);
       }

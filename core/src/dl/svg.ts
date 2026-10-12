@@ -4,7 +4,7 @@
    cm, so both draw the same pixels. Clips and transforms of a group apply in that order to its children (the
    clip is in the group's transformed space). */
 import { charPositions, decorations, imagePlacement, paintOf, lineBand, needsClip, pathBox, radialMatrix, boxMatrix, mul, rrectOf, shadowLayers, strokeRing } from "./geom";
-import type { DisplayList, Matrix, Node, Paint, PathCmd, Stroke, TextNode } from "./types";
+import { weightOf, type DisplayList, type Matrix, type Node, type Paint, type PathCmd, type Stroke, type TextNode } from "./types";
 
 export interface SvgOptions {
   /** the picture of an image id (data: or blob: URL); a missing one is left out */
@@ -89,10 +89,10 @@ export function svgNodes(list: DisplayList, opts: SvgOptions): string {
       case "shadow":
         return shadowLayers(n).map(l => `<g clip-path="url(#${clipDef(l.clip, true)})"><path d="${pathData(l.fill)}" fill-rule="evenodd" fill="${rgb(n.c)}" fill-opacity="${f(l.a)}"/></g>`).join("");
       case "text": {
-        const fam = opts.fontFamily ? opts.fontFamily(n) : `'${n.font.replace(/'/g, "")}'`;
+        const fam = opts.fontFamily ? opts.fontFamily(n) : n.css || `'${n.font.replace(/'/g, "")}'`;
         const p = n.fill as { solid: [number, number, number]; a?: number };
         const at = charPositions(n);
-        let s = `<text x="${at ? at.map(f).join(" ") : f(n.x)}" y="${f(n.y)}" font-family="${escAttr(fam)}" font-size="${f(n.size)}"${n.b ? ` font-weight="700"` : ""}${n.i ? ` font-style="italic"` : ""}`
+        let s = `<text x="${at ? at.map(f).join(" ") : f(n.x)}" y="${f(n.y)}" font-family="${escAttr(fam)}" font-size="${f(n.size)}"${weightOf(n) !== 400 ? ` font-weight="${weightOf(n)}"` : ""}${n.i ? ` font-style="italic"` : ""}`
           + ` fill="${rgb(p.solid)}"${(p.a ?? 1) < 1 ? ` fill-opacity="${f(p.a!)}"` : ""}`
           + (!at && n.w !== undefined && [...n.src].length > 1 ? ` textLength="${f(n.w)}" lengthAdjust="spacing"` : "")
           + ` xml:space="preserve">${escText(n.src)}</text>`;

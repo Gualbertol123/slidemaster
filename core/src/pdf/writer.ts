@@ -9,7 +9,7 @@ import { zlibSync } from "fflate";
 import { decorations, imagePlacement, paintOf, radii, lineBand, mul, needsClip, pathBox, rrectOf, shadowLayers, strokeRing } from "../dl/geom";
 import type { DisplayList, GroupNode, Matrix, Node, Paint, PathCmd, Stop, Stroke, TextNode } from "../dl/types";
 import { decodePng, isJpeg, isPng, jpegInfo, type Raster } from "./png";
-import { embeddable, parseFont, subset as ttfSubset, variableTables, type Font } from "./ttf";
+import { embeddable, noSubset, parseFont, subset as ttfSubset, variableTables, type Font } from "./ttf";
 
 /** a font file for a text node's face */
 export interface PdfFontFace { /** content hash (one embedded font per key) */ key: string; data: Uint8Array }
@@ -96,7 +96,7 @@ function bounds(n: Node): Box | null {
 }
 
 interface Res { name: string; id: number }
-interface FontUse { res: Res; face: PdfFontFace; font: Font; gids: Set<number>; uni: Map<number, string>; /** glyph → first code point, built once */ rev: Map<number, number> | null }
+interface FontUse { res: Res; face: PdfFontFace; font: Font; gids: Set<number>; uni: Map<number, string>; /** glyph → first code point, built once */ rev: Map<number, number> | null; /** glyphs read through ActualText only */ done: Set<number> }
 
 export function writePdf(doc: PdfInput): Uint8Array {
   const compress = doc.compress !== false;
@@ -197,10 +197,10 @@ export function writePdf(doc: PdfInput): Uint8Array {
     if (!u) {
       let f = parsed.get(face.key);
       if (!f) { f = parseFont(face.data, face.key); parsed.set(face.key, f); }
-      if (!embeddable(f)) throw new Error(`font ${psName(f)} does not allow embedding (OS/2.fsType)`);
+      if (!embeddable(f)) throw new Error(`font ${psName(f)} does not allow embedding its outlines (OS/2.fsType)`);
       const v = variableTables(f);
       if (v.length) throw new Error(`font ${psName(f)} is a variable font (${v.join(", ")}): it is made static before it is used`);
-      u = { res: { name: "F" + fonts.size, id: alloc() }, face, font: f, gids: new Set([0]), uni: new Map(), rev: null };
+      u = { res: { name: "F" + fonts.size, id: alloc() }, face, font: f, gids: new Set([0]), uni: new Map(), rev: null, done: new Set() };
       fonts.set(face.key, u);
     }
     return u;
@@ -292,16 +292,22 @@ export function writePdf(doc: PdfInput): Uint8Array {
       if (n.gids && n.adv) {
         gids = n.gids; adv = n.adv;
         if (n.cl && n.cl.length === gids.length) {
-          // each glyph's text: its cluster up to the next one (a ligature gets all its letters; the further glyphs of
-          // one cluster get none)
-          const starts = [...new Set(n.cl)].sort((x, y) => x - y);
-          gids.forEach((g, i) => {
-            if (u.uni.has(g) || (i > 0 && n.cl![i - 1] === n.cl![i])) return;
-            const from = n.cl![i], to = starts.find(c => c > from) ?? n.src.length, t = n.src.slice(from, to);
-            if (t) u.uni.set(g, t);
-          });
+          // each cluster's text: one character per glyph when the counts agree (a letter and its marks), the whole text
+          // on the first glyph when fewer glyphs (a ligature); a cluster with more glyphs than characters is read
+          // through ActualText (above), so its extra glyphs are given no text of their own
+          const ends = [...new Set(n.cl)].sort((x, y) => x - y);
+          for (let i = 0; i < gids.length;) {
+            let j = i + 1; while (j < gids.length && n.cl[j] === n.cl[i]) j++;
+            const from = n.cl[i], to = ends.find(c => c > from) ?? n.src.length, cs = [...n.src.slice(from, to)];
+            if (cs.length === j - i) for (let q = i; q < j; q++) { if (!u.uni.has(gids[q])) u.uni.set(gids[q], cs[q - i]); }
+            else if (cs.length > j - i) { if (!u.uni.has(gids[i])) u.uni.set(gids[i], cs.join("")); }
+            // more glyphs than characters (a decomposed letter, ȩ = e + cedilla): the cluster is read through ActualText;
+            // the base keeps its own character (the same glyph stands for a plain "e" elsewhere), the others get none
+            else for (let q = i + 1; q < j; q++) u.done.add(gids[q]);
+            i = j;
+          }
         }
-        for (const g of gids) if (!u.uni.has(g)) {
+        for (const g of gids) if (!u.uni.has(g) && !u.done.has(g)) {
           if (!u.rev) { u.rev = new Map(); for (const [cp, gg] of f.cmap) if (!u.rev.has(gg)) u.rev.set(gg, cp); }
           const cp = u.rev.get(g); if (cp !== undefined) u.uni.set(g, String.fromCodePoint(cp));
         }
@@ -310,20 +316,56 @@ export function writePdf(doc: PdfInput): Uint8Array {
         gids.forEach((g, i) => { if (g && !u.uni.has(g)) u.uni.set(g, chars[i]); });
       }
       for (const g of gids) u.gids.add(g);
+      u.uni.delete(0);                                       // .notdef stands for no character in particular
       const hex = (g: number) => g.toString(16).padStart(4, "0");
       /** the glyph's width as the viewer takes it: W (1/1000 em, written with 2 decimals) */
       const wOf = (g: number) => Math.round(f.advances[g] * 1000 / f.unitsPerEm * 100) / 100 * n.size / 1000;
       let show: string;
-      if (adv) {
-        // glyph positions as shaped: a TJ adjustment wherever the advance differs from the glyph's W (kerning)
-        const parts: string[] = []; let run = "";
-        gids.forEach((g, i) => {
-          run += hex(g);
-          const adj = (wOf(g) - adv![i]) * 1000 / n.size;
-          if (Math.abs(adj) > .005 && i < gids.length - 1) { parts.push(`<${run}>`, n4(adj)); run = ""; }
-        });
-        if (run) parts.push(`<${run}>`);
-        show = `[${parts.join(" ")}] TJ`;
+      if (adv && (n.dx || n.dy)) {
+        // marks with offsets, kept on one text line: the pen moves by TJ adjustments, a mark is shifted by its x offset
+        // (TJ before it, undone after) and raised by its y offset (Ts); a cluster of several glyphs carries its text as
+        // ActualText (PDFium and Acrobat read it so; the glyphs' own ToUnicode entries serve the rest)
+        const parts: string[] = [];
+        const kern = (px: number) => { if (Math.abs(px) > 1e-4) parts.push(`[${n4(-px * 1000 / n.size)}] TJ`); };
+        const runOf = (i: number) => { let j = i + 1; while (j < gids.length && n.cl && n.cl[j] === n.cl[i]) j++; return j; };
+        let rise = 0;
+        for (let i = 0; i < gids.length;) {
+          const j = runOf(i), from = n.cl?.[i] ?? 0, to = j < gids.length && n.cl ? n.cl[j] : n.src.length, chars = [...n.src.slice(Math.min(from, to), Math.max(from, to))].length;
+          // a cluster of several glyphs (a letter with its marks, a decomposed letter) is read as its text, once
+          const span = n.cl && j - i > 1 && chars > 0;
+          if (span) parts.push(`/Span<</ActualText${pdfString(n.src.slice(Math.min(from, to), Math.max(from, to)))}>>BDC`);
+          for (let q = i; q < j; q++) {
+            const g = gids[q], ox = n.dx?.[q] ?? 0, oy = n.dy?.[q] ?? 0;
+            if (Math.abs(oy - rise) > 1e-4) { parts.push(`${n4(oy)} Ts`); rise = oy; }
+            kern(ox);
+            parts.push(`<${hex(g)}> Tj`);
+            kern(adv![q] - ox - wOf(g));                    // to the next pen position
+          }
+          if (span) parts.push("EMC");
+          i = j;
+        }
+        if (rise) parts.push("0 Ts");
+        show = parts.join(" ");
+            } else if (adv) {
+        // glyph positions as shaped: a TJ adjustment wherever the advance differs from the glyph's W (kerning); a
+        // cluster drawn with more glyphs than it has characters is its own TJ inside an ActualText span
+        const out: string[] = []; let parts: string[] = [], run = "";
+        const flush = () => { if (run) parts.push(`<${run}>`); run = ""; if (parts.length) out.push(`[${parts.join(" ")}] TJ`); parts = []; };
+        for (let i = 0; i < gids.length;) {
+          let j = i + 1; while (n.cl && j < gids.length && n.cl[j] === n.cl[i]) j++;
+          const from = n.cl?.[i] ?? 0, to = n.cl && j < gids.length ? n.cl[j] : n.src.length;
+          const text = n.src.slice(Math.min(from, to), Math.max(from, to)), span = !!n.cl && j - i > [...text].length && text.length > 0;
+          if (span) { flush(); out.push(`/Span<</ActualText${pdfString(text)}>>BDC`); }
+          for (let q = i; q < j; q++) {
+            run += hex(gids[q]);
+            const adj = (wOf(gids[q]) - adv![q]) * 1000 / n.size;
+            if (Math.abs(adj) > .005 && q < gids.length - 1) { parts.push(`<${run}>`, n4(adj)); run = ""; }
+          }
+          if (span) { flush(); out.push("EMC"); }
+          i = j;
+        }
+        flush();
+        show = out.join(" ");
       } else {
         // the measured width spread over the gaps between the characters, as SVG textLength does (the last glyph ends
         // at x + w; canvas letterSpacing the same)
@@ -376,8 +418,9 @@ export function writePdf(doc: PdfInput): Uint8Array {
   // ---- fonts: subset per document, Type0 / Identity-H, widths and ToUnicode (selectable, searchable text)
   for (const u of fonts.values()) {
     const f = u.font, gids = [...u.gids].sort((a, b) => a - b), s = 1000 / f.unitsPerEm;
-    let sub = doc.subset ? doc.subset(u.face, gids) : null;
-    if (!sub) sub = f.cff ? { data: f.data, outline: "cff" } : { data: ttfSubset(f, u.gids), outline: "truetype" };
+    // a font whose licence forbids subsetting (OS/2.fsType 0x0100) is embedded whole
+    let sub = doc.subset && !noSubset(f) ? doc.subset(u.face, gids) : null;
+    if (!sub) sub = f.cff || noSubset(f) ? { data: f.data, outline: f.cff ? "cff" : "truetype" } : { data: ttfSubset(f, u.gids), outline: "truetype" };
     const file = alloc(), desc = alloc(), cid = alloc(), tu = alloc();
     if (sub.outline === "truetype") stream(file, `/Length1 ${sub.data.length}`, sub.data);
     else stream(file, `/Subtype/OpenType`, sub.data);

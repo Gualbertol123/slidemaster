@@ -3,6 +3,7 @@
    Excel's digit width, picture decoding (SVG), the helper's API – it asks the page for. */
 import { Port, type Wire } from "../rpc/port";
 import { serve } from "../worker/host";
+import { staticFace } from "../text/static";
 import { setPlatform } from "../platform";
 import type { CoreEvents, CoreMethods, PageEvents, PageMethods } from "../rpc/messages";
 
@@ -17,4 +18,4 @@ const report = (e: unknown) => port.emit("error", { message: String((e as Error)
 // reported to the page, which shows it; the worker keeps running (an error reaching the page means it stopped)
 scope.addEventListener("error", e => { report(e.error || e.message); e.preventDefault(); });
 scope.addEventListener("unhandledrejection", e => report(e.reason));
-serve(port);
+serve(port, { staticFace });

@@ -116,7 +116,7 @@ export const needsClip = (n: ImageNode) => !!n.crop && (n.crop.l > 0 || n.crop.t
 /** the x of each character of a shaped run that has one glyph per character (no ligature, no split), else null:
     the screen backends then place each character at the display list's advance, as the PDF places each glyph */
 export function charPositions(n: TextNode): number[] | null {
-  if (!n.gids || !n.adv) return null;
+  if (!n.gids || !n.adv || n.dx || n.dy) return null;            // marks placed on their bases: drawn as one run
   const chars = [...n.src];
   if (chars.length !== n.gids.length || chars.length < 2) return null;
   const out: number[] = []; let x = n.x;

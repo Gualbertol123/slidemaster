@@ -2,7 +2,7 @@
 
 Security for every request (findings S1-S5):
 * ``Host`` must be ``127.0.0.1:<port>`` or ``localhost:<port>``                 -> else 403
-* ``/api/*`` (except ``/api/ping``), ``/files/*``, ``/assets/*`` and ``/fonts/*`` need ``X-SB-Token``
+* ``/api/*`` (except ``/api/ping``), ``/files/*``, ``/assets/*``, ``/fonts/*`` and ``/sysfonts*`` need ``X-SB-Token``
   (``/assets/*`` and ``/fonts/*`` may pass ``?t=`` instead)                      -> else 403
 * an ``Origin`` header, when present, must be ``http://127.0.0.1:<port>`` / ``http://localhost:<port>``
 * bodies: 2 MB for JSON documents/ops, 300 MB for uploads/exports/conversions    -> else 413
@@ -25,6 +25,7 @@ from .convert import convert_picture, convert_workbook
 from .engines import EngineError
 from .exports import ExportError, assemble, export
 from .fonts import FONT_MAX, FontError, add_face, font_file, read_library, remove_family
+from .sysfonts import SysFontError, capture as capture_sysfont, list_fonts as list_sysfonts, read_font as read_sysfont
 from .installer import install_status, start_install
 from .locks import LockTimeout
 from .store import StoreTooNew, StoreUnreadable
@@ -231,7 +232,7 @@ class Handler(BaseHTTPRequestHandler):
             raise HttpError(403, "forbidden (origin)")
         if path == "/api/ping":
             return
-        if path.startswith(("/api/", "/files/", "/assets/", "/fonts/")):
+        if path.startswith(("/api/", "/files/", "/assets/", "/fonts/", "/sysfonts")):
             tok = self.headers.get(TOKEN_HEADER) or ""
             if not tok and path.startswith(("/assets/", "/fonts/")):
                 tok = (query.get("t") or [""])[0]
@@ -288,7 +289,7 @@ class Handler(BaseHTTPRequestHandler):
             self._error(503, str(e))
         except EngineError as e:
             self._error(503, str(e))
-        except (ExportError, FontError) as e:
+        except (ExportError, FontError, SysFontError) as e:
             self._error(400, str(e))
         except Exception:
             traceback.print_exc()
@@ -319,6 +320,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, read_library())
         if path.startswith("/fonts/"):
             data, ctype = font_file(urllib.parse.unquote(path[len("/fonts/"):]))
+            return self._send(200, data, ctype)
+        if path == "/sysfonts":                           # this PC's Windows fonts (the core lays out from files, S3.2)
+            return self._send(200, {"fonts": list_sysfonts()})
+        if path.startswith("/sysfonts/"):
+            data, ctype = read_sysfont(urllib.parse.unquote(path[len("/sysfonts/"):]))
             return self._send(200, data, ctype)
         if path.startswith("/files/"):
             return self._workbook_file(urllib.parse.unquote(path[len("/files/"):]))
@@ -488,6 +494,9 @@ class Handler(BaseHTTPRequestHandler):
             safe = safe_component(name, 80)
             write_atomic(os.path.join(paths.data_dir("assets"), safe), data)
             return self._send(200, {"name": safe})
+        if path == "/api/fonts/capture":                 # a Windows font a deck uses: fingerprint (G0 R7: not copied)
+            self._body(JSON_LIMIT)
+            return self._send(200, capture_sysfont((q.get("file") or [""])[0]))
         if path == "/api/fonts":                         # one font file; family/weight/style in the query
             one = lambda k, d=None: (q.get(k) or [d])[0]
             return self._send(200, add_face(one("family"), one("weight", "400"), one("style", "normal"), self._body(FONT_MAX),

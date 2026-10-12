@@ -59,6 +59,10 @@ export interface CoreMethods {
   poll(a: Record<string, never>): void;
   /** table HTML for other designs, versions, exports and thumbnails: [table id, kind, key, html] */
   html(a: HtmlReq): [string, string, string, string][];
+  /** a font file for the library (S3.2): a variable font becomes a static face at the weight the upload declares
+      (every other axis at its default; hb-subset), so no PDF ever embeds a variable font; other fonts come back as
+      they are (`variable: false`) */
+  staticFont(a: { buf: ArrayBuffer; weight: number }): { buf: ArrayBuffer; variable: boolean };
 }
 /** calls the worker makes */
 export interface PageMethods {

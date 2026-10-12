@@ -43,7 +43,7 @@ export class CoreHost {
   /** changes are processed one after the other (reading sheets is asynchronous) */
   private queue: Promise<void> = Promise.resolve();
 
-  constructor(private readonly port: HostPort) {
+  constructor(private readonly port: HostPort, private readonly opts: HostOptions = {}) {
     const h: HostPort["handle"] = (m, fn) => port.handle(m, fn);
     h("init", a => { this.served = a.served; this.client = a.client; this.me = a.me; setPictureConverter(a.served ? (bytes, ext) => this.port.call("convertPicture", { bytes, ext }) : null); });
     h("index", a => this.index(a.buf));
@@ -56,6 +56,12 @@ export class CoreHost {
     h("getSheetWindow", a => { const S = this.sheetOf(a.book, a.sheet); return S ? sheetWindow(S, a.r0, a.r1, a.c0, a.c1) : null; });
     h("detectTables", a => { const S = this.sheetOf(a.book, a.sheet); return S ? detectTables(S) : []; });
     h("getCell", a => { const S = this.sheetOf(a.book, a.sheet); return S ? cellInfo(S, a.ref) : null; });
+    h("staticFont", async a => {
+      // only the worker carries hb-subset (opts.staticFace); the page's in-thread fallback stores fonts as they are
+      if (!this.opts.staticFace) return { buf: a.buf, variable: false };
+      const out = await this.opts.staticFace(new Uint8Array(a.buf), a.weight);
+      return transfer({ buf: out.data.buffer as ArrayBuffer, variable: out.variable }, [out.data.buffer as ArrayBuffer]);
+    });
     h("defaultPreset", a => { const wb = a.book !== undefined ? this.bookOf(a.book) : this.candidate; if (!wb) throw new Error("no workbook"); return defaultPreset(wb); });
     h("start", a => this.start(a.book, a.name, a.doc, a.preset, a.inputs));
     // the page waits for the redraw (the HTML of the new version or default style arrives before the answer)
@@ -281,4 +287,10 @@ export class CoreHost {
     time and format number (store.py) – none of which the page shows – so a save alone gives the same JSON */
 const viewJson = (v: WorkbookDoc) => { const { rev, updated, updatedBy, log, schema, backupAt, ...content } = v as WorkbookDoc & Record<string, unknown>; void rev; void updated; void updatedBy; void log; void schema; void backupAt; return JSON.stringify(content); };
 /** the host behind a port (one per worker) */
-export const serve = (port: HostPort) => new CoreHost(port);
+/** what a host can do beyond the core's pure code (the worker passes these; the page's in-thread fallback does not,
+    so the page does not carry them) */
+export interface HostOptions {
+  /** a static face of a variable font (text/static.ts: hb-subset) */
+  staticFace?: (file: Uint8Array, weight: number) => Promise<{ data: Uint8Array; variable: boolean }>;
+}
+export const serve = (port: HostPort, opts: HostOptions = {}) => new CoreHost(port, opts);

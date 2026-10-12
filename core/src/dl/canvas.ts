@@ -5,7 +5,7 @@
    children do not show through each other (a transparency group, as in the PDF); without a layer factory it
    falls back to the alpha per child. */
 import { boxMatrix, charPositions, decorations, paintOf, imagePlacement, lineBand, mul, needsClip, pathBox, radialMatrix, rrectOf, shadowLayers, strokeRing } from "./geom";
-import type { DisplayList, Matrix, Node, Paint, PathCmd, Stroke, TextNode } from "./types";
+import { weightOf, type DisplayList, type Matrix, type Node, type Paint, type PathCmd, type Stroke, type TextNode } from "./types";
 
 /** the subset of CanvasRenderingContext2D / OffscreenCanvasRenderingContext2D the backend uses */
 export type Ctx = OffscreenCanvasRenderingContext2D;
@@ -106,7 +106,7 @@ function drawNode(ctx: Ctx, n: Node, opts: CanvasOptions) {
     case "text": {
       const p = n.fill as { solid: [number, number, number]; a?: number };
       ctx.save();
-      ctx.font = `${n.i ? "italic " : ""}${n.b ? "700 " : ""}${n.size}px ${opts.fontFamily ? opts.fontFamily(n) : `'${n.font.replace(/'/g, "")}'`}`;
+      ctx.font = `${n.i ? "italic " : ""}${weightOf(n)} ${n.size}px ${opts.fontFamily ? opts.fontFamily(n) : n.css || `'${n.font.replace(/'/g, "")}'`}`;
       ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
       ctx.fillStyle = css(p.solid, p.a ?? 1);
       const c = ctx as Ctx & { letterSpacing?: string }, at = charPositions(n);
