@@ -23,7 +23,7 @@ import { fontStack } from "../model/fonts";
 import { hexRgb } from "../xlsx/color";
 import { breakRuns, collapse } from "../text/lines";
 import type { RenderCtx } from "./context";
-import { halfLeading, inlineLayout, measuredBuild, primaryFamily, runsOf, type Metrics, type Run, type TableDL } from "./excel-dl";
+import { halfLeading, inlineLayout, lu, measuredBuild, primaryFamily, runsOf, type Metrics, type Run, type TableDL } from "./excel-dl";
 import { glassPlan, type GCap, type GLine, type GShell, type GText } from "./glass";
 import { contrastVars, themeVars } from "./slide";
 
@@ -55,7 +55,7 @@ interface Sh { inset?: boolean; dx: number; dy: number; blur: number; spread: nu
 const S = (inset: boolean, dx: number, dy: number, blur: number, spread: number, c: RGB, a: number): Sh => ({ inset, dx, dy, blur, spread, c, a: clamp01(a) });
 const NAVY: RGB = [28, 40, 100];
 interface Material { tint: (w: number, h: number) => Paint; rim: number; sheen: number; shadows: Sh[] }
-export function material(cls: string, gi: number): Material {
+export function material(cls: string, gi: number, amt = .35): Material {
   const has = (k: string) => cls.split(/\s+/).includes(k);
   const m: Material = { tint: () => ({ solid: WHITE, a: .5 }), rim: 1.25, sheen: .6, shadows: [] };
   if (has("card")) m.shadows = [S(false, 0, 22, 48, -24, NAVY, .14 + .22 * gi), S(false, 0, 6, 16, -8, NAVY, .06 + .1 * gi), S(true, 0, 0, 0, .5, WHITE, .6), S(true, 0, 1, 1, 0, WHITE, .95),
@@ -75,6 +75,9 @@ export function material(cls: string, gi: number): Material {
   if (has("icon")) { m.tint = (w, h) => linear(145, w, h, [stop(0, WHITE, .78), stop(1, WHITE, .42)]); m.rim = 1.2; m.shadows = [S(false, 0, 4, 10, -3, NAVY, .14 + .2 * gi), S(true, 0, 1, 1, 0, WHITE, .95)]; }
   if (has("chrome")) { m.tint = (w, h) => linear(180, w, h, [stop(0, WHITE, .8 - .16 * gi), stop(1, WHITE, .62 - .2 * gi)]);
     m.shadows = [S(false, 0, 14, 30, -16, NAVY, .14 + .22 * gi), S(true, 0, 0, 0, .5, WHITE, .6), S(true, 0, 1.5, 1, 0, WHITE, .95)]; }
+  // the cover's glass shapes (.slide.glass .cv-orb / .cv-tile, after .gls.chrome): their own tints, --amt the colour
+  if (has("cv-orb")) { m.tint = (w, h) => linear(145, w, h, [stop(0, WHITE, .6 - .12 * gi), stop(.7, [147, 170, 255], .16 + .1 * (1 - amt)), stop(1, [190, 160, 255], .14 + .1 * (1 - amt))]); m.sheen = .8; }
+  if (has("cv-tile")) m.tint = (w, h) => linear(145, w, h, [stop(0, WHITE, .68 - .12 * gi), stop(1, [120, 200, 255], .12 + .1 * (1 - amt))]);
   return m;
 }
 /** glass.ts tintGrad: the fill mixed towards white, two stops (alpha, alpha − .08) */
@@ -84,11 +87,11 @@ function tintPaint(t: NonNullable<GShell["tint"]>, w: number, h: number): Paint 
 }
 
 /** everything of the CSS variables a table's glass needs */
-export interface GlassVars { gi: number; gfade: number; rk: number; a1: RGB; a2: RGB; a2rgb: RGB; posrgb: RGB | null; negrgb: RGB | null }
+export interface GlassVars { gi: number; amt: number; gfade: number; rk: number; a1: RGB; a2: RGB; a2rgb: RGB; posrgb: RGB | null; negrgb: RGB | null }
 export function glassVars(ctx: RenderCtx): GlassVars {
   const v = themeVars(ctx), cv = contrastVars(ctx.style.contrast);
   const rgbOf = (s: string | undefined, d: RGB): RGB => s ? (s.startsWith("#") ? parseColor(s).c : s.split(",").map(Number) as RGB) : d;
-  return { gi: glassLevel(ctx.style), gfade: +(cv["--gfade"] || 0), rk: ctx.style.radius / 100,
+  return { gi: glassLevel(ctx.style), amt: Math.max(0, Math.min(100, +ctx.style.color || 0)) / 100, gfade: +(cv["--gfade"] || 0), rk: ctx.style.radius / 100,
     a1: rgbOf(v["--a1"], [59, 130, 246]), a2: rgbOf(v["--a2"], [139, 92, 246]), a2rgb: rgbOf(v["--a2rgb"], [139, 92, 246]),
     posrgb: v["--posrgb"] ? rgbOf(v["--posrgb"], [0, 0, 0]) : null, negrgb: v["--negrgb"] ? rgbOf(v["--negrgb"], [0, 0, 0]) : null };
 }
@@ -100,9 +103,9 @@ function shadowNodes(list: Sh[], x: number, y: number, w: number, h: number, r: 
 }
 
 /** a glass material (.gls.wb): see the header */
-function glassBox(cls: string, x: number, y: number, w: number, h: number, rad: number, V: GlassVars, place: Placement, wall: Wallpaper | null,
-  opts: { tint?: GShell["tint"]; ring?: string; content?: Node[] } = {}): Node[] {
-  const m = material(cls, V.gi), r = Math.max(0, rad);
+export function glassBox(cls: string, x: number, y: number, w: number, h: number, rad: number, V: GlassVars, place: Placement, wall: Wallpaper | null,
+  opts: { tint?: GShell["tint"]; ring?: string; content?: Node[]; /** the hit node it gets (default: kind "wb", the material's classes) */ hit?: { kind: string; id: string; label?: string } } = {}): Node[] {
+  const m = material(cls, V.gi, V.amt), r = Math.max(0, rad);
   let shadows = m.shadows;
   if (opts.ring) shadows = [S(true, 0, 0, 0, 1.5, parseColor(opts.ring).c, .75), S(false, 0, 2, 6, -3, NAVY, .25)];
   const inner: Node[] = [];
@@ -124,7 +127,7 @@ function glassBox(cls: string, x: number, y: number, w: number, h: number, rad: 
   const sheen = m.sheen * gi;
   inner.push({ t: "rect", x, y, w, h, fill: { radial: { cx: .88, cy: 1.2, rx: .8, ry: .55, stops: [stop(0, WHITE, .34 * gi), stop(.55, WHITE, 0)] } } });
   inner.push({ t: "rect", x, y, w, h, fill: { radial: { cx: .16, cy: -.2, rx: 1.3, ry: .85, stops: [stop(0, WHITE, sheen), stop(.36, WHITE, .16 * gi), stop(.56, WHITE, 0)] } } });
-  return [{ t: "hit", kind: "wb", id: cls, x, y, w, h }, ...shadowNodes(shadows, x, y, w, h, r, false), { t: "group", clip: { x, y, w, h, r }, children: inner }];
+  return [{ t: "hit", kind: "wb", id: cls, x, y, w, h, ...opts.hit }, ...shadowNodes(shadows, x, y, w, h, r, false), { t: "group", clip: { x, y, w, h, r }, children: inner }];
 }
 
 function lineNodes(l: GLine, V: GlassVars): Node[] {
@@ -173,10 +176,10 @@ export function glassText(t: GText, m: Metrics): Node[] {
     // .t.ov + rotBox: the span centred in the content box, line-height 1.1, turned about its centre (rotSpan);
     // 255: writing-mode vertical-rl, upright – the letters stacked, each the font's line height (ascent + descent)
     // plus the letter-spacing down the column
-    const lh = 1.1 * size, lead = halfLeading(lh, base), cxm = cx + cw / 2, cym = y + h / 2;
+    const lh = lu(1.1 * size), lead = halfLeading(lh, base), cxm = cx + cw / 2, cym = y + h / 2;
     if (it.rot === 255) {
       const chars = [...plain], step = base.asc + base.desc + LETTER, total = chars.length * step;
-      chars.forEach((ch, k) => nodes.push(...shadowed(node(ch, cxm - m.run(ch, font).w / 2, cym - total / 2 + k * step + base.asc, size))));
+      chars.forEach((ch, k) => nodes.push(...shadowed(node(ch, cxm - m.run(ch, font, t.num).w / 2, cym - total / 2 + k * step + base.asc, size))));     // (a digit: its tabular width)
       return [...out, ...nodes];
     }
     const wd = adv(plain), deg = it.rot <= 90 ? -it.rot : it.rot - 90, a = deg * Math.PI / 180;
@@ -195,7 +198,7 @@ export function glassText(t: GText, m: Metrics): Node[] {
   } else {
     // the flex box: justify-content by alignment, align-items centre (or top), line-height 1.15; wrapping as
     // white-space normal + break-word over the runs (excel-dl.ts)
-    const lh = 1.15 * size, lead = halfLeading(lh, base);
+    const lh = lu(1.15 * size), lead = halfLeading(lh, base);
     const lines: Run[][] = it.wrap ? breakRuns(runs, cw, (s, r) => adv(s, r.size)).map(ps => ps.map(p => ({ ...p.run, text: p.text }))) : [runs];
     const widths = lines.map(l => l.reduce((s, r) => s + runW(r), 0)), multi = lines.length > 1;
     const spanned = !!it.scripts?.length && !it.edited && !it.ov;

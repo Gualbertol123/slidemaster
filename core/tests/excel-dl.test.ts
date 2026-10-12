@@ -5,7 +5,7 @@ import { parseColor } from "../src/dl/color";
 import { validate, type DisplayList, type GroupNode, type HitNode, type LineNode, type Node, type RectNode, type TextNode } from "../src/dl/types";
 import { resolveStyle } from "../src/model/style";
 import type { RenderCtx } from "../src/render/context";
-import { borderDash, BORDER_W, cssFont, excelToDisplayList, measuredBuild, primaryFamily, roughMetrics, type Metrics } from "../src/render/excel-dl";
+import { borderDash, BORDER_W, cssFont, lu, excelToDisplayList, measuredBuild, primaryFamily, roughMetrics, type Metrics } from "../src/render/excel-dl";
 import { setPlatform, resetPlatform } from "../src/platform";
 import { breakRuns, collapse, wrapLines } from "../src/text/lines";
 
@@ -13,6 +13,7 @@ import { breakRuns, collapse, wrapLines } from "../src/text/lines";
 const M: Metrics = {
   run: (t, font) => { const size = parseFloat(/([\d.]+)px/.exec(font)![1]); return { w: [...t].length * size * .5, asc: size * .8, desc: size * .2 }; },
   lines: (t, font, width) => { const size = parseFloat(/([\d.]+)px/.exec(font)![1]); return wrapLines(t, width, s => [...s].length * size * .5); },
+  noteSize: (_n, start) => start,
 };
 const ctx = (st = {}): RenderCtx => ({ style: resolveStyle(st), edits: {}, slides: [], preset: null, workbook: "w", logoSrc: "" });
 function item(o: Record<string, unknown>) {
@@ -29,7 +30,7 @@ const flat = (l: DisplayList): Node[] => l.flatMap(n => n.t === "group" ? [n, ..
 const texts = (l: DisplayList) => flat(l).filter((n): n is TextNode => n.t === "text");
 
 describe("cell text: the .t flex box of v3", () => {
-  const size = +(11 * 96 / 72).toFixed(2), lh = 1.15 * size, lead = Math.floor((lh - size) / 2);   // Chromium floors the half-leading
+  const size = +(11 * 96 / 72).toFixed(2), lh = lu(1.15 * size), lead = Math.floor((lh - size) / 2);   // Chromium floors the half-leading
   it("left, bottom: padding 3 px, 1 px at the bottom, baseline from the line box", () => {
     const { nodes } = excelToDisplayList(layout([{ text: "Loans" }]), ctx(), M);
     const [t] = texts(nodes);

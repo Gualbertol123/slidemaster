@@ -3,6 +3,7 @@
    scaled to the size in slide px. Until S4.4 the designs still measure with the page's browser layout (decision
    2026-10-12, 3); the PDF writer places glyphs from shape() (advances, mark offsets), and these functions are what
    S4.4 switches to. */
+import { hyphenBreak } from "./lines";
 import type { TextNode } from "../dl/types";
 import type { FaceInfo } from "./fonts";
 import { decode64, Hb, instantiate } from "./hb";
@@ -107,9 +108,9 @@ export class Shaper {
     starts[para.length] = 1;
     const widthOf = (a: number, b: number) => { let w = 0; for (let i = a; i < b; i++) w += unit[i]; return w; };
     const trimmed = (a: number, b: number) => { while (b > a && para[b - 1] === " ") b--; return widthOf(a, b); };
-    // break opportunities: after a run of spaces, after a hyphen
+    // break opportunities: after a run of spaces, after a hyphen (lines.ts hyphenBreak, the same rule as the page's)
     const opps: number[] = [];
-    for (let i = 1; i < para.length; i++) if ((para[i - 1] === " " && para[i] !== " ") || (para[i - 1] === "-" && para[i] !== " " && i > 1 && para[i - 2] !== " ")) opps.push(i);
+    for (let i = 1; i < para.length; i++) if ((para[i - 1] === " " && para[i] !== " ") || (para[i - 1] === "-" && hyphenBreak(i > 1 ? para[i - 2] : undefined, para[i]))) opps.push(i);
     opps.push(para.length);
     let start = 0;
     while (start < para.length) {

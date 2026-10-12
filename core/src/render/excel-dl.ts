@@ -17,7 +17,7 @@
    asked (measuredBuild).
    Where v3 is not followed, on purpose (PLAN S3.3's border widths; to be shown in G1): "hair" is a 0.5 px solid line
    (v3: CSS 1 px dotted) and dashDot / dashDotDot / slantDashDot have dash-dot patterns (v3: CSS dashed). */
-import { platform, type LinesReq, type RunMetrics, type RunReq } from "../platform";
+import { platform, type LinesReq, type NoteFitReq, type NoteMeasure, type RunMetrics, type RunReq } from "../platform";
 import { BW } from "../xlsx/layout";
 import type { BorderSide, Item, Para, Pic, Rect, TableLayout } from "../xlsx/types";
 import { fontStack } from "../model/fonts";
@@ -33,6 +33,8 @@ export interface Metrics {
   /** `tnum`: tabular figures (font-variant-numeric), answered with each character's advance */
   run(text: string, font: string, tnum?: boolean): RunMetrics;
   lines(text: string, font: string, width: number): string[];
+  /** a text box's font size as the page fits it (slide furniture, S3.5) */
+  noteSize(note: NoteMeasure, start: number): number;
 }
 /** a table's display list and the pictures it refers to (image id → data: URL) */
 export interface TableDL { nodes: DisplayList; images: Record<string, string> }
@@ -80,6 +82,9 @@ function borderNodes(side: "top" | "bottom" | "left" | "right", b: BorderSide, x
 
 /** the space above a line's text inside its line box, as Chromium lays it out: half of (line height − the font's
     ascent + descent), floored to a whole pixel (measured against the page: 0.42 px off otherwise, tools/dlparity.mjs) */
+/** a length as Chromium's layout keeps it: floored to its 1/64 px unit (line heights, so successive lines of a
+    fractional line height land where the page puts them) */
+export const lu = (v: number) => Math.floor(v * 64 + 1e-6) / 64;
 export const halfLeading = (lh: number, met: RunMetrics) => Math.floor((lh - (met.asc + met.desc)) / 2);
 
 /* ---- text: runs with Excel's superscript / subscript parts */
@@ -140,7 +145,7 @@ function cellText(it: Item, ctx: RenderCtx, m: Metrics): Node[] {
   const pl = it.indent && it.align !== "right" ? ind : 3, pr = it.indent && it.align === "right" ? ind : 3;
   const pb = it.valign === "bottom" || !it.valign ? 1 : 0;
   if (it.rot) return [...out, ...rotatedText(it, size, family, font, color, b, i, m, { pl, pr, pb }, deco)];
-  const cx = x + pl, cw = Math.max(0, w - pl - pr), ch = Math.max(0, h - pb), lh = 1.15 * size;
+  const cx = x + pl, cw = Math.max(0, w - pl - pr), ch = Math.max(0, h - pb), lh = lu(1.15 * size);
   const base = m.run("", font), lead = halfLeading(lh, base);
   const nodes: Node[] = [];
   let lines: { runs: Run[]; w: number[] }[];
@@ -179,7 +184,7 @@ function cellText(it: Item, ctx: RenderCtx, m: Metrics): Node[] {
     1.1, rotated about its centre); 255 = letters stacked from the top, centred (without underline / strike: in
     vertical writing those run along the column; not drawn yet) */
 function rotatedText(it: Item, size: number, family: string, font: string, color: Paint, b: boolean, i: boolean, m: Metrics, pad: { pl: number; pr: number; pb: number }, deco?: TextNode["decoration"]): Node[] {
-  const x = it.bx, y = it.by, w = it.tw || it.bw, h = it.bh, lh = 1.1 * size, t = String(it.text);
+  const x = it.bx, y = it.by, w = it.tw || it.bw, h = it.bh, lh = lu(1.1 * size), t = String(it.text);
   const base = m.run("", font), lead = halfLeading(lh, base);
   // the flex box centres the span in its content box (the .t padding)
   const cxm = x + pad.pl + (w - pad.pl - pad.pr) / 2, cym = y + (h - pad.pb) / 2;
@@ -235,7 +240,7 @@ function shapeNodes(r: Rect, rr: number): Node[] {
 export function inlineLayout(paras: Para[], x: number, y: number, w: number, h: number, anchor: string, m: Metrics, opts: { family: string; size: number; color: string; lh: number }): Node[] {
   type R = { text: string; font: string; size: number; b: boolean; i: boolean; color: string };
   const strut = m.run("", cssFont(opts.size, opts.family));
-  const box = (size: number, met: RunMetrics) => { const lh = opts.lh * size, lead = halfLeading(lh, met); return { a: lead + met.asc, d: lh - lead - met.asc }; };
+  const box = (size: number, met: RunMetrics) => { const lh = lu(opts.lh * size), lead = halfLeading(lh, met); return { a: lead + met.asc, d: lh - lead - met.asc }; };
   const st = box(opts.size, strut);
   const lines: { pieces: R[]; w: number; a: number; d: number; align: string }[] = [];
   for (const p of paras) {
@@ -302,8 +307,10 @@ function picBody(p: Pic, forExport: boolean, images: Record<string, string>, m: 
 }
 
 /* ---- measuring: the requests of a table, answered in one batch by the platform's TextMeasurer */
+const noteKeyOf = (n: NoteMeasure, start: number) => JSON.stringify([n.design, n.className, n.cssText, n.html, n.w, n.h, start]);
 class Recorder implements Metrics {
-  runs = new Map<string, RunReq>(); wraps = new Map<string, LinesReq>();
+  runs = new Map<string, RunReq>(); wraps = new Map<string, LinesReq>(); notes = new Map<string, NoteFitReq>();
+  noteSize(note: NoteMeasure, start: number) { this.notes.set(noteKeyOf(note, start), { note, start }); return start; }
   run(text: string, font: string, tnum = false): RunMetrics {
     this.runs.set((tnum ? "tnum " : "") + font + "\n" + text, { text, font, ...(tnum ? { tnum } : {}) }); this.runs.set(font + "\n", { text: "", font });
     return { w: 0, asc: 0, desc: 0 };
@@ -311,7 +318,8 @@ class Recorder implements Metrics {
   lines(text: string, font: string, width: number): string[] { this.wraps.set(`${font}\n${width}\n${text}`, { text, font, width }); return [text]; }
 }
 class Answers implements Metrics {
-  constructor(private runs: Map<string, RunMetrics>, private wraps: Map<string, string[]>, private fallback: Metrics) {}
+  constructor(private runs: Map<string, RunMetrics>, private wraps: Map<string, string[]>, private fallback: Metrics, private notes = new Map<string, number>()) {}
+  noteSize(note: NoteMeasure, start: number) { return this.notes.get(noteKeyOf(note, start)) ?? this.fallback.noteSize(note, start); }
   run(text: string, font: string, tnum = false) { return this.runs.get((tnum ? "tnum " : "") + font + "\n" + text) ?? this.fallback.run(text, font, tnum); }
   lines(text: string, font: string, width: number) { return this.wraps.get(`${font}\n${width}\n${text}`) ?? this.fallback.lines(text, font, width); }
 }
@@ -319,23 +327,26 @@ class Answers implements Metrics {
 export const roughMetrics: Metrics = {
   run: (t, font) => { const size = parseFloat(/([\d.]+)px/.exec(font)?.[1] || "14"); return { w: [...t].length * size * .5, asc: size * .8, desc: size * .2 }; },
   lines: (t) => [t],
+  noteSize: (_n, start) => start,
 };
 /** measure everything a build needs: one batch per round, rounds until nothing new is asked (the units of wrapped
     text first, then the runs of the lines they give; three or four rounds per table, however long the text) */
 export async function measuredBuild<T>(build: (m: Metrics) => T): Promise<T> {
   const tm = platform().text;
   if (!tm.measureRuns || !tm.breakLines) return build(roughMetrics);
-  const runs = new Map<string, RunMetrics>(), wraps = new Map<string, string[]>();
+  const runs = new Map<string, RunMetrics>(), wraps = new Map<string, string[]>(), notes = new Map<string, number>();
   for (let round = 0; ; round++) {
     if (round === 8) throw new Error("text measurement did not settle after 8 rounds");
-    const rec = new Recorder(), probe = new Answers(runs, wraps, rec);
+    const rec = new Recorder(), probe = new Answers(runs, wraps, rec, notes);
     build(probe);
     const needRuns = [...rec.runs].filter(([k]) => !runs.has(k)), needWraps = [...rec.wraps].filter(([k]) => !wraps.has(k));
-    if (!needRuns.length && !needWraps.length) break;
+    const needNotes = tm.fitNotes ? [...rec.notes].filter(([k]) => !notes.has(k)) : [];
+    if (!needRuns.length && !needWraps.length && !needNotes.length) break;
+    if (needNotes.length) { const ans = await tm.fitNotes!(needNotes.map(([, v]) => v)); needNotes.forEach(([k], i) => notes.set(k, ans[i])); }
     if (needWraps.length) { const ans = await tm.breakLines(needWraps.map(([, v]) => v)); needWraps.forEach(([k], i) => wraps.set(k, ans[i])); }
     if (needRuns.length) { const ans = await tm.measureRuns(needRuns.map(([, v]) => v)); needRuns.forEach(([k], i) => runs.set(k, ans[i])); }
   }
-  return build(new Answers(runs, wraps, roughMetrics));
+  return build(new Answers(runs, wraps, roughMetrics, notes));
 }
 /** a table's display list with the page's measurements */
 export const excelTableDL = (L: TableLayout, ctx: RenderCtx, opts: { noText?: boolean } = {}) => measuredBuild(m => excelToDisplayList(L, ctx, m, opts));

@@ -12,8 +12,11 @@ import { detectTables } from "../xlsx/detect";
 import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "../model/preset";
 import { resolveStyle } from "../model/style";
 import { computeLayout, tableHtml, tableHtmlKey } from "../render/slide";
-import { excelTableDL, type TableDL } from "../render/excel-dl";
+import { excelTableDL, measuredBuild, type TableDL } from "../render/excel-dl";
 import { glassTableDL } from "../render/glass-dl";
+import { slideToDisplayList, type SlideImages } from "../render/slide-dl";
+import { analyzeImages, IMGMETA } from "../xlsx/drawing";
+import { sha1 } from "../text/sha1";
 import { wallpaperIds } from "../render/wallpaper";
 import { DocSync, type Change, type DocApi } from "../sync/docsync";
 import { History } from "../sync/history";
@@ -94,6 +97,7 @@ export class CoreHost {
     h("poll", async () => { await this.sync?.poll(); });
     h("html", a => this.htmlFor(a));
     h("displayLists", a => this.displayLists(a));
+    h("slideLists", a => this.slideLists(a));
   }
 
   /* ---------------------------------------------------------------- opening */
@@ -278,6 +282,28 @@ export class CoreHost {
         const noText = a.thumb && L.items.length > 1200, b = boxes[i];
         out.push({ slide: s, table: i, id: L.id || "", dl: glass ? await glassTableDL(L, ctx, { x: b?.x ?? 0, y: b?.y ?? 0, scale: b?.scale ?? 1 }, wall?.blur ?? null, { noText }) : await excelTableDL(L, ctx, { noText }) });
       }
+    }
+    return out;
+  }
+  /** whole slides as display lists (S3.5): background, furniture, the tables placed and scaled, text boxes */
+  private async slideLists(a: HtmlReq & { slides?: number[]; today?: string }) {
+    if (!this.wb || !this.sync) return [];
+    const ctx = this.ctx(a.design, a.version, a.forExport), glass = ctx.style.design === "glass", out: { slide: number; dl: TableDL }[] = [];
+    const wall = glass ? await wallpaperIds(ctx.style) : null;
+    let logo: SlideImages["logo"] = null;
+    if (ctx.logoSrc) {
+      await analyzeImages([ctx.logoSrc]);
+      const mm = IMGMETA.get(ctx.logoSrc);
+      logo = { id: "logo-" + sha1(new TextEncoder().encode(ctx.logoSrc)).slice(0, 16), src: ctx.logoSrc, w: mm?.w || 0, h: mm?.h || 0 };
+    }
+    for (const [s, R] of ctx.slides.entries()) {
+      if (a.slides && !a.slides.includes(s)) continue;
+      const boxes = computeLayout(R, ctx).boxes, tables: TableDL[] = [];
+      for (const [i, L] of R.tables.entries()) {
+        const b = boxes[i], noText = a.thumb && L.items.length > 1200;
+        tables.push(glass ? await glassTableDL(L, ctx, { x: b?.x ?? 0, y: b?.y ?? 0, scale: b?.scale ?? 1 }, wall?.blur ?? null, { noText }) : await excelTableDL(L, ctx, { noText }));
+      }
+      out.push({ slide: s, dl: await measuredBuild(m => slideToDisplayList(R, s, ctx, tables, boxes, { wall, logo }, m, a.today)) });
     }
     return out;
   }

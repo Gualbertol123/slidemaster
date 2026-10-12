@@ -3,7 +3,7 @@
    (03 §2.6). Gradients are mapped onto the shape's box with gradientTransform, as the PDF maps its shadings with
    cm, so both draw the same pixels. Clips and transforms of a group apply in that order to its children (the
    clip is in the group's transformed space). */
-import { charPositions, decorations, imagePlacement, paintOf, lineBand, needsClip, pathBox, radialMatrix, boxMatrix, mul, rrectOf, shadowLayers, strokeRing } from "./geom";
+import { charPositions, premulStops, decorations, imagePlacement, paintOf, lineBand, needsClip, pathBox, radialMatrix, boxMatrix, mul, rrectOf, shadowLayers, strokeRing } from "./geom";
 import { weightOf, type DisplayList, type Matrix, type Node, type Paint, type PathCmd, type Stroke, type TextNode } from "./types";
 
 export interface SvgOptions {
@@ -36,7 +36,7 @@ export function svgNodes(list: DisplayList, opts: SvgOptions): string {
   const paintAttr = (paint: Paint, what: "fill" | "stroke", box: { x: number; y: number; w: number; h: number }): string => {
     const p = paintOf(paint);
     if ("solid" in p) return ` ${what}="${rgb(p.solid)}"${(p.a ?? 1) < 1 ? ` ${what}-opacity="${f(p.a!)}"` : ""}`;
-    const g = id(), stops = ("linear" in p ? p.stops : p.radial.stops)
+    const g = id(), stops = premulStops("linear" in p ? p.stops : p.radial.stops)
       .map(s => `<stop offset="${f(s.o)}" stop-color="${rgb(s.c)}"${s.a < 1 ? ` stop-opacity="${f(s.a)}"` : ""}/>`).join("");
     const bm = boxMatrix(box.x, box.y, Math.max(box.w, 1e-3), Math.max(box.h, 1e-3));
     if ("linear" in p) {

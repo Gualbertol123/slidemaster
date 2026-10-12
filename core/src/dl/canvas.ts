@@ -6,7 +6,7 @@
    falls back to the alpha per child. A horizontal run (no rotation or skew in the transform) is drawn as Chromium
    draws page text: its baseline floored and its start rounded to whole device pixels (measured against the page by
    tools/dlparity.mjs; otherwise text at a fractional table scale sits a pixel off). */
-import { boxMatrix, charPositions, decorations, paintOf, imagePlacement, lineBand, mul, needsClip, pathBox, radialMatrix, rrectOf, shadowLayers, strokeRing } from "./geom";
+import { boxMatrix, charPositions, premulStops, decorations, paintOf, imagePlacement, lineBand, mul, needsClip, pathBox, radialMatrix, rrectOf, shadowLayers, strokeRing } from "./geom";
 import { weightOf, type DisplayList, type Matrix, type Node, type Paint, type PathCmd, type Stroke, type TextNode } from "./types";
 
 /** the subset of CanvasRenderingContext2D / OffscreenCanvasRenderingContext2D the backend uses */
@@ -33,8 +33,12 @@ const apply = (ctx: Ctx, m: Matrix) => ctx.transform(m[0], m[1], m[2], m[3], m[4
 
 /** draw a display list onto a context (its current transform maps slide px to canvas px) */
 export function drawDl(ctx: Ctx, list: DisplayList, opts: CanvasOptions) {
+  const T = ctx.getTransform();
+  BASE.set(opts, T.a);
   for (const n of list) drawNode(ctx, n, opts);
 }
+/** the horizontal scale drawDl started from (the device and zoom), per call's options */
+const BASE = new WeakMap<CanvasOptions, number>();
 
 /** fill the current path with a paint on a box */
 function fillPaint(ctx: Ctx, paint: Paint, box: { x: number; y: number; w: number; h: number }, rule: CanvasFillRule = "nonzero") {
@@ -45,7 +49,7 @@ function fillPaint(ctx: Ctx, paint: Paint, box: { x: number; y: number; w: numbe
   let g: CanvasGradient;
   if ("linear" in p) g = ctx.createLinearGradient(p.linear[0], p.linear[1], p.linear[2], p.linear[3]);
   else { m = mul(m, radialMatrix(p.radial)); g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1); }
-  for (const s of "linear" in p ? p.stops : p.radial.stops) g.addColorStop(s.o, css(s.c, s.a));
+  for (const s of premulStops("linear" in p ? p.stops : p.radial.stops)) g.addColorStop(s.o, css(s.c, s.a));
   apply(ctx, m);                       // the path stays where it was added; the gradient follows the box
   ctx.fillStyle = g;
   ctx.fill(rule);
@@ -111,12 +115,15 @@ function drawNode(ctx: Ctx, n: Node, opts: CanvasOptions) {
       ctx.font = `${n.i ? "italic " : ""}${weightOf(n)} ${n.size}px ${opts.fontFamily ? opts.fontFamily(n) : n.css || `'${n.font.replace(/'/g, "")}'`}`;
       ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
       ctx.fillStyle = css(p.solid, p.a ?? 1);
-      // a horizontal run's baseline on a whole device pixel, as Chromium draws page text (no rotation or skew only)
-      const T = ctx.getTransform();
+      // a horizontal run's baseline on a whole device pixel, as Chromium draws page text (no rotation or skew only);
+      // its start too where the display list scales the text (a scaled table: Chromium paints it as a layer of its
+      // own, glyphs on whole pixels), while unscaled text keeps its fraction (subpixel positioning) – the scale
+      // relative to the one drawDl started from, so a device or zoom scale changes nothing
+      const T = ctx.getTransform(), base = BASE.get(opts) ?? 1;
       let y = n.y, x0 = n.x;
       if (Math.abs(T.b) < 1e-9 && Math.abs(T.c) < 1e-9 && T.d > 0 && T.a > 0) {     // (not under a flip)
         y = (Math.floor(T.d * n.y + T.f + 1e-6) - T.f) / T.d;
-        x0 = (Math.round(T.a * n.x + T.e) - T.e) / T.a;
+        if (Math.abs(T.a / base - 1) > 1e-6) x0 = (Math.round(T.a * n.x + T.e) - T.e) / T.a;
       }
       const c = ctx as Ctx & { letterSpacing?: string }, at = charPositions(n);
       if (at) {

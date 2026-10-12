@@ -32,6 +32,7 @@ const M: Metrics = {
     return { w: adv.reduce((s, a) => s + a, 0), asc: size * .8, desc: size * .2, ...(tnum ? { adv } : {}) };
   },
   lines: (t, font, width) => { const size = parseFloat(/([\d.]+)px/.exec(font)![1]); return wrapLines(t, width, s => [...s].length * size * .5); },
+  noteSize: (_n, start) => start,
 };
 const flat = (l: DisplayList): Node[] => l.flatMap(n => n.t === "group" ? [n, ...flat(n.children)] : [n]);
 const texts = (l: DisplayList) => flat(l).filter((n): n is TextNode => n.t === "text");

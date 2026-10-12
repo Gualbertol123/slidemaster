@@ -66,6 +66,8 @@ export interface CoreMethods {
   /** display lists of the open deck's tables (M3; not drawn by the page yet): per slide (0-based) and table, in
       table px, with the pictures they refer to; the text measured by the page (measureRuns / breakLines) */
   displayLists(a: HtmlReq & { slides?: number[] }): { slide: number; table: number; id: string; dl: import("../render/excel-dl").TableDL }[];
+  /** whole slides as display lists in slide px (S3.5): background, furniture, the tables placed, text boxes */
+  slideLists(a: HtmlReq & { slides?: number[]; /** the date the page shows (its clock) */ today?: string }): { slide: number; dl: import("../render/excel-dl").TableDL }[];
 }
 /** calls the worker makes */
 export interface PageMethods {
@@ -75,6 +77,7 @@ export interface PageMethods {
   /** text measured with the page's fonts for the display list (decision 2026-10-12, 3): one call per measuring round of a table */
   measureRuns(a: { runs: import("../platform").RunReq[] }): import("../platform").RunMetrics[];
   breakLines(a: { reqs: import("../platform").LinesReq[] }): string[][];
+  fitNotes(a: { reqs: import("../platform").NoteFitReq[] }): number[];
   convertPicture(a: { bytes: Uint8Array; ext: string }): string | null;
   /** Liquid Glass's picture analysis (xlsx/drawing.ts analyzeImages) with the page's canvas */
   analyzeImages(a: { srcs: string[] }): [string, ImgMeta][];

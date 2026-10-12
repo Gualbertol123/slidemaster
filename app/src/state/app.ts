@@ -45,6 +45,7 @@ export function core(): CorePort {
   // the display list's text, measured with the page's fonts (decision 2026-10-12, 3; browserText answers synchronously)
   port.handle("measureRuns", a => browserText.measureRuns!(a.runs) as RunMetrics[]);
   port.handle("breakLines", a => browserText.breakLines!(a.reqs) as string[][]);
+  port.handle("fitNotes", a => browserText.fitNotes!(a.reqs) as number[]);
   port.handle("convertPicture", a => backend.convertPicture(a.bytes, a.ext));
   port.handle("analyzeImages", async a => { await analyzeImages(a.srcs); return a.srcs.flatMap(s => IMGMETA.has(s) ? [[s, IMGMETA.get(s)!] as [string, ImgMeta]] : []); });
   port.on("slices", e => {

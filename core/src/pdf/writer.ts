@@ -6,7 +6,7 @@
    states. No object streams (simpler to check with qpdf). Pictures are /Interpolate (viewers smooth a magnified
    picture, as the screen does). */
 import { zlibSync } from "fflate";
-import { decorations, imagePlacement, paintOf, radii, lineBand, mul, needsClip, pathBox, rrectOf, shadowLayers, strokeRing } from "../dl/geom";
+import { decorations, imagePlacement, paintOf, premulStops, radii, lineBand, mul, needsClip, pathBox, rrectOf, shadowLayers, strokeRing } from "../dl/geom";
 import type { DisplayList, GroupNode, Matrix, Node, Paint, PathCmd, Stop, Stroke, TextNode } from "../dl/types";
 import { decodePng, isJpeg, isPng, jpegInfo, type Raster } from "./png";
 import { embeddable, noSubset, parseFont, subset as ttfSubset, variableTables, type Font } from "./ttf";
@@ -135,7 +135,7 @@ export function writePdf(doc: PdfInput): Uint8Array {
     return `<</FunctionType 3/Domain[0 1]/Functions[${fs.join("")}]/Bounds[${bounds.join(" ")}]/Encode[${e.join(" ")}]>>`;
   };
   type Grad = { kind: "linear"; coords: number[]; stops: Stop[] } | { kind: "radial"; stops: Stop[] };
-  const gradOf = (p: Paint): Grad => "linear" in p ? { kind: "linear", coords: p.linear, stops: p.stops } : { kind: "radial", stops: (p as { radial: { stops: Stop[] } }).radial.stops };
+  const gradOf = (p: Paint): Grad => "linear" in p ? { kind: "linear", coords: p.linear, stops: premulStops(p.stops) } : { kind: "radial", stops: premulStops((p as { radial: { stops: Stop[] } }).radial.stops) };
   /** one shading per gradient style: colour (DeviceRGB) or its alpha (DeviceGray, for the soft mask) */
   const shading = (g: Grad, gray: boolean): Res => {
     const st = g.stops.length > 1 ? g.stops : [g.stops[0], { ...g.stops[0], o: 1 }];

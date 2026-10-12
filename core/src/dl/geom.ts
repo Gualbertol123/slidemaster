@@ -1,7 +1,28 @@
 /* Geometry shared by the three backends, so that the stage, the PNG and the PDF are drawn from the same numbers:
    corner radii, rounded-rectangle outlines, the stepped soft shadows, gradient strokes as rings, picture
    placement (crop, rotation, flips) and text decorations. */
-import type { ImageNode, Matrix, Paint, PathCmd, Radii, RRect, ShadowNode, Stroke, TextNode } from "./types";
+import type { ImageNode, Matrix, Paint, PathCmd, Radii, RGB, RRect, ShadowNode, Stop, Stroke, TextNode } from "./types";
+
+/** a gradient's stops as CSS mixes them: Chromium interpolates CSS gradients in premultiplied colour, canvas, SVG and
+    PDF shadings mix colour and alpha apart – so between two stops of different alpha and colour every backend gets
+    intermediate stops, mixed premultiplied (white fading into a translucent tint stays white instead of turning grey
+    or tinted half-way) */
+export function premulStops(stops: Stop[], n = 16): Stop[] {
+  const out: Stop[] = [];
+  // a fully transparent stop has no colour of its own: it takes its neighbour's (as premultiplied mixing does)
+  stops = stops.map((s, i) => s.a > 1e-6 ? s : { ...s, c: (stops[i + 1]?.a ?? 0) > 1e-6 ? stops[i + 1].c : (stops[i - 1]?.a ?? 0) > 1e-6 ? stops[i - 1].c : s.c });
+  stops.forEach((s, i) => {
+    out.push(s);
+    const t = stops[i + 1];
+    if (!t || Math.abs(s.a - t.a) < 1e-4 || (s.c[0] === t.c[0] && s.c[1] === t.c[1] && s.c[2] === t.c[2]) || t.o <= s.o) return;
+    for (let k = 1; k < n; k++) {
+      const u = k / n, a = s.a + (t.a - s.a) * u;
+      const c = a > 1e-6 ? s.c.map((v, j) => (v * s.a + (t.c[j] * t.a - v * s.a) * u) / a) as RGB : t.c;
+      out.push({ o: s.o + (t.o - s.o) * u, c, a });
+    }
+  });
+  return out;
+}
 
 /** the paint a backend draws: a linear gradient whose two points coincide has no direction and is its last stop
     (as CSS draws it) */

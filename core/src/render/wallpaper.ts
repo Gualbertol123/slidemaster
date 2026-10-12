@@ -59,14 +59,16 @@ export async function makeWall(style: Style): Promise<Wall | null> {
 
 /** the wallpaper's two JPEGs as display-list images with stable ids (the SHA-1 of their bytes): the sharp one for
     the slide's background, the 800 × 450 blurred one that every glass surface samples; null without a canvas */
-export async function wallpaperIds(style: Style): Promise<{ sharp: { id: string; src: string }; blur: { blurId: string; blurSrc: string } } | null> {
+export async function wallpaperIds(style: Style): Promise<WallIds | null> {
   const w = await makeWall(style);
   if (!w) return null;
   const known = WALL_IDS.get(w); if (known) return known;
   const idOf = (src: string) => { const b64 = src.slice(src.indexOf(",") + 1), bin = atob(b64), d = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) d[i] = bin.charCodeAt(i); return "wall-" + sha1(d).slice(0, 16); };
   const blurId = idOf(w.blur), sharpId = idOf(w.sharp);
-  const out = { sharp: { id: sharpId, src: w.sharp }, blur: { blurId, blurSrc: w.blur } };
+  const out = { sharp: { id: sharpId, src: w.sharp }, blur: { blurId, blurSrc: w.blur }, base: w.base };
   WALL_IDS.set(w, out);
   return out;
 }
-const WALL_IDS = new WeakMap<Wall, { sharp: { id: string; src: string }; blur: { blurId: string; blurSrc: string } }>();
+/** the wallpaper as display-list images: the sharp one, the blurred one, and the colour under them (--wallbase) */
+export interface WallIds { sharp: { id: string; src: string }; blur: { blurId: string; blurSrc: string }; base: string }
+const WALL_IDS = new WeakMap<Wall, WallIds>();

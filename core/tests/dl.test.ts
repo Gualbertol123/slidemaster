@@ -208,14 +208,23 @@ describe("Canvas2D backend", () => {
     expect(noLayer.layers).toHaveLength(0);
     expect(noLayer.calls).toContain("globalAlpha=0.5");
   });
-  it("puts a horizontal run's baseline on a whole device pixel (floored) and its start on one (rounded), as page text", () => {
-    const calls: string[] = [];
-    const ctx = new Proxy({ getTransform: () => ({ a: 1.5, b: 0, c: 0, d: 1.5, e: 10.3, f: 20.2 }), measureText: () => ({ width: 10 }) } as Record<string, unknown>, {
-      get(t, k: string) { if (k in t) return t[k]; return (...a: unknown[]) => { calls.push(`${k} ${a.join(",")}`); }; }, set() { return true; } });
-    drawDl(ctx as unknown as Ctx, [{ t: "text", font: "F", size: 10, x: 4.1, y: 7.7, src: "ab", fill: { solid: [0, 0, 0] } }], { image: () => undefined });
-    const [, x, y] = calls.find(c => c.startsWith("fillText"))!.split(" ")[1].split(",").map(Number);
-    expect(1.5 * y + 20.2).toBeCloseTo(Math.floor(1.5 * 7.7 + 20.2), 6);
-    expect(1.5 * x + 10.3).toBeCloseTo(Math.round(1.5 * 4.1 + 10.3), 6);
+  it("puts a horizontal run's baseline on a whole device pixel (floored); its start on one (rounded) only where the list scales it", () => {
+    // getTransform: the first call is drawDl's start (a device scale of 1.5), later ones what the text is drawn under
+    const run = (inner: number) => {
+      const calls: string[] = []; let n = 0;
+      const ctx = new Proxy({ getTransform: () => (n++ ? { a: inner, b: 0, c: 0, d: inner, e: 10.3, f: 20.2 } : { a: 1.5, b: 0, c: 0, d: 1.5, e: 0, f: 0 }), measureText: () => ({ width: 10 }) } as Record<string, unknown>, {
+        get(t, k: string) { if (k in t) return t[k]; return (...a: unknown[]) => { calls.push(`${k} ${a.join(",")}`); }; }, set() { return true; } });
+      drawDl(ctx as unknown as Ctx, [{ t: "text", font: "F", size: 10, x: 4.1, y: 7.7, src: "ab", fill: { solid: [0, 0, 0] } }], { image: () => undefined });
+      return calls.find(c => c.startsWith("fillText"))!.split(" ")[1].split(",").map(Number).slice(1);
+    };
+    // only the device scale: the start keeps its fraction (Chromium's subpixel positioning of unscaled text)
+    const [x1, y1] = run(1.5);
+    expect(1.5 * y1 + 20.2).toBeCloseTo(Math.floor(1.5 * 7.7 + 20.2), 6);
+    expect(x1).toBeCloseTo(4.1, 6);
+    // a table scaled by the list (×0.8 on the device's 1.5): the start on a whole device pixel too
+    const [x2, y2] = run(1.2);
+    expect(1.2 * y2 + 20.2).toBeCloseTo(Math.floor(1.2 * 7.7 + 20.2), 6);
+    expect(1.2 * x2 + 10.3).toBeCloseTo(Math.round(1.2 * 4.1 + 10.3), 6);
   });
   it("pins a run to its measured width with letterSpacing", () => {
     const { calls } = draw([{ t: "text", font: "F", size: 10, x: 0, y: 0, src: "abcd", w: 48, fill: { solid: [0, 0, 0] } }]);
