@@ -25,7 +25,7 @@ const used = () => { const m = process.memoryUsage(); return m.heapUsed + m.arra
 it("big30: one sheet parsed under 0.5 s, under 40 MB retained", async () => {
   expect(fs.existsSync(FILE), "big30.xlsx is missing: python tools/make_corpus.py big30 tests/corpus/workbooks").toBe(true);
   expect(typeof (globalThis as { gc?: unknown }).gc).toBe("function");
-  const speed: { ms: number; factor: number } = speedFactor();
+  const speed = speedFactor();
   console.log(`bench · calibration ${speed.ms.toFixed(1)} ms: time limit × ${speed.factor.toFixed(2)}`);
   const buf = fs.readFileSync(FILE);
   const wb = await indexWorkbook(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer);
