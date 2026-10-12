@@ -23,3 +23,18 @@ v3 renders HTML strings plus a 19 KB stylesheet. Anything CSS can do reaches the
 
 ## Evidence and alternatives
 03 §2.4, §4.3; spike PDFs render every Glass material.
+
+## Amendment 2026-10-12 (product owner, before M3; docs/next/review-pre-M3.md finding 16)
+The designs use CSS that the eight nodes, as first written, cannot express. The contract grows by fields, not
+by node types:
+* `group.blend?: "multiply"` (`.pic.gink`, `mix-blend-mode: multiply`): PDF `/BM /Multiply`, canvas
+  `globalCompositeOperation`, SVG `mix-blend-mode`.
+* `shadow.inset?: true` (the glass materials' `inset` box-shadows): drawn inside the rounded rectangle's clip
+  with the same stepped recipe.
+* A radial paint is `{ radial: { cx, cy, rx, ry, stops } }` in box units: elliptical, centre outside the box
+  allowed (`radial-gradient(130% 85% at 16% -20%, …)`), drawn with a transform.
+* `image.shadow?` (the keyed pictures' `filter: drop-shadow`): a shadow of the picture's alpha, rasterised once
+  per picture and placed as an image.
+* Title `text-shadow`: an offset copy of the text run in the shadow's colour, drawn first – no new type.
+Shadows use 5 steps (v3's `printcss.ts` STEPS = 5, as in today's PDFs). Anything else a design needs is either
+expressed with these or recorded in `tests/parity/accepted.json` with its reason.

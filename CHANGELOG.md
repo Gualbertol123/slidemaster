@@ -3,6 +3,45 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 3.7.0 - unreleased
+
+What users notice (fixes found by the review before M3, `docs/next/review-pre-M3.md`; approved by the product
+owner on 2026-10-12)
+* **Opening a second workbook while the first one is still being read** (a second drop, or Browse… during an
+  upload) opens the newer one only. Before, the slides of one workbook could be shown and saved under the
+  other's name.
+* **Other people's changes no longer disappear for a moment on a slow shared folder** (a late answer could
+  replace a newer one).
+* **The "Reading…" / "Preparing pictures…" screen never stays up after an error**: the error is shown instead.
+* **A large workbook whose saved slides use no sheet** (cover or contents only) shows the data of the tables
+  added later at once, without a reload.
+* **If the background reader stops** (e.g. out of memory on a huge workbook), the window says so and asks to
+  reload, and no further edit is taken as if it were saved.
+* **Changes that are not saved yet are kept** when another workbook is opened while the shared folder is
+  failing (they keep being retried), and the browser asks before the window is closed with unsaved changes.
+* **A password-protected workbook** is refused at once with a clear message ("is protected …") instead of
+  "Converting with Excel…" for up to 4 minutes; Excel's conversion of other files never waits on a password.
+* **A shared folder that stops answering** shows an error after 60 s (5 minutes for reading, uploading and
+  converting a workbook) instead of "Saving…" or "Opening…" for ever; saving is retried.
+* **Opened from disk (file://), a full browser storage** shows "not saved" instead of "Saved in this browser".
+
+Also in 3.6.0 (not listed there)
+* New texts in the wizard while a large workbook is read: "Reading the workbook…", "Reading “<sheet>”…",
+  "“<sheet>” could not be shown: …"; a damaged workbook's message now names the reader's reason.
+* The helper accepts a burst of requests without the ~1 s TCP retry (a save could stay "Unsaved changes" for a
+  moment); the start file prints clearer messages when Python or the installed version is missing.
+* The core worker holds the workbook: page and worker together use about 40 MB with a 130,000-row sheet open
+  (the 15 MB of 3.6.0's note was the page alone).
+
+Under the hood
+* The page receives the document from the core worker only when it changed (not with every save-state
+  change), and compares it once per confirmed edit.
+* Goldens re-captured from v3.4.0 on the reference PC, so geometry, pixels and PDF positions are compared again
+  (`golden/README.md`); a fresh Windows checkout builds the committed page and runs the tests (LF line ends,
+  `python` on Windows).
+* `npm run bench` also gates the core worker's memory and the first-slide task (150 ms), and scales its time
+  limits by at most 2× on slower machines.
+
 ## 3.6.0 - 2026-10-12
 
 What users notice

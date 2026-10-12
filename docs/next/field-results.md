@@ -93,6 +93,12 @@ every check passes except **Blob worker (module)**, which Chromium refuses for a
 helper all pass. If Edge behaves the same, the workers of M2 must be classic (non-module) workers to keep
 file:// working.
 
+Note from the reference PC (2026-10-12, Windows 11 22631, **Playwright's Chromium 153 headless, not Edge**: for
+reference only, not a field result): the same result – from file:// every check passes except **Blob worker
+(module)**; from the helper all pass, including WebAssembly in a worker, OffscreenCanvas in a worker and
+"FontFace from bytes + OffscreenCanvas text (worker)" with `C:\Windows\Fonts\calibri.ttf`. Edge 155 on that PC
+could not be driven by Playwright 1.63 (the launch timed out), so the Edge rows above still need a person.
+
 ## 3. Windows policy matrix W1–W14 (05 §3.7)
 
 Mark each row PASS / FAIL / not applicable, with a note; "v3.4 today" = what the current version does there.
@@ -126,6 +132,10 @@ the spike PDF writer, `spikes/pdfwriter/bench.ts`) in the current Acrobat Reader
 
 If soft masks (the glass cards' transparency) look wrong or slow → S3.5 uses the flattened-gradient recipe.
 
+Recorded with the decision of 2026-10-12 (PROGRESS.md): the product owner reported that the glass cards'
+transparency in `acrobat-glass.pdf` looked right and scrolled smoothly in Acrobat and Edge → soft masks. The
+table's cells (open time, text selection, the Excel PDF) were not filled in and stay to be measured.
+
 ## 5. Font licence question (risk R7)
 
 Question for the bank's software-licence owner: *may Windows system fonts (e.g. Segoe UI, Calibri, Aptos) be
@@ -138,3 +148,7 @@ the same font files?*
 
 If "no" → S3.2 uses the per-PC fallback (each PC uses its own font file; the deck stores a metrics
 fingerprint and warns on a mismatch).
+
+Decided 2026-10-12 without waiting for the answer (PROGRESS.md): **fingerprint mode**, which is right whatever the
+licence owner answers (no Windows font file is copied to the share). The answer above is still wanted: a "yes"
+would allow copying later.
