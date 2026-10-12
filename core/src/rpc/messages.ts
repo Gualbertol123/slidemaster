@@ -79,6 +79,8 @@ export interface CoreEvents {
   html: [string, string, string, string][];
   progress: { text: string; frac: number | null } | null;
   error: { message: string; stack?: string };
+  /** a workbook left while its changes were not saved yet: they are saved now */
+  retiredSaved: { name: string };
 }
 export type PageEvents = Record<string, never>;
 export type { DeckVersion };

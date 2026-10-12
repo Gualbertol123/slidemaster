@@ -90,7 +90,8 @@ export class CoreHost {
   private async index(buf: ArrayBuffer): Promise<WorkbookInfo> {
     // the number is taken before reading, so the newest open always wins whichever read finishes first: an older
     // call still reading, or one that finishes later, fails (SUPERSEDED) instead of answering with another's number
-    if (this.candidateBook) { this.sentBoxes.delete(this.candidateBook); this.sentSharedFor.delete(this.candidateBook); }
+    // the previous candidate's records go – not the open workbook's (after start the two numbers are the same)
+    if (this.candidateBook && this.candidateBook !== this.wbBook) { this.sentBoxes.delete(this.candidateBook); this.sentSharedFor.delete(this.candidateBook); }
     const book = this.candidateBook = ++this.books;
     this.candidate = null;
     const superseded = () => { if (this.candidateBook !== book) throw Object.assign(new Error("another workbook is being opened"), { code: "SUPERSEDED" }); };
@@ -145,7 +146,8 @@ export class CoreHost {
     finally { this.port.emit("progress", null); }
     if (gone()) throw notStarted(new Error("this workbook is no longer being opened"));
     // the previous document stops showing, but what it has not saved yet is still saved (and retried)
-    this.sync?.retire();
+    const left = this.name;
+    this.sync?.retire(() => this.port.emit("retiredSaved", { name: left }));
     if (this.wbBook && this.wbBook !== this.candidateBook) { this.sentBoxes.delete(this.wbBook); this.sentSharedFor.delete(this.wbBook); }
     this.wb = this.candidate; this.wbBook = this.candidateBook; this.candidate = null; this.name = name; this.inputs = inputs;
     LCACHE.clear(); this.sentHtml.clear(); this.slidesDesign = null; this.presetSig = ""; this.boxSig = "";

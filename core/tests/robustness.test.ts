@@ -181,12 +181,30 @@ describe("DocSync on a slow share", () => {
     s.apply([{ op: "style.patch", patch: { radius: 3 } } as Op]);
     await s.flush();
     expect(s.state).toBe("error");
-    s.retire();
+    let told = 0;
+    s.retire(() => told++);
+    expect(told).toBe(0);                                              // not saved yet
     fail = false;
     await s.flush();                                                   // the retry (its timer is kept by retire)
     expect(saved.length).toBe(1);
     expect(s.busy).toBe(false);
+    expect(told).toBe(1);                                              // the page can stop warning on close
     s.dispose();
+  });
+});
+
+describe("the open workbook while another is being opened", () => {
+  it("indexing another workbook does not make the worker resend the open one's slices", async () => {
+    const p = page();
+    await p.port.call("init", { served: false, client: "c", me: "me" });
+    const ia = await p.port.call("index", transfer({ buf: book("report.xlsx") }, []));
+    await p.port.call("start", { book: ia.book, name: "x", doc: emptyDoc("x"), preset: await p.port.call("defaultPreset", { book: ia.book }), inputs });
+    await p.port.call("index", transfer({ buf: book("deck20.xlsx") }, []));          // e.g. the wizard of another file is open
+    const n = p.slices.length;
+    await p.port.call("apply", { label: "R", ops: [{ op: "style.patch", patch: { radius: 9 } } as Op] });
+    await until(() => p.docs.length > 0 && p.docs[p.docs.length - 1].view?.style.radius === 9);
+    // a style change needs no new slices of the open workbook: nothing of book ia is sent again
+    expect(p.slices.slice(n).filter(e => e.book === ia.book && (e.shared || e.sheets.length))).toEqual([]);
   });
 });
 

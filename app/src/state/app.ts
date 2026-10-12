@@ -50,6 +50,7 @@ export function core(): CorePort {
   port.on("html", list => { for (const [id, kind, key, h] of list) tableHtmls.set(id + "|" + kind, { key, html: h }); });
   port.on("doc", ev => onWorkerDoc(ev));
   port.on("progress", p => { if (p) showBusy(p.text, p.frac); else hideBusy(); });
+  port.on("retiredSaved", () => { unsavedElsewhere = false; });
   // an error in the worker's own work (e.g. a sheet read after a colleague's change): shown, never a busy screen left up
   port.on("error", e => { console.error("core worker: " + e.message + (e.stack ? "\n" + e.stack : "")); hideBusy(); toast("⚠ " + esc(e.message), [], true); });
   // the worker stopped: nothing can be read or saved any more – say so, and stop taking edits
@@ -229,7 +230,10 @@ async function loadWorkbook(buf: ArrayBuffer, name: string, again: () => Promise
     try { out = await backend.convertWorkbook(name, await again()); }
     catch (e2) { throw new Error(`“${name}” is ${what} and Excel could not convert it: ${(e2 as Error).message}. Save it in Excel as .xlsx (File › Save As › Excel Workbook) and open that copy.`); }
     try { wb = await indexInWorker(out); toast(`“${esc(name)}” was converted by Excel for reading – the original file is unchanged.`); }
-    catch (e3) { throw new Error((e3 as { code?: string }).code === "CFB" ? `“${name}” is protected (password or sensitivity label with encryption). Remove the protection or save an unprotected .xlsx copy.` : (e3 as Error).message); }
+    catch (e3) {
+      if ((e3 as { code?: string }).code === "SUPERSEDED") throw e3;    // another open came meanwhile (openBuffer decides)
+      throw new Error((e3 as { code?: string }).code === "CFB" ? `“${name}” is protected (password or sensitivity label with encryption). Remove the protection or save an unprotected .xlsx copy.` : (e3 as Error).message);
+    }
   }
   return wb;
 }

@@ -29,6 +29,7 @@ export class DocSync {
   private retry = 0;
   private polling = false;
   private retired = false;
+  private onRetiredSaved: (() => void) | null = null;
   state: SaveState;
   error = "";
   private listeners = new Set<(c: Change) => void>();
@@ -92,6 +93,7 @@ export class DocSync {
       this.state = this.pending.length ? "pending" : (this.api.served ? "saved" : "local");
       this.emit(prev, false, by, before);
       if (this.pending.length) this.schedule(50);
+      else if (this.retired && this.onRetiredSaved) { const f = this.onRetiredSaved; this.onRetiredSaved = null; f(); }
     } catch (e) {
       this.pending = [...this.inflight!, ...this.pending]; this.inflight = null;
       // the helper speaks a newer data format than this page: retrying cannot help, reloading does
@@ -118,5 +120,9 @@ export class DocSync {
   dispose() { if (this.timer) clearTimeout(this.timer); this.listeners.clear(); }
   /** another workbook is opened: this document is no longer shown or polled, but what it has not saved yet is still
       saved (a failed save keeps being retried) instead of being dropped */
-  retire() { this.listeners.clear(); this.retired = true; if (!this.busy && this.timer) { clearTimeout(this.timer); this.timer = null; } }
+  retire(onSaved?: () => void) {
+    this.listeners.clear(); this.retired = true;
+    if (!this.busy) { if (this.timer) { clearTimeout(this.timer); this.timer = null; } onSaved?.(); }
+    else this.onRetiredSaved = onSaved || null;                 // called once what was queued is on the share
+  }
 }
