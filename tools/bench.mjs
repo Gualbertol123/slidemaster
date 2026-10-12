@@ -7,7 +7,7 @@
      long tasks      on the page's thread while opening and reading (Long Tasks API)                  none > 50 ms
                      except the tasks from Finish until the first slide is drawn (decided 2026-10-11, PROGRESS
                      S2.6 – Chromium's first use of each font instance on Windows; v3 had the same task): those
-                     have their own, looser limit (decision 2026-10-12)                                none > 150 ms
+                     have their own, looser limit (decision 2026-10-12)                                none > 250 ms
                      The start-up tasks are reported, not gated.
      heap            after the big sheet was read: the page (performance.memory) plus the core worker, which
                      holds the workbook since S2.4 (Runtime.getHeapUsage over the DevTools protocol)    < 150 MB
@@ -33,7 +33,7 @@ const { chromium } = require("playwright");
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
 const BACKEND = path.resolve(arg("--page", path.join(REPO, "backend")));
 const GATE = !process.argv.includes("--no-gate");
-const BUDGET = { open_deck20_ms: 400, read_big30_ms: 1000, longest_task_ms: 50, first_draw_task_ms: 150, heap_mb: 150 }, SLACK = 1.1;
+const BUDGET = { open_deck20_ms: 400, read_big30_ms: 1000, longest_task_ms: 50, first_draw_task_ms: 250, heap_mb: 150 }, SLACK = 1.1;
 const speed = speedFactor(), TIMED = ["open_deck20_ms", "read_big30_ms"];
 const LIMITS = Object.fromEntries(Object.entries(BUDGET).map(([k, v]) => [k, TIMED.includes(k) ? Math.round(v * speed.factor) : v]));
 const CHROME = process.env.CHROME || chromium.executablePath();

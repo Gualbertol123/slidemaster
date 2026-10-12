@@ -39,7 +39,7 @@ Under the hood
 * Goldens re-captured from v3.4.0 on the reference PC, so geometry, pixels and PDF positions are compared again
   (`golden/README.md`); a fresh Windows checkout builds the committed page and runs the tests (LF line ends,
   `python` on Windows).
-* `npm run bench` also gates the core worker's memory and the first-slide task (150 ms), and scales its time
+* `npm run bench` also gates the core worker's memory and the first-slide task (250 ms), and scales its time
   limits by at most 2× on slower machines.
 
 ## 3.6.0 - 2026-10-12

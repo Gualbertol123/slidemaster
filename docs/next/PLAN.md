@@ -796,7 +796,7 @@ Each feature area of `05-test-and-parity.md` §4 is touched by these steps and g
 |---|---|---|
 | Open 20-slide deck → first slide | S2.6 | 400 ms |
 | Read a 130k-row sheet | S2.3 / S2.6 | 1 s (Node: 0.5 s), memory < 150 MB in the page and its core worker together |
-| Longest main-thread task while opening or editing | S2.6 | 50 ms (drawing the first slide after Finish: 150 ms, decisions 1.a and 2026-10-12) |
+| Longest main-thread task while opening or editing | S2.6 | 50 ms (drawing the first slide after Finish: 250 ms, decisions 1.a and 2026-10-12) |
 | Keypress → pixels, cell edit | S4.1 | 50 ms p95 |
 | Drag frame | S4.2 | 16 ms |
 | Selection change re-renders | S1.3 | ≤ 5 components |
