@@ -130,10 +130,12 @@ export class CoreHost {
       const k = JSON.stringify(box); if (sent.get(name) === k) continue;
       sent.set(name, k); sheets.push(sliceSheet(wb.sheets.find(s => s.name === name)!, box));
     }
-    if (!sheets.length && this.sentSharedFor.has(this.candidateBook)) return;
-    // the shared parts (styles, strings) count as sent only once they exist: a big workbook reads them with its first sheet
-    if (wb.shared) this.sentSharedFor.add(this.candidateBook);
-    this.port.emit("slices", transfer({ book: this.candidateBook, shared: wb.shared ? sliceShared(wb.shared) : null, sheets }, sheets.flatMap(sliceTransfer)));
+    // the shared parts (styles, strings – large for a big workbook) travel once, with the first sheet that needs them:
+    // the mirror needs them only to read sheets, and sending them alone would copy them onto the page for nothing
+    if (!sheets.length) return;
+    const shared: SharedSlice | null = wb.shared && !this.sentSharedFor.has(this.candidateBook) ? sliceShared(wb.shared) : null;
+    if (shared) this.sentSharedFor.add(this.candidateBook);
+    this.port.emit("slices", transfer({ book: this.candidateBook, shared, sheets }, sheets.flatMap(sliceTransfer)));
   }
   private async start(book: number | undefined, name: string, doc: WorkbookDoc, preset: Preset | null, inputs: ViewInputs): Promise<DocState> {
     const cand = this.candidate, gone = () => !cand || cand !== this.candidate || (book !== undefined && book !== this.candidateBook);
@@ -222,7 +224,7 @@ export class CoreHost {
     const edits = (this.sync.view.edits || {}) as Record<string, Record<string, { cf?: string }>>;
     const cfs = Object.values(edits).flatMap(e => Object.values(e || {}).flatMap(x => x && x.cf ? [x.cf] : []));
     const sig = wb.sheets.map(S => S.name).join("\n") + "|" + this.presetSig + "|" + JSON.stringify(cfs);
-    if (sig === this.boxSig && this.sentSharedFor.has(this.wbBook)) return;
+    if (sig === this.boxSig) return;
     this.boxSig = sig;
     const layouts = this.slides.flatMap(R => R.tables.map(L => ({ sheet: L.sheet, g: L.g })));
     const boxes = sliceBoxes(wb, layouts, edits), sheets: SheetSlice[] = [], sent = this.boxesFor(this.wbBook);
@@ -231,9 +233,9 @@ export class CoreHost {
       sent.set(name, k);
       sheets.push(sliceSheet(wb.sheets.find(s => s.name === name)!, box));
     }
-    if (sheets.length || !this.sentSharedFor.has(this.wbBook)) {
+    if (sheets.length) {                                         // the shared parts once, with the first sheets (as above)
       const shared: SharedSlice | null = wb.shared && !this.sentSharedFor.has(this.wbBook) ? sliceShared(wb.shared) : null;
-      if (wb.shared) this.sentSharedFor.add(this.wbBook);
+      if (shared) this.sentSharedFor.add(this.wbBook);
       this.port.emit("slices", transfer({ book: this.wbBook, shared, sheets }, sheets.flatMap(sliceTransfer)));
     }
   }
