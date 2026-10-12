@@ -142,7 +142,12 @@ export class FontRegistry {
     return [...pool].sort((a, b) => rank(a.weight) - rank(b.weight) || Number(a.variable) - Number(b.variable))[0];
   }
   /** the PDF writer's font callback: the file of a text node's face */
-  pdfFace = (n: TextNode) => { const f = this.match(n.font, weightOf(n), !!n.i); return f ? { key: f.id, data: f.data, ...(n.i && !f.italic ? { oblique: true } : {}) } : undefined; };
+  pdfFace = (n: TextNode) => {
+    const f = this.match(n.font, weightOf(n), !!n.i);
+    // synthetic styles, as Chrome draws them: italic asked of a face without one is slanted; bold (600 and above)
+    // asked of a lighter static face is emboldened
+    return f ? { key: f.id, data: f.data, ...(n.i && !f.italic ? { oblique: true } : {}), ...(weightOf(n) >= 600 && f.weight < 600 && !f.variable ? { bold: true } : {}) } : undefined;
+  };
 }
 function defined<T extends object>(o: T): Partial<T> {
   const r: Partial<T> = {};

@@ -7,6 +7,7 @@
 | `subset.ts` | hb-subset.wasm: `subsetFont()` for the PDF (glyph ids kept, layout tables dropped; TrueType → FontFile2, CFF → FontFile3), `instanceFont()` (every axis pinned), `pdfSubsetter()` for `writePdf`'s `subset` option. The PDF writer's own TrueType subsetter (`../pdf/ttf.ts`) is the fallback |
 | `static.ts` | a static face of an uploaded variable font at its declared weight (the worker's `staticFont` call) |
 | `pdf.ts` | `prepareTextForPdf()`: shapes every text node without a glyph run, stretched to its measured width |
+| `resolve.ts` | the native export's font choice (S3.7): `FontResolver` takes each run's CSS family list and loads the first family it can embed – the deck's library faces, then this PC's files (`CatalogFont`: the helper's /sysfonts, or the browser's local fonts) – one file per family, weight and style (CSS matching on the index, `pickFace`); "Segoe UI Variable …" / "SF Pro …" / -apple-system skipped (v3's `printReady`); generic families as Windows' defaults; metric-compatible stand-ins (Carlito for Calibri …) only where a family is not installed; else a default face and the list reported as `missing` |
 | `hb.ts` | instantiates the inlined WASM (no emscripten glue) |
 | `wasm/` | harfbuzzjs@0.4.12's `hb.wasm` and `hb-subset.wasm`, zlib + base64 (`node tools/vendor-harfbuzz.mjs`; the test checks them against `node_modules`) |
 
@@ -33,8 +34,9 @@ at the run's weight for a Windows font; opsz at the run's size). Text boxes brea
 paragraph keeps its indent; spaces go after a soft wrap), wrapping cells and automated comments as `normal`.
 
 Synthetic italic: an italic run in a face without an italic is drawn oblique by the PDF writer (`PdfFontFace.oblique`,
-a 0.25 skew in the text matrix, as Chromium slants it; S3.6). Not yet (named for the steps that need them):
-synthetic bold (Chrome emboldens a family that has no bold face; to emulate with a stroke in S3.7); WOFF2 (most Google fonts) is not readable by the core, so such library
-fonts cannot reach the native PDF yet (S3.7); no fallback font for a missing face or glyph (the writer refuses a
-missing face; a missing glyph is `.notdef`); tabs and soft hyphens are not break opportunities, CJK breaks between
+a 0.25 skew in the text matrix, as Chromium slants it; S3.6). Synthetic bold (S3.7): a run of weight 600 or more in a
+static face lighter than 600 is stroked as Skia's fake bold (`PdfFontFace.bold`). Not yet (named for the steps that need them):
+WOFF2 (most Google fonts) is not readable by the core (no Brotli decoder), so the native PDF draws such a library font
+with the next family of its list, or a default face, and the toast names it (the old engine kept it for 3.7);
+no fallback font for a missing glyph (it is `.notdef`); tabs and soft hyphens are not break opportunities, CJK breaks between
 characters only; a variable CFF2 upload is stored as it is.

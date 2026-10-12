@@ -18,6 +18,7 @@
     "dlparity": "node tools/dlparity.mjs",
     "g1": "node tools/g1-package.mjs",
     "export-dl": "node tools/export-dl.mjs",
+    "export-check": "node tools/export-check.mjs",
     "bench": "npm run bench -w core && npm run bench -w app && node tools/bench.mjs --json bench-results.json"
   }
 }

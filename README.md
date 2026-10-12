@@ -108,9 +108,11 @@ colour theme (Aurora, Ocean, Forest, Sunset, Graphite, Intesa Sanpaolo, Custom),
 contrast, logo (file, bubble, hidden per slide), page numbers (position, font, size, format, style,
 start, cover), footer (`{date}`, `{workbook}`, `{title}`). *Use as default for new decks*.
 
-**Export** – PDF *text & tables* (vector, default), PDF *as pictures* (lossless PNG pages, file name
-"(images)"), current slide PDF/PNG, all slides PNG, copy slide to clipboard, every version. PDFs are one
-unscaled slide per page (1200 × 675 pt), checked before saving, light enough for Acrobat (§10).
+**Export** – PDF *text & tables* (vector, default), PDF *as pictures* (lossless PNG pages at 2×, file name
+"(images)"), current slide PDF/PNG, all slides PNG (4800 × 2700), copy slide to clipboard, every version
+("<workbook> - <version> - <design>.pdf"). Written by the page itself (since 3.7, §10.0): no export engine
+needed, and from disk the files are downloads. PDFs are one slide per page (1200 × 675 pt), light enough for
+Acrobat. For 3.7 only, *PDF · text & tables (old engine)* still makes the PDF the 3.6 way (§10.1–10.3).
 
 **Working together** – changes are merged field by field; others' changes appear within ~3 s with their
 name; presence shows who else is in the workbook; typing is never overwritten by autosave or others'
@@ -491,7 +493,11 @@ Defined in wizard step 4 → `preset.versions`. `deck.version` (remembered in `p
 comments ignore the blanked numbers. `exportVersions(designs)` builds a `RenderCtx` per design × version.
 
 ### 6.9 Export (page side)
-`doExport(kind)` flushes pending ops → `exportPayload(idx, ctx, vector)`: `buildSlide(..., forExport)` for
+Since 3.7 (PLAN S3.7) the export is native, see §10.0: `doExport(kind)` / `exportVersions(designs)` in
+`app/src/editor/export.ts` flush pending ops and hand one job per (design, version) to the export workers
+(`app/src/rpc/export.ts`). The old engine below runs only for the menu's *PDF · text & tables (old engine)*
+(`exportOldEngine`, file "<workbook> (old engine) - slides.pdf"):
+`exportPayload(idx, ctx)`: `buildSlide(..., forExport)` for
 each slide **of the requested design** (`slidesFor(design)` re-resolves tables with that design's
 sizes), missing pictures removed, logo inlined as a data URL; CSS = `#slidecss` + `#wallcss` (+
 `printReady`/`PRINT_CSS` for vector) + `embeddedFontCss` → `POST /api/export`. If no engine works (503,
@@ -538,7 +544,7 @@ the app (an Edge app window, `msedge --app=<url>`, else a browser tab) → `serv
 | `presence.py` | One heartbeat file per user@host whose **name** carries user, host, client and workbook; others = one directory listing, freshness from its modification times on the file-server clock (no file opened); old-format `<user>@<host>.json` still read; others seen in the last 25 s; cleanup after 24 h. |
 | `workbooks.py` | Listing (ROOT then `backend/`), path-safe lookup, **stable read** (size/mtime unchanged before/after, zip end record present; retried; `Unstable` → 503 while Excel is still saving). |
 | `fonts.py` | Font library: signature-checked files (≤ 15 MB, ≤ 64 faces/family), written before the index, under lock `fonts`; unreferenced files swept. |
-| `exports.py` | `/api/export` (modes, file naming) and `/api/assemble`; `save_export`: temp file → under lock `export-<name>` renamed into place; a target open in a viewer (locked) → ` (2)`, ` (3)`… |
+| `exports.py` | `/api/export-file` (the native export's PDF / PNG, .pdf / .png only), `/api/export` (modes, file naming) and `/api/assemble`; `save_export`: temp file → under lock `export-<name>` renamed into place; a target open in a viewer (locked) → ` (2)`, ` (3)`… |
 | `engines.py` | Browser discovery, the three engines, `Exporter` (ordering, self-tests, output checks), page CSS and geometry checks, engine mirror to the local disk. §10. |
 | `pdf.py` | PDF writer for image pages, PNG helpers (crop), PDF page-box reading and **fitting** (marker detection in content streams, xref rewrite). §10. |
 | `cdp.py` | Minimal websocket + Chrome DevTools Protocol client. |
@@ -603,7 +609,8 @@ JSON bodies ≤ 2 MB, uploads/exports ≤ 300 MB. Full shapes: `docs/ARCHITECTUR
 | `GET /sysfonts` · `GET /sysfonts/<file>` | this PC's Windows fonts (`%WINDIR%\Fonts` and the per-user fonts folder; `SLIDEBUILDER_SYSFONTS` in tests): `{fonts: [{file, family, subfamily, weight, italic, faces, size}]}` · one listed `.ttf`/`.otf`/`.ttc` file |
 | `POST /api/fonts/capture?file=` | fingerprint of a Windows font (SHA-1, version, metrics, `OS/2.fsType` → `embeddable`) into `data/fonts/system/fingerprints.json`; `otherBuilds` = other PCs' builds of the same file. Nothing is copied (G0, R7) |
 | `POST /api/logo?name=` · `GET /assets/<name>` | upload a logo to `data/assets` · images from data/assets, `backend/`, ROOT (case-insensitive) |
-| `POST /api/export` · `POST /api/assemble` | render + write exports · PDF from page-rendered images |
+| `POST /api/export-file?name=` | save a PDF or PNG the page wrote (native export, 3.7) in `export\`; returns the name used |
+| `POST /api/export` · `POST /api/assemble` | render + write exports · PDF from page-rendered images (the old engine) |
 | `POST /api/convert-workbook` · `POST /api/convert` | .xlsb/.xls → .xlsx · EMF/WMF/TIFF → PNG (Windows; else 501) |
 | `POST /api/upload` · `GET /api/upload/<id>` | temporary in-memory uploads (local files) |
 | `POST /api/open` · `POST /api/engine/restart` · `GET/POST /api/engine/install` | open the export folder/file · restart engines · install the engine |
@@ -631,6 +638,29 @@ workbook still being saved, no export engine (clients keep their ops and retry) 
 ---
 
 ## 10. Export engine
+### 10.0 Native export (3.7, PLAN S3.7)
+The default for every Export menu item. The core worker builds each slide's **display list** (the same one the
+G1 review checked); up to **three export workers** – the same script as the core worker, started under the name
+`sb-export` (`core/src/workers/main.ts`) – take one job per (design, version) and ask the core worker for the
+display lists on a channel of their own (`linkExport`), so the lists never pass through the page's thread:
+* **PDF · text & tables**: `core/src/pdf/writer.ts` with HarfBuzz shaping and `hb-subset` subsetting
+  (`core/src/text/`). Fonts: each run's CSS family list resolved to the first family that can be embedded
+  (`core/src/text/resolve.ts`): the deck's font library, then this PC's fonts (the helper's `/sysfonts`;
+  opened from disk: the browser's local fonts – Edge asks the user once to allow them; refused or not available,
+  the PDF is made of pictures and the toast says so). "Segoe UI Variable …"/"SF Pro …" are skipped as
+  `printReady` skips them (static Segoe UI, as in 3.6's PDFs); synthetic bold and italic as Chrome draws them;
+  a family nobody has → a default face, named in the toast. Never Type 3, never a variable font.
+* **PDF · as pictures**: each slide drawn on an `OffscreenCanvas` at **2×** (3200 × 1800) and passed through as a
+  Flate image with PNG predictors (no re-compression): about 8× smaller than 3.6's 4× pages.
+* **PNG** (current / every slide) at 3× (4800 × 2700) and **Copy current slide** (a `ClipboardItem` written at the
+  click, its PNG following when drawn).
+* **Every version × designs**: all jobs at once, three at a time; names `<workbook> - <version> - <design>.pdf`.
+The bytes go to `POST /api/export-file?name=` → `save_export` (temp file, lock `export-<name>`, " (2)" when the
+target is open); opened from disk they are downloads. `tools/export-check.mjs` exports every corpus deck in every
+design (and with `--old` with the old engine too) and checks qpdf, fonts, the text against the goldens, the size
+and the time; `npm run bench` gates deck20: Liquid Glass < 2 s and < 80 KB per slide + 190 KB, Excel < 1 s and
+< 40 KB per slide.
+
 ### 10.1 Engines and selection (`engines.py`)
 `Exporter` tries engines in order, each after a self-test (in the background at start-up):
 1. **Playwright** (optional Python package) driving the Chrome for Testing copy (or its bundled Chromium);

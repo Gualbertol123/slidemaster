@@ -8,13 +8,16 @@
 import { zlibSync } from "fflate";
 import { decorations, imagePlacement, paintOf, premulStops, radii, lineBand, mul, needsClip, pathBox, rrectOf, shadowLayers, strokeRing } from "../dl/geom";
 import type { DisplayList, GroupNode, Matrix, Node, Paint, PathCmd, Stop, Stroke, TextNode } from "../dl/types";
-import { decodePng, isJpeg, isPng, jpegInfo, type Raster } from "./png";
+import { decodePng, isJpeg, isPng, jpegInfo, pngFlate, type Raster } from "./png";
 import { embeddable, noSubset, parseFont, subset as ttfSubset, variableTables, type Font } from "./ttf";
 
 /** a font file for a text node's face */
 export interface PdfFontFace { /** content hash (one embedded font per key) */ key: string; data: Uint8Array;
   /** an italic run in a face without an italic: drawn slanted (synthetic oblique, Skia's −0.25 skew, as the browser) */
-  oblique?: boolean }
+  oblique?: boolean;
+  /** a bold run in a family without a bold face: drawn emboldened (synthetic bold: the outline stroked as well, as
+      Skia's fake bold that Chrome uses – a stroke of size/24 at 9 px down to size/32 at 36 px and above) */
+  bold?: boolean }
 /** a subset font program: TrueType outlines → FontFile2, CFF in an OpenType wrapper → FontFile3 /OpenType.
     The glyph ids must stay those of the full font (retain gids) */
 export interface SubsetFont { data: Uint8Array; outline: "truetype" | "cff" }
@@ -39,6 +42,8 @@ const fmt = (v: number, d: number) => { const p = 10 ** d, r = Math.round(v * p)
 const n2 = (v: number) => fmt(v, 2), n4 = (v: number) => fmt(v, 4);
 const rgbOps = (c: [number, number, number]) => c.map(v => fmt(v / 255, 4)).join(" ");
 const PX_TO_PT = .75;
+/** Skia's fake-bold stroke as a fraction of the text size: 1/24 at 9 px, 1/32 at 36 px, linear between, constant outside */
+export const fakeBold = (size: number) => { const t = Math.min(1, Math.max(0, (size - 9) / 27)); return 1 / 24 + t * (1 / 32 - 1 / 24); };
 
 /** a 64-bit FNV-1a style hash of bytes (two lanes), to share identical pictures under different ids */
 export function contentHash(d: Uint8Array): string {
@@ -181,6 +186,11 @@ export function writePdf(doc: PdfInput): Uint8Array {
         const j = jpegInfo(src), cs = j.comps === 1 ? "DeviceGray" : j.comps === 4 ? "DeviceCMYK" : "DeviceRGB";
         // a DCT stream is passed through as it is (never deflated again)
         stream(x.id, `/Type/XObject/Subtype/Image/Width ${j.w}/Height ${j.h}/ColorSpace/${cs}/BitsPerComponent 8${j.comps === 4 && j.adobe ? "/Decode[1 0 1 0 1 0 1 0]" : ""}/Interpolate true/Filter/DCTDecode`, src, false);
+      } else if (src instanceof Uint8Array && pngFlate(src)) {
+        // an opaque 8-bit PNG: its compressed rows are a Flate stream with PNG predictors, passed through (the "as
+        // pictures" pages: no decoding and deflating again)
+        const p = pngFlate(src)!;
+        stream(x.id, `/Type/XObject/Subtype/Image/Width ${p.w}/Height ${p.h}/ColorSpace/${p.colors === 3 ? "DeviceRGB" : "DeviceGray"}/BitsPerComponent 8/Interpolate true/Filter/FlateDecode/DecodeParms<</Predictor 15/Colors ${p.colors}/BitsPerComponent 8/Columns ${p.w}>>`, p.data, false);
       } else {
         const r: Raster = src instanceof Uint8Array ? (isPng(src) ? decodePng(src) : (() => { throw new Error(`image ${id}: not a JPEG or PNG`); })()) : src;
         let smask = "";
@@ -377,7 +387,8 @@ export function writePdf(doc: PdfInput): Uint8Array {
       }
       const g = a < 1 ? `/${this.use("ExtGState", alphaGs(a))} gs ` : "";
       // a decorative copy (a title's text shadow) is an artifact: drawn, not read as text a second time
-      let s = `${n.decorative ? "/Artifact BMC " : ""}q ${g}${rgbOps(p.solid)} rg BT /${this.use("Font", u.res)} ${n2(n.size)} Tf 1 0 ${doc.font(n)?.oblique ? "0.25" : "0"} -1 ${n2(n.x)} ${n2(n.y)} Tm ${show} ET`;
+      const face = doc.font(n), bold = face?.bold ? ` ${rgbOps(p.solid)} RG ${n4(n.size * fakeBold(n.size))} w 2 Tr` : "";
+      let s = `${n.decorative ? "/Artifact BMC " : ""}q ${g}${rgbOps(p.solid)} rg${bold} BT /${this.use("Font", u.res)} ${n2(n.size)} Tf 1 0 ${face?.oblique ? "0.25" : "0"} -1 ${n2(n.x)} ${n2(n.y)} Tm ${show} ET`;
       if (n.decoration && n.w !== undefined) for (const [x, y, w, h] of decorations(n, n.w)) s += ` ${n2(x)} ${n2(y)} ${n2(w)} ${n2(h)} re f`;
       this.ops.push(s + " Q" + (n.decorative ? " EMC" : ""));
     }

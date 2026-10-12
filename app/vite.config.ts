@@ -5,8 +5,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-/** "virtual:core-worker": the core worker (core/src/workers/core.worker.ts) bundled as ONE classic script, as a
-    string the page starts from a Blob URL (app/src/rpc/client.ts); a module worker would fail from file:// */
+/** "virtual:core-worker": the worker script (core/src/workers/main.ts: the core worker, or an export worker when started
+    as "sb-export") bundled as ONE classic script, as a string the page starts from a Blob URL (app/src/rpc/client.ts); a module worker would fail from file:// */
 function coreWorker(): Plugin {
   const ID = "\0virtual:core-worker";
   return {
@@ -17,7 +17,7 @@ function coreWorker(): Plugin {
       const root = path.join(here, "..");
       // es2022 as core's tsconfig: lowered to es2020, class fields become defineProperty calls and the sheet scanner
       // ran 3× slower (big30: ~1 s instead of ~0.35 s; PLAN S2.6). Chromium has run es2022 since 94 (the field PC: Edge 154)
-      const r = await build({ entryPoints: [path.join(root, "core/src/workers/core.worker.ts")], bundle: true, format: "iife", target: "es2022",
+      const r = await build({ entryPoints: [path.join(root, "core/src/workers/main.ts")], bundle: true, format: "iife", target: "es2022",
         minify: true, legalComments: "none", write: false, metafile: true, logLevel: "silent", absWorkingDir: root });
       for (const f of Object.keys(r.metafile!.inputs)) this.addWatchFile(path.resolve(root, f));
       return "export default " + JSON.stringify(r.outputFiles[0].text) + ";";

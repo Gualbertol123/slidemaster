@@ -64,8 +64,15 @@ export interface CoreMethods {
       they are (`variable: false`) */
   staticFont(a: { buf: ArrayBuffer; weight: number }): { buf: ArrayBuffer; variable: boolean };
   /** whole slides as display lists in slide px (S3.5): background, furniture, the tables placed, text boxes */
-  slideLists(a: HtmlReq & { slides?: number[]; /** the date the page shows (its clock) */ today?: string }): { slide: number; dl: import("../render/excel-dl").TableDL }[];
+  slideLists(a: SlideListsReq): SlideList[];
+  /** an export worker's channel (S3.7): the worker asks for display lists on it directly, so they never pass
+      through the page's main thread */
+  linkExport(a: { id: number; port: MessagePort }): void;
+  /** that export worker stopped: its channel is closed */
+  unlinkExport(a: { id: number }): void;
 }
+export type SlideListsReq = HtmlReq & { slides?: number[]; /** the date the page shows (its clock) */ today?: string };
+export interface SlideList { slide: number; dl: import("../render/excel-dl").TableDL }
 /** calls the worker makes */
 export interface PageMethods {
   getDoc(a: { name: string; since?: number }): WorkbookDoc | null;
@@ -94,3 +101,42 @@ export interface CoreEvents {
 }
 export type PageEvents = Record<string, never>;
 export type { DeckVersion };
+
+/* ---- the export workers (PLAN S3.7): on demand, up to three; each takes one (design, version) at a time ---- */
+/** what an export makes: a vector PDF, a PDF of pictures (PNG pages at `scale`), or PNG files */
+export type ExportKind = "pdf" | "pictures" | "png";
+export interface ExportJob extends SlideListsReq {
+  kind: ExportKind;
+  /** pixels per slide px for pictures and PNGs (2: "as pictures", B9; 3: PNG and clipboard, 4800 × 2700) */
+  scale: number;
+  /** the PDF's title */
+  title: string;
+  /** the fonts the PDF may embed: the deck's library faces and this PC's font files (the helper's /sysfonts) */
+  catalog: import("../text/resolve").CatalogFont[];
+}
+export interface ExportResult {
+  /** the PDF, or one PNG per slide */
+  files: ArrayBuffer[];
+  /** CSS font lists none of whose families could be embedded (drawn with a default face) */
+  missing: string[];
+  /** fonts of the deck's library or this PC that could not be read (WOFF2 …): the next family of the list drew them */
+  unreadable?: string[];
+  /** where the time went, ms */
+  ms: { lists: number; fonts: number; write: number };
+}
+/** calls the page makes on an export worker */
+export interface ExportMethods {
+  run(a: ExportJob): ExportResult;
+  /** the channel to the core worker (see CoreMethods.linkExport) */
+  linkCore(a: { port: MessagePort }): void;
+}
+/** calls an export worker makes on the page */
+export interface ExportPageMethods {
+  /** a font file of the catalog (null: unreadable); its bytes are kept by the worker */
+  fontFile(a: { source: "library" | "system"; file: string }): ArrayBuffer | null;
+  /** a picture the PDF cannot take as it is (GIF, SVG, WebP, BMP, or a URL a worker cannot read) as PNG bytes, drawn
+      by the page; null when it cannot be read (it is left out, as a broken picture) */
+  pictureBytes(a: { src: string }): ArrayBuffer | null;
+}
+/** what an export worker asks the core worker on its channel */
+export interface ExportCoreMethods { slideLists(a: SlideListsReq): SlideList[] }

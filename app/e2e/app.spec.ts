@@ -4,6 +4,7 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { pdfPageTexts } from "./pdftext";
 
 const ANNA = "http://127.0.0.1:8951/", BOB = "http://127.0.0.1:8952/";
 const root = () => process.env.SB_E2E_ROOT!, data = () => process.env.SB_E2E_DATA!;
@@ -69,6 +70,17 @@ async function selectCell(page: Page, text: string) {
   const box = (await page.locator("#stage .slide .t", { hasText: new RegExp("^" + text + "$") }).first().boundingBox())!;
   await page.mouse.click(box.x + 8, box.y + box.height / 2);
 }
+/** runs an export (a click) and returns the files it saved: the names the helper gave back (a toast still showing from
+    the last export is not taken for this one) */
+async function exported(page: Page, click: () => Promise<unknown>): Promise<string[]> {
+  await page.evaluate(() => { (window as any).__sbTest.lastExport.files = []; });
+  await click();
+  let files: string[] = [];
+  await expect.poll(async () => (files = await page.evaluate(() => [...(window as any).__sbTest.lastExport.files] as string[])).length, { timeout: 60_000 }).toBeGreaterThan(0);
+  await expect(page.locator("#exportBtn")).toHaveText("Export PDF");
+  return files;
+}
+const fromMenu = (page: Page, x: string) => exported(page, async () => { await page.click("#exportMenuBtn"); await page.click(`[data-x="${x}"]`); });
 /** a user's preferences are saved 400 ms after a change; a test whose successor relies on "re-opens the last
     workbook" waits for them ("✓ Saved" shows at once since B6, so it no longer gives them time) */
 const lastFileSaved = (user: string, name: string) => expect.poll(() => {
@@ -151,18 +163,82 @@ test.describe.serial("two people, one shared folder", () => {
   test("export writes a PDF into the shared export folder", async ({ page }) => {
     await openApp(page, ANNA);
     await expect(page.locator(".thumb")).toHaveCount(4);
-    await expect(page.locator("#srv")).toContainText("Export: Chrome", { timeout: 30_000 });
-    await page.click("#exportBtn");
-    await expect(page.locator("#toast")).toContainText("report - slides.pdf", { timeout: 60_000 });
-    const pdf = fs.readFileSync(path.join(root(), "export", "report - slides.pdf"));
+    // the native export (S3.7): the page writes the PDF – it does not wait for an export engine
+    expect(await exported(page, () => page.click("#exportBtn"))).toEqual(["report - slides.pdf"]);
+    await expect(page.locator("#toast")).toContainText("report - slides.pdf");
+    const read = (f: string) => fs.readFileSync(path.join(root(), "export", f));
+    const pdf = read("report - slides.pdf"), src = pdf.toString("latin1");
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
-    expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) || []).length).toBe(4);
-    expect(pdf.toString("latin1")).toContain("/Font");                                   // real text, not pictures of slides
+    expect((src.match(/\/Type\s*\/Page\b/g) || []).length).toBe(4);
+    expect(src).toContain("/Font");                                                    // real text, not pictures of slides
+    expect(src).toContain("/ToUnicode");                                               // selectable, searchable
+    expect(src).not.toMatch(/\/Subtype\s*\/Type3/);                                    // GF: no glyph-by-glyph fonts
     // one page per slide, exactly the slide's shape: no white strips from rounding or scaling
-    const boxes = [...pdf.toString("latin1").matchAll(/\/MediaBox \[([\d. ]+)\]/g)].map(m => m[1].trim().split(/\s+/).map(Number));
+    const boxes = [...src.matchAll(/\/MediaBox\s*\[([\d. ]+)\]/g)].map(m => m[1].trim().split(/\s+/).map(Number));
     expect(boxes).toHaveLength(4);
     for (const [x0, y0, x1, y1] of boxes) expect((x1 - x0) / (y1 - y0)).toBeCloseTo(16 / 9, 4);
-    expect(pdf.length).toBeLessThan(3_000_000);                // Liquid Glass, 4 slides: no page-sized pictures (was 8.7 MB)
+    expect(pdf.length).toBeLessThan(4 * 80 * 1024 + 190 * 1024);                      // GF: Liquid Glass < 80 KB per slide + 190 KB
+    const text = pdfPageTexts(pdf);
+    expect(text).toHaveLength(4);
+    expect(text[0]).toContain("IBD Weekly");                                           // the cover the wizard made
+    expect(text.join(" ")).toContain("Alpha 1.234.568");                               // a table row, in order
+    // EX-15: an edit typed just before the export is in it (the export flushes pending edits first)
+    await page.locator('.thumb[data-i="2"]').click();
+    await selectCell(page, "Gamma"); await page.keyboard.type("Gammax"); await page.keyboard.press("Enter");
+    expect(await exported(page, () => page.click("#exportBtn"))).toEqual(["report - slides.pdf"]);
+    expect(pdfPageTexts(read("report - slides.pdf")).join(" ")).toContain("Gammax");
+    await page.keyboard.press("Control+z"); await saved(page);
+    await expect(page.locator("#stage .slide .t", { hasText: /^Gamma$/ }).first()).toBeVisible();
+    // as pictures (B9): one 2× PNG page per slide (3200 × 1800), "(images)" in the name, no fonts
+    expect(await fromMenu(page, "pdf-exact")).toEqual(["report - slides (images).pdf"]);
+    const pics = read("report - slides (images).pdf").toString("latin1");
+    expect((pics.match(/\/Type\s*\/Page\b/g) || []).length).toBe(4);
+    expect((pics.match(/\/Width 3200\/Height 1800/g) || []).length).toBe(4);
+    expect(pics).not.toContain("/Font");
+    // the mode is remembered: the Export button now makes pictures too; text & tables switches back
+    expect(await exported(page, () => page.click("#exportBtn"))).toEqual(["report - slides (images).pdf"]);
+    expect(await fromMenu(page, "pdf-vector")).toEqual(["report - slides.pdf"]);
+    await expect.poll(() => { try { return JSON.parse(fs.readFileSync(path.join(data(), "users", "anna.json"), "utf8")).pdfMode; } catch { return null; } }).toBe("vector");
+    // the current slide only: one page, named after the slide
+    await page.locator(".thumb").nth(2).click();
+    const [one] = await fromMenu(page, "pdf-current");
+    expect(one).toMatch(/^report - .+\.pdf$/);
+    expect(one).not.toBe("report - slides.pdf");
+    expect((read(one).toString("latin1").match(/\/Type\s*\/Page\b/g) || []).length).toBe(1);
+    // the old engine, for one release: its own file name, next to the native one
+    await expect(page.locator("#srv")).toContainText("Export: Chrome", { timeout: 30_000 });
+    await page.click("#exportMenuBtn"); await page.click('[data-x="pdf-old"]');
+    await expect(page.locator("#toast")).toContainText("report (old engine) - slides.pdf", { timeout: 60_000 });
+    expect((read("report (old engine) - slides.pdf").toString("latin1").match(/\/Type \/Page\b/g) || []).length).toBe(4);
+  });
+
+  test("PNG of the current slide and of every slide; the current slide copied to the clipboard", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: ANNA.replace(/\/$/, "") });
+    await openApp(page, ANNA);
+    await expect(page.locator(".thumb")).toHaveCount(4);
+    const size = (b: Buffer) => [b.readUInt32BE(16), b.readUInt32BE(20)];                // the PNG's IHDR
+    await page.locator(".thumb").nth(1).click();
+    const [cur, ...more] = await fromMenu(page, "png-current");
+    expect(more).toEqual([]);
+    expect(cur).toMatch(/^report - .+\.png$/);
+    const png = fs.readFileSync(path.join(root(), "export", cur));
+    expect(png.subarray(1, 4).toString()).toBe("PNG");
+    expect(size(png)).toEqual([4800, 2700]);                                           // as before: 3× the slide
+    const all = await fromMenu(page, "png-all");
+    expect(all).toHaveLength(4);
+    expect(all).toContain(cur);
+    for (const f of all) expect(size(fs.readFileSync(path.join(root(), "export", f)))).toEqual([4800, 2700]);
+    // copy: a PNG of the current slide on the clipboard, nothing in the export folder
+    const before = fs.readdirSync(path.join(root(), "export")).length;
+    await page.click("#exportMenuBtn"); await page.click('[data-x="copy"]');
+    await expect(page.locator("#toast")).toContainText("copied", { timeout: 60_000 });
+    const clip = await page.evaluate(async () => {
+      const [item] = await navigator.clipboard.read();
+      const blob = await item.getType("image/png"), bmp = await createImageBitmap(blob);
+      return { types: item.types, w: bmp.width, h: bmp.height };
+    });
+    expect(clip).toEqual({ types: ["image/png"], w: 4800, h: 2700 });
+    expect(fs.readdirSync(path.join(root(), "export")).length).toBe(before);
   });
 
   test("table tools: same size, alignment, widths, text boxes, colour scale, Shift+arrows", async ({ browser }) => {
@@ -589,14 +665,27 @@ test.describe.serial("two people, one shared folder", () => {
     await expect.poll(vub).toBe(before - 4);                                                       // 2 rows × Abs. + %
     await page.selectOption("#versionSel", { label: "Full deck" });
     await expect.poll(vub).toBe(before);
-    // every version in Liquid Glass and Excel: four PDFs
-    await page.click("#exportMenuBtn"); await page.click('[data-x="versions-2"]');
-    await expect(page.locator("#toast")).toContainText("Saved 4 PDFs", { timeout: 60_000 });
-    const files = fs.readdirSync(path.join(root(), "export")).filter(f => f.startsWith("weekly - "));
-    for (const n of ["weekly - Chief - Liquid Glass", "weekly - All - Liquid Glass", "weekly - Chief - Excel", "weekly - All - Excel"])
-      expect(files.some(f => f.startsWith(n))).toBe(true);
+    // every version in Liquid Glass and Excel: four PDFs named "<workbook> - <version> - <design>.pdf" (B11)
+    const names = (ds: string[]) => ds.flatMap(d => ["Chief", "All"].map(v => `weekly - ${v} - ${d}.pdf`)).sort();
+    const two = await fromMenu(page, "versions-2");
+    expect([...two].sort()).toEqual(names(["Liquid Glass", "Excel"]));
+    await expect(page.locator("#toast")).toContainText("Saved 4 PDFs");
+    // every version in all three designs: six PDFs, written three at a time by the export workers
+    const six = await fromMenu(page, "versions-3");
+    expect([...six].sort()).toEqual(names(["Liquid Glass", "Excel", "Excel Refined"]));
+    await expect(page.locator("#toast")).toContainText("Saved 6 PDFs");
+    expect(await page.evaluate(() => (window as any).__sbTest.exportWorkers())).toBe(3);
+    // every version in this design (Liquid Glass): the design is in the name too (B11)
+    expect([...await fromMenu(page, "versions")].sort()).toEqual(names(["Liquid Glass"]));
+    const pdf = (f: string) => fs.readFileSync(path.join(root(), "export", f));
+    // "All" lacks the removed cells, "Chief" has them; each PDF one page per slide with its own text
+    for (const d of ["Liquid Glass", "Excel", "Excel Refined"]) {
+      const chief = pdfPageTexts(pdf(`weekly - Chief - ${d}.pdf`)), all = pdfPageTexts(pdf(`weekly - All - ${d}.pdf`));
+      expect([chief.length, all.length]).toEqual([1, 1]);
+      expect(chief[0].length).toBeGreaterThan(all[0].length);
+    }
     // all text and tables: the Excel PDFs contain fonts and no pictures at all
-    const xl = fs.readFileSync(path.join(root(), "export", files.find(f => f.startsWith("weekly - All - Excel"))!)).toString("latin1");
+    const xl = pdf("weekly - All - Excel.pdf").toString("latin1");
     expect(xl).toContain("/Font");
     expect(xl).not.toMatch(/\/Subtype\s*\/Image/);
   });

@@ -112,6 +112,43 @@ class ExportTests(TempDirs):
             self.assertIn(f.read(), payloads)
         self.assertEqual(self.ls(), ["B - slides.pdf"])
 
+    # ---- the native export (S3.7): the page writes the file, the helper only saves it
+    def test_export_file_saves_pdf_and_png(self):
+        pdf, png = b"%PDF-1.7\n%native\n%%EOF\n", make_png(8, 4)
+        self.assertEqual(exports.export_file("Weekly - slides.pdf", pdf), {"ok": True, "files": ["Weekly - slides.pdf"]})
+        self.assertEqual(exports.export_file("Weekly - P/L.png", png)["files"], ["L.png"])          # no folders
+        self.assertEqual(exports.export_file('Weekly - a:b*c?.png', png)["files"], ["Weekly - a_b_c_.png"])
+        self.assertEqual(exports.export_file("dir\\Weekly - Chief - Excel.PDF", pdf)["files"], ["Weekly - Chief - Excel.pdf"])   # the extension in lower case
+        with open(os.path.join(paths.EXPORT_DIR, "Weekly - slides.pdf"), "rb") as f:
+            self.assertEqual(f.read(), pdf)
+        self.assertEqual(self.ls(), ["L.png", "Weekly - Chief - Excel.pdf", "Weekly - a_b_c_.png", "Weekly - slides.pdf"])
+        self.assertFalse([n for n in os.listdir(paths.EXPORT_DIR) if n.endswith(".tmp")])
+
+    def test_export_file_refuses_other_files(self):
+        for name, data in [("x.exe", b"%PDF-1.7"), ("x.html", b"<html>"), ("x.pdf", b""), ("x.pdf", b"MZ"),
+                           ("x.png", b"%PDF-1.7"), ("", b"%PDF-1.7"), ("x", b"%PDF-1.7")]:
+            with self.assertRaises(exports.ExportError, msg=name):
+                exports.export_file(name, data)
+        self.assertFalse(os.path.exists(paths.EXPORT_DIR) and self.ls())
+
+    def test_export_file_open_target_gets_a_suffix(self):
+        exports.export_file("A - slides.pdf", b"%PDF-one")
+        with mock.patch.object(exports, "is_locked", lambda p: os.path.basename(p) == "A - slides.pdf"):
+            self.assertEqual(exports.export_file("A - slides.pdf", b"%PDF-two")["files"], ["A - slides (2).pdf"])
+        with open(os.path.join(paths.EXPORT_DIR, "A - slides.pdf"), "rb") as f:
+            self.assertEqual(f.read(), b"%PDF-one")
+
+    def test_export_file_takes_the_lock_of_its_name(self):
+        seen = []
+        real = exports.Lock
+
+        def spy(name, *a, **kw):
+            seen.append(name)
+            return real(name, *a, **kw)
+        with mock.patch.object(exports, "Lock", spy):
+            exports.export_file("B - slides.pdf", b"%PDF-x")
+        self.assertEqual(seen, ["export-" + exports.doc_key("B - slides.pdf")])
+
     def test_assemble(self):
         png = make_png(32, 18)
         imgs = ["data:image/png;base64," + base64.b64encode(png).decode()] * 3

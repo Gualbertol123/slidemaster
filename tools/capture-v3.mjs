@@ -27,6 +27,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { sysFontDirs } from "./sysfonts.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)), REPO = path.resolve(HERE, "..");
 export const CORPUS = path.join(REPO, "tests", "corpus"), DECKS = path.join(CORPUS, "decks"), BOOKS = path.join(CORPUS, "workbooks");
@@ -77,7 +78,8 @@ export async function startHelper() {
   // export engines: the browser's DevTools and command line (not a Python "playwright" package this PC may have)
   const proc = spawn(PY, [path.join(BACKEND, "slide_builder.py"), "--no-browser", "--port", String(port)], {
     env: { ...process.env, SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: "golden", SLIDEBUILDER_HOST: "pc-golden",
-      SLIDEBUILDER_BROWSER: CHROME, SLIDEBUILDER_ENGINES: "devtools,cli", SLIDEBUILDER_APP_WINDOW: "0", NO_PROXY: "*", no_proxy: "*" }, stdio: ["ignore", "pipe", "pipe"] });
+      SLIDEBUILDER_BROWSER: CHROME, SLIDEBUILDER_ENGINES: "devtools,cli", SLIDEBUILDER_APP_WINDOW: "0", NO_PROXY: "*", no_proxy: "*",
+      ...(sysFontDirs() ? { SLIDEBUILDER_SYSFONTS: sysFontDirs() } : {}) }, stdio: ["ignore", "pipe", "pipe"] });
   let log = ""; proc.stdout.on("data", d => log += d); proc.stderr.on("data", d => log += d);
   let up = false;
   for (let i = 0; i < 300 && !up; i++) { try { up = (await fetch(url + "api/ping")).ok; } catch { /* starting */ } if (!up) await sleep(200); }
@@ -164,7 +166,11 @@ async function waitEngine(page) {
 async function exportPdf(page, h, dir) {
   const exp = path.join(h.root, "export");
   fs.rmSync(exp, { recursive: true, force: true }); fs.mkdirSync(exp);
-  await page.click("#exportBtn");
+  // v3's PDF is the old engine's (the goldens' pdf.json): from 3.7 it is the menu's "old engine" item for one release;
+  // the native export is checked against the goldens' texts by tools/export-check.mjs (decision 2026-10-12, 5)
+  await page.click("#exportMenuBtn");
+  const old = page.locator('[data-x="pdf-old"]');
+  if (await old.count()) await old.click(); else { await page.keyboard.press("Escape"); await page.click("#exportBtn"); }
   for (let i = 0; i < 1800; i++) {
     const f = fs.readdirSync(exp).find(n => n.endsWith(".pdf"));
     if (f && !(await page.locator("#exportBtn").innerText()).includes("Rendering")) {

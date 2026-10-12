@@ -58,6 +58,26 @@ def save_export(filename, data, export_dir=None):
         remove_quietly(tmp)
 
 
+EXPORT_FILE_TYPES = {".pdf": b"%PDF-", ".png": b"\x89PNG\r\n\x1a\n"}
+
+
+def export_file(name, data, export_dir=None):
+    """POST /api/export-file?name=: a PDF or PNG the page wrote itself (the native export, PLAN S3.7) saved as
+    `name` in the export folder through save_export (temporary file, lock export-<name>, " (2)" when the target is
+    open). Only .pdf and .png names, and only bytes that start like one, are taken."""
+    base = os.path.basename(str(name or "").replace("\\", "/"))
+    ext = os.path.splitext(base)[1].lower()
+    if ext not in EXPORT_FILE_TYPES:
+        raise ExportError("only .pdf and .png files are exported")
+    stem = clean_name(os.path.splitext(base)[0])
+    if not data or not data.startswith(EXPORT_FILE_TYPES[ext]):
+        raise ExportError("the exported file is empty or not a %s file" % ext[1:].upper())
+    t0 = time.time()
+    saved = save_export(stem[:200] + ext, data, export_dir)
+    log("exported %s (%d bytes) in %.2fs" % (saved, len(data), time.time() - t0))
+    return {"ok": True, "files": [saved]}
+
+
 def export(req, engine, export_dir=None):
     """POST /api/export. `engine.render(css, slides, kind, scale)` -> (output, label)."""
     t0 = time.time()

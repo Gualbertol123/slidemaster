@@ -1,5 +1,5 @@
 /* Talking to the helper (docs/ARCHITECTURE.md §5). When the page is opened from disk (file://)
-   an in-browser backend keeps documents in localStorage and exports are disabled. */
+   an in-browser backend keeps documents in localStorage, and exports are downloads (B1, editor/export.ts). */
 import { FORMATS, type ConfigDoc, type Op, type Prefs, type WorkbookDoc } from "@slide-builder/core/model/types";
 import { applyOps, emptyDoc } from "@slide-builder/core/model/ops";
 import type { LibraryFont } from "@slide-builder/core/model/fonts";
@@ -12,6 +12,8 @@ export interface Other { user: string; host: string; client: string; workbook: s
 export interface OpsResult<D> { doc: D; applied: number; skipped: number[] }
 export interface ExportReq { name: string; format: "pdf" | "png"; mode?: "exact" | "vector"; css: string; slides: string[]; names: string[]; scale: number; inline?: boolean; all?: boolean }
 export interface ExportRes { ok: boolean; files?: string[]; images?: string[]; engine?: string; seconds?: number; error?: string }
+/** a font file of this PC (the helper's /sysfonts index) */
+export interface SysFont { file: string; family: string; subfamily: string; weight: number; italic: boolean; faces: number; size: number }
 export interface InstallState { running: boolean; done: boolean; ok: boolean | null; lines: string[] }
 
 export class ApiError extends Error { constructor(public status: number, msg: string) { super(msg); } }
@@ -35,6 +37,11 @@ export interface Backend {
   convertWorkbook(name: string, buf: ArrayBuffer): Promise<ArrayBuffer>;
   convertPicture(bytes: Uint8Array, ext: string): Promise<string | null>;
   exportSlides(req: ExportReq): Promise<ExportRes>;
+  /** the native export (S3.7): a PDF or PNG the page wrote, saved in the export folder under (about) this name */
+  exportFile(name: string, data: ArrayBuffer): Promise<ExportRes>;
+  /** this PC's font files (the export embeds the ones a deck uses) and one file's bytes */
+  sysFonts(): Promise<SysFont[]>;
+  sysFontBytes(file: string): Promise<ArrayBuffer>;
   assemble(name: string, images: string[]): Promise<ExportRes>;
   open(target: { name: string } | { folder: true }): Promise<void>;
   engineRestart(): Promise<void>;
@@ -128,6 +135,15 @@ export const helper: Backend = {
     return j;
   },
   assemble: (name, images) => json(req("/api/assemble", { method: "POST", json: { name, images }, timeout: WAIT_LONG_MS })),
+  async exportFile(name, data) {
+    // a connection dropped on the way (seen once in ~80 exports in a row on the reference PC) is tried again once: saving
+    // the same file under the same name again is harmless
+    const send = () => json<ExportRes>(req("/api/export-file?name=" + encodeURIComponent(name), { method: "POST", body: data, timeout: WAIT_LONG_MS }));
+    try { return await send(); }
+    catch (e) { if (!(e instanceof TypeError)) throw e; console.warn("export: saving again after", e); await new Promise(r => setTimeout(r, 500)); return send(); }
+  },
+  async sysFonts() { return (await json<{ fonts: SysFont[] }>(req("/sysfonts"))).fonts || []; },
+  async sysFontBytes(file) { return (await req("/sysfonts/" + encodeURIComponent(file))).arrayBuffer(); },
   async open(target) { await req("/api/open", { method: "POST", json: target }); },
   async engineRestart() { await req("/api/engine/restart", { method: "POST" }); },
   engineInstall: start => json(req("/api/engine/install", { method: start ? "POST" : "GET", timeout: WAIT_LONG_MS })),
@@ -177,7 +193,9 @@ export const offline: Backend = {
   leave() { /* nothing */ },
   upload: offlineOnly, convertWorkbook: offlineOnly,
   async convertPicture() { return null; },
-  exportSlides: offlineOnly, assemble: offlineOnly, open: offlineOnly,
+  exportSlides: offlineOnly, assemble: offlineOnly, open: offlineOnly, exportFile: offlineOnly,
+  async sysFonts() { return []; },
+  sysFontBytes: offlineOnly,
   async engineRestart() { /* nothing */ },
   engineInstall: offlineOnly,
   assetUrl: name => encodeURI(name),

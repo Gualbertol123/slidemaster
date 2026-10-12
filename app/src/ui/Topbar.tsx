@@ -154,9 +154,10 @@ function ServerPill() {
 }
 
 function ExportButton() {
-  const health = useStore(s => !!s.ui.health), slides = useStore(s => s.deck.slides.length), exporting = useStore(s => s.ui.exporting);
+  const slides = useStore(s => s.deck.slides.length), exporting = useStore(s => s.ui.exporting);
   const mode = useStore(s => s.prefs.prefs.pdfMode) || "vector", versions = useStore(s => s.doc.view?.preset?.versions) || [];
-  const can = backend.served && health && slides > 0 && !exporting;
+  // the page writes the files (S3.7): exports work without an export engine, and from disk as downloads (B1)
+  const can = slides > 0 && !exporting;
   const item = (k: ExportKind, label: string, small?: string, close?: () => void) =>
     <button data-x={k} className={k === "pdf-" + mode ? "cur" : ""} onClick={() => { close?.(); void doExport(k); }}>{label}{small && <small>{small}</small>}</button>;
   return (
@@ -165,10 +166,11 @@ function ExportButton() {
       <button className="btn primary caret" id="exportMenuBtn" disabled={!can} onClick={toggle}>▾</button>
     </>}>
       {close => <>
-        <div className="hd">PDF – all slides, saved in the export folder</div>
+        <div className="hd">PDF – all slides, {backend.served ? "saved in the export folder" : "downloaded"}</div>
         {item("pdf-vector", "PDF · text & tables", "real text and lines, sharp at any zoom – no pictures", close)}
-        {item("pdf-exact", "PDF · as pictures", "each slide as a 480 dpi image", close)}
+        {item("pdf-exact", "PDF · as pictures", "each slide as a 192 dpi image", close)}
         {item("pdf-current", "PDF · current slide only", undefined, close)}
+        {backend.served && item("pdf-old", "PDF · text & tables (old engine)", "as Slide Builder 3.6 made it – for comparison, until the next release", close)}
         <div className="sep" />
         <div className="hd">Images (4800 × 2700)</div>
         {item("copy", "Copy current slide", "paste into PowerPoint", close)}
