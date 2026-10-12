@@ -456,6 +456,10 @@ function boxFor(grid: Element, r1: number, c1: number, r2: number, c2: number) {
   const o = ov.getBoundingClientRect(), a = tl.getBoundingClientRect(), b = br.getBoundingClientRect();
   return { x: a.left - o.left, y: a.top - o.top, w: b.right - a.left, h: b.bottom - a.top };
 }
+/** the overlay layer is repainted after every block of rows of a large preview: boxes that did not move are kept,
+    not replaced each frame (a box replaced while it is clicked or measured is gone) */
+const drawn = new WeakMap<HTMLElement, string>();
+function setBoxes(ov: HTMLElement, h: string) { if (drawn.get(ov) !== h) { ov.innerHTML = h; drawn.set(ov, h); } }
 function paintOverlays(S: SheetInfo, W: W, tables: TableDef[], onAdd: (r: string) => boolean) {
   const grid = W.grids[S.name]; const ov = grid?.querySelector<HTMLElement>(".wov"); if (!grid || !ov) return;
   let h = "";
@@ -468,7 +472,7 @@ function paintOverlays(S: SheetInfo, W: W, tables: TableDef[], onAdd: (r: string
     const V = W.versions.find(v => v.id === W.vcur);
     (V?.hide[S.name] || []).forEach(r => { const g = rangeToG(r), b = boxFor(grid, g.r1 + 1, g.c1 + 1, g.r2 - 1, g.c2 - 1); if (b) h += `<div class="ovb cut" style="left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px"></div>`; });
     if (W.sel) { const b = boxFor(grid, W.sel.r1, W.sel.c1, W.sel.r2, W.sel.c2); if (b) h += `<div class="ovb sel" style="left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px"></div>`; }
-    ov.innerHTML = h; return;
+    setBoxes(ov, h); return;
   }
   (W.suggest[S.name] || []).forEach(r => {
     if (tables.some(t => defRange(S, t) === r)) return;
@@ -476,7 +480,7 @@ function paintOverlays(S: SheetInfo, W: W, tables: TableDef[], onAdd: (r: string
     h += `<div class="ovb sug" data-r="${r}" style="left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px"><button title="Add this table">+ ${r}</button></div>`;
   });
   if (W.sel) { const b = boxFor(grid, W.sel.r1, W.sel.c1, W.sel.r2, W.sel.c2); if (b) h += `<div class="ovb sel" style="left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px"></div>`; }
-  ov.innerHTML = h;
+  setBoxes(ov, h);
   ov.querySelectorAll<HTMLElement>(".sug button").forEach(b => b.onclick = e => { e.stopPropagation(); W.sel = null; const was = W.grow; W.grow = false; onAdd(b.parentElement!.dataset.r!); W.grow = was; });
   ov.querySelectorAll<HTMLElement>(".tbl").forEach(b => b.onclick = () => { const el = document.querySelector(`.wtrow[data-id="${b.dataset.id}"]`); if (el) { el.scrollIntoView({ block: "nearest" }); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 900); } });
 }
