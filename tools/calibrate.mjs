@@ -2,11 +2,14 @@
    The budgets (PLAN Part F) hold on the reference PC; GitHub's runners are 1.3–1.6× slower and vary from run to
    run, so a fixed limit passed or failed there by chance. A fixed workload shaped like the sheet reader (scan bytes,
    parse numbers into typed arrays, a string map) is timed after a warm-up, median of 5; the time limits are scaled
-   by (this machine ÷ the reference PC), never below 1. Memory and long-task limits are not scaled. */
+   by (this machine ÷ the reference PC), never below 1 and at most MAX_FACTOR (a runner more than twice as slow does
+   not loosen the gates further, so it cannot hide a doubling). Memory and long-task limits are not scaled. */
 
 /** the workload's median time on the reference PC (Windows 11, the machine in PROGRESS.md's measurements;
     31.6–33.0 ms over six runs on 2026-10-12) */
 export const REFERENCE_MS = 32;
+/** the most the time limits are loosened (decision 2026-10-12) */
+export const MAX_FACTOR = 2;
 
 /** ~12 MB of row-like markup, the same every time (built once, not timed) */
 let input = null;
@@ -42,10 +45,10 @@ export function calibrationMs() {
 /** how much slower this machine is than the reference PC (≥ 1), and the time it measured */
 export function speedFactor() {
   const ms = calibrationMs();
-  return { ms, factor: REFERENCE_MS > 0 ? Math.max(1, ms / REFERENCE_MS) : 1 };
+  return { ms, factor: REFERENCE_MS > 0 ? Math.min(MAX_FACTOR, Math.max(1, ms / REFERENCE_MS)) : 1 };
 }
 
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/").split("/").pop())) {
   const ms = calibrationMs();
-  console.log(`calibration: ${ms.toFixed(1)} ms (reference ${REFERENCE_MS} ms, factor ${REFERENCE_MS > 0 ? Math.max(1, ms / REFERENCE_MS).toFixed(2) : "–"})`);
+  console.log(`calibration: ${ms.toFixed(1)} ms (reference ${REFERENCE_MS} ms, factor ${REFERENCE_MS > 0 ? Math.min(MAX_FACTOR, Math.max(1, ms / REFERENCE_MS)).toFixed(2) : "–"})`);
 }

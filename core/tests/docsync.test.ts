@@ -1,7 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DocSync, type Change, type DocApi } from "../src/sync/docsync";
 import { applyOps, emptyDoc } from "../src/model/ops";
 import type { Op, WorkbookDoc } from "../src/model/types";
+
+// a failing test must not leave fake timers to the next one
+afterEach(() => { vi.useRealTimers(); });
 
 /** an in-memory helper: applies ops to the latest document, like backend/slidebuilder/store.py */
 function fakeServer() {

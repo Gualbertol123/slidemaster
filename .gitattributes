@@ -1,1 +1,5 @@
+# Every text file is LF in every checkout (also with Windows' default core.autocrlf=true): the built page
+# inlines sources, so CRLF sources would build a page that differs from the committed one (review-pre-M3, finding 6).
+* text=auto eol=lf
+# the start files run in cmd.exe
 *.bat text eol=crlf
