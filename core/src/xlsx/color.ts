@@ -1,4 +1,5 @@
 /* Colours: Excel's indexed/theme/tint model and the small colour maths used by the designs. */
+import type { XmlElement } from "../platform";
 
 export const INDEXED = ["000000","FFFFFF","FF0000","00FF00","0000FF","FFFF00","FF00FF","00FFFF","000000","FFFFFF","FF0000","00FF00","0000FF","FFFF00","FF00FF","00FFFF","800000","008000","000080","808000","800080","008080","C0C0C0","808080","9999FF","993366","FFFFCC","CCFFFF","660066","FF8080","0066CC","CCCCFF","000080","FF00FF","FFFF00","00FFFF","800080","800000","008080","0000FF","00CCFF","CCFFFF","CCFFCC","FFFF99","99CCFF","FF99CC","CC99FF","FFCC99","3366FF","33CCCC","99CC00","FFCC00","FF9900","FF6600","666699","969696","003366","339966","003300","333300","993300","993366","333399","333333"];
 export const NAMED: Record<string, string> = { black: "#000000", white: "#FFFFFF", red: "#FF0000", green: "#00FF00", blue: "#0000FF", yellow: "#FFFF00", magenta: "#FF00FF", cyan: "#00FFFF" };
@@ -27,7 +28,7 @@ export function applyTint(hex: string, tint: number): string {
   const l = tint < 0 ? l0 * (1 + tint) : l0 * (1 - tint) + tint;
   return hslToHex(h, s, Math.max(0, Math.min(1, l)));
 }
-export type ColorFn = (el: Element | null | undefined, fallback: string | null) => string | null;
+export type ColorFn = (el: XmlElement | null | undefined, fallback: string | null) => string | null;
 export function makeColor(theme: string[]): ColorFn {
   return function color(el, fallback) {
     if (!el) return fallback;

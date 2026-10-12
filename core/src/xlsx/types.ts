@@ -1,5 +1,5 @@
 /* Data structures produced by the workbook reader. */
-import type JSZip from "jszip";
+import type { Zip } from "./zip";
 import type { ColorFn } from "./color";
 import type { Range, Rel } from "./util";
 
@@ -38,8 +38,9 @@ export interface Sheet {
   hidden: boolean;
   error?: string;
   size?: number;
-  cells: Map<string, Cell>;
-  rowInfo: Map<number, RowInfo>;
+  /** read only (a columnar store behind it: xlsx/sheetstore.ts) */
+  cells: ReadonlyMap<string, Cell>;
+  rowInfo: ReadonlyMap<number, RowInfo>;
   colRanges: { min: number; max: number; info: ColInfo }[];
   merges: Range[];
   cfRules: CFRule[];
@@ -50,6 +51,8 @@ export interface Sheet {
   ctx: Shared;
   title: string; subtitle: string;
   tables: TableLayout[];
+  /** the columns behind cells and rowInfo (absent for a broken sheet) */
+  cols?: { cells: import("./sheetstore").SheetColumns; rows: import("./sheetstore").RowColumns };
   get(r: number, c: number): Cell | null;
   rowHidden(r: number): boolean;
   colHidden(c: number): boolean;
@@ -64,7 +67,7 @@ export interface Sheet {
 
 export interface SheetMeta { name: string; path: string; size: number }
 export interface Workbook {
-  zip: JSZip;
+  zip: Zip;
   wbRels: Record<string, Rel>;
   meta: SheetMeta[];
   skipped: { name: string; why: string }[];

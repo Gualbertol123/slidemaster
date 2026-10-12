@@ -1,9 +1,10 @@
 # CI for every push and pull request (PLAN S0.1). All jobs must be green:
 #   unit   - build the page, check that the committed page is fresh, then typecheck + Vitest (app/)
-#   core   - core/ type-checked on its own: no DOM types (lib ES2022 + WebWorker, PLAN S1.2)
+#   core   - core/ on its own: typecheck with no DOM types (lib ES2022 + WebWorker, PLAN S1.2) + its Vitest suite
 #   helper - the Python helper's unittest suite on the oldest (3.8) and a current (3.12) Python
 #   e2e    - Playwright: two real helpers sharing one temp folder, driven in Chromium
 #   parity - v3 against golden/
+#   bench  - npm run bench: benchmarks with thresholds (big30 parsing in core, render counts in app, the page in Chromium)
 # npm workspaces: one lockfile and node_modules/ at the root; the scripts run from the root.
 name: ci
 on:
@@ -40,7 +41,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm, cache-dependency-path: package-lock.json }
       - run: npm ci
-      - run: npm run typecheck -w core
+      - run: npm run check -w core
 
   helper:
     runs-on: ubuntu-24.04
@@ -75,6 +76,31 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with: { name: playwright-report, path: "app/test-results/", if-no-files-found: ignore }
+
+  bench:
+    # PLAN Part A rule 7: a step marked ⏱ adds a benchmark with a threshold; above it + 10 % the job fails.
+    # big30.xlsx (30 MB) is generated, not committed: openpyxl is a dev tool here, the helper stays stdlib-only.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: package-lock.json }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: npm ci
+      # tools/bench.mjs: the committed page with a real helper in Chromium (S2.6)
+      - run: npx playwright install --with-deps chromium
+      - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - run: python -m pip install openpyxl==3.1.5 pillow==11.3.0
+      - run: python tools/make_corpus.py big30 tests/corpus/workbooks
+      - run: npm run bench
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: bench-results, path: bench-results.json, if-no-files-found: ignore }
+      # the cell-by-cell equivalence with v3's parser on big30 too (the unit job has no big30)
+      - run: npx vitest run tests/sheetstore.test.ts
+        working-directory: core
 
   parity:
     # v3 against its goldens (golden/, tools/parity.mjs). Texts are compared on any machine; geometry, pixels

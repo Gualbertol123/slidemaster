@@ -1,7 +1,8 @@
+/* detect.ts as of S2.5 (it walked S.cells), kept verbatim as the reference of the columnar paths (detect.test.ts). */
 /* Table suggestions: blocks of filled cells (one empty row is bridged; an empty column separates tables). */
-import { tone } from "../xlsx/color";
-import { A1 } from "../xlsx/util";
-import type { Cell, Sheet } from "../xlsx/types";
+import { tone } from "../src/xlsx/color";
+import { A1 } from "../src/xlsx/util";
+import type { Cell, Sheet } from "../src/xlsx/types";
 
 export function usedRange(S: Sheet) {
   let r2 = 1, c2 = 1;

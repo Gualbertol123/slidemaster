@@ -8,12 +8,12 @@ import { get, setDialogs, useStore, toast } from "../state/store";
 import { useCtx, useCurSlide } from "./hooks";
 import { change, ctx } from "../state/app";
 import { curSlide } from "../editor/edit";
-import { DEFAULT_COMMENT, DEFAULT_UNIT, SUMMARY_KINDS, cleanHead, defaultGroups, headingOf, prettyLabel, signatureOf, type CommentCfg, type Group } from "../model/comment";
-import { analysisOf, commentTables, commentText } from "../render/comment";
-import { richText } from "../render/text";
-import { noteKey, SIDES } from "../render/slide";
-import { tableName } from "../model/preset";
-import type { Note, Op, RuntimeSlide, Side } from "../model/types";
+import { DEFAULT_COMMENT, DEFAULT_UNIT, SUMMARY_KINDS, cleanHead, defaultGroups, headingOf, prettyLabel, signatureOf, type CommentCfg, type Group } from "@slide-builder/core/model/comment";
+import { analysisOf, commentTables, commentText } from "@slide-builder/core/render/comment";
+import { richText } from "@slide-builder/core/render/text";
+import { noteKey, SIDES } from "@slide-builder/core/render/slide";
+import { tableName } from "@slide-builder/core/model/preset";
+import type { Note, Op, RuntimeSlide, Side } from "@slide-builder/core/model/types";
 
 const NOUNS = ["country", "bank", "entity", "region", "product", "segment", "division"];
 const SIDE_LABEL: Record<Side, string> = { right: "Right of the table", left: "Left of the table", bottom: "Below the table", top: "Above the table" };

@@ -188,7 +188,7 @@ class UpgradeTest(TempDirs):
         self.assertFalse(formats_match(cur.replace("workbook=%d" % upgrade.SCHEMA["workbook"], "workbook=2")))
 
     def test_frontend_formats_equal_backend(self):
-        with open(os.path.join(REPO, "app", "src", "model", "types.ts"), encoding="utf-8") as f:
+        with open(os.path.join(REPO, "core", "src", "model", "types.ts"), encoding="utf-8") as f:
             m = re.search(r"export const FORMATS = \{([^}]*)\}", f.read())
         front = {k: int(v) for k, v in re.findall(r"(\w+):\s*(\d+)", m.group(1))}
         self.assertEqual(front, upgrade.SCHEMA)

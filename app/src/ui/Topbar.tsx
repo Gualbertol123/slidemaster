@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { patch, toast, useStore } from "../state/store";
-import { esc } from "../xlsx/util";
+import { esc } from "@slide-builder/core/xlsx/util";
 import { guard, lookChange, showVersion, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, setHealth, styleChange, setPrefs } from "../state/app";
 import { openInstaller } from "../state/dialogs";
 import { backend, type FileInfo } from "../sync/api";
@@ -8,8 +8,8 @@ import { doExport, exportVersions, type ExportKind } from "../editor/export";
 import { Dropdown } from "./Dropdown";
 import { Field } from "./Field";
 import { openFontManager } from "./FontPicker";
-import type { Footer, PageNumbers, Theme } from "../model/types";
-import { THEMES, themeOf } from "../model/style";
+import type { Footer, PageNumbers, Theme } from "@slide-builder/core/model/types";
+import { THEMES, themeOf } from "@slide-builder/core/model/style";
 import { Input } from "./Input";
 import { useStyle } from "./hooks";
 
@@ -68,7 +68,7 @@ export function ThemePicker() {
 }
 
 function Options() {
-  const st = useStyle(), p = st.pn, has = useStore(s => !!s.doc.sync);
+  const st = useStyle(), p = st.pn, has = useStore(s => s.doc.open);
   const pn = (patch: Partial<PageNumbers>, coalesce?: string) => styleChange("Page numbers", { pn: patch }, coalesce);
   const ft = st.footer, fo = (patch: Partial<Footer>, coalesce?: string) => styleChange("Footer", { footer: patch }, coalesce);
   return (
@@ -204,7 +204,7 @@ function Others() {
 }
 
 export function Topbar() {
-  const st = useStyle(), has = useStore(s => !!s.doc.sync), f = useStore(s => s.deck.file), n = useStore(s => s.deck.slides.length);
+  const st = useStyle(), has = useStore(s => s.doc.open), f = useStore(s => s.deck.file), n = useStore(s => s.deck.slides.length);
   const wb = useStore(s => !!s.deck.wb), opening = useStore(s => s.deck.opening);
   return (
     <header className="topbar">

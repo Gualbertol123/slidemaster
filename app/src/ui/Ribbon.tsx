@@ -1,13 +1,14 @@
 /* First toolbar row: TEXT. One set of controls for every text on a slide – table cells, text boxes,
    titles, subtitles, the cover note and date. They act on what is selected (named at the left); the
    row never changes shape. Deck-wide text styles and the font library: "Text styles…". */
+import { useEffect, useState } from "react";
 import { get, useStore } from "../state/store";
-import { undo } from "../state/app";
+import { core, undo } from "../state/app";
 import { activeItem, applySel, commitText, curSlide, selItems, editOf } from "../editor/edit";
 import { startPainter, stopPainter } from "../editor/painter";
 import { SLIDE_TEXT_LABEL, stepSize, textTarget, type Align, type TextTarget, type VAlign } from "../editor/textfmt";
-import { effFmt, effText, keyOf } from "../render/edits";
-import { A1 } from "../xlsx/util";
+import { effFmt, effText, keyOf } from "@slide-builder/core/render/edits";
+import { A1 } from "@slide-builder/core/xlsx/util";
 import { Dropdown } from "./Dropdown";
 import { Field } from "./Field";
 import { FontPicker, openFontManager } from "./FontPicker";
@@ -49,8 +50,8 @@ const ALIGN_ICON: Record<Align, string> = { left: "M2 3.5h12M2 6.5h8M2 9.5h12M2 
 const VALIGN_ICON: Record<VAlign, string> = { top: "M2 2.5h12M8 5v8M5.5 7.5 8 5l2.5 2.5", middle: "M2 8h12M8 1.5v4M8 10.5v4M6 3.5l2 2 2-2M6 12.5l2-2 2 2", bottom: "M2 13.5h12M8 3v8M5.5 8.5 8 11l2.5-2.5" };
 
 export function Ribbon() {
-  const canUndo = useStore(s => s.deck.undo.length > 0), canRedo = useStore(s => s.deck.redo.length > 0);
-  const painter = useStore(s => !!s.selection.painter), open = useStore(s => !!s.doc.sync);
+  const canUndo = useStore(s => s.deck.history.undo > 0), canRedo = useStore(s => s.deck.history.redo > 0);
+  const painter = useStore(s => !!s.selection.painter), open = useStore(s => s.doc.open);
   useStore(s => s.selection); useCurSlide();                 // what the text target is computed from
   const c = useCtx();
   const t = textTarget(), has = !!t, f = t?.shown, cells = t?.kind === "cells";
@@ -114,6 +115,18 @@ export function FxBar() {
   const name = it && sel ? it.L!.sheet.name + "!" + (its.length > 1 ? `${A1(sel.r1, sel.c1)}:${A1(sel.r2, sel.c2)}` : keyOf(it)) : R ? "—" : "";
   const value = it ? effText(c, it) : "";
   const edited = selItems().some(x => editOf(x).text !== undefined);
+  // the cell's own value in the workbook, read through the core worker (PLAN S2.5) – shown when the text was edited
+  const book = useStore(s => s.deck.wb?.book ?? 0);
+  // the workbook is part of the key: a reloaded workbook has its own values for the same cell
+  const xlKey = it && edited ? book + "|" + it.L!.sheet.name + "!" + keyOf(it) : "";
+  const [xl, setXl] = useState<{ key: string; text: string } | null>(null);
+  useEffect(() => {
+    if (!xlKey || !it) return;
+    let live = true;
+    void core().call("getCell", { book, sheet: it.L!.sheet.name, ref: keyOf(it) }).then(c => { if (live && c) setXl({ key: xlKey, text: c.text }); }).catch(() => { /* keep the layout's text */ });
+    return () => { live = false; };
+  }, [xlKey]);
+  const excelText = xl && xl.key === xlKey ? xl.text : it?.text;
   return (
     <div className="fxbar">
       <div className="namebox" id="nameBox">{name}</div>
@@ -123,7 +136,7 @@ export function FxBar() {
         placeholder={it ? (it.text ? "" : "(empty cell)") : R ? "Click a cell to select it · double-click or type to edit" : "Open a workbook to start"}
         onKeyDown={e => { e.stopPropagation(); const t = e.target as HTMLInputElement; if (e.key === "Enter") { e.preventDefault(); commitText(t.value, [1, 0]); t.blur(); } if (e.key === "Escape") { t.value = value; t.blur(); } }} />
       <span className="fxhint">Enter ↵ apply · Esc cancel</span>
-      <button className="tb" id="resetText" disabled={!edited} title={edited ? `Show the Excel value again: “${it!.text}”` : "Shows the Excel value again after you changed a cell's text"}
+      <button className="tb" id="resetText" disabled={!edited} title={edited ? `Show the Excel value again: “${excelText}”` : "Shows the Excel value again after you changed a cell's text"}
         onClick={() => applySel("Restore Excel text", e => { delete e.text; delete e.orig; })}>↺ Excel value</button>
     </div>
   );

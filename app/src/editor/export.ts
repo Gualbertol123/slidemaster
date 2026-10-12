@@ -2,16 +2,16 @@
    (blocked by policy), slides are rendered in this window (SVG foreignObject → JPEG) and the helper
    only assembles the PDF. */
 import { get, hideBusy, patch, showBusy, toast } from "../state/store";
-import { ctx, setPrefs, slidesFor, style } from "../state/app";
-import { resolveStyle } from "../model/style";
-import type { RenderCtx } from "../render/context";
-import type { Design } from "../model/types";
+import { ctx, flushDoc, htmlFor, setPrefs, slidesFor, style } from "../state/app";
+import { resolveStyle } from "@slide-builder/core/model/style";
+import type { RenderCtx } from "@slide-builder/core/render/context";
+import type { Design } from "@slide-builder/core/model/types";
 import { openInstaller } from "../state/dialogs";
 import { backend, ApiError, type ExportRes } from "../sync/api";
-import { buildSlide } from "../render/slide";
-import { esc } from "../xlsx/util";
+import { buildSlide } from "../render/slidedom";
+import { esc } from "@slide-builder/core/xlsx/util";
 import { embeddedFontCss } from "../state/fonts";
-import { PRINT_CSS, printReady } from "../render/printcss";
+import { PRINT_CSS, printReady } from "@slide-builder/core/render/printcss";
 
 export type ExportKind = "pdf" | "pdf-exact" | "pdf-vector" | "pdf-current" | "png-current" | "png-all" | "copy";
 
@@ -20,7 +20,8 @@ const slideCss = () => [document.getElementById("slidecss")?.textContent || "", 
 
 /** the exact slide DOM + slide CSS, self-contained (pictures and logo as data URLs) */
 async function exportPayload(idx: number[], base: RenderCtx = ctx(), vector = false) {
-  const c = { ...base, forExport: true }, slides: string[] = [], src = slidesFor(base.style.design);
+  // the tables as the core worker draws them for this design and version
+  const c = { ...base, forExport: true, htmlOf: await htmlFor(base.style.design, base.version?.id || "", true) }, slides: string[] = [], src = slidesFor(base.style.design);
   for (const i of idx) {
     const s = buildSlide(src[i], i, c);
     s.querySelectorAll(".pic.missing").forEach(e => e.remove());
@@ -32,7 +33,7 @@ async function exportPayload(idx: number[], base: RenderCtx = ctx(), vector = fa
 }
 
 async function clientRender(i: number, scale: number, type: string, base: RenderCtx = ctx()): Promise<string> {
-  const c = { ...base, forExport: true };
+  const c = { ...base, forExport: true, htmlOf: await htmlFor(base.style.design, base.version?.id || "", true) };
   const slide = buildSlide(slidesFor(base.style.design)[i], i, c);
   slide.querySelectorAll(".pic.missing").forEach(e => e.remove());
   for (const img of Array.from(slide.querySelectorAll<HTMLImageElement>("img.logo"))) { try { img.src = await toDataUrl(img.src); } catch { img.parentNode && (img.parentNode as HTMLElement).remove(); } }
@@ -68,7 +69,7 @@ export async function doExport(kind: ExportKind) {
   if (get().ui.exporting) return;
   patch("ui", { exporting: true });
   try {
-    await get().doc.sync?.flush();
+    await flushDoc();
     // PDFs are text and tables (vector) unless pictures of the slides are asked for explicitly
     const pdfMode = get().prefs.prefs.pdfMode || "vector";
     const all = get().deck.slides.map((_, i) => i);
@@ -112,7 +113,7 @@ export async function exportVersions(designs: Design[] | null) {
   patch("ui", { exporting: true });
   const done: string[] = [], stem = file.name.replace(/\.[^.]+$/, ""), all = get().deck.slides.map((_, i) => i);
   try {
-    await get().doc.sync?.flush();
+    await flushDoc();
     for (const d of designs || [style().design]) {
       for (const v of versions) {
         const base: RenderCtx = { ...ctx(), style: resolveStyle(get().doc.config.defaults.style, { ...(get().doc.view?.style || {}), design: d }), version: v };

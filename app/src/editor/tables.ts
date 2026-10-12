@@ -3,15 +3,15 @@
    slide.patch operations (one undo step per action). */
 import { get } from "../state/store";
 import { change, ctx } from "../state/app";
-import { buildLayout } from "../xlsx/layout";
-import type { TableLayout } from "../xlsx/types";
-import type { Layout, Op, RuntimeSlide, TableDef } from "../model/types";
-import { computeLayout, layoutOf, sizingChange, sizingOf, tableW } from "../render/slide";
-import { tableSizes } from "../model/preset";
-import type { RenderCtx } from "../render/context";
-import { glassGeom } from "../render/glass";
+import { buildLayout } from "@slide-builder/core/xlsx/layout";
+import type { TableLayout } from "@slide-builder/core/xlsx/types";
+import type { Layout, Op, RuntimeSlide, TableDef } from "@slide-builder/core/model/types";
+import { computeLayout, layoutOf, sizingChange, sizingOf, tableW } from "@slide-builder/core/render/slide";
+import { tableSizes } from "@slide-builder/core/model/preset";
+import type { RenderCtx } from "@slide-builder/core/render/context";
+import { glassGeom } from "@slide-builder/core/render/glass";
 import { curSlide, selItems, selTable } from "./edit";
-import { A1, parseRange } from "../xlsx/util";
+import { A1, parseRange } from "@slide-builder/core/xlsx/util";
 
 const r1 = (v: number) => Math.round(v * 10) / 10;
 /** width of a column as shown (Liquid Glass may have widened it) */
@@ -145,7 +145,7 @@ export function valignTables(v: "top" | "middle" | "bottom" | null, slideIdx: nu
 export const currentTableRefs = (): TableRef[] => (curSlide()?.tables || []).map((L, i) => ({ slide: get().deck.cur, i, L })).filter(r => r.L.def);
 
 /* ---- merge / unmerge (like Excel: the top-left value is kept) ---- */
-import { rangeKey } from "../xlsx/layout";
+import { rangeKey } from "@slide-builder/core/xlsx/layout";
 export function canMerge(): boolean { const s = get().selection.sel; return !!s && !!selTable()?.def && (s.r2 > s.r1 || s.c2 > s.c1); }
 export function mergedInSel() { return selItems().filter(it => it.b.m); }
 export function mergeSel() {

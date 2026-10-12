@@ -584,16 +584,21 @@ test.describe.serial("two people, one shared folder", () => {
     await page.check('.sheetrow input[value="WM_ALL_STOCK_new"]');
     await page.click('[data-a="next"]');                                          // sheets → tables
     await expect(page.locator(".clipnote")).toBeVisible();                        // "Showing A1:… – type larger ranges…"
-    const near = (a: { x: number; y: number; width: number; height: number }, b: typeof a) =>
-      Math.abs(a.x - b.x) < 1.5 && Math.abs(a.y - b.y) < 1.5 && Math.abs(a.x + a.width - b.x - b.width) < 1.5 && Math.abs(a.y + a.height - b.y - b.height) < 1.5;
+    await expect(page.locator(".wgrid-in[data-complete]")).toHaveCount(1);       // the preview's rows arrive in blocks: all there
     const td = (r: number, c: number) => page.locator(`.wgrid-in td[data-r="${r}"][data-c="${c}"]`);
+    // the selection box against the cells it covers, measured in one go in the page (nothing is redrawn in between)
+    const offBy = (r1: number, c1: number, r2: number, c2: number) => page.evaluate(([r1, c1, r2, c2]) => {
+      const q = (s: string) => document.querySelector(s)?.getBoundingClientRect();
+      const box = q(".ovb.sel"), tl = q(`.wgrid-in td[data-r="${r1}"][data-c="${c1}"]`), br = q(`.wgrid-in td[data-r="${r2}"][data-c="${c2}"]`);
+      if (!box || !tl || !br) return `missing: ${!box ? "selection box " : ""}${!tl ? "first cell " : ""}${!br ? "last cell" : ""}`;
+      return Math.max(Math.abs(box.left - tl.left), Math.abs(box.top - tl.top), Math.abs(box.right - br.right), Math.abs(box.bottom - br.bottom));
+    }, [r1, c1, r2, c2]);
     await td(5, 4).click();
-    await expect(page.locator("#wRange")).toHaveValue("D5:D5");
-    expect(near((await page.locator(".ovb.sel").boundingBox())!, (await td(5, 4).boundingBox())!)).toBe(true);
+    await expect(page.locator("#wRange")).toHaveValue("D5:D5"); await expect(page.locator(".ovb.sel")).toBeVisible();
+    expect(await offBy(5, 4, 5, 4)).toBeLessThan(1.5);
     await page.keyboard.press("Shift+ArrowRight"); await page.keyboard.press("Shift+ArrowDown");
     await expect(page.locator("#wRange")).toHaveValue("D5:E6"); await expect(page.locator(".ovb.sel")).toBeVisible();   // redrawn before measuring
-    const box = (await page.locator(".ovb.sel").boundingBox())!, tl = (await td(5, 4).boundingBox())!, br = (await td(6, 5).boundingBox())!;
-    expect(near(box, { x: tl.x, y: tl.y, width: br.x + br.width - tl.x, height: br.y + br.height - tl.y })).toBe(true);
+    expect(await offBy(5, 4, 6, 5)).toBeLessThan(1.5);
     await page.click('[data-x="close"]'); await page.click('.modal [data-a="ok"]');
   });
 

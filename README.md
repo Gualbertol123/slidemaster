@@ -163,14 +163,15 @@ overwriting existing documents, and renames it `slide_builder_settings.v2-backup
 
 ```
 ┌──────────────── browser tab: backend/slide_builder.html (ONE self-contained file, React + TS) ────────────────┐
-│ xlsx/    unzip (JSZip) + regex sheet parser, styles, number formats, conditional formats, drawings,           │
+│ xlsx/    unzip (fflate) + byte scanner into columns, styles, number formats, conditional formats, drawings,   │
 │          "x" table regions, per-cell geometry (TableLayout)                                                    │
 │ model/   persistent types · operations (+ inverses) · preset → runtime slides · style layering & themes ·      │
 │          automated comment analysis/writing · font catalogue                                                    │
 │ render/  edits on top of the workbook · Excel design · Liquid Glass scene model · slide layout & composition ·│
 │          cover/contents · page numbers/footer · wallpaper · comment text · PDF-ready CSS                         │
-│ sync/    HTTP client (token, formats) · DocSync (optimistic ops, batching, retry, polling) · offline store     │
-│ state/   one Zustand store in slices · actions (open, change, undo, doc changes, presence) · dialogs · fonts    │
+│ core worker (Blob URL): owns the workbook · DocSync (ops, batching, retry, polling) · undo/redo · table HTML    │
+│ sync/    HTTP client (token, formats) · offline store · rpc/ the typed messages to and from the core worker    │
+│ state/   one Zustand store in slices (read-only mirrors of the worker's document and sheets) · actions · dialogs │
 │ editor/  stage (imperative DOM: hit testing, selection, inline editors, drags, snapping) · tables · painter ·   │
 │          unified text toolbar · keyboard · thumbnails · export · side-panel issues                              │
 │ ui/, wizard/   React 19 chrome: top bar, ribbons, dialogs, 4-step wizard                                        │
@@ -273,7 +274,7 @@ data/
 * **Effective sizing** of a slide/table in a design = its own `sizes[design]` entry if present (even
   empty), else the shared `layout/scale/align/valign` or `cols/rows` of older decks
   (`render/slide.ts sizingOf`, `model/preset.ts tableSizes`).
-* The full field table is `docs/ARCHITECTURE.md` §3; the TypeScript types are `app/src/model/types.ts`.
+* The full field table is `docs/ARCHITECTURE.md` §3; the TypeScript types are `core/src/model/types.ts`.
 
 ### 4.3 Operations
 | op | fields | plain keys (`null` deletes, else set) | map keys (map merge) |
@@ -294,7 +295,7 @@ applying it (`model/ops.ts inverseOf`) – that is the undo.
 
 ### 4.4 Format versions (`schema`)
 Current formats: `SCHEMA = {workbook: 3, config: 3, prefs: 1}` (`backend/slidebuilder/upgrade.py`) =
-`FORMATS` (`app/src/model/types.ts`; a test checks they match). On every read (`store._load`):
+`FORMATS` (`core/src/model/types.ts`; a test checks they match). On every read (`store._load`):
 * **older file** → under its lock, re-read, copy to `backups/upgrades/…`, apply `@step(kind, n)`
   functions n → n+1 in order, write atomically. Exactly once even with several PCs. `store.upgrade_all()`
   converts every file at start-up.
@@ -306,24 +307,31 @@ Current formats: `SCHEMA = {workbook: 3, config: 3, prefs: 1}` (`backend/slidebu
 
 ---
 
-## 5. Front end (`app/src`)
+## 5. Front end (`core/src` + `app/src`)
 
 TypeScript, React 19 components for the chrome, imperative DOM for slides (for speed). Runtime
-dependencies: `react`, `react-dom`, `zustand` (pinned exactly) and `jszip`. Built by Vite + `vite-plugin-singlefile` into `backend/slide_builder.html`. `main.tsx` injects
+dependencies: `react`, `react-dom`, `zustand` and, in `core/`, `fflate` (all pinned exactly). Reading workbooks, the model and
+the renderers (§5.1–5.3) are **pure TypeScript in `core/src`** (no DOM: they will run in a worker, PLAN M2);
+what they need from a page goes through `core/src/platform.ts` — `TextMeasurer` (Excel's digit width on a
+canvas, fitting text boxes in an off-screen slide) and `CanvasFactory` (wallpaper, picture analysis) —
+whose browser implementations are `app/src/platform/` (installed by `main.tsx`). XML is read by the core's
+own tokenizer (`core/src/xlsx/xml.ts`; DOMParser does not exist in workers).
+The page turns the core's slide markup into elements (`app/src/render/slidedom.ts`: `buildSlide`,
+`applyLayout`, `placeGlass`, text-box fitting) and puts the wallpaper into its CSS (`app/src/render/wall.ts`). Built by Vite + `vite-plugin-singlefile` into `backend/slide_builder.html`. `main.tsx` injects
 `ui.css`+`app.css` as `<style id="uicss">` and `slide.css` as **`<style id="slidecss">`** (exports send
 exactly this text), mounts `<App/>`, installs the keyboard handler and calls `boot()`.
 
-### 5.1 `xlsx/` – reading workbooks
+### 5.1 `core/src/xlsx/` – reading workbooks
 | File | Responsibility |
 |---|---|
-| `workbook.ts` | `indexWorkbook(buf)`: sniff (`D0CF11E0` → `CFB` = .xls/encrypted, `.bin` part → `XLSB`, not zip → error), JSZip, sheet list (hidden and chart sheets skipped), uncompressed sizes; `big` when > 12 MB sheet XML or > 6 MB file. `wb.ensure(names)` parses sheets lazily: `loadShared` once (theme, shared strings with rich-text runs, styles, number formats, fonts, fills, borders, `cellXfs`, `dxfs`, max digit width measured on a canvas), `readSheet` = **regex parser** over the XML string (no DOMParser for `sheetData`; yields every 4000 rows), merges, conditional formats, drawings, `findRegions`. `makeSheet` adds geometry methods (`colPx` = Excel's width formula, `rowPx` = pt × 96/72, cumulative offsets, `cellAt`). |
+| `workbook.ts` | `indexWorkbook(buf)`: sniff (`D0CF11E0` → `CFB` = .xls/encrypted, `.bin` part → `XLSB`, not zip → error), the zip's central directory (`zip.ts`, fflate inflates parts on demand), sheet list (hidden and chart sheets skipped), uncompressed sizes; `big` when > 12 MB sheet XML or > 6 MB file. `wb.ensure(names)` parses sheets lazily: `loadShared` once (theme, shared strings with rich-text runs, styles, number formats, fonts, fills, borders, `cellXfs`, `dxfs` – read with the core's XML tokenizer `xml.ts`; max digit width measured by the platform's `TextMeasurer`), `readSheet` = **byte scanner** (`sheetstore.ts`) over `sheetData` into typed-array columns (13 bytes a cell; yields every 4000 rows when reporting progress), v3's regular expressions for the rest of the sheet (merges, conditional formats, columns), drawings, `findRegions`. `makeSheet` adds geometry methods over the columns (`cells`/`rowInfo` are read-only map views; a `Cell` object is made on request) (`colPx` = Excel's width formula, `rowPx` = pt × 96/72, cumulative offsets, `cellAt`). |
 | `layout.ts` | `findRegions(S)`: pairs "x" markers (top-left with the nearest bottom-right whose rectangle holds no other marker). `buildLayout(S, g, sizes)` → **`TableLayout`**: visible rows/cols, x/y/w/h maps (user sizes applied), one `Item` per cell or merged block (`effectiveMerges` = workbook merges − user splits + user merges), borders (shared edges → heavier style), fonts, fills, number-format text and colour, alignment, text overflow into empty neighbours, conditional formatting (`evalCF`, also with `from` for painted formats), pictures/shapes/text boxes (hidden rows/cols collapse anchored objects). |
 | `numfmt.ts` | `formatValue(cell)`: Excel number formats → text (sections, colours, locale tags, %, fractions, exponents, thousands scaling, General, dates/times incl. elapsed and Italian names). Separators: "." thousands, "," decimals. |
 | `drawing.ts` | `readDrawing`: anchors (two/one/absolute), groups, crop, rotation/flip, SVG preferred, EMF/WMF/TIFF via the helper (`setPictureConverter`), shapes and text boxes, charts listed (not drawn). `analyzeImages` samples each picture (round badge, white background → keyed transparent copy) for Liquid Glass. |
 | `color.ts` | Excel colour resolution (theme, indexed, tint in HSL) and colour maths (`lum`, `tone` = pos/neg/…, `fillClass`). |
 | `types.ts`, `util.ts` | `Sheet`, `Cell`, `Item`, `TableLayout`, `Workbook`…; A1 helpers, `zget` (case/%-tolerant zip lookup), `hashStr`, `uid`. |
 
-### 5.2 `model/` – persistent data and pure logic
+### 5.2 `core/src/model/` – persistent data and pure logic
 | File | Responsibility |
 |---|---|
 | `types.ts` | **All persistent types** (§4) + `FORMATS`, `Op`, and the runtime `RuntimeSlide = {id, type, cfg: SlideDef, tables: TableLayout[], title, subtitle, label, missing}`. |
@@ -333,14 +341,14 @@ exactly this text), mounts `<App/>`, installs the keyboard handler and calls `bo
 | `comment.ts` | Automated comments, pure functions over a `Grid` of displayed cells: `analyse(grid)` finds the label column, data rows, headers, **comparison groups** (a header matching Δ/vs/var/delta… with Abs. and % columns, classified week/target/month/quarter/year/yoy by regex), latest period, total rows, entities and **blocks** (a bold or "Total…" row with the rows under it). `writeComment` (sections mode) and `writeSummary` (summary mode: facts joined with "·", a judgement word from the week's % (thresholds 1 % and 0.3 %), drivers and offsets with materiality, plan gap closure). `shapeComment` applies layout options and the unit (`withUnit`, default "mln"). |
 | `fonts.ts` | Font catalogue (`SYSTEM_FONTS`, `GOOGLE_POPULAR`), `fontStack`, `@font-face` generation, `readFontInfo` (family/weight/italic from the sfnt `name`/`OS/2` tables, WOFF inflated), Google CSS parsing (latin subsets). |
 
-### 5.3 `render/` – from layouts to HTML
+### 5.3 `core/src/render/` – from layouts to HTML
 | File | Responsibility |
 |---|---|
 | `context.ts` | `RenderCtx = {style, edits, slides, preset, workbook, logoSrc, version?, forExport?}` (rebuilt when the document changes) and **`tableKey(ctx, L)`** – the master cache key (sheet edits, table def incl. sizes/scales/merges/gridlines, radius, table font, version hides, colours, theme). |
 | `edits.ts` | `effItems(L, ctx)` = the workbook items with everything the user changed: **version blanking** (cells in `version.hide` → empty, no fill, `removed`), gridlines, colour scales, painted conditional formats, cell edits (text only while `orig` matches), cell colour vs highlight, roles. `cache(L, name, key, make)` = the per-table cache (`L._cache`). |
 | `excel.ts` | `renderExcel`: absolutely positioned divs (box layer: fills/borders; text layer: fonts, alignment, indent, rotation, `<sup>/<sub>`), shapes, text boxes, pictures. Used by **Excel and Excel Refined**. |
 | `glass.ts` | Liquid Glass: `glassGeom` (columns widened for the system font, user-fixed columns kept), `buildScene` (grid → surfaces by union-find of structural fills, frames/grids from borders, rules, texts, signals (CF fills, highlights, green/red status), media; containment tree), `inferRoles` (heading/section/label/value/emphasis/caption, implicit cards, table detection with automatic separators), `renderGlass` (materials by fill class and depth, tinted glass, capsules, hairlines, ink colours). Details: `docs/RENDERING.md` §2.3. |
-| `slide.ts` | Slide composition. `areaFor` (content area 50…1550 × 104/126…822, pushed by large titles), `defaultLayout`/`layoutOf`, **per-design sizing** (`sizingOf`, `sizingPatch`, `sizingChange`, `fixedScale`), `notesOf` (none in raw Excel; automated comments get their text here), **`computeLayout`** (§6.6), `tableHtml` (cached per design/glass level/tableKey), **`buildSlide`** (CSS variables, wallpaper, title or cover, contents, page number, footer, tables, text boxes, notes section, editing handles, logo), `applyLayout` (positions + `placeGlass` = aligns each glass element's blurred wallpaper), `fitNotes` (shrinks text box fonts to fit, measured off-screen). |
+| `slide.ts` | Slide composition. `areaFor` (content area 50…1550 × 104/126…822, pushed by large titles), `defaultLayout`/`layoutOf`, **per-design sizing** (`sizingOf`, `sizingPatch`, `sizingChange`, `fixedScale`), `notesOf` (none in raw Excel; automated comments get their text here), **`computeLayout`** (§6.6), `tableHtml` (cached per design/glass level/tableKey), **`slideMarkup`** (class, CSS variables and HTML: wallpaper, title or cover, contents, page number, footer, tables, text boxes, notes section, editing handles, logo), `fitNoteSize` (shrinks a text box's font until the `TextMeasurer` says it fits). In the page, `app/src/render/slidedom.ts` builds the element (`buildSlide`), positions it (`applyLayout` + `placeGlass` = aligns each glass element's blurred wallpaper) and fits the text boxes. |
 | `text.ts` | Deck text styles under per-slide formatting (`slideTextFmt`, `effNote`, `fmtCss`), `titleGeom`, text box markup (`richText`). |
 | `comment.ts` | `gridOf(L, ctx)` (displayed values, removed cells → null), `analysisOf`, `commentText(L, cfg, ctx, R)` (all tables covered by the comment). |
 | `cover.ts`, `pagenumbers.ts` | Cover and contents slides (page numbers of the content slides); page number and footer placement (avoid the logo, share corners). |
@@ -349,13 +357,39 @@ exactly this text), mounts `<App/>`, installs the keyboard handler and calls `bo
 | `printcss.ts` | `printReady` / `PRINT_CSS`: makes slides light for vector PDF (blurred shadows → stepped sharp layers, variable fonts → classic, glass rim mask → border). §10.3. |
 | `roles.ts` | `rolesOf` (header/total/body rows) – used only by a unit test today (was the old Excel Refined renderer). |
 
-### 5.4 `sync/`, `state/` – data flow
+### 5.4 The core worker, `sync/`, `state/` – data flow
+**The core worker owns the open workbook, its shared document and undo/redo** (PLAN S2.4, Part B §2). It is a
+classic worker built into the page at build time (`app/vite.config.ts` bundles `core/src/workers/core.worker.ts`
+into a string; `app/src/rpc/client.ts` starts it from a Blob URL, so it also runs from `file://`; where no worker
+can start – the component tests – the same host runs in the page behind the same messages). The messages are
+`core/src/rpc/messages.ts` over `core/src/rpc/port.ts` (typed calls both ways, events, transferables):
+* the page **calls** `index` (read a workbook: a copy of the bytes is transferred; every later call names the workbook
+  by the number it returns), `ensure` (read sheets), `getSheetMeta`/`getSheetWindow`/`detectTables`/`getCell` (what the
+  wizard and the formula bar read: sheet summaries and table sizes, a window of cells, suggestions, one cell),
+  `start` (the document opens), `apply(label, ops, coalesce)`, `undo(redo)`, `flush`, `poll`, `inputs` (version,
+  shared default style), `html` (tables of another design/version/export);
+* the worker **sends** `slices` (`core/src/xlsx/slice.ts`: the sheets the deck uses as typed-array slices – whole when
+  small, else the rectangle its tables, their grown ranges and their conditional formats' operands need), `html`
+  (the table HTML of the current design and version, new keys only), `doc` (view, save state, history, what
+  changed, how many of the page's calls it includes), `progress`, `error` – after a change in that order;
+* the worker **asks** the page for `getDoc`/`postOps` (the page's backend: HTTP with its token, or localStorage
+  from `file://`), `digitWidth` (Excel's digit width with the page's fonts), `analyzeImages` (a worker cannot
+  decode SVG) and `convertPicture`.
+
+The page holds **read-only mirrors**: `deck.wb` (`core/src/xlsx/mirror.ts`: the hydrated slices; the pure code –
+`runtimeSlides`, layouts, hit testing, drags, the format painter, comments – runs on it and
+reads the same cells), `doc.view` and `deck.history`. `change()` sends ops to the worker and shows them on the view
+mirror at once (predicted with the core's ops, so code that reads the document right after a change sees it; the
+worker's snapshots are rebased on calls it has not confirmed yet). Tables are drawn with the worker's HTML
+(`RenderCtx.htmlOf`, keyed by table id and `tableHtmlKey`); without it for a key the page draws the table itself
+(`coreStats.localHtml` counts that; the e2e from `file://` expects 0).
 | File | Responsibility |
 |---|---|
 | `sync/api.ts` | The `Backend` interface; `helper` (HTTP: adds `X-SB-Token` from `<meta name="sb-token">` and `X-SB-Formats`; `ApiError`) and `offline` (localStorage, for a page opened as `file://`). `backend = SERVED ? helper : offline`. |
-| `sync/docsync.ts` | **`DocSync`**: `server` doc + `inflight` + `pending` ops → `view`. `apply(ops)` (local, returns inverse), `flush()` (one request in flight, 300 ms debounce, retry 2–32 s, 409 → `outdated`), `poll()` (`?since=rev`, rebase), `on(listener)` with `Change {local, by, presetChanged, styleChanged, editsChanged}`. |
-| `state/store.ts` | **One Zustand store** (`useStore`, `subscribeWithSelector`) in slices: `doc` (the `DocSync`, a read-only mirror of its `view` and save state, shared config, font library), `deck` (file, wb, slides, cur, version, undo/redo, remote, opening), `selection` (`sel`/`noteSel`/`textSel`, painter), `ui` (zoom, busy, toast, dialogs, design scope, banners, health, presence, exporting), `prefs` (user, host, client, prefs). Components select what they render (`useStore(s => s.selection.sel)`; `ui/hooks.ts`: `useCtx`, `useStyle`); other code reads `get()` and writes `patch(slice, …)`/`patchAll`. A poll that brings nothing new keeps the old objects (`same`), so nothing re-renders. `STAGE`/`THUMBS` controller hooks filled by the editor. |
-| `state/app.ts` | The store's actions (module functions writing the store): `boot`, `openFromFolder`/`openLocalFile`/`openBuffer`, `onDocChange`, `onStyleChanged`, **`change(label, ops, coalesce?)`**, `undo`, `styleChange`, `lookChange` (scope: this design / all), `slidesFor(design)`, `showVersion`, `ctx()` (memoised `RenderCtx`), `style()`, `tick` (poll 3 s, health + one-stat changed-on-disk check 6 s, fonts/config 30 s; the workbook list is read at start and when the Open menu opens), presence heartbeat 10 s. |
+| `core/src/sync/docsync.ts` (in the worker) | **`DocSync`**: `server` doc + `inflight` + `pending` ops → `view`. `apply(ops)` (local, returns inverse), `flush()` (one request in flight, 300 ms debounce, retry 2–32 s, 409 → `outdated`), `poll()` (`?since=rev`, rebase), `on(listener)` with `Change {local, by, presetChanged, styleChanged, editsChanged}`. |
+| `core/src/sync/history.ts` (in the worker) | Undo/redo of my own changes: inverse ops per step, 1.5 s coalescing per key, 200 steps, entries per workbook; `summary()` is what the page shows. |
+| `state/store.ts` | **One Zustand store** (`useStore`, `subscribeWithSelector`) in slices: `doc` (`open`, a read-only mirror of the worker's `view` and save state, shared config, font library), `deck` (file, the workbook mirror `wb`, slides, cur, version, `history` (what undo/redo would do), remote, opening), `selection` (`sel`/`noteSel`/`textSel`, painter), `ui` (zoom, busy, toast, dialogs, design scope, banners, health, presence, exporting), `prefs` (user, host, client, prefs). Components select what they render (`useStore(s => s.selection.sel)`; `ui/hooks.ts`: `useCtx`, `useStyle`); other code reads `get()` and writes `patch(slice, …)`/`patchAll`. A poll that brings nothing new keeps the old objects (`same`), so nothing re-renders. `STAGE`/`THUMBS` controller hooks filled by the editor. |
+| `state/app.ts` | The store's actions (module functions writing the store) and the page's end of the core worker (`core()`, `htmlFor`, `flushDoc`): `boot`, `openFromFolder`/`openLocalFile`/`openBuffer`, `onWorkerDoc` → `onDocChange`, `onStyleChanged`, **`change(label, ops, coalesce?)`** (to the worker), `undo`, `styleChange`, `lookChange` (scope: this design / all), `slidesFor(design)`, `showVersion`, `ctx()` (memoised `RenderCtx`), `style()`, `tick` (poll 3 s, health + one-stat changed-on-disk check 6 s, fonts/config 30 s; the workbook list is read at start and when the Open menu opens), presence heartbeat 10 s. |
 | `state/dialogs.ts` | Promise-based dialogs (`ask`, `confirmBox`, `runWizard`, installer); which one is open: `ui.dialogs` in the store, rendered by `ui/`. |
 | `state/fonts.ts` | Font library in the page (store: `doc.fonts`, `ui.fontBusy`): `loadFonts`, `@font-face` in `<style id="fontcss">`, `addGoogleFont` (downloads faces, uploads them to the helper), `uploadFontFiles`, `embeddedFontCss(html)` (fonts used by exported slides as data URLs). |
 
@@ -377,7 +411,8 @@ exactly this text), mounts `<App/>`, installs the keyboard handler and calls `bo
   slide), `TextStylesDialog.tsx` (Design…: colours, text styles, fonts), `CommentDialog.tsx` (live
   preview), `TablesDialog.tsx` (sizes across slides), `FontPicker.tsx`, `Dialogs.tsx`, `Dropdown.tsx`,
   `Field.tsx` (input that keeps its draft while focused so background re-renders never overwrite typing).
-* `wizard/Wizard.tsx` (4 steps; spreadsheet preview per sheet), `wizard/detect.ts` (table suggestions by
+* `wizard/Wizard.tsx` (4 steps; spreadsheet preview per sheet, drawn in blocks of 80 rows from the worker's window of
+  cells; summaries and suggestions from the worker – never a whole sheet), `core/src/xlsx/detect.ts` (table suggestions by
   flood fill of occupied cells).
 * `styles/slide.css` (**everything a slide needs**, exported with slides), `ui.css`, `app.css` (chrome).
 
@@ -393,20 +428,23 @@ served: reopen `prefs.lastFile`, start `tick` (3 s) and the presence heartbeat (
 ### 6.2 Opening a workbook
 1. Bytes: `GET /files/<name>` (stable read; `X-SB-Mtime/Size`), or a dropped/browsed file (uploaded to the
    helper's memory store when served).
-2. `indexWorkbook`; `.xlsb/.xls/encrypted` → `POST /api/convert-workbook` (Excel COM) → re-index. Small
-   workbooks are parsed completely, big ones lazily.
+2. The worker's `index` (a copy of the bytes; `indexWorkbook` there); `.xlsb/.xls/encrypted` → `POST /api/convert-workbook`
+   (Excel COM) → index again. Small workbooks are parsed completely, big ones lazily; the page gets the slices.
 3. `LCACHE.clear()`, `GET /api/workbooks/<name>/doc`.
-4. Preset: continue with the saved one, or the wizard (with `defaultPreset` as draft); then
-   `wb.ensure(presetSheets)` parses only the sheets used.
-5. New `DocSync`; `runtimeSlides(wb, preset, name, design)` → `deck.slides` (one store update with the new document); restore the person's last
-   version; `makeWall`; `STAGE.render()`, `THUMBS.render()`.
+4. Preset: continue with the saved one, or the wizard (with `defaultPreset` as draft, on the mirror); then the
+   worker's `ensure(presetSheets)` parses only the sheets used.
+5. The worker's `start` (its `DocSync`, the first table HTML); `runtimeSlides(wb, preset, name, design)` on the mirror →
+   `deck.slides` (one store update with the new document); restore the person's last version; wallpaper;
+   `STAGE.render()`, `THUMBS.render()`.
 
 ### 6.3 Making an edit (e.g. Ctrl+B on cells)
 1. `editor/keys.ts` → `toggleBold()` → `applySel` diffs the selected cells' `CellEdit`s → `cell.patch` ops →
    **`change(label, ops)`**.
-2. `DocSync.apply`: for each op compute `inverseOf` on the current view, apply locally, push to `pending`,
-   emit (the stage updates at once), schedule a flush in 300 ms. `change` stores an undo entry (same
-   `coalesce` key within 1.5 s → one entry, e.g. a slider drag).
+2. The page shows the ops on its view mirror (save state "pending") and calls the worker's `apply`. There
+   `DocSync.apply`: for each op compute `inverseOf` on the current view, apply locally, push to `pending`, emit,
+   schedule a flush in 300 ms; the history stores an undo entry (same `coalesce` key within 1.5 s → one entry,
+   e.g. a slider drag). The worker redraws the changed tables and sends their HTML, then the snapshot; the page
+   updates the stage.
 3. `flush`: `POST /api/workbooks/<name>/ops {ops, client}` (one request in flight).
 4. Helper: Host/Origin/token/format checks → `store.update_workbook`: lock `wb-<key>` → read latest
    (upgrading an older format) → `ops.apply_ops` → atomic write → rolling backup if due → unlock → `{doc,
@@ -417,15 +455,15 @@ served: reopen `prefs.lastFile`, start `tick` (3 s) and the presence heartbeat (
    errors → retry after 2, 4, … 32 s.
 
 ### 6.4 Seeing other people's changes
-Every 3 s `DocSync.poll()` → `GET …/doc?since=<rev>` (204 if unchanged) → rebase → `onDocChange`:
+Every 3 s the worker's `poll` (`DocSync.poll()`) → `GET …/doc?since=<rev>` (204 if unchanged) → rebase → `onDocChange`:
 preset changed → rebuild runtime slides + full render; titles/logo changed → rebuild; style changed →
 `onStyleChanged` (re-resolve slides if the design changed; wallpaper; full render); otherwise
 `STAGE.refresh()` (only tables whose `tableHtml` changed are patched) and thumbnails. The stage never
 redraws while an inline editor is open; settings inputs use `ui/Field.tsx`.
 
 ### 6.5 Undo/redo
-`undo()` pops the user's own entry (same workbook) and applies its stored inverse ops as **new** ops via
-`change`. Inverses only touch the fields this user changed, so another user's later change to other
+`undo()` asks the worker: it pops the user's own entry (same workbook) and applies its stored inverse ops as
+**new** ops (`core/src/sync/history.ts`). Inverses only touch the fields this user changed, so another user's later change to other
 fields survives.
 
 ### 6.6 Rendering a slide and the layout algorithm
@@ -613,7 +651,7 @@ All engines run at **device scale factor 1** for PDFs (Windows display scaling u
 * Modes: `vector` (default; real text and tables), `exact` = PNG pages at `scale` packed losslessly by
   `pdf.jpegs_to_pdf` (file name "(images)"), `png` files, `inline` PNG for the clipboard.
 
-### 10.3 Keeping PDFs light (`app/src/render/printcss.ts`)
+### 10.3 Keeping PDFs light (`core/src/render/printcss.ts`)
 Chrome prints what it cannot draw as vector as 300 dpi pictures and embeds variable/CFF fonts glyph by
 glyph (Type 3 – slow in Acrobat). For vector exports the page therefore sends: blurred `box-shadow`s
 replaced by 5 sharp layers of fading strength (`vectorShadow`), "Segoe UI Variable"/"SF Pro" removed from
@@ -627,10 +665,13 @@ the wallpaper's contrast baked into its image (no CSS filter). A 4-slide Liquid 
 ```
 npm ci                       # once, at the root (Node 22; developers only): npm workspaces app/ and core/
 npm run build                # type-check + single-file build of app/ → backend/slide_builder.html  (commit it)
-npm test                     # Vitest unit tests of app/ (incl. "the built file is up to date")
-npm run check                # core/ typecheck (no DOM) + app/ typecheck + Vitest (what CI runs, after npm run build)
+npm test                     # Vitest: core/ (pure unit tests, ops vectors) and app/ (incl. "the built file is up to date")
+npm run check                # core/ typecheck (no DOM) + Vitest, app/ typecheck + Vitest (what CI runs, after npm run build)
 npm run parity               # v3 against golden/ (tools/capture-v3.mjs + tools/parity.mjs; needs pypdf)
 npm run test:e2e             # Playwright: two real helpers (users anna/bob) on one temp shared folder
+npm run bench                # benchmarks with thresholds: big30 parse (core; needs python tools/make_corpus.py big30
+                             #   tests/corpus/workbooks, openpyxl), render counts (app) and the page in Chromium with a
+                             #   real helper (tools/bench.mjs: deck20 open, big30 sheet read, long tasks, heap)
 cd app && node e2e/parity.mjs <old.html> ../backend/slide_builder.html tests/fixtures/*.xlsx   # renderer diff vs. an older build
 
 cd backend
@@ -639,16 +680,18 @@ python slide_builder.py [--port 8765] [--no-browser] [--setup] [--install] [--se
 python ../tools/loadtest.py --users 10 --scenario same --fs-ms 15        # load test (docs/LOADTEST.md)
 ```
 The root scripts run the same scripts of the workspace (`npm run <x> -w app`); inside `app/` they work as
-well. `core/` is pure TypeScript for the workers of v4 (`lib: ES2022 + WebWorker`, no DOM types; empty until
-S2.1 of `docs/next/PLAN.md`). Without a downloaded browser set `CHROME=/path/to/chrome` (e2e) or `SLIDEBUILDER_BROWSER`. Test
+well. `core/` is pure TypeScript for the workers of v4 (`lib: ES2022 + WebWorker`, no DOM types). Without a downloaded browser set `CHROME=/path/to/chrome` (e2e) or `SLIDEBUILDER_BROWSER`. Test
 workbooks are generated by `app/tests/fixtures/make_fixtures.py` (openpyxl).
 
 | Suite | Covers |
 |---|---|
-| `app/tests/ops.test.ts` + `backend/tests/test_ops.py` | every case of `shared/ops-vectors.json`; inverses |
-| `app/tests/docsync.test.ts` | merging two users, retries, rebasing, own-changes-only undo, authors, 409 |
-| `app/tests/tables.test.ts`, `text.test.ts`, `design.test.ts` | layout, sizes, same size, per-design sizing, scales, merges, gridlines, painted CF, themes, text styles, fonts, text boxes, designs, versions |
-| `app/tests/comment.test.ts`, `numfmt.test.ts`, `printcss.test.ts`, `build.test.ts` | automated comments · number formats & superscripts · PDF CSS · committed build is fresh |
+| `core/tests/ops.test.ts` + `backend/tests/test_ops.py` | every case of `shared/ops-vectors.json`; inverses |
+| `core/tests/xml.test.ts` (jsdom in this test only) | the core's XML tokenizer = DOMParser: rels, workbook, theme, styles, drawings of every corpus workbook and of a synthetic one (`zipbuild.ts`: gradient fills, custom theme, prefixed styles with BOM/CRLF, AlternateContent, charts, anchors; empty parts); entities, CDATA, namespaces, line ends, deep trees |
+| `core/tests/sheetstore.test.ts` (+ `sheet-v3.ts`, v3's parser kept as the reference) | every cell of every corpus sheet (big30 too when generated) equal to v3's regex parser: values, types, styles, runs, lookups, row info; crafted sheets with every cell shape (types, dates by format, rich/phonetic runs, escapes, prefixes, no `r`, unsorted/duplicates, unclosed tags) |
+| `core/tests/host.test.ts`, `slice.test.ts` | the core worker's host through its messages (slices → HTML → snapshot, acks, undo/redo labels and coalescing, two people, per-design sizes give new HTML keys) · every corpus deck gives the same slides, layouts, effective items and table HTML from slices as from the workbook (whole and cut to rectangles; conditional-format operands outside the table) |
+| `core/tests/docsync.test.ts` | merging two users, retries, rebasing, own-changes-only undo, authors, 409 |
+| `core/tests/tables.test.ts`, `text.test.ts`, `design.test.ts` | layout, sizes, same size, per-design sizing, scales, merges, gridlines, painted CF, themes, text styles, fonts, text boxes, designs, versions |
+| `core/tests/comment.test.ts`, `numfmt.test.ts`, `printcss.test.ts` · `app/tests/build.test.ts` | automated comments · number formats & superscripts · PDF CSS · committed build is fresh |
 | `app/tests/renders.test.tsx`, `stage-follow.test.tsx` (jsdom, React's development build; any console error or warning fails them) | render counts per change (selection, polls, toasts) · the stage's store subscriptions, Fit |
 | `app/e2e/app.spec.ts` | 15 scenarios: wizard, two users merging, export, table tools, painter, gridlines, themes, typing under concurrent changes, text toolbar & fonts, comments, text boxes, notes section, versions × designs |
 | `app/e2e/file.spec.ts` | the page opened from file:// without the helper: choose a workbook, wizard, edit a cell, kept across a reload |
@@ -673,8 +716,8 @@ workbooks are generated by `app/tests/fixtures/make_fixtures.py` (openpyxl).
 | Reading something new from .xlsx | `xlsx/workbook.ts`, `xlsx/drawing.ts`, `xlsx/types.ts`. |
 | Automated comment wording | `model/comment.ts` (`writeSummary`, `writeComment`), options in `ui/CommentDialog.tsx`. |
 | Deck options | `ui/Topbar.tsx`, `ui/TextStylesDialog.tsx`, `model/style.ts`, style keys/maps in both `ops` files. |
-| Wizard | `wizard/Wizard.tsx`, `wizard/detect.ts`, `model/preset.ts`. |
-| Saving, polling, conflicts | `sync/docsync.ts`, `state/app.ts onDocChange`, `backend/slidebuilder/store.py`. |
+| Wizard | `wizard/Wizard.tsx`, `core/src/xlsx/detect.ts`, `core/src/xlsx/sheetview.ts`, `model/preset.ts`. |
+| Saving, polling, conflicts | `core/src/sync/docsync.ts`, `core/src/worker/host.ts`, `state/app.ts onDocChange`, `backend/slidebuilder/store.py`. |
 | HTTP endpoint | `server.py` + `sync/api.ts` + ARCHITECTURE §5 + `test_http.py`. |
 | Export | `editor/export.ts`, `render/printcss.ts`, `exports.py`, `engines.py`, `pdf.py`. |
 | Install / start / update | `*.bat`, `firstrun.py`, `installer.py`, `main.py`, `tools/update.py`. |
@@ -695,7 +738,7 @@ events and link updates off. TLS is never disabled (downloads use the system/cor
    `styles/slide.css` or inline; images must be data URLs.
 3. New glass elements need class `wb` and inline `left/top/width/height`; `applyLayout()`/`placeGlass()`
    must run after geometry changes. New blurred shadows/masks/filters become pictures in PDFs unless
-   handled in `render/printcss.ts`.
+   handled in `core/src/render/printcss.ts`.
 4. Keep hot paths cheap: no per-cell listeners or elements; reuse per-table caches; include anything that
    changes a table's HTML in `tableKey`.
 5. Hidden sheets stay hidden (user requirement). The workbook is never written.
@@ -725,7 +768,7 @@ events and link updates off. TLS is never disabled (downloads use the system/cor
 * Debt noted during the last review: `render/roles.ts` is only used by a test; `commentText` treats a
   missing `mode` as "sections" (legacy) while new comments default to "summary"; the installer's zip
   clean-up has a disabled branch (`and False`); `tools/loadtest.py`'s `seed_backups` docstring predates
-  `backupAt`; workbook parsing runs on the UI thread.
+  `backupAt`.
 
 ---
 
@@ -758,7 +801,7 @@ Every file in git, folder by folder (generated corpora, goldens and fixtures are
 ├─ docs/                               see "Documentation" below
 ├─ tools/                              see below
 ├─ backend/                            the helper (Python, standard library only), §7
-├─ core/                               pure TypeScript, no DOM; empty until PLAN S2.1
+├─ core/                               pure TypeScript, no DOM: workbooks, model, renderers (§5)
 └─ app/                                the browser app (React 19 + TypeScript), §5
 ```
 
@@ -776,7 +819,7 @@ backend/
 │  ├─ server.py                        HTTP API on 127.0.0.1 (§8) and its security checks (Host, token, origin)
 │  ├─ paths.py                         folder layout: ROOT, DATA, export\, engine\
 │  ├─ store.py                         documents in data/: retried reads, atomic writes, backups
-│  ├─ ops.py                           document operations (same rules as app/src/model/ops.ts)
+│  ├─ ops.py                           document operations (same rules as core/src/model/ops.ts)
 │  ├─ upgrade.py                       saved-format versions and their automatic upgrade
 │  ├─ migrate.py                       one-time import of v2 settings
 │  ├─ locks.py                         cross-PC lock files (O_CREAT|O_EXCL, stale-lock recovery)
@@ -807,37 +850,17 @@ app/
 ├─ vitest.config.ts                    projects "unit" (node) and "react" (jsdom)
 ├─ playwright.config.ts                two helpers = two users (anna, bob) on one temp folder
 ├─ src/
-│  ├─ main.tsx                         injects the CSS, mounts <App/>, keyboard, boot()
-│  ├─ xlsx/                            reading workbooks
-│  │  ├─ workbook.ts                   index first, sheets on demand (fast regex parser)
-│  │  ├─ layout.ts                     "x" marker regions, geometry and style of every cell
-│  │  ├─ numfmt.ts                     Excel number formats → text
-│  │  ├─ color.ts                      indexed/theme/tint colours, colour maths
-│  │  ├─ drawing.ts                    pictures, groups, text boxes, shapes
-│  │  └─ types.ts · util.ts            reader data structures · small helpers
-│  ├─ model/                           what is saved
-│  │  ├─ types.ts                      persistent data and runtime slides
-│  │  ├─ ops.ts                        document operations: the ONLY way documents change
-│  │  ├─ preset.ts                     tables and slides of a deck
-│  │  ├─ style.ts                      deck style: defaults ← shared config ← workbook
-│  │  ├─ comment.ts                    automated comment analysis and writing
-│  │  └─ fonts.ts                      Windows, Google and library fonts
-│  ├─ render/                          slides as HTML
-│  │  ├─ slide.ts                      slide composition: bands, title, cover/index, page number, logo
-│  │  ├─ excel.ts · glass.ts           Excel design · Liquid Glass (scene model)
-│  │  ├─ edits.ts · text.ts · roles.ts cell edits · text styles · row roles
-│  │  ├─ scales.ts                     colour scales
-│  │  ├─ cover.ts · pagenumbers.ts     cover and index slides · page numbers
-│  │  ├─ comment.ts                    automated comments on slides
-│  │  ├─ wallpaper.ts                  Liquid Glass wallpaper
-│  │  ├─ printcss.ts                   light slides for PDF
-│  │  └─ context.ts                    everything a renderer needs, passed explicitly
+│  ├─ main.tsx                         installs the platform, injects the CSS, mounts <App/>, keyboard, boot()
+│  ├─ platform/index.ts                the core's platform in the page: canvas, off-screen text fitting
+│  ├─ render/
+│  │  ├─ slidedom.ts                   a slide element from the core's markup: placing, glass, text-box fitting
+│  │  └─ wall.ts                       the Liquid Glass wallpaper into the page's CSS
+│  ├─ rpc/client.ts                    the core worker from a Blob URL (or in the page), its typed port
 │  ├─ sync/
-│  │  ├─ api.ts                        the helper's API; offline backend in localStorage (file://)
-│  │  └─ docsync.ts                    one shared document: optimistic ops, batching, retries, polling
+│  │  └─ api.ts                        the helper's API; offline backend in localStorage (file://)
 │  ├─ state/
 │  │  ├─ store.ts                      ONE Zustand store: slices doc · deck · selection · ui · prefs
-│  │  ├─ app.ts                        actions: boot, open, change, undo/redo, polls, presence
+│  │  ├─ app.ts                        actions: boot, open, change, undo/redo, polls, presence; the worker's mirrors
 │  │  ├─ dialogs.ts                    in-app dialogs (no window.confirm)
 │  │  └─ fonts.ts                      the font library in the page (@font-face, uploads)
 │  ├─ editor/                          the slide being edited (imperative DOM)
@@ -858,11 +881,11 @@ app/
 │  │  ├─ Input.tsx · Field.tsx         uncontrolled input · text box that keeps its draft while focused
 │  │  └─ hooks.ts · util.ts            shared store hooks · small helpers
 │  ├─ wizard/
-│  │  ├─ Wizard.tsx                    1 Sheets · 2 Tables · 3 Slides · 4 Versions
-│  │  └─ detect.ts                     table suggestions
+│  │  └─ Wizard.tsx                    1 Sheets · 2 Tables · 3 Slides · 4 Versions (reads sheets through the worker)
 │  └─ styles/                          ui.css + app.css (the chrome) · slide.css (slides; sent to exports)
 ├─ tests/                              Vitest: *.test.ts (node), *.test.tsx (jsdom, fail on console
-│                                      warnings: setup-console.ts); fixtures/ (generated .xlsx)
+│                                      warnings: setup-console.ts; the page's platform: setup-platform.ts);
+│                                      fixtures/ (generated .xlsx)
 └─ e2e/
    ├─ app.spec.ts                      two users on one folder (15 scenarios)
    ├─ file.spec.ts                     the page from file:// without the helper
@@ -871,7 +894,43 @@ app/
 
 ### `core/`, `tools/` and documentation
 ```
-core/            package.json · tsconfig.json (ES2022 + WebWorker, no DOM) · src/index.ts (empty until S2.1)
+core/            package.json · tsconfig.json (ES2022 + WebWorker, no DOM) · vitest.config.ts (node)
+├─ src/
+│  ├─ platform.ts                      what the core needs from its host: TextMeasurer, CanvasFactory (XmlParser: tests)
+│  ├─ rpc/                             port.ts (typed postMessage RPC) · messages.ts (page ⇄ core worker)
+│  ├─ worker/host.ts · workers/core.worker.ts   the core worker: owns workbook, document, undo/redo; its entry
+│  ├─ sync/                            docsync.ts (one shared document: ops, batching, retries, polling) · history.ts (undo/redo)
+│  ├─ xlsx/                            reading workbooks
+│  │  ├─ workbook.ts                   index first, sheets on demand
+│  │  ├─ sheetstore.ts                 byte scanner → columns of typed arrays; the Sheet's cells/rows views
+│  │  ├─ zip.ts · strings.ts           .xlsx container (fflate) · v3's text decoding (entities, _xHHHH_, rich runs)
+│  │  ├─ slice.ts · mirror.ts          sheet slices for the page · the page's read-only workbook mirror
+│  │  ├─ sheetview.ts · detect.ts      what the wizard/formula bar read (summary, window, cell, table size) · suggestions
+│  │  ├─ layout.ts                     "x" marker regions, geometry and style of every cell
+│  │  ├─ numfmt.ts                     Excel number formats → text
+│  │  ├─ color.ts                      indexed/theme/tint colours, colour maths
+│  │  ├─ drawing.ts                    pictures, groups, text boxes, shapes
+│  │  ├─ xml.ts                        small XML tokenizer and tree (rels, workbook, theme, styles, drawings)
+│  │  └─ types.ts · util.ts            reader data structures · small helpers
+│  ├─ model/                           what is saved
+│  │  ├─ types.ts                      persistent data and runtime slides
+│  │  ├─ ops.ts                        document operations: the ONLY way documents change
+│  │  ├─ preset.ts                     tables and slides of a deck
+│  │  ├─ style.ts                      deck style: defaults ← shared config ← workbook
+│  │  ├─ comment.ts                    automated comment analysis and writing
+│  │  └─ fonts.ts                      Windows, Google and library fonts
+│  ├─ render/                          slides as HTML
+│  │  ├─ slide.ts                      slide composition: bands, title, cover/index, page number, logo
+│  │  ├─ excel.ts · glass.ts           Excel design · Liquid Glass (scene model)
+│  │  ├─ edits.ts · text.ts · roles.ts cell edits · text styles · row roles
+│  │  ├─ scales.ts                     colour scales
+│  │  ├─ cover.ts · pagenumbers.ts     cover and index slides · page numbers
+│  │  ├─ comment.ts                    automated comments on slides
+│  │  ├─ wallpaper.ts                  Liquid Glass wallpaper
+│  │  ├─ printcss.ts                   light slides for PDF
+│  │  └─ context.ts                    everything a renderer needs, passed explicitly
+├─ tests/                              Vitest (node): ops vectors, model, number formats, renderers, XML, sheet scanner
+└─ bench/                              npm run bench -w core: big30 parse time and memory (vitest.bench.config.ts)
 tools/
 ├─ update.py                           update in place, --release / --zip / --use (side-by-side versions)
 ├─ make_release.py                     release ZIP + MANIFEST.json; --verify, --notes

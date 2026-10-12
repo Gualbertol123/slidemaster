@@ -7,12 +7,12 @@ import { patch, setDialogs, useStore } from "../state/store";
 import { confirmBox } from "../state/dialogs";
 import { lookAt, lookChange, saveStyleAsDefault } from "../state/app";
 import { addGoogleFont, inLibrary, removeFont, uploadFontFiles } from "../state/fonts";
-import { GOOGLE_POPULAR, fontStack } from "../model/fonts";
-import { COLOR_KEYS, palette } from "../model/style";
+import { GOOGLE_POPULAR, fontStack } from "@slide-builder/core/model/fonts";
+import { COLOR_KEYS, palette } from "@slide-builder/core/model/style";
 import { ThemePicker } from "./Topbar";
-import type { TextFmt, TextRole } from "../model/types";
+import type { TextFmt, TextRole } from "@slide-builder/core/model/types";
 import { backend } from "../sync/api";
-import { esc } from "../xlsx/util";
+import { esc } from "@slide-builder/core/xlsx/util";
 import { Field } from "./Field";
 import { FontPicker } from "./FontPicker";
 import { Input } from "./Input";
@@ -120,7 +120,7 @@ function FontsTab() {
 }
 
 export function TextStylesDialog() {
-  const tab = useStore(s => s.ui.dialogs.textStyles) || "styles", scope = useStore(s => s.ui.lookScope), open = useStore(s => !!s.doc.sync);
+  const tab = useStore(s => s.ui.dialogs.textStyles) || "styles", scope = useStore(s => s.ui.lookScope), open = useStore(s => s.doc.open);
   const fonts = useStore(s => s.doc.fonts.length), design = useStyle().design;
   const close = () => setDialogs({ textStyles: null });
   const setTab = (t: "colors" | "styles" | "fonts") => setDialogs({ textStyles: t });

@@ -7,11 +7,11 @@
    (a scale rule over the painted range). */
 import { get, patch, toast } from "../state/store";
 import { ctx } from "../state/app";
-import type { Item, Sheet, TableLayout } from "../xlsx/types";
-import type { Op, ScaleRule } from "../model/types";
-import { cellEditOf, effItems } from "../render/edits";
+import type { Item, Sheet, TableLayout } from "@slide-builder/core/xlsx/types";
+import type { Op, ScaleRule } from "@slide-builder/core/model/types";
+import { cellEditOf, effItems } from "@slide-builder/core/render/edits";
 import { applySel, itemAt, selItems, selTable } from "./edit";
-import { A1, inRange, parseRange, uid } from "../xlsx/util";
+import { A1, inRange, parseRange, uid } from "@slide-builder/core/xlsx/util";
 
 type ScaleLook = Omit<ScaleRule, "range">;
 export interface Fmt { sz: number; b: boolean; i: boolean; color: string; fill: string | null; bg: string; align: string; role: string | null;

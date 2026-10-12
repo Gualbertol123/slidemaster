@@ -9,7 +9,7 @@ In v3 nothing reads globals: renderers receive a `RenderCtx` (`render/context.ts
 style, the cell edits, the slides and the workbook name. Per-table caches (`L._cache`) are keyed by
 the JSON of that sheet's edits, so a change by another user re-renders only the tables it touches.
 
-## 1. Reading workbooks (`src/xlsx/`)
+## 1. Reading workbooks (`core/src/xlsx/`)
 
 **Index first, parse on demand.** `indexWorkbook()` only unzips the directory, reads
 `_rels/.rels` → workbook part → sheet list. Hidden sheets are never listed nor read; chart/dialog/macro
@@ -17,12 +17,19 @@ sheets are skipped. Sheets are parsed by `wb.ensure(names)` when chosen in the w
 preset. Workbooks with < 12 MB of uncompressed sheet XML (and < 6 MB file size) are read completely
 up front so the wizard can show titles and table suggestions; larger ones show sizes and “not read yet”.
 
-**Fast parser.** `readSheet()` (`xlsx/workbook.ts`) uses regular expressions over the XML string (no DOMParser for
-sheetData – far faster and lighter on 50k-row sheets) and yields to the UI every 4000 rows for the
-progress bar. `parseSST()` does the same for shared strings. Handles: namespace prefixes, rows/cells
+**Fast parser.** `readSheet()` (`core/src/xlsx/workbook.ts`) inflates the sheet with fflate (in slices when it reports
+progress) and scans `sheetData` as bytes in one pass into columns of typed arrays (`sheetstore.ts`: column, kind,
+style, number or string index – 13 bytes a cell; equal strings kept once), yielding every 4000 rows for the
+progress bar; the rest of the sheet (columns, merges, conditional formats) is read with v3's regular expressions.
+The `Sheet` keeps v3's methods over the columns. `parseSST()` reads shared strings with regular expressions. Handles: namespace prefixes, rows/cells
 without `r`, `<v xml:space=…>`, inline strings, rich text, `_xHHHH_` escapes. Styles, theme and
-drawings are small and use DOMParser. A parity test against the old DOM parser was run on all test
-workbooks (identical cells, merges, hidden rows, CF, pictures, tables).
+drawings are small and are read by the core's XML tokenizer (`core/src/xlsx/xml.ts`, a tree with DOM semantics;
+`core/tests/xml.test.ts` checks it against DOMParser on every corpus workbook). A parity test against the old DOM parser was run on all test
+workbooks (identical cells, merges, hidden rows, CF, pictures, tables); `core/tests/sheetstore.test.ts` compares the
+scanner with v3's regex parser cell by cell. A big30 sheet (130 000 rows, 75.7 MB of XML) is inflated in ≈ 0.2 s
+and parsed in ≈ 0.4 s (the whole read ≈ 0.6 s), keeping ≈ 32 MB (v3's regex parse alone: ≈ 2.1 s and ≈ 240 MB;
+`npm run bench -w core`). Unlike 03-architecture §2.3, `num` also holds a string's index, and strings are kept per
+sheet (shared strings stay in the workbook's table).
 
 **Robustness:** case-insensitive / %-encoded part names (`zget`), damaged sheets become
 `brokenSheet()` stubs (listed as “could not be read”), format detection:
@@ -44,11 +51,11 @@ objects collapse, “move but don't size” objects move. `analyzeImages()` samp
 badges (flags) from photos/logos (used by Glass).
 
 **Column widths** use Excel's max-digit-width formula with the workbook's default font measured on a
-canvas; row heights are pt × 96/72.
+canvas (the page's `TextMeasurer`); row heights are pt × 96/72.
 
 ---
 
-## 2. Rendering (`src/render/`, `styles/slide.css`)
+## 2. Rendering (`core/src/render/`, `app/src/render/slidedom.ts`, `styles/slide.css`)
 
 ### 2.1 Slide layout (`render/slide.ts`)
 `computeLayout(R, w)`: tables are arranged in **bands** (`layout.bands`), each table scaled by

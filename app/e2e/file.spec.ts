@@ -1,6 +1,7 @@
 /* The single file still works when opened straight from disk (file://, no helper): PLAN S1.4. A workbook is
    chosen with the file input, the wizard makes the deck, a cell is edited, and the edit is kept in this
-   browser (localStorage) across a reload. */
+   browser (localStorage) across a reload. Since S2.4 the core runs in a worker started from a Blob URL – also
+   from file:// – and draws the tables: the page draws none itself. */
 import { test, expect, type Page } from "@playwright/test";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -38,6 +39,16 @@ test("opened from file://: choose a workbook, make the deck, edit a cell, keep i
   await expect(page.locator("#stage .slide .t", { hasText: /^Alfa$/ })).toHaveCount(1);
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem("sb3:doc:report.xlsx") || "null"));
   await expect.poll(async () => (await stored())?.edits?.SLIDE_1?.C6).toEqual({ orig: "Alpha", text: "Alfa" });
+  await expect(page.locator("#sbSave")).toHaveText(/^Saved in this browser only/);
+  const core = () => page.evaluate(() => (window as unknown as { __sbTest: { coreStats: { worker: boolean; localHtml: number } } }).__sbTest.coreStats);
+  expect(await core()).toEqual({ worker: true, localHtml: 0 });
+  // undo and redo come from the worker too, and the page still draws no table itself
+  await page.keyboard.press("Control+z");
+  await expect(page.locator("#stage .slide .t", { hasText: /^Alpha$/ })).toHaveCount(1);
+  await page.keyboard.press("Control+y");
+  await expect(page.locator("#stage .slide .t", { hasText: /^Alfa$/ })).toHaveCount(1);
+  await expect.poll(async () => (await stored())?.edits?.SLIDE_1?.C6).toEqual({ orig: "Alpha", text: "Alfa" });
+  expect(await core()).toEqual({ worker: true, localHtml: 0 });
 
   // a reload: the same file again finds the deck this browser kept
   await page.reload();

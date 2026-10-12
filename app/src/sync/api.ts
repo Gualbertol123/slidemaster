@@ -1,8 +1,8 @@
 /* Talking to the helper (docs/ARCHITECTURE.md §5). When the page is opened from disk (file://)
    an in-browser backend keeps documents in localStorage and exports are disabled. */
-import { FORMATS, type ConfigDoc, type Op, type Prefs, type WorkbookDoc } from "../model/types";
-import { applyOps, emptyDoc } from "../model/ops";
-import type { LibraryFont } from "../model/fonts";
+import { FORMATS, type ConfigDoc, type Op, type Prefs, type WorkbookDoc } from "@slide-builder/core/model/types";
+import { applyOps, emptyDoc } from "@slide-builder/core/model/ops";
+import type { LibraryFont } from "@slide-builder/core/model/fonts";
 
 export interface EngineRow { name: string; label: string; state: "ok" | "blocked" | "missing" | "untested"; detail: string }
 export interface Engine { state: "ready" | "starting" | "idle" | "unavailable"; browser: string | null; local: boolean; error: string | null; engines: EngineRow[] }

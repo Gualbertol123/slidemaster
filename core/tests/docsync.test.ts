@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { DocSync, type Change } from "../src/sync/docsync";
+import { DocSync, type Change, type DocApi } from "../src/sync/docsync";
 import { applyOps, emptyDoc } from "../src/model/ops";
-import type { Backend } from "../src/sync/api";
 import type { Op, WorkbookDoc } from "../src/model/types";
 
 /** an in-memory helper: applies ops to the latest document, like backend/slidebuilder/store.py */
@@ -15,7 +14,7 @@ function fakeServer() {
       const r = applyOps(doc, ops); if (r.applied) { r.doc.rev = doc.rev + 1; r.doc.updatedBy = user; r.doc.log = [...(doc.log || []), { rev: r.doc.rev, by: user, at: 0 }].slice(-20); } doc = r.doc;
       return { doc: JSON.parse(JSON.stringify(doc)), applied: r.applied, skipped: r.skipped };
     },
-  }) as unknown as Backend;
+  }) as unknown as DocApi;
   return { api, get doc() { return doc; }, failNext(n: number) { fail = n; } };
 }
 const cell = (ref: string, patch: Record<string, unknown>): Op => ({ op: "cell.patch", sheet: "S", ref, patch } as Op);
@@ -110,7 +109,7 @@ describe("DocSync after Slide Builder was updated", () => {
   it("a helper with other data formats (409): no retries, the page asks to reload, the change is not written", async () => {
     vi.useFakeTimers();
     let calls = 0;
-    const api = { served: true, async getDoc() { return null; }, async postOps() { calls++; throw Object.assign(new Error("Slide Builder was updated - reload the page (F5)"), { status: 409 }); } } as unknown as Backend;
+    const api = { served: true, async getDoc() { return null; }, async postOps() { calls++; throw Object.assign(new Error("Slide Builder was updated - reload the page (F5)"), { status: 409 }); } } as unknown as DocApi;
     const a = new DocSync(api, "W.xlsx", emptyDoc("W.xlsx"), "ca", "anna");
     a.apply([cell("A1", { b: true })]);
     await a.flush();
@@ -121,7 +120,7 @@ describe("DocSync after Slide Builder was updated", () => {
   });
   it("a document in a newer format is not applied", async () => {
     const newer = { ...emptyDoc("W.xlsx"), rev: 5, schema: 99 };
-    const api = { served: true, async getDoc() { return newer; }, async postOps() { throw new Error("x"); } } as unknown as Backend;
+    const api = { served: true, async getDoc() { return newer; }, async postOps() { throw new Error("x"); } } as unknown as DocApi;
     const a = new DocSync(api, "W.xlsx", emptyDoc("W.xlsx"), "ca", "anna");
     await a.poll();
     expect(a.state).toBe("outdated"); expect(a.server.rev).toBe(0);

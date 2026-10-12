@@ -4,13 +4,13 @@ import { useState } from "react";
 import { setDialogs, useStore, toast } from "../state/store";
 import { change } from "../state/app";
 import { applySel, selItems, selTable } from "../editor/edit";
-import { effFmt } from "../render/edits";
-import { sizingOf, sizingPatch, slideHasLogo } from "../render/slide";
+import { effFmt } from "@slide-builder/core/render/edits";
+import { sizingOf, sizingPatch, slideHasLogo } from "@slide-builder/core/render/slide";
 import { alignTables, canMerge, mergeSel, mergedInSel, unmergeSel, valignTables, currentTableRefs, makeSameSize, selCols, selRows, setColWidth, setRowHeight, shownColW, shownRowH } from "../editor/tables";
 import { addSlideNotes, attachNote, noteOf, patchNote } from "../editor/stage";
-import { scaleColors } from "../render/scales";
-import { A1, uid, esc } from "../xlsx/util";
-import type { Op, ScaleRule, Side } from "../model/types";
+import { scaleColors } from "@slide-builder/core/render/scales";
+import { A1, uid, esc } from "@slide-builder/core/xlsx/util";
+import type { Op, ScaleRule, Side } from "@slide-builder/core/model/types";
 import { Dropdown } from "./Dropdown";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
 
@@ -56,7 +56,7 @@ function ScaleMenu({ close }: { close: () => void }) {
 }
 
 /* gridlines of a table: as in Excel, all on, or none – separately for horizontal and vertical lines */
-function GridMenu({ close, T }: { close: () => void; T: import("../xlsx/types").TableLayout }) {
+function GridMenu({ close, T }: { close: () => void; T: import("@slide-builder/core/xlsx/types").TableLayout }) {
   const set = (k: "gridH" | "gridV", v: "on" | "off" | null) => { if (!T.def) return; change(v === "on" ? "Add gridlines" : v === "off" ? "Remove gridlines" : "Gridlines from Excel", [{ op: "table.patch", id: T.def.id, patch: { [k]: v } } as Op]); close(); };
   const row = (k: "gridH" | "gridV", label: string) => <><label>{label}</label><div className="seg small" data-grid={k}>
     {([[null, "As in Excel"], ["on", "All"], ["off", "None"]] as const).map(([v, l]) => <button key={String(v)} data-v={String(v)} className={(T.def?.[k] ?? null) === v ? "on" : ""} onClick={() => set(k, v)}>{l}</button>)}</div></>;

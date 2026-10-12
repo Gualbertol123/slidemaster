@@ -1,29 +1,27 @@
 /* Liquid Glass wallpaper: a soft gradient with colour blobs and ribbons, plus a blurred copy that the
-   glass surfaces sample (background-position is set per element by placeGlass). Cached per value. */
+   glass surfaces sample (background-position is set per element by placeGlass). Cached per value. Drawn on
+   the host's canvas (platform.ts); the page puts the result into its CSS (wallCss). */
 import { hexRgb } from "../xlsx/color";
 import { glassLevel, themeOf } from "../model/style";
 import type { Style } from "../model/types";
+import { platform } from "../platform";
 
-interface Wall { sharp: string; blur: string; base: string }
+export interface Wall { sharp: string; blur: string; base: string }
 const WALLS = new Map<string, Wall>();
 
 export function wallCss(w: Wall) { return `.slide.glass{--wall:url(${w.sharp});--wallblur:url(${w.blur});--wallbase:${w.base}}`; }
-function applyWallCss(w: Wall) {
-  document.getElementById("wallcss")?.remove();
-  const st = document.createElement("style"); st.id = "wallcss";
-  st.textContent = wallCss(w);
-  document.head.appendChild(st);
-}
-export function makeWall(style: Style) {
+/** the wallpaper for these settings, or null when the host has no canvas */
+export async function makeWall(style: Style): Promise<Wall | null> {
   const gi = glassLevel(style), amt = Math.max(0, Math.min(100, +style.color || 0)) / 100, th = themeOf(style);
   // contrast above the middle deepens the wallpaper: baked into the picture (a CSS filter on it made Chrome
   // print every page's background as a 300 dpi picture – huge, slow PDFs)
   const u = Math.max(0, Math.min(100, style.contrast ?? 50) / 100 - .5);
   const key = gi + "|" + amt + "|" + u.toFixed(3) + "|" + [th.c1, th.c2, th.c3, th.c4].join();
-  const hit = WALLS.get(key); if (hit) return applyWallCss(hit);
+  const hit = WALLS.get(key); if (hit) return hit;
+  const cf = platform().canvas; if (!cf) return null;
   const W = 1600, H = 900, k = (.4 + .6 * gi) * amt;                // amount 0 = plain white, 1 = full colour
   const mix = (hex: string, t: number) => { const [r, g, b] = hexRgb(hex); const m = (v: number) => Math.round(255 + (v - 255) * t); return `rgb(${m(r)},${m(g)},${m(b)})`; };
-  const c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d", { willReadFrequently: true })!;
+  const c = cf.create(W, H, { willReadFrequently: true }); if (!c) return null; const x = c.ctx;
   // pastel versions of the theme colours (Aurora keeps its hand-tuned values)
   const pastel = (h: string, t: number) => { const [r, g, b] = hexRgb(h); const m = (v: number) => Math.round(255 + (v - 255) * t); return "#" + [m(r), m(g), m(b)].map(v => v.toString(16).padStart(2, "0")).join(""); };
   const grad = th.grad || [pastel(th.c1, .24), pastel(th.c2, .14), pastel(th.c3, .16)];
@@ -45,15 +43,15 @@ export function makeWall(style: Style) {
     for (let i = 0; i < d.length; i += 4) { seed = (seed * 1103515245 + 12345) & 0x7fffffff; const n = (((seed >> 16) & 7) - 3.5) * Math.min(1, amt * 2); d[i] += n; d[i + 1] += n; d[i + 2] += n; }
     x.putImageData(id, 0, 0);
   }
-  let sharp = c.toDataURL("image/jpeg", .94);
+  let sharp = await c.toDataURL("image/jpeg", .94);
   if (u > .001) {
-    const f = document.createElement("canvas"); f.width = W; f.height = H; const z = f.getContext("2d")!;
-    z.filter = `saturate(${(1 + u * 1.4).toFixed(3)}) brightness(${(1 - u * .36).toFixed(3)})`; z.drawImage(c, 0, 0);
-    sharp = f.toDataURL("image/jpeg", .94);
+    const f = cf.create(W, H); if (!f) return null; const z = f.ctx;
+    z.filter = `saturate(${(1 + u * 1.4).toFixed(3)}) brightness(${(1 - u * .36).toFixed(3)})`; z.drawImage(c.image, 0, 0);
+    sharp = await f.toDataURL("image/jpeg", .94);
   }
-  const b = document.createElement("canvas"); b.width = W / 2; b.height = H / 2; const y = b.getContext("2d")!;
-  y.filter = `blur(${12 + 8 * gi}px) saturate(${1 + .4 * gi * amt}) brightness(${1 + .08 * amt})`; y.drawImage(c, -50, -50, W / 2 + 100, H / 2 + 100);
-  const blur = b.toDataURL("image/jpeg", .92);
+  const b = cf.create(W / 2, H / 2); if (!b) return null; const y = b.ctx;
+  y.filter = `blur(${12 + 8 * gi}px) saturate(${1 + .4 * gi * amt}) brightness(${1 + .08 * amt})`; y.drawImage(c.image, -50, -50, W / 2 + 100, H / 2 + 100);
+  const blur = await b.toDataURL("image/jpeg", .92);
   const w = { sharp, blur, base: mix(th.grad ? "#E9EDF6" : pastel(th.c1, .1), amt) };
-  WALLS.set(key, w); applyWallCss(w);
+  WALLS.set(key, w); return w;
 }

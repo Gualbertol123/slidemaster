@@ -1,6 +1,6 @@
 {
   "name": "@slide-builder/app",
-  "version": "3.5.0",
+  "version": "3.6.0",
   "private": true,
   "type": "module",
   "description": "Slide Builder browser app. `npm run build` writes ../backend/slide_builder.html (one self-contained file).",
@@ -15,7 +15,7 @@
     "bench": "vitest run --project react --silent=false tests/renders.test.tsx"
   },
   "dependencies": {
-    "jszip": "^3.10.2",
+    "@slide-builder/core": "3.6.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "zustand": "5.0.15"
@@ -26,6 +26,7 @@
     "@types/node": "^22.20.5",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
+    "esbuild": "0.28.2",
     "jsdom": "30.0.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.7",

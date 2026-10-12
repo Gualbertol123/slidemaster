@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { useStore } from "../state/store";
+import { get, useStore } from "../state/store";
 import { guard, reloadWorkbook } from "../state/app";
 import { backend } from "../sync/api";
 import { Topbar } from "./Topbar";
@@ -19,7 +19,9 @@ export function App() {
   useEffect(() => {
     const over = (e: DragEvent) => { e.preventDefault(); document.body.classList.add("dragover"); };
     const leave = (e: DragEvent) => { if (!e.relatedTarget) document.body.classList.remove("dragover"); };
-    const drop = (e: DragEvent) => { e.preventDefault(); document.body.classList.remove("dragover"); const f = e.dataTransfer?.files?.[0]; if (f) void guard(() => import("../state/app").then(m => m.openLocalFile(f))); };
+    const drop = (e: DragEvent) => { e.preventDefault(); document.body.classList.remove("dragover"); const f = e.dataTransfer?.files?.[0];
+      // not while a workbook is being opened or the wizard is open (the Open button is covered then too)
+      if (f && !get().deck.opening && !get().ui.dialogs.wizard) void guard(() => import("../state/app").then(m => m.openLocalFile(f))); };
     document.addEventListener("dragover", over); document.addEventListener("dragleave", leave); document.addEventListener("drop", drop);
     return () => { document.removeEventListener("dragover", over); document.removeEventListener("dragleave", leave); document.removeEventListener("drop", drop); };
   }, []);

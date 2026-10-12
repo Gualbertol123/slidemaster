@@ -1,20 +1,86 @@
 /* Application actions: start-up, opening workbooks, editing through operations, undo/redo,
-   polling for other people's changes, presence. */
+   polling for other people's changes, presence.
+   The core worker (PLAN S2.4, app/src/rpc/client.ts) OWNS the open workbook, its shared document and undo/redo.
+   The page keeps read-only mirrors: the workbook's sheets as slices (deck.wb), the document's view (doc.view) and
+   what undo/redo would do (deck.history). A change is sent to the worker as operations; so that code reading the
+   document right after a change sees it, the view mirror shows the operations at once (predicted with the core's
+   ops) until the worker's snapshot that includes them arrives. */
 import { get, patch, patchAll, same, STAGE, THUMBS, toast, showBusy, hideBusy } from "./store";
 import { ask, runWizard } from "./dialogs";
 import { backend } from "../sync/api";
-import { DocSync, type Change } from "../sync/docsync";
-import { indexWorkbook } from "../xlsx/workbook";
-import { setPictureConverter } from "../xlsx/drawing";
-import { esc, fmtMB, nextFrame, WorkbookError } from "../xlsx/util";
-import type { Workbook } from "../xlsx/types";
-import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "../model/preset";
-import { resolveStyle } from "../model/style";
-import type { Design, Op, Preset, Prefs, RuntimeSlide, StylePatch } from "../model/types";
+import { connectCore, type CorePort } from "../rpc/client";
+import { browserText } from "../platform";
+import { analyzeImages, IMGMETA, type ImgMeta } from "@slide-builder/core/xlsx/drawing";
+import { esc, fmtMB, nextFrame } from "@slide-builder/core/xlsx/util";
+import { MirrorWorkbook } from "@slide-builder/core/xlsx/mirror";
+import type { SharedSlice, SheetSlice } from "@slide-builder/core/xlsx/slice";
+import { transfer } from "@slide-builder/core/rpc/port";
+import type { DocEvent, ViewInputs } from "@slide-builder/core/rpc/messages";
+import type { Change } from "@slide-builder/core/sync/docsync";
+import { applyOps } from "@slide-builder/core/model/ops";
+import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "@slide-builder/core/model/preset";
+import { resolveStyle } from "@slide-builder/core/model/style";
+import type { Design, Op, Preset, Prefs, RuntimeSlide, StylePatch } from "@slide-builder/core/model/types";
 import type { AppState } from "./store";
-import type { RenderCtx } from "../render/context";
-import { makeWall } from "../render/wallpaper";
+import { initialState } from "./store";
+import type { RenderCtx } from "@slide-builder/core/render/context";
+import { applyWall } from "../render/wall";
 import { loadFonts, watchFontLoads } from "./fonts";
+
+/* ---------------------------------------------------------------- the core worker */
+let port: CorePort | null = null;
+/** the latest table HTML the worker drew, by table id and kind ("html" | "thtml") */
+const tableHtmls = new Map<string, { key: string; html: string }>();
+/** tables the page drew itself (no HTML from the worker for that key yet), for tests */
+export const coreStats = { localHtml: 0, worker: false };
+/** the workbook being opened (its slices can arrive before its index; they wait) and the open one */
+let openingWb: MirrorWorkbook | null = null, earlySlices: { book: number; shared: SharedSlice | null; sheets: SheetSlice[] }[] = [];
+export function core(): CorePort {
+  if (port) return port;
+  const c = connectCore(); port = c.port; coreStats.worker = !!c.worker;
+  port.handle("getDoc", a => backend.getDoc(a.name, a.since));
+  port.handle("postOps", a => backend.postOps(a.name, a.ops, a.client));
+  port.handle("digitWidth", a => browserText.maxDigitWidth(a.font));
+  port.handle("convertPicture", a => backend.convertPicture(a.bytes, a.ext));
+  port.handle("analyzeImages", async a => { await analyzeImages(a.srcs); return a.srcs.flatMap(s => IMGMETA.has(s) ? [[s, IMGMETA.get(s)!] as [string, ImgMeta]] : []); });
+  port.on("slices", e => {
+    const wb = [openingWb, get().deck.wb as MirrorWorkbook | null].find(w => w && w.book === e.book);
+    if (wb) receiveSlices(wb, e); else if (!openingWb) earlySlices.push(e);        // the index of that workbook is on its way
+  });
+  port.on("html", list => { for (const [id, kind, key, h] of list) tableHtmls.set(id + "|" + kind, { key, html: h }); });
+  port.on("doc", ev => onWorkerDoc(ev));
+  port.on("progress", p => { if (p) showBusy(p.text, p.frac); else hideBusy(); });
+  port.on("error", e => console.error("core worker: " + e.message + (e.stack ? "\n" + e.stack : "")));
+  return port;
+}
+function receiveSlices(wb: MirrorWorkbook, e: { shared: SharedSlice | null; sheets: SheetSlice[] }) {
+  wb.receive(e.shared, e.sheets);
+  LCACHE.clear();                                            // layouts of the replaced sheets
+}
+const htmlOf = (id: string, kind: "html" | "thtml", key: string) => {
+  const h = tableHtmls.get(id + "|" + kind);
+  if (h && h.key === key) return h.html;
+  coreStats.localHtml++; return undefined;
+};
+/** the worker's table HTML for another design, version or an export (one request per design and version until
+    the document changes: an export asks for every slide) */
+const htmlForCache = new Map<string, { view: unknown; of: Promise<RenderCtx["htmlOf"]> }>();
+export function htmlFor(design: Design, version: string, forExport: boolean): Promise<RenderCtx["htmlOf"]> {
+  const k = design + "|" + version + "|" + forExport, view = get().doc.view, hit = htmlForCache.get(k);
+  if (hit && hit.view === view) return hit.of;
+  const of = core().call("html", { design, version, forExport, thumb: false }).then(list => {
+    const m = new Map(list.map(([id, kind, key, h]) => [id + "|" + kind + "|" + key, h]));
+    return (id: string, kind: "html" | "thtml", key: string) => m.get(id + "|" + kind + "|" + key);
+  });
+  htmlForCache.clear(); htmlForCache.set(k, { view, of });
+  return of;
+}
+/** what the worker's renderers need from the page */
+function viewInputs(name = get().deck.file?.name || ""): ViewInputs {
+  const st = style();
+  return { defaults: get().doc.config.defaults.style || {}, logoSrc: st.logo.trim() ? backend.assetUrl(st.logo.trim()) : "", version: get().deck.version, workbook: name };
+}
+export async function flushDoc() { if (get().doc.open) await core().call("flush", {}); }
 
 /* ---------------------------------------------------------------- render context */
 let ctxCache: { key: unknown[]; ctx: RenderCtx } | null = null;
@@ -28,20 +94,20 @@ export function ctx(): RenderCtx {
   const st = style();
   const c: RenderCtx = { style: st, edits: v?.edits || {}, slides, preset: v?.preset || null, workbook: file?.name || "",
     logoSrc: st.logo.trim() ? backend.assetUrl(st.logo.trim()) : "", sheet: n => wb?.sheets.find(x => x.name === n) || null,
-    version: (v?.preset?.versions || []).find(x => x.id === version) || null };
+    version: (v?.preset?.versions || []).find(x => x.id === version) || null, htmlOf };
   ctxCache = { key, ctx: c };
   return c;
 }
 
 /* ---------------------------------------------------------------- start-up */
 export async function boot() {
-  if (backend.served) setPictureConverter((bytes, ext) => backend.convertPicture(bytes, ext));
   patch("ui", { health: await backend.health() });
   try { const me = await backend.me(); patch("prefs", { user: me.user, host: me.host, prefs: me.prefs || {} }); } catch { /* keep defaults */ }
   try { patch("doc", { config: await backend.config() }); } catch { /* defaults */ }
+  await core().call("init", { served: backend.served, client: get().prefs.client, me: get().prefs.user });
   watchFontLoads(); await loadFonts();
   const zoom = get().prefs.prefs.zoom; if (zoom != null) patch("ui", { zoom });
-  makeWall(style());
+  applyWall(style());
   if (backend.served) {
     const files = await backend.files().catch(() => []);
     const last = get().prefs.prefs.lastFile;
@@ -56,8 +122,7 @@ let tickN = 0;
 /** one poll: other people's changes, helper health, the file on disk, fonts, shared config (every 3 s) */
 export async function tick() {
   tickN++;
-  const sync = get().doc.sync;
-  if (sync) await sync.poll();
+  if (get().doc.open) await core().call("poll", {}).catch(() => { /* next tick */ });
   if (tickN % 2 === 0) {
     setHealth(await backend.health());
     const { file } = get().deck;
@@ -67,7 +132,7 @@ export async function tick() {
     }
   }
   if (tickN % 10 === 0) void loadFonts();               // fonts colleagues added
-  if (tickN % 10 === 0) { try { const c = await backend.config(); if (c.rev !== get().doc.config.rev) { patch("doc", { config: c }); onStyleChanged(); } } catch { /* later */ } }
+  if (tickN % 10 === 0) { try { const c = await backend.config(); if (c.rev !== get().doc.config.rev) { patch("doc", { config: c }); onStyleChanged(true); } } catch { /* later */ } }
 }
 /** the helper's health; an answer equal to the last one changes nothing (nothing re-renders) */
 export function setHealth(h: AppState["ui"]["health"]) { if (!same(h, get().ui.health)) patch("ui", { health: h }); }
@@ -101,37 +166,44 @@ export async function openFromFolder(name: string, ask = true) {
   showBusy(`Opening “${name}”…`, null);
   let file;
   try { file = await backend.readFile(name); } finally { hideBusy(); }
-  await openBuffer(file.buf, name, "folder", "", file.mtime, file.size, ask);
+  await openBuffer(file.buf, name, "folder", "", file.mtime, file.size, ask, async () => (await backend.readFile(name)).buf);
 }
 export async function openLocalFile(f: File) {
   const buf = await f.arrayBuffer();
   const inFolder = (await backend.files().catch(() => [])).find(x => x.name === f.name && x.size === f.size);
-  if (inFolder) return openBuffer(buf, f.name, "folder", "", inFolder.mtime, inFolder.size, true);
+  if (inFolder) return openBuffer(buf, f.name, "folder", "", inFolder.mtime, inFolder.size, true, () => f.arrayBuffer());
   let id = "";
   if (backend.served) { try { id = await backend.upload(f.name, buf); } catch { /* preview only */ } }
-  await openBuffer(buf, f.name, id ? "upload" : "local", id, 0, f.size, true);
+  await openBuffer(buf, f.name, id ? "upload" : "local", id, 0, f.size, true, () => f.arrayBuffer());
 }
 export async function reloadWorkbook() { const { file } = get().deck; if (file && file.src === "folder") await openFromFolder(file.name, false); }
 
-async function loadWorkbook(buf: ArrayBuffer, name: string): Promise<Workbook> {
-  let wb: Workbook;
+/** the worker reads the workbook (the bytes move to it: no copy on this thread); the page gets its mirror */
+async function indexInWorker(buf: ArrayBuffer): Promise<MirrorWorkbook> {
+  openingWb = null; earlySlices = [];
+  const info = await core().call("index", transfer({ buf }, [buf]));
+  const wb = openingWb = new MirrorWorkbook(info, async (book, names) => { await core().call("ensure", { book, names }); });
+  for (const e of earlySlices) if (e.book === wb.book) receiveSlices(wb, e);
+  earlySlices = [];
+  return wb;
+}
+/** `again`: the file's bytes once more (the first ones moved to the worker), for Excel's conversion */
+async function loadWorkbook(buf: ArrayBuffer, name: string, again: () => Promise<ArrayBuffer>): Promise<MirrorWorkbook> {
+  let wb: MirrorWorkbook;
   showBusy(`Opening “${name}” (${fmtMB(buf.byteLength)})…`, null); await nextFrame();
-  try { wb = await indexWorkbook(buf); }
-  catch (e) {
-    const code = (e as WorkbookError).code;
+  try { wb = await indexInWorker(buf); }                     // small workbooks are read completely (the wizard can then show
+  catch (e) {                                                // titles and table suggestions for every sheet); large ones sheet by sheet
+    const code = (e as { code?: string }).code;
     if (code !== "XLSB" && code !== "CFB") throw e;
     const what = code === "XLSB" ? "an Excel Binary Workbook (.xlsb)" : "an old .xls workbook or a protected file";
     if (!backend.served) throw new Error(`“${name}” is ${what}. Start the app with Start Slide Builder.bat so Excel can convert it, or save it in Excel as .xlsx.`);
     showBusy(`Converting “${name}” with Excel…`, null);
     let out: ArrayBuffer;
-    try { out = await backend.convertWorkbook(name, buf); }
+    try { out = await backend.convertWorkbook(name, await again()); }
     catch (e2) { throw new Error(`“${name}” is ${what} and Excel could not convert it: ${(e2 as Error).message}. Save it in Excel as .xlsx (File › Save As › Excel Workbook) and open that copy.`); }
-    try { wb = await indexWorkbook(out); toast(`“${esc(name)}” was converted by Excel for reading – the original file is unchanged.`); }
-    catch (e3) { throw new Error((e3 as WorkbookError).code === "CFB" ? `“${name}” is protected (password or sensitivity label with encryption). Remove the protection or save an unprotected .xlsx copy.` : (e3 as Error).message); }
+    try { wb = await indexInWorker(out); toast(`“${esc(name)}” was converted by Excel for reading – the original file is unchanged.`); }
+    catch (e3) { throw new Error((e3 as { code?: string }).code === "CFB" ? `“${name}” is protected (password or sensitivity label with encryption). Remove the protection or save an unprotected .xlsx copy.` : (e3 as Error).message); }
   }
-  // small workbooks are read completely (the wizard can then show titles and table suggestions for every sheet);
-  // large ones are read sheet by sheet, only when a sheet is chosen or used by the preset
-  if (!wb.big) await wb.ensure(wb.meta.map(m => m.name), showBusy);
   return wb;
 }
 
@@ -143,10 +215,22 @@ async function presetBox(name: string, p: Preset): Promise<"continue" | "wizard"
   return r === "continue" || r === "wizard" ? r : null;
 }
 
-async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "upload" | "local", id: string, mtime: number, size: number, askUser: boolean) {
+/** the mirror's marker tables are laid out on first use (core/src/xlsx/slice.ts): here one sheet per idle moment
+    while the wizard or the preset question is open, so neither the wizard nor the first slide waits for them */
+function layOutWhileIdle(wb: MirrorWorkbook) {
+  const todo = wb.sheets.slice();
+  const later = (f: () => void) => { if (typeof requestIdleCallback === "function") requestIdleCallback(f, { timeout: 500 }); else setTimeout(f, 0); };
+  const next = () => { const S = todo.shift(); if (!S || (openingWb !== wb && get().deck.wb !== wb)) return; void S.tables; later(next); };
+  later(next);
+}
+
+/** while the worker starts a document, its snapshots are for the next workbook, not the one shown */
+let starting = false;
+async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "upload" | "local", id: string, mtime: number, size: number, askUser: boolean, again: () => Promise<ArrayBuffer>) {
   patch("deck", { opening: name });
-  let wb: Workbook;
-  try { wb = await loadWorkbook(buf, name); } finally { hideBusy(); }
+  let wb: MirrorWorkbook;
+  try { wb = await loadWorkbook(buf, name, again); } finally { hideBusy(); }
+  layOutWhileIdle(wb);
   LCACHE.clear();
   const doc = (await backend.getDoc(name))!;
   let preset = doc.preset, newPreset: Preset | null = null;
@@ -156,7 +240,7 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
       if (!choice) { patch("deck", { opening: "" }); return; }
       if (choice === "wizard") { const np = await runWizard(wb, name, preset); if (np) newPreset = np; }
     } else if (!preset) {
-      const draft = defaultPreset(wb);
+      const draft = await core().call("defaultPreset", { book: wb.book });  // the worker has the tables laid out (PLAN S2.6)
       if (!askUser && !wb.big && draft.slides.length) newPreset = draft;        // start-up / reload: "x" workbooks open as before
       else {
         const np = await runWizard(wb, name, draft);
@@ -164,49 +248,68 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
         newPreset = np;
       }
     }
-    await wb.ensure(presetSheets(newPreset || preset), showBusy);                // only the sheets the slides use
+    await core().call("ensure", { book: wb.book, names: presetSheets(newPreset || preset) });   // only the sheets the slides use
   } finally { hideBusy(); }
 
-  get().doc.sync?.dispose();
-  const sync = new DocSync(backend, name, doc, get().prefs.client, get().prefs.user);
-  if (newPreset) sync.apply([{ op: "preset.set", preset: newPreset }]);
-  sync.on(c => { mirror(sync); void onDocChange(c); });
-  const design = resolveStyle(get().doc.config.defaults.style, sync.view.style).design;
-  const slides = runtimeSlides(wb, sync.view.preset, name, design); slidesDesign = design;
-  presetSig = JSON.stringify(sync.view.preset);
-  if (src === "folder") setPrefs({ lastFile: name });
   const vid = get().prefs.prefs.versions?.[name] || "";         // the version this person looked at last
+  const version = ((newPreset || preset)?.versions || []).some(x => x.id === vid) ? vid : "";
+  starting = true; pending.length = 0;
+  let st;
+  try { st = await core().call("start", { book: wb.book, name, doc, preset: newPreset, inputs: { ...viewInputs(name), version } }); }
+  catch (e) {
+    // the worker no longer holds the document shown: close it here too, so no edit can reach another file's document
+    if (get().doc.open) { const s0 = initialState(); patchAll({ doc: { ...s0.doc, config: get().doc.config, fonts: get().doc.fonts }, deck: s0.deck, selection: s0.selection }); STAGE.render(); THUMBS.render(); }
+    else patch("deck", { opening: "" });
+    throw e;
+  }
+  finally { starting = false; }
+  const design = resolveStyle(get().doc.config.defaults.style, st.view.style).design;
+  const slides = runtimeSlides(wb, st.view.preset, name, design); slidesDesign = design;
+  presetSig = JSON.stringify(st.view.preset);
+  if (src === "folder") setPrefs({ lastFile: name });
   patchAll({
-    doc: { sync, view: sync.view, save: sync.state, error: sync.error },
-    deck: { wb, file: { name, src, id, mtime, size }, undo: [], redo: [], slides, cur: Math.min(get().deck.cur, Math.max(0, slides.length - 1)),
-      version: (sync.view.preset?.versions || []).some(x => x.id === vid) ? vid : "", opening: "", remote: null },
+    doc: { open: true, view: st.view, save: st.save, error: st.error },
+    deck: { wb, file: { name, src, id, mtime, size }, history: st.history, slides, cur: Math.min(get().deck.cur, Math.max(0, slides.length - 1)),
+      version, opening: "", remote: null },
     selection: { sel: null },
     ui: { logoMissing: false, changedOnDisk: false },
   });
-  makeWall(style());
+  applyWall(style());
   STAGE.render(); THUMBS.render();
   void heartbeat();
 }
 
 /* ---------------------------------------------------------------- document changes (mine and others') */
 let presetSig = "";
-/** the read-only mirror of the document and its save state (store slice "doc") */
-function mirror(sync: DocSync) {
-  const d = get().doc; if (d.sync !== sync) return;
-  if (d.view !== sync.view || d.save !== sync.state || d.error !== sync.error) patch("doc", { view: sync.view, save: sync.state, error: sync.error });
+/** my apply/undo calls the worker has not confirmed yet (their ops are shown on the mirror meanwhile) */
+let seq = 0;
+const pending: { seq: number; ops: Op[]; undo?: boolean }[] = [];
+/** a snapshot from the worker: the document mirror, the save state, the history; then redraw what changed */
+function onWorkerDoc(ev: DocEvent) {
+  if (starting || !get().doc.open) return;
+  while (pending.length && pending[0].seq <= ev.ack) pending.shift();
+  const ops = pending.flatMap(p => p.ops), view = ops.length ? applyOps(ev.view, ops).doc : ev.view;
+  // while calls are on their way, the snapshot does not know them yet: still "pending", not "✓ Saved"
+  const save = pending.length && (ev.save === "saved" || ev.save === "local") ? unsaved() : ev.save;
+  const d = get().doc, h = get().deck.history;
+  const docPatch: Partial<AppState["doc"]> = {};
+  if (!same(d.view, view)) docPatch.view = view;               // the same document: the same object (nothing re-renders)
+  if (d.save !== save) docPatch.save = save;
+  if (d.error !== ev.error) docPatch.error = ev.error;
+  patchAll({ ...(Object.keys(docPatch).length ? { doc: docPatch } : {}), ...(same(h, ev.history) ? {} : { deck: { history: ev.history } }) });
+  if (ev.change) void onDocChange(ev.change);
 }
 async function onDocChange(c: Change) {
-  const { doc: { sync }, deck: { wb, file } } = get(); if (!sync || !wb || !file) return;
+  const { doc: { view }, deck: { wb, file } } = get(); if (!view || !wb || !file) return;
   // only the save state changed ("Saving…" → "✓ Saved", an error): the status bar (mirrored above), not the slides
   if (!c.local && !c.presetChanged && !c.styleChanged && !c.editsChanged) return;
   if (c.by) patch("deck", { remote: { by: c.by, at: Date.now() } });
   if (c.presetChanged) {
-    const sig = JSON.stringify(sync.view.preset);
+    const sig = JSON.stringify(view.preset);
     if (sig !== presetSig) {
-      presetSig = sig;
-      await wb.ensure(presetSheets(sync.view.preset), showBusy); hideBusy();
+      presetSig = sig;                                       // the worker read the sheets and sent their slices
       const { slides: old, cur } = get().deck, keep = old[cur]?.id;
-      const slides = runtimeSlides(wb, sync.view.preset, file.name, style().design); slidesDesign = style().design;
+      const slides = runtimeSlides(wb, view.preset, file.name, style().design); slidesDesign = style().design;
       const i = slides.findIndex(R => R.id === keep);
       patchAll({ deck: { slides, cur: i >= 0 ? i : Math.max(0, Math.min(cur, slides.length - 1)) }, ...(c.local ? {} : { selection: { sel: null } }) });
       STAGE.render(); THUMBS.render();
@@ -214,21 +317,21 @@ async function onDocChange(c: Change) {
     }
   }
   // same slides: point them at the new slide objects (layout, titles, logo live there)
-  const byId = new Map((sync.view.preset?.slides || []).map(s => [s.id, s]));
+  const byId = new Map((view.preset?.slides || []).map(s => [s.id, s]));
   let titles = false, moved = false;
   for (const R of get().deck.slides) {
     const cfg = byId.get(R.id); if (!cfg) continue;
     if (cfg.title !== R.cfg.title || cfg.subtitle !== R.cfg.subtitle || cfg.logo !== R.cfg.logo || cfg.date !== R.cfg.date || cfg.note !== R.cfg.note) titles = true;
     if (R.cfg !== cfg) { R.cfg = cfg; moved = true; }
   }
-  if (titles) { patch("deck", { slides: runtimeSlides(wb, sync.view.preset, file.name, style().design) }); slidesDesign = style().design; }
+  if (titles) { patch("deck", { slides: runtimeSlides(wb, view.preset, file.name, style().design) }); slidesDesign = style().design; }
   else if (moved) patch("deck", { slides: [...get().deck.slides] });     // the same slide objects, so the list's readers see the change
   if (c.styleChanged) return onStyleChanged();
   if (titles) { STAGE.render(); THUMBS.render(); }
   else if (c.local) { STAGE.refresh(); THUMBS.refresh(get().deck.cur); }
   else { STAGE.refresh(); THUMBS.render(); }
 }
-function onStyleChanged() {
+function onStyleChanged(configChanged = false) {
   // column widths and row heights are per design: another design needs its own table layouts
   const d = style().design, { wb, file, slides: old, cur } = get().deck;
   if (d !== slidesDesign && wb && file) {
@@ -237,7 +340,10 @@ function onStyleChanged() {
     const i = slides.findIndex(R => R.id === keep);
     patchAll({ deck: { slides, ...(i >= 0 ? { cur: i } : {}) }, selection: { sel: null } });
   }
-  makeWall(style()); STAGE.render(); THUMBS.render();
+  applyWall(style());
+  // a new shared default style: the worker draws with it first, then the slides are redrawn with its HTML
+  if (get().doc.open && configChanged) void core().call("inputs", viewInputs()).then(() => { STAGE.render(); THUMBS.render(); });
+  else { STAGE.render(); THUMBS.render(); }
 }
 let slidesDesign: Design | null = null;
 /** the slides as `design` shows them (the current ones, or resolved again for another design – exports) */
@@ -247,28 +353,30 @@ export function slidesFor(design: Design): RuntimeSlide[] {
   const other = runtimeSlides(wb, get().doc.view?.preset || null, file.name, design);
   return slides.map(R => other.find(x => x.id === R.id) || R);
 }
-
-/** every edit goes through here: ops are applied locally, queued for the helper, and undoable */
+/** every edit goes through here: ops go to the worker (which applies them, saves them and keeps them undoable);
+    the mirror shows them at once */
 export function change(label: string, ops: Op[], coalesce?: string) {
-  const { doc: { sync }, deck: { file, undo: past } } = get(); if (!sync || !file) return;
-  const inverse = sync.apply(ops);
-  if (!inverse) return;
-  const last = past[past.length - 1], now = Date.now();
-  // slider drags: one undo step for the whole drag
-  const noRedo = get().deck.redo.length ? { redo: [] } : {};
-  if (coalesce && last && last.coalesce === coalesce && now - (last.at || 0) < 1500) { last.redo = ops; last.at = now; patch("deck", noRedo); }
-  else patch("deck", { undo: [...past, { file: file.name, label, undo: inverse, redo: ops, coalesce, at: now }].slice(-200), ...noRedo });
+  const { doc: { open, view }, deck: { file } } = get(); if (!open || !file || !view || starting) return;
+  const r = applyOps(view, ops);
+  if (!r.applied) return;
+  pending.push({ seq: ++seq, ops });
+  patch("doc", { view: r.doc, save: unsaved() });             // as DocSync did: "✓ Saved" only once the helper has it
+  void core().call("apply", { label, ops, coalesce }).catch(e => console.error(e));
 }
+/** the save state right after a change: waiting for the helper, or kept in this browser (file://) */
+const unsaved = () => get().doc.save === "outdated" ? "outdated" as const : backend.served ? "pending" as const : "local" as const;
 export function undo(redo = false) {
-  const { doc: { sync }, deck } = get();
-  const st = redo ? deck.redo : deck.undo, other = redo ? deck.undo : deck.redo;
-  const a = st[st.length - 1]; if (!a) return;
-  const rest = st.slice(0, -1);
-  if (!sync || a.file !== deck.file?.name) { patch("deck", redo ? { redo: rest } : { undo: rest }); return; }
-  const inv = sync.apply(redo ? a.redo : a.undo);
-  const others = inv ? [...other, a] : other;
-  patchAll({ deck: redo ? { redo: rest, undo: others } : { undo: rest, redo: others }, selection: { sel: null } });
-  toast((redo ? "Redo: " : "Undo: ") + esc(a.label));
+  // nothing to undo (as v3, which returned on an empty stack); not while another workbook is starting
+  // an edit (or undo) the worker has not confirmed yet counts too: the history mirror comes with its snapshot
+  const h = get().deck.history, canUndo = h.undo > 0 || pending.some(p => p.ops.length), canRedo = h.redo > 0 || pending.some(p => p.undo);
+  if (!get().doc.open || starting || !(redo ? canRedo : canUndo)) return;
+  pending.push({ seq: ++seq, ops: [], undo: !redo });
+  if (get().doc.save !== "outdated") patch("doc", { save: unsaved() });      // as DocSync did: "pending" until the helper has it
+  void core().call("undo", { redo }).then(r => {
+    if (r.label === null) return;
+    patchAll({ selection: { sel: null } });
+    toast((redo ? "Redo: " : "Undo: ") + esc(r.label));
+  }).catch(e => console.error(e));
 }
 export const styleChange = (label: string, patch: Extract<Op, { op: "style.patch" }>["patch"], coalesce?: string) => change(label, [{ op: "style.patch", patch } as Op], coalesce);
 export async function saveStyleAsDefault() {
@@ -279,18 +387,17 @@ export async function saveStyleAsDefault() {
 
 /* ---------------------------------------------------------------- wizard */
 export async function openWizard() {
-  const { doc: { sync }, deck: { wb, file } } = get(); if (!sync || !wb || !file) return;
-  const startSig = JSON.stringify(sync.view.preset), start = sync.view.preset || defaultPreset(wb);
+  const { doc: { open, view }, deck: { wb, file } } = get(); if (!open || !view || !wb || !file) return;
+  const startSig = JSON.stringify(view.preset), start = view.preset || defaultPreset(wb);
   const np = await runWizard(wb, file.name, JSON.parse(JSON.stringify(start)));
   if (!np) return;
-  if (JSON.stringify(sync.view.preset) !== startSig) {
+  if (JSON.stringify(get().doc.view?.preset) !== startSig) {
     const remote = get().deck.remote, who = remote && remote.by ? esc(remote.by) : "Someone else";
     const r = await ask("The slides were changed meanwhile", `${who} changed this workbook's slides while the wizard was open. Saving replaces their slide and table changes with yours (cell edits are not affected).`,
       [{ id: "cancel", label: "Discard my wizard changes" }, { id: "ok", label: "Save mine anyway", danger: true }]);
     if (r !== "ok") return;
   }
-  await wb.ensure(presetSheets(np), showBusy); hideBusy();
-  change("Wizard changes", [{ op: "preset.set", preset: np }]);
+  change("Wizard changes", [{ op: "preset.set", preset: np }]);   // the worker reads the sheets the new slides use
 }
 
 /* ---------------------------------------------------------------- navigation */
@@ -348,5 +455,7 @@ export function lookAt(): { theme?: Record<string, unknown>; colors?: Record<str
 export function showVersion(id: string) {
   patch("deck", { version: id });
   const { file } = get().deck; if (file) setPrefs({ versions: { ...(get().prefs.prefs.versions || {}), [file.name]: id } });
-  STAGE.render(); THUMBS.render();
+  // the worker draws this version first; the slides are then redrawn with its HTML
+  if (get().doc.open) void core().call("inputs", viewInputs()).then(() => { STAGE.render(); THUMBS.render(); });
+  else { STAGE.render(); THUMBS.render(); }
 }

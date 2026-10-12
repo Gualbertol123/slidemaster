@@ -9,7 +9,7 @@ import { mountThumbs } from "../editor/thumbs";
 import { slideIssues } from "../editor/issues";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
 import { selStatus } from "./Ribbon";
-import { esc } from "../xlsx/util";
+import { esc } from "@slide-builder/core/xlsx/util";
 
 export function Thumbs() {
   const slides = useStore(s => s.deck.slides), cur = useStore(s => s.deck.cur), fname = useStore(s => s.deck.file?.name);

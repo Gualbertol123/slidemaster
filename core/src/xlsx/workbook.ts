@@ -1,48 +1,20 @@
-/* Workbook reading: index first (sheet names and sizes), sheets parsed on demand with a fast
-   regex parser (no DOMParser for sheetData – far faster on 50k-row sheets). */
-import JSZip from "jszip";
-import { BUILTIN, formatValue, isDateFmt } from "./numfmt";
+/* Workbook reading: index first (sheet names and sizes), sheets parsed on demand: the zip with fflate
+   (zip.ts), sheetData by a byte scanner into columns (sheetstore.ts), the rest of a sheet with v3's regular
+   expressions, styles/theme/rels/drawings with the XML tokenizer (xml.ts). */
+import { BUILTIN, formatValue } from "./numfmt";
 import { makeColor } from "./color";
 import { readDrawing, analyzeImages } from "./drawing";
 import { findRegions } from "./layout";
-import { all, kid, kids, parseRange, parseXml, readRels, resolvePath, splitRef, zget, fmtMB, nextFrame, WorkbookError, NS_R } from "./util";
+import { all, kid, kids, parseRange, parseXml, readRels, resolvePath, zget, fmtMB, nextFrame, pacer, WorkbookError, NS_R } from "./util";
+import { Zip, type ZipEntry } from "./zip";
+import { CellMap, RowMap, SheetScanner, cellAt, cellIndex, type SheetColumns } from "./sheetstore";
+import { xattrs, xdec, parseSSTRich } from "./strings";
 import type { Range } from "./util";
-import type { Border, Cell, CellType, CFRule, ColInfo, Dxf, Font, Progress, RowInfo, Script, Shared, Sheet, SheetMeta, Workbook, Xf } from "./types";
+import { platform, type XmlElement } from "../platform";
+import type { Border, CFRule, ColInfo, Dxf, Font, Progress, Script, Shared, Sheet, SheetMeta, Workbook, Xf } from "./types";
 
-const XENT: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };
-export function xdec(s: string): string {
-  if (s.indexOf("&") < 0 && s.indexOf("_x") < 0) return s;
-  return s.replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi, (m, e: string) => e[0] === "#" ? String.fromCodePoint(e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : +e.slice(1)) : (XENT[e] ?? m))
-    .replace(/_x([0-9A-Fa-f]{4})_/g, (_m, h: string) => String.fromCharCode(parseInt(h, 16)));
-}
-export function xattrs(s: string): Record<string, string> {
-  const o: Record<string, string> = {}; const re = /([\w:.-]+)\s*=\s*"([^"]*)"/g; let m: RegExpExecArray | null;
-  while ((m = re.exec(s))) o[m[1].replace(/^[A-Za-z0-9]+:(?=[A-Za-z])/, "")] = xdec(m[2]);
-  return o;
-}
-export function parseSST(xml: string): string[] { return parseSSTRich(xml).sst; }
-/** the text of a string item plus its superscript / subscript runs (rich text: <r><rPr><vertAlign …/></rPr><t>…</t></r>) */
-export function richRuns(inner: string): { text: string; scr?: Script[] } {
-  if (inner.indexOf("rPh") >= 0) inner = inner.replace(/<(?:\w+:)?rPh\b[\s\S]*?<\/(?:\w+:)?rPh>/g, "");
-  const tr = /<(?:\w+:)?t(?:\s[^>]*)?>([^<]*)<\/(?:\w+:)?t>/g;
-  if (inner.indexOf("vertAlign") < 0) { let txt = "", t: RegExpExecArray | null; while ((t = tr.exec(inner))) txt += t[1]; return { text: xdec(txt) }; }
-  let text = ""; const scr: Script[] = [], rr = /<(?:\w+:)?r(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?r>/g; let r: RegExpExecArray | null;
-  while ((r = rr.exec(inner))) {
-    let part = "", t: RegExpExecArray | null; tr.lastIndex = 0; while ((t = tr.exec(r[1]))) part += t[1];
-    part = xdec(part);
-    const va = /<(?:\w+:)?vertAlign\s+val="(superscript|subscript)"/.exec(r[1]);
-    if (va && part) scr.push([text.length, text.length + part.length, va[1] === "superscript" ? "sup" : "sub"]);
-    text += part;
-  }
-  if (!text) { let txt = "", t: RegExpExecArray | null; tr.lastIndex = 0; while ((t = tr.exec(inner))) txt += t[1]; text = xdec(txt); }
-  return scr.length ? { text, scr } : { text };
-}
-export function parseSSTRich(xml: string): { sst: string[]; runs: (Script[] | undefined)[] } {
-  const sst: string[] = [], runs: (Script[] | undefined)[] = [], re = /<(?:\w+:)?si(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?si>|<(?:\w+:)?si\s*\/>/g; let m: RegExpExecArray | null;
-  while ((m = re.exec(xml))) { const x = richRuns(m[1] || ""); sst.push(x.text); runs.push(x.scr); }
-  return { sst, runs };
-}
-const entrySize = (f: JSZip.JSZipObject | null) => ((f as unknown as { _data?: { uncompressedSize?: number } } | null)?._data?.uncompressedSize) || 0;
+export { xdec, xattrs, parseSST, parseSSTRich, richRuns } from "./strings";
+const entrySize = (f: ZipEntry | null) => f?.size || 0;
 export const BIG_BYTES = 12 * 1048576;                       // above this (uncompressed sheet XML) sheets are read on demand
 
 export async function indexWorkbook(buf: ArrayBuffer): Promise<Workbook> {
@@ -50,8 +22,8 @@ export async function indexWorkbook(buf: ArrayBuffer): Promise<Workbook> {
   if (head[0] === 0xD0 && head[1] === 0xCF && head[2] === 0x11 && head[3] === 0xE0)
     throw new WorkbookError("CFB", "This file is an old .xls workbook or is encrypted (password or sensitivity-label protection).");
   if (!(head[0] === 0x50 && head[1] === 0x4B)) throw new WorkbookError("NOTZIP", "This file is not an Excel workbook.");
-  let zip: JSZip;
-  try { zip = await JSZip.loadAsync(buf); } catch (e) { throw new WorkbookError("NOTZIP", "The workbook could not be unpacked (" + ((e as Error).message || e) + ")."); }
+  let zip: Zip;
+  try { zip = new Zip(new Uint8Array(buf)); } catch (e) { throw new WorkbookError("NOTZIP", "The workbook could not be unpacked (" + ((e as Error).message || e) + ")."); }
   let wbPath: string | null = null;
   try {
     const rr = zget(zip, "_rels/.rels");
@@ -115,14 +87,14 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
   if (st && zget(zip, st.target)) {
     const sx = parseXml(await zget(zip, st.target)!.async("string"));
     for (const nf of all(sx, "numFmt")) numFmts[nf.getAttribute("numFmtId") || ""] = nf.getAttribute("formatCode") || "General";
-    const on = (e: Element | null) => !!e && e.getAttribute("val") !== "0" && e.getAttribute("val") !== "false";
-    const parseFont = (f: Element | null): Font => f ? ({
+    const on = (e: XmlElement | null) => !!e && e.getAttribute("val") !== "0" && e.getAttribute("val") !== "false";
+    const parseFont = (f: XmlElement | null): Font => f ? ({
       name: kid(f, "name")?.getAttribute("val") || undefined, sz: kid(f, "sz") ? +kid(f, "sz")!.getAttribute("val")! : undefined,
       b: on(kid(f, "b")), i: on(kid(f, "i")),
       u: !!kid(f, "u") && kid(f, "u")!.getAttribute("val") !== "none", s: on(kid(f, "strike")),
       color: color(kid(f, "color"), null),
     }) : {};
-    const parseFill = (f: Element | null, isDxf: boolean): string | null => {
+    const parseFill = (f: XmlElement | null, isDxf: boolean): string | null => {
       if (!f) return null;
       const pf = kid(f, "patternFill");
       if (pf) {
@@ -138,7 +110,7 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
       if (gf) { const stp = all(gf, "stop"); if (stp.length) return color(kid(stp[0], "color"), null); }
       return null;
     };
-    const parseBorder = (b: Element | null): Border => {
+    const parseBorder = (b: XmlElement | null): Border => {
       const o: Border = {}; if (!b) return o;
       for (const side of ["left", "right", "top", "bottom"] as const) {
         const e = kid(b, side);
@@ -166,11 +138,9 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
     });
   }
   const defaultFont = fonts[0] || { name: "Calibri", sz: 11 };
-  const mdw = (() => {
+  const mdw = await (async () => {
     try {
-      const c = document.createElement("canvas").getContext("2d"); if (!c) return 7;
-      c.font = `${(defaultFont.sz || 11) * 96 / 72}px "${defaultFont.name || "Calibri"}", Calibri, Arial`;
-      let m = 0; for (const d of "0123456789") m = Math.max(m, c.measureText(d).width);
+      const m = await platform().text.maxDigitWidth(`${(defaultFont.sz || 11) * 96 / 72}px "${defaultFont.name || "Calibri"}", Calibri, Arial`);
       return m > 3 ? Math.round(m) : 7;
     } catch { return 7; }
   })();
@@ -182,11 +152,11 @@ async function ensureSheets(wb: Workbook, names: string[], progress?: Progress):
   if (!todo.length) return [];
   const ctx = await loadShared(wb, progress);
   const total = todo.reduce((s, m) => s + Math.max(m.size, 1), 0); let done = 0;
-  const added: Sheet[] = [];
+  const added: Sheet[] = [], pace = pacer();
   for (const [k, m] of todo.entries()) {
     const label = `Reading “${m.name}” (${k + 1} of ${todo.length}${m.size > 1048576 ? ", " + fmtMB(m.size) : ""})…`;
     if (progress) progress(label, done / total);
-    await nextFrame();
+    { const w = pace(); if (w) await w; }                // not one timer per sheet: ~4 ms each in a worker (deck20: 20 sheets)
     let S: Sheet;
     try { S = await readSheet(wb.zip, m, ctx, f => progress && progress(label, (done + f * Math.max(m.size, 1)) / total)); S.hidden = false; }
     catch (e) { console.error("sheet " + m.name, e); S = brokenSheet(m.name, e, ctx); }
@@ -208,8 +178,8 @@ export function brokenSheet(name: string, e: unknown, ctx: Shared): Sheet {
   });
 }
 
-type SheetInit = Pick<Sheet, "name" | "cells" | "rowInfo" | "colRanges" | "merges" | "cfRules" | "unsupportedCF" | "drawing" | "defColW" | "defRowH" | "zeroH" | "ctx"> & { error?: string };
-function makeSheet(init: SheetInit): Sheet {
+export type SheetInit = Pick<Sheet, "name" | "cells" | "rowInfo" | "colRanges" | "merges" | "cfRules" | "unsupportedCF" | "drawing" | "defColW" | "defRowH" | "zeroH" | "ctx"> & { error?: string };
+export function makeSheet(init: SheetInit, store?: SheetColumns): Sheet {
   const { cells, rowInfo, colRanges, defColW, defRowH, zeroH, ctx } = init;
   const cs = [0, 0], rs = [0, 0];               // cumulative starts (1-based): cs[c] = x of column c
   const colInfo = (c: number): ColInfo | undefined => {
@@ -219,7 +189,10 @@ function makeSheet(init: SheetInit): Sheet {
   };
   const S: Sheet = {
     ...init, hidden: false, unpaired: [], title: "", subtitle: "", tables: [],
-    get(r, c) { return cells.get(r + "," + c) || null; },
+    get(r, c) {
+      if (!store) return cells.get(r + "," + c) || null;
+      const i = cellIndex(store, r, c); return i < 0 ? null : cellAt(store, ctx, i, r);
+    },
     rowHidden(r) { const i = rowInfo.get(r); return i ? i.hidden : zeroH; },
     colHidden(c) { const i = colInfo(c); return i ? i.hidden : false; },
     colInfo,
@@ -236,7 +209,8 @@ function makeSheet(init: SheetInit): Sheet {
       return { c: lo, r: lr, co: px - S.colStart(lo), ro: py - S.rowStart(lr) };
     },
     xfAt(r, c) {
-      const x = cells.get(r + "," + c); if (x) return x.xf;
+      if (store) { const i = cellIndex(store, r, c); if (i >= 0) return ctx.xfs[store.xf[i]] || ctx.xfs[0] || ({} as Xf); }
+      else { const x = cells.get(r + "," + c); if (x) return x.xf; }
       const ri = rowInfo.get(r); if (ri && ri.s !== null) return ctx.xfs[ri.s] || ({} as Xf);
       const ci = colInfo(c); if (ci && ci.s !== null) return ctx.xfs[ci.s] || ({} as Xf);
       return ctx.xfs[0] || ({} as Xf);
@@ -245,8 +219,39 @@ function makeSheet(init: SheetInit): Sheet {
   return S;
 }
 
-export async function readSheet(zip: JSZip, sh: SheetMeta, ctx: Shared, tick?: (f: number) => void): Promise<Sheet> {
-  const xml = await zget(zip, sh.path)!.async("string");
+/** where `<sheetData` starts (the first) and where `</sheetData>` starts (searched from the end: a valid sheet has one)
+    in the sheet's bytes – v3: xml.search of both; -1 = none */
+function sheetDataBounds(b: Uint8Array): [number, number] {
+  const W = (c: number) => (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95;
+  const name = [115, 104, 101, 101, 116, 68, 97, 116, 97];        // sheetData
+  const at = (q: number) => { for (let k = 0; k < 9; k++) if (b[q + k] !== name[k]) return false; return true; };
+  /** the position after "<" or "</" at which the name (with an optional w+: prefix) is sheetData, or -1 */
+  const nameAt = (p: number) => { if (at(p)) return p; let q = p; while (q < b.length && W(b[q])) q++; return b[q] === 58 && q > p && at(q + 1) ? q + 1 : -1; };
+  let open = -1, close = -1;
+  for (let i = 0; i < b.length; i++) {
+    if (b[i] !== 60 || b[i + 1] === 47) continue;
+    const q = nameAt(i + 1); if (q >= 0 && !W(b[q + 9])) { open = i; break; }
+  }
+  if (open >= 0) for (let i = b.length - 12; i > open; i--) {
+    if (b[i] !== 60 || b[i + 1] !== 47) continue;
+    const q = nameAt(i + 2); if (q >= 0 && b[q + 9] === 62) { close = i; break; }
+  }
+  return [open, close];
+}
+const utf8 = new TextDecoder("utf-8");
+
+export async function readSheet(zip: Zip, sh: SheetMeta, ctx: Shared, tick?: (f: number) => void): Promise<Sheet> {
+  const entry = zget(zip, sh.path)!;
+  // the inflate counts as the first 20 % of the progress; one call (in 1 MB slices with a yield between, as when the
+  // page's thread read sheets, it took ~15 % longer in the worker)
+  const bytes = zip.bytes(entry); if (tick) tick(.2);
+  return parseSheet(zip, sh, bytes, ctx, tick && (f => tick(.2 + .8 * f)));
+}
+/** a sheet from its inflated XML (readSheet without the inflate) */
+export async function parseSheet(zip: Zip, sh: SheetMeta, bytes: Uint8Array, ctx: Shared, tick?: (f: number) => void): Promise<Sheet> {
+  // sheetData is scanned as bytes; the rest of the sheet (before and after it) is read as text, as in v3
+  const [sd0, sd1] = sheetDataBounds(bytes);
+  const xml = sd0 < 0 ? utf8.decode(bytes) : sd1 < 0 ? utf8.decode(bytes) : utf8.decode(bytes.subarray(0, sd0)) + utf8.decode(bytes.subarray(sd1));
   if (!/<(?:\w+:)?worksheet\b/.test(xml.slice(0, 2000))) throw new Error("the sheet XML could not be read");
   const fpM = /<(?:\w+:)?sheetFormatPr\b([^>]*)>/.exec(xml), fp = fpM ? xattrs(fpM[1]) : {};
   const defColW = fp.defaultColWidth ? +fp.defaultColWidth : (fp.baseColumnWidth ? +fp.baseColumnWidth + 0.71 : 8.43);
@@ -264,40 +269,11 @@ export async function readSheet(zip: JSZip, sh: SheetMeta, ctx: Shared, tick?: (
     }
     colRanges.sort((a, b) => a.min - b.min);
   }
-  const rowInfo = new Map<number, RowInfo>(), cells = new Map<string, Cell>();
-  const sd0 = xml.search(/<(?:\w+:)?sheetData\b/), sd1 = xml.search(/<\/(?:\w+:)?sheetData>/);
-  const data = sd0 >= 0 ? xml.slice(sd0, sd1 >= 0 ? sd1 : undefined) : "";
-  const rowRe = /<(?:\w+:)?row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:\w+:)?row>)/g;
-  const cRe = /<(?:\w+:)?c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:\w+:)?c>)/g;
-  const vRe = /<(?:\w+:)?v(?:\s[^>]*)?>([^<]*)<\/(?:\w+:)?v>/, isRe = /<(?:\w+:)?is(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?is>/, tRe = /<(?:\w+:)?t(?:\s[^>]*)?>([^<]*)<\/(?:\w+:)?t>/g;
-  let m: RegExpExecArray | null, lastRow = 0, n = 0;
-  while ((m = rowRe.exec(data))) {
-    const ra = xattrs(m[1]);
-    const r = ra.r ? +ra.r : lastRow + 1; lastRow = r;
-    rowInfo.set(r, { h: ra.ht ? +ra.ht : defRowH, hidden: ra.hidden === "1" || ra.hidden === "true", s: ra.customFormat === "1" ? +(ra.s || 0) : null });
-    if (m[2]) {
-      let c: RegExpExecArray | null, lastCol = 0; cRe.lastIndex = 0;
-      while ((c = cRe.exec(m[2]))) {
-        const a = xattrs(c[1]);
-        const ref = a.r ? splitRef(a.r) : { r, c: lastCol + 1 }; if (!ref) continue; lastCol = ref.c;
-        const t = a.t || "n", body = c[2] || "";
-        const vm = body ? vRe.exec(body) : null, vt = vm ? vm[1] : null;
-        const xf = ctx.xfs[+(a.s || 0)] || ctx.xfs[0] || ({} as Xf);
-        let v: Cell["v"] = null, type: CellType = "blank";
-        let scr: Script[] | undefined;
-        if (t === "s" && vt != null) { v = ctx.sst[+vt] ?? ""; type = "s"; scr = ctx.sstRuns?.[+vt]; }
-        else if (t === "inlineStr") { const im = isRe.exec(body); if (im) { const x = richRuns(im[1]); v = x.text; scr = x.scr; type = "s"; } }
-        else if (t === "str" && vt != null) { v = xdec(vt); type = "s"; }
-        else if (t === "b" && vt != null) { v = vt === "1"; type = "b"; }
-        else if (t === "e" && vt != null) { v = vt; type = "e"; }
-        else if (t === "d" && vt != null) { v = (Date.parse(vt) / 86400000) + 25569; type = "d"; }
-        else if (vt != null && vt !== "") { v = +vt; type = isDateFmt(xf.fmt) ? "d" : "n"; }
-        if (type === "s" && v === "") type = "blank";
-        cells.set(r + "," + ref.c, scr ? { r, c: ref.c, v, t: type, xf, fmt: xf.fmt, scr } : { r, c: ref.c, v, t: type, xf, fmt: xf.fmt });
-      }
-    }
-    if (++n % 4000 === 0 && tick) { tick(Math.min(.95, rowRe.lastIndex / Math.max(1, data.length))); await nextFrame(); }
-  }
+  const scan = new SheetScanner(bytes, sd0 < 0 ? 0 : sd0, sd0 < 0 ? 0 : sd1 < 0 ? bytes.length : sd1, ctx, defRowH);
+  if (!tick) scan.run();
+  else { const pace = pacer(); while (!scan.run(4000)) { tick(Math.min(.95, scan.progress)); const w = pace(); if (w) await w; } }
+  const { cells: store, rows } = scan.finish();
+  const cells = new CellMap(store, ctx), rowInfo = new RowMap(rows);
   const merges: Range[] = []; { const re = /<(?:\w+:)?mergeCell\b[^>]*?\bref="([^"]+)"/g; let q: RegExpExecArray | null; while ((q = re.exec(xml))) merges.push(parseRange(q[1])); }
   const cfRules: CFRule[] = [], unsupportedCF = new Set<string>();
   {
@@ -315,7 +291,8 @@ export async function readSheet(zip: JSZip, sh: SheetMeta, ctx: Shared, tick?: (
   }
   cfRules.sort((a, b) => a.priority - b.priority);
   const drawing = await readDrawing(zip, sh.path, ctx);
-  const S = makeSheet({ name: sh.name, cells, rowInfo, colRanges, merges, cfRules, unsupportedCF, drawing, defColW, defRowH, zeroH, ctx });
+  const S = makeSheet({ name: sh.name, cells, rowInfo, colRanges, merges, cfRules, unsupportedCF, drawing, defColW, defRowH, zeroH, ctx }, store);
+  S.cols = { cells: store, rows };
   S.title = textOf(S, 1, 1);
   S.subtitle = textOf(S, 2, 1); if (S.subtitle.toLowerCase() === "x") S.subtitle = "";
   S.tables = findRegions(S);
