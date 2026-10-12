@@ -83,6 +83,11 @@ numbers measured twice). Measured numbers go into the step's line.
   undo/redo buttons update at once after undoing a change of another workbook; "Updated by X n min ago"
   counts on its own 10 s timer. Before, each waited for the next poll (up to 6–10 s).
 
+- 2026-10-12 · Decision (product owner), core bench: big30's parse
+  gate (500 ms + 10 %) counts the median of three timed runs after one untimed warm-up, instead of the slower of
+  two runs (that failed by chance on CI's runner, 551 and 558 ms in 2 of 4 runs, with the timed code unchanged
+  since S2.4; ~355 ms on the reference PC).
+
 - 2026-10-11 · S2.6, decision 1.a (product owner): the long tasks from Finish until the first slide is drawn are
   reported by `tools/bench.mjs`, not gated (as the start-up tasks); every other task while opening and reading stays
   under 50 ms. Cause: Chromium's first use of each font instance (Segoe UI Variable) on Windows; v3 had the same task.
