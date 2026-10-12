@@ -5,7 +5,8 @@
    gate (1 s). Needs tests/corpus/workbooks/big30.xlsx:
    python tools/make_corpus.py big30 tests/corpus/workbooks. One untimed run warms the JIT, then three timed runs: the
    median time and the largest retained memory count (decision 2026-10-12: the slower of two runs failed by chance on
-   CI's runner, 551 and 558 ms, with no change in the code it times). */
+   CI's runner, 551 and 558 ms, with no change in the code it times). The time limit is scaled by how much slower
+   the machine is than the reference PC (tools/calibrate.mjs, decision 2026-10-12); the memory limit is not. */
 import { expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
@@ -13,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { indexWorkbook, parseSheet } from "../src/xlsx/workbook";
 import { zget } from "../src/xlsx/util";
 import type { Sheet } from "../src/xlsx/types";
+import { speedFactor } from "../../tools/calibrate.mjs";
 
 const FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../tests/corpus/workbooks/big30.xlsx");
 const LIMIT_MS = 500, LIMIT_MB = 40, SLACK = 1.1;
@@ -23,6 +25,8 @@ const used = () => { const m = process.memoryUsage(); return m.heapUsed + m.arra
 it("big30: one sheet parsed under 0.5 s, under 40 MB retained", async () => {
   expect(fs.existsSync(FILE), "big30.xlsx is missing: python tools/make_corpus.py big30 tests/corpus/workbooks").toBe(true);
   expect(typeof (globalThis as { gc?: unknown }).gc).toBe("function");
+  const speed: { ms: number; factor: number } = speedFactor();
+  console.log(`bench · calibration ${speed.ms.toFixed(1)} ms: time limit × ${speed.factor.toFixed(2)}`);
   const buf = fs.readFileSync(FILE);
   const wb = await indexWorkbook(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer);
   await wb.ensure(["DATA_HEADER"]);                                // shared parts once (not part of the sheet read)
@@ -43,6 +47,7 @@ it("big30: one sheet parsed under 0.5 s, under 40 MB retained", async () => {
   for (const [i, r] of res.entries()) console.log(`bench · big30 DATA_1 run ${i + 1}: parse ${r.ms.toFixed(0)} ms (read ${r.readMs.toFixed(0)} ms = inflate ${r.inflateMs.toFixed(0)} ms + parse), retained ${r.mb.toFixed(1)} MB, ${r.cells} cells`);
   const ms = res.map(r => r.ms).sort((a, b) => a - b)[1], mb = Math.max(...res.map(r => r.mb));
   expect(res[0].cells).toBe(130001 * 12);
-  expect(ms, `parse ${ms.toFixed(0)} ms, median of 3 (limit ${LIMIT_MS} ms + 10 %)`).toBeLessThan(LIMIT_MS * SLACK);
+  const limit = LIMIT_MS * speed.factor;
+  expect(ms, `parse ${ms.toFixed(0)} ms, median of 3 (limit ${limit.toFixed(0)} ms = ${LIMIT_MS} ms × ${speed.factor.toFixed(2)}, + 10 %)`).toBeLessThan(limit * SLACK);
   expect(mb, `retained ${mb.toFixed(1)} MB (limit ${LIMIT_MB} MB + 10 %)`).toBeLessThan(LIMIT_MB * SLACK);
 });

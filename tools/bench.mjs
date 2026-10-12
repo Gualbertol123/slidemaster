@@ -9,6 +9,9 @@
                      2026-10-11, PROGRESS S2.6 – Chromium's first use of each font instance on Windows; v3 had
                      the same task), like the start-up tasks
      page heap       after the big sheet was read (performance.memory)                                < 150 MB
+   The two time limits are scaled by how much slower this machine is than the reference PC (tools/calibrate.mjs,
+   decision 2026-10-12: GitHub's runners are 1.3–1.6× slower and passed or failed by chance); long tasks and heap
+   are not.
 
      node tools/bench.mjs [--page DIR] [--json OUT] [--no-gate]
    --page DIR  another build's backend folder (e.g. a v3 worktree's backend/) – to record its numbers
@@ -20,6 +23,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { speedFactor } from "./calibrate.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)), REPO = path.resolve(HERE, "..");
 const require = createRequire(path.join(REPO, "package.json"));
@@ -27,7 +31,9 @@ const { chromium } = require("playwright");
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
 const BACKEND = path.resolve(arg("--page", path.join(REPO, "backend")));
 const GATE = !process.argv.includes("--no-gate");
-const LIMITS = { open_deck20_ms: 400, read_big30_ms: 1000, longest_task_ms: 50, heap_mb: 150 }, SLACK = 1.1;
+const BUDGET = { open_deck20_ms: 400, read_big30_ms: 1000, longest_task_ms: 50, heap_mb: 150 }, SLACK = 1.1;
+const speed = speedFactor(), TIMED = ["open_deck20_ms", "read_big30_ms"];
+const LIMITS = Object.fromEntries(Object.entries(BUDGET).map(([k, v]) => [k, TIMED.includes(k) ? Math.round(v * speed.factor) : v]));
 const CHROME = process.env.CHROME || chromium.executablePath();
 const PY = process.platform === "win32" ? "python" : "python3";
 const BOOKS = path.join(REPO, "tests/corpus/workbooks");
@@ -116,9 +122,10 @@ const worst = {
   heap_mb: runs.some(r => r.big30.heap_mb == null) ? Infinity : Math.max(...runs.map(r => r.big30.heap_mb)),
 };
 const info = { longest_startup_task_ms: Math.max(0, ...runs.flatMap(r => r.boot.longtasks)), longest_first_draw_task_ms: Math.max(0, ...runs.flatMap(r => r.deck20.first_draw_longtasks)) };
-const out = { page: path.relative(REPO, BACKEND) || BACKEND, chrome: CHROME, machine: `${os.cpus().length} × ${os.cpus()[0].model.trim()}, ${process.platform}`, limits: LIMITS, worst, info, runs };
+const out = { page: path.relative(REPO, BACKEND) || BACKEND, chrome: CHROME, machine: `${os.cpus().length} × ${os.cpus()[0].model.trim()}, ${process.platform}`, calibration: { ms: +speed.ms.toFixed(1), factor: +speed.factor.toFixed(2) }, budget: BUDGET, limits: LIMITS, worst, info, runs };
 if (arg("--json")) fs.writeFileSync(arg("--json"), JSON.stringify(out, null, 1));
 for (const [i, r] of runs.entries()) console.log(`bench · run ${i + 1}: deck20 open ${r.deck20.open_ms} ms (wizard ${r.deck20.wizard_ms} + slides ${r.deck20.finish_to_slide_ms}) · big30 index ${r.big30.index_to_wizard_ms} ms, sheet read ${r.big30.read_sheet_ms} ms (grid ${r.big30.read_to_grid_ms} ms) · long tasks ${JSON.stringify([...r.deck20.longtasks, ...r.big30.longtasks])} (first draw ${JSON.stringify(r.deck20.first_draw_longtasks)}) · heap ${r.big30.heap_mb} MB · start-up tasks ${JSON.stringify(r.boot.longtasks)}`);
+console.log(`bench · calibration ${speed.ms.toFixed(1)} ms: time limits × ${speed.factor.toFixed(2)}`);
 const bad = Object.entries(LIMITS).filter(([k, lim]) => worst[k] > lim * SLACK);
 for (const [k, lim] of Object.entries(LIMITS)) console.log(`bench · ${k}: ${worst[k]} (limit ${lim}${worst[k] > lim ? (worst[k] > lim * SLACK ? " – OVER +10 %" : " – over, within +10 %") : ""})`);
 console.log(`bench · not gated: longest start-up task ${info.longest_startup_task_ms} ms, longest task drawing the first slide ${info.longest_first_draw_task_ms} ms`);

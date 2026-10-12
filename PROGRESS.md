@@ -91,6 +91,12 @@ numbers measured twice). Measured numbers go into the step's line.
     full geometry/pixel/PDF-position parity runs only there, hosted CI keeps comparing texts and styles.
   The rest of G0 (storage, fieldcheck, policy matrix W1–W14, ReadDirectoryChangesW) is still open; it is needed by M5.
 
+- 2026-10-12 · Decision (product owner), bench time limits on other machines: `npm run bench` first times a fixed
+  workload (`tools/calibrate.mjs`, ~32 ms on the reference PC) and scales the time limits (deck20 open, big30 read,
+  big30 parse) by (this machine ÷ the reference PC), never below 1×; memory and long-task limits are not scaled.
+  Cause: on GitHub's runner (1.3–1.6× slower) the big30 read took 1,124 ms on `main` after the merge (limit 1,000
+  + 10 %) while the release workflow's run passed.
+
 - 2026-10-12 · Decision (product owner), core bench: big30's parse
   gate (500 ms + 10 %) counts the median of three timed runs after one untimed warm-up, instead of the slower of
   two runs (that failed by chance on CI's runner, 551 and 558 ms in 2 of 4 runs, with the timed code unchanged
