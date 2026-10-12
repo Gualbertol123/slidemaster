@@ -125,7 +125,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
   if (logo) logoNodes(logo);
   return { nodes: [...low, ...z3, ...z5], images };
 
-  /* a nowrap line with an ellipsis in a box from left to 1600 − right (titles), line-height normal unless set */
+  /* a nowrap line with an ellipsis in a box from left to 1600 − right (titles), the inherited line height unless set */
   function oneLine(cls: string, f: TextFmt, text: string, left: number, top: number, right: number, st0: TStyle, shadow: boolean) {
     // a page number in the top-left corner: both texts start at 56 + its width + 22 (slideMarkup's inline left)
     const st = withFmt(st0, f), x = shift ? 56 + shift : left, w = 1600 - right - x, lh = T.lineH(st, f.lh ? +f.lh : INHERITED);
@@ -142,7 +142,10 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
     if (!st || (!pre && !runs.some(r => r.text.trim()))) return { nodes: out, h: 0, text: "" };
     const ls = T.lines(runs, w, pre), H = T.lineH(st, lh), drawn: string[] = [];
     ls.forEach((line, k) => {
-      const lw = line.reduce((s, p) => s + T.adv(p.text, p.st), 0);
+      // the line's width for its alignment: its spaces at the end count while they fit the box, beyond it they hang
+      const all = line.reduce((s, p) => s + T.adv(p.text, p.st), 0);
+      const ink = line.reduce((s, p, k) => s + T.adv(k === line.length - 1 ? p.text.replace(/ +$/, "") : p.text, p.st), 0);
+      const lw = Math.max(ink, Math.min(all, w));
       drawn.push(line.map(p => p.text).join(""));
       let xx = align === "right" ? x + w - lw : align === "center" ? x + (w - lw) / 2 : x;
       const by = T.baseline(st, top + k * H, H);

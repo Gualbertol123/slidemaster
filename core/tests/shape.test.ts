@@ -152,6 +152,28 @@ describe("shaping", () => {
   });
 });
 
+describe("Windows' optical-size families and synthetic italic (S3.6)", () => {
+  it("“<family> Display / Text / Small” stands for a variable font with an optical-size axis only", () => {
+    // (Segoe UI Variable Display → Segoe UI Variable: SegUIVar.ttf has wght and opsz; no fixture font has opsz, so
+    // the positive case is checked on Windows by tools/export-dl.mjs, whose glass PDFs embed Segoe UI Variable)
+    const r = new FontRegistry(), [vf] = r.add(VF);
+    expect(r.match(vf.family + " Display", 600)).toBeNull();               // Quicksand: wght only – the browser moves on
+    const s = new FontRegistry(); s.add(REG);
+    expect(s.match("Carlito Display")).toBeNull();
+  });
+  it("an italic run in a face without an italic is drawn oblique (the writer's text matrix), as the browser does", async () => {
+    const r = new FontRegistry(); r.add(REG);
+    const n = (i: boolean): TextNode => ({ t: "text", font: "Carlito", size: 20, x: 0, y: 20, src: "Ab", fill: { solid: [0, 0, 0] }, ...(i ? { i: true } : {}) });
+    expect(r.pdfFace(n(true))?.oblique).toBe(true);
+    expect(r.pdfFace(n(false))?.oblique).toBeUndefined();
+    const pdf = latin1(writePdf({ pages: [[n(true)], [n(false)]], image: () => undefined, font: r.pdfFace, subset: await pdfSubsetter(), compress: false }));
+    expect(pdf).toContain("Tf 1 0 0.25 -1 0 20 Tm");
+    expect(pdf).toContain("Tf 1 0 0 -1 0 20 Tm");
+    const b = new FontRegistry(); b.add(REG); b.add(BOLD);
+    expect(b.pdfFace({ ...n(false), b: true })?.oblique).toBeUndefined();     // a real face: nothing synthetic
+  });
+});
+
 describe("OpenType features and tabular figures (S3.4)", () => {
   // (the fixture fonts have no tnum alternates – Carlito's and Source Sans 3's digits are tabular already,
   // Quicksand's proportional with no tnum feature – so "-kern" shows that features reach HarfBuzz; tnum itself was

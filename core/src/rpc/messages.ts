@@ -63,9 +63,6 @@ export interface CoreMethods {
       (every other axis at its default; hb-subset), so no PDF ever embeds a variable font; other fonts come back as
       they are (`variable: false`) */
   staticFont(a: { buf: ArrayBuffer; weight: number }): { buf: ArrayBuffer; variable: boolean };
-  /** display lists of the open deck's tables (M3; not drawn by the page yet): per slide (0-based) and table, in
-      table px, with the pictures they refer to; the text measured by the page (measureRuns / breakLines) */
-  displayLists(a: HtmlReq & { slides?: number[] }): { slide: number; table: number; id: string; dl: import("../render/excel-dl").TableDL }[];
   /** whole slides as display lists in slide px (S3.5): background, furniture, the tables placed, text boxes */
   slideLists(a: HtmlReq & { slides?: number[]; /** the date the page shows (its clock) */ today?: string }): { slide: number; dl: import("../render/excel-dl").TableDL }[];
 }

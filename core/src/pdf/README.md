@@ -19,7 +19,9 @@ const bytes = writePdf({ pages: [dl1, dl2], image: id => bytesOf(id), font: n =>
 
 * Every page is `MediaBox [0 0 1200 675]`; the content starts with `0.75 0 0 -0.75 0 675 cm`, so the display list's
   slide px (1600 × 900, y down) fill the page by construction. No marker, no fitting.
-* Text is drawn with `1 0 0 -1 x y Tm` (upright glyphs in the flipped space), x / y = the run's baseline start.
+* Text is drawn with `1 0 0 -1 x y Tm` (upright glyphs in the flipped space), x / y = the run's baseline start;
+  `1 0 0.25 -1 x y Tm` when the face is `oblique` (an italic run in a face without an italic: synthetic italic, the
+  slant Chromium gives it).
 
 ## How each node is drawn
 

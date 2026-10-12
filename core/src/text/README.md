@@ -32,8 +32,9 @@ other axes need no browser value (wdth 100, slnt 0, ital 0; never opsz); otherwi
 at the run's weight for a Windows font; opsz at the run's size). Text boxes break as `white-space: pre-wrap` (a
 paragraph keeps its indent; spaces go after a soft wrap), wrapping cells and automated comments as `normal`.
 
-Not yet (named for the steps that need them): synthetic bold and italic (Chrome emboldens or slants a family that has
-no such face; the PDF draws the face as it is – to emulate with a stroke and a skew in S3.7); WOFF2 (most Google fonts) is not readable by the core, so such library
+Synthetic italic: an italic run in a face without an italic is drawn oblique by the PDF writer (`PdfFontFace.oblique`,
+a 0.25 skew in the text matrix, as Chromium slants it; S3.6). Not yet (named for the steps that need them):
+synthetic bold (Chrome emboldens a family that has no bold face; to emulate with a stroke in S3.7); WOFF2 (most Google fonts) is not readable by the core, so such library
 fonts cannot reach the native PDF yet (S3.7); no fallback font for a missing face or glyph (the writer refuses a
 missing face; a missing glyph is `.notdef`); tabs and soft hyphens are not break opportunities, CJK breaks between
 characters only; a variable CFF2 upload is stored as it is.

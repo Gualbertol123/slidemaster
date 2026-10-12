@@ -80,11 +80,11 @@ function borderNodes(side: "top" | "bottom" | "left" | "right", b: BorderSide, x
   return [line(bw / 2, bw, borderDash(b.style, bw))];
 }
 
-/** the space above a line's text inside its line box, as Chromium lays it out: half of (line height − the font's
-    ascent + descent), floored to a whole pixel (measured against the page: 0.42 px off otherwise, tools/dlparity.mjs) */
 /** a length as Chromium's layout keeps it: floored to its 1/64 px unit (line heights, so successive lines of a
     fractional line height land where the page puts them) */
 export const lu = (v: number) => Math.floor(v * 64 + 1e-6) / 64;
+/** the space above a line's text inside its line box, as Chromium lays it out: half of (line height − the font's
+    ascent + descent), floored to a whole pixel (measured against the page: 0.42 px off otherwise, tools/dlparity.mjs) */
 export const halfLeading = (lh: number, met: RunMetrics) => Math.floor((lh - (met.asc + met.desc)) / 2);
 
 /* ---- text: runs with Excel's superscript / subscript parts */
@@ -294,7 +294,7 @@ function picBody(p: Pic, forExport: boolean, images: Record<string, string>, m: 
     if (forExport) return [];
     // the placeholder of a missing picture (.pic.missing): dashed frame, its name centred
     const label = p.unsupported || "Picture", font = "600 11px 'Segoe UI',sans-serif";
-    const lines = m.lines(label, font, Math.max(0, p.w - 3)), lh = 1.2 * 11, met0 = m.run("", font), lead = halfLeading(lh, met0);
+    const lines = m.lines(label, font, Math.max(0, p.w - 3)), lh = lu(1.2 * 11), met0 = m.run("", font), lead = halfLeading(lh, met0);
     const top = p.y + (p.h - lines.length * lh) / 2;
     const txt: Node[] = lines.map((l, k) => { const met = m.run(l, font); return { t: "text", font: "Segoe UI", css: "'Segoe UI',sans-serif", weight: 600, size: 11, x: r2(p.x + (p.w - met.w) / 2), y: r2(top + k * lh + lead + met0.asc), src: l, w: met.w, fill: solid("#B42318") }; });
     return wrapT(M, [{ t: "rect", x: p.x + .75, y: p.y + .75, w: Math.max(0, p.w - 1.5), h: Math.max(0, p.h - 1.5), fill: solid("rgba(255,240,238,.7)"), stroke: { w: 1.5, paint: solid("rgba(196,43,28,.6)"), dash: [4.5, 4.5] } },

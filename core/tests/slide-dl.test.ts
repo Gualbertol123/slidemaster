@@ -103,6 +103,21 @@ describe("the whole slide", () => {
     expect(sub.h).toBe(36);
     expect(sub.y + sub.h).toBeCloseTo(730, 6);
   });
+  it("a text box's line ends: spaces before a line break count for the alignment while they fit, beyond the box they hang", async () => {
+    const { ctx, slides } = await deck("weekly-options.json", "clean");
+    const R = slides[2], boxes = computeLayout(R, ctx).boxes, part = noteParts(R, 0, ctx)[0], nb = boxes[0].notes[part.side]!;
+    const bub = part.cls.includes(" bub"), padX = bub ? 18 : 6, cw = nb.w - 2 * padX, size = part.n.size || 18, adv = size * .5;
+    const run = (text: string) => {
+      part.n.text = text; (R.cfg.notes as Record<string, { text: string }>)[part.key].text = text;
+      part.n.align = "right"; (R.cfg.notes as Record<string, { align?: string }>)[part.key].align = "right";
+      const dl = slideToDisplayList(R, 2, ctx, [], boxes, { wall: null, logo: null }, M, "x");
+      return textsAfter(dl.nodes, noteParts(R, 0, ctx)[0].cls)[0];
+    };
+    const right = nb.x + nb.w - padX;
+    expect(run("ab  \ncd").x).toBeCloseTo(right - 4 * adv, 6);                      // two set spaces: "ab" ends 2 spaces early
+    const wide = run("ab" + " ".repeat(Math.ceil(cw / adv) + 4) + "\ncd");
+    expect(wide.x).toBeCloseTo(right - cw, 6);                                     // more spaces than the box: "ab" at the start edge
+  });
   it("the notes section sits at its box; the footer and page number in their corners", async () => {
     const { ctx, slides, build } = await deck("weekly-options.json", "glass");
     const i = slides.findIndex((S, k) => memoPart(S, ctx) && k >= 0);
@@ -140,6 +155,7 @@ describe("text and paint rules found against Chromium (S3.5)", () => {
     expect(w("ab (-78", 5)).toEqual(["ab", "(-78"]);                               // a minus sign before digits stays
     expect(w("rate -0.5%", 6)).toEqual(["rate", "-0.5%"]);
     expect(w("well-known", 5)).toEqual(["well-", "known"]);
+    expect(w("ab -abcd", 5)).toEqual(["ab -", "abcd"]);                            // a word-initial hyphen breaks too
   });
   it("pre-wrap: the spaces before a line break are set (they count for the alignment), a soft wrap's hang", () => {
     const ls = breakRuns([{ text: "ab   \ncd ef" }], 4, t => t.length, { pre: true }).map(l => l.map(p => p.text).join(""));

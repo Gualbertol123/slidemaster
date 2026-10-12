@@ -4,8 +4,9 @@
    the PDF and the SVG. A group with alpha or a blend mode is drawn into a layer and composited once, so its
    children do not show through each other (a transparency group, as in the PDF); without a layer factory it
    falls back to the alpha per child. A horizontal run (no rotation or skew in the transform) is drawn as Chromium
-   draws page text: its baseline floored and its start rounded to whole device pixels (measured against the page by
-   tools/dlparity.mjs; otherwise text at a fractional table scale sits a pixel off). */
+   draws page text: its baseline floored to a whole device pixel, its start rounded to one only where the list scales
+   it (a scaled table, which Chromium paints as a layer of its own; the scale relative to the one drawDl starts from),
+   otherwise kept fractional (subpixel positioning) – measured against the page by tools/dlparity.mjs. */
 import { boxMatrix, charPositions, premulStops, decorations, paintOf, imagePlacement, lineBand, mul, needsClip, pathBox, radialMatrix, rrectOf, shadowLayers, strokeRing } from "./geom";
 import { weightOf, type DisplayList, type Matrix, type Node, type Paint, type PathCmd, type Stroke, type TextNode } from "./types";
 

@@ -36,8 +36,9 @@ export interface NoteMeasure {
 export interface RunReq { text: string; font: string; /** font-variant-numeric: tabular-nums (Liquid Glass numbers) */ tnum?: boolean }
 /** its advance and the font's ascent / descent (what CSS lays a line out with), px */
 export interface RunMetrics { w: number; asc: number; desc: number; /** with tnum: each character's advance (one per code point) */ adv?: number[] }
-/** a text wrapped at a width, as CSS white-space: normal with word-break: break-word does */
+/** a text box to fit (fitNoteSize from `start` down) */
 export interface NoteFitReq { note: NoteMeasure; start: number }
+/** a text wrapped at a width, as CSS white-space: normal with word-break: break-word does */
 export interface LinesReq { text: string; font: string; width: number }
 export interface TextMeasurer {
   /** the widest of the digits 0–9 in px for a CSS font shorthand (Excel's "maximum digit width"); 0 = unknown.

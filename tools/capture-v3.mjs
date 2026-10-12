@@ -179,7 +179,7 @@ async function exportPdf(page, h, dir) {
 }
 
 // ------------------------------------------------------------------------------------------- capture
-/* opts: decks, pdf (false: no export), quiet, allPixels; designs (default all three); slideHook(page, {design,
+/* opts: decks, pdf (false: no export), quiet, allPixels; designs (default all three); slideHook(page, {deck, dir, design,
    version, slide, geometry, pixels}) → {geometry?, png?}: replaces what is written for a slide (tools/dlparity.mjs
    writes the display list's geometry and pixels there) */
 export async function capture(out, opts = {}) {
@@ -214,7 +214,7 @@ export async function capture(out, opts = {}) {
             let g = await geometry(page);
             g.slide = i + 1; g.label = await page.locator(".thumb").nth(i).locator(".cap b").innerText();
             const pixels = wantPixels(opts, id, vname, i + 1);
-            const hooked = opts.slideHook ? await opts.slideHook(page, { design, version: vid, slide: i, geometry: g, pixels }) : null;
+            const hooked = opts.slideHook ? await opts.slideHook(page, { deck: id, dir, design, version: vid, slide: i, geometry: g, pixels }) : null;
             if (hooked?.geometry) g = hooked.geometry;
             fs.writeFileSync(path.join(dir, `slide-${i + 1}.json`), linesJson(g, "items"));
             if (hooked?.png) fs.writeFileSync(path.join(dir, `slide-${i + 1}.png`), hooked.png);

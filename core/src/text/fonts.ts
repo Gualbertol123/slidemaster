@@ -4,6 +4,7 @@
    the helper serves (GET /sysfonts/<file>), anything a host adds. A text node's (family, bold, italic) resolves to
    a face as CSS does (the family by name, the nearest weight, italic preferred), so the PDF uses the file the
    screen uses. Fonts are plain bytes here; WOFF is unpacked to sfnt, a collection (.ttc) is split into its faces. */
+import { fvarAxes } from "./fvar";
 import { unzlibSync } from "fflate";
 import { weightOf, type TextNode } from "../dl/types";
 import { parseFont, type Font } from "../pdf/ttf";
@@ -121,7 +122,15 @@ export class FontRegistry {
       for 700 heavier ones ascending, then lighter ones descending; for 400 up to 500 ascending, then lighter ones
       descending, then heavier ones ascending) */
   match(family: string, bold: boolean | number = false, italic = false): FaceInfo | null {
-    const list = this.byFamily.get(family.trim().toLowerCase());
+    let list = this.byFamily.get(family.trim().toLowerCase());
+    // "Segoe UI Variable Display" / "… Text" / "… Small": Windows lists a variable font's optical-size instances as
+    // families of their own; the font itself is "Segoe UI Variable" (its opsz is pinned to the size, text/pdf.ts)
+    if (!list?.length) {
+      const m = /^(.*\S)\s+(Display|Text|Small)$/i.exec(family.trim());
+      const base = m ? this.byFamily.get(m[1].toLowerCase()) : undefined;
+      const opsz = base?.filter(f => f.variable && fvarAxes(f.data).some(a => a.tag === "opsz"));
+      if (opsz?.length) list = opsz;
+    }
     if (!list?.length) return null;
     const styled = list.filter(f => f.italic === italic), pool = styled.length ? styled : list;
     const want = typeof bold === "number" ? bold : bold ? 700 : 400;
@@ -133,7 +142,7 @@ export class FontRegistry {
     return [...pool].sort((a, b) => rank(a.weight) - rank(b.weight) || Number(a.variable) - Number(b.variable))[0];
   }
   /** the PDF writer's font callback: the file of a text node's face */
-  pdfFace = (n: TextNode) => { const f = this.match(n.font, weightOf(n), !!n.i); return f ? { key: f.id, data: f.data } : undefined; };
+  pdfFace = (n: TextNode) => { const f = this.match(n.font, weightOf(n), !!n.i); return f ? { key: f.id, data: f.data, ...(n.i && !f.italic ? { oblique: true } : {}) } : undefined; };
 }
 function defined<T extends object>(o: T): Partial<T> {
   const r: Partial<T> = {};

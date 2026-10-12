@@ -24,7 +24,6 @@ installBrowserPlatform();
 // hooks for automated tests (parity with v2, end-to-end); not used by the app itself
 (window as unknown as Record<string, unknown>).__sbTest = { indexWorkbook, readWorkbook, buildLayout, formatValue, renderExcel, renderGlass, resolveStyle, coreStats,
   // the display list (M3, not shown yet): built by the core worker, drawn on a canvas by the parity tools
-  displayLists: (a: HtmlReq & { slides?: number[] }) => core().call("displayLists", a),
   slideLists: (a: HtmlReq & { slides?: number[] }) => core().call("slideLists", { today: todayLabel(), ...a }), drawDl };
 
 // slide.css lives in its own <style id="slidecss">: exports send exactly this text to the export engine

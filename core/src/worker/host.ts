@@ -96,7 +96,6 @@ export class CoreHost {
     h("flush", async () => { await this.sync?.flush(); });
     h("poll", async () => { await this.sync?.poll(); });
     h("html", a => this.htmlFor(a));
-    h("displayLists", a => this.displayLists(a));
     h("slideLists", a => this.slideLists(a));
   }
 
@@ -268,21 +267,6 @@ export class CoreHost {
         out.push([id, kind, key, tableHtml(R, i, ctx, thumb)]);
       }
     });
-    return out;
-  }
-  private async displayLists(a: HtmlReq & { slides?: number[] }) {
-    if (!this.wb || !this.sync) return [];
-    const ctx = this.ctx(a.design, a.version, a.forExport), out: { slide: number; table: number; id: string; dl: TableDL }[] = [];
-    // the resolved design decides (a request may leave it to the deck)
-    const glass = ctx.style.design === "glass", wall = glass ? await wallpaperIds(ctx.style) : null;
-    for (const [s, R] of ctx.slides.entries()) {
-      if (a.slides && !a.slides.includes(s)) continue;
-      const boxes = glass ? computeLayout(R, ctx).boxes : [];
-      for (const [i, L] of R.tables.entries()) {
-        const noText = a.thumb && L.items.length > 1200, b = boxes[i];
-        out.push({ slide: s, table: i, id: L.id || "", dl: glass ? await glassTableDL(L, ctx, { x: b?.x ?? 0, y: b?.y ?? 0, scale: b?.scale ?? 1 }, wall?.blur ?? null, { noText }) : await excelTableDL(L, ctx, { noText }) });
-      }
-    }
     return out;
   }
   /** whole slides as display lists (S3.5): background, furniture, the tables placed and scaled, text boxes */

@@ -9,7 +9,7 @@ import { weightOf, type DisplayList, type Node } from "../dl/types";
 import { FontRegistry, type FaceInfo } from "./fonts";
 import { shaper } from "./shape";
 import { hbSubsetter, instanceFont } from "./subset";
-import { fvarAxes } from "./static";
+import { fvarAxes } from "./fvar";
 
 export async function prepareTextForPdf(pages: DisplayList[], fonts: FontRegistry): Promise<DisplayList[]> {
   const s = await shaper();
@@ -18,7 +18,8 @@ export async function prepareTextForPdf(pages: DisplayList[], fonts: FontRegistr
   const pinFor = (f: FaceInfo, n: Node & { t: "text" }) => {
     const axes = fvarAxes(f.data), pin: Record<string, number> = {};
     if (axes.some(a => a.tag === "wght")) pin.wght = f.source === "library" ? f.weight : weightOf(n);
-    if (axes.some(a => a.tag === "opsz")) pin.opsz = n.size;
+    const opsz = axes.find(a => a.tag === "opsz");
+    if (opsz) pin.opsz = Math.min(opsz.max, Math.max(opsz.min, n.size));      // the size, within the axis
     return pin;
   };
   const instKey = (f: FaceInfo, pin: Record<string, number>) => `${f.family}|${f.italic ? "i" : ""}|${f.id}|${JSON.stringify(pin)}`;
@@ -36,12 +37,15 @@ export async function prepareTextForPdf(pages: DisplayList[], fonts: FontRegistr
     for (const { face, pin, key } of want.values())
       made.set(key, new FontRegistry().add(instanceFont(hb, face.data, pin), { family: face.family, weight: face.weight, italic: face.italic, source: face.source, file: face.file })[0]);
   }
-  // each run is shaped with its own static instance; the writer finds it by the instance's family key
+  // each run is shaped with its own static instance; the writer finds it by the instance's family key. An instance
+  // is registered once (hashing it per run cost seconds per deck), with the face's own style: an italic run on a face
+  // without an italic is drawn oblique by the writer, as the browser draws it
+  const registered = new Set<string>();
   const resolve = (n: Node & { t: "text" }) => {
     const f = fonts.match(n.font, weightOf(n), !!n.i);
     if (!f?.variable) return { face: f, node: n };
-    const inst = made.get(instKey(f, pinFor(f, n)))!, alias = `${f.family}#${inst.id.slice(0, 10)}`;
-    fonts.add(inst.data, { family: alias, weight: weightOf(n), italic: !!n.i, source: f.source, file: f.file });
+    const inst = made.get(instKey(f, pinFor(f, n)))!, alias = `${f.family}#${inst.id.slice(0, 10)}`, reg = `${alias}|${weightOf(n)}|${f.italic ? 1 : 0}`;
+    if (!registered.has(reg)) { fonts.add(inst.data, { family: alias, weight: weightOf(n), italic: f.italic, source: f.source, file: f.file }); registered.add(reg); }
     return { face: inst, node: { ...n, font: alias } };
   };
   const visit = (n: Node): Node => {

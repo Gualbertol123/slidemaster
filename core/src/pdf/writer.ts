@@ -12,7 +12,9 @@ import { decodePng, isJpeg, isPng, jpegInfo, type Raster } from "./png";
 import { embeddable, noSubset, parseFont, subset as ttfSubset, variableTables, type Font } from "./ttf";
 
 /** a font file for a text node's face */
-export interface PdfFontFace { /** content hash (one embedded font per key) */ key: string; data: Uint8Array }
+export interface PdfFontFace { /** content hash (one embedded font per key) */ key: string; data: Uint8Array;
+  /** an italic run in a face without an italic: drawn slanted (synthetic oblique, Skia's −0.25 skew, as the browser) */
+  oblique?: boolean }
 /** a subset font program: TrueType outlines → FontFile2, CFF in an OpenType wrapper → FontFile3 /OpenType.
     The glyph ids must stay those of the full font (retain gids) */
 export interface SubsetFont { data: Uint8Array; outline: "truetype" | "cff" }
@@ -375,7 +377,7 @@ export function writePdf(doc: PdfInput): Uint8Array {
       }
       const g = a < 1 ? `/${this.use("ExtGState", alphaGs(a))} gs ` : "";
       // a decorative copy (a title's text shadow) is an artifact: drawn, not read as text a second time
-      let s = `${n.decorative ? "/Artifact BMC " : ""}q ${g}${rgbOps(p.solid)} rg BT /${this.use("Font", u.res)} ${n2(n.size)} Tf 1 0 0 -1 ${n2(n.x)} ${n2(n.y)} Tm ${show} ET`;
+      let s = `${n.decorative ? "/Artifact BMC " : ""}q ${g}${rgbOps(p.solid)} rg BT /${this.use("Font", u.res)} ${n2(n.size)} Tf 1 0 ${doc.font(n)?.oblique ? "0.25" : "0"} -1 ${n2(n.x)} ${n2(n.y)} Tm ${show} ET`;
       if (n.decoration && n.w !== undefined) for (const [x, y, w, h] of decorations(n, n.w)) s += ` ${n2(x)} ${n2(y)} ${n2(w)} ${n2(h)} re f`;
       this.ops.push(s + " Q" + (n.decorative ? " EMC" : ""));
     }

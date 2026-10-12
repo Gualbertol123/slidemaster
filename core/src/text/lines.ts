@@ -14,13 +14,11 @@ export const collapse = (s: string) => s.replace(/[ \t\n\r\f]+/g, " ");
 
 /** a line may break after the hyphen at i − 1 (before the character at i), as Chromium (ICU) breaks: before a
     non-space – but not before a digit after a hyphen that follows no letter or digit ("(-78", "rate -0.5 %", a
-    minus sign), and not before a letter after a hyphen that starts a word (" -abc"); "2020-2021", "x-1234",
-    "Q1-Q2", "(-abcd" do break */
+    minus sign); "2020-2021", "x-1234", "Q1-Q2", "(-abcd", "ab -abcd" do break (probed in Chromium 153) */
 export function hyphenBreak(before: string | undefined, next: string): boolean {
   if (next === " " || next === "\n") return false;
   const alnum = before !== undefined && /[\p{L}\p{N}]/u.test(before);
   if (/\p{N}/u.test(next) && !alnum) return false;
-  if (/\p{L}/u.test(next) && (before === undefined || before === " ")) return false;
   return true;
 }
 
