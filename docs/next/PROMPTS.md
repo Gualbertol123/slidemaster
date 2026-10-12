@@ -382,8 +382,10 @@ DOUBLE-CHECK PROTOCOL (after EVERY step, before ticking it)
    with pypdf and PDFium and confirm:
    - no Type 3 fonts, no variable fonts;
    - images only for pictures and wallpapers;
-   - selectable text equal to v3's.
+   - selectable text equal to the golden slide texts (GT), not v3's PDF text (unreadable for glass and
+     part of clean; PROGRESS Decisions 2026-10-12, 5).
    Fix, then repeat 1–2.
+   On the reference PC `npm run parity` must say "full comparison" (golden/README.md).
 4. Measure twice (PDF size, times); investigate differences over 10 %.
 5. Tick with PR link, both numbers and "verified: tests ✓ clean clone ✓ review ✓".
 At the end: protocol 1–3 over the milestone diff, and walk 05 §4 rows 4.3, 4.4, 4.7, 4.8, 4.9.
@@ -399,7 +401,9 @@ S3.1 Display list and backends.
   - de-duplication of images by hash and of gradients by style;
   - fflate Flate; no object streams;
   - MediaBox [0 0 1200 675] with the cm mapping;
-  - the flattened-gradient recipe if G0 requires it;
+  - soft masks for the glass transparency (G0 decision 2026-10-12: no flattened-gradient recipe);
+  - the contract additions of ADR-004's amendment (blend multiply, inset shadows, elliptical radial
+    paints, image-alpha drop shadows);
   - core/src/pdf/README.md.
 - tools/pdfcheck.py (from spikes/baseline/pdfinfo.py and spikes/pdfwriter/render_cost.py); qpdf in CI.
 - Tests: every node × 3 backends; PDF (via PDFium) vs canvas within tolerance.
@@ -421,13 +425,15 @@ S3.3 excelToDisplayList for Excel and Excel Refined.
   slantDashDot, double = two lines);
 - text with alignment, indent, wrap, overflow clips, rotation, sup/sub runs;
 - pictures, shapes, text boxes.
-Text metrics still come from the v3 TextMeasurer, so parity can be exact. GG and GP pass for excel and
-clean.
+Text metrics still come from the page's browser layout, so parity can be exact (PROGRESS Decisions
+2026-10-12, 3): TextMeasurer gains measureRuns and breakLines, implemented on the page and called by the
+core worker through the RPC, batched per table. GG and GP pass for excel and clean.
 
 S3.4 glassToDisplayList.
 - buildScene, inferRoles and the material decisions stay UNCHANGED.
 - Each material becomes its recipe from 03 §4.3. Evaluate the CSS calc() values from slide.css in TS for
-  the glass level, contrast and radius; use placeGlass's LENS = 1 + .06·gi; 6-layer shadows.
+  the glass level, contrast and radius; use placeGlass's LENS = 1 + .06·gi; 5-layer shadows (v3's
+  printcss.ts STEPS = 5, as in today's PDFs; PROGRESS Decisions 2026-10-12, 4).
 - The wallpaper is made in the worker on OffscreenCanvas: two JPEGs with stable ids.
 - GG passes; the expected shadow and rim differences go into accepted.json with reason "B3 pending G1".
 
@@ -570,7 +576,7 @@ S4.1 React stage on SVG.
   - InlineCellEditor, TextBoxEditor, SlideTextEditor.
 - Hit testing from DL hit nodes with v3's binary search over edges (cellFromPoint).
 - Keep "never redraw under an open editor" (E8).
-- 6-layer shadows, plus Options › "Soft shadows on screen" (B3).
+- 5-layer shadows (as in today's PDFs), plus Options › "Soft shadows on screen" (B3).
 - ⏱ keypress → pixels p95 under 50 ms.
 
 S4.2 Smooth drags.

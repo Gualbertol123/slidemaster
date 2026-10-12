@@ -87,15 +87,40 @@ numbers measured twice). Measured numbers go into the step's line.
   * **Acrobat recipe: soft masks.** The glass cards' transparency in `docs/next/field/acrobat-glass.pdf` looked
     right and scrolled smoothly in Acrobat and Edge, so S3.5 keeps soft masks (no flattened gradients).
   * **Fonts: fingerprint mode** (R7). Windows fonts are not copied to the share; S3.2 records a metrics fingerprint only.
-  * **Reference machine: keep the Linux goldens.** `golden/` stays as captured (Linux container, Chromium 141);
-    full geometry/pixel/PDF-position parity runs only there, hosted CI keeps comparing texts and styles.
+  * **Reference machine: the reference PC** (Windows 11, its fonts, Playwright's pinned Chromium from `npm ci`),
+    replacing "keep the Linux goldens" the same day (no available machine reproduces that container). `golden/`
+    is re-captured there from v3.4.0 (`golden/README.md`); full geometry/pixel/PDF-position parity runs on the
+    reference PC, hosted CI keeps comparing texts and styles.
   The rest of G0 (storage, fieldcheck, policy matrix W1–W14, ReadDirectoryChangesW) is still open; it is needed by M5.
 
 - 2026-10-12 · Decision (product owner), bench time limits on other machines: `npm run bench` first times a fixed
   workload (`tools/calibrate.mjs`, ~32 ms on the reference PC) and scales the time limits (deck20 open, big30 read,
-  big30 parse) by (this machine ÷ the reference PC), never below 1×; memory and long-task limits are not scaled.
-  Cause: on GitHub's runner (1.3–1.6× slower) the big30 read took 1,124 ms on `main` after the merge (limit 1,000
-  + 10 %) while the release workflow's run passed.
+  big30 parse) by (this machine ÷ the reference PC), never below 1× **and at most 2×** (a slower runner cannot hide a
+  doubling); memory and long-task limits are not scaled. Cause: on GitHub's runner (1.3–1.6× slower) the big30 read
+  took 1,124 ms on `main` after the merge (limit 1,000 + 10 %) while the release workflow's run passed.
+
+- 2026-10-12 · Decisions (product owner, given to the agent to record: "make the decisions" after the pre-M3 review,
+  `docs/next/review-pre-M3.md`):
+  1. **M2 is closed with a follow-up** (the "M2 close-out" line above): the review's bugs are fixed before M3; their
+     user-visible effects (CHANGELOG 3.7.0, "What users notice") are approved changes besides B1–B14.
+  2. **Bench gates:** the memory budget counts the page and its core worker together; the tasks from Finish until
+     the first slide is drawn are gated at 150 ms (decision 1.a's window keeps its own, looser limit).
+  3. **Text measurement for the display list (S3.3, S3.5):** until S4.4 measures from font files, the text of the
+     display list is measured by the page's browser layout: `TextMeasurer` gains `measureRuns(runs, cssFont) →
+     advances` and `breakLines(text, cssFont, width, …) → lines`, implemented on the page (canvas `measureText` and
+     the DOM, like `noteFits`) and called by the core worker through the RPC, batched per table like `digitWidth`;
+     the worker's `noteFits` asks the page too. No page task over 50 ms (bench). OffscreenCanvas in the worker
+     passes in Chromium 153 on the reference PC but is unverified in Edge (`field-results.md` §2), so it is not
+     relied on yet. Prompt 4 (S3.1, S3.3, S3.4, its protocol) and 05 §1 (GF) are amended accordingly.
+  4. **Display-list contract:** ADR-004 as amended on 2026-10-12 (blend multiply, inset shadows, elliptical radial
+     paints, image-alpha drop shadows, title text shadows). Soft shadows use **5** layers (v3's `printcss.ts`
+     STEPS = 5, today's PDFs), not 6: Prompt 4 S3.4 and S4.1's "6-layer" read "5-layer".
+  5. **PDF text check (GF, Prompt 4 protocol step 3):** the extracted text is compared with the golden slide texts
+     (GT, `slide-<n>.json` "text"), not with v3's PDF text, which is unreadable for glass and part of clean.
+  6. **Acrobat recipe in S3.1:** soft masks (above): Prompt 4 S3.1's "the flattened-gradient recipe if G0 requires
+     it" is not done.
+  7. **Clean clones on Windows:** "/tmp/verify-<step>" means a folder under `%TEMP%`; npm there needs
+     `NODE_OPTIONS=--use-system-ca` behind the proxy (README §11).
 
 - 2026-10-12 · Decision (product owner), core bench: big30's parse
   gate (500 ms + 10 %) counts the median of three timed runs after one untimed warm-up, instead of the slower of
@@ -112,21 +137,16 @@ numbers measured twice). Measured numbers go into the step's line.
 
 ## Waiting for
 
-- **v3.6.0 release (S2.7, a person):** PR #5 merged and tag `v3.6.0` pushed on 2026-10-12 (on `d4c72ac`, the branch tip: same
-  files as the merge commit `6aafcb9`). Left: when the `release` workflow is green, `python tools/make_release.py --verify slidebuilder-3.6.0.zip`
-  on the downloaded ZIP, then `"C:UsersU508169DownloadsclaudeSlide BuilderUpdate Slide Builder.bat"`, then send prompt 3 again to tick S2.7.
-
 - **5 real decks (S0.5, product owner):** 5 workbooks from the share with their saved decks (`backend\data\workbooks\<name>-<hash>.json`). They are anonymised with `python tools/anonymise.py REAL.xlsx tests/corpus/workbooks/realN.xlsx --deck <deck>.json --deck-out tests/corpus/decks/realN.json --rename "<bank>=Bank A" …` (which names must be renamed?), reviewed by you, then captured into `golden/`.
 - **Gate G0 (S0.6, people on the real share and PCs)** - fill in `docs/next/field-results.md`:
   1. `tools/sharetest.py` from 3–5 PCs (one over VPN), 10 writers in total, `--rdcw` → **storage decision**: journals meet 05 §3.5, or `STORAGE=lean-lock` in M5 (ADR-006);
-  2. `tools/fieldcheck.html` from file:// and from the helper on each PC (Blob workers, WASM, OffscreenCanvas, fonts from bytes);
+  2. `tools/fieldcheck.html` from file:// and from the helper on each PC **in Edge** (Blob workers, WASM, OffscreenCanvas, fonts from bytes; Playwright cannot drive Edge 155 on the reference PC, Chromium 153's results are in field-results §2);
   3. the Windows policy matrix W1–W14 (05 §3.7);
-  4. ~~Acrobat recipe~~ decided 2026-10-12: soft masks;
-  5. ~~font decision (R7)~~ decided 2026-10-12: fingerprint mode;
+  4. ~~Acrobat recipe~~ decided 2026-10-12: soft masks (the §4 table's open times and text selection are still to be measured);
+  5. ~~font decision (R7)~~ decided 2026-10-12: fingerprint mode (the licence owner's answer is still wanted: a "yes" would allow copying later);
   6. ReadDirectoryChangesW result → whether S6.3 is done.
   Then write the decisions under "Decisions".
-- ~~**Reference machine for full parity**~~ decided 2026-10-12: keep the Linux goldens (Decisions).
-
+- ~~**Reference machine for full parity**~~ decided 2026-10-12: the reference PC, goldens re-captured there (Decisions).
 ## Measurements
 
 | Step | What | Run 1 | Run 2 |
