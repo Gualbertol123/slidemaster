@@ -365,7 +365,6 @@ function editSlideText(R: RuntimeSlide, el: HTMLElement) {
   inp.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Enter") finish(true); if (e.key === "Escape") finish(false); });
   inp.addEventListener("blur", () => finish(true));
 }
-export const isInlineOpen = () => !!INLINE;
 export { STAGE };
 
 /* ---- text boxes ---- */

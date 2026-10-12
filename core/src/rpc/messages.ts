@@ -22,7 +22,9 @@ export interface WorkbookInfo {
 /** what the renderers need from the page to draw like it (RenderCtx inputs that the worker cannot know) */
 export interface ViewInputs { defaults: Style | Record<string, unknown>; logoSrc: string; version: string; workbook: string }
 export interface DocState { view: WorkbookDoc; save: SaveState; error: string; history: HistorySummary }
-export interface DocEvent extends DocState {
+export interface DocEvent extends Omit<DocState, "view"> {
+  /** the document, only when its content changed since the last snapshot (not for a save-state or history change) */
+  view?: WorkbookDoc;
   /** what changed (null: only the history or the inputs) */
   change: Change | null;
   /** how many of the page's apply/undo calls the snapshot includes */

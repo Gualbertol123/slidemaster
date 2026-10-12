@@ -411,6 +411,7 @@ function drawGrid(S: SheetInfo, win: SheetWindow, W: W, onPick: () => void): HTM
   const grid = document.createElement("div"); grid.className = "wgrid-in"; grid.innerHTML = h;
   const body = grid.querySelector("tbody")!;
   const more = () => requestAnimationFrame(() => setTimeout(() => {
+    if (!grid.isConnected) return;                       // the wizard closed or showed another sheet: stop drawing
     body.insertAdjacentHTML("beforeend", blocks.shift()!);
     if (!blocks.length) grid.dataset.complete = "1";
     onPick(); if (blocks.length) more();
