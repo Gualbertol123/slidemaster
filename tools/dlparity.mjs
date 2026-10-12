@@ -12,7 +12,8 @@
      (M4) and the PNG export will have to do the same way;
    - text origins (05 GG "text origins 1 px"): every run of a cell (while the page's text nodes and the display
      list's runs are the same strings), the first run of other texts, against the page's own layout (the text's Range for
-     x, a zero-size inline-block on its baseline; this build, these fonts) within 1 px; text-shadow copies left out;
+     x, a zero-size inline-block on its baseline; this build, these fonts) within 1 px, enforced in a full comparison (the
+     goldens' environment) and printed for information elsewhere; text-shadow copies left out;
    - for Liquid Glass, the GP summary per theme × glass level × contrast of the corpus (report-dl/gp-glass.json).
    tools/parity.mjs's compare() then judges geometry and pixels with the usual tolerances; differences listed in
    tests/parity/accepted.json with "tool": "dlparity" are accepted.
@@ -183,7 +184,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const accepted = fs.existsSync(acceptedFile) ? JSON.parse(fs.readFileSync(acceptedFile, "utf8")) : [];
   const evaluate = () => {
     const res = compare(golden, actual, { accepted, decks, designs: DESIGNS, pdf: false, tool: "dlparity", pixelRange: true });
-    // the text origins against the page's layout (this build): every one beyond 1 px is a difference
+    // the text origins against the page's layout (this build): every one beyond 1 px is a difference – where the
+    // environment is the goldens' (full comparison: their Chromium and fonts, the reference PC). Elsewhere (CI's Linux
+    // runner, other fonts) they are printed for information, as geometry and pixels are not compared there: the
+    // display list's measuring is checked against the reference platform's fonts
+    const info = [];
     const files = d => fs.existsSync(d) && fs.statSync(d).isDirectory() ? fs.readdirSync(d).filter(f => fs.statSync(path.join(d, f)).isDirectory() || f.endsWith(".json")) : [];
     for (const deck of files(actual).filter(f => !f.endsWith(".json"))) for (const design of files(path.join(actual, deck))) for (const version of files(path.join(actual, deck, design)))
       for (const f of files(path.join(actual, deck, design, version)).filter(f => /^slide-\d+\.json$/.test(f))) {
@@ -191,9 +196,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
         for (const o of g.origins || []) {
           const d = { deck, design, version, file: f, kind: "origin", detail: `«${o.text}»: display list ${o.dl} vs page ${o.page}` };
           d.accepted = accepted.find(a => a.tool === "dlparity" && ["deck", "design", "version", "file", "kind"].every(k => a[k] === undefined || a[k] === d[k])) || null;
-          res.diffs.push(d);
+          if (res.full) res.diffs.push(d); else info.push(d);
         }
       }
+    if (info.length) console.log(`text origins beyond ${ORIGIN_TOL} px on this environment (information – not the goldens' fonts): ${info.length}; ${info.slice(0, 4).map(d => `${d.deck}/${d.design}/${d.file} ${d.detail}`).join(" | ")}`);
     res.unaccepted = res.diffs.filter(d => !d.accepted).length;
     return res;
   };
