@@ -6,8 +6,8 @@
   "version": "full",
   "file": "slide-1.png",
   "kind": "pixels",
-  "reason": "Pending G1, two known approximations of the display list: (1) B3 - Liquid Glass materials drawn with 03 §4.3's recipe (5-layer shadows, the 800 x 450 blurred wallpaper image) where the screen has CSS box-shadow blur; (2) tabular figures on the canvas - each digit centred in its tabular advance, since canvas text has no font-variant-numeric (the PDF shapes them with OpenType tnum). Geometry, texts and origins match (GG).",
-  "signedOff": "pending G1"
+  "reason": "Approved at G1, two known approximations of the display list: (1) B3 - Liquid Glass materials drawn with 03 §4.3's recipe (5-layer shadows, the 800 x 450 blurred wallpaper image) where the screen has CSS box-shadow blur; (2) tabular figures on the canvas - each digit centred in its tabular advance, since canvas text has no font-variant-numeric (the PDF shapes them with OpenType tnum). Geometry, texts and origins match (GG).",
+  "signedOff": "G1, product owner, 2026-10-12"
  },
  {
   "tool": "dlparity",
@@ -16,8 +16,8 @@
   "version": "full",
   "file": "slide-1.png",
   "kind": "pixels",
-  "reason": "Pending G1, two known approximations of the display list: (1) B3 - Liquid Glass materials drawn with 03 §4.3's recipe (5-layer shadows, the 800 x 450 blurred wallpaper image) where the screen has CSS box-shadow blur; (2) tabular figures on the canvas - each digit centred in its tabular advance, since canvas text has no font-variant-numeric (the PDF shapes them with OpenType tnum). Geometry, texts and origins match (GG).",
-  "signedOff": "pending G1"
+  "reason": "Approved at G1, two known approximations of the display list: (1) B3 - Liquid Glass materials drawn with 03 §4.3's recipe (5-layer shadows, the 800 x 450 blurred wallpaper image) where the screen has CSS box-shadow blur; (2) tabular figures on the canvas - each digit centred in its tabular advance, since canvas text has no font-variant-numeric (the PDF shapes them with OpenType tnum). Geometry, texts and origins match (GG).",
+  "signedOff": "G1, product owner, 2026-10-12"
  },
  {
   "tool": "dlparity",
@@ -26,8 +26,8 @@
   "version": "full",
   "file": "slide-1.png",
   "kind": "pixels",
-  "reason": "Pending G1, two known approximations of the display list: (1) B3 - Liquid Glass materials drawn with 03 §4.3's recipe (5-layer shadows, the 800 x 450 blurred wallpaper image) where the screen has CSS box-shadow blur; (2) tabular figures on the canvas - each digit centred in its tabular advance, since canvas text has no font-variant-numeric (the PDF shapes them with OpenType tnum). Geometry, texts and origins match (GG).",
-  "signedOff": "pending G1"
+  "reason": "Approved at G1, two known approximations of the display list: (1) B3 - Liquid Glass materials drawn with 03 §4.3's recipe (5-layer shadows, the 800 x 450 blurred wallpaper image) where the screen has CSS box-shadow blur; (2) tabular figures on the canvas - each digit centred in its tabular advance, since canvas text has no font-variant-numeric (the PDF shapes them with OpenType tnum). Geometry, texts and origins match (GG).",
+  "signedOff": "G1, product owner, 2026-10-12"
  },
  {
   "tool": "dlparity",
@@ -36,8 +36,8 @@
   "version": "full",
   "file": "slide-2.png",
   "kind": "pixels",
-  "reason": "Pending G1, two known approximations of the display list: (1) B3 - Liquid Glass materials drawn with 03 §4.3's recipe (5-layer shadows, the 800 x 450 blurred wallpaper image) where the screen has CSS box-shadow blur; (2) tabular figures on the canvas - each digit centred in its tabular advance, since canvas text has no font-variant-numeric (the PDF shapes them with OpenType tnum). Geometry, texts and origins match (GG).",
-  "signedOff": "pending G1"
+  "reason": "Approved at G1, two known approximations of the display list: (1) B3 - Liquid Glass materials drawn with 03 §4.3's recipe (5-layer shadows, the 800 x 450 blurred wallpaper image) where the screen has CSS box-shadow blur; (2) tabular figures on the canvas - each digit centred in its tabular advance, since canvas text has no font-variant-numeric (the PDF shapes them with OpenType tnum). Geometry, texts and origins match (GG).",
+  "signedOff": "G1, product owner, 2026-10-12"
  },
  {
   "tool": "dlparity",
@@ -46,8 +46,8 @@
   "version": "full",
   "file": "slide-1.png",
   "kind": "pixels",
-  "reason": "Pending G1, two known approximations of the display list: (1) B3 - Liquid Glass materials drawn with 03 §4.3's recipe (5-layer shadows, the 800 x 450 blurred wallpaper image) where the screen has CSS box-shadow blur; (2) tabular figures on the canvas - each digit centred in its tabular advance, since canvas text has no font-variant-numeric (the PDF shapes them with OpenType tnum). Geometry, texts and origins match (GG).",
-  "signedOff": "pending G1"
+  "reason": "Approved at G1, two known approximations of the display list: (1) B3 - Liquid Glass materials drawn with 03 §4.3's recipe (5-layer shadows, the 800 x 450 blurred wallpaper image) where the screen has CSS box-shadow blur; (2) tabular figures on the canvas - each digit centred in its tabular advance, since canvas text has no font-variant-numeric (the PDF shapes them with OpenType tnum). Geometry, texts and origins match (GG).",
+  "signedOff": "G1, product owner, 2026-10-12"
  },
  {
   "tool": "dlparity",
@@ -56,8 +56,8 @@
   "version": "full",
   "file": "slide-1.png",
   "kind": "pixels",
-  "reason": "Pending G1, two known approximations of the display list: (1) B3 - Liquid Glass materials drawn with 03 §4.3's recipe (5-layer shadows, the 800 x 450 blurred wallpaper image) where the screen has CSS box-shadow blur; (2) tabular figures on the canvas - each digit centred in its tabular advance, since canvas text has no font-variant-numeric (the PDF shapes them with OpenType tnum). Geometry, texts and origins match (GG).",
-  "signedOff": "pending G1"
+  "reason": "Approved at G1, two known approximations of the display list: (1) B3 - Liquid Glass materials drawn with 03 §4.3's recipe (5-layer shadows, the 800 x 450 blurred wallpaper image) where the screen has CSS box-shadow blur; (2) tabular figures on the canvas - each digit centred in its tabular advance, since canvas text has no font-variant-numeric (the PDF shapes them with OpenType tnum). Geometry, texts and origins match (GG).",
+  "signedOff": "G1, product owner, 2026-10-12"
  },
  {
   "tool": "dlparity",
@@ -66,7 +66,7 @@
   "version": "full",
   "file": "slide-3.png",
   "kind": "pixels",
-  "reason": "Pending G1, two known approximations of the display list: (1) B3 - Liquid Glass materials drawn with 03 §4.3's recipe (5-layer shadows, the 800 x 450 blurred wallpaper image) where the screen has CSS box-shadow blur; (2) tabular figures on the canvas - each digit centred in its tabular advance, since canvas text has no font-variant-numeric (the PDF shapes them with OpenType tnum). Geometry, texts and origins match (GG).",
-  "signedOff": "pending G1"
+  "reason": "Approved at G1, two known approximations of the display list: (1) B3 - Liquid Glass materials drawn with 03 §4.3's recipe (5-layer shadows, the 800 x 450 blurred wallpaper image) where the screen has CSS box-shadow blur; (2) tabular figures on the canvas - each digit centred in its tabular advance, since canvas text has no font-variant-numeric (the PDF shapes them with OpenType tnum). Geometry, texts and origins match (GG).",
+  "signedOff": "G1, product owner, 2026-10-12"
  }
 ]
