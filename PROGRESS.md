@@ -73,7 +73,8 @@ numbers measured twice). Measured numbers go into the step's line.
 
 - 2026-10-09 · M0 merged and v3.4.0 shipped with S0.6 open: gate G0 runs in parallel (PLAN Part C), results
   due before M3 (Acrobat, fonts) and M5 (storage).
-- 2026-10-09 · The work runs locally on one PC: the checkout `C:\Users\U508169\Downloads\claude\slidemaster`,
+- 2026-10-09 · The work runs locally on one PC: the checkout `C:\Users\U508169\Downloads\claude\slidemaster-lf`
+  (since 2026-10-12; `slidemaster`, the first one, was removed),
   and the install folder `C:\Users\U508169\Downloads\claude\Slide Builder` takes the place of `T:\Slide Builder`
   in every "update the share" step. The product owner authorised the agent to merge PR #1 and to push the
   v3.4.0 tag.
