@@ -90,7 +90,11 @@ export interface GroupNode {
   blend?: "multiply";
   children: Node[];
 }
-export interface HitNode { t: "hit"; kind: string; id: string; x: number; y: number; w: number; h: number }
+export interface HitNode {
+  t: "hit"; kind: string; id: string; x: number; y: number; w: number; h: number;
+  /** the text the region shows, as a reader (or innerText) has it: tests compare it with the goldens */
+  label?: string;
+}
 
 export type Node = RectNode | PathNode | LineNode | ImageNode | ShadowNode | TextNode | GroupNode | HitNode;
 export type DisplayList = Node[];
@@ -231,6 +235,7 @@ function nodeErrors(node: unknown, at: string, out: string[]) {
     }
     case "hit":
       if (typeof n.kind !== "string" || typeof n.id !== "string") out.push(`${at}: kind, id`);
+      if (n.label !== undefined && typeof n.label !== "string") out.push(`${at}.label: not a string`);
       boxErrors(n, at, out);
       break;
   }

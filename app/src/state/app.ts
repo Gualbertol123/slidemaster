@@ -10,6 +10,7 @@ import { ask, runWizard } from "./dialogs";
 import { backend } from "../sync/api";
 import { connectCore, type CorePort } from "../rpc/client";
 import { browserText } from "../platform";
+import type { RunMetrics } from "@slide-builder/core/platform";
 import { analyzeImages, IMGMETA, type ImgMeta } from "@slide-builder/core/xlsx/drawing";
 import { esc, fmtMB, nextFrame } from "@slide-builder/core/xlsx/util";
 import { MirrorWorkbook } from "@slide-builder/core/xlsx/mirror";
@@ -41,6 +42,9 @@ export function core(): CorePort {
   port.handle("getDoc", a => backend.getDoc(a.name, a.since));
   port.handle("postOps", a => backend.postOps(a.name, a.ops, a.client));
   port.handle("digitWidth", a => browserText.maxDigitWidth(a.font));
+  // the display list's text, measured with the page's fonts (decision 2026-10-12, 3; browserText answers synchronously)
+  port.handle("measureRuns", a => browserText.measureRuns!(a.runs) as RunMetrics[]);
+  port.handle("breakLines", a => browserText.breakLines!(a.reqs) as string[][]);
   port.handle("convertPicture", a => backend.convertPicture(a.bytes, a.ext));
   port.handle("analyzeImages", async a => { await analyzeImages(a.srcs); return a.srcs.flatMap(s => IMGMETA.has(s) ? [[s, IMGMETA.get(s)!] as [string, ImgMeta]] : []); });
   port.on("slices", e => {

@@ -208,6 +208,15 @@ describe("Canvas2D backend", () => {
     expect(noLayer.layers).toHaveLength(0);
     expect(noLayer.calls).toContain("globalAlpha=0.5");
   });
+  it("puts a horizontal run's baseline on a whole device pixel (floored) and its start on one (rounded), as page text", () => {
+    const calls: string[] = [];
+    const ctx = new Proxy({ getTransform: () => ({ a: 1.5, b: 0, c: 0, d: 1.5, e: 10.3, f: 20.2 }), measureText: () => ({ width: 10 }) } as Record<string, unknown>, {
+      get(t, k: string) { if (k in t) return t[k]; return (...a: unknown[]) => { calls.push(`${k} ${a.join(",")}`); }; }, set() { return true; } });
+    drawDl(ctx as unknown as Ctx, [{ t: "text", font: "F", size: 10, x: 4.1, y: 7.7, src: "ab", fill: { solid: [0, 0, 0] } }], { image: () => undefined });
+    const [, x, y] = calls.find(c => c.startsWith("fillText"))!.split(" ")[1].split(",").map(Number);
+    expect(1.5 * y + 20.2).toBeCloseTo(Math.floor(1.5 * 7.7 + 20.2), 6);
+    expect(1.5 * x + 10.3).toBeCloseTo(Math.round(1.5 * 4.1 + 10.3), 6);
+  });
   it("pins a run to its measured width with letterSpacing", () => {
     const { calls } = draw([{ t: "text", font: "F", size: 10, x: 0, y: 0, src: "abcd", w: 48, fill: { solid: [0, 0, 0] } }]);
     expect(calls).toContain(`letterSpacing=${8 / 3}px`);                             // (48 − 4·10) / 3 gaps: the last ends at x + w

@@ -2,14 +2,31 @@
    slide for fitting text boxes and <canvas> surfaces (XML: the core's own tokenizer). Installed once at
    start-up (main.tsx). */
 import { setPlatform, type CanvasFactory, type Ctx2D, type NoteMeasure, type TextMeasurer } from "@slide-builder/core/platform";
+import { wrapLines } from "@slide-builder/core/text/lines";
 
 let measurer: { host: HTMLElement; box: HTMLElement; note: NoteMeasure | null } | null = null;
+let runCtx: CanvasRenderingContext2D | null = null, runFont = "";
+const ctx2d = () => runCtx ||= document.createElement("canvas").getContext("2d");
+/** a run's advance and its font's ascent / descent, with the page's fonts */
+function measureRun(c: CanvasRenderingContext2D, text: string, font: string) {
+  if (runFont !== font) { c.font = font; runFont = font; }        // (c.font reads back normalised, so it is not compared)
+  const m = c.measureText(text || " ");
+  return { w: text ? m.width : 0, asc: m.fontBoundingBoxAscent, desc: m.fontBoundingBoxDescent };
+}
 export const browserText: TextMeasurer = {
   maxDigitWidth(font) {
     const c = document.createElement("canvas").getContext("2d"); if (!c) return 0;
     c.font = font;
     let m = 0; for (const d of "0123456789") m = Math.max(m, c.measureText(d).width);
     return m;
+  },
+  measureRuns(runs) {
+    const c = ctx2d(); if (!c) return runs.map(() => ({ w: 0, asc: 0, desc: 0 }));
+    return runs.map(r => measureRun(c, r.text, r.font));
+  },
+  breakLines(reqs) {
+    const c = ctx2d(); if (!c) return reqs.map(r => [r.text]);
+    return reqs.map(r => wrapLines(r.text, r.width, s => measureRun(c, s, r.font).w));
   },
   noteFits(note, size) {
     if (typeof document === "undefined" || !document.body) return true;

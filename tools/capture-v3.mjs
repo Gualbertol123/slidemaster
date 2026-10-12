@@ -29,7 +29,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)), REPO = path.resolve(HERE, "..");
-const CORPUS = path.join(REPO, "tests", "corpus"), DECKS = path.join(CORPUS, "decks"), BOOKS = path.join(CORPUS, "workbooks");
+export const CORPUS = path.join(REPO, "tests", "corpus"), DECKS = path.join(CORPUS, "decks"), BOOKS = path.join(CORPUS, "workbooks");
 // the browser: CHROME, else Playwright's own Chromium (pinned by the lockfile); Windows has "python", not python3
 export const CHROME = process.env.CHROME || chromium.executablePath();
 const PY = process.platform === "win32" ? "python" : "python3";
@@ -39,7 +39,7 @@ const FORMATS = "workbook=3;config=3;prefs=1";
 // v3's names for the parts 05 §2 lists: cells .t, cards .wb, tables .tw, text boxes .tnote (the "note" of the plan)
 // with their frames .notebub, workbook text boxes and shapes .tbox, pictures .pic, the notes section .memo, title,
 // subtitle, logo, page number, footer, cover (cv-/cvx-) and contents (ix-) parts, empty/missing markers
-const SEL = [".t", ".wb", ".tw", ".tnote", ".notebub", ".tbox", ".title", ".subtitle", ".logo", ".logowrap", ".pageno", ".footer", ".pic", ".memo",
+export const SEL = [".t", ".wb", ".tw", ".tnote", ".notebub", ".tbox", ".title", ".subtitle", ".logo", ".logowrap", ".pageno", ".footer", ".pic", ".memo",
   "[class*='cv-']", "[class*='cvx-']", "[class*='ix-']", ".emptyslide", ".missing"].join(",");
 const TEXT_SEL = ".t, .title, .subtitle, .pageno, .footer, .tnote, .memo, .tbox, [class*='ix-'], [class*='cv-'], [class*='cvx-']";
 
@@ -93,7 +93,7 @@ export async function startHelper() {
   const kill = () => { if (process.platform !== "win32") return proc.kill(); try { execFileSync("taskkill", ["/pid", String(proc.pid), "/T", "/F"], { stdio: "ignore" }); } catch { /* gone already */ } };
   return { tmp, root, data, url, api, log: () => log, stop: () => { kill(); fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5 }); } };
 }
-const wbPath = name => "/api/workbooks/" + encodeURIComponent(name);
+export const wbPath = name => "/api/workbooks/" + encodeURIComponent(name);
 
 // ------------------------------------------------------------------------------------------- the page
 export async function openBrowser() {
@@ -107,17 +107,30 @@ export async function openBrowser() {
 }
 
 /** the app with this deck open, settled: slides built, fonts and pictures loaded, nothing selected or hovered */
-async function load(page, h, file, version) {
+export async function load(page, h, file, version) {
+  // leave the page first: it saves its preferences (lastFile included) 400 ms after a change, which could land after
+  // the PUT below and open the previous workbook again
+  await page.goto("about:blank");
   const prefs = (await h.api("/api/me")).prefs || {};
   await h.api("/api/me", "PUT", { prefs: { ...prefs, lastFile: file, zoom: 1, versions: { [file]: version || "" } } });
   await page.goto(h.url);
   await page.locator("#stage .slide").first().waitFor({ timeout: 120_000 });
+  // the requested workbook open (the top bar names it and its slide count; until then the page may still show the
+  // one before) and all its thumbnails drawn: a steady thumbnail count alone was met by the previous deck at times
+  const want = await page.waitForFunction(f => {
+    const el = document.querySelector("#fileName"), b = el?.querySelector("b");
+    const m = b && b.textContent === f && !/^Opening/.test(el.textContent) && /· (\d+) slides?/.exec(el.textContent);
+    return m ? +m[1] : false;
+  }, file, { timeout: 120_000 }).then(r => r.jsonValue(), async e => {
+    throw new Error(`${file} did not open: the top bar says «${await page.locator("#fileName").innerText().catch(() => "?")}» (${e.message.split("\n")[0]})`);
+  });
   let n = -1;
-  for (let i = 0; i < 100; i++) { const m = await page.locator(".thumb").count(); if (m === n && m > 0) break; n = m; await sleep(150); }
+  for (let i = 0; i < 400; i++) { n = await page.locator(".thumb").count(); if (n === want) break; await sleep(150); }
+  if (n !== want) throw new Error(`${file}: ${n} thumbnails, the top bar says ${want} slides`);
   await settle(page);
   return n;
 }
-async function settle(page) {
+export async function settle(page) {
   await page.mouse.move(1, 1);
   await page.evaluate(async () => {
     await document.fonts.ready;
@@ -166,6 +179,9 @@ async function exportPdf(page, h, dir) {
 }
 
 // ------------------------------------------------------------------------------------------- capture
+/* opts: decks, pdf (false: no export), quiet, allPixels; designs (default all three); slideHook(page, {design,
+   version, slide, geometry, pixels}) → {geometry?, png?}: replaces what is written for a slide (tools/dlparity.mjs
+   writes the display list's geometry and pixels there) */
 export async function capture(out, opts = {}) {
   const decks = deckList(opts.decks);
   const h = await startHelper();
@@ -181,7 +197,7 @@ export async function capture(out, opts = {}) {
       fs.copyFileSync(path.join(BOOKS, deck.workbook), path.join(h.root, file));
       await h.api(wbPath(file) + "/ops", "POST", { ops: deck.ops, client: "golden" });
       const versions = [["full", ""], ...(deck.ops.find(o => o.op === "preset.set")?.preset?.versions || []).map(v => [v.name, v.id])];
-      for (const design of DESIGNS) {
+      for (const design of opts.designs || DESIGNS) {
         await h.api(wbPath(file) + "/ops", "POST", { ops: [{ op: "style.patch", patch: { design } }], client: "golden" });
         for (const [vname, vid] of versions) {
           const dir = path.join(out, id, design, vname);
@@ -195,10 +211,14 @@ export async function capture(out, opts = {}) {
             await page.locator(`.thumb.on[data-i="${i}"]`).waitFor();
             await page.keyboard.press("Escape");
             await settle(page);
-            const g = await geometry(page);
+            let g = await geometry(page);
             g.slide = i + 1; g.label = await page.locator(".thumb").nth(i).locator(".cap b").innerText();
+            const pixels = wantPixels(opts, id, vname, i + 1);
+            const hooked = opts.slideHook ? await opts.slideHook(page, { design, version: vid, slide: i, geometry: g, pixels }) : null;
+            if (hooked?.geometry) g = hooked.geometry;
             fs.writeFileSync(path.join(dir, `slide-${i + 1}.json`), linesJson(g, "items"));
-            if (wantPixels(opts, id, vname, i + 1)) {               // exactly 1600 × 900 (the slide box can be at a sub-pixel offset)
+            if (hooked?.png) fs.writeFileSync(path.join(dir, `slide-${i + 1}.png`), hooked.png);
+            else if (pixels) {                                        // exactly 1600 × 900 (the slide box can be at a sub-pixel offset)
               const b = await page.locator("#stage .slide").first().boundingBox();
               await page.screenshot({ path: path.join(dir, `slide-${i + 1}.png`), clip: { x: Math.round(b.x), y: Math.round(b.y), width: 1600, height: 900 }, animations: "disabled", caret: "hide" });
             }
@@ -216,8 +236,8 @@ export async function capture(out, opts = {}) {
       }
     }
     if (errors.length) throw new Error("page errors:\n" + errors.join("\n"));
-    const manifest = { git: sh("git", ["-C", BACKEND, "rev-parse", "HEAD"]), page: sha256(fs.readFileSync(path.join(BACKEND, "slide_builder.html"))),
-      clock: CLOCK, locale: "en-GB", timezone: "Europe/Rome", viewport: "1900x1250@1", designs: DESIGNS, decks, slides: total, environment: env,
+    const manifest = { designs: opts.designs || DESIGNS, git: sh("git", ["-C", BACKEND, "rev-parse", "HEAD"]), page: sha256(fs.readFileSync(path.join(BACKEND, "slide_builder.html"))),
+      clock: CLOCK, locale: "en-GB", timezone: "Europe/Rome", viewport: "1900x1250@1", decks, slides: total, environment: env,
       fontsUsed: [...new Set(walk(out).filter(f => f.endsWith(".json") && /slide-\d+\.json$/.test(f))
         .flatMap(f => JSON.parse(fs.readFileSync(f, "utf8")).items.map(x => x.font)))].sort() };
     fs.writeFileSync(path.join(out, "MANIFEST.json"), JSON.stringify(manifest, null, 1));

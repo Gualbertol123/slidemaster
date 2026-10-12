@@ -12,6 +12,7 @@ import { detectTables } from "../xlsx/detect";
 import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "../model/preset";
 import { resolveStyle } from "../model/style";
 import { tableHtml, tableHtmlKey } from "../render/slide";
+import { excelTableDL, type TableDL } from "../render/excel-dl";
 import { DocSync, type Change, type DocApi } from "../sync/docsync";
 import { History } from "../sync/history";
 import type { RenderCtx } from "../render/context";
@@ -90,6 +91,7 @@ export class CoreHost {
     h("flush", async () => { await this.sync?.flush(); });
     h("poll", async () => { await this.sync?.poll(); });
     h("html", a => this.htmlFor(a));
+    h("displayLists", a => this.displayLists(a));
   }
 
   /* ---------------------------------------------------------------- opening */
@@ -260,6 +262,17 @@ export class CoreHost {
         out.push([id, kind, key, tableHtml(R, i, ctx, thumb)]);
       }
     });
+    return out;
+  }
+  private async displayLists(a: HtmlReq & { slides?: number[] }) {
+    if (!this.wb || !this.sync) return [];
+    const ctx = this.ctx(a.design, a.version, a.forExport);
+    if (ctx.style.design === "glass") throw new Error("Liquid Glass display lists come with S3.4");
+    const out: { slide: number; table: number; id: string; dl: TableDL }[] = [];
+    for (const [s, R] of ctx.slides.entries()) {
+      if (a.slides && !a.slides.includes(s)) continue;
+      for (const [i, L] of R.tables.entries()) out.push({ slide: s, table: i, id: L.id || "", dl: await excelTableDL(L, ctx, { noText: a.thumb && L.items.length > 1200 }) });
+    }
     return out;
   }
   private htmlFor(a: HtmlReq): Html[] {

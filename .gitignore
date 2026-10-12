@@ -41,5 +41,6 @@ node_modules/
 
 # parity: the HTML report, and the 30 MB workbook (python tools/make_corpus.py big30)
 tests/parity/report/
+tests/parity/report-dl/
 tests/corpus/workbooks/big30.xlsx
 bench-results.json

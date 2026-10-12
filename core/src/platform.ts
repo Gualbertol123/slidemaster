@@ -32,12 +32,23 @@ export interface NoteMeasure {
   /** the box, slide px */
   w: number; h: number;
 }
+/** a run of text in a CSS font shorthand ("italic 700 14.67px Calibri, Arial, sans-serif") */
+export interface RunReq { text: string; font: string }
+/** its advance and the font's ascent / descent (what CSS lays a line out with), px */
+export interface RunMetrics { w: number; asc: number; desc: number }
+/** a text wrapped at a width, as CSS white-space: normal with word-break: break-word does */
+export interface LinesReq { text: string; font: string; width: number }
 export interface TextMeasurer {
   /** the widest of the digits 0–9 in px for a CSS font shorthand (Excel's "maximum digit width"); 0 = unknown.
       In the core worker it is asked of the page (the page's fonts) */
   maxDigitWidth(cssFont: string): number | Promise<number>;
   /** whether the text box's content fits its box at this font size */
   noteFits(note: NoteMeasure, size: number): boolean;
+  /** widths and metrics of runs, measured with the page's fonts (the display list's text until S4.4, decision
+      2026-10-12, 3); in the core worker asked of the page, one call per measuring round of a table */
+  measureRuns?(runs: RunReq[]): RunMetrics[] | Promise<RunMetrics[]>;
+  /** the lines of wrapped texts, with the page's fonts; one call per measuring round of a table */
+  breakLines?(reqs: LinesReq[]): string[][] | Promise<string[][]>;
 }
 
 /* ---- canvas ---- */

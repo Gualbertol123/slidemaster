@@ -63,12 +63,18 @@ export interface CoreMethods {
       (every other axis at its default; hb-subset), so no PDF ever embeds a variable font; other fonts come back as
       they are (`variable: false`) */
   staticFont(a: { buf: ArrayBuffer; weight: number }): { buf: ArrayBuffer; variable: boolean };
+  /** display lists of the open deck's tables (M3; not drawn by the page yet): per slide (0-based) and table, in
+      table px, with the pictures they refer to; the text measured by the page (measureRuns / breakLines) */
+  displayLists(a: HtmlReq & { slides?: number[] }): { slide: number; table: number; id: string; dl: import("../render/excel-dl").TableDL }[];
 }
 /** calls the worker makes */
 export interface PageMethods {
   getDoc(a: { name: string; since?: number }): WorkbookDoc | null;
   postOps(a: { name: string; ops: Op[]; client: string }): { doc: WorkbookDoc };
   digitWidth(a: { font: string }): number;
+  /** text measured with the page's fonts for the display list (decision 2026-10-12, 3): one call per measuring round of a table */
+  measureRuns(a: { runs: import("../platform").RunReq[] }): import("../platform").RunMetrics[];
+  breakLines(a: { reqs: import("../platform").LinesReq[] }): string[][];
   convertPicture(a: { bytes: Uint8Array; ext: string }): string | null;
   /** Liquid Glass's picture analysis (xlsx/drawing.ts analyzeImages) with the page's canvas */
   analyzeImages(a: { srcs: string[] }): [string, ImgMeta][];

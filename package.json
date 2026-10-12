@@ -15,6 +15,7 @@
     "test:e2e": "npm run test:e2e -w app",
     "parity": "npm run parity -w app",
     "sp": "node tools/dlcheck.mjs",
+    "dlparity": "node tools/dlparity.mjs",
     "bench": "npm run bench -w core && npm run bench -w app && node tools/bench.mjs --json bench-results.json"
   }
 }

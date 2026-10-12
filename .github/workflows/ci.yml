@@ -123,9 +123,14 @@ jobs:
         run: |
           export CHROME="$(node -e "console.log(require('playwright').chromium.executablePath())")"
           npm run parity
+      # the display list against the same goldens (S3.3 on): texts and styles here, geometry and pixels on the reference PC
+      - name: display-list parity
+        run: |
+          export CHROME="$(node -e "console.log(require('playwright').chromium.executablePath())")"
+          npm run dlparity
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: parity-report, path: "tests/parity/report/", if-no-files-found: ignore }
+        with: { name: parity-report, path: "tests/parity/report*/", if-no-files-found: ignore }
 
   pdf:
     # PLAN S3.1: every display-list node type as a PDF, checked by qpdf and pdfcheck.py (no Type 3, no variable font),

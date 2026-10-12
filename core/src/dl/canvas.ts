@@ -3,7 +3,9 @@
    transform, then the shape's box matrix is applied before fill(), so the gradient lives in the unit box as in
    the PDF and the SVG. A group with alpha or a blend mode is drawn into a layer and composited once, so its
    children do not show through each other (a transparency group, as in the PDF); without a layer factory it
-   falls back to the alpha per child. */
+   falls back to the alpha per child. A horizontal run (no rotation or skew in the transform) is drawn as Chromium
+   draws page text: its baseline floored and its start rounded to whole device pixels (measured against the page by
+   tools/dlparity.mjs; otherwise text at a fractional table scale sits a pixel off). */
 import { boxMatrix, charPositions, decorations, paintOf, imagePlacement, lineBand, mul, needsClip, pathBox, radialMatrix, rrectOf, shadowLayers, strokeRing } from "./geom";
 import { weightOf, type DisplayList, type Matrix, type Node, type Paint, type PathCmd, type Stroke, type TextNode } from "./types";
 
@@ -109,10 +111,17 @@ function drawNode(ctx: Ctx, n: Node, opts: CanvasOptions) {
       ctx.font = `${n.i ? "italic " : ""}${weightOf(n)} ${n.size}px ${opts.fontFamily ? opts.fontFamily(n) : n.css || `'${n.font.replace(/'/g, "")}'`}`;
       ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
       ctx.fillStyle = css(p.solid, p.a ?? 1);
+      // a horizontal run's baseline on a whole device pixel, as Chromium draws page text (no rotation or skew only)
+      const T = ctx.getTransform();
+      let y = n.y, x0 = n.x;
+      if (Math.abs(T.b) < 1e-9 && Math.abs(T.c) < 1e-9 && T.d > 0 && T.a > 0) {     // (not under a flip)
+        y = (Math.floor(T.d * n.y + T.f + 1e-6) - T.f) / T.d;
+        x0 = (Math.round(T.a * n.x + T.e) - T.e) / T.a;
+      }
       const c = ctx as Ctx & { letterSpacing?: string }, at = charPositions(n);
       if (at) {
         // a shaped run with one glyph per character: each character where the display list puts it (as the PDF)
-        [...n.src].forEach((ch, k) => { if (ch !== " ") ctx.fillText(ch, at[k], n.y); });
+        [...n.src].forEach((ch, k) => { if (ch !== " ") ctx.fillText(ch, at[k] + x0 - n.x, y); });
       } else {
         if (n.w !== undefined && "letterSpacing" in c) {
           c.letterSpacing = "0px";
@@ -120,9 +129,10 @@ function drawNode(ctx: Ctx, n: Node, opts: CanvasOptions) {
           // over the gaps between characters, so the last one ends at x + w (as SVG textLength and the PDF's Tc)
           if (chars > 1 && Math.abs(n.w - natural) > 1e-3) c.letterSpacing = `${(n.w - natural) / (chars - 1)}px`;
         }
-        ctx.fillText(n.src, n.x, n.y);
+        ctx.fillText(n.src, x0, y);
       }
-      if (n.decoration && n.w !== undefined) for (const [x, y, w, h] of decorations(n, n.w)) ctx.fillRect(x, y, w, h);
+      // decorations move with the snapped glyphs
+      if (n.decoration && n.w !== undefined) for (const [dx, dy, w, h] of decorations(n, n.w)) ctx.fillRect(dx + x0 - n.x, dy + y - n.y, w, h);
       ctx.restore();
       return;
     }

@@ -9,8 +9,13 @@ import type { CoreEvents, CoreMethods, PageEvents, PageMethods } from "../rpc/me
 
 const scope = self as unknown as Wire & { addEventListener(t: string, f: (e: { message?: string; reason?: unknown; error?: unknown; preventDefault(): void }) => void): void };
 const port = new Port<CoreMethods, PageMethods, PageEvents, CoreEvents>(scope);
+// noteFits stays "fits" here until the slide's notes join the display list (S3.5): Decision 3 has the worker ask the
+// page then; today no note size is computed in the worker
 setPlatform({
-  text: { maxDigitWidth: font => port.call("digitWidth", { font }), noteFits: () => true },
+  text: {
+    maxDigitWidth: font => port.call("digitWidth", { font }), noteFits: () => true,
+    measureRuns: runs => port.call("measureRuns", { runs }), breakLines: reqs => port.call("breakLines", { reqs }),
+  },
   canvas: null,
   images: srcs => port.call("analyzeImages", { srcs }),
 });
