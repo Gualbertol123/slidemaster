@@ -68,8 +68,13 @@ export interface TextNode {
   src: string;
   /** the run's measured advance, px: every backend pins the run to it (SVG textLength, canvas letterSpacing, PDF Tc) */
   w?: number;
-  /** a shaped glyph run (S3.2): glyph ids and their x advances in px (sum = w) */
+  /** a shaped glyph run (S3.2): glyph ids and their x advances in px (sum = w). `adv` without `gids`: each
+      character's advance (one per code point) as the screen measured it, letter-spacing included (tabular figures;
+      their sum is w plus the last character's spacing) */
   gids?: number[]; adv?: number[];
+  /** tabular figures (OpenType tnum, CSS font-variant-numeric: tabular-nums): the PDF shapes with the feature; a
+      canvas, which cannot, centres each character in its advance */
+  tnum?: boolean;
   /** the UTF-16 offset in src of each glyph's cluster (HarfBuzz's cluster): a ligature maps back to its letters */
   cl?: number[];
   /** each glyph's offset from its pen position, px, y up (HarfBuzz's x/y_offset: a mark on its base) */
@@ -212,7 +217,12 @@ function nodeErrors(node: unknown, at: string, out: string[]) {
       if (typeof n.src !== "string") out.push(`${at}.src: not a string`);
       if (n.weight !== undefined && (!num(n.weight) || n.weight < 1 || n.weight > 1000)) out.push(`${at}.weight: 1–1000`);
       if (n.w !== undefined && (!num(n.w) || n.w < 0)) out.push(`${at}.w: ≥ 0`);
-      if (n.gids !== undefined || n.adv !== undefined) {
+      if (n.gids === undefined && n.adv !== undefined) {
+        // per-character advances (tabular figures): one per code point
+        const a = n.adv as unknown[];
+        if (!Array.isArray(a) || !a.every(num) || typeof n.src !== "string" || a.length !== [...n.src].length) out.push(`${at}.adv: one advance per character`);
+        if (n.dx !== undefined || n.dy !== undefined || n.cl !== undefined) out.push(`${at}: dx, dy and cl need gids`);
+      } else if (n.gids !== undefined) {
         const g = n.gids as unknown[], a = n.adv as unknown[];
         if (!Array.isArray(g) || !Array.isArray(a) || g.length !== a.length || !g.every(v => num(v) && v >= 0 && Number.isInteger(v)) || !a.every(num)) out.push(`${at}: gids and adv of equal length`);
         for (const k of ["dx", "dy"] as const) { const o = n[k] as unknown[] | undefined; if (o !== undefined && (!Array.isArray(o) || !Array.isArray(g) || o.length !== g.length || !o.every(num))) out.push(`${at}.${k}: one offset per glyph`); }

@@ -1,15 +1,18 @@
-/* Parity of the display list with the goldens (PLAN S3.3–S3.5; 05 §1 GG, GP; 05 §3.2). The app is captured as
+/* Parity of the display list with the goldens (PLAN S3.3–S3.5; 05 §1 GG, GP; 05 §3.2), for the three designs. The app is captured as
    tools/capture-v3.mjs does (same decks, designs, versions, slides, clock), but for each slide what the goldens hold
    is taken from the display list the core worker builds (its text measured by the page, decision 2026-10-12, 3):
-   - geometry (GG): the table items (.t cells, .tbox text boxes, .pic pictures) get the display list's boxes, texts,
-     colours, sizes, weights and styles, placed where the slide places the table; everything else is the page's;
+   - geometry (GG): the table items (.t cells, .tbox text boxes, .pic pictures, Liquid Glass's .wb materials) get the
+     display list's boxes, texts, colours, sizes, weights, styles and font families, placed where the slide places the
+     table; everything else is the page's;
    - pixels (GP): the page with its HTML tables hidden, the display lists drawn over it on a canvas;
-   - text origins (05 GG "text origins 1 px"): each cell's first run against the page's own layout of the same
-     cell (the text's Range for x, a zero-size inline-block on its baseline; this build, these fonts) within 1 px.
+   - text origins (05 GG "text origins 1 px"): every run of a cell (while the page's text nodes and the display
+     list's runs are the same strings) and a text box's first run against the page's own layout (the text's Range for
+     x, a zero-size inline-block on its baseline; this build, these fonts) within 1 px; text-shadow copies left out;
+   - for Liquid Glass, the GP summary per theme × glass level × contrast of the corpus (report-dl/gp-glass.json).
    tools/parity.mjs's compare() then judges geometry and pixels with the usual tolerances; differences listed in
    tests/parity/accepted.json with "tool": "dlparity" are accepted.
 
-     node tools/dlparity.mjs [--designs excel,clean] [--decks a,b] [--keep] [--actual DIR] [--control [text]]   (npm run dlparity)
+     node tools/dlparity.mjs [--designs excel,clean,glass] [--decks a,b] [--keep] [--actual DIR] [--control [text]]   (npm run dlparity)
 
    Pixels: a pixel passes when within CIEDE2000 2 of the other image's at it or at a neighbour, or when its colour lies
    within the range of the other image's 3 × 3 neighbourhood (parity.mjs comparePixels opts.range: two renderers –
@@ -22,12 +25,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { capture, SEL } from "./capture-v3.mjs";
+import { capture, DECKS, SEL } from "./capture-v3.mjs";
 import { compare, writeReport } from "./parity.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)), REPO = path.resolve(HERE, "..");
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
-const DESIGNS = arg("--designs", "excel,clean").split(",");
+const DESIGNS = arg("--designs", "excel,clean,glass").split(",");
 const ORIGIN_TOL = 1;
 /** --control [text]: a negative control – every display-list table moved 3 px right (or, with "text", every text run
     1.5 px down); the run must then report differences, or the comparison is too loose */
@@ -50,7 +53,7 @@ async function slideHook(page, { design, version, slide, geometry, pixels }) {
     // colours and family lists as getComputedStyle writes them
     const rgb = (c, a = 1) => a < 1 ? `rgba(${c.map(Math.round).join(", ")}, ${+a.toFixed(2)})` : `rgb(${c.map(Math.round).join(", ")})`;
     const GENERIC = /^(serif|sans-serif|monospace|cursive|fantasy|system-ui)$/;
-    const cssFamilies = css => css.split(",").map(f => f.trim().replace(/^['"]|['"]$/g, "")).filter(Boolean).map(f => GENERIC.test(f) || /^[A-Za-z][\w-]*$/.test(f) ? f : `"${f}"`).join(", ");
+    const cssFamilies = css => css.split(",").map(f => f.trim().replace(/^['"]|['"]$/g, "")).filter(Boolean).map(f => GENERIC.test(f) || /^-?[A-Za-z_][\w-]*$/.test(f) ? f : `"${f}"`).join(", ");
     /** the hits of a list, each with the text nodes after it (until the next hit), in slide px */
     const hitsOf = (nodes, P) => {
       const out = []; let cur = null;
@@ -61,7 +64,7 @@ async function slideHook(page, { design, version, slide, geometry, pixels }) {
           const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
           cur = { n: { ...n, x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }, texts: [] }; out.push(cur);
         }
-        else if (n.t === "text" && cur) cur.texts.push({ n, M });
+        else if (n.t === "text" && cur && !n.decorative) cur.texts.push({ n, M });     // (a text-shadow copy is not the text)
         else if (n.t === "group") walk(n.children, n.transform ? mul(M, n.transform) : M);
       });
       const mul = (a, b) => [a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1], a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3], a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5]];
@@ -73,7 +76,7 @@ async function slideHook(page, { design, version, slide, geometry, pixels }) {
     // the page's items, in the goldens' order (capture-v3 geometry()): table items take the display list's values
     const els = [...root.querySelectorAll(SEL)], repl = [], origins = [], seen = {};
     els.forEach((el, idx) => {
-      const tw = el.closest(".tw[data-i]"), kind = el.matches(".t") ? "t" : el.matches(".tbox") ? "tbox" : el.matches(".pic") ? "pic" : null;
+      const tw = el.closest(".tw[data-i]"), kind = el.matches(".t") ? "t" : el.matches(".tbox") ? "tbox" : el.matches(".pic") ? "pic" : el.matches(".wb") ? "wb" : null;
       if (!tw || !kind || !byTable[tw.dataset.i]) return;
       const key = tw.dataset.i + kind, n = seen[key] = (seen[key] ?? -1) + 1;
       const hit = byTable[tw.dataset.i].filter(h => h.n.kind === kind)[n];
@@ -195,6 +198,20 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const strict = compare(golden, actual, { accepted: [], decks, designs: DESIGNS, pdf: false, tool: "dlparity" }).diffs.filter(d => d.kind === "pixels");
   console.log(`pixels under the whole-pixel dilation alone (information): ${strict.length} slide(s) beyond the limit${strict.length ? ": " + strict.slice(0, 6).map(d => `${d.deck}/${d.design}/${d.file}`).join(", ") : ""}`);
   writeReport(res, report);
+  if (DESIGNS.includes("glass")) {
+    // GP for Liquid Glass per theme × glass level × contrast of the corpus (PLAN S3.4): each look's decks and slides,
+    // the screenshots within the pixel limit and those beyond it with their share
+    const looks = {};
+    for (const m of res.pixels.filter(m => m.design === "glass")) {
+      const deck = JSON.parse(fs.readFileSync(path.join(DECKS, m.deck + ".json"), "utf8")), st = {};
+      for (const o of deck.ops) if (o.op === "style.patch") Object.assign(st, o.patch);
+      const key = `${st.theme?.id || "aurora"} × ${st.glass || "subtle"} × contrast ${st.contrast ?? 50}`;
+      const d = res.diffs.find(x => x.kind === "pixels" && x.deck === m.deck && x.design === "glass" && x.version === m.version && x.file === m.file);
+      (looks[key] ||= []).push({ deck: m.deck, version: m.version, file: m.file, differing: +(m.fraction * 100).toFixed(2), maxDE: m.maxDE, within: !d, accepted: d?.accepted?.reason || null });
+    }
+    fs.writeFileSync(path.join(report, "gp-glass.json"), JSON.stringify(looks, null, 1));
+    for (const [k, v] of Object.entries(looks)) console.log(`GP glass · ${k}: ${v.length} screenshot(s), ${v.filter(x => x.within).length} within the limit, at most ${Math.max(...v.map(x => x.differing))} % of the pixels differing (${[...new Set(v.map(x => x.deck))].join(", ")})`);
+  }
   const kinds = {};
   for (const d of res.diffs) kinds[d.kind] = (kinds[d.kind] || 0) + 1;
   for (const d of res.diffs.filter(d => !d.accepted).slice(0, 40)) console.log(`DIFF  ${d.deck} · ${d.design} · ${d.version} · ${d.file} · ${d.kind}: ${d.detail}`);

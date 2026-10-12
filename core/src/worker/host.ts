@@ -11,8 +11,10 @@ import { cellInfo, sheetInfo, sheetWindow, tableSize } from "../xlsx/sheetview";
 import { detectTables } from "../xlsx/detect";
 import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "../model/preset";
 import { resolveStyle } from "../model/style";
-import { tableHtml, tableHtmlKey } from "../render/slide";
+import { computeLayout, tableHtml, tableHtmlKey } from "../render/slide";
 import { excelTableDL, type TableDL } from "../render/excel-dl";
+import { glassTableDL } from "../render/glass-dl";
+import { wallpaperIds } from "../render/wallpaper";
 import { DocSync, type Change, type DocApi } from "../sync/docsync";
 import { History } from "../sync/history";
 import type { RenderCtx } from "../render/context";
@@ -266,12 +268,16 @@ export class CoreHost {
   }
   private async displayLists(a: HtmlReq & { slides?: number[] }) {
     if (!this.wb || !this.sync) return [];
-    const ctx = this.ctx(a.design, a.version, a.forExport);
-    if (ctx.style.design === "glass") throw new Error("Liquid Glass display lists come with S3.4");
-    const out: { slide: number; table: number; id: string; dl: TableDL }[] = [];
+    const ctx = this.ctx(a.design, a.version, a.forExport), out: { slide: number; table: number; id: string; dl: TableDL }[] = [];
+    // the resolved design decides (a request may leave it to the deck)
+    const glass = ctx.style.design === "glass", wall = glass ? await wallpaperIds(ctx.style) : null;
     for (const [s, R] of ctx.slides.entries()) {
       if (a.slides && !a.slides.includes(s)) continue;
-      for (const [i, L] of R.tables.entries()) out.push({ slide: s, table: i, id: L.id || "", dl: await excelTableDL(L, ctx, { noText: a.thumb && L.items.length > 1200 }) });
+      const boxes = glass ? computeLayout(R, ctx).boxes : [];
+      for (const [i, L] of R.tables.entries()) {
+        const noText = a.thumb && L.items.length > 1200, b = boxes[i];
+        out.push({ slide: s, table: i, id: L.id || "", dl: glass ? await glassTableDL(L, ctx, { x: b?.x ?? 0, y: b?.y ?? 0, scale: b?.scale ?? 1 }, wall?.blur ?? null, { noText }) : await excelTableDL(L, ctx, { noText }) });
+      }
     }
     return out;
   }

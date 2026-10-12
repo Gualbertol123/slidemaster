@@ -33,9 +33,9 @@ export interface NoteMeasure {
   w: number; h: number;
 }
 /** a run of text in a CSS font shorthand ("italic 700 14.67px Calibri, Arial, sans-serif") */
-export interface RunReq { text: string; font: string }
+export interface RunReq { text: string; font: string; /** font-variant-numeric: tabular-nums (Liquid Glass numbers) */ tnum?: boolean }
 /** its advance and the font's ascent / descent (what CSS lays a line out with), px */
-export interface RunMetrics { w: number; asc: number; desc: number }
+export interface RunMetrics { w: number; asc: number; desc: number; /** with tnum: each character's advance (one per code point) */ adv?: number[] }
 /** a text wrapped at a width, as CSS white-space: normal with word-break: break-word does */
 export interface LinesReq { text: string; font: string; width: number }
 export interface TextMeasurer {

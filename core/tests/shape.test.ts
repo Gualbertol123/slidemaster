@@ -18,7 +18,7 @@ import { HB_WASM, HB_WASM_SHA256 } from "../src/text/wasm/hb-wasm";
 import { HB_SUBSET_WASM_SHA256 } from "../src/text/wasm/hb-subset-wasm";
 import { prepareTextForPdf } from "../src/text/pdf";
 import { charPositions } from "../src/dl/geom";
-import type { TextNode } from "../src/dl/types";
+import { validate, type TextNode } from "../src/dl/types";
 
 const require = createRequire(import.meta.url);
 const FIX = path.join(__dirname, "fixtures");
@@ -149,6 +149,27 @@ describe("shaping", () => {
     expect(s.shape(face, "", 40)).toEqual({ gids: [], adv: [], cl: [], dx: [], dy: [], w: 0 });
     // advances scale with the size
     expect(s.width(face, "Loans", 20) * 2).toBeCloseTo(s.width(face, "Loans", 40), 6);
+  });
+});
+
+describe("OpenType features and tabular figures (S3.4)", () => {
+  // (the fixture fonts have no tnum alternates – Carlito's and Source Sans 3's digits are tabular already,
+  // Quicksand's proportional with no tnum feature – so "-kern" shows that features reach HarfBuzz; tnum itself was
+  // checked on Segoe UI Variable in the S3.4 review)
+  it("features reach HarfBuzz: kerning switched off changes the advance of a kerned pair", async () => {
+    const s = await shaper(), face = new FontRegistry().add(REG)[0];
+    const on = s.shape(face, "AV", 40).w, off = s.shape(face, "AV", 40, ["-kern"]).w;
+    expect(off).toBeGreaterThan(on + .5);
+  });
+  it("a tnum node is shaped with the feature for the PDF; per-character advances validate", async () => {
+    const s = await shaper(), face = new FontRegistry().add(REG)[0];
+    const n: TextNode = { t: "text", font: "Carlito", size: 20, x: 0, y: 20, src: "1.1", w: 30, fill: { solid: [0, 0, 0] }, tnum: true, adv: [10, 5, 10] };
+    expect(validate([n])).toEqual([]);
+    expect(validate([{ ...n, adv: [10, 5] }])[0]).toMatch(/one advance per character/);
+    const shaped = s.shapeNode(face, n);
+    expect(shaped.gids!.length).toBe(3);
+    expect(shaped.adv!.reduce((a, b) => a + b, 0)).toBeCloseTo(30, 6);
+    expect(charPositions(n)).toEqual([0, 10, 15]);
   });
 });
 

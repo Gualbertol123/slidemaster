@@ -373,15 +373,35 @@ function tintGrad(hex: string, strength: number, alpha = .8) { return `--tint:li
 /* a deep, readable ink of the same hue (white text on a dark fill becomes dark-hued text on tinted glass) */
 function deepInk(hex: string) { const [h, s, l] = hexToHsl(hex.replace("#", "")); return "#" + hslToHex(h, Math.min(1, s * 1.1 + .08), Math.min(.3, l * .75)); }
 
-export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boolean } = {}): string {
+/* The table as a plan of drawn elements, in drawing order: what renderGlass writes as HTML and glassToDisplayList
+   (glass-dl.ts) draws as display-list nodes. Every decision of the theme is taken here once; the two outputs only
+   translate it. Numbers are kept as computed (the HTML rounds them as it always has, the display list rounds them
+   the same way). */
+export interface GShell { k: "shell"; cls: string; x: number; y: number; w: number; h: number; rad: number;
+  /** the tint the material gets from its fill (tintGrad's arguments), else the class's own */
+  tint?: { hex: string; strength: number; alpha: number };
+  /** a coloured outline kept as a ring (box-shadow inset 1.5 px) */
+  ring?: string; extra: string }
+export interface GLine { k: "rule" | "hsep" | "vsep"; x: number; y: number; w: number; h: number }
+export interface GCap { k: "cap"; cls: string; x: number; y: number; w: number; h: number; rad: number;
+  /** an inline background: a colour scale's [colour, .95, .8] or another signal's [colour, .55, .38] */
+  bg?: [string, number, number] }
+export interface GIcon { k: "icon"; x: number; y: number; d: number; src: string }
+export interface GPic { k: "pic"; p: Pic; cls: "gcut" | "gpic" }
+export interface GTbox { k: "tbox"; tb: Rect; ink: (c: string) => string }
+export interface GText { k: "text"; it: Item; cls: string; x: number; y: number; w: number; h: number; size: number; ink: string; weight: number;
+  single: boolean; align: string; valign: string; padL?: number; padR?: number; italic: boolean; num: boolean; font?: string; shadow: boolean }
+export type GlassElement = GShell | GLine | GCap | GIcon | GPic | GTbox | GText;
+export interface GlassPlan { W: number; H: number; shells: GShell[]; lines: GLine[]; caps: GCap[]; pics: (GIcon | GPic)[]; texts: GText[]; tbx: (GShell | GTbox)[] }
+
+export function glassPlan(L: TableLayout, ctx: RenderCtx, opts: { noText?: boolean } = {}): GlassPlan {
   // colour overrides (green/red values, table text) for this table only
   const o = ctx.style.colors || {}, SYS = { ...SYS0, ...(o.pos ? { greenInk: mix(o.pos, "#000000", .3) } : {}), ...(o.neg ? { redInk: mix(o.neg, "#000000", .2) } : {}), ...(o.ink ? { label: o.ink } : {}) };
   const G0 = glassGeom(L, ctx);
   const sc = inferRoles(buildScene(L, effItems(L, ctx).map(it => gItem(it, G0)), G0));    // Glass geometry (columns widened for the system font)
   const rowMed = median(L.rows.map(r => L.rowH.get(r)!)) || 20, rk = ctx.style.radius / 100;
-  let shells = "", lines = "", caps = "", pics = "", texts = "", tbx = "";
-  const R = (x: number, y: number, w: number, h: number) => `left:${x.toFixed(1)}px;top:${y.toFixed(1)}px;width:${Math.max(0, w).toFixed(1)}px;height:${Math.max(0, h).toFixed(1)}px`;
-  const glass = (cls: string, x: number, y: number, w: number, h: number, rad: number, extra = "") => `<div class="gls wb ${cls}" style="${R(x, y, w, h)};border-radius:${Math.max(0, rad).toFixed(1)}px;${extra}"></div>`;
+  const plan: GlassPlan = { W: sc.G.W, H: L.H, shells: [], lines: [], caps: [], pics: [], texts: [], tbx: [] };
+  const tintOf = (hex: string, strength: number, alpha: number) => ({ tint: { hex, strength, alpha }, extra: tintGrad(hex, strength, alpha) });
 
   /* ---- containers → materials ---- */
   const tinted = new Map<Container, string>();          // container → colour when its children sit on a coloured material
@@ -412,10 +432,10 @@ export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boo
     const gg = geo.get(c)!, x = gg.x0, y = gg.y0, w = Math.max(1, gg.x1 - gg.x0), h = Math.max(1, gg.y1 - gg.y0);
     const rad = Math.min(h / 2, w / 2, (small ? Math.min(h / 2, 13) : Math.max(8, Math.min(26 - depth * 6, h / 2, w / 2))) * rk);
     if (c.kind === "surface" && cls === "white" && depth === 0) continue;                       // white on white: nothing to draw
-    let mat: string, extra = "";
-    if (cls === "dark") { mat = depth === 0 ? "card tinted" : "panel tinted"; extra = tintGrad(fill!, .32, .88); tinted.set(c, fill!); }
-    else if (cls === "grey" || cls === "color") { mat = small ? "chip tinted" : (depth === 0 ? "card tinted" : "panel tinted"); extra = tintGrad(fill!, small ? .42 : .34, .86); tinted.set(c, fill!); }
-    else if (cls === "light") { mat = small ? "chip tinted" : "panel tinted"; extra = tintGrad(fill!, .9, .86); }
+    let mat: string, t: { tint?: GShell["tint"]; extra: string } = { extra: "" };
+    if (cls === "dark") { mat = depth === 0 ? "card tinted" : "panel tinted"; t = tintOf(fill!, .32, .88); tinted.set(c, fill!); }
+    else if (cls === "grey" || cls === "color") { mat = small ? "chip tinted" : (depth === 0 ? "card tinted" : "panel tinted"); t = tintOf(fill!, small ? .42 : .34, .86); tinted.set(c, fill!); }
+    else if (cls === "light") { mat = small ? "chip tinted" : "panel tinted"; t = tintOf(fill!, .9, .86); }
     else if (cls === "white") { mat = small ? "chip" : "panel"; }
     else if (c.kind === "implicit" || c.kind === "grid") { mat = depth === 0 ? "card list" : "panel"; }
     else if (c.kind === "frame" && small && (c.cells || 0) > 1) { mat = depth === 0 ? "card tile" : "panel"; }
@@ -424,25 +444,26 @@ export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boo
     // a coloured border is a signal (e.g. green/red outline of a value box): keep it as a ring
     const st = c.stroke && c.stroke.color, stTone = st ? tone(st) : null;
     const vivid = !!st && stTone === "other" && satOf(st) > .45 && lum(st) > .3 && lum(st) < .8;      // bright accent outline
-    if (st && (stTone === "pos" || stTone === "neg" || vivid)) extra += `;box-shadow:inset 0 0 0 1.5px ${rgba(st, .75)},0 2px 6px -3px rgba(28,40,100,.25)`;
+    let ring: string | undefined, extra = t.extra;
+    if (st && (stTone === "pos" || stTone === "neg" || vivid)) { ring = st; extra += `;box-shadow:inset 0 0 0 1.5px ${rgba(st, .75)},0 2px 6px -3px rgba(28,40,100,.25)`; }
     if ((c.kind === "frame" || c.kind === "grid") && !fill && depth > 0 && !small) mat = "panel";
-    shells += glass(mat, x, y, w, h, rad, extra);
+    plan.shells.push({ k: "shell", cls: mat, x, y, w, h, rad, ...(t.tint ? { tint: t.tint } : {}), ...(ring ? { ring } : {}), extra });
     c.drawn = { x, y, w, h };
   }
 
   /* ---- lines: heading underlines (accent), separators and ruled grids (hairlines) ---- */
   for (const r of sc.rules) {
     if (r.dir === "h") {
-      if (r.heading) lines += `<div class="rule accent" style="${R(r.x, r.y - 1, r.w!, 2)}"></div>`;
-      else lines += `<div class="hsep" style="${R(r.x + 6, r.y, r.w! - 12, 1)}"></div>`;
-    } else if (r.sep || (r.parent && r.parent.kind === "grid") || L.def?.gridV === "on") lines += `<div class="vsep" style="${R(r.x, r.y + 5, 1, r.h! - 10)}"></div>`;
+      if (r.heading) plan.lines.push({ k: "rule", x: r.x, y: r.y - 1, w: r.w!, h: 2 });
+      else plan.lines.push({ k: "hsep", x: r.x + 6, y: r.y, w: r.w! - 12, h: 1 });
+    } else if (r.sep || (r.parent && r.parent.kind === "grid") || L.def?.gridV === "on") plan.lines.push({ k: "vsep", x: r.x, y: r.y + 5, w: 1, h: r.h! - 10 });
   }
   // gridlines switched off on the table: no automatic separators either
   const noH = L.def?.gridH === "off";
-  if (!noH) for (const c of sc.containers) if (c.seps) for (const y of c.seps) lines += `<div class="hsep" style="${R(c.x + 12, y, c.w - 24, 1)}"></div>`;
+  if (!noH) for (const c of sc.containers) if (c.seps) for (const y of c.seps) plan.lines.push({ k: "hsep", x: c.x + 12, y, w: c.w - 24, h: 1 });
   // a merged title over several columns (group header) gets a hairline under it
   if (!noH) for (const t of sc.texts) if (t.it.merged && t.n.c1 > t.n.c0 && t.n.r1 === t.n.r0 && sc.texts.some(o => o.n.r0 === t.n.r1 + 1 && o.n.c0 >= t.n.c0 && o.n.c1 <= t.n.c1) && t.role !== "heading")
-    lines += `<div class="hsep" style="${R(t.x + 14, t.y + t.h - 1, t.w - 28, 1)}"></div>`;
+    plan.lines.push({ k: "hsep", x: t.x + 14, y: t.y + t.h - 1, w: t.w - 28, h: 1 });
 
   /* ---- signals: conditional / semantic colours become capsules ---- */
   const capOf = new Map<Item, { tone: string; strong: boolean; fill: string | null }>();
@@ -452,9 +473,9 @@ export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boo
     const box = holder && holder.drawn ? holder.drawn : { x: it.bx + 3, y: it.by + 3.5, w: it.bw - 6, h: it.bh - 7 };
     const rad = Math.min(box.h / 2, (holder ? 13 : box.h / 2) * rk);
     const strong = !!s.parent && (s.parent.kind === "frame" && (s.parent.cells || 0) > 1 && sc.texts.some(t => t.parent === s.parent && t.role === "emphasis"));
-    if (it.scaleFill) { caps += `<div class="cap scale" style="${R(box.x, box.y, box.w, box.h)};border-radius:${rad}px;background:linear-gradient(180deg,${rgba(it.scaleFill, .95)},${rgba(it.scaleFill, .8)})"></div>`; capOf.set(it, { tone: "scale", strong: false, fill: it.scaleFill }); continue; }
-    if (ft === "pos" || ft === "neg") caps += `<div class="cap ${strong ? "solid " : ""}${ft}" style="${R(box.x, box.y, box.w, box.h)};border-radius:${rad}px"></div>`;
-    else { const base = it.fill || "#8E8E93"; caps += `<div class="cap" style="${R(box.x, box.y, box.w, box.h)};border-radius:${rad}px;background:linear-gradient(180deg,${rgba(base, .55)},${rgba(base, .38)})"></div>`; }
+    if (it.scaleFill) { plan.caps.push({ k: "cap", cls: "cap scale", ...box, rad, bg: [it.scaleFill, .95, .8] }); capOf.set(it, { tone: "scale", strong: false, fill: it.scaleFill }); continue; }
+    if (ft === "pos" || ft === "neg") plan.caps.push({ k: "cap", cls: `cap ${strong ? "solid " : ""}${ft}`, ...box, rad });
+    else plan.caps.push({ k: "cap", cls: "cap", ...box, rad, bg: [it.fill || "#8E8E93", .55, .38] });
     capOf.set(it, { tone: ft, strong, fill: it.fill });
   }
 
@@ -465,14 +486,14 @@ export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boo
     const rh = row ? L.rowH.get(row)! : p.h;
     if (p.src && meta.round && Math.max(p.w, p.h) <= rh * 1.6 && !p.rot && !(p.crop && (p.crop.l || p.crop.t || p.crop.r || p.crop.b))) {
       const d = Math.min(Math.max(p.w, p.h), rh - 7), ry = row ? L.rowY.get(row)! + rh / 2 : cy;
-      pics += `<div class="gls wb icon" style="left:${p.x + p.w / 2 - d / 2 - 2.5}px;top:${ry - d / 2 - 2.5}px;width:${d + 5}px;height:${d + 5}px;border-radius:50%"><img src="${p.src}" alt=""></div>`;
-    } else if ("keyed" in meta && meta.keyed) pics += picHtml(Object.assign({}, p, { src: meta.keyed }), "gcut", !!ctx.forExport);   // white-background graphics: background keyed out
-    else pics += picHtml(p, meta.alpha ? "gcut" : "gpic", !!ctx.forExport);
+      plan.pics.push({ k: "icon", x: p.x + p.w / 2 - d / 2 - 2.5, y: ry - d / 2 - 2.5, d, src: p.src });
+    } else if ("keyed" in meta && meta.keyed) plan.pics.push({ k: "pic", p: Object.assign({}, p, { src: meta.keyed }), cls: "gcut" });   // white-background graphics: background keyed out
+    else plan.pics.push({ k: "pic", p, cls: meta.alpha ? "gcut" : "gpic" });
   }
   for (const tb of sc.tboxes) {
     const r = Math.min(18 * rk, Math.min(tb.w, tb.h) / 2);
-    if (tb.fill || tb.line) tbx += glass("card list", tb.x, tb.y, tb.w, tb.h, r, tb.fill && !isWhiteish(tb.fill) ? tintGrad(tb.fill, .5, .9) : "");
-    tbx += `<div class="tbox gtb" style="${R(tb.x, tb.y, tb.w, tb.h)};justify-content:${tb.anchorV === "ctr" ? "center" : tb.anchorV === "b" ? "flex-end" : "flex-start"};${shapeTransform(tb)}">${textboxInner(tb.paras, c => tone(c) === "neg" ? SYS.redInk : tone(c) === "pos" ? SYS.greenInk : lum(c) < .45 || lum(c) > .93 ? SYS.label : darken(c, .7))}</div>`;
+    if (tb.fill || tb.line) { const t = tb.fill && !isWhiteish(tb.fill) ? tintOf(tb.fill, .5, .9) : { extra: "" }; plan.tbx.push({ k: "shell", cls: "card list", x: tb.x, y: tb.y, w: tb.w, h: tb.h, rad: r, ...("tint" in t ? { tint: t.tint } : {}), extra: t.extra }); }
+    plan.tbx.push({ k: "tbox", tb, ink: c => tone(c) === "neg" ? SYS.redInk : tone(c) === "pos" ? SYS.greenInk : lum(c) < .45 || lum(c) > .93 ? SYS.label : darken(c, .7) });
   }
 
   /* ---- texts: weight and ink from the role and the material behind ---- */
@@ -500,16 +521,45 @@ export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boo
     if (it.userB === true) weight = Math.max(weight, 720); else if (it.userB === false) weight = Math.min(weight, 470);
     else if (f.b && weight < 650) weight = 650;
     const tw = it.tw || it.bw, single = !it.wrap && it.valign !== "top" && !it.rot;
-    const st = [R(it.bx, it.by, tw, it.bh), `font-size:${fitPx(it, (f.sz || 11) * 96 / 72 * .97, tw).toFixed(2)}px`, `color:${ink}`, `font-weight:${weight}`,
-      single ? `line-height:${it.bh}px;display:block` : `justify-content:${it.align === "right" ? "flex-end" : it.align === "center" ? "center" : "flex-start"};align-items:${it.valign === "top" ? "flex-start" : "center"}`, `text-align:${it.align}`];
-    if (it.indent) st.push(`padding-left:${9 + it.indent * 9}px`); else if (it.align === "left") st.push("padding-left:10px"); else if (it.align === "right") st.push("padding-right:10px");
-    if (role === "caption" || it.userI === true || (f.i && it.userI !== false && role !== "value")) st.push("font-style:italic");
-    if (t.num) st.push("font-variant-numeric:tabular-nums");
-    const font = it.userFont || ctx.style.text?.table?.font; if (font) st.push(`font-family:${fontStack(font)}`);
-    if (cap && cap.strong) st.push("text-shadow:0 1px 1px rgba(0,0,0,.2)");
-    const cls = ["t", it.wrap ? "wrap" : "", it.ov ? "ov" : ""].filter(Boolean).join(" ");
-    if (it.rot) { texts += `<div class="t ov" style="${st.join(";")};${rotBox()}">${rotSpan(it.rot, it.text)}</div>`; continue; }
-    texts += `<div class="${cls}" style="${st.join(";")}">${cellHtml(it)}</div>`;
+    const pad = it.indent ? { padL: 9 + it.indent * 9 } : it.align === "left" ? { padL: 10 } : it.align === "right" ? { padR: 10 } : {};
+    const font = it.userFont || ctx.style.text?.table?.font;
+    plan.texts.push({ k: "text", it, cls: it.rot ? "t ov" : ["t", it.wrap ? "wrap" : "", it.ov ? "ov" : ""].filter(Boolean).join(" "), x: it.bx, y: it.by, w: tw, h: it.bh,
+      size: +fitPx(it, (f.sz || 11) * 96 / 72 * .97, tw).toFixed(2), ink, weight, single, align: it.align, valign: it.valign, ...pad,
+      italic: role === "caption" || it.userI === true || (!!f.i && it.userI !== false && role !== "value"), num: !!t.num, ...(font ? { font } : {}), shadow: !!(cap && cap.strong) });
   }
-  return `<div class="xt gx" style="width:${sc.G.W}px;height:${L.H}px">${shells}${lines}${caps}${pics}${texts}${tbx}</div>`;
+  return plan;
+}
+
+export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boolean } = {}): string {
+  const plan = glassPlan(L, ctx, opts);
+  const R = (x: number, y: number, w: number, h: number) => `left:${x.toFixed(1)}px;top:${y.toFixed(1)}px;width:${Math.max(0, w).toFixed(1)}px;height:${Math.max(0, h).toFixed(1)}px`;
+  const glass = (s: GShell) => `<div class="gls wb ${s.cls}" style="${R(s.x, s.y, s.w, s.h)};border-radius:${Math.max(0, s.rad).toFixed(1)}px;${s.extra}"></div>`;
+  let h = "";
+  for (const s of plan.shells) h += glass(s);
+  for (const l of plan.lines) h += `<div class="${l.k === "rule" ? "rule accent" : l.k}" style="${R(l.x, l.y, l.w, l.h)}"></div>`;
+  for (const c of plan.caps) {
+    const bg = c.bg ? `;background:linear-gradient(180deg,${rgba(c.bg[0], c.bg[1])},${rgba(c.bg[0], c.bg[2])})` : "";
+    h += `<div class="${c.cls}" style="${R(c.x, c.y, c.w, c.h)};border-radius:${c.rad}px${bg}"></div>`;
+  }
+  for (const p of plan.pics) h += p.k === "icon" ? `<div class="gls wb icon" style="left:${p.x}px;top:${p.y}px;width:${p.d + 5}px;height:${p.d + 5}px;border-radius:50%"><img src="${p.src}" alt=""></div>` : picHtml(p.p, p.cls, !!ctx.forExport);
+  let tx = "";
+  for (const t of plan.texts) {
+    const it = t.it;
+    const st = [R(t.x, t.y, t.w, t.h), `font-size:${t.size.toFixed(2)}px`, `color:${t.ink}`, `font-weight:${t.weight}`,
+      t.single ? `line-height:${it.bh}px;display:block` : `justify-content:${t.align === "right" ? "flex-end" : t.align === "center" ? "center" : "flex-start"};align-items:${t.valign === "top" ? "flex-start" : "center"}`, `text-align:${t.align}`];
+    if (t.padL !== undefined) st.push(`padding-left:${t.padL}px`); else if (t.padR !== undefined) st.push(`padding-right:${t.padR}px`);
+    if (t.italic) st.push("font-style:italic");
+    if (t.num) st.push("font-variant-numeric:tabular-nums");
+    if (t.font) st.push(`font-family:${fontStack(t.font)}`);
+    if (t.shadow) st.push("text-shadow:0 1px 1px rgba(0,0,0,.2)");
+    if (it.rot) { tx += `<div class="t ov" style="${st.join(";")};${rotBox()}">${rotSpan(it.rot, it.text)}</div>`; continue; }
+    tx += `<div class="${t.cls}" style="${st.join(";")}">${cellHtml(it)}</div>`;
+  }
+  let tbx = "";
+  for (const e of plan.tbx) {
+    if (e.k === "shell") { tbx += glass(e); continue; }
+    const tb = e.tb;
+    tbx += `<div class="tbox gtb" style="${R(tb.x, tb.y, tb.w, tb.h)};justify-content:${tb.anchorV === "ctr" ? "center" : tb.anchorV === "b" ? "flex-end" : "flex-start"};${shapeTransform(tb)}">${textboxInner(tb.paras, e.ink)}</div>`;
+  }
+  return `<div class="xt gx" style="width:${plan.W}px;height:${plan.H}px">${h}${tx}${tbx}</div>`;
 }

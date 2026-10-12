@@ -185,7 +185,7 @@ export function compare(goldenDir, actualDir, opts = {}) {
   const ge = gm.environment || {}, ae = am.environment || {};
   const full = opts.full ?? (ge.chromium === ae.chromium && ge.fontsSha256 === ae.fontsSha256);
   const accepted = checkAccepted(opts.accepted || []);
-  const diffs = [], images = [];
+  const diffs = [], images = [], pixels = [];        // pixels: every compared screenshot's share of differing pixels
   const decks = opts.decks || gm.decks;
   const files = d => fs.existsSync(d) ? fs.readdirSync(d) : [];
   const designs = opts.designs || null;                     // compare only these designs (the display list's, per step)
@@ -200,6 +200,7 @@ export function compare(goldenDir, actualDir, opts = {}) {
       if (f.endsWith(".png")) {
         if (!full) continue;
         const r = comparePixels(decodePng(fs.readFileSync(gp)), decodePng(fs.readFileSync(ap)), { range: !!opts.pixelRange });
+        pixels.push({ ...scope, file: f, fraction: r.size ? 1 : r.fraction, maxDE: r.maxDE ?? null });
         if (r.size || r.fraction > PIXEL_FRACTION) {
           diff("pixels", r.size || `${(r.fraction * 100).toFixed(2)} % of the pixels differ (max ΔE ${r.maxDE})`);
           images.push({ ...scope, file: f, golden: gp, actual: ap, heat: r.heat ? encodePng(r.w, r.h, r.heat) : null });
@@ -222,7 +223,7 @@ export function compare(goldenDir, actualDir, opts = {}) {
   if (!opts.decks) for (const deck of files(actualDir)) if (fs.statSync(path.join(actualDir, deck)).isDirectory() && !decks.includes(deck))
     diffs.push({ deck, design: "*", version: "*", file: "*", kind: "new", detail: "deck not in the goldens" });
   for (const d of diffs) d.accepted = accepted.find(a => (!a.tool || a.tool === (opts.tool || "parity")) && ["deck", "design", "version", "file", "kind"].every(k => a[k] === undefined || a[k] === d[k])) || null;
-  return { full, environment: { golden: ge, actual: ae }, diffs, images, unaccepted: diffs.filter(d => !d.accepted).length };
+  return { full, environment: { golden: ge, actual: ae }, diffs, images, pixels, unaccepted: diffs.filter(d => !d.accepted).length };
 }
 function firstDiff(g, a) {
   const G = JSON.stringify(g, null, 1).split("\n"), A = JSON.stringify(a, null, 1).split("\n");

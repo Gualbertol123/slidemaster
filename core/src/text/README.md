@@ -13,7 +13,10 @@
 Shaping uses HarfBuzz's default features (kern and liga on). On the golden slides' text lines it equals Chromium's
 canvas within 0.002 px (`core/tests/shape.test.ts`, reference `tests/fixtures/text/chromium-widths.json`). Until
 S4.4 the designs still measure with the page's browser layout (decision 2026-10-12, 3); the PDF uses these glyph
-runs so its glyphs sit where the screen's do.
+runs so its glyphs sit where the screen's do. `shape(…, features)` switches more OpenType features on (S3.4: a
+text node with `tnum` – Liquid Glass numbers, CSS `font-variant-numeric: tabular-nums` – is shaped with "tnum";
+the page measures those runs through the DOM, since canvas text has no such setting, and a canvas backend centres
+each character in its tabular advance).
 
 Only the core worker carries hb-subset today (the page's in-thread fallback host does not: `HostOptions`).
 

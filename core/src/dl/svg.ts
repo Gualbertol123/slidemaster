@@ -92,7 +92,7 @@ export function svgNodes(list: DisplayList, opts: SvgOptions): string {
         const fam = opts.fontFamily ? opts.fontFamily(n) : n.css || `'${n.font.replace(/'/g, "")}'`;
         const p = n.fill as { solid: [number, number, number]; a?: number };
         const at = charPositions(n);
-        let s = `<text x="${at ? at.map(f).join(" ") : f(n.x)}" y="${f(n.y)}" font-family="${escAttr(fam)}" font-size="${f(n.size)}"${weightOf(n) !== 400 ? ` font-weight="${weightOf(n)}"` : ""}${n.i ? ` font-style="italic"` : ""}`
+        let s = `<text x="${at ? at.map(f).join(" ") : f(n.x)}" y="${f(n.y)}" font-family="${escAttr(fam)}" font-size="${f(n.size)}"${weightOf(n) !== 400 ? ` font-weight="${weightOf(n)}"` : ""}${n.i ? ` font-style="italic"` : ""}${n.tnum ? ` style="font-variant-numeric:tabular-nums"` : ""}`
           + ` fill="${rgb(p.solid)}"${(p.a ?? 1) < 1 ? ` fill-opacity="${f(p.a!)}"` : ""}`
           + (!at && n.w !== undefined && [...n.src].length > 1 ? ` textLength="${f(n.w)}" lengthAdjust="spacing"` : "")
           + ` xml:space="preserve">${escText(n.src)}</text>`;

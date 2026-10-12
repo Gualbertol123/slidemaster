@@ -36,8 +36,9 @@ export class Shaper {
     return f;
   }
 
-  /** glyphs and advances of a string in a face at a size (px) */
-  shape(face: FaceInfo, text: string, size: number): Shaped {
+  /** glyphs and advances of a string in a face at a size (px); `features`: OpenType features to switch on as well
+      (e.g. "tnum") */
+  shape(face: FaceInfo, text: string, size: number, features: string[] = []): Shaped {
     const hb = this.hb, { font, upem } = this.hbFont(face);
     if (!text) return { gids: [], adv: [], cl: [], dx: [], dy: [], w: 0 };
     const buf = hb.fn("hb_buffer_create")(), n = text.length, p = hb.e.malloc(2 * n);
@@ -46,7 +47,13 @@ export class Shaper {
     hb.fn("hb_buffer_add_utf16")(buf, p, n, 0, n);
     hb.e.free(p);
     hb.fn("hb_buffer_guess_segment_properties")(buf);
-    hb.fn("hb_shape")(font, buf, 0, 0);
+    let feats = 0;
+    if (features.length) {
+      feats = hb.e.malloc(16 * features.length);                     // hb_feature_t: tag, value, start, end
+      features.forEach((f, i) => { const sp = hb.copyIn(new TextEncoder().encode(f)); hb.fn("hb_feature_from_string")(sp, f.length, feats + 16 * i); hb.e.free(sp); });
+    }
+    hb.fn("hb_shape")(font, buf, feats, features.length);
+    if (feats) hb.e.free(feats);
     const len = hb.fn("hb_buffer_get_length")(buf), infos = hb.fn("hb_buffer_get_glyph_infos")(buf, 0) >> 2, pos = hb.fn("hb_buffer_get_glyph_positions")(buf, 0) >> 2;
     const u32 = hb.u32, i32 = hb.i32, k = size / upem, gids: number[] = [], adv: number[] = [], cl: number[] = [], dx: number[] = [], dy: number[] = [];
     let w = 0;
@@ -62,7 +69,7 @@ export class Shaper {
       width (the screen measured it) the difference is spread over the gaps between clusters – after each cluster but
       the last, as SVG textLength does – so marks stay on their bases and kerning is kept */
   shapeNode(face: FaceInfo, n: TextNode): TextNode {
-    const s = this.shape(face, n.src, n.size);
+    const s = this.shape(face, n.src, n.size, n.tnum ? ["tnum"] : []);
     if (!s.gids.length) return n;
     let adv = s.adv;
     if (n.w !== undefined && Math.abs(n.w - s.w) > 1e-3) {

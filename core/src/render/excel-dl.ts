@@ -30,7 +30,8 @@ import { breakRuns, collapse } from "../text/lines";
 
 /** what text measurement the builder needs: sync lookups over the batch answered before */
 export interface Metrics {
-  run(text: string, font: string): RunMetrics;
+  /** `tnum`: tabular figures (font-variant-numeric), answered with each character's advance */
+  run(text: string, font: string, tnum?: boolean): RunMetrics;
   lines(text: string, font: string, width: number): string[];
 }
 /** a table's display list and the pictures it refers to (image id → data: URL) */
@@ -82,8 +83,9 @@ function borderNodes(side: "top" | "bottom" | "left" | "right", b: BorderSide, x
 export const halfLeading = (lh: number, met: RunMetrics) => Math.floor((lh - (met.asc + met.desc)) / 2);
 
 /* ---- text: runs with Excel's superscript / subscript parts */
-interface Run { text: string; size: number; dy: number }
-function runsOf(it: Item, size: number): Run[] {
+/** a cell's text as runs: the plain parts and its <sup> / <sub> parts (cellHtml) */
+export interface Run { text: string; size: number; dy: number }
+export function runsOf(it: Item, size: number): Run[] {
   const t = String(it.text ?? "");
   if (!it.scripts?.length || it.edited) return trimRuns([{ text: t, size, dy: 0 }]);
   const out: Run[] = []; let at = 0;
@@ -182,10 +184,11 @@ function rotatedText(it: Item, size: number, family: string, font: string, color
   // the flex box centres the span in its content box (the .t padding)
   const cxm = x + pad.pl + (w - pad.pl - pad.pr) / 2, cym = y + (h - pad.pb) / 2;
   if (it.rot === 255) {
-    const chars = [...t], total = chars.length * size;
+    // writing-mode vertical-rl, upright: each letter takes the font's line height (ascent + descent) down the column
+    const chars = [...t], step = base.asc + base.desc, total = chars.length * step;
     return chars.map((ch, k) => {
       const met = m.run(ch, font);
-      return text(ch, cxm - met.w / 2, cym - total / 2 + k * size + (size - (base.asc + base.desc)) / 2 + base.asc, size, family, met, color, b, i);
+      return text(ch, cxm - met.w / 2, cym - total / 2 + k * step + base.asc, size, family, met, color, b, i);
     });
   }
   const met = m.run(collapse(t).trim(), font), deg = it.rot <= 90 ? -it.rot : it.rot - 90, a = deg * Math.PI / 180;
@@ -301,12 +304,15 @@ function picBody(p: Pic, forExport: boolean, images: Record<string, string>, m: 
 /* ---- measuring: the requests of a table, answered in one batch by the platform's TextMeasurer */
 class Recorder implements Metrics {
   runs = new Map<string, RunReq>(); wraps = new Map<string, LinesReq>();
-  run(text: string, font: string): RunMetrics { this.runs.set(font + "\n" + text, { text, font }); this.runs.set(font + "\n", { text: "", font }); return { w: 0, asc: 0, desc: 0 }; }
+  run(text: string, font: string, tnum = false): RunMetrics {
+    this.runs.set((tnum ? "tnum " : "") + font + "\n" + text, { text, font, ...(tnum ? { tnum } : {}) }); this.runs.set(font + "\n", { text: "", font });
+    return { w: 0, asc: 0, desc: 0 };
+  }
   lines(text: string, font: string, width: number): string[] { this.wraps.set(`${font}\n${width}\n${text}`, { text, font, width }); return [text]; }
 }
 class Answers implements Metrics {
   constructor(private runs: Map<string, RunMetrics>, private wraps: Map<string, string[]>, private fallback: Metrics) {}
-  run(text: string, font: string) { return this.runs.get(font + "\n" + text) ?? this.fallback.run(text, font); }
+  run(text: string, font: string, tnum = false) { return this.runs.get((tnum ? "tnum " : "") + font + "\n" + text) ?? this.fallback.run(text, font, tnum); }
   lines(text: string, font: string, width: number) { return this.wraps.get(`${font}\n${width}\n${text}`) ?? this.fallback.lines(text, font, width); }
 }
 /** measurement without a page (Node tools, tests without a measurer): a rough average advance */

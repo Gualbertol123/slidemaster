@@ -121,7 +121,8 @@ function drawNode(ctx: Ctx, n: Node, opts: CanvasOptions) {
       const c = ctx as Ctx & { letterSpacing?: string }, at = charPositions(n);
       if (at) {
         // a shaped run with one glyph per character: each character where the display list puts it (as the PDF)
-        [...n.src].forEach((ch, k) => { if (ch !== " ") ctx.fillText(ch, at[k] + x0 - n.x, y); });
+        const tab = n.tnum && !n.gids;
+        [...n.src].forEach((ch, k) => { if (ch !== " ") ctx.fillText(ch, at[k] + x0 - n.x + (tab ? (n.adv![k] - ctx.measureText(ch).width) / 2 : 0), y); });
       } else {
         if (n.w !== undefined && "letterSpacing" in c) {
           c.letterSpacing = "0px";

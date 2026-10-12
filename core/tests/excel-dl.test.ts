@@ -110,6 +110,11 @@ describe("cell text: the .t flex box of v3", () => {
     const st = texts(excelToDisplayList(layout([{ text: "AB", rot: 255, bw: 20, bh: 80 }]), ctx(), M).nodes);
     expect(st.map(t => t.src)).toEqual(["A", "B"]);
     expect(st[1].y - st[0].y).toBeCloseTo(size, 1);
+    // vertical-rl upright: a letter's slot is the font's line height (ascent + descent), not one em
+    const tall: Metrics = { ...M, run: (t, font) => { const r = M.run(t, font), sz = parseFloat(/([\d.]+)px/.exec(font)![1]); return { ...r, asc: sz * .9, desc: sz * .3 }; } };
+    const st2 = texts(excelToDisplayList(layout([{ text: "ABC", rot: 255, bw: 20, bh: 80, valign: "top" }]), ctx(), tall).nodes);
+    expect(st2[1].y - st2[0].y).toBeCloseTo(1.2 * size, 1);                        // (positions rounded to .01)
+    expect(st2[0].y).toBeCloseTo(80 / 2 - 3 * 1.2 * size / 2 + .9 * size, 1);
   });
   it("no text with noText (thumbnails of big tables)", () => {
     expect(texts(excelToDisplayList(layout([{ text: "x", fill: "#FFFF00" }]), ctx(), M, { noText: true }).nodes)).toEqual([]);
