@@ -3,7 +3,7 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## 3.6.0 - unreleased
+## 3.6.0 - 2026-10-12
 
 What users notice
 * **Opening a large workbook no longer freezes the window** (B8). The workbook is read in the background:

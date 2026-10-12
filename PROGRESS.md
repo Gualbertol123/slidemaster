@@ -83,6 +83,14 @@ numbers measured twice). Measured numbers go into the step's line.
   undo/redo buttons update at once after undoing a change of another workbook; "Updated by X n min ago"
   counts on its own 10 s timer. Before, each waited for the next poll (up to 6–10 s).
 
+- 2026-10-12 · G0 decisions for M3 (product owner):
+  * **Acrobat recipe: soft masks.** The glass cards' transparency in `docs/next/field/acrobat-glass.pdf` looked
+    right and scrolled smoothly in Acrobat and Edge, so S3.5 keeps soft masks (no flattened gradients).
+  * **Fonts: fingerprint mode** (R7). Windows fonts are not copied to the share; S3.2 records a metrics fingerprint only.
+  * **Reference machine: keep the Linux goldens.** `golden/` stays as captured (Linux container, Chromium 141);
+    full geometry/pixel/PDF-position parity runs only there, hosted CI keeps comparing texts and styles.
+  The rest of G0 (storage, fieldcheck, policy matrix W1–W14, ReadDirectoryChangesW) is still open; it is needed by M5.
+
 - 2026-10-12 · Decision (product owner), core bench: big30's parse
   gate (500 ms + 10 %) counts the median of three timed runs after one untimed warm-up, instead of the slower of
   two runs (that failed by chance on CI's runner, 551 and 558 ms in 2 of 4 runs, with the timed code unchanged
@@ -98,27 +106,20 @@ numbers measured twice). Measured numbers go into the step's line.
 
 ## Waiting for
 
-- **v3.6.0 release (S2.7, a person; release checklist steps 1, 5–7):** merge PR #5 after green CI, check CI is green on `main`, then
-  in `CHANGELOG.md` change `## 3.6.0 - unreleased` to `## 3.6.0 - <date>`, commit and push to `main`, and:
-  ```
-  git checkout main && git pull
-  git tag -a v3.6.0 -m "Slide Builder 3.6.0"
-  git push origin v3.6.0
-  ```
-  When the `release` workflow is green: `python tools/make_release.py --verify slidebuilder-3.6.0.zip` on the downloaded ZIP, then
-  `"C:\Users\U508169\Downloads\claude\Slide Builder\Update Slide Builder.bat"` (the install folder follows the newest release),
-  and tick S2.7 with the date and the release link.
+- **v3.6.0 release (S2.7, a person):** PR #5 merged and tag `v3.6.0` pushed on 2026-10-12 (on `d4c72ac`, the branch tip: same
+  files as the merge commit `6aafcb9`). Left: when the `release` workflow is green, `python tools/make_release.py --verify slidebuilder-3.6.0.zip`
+  on the downloaded ZIP, then `"C:UsersU508169DownloadsclaudeSlide BuilderUpdate Slide Builder.bat"`, then send prompt 3 again to tick S2.7.
 
 - **5 real decks (S0.5, product owner):** 5 workbooks from the share with their saved decks (`backend\data\workbooks\<name>-<hash>.json`). They are anonymised with `python tools/anonymise.py REAL.xlsx tests/corpus/workbooks/realN.xlsx --deck <deck>.json --deck-out tests/corpus/decks/realN.json --rename "<bank>=Bank A" …` (which names must be renamed?), reviewed by you, then captured into `golden/`.
 - **Gate G0 (S0.6, people on the real share and PCs)** - fill in `docs/next/field-results.md`:
   1. `tools/sharetest.py` from 3–5 PCs (one over VPN), 10 writers in total, `--rdcw` → **storage decision**: journals meet 05 §3.5, or `STORAGE=lean-lock` in M5 (ADR-006);
   2. `tools/fieldcheck.html` from file:// and from the helper on each PC (Blob workers, WASM, OffscreenCanvas, fonts from bytes);
   3. the Windows policy matrix W1–W14 (05 §3.7);
-  4. Acrobat and Edge with `docs/next/field/acrobat-excel.pdf` / `acrobat-glass.pdf` → **Acrobat recipe** (soft masks or flattened gradients in S3.5);
-  5. the font-licence question R7 (may Windows fonts be copied to the share?) → **font decision** for S3.2;
+  4. ~~Acrobat recipe~~ decided 2026-10-12: soft masks;
+  5. ~~font decision (R7)~~ decided 2026-10-12: fingerprint mode;
   6. ReadDirectoryChangesW result → whether S6.3 is done.
   Then write the decisions under "Decisions".
-- **Reference machine for full parity (S0.5, decision):** geometry, pixels and PDF text of `golden/` are only compared where Chromium and the installed fonts equal the capture's (`golden/MANIFEST.json` → `environment`: this Linux container, Chromium 141). Hosted CI compares texts and styles only. The GG/GP gates of M3/M4 need a decided reference: keep this container image, or pick a machine (e.g. a pinned CI image or a Windows PC) and re-capture `v3.4.0` there as new goldens. Which one?
+- ~~**Reference machine for full parity**~~ decided 2026-10-12: keep the Linux goldens (Decisions).
 
 ## Measurements
 
