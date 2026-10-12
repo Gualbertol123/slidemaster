@@ -4,6 +4,8 @@ import { get, patch, STAGE, THUMBS, toast } from "./store";
 import { backend } from "../sync/api";
 import { cleanFamily, fontFaceCss, googleCssUrl, parseGoogleCss, readFontInfo, type LibraryFont } from "@slide-builder/core/model/fonts";
 import { esc } from "@slide-builder/core/xlsx/util";
+import { transfer } from "@slide-builder/core/rpc/port";
+import { core } from "./app";
 
 /* the library is in the store (doc.fonts); a font being added: ui.fontBusy */
 const lib = () => get().doc.fonts;
@@ -67,6 +69,16 @@ export async function addGoogleFont(name: string): Promise<boolean> {
   finally { patch("ui", { fontBusy: "" }); }
 }
 
+/** a variable font becomes a static face at its declared weight before it is stored (S3.2, by the core worker), so
+    exports never embed a variable font; anything else, or a failure, is stored as it is */
+async function staticFile(buf: ArrayBuffer, weight: number, name: string): Promise<{ buf: ArrayBuffer; name: string }> {
+  try {
+    const copy = buf.slice(0);                            // the original stays here for the fallback
+    const r = await core().call("staticFont", transfer({ buf: copy, weight }, [copy]));
+    return r.variable ? { buf: r.buf, name: name.replace(/\.[^.]+$/, "") + ".ttf" } : { buf, name };
+  } catch (e) { console.warn("font kept as it is:", e); return { buf, name }; }
+}
+
 /** font files chosen by the user (TTF, OTF, WOFF, WOFF2): family, weight and style are read from each file */
 export async function uploadFontFiles(files: File[]): Promise<string[]> {
   if (!backend.served) { toast("Uploading fonts needs the helper: start Slide Builder with Start Slide Builder.bat.", [], true); return []; }
@@ -76,8 +88,8 @@ export async function uploadFontFiles(files: File[]): Promise<string[]> {
   try {
     for (const file of files) {
       try {
-        const buf = await file.arrayBuffer(), info = await readFontInfo(buf, file.name);
-        fonts = await backend.addFont({ family: info.family, weight: info.weight, style: info.style, source: "upload", name: file.name }, buf);
+        const raw = await file.arrayBuffer(), info = await readFontInfo(raw, file.name), { buf, name } = await staticFile(raw, info.weight, file.name);
+        fonts = await backend.addFont({ family: info.family, weight: info.weight, style: info.style, source: "upload", name }, buf);
         added.add(info.family);
       } catch (e) { failed.push(`${file.name}: ${(e as Error).message}`); }
     }

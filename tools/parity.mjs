@@ -95,8 +95,11 @@ export function deltaE2000([L1, a1, b1], [L2, a2, b2]) {
 }
 
 /** {differing pixels, fraction, max ΔE, heat map RGB}; a pixel differs when no pixel within 1 px of it in the
-    other image is within DE_TOL (both directions: a 1 px shift of an edge is anti-aliasing, not a change) */
-export function comparePixels(A, B) {
+    other image is within DE_TOL (both directions: a 1 px shift of an edge is anti-aliasing, not a change).
+    opts.range (two renderers, e.g. the display list's canvas against the page: tools/dlparity.mjs): a pixel also
+    passes when its colour lies within the range of the other image's 3 × 3 neighbourhood (per L, a, b, ± DE_TOL),
+    so an edge the two place or anti-alias a fraction of a pixel apart passes (as tools/dlcheck.mjs) */
+export function comparePixels(A, B, opts = {}) {
   if (A.w !== B.w || A.h !== B.h) return { size: `${A.w}x${A.h} vs ${B.w}x${B.h}`, bad: A.w * A.h, fraction: 1, maxDE: Infinity, heat: null };
   const { w, h } = A, cache = new Map();
   const labOf = (img, i) => { const k = (img.rgb[i] << 16) | (img.rgb[i + 1] << 8) | img.rgb[i + 2]; let v = cache.get(k); if (!v) { v = lab(img.rgb[i], img.rgb[i + 1], img.rgb[i + 2]); cache.set(k, v); } return v; };
@@ -107,6 +110,15 @@ export function comparePixels(A, B) {
       const j = (yy * w + xx) * 3;
       if (P.rgb[i] === Q.rgb[j] && P.rgb[i + 1] === Q.rgb[j + 1] && P.rgb[i + 2] === Q.rgb[j + 2]) return 0;
       const d = deltaE2000(lp, labOf(Q, j)); if (d <= DE_TOL) return d;
+    }
+    if (opts.range) {
+      const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+        const q = labOf(Q, (yy * w + xx) * 3);
+        for (let c = 0; c < 3; c++) { if (q[c] < lo[c]) lo[c] = q[c]; if (q[c] > hi[c]) hi[c] = q[c]; }
+      }
+      if ([0, 1, 2].every(c => lp[c] >= lo[c] - DE_TOL && lp[c] <= hi[c] + DE_TOL)) return 0;
     }
     return deltaE2000(lp, labOf(Q, i));
   };
@@ -173,10 +185,11 @@ export function compare(goldenDir, actualDir, opts = {}) {
   const ge = gm.environment || {}, ae = am.environment || {};
   const full = opts.full ?? (ge.chromium === ae.chromium && ge.fontsSha256 === ae.fontsSha256);
   const accepted = checkAccepted(opts.accepted || []);
-  const diffs = [], images = [];
+  const diffs = [], images = [], pixels = [];        // pixels: every compared screenshot's share of differing pixels
   const decks = opts.decks || gm.decks;
   const files = d => fs.existsSync(d) ? fs.readdirSync(d) : [];
-  for (const deck of decks) for (const design of files(path.join(goldenDir, deck))) for (const version of files(path.join(goldenDir, deck, design))) {
+  const designs = opts.designs || null;                     // compare only these designs (the display list's, per step)
+  for (const deck of decks) for (const design of files(path.join(goldenDir, deck)).filter(d => !designs || designs.includes(d))) for (const version of files(path.join(goldenDir, deck, design))) {
     const gd = path.join(goldenDir, deck, design, version), ad = path.join(actualDir, deck, design, version);
     const scope = { deck, design, version };
     for (const f of files(gd).sort((x, y) => x.localeCompare(y, "en", { numeric: true }))) {
@@ -186,7 +199,8 @@ export function compare(goldenDir, actualDir, opts = {}) {
       if (!fs.existsSync(ap)) { diff("missing", "not produced by this build"); continue; }
       if (f.endsWith(".png")) {
         if (!full) continue;
-        const r = comparePixels(decodePng(fs.readFileSync(gp)), decodePng(fs.readFileSync(ap)));
+        const r = comparePixels(decodePng(fs.readFileSync(gp)), decodePng(fs.readFileSync(ap)), { range: !!opts.pixelRange });
+        pixels.push({ ...scope, file: f, fraction: r.size ? 1 : r.fraction, maxDE: r.maxDE ?? null });
         if (r.size || r.fraction > PIXEL_FRACTION) {
           diff("pixels", r.size || `${(r.fraction * 100).toFixed(2)} % of the pixels differ (max ΔE ${r.maxDE})`);
           images.push({ ...scope, file: f, golden: gp, actual: ap, heat: r.heat ? encodePng(r.w, r.h, r.heat) : null });
@@ -208,8 +222,8 @@ export function compare(goldenDir, actualDir, opts = {}) {
   }
   if (!opts.decks) for (const deck of files(actualDir)) if (fs.statSync(path.join(actualDir, deck)).isDirectory() && !decks.includes(deck))
     diffs.push({ deck, design: "*", version: "*", file: "*", kind: "new", detail: "deck not in the goldens" });
-  for (const d of diffs) d.accepted = accepted.find(a => ["deck", "design", "version", "file", "kind"].every(k => a[k] === undefined || a[k] === d[k])) || null;
-  return { full, environment: { golden: ge, actual: ae }, diffs, images, unaccepted: diffs.filter(d => !d.accepted).length };
+  for (const d of diffs) d.accepted = accepted.find(a => (!a.tool || a.tool === (opts.tool || "parity")) && ["deck", "design", "version", "file", "kind"].every(k => a[k] === undefined || a[k] === d[k])) || null;
+  return { full, environment: { golden: ge, actual: ae }, diffs, images, pixels, unaccepted: diffs.filter(d => !d.accepted).length };
 }
 function firstDiff(g, a) {
   const G = JSON.stringify(g, null, 1).split("\n"), A = JSON.stringify(a, null, 1).split("\n");

@@ -6,7 +6,7 @@ import extraCss from "./styles/app.css?raw";
 import slideCss from "./styles/slide.css?raw";
 import { installBrowserPlatform } from "./platform";
 import { App } from "./ui/App";
-import { boot, coreStats } from "./state/app";
+import { boot, core, coreStats } from "./state/app";
 import { installKeys } from "./editor/keys";
 import { indexWorkbook, readWorkbook } from "@slide-builder/core/xlsx/workbook";
 import { buildLayout } from "@slide-builder/core/xlsx/layout";
@@ -14,12 +14,17 @@ import { formatValue } from "@slide-builder/core/xlsx/numfmt";
 import { renderExcel } from "@slide-builder/core/render/excel";
 import { renderGlass } from "@slide-builder/core/render/glass";
 import { resolveStyle } from "@slide-builder/core/model/style";
+import { todayLabel } from "@slide-builder/core/render/cover";
+import { drawDl } from "@slide-builder/core/dl/canvas";
+import type { HtmlReq } from "@slide-builder/core/rpc/messages";
 
 // the core measures text and draws canvases through the page (core/src/platform.ts)
 installBrowserPlatform();
 
 // hooks for automated tests (parity with v2, end-to-end); not used by the app itself
-(window as unknown as Record<string, unknown>).__sbTest = { indexWorkbook, readWorkbook, buildLayout, formatValue, renderExcel, renderGlass, resolveStyle, coreStats };
+(window as unknown as Record<string, unknown>).__sbTest = { indexWorkbook, readWorkbook, buildLayout, formatValue, renderExcel, renderGlass, resolveStyle, coreStats,
+  // the display list (M3, not shown yet): built by the core worker, drawn on a canvas by the parity tools
+  slideLists: (a: HtmlReq & { slides?: number[] }) => core().call("slideLists", { today: todayLabel(), ...a }), drawDl };
 
 // slide.css lives in its own <style id="slidecss">: exports send exactly this text to the export engine
 const add = (id: string, css: string) => { const s = document.createElement("style"); s.id = id; s.textContent = css; document.head.appendChild(s); };

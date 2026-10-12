@@ -4,6 +4,7 @@
 #   helper - the Python helper's unittest suite on the oldest (3.8) and a current (3.12) Python
 #   e2e    - Playwright: two real helpers sharing one temp folder, driven in Chromium
 #   parity - v3 against golden/
+#   pdf    - npm run sp: the display list's PDF (core/src/pdf) rendered by PDFium against Chromium's canvas, qpdf --check
 #   bench  - npm run bench: benchmarks with thresholds (big30 parsing in core, render counts in app, the page in Chromium)
 # npm workspaces: one lockfile and node_modules/ at the root; the scripts run from the root.
 name: ci
@@ -122,6 +123,32 @@ jobs:
         run: |
           export CHROME="$(node -e "console.log(require('playwright').chromium.executablePath())")"
           npm run parity
+      # the display list against the same goldens (S3.3 on): texts and styles here, geometry and pixels on the reference PC
+      - name: display-list parity
+        run: |
+          export CHROME="$(node -e "console.log(require('playwright').chromium.executablePath())")"
+          npm run dlparity
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: parity-report, path: "tests/parity/report/", if-no-files-found: ignore }
+        with: { name: parity-report, path: "tests/parity/report*/", if-no-files-found: ignore }
+
+  pdf:
+    # PLAN S3.1: every display-list node type as a PDF, checked by qpdf and pdfcheck.py (no Type 3, no variable font),
+    # rendered by PDFium and compared with the same display list drawn on a Chromium canvas (tools/dlcheck.mjs).
+    # pypdf, pypdfium2 and qpdf are dev tools here; the helper stays stdlib-only.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: package-lock.json }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: sudo apt-get install -y qpdf
+      - run: python -m pip install pypdf==6.7.5 pypdfium2==5.14.0 pillow==11.3.0
+      - run: npm run sp
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: dl-report, path: "tests/parity/report/dl/", if-no-files-found: ignore }

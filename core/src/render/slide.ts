@@ -238,30 +238,10 @@ export function slideMarkup(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: 
   h += footerHtml(ctx, idx, glassy, !!logo, cover, pageNo, todayLabel());
   R.tables.forEach((t, i) => {
     h += `<div class="tw" data-i="${i}" style="width:${tableW(t, ctx)}px;height:${t.H}px">${tableHtml(R, i, ctx, opts.thumb)}${opts.interactive ? `<div class="hits" data-t="${i}" style="width:${tableW(t, ctx)}px;height:${t.H}px"><div class="hov"></div></div>` : ""}</div>`;
-    const ns = notesOf(R, i, ctx);
-    for (const side of SIDES) {
-      const n = ns[side]; if (!n) continue;
-      const txt = String(n.text || "");
-      if (!txt.trim() && !opts.interactive) continue;
-      const st = [`font-size:${n.size || 18}px`, fmtCss({ font: n.font, b: n.b || undefined, i: n.i || undefined, color: n.color }, { size: false, align: false }), `text-align:${n.align || (side === "left" ? "right" : "left")}`, n.lh ? `line-height:${n.lh}` : "", n.pgap != null ? `--pgap:${n.pgap}em` : "",
-        n.valign ? `justify-content:${n.valign === "top" ? "flex-start" : n.valign === "middle" ? "center" : "flex-end"}` : ""].filter(Boolean).join(";");
-      // a bubble behind the text: a glass card like the tables' (Liquid Glass) or a framed box (Excel)
-      if (n.bubble && txt.trim()) h += glassy ? `<div class="gls wb card notebub" data-i="${i}" data-side="${side}" style="border-radius:${Math.round(22 * rk)}px"></div>`
-        : `<div class="notebub x" data-i="${i}" data-side="${side}" style="border-radius:${Math.round(8 * rk)}px"></div>`;
-      h += `<div class="tnote ${side}${n.bubble ? " bub" : ""}${n.auto ? " auto" : ""}${n.x != null && n.y != null ? " free" : ""}${txt.trim() ? "" : " empty"}" data-note="${esc(noteKey(R, i, side))}" data-i="${i}" data-side="${side}" style="${st}">${!txt.trim() ? "Double-click to write" : hasMarkup(txt) || n.pgap != null ? richText(txt) : esc(txt)}</div>`;
-    }
+    for (const part of noteParts(R, i, ctx, opts)) h += part.bubbleHtml + part.html;
   });
-  // the slide's notes section (sources, footnotes…): a text box of the slide itself, placed where the user
-  // put it – by default where the footer is; not in raw Excel
-  const memo = d === "excel" ? null : (R.cfg.notes || {})[MEMO_KEY];
-  if (memo && (String(memo.text || "").trim() || opts.interactive)) {
-    const n = effNote(ctx, memo), txt = String(n.text || ""), mb = memoBox(memo);
-    const pos = `left:${mb.x}px;top:${mb.y}px;width:${mb.w}px;height:${mb.h}px`;
-    const st = [pos, `font-size:${n.size || 13}px`, fmtCss({ font: n.font, b: n.b || undefined, i: n.i || undefined, color: n.color }, { size: false, align: false }), `text-align:${n.align || "left"}`,
-      n.lh ? `line-height:${n.lh}` : "", n.pgap != null ? `--pgap:${n.pgap}em` : "", `justify-content:${n.valign === "top" ? "flex-start" : n.valign === "bottom" ? "flex-end" : "center"}`].filter(Boolean).join(";");
-    if (n.bubble && txt.trim()) h += glassy ? `<div class="gls wb card notebub memo" data-i="-1" data-side="bottom" style="${pos};border-radius:${Math.round(16 * rk)}px"></div>` : `<div class="notebub x memo" data-i="-1" data-side="bottom" style="${pos};border-radius:${Math.round(8 * rk)}px"></div>`;
-    h += `<div class="tnote memo free bottom${n.bubble ? " bub" : ""}${txt.trim() ? "" : " empty"}" data-note="${MEMO_KEY}" data-i="-1" data-side="bottom" style="${st}">${!txt.trim() ? "Notes – double-click to write" : hasMarkup(txt) || n.pgap != null ? richText(txt) : esc(txt)}</div>`;
-  }
+  const memo = memoPart(R, ctx, opts);
+  if (memo) h += memo.bubbleHtml + memo.html;
   if (opts.interactive) h += R.tables.map((t, i) => `<div class="hbox" data-i="${i}"><div class="grip" title="Drag to move this table">⠿ ${esc(tableName(t, ctx.preset))}</div><div class="size" title="Drag to resize (keeps the proportions)"></div>${(["l", "r", "t", "b"] as const).map(e => `<div class="edge ${e}" data-edge="${e}" title="Drag to make the table ${e === "l" || e === "r" ? "wider or narrower" : "taller or shorter"}"></div>`).join("")}${d === "excel" ? "" : SIDES.map(sd => `<button class="addnote ${sd}" data-side="${sd}" title="Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd}">+</button>`).join("")}</div>`).join("") + `<div class="dropmark"></div>`;
   if (R.type === "content" && !R.tables.length && opts.interactive) h += `<div class="emptyslide">No tables on this slide – add some with the wizard.</div>`;
   if (logo) {
@@ -273,6 +253,52 @@ export function slideMarkup(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: 
       : `<div class="logowrap${cover ? " big" : ""}"><img class="logo" src="${esc(logo)}" alt=""></div>`;
   }
   return { className, vars, html: h };
+}
+
+/** a text box of a slide as the page shows it: its effective note, classes, inline style and inner HTML, and its
+    bubble (the HTML and the display list, render/slide-dl.ts, draw the same parts) */
+export interface NotePart {
+  i: number; side: Side; key: string; n: Note; txt: string; memo: boolean;
+  /** the tnote's classes and inline style (what fitNoteSize measures), its inner HTML */
+  cls: string; style: string; inner: string;
+  /** a bubble behind the text: a glass card (Liquid Glass) or a framed box (Excel designs); its radius */
+  bubble: { cls: string; r: number } | null;
+  html: string; bubbleHtml: string;
+}
+const noteInner = (txt: string, n: Note, empty: string) => !txt.trim() ? empty : hasMarkup(txt) || n.pgap != null ? richText(txt) : esc(txt);
+/** table i's text boxes */
+export function noteParts(R: RuntimeSlide, i: number, ctx: RenderCtx, opts: SlideOpts = {}): NotePart[] {
+  const glassy = ctx.style.design === "glass", rk = ctx.style.radius / 100, ns = notesOf(R, i, ctx), out: NotePart[] = [];
+  for (const side of SIDES) {
+    const n = ns[side]; if (!n) continue;
+    const txt = String(n.text || "");
+    if (!txt.trim() && !opts.interactive) continue;
+    const st = [`font-size:${n.size || 18}px`, fmtCss({ font: n.font, b: n.b || undefined, i: n.i || undefined, color: n.color }, { size: false, align: false }), `text-align:${n.align || (side === "left" ? "right" : "left")}`, n.lh ? `line-height:${n.lh}` : "", n.pgap != null ? `--pgap:${n.pgap}em` : "",
+      n.valign ? `justify-content:${n.valign === "top" ? "flex-start" : n.valign === "middle" ? "center" : "flex-end"}` : ""].filter(Boolean).join(";");
+    // a bubble behind the text: a glass card like the tables' (Liquid Glass) or a framed box (Excel)
+    const bubble = n.bubble && txt.trim() ? (glassy ? { cls: "gls wb card notebub", r: Math.round(22 * rk) } : { cls: "notebub x", r: Math.round(8 * rk) }) : null;
+    const key = noteKey(R, i, side), cls = `tnote ${side}${n.bubble ? " bub" : ""}${n.auto ? " auto" : ""}${n.x != null && n.y != null ? " free" : ""}${txt.trim() ? "" : " empty"}`, inner = noteInner(txt, n, "Double-click to write");
+    out.push({ i, side, key, n, txt, memo: false, cls, style: st, inner, bubble,
+      bubbleHtml: bubble ? `<div class="${bubble.cls}" data-i="${i}" data-side="${side}" style="border-radius:${bubble.r}px"></div>` : "",
+      html: `<div class="${cls}" data-note="${esc(key)}" data-i="${i}" data-side="${side}" style="${st}">${inner}</div>` });
+  }
+  return out;
+}
+/** the slide's notes section (sources, footnotes…): a text box of the slide itself, placed where the user put it –
+    by default where the footer is; not in raw Excel */
+export function memoPart(R: RuntimeSlide, ctx: RenderCtx, opts: SlideOpts = {}): (NotePart & { box: { x: number; y: number; w: number; h: number } }) | null {
+  const d = ctx.style.design, glassy = d === "glass", rk = ctx.style.radius / 100;
+  const memo = d === "excel" ? null : (R.cfg.notes || {})[MEMO_KEY];
+  if (!memo || !(String(memo.text || "").trim() || opts.interactive)) return null;
+  const n = effNote(ctx, memo), txt = String(n.text || ""), mb = memoBox(memo);
+  const pos = `left:${mb.x}px;top:${mb.y}px;width:${mb.w}px;height:${mb.h}px`;
+  const st = [pos, `font-size:${n.size || 13}px`, fmtCss({ font: n.font, b: n.b || undefined, i: n.i || undefined, color: n.color }, { size: false, align: false }), `text-align:${n.align || "left"}`,
+    n.lh ? `line-height:${n.lh}` : "", n.pgap != null ? `--pgap:${n.pgap}em` : "", `justify-content:${n.valign === "top" ? "flex-start" : n.valign === "bottom" ? "flex-end" : "center"}`].filter(Boolean).join(";");
+  const bubble = n.bubble && txt.trim() ? (glassy ? { cls: "gls wb card notebub memo", r: Math.round(16 * rk) } : { cls: "notebub x memo", r: Math.round(8 * rk) }) : null;
+  const cls = `tnote memo free bottom${n.bubble ? " bub" : ""}${txt.trim() ? "" : " empty"}`, inner = noteInner(txt, n, "Notes – double-click to write");
+  return { i: -1, side: "bottom", key: MEMO_KEY, n, txt, memo: true, cls, style: st, inner, bubble, box: mb,
+    bubbleHtml: bubble ? `<div class="${bubble.cls}" data-i="-1" data-side="bottom" style="${pos};border-radius:${bubble.r}px"></div>` : "",
+    html: `<div class="${cls}" data-note="${MEMO_KEY}" data-i="-1" data-side="bottom" style="${st}">${inner}</div>` };
 }
 
 /** text boxes: the font shrinks (never below 9 px) until the text fits its box */

@@ -11,7 +11,13 @@ import { cellInfo, sheetInfo, sheetWindow, tableSize } from "../xlsx/sheetview";
 import { detectTables } from "../xlsx/detect";
 import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "../model/preset";
 import { resolveStyle } from "../model/style";
-import { tableHtml, tableHtmlKey } from "../render/slide";
+import { computeLayout, tableHtml, tableHtmlKey } from "../render/slide";
+import { excelTableDL, measuredBuild, type TableDL } from "../render/excel-dl";
+import { glassTableDL } from "../render/glass-dl";
+import { slideToDisplayList, type SlideImages } from "../render/slide-dl";
+import { analyzeImages, IMGMETA } from "../xlsx/drawing";
+import { sha1 } from "../text/sha1";
+import { wallpaperIds } from "../render/wallpaper";
 import { DocSync, type Change, type DocApi } from "../sync/docsync";
 import { History } from "../sync/history";
 import type { RenderCtx } from "../render/context";
@@ -43,7 +49,7 @@ export class CoreHost {
   /** changes are processed one after the other (reading sheets is asynchronous) */
   private queue: Promise<void> = Promise.resolve();
 
-  constructor(private readonly port: HostPort) {
+  constructor(private readonly port: HostPort, private readonly opts: HostOptions = {}) {
     const h: HostPort["handle"] = (m, fn) => port.handle(m, fn);
     h("init", a => { this.served = a.served; this.client = a.client; this.me = a.me; setPictureConverter(a.served ? (bytes, ext) => this.port.call("convertPicture", { bytes, ext }) : null); });
     h("index", a => this.index(a.buf));
@@ -56,6 +62,12 @@ export class CoreHost {
     h("getSheetWindow", a => { const S = this.sheetOf(a.book, a.sheet); return S ? sheetWindow(S, a.r0, a.r1, a.c0, a.c1) : null; });
     h("detectTables", a => { const S = this.sheetOf(a.book, a.sheet); return S ? detectTables(S) : []; });
     h("getCell", a => { const S = this.sheetOf(a.book, a.sheet); return S ? cellInfo(S, a.ref) : null; });
+    h("staticFont", async a => {
+      // only the worker carries hb-subset (opts.staticFace); the page's in-thread fallback stores fonts as they are
+      if (!this.opts.staticFace) return { buf: a.buf, variable: false };
+      const out = await this.opts.staticFace(new Uint8Array(a.buf), a.weight);
+      return transfer({ buf: out.data.buffer as ArrayBuffer, variable: out.variable }, [out.data.buffer as ArrayBuffer]);
+    });
     h("defaultPreset", a => { const wb = a.book !== undefined ? this.bookOf(a.book) : this.candidate; if (!wb) throw new Error("no workbook"); return defaultPreset(wb); });
     h("start", a => this.start(a.book, a.name, a.doc, a.preset, a.inputs));
     // the page waits for the redraw (the HTML of the new version or default style arrives before the answer)
@@ -84,6 +96,7 @@ export class CoreHost {
     h("flush", async () => { await this.sync?.flush(); });
     h("poll", async () => { await this.sync?.poll(); });
     h("html", a => this.htmlFor(a));
+    h("slideLists", a => this.slideLists(a));
   }
 
   /* ---------------------------------------------------------------- opening */
@@ -256,6 +269,28 @@ export class CoreHost {
     });
     return out;
   }
+  /** whole slides as display lists (S3.5): background, furniture, the tables placed and scaled, text boxes */
+  private async slideLists(a: HtmlReq & { slides?: number[]; today?: string }) {
+    if (!this.wb || !this.sync) return [];
+    const ctx = this.ctx(a.design, a.version, a.forExport), glass = ctx.style.design === "glass", out: { slide: number; dl: TableDL }[] = [];
+    const wall = glass ? await wallpaperIds(ctx.style) : null;
+    let logo: SlideImages["logo"] = null;
+    if (ctx.logoSrc) {
+      await analyzeImages([ctx.logoSrc]);
+      const mm = IMGMETA.get(ctx.logoSrc);
+      logo = { id: "logo-" + sha1(new TextEncoder().encode(ctx.logoSrc)).slice(0, 16), src: ctx.logoSrc, w: mm?.w || 0, h: mm?.h || 0 };
+    }
+    for (const [s, R] of ctx.slides.entries()) {
+      if (a.slides && !a.slides.includes(s)) continue;
+      const boxes = computeLayout(R, ctx).boxes, tables: TableDL[] = [];
+      for (const [i, L] of R.tables.entries()) {
+        const b = boxes[i], noText = a.thumb && L.items.length > 1200;
+        tables.push(glass ? await glassTableDL(L, ctx, { x: b?.x ?? 0, y: b?.y ?? 0, scale: b?.scale ?? 1 }, wall?.blur ?? null, { noText }) : await excelTableDL(L, ctx, { noText }));
+      }
+      out.push({ slide: s, dl: await measuredBuild(m => slideToDisplayList(R, s, ctx, tables, boxes, { wall, logo }, m, a.today)) });
+    }
+    return out;
+  }
   private htmlFor(a: HtmlReq): Html[] {
     if (!this.wb || !this.sync) return [];
     const ctx = this.ctx(a.design, a.version, a.forExport);
@@ -281,4 +316,10 @@ export class CoreHost {
     time and format number (store.py) – none of which the page shows – so a save alone gives the same JSON */
 const viewJson = (v: WorkbookDoc) => { const { rev, updated, updatedBy, log, schema, backupAt, ...content } = v as WorkbookDoc & Record<string, unknown>; void rev; void updated; void updatedBy; void log; void schema; void backupAt; return JSON.stringify(content); };
 /** the host behind a port (one per worker) */
-export const serve = (port: HostPort) => new CoreHost(port);
+/** what a host can do beyond the core's pure code (the worker passes these; the page's in-thread fallback does not,
+    so the page does not carry them) */
+export interface HostOptions {
+  /** a static face of a variable font (text/static.ts: hb-subset) */
+  staticFace?: (file: Uint8Array, weight: number) => Promise<{ data: Uint8Array; variable: boolean }>;
+}
+export const serve = (port: HostPort, opts: HostOptions = {}) => new CoreHost(port, opts);

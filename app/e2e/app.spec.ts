@@ -1,8 +1,9 @@
 /* End-to-end: the built app (backend/slide_builder.html) served by two real helpers that share one
    folder – user "anna" on :8951 and user "bob" on :8952. Run: npm run build && npm run test:e2e */
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const ANNA = "http://127.0.0.1:8951/", BOB = "http://127.0.0.1:8952/";
 const root = () => process.env.SB_E2E_ROOT!, data = () => process.env.SB_E2E_DATA!;
@@ -37,6 +38,13 @@ test.afterEach(async ({ page }, info) => {
   try { files = fs.readdirSync(path.join(data(), "workbooks")); } catch { /* none yet */ }
   console.log(["--- trail of " + info.title + " (last 150 events)", ...trail.slice(-150), "save status: " + state, "workbooks: " + files.join(", ")].join("\n"));
 });
+/** an element's box once it is laid out: right after a save the slide is drawn again, and an element being replaced
+    has no box for a moment */
+async function boxOf(l: Locator) {
+  let b: Awaited<ReturnType<Locator["boundingBox"]>> = null;
+  await expect.poll(async () => (b = await l.boundingBox()) !== null, { timeout: 5_000 }).toBe(true);
+  return b!;
+}
 async function openApp(page: Page, url: string) {
   page.on("pageerror", e => errors.push(e.message));
   // E15: console errors and warnings fail the run too (React reports misuse there)
@@ -407,6 +415,16 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(a.locator('#fontLib [data-family="Corp Sans"]')).toBeVisible();
     const lib = JSON.parse(fs.readFileSync(path.join(data(), "fonts", "fonts.json"), "utf8"));
     expect(lib.fonts[0]).toMatchObject({ family: "Corp Sans", source: "upload", by: "anna", faces: [{ weight: 700, style: "normal" }] });
+    // a variable font is stored as a static face at its declared weight (S3.2: the core worker pins its axes)
+    await a.setInputFiles(".fontstab input[type=file]", path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "core", "tests", "fixtures", "fonts", "Quicksand[wght].ttf"));
+    await expect(a.locator('#fontLib [data-family="Quicksand"]')).toBeVisible();
+    const qs = JSON.parse(fs.readFileSync(path.join(data(), "fonts", "fonts.json"), "utf8")).fonts.find((f: any) => f.family === "Quicksand");
+    const stored = fs.readFileSync(path.join(data(), "fonts", qs.faces[0].file));
+    const tags = Array.from({ length: stored.readUInt16BE(4) }, (_, i) => stored.toString("latin1", 12 + 16 * i, 16 + 16 * i));
+    expect(tags).toContain("glyf");
+    expect(tags.filter(t => ["fvar", "gvar", "HVAR", "avar"].includes(t))).toEqual([]);
+    await a.locator('#fontLib [data-family="Quicksand"] .btn.icon').click(); await a.click('.modal [data-a="ok"]');
+    await expect(a.locator('#fontLib [data-family="Quicksand"]')).toHaveCount(0);
     await a.click('.tsdlg [data-a="close"]');
     await openWorkbook(b, "report.xlsx"); await b.click('[data-a="continue"]'); await expect(b.locator(".thumb")).toHaveCount(4);
     await b.click("#textStylesBtn"); await b.click("#tabFonts");
@@ -521,10 +539,10 @@ test.describe.serial("two people, one shared folder", () => {
     await page.keyboard.type("Source: internal data; figures not audited"); await page.keyboard.press("Control+Enter");
     const memo = page.locator("#stage .tnote.memo");
     await expect(memo).toContainText("Source: internal data");
-    const mb = (await memo.boundingBox())!, slide = (await page.locator("#stage .slide").boundingBox())!;
+    const mb = await boxOf(memo), slide = await boxOf(page.locator("#stage .slide"));
     expect(mb.y).toBeGreaterThan(slide.y + slide.height * .85);                          // at the bottom, like the footer
     // move it: its bottom edge lines up with the page number (guide line), and it stays there
-    const pn = (await page.locator("#stage .slide .pageno").first().boundingBox())!;
+    const pn = await boxOf(page.locator("#stage .slide .pageno").first());
     await page.mouse.move(mb.x + 30, mb.y + mb.height / 2); await page.mouse.down();
     await page.mouse.move(mb.x + 60, mb.y + mb.height / 2 - 30, { steps: 6 });
     await page.mouse.move(mb.x + 60, pn.y + pn.height - mb.height / 2 + 2, { steps: 4 });

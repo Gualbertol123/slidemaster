@@ -29,6 +29,9 @@ export function pageNoGeom(ctx: RenderCtx, label: string, glassy: boolean, hasLo
   return { left, top, w, h, size, capsule };
 }
 /** font, weight, style and colour of page numbers and footer: the deck's text style (the older page-number font as fallback) */
+export function pnFmt(ctx: RenderCtx): { f: ReturnType<typeof deckFmt>; legacy: string | null } {
+  return { f: deckFmt(ctx, "pageno"), legacy: PN_FONTS[ctx.style.pn.font] || null };
+}
 function pnCss(ctx: RenderCtx): string {
   const f = deckFmt(ctx, "pageno"), legacy = PN_FONTS[ctx.style.pn.font] || null;
   const css = fmtCss({ ...f, size: undefined, align: undefined });
@@ -46,10 +49,11 @@ export function footerText(ctx: RenderCtx, i: number, today: string): string {
   const f = ctx.style.footer, R = ctx.slides[i];
   return String(f.text || "").replace(/\{date\}/gi, today).replace(/\{workbook\}/gi, ctx.workbook.replace(/\.[^.]+$/, "")).replace(/\{title\}/gi, R ? R.title : "").trim();
 }
-export function footerHtml(ctx: RenderCtx, i: number, glassy: boolean, hasLogo: boolean, cover: boolean, pageLabel: string | null, today: string): string {
+/** where the footer goes on slide i (slide px) and its label; null when there is none */
+export function footerGeom(ctx: RenderCtx, i: number, glassy: boolean, hasLogo: boolean, cover: boolean, pageLabel: string | null, today: string) {
   const f = ctx.style.footer;
-  if (!f.on || (cover && !f.cover)) return "";
-  const label = footerText(ctx, i, today); if (!label) return "";
+  if (!f.on || (cover && !f.cover)) return null;
+  const label = footerText(ctx, i, today); if (!label) return null;
   const size = Math.max(9, Math.min(32, +f.size || 14)), capsule = glassy && f.style === "capsule";
   const w = Math.min(1100, Math.round(label.length * size * .55 + (capsule ? 34 : 6))), h = Math.round(size * (capsule ? 2.4 : 1.4));
   const top = f.pos[0] === "t" ? (capsule ? 24 : 28) : 900 - 40 + 6 - h;
@@ -64,6 +68,11 @@ export function footerHtml(ctx: RenderCtx, i: number, glassy: boolean, hasLogo: 
     else if (f.pos[1] === "r") left = g.left - 16 - w;
     else y = f.pos[0] === "b" ? g.top - h - 6 : g.top + g.h + 6;
   }
+  return { label, left, top: y, w, h, size, capsule };
+}
+export function footerHtml(ctx: RenderCtx, i: number, glassy: boolean, hasLogo: boolean, cover: boolean, pageLabel: string | null, today: string): string {
+  const g = footerGeom(ctx, i, glassy, hasLogo, cover, pageLabel, today); if (!g) return "";
+  const f = ctx.style.footer, { label, left, top: y, w, h, size, capsule } = g;
   const st = `left:${left}px;top:${y}px;width:${w}px;height:${h}px;font-size:${size}px;${pnCss(ctx)}`;
   return capsule ? `<div class="gls wb chrome pageno footer" style="${st}border-radius:${Math.min(h / 2, h / 2 * ctx.style.radius / 100)}px"><span>${esc(label)}</span></div>`
     : `<div class="pageno plain footer" style="${st}line-height:${h}px;text-align:${f.pos[1] === "l" ? "left" : f.pos[1] === "c" ? "center" : "right"}">${esc(label)}</div>`;
