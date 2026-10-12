@@ -48,7 +48,9 @@ async function workersHeapMB(browser) {
   try {
     const { targetInfos } = await s.send("Target.getTargets");
     let mb = 0, id = 0;
-    for (const t of targetInfos.filter(x => x.type === "worker")) {
+    const workers = targetInfos.filter(x => x.type === "worker");
+    if (!workers.length) return null;                                  // no core worker: not measured, counts as over
+    for (const t of workers) {
       const { sessionId } = await s.send("Target.attachToTarget", { targetId: t.targetId, flatten: false });
       const ask = ++id, got = new Promise((ok, err) => { s.on("Target.receivedMessageFromTarget", e => { const m = JSON.parse(e.message); if (m.id === ask) m.result ? ok(m.result) : err(new Error(JSON.stringify(m.error))); }); setTimeout(() => err(new Error("no answer")), 10000); });
       await s.send("Target.sendMessageToTarget", { sessionId, message: JSON.stringify({ id: ask, method: "Runtime.getHeapUsage" }) });

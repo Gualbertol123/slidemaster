@@ -125,7 +125,10 @@ export async function boot() {
     addEventListener("pagehide", () => backend.leave(get().prefs.client));
   }
   // closing the window while changes are not on the share (or in this browser's storage) yet: the browser asks first
-  addEventListener("beforeunload", e => { const s = get().doc.save; if (get().doc.open && (pending.length || s === "pending" || s === "saving" || s === "error")) e.preventDefault(); });
+  addEventListener("beforeunload", e => {
+    const s = get().doc.save;
+    if (unsavedElsewhere || (get().doc.open && (pending.length || s === "pending" || s === "saving" || s === "error"))) { e.preventDefault(); e.returnValue = ""; }
+  });
 }
 let tickN = 0;
 /** one poll: other people's changes, helper health, the file on disk, fonts, shared config (every 3 s) */
@@ -184,6 +187,8 @@ export async function openFromFolder(name: string, ask = true) {
 }
 /** opens are numbered: a newer open (a second drop, Browse… during an upload) makes an older one give up quietly */
 let openGen = 0;
+/** a workbook left while its changes were failing to save (the worker keeps retrying them): closing the window asks */
+let unsavedElsewhere = false;
 const superseded = () => Object.assign(new Error("superseded"), { code: "SUPERSEDED" });
 export async function openLocalFile(f: File) {
   patch("deck", { opening: f.name });                       // from the start: the drop guard and Open… see it at once
@@ -252,7 +257,13 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   patch("deck", { opening: name });
   const stale = () => { if (gen !== openGen) throw superseded(); };
   let wb: MirrorWorkbook;
-  try { wb = await loadWorkbook(buf, name, again); } finally { hideBusy(); }
+  try { wb = await loadWorkbook(buf, name, again); }
+  catch (e) {
+    // the worker refused it because another index came after it: quiet only if this page started a newer open
+    if ((e as { code?: string }).code === "SUPERSEDED") { if (gen !== openGen) throw superseded(); throw new Error(`Opening “${name}” was interrupted – open it again.`); }
+    throw e;
+  }
+  finally { hideBusy(); }
   stale();
   layOutWhileIdle(wb);
   LCACHE.clear();
@@ -260,19 +271,20 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   stale();
   // the open workbook has changes the helper does not have yet: switching keeps saving them (the worker retries),
   // but say so when saving is failing, so nobody closes the window thinking they are safe
+  if (get().doc.open && get().doc.save === "error") unsavedElsewhere = true;
   if (get().doc.open && get().doc.save === "error") toast("⚠ The changes to “" + esc(get().deck.file?.name || "") + "” are not saved yet – they keep being retried. Keep this window open until they are saved.", [], true);
   let preset = doc.preset, newPreset: Preset | null = null;
   try {
     if (preset && askUser) {
       const choice = await presetBox(name, preset);
-      if (!choice) { patch("deck", { opening: "" }); return; }
+      if (!choice) { if (gen === openGen) patch("deck", { opening: "" }); return; }
       if (choice === "wizard") { const np = await runWizard(wb, name, preset); if (np) newPreset = np; }
     } else if (!preset) {
       const draft = await core().call("defaultPreset", { book: wb.book });  // the worker has the tables laid out (PLAN S2.6)
       if (!askUser && !wb.big && draft.slides.length) newPreset = draft;        // start-up / reload: "x" workbooks open as before
       else {
         const np = await runWizard(wb, name, draft);
-        if (!np) { patch("deck", { opening: "" }); return; }
+        if (!np) { if (gen === openGen) patch("deck", { opening: "" }); return; }
         newPreset = np;
       }
     }
@@ -421,6 +433,7 @@ export function undo(redo = false) {
   // an edit (or undo) the worker has not confirmed yet counts too: the history mirror comes with its snapshot
   const h = get().deck.history, canUndo = h.undo > 0 || pending.some(p => p.ops.length), canRedo = h.redo > 0 || pending.some(p => p.undo);
   if (!get().doc.open || starting || !(redo ? canRedo : canUndo)) return;
+  if (port?.closed) { toast("⚠ " + esc(port.closed.message), [], true); return; }
   pending.push({ seq: ++seq, ops: [], undo: !redo });
   if (get().doc.save !== "outdated") patch("doc", { save: unsaved() });      // as DocSync did: "pending" until the helper has it
   void core().call("undo", { redo }).then(r => {

@@ -88,12 +88,15 @@ export class CoreHost {
 
   /* ---------------------------------------------------------------- opening */
   private async index(buf: ArrayBuffer): Promise<WorkbookInfo> {
-    const wb = await indexWorkbook(buf);
-    if (this.candidate) { this.sentBoxes.delete(this.candidateBook); this.sentSharedFor.delete(this.candidateBook); }
-    // the number is this call's own: a second index while this one reads (overlapping opens) takes the next one,
-    // and this one then fails instead of answering with the other workbook's number
-    this.candidate = wb; const book = this.candidateBook = ++this.books;
+    // the number is taken before reading, so the newest open always wins whichever read finishes first: an older
+    // call still reading, or one that finishes later, fails (SUPERSEDED) instead of answering with another's number
+    if (this.candidateBook) { this.sentBoxes.delete(this.candidateBook); this.sentSharedFor.delete(this.candidateBook); }
+    const book = this.candidateBook = ++this.books;
+    this.candidate = null;
     const superseded = () => { if (this.candidateBook !== book) throw Object.assign(new Error("another workbook is being opened"), { code: "SUPERSEDED" }); };
+    const wb = await indexWorkbook(buf);
+    superseded();
+    this.candidate = wb;
     // small workbooks are read completely (the wizard shows titles and table suggestions for every sheet)
     try { if (!wb.big) await wb.ensure(wb.meta.map(m => m.name), this.progress); }
     finally { this.port.emit("progress", null); }
@@ -270,7 +273,8 @@ export class CoreHost {
     this.port.emit("doc", { ...st, ...(send ? { view: send } : {}), change: c, ack: this.ack });
   }
 }
-/** a document's content without its revision number (a save that changed nothing else gives the same JSON) */
-const viewJson = (v: WorkbookDoc) => JSON.stringify({ ...v, rev: 0 });
+/** a document's content without the helper's bookkeeping: a save rewrites the revision, time, author, log, backup
+    time and format number (store.py) – none of which the page shows – so a save alone gives the same JSON */
+const viewJson = (v: WorkbookDoc) => { const { rev, updated, updatedBy, log, schema, backupAt, ...content } = v as WorkbookDoc & Record<string, unknown>; void rev; void updated; void updatedBy; void log; void schema; void backupAt; return JSON.stringify(content); };
 /** the host behind a port (one per worker) */
 export const serve = (port: HostPort) => new CoreHost(port);

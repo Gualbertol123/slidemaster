@@ -37,7 +37,12 @@ function page() {
   const port = new Port<PageMethods, CoreMethods, CoreEvents, PageEvents>(a);
   let srv = emptyDoc("x");
   port.handle("getDoc", () => null);
-  port.handle("postOps", x => { const r = applyOps(srv, x.ops); r.doc.rev = srv.rev + 1; srv = r.doc; return { doc: structuredClone(srv) }; });
+  // as backend/slidebuilder/store.py: every save also rewrites the time, the author, the log and the backup time
+  port.handle("postOps", x => {
+    const r = applyOps(srv, x.ops), at = Date.now() + srv.rev;
+    if (r.applied) Object.assign(r.doc, { rev: srv.rev + 1, schema: 3, updated: at, updatedBy: "me", backupAt: at, log: [...(srv.log || []), { rev: srv.rev + 1, by: "me", at }] });
+    srv = r.doc; return { doc: structuredClone(srv) };
+  });
   port.handle("digitWidth", () => 0);
   port.handle("convertPicture", () => null);
   port.handle("analyzeImages", () => []);
@@ -67,6 +72,25 @@ describe("opening", () => {
     expect(dp.tables.every(t => names.has(t.sheet))).toBe(true);          // deck20's tables, not report.xlsx's
     // the progress overlay is hidden at the end, whatever happened
     expect(p.progress[p.progress.length - 1]).toBe("<hide>");
+  });
+
+  it("overlapping index calls in any order: the newer one always gets its own workbook", async () => {
+    setPlatform({ text: { maxDigitWidth: () => new Promise(r => setTimeout(() => r(7), 20)), noteFits: () => true } });
+    type Info = Awaited<ReturnType<CoreMethods["index"]>>;
+    for (const [older, newer] of [[() => padded("deck20.xlsx"), () => book("report.xlsx")], [() => book("deck20.xlsx"), () => padded("report.xlsx")], [() => book("report.xlsx"), () => book("deck20.xlsx")]] as const) {
+      const p = page();
+      await p.port.call("init", { served: false, client: "c", me: "me" });
+      const [ra, rb] = await Promise.allSettled([p.port.call("index", transfer({ buf: older() }, [])), p.port.call("index", transfer({ buf: newer() }, []))]);
+      // the newer open always succeeds, with its own number; the older one finished first (its own number) or gave up
+      expect(rb.status).toBe("fulfilled");
+      const ib = (rb as PromiseFulfilledResult<Info>).value;
+      if (ra.status === "fulfilled") expect(ra.value.book).not.toBe(ib.book);
+      else expect(ra.reason.code).toBe("SUPERSEDED");
+      // what the newer number reads is the newer workbook (its preset uses its sheets), and it starts
+      const names = new Set(ib.meta.map(m => m.name)), dp = await p.port.call("defaultPreset", { book: ib.book });
+      expect(dp.tables.every(t => names.has(t.sheet))).toBe(true);
+      await p.port.call("start", { book: ib.book, name: "x", doc: emptyDoc("x"), preset: dp, inputs });
+    }
   });
 
   it("a start refused before the switch says so (NOT_STARTED): the open document stays", async () => {
@@ -183,9 +207,12 @@ describe("a worker that stopped", () => {
 });
 
 describe("files", () => {
+  /** a compound file with one directory entry named `stream` (and the same text again inside a stream's data) */
   const cfb = (stream: string) => {
     const b = new Uint8Array(2048); b.set([0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]);
-    for (let i = 0; i < stream.length; i++) { b[1024 + 2 * i] = stream.charCodeAt(i); b[1025 + 2 * i] = 0; }
+    const put = (at: number, s: string) => { for (let i = 0; i < s.length; i++) { b[at + 2 * i] = s.charCodeAt(i); b[at + 2 * i + 1] = 0; } };
+    put(1024, stream); b[1024 + 64] = (stream.length + 1) * 2;               // the entry and its name length
+    put(1536 + 10, "EncryptedPackage");                                      // the text in data: not an entry
     return b.buffer;
   };
   it("an encrypted .xlsx is refused as ENCRYPTED (not sent to Excel); an .xls stays CFB", async () => {

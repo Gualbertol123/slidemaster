@@ -67,7 +67,7 @@ async function req(path: string, init: RequestInit & { json?: unknown; timeout?:
   let r: Response;
   try { r = await fetch(path, { ...init, headers, body, cache: "no-store", ...(signal ? { signal } : {}) }); }
   catch (e) {
-    if ((e as Error)?.name === "TimeoutError" || (e as Error)?.name === "AbortError") throw new ApiError(0, `The helper did not answer within ${Math.round(ms / 1000)} s (is the shared folder slow or unreachable?).`);
+    if (timedOut(e)) throw new ApiError(0, `The helper did not answer within ${Math.round(ms / 1000)} s (is the shared folder slow or unreachable?).`);
     throw e;
   }
   if (!r.ok && r.status !== 204) {
@@ -77,7 +77,13 @@ async function req(path: string, init: RequestInit & { json?: unknown; timeout?:
   }
   return r;
 }
-const json = async <T>(p: Promise<Response>): Promise<T> => (await p).json() as Promise<T>;
+/** the body of an answer; the request's time limit also covers reading it */
+const timedOut = (e: unknown) => (e as Error)?.name === "TimeoutError" || (e as Error)?.name === "AbortError";
+const json = async <T>(p: Promise<Response>): Promise<T> => {
+  const r = await p;
+  try { return await r.json() as T; }
+  catch (e) { if (timedOut(e)) throw new ApiError(0, "The helper's answer did not arrive in time (is the shared folder slow or unreachable?)."); throw e; }
+};
 const blobToDataUrl = (b: Blob) => new Promise<string>(ok => { const fr = new FileReader(); fr.onload = () => ok(fr.result as string); fr.readAsDataURL(b); });
 const wbPath = (name: string) => "/api/workbooks/" + encodeURIComponent(name);
 
@@ -95,7 +101,10 @@ export const helper: Backend = {
   },
   async readFile(name) {
     const r = await req("/files/" + encodeURIComponent(name), { timeout: WAIT_LONG_MS });
-    return { buf: await r.arrayBuffer(), mtime: +(r.headers.get("X-SB-Mtime") || 0), size: +(r.headers.get("X-SB-Size") || 0) };
+    let buf: ArrayBuffer;
+    try { buf = await r.arrayBuffer(); }
+    catch (e) { if (timedOut(e)) throw new ApiError(0, "Reading the workbook from the shared folder took too long."); throw e; }
+    return { buf, mtime: +(r.headers.get("X-SB-Mtime") || 0), size: +(r.headers.get("X-SB-Size") || 0) };
   },
   async getDoc(name, since) {
     const r = await req(wbPath(name) + "/doc" + (since !== undefined ? "?since=" + since : ""));

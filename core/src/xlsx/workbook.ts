@@ -17,12 +17,14 @@ export { xdec, xattrs, parseSST, parseSSTRich, richRuns } from "./strings";
 const entrySize = (f: ZipEntry | null) => f?.size || 0;
 export const BIG_BYTES = 12 * 1048576;                       // above this (uncompressed sheet XML) sheets are read on demand
 
-/** whether a compound file holds an "EncryptedPackage" stream (an encrypted Office Open XML file; MS-OFFCRYPTO):
-    its directory entries carry the stream names in UTF-16LE */
+/** whether a compound file holds an "EncryptedPackage" stream (an encrypted Office Open XML file; MS-OFFCRYPTO).
+    Only directory entries count: they are 128 bytes, aligned to 128 (sectors are 512 or 4096 bytes after a 512-byte
+    header), with the name in UTF-16LE and its byte length, terminator included, at offset 64 – so the same text in a
+    cell of a real .xls or in an embedded object is not taken for it */
 export function isEncryptedPackage(bytes: Uint8Array): boolean {
   const name = "EncryptedPackage", n = name.length * 2, first = name.charCodeAt(0);
-  for (let i = 0; i + n <= bytes.length; i++) {
-    if (bytes[i] !== first || bytes[i + 1] !== 0) continue;
+  for (let i = 512; i + 128 <= bytes.length; i += 128) {
+    if (bytes[i] !== first || bytes[i + 1] !== 0 || (bytes[i + 64] | (bytes[i + 65] << 8)) !== n + 2) continue;
     let k = 1;
     while (k < name.length && bytes[i + 2 * k] === name.charCodeAt(k) && bytes[i + 2 * k + 1] === 0) k++;
     if (k === name.length) return true;
