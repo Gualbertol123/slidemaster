@@ -684,3 +684,27 @@ around. Without the workarounds, E1–E15 fail to start on this PC.
 Logs (outside the repo): `runA.logs/`, `runB.logs/` (one log per check, `summary.txt`), the reviewer threads'
 write-ups, and the reproduction tests `zz-race`, `zz-poll`, `zz-busy`, `zz-edge` (in a scratch clone at 6aafcb9;
 they fail on main, which demonstrates the bugs, and are not committed here because this review changes no tests).
+
+---
+
+## Resolution (M2 close-out, branch `v4/M2-close`, 2026-10-12)
+
+The product owner asked for the findings to be fixed and the decisions made before Prompt 4. What was done:
+
+| # | Finding | Resolution |
+|---|---|---|
+| 1 | G0 decisions not on main | Recorded under PROGRESS "Decisions" 2026-10-12: Acrobat soft masks, fingerprint fonts (the product owner's calls); field-results §4/§5 note what is still to be measured |
+| 2 | No machine runs GG/GP | Reference machine = the reference PC; `golden/` re-captured from v3.4.0 there (`golden/README.md`). Main vs the new goldens: **full comparison, 0 differences** (the first since S1.1); GF text oracle = GT (05 §1, Prompt 4 step 3) |
+| 3 | CI bench flaky | Calibrated time limits (m2-followups), capped at 2×; decision recorded |
+| 4 | TextMeasurer premise | Decision 3 of 2026-10-12: `measureRuns`/`breakLines` measured by the page, called from the worker; Prompt 4 S3.3 amended |
+| 5, 7–10, 12 | Races, rollback, busy overlay, shared styles, dead worker, queued edits | Fixed in `core/src/worker/host.ts`, `sync/docsync.ts`, `rpc/port.ts`, `app/src/rpc/client.ts`, `app/src/state/app.ts`; each case in `core/tests/robustness.test.ts` (failed on 6aafcb9) |
+| 6 | Windows clean clone | `.gitattributes` (LF), `python` on Windows, Playwright's Chromium by default, e2e export engines fixed, README §11 |
+| 11 | O(document) per edit | Snapshots carry the document only when it changed; the page compares once per confirmed edit (`robustness.test.ts` "snapshots"). Calling the helper from the worker directly is left to S5.2 (DocSync v4) |
+| 13 | S2.7 half-recorded | v3.6.0 ZIP verified, install folder updated to 3.6.0 (self-test passed); CHANGELOG dated; S2.7 completed in PROGRESS |
+| 14 | Gates that cannot catch | Bench gates page + worker heap and the first-slide task (150 ms); E8 waits for the change to arrive |
+| 15 | Missing guards | Added: drop/two drops/reload/changed-on-disk e2e (`open.spec.ts`), UN-05 200 steps, NB-14 `fitNoteSize`, encrypted/empty/hidden-sheet files. Still missing (carried, named in PROGRESS): the wizard drag/detected-tables e2e, the table-driven shortcut test, the rows marked MISSING above |
+| 16 | DL contract gaps | ADR-004 amended; shadows 5 layers (PLAN B3, 03 §4.3, Prompt 4, spike) |
+| 17 | Minor correctness | Encrypted files refused up front, Excel never waits on a password (2.7 s instead of 240 s, checked with Excel), request timeouts, file:// storage full, start refusal keeps the open deck, dialog/wizard superseding, wizard row loop, Blob URL revoked, stale caches |
+| 18 | Ownership leaks | The page's own table drawing, the offline store and the config route are unchanged (S5 replaces the storage path); noted |
+| 19 | CHANGELOG gaps | Listed under 3.7.0 ("Also in 3.6.0") |
+| 20 | Tooling nits | Dead code removed; fake timers restored; `app/e2e/parity.mjs` no longer advertised in README. Not done: declaring `playwright` (it comes pinned with `@playwright/test`) |
