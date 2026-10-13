@@ -8,7 +8,7 @@ import { ask } from "../state/dialogs";
 import { style } from "../state/app";
 import { backend } from "../sync/api";
 import { esc } from "@slide-builder/core/xlsx/util";
-import { DESIGN_LABEL, download, lastMade, pool } from "./export";
+import { DESIGN_LABEL, download, lastMade } from "./export";
 
 export const PROBLEMS: [string, string][] = [
   ["P1", "Pages missing, extra or in another order"],
@@ -31,7 +31,7 @@ const opts = (list: [string, string][], cur: string) => list.map(([v, l]) => `<o
 export async function reportExportProblem() {
   const { file, slides, cur } = get().deck;
   if (!file || !slides.length) { toast("Open a workbook and export it first: the report is about an export."); return; }
-  const last = lastMade;
+  const last = lastMade?.workbook === file.name ? lastMade : null;         // an export of another workbook is not this one's
   const form: Record<string, string> = { fbWhat: "P2", fbWhich: last?.kind === "pdf-old" ? "old" : /pictures|exact/.test(last?.kind || "") ? "pictures" : /png|copy/.test(last?.kind || "") ? "png" : "new", fbSlide: String(cur + 1), fbText: "" };
   const lastLine = last
     ? `Last export: <b>${esc(last.files.join(", ") || last.kind)}</b> · ${esc(last.kind)} · ${last.seconds} s${last.failed?.length ? " · failed" : ""}`
@@ -55,17 +55,26 @@ export async function reportExportProblem() {
   const report = {
     form: { what: form.fbWhat, whatText: PROBLEMS.find(p => p[0] === form.fbWhat)?.[1] || "", which: form.fbWhich, slide: n, slideName: slides[n - 1]?.label || "", comment: form.fbText.slice(0, 4000) },
     deck: { workbook: file.name, slides: slides.length, design: st.design, designName: DESIGN_LABEL[st.design], theme: st.theme ?? null, version: get().deck.version || "" },
-    lastExport: last, phasesMs: { ...pool().last },
+    lastExport: last,
     browser: navigator.userAgent, servedByHelper: backend.served,
+  };
+  const offline = () => {
+    const name = `export-feedback-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.json`;
+    download(name, JSON.stringify({ kind: "export-feedback", schema: 1, at: new Date().toISOString(), report }, null, 1), "application/json");
+    return name;
   };
   try {
     if (backend.served) {
       const { file: saved } = await backend.exportFeedback(report);
       toast(`Report saved as <b>export\\${esc(saved.replace(/\//g, "\\"))}</b>. Thank you!`, [{ label: "Show folder", fn: () => { void backend.open({ folder: true }); } }]);
     } else {
-      const name = `export-feedback-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.json`;
-      download(name, JSON.stringify({ kind: "export-feedback", schema: 1, at: new Date().toISOString(), report }, null, 1), "application/json");
+      const name = offline();
       toast(`Report downloaded as <b>${esc(name)}</b>: send it to the product owner. Thank you!`);
     }
-  } catch (e) { console.error(e); toast("⚠ The report could not be saved: " + esc((e as Error).message || e), [], true); }
+  } catch (e) {
+    // the helper could not save it (stopped, the shared folder busy): the report is downloaded, so nothing typed is lost
+    console.error(e);
+    const name = offline();
+    toast(`⚠ The report could not be saved in the export folder (${esc((e as Error).message || e)}): it was downloaded as <b>${esc(name)}</b> – send it to the product owner.`, [], true);
+  }
 }

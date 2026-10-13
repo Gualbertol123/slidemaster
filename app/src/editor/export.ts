@@ -118,10 +118,15 @@ const secs = (t0: number) => ` · ${((performance.now() - t0) / 1000).toFixed(1)
 /** the last export's files and time (click to saved), for tests and the bench */
 export const lastExport = { files: [] as string[], ms: 0 };
 /** what the last export made (or why it failed), for "Report a problem with this export" (the pilot, S3.8) */
-export interface ExportRecord { kind: string; design: string; version: string; files: string[]; seconds: number; missing: string[]; unreadable: string[]; failed?: string[]; engine?: string; at: string }
+export interface ExportRecord {
+  kind: string; workbook: string; design: string; /** version ids ("" = the whole deck), " + " between several */ version: string;
+  files: string[]; seconds: number; missing: string[]; unreadable: string[]; failed?: string[]; engine?: string;
+  /** where a native export's time went (ms): getting a worker, display lists, fonts, writing */ phases?: Record<string, number>; at: string;
+}
 export let lastMade: ExportRecord | null = null;
-function remember(r: Omit<ExportRecord, "at" | "seconds">, t0: number) {
-  lastMade = { ...r, seconds: +((performance.now() - t0) / 1000).toFixed(2), at: new Date().toISOString() };
+function remember(r: Omit<ExportRecord, "at" | "seconds" | "workbook" | "phases">, t0: number) {
+  lastMade = { ...r, workbook: get().deck.file?.name || "", seconds: +((performance.now() - t0) / 1000).toFixed(2), at: new Date().toISOString(),
+    ...(r.kind !== "pdf-old" && exportPool ? { phases: { ...exportPool.last } } : {}) };
 }
 
 export async function doExport(kind: ExportKind) {
@@ -216,12 +221,15 @@ export async function exportVersions(designs: Design[] | null) {
     const failed = results.flatMap(r => r.status === "rejected" ? [String((r.reason as Error).message || r.reason)] : []);
     failed.forEach(f => console.error("export failed:", f));
     lastExport.files = [...saved]; lastExport.ms = performance.now() - t0;
-    remember({ kind: designs ? `versions-${list.length}` : "versions", design: list.join(" + "), version: versions.map(v => v.name).join(" + "), files: [...saved], missing: [...missing], unreadable: [...unreadable], failed }, t0);
+    remember({ kind: designs ? `versions-${list.length}` : "versions", design: list.join(" + "), version: versions.map(v => v.id).join(" + "), files: [...saved], missing: [...missing], unreadable: [...unreadable], failed }, t0);
     toast(`Saved <b>${saved.length}</b> PDFs${backend.served ? " in the export folder" : " (downloaded)"}${saved.length ? ": " + esc(saved.join(", ")) : ""}${secs(t0)}${noFonts ? NO_FONTS : ""}${missingNote([...missing], [...unreadable])}`
       + (failed.length ? ` · ⚠ ${failed.length} failed: ${esc(failed.slice(0, 2).join(" · "))}` : ""),
       backend.served ? [{ label: "Show folder", fn: () => { void backend.open({ folder: true }); } }] : [], failed.length > 0);
-  } catch (e) { console.error(e); hideBusy(); toast("⚠ Export failed: " + esc((e as Error).message || e), [], true); }
-  finally { patch("ui", { exporting: false }); }
+  } catch (e) {
+    console.error(e); hideBusy();
+    remember({ kind: designs ? `versions-${designs.length}` : "versions", design: (designs || [style().design]).join(" + "), version: versions.map(v => v.id).join(" + "), files: [...saved], missing: [], unreadable: [], failed: [String((e as Error).message || e)] }, t0);
+    toast("⚠ Export failed: " + esc((e as Error).message || e), [], true);
+  } finally { patch("ui", { exporting: false }); }
 }
 
 /* ---------------------------------------------------------------- the old engine, for one release (S3.7 → S3.9) */

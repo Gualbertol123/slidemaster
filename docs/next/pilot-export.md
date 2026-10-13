@@ -11,28 +11,30 @@ checks and the report form. The result decides the release (go / no-go) and is w
 | | |
 |---|---|
 | Pilot users | 3–5 people who make the weekly decks (at least one Liquid Glass and one Excel / Excel Refined user, one on VPN) |
+| Themes | between them, at least one deck in each theme the test corpus does not cover – **Ocean, Forest, Sunset, Graphite** (G1 decision 5 of 2026-10-12: they come with this pilot); a user switches theme for one export if nobody uses it |
 | Cycle 1 | week 1: the normal weekly deck(s), exported with both engines |
 | Cycle 2 | week 2: the same, after any fixes from cycle 1 (a new pilot build if something was fixed) |
 | Product owner | collects the reports, decides go / no-go |
 
 ## Installing the pilot build (a copy, side by side)
 
-The pilot build is `slidebuilder-3.7.0-pilot.zip` (`python tools/make_release.py --version 3.7.0-pilot`). It is
+The pilot build is `dist/slidebuilder-3.7.0-pilot.zip` (`python tools/make_release.py --version 3.7.0-pilot`). It is
 installed **next to** the current version, so everybody else keeps 3.6 and a pilot user can go back at once:
 
 ```
-python tools/update.py --root "T:\Slide Builder" --zip slidebuilder-3.7.0-pilot.zip --yes   # installs app\3.7.0-pilot\ (self-test) and makes it current…
+python tools/update.py --root "T:\Slide Builder" --zip dist\slidebuilder-3.7.0-pilot.zip --yes  # installs app\3.7.0-pilot\ (self-test) and makes it current…
 python tools/update.py --root "T:\Slide Builder" --use 3.6.0 --yes                           # …so switch everybody back to 3.6 at once
 ```
 
 Between the two commands (a few seconds) a colleague who starts Slide Builder gets the pilot build; that is
 harmless (same data formats), they just see the new export. A pilot user starts the pilot build with
-`python "T:\Slide Builder\app\3.7.0-pilot\backend\slide_builder.py"` (or a shortcut to it); everybody else's
+`py -3 "T:\Slide Builder\app\3.7.0-pilot\backend\slide_builder.py"` (`python …` where `py` is missing, as the start file does; or a shortcut to it); everybody else's
 `Start Slide Builder.bat` starts 3.6. Both versions read and write the same decks. A pilot user closes the black
 3.6 window first (one Slide Builder per PC). (The person who installs it runs the commands; an agent never touches
 the real share.)
 
-Check the ZIP before installing it: `python tools/make_release.py --verify slidebuilder-3.7.0-pilot.zip`.
+Check the ZIP before installing it: `python tools/make_release.py --verify dist\slidebuilder-3.7.0-pilot.zip`. (A rehearsal on a
+copy of a share folder: `docs/next/release-checklist.md` §4.)
 
 ## Each week, for each deck
 
@@ -41,6 +43,8 @@ Check the ZIP before installing it: `python tools/make_release.py --verify slide
 3. **Export ▾ › PDF · text & tables (old engine)**: `<workbook> (old engine) - slides.pdf`, next to it.
 4. If you use versions: **PDF · every version × …** (new names: `<workbook> - <version> - <design>.pdf`).
 5. Once a week also: **PDF · as pictures**, **PNG · current slide**, **Copy current slide** (paste into PowerPoint).
+   *As pictures* is remembered: afterwards the *Export PDF* button and *every version* also make picture PDFs
+   (" (images)" in the name) – choose **PDF · text & tables** once to go back before comparing again.
 6. Compare the two PDFs side by side **in Acrobat Reader** and **in Edge** (the checks below).
 7. Problem? **Export ▾ › Report a problem with this export…**, see below. No problem? A one-line report
    "all fine" is useful too.
@@ -64,14 +68,14 @@ Known and accepted differences (not to report): the old engine's PDF text repeat
 it gives table text twice) and contains "ﬁ" ligatures – the new one does not; the new PDFs are smaller;
 "as pictures" pages are 2× instead of 4× (sharp on screen, about 8× smaller – B9); version PDFs have the
 design in their name (B11). Decided on 2026-10-13 (PROGRESS, Decisions): "as pictures" in Liquid Glass stays
-lossless (deck20: ≈ 70 MB, Excel ≈ 12 MB); a 1–2-slide PDF may be over the per-slide size budget (the fonts and the
+lossless (deck20: ≈ 70 MB, Excel ≈ 12 MB); a 1–3-slide PDF may be over the per-slide size budget (the fonts and the
 glass wallpaper are a cost per document) – only a PDF larger than the old engine's is a P8 problem. Known gap: a
 library font stored as WOFF2 (most Google fonts) is drawn with the next font of its list in the new PDF and the
 toast names it – report it under P4 if it matters for your deck (a fix can follow in the pilot).
 
 ## Reporting a problem (offline)
 
-**Export ▾ › Report a problem with this export…** opens a short form: *what is wrong* (the checks P1–P10 below,
+**Export ▾ › Report a problem with this export…** opens a short form: *what is wrong* (the checks P1–P10 above,
 or "something else"), *in which file* (new PDF, old engine's PDF, both, as pictures, PNG / copied slide – preset
 from the last export), *slide* (preset to the current one) and *what you see*. **The report is a JSON file, not an
 e-mail:** *Save report* writes one new file `export\feedback\<date>-<time>-<user>.json` in the shared export

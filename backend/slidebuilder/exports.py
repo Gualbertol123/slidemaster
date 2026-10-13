@@ -87,17 +87,18 @@ def export_feedback(report, user, host, export_dir=None):
     (a JSON object: the form and what the page knows about the last export) is written, with the helper's version,
     user, PC and time, as one new file ``export/feedback/<date>-<time>-<user>.json`` – offline, no e-mail; the product
     owner reads the folder after each pilot cycle. Returns the file's name inside the export folder."""
-    if not isinstance(report, dict):
-        raise ExportError("the report must be a JSON object")
+    if not isinstance(report, dict) or not report:
+        raise ExportError("the report must be a JSON object with the form")
     from . import VERSION
+    now = time.localtime()
     doc = {"kind": "export-feedback", "schema": 1, "app": "slide-builder", "version": VERSION, "user": user, "host": host,
-           "at": time.strftime("%Y-%m-%dT%H:%M:%S"), "report": report}
+           "at": time.strftime("%Y-%m-%dT%H:%M:%S", now), "report": report}
     data = json.dumps(doc, ensure_ascii=False, indent=1, sort_keys=True).encode("utf-8")
     if len(data) > FEEDBACK_LIMIT:
         raise ExportError("the report is too long (at most %d KB)" % (FEEDBACK_LIMIT // 1024))
     folder = os.path.join(export_dir or paths.EXPORT_DIR, "feedback")
     os.makedirs(folder, exist_ok=True)
-    stem = "%s-%s" % (time.strftime("%Y%m%d-%H%M%S"), clean_name(str(user or "user"))[:40])
+    stem = "%s-%s" % (time.strftime("%Y%m%d-%H%M%S", now), clean_name(str(user or "user"))[:40])
     tmp = write_tmp(os.path.join(folder, stem + ".json"), data)
     try:
         with Lock("export-feedback"):

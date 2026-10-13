@@ -165,10 +165,10 @@ class ExportTests(TempDirs):
                                "host": "PC-7", "at": "2026-10-13T10:15:00", "report": report})
 
     def test_export_feedback_refuses_bad_reports(self):
-        for bad in ([1, 2], "text", None, {"comment": "x" * 70000}):
+        for bad in ([1, 2], "text", None, {}, {"comment": "x" * 70000}):
             with self.assertRaises(exports.ExportError):
                 exports.export_feedback(bad, "ana", "PC-7")
-        self.assertEqual(exports.export_feedback({}, "a/b:c", "PC")["file"][:9], "feedback/")    # a user name cannot leave the folder
+        self.assertEqual(exports.export_feedback({"comment": "x"}, "a/b:c", "PC")["file"][:9], "feedback/")    # a user name cannot leave the folder
         self.assertFalse(any("/" in n or ":" in n for n in os.listdir(os.path.join(paths.EXPORT_DIR, "feedback"))))
 
     def test_assemble(self):
