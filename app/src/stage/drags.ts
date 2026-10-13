@@ -38,10 +38,11 @@ function endPreview(changed = false) {
   setStage({ drag: done });
   setTimeout(() => { if (stage().drag === done) setStage({ drag: null }); }, 2000);
 }
-/** pointer listeners on the window for the rest of a drag (a redraw during the drag must not lose it) */
-function follow(move: (e: PointerEvent) => void, up: (e: PointerEvent) => void) {
+/** pointer listeners on the window for the rest of a drag (a redraw during the drag must not lose it); a cancelled
+    pointer (the system took it) changes nothing: `cancel`, by default the preview goes */
+function follow(move: (e: PointerEvent) => void, up: (e: PointerEvent) => void, cancel: () => void = () => endPreview()) {
   const m = (e: PointerEvent) => move(e);
-  const u = (e: PointerEvent) => { removeEventListener("pointermove", m); removeEventListener("pointerup", u); removeEventListener("pointercancel", u); up(e); };
+  const u = (e: PointerEvent) => { removeEventListener("pointermove", m); removeEventListener("pointerup", u); removeEventListener("pointercancel", u); if (e.type === "pointercancel") cancel(); else up(e); };
   addEventListener("pointermove", m); addEventListener("pointerup", u); addEventListener("pointercancel", u);
 }
 
@@ -72,13 +73,14 @@ export function resizeDrag(R: RuntimeSlide, i: number, e: PointerEvent) {
     let lo = 0.05, hi = 30;                                // 22 halvings: the weight to 1/100 000 (it is kept to 1/1 000)
     for (let n = 0; n < 22; n++) { const mid = (lo + hi) / 2; const ww = w0.slice(); ww[i] = mid; if (computeLayout(R, c, ww, lay).boxes[i].w < target) lo = mid; else hi = mid; }
     lay.w = w0.slice(); lay.w[i] = Math.round(lo * 1000) / 1000; moved = true;
-    preview({ kind: "resize", i, boxes: computeLayout(R, c, lay.w, lay).boxes });
+    // drawn in this frame (solve runs in one already: preview() would wait for the next)
+    next = { kind: "resize", i, boxes: computeLayout(R, c, lay.w, lay).boxes }; setStage({ drag: next });
   };
   follow(ev => { at = ev; if (!frame) frame = requestAnimationFrame(solve); }, () => {
     if (frame) { cancelAnimationFrame(frame); solve(); }             // the last position counts
     endPreview(moved); setStage({ armed: false });
     if (moved) slidePatch("Resize table", R, sizingPatch(R, c, { ...sizingOf(R, c), layout: lay }));
-  });
+  }, () => { if (frame) cancelAnimationFrame(frame); endPreview(); setStage({ armed: false }); });
 }
 
 /** a table border: every column (left / right) or row (top / bottom) stretched by the same factor */

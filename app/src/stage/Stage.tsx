@@ -108,7 +108,8 @@ function Layers({ m, layers, drag, armed }: { m: StageModel; layers: import("@sl
     if (l.table !== null && l.box) return <TableLayer key={"t" + l.table} layer={l} to={drag?.kind === "resize" ? boxOf(l.table, l.box, drag) : null} armed={armed} />;
     if (l.note) {
       const k = nk++, place = m.notes.find(n => n.layer === l), [dx, dy] = place ? noteShift(place, drag) : [0, 0];
-      const hidden = !!place && drag?.kind === "note" && drag.key === place.part.key && !drag.moved && !drag.done;
+      // a text box being stretched shows its text itself (Notes), until the slide drawn with the change replaces the drop's preview
+      const hidden = !!place && drag?.kind === "note" && drag.key === place.part.key && !drag.moved && !!place.look && !!place.part.txt.trim();
       return <PlainLayer key={"n" + k} layer={l} dx={dx} dy={dy} hidden={hidden} />;
     }
     const k = f++;
@@ -132,7 +133,7 @@ const TextLayer = memo(function TextLayer({ hits }: { hits: StageModel["hits"] }
       onPointerDown={key ? e => { e.stopPropagation(); selectSlideText(key); } : undefined}
       onDoubleClick={key ? () => setStage({ editor: { kind: "text", key } }) : undefined}>{h.label}</div>;
   })}</>;
-}, (a, b) => a.hits.length === b.hits.length && a.hits.every((h, i) => JSON.stringify(h) === JSON.stringify(b.hits[i])));   // the furniture as it was: nothing to draw
+}, (a, b) => a.hits === b.hits || a.hits.length === b.hits.length && a.hits.every((h, i) => JSON.stringify(h) === JSON.stringify(b.hits[i])));   // the furniture as it was: nothing to draw
 
 /* ---- text boxes: the box to select, move, stretch and double-click; its bubble; the hint of an empty one */
 function Notes({ m, R, drag }: { m: StageModel; R: RuntimeSlide; drag: DragPreview | null }) {
@@ -141,8 +142,9 @@ function Notes({ m, R, drag }: { m: StageModel; R: RuntimeSlide; drag: DragPrevi
   return <>{m.notes.map(p => {
     const key = p.part.key, d = drag?.kind === "note" && drag.key === key ? drag : null, b = d ? d.box : resized(p, drag);
     const free = p.part.cls.includes(" free"), empty = !p.part.txt.trim();
-    // being stretched: the box shows its text itself (the page re-wraps it as the box changes); the drawn layer waits
-    const live = !!d && !d.moved && !d.done && !empty && p.look ? p.look : null;
+    // being stretched: the box shows its text itself (the page re-wraps it as the box changes); the drawn layer waits –
+    // after the drop too, until the slide drawn with the new size arrives (else the old wrap shows for a moment)
+    const live = !!d && !d.moved && !empty && p.look ? p.look : null;
     const label = p.layer ? p.layer.nodes.find(n => n.t === "hit" && /^tnote\b/.test(n.id)) : null;
     return [
       p.part.bubble && !empty ? <div key={key + "|b"} className={p.part.bubble.cls + (live ? " live" : "")} data-i={p.part.i} data-side={p.part.side} style={{ left: b.x, top: b.y, width: b.w, height: b.h }} /> : null,
@@ -228,7 +230,7 @@ function HBox({ i, R, c, m, box, drag, slide }: { i: number; R: RuntimeSlide; c:
   return (
     <div className={"hbox" + (active ? " active" : "")} data-i={i} style={{ left: b.x, top: b.y, width: b.w, height: b.h, ...vars }}>
       <div className="grip" title="Drag to move this table" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); gripDrag(R, i, e.nativeEvent, slide.current!); }}>⠿ {tableName(T, c.preset)}</div>
-      <div className="size" title="Drag to resize (keeps the proportions)" onPointerEnter={() => setStage({ armed: true })} onPointerLeave={() => { if (useStage.getState().drag?.kind !== "resize") setStage({ armed: false }); }} onPointerDown={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); resizeDrag(R, i, e.nativeEvent); }} />
+      <div className="size" title="Drag to resize (keeps the proportions)" onPointerEnter={() => setStage({ armed: true })} onPointerLeave={() => { const d = useStage.getState().drag; if (d?.kind !== "resize" || d.done) setStage({ armed: false }); }} onPointerDown={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); resizeDrag(R, i, e.nativeEvent); }} />
       {(["l", "r", "t", "b"] as const).map(ed => <div key={ed} className={"edge " + ed} data-edge={ed} title={`Drag to make the table ${ed === "l" || ed === "r" ? "wider or narrower" : "taller or shorter"}`}
         onPointerDown={e => { e.preventDefault(); e.stopPropagation(); stretchDrag(R, i, ed, e.nativeEvent); }} />)}
       {st && <div className="edgetip">{Math.round(st.f * 100)} %</div>}
