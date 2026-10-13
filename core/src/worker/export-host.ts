@@ -4,7 +4,8 @@
    page. Transport-free like CoreHost: workers/export.worker.ts connects it to postMessage and gives it a rasteriser
    (OffscreenCanvas); tests connect it in one thread. */
 import { Port, transfer, type Wire } from "../rpc/port";
-import type { ExportCoreMethods, ExportJob, ExportMethods, ExportPageMethods, ExportResult, SlideList } from "../rpc/messages";
+import type { ExportCoreMethods, ExportJob, ExportMethods, ExportPageMethods, ExportResult, SlideList, Thumb, ThumbJob } from "../rpc/messages";
+import { contentKey } from "../dl/key";
 import { validate, type DisplayList } from "../dl/types";
 import { writePdf } from "../pdf/writer";
 import { isJpeg, isPng } from "../pdf/png";
@@ -18,8 +19,11 @@ export type ExportCorePort = Port<Record<string, never>, ExportCoreMethods, Reco
 
 /** draws pages as opaque PNGs (white under the slide) at `scale` pixels per slide px */
 export interface Rasterizer {
-  pages(pages: DisplayList[], images: Map<string, Uint8Array>, scale: number, fonts: { library: CatalogFont[]; bytes: (f: CatalogFont) => Promise<Uint8Array | null> }): Promise<Uint8Array[]>;
+  pages(pages: DisplayList[], images: Map<string, Uint8Array>, scale: number, fonts: RasterFonts): Promise<Uint8Array[]>;
+  /** the same pages as pictures `width` px wide, kept in memory (thumbnails, S4.3) */
+  bitmaps?(pages: DisplayList[], images: Map<string, Uint8Array>, width: number, fonts: RasterFonts): Promise<ImageBitmap[]>;
 }
+export interface RasterFonts { library: CatalogFont[]; bytes: (f: CatalogFont) => Promise<Uint8Array | null> }
 export interface ExportHostOptions { raster?: Rasterizer }
 
 /** the bytes of a data: URL (base64 or percent-encoded) */
@@ -46,6 +50,7 @@ export class ExportHost {
   constructor(private readonly page: ExportPort, private readonly opts: ExportHostOptions = {}) {
     page.handle("linkCore", a => { this.link(new Port(a.port as unknown as Wire)); });
     page.handle("run", async a => { const r = await this.run(a); return transfer(r, r.files); });
+    page.handle("thumbs", async a => { const r = await this.thumbs(a); return transfer(r, r.flatMap(t => t.bitmap ? [t.bitmap] : [])); });
   }
   /** the channel to the core worker (tests pass a port of their own) */
   link(core: ExportCorePort) { this.core = core; }
@@ -86,6 +91,32 @@ export class ExportHost {
     return p;
   }
 
+  /** the pictures a set of lists draws, as bytes by image id */
+  private async images(lists: SlideList[]) {
+    const srcs = new Map<string, string>();
+    for (const l of lists) for (const [id, src] of Object.entries(l.dl.images)) srcs.set(id, src);
+    const images = new Map<string, Uint8Array>();
+    await Promise.all([...srcs].map(async ([id, src]) => { const b = await this.picture(src); if (b) images.set(id, b); }));
+    return images;
+  }
+
+  /** thumbnails (S4.3): the slides' lists from the core worker, drawn as the PNG export draws them; a slide whose list
+      is what the page shows already (the same key: the same nodes and pictures at the same width) is not drawn again.
+      A slide that cannot be drawn comes with no picture and no key (asked again next time) */
+  async thumbs(job: ThumbJob): Promise<Thumb[]> {
+    if (!this.core) throw new Error("the export worker is not connected to the workbook");
+    const { width, library, have, ...req } = job;
+    const lists: SlideList[] = await this.core.call("slideLists", req);
+    const keyed = lists.map(l => ({ l, key: contentKey(l.dl.nodes, "|" + Object.keys(l.dl.images).join(",") + "|" + width) }));
+    const todo = keyed.filter(k => have[k.l.slide] !== k.key && !validate(k.l.dl.nodes, "").length);
+    const bitmaps = todo.length && this.opts.raster?.bitmaps ? await this.opts.raster.bitmaps(todo.map(k => k.l.dl.nodes), await this.images(todo.map(k => k.l)), width, { library, bytes: this.fontBytes }) : [];
+    return keyed.map(k => {
+      if (have[k.l.slide] === k.key) return { slide: k.l.slide, key: k.key, bitmap: null };
+      const b = bitmaps[todo.indexOf(k)] ?? null;
+      return { slide: k.l.slide, key: b ? k.key : "", bitmap: b };
+    });
+  }
+
   async run(job: ExportJob): Promise<ExportResult> {
     if (!this.core) throw new Error("the export worker is not connected to the workbook");
     const t0 = now();
@@ -96,10 +127,7 @@ export class ExportHost {
     // the export path checks what the designs hand it (the writer itself does not validate, core/pdf/README.md)
     const bad = pages.flatMap((p, i) => validate(p, `slide ${lists[i].slide + 1}`));
     if (bad.length) throw new Error("the slides could not be drawn: " + bad.slice(0, 3).join("; "));
-    const srcs = new Map<string, string>();
-    for (const l of lists) for (const [id, src] of Object.entries(l.dl.images)) srcs.set(id, src);
-    const images = new Map<string, Uint8Array>();
-    await Promise.all([...srcs].map(async ([id, src]) => { const b = await this.picture(src); if (b) images.set(id, b); }));
+    const images = await this.images(lists);
     const t1 = now();
 
     if (kind === "pdf") {

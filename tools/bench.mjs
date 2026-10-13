@@ -20,6 +20,10 @@
      drag frames     ⏱ S4.2: on the same slide, a column border, the corner, a table border, the grip, and a text box
                      moved and stretched: the page's work in each frame of a drag (its main thread between two
                      animation frames, from a trace), the frame after the drop not counted (its redraw is reported) < 16 ms
+     thumbnails      ⏱ S4.3 (B14): deck20's content slides five times (100 slides), the thumbnail list scrolled to the
+                     end and back with the wheel, traced: 60 fps – the longest time between two animation frames
+                     (one frame missed is 33 ms)                                                        < 20 ms
+                     The frames per second, the page's most work in a frame and the pictures drawn are reported
      heap            after the big sheet was read: the page (performance.memory) plus the core worker, which
                      holds the workbook since S2.4 (Runtime.getHeapUsage over the DevTools protocol)    < 150 MB
    The two time limits are scaled by how much slower this machine is than the reference PC (tools/calibrate.mjs,
@@ -46,7 +50,7 @@ const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? proces
 const BACKEND = path.resolve(arg("--page", path.join(REPO, "backend")));
 const GATE = !process.argv.includes("--no-gate");
 const BUDGET = { open_deck20_ms: 400, read_big30_ms: 1000, longest_task_ms: 50, first_draw_task_ms: 250, heap_mb: 150,
-  export_glass_ms: 2000, export_excel_ms: 1000, export_glass_kb: 80 * 20 + 190, export_excel_kb: 40 * 20, keypress_p95_ms: 50, drag_frame_ms: 16 }, SLACK = 1.1;
+  export_glass_ms: 2000, export_excel_ms: 1000, export_glass_kb: 80 * 20 + 190, export_excel_kb: 40 * 20, keypress_p95_ms: 50, drag_frame_ms: 16, thumbs_gap_ms: 20 }, SLACK = 1.1;
 const speed = speedFactor(), TIMED = ["open_deck20_ms", "read_big30_ms", "export_glass_ms", "export_excel_ms"];   // keypress: not scaled (decision 2026-10-12 names the others)
 const LIMITS = Object.fromEntries(Object.entries(BUDGET).map(([k, v]) => [k, TIMED.includes(k) ? Math.round(v * speed.factor) : v]));
 const CHROME = process.env.CHROME || chromium.executablePath();
@@ -178,6 +182,9 @@ async function run(browser, port) {
     const excel = await exportOnce();
     const ltExport = [...ltGlass, ...(await longTasks()).map(x => x.d)];
     await page.click('[data-design="glass"]'); await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 }); await sleep(300); await longTasks();
+    const thumbs = await thumbScroll(browser, page);
+    await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 }); await sleep(300);
+    const ltThumbs = (await longTasks()).map(x => x.d);
     // ---- big30: the index, then one 130 000-row sheet
     await page.click("#openBtn"); await page.locator('[data-f="big30.xlsx"]').waitFor();
     await watch([".wiz label", "DATA_1"]); await page.click('[data-f="big30.xlsx"]');
@@ -194,7 +201,7 @@ async function run(browser, port) {
     const heap = pageHeap == null || workerHeap == null ? null : Math.round(pageHeap + workerHeap);
     if (errors.length) throw new Error("page errors: " + errors.join("; "));
     return { boot: { longtasks: ltBoot }, deck20: { wizard_ms: Math.round(wizard), finish_to_slide_ms: Math.round(slides), open_ms: Math.round(wizard + slides), longtasks: ltDeck, first_draw_longtasks: ltFirstDraw },
-      edit: { keypress, longtasks: ltEdit }, drags,
+      edit: { keypress, longtasks: ltEdit }, drags, thumbs: { ...thumbs, longtasks: ltThumbs },
       export: { glass_ms: glass.ms, glass_kb: glass.kb, glass_phases: glass.phases, excel_ms: excel.ms, excel_kb: excel.kb, excel_phases: excel.phases, longtasks: ltExport },
       big30: { index_to_wizard_ms: Math.round(index), read_sheet_ms: Math.round(read), read_to_grid_ms: Math.round(grid), longtasks: ltBig, heap_mb: heap,
         page_heap_mb: pageHeap == null ? null : Math.round(pageHeap), worker_heap_mb: workerHeap == null ? null : Math.round(workerHeap),
@@ -236,15 +243,27 @@ async function dragFrames(browser, page) {
     const moved = (await page.locator("#stage .tnote.memo").boundingBox());
     await drag("note stretch", { x: moved.x + moved.width - 2, y: moved.y + moved.height / 2 }, -200, 0);
   } finally { await browser.stopTracing(); }
-  const ev = JSON.parse(fs.readFileSync(trace, "utf8")).traceEvents; fs.rmSync(trace, { force: true });
-  const marks = ev.filter(e => e.cat?.includes("user_timing") && /^(drag|up):/.test(e.name));
-  const main = marks[0] ? marks[0].pid + ":" + marks[0].tid : null;
-  // the outermost tasks only (a ThreadControllerImpl::RunTask runs inside a RunTask: counted once)
-  const all = ev.filter(e => e.ph === "X" && e.pid + ":" + e.tid === main && ["RunTask", "ThreadControllerImpl::RunTask"].includes(e.name)).sort((x, y) => x.ts - y.ts || y.dur - x.dur);
-  const tasks = []; for (const e of all) { const o = tasks.at(-1); if (!o || e.ts >= o.ts + o.dur) tasks.push(e); }
+  const { tasks, frames } = traced(trace, "drag");
   const res = {};
   for (const [name, d] of Object.entries(out)) {
-    const m = marks.find(e => e.name === "drag:" + name), u = marks.find(e => e.name === "up:" + name); if (!m || !u) continue;
+    const w = frames(name, d); if (!w) continue;
+    const after = tasks.filter(e => e.ts >= w.end && e.ts <= w.end + 700000).reduce((x, e) => Math.max(x, e.dur / 1000), 0);
+    res[name] = { frames: w.frames, frame_ms: w.frame_ms, gap_ms: w.gap_ms, drop_task_ms: Math.round(after) };
+  }
+  return res;
+}
+/** a trace's main-thread tasks (the outermost only: a ThreadControllerImpl::RunTask runs inside a RunTask, counted once)
+    and, for a window the page marked "<kind>:<name>" … "up:<name>" with its animation frames' times, the most work
+    between two frames and the longest time between two frames (the page's work, or the compositor's and the GPU's) */
+function traced(trace, kind) {
+  const ev = JSON.parse(fs.readFileSync(trace, "utf8")).traceEvents;
+  if (process.env.SB_KEEP_TRACES) console.log("bench · trace kept: " + trace); else fs.rmSync(trace, { force: true });
+  const marks = ev.filter(e => e.cat?.includes("user_timing") && new RegExp("^(" + kind + "|up):").test(e.name));
+  const main = marks[0] ? marks[0].pid + ":" + marks[0].tid : null;
+  const all = ev.filter(e => e.ph === "X" && e.pid + ":" + e.tid === main && ["RunTask", "ThreadControllerImpl::RunTask"].includes(e.name)).sort((x, y) => x.ts - y.ts || y.dur - x.dur);
+  const tasks = []; for (const e of all) { const o = tasks.at(-1); if (!o || e.ts >= o.ts + o.dur) tasks.push(e); }
+  const frames = (name, d) => {
+    const m = marks.find(e => e.name === kind + ":" + name), u = marks.find(e => e.name === "up:" + name); if (!m || !u) return null;
     // trace time of the page's clock: the mark's time minus its performance.now()
     const off = u.ts - d.up * 1000, f = d.frames.map(t => t * 1000 + off).filter(t => t >= m.ts && t <= u.ts);
     let worst = 0;
@@ -253,12 +272,42 @@ async function dragFrames(browser, page) {
       for (const e of tasks) { const a = Math.max(e.ts, f[k]), b = Math.min(e.ts + e.dur, f[k + 1]); if (b > a) busy += b - a; }
       worst = Math.max(worst, busy / 1000);
     }
-    const after = tasks.filter(e => e.ts >= u.ts && e.ts <= u.ts + 700000).reduce((x, e) => Math.max(x, e.dur / 1000), 0);
-    // the longest time between two animation frames (the page's work, or the compositor's and the GPU's)
     const gap = f.slice(1).reduce((x, t, k) => Math.max(x, t - f[k]), 0) / 1000;
-    res[name] = { frames: f.length, frame_ms: Math.round(worst * 10) / 10, gap_ms: Math.round(gap * 10) / 10, drop_task_ms: Math.round(after) };
-  }
-  return res;
+    return { frames: f.length, frame_ms: Math.round(worst * 10) / 10, gap_ms: Math.round(gap * 10) / 10, fps: f.length > 1 ? Math.round((f.length - 1) / ((f.at(-1) - f[0]) / 1e6)) : 0, end: u.ts };
+  };
+  return { tasks, frames };
+}
+
+/** S4.3 (B14): a 100-slide deck (deck20's content slides five times, one change: one undo step), its thumbnail list
+    scrolled to the end and back with the wheel, traced as the drags are; then the deck as it was (undo) */
+async function thumbScroll(browser, page) {
+  await page.evaluate(() => {
+    const p = window.__sbTest.preset(), base = p.slides.filter(x => x.type === "content");
+    p.slides = Array.from({ length: 100 }, (_, k) => ({ ...structuredClone(base[k % base.length]), id: base[k % base.length].id + "-b" + k }));
+    window.__sbTest.change("Bench: 100 slides", [{ op: "preset.set", preset: p }]);
+  });
+  await page.locator(".thumb").nth(99).waitFor({ timeout: 60000 });
+  await page.waitForFunction(() => window.__sbTest.stageIdle(), null, { timeout: 30000 });
+  await page.waitForTimeout(1500);
+  const box = await page.locator("#thumbs").boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const asked0 = await page.evaluate(() => window.__sbTest.thumbStats());
+  const trace = path.join(os.tmpdir(), "sb-bench-thumbs-" + process.pid + ".json");
+  await browser.startTracing(page, { path: trace, categories: ["devtools.timeline", "blink.user_timing", "toplevel"] });
+  const d = {};
+  try {
+    await page.evaluate(() => { window.__drag = { frames: [] }; const tick = t => { if (!window.__drag) return; window.__drag.frames.push(t); requestAnimationFrame(tick); }; requestAnimationFrame(tick); performance.mark("scroll:thumbs"); });
+    // about 1.6 screens a second: 100 slides down and up in about 8 s
+    for (const dir of [1, -1]) for (let k = 0; k < 120; k++) { await page.mouse.wheel(0, dir * 130); await page.waitForTimeout(16); }
+    await page.evaluate(() => { performance.mark("up:thumbs"); window.__dragUp = performance.now(); });
+    Object.assign(d, await page.evaluate(() => { const x = window.__drag; window.__drag = null; return { frames: x.frames, up: window.__dragUp }; }));
+  } finally { await browser.stopTracing(); }
+  if (process.env.SB_KEEP_TRACES) fs.writeFileSync(trace + ".frames.json", JSON.stringify(d));
+  const w = traced(trace, "scroll").frames("thumbs", d);
+  const asked = await page.evaluate(() => window.__sbTest.thumbStats());
+  await page.locator("#stage .stagewrap").click({ position: { x: 4, y: 4 } }); await page.keyboard.press("Control+z");
+  await page.locator(".thumb").nth(20).waitFor({ state: "detached", timeout: 60000 });
+  return { slides: 100, frames: w.frames, fps: w.fps, frame_ms: w.frame_ms, gap_ms: w.gap_ms, pictures: asked.drawn - asked0.drawn };
 }
 
 const browser = await chromium.launch({ executablePath: CHROME });
@@ -268,21 +317,22 @@ finally { await browser.close(); }
 const worst = {
   open_deck20_ms: Math.max(...runs.map(r => r.deck20.open_ms)),
   read_big30_ms: Math.max(...runs.map(r => r.big30.read_sheet_ms)),
-  longest_task_ms: Math.max(0, ...runs.flatMap(r => [...r.deck20.longtasks, ...r.edit.longtasks, ...r.export.longtasks, ...r.big30.longtasks])),
+  longest_task_ms: Math.max(0, ...runs.flatMap(r => [...r.deck20.longtasks, ...r.edit.longtasks, ...r.thumbs.longtasks, ...r.export.longtasks, ...r.big30.longtasks])),
   keypress_p95_ms: Math.max(...runs.map(r => r.edit.keypress.p95_ms)),
   drag_frame_ms: Math.max(...runs.flatMap(r => Object.values(r.drags).map(d => d.frame_ms))),
+  thumbs_gap_ms: Math.max(...runs.map(r => r.thumbs.gap_ms)),
   first_draw_task_ms: Math.max(0, ...runs.flatMap(r => r.deck20.first_draw_longtasks)),
   // no performance.memory or no worker heap (another browser): not measured counts as over the limit, never as 0
   heap_mb: runs.some(r => r.big30.heap_mb == null) ? Infinity : Math.max(...runs.map(r => r.big30.heap_mb)),
   export_glass_ms: Math.max(...runs.map(r => r.export.glass_ms)), export_excel_ms: Math.max(...runs.map(r => r.export.excel_ms)),
   export_glass_kb: Math.max(...runs.map(r => r.export.glass_kb)), export_excel_kb: Math.max(...runs.map(r => r.export.excel_kb)),
 };
-const info = { longest_startup_task_ms: Math.max(0, ...runs.flatMap(r => r.boot.longtasks)) };
+const info = { longest_startup_task_ms: Math.max(0, ...runs.flatMap(r => r.boot.longtasks)), thumbs_frame_ms: Math.max(...runs.map(r => r.thumbs.frame_ms)) };
 const out = { page: path.relative(REPO, BACKEND) || BACKEND, chrome: CHROME, machine: `${os.cpus().length} × ${os.cpus()[0].model.trim()}, ${process.platform}`, calibration: { ms: +speed.ms.toFixed(1), factor: +speed.factor.toFixed(2) }, budget: BUDGET, limits: LIMITS, worst, info, runs };
 if (arg("--json")) fs.writeFileSync(arg("--json"), JSON.stringify(out, null, 1));
-for (const [i, r] of runs.entries()) console.log(`bench · run ${i + 1}: deck20 open ${r.deck20.open_ms} ms (wizard ${r.deck20.wizard_ms} + slides ${r.deck20.finish_to_slide_ms}) · keypress → pixels (cold ${r.edit.keypress.cold_ms.join(" / ")}) p50 ${r.edit.keypress.p50_ms} / p95 ${r.edit.keypress.p95_ms} / max ${r.edit.keypress.max_ms} ms (tasks ${JSON.stringify(r.edit.longtasks)}) · drags ${Object.entries(r.drags).map(([k, d]) => `${k} ${d.frame_ms} ms/frame (${d.frames} frames, longest gap ${d.gap_ms} ms, drop ${d.drop_task_ms} ms)`).join(", ")} · export deck20 Liquid Glass ${r.export.glass_ms} ms ${JSON.stringify(r.export.glass_phases)} ${r.export.glass_kb} KB, Excel ${r.export.excel_ms} ms ${JSON.stringify(r.export.excel_phases)} ${r.export.excel_kb} KB (tasks ${JSON.stringify(r.export.longtasks)}) · big30 index ${r.big30.index_to_wizard_ms} ms, sheet read ${r.big30.read_sheet_ms} ms (grid ${r.big30.read_to_grid_ms} ms) · long tasks ${JSON.stringify([...r.deck20.longtasks, ...r.big30.longtasks])} (first draw ${JSON.stringify(r.deck20.first_draw_longtasks)}) · heap ${r.big30.heap_mb} MB (page ${r.big30.page_heap_mb} + worker ${r.big30.worker_heap_mb}; ${r.big30.export_workers} export workers ${r.big30.export_heap_mb} MB, not gated) · start-up tasks ${JSON.stringify(r.boot.longtasks)}`);
+for (const [i, r] of runs.entries()) console.log(`bench · run ${i + 1}: deck20 open ${r.deck20.open_ms} ms (wizard ${r.deck20.wizard_ms} + slides ${r.deck20.finish_to_slide_ms}) · keypress → pixels (cold ${r.edit.keypress.cold_ms.join(" / ")}) p50 ${r.edit.keypress.p50_ms} / p95 ${r.edit.keypress.p95_ms} / max ${r.edit.keypress.max_ms} ms (tasks ${JSON.stringify(r.edit.longtasks)}) · thumbnails, 100 slides scrolled: ${r.thumbs.fps} fps, ${r.thumbs.frame_ms} ms/frame (longest gap ${r.thumbs.gap_ms} ms, ${r.thumbs.pictures} pictures, tasks ${JSON.stringify(r.thumbs.longtasks)}) · drags ${Object.entries(r.drags).map(([k, d]) => `${k} ${d.frame_ms} ms/frame (${d.frames} frames, longest gap ${d.gap_ms} ms, drop ${d.drop_task_ms} ms)`).join(", ")} · export deck20 Liquid Glass ${r.export.glass_ms} ms ${JSON.stringify(r.export.glass_phases)} ${r.export.glass_kb} KB, Excel ${r.export.excel_ms} ms ${JSON.stringify(r.export.excel_phases)} ${r.export.excel_kb} KB (tasks ${JSON.stringify(r.export.longtasks)}) · big30 index ${r.big30.index_to_wizard_ms} ms, sheet read ${r.big30.read_sheet_ms} ms (grid ${r.big30.read_to_grid_ms} ms) · long tasks ${JSON.stringify([...r.deck20.longtasks, ...r.big30.longtasks])} (first draw ${JSON.stringify(r.deck20.first_draw_longtasks)}) · heap ${r.big30.heap_mb} MB (page ${r.big30.page_heap_mb} + worker ${r.big30.worker_heap_mb}; ${r.big30.export_workers} export workers ${r.big30.export_heap_mb} MB, not gated) · start-up tasks ${JSON.stringify(r.boot.longtasks)}`);
 console.log(`bench · calibration ${speed.ms.toFixed(1)} ms: time limits × ${speed.factor.toFixed(2)}`);
 const bad = Object.entries(LIMITS).filter(([k, lim]) => worst[k] > lim * SLACK);
 for (const [k, lim] of Object.entries(LIMITS)) console.log(`bench · ${k}: ${worst[k]} (limit ${lim}${worst[k] > lim ? (worst[k] > lim * SLACK ? " – OVER +10 %" : " – over, within +10 %") : ""})`);
-console.log(`bench · not gated: longest start-up task ${info.longest_startup_task_ms} ms`);
+console.log(`bench · not gated: longest start-up task ${info.longest_startup_task_ms} ms; most page work in a frame of the thumbnail scroll ${info.thumbs_frame_ms} ms (a garbage collection can fall into one)`);
 if (GATE && bad.length) { console.error("bench: over the limit: " + bad.map(([k]) => k).join(", ")); process.exit(1); }

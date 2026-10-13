@@ -29,6 +29,7 @@ import { Port, transfer, type Wire } from "../rpc/port";
 import type { CoreEvents, CoreMethods, DocState, ExportCoreMethods, HtmlReq, PageEvents, PageMethods, SlideListsReq, StageLayer, StageReq, StageSlide, ViewInputs, WorkbookInfo } from "../rpc/messages";
 import type { DisplayList } from "../dl/types";
 import { stageHits, svgChunks } from "../dl/svg";
+import { contentKey } from "../dl/key";
 
 type HostPort = Port<CoreMethods, PageMethods, PageEvents, CoreEvents>;
 type Html = [string, string, string, string];
@@ -449,13 +450,6 @@ function ownEdits(L: RuntimeSlide["tables"][number], ctx: RenderCtx): string {
   const keys = (cache.ownKeys || (cache.ownKeys = new Set(L.items.map(keyOf)))) as Set<string>, out: Record<string, unknown> = {};
   for (const k of Object.keys(all)) if (keys.has(k)) out[k] = all[k];
   return JSON.stringify(out);
-}
-/** a short name for a list of nodes: the same nodes, the same name (FNV-1a over their JSON, 2 × 32 bits) */
-function contentKey(nodes: DisplayList): string {
-  const s = JSON.stringify(nodes);
-  let a = 0x811c9dc5, b = 0x01000193 ^ s.length;
-  for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619); b = Math.imul(b ^ c, 2246822519); }
-  return (a >>> 0).toString(36) + (b >>> 0).toString(36) + s.length.toString(36);
 }
 /** the host behind a port (one per worker) */
 /** what a host can do beyond the core's pure code (the worker passes these; the page's in-thread fallback does not,

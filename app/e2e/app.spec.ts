@@ -117,6 +117,25 @@ test.describe.serial("two people, one shared folder", () => {
     await lastFileSaved("anna", "report.xlsx");                 // the next tests re-open it
   });
 
+  test("thumbnails are pictures with their tags; an edit draws its own slide again, no other", async ({ page }) => {
+    await openApp(page, ANNA);                                     // re-opens report.xlsx (last file)
+    await expect(page.locator(".thumb")).toHaveCount(4);
+    await expect(page.locator(".thumb .frame canvas")).toHaveCount(4, { timeout: 15_000 });
+    await expect(page.locator(".thumb .tag")).toHaveText(["cover", "index"]);
+    const w = await page.locator('.thumb[data-i="2"] .frame canvas').evaluate(c => (c as HTMLCanvasElement).width);
+    expect(w).toBe(Math.round(222 * await page.evaluate(() => devicePixelRatio)));
+    const drawn = () => page.evaluate(() => (window as unknown as { __sbTest: { thumbStats(): { drawn: number } } }).__sbTest.thumbStats().drawn);
+    await page.locator('.thumb[data-i="2"]').click();
+    await page.waitForTimeout(1500);
+    const before = await drawn();
+    await selectCell(page, "Alpha"); await page.keyboard.type("Alfa"); await page.keyboard.press("Enter");
+    await expect.poll(drawn, { timeout: 10_000 }).toBe(before + 1);
+    await page.waitForTimeout(1500);
+    expect(await drawn()).toBe(before + 1);                        // the index lists titles only: its picture stays
+    await page.keyboard.press("Control+z"); await saved(page);
+    await expect.poll(drawn, { timeout: 10_000 }).toBe(before + 2);
+  });
+
   test("edits by anna and bob on the same workbook are merged, and each sees the other", async ({ browser }) => {
     const a = await browser.newPage(), b = await browser.newPage();
     await openApp(a, ANNA); await openApp(b, BOB);

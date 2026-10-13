@@ -415,7 +415,7 @@ worker's snapshots are rebased on calls it has not confirmed yet). Tables are dr
 | `textfmt.ts` | The **unified text toolbar**: `textTarget()` → cells / text box / slide text with the same `apply`/`clear` interface (cells store pt, others px). |
 | `painter.ts` | Format painter (incl. conditional formats and colour scales). |
 | `export.ts` | `doExport(kind)`, `exportVersions(designs)`, `exportPayload`, in-window fallback (§6.9). |
-| `keys.ts`, `thumbs.ts`, `issues.ts` | Global keyboard; lazy thumbnails (IntersectionObserver); side-panel notes (missing tables, hidden rows, stale text edits…). |
+| `keys.ts`, `thumbs.ts`, `issues.ts` | Global keyboard; thumbnails (S4.3: pictures drawn by an export worker from the slides' display lists, `ImageBitmap`s in a `bitmaprenderer` canvas; every row stays in the list, only frames near the view hold a picture – asked for as they come near, let go when far; a slide is drawn again only when its list's key changed); side-panel notes (missing tables, hidden rows, stale text edits…). |
 
 ### 5.7 `ui/`, `wizard/`, `styles/`
 * `ui/App.tsx` (layout, dialogs), `Chrome.tsx` (thumbnails, issues, canvas, status bar, busy, toast), `Topbar.tsx` (open, wizard, version
@@ -446,10 +446,10 @@ served: reopen `prefs.lastFile`, start `tick` (3 s) and the presence heartbeat (
 3. `LCACHE.clear()`, `GET /api/workbooks/<name>/doc`.
 4. Preset: continue with the saved one, or the wizard (with `defaultPreset` as draft, on the mirror); then the
    worker's `ensure(presetSheets)` parses only the sheets used.
-5. The worker's `start` (its `DocSync`; the stage's slide drawn first and sent unasked, then the snapshot, then the
-   thumbnails' table HTML); `runtimeSlides(wb, preset, name, design)` on the mirror → `deck.slides` (one store update
-   with the new document); restore the person's last version; wallpaper; `STAGE.render()`, `THUMBS.render()` (the
-   thumbnails wait for the stage's slide and the HTML).
+5. The worker's `start` (its `DocSync`; the stage's slide drawn first and sent unasked, then the snapshot);
+   `runtimeSlides(wb, preset, name, design)` on the mirror → `deck.slides` (one store update with the new document);
+   restore the person's last version; wallpaper; `STAGE.render()`, `THUMBS.render()` (the thumbnails wait for the
+   stage's slide, then an export worker draws the ones in view).
 
 ### 6.3 Making an edit (e.g. Ctrl+B on cells)
 1. `editor/keys.ts` → `toggleBold()` → `applySel` diffs the selected cells' `CellEdit`s → `cell.patch` ops →
@@ -458,8 +458,9 @@ served: reopen `prefs.lastFile`, start `tick` (3 s) and the presence heartbeat (
    `DocSync.apply`: for each op compute `inverseOf` on the current view, apply locally, push to `pending`, emit,
    schedule a flush in 300 ms; the history stores an undo entry (same `coalesce` key within 1.5 s → one entry,
    e.g. a slider drag). The worker draws the slide on the stage again at once (only the tables that changed are
-   built; their markup in pieces) and sends it, then the snapshot, then the thumbnails' HTML; the stage replaces the
-   pieces that changed (`stage/patch.ts`).
+   built; their markup in pieces) and sends it, then the snapshot; the stage replaces the pieces that changed
+   (`stage/patch.ts`). 350 ms later the thumbnail of that slide (and of the index slides) is asked for again: the
+   export worker draws it only if its display list changed.
 3. `flush`: `POST /api/workbooks/<name>/ops {ops, client}` (one request in flight).
 4. Helper: Host/Origin/token/format checks → `store.update_workbook`: lock `wb-<key>` → read latest
    (upgrading an older format) → `ops.apply_ops` → atomic write → rolling backup if due → unlock → `{doc,
@@ -656,7 +657,8 @@ workbook still being saved, no export engine (clients keep their ops and retry) 
 The default for every Export menu item. The core worker builds each slide's **display list** (the same one the
 G1 review checked); up to **three export workers** – the same script as the core worker, started under the name
 `sb-export` (`core/src/workers/main.ts`) – take one job per (design, version) and ask the core worker for the
-display lists on a channel of their own (`linkExport`), so the lists never pass through the page's thread:
+display lists on a channel of their own (`linkExport`), so the lists never pass through the page's thread. They
+also draw the thumbnails (`thumbs`, S4.3: the slides in view as `ImageBitmap`s, drawn as the PNG export draws them):
 * **PDF · text & tables**: `core/src/pdf/writer.ts` with HarfBuzz shaping and `hb-subset` subsetting
   (`core/src/text/`). Fonts: each run's CSS family list resolved to the first family that can be embedded
   (`core/src/text/resolve.ts`): the deck's font library, then this PC's fonts (the helper's `/sysfonts`;
@@ -934,7 +936,7 @@ app/
 │  │  ├─ tables.ts · painter.ts        widths/heights/same size · format painter
 │  │  ├─ textfmt.ts                    one text toolbar for every text
 │  │  ├─ keys.ts                       Excel-like keyboard
-│  │  ├─ thumbs.ts                     lazy thumbnails
+│  │  ├─ thumbs.ts                     thumbnails: pictures from an export worker
 │  │  ├─ export.ts                     exports through the helper, or in this window
 │  │  └─ issues.ts                     side-panel notes
 │  ├─ ui/                              React components

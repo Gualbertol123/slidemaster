@@ -6,7 +6,7 @@ import extraCss from "./styles/app.css?raw";
 import slideCss from "./styles/slide.css?raw";
 import { installBrowserPlatform } from "./platform";
 import { App } from "./ui/App";
-import { boot, core, coreStats } from "./state/app";
+import { boot, change, core, coreStats, ctx } from "./state/app";
 import { get } from "./state/store";
 import { installKeys } from "./editor/keys";
 import { indexWorkbook, readWorkbook } from "@slide-builder/core/xlsx/workbook";
@@ -19,6 +19,7 @@ import { todayLabel } from "@slide-builder/core/render/cover";
 import { drawDl } from "@slide-builder/core/dl/canvas";
 import type { HtmlReq } from "@slide-builder/core/rpc/messages";
 import { lastExport, pool } from "./editor/export";
+import { thumbStats } from "./editor/thumbs";
 import { stageBusy, stageNodes, stats as stageStats, useStage } from "./stage/data";
 
 // the core measures text and draws canvases through the page (core/src/platform.ts)
@@ -33,6 +34,10 @@ installBrowserPlatform();
   // the stage (S4.1): the slide it shows (its display list in layers), whether it shows the current slide with nothing
   // on its way, and how many slides it received and how long the last took (parity, bench)
   stage: () => useStage.getState().shown, stageNodes, stageStats,
+  // the thumbnails (S4.3): pictures drawn and slides asked for
+  thumbStats: () => ({ ...thumbStats }),
+  // the bench's 100-slide deck (S4.3): the deck's preset, and a change made as the page makes it (one undo step)
+  preset: () => structuredClone(ctx().preset), change,
   stageIdle: () => { const s = useStage.getState(), R = get().deck.slides[get().deck.cur]; return !stageBusy() && !!s.shown && !!R && s.shown.id === R.id && !s.editor && !s.drag; } };
 
 // slide.css styles the HTML slides still in the page (thumbnails, the comment preview, the export engine's pages), not

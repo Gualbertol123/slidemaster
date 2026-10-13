@@ -20,7 +20,6 @@ import type { DocEvent, ViewInputs } from "@slide-builder/core/rpc/messages";
 import type { Change } from "@slide-builder/core/sync/docsync";
 import { applyOps } from "@slide-builder/core/model/ops";
 import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "@slide-builder/core/model/preset";
-import { tableHtmlKey } from "@slide-builder/core/render/slide";
 import { resolveStyle } from "@slide-builder/core/model/style";
 import type { Design, Op, Preset, Prefs, RuntimeSlide, StylePatch } from "@slide-builder/core/model/types";
 import type { AppState } from "./store";
@@ -33,10 +32,6 @@ import { loadFonts, watchFontLoads } from "./fonts";
 let port: CorePort | null = null;
 /** the latest table HTML the worker drew, by table id and kind ("html" | "thtml") */
 const tableHtmls = new Map<string, { key: string; html: string }>();
-/** the worker sent the thumbnails' HTML since the workbook started (it sends it after the stage's slide, S4.1): the
-    thumbnails wait for it rather than draw their tables on the page's thread */
-let htmlIn = true;
-export const htmlArrived = () => htmlIn;
 /** tables the page drew itself (no HTML from the worker for that key yet), for tests */
 export const coreStats = { localHtml: 0, worker: false };
 /** the workbook being opened (its slices can arrive before its index; they wait) and the open one */
@@ -57,7 +52,7 @@ export function core(): CorePort {
     const wb = [openingWb, get().deck.wb as MirrorWorkbook | null].find(w => w && w.book === e.book);
     if (wb) receiveSlices(wb, e); else if (!openingWb) earlySlices.push(e);        // the index of that workbook is on its way
   });
-  port.on("html", list => { for (const [id, kind, key, h] of list) tableHtmls.set(id + "|" + kind, { key, html: h }); if (!htmlIn) { htmlIn = true; THUMBS.render(); } else THUMBS.html(); });
+  port.on("html", list => { for (const [id, kind, key, h] of list) tableHtmls.set(id + "|" + kind, { key, html: h }); });
   port.on("doc", ev => onWorkerDoc(ev));
   port.on("stage", s => STAGE.pushed(s));
   port.on("progress", p => { if (p) showBusy(p.text, p.frac); else hideBusy(); });
@@ -75,11 +70,6 @@ export function core(): CorePort {
 function receiveSlices(wb: MirrorWorkbook, e: { shared: SharedSlice | null; sheets: SheetSlice[] }) {
   wb.receive(e.shared, e.sheets);
   LCACHE.clear();                                            // layouts of the replaced sheets
-}
-/** the worker's HTML of every table of a slide, as a thumbnail shows it, has arrived (an edit the page shows already may
-    not have it yet: the thumbnail waits rather than draw the table on the page's thread) */
-export function thumbHtmlReady(R: RuntimeSlide, c: RenderCtx): boolean {
-  return R.tables.every((L, i) => { const { kind, key } = tableHtmlKey(R, i, c, true); return tableHtmls.get((L.id || "") + "|" + kind)?.key === key; });
 }
 const htmlOf = (id: string, kind: "html" | "thtml", key: string) => {
   const h = tableHtmls.get(id + "|" + kind);
@@ -315,12 +305,11 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
 
   const vid = get().prefs.prefs.versions?.[name] || "";         // the version this person looked at last
   const version = ((newPreset || preset)?.versions || []).some(x => x.id === vid) ? vid : "";
-  starting = true; pending.length = 0; htmlIn = false;
+  starting = true; pending.length = 0;
   let st;
   // the stage's slide is drawn first: the one shown before, if the new deck has it, as the slides are resolved below
   try { st = await core().call("start", { book: wb.book, name, doc, preset: newPreset, inputs: { ...viewInputs(name), version }, stage: STAGE.request(get().deck.cur) }); }
   catch (e) {
-    htmlIn = true;                                           // no new workbook: the thumbnails draw what they have
     // refused before the switch (another open came first): the worker still has the open document, and so does the page
     if ((e as { code?: string }).code === "NOT_STARTED") { patch("deck", { opening: "" }); throw gen !== openGen ? superseded() : e; }
     // the worker no longer holds the document shown: close it here too, so no edit can reach another file's document

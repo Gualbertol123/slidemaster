@@ -12,7 +12,7 @@ import type { RenderCtx } from "@slide-builder/core/render/context";
 import type { Design } from "@slide-builder/core/model/types";
 import { todayLabel } from "@slide-builder/core/render/cover";
 import type { CatalogFont } from "@slide-builder/core/text/resolve";
-import type { ExportJob, ExportResult } from "@slide-builder/core/rpc/messages";
+import type { ExportJob, ExportResult, Thumb } from "@slide-builder/core/rpc/messages";
 import { openInstaller } from "../state/dialogs";
 import { backend, ApiError, type ExportRes } from "../sync/api";
 import { ExportPool } from "../rpc/export";
@@ -49,9 +49,11 @@ function systemCatalog(): Promise<CatalogFont[]> {
   p.then(l => { if (!l.length) sysCatalog = null; }, () => { sysCatalog = null; });       // asked again next time
   return p;
 }
-/** the fonts an export may embed: the deck's library faces (their @font-face rules), then this PC's */
+/** the deck's library faces (their @font-face rules) */
+const libraryCatalog = (): CatalogFont[] => get().doc.fonts.flatMap(f => f.faces.map(x => ({ source: "library" as const, file: x.file, family: f.family, weight: Math.round(+x.weight || 400), italic: x.style === "italic" })));
+/** the fonts an export may embed: the deck's library faces, then this PC's */
 async function catalog(): Promise<CatalogFont[]> {
-  const lib: CatalogFont[] = get().doc.fonts.flatMap(f => f.faces.map(x => ({ source: "library" as const, file: x.file, family: f.family, weight: Math.round(+x.weight || 400), italic: x.style === "italic" })));
+  const lib = libraryCatalog();
   let sys: CatalogFont[] = [];
   try { sys = await systemCatalog(); } catch (e) { console.warn("this PC's fonts could not be listed:", e); }
   return [...lib, ...sys];
@@ -102,6 +104,11 @@ export function download(name: string, data: BlobPart, type: string) {
   const a = document.createElement("a"), url = URL.createObjectURL(new Blob([data], { type }));
   a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+/** thumbnails (S4.3, B14): slides of the current design and version as pictures `width` px wide, drawn by an export
+    worker as the PNG export draws them; `have`: the key of the picture shown of each slide (not drawn again) */
+export function thumbPictures(slides: number[], width: number, have: Record<number, string>): Promise<Thumb[]> {
+  return pool().thumbs({ design: style().design, version: get().deck.version, forExport: false, thumb: false, slides, today: todayLabel(), width, library: libraryCatalog(), have });
 }
 function job(kind: ExportJob["kind"], design: Design, version: string, slides: number[] | undefined, title: string, cat: CatalogFont[]): ExportJob {
   return { kind, design, version, forExport: true, thumb: false, slides, today: todayLabel(), scale: kind === "pictures" ? PICTURE_SCALE : PNG_SCALE, title, catalog: cat };

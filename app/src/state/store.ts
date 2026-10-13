@@ -101,7 +101,7 @@ export const same = (a: unknown, b: unknown) => a === b || JSON.stringify(a) ===
 export const STAGE = { render(_fresh?: boolean) { /* the slide again (fresh: text measured again) */ }, refresh() { /* the slide after a change */ }, fit() { /* measure the space again */ },
   /** what the stage would ask for slide `slide` (a starting workbook draws it first) */ request(slide: number): import("@slide-builder/core/rpc/messages").StageReq { return { slide, known: [] }; },
   /** the worker drew the stage's slide unasked */ pushed(_s: import("@slide-builder/core/rpc/messages").StageSlide) { /* the stage takes it */ } };
-export const THUMBS = { render() { /* all */ }, refresh(_i?: number) { /* one (+ index slides) */ }, html() { /* the worker sent table HTML */ } };
+export const THUMBS = { render() { /* all */ }, refresh(_i?: number) { /* one (+ index slides) */ } };
 
 let toastId = 0;
 export function toast(html: string, actions: ToastMsg["actions"] = [], err = false) {

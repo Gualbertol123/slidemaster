@@ -151,9 +151,21 @@ export interface ExportResult {
   /** where the time went, ms */
   ms: { lists: number; fonts: number; write: number };
 }
+/** thumbnails (S4.3, B14): slides of a design and version as pictures `width` px wide, drawn by an export worker */
+export interface ThumbJob extends SlideListsReq {
+  /** pixels across (the thumbnail's CSS width × the screen's pixel ratio) */
+  width: number;
+  /** the deck's library fonts (the slides may use them; this PC's fonts the worker has already) */
+  library: import("../text/resolve").CatalogFont[];
+  /** the key of the picture the page shows of each slide (by slide number): drawn again only when the slide changed */
+  have: Record<number, string>;
+}
+/** a slide's picture (null: the page has it – the same key – or it cannot be drawn here) and the key of what it shows */
+export interface Thumb { slide: number; key: string; bitmap: ImageBitmap | null }
 /** calls the page makes on an export worker */
 export interface ExportMethods {
   run(a: ExportJob): ExportResult;
+  thumbs(a: ThumbJob): Thumb[];
   /** the channel to the core worker (see CoreMethods.linkExport) */
   linkCore(a: { port: MessagePort }): void;
 }
