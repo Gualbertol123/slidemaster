@@ -93,10 +93,14 @@ const clean = (s: string) => s.replace(/[\\/:*?"<>|]+/g, "_").trim().replace(/^\
 /** saved in the export folder (helper) or downloaded (from disk); returns the name used */
 async function save(name: string, data: ArrayBuffer, type: string): Promise<string> {
   if (backend.served) return (await backend.exportFile(name, data)).files![0];
+  download(name, data, type);
+  return name;
+}
+/** a file given to the browser's downloads (the page opened from disk) */
+export function download(name: string, data: BlobPart, type: string) {
   const a = document.createElement("a"), url = URL.createObjectURL(new Blob([data], { type }));
   a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  return name;
 }
 function job(kind: ExportJob["kind"], design: Design, version: string, slides: number[] | undefined, title: string, cat: CatalogFont[]): ExportJob {
   return { kind, design, version, forExport: true, thumb: false, slides, today: todayLabel(), scale: kind === "pictures" ? PICTURE_SCALE : PNG_SCALE, title, catalog: cat };
@@ -113,6 +117,12 @@ const secs = (t0: number) => ` · ${((performance.now() - t0) / 1000).toFixed(1)
 
 /** the last export's files and time (click to saved), for tests and the bench */
 export const lastExport = { files: [] as string[], ms: 0 };
+/** what the last export made (or why it failed), for "Report a problem with this export" (the pilot, S3.8) */
+export interface ExportRecord { kind: string; design: string; version: string; files: string[]; seconds: number; missing: string[]; unreadable: string[]; failed?: string[]; engine?: string; at: string }
+export let lastMade: ExportRecord | null = null;
+function remember(r: Omit<ExportRecord, "at" | "seconds">, t0: number) {
+  lastMade = { ...r, seconds: +((performance.now() - t0) / 1000).toFixed(2), at: new Date().toISOString() };
+}
 
 export async function doExport(kind: ExportKind) {
   const { file } = get().deck;
@@ -144,21 +154,25 @@ export async function doExport(kind: ExportKind) {
       if (kind === "copy") {
         (clip as unknown as { ok(b: Blob): void }).ok(new Blob([r.files[0]], { type: "image/png" }));
         await clipDone;
+        remember({ kind, design, version, files: [], missing: r.missing, unreadable: r.unreadable || [] }, t0);
         lastExport.files = []; lastExport.ms = performance.now() - t0;
         toast("Slide copied as a high-resolution image: paste it into PowerPoint.");
         return;
       }
       const names: string[] = [];
       for (const [k, b] of r.files.entries()) names.push(await save(`${stem} - ${label(idx[k])}.png`, b, "image/png"));
+      remember({ kind, design, version, files: names, missing: r.missing, unreadable: r.unreadable || [] }, t0);
       return done(names, t0, "");
     }
     // "<workbook> - slides.pdf" for the deck (one slide: that slide's name), " (images)" for pictures – as before
     const whole = idx.length === all.length && idx.length > 1;
     const { r, kind: made } = await runPdf(job(mode === "exact" ? "pictures" : "pdf", design, version, kind === "pdf-current" ? idx : undefined, stem, await cat));
-    const name = `${stem} - ${whole ? "slides" : label(idx[0])}${made === "pictures" ? " (images)" : ""}.pdf`;
-    done([await save(name, r.files[0], "application/pdf")], t0, (made === "pictures" && mode !== "exact" ? NO_FONTS : "") + missingNote(r.missing, r.unreadable));
+    const name = `${stem} - ${whole ? "slides" : label(idx[0])}${made === "pictures" ? " (images)" : ""}.pdf`, saved = await save(name, r.files[0], "application/pdf");
+    remember({ kind: made === "pictures" ? kind + " (as pictures)" : kind, design, version, files: [saved], missing: r.missing, unreadable: r.unreadable || [] }, t0);
+    done([saved], t0, (made === "pictures" && mode !== "exact" ? NO_FONTS : "") + missingNote(r.missing, r.unreadable));
   } catch (e) {
     console.error(e);
+    remember({ kind, design: style().design, version: get().deck.version, files: [], missing: [], unreadable: [], failed: [String((e as Error).message || e)] }, t0);
     (clip as { no(e: unknown): void } | null)?.no(e);
     toast("⚠ Export failed: " + esc((e as Error).message || e), [], true);
   } finally { patch("ui", { exporting: false }); }
@@ -202,6 +216,7 @@ export async function exportVersions(designs: Design[] | null) {
     const failed = results.flatMap(r => r.status === "rejected" ? [String((r.reason as Error).message || r.reason)] : []);
     failed.forEach(f => console.error("export failed:", f));
     lastExport.files = [...saved]; lastExport.ms = performance.now() - t0;
+    remember({ kind: designs ? `versions-${list.length}` : "versions", design: list.join(" + "), version: versions.map(v => v.name).join(" + "), files: [...saved], missing: [...missing], unreadable: [...unreadable], failed }, t0);
     toast(`Saved <b>${saved.length}</b> PDFs${backend.served ? " in the export folder" : " (downloaded)"}${saved.length ? ": " + esc(saved.join(", ")) : ""}${secs(t0)}${noFonts ? NO_FONTS : ""}${missingNote([...missing], [...unreadable])}`
       + (failed.length ? ` · ⚠ ${failed.length} failed: ${esc(failed.slice(0, 2).join(" · "))}` : ""),
       backend.served ? [{ label: "Show folder", fn: () => { void backend.open({ folder: true }); } }] : [], failed.length > 0);
@@ -249,6 +264,7 @@ async function exportOldEngine() {
   if (!backend.served) { toast("The old engine runs through the helper: start Slide Builder with Start Slide Builder.bat.", [], true); return; }
   if (file!.src === "local") { toast("This workbook was opened without the helper. Open it again from the Open menu.", [], true); return; }
   if (get().ui.exporting) return;
+  const t0 = performance.now();
   patch("ui", { exporting: true });
   try {
     await flushDoc();
@@ -262,9 +278,13 @@ async function exportOldEngine() {
     } else fallback = true;
     if (fallback) { const images: string[] = []; for (const i of all) images.push(await clientRender(i, 3)); j = await backend.assemble(oldName, images); }
     const f = j!.files![0];
+    remember({ kind: "pdf-old", design: style().design, version: get().deck.version, files: j!.files!, missing: [], unreadable: [], engine: fallback ? "drawn in the app window" : j!.engine || "" }, t0);
     const acts = [{ label: "Open", fn: () => { void backend.open({ name: f }); } }, { label: "Show folder", fn: () => { void backend.open({ folder: true }); } }];
     if (fallback && get().ui.health?.engine?.state !== "starting") acts.push({ label: "Install export engine", fn: openInstaller });
     toast(`Saved <b>${esc(j!.files!.join(", "))}</b> in the export folder (old engine)` + (j!.seconds ? ` · ${j!.seconds}s` : "") + (j!.engine ? ` · ${esc(j!.engine)}` : "") + (fallback ? " · rendered in the app window" : ""), acts);
-  } catch (e) { console.error(e); toast("⚠ Export failed: " + esc((e as Error).message || e), [], true); }
-  finally { patch("ui", { exporting: false }); }
+  } catch (e) {
+    console.error(e);
+    remember({ kind: "pdf-old", design: style().design, version: get().deck.version, files: [], missing: [], unreadable: [], failed: [String((e as Error).message || e)] }, t0);
+    toast("⚠ Export failed: " + esc((e as Error).message || e), [], true);
+  } finally { patch("ui", { exporting: false }); }
 }

@@ -5,6 +5,7 @@ import { guard, lookChange, showVersion, openFromFolder, openLocalFile, openWiza
 import { openInstaller } from "../state/dialogs";
 import { backend, type FileInfo } from "../sync/api";
 import { doExport, exportVersions, type ExportKind } from "../editor/export";
+import { reportExportProblem } from "../editor/feedback";
 import { Dropdown } from "./Dropdown";
 import { Field } from "./Field";
 import { openFontManager } from "./FontPicker";
@@ -181,6 +182,8 @@ function ExportButton() {
         <button data-x="versions" disabled={!versions.length} onClick={() => { close(); void exportVersions(null); }}>PDF · every version<small>{versions.map(v => v.name).join(", ") || "none yet"} · this design</small></button>
         <button data-x="versions-2" disabled={!versions.length} onClick={() => { close(); void exportVersions(["glass", "excel"]); }}>PDF · every version × Liquid Glass + Excel<small>{2 * versions.length} files</small></button>
         <button data-x="versions-3" disabled={!versions.length} onClick={() => { close(); void exportVersions(["glass", "excel", "clean"]); }}>PDF · every version × all three designs</button>
+        <div className="sep" />
+        <button data-x="report" onClick={() => { close(); void reportExportProblem(); }}>Report a problem with this export…<small>for the export pilot · {backend.served ? "saved in the export folder (feedback)" : "downloaded"}</small></button>
       </>}
     </Dropdown>
   );

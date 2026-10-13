@@ -10,7 +10,7 @@ function Dialog() {
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") { e.stopPropagation(); d.resolve(null); }
-      if (e.key === "Enter" && !(e.target as HTMLElement).matches("button")) { const p = d.buttons.find(b => b.primary); if (p) { e.preventDefault(); d.resolve(p.id); } }
+      if (e.key === "Enter" && !(e.target as HTMLElement).matches("button, textarea")) { const p = d.buttons.find(b => b.primary); if (p) { e.preventDefault(); d.resolve(p.id); } }
     };
     document.addEventListener("keydown", key, true);
     // default focus: the primary action, or the first (safe) button when the choice is destructive

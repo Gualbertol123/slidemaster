@@ -112,7 +112,9 @@ start, cover), footer (`{date}`, `{workbook}`, `{title}`). *Use as default for n
 "(images)"), current slide PDF/PNG, all slides PNG (4800 × 2700), copy slide to clipboard, every version
 ("<workbook> - <version> - <design>.pdf"). Written by the page itself (since 3.7, §10.0): no export engine
 needed, and from disk the files are downloads. PDFs are one slide per page (1200 × 675 pt), light enough for
-Acrobat. For 3.7 only, *PDF · text & tables (old engine)* still makes the PDF the 3.6 way (§10.1–10.3).
+Acrobat. For 3.7 only, *PDF · text & tables (old engine)* still makes the PDF the 3.6 way (§10.1–10.3), and
+*Report a problem with this export…* (the export pilot, `docs/next/pilot-export.md`) saves a short report with
+the last export's details as a JSON file in `export\feedback\` (from disk: downloaded).
 
 **Working together** – changes are merged field by field; others' changes appear within ~3 s with their
 name; presence shows who else is in the workbook; typing is never overwritten by autosave or others'
@@ -544,7 +546,7 @@ the app (an Edge app window, `msedge --app=<url>`, else a browser tab) → `serv
 | `presence.py` | One heartbeat file per user@host whose **name** carries user, host, client and workbook; others = one directory listing, freshness from its modification times on the file-server clock (no file opened); old-format `<user>@<host>.json` still read; others seen in the last 25 s; cleanup after 24 h. |
 | `workbooks.py` | Listing (ROOT then `backend/`), path-safe lookup, **stable read** (size/mtime unchanged before/after, zip end record present; retried; `Unstable` → 503 while Excel is still saving). |
 | `fonts.py` | Font library: signature-checked files (≤ 15 MB, ≤ 64 faces/family), written before the index, under lock `fonts`; unreferenced files swept. |
-| `exports.py` | `/api/export-file` (the native export's PDF / PNG, .pdf / .png only), `/api/export` (modes, file naming) and `/api/assemble`; `save_export`: temp file → under lock `export-<name>` renamed into place; a target open in a viewer (locked) → ` (2)`, ` (3)`… |
+| `exports.py` | `/api/export-file` (the native export's PDF / PNG, .pdf / .png only), `/api/export-feedback` (the pilot's problem reports, `export\feedback\*.json`), `/api/export` (modes, file naming) and `/api/assemble`; `save_export`: temp file → under lock `export-<name>` renamed into place; a target open in a viewer (locked) → ` (2)`, ` (3)`… |
 | `engines.py` | Browser discovery, the three engines, `Exporter` (ordering, self-tests, output checks), page CSS and geometry checks, engine mirror to the local disk. §10. |
 | `pdf.py` | PDF writer for image pages, PNG helpers (crop), PDF page-box reading and **fitting** (marker detection in content streams, xref rewrite). §10. |
 | `cdp.py` | Minimal websocket + Chrome DevTools Protocol client. |
@@ -610,6 +612,7 @@ JSON bodies ≤ 2 MB, uploads/exports ≤ 300 MB. Full shapes: `docs/ARCHITECTUR
 | `POST /api/fonts/capture?file=` | fingerprint of a Windows font (SHA-1, version, metrics, `OS/2.fsType` → `embeddable`) into `data/fonts/system/fingerprints.json`; `otherBuilds` = other PCs' builds of the same file. Nothing is copied (G0, R7) |
 | `POST /api/logo?name=` · `GET /assets/<name>` | upload a logo to `data/assets` · images from data/assets, `backend/`, ROOT (case-insensitive) |
 | `POST /api/export-file?name=` | save a PDF or PNG the page wrote (native export, 3.7) in `export\`; returns the name used |
+| `POST /api/export-feedback` | "Report a problem with this export" (the 3.7 pilot): the page's report + version, user, PC and time as a new `export\feedback\<date>-<time>-<user>.json` (≤ 64 KB, never replaces one); returns its name |
 | `POST /api/export` · `POST /api/assemble` | render + write exports · PDF from page-rendered images (the old engine) |
 | `POST /api/convert-workbook` · `POST /api/convert` | .xlsb/.xls → .xlsx · EMF/WMF/TIFF → PNG (Windows; else 501) |
 | `POST /api/upload` · `GET /api/upload/<id>` | temporary in-memory uploads (local files) |

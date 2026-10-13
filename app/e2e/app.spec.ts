@@ -239,6 +239,27 @@ test.describe.serial("two people, one shared folder", () => {
     });
     expect(clip).toEqual({ types: ["image/png"], w: 4800, h: 2700 });
     expect(fs.readdirSync(path.join(root(), "export")).length).toBe(before);
+
+    // the pilot's "Report a problem with this export" (S3.8): the form and the last export as one JSON file in export/feedback
+    await page.click("#exportMenuBtn"); await page.click('[data-x="report"]');
+    await expect(page.locator("#fbWhich")).toHaveValue("png");                           // the last export was the copied slide
+    await page.selectOption("#fbWhat", "P3");
+    await page.fill("#fbSlide", "2");
+    await page.fill("#fbText", "the last row's border is missing");
+    await page.press("#fbText", "Enter");                                                 // a new line, not "save"
+    await page.locator("#fbText").pressSequentially("in Acrobat");
+    await expect(page.locator(".modal .dlg")).toBeVisible();
+    await page.click('[data-a="save"]');
+    await expect(page.locator("#toast")).toContainText("Report saved as export\\feedback\\");
+    const fb = fs.readdirSync(path.join(root(), "export", "feedback"));
+    expect(fb).toHaveLength(1);
+    expect(fb[0]).toMatch(/^\d{8}-\d{6}-.+\.json$/);
+    const rep = JSON.parse(fs.readFileSync(path.join(root(), "export", "feedback", fb[0]), "utf8"));
+    expect(rep).toMatchObject({ kind: "export-feedback", schema: 1, report: {
+      form: { what: "P3", which: "png", slide: 2, comment: "the last row's border is missing\nin Acrobat" },
+      deck: { slides: 4 }, lastExport: { kind: "copy", files: [] }, servedByHelper: true } });
+    expect(rep.report.deck.workbook).toMatch(/^report\./);
+    expect(rep.version).toMatch(/^\d+\.\d+\.\d+/);
   });
 
   test("table tools: same size, alignment, widths, text boxes, colour scale, Shift+arrows", async ({ browser }) => {

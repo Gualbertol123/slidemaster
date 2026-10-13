@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 import threading
 import unittest
@@ -148,6 +149,27 @@ class ExportTests(TempDirs):
         with mock.patch.object(exports, "Lock", spy):
             exports.export_file("B - slides.pdf", b"%PDF-x")
         self.assertEqual(seen, ["export-" + exports.doc_key("B - slides.pdf")])
+
+    def test_export_feedback_writes_one_new_json_file_per_report(self):
+        report = {"what": "P2 texts", "slide": 3, "comment": "Gamma ist falsch – €", "last": {"files": ["W - slides.pdf"]}}
+        with mock.patch.object(exports.time, "strftime", side_effect=lambda f, *a: "20261013-101500" if "%H%M%S" in f else "2026-10-13T10:15:00"):
+            a = exports.export_feedback(report, "ana", "PC-7")
+            b = exports.export_feedback(report, "ana", "PC-7")             # the same second: never replaces the first
+        self.assertEqual((a, b), ({"ok": True, "file": "feedback/20261013-101500-ana.json"}, {"ok": True, "file": "feedback/20261013-101500-ana (2).json"}))
+        folder = os.path.join(paths.EXPORT_DIR, "feedback")
+        self.assertEqual(sorted(os.listdir(folder)), ["20261013-101500-ana (2).json", "20261013-101500-ana.json"])   # no temporary file left
+        with open(os.path.join(folder, "20261013-101500-ana.json"), encoding="utf-8") as f:
+            doc = json.load(f)
+        from slidebuilder import VERSION
+        self.assertEqual(doc, {"kind": "export-feedback", "schema": 1, "app": "slide-builder", "version": VERSION, "user": "ana",
+                               "host": "PC-7", "at": "2026-10-13T10:15:00", "report": report})
+
+    def test_export_feedback_refuses_bad_reports(self):
+        for bad in ([1, 2], "text", None, {"comment": "x" * 70000}):
+            with self.assertRaises(exports.ExportError):
+                exports.export_feedback(bad, "ana", "PC-7")
+        self.assertEqual(exports.export_feedback({}, "a/b:c", "PC")["file"][:9], "feedback/")    # a user name cannot leave the folder
+        self.assertFalse(any("/" in n or ":" in n for n in os.listdir(os.path.join(paths.EXPORT_DIR, "feedback"))))
 
     def test_assemble(self):
         png = make_png(32, 18)

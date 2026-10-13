@@ -92,6 +92,13 @@ test("opened from file://: exports are downloads (PDF with the PC's fonts, PNG)"
   const png = await download(page, async () => { await page.click("#exportMenuBtn"); await page.click('[data-x="png-current"]'); });
   expect(png.name).toMatch(/^report - .+\.png$/);
   expect([png.bytes.readUInt32BE(16), png.bytes.readUInt32BE(20)]).toEqual([4800, 2700]);
+  // "Report a problem with this export" (S3.8): without the helper, the report is downloaded
+  await page.click("#exportMenuBtn"); await page.click('[data-x="report"]');
+  await page.fill("#fbText", "logo missing");
+  const rep = await download(page, () => page.click('[data-a="save"]'));
+  expect(rep.name).toMatch(/^export-feedback-.+\.json$/);
+  expect(JSON.parse(rep.bytes.toString("utf8"))).toMatchObject({ kind: "export-feedback", report: { form: { what: "P2", comment: "logo missing" }, lastExport: { kind: "png-current" }, servedByHelper: false } });
+  await expect(page.locator("#toast")).toContainText("send it to the product owner");
   expect(errors.filter(e => !EXPECTED.some(x => x.test(e)))).toEqual([]);
   await context.close();
 });

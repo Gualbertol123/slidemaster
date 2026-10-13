@@ -39,6 +39,8 @@ export interface Backend {
   exportSlides(req: ExportReq): Promise<ExportRes>;
   /** the native export (S3.7): a PDF or PNG the page wrote, saved in the export folder under (about) this name */
   exportFile(name: string, data: ArrayBuffer): Promise<ExportRes>;
+  /** "Report a problem with this export" (the export pilot, S3.8): one JSON file in export\feedback\; returns its name */
+  exportFeedback(report: object): Promise<{ file: string }>;
   /** this PC's font files (the export embeds the ones a deck uses) and one file's bytes */
   sysFonts(): Promise<SysFont[]>;
   sysFontBytes(file: string): Promise<ArrayBuffer>;
@@ -142,6 +144,7 @@ export const helper: Backend = {
     try { return await send(); }
     catch (e) { if (!(e instanceof TypeError)) throw e; console.warn("export: saving again after", e); await new Promise(r => setTimeout(r, 500)); return send(); }
   },
+  exportFeedback: report => json(req("/api/export-feedback", { method: "POST", json: report })),
   async sysFonts() { return (await json<{ fonts: SysFont[] }>(req("/sysfonts"))).fonts || []; },
   async sysFontBytes(file) { return (await req("/sysfonts/" + encodeURIComponent(file))).arrayBuffer(); },
   async open(target) { await req("/api/open", { method: "POST", json: target }); },
@@ -193,7 +196,7 @@ export const offline: Backend = {
   leave() { /* nothing */ },
   upload: offlineOnly, convertWorkbook: offlineOnly,
   async convertPicture() { return null; },
-  exportSlides: offlineOnly, assemble: offlineOnly, open: offlineOnly, exportFile: offlineOnly,
+  exportSlides: offlineOnly, assemble: offlineOnly, open: offlineOnly, exportFile: offlineOnly, exportFeedback: offlineOnly,
   async sysFonts() { return []; },
   sysFontBytes: offlineOnly,
   async engineRestart() { /* nothing */ },
