@@ -284,7 +284,7 @@ export class CoreHost {
   /** the HTML of every table of the current design and version (full, and shapes only for big tables) */
   private sendHtml(always = false) {
     if (!this.wb || !this.sync) return;
-    const out = this.render(this.ctx(), this.slides, true).filter(e => { const k = e[0] + "|" + e[1]; if (this.sentHtml.get(k) === e[2]) return false; this.sentHtml.set(k, e[2]); return true; });
+    const out = this.render(this.ctx(), this.slides, false).filter(e => { const k = e[0] + "|" + e[1]; if (this.sentHtml.get(k) === e[2]) return false; this.sentHtml.set(k, e[2]); return true; });
     if (out.length || always) this.port.emit("html", out);
   }
   private render(ctx: RenderCtx, slides: RuntimeSlide[], thumbs: boolean): Html[] {

@@ -11,8 +11,8 @@ import { thumbPictures } from "./export";
 let box: HTMLElement | null = null, near: IntersectionObserver | null = null, far: IntersectionObserver | null = null;
 /** the key of the picture each frame shows */
 const drawn = new WeakMap<HTMLElement, string>();
-/** frames near the view, and the frames to ask for (drawn when near) */
-const inView = new Set<HTMLElement>(), dirty = new Set<HTMLElement>();
+/** frames near the view, the frames to ask for (drawn when near), and every frame watched */
+const inView = new Set<HTMLElement>(), dirty = new Set<HTMLElement>(), watched = new Set<HTMLElement>();
 /** pictures drawn and slides asked for (tests, the bench) */
 export const thumbStats = { drawn: 0, asked: 0 };
 
@@ -27,7 +27,13 @@ export function mountThumbs(el: HTMLElement) {
   far = new IntersectionObserver(es => {
     for (const en of es) if (!en.isIntersecting) { const fr = en.target as HTMLElement; if (drawn.has(fr)) { drawn.delete(fr); release(fr); dirty.add(fr); } }
   }, { root: box, rootMargin: "1500px 0px" });
+  watchRatio();
   renderThumbs();
+}
+/** the window moved to a screen with another pixel ratio: the pictures are drawn again at its size */
+function watchRatio() {
+  const q = typeof matchMedia === "function" ? matchMedia(`(resolution: ${globalThis.devicePixelRatio || 1}dppx)`) : null;
+  q?.addEventListener("change", () => { watchRatio(); renderThumbs(); }, { once: true });
 }
 
 /** a frame lets its picture go: the pixels at once (a canvas left to the garbage collector keeps them until a full
@@ -49,9 +55,9 @@ function show(fr: HTMLElement, bitmap: ImageBitmap) {
 
 /** asks for the dirty frames near the view, the current slide's neighbours first, a few at a time (each answer is drawn
     as it comes; an edit's slide is not held behind a long queue) */
-let busy = false;
+let busy = false, retry: ReturnType<typeof setTimeout> | null = null;
 async function pump() {
-  if (busy || !box || !get().doc.open) return;
+  if (busy || retry || !box || !get().doc.open) return;
   const cur = get().deck.cur, at = (fr: HTMLElement) => +fr.dataset.i!;
   const batch = [...dirty].filter(fr => fr.isConnected && inView.has(fr)).sort((a, b) => Math.abs(at(a) - cur) - Math.abs(at(b) - cur)).slice(0, 6);
   for (const fr of dirty) if (!fr.isConnected) dirty.delete(fr);
@@ -70,8 +76,12 @@ async function pump() {
       if (!fr) { t.bitmap.close(); continue; }
       show(fr, t.bitmap); drawn.set(fr, t.key); thumbStats.drawn++;
     }
-  } catch (e) { console.warn("thumbnails:", e); }
-  finally { busy = false; }
+  } catch (e) {
+    // (the export worker stopped, or the core): the frames are asked for again a moment later
+    console.warn("thumbnails:", e);
+    batch.forEach(fr => dirty.add(fr));
+    retry = setTimeout(() => { retry = null; void pump(); }, 2000);
+  } finally { busy = false; }
   void pump();
 }
 
@@ -94,7 +104,8 @@ export function renderThumbs(force = false) {
     if (typeof requestIdleCallback === "function") requestIdleCallback(go, { timeout: 500 }); else setTimeout(go, 50);
     return;
   }
-  box.querySelectorAll<HTMLElement>(".frame").forEach(fr => { near!.observe(fr); far!.observe(fr); dirty.add(fr); });
+  for (const fr of watched) if (!fr.isConnected) { near!.unobserve(fr); far!.unobserve(fr); watched.delete(fr); inView.delete(fr); dirty.delete(fr); }
+  box.querySelectorAll<HTMLElement>(".frame").forEach(fr => { near!.observe(fr); far!.observe(fr); watched.add(fr); dirty.add(fr); });
   void pump();
 }
 /** a change of one slide (an edit): that slide and the index slides (they list the titles), a moment later */

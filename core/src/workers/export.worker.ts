@@ -13,20 +13,23 @@ type Scope = Wire & { fonts?: { add(f: FontFace): unknown }; addEventListener(t:
 /** the library families the pages draw with, loaded into this worker's fonts once (system fonts are there already) */
 function libraryFonts(scope: Scope) {
   const added = new Set<string>();
-  return async (pages: DisplayList[], library: CatalogFont[], bytes: (f: CatalogFont) => Promise<Uint8Array | null>) => {
-    if (!library.length || !scope.fonts) return;
+  /** true: every library face the pages use is loaded (a face that could not be read is tried again next time) */
+  return async (pages: DisplayList[], library: CatalogFont[], bytes: (f: CatalogFont) => Promise<Uint8Array | null>): Promise<boolean> => {
+    if (!library.length || !scope.fonts) return true;
+    let complete = true;
     const used = new Set<string>();
     const scan = (n: Node) => { if (n.t === "group") n.children.forEach(scan); else if (n.t === "text") for (const f of cssFamilies(n.css || n.font)) used.add(f.toLowerCase()); };
     pages.forEach(p => p.forEach(scan));
     await Promise.all(library.filter(f => used.has(f.family.toLowerCase()) && !added.has(f.file)).map(async f => {
       added.add(f.file);
       const b = await bytes(f).catch(() => null);
-      if (!b) return;
+      if (!b) { added.delete(f.file); complete = false; return; }
       try {
         const face = new FontFace(f.family, b as BufferSource, { weight: String(f.weight), style: f.italic ? "italic" : "normal" });
         scope.fonts!.add(await face.load());
       } catch { /* the page's fallback family draws it, as on screen when a font file is broken */ }
     }));
+    return complete;
   };
 }
 
@@ -68,9 +71,9 @@ function offscreenRaster(scope: Scope): Rasterizer {
       return drawPages(pages, images, scale, async canvas => new Uint8Array(await (await canvas.convertToBlob({ type: "image/png" })).arrayBuffer()));
     },
     async bitmaps(pages, images, width, fonts) {
-      await loadFonts(pages, fonts.library, fonts.bytes);
+      const complete = await loadFonts(pages, fonts.library, fonts.bytes);
       // a copy each (transferToImageBitmap would take the shared canvas's pixels away)
-      return drawPages(pages, images, width / 1600, canvas => createImageBitmap(canvas));
+      return { bitmaps: await drawPages(pages, images, width / 1600, canvas => createImageBitmap(canvas)), complete };
     },
   };
 }

@@ -21,7 +21,7 @@ export type ExportCorePort = Port<Record<string, never>, ExportCoreMethods, Reco
 export interface Rasterizer {
   pages(pages: DisplayList[], images: Map<string, Uint8Array>, scale: number, fonts: RasterFonts): Promise<Uint8Array[]>;
   /** the same pages as pictures `width` px wide, kept in memory (thumbnails, S4.3) */
-  bitmaps?(pages: DisplayList[], images: Map<string, Uint8Array>, width: number, fonts: RasterFonts): Promise<ImageBitmap[]>;
+  bitmaps?(pages: DisplayList[], images: Map<string, Uint8Array>, width: number, fonts: RasterFonts): Promise<{ bitmaps: ImageBitmap[]; /** every library face loaded */ complete: boolean }>;
 }
 export interface RasterFonts { library: CatalogFont[]; bytes: (f: CatalogFont) => Promise<Uint8Array | null> }
 export interface ExportHostOptions { raster?: Rasterizer }
@@ -86,7 +86,8 @@ export class ExportHost {
         return b ? new Uint8Array(b) : null;
       })();
       this.pictures.set(src, p);
-      p.catch(() => this.pictures.delete(src));
+      // a picture that could not be read is asked for again next time (the helper may have been busy)
+      p.then(b => { if (!b) this.pictures.delete(src); }, () => this.pictures.delete(src));
     }
     return p;
   }
@@ -107,13 +108,21 @@ export class ExportHost {
     if (!this.core) throw new Error("the export worker is not connected to the workbook");
     const { width, library, have, ...req } = job;
     const lists: SlideList[] = await this.core.call("slideLists", req);
-    const keyed = lists.map(l => ({ l, key: contentKey(l.dl.nodes, "|" + Object.keys(l.dl.images).join(",") + "|" + width) }));
+    // the key: the nodes, the pictures, the width and the library's faces (a face added later draws the text again)
+    const lib = library.map(f => f.file).join(",");
+    const keyed = lists.map(l => ({ l, key: contentKey(l.dl.nodes, "|" + Object.keys(l.dl.images).join(",") + "|" + width + "|" + lib) }));
     const todo = keyed.filter(k => have[k.l.slide] !== k.key && !validate(k.l.dl.nodes, "").length);
-    const bitmaps = todo.length && this.opts.raster?.bitmaps ? await this.opts.raster.bitmaps(todo.map(k => k.l.dl.nodes), await this.images(todo.map(k => k.l)), width, { library, bytes: this.fontBytes }) : [];
+    let drawn: { bitmaps: ImageBitmap[]; complete: boolean } = { bitmaps: [], complete: true }, images = new Map<string, Uint8Array>();
+    if (todo.length && this.opts.raster?.bitmaps) {
+      images = await this.images(todo.map(k => k.l));
+      drawn = await this.opts.raster.bitmaps(todo.map(k => k.l.dl.nodes), images, width, { library, bytes: this.fontBytes });
+    }
     return keyed.map(k => {
       if (have[k.l.slide] === k.key) return { slide: k.l.slide, key: k.key, bitmap: null };
-      const b = bitmaps[todo.indexOf(k)] ?? null;
-      return { slide: k.l.slide, key: b ? k.key : "", bitmap: b };
+      const b = drawn.bitmaps[todo.indexOf(k)] ?? null;
+      // drawn without a picture or a face it needs: shown, but without a key, so it is drawn again next time
+      const whole = drawn.complete && Object.keys(k.l.dl.images).every(id => images.has(id));
+      return { slide: k.l.slide, key: b && whole ? k.key : "", bitmap: b };
     });
   }
 
