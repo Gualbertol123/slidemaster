@@ -19,16 +19,19 @@ function useMarkup(layer: StageLayer) {
 }
 
 export type Box = NonNullable<StageLayer["box"]>;
-export const TableLayer = memo(function TableLayer({ layer, box }: { layer: StageLayer; box: Box }) {
-  const ref = useMarkup(layer);
-  return <svg ref={ref} className="tw" data-i={layer.table!} viewBox={`0 0 ${box.w / box.scale} ${box.h / box.scale}`} width={box.w} height={box.h}
-    style={{ position: "absolute", left: box.x, top: box.y, overflow: "visible", pointerEvents: "none" }} />;
-}, (a, b) => a.layer.key === b.layer.key && sameBox(a.box, b.box));
+/** a table where its layer puts it; `to`: where a drag shows it (a resize) – reached by a CSS transform, so the SVG is
+    not laid out again on every frame */
+export const TableLayer = memo(function TableLayer({ layer, to }: { layer: StageLayer; to: Box | null }) {
+  const ref = useMarkup(layer), box = layer.box!;
+  const move = to && !sameBox(to, box) ? { transform: `translate3d(${to.x - box.x}px,${to.y - box.y}px,0) scale(${to.scale / box.scale})`, transformOrigin: "0 0" } : {};
+  return <svg ref={ref} aria-hidden="true" className="tw" data-i={layer.table!} viewBox={`0 0 ${box.w / box.scale} ${box.h / box.scale}`} width={box.w} height={box.h}
+    style={{ position: "absolute", left: box.x, top: box.y, overflow: "visible", pointerEvents: "none", ...move }} />;
+}, (a, b) => a.layer.key === b.layer.key && sameBox(a.layer.box, b.layer.box) && sameBox(a.to, b.to));
 
 /** furniture and text boxes: slide px; `dx`, `dy` move it (a text box being dragged) */
 export const PlainLayer = memo(function PlainLayer({ layer, dx = 0, dy = 0 }: { layer: StageLayer; dx?: number; dy?: number }) {
   const ref = useMarkup(layer);
-  return <svg ref={ref} className={layer.note ? "layer note" : "layer"} viewBox="0 0 1600 900" width={1600} height={900}
+  return <svg ref={ref} aria-hidden="true" className={layer.note ? "layer note" : "layer"} viewBox="0 0 1600 900" width={1600} height={900}
     style={{ position: "absolute", left: 0, top: 0, overflow: "visible", pointerEvents: "none", ...(dx || dy ? { transform: `translate(${dx}px,${dy}px)` } : {}) }} />;
 }, (a, b) => a.layer.key === b.layer.key && a.dx === b.dx && a.dy === b.dy);
 

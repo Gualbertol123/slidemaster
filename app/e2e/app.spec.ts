@@ -267,7 +267,9 @@ test.describe.serial("two people, one shared folder", () => {
     await openApp(a, ANNA); await openApp(b, BOB);
     await expect(a.locator(".thumb")).toHaveCount(4); await expect(b.locator(".thumb")).toHaveCount(4);
     await a.locator('.thumb[data-i="3"]').click(); await b.locator('.thumb[data-i="3"]').click();
-    const rects = (p: Page) => p.$$eval("#stage .slide > .tw", els => els.map(e => { const r = e.getBoundingClientRect(); return { x: r.left, w: r.width, h: r.height }; }));
+    // the decks' logo "logo.png" is not in the folder: the side panel says so (the slide draws no logo for it)
+    await expect(a.locator("#issues")).toContainText("Logo “logo.png” not found in the folder");
+    const rects =(p: Page) => p.$$eval("#stage .slide > .tw", els => els.map(e => { const r = e.getBoundingClientRect(); return { x: r.left, w: r.width, h: r.height }; }));
     const slideX = async (p: Page) => (await p.locator("#stage .slide").boundingBox())!.x;
 
     // same size + left alignment (one undo step each)

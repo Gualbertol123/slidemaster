@@ -53,7 +53,8 @@ export function Stage() {
 STAGE.fit = () => setStage({ fitTick: useStage.getState().fitTick + 1 });
 
 const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top: number }) {
-  const shown = useStage(st => st.shown), drag = useStage(st => st.drag), editor = useStage(st => st.editor);
+  // a border drag's preview is drawn by its table's hit area alone (TableHits): not a reason to draw the rest again
+  const shown = useStage(st => st.shown), drag = useStage(st => st.drag?.kind === "border" ? null : st.drag), editor = useStage(st => st.editor);
   // the slide the stage shows – while another one is on its way (a slide switch) the stage keeps showing it, so nothing
   // flashes empty – and the render context as it is when that changes: the mirror alone changing (an edit before the
   // worker draws it) redraws nothing here
@@ -77,7 +78,7 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
         }}>
         <Layers m={m} layers={live.layers} drag={drag} />
         <div className="ovl">
-          <TextLayer m={m} />
+          <TextLayer hits={m.hits} />
           <Notes m={m} R={R} drag={drag} />
           {m.tables.map(t => <TableHits key={t.i} i={t.i} R={R} c={c} box={boxOf(t.i, t.box, drag)} s={s} />)}
           {m.tables.map(t => <HBox key={t.i} i={t.i} R={R} c={c} m={m} box={boxOf(t.i, t.box, drag)} drag={drag} slide={slideRef} />)}
@@ -103,7 +104,7 @@ function boxOf(i: number, box: Box, drag: DragPreview | null): Box {
 function Layers({ m, layers, drag }: { m: StageModel; layers: import("@slide-builder/core/rpc/messages").StageLayer[]; drag: DragPreview | null }) {
   let f = 0, nk = 0;
   return <>{layers.map(l => {
-    if (l.table !== null && l.box) return <TableLayer key={"t" + l.table} layer={l} box={boxOf(l.table, l.box, drag)} />;
+    if (l.table !== null && l.box) return <TableLayer key={"t" + l.table} layer={l} to={drag?.kind === "resize" ? boxOf(l.table, l.box, drag) : null} />;
     if (l.note) {
       const k = nk++, place = m.notes.find(n => n.layer === l), [dx, dy] = place ? noteShift(place, drag) : [0, 0];
       return <PlainLayer key={"n" + k} layer={l} dx={dx} dy={dy} />;
@@ -120,16 +121,16 @@ function noteShift(p: NotePlace, drag: DragPreview | null): [number, number] {
 }
 
 /* ---- the text layer: furniture */
-const TextLayer = memo(function TextLayer({ m }: { m: StageModel }) {
+const TextLayer = memo(function TextLayer({ hits }: { hits: StageModel["hits"] }) {
   const textSel = useStore(s => s.selection.textSel);
-  return <>{m.hits.map((h, k) => {
+  return <>{hits.map((h, k) => {
     const key = editOf(h.id), f = h.font;
     return <div key={k} className={"tx " + h.id + (key && key === textSel ? " tsel" : "")} {...(key ? { "data-edit": key } : {})}
       style={{ left: h.x, top: h.y, width: h.w, height: h.h, ...(f ? { fontFamily: f.family, fontSize: f.size, fontWeight: f.weight, fontStyle: f.italic ? "italic" : undefined } : {}) }}
       onPointerDown={key ? e => { e.stopPropagation(); selectSlideText(key); } : undefined}
       onDoubleClick={key ? () => setStage({ editor: { kind: "text", key } }) : undefined}>{h.label}</div>;
   })}</>;
-});
+}, (a, b) => a.hits.length === b.hits.length && a.hits.every((h, i) => JSON.stringify(h) === JSON.stringify(b.hits[i])));   // the furniture as it was: nothing to draw
 
 /* ---- text boxes: the box to select, move, stretch and double-click; its bubble; the hint of an empty one */
 function Notes({ m, R, drag }: { m: StageModel; R: RuntimeSlide; drag: DragPreview | null }) {

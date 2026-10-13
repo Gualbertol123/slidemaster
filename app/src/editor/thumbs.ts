@@ -18,11 +18,15 @@ function fill(fr: HTMLElement, i: number) {
     the page to measure text: the stage first, S4.1) and the worker's HTML of the tables has arrived (else the page
     would draw them itself) */
 let waiting: (() => void) | null = null;
-export function renderThumbs() {
+export function renderThumbs(force = false) {
   if (!box) return;
-  if ((!useStage.getState().shown || !htmlArrived()) && get().doc.open) {
-    // drawn when the stage shows a slide, or by the next call (the HTML's arrival calls THUMBS.render)
-    if (!waiting) waiting = useStage.subscribe(s => { if (s.shown) renderThumbs(); });
+  if (!force && (!useStage.getState().shown || !htmlArrived()) && get().doc.open) {
+    // drawn when the stage shows a slide, or by the next call (the HTML's arrival calls THUMBS.render) – and after 3 s
+    // whatever happened (a slide the stage could not draw must not leave the list blank)
+    if (!waiting) {
+      const stop = useStage.subscribe(s => { if (s.shown) renderThumbs(); }), t = setTimeout(() => renderThumbs(true), 3000);
+      waiting = () => { stop(); clearTimeout(t); };
+    }
     return;
   }
   if (waiting) { waiting(); waiting = null; }

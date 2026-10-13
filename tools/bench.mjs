@@ -44,7 +44,7 @@ const BACKEND = path.resolve(arg("--page", path.join(REPO, "backend")));
 const GATE = !process.argv.includes("--no-gate");
 const BUDGET = { open_deck20_ms: 400, read_big30_ms: 1000, longest_task_ms: 50, first_draw_task_ms: 250, heap_mb: 150,
   export_glass_ms: 2000, export_excel_ms: 1000, export_glass_kb: 80 * 20 + 190, export_excel_kb: 40 * 20, keypress_p95_ms: 50 }, SLACK = 1.1;
-const speed = speedFactor(), TIMED = ["open_deck20_ms", "read_big30_ms", "export_glass_ms", "export_excel_ms", "keypress_p95_ms"];
+const speed = speedFactor(), TIMED = ["open_deck20_ms", "read_big30_ms", "export_glass_ms", "export_excel_ms"];   // keypress: not scaled (decision 2026-10-12 names the others)
 const LIMITS = Object.fromEntries(Object.entries(BUDGET).map(([k, v]) => [k, TIMED.includes(k) ? Math.round(v * speed.factor) : v]));
 const CHROME = process.env.CHROME || chromium.executablePath();
 const PY = process.platform === "win32" ? "python" : "python3";

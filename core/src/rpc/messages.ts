@@ -79,7 +79,8 @@ export interface SlideList { slide: number; dl: import("../render/excel-dl").Tab
     (not sent again); `fresh`: measure everything again (fonts arrived) */
 export interface StageReq { slide: number; today?: string; known: string[]; fresh?: boolean;
   /** soft shadows (B3: the page's option) */ soft?: boolean;
-  /** the tables' nodes too (tests and the parity tools; the page draws the markup) */ nodes?: boolean }
+  /** the tables' nodes too (tests and the parity tools; the page draws the markup) */ nodes?: boolean;
+  /** the keys of the layers the page shows: those come without their markup (the page keeps its own) */ have?: string[] }
 /** a layer of the stage (its key names its markup: the same key, the same markup): one table (its display list in table px, placed by `box`: x, y, the scale and its size in
     slide px), one text box (`note`: its bubble and text in slide px, `box` its own box) or the furniture painted
     between them (slide px). `key` names the content: the same key, the same nodes (a table keeps its key while its

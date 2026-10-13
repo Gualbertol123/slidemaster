@@ -79,6 +79,19 @@ describe("the stage asks the worker for its slide", () => {
     calls.shift()!.resolve(slide(1, "n1")); await settle();
     expect(stage().shown?.id).toBe("n1");
   });
+  it("layers the page has come back without markup and are its own again; one it no longer has is asked for whole", async () => {
+    const full = (k: string) => ({ key: k, table: 0, box: { x: 0, y: 0, w: 10, h: 10, scale: 1 }, nodes: [], svg: ["<rect/>"] });
+    requestStage(); calls.shift()!.resolve({ ...slide(0), layers: [full("a"), full("b")] }); await settle();
+    requestStage();
+    expect(calls[0].a).toMatchObject({ have: ["a", "b"] });
+    calls.shift()!.resolve({ ...slide(0), layers: [{ ...full("a"), svg: [] }, full("c")] }); await settle();
+    expect(stage().shown!.layers.map(l => [l.key, l.svg.join("")])).toEqual([["a", "<rect/>"], ["c", "<rect/>"]]);
+    requestStage(); calls.shift()!.resolve({ ...slide(0), layers: [{ ...full("z"), svg: [] }] }); await settle();   // "z": not the page's
+    expect(stage().shown!.layers.map(l => l.key)).toEqual(["a", "c"]);
+    expect(calls[0].a).toMatchObject({ have: [] });
+    calls.shift()!.resolve({ ...slide(0), layers: [full("z")] }); await settle();
+    expect(stage().shown!.layers.map(l => l.key)).toEqual(["z"]);
+  });
   it("STAGE.render and STAGE.refresh ask for the slide; without a document the stage is empty", async () => {
     STAGE.render(true); expect(calls[0].a.fresh).toBe(true); calls.shift()!.resolve(slide(0)); await settle();
     STAGE.refresh(); expect(calls[0].a.fresh).toBe(false); calls.shift()!.resolve(slide(0)); await settle();

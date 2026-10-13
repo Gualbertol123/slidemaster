@@ -28,7 +28,7 @@ function server() {
 }
 function page(srv: ReturnType<typeof server>, who: string) {
   const [a, b] = pair();
-  serve(new Port<CoreMethods, PageMethods, PageEvents, CoreEvents>(b));
+  const host = serve(new Port<CoreMethods, PageMethods, PageEvents, CoreEvents>(b));
   const port = new Port<PageMethods, CoreMethods, CoreEvents, PageEvents>(a);
   port.handle("getDoc", x => srv.getDoc(x.since));
   port.handle("postOps", x => srv.postOps(x.ops, who));
@@ -42,7 +42,7 @@ function page(srv: ReturnType<typeof server>, who: string) {
   port.on("slices", v => seen.push({ k: "slices", v }));
   port.on("html", v => { seen.push({ k: "html", v }); for (const [id, kind, key, h] of v) html.set(id + "|" + kind + "|" + key, h); });
   port.on("doc", v => { seen.push({ k: "doc", v }); if (v.view) view = v.view; docs.push({ ...v, view }); });
-  return { port, seen, docs, html, last: () => docs[docs.length - 1] };
+  return { port, seen, docs, html, host, last: () => docs[docs.length - 1] };
 }
 const inputs = { defaults: {}, logoSrc: "", version: "", workbook: "report.xlsx" };
 
@@ -273,8 +273,8 @@ describe("the stage's slide (S4.1)", () => {
     expect((await p.port.call("stage", { slide, known: [], today: "13 Oct 2026" }))!.layers.filter(l => l.table !== null).every(l => !l.nodes.length && l.svg.length)).toBe(true);
     // asked again with nothing changed: the same keys (the page keeps the layers it has)
     expect(tables(await stageOf(p, slide)).map(l => l.key)).toEqual(t1.map(l => l.key));
-    // a cell of the first table changes: its table gets a new key; a table of another sheet keeps its own (tables of
-    // the same sheet are drawn again too: tableKey keys on the sheet's edits, as v3's HTML cache did)
+    // a cell of the first table changes: its table gets a new key; every other table keeps its own – the second table
+    // of this slide (the same sheet: a table is keyed by the edits of its own cells) and a table of another sheet
     const L0 = preset.tables.find(t => t.id === preset.slides[slide].tables[0])!;
     const other = preset.slides.findIndex(s => s.tables.some(id => preset.tables.find(t => t.id === id)!.sheet !== L0.sheet));
     const before = tables(await stageOf(p, other)).map(l => l.key);
@@ -283,6 +283,8 @@ describe("the stage's slide (S4.1)", () => {
     await p.port.call("flush", {});
     const t2 = tables(await stageOf(p, slide));
     expect(t2[0].key).not.toBe(t1[0].key);
+    expect(preset.tables.find(t => t.id === preset.slides[slide].tables[1])!.sheet).toBe(L0.sheet);
+    expect(t2.slice(1).map(l => l.key)).toEqual(t1.slice(1).map(l => l.key));
     expect(other).toBeGreaterThanOrEqual(0);
     expect(tables(await stageOf(p, other)).map(l => l.key)).toEqual(before);
     // a text box with a bubble above the first table: one layer from its bubble's hit to its text
@@ -310,9 +312,31 @@ describe("the stage's slide (S4.1)", () => {
     expect(new Set(seen).size).toBe(seen.length);
     expect(await cells(content[0])).toBe(seen[0]);                                   // and asked again: the same
   });
+  it("many edits of one table keep a few of its drawings, not one per edit (the worker's memory)", async () => {
+    const { p, preset, slide } = await opened();
+    const L0 = preset.tables.find(t => t.id === preset.slides[slide].tables[0])!;
+    const cell = tables(await stageOf(p, slide))[0].nodes.find(n => n.t === "hit" && n.kind === "t") as { id: string }, [r, c] = cell.id.split(",").map(Number);
+    for (let k = 0; k < 12; k++) {
+      await p.port.call("apply", { label: "Text", ops: [{ op: "cell.patch", sheet: L0.sheet, ref: A1(r, c), patch: { text: "v" + k, orig: "x" } } as Op] });
+      await stageOf(p, slide);
+    }
+    // the worker keeps three drawings of that table (the current one and two for undo), whatever the number of edits
+    const cache = (p.host as unknown as { stageCache: Map<string, unknown> }).stageCache;
+    expect([...cache.keys()].filter(k => k.startsWith(L0.sheet + "|" + L0.id + "|")).length).toBe(3);
+    // an undo shows a kept drawing: the same key as two edits ago, not built again
+    const two = tables(await stageOf(p, slide))[0].key;
+    await p.port.call("apply", { label: "Text", ops: [{ op: "cell.patch", sheet: L0.sheet, ref: A1(r, c), patch: { text: "w", orig: "x" } } as Op] });
+    await stageOf(p, slide);
+    await p.port.call("undo", { redo: false });
+    expect(tables(await stageOf(p, slide))[0].key).toBe(two);
+  });
   it("pictures the page has are not sent again; a slide that does not exist is null", async () => {
     const { p, slide } = await opened();
     const one = await stageOf(p, slide);
+    // layers the page names (it shows them) come without their markup; the others with theirs
+    const named = one!.layers.filter(l => l.table !== null).map(l => l.key);
+    const again = await p.port.call("stage", { slide, known: [], have: named });
+    expect(again!.layers.map(l => named.includes(l.key) ? l.svg.length === 0 : l.svg.length > 0).every(Boolean)).toBe(true);
     const ids = Object.keys(one!.images);
     expect(Object.keys((await stageOf(p, slide, ids))!.images)).toEqual([]);
     expect(await stageOf(p, 999)).toBe(null);

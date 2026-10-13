@@ -6,7 +6,7 @@
    shown when the editor closes. */
 import { create } from "zustand";
 import { get, patch, STAGE, useStore } from "../state/store";
-import { core } from "../state/app";
+import { core, ctx } from "../state/app";
 import type { StageSlide } from "@slide-builder/core/rpc/messages";
 import { todayLabel } from "@slide-builder/core/render/cover";
 
@@ -35,7 +35,6 @@ export const imageHref = (id: string) => images.get(id);
 function addImages(list: Record<string, string>) {
   for (const [id, src] of Object.entries(list)) {
     if (images.has(id)) continue;
-    if (id.startsWith("logo-")) watchLogo(src);
     const m = /^data:([^;,]*)(;base64)?,/.exec(src);
     if (!m) { images.set(id, src); continue; }
     try {
@@ -46,9 +45,13 @@ function addImages(list: Record<string, string>) {
   }
 }
 
-/** the logo's file: the issues panel says when it is missing (each time it is asked for anew: a failure before the
-    file was copied does not stick) */
-function watchLogo(src: string) {
+/** the deck's logo file: the issues panel says when it is missing (the slide then draws no logo). Checked by the page,
+    once per workbook and logo – again when either changes: a failure before the file was copied does not stick */
+let logoChecked = "";
+function watchLogo() {
+  const src = ctx().logoSrc, k = src + "|" + (get().deck.file?.name || "");
+  if (!src || k === logoChecked) return;
+  logoChecked = k;
   const im = new Image();
   im.onerror = () => { if (!get().ui.logoMissing) patch("ui", { logoMissing: true }); };
   im.onload = () => { if (get().ui.logoMissing) patch("ui", { logoMissing: false }); };
@@ -66,6 +69,7 @@ export function editorClosed() {
 let issued = 0;
 export const requestsIssued = () => issued;
 function show(s: StageSlide | null, n = issued) {
+  if (s) watchLogo();
   if (stage().editor && s) { held = s; return; }
   // a drag's last preview stays until a slide asked for after the drag (drawn with its change) replaces it
   const d = stage().drag, clear = !!d?.done && n > (d.after ?? 0);
@@ -87,6 +91,15 @@ export function stagePushed(s: StageSlide) {
 }
 /** what the stage asks for slide `slide` */
 export const stageRequest = (slide: number) => ({ slide, today: todayLabel(), known: [...images.keys()], soft: !!get().prefs.prefs.softShadows });
+/** the next request names no layers (a layer named last time was gone when the answer came) */
+let whole = false;
+/** an answer whose layers the page had come without markup: they are the page's own again (null: one is not there) */
+function fill(s: StageSlide, base: StageSlide | null): StageSlide | null {
+  if (!s.layers.some(l => !l.svg.length)) return s;
+  const mine = new Map((base?.layers || []).map(l => [l.key, l]));
+  const layers = s.layers.map(l => l.svg.length ? l : mine.get(l.key) ?? (l.nodes.length || l.table !== null ? null : l));
+  return layers.every(Boolean) ? { ...s, layers: layers as StageSlide["layers"] } : null;
+}
 /** asks the worker for the current slide; `fresh`: measure all text again (fonts arrived) */
 export function requestStage(fresh = false) {
   if (inflight) { again = { fresh: !!(again?.fresh || fresh) }; return; }
@@ -96,13 +109,18 @@ export function requestStage(fresh = false) {
   if (early && !fresh && early.slide === cur && slides[cur].id === early.id) { const e = early; early = null; show(e, issued + 1); }
   inflight = true;
   const t0 = performance.now(), n = ++issued;
-  core().call("stage", { ...stageRequest(cur), fresh }).then(s => {
+  // the layers the page has of this slide come back without their markup
+  const base = held ?? stage().shown, have = !whole && base && base.id === slides[cur].id ? base.layers.map(l => l.key) : [];
+  whole = false;
+  core().call("stage", { ...stageRequest(cur), fresh, have }).then(s => {
     if (!s) { show(null, n); return; }                     // the worker has no such slide (no document)
     addImages(s.images);
     const now = get().deck;
     // the slide changed meanwhile (another slide, or a new list of slides): asked again below
     if (now.cur !== s.slide || now.slides[now.cur]?.id !== s.id) { if (!again) again = { fresh: false }; return; }
-    show(s, n);
+    const filled = have.length ? fill(s, base) : s;
+    if (!filled) { whole = true; if (!again) again = { fresh: false }; return; }   // (the page no longer has one of them)
+    show(filled, n);
     stats.requests++; stats.last = performance.now() - t0;
   }).catch(e => console.error("stage:", e)).finally(() => {
     inflight = false;

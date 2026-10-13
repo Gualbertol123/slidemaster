@@ -15,6 +15,7 @@ import { computeLayout, tableHtml, tableHtmlKey } from "../render/slide";
 import { excelTableDL, forgetMeasurements, measuredBuild, type TableDL } from "../render/excel-dl";
 import { glassTableDL } from "../render/glass-dl";
 import { slideToDisplayList, type SlideImages } from "../render/slide-dl";
+import { keyOf } from "../render/edits";
 import { analyzeImages, IMGMETA } from "../xlsx/drawing";
 import { sha1 } from "../text/sha1";
 import { wallpaperIds } from "../render/wallpaper";
@@ -99,7 +100,7 @@ export class CoreHost {
     h("poll", async () => { await this.sync?.poll(); });
     h("html", a => this.htmlFor(a));
     h("slideLists", a => this.lists(a));
-    h("stage", a => { if (!a.nodes) this.stageReq = { ...a, fresh: false }; return this.queueStage(a); });
+    h("stage", a => { if (!a.nodes) this.stageReq = { ...a, fresh: false, have: undefined }; return this.queueStage(a); });
     // an export worker's own channel (S3.7): display lists go to it directly, never through the page's main thread
     h("linkExport", a => {
       const p = new Port<ExportCoreMethods, Record<string, never>, Record<string, never>, Record<string, never>>(a.port as unknown as Wire);
@@ -349,11 +350,19 @@ export class CoreHost {
     for (const [i, L] of R.tables.entries()) {
       const b = boxes[i], place = { x: b?.x ?? 0, y: b?.y ?? 0, scale: b?.scale ?? 1 };
       // which table (tableHtmlKey was made for a cache on the layout itself: it does not name the table), then what it is
-      // drawn from
-      const key = L.sheet.name + "|" + (L.id || "") + "|" + tableHtmlKey(R, i, ctx).key + "|" + styleSig + (glass ? "|" + place.x + "," + place.y + "," + place.scale : "");
+      // drawn from – with the edits of its own cells only (tableKey has the whole sheet's: an edit in one table must not
+      // draw the others of its sheet again)
+      const who = L.sheet.name + "|" + (L.id || "") + "|" + ctx.style.design + "|" + soft;
+      const own = { ...ctx, _keys: new Map([[L.sheet.name, ownEdits(L, ctx)]]) };
+      const key = who + "|" + tableHtmlKey(R, i, own).key + "|" + styleSig + (glass ? "|" + place.x + "," + place.y + "," + place.scale : "");
       let hit = this.stageCache.get(key);
       if (hit) this.stageCache.delete(key);
-      else hit = { id: "t" + (++this.stageSeq), dl: glass ? await glassTableDL(L, ctx, place, img.wall?.blur ?? null) : await excelTableDL(L, ctx), svg: new Map() };
+      else {
+        hit = { id: "t" + (++this.stageSeq), dl: glass ? await glassTableDL(L, ctx, place, img.wall?.blur ?? null) : await excelTableDL(L, ctx), svg: new Map() };
+        // a table keeps its last few drawings (undo, redo); older ones of the same table go
+        const mine = [...this.stageCache.keys()].filter(k => k.startsWith(who + "|"));
+        for (const k of mine.slice(0, Math.max(0, mine.length - 2))) this.stageCache.delete(k);
+      }
       this.stageCache.set(key, hit);
       tables.push(hit.dl); hits.push(hit);
     }
@@ -391,6 +400,9 @@ export class CoreHost {
       } else run.push(n);
     }
     flush();
+    // layers the page shows already (the same key, the same markup): sent without their markup
+    const have = new Set(a.have || []);
+    for (const l of layers) if (have.has(l.key)) l.svg = [];
     const known = new Set(a.known), images: Record<string, string> = {};
     for (const [id, src] of Object.entries(dl.images)) if (!known.has(id)) images[id] = src;
     return { slide: a.slide, id: R.id, design: ctx.style.design, layers, images };
@@ -423,6 +435,13 @@ const viewJson = (v: WorkbookDoc) => { const { rev, updated, updatedBy, log, sch
 const STAGE_CACHE = 200;
 /** the hit a text box's nodes start with: its bubble's, or its own */
 const NOTE_HIT = /^tnote\b|notebub/;
+/** the edits of a table's own cells, as sheetKey writes a sheet's (the renderers read a cell's edit by its key) */
+function ownEdits(L: RuntimeSlide["tables"][number], ctx: RenderCtx): string {
+  const all = (ctx.edits[L.sheet.name] || {}) as Record<string, unknown>, cache = (L._cache || (L._cache = {})) as Record<string, unknown>;
+  const keys = (cache.ownKeys || (cache.ownKeys = new Set(L.items.map(keyOf)))) as Set<string>, out: Record<string, unknown> = {};
+  for (const k of Object.keys(all)) if (keys.has(k)) out[k] = all[k];
+  return JSON.stringify(out);
+}
 /** a short name for a list of nodes: the same nodes, the same name (FNV-1a over their JSON, 2 × 32 bits) */
 function contentKey(nodes: DisplayList): string {
   const s = JSON.stringify(nodes);
