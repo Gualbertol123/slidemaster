@@ -5,6 +5,34 @@ Releases are made with `docs/next/release-checklist.md`.
 
 ## 3.7.0 - unreleased
 
+What users notice – the export (PLAN S3.7–S3.8; piloted, go on 2026-10-13)
+* **Slide Builder writes the PDFs and pictures itself.** No export engine (Chrome) is needed any more for
+  *Export PDF*, *PDF · as pictures*, *PNG* and *Copy current slide*; the work runs in the background, the window
+  keeps responding. Measured on the 20-slide test deck on the reference PC:
+
+  | | 3.6 (export engine) | 3.7 |
+  |---|---|---|
+  | Liquid Glass, click → PDF saved | ≈ 5.7 s | ≈ 1.3–1.5 s |
+  | Liquid Glass, PDF size | 25.0 MB | 1.3 MB |
+  | Excel / Excel Refined, click → PDF saved | ≈ 1.5 s | ≈ 0.35–0.45 s |
+  | Excel / Excel Refined, PDF size | 3.3 MB | 0.26 MB |
+
+  Every test deck's PDF is 1.3–18× smaller than 3.6's; the text in it is the slide's text once (3.6's PDFs held
+  table texts twice and "ﬁ" ligatures, so copy / search gave doubled text).
+* **Opened from disk (without the helper), exports work too: the files are downloaded** (B1). The browser asks
+  once to use the PC's fonts; refused, the PDF is made of pictures and the message says so.
+* **PDF · as pictures uses lossless pictures at 2× instead of 4×** (B9): sharp on screen, about 8× smaller
+  (Excel deck of 20 slides: 11.6 MB; Liquid Glass ≈ 70 MB, its wallpaper's fine grain does not compress further).
+* **Every version export is named `<workbook> - <version> - <design>.pdf`** (B11), also in one design.
+* A message names any font that had to be replaced in the PDF (a font of the library stored as WOFF2, as most
+  Google fonts, is drawn with the next font of its list; the old engine below still embeds it).
+* For this release only: **Export ▾ › PDF · text & tables (old engine)** makes the PDF the 3.6 way
+  (`<workbook> (old engine) - slides.pdf`), and **Report a problem with this export…** saves a short report with
+  the last export's details as a JSON file in `export\feedback\` (downloaded when opened from disk).
+* In a dialog's text box, Enter starts a new line.
+* A variable font uploaded to the font library is stored as a static .ttf at the weight given when uploading,
+  so PDFs can embed it.
+
 What users notice (fixes found by the review before M3, `docs/next/review-pre-M3.md`; approved by the product
 owner on 2026-10-12)
 * **Opening a second workbook while the first one is still being read** (a second drop, or Browse… during an
