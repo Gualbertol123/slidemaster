@@ -57,7 +57,7 @@ canvas (the page's `TextMeasurer`); row heights are pt × 96/72.
 
 ## 2. Rendering (`core/src/render/`, `app/src/render/slidedom.ts`, `styles/slide.css`)
 
-### 2.1 Slide layout (`render/slide.ts`)
+### 2.1 Slide layout (`render/layout.ts`)
 `computeLayout(R, w)`: tables are arranged in **bands** (`layout.bands`), each table scaled by
 `k × w[i]`, where `k` is the largest factor (≤ `MAXK = 2.0`) that fits the content area
 (`areaFor(R)`: x 50…1550, y 104…822, or from 126 with a subtitle). Gaps `GX = 36`, `GY = 28` stay

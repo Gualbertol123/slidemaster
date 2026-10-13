@@ -4,7 +4,7 @@
 import { get, patch, patchAll, toast } from "../state/store";
 import { change, setZoom } from "../state/app";
 import type { Note, Op, RuntimeSlide, Side } from "@slide-builder/core/model/types";
-import { MEMO_KEY } from "@slide-builder/core/render/slide";
+import { MEMO_KEY } from "@slide-builder/core/render/layout";
 import { activeItem, curSlide } from "../editor/edit";
 import { editorClosed, setStage, stage } from "./data";
 

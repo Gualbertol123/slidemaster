@@ -4,7 +4,7 @@
    Glass widens columns: its edges are the glass geometry's. */
 import type { Item, TableLayout } from "@slide-builder/core/xlsx/types";
 import { glassGeom, gItem } from "@slide-builder/core/render/glass";
-import { tableW } from "@slide-builder/core/render/slide";
+import { tableW } from "@slide-builder/core/render/layout";
 import type { RenderCtx } from "@slide-builder/core/render/context";
 import { itemAt } from "../editor/edit";
 

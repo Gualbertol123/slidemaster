@@ -55,7 +55,7 @@ describe("designs and colours", () => {
     const pure = renderExcel(table(), ctx({ design: "excel" }));
     expect(pure).toContain("background:#1F4E79"); expect(pure).toContain("background:#00B050");
     expect(renderExcel(table(), ctx({ design: "excel", colors: { head: "#5B2C83", pos: "#0077B6" } }))).toBe(pure);
-    const { notesOf } = await import("../src/render/slide");
+    const { notesOf } = await import("../src/render/layout");
     const R: any = { tables: [{ id: "t" }], cfg: { notes: { "t:right": { text: "x" } } } };
     expect(notesOf(R, 0, ctx({ design: "excel" }))).toEqual({});
     expect(notesOf(R, 0, ctx({ design: "clean" })).right?.text).toBe("x");

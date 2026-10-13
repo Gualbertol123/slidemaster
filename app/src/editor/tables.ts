@@ -6,7 +6,7 @@ import { change, ctx } from "../state/app";
 import { buildLayout } from "@slide-builder/core/xlsx/layout";
 import type { TableLayout } from "@slide-builder/core/xlsx/types";
 import type { Layout, Op, RuntimeSlide, TableDef } from "@slide-builder/core/model/types";
-import { computeLayout, layoutOf, sizingChange, sizingOf, tableW } from "@slide-builder/core/render/slide";
+import { computeLayout, layoutOf, sizingChange, sizingOf, tableW } from "@slide-builder/core/render/layout";
 import { tableSizes } from "@slide-builder/core/model/preset";
 import type { RenderCtx } from "@slide-builder/core/render/context";
 import { glassGeom } from "@slide-builder/core/render/glass";

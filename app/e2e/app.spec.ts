@@ -305,13 +305,55 @@ test.describe.serial("two people, one shared folder", () => {
     await a.click("#optBtn"); await a.locator("#radiusRange").fill("0"); await a.locator("#contrastRange").fill("80"); await a.keyboard.press("Escape");
     await pollFile(() => doc().style, { timeout: 10_000 }).toMatchObject({ radius: 0, contrast: 80 });   // sliders apply after a short pause
     // soft shadows on screen (B3, a personal setting): a true blur instead of the PDF's 5 layers, and back
-    const blurs = () => a.locator("#stage .slide > svg filter feGaussianBlur").count();
+    const blurs = () => a.locator("#stage .slide svg filter feGaussianBlur").count();
     expect(await blurs()).toBe(0);
     await a.click("#optBtn"); await a.check("#softShadows"); await a.keyboard.press("Escape");
     await expect.poll(blurs, { timeout: 10_000 }).toBeGreaterThan(0);
     await a.click("#optBtn"); await a.uncheck("#softShadows"); await a.keyboard.press("Escape");
     await expect.poll(blurs, { timeout: 10_000 }).toBe(0);
     await a.close(); await b.close();
+  });
+
+  test("drags on the slide: corner scale, grip move, border double-click – each one undo step", async ({ page }) => {
+    await openApp(page, ANNA);
+    await expect(page.locator(".thumb")).toHaveCount(4);
+    await page.locator('.thumb[data-i="3"]').click();                                     // SLIDE_3 pair: two tables
+    const design = () => doc().style.design || "glass", slideDef = () => doc().preset.slides[3];
+    const sizing = () => JSON.stringify(slideDef().sizes?.[design()] || {});
+    const rect = async (i: number) => (await page.locator(`#stage .slide > .tw[data-i="${i}"]`).boundingBox())!;
+    const undo = async () => { await page.locator("#stage .stagewrap").click({ position: { x: 4, y: 4 } }); await page.keyboard.press("Control+z"); };
+    await page.locator("#stage .stagewrap").hover();
+
+    // the corner of the first table: smaller, its proportions kept; one undo step back
+    const before = sizing(), w0 = (await rect(0)).width;
+    const corner = (await page.locator('#stage .hbox[data-i="0"] .size').boundingBox())!;
+    await page.mouse.move(corner.x + corner.width / 2, corner.y + corner.height / 2); await page.mouse.down();
+    await page.mouse.move(corner.x - 120, corner.y - 60, { steps: 8 }); await page.mouse.up();
+    await pollFile(sizing, { timeout: 10_000 }).not.toBe(before);
+    await expect.poll(async () => (await rect(0)).width).toBeLessThan(w0 - 20);
+    await undo();
+    await pollFile(sizing, { timeout: 10_000 }).toBe(before);
+
+    // the grip of the second table, dropped above the first one: the second table goes on top
+    const t0 = await rect(0), grip = (await page.locator('#stage .hbox[data-i="1"] .grip').boundingBox())!;
+    await page.mouse.move(grip.x + 10, grip.y + grip.height / 2); await page.mouse.down();
+    await page.mouse.move(t0.x + t0.width / 2, t0.y + 4, { steps: 8 });
+    await expect(page.locator("#stage .dropmark")).toBeVisible();
+    await page.mouse.up();
+    await pollFile(() => JSON.stringify(slideDef().sizes?.[design()]?.layout?.bands), { timeout: 10_000 }).toBe(JSON.stringify([[1], [0]]));
+    await expect.poll(async () => (await rect(1)).y).toBeLessThan((await rect(0)).y);
+    await undo();
+    await pollFile(sizing, { timeout: 10_000 }).toBe(before);
+
+    // a double-click on a column border: that column back to its Excel width (it was 150 px since "table tools")
+    const cols = () => doc().preset.tables.find((t: any) => t.id === slideDef().tables[0]).sizes[design()].cols;
+    expect(cols()["3"]).toBe(150);
+    const r1 = (await page.locator('#stage .slide > .tw[data-i="0"] .t', { hasText: /^R1$/ }).boundingBox())!;
+    await page.mouse.dblclick(r1.x + r1.width, r1.y + r1.height / 2);
+    await pollFile(() => cols()["3"] ?? "excel", { timeout: 10_000 }).toBe("excel");
+    expect(cols()["4"]).toBe(150);                                                        // only that column
+    await undo();
+    await pollFile(() => cols()["3"], { timeout: 10_000 }).toBe(150);
   });
 
   test("wizard table picker: Shift+arrows select, Enter adds the table", async ({ page }) => {

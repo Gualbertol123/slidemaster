@@ -277,7 +277,7 @@ data/
   `designs[<current design>]` on top (`model/style.ts resolveStyle`).
 * **Effective sizing** of a slide/table in a design = its own `sizes[design]` entry if present (even
   empty), else the shared `layout/scale/align/valign` or `cols/rows` of older decks
-  (`render/slide.ts sizingOf`, `model/preset.ts tableSizes`).
+  (`render/layout.ts sizingOf`, `model/preset.ts tableSizes`).
 * The full field table is `docs/ARCHITECTURE.md` §3; the TypeScript types are `core/src/model/types.ts`.
 
 ### 4.3 Operations
@@ -352,7 +352,8 @@ exactly this text), mounts `<App/>`, installs the keyboard handler and calls `bo
 | `edits.ts` | `effItems(L, ctx)` = the workbook items with everything the user changed: **version blanking** (cells in `version.hide` → empty, no fill, `removed`), gridlines, colour scales, painted conditional formats, cell edits (text only while `orig` matches), cell colour vs highlight, roles. `cache(L, name, key, make)` = the per-table cache (`L._cache`). |
 | `excel.ts` | `renderExcel`: absolutely positioned divs (box layer: fills/borders; text layer: fonts, alignment, indent, rotation, `<sup>/<sub>`), shapes, text boxes, pictures. Used by **Excel and Excel Refined**. |
 | `glass.ts` | Liquid Glass: `glassGeom` (columns widened for the system font, user-fixed columns kept), `buildScene` (grid → surfaces by union-find of structural fills, frames/grids from borders, rules, texts, signals (CF fills, highlights, green/red status), media; containment tree), `inferRoles` (heading/section/label/value/emphasis/caption, implicit cards, table detection with automatic separators), `renderGlass` (materials by fill class and depth, tinted glass, capsules, hairlines, ink colours). Details: `docs/RENDERING.md` §2.3. |
-| `slide.ts` | Slide composition. `areaFor` (content area 50…1550 × 104/126…822, pushed by large titles), `defaultLayout`/`layoutOf`, **per-design sizing** (`sizingOf`, `sizingPatch`, `sizingChange`, `fixedScale`), `notesOf` (none in raw Excel; automated comments get their text here), **`computeLayout`** (§6.6), `tableHtml` (cached per design/glass level/tableKey), **`slideMarkup`** (class, CSS variables and HTML: wallpaper, title or cover, contents, page number, footer, tables, text boxes, notes section, editing handles, logo), `fitNoteSize` (shrinks a text box's font until the `TextMeasurer` says it fits). In the page, `app/src/render/slidedom.ts` builds the element (`buildSlide`), positions it (`applyLayout` + `placeGlass` = aligns each glass element's blurred wallpaper) and fits the text boxes. |
+| `layout.ts` | Where things go on a slide – pure, shared by the core worker and the page (the stage's drags lay the slide out on every frame). `areaFor` (content area 50…1550 × 104/126…822, pushed by large titles), `defaultLayout`/`layoutOf`, **per-design sizing** (`sizingOf`, `sizingPatch`, `sizingChange`, `fixedScale`), `notesOf` (none in raw Excel; automated comments get their text here), **`computeLayout`** (§6.6). |
+| `slide.ts` | Slide composition. `tableHtml` (cached per design/glass level/tableKey), **`slideMarkup`** (class, CSS variables and HTML: wallpaper, title or cover, contents, page number, footer, tables, text boxes, notes section, editing handles, logo), `fitNoteSize` (shrinks a text box's font until the `TextMeasurer` says it fits). In the page, `app/src/render/slidedom.ts` builds the element (`buildSlide`), positions it (`applyLayout` + `placeGlass` = aligns each glass element's blurred wallpaper) and fits the text boxes. |
 | `text.ts` | Deck text styles under per-slide formatting (`slideTextFmt`, `effNote`, `fmtCss`), `titleGeom`, text box markup (`richText`). |
 | `comment.ts` | `gridOf(L, ctx)` (displayed values, removed cells → null), `analysisOf`, `commentText(L, cfg, ctx, R)` (all tables covered by the comment). |
 | `cover.ts`, `pagenumbers.ts` | Cover and contents slides (page numbers of the content slides); page number and footer placement (avoid the logo, share corners). |
@@ -769,7 +770,7 @@ line (`SLIDEBUILDER_ENGINES=devtools,cli`), whatever Python packages the PC has.
 | **New saved field** | `model/types.ts` (type + `Op` patch type) → key lists in `model/ops.ts` **and** `backend/slidebuilder/ops.py` → a case in `shared/ops-vectors.json` → `docs/ARCHITECTURE.md` §3 → UI → rendering → if it changes a table's HTML, add it to `tableKey` (`render/context.ts`) → tests. Optional fields need no format change. |
 | **Change the meaning/shape of saved data** | raise `SCHEMA[kind]` in `upgrade.py` + `@step(kind, old)`; raise `FORMATS`; test in `test_upgrade.py`; **add** `fixtures/saved/<kind>.v<n+1>.json`; ARCHITECTURE §3.3. |
 | Cell formatting control | `ui/Ribbon.tsx` → `editor/textfmt.ts` / `editor/edit.ts applySel` → `render/edits.ts` → painter (`editor/painter.ts`). |
-| Table geometry, drags | `editor/tables.ts`, `stage/drags.ts`, `stage/hit.ts`, `render/slide.ts computeLayout/sizingOf`. |
+| Table geometry, drags | `editor/tables.ts`, `stage/drags.ts`, `stage/hit.ts`, `render/layout.ts computeLayout/sizingOf`. |
 | Liquid Glass look | `render/glass.ts`, `styles/slide.css`, `render/wallpaper.ts`, themes in `model/style.ts`; check vector export (`render/printcss.ts`). |
 | Excel look | `render/excel.ts`, `xlsx/layout.ts`, `xlsx/numfmt.ts`. |
 | Reading something new from .xlsx | `xlsx/workbook.ts`, `xlsx/drawing.ts`, `xlsx/types.ts`. |
@@ -812,7 +813,9 @@ events and link updates off. TLS is never disabled (downloads use the system/cor
     on render, never put back after an event; `onCommit` is the browser's `change`, React's `onChange`
     fires on every input).
 11. Table sizes are **per design**: read them with `sizingOf`/`tableSizes`, write them with
-    `sizingPatch`/`sizingChange`/`sizePatch` – never `cfg.layout`/`def.cols` directly.
+    `sizingPatch`/`sizingChange`/`sizePatch` – never `cfg.layout`/`def.cols` directly. All of them, and
+    `computeLayout`, live in `core/src/render/layout.ts`, which the worker and the page share: a drag's
+    preview and the slide drawn after it come from the same code.
 
 ## 15. Known limitations and technical debt
 * Charts are not redrawn; Excel data bars/colour scales/icon sets are not reproduced (Slide Builder's own

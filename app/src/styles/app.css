@@ -229,4 +229,7 @@ body.painting .slide .hits{cursor:copy}
 .stagewrap .slide > svg{contain:layout style}
 /* each table on a compositing layer of its own (as v3's scaled .tw): an edit re-rasters the table's changed cells, not
    the wallpaper and the glass beneath it; a 3D transform, not will-change, so the raster follows the zoom */
-.stagewrap .slide > svg.tw{transform:translateZ(0)}
+.stagewrap .slide > .tw{transform:translateZ(0)}
+/* a text box being stretched shows its own text (re-wrapped live) while its drawn layer waits */
+.ovl .tnote.live.bub{padding:10px 18px}
+.ovl .notebub.live{background:rgba(255,255,255,.72);border-radius:16px;box-shadow:0 6px 18px rgba(20,30,60,.12)}

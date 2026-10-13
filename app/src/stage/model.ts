@@ -11,11 +11,13 @@ import type { DisplayList, Matrix, TextNode } from "@slide-builder/core/dl/types
 import type { StageLayer, StageSlide } from "@slide-builder/core/rpc/messages";
 import type { RuntimeSlide } from "@slide-builder/core/model/types";
 import type { RenderCtx } from "@slide-builder/core/render/context";
-import { computeLayout, memoPart, noteParts, type NotePart } from "@slide-builder/core/render/slide";
+import { memoPart, noteParts, type NotePart } from "@slide-builder/core/render/slide";
+import { computeLayout } from "@slide-builder/core/render/layout";
 
 export interface Rect { x: number; y: number; w: number; h: number }
 export interface TablePlace { i: number; box: NonNullable<StageLayer["box"]> }
-export interface NotePlace { part: NotePart; box: Rect; layer: StageLayer | null; /** the size its text was fitted to */ size: number | null }
+export interface NotePlace { part: NotePart; box: Rect; layer: StageLayer | null; /** the size its text was fitted to */ size: number | null;
+  /** how its first run is drawn (a stretch shows the text in it, re-wrapped live by the page) */ look: { family: string; weight: number; italic: boolean; color: string } | null }
 export interface FurnitureHit extends Rect { id: string; label?: string; font?: { family: string; size: number; weight: number; italic: boolean } }
 export interface StageModel { tables: TablePlace[]; notes: NotePlace[]; hits: FurnitureHit[] }
 
@@ -27,7 +29,7 @@ export function stageModel(shown: StageSlide, R: RuntimeSlide, c: RenderCtx): St
     if (!nb) return;
     // drawn: non-empty (the display list draws what the PDF has)
     const layer = part.txt.trim() ? noteLayers[k++] ?? null : null;
-    notes.push({ part, box: layer?.box ? { x: layer.box.x, y: layer.box.y, w: layer.box.w, h: layer.box.h } : { x: nb.x, y: nb.y, w: nb.w, h: nb.h }, layer, size: layer ? firstText(layer.nodes)?.size ?? null : null });
+    notes.push({ part, box: layer?.box ? { x: layer.box.x, y: layer.box.y, w: layer.box.w, h: layer.box.h } : { x: nb.x, y: nb.y, w: nb.w, h: nb.h }, layer, size: layer ? firstText(layer.nodes)?.size ?? null : null, look: layer ? lookOf(firstText(layer.nodes)) : null });
   };
   R.tables.forEach((_, i) => { for (const p of noteParts(R, i, c, { interactive: true })) add(p, boxes[i]?.notes[p.side]); });
   const memo = memoPart(R, c, { interactive: true });
@@ -53,6 +55,11 @@ function collect(nodes: DisplayList, M: Matrix, out: FurnitureHit[]) {
     } else if (n.t === "group") collect(n.children, n.transform ? mul(M, n.transform) : M, out);
   }
 }
+const lookOf = (t: TextNode | null) => {
+  if (!t) return null;
+  const p = t.fill as { solid?: [number, number, number]; a?: number };
+  return { family: t.css || t.font, weight: t.weight ?? (t.b ? 700 : 400), italic: !!t.i, color: p.solid ? `rgba(${p.solid.join(",")},${p.a ?? 1})` : "#000" };
+};
 export function firstText(nodes: DisplayList): TextNode | null {
   for (const n of nodes) {
     if (n.t === "text" && !n.decorative) return n;

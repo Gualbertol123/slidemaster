@@ -12,7 +12,8 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "rea
 import { get, patch, STAGE, useStore } from "../state/store";
 import { ctx } from "../state/app";
 import type { RuntimeSlide, Side } from "@slide-builder/core/model/types";
-import { slideFrame, tableW } from "@slide-builder/core/render/slide";
+import { slideFrame } from "@slide-builder/core/render/slide";
+import { tableW } from "@slide-builder/core/render/layout";
 import { tableName } from "@slide-builder/core/model/preset";
 import type { RenderCtx } from "@slide-builder/core/render/context";
 import { selItems, activeItem, setSel } from "../editor/edit";
@@ -54,7 +55,7 @@ STAGE.fit = () => setStage({ fitTick: useStage.getState().fitTick + 1 });
 
 const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top: number }) {
   // a border drag's preview is drawn by its table's hit area alone (TableHits): not a reason to draw the rest again
-  const shown = useStage(st => st.shown), drag = useStage(st => st.drag?.kind === "border" ? null : st.drag), editor = useStage(st => st.editor);
+  const shown = useStage(st => st.shown), drag = useStage(st => st.drag?.kind === "border" ? null : st.drag), editor = useStage(st => st.editor), armed = useStage(st => st.armed);
   // the slide the stage shows – while another one is on its way (a slide switch) the stage keeps showing it, so nothing
   // flashes empty – and the render context as it is when that changes: the mirror alone changing (an edit before the
   // worker draws it) redraws nothing here
@@ -76,7 +77,7 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
           const { sel, noteSel, textSel } = get().selection;
           if (sel || noteSel || textSel) patch("selection", { sel: null, textSel: null, noteSel: null });
         }}>
-        <Layers m={m} layers={live.layers} drag={drag} />
+        <Layers m={m} layers={live.layers} drag={drag} armed={armed} />
         <div className="ovl">
           <TextLayer hits={m.hits} />
           <Notes m={m} R={R} drag={drag} />
@@ -101,13 +102,14 @@ function boxOf(i: number, box: Box, drag: DragPreview | null): Box {
 }
 
 /* ---- the pixels, in painting order */
-function Layers({ m, layers, drag }: { m: StageModel; layers: import("@slide-builder/core/rpc/messages").StageLayer[]; drag: DragPreview | null }) {
+function Layers({ m, layers, drag, armed }: { m: StageModel; layers: import("@slide-builder/core/rpc/messages").StageLayer[]; drag: DragPreview | null; armed: boolean }) {
   let f = 0, nk = 0;
   return <>{layers.map(l => {
-    if (l.table !== null && l.box) return <TableLayer key={"t" + l.table} layer={l} to={drag?.kind === "resize" ? boxOf(l.table, l.box, drag) : null} />;
+    if (l.table !== null && l.box) return <TableLayer key={"t" + l.table} layer={l} to={drag?.kind === "resize" ? boxOf(l.table, l.box, drag) : null} armed={armed} />;
     if (l.note) {
       const k = nk++, place = m.notes.find(n => n.layer === l), [dx, dy] = place ? noteShift(place, drag) : [0, 0];
-      return <PlainLayer key={"n" + k} layer={l} dx={dx} dy={dy} />;
+      const hidden = !!place && drag?.kind === "note" && drag.key === place.part.key && !drag.moved && !drag.done;
+      return <PlainLayer key={"n" + k} layer={l} dx={dx} dy={dy} hidden={hidden} />;
     }
     const k = f++;
     return <PlainLayer key={"f" + k} layer={l} />;
@@ -139,11 +141,14 @@ function Notes({ m, R, drag }: { m: StageModel; R: RuntimeSlide; drag: DragPrevi
   return <>{m.notes.map(p => {
     const key = p.part.key, d = drag?.kind === "note" && drag.key === key ? drag : null, b = d ? d.box : resized(p, drag);
     const free = p.part.cls.includes(" free"), empty = !p.part.txt.trim();
+    // being stretched: the box shows its text itself (the page re-wraps it as the box changes); the drawn layer waits
+    const live = !!d && !d.moved && !d.done && !empty && p.look ? p.look : null;
     const label = p.layer ? p.layer.nodes.find(n => n.t === "hit" && /^tnote\b/.test(n.id)) : null;
     return [
-      p.part.bubble && !empty ? <div key={key + "|b"} className={p.part.bubble.cls} data-i={p.part.i} data-side={p.part.side} style={{ left: b.x, top: b.y, width: b.w, height: b.h }} /> : null,
-      <div key={key} className={p.part.cls + (noteSel === key ? " sel" : "") + (d?.moved ? " moving" : "")} data-note={key} data-i={p.part.i} data-side={p.part.side}
-        style={{ left: b.x, top: b.y, width: b.w, height: b.h, ...(empty ? { justifyContent: p.part.side === "top" ? "flex-end" : "flex-start", fontSize: p.part.n.size || (p.part.memo ? 13 : 18) } : {}) }}
+      p.part.bubble && !empty ? <div key={key + "|b"} className={p.part.bubble.cls + (live ? " live" : "")} data-i={p.part.i} data-side={p.part.side} style={{ left: b.x, top: b.y, width: b.w, height: b.h }} /> : null,
+      <div key={key} className={p.part.cls + (noteSel === key ? " sel" : "") + (d?.moved ? " moving" : "") + (live ? " live" : "")} data-note={key} data-i={p.part.i} data-side={p.part.side}
+        style={{ left: b.x, top: b.y, width: b.w, height: b.h, ...(empty ? { justifyContent: p.part.side === "top" ? "flex-end" : "flex-start", fontSize: p.part.n.size || (p.part.memo ? 13 : 18) } : {}),
+          ...(live ? { color: live.color, fontFamily: live.family, fontWeight: live.weight, fontStyle: live.italic ? "italic" : undefined, fontSize: p.size ?? p.part.n.size ?? 18, textAlign: (p.part.n.align || (p.part.side === "left" ? "right" : "left")) as "left" } : {}) }}
         onPointerMove={e => { if (!(e.buttons & 1)) { const ed = noteEdge(e.currentTarget, e.nativeEvent, free, p.part.side); e.currentTarget.style.cursor = ed ? (ed === "l" || ed === "r" ? "ew-resize" : "ns-resize") : ""; } }}
         onPointerDown={e => {
           e.stopPropagation(); selectNote(key);
@@ -223,7 +228,7 @@ function HBox({ i, R, c, m, box, drag, slide }: { i: number; R: RuntimeSlide; c:
   return (
     <div className={"hbox" + (active ? " active" : "")} data-i={i} style={{ left: b.x, top: b.y, width: b.w, height: b.h, ...vars }}>
       <div className="grip" title="Drag to move this table" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); gripDrag(R, i, e.nativeEvent, slide.current!); }}>⠿ {tableName(T, c.preset)}</div>
-      <div className="size" title="Drag to resize (keeps the proportions)" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); resizeDrag(R, i, e.nativeEvent); }} />
+      <div className="size" title="Drag to resize (keeps the proportions)" onPointerEnter={() => setStage({ armed: true })} onPointerLeave={() => { if (useStage.getState().drag?.kind !== "resize") setStage({ armed: false }); }} onPointerDown={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); resizeDrag(R, i, e.nativeEvent); }} />
       {(["l", "r", "t", "b"] as const).map(ed => <div key={ed} className={"edge " + ed} data-edge={ed} title={`Drag to make the table ${ed === "l" || ed === "r" ? "wider or narrower" : "taller or shorter"}`}
         onPointerDown={e => { e.preventDefault(); e.stopPropagation(); stretchDrag(R, i, ed, e.nativeEvent); }} />)}
       {st && <div className="edgetip">{Math.round(st.f * 100)} %</div>}

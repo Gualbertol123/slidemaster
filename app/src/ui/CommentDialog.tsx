@@ -11,7 +11,7 @@ import { curSlide } from "../editor/edit";
 import { DEFAULT_COMMENT, DEFAULT_UNIT, SUMMARY_KINDS, cleanHead, defaultGroups, headingOf, prettyLabel, signatureOf, type CommentCfg, type Group } from "@slide-builder/core/model/comment";
 import { analysisOf, commentTables, commentText } from "@slide-builder/core/render/comment";
 import { richText } from "@slide-builder/core/render/text";
-import { noteKey, SIDES } from "@slide-builder/core/render/slide";
+import { noteKey, SIDES } from "@slide-builder/core/render/layout";
 import { tableName } from "@slide-builder/core/model/preset";
 import type { Note, Op, RuntimeSlide, Side } from "@slide-builder/core/model/types";
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyScales, scaleColors } from "../src/render/scales";
-import { computeLayout, NOTE_GAP } from "../src/render/slide";
+import { computeLayout, NOTE_GAP } from "../src/render/layout";
 import { resolveStyle } from "../src/model/style";
 import type { RenderCtx } from "../src/render/context";
 

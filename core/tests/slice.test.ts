@@ -15,7 +15,7 @@ import { resolveStyle } from "../src/model/style";
 import { tableHtml } from "../src/render/slide";
 import { effItems } from "../src/render/edits";
 import { glassGeom } from "../src/render/glass";
-import { notesOf } from "../src/render/slide";
+import { notesOf } from "../src/render/layout";
 import type { RenderCtx } from "../src/render/context";
 import type { Design, Op, RuntimeSlide } from "../src/model/types";
 import type { Workbook } from "../src/xlsx/types";

@@ -3,7 +3,8 @@
 import { glassLevel } from "@slide-builder/core/model/style";
 import type { Layout, RuntimeSlide, Side } from "@slide-builder/core/model/types";
 import type { RenderCtx } from "@slide-builder/core/render/context";
-import { computeLayout, fitNoteSize, slideMarkup, type SlideOpts, type TBox } from "@slide-builder/core/render/slide";
+import { fitNoteSize, slideMarkup, type SlideOpts } from "@slide-builder/core/render/slide";
+import { computeLayout, type TBox } from "@slide-builder/core/render/layout";
 import { platform } from "@slide-builder/core/platform";
 
 export function placeGlass(el: HTMLElement, ex: number, ey: number, ew: number, eh: number, sc: number, gi: number) {

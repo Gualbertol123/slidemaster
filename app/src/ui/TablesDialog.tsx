@@ -5,7 +5,7 @@ import { get, setDialogs, useStore } from "../state/store";
 import { useCtx } from "./hooks";
 import { tableName } from "@slide-builder/core/model/preset";
 import { allTables, alignTables, valignTables, copySizes, makeSameSize, resetSizes, type TableRef } from "../editor/tables";
-import { tableW } from "@slide-builder/core/render/slide";
+import { tableW } from "@slide-builder/core/render/layout";
 import { ctx } from "../state/app";
 
 export function TablesDialog() {

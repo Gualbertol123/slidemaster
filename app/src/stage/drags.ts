@@ -6,7 +6,7 @@
 import { get } from "../state/store";
 import { change, ctx } from "../state/app";
 import type { Layout, Note, Op, RuntimeSlide, Side } from "@slide-builder/core/model/types";
-import { computeLayout, GX, GY, layoutOf, sizingOf, sizingPatch, tableW, type TBox } from "@slide-builder/core/render/slide";
+import { computeLayout, GX, GY, layoutOf, sizingOf, sizingPatch, tableW, type TBox } from "@slide-builder/core/render/layout";
 import { curSlide } from "../editor/edit";
 import { selCols, selRows, setColWidth, setRowHeight, stretchTable } from "../editor/tables";
 import { requestsIssued, setStage, stage } from "./data";
@@ -64,15 +64,19 @@ export function resizeDrag(R: RuntimeSlide, i: number, e: PointerEvent) {
   const c = ctx(), sc = slideScale(), sx = e.clientX, sy = e.clientY;
   const start = computeLayout(R, c).boxes[i], base = layoutOf(R, c), w0 = base.w.slice(), T = R.tables[i];
   const lay: Layout = { bands: JSON.parse(JSON.stringify(base.bands)), w: w0.slice() };
-  let moved = false;
-  follow(ev => {
+  let moved = false, at: PointerEvent | null = null, frame = 0;
+  // the layout for the pointer's latest position, once per frame (the bisection lays the slide out ~20 times)
+  const solve = () => {
+    frame = 0; const ev = at; if (!ev) return; at = null;
     const target = Math.max(30, Math.max(start.w + (ev.clientX - sx) / sc, (start.h + (ev.clientY - sy) / sc) * tableW(T, c) / T.H));
-    let lo = 0.05, hi = 30;
-    for (let n = 0; n < 36; n++) { const mid = (lo + hi) / 2; const ww = w0.slice(); ww[i] = mid; if (computeLayout(R, c, ww, lay).boxes[i].w < target) lo = mid; else hi = mid; }
+    let lo = 0.05, hi = 30;                                // 22 halvings: the weight to 1/100 000 (it is kept to 1/1 000)
+    for (let n = 0; n < 22; n++) { const mid = (lo + hi) / 2; const ww = w0.slice(); ww[i] = mid; if (computeLayout(R, c, ww, lay).boxes[i].w < target) lo = mid; else hi = mid; }
     lay.w = w0.slice(); lay.w[i] = Math.round(lo * 1000) / 1000; moved = true;
     preview({ kind: "resize", i, boxes: computeLayout(R, c, lay.w, lay).boxes });
-  }, () => {
-    endPreview(moved);
+  };
+  follow(ev => { at = ev; if (!frame) frame = requestAnimationFrame(solve); }, () => {
+    if (frame) { cancelAnimationFrame(frame); solve(); }             // the last position counts
+    endPreview(moved); setStage({ armed: false });
     if (moved) slidePatch("Resize table", R, sizingPatch(R, c, { ...sizingOf(R, c), layout: lay }));
   });
 }

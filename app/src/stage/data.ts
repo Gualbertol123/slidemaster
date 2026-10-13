@@ -23,8 +23,10 @@ export interface StageState {
   drag: import("./drags").DragPreview | null;
   /** counts "Fit" pressed again: the stage measures its space again (the panels around it may have changed) */
   fitTick: number;
+  /** the tables are ready to be resized (the pointer is on a corner handle): their layers move in the compositor */
+  armed: boolean;
 }
-export const useStage = create<StageState>()(() => ({ shown: null, editor: null, scale: 1, drag: null, fitTick: 0 }));
+export const useStage = create<StageState>()(() => ({ shown: null, editor: null, scale: 1, drag: null, fitTick: 0, armed: false }));
 export const stage = useStage.getState;
 export const setStage = (p: Partial<StageState>) => useStage.setState(p);
 

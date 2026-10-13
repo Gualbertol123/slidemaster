@@ -3,7 +3,7 @@ import { cleanFamily, fontFaceCss, fontStack, guessFromName, parseGoogleCss, rea
 import { cleanFmt, resolveStyle } from "../src/model/style";
 import { coverHtml, indexHtml } from "../src/render/cover";
 import { pageNoHtml } from "../src/render/pagenumbers";
-import { areaFor, computeLayout, sizingPatch } from "../src/render/slide";
+import { areaFor, computeLayout, sizingPatch } from "../src/render/layout";
 import { effNote, fmtCss, slideTextFmt, titleGeom } from "../src/render/text";
 import type { RenderCtx } from "../src/render/context";
 import type { StylePatch } from "../src/model/types";
