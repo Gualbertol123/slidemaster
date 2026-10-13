@@ -163,12 +163,15 @@ numbers measured twice). Measured numbers go into the step's line.
   product owner's explicit instruction). The agent did not see or verify the pilot: no report form, no
   `export/feedback` file, no record of the 2 weekly cycles or of W14 in Acrobat / Edge reached it. S3.8's Done-when
   is therefore taken as met or waived on the product owner's word alone. S3.9 (ship v3.7) follows.
+- 2026-10-13 · **v3.7 release approved** (product owner, in the session: "i approve", then "try again, i will approve
+  it"; written here by the agent at the product owner's explicit instruction): PR #7 (M3b) is merged into main and the
+  CHANGELOG dated 2026-10-13 by the agent; the tag v3.7.0 and the share update stay with a person (Waiting for).
 
 ## Waiting for
 
 - **S3.9 · release v3.7 (a person, `docs/next/release-checklist.md` §1 and §5–7):**
-  1. Merge PR #7 into `main`; CI green on `main`.
-  2. In `CHANGELOG.md`, `## 3.7.0 - unreleased` → `## 3.7.0 - <date>`; commit and push to `main`.
+  1. ~~Merge PR #7 into `main`~~ done 2026-10-13 (approved); check CI is green on `main`.
+  2. ~~Date the CHANGELOG~~ done: `## 3.7.0 - 2026-10-13`.
   3. Tag and push:
      ```
      git checkout main && git pull

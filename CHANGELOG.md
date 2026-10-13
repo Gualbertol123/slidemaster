@@ -3,7 +3,7 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## 3.7.0 - unreleased
+## 3.7.0 - 2026-10-13
 
 What users notice – the export (PLAN S3.7–S3.8; piloted, go on 2026-10-13)
 * **Slide Builder writes the PDFs and pictures itself.** No export engine (Chrome) is needed any more for
