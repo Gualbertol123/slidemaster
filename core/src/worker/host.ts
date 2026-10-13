@@ -27,9 +27,12 @@ import type { Design, Preset, RuntimeSlide, Style, WorkbookDoc } from "../model/
 import type { Workbook } from "../xlsx/types";
 import { Port, transfer, type Wire } from "../rpc/port";
 import type { CoreEvents, CoreMethods, DocState, ExportCoreMethods, HtmlReq, PageEvents, PageMethods, SlideListsReq, StageLayer, StageReq, StageSlide, ViewInputs, WorkbookInfo } from "../rpc/messages";
-import type { DisplayList } from "../dl/types";
+import { weightOf, type DisplayList, type Node } from "../dl/types";
 import { stageHits, svgChunks } from "../dl/svg";
 import { contentKey } from "../dl/key";
+import { platform } from "../platform";
+import { GLASS_FONT } from "../render/glass";
+import { fontStack } from "../model/fonts";
 
 type HostPort = Port<CoreMethods, PageMethods, PageEvents, CoreEvents>;
 type Html = [string, string, string, string];
@@ -318,6 +321,7 @@ export class CoreHost {
   private async slideLists(a: SlideListsReq) {
     if (!this.wb || !this.sync) return [];
     const ctx = this.ctx(a.design, a.version, a.forExport), glass = ctx.style.design === "glass", out: { slide: number; dl: TableDL }[] = [];
+    await glassFonts(ctx);
     const { wall, logo } = await this.slideImages(ctx);
     for (const [s, R] of ctx.slides.entries()) {
       if (a.slides && !a.slides.includes(s)) continue;
@@ -352,8 +356,9 @@ export class CoreHost {
       lists (an export never delays the stage) */
   private async stage(a: StageReq): Promise<StageSlide | null> {
     if (!this.wb || !this.sync) return null;
-    if (a.fresh) { this.stageCache.clear(); forgetMeasurements(); }
+    if (a.fresh) { this.stageCache.clear(); forgetMeasurements(); platform().text.reset?.(); }
     const ctx = this.ctx(), R = ctx.slides[a.slide]; if (!R) return null;
+    await glassFonts(ctx);
     const glass = ctx.style.design === "glass", img = await this.slideImages(ctx, true), soft = !!a.soft;
     const boxes = computeLayout(R, ctx).boxes, tables: TableDL[] = [], hits: { id: string; dl: TableDL; svg: Map<string, string[]> }[] = [], styleSig = JSON.stringify(ctx.style);
     for (const [i, L] of R.tables.entries()) {
@@ -377,18 +382,31 @@ export class CoreHost {
     }
     while (this.stageCache.size > STAGE_CACHE) this.stageCache.delete(this.stageCache.keys().next().value!);
     const dl = await measuredBuild(m => slideToDisplayList(R, a.slide, ctx, tables, boxes, img, m, a.today));
+    // the screen draws a font's text as outlines where the browser's own would not match the PDF (S4.4: the per-font
+    // check, once per face), or every font's when asked (the SP switch)
+    const tm = platform().text;
+    if (tm.check) {
+      tm.outlineAll = a.outlines === "all";
+      const fonts = new Set<string>(), walk = (ns: Node[]) => { for (const n of ns) if (n.t === "group") walk(n.children); else if (n.t === "text") fonts.add(`${n.i ? "italic " : ""}${weightOf(n)} 11px ${n.css || n.font}`); };
+      walk(dl.nodes);
+      // a font not checked yet is drawn as text now; if its check turns it to outlines, the slide is sent again
+      const list = [...fonts];
+      // (half a second later: the page measures the probes, which must not hold the slide's first frame)
+      if (!tm.checked?.(list)) setTimeout(() => void tm.check!(list).then(changed => { if (changed && this.stageReq) void this.queueStage(this.stageReq).then(s => { if (s) this.port.emit("stage", s); }, () => undefined); }, () => undefined), 500);
+    }
+    const mode = (soft ? "s" : "") + (a.outlines === "all" ? "o" : "");
     // pictures by placeholder (the page puts its own URL for each: stage/data.ts); ids of gradients and clips per layer
-    const markup = (nodes: DisplayList, prefix: string, table: boolean) => svgChunks(nodes, { imageHref: id => "sbimg:" + id, idPrefix: prefix, softShadows: soft, ...(table ? { hits: stageHits } : {}) });
+    const markup = (nodes: DisplayList, prefix: string, table: boolean) => svgChunks(nodes, { imageHref: id => "sbimg:" + id, idPrefix: prefix, softShadows: soft, outline: n => tm.outlineRun?.(n) ?? null, ...(table ? { hits: stageHits } : {}) });
     // the layers: a "tw" hit followed by its group is a table (in the order of the tables that have a box); the
     // nodes between tables are furniture layers, named by their content
     const drawn = R.tables.flatMap((_, i) => boxes[i] && tables[i] ? [i] : []), layers: StageLayer[] = [];
     let run: DisplayList = [], k = 0, nf = 0, nn = 0;
-    const flush = () => { if (run.length) { const pre = `f${nf++}-`; layers.push({ key: "f" + contentKey(run) + pre + soft, table: null, box: null, nodes: run, svg: markup(run, pre, false) }); } run = []; };
+    const flush = () => { if (run.length) { const pre = `f${nf++}-`; layers.push({ key: "f" + contentKey(run) + pre + mode, table: null, box: null, nodes: run, svg: markup(run, pre, false) }); } run = []; };
     for (let j = 0; j < dl.nodes.length; j++) {
       const n = dl.nodes[j], g = dl.nodes[j + 1];
       if (n.t === "hit" && n.kind === "f" && n.id === "tw" && g?.t === "group" && g.transform) {
         flush();
-        const i = drawn[k++], s = g.transform[0], pre = `t${i}-`, how = pre + soft, h = hits[i];
+        const i = drawn[k++], s = g.transform[0], pre = `t${i}-`, how = pre + mode, h = hits[i];
         let svg = h.svg.get(how);
         if (svg === undefined) h.svg.set(how, svg = markup(g.children, pre, true));
         layers.push({ key: h.id + "|" + how, table: i, box: { x: g.transform[4], y: g.transform[5], w: n.w, h: n.h, scale: s }, nodes: a.nodes ? g.children : [], svg });
@@ -405,7 +423,7 @@ export class CoreHost {
           if (x.t === "hit" && x.kind === "f" && x.id.startsWith("tnote ")) { box = { x: x.x, y: x.y, w: x.w, h: x.h, scale: 1 }; if (dl.nodes[j + 1]?.t === "group") seg.push(dl.nodes[++j]); break; }
         }
         const pre = `n${nn++}-`;
-        layers.push({ key: "n" + contentKey(seg) + pre + soft, table: null, note: true, box, nodes: seg, svg: markup(seg, pre, false) });
+        layers.push({ key: "n" + contentKey(seg) + pre + mode, table: null, note: true, box, nodes: seg, svg: markup(seg, pre, false) });
       } else run.push(n);
     }
     flush();
@@ -440,6 +458,15 @@ export class CoreHost {
 /** a document's content without the helper's bookkeeping: a save rewrites the revision, time, author, log, backup
     time and format number (store.py) – none of which the page shows – so a save alone gives the same JSON */
 const viewJson = (v: WorkbookDoc) => { const { rev, updated, updatedBy, log, schema, backupAt, ...content } = v as WorkbookDoc & Record<string, unknown>; void rev; void updated; void updatedBy; void log; void schema; void backupAt; return JSON.stringify(content); };
+/** Liquid Glass measures its columns with its fonts (glass.ts glassWidth): their files loaded before a glass slide is
+    laid out, so the widths are the measured ones from the first build */
+/** every weight glassPlan draws a cell with (its roles, bold, the user's bold and not-bold) */
+const GLASS_WEIGHTS = [470, 500, 520, 640, 650, 680, 720, 740];
+async function glassFonts(ctx: RenderCtx) {
+  const tm = platform().text; if (ctx.style.design !== "glass" || !tm.prepare) return;
+  const fams = [GLASS_FONT, ...new Set(ctx.slides.flatMap(R => R.tables.flatMap(L => L.items.flatMap(it => it.userFont ? [fontStack(it.userFont)] : [])))), ...(ctx.style.text?.table?.font ? [fontStack(ctx.style.text.table.font)] : [])];
+  await tm.prepare(fams.flatMap(f => GLASS_WEIGHTS.map(w => `${w} 11px ${f}`)));
+}
 /** how many table display lists the stage keeps (a deck's worth of the most recently shown) */
 const STAGE_CACHE = 200;
 /** the hit a text box's nodes start with: its bubble's, or its own */

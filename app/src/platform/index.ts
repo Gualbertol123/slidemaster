@@ -3,7 +3,6 @@
    start-up (main.tsx). */
 import { setPlatform, type CanvasFactory, type Ctx2D, type NoteMeasure, type TextMeasurer } from "@slide-builder/core/platform";
 import { wrapLines } from "@slide-builder/core/text/lines";
-import { fitNoteSize } from "@slide-builder/core/render/slide";
 
 let measurer: { host: HTMLElement; box: HTMLElement; note: NoteMeasure | null } | null = null;
 let runCtx: CanvasRenderingContext2D | null = null, runFont = "";
@@ -48,6 +47,7 @@ function tabularRuns(c: CanvasRenderingContext2D, runs: { text: string; font: st
   });
 }
 export const browserText: TextMeasurer = {
+  width(text, font) { const c = ctx2d(); return c ? measureRun(c, text, font).w : null; },
   maxDigitWidth(font) {
     const c = document.createElement("canvas").getContext("2d"); if (!c) return 0;
     c.font = font;
@@ -64,7 +64,6 @@ export const browserText: TextMeasurer = {
     const c = ctx2d(); if (!c) return reqs.map(r => [r.text]);
     return reqs.map(r => wrapLines(r.text, r.width, s => measureRun(c, s, r.font).w));
   },
-  fitNotes(reqs) { return reqs.map(r => fitNoteSize(r.note, r.start, browserText)); },
   noteFits(note, size) {
     if (typeof document === "undefined" || !document.body) return true;
     if (!measurer) {

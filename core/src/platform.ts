@@ -36,8 +36,6 @@ export interface NoteMeasure {
 export interface RunReq { text: string; font: string; /** font-variant-numeric: tabular-nums (Liquid Glass numbers) */ tnum?: boolean }
 /** its advance and the font's ascent / descent (what CSS lays a line out with), px */
 export interface RunMetrics { w: number; asc: number; desc: number; /** with tnum: each character's advance (one per code point) */ adv?: number[] }
-/** a text box to fit (fitNoteSize from `start` down) */
-export interface NoteFitReq { note: NoteMeasure; start: number }
 /** a text wrapped at a width, as CSS white-space: normal with word-break: break-word does */
 export interface LinesReq { text: string; font: string; width: number }
 export interface TextMeasurer {
@@ -51,8 +49,21 @@ export interface TextMeasurer {
   measureRuns?(runs: RunReq[]): RunMetrics[] | Promise<RunMetrics[]>;
   /** the lines of wrapped texts, with the page's fonts; one call per measuring round of a table */
   breakLines?(reqs: LinesReq[]): string[][] | Promise<string[][]>;
-  /** text boxes' font sizes as the page fits them (fitNoteSize over noteFits), one per request (S3.5) */
-  fitNotes?(reqs: NoteFitReq[]): number[] | Promise<number[]>;
+  /** the fonts changed (a library font added, fonts loaded): look for faces again (S4.4) */
+  reset?(): void;
+  /** a run's width at once, or null when its font is not at hand yet (S4.4: Liquid Glass's column widths, which the
+      page's drags lay out too) */
+  width?(text: string, font: string): number | null;
+  /** have these CSS fonts at hand for width() (the core worker loads their files) */
+  prepare?(fonts: string[]): Promise<void>;
+  /** the per-font check of these CSS fonts (S4.4, 05 §3.4): which fonts the screen draws as outlines */
+  check?(fonts: string[]): Promise<boolean>;
+  /** whether those checks are done */
+  checked?(fonts: string[]): boolean;
+  /** a text node's glyph outlines when its font is drawn as outlines, else null */
+  outlineRun?(n: import("./dl/types").TextNode): import("./dl/svg").OutlineRun | null;
+  /** every font drawn as outlines (S4.4's SP switch) */
+  outlineAll?: boolean;
 }
 
 /* ---- canvas ---- */

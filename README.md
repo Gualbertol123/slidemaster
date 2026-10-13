@@ -378,8 +378,10 @@ can start – the component tests – the same host runs in the page behind the 
   (the table HTML of the current design and version, new keys only), `doc` (view, save state, history, what
   changed, how many of the page's calls it includes), `progress`, `error` – after a change in that order;
 * the worker **asks** the page for `getDoc`/`postOps` (the page's backend: HTTP with its token, or localStorage
-  from `file://`), `digitWidth` (Excel's digit width with the page's fonts), `analyzeImages` (a worker cannot
-  decode SVG) and `convertPicture`.
+  from `file://`), `fontCatalog` / `fontFile` (the fonts the worker measures text with, S4.4: the library's and this
+  PC's – the helper's /sysfonts, or from disk the browser's local fonts only when it has already given them;
+  `app/src/state/fontfiles.ts`), `measureRuns` / `breakLines` / `digitWidth` (the page's measuring, for a font without
+  a readable file there), `analyzeImages` (a worker cannot decode SVG) and `convertPicture`.
 
 The page holds **read-only mirrors**: `deck.wb` (`core/src/xlsx/mirror.ts`: the hydrated slices; the pure code –
 `runtimeSlides`, layouts, hit testing, drags, the format painter, comments – runs on it and
@@ -491,7 +493,8 @@ fields survives.
 3. `k` = the largest scale ≤ 2.0 at which all bands fit the content area (binary search, gaps GX 36 /
    GY 28); with a fixed scale (*Make same size*), `k = min(fixed, fit)`.
 4. Bands are placed by `align` (default centre) and `valign` (default: 35 % of the free space above);
-   span columns sit next to the tables actually drawn; text box fonts shrink to fit (`fitNotes`).
+   span columns sit next to the tables actually drawn; text box fonts shrink to fit (S4.4: on the display list's own
+   layout, slide-dl.ts – every size from the start down laid out in one measuring round).
 Sizing values come from `sizingOf(R, ctx)` (per design, §4.2). In raw Excel a shared fixed scale made
 while text boxes existed is enlarged by the room they took (`fixedScale`).
 
@@ -818,6 +821,10 @@ events and link updates off. TLS is never disabled (downloads use the system/cor
     `sizingPatch`/`sizingChange`/`sizePatch` – never `cfg.layout`/`def.cols` directly. All of them, and
     `computeLayout`, live in `core/src/render/layout.ts`, which the worker and the page share: a drag's
     preview and the slide drawn after it come from the same code.
+12. Text is **measured from font files** in the core worker (`core/src/text/measure.ts`, S4.4); the page measures
+    only what has no readable file there. Anything that lays text out on the page as well (Liquid Glass's column
+    widths, through `layout.ts` in a drag) must measure through `platform().text.width`, which both sides answer
+    with the same widths – never a canvas of its own or a per-character estimate.
 
 ## 15. Known limitations and technical debt
 * Charts are not redrawn; Excel data bars/colour scales/icon sets are not reproduced (Slide Builder's own

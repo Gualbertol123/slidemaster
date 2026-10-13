@@ -79,6 +79,7 @@ export interface SlideList { slide: number; dl: import("../render/excel-dl").Tab
     (not sent again); `fresh`: measure everything again (fonts arrived) */
 export interface StageReq { slide: number; today?: string; known: string[]; fresh?: boolean;
   /** soft shadows (B3: the page's option) */ soft?: boolean;
+  /** "all": every font's text drawn as outlines (S4.4: screen = PDF in pixels; a switch until decided) */ outlines?: "all";
   /** the tables' nodes too (tests and the parity tools; the page draws the markup) */ nodes?: boolean;
   /** the keys of the layers the page shows: those come without their markup (the page keeps its own) */ have?: string[] }
 /** a layer of the stage (its key names its markup: the same key, the same markup): one table (its display list in table px, placed by `box`: x, y, the scale and its size in
@@ -106,10 +107,13 @@ export interface PageMethods {
   /** text measured with the page's fonts for the display list (decision 2026-10-12, 3): one call per measuring round of a table */
   measureRuns(a: { runs: import("../platform").RunReq[] }): import("../platform").RunMetrics[];
   breakLines(a: { reqs: import("../platform").LinesReq[] }): string[][];
-  fitNotes(a: { reqs: import("../platform").NoteFitReq[] }): number[];
   convertPicture(a: { bytes: Uint8Array; ext: string }): string | null;
   /** Liquid Glass's picture analysis (xlsx/drawing.ts analyzeImages) with the page's canvas */
   analyzeImages(a: { srcs: string[] }): [string, ImgMeta][];
+  /** the fonts the core measures text with (S4.4): the library's faces and this PC's (state/fontfiles.ts measureCatalog) */
+  fontCatalog(a: Record<string, never>): import("../text/resolve").CatalogFont[];
+  /** a font file of that catalog (null: unreadable) */
+  fontFile(a: { source: "library" | "system"; file: string }): ArrayBuffer | null;
 }
 /** events from the worker */
 export interface CoreEvents {

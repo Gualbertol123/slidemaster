@@ -16,6 +16,7 @@ import type { ExportJob, ExportResult, Thumb } from "@slide-builder/core/rpc/mes
 import { openInstaller } from "../state/dialogs";
 import { backend, ApiError, type ExportRes } from "../sync/api";
 import { ExportPool } from "../rpc/export";
+import { catalog, fontFile, libraryCatalog } from "../state/fontfiles";
 import { buildSlide } from "../render/slidedom";
 import SLIDE_CSS from "../styles/slide.css?raw";
 import { esc } from "@slide-builder/core/xlsx/util";
@@ -27,45 +28,7 @@ export const DESIGN_LABEL: Record<Design, string> = { glass: "Liquid Glass", exc
 /** pixels per slide px: PDF pages as pictures (B9: 2×, was 4×) and PNG files / the clipboard (4800 × 2700, as before) */
 export const PICTURE_SCALE = 2, PNG_SCALE = 3;
 
-/* ---------------------------------------------------------------- fonts and pictures for the export workers */
-/** this PC's fonts: from the helper's index, or (from disk) the browser's local fonts – asked once, with permission */
-type LocalFont = { family: string; style: string; postscriptName: string; blob(): Promise<Blob> };
-let sysCatalog: Promise<CatalogFont[]> | null = null;
-const localFonts = new Map<string, LocalFont>();
-const STYLE_WEIGHT: [RegExp, number][] = [[/thin|hairline/i, 100], [/extra ?light|ultra ?light/i, 200], [/semi ?light/i, 350], [/light/i, 300], [/medium/i, 500],
-  [/semi ?bold|demi ?bold/i, 600], [/extra ?bold|ultra ?bold/i, 800], [/black|heavy/i, 900], [/bold/i, 700]];
-const styleWeight = (s: string) => STYLE_WEIGHT.find(([re]) => re.test(s))?.[1] ?? 400;
-function systemCatalog(): Promise<CatalogFont[]> {
-  if (sysCatalog) return sysCatalog;
-  const p = (async (): Promise<CatalogFont[]> => {
-    if (backend.served) return (await backend.sysFonts()).map(f => ({ source: "system" as const, file: f.file, family: f.family, weight: f.weight, italic: f.italic }));
-    const q = (window as unknown as { queryLocalFonts?: () => Promise<LocalFont[]> }).queryLocalFonts;
-    if (!q) return [];
-    const list = await q.call(window);
-    for (const f of list) localFonts.set(f.postscriptName, f);
-    return list.map(f => ({ source: "system" as const, file: f.postscriptName, family: f.family, weight: styleWeight(f.style), italic: /italic|oblique/i.test(f.style) }));
-  })();
-  sysCatalog = p;
-  p.then(l => { if (!l.length) sysCatalog = null; }, () => { sysCatalog = null; });       // asked again next time
-  return p;
-}
-/** the deck's library faces (their @font-face rules) */
-const libraryCatalog = (): CatalogFont[] => get().doc.fonts.flatMap(f => f.faces.map(x => ({ source: "library" as const, file: x.file, family: f.family, weight: Math.round(+x.weight || 400), italic: x.style === "italic" })));
-/** the fonts an export may embed: the deck's library faces, then this PC's */
-async function catalog(): Promise<CatalogFont[]> {
-  const lib = libraryCatalog();
-  let sys: CatalogFont[] = [];
-  try { sys = await systemCatalog(); } catch (e) { console.warn("this PC's fonts could not be listed:", e); }
-  return [...lib, ...sys];
-}
-async function fontFile(a: { source: "library" | "system"; file: string }): Promise<ArrayBuffer | null> {
-  try {
-    if (a.source === "library") { if (!backend.served) return null; const r = await fetch(backend.fontUrl(a.file)); return r.ok ? await r.arrayBuffer() : null; }
-    if (backend.served) return await backend.sysFontBytes(a.file);
-    const f = localFonts.get(a.file);
-    return f ? await (await f.blob()).arrayBuffer() : null;
-  } catch (e) { console.warn("font not readable:", a.file, e); return null; }
-}
+/* ---------------------------------------------------------------- pictures for the export workers */
 /** a picture the workers cannot take as it is (a logo by URL, GIF / SVG / WebP / BMP) as PNG bytes; null = left out.
     A file next to the page opened from disk cannot be read by the page (the browser's file:// rules) and is left out */
 async function pictureBytes(a: { src: string }): Promise<ArrayBuffer | null> {

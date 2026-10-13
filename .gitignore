@@ -46,3 +46,6 @@ tests/corpus/workbooks/big30.xlsx
 bench-results.json
 review/G1/img/
 review/G1/pdf/*.pdf
+review/S4.4/img/
+review/S4.4/index.html
+review/S4.4/differences.json

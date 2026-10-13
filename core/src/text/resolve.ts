@@ -41,10 +41,14 @@ export function cssFamilies(css: string): string[] {
   return out.map(f => f.replace(/\s+/g, " "));
 }
 
-/** CSS font matching (CSS Fonts 4 §5.2) on metadata: the style first, then the weight (as FontRegistry.match) */
-export function pickFace<T extends { weight: number; italic: boolean }>(list: T[], weight: number, italic: boolean): T | null {
+/** the face a browser draws a weight and style with, on metadata: the style first, then the weight – CSS font matching
+    (CSS Fonts 4 §5.2) for the library's @font-face faces; for a Windows font Chromium takes DirectWrite's match instead,
+    the nearest weight, the heavier of two equally near (Segoe UI 500 is Semibold, 640 Semibold, 720 Bold – measured
+    against Chromium's canvas, S4.4) – so the PDF uses the face the screen shows (as FontRegistry.match) */
+export function pickFace<T extends { weight: number; italic: boolean; source?: string }>(list: T[], weight: number, italic: boolean): T | null {
   if (!list.length) return null;
   const styled = list.filter(f => f.italic === italic), pool = styled.length ? styled : list;
+  if (pool.every(f => f.source === "system")) return [...pool].sort((a, b) => Math.abs(a.weight - weight) - Math.abs(b.weight - weight) || b.weight - a.weight)[0];
   const rank = (w: number) => w === weight ? 0
     : weight > 500 ? (w > weight ? w - weight : 1000 + weight - w)
     : weight < 400 ? (w < weight ? weight - w : 1000 + w - weight)

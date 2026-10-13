@@ -43,14 +43,14 @@ test("opened from file://: choose a workbook, make the deck, edit a cell, keep i
   await expect.poll(async () => (await stored())?.edits?.SLIDE_1?.C6).toEqual({ orig: "Alpha", text: "Alfa" });
   await expect(page.locator("#sbSave")).toHaveText(/^Saved in this browser only/);
   const core = () => page.evaluate(() => (window as unknown as { __sbTest: { coreStats: { worker: boolean; localHtml: number } } }).__sbTest.coreStats);
-  expect(await core()).toEqual({ worker: true, localHtml: 0 });
+  expect(await core()).toMatchObject({ worker: true, localHtml: 0 });
   // undo and redo come from the worker too, and the page still draws no table itself
   await page.keyboard.press("Control+z");
   await expect(page.locator("#stage .slide .t", { hasText: /^Alpha$/ })).toHaveCount(1);
   await page.keyboard.press("Control+y");
   await expect(page.locator("#stage .slide .t", { hasText: /^Alfa$/ })).toHaveCount(1);
   await expect.poll(async () => (await stored())?.edits?.SLIDE_1?.C6).toEqual({ orig: "Alpha", text: "Alfa" });
-  expect(await core()).toEqual({ worker: true, localHtml: 0 });
+  expect(await core()).toMatchObject({ worker: true, localHtml: 0 });
 
   // a reload: the same file again finds the deck this browser kept
   await page.reload();

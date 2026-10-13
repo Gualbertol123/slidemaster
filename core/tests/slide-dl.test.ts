@@ -26,7 +26,6 @@ const ab = (f: string) => { const b = fs.readFileSync(f); return b.buffer.slice(
 const M: Metrics = {
   run: (t, font) => { const size = parseFloat(/([\d.]+)px/.exec(font)![1]); return { w: [...t].length * size * .5, asc: size * .8, desc: size * .2 }; },
   lines: (t, font, width) => { const size = parseFloat(/([\d.]+)px/.exec(font)![1]); return wrapLines(t, width, s => [...s].length * size * .5); },
-  noteSize: (_n, start) => start,
 };
 const flat = (l: DisplayList): Node[] => l.flatMap(n => n.t === "group" ? [n, ...flat(n.children)] : [n]);
 const hits = (l: DisplayList) => flat(l).filter((n): n is HitNode => n.t === "hit" && n.kind === "f");
@@ -84,18 +83,21 @@ describe("the whole slide", () => {
     expect(h.h).toBeCloseTo(lu(1.4 * 44), 2);                        // the page's line-height 1.4 (body font: 13px/1.4)
     void ctx;
   });
-  it("text boxes: padding, the page's fitted size, pre-wrap lines, the side's alignment and justification", async () => {
+  it("text boxes: padding, the fitted size (the largest from the start, 1 px steps, whose text fits), pre-wrap lines, the side's alignment", async () => {
     const { ctx, slides } = await deck("weekly-options.json", "clean");
     const R = slides[2], parts = noteParts(R, 0, ctx), boxes = computeLayout(R, ctx).boxes;
     expect(parts.length).toBeGreaterThan(0);
-    const asked: number[] = [];
-    const m: Metrics = { ...M, noteSize: (n, start) => { asked.push(start); return start - 4; } };
+    // wide letters: the text wraps over many lines at the start size, fewer as it shrinks
+    const at = (font: string) => parseFloat(/([\d.]+)px/.exec(font)![1]);
+    const m: Metrics = { ...M, run: (t, font) => ({ w: [...t].length * at(font) * 3, asc: at(font) * .8, desc: at(font) * .2 }) };
     const dl = slideToDisplayList(R, 2, ctx, R.tables.map(L => excelToDisplayList(L, ctx, M)), boxes, { wall: null, logo: null }, m, "x");
-    expect(asked.length).toBeGreaterThan(0);
-    const p = parts[0], ts = textsAfter(dl.nodes, p.cls);
+    const p = parts[0], ts = textsAfter(dl.nodes, p.cls), nb = boxes[0].notes[p.side]!, start = p.n.size || 18, padY = p.cls.includes(" bub") ? 10 : 4;
     expect(ts.length).toBeGreaterThan(0);
-    expect(ts[0].size).toBe((p.n.size || 18) - 4);
-    const nb = boxes[0].notes[p.side]!, bub = p.cls.includes(" bub");
+    const z = ts[0].size;
+    expect(z).toBeLessThan(start); expect(z).toBeGreaterThanOrEqual(9); expect(Number.isInteger(start - z)).toBe(true);
+    // the size taken fits: its last line ends inside the box's padding
+    if (z > 9) expect(Math.max(...ts.map(t => t.y)) + z * .2).toBeLessThanOrEqual(nb.y + nb.h - padY + 1);
+    const bub = p.cls.includes(" bub");
     expect(Math.min(...ts.map(t => t.x))).toBeGreaterThanOrEqual(nb.x + (bub ? 18 : 6) - .01);
   });
   it("a page number in the top-left corner moves the title and subtitle to 56 + its width + 22, in every design", async () => {
@@ -139,18 +141,18 @@ describe("the whole slide", () => {
     const pn = hits(build(slides.length - 1).nodes).filter(x => x.id.includes("pageno"));
     expect(pn.length).toBeGreaterThan(0);
   });
-  it("text boxes are fitted by the page in batches (fitNotes), one round with the rest", async () => {
+  it("text boxes are fitted on their own layout: every size measured in the same rounds as the rest", async () => {
     const { ctx, slides } = await deck("weekly-options.json", "clean");
     const R = slides[2], boxes = computeLayout(R, ctx).boxes;
-    let fits = 0;
+    let rounds = 0;
+    const at = (font: string) => parseFloat(/([\d.]+)px/.exec(font)![1]);
     setPlatform({ text: { maxDigitWidth: () => 7, noteFits: () => true,
-      measureRuns: async runs => runs.map(r => M.run(r.text, r.font)), breakLines: async reqs => reqs.map(q => [q.text]),
-      fitNotes: async reqs => { fits++; return reqs.map(r => r.start - 2); } } });
+      measureRuns: async runs => { rounds++; return runs.map(r => ({ ...M.run(r.text, r.font), w: [...r.text].length * at(r.font) * 3 })); }, breakLines: async reqs => reqs.map(q => [q.text]) } });
     try {
       const dl = await measuredBuild(m => slideToDisplayList(R, 2, ctx, [], boxes, { wall: null, logo: null }, m, "x"));
-      expect(fits).toBe(1);
+      expect(rounds).toBeLessThanOrEqual(3);
       const p = noteParts(R, 0, ctx)[0];
-      expect(textsAfter(dl.nodes, p.cls)[0].size).toBe((p.n.size || 18) - 2);
+      expect(textsAfter(dl.nodes, p.cls)[0].size).toBeLessThan(p.n.size || 18);
     } finally { resetPlatform(); }
   });
 });

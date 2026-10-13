@@ -485,3 +485,18 @@ describe("pictures for the PDF", () => {
     expect(jpegInfo(read("images/wall-blur.jpg"))).toEqual({ w: 800, h: 450, comps: 3, adobe: false });
   });
 });
+
+describe("text as glyph outlines in the SVG (S4.4)", () => {
+  it("a run drawn as outlines: one group scaled to the size, each glyph defined once and used at its pen", async () => {
+    const { svgChunks } = await import("../src/dl/svg");
+    const t = (x: number, src: string) => ({ t: "text" as const, font: "F", size: 20, x, y: 50, src, w: 30, fill: { solid: [0, 0, 0] as [number, number, number] } });
+    const svg = svgChunks([t(10, "aa"), t(60, "ab")], { imageHref: () => undefined, idPrefix: "q", outline: n => ({ upem: 1000, glyphs: [...n.src].map((c, i) => ({ key: "F-" + c, d: "M0 0L10 0Z", x: i * 10 })) }) }).join("");
+    expect(svg.match(/<path id=/g)?.length).toBe(2);                                   // "a" and "b" once each
+    expect(svg.match(/<use /g)?.length).toBe(4);
+    expect(svg).toContain(`transform="translate(10 50) scale(0.02 -0.02)"`);
+    // the scale is not rounded to 3 decimals (12 px in 2048 units: 0.005859375)
+    expect(svgChunks([{ ...t(0, "a"), size: 12 }], { imageHref: () => undefined, outline: () => ({ upem: 2048, glyphs: [{ key: "k", d: "M0 0Z", x: 0 }] }) }).join("")).toContain("scale(0.005859375 -0.005859375)");
+    expect(svg).toContain(`x="500"`);                                                  // 10 px at 20 px / 1000 units
+    expect(svg).not.toContain("<text");
+  });
+});

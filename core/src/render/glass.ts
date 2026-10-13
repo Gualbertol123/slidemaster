@@ -29,19 +29,30 @@ import { isNumText, tableKey, type RenderCtx } from "./context";
 import { cellHtml, picHtml, rotBox, rotSpan, shapeTransform, textboxInner } from "./excel";
 import { fontStack } from "../model/fonts";
 import { mix } from "../model/style";
+import { platform } from "../platform";
 
 export const SYS0 = { green: "#34C759", greenInk: "#136B2E", red: "#FF3B30", redInk: "#A8101A", label: "#0B0D17", label2: "rgba(18,22,44,.68)", label3: "rgba(18,22,44,.46)" };
 
+/** the font of Liquid Glass's cells (static Segoe UI on Windows, B2) */
+export const GLASS_FONT = `-apple-system,"SF Pro Text","Segoe UI","Helvetica Neue",Inter,Arial,sans-serif`;
+/** a glass cell text's width as drawn (letter-spacing −.12 px a character), measured from the font (S4.4: the page's
+    canvas, the core worker's font files – the same widths) – or, where no font is at hand, the estimate of v3 */
+function glassWidth(text: string, px: number, weight: number, family: string | undefined): { w: number; measured: boolean } {
+  const n = [...text].length, w = platform().text.width?.(text, `${weight} ${px}px ${family ? fontStack(family) : GLASS_FONT}`);
+  return w == null ? { w: n * px * (weight >= 600 ? .6 : .56), measured: false } : { w: w - .12 * n, measured: true };
+}
 /* Liquid Glass uses its own font, so columns are widened where the text needs it (never narrowed).
-   Geometry is cached per table and per set of cell edits. */
+   Geometry is cached per table and per set of cell edits, and by whether the widths were measured (fonts arrive). */
 export interface GlassGeom { key: string; W: number; X: Map<number, number>; Wc: Map<number, number>; map: (px: number) => number }
 export function glassGeom(L: TableLayout, ctx: RenderCtx): GlassGeom {
-  const key = tableKey(ctx, L);
+  const family = ctx.style.text?.table?.font, ready = platform().text.width?.("0", `500 11px ${family ? fontStack(family) : GLASS_FONT}`) != null;
+  const key = tableKey(ctx, L) + (ready ? "|m" : "|e");
   return cache(L, "gg", key, () => {
     const need = new Map<number, number>();
     for (const it of effItems(L, ctx)) {
       if (!it.text || it.b.c !== it.b.c2 || it.wrap || it.ov) continue;
-      const px = (it.font.sz || 11) * 96 / 72 * .97, w = String(it.text).length * px * (it.font.b ? .6 : .56) + 22;
+      // the cell's own font, at the weight its text is drawn with (500, bold 650: glassPlan's roles go either way)
+      const px = (it.font.sz || 11) * 96 / 72 * .97, w = glassWidth(String(it.text), px, it.font.b ? 650 : 500, it.userFont || family).w + 22;
       need.set(it.b.c, Math.max(need.get(it.b.c) || 0, w));
     }
     const X = new Map<number, number>(), Wc = new Map<number, number>(); let x = 0;
@@ -59,9 +70,11 @@ export function gItem(it: Item, G: GlassGeom): Item {
   return o;
 }
 /* shrink text that would not fit its cell (Excel widths are measured for Excel's font) – never below 70 % */
-function fitPx(it: Item, px: number, w: number) {
+function fitPx(it: Item, px: number, w: number, weight: number, family: string | undefined) {
   if (!it.text || it.wrap || it.ov) return px;
-  const avail = Math.max(10, w - 20), est = String(it.text).length * px * (it.isText ? 0.53 : 0.56);
+  const avail = Math.max(10, w - 20), m = glassWidth(String(it.text), px, weight, family);
+  // (unmeasured: v3's estimate, a little narrower for text than for numbers)
+  const est = m.measured ? m.w : String(it.text).length * px * (it.isText ? 0.53 : 0.56);
   return est > avail ? px * Math.max(0.7, avail / est) : px;
 }
 
@@ -524,7 +537,7 @@ export function glassPlan(L: TableLayout, ctx: RenderCtx, opts: { noText?: boole
     const pad = it.indent ? { padL: 9 + it.indent * 9 } : it.align === "left" ? { padL: 10 } : it.align === "right" ? { padR: 10 } : {};
     const font = it.userFont || ctx.style.text?.table?.font;
     plan.texts.push({ k: "text", it, cls: it.rot ? "t ov" : ["t", it.wrap ? "wrap" : "", it.ov ? "ov" : ""].filter(Boolean).join(" "), x: it.bx, y: it.by, w: tw, h: it.bh,
-      size: +fitPx(it, (f.sz || 11) * 96 / 72 * .97, tw).toFixed(2), ink, weight, single, align: it.align, valign: it.valign, ...pad,
+      size: +fitPx(it, (f.sz || 11) * 96 / 72 * .97, tw, weight, font).toFixed(2), ink, weight, single, align: it.align, valign: it.valign, ...pad,
       italic: role === "caption" || it.userI === true || (!!f.i && it.userI !== false && role !== "value"), num: !!t.num, ...(font ? { font } : {}), shadow: !!(cap && cap.strong) });
   }
   return plan;

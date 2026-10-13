@@ -13,7 +13,6 @@ import { breakRuns, collapse, wrapLines } from "../src/text/lines";
 const M: Metrics = {
   run: (t, font) => { const size = parseFloat(/([\d.]+)px/.exec(font)![1]); return { w: [...t].length * size * .5, asc: size * .8, desc: size * .2 }; },
   lines: (t, font, width) => { const size = parseFloat(/([\d.]+)px/.exec(font)![1]); return wrapLines(t, width, s => [...s].length * size * .5); },
-  noteSize: (_n, start) => start,
 };
 const ctx = (st = {}): RenderCtx => ({ style: resolveStyle(st), edits: {}, slides: [], preset: null, workbook: "w", logoSrc: "" });
 function item(o: Record<string, unknown>) {

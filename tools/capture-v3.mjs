@@ -101,6 +101,8 @@ export const wbPath = name => "/api/workbooks/" + encodeURIComponent(name);
 export async function openBrowser() {
   const browser = await chromium.launch({ executablePath: CHROME });
   const context = await browser.newContext({ viewport: { width: 1900, height: 1250 }, deviceScaleFactor: 1, locale: "en-GB", timezoneId: "Europe/Rome" });
+  // S4.4: SB_OUTLINES=all draws every font as outlines on the stage (the screen = PDF switch, until decided)
+  if (process.env.SB_OUTLINES === "all") await context.addInitScript(() => { try { localStorage.setItem("sbOutlines", "all"); } catch { /* no storage */ } });
   const page = await context.newPage();
   await page.clock.setFixedTime(new Date(CLOCK));
   const errors = [];

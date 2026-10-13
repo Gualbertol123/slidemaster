@@ -27,13 +27,14 @@ import { initialState } from "./store";
 import type { RenderCtx } from "@slide-builder/core/render/context";
 import { applyWall } from "../render/wall";
 import { loadFonts, watchFontLoads } from "./fonts";
+import { fontFile, measureCatalog } from "./fontfiles";
 
 /* ---------------------------------------------------------------- the core worker */
 let port: CorePort | null = null;
 /** the latest table HTML the worker drew, by table id and kind ("html" | "thtml") */
 const tableHtmls = new Map<string, { key: string; html: string }>();
 /** tables the page drew itself (no HTML from the worker for that key yet), for tests */
-export const coreStats = { localHtml: 0, worker: false };
+export const coreStats = { localHtml: 0, worker: false, /** runs the worker had the page measure (S4.4: a font without a file there), and their fonts */ pageRuns: 0, pageFonts: [] as string[] };
 /** the workbook being opened (its slices can arrive before its index; they wait) and the open one */
 let openingWb: MirrorWorkbook | null = null, earlySlices: { book: number; shared: SharedSlice | null; sheets: SheetSlice[] }[] = [];
 export function core(): CorePort {
@@ -43,10 +44,15 @@ export function core(): CorePort {
   port.handle("postOps", a => backend.postOps(a.name, a.ops, a.client));
   port.handle("digitWidth", a => browserText.maxDigitWidth(a.font));
   // the display list's text, measured with the page's fonts (decision 2026-10-12, 3; browserText answers synchronously)
-  port.handle("measureRuns", a => browserText.measureRuns!(a.runs) as RunMetrics[]);
+  port.handle("measureRuns", a => {
+    coreStats.pageRuns += a.runs.length;
+    for (const r of a.runs) if (coreStats.pageFonts.length < 20 && !coreStats.pageFonts.includes(r.font)) coreStats.pageFonts.push(r.font);
+    return browserText.measureRuns!(a.runs) as RunMetrics[];
+  });
   port.handle("breakLines", a => browserText.breakLines!(a.reqs) as string[][]);
-  port.handle("fitNotes", a => browserText.fitNotes!(a.reqs) as number[]);
   port.handle("convertPicture", a => backend.convertPicture(a.bytes, a.ext));
+  port.handle("fontCatalog", () => measureCatalog());
+  port.handle("fontFile", a => fontFile(a));
   port.handle("analyzeImages", async a => { await analyzeImages(a.srcs); return a.srcs.flatMap(s => IMGMETA.has(s) ? [[s, IMGMETA.get(s)!] as [string, ImgMeta]] : []); });
   port.on("slices", e => {
     const wb = [openingWb, get().deck.wb as MirrorWorkbook | null].find(w => w && w.book === e.book);

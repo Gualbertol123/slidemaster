@@ -20,7 +20,12 @@ export interface SvgOptions {
   /** soft shadows: each shadow one shape under a Gaussian blur (B3: Options › Soft shadows, the screen only) instead
       of the 5 sharp layers the PDF and the PNG draw */
   softShadows?: boolean;
+  /** text drawn as glyph outlines (S4.4, 03 §2.6 step 3: a font whose browser text would not match the PDF): the run's
+      glyphs – each one's outline (SVG path data, font units, y up, defined once per list by its key) and its pen
+      position from the run's start, px – or null: drawn as <text> */
+  outline?: (n: TextNode) => OutlineRun | null;
 }
+export interface OutlineRun { upem: number; glyphs: { key: string; d: string; x: number; dx?: number; dy?: number }[] }
 
 const f = (v: number) => { const r = Math.round(v * 1000) / 1000; return Object.is(r, -0) ? "0" : String(r); };
 const escText = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -78,6 +83,9 @@ export function svgChunks(list: DisplayList, opts: SvgOptions): string[] {
     const pd = pathData(d), k = (evenodd ? "e" : "n") + pd, known = clips.get(k); if (known) return known;
     const c = id(); defs.push(`<clipPath id="${c}"><path d="${pd}"${evenodd ? ` clip-rule="evenodd"` : ""}/></clipPath>`); clips.set(k, c); return c;
   };
+  /** glyph outlines, defined once per list */
+  const glyphs = new Map<string, string>();
+  const glyphDef = (key: string, d: string) => { let g = glyphs.get(key); if (!g) { g = id(); glyphs.set(key, g); defs.push(`<path id="${g}" d="${d}"/>`); } return g; };
   const draw = (n: Node): string => {
     switch (n.t) {
       case "rect": {
@@ -127,7 +135,17 @@ export function svgChunks(list: DisplayList, opts: SvgOptions): string[] {
       case "text": {
         const fam = opts.fontFamily ? opts.fontFamily(n) : n.css || `'${n.font.replace(/'/g, "")}'`;
         const p = n.fill as { solid: [number, number, number]; a?: number };
-        const at = charPositions(n);
+        const at = charPositions(n), o = opts.outline?.(n);
+        if (o) {
+          // the run in font units: one group scaled to the size (y up; the scale to 8 digits – 3 decimals of 12 / 2048 would be
+          // 2.4 % off), each glyph used where its pen is
+          const k = n.size / o.upem;
+          let s = `<g transform="translate(${f(n.x)} ${f(n.y)}) scale(${+k.toPrecision(8)} ${-k.toPrecision(8)})" fill="${rgb(p.solid)}"${(p.a ?? 1) < 1 ? ` fill-opacity="${f(p.a!)}"` : ""}>`;
+          for (const g of o.glyphs) if (g.d) s += `<use href="#${glyphDef(g.key, g.d)}" x="${f((g.x + (g.dx ?? 0)) / k)}"${g.dy ? ` y="${f(g.dy / k)}"` : ""}/>`;
+          s += "</g>";
+          if (n.decoration && n.w !== undefined) for (const [x, y, w, h] of decorations(n, n.w)) s += `<rect x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" fill="${rgb(p.solid)}"${(p.a ?? 1) < 1 ? ` fill-opacity="${f(p.a!)}"` : ""}/>`;
+          return s;
+        }
         let s = `<text x="${at ? at.map(f).join(" ") : f(n.x)}" y="${f(n.y)}" font-family="${escAttr(fam)}" font-size="${f(n.size)}"${weightOf(n) !== 400 ? ` font-weight="${weightOf(n)}"` : ""}${n.i ? ` font-style="italic"` : ""}${n.tnum ? ` style="font-variant-numeric:tabular-nums"` : ""}`
           + ` fill="${rgb(p.solid)}"${(p.a ?? 1) < 1 ? ` fill-opacity="${f(p.a!)}"` : ""}`
           + (!at && n.w !== undefined && [...n.src].length > 1 ? ` textLength="${f(n.w)}" lengthAdjust="spacing"` : "")

@@ -4,6 +4,8 @@
 import { Port, type Wire } from "../rpc/port";
 import { serve } from "../worker/host";
 import { staticFace } from "../text/static";
+import { FontMeasurer } from "../text/measure";
+import { shaper } from "../text/shape";
 import { setPlatform } from "../platform";
 import type { CoreEvents, CoreMethods, PageEvents, PageMethods } from "../rpc/messages";
 import type { CanvasFactory, Ctx2D } from "../platform";
@@ -26,16 +28,24 @@ function offscreenCanvas(): CanvasFactory | null {
   };
 }
 
+/** the faces read at start (text/measure.ts prepare) */
+const WARM = ["400 11px Calibri", "700 11px Calibri", "400 11px 'Segoe UI'", "600 11px 'Segoe UI'", "700 11px 'Segoe UI'", "400 11px 'Century Gothic'", "700 11px 'Century Gothic'"];
 type Scope = Wire & { addEventListener(t: string, f: (e: { message?: string; reason?: unknown; error?: unknown; preventDefault(): void }) => void): void };
 export function startCore(scope: Scope) {
   const port = new Port<CoreMethods, PageMethods, PageEvents, CoreEvents>(scope);
-  // text boxes are fitted by the page (Decision 3): the display list asks fitNotes in batches; noteFits itself (one size
-  // at a time, synchronous) is not used in the worker
+  // text is measured from font files (S4.4, text/measure.ts): the library's and this PC's, which the page lists and
+  // reads; a text none of whose fonts has a readable file is measured by the page, as before S4.4 (decision 2026-10-12, 3)
+  const page = {
+    maxDigitWidth: (font: string) => port.call("digitWidth", { font }), noteFits: () => true,
+    measureRuns: (runs: import("../platform").RunReq[]) => port.call("measureRuns", { runs }), breakLines: (reqs: import("../platform").LinesReq[]) => port.call("breakLines", { reqs }),
+  };
+  const fonts = { catalog: () => port.call("fontCatalog", {}), bytes: async (f: import("../text/resolve").CatalogFont) => { const b = await port.call("fontFile", { source: f.source, file: f.file }); return b ? new Uint8Array(b) : null; } };
+  const text = new FontMeasurer(shaper(), fonts, page);
+  // the fonts nearly every deck measures with – Excel's Calibri, the designs' Segoe UI and Century Gothic – read while
+  // the page starts, not when the first workbook is opened (their files come from the helper, a few MB)
+  setTimeout(() => { void text.prepare(WARM).catch(() => undefined); }, 0);
   setPlatform({
-    text: {
-      maxDigitWidth: font => port.call("digitWidth", { font }), noteFits: () => true,
-      measureRuns: runs => port.call("measureRuns", { runs }), breakLines: reqs => port.call("breakLines", { reqs }), fitNotes: reqs => port.call("fitNotes", { reqs }),
-    },
+    text,
     canvas: offscreenCanvas(),
     images: srcs => port.call("analyzeImages", { srcs }),
   });

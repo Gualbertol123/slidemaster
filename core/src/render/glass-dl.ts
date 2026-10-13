@@ -24,7 +24,7 @@ import { hexRgb } from "../xlsx/color";
 import { breakRuns, collapse } from "../text/lines";
 import type { RenderCtx } from "./context";
 import { halfLeading, inlineLayout, lu, measuredBuild, primaryFamily, runsOf, type Metrics, type Run, type TableDL } from "./excel-dl";
-import { glassPlan, type GCap, type GlassPlan, type GLine, type GShell, type GText } from "./glass";
+import { GLASS_FONT, glassPlan, type GCap, type GlassPlan, type GLine, type GShell, type GText } from "./glass";
 import { contrastVars, themeVars } from "./slide";
 
 /** where the slide puts the table: its top left in slide px and its scale */
@@ -32,8 +32,8 @@ export interface Placement { x: number; y: number; scale: number }
 /** the blurred wallpaper (800 × 450 JPEG) as an image id of the display list */
 export interface Wallpaper { blurId: string; blurSrc: string }
 
-export const GLASS_FONT = `-apple-system,"SF Pro Text","Segoe UI Variable Text","Segoe UI","Helvetica Neue",Inter,Arial,sans-serif`;
-export const GLASS_TBOX_FONT = `-apple-system,'SF Pro Text','Segoe UI Variable Text','Segoe UI',Arial,sans-serif`;
+export { GLASS_FONT } from "./glass";
+export const GLASS_TBOX_FONT = `-apple-system,'SF Pro Text','Segoe UI',Arial,sans-serif`;
 const LETTER = -.12;                                   // .slide.glass .t letter-spacing
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));

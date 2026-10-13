@@ -12,7 +12,7 @@ export function pageNoFor(ctx: RenderCtx, i: number): string | null {
   return p.format === "nN" ? `${n} / ${N}` : p.format === "page" ? `Page ${n}` : p.format === "p" ? `p. ${n}` : String(n);
 }
 export const PN_FONTS: Record<string, string | null> = {
-  auto: null, segoe: "'Segoe UI Variable Text','Segoe UI',Arial,sans-serif", arial: "Arial,Helvetica,sans-serif", calibri: "Calibri,Carlito,Arial,sans-serif",
+  auto: null, segoe: "'Segoe UI',Arial,sans-serif", arial: "Arial,Helvetica,sans-serif", calibri: "Calibri,Carlito,Arial,sans-serif",
   gothic: "'Century Gothic','URW Gothic',Arial,sans-serif", georgia: "Georgia,'Times New Roman',serif", verdana: "Verdana,Geneva,sans-serif", mono: "Consolas,'Cascadia Mono',monospace",
 };
 export function pageNoBox(ctx: RenderCtx, label: string, glassy: boolean) {

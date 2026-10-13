@@ -292,6 +292,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     fs.writeFileSync(path.join(actual, "sp.json"), JSON.stringify(s.pixels, null, 1));
   }
   writeReport(res, report);
+  // every difference as data (S4.4: the review package of the measured layout lists each one)
+  if (arg("--diffs", null)) fs.writeFileSync(path.resolve(arg("--diffs", null)), JSON.stringify(res.diffs.map(({ accepted, ...d }) => ({ ...d, accepted: !!accepted })), null, 1));
   if (!res.full) console.log("NOTE: this machine's Chromium or fonts differ from the goldens' - only texts were compared (geometry, pixels and PDF positions need the same environment).");
   for (const d of res.diffs.slice(0, 40)) console.log(`${d.accepted ? "accepted " : "DIFF     "} ${d.deck} · ${d.design} · ${d.version} · ${d.file} · ${d.kind}: ${d.detail}`);
   if (res.diffs.length > 40) console.log(`... and ${res.diffs.length - 40} more (see the report)`);

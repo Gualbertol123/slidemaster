@@ -17,7 +17,7 @@
    asked (measuredBuild).
    Where v3 is not followed, on purpose (PLAN S3.3's border widths; to be shown in G1): "hair" is a 0.5 px solid line
    (v3: CSS 1 px dotted) and dashDot / dashDotDot / slantDashDot have dash-dot patterns (v3: CSS dashed). */
-import { platform, type LinesReq, type NoteFitReq, type NoteMeasure, type RunMetrics, type RunReq } from "../platform";
+import { platform, type LinesReq, type RunMetrics, type RunReq } from "../platform";
 import { BW } from "../xlsx/layout";
 import type { BorderSide, Item, Para, Pic, Rect, TableLayout } from "../xlsx/types";
 import { fontStack } from "../model/fonts";
@@ -33,8 +33,6 @@ export interface Metrics {
   /** `tnum`: tabular figures (font-variant-numeric), answered with each character's advance */
   run(text: string, font: string, tnum?: boolean): RunMetrics;
   lines(text: string, font: string, width: number): string[];
-  /** a text box's font size as the page fits it (slide furniture, S3.5) */
-  noteSize(note: NoteMeasure, start: number): number;
 }
 /** a table's display list and the pictures it refers to (image id → data: URL) */
 export interface TableDL { nodes: DisplayList; images: Record<string, string> }
@@ -307,10 +305,8 @@ function picBody(p: Pic, forExport: boolean, images: Record<string, string>, m: 
 }
 
 /* ---- measuring: the requests of a table, answered in one batch by the platform's TextMeasurer */
-const noteKeyOf = (n: NoteMeasure, start: number) => JSON.stringify([n.design, n.className, n.cssText, n.html, n.w, n.h, start]);
 class Recorder implements Metrics {
-  runs = new Map<string, RunReq>(); wraps = new Map<string, LinesReq>(); notes = new Map<string, NoteFitReq>();
-  noteSize(note: NoteMeasure, start: number) { this.notes.set(noteKeyOf(note, start), { note, start }); return start; }
+  runs = new Map<string, RunReq>(); wraps = new Map<string, LinesReq>();
   run(text: string, font: string, tnum = false): RunMetrics {
     this.runs.set((tnum ? "tnum " : "") + font + "\n" + text, { text, font, ...(tnum ? { tnum } : {}) }); this.runs.set(font + "\n", { text: "", font });
     return { w: 0, asc: 0, desc: 0 };
@@ -318,8 +314,7 @@ class Recorder implements Metrics {
   lines(text: string, font: string, width: number): string[] { this.wraps.set(`${font}\n${width}\n${text}`, { text, font, width }); return [text]; }
 }
 class Answers implements Metrics {
-  constructor(private runs: Map<string, RunMetrics>, private wraps: Map<string, string[]>, private fallback: Metrics, private notes = new Map<string, number>()) {}
-  noteSize(note: NoteMeasure, start: number) { return this.notes.get(noteKeyOf(note, start)) ?? this.fallback.noteSize(note, start); }
+  constructor(private runs: Map<string, RunMetrics>, private wraps: Map<string, string[]>, private fallback: Metrics) {}
   run(text: string, font: string, tnum = false) { return this.runs.get((tnum ? "tnum " : "") + font + "\n" + text) ?? this.fallback.run(text, font, tnum); }
   lines(text: string, font: string, width: number) { return this.wraps.get(`${font}\n${width}\n${text}`) ?? this.fallback.lines(text, font, width); }
 }
@@ -327,12 +322,11 @@ class Answers implements Metrics {
 export const roughMetrics: Metrics = {
   run: (t, font) => { const size = parseFloat(/([\d.]+)px/.exec(font)?.[1] || "14"); return { w: [...t].length * size * .5, asc: size * .8, desc: size * .2 }; },
   lines: (t) => [t],
-  noteSize: (_n, start) => start,
 };
-/** the measurer's answers so far: runs, line breaks and fitted text boxes, by what was asked (of measurer `by`) */
-const MEASURED = { by: null as unknown, runs: new Map<string, RunMetrics>(), wraps: new Map<string, string[]>(), notes: new Map<string, number>() };
-/** the page's fonts changed (a font arrived or was added): everything is measured again */
-export function forgetMeasurements() { MEASURED.runs.clear(); MEASURED.wraps.clear(); MEASURED.notes.clear(); }
+/** the measurer's answers so far: runs and line breaks, by what was asked (of measurer `by`) */
+const MEASURED = { by: null as unknown, runs: new Map<string, RunMetrics>(), wraps: new Map<string, string[]>() };
+/** the fonts changed (a font arrived or was added): everything is measured again */
+export function forgetMeasurements() { MEASURED.runs.clear(); MEASURED.wraps.clear(); }
 /** measure everything a build needs: one batch per round, rounds until nothing new is asked (the units of wrapped
     text first, then the runs of the lines they give; three or four rounds per table, however long the text) */
 export async function measuredBuild<T>(build: (m: Metrics) => T): Promise<T> {
@@ -340,20 +334,18 @@ export async function measuredBuild<T>(build: (m: Metrics) => T): Promise<T> {
   if (!tm.measureRuns || !tm.breakLines) return build(roughMetrics);
   // what was measured stays known for the next builds (an edit measures its own cell only, S4.1), until the page's
   // fonts change (forgetMeasurements) or it grows too large
-  if (MEASURED.by !== tm || MEASURED.runs.size + MEASURED.wraps.size + MEASURED.notes.size > 300_000) { forgetMeasurements(); MEASURED.by = tm; }
-  const { runs, wraps, notes } = MEASURED;
+  if (MEASURED.by !== tm || MEASURED.runs.size + MEASURED.wraps.size > 300_000) { forgetMeasurements(); MEASURED.by = tm; }
+  const { runs, wraps } = MEASURED;
   for (let round = 0; ; round++) {
     if (round === 8) throw new Error("text measurement did not settle after 8 rounds");
-    const rec = new Recorder(), probe = new Answers(runs, wraps, rec, notes);
+    const rec = new Recorder(), probe = new Answers(runs, wraps, rec);
     build(probe);
     const needRuns = [...rec.runs].filter(([k]) => !runs.has(k)), needWraps = [...rec.wraps].filter(([k]) => !wraps.has(k));
-    const needNotes = tm.fitNotes ? [...rec.notes].filter(([k]) => !notes.has(k)) : [];
-    if (!needRuns.length && !needWraps.length && !needNotes.length) break;
-    if (needNotes.length) { const ans = await tm.fitNotes!(needNotes.map(([, v]) => v)); needNotes.forEach(([k], i) => notes.set(k, ans[i])); }
+    if (!needRuns.length && !needWraps.length) break;
     if (needWraps.length) { const ans = await tm.breakLines(needWraps.map(([, v]) => v)); needWraps.forEach(([k], i) => wraps.set(k, ans[i])); }
     if (needRuns.length) { const ans = await tm.measureRuns(needRuns.map(([, v]) => v)); needRuns.forEach(([k], i) => runs.set(k, ans[i])); }
   }
-  return build(new Answers(runs, wraps, roughMetrics, notes));
+  return build(new Answers(runs, wraps, roughMetrics));
 }
 /** a table's display list with the page's measurements */
 export const excelTableDL = (L: TableLayout, ctx: RenderCtx, opts: { noText?: boolean } = {}) => measuredBuild(m => excelToDisplayList(L, ctx, m, opts));

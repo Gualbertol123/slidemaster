@@ -92,7 +92,9 @@ export function stagePushed(s: StageSlide) {
   show(s, issued + 1);                                    // drawn after every request so far
 }
 /** what the stage asks for slide `slide` */
-export const stageRequest = (slide: number) => ({ slide, today: todayLabel(), known: [...images.keys()], soft: !!get().prefs.prefs.softShadows });
+export const stageRequest = (slide: number) => ({ slide, today: todayLabel(), known: [...images.keys()], soft: !!get().prefs.prefs.softShadows, ...(outlinesAll() ? { outlines: "all" as const } : {}) });
+/** every font's text as outlines on the stage (S4.4's SP switch, until decided: localStorage sbOutlines = "all") */
+const outlinesAll = () => { try { return localStorage.getItem("sbOutlines") === "all"; } catch { return false; } };
 /** the next request names no layers (a layer named last time was gone when the answer came) */
 let whole = false;
 /** an answer whose layers the page had come without markup: they are the page's own again (null: one is not there) */
@@ -142,7 +144,7 @@ useStore.subscribe(s => !!s.prefs.prefs.softShadows, () => requestStage(false));
 /** the slide on the stage with every layer's nodes (tests and the parity tools: the stage's markup carries no nodes) */
 export async function stageNodes(): Promise<StageSlide | null> {
   const { deck: { cur } } = get();
-  const s = await core().call("stage", { slide: cur, today: todayLabel(), known: [...images.keys()], soft: !!get().prefs.prefs.softShadows, nodes: true });
+  const s = await core().call("stage", { ...stageRequest(cur), nodes: true });
   return s && s.id === stage().shown?.id ? s : null;
 }
 STAGE.request = stageRequest;
