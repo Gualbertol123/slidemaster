@@ -23,7 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from . import APP_NAME, VERSION, paths, presence, store
 from .convert import convert_picture, convert_workbook
 from .engines import EngineError
-from .exports import ExportError, assemble, export
+from .exports import ExportError, assemble, export, export_feedback, export_file
 from .fonts import FONT_MAX, FontError, add_face, font_file, read_library, remove_family
 from .sysfonts import SysFontError, capture as capture_sysfont, list_fonts as list_sysfonts, read_font as read_sysfont
 from .installer import install_status, start_install
@@ -451,6 +451,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"id": uid, "name": name})
         if path == "/api/export":
             return self._send(200, export(self._json(BIG_LIMIT), self.app.engine))
+        if path == "/api/export-file":                   # the native export (S3.7): the page's PDF or PNG, saved as it is
+            return self._send(200, export_file((q.get("name") or [""])[0], self._body(BIG_LIMIT)))
+        if path == "/api/export-feedback":               # the export pilot (S3.8): a problem report, as a JSON file
+            return self._send(200, export_feedback(self._json(), current_user(), current_host()))
         if path == "/api/assemble":                      # fallback: PDF from images rendered by the page itself
             return self._send(200, assemble(self._json(BIG_LIMIT)))
         if path == "/api/convert-workbook":

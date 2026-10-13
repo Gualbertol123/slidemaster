@@ -1,6 +1,6 @@
 {
   "name": "slide-builder",
-  "version": "3.6.0",
+  "version": "3.7.0",
   "private": true,
   "description": "Slide Builder. Workspaces: app/ (the browser app, built into backend/slide_builder.html) and core/ (pure TypeScript, no DOM). The helper (backend/) is Python, standard library only.",
   "workspaces": [
@@ -18,6 +18,7 @@
     "dlparity": "node tools/dlparity.mjs",
     "g1": "node tools/g1-package.mjs",
     "export-dl": "node tools/export-dl.mjs",
+    "export-check": "node tools/export-check.mjs",
     "bench": "npm run bench -w core && npm run bench -w app && node tools/bench.mjs --json bench-results.json"
   }
 }

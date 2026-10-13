@@ -234,6 +234,8 @@ All responses JSON unless stated. Security for every request:
 | `POST /api/convert?ext=` | bytes | PNG bytes (GDI+, Windows) or 501 |
 | `POST /api/export` | `{name, format:"pdf"\|"png", mode:"exact"\|"vector", css, slides[], names[], scale, inline?, all?}` | `{ok, files[], engine, seconds}` or `{ok, images[]}` (inline). 503 when no engine works. Pages are 1600 × 900 CSS px, unscaled (`engines.EXPORT_CSS`); each engine's output passes `engines.check_output` (page count, 16:9 boxes – rounding trimmed by `pdf.pdf_fit_pages` –, picture sizes) and the layout check `GEOMETRY_JS`, else the next engine renders it. |
 | `POST /api/assemble` | `{name, images[]}` (JPEG data URLs) | `{ok, files[]}` |
+| `POST /api/export-file?name=` | the bytes of a PDF or PNG the page wrote (the native export, 3.7) | `{ok, files:[name used]}`; 400 for another type or bytes that are not one; saved through `save_export` (lock `export-<name>`, " (2)" when open) |
+| `POST /api/export-feedback` | a JSON object: "Report a problem with this export" (the 3.7 export pilot, `docs/next/pilot-export.md`) | `{ok, file:"feedback/<name>.json"}`; written with the helper's version, user, PC and time as a new file in `export\feedback\` (lock `export-feedback`, " (2)" rather than replacing a report); 400 for a non-object or one over 64 KB |
 | `POST /api/open` | `{name}` or `{folder:true}` | `{ok}` |
 | `POST /api/engine/restart` | – | `{ok}` |
 | `POST /api/engine/install` · `GET /api/engine/install` | – | `{running, done, ok, lines[]}` |

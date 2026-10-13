@@ -66,7 +66,7 @@ function resolveFonts(nodes, fonts, missing) {
 const dataUrlBytes = src => { const i = src.indexOf(","), b64 = src.slice(i + 1); return new Uint8Array(Buffer.from(src.slice(0, i).includes(";base64") ? b64 : decodeURIComponent(b64), src.slice(0, i).includes(";base64") ? "base64" : "latin1")); };
 
 /** the golden texts of a slide: every text element that holds no other text element (a cell, a title, a text box…) */
-function goldenTexts(deck, design, version, n) {
+export function goldenTexts(deck, design, version, n) {
   const f = path.join(REPO, "golden", deck, design, version, `slide-${n}.json`);
   if (!fs.existsSync(f)) return null;
   const items = JSON.parse(fs.readFileSync(f, "utf8")).items.filter(i => i.text);
@@ -77,7 +77,7 @@ const squash = s => s.normalize("NFKC").replace(/\s+/g, "");
 /** the golden texts found in a page's text, each used up once; what is left on either side is a difference. The
     texts are taken in the goldens' (the page's) order, each from where the last one was found, so a short number is
     matched where it is drawn, not inside a neighbour */
-function matchTexts(pageText, want) {
+export function matchTexts(pageText, want) {
   let rest = squash(pageText), at = 0;
   const missing = [];
   for (const t of want) {

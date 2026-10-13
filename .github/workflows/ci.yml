@@ -4,7 +4,8 @@
 #   helper - the Python helper's unittest suite on the oldest (3.8) and a current (3.12) Python
 #   e2e    - Playwright: two real helpers sharing one temp folder, driven in Chromium
 #   parity - v3 against golden/
-#   pdf    - npm run sp: the display list's PDF (core/src/pdf) rendered by PDFium against Chromium's canvas, qpdf --check
+#   pdf    - npm run sp: the display list's PDF (core/src/pdf) rendered by PDFium against Chromium's canvas, qpdf --check;
+#            npm run export-check: the native export of three corpus decks (S3.7)
 #   bench  - npm run bench: benchmarks with thresholds (big30 parsing in core, render counts in app, the page in Chromium)
 # npm workspaces: one lockfile and node_modules/ at the root; the scripts run from the root.
 name: ci
@@ -149,6 +150,13 @@ jobs:
       - run: sudo apt-get install -y qpdf
       - run: python -m pip install pypdf==6.7.5 pypdfium2==5.14.0 pillow==11.3.0
       - run: npm run sp
+      # PLAN S3.7: the native export of three corpus decks in every design, through the app (export workers, helper):
+      # qpdf, no Type 3 / variable fonts, the text against the goldens, deck20's size and time (scaled like the bench)
+      - name: native export
+        run: |
+          export CHROME="$(node -e "console.log(require('playwright').chromium.executablePath())")"
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          npm run export-check -- --decks weekly-options,report-looks,deck20 --out tests/parity/report/export
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: dl-report, path: "tests/parity/report/dl/", if-no-files-found: ignore }

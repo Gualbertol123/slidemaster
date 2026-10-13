@@ -103,6 +103,30 @@ export function decodePng(d: Uint8Array): Raster {
   return { w, h, rgb, alpha: hasAlpha ? alpha : null };
 }
 
+/** an opaque 8-bit grey or RGB PNG without interlacing: its IDAT data is already a PDF Flate stream with PNG
+    predictors (/DecodeParms /Predictor 15), so the writer passes it through instead of decoding and deflating it again
+    (the "as pictures" pages, S3.7). null for anything else */
+export function pngFlate(d: Uint8Array): { w: number; h: number; colors: 1 | 3; data: Uint8Array } | null {
+  if (!isPng(d)) return null;
+  let p = 8, w = 0, h = 0, colors: 1 | 3 = 3;
+  const idat: Uint8Array[] = [];
+  while (p + 8 <= d.length) {
+    const len = u32(d, p), tag = String.fromCharCode(d[p + 4], d[p + 5], d[p + 6], d[p + 7]), body = d.subarray(p + 8, p + 8 + len);
+    if (tag === "IHDR") {
+      // depth 8, colour type 0 (grey) or 2 (RGB), compression 0, filter 0, no interlace
+      if (body[8] !== 8 || (body[9] !== 0 && body[9] !== 2) || body[10] || body[11] || body[12]) return null;
+      w = u32(body, 0); h = u32(body, 4); colors = body[9] === 2 ? 3 : 1;
+    } else if (tag === "tRNS" || tag === "PLTE") return null;
+    else if (tag === "IDAT") idat.push(body);
+    else if (tag === "IEND") break;
+    p += 12 + len;
+  }
+  if (!w || !h || !idat.length) return null;
+  const data = new Uint8Array(idat.reduce((s, c) => s + c.length, 0));
+  { let o = 0; for (const c of idat) { data.set(c, o); o += c.length; } }
+  return { w, h, colors, data };
+}
+
 /** width, height, components and Adobe (inverted CMYK) flag of a JPEG */
 export function jpegInfo(d: Uint8Array): { w: number; h: number; comps: number; adobe: boolean } {
   let p = 2, adobe = false;

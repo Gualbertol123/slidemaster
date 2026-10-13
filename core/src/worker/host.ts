@@ -23,8 +23,8 @@ import { History } from "../sync/history";
 import type { RenderCtx } from "../render/context";
 import type { Design, Preset, RuntimeSlide, Style, WorkbookDoc } from "../model/types";
 import type { Workbook } from "../xlsx/types";
-import { Port, transfer } from "../rpc/port";
-import type { CoreEvents, CoreMethods, DocState, HtmlReq, PageEvents, PageMethods, ViewInputs, WorkbookInfo } from "../rpc/messages";
+import { Port, transfer, type Wire } from "../rpc/port";
+import type { CoreEvents, CoreMethods, DocState, ExportCoreMethods, HtmlReq, PageEvents, PageMethods, SlideListsReq, ViewInputs, WorkbookInfo } from "../rpc/messages";
 
 type HostPort = Port<CoreMethods, PageMethods, PageEvents, CoreEvents>;
 type Html = [string, string, string, string];
@@ -96,7 +96,23 @@ export class CoreHost {
     h("flush", async () => { await this.sync?.flush(); });
     h("poll", async () => { await this.sync?.poll(); });
     h("html", a => this.htmlFor(a));
-    h("slideLists", a => this.slideLists(a));
+    h("slideLists", a => this.lists(a));
+    // an export worker's own channel (S3.7): display lists go to it directly, never through the page's main thread
+    h("linkExport", a => {
+      const p = new Port<ExportCoreMethods, Record<string, never>, Record<string, never>, Record<string, never>>(a.port as unknown as Wire);
+      p.handle("slideLists", x => this.lists(x));
+      this.exportLinks.set(a.id, a.port);
+    });
+    h("unlinkExport", a => { const mp = this.exportLinks.get(a.id); this.exportLinks.delete(a.id); if (mp) { mp.onmessage = null; mp.close(); } });
+  }
+  /** the export workers' channels, by the page's number for each (closed when the worker stops) */
+  private exportLinks = new Map<number, MessagePort>();
+  /** display lists are built one request at a time (export workers ask in parallel; each build asks the page to measure) */
+  private listQueue: Promise<unknown> = Promise.resolve();
+  private lists(a: SlideListsReq) {
+    const run = this.listQueue.then(() => this.slideLists(a));
+    this.listQueue = run.catch(() => undefined);
+    return run;
   }
 
   /* ---------------------------------------------------------------- opening */
@@ -270,7 +286,7 @@ export class CoreHost {
     return out;
   }
   /** whole slides as display lists (S3.5): background, furniture, the tables placed and scaled, text boxes */
-  private async slideLists(a: HtmlReq & { slides?: number[]; today?: string }) {
+  private async slideLists(a: SlideListsReq) {
     if (!this.wb || !this.sync) return [];
     const ctx = this.ctx(a.design, a.version, a.forExport), glass = ctx.style.design === "glass", out: { slide: number; dl: TableDL }[] = [];
     const wall = glass ? await wallpaperIds(ctx.style) : null;

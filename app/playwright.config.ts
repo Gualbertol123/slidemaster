@@ -4,6 +4,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import { sysFontDirs } from "../tools/sysfonts.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /* Two helpers = two people on two PCs, sharing one app folder (workbooks + data), like on the network drive. */
@@ -18,6 +19,8 @@ if (fresh) {
 process.env.SB_E2E_TMP = tmp; process.env.SB_E2E_ROOT = root; process.env.SB_E2E_DATA = data;
 // the browser: CHROME, else Playwright's own Chromium (npx playwright install chromium), the same on every OS
 const chrome = process.env.CHROME || createRequire(import.meta.url)("playwright").chromium.executablePath();
+// the native export (S3.7) embeds this PC's fonts: off Windows the helper is given the system's font folders
+const SYSFONTS = sysFontDirs();
 // Windows has "python" (python3 is the Microsoft Store's placeholder there)
 const PY = process.platform === "win32" ? "python" : "python3";
 const helper = (user: string, port: number) => ({
@@ -25,7 +28,8 @@ const helper = (user: string, port: number) => ({
   url: `http://127.0.0.1:${port}/api/ping`,
   // export engines: the browser's DevTools and command line, as on CI – not the Python "playwright" package that
   // Install Slide Builder.bat may have put on this PC (the export test expects "Export: Chrome…")
-  env: { SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: user, SLIDEBUILDER_HOST: "pc-" + user, SLIDEBUILDER_BROWSER: chrome, SLIDEBUILDER_ENGINES: "devtools,cli", NO_PROXY: "*" },
+  env: { SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: user, SLIDEBUILDER_HOST: "pc-" + user, SLIDEBUILDER_BROWSER: chrome, SLIDEBUILDER_ENGINES: "devtools,cli", NO_PROXY: "*",
+    ...(SYSFONTS ? { SLIDEBUILDER_SYSFONTS: SYSFONTS } : {}) },
   reuseExistingServer: false, timeout: 90_000,
   stdout: "pipe" as const, stderr: "pipe" as const,          // the helpers' logs appear in the test output (CI diagnosis)
 });

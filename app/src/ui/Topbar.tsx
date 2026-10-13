@@ -5,6 +5,7 @@ import { guard, lookChange, showVersion, openFromFolder, openLocalFile, openWiza
 import { openInstaller } from "../state/dialogs";
 import { backend, type FileInfo } from "../sync/api";
 import { doExport, exportVersions, type ExportKind } from "../editor/export";
+import { reportExportProblem } from "../editor/feedback";
 import { Dropdown } from "./Dropdown";
 import { Field } from "./Field";
 import { openFontManager } from "./FontPicker";
@@ -154,9 +155,10 @@ function ServerPill() {
 }
 
 function ExportButton() {
-  const health = useStore(s => !!s.ui.health), slides = useStore(s => s.deck.slides.length), exporting = useStore(s => s.ui.exporting);
+  const slides = useStore(s => s.deck.slides.length), exporting = useStore(s => s.ui.exporting);
   const mode = useStore(s => s.prefs.prefs.pdfMode) || "vector", versions = useStore(s => s.doc.view?.preset?.versions) || [];
-  const can = backend.served && health && slides > 0 && !exporting;
+  // the page writes the files (S3.7): exports work without an export engine, and from disk as downloads (B1)
+  const can = slides > 0 && !exporting;
   const item = (k: ExportKind, label: string, small?: string, close?: () => void) =>
     <button data-x={k} className={k === "pdf-" + mode ? "cur" : ""} onClick={() => { close?.(); void doExport(k); }}>{label}{small && <small>{small}</small>}</button>;
   return (
@@ -165,10 +167,11 @@ function ExportButton() {
       <button className="btn primary caret" id="exportMenuBtn" disabled={!can} onClick={toggle}>▾</button>
     </>}>
       {close => <>
-        <div className="hd">PDF – all slides, saved in the export folder</div>
+        <div className="hd">PDF – all slides, {backend.served ? "saved in the export folder" : "downloaded"}</div>
         {item("pdf-vector", "PDF · text & tables", "real text and lines, sharp at any zoom – no pictures", close)}
-        {item("pdf-exact", "PDF · as pictures", "each slide as a 480 dpi image", close)}
+        {item("pdf-exact", "PDF · as pictures", "each slide as a 192 dpi image", close)}
         {item("pdf-current", "PDF · current slide only", undefined, close)}
+        {backend.served && item("pdf-old", "PDF · text & tables (old engine)", "as Slide Builder 3.6 made it – for comparison, until the next release", close)}
         <div className="sep" />
         <div className="hd">Images (4800 × 2700)</div>
         {item("copy", "Copy current slide", "paste into PowerPoint", close)}
@@ -179,6 +182,8 @@ function ExportButton() {
         <button data-x="versions" disabled={!versions.length} onClick={() => { close(); void exportVersions(null); }}>PDF · every version<small>{versions.map(v => v.name).join(", ") || "none yet"} · this design</small></button>
         <button data-x="versions-2" disabled={!versions.length} onClick={() => { close(); void exportVersions(["glass", "excel"]); }}>PDF · every version × Liquid Glass + Excel<small>{2 * versions.length} files</small></button>
         <button data-x="versions-3" disabled={!versions.length} onClick={() => { close(); void exportVersions(["glass", "excel", "clean"]); }}>PDF · every version × all three designs</button>
+        <div className="sep" />
+        <button data-x="report" onClick={() => { close(); void reportExportProblem(); }}>Report a problem with this export…<small>for the export pilot · {backend.served ? "saved in the export folder (feedback)" : "downloaded"}</small></button>
       </>}
     </Dropdown>
   );

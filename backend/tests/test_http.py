@@ -335,6 +335,33 @@ class HttpTests(HttpBase):
         self.assertEqual((st, r), (200, {"ok": True, "files": ["Deck - slides.pdf"]}))
         self.assertEqual(self.jreq("POST", "/api/export", {"name": "Deck.xlsx", "slides": []})[0], 400)
 
+    def test_export_file(self):
+        pdf = b"%PDF-1.7\n%native\n%%EOF\n"
+        st, r = self.jreq("POST", "/api/export-file?name=" + urllib.parse.quote("Deck - Chief - Liquid Glass.pdf"), pdf)
+        self.assertEqual((st, r), (200, {"ok": True, "files": ["Deck - Chief - Liquid Glass.pdf"]}))
+        with open(os.path.join(paths.EXPORT_DIR, "Deck - Chief - Liquid Glass.pdf"), "rb") as f:
+            self.assertEqual(f.read(), pdf)
+        st, r = self.jreq("POST", "/api/export-file?name=Deck%20-%20Cover.png", make_png())
+        self.assertEqual((st, r["files"]), (200, ["Deck - Cover.png"]))
+        self.assertEqual(self.jreq("POST", "/api/export-file?name=x.js", b"%PDF-")[0], 400)
+        self.assertEqual(self.jreq("POST", "/api/export-file?name=x.pdf", b"<html>")[0], 400)
+        self.assertEqual(self.jreq("POST", "/api/export-file?name=x.pdf", pdf, token=False)[0], 403)
+        # works while no export engine is installed: the page writes the file (B1)
+        from slidebuilder.engines import Exporter
+        with mock.patch.dict(os.environ, {"SLIDEBUILDER_ENGINES": "none"}):
+            self.httpd.app.engine = Exporter()
+        self.assertEqual(self.jreq("POST", "/api/export-file?name=y.pdf", pdf)[0], 200)
+
+    def test_export_feedback(self):
+        st, r = self.jreq("POST", "/api/export-feedback", {"what": "P3 look", "slide": 2, "comment": "Rahmen fehlt"})
+        self.assertEqual(st, 200)
+        self.assertRegex(r["file"], r"^feedback/\d{8}-\d{6}-.+\.json$")
+        with open(os.path.join(paths.EXPORT_DIR, *r["file"].split("/")), encoding="utf-8") as f:
+            doc = json.load(f)
+        self.assertEqual((doc["kind"], doc["version"], doc["report"]["comment"]), ("export-feedback", VERSION, "Rahmen fehlt"))
+        self.assertEqual(self.jreq("POST", "/api/export-feedback", [1, 2])[0], 400)
+        self.assertEqual(self.jreq("POST", "/api/export-feedback", {"a": 1}, token=False)[0], 403)
+
     def test_export_without_engine_is_503(self):
         from slidebuilder.engines import Exporter
         with mock.patch.dict(os.environ, {"SLIDEBUILDER_ENGINES": "none"}):

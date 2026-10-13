@@ -30,7 +30,7 @@ export function App() {
       <div className="app">
         <Topbar />
         <div>
-          {!backend.served && <div className="banner show" id="bannerOffline">Opened directly from disk: work is kept in this browser only and exports are off. Start <b>Start Slide Builder.bat</b> to share presets with colleagues and export PDFs.</div>}
+          {!backend.served && <div className="banner show" id="bannerOffline">Opened directly from disk: work is kept in this browser only and exports are downloaded. Start <b>Start Slide Builder.bat</b> to share presets with colleagues and save exports in the export folder.</div>}
           {changedOnDisk && <div className="banner info show" id="bannerChanged">The workbook was saved again in Excel. <button className="btn" onClick={() => void guard(reloadWorkbook)}>Reload now</button></div>}
           <Ribbon />
           <TableRibbon />

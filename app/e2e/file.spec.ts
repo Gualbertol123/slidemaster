@@ -3,8 +3,10 @@
    browser (localStorage) across a reload. Since S2.4 the core runs in a worker started from a Blob URL – also
    from file:// – and draws the tables: the page draws none itself. */
 import { test, expect, type Page } from "@playwright/test";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { pdfPageTexts } from "./pdftext";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = pathToFileURL(path.join(here, "../../backend/slide_builder.html")).href;
@@ -57,4 +59,57 @@ test("opened from file://: choose a workbook, make the deck, edit a cell, keep i
   await expect(page.locator("#stage .slide .t", { hasText: /^Alfa$/ })).toHaveCount(1);
 
   expect(errors.filter(e => !EXPECTED.some(x => x.test(e)))).toEqual([]);
+});
+
+/* B1 (S3.7): from disk, exports work too – as downloads. A text & tables PDF needs the PC's fonts, which the browser
+   gives with the user's permission (local fonts); without it the PDF is made of pictures and the toast says why. */
+async function deck(page: Page) {
+  await page.goto(PAGE);
+  await page.setInputFiles("#fileInput", REPORT);
+  await page.click('[data-a="next"]'); await page.click('[data-a="next"]'); await page.click('[data-a="finish"]');
+  await expect(page.locator(".thumb")).toHaveCount(2);
+}
+async function download(page: Page, click: () => Promise<unknown>) {
+  const [d] = await Promise.all([page.waitForEvent("download", { timeout: 60_000 }), click()]);
+  const file = await d.path();
+  return { name: d.suggestedFilename(), bytes: fs.readFileSync(file) };
+}
+
+test("opened from file://: exports are downloads (PDF with the PC's fonts, PNG)", async ({ browser }) => {
+  const context = await browser.newContext({ permissions: ["local-fonts"], acceptDownloads: true });
+  const page = await context.newPage();
+  const errors: string[] = [];
+  page.on("pageerror", e => errors.push("pageerror: " + e.message));
+  page.on("console", m => { if (m.type() === "error" || m.type() === "warning") errors.push("console." + m.type() + ": " + m.text() + " @ " + (m.location().url || "")); });
+  await deck(page);
+  await expect(page.locator("#exportBtn")).toBeEnabled();
+  const pdf = await download(page, () => page.click("#exportBtn"));
+  expect(pdf.name).toBe("report - slides.pdf");
+  expect(pdf.bytes.subarray(0, 5).toString()).toBe("%PDF-");
+  expect(pdf.bytes.toString("latin1")).toContain("/FontFile2");                       // real text: the PC's fonts embedded
+  expect(pdfPageTexts(pdf.bytes).join(" ")).toContain("Alpha");
+  await expect(page.locator("#toast")).toContainText("Downloaded report - slides.pdf");
+  const png = await download(page, async () => { await page.click("#exportMenuBtn"); await page.click('[data-x="png-current"]'); });
+  expect(png.name).toMatch(/^report - .+\.png$/);
+  expect([png.bytes.readUInt32BE(16), png.bytes.readUInt32BE(20)]).toEqual([4800, 2700]);
+  // "Report a problem with this export" (S3.8): without the helper, the report is downloaded
+  await page.click("#exportMenuBtn"); await page.click('[data-x="report"]');
+  await page.fill("#fbText", "logo missing");
+  const rep = await download(page, () => page.click('[data-a="save"]'));
+  expect(rep.name).toMatch(/^export-feedback-.+\.json$/);
+  expect(JSON.parse(rep.bytes.toString("utf8"))).toMatchObject({ kind: "export-feedback", report: { form: { what: "P2", comment: "logo missing" }, lastExport: { kind: "png-current" }, servedByHelper: false } });
+  await expect(page.locator("#toast")).toContainText("send it to the product owner");
+  expect(errors.filter(e => !EXPECTED.some(x => x.test(e)))).toEqual([]);
+  await context.close();
+});
+
+test("opened from file:// without access to the PC's fonts: the PDF is made of pictures, and the toast says so", async ({ browser }) => {
+  const context = await browser.newContext({ acceptDownloads: true });
+  const page = await context.newPage();
+  await deck(page);
+  const pdf = await download(page, () => page.click("#exportBtn"));
+  expect(pdf.name).toBe("report - slides (images).pdf");
+  expect(pdf.bytes.toString("latin1")).toMatch(/\/Width 3200\/Height 1800/);
+  await expect(page.locator("#toast")).toContainText("as pictures: this browser gave no access to the PC's fonts");
+  await context.close();
 });

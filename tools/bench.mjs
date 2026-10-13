@@ -9,6 +9,10 @@
                      S2.6 – Chromium's first use of each font instance on Windows; v3 had the same task): those
                      have their own, looser limit (decision 2026-10-12)                                none > 250 ms
                      The start-up tasks are reported, not gated.
+     export deck20   ⏱ S3.7: the Export button → the PDF saved (the page's clock), Liquid Glass then Excel; the
+                     first export starts the export workers (cold, as for a user)                         < 2 s · < 1 s
+                     its size (PLAN Part F): Glass < 80 KB per slide + 190 KB, Excel < 40 KB per slide;
+                     no task on the page's thread over 50 ms while exporting
      heap            after the big sheet was read: the page (performance.memory) plus the core worker, which
                      holds the workbook since S2.4 (Runtime.getHeapUsage over the DevTools protocol)    < 150 MB
    The two time limits are scaled by how much slower this machine is than the reference PC (tools/calibrate.mjs,
@@ -26,6 +30,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { speedFactor } from "./calibrate.mjs";
+import { sysFontDirs } from "./sysfonts.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)), REPO = path.resolve(HERE, "..");
 const require = createRequire(path.join(REPO, "package.json"));
@@ -33,8 +38,9 @@ const { chromium } = require("playwright");
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
 const BACKEND = path.resolve(arg("--page", path.join(REPO, "backend")));
 const GATE = !process.argv.includes("--no-gate");
-const BUDGET = { open_deck20_ms: 400, read_big30_ms: 1000, longest_task_ms: 50, first_draw_task_ms: 250, heap_mb: 150 }, SLACK = 1.1;
-const speed = speedFactor(), TIMED = ["open_deck20_ms", "read_big30_ms"];
+const BUDGET = { open_deck20_ms: 400, read_big30_ms: 1000, longest_task_ms: 50, first_draw_task_ms: 250, heap_mb: 150,
+  export_glass_ms: 2000, export_excel_ms: 1000, export_glass_kb: 80 * 20 + 190, export_excel_kb: 40 * 20 }, SLACK = 1.1;
+const speed = speedFactor(), TIMED = ["open_deck20_ms", "read_big30_ms", "export_glass_ms", "export_excel_ms"];
 const LIMITS = Object.fromEntries(Object.entries(BUDGET).map(([k, v]) => [k, TIMED.includes(k) ? Math.round(v * speed.factor) : v]));
 const CHROME = process.env.CHROME || chromium.executablePath();
 const PY = process.platform === "win32" ? "python" : "python3";
@@ -43,21 +49,24 @@ for (const f of ["deck20.xlsx", "big30.xlsx"]) if (!fs.existsSync(path.join(BOOK
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 /** the JS heap of every dedicated worker in the browser (the core worker), MB; null if the protocol refused */
+/** the heap of the core worker (gated with the page's) and of the export workers (S3.7: named "sb-export"; started by
+    an export and stopped a minute later – reported, not gated) */
 async function workersHeapMB(browser) {
   const s = await browser.newBrowserCDPSession();
   try {
     const { targetInfos } = await s.send("Target.getTargets");
-    let mb = 0, id = 0;
+    let mb = 0, exp = 0, id = 0;
     const workers = targetInfos.filter(x => x.type === "worker");
-    if (!workers.length) return null;                                  // no core worker: not measured, counts as over
+    if (!workers.some(t => t.title !== "sb-export")) return null;      // no core worker: not measured, counts as over
     for (const t of workers) {
       const { sessionId } = await s.send("Target.attachToTarget", { targetId: t.targetId, flatten: false });
       const ask = ++id, got = new Promise((ok, err) => { s.on("Target.receivedMessageFromTarget", e => { const m = JSON.parse(e.message); if (m.id === ask) m.result ? ok(m.result) : err(new Error(JSON.stringify(m.error))); }); setTimeout(() => err(new Error("no answer")), 10000); });
       await s.send("Target.sendMessageToTarget", { sessionId, message: JSON.stringify({ id: ask, method: "Runtime.getHeapUsage" }) });
-      mb += (await got).usedSize / 1048576;
+      const used = (await got).usedSize / 1048576;
+      if (t.title === "sb-export") exp += used; else mb += used;
       await s.send("Target.detachFromTarget", { sessionId }).catch(() => { /* gone */ });
     }
-    return mb;
+    return { core: mb, export: exp, exportWorkers: workers.filter(t => t.title === "sb-export").length };
   } catch { return null; } finally { await s.detach().catch(() => { /* closed */ }); }
 }
 /** one helper on a fresh folder with deck20 and big30 */
@@ -66,13 +75,14 @@ async function helper(port) {
   fs.mkdirSync(root, { recursive: true }); fs.mkdirSync(data, { recursive: true });
   for (const f of ["deck20.xlsx", "big30.xlsx"]) fs.copyFileSync(path.join(BOOKS, f), path.join(root, f));
   const p = spawn(PY, [path.join(BACKEND, "slide_builder.py"), "--no-browser", "--port", String(port)], {
-    env: { ...process.env, SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: "bench", SLIDEBUILDER_HOST: "pc-bench", SLIDEBUILDER_BROWSER: CHROME, NO_PROXY: "*" },
+    env: { ...process.env, SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: "bench", SLIDEBUILDER_HOST: "pc-bench", SLIDEBUILDER_BROWSER: CHROME, NO_PROXY: "*",
+      ...(sysFontDirs() ? { SLIDEBUILDER_SYSFONTS: sysFontDirs() } : {}) },
     stdio: ["ignore", "pipe", "pipe"] });
   let log = ""; p.stdout.on("data", d => log += d); p.stderr.on("data", d => log += d);
   const url = `http://127.0.0.1:${port}/`;
   // the helper starts its export browser: on Windows killing the helper alone would leave that browser running
   const stop = () => { if (process.platform === "win32") spawnSync("taskkill", ["/pid", String(p.pid), "/T", "/F"], { stdio: "ignore" }); else p.kill(); };
-  for (let i = 0; i < 300; i++) { try { if ((await fetch(url + "api/ping")).ok) return { url, stop }; } catch { /* starting */ } await sleep(200); }
+  for (let i = 0; i < 300; i++) { try { if ((await fetch(url + "api/ping")).ok) return { url, root, stop }; } catch { /* starting */ } await sleep(200); }
   stop(); throw new Error("the helper did not start:\n" + log);
 }
 
@@ -112,6 +122,21 @@ async function run(browser, port) {
     const ltDeck = ltAll.filter(x => !isFirstDraw(x)).map(x => x.d), ltFirstDraw = ltAll.filter(isFirstDraw).map(x => x.d);
     await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 });
     await sleep(500); await longTasks();
+    // ---- export deck20 (S3.7): Liquid Glass (the default design), then Excel
+    const exportOnce = async () => {
+      await page.evaluate(() => { window.__sbTest.lastExport.files = []; });
+      await page.click("#exportBtn");
+      await page.waitForFunction(() => window.__sbTest.lastExport.files.length > 0 && !window.__sbTest.exporting(), null, { timeout: 120000 });
+      const { files, ms, phases } = await page.evaluate(() => ({ files: [...window.__sbTest.lastExport.files], ms: window.__sbTest.lastExport.ms, phases: window.__sbTest.exportPhases() }));
+      return { ms: Math.round(ms), phases: Object.fromEntries(Object.entries(phases).map(([k, v]) => [k, Math.round(v)])), kb: Math.round(fs.statSync(path.join(h.root, "export", files[0])).size / 102.4) / 10 };
+    };
+    const glass = await exportOnce();                                                        // cold: starts the export workers
+    const ltGlass = (await longTasks()).map(x => x.d);
+    await page.click('[data-design="excel"]'); await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 }); await sleep(300);
+    await longTasks();                                                                       // switching the design: not the export's
+    const excel = await exportOnce();
+    const ltExport = [...ltGlass, ...(await longTasks()).map(x => x.d)];
+    await page.click('[data-design="glass"]'); await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 }); await sleep(300); await longTasks();
     // ---- big30: the index, then one 130 000-row sheet
     await page.click("#openBtn"); await page.locator('[data-f="big30.xlsx"]').waitFor();
     await watch([".wiz label", "DATA_1"]); await page.click('[data-f="big30.xlsx"]');
@@ -124,12 +149,14 @@ async function run(browser, port) {
     await sleep(800);
     const ltBig = (await longTasks()).map(x => x.d);
     const pageHeap = await page.evaluate(() => performance.memory ? performance.memory.usedJSHeapSize / 1048576 : null);
-    const workerHeap = await workersHeapMB(browser);
+    const workers = await workersHeapMB(browser), workerHeap = workers ? workers.core : null;
     const heap = pageHeap == null || workerHeap == null ? null : Math.round(pageHeap + workerHeap);
     if (errors.length) throw new Error("page errors: " + errors.join("; "));
     return { boot: { longtasks: ltBoot }, deck20: { wizard_ms: Math.round(wizard), finish_to_slide_ms: Math.round(slides), open_ms: Math.round(wizard + slides), longtasks: ltDeck, first_draw_longtasks: ltFirstDraw },
+      export: { glass_ms: glass.ms, glass_kb: glass.kb, glass_phases: glass.phases, excel_ms: excel.ms, excel_kb: excel.kb, excel_phases: excel.phases, longtasks: ltExport },
       big30: { index_to_wizard_ms: Math.round(index), read_sheet_ms: Math.round(read), read_to_grid_ms: Math.round(grid), longtasks: ltBig, heap_mb: heap,
-        page_heap_mb: pageHeap == null ? null : Math.round(pageHeap), worker_heap_mb: workerHeap == null ? null : Math.round(workerHeap) } };
+        page_heap_mb: pageHeap == null ? null : Math.round(pageHeap), worker_heap_mb: workerHeap == null ? null : Math.round(workerHeap),
+        export_workers: workers ? workers.exportWorkers : null, export_heap_mb: workers ? Math.round(workers.export) : null } };
   } finally { await page.close(); h.stop(); }
 }
 
@@ -140,15 +167,17 @@ finally { await browser.close(); }
 const worst = {
   open_deck20_ms: Math.max(...runs.map(r => r.deck20.open_ms)),
   read_big30_ms: Math.max(...runs.map(r => r.big30.read_sheet_ms)),
-  longest_task_ms: Math.max(0, ...runs.flatMap(r => [...r.deck20.longtasks, ...r.big30.longtasks])),
+  longest_task_ms: Math.max(0, ...runs.flatMap(r => [...r.deck20.longtasks, ...r.export.longtasks, ...r.big30.longtasks])),
   first_draw_task_ms: Math.max(0, ...runs.flatMap(r => r.deck20.first_draw_longtasks)),
   // no performance.memory or no worker heap (another browser): not measured counts as over the limit, never as 0
   heap_mb: runs.some(r => r.big30.heap_mb == null) ? Infinity : Math.max(...runs.map(r => r.big30.heap_mb)),
+  export_glass_ms: Math.max(...runs.map(r => r.export.glass_ms)), export_excel_ms: Math.max(...runs.map(r => r.export.excel_ms)),
+  export_glass_kb: Math.max(...runs.map(r => r.export.glass_kb)), export_excel_kb: Math.max(...runs.map(r => r.export.excel_kb)),
 };
 const info = { longest_startup_task_ms: Math.max(0, ...runs.flatMap(r => r.boot.longtasks)) };
 const out = { page: path.relative(REPO, BACKEND) || BACKEND, chrome: CHROME, machine: `${os.cpus().length} × ${os.cpus()[0].model.trim()}, ${process.platform}`, calibration: { ms: +speed.ms.toFixed(1), factor: +speed.factor.toFixed(2) }, budget: BUDGET, limits: LIMITS, worst, info, runs };
 if (arg("--json")) fs.writeFileSync(arg("--json"), JSON.stringify(out, null, 1));
-for (const [i, r] of runs.entries()) console.log(`bench · run ${i + 1}: deck20 open ${r.deck20.open_ms} ms (wizard ${r.deck20.wizard_ms} + slides ${r.deck20.finish_to_slide_ms}) · big30 index ${r.big30.index_to_wizard_ms} ms, sheet read ${r.big30.read_sheet_ms} ms (grid ${r.big30.read_to_grid_ms} ms) · long tasks ${JSON.stringify([...r.deck20.longtasks, ...r.big30.longtasks])} (first draw ${JSON.stringify(r.deck20.first_draw_longtasks)}) · heap ${r.big30.heap_mb} MB (page ${r.big30.page_heap_mb} + worker ${r.big30.worker_heap_mb}) · start-up tasks ${JSON.stringify(r.boot.longtasks)}`);
+for (const [i, r] of runs.entries()) console.log(`bench · run ${i + 1}: deck20 open ${r.deck20.open_ms} ms (wizard ${r.deck20.wizard_ms} + slides ${r.deck20.finish_to_slide_ms}) · export deck20 Liquid Glass ${r.export.glass_ms} ms ${JSON.stringify(r.export.glass_phases)} ${r.export.glass_kb} KB, Excel ${r.export.excel_ms} ms ${JSON.stringify(r.export.excel_phases)} ${r.export.excel_kb} KB (tasks ${JSON.stringify(r.export.longtasks)}) · big30 index ${r.big30.index_to_wizard_ms} ms, sheet read ${r.big30.read_sheet_ms} ms (grid ${r.big30.read_to_grid_ms} ms) · long tasks ${JSON.stringify([...r.deck20.longtasks, ...r.big30.longtasks])} (first draw ${JSON.stringify(r.deck20.first_draw_longtasks)}) · heap ${r.big30.heap_mb} MB (page ${r.big30.page_heap_mb} + worker ${r.big30.worker_heap_mb}; ${r.big30.export_workers} export workers ${r.big30.export_heap_mb} MB, not gated) · start-up tasks ${JSON.stringify(r.boot.longtasks)}`);
 console.log(`bench · calibration ${speed.ms.toFixed(1)} ms: time limits × ${speed.factor.toFixed(2)}`);
 const bad = Object.entries(LIMITS).filter(([k, lim]) => worst[k] > lim * SLACK);
 for (const [k, lim] of Object.entries(LIMITS)) console.log(`bench · ${k}: ${worst[k]} (limit ${lim}${worst[k] > lim ? (worst[k] > lim * SLACK ? " – OVER +10 %" : " – over, within +10 %") : ""})`);
