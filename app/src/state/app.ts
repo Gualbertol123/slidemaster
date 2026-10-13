@@ -20,6 +20,7 @@ import type { DocEvent, ViewInputs } from "@slide-builder/core/rpc/messages";
 import type { Change } from "@slide-builder/core/sync/docsync";
 import { applyOps } from "@slide-builder/core/model/ops";
 import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "@slide-builder/core/model/preset";
+import { tableHtmlKey } from "@slide-builder/core/render/slide";
 import { resolveStyle } from "@slide-builder/core/model/style";
 import type { Design, Op, Preset, Prefs, RuntimeSlide, StylePatch } from "@slide-builder/core/model/types";
 import type { AppState } from "./store";
@@ -56,7 +57,7 @@ export function core(): CorePort {
     const wb = [openingWb, get().deck.wb as MirrorWorkbook | null].find(w => w && w.book === e.book);
     if (wb) receiveSlices(wb, e); else if (!openingWb) earlySlices.push(e);        // the index of that workbook is on its way
   });
-  port.on("html", list => { for (const [id, kind, key, h] of list) tableHtmls.set(id + "|" + kind, { key, html: h }); if (!htmlIn) { htmlIn = true; THUMBS.render(); } });
+  port.on("html", list => { for (const [id, kind, key, h] of list) tableHtmls.set(id + "|" + kind, { key, html: h }); if (!htmlIn) { htmlIn = true; THUMBS.render(); } else THUMBS.html(); });
   port.on("doc", ev => onWorkerDoc(ev));
   port.on("stage", s => STAGE.pushed(s));
   port.on("progress", p => { if (p) showBusy(p.text, p.frac); else hideBusy(); });
@@ -74,6 +75,11 @@ export function core(): CorePort {
 function receiveSlices(wb: MirrorWorkbook, e: { shared: SharedSlice | null; sheets: SheetSlice[] }) {
   wb.receive(e.shared, e.sheets);
   LCACHE.clear();                                            // layouts of the replaced sheets
+}
+/** the worker's HTML of every table of a slide, as a thumbnail shows it, has arrived (an edit the page shows already may
+    not have it yet: the thumbnail waits rather than draw the table on the page's thread) */
+export function thumbHtmlReady(R: RuntimeSlide, c: RenderCtx): boolean {
+  return R.tables.every((L, i) => { const { kind, key } = tableHtmlKey(R, i, c, true); return tableHtmls.get((L.id || "") + "|" + kind)?.key === key; });
 }
 const htmlOf = (id: string, kind: "html" | "thtml", key: string) => {
   const h = tableHtmls.get(id + "|" + kind);

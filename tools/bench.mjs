@@ -98,10 +98,12 @@ async function run(browser, port) {
     window.__long = []; new PerformanceObserver(l => { for (const e of l.getEntries()) window.__long.push({ t: e.startTime, d: Math.round(e.duration) }); }).observe({ type: "longtask", buffered: true });
     // __watch([[sel, text], …]): from the next click until each element (sel, containing text) is in the document
     let click = null, want = [];
-    const check = () => { if (click === null) return; for (const x of want) if (x.seen === null && [...document.querySelectorAll(x.sel)].some(e => !x.text || e.textContent.includes(x.text))) x.seen = performance.now(); };
+    const check = () => { if (click === null) return; for (const x of want) if (x.seen === null && [...document.querySelectorAll(x.sel)].some(e => !x.text || e.textContent.includes(x.text))) { x.seen = performance.now(); requestAnimationFrame(() => setTimeout(() => { x.painted = performance.now(); }, 0)); } };
     window.__watch = list => { click = null; want = list.map(([sel, text]) => ({ sel, text, seen: null })); };
     window.__took = i => want[i] && want[i].seen !== null ? want[i].seen - click : null;
-    window.__span = i => [click, want[i] ? want[i].seen : null];
+    // until the element is drawn: the end of the frame after it came into the document (S4.1: the stage inserts its SVG,
+    // then the frame lays it out and paints it – both are "drawing the first slide", decision 2026-10-12, 2)
+    window.__span = i => [click, want[i] ? want[i].painted ?? want[i].seen : null];
     addEventListener("click", () => { if (want.length && click === null) { click = performance.now(); check(); } }, true);
     new MutationObserver(check).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
   });
@@ -120,6 +122,7 @@ async function run(browser, port) {
     await page.click('[data-a="next"]'); await page.click('[data-a="next"]');
     await watch("#stage .slide .t"); await page.click('[data-a="finish"]');
     const slides = await took(page.locator("#stage .slide .t").first());
+    await page.waitForFunction(() => window.__span(0)[1] !== null && window.__took(0) !== null && window.__span(0)[1] - window.__span(0)[0] > window.__took(0), null, { timeout: 5000 }).catch(() => { /* the frame did not come: the insertion ends the window */ });
     const [fin, drawn] = await page.evaluate(() => window.__span(0));
     await page.locator(".thumb").nth(19).waitFor({ timeout: 60000 });
     const ltAll = await longTasks(), isFirstDraw = x => x.t >= fin && x.t <= drawn;

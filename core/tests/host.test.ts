@@ -11,6 +11,8 @@ import { applyOps, emptyDoc } from "../src/model/ops";
 import type { CoreEvents, CoreMethods, DocEvent, PageEvents, PageMethods } from "../src/rpc/messages";
 import type { Op, WorkbookDoc } from "../src/model/types";
 import { A1 } from "../src/xlsx/util";
+import { platform, setPlatform } from "../src/platform";
+import type { ImgMeta } from "../src/xlsx/drawing";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const book = (n: string) => { const b = fs.readFileSync(path.join(here, "../../tests/corpus/workbooks", n)); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer; };
@@ -329,6 +331,30 @@ describe("the stage's slide (S4.1)", () => {
     await stageOf(p, slide);
     await p.port.call("undo", { redo: false });
     expect(tables(await stageOf(p, slide))[0].key).toBe(two);
+  });
+  it("a logo the page is slow to read holds nothing: the start, the snapshot and the stage's slide come; the slide again once it is read", async () => {
+    const srv = server(), p = page(srv, "anna");
+    // the page reads pictures for the worker (core.worker.ts installs this): it does not answer yet
+    let answer: (v: [string, ImgMeta][]) => void = () => undefined;
+    const before = platform();
+    setPlatform({ ...before, images: () => new Promise<[string, ImgMeta][]>(r => { answer = r; }) });
+    try {
+    const stages: unknown[] = [];
+    p.port.on("stage", s => stages.push(s));
+    await p.port.call("init", { served: true, client: "c1", me: "anna" });
+    await p.port.call("index", transfer({ buf: book("report.xlsx") }, []));
+    const preset = await p.port.call("defaultPreset", {}), slide = preset.slides.findIndex(s => s.tables.length);
+    const t0 = Date.now();
+    const st = await p.port.call("start", { name: "report.xlsx", doc: srv.getDoc()!, preset, inputs: { ...inputs, logoSrc: "/assets/logo.png" }, stage: { slide, known: [] } });
+    expect(st.view.preset).toEqual(preset);
+    expect(Date.now() - t0).toBeLessThan(1000);                                               // not held by the logo
+    const s = await p.port.call("stage", { slide, known: [], nodes: true });
+    expect(s!.layers.length).toBeGreaterThan(0);
+    expect(JSON.stringify(s!.layers)).not.toContain('"logo"');                                 // drawn without it for now
+    const n = stages.length;
+    answer([["/assets/logo.png", { round: false, alpha: false, w: 400, h: 100 }]]);
+    await until(() => stages.slice(n).some(x => JSON.stringify(x).includes("sbimg:logo-")));     // and sent again with it
+    } finally { setPlatform(before); }
   });
   it("pictures the page has are not sent again; a slide that does not exist is null", async () => {
     const { p, slide } = await opened();

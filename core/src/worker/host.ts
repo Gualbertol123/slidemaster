@@ -246,12 +246,14 @@ export class CoreHost {
       for (const R of this.slides) { const cfg = byId.get(R.id); if (cfg && cfg !== R.cfg) R.cfg = cfg; }
     }
     await this.sendSlices();
-    // a change (or the start): the slide on the stage drawn at once, before anything else (keypress → pixels, S4.1)
-    if ((c || force) && this.stageReq) { const s = await this.queueStage(this.stageReq).catch(() => null); if (s) this.port.emit("stage", s); }
-    // then the snapshot (the page can show the stage's slide), then the thumbnails' HTML (v3's, until S4.3): sent at a
-    // start after the answer, and even when there is none (the page knows it has it all)
     this.sendDoc(c);
-    if (force) setTimeout(() => this.sendHtml(true), 0); else this.sendHtml();
+    // a change (or the start): the slide on the stage drawn at once and sent unasked (keypress → pixels, S4.1) – never
+    // waited for (a picture the page is slow to read must not hold the snapshot, a save, or a workbook's start); the
+    // thumbnails' HTML (v3's, until S4.3) after it, at a start even when there is none (the page knows it has it all)
+    const push = (c || force) && this.stageReq ? this.queueStage(this.stageReq).then(s => { if (s) this.port.emit("stage", s); }, () => undefined) : null;
+    if (force) void (push ?? Promise.resolve()).then(() => setTimeout(() => this.sendHtml(true), 0));
+    else if (push) void push.then(() => this.sendHtml());
+    else this.sendHtml();
   }
   /** slices of every loaded sheet whose rectangle changed (or that is new) */
   private boxSig = "";
@@ -294,12 +296,17 @@ export class CoreHost {
     });
     return out;
   }
-  /** what a slide needs besides its tables: the wallpaper (Liquid Glass) and the logo with its size */
-  private async slideImages(ctx: RenderCtx): Promise<SlideImages> {
+  /** what a slide needs besides its tables: the wallpaper (Liquid Glass) and the logo with its size. `stage`: the logo is
+    not waited for longer than 1.5 s (the page reads it: a slow answer must not hold the stage) – the stage gets its
+    slide again once it is known; exports wait for it */
+  private async slideImages(ctx: RenderCtx, stage = false): Promise<SlideImages> {
     const wall = ctx.style.design === "glass" ? await wallpaperIds(ctx.style) : null;
     let logo: SlideImages["logo"] = null;
     if (ctx.logoSrc) {
-      await analyzeImages([ctx.logoSrc]);
+      const read = analyzeImages([ctx.logoSrc]);
+      if (!stage) await read;
+      else if (!IMGMETA.has(ctx.logoSrc) && !await Promise.race([read.then(() => true), new Promise<boolean>(r => setTimeout(() => r(false), 1500))]))
+        void read.then(() => { if (this.stageReq) void this.queueStage(this.stageReq).then(s => { if (s) this.port.emit("stage", s); }, () => undefined); });
       const mm = IMGMETA.get(ctx.logoSrc);
       logo = { id: "logo-" + sha1(new TextEncoder().encode(ctx.logoSrc)).slice(0, 16), src: ctx.logoSrc, w: mm?.w || 0, h: mm?.h || 0 };
     }
@@ -345,7 +352,7 @@ export class CoreHost {
     if (!this.wb || !this.sync) return null;
     if (a.fresh) { this.stageCache.clear(); forgetMeasurements(); }
     const ctx = this.ctx(), R = ctx.slides[a.slide]; if (!R) return null;
-    const glass = ctx.style.design === "glass", img = await this.slideImages(ctx), soft = !!a.soft;
+    const glass = ctx.style.design === "glass", img = await this.slideImages(ctx, true), soft = !!a.soft;
     const boxes = computeLayout(R, ctx).boxes, tables: TableDL[] = [], hits: { id: string; dl: TableDL; svg: Map<string, string[]> }[] = [], styleSig = JSON.stringify(ctx.style);
     for (const [i, L] of R.tables.entries()) {
       const b = boxes[i], place = { x: b?.x ?? 0, y: b?.y ?? 0, scale: b?.scale ?? 1 };

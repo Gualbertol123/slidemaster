@@ -1,18 +1,39 @@
 /* Slide thumbnails, filled lazily when they scroll into view. */
 import { get, THUMBS } from "../state/store";
-import { ctx, htmlArrived } from "../state/app";
+import { ctx, htmlArrived, thumbHtmlReady } from "../state/app";
 import { buildSlide } from "../render/slidedom";
 import { useStage } from "../stage/data";
 
 let box: HTMLElement | null = null, io: IntersectionObserver | null = null;
 export function mountThumbs(el: HTMLElement) {
   box = el;
-  THUMBS.render = renderThumbs; THUMBS.refresh = refreshThumb;
+  THUMBS.render = renderThumbs; THUMBS.refresh = refreshThumb; THUMBS.html = htmlCame;
   renderThumbs();
 }
+/** frames whose slide waits for the worker's HTML of its tables (filled when it arrives) */
+const notYet = new Set<HTMLElement>();
 function fill(fr: HTMLElement, i: number) {
-  if (!get().deck.slides[i]) return;
-  fr.innerHTML = ""; fr.appendChild(buildSlide(get().deck.slides[i], i, ctx(), { thumb: true })); fr.dataset.done = "1";
+  const R = get().deck.slides[i], c = ctx(); if (!R) return;
+  if (!thumbHtmlReady(R, c)) { notYet.add(fr); return; }
+  notYet.delete(fr);
+  fr.innerHTML = ""; fr.appendChild(buildSlide(R, i, c, { thumb: true })); fr.dataset.done = "1";
+}
+function htmlCame() { for (const fr of [...notYet]) if (fr.isConnected) later(fr); else notYet.delete(fr); }
+/** thumbnails come into view several at a time: each is filled in a frame of its own (laying out and painting a few
+    HTML slides at once is a long task; S4.3 makes them pictures) */
+const queue: HTMLElement[] = [];
+let queued = false;
+const nextFrame = (f: () => void) => requestAnimationFrame(() => setTimeout(f, 0));
+function later(fr: HTMLElement) {
+  queue.push(fr);
+  if (queued) return;
+  queued = true;
+  const next = () => {
+    const f = queue.shift();
+    if (f && f.isConnected) fill(f, +f.dataset.i!);
+    if (queue.length) nextFrame(next); else queued = false;
+  };
+  nextFrame(next);
 }
 /** frames are created by the React list (ui/Thumbs.tsx); this fills them – after the stage has drawn the slide (it asks
     the page to measure text: the stage first, S4.1) and the worker's HTML of the tables has arrived (else the page
@@ -29,9 +50,15 @@ export function renderThumbs(force = false) {
     }
     return;
   }
-  if (waiting) { waiting(); waiting = null; }
+  if (waiting) {
+    // they were waiting: filled once the stage's first frame is painted (not in the same frame)
+    waiting(); waiting = null;
+    const go = () => renderThumbs(true);
+    if (typeof requestIdleCallback === "function") requestIdleCallback(go, { timeout: 500 }); else setTimeout(go, 50);
+    return;
+  }
   io?.disconnect();
-  io = new IntersectionObserver(es => es.forEach(en => { if (en.isIntersecting) { io!.unobserve(en.target); fill(en.target as HTMLElement, +(en.target as HTMLElement).dataset.i!); } }), { root: box, rootMargin: "300px" });
+  io = new IntersectionObserver(es => es.forEach(en => { if (en.isIntersecting) { io!.unobserve(en.target); later(en.target as HTMLElement); } }), { root: box, rootMargin: "300px" });
   box.querySelectorAll<HTMLElement>(".frame").forEach(fr => { fr.dataset.done = ""; fr.innerHTML = ""; io!.observe(fr); });
 }
 let timer: ReturnType<typeof setTimeout> | null = null;
