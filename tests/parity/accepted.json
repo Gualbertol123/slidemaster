@@ -68,5 +68,106 @@
   "kind": "pixels",
   "reason": "Approved at G1, two known approximations of the display list: (1) B3 - Liquid Glass materials drawn with 03 §4.3's recipe (5-layer shadows, the 800 x 450 blurred wallpaper image) where the screen has CSS box-shadow blur; (2) tabular figures on the canvas - each digit centred in its tabular advance, since canvas text has no font-variant-numeric (the PDF shapes them with OpenType tnum). Geometry, texts and origins match (GG).",
   "signedOff": "G1, product owner, 2026-10-12"
+ },
+ {
+  "tool": "parity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "S4.1, the stage draws the display list as SVG: (1) slide text is anti-aliased in grey (Chromium's SVG text) where v3's HTML text had ClearType colour fringes; (2) B3 - shadows drawn in 5 layers as in the PDF. Geometry and texts match (GG, GT).",
+  "signedOff": "S4.1, product owner, 2026-10-13"
+ },
+ {
+  "tool": "parity",
+  "deck": "edge-pictures",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "S4.1, the stage draws the display list as SVG: (1) slide text is anti-aliased in grey (Chromium's SVG text) where v3's HTML text had ClearType colour fringes; (2) B3 - shadows drawn in 5 layers as in the PDF. Geometry and texts match (GG, GT).",
+  "signedOff": "S4.1, product owner, 2026-10-13"
+ },
+ {
+  "tool": "parity",
+  "deck": "report-looks",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "S4.1, the stage draws the display list as SVG: (1) slide text is anti-aliased in grey (Chromium's SVG text) where v3's HTML text had ClearType colour fringes; (2) B3 - shadows drawn in 5 layers as in the PDF. Geometry and texts match (GG, GT).",
+  "signedOff": "S4.1, product owner, 2026-10-13"
+ },
+ {
+  "tool": "parity",
+  "deck": "report-looks",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-2.png",
+  "kind": "pixels",
+  "reason": "S4.1, the stage draws the display list as SVG: (1) slide text is anti-aliased in grey (Chromium's SVG text) where v3's HTML text had ClearType colour fringes; (2) B3 - shadows drawn in 5 layers as in the PDF. Geometry and texts match (GG, GT).",
+  "signedOff": "S4.1, product owner, 2026-10-13"
+ },
+ {
+  "tool": "parity",
+  "deck": "weekly-comments",
+  "design": "clean",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "S4.1, the stage draws the display list as SVG: (1) slide text is anti-aliased in grey (Chromium's SVG text) where v3's HTML text had ClearType colour fringes; (2) B3 - shadows drawn in 5 layers as in the PDF. Geometry and texts match (GG, GT).",
+  "signedOff": "S4.1, product owner, 2026-10-13"
+ },
+ {
+  "tool": "parity",
+  "deck": "weekly-comments",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "S4.1, the stage draws the display list as SVG: (1) slide text is anti-aliased in grey (Chromium's SVG text) where v3's HTML text had ClearType colour fringes; (2) B3 - shadows drawn in 5 layers as in the PDF. Geometry and texts match (GG, GT).",
+  "signedOff": "S4.1, product owner, 2026-10-13"
+ },
+ {
+  "tool": "parity",
+  "deck": "weekly-looks",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "S4.1, the stage draws the display list as SVG: (1) slide text is anti-aliased in grey (Chromium's SVG text) where v3's HTML text had ClearType colour fringes; (2) B3 - shadows drawn in 5 layers as in the PDF. Geometry and texts match (GG, GT).",
+  "signedOff": "S4.1, product owner, 2026-10-13"
+ },
+ {
+  "tool": "parity",
+  "deck": "weekly-options",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-3.png",
+  "kind": "pixels",
+  "reason": "S4.1, the stage draws the display list as SVG: (1) slide text is anti-aliased in grey (Chromium's SVG text) where v3's HTML text had ClearType colour fringes; (2) B3 - shadows drawn in 5 layers as in the PDF. Geometry and texts match (GG, GT).",
+  "signedOff": "S4.1, product owner, 2026-10-13"
+ },
+ {
+  "tool": "sp",
+  "design": "glass",
+  "kind": "sp",
+  "reason": "SP (screen = PDF) beyond 1 % from glyph rasterisation (Chromium vs PDFium) and hairlines; layouts match. Owned by S4.4 (font outlines on screen where Chrome's width differs, 05 §3.4), which removes this entry.",
+  "signedOff": "S4.1, product owner, 2026-10-13"
+ },
+ {
+  "tool": "sp",
+  "design": "excel",
+  "kind": "sp",
+  "reason": "SP (screen = PDF) beyond 1 % from glyph rasterisation (Chromium vs PDFium) and hairlines; layouts match. Owned by S4.4 (font outlines on screen where Chrome's width differs, 05 §3.4), which removes this entry.",
+  "signedOff": "S4.1, product owner, 2026-10-13"
+ },
+ {
+  "tool": "sp",
+  "design": "clean",
+  "kind": "sp",
+  "reason": "SP (screen = PDF) beyond 1 % from glyph rasterisation (Chromium vs PDFium) and hairlines; layouts match. Owned by S4.4 (font outlines on screen where Chrome's width differs, 05 §3.4), which removes this entry.",
+  "signedOff": "S4.1, product owner, 2026-10-13"
  }
 ]
