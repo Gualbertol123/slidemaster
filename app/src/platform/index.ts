@@ -3,6 +3,7 @@
    start-up (main.tsx). */
 import { setPlatform, type CanvasFactory, type Ctx2D, type NoteMeasure, type TextMeasurer } from "@slide-builder/core/platform";
 import { wrapLines } from "@slide-builder/core/text/lines";
+import { parseFont } from "@slide-builder/core/text/family";
 
 let measurer: { host: HTMLElement; box: HTMLElement; note: NoteMeasure | null } | null = null;
 let runCtx: CanvasRenderingContext2D | null = null, runFont = "";
@@ -46,8 +47,31 @@ function tabularRuns(c: CanvasRenderingContext2D, runs: { text: string; font: st
     return { ...m, w: w(r.text)!, adv: [...r.text].map(ch => w(ch) ?? 0) };
   });
 }
+/** whether the core worker measures a CSS font from a file (state/fontfiles.ts fontReadable): width() answers only for
+    those, as the worker's does, so Liquid Glass's columns come out alike (null: not known yet) */
+let readableFont: ((families: string[]) => boolean | null) | null = null;
+export const setFontGate = (g: (families: string[]) => boolean | null) => { readableFont = g; widthCache.clear(); };
+/** widths by font and text, and each font's answer once known (Liquid Glass lays a slide out 22 times a frame in a
+    corner drag: the same few fonts and texts) */
+const widthCache = new Map<string, number>(), fontOk = new Map<string, boolean>();
 export const browserText: TextMeasurer = {
-  width(text, font) { const c = ctx2d(); return c ? measureRun(c, text, font).w : null; },
+  width(text, font) {
+    let ok = fontOk.get(font);
+    if (ok === undefined) {
+      const fp = parseFont(font), r = fp && readableFont ? readableFont(fp.families) : !!fp;
+      if (r === null) return null;                                  // (the catalog is not known yet: asked again)
+      fontOk.set(font, ok = !!r);
+    }
+    if (!ok) return null;
+    const k = font + "\n" + text;
+    let w = widthCache.get(k);
+    if (w === undefined) {
+      const c = ctx2d(); if (!c) return null;
+      if (widthCache.size > 50_000) widthCache.clear();
+      widthCache.set(k, w = measureRun(c, text, font).w);
+    }
+    return w;
+  },
   maxDigitWidth(font) {
     const c = document.createElement("canvas").getContext("2d"); if (!c) return 0;
     c.font = font;

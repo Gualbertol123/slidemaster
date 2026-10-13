@@ -148,7 +148,7 @@ export function svgChunks(list: DisplayList, opts: SvgOptions): string[] {
         }
         let s = `<text x="${at ? at.map(f).join(" ") : f(n.x)}" y="${f(n.y)}" font-family="${escAttr(fam)}" font-size="${f(n.size)}"${weightOf(n) !== 400 ? ` font-weight="${weightOf(n)}"` : ""}${n.i ? ` font-style="italic"` : ""}${n.tnum ? ` style="font-variant-numeric:tabular-nums"` : ""}`
           + ` fill="${rgb(p.solid)}"${(p.a ?? 1) < 1 ? ` fill-opacity="${f(p.a!)}"` : ""}`
-          + (!at && n.w !== undefined && [...n.src].length > 1 ? ` textLength="${f(n.w)}" lengthAdjust="spacing"` : "")
+          + (!at && n.w !== undefined && [...n.src].length > 1 ? ` textLength="${f(n.w)}" lengthAdjust="spacing"${n.ls ? ` data-ls="${f(n.ls)}"` : ""}` : "")
           + ` xml:space="preserve">${escText(n.src)}</text>`;
         if (n.decoration && n.w !== undefined) for (const [x, y, w, h] of decorations(n, n.w)) s += `<rect x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" fill="${rgb(p.solid)}"${(p.a ?? 1) < 1 ? ` fill-opacity="${f(p.a!)}"` : ""}/>`;
         return s;

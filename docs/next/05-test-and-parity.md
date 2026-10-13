@@ -89,6 +89,12 @@ the PDF with pypdf for structure and text, and with PDFium for render time. It a
 
 ### 3.4 Screen = PDF (SP)
 
+> **Amended 2026-10-14 (decision, S4.4):** Chromium and PDFium rasterise glyphs differently, so SP compares **text as
+> data** – every display-list run starts in the PDF where it does in the list (PDFium's character origins, 0.05 pt),
+> and every run the screen draws as text has a natural browser width within 0.5 % of the list's (less its
+> letter-spacing) – and **pixels everywhere but the glyphs** (ΔE 2, the range rule, ≤ 1 %). `tools/stage-capture.mjs`
+> `compareSP`. The paragraph below is the original plan.
+
 Playwright opens the v4 app on each corpus slide. It screenshots the stage's SVG and renders the same
 slide's PDF page with PDFium at the same scale, then compares them. Additionally, every text node of the
 DL is located in the PDF content stream and in the SVG (`<text>` x/y/textLength), and the three must agree

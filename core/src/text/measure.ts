@@ -12,7 +12,9 @@
    measured by the page too (the browser draws that character with a fallback font). */
 import type { LinesReq, RunMetrics, RunReq, TextMeasurer } from "../platform";
 import { wrapLines } from "./lines";
-import { cssFamilies, pickFace, type CatalogFont } from "./resolve";
+import { pickFace, type CatalogFont } from "./resolve";
+import { catalogFamily, parseFont } from "./family";
+export { catalogFamily, parseFont } from "./family";
 import { FontRegistry, type FaceInfo } from "./fonts";
 import type { Shaper } from "./shape";
 import { weightOf, type TextNode } from "../dl/types";
@@ -23,18 +25,6 @@ export interface FontSource {
   catalog(): Promise<CatalogFont[]>;
   bytes(f: CatalogFont): Promise<Uint8Array | null>;
 }
-/** a CSS font shorthand ("italic 700 14.67px Calibri, Arial, sans-serif"): its style, weight, size and families */
-export function parseFont(css: string): { italic: boolean; weight: number; size: number; families: string[] } | null {
-  const m = /^\s*((?:(?:italic|oblique|normal|bold|bolder|lighter|small-caps|\d{3})\s+)*)([\d.]+)px(?:\s*\/\s*\S+)?\s+(.+)$/i.exec(css);
-  if (!m) return null;
-  const words = m[1].toLowerCase().split(/\s+/).filter(Boolean);
-  const num = words.find(w => /^\d{3}$/.test(w));
-  return { italic: words.includes("italic") || words.includes("oblique"), weight: num ? +num : words.includes("bold") ? 700 : 400, size: +m[2], families: cssFamilies(m[3]) };
-}
-/** families a browser on Windows does not have (macOS's system fonts) */
-const NOT_HERE = /^(-apple-system|BlinkMacSystemFont|SF Pro( (Display|Text))?)$/i;
-const GENERIC: Record<string, string> = { "sans-serif": "Arial", serif: "Times New Roman", monospace: "Consolas", "system-ui": "Segoe UI", cursive: "Comic Sans MS", fantasy: "Impact" };
-
 const u16 = (d: Uint8Array, o: number) => (d[o] << 8) | d[o + 1];
 const i16 = (d: Uint8Array, o: number) => { const v = u16(d, o); return v & 0x8000 ? v - 0x10000 : v; };
 /** ascent and descent per em as Chromium's canvas reports them on Windows (DirectWrite: winAscent / winDescent, or
@@ -87,7 +77,7 @@ export class FontMeasurer implements TextMeasurer {
       // a library family shadows a Windows font of the same name (its @font-face rule wins in the page)
       for (const f of list) { const k = f.family.toLowerCase(); if (f.source === "system" && lib.has(k)) continue; const l = m.get(k) || []; l.push(f); m.set(k, l); }
       return m;
-    }, () => new Map<string, CatalogFont[]>());
+    }, () => { this.byFamily = null; return new Map<string, CatalogFont[]>(); });
   }
   /** a catalog file's face (null: unreadable – WOFF2, a broken file) */
   private file(f: CatalogFont, family: string): Promise<FaceInfo | null> {
@@ -114,17 +104,17 @@ export class FontMeasurer implements TextMeasurer {
     if (!p) {
       p = (async () => {
         const fp = fp0; if (!fp) return null;
-        const cat = await this.catalog();
-        for (const raw of fp.families) {
-          if (NOT_HERE.test(raw)) continue;
-          const fam = GENERIC[raw.toLowerCase()] || raw, list = cat.get(fam.toLowerCase());
-          if (!list) continue;
-          // the face CSS picks; an unreadable one is dropped and the next nearest tried, as the PDF's resolver does
+        const cat = await this.catalog(), fam = catalogFamily(fp.families, k => cat.has(k)), list = fam ? cat.get(fam.toLowerCase()) : null;
+        if (fam && list) {
+          // the face CSS picks; an unreadable one is dropped and the next nearest tried, as the PDF's resolver does – but
+          // a family none of whose files is readable here (a WOFF2 upload) is still the one the browser draws: the page
+          // measures it, never the next family of the list
           for (let pool = list; pool.length;) {
             const f = pickFace(pool, fp.weight, fp.italic)!, face = await this.file(f, fam);
             if (face) return face;
             pool = pool.filter(x => x !== f);
           }
+          return null;
         }
         return null;
       })();
@@ -133,10 +123,33 @@ export class FontMeasurer implements TextMeasurer {
     }
     return p;
   }
+  /** how long a measurement waits for a font's file before the page measures it instead (the helper may be busy) */
+  budget = 1500;
+  /** a face that came after the budget: the host draws again with it */
+  onLate: (() => void) | null = null;
+  /** faces that missed the budget (each reports its arrival once; arrivals close together, one redraw) */
+  private late = new Set<Promise<FaceInfo | null>>();
+  private lateTimer: ReturnType<typeof setTimeout> | null = null;
+  private faceSoon(css: string): Promise<FaceInfo | null> {
+    const p = this.face(css);
+    return Promise.race([p, new Promise<"late">(r => setTimeout(() => r("late"), this.budget))]).then(v => {
+      if (v !== "late") return v;
+      if (!this.late.has(p)) {
+        this.late.add(p);
+        void p.then(face => {
+          this.late.delete(p);
+          if (face && !this.lateTimer) this.lateTimer = setTimeout(() => { this.lateTimer = null; this.onLate?.(); }, 100);
+        });
+      }
+      return null;
+    });
+  }
   /** a run's width now: from a face found before (prepare), else null – and the face is looked for */
+  private parsed = new Map<string, { fp: ReturnType<typeof parseFont>; key: string }>();
   width(text: string, css: string): number | null {
-    const fp = parseFont(css); if (!fp) return null;
-    const key = `${fp.italic ? "i" : ""}${fp.weight} ${fp.families.join(",")}`;
+    let p = this.parsed.get(css);
+    if (!p) { const fp = parseFont(css); this.parsed.set(css, p = { fp, key: fp ? `${fp.italic ? "i" : ""}${fp.weight} ${fp.families.join(",")}` : "" }); }
+    const { fp, key } = p; if (!fp) return null;
     if (!this.found.has(key) || !this.sh) { void this.face(css); return null; }
     const face = this.found.get(key);
     // a font without a file here (the page measures its runs): no width the page's own would match
@@ -174,6 +187,8 @@ export class FontMeasurer implements TextMeasurer {
     }));
     return flagged;
   }
+  /** the faces drawn as outlines (a short name: the stage's layer keys carry it) */
+  outlineSig(): string { return [...this.outlined].filter(([, v]) => v).map(([id]) => id.slice(0, 8)).sort().join("."); }
   /** whether these CSS fonts' faces have all been checked (the stage waits for no check) */
   checked(fonts: string[]): boolean {
     return fonts.every(css => { const fp = parseFont(css); if (!fp) return true; const face = this.found.get(`${fp.italic ? "i" : ""}${fp.weight} ${fp.families.join(",")}`); return !face || this.outlined.has(face.id); });
@@ -187,18 +202,20 @@ export class FontMeasurer implements TextMeasurer {
     if (!face || face.variable || !(this.outlineAll || this.outlined.get(face.id))) return null;
     if ((n.i && !face.italic) || (weightOf(n) >= 600 && face.weight < 600) || !covers(face, n.src)) return null;
     const run = sh.shapeNode(face, n), glyphs: OutlineRun["glyphs"] = [];
+    const chars = n.adv && !n.gids && run.gids!.length === [...n.src].length ? n.adv : null;
     let pen = 0, upem = 1000;
     run.gids!.forEach((gid, i) => {
       const o = sh.outline(face, gid); upem = o.upem;
       glyphs.push({ key: face.id.slice(0, 10) + "-" + gid, d: o.d, x: pen, ...(run.dx?.[i] ? { dx: run.dx[i] } : {}), ...(run.dy?.[i] ? { dy: run.dy[i] } : {}) });
-      pen += run.adv![i];
+      pen += chars ? chars[i] : run.adv![i];
     });
     return { upem, glyphs };
   }
-  async prepare(fonts: string[]) { await Promise.all([this.shaper, ...fonts.map(c => this.face(c))]); this.sh = await this.shaper; }
+  /** the faces of these fonts at hand for width(), waiting at most the budget (a face that comes later: onLate) */
+  async prepare(fonts: string[]) { this.sh = await this.shaper; await Promise.all(fonts.map(c => this.faceSoon(c))); }
 
   async maxDigitWidth(css: string): Promise<number> {
-    const face = await this.face(css), fp = parseFont(css);
+    const face = await this.faceSoon(css), fp = parseFont(css);
     if (!face || !fp) { this.stats.page++; return this.fallback.maxDigitWidth(css); }
     const sh = await this.shaper;
     this.stats.font++;
@@ -207,7 +224,7 @@ export class FontMeasurer implements TextMeasurer {
   }
   noteFits() { return true; }
   async measureRuns(runs: RunReq[]): Promise<RunMetrics[]> {
-    const sh = await this.shaper, faces = await Promise.all(runs.map(r => this.face(r.font)));
+    const sh = await this.shaper, faces = await Promise.all(runs.map(r => this.faceSoon(r.font)));
     const out: RunMetrics[] = new Array(runs.length), rest: number[] = [];
     runs.forEach((r, i) => {
       const face = faces[i], fp = parseFont(r.font);
@@ -225,7 +242,7 @@ export class FontMeasurer implements TextMeasurer {
     return out;
   }
   async breakLines(reqs: LinesReq[]): Promise<string[][]> {
-    const sh = await this.shaper, faces = await Promise.all(reqs.map(r => this.face(r.font)));
+    const sh = await this.shaper, faces = await Promise.all(reqs.map(r => this.faceSoon(r.font)));
     const out: string[][] = new Array(reqs.length), rest: number[] = [];
     reqs.forEach((r, i) => {
       const face = faces[i], fp = parseFont(r.font);

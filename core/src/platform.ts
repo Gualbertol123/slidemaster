@@ -64,6 +64,10 @@ export interface TextMeasurer {
   outlineRun?(n: import("./dl/types").TextNode): import("./dl/svg").OutlineRun | null;
   /** every font drawn as outlines (S4.4's SP switch) */
   outlineAll?: boolean;
+  /** the fonts drawn as outlines, as a short name (part of the stage's keys) */
+  outlineSig?(): string;
+  /** called when a font that missed the measuring budget arrives (the host draws again with it) */
+  onLate?: (() => void) | null;
 }
 
 /* ---- canvas ---- */

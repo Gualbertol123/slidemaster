@@ -150,27 +150,6 @@
   "signedOff": "S4.1, product owner, 2026-10-13"
  },
  {
-  "tool": "sp",
-  "design": "glass",
-  "kind": "sp",
-  "reason": "SP (screen = PDF) beyond 1 % from glyph rasterisation (Chromium vs PDFium) and hairlines; layouts match. Owned by S4.4 (font outlines on screen where Chrome's width differs, 05 §3.4), which removes this entry.",
-  "signedOff": "S4.1, product owner, 2026-10-13"
- },
- {
-  "tool": "sp",
-  "design": "excel",
-  "kind": "sp",
-  "reason": "SP (screen = PDF) beyond 1 % from glyph rasterisation (Chromium vs PDFium) and hairlines; layouts match. Owned by S4.4 (font outlines on screen where Chrome's width differs, 05 §3.4), which removes this entry.",
-  "signedOff": "S4.1, product owner, 2026-10-13"
- },
- {
-  "tool": "sp",
-  "design": "clean",
-  "kind": "sp",
-  "reason": "SP (screen = PDF) beyond 1 % from glyph rasterisation (Chromium vs PDFium) and hairlines; layouts match. Owned by S4.4 (font outlines on screen where Chrome's width differs, 05 §3.4), which removes this entry.",
-  "signedOff": "S4.1, product owner, 2026-10-13"
- },
- {
   "tool": "parity",
   "deck": "big",
   "design": "glass",
@@ -178,7 +157,8 @@
   "file": "slide-1.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "bf4c5cdea98f2aea"
  },
  {
   "tool": "parity",
@@ -188,7 +168,8 @@
   "file": "slide-1.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "fc23f0e91b6e058c"
  },
  {
   "tool": "parity",
@@ -198,7 +179,8 @@
   "file": "slide-1.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "de7b01dd4ddb3ad9"
  },
  {
   "tool": "parity",
@@ -208,7 +190,8 @@
   "file": "slide-1.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "e00c94eec01c3b03"
  },
  {
   "tool": "parity",
@@ -218,7 +201,8 @@
   "file": "slide-2.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "4c5ac6ecbe3d8c0a"
  },
  {
   "tool": "parity",
@@ -228,7 +212,8 @@
   "file": "slide-2.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "a58d2b8dfb433e43"
  },
  {
   "tool": "parity",
@@ -238,7 +223,8 @@
   "file": "slide-3.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "88d6b6fd450340f0"
  },
  {
   "tool": "parity",
@@ -248,7 +234,8 @@
   "file": "slide-3.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "49ca8466dbb1fdba"
  },
  {
   "tool": "parity",
@@ -258,7 +245,8 @@
   "file": "slide-4.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "855cb2dc0894939f"
  },
  {
   "tool": "parity",
@@ -268,7 +256,8 @@
   "file": "slide-4.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "d44da09823b8725a"
  },
  {
   "tool": "parity",
@@ -278,7 +267,8 @@
   "file": "slide-5.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "ef96fecd311fc3d1"
  },
  {
   "tool": "parity",
@@ -288,7 +278,8 @@
   "file": "slide-5.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "aa854e5081473eec"
  },
  {
   "tool": "parity",
@@ -298,7 +289,8 @@
   "file": "slide-6.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "3902b26c54083236"
  },
  {
   "tool": "parity",
@@ -308,7 +300,8 @@
   "file": "slide-6.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "adb31c5565c9e5e4"
  },
  {
   "tool": "parity",
@@ -318,7 +311,8 @@
   "file": "slide-7.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "87ab53c0964b2e75"
  },
  {
   "tool": "parity",
@@ -328,7 +322,8 @@
   "file": "slide-7.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "57ada170fad9f94b"
  },
  {
   "tool": "parity",
@@ -338,7 +333,8 @@
   "file": "slide-8.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "2d8d21419b95bb00"
  },
  {
   "tool": "parity",
@@ -348,7 +344,8 @@
   "file": "slide-8.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "83dc5a5744c4531f"
  },
  {
   "tool": "parity",
@@ -358,7 +355,8 @@
   "file": "slide-9.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "2f22295fa7d2679d"
  },
  {
   "tool": "parity",
@@ -368,7 +366,8 @@
   "file": "slide-9.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "03da8e7962815adf"
  },
  {
   "tool": "parity",
@@ -378,7 +377,8 @@
   "file": "slide-10.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "c7505517c6036609"
  },
  {
   "tool": "parity",
@@ -388,7 +388,8 @@
   "file": "slide-10.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "bc814bc4d5f1344a"
  },
  {
   "tool": "parity",
@@ -398,7 +399,8 @@
   "file": "slide-11.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "0f440810d1881b97"
  },
  {
   "tool": "parity",
@@ -408,7 +410,8 @@
   "file": "slide-11.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "c3a30a58bc4b681a"
  },
  {
   "tool": "parity",
@@ -418,7 +421,8 @@
   "file": "slide-12.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "0480e88c05f357b6"
  },
  {
   "tool": "parity",
@@ -428,7 +432,8 @@
   "file": "slide-12.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "31e27ccea361ae79"
  },
  {
   "tool": "parity",
@@ -438,7 +443,8 @@
   "file": "slide-13.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "687f1076f24e27b7"
  },
  {
   "tool": "parity",
@@ -448,7 +454,8 @@
   "file": "slide-13.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "d495d7b884acd52f"
  },
  {
   "tool": "parity",
@@ -458,7 +465,8 @@
   "file": "slide-14.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "00705087b1173ad3"
  },
  {
   "tool": "parity",
@@ -468,7 +476,8 @@
   "file": "slide-14.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "fccb1d986ef4047e"
  },
  {
   "tool": "parity",
@@ -478,7 +487,8 @@
   "file": "slide-15.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "f61c3b2004a817a6"
  },
  {
   "tool": "parity",
@@ -488,7 +498,8 @@
   "file": "slide-15.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "53532026298246fc"
  },
  {
   "tool": "parity",
@@ -498,7 +509,8 @@
   "file": "slide-16.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "f2770e66f818ec16"
  },
  {
   "tool": "parity",
@@ -508,7 +520,8 @@
   "file": "slide-16.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "8c4a05a5fe57f417"
  },
  {
   "tool": "parity",
@@ -518,7 +531,8 @@
   "file": "slide-17.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "810961d18ea88fa5"
  },
  {
   "tool": "parity",
@@ -528,7 +542,8 @@
   "file": "slide-17.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "d0090098618f8ff3"
  },
  {
   "tool": "parity",
@@ -538,7 +553,8 @@
   "file": "slide-18.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "e12bf60c932cecbc"
  },
  {
   "tool": "parity",
@@ -548,7 +564,8 @@
   "file": "slide-18.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "dc89c17da900574f"
  },
  {
   "tool": "parity",
@@ -558,7 +575,8 @@
   "file": "slide-19.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "fadbf057785f1370"
  },
  {
   "tool": "parity",
@@ -568,7 +586,8 @@
   "file": "slide-19.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "265d25c2fff6941c"
  },
  {
   "tool": "parity",
@@ -578,7 +597,8 @@
   "file": "slide-20.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "5e7c18977b703641"
  },
  {
   "tool": "parity",
@@ -588,7 +608,8 @@
   "file": "slide-20.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "ca1461415ce18564"
  },
  {
   "tool": "parity",
@@ -598,7 +619,8 @@
   "file": "slide-1.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "44bf2d8f71803e50"
  },
  {
   "tool": "parity",
@@ -608,7 +630,8 @@
   "file": "slide-1.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "b24127bd5bef93c1"
  },
  {
   "tool": "parity",
@@ -618,7 +641,8 @@
   "file": "slide-1.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "476b2ac0e45ace7c"
  },
  {
   "tool": "parity",
@@ -628,7 +652,8 @@
   "file": "slide-1.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "0e81b392719824b8"
  },
  {
   "tool": "parity",
@@ -638,7 +663,7 @@
   "file": "slide-1.png",
   "kind": "pixels",
   "reason": "B7 measured: the slide as drawn with its measured layout (narrower glass columns, static Segoe UI). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14"
  },
  {
   "tool": "parity",
@@ -648,7 +673,8 @@
   "file": "slide-2.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "6a35a0da4bec4ac3"
  },
  {
   "tool": "parity",
@@ -658,7 +684,8 @@
   "file": "slide-2.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "af0e979204c11ca7"
  },
  {
   "tool": "parity",
@@ -668,7 +695,8 @@
   "file": "slide-1.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "8a768074dfe1960d"
  },
  {
   "tool": "parity",
@@ -678,7 +706,8 @@
   "file": "slide-1.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "7b9c9bbe94155c8f"
  },
  {
   "tool": "parity",
@@ -688,7 +717,8 @@
   "file": "slide-1.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "c0cebf76db25fca3"
  },
  {
   "tool": "parity",
@@ -698,7 +728,8 @@
   "file": "slide-1.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "697d9a967bb1f43a"
  },
  {
   "tool": "parity",
@@ -708,7 +739,8 @@
   "file": "slide-1.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "9bd1dfc3d3438736"
  },
  {
   "tool": "parity",
@@ -718,7 +750,7 @@
   "file": "slide-1.png",
   "kind": "pixels",
   "reason": "B7 measured: the slide as drawn with its measured layout (narrower glass columns, static Segoe UI). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14"
  },
  {
   "tool": "parity",
@@ -728,7 +760,8 @@
   "file": "slide-2.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "2e8f1f261b7d7252"
  },
  {
   "tool": "parity",
@@ -738,7 +771,8 @@
   "file": "slide-1.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "697d9a967bb1f43a"
  },
  {
   "tool": "parity",
@@ -748,7 +782,8 @@
   "file": "slide-1.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "9bd1dfc3d3438736"
  },
  {
   "tool": "parity",
@@ -758,7 +793,8 @@
   "file": "slide-1.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "8c79ddbd6ed1833a"
  },
  {
   "tool": "parity",
@@ -768,7 +804,8 @@
   "file": "slide-1.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "35eeb0592a9cb4bc"
  },
  {
   "tool": "parity",
@@ -778,7 +815,8 @@
   "file": "slide-2.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "e4cfd1ce2158a9e5"
  },
  {
   "tool": "parity",
@@ -788,7 +826,8 @@
   "file": "slide-2.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "2565302978b85b2c"
  },
  {
   "tool": "parity",
@@ -798,7 +837,8 @@
   "file": "slide-1.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "0562440775b76a76"
  },
  {
   "tool": "parity",
@@ -808,7 +848,8 @@
   "file": "slide-1.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "a7e37074fb24662d"
  },
  {
   "tool": "parity",
@@ -818,7 +859,8 @@
   "file": "slide-2.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "18c3def8cbcad7b3"
  },
  {
   "tool": "parity",
@@ -828,7 +870,8 @@
   "file": "slide-2.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "48a3214f7a4fd1e1"
  },
  {
   "tool": "parity",
@@ -838,7 +881,8 @@
   "file": "slide-1.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "a43b4dd760c5689e"
  },
  {
   "tool": "parity",
@@ -848,7 +892,8 @@
   "file": "slide-1.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "e00c94eec01c3b03"
  },
  {
   "tool": "parity",
@@ -858,7 +903,8 @@
   "file": "pdf.json",
   "kind": "pdf-text",
   "reason": "B7 measured: a text box's lines break at other words – the box beside a narrower glass table is narrower. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "cfc2dba10ee25488"
  },
  {
   "tool": "parity",
@@ -868,7 +914,8 @@
   "file": "slide-1.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "3f2997cef6733a6b"
  },
  {
   "tool": "parity",
@@ -878,7 +925,8 @@
   "file": "slide-1.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "de754902f5f1ef31"
  },
  {
   "tool": "parity",
@@ -888,7 +936,8 @@
   "file": "pdf.json",
   "kind": "pdf-text",
   "reason": "B7 measured: a text box's lines break at other words – the box beside a narrower glass table is narrower. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "f3edb7adb6a8c90a"
  },
  {
   "tool": "parity",
@@ -898,7 +947,8 @@
   "file": "slide-1.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "d1f3fb11b25023ba"
  },
  {
   "tool": "parity",
@@ -908,7 +958,8 @@
   "file": "slide-1.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "de7627fa2b2f65a3"
  },
  {
   "tool": "parity",
@@ -918,7 +969,8 @@
   "file": "slide-1.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "f44e03f388a44332"
  },
  {
   "tool": "parity",
@@ -928,7 +980,8 @@
   "file": "slide-2.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "7edf4cdfd1dff8e6"
  },
  {
   "tool": "parity",
@@ -938,7 +991,8 @@
   "file": "slide-3.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "0ced6389ed198374"
  },
  {
   "tool": "parity",
@@ -948,7 +1002,8 @@
   "file": "slide-3.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "855f1d861f643051"
  },
  {
   "tool": "parity",
@@ -958,7 +1013,8 @@
   "file": "slide-1.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "f44e03f388a44332"
  },
  {
   "tool": "parity",
@@ -968,7 +1024,8 @@
   "file": "slide-2.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "7edf4cdfd1dff8e6"
  },
  {
   "tool": "parity",
@@ -978,7 +1035,8 @@
   "file": "slide-3.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "68d700701f33e448"
  },
  {
   "tool": "parity",
@@ -988,7 +1046,8 @@
   "file": "slide-3.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "42d04ffebf1a24a5"
  },
  {
   "tool": "parity",
@@ -998,7 +1057,8 @@
   "file": "slide-1.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "f44e03f388a44332"
  },
  {
   "tool": "parity",
@@ -1008,7 +1068,8 @@
   "file": "slide-2.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "7edf4cdfd1dff8e6"
  },
  {
   "tool": "parity",
@@ -1018,7 +1079,8 @@
   "file": "slide-3.json",
   "kind": "style",
   "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "68d700701f33e448"
  },
  {
   "tool": "parity",
@@ -1028,6 +1090,959 @@
   "file": "slide-3.json",
   "kind": "geometry",
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
-  "signedOff": "pending: S4.4 sign-off (review/S4.4/)"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "42d04ffebf1a24a5"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "big",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "bf4c5cdea98f2aea"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "big",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "fc23f0e91b6e058c"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "de7b01dd4ddb3ad9"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "e836ae260923b34e"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-2.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "4c5ac6ecbe3d8c0a"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-2.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "a58d2b8dfb433e43"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-3.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "88d6b6fd450340f0"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-3.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "49ca8466dbb1fdba"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-4.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "855cb2dc0894939f"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-4.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "d44da09823b8725a"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-5.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "ef96fecd311fc3d1"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-5.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "aa854e5081473eec"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-6.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "3902b26c54083236"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-6.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "13146643623cdfa6"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-7.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "87ab53c0964b2e75"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-7.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "57ada170fad9f94b"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-8.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "2d8d21419b95bb00"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-8.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "83dc5a5744c4531f"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-9.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "2f22295fa7d2679d"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-9.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "03da8e7962815adf"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-10.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "c7505517c6036609"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-10.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "bc814bc4d5f1344a"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-11.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "0f440810d1881b97"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-11.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "c3a30a58bc4b681a"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-12.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "0480e88c05f357b6"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-12.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "31e27ccea361ae79"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-13.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "687f1076f24e27b7"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-13.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "d495d7b884acd52f"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-14.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "00705087b1173ad3"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-14.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "fccb1d986ef4047e"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-15.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "f61c3b2004a817a6"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-15.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "53532026298246fc"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-16.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "f2770e66f818ec16"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-16.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "8c4a05a5fe57f417"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-17.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "810961d18ea88fa5"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-17.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "d0090098618f8ff3"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-18.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "e12bf60c932cecbc"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-18.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "dc89c17da900574f"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-19.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "fadbf057785f1370"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-19.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "265d25c2fff6941c"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-20.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "5e7c18977b703641"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-20.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "ca1461415ce18564"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "edge-1904",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "44bf2d8f71803e50"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "edge-1904",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "b24127bd5bef93c1"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "edge-formats",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "476b2ac0e45ace7c"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "edge-formats",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "0e81b392719824b8"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "edge-formats",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "B7 measured: the slide as drawn with its measured layout (narrower glass columns, static Segoe UI). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "edge-formats",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-2.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "6a35a0da4bec4ac3"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "edge-formats",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-2.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "af0e979204c11ca7"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "edge-macro",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "8a768074dfe1960d"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "edge-macro",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "7b9c9bbe94155c8f"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "edge-pictures",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "c0cebf76db25fca3"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "missing-table",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "697d9a967bb1f43a"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "missing-table",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "9bd1dfc3d3438736"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "missing-table",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "B7 measured: the slide as drawn with its measured layout (narrower glass columns, static Segoe UI). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "missing-table",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-2.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "2e8f1f261b7d7252"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "plain",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "697d9a967bb1f43a"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "plain",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "9bd1dfc3d3438736"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "report",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "8c79ddbd6ed1833a"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "report",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "35eeb0592a9cb4bc"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "report",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-2.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "e4cfd1ce2158a9e5"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "report",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-2.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "2565302978b85b2c"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "report-looks",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "0562440775b76a76"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "report-looks",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "a7e37074fb24662d"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "report-looks",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-2.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "18c3def8cbcad7b3"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "report-looks",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-2.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "48a3214f7a4fd1e1"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "a43b4dd760c5689e"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "e836ae260923b34e"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-comments",
+  "design": "clean",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "B2 measured: Excel Refined's text boxes in static Segoe UI (no longer \"Segoe UI Variable Text\"), as in the PDF. S4.4.",
+  "signedOff": "S4.4, product owner, 2026-10-14"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-comments",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "3f2997cef6733a6b"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-comments",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "de754902f5f1ef31"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-looks",
+  "design": "clean",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "B2 measured: Excel Refined's text boxes in static Segoe UI (no longer \"Segoe UI Variable Text\"), as in the PDF. S4.4.",
+  "signedOff": "S4.4, product owner, 2026-10-14"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-looks",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "d1f3fb11b25023ba"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-looks",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "de7627fa2b2f65a3"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-options",
+  "design": "clean",
+  "version": "full",
+  "file": "slide-3.png",
+  "kind": "pixels",
+  "reason": "B2 measured: Excel Refined's text boxes in static Segoe UI (no longer \"Segoe UI Variable Text\"), as in the PDF. S4.4.",
+  "signedOff": "S4.4, product owner, 2026-10-14"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-options",
+  "design": "glass",
+  "version": "All",
+  "file": "slide-1.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "f44e03f388a44332"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-options",
+  "design": "glass",
+  "version": "All",
+  "file": "slide-2.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "7edf4cdfd1dff8e6"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-options",
+  "design": "glass",
+  "version": "All",
+  "file": "slide-3.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "0ced6389ed198374"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-options",
+  "design": "glass",
+  "version": "All",
+  "file": "slide-3.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "855f1d861f643051"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-options",
+  "design": "glass",
+  "version": "Chief",
+  "file": "slide-1.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "f44e03f388a44332"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-options",
+  "design": "glass",
+  "version": "Chief",
+  "file": "slide-2.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "7edf4cdfd1dff8e6"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-options",
+  "design": "glass",
+  "version": "Chief",
+  "file": "slide-3.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "68d700701f33e448"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-options",
+  "design": "glass",
+  "version": "Chief",
+  "file": "slide-3.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "42d04ffebf1a24a5"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-options",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "f44e03f388a44332"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-options",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-2.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "7edf4cdfd1dff8e6"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-options",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-3.json",
+  "kind": "style",
+  "reason": "B2 measured: Liquid Glass text is static Segoe UI on screen, as in the PDF (the font list no longer names \"Segoe UI Variable\"). S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "68d700701f33e448"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-options",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-3.json",
+  "kind": "geometry",
+  "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "digest": "42d04ffebf1a24a5"
  }
 ]

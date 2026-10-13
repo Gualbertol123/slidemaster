@@ -59,7 +59,7 @@ class Typesetter {
     const run = this.run(text, st), n = [...text].length;
     const tab = st.tnum && run.adv && run.adv.length === n ? { tnum: true, adv: run.adv.map(a => a + st.ls) } : st.tnum ? { tnum: true } : {};
     return { t: "text", font: primaryFamily(st.family) || "Arial", css: st.family, weight: st.weight, ...(st.italic ? { i: true } : {}), size: st.size, x: r2(x), y: r2(y), src: text,
-      w: Math.max(0, run.w + (n - 1) * st.ls), fill: st.color, ...tab, ...extra };
+      w: Math.max(0, run.w + (n - 1) * st.ls), ...(st.ls ? { ls: st.ls } : {}), fill: st.color, ...tab, ...extra };
   }
   /** a one-line text cut with an ellipsis to fit maxW (text-overflow: ellipsis); every prefix is measured in the same
       round, so the cut settles at once */

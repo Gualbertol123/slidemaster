@@ -92,3 +92,44 @@ describe("outlines on screen where the browser's text would differ (S4.4, 05 §3
     expect(m.outlineRun({ ...n, i: true })).toBeNull();                                // a synthetic italic stays text
   });
 });
+
+describe("review fixes (S4.4)", () => {
+  test("a family the catalog has but cannot read (a WOFF2 upload) is measured by the page, never by the next family", async () => {
+    const { m, asked } = measurer();
+    const [r] = await m.measureRuns([{ text: "Brand text", font: "12px Broken, Carlito" }]);
+    expect(r.w).toBe(-1);
+    expect(asked.map(a => a.font)).toEqual(["12px Broken, Carlito"]);
+    expect(m.width("x", "12px Broken, Carlito")).toBeNull();
+  });
+  test("a font file slower than the budget: the page measures meanwhile, and its arrival asks for one redraw", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>(r => { release = r; });
+    const asked: string[] = [];
+    const page: TextMeasurer = { maxDigitWidth: () => 0, noteFits: () => true, measureRuns: runs => { asked.push(...runs.map(r => r.text)); return runs.map(() => ({ w: -1, asc: 0, desc: 0 })); }, breakLines: r => r.map(x => [x.text]) };
+    const m = new FontMeasurer(shaper(), { catalog: async () => CAT, bytes: async f => { await gate; return FILES[f.file] ?? null; } }, page);
+    m.budget = 30;
+    let late = 0; m.onLate = () => { late++; };
+    const [a] = await m.measureRuns([{ text: "slow", font: "12px Carlito" }, { text: "slow bold", font: "bold 12px Carlito" }]);
+    expect(a.w).toBe(-1); expect(asked).toEqual(["slow", "slow bold"]);
+    release(); await new Promise(r => setTimeout(r, 200));
+    expect(late).toBe(1);                                                              // both faces came: one redraw
+    const [b] = await m.measureRuns([{ text: "slow", font: "12px Carlito" }]);
+    expect(b.w).toBeGreaterThan(0);
+  });
+  test("the faces drawn as outlines are part of the stage's keys (outlineSig)", async () => {
+    const sh = await shaper();
+    const page: TextMeasurer = { maxDigitWidth: () => 0, noteFits: () => true, breakLines: r => r.map(x => [x.text]), measureRuns: runs => runs.map(r => ({ w: sh.width(new FontRegistry().add(font("Carlito-Regular.ttf"))[0], r.text, parseFloat(/([\d.]+)px/.exec(r.font)![1])) * 1.02, asc: 0, desc: 0 })) };
+    const m = new FontMeasurer(shaper(), { catalog: async () => CAT, bytes: async f => FILES[f.file] ?? null }, page);
+    expect(m.outlineSig()).toBe("");
+    await m.prepare(["400 11px Carlito"]);
+    expect(await m.check(["400 11px Carlito"])).toBe(true);
+    expect(m.outlineSig()).not.toBe("");
+  });
+  test("a Windows font's face is DirectWrite's nearest weight: ties heavier from 400 up, lighter below; library faces by CSS", async () => {
+    const { pickFace } = await import("../src/text/resolve");
+    const sysf = [300, 350, 400, 600, 700, 900].map(w => ({ weight: w, italic: false, source: "system" }));
+    expect([325, 375, 500, 640, 650, 720, 800].map(w => pickFace(sysf, w, false)!.weight)).toEqual([300, 350, 600, 600, 700, 700, 900]);
+    const lib = sysf.map(f => ({ ...f, source: "library" }));
+    expect(pickFace(lib, 500, false)!.weight).toBe(400);                               // CSS: 500 looks lighter first
+  });
+});

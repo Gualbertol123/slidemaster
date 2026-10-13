@@ -20,18 +20,22 @@ export function legacyKern(f: Font): Map<number, number> | null {
   const d = f.data;
   if (u16(d, t.off) !== 0) return null;                     // version 0 (Microsoft); Apple's version 1 is not on Windows
   const pairs = new Map<number, number>();
+  const end = Math.min(d.length, t.off + t.len);
   let o = t.off + 4;
-  for (let s = 0, n = u16(d, t.off + 2); s < n; s++) {
+  for (let s = 0, n = u16(d, t.off + 2); s < n && o + 14 <= end; s++) {
     const len = u16(d, o + 2), cov = u16(d, o + 4), format = cov >> 8;
+    // (a format-0 subtable's 16-bit length overflows in large fonts: its end is computed from its pairs, as HarfBuzz does)
+    const np = format === 0 ? u16(d, o + 6) : 0, size = format === 0 ? 14 + 6 * np : len;
     // horizontal kerning values, not minimums, not cross-stream
     if (format === 0 && (cov & 1) && !(cov & 2) && !(cov & 4)) {
-      const np = u16(d, o + 6), override = (cov & 8) !== 0;
-      for (let i = 0; i < np; i++) {
+      const override = (cov & 8) !== 0;
+      for (let i = 0; i < np && o + 14 + 6 * i + 6 <= end; i++) {
         const p = o + 14 + 6 * i, key = (u16(d, p) << 16 | u16(d, p + 2)) >>> 0, v = i16(d, p + 4);
         pairs.set(key, override ? v : (pairs.get(key) ?? 0) + v);
       }
     }
-    o += len;
+    if (!size) break;
+    o += size;
   }
   return pairs.size ? pairs : null;
 }

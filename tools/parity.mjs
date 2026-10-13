@@ -25,10 +25,11 @@
    and PDF text depend on the
    Chromium build and the installed fonts: they are compared only when the capture's environment fingerprint
    (golden/MANIFEST.json "environment") matches; otherwise the run says so and checks text only.
-   Differences listed in tests/parity/accepted.json ({deck, design, version, file, kind, reason, signedOff}: kind,
+   Differences listed in tests/parity/accepted.json ({deck, design, version, file, kind, reason, signedOff, digest?}: kind,
    at least one of deck/design/version/file, a reason and a sign-off are required; a missing scope field matches
    anything) are reported but accepted. Exit code 1 when any difference is not accepted.
    HTML report: tests/parity/report/index.html (golden | actual | heat map for pixel differences). */
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -175,6 +176,8 @@ function cmpPdf(g, a, full, diff) {
   }
 }
 
+/** the digest of a set of differences (their details, sorted): what an accepted.json entry with a digest was signed for */
+export const detailsDigest = list => crypto.createHash("sha256").update(list.map(d => String(d.detail)).sort().join("\n")).digest("hex").slice(0, 16);
 /** accepted.json entries: each needs a kind, a scope, a reason and a sign-off (05 §3.2) */
 export function checkAccepted(list) {
   if (!Array.isArray(list)) throw new Error("tests/parity/accepted.json must be a list");
@@ -228,6 +231,11 @@ export function compare(goldenDir, actualDir, opts = {}) {
   if (!opts.decks) for (const deck of files(actualDir)) if (fs.statSync(path.join(actualDir, deck)).isDirectory() && !decks.includes(deck))
     diffs.push({ deck, design: "*", version: "*", file: "*", kind: "new", detail: "deck not in the goldens" });
   for (const d of diffs) d.accepted = accepted.find(a => (!a.tool || a.tool === (opts.tool || "parity")) && ["deck", "design", "version", "file", "kind"].every(k => a[k] === undefined || a[k] === d[k])) || null;
+  // an entry with a digest accepts exactly the differences it was signed for (S4.4): if those of its scope changed, none is
+  for (const e of new Set(diffs.map(d => d.accepted).filter(x => x && x.digest))) {
+    const mine = diffs.filter(d => d.accepted === e);
+    if (detailsDigest(mine) !== e.digest) for (const d of mine) { d.accepted = null; d.detail += " (the accepted entry's differences changed)"; }
+  }
   return { full, environment: { golden: ge, actual: ae }, diffs, images, pixels, unaccepted: diffs.filter(d => !d.accepted).length };
 }
 function firstDiff(g, a) {

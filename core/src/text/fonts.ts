@@ -135,7 +135,7 @@ export class FontRegistry {
     const styled = list.filter(f => f.italic === italic), pool = styled.length ? styled : list;
     const want = typeof bold === "number" ? bold : bold ? 700 : 400;
     // a Windows font: DirectWrite's nearest weight, as Chromium draws it (resolve.ts pickFace)
-    if (pool.every(f => f.source === "system" && !f.variable)) return [...pool].sort((a, b) => Math.abs(a.weight - want) - Math.abs(b.weight - want) || b.weight - a.weight)[0];
+    if (pool.every(f => f.source === "system" && !f.variable)) return [...pool].sort((a, b) => Math.abs(a.weight - want) - Math.abs(b.weight - want) || (want >= 400 ? b.weight - a.weight : a.weight - b.weight))[0];
     const rank = (w: number) => w === want ? 0
       : want > 500 ? (w > want ? w - want : 1000 + want - w)
       : want < 400 ? (w < want ? want - w : 1000 + w - want)

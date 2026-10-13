@@ -27,7 +27,8 @@ import { initialState } from "./store";
 import type { RenderCtx } from "@slide-builder/core/render/context";
 import { applyWall } from "../render/wall";
 import { loadFonts, watchFontLoads } from "./fonts";
-import { fontFile, measureCatalog } from "./fontfiles";
+import { fontFile, fontReadable, measureCatalog } from "./fontfiles";
+import { setFontGate } from "../platform";
 
 /* ---------------------------------------------------------------- the core worker */
 let port: CorePort | null = null;
@@ -52,6 +53,7 @@ export function core(): CorePort {
   port.handle("breakLines", a => browserText.breakLines!(a.reqs) as string[][]);
   port.handle("convertPicture", a => backend.convertPicture(a.bytes, a.ext));
   port.handle("fontCatalog", () => measureCatalog());
+  setFontGate(fontReadable);
   port.handle("fontFile", a => fontFile(a));
   port.handle("analyzeImages", async a => { await analyzeImages(a.srcs); return a.srcs.flatMap(s => IMGMETA.has(s) ? [[s, IMGMETA.get(s)!] as [string, ImgMeta]] : []); });
   port.on("slices", e => {

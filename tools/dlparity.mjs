@@ -134,6 +134,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const kinds = {};
   for (const d of res.diffs) kinds[d.kind] = (kinds[d.kind] || 0) + 1;
   for (const d of res.diffs.filter(d => !d.accepted).slice(0, 40)) console.log(`DIFF  ${d.deck} · ${d.design} · ${d.version} · ${d.file} · ${d.kind}: ${d.detail}`);
+  // every difference as data (as parity.mjs --diffs)
+  if (arg("--diffs", null)) fs.writeFileSync(path.resolve(arg("--diffs", null)), JSON.stringify(res.diffs.map(({ accepted, ...d }) => ({ ...d, accepted: !!accepted })), null, 1));
   console.log(`dlparity (${DESIGNS.join(", ")}): ${res.diffs.length} difference(s) ${JSON.stringify(kinds)}, ${res.unaccepted} not accepted (${res.full ? "full" : "text-only"} comparison)${res.recaptured ? ` (re-captured once: ${res.recaptured.join(", ")})` : ""} - report: ${path.relative(process.cwd(), path.join(report, "index.html"))}`);
   if (!given && !process.argv.includes("--keep")) fs.rmSync(actual, { recursive: true, force: true }); else console.log("capture kept in " + actual);
   if (CONTROL) {

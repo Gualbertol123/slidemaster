@@ -385,6 +385,8 @@ export class CoreHost {
     // the screen draws a font's text as outlines where the browser's own would not match the PDF (S4.4: the per-font
     // check, once per face), or every font's when asked (the SP switch)
     const tm = platform().text;
+    // a font whose file came after the measuring budget (the page measured its text meanwhile): measured and drawn again
+    if (tm.onLate === null) tm.onLate = () => { this.stageCache.clear(); forgetMeasurements(); if (this.stageReq) void this.queueStage(this.stageReq).then(s => { if (s) this.port.emit("stage", s); }, () => undefined); };
     if (tm.check) {
       tm.outlineAll = a.outlines === "all";
       const fonts = new Set<string>(), walk = (ns: Node[]) => { for (const n of ns) if (n.t === "group") walk(n.children); else if (n.t === "text") fonts.add(`${n.i ? "italic " : ""}${weightOf(n)} 11px ${n.css || n.font}`); };
@@ -394,7 +396,7 @@ export class CoreHost {
       // (half a second later: the page measures the probes, which must not hold the slide's first frame)
       if (!tm.checked?.(list)) setTimeout(() => void tm.check!(list).then(changed => { if (changed && this.stageReq) void this.queueStage(this.stageReq).then(s => { if (s) this.port.emit("stage", s); }, () => undefined); }, () => undefined), 500);
     }
-    const mode = (soft ? "s" : "") + (a.outlines === "all" ? "o" : "");
+    const mode = (soft ? "s" : "") + (a.outlines === "all" ? "o" : "") + (tm.outlineSig?.() || "");
     // pictures by placeholder (the page puts its own URL for each: stage/data.ts); ids of gradients and clips per layer
     const markup = (nodes: DisplayList, prefix: string, table: boolean) => svgChunks(nodes, { imageHref: id => "sbimg:" + id, idPrefix: prefix, softShadows: soft, outline: n => tm.outlineRun?.(n) ?? null, ...(table ? { hits: stageHits } : {}) });
     // the layers: a "tw" hit followed by its group is a table (in the order of the tables that have a box); the

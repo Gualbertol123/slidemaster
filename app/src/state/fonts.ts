@@ -25,6 +25,8 @@ function setLib(fonts: LibraryFont[]) {
   const s = JSON.stringify(fonts);
   if (s === sig) return;
   sig = s; patch("doc", { fonts }); declare();
+  // the core worker measures with the library's files (S4.4): it looks for faces again, and the slide is measured again
+  if (get().deck.slides.length) STAGE.render(true);
 }
 export async function loadFonts() { try { setLib(await backend.fonts()); } catch { /* helper busy: next time */ } }
 

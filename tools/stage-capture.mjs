@@ -8,9 +8,14 @@
      Hits the goldens do not have are listed as elements of their own ("extra-in-display-list"), so an element too many
      is a difference. Editing aids (handles, the empty-slide hint) take the stage's own boxes.
    - GP: the stage, screenshotted at 100 % (1600 × 900).
-   - SP (screen = PDF): every slide's screenshot against its page of the native PDF the Export button saves, rendered by
-     PDFium at the same scale (tools/pdfcheck.py render), with GP's pixel rule (ΔE2000 2, the 3 × 3 range rule of
-     decision G1-4, at most 1 % of the pixels).
+   - SP (screen = PDF; decision 2026-10-14, S4.4: text as data, pixels everywhere but the glyphs): every slide against its
+     page of the native PDF the Export button saves –
+     · text: every run of the slide's display list starts in the PDF where it does in the list (its first character's
+       origin, PDFium's, within 0.05 pt), and every run the stage draws as text has a natural width in the browser
+       (without textLength) within 0.5 % of the list's width less its letter-spacing (the node's ls);
+     · pixels: the screenshot against the page rendered by PDFium at the same scale (tools/pdfcheck.py render), with
+       GP's pixel rule (ΔE2000 2, the 3 × 3 range rule of decision G1-4, at most 1 % of the pixels), the glyphs left out
+       (each drawn text's and glyph outline's box, 1 px around: two rasterisers never draw glyph edges alike).
    Used by tools/parity.mjs (npm run parity). */
 import fs from "node:fs";
 import path from "node:path";
@@ -128,8 +133,54 @@ export function stageHook(goldenDir) {
     const png = await page.screenshot({ clip: { x: Math.round(b.x), y: Math.round(b.y), width: 1600, height: 900 }, animations: "disabled", caret: "hide" });
     fs.mkdirSync(path.join(dir, "sp"), { recursive: true });
     fs.writeFileSync(path.join(dir, "sp", `screen-${slide + 1}.png`), png);
+    fs.writeFileSync(path.join(dir, "sp", `text-${slide + 1}.json`), JSON.stringify({ runs: listRuns(shown.nodes), ...(await drawnText(page)) }));
     return { geometry: g, png: pixels ? png : null };
   };
+}
+/** the list's text runs in slide px: each one's text and the origin of its first character (decorative copies left out) */
+function listRuns(nodes) {
+  const out = [];
+  const walk = (ns, M) => { for (const n of ns) {
+    if (n.t === "group") walk(n.children, n.transform ? mul(M, n.transform) : M);
+    else if (n.t === "text" && n.decorative && n.src.trim()) decor.push([n.src, M[0] * n.x + M[2] * n.y + M[4], M[1] * n.x + M[3] * n.y + M[5]]);
+    else if (n.t === "text" && n.src.trim()) {
+      // the first visible character: the run's origin moved by the advances before it (leading spaces)
+      const lead = n.src.length - n.src.trimStart().length, ax = lead && n.adv ? n.adv.slice(0, lead).reduce((a, b) => a + b, 0) : 0;
+      if (lead && !n.adv) continue;                                    // (a leading space's width is not in the list)
+      const x = n.x + ax, y = n.y;
+      out.push([n.src.trim()[0], r3(M[0] * x + M[2] * y + M[4]), r3(M[1] * x + M[3] * y + M[5]), n.src, ax]);
+    }
+  } };
+  const decor = [];
+  walk(nodes, [1, 0, 0, 1, 0, 0]);
+  // a run with a decorative copy (a text shadow, a few px off): PDFium keeps one of two characters drawn on top of each
+  // other (its fake-bold rule), so the run may start where its copy does
+  for (const r of out) { const d = decor.find(([src, x, y]) => src === r[3] && Math.abs(x + r[4] - r[1]) < 4 && Math.abs(y - r[2]) < 4); r[4] = d ? [r3(d[1] + r[4]), r3(d[2])] : null; }
+  return out;
+}
+const r3 = v => Math.round(v * 1000) / 1000;
+/** what the stage draws as text: each <text>'s natural width (a copy without textLength) against its textLength, and
+    the boxes of every drawn text and glyph outline in slide px */
+function drawnText(page) {
+  return page.evaluate(() => {
+    const root = document.querySelector("#stage .slide"), sr = root.getBoundingClientRect(), k = sr.width / 1600;
+    const host = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    host.setAttribute("style", "position:absolute;left:-30000px;top:0;width:10px;height:10px");
+    document.body.appendChild(host);
+    const widths = [];
+    for (const t of document.querySelectorAll("#stage svg text[textLength]")) {
+      const c = t.cloneNode(true); c.removeAttribute("textLength"); c.removeAttribute("lengthAdjust"); host.appendChild(c);
+      widths.push([t.textContent, +t.getAttribute("textLength"), Math.round(c.getComputedTextLength() * 1000) / 1000, +(t.getAttribute("data-ls") || 0)]);
+      c.remove();
+    }
+    host.remove();
+    const boxes = [];
+    for (const el of document.querySelectorAll("#stage svg text, #stage svg use")) {
+      const r = el.getBoundingClientRect();
+      if (r.width && r.height) boxes.push([(r.left - sr.left) / k, (r.top - sr.top) / k, r.width / k, r.height / k].map(v => Math.round(v * 10) / 10));
+    }
+    return { widths, boxes };
+  });
 }
 /** capture-v3's versionHook for SP: the native PDF of this deck × design × version, as the Export button saves it */
 export async function exportNative(page, h, dir) {
@@ -156,10 +207,27 @@ export function compareSP(actualDir, px, opts = {}) {
     const screens = fs.readdirSync(sp).filter(f => /^screen-\d+\.png$/.test(f)).sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
     const scope = { deck, design, version };
     if (pages.length !== screens.length) diffs.push({ ...scope, file: "sp", kind: "sp", detail: `${screens.length} slides on screen, ${pages.length} PDF pages` });
+    // the PDF's characters and their origins (PDFium)
+    const chars = JSON.parse(execFileSync(PY, [path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "pdfcheck.py"), "chars", pdf], { encoding: "utf8", maxBuffer: 64 << 20 }));
     screens.forEach((s, i) => {
       if (!pages[i]) return;
-      const r = comparePixels(decodePng(fs.readFileSync(path.join(sp, s))), decodePng(fs.readFileSync(pages[i])), { range: true });
-      const file = `slide-${i + 1}`;
+      const file = `slide-${i + 1}`, tf = path.join(sp, `text-${i + 1}.json`);
+      const text = fs.existsSync(tf) ? JSON.parse(fs.readFileSync(tf, "utf8")) : { runs: [], widths: [], boxes: [] };
+      // text as data: each run starts where the PDF has its first character (0.05 pt = 0.067 px)
+      const pc = chars[i] || [], TOL = .05 * 4 / 3;
+      const at = (ch, x, y) => pc.some(c => c[0] === ch && Math.abs(c[1] - x) <= TOL && Math.abs(c[2] - y) <= TOL);
+      const missing = text.runs.filter(([ch, x, y, , alt]) => !at(ch, x, y) && !(alt && at(ch, alt[0], alt[1])));
+      if (missing.length) diffs.push({ ...scope, file, kind: "sp-text", detail: `${missing.length} of ${text.runs.length} runs do not start where the PDF's text does: ${missing.slice(0, 3).map(m => JSON.stringify(m[3].slice(0, 30)) + " at " + m[1] + "," + m[2]).join("; ")}` });
+      // the browser's own width of each run drawn as text, against the list's (Liquid Glass's letter-spacing allowed for)
+      const off = text.widths.filter(([t, w, nat, ls]) => { const want = w - ([...t].length - 1) * ls; return Math.abs(nat - want) > .005 * Math.max(want, 1); });
+      if (off.length) diffs.push({ ...scope, file, kind: "sp-width", detail: `${off.length} of ${text.widths.length} runs drawn as text are not their measured width in the browser: ${off.slice(0, 3).map(([t, w, nat]) => JSON.stringify(t.slice(0, 30)) + " " + w + " vs " + nat).join("; ")}` });
+      // pixels everywhere but the glyphs: their boxes, 1 px around, take the PDF's pixels on the screen's side
+      const A = decodePng(fs.readFileSync(path.join(sp, s))), B = decodePng(fs.readFileSync(pages[i]));
+      if (A.w === B.w && A.h === B.h) for (const [bx, by, bw, bh] of text.boxes) {
+        const x0 = Math.max(0, Math.floor(bx) - 1), y0 = Math.max(0, Math.floor(by) - 1), x1 = Math.min(A.w, Math.ceil(bx + bw) + 1), y1 = Math.min(A.h, Math.ceil(by + bh) + 1);
+        for (let y = y0; y < y1; y++) { const o = (y * A.w + x0) * 3; A.rgb.set(B.rgb.subarray(o, (y * A.w + x1) * 3), o); }
+      }
+      const r = comparePixels(A, B, { range: true });
       pixels.push({ ...scope, file, fraction: r.size ? 1 : r.fraction, maxDE: r.maxDE ?? null });
       if (r.size || r.fraction > PIXEL_FRACTION) {
         diffs.push({ ...scope, file, kind: "sp", detail: r.size || `screen vs PDF: ${(r.fraction * 100).toFixed(2)} % of the pixels differ (max ΔE ${r.maxDE})` });

@@ -24,6 +24,8 @@ makes them (the build before is `git worktree add <dir> 7185d74`, the diffs file
 
 ## Questions for the product owner
 
+**Decided 2026-10-14 (PROGRESS Decisions): both approved – the differences are signed off, SP is option (a).**
+
 1. **Sign off the B7 / B2 differences** listed in `index.html` (86 entries in `tests/parity/accepted.json`, signed
    "pending: S4.4 sign-off"), or name the slides that are not acceptable.
 2. **Screen = PDF in pixels (SP).** PLAN's "SP passes" cannot be met as 05 §3.4 states it (ΔE < 2 on 99 % of the
@@ -42,9 +44,11 @@ makes them (the build before is `git worktree add <dir> 7185d74`, the diffs file
    The per-font outline fallback is in place (a font whose browser widths differ from HarfBuzz's by more than
    0.5 % – on this PC Tahoma, Times New Roman, Arial on some pairs – is drawn as outlines on the stage).
    Choose:
-   * **(a, recommended)** SP compares text as data – every text run's position and width in the PDF equal the
-     display list's (05 §3.4's 0.05 pt check, true by construction: the PDF and the SVG are written from the same
-     nodes) – and pixels everywhere but the glyphs (fills, borders, pictures, hairlines at ΔE 2);
+   * **(a, recommended)** SP compares text as data and pixels everywhere else: (1) every text run's position in the
+     PDF, read back from the file, within 0.05 pt of the display list's (05 §3.4); (2) every run the screen draws as
+     text has a natural width in the browser (without `textLength`) within 0.5 % of the display list's width – the
+     check that catches a run measured with the wrong font, which `textLength` would otherwise hide by stretching
+     it; (3) pixels at ΔE 2 everywhere but the glyphs (fills, borders, pictures, hairlines);
    * **(b)** keep SP's whole-slide pixel rule and accept the text differences per design (as now, "owned by S4.4");
    * **(c)** draw every font as outlines on screen (`localStorage sbOutlines = "all"` shows it): softer, unhinted
      text on screen and more markup, and SP still does not pass.

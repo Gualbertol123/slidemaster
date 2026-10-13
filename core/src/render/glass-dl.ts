@@ -166,7 +166,7 @@ export function glassText(t: GText, m: Metrics): Node[] {
     const run = m.run(src, fontAt(sz), t.num), n = [...src].length;
     const tab = t.num && run.adv && run.adv.length === n ? { tnum: true, adv: run.adv.map(a => a + LETTER) } : t.num ? { tnum: true } : {};
     return { t: "text", font: primaryFamily(family), css: family, weight: t.weight, ...(i ? { i: true } : {}), size: sz, x: +xx.toFixed(2), y: +yy.toFixed(2), src,
-      w: Math.max(0, run.w + (n - 1) * LETTER), fill: ink, ...tab };
+      w: Math.max(0, run.w + (n - 1) * LETTER), ls: LETTER, fill: ink, ...tab };
   };
   // a strong capsule's text-shadow 0 1px 1px rgba(0,0,0,.2): a decorative copy 1 px lower
   const shadowed = (n: TextNode): Node[] => t.shadow ? [{ ...n, y: n.y + 1, fill: { solid: [0, 0, 0], a: .2 }, decorative: true }, n] : [n];
