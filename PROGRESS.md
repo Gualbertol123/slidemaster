@@ -274,3 +274,4 @@ numbers measured twice). Measured numbers go into the step's line.
 | S3.8 | page · pilot ZIP | 1,458,814 bytes · 870,553 bytes (36 files) | – |
 | S3.9 | the 3.6 way (old-engine item, this build) on deck20, click → file, twice: Liquid Glass · Excel | 5,574 / 5,832 ms, 25,046,028 bytes · 1,637 / 1,463 ms, 3,299,662 bytes (wall clock of the test script, incl. polling) | – |
 | S3.9 | release ZIP 3.7.0 · page | 872,006 bytes, 36 files, reproducible · 1,459,072 bytes | – |
+| M3b end | clean clone of cca8070 (%TEMP%\verify-M3b): build = committed page · check 371 + 17 · helper OK · e2e 20 · parity 0 (full) · dlparity 7 accepted · export-check --old GT 42/42, qpdf 84/84 · bench deck20 open 313 ms, big30 771 ms, export glass 1,532 ms / Excel 404 ms, 1,327.6 / 253.8 KB | heap 86 MB, then 77 · 76 MB (page 26–35 + core worker 30–48 MB within one bench run: garbage-collection timing, as the S3.7 clean clone's 75–76 MB; limit 150) |
