@@ -73,7 +73,7 @@ export interface WorkbookDoc {
   log?: { rev: number; by: string | null; at: number | null }[];
 }
 export interface ConfigDoc { schema: number; rev: number; updated?: number; updatedBy?: string; defaults: { style: StylePatch } }
-export interface Prefs { lastFile?: string | null; pdfMode?: "exact" | "vector" | null; zoom?: number | "fit" | null; /** version shown on screen, per workbook */ versions?: Record<string, string> | null }
+export interface Prefs { lastFile?: string | null; pdfMode?: "exact" | "vector" | null; zoom?: number | "fit" | null; /** version shown on screen, per workbook */ versions?: Record<string, string> | null; /** soft shadows on screen: one blurred shape instead of the 5 layers the PDF draws (B3) */ softShadows?: boolean | null }
 
 type Nullable<T> = { [K in keyof T]?: T[K] | null };
 export type Op =

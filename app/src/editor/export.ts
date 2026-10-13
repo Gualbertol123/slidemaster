@@ -17,6 +17,7 @@ import { openInstaller } from "../state/dialogs";
 import { backend, ApiError, type ExportRes } from "../sync/api";
 import { ExportPool } from "../rpc/export";
 import { buildSlide } from "../render/slidedom";
+import SLIDE_CSS from "../styles/slide.css?raw";
 import { esc } from "@slide-builder/core/xlsx/util";
 import { embeddedFontCss } from "../state/fonts";
 import { PRINT_CSS, printReady } from "@slide-builder/core/render/printcss";
@@ -236,7 +237,7 @@ export async function exportVersions(designs: Design[] | null) {
 
 /* ---------------------------------------------------------------- the old engine, for one release (S3.7 → S3.9) */
 const toDataUrl = async (url: string) => { const b = await (await fetch(url)).blob(); return await new Promise<string>(r => { const fr = new FileReader(); fr.onload = () => r(fr.result as string); fr.readAsDataURL(b); }); };
-const slideCss = () => [document.getElementById("slidecss")?.textContent || "", document.getElementById("wallcss")?.textContent || ""].join("\n");
+const slideCss = () => [SLIDE_CSS, document.getElementById("wallcss")?.textContent || ""].join("\n");
 
 /** the exact slide DOM + slide CSS, self-contained (pictures and logo as data URLs), made light for a vector PDF */
 async function exportPayload(idx: number[], base: RenderCtx = ctx()) {

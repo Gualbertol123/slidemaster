@@ -60,6 +60,19 @@ describe("the whole slide", () => {
       for (const c of new Set(want)) expect(got.filter(g => g === c).length, `${design} slide ${i + 1}: ${c}`).toBe(want.filter(w => w === c).length);
     }
   });
+  it("a logo file that cannot be read (no size): no bubble and no picture, as v3 hid it; the page number stays put", async () => {
+    for (const design of ["glass", "excel"] as Design[]) {
+      const { ctx, slides } = await deck("weekly-options.json", design);
+      const R = slides[slides.length - 1], i = slides.length - 1, boxes = computeLayout(R, ctx).boxes, tables = R.tables.map(L => excelToDisplayList(L, ctx, M));
+      const make = (w: number) => slideToDisplayList(R, i, ctx, tables, boxes, { wall: null, logo: { id: "logo", src: "logo.png", w, h: w ? 100 : 0 } }, M, "x").nodes;
+      const ok = hits(make(400)).map(h => h.id), missing = hits(make(0));
+      expect(ok.some(c => /logowrap|^logo$/.test(c)), design).toBe(true);
+      expect(missing.some(h => /logowrap|^logo$/.test(h.id)), design).toBe(false);
+      expect(flat(make(0)).some(n => n.t === "image" && n.id === "logo")).toBe(false);
+      const pn = (l: DisplayList) => hits(l).filter(h => /pageno/.test(h.id)).map(h => [h.x, h.y]);
+      expect(pn(make(0))).toEqual(pn(make(400)));
+    }
+  });
   it("a title too long for its box is cut with an ellipsis that fits; the hit keeps the whole text", async () => {
     const { ctx, slides, build } = await deck("weekly.json", "excel");
     slides[0].title = "A very long title ".repeat(10).trim();

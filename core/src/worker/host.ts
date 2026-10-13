@@ -12,7 +12,7 @@ import { detectTables } from "../xlsx/detect";
 import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "../model/preset";
 import { resolveStyle } from "../model/style";
 import { computeLayout, tableHtml, tableHtmlKey } from "../render/slide";
-import { excelTableDL, measuredBuild, type TableDL } from "../render/excel-dl";
+import { excelTableDL, forgetMeasurements, measuredBuild, type TableDL } from "../render/excel-dl";
 import { glassTableDL } from "../render/glass-dl";
 import { slideToDisplayList, type SlideImages } from "../render/slide-dl";
 import { analyzeImages, IMGMETA } from "../xlsx/drawing";
@@ -24,7 +24,9 @@ import type { RenderCtx } from "../render/context";
 import type { Design, Preset, RuntimeSlide, Style, WorkbookDoc } from "../model/types";
 import type { Workbook } from "../xlsx/types";
 import { Port, transfer, type Wire } from "../rpc/port";
-import type { CoreEvents, CoreMethods, DocState, ExportCoreMethods, HtmlReq, PageEvents, PageMethods, SlideListsReq, ViewInputs, WorkbookInfo } from "../rpc/messages";
+import type { CoreEvents, CoreMethods, DocState, ExportCoreMethods, HtmlReq, PageEvents, PageMethods, SlideListsReq, StageLayer, StageReq, StageSlide, ViewInputs, WorkbookInfo } from "../rpc/messages";
+import type { DisplayList } from "../dl/types";
+import { stageHits, svgChunks } from "../dl/svg";
 
 type HostPort = Port<CoreMethods, PageMethods, PageEvents, CoreEvents>;
 type Html = [string, string, string, string];
@@ -69,7 +71,7 @@ export class CoreHost {
       return transfer({ buf: out.data.buffer as ArrayBuffer, variable: out.variable }, [out.data.buffer as ArrayBuffer]);
     });
     h("defaultPreset", a => { const wb = a.book !== undefined ? this.bookOf(a.book) : this.candidate; if (!wb) throw new Error("no workbook"); return defaultPreset(wb); });
-    h("start", a => this.start(a.book, a.name, a.doc, a.preset, a.inputs));
+    h("start", a => { if (a.stage) this.stageReq = { ...a.stage, fresh: false }; return this.start(a.book, a.name, a.doc, a.preset, a.inputs); });
     // the page waits for the redraw (the HTML of the new version or default style arrives before the answer)
     h("inputs", a => { this.inputs = a; return this.later(() => this.refresh(null)); });
     h("apply", a => {
@@ -97,6 +99,7 @@ export class CoreHost {
     h("poll", async () => { await this.sync?.poll(); });
     h("html", a => this.htmlFor(a));
     h("slideLists", a => this.lists(a));
+    h("stage", a => { if (!a.nodes) this.stageReq = { ...a, fresh: false }; return this.queueStage(a); });
     // an export worker's own channel (S3.7): display lists go to it directly, never through the page's main thread
     h("linkExport", a => {
       const p = new Port<ExportCoreMethods, Record<string, never>, Record<string, never>, Record<string, never>>(a.port as unknown as Wire);
@@ -181,6 +184,7 @@ export class CoreHost {
     this.sync?.retire(() => this.port.emit("retiredSaved", { name: left }));
     if (this.wbBook && this.wbBook !== this.candidateBook) { this.sentBoxes.delete(this.wbBook); this.sentSharedFor.delete(this.wbBook); }
     this.wb = this.candidate; this.wbBook = this.candidateBook; this.candidate = null; this.name = name; this.inputs = inputs;
+    this.stageCache.clear();                                    // another workbook (or the same file read again): its own tables
     LCACHE.clear(); this.sentHtml.clear(); this.slidesDesign = null; this.presetSig = ""; this.boxSig = "";
     this.history.undo = []; this.history.redo = [];         // a newly opened workbook starts without history (as v3)
     this.sentView = { obj: null, json: "" };
@@ -241,8 +245,12 @@ export class CoreHost {
       for (const R of this.slides) { const cfg = byId.get(R.id); if (cfg && cfg !== R.cfg) R.cfg = cfg; }
     }
     await this.sendSlices();
-    this.sendHtml();
+    // a change (or the start): the slide on the stage drawn at once, before anything else (keypress → pixels, S4.1)
+    if ((c || force) && this.stageReq) { const s = await this.queueStage(this.stageReq).catch(() => null); if (s) this.port.emit("stage", s); }
+    // then the snapshot (the page can show the stage's slide), then the thumbnails' HTML (v3's, until S4.3): sent at a
+    // start after the answer, and even when there is none (the page knows it has it all)
     this.sendDoc(c);
+    if (force) setTimeout(() => this.sendHtml(true), 0); else this.sendHtml();
   }
   /** slices of every loaded sheet whose rectangle changed (or that is new) */
   private boxSig = "";
@@ -269,10 +277,10 @@ export class CoreHost {
     }
   }
   /** the HTML of every table of the current design and version (full, and shapes only for big tables) */
-  private sendHtml() {
+  private sendHtml(always = false) {
     if (!this.wb || !this.sync) return;
     const out = this.render(this.ctx(), this.slides, true).filter(e => { const k = e[0] + "|" + e[1]; if (this.sentHtml.get(k) === e[2]) return false; this.sentHtml.set(k, e[2]); return true; });
-    if (out.length) this.port.emit("html", out);
+    if (out.length || always) this.port.emit("html", out);
   }
   private render(ctx: RenderCtx, slides: RuntimeSlide[], thumbs: boolean): Html[] {
     const out: Html[] = [], seen = new Set<string>();
@@ -285,17 +293,22 @@ export class CoreHost {
     });
     return out;
   }
-  /** whole slides as display lists (S3.5): background, furniture, the tables placed and scaled, text boxes */
-  private async slideLists(a: SlideListsReq) {
-    if (!this.wb || !this.sync) return [];
-    const ctx = this.ctx(a.design, a.version, a.forExport), glass = ctx.style.design === "glass", out: { slide: number; dl: TableDL }[] = [];
-    const wall = glass ? await wallpaperIds(ctx.style) : null;
+  /** what a slide needs besides its tables: the wallpaper (Liquid Glass) and the logo with its size */
+  private async slideImages(ctx: RenderCtx): Promise<SlideImages> {
+    const wall = ctx.style.design === "glass" ? await wallpaperIds(ctx.style) : null;
     let logo: SlideImages["logo"] = null;
     if (ctx.logoSrc) {
       await analyzeImages([ctx.logoSrc]);
       const mm = IMGMETA.get(ctx.logoSrc);
       logo = { id: "logo-" + sha1(new TextEncoder().encode(ctx.logoSrc)).slice(0, 16), src: ctx.logoSrc, w: mm?.w || 0, h: mm?.h || 0 };
     }
+    return { wall, logo };
+  }
+  /** whole slides as display lists (S3.5): background, furniture, the tables placed and scaled, text boxes */
+  private async slideLists(a: SlideListsReq) {
+    if (!this.wb || !this.sync) return [];
+    const ctx = this.ctx(a.design, a.version, a.forExport), glass = ctx.style.design === "glass", out: { slide: number; dl: TableDL }[] = [];
+    const { wall, logo } = await this.slideImages(ctx);
     for (const [s, R] of ctx.slides.entries()) {
       if (a.slides && !a.slides.includes(s)) continue;
       const boxes = computeLayout(R, ctx).boxes, tables: TableDL[] = [];
@@ -306,6 +319,81 @@ export class CoreHost {
       out.push({ slide: s, dl: await measuredBuild(m => slideToDisplayList(R, s, ctx, tables, boxes, { wall, logo }, m, a.today)) });
     }
     return out;
+  }
+  /* ---------------------------------------------------------------- the stage (S4.1) */
+  /** the stage's table display lists by what they are drawn from (content, sizes, design, style; for Liquid Glass also
+      the placement, which the frosted wallpaper behind the glass depends on), most recently used last; with their
+      SVG markup per way of drawing it (the layer's id prefix, soft shadows) */
+  private stageCache = new Map<string, { id: string; dl: TableDL; svg: Map<string, string[]> }>();
+  private stageSeq = 0;
+  private stageQueue: Promise<unknown> = Promise.resolve();
+  /** the stage's last request (which slide it shows, how): after a change the worker sends that slide without being
+      asked, a page round trip sooner */
+  private stageReq: StageReq | null = null;
+  /** the pictures the page has (named in its requests, or sent to it) */
+  private pageImages = new Set<string>();
+  private queueStage(a: StageReq): Promise<StageSlide | null> {
+    const run = this.stageQueue.then(() => this.stage({ ...a, known: [...new Set([...a.known, ...this.pageImages])] }));
+    this.stageQueue = run.catch(() => undefined);
+    return run.then(s => { if (s) for (const id of Object.keys(s.images)) this.pageImages.add(id); return s; });
+  }
+  /** the slide on the stage in layers, each as SVG markup: each table its own (built only when what it is drawn from
+      changed), each text box its own, the furniture between them. One request at a time, apart from the exports'
+      lists (an export never delays the stage) */
+  private async stage(a: StageReq): Promise<StageSlide | null> {
+    if (!this.wb || !this.sync) return null;
+    if (a.fresh) { this.stageCache.clear(); forgetMeasurements(); }
+    const ctx = this.ctx(), R = ctx.slides[a.slide]; if (!R) return null;
+    const glass = ctx.style.design === "glass", img = await this.slideImages(ctx), soft = !!a.soft;
+    const boxes = computeLayout(R, ctx).boxes, tables: TableDL[] = [], hits: { id: string; dl: TableDL; svg: Map<string, string[]> }[] = [], styleSig = JSON.stringify(ctx.style);
+    for (const [i, L] of R.tables.entries()) {
+      const b = boxes[i], place = { x: b?.x ?? 0, y: b?.y ?? 0, scale: b?.scale ?? 1 };
+      // which table (tableHtmlKey was made for a cache on the layout itself: it does not name the table), then what it is
+      // drawn from
+      const key = L.sheet.name + "|" + (L.id || "") + "|" + tableHtmlKey(R, i, ctx).key + "|" + styleSig + (glass ? "|" + place.x + "," + place.y + "," + place.scale : "");
+      let hit = this.stageCache.get(key);
+      if (hit) this.stageCache.delete(key);
+      else hit = { id: "t" + (++this.stageSeq), dl: glass ? await glassTableDL(L, ctx, place, img.wall?.blur ?? null) : await excelTableDL(L, ctx), svg: new Map() };
+      this.stageCache.set(key, hit);
+      tables.push(hit.dl); hits.push(hit);
+    }
+    while (this.stageCache.size > STAGE_CACHE) this.stageCache.delete(this.stageCache.keys().next().value!);
+    const dl = await measuredBuild(m => slideToDisplayList(R, a.slide, ctx, tables, boxes, img, m, a.today));
+    // pictures by placeholder (the page puts its own URL for each: stage/data.ts); ids of gradients and clips per layer
+    const markup = (nodes: DisplayList, prefix: string, table: boolean) => svgChunks(nodes, { imageHref: id => "sbimg:" + id, idPrefix: prefix, softShadows: soft, ...(table ? { hits: stageHits } : {}) });
+    // the layers: a "tw" hit followed by its group is a table (in the order of the tables that have a box); the
+    // nodes between tables are furniture layers, named by their content
+    const drawn = R.tables.flatMap((_, i) => boxes[i] && tables[i] ? [i] : []), layers: StageLayer[] = [];
+    let run: DisplayList = [], k = 0, nf = 0, nn = 0;
+    const flush = () => { if (run.length) { const pre = `f${nf++}-`; layers.push({ key: "f" + contentKey(run) + pre + soft, table: null, box: null, nodes: run, svg: markup(run, pre, false) }); } run = []; };
+    for (let j = 0; j < dl.nodes.length; j++) {
+      const n = dl.nodes[j], g = dl.nodes[j + 1];
+      if (n.t === "hit" && n.kind === "f" && n.id === "tw" && g?.t === "group" && g.transform) {
+        flush();
+        const i = drawn[k++], s = g.transform[0], pre = `t${i}-`, how = pre + soft, h = hits[i];
+        let svg = h.svg.get(how);
+        if (svg === undefined) h.svg.set(how, svg = markup(g.children, pre, true));
+        layers.push({ key: h.id + "|" + how, table: i, box: { x: g.transform[4], y: g.transform[5], w: n.w, h: n.h, scale: s }, nodes: a.nodes ? g.children : [], svg });
+        j++;
+      } else if (n.t === "hit" && n.kind === "f" && NOTE_HIT.test(n.id)) {
+        // a text box: its bubble (if any), then its own hit and the group of its text – a layer of its own, so a
+        // drag can move it
+        flush();
+        const seg: DisplayList = []; let box: StageLayer["box"] = null;
+        for (; j < dl.nodes.length; j++) {
+          const x = dl.nodes[j];
+          if (seg.length && x.t === "hit" && x.kind === "f" && (x.id === "tw" || /notebub/.test(x.id))) { j--; break; }
+          seg.push(x);
+          if (x.t === "hit" && x.kind === "f" && x.id.startsWith("tnote ")) { box = { x: x.x, y: x.y, w: x.w, h: x.h, scale: 1 }; if (dl.nodes[j + 1]?.t === "group") seg.push(dl.nodes[++j]); break; }
+        }
+        const pre = `n${nn++}-`;
+        layers.push({ key: "n" + contentKey(seg) + pre + soft, table: null, note: true, box, nodes: seg, svg: markup(seg, pre, false) });
+      } else run.push(n);
+    }
+    flush();
+    const known = new Set(a.known), images: Record<string, string> = {};
+    for (const [id, src] of Object.entries(dl.images)) if (!known.has(id)) images[id] = src;
+    return { slide: a.slide, id: R.id, design: ctx.style.design, layers, images };
   }
   private htmlFor(a: HtmlReq): Html[] {
     if (!this.wb || !this.sync) return [];
@@ -331,6 +419,17 @@ export class CoreHost {
 /** a document's content without the helper's bookkeeping: a save rewrites the revision, time, author, log, backup
     time and format number (store.py) – none of which the page shows – so a save alone gives the same JSON */
 const viewJson = (v: WorkbookDoc) => { const { rev, updated, updatedBy, log, schema, backupAt, ...content } = v as WorkbookDoc & Record<string, unknown>; void rev; void updated; void updatedBy; void log; void schema; void backupAt; return JSON.stringify(content); };
+/** how many table display lists the stage keeps (a deck's worth of the most recently shown) */
+const STAGE_CACHE = 200;
+/** the hit a text box's nodes start with: its bubble's, or its own */
+const NOTE_HIT = /^tnote\b|notebub/;
+/** a short name for a list of nodes: the same nodes, the same name (FNV-1a over their JSON, 2 × 32 bits) */
+function contentKey(nodes: DisplayList): string {
+  const s = JSON.stringify(nodes);
+  let a = 0x811c9dc5, b = 0x01000193 ^ s.length;
+  for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619); b = Math.imul(b ^ c, 2246822519); }
+  return (a >>> 0).toString(36) + (b >>> 0).toString(36) + s.length.toString(36);
+}
 /** the host behind a port (one per worker) */
 /** what a host can do beyond the core's pure code (the worker passes these; the page's in-thread fallback does not,
     so the page does not carry them) */

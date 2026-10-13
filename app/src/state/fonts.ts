@@ -33,7 +33,7 @@ let redraw: ReturnType<typeof setTimeout> | null = null;
 export function watchFontLoads() {
   document.fonts?.addEventListener?.("loadingdone", () => {
     if (redraw) clearTimeout(redraw);
-    redraw = setTimeout(() => { redraw = null; if (get().deck.slides.length) { STAGE.render(); THUMBS.render(); } }, 150);
+    redraw = setTimeout(() => { redraw = null; if (get().deck.slides.length) { STAGE.render(true); THUMBS.render(); } }, 150);
   });
 }
 

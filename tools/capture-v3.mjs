@@ -134,6 +134,8 @@ export async function load(page, h, file, version) {
 }
 export async function settle(page) {
   await page.mouse.move(1, 1);
+  // the stage from M4 draws what the core worker sends: the slide shown is the current one, nothing on its way
+  await page.waitForFunction(() => !window.__sbTest?.stageIdle || window.__sbTest.stageIdle(), null, { timeout: 60_000 });
   await page.evaluate(async () => {
     await document.fonts.ready;
     await Promise.all([...document.querySelectorAll("#stage img")].map(i => i.complete ? null : new Promise(r => { i.onload = i.onerror = r; })));
@@ -187,7 +189,9 @@ async function exportPdf(page, h, dir) {
 // ------------------------------------------------------------------------------------------- capture
 /* opts: decks, pdf (false: no export), quiet, allPixels; designs (default all three); slideHook(page, {deck, dir, design,
    version, slide, geometry, pixels}) → {geometry?, png?}: replaces what is written for a slide (tools/dlparity.mjs
-   writes the display list's geometry and pixels there) */
+   writes the display list's geometry and pixels there; with `noGeometry` the page's DOM is not read for it – the
+   stage from M4, tools/stage-capture.mjs); versionHook(page, helper, {deck, dir, design, version}): after the slides of
+   a version (the native PDF for SP) */
 export async function capture(out, opts = {}) {
   const decks = deckList(opts.decks);
   const h = await startHelper();
@@ -217,7 +221,7 @@ export async function capture(out, opts = {}) {
             await page.locator(`.thumb.on[data-i="${i}"]`).waitFor();
             await page.keyboard.press("Escape");
             await settle(page);
-            let g = await geometry(page);
+            let g = opts.noGeometry ? { items: [] } : await geometry(page);
             g.slide = i + 1; g.label = await page.locator(".thumb").nth(i).locator(".cap b").innerText();
             const pixels = wantPixels(opts, id, vname, i + 1);
             const hooked = opts.slideHook ? await opts.slideHook(page, { deck: id, dir, design, version: vid, slide: i, geometry: g, pixels }) : null;
@@ -235,6 +239,7 @@ export async function capture(out, opts = {}) {
           }
           fs.writeFileSync(path.join(dir, "comments.json"), JSON.stringify(comments, null, 1));
           fs.writeFileSync(path.join(dir, "issues.json"), JSON.stringify(issues, null, 1));
+          if (opts.versionHook) await opts.versionHook(page, h, { deck: id, dir, design, version: vid });
           if (opts.pdf !== false) await exportPdf(page, h, dir);
           total += n;
           if (!opts.quiet) console.log(`  ${id} · ${design} · ${vname}: ${n} slide(s)`);

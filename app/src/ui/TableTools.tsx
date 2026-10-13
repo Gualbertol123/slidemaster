@@ -7,7 +7,7 @@ import { applySel, selItems, selTable } from "../editor/edit";
 import { effFmt } from "@slide-builder/core/render/edits";
 import { sizingOf, sizingPatch, slideHasLogo } from "@slide-builder/core/render/slide";
 import { alignTables, canMerge, mergeSel, mergedInSel, unmergeSel, valignTables, currentTableRefs, makeSameSize, selCols, selRows, setColWidth, setRowHeight, shownColW, shownRowH } from "../editor/tables";
-import { addSlideNotes, attachNote, noteOf, patchNote } from "../editor/stage";
+import { addNote as addTextBox, addSlideNotes, attachNote, noteOf, patchNote } from "../stage/actions";
 import { scaleColors } from "@slide-builder/core/render/scales";
 import { A1, uid, esc } from "@slide-builder/core/xlsx/util";
 import type { Op, ScaleRule, Side } from "@slide-builder/core/model/types";
@@ -79,8 +79,7 @@ export function TableRibbon() {
     if (!R || tIdx < 0) { toast("Click a cell of the table first."); return; }
     const key = (R.tables[tIdx].id || String(tIdx)) + ":" + side;
     if ((R.cfg.notes || {})[key]) { toast("This table already has a text box there – double-click it to edit."); return; }
-    change("Add text box", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: { text: "" } } } } as Op]);
-    setTimeout(() => document.querySelector<HTMLElement>(`#stage .tnote[data-note="${CSS.escape(key)}"]`)?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })), 120);
+    addTextBox(tIdx, side);                      // opens for typing as soon as the slide shows it
   };
   const sz = R ? sizingOf(R, c) : null, align = sz?.align || "center";
   // raw Excel shows the workbook only: no text boxes, no comments

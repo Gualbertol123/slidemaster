@@ -302,6 +302,13 @@ test.describe.serial("two people, one shared folder", () => {
     // corners and contrast are deck settings
     await a.click("#optBtn"); await a.locator("#radiusRange").fill("0"); await a.locator("#contrastRange").fill("80"); await a.keyboard.press("Escape");
     await pollFile(() => doc().style, { timeout: 10_000 }).toMatchObject({ radius: 0, contrast: 80 });   // sliders apply after a short pause
+    // soft shadows on screen (B3, a personal setting): a true blur instead of the PDF's 5 layers, and back
+    const blurs = () => a.locator("#stage .slide > svg filter feGaussianBlur").count();
+    expect(await blurs()).toBe(0);
+    await a.click("#optBtn"); await a.check("#softShadows"); await a.keyboard.press("Escape");
+    await expect.poll(blurs, { timeout: 10_000 }).toBeGreaterThan(0);
+    await a.click("#optBtn"); await a.uncheck("#softShadows"); await a.keyboard.press("Escape");
+    await expect.poll(blurs, { timeout: 10_000 }).toBe(0);
     await a.close(); await b.close();
   });
 
@@ -659,8 +666,11 @@ test.describe.serial("two people, one shared folder", () => {
   test("versions: Chief and All made in the wizard, cells removed in All, every version × design exported; superscripts", async ({ page }) => {
     await openApp(page, BOB);
     await expect(page.locator(".thumb")).toHaveCount(1);
-    // Excel's superscript "(1)" stays raised on the slide
-    await expect(page.locator("#stage .slide .t sup", { hasText: "(1)" }).first()).toBeVisible();
+    // Excel's superscript "(1)" stays raised on the slide: its own run (S4.1: an SVG <text>, was a <sup>), smaller than
+    // the text before it and above its baseline
+    const sup = page.locator("#stage .slide > .tw text", { hasText: /^\(1\)$/ }).first();
+    await expect(sup).toBeVisible();
+    expect(await sup.evaluate(el => { const p = el.previousElementSibling; return !!p && p.tagName === "text" && +el.getAttribute("y")! < +p.getAttribute("y")! && +el.getAttribute("font-size")! < +p.getAttribute("font-size")!; })).toBe(true);
     await page.click("#wizardBtn");
     await page.click('[data-a="next"]'); await page.click('[data-a="next"]');                // sheets → tables → slides
     await page.click('[data-a="versions"]');

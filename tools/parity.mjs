@@ -4,6 +4,11 @@
      node tools/parity.mjs --actual DIR            compare an existing capture instead
      node tools/parity.mjs --decks a,b --no-pdf    a subset (faster while working)
      npm run parity                                (from the root or app/) the same as the first line
+     node tools/parity.mjs --no-sp                 without SP (screen = PDF)
+     node tools/parity.mjs --dom                   a build before M4: its HTML stage read from the DOM, as v3 was captured
+
+   From M4 the stage draws the display list: a slide's elements are the goldens' paired with what the stage shows, its
+   pixels the stage's screenshot, and SP compares each screenshot with its page of the native PDF (tools/stage-capture.mjs).
 
    Compared, per deck × design × version:
      slide-<n>.json   the same elements in the same order; texts, font family, weight, style, colours and
@@ -212,7 +217,7 @@ export function compare(goldenDir, actualDir, opts = {}) {
         if (JSON.stringify(g) !== JSON.stringify(a)) diff("text", `${f} differs: ${firstDiff(g, a)}`);
       }
     }
-    for (const f of files(ad)) if (!f.endsWith(".png") && !fs.existsSync(path.join(gd, f))) diffs.push({ ...scope, file: f, kind: "new", detail: "not in the goldens" });
+    for (const f of files(ad)) if (!f.endsWith(".png") && f !== "sp" && !fs.existsSync(path.join(gd, f))) diffs.push({ ...scope, file: f, kind: "new", detail: "not in the goldens" });
   }
   // decks, designs and versions this build produces that the goldens do not have
   for (const deck of decks) for (const design of files(path.join(actualDir, deck))) {
@@ -255,16 +260,37 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const report = path.resolve(arg("--report", path.join(REPO, "tests", "parity", "report")));
   const acceptedFile = path.resolve(arg("--accepted", path.join(REPO, "tests", "parity", "accepted.json")));
   const decks = arg("--decks", null)?.split(",") || null;
+  // from M4 the stage draws the display list (tools/stage-capture.mjs): its hits paired with the goldens' elements, its
+  // screenshots, SP against the native PDF; --dom captures a build before M4 (v3's HTML stage) from its DOM
+  const dom = process.argv.includes("--dom");
+  // SP needs the goldens' environment (as geometry and pixels do): elsewhere (CI's runner) its exports are not made
+  let sp = !dom && !process.argv.includes("--no-sp") && !process.argv.includes("--text-only");
+  if (sp && !arg("--actual", null)) {
+    const { openBrowser, environment } = await import("./capture-v3.mjs"), probe = await openBrowser(), env = environment(probe.browser.version());
+    await probe.browser.close();
+    const ge = readJson(path.join(golden, "MANIFEST.json")).environment || {};
+    if (ge.chromium !== env.chromium || ge.fontsSha256 !== env.fontsSha256) { sp = false; console.log("SP (screen = PDF) not run: this environment is not the goldens'"); }
+  }
+  const stage = dom ? null : await import("./stage-capture.mjs");
   let actual = arg("--actual", null), tmp = null;
   if (!actual) {
     const { capture } = await import("./capture-v3.mjs");
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sb-parity-"));
     actual = tmp;
     console.log("capturing this build...");
-    await capture(actual, { decks: decks || undefined, pdf: !process.argv.includes("--no-pdf"), quiet: !process.argv.includes("--verbose") });
+    await capture(actual, { decks: decks || undefined, pdf: !process.argv.includes("--no-pdf"), quiet: !process.argv.includes("--verbose"),
+      ...(stage ? { noGeometry: true, slideHook: stage.stageHook(golden), ...(sp ? { versionHook: (page, h, v) => stage.exportNative(page, h, v.dir) } : {}) } : {}) });
   }
   const accepted = fs.existsSync(acceptedFile) ? readJson(acceptedFile) : [];
-  const res = compare(golden, actual, { accepted, decks, pdf: !process.argv.includes("--no-pdf"), full: process.argv.includes("--text-only") ? false : undefined });
+  // GP's pixel rule is the 3 × 3 range rule (decision G1-4) for the display list's pixels
+  const res = compare(golden, actual, { accepted, decks, pdf: !process.argv.includes("--no-pdf"), full: process.argv.includes("--text-only") ? false : undefined, pixelRange: !dom });
+  if (sp && res.full) {
+    const s = stage.compareSP(actual, { comparePixels, decodePng, encodePng, PIXEL_FRACTION }, { accepted });
+    res.diffs.push(...s.diffs); res.images.push(...s.images); res.unaccepted += s.diffs.filter(d => !d.accepted).length;
+    const worst = s.pixels.reduce((m, p) => p.fraction > m.fraction ? p : m, { fraction: 0 });
+    console.log(`SP (screen = PDF): ${s.pixels.length} slides, ${s.diffs.length} beyond ${PIXEL_FRACTION * 100} % of the pixels; worst ${(worst.fraction * 100).toFixed(2)} %${worst.deck ? ` (${worst.deck} · ${worst.design} · ${worst.version} · ${worst.file})` : ""}`);
+    fs.writeFileSync(path.join(actual, "sp.json"), JSON.stringify(s.pixels, null, 1));
+  }
   writeReport(res, report);
   if (!res.full) console.log("NOTE: this machine's Chromium or fonts differ from the goldens' - only texts were compared (geometry, pixels and PDF positions need the same environment).");
   for (const d of res.diffs.slice(0, 40)) console.log(`${d.accepted ? "accepted " : "DIFF     "} ${d.deck} · ${d.design} · ${d.version} · ${d.file} · ${d.kind}: ${d.detail}`);

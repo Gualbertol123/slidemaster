@@ -10,6 +10,7 @@ import { serve } from "../src/worker/host";
 import { applyOps, emptyDoc } from "../src/model/ops";
 import type { CoreEvents, CoreMethods, DocEvent, PageEvents, PageMethods } from "../src/rpc/messages";
 import type { Op, WorkbookDoc } from "../src/model/types";
+import { A1 } from "../src/xlsx/util";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const book = (n: string) => { const b = fs.readFileSync(path.join(here, "../../tests/corpus/workbooks", n)); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer; };
@@ -59,9 +60,10 @@ describe("core host", () => {
     const st = await p.port.call("start", { name: "report.xlsx", doc: srv.getDoc()!, preset, inputs });
     expect(st.view.preset).toEqual(preset);
     expect(st.history).toEqual({ undo: 0, redo: 0, undoLabel: "", redoLabel: "" });
-    // the first redraw: HTML for every table before the snapshot
+    // the first redraw: the snapshot, then (after the answer, S4.1: the stage's slide first) the HTML of every table
+    await until(() => p.seen.some(e => e.k === "html"));
     const firstDoc = p.seen.findIndex(e => e.k === "doc"), firstHtml = p.seen.findIndex(e => e.k === "html");
-    expect(firstHtml).toBeGreaterThanOrEqual(0); expect(firstHtml).toBeLessThan(firstDoc);
+    expect(firstDoc).toBeGreaterThanOrEqual(0); expect(firstHtml).toBeGreaterThan(firstDoc);
     expect(p.html.size).toBeGreaterThanOrEqual(preset.tables.length);
 
     // an edit: applied by the owner, undoable, saved through the page
@@ -165,13 +167,14 @@ describe("opening another workbook while one is open", () => {
     await p.port.call("start", { name: "report.xlsx", doc: srv.getDoc()!, preset, inputs });
     // the page keeps the latest key per table: the keys of the restored state must arrive again after the undo
     const latest = () => new Map([...p.seen].filter(e => e.k === "html").flatMap(e => e.v as [string, string, string, string][]).map(([id, kind, key]) => [id + "|" + kind, key]));
+    await until(() => latest().size > 0);                                              // (sent after the start's answer)
     const before = latest();
     await p.port.call("apply", { label: "Fill", ops: [{ op: "cell.patch", sheet, ref: "C5", patch: { fill: "#FF0000" } } as Op] });
     await until(() => !!p.last().view.edits[sheet]?.C5);
-    expect([...latest()].some(([k, v]) => before.get(k) !== v)).toBe(true);
+    await until(() => [...latest()].some(([k, v]) => before.get(k) !== v));          // the HTML follows the snapshot
     await p.port.call("undo", { redo: false });
     await until(() => !p.last().view.edits[sheet]?.C5);
-    expect(latest()).toEqual(before);
+    await until(() => JSON.stringify([...latest()]) === JSON.stringify([...before]));
   });
 });
 
@@ -238,5 +241,80 @@ describe("what the wizard and the formula bar read (S2.5)", () => {
     const pending = caller.call("hang", {});
     caller.failPending(new Error("stopped"));
     await expect(pending).rejects.toThrow("stopped");
+  });
+});
+
+describe("the stage's slide (S4.1)", () => {
+  async function opened() {
+    const srv = server(), p = page(srv, "anna");
+    await p.port.call("init", { served: true, client: "c1", me: "anna" });
+    await p.port.call("index", transfer({ buf: book("report.xlsx") }, []));
+    const preset = await p.port.call("defaultPreset", {});
+    await p.port.call("start", { name: "report.xlsx", doc: srv.getDoc()!, preset, inputs });
+    const slide = preset.slides.findIndex(s => s.tables.length > 1);
+    return { p, preset, slide: slide >= 0 ? slide : preset.slides.findIndex(s => s.tables.length) };
+  }
+  const tables = (s: Awaited<ReturnType<typeof stageOf>>) => s!.layers.filter(l => l.table !== null);
+  const stageOf = (p: ReturnType<typeof page>, slide: number, known: string[] = []) => p.port.call("stage", { slide, known, today: "13 Oct 2026", nodes: true });
+
+  it("each table is a layer of its own, kept by its key until its cells change; text boxes are layers too", async () => {
+    const { p, preset, slide } = await opened();
+    const one = await stageOf(p, slide);
+    expect(one!.id).toBe(preset.slides[slide].id);
+    const t1 = tables(one);
+    expect(t1.map(l => l.table)).toEqual(preset.slides[slide].tables.map((_, i) => i));
+    for (const l of t1) {
+      expect(l.box!.w).toBeGreaterThan(0);
+      expect(l.nodes.some(n => n.t === "hit" && n.kind === "t")).toBe(true);           // the cells, in table px
+      expect(l.svg.join("")).toMatch(/<rect [^>]*class="t" data-hit="t" data-id="\d+,\d+"><desc>/);   // the markup the page shows
+      expect(l.svg.join("")).toContain(`id="t${l.table}-`);                                    // its ids its own on the page
+    }
+    // the markup alone unless the nodes are asked for (the page draws the markup)
+    expect((await p.port.call("stage", { slide, known: [], today: "13 Oct 2026" }))!.layers.filter(l => l.table !== null).every(l => !l.nodes.length && l.svg.length)).toBe(true);
+    // asked again with nothing changed: the same keys (the page keeps the layers it has)
+    expect(tables(await stageOf(p, slide)).map(l => l.key)).toEqual(t1.map(l => l.key));
+    // a cell of the first table changes: its table gets a new key; a table of another sheet keeps its own (tables of
+    // the same sheet are drawn again too: tableKey keys on the sheet's edits, as v3's HTML cache did)
+    const L0 = preset.tables.find(t => t.id === preset.slides[slide].tables[0])!;
+    const other = preset.slides.findIndex(s => s.tables.some(id => preset.tables.find(t => t.id === id)!.sheet !== L0.sheet));
+    const before = tables(await stageOf(p, other)).map(l => l.key);
+    const cell = t1[0].nodes.find(n => n.t === "hit" && n.kind === "t") as { id: string }, [r, c] = cell.id.split(",").map(Number);
+    await p.port.call("apply", { label: "Bold", ops: [{ op: "cell.patch", sheet: L0.sheet, ref: A1(r, c), patch: { b: true } } as Op] });
+    await p.port.call("flush", {});
+    const t2 = tables(await stageOf(p, slide));
+    expect(t2[0].key).not.toBe(t1[0].key);
+    expect(other).toBeGreaterThanOrEqual(0);
+    expect(tables(await stageOf(p, other)).map(l => l.key)).toEqual(before);
+    // a text box with a bubble above the first table: one layer from its bubble's hit to its text
+    const id = preset.slides[slide].id, key = preset.slides[slide].tables[0] + ":top";
+    await p.port.call("apply", { label: "Add text box", ops: [{ op: "slide.patch", id, patch: { notes: { [key]: { text: "Loans grew", bubble: true } } } } as Op] });
+    const s3 = await stageOf(p, slide), notes = s3!.layers.filter(l => l.note);
+    expect(notes.length).toBe(1);
+    const hits = notes[0].nodes.filter(n => n.t === "hit") as { id: string; label?: string }[];
+    expect(hits.map(h => h.id.split(" ")[0])).toEqual([expect.stringMatching(/notebub|gls/), "tnote"]);
+    expect(hits[1].label).toBe("Loans grew");
+    // nothing of the text box is left in the furniture
+    expect(s3!.layers.filter(l => !l.note && l.table === null).flatMap(l => l.nodes).some(n => n.t === "hit" && /^tnote\b|notebub/.test(n.id))).toBe(false);
+    expect(notes[0].box!.w).toBeGreaterThan(0);
+  });
+  it("tables alike in every way but their sheet (deck20) are kept apart: each slide shows its own numbers", async () => {
+    const srv = server(), p = page(srv, "anna");
+    await p.port.call("init", { served: true, client: "c1", me: "anna" });
+    await p.port.call("index", transfer({ buf: book("deck20.xlsx") }, []));
+    const preset = await p.port.call("defaultPreset", {});
+    await p.port.call("start", { name: "deck20.xlsx", doc: srv.getDoc()!, preset, inputs });
+    const content = preset.slides.flatMap((s, i) => s.tables.length ? [i] : []).slice(0, 3);
+    const cells = async (slide: number) => (await p.port.call("stage", { slide, known: [], nodes: true }))!.layers.filter(l => l.table !== null)
+      .flatMap(l => l.nodes.filter(n => n.t === "hit" && n.kind === "t").map(n => (n as { label?: string }).label)).join("|");
+    const seen = await Promise.all(content.map(cells));
+    expect(new Set(seen).size).toBe(seen.length);
+    expect(await cells(content[0])).toBe(seen[0]);                                   // and asked again: the same
+  });
+  it("pictures the page has are not sent again; a slide that does not exist is null", async () => {
+    const { p, slide } = await opened();
+    const one = await stageOf(p, slide);
+    const ids = Object.keys(one!.images);
+    expect(Object.keys((await stageOf(p, slide, ids))!.images)).toEqual([]);
+    expect(await stageOf(p, 999)).toBe(null);
   });
 });

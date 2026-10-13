@@ -349,6 +349,9 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
   }
 
   function logoNodes(L: NonNullable<SlideImages["logo"]>) {
+    // a logo file that cannot be read (missing, not a picture): nothing is drawn – no empty bubble –, as v3 hid it; what
+    // a logo moves (page number, footer) stays where the deck's logo puts it
+    if (!L.w || !L.h) return;
     images[L.id] = L.src;
     const aspect = L.w && L.h ? L.w / L.h : 1;
     // an <img> of a given height and at most a width, object-fit: contain

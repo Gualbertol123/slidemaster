@@ -24,7 +24,7 @@ import { hexRgb } from "../xlsx/color";
 import { breakRuns, collapse } from "../text/lines";
 import type { RenderCtx } from "./context";
 import { halfLeading, inlineLayout, lu, measuredBuild, primaryFamily, runsOf, type Metrics, type Run, type TableDL } from "./excel-dl";
-import { glassPlan, type GCap, type GLine, type GShell, type GText } from "./glass";
+import { glassPlan, type GCap, type GlassPlan, type GLine, type GShell, type GText } from "./glass";
 import { contrastVars, themeVars } from "./slide";
 
 /** where the slide puts the table: its top left in slide px and its scale */
@@ -149,7 +149,8 @@ function capNodes(c: GCap, V: GlassVars): Node[] {
   else fill = { solid: WHITE, a: 0 };
   // border-top: 1px solid rgba(255,255,255,.55), inside the rounded box
   const inner: Node[] = [{ t: "rect", x, y, w, h, fill }, { t: "rect", x, y, w, h: Math.min(1, h), fill: { solid: WHITE, a: .55 } }, ...shadowNodes(shadows, x, y, w, h, r, true)];
-  return [...shadowNodes(shadows, x, y, w, h, r, false), { t: "group", clip: { x, y, w, h, r }, children: inner }];
+  // its hit (kind "cap", the classes as id): the stage gives the capsule's rect its classes, as the page's .cap had
+  return [{ t: "hit", kind: "cap", id: c.cls, x, y, w, h }, ...shadowNodes(shadows, x, y, w, h, r, false), { t: "group", clip: { x, y, w, h, r }, children: inner }];
 }
 
 /** a glass cell text (.t): see the header. Letter-spacing (CSS: after every character) is part of every advance. */
@@ -214,8 +215,8 @@ export function glassText(t: GText, m: Metrics): Node[] {
   return out;
 }
 
-export function glassToDisplayList(L: import("../xlsx/types").TableLayout, ctx: RenderCtx, place: Placement, wall: Wallpaper | null, m: Metrics, opts: { noText?: boolean } = {}): TableDL {
-  const plan = glassPlan(L, ctx, opts), V = glassVars(ctx), images: Record<string, string> = {}, nodes: DisplayList = [];
+export function glassToDisplayList(L: import("../xlsx/types").TableLayout, ctx: RenderCtx, place: Placement, wall: Wallpaper | null, m: Metrics, opts: { noText?: boolean } = {}, given?: GlassPlan): TableDL {
+  const plan = given ?? glassPlan(L, ctx, opts), V = glassVars(ctx), images: Record<string, string> = {}, nodes: DisplayList = [];
   if (wall) images[wall.blurId] = wall.blurSrc;
   for (const s of plan.shells) nodes.push(...glassBox(s.cls, r1(s.x), r1(s.y), Math.max(0, r1(s.w)), Math.max(0, r1(s.h)), +Math.max(0, s.rad).toFixed(1), V, place, wall, { tint: s.tint, ring: s.ring }));
   for (const l of plan.lines) nodes.push(...lineNodes(l, V));
@@ -281,6 +282,9 @@ function glassPic(p: import("../xlsx/types").Pic, cls: "gcut" | "gpic", V: Glass
   return M ? [{ t: "group", transform: M, children: [hit, ...body] }] : [hit, ...body];
 }
 
-/** a table's display list with the page's measurements (Liquid Glass) */
-export const glassTableDL = (L: import("../xlsx/types").TableLayout, ctx: RenderCtx, place: Placement, wall: Wallpaper | null, opts: { noText?: boolean } = {}) =>
-  measuredBuild(m => glassToDisplayList(L, ctx, place, wall, m, opts));
+/** a table's display list with the page's measurements (Liquid Glass); the plan does not depend on them, so it is made
+    once, not in every measuring round */
+export function glassTableDL(L: import("../xlsx/types").TableLayout, ctx: RenderCtx, place: Placement, wall: Wallpaper | null, opts: { noText?: boolean } = {}) {
+  const plan = glassPlan(L, ctx, opts);
+  return measuredBuild(m => glassToDisplayList(L, ctx, place, wall, m, opts, plan));
+}

@@ -69,7 +69,7 @@ export function ThemePicker() {
 }
 
 function Options() {
-  const st = useStyle(), p = st.pn, has = useStore(s => s.doc.open);
+  const st = useStyle(), p = st.pn, has = useStore(s => s.doc.open), soft = useStore(s => !!s.prefs.prefs.softShadows);
   const pn = (patch: Partial<PageNumbers>, coalesce?: string) => styleChange("Page numbers", { pn: patch }, coalesce);
   const ft = st.footer, fo = (patch: Partial<Footer>, coalesce?: string) => styleChange("Footer", { footer: patch }, coalesce);
   return (
@@ -130,6 +130,8 @@ function Options() {
             onChange={e => { const v = +(e.target as HTMLInputElement).value, el = (e.target as HTMLElement).nextElementSibling; if (el) el.textContent = v < 50 ? "softer" : v > 50 ? "stronger" : "as designed"; debounced("contrast", () => styleChange("Contrast", { contrast: v }, "contrast")); }} /><span className="cv">{st.contrast < 50 ? "softer" : st.contrast > 50 ? "stronger" : "as designed"}</span></div></>}
         </div>
         <div className="optnote">Corners: roundness of tables, bubbles and the logo (0 = square). Contrast: how much the tables and bubbles stand out from the background.</div>
+        <label className="ck big"><input type="checkbox" id="softShadows" checked={soft} onChange={e => setPrefs({ softShadows: (e.target as HTMLInputElement).checked || null })} /> Soft shadows on screen</label>
+        <div className="optnote">Only on your screen: shadows drawn with a true blur. Unticked, the screen draws them as the PDF does (in 5 steps).</div>
         <div className="sep" />
         <div className="opthd">This deck's style</div>
         <div className="optnote">Design, colour, page numbers and logo are saved with this workbook and shared with everybody who opens it.</div>

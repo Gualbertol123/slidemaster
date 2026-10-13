@@ -9,8 +9,8 @@
    Components read what they render through selectors (`useStore(s => s.selection.sel)`) and re-render only
    when that changes. Everything else reads `get()` and writes with `patch()`: the actions are module
    functions (state/app.ts, state/dialogs.ts, state/fonts.ts, editor/*) - the store holds no copies of them.
-   The slide stage and the thumbnails are imperative (performance); they register controllers below and
-   subscribe to the slices they draw (editor/stage.ts, editor/thumbs.ts). */
+   The stage (stage/) and the thumbnails register controllers below: the document changes (state/app.ts) tell them
+   to draw again. */
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import type { MirrorWorkbook } from "@slide-builder/core/xlsx/mirror";
@@ -98,7 +98,9 @@ export const setDialogs = (p: Partial<Dialogs>) => patch("ui", { dialogs: { ...g
 export const same = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
 
 /* imperative controllers (registered by the editor components) */
-export const STAGE = { render() { /* full rebuild */ }, refresh() { /* changed tables only */ }, paintSel() { /* selection */ }, fit() { /* zoom */ } };
+export const STAGE = { render(_fresh?: boolean) { /* the slide again (fresh: text measured again) */ }, refresh() { /* the slide after a change */ }, fit() { /* measure the space again */ },
+  /** what the stage would ask for slide `slide` (a starting workbook draws it first) */ request(slide: number): import("@slide-builder/core/rpc/messages").StageReq { return { slide, known: [] }; },
+  /** the worker drew the stage's slide unasked */ pushed(_s: import("@slide-builder/core/rpc/messages").StageSlide) { /* the stage takes it */ } };
 export const THUMBS = { render() { /* all */ }, refresh(_i?: number) { /* one (+ index slides) */ } };
 
 let toastId = 0;

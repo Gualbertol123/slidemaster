@@ -214,7 +214,9 @@ export function themeVars(ctx: RenderCtx): Record<string, string> {
 export interface SlideOpts { interactive?: boolean; thumb?: boolean }
 /** a slide as markup: the slide element's class and CSS variables, and its inner HTML (placed and fitted by the page) */
 export interface SlideMarkup { className: string; vars: [string, string][]; html: string }
-export function slideMarkup(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: SlideOpts = {}): SlideMarkup {
+/** the slide element's classes (design, slide type) and CSS variables (theme, corners, glass): the HTML slide's and
+    the stage's (the stage's overlays read the accent colours) */
+export function slideFrame(R: RuntimeSlide, ctx: RenderCtx): Omit<SlideMarkup, "html"> {
   const d = ctx.style.design, glassy = d === "glass", rk = ctx.style.radius / 100;
   const className = "slide " + (d === "clean" ? "excel clean" : d) + (R.type !== "content" ? " " + R.type : "");
   const vars: [string, string][] = [["--rk", String(rk)]];
@@ -223,6 +225,11 @@ export function slideMarkup(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: 
     vars.push(["--gi", String(glassLevel(ctx.style))], ["--amt", String((+ctx.style.color || 0) / 100)]);
     for (const [k, v] of Object.entries(contrastVars(ctx.style.contrast))) vars.push([k, v]);
   }
+  return { className, vars };
+}
+export function slideMarkup(R: RuntimeSlide, idx: number, ctx: RenderCtx, opts: SlideOpts = {}): SlideMarkup {
+  const d = ctx.style.design, glassy = d === "glass", rk = ctx.style.radius / 100;
+  const { className, vars } = slideFrame(R, ctx);
   const pageNo = pageNoFor(ctx, idx);
   const logo = slideHasLogo(R) ? ctx.logoSrc : "", cover = R.type === "cover";
   let h = glassy ? `<div class="wall"></div>` : "";

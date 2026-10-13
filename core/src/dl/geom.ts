@@ -106,6 +106,20 @@ export function shadowLayers(n: ShadowNode): ShadowLayer[] {
   }
   return out;
 }
+/** a soft shadow as ONE shape to blur (B3: the screen's "Soft shadows" option, a Gaussian blur of standard deviation
+    blur / 2 as CSS box-shadow draws it): the areas of shadowLayers without the steps – outer: the box grown by the
+    spread and moved by the offset, within the frame around the box; inset: the frame minus the hole, within the box.
+    `box`: where the blurred shape can reach (the filter region) */
+export function shadowShape(n: ShadowNode): { fill: PathCmd[]; clip: PathCmd[]; evenodd: boolean; box: { x: number; y: number; w: number; h: number } } {
+  const far = Math.abs(n.dx) + Math.abs(n.dy) + Math.abs(n.spread) + n.blur + 10, reach = n.blur * 1.5 + 2;
+  const farRect = rrectPath(n.x - far, n.y - far, n.w + 2 * far, n.h + 2 * far, [0, 0, 0, 0]);
+  if (!n.inset) {
+    const s = n.spread, box = { x: n.x + n.dx - s - reach, y: n.y + n.dy - s - reach, w: Math.max(0, n.w + 2 * s) + 2 * reach, h: Math.max(0, n.h + 2 * s) + 2 * reach };
+    return { fill: n.w + 2 * s > 0 && n.h + 2 * s > 0 ? grow(n, s, n.dx, n.dy) : [], clip: [...farRect, ...rrectOf(n)], evenodd: false, box };
+  }
+  const hole = n.w - 2 * n.spread > 0 && n.h - 2 * n.spread > 0 ? grow(n, -n.spread, n.dx, n.dy) : [];
+  return { fill: [...farRect, ...hole], clip: rrectOf(n), evenodd: true, box: { x: n.x - reach, y: n.y - reach, w: n.w + 2 * reach, h: n.h + 2 * reach } };
+}
 
 /** a gradient stroke of a rect as the ring it covers (evenodd), or of a line as the band it covers */
 export function strokeRing(b: RRect, w: number): PathCmd[] {

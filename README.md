@@ -397,10 +397,18 @@ worker's snapshots are rebased on calls it has not confirmed yet). Tables are dr
 | `state/dialogs.ts` | Promise-based dialogs (`ask`, `confirmBox`, `runWizard`, installer); which one is open: `ui.dialogs` in the store, rendered by `ui/`. |
 | `state/fonts.ts` | Font library in the page (store: `doc.fonts`, `ui.fontBusy`): `loadFonts`, `@font-face` in `<style id="fontcss">`, `addGoogleFont` (downloads faces, uploads them to the helper), `uploadFontFiles`, `embeddedFontCss(html)` (fonts used by exported slides as data URLs). |
 
-### 5.5 `editor/` – the slide editor
+### 5.5 `stage/` – the slide on screen (M4: drawn from the display list)
 | File | Responsibility |
 |---|---|
-| `stage.ts` | Imperative stage: `renderStage` (full build, deferred while an inline editor is open), `refreshStage` (re-renders only changed tables and patches changed DOM nodes), `fitStage`/zoom, hit testing (one `.hits` overlay per table + binary search over column/row edges), selection painting, column/row border drags, inline cell editor, slide-text and text-box editors, table handles (resize = binary search of the layout weight, edge stretch, grip move between bands), text box move/stretch with snapping guides, notes section, logo load state. Subscribes to the store's `selection` slice (paints cells, slide text, text box, painter cursor) and `ui.zoom` (fit); slides are redrawn by `state/app.ts` on document changes (it knows whether a refresh is enough). |
+| `data.ts` | What the stage shows: the core worker's `stage` answer (the current slide's display list in layers, each as SVG markup; tables cached by content in the worker) – one request at a time, the newest wins; slides the worker sends unasked after a change or a start (`stage` event); pictures as blob URLs; the open editor; **never redraws under an open editor** (E8: the newest slide waits). `STAGE.render(fresh)` / `STAGE.refresh()` ask again. |
+| `Stage.tsx` | `Stage` (fit / zoom), the `.slide` frame (design classes, theme variables), the layers in painting order, and the overlays as React components: the text layer (transparent elements over the drawn texts: select, double-click, read), text boxes, each table's hit area (`.hits`: cells, hover, border drags) and handles (`.hbox`), the selection, guides; the editors. |
+| `SlideSvg.tsx`, `patch.ts` | `TableLayer` (`<svg class="tw" data-i>`, memoised by its key, own compositing layer) and the furniture / text-box layers; markup arrives in pieces, one per display-list node, and only the pieces that changed are replaced. |
+| `model.ts`, `hit.ts` | The overlays' model (the worker's layers paired with the runtime slide); hit testing: the table's box from its layer, the cell by v3's binary search over column/row edges (`cellFromPoint`). |
+| `drags.ts`, `actions.ts`, `editors.tsx` | Column/row borders, table corner, borders and grip, text-box move/stretch with snapping (previews at most once per frame, one operation on pointer-up); what the keyboard and the toolbars do on the slide; the cell, slide-text and text-box editors. |
+
+### 5.6 `editor/` – editing
+| File | Responsibility |
+|---|---|
 | `edit.ts` | Selection model (`setSel`, `moveSel`, merged-block expansion), `applySel(label, fn)` (diffs `CellEdit`s → `cell.patch`), `commitText`. |
 | `tables.ts` | Column/row sizes, stretch, same size, copy/reset sizes, align/valign, merge/unmerge – **per design** (`sizePatch`, `sizingChange`). |
 | `textfmt.ts` | The **unified text toolbar**: `textTarget()` → cells / text box / slide text with the same `apply`/`clear` interface (cells store pt, others px). |
@@ -408,7 +416,7 @@ worker's snapshots are rebased on calls it has not confirmed yet). Tables are dr
 | `export.ts` | `doExport(kind)`, `exportVersions(designs)`, `exportPayload`, in-window fallback (§6.9). |
 | `keys.ts`, `thumbs.ts`, `issues.ts` | Global keyboard; lazy thumbnails (IntersectionObserver); side-panel notes (missing tables, hidden rows, stale text edits…). |
 
-### 5.6 `ui/`, `wizard/`, `styles/`
+### 5.7 `ui/`, `wizard/`, `styles/`
 * `ui/App.tsx` (layout, dialogs), `Chrome.tsx` (thumbnails, issues, canvas, status bar, busy, toast), `Topbar.tsx` (open, wizard, version
   picker, presence, design switch, Design…, glass/colour sliders, Options, export menu, engine pill),
   `Ribbon.tsx` (row 1: text toolbar + formula bar), `TableTools.tsx` (row 2: cells, tables, text boxes,
@@ -437,9 +445,10 @@ served: reopen `prefs.lastFile`, start `tick` (3 s) and the presence heartbeat (
 3. `LCACHE.clear()`, `GET /api/workbooks/<name>/doc`.
 4. Preset: continue with the saved one, or the wizard (with `defaultPreset` as draft, on the mirror); then the
    worker's `ensure(presetSheets)` parses only the sheets used.
-5. The worker's `start` (its `DocSync`, the first table HTML); `runtimeSlides(wb, preset, name, design)` on the mirror →
-   `deck.slides` (one store update with the new document); restore the person's last version; wallpaper;
-   `STAGE.render()`, `THUMBS.render()`.
+5. The worker's `start` (its `DocSync`; the stage's slide drawn first and sent unasked, then the snapshot, then the
+   thumbnails' table HTML); `runtimeSlides(wb, preset, name, design)` on the mirror → `deck.slides` (one store update
+   with the new document); restore the person's last version; wallpaper; `STAGE.render()`, `THUMBS.render()` (the
+   thumbnails wait for the stage's slide and the HTML).
 
 ### 6.3 Making an edit (e.g. Ctrl+B on cells)
 1. `editor/keys.ts` → `toggleBold()` → `applySel` diffs the selected cells' `CellEdit`s → `cell.patch` ops →
@@ -447,8 +456,9 @@ served: reopen `prefs.lastFile`, start `tick` (3 s) and the presence heartbeat (
 2. The page shows the ops on its view mirror (save state "pending") and calls the worker's `apply`. There
    `DocSync.apply`: for each op compute `inverseOf` on the current view, apply locally, push to `pending`, emit,
    schedule a flush in 300 ms; the history stores an undo entry (same `coalesce` key within 1.5 s → one entry,
-   e.g. a slider drag). The worker redraws the changed tables and sends their HTML, then the snapshot; the page
-   updates the stage.
+   e.g. a slider drag). The worker draws the slide on the stage again at once (only the tables that changed are
+   built; their markup in pieces) and sends it, then the snapshot, then the thumbnails' HTML; the stage replaces the
+   pieces that changed (`stage/patch.ts`).
 3. `flush`: `POST /api/workbooks/<name>/ops {ops, client}` (one request in flight).
 4. Helper: Host/Origin/token/format checks → `store.update_workbook`: lock `wb-<key>` → read latest
    (upgrading an older format) → `ops.apply_ops` → atomic write → rolling backup if due → unlock → `{doc,
@@ -462,7 +472,7 @@ served: reopen `prefs.lastFile`, start `tick` (3 s) and the presence heartbeat (
 Every 3 s the worker's `poll` (`DocSync.poll()`) → `GET …/doc?since=<rev>` (204 if unchanged) → rebase → `onDocChange`:
 preset changed → rebuild runtime slides + full render; titles/logo changed → rebuild; style changed →
 `onStyleChanged` (re-resolve slides if the design changed; wallpaper; full render); otherwise
-`STAGE.refresh()` (only tables whose `tableHtml` changed are patched) and thumbnails. The stage never
+`STAGE.refresh()` (the worker rebuilds only the tables whose content changed) and thumbnails. The stage never
 redraws while an inline editor is open; settings inputs use `ui/Field.tsx`.
 
 ### 6.5 Undo/redo
@@ -759,7 +769,7 @@ line (`SLIDEBUILDER_ENGINES=devtools,cli`), whatever Python packages the PC has.
 | **New saved field** | `model/types.ts` (type + `Op` patch type) → key lists in `model/ops.ts` **and** `backend/slidebuilder/ops.py` → a case in `shared/ops-vectors.json` → `docs/ARCHITECTURE.md` §3 → UI → rendering → if it changes a table's HTML, add it to `tableKey` (`render/context.ts`) → tests. Optional fields need no format change. |
 | **Change the meaning/shape of saved data** | raise `SCHEMA[kind]` in `upgrade.py` + `@step(kind, old)`; raise `FORMATS`; test in `test_upgrade.py`; **add** `fixtures/saved/<kind>.v<n+1>.json`; ARCHITECTURE §3.3. |
 | Cell formatting control | `ui/Ribbon.tsx` → `editor/textfmt.ts` / `editor/edit.ts applySel` → `render/edits.ts` → painter (`editor/painter.ts`). |
-| Table geometry, drags | `editor/tables.ts`, `editor/stage.ts`, `render/slide.ts computeLayout/sizingOf`. |
+| Table geometry, drags | `editor/tables.ts`, `stage/drags.ts`, `stage/hit.ts`, `render/slide.ts computeLayout/sizingOf`. |
 | Liquid Glass look | `render/glass.ts`, `styles/slide.css`, `render/wallpaper.ts`, themes in `model/style.ts`; check vector export (`render/printcss.ts`). |
 | Excel look | `render/excel.ts`, `xlsx/layout.ts`, `xlsx/numfmt.ts`. |
 | Reading something new from .xlsx | `xlsx/workbook.ts`, `xlsx/drawing.ts`, `xlsx/types.ts`. |
@@ -912,8 +922,11 @@ app/
 │  │  ├─ app.ts                        actions: boot, open, change, undo/redo, polls, presence; the worker's mirrors
 │  │  ├─ dialogs.ts                    in-app dialogs (no window.confirm)
 │  │  └─ fonts.ts                      the font library in the page (@font-face, uploads)
-│  ├─ editor/                          the slide being edited (imperative DOM)
-│  │  ├─ stage.ts                      overlays, hit testing, inline editors, drags; follows the store
+│  ├─ stage/                           the slide on screen: the display list as SVG layers, React overlays
+│  │  ├─ Stage.tsx · SlideSvg.tsx      frame, layers, text layer, hit areas, handles, selection, editors
+│  │  ├─ data.ts · patch.ts            what the worker sent; markup patched piece by piece
+│  │  └─ hit.ts · drags.ts · actions.ts · editors.tsx · model.ts
+│  ├─ editor/                          editing: selection, cells, tables, keyboard
 │  │  ├─ edit.ts                       selection and cell edits as operations
 │  │  ├─ tables.ts · painter.ts        widths/heights/same size · format painter
 │  │  ├─ textfmt.ts                    one text toolbar for every text

@@ -329,12 +329,19 @@ export const roughMetrics: Metrics = {
   lines: (t) => [t],
   noteSize: (_n, start) => start,
 };
+/** the measurer's answers so far: runs, line breaks and fitted text boxes, by what was asked (of measurer `by`) */
+const MEASURED = { by: null as unknown, runs: new Map<string, RunMetrics>(), wraps: new Map<string, string[]>(), notes: new Map<string, number>() };
+/** the page's fonts changed (a font arrived or was added): everything is measured again */
+export function forgetMeasurements() { MEASURED.runs.clear(); MEASURED.wraps.clear(); MEASURED.notes.clear(); }
 /** measure everything a build needs: one batch per round, rounds until nothing new is asked (the units of wrapped
     text first, then the runs of the lines they give; three or four rounds per table, however long the text) */
 export async function measuredBuild<T>(build: (m: Metrics) => T): Promise<T> {
   const tm = platform().text;
   if (!tm.measureRuns || !tm.breakLines) return build(roughMetrics);
-  const runs = new Map<string, RunMetrics>(), wraps = new Map<string, string[]>(), notes = new Map<string, number>();
+  // what was measured stays known for the next builds (an edit measures its own cell only, S4.1), until the page's
+  // fonts change (forgetMeasurements) or it grows too large
+  if (MEASURED.by !== tm || MEASURED.runs.size + MEASURED.wraps.size + MEASURED.notes.size > 300_000) { forgetMeasurements(); MEASURED.by = tm; }
+  const { runs, wraps, notes } = MEASURED;
   for (let round = 0; ; round++) {
     if (round === 8) throw new Error("text measurement did not settle after 8 rounds");
     const rec = new Recorder(), probe = new Answers(runs, wraps, rec, notes);

@@ -180,7 +180,7 @@ Test any change with layouts of very different kinds (see §10) – not only the
 `buildLayout(S, g, sizes)`; a table with sizes or colour scales gets its **own** layout object
 (`resolveTable`, cached by id + sizes) so two tables on the same "x" region never share overrides.
 Sized columns are listed in `L.fixedCols`; Liquid Glass keeps them exactly (`glassGeom` only widens the
-others). On the slide (`editor/stage.ts`): within 4 screen px of a border the cursor becomes a resize
+others). On the slide (`app/src/stage/hit.ts`, `drags.ts`): within 4 screen px of a border the cursor becomes a resize
 cursor; dragging shows a guide and the width, and applies to every selected column/row when the border
 belongs to the selection; double-click a border = Excel size. The toolbar's **W / H** boxes set exact
 values for the selection.

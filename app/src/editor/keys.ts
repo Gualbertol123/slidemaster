@@ -2,7 +2,7 @@
 import { get } from "../state/store";
 import { flushDoc, gotoSlide, undo } from "../state/app";
 import { clearSel, clearText, moveSel, selectAll } from "./edit";
-import { editSelectedText, openInline, patchNote, selectNote } from "./stage";
+import { editNote, editSelectedText, openInline, patchNote, selectNote } from "../stage/actions";
 import { selectSlideText, toggleBold, toggleItalic } from "./textfmt";
 import { stopPainter } from "./painter";
 
@@ -30,7 +30,7 @@ export function installKeys() {
       }
       if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); patchNote("Remove text box", null); return; }
       if (e.key === "Escape") { selectNote(null); return; }
-      if (e.key === "Enter" || e.key === "F2") { e.preventDefault(); document.querySelector<HTMLElement>(`#stage .tnote[data-note="${CSS.escape(get().selection.noteSel!)}"]`)?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); return; }
+      if (e.key === "Enter" || e.key === "F2") { e.preventDefault(); editNote(get().selection.noteSel!); return; }
       return;
     }
     if (!get().selection.sel) return;

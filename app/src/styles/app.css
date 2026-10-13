@@ -211,3 +211,22 @@ body.painting .slide .hits{cursor:copy}
 #wCutRange{flex:1}
 .menu button:disabled{opacity:.45;cursor:default}
 .wov .ovb.ghost,.wov .ovb.cut{pointer-events:none}        /* step 4: cells inside tables are picked through the outlines */
+/* the stage (S4.1): the slide is drawn by SVG layers; .ovl holds what you point at – the text layer (transparent
+   elements over the drawn texts: select, double-click, read), text boxes, the tables' hit areas and handles. As in v3
+   (each table's hit area inside its own .tw), text boxes are above the tables' hit areas, the handles above both */
+.stagewrap .slide > svg{position:absolute;left:0;top:0}
+.slide .ovl{position:absolute;left:0;top:0;width:1600px;height:900px;pointer-events:none}
+.ovl .tx{position:absolute;box-sizing:border-box;color:transparent;white-space:pre;overflow:hidden;line-height:1;pointer-events:none;user-select:none}
+.ovl .tx[data-edit]{pointer-events:auto}
+.ovl .tnote{position:absolute;z-index:41;box-sizing:border-box;padding:4px 6px;line-height:1.28;white-space:pre-wrap;overflow:hidden;color:transparent;display:flex;flex-direction:column;pointer-events:auto;user-select:none}
+.ovl .tnote.empty{color:rgba(18,22,44,.38);font-style:italic;border:1.5px dashed rgba(10,102,216,.45);border-radius:8px}
+.slide.glass .ovl .tnote.empty{font-family:-apple-system,"Segoe UI Variable Text","Segoe UI",Arial,sans-serif;font-weight:500}
+.slide.excel .ovl .tnote.empty{font-family:'Century Gothic','URW Gothic',Arial,sans-serif}
+.slide.clean .ovl .tnote.empty{font-family:'Segoe UI Variable Text','Segoe UI',Calibri,Arial,sans-serif}
+.ovl .notebub{position:absolute;pointer-events:none}
+.ovl .hits{pointer-events:auto}
+.ovl .emptyslide{position:absolute;left:0;right:0;top:400px;text-align:center;font:500 22px/1.4 "Segoe UI",sans-serif;color:rgba(18,22,44,.45)}
+.stagewrap .slide > svg{contain:layout style}
+/* each table on a compositing layer of its own (as v3's scaled .tw): an edit re-rasters the table's changed cells, not
+   the wallpaper and the glass beneath it; a 3D transform, not will-change, so the raster follows the zoom */
+.stagewrap .slide > svg.tw{transform:translateZ(0)}

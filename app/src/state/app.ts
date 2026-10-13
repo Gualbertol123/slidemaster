@@ -32,6 +32,10 @@ import { loadFonts, watchFontLoads } from "./fonts";
 let port: CorePort | null = null;
 /** the latest table HTML the worker drew, by table id and kind ("html" | "thtml") */
 const tableHtmls = new Map<string, { key: string; html: string }>();
+/** the worker sent the thumbnails' HTML since the workbook started (it sends it after the stage's slide, S4.1): the
+    thumbnails wait for it rather than draw their tables on the page's thread */
+let htmlIn = true;
+export const htmlArrived = () => htmlIn;
 /** tables the page drew itself (no HTML from the worker for that key yet), for tests */
 export const coreStats = { localHtml: 0, worker: false };
 /** the workbook being opened (its slices can arrive before its index; they wait) and the open one */
@@ -52,8 +56,9 @@ export function core(): CorePort {
     const wb = [openingWb, get().deck.wb as MirrorWorkbook | null].find(w => w && w.book === e.book);
     if (wb) receiveSlices(wb, e); else if (!openingWb) earlySlices.push(e);        // the index of that workbook is on its way
   });
-  port.on("html", list => { for (const [id, kind, key, h] of list) tableHtmls.set(id + "|" + kind, { key, html: h }); });
+  port.on("html", list => { for (const [id, kind, key, h] of list) tableHtmls.set(id + "|" + kind, { key, html: h }); if (!htmlIn) { htmlIn = true; THUMBS.render(); } });
   port.on("doc", ev => onWorkerDoc(ev));
+  port.on("stage", s => STAGE.pushed(s));
   port.on("progress", p => { if (p) showBusy(p.text, p.frac); else hideBusy(); });
   port.on("retiredSaved", () => { unsavedElsewhere = false; });
   // an error in the worker's own work (e.g. a sheet read after a colleague's change): shown, never a busy screen left up
@@ -304,10 +309,12 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
 
   const vid = get().prefs.prefs.versions?.[name] || "";         // the version this person looked at last
   const version = ((newPreset || preset)?.versions || []).some(x => x.id === vid) ? vid : "";
-  starting = true; pending.length = 0;
+  starting = true; pending.length = 0; htmlIn = false;
   let st;
-  try { st = await core().call("start", { book: wb.book, name, doc, preset: newPreset, inputs: { ...viewInputs(name), version } }); }
+  // the stage's slide is drawn first: the one shown before, if the new deck has it, as the slides are resolved below
+  try { st = await core().call("start", { book: wb.book, name, doc, preset: newPreset, inputs: { ...viewInputs(name), version }, stage: STAGE.request(get().deck.cur) }); }
   catch (e) {
+    htmlIn = true;                                           // no new workbook: the thumbnails draw what they have
     // refused before the switch (another open came first): the worker still has the open document, and so does the page
     if ((e as { code?: string }).code === "NOT_STARTED") { patch("deck", { opening: "" }); throw gen !== openGen ? superseded() : e; }
     // the worker no longer holds the document shown: close it here too, so no edit can reach another file's document
@@ -479,8 +486,7 @@ export function gotoSlide(i: number) {
   if (i < 0 || i >= slides.length || i === cur) return;
   patchAll({ deck: { cur: i }, selection: { sel: null } }); STAGE.render();
 }
-/** the stage follows ui.zoom (editor/stage.ts) */
-/** the stage re-fits when the zoom changes (editor/stage.ts follows ui.zoom); "Fit" pressed again re-fits too
+/** the stage re-fits when the zoom changes (stage/Stage.tsx follows ui.zoom); "Fit" pressed again re-fits too
     (the panels above the stage may have changed its size since) */
 export function setZoom(z: "fit" | number) { const unchanged = get().ui.zoom === z; patch("ui", { zoom: z }); setPrefs({ zoom: z }); if (unchanged) STAGE.fit(); }
 
