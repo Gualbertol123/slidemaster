@@ -66,7 +66,7 @@ copy of a share folder: `docs/next/release-checklist.md` §4.)
 
 Known and accepted differences (not to report): the old engine's PDF text repeats some runs (copy/paste from
 it gives table text twice) and contains "ﬁ" ligatures – the new one does not; the new PDFs are smaller;
-"as pictures" pages are 2× instead of 4× (sharp on screen, about 8× smaller – B9); version PDFs have the
+"as pictures" pages are 2× instead of 4× (sharp on screen, a quarter of the pixels – B9); version PDFs have the
 design in their name (B11). Decided on 2026-10-13 (PROGRESS, Decisions): "as pictures" in Liquid Glass stays
 lossless (deck20: ≈ 70 MB, Excel ≈ 12 MB); a 1–3-slide PDF may be over the per-slide size budget (the fonts and the
 glass wallpaper are a cost per document) – only a PDF larger than the old engine's is a P8 problem. Known gap: a

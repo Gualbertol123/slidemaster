@@ -7,6 +7,7 @@ renamed into place. A target that is open in a viewer (locked) is skipped for " 
 import base64
 import json
 import os
+import re
 import time
 
 from . import paths
@@ -70,7 +71,8 @@ def export_file(name, data, export_dir=None):
     ext = os.path.splitext(base)[1].lower()
     if ext not in EXPORT_FILE_TYPES:
         raise ExportError("only .pdf and .png files are exported")
-    stem = clean_name(os.path.splitext(base)[0])
+    # control characters (a tab or line break in a slide's name) are not allowed in Windows file names
+    stem = clean_name(re.sub(r"[\x00-\x1f\x7f]+", " ", os.path.splitext(base)[0]))
     if not data or not data.startswith(EXPORT_FILE_TYPES[ext]):
         raise ExportError("the exported file is empty or not a %s file" % ext[1:].upper())
     t0 = time.time()

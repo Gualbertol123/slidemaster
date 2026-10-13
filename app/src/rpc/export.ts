@@ -17,7 +17,7 @@ const IDLE_MS = 60_000;
 
 export class ExportPool {
   private slots: Slot[] = [];
-  private waiting: ((s: Slot) => void)[] = [];
+  private waiting: { ok: (s: Slot) => void; no: (e: unknown) => void }[] = [];
   private idle: ReturnType<typeof setTimeout> | null = null;
   private links = 0; private watching: CorePort | null = null;
   constructor(private readonly core: () => CorePort, private readonly page: { [K in keyof ExportPageMethods]: (a: Parameters<ExportPageMethods[K]>[0]) => Promise<ReturnType<ExportPageMethods[K]>> | ReturnType<ExportPageMethods[K]> }, private readonly src: string = WORKER_SRC) {}
@@ -64,7 +64,7 @@ export class ExportPool {
     const free = this.slots.find(s => !s.busy && !s.port.closed);
     const slot = free || (this.slots.length < MAX_EXPORT_WORKERS ? this.start() : null);
     if (slot) { slot.busy = true; return Promise.resolve(slot); }
-    return new Promise(ok => this.waiting.push(ok));
+    return new Promise((ok, no) => this.waiting.push({ ok, no }));
   }
   private release(slot: Slot) {
     slot.busy = false;
@@ -72,8 +72,12 @@ export class ExportPool {
     if (next) {
       // the next job takes this worker – or, when it stopped meanwhile, a new one (busy at once, so no other job takes it)
       let s = slot;
-      if (s.port.closed) { this.slots = this.slots.filter(x => x !== s); s = this.start(); }
-      s.busy = true; next(s); return;
+      if (s.port.closed) {
+        this.slots = this.slots.filter(x => x !== s);
+        // a new worker that cannot start fails the waiting job instead of leaving it waiting for ever
+        try { s = this.start(); } catch (e) { next.no(e); this.release(slot); return; }
+      }
+      s.busy = true; next.ok(s); return;
     }
     if (this.slots.every(s => !s.busy)) this.idle = setTimeout(() => this.stopAll(), IDLE_MS);
   }

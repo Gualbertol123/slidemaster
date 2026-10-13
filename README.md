@@ -654,7 +654,7 @@ display lists on a channel of their own (`linkExport`), so the lists never pass 
   `printReady` skips them (static Segoe UI, as in 3.6's PDFs); synthetic bold and italic as Chrome draws them;
   a family nobody has → a default face, named in the toast. Never Type 3, never a variable font.
 * **PDF · as pictures**: each slide drawn on an `OffscreenCanvas` at **2×** (3200 × 1800) and passed through as a
-  Flate image with PNG predictors (no re-compression): about 8× smaller than 3.6's 4× pages.
+  Flate image with PNG predictors (no re-compression): a quarter of the pixels of 3.6's 4× pages (deck20: Excel 11.6 MB; Liquid Glass 69 MB instead of 125 MB).
 * **PNG** (current / every slide) at 3× (4800 × 2700) and **Copy current slide** (a `ClipboardItem` written at the
   click, its PNG following when drawn).
 * **Every version × designs**: all jobs at once, three at a time; names `<workbook> - <version> - <design>.pdf`.

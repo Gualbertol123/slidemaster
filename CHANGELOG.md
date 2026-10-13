@@ -8,22 +8,27 @@ Releases are made with `docs/next/release-checklist.md`.
 What users notice – the export (PLAN S3.7–S3.8; piloted, go on 2026-10-13)
 * **Slide Builder writes the PDFs and pictures itself.** No export engine (Chrome) is needed any more for
   *Export PDF*, *PDF · as pictures*, *PNG* and *Copy current slide*; the work runs in the background, the window
-  keeps responding. Measured on the 20-slide test deck on the reference PC:
+  keeps responding. The 20-slide test deck (3.6: the baseline in `docs/next/01-current-system.md` §3.2, and the
+  3.6 way measured again on 2026-10-13 with the old-engine item; 3.7: `npm run bench`, PROGRESS.md Measurements):
 
   | | 3.6 (export engine) | 3.7 |
   |---|---|---|
-  | Liquid Glass, click → PDF saved | ≈ 5.7 s | ≈ 1.3–1.5 s |
-  | Liquid Glass, PDF size | 25.0 MB | 1.3 MB |
-  | Excel / Excel Refined, click → PDF saved | ≈ 1.5 s | ≈ 0.35–0.45 s |
-  | Excel / Excel Refined, PDF size | 3.3 MB | 0.26 MB |
+  | Liquid Glass, click → PDF saved | 9.4–10.7 s (5.6–5.8 s on 2026-10-13) | 1.3–1.5 s |
+  | Liquid Glass, PDF size | 24.7 MB (25.0 MB) | 1.3 MB |
+  | Excel / Excel Refined, click → PDF saved | 2.2–2.5 s (1.5–1.6 s) | 0.33–0.44 s |
+  | Excel / Excel Refined, PDF size | 2.7 MB (3.3 MB) | 0.26 MB |
+  | Liquid Glass, PDF as pictures | 90 s, 125 MB (4× pages) | 7–8 s, 69 MB (2× pages) |
 
   Every test deck's PDF is 1.3–18× smaller than 3.6's; the text in it is the slide's text once (3.6's PDFs held
   table texts twice and "ﬁ" ligatures, so copy / search gave doubled text).
 * **Opened from disk (without the helper), exports work too: the files are downloaded** (B1). The browser asks
-  once to use the PC's fonts; refused, the PDF is made of pictures and the message says so.
-* **PDF · as pictures uses lossless pictures at 2× instead of 4×** (B9): sharp on screen, about 8× smaller
-  (Excel deck of 20 slides: 11.6 MB; Liquid Glass ≈ 70 MB, its wallpaper's fine grain does not compress further).
+  once to use the PC's fonts; refused, the PDF is made of pictures and the message says so. Exports of several
+  files (every version, PNG of every slide) are several downloads: the browser may ask once to allow that.
+* **PDF · as pictures uses lossless pictures at 2× instead of 4×** (B9): sharp on screen, a quarter of the
+  pixels (Excel, 20 slides: 11.6 MB; Liquid Glass 69 MB instead of 125 MB – its wallpaper's fine grain does not
+  compress further).
 * **Every version export is named `<workbook> - <version> - <design>.pdf`** (B11), also in one design.
+  If one of them fails, the others are still saved and the message names the failed ones.
 * A message names any font that had to be replaced in the PDF (a font of the library stored as WOFF2, as most
   Google fonts, is drawn with the next font of its list; the old engine below still embeds it).
 * For this release only: **Export ▾ › PDF · text & tables (old engine)** makes the PDF the 3.6 way

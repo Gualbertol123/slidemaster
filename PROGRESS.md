@@ -160,8 +160,9 @@ numbers measured twice). Measured numbers go into the step's line.
      if the pilot asks for it, as an S3.8-fix); PNG and "as pictures" checked in e2e, not pixel-compared with GP; from
      disk, the local-fonts prompt (refused → pictures).
 - 2026-10-13 · **S3.8 pilot: go** (product owner, in the session: "continue, go"; written here by the agent at the
-  product owner's explicit instruction). No pilot report or `export/feedback` file reached the agent: the go is the
-  product owner's, on the pilot as they ran or waived it. S3.9 (ship v3.7) follows.
+  product owner's explicit instruction). The agent did not see or verify the pilot: no report form, no
+  `export/feedback` file, no record of the 2 weekly cycles or of W14 in Acrobat / Edge reached it. S3.8's Done-when
+  is therefore taken as met or waived on the product owner's word alone. S3.9 (ship v3.7) follows.
 
 ## Waiting for
 

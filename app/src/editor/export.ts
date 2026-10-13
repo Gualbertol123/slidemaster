@@ -89,7 +89,7 @@ export const pool = () => exportPool ||= new ExportPool(core, { fontFile, pictur
 /* ---------------------------------------------------------------- writing the files */
 const stemOf = (name: string) => name.replace(/\.[^.]+$/, "");
 /** as the helper cleans names (exports.py clean_name) */
-const clean = (s: string) => s.replace(/[\\/:*?"<>|]+/g, "_").trim().replace(/^\.+|\.+$/g, "") || "slide";
+const clean = (s: string) => s.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/[\\/:*?"<>|]+/g, "_").trim().replace(/^\.+|\.+$/g, "") || "slide";
 /** saved in the export folder (helper) or downloaded (from disk); returns the name used */
 async function save(name: string, data: ArrayBuffer, type: string): Promise<string> {
   if (backend.served) return (await backend.exportFile(name, data)).files![0];
@@ -113,6 +113,8 @@ async function runPdf(j: ExportJob): Promise<{ r: ExportResult; kind: ExportJob[
 const NO_FONTS = " · as pictures: this browser gave no access to the PC's fonts";
 const missingNote = (m: string[], u: string[] = []) => (u.length ? ` · fonts that could not be embedded (the next one of their list is used): ${esc(u.slice(0, 3).join(", "))}` : "")
   + (m.length ? ` · drawn with a default font: ${esc(m.slice(0, 3).join(" · "))}` : "");
+/** from disk, several files are several downloads: a browser may ask once to allow that (refused, some are missing) */
+const MANY = " · if the browser asked to allow several downloads, allow them – otherwise some files are missing";
 const secs = (t0: number) => ` · ${((performance.now() - t0) / 1000).toFixed(1)} s`;
 
 /** the last export's files and time (click to saved), for tests and the bench */
@@ -184,7 +186,7 @@ export async function doExport(kind: ExportKind) {
 }
 function done(files: string[], t0: number, note: string) {
   lastExport.files = files; lastExport.ms = performance.now() - t0;
-  if (!backend.served) { toast(`Downloaded <b>${esc(files.join(", "))}</b>${note}`); return; }
+  if (!backend.served) { toast(`Downloaded <b>${esc(files.join(", "))}</b>${note}${files.length > 1 ? MANY : ""}`); return; }
   const acts = [{ label: "Open", fn: () => { void backend.open({ name: files[0] }); } }, { label: "Show folder", fn: () => { void backend.open({ folder: true }); } }];
   toast(`Saved <b>${esc(files.join(", "))}</b> in the export folder${secs(t0)}${note}`, files.length === 1 ? acts : acts.slice(1));
 }
@@ -222,7 +224,7 @@ export async function exportVersions(designs: Design[] | null) {
     failed.forEach(f => console.error("export failed:", f));
     lastExport.files = [...saved]; lastExport.ms = performance.now() - t0;
     remember({ kind: designs ? `versions-${list.length}` : "versions", design: list.join(" + "), version: versions.map(v => v.id).join(" + "), files: [...saved], missing: [...missing], unreadable: [...unreadable], failed }, t0);
-    toast(`Saved <b>${saved.length}</b> PDFs${backend.served ? " in the export folder" : " (downloaded)"}${saved.length ? ": " + esc(saved.join(", ")) : ""}${secs(t0)}${noFonts ? NO_FONTS : ""}${missingNote([...missing], [...unreadable])}`
+    toast(`Saved <b>${saved.length}</b> PDFs${backend.served ? " in the export folder" : " (downloaded)"}${saved.length ? ": " + esc(saved.join(", ")) : ""}${secs(t0)}${noFonts ? NO_FONTS : ""}${missingNote([...missing], [...unreadable])}${!backend.served && saved.length > 1 ? MANY : ""}`
       + (failed.length ? ` · ⚠ ${failed.length} failed: ${esc(failed.slice(0, 2).join(" · "))}` : ""),
       backend.served ? [{ label: "Show folder", fn: () => { void backend.open({ folder: true }); } }] : [], failed.length > 0);
   } catch (e) {

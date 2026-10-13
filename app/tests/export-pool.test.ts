@@ -70,3 +70,17 @@ test("a worker that stops fails its job; the next job gets a new worker", async 
   expect(FakeWorker.all[0].terminated).toBe(true);
   pool.stopAll();
 });
+
+test("a waiting job fails when the new worker it needs cannot start (instead of waiting for ever)", async () => {
+  const pool = new ExportPool(core, page, "/* worker */");
+  const jobs = ["a", "b", "c", "d"].map(t => pool.run(job(t)));          // d waits for a free worker
+  jobs.forEach(j => j.catch(() => undefined));
+  await new Promise(r => setTimeout(r, 5));
+  g.Worker = class { constructor() { throw new Error("workers are blocked"); } };
+  FakeWorker.all[0].crash();                                              // a fails; its worker is gone, a new one cannot start
+  await expect(jobs[0]).rejects.toThrow(/out of memory/);
+  await expect(jobs[3]).rejects.toThrow(/workers are blocked/);
+  expect((await jobs[1]).missing).toEqual(["b"]);
+  expect((await jobs[2]).missing).toEqual(["c"]);
+  pool.stopAll();
+});

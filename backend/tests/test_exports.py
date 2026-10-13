@@ -125,6 +125,10 @@ class ExportTests(TempDirs):
         self.assertEqual(self.ls(), ["L.png", "Weekly - Chief - Excel.pdf", "Weekly - a_b_c_.png", "Weekly - slides.pdf"])
         self.assertFalse([n for n in os.listdir(paths.EXPORT_DIR) if n.endswith(".tmp")])
 
+    def test_export_file_name_without_control_characters(self):
+        # a slide named with a tab or a line break (Alt+Enter in Excel) must not reach the file system
+        self.assertEqual(exports.export_file("Deck - Q3\tsales\nEMEA\x00.pdf", b"%PDF-x")["files"], ["Deck - Q3 sales EMEA.pdf"])
+
     def test_export_file_refuses_other_files(self):
         for name, data in [("x.exe", b"%PDF-1.7"), ("x.html", b"<html>"), ("x.pdf", b""), ("x.pdf", b"MZ"),
                            ("x.png", b"%PDF-1.7"), ("", b"%PDF-1.7"), ("x", b"%PDF-1.7")]:
