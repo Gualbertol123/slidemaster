@@ -56,7 +56,7 @@ const SERVED = location.protocol.startsWith("http") && !!TOKEN && !TOKEN.startsW
 
 /** how long a request may take before it counts as failed (a hung share must not leave "Saving…" or "Opening…" for
     ever: DocSync then retries, an open shows the error); reading, uploading and converting a workbook take longer */
-const WAIT_MS = 60_000, WAIT_LONG_MS = 300_000;
+const WAIT_MS = 60_000, WAIT_LONG_MS = 300_000, RETRY_MS = 500;
 async function req(path: string, init: RequestInit & { json?: unknown; timeout?: number } = {}): Promise<Response> {
   const headers = new Headers(init.headers || {});
   headers.set("X-SB-Token", TOKEN);
@@ -65,11 +65,18 @@ async function req(path: string, init: RequestInit & { json?: unknown; timeout?:
   if (init.json !== undefined) { headers.set("Content-Type", "application/json"); body = JSON.stringify(init.json); }
   const ms = init.timeout ?? WAIT_MS;
   const signal = typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(ms) : undefined;
+  // a read is asked again once when the connection to the helper drops (seen on Windows: a loopback request failing
+  // with ERR_CONNECTION_TIMED_OUT left "No workbook" behind an open); a write is not – it may have arrived
+  const read = !init.method || init.method === "GET" || init.method === "HEAD";
   let r: Response;
-  try { r = await fetch(path, { ...init, headers, body, cache: "no-store", ...(signal ? { signal } : {}) }); }
-  catch (e) {
-    if (timedOut(e)) throw new ApiError(0, `The helper did not answer within ${Math.round(ms / 1000)} s (is the shared folder slow or unreachable?).`);
-    throw e;
+  for (let again = read; ; again = false) {
+    try { r = await fetch(path, { ...init, headers, body, cache: "no-store", ...(signal ? { signal } : {}) }); break; }
+    catch (e) {
+      if (timedOut(e)) throw new ApiError(0, `The helper did not answer within ${Math.round(ms / 1000)} s (is the shared folder slow or unreachable?).`);
+      if (!again || !(e instanceof TypeError)) throw e;
+      console.info("helper: asking again after", e);                // (not a warning: the e2e check counts those)
+      await new Promise(ok => setTimeout(ok, RETRY_MS));             // (within the same time limit: the signal is shared)
+    }
   }
   if (!r.ok && r.status !== 204) {
     let msg = r.statusText || ("HTTP " + r.status);
