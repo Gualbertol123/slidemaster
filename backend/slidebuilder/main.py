@@ -1,4 +1,4 @@
-"""Command line entry point: ``python slide_builder.py [--port 8765] [--no-browser] [--install] [--selftest]``."""
+"""Command line entry point: ``python slide_builder.py [--port 8765] [--no-browser] [--install] [--selftest] [--allow-font-copy WHO]``."""
 import argparse
 import json
 import os
@@ -80,7 +80,15 @@ def main(argv=None):
     ap.add_argument("--no-browser", action="store_true", help="do not open the app automatically")
     ap.add_argument("--install", action="store_true", help="first-time set-up on this PC (Python check, shared-folder and journal checks, desktop shortcut, self-test)")
     ap.add_argument("--selftest", action="store_true", help="check that this program can use the shared folder (read-only for saved setups); exit 0 = yes")
+    ap.add_argument("--allow-font-copy", metavar="WHO", help='record that the licence owner confirmed Windows fonts may be copied to the share (R7): '
+                    'decks then lay out with the same font files on every PC; "off" goes back to fingerprint mode')
     args = ap.parse_args(argv)
+    if args.allow_font_copy is not None:
+        from .sysfonts import set_copy_allowed
+        who = set_copy_allowed(args.allow_font_copy)
+        print("Windows fonts used by decks are now copied to the shared font library (confirmed by %s)." % who if who
+              else "Windows fonts are no longer copied: every PC lays out with its own (fingerprint mode).")
+        sys.exit(0)
     if args.selftest:
         from .selftest import run
         sys.exit(run())

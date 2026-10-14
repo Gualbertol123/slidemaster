@@ -1,5 +1,6 @@
 """Windows fonts for the core (PLAN S3.2): GET /sysfonts, GET /sysfonts/<file>, POST /api/fonts/capture in
-fingerprint mode (G0 2026-10-12: nothing is copied), and the font library staying readable by v3's fonts.py."""
+fingerprint mode (G0 2026-10-12: nothing is copied) and in copy mode (W13, once the licence owner's yes is recorded),
+and the font library staying readable by v3's fonts.py."""
 import importlib.util
 import json
 import os
@@ -126,6 +127,7 @@ class SysFonts(test_http.HttpBase):
             f.write(self.regular[:-4] + b"\x00\x00\x00\x01")
         st, fp2 = self.jreq("POST", "/api/fonts/capture?file=carlito.ttf", b"")
         self.assertEqual(fp2["otherBuilds"], [fp["sha1"]])
+        self.assertEqual(fp2["otherHosts"], sorted({s["host"] for s in doc["fonts"][0]["seen"]}))     # the PCs to name (W13)
 
     def test_capture_checks_the_embedding_permission(self):
         st, fp = self.jreq("POST", "/api/fonts/capture?file=locked.ttf", b"")
@@ -159,6 +161,78 @@ class SysFonts(test_http.HttpBase):
         # removing the family sweeps the library's files but keeps the system fingerprints
         self.jreq("DELETE", "/api/fonts?family=Carlito")
         self.assertTrue(os.path.isfile(os.path.join(paths.DATA, "fonts", "system", "fingerprints.json")))
+
+    # ------------------------------------------------------------ copy mode (W13), once the licence owner said yes (R7)
+    def only_regular_and_bold(self):
+        """the Carlito family on this PC: Regular and Bold, both single-face .ttf that may be embedded"""
+        for n in ("locked.ttf", "pair.ttc"):
+            os.remove(os.path.join(self.fontdir, n))
+
+    def library(self):
+        return {f["family"]: f for f in fonts.read_library()["fonts"]}
+
+    def test_copy_mode_is_off_until_the_licence_answer_is_recorded(self):
+        self.only_regular_and_bold()
+        self.assertIsNone(sysfonts.copy_allowed())
+        st, fp = self.jreq("POST", "/api/fonts/capture?file=carlito.ttf", b"")
+        self.assertEqual((st, fp["mode"]), (200, "fingerprint"))
+        self.assertNotIn("copied", fp)
+        self.assertEqual(self.library(), {})
+        # a licence file without a name, or switched off, is not a yes
+        os.makedirs(os.path.join(paths.DATA, "fonts", "system"), exist_ok=True)
+        with open(os.path.join(paths.DATA, "fonts", "system", "licence.json"), "w") as f:
+            json.dump({"copy": True, "confirmedBy": " "}, f)
+        self.assertIsNone(sysfonts.copy_allowed())
+        self.assertIsNone(sysfonts.set_copy_allowed("off"))
+        self.assertIsNone(sysfonts.copy_allowed())
+
+    def test_copy_mode_copies_the_whole_family_into_the_library(self):
+        self.only_regular_and_bold()
+        self.assertEqual(sysfonts.set_copy_allowed("J. Doe, licence owner, mail of 2026-10-14"), "J. Doe, licence owner, mail of 2026-10-14")
+        st, fp = self.jreq("POST", "/api/fonts/capture?file=carlito.ttf", b"")
+        self.assertEqual((st, fp["mode"], fp["copied"], fp["faces"], fp["sha1"]), (200, "copy", True, 2, sysfonts.fingerprint(self.regular)["sha1"]))
+        fam = self.library()["Carlito"]
+        self.assertEqual((fam["source"], sorted((x["weight"], x["style"]) for x in fam["faces"])), ("system", [(400, "normal"), (700, "normal")]))
+        for x in fam["faces"]:                                    # the exact bytes of this PC's files
+            self.assertTrue(os.path.isfile(os.path.join(paths.DATA, "fonts", x["file"])))
+        st, h, data = self.req("GET", "/fonts/" + next(x["file"] for x in fam["faces"] if x["weight"] == 400))
+        self.assertEqual((st, data), (200, self.regular))
+        # captured again (another PC, another build): the library's copy stays the one every PC uses
+        with open(os.path.join(self.fontdir, "carlito.ttf"), "wb") as f:
+            f.write(self.regular[:-4] + b"\x00\x00\x00\x01")
+        st, fp2 = self.jreq("POST", "/api/fonts/capture?file=carlito.ttf", b"")
+        self.assertEqual((fp2["copied"], fp2["otherBuilds"]), (True, [fp["sha1"]]))
+        self.assertEqual(self.library()["Carlito"]["faces"], fam["faces"])
+
+    def test_copy_mode_copies_all_faces_or_none(self):
+        sysfonts.set_copy_allowed("J. Doe")
+        # the family has a face that may not be embedded (locked.ttf) and a collection (pair.ttc): nothing is copied
+        st, fp = self.jreq("POST", "/api/fonts/capture?file=carlito.ttf", b"")
+        self.assertEqual((st, fp["mode"], fp["copied"]), (200, "copy", False))
+        self.assertRegex(fp["reason"], r"collection|embedded")
+        self.assertEqual(self.library(), {})
+        os.remove(os.path.join(self.fontdir, "pair.ttc"))
+        st, fp = self.jreq("POST", "/api/fonts/capture?file=carlito.ttf", b"")
+        self.assertEqual((fp["copied"], fp["reason"]), (False, "locked.ttf may not be embedded (OS/2 fsType)"))
+        self.assertEqual(self.library(), {})
+
+    def test_copy_mode_leaves_a_library_family_of_the_same_name_alone(self):
+        self.only_regular_and_bold()
+        sysfonts.set_copy_allowed("J. Doe")
+        st, _ = self.jreq("POST", "/api/fonts?" + urllib.parse.urlencode({"family": "Carlito", "weight": "400", "style": "normal", "name": "c.ttf"}),
+                          self.regular, headers={"Content-Type": "application/octet-stream"})
+        self.assertEqual(st, 200)
+        st, fp = self.jreq("POST", "/api/fonts/capture?file=carlito.ttf", b"")
+        self.assertEqual((fp["copied"], fp["reason"]), (False, "the library has its own Carlito"))
+        self.assertEqual((self.library()["Carlito"]["source"], len(self.library()["Carlito"]["faces"])), ("upload", 1))
+
+    def test_the_command_line_records_the_licence_answer(self):
+        from slidebuilder import main
+        for arg, want in (("J. Doe, 2026-10-14", "J. Doe, 2026-10-14"), ("off", None)):
+            with self.assertRaises(SystemExit) as ex:
+                main.main(["--allow-font-copy", arg])
+            self.assertEqual(ex.exception.code, 0)
+            self.assertEqual(sysfonts.copy_allowed(), want)
 
     def test_describe_reads_names_and_metrics(self):
         d = sysfonts.describe(self.regular)

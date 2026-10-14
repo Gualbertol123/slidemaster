@@ -3,7 +3,8 @@
    Text formats store a font by its family name ("Roboto"); fontStack() turns it into CSS. */
 
 export interface FontFace { file: string; weight: number; style: "normal" | "italic"; range?: string }
-export interface LibraryFont { family: string; source: "upload" | "google"; faces: FontFace[]; by?: string | null; at?: number | null }
+/** source "system": a Windows font copied by the helper in copy mode (W13), so every PC lays it out with the same file */
+export interface LibraryFont { family: string; source: "upload" | "google" | "system"; faces: FontFace[]; by?: string | null; at?: number | null }
 
 /** fonts that come with Windows / Office: no download needed */
 export const SYSTEM_FONTS = ["Segoe UI", "Arial", "Calibri", "Cambria", "Candara", "Century Gothic", "Consolas", "Constantia", "Corbel",

@@ -99,7 +99,7 @@ function FontsTab() {
       {!lib.length && <div className="none">No fonts yet – add a Google font or upload font files below.</div>}
       {lib.map(f => <div className="fontrow" key={f.family} data-family={f.family}>
         <span className="sample" style={{ fontFamily: fontStack(f.family) }}>{f.family} <span>Aa 1.234,5 %</span></span>
-        <small>{f.source === "google" ? "Google Fonts" : "uploaded"}{f.faces.length ? ` · ${new Set(f.faces.map(x => x.weight + x.style)).size} style${new Set(f.faces.map(x => x.weight + x.style)).size === 1 ? "" : "s"}` : ""}{f.by ? " · " + f.by : ""}</small>
+        <small>{f.source === "google" ? "Google Fonts" : f.source === "system" ? "Windows font, shared" : "uploaded"}{f.faces.length ? ` · ${new Set(f.faces.map(x => x.weight + x.style)).size} style${new Set(f.faces.map(x => x.weight + x.style)).size === 1 ? "" : "s"}` : ""}{f.by ? " · " + f.by : ""}</small>
         <button className="btn icon" title="Remove from the library" onClick={() => void remove(f.family)}>✕</button>
       </div>)}
     </div>

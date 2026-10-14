@@ -47,14 +47,16 @@ export function Thumbs() {
 }
 
 export function Issues() {
-  const slides = useStore(s => s.deck.slides), cur = useStore(s => s.deck.cur), logoMissing = useStore(s => s.ui.logoMissing);
+  const slides = useStore(s => s.deck.slides), cur = useStore(s => s.deck.cur), logoMissing = useStore(s => s.ui.logoMissing), fontBuilds = useStore(s => s.ui.fontBuilds);
   const c = useCtx(), st = useStyle();
   const R = slides[cur]; if (!R) return <div className="issues" id="issues" />;
   const P = c.preset;
   const used = new Set(slides.flatMap(x => x.cfg.tables || []));
   const unused = P ? P.tables.filter(t => !used.has(t.id)).length : 0;
   const html = `<h4>Slide ${cur + 1} · ${esc(R.label)}</h4><ul>${slideIssues(R, c).map(x => `<li class="${x.cls}">${x.html}</li>`).join("")}${logoMissing ? `<li class="warn">Logo “${esc(st.logo)}” not found in the folder</li>` : ""}</ul>` +
-    `<h4 style="margin-top:10px">Preset</h4><ul><li>${P ? P.tables.length : 0} table${P && P.tables.length === 1 ? "" : "s"} · ${slides.length} slide${slides.length === 1 ? "" : "s"}${unused ? ` · <span class="warn">${unused} table${unused > 1 ? "s" : ""} not on any slide</span>` : ""}</li></ul>`;
+    `<h4 style="margin-top:10px">Preset</h4><ul><li>${P ? P.tables.length : 0} table${P && P.tables.length === 1 ? "" : "s"} · ${slides.length} slide${slides.length === 1 ? "" : "s"}${unused ? ` · <span class="warn">${unused} table${unused > 1 ? "s" : ""} not on any slide</span>` : ""}</li></ul>` +
+    // W13: a Windows font whose file differs on other PCs – their slides may wrap or fit a little differently
+    (fontBuilds.length ? `<h4 style="margin-top:10px">Fonts</h4><ul>${fontBuilds.map(f => `<li class="warn" data-font="${esc(f.family)}">${esc(f.family)} on this PC is another version than on ${esc(f.hosts.slice(0, 3).join(", "))}${f.hosts.length > 3 ? ` and ${f.hosts.length - 3} more` : ""}: slides may lay out a little differently there</li>`).join("")}</ul>` : "");
   return <div className="issues" id="issues" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 

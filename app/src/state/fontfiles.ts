@@ -1,7 +1,7 @@
 /* Font files for the workers (S3.7, S4.4): the deck's library faces and this PC's fonts – the helper's /sysfonts index,
    or, opened from disk, the browser's local fonts (asked once, with permission) – and their bytes. The export workers
    embed them in PDFs; the core worker measures the slides' text with them (S4.4, `measureCatalog`). */
-import { get } from "./store";
+import { get, patch, THUMBS } from "./store";
 import { backend } from "../sync/api";
 import type { CatalogFont } from "@slide-builder/core/text/resolve";
 import { catalogFamily } from "@slide-builder/core/text/family";
@@ -37,7 +37,33 @@ export async function catalog(): Promise<CatalogFont[]> {
   try { sys = await systemCatalog(); } catch (e) { console.warn("this PC's fonts could not be listed:", e); }
   return [...lib, ...sys];
 }
+/** the Windows fonts the workers read, captured once each (W13): the helper records this PC's build; another PC with
+    another build is named in the side panel (its slides may lay out a little differently); in copy mode (the licence
+    owner's yes recorded, helper sysfonts.py) the helper puts the family into the shared library, and every PC then
+    measures and draws it from the library's file */
+const captured = new Set<string>();
+function capture(file: string) {
+  const k = file.toLowerCase();
+  if (!backend.served || captured.has(k)) return;
+  captured.add(k);
+  void backend.captureFont(file).then(async r => {
+    if (!r) return;
+    if (r.mode === "copy" && r.copied) {
+      if (!get().doc.fonts.some(f => f.family.toLowerCase() === r.family.toLowerCase())) {
+        const { loadFonts } = await import("./fonts");
+        await loadFonts(); THUMBS.render();
+      }
+      return;
+    }
+    const hosts = (r.otherHosts || []).filter(h => h !== get().prefs.host);
+    if (!hosts.length) return;
+    const was = get().ui.fontBuilds, same = was.find(x => x.family === r.family);
+    const all = [...new Set([...(same?.hosts || []), ...hosts])].sort();
+    if (!same || all.length !== same.hosts.length) patch("ui", { fontBuilds: [...was.filter(x => x.family !== r.family), { family: r.family, hosts: all }] });
+  }, e => { captured.delete(k); console.info("font capture:", file, e); });
+}
 export async function fontFile(a: { source: "library" | "system"; file: string }): Promise<ArrayBuffer | null> {
+  if (a.source === "system") capture(a.file);
   try {
     if (a.source === "library") { if (!backend.served) return null; const r = await fetch(backend.fontUrl(a.file), { signal: AbortSignal.timeout(20_000) }); return r.ok ? await r.arrayBuffer() : null; }
     if (backend.served) return await backend.sysFontBytes(a.file);

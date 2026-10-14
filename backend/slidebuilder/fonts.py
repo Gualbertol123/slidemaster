@@ -1,6 +1,8 @@
 """Shared font library (ARCHITECTURE §3.4): fonts uploaded by users or saved from Google Fonts.
 
     data/fonts/fonts.json        {"schema": 1, "fonts": [{family, source, faces: [{file, weight, style, range?}], by, at}]}
+                                 source: "upload", "google", or "system" (a Windows font copied by a capture in copy
+                                 mode, sysfonts.py: every PC then lays it out with the same file, W13)
     data/fonts/<file>            the font files (.ttf .otf .woff .woff2), named after family/weight/style + content hash
 
 The library lives in the shared data folder, so a font added once is available to everybody, in every
@@ -70,7 +72,7 @@ def add_face(family, weight, style, data, ext=None, source="upload", unicode_ran
         weight = 400
     weight = max(1, min(1000, weight))
     style = "italic" if style == "italic" else "normal"
-    source = "google" if source == "google" else "upload"
+    source = source if source in ("google", "system") else "upload"
     if not data:
         raise FontError("the font file is empty")
     if len(data) > FONT_MAX:

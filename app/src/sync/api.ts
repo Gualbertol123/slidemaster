@@ -9,6 +9,9 @@ export interface FileInfo { name: string; mtime: number; size: number; rev?: num
 export interface Other { user: string; host: string; client: string; workbook: string | null; at: number }
 export interface OpsResult<D> { doc: D; applied: number; skipped: number[] }
 export interface ExportRes { ok: boolean; files?: string[]; error?: string }
+/** a Windows font captured (W13): its build, the PCs that have another, and in copy mode whether the helper put the
+    family into the shared library (helper sysfonts.py) */
+export interface FontCapture { mode: "fingerprint" | "copy"; family: string; sha1: string; otherHosts?: string[]; copied?: boolean; reason?: string }
 /** a font file of this PC (the helper's /sysfonts index) */
 export interface SysFont { file: string; family: string; subfamily: string; weight: number; italic: boolean; faces: number; size: number }
 
@@ -39,6 +42,8 @@ export interface Backend {
   /** this PC's font files (the export embeds the ones a deck uses) and one file's bytes */
   sysFonts(): Promise<SysFont[]>;
   sysFontBytes(file: string): Promise<ArrayBuffer>;
+  /** record this PC's file of a Windows font a deck uses (null from disk) */
+  captureFont(file: string): Promise<FontCapture | null>;
   open(target: { name: string } | { folder: true }): Promise<void>;
   assetUrl(name: string): string;
   /** shared font library (helper: data/fonts; from disk: Google Fonts only, kept in this browser) */
@@ -139,6 +144,7 @@ export const helper: Backend = {
   exportFeedback: report => json(req("/api/export-feedback", { method: "POST", json: report })),
   async sysFonts() { return (await json<{ fonts: SysFont[] }>(req("/sysfonts"))).fonts || []; },
   async sysFontBytes(file) { return (await req("/sysfonts/" + encodeURIComponent(file))).arrayBuffer(); },
+  captureFont: file => json(req("/api/fonts/capture?file=" + encodeURIComponent(file), { method: "POST" })),
   async open(target) { await req("/api/open", { method: "POST", json: target }); },
   assetUrl: name => "/assets/" + encodeURIComponent(name) + "?t=" + encodeURIComponent(TOKEN),
   async fonts() { return (await json<{ fonts: LibraryFont[] }>(req("/api/fonts"))).fonts || []; },
@@ -189,6 +195,7 @@ export const offline: Backend = {
   open: offlineOnly, exportFile: offlineOnly, exportFeedback: offlineOnly,
   async sysFonts() { return []; },
   sysFontBytes: offlineOnly,
+  async captureFont() { return null; },
   assetUrl: name => encodeURI(name),
   /* from disk: Google fonts are remembered by name in this browser and loaded from Google */
   async fonts() { return LS.get<LibraryFont[]>("fonts", []); },

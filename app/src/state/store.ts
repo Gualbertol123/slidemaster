@@ -61,6 +61,7 @@ export interface AppState {
     /** Design… edits the current design only, or all designs */ lookScope: "design" | "all";
     /** a font being added (its name or "<n> files") */ fontBusy: string;
     changedOnDisk: boolean; logoMissing: boolean;
+    /** Windows fonts whose file differs on other PCs (W13, fingerprint mode): the side panel names them */ fontBuilds: { family: string; hosts: string[] }[];
     health: Health | null; others: Other[];
   };
   prefs: { user: string; host: string; client: string; prefs: Prefs };
@@ -72,7 +73,7 @@ export const initialState = (): AppState => ({
   deck: { file: null, wb: null, slides: [], cur: 0, version: "", history: { undo: 0, redo: 0, undoLabel: "", redoLabel: "" }, remote: null, opening: "" },
   selection: { sel: null, noteSel: null, textSel: null, painter: null },
   ui: {
-    zoom: "fit", busy: null, exporting: false, toast: null, lookScope: "design", fontBusy: "", changedOnDisk: false, logoMissing: false, health: null, others: [],
+    zoom: "fit", busy: null, exporting: false, toast: null, lookScope: "design", fontBusy: "", changedOnDisk: false, logoMissing: false, fontBuilds: [], health: null, others: [],
     dialogs: { dialog: null, wizard: null, tables: false, textStyles: null, comment: null },
   },
   prefs: { user: "", host: "", client: Math.random().toString(36).slice(2, 10) + Date.now().toString(36), prefs: {} },
