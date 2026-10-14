@@ -64,6 +64,9 @@ export interface CoreMethods {
   staticFont(a: { buf: ArrayBuffer; weight: number }): { buf: ArrayBuffer; variable: boolean };
   /** whole slides as display lists in slide px (S3.5): background, furniture, the tables placed, text boxes */
   slideLists(a: SlideListsReq): SlideList[];
+  /** whether a font that missed its measuring budget is still coming (its slide is drawn again then): for the
+      capture tools, which wait for false before they read a slide */
+  fontsSettling(a: Record<string, never>): boolean;
   /** the slide on the stage (S4.1), current design and version, in layers; null when there is no such slide */
   stage(a: StageReq): StageSlide | null;
   /** an export worker's channel (S3.7): the worker asks for display lists on it directly, so they never pass

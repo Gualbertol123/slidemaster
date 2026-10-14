@@ -142,6 +142,9 @@ export class FontMeasurer implements TextMeasurer {
   private deadlines = new Map<Promise<FaceInfo | null>, Promise<"late">>();
   /** the catalog missed a budget and is still coming: no measurement waits for it again */
   private catalogLate = false;
+  /** a face or the catalog missed its budget and has not arrived, or its redraw is still to come: the slide on the
+      stage may be drawn again (the capture tools wait for this to end before they read a slide) */
+  get settling() { return this.late.size > 0 || this.lateTimer !== null || this.catalogLate; }
   private faceSoon(css: string): Promise<FaceInfo | null> {
     const p = this.face(css);
     if (this.late.has(p)) return Promise.resolve(null);                 // (it missed its budget: the page measures)

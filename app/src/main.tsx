@@ -31,6 +31,8 @@ installBrowserPlatform();
   // the stage (S4.1): the slide it shows (its display list in layers), whether it shows the current slide with nothing
   // on its way, and how many slides it received and how long the last took (parity, bench)
   stage: () => useStage.getState().shown, stageNodes, stageStats,
+  // a late font's redraw still to come (S4.4's budget): the capture tools wait for false
+  fontsSettling: () => core().call("fontsSettling", {}),
   // the thumbnails (S4.3): pictures drawn and slides asked for
   thumbStats: () => ({ ...thumbStats }),
   // the bench's 100-slide deck (S4.3): the deck's preset, and a change made as the page makes it (one undo step)

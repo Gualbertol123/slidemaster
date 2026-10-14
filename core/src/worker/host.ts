@@ -106,6 +106,7 @@ export class CoreHost {
     h("flush", async () => { await this.sync?.flush(); });
     h("poll", async () => { await this.sync?.poll(); });
     h("slideLists", a => this.lists(a));
+    h("fontsSettling", () => !!(platform().text as { settling?: boolean }).settling);
     h("stage", a => { if (!a.nodes) this.stageReq = { ...a, fresh: false, have: undefined }; return this.queueStage(a); });
     // an export worker's own channel (S3.7): display lists go to it directly, never through the page's main thread
     h("linkExport", a => {

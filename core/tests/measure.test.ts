@@ -108,11 +108,14 @@ describe("review fixes (S4.4)", () => {
     const page: TextMeasurer = { maxDigitWidth: () => 0, measureRuns: runs => { asked.push(...runs.map(r => r.text)); return runs.map(() => ({ w: -1, asc: 0, desc: 0 })); }, breakLines: r => r.map(x => [x.text]) };
     const m = new FontMeasurer(shaper(), { catalog: async () => CAT, bytes: async f => { await gate; return FILES[f.file] ?? null; } }, page);
     m.budget = 30;
-    let late = 0; m.onLate = () => { late++; };
+    let late = 0, settlingAtRedraw: boolean | null = null; m.onLate = () => { late++; settlingAtRedraw = m.settling; };
+    expect(m.settling).toBe(false);
     const [a] = await m.measureRuns([{ text: "slow", font: "12px Carlito" }, { text: "slow bold", font: "bold 12px Carlito" }]);
     expect(a.w).toBe(-1); expect(asked).toEqual(["slow", "slow bold"]);
+    expect(m.settling).toBe(true);                                                     // the slide will be drawn again
     release(); await new Promise(r => setTimeout(r, 200));
     expect(late).toBe(1);                                                              // both faces came: one redraw
+    expect([settlingAtRedraw, m.settling]).toEqual([false, false]);
     const [b] = await m.measureRuns([{ text: "slow", font: "12px Carlito" }]);
     expect(b.w).toBeGreaterThan(0);
   });

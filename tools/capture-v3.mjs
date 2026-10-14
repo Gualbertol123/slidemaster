@@ -149,6 +149,11 @@ export async function settle(page) {
   await page.mouse.move(1, 1);
   // the stage from M4 draws what the core worker sends: the slide shown is the current one, nothing on its way
   await page.waitForFunction(() => !window.__sbTest?.stageIdle || window.__sbTest.stageIdle(), null, { timeout: 60_000 });
+  // a font that missed its measuring budget redraws the slide when it comes (S4.4): read the slide after that
+  if (await page.evaluate(async () => !!window.__sbTest?.fontsSettling && await window.__sbTest.fontsSettling())) {
+    for (let i = 0; i < 300 && await page.evaluate(() => window.__sbTest.fontsSettling()); i++) await sleep(100);
+    await page.waitForFunction(() => window.__sbTest.stageIdle(), null, { timeout: 60_000 });
+  }
   await page.evaluate(async () => {
     await document.fonts.ready;
     await Promise.all([...document.querySelectorAll("#stage img")].map(i => i.complete ? null : new Promise(r => { i.onload = i.onerror = r; })));

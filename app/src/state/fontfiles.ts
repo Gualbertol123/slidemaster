@@ -42,26 +42,42 @@ export async function catalog(): Promise<CatalogFont[]> {
     another build is named in the side panel (its slides may lay out a little differently); in copy mode (the licence
     owner's yes recorded, helper sysfonts.py) the helper puts the family into the shared library, and every PC then
     measures and draws it from the library's file */
-const captured = new Set<string>();
+const captured = new Set<string>(), waiting: string[] = [];
+let quiet: ReturnType<typeof setTimeout> | null = null, sending = false;
+/** captures are not urgent: they wait until the workers have asked for no font for CAPTURE_QUIET_MS (a deck's first
+    slide waits for its font files – the helper's work for a capture must not delay them), then go one at a time */
+export const CAPTURE_QUIET_MS = 3000;
 function capture(file: string) {
   const k = file.toLowerCase();
   if (!backend.served || captured.has(k)) return;
-  captured.add(k);
-  void backend.captureFont(file).then(async r => {
-    if (!r) return;
-    if (r.mode === "copy" && r.copied) {
-      if (!get().doc.fonts.some(f => f.family.toLowerCase() === r.family.toLowerCase())) {
-        const { loadFonts } = await import("./fonts");
-        await loadFonts(); THUMBS.render();
-      }
-      return;
+  captured.add(k); waiting.push(file);
+  if (quiet) clearTimeout(quiet);
+  quiet = setTimeout(() => { quiet = null; void sendCaptures(); }, CAPTURE_QUIET_MS);
+}
+async function sendCaptures() {
+  if (sending) return;
+  sending = true;
+  try { for (let f = waiting.shift(); f !== undefined; f = waiting.shift()) await captureNow(f); }
+  finally { sending = false; }
+}
+async function captureNow(file: string) {
+  const k = file.toLowerCase();
+  let r: Awaited<ReturnType<typeof backend.captureFont>>;
+  try { r = await backend.captureFont(file); }
+  catch (e) { console.info("font capture:", file, e); setTimeout(() => captured.delete(k), 60_000); return; }      // (asked again a minute later at most)
+  if (!r) return;
+  if (r.mode === "copy" && r.copied) {
+    if (!get().doc.fonts.some(f => f.family.toLowerCase() === r!.family.toLowerCase())) {
+      const { loadFonts } = await import("./fonts");
+      await loadFonts(); THUMBS.render();
     }
-    const hosts = (r.otherHosts || []).filter(h => h !== get().prefs.host);
-    if (!hosts.length) return;
-    const was = get().ui.fontBuilds, same = was.find(x => x.family === r.family);
-    const all = [...new Set([...(same?.hosts || []), ...hosts])].sort();
-    if (!same || all.length !== same.hosts.length) patch("ui", { fontBuilds: [...was.filter(x => x.family !== r.family), { family: r.family, hosts: all }] });
-  }, e => { console.info("font capture:", file, e); setTimeout(() => captured.delete(k), 60_000); });      // (asked again a minute later at most)
+    return;
+  }
+  const hosts = (r.otherHosts || []).filter(h => h !== get().prefs.host);
+  if (!hosts.length) return;
+  const was = get().ui.fontBuilds, same = was.find(x => x.family === r!.family);
+  const all = [...new Set([...(same?.hosts || []), ...hosts])].sort();
+  if (!same || all.length !== same.hosts.length) patch("ui", { fontBuilds: [...was.filter(x => x.family !== r!.family), { family: r.family, hosts: all }] });
 }
 export async function fontFile(a: { source: "library" | "system"; file: string }): Promise<ArrayBuffer | null> {
   if (a.source === "system") capture(a.file);
