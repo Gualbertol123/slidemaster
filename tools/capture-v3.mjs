@@ -48,6 +48,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const arg = (name, def) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : def; };
 /** the build captured: this checkout's backend/ (helper + committed page), or --backend DIR */
 const BACKEND = path.resolve(arg("--backend", path.join(REPO, "backend")));
+/** another build's helper (the goldens are captured from v3.4.0, golden/README.md): before 3.8 its PDFs came from its
+    export engine, given the browser's DevTools and command line (not a Python "playwright" package this PC may have) */
+const V3_HELPER_ENV = process.argv.includes("--backend") ? { SLIDEBUILDER_BROWSER: CHROME, SLIDEBUILDER_ENGINES: "devtools,cli" } : {};
 export const sha256 = b => crypto.createHash("sha256").update(b).digest("hex");
 const freePort = () => new Promise(ok => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => ok(p)); }); });
 function sh(cmd, args) { try { return execFileSync(cmd, args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch { return null; } }
@@ -77,7 +80,7 @@ export async function startHelper() {
   const port = await freePort(), url = `http://127.0.0.1:${port}/`;
   const proc = spawn(PY, [path.join(BACKEND, "slide_builder.py"), "--no-browser", "--port", String(port)], {
     env: { ...process.env, SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: "golden", SLIDEBUILDER_HOST: "pc-golden",
-      SLIDEBUILDER_APP_WINDOW: "0", NO_PROXY: "*", no_proxy: "*",
+      SLIDEBUILDER_APP_WINDOW: "0", NO_PROXY: "*", no_proxy: "*", ...V3_HELPER_ENV,
       ...(sysFontDirs() ? { SLIDEBUILDER_SYSFONTS: sysFontDirs() } : {}) }, stdio: ["ignore", "pipe", "pipe"] });
   let log = ""; proc.stdout.on("data", d => log += d); proc.stderr.on("data", d => log += d);
   let up = false;
@@ -180,10 +183,23 @@ async function exportPdf(page, h, dir) {
   if (!fs.existsSync(file)) {
     const exp = path.join(h.root, "export");
     fs.rmSync(exp, { recursive: true, force: true }); fs.mkdirSync(exp);
-    await page.evaluate(() => { window.__sbTest.lastExport.files = []; });
-    await page.click("#exportBtn");
-    try { await page.waitForFunction(() => window.__sbTest.lastExport.files.length > 0 && !window.__sbTest.exporting(), null, { timeout: 180_000 }); }
-    catch { throw new Error("export timed out:\n" + h.log().slice(-2000)); }
+    if (await page.evaluate(() => !!window.__sbTest.lastExport)) {
+      await page.evaluate(() => { window.__sbTest.lastExport.files = []; });
+      await page.click("#exportBtn");
+      try { await page.waitForFunction(() => window.__sbTest.lastExport.files.length > 0 && !window.__sbTest.exporting(), null, { timeout: 180_000 }); }
+      catch { throw new Error("export timed out:\n" + h.log().slice(-2000)); }
+    } else {
+      // a page before 3.7 (the goldens' v3.4.0): its helper's engine writes the PDF – once the engine is up, Export, then
+      // the file in the export folder once the button stops "Rendering"
+      await page.locator("#srv").filter({ hasText: /Export: / }).waitFor({ timeout: 180_000 });
+      await page.click("#exportBtn");
+      let done = false;
+      for (let i = 0; i < 1800 && !done; i++) {
+        done = fs.readdirSync(exp).some(n => n.endsWith(".pdf")) && !(await page.locator("#exportBtn").innerText()).includes("Rendering");
+        await sleep(done ? 200 : 100);
+      }
+      if (!done) throw new Error("export timed out:\n" + h.log().slice(-2000));
+    }
     file = path.join(exp, fs.readdirSync(exp).find(n => n.endsWith(".pdf")));
   }
   const out = execFileSync(PY, [path.join(HERE, "pdftext.py"), file], { encoding: "utf8", maxBuffer: 64 << 20 });

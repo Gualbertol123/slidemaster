@@ -59,7 +59,8 @@ async function openApp(page: Page, url: string) {
   page.on("requestfinished", async r => { if (!ids.has(r)) return; const res = await r.response().catch(() => null); trail.push(at() + " #" + ids.get(r) + " <- " + (res ? res.status() : "?") + " in " + Math.round(r.timing().responseEnd) + " ms"); });
   page.on("requestfailed", r => { if (ids.has(r)) trail.push(at() + " #" + ids.get(r) + " xx " + (r.failure()?.errorText || "")); });
   await page.goto(url);
-  await expect(page.locator("#srv")).toHaveCount(0);                              // the helper answered (S4.5: no engine pill)
+  await page.locator("#openBtn").waitFor();                                       // the page has rendered…
+  await expect(page.locator("#srv")).toHaveCount(0);                              // …and the helper answered (S4.5: no engine pill)
 }
 async function openWorkbook(page: Page, name: string) {
   await page.click("#openBtn");

@@ -270,7 +270,6 @@ table.xs td.mk{background:#FFF4CC!important;color:#9A6B00;font-weight:700;text-a
 .busyhint{margin-top:10px;font-size:12px;color:var(--mute)}
 .sheetrow .sz{font-variant-numeric:tabular-nums;color:var(--mute);font-size:12px;margin-left:auto;grid-column:auto}
 
-.instlog{margin:0 18px;max-height:260px;overflow:auto;background:#0F1420;color:#D6E2F5;border-radius:10px;padding:10px 12px;font:11.5px/1.45 Consolas,"Cascadia Mono",monospace;white-space:pre-wrap}
 
 .thumb .frame{content-visibility:auto;contain-intrinsic-size:222px 125px}
 

@@ -56,7 +56,12 @@ export class CoreHost {
 
   constructor(private readonly port: HostPort, private readonly opts: HostOptions = {}) {
     const h: HostPort["handle"] = (m, fn) => port.handle(m, fn);
-    h("init", a => { this.served = a.served; this.client = a.client; this.me = a.me; setPictureConverter(a.served ? (bytes, ext) => this.port.call("convertPicture", { bytes, ext }) : null); });
+    h("init", a => {
+      this.served = a.served; this.client = a.client; this.me = a.me; setPictureConverter(a.served ? (bytes, ext) => this.port.call("convertPicture", { bytes, ext }) : null);
+      // the default wallpaper drawn while nothing is open: a new deck's first Liquid Glass slide finds it ready, and the
+      // canvas's first blur and JPEG encoding are not paid between Finish and the first slide
+      setTimeout(() => { void wallpaperIds(resolveStyle({})).catch(() => undefined); }, 0);
+    });
     h("index", a => this.index(a.buf));
     h("ensure", a => this.ensure(a.book, a.names));
     h("getSheetMeta", async a => {
