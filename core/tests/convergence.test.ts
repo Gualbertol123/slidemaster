@@ -1,0 +1,106 @@
+/* Property test of storage v4 (PLAN S5.2): 2–5 writers on one deck, every helper call delivered in a random order,
+   appends that fail before, during (torn) or after the write (flush failed, answer lost), compactions at random
+   moments that race each other. For 1 000 seeds: once the network is quiet every replica has the same document
+   (invariant 2) and every edit is in it – nothing acknowledged is lost (invariant 1), nothing applied twice
+   (rev counts each record once, invariant 4), and the snapshot's gen only goes up (invariant 3). */
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { DocSync, type DeckApi } from "../src/sync/docsync";
+import type { Op } from "../src/model/types";
+import { FakeDeck, type AppendFailure } from "./fakedeck";
+
+afterEach(() => { vi.useRealTimers(); });
+
+/** mulberry32 */
+function rng(seed: number) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+const settle = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
+
+/** a network that holds every call until the test delivers it */
+class Net {
+  queue: (() => void)[] = [];
+  constructor(private rand: () => number, private deck: FakeDeck, public failRate: number) {}
+  private hold<T>(exec: () => T): Promise<T> {
+    return new Promise<T>((ok, bad) => this.queue.push(() => { try { ok(exec()); } catch (e) { bad(e); } }));
+  }
+  api(): DeckApi {
+    const d = this.deck, failures: AppendFailure[] = ["before", "torn", "flush", "lost"];
+    return {
+      served: true,
+      snapshot: () => this.hold(() => JSON.parse(JSON.stringify(d.snap))),
+      tail: (_k, since) => this.hold(() => d.doTail({ ...since })),
+      append: (_k, w, r) => this.hold(() => d.doAppend(w, JSON.parse(JSON.stringify(r)), this.rand() < this.failRate ? failures[Math.floor(this.rand() * 4)] : undefined)),
+      compact: (_k, g, s) => this.hold(() => d.doCompact(g, JSON.parse(JSON.stringify(s)))),
+      rotate: (_k, w) => this.hold(() => d.doRotate(w)),
+    };
+  }
+  deliverOne() {
+    if (!this.queue.length) return false;
+    const i = Math.floor(this.rand() * this.queue.length);
+    this.queue.splice(i, 1)[0]();
+    return true;
+  }
+}
+
+export async function run(seed: number) {
+  const rand = rng(seed), deck = new FakeDeck(), net = new Net(rand, deck, 0.15);
+  const writers = 2 + Math.floor(rand() * 4);
+  const reps = Array.from({ length: writers }, (_, i) => new DocSync(net.api(), "W.xlsx", deck.open(`u${i}@pc#${"abcdefgh".slice(i) + "a".repeat(i)}`), "u" + i, { autoTail: false }));
+  const made: [string, string][] = [];
+  const gens: number[] = [deck.snap.gen];
+  let n = 0;
+  const steps = 60 + Math.floor(rand() * 80);
+  for (let k = 0; k < steps; k++) {
+    const r = reps[Math.floor(rand() * writers)], x = rand();
+    if (x < 0.35) {
+      const ref = String.fromCharCode(65 + reps.indexOf(r)) + (++n), text = `u${reps.indexOf(r)}-${n}`;
+      const ops: Op[] = [{ op: "cell.patch", sheet: "S", ref, patch: { text } } as Op];
+      if (rand() < 0.3) ops.push({ op: "cell.patch", sheet: "S", ref: "Z" + (1 + Math.floor(rand() * 3)), patch: { text } } as Op);   // a contended cell
+      r.apply(ops); made.push([ref, text]);
+    } else if (x < 0.5) void r.flush();
+    else if (x < 0.65) void r.poll();
+    else if (x < 0.7) void r.compact().catch(() => undefined);
+    else net.deliverOne();
+    await settle();
+    if (deck.snap.gen !== gens[gens.length - 1]) gens.push(deck.snap.gen);
+  }
+  // the network calms down: nothing fails any more, everything queued is saved and read
+  net.failRate = 0;
+  for (let round = 0; round < 400; round++) {
+    while (net.deliverOne()) await settle();
+    if (round % 3 === 0) for (const r of reps) void r.flush();
+    for (const r of reps) void r.poll();
+    await settle();
+    if (deck.snap.gen !== gens[gens.length - 1]) gens.push(deck.snap.gen);
+    if (round > 4 && !net.queue.length && reps.every(r => !r.busy)) break;
+  }
+  for (let i = 0; i < 3; i++) { for (const r of reps) void r.poll(); await settle(); while (net.deliverOne()) await settle(); }
+  return { reps, made, gens, deck };
+}
+
+describe("storage v4 converges (property test, 1 000 seeds)", () => {
+  it("every replica ends with the same document, every edit in it, each record once, gen only going up", async () => {
+    vi.useFakeTimers();                          // retries and debounces wait for the test (it delivers and flushes)
+    let compactions = 0, duplicates = 0;
+    for (let seed = 1; seed <= 1000; seed++) {
+      const { reps, made, gens, deck } = await run(seed);
+      const ctx = `seed ${seed}`;
+      for (const r of reps) expect(r.busy, ctx).toBe(false);
+      const docs = reps.map(r => JSON.stringify(r.server));
+      expect(new Set(docs).size, ctx).toBe(1);
+      const doc = reps[0].server;
+      for (const [ref, text] of made) expect(doc.edits.S?.[ref]?.text, `${ctx} ${ref}`).toBe(text);
+      const records = deck.written.filter(r => r.ops.length);      // (also those in journals deleted since)
+      const distinct = new Set(records.map(r => r.w + ":" + r.s));
+      expect(doc.rev, ctx).toBe(distinct.size);
+      duplicates += records.length - distinct.size;
+      expect(gens, ctx).toEqual([...gens].sort((a, b) => a - b));
+      compactions += gens.length - 1;
+      for (const r of reps) r.dispose();
+    }
+    // the runs did exercise what they are about
+    expect(compactions).toBeGreaterThan(500);
+    expect(duplicates).toBeGreaterThan(100);
+  }, 600_000);
+});

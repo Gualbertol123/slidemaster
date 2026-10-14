@@ -16,6 +16,8 @@ class OpsVectors(unittest.TestCase):
             cases = json.load(f)
         self.assertTrue(cases)
         for case in cases:
+            if "fold" in case:                     # folding journal records is the core's (fold.ts) - storage v4
+                continue
             with self.subTest(case["name"]):
                 doc = copy.deepcopy(case["doc"])
                 doc["rev"] = 7

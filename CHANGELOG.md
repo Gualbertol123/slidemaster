@@ -5,6 +5,13 @@ Releases are made with `docs/next/release-checklist.md`.
 
 ## 4.0.0 - unreleased
 
+What users notice – decks are stored the Slide Builder 4 way (PLAN M5)
+* **Other people's edits appear within about 1–2 seconds** (B5), also with many people on a slow share: every
+  change is appended to the deck's journal on the share without waiting for anybody else's save.
+* **When two people change the same thing at the same moment, the later change in the deck's own order wins**
+  (B4: a Lamport clock, not whose save reached the share first). Everybody still ends with the same deck.
+* "✓ Saved" as soon as the change is on the share (B6, as since 3.4).
+
 For the maintainer
 * The program moved from `backend\` to `helper\` (PLAN S5.1). The data, the logo and the v2 settings stay in
   `backend\` (`backend\data\` is shared with Slide Builder 3); *Start* and *Install Slide Builder.bat* start

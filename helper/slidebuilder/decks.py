@@ -440,6 +440,12 @@ def _open_new(key, st, writer, first):
     os.makedirs(folder, exist_ok=True)
     flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_APPEND | getattr(os, "O_BINARY", 0)
     names = [journal_name(writer, 0)] if first and not st.last_n else []
+    if names:
+        try:                                # a <writer>.log a rotation deleted may still be in the frontier: never again
+            if writer in (read_snapshot(key).get("frontier") or {}):
+                names = []
+        except DeckError:
+            names = []
     floor = st.last_n
     for _ in range(20):
         if not names:

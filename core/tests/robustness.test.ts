@@ -11,7 +11,7 @@ import { unzipSync, zipSync } from "fflate";
 import { Port, pair, transfer, type Wire } from "../src/rpc/port";
 import { serve } from "../src/worker/host";
 import { resetPlatform, setPlatform } from "../src/platform";
-import { applyOps, emptyDoc } from "../src/model/ops";
+import { FakeDeck } from "./fakedeck";
 import { DocSync } from "../src/sync/docsync";
 import { History, MAX_STEPS } from "../src/sync/history";
 import { indexWorkbook, isEncryptedPackage } from "../src/xlsx/workbook";
@@ -27,21 +27,22 @@ async function until(f: () => boolean, ms = 5000) { const t = Date.now(); while 
 /** a workbook over the "big" size (sheets read on demand): the corpus file with 7 MB of padding */
 const padded = (n: string) => { const files = unzipSync(bytes(n)); files["pad.bin"] = new Uint8Array(7 * 1048576); const z = zipSync(files, { level: 0 }); return z.buffer.slice(z.byteOffset, z.byteOffset + z.byteLength) as ArrayBuffer; };
 const inputs = { defaults: {}, logoSrc: "", version: "", workbook: "x" };
+/** a new deck as the helper opens it (fakedeck.ts) */
+const openDeck = (name: string) => new FakeDeck(name + "-0123456789", name).open("me@pc#mmmmmmmm");
 const oneTable = (sheet: string): Preset => ({ sheets: [sheet], tables: [{ id: "t1", sheet, kind: "markers", anchor: "A1", index: 0 } as never], slides: [{ id: "s2", type: "content", title: null, subtitle: null, tables: ["t1"], layout: null } as never] });
 
 /** a page connected to a host in this thread, with an in-memory helper */
 function page() {
   const [a, b] = pair();
-  serve(new Port<CoreMethods, PageMethods, PageEvents, CoreEvents>(b));
+  serve(new Port<CoreMethods, PageMethods, PageEvents, CoreEvents>(b), { autoTail: false });
   const port = new Port<PageMethods, CoreMethods, CoreEvents, PageEvents>(a);
-  let srv = emptyDoc("x");
-  port.handle("getDoc", () => null);
-  // as helper/slidebuilder/store.py: every save also rewrites the time, the author, the log and the backup time
-  port.handle("postOps", x => {
-    const r = applyOps(srv, x.ops), at = Date.now() + srv.rev;
-    if (r.applied) Object.assign(r.doc, { rev: srv.rev + 1, schema: 3, updated: at, updatedBy: "me", backupAt: at, log: [...(srv.log || []), { rev: srv.rev + 1, by: "me", at }] });
-    srv = r.doc; return { doc: structuredClone(srv) };
-  });
+  // the helper's deck storage (fakedeck.ts): every append is stamped with the server's time
+  const api = new FakeDeck("x-0123456789", "x").api();
+  port.handle("deckSnapshot", () => api.snapshot(""));
+  port.handle("deckTail", x => api.tail(x.key, x.since));
+  port.handle("deckAppend", x => api.append(x.key, x.writer, x.record));
+  port.handle("deckCompact", x => api.compact(x.key, x.baseGen, x.snapshot));
+  port.handle("deckRotate", x => api.rotate(x.key, x.writer));
   port.handle("digitWidth", () => 0);
   port.handle("convertPicture", () => null);
   port.handle("analyzeImages", () => []);
@@ -88,7 +89,7 @@ describe("opening", () => {
       // what the newer number reads is the newer workbook (its preset uses its sheets), and it starts
       const names = new Set(ib.meta.map(m => m.name)), dp = await p.port.call("defaultPreset", { book: ib.book });
       expect(dp.tables.every(t => names.has(t.sheet))).toBe(true);
-      await p.port.call("start", { book: ib.book, name: "x", doc: emptyDoc("x"), preset: dp, inputs });
+      await p.port.call("start", { book: ib.book, name: "x", deck: openDeck("x"), preset: dp, inputs });
     }
   });
 
@@ -96,10 +97,10 @@ describe("opening", () => {
     const p = page();
     await p.port.call("init", { served: false, client: "c", me: "me" });
     const ia = await p.port.call("index", transfer({ buf: book("report.xlsx") }, []));
-    await p.port.call("start", { book: ia.book, name: "x", doc: emptyDoc("x"), preset: await p.port.call("defaultPreset", { book: ia.book }), inputs });
+    await p.port.call("start", { book: ia.book, name: "x", deck: openDeck("x"), preset: await p.port.call("defaultPreset", { book: ia.book }), inputs });
     const ib = await p.port.call("index", transfer({ buf: book("deck20.xlsx") }, []));
     await p.port.call("index", transfer({ buf: book("report.xlsx") }, []));          // a newer open
-    const e = await p.port.call("start", { book: ib.book, name: "y", doc: emptyDoc("y"), preset: null, inputs }).catch(x => x);
+    const e = await p.port.call("start", { book: ib.book, name: "y", deck: openDeck("y"), preset: null, inputs }).catch(x => x);
     expect(e.code).toBe("NOT_STARTED");
     // the first workbook's document still answers
     expect((await p.port.call("apply", { label: "x", ops: [{ op: "style.patch", patch: { radius: 5 } } as Op] })).changed).toBe(true);
@@ -114,7 +115,7 @@ describe("opening", () => {
     await tick(); for (const e of p.slices) if (e.book === wb.book) wb.receive(e.shared, e.sheets);
     p.port.on("slices", e => { if (e.book === wb.book) wb.receive(e.shared, e.sheets); });
     const cover: Preset = { sheets: [], tables: [], slides: [{ id: "s1", type: "cover", title: "Cover", subtitle: null, tables: [], layout: null } as never] };
-    await p.port.call("start", { book: info.book, name: "x", doc: emptyDoc("x"), preset: cover, inputs });
+    await p.port.call("start", { book: info.book, name: "x", deck: openDeck("x"), preset: cover, inputs });
     await p.port.call("apply", { label: "Wizard changes", ops: [{ op: "preset.set", preset: oneTable(info.meta[0].name) }] });
     await until(() => wb.sheets.length > 0);
     expect(wb.shared).toBeTruthy();
@@ -126,7 +127,7 @@ describe("opening", () => {
     const p = page();
     await p.port.call("init", { served: true, client: "c", me: "me" });
     const info = await p.port.call("index", transfer({ buf: padded("edge-pictures.xlsx") }, []));
-    await p.port.call("start", { book: info.book, name: "x", doc: emptyDoc("x"), preset: { sheets: [], tables: [], slides: [] }, inputs });
+    await p.port.call("start", { book: info.book, name: "x", deck: openDeck("x"), preset: { sheets: [], tables: [], slides: [] }, inputs });
     await p.port.call("apply", { label: "Wizard changes", ops: [{ op: "preset.set", preset: oneTable(info.meta[0].name) }] });
     await until(() => p.errors.length > 0);
     await until(() => p.progress[p.progress.length - 1] === "<hide>");
@@ -139,7 +140,7 @@ describe("snapshots", () => {
     const p = page();
     await p.port.call("init", { served: true, client: "c", me: "me" });
     const info = await p.port.call("index", transfer({ buf: book("report.xlsx") }, []));
-    await p.port.call("start", { book: info.book, name: "x", doc: emptyDoc("x"), preset: await p.port.call("defaultPreset", { book: info.book }), inputs });
+    await p.port.call("start", { book: info.book, name: "x", deck: openDeck("x"), preset: await p.port.call("defaultPreset", { book: info.book }), inputs });
     const n = p.docs.length;
     await p.port.call("apply", { label: "R", ops: [{ op: "style.patch", patch: { radius: 7 } } as Op] });
     await p.port.call("flush", {});
@@ -151,41 +152,39 @@ describe("snapshots", () => {
 });
 
 describe("DocSync on a slow share", () => {
-  it("a late poll answer does not replace a newer server document", async () => {
-    let doc: WorkbookDoc = emptyDoc("w.xlsx");
-    const commit = (ops: Op[], by: string) => { const r = applyOps(doc, ops); r.doc.rev = doc.rev + 1; r.doc.updatedBy = by; doc = r.doc; return structuredClone(doc); };
+  it("a late tail answer does not take back what a newer one brought", async () => {
+    const deck = new FakeDeck(), bob = "bob@pc#bbbbbbbb", base = deck.api();
     const slow: (() => void)[] = [];
     let slowNext = true;
-    const api = { served: true,
-      getDoc: (_n: string, since?: number) => { const snap = since === doc.rev ? null : structuredClone(doc);
-        if (slowNext) { slowNext = false; return new Promise<WorkbookDoc | null>(r => slow.push(() => r(snap))); } return Promise.resolve(snap); },
-      postOps: async (_n: string, ops: Op[]) => ({ doc: commit(ops, "me") }) };
-    const s = new DocSync(api, "w.xlsx", structuredClone(doc), "c1", "me");
-    commit([{ op: "cell.patch", sheet: "S", ref: "A1", patch: { b: true } } as Op], "bob");      // rev 1
-    const p1 = s.poll();                                                                         // answered late (rev 1)
-    commit([{ op: "cell.patch", sheet: "S", ref: "B2", patch: { i: true } } as Op], "bob");      // rev 2
-    await s.poll();                                                                              // one poll at a time: skipped
-    s.apply([{ op: "cell.patch", sheet: "S", ref: "C3", patch: { u: true } } as Op]); await s.flush();   // my save: rev 3
+    const api = { ...base, tail: (k: string, since: Record<string, number>) => {
+      const answer = base.tail(k, since);
+      if (slowNext) { slowNext = false; return new Promise<Awaited<typeof answer>>(r => slow.push(() => void answer.then(r))); }
+      return answer; } };
+    const s = new DocSync(api, "w.xlsx", deck.open("me@pc#mmmmmmmm"), "me", { autoTail: false });
+    deck.doAppend(bob, { l: 1, w: bob, s: 1, by: "bob", ops: [{ op: "cell.patch", sheet: "S", ref: "A1", patch: { b: true } } as Op] });
+    const p1 = s.poll();                                                                         // answered late
+    deck.doAppend(bob, { l: 2, w: bob, s: 2, by: "bob", ops: [{ op: "cell.patch", sheet: "S", ref: "B2", patch: { i: true } } as Op] });
+    await s.poll();                                                                              // one tail at a time: skipped
+    s.apply([{ op: "cell.patch", sheet: "S", ref: "C3", patch: { b: true } } as Op]); await s.flush();
     slow.forEach(f => f()); await p1;
+    await s.poll();
     expect(s.server.rev).toBe(3);
-    expect((s.view.edits as Record<string, Record<string, unknown>>).S.B2).toEqual({ i: true });
+    expect((s.view.edits as Record<string, Record<string, unknown>>).S).toEqual({ A1: { b: true }, B2: { i: true }, C3: { b: true } });
     s.dispose();
   });
 
   it("a retired document (another workbook opened) keeps saving what it had queued", async () => {
-    let fail = true, saved: Op[] = [];
-    const api = { served: true, getDoc: async () => null,
-      postOps: async (_n: string, ops: Op[]) => { if (fail) throw new Error("share unavailable"); saved = ops; return { doc: { ...emptyDoc("w"), rev: 1 } }; } };
-    const s = new DocSync(api, "w", emptyDoc("w"), "c", "me");
+    const deck = new FakeDeck();
+    deck.failures.push("before");
+    const s = new DocSync(deck.api(), "w", deck.open("me@pc#mmmmmmmm"), "me", { autoTail: false });
     s.apply([{ op: "style.patch", patch: { radius: 3 } } as Op]);
     await s.flush();
     expect(s.state).toBe("error");
     let told = 0;
     s.retire(() => told++);
     expect(told).toBe(0);                                              // not saved yet
-    fail = false;
     await s.flush();                                                   // the retry (its timer is kept by retire)
-    expect(saved.length).toBe(1);
+    expect(deck.records().length).toBe(1);
     expect(s.busy).toBe(false);
     expect(told).toBe(1);                                              // the page can stop warning on close
     s.dispose();
@@ -197,7 +196,7 @@ describe("the open workbook while another is being opened", () => {
     const p = page();
     await p.port.call("init", { served: false, client: "c", me: "me" });
     const ia = await p.port.call("index", transfer({ buf: book("report.xlsx") }, []));
-    await p.port.call("start", { book: ia.book, name: "x", doc: emptyDoc("x"), preset: await p.port.call("defaultPreset", { book: ia.book }), inputs });
+    await p.port.call("start", { book: ia.book, name: "x", deck: openDeck("x"), preset: await p.port.call("defaultPreset", { book: ia.book }), inputs });
     await p.port.call("index", transfer({ buf: book("deck20.xlsx") }, []));          // e.g. the wizard of another file is open
     const n = p.slices.length;
     await p.port.call("apply", { label: "R", ops: [{ op: "style.patch", patch: { radius: 9 } } as Op] });

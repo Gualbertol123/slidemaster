@@ -16,7 +16,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import esbuild from "esbuild";
-import { BOOKS, DECKS, load, openBrowser, startHelper, wbPath } from "./capture-v3.mjs";
+import { BOOKS, DECKS, deckOps, load, openBrowser, startHelper } from "./capture-v3.mjs";
 import { goldenTexts, matchTexts } from "./parity.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -83,9 +83,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       const deck = JSON.parse(fs.readFileSync(path.join(DECKS, id + ".json"), "utf8"));
       const file = id + path.extname(deck.workbook);
       fs.copyFileSync(path.join(BOOKS, deck.workbook), path.join(h.root, file));
-      await h.api(wbPath(file) + "/ops", "POST", { ops: deck.ops, client: "golden" });
+      await deckOps(h, file, deck.ops);
       for (const design of DESIGNS) {
-        await h.api(wbPath(file) + "/ops", "POST", { ops: [{ op: "style.patch", patch: { design } }], client: "golden" });
+        await deckOps(h, file, [{ op: "style.patch", patch: { design } }]);
         await load(page, h, file, "");
         const lists = await page.evaluate(async design => {
           const T = window.__sbTest, ls = await T.slideLists({ design, version: "", forExport: true, thumb: false });

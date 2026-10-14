@@ -542,6 +542,16 @@ class DeckReuseTests(DeckBase):
         r2 = decks.append(self.key, w, self.rec(w, 5))                   # and again: a third, new name
         self.assertNotIn(r2["journal"], (w, r["journal"]))
 
+    def test_a_first_record_retried_after_rotate_and_restart_never_recreates_the_bare_name(self):
+        w = decks.new_writer()
+        decks.append(self.key, w, self.rec(w, 1))
+        res = decks.tail(self.key, {})
+        decks.compact(self.key, 1, dict(decks.read_snapshot(self.key), gen=2, frontier={w: res["journals"][w]["offset"]}, lamport=1, rev=1))
+        decks.rotate(self.key, w)
+        decks.reset()
+        r = decks.append(self.key, w, self.rec(w, 1))                    # s == 1 again (a retry)
+        self.assertNotEqual(r["journal"], w)
+
     def test_lean_lock_never_reuses_a_dropped_shared_journal(self):
         os.environ["SLIDEBUILDER_STORAGE"] = "lean-lock"
         w = decks.new_writer()

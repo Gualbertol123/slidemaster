@@ -86,7 +86,7 @@ export function Canvas() {
 /** the zoom shown: the stage's scale (fit or chosen) */
 function ZoomVal() { const s = useStage(st => st.scale); return <span id="zoomVal">{Math.round(s * 100) + "%"}</span>; }
 
-const SAVE_TEXT: Record<string, string> = { pending: "Unsaved changes…", saving: "Saving…", saved: "✓ Saved", local: "Saved in this browser only (helper not running)", error: "⚠ Not saved yet – retrying: ", outdated: "⚠ " };
+const SAVE_TEXT: Record<string, string> = { pending: "Unsaved changes…", saving: "Saving…", saved: "✓ Saved", local: "Saved in this browser only (helper not running)", error: "⚠ Not saved yet – retrying: ", outdated: "⚠ ", readonly: "⚠ " };
 /** "Updated by bob 3 min ago" counts on while it is shown (once every 10 s, only this bar) */
 function useMinutesAgo(at: number | undefined) {
   const [, tick] = useState(0);
@@ -104,7 +104,7 @@ export function Status() {
       <span>Arrows move · Shift extends · type or F2 to edit · Del clears · Ctrl+B/I · Ctrl+Z/Y · PgUp/PgDn slides</span>
       <span className="spacer" />
       {remote && <span id="sbRemote" className="remote">Updated by {remote.by} {ago < 1 ? "just now" : ago + " min ago"}</span>}
-      <span id="sbSave" className={st === "error" || st === "outdated" ? "err" : st === "saved" ? "ok" : ""}>{st ? SAVE_TEXT[st] + (st === "error" || st === "outdated" ? err : "") : ""}</span>
+      <span id="sbSave" className={st === "error" || st === "outdated" || st === "readonly" ? "err" : st === "saved" ? "ok" : ""}>{st ? SAVE_TEXT[st] + (st === "error" || st === "outdated" || st === "readonly" ? err : "") : ""}</span>
     </footer>
   );
 }

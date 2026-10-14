@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import vectors from "../../shared/ops-vectors.json";
 import { applyOps, inverseOf, applyOp } from "../src/model/ops";
+import { fold } from "../src/model/fold";
 import type { Op } from "../src/model/types";
 
 describe("operations follow shared/ops-vectors.json", () => {
-  for (const v of vectors as any[]) {
+  for (const v of (vectors as any[]).filter(x => !x.fold)) {
     it(v.name, () => {
       const { doc, applied, skipped } = applyOps(v.doc, v.ops);
       expect(doc.preset).toEqual(v.expect.preset);
@@ -12,6 +13,22 @@ describe("operations follow shared/ops-vectors.json", () => {
       expect(doc.edits).toEqual(v.expect.edits);
       expect(applied).toBe(v.expect.applied);
       expect(skipped).toEqual(v.expect.skipped);
+    });
+  }
+});
+
+describe("folding records follows shared/ops-vectors.json (Lamport order, copies once, the snapshot's seen)", () => {
+  for (const v of (vectors as any[]).filter(x => x.fold)) {
+    it(v.name, () => {
+      const f = fold(v.fold.snapshot, v.fold.records);
+      expect(f.doc.edits).toEqual(v.expect.edits);
+      expect(f.doc.rev).toBe(v.expect.rev);
+      expect(f.lamport).toBe(v.expect.lamport);
+      if ("updatedBy" in v.expect) expect(f.doc.updatedBy).toBe(v.expect.updatedBy);
+      if ("updated" in v.expect) expect(f.doc.updated).toBe(v.expect.updated);
+      if ("log" in v.expect) expect(f.doc.log).toEqual(v.expect.log);
+      // the order the records arrive in never matters
+      expect(fold(v.fold.snapshot, [...v.fold.records].reverse()).doc).toEqual(f.doc);
     });
   }
 });

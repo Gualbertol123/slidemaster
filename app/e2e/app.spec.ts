@@ -5,13 +5,32 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { pdfPageTexts } from "./pdftext";
+import { fold, type DeckRecord } from "../../core/src/model/fold";
 
 const ANNA = "http://127.0.0.1:8951/", BOB = "http://127.0.0.1:8952/";
 const root = () => process.env.SB_E2E_ROOT!, data = () => process.env.SB_E2E_DATA!;
-/** the helper's document of a workbook: "<name>-<hash>.json" (a save briefly adds "<that>.<uuid>.tmp" next to it) */
-const wbFile = (name: string) => { const d = path.join(data(), "workbooks"); const f = fs.readdirSync(d).find(n => n.startsWith(name + "-") && /-[0-9a-f]{10}\.json$/.test(n)); return f ? path.join(d, f) : null; };
-const docFile = () => wbFile("report.xlsx");
-const doc = () => JSON.parse(fs.readFileSync(docFile()!, "utf8"));
+/** a workbook's deck on the share (storage v4, docs/next/04 §2): data/v4/decks/<name>-<hash>/ */
+const deckDir = (name: string) => { const d = path.join(data(), "v4", "decks"); const f = fs.readdirSync(d).find(n => n.startsWith(name + "-") && /-[0-9a-f]{10}$/.test(n)); return f ? path.join(d, f) : null; };
+/** the complete records of a journal from byte `from` (<len>:<crc32>:<json>\n; a frame being written is not one yet) */
+function frames(buf: Buffer, from: number): DeckRecord[] {
+  const out: DeckRecord[] = [];
+  for (let p = from; ;) {
+    const m = /^(\d+):([0-9a-f]{8}):/.exec(buf.subarray(p, p + 21).toString("latin1"));
+    if (!m) return out;
+    const start = p + m[0].length, end = start + +m[1];
+    if (buf.length < end + 1 || buf[end] !== 10) return out;
+    out.push(JSON.parse(buf.subarray(start, end).toString("utf8"))); p = end + 1;
+  }
+}
+/** what everybody reads of a workbook's deck: its snapshot and the records past the frontier, folded as the core does */
+function deckDoc(name: string) {
+  const d = deckDir(name)!;
+  const snap = JSON.parse(fs.readFileSync(path.join(d, "snapshot.json"), "utf8"));
+  let names: string[] = []; try { names = fs.readdirSync(path.join(d, "j")); } catch { /* no journal yet */ }
+  const recs = names.flatMap(n => frames(fs.readFileSync(path.join(d, "j", n)), snap.frontier[n.replace(/\.log$/, "")] || 0));
+  return fold(snap, recs).doc as any;           // (the tests read it as freely as the JSON file before)
+}
+const doc = () => deckDoc("report.xlsx");
 const errors: string[] = [];
 /* browser messages the fixtures cause on purpose; any other console error or warning fails E15:
    the decks' default logo "logo.png" is not in the test folder (the app shows "Logo not found"), the helper
@@ -36,8 +55,8 @@ test.afterEach(async ({ page }, info) => {
   let state = "";
   try { state = await page.locator("#sbSave").innerText({ timeout: 1000 }); } catch { state = "(no status bar)"; }
   let files: string[] = [];
-  try { files = fs.readdirSync(path.join(data(), "workbooks")); } catch { /* none yet */ }
-  console.log(["--- trail of " + info.title + " (last 150 events)", ...trail.slice(-150), "save status: " + state, "workbooks: " + files.join(", ")].join("\n"));
+  try { files = fs.readdirSync(path.join(data(), "v4", "decks")); } catch { /* none yet */ }
+  console.log(["--- trail of " + info.title + " (last 150 events)", ...trail.slice(-150), "save status: " + state, "decks: " + files.join(", ")].join("\n"));
 });
 /** an element's box once it is laid out: right after a save the slide is drawn again, and an element being replaced
     has no box for a moment */
@@ -97,10 +116,16 @@ const lastFileSaved = (user: string, name: string) => expect.poll(() => {
 const pollFile = <T>(read: () => T, opts?: { timeout?: number }) =>
   expect.poll(() => { try { return read(); } catch (e) { return "not saved yet: " + (e as Error).message; } }, opts);
 const saved = (page: Page) => expect(page.locator("#sbSave")).toHaveText("✓ Saved", { timeout: 10_000 });
-/** the next poll answer that brings a newer document to this page (a colleague's change has arrived), then a short
-    moment for the worker to apply it and the page to redraw: a test waits for the change itself, not for a time */
-const nextChange = (page: Page) => page.waitForResponse(r => /\/doc\?since=/.test(r.url()) && r.status() === 200, { timeout: 15_000 })
-  .then(() => page.waitForTimeout(500));
+/** the next tail answer that brings this page a colleague's record (a change has arrived; its own records come back
+    too), then a short moment for the worker to fold it and the page to redraw: a test waits for the change itself */
+const nextChange = (page: Page) => {
+  const me = page.url().startsWith(ANNA) ? "anna" : "bob";
+  return page.waitForResponse(async r => {
+    if (!/\/api\/decks\/[^/]+\/tail\?since=/.test(r.url()) || r.status() !== 200) return false;
+    const t = await r.json().catch(() => null) as { journals?: Record<string, { records: { by?: string }[] }> } | null;
+    return Object.values(t?.journals || {}).some(j => j.records.some(x => x.by && x.by !== me));
+  }, { timeout: 15_000 }).then(() => page.waitForTimeout(500));
+};
 
 test.describe.serial("two people, one shared folder", () => {
   test("anna creates the deck with the wizard", async ({ page }) => {
@@ -653,7 +678,7 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#cmtMin")).toHaveValue("0.5");
     await page.keyboard.press("Control+a"); await page.keyboard.press("Backspace");        // back to "all movements"
     await page.click("#cmtInsert");
-    const wdoc = () => JSON.parse(fs.readFileSync(wbFile("weekly.xlsx")!, "utf8"));
+    const wdoc = () => deckDoc("weekly.xlsx");
     await pollFile(() => Object.values(wdoc().preset.slides[0].notes || {}).filter((n: any) => n.auto).length, { timeout: 10_000 }).toBe(1);
     const auto: any = Object.values(wdoc().preset.slides[0].notes).find((n: any) => n.auto);
     expect(auto.auto).toMatchObject({ mode: "summary", kinds: ["week", "target"], unit: "mln EUR" });
@@ -682,7 +707,7 @@ test.describe.serial("two people, one shared folder", () => {
   test("the + button puts a text box there at once; text boxes move anywhere, snap, and attach back", async ({ page }) => {
     await openApp(page, BOB);
     await expect(page.locator(".thumb")).toHaveCount(1);                                   // weekly.xlsx (last file)
-    const wdoc = () => JSON.parse(fs.readFileSync(wbFile("weekly.xlsx")!, "utf8"));
+    const wdoc = () => deckDoc("weekly.xlsx");
     const notes = () => wdoc().preset.slides[0].notes || {};
     // + below the second table: the box is there immediately, ready for typing
     await page.locator('#stage .stagewrap').hover();
@@ -712,7 +737,7 @@ test.describe.serial("two people, one shared folder", () => {
   test("notes section of a slide: where the footer is, movable next to the page number; raw Excel adds nothing; menus open", async ({ page }) => {
     await openApp(page, BOB);
     await expect(page.locator(".thumb")).toHaveCount(1);
-    const wdoc = () => JSON.parse(fs.readFileSync(wbFile("weekly.xlsx")!, "utf8"));
+    const wdoc = () => deckDoc("weekly.xlsx");
     // the Options menu is visible (not cut off by the top bar)
     await page.click("#optBtn");
     await expect(page.locator("#pnOn")).toBeVisible();
@@ -767,7 +792,7 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#wCuts .wcut")).toHaveCount(1);
     await page.locator('#wVersions .wvrow[data-v="Board"] .del').click();
     await page.click('[data-a="finish"]');
-    const wdoc = () => JSON.parse(fs.readFileSync(wbFile("weekly.xlsx")!, "utf8"));
+    const wdoc = () => deckDoc("weekly.xlsx");
     await pollFile(() => (wdoc().preset.versions || []).map((v: any) => [v.name, v.hide]), { timeout: 10_000 })
       .toEqual([["Chief", {}], ["All", { LOANS_DEPOSITS: ["H10:I11"] }]]);
     // the slide shown as "All": those cells are empty; as the full deck they are back

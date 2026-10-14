@@ -20,7 +20,8 @@ import { keyOf } from "../render/edits";
 import { analyzeImages, IMGMETA } from "../xlsx/drawing";
 import { sha1 } from "../text/sha1";
 import { wallpaperIds } from "../render/wallpaper";
-import { DocSync, type Change, type DocApi } from "../sync/docsync";
+import { DocSync, type Change, type DeckApi, type DeckOpen } from "../sync/docsync";
+import { fold } from "../model/fold";
 import { History } from "../sync/history";
 import type { RenderCtx } from "../render/context";
 import type { Design, Preset, RuntimeSlide, Style, WorkbookDoc } from "../model/types";
@@ -79,7 +80,7 @@ export class CoreHost {
       return transfer({ buf: out.data.buffer as ArrayBuffer, variable: out.variable }, [out.data.buffer as ArrayBuffer]);
     });
     h("defaultPreset", a => { const wb = a.book !== undefined ? this.bookOf(a.book) : this.candidate; if (!wb) throw new Error("no workbook"); return defaultPreset(wb); });
-    h("start", a => { if (a.stage) this.stageReq = { ...a.stage, fresh: false }; return this.start(a.book, a.name, a.doc, a.preset, a.inputs); });
+    h("start", a => { if (a.stage) this.stageReq = { ...a.stage, fresh: false }; return this.start(a.book, a.name, a.deck, a.preset, a.inputs); });
     // the page waits for the redraw (the slices and snapshot of the new version or default style arrive before the answer)
     h("inputs", a => { this.inputs = a; return this.later(() => this.refresh(null)); });
     h("apply", a => {
@@ -105,6 +106,8 @@ export class CoreHost {
     });
     h("flush", async () => { await this.sync?.flush(); });
     h("poll", async () => { await this.sync?.poll(); });
+    h("alone", a => { this.alone = a.alone; this.sync?.setAlone(a.alone); this.scheduleRest(); });
+    h("compactAll", async () => !this.sync || await this.sync.compactAll());
     h("slideLists", a => this.lists(a));
     h("fontsSettling", () => !!(platform().text as { settling?: boolean }).settling || this.lateRedraws > 0);
     h("stage", a => { if (!a.nodes) this.stageReq = { ...a, fresh: false, have: undefined }; return this.queueStage(a); });
@@ -177,7 +180,8 @@ export class CoreHost {
     if (shared) this.sentSharedFor.add(this.candidateBook);
     this.port.emit("slices", transfer({ book: this.candidateBook, shared, sheets }, sheets.flatMap(sliceTransfer)));
   }
-  private async start(book: number | undefined, name: string, doc: WorkbookDoc, preset: Preset | null, inputs: ViewInputs): Promise<DocState> {
+  private async start(book: number | undefined, name: string, deck: DeckOpen, preset: Preset | null, inputs: ViewInputs): Promise<DocState> {
+    const doc = fold(deck.snapshot, Object.values(deck.tail?.journals || {}).flatMap(j => j.records)).doc;
     const cand = this.candidate, gone = () => !cand || cand !== this.candidate || (book !== undefined && book !== this.candidateBook);
     // failures before the switch carry NOT_STARTED: the open document stays open here and on the page
     const notStarted = (e: unknown) => Object.assign(e instanceof Error ? e : new Error(String(e)), { code: "NOT_STARTED" });
@@ -196,7 +200,8 @@ export class CoreHost {
     LCACHE.clear(); this.slidesDesign = null; this.presetSig = ""; this.boxSig = "";
     this.history.undo = []; this.history.redo = [];         // a newly opened workbook starts without history (as v3)
     this.sentView = { obj: null, json: "" };
-    const sync = this.sync = new DocSync(this.api, name, doc, this.client, this.me);
+    const sync = this.sync = new DocSync(this.api, name, deck, this.me, { autoTail: this.opts.autoTail });
+    sync.setAlone(this.alone);
     if (preset) sync.apply([{ op: "preset.set", preset }]);
     sync.on(c => this.later(() => this.onChange(sync, c)));
     try {
@@ -209,15 +214,20 @@ export class CoreHost {
     const st = this.state(); this.sentView = { obj: st.view, json: viewJson(st.view) };
     return st;
   }
-  /** the helper's API, through the page */
-  private readonly api: DocApi = (() => {
+  /** the deck storage of the helper, through the page */
+  private readonly api: DeckApi = (() => {
     const self = this;
     return {
       get served() { return self.served; },
-      getDoc: (name: string, since?: number) => self.port.call("getDoc", since === undefined ? { name } : { name, since }),
-      postOps: (name: string, ops: Parameters<DocApi["postOps"]>[1], client: string) => self.port.call("postOps", { name, ops, client }),
+      snapshot: key => self.port.call("deckSnapshot", { key }),
+      tail: (key, since) => self.port.call("deckTail", { key, since }),
+      append: (key, writer, record) => self.port.call("deckAppend", { key, writer, record }),
+      compact: (key, baseGen, snapshot) => self.port.call("deckCompact", { key, baseGen, snapshot }),
+      rotate: (key, writer) => self.port.call("deckRotate", { key, writer }),
     };
   })();
+  /** the page's last presence heartbeat said this page is the only one with the deck open */
+  private alone = false;
 
   /* ---------------------------------------------------------------- changes */
   private later(fn: () => Promise<void> | void): Promise<void> { return this.queue = this.queue.then(fn).catch(e => this.port.emit("error", { message: String((e as Error)?.message || e), stack: (e as Error)?.stack })); }
@@ -438,6 +448,19 @@ export class CoreHost {
     if (view === this.sentView.obj) send = undefined;
     else { const json = viewJson(view); if (json === this.sentView.json) send = undefined; this.sentView = { obj: view, json }; }
     this.port.emit("doc", { ...st, ...(send ? { view: send } : {}), change: c, ack: this.ack });
+    this.scheduleRest();
+  }
+  /** a second after the last change: the deck at rest for the page's pagehide, while this page is alone there */
+  private restTimer: ReturnType<typeof setTimeout> | null = null;
+  private restSent = false;
+  private scheduleRest() {
+    if (this.restTimer) clearTimeout(this.restTimer);
+    this.restTimer = setTimeout(() => {
+      this.restTimer = null;
+      const s = this.sync, r = s?.restSnapshot();
+      if (s && r) { this.port.emit("rest", { key: s.key, baseGen: r.baseGen, json: JSON.stringify(r.snapshot) }); this.restSent = true; }
+      else if (this.restSent) { this.port.emit("rest", null); this.restSent = false; }
+    }, 1000);
   }
 }
 /** a document's content without the helper's bookkeeping: a save rewrites the revision, time, author, log, backup
@@ -469,5 +492,7 @@ function ownEdits(L: RuntimeSlide["tables"][number], ctx: RenderCtx): string {
 export interface HostOptions {
   /** a static face of a variable font (text/static.ts: hb-subset) */
   staticFace?: (file: Uint8Array, weight: number) => Promise<{ data: Uint8Array; variable: boolean }>;
+  /** false: the deck's journals are read only when the page asks ("poll"; tests) – else every 1.5 s */
+  autoTail?: boolean;
 }
 export const serve = (port: HostPort, opts: HostOptions = {}) => new CoreHost(port, opts);

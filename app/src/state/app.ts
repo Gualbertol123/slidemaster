@@ -1,5 +1,5 @@
 /* Application actions: start-up, opening workbooks, editing through operations, undo/redo,
-   polling for other people's changes, presence.
+   presence (the core worker reads other people's changes from the deck's journals itself, every 1.5 s).
    The core worker (PLAN S2.4, app/src/rpc/client.ts) OWNS the open workbook, its shared document and undo/redo.
    The page keeps read-only mirrors: the workbook's sheets as slices (deck.wb), the document's view (doc.view) and
    what undo/redo would do (deck.history). A change is sent to the worker as operations; so that code reading the
@@ -17,8 +17,9 @@ import { MirrorWorkbook } from "@slide-builder/core/xlsx/mirror";
 import type { SharedSlice, SheetSlice } from "@slide-builder/core/xlsx/slice";
 import { transfer } from "@slide-builder/core/rpc/port";
 import type { DocEvent, ViewInputs } from "@slide-builder/core/rpc/messages";
-import type { Change } from "@slide-builder/core/sync/docsync";
+import type { Change, DeckOpen } from "@slide-builder/core/sync/docsync";
 import { applyOps } from "@slide-builder/core/model/ops";
+import { fold } from "@slide-builder/core/model/fold";
 import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "@slide-builder/core/model/preset";
 import { resolveStyle } from "@slide-builder/core/model/style";
 import type { Design, Op, Preset, Prefs, RuntimeSlide, StylePatch } from "@slide-builder/core/model/types";
@@ -38,8 +39,11 @@ let openingWb: MirrorWorkbook | null = null, earlySlices: { book: number; shared
 export function core(): CorePort {
   if (port) return port;
   const c = connectCore(); port = c.port; coreStats.worker = !!c.worker;
-  port.handle("getDoc", a => backend.getDoc(a.name, a.since));
-  port.handle("postOps", a => backend.postOps(a.name, a.ops, a.client));
+  port.handle("deckSnapshot", a => backend.deckSnapshot(a.key));
+  port.handle("deckTail", a => backend.deckTail(a.key, a.since));
+  port.handle("deckAppend", a => backend.deckAppend(a.key, a.writer, a.record));
+  port.handle("deckCompact", a => backend.deckCompact(a.key, a.baseGen, a.snapshot));
+  port.handle("deckRotate", a => backend.deckRotate(a.key, a.writer));
   port.handle("digitWidth", a => browserText.maxDigitWidth(a.font));
   // the display list's text, measured with the page's fonts (decision 2026-10-12, 3; browserText answers synchronously)
   port.handle("measureRuns", a => {
@@ -61,6 +65,7 @@ export function core(): CorePort {
   port.on("stage", s => STAGE.pushed(s));
   port.on("progress", p => { if (p) showBusy(p.text, p.frac); else hideBusy(); });
   port.on("retiredSaved", () => { unsavedElsewhere = false; });
+  port.on("rest", r => { restDeck = r; });
   // an error in the worker's own work (e.g. a sheet read after a colleague's change): shown, never a busy screen left up
   port.on("error", e => { console.error("core worker: " + e.message + (e.stack ? "\n" + e.stack : "")); hideBusy(); toast("⚠ " + esc(e.message), [], true); });
   // the worker stopped: nothing can be read or saved any more – say so, and stop taking edits
@@ -114,7 +119,12 @@ export async function boot() {
     setInterval(() => { void tick(); }, 3000);
     setInterval(() => { void heartbeat(); }, 10000);
     void heartbeat();
-    addEventListener("pagehide", () => backend.leave(get().prefs.client));
+    addEventListener("pagehide", () => {
+      // the last one present compacts the deck it closes (04 §4.4): the worker's snapshot of the deck at rest
+      const r = restDeck; restDeck = null;
+      if (r && r.key === deckKey && !others().length) backend.deckCompactOnLeave(r.key, r.baseGen, r.json);
+      backend.leave(get().prefs.client, deckKey);
+    });
   }
   // closing the window while changes are not on the share (or in this browser's storage) yet: the browser asks first
   addEventListener("beforeunload", e => {
@@ -123,10 +133,14 @@ export async function boot() {
   });
 }
 let tickN = 0;
-/** one poll: other people's changes, helper health, the file on disk, fonts, shared config (every 3 s) */
+/** the open deck's key on the share (presence v2) and its state at rest while this page is alone there (pagehide) */
+let deckKey: string | null = null, restDeck: { key: string; baseGen: number; json: string } | null = null;
+/** the others on the open deck */
+const others = () => get().ui.others.filter(o => o.workbook === get().deck.file?.name);
+/** one tick: helper health, the file on disk, fonts, shared config (every 3 s; other people's changes come from the
+    worker, which reads the deck's journals every 1.5 s) */
 export async function tick() {
   tickN++;
-  if (get().doc.open) await core().call("poll", {}).catch(() => { /* next tick */ });
   if (tickN % 2 === 0) {
     setHealth(await backend.health());
     const { file } = get().deck;
@@ -140,13 +154,15 @@ export async function tick() {
 }
 /** the helper's health; an answer equal to the last one changes nothing (nothing re-renders) */
 export function setHealth(h: AppState["ui"]["health"]) { if (!same(h, get().ui.health)) patch("ui", { health: h }); }
-/** presence: who else has this workbook open (every 10 s) */
+/** presence: who else has this deck open (every 10 s); the worker learns whether this page is alone there */
 export async function heartbeat() {
   try {
-    const others = await backend.presence(get().prefs.client, get().deck.file?.name || null);
+    const key = deckKey, name = get().deck.file?.name || null;
+    const others = await backend.presence(get().prefs.client, key, name);
     // who is here: the seen-at times change every time, the list shown only when somebody comes or goes
     const who = (l: typeof others) => l.map(o => [o.user, o.host, o.client, o.workbook]);
     if (!same(who(others), who(get().ui.others))) patch("ui", { others });
+    if (key && key === deckKey && get().doc.open) void core().call("alone", { alone: !others.length }).catch(() => undefined);
   } catch { /* helper busy */ }
 }
 
@@ -262,8 +278,13 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   stale();
   layOutWhileIdle(wb);
   LCACHE.clear();
-  const doc = (await backend.getDoc(name))!;
+  // the deck on the share: its snapshot and the records past it, folded as the worker will (model/fold.ts)
+  const opened = await backend.openDeck(name);
   stale();
+  const tail = backend.served ? await backend.deckTail(opened.key, opened.snapshot.frontier) : undefined;
+  stale();
+  const deck: DeckOpen = { key: opened.key, writer: opened.writer, snapshot: opened.snapshot, ...(tail ? { tail } : {}) };
+  const doc = fold(deck.snapshot, Object.values(tail?.journals || {}).flatMap(j => j.records)).doc;
   // the open workbook has changes the helper does not have yet: switching keeps saving them (the worker retries),
   // but say so when saving is failing, so nobody closes the window thinking they are safe
   if (get().doc.open && get().doc.save === "error") unsavedElsewhere = true;
@@ -293,7 +314,8 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   starting = true; pending.length = 0;
   let st;
   // the stage's slide is drawn first: the one shown before, if the new deck has it, as the slides are resolved below
-  try { st = await core().call("start", { book: wb.book, name, doc, preset: newPreset, inputs: { ...viewInputs(name), version }, stage: STAGE.request(get().deck.cur) }); }
+  const leftKey = deckKey;
+  try { st = await core().call("start", { book: wb.book, name, deck, preset: newPreset, inputs: { ...viewInputs(name), version }, stage: STAGE.request(get().deck.cur) }); }
   catch (e) {
     // refused before the switch (another open came first): the worker still has the open document, and so does the page
     if ((e as { code?: string }).code === "NOT_STARTED") { patch("deck", { opening: "" }); throw gen !== openGen ? superseded() : e; }
@@ -303,6 +325,8 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
     throw e;
   }
   finally { starting = false; }
+  deckKey = deck.key; restDeck = null;
+  if (leftKey && leftKey !== deckKey) backend.leave(get().prefs.client, leftKey);
   base = st.view; predicted = { base, key: "" };
   openingWb = null;                                          // now the open one (deck.wb)
   const design = resolveStyle(get().doc.config.defaults.style, st.view.style).design;
@@ -411,7 +435,7 @@ export function change(label: string, ops: Op[], coalesce?: string) {
   void core().call("apply", { label, ops, coalesce }).catch(e => console.error(e));
 }
 /** the save state right after a change: waiting for the helper, or kept in this browser (file://) */
-const unsaved = () => get().doc.save === "outdated" ? "outdated" as const : backend.served ? "pending" as const : "local" as const;
+const unsaved = () => get().doc.save === "outdated" || get().doc.save === "readonly" ? get().doc.save as "outdated" | "readonly" : backend.served ? "pending" as const : "local" as const;
 export function undo(redo = false) {
   // nothing to undo (as v3, which returned on an empty stack); not while another workbook is starting
   // an edit (or undo) the worker has not confirmed yet counts too: the history mirror comes with its snapshot
@@ -419,7 +443,7 @@ export function undo(redo = false) {
   if (!get().doc.open || starting || !(redo ? canRedo : canUndo)) return;
   if (port?.closed) { toast("⚠ " + esc(port.closed.message), [], true); return; }
   pending.push({ seq: ++seq, ops: [], undo: !redo });
-  if (get().doc.save !== "outdated") patch("doc", { save: unsaved() });      // as DocSync did: "pending" until the helper has it
+  if (get().doc.save !== "outdated" && get().doc.save !== "readonly") patch("doc", { save: unsaved() });      // as DocSync did: "pending" until the helper has it
   void core().call("undo", { redo }).then(r => {
     if (r.label === null) return;
     patchAll({ selection: { sel: null } });
