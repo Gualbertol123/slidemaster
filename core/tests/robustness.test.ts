@@ -261,3 +261,26 @@ describe("history and text boxes (05 §4 UN-05, NB-14)", () => {
     expect(h.redo.length).toBe(0);
   });
 });
+
+describe("wallpaper", () => {
+  it("is drawn once when it is asked for again while it is being drawn (the worker's warm-up and the first glass slide)", async () => {
+    const { makeWall } = await import("../src/render/wallpaper");
+    const { resolveStyle } = await import("../src/model/style");
+    let surfaces = 0;
+    const noop = () => undefined, grad = { addColorStop: noop };
+    const ctx = new Proxy({}, { get: (_t, k) => k === "createLinearGradient" || k === "createRadialGradient" ? () => grad
+      : k === "getImageData" ? () => ({ data: new Uint8ClampedArray(4) }) : noop, set: () => true });
+    setPlatform({ text: { maxDigitWidth: () => 7 }, canvas: {
+      create: () => { surfaces++; return { ctx: ctx as never, image: {} as never, toDataURL: () => new Promise<string>(r => setTimeout(() => r("data:image/jpeg;base64,AAAA"), 5)) }; },
+      decode: () => Promise.reject(new Error("unused")) } });
+    try {
+      const st = resolveStyle({ contrast: 77 });                            // settings no other test draws
+      const [a, b] = await Promise.all([makeWall(st), makeWall(st)]);
+      expect(a).toBe(b);
+      const per = surfaces;                                                 // the surfaces of one drawing
+      expect(await makeWall(st)).toBe(a);
+      expect(surfaces).toBe(per);
+      expect(per).toBeLessThanOrEqual(3);                                   // sharp, deepened, blurred – once
+    } finally { resetPlatform(); }
+  });
+});
