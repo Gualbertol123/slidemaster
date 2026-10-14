@@ -5,7 +5,7 @@ import { parseColor } from "../src/dl/color";
 import { validate, type DisplayList, type GroupNode, type HitNode, type LineNode, type Node, type RectNode, type TextNode } from "../src/dl/types";
 import { resolveStyle } from "../src/model/style";
 import type { RenderCtx } from "../src/render/context";
-import { borderDash, BORDER_W, cssFont, lu, excelToDisplayList, measuredBuild, primaryFamily, roughMetrics, type Metrics } from "../src/render/excel-dl";
+import { borderDash, BORDER_W, cssFont, lu, excelToDisplayList, measuredBuild, primaryFamily, roughMetrics, seamFills, SEAM, type Metrics } from "../src/render/excel-dl";
 import { setPlatform, resetPlatform } from "../src/platform";
 import { breakRuns, collapse, wrapLines } from "../src/text/lines";
 
@@ -232,6 +232,32 @@ describe("measuring", () => {
     expect(parseColor("#0f08")).toEqual({ c: [0, 255, 0], a: 136 / 255 });
     expect(parseColor("transparent").a).toBe(0);
     expect(parseColor("nonsense")).toEqual({ c: [0, 0, 0], a: 1 });
+  });
+});
+describe("seams between fills", () => {
+  /** an item with a fill at x, y, w × h (table px) */
+  const cell = (bx: number, by: number, bw: number, bh: number, fill: string | null = "#1F4E79") => ({ bx, by, bw, bh, fill }) as never;
+  it("a fill reaches SEAM px under the opaque fill painted after it, on whichever side", () => {
+    // a b / c d, row by row: a under b (right) and c (below); b under d; c under d; d under nothing
+    expect(seamFills([cell(0, 0, 50, 20), cell(50, 0, 50, 20), cell(0, 20, 50, 20), cell(50, 20, 50, 20)]))
+      .toEqual([[0, 0, SEAM, SEAM], [0, 0, 0, SEAM], [0, 0, SEAM, 0], [0, 0, 0, 0]]);
+    // painted the other way round (right to left): the right one reaches left under the left one
+    expect(seamFills([cell(50, 0, 50, 20), cell(0, 0, 50, 20)])).toEqual([[SEAM, 0, 0, 0], [0, 0, 0, 0]]);
+  });
+  it("only where the later fills cover the whole edge: a merged cell above two cells, not above one of two", () => {
+    expect(seamFills([cell(0, 0, 100, 20), cell(0, 20, 50, 20), cell(50, 20, 50, 20)])[0]).toEqual([0, 0, 0, SEAM]);
+    expect(seamFills([cell(0, 0, 100, 20), cell(0, 20, 50, 20), cell(50, 20, 50, 20, null)])[0]).toEqual([0, 0, 0, 0]);
+    expect(seamFills([cell(0, 0, 100, 20), cell(0, 20, 50, 20)])[0]).toEqual([0, 0, 0, 0]);
+  });
+  it("never under a translucent fill, nor from one; at most the neighbour's own size", () => {
+    expect(seamFills([cell(0, 0, 50, 20), cell(50, 0, 50, 20, "rgba(0,0,0,.5)")])[0]).toEqual([0, 0, 0, 0]);
+    expect(seamFills([cell(0, 0, 50, 20, "rgba(0,0,0,.5)"), cell(50, 0, 50, 20)])[0]).toEqual([0, 0, 0, 0]);
+    expect(seamFills([cell(0, 0, 50, 20), cell(50, 0, .5, 20)])[0]).toEqual([0, 0, .5, 0]);
+  });
+  it("the display list: the first fill is drawn SEAM px into its neighbour, which paints over it; the outer edges stay", () => {
+    const { nodes } = excelToDisplayList(layout([{ bx: 0, bw: 50, fill: "#1F4E79" }, { bx: 50, bw: 50, fill: "#1F4E79" }]), ctx(), M);
+    const rects = flat(nodes).filter((n): n is RectNode => n.t === "rect").map(r => [r.x, r.y, r.w, r.h]);
+    expect(rects).toEqual([[0, 0, 50 + SEAM, 20], [50, 0, 50, 20]]);
   });
 });
 export type { RectNode };

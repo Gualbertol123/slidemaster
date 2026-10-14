@@ -2073,5 +2073,159 @@
   "reason": "SP pixels beyond 1 % from hairlines: the thin row separators and capsule edges of Liquid Glass are anti-aliased differently by Chromium and PDFium (layouts and text match; S4.4 compares the pixels under the text too, which whole-box masks had left out).",
   "signedOff": "S4.1, product owner, 2026-10-13 (glyph rasterisation and hairlines)",
   "upTo": 1.6
+ },
+ {
+  "tool": "parity",
+  "deck": "deck20",
+  "design": "clean",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "No light seam between two filled cells of a scaled table any more: each fill reaches 1 px under the opaque fill painted after it (excel-dl.ts seamFills; v3's screenshots, the goldens, have the seams; the PDF never had them).",
+  "signedOff": "seams fix, product owner, 2026-10-14 (\"Fix all 4 points\")",
+  "upTo": 1.3
+ },
+ {
+  "tool": "parity",
+  "deck": "deck20",
+  "design": "excel",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "No light seam between two filled cells of a scaled table any more: each fill reaches 1 px under the opaque fill painted after it (excel-dl.ts seamFills; v3's screenshots, the goldens, have the seams; the PDF never had them).",
+  "signedOff": "seams fix, product owner, 2026-10-14 (\"Fix all 4 points\")",
+  "upTo": 1.3
+ },
+ {
+  "tool": "parity",
+  "deck": "weekly-comments",
+  "design": "excel",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "No light seam between two filled cells of a scaled table any more: each fill reaches 1 px under the opaque fill painted after it (excel-dl.ts seamFills; v3's screenshots, the goldens, have the seams; the PDF never had them).",
+  "signedOff": "seams fix, product owner, 2026-10-14 (\"Fix all 4 points\")",
+  "upTo": 1.3
+ },
+ {
+  "tool": "parity",
+  "deck": "weekly-looks",
+  "design": "clean",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "No light seam between two filled cells of a scaled table any more: each fill reaches 1 px under the opaque fill painted after it (excel-dl.ts seamFills; v3's screenshots, the goldens, have the seams; the PDF never had them).",
+  "signedOff": "seams fix, product owner, 2026-10-14 (\"Fix all 4 points\")",
+  "upTo": 1.8
+ },
+ {
+  "tool": "parity",
+  "deck": "weekly-looks",
+  "design": "excel",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "No light seam between two filled cells of a scaled table any more: each fill reaches 1 px under the opaque fill painted after it (excel-dl.ts seamFills; v3's screenshots, the goldens, have the seams; the PDF never had them).",
+  "signedOff": "seams fix, product owner, 2026-10-14 (\"Fix all 4 points\")",
+  "upTo": 1.4
+ },
+ {
+  "tool": "parity",
+  "deck": "weekly-options",
+  "design": "clean",
+  "version": "full",
+  "file": "slide-3.png",
+  "kind": "pixels",
+  "reason": "No light seam between two filled cells of a scaled table any more: each fill reaches 1 px under the opaque fill painted after it (excel-dl.ts seamFills; v3's screenshots, the goldens, have the seams; the PDF never had them).",
+  "signedOff": "seams fix, product owner, 2026-10-14 (\"Fix all 4 points\")",
+  "upTo": 1.8
+ },
+ {
+  "tool": "parity",
+  "deck": "weekly-options",
+  "design": "excel",
+  "version": "full",
+  "file": "slide-3.png",
+  "kind": "pixels",
+  "reason": "No light seam between two filled cells of a scaled table any more: each fill reaches 1 px under the opaque fill painted after it (excel-dl.ts seamFills; v3's screenshots, the goldens, have the seams; the PDF never had them).",
+  "signedOff": "seams fix, product owner, 2026-10-14 (\"Fix all 4 points\")",
+  "upTo": 1.2
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "clean",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "No light seam between two filled cells of a scaled table any more: each fill reaches 1 px under the opaque fill painted after it (excel-dl.ts seamFills; v3's screenshots, the goldens, have the seams; the PDF never had them).",
+  "signedOff": "seams fix, product owner, 2026-10-14 (\"Fix all 4 points\")",
+  "upTo": 1.6
+ },
+ {
+  "tool": "dlparity",
+  "deck": "deck20",
+  "design": "excel",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "No light seam between two filled cells of a scaled table any more: each fill reaches 1 px under the opaque fill painted after it (excel-dl.ts seamFills; v3's screenshots, the goldens, have the seams; the PDF never had them).",
+  "signedOff": "seams fix, product owner, 2026-10-14 (\"Fix all 4 points\")",
+  "upTo": 1.6
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-comments",
+  "design": "clean",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "No light seam between two filled cells of a scaled table any more: each fill reaches 1 px under the opaque fill painted after it (excel-dl.ts seamFills; v3's screenshots, the goldens, have the seams; the PDF never had them).",
+  "signedOff": "seams fix, product owner, 2026-10-14 (\"Fix all 4 points\")",
+  "upTo": 3.7
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-comments",
+  "design": "excel",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "No light seam between two filled cells of a scaled table any more: each fill reaches 1 px under the opaque fill painted after it (excel-dl.ts seamFills; v3's screenshots, the goldens, have the seams; the PDF never had them).",
+  "signedOff": "seams fix, product owner, 2026-10-14 (\"Fix all 4 points\")",
+  "upTo": 1.6
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-looks",
+  "design": "clean",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "No light seam between two filled cells of a scaled table any more: each fill reaches 1 px under the opaque fill painted after it (excel-dl.ts seamFills; v3's screenshots, the goldens, have the seams; the PDF never had them).",
+  "signedOff": "seams fix, product owner, 2026-10-14 (\"Fix all 4 points\")",
+  "upTo": 1.8
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-looks",
+  "design": "excel",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "No light seam between two filled cells of a scaled table any more: each fill reaches 1 px under the opaque fill painted after it (excel-dl.ts seamFills; v3's screenshots, the goldens, have the seams; the PDF never had them).",
+  "signedOff": "seams fix, product owner, 2026-10-14 (\"Fix all 4 points\")",
+  "upTo": 1.6
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-options",
+  "design": "excel",
+  "version": "full",
+  "file": "slide-3.png",
+  "kind": "pixels",
+  "reason": "No light seam between two filled cells of a scaled table any more: each fill reaches 1 px under the opaque fill painted after it (excel-dl.ts seamFills; v3's screenshots, the goldens, have the seams; the PDF never had them).",
+  "signedOff": "seams fix, product owner, 2026-10-14 (\"Fix all 4 points\")",
+  "upTo": 1.6
  }
 ]

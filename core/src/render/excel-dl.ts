@@ -114,9 +114,14 @@ export const XLFONT = `'Century Gothic','CenturyGothic','URW Gothic','AppleGothi
 export function excelToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics, opts: { noText?: boolean } = {}): TableDL {
   const items = effItems(L, ctx), rr = Math.round(8 * ctx.style.radius / 100);
   const nodes: DisplayList = [], images: Record<string, string> = {};
-  // fills and borders, in item order (later cells paint over earlier ones, as the divs do)
-  for (const it of items) {
-    if (it.fill) { const p = solid(it.fill); if (!("solid" in p && p.a === 0)) nodes.push({ t: "rect", x: it.bx, y: it.by, w: it.bw, h: it.bh, fill: p }); }
+  // fills and borders, in item order (later cells paint over earlier ones, as the divs do); a fill reaches under the
+  // opaque fill painted after it on its right and below (seamFills), so no light seam shows between them when scaled
+  const under = seamFills(items);
+  for (const [k, it] of items.entries()) {
+    if (it.fill) {
+      const p = solid(it.fill), [l, t, r, b] = under[k];
+      if (!("solid" in p && p.a === 0)) nodes.push({ t: "rect", x: it.bx - l, y: it.by - t, w: it.bw + l + r, h: it.bh + t + b, fill: p });
+    }
     for (const side of ["top", "left", "right", "bottom"] as const) { const b = it[side]; if (b) nodes.push(...borderNodes(side, b, it.bx, it.by, it.bw, it.bh)); }
   }
   if (!opts.noText) for (const it of items) if (it.text) nodes.push(...cellText(it, ctx, m));
@@ -124,6 +129,38 @@ export function excelToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics, o
   for (const tb of L.texts as Rect[]) nodes.push(...textBoxNodes(tb, rr, m));
   for (const p of L.pics) nodes.push(...picNodes(p, !!ctx.forExport, images, m));
   return { nodes, images };
+}
+
+/** how far a fill reaches under its neighbour's (table px) */
+export const SEAM = 1;
+/** for each item, how far its fill reaches under its neighbours' [left, top, right, bottom]: two opaque fills that meet
+    edge to edge at a fractional scale each let a little of the slide through their anti-aliased edges – a light line
+    between two dark cells (the PDF viewers' and the screen's rasterisers alike). The fill painted first reaches SEAM px
+    under the one painted after it, when that one is opaque and covers the whole shared edge: the later fill paints
+    over the strip, so no outer edge moves and nothing else changes */
+export function seamFills(items: Item[]): [number, number, number, number][] {
+  const out = items.map((): [number, number, number, number] => [0, 0, 0, 0]);
+  const opaque = items.map(it => !!it.fill && !("a" in solid(it.fill)));
+  const key = (v: number) => Math.round(v * 100);
+  // the opaque fills by each of their edges
+  const byLeft = new Map<number, number[]>(), byTop = new Map<number, number[]>(), byRight = new Map<number, number[]>(), byBottom = new Map<number, number[]>();
+  const add = (m: Map<number, number[]>, v: number, k: number) => { const l = m.get(key(v)); if (l) l.push(k); else m.set(key(v), [k]); };
+  items.forEach((it, k) => { if (opaque[k]) { add(byLeft, it.bx, k); add(byTop, it.by, k); add(byRight, it.bx + it.bw, k); add(byBottom, it.by + it.bh, k); } });
+  items.forEach((it, k) => {
+    if (!opaque[k]) return;
+    /** how far the fill may reach over the edge at v: the opaque fills painted later on the other side, which together
+        cover the whole edge from a0 to a1 (a merged cell above two cells, say), each SEAM deep at least; else 0 */
+    const reach = (m: Map<number, number[]>, v: number, a0: number, a1: number, span: (j: Item) => [number, number], depth: (j: Item) => number) => {
+      const js = (m.get(key(v)) || []).filter(j => j > k).map(j => ({ s: span(items[j]), d: depth(items[j]) })).filter(x => x.s[1] > a0 + .01 && x.s[0] < a1 - .01).sort((x, y) => x.s[0] - y.s[0]);
+      let at = a0, d = SEAM;
+      for (const x of js) { if (x.s[0] > at + .01) return 0; at = Math.max(at, x.s[1]); d = Math.min(d, x.d); }
+      return at >= a1 - .01 ? d : 0;
+    };
+    const ys = (j: Item): [number, number] => [j.by, j.by + j.bh], xs = (j: Item): [number, number] => [j.bx, j.bx + j.bw];
+    out[k] = [reach(byRight, it.bx, it.by, it.by + it.bh, ys, j => j.bw), reach(byBottom, it.by, it.bx, it.bx + it.bw, xs, j => j.bh),
+      reach(byLeft, it.bx + it.bw, it.by, it.by + it.bh, ys, j => j.bw), reach(byTop, it.by + it.bh, it.bx, it.bx + it.bw, xs, j => j.bh)];
+  });
+  return out;
 }
 
 /** the family list of a cell's text, as v3's renderExcel wrote it */
