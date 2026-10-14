@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { cleanFamily, fontFaceCss, fontStack, guessFromName, parseGoogleCss, readFontInfo } from "../src/model/fonts";
+import { cleanFamily, fontFaceCss, fontStack, guessFromName, parseGoogleCss, readFontInfo, type FontFace } from "../src/model/fonts";
+import { pickFace } from "../src/text/resolve";
 import { cleanFmt, resolveStyle } from "../src/model/style";
 import { slideToDisplayList } from "../src/render/slide-dl";
 import type { Metrics } from "../src/render/excel-dl";
@@ -40,6 +41,20 @@ describe("fonts", () => {
     expect(css).toContain("font-family:'Brand'");
     expect(css).toContain(`url("/fonts/Brand-700i.woff2") format('woff2')`);
     expect(css).toContain("font-weight:700;font-style:italic;unicode-range:U+0000-00FF;");
+  });
+  it("a copied Windows font (W13): each face declared for the weights Windows draws it with", () => {
+    // Segoe UI's static faces: Light 300, Semilight 350, Regular 400, Semibold 600, Bold 700, Black 900 (+ an italic)
+    const faces: FontFace[] = [...[300, 350, 400, 600, 700, 900].map((w): FontFace => ({ file: `s${w}.ttf`, weight: w, style: "normal" })), { file: "si.ttf", weight: 400, style: "italic" }];
+    const css = fontFaceCss([{ family: "Segoe UI", source: "system", faces }], f => "/fonts/" + f);
+    const range = (file: string) => /font-weight:(\d+ \d+);/.exec(css.split("\n").find(l => l.includes(file))!)![1];
+    expect(faces.map(f => range(f.file))).toEqual(["1 325", "326 375", "376 499", "500 649", "650 799", "800 1000", "1 1000"]);
+    // the weights the designs use land where DirectWrite puts them (resolve.ts pickFace on Windows faces)
+    const sys = faces.filter(f => f.style === "normal").map(f => ({ weight: f.weight, italic: false, source: "system" }));
+    for (const w of [325, 375, 470, 500, 520, 640, 650, 680, 720, 740]) {
+      const [lo, hi] = range(`s${pickFace(sys, w, false)!.weight}.ttf`).split(" ").map(Number);
+      expect(w >= lo && w <= hi, `${w}`).toBe(true);
+    }
+    expect(fontFaceCss([{ family: "Brand", source: "upload", faces: faces.slice(2, 4) }], f => f)).toContain("font-weight:600;");   // uploads: as before
   });
   it("Google stylesheets: latin subsets only", () => {
     const css = `/* cyrillic */\n@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 400;\n  src: url(https://fonts.gstatic.com/c.woff2) format('woff2');\n  unicode-range: U+0301, U+0400-045F;\n}\n` +

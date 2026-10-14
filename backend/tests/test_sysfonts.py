@@ -190,7 +190,8 @@ class SysFonts(test_http.HttpBase):
         self.only_regular_and_bold()
         self.assertEqual(sysfonts.set_copy_allowed("J. Doe, licence owner, mail of 2026-10-14"), "J. Doe, licence owner, mail of 2026-10-14")
         st, fp = self.jreq("POST", "/api/fonts/capture?file=carlito.ttf", b"")
-        self.assertEqual((st, fp["mode"], fp["copied"], fp["faces"], fp["sha1"]), (200, "copy", True, 2, sysfonts.fingerprint(self.regular)["sha1"]))
+        self.assertEqual((st, fp["mode"], fp["copied"], fp["copiedFaces"], fp["added"], fp["sha1"]), (200, "copy", True, 2, 2, sysfonts.fingerprint(self.regular)["sha1"]))
+        self.assertEqual(fp["faces"][0]["weight"], 400)                       # the fingerprint's faces, in both modes
         fam = self.library()["Carlito"]
         self.assertEqual((fam["source"], sorted((x["weight"], x["style"]) for x in fam["faces"])), ("system", [(400, "normal"), (700, "normal")]))
         for x in fam["faces"]:                                    # the exact bytes of this PC's files
@@ -200,9 +201,57 @@ class SysFonts(test_http.HttpBase):
         # captured again (another PC, another build): the library's copy stays the one every PC uses
         with open(os.path.join(self.fontdir, "carlito.ttf"), "wb") as f:
             f.write(self.regular[:-4] + b"\x00\x00\x00\x01")
-        st, fp2 = self.jreq("POST", "/api/fonts/capture?file=carlito.ttf", b"")
+        from unittest import mock
+        with mock.patch.dict(os.environ, {"SLIDEBUILDER_USER": "bob", "SLIDEBUILDER_HOST": "pc-bob"}):
+            st, fp2 = self.jreq("POST", "/api/fonts/capture?file=carlito.ttf", b"")
         self.assertEqual((fp2["copied"], fp2["otherBuilds"]), (True, [fp["sha1"]]))
         self.assertEqual(self.library()["Carlito"]["faces"], fam["faces"])
+
+    def test_copy_mode_adds_the_faces_the_library_lacks(self):
+        # the first PC has Regular only; a PC with Bold too adds it (the library's family hides this PC's own Carlito)
+        os.remove(os.path.join(self.fontdir, "locked.ttf")); os.remove(os.path.join(self.fontdir, "pair.ttc"))
+        moved = os.path.join(self.fontdir, "carlitob.ttf.away")
+        os.rename(os.path.join(self.userdir, "carlitob.ttf"), moved)
+        sysfonts.set_copy_allowed("J. Doe")
+        st, fp = self.jreq("POST", "/api/fonts/capture?file=carlito.ttf", b"")
+        self.assertEqual((fp["copied"], fp["copiedFaces"], fp["added"]), (True, 1, 1))
+        os.rename(moved, os.path.join(self.userdir, "carlitob.ttf"))
+        sysfonts._index_cache.clear()
+        st, fp = self.jreq("POST", "/api/fonts/capture?file=carlito.ttf", b"")
+        self.assertEqual((fp["copied"], fp["copiedFaces"], fp["added"]), (True, 2, 1))
+        self.assertEqual(sorted(x["weight"] for x in self.library()["Carlito"]["faces"]), [400, 700])
+
+    def test_copy_mode_leaves_nothing_behind_when_it_fails_halfway(self):
+        self.only_regular_and_bold()
+        sysfonts.set_copy_allowed("J. Doe")
+        from unittest import mock
+        with mock.patch.object(fonts, "write_json", side_effect=OSError("the share is full")):
+            st, _ = self.jreq("POST", "/api/fonts/capture?file=carlito.ttf", b"")
+        self.assertNotEqual(st, 200)
+        self.assertEqual(self.library(), {})
+        self.assertEqual([n for n in os.listdir(os.path.join(paths.DATA, "fonts")) if n.lower().endswith((".ttf", ".otf"))], [])
+        st, fp = self.jreq("POST", "/api/fonts/capture?file=carlito.ttf", b"")          # the next capture copies it whole
+        self.assertEqual((st, fp["copied"], fp["copiedFaces"]), (200, True, 2))
+
+    def test_an_upload_cannot_claim_to_be_a_copied_windows_font(self):
+        st, lib = self.jreq("POST", "/api/fonts?" + urllib.parse.urlencode({"family": "Carlito", "weight": "400", "style": "normal", "name": "c.ttf", "source": "system"}),
+                            self.regular, headers={"Content-Type": "application/octet-stream"})
+        self.assertEqual((st, self.library()["Carlito"]["source"]), (200, "upload"))
+
+    def test_a_pc_that_updated_its_font_is_no_longer_named(self):
+        # pc-x had build A, then Windows updated it to build B; pc-me has B: nobody has another build
+        from unittest import mock
+        build_b = self.regular[:-4] + b"\x00\x00\x00\x01"
+        with mock.patch.dict(os.environ, {"SLIDEBUILDER_USER": "x", "SLIDEBUILDER_HOST": "pc-x"}):
+            self.jreq("POST", "/api/fonts/capture?file=carlito.ttf", b"")
+            with open(os.path.join(self.fontdir, "carlito.ttf"), "wb") as f:
+                f.write(build_b)
+            self.jreq("POST", "/api/fonts/capture?file=carlito.ttf", b"")
+        with mock.patch.dict(os.environ, {"SLIDEBUILDER_USER": "me", "SLIDEBUILDER_HOST": "pc-me"}):
+            st, fp = self.jreq("POST", "/api/fonts/capture?file=carlito.ttf", b"")
+        self.assertEqual((fp["otherBuilds"], fp["otherHosts"]), ([], []))
+        with open(os.path.join(paths.DATA, "fonts", "system", "fingerprints.json"), encoding="utf-8") as f:
+            self.assertEqual(len(json.load(f)["fonts"]), 1)                     # build A: no PC has it any more
 
     def test_copy_mode_copies_all_faces_or_none(self):
         sysfonts.set_copy_allowed("J. Doe")

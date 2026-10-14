@@ -29,7 +29,8 @@ export function systemCatalog(): Promise<CatalogFont[]> {
   return p;
 }
 /** the deck's library faces (their @font-face rules) */
-export const libraryCatalog = (): CatalogFont[] => get().doc.fonts.flatMap(f => f.faces.map(x => ({ source: "library" as const, file: x.file, family: f.family, weight: Math.round(+x.weight || 400), italic: x.style === "italic" })));
+export const libraryCatalog = (): CatalogFont[] => get().doc.fonts.flatMap(f => f.faces.map(x => ({ source: "library" as const, file: x.file, family: f.family, weight: Math.round(+x.weight || 400), italic: x.style === "italic",
+  ...(f.source === "system" ? { copied: true } : {}) })));
 /** the fonts an export may embed: the deck's library faces, then this PC's */
 export async function catalog(): Promise<CatalogFont[]> {
   const lib = libraryCatalog();
@@ -60,7 +61,7 @@ function capture(file: string) {
     const was = get().ui.fontBuilds, same = was.find(x => x.family === r.family);
     const all = [...new Set([...(same?.hosts || []), ...hosts])].sort();
     if (!same || all.length !== same.hosts.length) patch("ui", { fontBuilds: [...was.filter(x => x.family !== r.family), { family: r.family, hosts: all }] });
-  }, e => { captured.delete(k); console.info("font capture:", file, e); });
+  }, e => { console.info("font capture:", file, e); setTimeout(() => captured.delete(k), 60_000); });      // (asked again a minute later at most)
 }
 export async function fontFile(a: { source: "library" | "system"; file: string }): Promise<ArrayBuffer | null> {
   if (a.source === "system") capture(a.file);

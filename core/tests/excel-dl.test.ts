@@ -5,7 +5,7 @@ import { parseColor } from "../src/dl/color";
 import { validate, type DisplayList, type GroupNode, type HitNode, type LineNode, type Node, type RectNode, type TextNode } from "../src/dl/types";
 import { resolveStyle } from "../src/model/style";
 import type { RenderCtx } from "../src/render/context";
-import { borderDash, BORDER_W, cssFont, lu, excelToDisplayList, measuredBuild, primaryFamily, roughMetrics, seamFills, SEAM, type Metrics } from "../src/render/excel-dl";
+import { borderDash, BORDER_W, cssFont, lu, excelToDisplayList, measuredBuild, primaryFamily, roughMetrics, seamFills, seamPath, SEAM, type Metrics } from "../src/render/excel-dl";
 import { setPlatform, resetPlatform } from "../src/platform";
 import { breakRuns, collapse, wrapLines } from "../src/text/lines";
 
@@ -254,10 +254,26 @@ describe("seams between fills", () => {
     expect(seamFills([cell(0, 0, 50, 20, "rgba(0,0,0,.5)"), cell(50, 0, 50, 20)])[0]).toEqual([0, 0, 0, 0]);
     expect(seamFills([cell(0, 0, 50, 20), cell(50, 0, .5, 20)])[0]).toEqual([0, 0, .5, 0]);
   });
-  it("the display list: the first fill is drawn SEAM px into its neighbour, which paints over it; the outer edges stay", () => {
+  it("the display list: the first fill is one shape reaching SEAM px into its neighbour, which paints over it", () => {
     const { nodes } = excelToDisplayList(layout([{ bx: 0, bw: 50, fill: "#1F4E79" }, { bx: 50, bw: 50, fill: "#1F4E79" }]), ctx(), M);
-    const rects = flat(nodes).filter((n): n is RectNode => n.t === "rect").map(r => [r.x, r.y, r.w, r.h]);
-    expect(rects).toEqual([[0, 0, 50 + SEAM, 20], [50, 0, 50, 20]]);
+    const fills = flat(nodes).filter(n => n.t === "rect" || n.t === "path");
+    expect(fills.map(n => n.t)).toEqual(["path", "rect"]);
+    const path = fills[0] as Extract<Node, { t: "path" }>;
+    expect([path.rule, path.d.filter(c => c[0] === "M").length]).toEqual(["nonzero", 2]);              // the box and one strip
+    expect(path.d.slice(5)).toEqual([["M", 49, 0], ["L", 50 + SEAM, 0], ["L", 50 + SEAM, 20], ["L", 49, 20], ["Z"]]);
+    expect(validate(nodes)).toEqual([]);
+  });
+  it("no corner: a fill reaching right and down leaves the diagonal cell alone (it may have no fill)", () => {
+    // a b / c d with d empty: a reaches under b and under c; the corner square at (50, 20) is d's
+    const items = [cell(0, 0, 50, 20), cell(50, 0, 50, 20), cell(0, 20, 50, 20), cell(50, 20, 50, 20, null)];
+    expect(seamFills(items)[0]).toEqual([0, 0, SEAM, SEAM]);
+    const d = seamPath({ bx: 0, by: 0, bw: 50, bh: 20 }, [0, 0, SEAM, SEAM]);
+    const inside = (x: number, y: number) => {                            // inside any of the path's boxes
+      const boxes: number[][] = []; let cur: number[] = [];
+      for (const c of d) { if (c[0] === "M") cur = [c[1], c[2], c[1], c[2]]; else if (c[0] === "L") cur = [Math.min(cur[0], c[1]), Math.min(cur[1], c[2]), Math.max(cur[2], c[1]), Math.max(cur[3], c[2])]; else boxes.push(cur); }
+      return boxes.some(([x0, y0, x1, y1]) => x > x0 && x < x1 && y > y0 && y < y1);
+    };
+    expect([inside(50.5, 10), inside(25, 20.5), inside(50.5, 20.5)]).toEqual([true, true, false]);
   });
 });
 export type { RectNode };

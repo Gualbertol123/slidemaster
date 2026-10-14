@@ -59,6 +59,7 @@ describe("Windows fonts captured (W13)", () => {
     await files.fontFile({ source: "system", file: "carlito.ttf" });
     await vi.waitFor(() => expect(store.get().doc.fonts.map(f => [f.family, f.source])).toEqual([["Carlito", "system"]]));
     expect(calls).toContain("/api/fonts");
-    expect(files.libraryCatalog()).toEqual([{ source: "library", file: "Carlito-400-a.ttf", family: "Carlito", weight: 400, italic: false }]);
+    // matched as Windows matches it (nearest weight), not by CSS: the copied flag (resolve.ts pickFace)
+    expect(files.libraryCatalog()).toEqual([{ source: "library", file: "Carlito-400-a.ttf", family: "Carlito", weight: 400, italic: false, copied: true }]);
   });
 });

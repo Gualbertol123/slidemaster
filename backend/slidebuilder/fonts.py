@@ -72,7 +72,7 @@ def add_face(family, weight, style, data, ext=None, source="upload", unicode_ran
         weight = 400
     weight = max(1, min(1000, weight))
     style = "italic" if style == "italic" else "normal"
-    source = source if source in ("google", "system") else "upload"
+    source = "google" if source == "google" else "upload"                # ("system" only through add_system_faces)
     if not data:
         raise FontError("the font file is empty")
     if len(data) > FONT_MAX:
@@ -85,8 +85,7 @@ def add_face(family, weight, style, data, ext=None, source="upload", unicode_ran
         ext = exts[0]
     if unicode_range is not None and not (isinstance(unicode_range, str) and _RANGE.match(unicode_range)):
         unicode_range = None
-    name = "%s-%d%s-%s%s" % (safe_component(family.replace(" ", ""), 40), weight, "i" if style == "italic" else "",
-                             hashlib.sha1(data).hexdigest()[:10], ext)
+    name = _file_name(family, weight, style, data, ext)
     path = os.path.join(fonts_dir(), name)
     os.makedirs(fonts_dir(), exist_ok=True)
     with Lock("fonts"):
@@ -110,6 +109,59 @@ def add_face(family, weight, style, data, ext=None, source="upload", unicode_ran
         write_json(_index_path(), lib)
         _sweep(lib)
         return lib
+
+
+def _file_name(family, weight, style, data, ext):
+    return "%s-%d%s-%s%s" % (safe_component(family.replace(" ", ""), 40), weight, "i" if style == "italic" else "",
+                             hashlib.sha1(data).hexdigest()[:10], ext)
+
+
+def add_system_faces(family, faces, user=None):
+    """copy mode (sysfonts.py, W13): faces of a Windows font into the library as family `family`, source "system" – the
+    ones its copy does not have yet (another PC may have more styles) – under one lock: every file is written, then
+    the index once; anything failing leaves the library as it was. `faces`: [(bytes, ext, weight, italic)].
+    Returns (library, number of faces added); FontError when the library has a family of that name of its own."""
+    family = clean_family(family)
+    os.makedirs(fonts_dir(), exist_ok=True)
+    with Lock("fonts"):
+        lib = read_library()
+        entry = next((f for f in lib["fonts"] if f["family"].lower() == family.lower()), None)
+        if entry is not None and entry.get("source") != "system":
+            raise FontError("the library has its own %s" % family)
+        have = {(x.get("weight"), x.get("style")) for x in (entry or {}).get("faces", []) if isinstance(x, dict)}
+        new = []
+        for data, ext, weight, italic in faces:
+            weight, style = max(1, min(1000, int(weight))), "italic" if italic else "normal"
+            if (weight, style) in have:
+                continue
+            if not data or len(data) > FONT_MAX or ext not in (".ttf", ".otf"):
+                raise FontError("%s %d %s: not a font file the library takes" % (family, weight, style))
+            have.add((weight, style))
+            new.append((_file_name(family, weight, style, data, ext), data, weight, style))
+        if not new:
+            return lib, 0
+        if len(have) > MAX_FACES:
+            raise FontError("%s would have more than %d styles" % (family, MAX_FACES))
+        written = []
+        try:
+            for name, data, _w, _s in new:
+                path = os.path.join(fonts_dir(), name)
+                if not os.path.exists(path):
+                    write_atomic(path, data)
+                    written.append(path)
+            if entry is None:
+                entry = {"family": family, "source": "system", "faces": []}
+                lib["fonts"].append(entry)
+            entry["faces"] = [x for x in entry["faces"] if isinstance(x, dict)] + [{"file": n, "weight": w, "style": s} for n, _d, w, s in new]
+            entry["by"] = user or current_user()
+            entry["at"] = server_now_ms()
+            lib["fonts"].sort(key=lambda f: f["family"].lower())
+            write_json(_index_path(), lib)
+        except BaseException:
+            for p in written:
+                remove_quietly(p)
+            raise
+        return lib, len(new)
 
 
 def remove_family(family):

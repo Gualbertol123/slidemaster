@@ -120,7 +120,7 @@ export function excelToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics, o
   for (const [k, it] of items.entries()) {
     if (it.fill) {
       const p = solid(it.fill), [l, t, r, b] = under[k];
-      if (!("solid" in p && p.a === 0)) nodes.push({ t: "rect", x: it.bx - l, y: it.by - t, w: it.bw + l + r, h: it.bh + t + b, fill: p });
+      if (!("solid" in p && p.a === 0)) nodes.push(l || t || r || b ? { t: "path", d: seamPath(it, under[k]), fill: p, rule: "nonzero" } : { t: "rect", x: it.bx, y: it.by, w: it.bw, h: it.bh, fill: p });
     }
     for (const side of ["top", "left", "right", "bottom"] as const) { const b = it[side]; if (b) nodes.push(...borderNodes(side, b, it.bx, it.by, it.bw, it.bh)); }
   }
@@ -135,9 +135,10 @@ export function excelToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics, o
 export const SEAM = 1;
 /** for each item, how far its fill reaches under its neighbours' [left, top, right, bottom]: two opaque fills that meet
     edge to edge at a fractional scale each let a little of the slide through their anti-aliased edges – a light line
-    between two dark cells (the PDF viewers' and the screen's rasterisers alike). The fill painted first reaches SEAM px
-    under the one painted after it, when that one is opaque and covers the whole shared edge: the later fill paints
-    over the strip, so no outer edge moves and nothing else changes */
+    between two dark cells on screen and in pictures (PDFium showed none in the PDF; viewers that anti-alias each shape
+    on its own would). The fill painted first reaches SEAM px under the one painted after it, when that one is opaque
+    and covers the whole shared edge – along that edge only, no corner (seamPath) – and the later fill paints over the
+    strip: no outer edge moves; the shared edge's pixels show the two colours' mix instead of the slide's white */
 export function seamFills(items: Item[]): [number, number, number, number][] {
   const out = items.map((): [number, number, number, number] => [0, 0, 0, 0]);
   const opaque = items.map(it => !!it.fill && !("a" in solid(it.fill)));
@@ -161,6 +162,17 @@ export function seamFills(items: Item[]): [number, number, number, number][] {
       reach(byLeft, it.bx + it.bw, it.by, it.by + it.bh, ys, j => j.bw), reach(byTop, it.by + it.bh, it.bx, it.bx + it.bw, xs, j => j.bh)];
   });
   return out;
+}
+
+/** a fill with its strips under its neighbours, as one shape (one path, nonzero: its parts' shared edges are inside it,
+    so they draw no seam of their own): the cell's box, and for each side a strip from just inside the box to SEAM px
+    beyond it, as long as that side – no corner, which lies in a diagonal cell no neighbour may cover */
+export function seamPath(it: { bx: number; by: number; bw: number; bh: number }, [l, t, r, b]: [number, number, number, number]): PathCmd[] {
+  const box = (x: number, y: number, w: number, h: number): PathCmd[] => [["M", r2(x), r2(y)], ["L", r2(x + w), r2(y)], ["L", r2(x + w), r2(y + h)], ["L", r2(x), r2(y + h)], ["Z"]];
+  const ix = Math.min(SEAM, it.bw), iy = Math.min(SEAM, it.bh);       // how far a strip reaches back into the box
+  return [...box(it.bx, it.by, it.bw, it.bh),
+    ...(l ? box(it.bx - l, it.by, l + ix, it.bh) : []), ...(t ? box(it.bx, it.by - t, it.bw, t + iy) : []),
+    ...(r ? box(it.bx + it.bw - ix, it.by, ix + r, it.bh) : []), ...(b ? box(it.bx, it.by + it.bh - iy, it.bw, iy + b) : [])];
 }
 
 /** the family list of a cell's text, as v3's renderExcel wrote it */

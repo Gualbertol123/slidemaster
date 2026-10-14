@@ -253,13 +253,11 @@ def set_copy_allowed(confirmed_by):
 
 
 def _copy_family(family, user=None):
-    """copy mode: every face of `family` on this PC into the shared library, or none – {"copied": bool, "reason"?}"""
+    """copy mode: every face of `family` on this PC that the library's copy lacks, into the library – all of them or
+    none (fonts.add_system_faces, one lock) – {"copied": bool, "copiedFaces": n in the library, "added": n, "reason"?}"""
     from . import fonts as library
-    lib = library.read_library()
-    have = next((f for f in lib["fonts"] if f["family"].lower() == family.lower()), None)
-    if have is not None:
-        if have.get("source") == "system":
-            return {"copied": True, "faces": len(have.get("faces") or [])}
+    have = next((f for f in library.read_library()["fonts"] if f["family"].lower() == family.lower()), None)
+    if have is not None and have.get("source") != "system":
         return {"copied": False, "reason": "the library has its own %s" % family}
     rows = [r for r in list_fonts() if str(r.get("family", "")).lower() == family.lower()]
     faces = []
@@ -273,12 +271,15 @@ def _copy_family(family, user=None):
             return {"copied": False, "reason": "%s may not be embedded (OS/2 fsType)" % r["file"]}
         if d.get("variable"):
             return {"copied": False, "reason": "%s is a variable font" % r["file"]}
-        faces.append((data, ext, d))
+        faces.append((data, ext, d["weight"], d["italic"]))
     if not faces:
         return {"copied": False, "reason": "no file of %s on this PC" % family}
-    for data, ext, d in faces:
-        library.add_face(family, d["weight"], "italic" if d["italic"] else "normal", data, ext=ext, source="system", user=user)
-    return {"copied": True, "faces": len(faces)}
+    try:
+        lib, added = library.add_system_faces(family, faces, user=user)
+    except library.FontError as e:
+        return {"copied": False, "reason": str(e)}
+    entry = next(f for f in lib["fonts"] if f["family"].lower() == family.lower())
+    return {"copied": True, "copiedFaces": len(entry["faces"]), "added": added}
 
 
 def capture(name, user=None, host=None):
@@ -302,7 +303,14 @@ def capture(name, user=None, host=None):
                    "faces": fp["faces"], "seen": []}
             rows.append(row)
         who = {"user": user or current_user(), "host": host or current_host()}
-        row["seen"] = [s for s in row.get("seen", []) if isinstance(s, dict) and (s.get("user"), s.get("host")) != (who["user"], who["host"])]
+        me = lambda s: isinstance(s, dict) and (s.get("user"), s.get("host")) == (who["user"], who["host"])
+        # this PC has this build now: it no longer has another build of the same file (an update replaced it), and a
+        # build no PC has any more is forgotten
+        for r in rows:
+            if r is not row and r.get("file", "").lower() == name.lower():
+                r["seen"] = [s for s in r.get("seen", []) if isinstance(s, dict) and not me(s)]
+        rows = [r for r in rows if r is row or r.get("seen")]
+        row["seen"] = [s for s in row.get("seen", []) if isinstance(s, dict) and not me(s)]
         row["seen"].append(dict(who, at=now))
         row["seen"] = row["seen"][-50:]
         rows.sort(key=lambda r: (str(r.get("family", "")).lower(), str(r.get("file", "")).lower(), str(r.get("sha1", ""))))

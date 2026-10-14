@@ -14,7 +14,10 @@ import { weightOf, type DisplayList, type Node, type TextNode } from "../dl/type
 import { FontRegistry } from "./fonts";
 
 /** one font file the export may load: a library face or a file of this PC's font folders */
-export interface CatalogFont { source: "library" | "system"; file: string; family: string; weight: number; italic: boolean }
+export interface CatalogFont { source: "library" | "system"; file: string; family: string; weight: number; italic: boolean;
+  /** a Windows font copied into the library (copy mode, W13): read from the library, matched as Windows matches it
+      (DirectWrite's nearest weight, its @font-face rules declare those weights as ranges: model/fonts.ts fontFaceCss) */
+  copied?: boolean }
 
 /** families the PDF never takes from a list (variable fonts v3's PDFs left out too) */
 const SKIP = /^(-apple-system|BlinkMacSystemFont|Segoe UI Variable( (Display|Text|Small))?|SF Pro( (Display|Text))?)$/i;
@@ -47,10 +50,10 @@ export function cssFamilies(css: string): string[] {
     Semibold, 720 Bold, 325 Light – measured against Chromium's canvas, S4.4) – so the PDF uses the face the screen
     shows (as FontRegistry.match). (DirectWrite may also let a weight win over the style – Arial italic 850 is Arial
     Black – which this does not follow: no weight the designs use comes near) */
-export function pickFace<T extends { weight: number; italic: boolean; source?: string }>(list: T[], weight: number, italic: boolean): T | null {
+export function pickFace<T extends { weight: number; italic: boolean; source?: string; copied?: boolean }>(list: T[], weight: number, italic: boolean): T | null {
   if (!list.length) return null;
   const styled = list.filter(f => f.italic === italic), pool = styled.length ? styled : list;
-  if (pool.every(f => f.source === "system")) return [...pool].sort((a, b) => Math.abs(a.weight - weight) - Math.abs(b.weight - weight) || (weight >= 400 ? b.weight - a.weight : a.weight - b.weight))[0];
+  if (pool.every(f => f.source === "system" || f.copied)) return [...pool].sort((a, b) => Math.abs(a.weight - weight) - Math.abs(b.weight - weight) || (weight >= 400 ? b.weight - a.weight : a.weight - b.weight))[0];
   const rank = (w: number) => w === weight ? 0
     : weight > 500 ? (w > weight ? w - weight : 1000 + weight - w)
     : weight < 400 ? (w < weight ? weight - w : 1000 + w - weight)
@@ -96,7 +99,7 @@ export class FontResolver {
           // a library face is what its @font-face rule says; a Windows file names its own faces (a .ttc holds several) –
           // unless the index knows it by another name (the browser's local-font list), which then names its one face too
           try {
-            if (f.source === "library") { this.fonts.add(data, { family: f.family, weight: f.weight, italic: f.italic, source: "library", file: f.file }); return true; }
+            if (f.source === "library") { this.fonts.add(data, { family: f.family, weight: f.weight, italic: f.italic, source: f.copied ? "system" : "library", file: f.file }); return true; }
             const faces = this.fonts.add(data, { source: "system", file: f.file });
             if (faces.length === 1 && faces[0].family.toLowerCase() !== f.family.toLowerCase()) this.fonts.add(data, { family: f.family, source: "system", file: f.file });
             return true;

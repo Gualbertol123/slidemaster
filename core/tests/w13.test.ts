@@ -67,6 +67,20 @@ describe("W13: two PCs with different fonts", () => {
     expect(b).toBe(a);
     expect(c).toBe(a);
   });
+  it("a copied Windows font keeps Windows' weights: 520 is Regular as on the PC's own font, not Bold as CSS would pick", async () => {
+    const width = async (catalog: CatalogFont[], files: Record<string, Uint8Array>) => {
+      const m = new FontMeasurer(shaper(), { catalog: async () => catalog, bytes: async f => files[f.file] ?? null }, PAGE);
+      return (await m.measureRuns([{ text: "Total Banks 1.234", font: "520 16px Carlito" }]))[0].w;
+    };
+    const own = await width([sys("carlito.ttf", "Carlito"), sys("carlitob.ttf", "Carlito", 700)], { "carlito.ttf": REGULAR, "carlitob.ttf": BOLD });
+    const files = { "Carlito-400-1.ttf": REGULAR, "Carlito-700-2.ttf": BOLD };
+    const copied = await width([{ ...lib("Carlito-400-1.ttf", 400), copied: true }, { ...lib("Carlito-700-2.ttf", 700), copied: true }], files);
+    const uploaded = await width([lib("Carlito-400-1.ttf", 400), lib("Carlito-700-2.ttf", 700)], files);
+    const regular = await width([sys("carlito.ttf", "Carlito")], { "carlito.ttf": REGULAR });
+    expect(copied).toBe(own);
+    expect(own).toBe(regular);
+    expect(uploaded).not.toBe(own);                                                    // an upload follows CSS: Bold
+  });
   it("lay it out differently in fingerprint mode when a PC has another build (the side panel names that PC)", async () => {
     const a = await layOut({ catalog: [sys("carlito.ttf", "Carlito"), sys("carlitob.ttf", "Carlito", 700)], files: { "carlito.ttf": REGULAR, "carlitob.ttf": BOLD } });
     const same = await layOut({ catalog: [sys("carlito.ttf", "Carlito"), sys("carlitob.ttf", "Carlito", 700)], files: { "carlito.ttf": REGULAR, "carlitob.ttf": BOLD } });

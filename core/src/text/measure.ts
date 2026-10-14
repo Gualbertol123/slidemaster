@@ -90,7 +90,8 @@ export class FontMeasurer implements TextMeasurer {
       p = this.src.bytes(f).then(data => {
         if (!data) return null;
         try {
-          const faces = f.source === "library" ? this.fonts.add(data, { family: f.family, weight: f.weight, italic: f.italic, source: "library", file: f.file })
+          // (a copied Windows font is matched as Windows matches it: "system")
+          const faces = f.source === "library" ? this.fonts.add(data, { family: f.family, weight: f.weight, italic: f.italic, source: f.copied ? "system" : "library", file: f.file })
             : this.fonts.add(data, { source: "system", file: f.file });
           // a collection holds several faces: the one of this family, weight and style
           return pickFace(faces.filter(x => x.family.toLowerCase() === family.toLowerCase()), f.weight, f.italic) ?? (faces.length === 1 ? faces[0] : null);
