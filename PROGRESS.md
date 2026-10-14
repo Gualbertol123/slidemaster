@@ -211,6 +211,21 @@ numbers measured twice). Measured numbers go into the step's line.
   4. The start-up reopen race: **yes**, fixed in the next release (the first item of the next milestone).
   5. W13's field run: **yes**, with G0's field tests (it needs two real PCs and people).
 
+- 2026-10-14 · **G0 decisions** (product owner: "make the g0 decisions and implement it"; made and written here by the
+  agent). The field tests of S0.6 have not been run (`docs/next/field-results.md` is empty), so these rest on the
+  simulation and the local runs, and the open checks move to the pilot:
+  1. **Storage: "journal"** (ADR-006: a snapshot plus per-writer append-only journals, Lamport order). In 04 §2.5's
+     simulation it is the only protocol that holds 05 §3.5 at 20 users / 40 ms (save p95 96 ms, visible p95 3.1 s;
+     the lean lock overloads: 7.9 / 19.7 s, queues not drained; v3 as shipped 12.0 / 27.9 s). Its open risk is R1
+     (SMB append/read coherence on the real share), not measured. So M5 also builds the ADR-006 fallback – one
+     shared journal appended under the deck lock, the same endpoints and fold – behind `STORAGE=lean-lock` (helper
+     setting), and S5.4's `--real-folder` run and the S5.6 pilot decide which one v4.0 ships with.
+  2. Edge (`tools/fieldcheck.html`) and the Windows policy matrix W1–W14: not blocking M5 (the app already relies on
+     Blob workers, WASM and OffscreenCanvas since M2–M4, checked in Chromium 153); checked on the pilot PCs (S5.6, G2).
+  3. ReadDirectoryChangesW: polling stays the protocol (ADR-007); whether S6.3 adds the optional hint is decided in M6
+     from the pilot's measurement.
+  (Already decided earlier: the Acrobat recipe – soft masks; fonts – fingerprint mode, R7 answered yes 2026-10-14.)
+
 ## Waiting for
 
 - **Release v3.8.0 – blocked by CI, fix ready (product owner, 2026-10-14):** M4 is merged into `main` (bf83f24) and
