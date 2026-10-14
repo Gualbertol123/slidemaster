@@ -211,7 +211,49 @@ numbers measured twice). Measured numbers go into the step's line.
   4. The start-up reopen race: **yes**, fixed in the next release (the first item of the next milestone).
   5. W13's field run: **yes**, with G0's field tests (it needs two real PCs and people).
 
+- 2026-10-14 · **G0 decisions** (product owner: "make the g0 decisions and implement it"; made and written here by the
+  agent). The field tests of S0.6 have not been run (`docs/next/field-results.md` is empty), so these rest on the
+  simulation and the local runs, and the open checks move to the pilot:
+  1. **Storage: "journal"** (ADR-006: a snapshot plus per-writer append-only journals, Lamport order). In 04 §2.5's
+     simulation it is the only protocol that holds 05 §3.5 at 20 users / 40 ms (save p95 96 ms, visible p95 3.1 s;
+     the lean lock overloads: 7.9 / 19.7 s, queues not drained; v3 as shipped 12.0 / 27.9 s). Its open risk is R1
+     (SMB append/read coherence on the real share), not measured. So M5 also builds the ADR-006 fallback – one
+     shared journal appended under the deck lock, the same endpoints and fold – behind `STORAGE=lean-lock` (helper
+     setting), and S5.4's `--real-folder` run and the S5.6 pilot decide which one v4.0 ships with.
+  2. Edge (`tools/fieldcheck.html`) and the Windows policy matrix W1–W14: not blocking M5 (the app already relies on
+     Blob workers, WASM and OffscreenCanvas since M2–M4, checked in Chromium 153); checked on the pilot PCs (S5.6, G2).
+  3. ReadDirectoryChangesW: polling stays the protocol (ADR-007); whether S6.3 adds the optional hint is decided in M6
+     from the pilot's measurement.
+  (Already decided earlier: the Acrobat recipe – soft masks; fonts – fingerprint mode, R7 answered yes 2026-10-14.)
+
 ## Waiting for
+
+- **Release v3.8.0 – blocked by CI, fix ready (product owner, 2026-10-14):** M4 is merged into `main` (bf83f24) and
+  `v3.8.0` was tagged and pushed by the product owner, but the `release` workflow runs the whole CI first, and CI's
+  parity job has failed since S4.4: the signed entries with a digest (B2/B7) were signed for the reference PC's full
+  comparison, and CI's text-only comparison states fewer details, so the digests never matched there (10,244
+  differences not accepted; reproduced on this PC with `--text-only`). The agent did not watch CI on the M4 branch –
+  every push since S4.1's review fixes had a failing job (bench on the S4.1 pushes, which later passed; parity since).
+  Fixed on branch `v4/ci-parity-text-only` (370cf00 + this note): digests are checked in full comparisons only; on
+  this PC text-only parity and text-only dlparity give 0 not accepted, the full ones are unchanged. Its first CI
+  run then failed e2e: on the slow runner a dialog's 30 ms default focus moved to Save while the "Report a problem"
+  text was being typed (Enter saved and closed the form) – fixed in f135c40 (the focus moves only when nothing in
+  the dialog has it; `app/tests/dialog.test.tsx`). **CI on f135c40: every job green** (core, unit, helper 3.8/3.12,
+  e2e, parity, pdf, bench). To finish: merge the branch into `main`, then point the tag at that merge and push it
+  again –
+  ```
+  git checkout main && git pull
+  git merge --no-ff v4/ci-parity-text-only -m "Merge v4/ci-parity-text-only: CI parity in text-only mode"
+  git push origin main
+  git tag -f -a v3.8.0 -m "Slide Builder 3.8.0"
+  git push -f origin v3.8.0
+  ```
+  (the release was never published, so moving the tag replaces nothing anyone has downloaded); then check the
+  `release` workflow and verify the downloaded ZIP (`python tools/make_release.py --verify slidebuilder-3.8.0.zip`).
+- **Before Prompt 7 (M5, storage v4) can start:** its "Requires" are (1) M4 ticked with v3.8 released – the item
+  above – and (2) the G0 storage decision under Decisions: **decided 2026-10-14, "journal"** (Decisions, made by the
+  agent at the product owner's request; the field tests have not been run, lean-lock is built as the fallback). Carried into M5's branch as decided on 2026-10-14: the start-up
+  reopen race fix (the user's own choice of workbook wins over the reopen of the last one).
 
 - ~~**Seams between dark cells**~~ fixed in 3.8 on 2026-10-14 ("Fix all 4 points", Decisions).
 
