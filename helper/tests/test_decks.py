@@ -4,6 +4,7 @@ The records here are synthetic: the helper never looks inside them (only w, s, l
 these tests fold them by their envelope - (l, w, s) order, one copy per (w, s) - as core/src/model/fold.ts does.
 """
 import json
+import re
 import multiprocessing
 import os
 import threading
@@ -55,6 +56,16 @@ class DeckBase(TempDirs):
 
     def journals(self):
         return sorted(os.listdir(decks.journal_dir(self.key)))
+
+    def assertJournals(self, pattern):
+        """journal names: exact stems, or "<prefix>~*" for a numbered one (the server's time in ms)"""
+        names = self.journals()
+        self.assertEqual(len(names), len(pattern), names)
+        rest = list(names)
+        for p in pattern:
+            hit = next((n for n in rest if (n == p + ".log" if not p.endswith("~*") else re.match(re.escape(p[:-1]) + r"[0-9]{13,16}\.log$", n))), None)
+            self.assertIsNotNone(hit, (p, names))
+            rest.remove(hit)
 
 
 class FramingTests(unittest.TestCase):
@@ -179,7 +190,7 @@ class DeckTests(DeckBase):
         decks.close_idle()
         self.assertIsNone(st.fd)
         decks.append(self.key, w, self.rec(w, 2))
-        self.assertEqual(self.journals(), [w + ".log", w + "~1.log"])
+        self.assertJournals([w, w + "~*"])
         self.assertEqual(sorted(r["s"] for r in self.all_records()[0]), [1, 2])
 
     def test_a_restarted_helper_never_appends_to_an_old_file(self):
@@ -187,7 +198,7 @@ class DeckTests(DeckBase):
         decks.append(self.key, w, self.rec(w, 1))
         decks.reset()                                                   # the helper restarted; the page kept its writer
         decks.append(self.key, w, self.rec(w, 2))
-        self.assertEqual(self.journals(), [w + ".log", w + "~1.log"])
+        self.assertJournals([w, w + "~*"])
 
     # ---------------------------------------------------------------- 1. multi-process append
     def test_1_twenty_processes_append_10000_records(self):
@@ -221,7 +232,7 @@ class DeckTests(DeckBase):
         # the same page session continues through a new helper: a new file, the torn one is never appended to
         decks.reset()
         decks.append(self.key, w, self.rec(w, 4))
-        self.assertEqual(self.journals(), [w + ".log", w + "~1.log"])
+        self.assertJournals([w, w + "~*"])
         self.assertEqual(os.path.getsize(os.path.join(decks.journal_dir(self.key), w + ".log")), size)
         self.assertEqual(sorted(r["s"] for r in self.all_records()[0]), [1, 2, 3, 4])
         self.assertEqual(decks.tail(self.key, {w: off})["journals"].get(w), None)    # still torn, still ignored
@@ -239,7 +250,7 @@ class DeckTests(DeckBase):
                 decks.append(self.key, w, self.rec(w, 2))
         self.assertEqual(e.exception.status, 503)                       # not acknowledged: the page retries
         decks.append(self.key, w, self.rec(w, 2))                       # the retry goes to a new file
-        self.assertEqual(self.journals(), [w + ".log", w + "~1.log"])
+        self.assertJournals([w, w + "~*"])
         self.assertEqual(sorted(r["s"] for r in self.all_records()[0]), [1, 2])
 
     # ---------------------------------------------------------------- 3. duplicates
@@ -413,9 +424,10 @@ class DeckTests(DeckBase):
         decks.rotate(self.key, w)                                       # not covered yet: kept
         self.assertEqual(self.journals(), [w + ".log"])
         decks.append(self.key, w, self.rec(w, 2))                       # goes to the new file
-        self.assertEqual(self.journals(), [w + ".log", w + "~1.log"])
+        self.assertJournals([w, w + "~*"])
         decks.compact(self.key, 1, self.compact_from_view(1))
-        self.assertEqual(decks.rotate(self.key, w)["deleted"], [w, w + "~1"])
+        deleted = decks.rotate(self.key, w)["deleted"]
+        self.assertEqual((len(deleted), deleted[0]), (2, w))
         self.assertEqual(self.journals(), [])
         decks.append(self.key, w, self.rec(w, 3))
         self.assertEqual(self.final_view(), {(w, 1), (w, 2), (w, 3)})
@@ -490,10 +502,10 @@ class DeckTests(DeckBase):
         with ctx.Pool(6) as pool:
             res = [pool.apply_async(workers.deck_append, (self.root, self.data, "u%d" % i, self.key, 25, "lean-lock")) for i in range(6)]
             out = [r.get(timeout=600) for r in res]
-        self.assertEqual(self.journals(), ["shared.log"])
+        self.assertJournals(["shared~*"])
         acked = {(w, s) for w, ss in out for s in ss}
         self.assertEqual(fold_envelope([], decks.tail(self.key, {})), acked)
-        # a writer dies mid-append: the next one starts shared~1 instead of appending after the torn frame
+        # a writer dies mid-append: the next one starts another shared journal instead of appending after the torn frame
         p = ctx.Process(target=workers.deck_torn, args=(self.root, self.data, "anna", self.key, decks.new_writer("anna"), 1, "lean-lock"))
         p.start()
         p.join(120)
@@ -502,11 +514,67 @@ class DeckTests(DeckBase):
         os.environ["SLIDEBUILDER_STORAGE"] = "lean-lock"
         w = decks.new_writer("bob")
         decks.append(self.key, w, self.rec(w, 1))
-        self.assertEqual(self.journals(), ["shared.log", "shared~1.log"])
+        self.assertJournals(["shared~*", "shared~*"])
         res = decks.tail(self.key, {})
         self.assertNotIn("readonly", res)
         self.assertEqual(len(fold_envelope([], res)), len(acked) + 2)
         self.assertFalse(os.path.exists(os.path.join(decks.deck_dir(self.key), "lock")))
+
+
+class DeckReuseTests(DeckBase):
+    """review of S5.1: a journal name never comes back, a reader's wrong offset never makes a deck read-only"""
+
+    def test_a_rotated_away_name_is_never_reused_after_a_restart(self):
+        w = decks.new_writer()
+        for s in (1, 2, 3):
+            decks.append(self.key, w, self.rec(w, s))
+        snap = decks.read_snapshot(self.key)
+        res = decks.tail(self.key, {})
+        new = dict(snap, gen=2, frontier={w: res["journals"][w]["offset"]}, lamport=3, rev=3)
+        decks.compact(self.key, 1, new)
+        self.assertEqual(decks.rotate(self.key, w)["deleted"], [w])   # w.log is gone; its key stays in the frontier
+        decks.reset()                                                    # the helper restarts; the page keeps its writer
+        r = decks.append(self.key, w, self.rec(w, 4))
+        self.assertNotEqual(r["journal"], w)                             # not w.log again
+        past = decks.tail(self.key, decks.read_snapshot(self.key)["frontier"])
+        self.assertEqual([x["s"] for j in past["journals"].values() for x in j["records"]], [4])     # visible past the frontier
+        decks.reset()
+        r2 = decks.append(self.key, w, self.rec(w, 5))                   # and again: a third, new name
+        self.assertNotIn(r2["journal"], (w, r["journal"]))
+
+    def test_lean_lock_never_reuses_a_dropped_shared_journal(self):
+        os.environ["SLIDEBUILDER_STORAGE"] = "lean-lock"
+        w = decks.new_writer()
+        first = decks.append(self.key, w, self.rec(w, 1))["journal"]
+        os.remove(os.path.join(decks.journal_dir(self.key), first + ".log"))      # dropped by a compaction
+        second = decks.append(self.key, w, self.rec(w, 2))["journal"]
+        self.assertNotEqual(first, second)
+        self.assertEqual(decks.append(self.key, w, self.rec(w, 3))["journal"], second)   # then appended to
+
+    def test_a_wrong_offset_is_read_again_from_the_start_not_an_incident(self):
+        w = decks.new_writer()
+        for s in (1, 2):
+            decks.append(self.key, w, self.rec(w, s))
+        res = decks.tail(self.key, {w: 5})                               # not where a record starts
+        self.assertNotIn("readonly", res)
+        self.assertEqual([r["s"] for r in res["journals"][w]["records"]], [1, 2])
+        self.assertEqual([n for n in os.listdir(decks.deck_dir(self.key)) if n.startswith("incident-")], [])
+        decks.append(self.key, w, self.rec(w, 3))                        # still writable
+
+    def test_the_edit_path_reads_no_settings_file(self):
+        w = decks.new_writer()
+        decks.append(self.key, w, self.rec(w, 1))
+        real = open
+        opened = []
+
+        def spy(path, *a, **k):
+            opened.append(str(path))
+            return real(path, *a, **k)
+        with mock.patch("builtins.open", spy), mock.patch.object(decks.os, "listdir", side_effect=AssertionError("listdir")), \
+                mock.patch.object(decks.os.path, "exists", side_effect=AssertionError("exists")):
+            for s in range(2, 6):
+                decks.append(self.key, w, self.rec(w, s))
+        self.assertEqual(opened, [])
 
 
 def age_lock(key, seconds):

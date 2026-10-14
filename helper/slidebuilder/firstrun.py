@@ -358,7 +358,7 @@ def step_shortcut(r, run, desktop=None, windows=None):
     windows = IS_WINDOWS if windows is None else windows
     r.step(4, "Desktop shortcut")
     if not windows:
-        r.skip("not Windows - no desktop shortcut created (start with: python backend/slide_builder.py)")
+        r.skip("not Windows - no desktop shortcut created (start with: python helper/slide_builder.py)")
         return True
     desktop = desktop or desktop_dir()
     if not desktop or not os.path.isdir(desktop):
@@ -434,7 +434,7 @@ def step_smoke(r, smoke=None):
     if ok:
         r.ok(msg)
         if not page_ok:
-            r.warn("the app page (backend\\slide_builder.html) is missing - copy the complete Slide Builder folder.")
+            r.warn("the app page (helper\\slide_builder.html) is missing - copy the complete Slide Builder folder.")
     else:
         r.fail(msg)
     return ok

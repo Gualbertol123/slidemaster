@@ -1,5 +1,5 @@
 /* Document operations – the ONLY way documents change (docs/ARCHITECTURE.md §3.2).
-   The helper applies the same rules in backend/slidebuilder/ops.py; both are tested against
+   The helper applies the same rules in helper/slidebuilder/ops.py; both are tested against
    shared/ops-vectors.json. Keep them in sync. */
 import type { CellEdit, Op, WorkbookDoc, StylePatch } from "./types";
 

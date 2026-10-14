@@ -248,6 +248,29 @@ not available · 503 document unreadable, lock busy, or workbook still being sav
 Export files are written to a unique temporary name in `export\` and renamed into place; when the
 target is locked (open in a viewer) the next free ` (2)`, ` (3)`… name is used.
 
+### 5.1 Decks (storage v4, `helper/slidebuilder/decks.py`, docs/next/04 §2)
+
+A deck is `data/v4/decks/<key>/`: `snapshot.json` + `j/<journal>.log` (framed records
+`<len>:<crc32 hex 8>:<json>\n`, one writer per file) + `presence/` + `lock`. Records are opaque to the helper:
+it checks the envelope (`w` = the journal's writer, `s`, `l` positive integers) and stamps `at` (file server's
+clock). The operations are folded by the core (`core/src/model/fold.ts`). The endpoints of 04 §2.2, plus three
+additions the page needs: `open` (a key and a writer id for this page session; a v3 deck is migrated first from
+S5.3), `history` and the deck form of presence `leave`.
+
+| Method & path | Request | Response |
+|---|---|---|
+| `POST /api/decks/open` | `{workbook}` | `{key, writer, created, storage, snapshot}`; creates an empty deck when there is none |
+| `GET /api/decks/<key>/snapshot` | – | `{snapshot}`; 404 no deck, 503 unreadable (never empty), 409 a newer format |
+| `GET /api/decks/<key>/tail?since=<json {journal: offset}>` | – | `{journals:{<journal>:{offset, records, ends}}, gen, readonly?}` – complete records past the offsets (≤ 8 journals read at once, listing cached 10 s); an unreadable journal is left out this time; an offset inside a record is read again from the file's start |
+| `POST /api/decks/<key>/append` | `{writer, record}` | `{journal, offset, at}` once flushed (`os.fsync`); 503 → the page sends the same record again (a new file is used) |
+| `POST /api/decks/<key>/compact` | `{baseGen, snapshot}` (≤ 32 MB) | `{gen, dropped}`; 409 `{gen}` when compacted meanwhile or behind; CAS under the deck lock |
+| `POST /api/decks/<key>/rotate` | `{writer}` | `{deleted}` – the writer's journals the frontier covers |
+| `GET /api/decks/<key>/history` | – | `{backups:[{gen, rev, at, by}]}` (`backups/v4/<key>/`, last 30) |
+| `POST /api/presence` · `POST /api/presence/leave` | `{deck, client}` | `{others:[{user, host, client, at}]}` · `{ok}` – presence v2 (empty files, mtime on the server's clock) |
+
+423: the deck is read-only (a journal is damaged in the middle; `incident-*.json` in the deck folder).
+`SLIDEBUILDER_STORAGE=lean-lock` (or `data/v4/storage.json`): appends go to one shared journal under the deck lock.
+
 ## 6. Migration from v2
 
 At start-up, under lock `migrate`, if `backend/slide_builder_settings.txt` exists and

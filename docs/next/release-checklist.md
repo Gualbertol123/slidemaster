@@ -8,15 +8,15 @@ are for a person** (agents never push tags and never touch the real share, PLAN 
 - [ ] The milestone's PR is merged into `main`; CI is green on `main` (unit, core, helper 3.8 + 3.12, e2e, parity).
 - [ ] Every step of the milestone is ticked in `PROGRESS.md` with its numbers.
 - [ ] `CHANGELOG.md` has a `## X.Y.Z - <date>` section; every user-visible change in it is in PLAN B1–B14.
-- [ ] `VERSION = "X.Y.Z"` in `backend/slidebuilder/__init__.py`; `"version": "X.Y.Z"` in `package.json`,
+- [ ] `VERSION = "X.Y.Z"` in `helper/slidebuilder/__init__.py` (`backend/` up to 3.8); `"version": "X.Y.Z"` in `package.json`,
       `app/package.json`, `core/package.json` and in `package-lock.json` (every place that names them).
 
 ## 2. Checks on a clean clone
 ```
 git clone https://github.com/gualbertol123/slidemaster.git /tmp/rel && cd /tmp/rel
-npm ci && npm run build && git diff --exit-code -- backend/slide_builder.html      # the committed page is fresh
+npm ci && npm run build && git diff --exit-code -- helper/slide_builder.html      # the committed page is fresh
 npm run check                                                                         # typecheck (core, app) + unit tests
-python3.8 -m unittest discover -s backend/tests && python3.12 -m unittest discover -s backend/tests
+python3.8 -m unittest discover -s helper/tests && python3.12 -m unittest discover -s helper/tests
 npm run test:e2e && npm run parity
 ```
 - [ ] all green; `npm run parity` reports 0 unaccepted differences.
@@ -34,8 +34,8 @@ Use a copy (never the real share): the program files, `backend\data\` with real-
 some workbooks, `app\` if the share has side-by-side versions already.
 ```
 python tools/update.py --root <copy> --zip dist/slidebuilder-X.Y.Z.zip --yes   # install X.Y.Z side by side
-python <copy>/app/X.Y.Z/backend/slide_builder.py --selftest                  # again by hand: PASSED
-python <copy>/app/X.Y.Z/backend/slide_builder.py --no-browser --port 8799    # starts; uses <copy>'s data
+python <copy>/app/X.Y.Z/helper/slide_builder.py --selftest                  # again by hand: PASSED
+python <copy>/app/X.Y.Z/helper/slide_builder.py --no-browser --port 8799    # starts; uses <copy>'s data
 python tools/update.py --root <copy> --use P.Q.R                              # rollback works (when P.Q.R is installed)
 python tools/update.py --root <copy> --use X.Y.Z
 ```

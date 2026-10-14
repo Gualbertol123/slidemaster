@@ -18,20 +18,21 @@ and newline are all there; an incomplete tail (a frame being written, or torn by
 read again at the next poll. A complete frame whose CRC or newline is wrong, or a header that is not a header,
 is corruption: an incident file is written and the deck becomes read-only.
 
-Journals. A writer is one page session, ``<user>@<host>#<8 random base32>`` (:func:`new_writer`). Its records go
-to ``j/<writer>.log``; when that file cannot be used any more - a write failed (it may end in a torn frame), the
+Journals. A writer is one page session, ``<user>@<host>#<8 random base32>`` (:func:`new_writer`). Its first record
+goes to ``j/<writer>.log``; when a file cannot be used any more - a write failed (it may end in a torn frame), the
 handle was idle for 10 minutes, the helper restarted, the page asked to rotate - the next append opens a NEW file
-``j/<writer>~<n>.log`` (created with O_EXCL, so two helpers never share one). Nothing is ever appended after a
-torn frame, so a torn frame is always a tail. A record retried after a failure carries the same ``(w, s)`` and
-the fold keeps one copy.
+``j/<writer>~<n>.log``, n = the file server's time in ms (larger than every earlier n, so a name is never used
+twice, not even after the file was deleted - a reader still holding an offset in it would read the wrong bytes),
+created with O_EXCL (two helpers never share one). Nothing is ever appended after a torn frame, so a torn frame is
+always a tail. A record retried after a failure carries the same ``(w, s)`` and the fold keeps one copy.
 
 Who deletes journals: the owner, on ``rotate``, the files of its own writer that the snapshot's frontier covers;
 and ``compact``, the covered files nobody has written to for 24 hours (a crashed or closed session - its handle
 was closed after 10 idle minutes long before, see :data:`IDLE_CLOSE`).
 
 Storage modes (G0 decision 2026-10-14, ADR-006's fallback): ``journal`` (default) as above; ``lean-lock``: every
-append takes the deck lock and goes to ONE shared journal ``j/shared~<n>.log`` (same endpoints, same records,
-same fold). Set by ``SLIDEBUILDER_STORAGE`` or ``data/v4/storage.json`` ``{"storage": "lean-lock"}``. The two can
+append takes the deck lock and goes to ONE shared journal ``j/shared~<n>.log`` (n as above; a new one when the
+last ends in a torn frame) - same endpoints, same records, same fold. Set by ``SLIDEBUILDER_STORAGE`` or ``data/v4/storage.json`` ``{"storage": "lean-lock"}``. The two can
 even mix on one deck: the readers fold every journal they find.
 """
 import base64
@@ -59,7 +60,9 @@ PRESENCE_WINDOW = 25.0            # s: "others here" = presence files touched in
 PRESENCE_CLEANUP = 24 * 3600.0    # s: presence files older than this are deleted by anyone
 BACKUP_KEEP = 30
 READ_ATTEMPTS, READ_DELAY = 5, 0.1
-JOURNAL_RE = re.compile(r"^([A-Za-z0-9._-]{1,60}@[A-Za-z0-9._-]{1,60}#[a-z2-7]{8}|shared)(~[1-9][0-9]{0,5})?\.log$")
+JOURNAL_RE = re.compile(r"^([A-Za-z0-9._-]{1,60}@[A-Za-z0-9._-]{1,60}#[a-z2-7]{8}|shared)(~[1-9][0-9]{0,15})?\.log$")
+STORAGE_TTL = 60.0                # s: the storage mode (an environment variable or data/v4/storage.json) is read again
+CHECK_TTL = 10.0                  # s: how long a deck's existence / incident files seen by this helper are trusted
 WRITER_RE = re.compile(r"^[A-Za-z0-9._-]{1,60}@[A-Za-z0-9._-]{1,60}#[a-z2-7]{8}$")
 KEY_RE = re.compile(r"^[A-Za-z0-9._-]{1,60}-[0-9a-f]{10}$")
 CLIENT_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -186,16 +189,26 @@ def stem(name):
     return name[:-4] if name.endswith(".log") else name
 
 
+_storage = {}                    # data folder -> (monotonic time, mode)
+
+
 def storage_mode():
+    """journal or lean-lock: SLIDEBUILDER_STORAGE, else data/v4/storage.json (read once a minute, never on every
+    append: an append costs the share two round trips, write and flush)"""
     env = (os.environ.get("SLIDEBUILDER_STORAGE") or "").strip().lower()
     if env:
         return "lean-lock" if env == "lean-lock" else "journal"
+    hit = _storage.get(paths.DATA)
+    if hit and time.monotonic() - hit[0] < STORAGE_TTL:
+        return hit[1]
     try:
         with open(paths.data_dir("v4", "storage.json"), "rb") as f:
             v = json.loads(f.read().decode("utf-8-sig"))
-        return "lean-lock" if isinstance(v, dict) and v.get("storage") == "lean-lock" else "journal"
+        mode = "lean-lock" if isinstance(v, dict) and v.get("storage") == "lean-lock" else "journal"
     except (OSError, ValueError):
-        return "journal"
+        mode = "journal"
+    _storage[paths.DATA] = (time.monotonic(), mode)
+    return mode
 
 
 # --------------------------------------------------------------------------- reads with retries
@@ -257,7 +270,7 @@ class _Writer:
         self.fd = None
         self.name = None                  # journal file name of the open handle
         self.pos = 0
-        self.next_n = 0                   # the next file number to try
+        self.last_n = 0                   # the number of the last file this helper opened for the writer
         self.used = 0.0                   # monotonic time of the last use
 
 
@@ -265,7 +278,7 @@ _writers = {}                             # (key, writer) -> _Writer
 _listings = {}                            # key -> (monotonic time, [journal names])
 _snapsig = {}                             # key -> ((mtime_ns, size), gen)
 _readonly = {}                            # key -> reason (an incident this helper saw)
-_checked = set()                          # decks whose folder this helper has looked at (exists, incidents)
+_checked = {}                             # key -> monotonic time this helper last looked at the deck's folder
 _guard = threading.Lock()
 _pool = None
 
@@ -292,6 +305,7 @@ def reset():
         _snapsig.clear()
         _readonly.clear()
         _checked.clear()
+        _storage.clear()
 
 
 def _writer_state(key, writer):
@@ -358,18 +372,49 @@ def _incident(key, journal, offset, size):
 def _check_writable(key):
     """refuse a read-only deck; the folder is looked at once per helper (and when a journal is opened), later
     appends cost no round trip for this - a damaged journal is also seen by every tail"""
-    if key not in _checked:
-        if not deck_exists(key):
-            raise DeckError(404, "no such deck")
-        _readonly.pop(key, None)
-        readonly_reason(key)
-        _checked.add(key)
+    _look(key)
     reason = _readonly.get(key)
     if reason:
         raise DeckError(423, reason, readonly=True)
 
 
 # --------------------------------------------------------------------------- append
+def _look(key, ttl=None):
+    """the deck exists, and its incident files are known: one listing of its folder, at most every CHECK_TTL (an
+    append looks only once per helper: `ttl` None; 0 = now)"""
+    seen = _checked.get(key)
+    if seen is not None and (ttl is None or time.monotonic() - seen < ttl):
+        return
+    try:
+        names = os.listdir(deck_dir(key))
+    except FileNotFoundError:
+        names = None
+    except OSError:
+        return                                  # not now: the next request looks again
+    if names is None or "snapshot.json" not in names:
+        if not deck_exists(key):                # (a listing may be a little stale on SMB: ask for the file itself)
+            _checked.pop(key, None)
+            raise DeckError(404, "no such deck")
+        names = names or []
+    inc = sorted(n for n in names if n.startswith("incident-") and n.endswith(".json"))
+    if inc:
+        _readonly[key] = "a journal of this deck is damaged (%s) - the deck is read-only; tell the maintainer" % inc[0]
+    else:
+        _readonly.pop(key, None)
+    _checked[key] = time.monotonic()
+
+
+def _new_number(names, prefix, floor=0):
+    """a file number larger than any of `prefix`~<n> in `names`, than `floor` and than the server's time in ms
+    (a name is never used twice, even after its file was deleted)"""
+    ns = [floor]
+    for x in names:
+        m = re.match(re.escape(prefix) + r"~([0-9]+)\.log$", x)
+        if m:
+            ns.append(int(m.group(1)))
+    return max(max(ns) + 1, server_ms())
+
+
 def _validate_record(writer, record):
     if not isinstance(writer, str) or not WRITER_RE.match(writer):
         raise DeckError(400, "invalid writer")
@@ -383,20 +428,31 @@ def _validate_record(writer, record):
             raise DeckError(400, "the record's %s must be a positive integer" % k)
 
 
-def _open_new(key, st, writer):
-    """a NEW journal file for this writer (O_EXCL: never a file another helper or an earlier handle wrote)"""
-    _checked.discard(key)
-    _check_writable(key)                    # the deck still exists (never re-create a deleted deck's folder)
+def _open_new(key, st, writer, first):
+    """a NEW journal file for this writer (O_EXCL: never a file another helper or an earlier handle wrote). The
+    writer's first record (s = 1) starts <writer>.log, later files are <writer>~<n>.log with a number never used
+    before (_new_number): after a rotation deleted a file, or a restart, its name does not come back."""
+    _check_writable(key)
+    _look(key, 0)                           # the deck still exists (never re-create a deleted deck's folder)
+    if _readonly.get(key):
+        raise DeckError(423, _readonly[key], readonly=True)
     folder = journal_dir(key)
     os.makedirs(folder, exist_ok=True)
     flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_APPEND | getattr(os, "O_BINARY", 0)
-    for n in range(st.next_n, st.next_n + 1000):
-        name = journal_name(writer, n)
+    names = [journal_name(writer, 0)] if first and not st.last_n else []
+    floor = st.last_n
+    for _ in range(20):
+        if not names:
+            names = [journal_name(writer, _new_number(os.listdir(folder), writer, floor))]
+        name = names.pop()
         try:
             fd = os.open(os.path.join(folder, name), flags, 0o644)
         except FileExistsError:
+            floor = max(floor, _new_number([name], writer))
             continue
-        st.fd, st.name, st.pos, st.next_n = fd, name, 0, n + 1
+        m = re.search(r"~([0-9]+)\.log$", name)
+        st.fd, st.name, st.pos = fd, name, 0
+        st.last_n = int(m.group(1)) if m else max(st.last_n, 1)
         with _guard:
             _listings.pop(key, None)
         return
@@ -417,7 +473,7 @@ def append(key, writer, record):
         if st.fd is not None and now - st.used > IDLE_CLOSE:
             _close(st)                       # long idle (or the PC slept): a new file, never an old handle
         if st.fd is None:
-            _open_new(key, st, writer)
+            _open_new(key, st, writer, record["s"] == 1)
         rec = dict(record)
         rec["at"] = server_ms()
         data = frame(rec)
@@ -440,42 +496,44 @@ def _append_shared(key, record):
     """lean-lock mode: one shared journal, appended under the deck lock"""
     rec = dict(record)
     folder = journal_dir(key)
-    with deck_lock(key):
-        os.makedirs(folder, exist_ok=True)
-        n = max([_shared_n(x) for x in os.listdir(folder) if journal_writer(x) == "shared"] or [-1])
-        rec["at"] = server_ms()
-        data = frame(rec)
-        if n >= 0:
-            path = os.path.join(folder, journal_name("shared", n))
-            with open(path, "rb") as f:
-                f.seek(0, 2)
-                size = f.tell()
-                if size:
-                    f.seek(size - 1)
-                    if f.read(1) != b"\n":
-                        n += 1                    # it ends in a torn frame: never append after it
-        n = max(n, 0)
-        name = journal_name("shared", n)
-        fd = os.open(os.path.join(folder, name), os.O_CREAT | os.O_WRONLY | os.O_APPEND | getattr(os, "O_BINARY", 0), 0o644)
-        try:
-            view = memoryview(data)
-            while view:
-                k = os.write(fd, view)
-                view = view[k:]
-            os.fsync(fd)
-            end = os.fstat(fd).st_size
-        except OSError as e:
-            raise DeckError(503, "the record could not be written to the shared folder (%s) - trying again" % e)
-        finally:
-            os.close(fd)
+    try:
+        with deck_lock(key):
+            os.makedirs(folder, exist_ok=True)
+            names = os.listdir(folder)
+            ns = [_shared_n(x) for x in names if journal_writer(x) == "shared"]
+            rec["at"] = server_ms()
+            data = frame(rec)
+            name = journal_name("shared", max(ns)) if ns else None
+            if name:
+                with open(os.path.join(folder, name), "rb") as f:
+                    f.seek(0, 2)
+                    size = f.tell()
+                    if size:
+                        f.seek(size - 1)
+                        if f.read(1) != b"\n":
+                            name = None           # it ends in a torn frame: never append after it
+            if not name:                          # a new shared journal, under a number never used before
+                name = journal_name("shared", _new_number(names, "shared"))
+            fd = os.open(os.path.join(folder, name), os.O_CREAT | os.O_WRONLY | os.O_APPEND | getattr(os, "O_BINARY", 0), 0o644)
+            try:
+                view = memoryview(data)
+                while view:
+                    k = os.write(fd, view)
+                    view = view[k:]
+                os.fsync(fd)
+                end = os.fstat(fd).st_size
+            finally:
+                os.close(fd)
+    except OSError as e:
+        raise DeckError(503, "the record could not be written to the shared folder (%s) - trying again" % e)
     with _guard:
         _listings.pop(key, None)
     return {"journal": stem(name), "offset": end, "at": rec["at"]}
 
 
 def _shared_n(name):
-    m = re.match(r"^shared(?:~([0-9]+))?\.log$", name)
-    return int(m.group(1) or 0) if m else -1
+    m = re.match(r"^shared~([0-9]+)\.log$", name)
+    return int(m.group(1)) if m else -1
 
 
 # --------------------------------------------------------------------------- tail
@@ -530,31 +588,40 @@ def tail(key, since):
     check_key(key)
     if not isinstance(since, dict) or any(not isinstance(k, str) or not isinstance(v, int) or isinstance(v, bool) or v < 0 for k, v in since.items()):
         raise DeckError(400, "since must map journal names to byte offsets")
-    if not deck_exists(key):
-        raise DeckError(404, "no such deck")
+    _look(key, CHECK_TTL)                         # exists, incidents: one listing at most every 10 s
     folder = journal_dir(key)
     names = _listing(key)
 
     def one(name):
         off = since.get(stem(name), 0)
+        path = os.path.join(folder, name)
         try:
-            buf = _read_from(os.path.join(folder, name), off)
+            buf = _read_from(path, off)
+            recs, ends, used, corrupt = unframe_ends(buf)
+            if corrupt is not None and off:
+                # bytes that are no frame where the reader said one starts: the reader's offset may be wrong (a page's
+                # bug, a file it knew under the same name) - only a scan from the start of the file tells corruption
+                buf, off = _read_from(path, 0), 0
+                recs, ends, used, corrupt = unframe_ends(buf)
         except FileNotFoundError:
-            return name, off, [], [], None                # dropped meanwhile (covered by the snapshot)
+            return name, off, [], [], None, 0             # dropped meanwhile (covered by the snapshot)
         except OSError:
-            return name, off, None, None, None            # skipped this round, read again at the next poll
-        recs, ends, used, corrupt = unframe_ends(buf)
-        return name, off + used, recs, [off + e for e in ends], (off + corrupt if corrupt is not None else None)
+            return name, off, None, None, None, 0         # skipped this round, read again at the next poll
+        return name, off + used, recs, [off + e for e in ends], (off + corrupt if corrupt is not None else None), off + len(buf)
 
-    out, readonly = {}, readonly_reason(key)
-    for name, new_off, recs, ends, corrupt in _executor().map(one, names):
+    out, readonly = {}, _readonly.get(key)
+    for name, new_off, recs, ends, corrupt, size in _executor().map(one, names):
         if recs is None:
             continue
         if corrupt is not None:
-            readonly = _incident(key, name, corrupt, new_off)
+            readonly = _incident(key, name, corrupt, size)
         if recs:
             out[stem(name)] = {"offset": new_off, "records": recs, "ends": ends}
-    res = {"journals": out, "gen": _snapshot_gen(key)}
+    gen = _snapshot_gen(key)
+    if gen is None and not deck_exists(key):
+        _checked.pop(key, None)
+        raise DeckError(404, "no such deck")
+    res = {"journals": out, "gen": gen}
     if readonly:
         res["readonly"] = readonly
     return res
@@ -626,12 +693,12 @@ def compact(key, base_gen, snap, by=None):
     if not isinstance(base_gen, int) or isinstance(base_gen, bool):
         raise DeckError(400, "baseGen must be a number")
     _validate_snapshot(snap, base_gen)
-    _checked.discard(key)
+    _checked.pop(key, None)
     _check_writable(key)
     snap = dict(snap)
     snap["by"] = by or current_user()
     snap["at"] = server_ms()
-    with deck_lock(key):
+    with deck_lock(key, keepalive=True):          # dropping journals on a slow share may take a while
         cur = read_snapshot(key)
         if cur["gen"] != base_gen:
             raise DeckError(409, "the deck was compacted meanwhile (gen %d)" % cur["gen"], gen=cur["gen"])
@@ -663,8 +730,11 @@ def compact(key, base_gen, snap, by=None):
 
 
 def _covered(path, offset):
-    """True when no complete record lies past `offset` in the journal (at most a torn tail)"""
+    """True when no complete record lies past `offset` in the journal (at most a torn tail); an offset past the
+    file's end is not trusted"""
     try:
+        if os.path.getsize(path) < offset:
+            return False
         buf = _read_from(path, offset)
     except OSError:
         return False

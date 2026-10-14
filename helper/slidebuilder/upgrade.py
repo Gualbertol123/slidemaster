@@ -85,4 +85,4 @@ def backup_path(data_dir, kind, file_path, old_version):
 
 # --------------------------------------------------------------------------- the steps
 # (none yet: format 3 is the first numbered version. Add new steps here, newest last, each with a test
-#  in backend/tests/test_upgrade.py that converts the saved examples in backend/tests/fixtures/saved/.)
+#  in helper/tests/test_upgrade.py that converts the saved examples in helper/tests/fixtures/saved/.)
