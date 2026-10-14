@@ -313,6 +313,16 @@ test.describe.serial("two people, one shared folder", () => {
     expect(t0.sizes.glass.cols).toMatchObject({ "3": 150, "4": 150 });           // anna's widths (in this design only)…
     expect(Object.values(pair.notes).map((n: any) => n.text)).toEqual(["Loans grew everywhere"]);   // …and bob's text box
     await expect(a.locator("#stage .tnote", { hasText: "Loans grew everywhere" })).toHaveCount(1, { timeout: 10_000 });
+    // "Excel size" (TA-02): the selected columns go back to the workbook's widths in this design (where W keeps them)
+    await selectCell(a, "R1"); await a.keyboard.press("Shift+ArrowDown"); await a.keyboard.press("Shift+ArrowRight");
+    await expect(a.locator("#nameBox")).toHaveText("SLIDE_3 pair!C5:D6");
+    const wide = (await a.locator("#stage .slide > .tw").first().boundingBox())!.width;
+    await a.click("#sizeReset"); await saved(a);
+    const t0r = doc().preset.tables.find((t: any) => t.id === pair.tables[0]);
+    expect([t0r.sizes?.glass?.cols?.["3"], t0r.sizes?.glass?.cols?.["4"]]).toEqual([undefined, undefined]);
+    await expect.poll(async () => (await a.locator("#stage .slide > .tw").first().boundingBox())!.width).toBeLessThan(wide - 10);
+    await a.keyboard.press("Escape"); await a.keyboard.press("Control+z"); await saved(a);           // one undo step: 150 px again
+    await pollFile(() => doc().preset.tables.find((t: any) => t.id === pair.tables[0]).sizes.glass.cols, { timeout: 10_000 }).toMatchObject({ "3": 150, "4": 150 });
 
     // colour scale on the second table
     const nums = a.locator("#stage .slide > .tw").nth(1).locator(".t", { hasText: /^-?[\d.]+,\d$/ });

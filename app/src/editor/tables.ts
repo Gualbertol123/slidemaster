@@ -55,6 +55,14 @@ export function setRowHeight(L: TableLayout, rows: number[], px: number | null, 
   change(label, [sizePatch(L.def, { rows: m })]);
 }
 
+/** back to the workbook's widths and heights for these columns and rows (the "Excel size" button; one undo step): the
+    sizes of the design shown, where W, H and the drags keep them – as a double-click on a border does */
+export function resetCellSizes(L: TableLayout, cols: number[], rows: number[]) {
+  if (!L.def || !(cols.length || rows.length)) return;
+  const none = (keys: number[]): SizeMap | undefined => keys.length ? Object.fromEntries(keys.map(k => [k, null])) : undefined;
+  change("Excel sizes", [sizePatch(L.def, { cols: none(cols), rows: none(rows) })]);
+}
+
 /** stretch a table: every column (axis "x") or row ("y") times f – dragging a table border */
 export function stretchTable(L: TableLayout, axis: "x" | "y", f: number) {
   if (!L.def || !isFinite(f) || Math.abs(f - 1) < .005) return;
