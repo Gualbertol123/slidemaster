@@ -235,8 +235,12 @@ numbers measured twice). Measured numbers go into the step's line.
   differences not accepted; reproduced on this PC with `--text-only`). The agent did not watch CI on the M4 branch –
   every push since S4.1's review fixes had a failing job (bench on the S4.1 pushes, which later passed; parity since).
   Fixed on branch `v4/ci-parity-text-only` (370cf00 + this note): digests are checked in full comparisons only; on
-  this PC text-only parity and text-only dlparity give 0 not accepted, the full ones are unchanged. To finish:
-  merge the branch into `main` (once its CI is green), then point the tag at that merge and push it again –
+  this PC text-only parity and text-only dlparity give 0 not accepted, the full ones are unchanged. Its first CI
+  run then failed e2e: on the slow runner a dialog's 30 ms default focus moved to Save while the "Report a problem"
+  text was being typed (Enter saved and closed the form) – fixed in f135c40 (the focus moves only when nothing in
+  the dialog has it; `app/tests/dialog.test.tsx`). **CI on f135c40: every job green** (core, unit, helper 3.8/3.12,
+  e2e, parity, pdf, bench). To finish: merge the branch into `main`, then point the tag at that merge and push it
+  again –
   ```
   git checkout main && git pull
   git merge --no-ff v4/ci-parity-text-only -m "Merge v4/ci-parity-text-only: CI parity in text-only mode"
