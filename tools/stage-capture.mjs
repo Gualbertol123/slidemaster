@@ -12,10 +12,13 @@
      page of the native PDF the Export button saves –
      · text: every run of the slide's display list starts in the PDF where it does in the list (its first character's
        origin, PDFium's, within 0.05 pt), and every run the stage draws as text has a natural width in the browser
-       (without textLength) within 0.5 % of the list's width less its letter-spacing (the node's ls);
+       (without textLength) within 0.5 % of the list's width less its letter-spacing (the node's ls) – 2 % for a run drawn as
+       glyph outlines, tabular runs by their advances;
      · pixels: the screenshot against the page rendered by PDFium at the same scale (tools/pdfcheck.py render), with
        GP's pixel rule (ΔE2000 2, the 3 × 3 range rule of decision G1-4, at most 1 % of the pixels), the glyphs left out
-       (each drawn text's and glyph outline's box, 1 px around: two rasterisers never draw glyph edges alike).
+       (inside each run's box from the list, the pixels far from the box's background on either side, 1 px around: two
+       rasterisers never draw glyph edges alike; what lies under the text is compared) – and each box's ink (the mean colour
+       of its glyph pixels on both sides) within INK of the PDF's.
    Used by tools/parity.mjs (npm run parity). */
 import fs from "node:fs";
 import path from "node:path";
@@ -133,54 +136,62 @@ export function stageHook(goldenDir) {
     const png = await page.screenshot({ clip: { x: Math.round(b.x), y: Math.round(b.y), width: 1600, height: 900 }, animations: "disabled", caret: "hide" });
     fs.mkdirSync(path.join(dir, "sp"), { recursive: true });
     fs.writeFileSync(path.join(dir, "sp", `screen-${slide + 1}.png`), png);
-    fs.writeFileSync(path.join(dir, "sp", `text-${slide + 1}.json`), JSON.stringify({ runs: listRuns(shown.nodes), ...(await drawnText(page)) }));
+    const { runs, measure, boxes } = listRuns(shown.nodes);
+    fs.writeFileSync(path.join(dir, "sp", `text-${slide + 1}.json`), JSON.stringify({ runs, boxes, widths: await browserWidths(page, measure) }));
     return { geometry: g, png: pixels ? png : null };
   };
 }
-/** the list's text runs in slide px: each one's text and the origin of its first character (decorative copies left out) */
+/** the list's text for SP, from the slide's nodes: each run's first visible character and its origin in slide px (with
+    the origin of its decorative copy, if any), what the browser needs to measure each run (its font, size, width less
+    its letter-spacing or its tabular advances – in the run's own units), and each run's box in slide px (the glyphs'
+    area: 1 em above the baseline, .35 em below, the run's width; decorative copies too) */
 function listRuns(nodes) {
-  const out = [];
+  const runs = [], measure = [], boxes = [], decor = [];
+  const at = (M, x, y) => [M[0] * x + M[2] * y + M[4], M[1] * x + M[3] * y + M[5]];
   const walk = (ns, M) => { for (const n of ns) {
-    if (n.t === "group") walk(n.children, n.transform ? mul(M, n.transform) : M);
-    else if (n.t === "text" && n.decorative && n.src.trim()) decor.push([n.src, M[0] * n.x + M[2] * n.y + M[4], M[1] * n.x + M[3] * n.y + M[5]]);
-    else if (n.t === "text" && n.src.trim()) {
-      // the first visible character: the run's origin moved by the advances before it (leading spaces)
-      const lead = n.src.length - n.src.trimStart().length, ax = lead && n.adv ? n.adv.slice(0, lead).reduce((a, b) => a + b, 0) : 0;
-      if (lead && !n.adv) continue;                                    // (a leading space's width is not in the list)
-      const x = n.x + ax, y = n.y;
-      out.push([n.src.trim()[0], r3(M[0] * x + M[2] * y + M[4]), r3(M[1] * x + M[3] * y + M[5]), n.src, ax]);
+    if (n.t === "group") { walk(n.children, n.transform ? mul(M, n.transform) : M); continue; }
+    if (n.t !== "text" || !n.src.trim()) continue;
+    const n0 = [...n.src].length, w = n.w ?? (n.adv ? n.adv.reduce((a, b) => a + b, 0) : n.size * .6 * n0);
+    const cs = [at(M, n.x, n.y - n.size), at(M, n.x + w, n.y - n.size), at(M, n.x, n.y + .35 * n.size), at(M, n.x + w, n.y + .35 * n.size)];
+    const xs = cs.map(c => c[0]), ys = cs.map(c => c[1]);
+    boxes.push([Math.min(...xs), Math.min(...ys), Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)].map(v => Math.round(v * 10) / 10));
+    if (n.decorative) { const [x, y] = at(M, n.x, n.y); decor.push([n.src, x, y]); continue; }
+    // the first visible character: the run's origin moved by the advances before it (leading spaces)
+    const lead = n.src.length - n.src.trimStart().length, ax = lead && n.adv ? n.adv.slice(0, lead).reduce((a, b) => a + b, 0) : 0;
+    if (!lead || n.adv) { const [x, y] = at(M, n.x + ax, n.y); runs.push([n.src.trim()[0], r3(x), r3(y), n.src, ax]); }
+    if (n0 > 1 && n.w !== undefined) {
+      const ls = n.ls || 0, tab = n.tnum && n.adv && n.adv.length === n0;
+      measure.push({ src: n.src, css: n.css || n.font, weight: n.weight ?? (n.b ? 700 : 400), italic: !!n.i, size: n.size, tnum: !!n.tnum,
+        want: r3(tab ? n.adv.reduce((a, b) => a + b, 0) - n0 * ls : n.w - (n0 - 1) * ls) });
     }
   } };
-  const decor = [];
   walk(nodes, [1, 0, 0, 1, 0, 0]);
   // a run with a decorative copy (a text shadow, a few px off): PDFium keeps one of two characters drawn on top of each
   // other (its fake-bold rule), so the run may start where its copy does
-  for (const r of out) { const d = decor.find(([src, x, y]) => src === r[3] && Math.abs(x + r[4] - r[1]) < 4 && Math.abs(y - r[2]) < 4); r[4] = d ? [r3(d[1] + r[4]), r3(d[2])] : null; }
-  return out;
+  for (const r of runs) { const d = decor.find(([src, x, y]) => src === r[3] && Math.abs(x + r[4] - r[1]) < 4 && Math.abs(y - r[2]) < 4); r[4] = d ? [r3(d[1] + r[4]), r3(d[2])] : null; }
+  return { runs, measure, boxes };
 }
 const r3 = v => Math.round(v * 1000) / 1000;
-/** what the stage draws as text: each <text>'s natural width (a copy without textLength) against its textLength, and
-    the boxes of every drawn text and glyph outline in slide px */
-function drawnText(page) {
-  return page.evaluate(() => {
-    const root = document.querySelector("#stage .slide"), sr = root.getBoundingClientRect(), k = sr.width / 1600;
+/** the browser's own width of each run (a <text> without textLength, in the run's font and size, tabular figures where
+    the run has them – without kerning: the list places a tabular run character by character), and whether the stage
+    draws it as text (else as glyph outlines) */
+function browserWidths(page, measure) {
+  return page.evaluate(list => {
+    const drawn = new Set([...document.querySelectorAll("#stage svg text")].map(t => t.textContent));
     const host = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     host.setAttribute("style", "position:absolute;left:-30000px;top:0;width:10px;height:10px");
     document.body.appendChild(host);
-    const widths = [];
-    for (const t of document.querySelectorAll("#stage svg text[textLength]")) {
-      const c = t.cloneNode(true); c.removeAttribute("textLength"); c.removeAttribute("lengthAdjust"); host.appendChild(c);
-      widths.push([t.textContent, +t.getAttribute("textLength"), Math.round(c.getComputedTextLength() * 1000) / 1000, +(t.getAttribute("data-ls") || 0)]);
-      c.remove();
-    }
+    const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    t.setAttributeNS("http://www.w3.org/XML/1998/namespace", "xml:space", "preserve"); host.appendChild(t);
+    const out = list.map(m => {
+      t.setAttribute("font-family", m.css); t.setAttribute("font-size", String(m.size)); t.setAttribute("font-weight", String(m.weight));
+      t.setAttribute("font-style", m.italic ? "italic" : "normal"); t.setAttribute("style", m.tnum ? "font-variant-numeric:tabular-nums;font-kerning:none" : "");
+      t.textContent = m.src;
+      return [m.src, m.want, Math.round(t.getComputedTextLength() * 1000) / 1000, drawn.has(m.src)];
+    });
     host.remove();
-    const boxes = [];
-    for (const el of document.querySelectorAll("#stage svg text, #stage svg use")) {
-      const r = el.getBoundingClientRect();
-      if (r.width && r.height) boxes.push([(r.left - sr.left) / k, (r.top - sr.top) / k, r.width / k, r.height / k].map(v => Math.round(v * 10) / 10));
-    }
-    return { widths, boxes };
-  });
+    return out;
+  }, measure);
 }
 /** capture-v3's versionHook for SP: the native PDF of this deck × design × version, as the Export button saves it */
 export async function exportNative(page, h, dir) {
@@ -195,6 +206,12 @@ export async function exportNative(page, h, dir) {
 
 /** SP over a capture: each slide's screenshot against its PDF page (PDFium); one difference per slide beyond the rule.
     `px`: parity.mjs's pixel tools (comparePixels, decodePng, encodePng, PIXEL_FRACTION – passed in: parity.mjs imports this file) */
+/** how far a text box's ink may be from the PDF's (RGB distance of the mean colours of the pixels that are glyph pixels on
+    both sides: the two rasterisers' anti-aliasing moves it a little; a wrong colour is far beyond) */
+const INK = +(process.env.SB_SP_INK || 140);
+/** a pixel this far (RGB distance) from its text box's background is a glyph's */
+const GLYPH = 40;
+const median = v => { const a = [...v].sort((x, y) => x - y); return a[a.length >> 1]; };
 export function compareSP(actualDir, px, opts = {}) {
   const { comparePixels, decodePng, encodePng, PIXEL_FRACTION } = px;
   const diffs = [], pixels = [], images = [];
@@ -212,20 +229,55 @@ export function compareSP(actualDir, px, opts = {}) {
     screens.forEach((s, i) => {
       if (!pages[i]) return;
       const file = `slide-${i + 1}`, tf = path.join(sp, `text-${i + 1}.json`);
-      const text = fs.existsSync(tf) ? JSON.parse(fs.readFileSync(tf, "utf8")) : { runs: [], widths: [], boxes: [] };
+      if (!fs.existsSync(tf)) { diffs.push({ ...scope, file, kind: "sp-text", detail: "no text data was captured for this slide" }); return; }
+      const text = JSON.parse(fs.readFileSync(tf, "utf8"));
       // text as data: each run starts where the PDF has its first character (0.05 pt = 0.067 px)
       const pc = chars[i] || [], TOL = .05 * 4 / 3;
       const at = (ch, x, y) => pc.some(c => c[0] === ch && Math.abs(c[1] - x) <= TOL && Math.abs(c[2] - y) <= TOL);
       const missing = text.runs.filter(([ch, x, y, , alt]) => !at(ch, x, y) && !(alt && at(ch, alt[0], alt[1])));
       if (missing.length) diffs.push({ ...scope, file, kind: "sp-text", detail: `${missing.length} of ${text.runs.length} runs do not start where the PDF's text does: ${missing.slice(0, 3).map(m => JSON.stringify(m[3].slice(0, 30)) + " at " + m[1] + "," + m[2]).join("; ")}` });
       // the browser's own width of each run drawn as text, against the list's (Liquid Glass's letter-spacing allowed for)
-      const off = text.widths.filter(([t, w, nat, ls]) => { const want = w - ([...t].length - 1) * ls; return Math.abs(nat - want) > .005 * Math.max(want, 1); });
-      if (off.length) diffs.push({ ...scope, file, kind: "sp-width", detail: `${off.length} of ${text.widths.length} runs drawn as text are not their measured width in the browser: ${off.slice(0, 3).map(([t, w, nat]) => JSON.stringify(t.slice(0, 30)) + " " + w + " vs " + nat).join("; ")}` });
+      // (a run drawn as glyph outlines – its font failed the per-font check, by at most ~1.4 % on this PC – within 2 %)
+      const off = text.widths.filter(([, want, nat, asText]) => Math.abs(nat - want) > (asText ? .005 : .02) * Math.max(want, 1));
+      if (off.length) diffs.push({ ...scope, file, kind: "sp-width", detail: `${off.length} of ${text.widths.length} runs are not their measured width in the browser: ${off.slice(0, 3).map(([t, w, nat, asText]) => JSON.stringify(t.slice(0, 30)) + " " + w + " vs " + nat + (asText ? "" : " (outlines)")).join("; ")}` });
       // pixels everywhere but the glyphs: their boxes, 1 px around, take the PDF's pixels on the screen's side
       const A = decodePng(fs.readFileSync(path.join(sp, s))), B = decodePng(fs.readFileSync(pages[i]));
-      if (A.w === B.w && A.h === B.h) for (const [bx, by, bw, bh] of text.boxes) {
-        const x0 = Math.max(0, Math.floor(bx) - 1), y0 = Math.max(0, Math.floor(by) - 1), x1 = Math.min(A.w, Math.ceil(bx + bw) + 1), y1 = Math.min(A.h, Math.ceil(by + bh) + 1);
-        for (let y = y0; y < y1; y++) { const o = (y * A.w + x0) * 3; A.rgb.set(B.rgb.subarray(o, (y * A.w + x1) * 3), o); }
+      // under the glyphs, each box's mean colour: the text's ink and what lies beneath it (a fill, a line) are the PDF's
+      if (A.w === B.w && A.h === B.h) {
+        const inkOff = [];
+        for (const [bx, by, bw, bh] of text.boxes) {
+          const x0 = Math.max(0, Math.floor(bx)), y0 = Math.max(0, Math.floor(by)), x1 = Math.min(A.w, Math.ceil(bx + bw)), y1 = Math.min(A.h, Math.ceil(by + bh));
+          if (x1 <= x0 || y1 <= y0) continue;
+          // the ink: the mean colour of the pixels that are glyph pixels on both sides (far from the box's background on each)
+          // – a second fill in the box is the same on both sides, a seam or a bolder stroke is on one side only
+          const bgOf = img => { const ch = [[], [], []]; for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const o = (y * A.w + x) * 3; for (let c = 0; c < 3; c++) ch[c].push(img.rgb[o + c]); } return ch.map(median); };
+          const ga = bgOf(A), gb = bgOf(B), sa = [0, 0, 0], sb = [0, 0, 0];
+          let n = 0;
+          for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+            const o = (y * A.w + x) * 3;
+            if (Math.hypot(A.rgb[o] - ga[0], A.rgb[o + 1] - ga[1], A.rgb[o + 2] - ga[2]) <= GLYPH || Math.hypot(B.rgb[o] - gb[0], B.rgb[o + 1] - gb[1], B.rgb[o + 2] - gb[2]) <= GLYPH) continue;
+            n++; for (let c = 0; c < 3; c++) { sa[c] += A.rgb[o + c]; sb[c] += B.rgb[o + c]; }
+          }
+          const dInk = n >= 3 ? Math.hypot(...sa.map((v, c) => (v - sb[c]) / n)) : 0;
+          if (dInk > INK) inkOff.push([bx, by, Math.round(dInk), n]);
+        }
+        if (inkOff.length) diffs.push({ ...scope, file, kind: "sp-ink", detail: `${inkOff.length} of ${text.boxes.length} text boxes differ in their ink (x, y, distance, glyph pixels): ${inkOff.slice(0, 3).map(b => b.join(",")).join("; ")}` });
+      }
+      // inside each run's box only the glyphs go: pixels far from the box's background (its median) on either side, 1 px
+      // around – what lies under the text stays in the comparison, with the slide's rule
+      if (A.w === B.w && A.h === B.h) {
+        const glyph = new Uint8Array(A.w * A.h);
+        for (const [bx, by, bw, bh] of text.boxes) {
+          const x0 = Math.max(0, Math.floor(bx)), y0 = Math.max(0, Math.floor(by)), x1 = Math.min(A.w, Math.ceil(bx + bw)), y1 = Math.min(A.h, Math.ceil(by + bh));
+          if (x1 <= x0 || y1 <= y0) continue;
+          const bg = img => { const ch = [[], [], []]; for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const o = (y * A.w + x) * 3; for (let c = 0; c < 3; c++) ch[c].push(img.rgb[o + c]); } return ch.map(median); };
+          const ga = bg(A), gb = bg(B), far = (img, g, o) => Math.hypot(img.rgb[o] - g[0], img.rgb[o + 1] - g[1], img.rgb[o + 2] - g[2]) > GLYPH;
+          for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const o = (y * A.w + x) * 3; if (far(A, ga, o) || far(B, gb, o)) glyph[y * A.w + x] = 1; }
+        }
+        for (let y = 0; y < A.h; y++) for (let x = 0; x < A.w; x++) {
+          let g = 0; for (let dy = -1; dy <= 1 && !g; dy++) for (let dx = -1; dx <= 1 && !g; dx++) { const yy = y + dy, xx = x + dx; if (yy >= 0 && yy < A.h && xx >= 0 && xx < A.w && glyph[yy * A.w + xx]) g = 1; }
+          if (g) { const o = (y * A.w + x) * 3; A.rgb[o] = B.rgb[o]; A.rgb[o + 1] = B.rgb[o + 1]; A.rgb[o + 2] = B.rgb[o + 2]; }
+        }
       }
       const r = comparePixels(A, B, { range: true });
       pixels.push({ ...scope, file, fraction: r.size ? 1 : r.fraction, maxDE: r.maxDE ?? null });
@@ -236,5 +288,7 @@ export function compareSP(actualDir, px, opts = {}) {
     });
   }
   for (const d of diffs) d.accepted = (opts.accepted || []).find(a => a.tool === "sp" && ["deck", "design", "version", "file", "kind"].every(k => a[k] === undefined || a[k] === d[k])) || null;
+  // an entry with upTo (%) accepts its slide only up to that share of differing pixels
+  for (const d of diffs) if (d.accepted?.upTo !== undefined) { const m = /([\d.]+) % of the pixels/.exec(String(d.detail)); if (!m || +m[1] > d.accepted.upTo) d.accepted = null; }
   return { diffs, pixels, images };
 }

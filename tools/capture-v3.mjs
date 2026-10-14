@@ -107,6 +107,7 @@ export async function openBrowser() {
   await page.clock.setFixedTime(new Date(CLOCK));
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
+  page.on("console", m => { if (m.type() === "error" || m.type() === "warning") (page.__errors ||= []).push(m.text().slice(0, 300)); if (page.__errors?.length > 30) page.__errors.shift(); });
   return { browser, page, errors };
 }
 
@@ -118,7 +119,15 @@ export async function load(page, h, file, version) {
   const prefs = (await h.api("/api/me")).prefs || {};
   await h.api("/api/me", "PUT", { prefs: { ...prefs, lastFile: file, zoom: 1, versions: { [file]: version || "" } } });
   await page.goto(h.url);
-  await page.locator("#stage .slide").first().waitFor({ timeout: 120_000 });
+  await page.locator("#stage .slide").first().waitFor({ timeout: 120_000 }).catch(async e => {
+    // what the page shows instead (S4.4: a capture that waited for ever said nothing more)
+    const state = await page.evaluate(() => {
+      const t = window.__sbTest;
+      return { top: document.querySelector("#fileName")?.textContent, toast: document.querySelector(".toast")?.textContent, busy: document.querySelector("#busy")?.textContent,
+        thumbs: document.querySelectorAll(".thumb").length, stage: t?.stage?.() ? "shown" : "none", idle: t?.stageIdle?.(), core: t?.coreStats, empty: !!document.querySelector("#emptyState") };
+    }).catch(x => ({ unreadable: String(x) }));
+    throw new Error(`${file}: no slide on the stage after 120 s – ${JSON.stringify(state)}; page errors: ${JSON.stringify(page.__errors || [])}; helper log tail: ${h.log ? h.log().slice(-600) : ""} (${e.message.split("\n")[0]})`);
+  });
   // the requested workbook open (the top bar names it and its slide count; until then the page may still show the
   // one before) and all its thumbnails drawn: a steady thumbnail count alone was met by the previous deck at times
   const want = await page.waitForFunction(f => {

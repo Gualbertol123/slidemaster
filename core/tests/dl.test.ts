@@ -500,3 +500,4 @@ describe("text as glyph outlines in the SVG (S4.4)", () => {
     expect(svg).not.toContain("<text");
   });
 });
+

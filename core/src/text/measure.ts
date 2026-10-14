@@ -130,9 +130,19 @@ export class FontMeasurer implements TextMeasurer {
   /** faces that missed the budget (each reports its arrival once; arrivals close together, one redraw) */
   private late = new Set<Promise<FaceInfo | null>>();
   private lateTimer: ReturnType<typeof setTimeout> | null = null;
+  /** each pending face's deadline: a measurement waits for a font only until then, however many ask */
+  private deadlines = new Map<Promise<FaceInfo | null>, Promise<"late">>();
   private faceSoon(css: string): Promise<FaceInfo | null> {
     const p = this.face(css);
-    return Promise.race([p, new Promise<"late">(r => setTimeout(() => r("late"), this.budget))]).then(v => {
+    if (this.late.has(p)) return Promise.resolve(null);                 // (it missed its budget: the page measures)
+    let d = this.deadlines.get(p);
+    if (!d) {
+      let t: ReturnType<typeof setTimeout> | undefined;
+      d = new Promise<"late">(r => { t = setTimeout(() => r("late"), this.budget); });
+      this.deadlines.set(p, d);
+      void p.then(() => { clearTimeout(t); this.deadlines.delete(p); }, () => undefined);
+    }
+    return Promise.race([p, d]).then(v => {
       if (v !== "late") return v;
       if (!this.late.has(p)) {
         this.late.add(p);

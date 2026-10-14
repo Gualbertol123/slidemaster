@@ -663,7 +663,8 @@
   "file": "slide-1.png",
   "kind": "pixels",
   "reason": "B7 measured: the slide as drawn with its measured layout (narrower glass columns, static Segoe UI). S4.4, review/S4.4/.",
-  "signedOff": "S4.4, product owner, 2026-10-14"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "upTo": 15.1
  },
  {
   "tool": "parity",
@@ -750,7 +751,8 @@
   "file": "slide-1.png",
   "kind": "pixels",
   "reason": "B7 measured: the slide as drawn with its measured layout (narrower glass columns, static Segoe UI). S4.4, review/S4.4/.",
-  "signedOff": "S4.4, product owner, 2026-10-14"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "upTo": 3.5
  },
  {
   "tool": "parity",
@@ -1607,7 +1609,8 @@
   "file": "slide-1.png",
   "kind": "pixels",
   "reason": "B7 measured: the slide as drawn with its measured layout (narrower glass columns, static Segoe UI). S4.4, review/S4.4/.",
-  "signedOff": "S4.4, product owner, 2026-10-14"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "upTo": 15.2
  },
  {
   "tool": "dlparity",
@@ -1694,7 +1697,8 @@
   "file": "slide-1.png",
   "kind": "pixels",
   "reason": "B7 measured: the slide as drawn with its measured layout (narrower glass columns, static Segoe UI). S4.4, review/S4.4/.",
-  "signedOff": "S4.4, product owner, 2026-10-14"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "upTo": 3.5
  },
  {
   "tool": "dlparity",
@@ -1847,7 +1851,8 @@
   "file": "slide-1.png",
   "kind": "pixels",
   "reason": "B2 measured: Excel Refined's text boxes in static Segoe UI (no longer \"Segoe UI Variable Text\"), as in the PDF. S4.4.",
-  "signedOff": "S4.4, product owner, 2026-10-14"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "upTo": 3.3
  },
  {
   "tool": "dlparity",
@@ -1879,7 +1884,8 @@
   "file": "slide-1.png",
   "kind": "pixels",
   "reason": "B2 measured: Excel Refined's text boxes in static Segoe UI (no longer \"Segoe UI Variable Text\"), as in the PDF. S4.4.",
-  "signedOff": "S4.4, product owner, 2026-10-14"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "upTo": 1.6
  },
  {
   "tool": "dlparity",
@@ -1911,7 +1917,8 @@
   "file": "slide-3.png",
   "kind": "pixels",
   "reason": "B2 measured: Excel Refined's text boxes in static Segoe UI (no longer \"Segoe UI Variable Text\"), as in the PDF. S4.4.",
-  "signedOff": "S4.4, product owner, 2026-10-14"
+  "signedOff": "S4.4, product owner, 2026-10-14",
+  "upTo": 2
  },
  {
   "tool": "dlparity",
@@ -2044,5 +2051,27 @@
   "reason": "B7 measured: Liquid Glass columns as wide as their text measured from the font file (v3 estimated 0.56 em a character), so tables, cells, cards and the text boxes beside them move; text boxes fitted on their own layout. S4.4, review/S4.4/.",
   "signedOff": "S4.4, product owner, 2026-10-14",
   "digest": "42d04ffebf1a24a5"
+ },
+ {
+  "tool": "sp",
+  "deck": "weekly-comments",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1",
+  "kind": "sp",
+  "reason": "SP pixels beyond 1 % from hairlines: the thin row separators and capsule edges of Liquid Glass are anti-aliased differently by Chromium and PDFium (layouts and text match; S4.4 compares the pixels under the text too, which whole-box masks had left out).",
+  "signedOff": "S4.1, product owner, 2026-10-13 (glyph rasterisation and hairlines)",
+  "upTo": 1.5
+ },
+ {
+  "tool": "sp",
+  "deck": "weekly-looks",
+  "design": "glass",
+  "version": "full",
+  "file": "slide-1",
+  "kind": "sp",
+  "reason": "SP pixels beyond 1 % from hairlines: the thin row separators and capsule edges of Liquid Glass are anti-aliased differently by Chromium and PDFium (layouts and text match; S4.4 compares the pixels under the text too, which whole-box masks had left out).",
+  "signedOff": "S4.1, product owner, 2026-10-13 (glyph rasterisation and hairlines)",
+  "upTo": 1.6
  }
 ]

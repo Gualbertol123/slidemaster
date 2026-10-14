@@ -49,11 +49,11 @@ function tabularRuns(c: CanvasRenderingContext2D, runs: { text: string; font: st
 }
 /** whether the core worker measures a CSS font from a file (state/fontfiles.ts fontReadable): width() answers only for
     those, as the worker's does, so Liquid Glass's columns come out alike (null: not known yet) */
-let readableFont: ((families: string[]) => boolean | null) | null = null;
-export const setFontGate = (g: (families: string[]) => boolean | null) => { readableFont = g; widthCache.clear(); };
 /** widths by font and text, and each font's answer once known (Liquid Glass lays a slide out 22 times a frame in a
     corner drag: the same few fonts and texts) */
 const widthCache = new Map<string, number>(), fontOk = new Map<string, boolean>();
+let readableFont: ((families: string[]) => boolean | null) | null = null;
+export const setFontGate = (g: (families: string[]) => boolean | null) => { readableFont = g; widthCache.clear(); fontOk.clear(); };
 export const browserText: TextMeasurer = {
   width(text, font) {
     let ok = fontOk.get(font);

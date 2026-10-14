@@ -231,6 +231,8 @@ export function compare(goldenDir, actualDir, opts = {}) {
   if (!opts.decks) for (const deck of files(actualDir)) if (fs.statSync(path.join(actualDir, deck)).isDirectory() && !decks.includes(deck))
     diffs.push({ deck, design: "*", version: "*", file: "*", kind: "new", detail: "deck not in the goldens" });
   for (const d of diffs) d.accepted = accepted.find(a => (!a.tool || a.tool === (opts.tool || "parity")) && ["deck", "design", "version", "file", "kind"].every(k => a[k] === undefined || a[k] === d[k])) || null;
+  // a pixel entry with upTo (%) accepts its slide only up to that share of differing pixels (S4.4)
+  for (const d of diffs) if (d.accepted?.upTo !== undefined && d.kind === "pixels") { const m = /([\d.]+) % of the pixels/.exec(String(d.detail)); if (!m || +m[1] > d.accepted.upTo) d.accepted = null; }
   // an entry with a digest accepts exactly the differences it was signed for (S4.4): if those of its scope changed, none is
   for (const e of new Set(diffs.map(d => d.accepted).filter(x => x && x.digest))) {
     const mine = diffs.filter(d => d.accepted === e);
@@ -296,7 +298,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const s = stage.compareSP(actual, { comparePixels, decodePng, encodePng, PIXEL_FRACTION }, { accepted });
     res.diffs.push(...s.diffs); res.images.push(...s.images); res.unaccepted += s.diffs.filter(d => !d.accepted).length;
     const worst = s.pixels.reduce((m, p) => p.fraction > m.fraction ? p : m, { fraction: 0 });
-    console.log(`SP (screen = PDF): ${s.pixels.length} slides, ${s.diffs.length} beyond ${PIXEL_FRACTION * 100} % of the pixels; worst ${(worst.fraction * 100).toFixed(2)} %${worst.deck ? ` (${worst.deck} · ${worst.design} · ${worst.version} · ${worst.file})` : ""}`);
+    console.log(`SP (screen = PDF): ${s.pixels.length} slides, ${s.diffs.filter(d => d.kind === "sp").length} beyond ${PIXEL_FRACTION * 100} % of the pixels, ${s.diffs.filter(d => d.kind !== "sp").length} with text differences; worst ${(worst.fraction * 100).toFixed(2)} %${worst.deck ? ` (${worst.deck} · ${worst.design} · ${worst.version} · ${worst.file})` : ""}`);
     fs.writeFileSync(path.join(actual, "sp.json"), JSON.stringify(s.pixels, null, 1));
   }
   writeReport(res, report);

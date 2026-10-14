@@ -61,10 +61,11 @@ export function fontReadable(families: string[]): boolean | null {
     has already given its local fonts (measuring never asks: a page that has not been given them measures as before) */
 export async function measureCatalog(): Promise<CatalogFont[]> {
   let list: CatalogFont[];
-  if (backend.served) list = await catalog();
+  // (systemCatalog's failure is not swallowed here: the worker asks again rather than keep a list without this PC's fonts)
+  if (backend.served) list = [...libraryCatalog(), ...await systemCatalog()];
   else {
     const perm = await navigator.permissions?.query({ name: "local-fonts" as PermissionName }).catch(() => null);
-    list = perm?.state === "granted" ? await catalog() : libraryCatalog();
+    list = perm?.state === "granted" ? [...libraryCatalog(), ...await systemCatalog()] : libraryCatalog();
   }
   // as the worker keeps it: a library family shadows a Windows font of the same name
   const lib = new Set(list.filter(f => f.source === "library").map(f => f.family.toLowerCase())), m = new Map<string, CatalogFont[]>();
