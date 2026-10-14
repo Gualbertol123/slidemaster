@@ -246,10 +246,9 @@ numbers measured twice). Measured numbers go into the step's line.
   ```
   (the release was never published, so moving the tag replaces nothing anyone has downloaded); then check the
   `release` workflow and verify the downloaded ZIP (`python tools/make_release.py --verify slidebuilder-3.8.0.zip`).
-- **Before Prompt 7 (M5, storage v4) can start (product owner):** its "Requires" are (1) M4 ticked with v3.8
-  released – the item above – and (2) **the G0 storage decision under Decisions: "journal" or "lean-lock"**, which
-  comes from the field tests on the real share (G0, below: `tools/sharetest.py` from 3–5 PCs, one over VPN, 10
-  writers). Without (2) Prompt 7 stops at once. Carried into M5's branch as decided on 2026-10-14: the start-up
+- **Before Prompt 7 (M5, storage v4) can start:** its "Requires" are (1) M4 ticked with v3.8 released – the item
+  above – and (2) the G0 storage decision under Decisions: **decided 2026-10-14, "journal"** (Decisions, made by the
+  agent at the product owner's request; the field tests have not been run, lean-lock is built as the fallback). Carried into M5's branch as decided on 2026-10-14: the start-up
   reopen race fix (the user's own choice of workbook wins over the reopen of the last one).
 
 - ~~**Seams between dark cells**~~ fixed in 3.8 on 2026-10-14 ("Fix all 4 points", Decisions).
