@@ -213,6 +213,25 @@ numbers measured twice). Measured numbers go into the step's line.
 
 ## Waiting for
 
+- **Release v3.8.0 – blocked by CI, fix ready (product owner, 2026-10-14):** M4 is merged into `main` (bf83f24) and
+  `v3.8.0` was tagged and pushed by the product owner, but the `release` workflow runs the whole CI first, and CI's
+  parity job has failed since S4.4: the signed entries with a digest (B2/B7) were signed for the reference PC's full
+  comparison, and CI's text-only comparison states fewer details, so the digests never matched there (10,244
+  differences not accepted; reproduced on this PC with `--text-only`). The agent did not watch CI on the M4 branch –
+  every push since S4.1's review fixes had a failing job (bench on the S4.1 pushes, which later passed; parity since).
+  Fixed on branch `v4/ci-parity-text-only` (370cf00 + this note): digests are checked in full comparisons only; on
+  this PC text-only parity and text-only dlparity give 0 not accepted, the full ones are unchanged. To finish:
+  merge the branch into `main` (once its CI is green), then point the tag at that merge and push it again –
+  ```
+  git checkout main && git pull
+  git merge --no-ff v4/ci-parity-text-only -m "Merge v4/ci-parity-text-only: CI parity in text-only mode"
+  git push origin main
+  git tag -f -a v3.8.0 -m "Slide Builder 3.8.0"
+  git push -f origin v3.8.0
+  ```
+  (the release was never published, so moving the tag replaces nothing anyone has downloaded); then check the
+  `release` workflow and verify the downloaded ZIP (`python tools/make_release.py --verify slidebuilder-3.8.0.zip`).
+
 - ~~**Seams between dark cells**~~ fixed in 3.8 on 2026-10-14 ("Fix all 4 points", Decisions).
 
 - ~~**S4.4 · Sign off B7 differences in review/S4.4/**~~ decided 2026-10-14 (Decisions): signed off. Open `review/S4.4/index.html` (the pictures
