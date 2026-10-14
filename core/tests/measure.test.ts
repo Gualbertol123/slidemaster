@@ -133,3 +133,15 @@ describe("review fixes (S4.4)", () => {
     expect(pickFace(lib, 500, false)!.weight).toBe(400);                               // CSS: 500 looks lighter first
   });
 });
+
+describe("a catalog that could not be read (S4.4)", () => {
+  test("the faces looked for with it are not kept: the next measurement asks for the catalog again and finds the file", async () => {
+    let fail = true, asked = 0;
+    const page: TextMeasurer = { maxDigitWidth: () => 0, noteFits: () => true, measureRuns: runs => runs.map(() => ({ w: -1, asc: 0, desc: 0 })), breakLines: r => r.map(x => [x.text]) };
+    const m = new FontMeasurer(shaper(), { catalog: async () => { asked++; if (fail) throw new Error("helper busy"); return CAT; }, bytes: async f => FILES[f.file] ?? null }, page);
+    expect((await m.measureRuns([{ text: "x", font: "12px Carlito" }]))[0].w).toBe(-1);
+    fail = false;
+    expect((await m.measureRuns([{ text: "x", font: "12px Carlito" }]))[0].w).toBeGreaterThan(0);
+    expect(asked).toBe(2);
+  });
+});

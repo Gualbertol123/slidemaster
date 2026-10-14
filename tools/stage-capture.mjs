@@ -18,7 +18,7 @@
        GP's pixel rule (ΔE2000 2, the 3 × 3 range rule of decision G1-4, at most 1 % of the pixels), the glyphs left out
        (inside each run's box from the list, the pixels far from the box's background on either side, 1 px around: two
        rasterisers never draw glyph edges alike; what lies under the text is compared) – and each box's ink (the mean colour
-       of its glyph pixels on both sides) within INK of the PDF's.
+       of its glyph pixels on both sides) within INK of the PDF's and its glyph pixel count within COUNT of theirs.
    Used by tools/parity.mjs (npm run parity). */
 import fs from "node:fs";
 import path from "node:path";
@@ -209,6 +209,10 @@ export async function exportNative(page, h, dir) {
 /** how far a text box's ink may be from the PDF's (RGB distance of the mean colours of the pixels that are glyph pixels on
     both sides: the two rasterisers' anti-aliasing moves it a little; a wrong colour is far beyond) */
 const INK = +(process.env.SB_SP_INK || 140);
+/** the glyph pixels of a box on screen against the PDF's: a run missing on one side (or drawn twice) changes their count
+    far beyond the two rasterisers' weights, which move it by up to 2.7× on the corpus (a 2 px line under the text on one
+    side only is within that, and is not seen) */
+const COUNT = [.25, 4], COUNT_MIN = 40;
 /** a pixel this far (RGB distance) from its text box's background is a glyph's */
 const GLYPH = 40;
 const median = v => { const a = [...v].sort((x, y) => x - y); return a[a.length >> 1]; };
@@ -252,16 +256,18 @@ export function compareSP(actualDir, px, opts = {}) {
           // – a second fill in the box is the same on both sides, a seam or a bolder stroke is on one side only
           const bgOf = img => { const ch = [[], [], []]; for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const o = (y * A.w + x) * 3; for (let c = 0; c < 3; c++) ch[c].push(img.rgb[o + c]); } return ch.map(median); };
           const ga = bgOf(A), gb = bgOf(B), sa = [0, 0, 0], sb = [0, 0, 0];
-          let n = 0;
+          let n = 0, na = 0, nb = 0;
           for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
             const o = (y * A.w + x) * 3;
-            if (Math.hypot(A.rgb[o] - ga[0], A.rgb[o + 1] - ga[1], A.rgb[o + 2] - ga[2]) <= GLYPH || Math.hypot(B.rgb[o] - gb[0], B.rgb[o + 1] - gb[1], B.rgb[o + 2] - gb[2]) <= GLYPH) continue;
+            const inA = Math.hypot(A.rgb[o] - ga[0], A.rgb[o + 1] - ga[1], A.rgb[o + 2] - ga[2]) > GLYPH, inB = Math.hypot(B.rgb[o] - gb[0], B.rgb[o + 1] - gb[1], B.rgb[o + 2] - gb[2]) > GLYPH;
+            if (inA) na++; if (inB) nb++;
+            if (!inA || !inB) continue;
             n++; for (let c = 0; c < 3; c++) { sa[c] += A.rgb[o + c]; sb[c] += B.rgb[o + c]; }
           }
-          const dInk = n >= 3 ? Math.hypot(...sa.map((v, c) => (v - sb[c]) / n)) : 0;
-          if (dInk > INK) inkOff.push([bx, by, Math.round(dInk), n]);
+          const dInk = n >= 3 ? Math.hypot(...sa.map((v, c) => (v - sb[c]) / n)) : 0, ratio = Math.max(na, nb) >= COUNT_MIN ? (na + 1) / (nb + 1) : 1;
+          if (dInk > INK || ratio < COUNT[0] || ratio > COUNT[1]) inkOff.push([bx, by, Math.round(dInk), na, nb]);
         }
-        if (inkOff.length) diffs.push({ ...scope, file, kind: "sp-ink", detail: `${inkOff.length} of ${text.boxes.length} text boxes differ in their ink (x, y, distance, glyph pixels): ${inkOff.slice(0, 3).map(b => b.join(",")).join("; ")}` });
+        if (inkOff.length) diffs.push({ ...scope, file, kind: "sp-ink", detail: `${inkOff.length} of ${text.boxes.length} text boxes differ in their ink (x, y, ink distance, glyph pixels on screen, in the PDF): ${inkOff.slice(0, 3).map(b => b.join(",")).join("; ")}` });
       }
       // inside each run's box only the glyphs go: pixels far from the box's background (its median) on either side, 1 px
       // around – what lies under the text stays in the comparison, with the slide's rule

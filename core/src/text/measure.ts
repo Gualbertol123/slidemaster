@@ -76,9 +76,12 @@ export class FontMeasurer implements TextMeasurer {
       const lib = new Set(list.filter(f => f.source === "library").map(f => f.family.toLowerCase())), m = new Map<string, CatalogFont[]>();
       // a library family shadows a Windows font of the same name (its @font-face rule wins in the page)
       for (const f of list) { const k = f.family.toLowerCase(); if (f.source === "system" && lib.has(k)) continue; const l = m.get(k) || []; l.push(f); m.set(k, l); }
+      this.catalogFailed = false;
       return m;
-    }, () => { this.byFamily = null; return new Map<string, CatalogFont[]>(); });
+    }, () => { this.byFamily = null; this.catalogFailed = true; return new Map<string, CatalogFont[]>(); });
   }
+  /** the last catalog could not be read: the faces looked for with it are forgotten */
+  private catalogFailed = false;
   /** a catalog file's face (null: unreadable – WOFF2, a broken file) */
   private file(f: CatalogFont, family: string): Promise<FaceInfo | null> {
     const key = f.source + "|" + f.file;
@@ -119,7 +122,11 @@ export class FontMeasurer implements TextMeasurer {
         return null;
       })();
       this.faces.set(key, p);
-      void p.then(face => { if (this.faces.get(key) === p) this.found.set(key, face); });
+      void p.then(face => {
+        if (this.faces.get(key) !== p) return;
+        if (this.catalogFailed) { this.faces.delete(key); return; }
+        this.found.set(key, face);
+      });
     }
     return p;
   }
@@ -132,9 +139,12 @@ export class FontMeasurer implements TextMeasurer {
   private lateTimer: ReturnType<typeof setTimeout> | null = null;
   /** each pending face's deadline: a measurement waits for a font only until then, however many ask */
   private deadlines = new Map<Promise<FaceInfo | null>, Promise<"late">>();
+  /** the catalog missed a budget and is still coming: no measurement waits for it again */
+  private catalogLate = false;
   private faceSoon(css: string): Promise<FaceInfo | null> {
     const p = this.face(css);
     if (this.late.has(p)) return Promise.resolve(null);                 // (it missed its budget: the page measures)
+    if (this.catalogLate) { this.late.add(p); void p.then(face => { this.late.delete(p); if (face && !this.lateTimer) this.lateTimer = setTimeout(() => { this.lateTimer = null; this.onLate?.(); }, 100); }); return Promise.resolve(null); }
     let d = this.deadlines.get(p);
     if (!d) {
       let t: ReturnType<typeof setTimeout> | undefined;
@@ -144,6 +154,8 @@ export class FontMeasurer implements TextMeasurer {
     }
     return Promise.race([p, d]).then(v => {
       if (v !== "late") return v;
+      // (the catalog itself still coming: the next fonts do not wait for it either)
+      if (this.byFamily) { const c = this.byFamily; let done = false; void c.then(() => { done = true; }); queueMicrotask(() => { if (!done) { this.catalogLate = true; void c.then(() => { this.catalogLate = false; }, () => { this.catalogLate = false; }); } }); }
       if (!this.late.has(p)) {
         this.late.add(p);
         void p.then(face => {
