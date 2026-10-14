@@ -1,6 +1,6 @@
-/* Excel and Excel Refined → display list (PLAN S3.3): the same table renderExcel draws as HTML (excel.ts), as
-   display-list nodes in table px (0,0 = the table's top left, L.W × L.H; the slide places and scales it). Every
-   rule of v3's markup and slide.css is followed so that the two coincide:
+/* Excel and Excel Refined → display list (PLAN S3.3): the table v3's renderExcel drew as HTML (excel.ts, removed in
+   S4.5), as display-list nodes in table px (0,0 = the table's top left, L.W × L.H; the slide places and scales it).
+   Every rule of v3's markup and slide.css is followed, so that the slides match the goldens captured from v3:
    - fills and borders: the `.b` boxes (border-box: a border lies inside its cell box, top / bottom across the
      whole width, left / right across the whole height), widths and dashes per Excel style;
    - text: the `.t` flex box (padding 0 3px, indent 3 + 9·indent px, 1 px at the bottom when bottom-aligned,
@@ -126,7 +126,7 @@ export function excelToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics, o
   return { nodes, images };
 }
 
-/** the family list of a cell's text, as renderExcel writes it */
+/** the family list of a cell's text, as v3's renderExcel wrote it */
 function cellFamily(it: Item, ctx: RenderCtx): string {
   const user = it.userFont || ctx.style.text?.table?.font;
   return user ? fontStack(user, XLFONT) : `'${(it.font.name || "").replace(/['"]/g, "")}',${XLFONT}`;

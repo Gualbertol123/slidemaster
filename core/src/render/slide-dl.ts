@@ -1,6 +1,6 @@
 /* A whole slide → display list (PLAN S3.5): the background, the slide furniture – title, subtitle, cover, contents,
    page number, footer, logo –, the tables (their display lists, excel-dl.ts / glass-dl.ts, placed and scaled where
-   computeLayout puts them), the text boxes and the notes section, as slideMarkup + slide.css draw them. Text is
+   computeLayout puts them), the text boxes and the notes section, as v3's slideMarkup + slide.css drew them. Text is
    measured from font files (Metrics, S4.4: text/measure.ts; the page where a font has no readable file); text boxes
    are fitted here, on their own layout (v3's fitNoteSize rule: from the start size down in 1 px steps). Every element the page has a box for gets a hit node: kind "f", id = its classes,
    the label its text as a reader has it (innerText, whitespace normalised as the parity tools do).
@@ -128,7 +128,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
 
   /* a nowrap line with an ellipsis in a box from left to 1600 − right (titles), the inherited line height unless set */
   function oneLine(cls: string, f: TextFmt, text: string, left: number, top: number, right: number, st0: TStyle, shadow: boolean) {
-    // a page number in the top-left corner: both texts start at 56 + its width + 22 (slideMarkup's inline left)
+    // a page number in the top-left corner: both texts start at 56 + its width + 22 (v3's slideMarkup's inline left)
     const st = withFmt(st0, f), x = shift ? 56 + shift : left, w = 1600 - right - x, lh = T.lineH(st, f.lh ? +f.lh : INHERITED);
     const plain = collapse(text).trim(), shown = T.ellipsis(plain, st, w), tw = T.adv(shown, st);
     const tx = f.align === "right" ? x + w - tw : f.align === "center" ? x + (w - tw) / 2 : x;

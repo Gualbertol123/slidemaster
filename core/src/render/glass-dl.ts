@@ -1,9 +1,9 @@
-/* Liquid Glass → display list (PLAN S3.4): the same plan renderGlass writes as HTML (glass.ts glassPlan: buildScene,
-   inferRoles and every material decision unchanged), drawn with the recipes of 03 §4.3 from the values of
-   app/src/styles/slide.css, the CSS calc() expressions evaluated here for the glass level (--gi), the contrast veil
-   (--gfade) and the corner radius (--rk):
+/* Liquid Glass → display list (PLAN S3.4): the plan v3's renderGlass wrote as HTML (glass.ts glassPlan: buildScene,
+   inferRoles and every material decision unchanged; the HTML went in S4.5), drawn with the recipes of 03 §4.3 from
+   the values of v3's slide.css, the CSS calc() expressions evaluated here for the glass level (--gi), the contrast
+   veil (--gfade) and the corner radius (--rk):
    - a material (.gls.wb card / panel / chip / tile, list / tinted): its outer box-shadows, then inside its rounded
-     box the blurred wallpaper at placeGlass's lens (LENS = 1 + .06 · gi, positioned on the slide), the tint, the
+     box the blurred wallpaper at v3's placeGlass lens (LENS = 1 + .06 · gi, positioned on the slide), the tint, the
      contrast veil, its inset shadows, the rim (::before, a 135° gradient ring) and the sheen (::after, two
      elliptical radial gradients). Shadows are the 5-layer recipe (v3's printcss.ts STEPS = 5, decision 2026-10-12);
      the screen's real blur differs (B3, accepted pending G1);
@@ -50,7 +50,7 @@ export function cssLinear(deg: number, w: number, h: number): [number, number, n
 }
 const linear = (deg: number, w: number, h: number, stops: Stop[]): Paint => ({ linear: cssLinear(deg, w, h), stops });
 
-/* ---- the materials: box-shadow lists, tints, rims and sheens of slide.css, as functions of --gi ---- */
+/* ---- the materials: box-shadow lists, tints, rims and sheens of v3's slide.css, as functions of --gi ---- */
 interface Sh { inset?: boolean; dx: number; dy: number; blur: number; spread: number; c: RGB; a: number }
 const S = (inset: boolean, dx: number, dy: number, blur: number, spread: number, c: RGB, a: number): Sh => ({ inset, dx, dy, blur, spread, c, a: clamp01(a) });
 const NAVY: RGB = [28, 40, 100];
@@ -110,7 +110,7 @@ export function glassBox(cls: string, x: number, y: number, w: number, h: number
   if (opts.ring) shadows = [S(true, 0, 0, 0, 1.5, parseColor(opts.ring).c, .75), S(false, 0, 2, 6, -3, NAVY, .25)];
   const inner: Node[] = [];
   if (wall) {
-    // placeGlass: the blurred wallpaper magnified by LENS about the element's centre, positioned on the slide
+    // v3's placeGlass: the blurred wallpaper magnified by LENS about the element's centre, positioned on the slide
     const LENS = 1 + .06 * V.gi, sc = place.scale, ex = place.x + x * sc, ey = place.y + y * sc, cx = ex + w * sc / 2, cy = ey + h * sc / 2;
     const bw = +(1600 * LENS / sc).toFixed(2), bh = +(900 * LENS / sc).toFixed(2), px = +(-(ex + (LENS - 1) * cx) / sc).toFixed(2), py = +(-(ey + (LENS - 1) * cy) / sc).toFixed(2);
     inner.push({ t: "image", id: wall.blurId, x: x + px, y: y + py, w: bw, h: bh });

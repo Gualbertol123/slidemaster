@@ -144,8 +144,8 @@ Every user runs **their own helper** on their own PC (`Start Slide Builder.bat`)
 opens the app) and serves the app page with a random per-start token injected. The helpers never
 talk to each other: **the shared folder is the only channel**, coordinated with lock files (§9).
 The old export engine (a browser driven by the helper) was removed in 3.8: an older install's `engine\` folder is
-no longer used and can be deleted (`tools/update.py` never touches it), and so can `%LOCALAPPDATA%\SlideBuilder\engine`
-(its copy on each PC that ran Slide Builder from a share, with its `locks` folder).
+no longer used and can be deleted (`tools/update.py` never touches it), and so can `%LOCALAPPDATA%\SlideBuilder\`
+on each PC that ran Slide Builder from a share (the engine's copy and its `locks`).
 
 ### 2.2 Who does what
 | Who | What |

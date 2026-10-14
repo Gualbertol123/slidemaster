@@ -24,7 +24,7 @@ installBrowserPlatform();
 
 // hooks for automated tests (parity with v2, end-to-end); not used by the app itself
 (window as unknown as Record<string, unknown>).__sbTest = { indexWorkbook, readWorkbook, buildLayout, formatValue, resolveStyle, coreStats,
-  // the display list (M3, not shown yet): built by the core worker, drawn on a canvas by the parity tools
+  // the display list: built by the core worker, drawn on a canvas by the parity tools
   slideLists: (a: DesignReq & { slides?: number[] }) => core().call("slideLists", { today: todayLabel(), ...a }), drawDl,
   // the export (S3.7): the last one's files and time from the click, and how many export workers run
   lastExport, exportWorkers: () => pool().size, exportPhases: () => pool().last, toastNow: () => get().ui.toast, exporting: () => get().ui.exporting,

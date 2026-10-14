@@ -385,10 +385,9 @@ function tintGrad(hex: string, strength: number, alpha = .8) { return `--tint:li
 /* a deep, readable ink of the same hue (white text on a dark fill becomes dark-hued text on tinted glass) */
 function deepInk(hex: string) { const [h, s, l] = hexToHsl(hex.replace("#", "")); return "#" + hslToHex(h, Math.min(1, s * 1.1 + .08), Math.min(.3, l * .75)); }
 
-/* The table as a plan of drawn elements, in drawing order: what renderGlass writes as HTML and glassToDisplayList
-   (glass-dl.ts) draws as display-list nodes. Every decision of the theme is taken here once; the two outputs only
-   translate it. Numbers are kept as computed (the HTML rounds them as it always has, the display list rounds them
-   the same way). */
+/* The table as a plan of drawn elements, in drawing order: what glassToDisplayList (glass-dl.ts) draws as
+   display-list nodes (v3's renderGlass wrote it as HTML until S4.5). Every decision of the theme is taken here once;
+   the drawing only translates it. Numbers are kept as computed (the display list rounds them as v3's HTML did). */
 export interface GShell { k: "shell"; cls: string; x: number; y: number; w: number; h: number; rad: number;
   /** the tint the material gets from its fill (tintGrad's arguments), else the class's own */
   tint?: { hex: string; strength: number; alpha: number };
