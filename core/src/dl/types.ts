@@ -68,6 +68,9 @@ export interface TextNode {
   src: string;
   /** the run's measured advance, px: every backend pins the run to it (SVG textLength, canvas letterSpacing, PDF Tc) */
   w?: number;
+  /** the CSS letter-spacing included in w (px between characters; S4.4: SP compares the browser's own width with
+      w less it) – informative, every backend draws by w */
+  ls?: number;
   /** a shaped glyph run (S3.2): glyph ids and their x advances in px (sum = w). `adv` without `gids`: each
       character's advance (one per code point) as the screen measured it, letter-spacing included (tabular figures;
       their sum is w plus the last character's spacing) */

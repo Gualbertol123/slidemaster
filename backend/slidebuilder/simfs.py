@@ -22,7 +22,7 @@ simulation is a **lower bound** of the cost of a real share with the same round-
 
 Only the names used by the storage modules (``store``, ``locks``, ``fsclock``, ``presence``,
 ``util``) are replaced - their module-level ``os`` / ``open`` are swapped for wrappers. The rest of
-the helper (HTTP server, export engines, workbook reads) is untouched.
+the helper (HTTP server, exports, workbook reads) is untouched.
 
 The wrappers also count the charged calls per thread (``count()``); with ``SLIDEBUILDER_SIM_FS_MS=0``
 nothing sleeps, but the counts still tell how many SMB round trips one request costs.

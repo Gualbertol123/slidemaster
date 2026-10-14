@@ -5,9 +5,10 @@ import { setDialogs, useStore, toast } from "../state/store";
 import { change } from "../state/app";
 import { applySel, selItems, selTable } from "../editor/edit";
 import { effFmt } from "@slide-builder/core/render/edits";
-import { sizingOf, sizingPatch, slideHasLogo } from "@slide-builder/core/render/slide";
-import { alignTables, canMerge, mergeSel, mergedInSel, unmergeSel, valignTables, currentTableRefs, makeSameSize, selCols, selRows, setColWidth, setRowHeight, shownColW, shownRowH } from "../editor/tables";
-import { addSlideNotes, attachNote, noteOf, patchNote } from "../editor/stage";
+import { slideHasLogo } from "@slide-builder/core/render/slide";
+import { sizingOf, sizingPatch } from "@slide-builder/core/render/layout";
+import { alignTables, canMerge, mergeSel, mergedInSel, unmergeSel, valignTables, currentTableRefs, makeSameSize, selCols, selRows, resetCellSizes, setColWidth, setRowHeight, shownColW, shownRowH } from "../editor/tables";
+import { addNote as addTextBox, addSlideNotes, attachNote, noteOf, patchNote } from "../stage/actions";
 import { scaleColors } from "@slide-builder/core/render/scales";
 import { A1, uid, esc } from "@slide-builder/core/xlsx/util";
 import type { Op, ScaleRule, Side } from "@slide-builder/core/model/types";
@@ -79,8 +80,7 @@ export function TableRibbon() {
     if (!R || tIdx < 0) { toast("Click a cell of the table first."); return; }
     const key = (R.tables[tIdx].id || String(tIdx)) + ":" + side;
     if ((R.cfg.notes || {})[key]) { toast("This table already has a text box there – double-click it to edit."); return; }
-    change("Add text box", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: { text: "" } } } } as Op]);
-    setTimeout(() => document.querySelector<HTMLElement>(`#stage .tnote[data-note="${CSS.escape(key)}"]`)?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })), 120);
+    addTextBox(tIdx, side);                      // opens for typing as soon as the slide shows it
   };
   const sz = R ? sizingOf(R, c) : null, align = sz?.align || "center";
   // raw Excel shows the workbook only: no text boxes, no comments
@@ -92,7 +92,7 @@ export function TableRibbon() {
         <SizeBox label="W" title="Width of the selected columns (Enter to apply)" disabled={!hasSel} values={T ? cols.map(c => shownColW(T, c)) : []} onSet={v => T && setColWidth(T, cols, v)} />
         <SizeBox label="H" title="Height of the selected rows (Enter to apply)" disabled={!hasSel} values={T ? rows.map(r => shownRowH(T, r)) : []} onSet={v => T && setRowHeight(T, rows, v)} />
         <button className="tb" id="sizeReset" disabled={!hasSel} title="Back to the widths and heights from Excel for the selected columns and rows"
-          onClick={() => { if (!T?.def) return; change("Excel sizes", [{ op: "table.patch", id: T.def.id, patch: { cols: Object.fromEntries(cols.map(c => [c, null])), rows: Object.fromEntries(rows.map(r => [r, null])) } } as Op]); }}>Excel size</button>
+          onClick={() => { if (T) resetCellSizes(T, cols, rows); }}>Excel size</button>
         <Dropdown button={(_o, t) => <button className="tb" id="roleBtn" disabled={!hasSel} title="Role of the selected cells: how Liquid Glass draws them" onClick={t}>Role: {role ? ROLES.find(r => r[0] === role)?.[1] : "–"} ▾</button>}>
           {close => <>{ROLES.map(([k, l, t]) => <button key={k} data-role={k} className={role === k ? "picked" : ""} onClick={() => { close(); applySel("Role: " + l, e => { if (k === "auto") delete e.role; else e.role = k; }); }}>{l}<small>{t}</small></button>)}</>}
         </Dropdown>

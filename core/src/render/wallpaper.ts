@@ -1,6 +1,6 @@
 /* Liquid Glass wallpaper: a soft gradient with colour blobs and ribbons, plus a blurred copy that the
-   glass surfaces sample (background-position is set per element by placeGlass). Cached per value. Drawn on
-   the host's canvas (platform.ts); the page puts the result into its CSS (wallCss). */
+   glass surfaces sample (glass-dl.ts places it behind each surface). Cached per value. Drawn on the host's
+   canvas (platform.ts). */
 import { hexRgb } from "../xlsx/color";
 import { glassLevel, themeOf } from "../model/style";
 import type { Style } from "../model/types";
@@ -8,17 +8,33 @@ import { platform } from "../platform";
 import { sha1 } from "../text/sha1";
 
 export interface Wall { sharp: string; blur: string; base: string }
-const WALLS = new Map<string, Wall>();
+/** by settings: each wallpaper is drawn once, also when it is asked for again while it is being drawn (the core worker's
+    warm-up at start and the first glass slide) */
+const WALLS = new Map<string, Promise<Wall | null>>();
 
-export function wallCss(w: Wall) { return `.slide.glass{--wall:url(${w.sharp});--wallblur:url(${w.blur});--wallbase:${w.base}}`; }
+/** the colour under the wallpaper (--wallbase): what a glass slide shows before its wallpaper is drawn */
+export function wallBase(style: Style): string {
+  const amt = Math.max(0, Math.min(100, +style.color || 0)) / 100, th = themeOf(style);
+  const [r, g, b] = hexRgb(th.grad ? "#E9EDF6" : pastelOf(th.c1, .1)), m = (v: number) => Math.round(255 + (v - 255) * amt);
+  return `rgb(${m(r)},${m(g)},${m(b)})`;
+}
+const pastelOf = (h: string, t: number) => { const [r, g, b] = hexRgb(h); const m = (v: number) => Math.round(255 + (v - 255) * t); return "#" + [m(r), m(g), m(b)].map(v => v.toString(16).padStart(2, "0")).join(""); };
 /** the wallpaper for these settings, or null when the host has no canvas */
-export async function makeWall(style: Style): Promise<Wall | null> {
-  const gi = glassLevel(style), amt = Math.max(0, Math.min(100, +style.color || 0)) / 100, th = themeOf(style);
-  // contrast above the middle deepens the wallpaper: baked into the picture (a CSS filter on it made Chrome
-  // print every page's background as a 300 dpi picture – huge, slow PDFs)
-  const u = Math.max(0, Math.min(100, style.contrast ?? 50) / 100 - .5);
-  const key = gi + "|" + amt + "|" + u.toFixed(3) + "|" + [th.c1, th.c2, th.c3, th.c4].join();
-  const hit = WALLS.get(key); if (hit) return hit;
+export function makeWall(style: Style): Promise<Wall | null> {
+  const th = themeOf(style), amt = Math.max(0, Math.min(100, +style.color || 0)) / 100;
+  const key = glassLevel(style) + "|" + amt + "|" + deepening(style).toFixed(3) + "|" + [th.c1, th.c2, th.c3, th.c4].join();
+  let p = WALLS.get(key);
+  if (!p) {
+    WALLS.set(key, p = drawWall(style));
+    p.then(w => { if (!w) WALLS.delete(key); }, () => WALLS.delete(key));          // (no canvas, or it failed: asked again)
+  }
+  return p;
+}
+/** contrast above the middle deepens the wallpaper: baked into the picture (a CSS filter on it made Chrome print every
+    page's background as a 300 dpi picture – huge, slow PDFs) */
+const deepening = (style: Style) => Math.max(0, Math.min(100, style.contrast ?? 50) / 100 - .5);
+async function drawWall(style: Style): Promise<Wall | null> {
+  const gi = glassLevel(style), amt = Math.max(0, Math.min(100, +style.color || 0)) / 100, th = themeOf(style), u = deepening(style);
   const cf = platform().canvas; if (!cf) return null;
   const W = 1600, H = 900, k = (.4 + .6 * gi) * amt;                // amount 0 = plain white, 1 = full colour
   const mix = (hex: string, t: number) => { const [r, g, b] = hexRgb(hex); const m = (v: number) => Math.round(255 + (v - 255) * t); return `rgb(${m(r)},${m(g)},${m(b)})`; };
@@ -53,8 +69,8 @@ export async function makeWall(style: Style): Promise<Wall | null> {
   const b = cf.create(W / 2, H / 2); if (!b) return null; const y = b.ctx;
   y.filter = `blur(${12 + 8 * gi}px) saturate(${1 + .4 * gi * amt}) brightness(${1 + .08 * amt})`; y.drawImage(c.image, -50, -50, W / 2 + 100, H / 2 + 100);
   const blur = await b.toDataURL("image/jpeg", .92);
-  const w = { sharp, blur, base: mix(th.grad ? "#E9EDF6" : pastel(th.c1, .1), amt) };
-  WALLS.set(key, w); return w;
+  const w = { sharp, blur, base: wallBase(style) };
+  return w;
 }
 
 /** the wallpaper's two JPEGs as display-list images with stable ids (the SHA-1 of their bytes): the sharp one for

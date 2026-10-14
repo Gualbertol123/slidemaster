@@ -1,7 +1,6 @@
 /* Text formatting on slides: deck text styles (Style.text, per kind of text) under the formatting of
-   single texts (a slide's title, a text box, a cell). One function turns a format into CSS. */
+   single texts (a slide's title, a text box, a cell). */
 import type { Note, RuntimeSlide, SlideTextKey, TextFmt, TextRole } from "../model/types";
-import { fontStack } from "../model/fonts";
 import type { RenderCtx } from "./context";
 import { esc } from "../xlsx/util";
 
@@ -24,20 +23,6 @@ function defined<T extends object>(o: T): Partial<T> {
   return out;
 }
 
-/** CSS declarations of a format (only what it sets); `size: false` leaves the font size to the caller */
-export function fmtCss(f: TextFmt, opts: { size?: boolean; align?: boolean } = {}): string {
-  const st: string[] = [];
-  if (f.font) st.push(`font-family:${fontStack(f.font)}`);
-  if (opts.size !== false && f.size) st.push(`font-size:${+f.size}px`);
-  if (f.b !== undefined) st.push(`font-weight:${f.b ? 700 : 400}`);
-  if (f.i !== undefined) st.push(`font-style:${f.i ? "italic" : "normal"}`);
-  if (f.color) st.push(`color:${f.color}`);
-  if (opts.align !== false && f.align) st.push(`text-align:${f.align}`);
-  if (f.lh) st.push(`line-height:${+f.lh}`);
-  return st.map(x => x.replace(/"/g, "'")).join(";");      // used inside style="…"
-}
-
-/* titles: a larger title or subtitle pushes the subtitle and the tables down */
 const BASE = { glass: { title: 48, sub: 19, subTop: 82 }, excel: { title: 44, sub: 18, subTop: 76 } };
 export function titleGeom(R: RuntimeSlide, ctx: RenderCtx) {
   const b = BASE[ctx.style.design === "glass" ? "glass" : "excel"];

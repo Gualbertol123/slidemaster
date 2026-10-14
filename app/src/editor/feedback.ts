@@ -23,7 +23,7 @@ export const PROBLEMS: [string, string][] = [
   ["P10", "Versions: a wrong name or wrong content"],
   ["other", "Something else"],
 ];
-export const WHICH: [string, string][] = [["new", "the new PDF (Export PDF)"], ["old", "the old engine's PDF"], ["both", "both PDFs"], ["pictures", "PDF as pictures"], ["png", "PNG or copied slide"]];
+export const WHICH: [string, string][] = [["new", "the PDF (Export PDF)"], ["pictures", "PDF as pictures"], ["png", "PNG or copied slide"]];
 
 const opts = (list: [string, string][], cur: string) => list.map(([v, l]) => `<option value="${v}"${v === cur ? " selected" : ""}>${esc(l)}</option>`).join("");
 
@@ -32,7 +32,7 @@ export async function reportExportProblem() {
   const { file, slides, cur } = get().deck;
   if (!file || !slides.length) { toast("Open a workbook and export it first: the report is about an export."); return; }
   const last = lastMade?.workbook === file.name ? lastMade : null;         // an export of another workbook is not this one's
-  const form: Record<string, string> = { fbWhat: "P2", fbWhich: last?.kind === "pdf-old" ? "old" : /pictures|exact/.test(last?.kind || "") ? "pictures" : /png|copy/.test(last?.kind || "") ? "png" : "new", fbSlide: String(cur + 1), fbText: "" };
+  const form: Record<string, string> = { fbWhat: "P2", fbWhich: /pictures|exact/.test(last?.kind || "") ? "pictures" : /png|copy/.test(last?.kind || "") ? "png" : "new", fbSlide: String(cur + 1), fbText: "" };
   const lastLine = last
     ? `Last export: <b>${esc(last.files.join(", ") || last.kind)}</b> · ${esc(last.kind)} · ${last.seconds} s${last.failed?.length ? " · failed" : ""}`
     : "No export in this window yet – the report names the workbook and the slide.";

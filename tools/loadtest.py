@@ -131,7 +131,7 @@ class Helper:
     def __init__(self, k, root, data, fs_ms, app_file, entry=ENTRY, count_file=None):
         self.k, self.user = k, "user%d" % k
         env = dict(os.environ, SLIDEBUILDER_ROOT=root, SLIDEBUILDER_DATA=data, SLIDEBUILDER_USER=self.user,
-                   SLIDEBUILDER_HOST="pc%d" % k, SLIDEBUILDER_ENGINES="none", SLIDEBUILDER_TIMING="1",
+                   SLIDEBUILDER_HOST="pc%d" % k, SLIDEBUILDER_TIMING="1",
                    PYTHONUNBUFFERED="1")
         env.pop("SLIDEBUILDER_SIM_FS_MS", None)
         if fs_ms is not None:

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { palette, resolveStyle } from "../src/model/style";
-import { renderExcel } from "../src/render/excel";
+import { excelToDisplayList, type Metrics } from "../src/render/excel-dl";
 import { rolesOf } from "../src/render/roles";
 import { themeVars } from "../src/render/slide";
 import type { RenderCtx } from "../src/render/context";
@@ -27,6 +27,11 @@ function table() {
   items.forEach(it => it.L = L);
   return L;
 }
+/** advances of 0.5 em per character */
+const M: Metrics = { run: (t, font) => { const size = parseFloat(font.split("px")[0].split(" ").pop()!); return { w: [...t].length * size * .5, asc: size * .8, desc: size * .2 }; }, lines: t => [t] };
+/** a table as the display list draws it (the screen, the exports) */
+const drawn = (L: any, c: RenderCtx) => JSON.stringify(excelToDisplayList(L, c, M).nodes);
+const rgb = (hex: string) => JSON.stringify(hex.slice(1).match(/../g)!.map(h => parseInt(h, 16)));
 const ctx = (st: StylePatch = {}): RenderCtx => ({ style: resolveStyle(st), edits: {}, slides: [], preset: null, workbook: "w", logoSrc: "" });
 
 describe("designs and colours", () => {
@@ -45,17 +50,15 @@ describe("designs and colours", () => {
     expect([...k.values()]).toEqual(["header", "header", "spacer", "total", "spacer", "body", "body", "body"]);
   });
   it("Excel Refined draws the tables exactly like Excel (the workbook's colours); it only adds text boxes", async () => {
-    const { tableHtml } = await import("../src/render/slide");
-    const R: any = { tables: [table()], cfg: {} };
-    const ex = tableHtml(R, 0, ctx({ design: "excel" })), cl = tableHtml(R, 0, ctx({ design: "clean", colors: { pos: "#0077B6" } }));
+    const ex = drawn(table(), ctx({ design: "excel" })), cl = drawn(table(), ctx({ design: "clean", colors: { pos: "#0077B6" } }));
     expect(cl).toBe(ex);
-    expect(cl).toContain("background:#1F4E79"); expect(cl).toContain("background:#00B050");
+    expect(cl).toContain(rgb("#1F4E79")); expect(cl).toContain(rgb("#00B050"));
   });
   it("Excel is raw: the workbook's colours, whatever the deck's colours say; no text boxes", async () => {
-    const pure = renderExcel(table(), ctx({ design: "excel" }));
-    expect(pure).toContain("background:#1F4E79"); expect(pure).toContain("background:#00B050");
-    expect(renderExcel(table(), ctx({ design: "excel", colors: { head: "#5B2C83", pos: "#0077B6" } }))).toBe(pure);
-    const { notesOf } = await import("../src/render/slide");
+    const pure = drawn(table(), ctx({ design: "excel" }));
+    expect(pure).toContain(rgb("#1F4E79")); expect(pure).toContain(rgb("#00B050"));
+    expect(drawn(table(), ctx({ design: "excel", colors: { head: "#5B2C83", pos: "#0077B6" } }))).toBe(pure);
+    const { notesOf } = await import("../src/render/layout");
     const R: any = { tables: [{ id: "t" }], cfg: { notes: { "t:right": { text: "x" } } } };
     expect(notesOf(R, 0, ctx({ design: "excel" }))).toEqual({});
     expect(notesOf(R, 0, ctx({ design: "clean" })).right?.text).toBe("x");
@@ -90,6 +93,8 @@ describe("versions", () => {
     expect(at(cut, 9, 4).text).toBe("10");                                                 // outside the range: kept
     const g = gridOf(L, { ...ctx({ design: "clean" }), version: v });
     expect(g[5][2].v).toBeNull();                                                          // no number for the comment either
-    expect(renderExcel(L, { ...ctx({ design: "clean" }), version: v })).not.toContain(">5<");
+    const texts = (c: RenderCtx) => excelToDisplayList(L, c, M).nodes.flatMap(n => n.t === "group" ? n.children : [n]).flatMap(n => n.t === "text" ? [n.src] : []);
+    expect(texts(ctx({ design: "clean" }))).toContain("5");
+    expect(texts({ ...ctx({ design: "clean" }), version: v })).not.toContain("5");
   });
 });

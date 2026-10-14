@@ -3,8 +3,8 @@
    as the browser takes the first one it has:
    * the deck's font library first (its @font-face rules win over a Windows font of the same name), then this PC's
      fonts (the helper's /sysfonts index);
-   * variable families the old export engine left out are left out here too ("Segoe UI Variable …", "SF Pro …":
-     v3's printReady(), core/render/printcss.ts), so Liquid Glass text is static Segoe UI as in today's PDFs (B2);
+   * variable families v3's PDFs left out are left out here too ("Segoe UI Variable …", "SF Pro …":
+     v3's printReady(), removed in S4.5), so Liquid Glass text is static Segoe UI as in today's PDFs (B2);
    * CSS generic families are Windows' defaults; where a family is not installed, its metric-compatible stand-in is
      tried (Carlito for Calibri … – the substitutes Chromium itself uses through fontconfig on Linux);
    * when nothing in the list can be embedded, a default face is used and the family is reported (`missing`).
@@ -14,9 +14,12 @@ import { weightOf, type DisplayList, type Node, type TextNode } from "../dl/type
 import { FontRegistry } from "./fonts";
 
 /** one font file the export may load: a library face or a file of this PC's font folders */
-export interface CatalogFont { source: "library" | "system"; file: string; family: string; weight: number; italic: boolean }
+export interface CatalogFont { source: "library" | "system"; file: string; family: string; weight: number; italic: boolean;
+  /** a Windows font copied into the library (copy mode, W13): read from the library, matched as Windows matches it
+      (DirectWrite's nearest weight, its @font-face rules declare those weights as ranges: model/fonts.ts fontFaceCss) */
+  copied?: boolean }
 
-/** families the PDF never takes from a list (variable fonts the old engine left out too) */
+/** families the PDF never takes from a list (variable fonts v3's PDFs left out too) */
 const SKIP = /^(-apple-system|BlinkMacSystemFont|Segoe UI Variable( (Display|Text|Small))?|SF Pro( (Display|Text))?)$/i;
 const GENERIC: Record<string, string> = { "sans-serif": "Arial", serif: "Times New Roman", monospace: "Consolas", "system-ui": "Segoe UI", cursive: "Comic Sans MS", fantasy: "Impact" };
 /** metric-compatible stand-ins, tried only when the family itself is not installed */
@@ -41,10 +44,16 @@ export function cssFamilies(css: string): string[] {
   return out.map(f => f.replace(/\s+/g, " "));
 }
 
-/** CSS font matching (CSS Fonts 4 §5.2) on metadata: the style first, then the weight (as FontRegistry.match) */
-export function pickFace<T extends { weight: number; italic: boolean }>(list: T[], weight: number, italic: boolean): T | null {
+/** the face a browser draws a weight and style with, on metadata: the style first, then the weight – CSS font matching
+    (CSS Fonts 4 §5.2) for the library's @font-face faces; for a Windows font Chromium takes DirectWrite's match instead,
+    the nearest weight; of two equally near the heavier from 400 up, the lighter below (Segoe UI 500 is Semibold, 640
+    Semibold, 720 Bold, 325 Light – measured against Chromium's canvas, S4.4) – so the PDF uses the face the screen
+    shows (as FontRegistry.match). (DirectWrite may also let a weight win over the style – Arial italic 850 is Arial
+    Black – which this does not follow: no weight the designs use comes near) */
+export function pickFace<T extends { weight: number; italic: boolean; source?: string; copied?: boolean }>(list: T[], weight: number, italic: boolean): T | null {
   if (!list.length) return null;
   const styled = list.filter(f => f.italic === italic), pool = styled.length ? styled : list;
+  if (pool.every(f => f.source === "system" || f.copied)) return [...pool].sort((a, b) => Math.abs(a.weight - weight) - Math.abs(b.weight - weight) || (weight >= 400 ? b.weight - a.weight : a.weight - b.weight))[0];
   const rank = (w: number) => w === weight ? 0
     : weight > 500 ? (w > weight ? w - weight : 1000 + weight - w)
     : weight < 400 ? (w < weight ? weight - w : 1000 + w - weight)
@@ -90,7 +99,7 @@ export class FontResolver {
           // a library face is what its @font-face rule says; a Windows file names its own faces (a .ttc holds several) –
           // unless the index knows it by another name (the browser's local-font list), which then names its one face too
           try {
-            if (f.source === "library") { this.fonts.add(data, { family: f.family, weight: f.weight, italic: f.italic, source: "library", file: f.file }); return true; }
+            if (f.source === "library") { this.fonts.add(data, { family: f.family, weight: f.weight, italic: f.italic, source: f.copied ? "system" : "library", file: f.file }); return true; }
             const faces = this.fonts.add(data, { source: "system", file: f.file });
             if (faces.length === 1 && faces[0].family.toLowerCase() !== f.family.toLowerCase()) this.fonts.add(data, { family: f.family, source: "system", file: f.file });
             return true;

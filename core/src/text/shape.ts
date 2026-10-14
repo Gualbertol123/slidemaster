@@ -3,6 +3,8 @@
    scaled to the size in slide px. Until S4.4 the designs still measure with the page's browser layout (decision
    2026-10-12, 3); the PDF writer places glyphs from shape() (advances, mark offsets), and these functions are what
    S4.4 switches to. */
+import { legacyKern } from "./kern";
+import { Outliner } from "./outline";
 import { hyphenBreak } from "./lines";
 import type { TextNode } from "../dl/types";
 import type { FaceInfo } from "./fonts";
@@ -21,6 +23,11 @@ export interface Line {
 
 export class Shaper {
   private fonts = new Map<string, { font: number; upem: number }>();
+  /** each face's legacy kern pairs (null: none, or GPOS kerns) */
+  private kerns = new Map<string, Map<number, number> | null>();
+  private outliner: Outliner | null = null;
+  /** glyph outlines by face and glyph id */
+  private outlines = new Map<string, string>();
   constructor(private hb: Hb) {}
 
   private hbFont(face: FaceInfo) {
@@ -64,6 +71,10 @@ export class Shaper {
       dx.push(i32[pos + 5 * i + 2] * k); dy.push(i32[pos + 5 * i + 3] * k);
     }
     hb.fn("hb_buffer_destroy")(buf);
+    // the legacy 'kern' table, where HarfBuzz in the browser uses it (kern.ts)
+    let kern = this.kerns.get(face.id);
+    if (kern === undefined) this.kerns.set(face.id, kern = legacyKern(face.font));
+    if (kern) for (let i = 0; i + 1 < gids.length; i++) { const v = kern.get((gids[i] << 16 | gids[i + 1]) >>> 0); if (v) { adv[i] += v * k; w += v * k; } }
     return { gids, adv, cl, dx, dy, w };
   }
   /** a text node's glyph run from its face: gids, advances, clusters and mark offsets. When the node has a measured
@@ -83,6 +94,13 @@ export class Shaper {
     return { ...n, gids: s.gids, adv, cl: s.cl, ...(offs ? { dx: s.dx, dy: s.dy } : {}), w: n.w ?? s.w };
   }
   width(face: FaceInfo, text: string, size: number) { return this.shape(face, text, size).w; }
+  /** a glyph's outline as SVG path data, font units, y up (outline.ts); the face's units per em */
+  outline(face: FaceInfo, gid: number): { d: string; upem: number } {
+    const { font, upem } = this.hbFont(face), k = face.id + ":" + gid;
+    let d = this.outlines.get(k);
+    if (d === undefined) this.outlines.set(k, d = (this.outliner ||= new Outliner(this.hb)).glyph(font, gid));
+    return { d, upem };
+  }
 
   /** lines of a paragraph text ("\n" ends a line) wrapped greedily at `width`: breaks after spaces and hyphens, and
       inside a word that is longer than a line (as Excel and CSS overflow-wrap do). Widths come from one shaping of

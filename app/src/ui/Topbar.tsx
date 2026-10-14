@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { patch, toast, useStore } from "../state/store";
 import { esc } from "@slide-builder/core/xlsx/util";
-import { guard, lookChange, showVersion, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, setHealth, styleChange, setPrefs } from "../state/app";
-import { openInstaller } from "../state/dialogs";
+import { guard, lookChange, showVersion, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, styleChange, setPrefs } from "../state/app";
 import { backend, type FileInfo } from "../sync/api";
 import { doExport, exportVersions, type ExportKind } from "../editor/export";
 import { reportExportProblem } from "../editor/feedback";
@@ -69,7 +68,7 @@ export function ThemePicker() {
 }
 
 function Options() {
-  const st = useStyle(), p = st.pn, has = useStore(s => s.doc.open);
+  const st = useStyle(), p = st.pn, has = useStore(s => s.doc.open), soft = useStore(s => !!s.prefs.prefs.softShadows);
   const pn = (patch: Partial<PageNumbers>, coalesce?: string) => styleChange("Page numbers", { pn: patch }, coalesce);
   const ft = st.footer, fo = (patch: Partial<Footer>, coalesce?: string) => styleChange("Footer", { footer: patch }, coalesce);
   return (
@@ -130,6 +129,8 @@ function Options() {
             onChange={e => { const v = +(e.target as HTMLInputElement).value, el = (e.target as HTMLElement).nextElementSibling; if (el) el.textContent = v < 50 ? "softer" : v > 50 ? "stronger" : "as designed"; debounced("contrast", () => styleChange("Contrast", { contrast: v }, "contrast")); }} /><span className="cv">{st.contrast < 50 ? "softer" : st.contrast > 50 ? "stronger" : "as designed"}</span></div></>}
         </div>
         <div className="optnote">Corners: roundness of tables, bubbles and the logo (0 = square). Contrast: how much the tables and bubbles stand out from the background.</div>
+        <label className="ck big"><input type="checkbox" id="softShadows" checked={soft} onChange={e => setPrefs({ softShadows: (e.target as HTMLInputElement).checked || null })} /> Soft shadows on screen</label>
+        <div className="optnote">Only on your screen: shadows drawn with a true blur. Unticked, the screen draws them as the PDF does (in 5 steps).</div>
         <div className="sep" />
         <div className="opthd">This deck's style</div>
         <div className="optnote">Design, colour, page numbers and logo are saved with this workbook and shared with everybody who opens it.</div>
@@ -143,21 +144,13 @@ function ServerPill() {
   const h = useStore(s => s.ui.health);
   if (!backend.served) return <span className="pill err" id="srv"><i className="dot" />Helper not running</span>;
   if (!h) return <span className="pill err" id="srv"><i className="dot" />Helper stopped</span>;
-  const e = h.engine, ok = e.state === "ready", st = e.state === "starting" || e.state === "idle";
-  const title = (e.engines || []).map(x => `${x.label}: ${x.state}${x.detail ? " – " + x.detail : ""}`).join("\n") + "\n\nClick to retry. Install the recommended engine once with “Install export engine”.";
-  const click = async () => {
-    if (!ok && !st || !e.local) return openInstaller();
-    await backend.engineRestart(); setTimeout(() => void backend.health().then(setHealth), 1500);
-  };
-  return <span className={"pill " + (ok ? "ok" : st ? "warn" : "err")} id="srv" title={title} style={{ cursor: "pointer" }} onClick={() => void click()}>
-    <i className="dot" />{ok ? "Export: " + (e.browser || "ready") : st ? "Testing export engines…" : "Export: in-window only · install engine"}
-  </span>;
+  return null;                                    // (the helper runs: nothing to say – the page writes the exports)
 }
 
 function ExportButton() {
   const slides = useStore(s => s.deck.slides.length), exporting = useStore(s => s.ui.exporting);
   const mode = useStore(s => s.prefs.prefs.pdfMode) || "vector", versions = useStore(s => s.doc.view?.preset?.versions) || [];
-  // the page writes the files (S3.7): exports work without an export engine, and from disk as downloads (B1)
+  // the page writes the files (S3.7), and from disk as downloads (B1)
   const can = slides > 0 && !exporting;
   const item = (k: ExportKind, label: string, small?: string, close?: () => void) =>
     <button data-x={k} className={k === "pdf-" + mode ? "cur" : ""} onClick={() => { close?.(); void doExport(k); }}>{label}{small && <small>{small}</small>}</button>;
@@ -171,7 +164,6 @@ function ExportButton() {
         {item("pdf-vector", "PDF · text & tables", "real text and lines, sharp at any zoom – no pictures", close)}
         {item("pdf-exact", "PDF · as pictures", "each slide as a 192 dpi image", close)}
         {item("pdf-current", "PDF · current slide only", undefined, close)}
-        {backend.served && item("pdf-old", "PDF · text & tables (old engine)", "as Slide Builder 3.6 made it – for comparison, until the next release", close)}
         <div className="sep" />
         <div className="hd">Images (4800 × 2700)</div>
         {item("copy", "Copy current slide", "paste into PowerPoint", close)}

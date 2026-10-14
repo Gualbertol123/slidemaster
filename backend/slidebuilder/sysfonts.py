@@ -4,12 +4,20 @@ the fonts a workbook or deck uses (Calibri, Aptos, Segoe UI, ...) are read from 
     GET  /sysfonts                 [{file, family, subfamily, weight, italic, faces, size}] of the PC's font files
     GET  /sysfonts/<file>          one font file (only files listed by the index, from the two font folders)
     POST /api/fonts/capture?file=  the font's embedding permission (OS/2 fsType) and metrics fingerprint, recorded
-                                   in data/fonts/system/fingerprints.json
+                                   in data/fonts/system/fingerprints.json; the other builds other PCs have; in copy
+                                   mode, the family copied into the shared library
 
-Fingerprint mode (gate G0, decision 2026-10-12: R7): Windows fonts are NOT copied to the share. A capture records
-what this PC's file is (SHA-1, version, units per em, vertical metrics, a hash of the advance widths), so PCs with a
-different build of a font can be told apart; every PC still lays out with its own copy. Copying the file into
-data/fonts/system/ needs the licence owner's yes (R7) and is not done.
+Fingerprint mode (gate G0, decision 2026-10-12: R7), the default: Windows fonts are NOT copied to the share. A capture
+records what this PC's file is (SHA-1, version, units per em, vertical metrics, a hash of the advance widths), so PCs
+with a different build of a font can be told apart (the page names them in its side panel); every PC still lays out
+with its own copy.
+
+Copy mode (03 §2.5, W13), only once the licence owner has confirmed that Microsoft's fonts may be copied to the share
+(R7) and the maintainer has recorded it (`slide_builder.py --allow-font-copy "<who confirmed, when>"`, in
+data/fonts/system/licence.json; `--allow-font-copy off` goes back): a capture copies every face of the family this PC
+has into the shared library (fonts.py, source "system") – all of them or none (a copied Regular would otherwise hide
+this PC's Bold) – when each is a single-face .ttf / .otf that may be embedded and is not a variable font. The library's
+family then wins over every PC's own copy (the page's catalog), so every PC lays it out with the same bytes.
 
 The folders are %WINDIR%\\Fonts and the per-user %LOCALAPPDATA%\\Microsoft\\Windows\\Fonts; SLIDEBUILDER_SYSFONTS
 (folders separated by os.pathsep) replaces them, for tests. Only .ttf, .otf and .ttc files are served, and only by
@@ -29,7 +37,7 @@ from .util import current_host, current_user
 FONT_TYPES = {".ttf": "font/ttf", ".otf": "font/otf", ".ttc": "font/collection"}
 SYSFONT_MAX = 64 * 1024 * 1024                    # the largest Windows fonts (CJK collections) are ~35 MB
 _NAME = re.compile(r"^[\w .()&+,'-]{1,120}\.(ttf|otf|ttc)$", re.IGNORECASE | re.UNICODE)
-MODE = "fingerprint"                              # G0 2026-10-12; "copy" would need R7's licence answer
+MODE = "fingerprint"                              # G0 2026-10-12; copy mode once R7 is answered (copy_allowed)
 _index_lock = threading.Lock()
 _index_cache = {}
 
@@ -220,6 +228,60 @@ def _store_path():
     return os.path.join(paths.data_dir("fonts", "system"), "fingerprints.json")
 
 
+def _licence_path():
+    return os.path.join(paths.data_dir("fonts", "system"), "licence.json")
+
+
+def copy_allowed():
+    """who confirmed that Windows fonts may be copied to the share (R7), or None: fingerprint mode"""
+    doc = read_json(_licence_path(), lambda: None)
+    if isinstance(doc, dict) and doc.get("copy") is True and str(doc.get("confirmedBy") or "").strip():
+        return str(doc["confirmedBy"]).strip()
+    return None
+
+
+def set_copy_allowed(confirmed_by):
+    """record the licence owner's yes (copy mode), or with None / "off" go back to fingerprint mode"""
+    who = str(confirmed_by or "").strip()
+    os.makedirs(os.path.dirname(_licence_path()), exist_ok=True)
+    with Lock("fonts"):
+        if not who or who.lower() == "off":
+            write_json(_licence_path(), {"copy": False, "at": server_now_ms(), "by": current_user()})
+            return None
+        write_json(_licence_path(), {"copy": True, "confirmedBy": who, "at": server_now_ms(), "by": current_user()})
+        return who
+
+
+def _copy_family(family, user=None):
+    """copy mode: every face of `family` on this PC that the library's copy lacks, into the library – all of them or
+    none (fonts.add_system_faces, one lock) – {"copied": bool, "copiedFaces": n in the library, "added": n, "reason"?}"""
+    from . import fonts as library
+    have = next((f for f in library.read_library()["fonts"] if f["family"].lower() == family.lower()), None)
+    if have is not None and have.get("source") != "system":
+        return {"copied": False, "reason": "the library has its own %s" % family}
+    rows = [r for r in list_fonts() if str(r.get("family", "")).lower() == family.lower()]
+    faces = []
+    for r in rows:
+        ext = os.path.splitext(r["file"])[1].lower()
+        if ext not in (".ttf", ".otf") or r.get("faces", 1) != 1:
+            return {"copied": False, "reason": "%s is a font collection (.ttc)" % r["file"]}
+        data, _ = read_font(r["file"])
+        d = describe(data)
+        if not d.get("embeddable"):
+            return {"copied": False, "reason": "%s may not be embedded (OS/2 fsType)" % r["file"]}
+        if d.get("variable"):
+            return {"copied": False, "reason": "%s is a variable font" % r["file"]}
+        faces.append((data, ext, d["weight"], d["italic"]))
+    if not faces:
+        return {"copied": False, "reason": "no file of %s on this PC" % family}
+    try:
+        lib, added = library.add_system_faces(family, faces, user=user)
+    except library.FontError as e:
+        return {"copied": False, "reason": str(e)}
+    entry = next(f for f in lib["fonts"] if f["family"].lower() == family.lower())
+    return {"copied": True, "copiedFaces": len(entry["faces"]), "added": added}
+
+
 def capture(name, user=None, host=None):
     """record this PC's file of a Windows font (fingerprint mode). Returns the fingerprint, whether it may be
     embedded, and the other builds of the same family seen on other PCs."""
@@ -241,12 +303,25 @@ def capture(name, user=None, host=None):
                    "faces": fp["faces"], "seen": []}
             rows.append(row)
         who = {"user": user or current_user(), "host": host or current_host()}
-        row["seen"] = [s for s in row.get("seen", []) if isinstance(s, dict) and (s.get("user"), s.get("host")) != (who["user"], who["host"])]
+        me = lambda s: isinstance(s, dict) and (s.get("user"), s.get("host")) == (who["user"], who["host"])
+        # this PC has this build now: it no longer has another build of the same file (an update replaced it), and a
+        # build no PC has any more is forgotten
+        for r in rows:
+            if r is not row and r.get("file", "").lower() == name.lower():
+                r["seen"] = [s for s in r.get("seen", []) if isinstance(s, dict) and not me(s)]
+        rows = [r for r in rows if r is row or r.get("seen")]
+        row["seen"] = [s for s in row.get("seen", []) if isinstance(s, dict) and not me(s)]
         row["seen"].append(dict(who, at=now))
         row["seen"] = row["seen"][-50:]
         rows.sort(key=lambda r: (str(r.get("family", "")).lower(), str(r.get("file", "")).lower(), str(r.get("sha1", ""))))
         doc = {"schema": 1, "mode": MODE, "fonts": rows}
         write_json(_store_path(), doc)
-    others = sorted({r["sha1"] for r in rows if r.get("family", "").lower() == family.lower() and r.get("file", "").lower() == name.lower() and r["sha1"] != fp["sha1"]})
-    return {"mode": MODE, "file": name, "family": family, "sha1": fp["sha1"], "embeddable": row["embeddable"], "noSubset": row.get("noSubset", False),
-            "faces": fp["faces"], "otherBuilds": others}
+    other_rows = [r for r in rows if r.get("family", "").lower() == family.lower() and r.get("file", "").lower() == name.lower() and r["sha1"] != fp["sha1"]]
+    others = sorted({r["sha1"] for r in other_rows})
+    # the PCs that have another build (the page names them: their slides may lay out differently, W13)
+    hosts = sorted({str(s.get("host")) for r in other_rows for s in r.get("seen", []) if isinstance(s, dict) and s.get("host")})
+    out = {"mode": MODE, "file": name, "family": family, "sha1": fp["sha1"], "embeddable": row["embeddable"], "noSubset": row.get("noSubset", False),
+           "faces": fp["faces"], "otherBuilds": others, "otherHosts": hosts}
+    if copy_allowed():
+        out.update(mode="copy", **_copy_family(family, user=user))
+    return out

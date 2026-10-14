@@ -8,13 +8,21 @@
 | `static.ts` | a static face of an uploaded variable font at its declared weight (the worker's `staticFont` call) |
 | `pdf.ts` | `prepareTextForPdf()`: shapes every text node without a glyph run, stretched to its measured width |
 | `resolve.ts` | the native export's font choice (S3.7): `FontResolver` takes each run's CSS family list and loads the first family it can embed – the deck's library faces, then this PC's files (`CatalogFont`: the helper's /sysfonts, or the browser's local fonts) – one file per family, weight and style (CSS matching on the index, `pickFace`); "Segoe UI Variable …" / "SF Pro …" / -apple-system skipped (v3's `printReady`); generic families as Windows' defaults; metric-compatible stand-ins (Carlito for Calibri …) only where a family is not installed; else a default face and the list reported as `missing` |
+| `measure.ts` | `FontMeasurer` (S4.4, B7): the core worker's `TextMeasurer` – the display list's runs, line breaks and Excel's digit width measured with HarfBuzz on the file the browser draws the CSS font with (the first family of the list the library or this PC has, CSS font matching; no stand-ins), ascent / descent as Chromium reports them on Windows (win or typo metrics, rounded to whole px); a font without a readable file, or a text with a character its face lacks, measured by the page; `width()` at once for fonts `prepare()`d (Liquid Glass's column widths, which the page's drags lay out too); the per-font check and `outlineRun()` |
+| `kern.ts` | the legacy 'kern' table's format-0 pairs, applied where HarfBuzz in the browser applies them (no 'kern' feature in GPOS: Segoe UI Italic); harfbuzzjs's lean build leaves the table out |
+| `outline.ts` | glyph outlines (`hb_font_draw_glyph`) as SVG path data: the callbacks become tiny WebAssembly functions in hb.wasm's function table |
 | `hb.ts` | instantiates the inlined WASM (no emscripten glue) |
 | `wasm/` | harfbuzzjs@0.4.12's `hb.wasm` and `hb-subset.wasm`, zlib + base64 (`node tools/vendor-harfbuzz.mjs`; the test checks them against `node_modules`) |
 
 Shaping uses HarfBuzz's default features (kern and liga on). On the golden slides' text lines it equals Chromium's
-canvas within 0.002 px (`core/tests/shape.test.ts`, reference `tests/fixtures/text/chromium-widths.json`). Until
-S4.4 the designs still measure with the page's browser layout (decision 2026-10-12, 3); the PDF uses these glyph
-runs so its glyphs sit where the screen's do. `shape(…, features)` switches more OpenType features on (S3.4: a
+canvas within 0.002 px (`core/tests/shape.test.ts`, reference `tests/fixtures/text/chromium-widths.json`). Since
+S4.4 the designs measure with it too (`measure.ts`), and a Windows font's face is the one Chromium draws: DirectWrite's
+nearest weight, the heavier of two equally near (Segoe UI 500 is Semibold, 720 Bold), not CSS font matching, which
+Chromium applies to the library's @font-face faces only (`pickFace`, `FontRegistry.match`; the PDF takes the same faces): on the reference PC Calibri, Century Gothic, Segoe UI (regular,
+bold, semibold, italic with the legacy kern pairs), Cambria, Consolas, Verdana and Arial's bold equal Chromium's canvas
+exactly at 9–40 px; Tahoma, Times New Roman and Arial regular / italic differ by up to 1.4 % on some pairs (the per-font
+check draws such a font's runs as outlines on the stage, so its glyphs sit where the PDF's do). The PDF uses the same
+glyph runs. `shape(…, features)` switches more OpenType features on (S3.4: a
 text node with `tnum` – Liquid Glass numbers, CSS `font-variant-numeric: tabular-nums` – is shaped with "tnum";
 the page measures those runs through the DOM, since canvas text has no such setting, and a canvas backend centres
 each character in its tabular advance).
@@ -37,6 +45,6 @@ Synthetic italic: an italic run in a face without an italic is drawn oblique by 
 a 0.25 skew in the text matrix, as Chromium slants it; S3.6). Synthetic bold (S3.7): a run of weight 600 or more in a
 static face lighter than 600 is stroked as Skia's fake bold (`PdfFontFace.bold`). Not yet (named for the steps that need them):
 WOFF2 (most Google fonts) is not readable by the core (no Brotli decoder), so the native PDF draws such a library font
-with the next family of its list, or a default face, and the toast names it (the old engine kept it for 3.7);
+with the next family of its list, or a default face, and the toast names it (v3.7's HTML export kept it);
 no fallback font for a missing glyph (it is `.notdef`); tabs and soft hyphens are not break opportunities, CJK breaks between
 characters only; a variable CFF2 upload is stored as it is.

@@ -11,7 +11,7 @@ import { pngFlate } from "../src/pdf/png";
 import { ExportHost, dataUrlBytes, type ExportCorePort, type ExportPort, type Rasterizer } from "../src/worker/export-host";
 import { Port, pair } from "../src/rpc/port";
 import type { DisplayList, TextNode } from "../src/dl/types";
-import type { ExportJob, ExportMethods, ExportPageMethods, SlideList } from "../src/rpc/messages";
+import type { ExportJob, ExportMethods, ExportPageMethods, SlideList, ThumbJob } from "../src/rpc/messages";
 
 const FONTS = path.join(__dirname, "fixtures", "fonts");
 const font = (f: string) => new Uint8Array(fs.readFileSync(path.join(FONTS, f)));
@@ -160,6 +160,50 @@ describe("the export host (worker/export-host.ts)", () => {
     const pngs = (await page.call("run", { ...job("png"), scale: 3 })).files;
     expect(pngs.map(b => latin(new Uint8Array(b)).slice(1, 4))).toEqual(["PNG", "PNG"]);
     expect(seen).toEqual([2, 2, 2, 2, 2, 3]);
+  });
+  test("thumbnails (S4.3): pictures at the width asked; a slide whose picture the page shows (its key) is not drawn again", async () => {
+    const seen: number[][] = [];
+    const { page, asked } = connect({ async pages() { return []; }, async bitmaps(pages, images, width) { seen.push([pages.length, images.size, width]); return { bitmaps: pages.map((_, i) => ({ fake: i }) as unknown as ImageBitmap), complete: true }; } });
+    const tj = (have: Record<number, string> = {}, width = 222): ThumbJob => ({ design: "excel", version: "", forExport: false, thumb: false, width, library: [], have });
+    const a = await page.call("thumbs", tj());
+    expect(a.map(t => [t.slide, !!t.bitmap])).toEqual([[0, true], [1, true]]);
+    expect(a[0].key).toBeTruthy(); expect(a[0].key).not.toBe(a[1].key);
+    // the page shows slide 0 as it is, and an older slide 1: only slide 1 is drawn
+    const b = await page.call("thumbs", tj({ 0: a[0].key, 1: "older" }));
+    expect(b.map(t => [t.slide, !!t.bitmap, t.key === a[t.slide].key])).toEqual([[0, false, true], [1, true, true]]);
+    // another width is another picture
+    const c = await page.call("thumbs", tj({ 0: a[0].key, 1: a[1].key }, 444));
+    expect(c.every(t => !!t.bitmap && t.key !== a[t.slide].key)).toBe(true);
+    expect(seen).toEqual([[2, 2, 222], [1, 1, 222], [2, 2, 444]]);
+    expect(asked.lists).toBe(3);
+  });
+  test("thumbnails without a rasteriser, or of a list that does not validate: no picture and no key (asked again next time)", async () => {
+    const { page } = connect();
+    const tj: ThumbJob = { design: "excel", version: "", forExport: false, thumb: false, width: 222, library: [], have: {} };
+    expect(await page.call("thumbs", tj)).toEqual([{ slide: 0, key: "", bitmap: null }, { slide: 1, key: "", bitmap: null }]);
+    const drew = connect({ async pages() { return []; }, async bitmaps(pages) { return { bitmaps: pages.map(() => ({}) as ImageBitmap), complete: true }; } });
+    LISTS.push({ slide: 2, dl: { nodes: [{ t: "rect", x: NaN, y: 0, w: 1, h: 1 }] as unknown as DisplayList, images: {} } });
+    try { expect((await drew.page.call("thumbs", tj)).map(t => [t.slide, !!t.bitmap, !!t.key])).toEqual([[0, true, true], [1, true, true], [2, false, false]]); }
+    finally { LISTS.pop(); }
+  });
+  test("thumbnails drawn without a picture or a library face they need get no key, and the picture is asked for again", async () => {
+    let fail = true, complete = false;
+    const [a, b] = pair(), [c, d] = pair();
+    const page = new Port<ExportPageMethods, ExportMethods, Record<string, never>, Record<string, never>>(a);
+    const asked: string[] = [];
+    page.handle("fontFile", () => null);
+    page.handle("pictureBytes", x => { asked.push(x.src); return fail ? null : png(2, 2).buffer as ArrayBuffer; });
+    new ExportHost(new Port(b) as unknown as ExportPort, { raster: { async pages() { return []; }, async bitmaps(pages) { return { bitmaps: pages.map(() => ({}) as ImageBitmap), complete }; } } })
+      .link(new Port(d) as unknown as ExportCorePort);
+    new Port<{ slideLists(x: unknown): SlideList[] }, Record<string, never>, Record<string, never>, Record<string, never>>(c).handle("slideLists", () => structuredClone(LISTS));
+    const tj: ThumbJob = { design: "excel", version: "", forExport: false, thumb: false, width: 222, library: [], have: {} };
+    // the logo of slide 1 could not be read, the fonts are incomplete: drawn, no keys
+    expect((await page.call("thumbs", tj)).map(t => [!!t.bitmap, !!t.key])).toEqual([[true, false], [true, false]]);
+    complete = true;
+    expect((await page.call("thumbs", tj)).map(t => [!!t.bitmap, !!t.key])).toEqual([[true, true], [true, false]]);
+    fail = false;
+    expect((await page.call("thumbs", tj)).map(t => [!!t.bitmap, !!t.key])).toEqual([[true, true], [true, true]]);
+    expect(asked).toEqual(["/assets/logo.gif?t=x", "/assets/logo.gif?t=x", "/assets/logo.gif?t=x"]);
   });
   test("without a rasteriser, pictures are refused; a display list that does not validate is refused", async () => {
     const { page } = connect();

@@ -1,4 +1,3 @@
-import base64
 import http.client
 import json
 import os
@@ -12,26 +11,12 @@ from unittest import mock
 from sbtest import TempDirs, make_png, make_xlsx_bytes
 
 from slidebuilder import APP_NAME, VERSION, paths, presence, server, store, workbooks
-from test_exports import FakeEngine
 
 TOKEN = "test-token-123"
 
 
-class FakeExporter(FakeEngine):
-    engines = []
-
-    def status(self):
-        return {"state": "unavailable", "browser": None, "local": False, "error": "", "engines": []}
-
-    def restart(self):
-        self.restarted = True
-
-    def stop(self):
-        pass
-
-
 class HttpBase(TempDirs):
-    """a helper on a free port with a fake export engine (also used by test_fonts.py)"""
+    """a helper on a free port (also used by test_fonts.py)"""
 
     def setUp(self):
         super().setUp()
@@ -40,7 +25,7 @@ class HttpBase(TempDirs):
             f.write("<html><script>const T='__SB_TOKEN__';</script><meta name=t content=\"__SB_TOKEN__\"></html>")
         self._app_file = mock.patch.object(paths, "APP_FILE", self.app_file)
         self._app_file.start()
-        self.httpd = server.make_server(0, server.App(token=TOKEN, engine=FakeExporter()))
+        self.httpd = server.make_server(0, server.App(token=TOKEN))
         self.port = self.httpd.app.port
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self.thread.start()
@@ -97,7 +82,7 @@ class HttpTests(HttpBase):
         for path in ("/api/health", "/api/config", "/files/A.xlsx", "/assets/logo.png", self.wb("A.xlsx") + "/doc"):
             self.assertEqual(self.jreq("GET", path, token=False)[0], 403, path)
             self.assertEqual(self.jreq("GET", path, token=False, headers={"X-SB-Token": "wrong"})[0], 403, path)
-        st, body = self.jreq("POST", "/api/export", {"slides": ["x"]}, token=False, headers={"Content-Type": "text/plain"})
+        st, body = self.jreq("POST", "/api/export-file?name=x.pdf", b"%PDF-1.7", token=False, headers={"Content-Type": "text/plain"})
         self.assertEqual(st, 403)
         self.assertEqual(body, {"error": "forbidden (token)"})
         self.assertFalse(os.path.exists(paths.EXPORT_DIR) and os.listdir(paths.EXPORT_DIR))
@@ -154,7 +139,7 @@ class HttpTests(HttpBase):
         self.assertEqual(st, 200)
         self.assertEqual((body["app"], body["version"], body["user"], body["host"]), (APP_NAME, VERSION, "tester", "pc1"))
         self.assertEqual((body["folder"], body["export"]), (paths.ROOT, paths.EXPORT_DIR))
-        self.assertEqual(set(body["engine"]), {"state", "browser", "local", "error", "engines"})
+        self.assertEqual(set(body), {"app", "version", "user", "host", "folder", "export"})     # no "engine" since 3.8 (B1)
         st, me = self.jreq("GET", "/api/me")
         self.assertEqual(me, {"user": "tester", "host": "pc1", "prefs": {"lastFile": None, "pdfMode": None, "zoom": None}})
         self.assertEqual(self.jreq("PUT", "/api/me", {"prefs": {"lastFile": "A.xlsx", "zoom": 0.8}}), (200, {"ok": True}))
@@ -327,13 +312,14 @@ class HttpTests(HttpBase):
         self.assertEqual((st, body), (200, b"data8"))
         self.assertEqual(len(self.httpd.app.uploads), 8)
 
-    def test_export_and_assemble(self):
-        st, r = self.jreq("POST", "/api/export", {"name": "Deck.xlsx", "format": "pdf", "mode": "exact", "css": "", "slides": ["a", "b"], "names": ["A", "B"], "scale": 1})
-        self.assertEqual((st, r["files"], r["engine"]), (200, ["Deck - slides (images).pdf"], "Fake"))
-        png = "data:image/png;base64," + base64.b64encode(make_png()).decode()
-        st, r = self.jreq("POST", "/api/assemble", {"name": "Deck.xlsx", "images": [png]})
-        self.assertEqual((st, r), (200, {"ok": True, "files": ["Deck - slides.pdf"]}))
-        self.assertEqual(self.jreq("POST", "/api/export", {"name": "Deck.xlsx", "slides": []})[0], 400)
+    def test_engine_routes_are_gone(self):
+        """B1: the page writes PDFs and PNGs itself; the old export engine and its routes are removed"""
+        for method, path, body in (("POST", "/api/export", {"name": "Deck.xlsx", "slides": ["a"]}),
+                                   ("POST", "/api/assemble", {"name": "Deck.xlsx", "images": []}),
+                                   ("GET", "/api/engine/install", None), ("POST", "/api/engine/install", {}),
+                                   ("POST", "/api/engine/restart", {})):
+            self.assertEqual(self.jreq(method, path, body)[0], 404, path)
+        self.assertFalse(os.path.exists(paths.EXPORT_DIR) and os.listdir(paths.EXPORT_DIR))
 
     def test_export_file(self):
         pdf = b"%PDF-1.7\n%native\n%%EOF\n"
@@ -346,11 +332,6 @@ class HttpTests(HttpBase):
         self.assertEqual(self.jreq("POST", "/api/export-file?name=x.js", b"%PDF-")[0], 400)
         self.assertEqual(self.jreq("POST", "/api/export-file?name=x.pdf", b"<html>")[0], 400)
         self.assertEqual(self.jreq("POST", "/api/export-file?name=x.pdf", pdf, token=False)[0], 403)
-        # works while no export engine is installed: the page writes the file (B1)
-        from slidebuilder.engines import Exporter
-        with mock.patch.dict(os.environ, {"SLIDEBUILDER_ENGINES": "none"}):
-            self.httpd.app.engine = Exporter()
-        self.assertEqual(self.jreq("POST", "/api/export-file?name=y.pdf", pdf)[0], 200)
 
     def test_export_feedback(self):
         st, r = self.jreq("POST", "/api/export-feedback", {"what": "P3 look", "slide": 2, "comment": "Rahmen fehlt"})
@@ -361,15 +342,6 @@ class HttpTests(HttpBase):
         self.assertEqual((doc["kind"], doc["version"], doc["report"]["comment"]), ("export-feedback", VERSION, "Rahmen fehlt"))
         self.assertEqual(self.jreq("POST", "/api/export-feedback", [1, 2])[0], 400)
         self.assertEqual(self.jreq("POST", "/api/export-feedback", {"a": 1}, token=False)[0], 403)
-
-    def test_export_without_engine_is_503(self):
-        from slidebuilder.engines import Exporter
-        with mock.patch.dict(os.environ, {"SLIDEBUILDER_ENGINES": "none"}):
-            self.httpd.app.engine = Exporter()
-        self.assertEqual(self.httpd.app.engine.engines, [])
-        st, r = self.jreq("POST", "/api/export", {"name": "Deck.xlsx", "slides": ["a"]})
-        self.assertEqual(st, 503)
-        self.assertIn("export engine", r["error"])
 
     def test_convert_is_501_off_windows(self):
         if os.name == "nt":

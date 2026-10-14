@@ -4,13 +4,27 @@ import { useEffect, useRef, useState } from "react";
 import { patch, useStore, THUMBS } from "../state/store";
 import { gotoSlide, setZoom } from "../state/app";
 import { backend } from "../sync/api";
-import { mountStage, zoomBy } from "../editor/stage";
+import { Stage } from "../stage/Stage";
+import { zoomBy } from "../stage/actions";
+import { useStage } from "../stage/data";
 import { mountThumbs } from "../editor/thumbs";
 import { slideIssues } from "../editor/issues";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
 import { selStatus } from "./Ribbon";
 import { esc } from "@slide-builder/core/xlsx/util";
+import type { RuntimeSlide } from "@slide-builder/core/model/types";
+import type { RenderCtx } from "@slide-builder/core/render/context";
 
+/** a slide's badge (its warnings and errors), worked out again only when what it depends on changed: the slide, the
+    preset, the number of slides, the edits of its sheets (an edit elsewhere leaves the other slides' badges alone) */
+const badges = new WeakMap<RuntimeSlide, { deps: unknown[]; n: number }>();
+function badge(R: RuntimeSlide, c: RenderCtx): number {
+  const deps = [R.cfg, R.tables, c.preset, c.slides.length, ...R.tables.map(T => c.edits[T.sheet.name])], hit = badges.get(R);
+  if (hit && hit.deps.length === deps.length && hit.deps.every((d, i) => d === deps[i])) return hit.n;
+  const n = slideIssues(R, c).filter(x => x.cls === "warn" || x.cls === "err").length;
+  badges.set(R, { deps, n });
+  return n;
+}
 export function Thumbs() {
   const slides = useStore(s => s.deck.slides), cur = useStore(s => s.deck.cur), fname = useStore(s => s.deck.file?.name);
   const c = useCtx();
@@ -22,7 +36,7 @@ export function Thumbs() {
   return (
     <div className="thumbs" id="thumbs" ref={ref}>
       {slides.map((R, i) => {
-        const issues = slideIssues(R, c).filter(x => x.cls === "warn" || x.cls === "err").length;
+        const issues = badge(R, c);
         return <button key={R.id} className={"thumb" + (i === cur ? " on" : "")} data-i={i} onClick={() => gotoSlide(i)}>
           <div className="frame" data-i={i} />
           <div className="cap"><span className="n">{i + 1}</span><b>{R.label}</b>{R.type !== "content" && <span className="tag">{R.type}</span>}{issues > 0 && <span className="badge">{issues}</span>}</div>
@@ -33,24 +47,24 @@ export function Thumbs() {
 }
 
 export function Issues() {
-  const slides = useStore(s => s.deck.slides), cur = useStore(s => s.deck.cur), logoMissing = useStore(s => s.ui.logoMissing);
+  const slides = useStore(s => s.deck.slides), cur = useStore(s => s.deck.cur), logoMissing = useStore(s => s.ui.logoMissing), fontBuilds = useStore(s => s.ui.fontBuilds);
   const c = useCtx(), st = useStyle();
   const R = slides[cur]; if (!R) return <div className="issues" id="issues" />;
   const P = c.preset;
   const used = new Set(slides.flatMap(x => x.cfg.tables || []));
   const unused = P ? P.tables.filter(t => !used.has(t.id)).length : 0;
   const html = `<h4>Slide ${cur + 1} · ${esc(R.label)}</h4><ul>${slideIssues(R, c).map(x => `<li class="${x.cls}">${x.html}</li>`).join("")}${logoMissing ? `<li class="warn">Logo “${esc(st.logo)}” not found in the folder</li>` : ""}</ul>` +
-    `<h4 style="margin-top:10px">Preset</h4><ul><li>${P ? P.tables.length : 0} table${P && P.tables.length === 1 ? "" : "s"} · ${slides.length} slide${slides.length === 1 ? "" : "s"}${unused ? ` · <span class="warn">${unused} table${unused > 1 ? "s" : ""} not on any slide</span>` : ""}</li></ul>`;
+    `<h4 style="margin-top:10px">Preset</h4><ul><li>${P ? P.tables.length : 0} table${P && P.tables.length === 1 ? "" : "s"} · ${slides.length} slide${slides.length === 1 ? "" : "s"}${unused ? ` · <span class="warn">${unused} table${unused > 1 ? "s" : ""} not on any slide</span>` : ""}</li></ul>` +
+    // W13: a Windows font whose file differs on other PCs – their slides may wrap or fit a little differently
+    (fontBuilds.length ? `<h4 style="margin-top:10px">Fonts</h4><ul>${fontBuilds.map(f => `<li class="warn" data-font="${esc(f.family)}">${esc(f.family)} on this PC is another version than on ${esc(f.hosts.slice(0, 3).join(", "))}${f.hosts.length > 3 ? ` and ${f.hosts.length - 3} more` : ""}: slides may lay out a little differently there</li>`).join("")}</ul>` : "");
   return <div className="issues" id="issues" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 export function Canvas() {
   const has = useStore(s => s.deck.slides.length > 0);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (ref.current) mountStage(ref.current); }, []);
   return (
     <section className="canvas">
-      <div id="stage" ref={ref} style={{ position: "absolute", inset: "0" }} />
+      <Stage />
       {!has && <div className="empty" id="emptyState" style={{ display: "flex" }}>
         <div className="drop">
           <div className="big">Open a workbook</div>
@@ -61,13 +75,16 @@ export function Canvas() {
         </div>
       </div>}
       {has && <div className="zoomctl" id="zoomctl" style={{ display: "flex" }}>
-        <button id="zoomOut" title="Zoom out" onClick={() => zoomBy(1 / 1.25)}>−</button><span id="zoomVal" />{/* text set by the stage */}
+        <button id="zoomOut" title="Zoom out" onClick={() => zoomBy(1 / 1.25)}>−</button><ZoomVal />
         <button id="zoomIn" title="Zoom in" onClick={() => zoomBy(1.25)}>+</button>
         <button id="zoomFit" title="Fit" style={{ width: "auto", padding: "0 8px" }} onClick={() => setZoom("fit")}>Fit</button>
       </div>}
     </section>
   );
 }
+
+/** the zoom shown: the stage's scale (fit or chosen) */
+function ZoomVal() { const s = useStage(st => st.scale); return <span id="zoomVal">{Math.round(s * 100) + "%"}</span>; }
 
 const SAVE_TEXT: Record<string, string> = { pending: "Unsaved changes…", saving: "Saving…", saved: "✓ Saved", local: "Saved in this browser only (helper not running)", error: "⚠ Not saved yet – retrying: ", outdated: "⚠ " };
 /** "Updated by bob 3 min ago" counts on while it is shown (once every 10 s, only this bar) */

@@ -17,6 +17,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import esbuild from "esbuild";
 import { BOOKS, DECKS, load, openBrowser, startHelper, wbPath } from "./capture-v3.mjs";
+import { goldenTexts, matchTexts } from "./parity.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
@@ -65,31 +66,7 @@ function resolveFonts(nodes, fonts, missing) {
 }
 const dataUrlBytes = src => { const i = src.indexOf(","), b64 = src.slice(i + 1); return new Uint8Array(Buffer.from(src.slice(0, i).includes(";base64") ? b64 : decodeURIComponent(b64), src.slice(0, i).includes(";base64") ? "base64" : "latin1")); };
 
-/** the golden texts of a slide: every text element that holds no other text element (a cell, a title, a text box…) */
-export function goldenTexts(deck, design, version, n) {
-  const f = path.join(REPO, "golden", deck, design, version, `slide-${n}.json`);
-  if (!fs.existsSync(f)) return null;
-  const items = JSON.parse(fs.readFileSync(f, "utf8")).items.filter(i => i.text);
-  const CONTAINERS = /^(cv-block|ix-row|ix-txt|tw|xt)\b/;
-  return items.filter(i => !CONTAINERS.test(i.cls) && !/^(hbox|edge|grip|emptyslide)/.test(i.cls)).map(i => i.text);
-}
-const squash = s => s.normalize("NFKC").replace(/\s+/g, "");
-/** the golden texts found in a page's text, each used up once; what is left on either side is a difference. The
-    texts are taken in the goldens' (the page's) order, each from where the last one was found, so a short number is
-    matched where it is drawn, not inside a neighbour */
-export function matchTexts(pageText, want) {
-  let rest = squash(pageText), at = 0;
-  const missing = [];
-  for (const t of want) {
-    const q = squash(t); if (!q) continue;
-    let k = rest.indexOf(q, at);
-    if (k < 0) k = rest.indexOf(q);                                // drawn out of order (page numbers, z-index)
-    if (k < 0) { missing.push(t); continue; }
-    rest = rest.slice(0, k) + "\u0001".repeat(q.length) + rest.slice(k + q.length);
-    at = k + q.length;
-  }
-  return { missing, extra: rest.replace(/\u0001/g, "") };
-}
+export { goldenTexts, matchTexts } from "./parity.mjs";
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   fs.mkdirSync(OUT, { recursive: true });

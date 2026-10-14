@@ -49,6 +49,22 @@ describe("parity", () => {
     expect(r.bad).toBeGreaterThan(50); expect(r.fraction).toBeGreaterThan(0.01);
     expect(m.comparePixels(edge(20), img(41, 20, () => [0, 0, 0])).size).toBe("40x20 vs 41x20");
   });
+  it("a screenshot with entries of two decisions: the first whose cap admits its share accepts it", async () => {
+    const m = await load();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sb-parity-test-"));
+    const env = { chromium: "141", fontsSha256: "abc" };
+    try {
+      const g = path.join(tmp, "g"), a = path.join(tmp, "a"), png = (dir: string, i: { w: number; h: number; rgb: Buffer }) => fs.writeFileSync(path.join(dir, "deck", "glass", "full", "slide-1.png"), m.encodePng(i.w, i.h, i.rgb));
+      capture(g, env, slide()); capture(a, env, slide());
+      png(g, img(40, 20, () => [255, 255, 255]));
+      png(a, img(40, 20, (x, y) => (x > 5 && x < 15 && y > 5 && y < 15 ? [255, 0, 0] : [255, 255, 255])));
+      const pct = +/([\d.]+) %/.exec(m.compare(g, a).diffs[0].detail)![1];
+      const entry = (upTo: number, signedOff: string) => ({ deck: "deck", file: "slide-1.png", kind: "pixels", reason: "r", signedOff, upTo });
+      expect(m.compare(g, a, { accepted: [entry(pct - 1, "first")] }).unaccepted).toBe(1);                 // over its cap
+      const res = m.compare(g, a, { accepted: [entry(pct - 1, "first"), entry(pct + 1, "second")] });
+      expect([res.unaccepted, res.diffs[0].accepted.signedOff]).toEqual([0, "second"]);
+    } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  });
   it("texts exact, boxes ±2 px, accepted differences, text-only mode when the environment differs", async () => {
     const m = await load();
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sb-parity-test-"));
@@ -75,18 +91,21 @@ describe("parity", () => {
       expect(res.diffs).toEqual([]);
       capture(a, other, slide({ color: "rgb(255, 0, 0)" }));
       expect(m.compare(g, a).diffs.map((d: any) => d.kind)).toEqual(["style"]);
-      // comments and issues are texts; PDF text only with the same fonts (clipping and runs depend on them)
+      // comments and issues are texts; the PDF's page text against the golden slide's texts (GT, S4.5: the build's PDF is
+      // the native export's, the goldens' v3's) only with the same fonts (where text is clipped depends on them)
       const pdf = (s: string) => ({ pages: 1, sizes: [[1200, 675]], fonts: ["F"], images: 0, pageText: [s.replace(/\s/g, "")], text: [[{ s }]] });
-      capture(g, env, slide(), { pdf: pdf("VUB") });
-      capture(a, other, slide(), { issues: [{ slide: 1, text: "changed" }], pdf: pdf("PBZ") });
+      capture(g, env, slide(), { pdf: pdf("v3's own runs") });
+      capture(a, other, slide(), { issues: [{ slide: 1, text: "changed" }], pdf: pdf("Loans PBZ") });
       expect(m.compare(g, a).diffs.map((d: any) => d.kind)).toEqual(["text"]);
-      capture(a, env, slide(), { pdf: pdf("PBZ") });
-      expect(m.compare(g, a).diffs.map((d: any) => d.kind)).toEqual(["pdf-text", "pdf-text"]);
-      capture(a, env, slide(), { pdf: { ...pdf("VUB"), pages: 2 } });
+      capture(a, env, slide(), { pdf: pdf("Loans 1.234") });                         // every golden text once: equal
+      expect(m.compare(g, a).diffs).toEqual([]);
+      capture(a, env, slide(), { pdf: pdf("Loans PBZ") });                           // "1.234" missing, "PBZ" not in the goldens
+      expect(m.compare(g, a).diffs.map((d: any) => [d.kind, d.detail])).toEqual([["pdf-text", 'page 1: missing ["1.234"] not in the goldens: "PBZ"']]);
+      capture(a, env, slide(), { pdf: { ...pdf("Loans 1.234"), pages: 2 } });
       expect(m.compare(g, a).diffs.map((d: any) => d.kind)).toEqual(["pdf"]);
       expect(m.compare(g, a, { pdf: false }).diffs).toEqual([]);              // --no-pdf
       // a file the build no longer produces; a version the goldens do not have
-      capture(a, env, slide(), { pdf: pdf("VUB") });
+      capture(a, env, slide(), { pdf: pdf("Loans 1.234") });
       fs.rmSync(path.join(a, "deck", "glass", "full", "comments.json"));
       expect(m.compare(g, a).diffs.some((d: any) => d.kind === "missing" && d.file === "comments.json")).toBe(true);
       fs.cpSync(path.join(a, "deck", "glass", "full"), path.join(a, "deck", "glass", "Board"), { recursive: true });

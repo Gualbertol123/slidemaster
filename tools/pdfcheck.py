@@ -8,6 +8,8 @@ qpdf for `check` (QPDF=path\\to\\qpdf.exe, or qpdf on PATH). The helper stays st
                                                               every page with PDFium to DIR/<name>-<page>.png (1600 × 900 at 4/3)
     python tools/pdfcheck.py cost   a.pdf [...]               time to rasterise each page at screen size with PDFium (viewer cost)
     python tools/pdfcheck.py text   a.pdf                     the text of each page (pypdf), as JSON
+    python tools/pdfcheck.py chars  a.pdf                     each page's characters with their origins in slide px (PDFium)
+                                                              (SP, S4.4: compared with the display list's runs)
 
 From spikes/baseline/pdfinfo.py and spikes/pdfwriter/render_cost.py.
 """
@@ -54,6 +56,27 @@ def page_text(page):
             out.append(t)
     page.extract_text(visitor_operand_before=before, visitor_text=text)
     return "".join(out)
+
+
+def page_chars(path):
+    """each page's characters with their origins in slide px (1600 x 900, y down: points x 4/3 from the page's top-left
+    corner), from PDFium: [[char, x, y], ...] per page (SP, S4.4: the display list's runs start where the PDF's do)"""
+    import ctypes
+    import pypdfium2 as pdfium
+    import pypdfium2.raw as raw
+    doc, out = pdfium.PdfDocument(path), []
+    for i in range(len(doc)):
+        page = doc[i]
+        tp, h, chars = page.get_textpage(), page.get_height(), []
+        x, y = ctypes.c_double(), ctypes.c_double()
+        for k in range(tp.count_chars()):
+            c = raw.FPDFText_GetUnicode(tp.raw, k)
+            if c <= 32:
+                continue
+            raw.FPDFText_GetCharOrigin(tp.raw, k, ctypes.byref(x), ctypes.byref(y))
+            chars.append([chr(c), round(x.value * 4 / 3, 3), round((h - y.value) * 4 / 3, 3)])
+        out.append(chars)
+    return out
 
 
 def info(path):
@@ -183,7 +206,7 @@ def main(argv):
         sys.stdout.reconfigure(encoding="utf-8")          # the Windows console's code page cannot print every text
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("info", "cost", "text"):
+    for name in ("info", "cost", "text", "chars"):
         sub.add_parser(name).add_argument("pdf", nargs="+")
     c = sub.add_parser("check")
     c.add_argument("pdf", nargs="+")
@@ -199,6 +222,8 @@ def main(argv):
         print(json.dumps([info(p) for p in a.pdf], ensure_ascii=False, indent=1))
     elif a.cmd == "text":
         print(json.dumps(info(a.pdf[0])["text"], ensure_ascii=False, indent=1))
+    elif a.cmd == "chars":
+        print(json.dumps(page_chars(a.pdf[0]), ensure_ascii=False))
     elif a.cmd == "cost":
         print(json.dumps(cost(a.pdf), indent=1))
     elif a.cmd == "render":

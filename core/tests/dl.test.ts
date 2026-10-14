@@ -154,6 +154,51 @@ describe("SVG backend", () => {
     expect(s).toContain("&lt;&amp;&gt; \"q\"");
     expect(s).toContain(`font-family="'A&quot;b'"`);
   });
+  it("the stage's hits (S4.1): chosen per hit, with a class and the label as a <desc>; the others left out", () => {
+    const list: DisplayList = [{ t: "hit", kind: "t", id: "5,3", x: 1, y: 2, w: 30, h: 10, label: "R&D <1>" }, { t: "hit", kind: "f", id: "title", x: 0, y: 0, w: 9, h: 9, label: "x" }];
+    const s = toSvg(list, { imageHref: () => undefined, hits: n => n.kind === "t" ? { cls: "t", label: true } : null });
+    expect(s).toContain(`<rect x="1" y="2" width="30" height="10" fill="transparent" class="t" data-hit="t" data-id="5,3"><desc>R&amp;D &lt;1&gt;</desc></rect>`);
+    expect(s).not.toContain(`data-id="title"`);
+    expect(new DOMParser().parseFromString(s, "image/svg+xml").getElementsByTagName("parsererror").length).toBe(0);
+  });
+  it("fewer nodes, the same pixels (S4.1): a clip that cannot cut its text is left out; clips are defined once", () => {
+    const run = (x: number, w: number): DisplayList[number] => ({ t: "text", font: "Arial", size: 12, x, y: 30, src: "12,5", w, fill: { solid: [0, 0, 0] } });
+    const cell = (x: number, w: number): DisplayList[number] => ({ t: "group", clip: { x: 0, y: 10, w: 100, h: 30 }, children: [run(x, w)] });
+    expect(toSvg([cell(10, 40)], { imageHref: () => undefined })).not.toContain("clip-path");          // fits: nothing to cut
+    expect(toSvg([cell(70, 40)], { imageHref: () => undefined })).toContain("clip-path");              // runs past the cell
+    expect(toSvg([{ ...cell(10, 40), clip: { x: 0, y: 10, w: 100, h: 30, r: 4 } } as DisplayList[number]], { imageHref: () => undefined })).toContain("clip-path");
+    const two = toSvg([cell(70, 40), cell(80, 40)], { imageHref: () => undefined });
+    expect(two.match(/<clipPath /g)).toHaveLength(1);                                               // one outline, one clip
+    expect(two.match(/clip-path="url\(#d0\)"/g)).toHaveLength(2);
+    // a stepped shadow: its 5 layers under one clip
+    const sh = toSvg([{ t: "shadow", x: 100, y: 100, w: 200, h: 80, r: 12, dx: 0, dy: 8, blur: 24, spread: -4, c: [10, 20, 40], a: .3 }], { imageHref: () => undefined });
+    expect(sh.match(/<clipPath /g)).toHaveLength(1); expect(sh.match(/<path d=/g)).toHaveLength(6);
+    // rects with the same gradient (a table's capsules): one def in their own box's units, the mapping of the user-space one
+    const paint = { linear: [0, 0, 0, 1] as [number, number, number, number], stops: [{ o: 0, c: [255, 0, 0] as [number, number, number], a: .9 }, { o: 1, c: [200, 0, 0] as [number, number, number], a: .4 }] };
+    const caps = toSvg([{ t: "rect", x: 10, y: 10, w: 60, h: 14, r: 7, fill: paint }, { t: "rect", x: 90, y: 30, w: 50, h: 14, r: 7, fill: paint }], { imageHref: () => undefined });
+    expect(caps.match(/<linearGradient /g)).toHaveLength(1);
+    expect(caps).toContain(`gradientUnits="objectBoundingBox" x1="0" y1="0" x2="0" y2="1">`);
+    expect(caps.match(/fill="url\(#d0\)"/g)).toHaveLength(2);
+    // a gradient ring (its outline larger than the box): user space, mapped onto the box
+    expect(toSvg([{ t: "rect", x: 10, y: 10, w: 60, h: 14, stroke: { w: 2, paint } }], { imageHref: () => undefined })).toContain(`gradientUnits="userSpaceOnUse"`);
+  });
+  it("soft shadows (B3): one blurred shape per shadow – standard deviation blur / 2, as CSS – instead of the 5 layers", () => {
+    const outer: DisplayList = [{ t: "shadow", x: 100, y: 100, w: 200, h: 80, r: 12, dx: 0, dy: 8, blur: 24, spread: -4, c: [10, 20, 40], a: .3 }];
+    const inset: DisplayList = [{ ...outer[0], inset: true } as DisplayList[number]];
+    for (const l of [outer, inset]) {
+      const s = toSvg(l, { imageHref: () => undefined, softShadows: true });
+      expect(s.match(/<feGaussianBlur stdDeviation="12"\/>/g)).toHaveLength(1);
+      expect(s.match(/fill-opacity="0.3"/g)).toHaveLength(1);                    // the whole strength, once
+      expect(s).toContain(`clip-rule="evenodd"`);
+      expect(new DOMParser().parseFromString(s, "image/svg+xml").getElementsByTagName("parsererror").length).toBe(0);
+    }
+    // the filter region holds the blurred shape (3 standard deviations past the grown box)
+    const m = /<filter id="[^"]+" filterUnits="userSpaceOnUse" x="([\d.-]+)" y="([\d.-]+)" width="([\d.]+)" height="([\d.]+)"/.exec(toSvg(outer, { imageHref: () => undefined, softShadows: true }))!;
+    expect(+m[1]).toBeLessThanOrEqual(100 + 4 - 36); expect(+m[3]).toBeGreaterThanOrEqual(200 - 8 + 72);
+    // without it, or a sharp shadow: the PDF's layers
+    expect(toSvg(outer, { imageHref: () => undefined }).match(/fill-opacity="0.06"/g)).toHaveLength(5);
+    expect(toSvg([{ ...outer[0], blur: 0 } as DisplayList[number]], { imageHref: () => undefined, softShadows: true })).not.toContain("feGaussianBlur");
+  });
 });
 
 /** a 2D context that records what it is asked to do */
@@ -440,3 +485,19 @@ describe("pictures for the PDF", () => {
     expect(jpegInfo(read("images/wall-blur.jpg"))).toEqual({ w: 800, h: 450, comps: 3, adobe: false });
   });
 });
+
+describe("text as glyph outlines in the SVG (S4.4)", () => {
+  it("a run drawn as outlines: one group scaled to the size, each glyph defined once and used at its pen", async () => {
+    const { svgChunks } = await import("../src/dl/svg");
+    const t = (x: number, src: string) => ({ t: "text" as const, font: "F", size: 20, x, y: 50, src, w: 30, fill: { solid: [0, 0, 0] as [number, number, number] } });
+    const svg = svgChunks([t(10, "aa"), t(60, "ab")], { imageHref: () => undefined, idPrefix: "q", outline: n => ({ upem: 1000, glyphs: [...n.src].map((c, i) => ({ key: "F-" + c, d: "M0 0L10 0Z", x: i * 10 })) }) }).join("");
+    expect(svg.match(/<path id=/g)?.length).toBe(2);                                   // "a" and "b" once each
+    expect(svg.match(/<use /g)?.length).toBe(4);
+    expect(svg).toContain(`transform="translate(10 50) scale(0.02 -0.02)"`);
+    // the scale is not rounded to 3 decimals (12 px in 2048 units: 0.005859375)
+    expect(svgChunks([{ ...t(0, "a"), size: 12 }], { imageHref: () => undefined, outline: () => ({ upem: 2048, glyphs: [{ key: "k", d: "M0 0Z", x: 0 }] }) }).join("")).toContain("scale(0.005859375 -0.005859375)");
+    expect(svg).toContain(`x="500"`);                                                  // 10 px at 20 px / 1000 units
+    expect(svg).not.toContain("<text");
+  });
+});
+

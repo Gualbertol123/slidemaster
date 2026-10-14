@@ -25,6 +25,8 @@ function setLib(fonts: LibraryFont[]) {
   const s = JSON.stringify(fonts);
   if (s === sig) return;
   sig = s; patch("doc", { fonts }); declare();
+  // the core worker measures with the library's files (S4.4): it looks for faces again, and the slide is measured again
+  if (get().deck.slides.length) STAGE.render(true);
 }
 export async function loadFonts() { try { setLib(await backend.fonts()); } catch { /* helper busy: next time */ } }
 
@@ -33,7 +35,7 @@ let redraw: ReturnType<typeof setTimeout> | null = null;
 export function watchFontLoads() {
   document.fonts?.addEventListener?.("loadingdone", () => {
     if (redraw) clearTimeout(redraw);
-    redraw = setTimeout(() => { redraw = null; if (get().deck.slides.length) { STAGE.render(); THUMBS.render(); } }, 150);
+    redraw = setTimeout(() => { redraw = null; if (get().deck.slides.length) { STAGE.render(true); THUMBS.render(); } }, 150);
   });
 }
 
@@ -103,24 +105,3 @@ export async function removeFont(family: string) {
   try { setLib(await backend.removeFont(family)); } catch (e) { toast("⚠ " + esc((e as Error).message || e), [], true); }
 }
 
-/* ---- export: the fonts a slide uses, as data URLs (the export browser may not reach Google or the helper) ---- */
-const dataUrls = new Map<string, Promise<string>>();
-function dataUrl(file: string): Promise<string> {
-  let p = dataUrls.get(file);
-  if (!p) {
-    p = fetch(backend.fontUrl(file)).then(r => { if (!r.ok) throw new Error(String(r.status)); return r.blob(); })
-      .then(b => new Promise<string>(ok => { const fr = new FileReader(); fr.onload = () => ok(fr.result as string); fr.readAsDataURL(b); }));
-    p.catch(() => dataUrls.delete(file));
-    dataUrls.set(file, p);
-  }
-  return p;
-}
-/** @font-face rules with embedded files for the library fonts that appear in `html` */
-export async function embeddedFontCss(html: string): Promise<string> {
-  if (!backend.served) return "";
-  const low = html.toLowerCase(), used = lib().filter(f => low.includes(cleanFamily(f.family).toLowerCase()));   // quoted or not: the browser may re-serialise styles
-  if (!used.length) return "";
-  const urls = new Map<string, string>();
-  for (const f of used) for (const x of f.faces) { try { urls.set(x.file, await dataUrl(x.file)); } catch { /* left out: the fallback font is used */ } }
-  return fontFaceCss(used.map(f => ({ ...f, faces: f.faces.filter(x => urls.has(x.file)) })), file => urls.get(file)!);
-}

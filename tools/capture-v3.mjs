@@ -48,6 +48,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const arg = (name, def) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : def; };
 /** the build captured: this checkout's backend/ (helper + committed page), or --backend DIR */
 const BACKEND = path.resolve(arg("--backend", path.join(REPO, "backend")));
+/** another build's helper (the goldens are captured from v3.4.0, golden/README.md): before 3.8 its PDFs came from its
+    export engine, given the browser's DevTools and command line (not a Python "playwright" package this PC may have) */
+const V3_HELPER_ENV = process.argv.includes("--backend") ? { SLIDEBUILDER_BROWSER: CHROME, SLIDEBUILDER_ENGINES: "devtools,cli" } : {};
 export const sha256 = b => crypto.createHash("sha256").update(b).digest("hex");
 const freePort = () => new Promise(ok => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => ok(p)); }); });
 function sh(cmd, args) { try { return execFileSync(cmd, args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch { return null; } }
@@ -75,10 +78,9 @@ export async function startHelper() {
   fs.mkdirSync(root, { recursive: true }); fs.mkdirSync(data, { recursive: true });
   fs.copyFileSync(path.join(CORPUS, "assets", "logo.png"), path.join(root, "logo.png"));
   const port = await freePort(), url = `http://127.0.0.1:${port}/`;
-  // export engines: the browser's DevTools and command line (not a Python "playwright" package this PC may have)
   const proc = spawn(PY, [path.join(BACKEND, "slide_builder.py"), "--no-browser", "--port", String(port)], {
     env: { ...process.env, SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: "golden", SLIDEBUILDER_HOST: "pc-golden",
-      SLIDEBUILDER_BROWSER: CHROME, SLIDEBUILDER_ENGINES: "devtools,cli", SLIDEBUILDER_APP_WINDOW: "0", NO_PROXY: "*", no_proxy: "*",
+      SLIDEBUILDER_APP_WINDOW: "0", NO_PROXY: "*", no_proxy: "*", ...V3_HELPER_ENV,
       ...(sysFontDirs() ? { SLIDEBUILDER_SYSFONTS: sysFontDirs() } : {}) }, stdio: ["ignore", "pipe", "pipe"] });
   let log = ""; proc.stdout.on("data", d => log += d); proc.stderr.on("data", d => log += d);
   let up = false;
@@ -101,10 +103,13 @@ export const wbPath = name => "/api/workbooks/" + encodeURIComponent(name);
 export async function openBrowser() {
   const browser = await chromium.launch({ executablePath: CHROME });
   const context = await browser.newContext({ viewport: { width: 1900, height: 1250 }, deviceScaleFactor: 1, locale: "en-GB", timezoneId: "Europe/Rome" });
+  // S4.4: SB_OUTLINES=all draws every font as outlines on the stage (the screen = PDF switch, until decided)
+  if (process.env.SB_OUTLINES === "all") await context.addInitScript(() => { try { localStorage.setItem("sbOutlines", "all"); } catch { /* no storage */ } });
   const page = await context.newPage();
   await page.clock.setFixedTime(new Date(CLOCK));
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
+  page.on("console", m => { if (m.type() === "error" || m.type() === "warning") (page.__errors ||= []).push(m.text().slice(0, 300)); if (page.__errors?.length > 30) page.__errors.shift(); });
   return { browser, page, errors };
 }
 
@@ -116,7 +121,15 @@ export async function load(page, h, file, version) {
   const prefs = (await h.api("/api/me")).prefs || {};
   await h.api("/api/me", "PUT", { prefs: { ...prefs, lastFile: file, zoom: 1, versions: { [file]: version || "" } } });
   await page.goto(h.url);
-  await page.locator("#stage .slide").first().waitFor({ timeout: 120_000 });
+  await page.locator("#stage .slide").first().waitFor({ timeout: 120_000 }).catch(async e => {
+    // what the page shows instead (S4.4: a capture that waited for ever said nothing more)
+    const state = await page.evaluate(() => {
+      const t = window.__sbTest;
+      return { top: document.querySelector("#fileName")?.textContent, toast: document.querySelector(".toast")?.textContent, busy: document.querySelector("#busy")?.textContent,
+        thumbs: document.querySelectorAll(".thumb").length, stage: t?.stage?.() ? "shown" : "none", idle: t?.stageIdle?.(), core: t?.coreStats, empty: !!document.querySelector("#emptyState") };
+    }).catch(x => ({ unreadable: String(x) }));
+    throw new Error(`${file}: no slide on the stage after 120 s – ${JSON.stringify(state)}; page errors: ${JSON.stringify(page.__errors || [])}; helper log tail: ${h.log ? h.log().slice(-600) : ""} (${e.message.split("\n")[0]})`);
+  });
   // the requested workbook open (the top bar names it and its slide count; until then the page may still show the
   // one before) and all its thumbnails drawn: a steady thumbnail count alone was met by the previous deck at times
   const want = await page.waitForFunction(f => {
@@ -134,6 +147,15 @@ export async function load(page, h, file, version) {
 }
 export async function settle(page) {
   await page.mouse.move(1, 1);
+  // the stage from M4 draws what the core worker sends: the slide shown is the current one, nothing on its way
+  await page.waitForFunction(() => !window.__sbTest?.stageIdle || window.__sbTest.stageIdle(), null, { timeout: 60_000 });
+  // a font that missed its measuring budget redraws the slide when it comes (S4.4): read the slide after that
+  if (await page.evaluate(async () => !!window.__sbTest?.fontsSettling && await window.__sbTest.fontsSettling())) {
+    let i = 0;
+    for (; i < 300 && await page.evaluate(() => window.__sbTest.fontsSettling()); i++) await sleep(100);
+    if (i === 300) console.warn("capture: a late font was still coming after 30 s – the slide is read as it is");
+    await page.waitForFunction(() => window.__sbTest.stageIdle(), null, { timeout: 60_000 });
+  }
   await page.evaluate(async () => {
     await document.fonts.ready;
     await Promise.all([...document.querySelectorAll("#stage img")].map(i => i.complete ? null : new Promise(r => { i.onload = i.onerror = r; })));
@@ -160,34 +182,44 @@ async function geometry(page) {
   }, [SEL, TEXT_SEL]);
 }
 
-async function waitEngine(page) {
-  await page.locator("#srv").filter({ hasText: /Export: / }).waitFor({ timeout: 180_000 });
-}
+/** the version's PDF as pdf.json (tools/pdftext.py): the native export – the goldens' pdf.json is v3's old engine's,
+    removed in S4.5, so tools/parity.mjs compares pages, sizes and the golden slide texts (decision 2026-10-12, 5).
+    SP's export of the version (stage-capture.mjs, just before) is used when there is one */
 async function exportPdf(page, h, dir) {
-  const exp = path.join(h.root, "export");
-  fs.rmSync(exp, { recursive: true, force: true }); fs.mkdirSync(exp);
-  // v3's PDF is the old engine's (the goldens' pdf.json): from 3.7 it is the menu's "old engine" item for one release;
-  // the native export is checked against the goldens' texts by tools/export-check.mjs (decision 2026-10-12, 5)
-  await page.click("#exportMenuBtn");
-  const old = page.locator('[data-x="pdf-old"]');
-  if (await old.count()) await old.click(); else { await page.keyboard.press("Escape"); await page.click("#exportBtn"); }
-  for (let i = 0; i < 1800; i++) {
-    const f = fs.readdirSync(exp).find(n => n.endsWith(".pdf"));
-    if (f && !(await page.locator("#exportBtn").innerText()).includes("Rendering")) {
-      await sleep(200);
-      const out = execFileSync(PY, [path.join(HERE, "pdftext.py"), path.join(exp, f)], { encoding: "utf8", maxBuffer: 64 << 20 });
-      fs.writeFileSync(path.join(dir, "pdf.json"), out.replace(/\r\n/g, "\n"));     // Python on Windows prints CRLF
-      return f;
+  let file = path.join(dir, "sp", "native.pdf");
+  if (!fs.existsSync(file)) {
+    const exp = path.join(h.root, "export");
+    fs.rmSync(exp, { recursive: true, force: true }); fs.mkdirSync(exp);
+    if (await page.evaluate(() => !!window.__sbTest.lastExport)) {
+      await page.evaluate(() => { window.__sbTest.lastExport.files = []; });
+      await page.click("#exportBtn");
+      try { await page.waitForFunction(() => window.__sbTest.lastExport.files.length > 0 && !window.__sbTest.exporting(), null, { timeout: 180_000 }); }
+      catch { throw new Error("export timed out:\n" + h.log().slice(-2000)); }
+    } else {
+      // a page before 3.7 (the goldens' v3.4.0): its helper's engine writes the PDF – once the engine is up, Export, then
+      // the file in the export folder once the button stops "Rendering"
+      await page.locator("#srv").filter({ hasText: /Export: / }).waitFor({ timeout: 180_000 });
+      await page.click("#exportBtn");
+      let done = false;
+      for (let i = 0; i < 1800 && !done; i++) {
+        done = fs.readdirSync(exp).some(n => n.endsWith(".pdf")) && !(await page.locator("#exportBtn").innerText()).includes("Rendering");
+        await sleep(done ? 200 : 100);
+      }
+      if (!done) throw new Error("export timed out:\n" + h.log().slice(-2000));
     }
-    await sleep(100);
+    file = path.join(exp, fs.readdirSync(exp).find(n => n.endsWith(".pdf")));
   }
-  throw new Error("export timed out:\n" + h.log().slice(-2000));
+  const out = execFileSync(PY, [path.join(HERE, "pdftext.py"), file], { encoding: "utf8", maxBuffer: 64 << 20 });
+  fs.writeFileSync(path.join(dir, "pdf.json"), out.replace(/\r\n/g, "\n"));     // Python on Windows prints CRLF
+  return path.basename(file);
 }
 
 // ------------------------------------------------------------------------------------------- capture
 /* opts: decks, pdf (false: no export), quiet, allPixels; designs (default all three); slideHook(page, {deck, dir, design,
    version, slide, geometry, pixels}) → {geometry?, png?}: replaces what is written for a slide (tools/dlparity.mjs
-   writes the display list's geometry and pixels there) */
+   writes the display list's geometry and pixels there; with `noGeometry` the page's DOM is not read for it – the
+   stage from M4, tools/stage-capture.mjs); versionHook(page, helper, {deck, dir, design, version}): after the slides of
+   a version (the native PDF for SP) */
 export async function capture(out, opts = {}) {
   const decks = deckList(opts.decks);
   const h = await startHelper();
@@ -196,7 +228,6 @@ export async function capture(out, opts = {}) {
   let total = 0;
   try {
     await page.goto(h.url);
-    if (opts.pdf !== false) await waitEngine(page);
     for (const id of decks) {
       const deck = JSON.parse(fs.readFileSync(path.join(DECKS, id + ".json"), "utf8"));
       const file = id + path.extname(deck.workbook);
@@ -217,7 +248,7 @@ export async function capture(out, opts = {}) {
             await page.locator(`.thumb.on[data-i="${i}"]`).waitFor();
             await page.keyboard.press("Escape");
             await settle(page);
-            let g = await geometry(page);
+            let g = opts.noGeometry ? { items: [] } : await geometry(page);
             g.slide = i + 1; g.label = await page.locator(".thumb").nth(i).locator(".cap b").innerText();
             const pixels = wantPixels(opts, id, vname, i + 1);
             const hooked = opts.slideHook ? await opts.slideHook(page, { deck: id, dir, design, version: vid, slide: i, geometry: g, pixels }) : null;
@@ -235,6 +266,7 @@ export async function capture(out, opts = {}) {
           }
           fs.writeFileSync(path.join(dir, "comments.json"), JSON.stringify(comments, null, 1));
           fs.writeFileSync(path.join(dir, "issues.json"), JSON.stringify(issues, null, 1));
+          if (opts.versionHook) await opts.versionHook(page, h, { deck: id, dir, design, version: vid });
           if (opts.pdf !== false) await exportPdf(page, h, dir);
           total += n;
           if (!opts.quiet) console.log(`  ${id} · ${design} · ${vname}: ${n} slide(s)`);

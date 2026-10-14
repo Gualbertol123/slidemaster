@@ -1,8 +1,12 @@
 # Slide Builder – how workbooks become slides
 
-The reading and rendering algorithms were carried over from v2.3 unchanged in behaviour (verified
-by `app/e2e/parity.mjs`, which renders the same workbooks with both versions and compares the
-HTML), except for the fixes listed in `docs/REVIEW.md` (number formats, conditional formats).
+The reading and rendering algorithms were carried over from v2.3 unchanged in behaviour, except for
+the fixes listed in `docs/REVIEW.md` (number formats, conditional formats). Since v3.8 (M4) slides are
+drawn from display lists instead of HTML (§2), held to v3's output: `npm run parity` (`tools/parity.mjs`)
+compares every deck × design × version with the goldens captured from v3.4.0 (`golden/`: elements, boxes,
+texts, a chosen set of screenshots, the PDF), `npm run dlparity` (`tools/dlparity.mjs`) does the same for
+the display list drawn on a canvas (thumbnails, PNG), and SP (screen = PDF, `tools/stage-capture.mjs`)
+checks every slide on the stage against its page of the exported PDF.
 This file describes them; `docs/ARCHITECTURE.md` describes storage, sync and the HTTP API.
 
 In v3 nothing reads globals: renderers receive a `RenderCtx` (`render/context.ts`) with the deck
@@ -50,14 +54,25 @@ of the anchor), crop (`srcRect`), rotation/flip, SVG preferred over PNG fallback
 objects collapse, “move but don't size” objects move. `analyzeImages()` samples corners to tell round
 badges (flags) from photos/logos (used by Glass).
 
-**Column widths** use Excel's max-digit-width formula with the workbook's default font measured on a
-canvas (the page's `TextMeasurer`); row heights are pt × 96/72.
+**Column widths** use Excel's max-digit-width formula with the workbook's default font, measured from its font
+file (HarfBuzz, `core/src/text/measure.ts`; the page's canvas only for a font without a readable file); row heights
+are pt × 96/72.
 
 ---
 
-## 2. Rendering (`core/src/render/`, `app/src/render/slidedom.ts`, `styles/slide.css`)
+## 2. Rendering (`core/src/render/`, `core/src/dl/`, `core/src/pdf/`)
 
-### 2.1 Slide layout (`render/slide.ts`)
+Every slide – on the stage, in the thumbnails and in the exports – is a display list built by the core
+worker: `excelToDisplayList` (`render/excel-dl.ts`, §2.2) and `glassToDisplayList` (`render/glass-dl.ts`,
+§2.3) draw a table in table px, and `slideToDisplayList` (`render/slide-dl.ts`, §2.4) places the tables
+where `computeLayout` puts them, scaled, and adds the background, title, subtitle, cover, contents, page
+number, footer, logo, text boxes and notes section. Three backends draw a list: `core/src/dl/svg.ts` (the
+stage, `app/src/stage/`), `core/src/dl/canvas.ts` (thumbnails, PNG, pictures) and `core/src/pdf/` (the PDF).
+Text is measured from the font files (`core/src/text/`, HarfBuzz; the page measures only a font without a
+readable file), so the three break and place lines alike. The builders follow v3's markup and CSS rule by
+rule; where this file names a CSS property, it is v3's rule, reproduced by the display list.
+
+### 2.1 Slide layout (`render/layout.ts`)
 `computeLayout(R, w)`: tables are arranged in **bands** (`layout.bands`), each table scaled by
 `k × w[i]`, where `k` is the largest factor (≤ `MAXK = 2.0`) that fits the content area
 (`areaFor(R)`: x 50…1550, y 104…822, or from 126 with a subtitle). Gaps `GX = 36`, `GY = 28` stay
@@ -65,9 +80,15 @@ constant. Default layout: tables of the same sheet that share rows sit side by s
 Resizing a table binary-searches the weight that makes its width follow the mouse; moving drops it
 left/right of another table or into a new band above/below.
 
-### 2.2 Excel design – `renderExcel(L, ctx)` (`render/excel.ts`)
-Absolute-positioned divs: one background/border div per styled cell, one text div per non-empty
-cell, shapes, text boxes, pictures. Fonts fall back to Century Gothic → Arial.
+### 2.2 Excel design – `excelToDisplayList(L, ctx, m)` (`render/excel-dl.ts`)
+Excel and Excel Refined. Nodes in table px (0,0 = the table's top left, `L.W × L.H`), in this order:
+the fill and borders of every styled cell, in item order (a border lies inside its cell box; widths per
+Excel style, hair 0.5 px, dashed styles with their dash patterns, double as two thin lines); the text of
+every non-empty cell (padding 0 3 px, indent 3 + 9 px per level, line height 1.15, Excel's horizontal and
+vertical alignment; unwrapped text overflows into empty neighbours or is clipped, wrapped text breaks at
+words; superscript/subscript parts at .62 em; rotated text turned about the cell's centre, 255 = stacked
+letters); then shapes, text boxes (padding 4 × 8 px, line height 1.25) and pictures (crop, rotation,
+flips). Fonts fall back to Century Gothic → Arial (`XLFONT`).
 
 ### 2.3 Scene model and the Liquid Glass design (`render/glass.ts`)
 
@@ -77,7 +98,7 @@ nested. The Glass design therefore never assumes a template. It works in four la
 
 ```
 Grid ──► Primitives ──► Structure ──► Theme (materials)
-cells     Surface         containment tree   Excel: faithful (renderExcel, unchanged)
+cells     Surface         containment tree   Excel: faithful (excelToDisplayList)
 merges    Frame / Grid    roles per text     Glass: material translation, geometry kept
 borders   Rule            table rows
 fills     Text · Signal
@@ -115,7 +136,8 @@ A Frame and a Surface on exactly the same cells merge into a *filled frame*.
 * **Tables**: a container whose texts form ≥ 3 aligned rows × ≥ 2 columns with ≥ 25 % numbers gets
   row separators where Excel drew no lines (spacer rows are respected).
 
-**4. Theme – material translation** (`renderGlass`): geometry stays exactly as designed in Excel
+**4. Theme – material translation** (`glassPlan`, drawn by `glassToDisplayList` in `render/glass-dl.ts`
+with v3's CSS recipes for the materials): geometry stays exactly as designed in Excel
 (only columns are widened for the system font, `glassGeom`). Each container picks a material from
 its fill class (`white · light · grey · color · dark`), size (chip vs panel/card) and depth:
 dark/grey/colour blocks → *tinted glass* of the same hue (`tintGrad`) and their texts get a deep ink of
@@ -126,16 +148,19 @@ box when the value is boxed). Text weight follows the role; numbers use tabular 
 rotation (`xf.rot`) is honoured in both designs.
 
 **Extending:** a new recogniser (e.g. charts drawn with cells, timelines) adds properties to the scene
-in `inferRoles`; a new theme is a new function from scene → HTML. Neither touches the reader or editor.
+in `inferRoles`; a new theme is a new function from scene → display list. Neither touches the reader or editor.
 Test any change with layouts of very different kinds (see §10) – not only the weekly report.
 
-### 2.4 Cover, index, page numbers, logo (`render/cover.ts`, `render/pagenumbers.ts`)
-* `coverHtml()` / `indexHtml()`, both designs. Cover: kicker (`note`), auto-sized title,
-  accent bar, subtitle, date chip; Glass adds three glass shapes, Excel a navy panel. Index lists the
+### 2.4 Cover, index, page numbers, logo (`render/slide-dl.ts`, `render/pagenumbers.ts`, `render/cover.ts`)
+* Cover and index are drawn by `slideToDisplayList`, both designs (`render/cover.ts` keeps only
+  `todayLabel()`, the date a cover shows when it has none). Cover: kicker (`note`), auto-sized title,
+  accent bar, subtitle, the date (a glass chip in Liquid Glass, a rule and plain text in the Excel designs); Glass adds
+  three glass shapes, Excel a navy panel. Index lists the
   content slides with numbers, titles, subtitles, dotted leaders and **page numbers**.
 * Page numbers: `pageNumber(i) = pn.start + i` (the cover counts as a page); `pageNoFor(i)` returns the
-  label or null; `pageNoHtml()` draws it (capsule or plain, position, font, size). Bottom-right numbers
-  move left of the logo; top-left numbers push the title to the right.
+  label or null; `pageNoGeom()` places it and `pnFmt()` gives its font, and slide-dl draws it (capsule or
+  plain, position, font, size). Bottom-right numbers move left of the logo; top-left numbers push the
+  title to the right.
 * Logo: `ctx.logoSrc` → `/assets/<name>?t=<token>`; hidden per slide with `cfg.logo = false`.
 
 ---
@@ -152,11 +177,14 @@ Test any change with layouts of very different kinds (see §10) – not only the
 * **Selection** is Excel-like: click/drag/Shift, arrows, Tab/Enter, F2/typing opens the inline editor,
   Delete, Ctrl+B/I/Z/Y/A. Hit testing uses **one overlay per table** and a binary search over column/row
   edges (`cellFromPoint`) – no per-cell elements.
-* **Edits** become operations (see 3.1). Cell edits use `refreshStage()`, which re-renders only the
-  affected table and swaps only the changed elements (`patchTable`). Full rebuilds (`renderStage`) are
-  for slide and style changes. Caches (`effItems`, `glassGeom`, table HTML) are keyed by the sheet's
-  edits (`sheetKey(ctx, S)`).
-* **Thumbnails** are built lazily (IntersectionObserver) and big tables are drawn without text there.
+* **Edits** become operations (see 3.1). After every change the core worker rebuilds the slide's display
+  list and the stage asks for it (`STAGE.refresh` / `STAGE.render`, `app/src/stage/data.ts`). A table is
+  redrawn only when what it is drawn from changed (`tableDrawKey`, the worker's table cache), and the
+  stage replaces only the changed pieces of a layer's markup (`stage/patch.ts`: a cell edit rebuilds that
+  cell's elements, not the table's). Caches (`effItems`, `glassGeom`, table display lists) are keyed by
+  the sheet's edits (`sheetKey(ctx, S)`).
+* **Thumbnails** are drawn lazily (IntersectionObserver) by an export worker from the slides' display
+  lists, as the PNG export draws them; big tables (> 1200 cells) are drawn without text there.
 
 ### 3.1 Editing in v3
 
@@ -166,10 +194,10 @@ Test any change with layouts of very different kinds (see §10) – not only the
   ever revert your own changes.
 * Cell edits use `editor/edit.ts › applySel()`: the selected cells' edits are changed on a copy and
   the differences become `cell.patch` operations.
-* Table moves/resizes preview with a temporary layout (`applyLayout(slide, R, ctx, w, lay)`) and
-  commit one `slide.patch {layout}` on pointer-up.
+* Table moves/resizes preview with a temporary layout (`computeLayout(R, ctx, w, lay)` in
+  `stage/drags.ts`, drawn as the stage's drag preview) and commit one `slide.patch {layout}` on pointer-up.
 * Remote changes arrive via `DocSync.poll()` every 3 s; `onDocChange` rebuilds slides only when the
-  preset changed, otherwise it swaps changed cells in place (`refreshStage`).
+  preset changed, otherwise the stage redraws the current slide, swapping only what changed (`STAGE.refresh`).
 
 ---
 
@@ -180,7 +208,7 @@ Test any change with layouts of very different kinds (see §10) – not only the
 `buildLayout(S, g, sizes)`; a table with sizes or colour scales gets its **own** layout object
 (`resolveTable`, cached by id + sizes) so two tables on the same "x" region never share overrides.
 Sized columns are listed in `L.fixedCols`; Liquid Glass keeps them exactly (`glassGeom` only widens the
-others). On the slide (`editor/stage.ts`): within 4 screen px of a border the cursor becomes a resize
+others). On the slide (`app/src/stage/hit.ts`, `drags.ts`): within 4 screen px of a border the cursor becomes a resize
 cursor; dragging shows a guide and the width, and applies to every selected column/row when the border
 belongs to the selection; double-click a border = Excel size. The toolbar's **W / H** boxes set exact
 values for the selection.
@@ -199,8 +227,9 @@ values for the selection.
 `slide.notes["<tableId>:<side>"]`. `computeLayout` treats a table plus its boxes as one unit:
 left/right boxes have a fixed width (`w`, default 240 px) and the table's height; top/bottom boxes have a
 height (`h`, or lines × font size) and the table's width; gap 14 px. The scale `k` is found by binary
-search so that all units fit the content area. Fonts shrink (down to 9 px) until the text fits, measured
-off-screen (`fitNotes`), so thumbnails and exports match the editor.
+search so that all units fit the content area. Fonts shrink from the start size in 1 px steps (not below
+9 px) until the text fits its box; `slideToDisplayList` fits each box on its own layout with text measured
+from the font files (`fitText`, `core/src/text/shape.ts`), so the stage, thumbnails and exports agree.
 
 ### 4.4 Colour scales (`render/scales.ts`)
 `table.scales[id] = {range, dir: row|col|all, mode: zero|minmax, fill, ink, invert?}`. Numbers in the range
@@ -212,9 +241,10 @@ Glass: a capsule in the scale colour (`.cap.scale`) and the ink.
 
 ### 4.5 Deck look
 `style.radius` (0–200 %) multiplies every corner radius (glass containers, capsules, cover/index/page
-number chrome, logo bubble, Excel shapes; CSS `--rk`). `style.contrast` (0–100, 50 = as designed) sets
-`--wfade` (wallpaper towards white), `--gfade` (white veil on glass surfaces, an extra background layer –
-`placeGlass` positions three layers) and `--wallf` (wallpaper saturation/brightness). `style.logoBubble =
+number chrome, logo bubble, Excel shapes; v3's CSS `--rk`, read by the display-list builders).
+`style.contrast` (0–100, 50 = as designed) sets `--wfade` (wallpaper towards white), `--gfade` (white veil
+on glass surfaces, a layer of its own inside each glass box, `glassBox` in render/glass-dl.ts) and, above 50,
+deepens the wallpaper (saturation/brightness baked into the picture, render/wallpaper.ts). `style.logoBubble =
 false` draws the logo without its glass bubble.
 
 ### 4.6 Cell colour, merges, footer, format painter (v3.2)
@@ -228,8 +258,8 @@ false` draws the logo without its glass bubble.
   merges; `buildLayout` uses the result, so both designs and the editor follow. Merging stores
   `"merge"` and clears user merges inside the range; unmerging a user merge deletes it, a workbook merge
   stores `"split"`.
-* **Footer** – `style.footer {on,text,pos,size,style,cover}`, drawn by `footerHtml` (render/pagenumbers.ts)
-  after the page number. When it shares a corner with the page number or the logo it is moved inwards
+* **Footer** – `style.footer {on,text,pos,size,style,cover}`, placed by `footerGeom` (render/pagenumbers.ts)
+  and drawn by slide-dl after the page number. When it shares a corner with the page number or the logo it is moved inwards
   next to them; centred footers sit at the slide centre.
 * **Format painter** (editor/painter.ts) – the source selection becomes a pattern of `Fmt` (size, bold,
   italic, colour, cell colour, highlight, alignment, role), tiled over the target selection when the
@@ -238,9 +268,9 @@ false` draws the logo without its glass bubble.
 ### 4.7 Round 4 (v3.3)
 * **Themes** – `style.theme {id, c1…c4, a1, a2}`; `themeOf(style)` (model/style.ts) returns a built-in
   `ThemeDef` or the custom colours. `makeWall` paints the wallpaper from c1–c4 (pastel gradient, blobs,
-  ribbons; Aurora keeps its hand-tuned values, so the default output is unchanged). Accents are CSS
-  variables set on the slide by `themeVars` (`--a1/--a2/--a1rgb/--a2rgb` glass, `--x1/--x2` Excel,
-  `--ixink`), with the Aurora values as CSS fallbacks.
+  ribbons; Aurora keeps its hand-tuned values, so the default output is unchanged). Accents are v3's CSS
+  variables, returned by `themeVars` (`--a1/--a2/--a1rgb/--a2rgb` glass, `--x1/--x2` Excel, `--ixink`)
+  and read by the display-list builders, with the Aurora values as fallbacks.
 * **Gridlines** – `TableDef.gridH/gridV` (`"on"|"off"`), applied in `effItems` (`withGrid`) to the item
   borders, so both designs follow; Liquid Glass also drops its automatic row separators for `gridH:"off"`
   and draws every vertical rule for `gridV:"on"`.
@@ -250,9 +280,10 @@ false` draws the logo without its glass bubble.
   the painted range and copies the text colour without the conditional colour (`Item.baseColor`).
 * **Vertical alignment** – `SlideDef.valign` (`top|middle|bottom`) places the bands in `computeLayout`.
 * **Text boxes** – `Note.valign` (flex `justify-content`) and `Note.bubble` (a `.notebub` glass card or
-  framed box behind the text, placed by `applyLayout`; the box gets 20 px more height).
+  framed box behind the text, drawn by slide-dl; the box gets 20 px more height).
 * **Glass blocks next to each other** no longer overlap: the outward padding of a block is clipped at the
   midpoint to a neighbour of the same depth (3 px gap each side).
-* **Redraws while editing** – `renderStage` waits while an `.inline-edit` is open and runs when it closes;
+* **Redraws while editing** – while an editor is open on the stage the newest slide waits and is shown
+  when it closes (`stage/data.ts`);
   settings boxes use `ui/Field.tsx`, which keeps the typed draft while focused.
 

@@ -1,6 +1,6 @@
-/* Excel and Excel Refined → display list (PLAN S3.3): the same table renderExcel draws as HTML (excel.ts), as
-   display-list nodes in table px (0,0 = the table's top left, L.W × L.H; the slide places and scales it). Every
-   rule of v3's markup and slide.css is followed so that the two coincide:
+/* Excel and Excel Refined → display list (PLAN S3.3): the table v3's renderExcel drew as HTML (excel.ts, removed in
+   S4.5), as display-list nodes in table px (0,0 = the table's top left, L.W × L.H; the slide places and scales it).
+   Every rule of v3's markup and slide.css is followed, so that the slides match the goldens captured from v3:
    - fills and borders: the `.b` boxes (border-box: a border lies inside its cell box, top / bottom across the
      whole width, left / right across the whole height), widths and dashes per Excel style;
    - text: the `.t` flex box (padding 0 3px, indent 3 + 9·indent px, 1 px at the bottom when bottom-aligned,
@@ -17,7 +17,7 @@
    asked (measuredBuild).
    Where v3 is not followed, on purpose (PLAN S3.3's border widths; to be shown in G1): "hair" is a 0.5 px solid line
    (v3: CSS 1 px dotted) and dashDot / dashDotDot / slantDashDot have dash-dot patterns (v3: CSS dashed). */
-import { platform, type LinesReq, type NoteFitReq, type NoteMeasure, type RunMetrics, type RunReq } from "../platform";
+import { platform, type LinesReq, type RunMetrics, type RunReq } from "../platform";
 import { BW } from "../xlsx/layout";
 import type { BorderSide, Item, Para, Pic, Rect, TableLayout } from "../xlsx/types";
 import { fontStack } from "../model/fonts";
@@ -25,7 +25,6 @@ import { parseColor, solid } from "../dl/color";
 import type { DisplayList, Matrix, Node, Paint, PathCmd, Stroke, TextNode } from "../dl/types";
 import { effItems } from "./edits";
 import type { RenderCtx } from "./context";
-import { XLFONT } from "./excel";
 import { breakRuns, collapse } from "../text/lines";
 
 /** what text measurement the builder needs: sync lookups over the batch answered before */
@@ -33,8 +32,6 @@ export interface Metrics {
   /** `tnum`: tabular figures (font-variant-numeric), answered with each character's advance */
   run(text: string, font: string, tnum?: boolean): RunMetrics;
   lines(text: string, font: string, width: number): string[];
-  /** a text box's font size as the page fits it (slide furniture, S3.5) */
-  noteSize(note: NoteMeasure, start: number): number;
 }
 /** a table's display list and the pictures it refers to (image id → data: URL) */
 export interface TableDL { nodes: DisplayList; images: Record<string, string> }
@@ -111,12 +108,20 @@ function trimRuns(runs: Run[]): Run[] {
   return out.filter(r => r.text);
 }
 
+/** the font list of Excel cells without a font of their own (v3's renderExcel) */
+export const XLFONT = `'Century Gothic','CenturyGothic','URW Gothic','AppleGothic',Arial,sans-serif`;
+
 export function excelToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics, opts: { noText?: boolean } = {}): TableDL {
   const items = effItems(L, ctx), rr = Math.round(8 * ctx.style.radius / 100);
   const nodes: DisplayList = [], images: Record<string, string> = {};
-  // fills and borders, in item order (later cells paint over earlier ones, as the divs do)
-  for (const it of items) {
-    if (it.fill) { const p = solid(it.fill); if (!("solid" in p && p.a === 0)) nodes.push({ t: "rect", x: it.bx, y: it.by, w: it.bw, h: it.bh, fill: p }); }
+  // fills and borders, in item order (later cells paint over earlier ones, as the divs do); a fill reaches under the
+  // opaque fill painted after it on its right and below (seamFills), so no light seam shows between them when scaled
+  const under = seamFills(items);
+  for (const [k, it] of items.entries()) {
+    if (it.fill) {
+      const p = solid(it.fill), [l, t, r, b] = under[k];
+      if (!("solid" in p && p.a === 0)) nodes.push(l || t || r || b ? { t: "path", d: seamPath(it, under[k]), fill: p, rule: "nonzero" } : { t: "rect", x: it.bx, y: it.by, w: it.bw, h: it.bh, fill: p });
+    }
     for (const side of ["top", "left", "right", "bottom"] as const) { const b = it[side]; if (b) nodes.push(...borderNodes(side, b, it.bx, it.by, it.bw, it.bh)); }
   }
   if (!opts.noText) for (const it of items) if (it.text) nodes.push(...cellText(it, ctx, m));
@@ -126,7 +131,55 @@ export function excelToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics, o
   return { nodes, images };
 }
 
-/** the family list of a cell's text, as renderExcel writes it */
+/** how far a fill reaches under its neighbour's (table px) */
+export const SEAM = 1;
+/** for each item, how far its fill reaches under its neighbours' [left, top, right, bottom]: two opaque fills that meet
+    edge to edge at a fractional scale each let a little of the slide through their anti-aliased edges – a light line
+    between two dark cells on screen and in pictures (PDFium showed none in the PDF; viewers that anti-alias each shape
+    on its own would). The fill painted first reaches SEAM px under the one painted after it, when that one is opaque
+    and covers the whole shared edge – along that edge only, no corner (seamPath) – and the later fill paints over the
+    strip: no outer edge moves; the shared edge's pixels show the two colours' mix instead of the slide's white */
+export function seamFills(items: Item[]): [number, number, number, number][] {
+  const out = items.map((): [number, number, number, number] => [0, 0, 0, 0]);
+  const opaque = items.map(it => !!it.fill && !("a" in solid(it.fill)));
+  const key = (v: number) => Math.round(v * 100);
+  // the opaque fills by each of their edges
+  const byLeft = new Map<number, number[]>(), byTop = new Map<number, number[]>(), byRight = new Map<number, number[]>(), byBottom = new Map<number, number[]>();
+  const add = (m: Map<number, number[]>, v: number, k: number) => { const l = m.get(key(v)); if (l) l.push(k); else m.set(key(v), [k]); };
+  items.forEach((it, k) => { if (opaque[k]) { add(byLeft, it.bx, k); add(byTop, it.by, k); add(byRight, it.bx + it.bw, k); add(byBottom, it.by + it.bh, k); } });
+  items.forEach((it, k) => {
+    if (!opaque[k]) return;
+    /** how far the fill may reach over the edge at v: the opaque fills painted later on the other side, which together
+        cover the whole edge from a0 to a1 (a merged cell above two cells, say), each SEAM deep at least; else 0 */
+    const reach = (m: Map<number, number[]>, v: number, a0: number, a1: number, span: (j: Item) => [number, number], depth: (j: Item) => number) => {
+      const js = (m.get(key(v)) || []).filter(j => j > k).map(j => ({ s: span(items[j]), d: depth(items[j]) })).filter(x => x.s[1] > a0 + .01 && x.s[0] < a1 - .01).sort((x, y) => x.s[0] - y.s[0]);
+      let at = a0, d = SEAM;
+      for (const x of js) { if (x.s[0] > at + .01) return 0; at = Math.max(at, x.s[1]); d = Math.min(d, x.d); }
+      return at >= a1 - .01 ? d : 0;
+    };
+    const ys = (j: Item): [number, number] => [j.by, j.by + j.bh], xs = (j: Item): [number, number] => [j.bx, j.bx + j.bw];
+    out[k] = [reach(byRight, it.bx, it.by, it.by + it.bh, ys, j => j.bw), reach(byBottom, it.by, it.bx, it.bx + it.bw, xs, j => j.bh),
+      reach(byLeft, it.bx + it.bw, it.by, it.by + it.bh, ys, j => j.bw), reach(byTop, it.by + it.bh, it.bx, it.bx + it.bw, xs, j => j.bh)];
+  });
+  return out;
+}
+
+/** a fill with its strips under its neighbours, as one shape: the outline of the cell's box with, on each side that
+    reaches under a neighbour, a strip as long as that side – no corner, which lies in a diagonal cell no neighbour may
+    cover. One polygon (at most 12 points), so its parts draw no seam between them and the PDF stays small */
+export function seamPath(it: { bx: number; by: number; bw: number; bh: number }, [l, t, r, b]: [number, number, number, number]): PathCmd[] {
+  const x0 = it.bx, y0 = it.by, x1 = it.bx + it.bw, y1 = it.by + it.bh, pts: [number, number][] = [[x0, y0]];
+  if (t) pts.push([x0, y0 - t], [x1, y0 - t]);
+  pts.push([x1, y0]);
+  if (r) pts.push([x1 + r, y0], [x1 + r, y1]);
+  pts.push([x1, y1]);
+  if (b) pts.push([x1, y1 + b], [x0, y1 + b]);
+  pts.push([x0, y1]);
+  if (l) pts.push([x0 - l, y1], [x0 - l, y0]);
+  return [["M", r2(pts[0][0]), r2(pts[0][1])], ...pts.slice(1).map(([x, y]): PathCmd => ["L", r2(x), r2(y)]), ["Z"]];
+}
+
+/** the family list of a cell's text, as v3's renderExcel wrote it */
 function cellFamily(it: Item, ctx: RenderCtx): string {
   const user = it.userFont || ctx.style.text?.table?.font;
   return user ? fontStack(user, XLFONT) : `'${(it.font.name || "").replace(/['"]/g, "")}',${XLFONT}`;
@@ -307,10 +360,8 @@ function picBody(p: Pic, forExport: boolean, images: Record<string, string>, m: 
 }
 
 /* ---- measuring: the requests of a table, answered in one batch by the platform's TextMeasurer */
-const noteKeyOf = (n: NoteMeasure, start: number) => JSON.stringify([n.design, n.className, n.cssText, n.html, n.w, n.h, start]);
 class Recorder implements Metrics {
-  runs = new Map<string, RunReq>(); wraps = new Map<string, LinesReq>(); notes = new Map<string, NoteFitReq>();
-  noteSize(note: NoteMeasure, start: number) { this.notes.set(noteKeyOf(note, start), { note, start }); return start; }
+  runs = new Map<string, RunReq>(); wraps = new Map<string, LinesReq>();
   run(text: string, font: string, tnum = false): RunMetrics {
     this.runs.set((tnum ? "tnum " : "") + font + "\n" + text, { text, font, ...(tnum ? { tnum } : {}) }); this.runs.set(font + "\n", { text: "", font });
     return { w: 0, asc: 0, desc: 0 };
@@ -318,8 +369,7 @@ class Recorder implements Metrics {
   lines(text: string, font: string, width: number): string[] { this.wraps.set(`${font}\n${width}\n${text}`, { text, font, width }); return [text]; }
 }
 class Answers implements Metrics {
-  constructor(private runs: Map<string, RunMetrics>, private wraps: Map<string, string[]>, private fallback: Metrics, private notes = new Map<string, number>()) {}
-  noteSize(note: NoteMeasure, start: number) { return this.notes.get(noteKeyOf(note, start)) ?? this.fallback.noteSize(note, start); }
+  constructor(private runs: Map<string, RunMetrics>, private wraps: Map<string, string[]>, private fallback: Metrics) {}
   run(text: string, font: string, tnum = false) { return this.runs.get((tnum ? "tnum " : "") + font + "\n" + text) ?? this.fallback.run(text, font, tnum); }
   lines(text: string, font: string, width: number) { return this.wraps.get(`${font}\n${width}\n${text}`) ?? this.fallback.lines(text, font, width); }
 }
@@ -327,26 +377,30 @@ class Answers implements Metrics {
 export const roughMetrics: Metrics = {
   run: (t, font) => { const size = parseFloat(/([\d.]+)px/.exec(font)?.[1] || "14"); return { w: [...t].length * size * .5, asc: size * .8, desc: size * .2 }; },
   lines: (t) => [t],
-  noteSize: (_n, start) => start,
 };
+/** the measurer's answers so far: runs and line breaks, by what was asked (of measurer `by`) */
+const MEASURED = { by: null as unknown, runs: new Map<string, RunMetrics>(), wraps: new Map<string, string[]>() };
+/** the fonts changed (a font arrived or was added): everything is measured again */
+export function forgetMeasurements() { MEASURED.runs.clear(); MEASURED.wraps.clear(); }
 /** measure everything a build needs: one batch per round, rounds until nothing new is asked (the units of wrapped
     text first, then the runs of the lines they give; three or four rounds per table, however long the text) */
 export async function measuredBuild<T>(build: (m: Metrics) => T): Promise<T> {
   const tm = platform().text;
   if (!tm.measureRuns || !tm.breakLines) return build(roughMetrics);
-  const runs = new Map<string, RunMetrics>(), wraps = new Map<string, string[]>(), notes = new Map<string, number>();
+  // what was measured stays known for the next builds (an edit measures its own cell only, S4.1), until the page's
+  // fonts change (forgetMeasurements) or it grows too large
+  if (MEASURED.by !== tm || MEASURED.runs.size + MEASURED.wraps.size > 300_000) { forgetMeasurements(); MEASURED.by = tm; }
+  const { runs, wraps } = MEASURED;
   for (let round = 0; ; round++) {
     if (round === 8) throw new Error("text measurement did not settle after 8 rounds");
-    const rec = new Recorder(), probe = new Answers(runs, wraps, rec, notes);
+    const rec = new Recorder(), probe = new Answers(runs, wraps, rec);
     build(probe);
     const needRuns = [...rec.runs].filter(([k]) => !runs.has(k)), needWraps = [...rec.wraps].filter(([k]) => !wraps.has(k));
-    const needNotes = tm.fitNotes ? [...rec.notes].filter(([k]) => !notes.has(k)) : [];
-    if (!needRuns.length && !needWraps.length && !needNotes.length) break;
-    if (needNotes.length) { const ans = await tm.fitNotes!(needNotes.map(([, v]) => v)); needNotes.forEach(([k], i) => notes.set(k, ans[i])); }
+    if (!needRuns.length && !needWraps.length) break;
     if (needWraps.length) { const ans = await tm.breakLines(needWraps.map(([, v]) => v)); needWraps.forEach(([k], i) => wraps.set(k, ans[i])); }
     if (needRuns.length) { const ans = await tm.measureRuns(needRuns.map(([, v]) => v)); needRuns.forEach(([k], i) => runs.set(k, ans[i])); }
   }
-  return build(new Answers(runs, wraps, roughMetrics, notes));
+  return build(new Answers(runs, wraps, roughMetrics));
 }
 /** a table's display list with the page's measurements */
 export const excelTableDL = (L: TableLayout, ctx: RenderCtx, opts: { noText?: boolean } = {}) => measuredBuild(m => excelToDisplayList(L, ctx, m, opts));

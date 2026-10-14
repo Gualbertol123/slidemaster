@@ -1,10 +1,10 @@
 /* Render counts (PLAN S1.3, ADR-012): each component reads only what it shows from the store, so
-   - moving the selection re-renders at most Ribbon, TableTools, FormulaBar and StatusBar (the stage
-     overlay is drawn by the imperative stage, not by React);
+   - moving the selection re-renders at most Ribbon, TableTools, FormulaBar, StatusBar and the stage's selection
+     overlay (S4.1: the stage is React; its Profiler is Canvas's, which holds it);
    - a poll that brings nothing new re-renders nothing;
    - a toast re-renders only Toast.
-   The chrome modules are wrapped in React Profilers; the stage, the thumbnails and the wallpaper draw on
-   canvas/DOM that jsdom does not have, so they are left out (they are not React components). */
+   The chrome modules are wrapped in React Profilers; the thumbnails and the wallpaper draw on canvas/DOM that jsdom
+   does not have, so they are left out (they are not React components). */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 import fs from "node:fs";
@@ -27,7 +27,6 @@ vi.mock("../src/ui/Topbar", async orig => profiled(orig as never, ["Topbar"]));
 vi.mock("../src/ui/Ribbon", async orig => profiled(orig as never, ["Ribbon", "FxBar"]));
 vi.mock("../src/ui/TableTools", async orig => profiled(orig as never, ["TableRibbon"]));
 vi.mock("../src/ui/Dialogs", async orig => profiled(orig as never, ["Dialogs"]));
-vi.mock("../src/editor/stage", async orig => ({ ...(await orig() as object), mountStage: () => { /* imperative */ } }));
 vi.mock("../src/editor/thumbs", async orig => ({ ...(await orig() as object), mountThumbs: () => { /* imperative */ } }));
 vi.mock("../src/render/wall", async orig => ({ ...(await orig() as object), applyWall: () => { /* canvas */ } }));
 
@@ -70,14 +69,14 @@ describe("render counts", () => {
     await settle();
     report("select a cell");
     expect(get().selection.sel).toBeTruthy();
-    expect(updated()).toEqual(["FxBar", "Ribbon", "Status", "TableRibbon"]);
+    expect(updated()).toEqual(["Canvas", "FxBar", "Ribbon", "Status", "TableRibbon"]);
     counts.clear();
     const r2 = T.rows[1] ?? r, c2 = T.cols[1] ?? c;
     await act(async () => { setSel(0, { r, c }, { r: r2, c: c2 }); });          // extend it (Shift+arrow)
     await settle();
     report("extend the selection");
     expect(updated().length).toBeLessThanOrEqual(5);
-    expect(updated().every(n => ["FxBar", "Ribbon", "Status", "TableRibbon"].includes(n))).toBe(true);
+    expect(updated().every(n => ["Canvas", "FxBar", "Ribbon", "Status", "TableRibbon"].includes(n))).toBe(true);
   });
 
   it("a poll that brings nothing new re-renders nothing", async () => {
@@ -94,7 +93,7 @@ describe("render counts", () => {
 
   it("a poll from the helper that brings equal answers (new objects, new seen-at times) re-renders nothing", async () => {
     // the offline backend answers null / []; the helper answers a new object on every poll
-    const health = (): Health => ({ app: "Slide Builder", version: "3.4.0", user: "anna", host: "pc-anna", folder: "T:\\Slide Builder", export: "T:\\Slide Builder\\export", engine: { state: "ready", browser: "Chrome", local: false, error: null, engines: [{ name: "DevTools", label: "DevTools · Chrome", state: "ok", detail: "" }] } });
+    const health = (): Health => ({ app: "Slide Builder", version: "3.4.0", user: "anna", host: "pc-anna", folder: "T:\\Slide Builder", export: "T:\\Slide Builder\\export" });
     let at = 1000;
     const bob = (): Other[] => [{ user: "bob", host: "pc-bob", client: "c-bob", workbook: "report.xlsx", at: at++ }];
     const h = vi.spyOn(backend, "health").mockImplementation(async () => health());

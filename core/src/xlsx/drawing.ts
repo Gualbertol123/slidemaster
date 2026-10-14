@@ -135,8 +135,20 @@ export async function readDrawing(zip: Zip, sheetPath: string, ctx: Pick<Shared,
   return res;
 }
 
+/** pictures being analysed: a second request for one waits for the first (each picture is read once) */
+const READING = new Map<string, Promise<void>>();
 /** small analysis so Liquid Glass can tell round badges (flags, icons) from ordinary pictures */
 export async function analyzeImages(srcs: (string | null | undefined)[]) {
+  const todo = [...new Set(srcs.filter((s): s is string => !!s && !IMGMETA.has(s)))];
+  const fresh = todo.filter(s => !READING.has(s)), waits = todo.filter(s => READING.has(s)).map(s => READING.get(s)!);
+  if (fresh.length) {
+    const p = readImages(fresh).finally(() => fresh.forEach(s => READING.delete(s)));
+    fresh.forEach(s => READING.set(s, p));
+    waits.push(p);
+  }
+  await Promise.all(waits);
+}
+async function readImages(srcs: string[]) {
   const images = platform().images;
   if (images) {
     const todo = [...new Set(srcs.filter((s): s is string => !!s && !IMGMETA.has(s)))];

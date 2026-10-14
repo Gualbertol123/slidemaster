@@ -25,15 +25,14 @@ import type { Design, Op, Preset, Prefs, RuntimeSlide, StylePatch } from "@slide
 import type { AppState } from "./store";
 import { initialState } from "./store";
 import type { RenderCtx } from "@slide-builder/core/render/context";
-import { applyWall } from "../render/wall";
 import { loadFonts, watchFontLoads } from "./fonts";
+import { fontFile, fontReadable, measureCatalog } from "./fontfiles";
+import { setFontGate } from "../platform";
 
 /* ---------------------------------------------------------------- the core worker */
 let port: CorePort | null = null;
-/** the latest table HTML the worker drew, by table id and kind ("html" | "thtml") */
-const tableHtmls = new Map<string, { key: string; html: string }>();
-/** tables the page drew itself (no HTML from the worker for that key yet), for tests */
-export const coreStats = { localHtml: 0, worker: false };
+/** for tests: whether the core runs in a worker */
+export const coreStats = { worker: false, /** runs the worker had the page measure (S4.4: a font without a file there), and their fonts */ pageRuns: 0, pageFonts: [] as string[] };
 /** the workbook being opened (its slices can arrive before its index; they wait) and the open one */
 let openingWb: MirrorWorkbook | null = null, earlySlices: { book: number; shared: SharedSlice | null; sheets: SheetSlice[] }[] = [];
 export function core(): CorePort {
@@ -43,17 +42,23 @@ export function core(): CorePort {
   port.handle("postOps", a => backend.postOps(a.name, a.ops, a.client));
   port.handle("digitWidth", a => browserText.maxDigitWidth(a.font));
   // the display list's text, measured with the page's fonts (decision 2026-10-12, 3; browserText answers synchronously)
-  port.handle("measureRuns", a => browserText.measureRuns!(a.runs) as RunMetrics[]);
+  port.handle("measureRuns", a => {
+    coreStats.pageRuns += a.runs.length;
+    for (const r of a.runs) if (coreStats.pageFonts.length < 20 && !coreStats.pageFonts.includes(r.font)) coreStats.pageFonts.push(r.font);
+    return browserText.measureRuns!(a.runs) as RunMetrics[];
+  });
   port.handle("breakLines", a => browserText.breakLines!(a.reqs) as string[][]);
-  port.handle("fitNotes", a => browserText.fitNotes!(a.reqs) as number[]);
   port.handle("convertPicture", a => backend.convertPicture(a.bytes, a.ext));
+  port.handle("fontCatalog", () => measureCatalog());
+  setFontGate(fontReadable);
+  port.handle("fontFile", a => fontFile(a));
   port.handle("analyzeImages", async a => { await analyzeImages(a.srcs); return a.srcs.flatMap(s => IMGMETA.has(s) ? [[s, IMGMETA.get(s)!] as [string, ImgMeta]] : []); });
   port.on("slices", e => {
     const wb = [openingWb, get().deck.wb as MirrorWorkbook | null].find(w => w && w.book === e.book);
     if (wb) receiveSlices(wb, e); else if (!openingWb) earlySlices.push(e);        // the index of that workbook is on its way
   });
-  port.on("html", list => { for (const [id, kind, key, h] of list) tableHtmls.set(id + "|" + kind, { key, html: h }); });
   port.on("doc", ev => onWorkerDoc(ev));
+  port.on("stage", s => STAGE.pushed(s));
   port.on("progress", p => { if (p) showBusy(p.text, p.frac); else hideBusy(); });
   port.on("retiredSaved", () => { unsavedElsewhere = false; });
   // an error in the worker's own work (e.g. a sheet read after a colleague's change): shown, never a busy screen left up
@@ -69,24 +74,6 @@ export function core(): CorePort {
 function receiveSlices(wb: MirrorWorkbook, e: { shared: SharedSlice | null; sheets: SheetSlice[] }) {
   wb.receive(e.shared, e.sheets);
   LCACHE.clear();                                            // layouts of the replaced sheets
-}
-const htmlOf = (id: string, kind: "html" | "thtml", key: string) => {
-  const h = tableHtmls.get(id + "|" + kind);
-  if (h && h.key === key) return h.html;
-  coreStats.localHtml++; return undefined;
-};
-/** the worker's table HTML for another design, version or an export (one request per design and version until
-    the document changes: an export asks for every slide) */
-const htmlForCache = new Map<string, { view: unknown; of: Promise<RenderCtx["htmlOf"]> }>();
-export function htmlFor(design: Design, version: string, forExport: boolean): Promise<RenderCtx["htmlOf"]> {
-  const k = design + "|" + version + "|" + forExport, view = get().doc.view, hit = htmlForCache.get(k);
-  if (hit && hit.view === view) return hit.of;
-  const of = core().call("html", { design, version, forExport, thumb: false }).then(list => {
-    const m = new Map(list.map(([id, kind, key, h]) => [id + "|" + kind + "|" + key, h]));
-    return (id: string, kind: "html" | "thtml", key: string) => m.get(id + "|" + kind + "|" + key);
-  });
-  htmlForCache.clear(); htmlForCache.set(k, { view, of });
-  return of;
 }
 /** what the worker's renderers need from the page */
 function viewInputs(name = get().deck.file?.name || ""): ViewInputs {
@@ -107,7 +94,7 @@ export function ctx(): RenderCtx {
   const st = style();
   const c: RenderCtx = { style: st, edits: v?.edits || {}, slides, preset: v?.preset || null, workbook: file?.name || "",
     logoSrc: st.logo.trim() ? backend.assetUrl(st.logo.trim()) : "", sheet: n => wb?.sheets.find(x => x.name === n) || null,
-    version: (v?.preset?.versions || []).find(x => x.id === version) || null, htmlOf };
+    version: (v?.preset?.versions || []).find(x => x.id === version) || null };
   ctxCache = { key, ctx: c };
   return c;
 }
@@ -120,7 +107,6 @@ export async function boot() {
   await core().call("init", { served: backend.served, client: get().prefs.client, me: get().prefs.user });
   watchFontLoads(); await loadFonts();
   const zoom = get().prefs.prefs.zoom; if (zoom != null) patch("ui", { zoom });
-  applyWall(style());
   if (backend.served) {
     const files = await backend.files().catch(() => []);
     const last = get().prefs.prefs.lastFile;
@@ -306,7 +292,8 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   const version = ((newPreset || preset)?.versions || []).some(x => x.id === vid) ? vid : "";
   starting = true; pending.length = 0;
   let st;
-  try { st = await core().call("start", { book: wb.book, name, doc, preset: newPreset, inputs: { ...viewInputs(name), version } }); }
+  // the stage's slide is drawn first: the one shown before, if the new deck has it, as the slides are resolved below
+  try { st = await core().call("start", { book: wb.book, name, doc, preset: newPreset, inputs: { ...viewInputs(name), version }, stage: STAGE.request(get().deck.cur) }); }
   catch (e) {
     // refused before the switch (another open came first): the worker still has the open document, and so does the page
     if ((e as { code?: string }).code === "NOT_STARTED") { patch("deck", { opening: "" }); throw gen !== openGen ? superseded() : e; }
@@ -318,9 +305,6 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   finally { starting = false; }
   base = st.view; predicted = { base, key: "" };
   openingWb = null;                                          // now the open one (deck.wb)
-  // the HTML of tables this document does not have (the previous workbook's) is dropped; the new HTML came with start
-  const ids = new Set((st.view.preset?.tables || []).map(t => t.id));
-  for (const k of [...tableHtmls.keys()]) if (!ids.has(k.slice(0, k.lastIndexOf("|")))) tableHtmls.delete(k);
   const design = resolveStyle(get().doc.config.defaults.style, st.view.style).design;
   const slides = runtimeSlides(wb, st.view.preset, name, design); slidesDesign = design;
   presetSig = JSON.stringify(st.view.preset);
@@ -332,7 +316,6 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
     selection: { sel: null },
     ui: { logoMissing: false, changedOnDisk: false },
   });
-  applyWall(style());
   STAGE.render(); THUMBS.render();
   void heartbeat();
 }
@@ -410,19 +393,11 @@ function onStyleChanged(configChanged = false) {
     const i = slides.findIndex(R => R.id === keep);
     patchAll({ deck: { slides, ...(i >= 0 ? { cur: i } : {}) }, selection: { sel: null } });
   }
-  applyWall(style());
-  // a new shared default style: the worker draws with it first, then the slides are redrawn with its HTML
+  // a new shared default style: the worker draws with it first, then the slides are redrawn
   if (get().doc.open && configChanged) void core().call("inputs", viewInputs()).then(() => { STAGE.render(); THUMBS.render(); });
   else { STAGE.render(); THUMBS.render(); }
 }
 let slidesDesign: Design | null = null;
-/** the slides as `design` shows them (the current ones, or resolved again for another design – exports) */
-export function slidesFor(design: Design): RuntimeSlide[] {
-  const { wb, file, slides } = get().deck;
-  if (design === slidesDesign || !wb || !file) return slides;
-  const other = runtimeSlides(wb, get().doc.view?.preset || null, file.name, design);
-  return slides.map(R => other.find(x => x.id === R.id) || R);
-}
 /** every edit goes through here: ops go to the worker (which applies them, saves them and keeps them undoable);
     the mirror shows them at once */
 export function change(label: string, ops: Op[], coalesce?: string) {
@@ -479,8 +454,7 @@ export function gotoSlide(i: number) {
   if (i < 0 || i >= slides.length || i === cur) return;
   patchAll({ deck: { cur: i }, selection: { sel: null } }); STAGE.render();
 }
-/** the stage follows ui.zoom (editor/stage.ts) */
-/** the stage re-fits when the zoom changes (editor/stage.ts follows ui.zoom); "Fit" pressed again re-fits too
+/** the stage re-fits when the zoom changes (stage/Stage.tsx follows ui.zoom); "Fit" pressed again re-fits too
     (the panels above the stage may have changed its size since) */
 export function setZoom(z: "fit" | number) { const unchanged = get().ui.zoom === z; patch("ui", { zoom: z }); setPrefs({ zoom: z }); if (unchanged) STAGE.fit(); }
 
@@ -528,7 +502,7 @@ export function lookAt(): { theme?: Record<string, unknown>; colors?: Record<str
 export function showVersion(id: string) {
   patch("deck", { version: id });
   const { file } = get().deck; if (file) setPrefs({ versions: { ...(get().prefs.prefs.versions || {}), [file.name]: id } });
-  // the worker draws this version first; the slides are then redrawn with its HTML
+  // the worker takes this version first; the stage and thumbnails are then drawn with it
   if (get().doc.open) void core().call("inputs", viewInputs()).then(() => { STAGE.render(); THUMBS.render(); });
   else { STAGE.render(); THUMBS.render(); }
 }

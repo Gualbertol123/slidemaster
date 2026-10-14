@@ -17,15 +17,23 @@ from pypdf import PdfReader
 
 
 def page_text(page):
-    runs = []
+    """the page's text runs without artifacts (marked content /Artifact: decorative copies such as a title's text
+    shadow in the native export are drawn but not text, PDF 32000 §14.8.2.2 – as tools/pdfcheck.py page_text)"""
+    runs, stack = [], []
+
+    def before(op, args, cm, tm):
+        if op in (b"BMC", b"BDC"):
+            stack.append(str(args[0]) if args else "")
+        elif op == b"EMC" and stack:
+            stack.pop()
 
     def visit(text, cm, tm, font, size):
         # pypdf calls the visitor once more at the end with the whole page's text: that is not a run
-        if not text or not text.strip() or "\n" in text.strip():
+        if not text or not text.strip() or "\n" in text.strip() or "/Artifact" in stack:
             return
         name = str(font.get("/BaseFont", "")) if font else ""
         runs.append({"s": text.strip(), "font": name.split("+", 1)[-1]})
-    page.extract_text(visitor_text=visit)
+    page.extract_text(visitor_operand_before=before, visitor_text=visit)
     return runs
 
 

@@ -6,7 +6,7 @@ import { change, ctx } from "../state/app";
 import { buildLayout } from "@slide-builder/core/xlsx/layout";
 import type { TableLayout } from "@slide-builder/core/xlsx/types";
 import type { Layout, Op, RuntimeSlide, TableDef } from "@slide-builder/core/model/types";
-import { computeLayout, layoutOf, sizingChange, sizingOf, tableW } from "@slide-builder/core/render/slide";
+import { computeLayout, layoutOf, sizingChange, sizingOf, tableW } from "@slide-builder/core/render/layout";
 import { tableSizes } from "@slide-builder/core/model/preset";
 import type { RenderCtx } from "@slide-builder/core/render/context";
 import { glassGeom } from "@slide-builder/core/render/glass";
@@ -53,6 +53,14 @@ export function setRowHeight(L: TableLayout, rows: number[], px: number | null, 
   const m: Record<string, number | null> = {};
   for (const r of rows) m[r] = px === null ? null : r1(Math.max(4, px));
   change(label, [sizePatch(L.def, { rows: m })]);
+}
+
+/** back to the workbook's widths and heights for these columns and rows (the "Excel size" button; one undo step): the
+    sizes of the design shown, where W, H and the drags keep them – as a double-click on a border does */
+export function resetCellSizes(L: TableLayout, cols: number[], rows: number[]) {
+  if (!L.def || !(cols.length || rows.length)) return;
+  const none = (keys: number[]): SizeMap | undefined => keys.length ? Object.fromEntries(keys.map(k => [k, null])) : undefined;
+  change("Excel sizes", [sizePatch(L.def, { cols: none(cols), rows: none(rows) })]);
 }
 
 /** stretch a table: every column (axis "x") or row ("y") times f – dragging a table border */

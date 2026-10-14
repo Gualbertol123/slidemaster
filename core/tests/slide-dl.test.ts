@@ -1,5 +1,6 @@
-/* Slide furniture → display list (S3.5): the whole slide as slideMarkup + slide.css draw it. The pixels and boxes
-   against the goldens are tools/dlparity.mjs's job; these tests pin the rules with a deterministic measurer. */
+/* Slide furniture → display list (S3.5): the whole slide as v3's slideMarkup + slide.css drew it (both removed in
+   S4.5). The pixels and boxes against the goldens are tools/dlparity.mjs's job; these tests pin the rules
+   with a deterministic measurer. */
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
@@ -12,7 +13,9 @@ import { runtimeSlides } from "../src/model/preset";
 import { resolveStyle } from "../src/model/style";
 import { excelToDisplayList, lu, measuredBuild, type Metrics } from "../src/render/excel-dl";
 import { slideToDisplayList } from "../src/render/slide-dl";
-import { computeLayout, memoPart, noteParts, slideMarkup } from "../src/render/slide";
+import { memoPart, noteParts } from "../src/render/slide";
+import { pageNoFor, pageNoGeom } from "../src/render/pagenumbers";
+import { computeLayout } from "../src/render/layout";
 import { breakRuns, wrapLines } from "../src/text/lines";
 import { setPlatform, resetPlatform } from "../src/platform";
 import type { RenderCtx } from "../src/render/context";
@@ -25,7 +28,6 @@ const ab = (f: string) => { const b = fs.readFileSync(f); return b.buffer.slice(
 const M: Metrics = {
   run: (t, font) => { const size = parseFloat(/([\d.]+)px/.exec(font)![1]); return { w: [...t].length * size * .5, asc: size * .8, desc: size * .2 }; },
   lines: (t, font, width) => { const size = parseFloat(/([\d.]+)px/.exec(font)![1]); return wrapLines(t, width, s => [...s].length * size * .5); },
-  noteSize: (_n, start) => start,
 };
 const flat = (l: DisplayList): Node[] => l.flatMap(n => n.t === "group" ? [n, ...flat(n.children)] : [n]);
 const hits = (l: DisplayList) => flat(l).filter((n): n is HitNode => n.t === "hit" && n.kind === "f");
@@ -45,19 +47,45 @@ async function deck(file: string, design: Design) {
   };
   return { ctx, slides, build };
 }
-/** the classes of the elements slideMarkup writes that the parity tools pair with hits */
-const markupClasses = (html: string) => [...html.matchAll(/class="([^"]+)"/g)].map(m => m[1])
-  .filter(c => /^(title|subtitle|tnote|notebub|gls wb card notebub|pageno|gls wb chrome|logowrap|logo$|cv-|cvx-|ix-|tw$)/.test(c) && !/^(cv-orb|cv-tile)/.test(c));
+/** the furniture elements v3's slideMarkup wrote for weekly-options.json (cover, contents, content), by class – the
+    ones the parity tools pair with hits; recorded from slideMarkup at S4.4 (502214c) before it was removed */
+const MARKUP: Record<Design, Record<string, number>[]> = {
+  excel: [
+    {"cvx-panel":1, "cvx-band":1, "cvx-band b2":1, "cv-block x":1, "cv-title":1, "cv-bar":1, "cv-sub":1, "cvx-rule":1, "cvx-date":1, "logowrap big":1, "logo":1},
+    {"title":1, "ix-row x":1, "ix-n":1, "ix-txt":1, "ix-t":1, "ix-s":1, "ix-lead":1, "ix-p":1, "pageno plain":1, "pageno plain footer":1, "logowrap":1, "logo":1},
+    {"title":1, "subtitle":1, "pageno plain":1, "pageno plain footer":1, "tw":2, "logowrap":1, "logo":1}],
+  clean: [
+    {"cvx-panel":1, "cvx-band":1, "cvx-band b2":1, "cv-block x":1, "cv-title":1, "cv-bar":1, "cv-sub":1, "cvx-rule":1, "cvx-date":1, "logowrap big":1, "logo":1},
+    {"title":1, "ix-row x":1, "ix-n":1, "ix-txt":1, "ix-t":1, "ix-s":1, "ix-lead":1, "ix-p":1, "pageno plain":1, "pageno plain footer":1, "logowrap":1, "logo":1},
+    {"title":1, "subtitle":1, "pageno plain":1, "pageno plain footer":1, "tw":2, "tnote top free":1, "notebub x":1, "tnote right bub":1, "tnote bottom auto":1, "tnote memo free bottom":1, "logowrap":1, "logo":1}],
+  glass: [
+    {"gls wb chrome cv-orb":1, "gls wb chrome cv-tile":1, "gls wb chrome cv-orb small":1, "cv-block g":1, "cv-title":1, "cv-bar":1, "cv-sub":1, "gls wb chrome cv-chip":1, "gls wb chrome logowrap":1, "logo":1},
+    {"title":1, "gls wb chrome card ix-card":1, "ix-row g":1, "ix-n":1, "ix-txt":1, "ix-t":1, "ix-s":1, "ix-lead":1, "ix-p":1, "gls wb chrome pageno":1, "pageno plain footer":1, "gls wb chrome logowrap":1, "logo":1},
+    {"title":1, "subtitle":1, "gls wb chrome pageno":1, "pageno plain footer":1, "tw":2, "tnote top free":1, "gls wb card notebub":1, "tnote right bub":1, "tnote bottom auto":1, "tnote memo free bottom":1, "gls wb chrome logowrap":1, "logo":1}],
+};
 
 describe("the whole slide", () => {
-  for (const design of ["excel", "clean", "glass"] as Design[]) it(`${design}: every furniture element of slideMarkup has its hit, in the same order per class; the lists validate`, async () => {
+  for (const design of ["excel", "clean", "glass"] as Design[]) it(`${design}: every furniture element of v3's slideMarkup has its hit; the lists validate`, async () => {
     const { ctx, slides, build } = await deck("weekly-options.json", design);
     for (let i = 0; i < slides.length; i++) {
       const dl = build(i);
       expect(validate(dl.nodes)).toEqual([]);
-      const html = slideMarkup(slides[i], i, ctx).html, want = markupClasses(html).filter(c => c !== "logo" || !!ctx.logoSrc);
-      const got = hits(dl.nodes).map(h => h.id);
-      for (const c of new Set(want)) expect(got.filter(g => g === c).length, `${design} slide ${i + 1}: ${c}`).toBe(want.filter(w => w === c).length);
+      const want = MARKUP[design][i], got = hits(dl.nodes).map(h => h.id);
+      expect(slides.length).toBe(MARKUP[design].length);
+      for (const [c, n] of Object.entries(want)) expect(got.filter(g => g === c).length, `${design} slide ${i + 1}: ${c}`).toBe(n);
+    }
+  });
+  it("a logo file that cannot be read (no size): no bubble and no picture, as v3 hid it; the page number stays put", async () => {
+    for (const design of ["glass", "excel"] as Design[]) {
+      const { ctx, slides } = await deck("weekly-options.json", design);
+      const R = slides[slides.length - 1], i = slides.length - 1, boxes = computeLayout(R, ctx).boxes, tables = R.tables.map(L => excelToDisplayList(L, ctx, M));
+      const make = (w: number) => slideToDisplayList(R, i, ctx, tables, boxes, { wall: null, logo: { id: "logo", src: "logo.png", w, h: w ? 100 : 0 } }, M, "x").nodes;
+      const ok = hits(make(400)).map(h => h.id), missing = hits(make(0));
+      expect(ok.some(c => /logowrap|^logo$/.test(c)), design).toBe(true);
+      expect(missing.some(h => /logowrap|^logo$/.test(h.id)), design).toBe(false);
+      expect(flat(make(0)).some(n => n.t === "image" && n.id === "logo")).toBe(false);
+      const pn = (l: DisplayList) => hits(l).filter(h => /pageno/.test(h.id)).map(h => [h.x, h.y]);
+      expect(pn(make(0))).toEqual(pn(make(400)));
     }
   });
   it("a title too long for its box is cut with an ellipsis that fits; the hit keeps the whole text", async () => {
@@ -70,18 +98,21 @@ describe("the whole slide", () => {
     expect(h.h).toBeCloseTo(lu(1.4 * 44), 2);                        // the page's line-height 1.4 (body font: 13px/1.4)
     void ctx;
   });
-  it("text boxes: padding, the page's fitted size, pre-wrap lines, the side's alignment and justification", async () => {
+  it("text boxes: padding, the fitted size (the largest from the start, 1 px steps, whose text fits), pre-wrap lines, the side's alignment", async () => {
     const { ctx, slides } = await deck("weekly-options.json", "clean");
     const R = slides[2], parts = noteParts(R, 0, ctx), boxes = computeLayout(R, ctx).boxes;
     expect(parts.length).toBeGreaterThan(0);
-    const asked: number[] = [];
-    const m: Metrics = { ...M, noteSize: (n, start) => { asked.push(start); return start - 4; } };
+    // wide letters: the text wraps over many lines at the start size, fewer as it shrinks
+    const at = (font: string) => parseFloat(/([\d.]+)px/.exec(font)![1]);
+    const m: Metrics = { ...M, run: (t, font) => ({ w: [...t].length * at(font) * 3, asc: at(font) * .8, desc: at(font) * .2 }) };
     const dl = slideToDisplayList(R, 2, ctx, R.tables.map(L => excelToDisplayList(L, ctx, M)), boxes, { wall: null, logo: null }, m, "x");
-    expect(asked.length).toBeGreaterThan(0);
-    const p = parts[0], ts = textsAfter(dl.nodes, p.cls);
+    const p = parts[0], ts = textsAfter(dl.nodes, p.cls), nb = boxes[0].notes[p.side]!, start = p.n.size || 18, padY = p.cls.includes(" bub") ? 10 : 4;
     expect(ts.length).toBeGreaterThan(0);
-    expect(ts[0].size).toBe((p.n.size || 18) - 4);
-    const nb = boxes[0].notes[p.side]!, bub = p.cls.includes(" bub");
+    const z = ts[0].size;
+    expect(z).toBeLessThan(start); expect(z).toBeGreaterThanOrEqual(9); expect(Number.isInteger(start - z)).toBe(true);
+    // the size taken fits: its last line ends inside the box's padding
+    if (z > 9) expect(Math.max(...ts.map(t => t.y)) + z * .2).toBeLessThanOrEqual(nb.y + nb.h - padY + 1);
+    const bub = p.cls.includes(" bub");
     expect(Math.min(...ts.map(t => t.x))).toBeGreaterThanOrEqual(nb.x + (bub ? 18 : 6) - .01);
   });
   it("a page number in the top-left corner moves the title and subtitle to 56 + its width + 22, in every design", async () => {
@@ -89,7 +120,7 @@ describe("the whole slide", () => {
       const { ctx, slides, build } = await deck("weekly.json", design);
       ctx.style.pn = { ...ctx.style.pn, on: true, pos: "tl" };
       slides[0].subtitle = slides[0].subtitle || "A subtitle";
-      const html = slideMarkup(slides[0], 0, ctx).html, left = +/class="title"[^>]*style="left:([\d.]+)px/.exec(html)![1];
+      const left = 56 + pageNoGeom(ctx, pageNoFor(ctx, 0)!, design === "glass", true, slides[0].type === "cover").w + 22;
       const hs = hits(build(0).nodes);
       expect(hs.find(h => h.id === "title")!.x).toBeCloseTo(left, 6);
       expect(hs.find(h => h.id === "subtitle")!.x).toBeCloseTo(left, 6);
@@ -125,18 +156,18 @@ describe("the whole slide", () => {
     const pn = hits(build(slides.length - 1).nodes).filter(x => x.id.includes("pageno"));
     expect(pn.length).toBeGreaterThan(0);
   });
-  it("text boxes are fitted by the page in batches (fitNotes), one round with the rest", async () => {
+  it("text boxes are fitted on their own layout: every size measured in the same rounds as the rest", async () => {
     const { ctx, slides } = await deck("weekly-options.json", "clean");
     const R = slides[2], boxes = computeLayout(R, ctx).boxes;
-    let fits = 0;
-    setPlatform({ text: { maxDigitWidth: () => 7, noteFits: () => true,
-      measureRuns: async runs => runs.map(r => M.run(r.text, r.font)), breakLines: async reqs => reqs.map(q => [q.text]),
-      fitNotes: async reqs => { fits++; return reqs.map(r => r.start - 2); } } });
+    let rounds = 0;
+    const at = (font: string) => parseFloat(/([\d.]+)px/.exec(font)![1]);
+    setPlatform({ text: { maxDigitWidth: () => 7,
+      measureRuns: async runs => { rounds++; return runs.map(r => ({ ...M.run(r.text, r.font), w: [...r.text].length * at(r.font) * 3 })); }, breakLines: async reqs => reqs.map(q => [q.text]) } });
     try {
       const dl = await measuredBuild(m => slideToDisplayList(R, 2, ctx, [], boxes, { wall: null, logo: null }, m, "x"));
-      expect(fits).toBe(1);
+      expect(rounds).toBeLessThanOrEqual(3);
       const p = noteParts(R, 0, ctx)[0];
-      expect(textsAfter(dl.nodes, p.cls)[0].size).toBe((p.n.size || 18) - 2);
+      expect(textsAfter(dl.nodes, p.cls)[0].size).toBeLessThan(p.n.size || 18);
     } finally { resetPlatform(); }
   });
 });

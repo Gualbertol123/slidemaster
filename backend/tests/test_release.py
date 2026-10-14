@@ -44,8 +44,6 @@ class ReleaseTest(unittest.TestCase):
             "backend/slide_builder.html": "<!doctype html>",
             "backend/slidebuilder/__init__.py": 'APP_NAME = "slide-builder"\nVERSION = "3.4.0"\n',
             "backend/slidebuilder/server.py": "# server\n",
-            "backend/requirements.txt": "",
-            "backend/Install export engine.bat": "@echo off\r\n",
             "tools/update.py": "# updater\n",
             "tools/make_release.py": "# not shipped\n",
             "Start Slide Builder.bat": "@echo off\r\n",
@@ -89,7 +87,7 @@ class ReleaseTest(unittest.TestCase):
             man = json.loads(z.read("MANIFEST.json"))
             self.assertEqual(names, sorted([
                 "MANIFEST.json", "README.md", "Install Slide Builder.bat", "Start Slide Builder.bat", "Update Slide Builder.bat",
-                "backend/Install export engine.bat", "backend/requirements.txt", "backend/slide_builder.html",
+                "backend/slide_builder.html",
                 "backend/slide_builder.py", "backend/slidebuilder/__init__.py", "backend/slidebuilder/server.py", "tools/update.py"]))
             self.assertEqual(man["version"], "3.4.0")
             self.assertEqual(man["app"], "slide-builder")

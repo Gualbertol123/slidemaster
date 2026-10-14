@@ -59,7 +59,13 @@ async function openApp(page: Page, url: string) {
   page.on("requestfinished", async r => { if (!ids.has(r)) return; const res = await r.response().catch(() => null); trail.push(at() + " #" + ids.get(r) + " <- " + (res ? res.status() : "?") + " in " + Math.round(r.timing().responseEnd) + " ms"); });
   page.on("requestfailed", r => { if (ids.has(r)) trail.push(at() + " #" + ids.get(r) + " xx " + (r.failure()?.errorText || "")); });
   await page.goto(url);
-  await expect(page.locator("#srv")).toContainText(/Export|Testing/);
+  await page.locator("#openBtn").waitFor();                                       // the page has rendered…
+  await expect(page.locator("#srv")).toHaveCount(0);                              // …and the helper answered (S4.5: no engine pill)
+  // start-up reopens the user's last workbook: a workbook opened before that finished was replaced by it (as in
+  // open.spec) – wait until it is open
+  let last: string | null = null;
+  try { last = JSON.parse(fs.readFileSync(path.join(data(), "users", (url === ANNA ? "anna" : "bob") + ".json"), "utf8")).lastFile || null; } catch { /* first start */ }
+  if (last) await expect(page.locator("#fileName")).toHaveText(new RegExp("^" + last.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + " · \\d+ slides?"), { timeout: 30_000 });
 }
 async function openWorkbook(page: Page, name: string) {
   await page.click("#openBtn");
@@ -117,6 +123,25 @@ test.describe.serial("two people, one shared folder", () => {
     await lastFileSaved("anna", "report.xlsx");                 // the next tests re-open it
   });
 
+  test("thumbnails are pictures with their tags; an edit draws its own slide again, no other", async ({ page }) => {
+    await openApp(page, ANNA);                                     // re-opens report.xlsx (last file)
+    await expect(page.locator(".thumb")).toHaveCount(4);
+    await expect(page.locator(".thumb .frame canvas")).toHaveCount(4, { timeout: 15_000 });
+    await expect(page.locator(".thumb .tag")).toHaveText(["cover", "index"]);
+    const w = await page.locator('.thumb[data-i="2"] .frame canvas').evaluate(c => (c as HTMLCanvasElement).width);
+    expect(w).toBe(Math.round(222 * await page.evaluate(() => devicePixelRatio)));
+    const drawn = () => page.evaluate(() => (window as unknown as { __sbTest: { thumbStats(): { drawn: number } } }).__sbTest.thumbStats().drawn);
+    await page.locator('.thumb[data-i="2"]').click();
+    await page.waitForTimeout(1500);
+    const before = await drawn();
+    await selectCell(page, "Alpha"); await page.keyboard.type("Alfa"); await page.keyboard.press("Enter");
+    await expect.poll(drawn, { timeout: 10_000 }).toBe(before + 1);
+    await page.waitForTimeout(1500);
+    expect(await drawn()).toBe(before + 1);                        // the index lists titles only: its picture stays
+    await page.keyboard.press("Control+z"); await saved(page);
+    await expect.poll(drawn, { timeout: 10_000 }).toBe(before + 2);
+  });
+
   test("edits by anna and bob on the same workbook are merged, and each sees the other", async ({ browser }) => {
     const a = await browser.newPage(), b = await browser.newPage();
     await openApp(a, ANNA); await openApp(b, BOB);
@@ -163,7 +188,7 @@ test.describe.serial("two people, one shared folder", () => {
   test("export writes a PDF into the shared export folder", async ({ page }) => {
     await openApp(page, ANNA);
     await expect(page.locator(".thumb")).toHaveCount(4);
-    // the native export (S3.7): the page writes the PDF – it does not wait for an export engine
+    // the native export (S3.7): the page writes the PDF
     expect(await exported(page, () => page.click("#exportBtn"))).toEqual(["report - slides.pdf"]);
     await expect(page.locator("#toast")).toContainText("report - slides.pdf");
     const read = (f: string) => fs.readFileSync(path.join(root(), "export", f));
@@ -205,11 +230,13 @@ test.describe.serial("two people, one shared folder", () => {
     expect(one).toMatch(/^report - .+\.pdf$/);
     expect(one).not.toBe("report - slides.pdf");
     expect((read(one).toString("latin1").match(/\/Type\s*\/Page\b/g) || []).length).toBe(1);
-    // the old engine, for one release: its own file name, next to the native one
-    await expect(page.locator("#srv")).toContainText("Export: Chrome", { timeout: 30_000 });
-    await page.click("#exportMenuBtn"); await page.click('[data-x="pdf-old"]');
-    await expect(page.locator("#toast")).toContainText("report (old engine) - slides.pdf", { timeout: 60_000 });
-    expect((read("report (old engine) - slides.pdf").toString("latin1").match(/\/Type \/Page\b/g) || []).length).toBe(4);
+    // the old engine is gone (S4.5): the menu has no item for it, and the helper no longer renders slides
+    await page.click("#exportMenuBtn");
+    await expect(page.locator('[data-x="pdf-vector"]')).toBeVisible();
+    await expect(page.locator('[data-x="pdf-old"]')).toHaveCount(0);
+    await page.click("#exportMenuBtn");
+    const token = await page.locator('meta[name="sb-token"]').getAttribute("content");
+    expect((await page.request.post(ANNA + "api/export", { data: {}, headers: { "X-SB-Token": token! }, failOnStatusCode: false })).status()).toBe(404);
   });
 
   test("PNG of the current slide and of every slide; the current slide copied to the clipboard", async ({ page, context }) => {
@@ -267,7 +294,9 @@ test.describe.serial("two people, one shared folder", () => {
     await openApp(a, ANNA); await openApp(b, BOB);
     await expect(a.locator(".thumb")).toHaveCount(4); await expect(b.locator(".thumb")).toHaveCount(4);
     await a.locator('.thumb[data-i="3"]').click(); await b.locator('.thumb[data-i="3"]').click();
-    const rects = (p: Page) => p.$$eval("#stage .slide > .tw", els => els.map(e => { const r = e.getBoundingClientRect(); return { x: r.left, w: r.width, h: r.height }; }));
+    // the decks' logo "logo.png" is not in the folder: the side panel says so (the slide draws no logo for it)
+    await expect(a.locator("#issues")).toContainText("Logo “logo.png” not found in the folder");
+    const rects =(p: Page) => p.$$eval("#stage .slide > .tw", els => els.map(e => { const r = e.getBoundingClientRect(); return { x: r.left, w: r.width, h: r.height }; }));
     const slideX = async (p: Page) => (await p.locator("#stage .slide").boundingBox())!.x;
 
     // same size + left alignment (one undo step each)
@@ -289,6 +318,16 @@ test.describe.serial("two people, one shared folder", () => {
     expect(t0.sizes.glass.cols).toMatchObject({ "3": 150, "4": 150 });           // anna's widths (in this design only)…
     expect(Object.values(pair.notes).map((n: any) => n.text)).toEqual(["Loans grew everywhere"]);   // …and bob's text box
     await expect(a.locator("#stage .tnote", { hasText: "Loans grew everywhere" })).toHaveCount(1, { timeout: 10_000 });
+    // "Excel size" (TA-02): the selected columns go back to the workbook's widths in this design (where W keeps them)
+    await selectCell(a, "R1"); await a.keyboard.press("Shift+ArrowDown"); await a.keyboard.press("Shift+ArrowRight");
+    await expect(a.locator("#nameBox")).toHaveText("SLIDE_3 pair!C5:D6");
+    const wide = (await a.locator("#stage .slide > .tw").first().boundingBox())!.width;
+    await a.click("#sizeReset"); await saved(a);
+    const t0r = doc().preset.tables.find((t: any) => t.id === pair.tables[0]);
+    expect([t0r.sizes?.glass?.cols?.["3"], t0r.sizes?.glass?.cols?.["4"]]).toEqual([undefined, undefined]);
+    await expect.poll(async () => (await a.locator("#stage .slide > .tw").first().boundingBox())!.width).toBeLessThan(wide - 10);
+    await a.keyboard.press("Escape"); await a.keyboard.press("Control+z"); await saved(a);           // one undo step: 150 px again
+    await pollFile(() => doc().preset.tables.find((t: any) => t.id === pair.tables[0]).sizes.glass.cols, { timeout: 10_000 }).toMatchObject({ "3": 150, "4": 150 });
 
     // colour scale on the second table
     const nums = a.locator("#stage .slide > .tw").nth(1).locator(".t", { hasText: /^-?[\d.]+,\d$/ });
@@ -302,7 +341,56 @@ test.describe.serial("two people, one shared folder", () => {
     // corners and contrast are deck settings
     await a.click("#optBtn"); await a.locator("#radiusRange").fill("0"); await a.locator("#contrastRange").fill("80"); await a.keyboard.press("Escape");
     await pollFile(() => doc().style, { timeout: 10_000 }).toMatchObject({ radius: 0, contrast: 80 });   // sliders apply after a short pause
+    // soft shadows on screen (B3, a personal setting): a true blur instead of the PDF's 5 layers, and back
+    const blurs = () => a.locator("#stage .slide svg filter feGaussianBlur").count();
+    expect(await blurs()).toBe(0);
+    await a.click("#optBtn"); await a.check("#softShadows"); await a.keyboard.press("Escape");
+    await expect.poll(blurs, { timeout: 10_000 }).toBeGreaterThan(0);
+    await a.click("#optBtn"); await a.uncheck("#softShadows"); await a.keyboard.press("Escape");
+    await expect.poll(blurs, { timeout: 10_000 }).toBe(0);
     await a.close(); await b.close();
+  });
+
+  test("drags on the slide: corner scale, grip move, border double-click – each one undo step", async ({ page }) => {
+    await openApp(page, ANNA);
+    await expect(page.locator(".thumb")).toHaveCount(4);
+    await page.locator('.thumb[data-i="3"]').click();                                     // SLIDE_3 pair: two tables
+    const design = () => doc().style.design || "glass", slideDef = () => doc().preset.slides[3];
+    const sizing = () => JSON.stringify(slideDef().sizes?.[design()] || {});
+    const rect = async (i: number) => (await page.locator(`#stage .slide > .tw[data-i="${i}"]`).boundingBox())!;
+    const undo = async () => { await page.locator("#stage .stagewrap").click({ position: { x: 4, y: 4 } }); await page.keyboard.press("Control+z"); };
+    await page.locator("#stage .stagewrap").hover();
+
+    // the corner of the first table: smaller, its proportions kept; one undo step back
+    const before = sizing(), w0 = (await rect(0)).width;
+    const corner = (await page.locator('#stage .hbox[data-i="0"] .size').boundingBox())!;
+    await page.mouse.move(corner.x + corner.width / 2, corner.y + corner.height / 2); await page.mouse.down();
+    await page.mouse.move(corner.x - 120, corner.y - 60, { steps: 8 }); await page.mouse.up();
+    await pollFile(sizing, { timeout: 10_000 }).not.toBe(before);
+    await expect.poll(async () => (await rect(0)).width).toBeLessThan(w0 - 20);
+    await undo();
+    await pollFile(sizing, { timeout: 10_000 }).toBe(before);
+
+    // the grip of the second table, dropped above the first one: the second table goes on top
+    const t0 = await rect(0), grip = (await page.locator('#stage .hbox[data-i="1"] .grip').boundingBox())!;
+    await page.mouse.move(grip.x + 10, grip.y + grip.height / 2); await page.mouse.down();
+    await page.mouse.move(t0.x + t0.width / 2, t0.y + 4, { steps: 8 });
+    await expect(page.locator("#stage .dropmark")).toBeVisible();
+    await page.mouse.up();
+    await pollFile(() => JSON.stringify(slideDef().sizes?.[design()]?.layout?.bands), { timeout: 10_000 }).toBe(JSON.stringify([[1], [0]]));
+    await expect.poll(async () => (await rect(1)).y).toBeLessThan((await rect(0)).y);
+    await undo();
+    await pollFile(sizing, { timeout: 10_000 }).toBe(before);
+
+    // a double-click on a column border: that column back to its Excel width (it was 150 px since "table tools")
+    const cols = () => doc().preset.tables.find((t: any) => t.id === slideDef().tables[0]).sizes[design()].cols;
+    expect(cols()["3"]).toBe(150);
+    const r1 = (await page.locator('#stage .slide > .tw[data-i="0"] .t', { hasText: /^R1$/ }).boundingBox())!;
+    await page.mouse.dblclick(r1.x + r1.width, r1.y + r1.height / 2);
+    await pollFile(() => cols()["3"] ?? "excel", { timeout: 10_000 }).toBe("excel");
+    expect(cols()["4"]).toBe(150);                                                        // only that column
+    await undo();
+    await pollFile(() => cols()["3"], { timeout: 10_000 }).toBe(150);
   });
 
   test("wizard table picker: Shift+arrows select, Enter adds the table", async ({ page }) => {
@@ -659,8 +747,11 @@ test.describe.serial("two people, one shared folder", () => {
   test("versions: Chief and All made in the wizard, cells removed in All, every version × design exported; superscripts", async ({ page }) => {
     await openApp(page, BOB);
     await expect(page.locator(".thumb")).toHaveCount(1);
-    // Excel's superscript "(1)" stays raised on the slide
-    await expect(page.locator("#stage .slide .t sup", { hasText: "(1)" }).first()).toBeVisible();
+    // Excel's superscript "(1)" stays raised on the slide: its own run (S4.1: an SVG <text>, was a <sup>), smaller than
+    // the text before it and above its baseline
+    const sup = page.locator("#stage .slide > .tw text", { hasText: /^\(1\)$/ }).first();
+    await expect(sup).toBeVisible();
+    expect(await sup.evaluate(el => { const p = el.previousElementSibling; return !!p && p.tagName === "text" && +el.getAttribute("y")! < +p.getAttribute("y")! && +el.getAttribute("font-size")! < +p.getAttribute("font-size")!; })).toBe(true);
     await page.click("#wizardBtn");
     await page.click('[data-a="next"]'); await page.click('[data-a="next"]');                // sheets → tables → slides
     await page.click('[data-a="versions"]');

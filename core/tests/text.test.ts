@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { cleanFamily, fontFaceCss, fontStack, guessFromName, parseGoogleCss, readFontInfo } from "../src/model/fonts";
+import { cleanFamily, fontFaceCss, fontStack, guessFromName, parseGoogleCss, readFontInfo, type FontFace } from "../src/model/fonts";
+import { pickFace } from "../src/text/resolve";
 import { cleanFmt, resolveStyle } from "../src/model/style";
-import { coverHtml, indexHtml } from "../src/render/cover";
-import { pageNoHtml } from "../src/render/pagenumbers";
-import { areaFor, computeLayout, sizingPatch } from "../src/render/slide";
-import { effNote, fmtCss, slideTextFmt, titleGeom } from "../src/render/text";
+import { slideToDisplayList } from "../src/render/slide-dl";
+import type { Metrics } from "../src/render/excel-dl";
+import { wrapLines } from "../src/text/lines";
+import type { DisplayList, Node, TextNode } from "../src/dl/types";
+import { areaFor, computeLayout, sizingPatch } from "../src/render/layout";
+import { effNote, slideTextFmt, titleGeom } from "../src/render/text";
 import type { RenderCtx } from "../src/render/context";
 import type { StylePatch } from "../src/model/types";
 
@@ -12,6 +15,16 @@ const ctx = (deck: StylePatch = {}, design: "glass" | "excel" | "clean" = "glass
   ({ style: { ...resolveStyle(deck), design }, edits: {}, slides: [], preset: null, workbook: "w", logoSrc: "" });
 const slide = (cfg: any = {}, extra: any = {}) => ({ id: "s", type: "content", tables: [], missing: 0, title: "Loans", subtitle: "", label: "Loans",
   cfg: { id: "s", type: "content", tables: [], ...cfg }, ...extra } as any);
+
+/** advances of 0.5 em per character, ascent .8 em, descent .2 em */
+const M: Metrics = {
+  run: (t, font) => { const size = parseFloat(/([\d.]+)px/.exec(font)![1]); return { w: [...t].length * size * .5, asc: size * .8, desc: size * .2 }; },
+  lines: (t, font, width) => { const size = parseFloat(/([\d.]+)px/.exec(font)![1]); return wrapLines(t, width, s => [...s].length * size * .5); },
+};
+const flat = (l: DisplayList): Node[] => l.flatMap(n => n.t === "group" ? [n, ...flat(n.children)] : [n]);
+/** the selectable texts of slide i as the display list draws them */
+const texts = (R: ReturnType<typeof slide>, i: number, c: RenderCtx) =>
+  flat(slideToDisplayList(R, i, c, [], [], { wall: null, logo: null }, M, "1 October 2026").nodes).filter((n): n is TextNode => n.t === "text" && !n.decorative);
 
 describe("fonts", () => {
   it("family names are made safe for CSS and HTML", () => {
@@ -28,6 +41,22 @@ describe("fonts", () => {
     expect(css).toContain("font-family:'Brand'");
     expect(css).toContain(`url("/fonts/Brand-700i.woff2") format('woff2')`);
     expect(css).toContain("font-weight:700;font-style:italic;unicode-range:U+0000-00FF;");
+  });
+  it("a copied Windows font (W13): each face declared for the weights Windows draws it with", () => {
+    // Segoe UI's static faces: Light 300, Semilight 350, Regular 400, Semibold 600, Bold 700, Black 900 (+ an italic)
+    const faces: FontFace[] = [...[300, 350, 400, 600, 700, 900].map((w): FontFace => ({ file: `s${w}.ttf`, weight: w, style: "normal" })), { file: "si.ttf", weight: 400, style: "italic" }];
+    const css = fontFaceCss([{ family: "Segoe UI", source: "system", faces }], f => "/fonts/" + f);
+    const range = (file: string) => /font-weight:(\d+ \d+);/.exec(css.split("\n").find(l => l.includes(file))!)![1];
+    expect(faces.map(f => range(f.file))).toEqual(["1 325", "326 375", "376 499", "500 649", "650 799", "800 1000", "1 599"]);
+    // no face of 600 or heavier (the italic here, a Regular-only family): bold falls outside, the browser synthesizes it
+    expect(fontFaceCss([{ family: "Solo", source: "system", faces: [{ file: "r.ttf", weight: 400, style: "normal" }] }], f => f)).toContain("font-weight:1 599;");
+    // the weights the designs use land where DirectWrite puts them (resolve.ts pickFace on Windows faces)
+    const sys = faces.filter(f => f.style === "normal").map(f => ({ weight: f.weight, italic: false, source: "system" }));
+    for (const w of [325, 375, 470, 500, 520, 640, 650, 680, 720, 740]) {
+      const [lo, hi] = range(`s${pickFace(sys, w, false)!.weight}.ttf`).split(" ").map(Number);
+      expect(w >= lo && w <= hi, `${w}`).toBe(true);
+    }
+    expect(fontFaceCss([{ family: "Brand", source: "upload", faces: faces.slice(2, 4) }], f => f)).toContain("font-weight:600;");   // uploads: as before
   });
   it("Google stylesheets: latin subsets only", () => {
     const css = `/* cyrillic */\n@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 400;\n  src: url(https://fonts.gstatic.com/c.woff2) format('woff2');\n  unicode-range: U+0301, U+0400-045F;\n}\n` +
@@ -55,8 +84,6 @@ describe("deck text styles", () => {
   it("a slide's own formatting sits on top of the deck style", () => {
     const c = ctx({ text: { title: { font: "Lato", b: false, color: "#112233" } } });
     expect(slideTextFmt(c, slide({ fmt: { title: { size: 60, color: "#AA0000" } } }), "title")).toEqual({ font: "Lato", b: false, color: "#AA0000", size: 60 });
-    expect(fmtCss({ font: "Lato", size: 60, b: false, i: true, color: "#AA0000", align: "center" }))
-      .toBe("font-family:'Lato','Segoe UI',Arial,sans-serif;font-size:60px;font-weight:400;font-style:italic;color:#AA0000;text-align:center");
   });
   it("text boxes take the deck's text box style, their own settings win", () => {
     const c = ctx({ text: { note: { font: "Inter", size: 24, b: true } } });
@@ -75,18 +102,22 @@ describe("deck text styles", () => {
   });
   it("cover, contents and page numbers use the text styles", () => {
     const c = ctx({ text: { title: { font: "Montserrat", size: 99 }, index: { font: "Lato", color: "#334455" }, pageno: { font: "Inter", b: true } }, pn: { on: true, font: "georgia" } });
-    const cv = coverHtml(slide({ type: "cover", note: "Kick", fmt: { note: { color: "#FF0000" } } }, { type: "cover" }), true, 1, c);
-    expect(cv).toContain("font-family:'Montserrat'");
-    expect(cv).not.toContain("font-size:99px");                           // the cover title keeps its automatic size…
-    expect(coverHtml(slide({ type: "cover", fmt: { title: { size: 90 } } }, { type: "cover" }), true, 1, c)).toContain("font-size:90px");   // …unless set on the cover
-    expect(cv).toMatch(/cv-kicker" data-edit="note" style="color:#FF0000"/);
-    c.slides = [slide()];
-    expect(indexHtml(slide({ type: "index" }, { type: "index" }), c, true)).toContain("font-family:'Lato','Segoe UI',Arial,sans-serif;color:#334455");
-    const pn = pageNoHtml(c, "3", true, false, false);
-    expect(pn).toContain("font-family:'Inter'");
-    expect(pn).toContain("font-weight:700");
-    expect(pageNoHtml(ctx({ pn: { on: true, font: "georgia" } }), "3", true, false, false)).toContain("font-family:Georgia");   // older decks keep their page-number font
+    const cover = slide({ type: "cover", note: "Kick", fmt: { note: { color: "#FF0000" } } }, { type: "cover" }), index = slide({ type: "index" }, { type: "index" });
+    c.slides = [cover, index, slide()];
+    const cv = texts(cover, 0, c), title = cv.find(t => t.src === "Loans")!;
+    expect(title.css).toBe("'Montserrat','Segoe UI',Arial,sans-serif");
+    expect(title.size).toBe(80);                                              // the cover title keeps its automatic size…
+    c.slides[0] = slide({ type: "cover", fmt: { title: { size: 90 } } }, { type: "cover" });
+    expect(texts(c.slides[0], 0, c).find(t => t.src === "Loans")!.size).toBe(90);   // …unless set on the cover
+    expect(cv.find(t => t.src === "KICK")!.fill).toEqual({ solid: [255, 0, 0] });
+    const row = texts(index, 1, c).find(t => t.src === "Loans" && t.size !== 99)!;
+    expect([row.css, row.fill]).toEqual(["'Lato','Segoe UI',Arial,sans-serif", { solid: [0x33, 0x44, 0x55] }]);
+    const pn = texts(c.slides[2], 2, c).find(t => t.src === "3")!;
+    expect([pn.css, pn.weight]).toEqual(["'Inter','Segoe UI',Arial,sans-serif", 700]);
+    const old = ctx({ pn: { on: true, font: "georgia" } }); old.slides = [slide(), slide(), slide()];
+    expect(texts(old.slides[2], 2, old).find(t => t.src === "3")!.css).toMatch(/^Georgia/);   // older decks keep their page-number font
   });
+
 });
 
 /** a minimal TrueType file with a name table (family) and an OS/2 table (weight, italic bit) */

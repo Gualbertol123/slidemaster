@@ -1,8 +1,8 @@
 /* A whole slide → display list (PLAN S3.5): the background, the slide furniture – title, subtitle, cover, contents,
    page number, footer, logo –, the tables (their display lists, excel-dl.ts / glass-dl.ts, placed and scaled where
-   computeLayout puts them), the text boxes and the notes section, as slideMarkup + slide.css draw them. Text is
-   measured by the page (Metrics, decision 2026-10-12, 3), text boxes are fitted by the page (fitNotes, the same
-   fitNoteSize the screen uses). Every element the page has a box for gets a hit node: kind "f", id = its classes,
+   computeLayout puts them), the text boxes and the notes section, as v3's slideMarkup + slide.css drew them. Text is
+   measured from font files (Metrics, S4.4: text/measure.ts; the page where a font has no readable file); text boxes
+   are fitted here, on their own layout (v3's fitNoteSize rule: from the start size down in 1 px steps). Every element the page has a box for gets a hit node: kind "f", id = its classes,
    the label its text as a reader has it (innerText, whitespace normalised as the parity tools do).
    Painting order is the page's: the elements without z-index in tree order, then the z-index 3 ones (the cover's
    text block, the contents rows and separators of Liquid Glass), then the page numbers (z-index 5).
@@ -15,14 +15,15 @@ import type { RenderCtx } from "./context";
 import { cssLinear, glassBox, glassVars, type Wallpaper } from "./glass-dl";
 import { halfLeading, lu, primaryFamily, type Metrics, type TableDL } from "./excel-dl";
 import { pageNoFor, pageNoGeom, footerGeom, pageNumber, pnFmt } from "./pagenumbers";
-import { contrastVars, memoPart, noteParts, slideHasLogo, tableW, themeVars, type NotePart, type TBox } from "./slide";
+import { contrastVars, memoPart, noteParts, slideHasLogo, themeVars, type NotePart } from "./slide";
+import { tableW, type TBox } from "./layout";
 import { deckFmt, hasMarkup, slideTextFmt, titleGeom } from "./text";
 import { todayLabel } from "./cover";
 import { breakRuns, collapse } from "../text/lines";
 
-export const SLIDE_FONT = { glass: `-apple-system,"SF Pro Display","Segoe UI Variable Display","Segoe UI","Helvetica Neue",Inter,Arial,sans-serif`, excel: `"Century Gothic","CenturyGothic","URW Gothic","AppleGothic",Arial,sans-serif` };
-const GLASS_ROW_FONT = `-apple-system,"SF Pro Text","Segoe UI Variable Text","Segoe UI",Arial,sans-serif`;
-const NOTE_FONT = { excel: `'Century Gothic','URW Gothic',Arial,sans-serif`, clean: `'Segoe UI Variable Text','Segoe UI',Calibri,Arial,sans-serif` };
+export const SLIDE_FONT = { glass: `-apple-system,"SF Pro Display","Segoe UI","Helvetica Neue",Inter,Arial,sans-serif`, excel: `"Century Gothic","CenturyGothic","URW Gothic","AppleGothic",Arial,sans-serif` };
+const GLASS_ROW_FONT = `-apple-system,"SF Pro Text","Segoe UI",Arial,sans-serif`;
+const NOTE_FONT = { excel: `'Century Gothic','URW Gothic',Arial,sans-serif`, clean: `'Segoe UI',Calibri,Arial,sans-serif` };
 
 /** what the slide needs besides its tables: the wallpaper (Liquid Glass) and the logo's picture with its size */
 export interface SlideImages {
@@ -58,7 +59,7 @@ class Typesetter {
     const run = this.run(text, st), n = [...text].length;
     const tab = st.tnum && run.adv && run.adv.length === n ? { tnum: true, adv: run.adv.map(a => a + st.ls) } : st.tnum ? { tnum: true } : {};
     return { t: "text", font: primaryFamily(st.family) || "Arial", css: st.family, weight: st.weight, ...(st.italic ? { i: true } : {}), size: st.size, x: r2(x), y: r2(y), src: text,
-      w: Math.max(0, run.w + (n - 1) * st.ls), fill: st.color, ...tab, ...extra };
+      w: Math.max(0, run.w + (n - 1) * st.ls), ...(st.ls ? { ls: st.ls } : {}), fill: st.color, ...tab, ...extra };
   }
   /** a one-line text cut with an ellipsis to fit maxW (text-overflow: ellipsis); every prefix is measured in the same
       round, so the cut settles at once */
@@ -127,7 +128,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
 
   /* a nowrap line with an ellipsis in a box from left to 1600 − right (titles), the inherited line height unless set */
   function oneLine(cls: string, f: TextFmt, text: string, left: number, top: number, right: number, st0: TStyle, shadow: boolean) {
-    // a page number in the top-left corner: both texts start at 56 + its width + 22 (slideMarkup's inline left)
+    // a page number in the top-left corner: both texts start at 56 + its width + 22 (v3's slideMarkup's inline left)
     const st = withFmt(st0, f), x = shift ? 56 + shift : left, w = 1600 - right - x, lh = T.lineH(st, f.lh ? +f.lh : INHERITED);
     const plain = collapse(text).trim(), shown = T.ellipsis(plain, st, w), tw = T.adv(shown, st);
     const tx = f.align === "right" ? x + w - tw : f.align === "center" ? x + (w - tw) / 2 : x;
@@ -293,37 +294,45 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
           { t: "rect", x: X + .5, y: Y + .5, w: Math.max(0, W - 1), h: Math.max(0, H - 1), r: Math.max(0, r - .5), fill: solid("#FFFFFF"), stroke: { w: 1, paint: solid(clean ? "#E1E5EC" : "#BFBFBF") } });
       }
     }
-    // the box: padding 4 / 6 px (10 / 18 with a bubble), the font size the page fits, a flex column
+    // the box: padding 4 / 6 px (10 / 18 with a bubble), the fitted font size, a flex column
     const bub = part.cls.includes(" bub"), padY = bub ? 10 : 4, padX = bub ? 18 : 6;
     const start = n.size || (part.memo ? 13 : 18);
-    const size = m.noteSize({ design: d, className: part.cls, cssText: part.style, html: part.inner, w, h }, start);
-    const st: TStyle = withFmt({ family: glassy ? base : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel, size, weight: glassy ? 500 : 400, italic: false, color: solid(glassy ? "#0B0D17" : "#16181D"), ls: 0 },
-      { font: n.font, b: n.b || undefined, i: n.i || undefined, color: n.color }, { size: false });
     const align = n.align || (part.memo ? "left" : part.side === "left" ? "right" : "left"), lh = n.lh || 1.28, auto = part.cls.includes(" auto"), pre = !auto;
-    const cx = x + padX, cw = Math.max(0, w - 2 * padX), blocks: { nodes: Node[]; h: number; mt: number; mb: number; text?: string }[] = [];
-    const txt = part.txt;
-    let text = txt;
-    if (hasMarkup(txt) || n.pgap != null) {
-      const pgap = n.pgap != null ? n.pgap * size : null, a1 = glassy ? (tv["--a1"] || "#3B82F6") : "#2F75B5";
-      let prevNp = false;
-      const lines = txt.split("\n"), texts: string[] = [];
-      for (const raw of lines) {
-        const kind = raw.startsWith("## ") ? "nh" : raw.startsWith("# ") ? "nt" : raw.trim() ? "np" : "gap";
-        if (kind === "gap") { blocks.push({ nodes: [], h: pgap ?? .5 * size, mt: 0, mb: 0 }); prevNp = false; continue; }
-        const body = kind === "np" ? raw : raw.slice(kind === "nh" ? 3 : 2);
-        const bst: TStyle = kind === "nt" ? { ...st, size: r2(size * 1.32), weight: 800, color: glassy ? solid("#0B0D17") : solid(x1) } : kind === "nh" ? { ...st, weight: 700, color: solid(a1) } : st;
-        const runs = inlineRuns(body, bst), blh = kind === "nt" ? 1.15 : kind === "nh" ? 1.25 : lh;
-        const b = block(runs, cx, 0, cw, blh, align, pre);
-        blocks.push({ ...b, mt: kind === "np" && prevNp && !auto ? (pgap ?? 0) : 0, mb: kind === "nt" ? .1 * bst.size : 0 });
-        texts.push(b.text);
-        prevNp = kind === "np";
+    const cx = x + padX, cw = Math.max(0, w - 2 * padX), txt = part.txt;
+    // the box's text laid out at a font size: its blocks (paragraphs, headings, gaps) and its height
+    const lay = (size: number) => {
+      const st: TStyle = withFmt({ family: glassy ? base : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel, size, weight: glassy ? 500 : 400, italic: false, color: solid(glassy ? "#0B0D17" : "#16181D"), ls: 0 },
+        { font: n.font, b: n.b || undefined, i: n.i || undefined, color: n.color }, { size: false });
+      const blocks: { nodes: Node[]; h: number; mt: number; mb: number; text?: string }[] = [];
+      let text = txt;
+      if (hasMarkup(txt) || n.pgap != null) {
+        const pgap = n.pgap != null ? n.pgap * size : null, a1 = glassy ? (tv["--a1"] || "#3B82F6") : "#2F75B5";
+        let prevNp = false;
+        const lines = txt.split("\n"), texts: string[] = [];
+        for (const raw of lines) {
+          const kind = raw.startsWith("## ") ? "nh" : raw.startsWith("# ") ? "nt" : raw.trim() ? "np" : "gap";
+          if (kind === "gap") { blocks.push({ nodes: [], h: pgap ?? .5 * size, mt: 0, mb: 0 }); prevNp = false; continue; }
+          const body = kind === "np" ? raw : raw.slice(kind === "nh" ? 3 : 2);
+          const bst: TStyle = kind === "nt" ? { ...st, size: r2(size * 1.32), weight: 800, color: glassy ? solid("#0B0D17") : solid(x1) } : kind === "nh" ? { ...st, weight: 700, color: solid(a1) } : st;
+          const runs = inlineRuns(body, bst), blh = kind === "nt" ? 1.15 : kind === "nh" ? 1.25 : lh;
+          const b = block(runs, cx, 0, cw, blh, align, pre);
+          blocks.push({ ...b, mt: kind === "np" && prevNp && !auto ? (pgap ?? 0) : 0, mb: kind === "nt" ? .1 * bst.size : 0 });
+          texts.push(b.text);
+          prevNp = kind === "np";
+        }
+        text = texts.join("\n");
+      } else {
+        const b = block([{ text: auto ? collapse(txt) : txt, st }], cx, 0, cw, lh, align, pre);
+        blocks.push({ ...b, mt: 0, mb: 0 });
+        text = b.text;
       }
-      text = texts.join("\n");
-    } else {
-      const b = block([{ text: auto ? collapse(txt) : txt, st }], cx, 0, cw, lh, align, pre);
-      blocks.push({ ...b, mt: 0, mb: 0 });
-      text = b.text;
-    }
+      return { blocks, text, H: blocks.reduce((s, b) => s + b.mt + b.h + b.mb, 0) };
+    };
+    // fitted: the largest size from the start down (1 px steps while above 9 px) whose text fits the box's height – every
+    // size laid out in the same pass, so all of them are measured in one round
+    const sizes: number[] = []; for (let s = start; ; s -= 1) { sizes.push(s); if (s <= 9) break; }
+    const laid = sizes.map(lay), k = laid.findIndex(l => l.H + 2 * padY <= h + 1);
+    const { blocks, text } = laid[k < 0 ? laid.length - 1 : k];
     // flex column: justify-content from the side (top: at the end) or the box's vertical alignment
     const just = part.memo ? (n.valign === "top" ? "start" : n.valign === "bottom" ? "end" : "center")
       : n.valign ? (n.valign === "top" ? "start" : n.valign === "middle" ? "center" : "end") : part.side === "top" ? "end" : "start";
@@ -349,6 +358,9 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
   }
 
   function logoNodes(L: NonNullable<SlideImages["logo"]>) {
+    // a logo file that cannot be read (missing, not a picture): nothing is drawn – no empty bubble –, as v3 hid it; what
+    // a logo moves (page number, footer) stays where the deck's logo puts it
+    if (!L.w || !L.h) return;
     images[L.id] = L.src;
     const aspect = L.w && L.h ? L.w / L.h : 1;
     // an <img> of a given height and at most a width, object-fit: contain

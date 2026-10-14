@@ -67,12 +67,12 @@ jobs:
         with: { python-version: "3.12" }
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      # Ubuntu 24.04 forbids unprivileged user namespaces (AppArmor), so Chrome's sandbox cannot start and
-      # the helper's export engine sees "the browser closed immediately". Allow them, as on a normal desktop.
+      # Ubuntu 24.04 forbids unprivileged user namespaces (AppArmor), so a sandboxed Chrome cannot start (until 3.8 the
+      # helper's export engine saw "the browser closed immediately"). Allow them, as on a normal desktop.
       - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: e2e
         run: |
-          # playwright.config.ts reads CHROME (the helpers also use it as their export browser)
+          # playwright.config.ts reads CHROME
           export CHROME="$(node -e "console.log(require('playwright').chromium.executablePath())")"
           npm run test:e2e
       - uses: actions/upload-artifact@v4

@@ -1,8 +1,8 @@
 @echo off
 setlocal
 title Slide Builder - first-time set-up
-rem Runs "slide_builder.py --install": Python packages, export engine, shared-folder check,
-rem desktop shortcut and a self-test. No administrator rights needed. Safe to run again.
+rem Runs "slide_builder.py --install": Python check, shared-folder and journal checks,
+rem desktop shortcut and a self-test. Nothing is downloaded. No administrator rights needed. Safe to run again.
 rem pushd (not cd /d) so that this also works when the folder is opened as \\server\share\...
 pushd "%~dp0backend" || (echo The folder "%~dp0backend" cannot be opened. & pause & exit /b 1)
 

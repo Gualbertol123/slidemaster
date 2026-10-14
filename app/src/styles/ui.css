@@ -78,7 +78,7 @@ button{cursor:pointer}
 .thumbs{overflow:auto;padding:0 12px 12px;display:flex;flex-direction:column;gap:10px;flex:1;min-height:0}
 .thumb{position:relative;border:2px solid transparent;border-radius:10px;padding:0;background:none;text-align:left}
 .thumb .frame{width:222px;height:125px;border-radius:8px;overflow:hidden;position:relative;box-shadow:0 1px 3px rgba(20,24,40,.18);background:#fff}
-.thumb .frame .slide{position:absolute;left:0;top:0;transform-origin:0 0;transform:scale(.13875);pointer-events:none}
+.thumb .frame canvas{display:block;width:100%;height:100%}
 .thumb .cap{display:flex;gap:6px;align-items:center;font-size:12px;padding:5px 2px 0;color:var(--mute)}
 .thumb .cap b{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .thumb .cap .n{font-variant-numeric:tabular-nums}
@@ -132,13 +132,6 @@ button{cursor:pointer}
 .slide .dropmark{position:absolute;display:none;background:#0A66D8;border-radius:3px;pointer-events:none;z-index:46}
 .inline-edit{position:absolute;z-index:80;box-sizing:border-box;border:2px solid #0A66D8;border-radius:3px;padding:0 6px;background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.18);outline:none;font-family:var(--font)}
 
-/* render mode (used by the export engine) */
-body.render{overflow:visible;background:#fff}
-body.render .app,body.render .toast{display:none}
-#renderRoot{position:relative}
-#renderRoot .slide{position:relative}
-#renderRoot.stack .slide{break-after:page;page-break-after:always}
-#renderRoot.stack .slide:last-child{break-after:auto;page-break-after:auto}
 
 /* sheet chooser */
 .modal{position:fixed;inset:0;background:rgba(18,22,34,.38);display:flex;align-items:center;justify-content:center;z-index:300;backdrop-filter:blur(2px)}
@@ -277,7 +270,6 @@ table.xs td.mk{background:#FFF4CC!important;color:#9A6B00;font-weight:700;text-a
 .busyhint{margin-top:10px;font-size:12px;color:var(--mute)}
 .sheetrow .sz{font-variant-numeric:tabular-nums;color:var(--mute);font-size:12px;margin-left:auto;grid-column:auto}
 
-.instlog{margin:0 18px;max-height:260px;overflow:auto;background:#0F1420;color:#D6E2F5;border-radius:10px;padding:10px 12px;font:11.5px/1.45 Consolas,"Cascadia Mono",monospace;white-space:pre-wrap}
 
 .thumb .frame{content-visibility:auto;contain-intrinsic-size:222px 125px}
 

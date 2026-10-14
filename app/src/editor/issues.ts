@@ -3,7 +3,7 @@ import { A1, esc } from "@slide-builder/core/xlsx/util";
 import type { Sheet } from "@slide-builder/core/xlsx/types";
 import type { RuntimeSlide } from "@slide-builder/core/model/types";
 import { tableName } from "@slide-builder/core/model/preset";
-import { computeLayout, sizingOf } from "@slide-builder/core/render/slide";
+import { computeLayout, sizingOf } from "@slide-builder/core/render/layout";
 import type { RenderCtx } from "@slide-builder/core/render/context";
 
 export interface Issue { cls: "" | "ok" | "warn" | "err"; html: string }

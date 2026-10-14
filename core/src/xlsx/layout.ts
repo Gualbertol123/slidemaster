@@ -6,10 +6,8 @@ import type { Box, BorderSide, Cell, Dxf, Item, Pic, Rect, Sheet, TableLayout } 
 
 export const BW: Record<string, number> = { hair: 1, thin: 1, dotted: 1, dashDot: 1, dashDotDot: 1, dashed: 1, mediumDashDot: 2, mediumDashDotDot: 2, mediumDashed: 2, slantDashDot: 2, medium: 2, thick: 3, double: 3 };
 const BRANK: Record<string, number> = { hair: 1, dotted: 2, dashDotDot: 3, dashDot: 4, dashed: 5, thin: 6, mediumDashDotDot: 7, slantDashDot: 8, mediumDashDot: 9, mediumDashed: 10, medium: 11, thick: 12, double: 13 };
-const BCSS = (s: string) => ({ hair: "dotted", dotted: "dotted", dashDot: "dashed", dashDotDot: "dashed", dashed: "dashed", mediumDashDot: "dashed", mediumDashDotDot: "dashed", mediumDashed: "dashed", slantDashDot: "dashed", double: "double" } as Record<string, string>)[s] || "solid";
 export const heavier = (a: BorderSide | null | undefined, b: BorderSide | null | undefined): BorderSide | null =>
   !a ? (b || null) : !b ? a : (BRANK[b.style] || 0) > (BRANK[a.style] || 0) ? b : a;
-export const bcss = (b: BorderSide | null | undefined) => b ? `${BW[b.style] || 1}px ${BCSS(b.style)} ${b.color}` : "";
 
 /* ===================== markers → regions ===================== */
 export function findRegions(S: Sheet): TableLayout[] {

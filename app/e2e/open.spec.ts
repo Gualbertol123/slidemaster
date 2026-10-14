@@ -15,7 +15,8 @@ const saved = (page: Page) => expect(page.locator("#sbSave")).toHaveText("✓ Sa
 async function openApp(page: Page, errors: string[]) {
   page.on("pageerror", e => errors.push(e.message));
   await page.goto(ANNA);
-  await expect(page.locator("#srv")).toContainText(/Export|Testing/);
+  await page.locator("#openBtn").waitFor();                                       // the page has rendered…
+  await expect(page.locator("#srv")).toHaveCount(0);                              // …and the helper answered
   // start-up reopens the last workbook (a drop is ignored while a workbook is being opened): wait until it is open
   const last = lastFile();
   if (last) await expect(page.locator("#fileName")).toHaveText(new RegExp("^" + last.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + " · \\d+ slides?"), { timeout: 30_000 });

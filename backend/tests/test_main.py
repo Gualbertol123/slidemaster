@@ -23,7 +23,7 @@ def free_port():
 class EntryPointTests(TempDirs):
     def test_start_ping_and_second_start(self):
         port = free_port()
-        env = dict(os.environ, SLIDEBUILDER_ENGINES="none", PYTHONUNBUFFERED="1")
+        env = dict(os.environ, PYTHONUNBUFFERED="1")
         cmd = [sys.executable, os.path.join(BACKEND, "slide_builder.py"), "--port", str(port), "--no-browser"]
         p = subprocess.Popen(cmd, env=env, cwd=BACKEND, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         try:
@@ -36,7 +36,7 @@ class EntryPointTests(TempDirs):
                     break
                 except OSError:
                     time.sleep(0.1)
-            self.assertEqual(body, {"app": "slide-builder", "version": "3.7.0"})
+            self.assertEqual(body, {"app": "slide-builder", "version": "3.8.0"})
             with self.assertRaises(urllib.error.HTTPError) as cm:
                 opener.open("http://127.0.0.1:%d/api/health" % port, timeout=2)
             self.assertEqual(cm.exception.code, 403)
@@ -113,7 +113,7 @@ class SelfTestTests(TempDirs):
     """--selftest reads every saved setup without writing and probes create/rename/delete in data/locks"""
 
     def selftest(self):
-        env = dict(os.environ, SLIDEBUILDER_ENGINES="none")
+        env = dict(os.environ)
         return subprocess.run([sys.executable, os.path.join(BACKEND, "slide_builder.py"), "--selftest"], env=env, cwd=BACKEND,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=120)
 

@@ -5,7 +5,7 @@ import { parseColor } from "../src/dl/color";
 import { validate, type DisplayList, type GroupNode, type HitNode, type LineNode, type Node, type RectNode, type TextNode } from "../src/dl/types";
 import { resolveStyle } from "../src/model/style";
 import type { RenderCtx } from "../src/render/context";
-import { borderDash, BORDER_W, cssFont, lu, excelToDisplayList, measuredBuild, primaryFamily, roughMetrics, type Metrics } from "../src/render/excel-dl";
+import { borderDash, BORDER_W, cssFont, lu, excelToDisplayList, measuredBuild, primaryFamily, roughMetrics, seamFills, seamPath, SEAM, type Metrics } from "../src/render/excel-dl";
 import { setPlatform, resetPlatform } from "../src/platform";
 import { breakRuns, collapse, wrapLines } from "../src/text/lines";
 
@@ -13,7 +13,6 @@ import { breakRuns, collapse, wrapLines } from "../src/text/lines";
 const M: Metrics = {
   run: (t, font) => { const size = parseFloat(/([\d.]+)px/.exec(font)![1]); return { w: [...t].length * size * .5, asc: size * .8, desc: size * .2 }; },
   lines: (t, font, width) => { const size = parseFloat(/([\d.]+)px/.exec(font)![1]); return wrapLines(t, width, s => [...s].length * size * .5); },
-  noteSize: (_n, start) => start,
 };
 const ctx = (st = {}): RenderCtx => ({ style: resolveStyle(st), edits: {}, slides: [], preset: null, workbook: "w", logoSrc: "" });
 function item(o: Record<string, unknown>) {
@@ -200,7 +199,7 @@ describe("shapes, text boxes, pictures", () => {
 describe("measuring", () => {
   it("one batch per round from the platform; without a measurer, a rough estimate", async () => {
     const calls: string[] = [];
-    setPlatform({ text: { maxDigitWidth: () => 7, noteFits: () => true,
+    setPlatform({ text: { maxDigitWidth: () => 7,
       measureRuns: async runs => { calls.push("runs " + runs.length); return runs.map(r => M.run(r.text, r.font)); },
       breakLines: async reqs => { calls.push("lines " + reqs.length); return reqs.map(q => M.lines(q.text, q.font, q.width)); } } });
     try {
@@ -233,6 +232,54 @@ describe("measuring", () => {
     expect(parseColor("#0f08")).toEqual({ c: [0, 255, 0], a: 136 / 255 });
     expect(parseColor("transparent").a).toBe(0);
     expect(parseColor("nonsense")).toEqual({ c: [0, 0, 0], a: 1 });
+  });
+});
+describe("seams between fills", () => {
+  /** an item with a fill at x, y, w × h (table px) */
+  const cell = (bx: number, by: number, bw: number, bh: number, fill: string | null = "#1F4E79") => ({ bx, by, bw, bh, fill }) as never;
+  it("a fill reaches SEAM px under the opaque fill painted after it, on whichever side", () => {
+    // a b / c d, row by row: a under b (right) and c (below); b under d; c under d; d under nothing
+    expect(seamFills([cell(0, 0, 50, 20), cell(50, 0, 50, 20), cell(0, 20, 50, 20), cell(50, 20, 50, 20)]))
+      .toEqual([[0, 0, SEAM, SEAM], [0, 0, 0, SEAM], [0, 0, SEAM, 0], [0, 0, 0, 0]]);
+    // painted the other way round (right to left): the right one reaches left under the left one
+    expect(seamFills([cell(50, 0, 50, 20), cell(0, 0, 50, 20)])).toEqual([[SEAM, 0, 0, 0], [0, 0, 0, 0]]);
+  });
+  it("only where the later fills cover the whole edge: a merged cell above two cells, not above one of two", () => {
+    expect(seamFills([cell(0, 0, 100, 20), cell(0, 20, 50, 20), cell(50, 20, 50, 20)])[0]).toEqual([0, 0, 0, SEAM]);
+    expect(seamFills([cell(0, 0, 100, 20), cell(0, 20, 50, 20), cell(50, 20, 50, 20, null)])[0]).toEqual([0, 0, 0, 0]);
+    expect(seamFills([cell(0, 0, 100, 20), cell(0, 20, 50, 20)])[0]).toEqual([0, 0, 0, 0]);
+  });
+  it("never under a translucent fill, nor from one; at most the neighbour's own size", () => {
+    expect(seamFills([cell(0, 0, 50, 20), cell(50, 0, 50, 20, "rgba(0,0,0,.5)")])[0]).toEqual([0, 0, 0, 0]);
+    expect(seamFills([cell(0, 0, 50, 20, "rgba(0,0,0,.5)"), cell(50, 0, 50, 20)])[0]).toEqual([0, 0, 0, 0]);
+    expect(seamFills([cell(0, 0, 50, 20), cell(50, 0, .5, 20)])[0]).toEqual([0, 0, .5, 0]);
+  });
+  it("the display list: the first fill is one shape reaching SEAM px into its neighbour, which paints over it", () => {
+    const { nodes } = excelToDisplayList(layout([{ bx: 0, bw: 50, fill: "#1F4E79" }, { bx: 50, bw: 50, fill: "#1F4E79" }]), ctx(), M);
+    const fills = flat(nodes).filter(n => n.t === "rect" || n.t === "path");
+    expect(fills.map(n => n.t)).toEqual(["path", "rect"]);
+    const path = fills[0] as Extract<Node, { t: "path" }>;
+    // one outline: the box with a strip on its right
+    expect([path.rule, path.d]).toEqual(["nonzero", [["M", 0, 0], ["L", 50, 0], ["L", 50 + SEAM, 0], ["L", 50 + SEAM, 20], ["L", 50, 20], ["L", 0, 20], ["Z"]]]);
+    expect(validate(nodes)).toEqual([]);
+  });
+  it("no corner: a fill reaching right and down leaves the diagonal cell alone (it may have no fill)", () => {
+    // a b / c d with d empty: a reaches under b and under c; the corner square at (50, 20) is d's
+    const items = [cell(0, 0, 50, 20), cell(50, 0, 50, 20), cell(0, 20, 50, 20), cell(50, 20, 50, 20, null)];
+    expect(seamFills(items)[0]).toEqual([0, 0, SEAM, SEAM]);
+    const d = seamPath({ bx: 0, by: 0, bw: 50, bh: 20 }, [0, 0, SEAM, SEAM]);
+    const pts = d.flatMap(c => c[0] === "M" || c[0] === "L" ? [[c[1], c[2]]] : []);
+    const inside = (x: number, y: number) => {                            // even-odd ray test on the outline (a simple polygon)
+      let n = false;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const [xi, yi] = pts[i], [xj, yj] = pts[j];
+        if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) n = !n;
+      }
+      return n;
+    };
+    expect([inside(25, 10), inside(50.5, 10), inside(25, 20.5), inside(50.5, 20.5), inside(-.5, 10), inside(25, -.5)]).toEqual([true, true, true, false, false, false]);
+    expect(d.filter(c => c[0] === "M")).toHaveLength(1);                      // one outline, at most 12 points
+    expect(seamPath({ bx: 0, by: 0, bw: 50, bh: 20 }, [SEAM, SEAM, SEAM, SEAM]).filter(c => c[0] === "L")).toHaveLength(11);
   });
 });
 export type { RectNode };

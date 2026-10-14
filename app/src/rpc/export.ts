@@ -6,7 +6,7 @@
    HarfBuzz into the page a second time. */
 import WORKER_SRC from "virtual:core-worker";
 import { Port, transfer, type Wire } from "@slide-builder/core/rpc/port";
-import type { ExportJob, ExportMethods, ExportPageMethods, ExportResult } from "@slide-builder/core/rpc/messages";
+import type { ExportJob, ExportMethods, ExportPageMethods, ExportResult, Thumb, ThumbJob } from "@slide-builder/core/rpc/messages";
 import type { CorePort } from "./client";
 
 export type ExportPort = Port<ExportPageMethods, ExportMethods, Record<string, never>, Record<string, never>>;
@@ -95,5 +95,10 @@ export class ExportPool {
       this.last = { start, ...r.ms };
       return r;
     } finally { this.release(slot); }
+  }
+  /** thumbnails (S4.3): drawn by the next free worker, as a job */
+  async thumbs(job: ThumbJob): Promise<Thumb[]> {
+    const slot = await this.acquire();
+    try { await slot.ready; return await slot.port.call("thumbs", job); } finally { this.release(slot); }
   }
 }

@@ -1,9 +1,9 @@
-/* Liquid Glass → display list (PLAN S3.4): the same plan renderGlass writes as HTML (glass.ts glassPlan: buildScene,
-   inferRoles and every material decision unchanged), drawn with the recipes of 03 §4.3 from the values of
-   app/src/styles/slide.css, the CSS calc() expressions evaluated here for the glass level (--gi), the contrast veil
-   (--gfade) and the corner radius (--rk):
+/* Liquid Glass → display list (PLAN S3.4): the plan v3's renderGlass wrote as HTML (glass.ts glassPlan: buildScene,
+   inferRoles and every material decision unchanged; the HTML went in S4.5), drawn with the recipes of 03 §4.3 from
+   the values of v3's slide.css, the CSS calc() expressions evaluated here for the glass level (--gi), the contrast
+   veil (--gfade) and the corner radius (--rk):
    - a material (.gls.wb card / panel / chip / tile, list / tinted): its outer box-shadows, then inside its rounded
-     box the blurred wallpaper at placeGlass's lens (LENS = 1 + .06 · gi, positioned on the slide), the tint, the
+     box the blurred wallpaper at v3's placeGlass lens (LENS = 1 + .06 · gi, positioned on the slide), the tint, the
      contrast veil, its inset shadows, the rim (::before, a 135° gradient ring) and the sheen (::after, two
      elliptical radial gradients). Shadows are the 5-layer recipe (v3's printcss.ts STEPS = 5, decision 2026-10-12);
      the screen's real blur differs (B3, accepted pending G1);
@@ -24,7 +24,7 @@ import { hexRgb } from "../xlsx/color";
 import { breakRuns, collapse } from "../text/lines";
 import type { RenderCtx } from "./context";
 import { halfLeading, inlineLayout, lu, measuredBuild, primaryFamily, runsOf, type Metrics, type Run, type TableDL } from "./excel-dl";
-import { glassPlan, type GCap, type GLine, type GShell, type GText } from "./glass";
+import { GLASS_FONT, glassPlan, type GCap, type GlassPlan, type GLine, type GShell, type GText } from "./glass";
 import { contrastVars, themeVars } from "./slide";
 
 /** where the slide puts the table: its top left in slide px and its scale */
@@ -32,8 +32,8 @@ export interface Placement { x: number; y: number; scale: number }
 /** the blurred wallpaper (800 × 450 JPEG) as an image id of the display list */
 export interface Wallpaper { blurId: string; blurSrc: string }
 
-export const GLASS_FONT = `-apple-system,"SF Pro Text","Segoe UI Variable Text","Segoe UI","Helvetica Neue",Inter,Arial,sans-serif`;
-export const GLASS_TBOX_FONT = `-apple-system,'SF Pro Text','Segoe UI Variable Text','Segoe UI',Arial,sans-serif`;
+export { GLASS_FONT } from "./glass";
+export const GLASS_TBOX_FONT = `-apple-system,'SF Pro Text','Segoe UI',Arial,sans-serif`;
 const LETTER = -.12;                                   // .slide.glass .t letter-spacing
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -50,7 +50,7 @@ export function cssLinear(deg: number, w: number, h: number): [number, number, n
 }
 const linear = (deg: number, w: number, h: number, stops: Stop[]): Paint => ({ linear: cssLinear(deg, w, h), stops });
 
-/* ---- the materials: box-shadow lists, tints, rims and sheens of slide.css, as functions of --gi ---- */
+/* ---- the materials: box-shadow lists, tints, rims and sheens of v3's slide.css, as functions of --gi ---- */
 interface Sh { inset?: boolean; dx: number; dy: number; blur: number; spread: number; c: RGB; a: number }
 const S = (inset: boolean, dx: number, dy: number, blur: number, spread: number, c: RGB, a: number): Sh => ({ inset, dx, dy, blur, spread, c, a: clamp01(a) });
 const NAVY: RGB = [28, 40, 100];
@@ -110,7 +110,7 @@ export function glassBox(cls: string, x: number, y: number, w: number, h: number
   if (opts.ring) shadows = [S(true, 0, 0, 0, 1.5, parseColor(opts.ring).c, .75), S(false, 0, 2, 6, -3, NAVY, .25)];
   const inner: Node[] = [];
   if (wall) {
-    // placeGlass: the blurred wallpaper magnified by LENS about the element's centre, positioned on the slide
+    // v3's placeGlass: the blurred wallpaper magnified by LENS about the element's centre, positioned on the slide
     const LENS = 1 + .06 * V.gi, sc = place.scale, ex = place.x + x * sc, ey = place.y + y * sc, cx = ex + w * sc / 2, cy = ey + h * sc / 2;
     const bw = +(1600 * LENS / sc).toFixed(2), bh = +(900 * LENS / sc).toFixed(2), px = +(-(ex + (LENS - 1) * cx) / sc).toFixed(2), py = +(-(ey + (LENS - 1) * cy) / sc).toFixed(2);
     inner.push({ t: "image", id: wall.blurId, x: x + px, y: y + py, w: bw, h: bh });
@@ -149,7 +149,8 @@ function capNodes(c: GCap, V: GlassVars): Node[] {
   else fill = { solid: WHITE, a: 0 };
   // border-top: 1px solid rgba(255,255,255,.55), inside the rounded box
   const inner: Node[] = [{ t: "rect", x, y, w, h, fill }, { t: "rect", x, y, w, h: Math.min(1, h), fill: { solid: WHITE, a: .55 } }, ...shadowNodes(shadows, x, y, w, h, r, true)];
-  return [...shadowNodes(shadows, x, y, w, h, r, false), { t: "group", clip: { x, y, w, h, r }, children: inner }];
+  // its hit (kind "cap", the classes as id): the stage gives the capsule's rect its classes, as the page's .cap had
+  return [{ t: "hit", kind: "cap", id: c.cls, x, y, w, h }, ...shadowNodes(shadows, x, y, w, h, r, false), { t: "group", clip: { x, y, w, h, r }, children: inner }];
 }
 
 /** a glass cell text (.t): see the header. Letter-spacing (CSS: after every character) is part of every advance. */
@@ -165,7 +166,7 @@ export function glassText(t: GText, m: Metrics): Node[] {
     const run = m.run(src, fontAt(sz), t.num), n = [...src].length;
     const tab = t.num && run.adv && run.adv.length === n ? { tnum: true, adv: run.adv.map(a => a + LETTER) } : t.num ? { tnum: true } : {};
     return { t: "text", font: primaryFamily(family), css: family, weight: t.weight, ...(i ? { i: true } : {}), size: sz, x: +xx.toFixed(2), y: +yy.toFixed(2), src,
-      w: Math.max(0, run.w + (n - 1) * LETTER), fill: ink, ...tab };
+      w: Math.max(0, run.w + (n - 1) * LETTER), ls: LETTER, fill: ink, ...tab };
   };
   // a strong capsule's text-shadow 0 1px 1px rgba(0,0,0,.2): a decorative copy 1 px lower
   const shadowed = (n: TextNode): Node[] => t.shadow ? [{ ...n, y: n.y + 1, fill: { solid: [0, 0, 0], a: .2 }, decorative: true }, n] : [n];
@@ -214,8 +215,8 @@ export function glassText(t: GText, m: Metrics): Node[] {
   return out;
 }
 
-export function glassToDisplayList(L: import("../xlsx/types").TableLayout, ctx: RenderCtx, place: Placement, wall: Wallpaper | null, m: Metrics, opts: { noText?: boolean } = {}): TableDL {
-  const plan = glassPlan(L, ctx, opts), V = glassVars(ctx), images: Record<string, string> = {}, nodes: DisplayList = [];
+export function glassToDisplayList(L: import("../xlsx/types").TableLayout, ctx: RenderCtx, place: Placement, wall: Wallpaper | null, m: Metrics, opts: { noText?: boolean } = {}, given?: GlassPlan): TableDL {
+  const plan = given ?? glassPlan(L, ctx, opts), V = glassVars(ctx), images: Record<string, string> = {}, nodes: DisplayList = [];
   if (wall) images[wall.blurId] = wall.blurSrc;
   for (const s of plan.shells) nodes.push(...glassBox(s.cls, r1(s.x), r1(s.y), Math.max(0, r1(s.w)), Math.max(0, r1(s.h)), +Math.max(0, s.rad).toFixed(1), V, place, wall, { tint: s.tint, ring: s.ring }));
   for (const l of plan.lines) nodes.push(...lineNodes(l, V));
@@ -281,6 +282,9 @@ function glassPic(p: import("../xlsx/types").Pic, cls: "gcut" | "gpic", V: Glass
   return M ? [{ t: "group", transform: M, children: [hit, ...body] }] : [hit, ...body];
 }
 
-/** a table's display list with the page's measurements (Liquid Glass) */
-export const glassTableDL = (L: import("../xlsx/types").TableLayout, ctx: RenderCtx, place: Placement, wall: Wallpaper | null, opts: { noText?: boolean } = {}) =>
-  measuredBuild(m => glassToDisplayList(L, ctx, place, wall, m, opts));
+/** a table's display list with the page's measurements (Liquid Glass); the plan does not depend on them, so it is made
+    once, not in every measuring round */
+export function glassTableDL(L: import("../xlsx/types").TableLayout, ctx: RenderCtx, place: Placement, wall: Wallpaper | null, opts: { noText?: boolean } = {}) {
+  const plan = glassPlan(L, ctx, opts);
+  return measuredBuild(m => glassToDisplayList(L, ctx, place, wall, m, opts, plan));
+}

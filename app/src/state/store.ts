@@ -9,8 +9,8 @@
    Components read what they render through selectors (`useStore(s => s.selection.sel)`) and re-render only
    when that changes. Everything else reads `get()` and writes with `patch()`: the actions are module
    functions (state/app.ts, state/dialogs.ts, state/fonts.ts, editor/*) - the store holds no copies of them.
-   The slide stage and the thumbnails are imperative (performance); they register controllers below and
-   subscribe to the slices they draw (editor/stage.ts, editor/thumbs.ts). */
+   The stage (stage/) and the thumbnails register controllers below: the document changes (state/app.ts) tell them
+   to draw again. */
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import type { MirrorWorkbook } from "@slide-builder/core/xlsx/mirror";
@@ -27,7 +27,7 @@ export interface OpenFile { name: string; src: "folder" | "upload" | "local"; id
 export interface ToastMsg { id: number; html: string; err?: boolean; actions?: { label: string; fn: () => void }[] }
 export interface Painter { pattern: (Fmt | null)[][]; sticky: boolean }
 export interface Dialogs {
-  dialog: DialogReq | null; wizard: WizardReq | null; installer: boolean; tables: boolean;
+  dialog: DialogReq | null; wizard: WizardReq | null; tables: boolean;
   /** text styles & fonts dialog: which tab is open */ textStyles: "colors" | "styles" | "fonts" | null;
   /** automated comment dialog for table `table` of the current slide */ comment: { table: number } | null;
 }
@@ -61,6 +61,7 @@ export interface AppState {
     /** Design… edits the current design only, or all designs */ lookScope: "design" | "all";
     /** a font being added (its name or "<n> files") */ fontBusy: string;
     changedOnDisk: boolean; logoMissing: boolean;
+    /** Windows fonts whose file differs on other PCs (W13, fingerprint mode): the side panel names them */ fontBuilds: { family: string; hosts: string[] }[];
     health: Health | null; others: Other[];
   };
   prefs: { user: string; host: string; client: string; prefs: Prefs };
@@ -72,8 +73,8 @@ export const initialState = (): AppState => ({
   deck: { file: null, wb: null, slides: [], cur: 0, version: "", history: { undo: 0, redo: 0, undoLabel: "", redoLabel: "" }, remote: null, opening: "" },
   selection: { sel: null, noteSel: null, textSel: null, painter: null },
   ui: {
-    zoom: "fit", busy: null, exporting: false, toast: null, lookScope: "design", fontBusy: "", changedOnDisk: false, logoMissing: false, health: null, others: [],
-    dialogs: { dialog: null, wizard: null, installer: false, tables: false, textStyles: null, comment: null },
+    zoom: "fit", busy: null, exporting: false, toast: null, lookScope: "design", fontBusy: "", changedOnDisk: false, logoMissing: false, fontBuilds: [], health: null, others: [],
+    dialogs: { dialog: null, wizard: null, tables: false, textStyles: null, comment: null },
   },
   prefs: { user: "", host: "", client: Math.random().toString(36).slice(2, 10) + Date.now().toString(36), prefs: {} },
 });
@@ -98,7 +99,9 @@ export const setDialogs = (p: Partial<Dialogs>) => patch("ui", { dialogs: { ...g
 export const same = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
 
 /* imperative controllers (registered by the editor components) */
-export const STAGE = { render() { /* full rebuild */ }, refresh() { /* changed tables only */ }, paintSel() { /* selection */ }, fit() { /* zoom */ } };
+export const STAGE = { render(_fresh?: boolean) { /* the slide again (fresh: text measured again) */ }, refresh() { /* the slide after a change */ }, fit() { /* measure the space again */ },
+  /** what the stage would ask for slide `slide` (a starting workbook draws it first) */ request(slide: number): import("@slide-builder/core/rpc/messages").StageReq { return { slide, known: [] }; },
+  /** the worker drew the stage's slide unasked */ pushed(_s: import("@slide-builder/core/rpc/messages").StageSlide) { /* the stage takes it */ } };
 export const THUMBS = { render() { /* all */ }, refresh(_i?: number) { /* one (+ index slides) */ } };
 
 let toastId = 0;

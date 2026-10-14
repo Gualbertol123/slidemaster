@@ -3,66 +3,24 @@
    clipboard – and saved by the helper in the export folder (POST /api/export-file), or downloaded when the page was
    opened from disk (B1). Fonts: the deck's library fonts and this PC's own (the helper's /sysfonts; from disk, the
    browser's local fonts, with permission). Every version × design runs as one job per (design, version), three at a
-   time, named "<workbook> - <version> - <design>.pdf" (B11).
-   The old engine (the helper renders the slide DOM in a headless browser; without one, the slides are drawn in this
-   window) stays for one release as "PDF · text & tables (old engine)". */
+   time, named "<workbook> - <version> - <design>.pdf" (B11). */
 import { get, hideBusy, patch, showBusy, toast } from "../state/store";
-import { core, ctx, flushDoc, htmlFor, setPrefs, slidesFor, style } from "../state/app";
-import type { RenderCtx } from "@slide-builder/core/render/context";
+import { core, flushDoc, setPrefs, style } from "../state/app";
 import type { Design } from "@slide-builder/core/model/types";
 import { todayLabel } from "@slide-builder/core/render/cover";
 import type { CatalogFont } from "@slide-builder/core/text/resolve";
-import type { ExportJob, ExportResult } from "@slide-builder/core/rpc/messages";
-import { openInstaller } from "../state/dialogs";
-import { backend, ApiError, type ExportRes } from "../sync/api";
+import type { ExportJob, ExportResult, Thumb } from "@slide-builder/core/rpc/messages";
+import { backend } from "../sync/api";
 import { ExportPool } from "../rpc/export";
-import { buildSlide } from "../render/slidedom";
+import { catalog, fontFile, libraryCatalog } from "../state/fontfiles";
 import { esc } from "@slide-builder/core/xlsx/util";
-import { embeddedFontCss } from "../state/fonts";
-import { PRINT_CSS, printReady } from "@slide-builder/core/render/printcss";
 
-export type ExportKind = "pdf" | "pdf-exact" | "pdf-vector" | "pdf-current" | "png-current" | "png-all" | "copy" | "pdf-old";
+export type ExportKind = "pdf" | "pdf-exact" | "pdf-vector" | "pdf-current" | "png-current" | "png-all" | "copy";
 export const DESIGN_LABEL: Record<Design, string> = { glass: "Liquid Glass", excel: "Excel", clean: "Excel Refined" };
 /** pixels per slide px: PDF pages as pictures (B9: 2×, was 4×) and PNG files / the clipboard (4800 × 2700, as before) */
 export const PICTURE_SCALE = 2, PNG_SCALE = 3;
 
-/* ---------------------------------------------------------------- fonts and pictures for the export workers */
-/** this PC's fonts: from the helper's index, or (from disk) the browser's local fonts – asked once, with permission */
-type LocalFont = { family: string; style: string; postscriptName: string; blob(): Promise<Blob> };
-let sysCatalog: Promise<CatalogFont[]> | null = null;
-const localFonts = new Map<string, LocalFont>();
-const STYLE_WEIGHT: [RegExp, number][] = [[/thin|hairline/i, 100], [/extra ?light|ultra ?light/i, 200], [/semi ?light/i, 350], [/light/i, 300], [/medium/i, 500],
-  [/semi ?bold|demi ?bold/i, 600], [/extra ?bold|ultra ?bold/i, 800], [/black|heavy/i, 900], [/bold/i, 700]];
-const styleWeight = (s: string) => STYLE_WEIGHT.find(([re]) => re.test(s))?.[1] ?? 400;
-function systemCatalog(): Promise<CatalogFont[]> {
-  if (sysCatalog) return sysCatalog;
-  const p = (async (): Promise<CatalogFont[]> => {
-    if (backend.served) return (await backend.sysFonts()).map(f => ({ source: "system" as const, file: f.file, family: f.family, weight: f.weight, italic: f.italic }));
-    const q = (window as unknown as { queryLocalFonts?: () => Promise<LocalFont[]> }).queryLocalFonts;
-    if (!q) return [];
-    const list = await q.call(window);
-    for (const f of list) localFonts.set(f.postscriptName, f);
-    return list.map(f => ({ source: "system" as const, file: f.postscriptName, family: f.family, weight: styleWeight(f.style), italic: /italic|oblique/i.test(f.style) }));
-  })();
-  sysCatalog = p;
-  p.then(l => { if (!l.length) sysCatalog = null; }, () => { sysCatalog = null; });       // asked again next time
-  return p;
-}
-/** the fonts an export may embed: the deck's library faces (their @font-face rules), then this PC's */
-async function catalog(): Promise<CatalogFont[]> {
-  const lib: CatalogFont[] = get().doc.fonts.flatMap(f => f.faces.map(x => ({ source: "library" as const, file: x.file, family: f.family, weight: Math.round(+x.weight || 400), italic: x.style === "italic" })));
-  let sys: CatalogFont[] = [];
-  try { sys = await systemCatalog(); } catch (e) { console.warn("this PC's fonts could not be listed:", e); }
-  return [...lib, ...sys];
-}
-async function fontFile(a: { source: "library" | "system"; file: string }): Promise<ArrayBuffer | null> {
-  try {
-    if (a.source === "library") { if (!backend.served) return null; const r = await fetch(backend.fontUrl(a.file)); return r.ok ? await r.arrayBuffer() : null; }
-    if (backend.served) return await backend.sysFontBytes(a.file);
-    const f = localFonts.get(a.file);
-    return f ? await (await f.blob()).arrayBuffer() : null;
-  } catch (e) { console.warn("font not readable:", a.file, e); return null; }
-}
+/* ---------------------------------------------------------------- pictures for the export workers */
 /** a picture the workers cannot take as it is (a logo by URL, GIF / SVG / WebP / BMP) as PNG bytes; null = left out.
     A file next to the page opened from disk cannot be read by the page (the browser's file:// rules) and is left out */
 async function pictureBytes(a: { src: string }): Promise<ArrayBuffer | null> {
@@ -102,6 +60,11 @@ export function download(name: string, data: BlobPart, type: string) {
   a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
+/** thumbnails (S4.3, B14): slides of the current design and version as pictures `width` px wide, drawn by an export
+    worker as the PNG export draws them; `have`: the key of the picture shown of each slide (not drawn again) */
+export function thumbPictures(slides: number[], width: number, have: Record<number, string>): Promise<Thumb[]> {
+  return pool().thumbs({ design: style().design, version: get().deck.version, forExport: false, thumb: false, slides, today: todayLabel(), width, library: libraryCatalog(), have });
+}
 function job(kind: ExportJob["kind"], design: Design, version: string, slides: number[] | undefined, title: string, cat: CatalogFont[]): ExportJob {
   return { kind, design, version, forExport: true, thumb: false, slides, today: todayLabel(), scale: kind === "pictures" ? PICTURE_SCALE : PNG_SCALE, title, catalog: cat };
 }
@@ -122,19 +85,18 @@ export const lastExport = { files: [] as string[], ms: 0 };
 /** what the last export made (or why it failed), for "Report a problem with this export" (the pilot, S3.8) */
 export interface ExportRecord {
   kind: string; workbook: string; design: string; /** version ids ("" = the whole deck), " + " between several */ version: string;
-  files: string[]; seconds: number; missing: string[]; unreadable: string[]; failed?: string[]; engine?: string;
+  files: string[]; seconds: number; missing: string[]; unreadable: string[]; failed?: string[];
   /** where a native export's time went (ms): getting a worker, display lists, fonts, writing */ phases?: Record<string, number>; at: string;
 }
 export let lastMade: ExportRecord | null = null;
 function remember(r: Omit<ExportRecord, "at" | "seconds" | "workbook" | "phases">, t0: number) {
   lastMade = { ...r, workbook: get().deck.file?.name || "", seconds: +((performance.now() - t0) / 1000).toFixed(2), at: new Date().toISOString(),
-    ...(r.kind !== "pdf-old" && exportPool ? { phases: { ...exportPool.last } } : {}) };
+    ...(exportPool ? { phases: { ...exportPool.last } } : {}) };
 }
 
 export async function doExport(kind: ExportKind) {
   const { file } = get().deck;
   if (!get().deck.slides.length || !file) return;
-  if (kind === "pdf-old") return exportOldEngine();
   if (get().ui.exporting) return;
   // the clipboard is written now, while the click still counts as the user's (its PNG follows when it is drawn)
   let clip: { ok(b: Blob): void; no(e: unknown): void } | null = null, clipDone: Promise<void> | null = null;
@@ -230,71 +192,6 @@ export async function exportVersions(designs: Design[] | null) {
   } catch (e) {
     console.error(e); hideBusy();
     remember({ kind: designs ? `versions-${designs.length}` : "versions", design: (designs || [style().design]).join(" + "), version: versions.map(v => v.id).join(" + "), files: [...saved], missing: [], unreadable: [], failed: [String((e as Error).message || e)] }, t0);
-    toast("⚠ Export failed: " + esc((e as Error).message || e), [], true);
-  } finally { patch("ui", { exporting: false }); }
-}
-
-/* ---------------------------------------------------------------- the old engine, for one release (S3.7 → S3.9) */
-const toDataUrl = async (url: string) => { const b = await (await fetch(url)).blob(); return await new Promise<string>(r => { const fr = new FileReader(); fr.onload = () => r(fr.result as string); fr.readAsDataURL(b); }); };
-const slideCss = () => [document.getElementById("slidecss")?.textContent || "", document.getElementById("wallcss")?.textContent || ""].join("\n");
-
-/** the exact slide DOM + slide CSS, self-contained (pictures and logo as data URLs), made light for a vector PDF */
-async function exportPayload(idx: number[], base: RenderCtx = ctx()) {
-  // the tables as the core worker draws them for this design and version
-  const c = { ...base, forExport: true, htmlOf: await htmlFor(base.style.design, base.version?.id || "", true) }, slides: string[] = [], src = slidesFor(base.style.design);
-  for (const i of idx) {
-    const s = buildSlide(src[i], i, c);
-    s.querySelectorAll(".pic.missing").forEach(e => e.remove());
-    for (const img of Array.from(s.querySelectorAll<HTMLImageElement>("img.logo"))) { try { img.setAttribute("src", await toDataUrl(img.src)); } catch { img.parentNode && (img.parentNode as HTMLElement).remove(); } }
-    slides.push(printReady(s.outerHTML));
-  }
-  // text & tables: shadows and fonts the PDF can draw as vector (no pictures, no glyph-by-glyph fonts)
-  return { css: printReady(slideCss()) + "\n" + PRINT_CSS + "\n" + await embeddedFontCss(slides.join("")), slides, names: idx.map(i => get().deck.slides[i].label) };
-}
-async function clientRender(i: number, scale: number, base: RenderCtx = ctx()): Promise<string> {
-  const c = { ...base, forExport: true, htmlOf: await htmlFor(base.style.design, base.version?.id || "", true) };
-  const slide = buildSlide(slidesFor(base.style.design)[i], i, c);
-  slide.querySelectorAll(".pic.missing").forEach(e => e.remove());
-  for (const img of Array.from(slide.querySelectorAll<HTMLImageElement>("img.logo"))) { try { img.src = await toDataUrl(img.src); } catch { img.parentNode && (img.parentNode as HTMLElement).remove(); } }
-  const xml = new XMLSerializer().serializeToString(slide);
-  // the same CSS the export engine gets (slide styles only – the app's own styles must not reach the
-  // slide), fonts as data URLs (an SVG image cannot load the helper's font files); escaped, because the
-  // SVG is XML: a "<" or "&" in the CSS (the wallpaper is an inline SVG) made the whole picture fail
-  const css = (slideCss() + "\n" + await embeddedFontCss(xml)).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${1600 * scale}" height="${900 * scale}" viewBox="0 0 1600 900"><foreignObject x="0" y="0" width="1600" height="900"><div xmlns="http://www.w3.org/1999/xhtml" style="width:1600px;height:900px;margin:0;overflow:hidden"><style>${css}</style>${xml}</div></foreignObject></svg>`;
-  const img = new Image();
-  await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error("render failed")); img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg); });
-  const cv = document.createElement("canvas"); cv.width = 1600 * scale; cv.height = 900 * scale;
-  const x = cv.getContext("2d")!; x.fillStyle = "#fff"; x.fillRect(0, 0, cv.width, cv.height); x.drawImage(img, 0, 0, cv.width, cv.height);
-  return cv.toDataURL("image/jpeg", .95);
-}
-/** "PDF · text & tables (old engine)": the helper's export engine, else the slides drawn in this window (as v3.6) */
-async function exportOldEngine() {
-  const { file } = get().deck;
-  if (!backend.served) { toast("The old engine runs through the helper: start Slide Builder with Start Slide Builder.bat.", [], true); return; }
-  if (file!.src === "local") { toast("This workbook was opened without the helper. Open it again from the Open menu.", [], true); return; }
-  if (get().ui.exporting) return;
-  const t0 = performance.now();
-  patch("ui", { exporting: true });
-  try {
-    await flushDoc();
-    const all = get().deck.slides.map((_, i) => i);
-    // "<workbook> (old engine) - slides.pdf": next to the native export's file, to compare them (the pilot, S3.8)
-    const oldName = stemOf(file!.name) + " (old engine)" + (/\.[^.]+$/.exec(file!.name)?.[0] || "");
-    let j: ExportRes | null = null, fallback = false;
-    if (get().ui.health?.engine?.state === "ready") {
-      try { j = await backend.exportSlides({ name: oldName, format: "pdf", mode: "vector", scale: 4, all: all.length > 1, ...(await exportPayload(all)) }); }
-      catch (e) { if ((e instanceof ApiError && (e.status === 503 || e.status === 0)) || e instanceof TypeError) { fallback = true; console.warn(e); } else throw e; }
-    } else fallback = true;
-    if (fallback) { const images: string[] = []; for (const i of all) images.push(await clientRender(i, 3)); j = await backend.assemble(oldName, images); }
-    const f = j!.files![0];
-    remember({ kind: "pdf-old", design: style().design, version: get().deck.version, files: j!.files!, missing: [], unreadable: [], engine: fallback ? "drawn in the app window" : j!.engine || "" }, t0);
-    const acts = [{ label: "Open", fn: () => { void backend.open({ name: f }); } }, { label: "Show folder", fn: () => { void backend.open({ folder: true }); } }];
-    if (fallback && get().ui.health?.engine?.state !== "starting") acts.push({ label: "Install export engine", fn: openInstaller });
-    toast(`Saved <b>${esc(j!.files!.join(", "))}</b> in the export folder (old engine)` + (j!.seconds ? ` · ${j!.seconds}s` : "") + (j!.engine ? ` · ${esc(j!.engine)}` : "") + (fallback ? " · rendered in the app window" : ""), acts);
-  } catch (e) {
-    console.error(e);
-    remember({ kind: "pdf-old", design: style().design, version: get().deck.version, files: [], missing: [], unreadable: [], failed: [String((e as Error).message || e)] }, t0);
     toast("⚠ Export failed: " + esc((e as Error).message || e), [], true);
   } finally { patch("ui", { exporting: false }); }
 }
