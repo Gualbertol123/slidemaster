@@ -1,4 +1,4 @@
-/* Slide Builder 3 – browser app. Built into ONE self-contained file: ../backend/slide_builder.html */
+/* Slide Builder 3 – browser app. Built into ONE self-contained file: ../helper/slide_builder.html */
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import uiCss from "./styles/ui.css?raw";

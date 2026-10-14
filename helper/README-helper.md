@@ -1,4 +1,4 @@
-# Slide Builder helper (backend) – v3.8.0
+# Slide Builder helper – v3.8.0
 
 Python standard library only, Python 3.8+. Windows is the target (app folder on an SMB share);
 everything except the Excel/GDI+ converters also runs on Linux/macOS. The binding contract is
@@ -27,7 +27,7 @@ idempotent.
 | Module | Concern |
 |---|---|
 | `__init__` | `APP_NAME`, `VERSION = "3.8.0"` |
-| `paths` | folder layout (ROOT, BACKEND, DATA, export); `HOME_BACKEND` / `INSTALL_HOME`: a version in `app\<ver>\backend` uses the main folder's data and files; `configure()` / env overrides |
+| `paths` | folder layout (ROOT, HELPER, DATA, export); `HOME_BACKEND` / `INSTALL_HOME`: the program is in `helper\` (until 3.8 `backend\`), the data, logo and v2 settings stay in the main folder's `backend\`; a version in `app\<ver>\helper` uses the main folder's data and files; `configure()` / env overrides |
 | `selftest` | `--selftest`: reads every saved setup without writing, probes create/rename/delete in `data/locks` |
 | `util` | logging, identity (user/host), name safety, `doc_key()`, `safe_path()`, atomic writes |
 | `fsclock` | the file server's clock (`fs_now(dir)`): ages of shared files never compare a server mtime with this PC's clock |
@@ -36,6 +36,7 @@ idempotent.
 | `store` | workbook docs, `config.json`, `users/<user>.json`, backups; retried reads, `StoreUnreadable`; format upgrades on read (`StoreTooNew` → 409) |
 | `upgrade` | saved-format versions (`SCHEMA`) and the upgrade steps n → n+1 (ARCHITECTURE §3.3) |
 | `presence` | heartbeat files `data/presence/hb~<user>~<host>~<client>~<workbook>.json`; others from one directory listing (old `<user>@<host>.json` still read) |
+| `decks` | Slide Builder 4's decks (docs/next/04 §2): `data/v4/decks/<key>/` snapshot + per-writer journals of framed records (`<len>:<crc32>:<json>\n`), append (one handle per writer session, `os.fsync`, `at` on the file server's clock), tail (≤ 8 parallel reads, listing cached 10 s, complete frames only), snapshot (retried; 503, never empty), compact (CAS on `gen` under the deck lock; covered journals idle 24 h dropped; backup to `backups/v4/<key>/` after the lock), rotate, presence v2 (empty files, scandir mtimes), incidents (a corrupt journal makes the deck read-only); `SLIDEBUILDER_STORAGE=lean-lock` (or `data/v4/storage.json`): one shared journal under the deck lock. **Never parses or applies operations** |
 | `workbooks` | listing of workbooks, path-safe lookup, stable read (`X-SB-Mtime` / `X-SB-Size`) |
 | `migrate` | one-time import of `slide_builder_settings.txt` (v2) under lock `migrate` |
 | `exports` | `/api/export-file` (the page's PDF or PNG: temporary file, then atomic rename into `export\`, ` (2)` when locked) and `/api/export-feedback` (`export\feedback\*.json`) |
@@ -51,8 +52,9 @@ idempotent.
 
 | Variable | Effect |
 |---|---|
-| `SLIDEBUILDER_ROOT` | root folder (workbooks, `export\`) – default: parent of `backend\` |
+| `SLIDEBUILDER_ROOT` | root folder (workbooks, `export\`) – default: parent of `helper\` |
 | `SLIDEBUILDER_DATA` | data folder – default `backend\data` |
+| `SLIDEBUILDER_STORAGE` | `lean-lock`: decks append to one shared journal under the deck lock (ADR-006's fallback; default `journal`, or `data/v4/storage.json`) |
 | `SLIDEBUILDER_USER`, `SLIDEBUILDER_HOST` | identity instead of the Windows login / computer name |
 | `SLIDEBUILDER_APP_WINDOW` | `0`: open the app in a normal browser tab instead of an Edge app window |
 | `SLIDEBUILDER_APP_FILE` | serve this page instead of `slide_builder.html` (testing aid) |
@@ -62,7 +64,7 @@ idempotent.
 ## Tests
 
 ```
-cd backend
+cd helper
 python3 -m unittest discover -s tests -v
 ```
 

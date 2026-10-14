@@ -2,11 +2,11 @@
 
      node tools/capture-v3.mjs [--out golden] [--decks id,id] [--no-pdf] [--backend DIR]
                                                                               capture every deck of tests/corpus/decks/
-       --backend DIR  another build's backend folder (its helper and committed page, e.g. a worktree of v3.4.0's
+       --backend DIR  another build's program folder (its helper and committed page, e.g. a worktree of v3.4.0's
                       backend/) – how the goldens are re-captured on a new reference machine (decision 2026-10-12)
      node tools/capture-v3.mjs --make-decks [--rewrite]                       add missing tests/corpus/decks/*.json
 
-   One real helper (backend/slide_builder.py, the committed page) on a temp folder, one Chromium (CHROME or
+   One real helper (helper/slide_builder.py, the committed page) on a temp folder, one Chromium (CHROME or
    Playwright's own), a frozen clock (page.clock.setFixedTime), locale en-GB, time zone Europe/Rome, zoom 100 %.
    For every deck × design (glass, excel, clean) × version ("full" + the deck's versions) it writes
      <out>/<deck>/<design>/<version>/slide-<n>.json   geometry, text, font and colour of every .t .wb .tw .tnote,
@@ -46,8 +46,8 @@ const TEXT_SEL = ".t, .title, .subtitle, .pageno, .footer, .tnote, .memo, .tbox,
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const arg = (name, def) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : def; };
-/** the build captured: this checkout's backend/ (helper + committed page), or --backend DIR */
-const BACKEND = path.resolve(arg("--backend", path.join(REPO, "backend")));
+/** the build captured: this checkout's helper/ (helper + committed page), or --backend DIR */
+const BACKEND = path.resolve(arg("--backend", path.join(REPO, "helper")));
 /** another build's helper (the goldens are captured from v3.4.0, golden/README.md): before 3.8 its PDFs came from its
     export engine, given the browser's DevTools and command line (not a Python "playwright" package this PC may have) */
 const V3_HELPER_ENV = process.argv.includes("--backend") ? { SLIDEBUILDER_BROWSER: CHROME, SLIDEBUILDER_ENGINES: "devtools,cli" } : {};

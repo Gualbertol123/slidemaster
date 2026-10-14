@@ -64,12 +64,12 @@ def run(*argv):
 class UpdateTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="sb-update-")
-        # "GitHub": a repository with the program files of this checkout (backend/, tools/, …)
+        # "GitHub": a repository with the program files of this checkout (helper/, tools/, …)
         self.work = os.path.join(self.tmp, "work")
         os.makedirs(self.work)
-        for d in ("backend/slidebuilder", "tools"):
+        for d in ("helper/slidebuilder", "tools"):
             shutil.copytree(os.path.join(REPO, *d.split("/")), os.path.join(self.work, *d.split("/")), ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
-        for f in (".gitignore", "README.md", "Start Slide Builder.bat", "backend/.gitignore", "backend/slide_builder.py"):
+        for f in (".gitignore", "README.md", "Start Slide Builder.bat", "helper/.gitignore", "helper/slide_builder.py"):
             os.makedirs(os.path.dirname(os.path.join(self.work, f)), exist_ok=True)
             shutil.copy2(os.path.join(REPO, f), os.path.join(self.work, f))
         git("init", "-q", "-b", "main", cwd=self.work); git("add", "-A", cwd=self.work); git("commit", "-qm", "v1", cwd=self.work)
@@ -114,7 +114,7 @@ class UpdateTest(unittest.TestCase):
         self.assertIn("Already up to date", out)
 
         # a new version on GitHub: only program files change
-        write(self.work, {"docs/NEW.md": "new feature", "backend/slidebuilder/version.py": "V = 2\n"})
+        write(self.work, {"docs/NEW.md": "new feature", "helper/slidebuilder/version.py": "V = 2\n"})
         git("add", "-A", cwd=self.work); git("commit", "-qm", "v2: new feature", cwd=self.work); git("push", "-q", self.origin, "main", cwd=self.work)
         rc, out = run("--root", self.pc, "--check")
         self.assertIn("An update is available", out)
@@ -155,7 +155,7 @@ class UpdateTest(unittest.TestCase):
     def test_protected_paths(self):
         for p in ("backend/data/workbooks/x.json", "export/a.pdf", "Report Q3.XLSX", "backend/logo.png", "backend/slide_builder_settings.txt", "engine/chrome.exe", "~$book.xlsx"):
             self.assertTrue(update.is_protected(p), p)
-        for p in ("backend/slide_builder.html", "backend/slidebuilder/store.py", "README.md", "tools/update.py"):
+        for p in ("helper/slide_builder.html", "helper/slidebuilder/store.py", "README.md", "tools/update.py"):
             self.assertFalse(update.is_protected(p), p)
 
 
@@ -248,7 +248,7 @@ class ReleaseInstallTest(unittest.TestCase):
         self.assertIn("not installed", str(e.exception))
         self.assertEqual(self.pointer()["version"], "3.4.0")
         # a changed program file: --use refuses that version
-        with open(os.path.join(self.root, "app", "3.5.0", "backend", "slide_builder.py"), "a") as f:
+        with open(os.path.join(self.root, "app", "3.5.0", "helper", "slide_builder.py"), "a") as f:
             f.write("# edited\n")
         with self.assertRaises(SystemExit) as e:
             run("--root", self.root, "--use", "3.5.0")
@@ -299,7 +299,7 @@ class ReleaseInstallTest(unittest.TestCase):
         bad = os.path.join(self.tmp, "bad.zip")
         with zipfile.ZipFile(self.zips["3.4.0"]) as a, zipfile.ZipFile(bad, "w") as b:
             for n in a.namelist():
-                b.writestr(n, b"evil" if n == "backend/slidebuilder/server.py" else a.read(n))
+                b.writestr(n, b"evil" if n == "helper/slidebuilder/server.py" else a.read(n))
         with self.assertRaises(SystemExit) as e:
             run("--root", self.root, "--zip", bad)
         self.assertIn("not a valid Slide Builder release", str(e.exception))
@@ -314,7 +314,7 @@ class ReleaseInstallTest(unittest.TestCase):
         app = os.path.join(self.root, "app")
         self.assertEqual(os.listdir(app), [])
         # a .part left by a power cut is cleared by the next install
-        write(self.root, {"app/3.4.0.part/backend/half.py": "x"})
+        write(self.root, {"app/3.4.0.part/helper/half.py": "x"})
         self.assertEqual(update.installed_versions(self.root), [])
         self.assertIs(update.check_installed, real)
         rc, out = self.install("3.4.0")
@@ -338,10 +338,10 @@ class ReleaseInstallTest(unittest.TestCase):
             self.assertEqual(json.load(f)["schema"], 99)
 
     def test_installed_version_uses_the_main_folder(self):
-        """app/<ver>/backend/slide_builder.py, started without any environment, finds the main folder's data"""
+        """app/<ver>/helper/slide_builder.py, started without any environment, finds the main folder's data"""
         self.assertEqual(self.install("3.4.0")[0], 0)
         env = {k: v for k, v in os.environ.items() if not k.startswith("SLIDEBUILDER_")}
-        entry = os.path.join(self.root, "app", "3.4.0", "backend", "slide_builder.py")
+        entry = os.path.join(self.root, "app", "3.4.0", "helper", "slide_builder.py")
         r = subprocess.run([sys.executable, entry, "--selftest"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                            universal_newlines=True, env=env, cwd=self.tmp)
         self.assertEqual(r.returncode, 0, r.stdout)
@@ -350,7 +350,7 @@ class ReleaseInstallTest(unittest.TestCase):
         self.assertIn("3 saved setup(s) read", r.stdout)          # the deck, config.json, anna's preferences
 
     def test_one_click_update_follows_releases(self):
-        """a folder with app/current.json: a plain "Update Slide Builder.bat" looks for releases, not backend/"""
+        """a folder with app/current.json: a plain "Update Slide Builder.bat" looks for releases, not helper/"""
         api = self.release_json(None)
         self.assertEqual(self.install("3.4.0")[0], 0)
         rc, out = run("--root", self.root, "--api-url", api, "--yes")
@@ -419,17 +419,31 @@ class ReleaseInstallTest(unittest.TestCase):
         self.assertFalse([n for n in os.listdir(os.path.join(self.root, "app")) if n.endswith(".update-tmp")])
 
     def test_install_detection_needs_a_version_folder(self):
-        sys.path.insert(0, os.path.join(REPO, "backend"))
+        sys.path.insert(0, os.path.join(REPO, "helper"))
         from slidebuilder import paths
         fake = os.path.join(self.tmp, "app", "Slide Builder")       # a release ZIP unpacked as a main folder
         write(self.tmp, {"app/Slide Builder/MANIFEST.json": "{}", "app/3.4.0/MANIFEST.json": "{}"})
-        with mock.patch.object(paths, "BACKEND", os.path.join(fake, "backend")):
+        with mock.patch.object(paths, "HELPER", os.path.join(fake, "helper")):
             self.assertIsNone(paths._install_home())
-        with mock.patch.object(paths, "BACKEND", os.path.join(self.tmp, "app", "3.4.0", "backend")):
+        with mock.patch.object(paths, "HELPER", os.path.join(self.tmp, "app", "3.4.0", "helper")):
             self.assertEqual(paths._install_home(), self.tmp)
 
+    def test_program_folder_helper_or_backend(self):
+        """4.x keeps the program in helper/ (S5.1), 3.x in backend/: both start, and their data is backend/data"""
+        sys.path.insert(0, os.path.join(REPO, "helper"))
+        from slidebuilder import paths
+        write(self.tmp, {"app/4.0.0/helper/slide_builder.py": "", "app/3.8.0/backend/slide_builder.py": "", "main/helper/slide_builder.py": ""})
+        self.assertEqual(update.program_dir(os.path.join(self.tmp, "app", "4.0.0")), os.path.join(self.tmp, "app", "4.0.0", "helper"))
+        self.assertEqual(update.program_dir(os.path.join(self.tmp, "app", "3.8.0")), os.path.join(self.tmp, "app", "3.8.0", "backend"))
+        self.assertIsNone(update.program_dir(os.path.join(self.tmp, "app")))
+        with mock.patch.object(paths, "HELPER", os.path.join(self.tmp, "main", "helper")), mock.patch.object(paths, "INSTALL_HOME", None):
+            self.assertEqual(paths._home_backend(), os.path.join(self.tmp, "main", "backend"))   # a checkout: data in backend/data
+        with mock.patch.object(paths, "INSTALL_HOME", self.tmp):
+            self.assertEqual(paths._home_backend(), os.path.join(self.tmp, "backend"))
+        self.assertEqual(os.path.basename(paths.HOME_BACKEND), "backend")       # this checkout too
+
     def test_git_and_zip_updates_never_touch_app(self):
-        self.assertTrue(update.is_protected("app/3.4.0/backend/slide_builder.py"))
+        self.assertTrue(update.is_protected("app/3.4.0/helper/slide_builder.py"))
         self.assertTrue(update.is_protected("app/current.json"))
 
     def test_version_order(self):

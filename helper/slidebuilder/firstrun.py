@@ -395,7 +395,7 @@ def smoke_test(timeout=45.0):
     env.pop("SLIDEBUILDER_SIM_FS_MS", None)
     log = tempfile.TemporaryFile()
     p = subprocess.Popen([sys.executable, "-u", paths.ENTRY, "--port", str(port), "--no-browser"],
-                         stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, cwd=paths.BACKEND,
+                         stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, cwd=paths.HELPER,
                          env=env, creationflags=NO_WINDOW)
     try:
         end = time.monotonic() + timeout

@@ -6,7 +6,7 @@ import type { Op, WorkbookDoc } from "../src/model/types";
 // a failing test must not leave fake timers to the next one
 afterEach(() => { vi.useRealTimers(); });
 
-/** an in-memory helper: applies ops to the latest document, like backend/slidebuilder/store.py */
+/** an in-memory helper: applies ops to the latest document, like helper/slidebuilder/store.py */
 function fakeServer() {
   let doc: WorkbookDoc = emptyDoc("W.xlsx"); let fail = 0;
   const api = (user: string) => ({

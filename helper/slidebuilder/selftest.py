@@ -83,7 +83,7 @@ def _probe_folder():
 
 def run():
     _say("Slide Builder %s self-test" % VERSION)
-    _say("  program: %s" % paths.BACKEND)
+    _say("  program: %s" % paths.HELPER)
     _say("  data   : %s" % paths.DATA)
     ok = True
     try:

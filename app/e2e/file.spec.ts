@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { pdfPageTexts } from "./pdftext";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const PAGE = pathToFileURL(path.join(here, "../../backend/slide_builder.html")).href;
+const PAGE = pathToFileURL(path.join(here, "../../helper/slide_builder.html")).href;
 const REPORT = path.join(here, "../tests/fixtures/report.xlsx");
 
 /* the deck's default logo "logo.png" is not next to the page (the app shows "Logo not found") */

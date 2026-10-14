@@ -27,7 +27,7 @@ to **285/870 ms**, and edits became visible to others after 1.4 s instead of 11 
     queued in the meantime go in the next batch. Failures are retried after 2–32 s;
   * `GET …/doc?since=<rev>` every 3 s (skipped while a save is in flight), and `POST /api/presence` every 10 s.
 * **Simulated share latency** (`--fs-ms`). The helpers run with `SLIDEBUILDER_SIM_FS_MS=N`
-  (`backend/slidebuilder/simfs.py`), and every data-folder file operation that would be an SMB round
+  (`helper/slidebuilder/simfs.py`), and every data-folder file operation that would be an SMB round
   trip sleeps N ms ±25 % first. That covers open/create, stat/exists/getmtime, replace/rename,
   remove, listdir, makedirs and fsync. **This is a simulation and a lower bound.** Real SMB often
   needs 2–3 round trips for open+read+close, and antivirus on the file server adds time to every

@@ -1,7 +1,7 @@
 # Slide Builder 3 – architecture and API contract
 
 This is the contract between the browser app (`app/`, built into
-`backend/slide_builder.html`) and the local helper (`backend/slidebuilder/`). A future central
+`helper/slide_builder.html`) and the local helper (`helper/slidebuilder/`). A future central
 server (Node/Next.js, Python, …) can replace the helper by implementing the same endpoints.
 
 ## 1. Deployment model (unchanged)
@@ -15,10 +15,11 @@ server (Node/Next.js, Python, …) can replace the helper by implementing the sa
 Slide Builder\                     ROOT
 ├─ *.xlsx / *.xlsm / *.xlsb / *.xls workbooks (Open menu)
 ├─ export\                          PDFs / PNGs
-└─ backend\
-   ├─ slide_builder.py              entry point (thin)
-   ├─ slide_builder.html            the app (BUILT from app/)
-   ├─ slidebuilder\                 helper package
+├─ helper\                          the program (backend\ until 3.8)
+│  ├─ slide_builder.py              entry point (thin)
+│  ├─ slide_builder.html            the app (BUILT from app/)
+│  └─ slidebuilder\                 helper package
+└─ backend\                         the user's files, shared with Slide Builder 3
    ├─ logo.png
    └─ data\                         ALL persistent state (see §3)
 ```
@@ -150,12 +151,12 @@ Shared by everybody using the folder, independent of workbooks: `data/fonts/font
 font files (`<Family>-<weight>[i]-<sha1>.<ext>`). Written under the `fonts` lock; a file is written before the
 index refers to it; files no family refers to are deleted. Google fonts are downloaded **by the page**
 (latin + latin-ext subsets) and stored like uploads, so slides and exports never need Google later. PDFs
-embed subsets of the fonts a slide uses (written by the page). Code: `backend/slidebuilder/fonts.py`, `app/src/state/fonts.ts`.
+embed subsets of the fonts a slide uses (written by the page). Code: `helper/slidebuilder/fonts.py`, `app/src/state/fonts.ts`.
 
 ### 3.3 Format versions and automatic upgrades
 
 Every saved file has `"schema"`: the format it is written in. Current formats are `SCHEMA` in
-`backend/slidebuilder/upgrade.py` (`workbook` 3, `config` 3, `prefs` 1); a file without the field is
+`helper/slidebuilder/upgrade.py` (`workbook` 3, `config` 3, `prefs` 1); a file without the field is
 the first numbered version of its kind. The helper is the only writer and stamps the current format on
 every write.
 
@@ -174,7 +175,7 @@ every write.
 * **A missing step** (format raised without a step) raises an error and leaves the file untouched.
 
 Changing the format: raise `SCHEMA[kind]`, add `@step(kind, n)` (convert the document in place), raise
-`FORMATS`, add a test and a new example file in `backend/tests/fixtures/saved/` (old examples are never
+`FORMATS`, add a test and a new example file in `helper/tests/fixtures/saved/` (old examples are never
 edited: `test_upgrade.py` reads every one of them on each run). Adding an optional field does not need
 a new format – readers ignore unknown keys and treat missing keys as defaults.
 

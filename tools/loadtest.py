@@ -17,7 +17,7 @@ drives them over HTTP the way the app does:
 
 Share traffic: ``--count-ops`` counts every file operation of the helpers on the share - the data folder
 (the simulated SMB round trips of simfs.py) AND the workbook folder (listing, stat, open of workbooks) -
-and reports them per user per minute. ``--helper <path>/backend/slide_builder.py`` drives another
+and reports them per user per minute. ``--helper <path>/helper/slide_builder.py`` drives another
 version of the helper (e.g. a checkout of an older release) with the same traffic, for before/after
 numbers. ``--extra-books N`` puts N more workbooks with saved decks into the folder (a real share has
 many), ``--idle`` makes the users watch without editing.
@@ -31,7 +31,7 @@ Latency of the share
 --------------------
 ``--fs-ms 0 5 15 40`` runs the helpers with ``SLIDEBUILDER_SIM_FS_MS`` - a SIMULATION that sleeps that
 many ms (+-25 %) before each data-folder file operation that would be an SMB round trip (see
-backend/slidebuilder/simfs.py). ``--real-folder T:\\Slide Builder`` instead uses a real share (a
+helper/slidebuilder/simfs.py). ``--real-folder T:\\Slide Builder`` instead uses a real share (a
 temporary sub-folder that is deleted afterwards) with no simulated latency.
 
 Examples
@@ -57,8 +57,8 @@ import uuid
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-ENTRY = os.path.join(REPO, "backend", "slide_builder.py")
-APP_FILE = os.path.join(REPO, "backend", "slide_builder.html")
+ENTRY = os.path.join(REPO, "helper", "slide_builder.py")
+APP_FILE = os.path.join(REPO, "helper", "slide_builder.html")
 TOKEN_RE = re.compile(r'<meta\s+name="sb-token"\s+content="([^"]+)"')
 STUB_PAGE = '<!DOCTYPE html><html><head><meta name="sb-token" content="__SB_TOKEN__"></head><body>load test</body></html>'
 SLIDES = ["s1", "s2", "s3", "s4"]
@@ -615,7 +615,7 @@ def main(argv=None):
     ap.add_argument("--client", choices=["v3.3", "v3.4"], default="v3.4",
                     help="how the app checks the workbook for the changed-on-disk banner (default v3.4: one stat)")
     ap.add_argument("--open-menu-s", type=float, default=300.0, help="v3.4: the Open menu is opened every N s (default 300; 0 = never)")
-    ap.add_argument("--helper", default=ENTRY, help="the helper to run (default: this checkout's backend/slide_builder.py)")
+    ap.add_argument("--helper", default=ENTRY, help="the helper to run (default: this checkout's helper/slide_builder.py)")
     ap.add_argument("--count-ops", action="store_true", help="count the helpers' file operations on the share (per user per minute)")
     ap.add_argument("--extra-books", type=int, default=0, help="N more workbooks with saved decks in the folder (default 0)")
     ap.add_argument("--idle", action="store_true", help="users only watch (no edits): the background traffic alone")

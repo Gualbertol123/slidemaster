@@ -55,6 +55,32 @@ def offset(directory):
     return off
 
 
+_refreshing = set()
+
+
+def offset_nowait(directory):
+    """the cached offset even when it is older than CACHE_SECONDS (a new one is measured in the background);
+    measured at once only the first time. For paths that must not wait for a probe (a deck append)."""
+    key = os.path.normcase(os.path.abspath(directory))
+    now = time.monotonic()
+    with _guard:
+        hit = _cache.get(key)
+        if hit and now - hit[1] >= CACHE_SECONDS and key not in _refreshing:
+            _refreshing.add(key)
+            threading.Thread(target=_refresh, args=(directory, key), daemon=True, name="fsclock").start()
+    return hit[0] if hit else offset(directory)
+
+
+def _refresh(directory, key):
+    try:
+        off = measure_offset(directory)
+        with _guard:
+            _cache[key] = (off, time.monotonic())
+    finally:
+        with _guard:
+            _refreshing.discard(key)
+
+
 def fs_now(directory):
     """Current time (seconds) on the clock of the file server holding `directory`."""
     return time.time() + offset(directory)

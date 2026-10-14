@@ -63,7 +63,7 @@ export interface CellEdit { text?: string; orig?: string; font?: string; sz?: nu
   /** conditional formatting copied with the format painter: the rules of "Sheet!A1" applied to this cell ("none" = no rules) */ cf?: string; align?: string; role?: string }
 export type Edits = Record<string, Record<string, CellEdit>>;
 
-/** data formats this page reads and writes – the same numbers as SCHEMA in backend/slidebuilder/upgrade.py
+/** data formats this page reads and writes – the same numbers as SCHEMA in helper/slidebuilder/upgrade.py
     (a test checks it). Sent with every change; a helper with other formats refuses it ("reload the page"). */
 export const FORMATS = { workbook: 3, config: 3, prefs: 1 } as const;
 export interface WorkbookDoc {

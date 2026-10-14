@@ -3,6 +3,14 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.0.0 - unreleased
+
+For the maintainer
+* The program moved from `backend\` to `helper\` (PLAN S5.1). The data, the logo and the v2 settings stay in
+  `backend\` (`backend\data\` is shared with Slide Builder 3); *Start* and *Install Slide Builder.bat* start
+  `helper\` (or `backend\` in a folder that still has the 3.x program), and versions installed side by side keep
+  working: `app\<ver>\helper\` for 4.x, `app\<ver>\backend\` for 3.x (`--use 3.8.0`).
+
 ## 3.8.0 - 2026-10-14
 
 What users notice – the slide on screen is drawn the way the PDF is (PLAN M4)

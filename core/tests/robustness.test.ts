@@ -36,7 +36,7 @@ function page() {
   const port = new Port<PageMethods, CoreMethods, CoreEvents, PageEvents>(a);
   let srv = emptyDoc("x");
   port.handle("getDoc", () => null);
-  // as backend/slidebuilder/store.py: every save also rewrites the time, the author, the log and the backup time
+  // as helper/slidebuilder/store.py: every save also rewrites the time, the author, the log and the backup time
   port.handle("postOps", x => {
     const r = applyOps(srv, x.ops), at = Date.now() + srv.rev;
     if (r.applied) Object.assign(r.doc, { rev: srv.rev + 1, schema: 3, updated: at, updatedBy: "me", backupAt: at, log: [...(srv.log || []), { rev: srv.rev + 1, by: "me", at }] });

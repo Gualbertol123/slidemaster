@@ -1,7 +1,7 @@
 # Release on a version tag (PLAN S0.2): the full CI, then the ZIP, its manifest check, a GitHub Release.
 #   git tag v3.4.0 && git push origin v3.4.0      (a human does this; see docs/next/release-checklist.md)
 # Tags with a suffix (v3.4.0-rc1) become pre-releases. The tag must match VERSION in
-# backend/slidebuilder/__init__.py (or start with it, followed by "-").
+# helper/slidebuilder/__init__.py (or start with it, followed by "-").
 name: release
 on:
   push:
@@ -28,7 +28,7 @@ jobs:
         run: |
           npm ci
           npm run build
-          git diff --exit-code -- backend/slide_builder.html
+          git diff --exit-code -- helper/slide_builder.html
       - name: assemble and verify the ZIP
         run: |
           VER="${GITHUB_REF_NAME#v}"

@@ -1,4 +1,4 @@
-/* End-to-end: the built app (backend/slide_builder.html) served by two real helpers that share one
+/* End-to-end: the built app (helper/slide_builder.html) served by two real helpers that share one
    folder – user "anna" on :8951 and user "bob" on :8952. Run: npm run build && npm run test:e2e */
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import fs from "node:fs";

@@ -19,7 +19,7 @@ const book = (n: string) => { const b = fs.readFileSync(path.join(here, "../../t
 const tick = () => new Promise(r => setTimeout(r, 5));
 async function until(f: () => boolean, ms = 5000) { const t = Date.now(); while (!f()) { if (Date.now() - t > ms) throw new Error("timeout"); await tick(); } }
 
-/** an in-memory helper: applies ops to the latest document, like backend/slidebuilder/store.py */
+/** an in-memory helper: applies ops to the latest document, like helper/slidebuilder/store.py */
 function server() {
   let doc: WorkbookDoc = emptyDoc("report.xlsx");
   return {

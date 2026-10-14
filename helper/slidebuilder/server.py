@@ -5,7 +5,7 @@ Security for every request (findings S1-S5):
 * ``/api/*`` (except ``/api/ping``), ``/files/*``, ``/assets/*``, ``/fonts/*`` and ``/sysfonts*`` need ``X-SB-Token``
   (``/assets/*`` and ``/fonts/*`` may pass ``?t=`` instead)                      -> else 403
 * an ``Origin`` header, when present, must be ``http://127.0.0.1:<port>`` / ``http://localhost:<port>``
-* bodies: 2 MB for JSON documents/ops, 300 MB for uploads/exports/conversions    -> else 413
+* bodies: 2 MB for JSON documents/ops (32 MB for a deck snapshot), 300 MB for uploads/exports/conversions -> else 413
 * error bodies are ``{"error": "<message>"}`` without tracebacks
 """
 import hmac
@@ -20,7 +20,7 @@ import urllib.parse
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import APP_NAME, VERSION, paths, presence, store
+from . import APP_NAME, VERSION, decks, paths, presence, store
 from .convert import convert_picture, convert_workbook
 from .exports import ExportError, export_feedback, export_file
 from .fonts import FONT_MAX, FontError, add_face, font_file, read_library, remove_family
@@ -31,6 +31,7 @@ from .util import WriteFailed, current_host, current_user, log, open_with_os, sa
 from .workbooks import Unstable, find_workbook, list_workbooks, stable_read, stat_workbook
 
 JSON_LIMIT = 2 * 1024 * 1024
+SNAPSHOT_LIMIT = 32 * 1024 * 1024
 BIG_LIMIT = 300 * 1024 * 1024
 UPLOAD_MAX = 8
 UPLOAD_TTL = 2 * 3600
@@ -108,10 +109,33 @@ def find_asset(name):
     return None
 
 
+DECK_ROUTE = re.compile(r"^/api/decks/([^/]+)/(snapshot|tail|append|compact|rotate|history)$")
+
+
 class HttpError(Exception):
     def __init__(self, code, msg):
         super().__init__(msg)
         self.code = code
+
+
+_idle_closer = []
+
+
+def _start_idle_closer():
+    """deck journals: append handles nobody used for 10 minutes are closed (decks.IDLE_CLOSE); one thread per process"""
+    if _idle_closer:
+        return
+
+    def loop():
+        while True:
+            time.sleep(60)
+            try:
+                decks.close_idle()
+            except Exception as e:             # noqa: BLE001 - never stop the thread
+                log("closing idle deck handles: %s" % e)
+    t = threading.Thread(target=loop, daemon=True, name="deck-handles")
+    _idle_closer.append(t)
+    t.start()
 
 
 class App:
@@ -122,6 +146,7 @@ class App:
         self.port = None
         self.uploads = {}                  # id -> (name, bytes, time)
         self.uploads_lock = threading.Lock()
+        _start_idle_closer()
 
     # ---- uploads (S4: max 8 entries, 2 h)
     def put_upload(self, name, data):
@@ -276,6 +301,10 @@ class Handler(BaseHTTPRequestHandler):
             self._error(403, "forbidden")
         except FileNotFoundError:
             self._error(404, "not found")
+        except decks.DeckError as e:
+            if e.status == 503:
+                log("busy: %s" % e)
+            self._send(e.status, dict(e.extra, error=str(e)))
         except StoreTooNew as e:
             self._error(409, str(e))
         except (StoreUnreadable, WriteFailed, LockTimeout, Unstable) as e:
@@ -325,6 +354,20 @@ class Handler(BaseHTTPRequestHandler):
             if not v:
                 return self._error(404, "upload expired, open the workbook again")
             return self._send(200, v[1], "application/octet-stream")
+        m = DECK_ROUTE.match(path)
+        if m:
+            key, action = urllib.parse.unquote(m.group(1)), m.group(2)
+            if action == "snapshot":
+                return self._send(200, {"snapshot": decks.read_snapshot(key)})
+            if action == "tail":
+                try:
+                    since = json.loads((q.get("since") or ["{}"])[0])
+                except ValueError:
+                    raise HttpError(400, "since must be JSON")
+                return self._send(200, decks.tail(key, since))
+            if action == "history":
+                return self._send(200, {"backups": decks.history(key)})
+            return False
         if path.startswith("/api/workbooks/"):
             name, action = self._workbook_route(path)
             if action == "doc":
@@ -352,7 +395,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _fieldcheck(self):
         """tools/fieldcheck.html next to the program (a checkout or a release folder; 404 when absent)"""
-        with open(os.path.join(os.path.dirname(paths.BACKEND), "tools", "fieldcheck.html"), "rb") as f:
+        with open(os.path.join(os.path.dirname(paths.HELPER), "tools", "fieldcheck.html"), "rb") as f:
             return self._send(200, f.read(), "text/html; charset=utf-8")
 
     def _workbook_file(self, name):
@@ -404,7 +447,34 @@ class Handler(BaseHTTPRequestHandler):
         return False
 
     # ------------------------------------------------------------------ POST
+    def _post_deck(self, path):
+        """the decks of Slide Builder 4 (docs/next/04 §2.2; helper/slidebuilder/decks.py)"""
+        if path == "/api/decks/open":
+            wb = self._json().get("workbook")
+            if not valid_workbook_name(wb):
+                raise HttpError(400, "invalid workbook name")
+            if store.workbook_exists(wb):
+                raise decks.DeckError(409, "this deck is still saved by Slide Builder 3 and has not been moved to Slide Builder 4 yet")
+            key, created = decks.create_if_missing(wb)
+            return self._send(200, {"key": key, "writer": decks.new_writer(), "created": created,
+                                    "storage": decks.storage_mode(), "snapshot": decks.read_snapshot(key)})
+        m = DECK_ROUTE.match(path)
+        if not m:
+            return False
+        key, action = urllib.parse.unquote(m.group(1)), m.group(2)
+        if action == "append":
+            req = self._json()
+            return self._send(200, decks.append(key, req.get("writer"), req.get("record")))
+        if action == "compact":
+            req = self._json(SNAPSHOT_LIMIT)
+            return self._send(200, decks.compact(key, req.get("baseGen"), req.get("snapshot")))
+        if action == "rotate":
+            return self._send(200, decks.rotate(key, self._json().get("writer")))
+        return False
+
     def _post(self, path, q):
+        if path.startswith("/api/decks/"):
+            return self._post_deck(path)
         if path.startswith("/api/workbooks/"):
             name, action = self._workbook_route(path)
             if action != "ops":
@@ -423,6 +493,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"doc": doc, "applied": applied, "skipped": skipped})
         if path == "/api/presence":
             req = self._json()
+            if "deck" in req:                            # presence v2 (decks): {deck, client}
+                return self._send(200, decks.heartbeat(req.get("deck"), req.get("client")))
             client, wb = req.get("client"), req.get("workbook")
             if not isinstance(client, str) or not client or len(client) > 200:
                 raise HttpError(400, "client is required")
@@ -430,7 +502,10 @@ class Handler(BaseHTTPRequestHandler):
                 raise HttpError(400, "workbook must be a string or null")
             return self._send(200, {"others": presence.heartbeat(client, wb)})
         if path == "/api/presence/leave":
-            client = self._json().get("client")
+            req = self._json()
+            if "deck" in req:
+                return self._send(200, {"ok": decks.leave(req.get("deck"), req.get("client"))})
+            client = req.get("client")
             if not isinstance(client, str) or not client:
                 raise HttpError(400, "client is required")
             presence.leave(client)

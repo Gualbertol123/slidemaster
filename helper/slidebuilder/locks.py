@@ -53,10 +53,10 @@ def _read(path):
 
 
 class Lock:
-    def __init__(self, name, directory=None, timeout=WAIT, stale=STALE, keepalive=False):
+    def __init__(self, name, directory=None, timeout=WAIT, stale=STALE, keepalive=False, filename=None):
         self.name = name
         self.directory = directory or paths.data_dir("locks")
-        self.path = os.path.join(self.directory, name + ".lock")
+        self.path = os.path.join(self.directory, filename or name + ".lock")
         self.timeout = timeout
         self.stale = stale
         self.keepalive = keepalive

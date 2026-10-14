@@ -20,11 +20,11 @@ the HTTP API (§8), concurrency and failure handling (§9), the export (§10), d
 | [`docs/REVIEW.md`](docs/REVIEW.md) | review of the previous generation (v2) and why the current architecture was chosen (and why not Next.js) |
 | [`docs/MIGRATION-PROMPT.md`](docs/MIGRATION-PROMPT.md) | brief for designing a full rebuild on a new local stack |
 | [`docs/next/`](docs/next/00-summary.md) | **design of the rebuild (Slide Builder 4)**: summary, measured baseline, options, architecture, migration, test/parity plan, phased plan, ADRs; spikes in `spikes/` |
-| [`backend/README-backend.md`](backend/README-backend.md) | helper command line, module table, environment variables |
+| [`helper/README-helper.md`](helper/README-helper.md) | helper command line, module table, environment variables |
 
 **Contents** — [1 Product](#1-what-the-product-does) · [2 Deployment](#2-deployment-and-running-it) ·
 [3 Architecture](#3-architecture) · [4 Data model](#4-data-model) · [5 Front end](#5-front-end-appsrc) ·
-[6 Flows](#6-key-flows-end-to-end) · [7 Back end](#7-back-end-the-helper-backendslidebuilder) ·
+[6 Flows](#6-key-flows-end-to-end) · [7 Back end](#7-back-end-the-helper-helperslidebuilder) ·
 [8 HTTP API](#8-http-api) · [9 Concurrency](#9-concurrency-and-failure-model) ·
 [10 Export](#10-export) · [11 Development](#11-development-and-tests) ·
 [12 Recipes](#12-where-to-change-what) · [13 Security](#13-security) · [14 Gotchas](#14-gotchas) ·
@@ -127,17 +127,19 @@ folder without touching saved setups; saved data in an older format is converted
 ### 2.1 Physical layout
 ```
 T:\Slide Builder\                          ROOT – the shared folder users see
-├─ Install Slide Builder.bat               first-time set-up on a PC → backend\slide_builder.py --install
-├─ Start Slide Builder.bat                 start the helper + open the app → app\<current>\backend\ or backend\slide_builder.py
+├─ Install Slide Builder.bat               first-time set-up on a PC → helper\slide_builder.py --install
+├─ Start Slide Builder.bat                 start the helper + open the app → app\<current>\helper\ or helper\slide_builder.py
 ├─ app\current.json  app\<ver>\            side-by-side program versions (tools\update.py --release, §7.5)
 ├─ Update Slide Builder.bat                update the program from GitHub → tools\update.py
 ├─ *.xlsx …                                users' workbooks (not in git)
 ├─ export\                                 exported PDFs/PNGs (not in git)
-└─ backend\
-   ├─ slide_builder.py                     entry point
-   ├─ slide_builder.html                   THE APP: one self-contained HTML file built from app\
-   ├─ slidebuilder\                        the helper package (Python standard library only)
-   └─ data\                                ALL saved state (not in git) – §4.1
+├─ helper\                                the program (backend\ until 3.8)
+│  ├─ slide_builder.py                     entry point
+│  ├─ slide_builder.html                   THE APP: one self-contained HTML file built from app\
+│  └─ slidebuilder\                        the helper package (Python standard library only)
+└─ backend\                                the user's files, shared with Slide Builder 3 (not in git)
+   ├─ logo*.*  slide_builder_settings.txt  logos, v2 settings
+   └─ data\                                ALL saved state – §4.1
 ```
 Every user runs **their own helper** on their own PC (`Start Slide Builder.bat`). The helper listens on
 `http://127.0.0.1:8765/` (next free port up to +20; if a Slide Builder already answers there, it just
@@ -150,23 +152,23 @@ on each PC that ran Slide Builder from a share (the engine's copy and its `locks
 ### 2.2 Who does what
 | Who | What |
 |---|---|
-| User, first time on a PC | `Install Slide Builder.bat` (`--install`, 5 steps): Python ≥ 3.8 check, shared-folder check (lock file, `export\` write, round-trip time; > 30 ms warns), journal check (a file in `data\locks` appended to twice, each record flushed with `fsync`, read back and removed; a failure stops the install), desktop shortcut (`.lnk`, or a `.bat` if PowerShell is restricted), self-test. Nothing is downloaded or installed; no admin rights; idempotent. Code: `backend/slidebuilder/firstrun.py`. |
+| User, first time on a PC | `Install Slide Builder.bat` (`--install`, 5 steps): Python ≥ 3.8 check, shared-folder check (lock file, `export\` write, round-trip time; > 30 ms warns), journal check (a file in `data\locks` appended to twice, each record flushed with `fsync`, read back and removed; a failure stops the install), desktop shortcut (`.lnk`, or a `.bat` if PowerShell is restricted), self-test. Nothing is downloaded or installed; no admin rights; idempotent. Code: `helper/slidebuilder/firstrun.py`. |
 | User, daily | `Start Slide Builder.bat` (or the shortcut). Keep the console window open. The app opens in an Edge app window (`msedge --app=<url>`, no tabs or address bar; a normal browser tab when Edge is missing; `SLIDEBUILDER_APP_WINDOW=0` forces the tab). |
 | One person, to update everyone | `Update Slide Builder.bat` (§7.5). Everybody then restarts Slide Builder and reloads the page. |
-| Developer | §11. Users never need Node.js: the built `backend/slide_builder.html` is committed. |
+| Developer | §11. Users never need Node.js: the built `helper/slide_builder.html` is committed. |
 
 ### 2.3 Upgrading from v2
 If `backend\slide_builder_settings.txt` (v2's single settings file) exists, the first v3 helper imports it
 once under a lock (presets, cell edits, style → shared defaults, last file → preferences), never
 overwriting existing documents, and renames it `slide_builder_settings.v2-backup.txt`
-(`backend/slidebuilder/migrate.py`).
+(`helper/slidebuilder/migrate.py`).
 
 ---
 
 ## 3. Architecture
 
 ```
-┌──────────────── browser tab: backend/slide_builder.html (ONE self-contained file, React + TS) ────────────────┐
+┌──────────────── browser tab: helper/slide_builder.html (ONE self-contained file, React + TS) ────────────────┐
 │ xlsx/    unzip (fflate) + byte scanner into columns, styles, number formats, conditional formats, drawings,   │
 │          "x" table regions, per-cell geometry (TableLayout)                                                    │
 │ model/   persistent types · operations (+ inverses) · preset → runtime slides · style layering & themes ·      │
@@ -182,7 +184,7 @@ overwriting existing documents, and renames it `slide_builder_settings.v2-backup
 │ ui/, wizard/   React 19 chrome: top bar, ribbons, dialogs, 4-step wizard                                        │
 └──────────────▲──────────────────────────────────────────────────────────────────▲──────────────────────────────┘
                │ HTTP on 127.0.0.1 (X-SB-Token, X-SB-Formats)                       │ PDF/PNG bytes to save
-┌──────────────┴──────────── helper: backend/slidebuilder (Python ≥ 3.8 standard library) ──────────┴──────────────┐
+┌──────────────┴──────────── helper: helper/slidebuilder (Python ≥ 3.8 standard library) ──────────┴──────────────┐
 │ server (routing, Host/Origin/token/format checks) · store (documents, upgrades, backups) · ops (same semantics  │
 │ as the front end) · locks + fsclock (O_EXCL lock files, file-server clock) · presence · workbooks (stable reads)│
 │ fonts + sysfonts (this PC's fonts, fingerprints) · exports (saves the page's PDFs/PNGs, problem reports) ·      │
@@ -299,7 +301,7 @@ batch with ≥ 1 applied op increments `rev` and sets `updated`/`updatedBy`. `co
 applying it (`model/ops.ts inverseOf`) – that is the undo.
 
 ### 4.4 Format versions (`schema`)
-Current formats: `SCHEMA = {workbook: 3, config: 3, prefs: 1}` (`backend/slidebuilder/upgrade.py`) =
+Current formats: `SCHEMA = {workbook: 3, config: 3, prefs: 1}` (`helper/slidebuilder/upgrade.py`) =
 `FORMATS` (`core/src/model/types.ts`; a test checks they match). On every read (`store._load`):
 * **older file** → under its lock, re-read, copy to `backups/upgrades/…`, apply `@step(kind, n)`
   functions n → n+1 in order, write atomically. Exactly once even with several PCs. `store.upgrade_all()`
@@ -308,7 +310,7 @@ Current formats: `SCHEMA = {workbook: 3, config: 3, prefs: 1}` (`backend/slidebu
 * Pages send `X-SB-Formats` with every write; a mismatch → 409 → the page shows "Slide Builder was updated
   – reload the page" and stops writing (its pending ops stay queued).
 * Optional new fields need **no** format change (readers ignore unknown keys; missing = default).
-  `backend/tests/fixtures/saved/` keeps a real example of every released format; never edit them.
+  `helper/tests/fixtures/saved/` keeps a real example of every released format; never edit them.
 
 ---
 
@@ -322,7 +324,7 @@ page's measuring of runs and lines for a font without a readable file) and `Canv
 analysis) — whose browser implementations are `app/src/platform/` (installed by `main.tsx`). XML is read by the core's
 own tokenizer (`core/src/xlsx/xml.ts`; DOMParser does not exist in workers).
 Slides are drawn from the core worker's **display lists** (§5.5, §10); the page has no HTML slide renderer since 3.8.
-Built by Vite + `vite-plugin-singlefile` into `backend/slide_builder.html`. `main.tsx` injects
+Built by Vite + `vite-plugin-singlefile` into `helper/slide_builder.html`. `main.tsx` injects
 `ui.css`+`app.css` as `<style id="uicss">` (the end of `app.css` holds the few slide rules the page still needs,
 §5.7), mounts `<App/>`, installs the keyboard handler and calls `boot()`.
 
@@ -340,7 +342,7 @@ Built by Vite + `vite-plugin-singlefile` into `backend/slide_builder.html`. `mai
 | File | Responsibility |
 |---|---|
 | `types.ts` | **All persistent types** (§4) + `FORMATS`, `Op`, and the runtime `RuntimeSlide = {id, type, cfg: SlideDef, tables: TableLayout[], title, subtitle, label, missing}`. |
-| `ops.ts` | `applyOp/applyOps` (the semantics of §4.3), `inverseOf` (undo), `emptyDoc`. Mirrors `backend/slidebuilder/ops.py`. |
+| `ops.ts` | `applyOp/applyOps` (the semantics of §4.3), `inverseOf` (undo), `emptyDoc`. Mirrors `helper/slidebuilder/ops.py`. |
 | `preset.ts` | `resolveTable(wb, def, design)` (marker or range table → `TableLayout`, with that design's sizes; **`LCACHE`** keyed by sheet + region + def + sizes/merges + workbook identity), `tableSizes(def, design)`, `runtimeSlides(wb, preset, name, design)` (titles fall back to the sheet's A1, subtitles to A2), `defaultPreset(wb)` (one slide per sheet named "*slide*" with marker tables), `growG` (growing ranges). |
 | `style.ts` | Built-in style, `resolveStyle(...layers)` (scalars, `pn`/`footer` per field, theme/colours/text per entry, then per-design looks, clamping), themes (`THEMES`, `themeOf`), `palette(style)` (theme defaults + overrides), `COLOR_KEYS` (what Design… offers per design), `cleanFmt`, `mix`. |
 | `comment.ts` | Automated comments, pure functions over a `Grid` of displayed cells: `analyse(grid)` finds the label column, data rows, headers, **comparison groups** (a header matching Δ/vs/var/delta… with Abs. and % columns, classified week/target/month/quarter/year/yoy by regex), latest period, total rows, entities and **blocks** (a bold or "Total…" row with the rows under it). `writeComment` (sections mode) and `writeSummary` (summary mode: facts joined with "·", a judgement word from the week's % (thresholds 1 % and 0.3 %), drivers and offsets with materiality, plan gap closure). `shapeComment` applies layout options and the unit (`withUnit`, default "mln"). |
@@ -544,7 +546,7 @@ deck out with the same files (`core/tests/w13.test.ts`).
 
 ---
 
-## 7. Back end: the helper (`backend/slidebuilder`)
+## 7. Back end: the helper (`helper/slidebuilder`)
 
 Python ≥ 3.8, **standard library only** (no optional packages). Windows is the target; everything except
 the Excel/GDI+ converters also runs on Linux/macOS (tests run there).
@@ -560,7 +562,7 @@ the app (an Edge app window, `msedge --app=<url>`, else a browser tab) → `serv
 ### 7.2 Module map
 | Module | Responsibility |
 |---|---|
-| `paths.py` | Folder layout: ROOT, DATA, EXPORT_DIR, `HOME_BACKEND`/`INSTALL_HOME` (a version in `app\<ver>\backend` uses the main folder's data and files); env overrides; `configure()`. |
+| `paths.py` | Folder layout: ROOT, DATA, EXPORT_DIR, `HOME_BACKEND`/`INSTALL_HOME` (a version in `app\<ver>\helper` uses the main folder's data and files; `HOME_BACKEND` is the main folder's `backend\`, where the data, logo and v2 settings stay); env overrides; `configure()`. |
 | `util.py` | Logging, identity (`current_user/host`), `doc_key`, name/path safety (`safe_path` refuses escapes), atomic writes (`write_tmp` + fsync + `replace_retry` for Windows sharing violations), a no-proxy opener for 127.0.0.1, `is_network_path` (`--install` says whether the folder is on a network drive). |
 | `fsclock.py` | The **file server's clock**: offset measured by writing a probe file and reading its mtime (cached 30 s). All ages of shared files use it, so PCs with skewed clocks agree. |
 | `locks.py` | `Lock(name)`: `data/locks/<name>.lock` created with `O_CREAT\|O_EXCL` (atomic on SMB), body `{user, host, pid, at, token}`; wait ≤ 10 s with jitter; stale after 15 s (server clock) → atomically renamed away and re-checked; keepalive thread for long sections; release only with our token. |
@@ -606,7 +608,7 @@ another page) · `SLIDEBUILDER_SIM_FS_MS`, `SLIDEBUILDER_TIMING` (load tests; `X
   `app\<ver>\`. The new version's `slide_builder.py --selftest` (reads every deck, `config.json` and
   preference file without writing; create/rename/delete probe in `data\locks`) must pass before
   `app\current.json` is replaced atomically. The newest 3 versions stay (and the previous one).
-  `Start Slide Builder.bat` starts the version named in `app\current.json`, else `backend\`. A version in
+  `Start Slide Builder.bat` starts the version named in `app\current.json`, else `helper\`. A version in
   `app\<ver>\` uses the main folder's workbooks, `export\` and `backend\data\` (`paths.HOME_BACKEND`).
 
 ---
@@ -694,7 +696,7 @@ line – with an in-window picture fallback) was removed in 3.8, with its routes
 ## 11. Development and tests
 ```
 npm ci                       # once, at the root (Node 22; developers only): npm workspaces app/ and core/
-npm run build                # type-check + single-file build of app/ → backend/slide_builder.html  (commit it)
+npm run build                # type-check + single-file build of app/ → helper/slide_builder.html  (commit it)
 npm test                     # Vitest: core/ (pure unit tests, ops vectors) and app/ (incl. "the built file is up to date")
 npm run check                # core/ typecheck (no DOM) + Vitest, app/ typecheck + Vitest (what CI runs, after npm run build)
 npm run parity               # v3.4.0's goldens against this build (tools/capture-v3.mjs + tools/parity.mjs; needs pypdf);
@@ -706,7 +708,7 @@ npm run bench                # benchmarks with thresholds: big30 parse (core; ne
                              #   real helper (tools/bench.mjs: deck20 open, big30 sheet read, long tasks, page + worker
                              #   heap); time limits scaled to the machine's speed, at most 2× (tools/calibrate.mjs)
 
-cd backend
+cd helper
 python -m unittest discover -s tests -v                  # helper tests (Python 3.8+)
 python slide_builder.py [--port 8765] [--no-browser] [--install] [--selftest] [--allow-font-copy WHO|off]
 python ../tools/loadtest.py --users 10 --scenario same --fs-ms 15        # load test (docs/LOADTEST.md)
@@ -722,7 +724,7 @@ needs `set NODE_OPTIONS=--use-system-ca` (Node 22).
 
 | Suite | Covers |
 |---|---|
-| `core/tests/ops.test.ts` + `backend/tests/test_ops.py` | every case of `shared/ops-vectors.json`; inverses |
+| `core/tests/ops.test.ts` + `helper/tests/test_ops.py` | every case of `shared/ops-vectors.json`; inverses |
 | `core/tests/xml.test.ts` (jsdom in this test only) | the core's XML tokenizer = DOMParser: rels, workbook, theme, styles, drawings of every corpus workbook and of a synthetic one (`zipbuild.ts`: gradient fills, custom theme, prefixed styles with BOM/CRLF, AlternateContent, charts, anchors; empty parts); entities, CDATA, namespaces, line ends, deep trees |
 | `core/tests/sheetstore.test.ts` (+ `sheet-v3.ts`, v3's parser kept as the reference) | every cell of every corpus sheet (big30 too when generated) equal to v3's regex parser: values, types, styles, runs, lookups, row info; crafted sheets with every cell shape (types, dates by format, rich/phonetic runs, escapes, prefixes, no `r`, unsorted/duplicates, unclosed tags) |
 | `core/tests/host.test.ts`, `slice.test.ts` | the core worker's host through its messages (slices → snapshot → the stage's slide, acks, undo/redo labels and coalescing, two people, each table a layer kept by its key) · every corpus deck gives the same slides, layouts, effective items and table display lists from slices as from the workbook (whole and cut to rectangles; conditional-format operands outside the table) |
@@ -736,19 +738,19 @@ needs `set NODE_OPTIONS=--use-system-ca` (Node 22).
 | `app/e2e/app.spec.ts` | 15 scenarios: wizard, two users merging, export, table tools, painter, gridlines, themes, typing under concurrent changes, text toolbar & fonts, comments, text boxes, notes section, versions × designs |
 | `app/e2e/file.spec.ts` | the page opened from file:// without the helper: choose a workbook, wizard, edit a cell, kept across a reload |
 | `app/e2e/open.spec.ts` | a dropped workbook opens (two drops at once: one open), Reload from disk, the "saved again in Excel" banner |
-| `backend/tests/test_store.py`, `test_locks.py`, `test_fsclock.py` | multi-process saves, stale locks, clock skew |
-| `backend/tests/test_upgrade.py` | saved-format examples, upgrades once, too-new files, page/helper formats |
-| `backend/tests/test_presence.py`, `test_release.py`, `test_sharetest.py`, `test_anonymise.py` · `app/tests/parity.test.ts` | presence from one listing · release ZIP + manifest · field-test protocols · corpus anonymiser · parity rules (ΔE, PNG, modes) |
-| `backend/tests/test_http.py`, `test_fonts.py` | API, security checks, fonts, logos |
-| `backend/tests/test_exports.py` | export naming and atomicity (` (2)` when the target is locked), `/api/export-file` (PDF/PNG only), `/api/export-feedback` |
-| `backend/tests/test_update.py`, `test_migrate.py`, `test_firstrun.py`, `test_workbooks.py`, `test_main.py`, `test_simfs.py` | updater, v2 import, `--install` (five steps, journal probe, shortcut), stable reads, entry point, load-test hook |
+| `helper/tests/test_store.py`, `test_locks.py`, `test_fsclock.py` | multi-process saves, stale locks, clock skew |
+| `helper/tests/test_upgrade.py` | saved-format examples, upgrades once, too-new files, page/helper formats |
+| `helper/tests/test_presence.py`, `test_release.py`, `test_sharetest.py`, `test_anonymise.py` · `app/tests/parity.test.ts` | presence from one listing · release ZIP + manifest · field-test protocols · corpus anonymiser · parity rules (ΔE, PNG, modes) |
+| `helper/tests/test_http.py`, `test_fonts.py` | API, security checks, fonts, logos |
+| `helper/tests/test_exports.py` | export naming and atomicity (` (2)` when the target is locked), `/api/export-file` (PDF/PNG only), `/api/export-feedback` |
+| `helper/tests/test_update.py`, `test_migrate.py`, `test_firstrun.py`, `test_workbooks.py`, `test_main.py`, `test_simfs.py` | updater, v2 import, `--install` (five steps, journal probe, shortcut), stable reads, entry point, load-test hook |
 
 ---
 
 ## 12. Where to change what
 | Task | Touch |
 |---|---|
-| **New saved field** | `model/types.ts` (type + `Op` patch type) → key lists in `model/ops.ts` **and** `backend/slidebuilder/ops.py` → a case in `shared/ops-vectors.json` → `docs/ARCHITECTURE.md` §3 → UI → rendering → if it changes how a table is drawn, add it to `tableKey` (`render/context.ts`) → tests. Optional fields need no format change. |
+| **New saved field** | `model/types.ts` (type + `Op` patch type) → key lists in `model/ops.ts` **and** `helper/slidebuilder/ops.py` → a case in `shared/ops-vectors.json` → `docs/ARCHITECTURE.md` §3 → UI → rendering → if it changes how a table is drawn, add it to `tableKey` (`render/context.ts`) → tests. Optional fields need no format change. |
 | **Change the meaning/shape of saved data** | raise `SCHEMA[kind]` in `upgrade.py` + `@step(kind, old)`; raise `FORMATS`; test in `test_upgrade.py`; **add** `fixtures/saved/<kind>.v<n+1>.json`; ARCHITECTURE §3.3. |
 | Cell formatting control | `ui/Ribbon.tsx` → `editor/textfmt.ts` / `editor/edit.ts applySel` → `render/edits.ts` → painter (`editor/painter.ts`). |
 | Table geometry, drags | `editor/tables.ts`, `stage/drags.ts`, `stage/hit.ts`, `render/layout.ts computeLayout/sizingOf`. |
@@ -759,7 +761,7 @@ needs `set NODE_OPTIONS=--use-system-ca` (Node 22).
 | Automated comment wording | `model/comment.ts` (`writeSummary`, `writeComment`), options in `ui/CommentDialog.tsx`. |
 | Deck options | `ui/Topbar.tsx`, `ui/TextStylesDialog.tsx`, `model/style.ts`, style keys/maps in both `ops` files. |
 | Wizard | `wizard/Wizard.tsx`, `core/src/xlsx/detect.ts`, `core/src/xlsx/sheetview.ts`, `model/preset.ts`. |
-| Saving, polling, conflicts | `core/src/sync/docsync.ts`, `core/src/worker/host.ts`, `state/app.ts onDocChange`, `backend/slidebuilder/store.py`. |
+| Saving, polling, conflicts | `core/src/sync/docsync.ts`, `core/src/worker/host.ts`, `state/app.ts onDocChange`, `helper/slidebuilder/store.py`. |
 | HTTP endpoint | `server.py` + `sync/api.ts` + ARCHITECTURE §5 + `test_http.py`. |
 | Export | `editor/export.ts`, `rpc/export.ts`, `core/src/pdf/writer.ts`, `core/src/text/` (fonts, shaping, subsetting), `exports.py`. |
 | Install / start / update | `*.bat`, `firstrun.py`, `main.py`, `tools/update.py`. |
@@ -774,7 +776,7 @@ cannot call the helper); `Origin` check; body limits; files served only by exten
 events and link updates off. TLS is never disabled (downloads use the system/corporate trust store).
 
 ## 14. Gotchas
-1. **Never edit `backend/slide_builder.html`** – edit `app/src`, `npm run build`, commit both (a unit
+1. **Never edit `helper/slide_builder.html`** – edit `app/src`, `npm run build`, commit both (a unit
    test fails on a stale build).
 2. **The stage, the thumbnails and the exports draw the same display list**: a change to how slides look goes into
    the core's `render/*-dl.ts` (and is seen everywhere at once), never into page CSS – the page's slide rules at
@@ -829,7 +831,7 @@ Every file in git, folder by folder (generated corpora, goldens and fixtures are
 ```
 /                                      ROOT (the shared folder)
 ├─ Install Slide Builder.bat           first-time set-up on a PC (firstrun.py: Python check, shortcut)
-├─ Start Slide Builder.bat             starts app\current.json's version, else backend\ (no PowerShell)
+├─ Start Slide Builder.bat             starts app\current.json's version, else helper\ (no PowerShell)
 ├─ Update Slide Builder.bat            tools\update.py: git/ZIP update in place, or side-by-side releases
 ├─ README.md                           this guide
 ├─ CHANGELOG.md                        user-visible changes per release
@@ -848,17 +850,18 @@ Every file in git, folder by folder (generated corpora, goldens and fixtures are
 ├─ spikes/                             design-phase experiments (baseline, parser, pdfwriter, fonts, storage)
 ├─ docs/                               see "Documentation" below
 ├─ tools/                              see below
-├─ backend/                            the helper (Python, standard library only), §7
+├─ helper/                             the helper (Python, standard library only), §7 (backend/ until 3.8;
+│                                      backend/ now holds only the user's data, logo and v2 settings)
 ├─ core/                               pure TypeScript, no DOM: workbooks, model, renderers (§5)
 └─ app/                                the browser app (React 19 + TypeScript), §5
 ```
 
-### `backend/` – the helper (§7)
+### `helper/` – the helper (§7)
 ```
-backend/
+helper/
 ├─ slide_builder.py                    entry point (→ slidebuilder.main)
 ├─ slide_builder.html                  BUILT page (npm run build); never edit by hand
-├─ README-backend.md                   module table and conventions of the helper
+├─ README-helper.md                    module table and conventions of the helper
 ├─ slidebuilder/
 │  ├─ __init__.py                      APP_NAME, VERSION
 │  ├─ main.py                          command line: --port, --no-browser, --install, --selftest; Edge --app window
@@ -888,7 +891,7 @@ backend/
 ```
 app/
 ├─ package.json · tsconfig.json
-├─ slide_builder.html                  Vite entry page (the built copy goes to ../backend/)
+├─ slide_builder.html                  Vite entry page (the built copy goes to ../helper/)
 ├─ vite.config.ts                      single-file build (vite-plugin-singlefile)
 ├─ vitest.config.ts                    projects "unit" (node) and "react" (jsdom)
 ├─ playwright.config.ts                two helpers = two users (anna, bob) on one temp folder

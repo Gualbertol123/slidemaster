@@ -10,6 +10,7 @@
 What is never changed – it is not part of the repository (see .gitignore):
     backend/data/        decks, cell edits, deck styles, defaults, user preferences, backups
     backend/logo*.*      logos, slide_builder_settings*.txt (v2 settings)
+    (the program itself is in helper/ since 4.0 - in backend/ until 3.8; backend/ keeps the user's files)
     *.xlsx …             the workbooks          export/  engine/
 
 How it updates
@@ -27,7 +28,7 @@ Side-by-side releases (--release, --zip <file>, --use)
     install leaves nothing that looks installed;
   * the new version's `slide_builder.py --selftest` must pass (it reads every saved setup without writing,
     and checks the data folder accepts create, rename and delete) before app\\current.json is replaced
-    (atomically) - "Start Slide Builder.bat" starts the version named there, else backend\\ as before;
+    (atomically) - "Start Slide Builder.bat" starts the version named there, else helper\\ as before;
   * the last 3 versions stay (plus the current one), so --use can go back at once. The data folder is
     shared by all versions and is never written by the install, only backed up.
 
@@ -377,7 +378,16 @@ def sha256_bytes(data):
 
 WINDOWS_RESERVED = re.compile(r"^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$", re.I)
 BAD_CHARS = re.compile(r'[\x00-\x1f<>"|?*:\\]')
-CORE_FILES = ("backend/slide_builder.py",)
+# the program's entry: helper/ from 4.0, backend/ in 3.x releases (still installable: --release 3.8.0, --use)
+CORE_FILES = ("helper/slide_builder.py", "backend/slide_builder.py")
+
+
+def program_dir(folder):
+    """the program's folder in a version folder or a main folder: helper/ (4.x), else backend/ (3.x); None if neither"""
+    for c in CORE_FILES:
+        if os.path.isfile(os.path.join(folder, *c.split("/"))):
+            return os.path.join(folder, c.split("/")[0])
+    return None
 
 
 def safe_member(name):
@@ -428,9 +438,8 @@ def verify_release(zf):
         raise ValueError("%s has no valid version" % MANIFEST)
     if man.get("app") not in (None, "slide-builder"):
         raise ValueError("not a Slide Builder release (app %r)" % man.get("app"))
-    missing_core = [c for c in CORE_FILES if c not in files]
-    if missing_core:
-        raise ValueError("the release has no %s" % missing_core[0])
+    if not any(c in files for c in CORE_FILES):
+        raise ValueError("the release has no %s" % CORE_FILES[0])
     listed, present = set(files), set(names) - {MANIFEST}
     unsafe = [n for n in listed if not safe_member(n)]
     if unsafe:
@@ -538,7 +547,7 @@ def check_installed(folder):
 def selftest(root, folder):
     """the version in `folder` runs its own self-test against this folder's data (exit 0 = usable)"""
     env = dict(os.environ, SLIDEBUILDER_ROOT=root, SLIDEBUILDER_DATA=data_dir(root), PYTHONIOENCODING="ascii:replace")
-    entry = os.path.join(folder, "backend", "slide_builder.py")
+    entry = os.path.join(program_dir(folder) or os.path.join(folder, "helper"), "slide_builder.py")
     try:
         r = subprocess.run([sys.executable, entry, "--selftest"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                            universal_newlines=True, errors="replace", env=env, cwd=os.path.dirname(entry), timeout=600)
@@ -759,7 +768,7 @@ def verify_saved(root):
     """open every saved deck with the NEW program files (a fresh Python), so a format problem shows now"""
     code = r"""
 import json, os, sys
-sys.path.insert(0, os.path.join(sys.argv[1], "backend"))
+sys.path.insert(0, sys.argv[2])
 from slidebuilder import ops
 d = os.path.join(sys.argv[1], "backend", "data", "workbooks")
 ok, bad = 0, []
@@ -775,7 +784,7 @@ for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
         bad.append("%s: %s" % (f, e))
 print(json.dumps({"ok": ok, "bad": bad}))
 """
-    r = subprocess.run([sys.executable, "-c", code, root], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    r = subprocess.run([sys.executable, "-c", code, root, program_dir(root) or os.path.join(root, "helper")], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     try:
         res = json.loads(r.stdout.strip().splitlines()[-1])
     except (ValueError, IndexError):
@@ -795,7 +804,7 @@ def nested_copy(root):
     out = []
     for name in os.listdir(root):
         p = os.path.join(root, name)
-        if os.path.isdir(os.path.join(p, ".git")) and os.path.isfile(os.path.join(p, "backend", "slide_builder.py")):
+        if os.path.isdir(os.path.join(p, ".git")) and program_dir(p):
             out.append(p)
     return out
 
@@ -837,7 +846,7 @@ def main(argv=None):
     root = os.path.abspath(a.root)
     say("Slide Builder update - folder: " + root)
     if current_version(root) and not (a.release or a.use or isinstance(a.zip, str) or a.branch or a.zip):
-        # this folder runs side-by-side versions (app\current.json): updating backend\ would change nothing
+        # this folder runs side-by-side versions (app\current.json): updating helper\ would change nothing
         say("This folder uses side-by-side versions (app\\current.json, now %s): looking for the newest release." % current_version(root))
         a.release = "latest"
     if a.release or a.use or isinstance(a.zip, str):

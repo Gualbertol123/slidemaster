@@ -4,7 +4,9 @@ title Slide Builder - first-time set-up
 rem Runs "slide_builder.py --install": Python check, shared-folder and journal checks,
 rem desktop shortcut and a self-test. Nothing is downloaded. No administrator rights needed. Safe to run again.
 rem pushd (not cd /d) so that this also works when the folder is opened as \\server\share\...
-pushd "%~dp0backend" || (echo The folder "%~dp0backend" cannot be opened. & pause & exit /b 1)
+set "PROG=%~dp0helper"
+if not exist "%~dp0helper\slide_builder.py" set "PROG=%~dp0backend"
+pushd "%PROG%" || (echo The folder "%PROG%" cannot be opened. & pause & exit /b 1)
 
 set "PY="
 where py >nul 2>nul && py -3 -c "import sys" >nul 2>nul && set "PY=py -3"

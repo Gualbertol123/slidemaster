@@ -103,7 +103,7 @@ def main(argv=None):
     from .server import App, make_server
 
     if not os.path.exists(paths.APP_FILE):
-        print("slide_builder.html is missing in %s - build the app first (cd app && npm run build)." % paths.BACKEND)
+        print("slide_builder.html is missing in %s - build the app first (cd app && npm run build)." % paths.HELPER)
         print("The helper starts anyway; the page explains what to do.")
     for d in (paths.EXPORT_DIR, paths.DATA):
         os.makedirs(d, exist_ok=True)

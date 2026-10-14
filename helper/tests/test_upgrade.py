@@ -18,7 +18,7 @@ from slidebuilder import paths, store, upgrade
 from slidebuilder.ops import apply_ops
 from slidebuilder.server import formats_match
 
-FIX = os.path.join(REPO, "backend", "tests", "fixtures", "saved")
+FIX = os.path.join(REPO, "helper", "tests", "fixtures", "saved")
 WB = "Weekly IBD.xlsx"
 
 

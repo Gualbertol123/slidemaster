@@ -40,10 +40,10 @@ class ReleaseTest(unittest.TestCase):
         self.tmp = tempfile.mkdtemp(prefix="sb-release-")
         self.root = os.path.join(self.tmp, "repo")
         write(self.root, {
-            "backend/slide_builder.py": "print('hi')\n",
-            "backend/slide_builder.html": "<!doctype html>",
-            "backend/slidebuilder/__init__.py": 'APP_NAME = "slide-builder"\nVERSION = "3.4.0"\n',
-            "backend/slidebuilder/server.py": "# server\n",
+            "helper/slide_builder.py": "print('hi')\n",
+            "helper/slide_builder.html": "<!doctype html>",
+            "helper/slidebuilder/__init__.py": 'APP_NAME = "slide-builder"\nVERSION = "3.4.0"\n',
+            "helper/slidebuilder/server.py": "# server\n",
             "tools/update.py": "# updater\n",
             "tools/make_release.py": "# not shipped\n",
             "Start Slide Builder.bat": "@echo off\r\n",
@@ -51,14 +51,14 @@ class ReleaseTest(unittest.TestCase):
             "Install Slide Builder.bat": "@echo off\r\n",
             "README.md": "# Slide Builder\n",
             # never shipped: user data, tests, caches, a user's logo and settings, workbooks, dot files
-            "backend/data/config.json": "{}",
-            "backend/data/workbooks/a.json": "{}",
-            "backend/tests/test_x.py": "",
-            "backend/slidebuilder/__pycache__/server.cpython-38.pyc": b"\x00",
-            "backend/logo.png": b"PNG",
-            "backend/slide_builder_settings.txt": "v2",
-            "backend/report.xlsx": b"PK",
-            "backend/.gitignore": "data/",
+            "helper/data/config.json": "{}",
+            "helper/data/workbooks/a.json": "{}",
+            "helper/tests/test_x.py": "",
+            "helper/slidebuilder/__pycache__/server.cpython-38.pyc": b"\x00",
+            "helper/logo.png": b"PNG",
+            "helper/slide_builder_settings.txt": "v2",
+            "helper/report.xlsx": b"PK",
+            "helper/.gitignore": "data/",
             "app/src/main.tsx": "",
         })
         self.out = os.path.join(self.tmp, "dist")
@@ -87,8 +87,8 @@ class ReleaseTest(unittest.TestCase):
             man = json.loads(z.read("MANIFEST.json"))
             self.assertEqual(names, sorted([
                 "MANIFEST.json", "README.md", "Install Slide Builder.bat", "Start Slide Builder.bat", "Update Slide Builder.bat",
-                "backend/slide_builder.html",
-                "backend/slide_builder.py", "backend/slidebuilder/__init__.py", "backend/slidebuilder/server.py", "tools/update.py"]))
+                "helper/slide_builder.html",
+                "helper/slide_builder.py", "helper/slidebuilder/__init__.py", "helper/slidebuilder/server.py", "tools/update.py"]))
             self.assertEqual(man["version"], "3.4.0")
             self.assertEqual(man["app"], "slide-builder")
             for n, meta in man["files"].items():
@@ -127,22 +127,22 @@ class ReleaseTest(unittest.TestCase):
         subprocess.run(g + ["init", "-q"], check=True)
         subprocess.run(g + ["add", "-A"], check=True)
         subprocess.run(g + ["commit", "-qm", "x"], check=True)
-        write(self.root, {"backend/slidebuilder/notes.orig": "left over", "backend/venv/lib/x.py": "", "backend/slide_builder.log": ""})
+        write(self.root, {"helper/slidebuilder/notes.orig": "left over", "helper/venv/lib/x.py": "", "helper/slide_builder.log": ""})
         files = mr.release_files(self.root)
-        self.assertNotIn("backend/slidebuilder/notes.orig", files)
-        self.assertNotIn("backend/venv/lib/x.py", files)
-        self.assertIn("backend/slidebuilder/server.py", files)
-        self.assertNotIn("backend/data/config.json", files)          # tracked here, but user data is never shipped
+        self.assertNotIn("helper/slidebuilder/notes.orig", files)
+        self.assertNotIn("helper/venv/lib/x.py", files)
+        self.assertIn("helper/slidebuilder/server.py", files)
+        self.assertNotIn("helper/data/config.json", files)          # tracked here, but user data is never shipped
         self.assertFalse(mr.git_commit(self.root).endswith("-dirty"))
-        write(self.root, {"backend/slidebuilder/server.py": "# changed\n"})
+        write(self.root, {"helper/slidebuilder/server.py": "# changed\n"})
         self.assertTrue(mr.git_commit(self.root).endswith("-dirty"))
 
     def test_nested_folder_named_like_a_skipped_one_is_kept(self):
-        write(self.root, {"backend/slidebuilder/data/table.py": "x = 1\n"})
-        self.assertIn("backend/slidebuilder/data/table.py", mr.release_files(self.root))
+        write(self.root, {"helper/slidebuilder/data/table.py": "x = 1\n"})
+        self.assertIn("helper/slidebuilder/data/table.py", mr.release_files(self.root))
 
     def test_page_must_be_built(self):
-        os.remove(os.path.join(self.root, "backend", "slide_builder.html"))
+        os.remove(os.path.join(self.root, "helper", "slide_builder.html"))
         with self.assertRaises(SystemExit) as e:
             self.build()
         self.assertIn("npm run build", str(e.exception))
@@ -165,8 +165,8 @@ class ReleaseTest(unittest.TestCase):
         self.build()
         good = os.path.join(self.out, "slidebuilder-3.4.0.zip")
         cases = {
-            "damaged": lambda n, d: b"evil" if n == "backend/slidebuilder/server.py" else d,
-            "missing": lambda n, d: None if n == "backend/slide_builder.py" else d,
+            "damaged": lambda n, d: b"evil" if n == "helper/slidebuilder/server.py" else d,
+            "missing": lambda n, d: None if n == "helper/slide_builder.py" else d,
             "no manifest": lambda n, d: None if n == "MANIFEST.json" else d,
             "bad manifest": lambda n, d: b"{" if n == "MANIFEST.json" else d,
         }
@@ -177,28 +177,28 @@ class ReleaseTest(unittest.TestCase):
             self.assertEqual(rc, 1, label)
             self.assertIn("NOT OK", out)
         # extra and unsafe entries
-        for label, name in (("extra", "backend/extra.py"), ("unsafe", "../evil.py"), ("absolute", "/etc/x"), ("drive", "C:/x")):
+        for label, name in (("extra", "helper/extra.py"), ("unsafe", "../evil.py"), ("absolute", "/etc/x"), ("drive", "C:/x")):
             bad = os.path.join(self.tmp, label + ".zip")
             shutil.copy(good, bad)
             with zipfile.ZipFile(bad, "a") as z:
                 z.writestr(name, "x")
             self.assertEqual(self.verify(bad)[0], 1, label)
         # an unsafe name that IS listed in the manifest with the right hash: refused for its name
-        for label, name in (("listed traversal", "../evil.py"), ("device", "backend/aux.txt"), ("trailing dot", "backend/x.py."),
-                            ("trailing space", "backend/x.py "), ("control", "backend/a\x01.py"), ("wildcard", "backend/a?.py")):
+        for label, name in (("listed traversal", "../evil.py"), ("device", "helper/aux.txt"), ("trailing dot", "helper/x.py."),
+                            ("trailing space", "helper/x.py "), ("control", "helper/a\x01.py"), ("wildcard", "helper/a?.py")):
             self.assertEqual(self.verify(self.forged(good, {name: b"x"}))[0], 1, label)
         # names Windows would merge: case, Unicode form, an exact duplicate
-        for label, extra in (("case", {"backend/SLIDE_BUILDER.py": b"x"}), ("nfd", {"backend/cafe\u0301.py": b"x", "backend/caf\u00e9.py": b"y"})):
+        for label, extra in (("case", {"helper/SLIDE_BUILDER.py": b"x"}), ("nfd", {"helper/cafe\u0301.py": b"x", "helper/caf\u00e9.py": b"y"})):
             self.assertEqual(self.verify(self.forged(good, extra))[0], 1, label)
         dup = os.path.join(self.tmp, "dup.zip")
         shutil.copy(good, dup)
         with zipfile.ZipFile(dup, "a") as z:
-            z.writestr("backend/slide_builder.py", "other")
+            z.writestr("helper/slide_builder.py", "other")
         self.assertEqual(self.verify(dup)[0], 1, "duplicate entry")
         # manifests of the wrong shape are refused, never a traceback
         for label, man in (("files not a dict", {"version": "3.4.0", "files": ["a.py"]}), ("entry not a dict", {"version": "3.4.0", "files": {"a.py": "x"}}),
                            ("no files", {"version": "3.4.0", "files": {}}), ("not an object", ["x"]),
-                           ("other app", {"app": "other", "version": "3.4.0", "files": {"backend/slide_builder.py": {"size": 1, "sha256": "0" * 64}}}),
+                           ("other app", {"app": "other", "version": "3.4.0", "files": {"helper/slide_builder.py": {"size": 1, "sha256": "0" * 64}}}),
                            ("no helper", {"version": "3.4.0", "files": {"a.py": {"size": 1, "sha256": "0" * 64}}})):
             bad = os.path.join(self.tmp, "man.zip")
             with zipfile.ZipFile(bad, "w") as z:
@@ -229,9 +229,9 @@ class RealTreeTest(unittest.TestCase):
         tmp = tempfile.mkdtemp(prefix="sb-release-real-")
         try:
             path, man = mr.build(REPO, "0.0.0-test", tmp, check_version=False)
-            self.assertIn("backend/slide_builder.html", man["files"])
-            self.assertIn("backend/slidebuilder/server.py", man["files"])
-            self.assertFalse([n for n in man["files"] if n.startswith(("backend/data/", "backend/tests/", "app/", "docs/"))])
+            self.assertIn("helper/slide_builder.html", man["files"])
+            self.assertIn("helper/slidebuilder/server.py", man["files"])
+            self.assertFalse([n for n in man["files"] if n.startswith(("helper/data/", "helper/tests/", "app/", "docs/"))])
             with zipfile.ZipFile(path) as z:
                 mr.update.verify_release(z)
         finally:

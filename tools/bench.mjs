@@ -31,7 +31,7 @@
    slow runner cannot hide a doubling); long tasks and heap are not.
 
      node tools/bench.mjs [--page DIR] [--json OUT] [--no-gate]
-   --page DIR  another build's backend folder (e.g. a v3 worktree's backend/) – to record its numbers
+   --page DIR  another build's program folder (e.g. a v3 worktree's backend/, or helper/ from 4.0) – to record its numbers
    Needs: npm ci (Playwright), Python (the helper: python3, on Windows python), Chromium (CHROME, or Playwright's), and
    tests/corpus/workbooks/big30.xlsx (python tools/make_corpus.py big30 tests/corpus/workbooks). */
 import { createRequire } from "node:module";
@@ -47,7 +47,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url)), REPO = path.resolve(H
 const require = createRequire(path.join(REPO, "package.json"));
 const { chromium } = require("playwright");
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
-const BACKEND = path.resolve(arg("--page", path.join(REPO, "backend")));
+const BACKEND = path.resolve(arg("--page", path.join(REPO, "helper")));
 const GATE = !process.argv.includes("--no-gate");
 const BUDGET = { open_deck20_ms: 400, read_big30_ms: 1000, longest_task_ms: 50, first_draw_task_ms: 250, heap_mb: 150,
   export_glass_ms: 2000, export_excel_ms: 1000, export_glass_kb: 80 * 20 + 190, export_excel_kb: 40 * 20, keypress_p95_ms: 50, drag_frame_ms: 16, thumbs_gap_ms: 20 }, SLACK = 1.1;
