@@ -258,8 +258,10 @@ export function compare(goldenDir, actualDir, opts = {}) {
   const share = d => { const m = /([\d.]+) % of the pixels/.exec(String(d.detail)); return m ? +m[1] : Infinity; };
   const admits = (a, d) => a.upTo === undefined || d.kind !== "pixels" || share(d) <= a.upTo;
   for (const d of diffs) d.accepted = accepted.find(a => (!a.tool || a.tool === (opts.tool || "parity")) && ["deck", "design", "version", "file", "kind"].every(k => a[k] === undefined || a[k] === d[k]) && admits(a, d)) || null;
-  // an entry with a digest accepts exactly the differences it was signed for (S4.4): if those of its scope changed, none is
-  for (const e of new Set(diffs.map(d => d.accepted).filter(x => x && x.digest))) {
+  // an entry with a digest accepts exactly the differences it was signed for (S4.4): if those of its scope changed, none is.
+  // The digests are of a full comparison's differences (the reference PC's); a text-only comparison (another Chromium
+  // or other fonts – CI's runners) states fewer of them (no sizes, no geometry), so there the scope alone accepts
+  if (full) for (const e of new Set(diffs.map(d => d.accepted).filter(x => x && x.digest))) {
     const mine = diffs.filter(d => d.accepted === e);
     if (detailsDigest(mine) !== e.digest) for (const d of mine) { d.accepted = null; d.detail += " (the accepted entry's differences changed)"; }
   }

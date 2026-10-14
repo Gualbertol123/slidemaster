@@ -65,6 +65,23 @@ describe("parity", () => {
       expect([res.unaccepted, res.diffs[0].accepted.signedOff]).toEqual([0, "second"]);
     } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
   });
+  it("an entry with a digest: exactly its differences in a full comparison; its scope in a text-only one (CI)", async () => {
+    const m = await load();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sb-parity-test-"));
+    const env = { chromium: "141", fontsSha256: "abc" };
+    try {
+      const g = path.join(tmp, "g"), a = path.join(tmp, "a");
+      capture(g, env, slide());
+      capture(a, env, slide({ font: "Other", size: "16px" }));                               // font and size differ
+      const full = m.compare(g, a).diffs.filter((d: any) => d.kind === "style");
+      const entry = { deck: "deck", kind: "style", reason: "B2", signedOff: "PO", digest: m.detailsDigest(full) };
+      expect(m.compare(g, a, { accepted: [entry] }).unaccepted).toBe(0);                     // signed for exactly these
+      expect(m.compare(g, a, { accepted: [{ ...entry, digest: "0000000000000000" }] }).unaccepted).toBe(1);   // others: no
+      // text-only (another Chromium, other fonts): the size is not compared, so the details differ from the signed ones
+      const textOnly = m.compare(g, a, { accepted: [entry], full: false });
+      expect([textOnly.full, textOnly.unaccepted]).toEqual([false, 0]);
+    } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  });
   it("texts exact, boxes ±2 px, accepted differences, text-only mode when the environment differs", async () => {
     const m = await load();
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sb-parity-test-"));
