@@ -151,7 +151,9 @@ export async function settle(page) {
   await page.waitForFunction(() => !window.__sbTest?.stageIdle || window.__sbTest.stageIdle(), null, { timeout: 60_000 });
   // a font that missed its measuring budget redraws the slide when it comes (S4.4): read the slide after that
   if (await page.evaluate(async () => !!window.__sbTest?.fontsSettling && await window.__sbTest.fontsSettling())) {
-    for (let i = 0; i < 300 && await page.evaluate(() => window.__sbTest.fontsSettling()); i++) await sleep(100);
+    let i = 0;
+    for (; i < 300 && await page.evaluate(() => window.__sbTest.fontsSettling()); i++) await sleep(100);
+    if (i === 300) console.warn("capture: a late font was still coming after 30 s – the slide is read as it is");
     await page.waitForFunction(() => window.__sbTest.stageIdle(), null, { timeout: 60_000 });
   }
   await page.evaluate(async () => {

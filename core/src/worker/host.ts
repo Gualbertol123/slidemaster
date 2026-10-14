@@ -106,7 +106,7 @@ export class CoreHost {
     h("flush", async () => { await this.sync?.flush(); });
     h("poll", async () => { await this.sync?.poll(); });
     h("slideLists", a => this.lists(a));
-    h("fontsSettling", () => !!(platform().text as { settling?: boolean }).settling);
+    h("fontsSettling", () => !!(platform().text as { settling?: boolean }).settling || this.lateRedraws > 0);
     h("stage", a => { if (!a.nodes) this.stageReq = { ...a, fresh: false, have: undefined }; return this.queueStage(a); });
     // an export worker's own channel (S3.7): display lists go to it directly, never through the page's main thread
     h("linkExport", a => {
@@ -325,6 +325,8 @@ export class CoreHost {
   /** the stage's last request (which slide it shows, how): after a change the worker sends that slide without being
       asked, a page round trip sooner */
   private stageReq: StageReq | null = null;
+  /** redraws a late font started that have not reached the page yet (fontsSettling: the capture tools wait for them) */
+  private lateRedraws = 0;
   /** the pictures the page has (named in its requests, or sent to it) */
   private pageImages = new Set<string>();
   private queueStage(a: StageReq): Promise<StageSlide | null> {
@@ -367,7 +369,12 @@ export class CoreHost {
     // check, once per face), or every font's when asked (the SP switch)
     const tm = platform().text;
     // a font whose file came after the measuring budget (the page measured its text meanwhile): measured and drawn again
-    if (tm.onLate === null) tm.onLate = () => { this.stageCache.clear(); forgetMeasurements(); if (this.stageReq) void this.queueStage(this.stageReq).then(s => { if (s) this.port.emit("stage", s); }, () => undefined); };
+    if (tm.onLate === null) tm.onLate = () => {
+      this.stageCache.clear(); forgetMeasurements();
+      if (!this.stageReq) return;
+      this.lateRedraws++;
+      void this.queueStage(this.stageReq).then(s => { if (s) this.port.emit("stage", s); }, () => undefined).finally(() => { this.lateRedraws--; });
+    };
     if (tm.check) {
       tm.outlineAll = a.outlines === "all";
       const fonts = new Set<string>(), walk = (ns: Node[]) => { for (const n of ns) if (n.t === "group") walk(n.children); else if (n.t === "text") fonts.add(`${n.i ? "italic " : ""}${weightOf(n)} 11px ${n.css || n.font}`); };

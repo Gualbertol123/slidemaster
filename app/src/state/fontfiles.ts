@@ -44,8 +44,9 @@ export async function catalog(): Promise<CatalogFont[]> {
     measures and draws it from the library's file */
 const captured = new Set<string>(), waiting: string[] = [];
 let quiet: ReturnType<typeof setTimeout> | null = null, sending = false;
-/** captures are not urgent: they wait until the workers have asked for no font for CAPTURE_QUIET_MS (a deck's first
-    slide waits for its font files – the helper's work for a capture must not delay them), then go one at a time */
+/** captures are not urgent: they wait until the workers have asked for no Windows font file not captured yet for
+    CAPTURE_QUIET_MS (a deck's first slide waits for its font files – the helper's work for a capture must not delay
+    them), then go one at a time */
 export const CAPTURE_QUIET_MS = 3000;
 function capture(file: string) {
   const k = file.toLowerCase();

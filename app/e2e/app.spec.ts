@@ -61,6 +61,11 @@ async function openApp(page: Page, url: string) {
   await page.goto(url);
   await page.locator("#openBtn").waitFor();                                       // the page has rendered…
   await expect(page.locator("#srv")).toHaveCount(0);                              // …and the helper answered (S4.5: no engine pill)
+  // start-up reopens the user's last workbook: a workbook opened before that finished was replaced by it (as in
+  // open.spec) – wait until it is open
+  let last: string | null = null;
+  try { last = JSON.parse(fs.readFileSync(path.join(data(), "users", (url === ANNA ? "anna" : "bob") + ".json"), "utf8")).lastFile || null; } catch { /* first start */ }
+  if (last) await expect(page.locator("#fileName")).toHaveText(new RegExp("^" + last.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + " · \\d+ slides?"), { timeout: 30_000 });
 }
 async function openWorkbook(page: Page, name: string) {
   await page.click("#openBtn");

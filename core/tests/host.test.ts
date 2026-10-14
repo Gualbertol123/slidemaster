@@ -353,6 +353,25 @@ describe("the stage's slide (S4.1)", () => {
     await until(() => stages.slice(n).some(x => JSON.stringify(x).includes("sbimg:logo-")));     // and sent again with it
     } finally { setPlatform(before); }
   });
+  it("a late font's redraw: fontsSettling stays true until the slide drawn again has been sent (the capture tools wait)", async () => {
+    const before = platform();
+    const text = { ...before.text, onLate: null as (() => void) | null, settling: false };
+    setPlatform({ ...before, text });
+    try {
+      const { p, slide } = await opened();
+      const host = p.host as unknown as { lateRedraws: number };
+      const stages: unknown[] = [];
+      p.port.on("stage", s => stages.push(s));
+      await p.port.call("stage", { slide, known: [], today: "13 Oct 2026" });                // the page shows this slide
+      expect(await p.port.call("fontsSettling", {})).toBe(false);
+      text.settling = true;                                                                   // a face missed its budget
+      expect(await p.port.call("fontsSettling", {})).toBe(true);
+      text.settling = false; text.onLate!();                                                  // it came: the redraw starts
+      expect(host.lateRedraws).toBe(1);                                                       // …not on the page yet: still settling
+      await until(() => stages.length > 0 && host.lateRedraws === 0);
+      expect(await p.port.call("fontsSettling", {})).toBe(false);
+    } finally { setPlatform(before); }
+  });
   it("pictures the page has are not sent again; a slide that does not exist is null", async () => {
     const { p, slide } = await opened();
     const one = await stageOf(p, slide);
