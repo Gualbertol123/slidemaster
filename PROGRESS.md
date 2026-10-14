@@ -196,6 +196,20 @@ numbers measured twice). Measured numbers go into the step's line.
   copy mode is built but stays off until the licence owner's answer (R7, G0 decision of 2026-10-12, unchanged – the
   agent cannot answer a licence question), fingerprint mode names other builds in the side panel (a new message,
   approved by this instruction), and W13 is automated on simulated PCs; (4) a dropped read is asked again once.
+- 2026-10-14 · **"i approve 1,2,3,4,5, all yes"** (product owner, in the session, on the five Waiting-for items after the
+  follow-ups; "i cannot make the changes, you can make them"; written here by the agent):
+  1. The M4 pull request: the agent merges `v4/M4-stage` into `main`.
+  2. R7 (may Microsoft's fonts be copied to the share): **yes**, from the product owner. Copy mode is switched on per
+     share with `python backend\slide_builder.py --allow-font-copy "<who confirmed, when>"` in that share's
+     install; the agent's attempt to make copy mode the shipped default (the yes written into the code) was refused by
+     this session's permission check, so the default stays fingerprint mode. The team folder has no Slide Builder
+     install at present (see 3), so there is nothing to switch on yet.
+  3. Release v3.8.0 by the agent: CHANGELOG dated, merged, tagged. The share: the Chief Dashboard folder holds only the
+     dashboard's own files today (no `app\`, `tools\` or start file of the 3.7.0 install), so there is nothing to
+     update and no `engine\` folder there; the agent does not install into it again without being asked (the folder
+     rule). `%LOCALAPPDATA%\SlideBuilder\` (the old engine's Chrome copy, 270 MB) was deleted on this PC.
+  4. The start-up reopen race: **yes**, fixed in the next release (the first item of the next milestone).
+  5. W13's field run: **yes**, with G0's field tests (it needs two real PCs and people).
 
 ## Waiting for
 
@@ -213,13 +227,13 @@ numbers measured twice). Measured numbers go into the step's line.
 
 - ~~**S4.1 · sign-off**~~ decided 2026-10-13 (Decisions): grey text accepted, SP owned by S4.4, the unreadable logo, the
   bench method.
-- **M4 pull request (product owner):** open it for `v4/M4-stage` (the agent's request was refused by this session's
-  permission rules). Its text is in the session's `%TEMP%\m4\pr-body.md`, with the e2e selector mapping
+- ~~**M4 pull request**~~ decided 2026-10-14 (Decisions, "all yes"): the agent merges it. Its text (the session's
+  `%TEMP%\m4\pr-body.md`) has the e2e selector mapping
   (`#stage .slide .t sup` → `#stage .slide > .tw text` with text "(1)", smaller and above the run before it; S4.2:
   `#stage .slide > svg filter feGaussianBlur` → `#stage .slide svg filter feGaussianBlur`, the tables' SVGs now inside
   their `.tw` div).
 
-- **Release v3.8.0 (a person; `docs/next/release-checklist.md` §5–7):** merge the M4 PR, then on `main`: in
+- ~~**Release v3.8.0**~~ decided 2026-10-14 (Decisions, "all yes"): released by the agent; see S4.6. Was: merge the M4 PR, then on `main`: in
   `CHANGELOG.md` turn `## 3.8.0 - unreleased` into `## 3.8.0 - <date>`, commit and push; then
   ```
   git checkout main && git pull
@@ -231,14 +245,16 @@ numbers measured twice). Measured numbers go into the step's line.
   `%LOCALAPPDATA%\SlideBuilder\` on the PCs that ran Slide Builder from the share.
 - ~~**TA-02, *Excel size* does nothing**~~ fixed in 3.8 on 2026-10-14 ("Fix all 4 points", Decisions): it cleared the
   shared widths while W, H and the drags keep them per design.
-- **W13 · licence answer (R7, product owner → the bank's software-licence owner):** may Microsoft's fonts (Calibri,
+- ~~**W13 · licence answer (R7)**~~ answered yes 2026-10-14 (Decisions, "all yes"); to be switched on in a share's install with
+  `--allow-font-copy` once Slide Builder is installed there again. Was: may Microsoft's fonts (Calibri,
   Aptos, Segoe UI, …) be copied to the internal share for use on licensed Windows PCs? With a yes, record it once –
   `python backend\slide_builder.py --allow-font-copy "<who confirmed, when>"` – and every PC lays decks out with
   the same font files (copy mode, built and tested in M4). Until then each PC uses its own fonts, and the side panel
   names fonts that differ between PCs. The field run of W13 (two real PCs, one without Aptos, one with an older
   Calibri) stays with G0.
 - ~~**M6 hardening (noted):** a dropped read while a workbook opens~~ fixed 2026-10-14: every read is asked again once.
-- **Start-up reopen race (product owner; found by the M4 follow-ups' review, older than M4):** a workbook a user picks
+- **Start-up reopen race – decided: fix in the next release** (2026-10-14, Decisions, "all yes"; the next milestone's
+  first item). Found by the M4 follow-ups' review, older than M4: a workbook a user picks
   in the first ~0.5 s after the page opens is replaced by the last workbook, which start-up reopens
   (`app/src/state/app.ts` boot). Fixing it (the user's choice wins) is a small visible change outside B1–B14: in the
   next release (yes / no)? The e2e now waits for the reopen, as open.spec did.

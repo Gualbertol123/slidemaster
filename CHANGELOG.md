@@ -3,7 +3,7 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## 3.8.0 - unreleased
+## 3.8.0 - 2026-10-14
 
 What users notice – the slide on screen is drawn the way the PDF is (PLAN M4)
 * **The export engine is gone for good** (B1). The "Export: …" pill, the *Install export engine* dialog, the
