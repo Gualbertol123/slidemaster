@@ -47,7 +47,9 @@ describe("fonts", () => {
     const faces: FontFace[] = [...[300, 350, 400, 600, 700, 900].map((w): FontFace => ({ file: `s${w}.ttf`, weight: w, style: "normal" })), { file: "si.ttf", weight: 400, style: "italic" }];
     const css = fontFaceCss([{ family: "Segoe UI", source: "system", faces }], f => "/fonts/" + f);
     const range = (file: string) => /font-weight:(\d+ \d+);/.exec(css.split("\n").find(l => l.includes(file))!)![1];
-    expect(faces.map(f => range(f.file))).toEqual(["1 325", "326 375", "376 499", "500 649", "650 799", "800 1000", "1 1000"]);
+    expect(faces.map(f => range(f.file))).toEqual(["1 325", "326 375", "376 499", "500 649", "650 799", "800 1000", "1 599"]);
+    // no face of 600 or heavier (the italic here, a Regular-only family): bold falls outside, the browser synthesizes it
+    expect(fontFaceCss([{ family: "Solo", source: "system", faces: [{ file: "r.ttf", weight: 400, style: "normal" }] }], f => f)).toContain("font-weight:1 599;");
     // the weights the designs use land where DirectWrite puts them (resolve.ts pickFace on Windows faces)
     const sys = faces.filter(f => f.style === "normal").map(f => ({ weight: f.weight, italic: false, source: "system" }));
     for (const w of [325, 375, 470, 500, 520, 640, 650, 680, 720, 740]) {

@@ -51,13 +51,15 @@ export function fontFaceCss(lib: LibraryFont[], url: (file: string) => string): 
 /** the weights a copied Windows font's face is drawn for (W13): Windows (DirectWrite) takes the nearest weight – of two
     equally near the heavier from 400 up, the lighter below (core/text/resolve.ts pickFace) – where CSS font matching
     would take another face (Segoe UI 500 is Semibold on Windows, Regular by CSS); declared as a weight range, the
-    browser picks the same face from the library's file */
+    browser picks the same face from the library's file. A family without a face of 600 or heavier ends its ranges at
+    599: a bold text then falls outside them, and the browser draws the heaviest face with synthetic bold, as it does
+    with Windows' own copy of the font */
 export function nearestRange(faces: FontFace[], face: FontFace): [number, number] {
   const ws = [...new Set(faces.filter(x => (x.style === "italic") === (face.style === "italic")).map(x => Math.round(+x.weight || 400)))].sort((a, b) => a - b);
   const w = Math.round(+face.weight || 400), i = ws.indexOf(w);
   /** the last weight that still goes to the lighter of two neighbours */
   const split = (lo: number, hi: number) => { const m = (lo + hi) / 2; return Number.isInteger(m) ? (m >= 400 ? m - 1 : m) : Math.floor(m); };
-  return [i > 0 ? split(ws[i - 1], w) + 1 : 1, i < ws.length - 1 ? split(w, ws[i + 1]) : 1000];
+  return [i > 0 ? split(ws[i - 1], w) + 1 : 1, i < ws.length - 1 ? split(w, ws[i + 1]) : ws[ws.length - 1] < 600 ? 599 : 1000];
 }
 
 /* ---- reading the family, weight and style out of a font file (TTF / OTF / WOFF) ---- */

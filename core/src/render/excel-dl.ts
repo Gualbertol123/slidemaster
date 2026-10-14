@@ -164,15 +164,19 @@ export function seamFills(items: Item[]): [number, number, number, number][] {
   return out;
 }
 
-/** a fill with its strips under its neighbours, as one shape (one path, nonzero: its parts' shared edges are inside it,
-    so they draw no seam of their own): the cell's box, and for each side a strip from just inside the box to SEAM px
-    beyond it, as long as that side – no corner, which lies in a diagonal cell no neighbour may cover */
+/** a fill with its strips under its neighbours, as one shape: the outline of the cell's box with, on each side that
+    reaches under a neighbour, a strip as long as that side – no corner, which lies in a diagonal cell no neighbour may
+    cover. One polygon (at most 12 points), so its parts draw no seam between them and the PDF stays small */
 export function seamPath(it: { bx: number; by: number; bw: number; bh: number }, [l, t, r, b]: [number, number, number, number]): PathCmd[] {
-  const box = (x: number, y: number, w: number, h: number): PathCmd[] => [["M", r2(x), r2(y)], ["L", r2(x + w), r2(y)], ["L", r2(x + w), r2(y + h)], ["L", r2(x), r2(y + h)], ["Z"]];
-  const ix = Math.min(SEAM, it.bw), iy = Math.min(SEAM, it.bh);       // how far a strip reaches back into the box
-  return [...box(it.bx, it.by, it.bw, it.bh),
-    ...(l ? box(it.bx - l, it.by, l + ix, it.bh) : []), ...(t ? box(it.bx, it.by - t, it.bw, t + iy) : []),
-    ...(r ? box(it.bx + it.bw - ix, it.by, ix + r, it.bh) : []), ...(b ? box(it.bx, it.by + it.bh - iy, it.bw, iy + b) : [])];
+  const x0 = it.bx, y0 = it.by, x1 = it.bx + it.bw, y1 = it.by + it.bh, pts: [number, number][] = [[x0, y0]];
+  if (t) pts.push([x0, y0 - t], [x1, y0 - t]);
+  pts.push([x1, y0]);
+  if (r) pts.push([x1 + r, y0], [x1 + r, y1]);
+  pts.push([x1, y1]);
+  if (b) pts.push([x1, y1 + b], [x0, y1 + b]);
+  pts.push([x0, y1]);
+  if (l) pts.push([x0 - l, y1], [x0 - l, y0]);
+  return [["M", r2(pts[0][0]), r2(pts[0][1])], ...pts.slice(1).map(([x, y]): PathCmd => ["L", r2(x), r2(y)]), ["Z"]];
 }
 
 /** the family list of a cell's text, as v3's renderExcel wrote it */
