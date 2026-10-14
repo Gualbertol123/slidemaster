@@ -49,6 +49,22 @@ describe("parity", () => {
     expect(r.bad).toBeGreaterThan(50); expect(r.fraction).toBeGreaterThan(0.01);
     expect(m.comparePixels(edge(20), img(41, 20, () => [0, 0, 0])).size).toBe("40x20 vs 41x20");
   });
+  it("a screenshot with entries of two decisions: the first whose cap admits its share accepts it", async () => {
+    const m = await load();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sb-parity-test-"));
+    const env = { chromium: "141", fontsSha256: "abc" };
+    try {
+      const g = path.join(tmp, "g"), a = path.join(tmp, "a"), png = (dir: string, i: { w: number; h: number; rgb: Buffer }) => fs.writeFileSync(path.join(dir, "deck", "glass", "full", "slide-1.png"), m.encodePng(i.w, i.h, i.rgb));
+      capture(g, env, slide()); capture(a, env, slide());
+      png(g, img(40, 20, () => [255, 255, 255]));
+      png(a, img(40, 20, (x, y) => (x > 5 && x < 15 && y > 5 && y < 15 ? [255, 0, 0] : [255, 255, 255])));
+      const pct = +/([\d.]+) %/.exec(m.compare(g, a).diffs[0].detail)![1];
+      const entry = (upTo: number, signedOff: string) => ({ deck: "deck", file: "slide-1.png", kind: "pixels", reason: "r", signedOff, upTo });
+      expect(m.compare(g, a, { accepted: [entry(pct - 1, "first")] }).unaccepted).toBe(1);                 // over its cap
+      const res = m.compare(g, a, { accepted: [entry(pct - 1, "first"), entry(pct + 1, "second")] });
+      expect([res.unaccepted, res.diffs[0].accepted.signedOff]).toEqual([0, "second"]);
+    } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  });
   it("texts exact, boxes ±2 px, accepted differences, text-only mode when the environment differs", async () => {
     const m = await load();
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sb-parity-test-"));

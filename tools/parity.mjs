@@ -253,9 +253,11 @@ export function compare(goldenDir, actualDir, opts = {}) {
   }
   if (!opts.decks) for (const deck of files(actualDir)) if (fs.statSync(path.join(actualDir, deck)).isDirectory() && !decks.includes(deck))
     diffs.push({ deck, design: "*", version: "*", file: "*", kind: "new", detail: "deck not in the goldens" });
-  for (const d of diffs) d.accepted = accepted.find(a => (!a.tool || a.tool === (opts.tool || "parity")) && ["deck", "design", "version", "file", "kind"].every(k => a[k] === undefined || a[k] === d[k])) || null;
-  // a pixel entry with upTo (%) accepts its slide only up to that share of differing pixels (S4.4)
-  for (const d of diffs) if (d.accepted?.upTo !== undefined && d.kind === "pixels") { const m = /([\d.]+) % of the pixels/.exec(String(d.detail)); if (!m || +m[1] > d.accepted.upTo) d.accepted = null; }
+  // a pixel entry with upTo (%) accepts its slide only up to that share of differing pixels (S4.4); of several entries for
+  // a slide (each decision signed on its own), the first that admits it accepts it
+  const share = d => { const m = /([\d.]+) % of the pixels/.exec(String(d.detail)); return m ? +m[1] : Infinity; };
+  const admits = (a, d) => a.upTo === undefined || d.kind !== "pixels" || share(d) <= a.upTo;
+  for (const d of diffs) d.accepted = accepted.find(a => (!a.tool || a.tool === (opts.tool || "parity")) && ["deck", "design", "version", "file", "kind"].every(k => a[k] === undefined || a[k] === d[k]) && admits(a, d)) || null;
   // an entry with a digest accepts exactly the differences it was signed for (S4.4): if those of its scope changed, none is
   for (const e of new Set(diffs.map(d => d.accepted).filter(x => x && x.digest))) {
     const mine = diffs.filter(d => d.accepted === e);
