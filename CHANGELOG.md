@@ -3,6 +3,36 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 3.8.0 - unreleased
+
+What users notice – the slide on screen is drawn the way the PDF is (PLAN M4)
+* **The export engine is gone for good** (B1). The "Export: …" pill, the *Install export engine* dialog, the
+  in-window fallback and *Export ▾ › PDF · text & tables (old engine)* are removed; every export is the one
+  Slide Builder writes itself (3.7). *Install Slide Builder.bat* no longer downloads anything: it checks Python,
+  the shared folder and – new – that the data folder keeps what is written to it (a small file appended to twice,
+  flushed and read back), then makes the desktop shortcut and runs the self-test.
+* **Liquid Glass text is static Segoe UI on screen too** (B2), as the PDF already was; its tables are measured from
+  the font files, so columns and text boxes are a little narrower than in 3.7 (1.5–15 %, median 4.4 %; every
+  difference reviewed and signed off on 2026-10-14).
+* **Soft shadows are drawn as in the PDF**, five sharp layers (B3); *Options › Soft shadows on screen* keeps a true
+  blur on screen only.
+* **Wrapping, overflow and text-box fitting are measured from the font files** (B7): a few cells may wrap or
+  shrink differently from 3.7 (each one listed and accepted, `review/S4.4/`). Fonts whose browser widths differ
+  from the file's are drawn as outlines on screen, so the screen and the PDF agree.
+* **Thumbnails are pictures of the slides** (B14): sharper, the same content as the slide; big tables no longer
+  show "shapes only". A 100-slide deck scrolls at 60 frames per second.
+* Text on screen is smoothed in grey instead of ClearType's coloured fringes (the slide is now drawn as SVG;
+  accepted 2026-10-13).
+* A logo file that cannot be read draws nothing, on screen and in the PDF (3.7's PDF drew an empty bubble).
+
+For the maintainer
+* The export engine's folders are no longer used and can be deleted: `engine\` in the Slide Builder folder, and on
+  each PC that ran Slide Builder from a share `%LOCALAPPDATA%\SlideBuilder\engine` (with its `locks` folder).
+  `tools/update.py` never touches them, so they stay until removed by hand.
+* The helper no longer has `--setup`, `/api/export`, `/api/assemble` or `/api/engine/*` (they answer 404), and no
+  longer reads `SLIDEBUILDER_BROWSER` or `SLIDEBUILDER_ENGINES`; `backend\requirements.txt` and
+  `backend\Install export engine.bat` are gone. It needs nothing but Python's standard library.
+
 ## 3.7.0 - 2026-10-13
 
 What users notice – the export (PLAN S3.7–S3.8; piloted, go on 2026-10-13)
