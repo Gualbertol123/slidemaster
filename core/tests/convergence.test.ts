@@ -20,7 +20,7 @@ const settle = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(
 /** a network that holds every call until the test delivers it */
 class Net {
   queue: (() => void)[] = [];
-  constructor(private rand: () => number, private deck: FakeDeck, public failRate: number) {}
+  constructor(private rand: () => number, private deck: FakeDeck, public failRate: number, public unreadableRate = 0.1) {}
   private hold<T>(exec: () => T): Promise<T> {
     return new Promise<T>((ok, bad) => this.queue.push(() => { try { ok(exec()); } catch (e) { bad(e); } }));
   }
@@ -29,7 +29,13 @@ class Net {
     return {
       served: true,
       snapshot: () => this.hold(() => JSON.parse(JSON.stringify(d.snap))),
-      tail: (_k, since) => this.hold(() => d.doTail({ ...since })),
+      tail: (_k, since) => this.hold(() => {
+        const t = d.doTail({ ...since }), names = Object.keys(t.journals);
+        if (names.length && this.rand() < this.unreadableRate) {          // a journal unreadable this time (04 §2.4)
+          const j = names[Math.floor(this.rand() * names.length)]; delete t.journals[j]; (t.skipped ||= []).push(j);
+        }
+        return t;
+      }),
       append: (_k, w, r) => this.hold(() => d.doAppend(w, JSON.parse(JSON.stringify(r)), this.rand() < this.failRate ? failures[Math.floor(this.rand() * 4)] : undefined)),
       compact: (_k, g, s) => this.hold(() => d.doCompact(g, JSON.parse(JSON.stringify(s)))),
       rotate: (_k, w) => this.hold(() => d.doRotate(w)),
@@ -45,9 +51,12 @@ class Net {
 
 export async function run(seed: number) {
   const rand = rng(seed), deck = new FakeDeck(), net = new Net(rand, deck, 0.15);
+  deck.listingLag = 3000;                         // a new journal is missing from listings for 3 s of the server's clock
   const writers = 2 + Math.floor(rand() * 4);
-  const reps = Array.from({ length: writers }, (_, i) => new DocSync(net.api(), "W.xlsx", deck.open(`u${i}@pc#${"abcdefgh".slice(i) + "a".repeat(i)}`), "u" + i, { autoTail: false }));
+  const reps = Array.from({ length: writers }, (_, i) => new DocSync(net.api(), "W.xlsx", deck.open(`u${i}@pc#${"abcdefgh".slice(i) + "a".repeat(i)}`), "u" + i, { autoTail: false, compactMargin: 5000 }));
   const made: [string, string][] = [];
+  /** contended cells: the value each edit replaced, as its author saw it (that value must never win afterwards) */
+  const overwrote: [string, string][] = [];
   const gens: number[] = [deck.snap.gen];
   let n = 0;
   const steps = 60 + Math.floor(rand() * 80);
@@ -56,7 +65,11 @@ export async function run(seed: number) {
     if (x < 0.35) {
       const ref = String.fromCharCode(65 + reps.indexOf(r)) + (++n), text = `u${reps.indexOf(r)}-${n}`;
       const ops: Op[] = [{ op: "cell.patch", sheet: "S", ref, patch: { text } } as Op];
-      if (rand() < 0.3) ops.push({ op: "cell.patch", sheet: "S", ref: "Z" + (1 + Math.floor(rand() * 3)), patch: { text } } as Op);   // a contended cell
+      if (rand() < 0.3) {                                                // a contended cell
+        const z = "Z" + (1 + Math.floor(rand() * 3)), seen = (r.view.edits.S?.[z] as { text?: string } | undefined)?.text;
+        if (seen) overwrote.push([z, seen]);
+        ops.push({ op: "cell.patch", sheet: "S", ref: z, patch: { text } } as Op);
+      }
       r.apply(ops); made.push([ref, text]);
     } else if (x < 0.5) void r.flush();
     else if (x < 0.65) void r.poll();
@@ -66,9 +79,10 @@ export async function run(seed: number) {
     if (deck.snap.gen !== gens[gens.length - 1]) gens.push(deck.snap.gen);
   }
   // the network calms down: nothing fails any more, everything queued is saved and read
-  net.failRate = 0;
+  net.failRate = 0; net.unreadableRate = 0;
   for (let round = 0; round < 400; round++) {
     while (net.deliverOne()) await settle();
+    (deck as unknown as { clock: number }).clock += 1000;                // time passes: new journals reach every listing
     if (round % 3 === 0) for (const r of reps) void r.flush();
     for (const r of reps) void r.poll();
     await settle();
@@ -76,7 +90,7 @@ export async function run(seed: number) {
     if (round > 4 && !net.queue.length && reps.every(r => !r.busy)) break;
   }
   for (let i = 0; i < 3; i++) { for (const r of reps) void r.poll(); await settle(); while (net.deliverOne()) await settle(); }
-  return { reps, made, gens, deck };
+  return { reps, made, gens, deck, overwrote };
 }
 
 describe("storage v4 converges (property test, 1 000 seeds)", () => {
@@ -84,13 +98,15 @@ describe("storage v4 converges (property test, 1 000 seeds)", () => {
     vi.useFakeTimers();                          // retries and debounces wait for the test (it delivers and flushes)
     let compactions = 0, duplicates = 0;
     for (let seed = 1; seed <= 1000; seed++) {
-      const { reps, made, gens, deck } = await run(seed);
+      const { reps, made, gens, deck, overwrote } = await run(seed);
       const ctx = `seed ${seed}`;
       for (const r of reps) expect(r.busy, ctx).toBe(false);
       const docs = reps.map(r => JSON.stringify(r.server));
       expect(new Set(docs).size, ctx).toBe(1);
       const doc = reps[0].server;
       for (const [ref, text] of made) expect(doc.edits.S?.[ref]?.text, `${ctx} ${ref}`).toBe(text);
+      // B4: a value somebody knowingly replaced never comes back over the replacement (Lamport order across a compaction)
+      for (const [z, old] of overwrote) expect(doc.edits.S?.[z]?.text, `${ctx} ${z}`).not.toBe(old);
       const records = deck.written.filter(r => r.ops.length);      // (also those in journals deleted since)
       const distinct = new Set(records.map(r => r.w + ":" + r.s));
       expect(doc.rev, ctx).toBe(distinct.size);

@@ -166,6 +166,8 @@ class DeckTests(DeckBase):
         with mock.patch.object(decks, "_read_from", flaky):
             res = decks.tail(self.key, {})
         self.assertEqual(list(res["journals"]), [w2])                 # w1 left out (asked again), not "no records"
+        self.assertEqual(res["skipped"], [w1])                         # and named: no compaction on this round
+        self.assertAlmostEqual(res["now"] / 1000.0, time.time(), delta=5)
         res = decks.tail(self.key, {w2: res["journals"][w2]["offset"]})
         self.assertEqual(list(res["journals"]), [w1])
 

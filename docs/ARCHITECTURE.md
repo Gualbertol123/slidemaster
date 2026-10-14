@@ -268,6 +268,12 @@ S5.3), `history` and the deck form of presence `leave`.
 | `GET /api/decks/<key>/history` | – | `{backups:[{gen, rev, at, by}]}` (`backups/v4/<key>/`, last 30) |
 | `POST /api/presence` · `POST /api/presence/leave` | `{deck, client}` | `{others:[{user, host, client, at}]}` · `{ok}` – presence v2 (empty files, mtime on the server's clock) |
 
+Every tail also returns `now` (the file server's time) and `skipped` (journals it could not read this time). A page
+compacts only records at least 30 s old on that clock (`COMPACT_MARGIN_MS`: a journal created since may still be
+missing from a reader's listing – the helper caches it 10 s, the SMB client 10 s more – and an earlier record in it
+must never be folded in after a newer one that replaced it), never on a round with `skipped` journals, and per
+writer only records 1..n without a gap; every journal's frontier is a prefix of records all in the snapshot.
+
 423: the deck is read-only (a journal is damaged in the middle; `incident-*.json` in the deck folder).
 `SLIDEBUILDER_STORAGE=lean-lock` (or `data/v4/storage.json`): appends go to one shared journal under the deck lock.
 

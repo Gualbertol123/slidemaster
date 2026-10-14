@@ -588,9 +588,9 @@ def _snapshot_gen(key):
 
 def tail(key, since):
     """new complete records of every journal past the offsets in `since` ({journal: offset}).
-    Returns {journals: {journal: {offset, records, ends}}, gen, readonly?}: only journals with new records (`ends`:
-    each record's end offset); a journal that cannot be read now is left out (asked again next time, never
-    treated as empty)."""
+    Returns {journals: {journal: {offset, records, ends}}, gen, now, skipped?, readonly?}: only journals with new
+    records (`ends`: each record's end offset); a journal that cannot be read now is left out and named in `skipped`
+    (asked again next time, never treated as empty); `now` is the file server's time."""
     check_key(key)
     if not isinstance(since, dict) or any(not isinstance(k, str) or not isinstance(v, int) or isinstance(v, bool) or v < 0 for k, v in since.items()):
         raise DeckError(400, "since must map journal names to byte offsets")
@@ -615,9 +615,10 @@ def tail(key, since):
             return name, off, None, None, None, 0         # skipped this round, read again at the next poll
         return name, off + used, recs, [off + e for e in ends], (off + corrupt if corrupt is not None else None), off + len(buf)
 
-    out, readonly = {}, _readonly.get(key)
+    out, readonly, skipped = {}, _readonly.get(key), []
     for name, new_off, recs, ends, corrupt, size in _executor().map(one, names):
         if recs is None:
+            skipped.append(stem(name))
             continue
         if corrupt is not None:
             readonly = _incident(key, name, corrupt, size)
@@ -627,7 +628,11 @@ def tail(key, since):
     if gen is None and not deck_exists(key):
         _checked.pop(key, None)
         raise DeckError(404, "no such deck")
-    res = {"journals": out, "gen": gen}
+    # `now`: the file server's time (a page compacts only records older than its margin); `skipped`: journals that could
+    # not be read this time - a page does not compact on such a round (it may miss records)
+    res = {"journals": out, "gen": gen, "now": server_ms()}
+    if skipped:
+        res["skipped"] = sorted(skipped)
     if readonly:
         res["readonly"] = readonly
     return res

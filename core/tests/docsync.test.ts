@@ -12,7 +12,7 @@ const cell = (ref: string, patch: Record<string, unknown>): Op => ({ op: "cell.p
 let n = 0;
 const writer = (who: string) => `${who}@pc#${String(++n).padStart(8, "a").replace(/[0-9]/g, "b")}`;
 function user(deck: FakeDeck, who: string, api: DeckApi = deck.api()) {
-  return new DocSync(api, "W.xlsx", deck.open(writer(who)), who, { autoTail: false });
+  return new DocSync(api, "W.xlsx", deck.open(writer(who)), who, { autoTail: false, compactMargin: 0 });
 }
 
 describe("DocSync v4", () => {
@@ -160,8 +160,8 @@ describe("DocSync v4", () => {
     a.setAlone(false);
     deck.doAppend(b.writer, { l: 9000, w: b.writer, s: 2002, by: "bob", ops: [] });
     await a.poll(); await vi.advanceTimersByTimeAsync(0); expect(deck.calls.compact).toBe(2);
-    vi.setSystemTime(Date.now() + 25 * 3600 * 1000);
-    deck.journals.forEach(j => j.frames.forEach(f => { f.rec.at = 0; }));     // nobody wrote for over 24 h
+    (deck as unknown as { clock: number }).clock += 25 * 3600 * 1000;      // the file server's clock: a day later,
+    deck.journals.forEach(j => j.frames.forEach(f => { f.rec.at = 0; }));     // and nobody wrote for over 24 h
     deck.doAppend(b.writer, { l: 9001, w: b.writer, s: 2003, by: "bob", ops: [] });
     await a.poll(); await vi.advanceTimersByTimeAsync(0);
     expect(deck.calls.compact).toBe(3);
@@ -196,6 +196,81 @@ describe("DocSync v4", () => {
     a.apply([cell("A1", { b: true })]); await a.flush();
     expect(deck.calls.append).toBe(0); expect(a.state).toBe("readonly");
     expect(await a.compact()).toBeNull();
+  });
+});
+
+describe("DocSync v4 when a tail misses a journal (review of S5.2: the 10 s listing, an unreadable journal)", () => {
+  /** an API whose tails leave journals out: `hidden` silently (not listed yet), `unreadable` named in `skipped` */
+  function lossy(deck: FakeDeck, hidden: Set<string>, unreadable = new Set<string>()): DeckApi {
+    const api = deck.api();
+    return { ...api, tail: async (k, since) => {
+      const t = await api.tail(k, since);
+      for (const j of Object.keys(t.journals)) {
+        if (hidden.has(j)) delete t.journals[j];
+        else if (unreadable.has(j)) { delete t.journals[j]; (t.skipped ||= []).push(j); }
+      }
+      return t;
+    } };
+  }
+  const clock = (deck: FakeDeck, ms: number) => { (deck as unknown as { clock: number }).clock += ms; };
+  const text = (d: DocSync, ref: string) => (d.server.edits.S?.[ref] as { text?: string } | undefined)?.text;
+
+  it("A: a correction is never folded in before the edit it corrected (records younger than the margin wait)", async () => {
+    const deck = new FakeDeck();
+    const x = new DocSync(deck.api(), "W.xlsx", deck.open("x@pc#xxxxxxxx"), "x", { autoTail: false });
+    const y = new DocSync(deck.api(), "W.xlsx", deck.open("y@pc#yyyyyyyy"), "y", { autoTail: false });
+    x.apply([cell("Z1", { text: "a" })]); await x.flush();
+    await y.poll(); y.apply([cell("Z1", { text: "b" })]); await y.flush();      // y saw "a" and corrected it
+    const hidden = new Set([x.writer]);                                         // x's new journal: not in p's listing yet
+    const p = new DocSync(lossy(deck, hidden), "W.xlsx", deck.open("p@pc#pppppppp", false), "p", { autoTail: false });
+    expect(await p.compact()).toBeNull();                                       // y's record is too young to fold in
+    clock(deck, 60_000); hidden.clear();                                        // later every listing has x's journal
+    expect(await p.compact()).toBe(2);
+    for (const d of [x, y, p]) await d.poll();
+    const fresh = new DocSync(deck.api(), "W.xlsx", deck.open("q@pc#qqqqqqqq"), "q", { autoTail: false });
+    for (const d of [x, y, p, fresh]) expect(text(d, "Z1")).toBe("b");
+  });
+  it("B: a record copied into two journals, one unread: no compaction on that round; a gap in a writer's records is never snapshotted", async () => {
+    const deck = new FakeDeck(), w = new DocSync(deck.api(), "W.xlsx", deck.open("w@pc#wwwwwwww"), "w", { autoTail: false, compactMargin: 0 });
+    w.apply([cell("Z1", { text: "a" })]); await w.flush();
+    deck.failures.push("flush");                                                // s=2 written into w, w sealed, not acked
+    w.apply([cell("Z1", { text: "b" })]); await w.flush(); await w.flush();     // the retry: acked in w~1
+    expect([...deck.journals.keys()]).toEqual([w.writer, w.writer + "~1"]);
+    const unread = new DocSync(lossy(deck, new Set(), new Set([w.writer])), "W.xlsx", deck.open("p@pc#pppppppp", false), "p", { autoTail: false, compactMargin: 0 });
+    expect(await unread.compact()).toBeNull();
+    const unlisted = new DocSync(lossy(deck, new Set([w.writer])), "W.xlsx", deck.open("r@pc#rrrrrrrr", false), "r", { autoTail: false, compactMargin: 0 });
+    expect(await unlisted.compact()).toBeNull();                                // it has s=2 but not s=1: nothing to fold
+    expect(await w.compact()).toBe(2);                                          // w reads both: s=1, s=2 folded once
+    const fresh = new DocSync(deck.api(), "W.xlsx", deck.open("q@pc#qqqqqqqq"), "q", { autoTail: false });
+    await w.poll();
+    for (const d of [w, fresh]) { expect(text(d, "Z1")).toBe("b"); expect(d.server.rev).toBe(2); }
+  });
+  it("C: a page never compacts its own journal on a round its tail could not read it", async () => {
+    const deck = new FakeDeck(), unreadable = new Set<string>();
+    const w = new DocSync(lossy(deck, new Set(), unreadable), "W.xlsx", deck.open("w@pc#wwwwwwww"), "w", { autoTail: false, compactMargin: 0 });
+    w.apply([cell("Z1", { text: "a" })]); await w.flush();
+    deck.failures.push("flush");
+    w.apply([cell("Z1", { text: "b" })]); await w.flush(); await w.flush();
+    unreadable.add(w.writer);
+    expect(await w.compact()).toBeNull();
+    unreadable.clear();
+    expect(await w.compact()).toBe(2);
+    expect(deck.snap.rev).toBe(2); expect(w.server.rev).toBe(2);
+  });
+  it("D: a compaction's answer that arrives after a newer snapshot never takes the page back", async () => {
+    const deck = new FakeDeck(), base = deck.api();
+    let release: (() => void) | null = null;
+    const slow: DeckApi = { ...base, compact: (k, g, s) => new Promise((ok, bad) => { release = () => base.compact(k, g, s).then(ok, bad); }) };
+    const a = new DocSync(slow, "W.xlsx", deck.open("a@pc#aaaaaaaa"), "a", { autoTail: false, compactMargin: 0 });
+    const b = new DocSync(base, "W.xlsx", deck.open("b@pc#bbbbbbbb"), "b", { autoTail: false, compactMargin: 0 });
+    a.apply([cell("A1", { text: "a" })]); await a.flush();
+    const pending = a.compact();
+    await new Promise(r => setTimeout(r, 0));
+    release!(); await new Promise(r => setTimeout(r, 0));                       // gen 2 is written ...
+    b.apply([cell("B1", { text: "b" })]); await b.flush(); await b.poll(); expect(await b.compact()).toBe(3);
+    await a.poll();                                                             // ... a loads gen 3 first
+    await pending;                                                              // then hears that its gen 2 succeeded
+    expect(a.gen).toBe(3); expect(text(a, "B1")).toBe("b");
   });
 });
 

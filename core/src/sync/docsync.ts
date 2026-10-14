@@ -16,7 +16,9 @@ import { applyOps, inverseOf, applyOp } from "../model/ops";
 import { firstCopy, fold, nextSnapshot, recordId, validRecord, type DeckRecord, type DeckSnapshot, type Folded } from "../model/fold";
 
 export interface TailJournal { offset: number; records: DeckRecord[]; /** each record's end offset */ ends?: number[] }
-export interface TailResult { journals: Record<string, TailJournal>; gen: number | null; readonly?: string }
+export interface TailResult { journals: Record<string, TailJournal>; gen: number | null; readonly?: string;
+  /** the file server's time (ms) */ now?: number;
+  /** journals that could not be read this time (left out; read again next time) */ skipped?: string[] }
 /** what the helper said when the deck was opened (POST /api/decks/open), and the first tail */
 export interface DeckOpen { key: string; writer: string; snapshot: DeckSnapshot; tail?: TailResult }
 /** what DocSync needs of the helper's API (the page's backend; in the core worker, a proxy to it) */
@@ -37,6 +39,10 @@ export interface Change { local: boolean; by?: string; presetChanged: boolean; s
 export const DEBOUNCE_MS = 300, TAIL_MS = 1500;
 /** compaction policy (04 §2.2) */
 export const COMPACT_RECORDS = 2000, IDLE_WRITER_MS = 24 * 3600 * 1000, REST_MS = 5000;
+/** a compaction folds only records appended at least this long ago (the file server's time): a journal created
+    since may still be missing from a reader's listing (the helper caches it 10 s, the SMB client 10 s more), and
+    a record in it could be one that a newer record already folded in overwrote (review of S5.2, finding 2) */
+export const COMPACT_MARGIN_MS = 30_000;
 
 /** a record and where it is on the share: (journal, end offset) of each copy known */
 interface Entry { rec: DeckRecord; at: [string, number][] }
@@ -71,11 +77,17 @@ export class DocSync {
   /** this page is the only one with the deck open (the page says so after each presence heartbeat) */
   private alone = false;
   private quietSince = Date.now();
+  /** the file server's time at the last tail, and this PC's time then (to estimate the server's time now) */
+  private serverAt: [number, number] | null = null;
+  /** the last tail left a journal out (unreadable): no compaction on such a round */
+  private skippedRound = false;
+  private readonly margin: number;
   state: SaveState;
   error = "";
   private listeners = new Set<(c: Change) => void>();
 
-  constructor(private api: DeckApi, readonly name: string, open: DeckOpen, private me: string, opts: { autoTail?: boolean } = {}) {
+  constructor(private api: DeckApi, readonly name: string, open: DeckOpen, private me: string, opts: { autoTail?: boolean; /** COMPACT_MARGIN_MS (tests) */ compactMargin?: number } = {}) {
+    this.margin = opts.compactMargin ?? COMPACT_MARGIN_MS;
     this.key = open.key; this.writer = open.writer; this.snap = open.snapshot;
     this.offsets = { ...open.snapshot.frontier };
     if (open.tail) this.merge(open.tail);
@@ -116,6 +128,8 @@ export class DocSync {
   /** take a tail's records in; returns the authors (other people) of the new ones */
   private merge(t: TailResult): Set<string> {
     const by = new Set<string>();
+    if (typeof t.now === "number") this.serverAt = [t.now, Date.now()];
+    this.skippedRound = !!(t.skipped && t.skipped.length);
     for (const [j, tj] of Object.entries(t.journals || {})) {
       const ends = tj.ends || [];
       tj.records.forEach((r, i) => {
@@ -158,7 +172,7 @@ export class DocSync {
 
   /** append what is queued as one record (or the record a failed append left) */
   async flush(): Promise<void> {
-    if (this.state === "outdated" || this.state === "readonly") return;
+    if (this.state === "outdated" || this.state === "readonly" || this.disposed) return;
     if (!this.inflight) {
       if (!this.pending.length) return;
       this.inflight = { l: ++this.lamport, w: this.writer, s: ++this.seq, by: this.me || null, ops: this.pending };
@@ -174,6 +188,7 @@ export class DocSync {
       this.sending = false;
       if (this.inflight !== rec) return;
       const acked: DeckRecord = { ...rec, at: r.at };
+      if (typeof r.at === "number") this.serverAt = [r.at, Date.now()];   // the file server's clock, as a tail's `now`
       const e = this.entries.get(recordId(acked));
       if (e) { e.at.push([r.journal, r.offset]); e.rec = firstCopy(e.rec, acked); } else this.entries.set(recordId(acked), { rec: acked, at: [[r.journal, r.offset]] });
       this.mine = [r.journal, r.offset];
@@ -226,10 +241,12 @@ export class DocSync {
   }
   private async loadSnapshot() {
     const s = await this.api.snapshot(this.key);
-    if (s.gen > this.snap.gen) this.rebase(s);
+    this.rebase(s);
   }
-  /** a newer snapshot: records it holds leave; journals are read on from its frontier at least */
+  /** a newer snapshot: records it holds leave; journals are read on from its frontier at least. Never an older one (a
+      compaction's answer may arrive after a newer snapshot was loaded). */
   private rebase(s: DeckSnapshot) {
+    if (s.gen <= this.snap.gen) return;
     this.snap = s;
     for (const [j, off] of Object.entries(s.frontier)) this.offsets[j] = Math.max(this.offsets[j] || 0, off);
     for (const [id, e] of this.entries) if (e.at.some(p => this.covered(p)) || e.rec.s <= (s.seen?.[e.rec.w] || 0)) this.entries.delete(id);
@@ -241,12 +258,14 @@ export class DocSync {
   /* ---------------------------------------------------------------- compaction */
   /** this page is (not) the only one with the deck open; at rest it compacts the deck itself (04 §4.4) */
   setAlone(alone: boolean) { this.alone = alone; if (alone) void this.maybeCompact(); }
-  private dueForCompaction(now = Date.now()): boolean {
+  /** the file server's time now, as far as the last tail tells (else this PC's) */
+  private serverNow() { return this.serverAt ? this.serverAt[0] + (Date.now() - this.serverAt[1]) : Date.now(); }
+  private dueForCompaction(): boolean {
     const n = this.entries.size; if (!n) return false;
     if (n > COMPACT_RECORDS) return true;
     let oldest = Infinity; for (const e of this.entries.values()) if (e.rec.at != null) oldest = Math.min(oldest, e.rec.at);
-    if (now - oldest > IDLE_WRITER_MS) return true;
-    return this.alone && !this.busy && now - this.quietSince >= REST_MS;
+    if (this.serverNow() - oldest > IDLE_WRITER_MS) return true;
+    return this.alone && !this.busy && Date.now() - this.quietSince >= REST_MS;
   }
   private async maybeCompact() { if (!this.compacting && this.dueForCompaction()) await this.compact().catch(() => undefined); }
   /** fold what this page has read into a new snapshot (compare-and-set on gen). Returns the new gen, or null when
@@ -260,6 +279,7 @@ export class DocSync {
       const t = await this.api.tail(this.key, { ...this.offsets });
       const by = this.merge(t);
       if (t.gen != null && t.gen > this.snap.gen) { await this.loadSnapshot(); this.recompute(); }
+      if (this.skippedRound) { if (by.size) this.recompute(); return null; }     // a journal unread: maybe records missing
       const next = this.candidate();
       if (!next) { if (by.size) this.recompute(); return null; }
       try { await this.api.compact(this.key, this.snap.gen, next); }
@@ -274,15 +294,49 @@ export class DocSync {
       return next.gen;
     } finally { this.compacting = false; }
   }
-  /** the snapshot of everything this page knows the place of: the records read up to the offsets, and my own
-      acknowledged ones (my current journal holds only those: a failed append always ends a journal). null when
-      there is nothing to fold. */
+  /** the next snapshot: what this page knows the place of - the records read up to the offsets, and my own
+      acknowledged ones (my current journal holds only those: a failed append always ends a journal) - cut so that
+      every journal's frontier is a prefix of records all in the snapshot, every writer's records in it are
+      1..n without a gap (so `seen` says exactly what it holds), and no record is younger than the margin.
+      null when there is nothing to fold. */
   private candidate(): DeckSnapshot | null {
-    const frontier = { ...this.offsets };
-    if (this.mine) frontier[this.mine[0]] = Math.max(frontier[this.mine[0]] || 0, this.mine[1]);
-    const inside = [...this.entries.values()].filter(e => e.at.some(([j, end]) => end <= (frontier[j] || 0))).map(e => e.rec);
-    if (!inside.length) return null;
-    return nextSnapshot(this.snap, fold(this.snap, inside), frontier);
+    const F: Record<string, number> = { ...this.offsets };
+    if (this.mine) F[this.mine[0]] = Math.max(F[this.mine[0]] || 0, this.mine[1]);
+    const cutoff = this.serverNow() - this.margin, seen = this.snap.seen || {};
+    // each journal's records past the snapshot, in file order
+    const byJ = new Map<string, { end: number; id: string }[]>();
+    for (const [id, e] of this.entries) for (const [j, end] of e.at) { const l = byJ.get(j); if (l) l.push({ end, id }); else byJ.set(j, [{ end, id }]); }
+    for (const l of byJ.values()) l.sort((a, b) => a.end - b.end);
+    let inside = new Set<string>();
+    for (let round = 0; round < 1000; round++) {
+      // records with a copy inside the frontier, old enough; per writer only 1..n without a gap
+      const avail = new Map<string, DeckRecord[]>();
+      for (const [id, e] of this.entries) {
+        if (e.rec.at != null && e.rec.at > cutoff) continue;
+        if (!e.at.some(([j, end]) => end <= (F[j] ?? 0))) continue;
+        const a = avail.get(e.rec.w); if (a) a.push(e.rec); else avail.set(e.rec.w, [e.rec]); void id;
+      }
+      inside = new Set<string>();
+      for (const [w, recs] of avail) {
+        recs.sort((a, b) => a.s - b.s);
+        let n = seen[w] || 0;
+        for (const r of recs) { if (r.s === n + 1) { n = r.s; inside.add(recordId(r)); } else if (r.s > n + 1) break; }
+      }
+      // each journal's frontier: up to the first record that is not inside
+      let changed = false;
+      for (const [j, list] of byJ) {
+        let f = this.snap.frontier[j] ?? 0;
+        for (const x of list) { if (x.end > (F[j] ?? 0)) break; if (!inside.has(x.id)) break; f = x.end; }
+        if (f < (F[j] ?? 0)) { F[j] = f; changed = true; }
+      }
+      if (!changed) break;
+    }
+    if (!inside.size) return null;
+    const recs = [...inside].map(id => this.entries.get(id)!.rec);
+    // journals the snapshot does not reach yet keep the frontier they had (or none)
+    const frontier: Record<string, number> = {};
+    for (const [j, f] of Object.entries(F)) if (f > (this.snap.frontier[j] ?? 0) || j in this.snap.frontier) frontier[j] = Math.max(f, this.snap.frontier[j] ?? 0);
+    return nextSnapshot(this.snap, fold(this.snap, recs), frontier);
   }
   /** for the page's pagehide (04 §4.4: the last one present compacts the deck it closes): the snapshot of the deck
       as it is now, when this page is the only one there and everything is saved; else null */
@@ -291,16 +345,20 @@ export class DocSync {
     const s = this.candidate();
     return s ? { baseGen: this.snap.gen, snapshot: s } : null;
   }
-  /** Prepare rollback (04 §4.4): everything saved, then compacted until no record lies past the frontier */
-  async compactAll(): Promise<boolean> {
+  /** Prepare rollback (04 §4.4): everything saved, then compacted until no record lies past the frontier (records
+      younger than the margin wait for it: up to `waitMs`) */
+  async compactAll(waitMs = this.margin + 15_000): Promise<boolean> {
     await this.flush();
-    for (let i = 0; i < 5; i++) {
+    const end = Date.now() + waitMs;
+    for (let i = 0; i < 50; i++) {
       if (this.busy) return false;
       await this.compact();
       const t = await this.api.tail(this.key, { ...this.offsets });
       this.merge(t);
       if (t.gen != null && t.gen > this.snap.gen) await this.loadSnapshot();
       if (!this.entries.size) return true;
+      if (Date.now() >= end) return false;
+      await new Promise(r => setTimeout(r, Math.min(5000, Math.max(200, this.margin / 6))));
     }
     return false;
   }

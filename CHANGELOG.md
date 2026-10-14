@@ -11,6 +11,8 @@ What users notice – decks are stored the Slide Builder 4 way (PLAN M5)
 * **When two people change the same thing at the same moment, the later change in the deck's own order wins**
   (B4: a Lamport clock, not whose save reached the share first). Everybody still ends with the same deck.
 * "✓ Saved" as soon as the change is on the share (B6, as since 3.4).
+* If a deck's file on the share is ever damaged, the status bar says so and the deck can be read but not changed
+  until the maintainer looks at it (docs/next/04 §2.3: it must never happen; the helper writes an incident file).
 
 For the maintainer
 * The program moved from `backend\` to `helper\` (PLAN S5.1). The data, the logo and the v2 settings stay in

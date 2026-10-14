@@ -5,7 +5,7 @@ import type { DeckRecord, DeckSnapshot } from "../src/model/fold";
 import type { DeckApi, TailResult } from "../src/sync/docsync";
 import { emptyDoc } from "../src/model/ops";
 
-interface Journal { size: number; frames: { end: number; rec: DeckRecord }[]; sealed: boolean }
+interface Journal { size: number; frames: { end: number; rec: DeckRecord }[]; sealed: boolean; /** server ms */ created: number }
 export type AppendFailure = "before" | "torn" | "flush" | "lost";
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 export const status = (code: number, msg: string) => Object.assign(new Error(msg), { status: code });
@@ -31,7 +31,7 @@ export class FakeDeck {
     if (!name || !this.journals.has(name) || this.journals.get(name)!.sealed) {
       const n = this.next.get(writer) || 0; this.next.set(writer, n + 1);
       name = n ? `${writer}~${n}` : writer;
-      this.journals.set(name, { size: 0, frames: [], sealed: false }); this.current.set(writer, name);
+      this.journals.set(name, { size: 0, frames: [], sealed: false, created: this.clock }); this.current.set(writer, name);
     }
     return Object.assign(this.journals.get(name)!, { name });
   }
@@ -49,10 +49,16 @@ export class FakeDeck {
     if (fail === "lost") throw new TypeError("Failed to fetch");      // written and flushed, the answer lost
     return { journal: j.name, offset: j.size, at: rec.at };
   }
+  /** a journal created less than this long ago (server ms) is missing from the listing (the helper's 10 s cache, SMB's) */
+  listingLag = 0;
+  /** journals left out of the next tails as unreadable ("skipped") */
+  unreadable = new Set<string>();
   doTail(since: Record<string, number>): TailResult {
     this.calls.tail++;
-    const out: TailResult = { journals: {}, gen: this.snap.gen };
+    const out: TailResult = { journals: {}, gen: this.snap.gen, now: this.clock };
     for (const [name, j] of this.journals) {
+      if (this.clock - j.created < this.listingLag) continue;
+      if (this.unreadable.has(name)) { (out.skipped ||= []).push(name); continue; }
       const from = since[name] || 0, frames = j.frames.filter(f => f.end > from);
       if (frames.length) out.journals[name] = { offset: frames[frames.length - 1].end, records: frames.map(f => clone(f.rec)), ends: frames.map(f => f.end) };
     }

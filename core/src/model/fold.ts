@@ -79,8 +79,9 @@ export function fold(snap: Pick<DeckSnapshot, "doc" | "lamport" | "rev" | "seen"
     updated = r.at ?? updated; updatedBy = r.by ?? updatedBy;
     log.push({ rev, by: r.by ?? null, at: r.at ?? null });
   }
-  // a writer's records 1..n all folded: `seen` moves on (a gap keeps it where it is: those records are applied again
-  // only if a copy turns up past the frontier, which is harmless)
+  // a writer's records 1..n all folded: `seen` moves on (a gap keeps it where it is). A snapshot never holds a gap:
+  // DocSync's compaction folds per writer only 1..n without one (docsync.ts candidate), so `seen` says exactly which
+  // records it holds, and a copy of one of them in another journal is never applied again
   const seen: Record<string, number> = { ...seen0 };
   const byWriter = new Map<string, number[]>();
   for (const r of list) { const a = byWriter.get(r.w); if (a) a.push(r.s); else byWriter.set(r.w, [r.s]); }
