@@ -26,7 +26,6 @@ import { IMGMETA } from "../xlsx/drawing";
 import type { BorderSide, Item, Pic, Rect, TableLayout } from "../xlsx/types";
 import { cache, effItems } from "./edits";
 import { isNumText, tableKey, type RenderCtx } from "./context";
-import { cellHtml, picHtml, rotBox, rotSpan, shapeTransform, textboxInner } from "./excel";
 import { fontStack } from "../model/fonts";
 import { mix } from "../model/style";
 import { platform } from "../platform";
@@ -541,38 +540,4 @@ export function glassPlan(L: TableLayout, ctx: RenderCtx, opts: { noText?: boole
       italic: role === "caption" || it.userI === true || (!!f.i && it.userI !== false && role !== "value"), num: !!t.num, ...(font ? { font } : {}), shadow: !!(cap && cap.strong) });
   }
   return plan;
-}
-
-export function renderGlass(L: TableLayout, ctx: RenderCtx, opts: { noText?: boolean } = {}): string {
-  const plan = glassPlan(L, ctx, opts);
-  const R = (x: number, y: number, w: number, h: number) => `left:${x.toFixed(1)}px;top:${y.toFixed(1)}px;width:${Math.max(0, w).toFixed(1)}px;height:${Math.max(0, h).toFixed(1)}px`;
-  const glass = (s: GShell) => `<div class="gls wb ${s.cls}" style="${R(s.x, s.y, s.w, s.h)};border-radius:${Math.max(0, s.rad).toFixed(1)}px;${s.extra}"></div>`;
-  let h = "";
-  for (const s of plan.shells) h += glass(s);
-  for (const l of plan.lines) h += `<div class="${l.k === "rule" ? "rule accent" : l.k}" style="${R(l.x, l.y, l.w, l.h)}"></div>`;
-  for (const c of plan.caps) {
-    const bg = c.bg ? `;background:linear-gradient(180deg,${rgba(c.bg[0], c.bg[1])},${rgba(c.bg[0], c.bg[2])})` : "";
-    h += `<div class="${c.cls}" style="${R(c.x, c.y, c.w, c.h)};border-radius:${c.rad}px${bg}"></div>`;
-  }
-  for (const p of plan.pics) h += p.k === "icon" ? `<div class="gls wb icon" style="left:${p.x}px;top:${p.y}px;width:${p.d + 5}px;height:${p.d + 5}px;border-radius:50%"><img src="${p.src}" alt=""></div>` : picHtml(p.p, p.cls, !!ctx.forExport);
-  let tx = "";
-  for (const t of plan.texts) {
-    const it = t.it;
-    const st = [R(t.x, t.y, t.w, t.h), `font-size:${t.size.toFixed(2)}px`, `color:${t.ink}`, `font-weight:${t.weight}`,
-      t.single ? `line-height:${it.bh}px;display:block` : `justify-content:${t.align === "right" ? "flex-end" : t.align === "center" ? "center" : "flex-start"};align-items:${t.valign === "top" ? "flex-start" : "center"}`, `text-align:${t.align}`];
-    if (t.padL !== undefined) st.push(`padding-left:${t.padL}px`); else if (t.padR !== undefined) st.push(`padding-right:${t.padR}px`);
-    if (t.italic) st.push("font-style:italic");
-    if (t.num) st.push("font-variant-numeric:tabular-nums");
-    if (t.font) st.push(`font-family:${fontStack(t.font)}`);
-    if (t.shadow) st.push("text-shadow:0 1px 1px rgba(0,0,0,.2)");
-    if (it.rot) { tx += `<div class="t ov" style="${st.join(";")};${rotBox()}">${rotSpan(it.rot, it.text)}</div>`; continue; }
-    tx += `<div class="${t.cls}" style="${st.join(";")}">${cellHtml(it)}</div>`;
-  }
-  let tbx = "";
-  for (const e of plan.tbx) {
-    if (e.k === "shell") { tbx += glass(e); continue; }
-    const tb = e.tb;
-    tbx += `<div class="tbox gtb" style="${R(tb.x, tb.y, tb.w, tb.h)};justify-content:${tb.anchorV === "ctr" ? "center" : tb.anchorV === "b" ? "flex-end" : "flex-start"};${shapeTransform(tb)}">${textboxInner(tb.paras, e.ink)}</div>`;
-  }
-  return `<div class="xt gx" style="width:${plan.W}px;height:${plan.H}px">${h}${tx}${tbx}</div>`;
 }

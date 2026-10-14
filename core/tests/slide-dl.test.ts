@@ -1,5 +1,6 @@
-/* Slide furniture → display list (S3.5): the whole slide as slideMarkup + slide.css draw it. The pixels and boxes
-   against the goldens are tools/dlparity.mjs's job; these tests pin the rules with a deterministic measurer. */
+/* Slide furniture → display list (S3.5): the whole slide as v3's slideMarkup + slide.css drew it (both removed in
+   S4.5). The pixels and boxes against the goldens are tools/dlparity.mjs's job; these tests pin the rules
+   with a deterministic measurer. */
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
@@ -12,7 +13,8 @@ import { runtimeSlides } from "../src/model/preset";
 import { resolveStyle } from "../src/model/style";
 import { excelToDisplayList, lu, measuredBuild, type Metrics } from "../src/render/excel-dl";
 import { slideToDisplayList } from "../src/render/slide-dl";
-import { memoPart, noteParts, slideMarkup } from "../src/render/slide";
+import { memoPart, noteParts } from "../src/render/slide";
+import { pageNoFor, pageNoGeom } from "../src/render/pagenumbers";
 import { computeLayout } from "../src/render/layout";
 import { breakRuns, wrapLines } from "../src/text/lines";
 import { setPlatform, resetPlatform } from "../src/platform";
@@ -45,19 +47,32 @@ async function deck(file: string, design: Design) {
   };
   return { ctx, slides, build };
 }
-/** the classes of the elements slideMarkup writes that the parity tools pair with hits */
-const markupClasses = (html: string) => [...html.matchAll(/class="([^"]+)"/g)].map(m => m[1])
-  .filter(c => /^(title|subtitle|tnote|notebub|gls wb card notebub|pageno|gls wb chrome|logowrap|logo$|cv-|cvx-|ix-|tw$)/.test(c) && !/^(cv-orb|cv-tile)/.test(c));
+/** the furniture elements v3's slideMarkup wrote for weekly-options.json (cover, contents, content), by class – the
+    ones the parity tools pair with hits; recorded from slideMarkup at S4.4 (502214c) before it was removed */
+const MARKUP: Record<Design, Record<string, number>[]> = {
+  excel: [
+    {"cvx-panel":1, "cvx-band":1, "cvx-band b2":1, "cv-block x":1, "cv-title":1, "cv-bar":1, "cv-sub":1, "cvx-rule":1, "cvx-date":1, "logowrap big":1, "logo":1},
+    {"title":1, "ix-row x":1, "ix-n":1, "ix-txt":1, "ix-t":1, "ix-s":1, "ix-lead":1, "ix-p":1, "pageno plain":1, "pageno plain footer":1, "logowrap":1, "logo":1},
+    {"title":1, "subtitle":1, "pageno plain":1, "pageno plain footer":1, "tw":2, "logowrap":1, "logo":1}],
+  clean: [
+    {"cvx-panel":1, "cvx-band":1, "cvx-band b2":1, "cv-block x":1, "cv-title":1, "cv-bar":1, "cv-sub":1, "cvx-rule":1, "cvx-date":1, "logowrap big":1, "logo":1},
+    {"title":1, "ix-row x":1, "ix-n":1, "ix-txt":1, "ix-t":1, "ix-s":1, "ix-lead":1, "ix-p":1, "pageno plain":1, "pageno plain footer":1, "logowrap":1, "logo":1},
+    {"title":1, "subtitle":1, "pageno plain":1, "pageno plain footer":1, "tw":2, "tnote top free":1, "notebub x":1, "tnote right bub":1, "tnote bottom auto":1, "tnote memo free bottom":1, "logowrap":1, "logo":1}],
+  glass: [
+    {"gls wb chrome cv-orb":1, "gls wb chrome cv-tile":1, "gls wb chrome cv-orb small":1, "cv-block g":1, "cv-title":1, "cv-bar":1, "cv-sub":1, "gls wb chrome cv-chip":1, "gls wb chrome logowrap":1, "logo":1},
+    {"title":1, "gls wb chrome card ix-card":1, "ix-row g":1, "ix-n":1, "ix-txt":1, "ix-t":1, "ix-s":1, "ix-lead":1, "ix-p":1, "gls wb chrome pageno":1, "pageno plain footer":1, "gls wb chrome logowrap":1, "logo":1},
+    {"title":1, "subtitle":1, "gls wb chrome pageno":1, "pageno plain footer":1, "tw":2, "tnote top free":1, "gls wb card notebub":1, "tnote right bub":1, "tnote bottom auto":1, "tnote memo free bottom":1, "gls wb chrome logowrap":1, "logo":1}],
+};
 
 describe("the whole slide", () => {
-  for (const design of ["excel", "clean", "glass"] as Design[]) it(`${design}: every furniture element of slideMarkup has its hit, in the same order per class; the lists validate`, async () => {
+  for (const design of ["excel", "clean", "glass"] as Design[]) it(`${design}: every furniture element of v3's slideMarkup has its hit; the lists validate`, async () => {
     const { ctx, slides, build } = await deck("weekly-options.json", design);
     for (let i = 0; i < slides.length; i++) {
       const dl = build(i);
       expect(validate(dl.nodes)).toEqual([]);
-      const html = slideMarkup(slides[i], i, ctx).html, want = markupClasses(html).filter(c => c !== "logo" || !!ctx.logoSrc);
-      const got = hits(dl.nodes).map(h => h.id);
-      for (const c of new Set(want)) expect(got.filter(g => g === c).length, `${design} slide ${i + 1}: ${c}`).toBe(want.filter(w => w === c).length);
+      const want = MARKUP[design][i], got = hits(dl.nodes).map(h => h.id);
+      expect(slides.length).toBe(MARKUP[design].length);
+      for (const [c, n] of Object.entries(want)) expect(got.filter(g => g === c).length, `${design} slide ${i + 1}: ${c}`).toBe(n);
     }
   });
   it("a logo file that cannot be read (no size): no bubble and no picture, as v3 hid it; the page number stays put", async () => {
@@ -105,7 +120,7 @@ describe("the whole slide", () => {
       const { ctx, slides, build } = await deck("weekly.json", design);
       ctx.style.pn = { ...ctx.style.pn, on: true, pos: "tl" };
       slides[0].subtitle = slides[0].subtitle || "A subtitle";
-      const html = slideMarkup(slides[0], 0, ctx).html, left = +/class="title"[^>]*style="left:([\d.]+)px/.exec(html)![1];
+      const left = 56 + pageNoGeom(ctx, pageNoFor(ctx, 0)!, design === "glass", true, slides[0].type === "cover").w + 22;
       const hs = hits(build(0).nodes);
       expect(hs.find(h => h.id === "title")!.x).toBeCloseTo(left, 6);
       expect(hs.find(h => h.id === "subtitle")!.x).toBeCloseTo(left, 6);
@@ -146,7 +161,7 @@ describe("the whole slide", () => {
     const R = slides[2], boxes = computeLayout(R, ctx).boxes;
     let rounds = 0;
     const at = (font: string) => parseFloat(/([\d.]+)px/.exec(font)![1]);
-    setPlatform({ text: { maxDigitWidth: () => 7, noteFits: () => true,
+    setPlatform({ text: { maxDigitWidth: () => 7,
       measureRuns: async runs => { rounds++; return runs.map(r => ({ ...M.run(r.text, r.font), w: [...r.text].length * at(r.font) * 3 })); }, breakLines: async reqs => reqs.map(q => [q.text]) } });
     try {
       const dl = await measuredBuild(m => slideToDisplayList(R, 2, ctx, [], boxes, { wall: null, logo: null }, m, "x"));

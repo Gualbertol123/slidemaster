@@ -32,5 +32,3 @@ export function runWizard(wb: Workbook, name: string, preset: Preset): Promise<P
     setDialogs({ wizard: { wb, name, preset, resolve: done } });
   });
 }
-export function openInstaller() { setDialogs({ installer: true }); }
-export function closeInstaller() { setDialogs({ installer: false }); }

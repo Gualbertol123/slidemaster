@@ -86,7 +86,7 @@ async function helper(port) {
   fs.mkdirSync(root, { recursive: true }); fs.mkdirSync(data, { recursive: true });
   for (const f of ["deck20.xlsx", "big30.xlsx"]) fs.copyFileSync(path.join(BOOKS, f), path.join(root, f));
   const p = spawn(PY, [path.join(BACKEND, "slide_builder.py"), "--no-browser", "--port", String(port)], {
-    env: { ...process.env, SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: "bench", SLIDEBUILDER_HOST: "pc-bench", SLIDEBUILDER_BROWSER: CHROME, NO_PROXY: "*",
+    env: { ...process.env, SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: "bench", SLIDEBUILDER_HOST: "pc-bench", NO_PROXY: "*",
       ...(sysFontDirs() ? { SLIDEBUILDER_SYSFONTS: sysFontDirs() } : {}) },
     stdio: ["ignore", "pipe", "pipe"] });
   let log = ""; p.stdout.on("data", d => log += d); p.stderr.on("data", d => log += d);

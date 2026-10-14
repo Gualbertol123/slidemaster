@@ -3,8 +3,8 @@
    as the browser takes the first one it has:
    * the deck's font library first (its @font-face rules win over a Windows font of the same name), then this PC's
      fonts (the helper's /sysfonts index);
-   * variable families the old export engine left out are left out here too ("Segoe UI Variable …", "SF Pro …":
-     v3's printReady(), core/render/printcss.ts), so Liquid Glass text is static Segoe UI as in today's PDFs (B2);
+   * variable families v3's PDFs left out are left out here too ("Segoe UI Variable …", "SF Pro …":
+     v3's printReady(), removed in S4.5), so Liquid Glass text is static Segoe UI as in today's PDFs (B2);
    * CSS generic families are Windows' defaults; where a family is not installed, its metric-compatible stand-in is
      tried (Carlito for Calibri … – the substitutes Chromium itself uses through fontconfig on Linux);
    * when nothing in the list can be embedded, a default face is used and the family is reported (`missing`).
@@ -16,7 +16,7 @@ import { FontRegistry } from "./fonts";
 /** one font file the export may load: a library face or a file of this PC's font folders */
 export interface CatalogFont { source: "library" | "system"; file: string; family: string; weight: number; italic: boolean }
 
-/** families the PDF never takes from a list (variable fonts the old engine left out too) */
+/** families the PDF never takes from a list (variable fonts v3's PDFs left out too) */
 const SKIP = /^(-apple-system|BlinkMacSystemFont|Segoe UI Variable( (Display|Text|Small))?|SF Pro( (Display|Text))?)$/i;
 const GENERIC: Record<string, string> = { "sans-serif": "Arial", serif: "Times New Roman", monospace: "Consolas", "system-ui": "Segoe UI", cursive: "Comic Sans MS", fantasy: "Impact" };
 /** metric-compatible stand-ins, tried only when the family itself is not installed */

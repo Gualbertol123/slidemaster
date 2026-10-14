@@ -59,7 +59,7 @@ async function openApp(page: Page, url: string) {
   page.on("requestfinished", async r => { if (!ids.has(r)) return; const res = await r.response().catch(() => null); trail.push(at() + " #" + ids.get(r) + " <- " + (res ? res.status() : "?") + " in " + Math.round(r.timing().responseEnd) + " ms"); });
   page.on("requestfailed", r => { if (ids.has(r)) trail.push(at() + " #" + ids.get(r) + " xx " + (r.failure()?.errorText || "")); });
   await page.goto(url);
-  await expect(page.locator("#srv")).toContainText(/Export|Testing/);
+  await expect(page.locator("#srv")).toHaveCount(0);                              // the helper answered (S4.5: no engine pill)
 }
 async function openWorkbook(page: Page, name: string) {
   await page.click("#openBtn");
@@ -182,7 +182,7 @@ test.describe.serial("two people, one shared folder", () => {
   test("export writes a PDF into the shared export folder", async ({ page }) => {
     await openApp(page, ANNA);
     await expect(page.locator(".thumb")).toHaveCount(4);
-    // the native export (S3.7): the page writes the PDF – it does not wait for an export engine
+    // the native export (S3.7): the page writes the PDF
     expect(await exported(page, () => page.click("#exportBtn"))).toEqual(["report - slides.pdf"]);
     await expect(page.locator("#toast")).toContainText("report - slides.pdf");
     const read = (f: string) => fs.readFileSync(path.join(root(), "export", f));
@@ -224,11 +224,13 @@ test.describe.serial("two people, one shared folder", () => {
     expect(one).toMatch(/^report - .+\.pdf$/);
     expect(one).not.toBe("report - slides.pdf");
     expect((read(one).toString("latin1").match(/\/Type\s*\/Page\b/g) || []).length).toBe(1);
-    // the old engine, for one release: its own file name, next to the native one
-    await expect(page.locator("#srv")).toContainText("Export: Chrome", { timeout: 30_000 });
-    await page.click("#exportMenuBtn"); await page.click('[data-x="pdf-old"]');
-    await expect(page.locator("#toast")).toContainText("report (old engine) - slides.pdf", { timeout: 60_000 });
-    expect((read("report (old engine) - slides.pdf").toString("latin1").match(/\/Type \/Page\b/g) || []).length).toBe(4);
+    // the old engine is gone (S4.5): the menu has no item for it, and the helper no longer renders slides
+    await page.click("#exportMenuBtn");
+    await expect(page.locator('[data-x="pdf-vector"]')).toBeVisible();
+    await expect(page.locator('[data-x="pdf-old"]')).toHaveCount(0);
+    await page.click("#exportMenuBtn");
+    const token = await page.locator('meta[name="sb-token"]').getAttribute("content");
+    expect((await page.request.post(ANNA + "api/export", { data: {}, headers: { "X-SB-Token": token! }, failOnStatusCode: false })).status()).toBe(404);
   });
 
   test("PNG of the current slide and of every slide; the current slide copied to the clipboard", async ({ page, context }) => {

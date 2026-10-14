@@ -233,3 +233,27 @@ body.painting .slide .hits{cursor:copy}
 /* a text box being stretched shows its own text (re-wrapped live) while its drawn layer waits */
 .ovl .tnote.live.bub{padding:10px 18px}
 .ovl .notebub.live{background:rgba(255,255,255,.72);border-radius:16px;box-shadow:0 6px 18px rgba(20,30,60,.12)}
+/* the slide element itself (the stage's, the comment preview's): its size, and the design's font and colours that
+   the overlays inherit; the comment preview's text (v3's text box rules). Until S4.5 these were part of slide.css,
+   the stylesheet of v3's HTML slides – scoped as they were, so nothing inside the overlays or the drawn layers
+   matches them */
+@scope (html) to (.ovl, svg) {
+.slide{width:1600px;height:900px;position:relative;overflow:hidden;background:#fff;color:#1D1D1F}
+.slide .tw{position:absolute;transform-origin:0 0;contain:layout style}
+.slide.excel{font-family:"Century Gothic","CenturyGothic","URW Gothic","AppleGothic",Arial,sans-serif;background:var(--slidebg,#fff)}
+.slide.glass{--gi:.35;font-family:-apple-system,"SF Pro Display","Segoe UI Variable Display","Segoe UI","Helvetica Neue",Inter,Arial,sans-serif;background:var(--wallbase,#E9EDF6);color:#0B0D17}
+.slide .tnote{position:absolute;box-sizing:border-box;padding:4px 6px;line-height:1.28;white-space:pre-wrap;overflow-wrap:anywhere;overflow:hidden;color:#16181D;display:flex;flex-direction:column}
+.slide.glass .tnote{color:#0B0D17;font-weight:500}
+.slide.excel .tnote{font-family:'Century Gothic','URW Gothic',Arial,sans-serif}
+.slide.clean .tnote{font-family:'Segoe UI Variable Text','Segoe UI',Calibri,Arial,sans-serif}
+.slide .tnote.auto{white-space:normal}
+.slide .tnote .nt{font-size:1.32em;font-weight:800;line-height:1.15;margin-bottom:.1em;color:#0B0D17}
+.slide.excel .tnote .nt{color:var(--x1,#1C4F8C)}
+.slide .tnote .nh{font-weight:700;line-height:1.25;color:var(--a1,#3B82F6)}
+.slide.excel .tnote .nh{color:#2F75B5}
+.slide .tnote .gap{height:var(--pgap,.5em)}
+.slide .tnote:not(.auto) .np + .np{margin-top:var(--pgap,0em)}
+.slide .tnote .up{color:#1F9D55;font-weight:700}
+.slide .tnote .down{color:#D92D20;font-weight:700}
+.slide .tnote .flat{font-weight:700}
+}

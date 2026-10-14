@@ -3,7 +3,6 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import uiCss from "./styles/ui.css?raw";
 import extraCss from "./styles/app.css?raw";
-import slideCss from "./styles/slide.css?raw";
 import { installBrowserPlatform } from "./platform";
 import { App } from "./ui/App";
 import { boot, change, core, coreStats, ctx } from "./state/app";
@@ -12,12 +11,10 @@ import { installKeys } from "./editor/keys";
 import { indexWorkbook, readWorkbook } from "@slide-builder/core/xlsx/workbook";
 import { buildLayout } from "@slide-builder/core/xlsx/layout";
 import { formatValue } from "@slide-builder/core/xlsx/numfmt";
-import { renderExcel } from "@slide-builder/core/render/excel";
-import { renderGlass } from "@slide-builder/core/render/glass";
 import { resolveStyle } from "@slide-builder/core/model/style";
 import { todayLabel } from "@slide-builder/core/render/cover";
 import { drawDl } from "@slide-builder/core/dl/canvas";
-import type { HtmlReq } from "@slide-builder/core/rpc/messages";
+import type { DesignReq } from "@slide-builder/core/rpc/messages";
 import { lastExport, pool } from "./editor/export";
 import { thumbStats } from "./editor/thumbs";
 import { stageBusy, stageNodes, stats as stageStats, useStage } from "./stage/data";
@@ -26,9 +23,9 @@ import { stageBusy, stageNodes, stats as stageStats, useStage } from "./stage/da
 installBrowserPlatform();
 
 // hooks for automated tests (parity with v2, end-to-end); not used by the app itself
-(window as unknown as Record<string, unknown>).__sbTest = { indexWorkbook, readWorkbook, buildLayout, formatValue, renderExcel, renderGlass, resolveStyle, coreStats,
+(window as unknown as Record<string, unknown>).__sbTest = { indexWorkbook, readWorkbook, buildLayout, formatValue, resolveStyle, coreStats,
   // the display list (M3, not shown yet): built by the core worker, drawn on a canvas by the parity tools
-  slideLists: (a: HtmlReq & { slides?: number[] }) => core().call("slideLists", { today: todayLabel(), ...a }), drawDl,
+  slideLists: (a: DesignReq & { slides?: number[] }) => core().call("slideLists", { today: todayLabel(), ...a }), drawDl,
   // the export (S3.7): the last one's files and time from the click, and how many export workers run
   lastExport, exportWorkers: () => pool().size, exportPhases: () => pool().last, toastNow: () => get().ui.toast, exporting: () => get().ui.exporting,
   // the stage (S4.1): the slide it shows (its display list in layers), whether it shows the current slide with nothing
@@ -40,11 +37,8 @@ installBrowserPlatform();
   preset: () => structuredClone(ctx().preset), change,
   stageIdle: () => { const s = useStage.getState(), R = get().deck.slides[get().deck.cur]; return !stageBusy() && !!s.shown && !!R && s.shown.id === R.id && !s.editor && !s.drag; } };
 
-// slide.css styles the HTML slides still in the page (thumbnails, the comment preview, the export engine's pages), not
-// the stage's overlays and drawn layers (S4.1), which carry the same classes; exports send the file's own text
 const add = (id: string, css: string) => { const s = document.createElement("style"); s.id = id; s.textContent = css; document.head.appendChild(s); };
 add("uicss", uiCss + "\n" + extraCss);
-add("slidecss", "@scope (html) to (.ovl, svg) {\n" + slideCss + "\n}");
 // StrictMode in development only (`npm run dev`): it runs every effect twice to show the ones that are not
 // idempotent; the built page renders once
 createRoot(document.getElementById("root")!).render(import.meta.env.DEV ? <StrictMode><App /></StrictMode> : <App />);

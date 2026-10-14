@@ -75,18 +75,21 @@ describe("parity", () => {
       expect(res.diffs).toEqual([]);
       capture(a, other, slide({ color: "rgb(255, 0, 0)" }));
       expect(m.compare(g, a).diffs.map((d: any) => d.kind)).toEqual(["style"]);
-      // comments and issues are texts; PDF text only with the same fonts (clipping and runs depend on them)
+      // comments and issues are texts; the PDF's page text against the golden slide's texts (GT, S4.5: the build's PDF is
+      // the native export's, the goldens' v3's) only with the same fonts (where text is clipped depends on them)
       const pdf = (s: string) => ({ pages: 1, sizes: [[1200, 675]], fonts: ["F"], images: 0, pageText: [s.replace(/\s/g, "")], text: [[{ s }]] });
-      capture(g, env, slide(), { pdf: pdf("VUB") });
-      capture(a, other, slide(), { issues: [{ slide: 1, text: "changed" }], pdf: pdf("PBZ") });
+      capture(g, env, slide(), { pdf: pdf("v3's own runs") });
+      capture(a, other, slide(), { issues: [{ slide: 1, text: "changed" }], pdf: pdf("Loans PBZ") });
       expect(m.compare(g, a).diffs.map((d: any) => d.kind)).toEqual(["text"]);
-      capture(a, env, slide(), { pdf: pdf("PBZ") });
-      expect(m.compare(g, a).diffs.map((d: any) => d.kind)).toEqual(["pdf-text", "pdf-text"]);
-      capture(a, env, slide(), { pdf: { ...pdf("VUB"), pages: 2 } });
+      capture(a, env, slide(), { pdf: pdf("Loans 1.234") });                         // every golden text once: equal
+      expect(m.compare(g, a).diffs).toEqual([]);
+      capture(a, env, slide(), { pdf: pdf("Loans PBZ") });                           // "1.234" missing, "PBZ" not in the goldens
+      expect(m.compare(g, a).diffs.map((d: any) => [d.kind, d.detail])).toEqual([["pdf-text", 'page 1: missing ["1.234"] not in the goldens: "PBZ"']]);
+      capture(a, env, slide(), { pdf: { ...pdf("Loans 1.234"), pages: 2 } });
       expect(m.compare(g, a).diffs.map((d: any) => d.kind)).toEqual(["pdf"]);
       expect(m.compare(g, a, { pdf: false }).diffs).toEqual([]);              // --no-pdf
       // a file the build no longer produces; a version the goldens do not have
-      capture(a, env, slide(), { pdf: pdf("VUB") });
+      capture(a, env, slide(), { pdf: pdf("Loans 1.234") });
       fs.rmSync(path.join(a, "deck", "glass", "full", "comments.json"));
       expect(m.compare(g, a).diffs.some((d: any) => d.kind === "missing" && d.file === "comments.json")).toBe(true);
       fs.cpSync(path.join(a, "deck", "glass", "full"), path.join(a, "deck", "glass", "Board"), { recursive: true });

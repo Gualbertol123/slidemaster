@@ -25,7 +25,6 @@ import { parseColor, solid } from "../dl/color";
 import type { DisplayList, Matrix, Node, Paint, PathCmd, Stroke, TextNode } from "../dl/types";
 import { effItems } from "./edits";
 import type { RenderCtx } from "./context";
-import { XLFONT } from "./excel";
 import { breakRuns, collapse } from "../text/lines";
 
 /** what text measurement the builder needs: sync lookups over the batch answered before */
@@ -108,6 +107,9 @@ function trimRuns(runs: Run[]): Run[] {
   if (out.length) { out[0].text = out[0].text.replace(/^ /, ""); out[out.length - 1].text = out[out.length - 1].text.replace(/ $/, ""); }
   return out.filter(r => r.text);
 }
+
+/** the font list of Excel cells without a font of their own (v3's renderExcel) */
+export const XLFONT = `'Century Gothic','CenturyGothic','URW Gothic','AppleGothic',Arial,sans-serif`;
 
 export function excelToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics, opts: { noText?: boolean } = {}): TableDL {
   const items = effItems(L, ctx), rr = Math.round(8 * ctx.style.radius / 100);

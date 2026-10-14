@@ -8,14 +8,13 @@ import socket
 import subprocess
 import sys
 import time
-import urllib.parse
 import urllib.request
 import uuid
 
 NO_WINDOW = 0x08000000 if sys.platform.startswith("win") else 0
 IS_WINDOWS = sys.platform.startswith("win")
 
-# Local requests must never go through a corporate proxy (that is what made the engine time out).
+# Local requests must never go through a corporate proxy (a proxy made calls to 127.0.0.1 time out).
 LOCAL = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 for _k in ("NO_PROXY", "no_proxy"):
     os.environ[_k] = ",".join(x for x in (os.environ.get(_k, ""), "127.0.0.1", "localhost", "::1") if x)
@@ -93,8 +92,20 @@ def safe_path(name, base):
     return p
 
 
-def file_url(path):
-    return "file:///" + urllib.parse.quote(os.path.abspath(path).replace("\\", "/").lstrip("/"), safe="/:")
+def is_network_path(p):
+    """True for a folder on a network drive (\\\\server\\share or a mapped drive letter); the installer says which"""
+    p = os.path.abspath(p)
+    if p.startswith("\\\\"):
+        return True
+    if IS_WINDOWS:
+        drive = os.path.splitdrive(p)[0]
+        if drive:
+            try:
+                import ctypes
+                return ctypes.windll.kernel32.GetDriveTypeW(drive + "\\") == 4      # DRIVE_REMOTE
+            except Exception:
+                return False
+    return False
 
 
 def open_with_os(path):

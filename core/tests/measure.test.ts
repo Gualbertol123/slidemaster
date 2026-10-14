@@ -18,7 +18,7 @@ const FILES: Record<string, Uint8Array> = { "Carlito-Regular.ttf": font("Carlito
 
 function measurer() {
   const asked: RunReq[] = [], read: string[] = [];
-  const page: TextMeasurer = { maxDigitWidth: () => 99, noteFits: () => true, measureRuns: runs => { asked.push(...runs); return runs.map(() => ({ w: -1, asc: -1, desc: -1 })); }, breakLines: reqs => reqs.map(() => ["page"]) };
+  const page: TextMeasurer = { maxDigitWidth: () => 99, measureRuns: runs => { asked.push(...runs); return runs.map(() => ({ w: -1, asc: -1, desc: -1 })); }, breakLines: reqs => reqs.map(() => ["page"]) };
   const m = new FontMeasurer(shaper(), { catalog: async () => CAT, bytes: async f => { read.push(f.file); return FILES[f.file] ?? null; } }, page);
   return { m, asked, read };
 }
@@ -74,7 +74,7 @@ describe("outlines on screen where the browser's text would differ (S4.4, 05 §3
   test("the per-font check flags a face whose page widths differ by more than 0.5 %; only its runs come as outlines", async () => {
     const sh = await shaper();
     let factor = 1;
-    const page: TextMeasurer = { maxDigitWidth: () => 0, noteFits: () => true, breakLines: r => r.map(x => [x.text]),
+    const page: TextMeasurer = { maxDigitWidth: () => 0, breakLines: r => r.map(x => [x.text]),
       measureRuns: runs => runs.map(r => ({ w: sh.width(new FontRegistry().add(font(/bold/.test(r.font) ? "Carlito-Bold.ttf" : "Carlito-Regular.ttf"))[0], r.text, parseFloat(/([\d.]+)px/.exec(r.font)![1])) * factor, asc: 0, desc: 0 })) };
     const m = new FontMeasurer(shaper(), { catalog: async () => CAT, bytes: async f => FILES[f.file] ?? null }, page);
     await m.prepare(["400 11px Carlito", "700 11px Carlito"]);
@@ -105,7 +105,7 @@ describe("review fixes (S4.4)", () => {
     let release: () => void = () => {};
     const gate = new Promise<void>(r => { release = r; });
     const asked: string[] = [];
-    const page: TextMeasurer = { maxDigitWidth: () => 0, noteFits: () => true, measureRuns: runs => { asked.push(...runs.map(r => r.text)); return runs.map(() => ({ w: -1, asc: 0, desc: 0 })); }, breakLines: r => r.map(x => [x.text]) };
+    const page: TextMeasurer = { maxDigitWidth: () => 0, measureRuns: runs => { asked.push(...runs.map(r => r.text)); return runs.map(() => ({ w: -1, asc: 0, desc: 0 })); }, breakLines: r => r.map(x => [x.text]) };
     const m = new FontMeasurer(shaper(), { catalog: async () => CAT, bytes: async f => { await gate; return FILES[f.file] ?? null; } }, page);
     m.budget = 30;
     let late = 0; m.onLate = () => { late++; };
@@ -118,7 +118,7 @@ describe("review fixes (S4.4)", () => {
   });
   test("the faces drawn as outlines are part of the stage's keys (outlineSig)", async () => {
     const sh = await shaper();
-    const page: TextMeasurer = { maxDigitWidth: () => 0, noteFits: () => true, breakLines: r => r.map(x => [x.text]), measureRuns: runs => runs.map(r => ({ w: sh.width(new FontRegistry().add(font("Carlito-Regular.ttf"))[0], r.text, parseFloat(/([\d.]+)px/.exec(r.font)![1])) * 1.02, asc: 0, desc: 0 })) };
+    const page: TextMeasurer = { maxDigitWidth: () => 0, breakLines: r => r.map(x => [x.text]), measureRuns: runs => runs.map(r => ({ w: sh.width(new FontRegistry().add(font("Carlito-Regular.ttf"))[0], r.text, parseFloat(/([\d.]+)px/.exec(r.font)![1])) * 1.02, asc: 0, desc: 0 })) };
     const m = new FontMeasurer(shaper(), { catalog: async () => CAT, bytes: async f => FILES[f.file] ?? null }, page);
     expect(m.outlineSig()).toBe("");
     await m.prepare(["400 11px Carlito"]);
@@ -137,7 +137,7 @@ describe("review fixes (S4.4)", () => {
 describe("a catalog that could not be read (S4.4)", () => {
   test("the faces looked for with it are not kept: the next measurement asks for the catalog again and finds the file", async () => {
     let fail = true, asked = 0;
-    const page: TextMeasurer = { maxDigitWidth: () => 0, noteFits: () => true, measureRuns: runs => runs.map(() => ({ w: -1, asc: 0, desc: 0 })), breakLines: r => r.map(x => [x.text]) };
+    const page: TextMeasurer = { maxDigitWidth: () => 0, measureRuns: runs => runs.map(() => ({ w: -1, asc: 0, desc: 0 })), breakLines: r => r.map(x => [x.text]) };
     const m = new FontMeasurer(shaper(), { catalog: async () => { asked++; if (fail) throw new Error("helper busy"); return CAT; }, bytes: async f => FILES[f.file] ?? null }, page);
     expect((await m.measureRuns([{ text: "x", font: "12px Carlito" }]))[0].w).toBe(-1);
     fail = false;

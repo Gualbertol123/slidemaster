@@ -1,7 +1,7 @@
 /* The messages between the page and the core worker (PLAN S2.4). The worker owns the workbook, the shared
    document (DocSync, still v3's HTTP ops protocol) and undo/redo; the page sends operations and requests, and
-   receives document snapshots, sheet slices and table HTML. The worker asks the page for what only the page has:
-   the helper's API (the page's backend: HTTP with its token, or the browser's own storage from file://), Excel's
+   receives document snapshots, sheet slices and the stage's slides. The worker asks the page for what only the page
+   has: the helper's API (the page's backend: HTTP with its token, or the browser's own storage from file://), Excel's
    digit width with the page's fonts, and EMF/WMF picture conversion. */
 import type { DeckVersion, Design, Op, Preset, Style, WorkbookDoc } from "../model/types";
 import type { SheetMeta } from "../xlsx/types";
@@ -30,7 +30,8 @@ export interface DocEvent extends Omit<DocState, "view"> {
   /** how many of the page's apply/undo calls the snapshot includes */
   ack: number;
 }
-export interface HtmlReq { design: Style["design"]; version: string; forExport: boolean; thumb: boolean }
+/** which design, version and purpose a display list is for */
+export interface DesignReq { design: Style["design"]; version: string; forExport: boolean; thumb: boolean }
 
 /** calls the page makes */
 export interface CoreMethods {
@@ -57,8 +58,6 @@ export interface CoreMethods {
   undo(a: { redo: boolean }): { label: string | null; changed: boolean };
   flush(a: Record<string, never>): void;
   poll(a: Record<string, never>): void;
-  /** table HTML for other designs, versions, exports and thumbnails: [table id, kind, key, html] */
-  html(a: HtmlReq): [string, string, string, string][];
   /** a font file for the library (S3.2): a variable font becomes a static face at the weight the upload declares
       (every other axis at its default; hb-subset), so no PDF ever embeds a variable font; other fonts come back as
       they are (`variable: false`) */
@@ -73,7 +72,7 @@ export interface CoreMethods {
   /** that export worker stopped: its channel is closed */
   unlinkExport(a: { id: number }): void;
 }
-export type SlideListsReq = HtmlReq & { slides?: number[]; /** the date the page shows (its clock) */ today?: string };
+export type SlideListsReq = DesignReq & { slides?: number[]; /** the date the page shows (its clock) */ today?: string };
 export interface SlideList { slide: number; dl: import("../render/excel-dl").TableDL }
 /** the stage's request: slide `slide` of the current design and version. `known`: the image ids the page already has
     (not sent again); `fresh`: measure everything again (fonts arrived) */
@@ -121,8 +120,6 @@ export interface CoreEvents {
   doc: DocEvent;
   /** slices of workbook `book` (the open one, or the one being opened) */
   slices: { book: number; shared: SharedSlice | null; sheets: SheetSlice[] };
-  /** table HTML of the current design and version, new keys only: [table id, kind, key, html] */
-  html: [string, string, string, string][];
   /** after a change, the slide on the stage drawn again (the stage's last request, S4.1) */
   stage: StageSlide;
   progress: { text: string; frac: number | null } | null;

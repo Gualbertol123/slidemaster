@@ -1,11 +1,10 @@
-/* The page's implementations of the core's platform (core/src/platform.ts): canvas text metrics, an off-screen
-   slide for fitting text boxes and <canvas> surfaces (XML: the core's own tokenizer). Installed once at
+/* The page's implementations of the core's platform (core/src/platform.ts): canvas text metrics and <canvas>
+   surfaces (XML: the core's own tokenizer). Installed once at
    start-up (main.tsx). */
-import { setPlatform, type CanvasFactory, type Ctx2D, type NoteMeasure, type TextMeasurer } from "@slide-builder/core/platform";
+import { setPlatform, type CanvasFactory, type Ctx2D, type TextMeasurer } from "@slide-builder/core/platform";
 import { wrapLines } from "@slide-builder/core/text/lines";
 import { parseFont } from "@slide-builder/core/text/family";
 
-let measurer: { host: HTMLElement; box: HTMLElement; note: NoteMeasure | null } | null = null;
 let runCtx: CanvasRenderingContext2D | null = null, runFont = "";
 const ctx2d = () => runCtx ||= document.createElement("canvas").getContext("2d");
 /** a run's advance and its font's ascent / descent, with the page's fonts */
@@ -87,25 +86,6 @@ export const browserText: TextMeasurer = {
   breakLines(reqs) {
     const c = ctx2d(); if (!c) return reqs.map(r => [r.text]);
     return reqs.map(r => wrapLines(r.text, r.width, s => measureRun(c, s, r.font).w));
-  },
-  noteFits(note, size) {
-    if (typeof document === "undefined" || !document.body) return true;
-    if (!measurer) {
-      const host = document.createElement("div");
-      host.setAttribute("aria-hidden", "true");
-      host.style.cssText = "position:absolute;left:-20000px;top:0;width:1600px;height:900px;visibility:hidden;pointer-events:none;overflow:hidden";
-      const box = document.createElement("div"); host.appendChild(box); document.body.appendChild(host);
-      measurer = { host, box, note: null };
-    }
-    const m = measurer.box;
-    if (measurer.note !== note) {                 // a new box: copy it in once, then only the font size changes
-      measurer.note = note;
-      measurer.host.className = "slide " + (note.design === "clean" ? "excel clean" : note.design);
-      m.className = note.className; m.style.cssText = note.cssText; m.innerHTML = note.html;
-      Object.assign(m.style, { left: "0px", top: "0px", width: note.w + "px", height: "auto", display: "block" });
-    }
-    m.style.fontSize = size + "px";
-    return m.scrollHeight <= note.h + 1 && m.scrollWidth <= note.w + 1;
   },
 };
 

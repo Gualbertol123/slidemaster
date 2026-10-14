@@ -22,11 +22,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import APP_NAME, VERSION, paths, presence, store
 from .convert import convert_picture, convert_workbook
-from .engines import EngineError
-from .exports import ExportError, assemble, export, export_feedback, export_file
+from .exports import ExportError, export_feedback, export_file
 from .fonts import FONT_MAX, FontError, add_face, font_file, read_library, remove_family
 from .sysfonts import SysFontError, capture as capture_sysfont, list_fonts as list_sysfonts, read_font as read_sysfont
-from .installer import install_status, start_install
 from .locks import LockTimeout
 from .store import StoreTooNew, StoreUnreadable
 from .util import WriteFailed, current_host, current_user, log, open_with_os, safe_component, safe_path, valid_workbook_name, write_atomic
@@ -117,14 +115,10 @@ class HttpError(Exception):
 
 
 class App:
-    """State of one running helper: port, token, export engine, uploads kept in memory."""
+    """State of one running helper: port, token, uploads kept in memory."""
 
-    def __init__(self, token=None, engine=None):
+    def __init__(self, token=None):
         self.token = token or secrets.token_urlsafe(24)
-        if engine is None:
-            from .engines import Exporter
-            engine = Exporter()
-        self.engine = engine
         self.port = None
         self.uploads = {}                  # id -> (name, bytes, time)
         self.uploads_lock = threading.Lock()
@@ -287,8 +281,6 @@ class Handler(BaseHTTPRequestHandler):
         except (StoreUnreadable, WriteFailed, LockTimeout, Unstable) as e:
             log("busy: %s" % e)
             self._error(503, str(e))
-        except EngineError as e:
-            self._error(503, str(e))
         except (ExportError, FontError, SysFontError) as e:
             self._error(400, str(e))
         except Exception:
@@ -305,7 +297,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"app": APP_NAME, "version": VERSION})
         if path == "/api/health":
             return self._send(200, {"app": APP_NAME, "version": VERSION, "user": current_user(), "host": current_host(),
-                                    "folder": paths.ROOT, "export": paths.EXPORT_DIR, "engine": self.app.engine.status()})
+                                    "folder": paths.ROOT, "export": paths.EXPORT_DIR})
         if path == "/api/config":
             return self._send(200, store.read_config())
         if path == "/api/me":
@@ -314,8 +306,6 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"workbooks": list_workbooks(), "folder": paths.ROOT})
         if path.startswith("/api/files/") and path.endswith("/stat"):
             return self._send(200, stat_workbook(urllib.parse.unquote(path[len("/api/files/"):-len("/stat")])))
-        if path == "/api/engine/install":
-            return self._send(200, install_status())
         if path == "/api/fonts":
             return self._send(200, read_library())
         if path.startswith("/fonts/"):
@@ -449,14 +439,10 @@ class Handler(BaseHTTPRequestHandler):
             name = os.path.basename((q.get("name") or ["workbook.xlsx"])[0].replace("\\", "/")) or "workbook.xlsx"
             uid = self.app.put_upload(name, self._body(BIG_LIMIT))
             return self._send(200, {"id": uid, "name": name})
-        if path == "/api/export":
-            return self._send(200, export(self._json(BIG_LIMIT), self.app.engine))
         if path == "/api/export-file":                   # the native export (S3.7): the page's PDF or PNG, saved as it is
             return self._send(200, export_file((q.get("name") or [""])[0], self._body(BIG_LIMIT)))
         if path == "/api/export-feedback":               # the export pilot (S3.8): a problem report, as a JSON file
             return self._send(200, export_feedback(self._json(), current_user(), current_host()))
-        if path == "/api/assemble":                      # fallback: PDF from images rendered by the page itself
-            return self._send(200, assemble(self._json(BIG_LIMIT)))
         if path == "/api/convert-workbook":
             name = os.path.basename((q.get("name") or ["workbook.xlsb"])[0].replace("\\", "/")) or "workbook.xlsb"
             data = self._body(BIG_LIMIT)
@@ -506,13 +492,6 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, add_face(one("family"), one("weight", "400"), one("style", "normal"), self._body(FONT_MAX),
                                             ext=os.path.splitext(one("name", "") or "")[1], source=one("source", "upload"),
                                             unicode_range=one("range")))
-        if path == "/api/engine/restart":
-            self._body(JSON_LIMIT)
-            self.app.engine.restart()
-            return self._send(200, {"ok": True})
-        if path == "/api/engine/install":
-            self._body(JSON_LIMIT)
-            return self._send(200, start_install(self.app.engine))
         return False
 
 

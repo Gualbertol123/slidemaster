@@ -8,7 +8,7 @@ owner verify, before deleting it, that the file is still its own.
 * a lock file not modified for 15 s is stale (its owner crashed or lost the network): it is moved
   aside atomically and acquisition is retried. The age is measured on the **file server's clock**
   (:mod:`fsclock`), never this PC's clock against a server-stamped mtime - PCs can be minutes apart;
-* long critical sections (installer, migration) pass ``keepalive=True``: a thread rewrites the file
+* long critical sections (the v2 migration) pass ``keepalive=True``: a thread rewrites the file
   every few seconds (a write, so the server stamps the mtime) and it never looks stale while the
   owner is alive.
 

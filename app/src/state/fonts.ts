@@ -105,24 +105,3 @@ export async function removeFont(family: string) {
   try { setLib(await backend.removeFont(family)); } catch (e) { toast("⚠ " + esc((e as Error).message || e), [], true); }
 }
 
-/* ---- export: the fonts a slide uses, as data URLs (the export browser may not reach Google or the helper) ---- */
-const dataUrls = new Map<string, Promise<string>>();
-function dataUrl(file: string): Promise<string> {
-  let p = dataUrls.get(file);
-  if (!p) {
-    p = fetch(backend.fontUrl(file)).then(r => { if (!r.ok) throw new Error(String(r.status)); return r.blob(); })
-      .then(b => new Promise<string>(ok => { const fr = new FileReader(); fr.onload = () => ok(fr.result as string); fr.readAsDataURL(b); }));
-    p.catch(() => dataUrls.delete(file));
-    dataUrls.set(file, p);
-  }
-  return p;
-}
-/** @font-face rules with embedded files for the library fonts that appear in `html` */
-export async function embeddedFontCss(html: string): Promise<string> {
-  if (!backend.served) return "";
-  const low = html.toLowerCase(), used = lib().filter(f => low.includes(cleanFamily(f.family).toLowerCase()));   // quoted or not: the browser may re-serialise styles
-  if (!used.length) return "";
-  const urls = new Map<string, string>();
-  for (const f of used) for (const x of f.faces) { try { urls.set(x.file, await dataUrl(x.file)); } catch { /* left out: the fallback font is used */ } }
-  return fontFaceCss(used.map(f => ({ ...f, faces: f.faces.filter(x => urls.has(x.file)) })), file => urls.get(file)!);
-}

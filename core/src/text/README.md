@@ -45,6 +45,6 @@ Synthetic italic: an italic run in a face without an italic is drawn oblique by 
 a 0.25 skew in the text matrix, as Chromium slants it; S3.6). Synthetic bold (S3.7): a run of weight 600 or more in a
 static face lighter than 600 is stroked as Skia's fake bold (`PdfFontFace.bold`). Not yet (named for the steps that need them):
 WOFF2 (most Google fonts) is not readable by the core (no Brotli decoder), so the native PDF draws such a library font
-with the next family of its list, or a default face, and the toast names it (the old engine kept it for 3.7);
+with the next family of its list, or a default face, and the toast names it (v3.7's HTML export kept it);
 no fallback font for a missing glyph (it is `.notdef`); tabs and soft hyphens are not break opportunities, CJK breaks between
 characters only; a variable CFF2 upload is stored as it is.

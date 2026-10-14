@@ -244,7 +244,6 @@ export class FontMeasurer implements TextMeasurer {
     let m = 0; for (const d of "0123456789") m = Math.max(m, this.w(sh, face, d, fp.size));
     return m;
   }
-  noteFits() { return true; }
   async measureRuns(runs: RunReq[]): Promise<RunMetrics[]> {
     const sh = await this.shaper, faces = await Promise.all(runs.map(r => this.faceSoon(r.font)));
     const out: RunMetrics[] = new Array(runs.length), rest: number[] = [];

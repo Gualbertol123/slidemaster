@@ -14,8 +14,6 @@ REPO = os.path.dirname(BACKEND)
 if BACKEND not in sys.path:
     sys.path.insert(0, BACKEND)
 
-os.environ.setdefault("SLIDEBUILDER_ENGINES", "none")
-
 from slidebuilder import paths  # noqa: E402
 
 
@@ -45,7 +43,7 @@ class TempDirs(unittest.TestCase):
 
 
 def make_png(w=16, h=9, rgb=(89, 168, 255)):
-    """A valid 8-bit RGB PNG (what jpegs_to_pdf accepts as a lossless page)."""
+    """A valid 8-bit RGB PNG."""
     raw = b"".join(b"\x00" + bytes(rgb) * w for _ in range(h))
 
     def chunk(t, b):
@@ -62,13 +60,3 @@ def make_xlsx_bytes():
         z.writestr("xl/workbook.xml", "<workbook/>" * 50)
     return bio.getvalue()
 
-
-def chromium():
-    """A Chromium / headless shell from Playwright's browser folder, if this machine has one."""
-    import glob
-    for pat in ("/opt/pw-browsers/chromium_headless_shell-*/chrome-linux/headless_shell",
-                "/opt/pw-browsers/chromium-*/chrome-linux/chrome"):
-        for p in sorted(glob.glob(pat), reverse=True):
-            if os.access(p, os.X_OK):
-                return p
-    return None

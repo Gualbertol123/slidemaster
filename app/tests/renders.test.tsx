@@ -93,7 +93,7 @@ describe("render counts", () => {
 
   it("a poll from the helper that brings equal answers (new objects, new seen-at times) re-renders nothing", async () => {
     // the offline backend answers null / []; the helper answers a new object on every poll
-    const health = (): Health => ({ app: "Slide Builder", version: "3.4.0", user: "anna", host: "pc-anna", folder: "T:\\Slide Builder", export: "T:\\Slide Builder\\export", engine: { state: "ready", browser: "Chrome", local: false, error: null, engines: [{ name: "DevTools", label: "DevTools · Chrome", state: "ok", detail: "" }] } });
+    const health = (): Health => ({ app: "Slide Builder", version: "3.4.0", user: "anna", host: "pc-anna", folder: "T:\\Slide Builder", export: "T:\\Slide Builder\\export" });
     let at = 1000;
     const bob = (): Other[] => [{ user: "bob", host: "pc-bob", client: "c-bob", workbook: "report.xlsx", at: at++ }];
     const h = vi.spyOn(backend, "health").mockImplementation(async () => health());

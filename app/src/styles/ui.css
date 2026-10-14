@@ -132,13 +132,6 @@ button{cursor:pointer}
 .slide .dropmark{position:absolute;display:none;background:#0A66D8;border-radius:3px;pointer-events:none;z-index:46}
 .inline-edit{position:absolute;z-index:80;box-sizing:border-box;border:2px solid #0A66D8;border-radius:3px;padding:0 6px;background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.18);outline:none;font-family:var(--font)}
 
-/* render mode (used by the export engine) */
-body.render{overflow:visible;background:#fff}
-body.render .app,body.render .toast{display:none}
-#renderRoot{position:relative}
-#renderRoot .slide{position:relative}
-#renderRoot.stack .slide{break-after:page;page-break-after:always}
-#renderRoot.stack .slide:last-child{break-after:auto;page-break-after:auto}
 
 /* sheet chooser */
 .modal{position:fixed;inset:0;background:rgba(18,22,34,.38);display:flex;align-items:center;justify-content:center;z-index:300;backdrop-filter:blur(2px)}

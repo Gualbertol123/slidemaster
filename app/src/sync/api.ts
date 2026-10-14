@@ -4,17 +4,13 @@ import { FORMATS, type ConfigDoc, type Op, type Prefs, type WorkbookDoc } from "
 import { applyOps, emptyDoc } from "@slide-builder/core/model/ops";
 import type { LibraryFont } from "@slide-builder/core/model/fonts";
 
-export interface EngineRow { name: string; label: string; state: "ok" | "blocked" | "missing" | "untested"; detail: string }
-export interface Engine { state: "ready" | "starting" | "idle" | "unavailable"; browser: string | null; local: boolean; error: string | null; engines: EngineRow[] }
-export interface Health { app: string; version: string; user: string; host: string; folder: string; export: string; engine: Engine }
+export interface Health { app: string; version: string; user: string; host: string; folder: string; export: string }
 export interface FileInfo { name: string; mtime: number; size: number; rev?: number | null; updated?: number | null; updatedBy?: string | null }
 export interface Other { user: string; host: string; client: string; workbook: string | null; at: number }
 export interface OpsResult<D> { doc: D; applied: number; skipped: number[] }
-export interface ExportReq { name: string; format: "pdf" | "png"; mode?: "exact" | "vector"; css: string; slides: string[]; names: string[]; scale: number; inline?: boolean; all?: boolean }
-export interface ExportRes { ok: boolean; files?: string[]; images?: string[]; engine?: string; seconds?: number; error?: string }
+export interface ExportRes { ok: boolean; files?: string[]; error?: string }
 /** a font file of this PC (the helper's /sysfonts index) */
 export interface SysFont { file: string; family: string; subfamily: string; weight: number; italic: boolean; faces: number; size: number }
-export interface InstallState { running: boolean; done: boolean; ok: boolean | null; lines: string[] }
 
 export class ApiError extends Error { constructor(public status: number, msg: string) { super(msg); } }
 
@@ -36,7 +32,6 @@ export interface Backend {
   upload(name: string, buf: ArrayBuffer): Promise<string>;
   convertWorkbook(name: string, buf: ArrayBuffer): Promise<ArrayBuffer>;
   convertPicture(bytes: Uint8Array, ext: string): Promise<string | null>;
-  exportSlides(req: ExportReq): Promise<ExportRes>;
   /** the native export (S3.7): a PDF or PNG the page wrote, saved in the export folder under (about) this name */
   exportFile(name: string, data: ArrayBuffer): Promise<ExportRes>;
   /** "Report a problem with this export" (the export pilot, S3.8): one JSON file in export\feedback\; returns its name */
@@ -44,10 +39,7 @@ export interface Backend {
   /** this PC's font files (the export embeds the ones a deck uses) and one file's bytes */
   sysFonts(): Promise<SysFont[]>;
   sysFontBytes(file: string): Promise<ArrayBuffer>;
-  assemble(name: string, images: string[]): Promise<ExportRes>;
   open(target: { name: string } | { folder: true }): Promise<void>;
-  engineRestart(): Promise<void>;
-  engineInstall(start: boolean): Promise<InstallState>;
   assetUrl(name: string): string;
   /** shared font library (helper: data/fonts; from disk: Google Fonts only, kept in this browser) */
   fonts(): Promise<LibraryFont[]>;
@@ -130,13 +122,6 @@ export const helper: Backend = {
   async convertPicture(bytes, ext) {
     try { const r = await req("/api/convert?ext=" + encodeURIComponent(ext), { method: "POST", body: bytes as unknown as BodyInit }); return await blobToDataUrl(await r.blob()); } catch { return null; }
   },
-  async exportSlides(r) {
-    const res = await fetch("/api/export", { method: "POST", cache: "no-store", headers: { "X-SB-Token": TOKEN, "Content-Type": "application/json" }, body: JSON.stringify(r) });
-    const j = await res.json().catch(() => ({ ok: false, error: "HTTP " + res.status }));
-    if (!res.ok) throw new ApiError(res.status, j.error || "export failed");
-    return j;
-  },
-  assemble: (name, images) => json(req("/api/assemble", { method: "POST", json: { name, images }, timeout: WAIT_LONG_MS })),
   async exportFile(name, data) {
     // a connection dropped on the way (seen once in ~80 exports in a row on the reference PC) is tried again once: saving
     // the same file under the same name again is harmless
@@ -148,8 +133,6 @@ export const helper: Backend = {
   async sysFonts() { return (await json<{ fonts: SysFont[] }>(req("/sysfonts"))).fonts || []; },
   async sysFontBytes(file) { return (await req("/sysfonts/" + encodeURIComponent(file))).arrayBuffer(); },
   async open(target) { await req("/api/open", { method: "POST", json: target }); },
-  async engineRestart() { await req("/api/engine/restart", { method: "POST" }); },
-  engineInstall: start => json(req("/api/engine/install", { method: start ? "POST" : "GET", timeout: WAIT_LONG_MS })),
   assetUrl: name => "/assets/" + encodeURIComponent(name) + "?t=" + encodeURIComponent(TOKEN),
   async fonts() { return (await json<{ fonts: LibraryFont[] }>(req("/api/fonts"))).fonts || []; },
   async addFont(f, data) {
@@ -196,11 +179,9 @@ export const offline: Backend = {
   leave() { /* nothing */ },
   upload: offlineOnly, convertWorkbook: offlineOnly,
   async convertPicture() { return null; },
-  exportSlides: offlineOnly, assemble: offlineOnly, open: offlineOnly, exportFile: offlineOnly, exportFeedback: offlineOnly,
+  open: offlineOnly, exportFile: offlineOnly, exportFeedback: offlineOnly,
   async sysFonts() { return []; },
   sysFontBytes: offlineOnly,
-  async engineRestart() { /* nothing */ },
-  engineInstall: offlineOnly,
   assetUrl: name => encodeURI(name),
   /* from disk: Google fonts are remembered by name in this browser and loaded from Google */
   async fonts() { return LS.get<LibraryFont[]>("fonts", []); },

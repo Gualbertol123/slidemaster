@@ -15,7 +15,6 @@ server (Node/Next.js, Python, …) can replace the helper by implementing the sa
 Slide Builder\                     ROOT
 ├─ *.xlsx / *.xlsm / *.xlsb / *.xls workbooks (Open menu)
 ├─ export\                          PDFs / PNGs
-├─ engine\                          Chrome for Testing (optional; mirrored to %LOCALAPPDATA% on shares)
 └─ backend\
    ├─ slide_builder.py              entry point (thin)
    ├─ slide_builder.html            the app (BUILT from app/)
@@ -150,8 +149,8 @@ Shared by everybody using the folder, independent of workbooks: `data/fonts/font
 `{schema:1, fonts:[{family, source:"upload"|"google", faces:[{file, weight, style, range?}], by, at}]}` plus the
 font files (`<Family>-<weight>[i]-<sha1>.<ext>`). Written under the `fonts` lock; a file is written before the
 index refers to it; files no family refers to are deleted. Google fonts are downloaded **by the page**
-(latin + latin-ext subsets) and stored like uploads, so slides and exports never need Google later. Exports
-embed the fonts a slide uses as data URLs. Code: `backend/slidebuilder/fonts.py`, `app/src/state/fonts.ts`.
+(latin + latin-ext subsets) and stored like uploads, so slides and exports never need Google later. PDFs
+embed subsets of the fonts a slide uses (written by the page). Code: `backend/slidebuilder/fonts.py`, `app/src/state/fonts.ts`.
 
 ### 3.3 Format versions and automatic upgrades
 
@@ -185,14 +184,15 @@ a new format – readers ignore unknown keys and treat missing keys as defaults.
   `{user, host, pid, at, token}`, close. Release = delete it, only if the token is still ours.
 * Ages of shared files (stale locks, presence, backup spacing, `updated`) are measured on the **file
   server's clock** (`fsclock.py`: mtime of a probe file), never on the PC's clock.
-* Long critical sections (installer, migration) refresh their lock every 3 s (keepalive).
+* Long critical sections (the v2 migration) refresh their lock every 3 s (keepalive).
 * Wait up to 10 s, retrying every 50–200 ms (jittered). A lock file older than 15 s is stale: it is
   deleted and acquisition retried.
 * Critical section of a write: read latest doc → apply ops → write `<file>.<uuid>.tmp` → `fsync` →
   `os.replace` (retried 20× over 2 s for Windows sharing violations) → release.
 * **Reads never return a made-up empty document for an existing but unreadable file**: parse is
   retried 5× over 0.5 s; then the request fails with 503 and nothing is written.
-* Lock names: `wb-<key>`, `config`, `migrate`, `install`, `export-<safe name>`.
+* Lock names: `wb-<key>`, `config`, `user-<name>`, `fonts`, `migrate`, `export-<safe name>`, `export-feedback`,
+  `firstrun-<user-host>`.
 
 ## 5. HTTP API
 
@@ -209,7 +209,7 @@ All responses JSON unless stated. Security for every request:
 | Method & path | Request | Response |
 |---|---|---|
 | `GET /` | – | the app, token injected |
-| `GET /api/health` | – | `{app, version, user, host, folder, export, engine:{state, browser, local, error, engines[]}}` |
+| `GET /api/health` | – | `{app, version, user, host, folder, export}` |
 | `GET /api/config` | – | config document |
 | `POST /api/config/ops` | `{ops}` | `{doc, applied, skipped}` |
 | `GET /api/me` | – | `{user, host, prefs:{lastFile, pdfMode, zoom}}` |
@@ -232,18 +232,15 @@ All responses JSON unless stated. Security for every request:
 | `POST /api/upload?name=` · `GET /api/upload/<id>` | bytes | `{id, name}` · bytes (in memory, max 8 entries, 2 h) |
 | `POST /api/convert-workbook?name=` | bytes | `.xlsx` bytes (Excel COM, Windows) or 501 |
 | `POST /api/convert?ext=` | bytes | PNG bytes (GDI+, Windows) or 501 |
-| `POST /api/export` | `{name, format:"pdf"\|"png", mode:"exact"\|"vector", css, slides[], names[], scale, inline?, all?}` | `{ok, files[], engine, seconds}` or `{ok, images[]}` (inline). 503 when no engine works. Pages are 1600 × 900 CSS px, unscaled (`engines.EXPORT_CSS`); each engine's output passes `engines.check_output` (page count, 16:9 boxes – rounding trimmed by `pdf.pdf_fit_pages` –, picture sizes) and the layout check `GEOMETRY_JS`, else the next engine renders it. |
-| `POST /api/assemble` | `{name, images[]}` (JPEG data URLs) | `{ok, files[]}` |
-| `POST /api/export-file?name=` | the bytes of a PDF or PNG the page wrote (the native export, 3.7) | `{ok, files:[name used]}`; 400 for another type or bytes that are not one; saved through `save_export` (lock `export-<name>`, " (2)" when open) |
+| `POST /api/export-file?name=` | the bytes of a PDF or PNG the page wrote (the native export; the only export since 3.8) | `{ok, files:[name used]}`; 400 for another type or bytes that are not one; saved through `save_export` (lock `export-<name>`, " (2)" when open) |
 | `POST /api/export-feedback` | a JSON object: "Report a problem with this export" (the 3.7 export pilot, `docs/next/pilot-export.md`) | `{ok, file:"feedback/<name>.json"}`; written with the helper's version, user, PC and time as a new file in `export\feedback\` (lock `export-feedback`, " (2)" rather than replacing a report); 400 for a non-object or one over 64 KB |
 | `POST /api/open` | `{name}` or `{folder:true}` | `{ok}` |
-| `POST /api/engine/restart` | – | `{ok}` |
-| `POST /api/engine/install` · `GET /api/engine/install` | – | `{running, done, ok, lines[]}` |
 | `GET /assets/<name>` | – | image bytes (image extensions only) from `backend/`, then ROOT |
 
 Status codes: 400 bad request · 403 Host/token/Origin or file type · 404 · 409 format mismatch (a file newer than this helper, or a page built for other formats – §3.3) · 411/413 body · 501 converter
-not available · 503 document unreadable, lock busy, workbook still being saved, or no export engine
-(clients keep their pending operations and retry). `/api/me` preferences contain `null` for unset keys.
+not available · 503 document unreadable, lock busy, or workbook still being saved
+(clients keep their pending operations and retry). The old export routes (`/api/export`, `/api/assemble`,
+`/api/engine/*`) were removed in 3.8 and answer 404. `/api/me` preferences contain `null` for unset keys.
 
 Export files are written to a unique temporary name in `export\` and renamed into place; when the
 target is locked (open in a viewer) the next free ` (2)`, ` (3)`… name is used.

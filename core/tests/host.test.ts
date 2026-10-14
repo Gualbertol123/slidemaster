@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { Port, pair, transfer } from "../src/rpc/port";
 import { serve } from "../src/worker/host";
 import { applyOps, emptyDoc } from "../src/model/ops";
-import type { CoreEvents, CoreMethods, DocEvent, PageEvents, PageMethods } from "../src/rpc/messages";
+import type { CoreEvents, CoreMethods, DocEvent, PageEvents, PageMethods, StageSlide } from "../src/rpc/messages";
 import type { Op, WorkbookDoc } from "../src/model/types";
 import { A1 } from "../src/xlsx/util";
 import { platform, setPlatform } from "../src/platform";
@@ -40,16 +40,15 @@ function page(srv: ReturnType<typeof server>, who: string) {
   // a snapshot carries the document only when it changed: the page keeps the last one (as app.ts does)
   const seen: { k: string; v: unknown }[] = [], docs: (DocEvent & { view: WorkbookDoc })[] = [];
   let view = null as unknown as WorkbookDoc;
-  const html = new Map<string, string>();
   port.on("slices", v => seen.push({ k: "slices", v }));
-  port.on("html", v => { seen.push({ k: "html", v }); for (const [id, kind, key, h] of v) html.set(id + "|" + kind + "|" + key, h); });
+  port.on("stage", v => seen.push({ k: "stage", v }));
   port.on("doc", v => { seen.push({ k: "doc", v }); if (v.view) view = v.view; docs.push({ ...v, view }); });
-  return { port, seen, docs, html, host, last: () => docs[docs.length - 1] };
+  return { port, seen, docs, host, last: () => docs[docs.length - 1] };
 }
 const inputs = { defaults: {}, logoSrc: "", version: "", workbook: "report.xlsx" };
 
 describe("core host", () => {
-  it("opens a workbook, owns the document and its history, and sends slices, then HTML, then the snapshot", async () => {
+  it("opens a workbook, owns the document and its history, and sends slices, then the snapshot, then the slide on the stage", async () => {
     const srv = server(), p = page(srv, "anna");
     await p.port.call("init", { served: true, client: "c1", me: "anna" });
     const info = await p.port.call("index", transfer({ buf: book("report.xlsx") }, []));
@@ -59,14 +58,14 @@ describe("core host", () => {
     expect(preset.tables.length).toBeGreaterThan(0);
     // by number: the workbook being opened (S2.6: the page asks the worker instead of laying out its mirror)
     expect((await p.port.call("defaultPreset", { book: info.book })).tables.map(t => t.sheet)).toEqual(preset.tables.map(t => t.sheet));
-    const st = await p.port.call("start", { name: "report.xlsx", doc: srv.getDoc()!, preset, inputs });
+    const st = await p.port.call("start", { name: "report.xlsx", doc: srv.getDoc()!, preset, inputs, stage: { slide: 0, known: [] } });
     expect(st.view.preset).toEqual(preset);
     expect(st.history).toEqual({ undo: 0, redo: 0, undoLabel: "", redoLabel: "" });
-    // the first redraw: the snapshot, then (after the answer, S4.1: the stage's slide first) the HTML of every table
-    await until(() => p.seen.some(e => e.k === "html"));
-    const firstDoc = p.seen.findIndex(e => e.k === "doc"), firstHtml = p.seen.findIndex(e => e.k === "html");
-    expect(firstDoc).toBeGreaterThanOrEqual(0); expect(firstHtml).toBeGreaterThan(firstDoc);
-    expect(p.html.size).toBeGreaterThanOrEqual(preset.tables.length);
+    // the first redraw: the slices, the snapshot, then the stage's slide, sent unasked (S4.1)
+    await until(() => p.seen.some(e => e.k === "stage"));
+    const firstSlices = p.seen.findIndex(e => e.k === "slices"), firstDoc = p.seen.findIndex(e => e.k === "doc"), firstStage = p.seen.findIndex(e => e.k === "stage");
+    expect(firstSlices).toBeGreaterThanOrEqual(0); expect(firstDoc).toBeGreaterThan(firstSlices); expect(firstStage).toBeGreaterThan(firstDoc);
+    expect((p.seen[firstStage].v as StageSlide).layers.some(l => l.table !== null)).toBe(true);
 
     // an edit: applied by the owner, undoable, saved through the page
     const sheet = preset.tables[0].sheet, n0 = p.docs.length;
@@ -98,18 +97,17 @@ describe("core host", () => {
     await until(() => p.last().view.style.radius !== 30);
     expect(p.last().view.style.radius).toBeUndefined();
 
-    // a changed table: new HTML for it arrives before the snapshot that shows it
-    const before = new Set(p.html.keys()), oldHtml = new Set(p.html.values());
+    // a changed table: the stage's slide comes again unasked, its table drawn anew (a new layer key)
+    const tableKeys = () => new Set([...p.seen].filter(e => e.k === "stage").flatMap(e => (e.v as StageSlide).layers.filter(l => l.table !== null).map(l => l.key)));
+    const before = tableKeys();
     await p.port.call("apply", { label: "Fill", ops: [{ op: "cell.patch", sheet, ref: "D6", patch: { fill: "#FF0000" } } as Op] });
     await until(() => p.last().view.edits[sheet]?.D6?.fill === "#FF0000");
-    expect([...p.html.keys()].some(k => !before.has(k))).toBe(true);
-    expect([...p.html].filter(([k]) => !before.has(k)).some(([, h]) => !oldHtml.has(h))).toBe(true);
+    await until(() => [...tableKeys()].some(k => !before.has(k)));
 
-    // column widths of one design (no change of tableKey): a new key, so the page never shows the old HTML
-    const id = preset.tables[0].id, keysOf = () => [...p.html.keys()].filter(k => k.startsWith(id + "|html|"));
-    const k0 = new Set(keysOf()), wide = Object.fromEntries(Array.from({ length: 30 }, (_, i) => [String(i + 1), 250]));
+    // column widths of one design (no change of tableKey): a new key, so the stage never shows the old drawing
+    const id = preset.tables[0].id, k0 = tableKeys(), wide = Object.fromEntries(Array.from({ length: 30 }, (_, i) => [String(i + 1), 250]));
     await p.port.call("apply", { label: "Width", ops: [{ op: "table.patch", id, patch: { sizes: { glass: { cols: wide }, excel: { cols: wide }, clean: { cols: wide } } } } as Op] });
-    await until(() => keysOf().some(k => !k0.has(k)));
+    await until(() => [...tableKeys()].some(k => !k0.has(k)));
   });
 
   it("two people: each sees the other's change, and undo reverts only one's own", async () => {
@@ -161,22 +159,21 @@ describe("opening another workbook while one is open", () => {
     await expect(p.port.call("getSheetMeta", { book: a.book, names, load: false })).rejects.toThrow(/no longer open/);
   });
 
-  it("after an undo the page gets the HTML of the restored state again", async () => {
+  it("after an undo the stage draws the restored state again", async () => {
     const srv = server(), p = page(srv, "anna");
     await p.port.call("init", { served: true, client: "c1", me: "anna" });
     await p.port.call("index", { buf: book("report.xlsx") });
     const preset = await p.port.call("defaultPreset", {}), sheet = preset.tables[0].sheet;
     await p.port.call("start", { name: "report.xlsx", doc: srv.getDoc()!, preset, inputs });
-    // the page keeps the latest key per table: the keys of the restored state must arrive again after the undo
-    const latest = () => new Map([...p.seen].filter(e => e.k === "html").flatMap(e => e.v as [string, string, string, string][]).map(([id, kind, key]) => [id + "|" + kind, key]));
-    await until(() => latest().size > 0);                                              // (sent after the start's answer)
-    const before = latest();
+    // the stage's layers are keyed by what they are drawn from: the keys of the restored state come back after the undo
+    const keys = async () => (await p.port.call("stage", { slide: 0, known: [] }))!.layers.map(l => l.key).join("\n");
+    const before = await keys();
     await p.port.call("apply", { label: "Fill", ops: [{ op: "cell.patch", sheet, ref: "C5", patch: { fill: "#FF0000" } } as Op] });
     await until(() => !!p.last().view.edits[sheet]?.C5);
-    await until(() => [...latest()].some(([k, v]) => before.get(k) !== v));          // the HTML follows the snapshot
+    expect(await keys()).not.toBe(before);                                             // the drawing follows the snapshot
     await p.port.call("undo", { redo: false });
     await until(() => !p.last().view.edits[sheet]?.C5);
-    await until(() => JSON.stringify([...latest()]) === JSON.stringify([...before]));
+    expect(await keys()).toBe(before);
   });
 });
 

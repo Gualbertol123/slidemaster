@@ -27,7 +27,7 @@ export interface OpenFile { name: string; src: "folder" | "upload" | "local"; id
 export interface ToastMsg { id: number; html: string; err?: boolean; actions?: { label: string; fn: () => void }[] }
 export interface Painter { pattern: (Fmt | null)[][]; sticky: boolean }
 export interface Dialogs {
-  dialog: DialogReq | null; wizard: WizardReq | null; installer: boolean; tables: boolean;
+  dialog: DialogReq | null; wizard: WizardReq | null; tables: boolean;
   /** text styles & fonts dialog: which tab is open */ textStyles: "colors" | "styles" | "fonts" | null;
   /** automated comment dialog for table `table` of the current slide */ comment: { table: number } | null;
 }
@@ -73,7 +73,7 @@ export const initialState = (): AppState => ({
   selection: { sel: null, noteSel: null, textSel: null, painter: null },
   ui: {
     zoom: "fit", busy: null, exporting: false, toast: null, lookScope: "design", fontBusy: "", changedOnDisk: false, logoMissing: false, health: null, others: [],
-    dialogs: { dialog: null, wizard: null, installer: false, tables: false, textStyles: null, comment: null },
+    dialogs: { dialog: null, wizard: null, tables: false, textStyles: null, comment: null },
   },
   prefs: { user: "", host: "", client: Math.random().toString(36).slice(2, 10) + Date.now().toString(36), prefs: {} },
 });

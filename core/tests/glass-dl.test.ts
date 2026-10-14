@@ -1,4 +1,4 @@
-/* Liquid Glass → display list (S3.4): the same plan as renderGlass, drawn with 03 §4.3's recipes. The pixels and
+/* Liquid Glass → display list (S3.4): the plan v3's renderGlass wrote as HTML (glassPlan), drawn with 03 §4.3's recipes. The pixels and
    boxes against the goldens are tools/dlparity.mjs's job; these tests pin the plan's translation, the CSS values
    and the text rules with a deterministic measurer. */
 import { describe, expect, it } from "vitest";
@@ -14,7 +14,7 @@ import { runtimeSlides } from "../src/model/preset";
 import { glassLevel, resolveStyle } from "../src/model/style";
 import { measuredBuild, type Metrics } from "../src/render/excel-dl";
 import { cssLinear, glassText, glassToDisplayList, material } from "../src/render/glass-dl";
-import { glassPlan, renderGlass, type GText } from "../src/render/glass";
+import { glassPlan, type GText } from "../src/render/glass";
 import { setPlatform, resetPlatform } from "../src/platform";
 import { wrapLines } from "../src/text/lines";
 import type { RenderCtx } from "../src/render/context";
@@ -46,21 +46,21 @@ async function deckCtx(file: string): Promise<{ wb: Workbook; ctx: RenderCtx }> 
   return { wb, ctx: { style, edits: view.edits || {}, slides, preset: view.preset || null, workbook: "W.xlsx", logoSrc: "", sheet: n => wb.sheets.find(s => s.name === n) || null, version: null } };
 }
 
-describe("Liquid Glass: the display list draws renderGlass's plan", () => {
+describe("Liquid Glass: the display list draws the plan", () => {
   const decks = fs.readdirSync(DECKS).filter(f => f.endsWith(".json")).sort();
-  for (const f of decks) it(f + ": every material, text, text box and picture of the HTML, at its box", async () => {
+  for (const f of decks) it(f + ": every material, text, text box and picture of the plan, at its box", async () => {
     const { ctx } = await deckCtx(f);
     for (const R of ctx.slides) for (const L of R.tables) {
-      const html = renderGlass(L, ctx), plan = glassPlan(L, ctx);
+      const plan = glassPlan(L, ctx);
       const dl = glassToDisplayList(L, ctx, { x: 100, y: 80, scale: 1 }, { blurId: "wb", blurSrc: "data:image/jpeg;base64," }, M);
       expect(validate(dl.nodes)).toEqual([]);
-      // the .wb materials of the HTML, in its order, with its rounded boxes
-      const box = /class="gls wb ([^"]*)" style="left:([-\d.]+)px;top:([-\d.]+)px;width:([\d.]+)px;height:([\d.]+)px/g;
-      const fromHtml = [...html.matchAll(box)].map(m => [m[1], +m[2], +m[3], +m[4], +m[5]]);
-      const icons = [...html.matchAll(/class="gls wb icon" style="left:([-\d.e]+)px;top:([-\d.e]+)px;width:([\d.e]+)px/g)];
+      // the .wb materials in the order v3's HTML had them (the table's, then the text boxes'), with its boxes rounded to 0.1 px
+      const shells = [...plan.shells, ...plan.tbx.flatMap(e => e.k === "shell" ? [e] : [])];
+      const fromPlan = shells.map(m => [m.cls, +m.x.toFixed(1), +m.y.toFixed(1), +Math.max(0, m.w).toFixed(1), +Math.max(0, m.h).toFixed(1)]);
+      const icons = plan.pics.filter(p => p.k === "icon");
       const wb = hits(dl.nodes, "wb");
-      expect(wb.length).toBe(fromHtml.length + icons.length);
-      expect(wb.filter(h => h.id !== "icon").map(h => [h.id, h.x, h.y, h.w, h.h])).toEqual(fromHtml);
+      expect(wb.length).toBe(fromPlan.length + icons.length);
+      expect(wb.filter(h => h.id !== "icon").map(h => [h.id, h.x, h.y, h.w, h.h])).toEqual(fromPlan);
       // a text for every cell text, with the cell's text
       expect(hits(dl.nodes, "t").map(h => h.label)).toEqual(plan.texts.map(t => String(t.it.text).replace(/[ \t\n\r\f]+/g, " ").trim()));
       expect(hits(dl.nodes, "tbox").length).toBe(plan.tbx.filter(e => e.k === "tbox").length);
@@ -160,7 +160,7 @@ describe("Liquid Glass cell texts", () => {
   });
   it("tabular runs are asked of the page as such", async () => {
     const asked: { text: string; tnum?: boolean }[] = [];
-    setPlatform({ text: { maxDigitWidth: () => 7, noteFits: () => true,
+    setPlatform({ text: { maxDigitWidth: () => 7,
       measureRuns: async runs => { asked.push(...runs); return runs.map(r => M.run(r.text, r.font, r.tnum)); },
       breakLines: async reqs => reqs.map(q => [q.text]) } });
     try {

@@ -199,7 +199,7 @@ describe("shapes, text boxes, pictures", () => {
 describe("measuring", () => {
   it("one batch per round from the platform; without a measurer, a rough estimate", async () => {
     const calls: string[] = [];
-    setPlatform({ text: { maxDigitWidth: () => 7, noteFits: () => true,
+    setPlatform({ text: { maxDigitWidth: () => 7,
       measureRuns: async runs => { calls.push("runs " + runs.length); return runs.map(r => M.run(r.text, r.font)); },
       breakLines: async reqs => { calls.push("lines " + reqs.length); return reqs.map(q => M.lines(q.text, q.font, q.width)); } } });
     try {

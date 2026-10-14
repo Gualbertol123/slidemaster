@@ -1,8 +1,8 @@
 /* The core worker's state and its answers to the page (PLAN S2.4, Part B §2): the ONE owner of the open
    workbook, its shared document (DocSync) and the undo/redo history. The page sends operations; after every
    change the host recomputes the slides, draws the tables of the current design and version, and sends the
-   page the new sheet slices (when they change), the table HTML (new keys only) and the document snapshot – in
-   that order, so the page can redraw from what it received. Transport-free: core.worker.ts connects it to
+   page the new sheet slices (when they change) and the document snapshot – in that order, so the page can redraw from
+   what it received – then the slide on the stage. Transport-free: core.worker.ts connects it to
    postMessage; tests (and a page without workers) connect it in the same thread. */
 import { indexWorkbook } from "../xlsx/workbook";
 import { setPictureConverter } from "../xlsx/drawing";
@@ -11,7 +11,7 @@ import { cellInfo, sheetInfo, sheetWindow, tableSize } from "../xlsx/sheetview";
 import { detectTables } from "../xlsx/detect";
 import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "../model/preset";
 import { resolveStyle } from "../model/style";
-import { tableHtml, tableHtmlKey } from "../render/slide";
+import { tableDrawKey } from "../render/slide";
 import { computeLayout } from "../render/layout";
 import { excelTableDL, forgetMeasurements, measuredBuild, type TableDL } from "../render/excel-dl";
 import { glassTableDL } from "../render/glass-dl";
@@ -26,7 +26,7 @@ import type { RenderCtx } from "../render/context";
 import type { Design, Preset, RuntimeSlide, Style, WorkbookDoc } from "../model/types";
 import type { Workbook } from "../xlsx/types";
 import { Port, transfer, type Wire } from "../rpc/port";
-import type { CoreEvents, CoreMethods, DocState, ExportCoreMethods, HtmlReq, PageEvents, PageMethods, SlideListsReq, StageLayer, StageReq, StageSlide, ViewInputs, WorkbookInfo } from "../rpc/messages";
+import type { CoreEvents, CoreMethods, DocState, ExportCoreMethods, PageEvents, PageMethods, SlideListsReq, StageLayer, StageReq, StageSlide, ViewInputs, WorkbookInfo } from "../rpc/messages";
 import { weightOf, type DisplayList, type Node } from "../dl/types";
 import { stageHits, svgChunks } from "../dl/svg";
 import { contentKey } from "../dl/key";
@@ -35,7 +35,6 @@ import { GLASS_FONT } from "../render/glass";
 import { fontStack } from "../model/fonts";
 
 type HostPort = Port<CoreMethods, PageMethods, PageEvents, CoreEvents>;
-type Html = [string, string, string, string];
 
 export class CoreHost {
   private served = false; private client = ""; private me = "";
@@ -51,8 +50,6 @@ export class CoreHost {
   /** per workbook (the open one and the one being opened): the slice rectangles sent, by sheet */
   private sentBoxes = new Map<number, Map<string, string>>();
   private sentSharedFor = new Set<number>();
-  /** the last HTML key sent per table and kind (the page keeps only that one) */
-  private sentHtml = new Map<string, string>();
   private ack = 0;
   /** changes are processed one after the other (reading sheets is asynchronous) */
   private queue: Promise<void> = Promise.resolve();
@@ -78,7 +75,7 @@ export class CoreHost {
     });
     h("defaultPreset", a => { const wb = a.book !== undefined ? this.bookOf(a.book) : this.candidate; if (!wb) throw new Error("no workbook"); return defaultPreset(wb); });
     h("start", a => { if (a.stage) this.stageReq = { ...a.stage, fresh: false }; return this.start(a.book, a.name, a.doc, a.preset, a.inputs); });
-    // the page waits for the redraw (the HTML of the new version or default style arrives before the answer)
+    // the page waits for the redraw (the slices and snapshot of the new version or default style arrive before the answer)
     h("inputs", a => { this.inputs = a; return this.later(() => this.refresh(null)); });
     h("apply", a => {
       this.ack++;
@@ -103,7 +100,6 @@ export class CoreHost {
     });
     h("flush", async () => { await this.sync?.flush(); });
     h("poll", async () => { await this.sync?.poll(); });
-    h("html", a => this.htmlFor(a));
     h("slideLists", a => this.lists(a));
     h("stage", a => { if (!a.nodes) this.stageReq = { ...a, fresh: false, have: undefined }; return this.queueStage(a); });
     // an export worker's own channel (S3.7): display lists go to it directly, never through the page's main thread
@@ -191,7 +187,7 @@ export class CoreHost {
     if (this.wbBook && this.wbBook !== this.candidateBook) { this.sentBoxes.delete(this.wbBook); this.sentSharedFor.delete(this.wbBook); }
     this.wb = this.candidate; this.wbBook = this.candidateBook; this.candidate = null; this.name = name; this.inputs = inputs;
     this.stageCache.clear();                                    // another workbook (or the same file read again): its own tables
-    LCACHE.clear(); this.sentHtml.clear(); this.slidesDesign = null; this.presetSig = ""; this.boxSig = "";
+    LCACHE.clear(); this.slidesDesign = null; this.presetSig = ""; this.boxSig = "";
     this.history.undo = []; this.history.redo = [];         // a newly opened workbook starts without history (as v3)
     this.sentView = { obj: null, json: "" };
     const sync = this.sync = new DocSync(this.api, name, doc, this.client, this.me);
@@ -253,12 +249,8 @@ export class CoreHost {
     await this.sendSlices();
     this.sendDoc(c);
     // a change (or the start): the slide on the stage drawn at once and sent unasked (keypress → pixels, S4.1) – never
-    // waited for (a picture the page is slow to read must not hold the snapshot, a save, or a workbook's start); the
-    // thumbnails' HTML (v3's, until S4.3) after it, at a start even when there is none (the page knows it has it all)
-    const push = (c || force) && this.stageReq ? this.queueStage(this.stageReq).then(s => { if (s) this.port.emit("stage", s); }, () => undefined) : null;
-    if (force) void (push ?? Promise.resolve()).then(() => setTimeout(() => this.sendHtml(true), 0));
-    else if (push) void push.then(() => this.sendHtml());
-    else this.sendHtml();
+    // waited for (a picture the page is slow to read must not hold the snapshot, a save, or a workbook's start)
+    if ((c || force) && this.stageReq) void this.queueStage(this.stageReq).then(s => { if (s) this.port.emit("stage", s); }, () => undefined);
   }
   /** slices of every loaded sheet whose rectangle changed (or that is new) */
   private boxSig = "";
@@ -283,23 +275,6 @@ export class CoreHost {
       if (shared) this.sentSharedFor.add(this.wbBook);
       this.port.emit("slices", transfer({ book: this.wbBook, shared, sheets }, sheets.flatMap(sliceTransfer)));
     }
-  }
-  /** the HTML of every table of the current design and version (full, and shapes only for big tables) */
-  private sendHtml(always = false) {
-    if (!this.wb || !this.sync) return;
-    const out = this.render(this.ctx(), this.slides, false).filter(e => { const k = e[0] + "|" + e[1]; if (this.sentHtml.get(k) === e[2]) return false; this.sentHtml.set(k, e[2]); return true; });
-    if (out.length || always) this.port.emit("html", out);
-  }
-  private render(ctx: RenderCtx, slides: RuntimeSlide[], thumbs: boolean): Html[] {
-    const out: Html[] = [], seen = new Set<string>();
-    for (const R of slides) R.tables.forEach((L, i) => {
-      for (const thumb of thumbs ? [false, true] : [false]) {
-        const { kind, key } = tableHtmlKey(R, i, ctx, thumb), id = L.id || "", k = id + "|" + kind + "|" + key;
-        if (seen.has(k)) continue; seen.add(k);
-        out.push([id, kind, key, tableHtml(R, i, ctx, thumb)]);
-      }
-    });
-    return out;
   }
   /** what a slide needs besides its tables: the wallpaper (Liquid Glass) and the logo with its size. `stage`: the logo is
     not waited for longer than 1.5 s (the page reads it: a slow answer must not hold the stage) – the stage gets its
@@ -363,12 +338,12 @@ export class CoreHost {
     const boxes = computeLayout(R, ctx).boxes, tables: TableDL[] = [], hits: { id: string; dl: TableDL; svg: Map<string, string[]> }[] = [], styleSig = JSON.stringify(ctx.style);
     for (const [i, L] of R.tables.entries()) {
       const b = boxes[i], place = { x: b?.x ?? 0, y: b?.y ?? 0, scale: b?.scale ?? 1 };
-      // which table (tableHtmlKey was made for a cache on the layout itself: it does not name the table), then what it is
+      // which table (tableDrawKey does not name it), then what it is
       // drawn from – with the edits of its own cells only (tableKey has the whole sheet's: an edit in one table must not
       // draw the others of its sheet again)
       const who = L.sheet.name + "|" + (L.id || "") + "|" + ctx.style.design + "|" + soft;
       const own = { ...ctx, _keys: new Map([[L.sheet.name, ownEdits(L, ctx)]]) };
-      const key = who + "|" + tableHtmlKey(R, i, own).key + "|" + styleSig + (glass ? "|" + place.x + "," + place.y + "," + place.scale : "");
+      const key = who + "|" + tableDrawKey(R, i, own) + "|" + styleSig + (glass ? "|" + place.x + "," + place.y + "," + place.scale : "");
       let hit = this.stageCache.get(key);
       if (hit) this.stageCache.delete(key);
       else {
@@ -435,11 +410,6 @@ export class CoreHost {
     const known = new Set(a.known), images: Record<string, string> = {};
     for (const [id, src] of Object.entries(dl.images)) if (!known.has(id)) images[id] = src;
     return { slide: a.slide, id: R.id, design: ctx.style.design, layers, images };
-  }
-  private htmlFor(a: HtmlReq): Html[] {
-    if (!this.wb || !this.sync) return [];
-    const ctx = this.ctx(a.design, a.version, a.forExport);
-    return this.render(ctx, ctx.slides, a.thumb);
   }
   private state(): DocState {
     const s = this.sync!;

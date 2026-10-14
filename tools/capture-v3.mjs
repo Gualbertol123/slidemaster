@@ -75,10 +75,9 @@ export async function startHelper() {
   fs.mkdirSync(root, { recursive: true }); fs.mkdirSync(data, { recursive: true });
   fs.copyFileSync(path.join(CORPUS, "assets", "logo.png"), path.join(root, "logo.png"));
   const port = await freePort(), url = `http://127.0.0.1:${port}/`;
-  // export engines: the browser's DevTools and command line (not a Python "playwright" package this PC may have)
   const proc = spawn(PY, [path.join(BACKEND, "slide_builder.py"), "--no-browser", "--port", String(port)], {
     env: { ...process.env, SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: "golden", SLIDEBUILDER_HOST: "pc-golden",
-      SLIDEBUILDER_BROWSER: CHROME, SLIDEBUILDER_ENGINES: "devtools,cli", SLIDEBUILDER_APP_WINDOW: "0", NO_PROXY: "*", no_proxy: "*",
+      SLIDEBUILDER_APP_WINDOW: "0", NO_PROXY: "*", no_proxy: "*",
       ...(sysFontDirs() ? { SLIDEBUILDER_SYSFONTS: sysFontDirs() } : {}) }, stdio: ["ignore", "pipe", "pipe"] });
   let log = ""; proc.stdout.on("data", d => log += d); proc.stderr.on("data", d => log += d);
   let up = false;
@@ -173,28 +172,23 @@ async function geometry(page) {
   }, [SEL, TEXT_SEL]);
 }
 
-async function waitEngine(page) {
-  await page.locator("#srv").filter({ hasText: /Export: / }).waitFor({ timeout: 180_000 });
-}
+/** the version's PDF as pdf.json (tools/pdftext.py): the native export – the goldens' pdf.json is v3's old engine's,
+    removed in S4.5, so tools/parity.mjs compares pages, sizes and the golden slide texts (decision 2026-10-12, 5).
+    SP's export of the version (stage-capture.mjs, just before) is used when there is one */
 async function exportPdf(page, h, dir) {
-  const exp = path.join(h.root, "export");
-  fs.rmSync(exp, { recursive: true, force: true }); fs.mkdirSync(exp);
-  // v3's PDF is the old engine's (the goldens' pdf.json): from 3.7 it is the menu's "old engine" item for one release;
-  // the native export is checked against the goldens' texts by tools/export-check.mjs (decision 2026-10-12, 5)
-  await page.click("#exportMenuBtn");
-  const old = page.locator('[data-x="pdf-old"]');
-  if (await old.count()) await old.click(); else { await page.keyboard.press("Escape"); await page.click("#exportBtn"); }
-  for (let i = 0; i < 1800; i++) {
-    const f = fs.readdirSync(exp).find(n => n.endsWith(".pdf"));
-    if (f && !(await page.locator("#exportBtn").innerText()).includes("Rendering")) {
-      await sleep(200);
-      const out = execFileSync(PY, [path.join(HERE, "pdftext.py"), path.join(exp, f)], { encoding: "utf8", maxBuffer: 64 << 20 });
-      fs.writeFileSync(path.join(dir, "pdf.json"), out.replace(/\r\n/g, "\n"));     // Python on Windows prints CRLF
-      return f;
-    }
-    await sleep(100);
+  let file = path.join(dir, "sp", "native.pdf");
+  if (!fs.existsSync(file)) {
+    const exp = path.join(h.root, "export");
+    fs.rmSync(exp, { recursive: true, force: true }); fs.mkdirSync(exp);
+    await page.evaluate(() => { window.__sbTest.lastExport.files = []; });
+    await page.click("#exportBtn");
+    try { await page.waitForFunction(() => window.__sbTest.lastExport.files.length > 0 && !window.__sbTest.exporting(), null, { timeout: 180_000 }); }
+    catch { throw new Error("export timed out:\n" + h.log().slice(-2000)); }
+    file = path.join(exp, fs.readdirSync(exp).find(n => n.endsWith(".pdf")));
   }
-  throw new Error("export timed out:\n" + h.log().slice(-2000));
+  const out = execFileSync(PY, [path.join(HERE, "pdftext.py"), file], { encoding: "utf8", maxBuffer: 64 << 20 });
+  fs.writeFileSync(path.join(dir, "pdf.json"), out.replace(/\r\n/g, "\n"));     // Python on Windows prints CRLF
+  return path.basename(file);
 }
 
 // ------------------------------------------------------------------------------------------- capture
@@ -211,7 +205,6 @@ export async function capture(out, opts = {}) {
   let total = 0;
   try {
     await page.goto(h.url);
-    if (opts.pdf !== false) await waitEngine(page);
     for (const id of decks) {
       const deck = JSON.parse(fs.readFileSync(path.join(DECKS, id + ".json"), "utf8"));
       const file = id + path.extname(deck.workbook);

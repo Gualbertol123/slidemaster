@@ -1,6 +1,6 @@
 /* Sheet slices (src/xlsx/slice.ts, PLAN S2.4): the page runs the pure code on slices of the sheets, so every saved
    corpus deck must give the same slides, layouts, effective items, Liquid Glass geometry, automated comments and
-   table HTML from the slices as from the whole workbook – in all three designs and every version, with sheets sent
+   table display lists from the slices as from the whole workbook – in all three designs and every version, with sheets sent
    whole and with every sheet cut to its rectangle (the rule for big sheets, forced here on the corpus). */
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
@@ -12,7 +12,8 @@ import { MirrorWorkbook } from "../src/xlsx/mirror";
 import { applyOps, emptyDoc } from "../src/model/ops";
 import { runtimeSlides } from "../src/model/preset";
 import { resolveStyle } from "../src/model/style";
-import { tableHtml } from "../src/render/slide";
+import { excelToDisplayList, type Metrics } from "../src/render/excel-dl";
+import { glassToDisplayList } from "../src/render/glass-dl";
 import { effItems } from "../src/render/edits";
 import { glassGeom } from "../src/render/glass";
 import { notesOf } from "../src/render/layout";
@@ -25,6 +26,8 @@ const DECKS = path.join(here, "../../tests/corpus/decks"), BOOKS = path.join(her
 const decks = fs.readdirSync(DECKS).filter(f => f.endsWith(".json")).sort();
 const ab = (f: string) => { const b = fs.readFileSync(f); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer; };
 
+/** advances of 0.5 em per character; a wrapped text is one line */
+const M: Metrics = { run: (t, font) => { const size = parseFloat(font.split("px")[0].split(" ").pop()!); return { w: [...t].length * size * .5, asc: size * .8, desc: size * .2 }; }, lines: t => [t] };
 function ctxOf(wb: Workbook, view: ReturnType<typeof emptyDoc>, design: Design, slides: RuntimeSlide[], version: string | null): RenderCtx {
   const st = resolveStyle({}, view.style), style = { ...st, design };
   return { style, edits: view.edits || {}, slides, preset: view.preset || null, workbook: "W.xlsx", logoSrc: "", sheet: n => wb.sheets.find(s => s.name === n) || null,
@@ -43,7 +46,7 @@ function picture(wb: Workbook, view: ReturnType<typeof emptyDoc>) {
           out.push({ g: L.g, rows: L.rows, cols: L.cols, W: L.W, H: L.H, errors: L.errors, hidden: [L.hiddenRows, L.hiddenCols], pics: L.pics.length, rects: L.rects.length });
           out.push(effItems(L, ctx).map(it => ({ ...it, L: undefined })));
           if (design === "glass") { const G = glassGeom(L, ctx); out.push({ W: G.W, key: G.key }); }
-          out.push(tableHtml(R, i, ctx), tableHtml(R, i, ctx, true));
+          for (const noText of [false, true]) out.push(design === "glass" ? glassToDisplayList(L, ctx, { x: 0, y: 0, scale: 1 }, null, M, { noText }) : excelToDisplayList(L, ctx, M, { noText }));
         });
         R.tables.forEach((_, i) => out.push(notesOf(R, i, ctx)));
       }

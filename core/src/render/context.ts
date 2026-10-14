@@ -18,8 +18,6 @@ export interface RenderCtx {
   version?: import("../model/types").DeckVersion | null;
   /** export / thumbnail rendering: hide placeholders for missing pictures */
   forExport?: boolean;
-  /** table HTML already drawn elsewhere (the page: by the core worker), by table id, kind and cache key */
-  htmlOf?: (id: string, kind: "html" | "thtml", key: string) => string | undefined;
   _keys?: Map<string, string>;
 }
 
@@ -30,7 +28,7 @@ export function sheetKey(ctx: RenderCtx, S: Sheet): string {
   if (k === undefined) { k = JSON.stringify(ctx.edits[S.name] || {}); m.set(S.name, k); }
   return k;
 }
-/** cache key of one table: its sheet's edits + its own sizes/scales + the deck settings that change its HTML */
+/** cache key of one table: its sheet's edits + its own sizes/scales + the deck settings that change its drawing */
 export function tableKey(ctx: RenderCtx, L: import("../xlsx/types").TableLayout): string {
   const d = L.def;
   return ctx.workbook + "|" + sheetKey(ctx, L.sheet) + "|" + (d ? JSON.stringify([d.cols, d.rows, d.scales, d.merges, d.gridH, d.gridV]) : "") + "|" + ctx.style.radius + "|" + (ctx.style.text?.table?.font || "") + "|" + JSON.stringify(ctx.version?.hide[L.sheet.name] || "") + "|" + JSON.stringify(ctx.style.colors || {}) + "|" + ctx.style.theme?.id + (ctx.style.theme?.id === "custom" ? ctx.style.theme.a1 : "");

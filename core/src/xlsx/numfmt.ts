@@ -107,7 +107,7 @@ export function formatValue(cell: Pick<Cell, "v" | "t" | "fmt">): Formatted {
     const mant = np.slice(0, em.index), intD = mant.split(".")[0].replace(/[^0#?]/g, "");
     const dm = /\.([0#?]*)/.exec(mant), dec = dm ? dm[1].length : 0;
     let e = x === 0 ? 0 : Math.floor(Math.log10(x));
-    const k = intD.length > 1 && intD.includes("#") ? intD.length : 1;            // ##0.0E+0 = engineering
+    const k = intD.length > 1 && intD.includes("#") ? intD.length : 1;            // ##0.0E+0: exponents in steps of 3
     e = k > 1 ? Math.floor(e / k) * k : e - (Math.max(1, intD.length) - 1);
     let m = x / Math.pow(10, e), ms = m.toFixed(dec);
     if (k === 1 && +ms >= Math.pow(10, Math.max(1, intD.length))) { e += 1; m = x / Math.pow(10, e); ms = m.toFixed(dec); }

@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { cleanFamily, fontFaceCss, fontStack, guessFromName, parseGoogleCss, readFontInfo } from "../src/model/fonts";
 import { cleanFmt, resolveStyle } from "../src/model/style";
-import { coverHtml, indexHtml } from "../src/render/cover";
-import { pageNoHtml } from "../src/render/pagenumbers";
+import { slideToDisplayList } from "../src/render/slide-dl";
+import type { Metrics } from "../src/render/excel-dl";
+import { wrapLines } from "../src/text/lines";
+import type { DisplayList, Node, TextNode } from "../src/dl/types";
 import { areaFor, computeLayout, sizingPatch } from "../src/render/layout";
-import { effNote, fmtCss, slideTextFmt, titleGeom } from "../src/render/text";
+import { effNote, slideTextFmt, titleGeom } from "../src/render/text";
 import type { RenderCtx } from "../src/render/context";
 import type { StylePatch } from "../src/model/types";
 
@@ -12,6 +14,16 @@ const ctx = (deck: StylePatch = {}, design: "glass" | "excel" | "clean" = "glass
   ({ style: { ...resolveStyle(deck), design }, edits: {}, slides: [], preset: null, workbook: "w", logoSrc: "" });
 const slide = (cfg: any = {}, extra: any = {}) => ({ id: "s", type: "content", tables: [], missing: 0, title: "Loans", subtitle: "", label: "Loans",
   cfg: { id: "s", type: "content", tables: [], ...cfg }, ...extra } as any);
+
+/** advances of 0.5 em per character, ascent .8 em, descent .2 em */
+const M: Metrics = {
+  run: (t, font) => { const size = parseFloat(/([\d.]+)px/.exec(font)![1]); return { w: [...t].length * size * .5, asc: size * .8, desc: size * .2 }; },
+  lines: (t, font, width) => { const size = parseFloat(/([\d.]+)px/.exec(font)![1]); return wrapLines(t, width, s => [...s].length * size * .5); },
+};
+const flat = (l: DisplayList): Node[] => l.flatMap(n => n.t === "group" ? [n, ...flat(n.children)] : [n]);
+/** the selectable texts of slide i as the display list draws them */
+const texts = (R: ReturnType<typeof slide>, i: number, c: RenderCtx) =>
+  flat(slideToDisplayList(R, i, c, [], [], { wall: null, logo: null }, M, "1 October 2026").nodes).filter((n): n is TextNode => n.t === "text" && !n.decorative);
 
 describe("fonts", () => {
   it("family names are made safe for CSS and HTML", () => {
@@ -55,8 +67,6 @@ describe("deck text styles", () => {
   it("a slide's own formatting sits on top of the deck style", () => {
     const c = ctx({ text: { title: { font: "Lato", b: false, color: "#112233" } } });
     expect(slideTextFmt(c, slide({ fmt: { title: { size: 60, color: "#AA0000" } } }), "title")).toEqual({ font: "Lato", b: false, color: "#AA0000", size: 60 });
-    expect(fmtCss({ font: "Lato", size: 60, b: false, i: true, color: "#AA0000", align: "center" }))
-      .toBe("font-family:'Lato','Segoe UI',Arial,sans-serif;font-size:60px;font-weight:400;font-style:italic;color:#AA0000;text-align:center");
   });
   it("text boxes take the deck's text box style, their own settings win", () => {
     const c = ctx({ text: { note: { font: "Inter", size: 24, b: true } } });
@@ -75,18 +85,22 @@ describe("deck text styles", () => {
   });
   it("cover, contents and page numbers use the text styles", () => {
     const c = ctx({ text: { title: { font: "Montserrat", size: 99 }, index: { font: "Lato", color: "#334455" }, pageno: { font: "Inter", b: true } }, pn: { on: true, font: "georgia" } });
-    const cv = coverHtml(slide({ type: "cover", note: "Kick", fmt: { note: { color: "#FF0000" } } }, { type: "cover" }), true, 1, c);
-    expect(cv).toContain("font-family:'Montserrat'");
-    expect(cv).not.toContain("font-size:99px");                           // the cover title keeps its automatic size…
-    expect(coverHtml(slide({ type: "cover", fmt: { title: { size: 90 } } }, { type: "cover" }), true, 1, c)).toContain("font-size:90px");   // …unless set on the cover
-    expect(cv).toMatch(/cv-kicker" data-edit="note" style="color:#FF0000"/);
-    c.slides = [slide()];
-    expect(indexHtml(slide({ type: "index" }, { type: "index" }), c, true)).toContain("font-family:'Lato','Segoe UI',Arial,sans-serif;color:#334455");
-    const pn = pageNoHtml(c, "3", true, false, false);
-    expect(pn).toContain("font-family:'Inter'");
-    expect(pn).toContain("font-weight:700");
-    expect(pageNoHtml(ctx({ pn: { on: true, font: "georgia" } }), "3", true, false, false)).toContain("font-family:Georgia");   // older decks keep their page-number font
+    const cover = slide({ type: "cover", note: "Kick", fmt: { note: { color: "#FF0000" } } }, { type: "cover" }), index = slide({ type: "index" }, { type: "index" });
+    c.slides = [cover, index, slide()];
+    const cv = texts(cover, 0, c), title = cv.find(t => t.src === "Loans")!;
+    expect(title.css).toBe("'Montserrat','Segoe UI',Arial,sans-serif");
+    expect(title.size).toBe(80);                                              // the cover title keeps its automatic size…
+    c.slides[0] = slide({ type: "cover", fmt: { title: { size: 90 } } }, { type: "cover" });
+    expect(texts(c.slides[0], 0, c).find(t => t.src === "Loans")!.size).toBe(90);   // …unless set on the cover
+    expect(cv.find(t => t.src === "KICK")!.fill).toEqual({ solid: [255, 0, 0] });
+    const row = texts(index, 1, c).find(t => t.src === "Loans" && t.size !== 99)!;
+    expect([row.css, row.fill]).toEqual(["'Lato','Segoe UI',Arial,sans-serif", { solid: [0x33, 0x44, 0x55] }]);
+    const pn = texts(c.slides[2], 2, c).find(t => t.src === "3")!;
+    expect([pn.css, pn.weight]).toEqual(["'Inter','Segoe UI',Arial,sans-serif", 700]);
+    const old = ctx({ pn: { on: true, font: "georgia" } }); old.slides = [slide(), slide(), slide()];
+    expect(texts(old.slides[2], 2, old).find(t => t.src === "3")!.css).toMatch(/^Georgia/);   // older decks keep their page-number font
   });
+
 });
 
 /** a minimal TrueType file with a name table (family) and an OS/2 table (weight, italic bit) */

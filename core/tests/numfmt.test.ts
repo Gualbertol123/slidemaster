@@ -20,7 +20,8 @@ describe("dates", () => {
 });
 
 import { parseSSTRich, richRuns } from "../src/xlsx/workbook";
-import { cellHtml } from "../src/render/excel";
+import { runsOf } from "../src/render/excel-dl";
+import type { Item } from "../src/xlsx/types";
 describe("rich text: superscript and subscript", () => {
   it("keeps the plain text and remembers the raised / lowered parts", () => {
     const xml = `<sst><si><t>plain</t></si><si><r><t xml:space="preserve">LEGAL ENTITIES MF </t></r><r><rPr><vertAlign val="superscript"/><sz val="8"/></rPr><t>(1)</t></r></si><si><r><t>H</t></r><r><rPr><vertAlign val="subscript"/></rPr><t>2</t></r><r><t>O &amp; co</t></r></si></sst>`;
@@ -28,8 +29,10 @@ describe("rich text: superscript and subscript", () => {
     expect(sst).toEqual(["plain", "LEGAL ENTITIES MF (1)", "H2O & co"]);
     expect(runs).toEqual([undefined, [[18, 21, "sup"]], [[1, 2, "sub"]]]);
     expect(richRuns("<t>x</t>")).toEqual({ text: "x" });
-    expect(cellHtml({ text: sst[1], scripts: runs[1] })).toBe("<span>LEGAL ENTITIES MF <sup>(1)</sup></span>");
-    expect(cellHtml({ text: "H2O & co", scripts: runs[2] })).toBe("<span>H<sub>2</sub>O &amp; co</span>");
-    expect(cellHtml({ text: "edited", scripts: [[0, 2, "sup"]], edited: true })).toBe("edited");     // a text edit drops Excel's formatting
+    // the cell's runs: a raised / lowered part at .62 of the size, -.55 / +.25 of its own size off the baseline
+    const at10 = (it: object) => runsOf(it as Item, 10).map(r => [r.text, r.size, +r.dy.toFixed(3)]);
+    expect(at10({ text: sst[1], scripts: runs[1] })).toEqual([["LEGAL ENTITIES MF ", 10, 0], ["(1)", 6.2, -3.41]]);
+    expect(at10({ text: "H2O & co", scripts: runs[2] })).toEqual([["H", 10, 0], ["2", 6.2, 1.55], ["O & co", 10, 0]]);
+    expect(at10({ text: "edited", scripts: [[0, 2, "sup"]], edited: true })).toEqual([["edited", 10, 0]]);     // a text edit drops Excel's formatting
   });
 });

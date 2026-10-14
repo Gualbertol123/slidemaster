@@ -11,6 +11,7 @@ import { curSlide } from "../editor/edit";
 import { DEFAULT_COMMENT, DEFAULT_UNIT, SUMMARY_KINDS, cleanHead, defaultGroups, headingOf, prettyLabel, signatureOf, type CommentCfg, type Group } from "@slide-builder/core/model/comment";
 import { analysisOf, commentTables, commentText } from "@slide-builder/core/render/comment";
 import { richText } from "@slide-builder/core/render/text";
+import { wallBase } from "@slide-builder/core/render/wallpaper";
 import { noteKey, SIDES } from "@slide-builder/core/render/layout";
 import { tableName } from "@slide-builder/core/model/preset";
 import type { Note, Op, RuntimeSlide, Side } from "@slide-builder/core/model/types";
@@ -140,7 +141,7 @@ export function CommentDialog() {
               <label></label><label className="ck"><input type="checkbox" checked={bubble} onChange={e => setBubble((e.target as HTMLInputElement).checked)} />In a bubble (glass card / framed box)</label>
             </div>
           </div>
-          <div className={"cmtprev slide " + (c.style.design === "clean" ? "excel clean" : c.style.design)}><div className="tnote auto" id="cmtPreview" dangerouslySetInnerHTML={{ __html: richText(text) }} /></div>
+          <div className={"cmtprev slide " + (c.style.design === "clean" ? "excel clean" : c.style.design)} style={c.style.design === "glass" ? { "--wallbase": wallBase(c.style) } as React.CSSProperties : undefined}><div className="tnote auto" id="cmtPreview" dangerouslySetInnerHTML={{ __html: richText(text) }} /></div>
         </div>
         <div className="dlgft">
           {old && <button className="btn" id="cmtRemove" onClick={remove}>Remove comment</button>}

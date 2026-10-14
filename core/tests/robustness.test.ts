@@ -10,13 +10,12 @@ import { fileURLToPath } from "node:url";
 import { unzipSync, zipSync } from "fflate";
 import { Port, pair, transfer, type Wire } from "../src/rpc/port";
 import { serve } from "../src/worker/host";
-import { resetPlatform, setPlatform, type NoteMeasure, type TextMeasurer } from "../src/platform";
+import { resetPlatform, setPlatform } from "../src/platform";
 import { applyOps, emptyDoc } from "../src/model/ops";
 import { DocSync } from "../src/sync/docsync";
 import { History, MAX_STEPS } from "../src/sync/history";
 import { indexWorkbook, isEncryptedPackage } from "../src/xlsx/workbook";
 import { MirrorWorkbook } from "../src/xlsx/mirror";
-import { fitNoteSize } from "../src/render/slide";
 import type { CoreEvents, CoreMethods, DocEvent, PageEvents, PageMethods } from "../src/rpc/messages";
 import type { Op, Preset, WorkbookDoc } from "../src/model/types";
 
@@ -58,7 +57,7 @@ afterEach(() => resetPlatform());
 describe("opening", () => {
   it("overlapping index calls: each answer names its own workbook, the older one gives up", async () => {
     // as in the worker: the digit width is a round trip to the page, so the first index is still reading when the second comes
-    setPlatform({ text: { maxDigitWidth: () => new Promise(r => setTimeout(() => r(7), 20)), noteFits: () => true } });
+    setPlatform({ text: { maxDigitWidth: () => new Promise(r => setTimeout(() => r(7), 20)) } });
     const p = page();
     await p.port.call("init", { served: false, client: "c", me: "me" });
     const [ra, rb] = await Promise.allSettled([p.port.call("index", transfer({ buf: book("report.xlsx") }, [])), p.port.call("index", transfer({ buf: book("deck20.xlsx") }, []))]);
@@ -75,7 +74,7 @@ describe("opening", () => {
   });
 
   it("overlapping index calls in any order: the newer one always gets its own workbook", async () => {
-    setPlatform({ text: { maxDigitWidth: () => new Promise(r => setTimeout(() => r(7), 20)), noteFits: () => true } });
+    setPlatform({ text: { maxDigitWidth: () => new Promise(r => setTimeout(() => r(7), 20)) } });
     type Info = Awaited<ReturnType<CoreMethods["index"]>>;
     for (const [older, newer] of [[() => padded("deck20.xlsx"), () => book("report.xlsx")], [() => book("deck20.xlsx"), () => padded("report.xlsx")], [() => book("report.xlsx"), () => book("deck20.xlsx")]] as const) {
       const p = page();
@@ -260,12 +259,5 @@ describe("history and text boxes (05 §4 UN-05, NB-14)", () => {
     expect(h.redo.length).toBe(1);
     h.record("w", "new", [], [], undefined, 1e9);
     expect(h.redo.length).toBe(0);
-  });
-  it("fitNoteSize shrinks 1 px at a time until the text fits, never below 9 px", () => {
-    const note = {} as NoteMeasure;
-    const fitsAt = (max: number): TextMeasurer => ({ maxDigitWidth: () => 7, noteFits: (_n, s) => s <= max });
-    expect(fitNoteSize(note, 20, fitsAt(30))).toBe(20);
-    expect(fitNoteSize(note, 20, fitsAt(14))).toBe(14);
-    expect(fitNoteSize(note, 20, fitsAt(3))).toBe(9);
   });
 });

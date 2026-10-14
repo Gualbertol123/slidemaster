@@ -1,48 +1,41 @@
 """First-time set-up on a PC: ``python slide_builder.py --install`` ("Install Slide Builder.bat").
 
-Made for locked-down corporate Windows PCs: no administrator rights, an SSL-inspecting proxy, the app
-folder on a network share, PowerShell possibly in Constrained Language Mode, AppLocker on shares.
+Made for locked-down corporate Windows PCs: no administrator rights, the app folder on a network share,
+PowerShell possibly in Constrained Language Mode, AppLocker on shares. Nothing is downloaded or installed:
+the helper needs only the Python standard library, and the page writes PDFs and PNGs itself.
 
 Steps (each prints OK / WARN / FAIL lines; a summary and the exit code follow):
 
   1. Python version, 64/32-bit, venv                         required (3.8+)
-  2. pip available (else ``python -m ensurepip --user``)      optional
-  3. Python packages from backend/requirements.txt             optional (Playwright makes exports faster)
-     ``pip install --user -r`` (no --user inside a venv). Certificate errors behind SSL inspection are
-     retried with ``--use-feature=truststore`` (Windows certificate store) when pip supports it; the
-     installer never uses --trusted-host and never turns verification off.
-  4. Export engine (installer.setup: Chrome for Testing)        optional (in-window export still works)
-  5. Shared folder: lock file in data/locks, file in export/,  required
+  2. Shared folder: lock file in data/locks, file in export/,  required
      file-server round trip (create+stat+replace+delete x20 -> median)
-  6. Desktop shortcut: .lnk via PowerShell/WScript.Shell, or a small .bat when that is blocked
-  7. Smoke test: start the helper on a free port, GET /api/ping, stop it   required
+  3. Journal: a file in data/locks appended to twice, each      required
+     write flushed with os.fsync, read back, removed (the shared-storage journal needs append + flush)
+  4. Desktop shortcut: .lnk via PowerShell/WScript.Shell, or a small .bat when that is blocked
+  5. Smoke test: start the helper on a free port, GET /api/ping, stop it   required
 
 Exit code 0 when every required step passed (warnings allowed), 1 otherwise. Running it again is safe.
 Only ASCII is printed (old Windows consoles).
 """
 import os
-import re
 import socket
 import statistics
 import subprocess
 import sys
 import tempfile
 import time
+import uuid
 
 from . import APP_NAME, VERSION, paths
-from .util import IS_WINDOWS, LOCAL, NO_WINDOW, current_host, current_user, safe_component
+from .util import IS_WINDOWS, LOCAL, NO_WINDOW, current_host, current_user, is_network_path, safe_component
 
 OK, WARN, FAIL, SKIP = "OK", "WARN", "FAIL", "SKIP"
+STEPS = 5
 MIN_PY = (3, 8)
-PLAYWRIGHT_PY = (3, 9)
 TESTED_UP_TO = (3, 14)          # information only - newer versions are accepted, never refused
 SLOW_SHARE_MS = 30.0
-REQUIREMENTS = os.path.join(paths.BACKEND, "requirements.txt")
 SHORTCUT_NAME = "Slide Builder"
 LAUNCHER_MARK = "rem Slide Builder desktop launcher"
-CERT_PATTERNS = ("CERTIFICATE_VERIFY_FAILED", "certificate verify failed", "SSLCertVerificationError",
-                 "unable to get local issuer certificate", "self signed certificate in certificate chain",
-                 "self-signed certificate in certificate chain")
 
 
 # --------------------------------------------------------------------------- output
@@ -58,7 +51,7 @@ class Report:
         self.current = [no, title, OK, required]
         self.steps.append(self.current)
         self.out("")
-        self.out("[%d/7] %s" % (no, title))
+        self.out("[%d/%d] %s" % (no, STEPS, title))
 
     def _line(self, status, msg):
         self.out("  %-4s  %s" % (status, msg))
@@ -160,141 +153,14 @@ def step_python(r, info=None):
     r.ok("Python %s is supported (3.8 or newer)." % info["version"])
     if tuple(ver[:2]) > TESTED_UP_TO:
         r.note("This version is newer than the ones this release was tested with (up to %d.%d); it is accepted." % TESTED_UP_TO)
-        r.note("If an optional package has no build for it yet, step 3 only warns.")
-    if tuple(ver[:2]) < PLAYWRIGHT_PY:
-        r.warn("Python %s: the optional 'playwright' package needs 3.9+ and is skipped (exports still work)." % info["version"])
     if info["bits"] == 32 and IS_WINDOWS:
         r.note("32-bit Python works; the 64-bit version is recommended for large workbooks.")
     if info.get("store"):
-        r.note("This is the Microsoft Store Python. It works; if exports misbehave, use the python.org version.")
+        r.note("This is the Microsoft Store Python. It works; if anything misbehaves, use the python.org version.")
     return True
 
 
-# --------------------------------------------------------------------------- 2. pip
-def parse_pip_version(text):
-    m = re.search(r"\bpip (\d+)\.(\d+)(?:\.(\d+))?", text or "")
-    return tuple(int(x or 0) for x in m.groups()) if m else None
-
-
-def _v(ver):
-    return ".".join(map(str, ver[:3] if ver[2:3] != (0,) else ver[:2]))
-
-
-def pip_version(run):
-    rc, out = run([sys.executable, "-m", "pip", "--version"], echo=False)
-    return parse_pip_version(out) if rc == 0 else None
-
-
-def step_pip(r, run):
-    r.step(2, "pip")
-    v = pip_version(run)
-    if v:
-        r.ok("pip %s" % _v(v))
-        return v
-    r.note("pip is not available - installing it with ensurepip (no administrator rights needed)...")
-    cmd = [sys.executable, "-m", "ensurepip", "--upgrade"] + ([] if in_venv() else ["--user"])
-    rc, out = run(cmd)
-    v = pip_version(run)
-    if v:
-        r.ok("pip %s installed" % _v(v))
-        return v
-    r.warn("pip could not be installed (%s). Optional Python packages are skipped." % _last_line(out))
-    return None
-
-
-# --------------------------------------------------------------------------- 3. packages
-def truststore_decision(pip_ver, py_ver=None):
-    """How pip can use the Windows certificate store (company root CA of an SSL-inspecting proxy):
-
-    "flag"        pip 22.2 - 24.1 on Python 3.10+: retry with --use-feature=truststore
-    "default"     pip 24.2+ on Python 3.10+: pip already uses the system store - a retry cannot help
-    "unsupported" anything else (older pip, or Python < 3.10)
-    """
-    py_ver = tuple(py_ver or sys.version_info[:2])
-    if not pip_ver or py_ver[:2] < (3, 10) or tuple(pip_ver[:2]) < (22, 2):
-        return "unsupported"
-    if tuple(pip_ver[:2]) >= (24, 2):
-        return "default"
-    return "flag"
-
-
-def is_cert_error(output):
-    low = (output or "").lower()
-    return any(p.lower() in low for p in CERT_PATTERNS)
-
-
-def pip_install_cmd(requirements, venv, truststore=False):
-    cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "--disable-pip-version-check",
-           "--no-warn-script-location", "-r", requirements]
-    if not venv:
-        cmd.append("--user")
-    if truststore:
-        cmd.append("--use-feature=truststore")
-    return cmd
-
-
-def has_requirements(path):
-    try:
-        with open(path, encoding="utf-8") as f:
-            return any(l.strip() and not l.strip().startswith("#") for l in f)
-    except OSError:
-        return False
-
-
-def step_packages(r, run, pip_ver, requirements=REQUIREMENTS, venv=None, py_ver=None):
-    r.step(3, "Python packages (Playwright: faster exports)")
-    venv = in_venv() if venv is None else venv
-    if not has_requirements(requirements):
-        r.skip("nothing to install (%s is empty or missing)" % requirements)
-        return True
-    if not pip_ver:
-        r.warn("skipped - pip is not available (exports still work without these packages).")
-        return False
-    r.note("pip install %s-r %s" % ("" if venv else "--user ", requirements))
-    rc, out = run(pip_install_cmd(requirements, venv))
-    if rc == 0:
-        r.ok("packages installed / up to date")
-        return True
-    if is_cert_error(out):
-        decision = truststore_decision(pip_ver, py_ver)
-        r.note("The download was refused because of a certificate error - usually the company proxy")
-        r.note("inspects HTTPS with its own certificate.")
-        if decision == "flag":
-            r.note("Retrying with the Windows certificate store (pip --use-feature=truststore)...")
-            rc, out = run(pip_install_cmd(requirements, venv, truststore=True))
-            if rc == 0:
-                r.ok("packages installed (using the Windows certificate store)")
-                return True
-        elif decision == "default":
-            r.note("This pip already uses the Windows certificate store, so the proxy's certificate is not there.")
-        else:
-            r.note("This pip/Python cannot use the Windows certificate store (needs pip 22.2+ and Python 3.10+).")
-        r.warn("could not install the optional packages (certificate error). Exports still work.")
-        r.note("Ask IT for the company root certificate as a .pem file and run once:")
-        r.note("  set PIP_CERT=C:\\path\\to\\company-root.pem   then run this installer again.")
-        return False
-    r.warn("could not install the optional packages (%s). Exports still work." % _last_line(out))
-    return False
-
-
-# --------------------------------------------------------------------------- 4. export engine
-def step_engine(r, setup_fn=None):
-    r.step(4, "Export engine (Chrome for Testing)")
-    if setup_fn is None:
-        from .installer import setup as setup_fn
-    try:
-        rc = setup_fn(pip=False)
-    except Exception as e:
-        rc = 1
-        r.note("installer error: %s" % _last_line(str(e)))
-    if rc == 0:
-        r.ok("export engine installed and tested")
-        return True
-    r.warn("the export engine is not available - exports are rendered inside the app window instead (same look).")
-    return False
-
-
-# --------------------------------------------------------------------------- 5. shared folder
+# --------------------------------------------------------------------------- 2. shared folder
 def shared_folder_check(data=None, export=None, rounds=20):
     """Can this user lock and write in the shared folder, and how far away is the file server?"""
     from .locks import Lock
@@ -344,8 +210,7 @@ def shared_folder_check(data=None, export=None, rounds=20):
 
 
 def step_shared(r, check=None):
-    from .engines import is_network_path
-    r.step(5, "Shared folder", required=True)
+    r.step(2, "Shared folder", required=True)
     net = is_network_path(paths.ROOT)
     r.note("App folder: %s (%s)" % (paths.ROOT, "network drive" if net else "local disk"))
     r.note("Data      : %s" % paths.DATA)
@@ -367,7 +232,57 @@ def step_shared(r, check=None):
     return res["lock"] and res["export"]
 
 
-# --------------------------------------------------------------------------- 6. desktop shortcut
+# --------------------------------------------------------------------------- 3. journal
+JOURNAL_RECORDS = (b'{"probe":1,"text":"Slide Builder journal test"}\n', b'{"probe":2,"text":"appended"}\n')
+
+
+def journal_check(data=None):
+    """Can a file in the data folder be appended to and flushed (the shared-storage journal of later versions
+    appends records to a file and flushes each with os.fsync)? A small file in data/locks gets one record, is
+    closed, gets a second record (opened again in append mode), each write flushed with os.fsync; it is read back
+    and removed. Returns None when all of that works, else the problem."""
+    folder = os.path.join(data or paths.DATA, "locks")
+    me = safe_component("%s-%s" % (current_user(), current_host()), 80)
+    probe = os.path.join(folder, ".journal-test-%s-%s.log" % (me, uuid.uuid4().hex[:8]))
+    first, second = JOURNAL_RECORDS
+    step = "create the folder"
+    try:
+        os.makedirs(folder, exist_ok=True)
+        for no, rec in enumerate(JOURNAL_RECORDS, 1):
+            step = "append record %d to a file" % no
+            with open(probe, "ab") as f:
+                f.write(rec)
+                f.flush()
+                step = "flush record %d (os.fsync)" % no
+                os.fsync(f.fileno())
+        step = "read the file back"
+        with open(probe, "rb") as f:
+            got = f.read()
+        if got != first + second:
+            return "the file read back differs (%d bytes instead of %d): appends are not kept in order" % (len(got), len(first + second))
+        step = "delete the file"
+        os.remove(probe)
+        if os.path.exists(probe):
+            return "a deleted file is still there"
+        return None
+    except OSError as e:
+        return "cannot %s in %s (%s)" % (step, folder, _last_line(str(e)))
+    finally:
+        _remove(probe)
+
+
+def step_journal(r, check=None):
+    r.step(3, "Journal (append and flush in the data folder)", required=True)
+    problem = (check or journal_check)()
+    if problem:
+        r.fail(problem)
+        r.note("Ask IT for 'Modify' rights on this folder for your account (all users of the app need it).")
+        return False
+    r.ok("can append to a file in data\\locks and flush it to the file server (os.fsync), twice")
+    return True
+
+
+# --------------------------------------------------------------------------- 4. desktop shortcut
 def desktop_dir():
     if IS_WINDOWS:
         try:
@@ -441,7 +356,7 @@ def create_shortcut(desktop, root, run, windows=None):
 
 def step_shortcut(r, run, desktop=None, windows=None):
     windows = IS_WINDOWS if windows is None else windows
-    r.step(6, "Desktop shortcut")
+    r.step(4, "Desktop shortcut")
     if not windows:
         r.skip("not Windows - no desktop shortcut created (start with: python backend/slide_builder.py)")
         return True
@@ -462,7 +377,7 @@ def step_shortcut(r, run, desktop=None, windows=None):
     return True
 
 
-# --------------------------------------------------------------------------- 7. smoke test
+# --------------------------------------------------------------------------- 5. smoke test
 def free_port():
     s = socket.socket()
     try:
@@ -476,7 +391,7 @@ def smoke_test(timeout=45.0):
     """Start the helper with --no-browser on a free port, GET /api/ping, stop it. Returns (ok, message, page_ok)."""
     import json
     port = free_port()
-    env = dict(os.environ, SLIDEBUILDER_ENGINES="none", PYTHONUNBUFFERED="1")
+    env = dict(os.environ, PYTHONUNBUFFERED="1")
     env.pop("SLIDEBUILDER_SIM_FS_MS", None)
     log = tempfile.TemporaryFile()
     p = subprocess.Popen([sys.executable, "-u", paths.ENTRY, "--port", str(port), "--no-browser"],
@@ -514,7 +429,7 @@ def smoke_test(timeout=45.0):
 
 
 def step_smoke(r, smoke=None):
-    r.step(7, "Self-test (start the helper, ping it, stop it)", required=True)
+    r.step(5, "Self-test (start the helper, ping it, stop it)", required=True)
     ok, msg, page_ok = (smoke or smoke_test)()
     if ok:
         r.ok(msg)
@@ -526,7 +441,7 @@ def step_smoke(r, smoke=None):
 
 
 # --------------------------------------------------------------------------- main
-def run_install(run=None, setup_fn=None, desktop=None, windows=None, smoke=None, check=None, out=None):
+def run_install(run=None, desktop=None, windows=None, smoke=None, check=None, journal=None, out=None):
     run = run or run_cmd
     r = Report(out)
     r.out("=" * 66)
@@ -536,15 +451,13 @@ def run_install(run=None, setup_fn=None, desktop=None, windows=None, smoke=None,
     r.out("=" * 66)
     if not step_python(r):
         return r.summary()
-    pip_ver = step_pip(r, run)
-    step_packages(r, run, pip_ver)
-    step_engine(r, setup_fn)
     for d in (paths.EXPORT_DIR, paths.DATA):
         try:
             os.makedirs(d, exist_ok=True)
         except OSError:
-            pass                                    # reported by step 5
+            pass                                    # reported by steps 2 and 3
     step_shared(r, check)
+    step_journal(r, journal)
     step_shortcut(r, run, desktop=desktop, windows=windows)
     step_smoke(r, smoke)
     return r.summary()

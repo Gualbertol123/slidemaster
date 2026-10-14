@@ -10,7 +10,6 @@ from unittest import mock
 from sbtest import TempDirs
 
 from slidebuilder import fsclock, locks, presence, server, simfs, store, util
-from test_http import FakeExporter
 
 
 class SimFsTests(TempDirs):
@@ -51,7 +50,7 @@ class SimFsTests(TempDirs):
             self.assertNotIn("open", mod.__dict__)
 
     def test_timing_header_only_when_enabled(self):
-        httpd = server.make_server(0, server.App(token="t", engine=FakeExporter()))
+        httpd = server.make_server(0, server.App(token="t"))
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 

@@ -16,10 +16,10 @@
      slide-<n>.png    (only where the golden has one – a chosen set, see golden/README.md) perceptual: a pixel
                       differs when CIEDE2000 > 2 and no pixel within 1 px of it in the other image is that close
                       (anti-aliasing); a slide differs when more than 1 % of its pixels differ
-     pdf.json         pages and page sizes; with the same fonts also: the fonts, picture count, per page the same
-                      text runs (order-insensitive) and the same normalised text (where text is clipped and how it is
-                      split into runs depends on the fonts, so other machines check pages and sizes only). No
-                      positions: see tools/pdftext.py
+     pdf.json         the build's native PDF (S4.5; the goldens' is v3's old engine's): pages and page sizes; with
+                      the same fonts also each page's text against the golden slide's texts (GT, decision 2026-10-12,
+                      5: every text once, nothing else – where text is clipped depends on the fonts, so other
+                      machines check pages and sizes only). No positions: see tools/pdftext.py
      comments.json, issues.json   exact
    Slide texts, styles, comments and issues are font-independent, so they are compared everywhere. Geometry, pixels
    and PDF text depend on the
@@ -160,20 +160,43 @@ function cmpSlide(g, a, full, diff) {
     if (off.length) diff("geometry", `${where}: ${off.map(k => `${k} ${x[k]} vs ${y[k]}`).join(", ")}`);
   }
 }
-function cmpPdf(g, a, full, diff) {
+/** the build's PDF (the native export, S4.5) against the goldens: v3's page count and page size, and each page's
+    text against the golden slide's texts (GT, decision 2026-10-12, 5 – v3's own PDF text is not the reference: it is
+    unreadable for Liquid Glass and part of Excel Refined, and its fonts and runs were the old engine's) */
+function cmpPdf(g, a, full, diff, slideTexts) {
   if (g.pages !== a.pages) diff("pdf", `${g.pages} pages vs ${a.pages}`);
   if (JSON.stringify(g.sizes) !== JSON.stringify(a.sizes)) diff("pdf", `page sizes ${JSON.stringify(g.sizes[0])} vs ${JSON.stringify(a.sizes[0])}`);
-  if (!full) return;                      // which text is clipped, and how it is split into runs, depends on the fonts
-  if (JSON.stringify(g.fonts) !== JSON.stringify(a.fonts)) diff("pdf", `fonts ${g.fonts.join(",")} vs ${a.fonts.join(",")}`);
-  if (g.images !== a.images) diff("pdf", `${g.images} images vs ${a.images}`);
-  for (let p = 0; p < Math.min(g.text.length, a.text.length); p++) {
-    if ((g.pageText || [])[p] !== (a.pageText || [])[p]) diff("pdf-text", `page ${p + 1}: the page's text differs`);
-    const gs = g.text[p].map(r => r.s).sort(), as = a.text[p].map(r => r.s).sort();
-    if (JSON.stringify(gs) !== JSON.stringify(as)) {
-      const miss = gs.filter(x => !as.includes(x)).slice(0, 3), extra = as.filter(x => !gs.includes(x)).slice(0, 3);
-      diff("pdf-text", `page ${p + 1}: runs missing ${JSON.stringify(miss)}, new ${JSON.stringify(extra)}`);
-    }
+  if (!full) return;                      // which text is clipped (an ellipsis) depends on the fonts
+  (a.pageText || []).forEach((pageText, p) => {
+    const want = slideTexts(p + 1); if (!want) return;
+    const { missing, extra } = matchTexts(pageText, want);
+    if (missing.length || extra) diff("pdf-text", `page ${p + 1}: ${missing.length ? `missing ${JSON.stringify(missing.slice(0, 3))}` : ""}${extra ? ` not in the goldens: ${JSON.stringify(extra.slice(0, 60))}` : ""}`);
+  });
+}
+/** the golden texts of a slide: every text element that holds no other text element (a cell, a title, a text box…) */
+export function goldenTexts(deck, design, version, n, goldenDir = path.join(REPO, "golden")) {
+  const f = path.join(goldenDir, deck, design, version, `slide-${n}.json`);
+  if (!fs.existsSync(f)) return null;
+  const items = JSON.parse(fs.readFileSync(f, "utf8")).items.filter(i => i.text);
+  const CONTAINERS = /^(cv-block|ix-row|ix-txt|tw|xt)\b/;
+  return items.filter(i => !CONTAINERS.test(i.cls) && !/^(hbox|edge|grip|emptyslide)/.test(i.cls)).map(i => i.text);
+}
+const squash = s => s.normalize("NFKC").replace(/\s+/g, "");
+/** the golden texts found in a page's text, each used up once; what is left on either side is a difference. The
+    texts are taken in the goldens' (the page's) order, each from where the last one was found, so a short number is
+    matched where it is drawn, not inside a neighbour */
+export function matchTexts(pageText, want) {
+  let rest = squash(pageText), at = 0;
+  const missing = [];
+  for (const t of want) {
+    const q = squash(t); if (!q) continue;
+    let k = rest.indexOf(q, at);
+    if (k < 0) k = rest.indexOf(q);                                // drawn out of order (page numbers, z-index)
+    if (k < 0) { missing.push(t); continue; }
+    rest = rest.slice(0, k) + "\u0001".repeat(q.length) + rest.slice(k + q.length);
+    at = k + q.length;
   }
+  return { missing, extra: rest.replace(/\u0001/g, "") };
 }
 
 /** the digest of a set of differences (their details, sorted): what an accepted.json entry with a digest was signed for */
@@ -214,7 +237,7 @@ export function compare(goldenDir, actualDir, opts = {}) {
           images.push({ ...scope, file: f, golden: gp, actual: ap, heat: r.heat ? encodePng(r.w, r.h, r.heat) : null });
         }
       } else if (/^slide-\d+\.json$/.test(f)) cmpSlide(readJson(gp), readJson(ap), full, diff);
-      else if (f === "pdf.json") { if (opts.pdf !== false) cmpPdf(readJson(gp), readJson(ap), full, diff); }
+      else if (f === "pdf.json") { if (opts.pdf !== false) cmpPdf(readJson(gp), readJson(ap), full, diff, n => goldenTexts(deck, design, version, n, goldenDir)); }
       else if (f === "comments.json" || f === "issues.json") {
         const g = readJson(gp), a = readJson(ap);
         if (JSON.stringify(g) !== JSON.stringify(a)) diff("text", `${f} differs: ${firstDiff(g, a)}`);

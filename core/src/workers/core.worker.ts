@@ -36,7 +36,7 @@ export function startCore(scope: Scope) {
   // text is measured from font files (S4.4, text/measure.ts): the library's and this PC's, which the page lists and
   // reads; a text none of whose fonts has a readable file is measured by the page, as before S4.4 (decision 2026-10-12, 3)
   const page = {
-    maxDigitWidth: (font: string) => port.call("digitWidth", { font }), noteFits: () => true,
+    maxDigitWidth: (font: string) => port.call("digitWidth", { font }),
     measureRuns: (runs: import("../platform").RunReq[]) => port.call("measureRuns", { runs }), breakLines: (reqs: import("../platform").LinesReq[]) => port.call("breakLines", { reqs }),
   };
   const fonts = { catalog: () => port.call("fontCatalog", {}), bytes: async (f: import("../text/resolve").CatalogFont) => { const b = await port.call("fontFile", { source: f.source, file: f.file }); return b ? new Uint8Array(b) : null; } };

@@ -1,7 +1,6 @@
 /* Page numbers: pageNumber(i) = start + i (the cover counts as a page). */
-import { esc } from "../xlsx/util";
 import type { RenderCtx } from "./context";
-import { deckFmt, fmtCss } from "./text";
+import { deckFmt } from "./text";
 
 export function pageNumber(ctx: RenderCtx, i: number) { const p = ctx.style.pn; return (isFinite(+p.start) ? +p.start : 1) + i; }
 /** label shown on slide i, or null */
@@ -32,17 +31,6 @@ export function pageNoGeom(ctx: RenderCtx, label: string, glassy: boolean, hasLo
 export function pnFmt(ctx: RenderCtx): { f: ReturnType<typeof deckFmt>; legacy: string | null } {
   return { f: deckFmt(ctx, "pageno"), legacy: PN_FONTS[ctx.style.pn.font] || null };
 }
-function pnCss(ctx: RenderCtx): string {
-  const f = deckFmt(ctx, "pageno"), legacy = PN_FONTS[ctx.style.pn.font] || null;
-  const css = fmtCss({ ...f, size: undefined, align: undefined });
-  return (!f.font && legacy ? `font-family:${legacy.replace(/"/g, "'")};` : "") + (css ? css + ";" : "");
-}
-export function pageNoHtml(ctx: RenderCtx, label: string, glassy: boolean, hasLogo: boolean, cover: boolean): string {
-  const p = ctx.style.pn, { left, top, w, h, size, capsule } = pageNoGeom(ctx, label, glassy, hasLogo, cover);
-  const st = `left:${left}px;top:${top}px;width:${w}px;height:${h}px;font-size:${size}px;${pnCss(ctx)}`;
-  return capsule ? `<div class="gls wb chrome pageno" style="${st}border-radius:${Math.min(h / 2, h / 2 * ctx.style.radius / 100)}px"><span>${esc(label)}</span></div>`
-    : `<div class="pageno plain" style="${st}line-height:${h}px;text-align:${p.pos[1] === "l" ? "left" : p.pos[1] === "c" ? "center" : "right"}">${esc(label)}</div>`;
-}
 
 /* ---- footer: like the page number, with {date}, {workbook}, {title} ---- */
 export function footerText(ctx: RenderCtx, i: number, today: string): string {
@@ -69,11 +57,4 @@ export function footerGeom(ctx: RenderCtx, i: number, glassy: boolean, hasLogo: 
     else y = f.pos[0] === "b" ? g.top - h - 6 : g.top + g.h + 6;
   }
   return { label, left, top: y, w, h, size, capsule };
-}
-export function footerHtml(ctx: RenderCtx, i: number, glassy: boolean, hasLogo: boolean, cover: boolean, pageLabel: string | null, today: string): string {
-  const g = footerGeom(ctx, i, glassy, hasLogo, cover, pageLabel, today); if (!g) return "";
-  const f = ctx.style.footer, { label, left, top: y, w, h, size, capsule } = g;
-  const st = `left:${left}px;top:${y}px;width:${w}px;height:${h}px;font-size:${size}px;${pnCss(ctx)}`;
-  return capsule ? `<div class="gls wb chrome pageno footer" style="${st}border-radius:${Math.min(h / 2, h / 2 * ctx.style.radius / 100)}px"><span>${esc(label)}</span></div>`
-    : `<div class="pageno plain footer" style="${st}line-height:${h}px;text-align:${f.pos[1] === "l" ? "left" : f.pos[1] === "c" ? "center" : "right"}">${esc(label)}</div>`;
 }

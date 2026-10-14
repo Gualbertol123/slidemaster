@@ -26,9 +26,7 @@ const PY = process.platform === "win32" ? "python" : "python3";
 const helper = (user: string, port: number) => ({
   command: `${PY} ../backend/slide_builder.py --no-browser --port ${port}`,
   url: `http://127.0.0.1:${port}/api/ping`,
-  // export engines: the browser's DevTools and command line, as on CI – not the Python "playwright" package that
-  // Install Slide Builder.bat may have put on this PC (the export test expects "Export: Chrome…")
-  env: { SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: user, SLIDEBUILDER_HOST: "pc-" + user, SLIDEBUILDER_BROWSER: chrome, SLIDEBUILDER_ENGINES: "devtools,cli", NO_PROXY: "*",
+  env: { SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: user, SLIDEBUILDER_HOST: "pc-" + user, NO_PROXY: "*",
     ...(SYSFONTS ? { SLIDEBUILDER_SYSFONTS: SYSFONTS } : {}) },
   reuseExistingServer: false, timeout: 90_000,
   stdout: "pipe" as const, stderr: "pipe" as const,          // the helpers' logs appear in the test output (CI diagnosis)
