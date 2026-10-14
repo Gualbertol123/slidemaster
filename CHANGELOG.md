@@ -25,6 +25,14 @@ What users notice – the slide on screen is drawn the way the PDF is (PLAN M4)
 * Text on screen is smoothed in grey instead of ClearType's coloured fringes (the slide is now drawn as SVG;
   accepted 2026-10-13).
 * A logo file that cannot be read draws nothing, on screen and in the PDF (3.7's PDF drew an empty bubble).
+* **No more faint light lines between cells of the same dark colour** in a table shown at a scaled size, on screen
+  and in pictures (decided 2026-10-14).
+* **Excel size** (Cells ribbon) now puts the selected columns and rows back to the workbook's widths and heights; it
+  did nothing in 3.7 when they had been set with W, H or by dragging.
+* The side panel names a Windows font that is another version on another PC (e.g. "Calibri on this PC is another
+  version than on PC-B"): slides may wrap or fit a little differently there.
+* Opening a workbook no longer ends on "No workbook" when the connection to the helper drops for a moment: a read is
+  asked again once.
 
 For the maintainer
 * The export engine's folders are no longer used and can be deleted: `engine\` in the Slide Builder folder, and on
@@ -34,6 +42,10 @@ For the maintainer
 * The helper no longer has `--setup`, `/api/export`, `/api/assemble` or `/api/engine/*` (they answer 404), and no
   longer reads `SLIDEBUILDER_BROWSER` or `SLIDEBUILDER_ENGINES`; `backend\requirements.txt` and
   `backend\Install export engine.bat` are gone. It needs nothing but Python's standard library.
+* For the same layout on every PC (Windows fonts copied into the shared font library), the licence owner must first
+  confirm that Microsoft's fonts may be copied to the share (risk R7); then record it once:
+  `python backend\slide_builder.py --allow-font-copy "<who confirmed, when>"` (`off` goes back). Until then every PC
+  lays out with its own fonts, and the side panel names fonts that differ between PCs.
 
 ## 3.7.0 - 2026-10-13
 

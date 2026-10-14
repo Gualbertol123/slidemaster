@@ -532,9 +532,15 @@ fetches the css2 stylesheet, keeps latin/latin-ext faces, downloads each face an
 are read with `readFontInfo` for family/weight/style; a **variable** font is first made a static face at that
 weight by the core worker (`staticFont`, hb-subset: every axis pinned, no fvar/gvar left), so no export embeds a
 variable font (PLAN S3.2; a WOFF2 the core cannot read is stored as it is). PDFs embed subsets of the faces a slide
-uses (§10). For the native PDF (M3) the core reads the PC's Windows fonts through `GET /sysfonts`, and
-`POST /api/fonts/capture` records a font's fingerprint (fingerprint mode, G0 decision R7: Windows fonts are not
-copied to the share).
+uses (§10). For the native PDF (M3) the core reads the PC's Windows fonts through `GET /sysfonts`. The page captures
+every Windows font file the workers read, once each (`POST /api/fonts/capture`, `state/fontfiles.ts`). In
+**fingerprint mode** (the default, G0 decision R7: Windows fonts are not copied to the share) the helper records the
+file's fingerprint, and another PC with another build of the font is named in the side panel – its slides may wrap
+or fit a little differently (W13). In **copy mode** – only once the licence owner has confirmed that Microsoft's fonts
+may be copied to the share and the maintainer has recorded it with `python slide_builder.py --allow-font-copy
+"<who confirmed, when>"` (`off` goes back) – the helper copies every face of the family into the library (source
+`"system"`; all faces or none: single-face .ttf / .otf that may be embedded, not variable), and every PC then lays the
+deck out with the same files (`core/tests/w13.test.ts`).
 
 ---
 
@@ -564,7 +570,7 @@ the app (an Edge app window, `msedge --app=<url>`, else a browser tab) → `serv
 | `presence.py` | One heartbeat file per user@host whose **name** carries user, host, client and workbook; others = one directory listing, freshness from its modification times on the file-server clock (no file opened); old-format `<user>@<host>.json` still read; others seen in the last 25 s; cleanup after 24 h. |
 | `workbooks.py` | Listing (ROOT then `backend/`), path-safe lookup, **stable read** (size/mtime unchanged before/after, zip end record present; retried; `Unstable` → 503 while Excel is still saving). |
 | `fonts.py` | Font library: signature-checked files (≤ 15 MB, ≤ 64 faces/family), written before the index, under lock `fonts`; unreferenced files swept. |
-| `sysfonts.py` | This PC's Windows fonts for the core (`GET /sysfonts`, names read with `struct`) and `POST /api/fonts/capture` (fingerprints in `data/fonts/system/fingerprints.json`, lock `fonts`). |
+| `sysfonts.py` | This PC's Windows fonts for the core (`GET /sysfonts`, names read with `struct`) and `POST /api/fonts/capture` (fingerprints in `data/fonts/system/fingerprints.json`, lock `fonts`; copy mode once `data/fonts/system/licence.json` records the licence owner's yes, §6.10). |
 | `exports.py` | `/api/export-file` (the page's PDF / PNG, .pdf / .png only), `/api/export-feedback` (the pilot's problem reports, `export\feedback\*.json`); `save_export`: temp file → under lock `export-<name>` renamed into place; a target open in a viewer (locked) → ` (2)`, ` (3)`… |
 | `convert.py` | Windows only: `.xlsb/.xls` → `.xlsx` via Excel COM (read-only copy, macros/events off, 240 s timeout); EMF/WMF/TIFF → PNG via GDI+ (PowerShell fallback). |
 | `server.py` | HTTP server (`ThreadingHTTPServer`, HTTP/1.0), security guard, routing, body limits, exception → status mapping, upload store (8 entries, 2 h), asset lookup. |
@@ -625,7 +631,7 @@ JSON bodies ≤ 2 MB, uploads/exports ≤ 300 MB. Full shapes: `docs/ARCHITECTUR
 | `GET /fieldcheck` (no token) | `tools/fieldcheck.html`, the field-test page of the browser's capabilities (PLAN S0.6), on the app's origin |
 | `GET/POST/DELETE /api/fonts` · `GET /fonts/<file>` | font library · font files |
 | `GET /sysfonts` · `GET /sysfonts/<file>` | this PC's Windows fonts (`%WINDIR%\Fonts` and the per-user fonts folder; `SLIDEBUILDER_SYSFONTS` in tests): `{fonts: [{file, family, subfamily, weight, italic, faces, size}]}` · one listed `.ttf`/`.otf`/`.ttc` file |
-| `POST /api/fonts/capture?file=` | fingerprint of a Windows font (SHA-1, version, metrics, `OS/2.fsType` → `embeddable`) into `data/fonts/system/fingerprints.json`; `otherBuilds` = other PCs' builds of the same file. Nothing is copied (G0, R7) |
+| `POST /api/fonts/capture?file=` | fingerprint of a Windows font (SHA-1, version, metrics, `OS/2.fsType` → `embeddable`) into `data/fonts/system/fingerprints.json`; `otherBuilds` / `otherHosts` = other PCs' builds of the same file and those PCs. `mode` `"fingerprint"`: nothing is copied (G0, R7); `"copy"` (licence answer recorded): `copied`, `faces` or `reason` – the family put into the library |
 | `POST /api/logo?name=` · `GET /assets/<name>` | upload a logo to `data/assets` · images from data/assets, `backend/`, ROOT (case-insensitive) |
 | `POST /api/export-file?name=` | save a PDF or PNG the page wrote in `export\`; returns the name used |
 | `POST /api/export-feedback` | "Report a problem with this export" (the 3.7 pilot): the page's report + version, user, PC and time as a new `export\feedback\<date>-<time>-<user>.json` (≤ 64 KB, never replaces one); returns its name |
@@ -702,7 +708,7 @@ npm run bench                # benchmarks with thresholds: big30 parse (core; ne
 
 cd backend
 python -m unittest discover -s tests -v                  # helper tests (Python 3.8+)
-python slide_builder.py [--port 8765] [--no-browser] [--install] [--selftest]
+python slide_builder.py [--port 8765] [--no-browser] [--install] [--selftest] [--allow-font-copy WHO|off]
 python ../tools/loadtest.py --users 10 --scenario same --fs-ms 15        # load test (docs/LOADTEST.md)
 ```
 The root scripts run the same scripts of the workspace (`npm run <x> -w app`); inside `app/` they work as

@@ -225,6 +225,8 @@ All responses JSON unless stated. Security for every request:
 | `GET /api/fonts` | – | font library `{schema, fonts:[…]}` (§3.4) |
 | `POST /api/fonts?family=&weight=&style=&source=&name=&range=` | font file bytes (≤ 15 MB; TTF/OTF/WOFF/WOFF2 checked by signature) | font library |
 | `DELETE /api/fonts?family=` | – | font library |
+| `GET /sysfonts` · `GET /sysfonts/<file>` | – | this PC's Windows fonts `{fonts:[{file, family, subfamily, weight, italic, faces, size}]}` · one listed file |
+| `POST /api/fonts/capture?file=` | – | `{mode, file, family, sha1, embeddable, noSubset, faces, otherBuilds, otherHosts}`; in copy mode (`data/fonts/system/licence.json`) also `copied` and `faces` or `reason` |
 | `GET /fonts/<file>` | – (token header or `?t=`) | a font file |
 | `POST /api/presence` | `{client, workbook}` | `{others:[{user, host, client, workbook, at}]}` – others seen in the last 25 s |
 | `POST /api/presence/leave` | `{client}` | `{ok}` |

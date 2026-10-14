@@ -188,13 +188,17 @@ numbers measured twice). Measured numbers go into the step's line.
      pixels at ΔE 2 everywhere but the glyphs. 05 §3.4's whole-slide pixel rule for text is replaced by this; the
      "owned by S4.4" SP entries go.
 
+- 2026-10-14 · **"Fix all 4 points"** (product owner, in the session, on the four open M4 items the agent could act on;
+  written here by the agent): (1) *Excel size* (TA-02) is fixed in 3.8; (2) the seams between filled cells are
+  removed in 3.8 – a visible change beyond B1–B14, approved by this instruction, and the screenshots against v3 that
+  it moves (7 parity, 7 dlparity, 1.01–3.47 %) are accepted, signed "seams fix, product owner, 2026-10-14"; (3) W13:
+  copy mode is built but stays off until the licence owner's answer (R7, G0 decision of 2026-10-12, unchanged – the
+  agent cannot answer a licence question), fingerprint mode names other builds in the side panel (a new message,
+  approved by this instruction), and W13 is automated on simulated PCs; (4) a dropped read is asked again once.
+
 ## Waiting for
 
-- **Seams between dark cells (product owner):** in a table drawn at a fractional scale the stage shows a faint light
-  line between two cells of the same dark fill (each fill's anti-aliased edge lets the slide's white through); v3 drew
-  it too, the PDF does not. Removing it is a visible change outside B1–B14: each fill would reach one pixel under the
-  fill painted after it (no outer edge moves; tried in S4.4, GP against v3's goldens then differs on 2 Excel slides by
-  1.1–1.6 %). Fix it in a later release (yes / no)?
+- ~~**Seams between dark cells**~~ fixed in 3.8 on 2026-10-14 ("Fix all 4 points", Decisions).
 
 - ~~**S4.4 · Sign off B7 differences in review/S4.4/**~~ decided 2026-10-14 (Decisions): signed off. Open `review/S4.4/index.html` (the pictures
   come with it as a zip, or `node tools/s44-package.mjs`, see its README): every Liquid Glass slide before / after,
@@ -224,14 +228,15 @@ numbers measured twice). Measured numbers go into the step's line.
   check the `release` workflow and the downloaded ZIP (`python tools/make_release.py --verify slidebuilder-3.8.0.zip`),
   then update the share (`Update Slide Builder.bat`) and, afterwards, delete `engine\` there and
   `%LOCALAPPDATA%\SlideBuilder\` on the PCs that ran Slide Builder from the share.
-- **TA-02, *Excel size* does nothing (product owner):** found by the M4 walk, present in v3.7 too: the button clears
-  the shared column width (`table.patch {cols: {n: null}}`) but widths set with W or a drag are stored per design
-  (`sizes.<design>.cols`), so they stay. Fixing it is a visible change outside B1–B14: fix it in the next release
-  (yes / no)?
-- **W13 (with G0, people):** two PCs with different fonts (one without Aptos, one with an older Calibri) open the same
-  deck: identical layout (S4.4's "Done when"; not runnable by the agent).
-- **M6 hardening (noted):** a loopback request that times out while a workbook opens leaves "No workbook" (the page's
-  document read has no retry; the export's file save has one). Seen once in three e2e runs by the M4 reviewer.
+- ~~**TA-02, *Excel size* does nothing**~~ fixed in 3.8 on 2026-10-14 ("Fix all 4 points", Decisions): it cleared the
+  shared widths while W, H and the drags keep them per design.
+- **W13 · licence answer (R7, product owner → the bank's software-licence owner):** may Microsoft's fonts (Calibri,
+  Aptos, Segoe UI, …) be copied to the internal share for use on licensed Windows PCs? With a yes, record it once –
+  `python backend\slide_builder.py --allow-font-copy "<who confirmed, when>"` – and every PC lays decks out with
+  the same font files (copy mode, built and tested in M4). Until then each PC uses its own fonts, and the side panel
+  names fonts that differ between PCs. The field run of W13 (two real PCs, one without Aptos, one with an older
+  Calibri) stays with G0.
+- ~~**M6 hardening (noted):** a dropped read while a workbook opens~~ fixed 2026-10-14: every read is asked again once.
 
 - ~~**S3.9 · release v3.7**~~ done 2026-10-13: merged, tagged, released, installed in the Chief Dashboard folder (S3.9).
 - ~~**S3.8 · pilot result, go / no-go**~~ decided 2026-10-13 (Decisions): go.
