@@ -11,7 +11,11 @@ function Dialog() {
     };
     document.addEventListener("keydown", key, true);
     // default focus: the primary action, or the first (safe) button when the choice is destructive
-    setTimeout(() => (ref.current?.querySelector<HTMLButtonElement>(".btn.primary") || ref.current?.querySelector<HTMLButtonElement>(".dlgft .btn"))?.focus(), 30);
+    // (not when the user is already in the dialog – typing in its form: an Enter there would press the primary button)
+    setTimeout(() => {
+      if (ref.current?.contains(document.activeElement)) return;
+      (ref.current?.querySelector<HTMLButtonElement>(".btn.primary") || ref.current?.querySelector<HTMLButtonElement>(".dlgft .btn"))?.focus();
+    }, 30);
     return () => document.removeEventListener("keydown", key, true);
   }, [d]);
   return (
