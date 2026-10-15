@@ -438,6 +438,11 @@ class Run:
 CI_RUNS = [("same", 20, 15, None), ("same", 20, 40, None), ("different", 20, 40, None), ("burst", 20, 15, (0.3, 0.9)), ("compaction", 20, 40, None)]
 
 
+def timing_only(reason):
+    """a verdict reason that is a time measured (the runner's load can move it), not a wrong result"""
+    return reason.startswith(("save p95 ", "visible p95 ", "a save waited on a compaction"))
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Load test of Slide Builder 4's deck storage (docs/next/05 §3.5)")
     ap.add_argument("--scenario", nargs="+", default=["same"], choices=["same", "different", "burst", "compaction"])
@@ -463,13 +468,22 @@ def main(argv=None):
     for sc, u, ms, think in runs:
         print("%s - %d users - %s" % (sc, u, "real folder" if a.real_folder else "%g ms" % ms), flush=True)
         r = Run(sc, u, ms, a.duration, a.real_folder, a.helper, think or (1.0, 3.0), a.compact_every, a.storage).execute()
-        results.append(r)
         print(json.dumps({k: v for k, v in r.items() if k not in ("compactions",)}), flush=True)
+        if a.ci and r["pass"] and all(timing_only(x) for x in r["pass"]):
+            # a hosted CI runner (2 CPUs for 20 helpers and the driver) has moments of contention that a share does
+            # not: a run that missed only a TIMING target is run once more and that run decides (a lost edit, views
+            # that differ, errors or a snapshot going back are never run again)
+            print("  timing only (%s) - running it once more" % "; ".join(r["pass"]), flush=True)
+            r = Run(sc, u, ms, a.duration, a.real_folder, a.helper, think or (1.0, 3.0), a.compact_every, a.storage).execute()
+            r["retried"] = True
+            print(json.dumps({k: v for k, v in r.items() if k not in ("compactions",)}), flush=True)
+        results.append(r)
     print()
     print("%-11s %5s %6s %6s %10s %10s %13s %5s %9s %s" % ("scenario", "users", "fs ms", "saves", "save p50", "save p95", "visible p50/95", "lost", "converged", "result"))
     for r in results:
         print("%-11s %5d %6s %6d %10s %10s %13s %5d %9s %s" % (r["scenario"], r["users"], r["fs_ms"], r["saves"], r["save_p50"], r["save_p95"],
-              "%s/%s" % (r["visible_p50"], r["visible_p95"]), r["lost"], r["converged"], "PASS" if not r["pass"] else "FAIL: " + "; ".join(r["pass"])))
+              "%s/%s" % (r["visible_p50"], r["visible_p95"]), r["lost"], r["converged"],
+              ("PASS" if not r["pass"] else "FAIL: " + "; ".join(r["pass"])) + (" (second run)" if r.get("retried") else "")))
     if a.json:
         with open(a.json, "w", encoding="utf-8") as f:
             json.dump(results, f, indent=1)

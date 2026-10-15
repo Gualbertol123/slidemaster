@@ -176,6 +176,7 @@ def server_ms():
 
 
 _issued = set()                           # writer ids this helper gave out: only those may start <writer>.log
+_shared_last = {}                         # deck key -> the last shared journal number this helper gave out
 
 
 def new_writer(user=None, host=None):
@@ -320,6 +321,7 @@ def reset():
         _checked.clear()
         _rolled.clear()
         _issued.clear()
+        _shared_last.clear()
         _storage.clear()
 
 
@@ -584,7 +586,7 @@ def _append_shared(key, record):
                         if f.read(1) != b"\n":
                             name = None           # it ends in a torn frame: never append after it
             if not name:                          # a new shared journal, under a number never used before
-                name = journal_name("shared", _new_number(names, "shared"))
+                name = journal_name("shared", _new_shared_number(key, names))
             fd = os.open(os.path.join(folder, name), os.O_CREAT | os.O_WRONLY | os.O_APPEND | getattr(os, "O_BINARY", 0), 0o644)
             try:
                 view = memoryview(data)
@@ -600,6 +602,19 @@ def _append_shared(key, record):
     with _guard:
         _listings.pop(key, None)
     return {"journal": stem(name), "offset": end, "at": rec["at"]}
+
+
+def _new_shared_number(key, names):
+    """the number of a new shared journal (under the deck lock): above every one listed, every one the snapshot's
+    frontier still names (a compaction deleted them) and the last one this helper gave out - the server's time in ms
+    alone could repeat a deleted file's within the same millisecond"""
+    try:
+        gone = [j + ".log" for j in (read_snapshot(key).get("frontier") or {})]
+    except Exception:                            # noqa: BLE001 - the listing and this helper's memory still apply
+        gone = []
+    n = _new_number(list(names) + gone, "shared", _shared_last.get(key, 0))
+    _shared_last[key] = n
+    return n
 
 
 def _shared_n(name):

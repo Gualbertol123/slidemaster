@@ -632,6 +632,24 @@ class DeckReuseTests(DeckBase):
         self.assertNotEqual(first, second)
         self.assertEqual(decks.append(self.key, w, self.rec(w, 3))["journal"], second)   # then appended to
 
+    def test_lean_lock_never_reuses_a_shared_journal_in_the_same_millisecond(self):
+        """CI (Linux): a dropped shared journal and its successor created within one ms got the same name"""
+        os.environ["SLIDEBUILDER_STORAGE"] = "lean-lock"
+        w = decks.new_writer()
+        with mock.patch.object(decks, "server_ms", return_value=1792050322091):
+            first = decks.append(self.key, w, self.rec(w, 1))["journal"]
+            os.remove(os.path.join(decks.journal_dir(self.key), first + ".log"))
+            second = decks.append(self.key, w, self.rec(w, 2))["journal"]
+            self.assertNotEqual(first, second)
+            # another helper (nothing remembered): the snapshot's frontier still names the dropped journals
+            res = decks.tail(self.key, {})
+            decks.compact(self.key, 1, dict(decks.read_snapshot(self.key), gen=2, lamport=2, rev=2,
+                                            frontier={first: 0, second: res["journals"][second]["offset"]}))
+            os.remove(os.path.join(decks.journal_dir(self.key), second + ".log"))
+            decks.reset()
+            third = decks.append(self.key, w, self.rec(w, 3))["journal"]
+        self.assertNotIn(third, (first, second))
+
     def test_a_wrong_offset_is_read_again_from_the_start_not_an_incident(self):
         w = decks.new_writer()
         for s in (1, 2):
