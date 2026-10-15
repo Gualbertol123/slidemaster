@@ -524,10 +524,13 @@ def pointer_info(root):
         return {}
 
 
-def write_pointer(root, version, previous):
-    """app/current.json, replaced atomically (a starting PC sees the old or the new one, never half)"""
-    data = json.dumps({"version": version, "previous": previous, "at": datetime.datetime.now().isoformat(timespec="seconds"),
-                       "by": user()}, indent=1) + "\n"
+def write_pointer(root, version, previous, held=False):
+    """app/current.json, replaced atomically (a starting PC sees the old or the new one, never half). `held`: the
+    version was chosen with --use over a newer one (a rollback) - a plain update does not move on from it."""
+    d = {"version": version, "previous": previous, "at": datetime.datetime.now().isoformat(timespec="seconds"), "by": user()}
+    if held:
+        d["held"] = True
+    data = json.dumps(d, indent=1) + "\n"
     tmp = pointer_file(root) + ".%d.update-tmp" % os.getpid()
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(data)
@@ -599,18 +602,26 @@ def extract_release(root, zf, man):
     return final
 
 
+LAUNCHERS = ("Start Slide Builder.bat", "Install Slide Builder.bat", "tools/update.py")
+# start files a folder may lack (a folder that got its first version from a release ZIP, docs/next/cutover.md):
+# added when missing, never replaced - "Update Slide Builder.bat" may be the file running this very update
+MISSING_ONLY = ("Update Slide Builder.bat", "Start Slide Builder (v3).bat")
+
+
 def update_launchers(root, folder, stamp):
     """the main folder's "Start Slide Builder.bat" and tools/update.py from the release (the start file must
-    know app/current.json). "Update Slide Builder.bat" is running right now, so it is left alone."""
+    know app/current.json; so must "Install Slide Builder.bat"), and the start files the folder does not have yet
+    (MISSING_ONLY). Returns what was done: ["updated <file>", "added <file>"]."""
     changed = []
-    for n in ("Start Slide Builder.bat", "tools/update.py"):
+    for n in LAUNCHERS + MISSING_ONLY:
         src = os.path.join(folder, *n.split("/"))
         dest = os.path.join(root, *n.split("/"))
-        if not os.path.isfile(src):
+        if not os.path.isfile(src) or (n in MISSING_ONLY and os.path.exists(dest)):
             continue
         with open(src, "rb") as f:
             new = f.read()
-        if os.path.isfile(dest):
+        existed = os.path.isfile(dest)
+        if existed:
             with open(dest, "rb") as f:
                 if f.read() == new:
                     continue
@@ -620,7 +631,7 @@ def update_launchers(root, folder, stamp):
         with open(tmp, "wb") as f:
             f.write(new)
         os.replace(tmp, dest)
-        changed.append(n)
+        changed.append(("updated " if existed else "added ") + n)
     return changed
 
 
@@ -628,6 +639,11 @@ def prune_versions(root, keep_also):
     """keep the newest KEEP_VERSIONS versions and the ones in keep_also; the rest is removed when possible"""
     vers = installed_versions(root)
     keep = set(vers[-KEEP_VERSIONS:]) | {v for v in keep_also if v}
+    threes = [v for v in vers if version_key(v)[0] == 3]
+    if threes and any(version_key(v)[0] >= 4 for v in vers):
+        # the newest 3.x stays while 4.x is installed: "Start Slide Builder (v3).bat" and --use 3.x (the rollback,
+        # docs/next/cutover.md) need it, and a folder of releases has no 3.x program in backend\ to fall back to
+        keep.add(threes[-1])
     removed = []
     for v in vers:
         if v not in keep:
@@ -658,7 +674,7 @@ def clear_leftovers(root):
                 pass
 
 
-def activate(root, version, folder, stamp, fresh):
+def activate(root, version, folder, stamp, fresh, held=False):
     """self-test the version, then point app/current.json at it. A fresh install that fails is removed."""
     say("Testing version %s with this folder's saved setups (read-only)..." % version)
     ok, out = selftest(root, folder)
@@ -682,9 +698,11 @@ def activate(root, version, folder, stamp, fresh):
     previous = current_version(root)
     if previous == version:                       # the same version again: keep what came before it
         keep = info.get("previous")
-        write_pointer(root, version, keep if isinstance(keep, str) and VERSION_RE.match(keep) else None)
+        # still held when it was (the same --use again "to be sure" must not release a rollback)
+        write_pointer(root, version, keep if isinstance(keep, str) and VERSION_RE.match(keep) else None,
+                      held or bool(info.get("held")))
     else:
-        write_pointer(root, version, previous)
+        write_pointer(root, version, previous, held)
     return previous
 
 
@@ -721,7 +739,7 @@ def install_release(root, data, stamp, want=None, digest=None):
     previous = activate(root, ver, final, stamp, fresh)
     launchers = update_launchers(root, final, stamp)
     for n in launchers:
-        say("  updated %s" % n)
+        say("  " + n)
     removed = prune_versions(root, [ver, previous, pointer_info(root).get("previous"), pilot_version(root)])
     if removed:
         say("  removed old version(s): " + ", ".join(removed))
@@ -747,7 +765,8 @@ def use_version(root, ver, stamp):
         if not rollback_decks(root, ""):
             raise SystemExit("Some decks could not be given back to Slide Builder 3 (above): version %s is NOT used. "
                              "Close them everywhere (Options › Administration › Prepare rollback), then try again." % ver)
-    previous = activate(root, ver, folder, stamp, False)
+    cur = current_version(root)
+    previous = activate(root, ver, folder, stamp, False, held=bool(cur) and version_key(ver) < version_key(cur))
     if previous == ver:
         say("Version %s was already the current version." % ver)
         return ver, False
@@ -1078,6 +1097,10 @@ def main(argv=None):
         return 0
     if current_version(root) and not (a.release or a.use or isinstance(a.zip, str) or a.branch or a.zip):
         # this folder runs side-by-side versions (app\current.json): updating helper\ would change nothing
+        if pointer_info(root).get("held"):
+            raise SystemExit("Version %s was chosen with --use over a newer version (a rollback): a plain update would install the "
+                             "newest release and undo it, so nothing was changed. To go forward: --release X.Y.Z or --use X.Y.Z "
+                             "(docs/next/cutover.md)." % current_version(root))
         say("This folder uses side-by-side versions (app\\current.json, now %s): looking for the newest release." % current_version(root))
         a.release = "latest"
     if a.release or a.use or isinstance(a.zip, str):

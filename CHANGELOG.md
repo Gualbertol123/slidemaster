@@ -14,7 +14,24 @@ What users notice – decks are stored the Slide Builder 4 way (PLAN M5)
 * If a deck's file on the share is ever damaged, the status bar says so and the deck can be read but not changed
   until the maintainer looks at it (docs/next/04 §2.3: it must never happen; the helper writes an incident file).
 
+What stays the same
+* **Decks, settings and fonts are unchanged**: every deck keeps its slides, tables, edits, comments and looks
+  (it is moved, not converted by hand); the shared defaults (`config.json`), everybody's preferences, the font
+  library, logos and the workbooks keep their formats and stay where they are, shared with Slide Builder 3.
+  Exports are named and saved as before.
+
 For the maintainer
+* **The move is one command on the agreed Monday** – `docs/next/cutover.md`, minute by minute. From 3.8 it is run
+  once with 4.0's own updater (3.8's `Update Slide Builder.bat` refuses a 4.x release and changes nothing); later
+  updates are a plain double-click again.
+* **`Start Slide Builder (v3).bat`** starts Slide Builder 3 on the same data (from port 8785) for a deck given back
+  to it; it is removed after four weeks without a rollback (S6.5). The newest 3.x stays installed beside 4.x, so
+  `--use 3.8.0` keeps working after any 4.0.x update; after such a rollback a plain `Update Slide Builder.bat`
+  refuses to move on (`--release X.Y.Z` or `--use X.Y.Z` goes forward). A release install now also adds
+  `Update Slide Builder.bat` and `Start Slide Builder (v3).bat` to a folder that lacks them (never replacing them),
+  and `Install Slide Builder.bat` finds the program in a folder of side-by-side versions (`app\current.json`).
+* The pilot (`Start Slide Builder (v4 pilot).bat`, `Update Slide Builder.bat --pilot`, `docs/next/pilot-v4.md`)
+  runs a 4.x version on a copy of the data, beside the version in use.
 * **Decks move to Slide Builder 4 one by one**, the first time somebody opens them in 4.0 (or all at once with
   `Update Slide Builder.bat --migrate-all`; a deck open in 3.x at that moment is skipped and moved later). The 3.x
   file is backed up and frozen, so Slide Builder 3 refuses that deck from then on ("Slide Builder was updated").

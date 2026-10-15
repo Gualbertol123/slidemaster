@@ -168,7 +168,9 @@ try {
   say(`  ${decks.length} workbooks with saved decks`);
 
   say("\n== 1. Slide Builder " + V3);
-  run(`Update --zip slidebuilder-${V3}.zip (the repository's updater: the folder has none yet)`, PY, [path.join(REPO, "tools", "update.py"), "--root", share, "--zip", path.resolve(V3ZIP), "--yes"]);
+  // the folder has no updater yet: the v3 ZIP's own (it copies only the start file and the updater into the folder)
+  const v3Run = zipUpdater(path.resolve(V3ZIP), path.join(tmp, "v3-zip"));
+  run(`<${V3} ZIP>/tools/update.py --root <share> --zip slidebuilder-${V3}.zip`, PY, [v3Run, "--root", share, "--zip", path.resolve(V3ZIP), "--yes"]);
   check(JSON.parse(fs.readFileSync(path.join(share, "app", "current.json"), "utf8")).version === V3, `app\\current.json names ${V3}`);
   const v3entry = path.join(share, "app", V3, "backend", "slide_builder.py");
   let h3 = await startHelper("v3 helper (PC 1)", v3entry, "anna"); helpers.push(h3);
@@ -236,6 +238,8 @@ try {
   run(`<${V4} ZIP>/tools/update.py --root <share> --zip slidebuilder-${V4}.zip (the runbook: --release ${V4})`, PY, [newRun, "--root", share, "--zip", path.resolve(V4ZIP), "--yes"]);
   check(JSON.parse(fs.readFileSync(path.join(share, "app", "current.json"), "utf8")).version === V4, `app\\current.json names ${V4}`);
   check(fs.readFileSync(path.join(share, "tools", "update.py"), "utf8") === fs.readFileSync(path.join(REPO, "tools", "update.py"), "utf8"), "the folder's updater is now the new one");
+  const starts = ["Update Slide Builder.bat", "Install Slide Builder.bat", "Start Slide Builder (v3).bat"];
+  check(starts.every(n => fs.existsSync(path.join(share, n))), "the start files the folder lacked are added: " + starts.join(", "));
   const h4 = await startHelper("v4 helper (PC 2)", path.join(share, "app", V4, "helper", "slide_builder.py"), "bob"); helpers.push(h4);
   const b = await openPage(h4, "bob (v4)");
   await openDeck(b, DECK);

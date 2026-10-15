@@ -4,4 +4,4 @@ See docs/ARCHITECTURE.md for the contract this package implements and helper/REA
 for the module map.
 """
 APP_NAME = "slide-builder"
-VERSION = "4.0.0-pilot"
+VERSION = "4.0.0"
