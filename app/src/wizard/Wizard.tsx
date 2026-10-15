@@ -402,7 +402,7 @@ function drawGrid(S: SheetInfo, win: SheetWindow, W: W, onPick: () => void): HTM
         if (x.b) st += "font-weight:700;";
         if (x.right) st += "text-align:right;";
       }
-      block += `<td data-r="${r}" data-c="${c}" class="${hr || hc ? "hid" : ""}${String(txt).trim().toLowerCase() === "x" ? " mk" : ""}" style="${st}">${esc(txt)}</td>`;
+      block += `<td data-r="${r}" data-c="${c}" class="${hr || hc ? "hid" : ""}${String(txt).trim().toLowerCase() === "x" ? " mk" : ""}" style="${esc(st)}">${esc(txt)}</td>`;
     }
     block += `</tr>`;
   }
