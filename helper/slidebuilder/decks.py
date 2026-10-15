@@ -60,13 +60,13 @@ PRESENCE_WINDOW = 25.0            # s: "others here" = presence files touched in
 PRESENCE_CLEANUP = 24 * 3600.0    # s: presence files older than this are deleted by anyone
 BACKUP_KEEP = 30
 READ_ATTEMPTS, READ_DELAY = 5, 0.1
-JOURNAL_RE = re.compile(r"^([A-Za-z0-9._-]{1,60}@[A-Za-z0-9._-]{1,60}#[a-z2-7]{8}|shared)(~[1-9][0-9]{0,15})?\.log$")
+JOURNAL_RE = re.compile(r"^([A-Za-z0-9._-]{1,60}@[A-Za-z0-9._-]{1,60}#[a-z2-7]{8}|shared)(~[1-9][0-9]{0,15})?\.log\Z")
 STORAGE_TTL = 60.0                # s: the storage mode (an environment variable or data/v4/storage.json) is read again
 CHECK_TTL = 10.0                  # s: how long a deck's existence / incident files seen by this helper are trusted
 REFRESH_S = 4.0                   # s: decks with an open append handle are looked at again in the background (a rollback)
-WRITER_RE = re.compile(r"^[A-Za-z0-9._-]{1,60}@[A-Za-z0-9._-]{1,60}#[a-z2-7]{8}$")
-KEY_RE = re.compile(r"^[A-Za-z0-9._-]{1,60}-[0-9a-f]{10}$")
-CLIENT_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+WRITER_RE = re.compile(r"^[A-Za-z0-9._-]{1,60}@[A-Za-z0-9._-]{1,60}#[a-z2-7]{8}\Z")      # \Z: `$` admits a final line end
+KEY_RE = re.compile(r"^[A-Za-z0-9._-]{1,60}-[0-9a-f]{10}\Z")
+CLIENT_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}\Z")
 
 
 class DeckError(RuntimeError):

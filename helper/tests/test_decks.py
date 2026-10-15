@@ -215,6 +215,18 @@ class DeckTests(DeckBase):
             decks.read_snapshot(self.key)
         self.assertEqual(e.exception.status, 409)                     # too new: restart
 
+    def test_identifiers_with_a_line_end_are_refused(self):
+        # audit SEC-5: `$` also matches before a final line end, so "<key>\n" passed check_key and the request
+        # failed later as a 500 with a traceback instead of a 400
+        with self.assertRaises(decks.DeckError) as e:
+            decks.check_key(self.key + "\n")
+        self.assertEqual(e.exception.status, 400)
+        w = decks.new_writer("a") + "\n"
+        with self.assertRaises(decks.DeckError):
+            decks.append(self.key, w, self.rec(w, 1))
+        self.assertIsNone(decks.CLIENT_RE.match("client1\n"))
+        self.assertIsNone(decks.JOURNAL_RE.match(decks.new_writer("a") + ".log\n"))
+
     def test_a_missing_snapshot_is_never_started_again_from_nothing(self):
         # audit DATA-2 (docs/next/AUDIT.md): with snapshot.json gone (deleted, or not seen for a moment), the next open
         # migrated the deck again from its frozen v3 file (or made an empty one) at gen 1, and its next compaction
