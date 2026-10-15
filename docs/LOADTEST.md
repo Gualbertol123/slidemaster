@@ -1,5 +1,14 @@
 # Load test: shared-folder storage with 10 users
 
+> **Slide Builder 4 (storage v4, PLAN S5.4):** `tools/loadtest4.py` drives real v4 helpers (one per user, one
+> folder) the way the core's DocSync v4 does - an edit every 1-3 s, one record per 300 ms batch, a tail every
+> 1.5 s, presence every 10 s - with simulated share latency (`helper/slidebuilder/simfs.py`; for the decks every
+> read and write on an open handle is charged too, as docs/next/04 §2.5). `python tools/loadtest4.py --ci` is the
+> CI job (20 users at 15 and 40 ms: same deck, different decks, a burst, compaction while editing; criteria of
+> 05 §3.5). `--real-folder "T:\Slide Builder"` runs it on the real share (for people, before the cut-over).
+> The measured numbers are in PROGRESS.md (S5.4). Everything below is about v3's storage (`tools/loadtest.py`).
+
+
 Question: **is the network (the shared folder) the bottleneck, and what else could be considered?**
 
 Short answer: the network itself is not the problem. The cost is the number of **sequential file

@@ -169,10 +169,15 @@ def server_ms():
     return int((time.time() + offset_nowait(paths.DATA)) * 1000)
 
 
+_issued = set()                           # writer ids this helper gave out: only those may start <writer>.log
+
+
 def new_writer(user=None, host=None):
     """a writer id for one page session: <user>@<host>#<8 random base32> (file-name safe)"""
     rnd = base64.b32encode(os.urandom(5)).decode("ascii").lower()
-    return "%s@%s#%s" % (safe_component(user or current_user(), 60), safe_component(host or current_host(), 60), rnd)
+    w = "%s@%s#%s" % (safe_component(user or current_user(), 60), safe_component(host or current_host(), 60), rnd)
+    _issued.add(w)
+    return w
 
 
 def journal_writer(name):
@@ -308,6 +313,7 @@ def reset():
         _readonly.clear()
         _checked.clear()
         _rolled.clear()
+        _issued.clear()
         _storage.clear()
 
 
@@ -441,20 +447,14 @@ def _open_new(key, st, writer, first):
     """a NEW journal file for this writer (O_EXCL: never a file another helper or an earlier handle wrote). The
     writer's first record (s = 1) starts <writer>.log, later files are <writer>~<n>.log with a number never used
     before (_new_number): after a rotation deleted a file, or a restart, its name does not come back."""
-    _check_writable(key)
     _look(key, 0)                           # the deck still exists (never re-create a deleted deck's folder)
-    if _readonly.get(key):
-        raise DeckError(423, _readonly[key], readonly=True)
+    _check_writable(key)
     folder = journal_dir(key)
     os.makedirs(folder, exist_ok=True)
     flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_APPEND | getattr(os, "O_BINARY", 0)
-    names = [journal_name(writer, 0)] if first and not st.last_n else []
-    if names:
-        try:                                # a <writer>.log a rotation deleted may still be in the frontier: never again
-            if writer in (read_snapshot(key).get("frontier") or {}):
-                names = []
-        except DeckError:
-            names = []
+    # <writer>.log only for a writer this helper gave out and has not written yet: a writer of another helper (or of
+    # this one before a restart) may have had a <writer>.log a rotation deleted, still named in the frontier
+    names = [journal_name(writer, 0)] if writer in _issued and not st.last_n else []
     floor = st.last_n
     for _ in range(20):
         if not names:
@@ -472,6 +472,25 @@ def _open_new(key, st, writer, first):
             _listings.pop(key, None)
         return
     raise DeckError(503, "no free journal file name for %s" % writer)
+
+
+def prepare(key, writer):
+    """open the writer's journal ahead of its first append (the page asks when an edit starts, during its 300 ms
+    debounce), so that the append itself costs the share two round trips: write and flush. Idempotent."""
+    check_key(key)
+    if not isinstance(writer, str) or not WRITER_RE.match(writer):
+        raise DeckError(400, "invalid writer")
+    _check_writable(key)
+    if storage_mode() == "lean-lock":
+        return {"ok": True}
+    st = _writer_state(key, writer)
+    with st.lock:
+        if st.fd is not None and time.monotonic() - st.used > IDLE_CLOSE:
+            _close(st)
+        if st.fd is None:
+            _open_new(key, st, writer, True)
+            st.used = time.monotonic()
+    return {"ok": True}
 
 
 def append(key, writer, record):

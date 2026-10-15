@@ -109,7 +109,7 @@ def find_asset(name):
     return None
 
 
-DECK_ROUTE = re.compile(r"^/api/decks/([^/]+)/(snapshot|tail|append|compact|rotate|history)$")
+DECK_ROUTE = re.compile(r"^/api/decks/([^/]+)/(snapshot|tail|append|prepare|compact|rotate|history)$")
 
 
 class HttpError(Exception):
@@ -468,6 +468,8 @@ class Handler(BaseHTTPRequestHandler):
         if action == "append":
             req = self._json()
             return self._send(200, decks.append(key, req.get("writer"), req.get("record")))
+        if action == "prepare":
+            return self._send(200, decks.prepare(key, self._json().get("writer")))
         if action == "compact":
             req = self._json(SNAPSHOT_LIMIT)
             return self._send(200, decks.compact(key, req.get("baseGen"), req.get("snapshot")))

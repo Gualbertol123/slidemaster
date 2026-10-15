@@ -61,6 +61,7 @@ def deck_torn(root, data, user, key, writer, before, storage="journal"):
     _setup(root, data, user)
     os.environ["SLIDEBUILDER_STORAGE"] = storage
     from slidebuilder import decks
+    decks._issued.add(writer)                     # this process is the helper that gave the page its writer id
     for s in range(1, before + 1):
         decks.append(key, writer, {"w": writer, "s": s, "l": s, "ops": []})
     real = os.write

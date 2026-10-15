@@ -117,6 +117,7 @@ export interface PageMethods {
   deckAppend(a: { key: string; writer: string; record: DeckRecord }): { journal: string; offset: number; at: number };
   deckCompact(a: { key: string; baseGen: number; snapshot: DeckSnapshot }): { gen: number };
   deckRotate(a: { key: string; writer: string }): { deleted: string[] };
+  deckPrepare(a: { key: string; writer: string }): unknown;
   digitWidth(a: { font: string }): number;
   /** text measured with the page's fonts for the display list (decision 2026-10-12, 3): one call per measuring round of a table */
   measureRuns(a: { runs: import("../platform").RunReq[] }): import("../platform").RunMetrics[];

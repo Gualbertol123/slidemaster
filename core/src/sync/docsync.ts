@@ -29,6 +29,8 @@ export interface DeckApi {
   append(key: string, writer: string, record: DeckRecord): Promise<{ journal: string; offset: number; at: number }>;
   compact(key: string, baseGen: number, snapshot: DeckSnapshot): Promise<{ gen: number }>;
   rotate(key: string, writer: string): Promise<{ deleted: string[] }>;
+  /** open this writer's journal ahead of its first append (the append then costs write + flush only) */
+  prepare?(key: string, writer: string): Promise<unknown>;
 }
 
 export type SaveState = "saved" | "pending" | "saving" | "error" | "local" | "outdated" | "readonly";
@@ -79,6 +81,8 @@ export class DocSync {
   private quietSince = Date.now();
   /** the file server's time at the last tail, and this PC's time then (to estimate the server's time now) */
   private serverAt: [number, number] | null = null;
+  /** when this page last asked the helper to have its journal open (prepare), this PC's ms; 0 = never / again */
+  private prepared = 0;
   /** the last tail left a journal out (unreadable): no compaction on such a round */
   private skippedRound = false;
   /** the file server's time of the last tail that read every journal: a compaction folds only records older than it
@@ -166,6 +170,11 @@ export class DocSync {
     if (!applied.length) return null;
     this.pending.push(...applied);
     this.view = work;
+    // the journal opened during the debounce (its first append, after a rotation, or after the helper closed the idle
+    // handle): the append itself then costs the share two round trips
+    if (this.api.served && this.api.prepare && Date.now() - this.prepared > 5 * 60_000) {
+      this.prepared = Date.now(); void this.api.prepare(this.key, this.writer).catch(() => { this.prepared = 0; });
+    }
     if (this.state !== "outdated" && this.state !== "readonly") this.state = this.api.served ? "pending" : "local";
     this.quietSince = Date.now();
     this.emit(prev, true);
@@ -196,6 +205,7 @@ export class DocSync {
       const e = this.entries.get(recordId(acked));
       if (e) { e.at.push([r.journal, r.offset]); e.rec = firstCopy(e.rec, acked); } else this.entries.set(recordId(acked), { rec: acked, at: [[r.journal, r.offset]] });
       this.mine = [r.journal, r.offset];
+      this.prepared = Date.now();
       this.inflight = null; this.retry = 0; this.error = "";
       this.recompute();
       this.state = this.pending.length ? "pending" : (this.api.served ? "saved" : "local");
@@ -256,7 +266,7 @@ export class DocSync {
     for (const [id, e] of this.entries) if (e.at.some(p => this.covered(p)) || e.rec.s <= (s.seen?.[e.rec.w] || 0)) this.entries.delete(id);
     this.lamport = Math.max(this.lamport, s.lamport);
     // my journal is all in the snapshot: a new one (the helper deletes the covered file)
-    if (this.mine && this.covered(this.mine) && !this.inflight) { this.mine = null; void this.api.rotate(this.key, this.writer).catch(() => undefined); }
+    if (this.mine && this.covered(this.mine) && !this.inflight) { this.mine = null; this.prepared = 0; void this.api.rotate(this.key, this.writer).catch(() => undefined); }
   }
 
   /* ---------------------------------------------------------------- compaction */

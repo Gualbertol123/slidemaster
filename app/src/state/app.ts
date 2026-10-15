@@ -44,6 +44,7 @@ export function core(): CorePort {
   port.handle("deckAppend", a => backend.deckAppend(a.key, a.writer, a.record));
   port.handle("deckCompact", a => backend.deckCompact(a.key, a.baseGen, a.snapshot));
   port.handle("deckRotate", a => backend.deckRotate(a.key, a.writer));
+  port.handle("deckPrepare", a => backend.deckPrepare(a.key, a.writer));
   port.handle("digitWidth", a => browserText.maxDigitWidth(a.font));
   // the display list's text, measured with the page's fonts (decision 2026-10-12, 3; browserText answers synchronously)
   port.handle("measureRuns", a => {

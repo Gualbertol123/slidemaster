@@ -224,6 +224,7 @@ export class CoreHost {
       append: (key, writer, record) => self.port.call("deckAppend", { key, writer, record }),
       compact: (key, baseGen, snapshot) => self.port.call("deckCompact", { key, baseGen, snapshot }),
       rotate: (key, writer) => self.port.call("deckRotate", { key, writer }),
+      prepare: (key, writer) => self.port.call("deckPrepare", { key, writer }),
     };
   })();
   /** the page's last presence heartbeat said this page is the only one with the deck open */

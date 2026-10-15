@@ -7,6 +7,7 @@
 #   pdf    - npm run sp: the display list's PDF (core/src/pdf) rendered by PDFium against Chromium's canvas, qpdf --check;
 #            npm run export-check: the native export of three corpus decks (S3.7)
 #   bench  - npm run bench: benchmarks with thresholds (big30 parsing in core, render counts in app, the page in Chromium)
+#   load   - tools/loadtest4.py --ci: 20 real helpers on one folder at 15 and 40 ms simulated latency (05 §3.5)
 # npm workspaces: one lockfile and node_modules/ at the root; the scripts run from the root.
 name: ci
 on:
@@ -105,6 +106,21 @@ jobs:
       # the cell-by-cell equivalence with v3's parser on big30 too (the unit job has no big30)
       - run: npx vitest run tests/sheetstore.test.ts
         working-directory: core
+
+  load:
+    # PLAN S5.4, 05 §3.5: real v4 helpers (one per user) on one folder with simulated share latency (simfs):
+    # 20 users at 15 and 40 ms - same deck, different decks, a burst, compaction while editing. Fails when a
+    # criterion fails: save p95 < 150 ms, visible p95 < 4 s, nothing lost, every view the same
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: python tools/loadtest4.py --ci --json load-results.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: load-results, path: load-results.json, if-no-files-found: ignore }
 
   parity:
     # v3 against its goldens (golden/, tools/parity.mjs). Texts are compared on any machine; geometry, pixels

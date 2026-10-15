@@ -16,13 +16,16 @@ folder sleeps ``SLIDEBUILDER_SIM_FS_MS`` milliseconds (+-25 % jitter) before doi
 A directory listing (listdir / scandir) is one charge: on Windows the listing also carries every
 entry's size and times, so ``DirEntry.stat()`` costs no further round trip (and is not charged).
 
-Reads, writes and closes of an already open handle are not charged; real SMB2 adds round trips
-for those too (a small read is often compounded with the open, a close is one more), so the
-simulation is a **lower bound** of the cost of a real share with the same round-trip time.
+For v3's modules, reads, writes and closes of an already open handle are not charged; real SMB2 adds
+round trips for those too (a small read is often compounded with the open, a close is one more), so
+for them the simulation is a **lower bound** of the cost of a real share with the same round-trip time.
+For the decks of Slide Builder 4 (``decks``, ``migrate_v3``) every write (``os.write``) and every read on
+an open handle is charged too, as docs/next/04 §2.5's model does: an append is write + flush = 2 round
+trips on a handle that is already open, a tail is open + read per journal.
 
 Only the names used by the storage modules (``store``, ``locks``, ``fsclock``, ``presence``,
-``util``) are replaced - their module-level ``os`` / ``open`` are swapped for wrappers. The rest of
-the helper (HTTP server, exports, workbook reads) is untouched.
+``util``, ``decks``, ``migrate_v3``) are replaced - their module-level ``os`` / ``open`` are swapped for
+wrappers. The rest of the helper (HTTP server, exports, workbook reads) is untouched.
 
 The wrappers also count the charged calls per thread (``count()``); with ``SLIDEBUILDER_SIM_FS_MS=0``
 nothing sleeps, but the counts still tell how many SMB round trips one request costs.
@@ -38,7 +41,8 @@ import types
 from . import paths
 
 ENV = "SLIDEBUILDER_SIM_FS_MS"
-MODULES = ("store", "locks", "fsclock", "presence", "util")
+MODULES = ("store", "locks", "fsclock", "presence", "util", "decks", "migrate_v3")
+HANDLE_MODULES = ("decks", "migrate_v3")         # reads and writes on open handles are charged too
 
 _state = {"ms": 0.0, "installed": None}
 _local = threading.local()
@@ -72,8 +76,19 @@ def _in_data(p):
     return p == data or p.startswith(data.rstrip(os.sep) + os.sep)
 
 
+_total = [0]
+_total_lock = threading.Lock()
+
+
+def total():
+    """Charged file-system calls of every thread (a tail reads its journals in parallel threads)."""
+    return _total[0]
+
+
 def _rtt():
     _local.n = getattr(_local, "n", 0) + 1
+    with _total_lock:
+        _total[0] += 1
     ms = _state["ms"]
     if ms > 0:
         time.sleep(ms * random.uniform(0.75, 1.25) / 1000.0)
@@ -118,6 +133,63 @@ class _Proxy(types.ModuleType):
         return getattr(self.__dict__["_real"], name)
 
 
+class _ChargedFile:
+    """a file object whose reads and writes cost a round trip each (the decks' journal reads)"""
+
+    def __init__(self, f):
+        self._f = f
+
+    def read(self, *a):
+        _rtt()
+        return self._f.read(*a)
+
+    def write(self, *a):
+        _rtt()
+        return self._f.write(*a)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self._f.close()
+        return False
+
+    def __getattr__(self, name):
+        return getattr(self._f, name)
+
+
+def _charged_open(path, *a, **kw):
+    if not _in_data(path):
+        return _real_open(path, *a, **kw)
+    _rtt()                                     # the open
+    return _ChargedFile(_real_open(path, *a, **kw))
+
+
+_data_fds = set()
+
+
+def _make_handle_os():
+    """os for the decks: os.open remembers data-folder handles; os.write on them is charged"""
+    base = _make_os()
+
+    def _open(path, *a, **kw):
+        fd = base.open(path, *a, **kw)
+        if _in_data(path):
+            _data_fds.add(fd)
+        return fd
+
+    def _write(fd, data):
+        if fd in _data_fds:
+            _rtt()
+        return os.write(fd, data)
+
+    def _close(fd):
+        _data_fds.discard(fd)
+        return os.close(fd)
+    overrides = {k: v for k, v in base.__dict__.items() if not k.startswith("_")}
+    return _Proxy(os, dict(overrides, open=_open, write=_write, close=_close))
+
+
 def _make_os():
     p = os.path
     path_proxy = _Proxy(p, {
@@ -143,14 +215,15 @@ def install(ms=None):
             ms = 0.0
     _state["ms"] = max(0.0, float(ms))
     if _state["installed"] is None:
-        from . import fsclock, locks, presence, store, util   # noqa: F401  (make sure they are loaded)
+        from . import decks, fsclock, locks, migrate_v3, presence, store, util   # noqa: F401  (make sure they are loaded)
         fake_os, fake_open = _make_os(), _wrap_path(_real_open)
+        handle_os = _make_handle_os()
         saved = []
         for name in MODULES:
             mod = sys.modules[__package__ + "." + name]
             saved.append((mod, mod.__dict__.get("os"), "open" in mod.__dict__, mod.__dict__.get("open")))
-            mod.os = fake_os
-            mod.open = fake_open              # module global shadows the builtin
+            mod.os = handle_os if name in HANDLE_MODULES else fake_os
+            mod.open = _charged_open if name in HANDLE_MODULES else fake_open      # module global shadows the builtin
         _state["installed"] = saved
     return _state["ms"]
 
