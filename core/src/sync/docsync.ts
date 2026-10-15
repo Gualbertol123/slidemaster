@@ -172,6 +172,8 @@ export class DocSync {
   /* ---------------------------------------------------------------- local changes */
   /** apply operations locally and queue them; returns their inverse (for undo), or null if nothing changed */
   apply(ops: Op[]): Op[] | null {
+    // a read-only deck (a damaged journal, 423) is read, never changed: an edit shown now would never be saved (audit DATA-4)
+    if (this.state === "readonly") return null;
     const prev = this.view;
     const work = JSON.parse(JSON.stringify(prev)) as WorkbookDoc;
     const inverse: Op[] = [], applied: Op[] = [];
@@ -187,7 +189,7 @@ export class DocSync {
     if (this.api.served && this.api.prepare && Date.now() - this.prepared > 5 * 60_000) {
       this.prepared = Date.now(); void this.api.prepare(this.key, this.writer).catch(() => { this.prepared = 0; });
     }
-    if (this.state !== "outdated" && this.state !== "readonly") this.state = this.api.served ? "pending" : "local";
+    if (this.state !== "outdated") this.state = this.api.served ? "pending" : "local";
     this.quietSince = Date.now();
     this.emit(prev, true);
     this.schedule(this.api.served ? DEBOUNCE_MS : 0);
