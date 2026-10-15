@@ -222,7 +222,8 @@ async function indexInWorker(buf: ArrayBuffer): Promise<MirrorWorkbook> {
   earlySlices = [];
   return wb;
 }
-/** `again`: the file's bytes once more (the first ones moved to the worker), for Excel's conversion */
+/** `again`: the file's bytes once more (the first ones moved to the worker), for Excel's conversion of an .xls or a
+    protected file (an .xlsb is read natively since 4.1, B10) */
 async function loadWorkbook(buf: ArrayBuffer, name: string, again: () => Promise<ArrayBuffer>): Promise<MirrorWorkbook> {
   let wb: MirrorWorkbook;
   showBusy(`Opening “${name}” (${fmtMB(buf.byteLength)})…`, null); await nextFrame();
@@ -230,8 +231,8 @@ async function loadWorkbook(buf: ArrayBuffer, name: string, again: () => Promise
   catch (e) {                                                // titles and table suggestions for every sheet); large ones sheet by sheet
     const code = (e as { code?: string }).code;
     if (code === "ENCRYPTED") throw new Error(`“${name}” is protected (password or sensitivity label with encryption). Remove the protection or save an unprotected .xlsx copy.`);
-    if (code !== "XLSB" && code !== "CFB") throw e;
-    const what = code === "XLSB" ? "an Excel Binary Workbook (.xlsb)" : "an old .xls workbook or a protected file";
+    if (code !== "CFB") throw e;
+    const what = "an old .xls workbook or a protected file";
     if (!backend.served) throw new Error(`“${name}” is ${what}. Start the app with Start Slide Builder.bat so Excel can convert it, or save it in Excel as .xlsx.`);
     showBusy(`Converting “${name}” with Excel…`, null);
     let out: ArrayBuffer;

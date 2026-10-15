@@ -1,7 +1,8 @@
 """Conversions done with Windows / Excel (Windows only; elsewhere they raise RuntimeError -> HTTP 501).
 
 * EMF / WMF / TIFF pictures -> PNG with GDI+ (fallback: PowerShell System.Drawing)
-* .xlsb / .xls workbooks -> .xlsx with the installed Excel via COM (read-only copy, macros off)
+* .xls workbooks and protected files -> .xlsx with the installed Excel via COM (read-only copy, macros off);
+  an .xlsb is read by the page itself since 4.1 (core/src/xlsx/xlsb/)
 """
 import os
 import shutil
@@ -95,7 +96,7 @@ def convert_picture(data, ext):
 _wb_cache = {}
 
 def convert_workbook(data, name):
-    """.xlsb / .xls -> .xlsx with the Excel installed on this PC. The original file is never touched:
+    """.xls (or a protected file) -> .xlsx with the Excel installed on this PC. The original file is never touched:
     Excel opens a temporary copy read-only, with macros, events and link updates switched off."""
     import hashlib
     key = hashlib.sha1(data).hexdigest()

@@ -61,6 +61,23 @@ test("opened from file://: choose a workbook, make the deck, edit a cell, keep i
   expect(errors.filter(e => !EXPECTED.some(x => x.test(e)))).toEqual([]);
 });
 
+/* B10 (S6.1): an Excel Binary Workbook is read by the page itself – from disk too, where no helper (and so no Excel)
+   is there to convert it, as 4.0 needed */
+test("opened from file://: an .xlsb opens natively, without Excel", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", e => errors.push("pageerror: " + e.message));
+  page.on("console", m => { if (m.type() === "error" || m.type() === "warning") errors.push("console." + m.type() + ": " + m.text() + " @ " + (m.location().url || "")); });
+  await page.goto(PAGE);
+  await expect(page.locator("#bannerOffline")).toBeVisible();
+  await page.setInputFiles("#fileInput", path.join(here, "../../tests/corpus/workbooks/xlsb/report.xlsb"));
+  await expect(page.locator(".wiz")).toBeVisible();
+  await page.click('[data-a="next"]'); await page.click('[data-a="next"]'); await page.click('[data-a="finish"]');
+  await expect(page.locator(".thumb")).toHaveCount(2);
+  await expect(page.locator("#stage .slide .t", { hasText: /^Alpha$/ })).toHaveCount(1);
+  await expect(page.getByText(/converted by Excel/)).toHaveCount(0);
+  expect(errors.filter(e => !EXPECTED.some(x => x.test(e)))).toEqual([]);
+});
+
 /* B1 (S3.7): from disk, exports work too – as downloads. A text & tables PDF needs the PC's fonts, which the browser
    gives with the user's permission (local fonts); without it the PDF is made of pictures and the toast says why. */
 async function deck(page: Page) {

@@ -1,6 +1,8 @@
 /* Workbook reading: index first (sheet names and sizes), sheets parsed on demand: the zip with fflate
    (zip.ts), sheetData by a byte scanner into columns (sheetstore.ts), the rest of a sheet with v3's regular
-   expressions, styles/theme/rels/drawings with the XML tokenizer (xml.ts). */
+   expressions, styles/theme/rels/drawings with the XML tokenizer (xml.ts). An Excel Binary Workbook (.xlsb) is the
+   same package with BIFF12 parts for the workbook, styles, shared strings and sheets: those are read by xlsb/ into
+   the same structures (rels, theme and drawings stay XML). */
 import { BUILTIN, formatValue } from "./numfmt";
 import { makeColor } from "./color";
 import { readDrawing, analyzeImages } from "./drawing";
@@ -12,6 +14,11 @@ import { xattrs, xdec, parseSSTRich } from "./strings";
 import type { Range } from "./util";
 import { platform, type XmlElement } from "../platform";
 import type { Border, CFRule, ColInfo, Dxf, Font, Progress, Script, Shared, Sheet, SheetMeta, Workbook, Xf } from "./types";
+import type { RowColumns } from "./sheetstore";
+import { readWorkbookBin } from "./xlsb/workbook";
+import { readStylesBin } from "./xlsb/styles";
+import { readSstBin } from "./xlsb/strings";
+import { BinSheetReader } from "./xlsb/sheet";
 
 export { xdec, xattrs, parseSST, parseSSTRich, richRuns } from "./strings";
 const entrySize = (f: ZipEntry | null) => f?.size || 0;
@@ -48,16 +55,16 @@ export async function indexWorkbook(buf: ArrayBuffer): Promise<Workbook> {
     const rr = zget(zip, "_rels/.rels");
     if (rr) { const x = parseXml(await rr.async("string")); const r = all(x, "Relationship").find(r => /\/officeDocument$/.test(r.getAttribute("Type") || "")); if (r) wbPath = resolvePath("", r.getAttribute("Target") || ""); }
   } catch { /* fall back below */ }
-  if (!wbPath || !zget(zip, wbPath)) wbPath = zget(zip, "xl/workbook.xml") ? "xl/workbook.xml" : wbPath;
-  if ((wbPath && /\.bin$/i.test(wbPath)) || (!zget(zip, wbPath) && zget(zip, "xl/workbook.bin")))
-    throw new WorkbookError("XLSB", "This is an Excel Binary Workbook (.xlsb).");
+  if (!wbPath || !zget(zip, wbPath)) wbPath = zget(zip, "xl/workbook.xml") ? "xl/workbook.xml" : zget(zip, "xl/workbook.bin") ? "xl/workbook.bin" : wbPath;
   if (!wbPath || !zget(zip, wbPath)) throw new WorkbookError("NOTXLSX", "This file does not contain an Excel workbook.");
-  const wbx = parseXml(await zget(zip, wbPath)!.async("string"));
+  // the sheets in tab order: <sheet name state r:id> of workbook.xml, or BrtBundleSh of workbook.bin
+  let list: { name: string; state: string; rid: string }[];
+  if (/\.bin$/i.test(wbPath)) list = readWorkbookBin(zip.bytes(zget(zip, wbPath)!)).map(s => ({ name: s.name, state: s.state, rid: s.relId }));
+  else list = all(parseXml(await zget(zip, wbPath)!.async("string")), "sheet").map(s => ({ name: s.getAttribute("name") || "", state: s.getAttribute("state") || "visible", rid: s.getAttributeNS(NS_R, "id") || s.getAttribute("r:id") || "" }));
   const wbRels = await readRels(zip, wbPath);
   const meta: SheetMeta[] = [], skipped: { name: string; why: string }[] = [];
-  for (const s of all(wbx, "sheet")) {
-    const name = s.getAttribute("name") || "", state = s.getAttribute("state") || "visible";
-    const r = wbRels[s.getAttributeNS(NS_R, "id") || s.getAttribute("r:id") || ""];
+  for (const { name, state, rid } of list) {
+    const r = wbRels[rid];
     if (state !== "visible") { skipped.push({ name, why: "hidden" }); continue; }                 // hidden sheets stay hidden (never read)
     if (!r || !zget(zip, r.target)) { skipped.push({ name, why: "missing" }); continue; }
     if (!/\/worksheet$/.test(r.type)) { skipped.push({ name, why: /chartsheet/.test(r.type) ? "chart sheet" : "not a worksheet" }); continue; }
@@ -94,16 +101,17 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
   }
   const color = makeColor(theme);
   let sst: string[] = [], sstRuns: (Script[] | undefined)[] = [];
-  const ss = rel(/sharedStrings$/);
-  if (ss && zget(zip, ss.target)) {
-    if (progress) progress("Reading the shared text table" + (wb.ssSize > 2 * 1048576 ? " (" + fmtMB(wb.ssSize) + ")" : "") + "…", null);
-    await nextFrame();
+  const ss = rel(/sharedStrings$/), ssBin = !!ss && /\.bin$/i.test(ss.target);
+  const sstMessage = async () => { if (progress) progress("Reading the shared text table" + (wb.ssSize > 2 * 1048576 ? " (" + fmtMB(wb.ssSize) + ")" : "") + "…", null); await nextFrame(); };
+  if (ss && !ssBin && zget(zip, ss.target)) {
+    await sstMessage();
     const rich = parseSSTRich(await zget(zip, ss.target)!.async("string")); sst = rich.sst; sstRuns = rich.runs;
   }
   const numFmts: Record<string, string> = Object.assign({}, BUILTIN);
-  let fonts: Font[] = [], fills: (string | null)[] = [], borders: Border[] = [], xfs: Xf[] = [], dxfs: Dxf[] = [];
+  let fonts: Font[] = [], fills: (string | null)[] = [], borders: Border[] = [], xfs: Xf[] = [], dxfs: Dxf[] = [], sss: number[] = [];
   const st = rel(/styles$/);
-  if (st && zget(zip, st.target)) {
+  if (st && /\.bin$/i.test(st.target) && zget(zip, st.target)) ({ fonts, xfs, dxfs, sss } = readStylesBin(zip.bytes(zget(zip, st.target)!), color, numFmts));
+  else if (st && zget(zip, st.target)) {
     const sx = parseXml(await zget(zip, st.target)!.async("string"));
     for (const nf of all(sx, "numFmt")) numFmts[nf.getAttribute("numFmtId") || ""] = nf.getAttribute("formatCode") || "General";
     const on = (e: XmlElement | null) => !!e && e.getAttribute("val") !== "0" && e.getAttribute("val") !== "false";
@@ -156,6 +164,8 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
       return o;
     });
   }
+  // a binary string table names its runs' fonts (their superscript flag), so it is read after the styles
+  if (ss && ssBin && zget(zip, ss.target)) { await sstMessage(); const rich = readSstBin(zip.bytes(zget(zip, ss.target)!), sss); sst = rich.sst; sstRuns = rich.runs; }
   const defaultFont = fonts[0] || { name: "Calibri", sz: 11 };
   const mdw = await (async () => {
     try {
@@ -163,8 +173,13 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
       return m > 3 ? Math.round(m) : 7;
     } catch { return 7; }
   })();
-  return wb.shared = { sst, sstRuns, xfs, dxfs, defaultFont, color, theme, mdw };
+  wb.shared = { sst, sstRuns, xfs, dxfs, defaultFont, color, theme, mdw };
+  FONT_SCRIPTS.set(wb.shared, sss);
+  return wb.shared;
 }
+/** per workbook (its Shared): the superscript / subscript flag of each font of styles.bin, for the rich strings of
+    binary sheets */
+const FONT_SCRIPTS = new WeakMap<Shared, number[]>();
 
 async function ensureSheets(wb: Workbook, names: string[], progress?: Progress): Promise<Sheet[]> {
   const todo = wb.meta.filter(m => names.includes(m.name) && !wb.isLoaded(m.name));
@@ -264,7 +279,16 @@ export async function readSheet(zip: Zip, sh: SheetMeta, ctx: Shared, tick?: (f:
   // the inflate counts as the first 20 % of the progress; one call (in 1 MB slices with a yield between, as when the
   // page's thread read sheets, it took ~15 % longer in the worker)
   const bytes = zip.bytes(entry); if (tick) tick(.2);
-  return parseSheet(zip, sh, bytes, ctx, tick && (f => tick(.2 + .8 * f)));
+  const rest = tick && ((f: number) => tick(.2 + .8 * f));
+  return /\.bin$/i.test(sh.path) ? parseSheetBin(zip, sh, bytes, ctx, rest) : parseSheet(zip, sh, bytes, ctx, rest);
+}
+/** a sheet from its BIFF12 records (sheetN.bin of an .xlsb) */
+export async function parseSheetBin(zip: Zip, sh: SheetMeta, bytes: Uint8Array, ctx: Shared, tick?: (f: number) => void): Promise<Sheet> {
+  const rd = new BinSheetReader(bytes, ctx, FONT_SCRIPTS.get(ctx));
+  if (!tick) rd.run();
+  else { const pace = pacer(); while (!rd.run(20000)) { tick(Math.min(.95, rd.progress)); const w = pace(); if (w) await w; } }
+  const b = rd.finish();
+  return finishSheet(zip, sh, ctx, b.store, b.rows, b);
 }
 /** a sheet from its inflated XML (readSheet without the inflate) */
 export async function parseSheet(zip: Zip, sh: SheetMeta, bytes: Uint8Array, ctx: Shared, tick?: (f: number) => void): Promise<Sheet> {
@@ -292,7 +316,6 @@ export async function parseSheet(zip: Zip, sh: SheetMeta, bytes: Uint8Array, ctx
   if (!tick) scan.run();
   else { const pace = pacer(); while (!scan.run(4000)) { tick(Math.min(.95, scan.progress)); const w = pace(); if (w) await w; } }
   const { cells: store, rows } = scan.finish();
-  const cells = new CellMap(store, ctx), rowInfo = new RowMap(rows);
   const merges: Range[] = []; { const re = /<(?:\w+:)?mergeCell\b[^>]*?\bref="([^"]+)"/g; let q: RegExpExecArray | null; while ((q = re.exec(xml))) merges.push(parseRange(q[1])); }
   const cfRules: CFRule[] = [], unsupportedCF = new Set<string>();
   {
@@ -309,6 +332,13 @@ export async function parseSheet(zip: Zip, sh: SheetMeta, bytes: Uint8Array, ctx
     }
   }
   cfRules.sort((a, b) => a.priority - b.priority);
+  return finishSheet(zip, sh, ctx, store, rows, { colRanges, merges, cfRules, unsupportedCF, defColW, defRowH, zeroH });
+}
+/** the parts both formats share: drawings (XML in both), the Sheet facade, its title and table regions */
+async function finishSheet(zip: Zip, sh: SheetMeta, ctx: Shared, store: SheetColumns, rows: RowColumns,
+  p: Pick<Sheet, "colRanges" | "merges" | "cfRules" | "unsupportedCF" | "defColW" | "defRowH" | "zeroH">): Promise<Sheet> {
+  const { colRanges, merges, cfRules, unsupportedCF, defColW, defRowH, zeroH } = p;
+  const cells = new CellMap(store, ctx), rowInfo = new RowMap(rows);
   const drawing = await readDrawing(zip, sh.path, ctx);
   const S = makeSheet({ name: sh.name, cells, rowInfo, colRanges, merges, cfRules, unsupportedCF, drawing, defColW, defRowH, zeroH, ctx }, store);
   S.cols = { cells: store, rows };

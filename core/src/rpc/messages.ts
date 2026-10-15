@@ -39,7 +39,7 @@ export interface DesignReq { design: Style["design"]; version: string; forExport
 /** calls the page makes */
 export interface CoreMethods {
   init(a: { served: boolean; client: string; me: string }): void;
-  /** read a workbook's index (its sheets are read on demand); throws with `code` CFB/XLSB/NOTZIP/NOTXLSX */
+  /** read a workbook's index (its sheets are read on demand); throws with `code` CFB/ENCRYPTED/NOTZIP/NOTXLSX */
   index(a: { buf: ArrayBuffer }): WorkbookInfo;
   /** read sheets of workbook `book` (progress events while reading); the page gets their slices with the next
       "slices" event; a workbook that is neither the open one nor the one being opened is refused */

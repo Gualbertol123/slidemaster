@@ -463,6 +463,45 @@ export class SheetScanner {
   }
 }
 
+/** the same columns from another reader (the .xlsb records, xlsb/sheet.ts): cells and rows in file order, then
+    sorted and de-duplicated exactly as the scanner's */
+export class ColumnsBuilder {
+  private readonly cells = new Cols();
+  private readonly runs = new Map<number, Script[]>();
+  private readonly strs: string[] = [];
+  private readonly strIx = new Map<string, number>();
+  private readonly dateXf: Uint8Array;
+  private readonly rowR = i32(); private readonly rowH = f64(); private readonly rowHid = u8();
+  private readonly rowHasS = u8(); private readonly rowS = f64();
+  constructor(private readonly ctx: Shared) { this.dateXf = new Uint8Array(Math.max(1, ctx.xfs.length)); }
+  /** the scanner's rule: an index without a cell format means format 0 */
+  xf(n: number): number { return n >= 0 && n < 65536 && this.ctx.xfs[n] ? n : 0; }
+  private isDate(x: number): boolean {
+    let d = this.dateXf[x];
+    if (!d) { const xf = this.ctx.xfs[x] || this.ctx.xfs[0]; d = this.dateXf[x] = xf && isDateFmt(xf.fmt) ? 2 : 1; }
+    return d === 2;
+  }
+  private intern(s: string): number {
+    let i = this.strIx.get(s);
+    if (i === undefined) { i = this.strs.length; this.strs.push(s); this.strIx.set(s, i); }
+    return i;
+  }
+  blank(r: number, c: number, x: number) { this.cells.push(r, c, Kind.Blank, x, 0); }
+  /** a number: a date when its format is one */
+  num(r: number, c: number, x: number, v: number) { this.cells.push(r, c, this.isDate(x) ? Kind.Date : Kind.Num, x, v); }
+  shared(r: number, c: number, x: number, i: number) { this.cells.push(r, c, Kind.Shared, x, i); }
+  str(r: number, c: number, x: number, s: string, scr?: Script[]) { const i = this.cells.push(r, c, Kind.Str, x, this.intern(s)); if (scr) this.runs.set(i, scr); }
+  bool(r: number, c: number, x: number, v: boolean) { this.cells.push(r, c, Kind.Bool, x, v ? 1 : 0); }
+  err(r: number, c: number, x: number, s: string) { this.cells.push(r, c, Kind.Err, x, this.intern(s)); }
+  row(r: number, h: number, hidden: boolean, s: number | null) {
+    this.rowR.push(r); this.rowH.push(h); this.rowHid.push(hidden ? 1 : 0);
+    if (s !== null) { this.rowHasS.push(1); this.rowS.push(s); } else { this.rowHasS.push(0); this.rowS.push(0); }
+  }
+  finish(): { cells: SheetColumns; rows: RowColumns } {
+    return { cells: sortCells(this.cells, this.runs, this.strs), rows: sortRows(this.rowR.done(), this.rowH.done(), this.rowHid.done(), this.rowHasS.done(), this.rowS.done()) };
+  }
+}
+
 function sortCells(C: Cols, runs: Map<number, Script[]>, strs: string[]): SheetColumns {
   const n0 = C.n, row = C.row;
   let sorted = true;

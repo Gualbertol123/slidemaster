@@ -5,6 +5,11 @@ Releases are made with `docs/next/release-checklist.md`.
 
 ## 4.1.0 - unreleased
 
+What users notice
+* **`.xlsb` workbooks (Excel Binary Workbook) open directly, without Excel** (B10): faster, also when PowerShell or
+  Excel are restricted on the PC, and from a page opened from disk. They look exactly as the same workbook saved as
+  `.xlsx`. Old `.xls` workbooks and protected files are still converted by the PC's Excel, as before.
+
 For the maintainer
 * The Slide Builder 4 pilot is gone (4.0 went live without it): `Start Slide Builder (v4 pilot).bat`, the helper's
   `--pilot` and `Update Slide Builder.bat --pilot`. Nothing else changes.
