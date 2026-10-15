@@ -1,4 +1,4 @@
-"""Persistent documents in ``data/`` (ARCHITECTURE §3, §4): config.json, users/<user>.json, and - read only -
+"""Persistent documents in ``data/`` (ARCHITECTURE §13.4, §7.1): config.json, users/<user>.json, and - read only -
 Slide Builder 3's workbook documents (the migration and the self-test read them; decks are decks.py's).
 
 * reads retry parsing (5x over 0.5 s); an existing file that still cannot be read raises

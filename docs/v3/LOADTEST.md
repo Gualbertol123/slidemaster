@@ -1,5 +1,9 @@
 # Load test: shared-folder storage with 10 users
 
+> **Archived (PLAN S6.4, 2026-10-15).** This document is from before Slide Builder 4 (patched in places during
+> the rebuild) and is kept for history; its links are as they were. The current documents are the
+> [README](../../README.md) and the [contract](../ARCHITECTURE.md).
+
 > **Slide Builder 4 (storage v4, PLAN S5.4):** `tools/loadtest4.py` drives real v4 helpers (one per user, one
 > folder) the way the core's DocSync v4 does - an edit every 1-3 s, one record per 300 ms batch, a tail every
 > 1.5 s, presence every 10 s - with simulated share latency (`helper/slidebuilder/simfs.py`; for the decks every

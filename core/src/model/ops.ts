@@ -1,5 +1,5 @@
 /* Document operations – the ONLY way documents change, and the ONLY implementation of their semantics
-   (docs/ARCHITECTURE.md §3.2; since 4.0 the helper applies none: it stores records of them, model/fold.ts folds
+   (docs/ARCHITECTURE.md §3; since 4.0 the helper applies none: it stores records of them, model/fold.ts folds
    them). Pinned by shared/ops-vectors.json. */
 import type { CellEdit, Op, WorkbookDoc, StylePatch } from "./types";
 

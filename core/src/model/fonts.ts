@@ -1,5 +1,5 @@
 /* Fonts: the fonts installed on Windows, popular Google Fonts, and the shared font library (fonts
-   uploaded by users or saved from Google Fonts, kept by the helper in data/fonts, see ARCHITECTURE §3.4).
+   uploaded by users or saved from Google Fonts, kept by the helper in data/fonts, see ARCHITECTURE §12.1).
    Text formats store a font by its family name ("Roboto"); fontStack() turns it into CSS. */
 
 export interface FontFace { file: string; weight: number; style: "normal" | "italic"; range?: string }

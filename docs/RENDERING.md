@@ -1,13 +1,13 @@
 # Slide Builder – how workbooks become slides
 
 The reading and rendering algorithms were carried over from v2.3 unchanged in behaviour, except for
-the fixes listed in `docs/REVIEW.md` (number formats, conditional formats). Since v3.8 (M4) slides are
+the fixes listed in `docs/v3/REVIEW.md` (number formats, conditional formats). Since v3.8 (M4) slides are
 drawn from display lists instead of HTML (§2), held to v3's output: `npm run parity` (`tools/parity.mjs`)
 compares every deck × design × version with the goldens captured from v3.4.0 (`golden/`: elements, boxes,
 texts, a chosen set of screenshots, the PDF), `npm run dlparity` (`tools/dlparity.mjs`) does the same for
 the display list drawn on a canvas (thumbnails, PNG), and SP (screen = PDF, `tools/stage-capture.mjs`)
 checks every slide on the stage against its page of the exported PDF.
-This file describes them; `docs/ARCHITECTURE.md` describes storage, sync and the HTTP API.
+This file describes them; `docs/ARCHITECTURE.md` (the contract) describes storage, sync and the HTTP API.
 
 In v3 nothing reads globals: renderers receive a `RenderCtx` (`render/context.ts`) with the deck
 style, the cell edits, the slides and the workbook name. Per-table caches (`L._cache`) are keyed by

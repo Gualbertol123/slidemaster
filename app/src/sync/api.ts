@@ -1,4 +1,4 @@
-/* Talking to the helper (docs/ARCHITECTURE.md §5). When the page is opened from disk (file://)
+/* Talking to the helper (docs/ARCHITECTURE.md §10). When the page is opened from disk (file://)
    an in-browser backend keeps documents in localStorage, and exports are downloads (B1, editor/export.ts). */
 import { FORMATS, type ConfigDoc, type Prefs, type StylePatch, type WorkbookDoc } from "@slide-builder/core/model/types";
 import { applyOps, emptyDoc } from "@slide-builder/core/model/ops";

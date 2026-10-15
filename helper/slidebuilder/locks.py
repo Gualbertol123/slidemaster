@@ -1,4 +1,4 @@
-"""Cross-process / cross-PC lock files (ARCHITECTURE §4).
+"""Cross-process / cross-PC lock files (ARCHITECTURE §7.1).
 
 A lock is the file ``data/locks/<name>.lock`` created with ``O_CREAT | O_EXCL`` - atomic on local
 disks and on SMB shares. Its body is ``{user, host, pid, at, token}``; the random token lets the

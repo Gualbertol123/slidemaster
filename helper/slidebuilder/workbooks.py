@@ -1,4 +1,4 @@
-"""Workbooks in the app folder: listing and stable reads (ARCHITECTURE §5, finding C8)."""
+"""Workbooks in the app folder: listing and stable reads (ARCHITECTURE §10, finding C8)."""
 import os
 import stat as stat_module
 import time

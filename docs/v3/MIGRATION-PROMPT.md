@@ -1,5 +1,9 @@
 # Prompt: design the next Slide Builder (full rebuild on a new local stack)
 
+> **Archived (PLAN S6.4, 2026-10-15).** This document is from before Slide Builder 4 (patched in places during
+> the rebuild) and is kept for history; its links are as they were. The current documents are the
+> [README](../../README.md) and the [contract](../ARCHITECTURE.md).
+
 Copy everything below the line into a new AI agent session that has this repository checked out
 (read access to the code, a shell, the ability to run the tests). It is self-contained.
 

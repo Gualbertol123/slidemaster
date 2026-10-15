@@ -1,4 +1,4 @@
-"""Writing exports into ``export\\`` (ARCHITECTURE §5, finding C7).
+"""Writing exports into ``export\\`` (ARCHITECTURE §10, §13.3; finding C7).
 
 The page renders the PDF or PNG itself (the native export) and posts the bytes (``/api/export-file``); a
 problem report goes to ``/api/export-feedback``. The bytes go to a unique temporary file in the export
