@@ -240,6 +240,7 @@ numbers measured twice). Measured numbers go into the step's line.
   4. answer **go**, or **no-go** with the findings (the agent fixes them as "S5.6-fix · …" and builds 4.0.0-pilot.2);
   5. note: the pilot is marked in its black window (title and first lines), not in the page itself – marking the page would be a visible change outside B1–B14; say if you want it.
 - **For S5.7 (cut-over), found by the S5.6 dry run:** `Update Slide Builder.bat --release 4.0.0` cannot work on a share running 3.8 (its updater refuses 4.x ZIPs, nothing changes); `cutover.md` will run the 4.0 ZIP's own updater for that one switch, as the release checklist §6 already does for a share's first `--release`.
+  Also found 2026-10-15 installing into the empty `slider` folder: a release install copies only `Start Slide Builder.bat` and `tools/update.py` into the main folder, so a NEW folder gets no `Update Slide Builder.bat` / `Install Slide Builder.bat` (added by hand from the 3.8.0 ZIP). S5.7: the updater adds a missing start file (never replaces the running Update one).
 
 - **M5a (S5.1–S5.5) on `v4/M5a-storage`, for a person:** (1) ~~push the branch and open ONE pull request~~ pushed by the
   product owner, [PR #9](https://github.com/Gualbertol123/slidemaster/pull/9) opened 2026-10-15 (CI's core job had
