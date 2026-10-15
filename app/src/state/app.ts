@@ -7,7 +7,7 @@
    ops) until the worker's snapshot that includes them arrives. */
 import { get, patch, patchAll, same, STAGE, THUMBS, toast, showBusy, hideBusy } from "./store";
 import { ask, runWizard } from "./dialogs";
-import { backend, patchStyleDefault } from "../sync/api";
+import { backend, openTail, patchStyleDefault } from "../sync/api";
 import { connectCore, type CorePort } from "../rpc/client";
 import { browserText } from "../platform";
 import type { RunMetrics } from "@slide-builder/core/platform";
@@ -283,7 +283,7 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   // the deck on the share: its snapshot and the records past it, folded as the worker will (model/fold.ts)
   const opened = await backend.openDeck(name);
   stale();
-  const tail = backend.served ? await backend.deckTail(opened.key, opened.snapshot.frontier) : undefined;
+  const tail = backend.served ? await openTail(backend, opened.key, opened.snapshot.frontier) : undefined;
   stale();
   const deck: DeckOpen = { key: opened.key, writer: opened.writer, snapshot: opened.snapshot, ...(tail ? { tail } : {}) };
   const doc = fold(deck.snapshot, Object.values(tail?.journals || {}).flatMap(j => j.records)).doc;

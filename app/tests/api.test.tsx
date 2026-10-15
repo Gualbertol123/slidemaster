@@ -1,7 +1,7 @@
 /* The helper client (sync/api.ts): a read whose connection drops is asked again once; a write is not (it may have
    arrived). Seen on Windows: a loopback request failing with ERR_CONNECTION_TIMED_OUT left "No workbook" behind an open. */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, helper, offline, patchStyleDefault, type Backend } from "../src/sync/api";
+import { ApiError, helper, offline, openTail, patchStyleDefault, type Backend } from "../src/sync/api";
 import type { ConfigDoc } from "@slide-builder/core/model/types";
 
 const dropped = () => Promise.reject(new TypeError("Failed to fetch"));
@@ -89,5 +89,22 @@ describe("the shared defaults by compare-and-set (patchStyleDefault)", () => {
     const r = await offline.configSet(c.rev, { color: 2 });
     expect(r.doc.rev).toBe(c.rev + 1);
     expect(r.doc.defaults.style).toEqual({ color: 2 });
+  });
+});
+
+describe("the first tail of a deck being opened (openTail, audit DATA-3)", () => {
+  // a journal the helper could not read (skipped) was folded as empty at open: the deck could look new, and the
+  // default or wizard preset went over the user's
+  const tailOf = (skipped?: string[]) => ({ journals: { "w.log": { offset: 9, records: [] } }, gen: 2, ...(skipped ? { skipped } : {}) });
+  it("asks again while a journal is skipped, and returns the complete tail", async () => {
+    const deckTail = vi.fn().mockResolvedValueOnce(tailOf(["anna.log"])).mockResolvedValueOnce(tailOf());
+    const t = await openTail({ deckTail } as unknown as Backend, "k", {}, 4, 1);
+    expect(t.skipped).toBeUndefined();
+    expect(deckTail).toHaveBeenCalledTimes(2);
+  });
+  it("fails the open when the journal stays unreadable, never returns a tail without it", async () => {
+    const deckTail = vi.fn().mockResolvedValue(tailOf(["anna.log"]));
+    await expect(openTail({ deckTail } as unknown as Backend, "k", {}, 3, 1)).rejects.toThrow(/cannot be read right now \(anna\.log\)/);
+    expect(deckTail).toHaveBeenCalledTimes(3);
   });
 });
