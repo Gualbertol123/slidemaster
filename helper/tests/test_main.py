@@ -104,6 +104,21 @@ class StartTimeTests(unittest.TestCase):
         self.assertLess(time.perf_counter() - t, 0.5)
 
 
+class SourceTests(unittest.TestCase):
+    def test_every_module_compiles_without_a_warning(self):
+        # audit (docs/next/AUDIT.md SEC-11): paths.py's docstrings held "\a", "\b", "\ " - Python 3.12 printed a
+        # SyntaxWarning at every start, and the docstrings held a bell and a backspace
+        import glob
+        import warnings
+        helper = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        for f in sorted(glob.glob(os.path.join(helper, "slidebuilder", "*.py"))) + [os.path.join(helper, "slide_builder.py")]:
+            with open(f, encoding="utf-8") as fh:
+                src = fh.read()
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                compile(src, f, "exec")
+
+
 class AppWindowTests(unittest.TestCase):
     """B12: the app opens in an Edge app window (msedge --app=<url>), else in a browser tab"""
 
