@@ -448,7 +448,8 @@ candidate one second after the last change; on `pagehide`, if nobody else is pre
 (`app/src/state/app.ts:123-128`, `app/src/sync/api.ts:119,145-150`).
 
 **Prepare rollback** (Options › Administration) compacts every deck: each once, then one wait of 32 s, then each
-again until no record lies past the frontier (`app/src/state/app.ts:470-506`).
+deck not yet covered once more, at most 15 s each; a deck that still has records past the frontier is reported as
+"still being edited" (`app/src/state/app.ts:470-506`).
 
 ### 6.4 Rotation, deletion of journals, backups, history
 
@@ -593,7 +594,8 @@ document. `GET /api/decks` lists every deck with `rolledBack`.
   instead (for `<img>` and `@font-face`).
 * **Formats.** A POST, PUT or DELETE under `/api/` carrying `X-SB-Formats` (the page sends
   `workbook=3;config=3;prefs=1`, `FORMATS` in `core/src/model/types.ts:68`) that differs from the helper's `SCHEMA`
-  → **409** "Slide Builder was updated – reload the page". Requests without the header are accepted.
+  → **409** "Slide Builder was updated – reload the page". Requests without the header, or with one that cannot be
+  parsed, are accepted; a format the header does not name is not compared.
 * **Bodies**: chunked bodies → 411 (a request without `Content-Length` has an empty body); JSON bodies ≤ 2 MB, a compaction ≤ 32 MB, uploads, exports
   and conversions ≤ 300 MB, a logo ≤ 10 MB, a font ≤ 15 MB → else **413**. Invalid JSON or a non-object → 400.
 * **Errors** are `{"error": "<message>"}` (deck errors add fields, e.g. `{gen}` or `{readonly: true}`). Every answer
@@ -638,7 +640,7 @@ Helper, settings, workbooks:
 | `POST /api/upload?name=` | bytes (≤ 300 MB) | `{id, name}` – a workbook opened from outside the folder, kept in memory (8 entries, 2 h) |
 | `GET /api/upload/<id>` | – | the bytes; 404 "upload expired" |
 | `POST /api/logo?name=` | picture bytes (≤ 10 MB; extension `.png .jpg .jpeg .gif .webp .bmp .ico`, not `.svg`) | `{name}`: saved as `data\assets\<safe name>` (atomic, ≤ 80 chars); 400 empty or wrong type |
-| `POST /api/open` | `{name}` or `{folder: true}` | `{ok: true}`: opens a file of the export folder, or the folder, with the OS; 404 missing; 403 outside the folder |
+| `POST /api/open` | `{name}` or `{folder: true}` | `{ok: true}`: opens a file of the export folder, or the folder, with the OS; 400 neither given; 404 missing; 403 outside the folder |
 | `POST /api/export-file?name=` | PDF or PNG bytes (≤ 300 MB) | `{ok: true, files: [<name used>]}`; only `.pdf` / `.png` names whose bytes start with `%PDF-` / the PNG signature (else 400); control characters → space; Windows-invalid characters → `_`; stem ≤ 200 chars; written to a temp file in `export\`, then under lock `export-<doc_key(name)>` renamed to the first of `name`, `name (2)` … `name (50)` that is not open in another program |
 | `POST /api/export-feedback` | a non-empty JSON object (≤ 2 MB) | `{ok: true, file: "feedback/<YYYYMMDD-HHMMSS>-<user>.json"}`: `{kind: "export-feedback", schema: 1, app, version, user, host, at, report}`, ≤ 64 KB (else 400), never replacing another report |
 | `POST /api/convert-workbook?name=` | workbook bytes (≤ 300 MB) | `.xlsx` bytes made by Excel (§13.1); **501** off Windows or on failure |

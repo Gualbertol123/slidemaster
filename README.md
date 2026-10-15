@@ -167,7 +167,7 @@ A version in `app\<ver>\helper\` uses the main folder's workbooks, `export\` and
 |---|---|
 | User, first time on a PC | `Install Slide Builder.bat` → `slide_builder.py --install`, 5 steps: **Python** ≥ 3.8; **shared folder** (lock file, write in `export\`, the median of 20 create/stat/replace/delete round trips – WARN above 30 ms); **journal** (a file in `data\locks` appended to twice with `fsync`, read back, removed; required); **desktop shortcut** (`.lnk` through PowerShell, or a `.bat` when PowerShell is blocked; optional); **self-test** (start a helper on a free port, ping it, stop it). Any FAIL exits 1. Nothing is downloaded; no admin rights; idempotent. Code: `helper/slidebuilder/firstrun.py`. |
 | User, daily | `Start Slide Builder.bat` (or the shortcut). It finds Python (`py -3`, else `python`), starts `slide_builder.py` of `app\current.json`'s version (else `helper\`, else `backend\`). Keep the console window open. The app opens in an Edge app window (`msedge --app=<url>`); a normal browser tab when Edge is missing or `SLIDEBUILDER_APP_WINDOW=0`. |
-| One person, to update everyone | `Update Slide Builder.bat` (§2.3, §7.6). Everybody then restarts Slide Builder and reloads the page. |
+| One person, to update everyone | `Update Slide Builder.bat` (§2.3, §7.5). Everybody then restarts Slide Builder and reloads the page. |
 | Maintainer, rollback of a deck | §2.4 and `docs/next/cutover.md` §3. |
 | Developer | §11. Users never need Node.js: the built `helper/slide_builder.html` is committed. |
 
@@ -431,7 +431,7 @@ Current formats: `SCHEMA = {workbook: 3, config: 3, prefs: 1}` (`helper/slidebui
 ### 4.5 Slide Builder 3 documents and the move to v4
 On a deck's first open in 4.x (`POST /api/decks/open`), `migrate_v3.py` – under v3's lock `wb-<key>` and then the
 deck lock – backs the v3 file up byte for byte, **freezes** it (`schema 4`, `movedTo "v4"`, `movedGen`; Slide
-Builder 3 then refuses that deck with "Slide Builder was updated"), writes snapshot gen 1 and
+Builder 3 then refuses that deck with "Slide Builder was updated"), writes the snapshot (gen 1; after a rollback the old gen + 1) and
 `moved-from-v3.json`. A half-done step is finished by the next try. New decks get a frozen stub. A rollback
 (§2.4) writes `rolled-back.json` first, waits 14 s, checks the frontier again, and gives the document back to v3.
 
@@ -789,8 +789,8 @@ unavailable · 503 unreadable file, lock busy, workbook still being saved (clien
 * **Coordination only through files on the share.** An edit is one record appended to the page session's own
   journal (no lock; `os.fsync` before the answer); the order is the records' Lamport time, so it does not depend
   on whose append reached the share first. A compaction writes the next snapshot by compare-and-set on its `gen`
-  under the deck's lock; config, prefs and snapshots are temp file + fsync + `os.replace` (retried for Windows
-  sharing violations) under `O_EXCL` lock files. Ages (stale locks, presence, `at`) use the file server's clock.
+  under the deck's lock; config and snapshots are written under `O_EXCL` lock files, and config, prefs and
+  snapshots are all temp file + fsync + `os.replace` (retried for Windows sharing violations). Ages (stale locks, presence, `at`) use the file server's clock.
 * **Field-level merge** (§4.3): different fields never conflict; the same field → the later record in Lamport
   order wins, on every PC alike.
 * **Clients** keep `fold(snapshot, records) + in flight + pending`; one append in flight; a record is never
