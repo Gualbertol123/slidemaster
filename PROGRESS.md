@@ -225,6 +225,10 @@ numbers measured twice). Measured numbers go into the step's line.
   3. ReadDirectoryChangesW: polling stays the protocol (ADR-007); whether S6.3 adds the optional hint is decided in M6
      from the pilot's measurement.
   (Already decided earlier: the Acrobat recipe – soft masks; fonts – fingerprint mode, R7 answered yes 2026-10-14.)
+- 2026-10-15 · **The real-share load test is accepted** (product owner, recorded by the agent at their request):
+  20 users on one deck miss two 05 §3.5 targets on `T:\…\Chief Dashboard\slider` (save p95 171 ms > 150; with
+  compaction visible p95 4.6 s > 4 s, one save 538 ms), with all 20 helpers on one PC; 10 users pass everything, no
+  record was lost in any run. Accepted as a one-PC limit of the test; no tuning before S5.6.
 
 ## Waiting for
 
@@ -232,8 +236,7 @@ numbers measured twice). Measured numbers go into the step's line.
   session's permission rules refused `git push`); (2) ~~run `tools/loadtest4.py --real-folder` on the real share~~ run by a person
   2026-10-15 (Measurements): no record lost, every page converged; 10 users pass every 05 §3.5 criterion, 20 users fail two
   (same-deck save p95 171 ms > 150; with compaction visible p95 4.6 s > 4 s, one save 538 ms). All 20 helpers ran on one
-  PC (one SMB client: tail p95 grew from 0.35–0.7 s to 1.3–2.5 s), so 20 real PCs may do better – product owner: accept,
-  measure with real PCs in the S5.6 pilot, or ask for tuning first (tail interval, listing cache); (3) the goldens' environment
+  PC (one SMB client: tail p95 grew from 0.35–0.7 s to 1.3–2.5 s) – **accepted 2026-10-15** (Decisions); (3) the goldens' environment
   changed on this PC (Windows 10.0.22631 → 10.0.26100, fonts 357 → 350): parity ran text-only and SP not at all for
   all of M5 – re-capture or a reference machine is a product-owner decision; (4) product owner: *Options ›
   Administration › Prepare rollback* (required by PLAN S5.3) and the deck-health line (required by S5.5) are visible
