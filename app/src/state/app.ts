@@ -116,7 +116,8 @@ export async function boot() {
   if (backend.served) {
     const files = await backend.files().catch(() => []);
     const last = get().prefs.prefs.lastFile;
-    if (last && files.some(f => f.name === last)) await guard(() => openFromFolder(last, false));
+    // the last workbook reopens only if the user has not opened one meanwhile: their choice wins (decided 2026-10-14)
+    if (last && openGen === 0 && files.some(f => f.name === last)) await guard(() => openFromFolder(last, false));
     setInterval(() => { void tick(); }, 3000);
     setInterval(() => { void heartbeat(); }, 10000);
     void heartbeat();

@@ -66,3 +66,29 @@ test("a dropped workbook opens; of two drops at once the newer opens; reload fro
   await expect(page.locator(".thumb")).toHaveCount(thumbs);
   expect(errors).toEqual([]);
 });
+
+test("a workbook picked while start-up still reopens the last one stays open (decided 2026-10-14, audit UX-1)", async ({ page }) => {
+  // start-up reopens the last workbook (report.xlsx after the test above); a workbook the user picks before that
+  // reopen ran was replaced by it. The start-up's file list is held back 3 s here, so the user's pick comes first.
+  const errors: string[] = [];
+  page.on("pageerror", e => errors.push(e.message));
+  expect(lastFile()).toBe("report.xlsx");
+  // start-up's request for the file list (the first one, before any click) is held until the user has picked
+  let release!: () => void, seen!: () => void, first = true;
+  const gate = new Promise<void>(r => { release = r; }), started = new Promise<void>(r => { seen = r; });
+  await page.route(/\/api\/files(\?|$)/, async route => {
+    if (first) { first = false; seen(); await gate; }
+    await route.continue();
+  });
+  await page.goto(ANNA);
+  await started;
+  await page.click("#openBtn");
+  await page.click('[data-f="weekly.xlsx"]');
+  const wizard = page.locator(".wiz"), cont = page.locator('[data-a="continue"]');
+  await expect(wizard.or(cont)).toBeVisible({ timeout: 20_000 });              // the user's workbook asks its question
+  release();                                                                     // now start-up gets its list
+  await page.waitForTimeout(5000);
+  await expect(wizard.or(cont)).toBeVisible();
+  await expect(page.locator("#fileName")).not.toContainText("report.xlsx");
+  expect(errors).toEqual([]);
+});
