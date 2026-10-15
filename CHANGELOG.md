@@ -3,6 +3,12 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.1.0 - unreleased
+
+For the maintainer
+* The Slide Builder 4 pilot is gone (4.0 went live without it): `Start Slide Builder (v4 pilot).bat`, the helper's
+  `--pilot` and `Update Slide Builder.bat --pilot`. Nothing else changes.
+
 ## 4.0.0 - 2026-10-15
 
 What users notice – decks are stored the Slide Builder 4 way (PLAN M5)

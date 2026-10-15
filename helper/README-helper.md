@@ -9,7 +9,6 @@ python slide_builder.py [--port 8765] [--no-browser]    # what "Start Slide Buil
 python slide_builder.py --install                        # what "Install Slide Builder.bat" (root) runs
 python slide_builder.py --allow-font-copy "J. Doe, 2026-10-20"   # the licence owner said yes (R7): copy mode; "off" goes back
 python slide_builder.py --selftest                       # can this version use the shared folder? (read-only; tools/update.py)
-python slide_builder.py --pilot [--refresh]              # what "Start Slide Builder (v4 pilot).bat" runs: a copy of the data (pilot.py)
 ```
 
 The page renders PDFs and PNGs itself (the native export) and posts the bytes to `/api/export-file`;

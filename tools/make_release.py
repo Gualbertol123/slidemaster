@@ -34,7 +34,7 @@ _spec = importlib.util.spec_from_file_location("sb_update", os.path.join(os.path
 update = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(update)
 
-ROOT_FILES = ("Start Slide Builder.bat", "Update Slide Builder.bat", "Install Slide Builder.bat", "Start Slide Builder (v4 pilot).bat",
+ROOT_FILES = ("Start Slide Builder.bat", "Update Slide Builder.bat", "Install Slide Builder.bat",
               "Start Slide Builder (v3).bat",
               "README.md", "CHANGELOG.md",
               "tools/update.py", "tools/fieldcheck.html")

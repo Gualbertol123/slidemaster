@@ -5,7 +5,7 @@ done by people; the agent prepared and rehearsed it (`tools/cutover-rehearsal.mj
 
 | | |
 |---|---|
-| **Share** (`$S` below) | `T:\COMMERCIAL PLANNING&PRICING\BENCHMARKING_CP\Chief Dashboard\slider` – runs 3.8.0 (`app\current.json`) and the pilot 4.0.0-pilot (`app\pilot.json`). Nothing outside `slider\` is touched. |
+| **Share** (`$S` below) | `T:\COMMERCIAL PLANNING&PRICING\BENCHMARKING_CP\Chief Dashboard\slider` – runs 4.0.0 since 2026-10-15 (`app\current.json`; 3.8.0 stays installed for a rollback). Nothing outside `slider\` is touched. |
 | **Maintainer** | runs the commands, from one PC, and watches the four weeks: ______________________ |
 | **Decides a rollback** | the product owner: ______________________ (the maintainer may roll back **one deck** on their own when it is blocked; **everything** only with the product owner's yes) |
 | **Monday** | ____ / ____ / 2026 (G3) |
@@ -67,7 +67,7 @@ Get-Content "$S\app\current.json"
 dir $S
 ```
 `"version": "4.0.0"`, `"previous": "3.8.0"`; the folder has `Start Slide Builder.bat`, `Start Slide Builder (v3).bat`,
-`Update Slide Builder.bat`, `Install Slide Builder.bat`, `Start Slide Builder (v4 pilot).bat`, `app`, `backend`,
+`Update Slide Builder.bat`, `Install Slide Builder.bat`, `app`, `backend`,
 `tools`. A release install replaces `Start Slide Builder.bat`, `Install Slide Builder.bat` (3.8's cannot find the
 program in a folder of side-by-side versions) and `tools\update.py`, and adds `Update Slide Builder.bat` and
 `Start Slide Builder (v3).bat` when they are missing (never replacing them).
@@ -144,7 +144,7 @@ slidebuilder-3.8.0.zip --v4-zip slidebuilder-4.0.0.zip`.
 | Fridays | **deck health** of 3 busy decks: the side panel's last line "Deck: snapshot N · M changes since in J journals" | Slide Builder 4, side panel | M grows during the week and drops after a compaction; M above ~5 000 → report |
 | Fridays | **reports** (§5): count blocking / annoying / cosmetic | the maintainer's inbox | blocking → §3 and a fix (4.0.x) |
 | Fridays | **record** the week in PROGRESS.md, Measurements: incidents, rollbacks, reports, deck health | | |
-| D+28 | four weekly cycles without a rollback → PLAN S6.5 (Prompt 9): `Start Slide Builder (v3).bat` and the pilot's files are removed; `backend\` stays | | |
+| D+28 | four weekly cycles without a rollback → PLAN S6.5 (Prompt 9): `Start Slide Builder (v3).bat` is removed; `backend\` stays | | |
 
 A rollback (§3) restarts the four weeks for the decision on S6.5.
 

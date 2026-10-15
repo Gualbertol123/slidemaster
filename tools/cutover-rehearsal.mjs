@@ -1,19 +1,16 @@
-/* Dry run of the pilot and the cut-over on a TEMP copy of a share folder (docs/next/pilot-v4.md, docs/next/cutover.md,
+/* Dry run of the cut-over on a TEMP copy of a share folder (docs/next/cutover.md,
    04 §4). Never touches a real share: everything happens in a new folder below the system's temp folder.
 
-     node tools/cutover-rehearsal.mjs --v3-zip slidebuilder-3.8.0.zip --v4-zip dist/slidebuilder-4.0.0.zip [--pilot]
+     node tools/cutover-rehearsal.mjs --v3-zip slidebuilder-3.8.0.zip --v4-zip dist/slidebuilder-4.0.0.zip
                                       [--out transcript.txt] [--keep]
 
    The folder is seeded with tests/corpus: every workbook of tests/corpus/decks/<id>.json copied as <id>.<ext>, its
    deck saved through Slide Builder 3's own API. Then, with real helpers (one per "PC") and real pages (Chromium):
      1. install the v3 release (tools/update.py --zip), start it, open a deck and edit a cell;
-     2. (--pilot) install the v4 release as the pilot (--pilot --zip), start it as "Start Slide Builder (v4 pilot).bat"
-        does, open the deck, edit, migrate-all, Prepare rollback, rollback --all, Slide Builder 3 on the copy edits:
-        the real data and the real export folder must be byte for byte unchanged;
-     3. install the v4 release with the folder's own updater (the v3 one), start v4, open the same deck (it moves
+     2. install the v4 release with the folder's own updater (the v3 one), start v4, open the same deck (it moves
         to v4; the open v3 page turns outdated), edit a cell;
-     4. Update --migrate-all; Options › Administration › Prepare rollback; close the page; stop the helpers;
-     5. Update --rollback (every deck), --use <v3>; start v3 again, open the deck: v4's edit is there; edit a cell.
+     3. Update --migrate-all; Options › Administration › Prepare rollback; close the page; stop the helpers;
+     4. Update --rollback (every deck), --use <v3>; start v3 again, open the deck: v4's edit is there; edit a cell.
    Checks: every other deck is exactly what it was before v4, and the deck has exactly the edits that were saved.
    The transcript (stdout, and --out) holds no times, paths or ports, so two runs can be compared with `diff`.
    Exit 0 = every check passed. */
@@ -31,8 +28,8 @@ const PY = process.platform === "win32" ? "python" : "python3";
 const CHROME = process.env.CHROME || chromium.executablePath();
 const FORMATS3 = "workbook=3;config=3;prefs=1";
 const arg = (name, dflt = null) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : dflt; };
-const V3ZIP = arg("--v3-zip"), V4ZIP = arg("--v4-zip"), OUT = arg("--out"), KEEP = process.argv.includes("--keep"), PILOT = process.argv.includes("--pilot");
-if (!V3ZIP || !V4ZIP) { console.error("usage: node tools/cutover-rehearsal.mjs --v3-zip FILE --v4-zip FILE [--pilot] [--out FILE] [--keep]"); process.exit(2); }
+const V3ZIP = arg("--v3-zip"), V4ZIP = arg("--v4-zip"), OUT = arg("--out"), KEEP = process.argv.includes("--keep");
+if (!V3ZIP || !V4ZIP) { console.error("usage: node tools/cutover-rehearsal.mjs --v3-zip FILE --v4-zip FILE [--out FILE] [--keep]"); process.exit(2); }
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sb-rehearsal-"));
 const share = path.join(tmp, "Slide Builder"), data = path.join(share, "backend", "data");
@@ -69,7 +66,7 @@ function cleanEnv() {
   for (const k of Object.keys(env)) if (/^SLIDEBUILDER_(ROOT|DATA|EXPORT|APP_FILE|USER|HOST)$/.test(k)) delete env[k];
   return env;
 }
-/** a helper as a start file runs it: the program's folder, the user's name, no path variables (unless the pilot's) */
+/** a helper as a start file runs it: the program's folder, the user's name, no path variables */
 async function startHelper(label, entry, user, extra = [], env = {}) {
   const port = await freePort(), url = `http://127.0.0.1:${port}/`;
   const proc = spawn(PY, [entry, "--no-browser", "--port", String(port), ...extra],
@@ -86,7 +83,7 @@ async function startHelper(label, entry, user, extra = [], env = {}) {
     return { status: r.status, body: text ? JSON.parse(text) : null };
   };
   say(`  ${label} started: Slide Builder ${ping.version}, user ${user}`);
-  for (const l of log.split(/\r?\n/)) if (/^ (PILOT|Exports|Data)/.test(l)) say("    " + l.trim());
+  for (const l of log.split(/\r?\n/)) if (/^ (Exports|Data)/.test(l)) say("    " + l.trim());
   const stop = () => { try { process.platform === "win32" ? execFileSync("taskkill", ["/pid", String(proc.pid), "/T", "/F"], { stdio: "ignore" }) : proc.kill(); } catch { /* gone */ } };
   return { url, api, stop, version: ping.version, log: () => log };
 }
@@ -103,7 +100,7 @@ function flat(edits, pre = "", out = new Map()) {
   return out;
 }
 const changes = (a, b) => { const A = flat(a.edits), B = flat(b.edits); return [...new Set([...A.keys(), ...B.keys()])].filter(k => A.get(k) !== B.get(k)).sort(); };
-/** the snapshot files of every deck (the bytes Slide Builder 3 and the pilot read), for "nothing changed" */
+/** the snapshot files of every deck (the bytes Slide Builder 3 reads), for "nothing changed" */
 function treeHashes(dir, skip = []) {
   const out = {};
   const walk = d => { for (const e of fs.readdirSync(d, { withFileTypes: true })) {
@@ -154,7 +151,7 @@ async function boldCell(p, n) {
 // ------------------------------------------------------------------------------------------------ the run
 const helpers = [];
 try {
-  say(`Rehearsal: Slide Builder ${V3} -> ${V4}${PILOT ? " (with the pilot)" : ""} on a temp copy of a share folder`);
+  say(`Rehearsal: Slide Builder ${V3} -> ${V4} on a temp copy of a share folder`);
   // the folder: the workbooks of the corpus decks, an empty backend\
   fs.mkdirSync(path.join(share, "backend"), { recursive: true });
   fs.copyFileSync(path.join(CORPUS, "assets", "logo.png"), path.join(share, "logo.png"));
@@ -180,54 +177,13 @@ try {
   let a = await openPage(h3, "anna (v3)");
   await openDeck(a, DECK);
   check((await boldCell(a, 0)) === "✓ Saved", "v3: anna's edit (cell 1 bold) saved");
-  // her page also records the fonts it laid out (data\fonts\system\fingerprints.json) a moment later: closed before
-  // the pilot, so that "the pilot wrote nothing in the real data" is about the pilot alone
   await sleep(3000); await a.ctx.close();
   const pageErrors = [...a.errors];
   say("  anna closes her page");
   const before = {};
   for (const d of decks) before[d.file] = await v3Doc(h3, d.file);
 
-  if (PILOT) {
-    say("\n== 2. The pilot on a copy (" + V4 + ")");
-    // the real data minus what the open v3 page itself keeps writing (its presence heartbeat) and the updater's lock
-    const real = () => ({ data: treeHashes(data, ["locks", "backups", "v4-pilot", "presence"]), export: treeHashes(path.join(share, "export"), ["v4-pilot"]),
-      current: fs.readFileSync(path.join(share, "app", "current.json"), "utf8"), start: fs.readFileSync(path.join(share, "Start Slide Builder.bat"), "utf8"),
-      updater: fs.readFileSync(path.join(share, "tools", "update.py"), "utf8") });
-    const r0 = real();
-    const pilotRun = zipUpdater(path.resolve(V4ZIP), path.join(tmp, "pilot-zip"));
-    run(`<pilot ZIP>/tools/update.py --root <share> --pilot --zip slidebuilder-${V4}.zip`, PY, [pilotRun, "--root", share, "--pilot", "--zip", path.resolve(V4ZIP)]);
-    check(fs.existsSync(path.join(share, "Start Slide Builder (v4 pilot).bat")), "\"Start Slide Builder (v4 pilot).bat\" is in the folder");
-    check(JSON.parse(fs.readFileSync(path.join(share, "app", "current.json"), "utf8")).version === V3, `app\\current.json still names ${V3}`);
-    const copy = path.join(data, "v4-pilot");
-    const hp = await startHelper("pilot helper (PC 2, as the pilot's start file runs it)", path.join(share, "app", V4, "helper", "slide_builder.py"), "bob", ["--pilot"],
-      { SLIDEBUILDER_DATA: copy, SLIDEBUILDER_EXPORT: path.join(share, "export", "v4-pilot") }); helpers.push(hp);
-    const b = await openPage(hp, "bob (pilot)");
-    await openDeck(b, DECK);
-    check((await boldCell(b, 1)) === "✓ Saved", "pilot: bob's edit (cell 2 bold) saved");
-    run("pilot's updater --pilot --migrate-all", PY, [path.join(share, "app", V4, "tools", "update.py"), "--pilot", "--migrate-all"]);
-    await b.page.click("#optBtn"); await b.page.click("#prepRollback");
-    await b.page.click('.dlg button:has-text("Prepare rollback")');
-    await b.page.locator("#toast").filter({ hasText: /Prepare rollback: \d+ decks? ready/ }).waitFor({ timeout: 180_000 });
-    say("  pilot: " + norm((await b.page.locator("#toast").innerText()).trim()));
-    await b.ctx.close(); await sleep(1500); hp.stop();
-    run("pilot's updater --pilot --rollback", PY, [path.join(share, "app", V4, "tools", "update.py"), "--pilot", "--rollback"]);
-    const hv = await startHelper("v3 on the pilot's copy (rollback rehearsal, as the pilot's start file --v3 runs it)", v3entry, "bob", [],
-      { SLIDEBUILDER_DATA: copy }); helpers.push(hv);
-    const c = await openPage(hv, "bob (v3 on the copy)");
-    await openDeck(c, DECK);
-    const pd = await v3Doc(hv, DECK);
-    check(changes(before[DECK], pd).length === 1, "the copy's deck, back in v3, has the pilot's edit: " + changes(before[DECK], pd).join(" "));
-    check((await boldCell(c, 2)) === "✓ Saved", "v3 on the copy: an edit saved");
-    await c.ctx.close(); hv.stop();
-    const r1 = real();
-    const diff = Object.keys(r0).flatMap(k => typeof r0[k] === "string" ? (r0[k] === r1[k] ? [] : [k])
-      : [...new Set([...Object.keys(r0[k]), ...Object.keys(r1[k])])].filter(f => r0[k][f] !== r1[k][f]).map(f => k + "/" + f));
-    check(diff.length === 0, "the real data, export folder, current.json, start file and updater are unchanged by the pilot" + (diff.length ? ": " + diff.join(", ") : ""));
-    check(content(await v3Doc(h3, DECK)) === content(before[DECK]), "the real deck is what it was before the pilot");
-  }
-
-  say("\n== 3. Slide Builder " + V4 + " (cut-over)");
+  say("\n== 2. Slide Builder " + V4 + " (cut-over)");
   a = await openPage(h3, "anna (v3)");                         // the v3 page that is open while the folder moves to v4
   await openDeck(a, DECK);
   const cur0 =fs.readFileSync(path.join(share, "app", "current.json"), "utf8");
@@ -257,7 +213,7 @@ try {
   h4.stop(); h3.stop();
   say("  every page closed, both helpers stopped");
 
-  say("\n== 4. Rollback to " + V3);
+  say("\n== 3. Rollback to " + V3);
   run("Update Slide Builder.bat --rollback", PY, [path.join(share, "tools", "update.py"), "--rollback"]);
   run(`Update Slide Builder.bat --use ${V3}`, PY, [path.join(share, "tools", "update.py"), "--use", V3]);
   check(JSON.parse(fs.readFileSync(path.join(share, "app", "current.json"), "utf8")).version === V3, `app\\current.json names ${V3} again`);

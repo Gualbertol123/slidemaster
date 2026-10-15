@@ -452,11 +452,18 @@ class ReleaseInstallTest(unittest.TestCase):
 
     def test_newest_3x_stays_beside_4x(self):
         """a 4.0.x hotfix never removes Slide Builder 3: "Start Slide Builder (v3).bat" and --use 3.x need it"""
-        for v in ("3.7.0", "3.8.0", "4.0.0-pilot", "4.0.0", "4.0.1"):
+        for v in ("3.7.0", "3.8.0", "4.0.0-rc1", "4.0.0", "4.0.1"):
             write(self.root, {"app/%s/MANIFEST.json" % v: "{}"})
-        removed = update.prune_versions(self.root, ["4.0.1", "4.0.0", "4.0.0-pilot"])
+        removed = update.prune_versions(self.root, ["4.0.1", "4.0.0"])
         self.assertEqual(removed, ["3.7.0"])
-        self.assertEqual(update.installed_versions(self.root), ["3.8.0", "4.0.0-pilot", "4.0.0", "4.0.1"])
+        self.assertEqual(update.installed_versions(self.root), ["3.8.0", "4.0.0-rc1", "4.0.0", "4.0.1"])
+
+    def test_main_folder_of_an_installed_version(self):
+        """app\\<ver>\\tools\\update.py run without --root updates the main folder"""
+        write(self.tmp, {"app/4.0.0/MANIFEST.json": "{}"})
+        self.assertEqual(update.main_folder(os.path.join(self.tmp, "app", "4.0.0")), self.tmp)
+        self.assertEqual(update.main_folder(os.path.join(self.tmp, "app")), os.path.join(self.tmp, "app"))
+        self.assertEqual(update.main_folder(self.root), self.root)
 
     def test_reinstall_keeps_previous_and_says_nothing_changed(self):
         self.install("3.4.0"); self.install("3.5.0")
@@ -547,121 +554,6 @@ class ReleaseInstallTest(unittest.TestCase):
     def test_version_order(self):
         vs = ["3.10.0", "3.4.0", "3.4.0-rc1", "3.9.2"]
         self.assertEqual(sorted(vs, key=update.version_key), ["3.4.0-rc1", "3.4.0", "3.9.2", "3.10.0"])
-
-
-class PilotInstallTest(unittest.TestCase):
-    """--pilot (docs/next/pilot-v4.md, 04 §4.5): Slide Builder 4 installed beside the version in use, on a copy of the data"""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.dist = tempfile.mkdtemp(prefix="sb-dist-pilot-")
-        cls.zips = {v: make_release.build(REPO, v, cls.dist, check_version=False)[0] for v in ("3.7.0", "4.0.0-pilot")}
-
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(cls.dist, ignore_errors=True)
-
-    def setUp(self):
-        self.tmp = tempfile.mkdtemp(prefix="sb-pilot-")
-        self.root = os.path.join(self.tmp, "Slide Builder")
-        os.makedirs(os.path.join(self.root, "backend"))
-        write(self.root, SAVED)
-        self.deck = "workbooks/weekly.xlsx-%s.json" % hashlib.sha1(b"weekly.xlsx").hexdigest()[:10]
-        write(self.root, {"backend/data/" + self.deck: json.dumps({"schema": 3, "workbook": "weekly.xlsx", "rev": 4, "preset": None,
-                                                                   "style": {"design": "glass"}, "edits": {}})})
-        self.data = os.path.join(self.root, "backend", "data")
-        self.assertEqual(run("--root", self.root, "--zip", self.zips["3.7.0"], "--yes")[0], 0)
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith("SLIDEBUILDER_")}
-        self.env.update(SLIDEBUILDER_ROLLBACK_QUIET="0.2", PYTHONIOENCODING="utf-8")
-
-    def tearDown(self):
-        update.remove_tree(self.tmp)
-
-    def real_state(self):
-        """everything the people using Slide Builder 3 have: the data (minus the updater's lock, its backups and the
-        pilot's copy), the start files, current.json, the v2 settings, the workbooks and exports"""
-        files = tree_hashes(self.root, skip=("backend/data/backups", "backend/data/locks", "backend/data/v4-pilot", "app/4.0.0-pilot", "export/v4-pilot"))
-        files.pop("app/pilot.json", None)
-        files.pop("Start Slide Builder (v4 pilot).bat", None)
-        return files
-
-    def pilot_run(self, *args):
-        """the pilot's own updater (app\\4.0.0-pilot\\tools\\update.py), without --root: it finds the main folder"""
-        entry = os.path.join(self.root, "app", "4.0.0-pilot", "tools", "update.py")
-        return subprocess.run([sys.executable, entry] + list(args), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                              universal_newlines=True, errors="replace", env=self.env, cwd=self.tmp)
-
-    def test_pilot_install_leaves_the_real_folder_alone(self):
-        before = self.real_state()
-        rc, out = run("--root", self.root, "--pilot", "--zip", self.zips["4.0.0-pilot"])
-        self.assertEqual(rc, 0, out)
-        self.assertIn("self-test passed", out)
-        self.assertEqual(self.real_state(), before)                          # current.json still says 3.7.0
-        self.assertEqual(update.current_version(self.root), "3.7.0")
-        self.assertEqual(update.pilot_version(self.root), "4.0.0-pilot")
-        with open(os.path.join(self.root, update.PILOT_BAT), "rb") as a, open(os.path.join(REPO, update.PILOT_BAT), "rb") as b:
-            self.assertEqual(a.read(), b.read())
-        copy = os.path.join(self.data, "v4-pilot")                          # made by the self-test of the pilot's version
-        self.assertEqual(read(copy, "workbooks/report.xlsx-1a2b.json"), SAVED["backend/data/workbooks/report.xlsx-1a2b.json"])
-        self.assertTrue(os.listdir(os.path.join(self.data, "backups")))       # the 3.7.0 install's before-update copy
-        self.assertFalse(os.path.exists(os.path.join(copy, "backups")) and os.listdir(os.path.join(copy, "backups")))
-        # the pilot's start: the copy, its export folder, its ports; the v2 settings file in backend\ stays where it is
-        port = 9300 + os.getpid() % 500
-        env = dict(self.env, SLIDEBUILDER_DATA=copy, SLIDEBUILDER_EXPORT=os.path.join(self.root, "export", "v4-pilot"), SLIDEBUILDER_APP_WINDOW="0",
-                   PYTHONUNBUFFERED="1")
-        p = subprocess.Popen([sys.executable, os.path.join(self.root, "app", "4.0.0-pilot", "helper", "slide_builder.py"), "--pilot",
-                              "--no-browser", "--port", str(port)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, cwd=self.tmp,
-                             universal_newlines=True, errors="replace")
-        timer = threading.Timer(60, p.kill)                                  # a helper that never says " Open": the test fails, not hangs
-        timer.start()
-        try:
-            lines = []
-            for line in p.stdout:
-                lines.append(line)
-                if line.startswith(" Open"):
-                    break
-            banner = "".join(lines)
-            self.assertIn("PILOT - copy of the data", banner)
-            self.assertIn("Using the pilot copy made", banner)
-            self.assertIn(os.path.join("export", "v4-pilot"), banner)
-            self.assertIn(os.path.join("data", "v4-pilot"), banner)
-        finally:
-            timer.cancel()
-            p.kill()
-            p.wait()
-            p.stdout.close()
-        self.assertEqual(read(self.root, "backend/slide_builder_settings.txt"), "v2 settings")
-        self.assertFalse(os.path.exists(os.path.join(copy, "migrated.json")))
-        self.assertEqual(self.real_state(), before)
-        # the rollback rehearsal on the copy, with the pilot's updater: the real deck stays Slide Builder 3's
-        r = self.pilot_run("--pilot", "--migrate-all")
-        self.assertEqual(r.returncode, 0, r.stdout)
-        self.assertIn("Moved to Slide Builder 4: 1 deck(s): weekly.xlsx", r.stdout)
-        self.assertEqual(json.loads(read(copy, self.deck))["schema"], 4)
-        r = self.pilot_run("--pilot", "--rollback")
-        self.assertEqual(r.returncode, 0, r.stdout)
-        self.assertIn("Given back to Slide Builder 3: 1 deck(s)", r.stdout)
-        self.assertEqual(json.loads(read(copy, self.deck))["schema"], 3)
-        self.assertEqual(self.real_state(), before)
-        self.assertFalse(os.path.isdir(os.path.join(self.data, "v4")))
-
-    def test_pilot_needs_a_new_slide_builder_4(self):
-        with self.assertRaises(SystemExit) as e:
-            run("--root", self.root, "--pilot", "--zip", self.zips["3.7.0"])
-        self.assertIn("not a Slide Builder 4 release", str(e.exception))
-        self.assertIsNone(update.pilot_version(self.root))
-        with self.assertRaises(SystemExit) as e:
-            run("--root", self.root, "--pilot")
-        self.assertIn("--pilot --zip FILE", str(e.exception))
-        rc, out = run("--root", self.root, "--pilot", "--rollback")
-        self.assertEqual(rc, 2)
-        self.assertIn("There is no pilot", out)
-
-    def test_main_folder_of_an_installed_version(self):
-        write(self.tmp, {"app/4.0.0-pilot/MANIFEST.json": "{}"})
-        self.assertEqual(update.main_folder(os.path.join(self.tmp, "app", "4.0.0-pilot")), self.tmp)
-        self.assertEqual(update.main_folder(os.path.join(self.tmp, "app")), os.path.join(self.tmp, "app"))
-        self.assertEqual(update.main_folder(self.root), self.root)
 
 
 if __name__ == "__main__":

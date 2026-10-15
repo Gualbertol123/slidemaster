@@ -108,26 +108,13 @@ def main(argv=None):
         except Exception:
             pass
     ap = argparse.ArgumentParser(description="Slide Builder helper")
-    ap.add_argument("--port", type=int, default=None, help="the first port to try (default 8765; 8865 with --pilot)")
+    ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--no-browser", action="store_true", help="do not open the app automatically")
     ap.add_argument("--install", action="store_true", help="first-time set-up on this PC (Python check, shared-folder and journal checks, desktop shortcut, self-test)")
     ap.add_argument("--selftest", action="store_true", help="check that this program can use the shared folder (read-only for saved setups); exit 0 = yes")
     ap.add_argument("--allow-font-copy", metavar="WHO", help='record that the licence owner confirmed Windows fonts may be copied to the share (R7): '
                     'decks then lay out with the same font files on every PC; "off" goes back to fingerprint mode')
-    ap.add_argument("--pilot", action="store_true", help="the Slide Builder 4 pilot on a copy of the data (backend/data/v4-pilot, "
-                    "made once; exports in export/v4-pilot) - started by \"Start Slide Builder (v4 pilot).bat\"")
-    ap.add_argument("--refresh", action="store_true", help="with --pilot: replace the pilot copy with a new copy of the data")
     args = ap.parse_args(argv)
-    if args.refresh and not args.pilot:
-        ap.error("--refresh works with --pilot only")
-    if args.pilot:
-        from .pilot import PORT, PilotError, prepare
-        try:
-            prepare(refresh=args.refresh)
-        except (PilotError, OSError) as e:
-            print("The pilot cannot start: %s" % e)
-            sys.exit(1)
-    port = args.port or (PORT if args.pilot else 8765)
     if args.allow_font_copy is not None:
         from .sysfonts import set_copy_allowed
         who = set_copy_allowed(args.allow_font_copy)
@@ -153,8 +140,7 @@ def main(argv=None):
     for d in (paths.EXPORT_DIR, paths.DATA):
         os.makedirs(d, exist_ok=True)
     try:
-        if not args.pilot:                       # it renames the v2 settings file in the main backend\ folder
-            migrate()
+        migrate()
     except Exception as e:                       # never block the start-up; the file stays for the next start
         log("the v2 settings could not be imported now (%s) - will retry at the next start" % e)
     try:
@@ -165,7 +151,7 @@ def main(argv=None):
     except Exception as e:                       # never block the start-up; files are converted when opened
         log("saved setups were not converted now (%s)" % e)
 
-    httpd = bind_port(port, lambda port: make_server(port, App()), args.no_browser)
+    httpd = bind_port(args.port, lambda port: make_server(port, App()), args.no_browser)
     if httpd == "opened":
         return
     if not httpd:
@@ -175,8 +161,6 @@ def main(argv=None):
     url = "http://127.0.0.1:%d/" % app.port
     print("=" * 64)
     print(" Slide Builder %s" % VERSION)
-    if args.pilot:
-        print(" PILOT - copy of the data: what you change here does not reach Slide Builder 3")
     print(" Workbooks: %s" % paths.ROOT)
     print(" Exports  : %s" % paths.EXPORT_DIR)
     print(" Data     : %s" % paths.DATA)

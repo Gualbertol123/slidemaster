@@ -18,7 +18,7 @@ them somewhere else with :func:`configure` or the environment variables
 
     SLIDEBUILDER_ROOT   root folder (workbooks, export\)
     SLIDEBUILDER_DATA   data folder
-    SLIDEBUILDER_EXPORT export folder (default: ROOT/export; the v4 pilot uses export/v4-pilot, pilot.py)
+    SLIDEBUILDER_EXPORT export folder (default: ROOT/export)
     SLIDEBUILDER_APP_FILE   the app page to serve instead of helper/slide_builder.html (testing aid,
                         used by tools/loadtest4.py)
 """

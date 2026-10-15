@@ -585,7 +585,6 @@ the app (an Edge app window, `msedge --app=<url>`, else a browser tab) → `serv
 | `firstrun.py` | `--install`: the 5-step first-time set-up with an OK/WARN/FAIL report (§2.2). |
 | `selftest.py` | `--selftest`: reads every saved setup without writing, probes create/rename/delete in `data/locks`. |
 | `simfs.py` | **Load tests only**: adds simulated SMB latency to data-folder file calls. |
-| `pilot.py` | `--pilot [--refresh]`: the Slide Builder 4 pilot on a copy of the data (`backend/data/v4-pilot`, exports in `export/v4-pilot`, ports from 8865; `docs/next/pilot-v4.md`). |
 
 ### 7.3 Environment variables
 `SLIDEBUILDER_ROOT`, `SLIDEBUILDER_DATA`, `SLIDEBUILDER_EXPORT` (folders) · `SLIDEBUILDER_USER`, `SLIDEBUILDER_HOST` (identity) ·
