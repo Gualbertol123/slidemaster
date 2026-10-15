@@ -163,6 +163,9 @@ def migrate(workbook, lock_timeout=None):
             has_deck = decks.deck_exists(key)
             if has_deck and not rolled:
                 return "v4"
+            left = None if has_deck else decks.traces(key)
+            if left:                                 # the snapshot is gone, the deck is not (audit DATA-2)
+                raise decks.missing_snapshot(key, left)
             got = _read_v3(path)
             old = decks.read_snapshot(key) if has_deck else None
             gen = (old["gen"] + 1) if old else 1

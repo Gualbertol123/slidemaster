@@ -215,6 +215,47 @@ class DeckTests(DeckBase):
             decks.read_snapshot(self.key)
         self.assertEqual(e.exception.status, 409)                     # too new: restart
 
+    def test_a_missing_snapshot_is_never_started_again_from_nothing(self):
+        # audit DATA-2 (docs/next/AUDIT.md): with snapshot.json gone (deleted, or not seen for a moment), the next open
+        # migrated the deck again from its frozen v3 file (or made an empty one) at gen 1, and its next compaction
+        # replaced backups/v4/<key>/2.json - the only copy of what had been compacted
+        from slidebuilder import migrate_v3
+        w = decks.new_writer("a")
+        decks.append(self.key, w, self.rec(w, 1))
+        os.remove(decks.snapshot_path(self.key))
+        for start in (lambda: migrate_v3.ensure_deck(WB), lambda: decks.create_if_missing(WB)):
+            with self.assertRaises(decks.DeckError) as e:
+                start()
+            self.assertEqual(e.exception.status, 503)
+            self.assertIn("snapshot.json is missing", str(e.exception))
+            self.assertFalse(decks.deck_exists(self.key))                    # nothing written in its place
+        # a deck moved from v3: its frozen v3 file is not migrated a second time
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "saved", "workbook.v3.json"), "rb") as f:
+            doc = json.loads(f.read())
+        wb = doc["workbook"] = "Moved from v3.xlsx"
+        raw = json.dumps(doc).encode("utf-8")
+        os.makedirs(os.path.dirname(migrate_v3.v3_path(wb)), exist_ok=True)
+        with open(migrate_v3.v3_path(wb), "wb") as f:
+            f.write(raw)
+        key, how = migrate_v3.ensure_deck(wb)
+        self.assertEqual(how, "migrated")
+        os.remove(decks.snapshot_path(key))
+        with open(migrate_v3.v3_path(wb), "rb") as f:
+            frozen = f.read()
+        with self.assertRaises(decks.DeckError) as e:
+            migrate_v3.ensure_deck(wb)
+        self.assertEqual(e.exception.status, 503)
+        self.assertFalse(decks.deck_exists(key))
+        with open(migrate_v3.v3_path(wb), "rb") as f:
+            self.assertEqual(f.read(), frozen)
+        # a backup of a gen is never replaced by a different snapshot of the same gen
+        snap = decks.read_snapshot(self.key) if decks.deck_exists(self.key) else decks.first_snapshot(WB, decks.empty_doc(WB))
+        a, b = dict(snap, gen=2, by="first"), dict(snap, gen=2, by="second")
+        self.assertTrue(decks._backup(self.key, a) and decks._backup(self.key, b))
+        with open(os.path.join(decks.backup_dir(self.key), "2.json"), encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["by"], "first")
+        self.assertEqual(len([n for n in os.listdir(decks.backup_dir(self.key)) if n.startswith("2")]), 2)
+
     def test_unreadable_journal_is_skipped_this_round_not_empty(self):
         w1, w2 = decks.new_writer("a"), decks.new_writer("b")
         decks.append(self.key, w1, self.rec(w1, 1))
