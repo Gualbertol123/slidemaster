@@ -289,6 +289,13 @@ compacts only records at least 30 s old on that clock (`COMPACT_MARGIN_MS`: a jo
 missing from a reader's listing – the helper caches it 3 s, the SMB client 10 s more – and an earlier record in it
 must never be folded in after a newer one that replaced it), never on a round with `skipped` journals, and per
 writer only records 1..n without a gap; every journal's frontier is a prefix of records all in the snapshot.
+`now` is left out while the helper does not know the file server's clock (its probe failed; the offset is
+measured again at once when the PC clock was set): such a round is not complete either. The last frame of a journal
+that is incomplete, or whose missing bytes are zeros (the server lost power during an append nobody was told
+about), is a torn tail: ignored, never corruption. Inherent limit (B4): a page whose tails failed for longer than the
+margin may append a record with a stale Lamport time into a journal a compaction did not see yet; that record then
+lands on top of the snapshot (nothing is lost, every page converges, but a value somebody knowingly replaced can come
+back for that field).
 
 423: the deck is read-only (a journal is damaged in the middle; `incident-*.json` in the deck folder). 409 on append or
 tail: the deck was given back to Slide Builder 3 (`rolled-back.json`; the page reloads, its next open migrates again).

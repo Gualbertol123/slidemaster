@@ -276,6 +276,16 @@ describe("DocSync v4 when a tail misses a journal (review of S5.2: the 10 s list
     expect(await w.compact()).toBe(2);
     expect(deck.snap.rev).toBe(2); expect(w.server.rev).toBe(2);
   });
+  it("E: a tail without the file server's time (the helper's clock probe failed) is no round to compact on", async () => {
+    const deck = new FakeDeck(), base = deck.api();
+    let unsure = true;
+    const api: DeckApi = { ...base, tail: async (k, s) => { const t = await base.tail(k, s); if (unsure) delete t.now; return t; } };
+    const w = new DocSync(api, "W.xlsx", deck.open("w@pc#wwwwwwww"), "w", { autoTail: false, compactMargin: 0 });
+    w.apply([cell("Z1", { text: "a" })]); await w.flush();
+    expect(await w.compact()).toBeNull();
+    unsure = false;
+    expect(await w.compact()).toBe(2);
+  });
   it("D: a compaction's answer that arrives after a newer snapshot never takes the page back", async () => {
     const deck = new FakeDeck(), base = deck.api();
     let release: (() => void) | null = null;

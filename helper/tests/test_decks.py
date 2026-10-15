@@ -77,6 +77,14 @@ class FramingTests(unittest.TestCase):
             recs, used, bad = decks.unframe(a + b[:cut])
             self.assertEqual((len(recs), used, bad), (1, len(a), None), cut)
         self.assertEqual(decks.unframe(a + b"\x00" * 300)[1:], (len(a), None))      # zeros of a crash
+        # the file grew to the frame's full length but its last bytes never landed (zeros): torn too (milestone review)
+        head = b.index(b":", b.index(b":") + 1) + 1
+        for torn in (b[:head] + b"\x00" * (len(b) - head),             # the whole body zero
+                     b[:-10] + b"\x00" * 10,                           # its end and the newline zero
+                     b[:-1] + b"\x00",                                 # the newline lost, a zero instead
+                     b[:-1] + b"\x00" * 50):                           # …and zeros after it
+            recs, used, bad = decks.unframe(a + torn)
+            self.assertEqual((len(recs), used, bad), (1, len(a), None), torn)
 
     def test_corruption_is_reported_where_it_starts(self):
         a, b, c = (decks.frame({"w": "x", "s": s, "l": s}) for s in (1, 2, 3))
@@ -88,6 +96,41 @@ class FramingTests(unittest.TestCase):
             self.assertEqual(decks.unframe(a + junk)[2], len(a), junk)
         no_newline = a[:-1] + b"X" + b
         self.assertEqual(decks.unframe(no_newline)[2], 0)
+        # zeros in a frame with a complete frame after it, or a bad last frame without zeros: corruption
+        zeroed = bytearray(a + b + c)
+        zeroed[len(a) + 20:len(a) + 25] = b"\x00" * 5
+        self.assertEqual(decks.unframe(bytes(zeroed))[2], len(a))
+        flipped = bytearray(a + b)
+        flipped[len(a) + 20] ^= 0x01
+        self.assertEqual(decks.unframe(bytes(flipped))[2], len(a))
+
+
+class SavedFormatTests(TempDirs):
+    """the saved 4.0 deck format (fixtures/saved: snapshot.v4.json + journal.v4.log - never edited) is read by
+    this program: a snapshot, the records past its frontier, the torn tail ignored, nothing reported as damaged"""
+
+    def test_the_saved_v4_deck_is_read(self):
+        import shutil
+        from sbtest import REPO
+        fix = os.path.join(REPO, "helper", "tests", "fixtures", "saved")
+        with open(os.path.join(fix, "snapshot.v4.json"), encoding="utf-8") as f:
+            snap = json.load(f)
+        key = decks.deck_key(snap["workbook"])
+        writer = list(snap["frontier"])[0]
+        os.makedirs(decks.journal_dir(key))
+        shutil.copy(os.path.join(fix, "snapshot.v4.json"), decks.snapshot_path(key))
+        shutil.copy(os.path.join(fix, "journal.v4.log"), os.path.join(decks.journal_dir(key), writer + ".log"))
+        got = decks.read_snapshot(key)
+        self.assertEqual((got["format"], got["gen"], got["frontier"], got["seen"]), (4, 2, snap["frontier"], {writer: 2}))
+        past = decks.tail(key, dict(snap["frontier"]))
+        self.assertEqual([r["s"] for r in past["journals"][writer]["records"]], [3, 4])
+        self.assertNotIn("readonly", past)
+        everything = decks.tail(key, {})["journals"][writer]
+        self.assertEqual([r["s"] for r in everything["records"]], [1, 2, 3, 4])       # the torn 5th is no record
+        with open(os.path.join(fix, "journal.v4.log"), "rb") as f:
+            data = f.read()
+        self.assertLess(everything["offset"], len(data))
+        self.assertEqual(decks.unframe(data)[1:], (everything["offset"], None))
 
 
 class DeckTests(DeckBase):

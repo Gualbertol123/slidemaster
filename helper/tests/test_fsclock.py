@@ -31,6 +31,33 @@ class ClockSkewTests(TempDirs):
             self.assertAlmostEqual(fsclock.fs_now(d), REAL_TIME(), delta=1)
         self.assertEqual(os.listdir(d), [])                      # the probe file is removed
 
+    def test_a_pc_clock_set_while_running_is_noticed_at_once(self):
+        """milestone review: a deck append must not stamp `at` with an offset measured before the PC clock was set"""
+        from slidebuilder import decks
+        d = paths.DATA
+        os.makedirs(d, exist_ok=True)
+        self.assertAlmostEqual(fsclock.offset_nowait(d), 0, delta=1)
+        self.assertTrue(fsclock.trusted(d))
+        with mock.patch("time.time", lambda: REAL_TIME() - 600):     # corrected by -10 min meanwhile (no reset)
+            self.assertFalse(fsclock.trusted(d))
+            self.assertAlmostEqual(fsclock.offset_nowait(d), 600, delta=1)
+            self.assertTrue(fsclock.trusted(d))
+            self.assertAlmostEqual(decks.server_ms() / 1000.0, REAL_TIME(), delta=2)
+
+    def test_a_failed_probe_leaves_the_clock_unknown_and_tails_without_now(self):
+        from slidebuilder import decks
+        key = decks.deck_key("A.xlsx")
+        decks.create_if_missing("A.xlsx")
+        fsclock.reset()
+        with mock.patch.object(fsclock, "measure_offset", return_value=None):
+            self.assertEqual(fsclock.offset(paths.DATA), 0.0)
+            self.assertFalse(fsclock.trusted(paths.DATA))
+            self.assertNotIn("now", decks.tail(key, {}))             # no page compacts on this round
+        time.sleep(fsclock.RETRY_SECONDS + 0.1)                      # tried again a second later
+        self.assertAlmostEqual(fsclock.offset_nowait(paths.DATA), 0, delta=1)
+        self.assertTrue(fsclock.trusted(paths.DATA))
+        self.assertIn("now", decks.tail(key, {}))
+
     def test_fresh_lock_is_not_broken_by_a_pc_whose_clock_runs_ahead(self):
         holder = Lock("wb-x").acquire()                           # file stamped by the server, now
         try:

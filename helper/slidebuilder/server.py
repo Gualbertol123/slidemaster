@@ -158,7 +158,8 @@ class App:
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "SlideBuilder/" + VERSION
-    # HTTP/1.0 (one request per connection): a refused request never leaves an unread body behind
+    # HTTP/1.0 (one request per connection); a refused request's body is read before the answer (_drain): closing a
+    # socket with unread data makes Windows reset the connection, and the client may never see the answer
 
     def log_message(self, fmt, *args):
         pass
@@ -191,6 +192,7 @@ class Handler(BaseHTTPRequestHandler):
             self.close_connection = True               # the page was closed or reloaded meanwhile
 
     def _error(self, code, msg):
+        self._drain()
         self._send(code, {"error": msg})
 
     # ------------------------------------------------------------------ request bodies
@@ -209,7 +211,23 @@ class Handler(BaseHTTPRequestHandler):
         if n > limit:
             self.close_connection = True               # the body is not read: the connection cannot be reused
             raise HttpError(413, "request too large (limit %d MB)" % (limit // (1024 * 1024)))
+        self._consumed = True
         return self.rfile.read(n) if n else b""
+
+    def _drain(self):
+        """read a body the request handler never read (it was refused first), up to the JSON limit"""
+        if getattr(self, "_consumed", True):
+            return
+        self._consumed = True
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return
+        if 0 < n <= JSON_LIMIT and "chunked" not in (self.headers.get("Transfer-Encoding") or "").lower():
+            try:
+                self.rfile.read(n)
+            except OSError:
+                pass
 
     def _json(self, limit=JSON_LIMIT):
         b = self._body(limit)
@@ -274,6 +292,7 @@ class Handler(BaseHTTPRequestHandler):
         self._dispatch("OPTIONS")
 
     def _dispatch(self, method):
+        self._consumed = False
         u = urllib.parse.urlparse(self.path)
         q = urllib.parse.parse_qs(u.query)
         try:
@@ -292,6 +311,7 @@ class Handler(BaseHTTPRequestHandler):
         except decks.DeckError as e:
             if e.status == 503:
                 log("busy: %s" % e)
+            self._drain()
             self._send(e.status, dict(e.extra, error=str(e)))
         except StoreTooNew as e:
             self._error(409, str(e))

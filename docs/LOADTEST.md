@@ -57,7 +57,7 @@ to **285/870 ms**, and edits became visible to others after 1.4 s instead of 11 
   poll round. Machine: Linux container, 4 vCPU, local disk (the 0 ms row is CPU-bound: 10 helpers
   plus the driver on 4 cores).
 
-Reproduce:
+Reproduce (with Slide Builder 3.8.0 or earlier: `git show v3.8.0:tools/loadtest.py > loadtest.py`):
 
 ```
 python tools/loadtest.py --users 10 --scenario same different --duration 30 --fs-ms 0 5 15 40 --json out.json
@@ -191,7 +191,7 @@ presence only every 30 s, would cut that. It does not affect saving, since prese
 ## 5. Recommendation
 
 1. **Measure your share first.** Run step 5 of `Install Slide Builder.bat` on a few PCs (cycle ÷ 4 ≈
-   `fs ms`), or `tools/loadtest.py --real-folder T:\… --scenario same`.
+   `fs ms`), or `tools/loadtest4.py --real-folder T:\…` (Slide Builder 4's storage).
 2. **Do option A now, regardless.** *(The backup part is done – §2b.)* The steady-state backup check alone turns a 15 ms share from
    "slightly slow" (p95 2.3 s) into "broken" (p95 9.7 s, 503s, 11 s to see changes). Removing it,
    moving the backup out of the lock and trimming the lock round trips takes the time under the

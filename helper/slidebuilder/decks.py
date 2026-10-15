@@ -46,7 +46,7 @@ import urllib.parse
 import uuid
 import zlib
 
-from . import paths
+from . import fsclock, paths
 from .fsclock import fs_now, offset_nowait
 from .locks import Lock
 from .util import current_host, current_user, doc_key, log, remove_quietly, safe_component, write_atomic
@@ -118,6 +118,11 @@ def unframe_ends(buf):
             break                                       # the body or its newline is still missing
         body = buf[a + 10:end]
         if buf[end:end + 1] != b"\n" or zlib.crc32(body) & 0xFFFFFFFF != int(crc_raw, 16):
+            # the last frame, with zeros where its body or newline should be (the file server lost power during an
+            # append nobody was told about: the file grew, its data never landed), is torn, not corrupt; a bad frame
+            # with anything after it, or without zeros, is corruption
+            if b"\x00" in buf[a + 10:end + 1] and not buf[end + 1:].strip(b"\x00"):
+                break
             return out, ends, p, p
         try:
             rec = json.loads(body.decode("utf-8"))
@@ -692,7 +697,10 @@ def tail(key, since):
         raise DeckError(404, "no such deck")
     # `now`: the file server's time (a page compacts only records older than its margin); `skipped`: journals that could
     # not be read this time - a page does not compact on such a round (it may miss records)
-    res = {"journals": out, "gen": gen, "now": server_ms()}
+    res = {"journals": out, "gen": gen}
+    now = server_ms()                            # first: it notices a PC clock that was set, and measures again
+    if fsclock.trusted(paths.DATA):              # an unknown offset: no `now`, so no page compacts on this round
+        res["now"] = now
     if skipped:
         res["skipped"] = sorted(skipped)
     if readonly:

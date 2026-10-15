@@ -3,3 +3,5 @@
 * text=auto eol=lf
 # the start files run in cmd.exe
 *.bat text eol=crlf
+# saved deck journals: framed records whose CRCs cover exact bytes
+helper/tests/fixtures/saved/*.log binary

@@ -147,7 +147,8 @@ export class DocSync {
   private merge(t: TailResult): Set<string> {
     const by = new Set<string>();
     if (typeof t.now === "number") this.serverAt = [t.now, Date.now()];
-    this.skippedRound = !!(t.skipped && t.skipped.length);
+    // a journal unread, or the helper unsure of the file server's clock (no `now`): not a complete round
+    this.skippedRound = !!(t.skipped && t.skipped.length) || typeof t.now !== "number";
     if (typeof t.now === "number" && !this.skippedRound) this.lastFullTail = t.now;
     for (const [j, tj] of Object.entries(t.journals || {})) {
       const ends = tj.ends || [];
