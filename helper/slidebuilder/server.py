@@ -158,6 +158,9 @@ class App:
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "SlideBuilder/" + VERSION
+    # a connection that stops sending (a request or body that never completes) is dropped after a minute instead of
+    # holding its thread for ever (audit SEC-4; every request here is one short exchange, uploads arrive steadily)
+    timeout = 60
     # HTTP/1.0 (one request per connection); a refused request's body is read before the answer (_drain): closing a
     # socket with unread data makes Windows reset the connection, and the client may never see the answer
 

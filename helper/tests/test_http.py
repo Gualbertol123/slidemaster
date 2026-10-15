@@ -65,6 +65,22 @@ class HttpBase(TempDirs):
 
 class HttpTests(HttpBase):
     # ---- security
+    def test_a_stalled_request_does_not_hold_its_thread_for_ever(self):
+        # audit SEC-4 (docs/next/AUDIT.md): no socket timeout - 40 connections that sent headers and no body were all
+        # still held after 21 s (each a thread of the helper)
+        self.assertTrue(server.Handler.timeout and server.Handler.timeout <= 120)
+        with mock.patch.object(server.Handler, "timeout", 0.5):
+            s = socket.create_connection(("127.0.0.1", self.port), timeout=10)
+            s.sendall(b"POST /api/config HTTP/1.0\r\nHost: 127.0.0.1:%d\r\nContent-Length: 100\r\n\r\n" % self.port)
+            t = time.time()
+            try:
+                while s.recv(4096):
+                    pass
+            except OSError:
+                pass                                    # reset by the helper: closed too
+            s.close()
+            self.assertLess(time.time() - t, 5)
+
     def test_ping_needs_no_token(self):
         self.assertEqual(self.jreq("GET", "/api/ping", token=False), (200, {"app": APP_NAME, "version": VERSION}))
 
