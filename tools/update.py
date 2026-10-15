@@ -8,6 +8,9 @@
     python tools/update.py --zip <file.zip>   install a release ZIP without internet
     python tools/update.py --migrate-all      move every Slide Builder 3 deck to Slide Builder 4 now (else on first open)
     python tools/update.py --rollback [NAME]  give a deck (NAME, a workbook) or every deck back to Slide Builder 3
+    python tools/update.py --pilot --zip <file.zip>   install a Slide Builder 4 pilot beside the version in use
+                                              (app\\pilot.json, "Start Slide Builder (v4 pilot).bat"; docs/next/pilot-v4.md)
+    python app\\<pilot>\\tools\\update.py --pilot --migrate-all | --rollback [NAME]   the same, on the pilot's copy
 
 What is never changed – it is not part of the repository (see .gitignore):
     backend/data/        decks, cell edits, deck styles, defaults, user preferences, backups
@@ -470,6 +473,16 @@ def app_dir(root):
     return os.path.join(root, "app")
 
 
+def main_folder(folder):
+    """the Slide Builder folder: `folder`, or the main folder when `folder` is an installed version (app\\<ver>\\, whose
+    tools\\update.py runs the pilot's commands)"""
+    up = os.path.dirname(folder)
+    if (os.path.basename(up).lower() == "app" and VERSION_RE.match(os.path.basename(folder))
+            and os.path.isfile(os.path.join(folder, MANIFEST))):
+        return os.path.dirname(up)
+    return folder
+
+
 def pointer_file(root):
     return os.path.join(app_dir(root), "current.json")
 
@@ -546,12 +559,17 @@ def check_installed(folder):
     return man
 
 
-def selftest(root, folder):
-    """the version in `folder` runs its own self-test against this folder's data (exit 0 = usable)"""
-    env = dict(os.environ, SLIDEBUILDER_ROOT=root, SLIDEBUILDER_DATA=data_dir(root), PYTHONIOENCODING="ascii:replace")
+def selftest(root, folder, pilot=False):
+    """the version in `folder` runs its own self-test against this folder's data (exit 0 = usable); a pilot version
+    against the pilot's copy of the data, which its first run makes (helper/slidebuilder/pilot.py)"""
+    env = dict(os.environ, SLIDEBUILDER_ROOT=root, SLIDEBUILDER_DATA=pilot_data_dir(root) if pilot else data_dir(root),
+               PYTHONIOENCODING="ascii:replace")
+    env.pop("SLIDEBUILDER_EXPORT", None)
+    if pilot:
+        env["SLIDEBUILDER_EXPORT"] = os.path.join(root, "export", PILOT_NAME)
     entry = os.path.join(program_dir(folder) or os.path.join(folder, "helper"), "slide_builder.py")
     try:
-        r = subprocess.run([sys.executable, entry, "--selftest"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        r = subprocess.run([sys.executable, entry] + (["--pilot"] if pilot else []) + ["--selftest"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                            universal_newlines=True, errors="replace", env=env, cwd=os.path.dirname(entry), timeout=600)
     except (OSError, subprocess.TimeoutExpired) as e:
         return False, str(e)
@@ -704,7 +722,7 @@ def install_release(root, data, stamp, want=None, digest=None):
     launchers = update_launchers(root, final, stamp)
     for n in launchers:
         say("  updated %s" % n)
-    removed = prune_versions(root, [ver, previous, pointer_info(root).get("previous")])
+    removed = prune_versions(root, [ver, previous, pointer_info(root).get("previous"), pilot_version(root)])
     if removed:
         say("  removed old version(s): " + ", ".join(removed))
     if previous == ver and not fresh:
@@ -735,6 +753,79 @@ def use_version(root, ver, stamp):
         return ver, False
     say("Version %s is now the current version%s." % (ver, (" (was %s)" % previous) if previous else ""))
     return ver, True
+
+
+# --------------------------------------------------------------------------- the v4 pilot (docs/next/pilot-v4.md)
+PILOT_NAME = "v4-pilot"
+PILOT_BAT = "Start Slide Builder (v4 pilot).bat"
+
+
+def pilot_data_dir(root):
+    """the pilot's copy of the data (made by the pilot's helper, helper/slidebuilder/pilot.py)"""
+    return os.path.join(data_dir(root), PILOT_NAME)
+
+
+def pilot_pointer(root):
+    return os.path.join(app_dir(root), "pilot.json")
+
+
+def pilot_version(root):
+    """the version "Start Slide Builder (v4 pilot).bat" starts (app\\pilot.json); None without a pilot"""
+    try:
+        with open(pilot_pointer(root), encoding="utf-8") as f:
+            v = json.load(f).get("version")
+        return v if isinstance(v, str) and VERSION_RE.match(v) else None
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def install_pilot(root, data, want=None, digest=None):
+    """install a Slide Builder 4 release side by side for the pilot: app\\<ver>\\ and app\\pilot.json, and the pilot's
+    start file in the main folder. app\\current.json, the other start files and backend\\data stay as they are."""
+    if digest:
+        algo, _, hexd = digest.partition(":")
+        if algo.lower() != "sha256" or sha256_bytes(data) != hexd.lower():
+            raise SystemExit("The download does not match GitHub's checksum (%s) - nothing was installed. Try again." % digest)
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(data))
+        man = verify_release(zf)
+    except (zipfile.BadZipFile, ValueError) as e:
+        raise SystemExit("This is not a valid Slide Builder release (%s) - nothing was installed." % e)
+    ver = man["version"]
+    if want and want != ver:
+        raise SystemExit("Asked for version %s but the ZIP holds %s - nothing was installed." % (want, ver))
+    if version_key(ver)[0] < 4 or "helper/slide_builder.py" not in man["files"] or PILOT_BAT not in man["files"]:
+        raise SystemExit("Version %s is not a Slide Builder 4 release with a pilot - nothing was installed." % ver)
+    if ver == current_version(root):
+        raise SystemExit("Version %s is the current version of this folder - a pilot runs a version nobody uses yet." % ver)
+    say("  MANIFEST.json verified: version %s, %d files." % (ver, len(man["files"])))
+    final = os.path.join(app_dir(root), ver)
+    fresh = not os.path.isdir(final)
+    if fresh:
+        os.makedirs(app_dir(root), exist_ok=True)
+        extract_release(root, zf, man)
+        say("  installed into %s" % rel(root, final))
+    else:
+        try:
+            check_installed(final)
+        except (OSError, ValueError, KeyError) as e:
+            raise SystemExit("%s exists but is damaged (%s). Delete that folder and run this again." % (rel(root, final), e))
+        say("  version %s is already installed in %s" % (ver, rel(root, final)))
+    say("Testing version %s on the pilot's copy of the data (made now if it is missing)..." % ver)
+    ok, out = selftest(root, final, pilot=True)
+    if not ok:
+        raise SystemExit("The self-test of version %s failed, so the pilot is NOT set up:\n%s"
+                         % (ver, "\n".join("  " + x for x in out.splitlines()[-15:])))
+    say("  self-test passed.")
+    tmp = pilot_pointer(root) + ".%d.update-tmp" % os.getpid()
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump({"version": ver, "at": datetime.datetime.now().isoformat(timespec="seconds"), "by": user()}, f, indent=1)
+    retry_os(os.replace, tmp, pilot_pointer(root))
+    src, dest = os.path.join(final, PILOT_BAT), os.path.join(root, PILOT_BAT)
+    shutil.copyfile(src, dest + ".update-tmp")
+    os.replace(dest + ".update-tmp", dest)
+    say("The pilot runs version %s: \"%s\" (the data: backend\\data\\%s, exports: export\\%s)." % (ver, PILOT_BAT, PILOT_NAME, PILOT_NAME))
+    return ver
 
 
 def find_release(repo, want, api_base=None):
@@ -803,13 +894,22 @@ print(json.dumps(res))
 """
 
 
-def decks_job(root, what, arg=""):
-    """migrate every v3 deck, or roll decks back, with the version in use (its slidebuilder.migrate_v3)"""
-    prog = current_program(root)
+def decks_job(root, what, arg="", pilot=False):
+    """migrate every v3 deck, or roll decks back, with the version in use (its slidebuilder.migrate_v3) - or, for the
+    pilot, with the pilot's version on the pilot's copy of the data"""
+    if pilot:
+        ver = pilot_version(root)
+        prog = program_dir(os.path.join(app_dir(root), ver)) if ver else None
+        if not prog or not os.path.isdir(pilot_data_dir(root)):
+            say("There is no pilot in this folder (app\\pilot.json and backend\\data\\%s)." % PILOT_NAME)
+            return None
+    else:
+        prog = current_program(root)
     if not prog or not os.path.isfile(os.path.join(prog, "slidebuilder", "migrate_v3.py")):
         say("The version in use is Slide Builder 3: there is nothing to %s." % ("migrate" if what == "migrate" else "roll back"))
         return None
-    r = subprocess.run([sys.executable, "-c", DECKS_CODE, root, data_dir(root), prog, what, arg or ""], stdout=subprocess.PIPE,
+    data = pilot_data_dir(root) if pilot else data_dir(root)
+    r = subprocess.run([sys.executable, "-c", DECKS_CODE, root, data, prog, what, arg or ""], stdout=subprocess.PIPE,
                        stderr=subprocess.PIPE, universal_newlines=True, errors="replace")
     try:
         return json.loads(r.stdout.strip().splitlines()[-1])
@@ -828,8 +928,8 @@ def decks_owned(root):
     return False
 
 
-def migrate_all_decks(root):
-    res = decks_job(root, "migrate")
+def migrate_all_decks(root, pilot=False):
+    res = decks_job(root, "migrate", pilot=pilot)
     if res is None:
         return False
     say("Moved to Slide Builder 4: %d deck(s)%s" % (len(res["migrated"]), (": " + ", ".join(res["migrated"])) if res["migrated"] else ""))
@@ -840,8 +940,8 @@ def migrate_all_decks(root):
     return not res["failed"]
 
 
-def rollback_decks(root, name):
-    res = decks_job(root, "rollback", name)
+def rollback_decks(root, name, pilot=False):
+    res = decks_job(root, "rollback", name, pilot)
     if res is None:
         return False
     say("Given back to Slide Builder 3: %d deck(s)%s" % (len(res["done"]), (": " + ", ".join(res["done"])) if res["done"] else ""))
@@ -946,17 +1046,36 @@ def main(argv=None):
     ap.add_argument("--rollback", nargs="?", const="", default=None, metavar="WORKBOOK",
                     help="give WORKBOOK's deck (or, without a name, every deck) back to Slide Builder 3; refused for a deck with "
                          "changes past its snapshot (Options › Administration › Prepare rollback first)")
+    ap.add_argument("--pilot", action="store_true",
+                    help="the Slide Builder 4 pilot: with --zip FILE or --release X.Y.Z install it side by side WITHOUT making it "
+                         "the current version; with --migrate-all or --rollback work on the pilot's copy of the data")
     ap.add_argument("--api-url", default=None, help=argparse.SUPPRESS)
     ap.add_argument("--zip-url", default=None, help=argparse.SUPPRESS)
-    ap.add_argument("--root", default=ROOT, help=argparse.SUPPRESS)
+    ap.add_argument("--root", default=None, metavar="FOLDER", help="the Slide Builder folder (default: the one this updater belongs to)")
     ap.add_argument("--yes", action="store_true", help="do not ask questions")
     a = ap.parse_args(argv)
-    root = os.path.abspath(a.root)
+    root = os.path.abspath(a.root or main_folder(ROOT))
     say("Slide Builder update - folder: " + root)
     if a.migrate_all or a.rollback is not None:            # decks only: no program file changes
         with UpdateLock(root):
-            ok = migrate_all_decks(root) if a.migrate_all else rollback_decks(root, a.rollback)
+            ok = migrate_all_decks(root, a.pilot) if a.migrate_all else rollback_decks(root, a.rollback, a.pilot)
         return 0 if ok else 2
+    if a.pilot:
+        if not (isinstance(a.zip, str) or (a.release and a.release != "latest")) or a.use or a.check:
+            raise SystemExit("--pilot installs a given release: --pilot --zip FILE, or --pilot --release X.Y.Z")
+        with UpdateLock(root):
+            if isinstance(a.zip, str):
+                say("Installing %s for the pilot (offline)..." % a.zip)
+                try:
+                    with open(a.zip, "rb") as f:
+                        install_pilot(root, f.read())
+                except OSError as e:
+                    raise SystemExit("Cannot read %s: %s" % (a.zip, e))
+            else:
+                ver, url, digest = find_release(a.repo or DEFAULT_REPO, a.release, a.api_url)
+                say("Downloading version %s for the pilot..." % ver)
+                install_pilot(root, http_get(url, timeout=300), want=ver, digest=digest)
+        return 0
     if current_version(root) and not (a.release or a.use or isinstance(a.zip, str) or a.branch or a.zip):
         # this folder runs side-by-side versions (app\current.json): updating helper\ would change nothing
         say("This folder uses side-by-side versions (app\\current.json, now %s): looking for the newest release." % current_version(root))

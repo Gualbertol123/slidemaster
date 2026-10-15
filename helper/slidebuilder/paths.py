@@ -18,6 +18,7 @@ them somewhere else with :func:`configure` or the environment variables
 
     SLIDEBUILDER_ROOT   root folder (workbooks, export\)
     SLIDEBUILDER_DATA   data folder
+    SLIDEBUILDER_EXPORT export folder (default: ROOT/export; the v4 pilot uses export/v4-pilot, pilot.py)
     SLIDEBUILDER_APP_FILE   the app page to serve instead of helper/slide_builder.html (testing aid,
                         used by tools/loadtest4.py)
 """
@@ -69,7 +70,7 @@ def configure(root=None, data=None):
     global ROOT, DATA, EXPORT_DIR, SETTINGS_FILE, SETTINGS_BACKUP
     ROOT = os.path.abspath(root or os.environ.get("SLIDEBUILDER_ROOT") or _default_root())
     DATA = os.path.abspath(data or os.environ.get("SLIDEBUILDER_DATA") or os.path.join(HOME_BACKEND, "data"))
-    EXPORT_DIR = os.path.join(ROOT, "export")
+    EXPORT_DIR = os.path.abspath(os.environ.get("SLIDEBUILDER_EXPORT") or os.path.join(ROOT, "export"))
     # the v2 settings file always lived next to the v3 program (or, in the old flat layout, in ROOT)
     SETTINGS_FILE = os.path.join(HOME_BACKEND, SETTINGS_NAME)
     SETTINGS_BACKUP = os.path.join(HOME_BACKEND, SETTINGS_BACKUP_NAME)
