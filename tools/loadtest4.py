@@ -151,8 +151,10 @@ class User:
         self.snap = None
         self.acked, self.saves, self.errors = [], [], []
         self.seen_ops = set()
-        self.compactions = []
+        self.compactions = []                           # (status, ms, start, end)
         self.prepared = False
+        self.last_edit = 0.0
+        self.gens_seen = []                             # every gen this page's tails and snapshot loads told it
 
     # ---------------------------------------------------------------- the deck
     def open(self):
@@ -165,6 +167,7 @@ class User:
 
     def rebase(self, snap):
         self.snap = snap
+        self.gens_seen.append(snap["gen"])
         for j, off in (snap.get("frontier") or {}).items():
             self.offsets[j] = max(self.offsets.get(j, 0), off)
         held = set(map(tuple, (snap["doc"].get("ids") or [])))
@@ -190,6 +193,8 @@ class User:
                         if r["w"] != self.writer:
                             self.run.visible.append((now - op["t"]) * 1000)
             self.offsets[j] = max(self.offsets.get(j, 0), v["offset"])
+        if t.get("gen"):
+            self.gens_seen.append(t["gen"])
         if t.get("gen") and t["gen"] > self.snap["gen"]:
             st, s = self.h.call("GET", self.base + "/snapshot")
             if st == 200 and s["snapshot"]["gen"] > self.snap["gen"]:
@@ -206,7 +211,8 @@ class User:
                     rev=(self.snap.get("rev") or 0) + len(held), doc=dict(self.snap["doc"], cells=cells, ids=[list(x) for x in ids]))
         t0 = time.time()
         st, r = self.h.call("POST", self.base + "/compact", {"baseGen": self.snap["gen"], "snapshot": snap}, timeout=120)
-        self.compactions.append((st, (time.time() - t0) * 1000))
+        t1 = time.time()
+        self.compactions.append((st, (t1 - t0) * 1000, t0, t1))
         if st == 200:
             self.rebase(dict(snap, frontier={j: v for j, v in snap["frontier"].items() if j not in (r.get("dropped") or [])}))
             self.run.gens.append(snap["gen"])
@@ -223,6 +229,7 @@ class User:
             op = {"k": cell, "v": "%s:%d" % (self.k, self.n), "id": "%s#%d" % (self.k, self.n), "t": time.time(), "own": not shared}
             with self.lock:
                 self.pending.append(op)
+                self.last_edit = time.time()
                 first = not self.prepared
                 self.prepared = True
             if first:                                           # as DocSync: the journal opened during the debounce
@@ -234,9 +241,9 @@ class User:
     def saver(self, until):
         backoff = 0
         while time.time() < until:
-            time.sleep(0.3)                                     # the debounce
-            with self.lock:
-                if self.inflight is None and self.pending:
+            time.sleep(0.05)
+            with self.lock:                                     # the debounce: 300 ms after the last edit
+                if self.inflight is None and self.pending and time.time() - self.last_edit >= 0.3:
                     self.lamport += 1
                     self.seq += 1
                     self.inflight = {"l": self.lamport, "w": self.writer, "s": self.seq, "by": self.h.user, "ops": self.pending}
@@ -253,6 +260,7 @@ class User:
             if st == 200:
                 self.saves.append(ms)
                 self.run.saves.append(ms)
+                self.run.save_times.append((t0, t0 + ms / 1000.0, ms))
                 self.acked.extend(op for op in rec["ops"] if op["own"])
                 with self.lock:
                     self.inflight = None
@@ -283,7 +291,7 @@ class Run:
     def __init__(self, scenario, users, fs_ms, duration, real_folder=None, entry=ENTRY, think=(1.0, 3.0), compact_every=10.0, storage=None, verbose=True):
         self.scenario, self.n, self.fs_ms, self.duration = scenario, users, fs_ms, duration
         self.real_folder, self.entry, self.think, self.compact_every, self.storage, self.verbose = real_folder, entry, think, compact_every, storage, verbose
-        self.saves, self.visible, self.tail_ms, self.gens = [], [], [], []
+        self.saves, self.visible, self.tail_ms, self.gens, self.save_times = [], [], [], [], []
 
     def log(self, msg):
         if self.verbose:
@@ -347,16 +355,18 @@ class Run:
 
     @staticmethod
     def journal_bytes(data):
+        """the largest deck's journals together (bytes)"""
         top = os.path.join(data, "v4", "decks")
-        n = 0
+        most = 0
         for d in os.listdir(top) if os.path.isdir(top) else []:
-            j = os.path.join(top, d, "j")
+            j, n = os.path.join(top, d, "j"), 0
             for f in os.listdir(j) if os.path.isdir(j) else []:
                 try:
-                    n = max(n, os.path.getsize(os.path.join(j, f)))
+                    n += os.path.getsize(os.path.join(j, f))
                 except OSError:
                     pass
-        return n
+            most = max(most, n)
+        return most
 
     def collect(self, users, journal_max):
         by_deck = {}
@@ -372,12 +382,24 @@ class Run:
                 lost += sum(1 for op in u.acked if final.get(op["k"]) != op["v"])
         compactions = [c for u in users for c in u.compactions]
         errs = [e for u in users for e in u.errors]
+        ok_c = [c for c in compactions if c[0] == 200]
+        during = [ms for (a, b, ms) in self.save_times if any(a < c[3] and b > c[2] for c in ok_c)]
+        gens_back = [u.h.user for u in users if any(y < x for x, y in zip(u.gens_seen, u.gens_seen[1:]))]
+        undrained = [u.h.user for u in users if u.pending or u.inflight]
+        no_saves = [u.h.user for u in users if not u.saves]
+        # bytes per record on the share (the largest deck), at the compaction threshold of 2 000 records
+        per_deck = max((sum(len(u.saves) for u in us) for us in by_deck.values()), default=0)
+        per_record = journal_max / max(1, per_deck)
         res = {"scenario": self.scenario, "users": self.n, "fs_ms": "real" if self.real_folder else self.fs_ms,
                "saves": len(self.saves), "save_p50": pct(self.saves, .5), "save_p95": pct(self.saves, .95),
                "visible_p50": pct(self.visible, .5), "visible_p95": pct(self.visible, .95), "tail_p95": pct(self.tail_ms, .95),
                "lost": lost, "converged": converged, "errors": len(errs), "error_examples": errs[:3],
-               "journal_max_mb": round(journal_max / 1048576.0, 3), "gens": self.gens,
-               "compactions": [[st, round(ms)] for st, ms in compactions]}
+               "journal_max_mb": round(journal_max / 1048576.0, 3), "journal_at_2000_mb": round(per_record * 2000 / 1048576.0, 3),
+               "gens": self.gens, "gens_back": gens_back, "compactions": [[c[0], round(c[1])] for c in compactions],
+               "compactions_ok": len(ok_c), "compactions_409": sum(1 for c in compactions if c[0] == 409),
+               "saves_during_compaction": len(during), "save_p95_during_compaction": pct(during, .95),
+               "save_max_during_compaction": round(max(during)) if during else None,
+               "undrained": undrained, "no_saves": no_saves, "simulated": not self.real_folder}
         res["pass"] = self.verdict(res)
         return res
 
@@ -392,11 +414,24 @@ class Run:
             bad.append("%d acknowledged edits lost" % r["lost"])
         if not r["converged"]:
             bad.append("views differ")
-        if r["scenario"] == "burst" and r["journal_max_mb"] >= LIMITS["journal_mb"]:
-            bad.append("a journal of %s MB before compaction" % r["journal_max_mb"])
+        if r["undrained"]:
+            bad.append("edits never saved by %s" % ", ".join(r["undrained"]))
+        if r["no_saves"]:
+            bad.append("no save at all by %s" % ", ".join(r["no_saves"]))
+        if r["simulated"] and r["errors"]:
+            bad.append("%d errors (e.g. %s)" % (r["errors"], r["error_examples"][:1]))
+        if r["gens_back"]:
+            bad.append("a snapshot went back for %s" % ", ".join(r["gens_back"]))
+        if r["scenario"] == "burst" and r["journal_at_2000_mb"] >= LIMITS["journal_mb"]:
+            bad.append("%s MB of journals at 2 000 records (before compaction)" % r["journal_at_2000_mb"])
         if r["scenario"] == "compaction":
-            if r["gens"] != sorted(set(r["gens"])) or not r["gens"]:
-                bad.append("gen not strictly increasing: %s" % r["gens"])
+            gens = r["gens"]
+            if r["compactions_ok"] < 2:
+                bad.append("only %d compactions succeeded" % r["compactions_ok"])
+            if gens != list(range(gens[0], gens[0] + len(gens))) if gens else False:
+                bad.append("compactions' gens not one after the other: %s" % gens)
+            if r["saves_during_compaction"] and r["save_max_during_compaction"] >= LIMITS["save_p95"]:
+                bad.append("a save waited on a compaction (%s ms)" % r["save_max_during_compaction"])
         return bad
 
 

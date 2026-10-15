@@ -589,6 +589,54 @@ class DeckReuseTests(DeckBase):
         self.assertEqual(opened, [])
 
 
+class PrepareTests(DeckBase):
+    """POST /api/decks/<key>/prepare: the journal opened during the page's debounce (S5.4)"""
+
+    def test_prepare_is_idempotent_and_the_append_uses_its_file(self):
+        w = decks.new_writer()
+        decks.prepare(self.key, w)
+        decks.prepare(self.key, w)
+        self.assertJournals([w])                                       # one file, the bare name (this helper issued w)
+        self.assertEqual(decks.append(self.key, w, self.rec(w, 1))["journal"], w)
+        self.assertJournals([w])
+
+    def test_prepare_of_a_writer_this_helper_did_not_issue_never_takes_the_bare_name(self):
+        w = "other@pc9#abcdefgh"
+        decks.prepare(self.key, w)
+        self.assertJournals([w + "~*"])
+
+    def test_prepare_refuses_a_read_only_deck_and_does_nothing_in_lean_lock(self):
+        with open(os.path.join(decks.deck_dir(self.key), "incident-x-1.json"), "w") as f:
+            f.write("{}")
+        decks.reset()
+        with self.assertRaises(decks.DeckError) as e:
+            decks.prepare(self.key, decks.new_writer())
+        self.assertEqual(e.exception.status, 423)
+        os.remove(os.path.join(decks.deck_dir(self.key), "incident-x-1.json"))
+        decks.reset()
+        os.environ["SLIDEBUILDER_STORAGE"] = "lean-lock"
+        self.assertEqual(decks.prepare(self.key, decks.new_writer()), {"ok": True})
+        self.assertFalse(os.path.exists(decks.journal_dir(self.key)))
+
+    def test_empty_journals_are_deleted(self):
+        w = decks.new_writer()
+        decks.prepare(self.key, w)                                     # an edit that never came
+        self.assertEqual(decks.rotate(self.key, w)["deleted"], [w])    # the owner's rotate deletes it
+        dead = "gone@pc9#abcdefgh"
+        os.makedirs(decks.journal_dir(self.key), exist_ok=True)
+        p = os.path.join(decks.journal_dir(self.key), dead + "~5.log")
+        open(p, "wb").close()
+        t = time.time() - decks.DEAD_JOURNAL - 60
+        os.utime(p, (t, t))
+        w2 = decks.new_writer()
+        decks.append(self.key, w2, self.rec(w2, 1))
+        res = decks.tail(self.key, {})
+        snap = decks.read_snapshot(self.key)
+        r = decks.compact(self.key, 1, dict(snap, gen=2, lamport=1, rev=1, frontier={w2: res["journals"][w2]["offset"]}))
+        self.assertEqual(r["dropped"], [dead + "~5"])                  # and a compaction one idle for 24 h
+        self.assertJournals([w2])
+
+
 def age_lock(key, seconds):
     """make the deck's lock file look `seconds` old (time passing, as the file server sees it)"""
     p = os.path.join(decks.deck_dir(key), "lock")

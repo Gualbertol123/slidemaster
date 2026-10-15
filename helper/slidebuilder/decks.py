@@ -470,7 +470,7 @@ def _refresh_loop():
                 pass
 
 
-def _open_new(key, st, writer, first):
+def _open_new(key, st, writer):
     """a NEW journal file for this writer (O_EXCL: never a file another helper or an earlier handle wrote). The
     writer's first record (s = 1) starts <writer>.log, later files are <writer>~<n>.log with a number never used
     before (_new_number): after a rotation deleted a file, or a restart, its name does not come back."""
@@ -516,8 +516,8 @@ def prepare(key, writer):
         if st.fd is not None and time.monotonic() - st.used > IDLE_CLOSE:
             _close(st)
         if st.fd is None:
-            _open_new(key, st, writer, True)
-            st.used = time.monotonic()
+            _open_new(key, st, writer)
+        st.used = time.monotonic()            # the edit is coming: the handle is not idle
     return {"ok": True}
 
 
@@ -535,7 +535,7 @@ def append(key, writer, record):
         if st.fd is not None and now - st.used > IDLE_CLOSE:
             _close(st)                       # long idle (or the PC slept): a new file, never an old handle
         if st.fd is None:
-            _open_new(key, st, writer, record["s"] == 1)
+            _open_new(key, st, writer)
         rec = dict(record)
         rec["at"] = server_ms()
         data = frame(rec)
@@ -817,16 +817,17 @@ def _drop_dead(key, frontier):
     dropped = []
     folder = journal_dir(key)
     try:
-        entries = [(e.name, e.stat().st_mtime) for e in os.scandir(folder) if JOURNAL_RE.match(e.name)]
+        entries = [(e.name, e.stat().st_mtime, e.stat().st_size) for e in os.scandir(folder) if JOURNAL_RE.match(e.name)]
     except OSError:
         return dropped
     now = fs_now(paths.DATA)
     mine = _known_files(key)
-    for name, mtime in entries:
+    for name, mtime, size in entries:
         j = stem(name)
-        if name in mine or j not in frontier or now - mtime < DEAD_JOURNAL:
+        if name in mine or now - mtime < DEAD_JOURNAL:
             continue
-        if _covered(os.path.join(folder, name), frontier[j]) and remove_quietly(os.path.join(folder, name)):
+        # covered by the frontier, or empty (a journal opened ahead of an edit that never came): nothing in it to keep
+        if ((j in frontier and _covered(os.path.join(folder, name), frontier[j])) or size == 0) and remove_quietly(os.path.join(folder, name)):
             dropped.append(j)
     if dropped:
         with _guard:
@@ -885,8 +886,13 @@ def rotate(key, writer):
     except OSError:
         names = []
     for name in names:
-        j = stem(name)
-        if j in frontier and _covered(os.path.join(folder, name), frontier[j]) and remove_quietly(os.path.join(folder, name)):
+        j, p = stem(name), os.path.join(folder, name)
+        covered = j in frontier and _covered(p, frontier[j])
+        try:
+            empty = not covered and os.path.getsize(p) == 0       # opened (prepare) but never written: nothing to keep
+        except OSError:
+            empty = False
+        if (covered or empty) and remove_quietly(p):
             deleted.append(j)
     with _guard:
         _listings.pop(key, None)
