@@ -66,7 +66,7 @@ export async function readRels(zip: Zip, part: string): Promise<Record<string, R
 }
 
 export class WorkbookError extends Error {
-  constructor(public code: "CFB" | "ENCRYPTED" | "XLSB" | "NOTZIP" | "NOTXLSX", msg: string) { super(msg); }
+  constructor(public code: "CFB" | "ENCRYPTED" | "NOTZIP" | "NOTXLSX", msg: string) { super(msg); }
 }
 
 export const fmtMB = (b: number) => b >= 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";

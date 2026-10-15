@@ -1,5 +1,9 @@
 # Slide Builder 2.3 – functional review
 
+> **Archived (PLAN S6.4, 2026-10-15).** This document is from before Slide Builder 4 (patched in places during
+> the rebuild) and is kept for history; its links are as they were. The current documents are the
+> [README](../../README.md) and the [contract](../ARCHITECTURE.md).
+
 Scope: the full v2.3 code base (`backend/slide_builder.py`, `backend/src/*.js`, CSS, launchers),
 reviewed for correctness, for use from a **shared network drive by several people at the same time**
 (same or different workbooks), for security, and for maintainability. The last section explains the

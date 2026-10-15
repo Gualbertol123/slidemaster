@@ -1,4 +1,4 @@
-"""Shared font library (ARCHITECTURE §3.4): fonts uploaded by users or saved from Google Fonts.
+"""Shared font library (ARCHITECTURE §12.1): fonts uploaded by users or saved from Google Fonts.
 
     data/fonts/fonts.json        {"schema": 1, "fonts": [{family, source, faces: [{file, weight, style, range?}], by, at}]}
                                  source: "upload", "google", or "system" (a Windows font copied by a capture in copy

@@ -2,7 +2,7 @@
 
 Python standard library only, Python 3.8+. Windows is the target (app folder on an SMB share);
 everything except the Excel/GDI+ converters also runs on Linux/macOS. The binding contract is
-`docs/ARCHITECTURE.md`; the reasons are in `docs/REVIEW.md`.
+`docs/ARCHITECTURE.md`; the reasons are in `docs/v3/REVIEW.md`.
 
 ```
 python slide_builder.py [--port 8765] [--no-browser]    # what "Start Slide Builder.bat" runs
@@ -33,7 +33,7 @@ idempotent.
 | `fsclock` | the file server's clock (`fs_now(dir)`): ages of shared files never compare a server mtime with this PC's clock |
 | `locks` | `Lock(name)` – O_EXCL lock files in `data/locks`, 10 s wait, 15 s stale, owner token, keepalive |
 | `store` | `config.json` (compare-and-set of its defaults on `rev` under lock `config`, shared with v3 helpers: the page computes them), `users/<user>.json`, and v3's workbook documents read only (the migration, the self-test); retried reads, `StoreUnreadable`; format upgrades on read (`StoreTooNew` → 409). Applies no operation |
-| `upgrade` | saved-format versions (`SCHEMA`) and the upgrade steps n → n+1 (ARCHITECTURE §3.3) |
+| `upgrade` | saved-format versions (`SCHEMA`) and the upgrade steps n → n+1 (ARCHITECTURE §13.5) |
 | `decks` | Slide Builder 4's decks (docs/next/04 §2): `data/v4/decks/<key>/` snapshot + per-writer journals of framed records (`<len>:<crc32>:<json>\n`), append (one handle per writer session, `os.fsync`, `at` on the file server's clock), tail (≤ 8 parallel reads, listing cached 3 s, complete frames only), snapshot (retried; 503, never empty), compact (CAS on `gen` under the deck lock; covered journals idle 24 h dropped; backup to `backups/v4/<key>/` after the lock), rotate, presence v2 (empty files, scandir mtimes), incidents (a corrupt journal makes the deck read-only); `SLIDEBUILDER_STORAGE=lean-lock` (or `data/v4/storage.json`): one shared journal under the deck lock. **Never parses or applies operations** |
 | `workbooks` | listing of workbooks, path-safe lookup, stable read (`X-SB-Mtime` / `X-SB-Size`) |
 | `migrate` | one-time import of `slide_builder_settings.txt` (v2) under lock `migrate`: each workbook a new deck whose first record holds the import as operations (folded by the core) |
@@ -41,7 +41,7 @@ idempotent.
 | `exports` | `/api/export-file` (the page's PDF or PNG: temporary file, then atomic rename into `export\`, ` (2)` when locked) and `/api/export-feedback` (`export\feedback\*.json`) |
 | `fonts` | shared font library `data/fonts/` (fonts.json + files; signature-checked uploads, lock `fonts`) |
 | `sysfonts` | this PC's Windows fonts for the core (`GET /sysfonts`, names read with `struct`), and `POST /api/fonts/capture`: fingerprint mode (G0 R7), `data/fonts/system/fingerprints.json` under lock `fonts`; copy mode (W13: the family into the shared library, all faces or none) once `--allow-font-copy "<who confirmed>"` has recorded the licence owner's yes in `data/fonts/system/licence.json` |
-| `convert` | EMF/WMF/TIFF → PNG (GDI+, PowerShell) and .xlsb/.xls → .xlsx (Excel COM) – Windows only (ported) |
+| `convert` | EMF/WMF/TIFF → PNG (GDI+, PowerShell) and .xls (or a protected file) → .xlsx (Excel COM) – Windows only (ported); an .xlsb is read by the page itself since 4.1 |
 | `firstrun` | `--install`: first-time set-up on a PC (5 steps, OK/WARN/FAIL, summary, exit code) |
 | `simfs` | **load tests only**: adds simulated SMB latency to data-folder file calls when `SLIDEBUILDER_SIM_FS_MS` is set; never imported otherwise |
 | `server` | HTTP API, security checks (Host, token, Origin, body limits), upload store |
@@ -91,6 +91,6 @@ python3 -m unittest discover -s tests -v
 
 `tools/loadtest4.py` (standard library only) starts one v4 helper per simulated user on a shared temp
 folder (or `--real-folder T:\…`) and measures saving, visibility of other people's edits, compaction and
-correctness against 05 §3.5 (`--ci`: the CI job). Method and results: [`docs/LOADTEST.md`](../docs/LOADTEST.md).
+correctness against 05 §3.5 (`--ci`: the CI job). Method and results: [`docs/v3/LOADTEST.md`](../docs/v3/LOADTEST.md).
 
 Multi-process tests use the `spawn` start method (same as Windows).

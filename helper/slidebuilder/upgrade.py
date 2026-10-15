@@ -1,4 +1,4 @@
-"""Versions of the saved setups and their automatic upgrade (ARCHITECTURE §3.3).
+"""Versions of the saved setups and their automatic upgrade (ARCHITECTURE §13.5).
 
 Every saved file carries a format number in ``"schema"``:
 

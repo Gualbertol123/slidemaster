@@ -1,13 +1,13 @@
 # Slide Builder – how workbooks become slides
 
 The reading and rendering algorithms were carried over from v2.3 unchanged in behaviour, except for
-the fixes listed in `docs/REVIEW.md` (number formats, conditional formats). Since v3.8 (M4) slides are
+the fixes listed in `docs/v3/REVIEW.md` (number formats, conditional formats). Since v3.8 (M4) slides are
 drawn from display lists instead of HTML (§2), held to v3's output: `npm run parity` (`tools/parity.mjs`)
 compares every deck × design × version with the goldens captured from v3.4.0 (`golden/`: elements, boxes,
 texts, a chosen set of screenshots, the PDF), `npm run dlparity` (`tools/dlparity.mjs`) does the same for
 the display list drawn on a canvas (thumbnails, PNG), and SP (screen = PDF, `tools/stage-capture.mjs`)
 checks every slide on the stage against its page of the exported PDF.
-This file describes them; `docs/ARCHITECTURE.md` describes storage, sync and the HTTP API.
+This file describes them; `docs/ARCHITECTURE.md` (the contract) describes storage, sync and the HTTP API.
 
 In v3 nothing reads globals: renderers receive a `RenderCtx` (`render/context.ts`) with the deck
 style, the cell edits, the slides and the workbook name. Per-table caches (`L._cache`) are keyed by
@@ -38,8 +38,10 @@ sheet (shared strings stay in the workbook's table).
 **Robustness:** case-insensitive / %-encoded part names (`zget`), damaged sheets become
 `brokenSheet()` stubs (listed as “could not be read”), format detection:
 `PK..` zip, `D0 CF 11 E0` = old .xls or encrypted (IRM/sensitivity label) → `CFB`,
-`xl/workbook.bin` → `XLSB`. CFB/XLSB are sent to `POST /api/convert-workbook` (helper) (Excel COM, read-only
-temp copy, macros/events/link updates off) and the resulting .xlsx is read.
+`xl/workbook.bin` = an .xlsb, read natively since 4.1 (`xlsx/xlsb/`: BIFF12 records into the same structures,
+each value as the .xlsx reader has it for the same workbook saved by Excel). CFB is sent to
+`POST /api/convert-workbook` (helper) (Excel COM, read-only temp copy, macros/events/link updates off) and the
+resulting .xlsx is read.
 
 **Tables.** `findRegions()` (`xlsx/layout.ts`) pairs “x” cells (top-left with the nearest bottom-right whose rectangle
 holds no other marker). `buildLayout(S, g)` builds visible rows/cols (hidden ones skipped), merged

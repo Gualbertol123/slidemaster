@@ -1,4 +1,4 @@
-"""Folder layout (ARCHITECTURE §1, §3).
+"""Folder layout (ARCHITECTURE §1.3, §2.1).
 
     Slide Builder\                  ROOT: Start Slide Builder.bat + the Excel workbooks
       export\                       every PDF / PNG is written here

@@ -1,4 +1,4 @@
-"""One-time import of the v2 settings file (ARCHITECTURE §6).
+"""One-time import of the v2 settings file (ARCHITECTURE §13.6).
 
 Runs at start-up under lock ``migrate``; idempotent (``data/migrated.json`` is the marker) and it
 never overwrites a document that already exists.

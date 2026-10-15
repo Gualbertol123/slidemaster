@@ -1,4 +1,4 @@
-/* Persistent data (see docs/ARCHITECTURE.md §3) and runtime slide objects. */
+/* Persistent data (see docs/ARCHITECTURE.md §2) and runtime slide objects. */
 import type { TableLayout } from "../xlsx/types";
 
 export interface Layout { bands: number[][]; w: number[] }

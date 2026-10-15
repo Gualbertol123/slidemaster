@@ -30,7 +30,7 @@ def log(*a):
         pass
 
 
-# --------------------------------------------------------------------------- identity (ARCHITECTURE §2)
+# --------------------------------------------------------------------------- identity (ARCHITECTURE §1.6)
 def current_user():
     env = os.environ.get("SLIDEBUILDER_USER")
     if env:
@@ -65,7 +65,7 @@ def safe_component(s, limit=60):
 
 
 def doc_key(name):
-    """ARCHITECTURE §3: safe name (max 60 chars) + '-' + first 10 hex chars of sha1(name.lower())."""
+    """ARCHITECTURE §2.1: safe name (max 60 chars) + '-' + first 10 hex chars of sha1(name.lower())."""
     return safe_component(name, 60) + "-" + hashlib.sha1((name or "").lower().encode("utf-8")).hexdigest()[:10]
 
 
@@ -117,7 +117,7 @@ def open_with_os(path):
         subprocess.Popen(["xdg-open", path])
 
 
-# --------------------------------------------------------------------------- atomic writes (ARCHITECTURE §4)
+# --------------------------------------------------------------------------- atomic writes (ARCHITECTURE §7.1)
 class WriteFailed(OSError):
     """The file could not be replaced (typically locked by another program on Windows)."""
 

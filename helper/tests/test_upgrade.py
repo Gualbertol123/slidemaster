@@ -1,4 +1,4 @@
-"""Saved setups keep working across updates (upgrade.py, ARCHITECTURE §3.3):
+"""Saved setups keep working across updates (upgrade.py, ARCHITECTURE §13.5):
 
 * every example in fixtures/saved/ (one per format version ever released) is read by this program;
 * an older format is converted once, automatically, and the old file is kept in
