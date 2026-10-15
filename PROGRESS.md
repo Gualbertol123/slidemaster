@@ -229,8 +229,11 @@ numbers measured twice). Measured numbers go into the step's line.
 ## Waiting for
 
 - **M5a (S5.1–S5.5) on `v4/M5a-storage`, for a person:** (1) push the branch and open ONE pull request (this
-  session's permission rules refused `git push`); (2) run `python tools/loadtest4.py --real-folder "T:\Slide Builder"`
-  on the real share (S5.4; never run by an agent) and add the numbers to Measurements; (3) the goldens' environment
+  session's permission rules refused `git push`); (2) ~~run `tools/loadtest4.py --real-folder` on the real share~~ run by a person
+  2026-10-15 (Measurements): no record lost, every page converged; 10 users pass every 05 §3.5 criterion, 20 users fail two
+  (same-deck save p95 171 ms > 150; with compaction visible p95 4.6 s > 4 s, one save 538 ms). All 20 helpers ran on one
+  PC (one SMB client: tail p95 grew from 0.35–0.7 s to 1.3–2.5 s), so 20 real PCs may do better – product owner: accept,
+  measure with real PCs in the S5.6 pilot, or ask for tuning first (tail interval, listing cache); (3) the goldens' environment
   changed on this PC (Windows 10.0.22631 → 10.0.26100, fonts 357 → 350): parity ran text-only and SP not at all for
   all of M5 – re-capture or a reference machine is a product-owner decision; (4) product owner: *Options ›
   Administration › Prepare rollback* (required by PLAN S5.3) and the deck-health line (required by S5.5) are visible
@@ -336,6 +339,7 @@ numbers measured twice). Measured numbers go into the step's line.
 |---|---|---|---|
 | S5.4 | `tools/loadtest4.py --ci`, 20 users, save p50/p95 ms · visible p50/p95 ms: same deck 40 ms · different decks 40 ms · burst 15 ms · compaction while editing 40 ms | clean clone 813d292: 98/114 · 1402/2207 – 96/115 – 48/59 · 1246/1973 – 99/116 · 1471/2286 | clean clone 24bb4f4: 98/116 · 1405/2211 – 100/118 – 47/59 · 1243/1985 – 96/114 · 1476/2298 (every difference ≤ 4 %) |
 | S5.4 | the same, working copies (S5.5 rounds b, c, d and 24bb4f4): same-deck save p95 | 116 · 111 · 114 · 115 (differences ≤ 5 %) | visible p95 2205–2210 |
+| S5.4 | REAL share (`T:\…\Chief Dashboard\slider`, run by a person 2026-10-15, all helpers on ONE PC, 120 s each; save p50/p95 ms · visible p50/p95 ms · tail p95 ms) | 10 users – same 44/91 · 1533/2440 · 631; different 41/85 · – · 350; burst 42/86 · 1621/2552 · 695; compaction 45/87 · 1711/3015 · 1404 (9 compactions, saves during them p95 74, max 101): all PASS | 20 users – same 47/**171** · 1825/3715 · 1335 (FAIL: save p95 < 150); different 40/65 · – · 332; burst 47/103 · 1918/3100 · 1463; compaction 45/101 · 2122/**4640** · 2453 (FAIL: visible p95 < 4000, one save 538 ms during a compaction). Every run: 0 lost, converged, 0 errors, gens consecutive and never back |
 | S5.4 | 20 users at 40 ms, same deck, save p95 before / after `prepare` (journal opened during the debounce) | 284 ms | 119 ms |
 | S5.5 | deck20 open (bench; v4: open + migration check + first tail + fold) | 389–419 ms (M4: 244–265; limit 400 scaled, within +10 %) | clean clone 24bb4f4: 390 ms (limit 400) |
 | S0.1 | e2e suite, local (15 tests) | 4.2 min | 4.1 min |
