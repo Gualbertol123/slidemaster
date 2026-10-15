@@ -115,7 +115,12 @@ def unframe_ends(buf):
             return out, ends, p, p
         end = a + 10 + n
         if n_buf < end + 1:
-            break                                       # the body or its newline is still missing
+            # the body or its newline is still missing - unless a line end follows the header: a body never holds one
+            # (compact JSON), so its length is wrong (a damaged length field, digits before a header) - corruption,
+            # never a torn tail that would hide the records after it (docs/next/AUDIT.md DATA-1)
+            if b"\n" in buf[a + 10:n_buf]:
+                return out, ends, p, p
+            break
         body = buf[a + 10:end]
         if buf[end:end + 1] != b"\n" or zlib.crc32(body) & 0xFFFFFFFF != int(crc_raw, 16):
             # the last frame, with zeros where its body or newline should be (the file server lost power during an

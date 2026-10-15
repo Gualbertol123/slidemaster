@@ -5,6 +5,8 @@ these tests fold them by their envelope - (l, w, s) order, one copy per (w, s) -
 """
 import json
 import re
+import shutil
+import tempfile
 import multiprocessing
 import os
 import threading
@@ -103,6 +105,23 @@ class FramingTests(unittest.TestCase):
         flipped = bytearray(a + b)
         flipped[len(a) + 20] ^= 0x01
         self.assertEqual(decks.unframe(bytes(flipped))[2], len(a))
+
+    def test_a_length_grown_past_the_end_is_corruption_not_a_torn_tail(self):
+        # audit (docs/next/AUDIT.md DATA-1): a frame's length damaged into a bigger number ran past the file's end and
+        # was read as a tail still being written - no incident, the records after it invisible, and the journal later
+        # counted as covered and deleted. A body never holds a raw line end (compact JSON), so a line end after the
+        # header of a frame that is not complete yet means the length is wrong.
+        a, b, c = (decks.frame({"w": "x", "s": s, "l": s}) for s in (1, 2, 3))
+        n = b[:b.index(b":")]
+        grown = a + b"9" + b[len(n):] + c if n[0:1] != b"9" else a + b"1" + b + c   # one digit changed: a bigger length
+        self.assertEqual(decks.unframe(grown)[2], len(a))
+        self.assertEqual(decks.unframe(a + b"9" + b + c)[2], len(a))              # a digit inserted before a header
+        self.assertEqual(decks.unframe(a + b"9" + b)[2], len(a))                  # …also in the last frame
+        path = os.path.join(tempfile.mkdtemp(), "j.log")
+        with open(path, "wb") as f:
+            f.write(grown)
+        self.assertFalse(decks._covered(path, len(a)))                            # never "covered", never deleted
+        shutil.rmtree(os.path.dirname(path))
 
 
 class SavedFormatTests(TempDirs):
