@@ -374,6 +374,30 @@ class RealV3(TempDirs):
         self.assertEqual(result["r"], "rolled back")
         self.assertEqual(self.v3.ops(WB, [cell("A1", "v3")])[0], 200)
 
+    def test_lean_lock_appends_after_a_rollback_are_refused(self):
+        key, _ = migrate_v3.ensure_deck(WB)
+        os.environ["SLIDEBUILDER_STORAGE"] = "lean-lock"
+        self.addCleanup(os.environ.pop, "SLIDEBUILDER_STORAGE", None)
+        w = decks.new_writer("anna")
+        self._compacted_with_records(key, w, 2)
+        self.assertEqual(migrate_v3.rollback(WB, quiet=0), "rolled back")
+        with self.assertRaises(decks.DeckError) as e:          # the same helper, no tail since: still refused
+            decks.append(key, w, {"w": w, "s": 3, "l": 3, "ops": []})
+        self.assertEqual(e.exception.status, 409)
+
+    def test_a_v4_open_during_the_pause_waits_and_the_rollback_finishes(self):
+        key, _ = migrate_v3.ensure_deck(WB)
+        result = {}
+        t = threading.Thread(target=lambda: result.setdefault("r", self._try_rollback()))
+        t.start()
+        time.sleep(0.4)
+        with self.assertRaises(decks.DeckError) as e:          # busy: the page tries again
+            migrate_v3.ensure_deck(WB)
+        self.assertEqual(e.exception.status, 503)
+        t.join()
+        self.assertEqual(result["r"], "rolled back")
+        self.assertEqual(self.v3.ops(WB, [cell("A1", "v3")])[0], 200)
+
     def _try_rollback(self):
         try:
             return migrate_v3.rollback(WB, quiet=1.0)

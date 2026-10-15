@@ -39,7 +39,7 @@ import time
 from . import decks, paths, upgrade
 from .fsclock import fs_now_ms
 from .locks import Lock, LockTimeout
-from .util import current_host, current_user, log, write_atomic
+from .util import current_host, current_user, log, remove_quietly, write_atomic
 
 MOVED = "moved-from-v3.json"
 ROLLED_BACK = "rolled-back.json"
@@ -176,8 +176,12 @@ def migrate(workbook, lock_timeout=None):
             raw, doc = got
             if frozen(doc):
                 if has_deck and doc.get("movedGen", old["gen"]) <= old["gen"]:
-                    # a rollback that marked the deck but never gave v3 its document back: the deck never left v4
-                    os.remove(marker)
+                    # a rollback that marked the deck but never gave v3 its document back: the deck never left v4 -
+                    # unless that rollback is still in its pause (then: busy, try again)
+                    m = _read_marker(marker)
+                    if m.get("state") == "marked" and fs_now_ms(paths.DATA) - (m.get("at") or 0) < (_quiet(None) + 30) * 1000:
+                        raise decks.DeckError(503, "this deck is being given back to Slide Builder 3 right now - try again in a moment")
+                    remove_quietly(marker)
                     return "v4"
                 # frozen by a migration that stopped before its snapshot: its content is the newest v3 had
                 v3 = _thaw(doc)
@@ -300,6 +304,7 @@ def rollback_many(keys, quiet=None, names=None):
     names = names or {}
     results = {}
     marked = []
+    mark_at = {}
     for key in keys:
         try:
             if not decks.deck_exists(key):
@@ -319,7 +324,8 @@ def rollback_many(keys, quiet=None, names=None):
                     if late:
                         raise NotMigrated(409, "%s has changes that are not in its snapshot yet (%s) - open it once in Slide Builder 4, "
                                                "or use Options › Administration › Prepare rollback" % (snap.get("workbook") or key, ", ".join(sorted(late))))
-                    _write_json(decks.deck_dir(key, ROLLED_BACK), {"at": fs_now_ms(paths.DATA), "by": "%s@%s" % (current_user(), current_host()),
+                    mark_at[key] = fs_now_ms(paths.DATA)
+                    _write_json(decks.deck_dir(key, ROLLED_BACK), {"at": mark_at[key], "by": "%s@%s" % (current_user(), current_host()),
                                                                    "gen": snap["gen"], "rev": snap.get("rev") or 0, "state": "marked"})
             marked.append(key)
         except (NotMigrated, decks.DeckError, LockTimeout, OSError) as e:
@@ -332,11 +338,16 @@ def rollback_many(keys, quiet=None, names=None):
                 with decks.deck_lock(key, keepalive=True):
                     marker = decks.deck_dir(key, ROLLED_BACK)
                     snap = decks.read_snapshot(key)
+                    if _read_marker(marker).get("at") != mark_at.get(key):
+                        raise NotMigrated(409, "%s was opened in Slide Builder 4 while it was being rolled back - it stays there"
+                                          % (snap.get("workbook") or key))
                     late = _past_frontier(key, snap.get("frontier") or {})
-                    if late:                                 # somebody appended before their helper saw the marker
-                        os.remove(marker)
-                        raise NotMigrated(409, "%s was changed while it was being rolled back (%s) - it stays with Slide Builder 4; "
-                                               "Prepare rollback and try again" % (snap.get("workbook") or key, ", ".join(sorted(late))))
+                    who = _present(key)
+                    if late or who:                          # somebody appended (or opened it) during the pause
+                        remove_quietly(marker)
+                        raise NotMigrated(409, "%s was changed or opened while it was being rolled back (%s) - it stays with Slide Builder 4; "
+                                               "close it everywhere, Prepare rollback and try again"
+                                          % (snap.get("workbook") or key, ", ".join(sorted(late) + sorted({o["user"] for o in who}))))
                     wb = snap.get("workbook") or names.get(key)
                     path = v3_path_key(key)
                     got = _read_v3(path)
@@ -368,6 +379,15 @@ def rollback_many(keys, quiet=None, names=None):
         else:
             out.append(r)
     return out
+
+
+def _read_marker(path):
+    try:
+        with open(path, "rb") as f:
+            v = json.loads(f.read().decode("utf-8"))
+        return v if isinstance(v, dict) else {}
+    except (OSError, ValueError):
+        return {}
 
 
 def v3_path_key(key):

@@ -560,6 +560,10 @@ def _append_shared(key, record):
     folder = journal_dir(key)
     try:
         with deck_lock(key):
+            # under the lock a rollback holds while it gives v3 the document: one stat closes its window exactly
+            if os.path.exists(deck_dir(key, "rolled-back.json")):
+                _rolled[key] = True
+                raise DeckError(409, ROLLED)
             os.makedirs(folder, exist_ok=True)
             names = os.listdir(folder)
             ns = [_shared_n(x) for x in names if journal_writer(x) == "shared"]
