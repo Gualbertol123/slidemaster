@@ -40,7 +40,7 @@ export const DEBOUNCE_MS = 300, TAIL_MS = 1500;
 /** compaction policy (04 §2.2) */
 export const COMPACT_RECORDS = 2000, IDLE_WRITER_MS = 24 * 3600 * 1000, REST_MS = 5000;
 /** a compaction folds only records appended at least this long ago (the file server's time): a journal created
-    since may still be missing from a reader's listing (the helper caches it 10 s, the SMB client 10 s more), and
+    since may still be missing from a reader's listing (the helper caches it 3 s, the SMB client 10 s more), and
     a record in it could be one that a newer record already folded in overwrote (review of S5.2, finding 2) */
 export const COMPACT_MARGIN_MS = 30_000;
 
@@ -81,6 +81,9 @@ export class DocSync {
   private serverAt: [number, number] | null = null;
   /** the last tail left a journal out (unreadable): no compaction on such a round */
   private skippedRound = false;
+  /** the file server's time of the last tail that read every journal: a compaction folds only records older than it
+      minus the margin, so every record it folds was appended before a complete read (re-review of S5.2, R2) */
+  private lastFullTail: number | null = null;
   private readonly margin: number;
   state: SaveState;
   error = "";
@@ -130,6 +133,7 @@ export class DocSync {
     const by = new Set<string>();
     if (typeof t.now === "number") this.serverAt = [t.now, Date.now()];
     this.skippedRound = !!(t.skipped && t.skipped.length);
+    if (typeof t.now === "number" && !this.skippedRound) this.lastFullTail = t.now;
     for (const [j, tj] of Object.entries(t.journals || {})) {
       const ends = tj.ends || [];
       tj.records.forEach((r, i) => {
@@ -301,8 +305,11 @@ export class DocSync {
       null when there is nothing to fold. */
   private candidate(): DeckSnapshot | null {
     const F: Record<string, number> = { ...this.offsets };
-    if (this.mine) F[this.mine[0]] = Math.max(F[this.mine[0]] || 0, this.mine[1]);
-    const cutoff = this.serverNow() - this.margin, seen = this.snap.seen || {};
+    // my journal holds only my records (a failed append always ends one): a shared one (lean-lock) never counts as mine
+    if (this.mine && (this.mine[0] === this.writer || this.mine[0].startsWith(this.writer + "~")))
+      F[this.mine[0]] = Math.max(F[this.mine[0]] || 0, this.mine[1]);
+    if (this.lastFullTail == null) return null;
+    const cutoff = this.lastFullTail - this.margin, seen = this.snap.seen || {};
     // each journal's records past the snapshot, in file order
     const byJ = new Map<string, { end: number; id: string }[]>();
     for (const [id, e] of this.entries) for (const [j, end] of e.at) { const l = byJ.get(j); if (l) l.push({ end, id }); else byJ.set(j, [{ end, id }]); }
@@ -341,7 +348,7 @@ export class DocSync {
   /** for the page's pagehide (04 §4.4: the last one present compacts the deck it closes): the snapshot of the deck
       as it is now, when this page is the only one there and everything is saved; else null */
   restSnapshot(): { baseGen: number; snapshot: DeckSnapshot } | null {
-    if (!this.alone || this.busy || !this.api.served || this.state !== "saved") return null;
+    if (!this.alone || this.busy || !this.api.served || this.state !== "saved" || this.skippedRound) return null;
     const s = this.candidate();
     return s ? { baseGen: this.snap.gen, snapshot: s } : null;
   }

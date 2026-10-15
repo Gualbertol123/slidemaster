@@ -261,7 +261,7 @@ S5.3), `history` and the deck form of presence `leave`.
 |---|---|---|
 | `POST /api/decks/open` | `{workbook}` | `{key, writer, created, storage, snapshot}`; creates an empty deck when there is none |
 | `GET /api/decks/<key>/snapshot` | – | `{snapshot}`; 404 no deck, 503 unreadable (never empty), 409 a newer format |
-| `GET /api/decks/<key>/tail?since=<json {journal: offset}>` | – | `{journals:{<journal>:{offset, records, ends}}, gen, readonly?}` – complete records past the offsets (≤ 8 journals read at once, listing cached 10 s); an unreadable journal is left out this time; an offset inside a record is read again from the file's start |
+| `GET /api/decks/<key>/tail?since=<json {journal: offset}>` | – | `{journals:{<journal>:{offset, records, ends}}, gen, readonly?}` – complete records past the offsets (≤ 8 journals read at once, listing cached 3 s – 04 §2.2 says 10 s; a newcomer's first records are seen sooner); an unreadable journal is left out this time; an offset inside a record is read again from the file's start |
 | `POST /api/decks/<key>/append` | `{writer, record}` | `{journal, offset, at}` once flushed (`os.fsync`); 503 → the page sends the same record again (a new file is used) |
 | `POST /api/decks/<key>/compact` | `{baseGen, snapshot}` (≤ 32 MB) | `{gen, dropped}`; 409 `{gen}` when compacted meanwhile or behind; CAS under the deck lock |
 | `POST /api/decks/<key>/rotate` | `{writer}` | `{deleted}` – the writer's journals the frontier covers |
@@ -270,7 +270,7 @@ S5.3), `history` and the deck form of presence `leave`.
 
 Every tail also returns `now` (the file server's time) and `skipped` (journals it could not read this time). A page
 compacts only records at least 30 s old on that clock (`COMPACT_MARGIN_MS`: a journal created since may still be
-missing from a reader's listing – the helper caches it 10 s, the SMB client 10 s more – and an earlier record in it
+missing from a reader's listing – the helper caches it 3 s, the SMB client 10 s more – and an earlier record in it
 must never be folded in after a newer one that replaced it), never on a round with `skipped` journals, and per
 writer only records 1..n without a gap; every journal's frontier is a prefix of records all in the snapshot.
 

@@ -52,7 +52,7 @@ from .locks import Lock
 from .util import current_host, current_user, doc_key, log, remove_quietly, safe_component, write_atomic
 
 FORMAT = 4
-LISTING_TTL = 10.0                # s: a deck's journal listing is cached (the SMB client caches it for 10 s anyway)
+LISTING_TTL = 3.0                 # s: a deck's journal listing is cached (the SMB client may cache it 10 s more)
 TAIL_PARALLEL = 8                 # journals read at once by one tail
 IDLE_CLOSE = 600.0                # s: an append handle unused for this long is closed; the next append opens a new file
 DEAD_JOURNAL = 24 * 3600.0        # s: a covered journal nobody wrote to for this long is dropped by a compaction

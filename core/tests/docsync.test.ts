@@ -173,6 +173,8 @@ describe("DocSync v4", () => {
     a.setAlone(true);
     expect(a.restSnapshot()).toBeNull();                           // not saved yet
     await a.flush();
+    expect(a.restSnapshot()).toBeNull();                           // no complete tail since it was appended
+    await a.poll();
     const r = a.restSnapshot()!;
     expect(r.baseGen).toBe(1); expect(r.snapshot.gen).toBe(2); expect(r.snapshot.doc.edits.S.A1).toEqual({ b: true });
     expect(r.snapshot.frontier[a.writer]).toBe(deck.journals.get(a.writer)!.size);  // my own record, never tailed: covered
@@ -271,6 +273,44 @@ describe("DocSync v4 when a tail misses a journal (review of S5.2: the 10 s list
     await a.poll();                                                             // ... a loads gen 3 first
     await pending;                                                              // then hears that its gen 2 succeeded
     expect(a.gen).toBe(3); expect(text(a, "B1")).toBe("b");
+  });
+});
+
+describe("DocSync v4: re-review of S5.2", () => {
+  const text = (d: DocSync, ref: string) => (d.server.edits.S?.[ref] as { text?: string } | undefined)?.text;
+  it("R1: the snapshot for pagehide is never taken on a round that could not read a journal", async () => {
+    const deck = new FakeDeck(), unreadable = new Set<string>(), base = deck.api();
+    const lossy: DeckApi = { ...base, tail: async (k, s) => { const t = await base.tail(k, s); for (const j of unreadable) if (t.journals[j]) { delete t.journals[j]; (t.skipped ||= []).push(j); } return t; } };
+    const x = new DocSync(base, "W.xlsx", deck.open("x@pc#xxxxxxxx"), "x", { autoTail: false, compactMargin: 0 });
+    const y = new DocSync(base, "W.xlsx", deck.open("y@pc#yyyyyyyy"), "y", { autoTail: false, compactMargin: 0 });
+    x.apply([cell("Z1", { text: "a" })]); await x.flush();
+    await y.poll(); y.apply([cell("Z1", { text: "b" })]); await y.flush();
+    const p = new DocSync(lossy, "W.xlsx", deck.open("p@pc#pppppppp", false), "p", { autoTail: false, compactMargin: 0 });
+    p.setAlone(true);
+    unreadable.add(x.writer);
+    (deck as unknown as { clock: number }).clock += 120_000;
+    await p.poll();
+    expect(await p.compact()).toBeNull();
+    expect(p.restSnapshot()).toBeNull();
+  });
+  it("R2: one shared journal (lean-lock): my last append never stretches the frontier over records I have not read", async () => {
+    const deck = new FakeDeck();
+    // every writer appends to one journal "shared"
+    (deck as unknown as { journalOf: (w: string) => unknown }).journalOf = function (this: FakeDeck) {
+      if (!this.journals.has("shared")) this.journals.set("shared", { size: 0, frames: [], sealed: false, created: 0 } as never);
+      return Object.assign(this.journals.get("shared")!, { name: "shared" });
+    };
+    const a = new DocSync(deck.api(), "W.xlsx", deck.open("a@pc#aaaaaaaa"), "a", { autoTail: false, compactMargin: 0 });
+    const b = new DocSync(deck.api(), "W.xlsx", deck.open("b@pc#bbbbbbbb"), "b", { autoTail: false, compactMargin: 0 });
+    await b.poll();                                                // b's last complete read: nothing yet
+    a.apply([cell("A1", { text: "a" })]); await a.flush();
+    b.apply([cell("B1", { text: "b" })]); await b.flush();         // appended after a's record, which b has not read
+    (deck as unknown as { clock: number }).clock += 120_000;
+    b.setAlone(true);
+    const r = b.restSnapshot();
+    if (r) expect(deck.doCompact(r.baseGen, r.snapshot).gen).toBe(2);
+    const fresh = new DocSync(deck.api(), "W.xlsx", deck.open("q@pc#qqqqqqqq"), "q", { autoTail: false });
+    expect(text(fresh, "A1")).toBe("a"); expect(text(fresh, "B1")).toBe("b");
   });
 });
 
