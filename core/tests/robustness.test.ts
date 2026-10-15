@@ -201,7 +201,9 @@ describe("the open workbook while another is being opened", () => {
     await p.port.call("index", transfer({ buf: book("deck20.xlsx") }, []));          // e.g. the wizard of another file is open
     const n = p.slices.length;
     await p.port.call("apply", { label: "R", ops: [{ op: "style.patch", patch: { radius: 9 } } as Op] });
-    await until(() => p.docs.length > 0 && p.docs[p.docs.length - 1].view?.style.radius === 9);
+    // the newest document sent (an event carries it only when it changed: the save after the 300 ms debounce sends
+    // the deck's new health without it)
+    await until(() => [...p.docs].reverse().find(d => d.view)?.view?.style.radius === 9);
     // a style change needs no new slices of the open workbook: nothing of book ia is sent again
     expect(p.slices.slice(n).filter(e => e.book === ia.book && (e.shared || e.sheets.length))).toEqual([]);
   });
