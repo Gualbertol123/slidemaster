@@ -2,7 +2,7 @@
   "name": "slide-builder",
   "version": "3.8.0",
   "private": true,
-  "description": "Slide Builder. Workspaces: app/ (the browser app, built into backend/slide_builder.html) and core/ (pure TypeScript, no DOM). The helper (backend/) is Python, standard library only.",
+  "description": "Slide Builder. Workspaces: app/ (the browser app, built into helper/slide_builder.html) and core/ (pure TypeScript, no DOM). The helper (helper/) is Python, standard library only.",
   "workspaces": [
     "app",
     "core"

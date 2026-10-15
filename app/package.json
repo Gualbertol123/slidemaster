@@ -3,7 +3,7 @@
   "version": "3.8.0",
   "private": true,
   "type": "module",
-  "description": "Slide Builder browser app. `npm run build` writes ../backend/slide_builder.html (one self-contained file).",
+  "description": "Slide Builder browser app. `npm run build` writes ../helper/slide_builder.html (one self-contained file).",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

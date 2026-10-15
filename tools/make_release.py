@@ -7,7 +7,7 @@
     python tools/make_release.py --notes 3.4.0      print that version's CHANGELOG.md section (release text)
 
 The ZIP holds what a shared folder needs to run one version side by side with others (app\\<ver>\\):
-    backend/**            the helper and the built page (backend/slide_builder.html), without data/,
+    helper/**             the helper and the built page (helper/slide_builder.html), without data/,
                           tests/, __pycache__ and anything that belongs to a user (logo, v2 settings)
     tools/update.py       the updater
     *.bat  README.md      the launchers and the guide (CHANGELOG.md when present)
@@ -36,9 +36,9 @@ _spec.loader.exec_module(update)
 
 ROOT_FILES = ("Start Slide Builder.bat", "Update Slide Builder.bat", "Install Slide Builder.bat", "README.md", "CHANGELOG.md",
               "tools/update.py", "tools/fieldcheck.html")
-SKIP_DIRS = {"data", "tests", "__pycache__", "engine", "export", "node_modules"}      # directly below backend/
+SKIP_DIRS = {"data", "tests", "__pycache__", "engine", "export", "node_modules"}      # directly below helper/
 SKIP_FILE = re.compile(r"(\.pyc$|\.pyo$|\.update-tmp$|^logo[^/]*$|^slide_builder_settings|^~\$|\.(xlsx|xlsm|xlsb|xls)$|^\.)", re.I)
-REQUIRED = ("backend/slide_builder.py", "backend/slide_builder.html", "backend/slidebuilder/__init__.py", "tools/update.py",
+REQUIRED = ("helper/slide_builder.py", "helper/slide_builder.html", "helper/slidebuilder/__init__.py", "tools/update.py",
             "Start Slide Builder.bat")
 
 
@@ -53,10 +53,10 @@ def say(msg=""):
 
 
 def program_version(root):
-    with open(os.path.join(root, "backend", "slidebuilder", "__init__.py"), encoding="utf-8") as f:
+    with open(os.path.join(root, "helper", "slidebuilder", "__init__.py"), encoding="utf-8") as f:
         m = re.search(r'^VERSION\s*=\s*"([^"]+)"', f.read(), re.M)
     if not m:
-        raise SystemExit("backend/slidebuilder/__init__.py has no VERSION")
+        raise SystemExit("helper/slidebuilder/__init__.py has no VERSION")
     return m.group(1)
 
 
@@ -74,14 +74,14 @@ def git_commit(root):
     head = _git(root, "rev-parse", "HEAD")
     if not head:
         return None
-    dirty = _git(root, "status", "--porcelain", "--untracked-files=no", "--", "backend", *ROOT_FILES)
+    dirty = _git(root, "status", "--porcelain", "--untracked-files=no", "--", "helper", *ROOT_FILES)
     return head.decode().strip() + ("-dirty" if dirty and dirty.strip() else "")
 
 
 def _keep(rel):
-    """a file below backend/ that belongs in a release"""
+    """a file below helper/ that belongs in a release"""
     parts = rel.split("/")
-    if len(parts) > 2 and parts[1] in SKIP_DIRS:             # backend/data/, backend/tests/ ... (top level only)
+    if len(parts) > 2 and parts[1] in SKIP_DIRS:             # helper/data/, helper/tests/ ... (top level only)
         return False
     if any(p == "__pycache__" or p.startswith(".") for p in parts[1:-1]):
         return False
@@ -90,13 +90,13 @@ def _keep(rel):
 
 def release_files(root):
     """relative paths (with /) of every file that goes into the ZIP, sorted. In a git checkout only files
-    git tracks are shipped (nothing left lying around in backend/ by accident); elsewhere the folder."""
-    tracked = _git(root, "ls-files", "-z", "--", "backend")
+    git tracks are shipped (nothing left lying around in helper/ by accident); elsewhere the folder."""
+    tracked = _git(root, "ls-files", "-z", "--", "helper")
     if tracked is not None and _git(root, "rev-parse", "--show-prefix") == b"\n":
         cand = [n for n in tracked.decode("utf-8").split("\0") if n and os.path.isfile(os.path.join(root, *n.split("/")))]
     else:
         cand = []
-        for base, dirs, files in os.walk(os.path.join(root, "backend")):
+        for base, dirs, files in os.walk(os.path.join(root, "helper")):
             dirs.sort()
             cand += [os.path.relpath(os.path.join(base, f), root).replace(os.sep, "/") for f in files]
     out = [n for n in cand if _keep(n)]
@@ -106,7 +106,7 @@ def release_files(root):
     missing = [f for f in REQUIRED if f not in out]
     if missing:
         raise SystemExit("cannot build a release, missing: %s%s" % (", ".join(missing),
-                         " (run `npm run build`)" if "backend/slide_builder.html" in missing else ""))
+                         " (run `npm run build`)" if "helper/slide_builder.html" in missing else ""))
     return sorted(set(out))
 
 
@@ -122,7 +122,7 @@ def check_release_version(root, version, check_version=True):
         raise SystemExit("not a release version (X.Y.Z or X.Y.Z-tag): %r" % version)
     prog = program_version(root)
     if check_version and version != prog and not version.startswith(prog + "-"):
-        raise SystemExit("version %s does not match the program's VERSION %s (backend/slidebuilder/__init__.py)" % (version, prog))
+        raise SystemExit("version %s does not match the program's VERSION %s (helper/slidebuilder/__init__.py)" % (version, prog))
 
 
 def build(root, version, out_dir, check_version=True):
@@ -172,7 +172,7 @@ def release_notes(root, version):
 def run_tests(root):
     """the helper tests, and the app and core checks when npm is installed (what CI runs)"""
     say("Running the helper tests...")
-    if subprocess.call([sys.executable, "-m", "unittest", "discover", "-s", os.path.join(root, "backend", "tests")], cwd=root):
+    if subprocess.call([sys.executable, "-m", "unittest", "discover", "-s", os.path.join(root, "helper", "tests")], cwd=root):
         raise SystemExit("helper tests failed - no release built")
     npm = "npm.cmd" if os.name == "nt" else "npm"
     try:

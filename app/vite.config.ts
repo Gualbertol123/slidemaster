@@ -32,7 +32,7 @@ export default defineConfig({
   plugins: [coreWorker(), viteSingleFile({ removeViteModuleLoader: true })],
   esbuild: { jsx: "automatic", jsxImportSource: "react" },
   build: {
-    outDir: "../backend",
+    outDir: "../helper",
     emptyOutDir: false,
     target: "es2022",                     // as the worker (above)
     assetsInlineLimit: 100_000_000,

@@ -3,6 +3,35 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.0.0 - unreleased
+
+What users notice – decks are stored the Slide Builder 4 way (PLAN M5)
+* **Other people's edits appear within about 1–2 seconds** (B5), also with many people on a slow share: every
+  change is appended to the deck's journal on the share without waiting for anybody else's save.
+* **When two people change the same thing at the same moment, the later change in the deck's own order wins**
+  (B4: a Lamport clock, not whose save reached the share first). Everybody still ends with the same deck.
+* "✓ Saved" as soon as the change is on the share (B6, as since 3.4).
+* If a deck's file on the share is ever damaged, the status bar says so and the deck can be read but not changed
+  until the maintainer looks at it (docs/next/04 §2.3: it must never happen; the helper writes an incident file).
+
+For the maintainer
+* **Decks move to Slide Builder 4 one by one**, the first time somebody opens them in 4.0 (or all at once with
+  `Update Slide Builder.bat --migrate-all`; a deck open in 3.x at that moment is skipped and moved later). The 3.x
+  file is backed up and frozen, so Slide Builder 3 refuses that deck from then on ("Slide Builder was updated").
+  Going back: *Options › Administration › Prepare rollback* in 4.0, then `Update Slide Builder.bat --rollback`
+  (one workbook, or every deck). A deck listed in `backend\data\v4\pinned-v3.json` stays with 3.x.
+* Slide Builder 3's storage path is gone from the program (S5.5): the helper no longer applies operations
+  (`ops.py`), saves v3 documents, keeps v3's 5-minute rolling backups or v3 presence; it reads v3 documents only to
+  move them. `tools/loadtest.py` gave way to `tools/loadtest4.py`. The side panel shows a deck-health line (the
+  deck's snapshot, the changes since and the journals they are in). The shared defaults (*Use as default for new
+  decks*) are stored by compare-and-set: the page computes them, the helper replaces `defaults.style` only if nobody
+  changed it meanwhile. A Slide Builder 4 started on a PC where 3.x already runs starts on the next port instead of
+  opening 3.x's page.
+* The program moved from `backend\` to `helper\` (PLAN S5.1). The data, the logo and the v2 settings stay in
+  `backend\` (`backend\data\` is shared with Slide Builder 3); *Start* and *Install Slide Builder.bat* start
+  `helper\` (or `backend\` in a folder that still has the 3.x program), and versions installed side by side keep
+  working: `app\<ver>\helper\` for 4.x, `app\<ver>\backend\` for 3.x (`--use 3.8.0`).
+
 ## 3.8.0 - 2026-10-14
 
 What users notice – the slide on screen is drawn the way the PDF is (PLAN M4)

@@ -2,11 +2,11 @@
 
      node tools/capture-v3.mjs [--out golden] [--decks id,id] [--no-pdf] [--backend DIR]
                                                                               capture every deck of tests/corpus/decks/
-       --backend DIR  another build's backend folder (its helper and committed page, e.g. a worktree of v3.4.0's
+       --backend DIR  another build's program folder (its helper and committed page, e.g. a worktree of v3.4.0's
                       backend/) – how the goldens are re-captured on a new reference machine (decision 2026-10-12)
      node tools/capture-v3.mjs --make-decks [--rewrite]                       add missing tests/corpus/decks/*.json
 
-   One real helper (backend/slide_builder.py, the committed page) on a temp folder, one Chromium (CHROME or
+   One real helper (helper/slide_builder.py, the committed page) on a temp folder, one Chromium (CHROME or
    Playwright's own), a frozen clock (page.clock.setFixedTime), locale en-GB, time zone Europe/Rome, zoom 100 %.
    For every deck × design (glass, excel, clean) × version ("full" + the deck's versions) it writes
      <out>/<deck>/<design>/<version>/slide-<n>.json   geometry, text, font and colour of every .t .wb .tw .tnote,
@@ -46,8 +46,8 @@ const TEXT_SEL = ".t, .title, .subtitle, .pageno, .footer, .tnote, .memo, .tbox,
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const arg = (name, def) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : def; };
-/** the build captured: this checkout's backend/ (helper + committed page), or --backend DIR */
-const BACKEND = path.resolve(arg("--backend", path.join(REPO, "backend")));
+/** the build captured: this checkout's helper/ (helper + committed page), or --backend DIR */
+const BACKEND = path.resolve(arg("--backend", path.join(REPO, "helper")));
 /** another build's helper (the goldens are captured from v3.4.0, golden/README.md): before 3.8 its PDFs came from its
     export engine, given the browser's DevTools and command line (not a Python "playwright" package this PC may have) */
 const V3_HELPER_ENV = process.argv.includes("--backend") ? { SLIDEBUILDER_BROWSER: CHROME, SLIDEBUILDER_ENGINES: "devtools,cli" } : {};
@@ -98,6 +98,36 @@ export async function startHelper() {
   return { tmp, root, data, url, api, log: () => log, stop: () => { kill(); fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5 }); } };
 }
 export const wbPath = name => "/api/workbooks/" + encodeURIComponent(name);
+/** the build's storage: decks (Slide Builder 4, helper/slidebuilder/decks.py) or v3's documents (a 3.x build, --backend) */
+const DECKS_V4 = fs.existsSync(path.join(BACKEND, "slidebuilder", "decks.py"));
+/** the core's fold (core/src/model/fold.ts), bundled once for Node: how every page reads a deck */
+let foldFn = null;
+async function coreFold() {
+  if (foldFn) return foldFn;
+  const { build } = await import("esbuild");
+  const r = await build({ entryPoints: [path.join(REPO, "core", "src", "model", "fold.ts")], bundle: true, format: "esm", platform: "neutral", write: false, logLevel: "silent" });
+  foldFn = (await import("data:text/javascript;base64," + Buffer.from(r.outputFiles[0].text).toString("base64"))).fold;
+  return foldFn;
+}
+const deckApi = key => "/api/decks/" + encodeURIComponent(key);
+async function openDeck(h, file) {
+  const o = await h.api("/api/decks/open", "POST", { workbook: file });
+  const t = await h.api(deckApi(o.key) + "/tail?since=" + encodeURIComponent(JSON.stringify(o.snapshot.frontier)));
+  return { ...o, records: Object.values(t.journals).flatMap(j => j.records) };
+}
+/** change a workbook's deck as a page would: v3's ops route, or (4.x) one record appended to the deck by a new writer */
+export async function deckOps(h, file, ops) {
+  if (!DECKS_V4) return h.api(wbPath(file) + "/ops", "POST", { ops, client: "golden" });
+  const d = await openDeck(h, file);
+  const l = Math.max(d.snapshot.lamport || 0, ...d.records.map(r => r.l)) + 1;
+  return h.api(deckApi(d.key) + "/append", "POST", { writer: d.writer, record: { l, w: d.writer, s: 1, by: "golden", ops } });
+}
+/** a workbook's document as everybody reads it */
+export async function deckDoc(h, file) {
+  if (!DECKS_V4) return (await h.api(wbPath(file) + "/doc")).doc;
+  const d = await openDeck(h, file);
+  return (await coreFold())(d.snapshot, d.records).doc;
+}
 
 // ------------------------------------------------------------------------------------------- the page
 export async function openBrowser() {
@@ -232,15 +262,15 @@ export async function capture(out, opts = {}) {
       const deck = JSON.parse(fs.readFileSync(path.join(DECKS, id + ".json"), "utf8"));
       const file = id + path.extname(deck.workbook);
       fs.copyFileSync(path.join(BOOKS, deck.workbook), path.join(h.root, file));
-      await h.api(wbPath(file) + "/ops", "POST", { ops: deck.ops, client: "golden" });
+      await deckOps(h, file, deck.ops);
       const versions = [["full", ""], ...(deck.ops.find(o => o.op === "preset.set")?.preset?.versions || []).map(v => [v.name, v.id])];
       for (const design of opts.designs || DESIGNS) {
-        await h.api(wbPath(file) + "/ops", "POST", { ops: [{ op: "style.patch", patch: { design } }], client: "golden" });
+        await deckOps(h, file, [{ op: "style.patch", patch: { design } }]);
         for (const [vname, vid] of versions) {
           const dir = path.join(out, id, design, vname);
           fs.mkdirSync(dir, { recursive: true });
           const n = await load(page, h, file, vid);
-          const doc = (await h.api(wbPath(file) + "/doc")).doc;
+          const doc = await deckDoc(h, file);
           const issues = [], comments = [];
           const autoCfg = Object.fromEntries((doc.preset?.slides || []).flatMap(s => Object.entries(s.notes || {})).filter(([, v]) => v.auto).map(([k, v]) => [k, v.auto]));
           for (let i = 0; i < n; i++) {
@@ -316,7 +346,7 @@ async function wizardPreset(page, h, book) {
   await page.locator(".wiz").waitFor({ timeout: 60_000 });
   await page.click('[data-a="next"]'); await page.click('[data-a="next"]'); await page.click('[data-a="finish"]');
   await page.locator(".thumb").first().waitFor({ timeout: 60_000 });
-  for (let i = 0; i < 100; i++) { const d = (await h.api(wbPath(book) + "/doc")).doc; if (d.preset) return d.preset; await sleep(200); }
+  for (let i = 0; i < 100; i++) { const d = await deckDoc(h, book); if (d.preset) return d.preset; await sleep(200); }
   throw new Error("no preset for " + book);
 }
 

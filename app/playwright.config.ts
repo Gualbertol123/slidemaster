@@ -24,7 +24,7 @@ const SYSFONTS = sysFontDirs();
 // Windows has "python" (python3 is the Microsoft Store's placeholder there)
 const PY = process.platform === "win32" ? "python" : "python3";
 const helper = (user: string, port: number) => ({
-  command: `${PY} ../backend/slide_builder.py --no-browser --port ${port}`,
+  command: `${PY} ../helper/slide_builder.py --no-browser --port ${port}`,
   url: `http://127.0.0.1:${port}/api/ping`,
   env: { SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: user, SLIDEBUILDER_HOST: "pc-" + user, NO_PROXY: "*",
     ...(SYSFONTS ? { SLIDEBUILDER_SYSFONTS: SYSFONTS } : {}) },

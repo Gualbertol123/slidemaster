@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { patch, toast, useStore } from "../state/store";
 import { esc } from "@slide-builder/core/xlsx/util";
-import { guard, lookChange, showVersion, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, styleChange, setPrefs } from "../state/app";
+import { guard, lookChange, showVersion, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, styleChange, setPrefs, prepareRollback } from "../state/app";
 import { backend, type FileInfo } from "../sync/api";
 import { doExport, exportVersions, type ExportKind } from "../editor/export";
 import { reportExportProblem } from "../editor/feedback";
@@ -135,6 +135,12 @@ function Options() {
         <div className="opthd">This deck's style</div>
         <div className="optnote">Design, colour, page numbers and logo are saved with this workbook and shared with everybody who opens it.</div>
         <div className="optrow"><button className="btn" id="styleDefault" onClick={() => void saveStyleAsDefault()}>Use as default for new decks</button></div>
+        {backend.served && <>
+          <div className="sep" />
+          <div className="opthd">Administration</div>
+          <div className="optnote">Before decks are given back to Slide Builder 3 (Update Slide Builder.bat --rollback): every deck saved and its changes folded into its snapshot.</div>
+          <div className="optrow"><button className="btn" id="prepRollback" onClick={() => void prepareRollback()}>Prepare rollback</button></div>
+        </>}
       </>}
     </Dropdown>
   );

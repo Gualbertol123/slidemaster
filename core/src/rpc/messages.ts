@@ -1,5 +1,5 @@
 /* The messages between the page and the core worker (PLAN S2.4). The worker owns the workbook, the shared
-   document (DocSync, still v3's HTTP ops protocol) and undo/redo; the page sends operations and requests, and
+   deck (DocSync: storage v4, snapshot + journals, S5.2) and undo/redo; the page sends operations and requests, and
    receives document snapshots, sheet slices and the stage's slides. The worker asks the page for what only the page
    has: the helper's API (the page's backend: HTTP with its token, or the browser's own storage from file://), Excel's
    digit width with the page's fonts, and EMF/WMF picture conversion. */
@@ -10,7 +10,8 @@ import type { ImgMeta } from "../xlsx/drawing";
 import type { CellInfo, SheetInfo, SheetWindow } from "../xlsx/sheetview";
 import type { TableDef } from "../model/types";
 import type { HistorySummary } from "../sync/history";
-import type { Change, SaveState } from "../sync/docsync";
+import type { Change, DeckOpen, SaveState, TailResult } from "../sync/docsync";
+import type { DeckRecord, DeckSnapshot } from "../model/fold";
 
 /** what the page knows of a workbook before its sheets are read (indexWorkbook) */
 export interface WorkbookInfo {
@@ -21,7 +22,9 @@ export interface WorkbookInfo {
 }
 /** what the renderers need from the page to draw like it (RenderCtx inputs that the worker cannot know) */
 export interface ViewInputs { defaults: Style | Record<string, unknown>; logoSrc: string; version: string; workbook: string }
-export interface DocState { view: WorkbookDoc; save: SaveState; error: string; history: HistorySummary }
+/** the open deck on the share, for the side panel's deck-health line (S5.5) */
+export interface DeckHealth { gen: number; backlog: number; /** the journals holding those records */ journals: number }
+export interface DocState { view: WorkbookDoc; save: SaveState; error: string; history: HistorySummary; deck: DeckHealth }
 export interface DocEvent extends Omit<DocState, "view"> {
   /** the document, only when its content changed since the last snapshot (not for a save-state or history change) */
   view?: WorkbookDoc;
@@ -50,14 +53,21 @@ export interface CoreMethods {
   getCell(a: { book: number; sheet: string; ref: string }): CellInfo | null;
   /** `book`: the workbook being opened (without: the candidate, else the open one) */
   defaultPreset(a: { book?: number }): Preset;
-  /** the indexed workbook becomes the open one, with its document; `preset` = a new preset to save first */
-  /** `book`: the workbook index gave (refused when another one is being opened since) */
-  start(a: { book?: number; name: string; doc: WorkbookDoc; preset: Preset | null; inputs: ViewInputs; /** the slide the stage will show: drawn first (S4.1) */ stage?: StageReq }): DocState;
+  /** the indexed workbook becomes the open one, with its deck as the helper opened it (snapshot and first tail);
+      `preset` = a new preset to save first. `book`: the workbook index gave (refused when another one is being
+      opened since) */
+  start(a: { book?: number; name: string; deck: DeckOpen; preset: Preset | null; inputs: ViewInputs; /** the slide the stage will show: drawn first (S4.1) */ stage?: StageReq }): DocState;
   inputs(a: ViewInputs): void;
   apply(a: { label: string; ops: Op[]; coalesce?: string }): { changed: boolean };
   undo(a: { redo: boolean }): { label: string | null; changed: boolean };
   flush(a: Record<string, never>): void;
+  /** read the journals now (the worker reads them every 1.5 s by itself) */
   poll(a: Record<string, never>): void;
+  /** the page's presence heartbeat: whether this page is the only one with the deck open (it then compacts the deck
+      when it is at rest, 04 §4.4) */
+  alone(a: { alone: boolean }): void;
+  /** Prepare rollback (04 §4.4), for the open deck: saved, then compacted until nothing lies past the frontier */
+  compactAll(a: { /** how long to wait for records younger than the compaction margin */ waitMs?: number }): boolean;
   /** a font file for the library (S3.2): a variable font becomes a static face at the weight the upload declares
       (every other axis at its default; hb-subset), so no PDF ever embeds a variable font; other fonts come back as
       they are (`variable: false`) */
@@ -103,8 +113,13 @@ export interface StageSlide {
 }
 /** calls the worker makes */
 export interface PageMethods {
-  getDoc(a: { name: string; since?: number }): WorkbookDoc | null;
-  postOps(a: { name: string; ops: Op[]; client: string }): { doc: WorkbookDoc };
+  /* the deck's storage (helper/slidebuilder/decks.py, through the page's backend) */
+  deckSnapshot(a: { key: string }): DeckSnapshot;
+  deckTail(a: { key: string; since: Record<string, number> }): TailResult;
+  deckAppend(a: { key: string; writer: string; record: DeckRecord }): { journal: string; offset: number; at: number };
+  deckCompact(a: { key: string; baseGen: number; snapshot: DeckSnapshot }): { gen: number };
+  deckRotate(a: { key: string; writer: string }): { deleted: string[] };
+  deckPrepare(a: { key: string; writer: string }): unknown;
   digitWidth(a: { font: string }): number;
   /** text measured with the page's fonts for the display list (decision 2026-10-12, 3): one call per measuring round of a table */
   measureRuns(a: { runs: import("../platform").RunReq[] }): import("../platform").RunMetrics[];
@@ -129,6 +144,9 @@ export interface CoreEvents {
   error: { message: string; stack?: string };
   /** a workbook left while its changes were not saved yet: they are saved now */
   retiredSaved: { name: string };
+  /** the open deck at rest while this page is the only one there: the snapshot the page sends on pagehide to compact
+      it (04 §4.4); null when there is none any more */
+  rest: { key: string; baseGen: number; json: string } | null;
 }
 export type PageEvents = Record<string, never>;
 export type { DeckVersion };

@@ -6,10 +6,13 @@
     python tools/update.py --release [latest|X.Y.Z]   install a GitHub release side by side (app\\<ver>\\)
     python tools/update.py --use X.Y.Z        go back (or forward) to an installed version
     python tools/update.py --zip <file.zip>   install a release ZIP without internet
+    python tools/update.py --migrate-all      move every Slide Builder 3 deck to Slide Builder 4 now (else on first open)
+    python tools/update.py --rollback [NAME]  give a deck (NAME, a workbook) or every deck back to Slide Builder 3
 
 What is never changed – it is not part of the repository (see .gitignore):
     backend/data/        decks, cell edits, deck styles, defaults, user preferences, backups
     backend/logo*.*      logos, slide_builder_settings*.txt (v2 settings)
+    (the program itself is in helper/ since 4.0 - in backend/ until 3.8; backend/ keeps the user's files)
     *.xlsx …             the workbooks          export/  engine/
 
 How it updates
@@ -27,7 +30,7 @@ Side-by-side releases (--release, --zip <file>, --use)
     install leaves nothing that looks installed;
   * the new version's `slide_builder.py --selftest` must pass (it reads every saved setup without writing,
     and checks the data folder accepts create, rename and delete) before app\\current.json is replaced
-    (atomically) - "Start Slide Builder.bat" starts the version named there, else backend\\ as before;
+    (atomically) - "Start Slide Builder.bat" starts the version named there, else helper\\ as before;
   * the last 3 versions stay (plus the current one), so --use can go back at once. The data folder is
     shared by all versions and is never written by the install, only backed up.
 
@@ -377,7 +380,16 @@ def sha256_bytes(data):
 
 WINDOWS_RESERVED = re.compile(r"^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$", re.I)
 BAD_CHARS = re.compile(r'[\x00-\x1f<>"|?*:\\]')
-CORE_FILES = ("backend/slide_builder.py",)
+# the program's entry: helper/ from 4.0, backend/ in 3.x releases (still installable: --release 3.8.0, --use)
+CORE_FILES = ("helper/slide_builder.py", "backend/slide_builder.py")
+
+
+def program_dir(folder):
+    """the program's folder in a version folder or a main folder: helper/ (4.x), else backend/ (3.x); None if neither"""
+    for c in CORE_FILES:
+        if os.path.isfile(os.path.join(folder, *c.split("/"))):
+            return os.path.join(folder, c.split("/")[0])
+    return None
 
 
 def safe_member(name):
@@ -428,9 +440,8 @@ def verify_release(zf):
         raise ValueError("%s has no valid version" % MANIFEST)
     if man.get("app") not in (None, "slide-builder"):
         raise ValueError("not a Slide Builder release (app %r)" % man.get("app"))
-    missing_core = [c for c in CORE_FILES if c not in files]
-    if missing_core:
-        raise ValueError("the release has no %s" % missing_core[0])
+    if not any(c in files for c in CORE_FILES):
+        raise ValueError("the release has no %s" % CORE_FILES[0])
     listed, present = set(files), set(names) - {MANIFEST}
     unsafe = [n for n in listed if not safe_member(n)]
     if unsafe:
@@ -538,7 +549,7 @@ def check_installed(folder):
 def selftest(root, folder):
     """the version in `folder` runs its own self-test against this folder's data (exit 0 = usable)"""
     env = dict(os.environ, SLIDEBUILDER_ROOT=root, SLIDEBUILDER_DATA=data_dir(root), PYTHONIOENCODING="ascii:replace")
-    entry = os.path.join(folder, "backend", "slide_builder.py")
+    entry = os.path.join(program_dir(folder) or os.path.join(folder, "helper"), "slide_builder.py")
     try:
         r = subprocess.run([sys.executable, entry, "--selftest"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                            universal_newlines=True, errors="replace", env=env, cwd=os.path.dirname(entry), timeout=600)
@@ -637,8 +648,13 @@ def activate(root, version, folder, stamp, fresh):
         tail = "\n".join("  " + x for x in out.splitlines()[-15:])
         say(tail)
         if fresh:                                 # out of the way at once (a rename), deleted when possible
+            for _ in range(20):                   # Windows: the self-test's process may hold the folder a moment longer
+                try:
+                    os.rename(folder, folder + ".part")
+                    break
+                except OSError:
+                    time.sleep(0.1)
             try:
-                os.rename(folder, folder + ".part")
                 remove_tree(folder + ".part")
             except OSError:
                 pass
@@ -707,6 +723,12 @@ def use_version(root, ver, stamp):
         check_installed(folder)
     except (OSError, ValueError, KeyError) as e:
         raise SystemExit("Version %s is damaged (%s) - not used. Install it again with --release %s." % (ver, e, ver))
+    if version_key(ver)[0] < 4 and decks_owned(root):
+        # back to Slide Builder 3 (04 §4.4, global rollback): every deck first, with the 4.x program still in use
+        say("Giving every deck back to Slide Builder 3 first...")
+        if not rollback_decks(root, ""):
+            raise SystemExit("Some decks could not be given back to Slide Builder 3 (above): version %s is NOT used. "
+                             "Close them everywhere (Options › Administration › Prepare rollback), then try again." % ver)
     previous = activate(root, ver, folder, stamp, False)
     if previous == ver:
         say("Version %s was already the current version." % ver)
@@ -754,13 +776,86 @@ def release_mode(root, a, stamp):
     return install_release(root, http_get(url, timeout=300), stamp, want=ver, digest=digest)[1], True
 
 
+# --------------------------------------------------------------------------- decks: v3 <-> v4 (docs/next/04 §4)
+def current_program(root):
+    """the program folder of the version in use (app\\current.json, else the main folder's helper\\)"""
+    ver = current_version(root)
+    folder = os.path.join(app_dir(root), ver) if ver and os.path.isdir(os.path.join(app_dir(root), ver)) else root
+    return program_dir(folder)
+
+
+DECKS_CODE = r"""
+import json, os, sys
+os.environ["SLIDEBUILDER_ROOT"], os.environ["SLIDEBUILDER_DATA"] = sys.argv[1], sys.argv[2]
+sys.path.insert(0, sys.argv[3])
+from slidebuilder import migrate_v3
+what, arg = sys.argv[4], sys.argv[5]
+if what == "migrate":
+    res = migrate_v3.migrate_all()
+elif arg:
+    try:
+        res = {"done": [arg] if migrate_v3.rollback(arg) == "rolled back" else [], "refused": []}
+    except Exception as e:
+        res = {"done": [], "refused": [[arg, str(e)]]}
+else:
+    res = migrate_v3.rollback_all()
+print(json.dumps(res))
+"""
+
+
+def decks_job(root, what, arg=""):
+    """migrate every v3 deck, or roll decks back, with the version in use (its slidebuilder.migrate_v3)"""
+    prog = current_program(root)
+    if not prog or not os.path.isfile(os.path.join(prog, "slidebuilder", "migrate_v3.py")):
+        say("The version in use is Slide Builder 3: there is nothing to %s." % ("migrate" if what == "migrate" else "roll back"))
+        return None
+    r = subprocess.run([sys.executable, "-c", DECKS_CODE, root, data_dir(root), prog, what, arg or ""], stdout=subprocess.PIPE,
+                       stderr=subprocess.PIPE, universal_newlines=True, errors="replace")
+    try:
+        return json.loads(r.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        say("Could not run it: " + (r.stderr or r.stdout).strip()[-600:])
+        return None
+
+
+def decks_owned(root):
+    """Slide Builder 4 owns at least one deck of this folder (one not rolled back)"""
+    folder = os.path.join(data_dir(root), "v4", "decks")
+    for key in os.listdir(folder) if os.path.isdir(folder) else []:
+        d = os.path.join(folder, key)
+        if os.path.isfile(os.path.join(d, "snapshot.json")) and not os.path.isfile(os.path.join(d, "rolled-back.json")):
+            return True
+    return False
+
+
+def migrate_all_decks(root):
+    res = decks_job(root, "migrate")
+    if res is None:
+        return False
+    say("Moved to Slide Builder 4: %d deck(s)%s" % (len(res["migrated"]), (": " + ", ".join(res["migrated"])) if res["migrated"] else ""))
+    for wb, why in res["skipped"]:
+        say("  skipped %s - %s; run --migrate-all again later (or it moves when opened in Slide Builder 4)" % (wb, why))
+    for wb, why in res["failed"]:
+        say("  NOT moved %s - %s" % (wb, why))
+    return not res["failed"]
+
+
+def rollback_decks(root, name):
+    res = decks_job(root, "rollback", name)
+    if res is None:
+        return False
+    say("Given back to Slide Builder 3: %d deck(s)%s" % (len(res["done"]), (": " + ", ".join(res["done"])) if res["done"] else ""))
+    for key, why in res["refused"]:
+        say("  NOT rolled back %s - %s" % (key, why))
+    return not res["refused"]
+
+
 # --------------------------------------------------------------------------- after the update
 def verify_saved(root):
     """open every saved deck with the NEW program files (a fresh Python), so a format problem shows now"""
     code = r"""
 import json, os, sys
-sys.path.insert(0, os.path.join(sys.argv[1], "backend"))
-from slidebuilder import ops
+sys.path.insert(0, sys.argv[2])
 d = os.path.join(sys.argv[1], "backend", "data", "workbooks")
 ok, bad = 0, []
 for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
@@ -769,13 +864,31 @@ for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
     try:
         with open(os.path.join(d, f), encoding="utf-8") as fh:
             doc = json.load(fh)
-        ops.apply_ops(doc, [], None, 0)
+        if not isinstance(doc, dict):
+            raise ValueError("not a document")
+        if doc.get("movedTo") == "v4":          # a deck Slide Builder 4 owns: counted below, with its snapshot
+            continue
+        from slidebuilder import upgrade
+        upgrade.upgrade("workbook", doc)
         ok += 1
     except Exception as e:
         bad.append("%s: %s" % (f, e))
+dd = os.path.join(sys.argv[1], "backend", "data", "v4", "decks")
+for k in sorted(os.listdir(dd)) if os.path.isdir(dd) else []:
+    p = os.path.join(dd, k, "snapshot.json")
+    if not os.path.isfile(p):
+        continue
+    try:
+        with open(p, encoding="utf-8") as fh:
+            snap = json.load(fh)
+        if not isinstance(snap, dict) or not isinstance(snap.get("doc"), dict):
+            raise ValueError("not a snapshot")
+        ok += 1
+    except Exception as e:
+        bad.append("v4/decks/%s: %s" % (k, e))
 print(json.dumps({"ok": ok, "bad": bad}))
 """
-    r = subprocess.run([sys.executable, "-c", code, root], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    r = subprocess.run([sys.executable, "-c", code, root, program_dir(root) or os.path.join(root, "helper")], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     try:
         res = json.loads(r.stdout.strip().splitlines()[-1])
     except (ValueError, IndexError):
@@ -795,7 +908,7 @@ def nested_copy(root):
     out = []
     for name in os.listdir(root):
         p = os.path.join(root, name)
-        if os.path.isdir(os.path.join(p, ".git")) and os.path.isfile(os.path.join(p, "backend", "slide_builder.py")):
+        if os.path.isdir(os.path.join(p, ".git")) and program_dir(p):
             out.append(p)
     return out
 
@@ -829,6 +942,10 @@ def main(argv=None):
     ap.add_argument("--release", nargs="?", const="latest", default=None, metavar="VERSION",
                     help="install a GitHub release side by side: latest (default) or X.Y.Z")
     ap.add_argument("--use", default=None, metavar="VERSION", help="make an installed version the current one (roll back)")
+    ap.add_argument("--migrate-all", action="store_true", help="move every Slide Builder 3 deck to Slide Builder 4 now (each under its lock)")
+    ap.add_argument("--rollback", nargs="?", const="", default=None, metavar="WORKBOOK",
+                    help="give WORKBOOK's deck (or, without a name, every deck) back to Slide Builder 3; refused for a deck with "
+                         "changes past its snapshot (Options › Administration › Prepare rollback first)")
     ap.add_argument("--api-url", default=None, help=argparse.SUPPRESS)
     ap.add_argument("--zip-url", default=None, help=argparse.SUPPRESS)
     ap.add_argument("--root", default=ROOT, help=argparse.SUPPRESS)
@@ -836,8 +953,12 @@ def main(argv=None):
     a = ap.parse_args(argv)
     root = os.path.abspath(a.root)
     say("Slide Builder update - folder: " + root)
+    if a.migrate_all or a.rollback is not None:            # decks only: no program file changes
+        with UpdateLock(root):
+            ok = migrate_all_decks(root) if a.migrate_all else rollback_decks(root, a.rollback)
+        return 0 if ok else 2
     if current_version(root) and not (a.release or a.use or isinstance(a.zip, str) or a.branch or a.zip):
-        # this folder runs side-by-side versions (app\current.json): updating backend\ would change nothing
+        # this folder runs side-by-side versions (app\current.json): updating helper\ would change nothing
         say("This folder uses side-by-side versions (app\\current.json, now %s): looking for the newest release." % current_version(root))
         a.release = "latest"
     if a.release or a.use or isinstance(a.zip, str):

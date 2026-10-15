@@ -1812,5 +1812,451 @@
       "applied": 2,
       "skipped": []
     }
+  },
+  {
+    "name": "fold: the same field from two writers - Lamport order decides, not the order the records arrived in (B4)",
+    "fold": {
+      "snapshot": {
+        "format": 4,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": null,
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": 2,
+          "w": "bob@pc2#bbbbbbbb",
+          "s": 1,
+          "by": "bob",
+          "at": 1000,
+          "ops": [
+            {
+              "op": "cell.patch",
+              "sheet": "S",
+              "ref": "C3",
+              "patch": {
+                "text": "bob"
+              }
+            }
+          ]
+        },
+        {
+          "l": 1,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 2000,
+          "ops": [
+            {
+              "op": "cell.patch",
+              "sheet": "S",
+              "ref": "C3",
+              "patch": {
+                "text": "anna"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {
+        "S": {
+          "C3": {
+            "text": "bob"
+          }
+        }
+      },
+      "rev": 2,
+      "lamport": 2,
+      "updatedBy": "bob",
+      "updated": 1000,
+      "log": [
+        {
+          "rev": 1,
+          "by": "anna",
+          "at": 2000
+        },
+        {
+          "rev": 2,
+          "by": "bob",
+          "at": 1000
+        }
+      ]
+    }
+  },
+  {
+    "name": "fold: equal Lamport times - the writer id breaks the tie, then the seq",
+    "fold": {
+      "snapshot": {
+        "format": 4,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": null,
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": 3,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 2,
+          "by": "anna",
+          "at": 30,
+          "ops": [
+            {
+              "op": "cell.patch",
+              "sheet": "S",
+              "ref": "C3",
+              "patch": {
+                "text": "anna 2"
+              }
+            }
+          ]
+        },
+        {
+          "l": 3,
+          "w": "bob@pc2#bbbbbbbb",
+          "s": 1,
+          "by": "bob",
+          "at": 10,
+          "ops": [
+            {
+              "op": "cell.patch",
+              "sheet": "S",
+              "ref": "C3",
+              "patch": {
+                "text": "bob"
+              }
+            }
+          ]
+        },
+        {
+          "l": 3,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 20,
+          "ops": [
+            {
+              "op": "cell.patch",
+              "sheet": "S",
+              "ref": "C3",
+              "patch": {
+                "text": "anna 1"
+              }
+            },
+            {
+              "op": "cell.patch",
+              "sheet": "S",
+              "ref": "D4",
+              "patch": {
+                "text": "anna"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {
+        "S": {
+          "C3": {
+            "text": "bob"
+          },
+          "D4": {
+            "text": "anna"
+          }
+        }
+      },
+      "rev": 3,
+      "lamport": 3,
+      "updatedBy": "bob",
+      "updated": 10
+    }
+  },
+  {
+    "name": "fold: a record appended twice (same writer and seq) is applied once; the earlier copy is kept",
+    "fold": {
+      "snapshot": {
+        "format": 4,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": null,
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": 1,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 500,
+          "ops": [
+            {
+              "op": "cell.patch",
+              "sheet": "S",
+              "ref": "A1",
+              "patch": {
+                "text": "x"
+              }
+            }
+          ]
+        },
+        {
+          "l": 2,
+          "w": "bob@pc2#bbbbbbbb",
+          "s": 1,
+          "by": "bob",
+          "at": 600,
+          "ops": [
+            {
+              "op": "cell.patch",
+              "sheet": "S",
+              "ref": "A1",
+              "patch": {
+                "text": "y"
+              }
+            }
+          ]
+        },
+        {
+          "l": 1,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 400,
+          "ops": [
+            {
+              "op": "cell.patch",
+              "sheet": "S",
+              "ref": "A1",
+              "patch": {
+                "text": "x"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {
+        "S": {
+          "A1": {
+            "text": "y"
+          }
+        }
+      },
+      "rev": 2,
+      "lamport": 2,
+      "updatedBy": "bob",
+      "updated": 600,
+      "log": [
+        {
+          "rev": 1,
+          "by": "anna",
+          "at": 400
+        },
+        {
+          "rev": 2,
+          "by": "bob",
+          "at": 600
+        }
+      ]
+    }
+  },
+  {
+    "name": "fold: a record the snapshot already holds (seq <= seen) is not applied again; rev continues from the snapshot's",
+    "fold": {
+      "snapshot": {
+        "format": 4,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 4,
+        "rev": 5,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 5,
+          "preset": null,
+          "style": {},
+          "edits": {
+            "S": {
+              "A1": {
+                "text": "x"
+              }
+            }
+          }
+        },
+        "seen": {
+          "anna@pc1#aaaaaaaa": 3
+        }
+      },
+      "records": [
+        {
+          "l": 3,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 3,
+          "by": "anna",
+          "at": 1,
+          "ops": [
+            {
+              "op": "cell.patch",
+              "sheet": "S",
+              "ref": "A1",
+              "patch": {
+                "text": "old copy"
+              }
+            }
+          ]
+        },
+        {
+          "l": 5,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 4,
+          "by": "anna",
+          "at": 2,
+          "ops": [
+            {
+              "op": "cell.patch",
+              "sheet": "S",
+              "ref": "B1",
+              "patch": {
+                "text": "new"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {
+        "S": {
+          "A1": {
+            "text": "x"
+          },
+          "B1": {
+            "text": "new"
+          }
+        }
+      },
+      "rev": 6,
+      "lamport": 5,
+      "updatedBy": "anna",
+      "updated": 2
+    }
+  },
+  {
+    "name": "fold: a record that is not a record (no integer l, w, s or ops list) is ignored; unknown ops are skipped",
+    "fold": {
+      "snapshot": {
+        "format": 4,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": null,
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": "1",
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 1,
+          "ops": [
+            {
+              "op": "cell.patch",
+              "sheet": "S",
+              "ref": "A1",
+              "patch": {
+                "text": "bad l"
+              }
+            }
+          ]
+        },
+        {
+          "l": 1,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 0,
+          "ops": [
+            {
+              "op": "cell.patch",
+              "sheet": "S",
+              "ref": "A1",
+              "patch": {
+                "text": "bad s"
+              }
+            }
+          ]
+        },
+        {
+          "l": 1,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "ops": [
+            {
+              "op": "future.op",
+              "x": 1
+            },
+            {
+              "op": "cell.patch",
+              "sheet": "S",
+              "ref": "A1",
+              "patch": {
+                "text": "ok"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {
+        "S": {
+          "A1": {
+            "text": "ok"
+          }
+        }
+      },
+      "rev": 1,
+      "lamport": 1,
+      "updatedBy": "anna"
+    }
   }
 ]

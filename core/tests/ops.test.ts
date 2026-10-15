@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import vectors from "../../shared/ops-vectors.json";
 import { applyOps, inverseOf, applyOp } from "../src/model/ops";
+import { fold } from "../src/model/fold";
 import type { Op } from "../src/model/types";
 
 describe("operations follow shared/ops-vectors.json", () => {
-  for (const v of vectors as any[]) {
+  for (const v of (vectors as any[]).filter(x => !x.fold)) {
     it(v.name, () => {
       const { doc, applied, skipped } = applyOps(v.doc, v.ops);
       expect(doc.preset).toEqual(v.expect.preset);
@@ -12,6 +13,22 @@ describe("operations follow shared/ops-vectors.json", () => {
       expect(doc.edits).toEqual(v.expect.edits);
       expect(applied).toBe(v.expect.applied);
       expect(skipped).toEqual(v.expect.skipped);
+    });
+  }
+});
+
+describe("folding records follows shared/ops-vectors.json (Lamport order, copies once, the snapshot's seen)", () => {
+  for (const v of (vectors as any[]).filter(x => x.fold)) {
+    it(v.name, () => {
+      const f = fold(v.fold.snapshot, v.fold.records);
+      expect(f.doc.edits).toEqual(v.expect.edits);
+      expect(f.doc.rev).toBe(v.expect.rev);
+      expect(f.lamport).toBe(v.expect.lamport);
+      if ("updatedBy" in v.expect) expect(f.doc.updatedBy).toBe(v.expect.updatedBy);
+      if ("updated" in v.expect) expect(f.doc.updated).toBe(v.expect.updated);
+      if ("log" in v.expect) expect(f.doc.log).toEqual(v.expect.log);
+      // the order the records arrive in never matters
+      expect(fold(v.fold.snapshot, [...v.fold.records].reverse()).doc).toEqual(f.doc);
     });
   }
 });
@@ -51,5 +68,31 @@ describe("inverse of map merges", () => {
     const d: any = base(); const inv = inverseOf(d, op)!;
     applyOp(d, op); applyOp(d, inv);
     expect(d).toEqual(base());
+  });
+});
+
+describe("the saved 4.0 deck format (helper/tests/fixtures/saved: snapshot.v4.json + journal.v4.log, never edited)", () => {
+  it("the snapshot and the records past its frontier fold into the deck; the torn tail is no record", async () => {
+    const fs = await import("node:fs"), path = await import("node:path");
+    const dir = path.join(__dirname, "..", "..", "helper", "tests", "fixtures", "saved");
+    const snap = JSON.parse(fs.readFileSync(path.join(dir, "snapshot.v4.json"), "utf8"));
+    const buf = fs.readFileSync(path.join(dir, "journal.v4.log"));
+    const writer = Object.keys(snap.frontier)[0], from = snap.frontier[writer];
+    const recs: any[] = [];
+    for (let p = from; p < buf.length;) {                   // <len>:<crc32>:<json>\n (the helper's framing)
+      const a = buf.indexOf(58, p), b = buf.indexOf(58, a + 1), n = +buf.subarray(p, a).toString();
+      if (a < 0 || b < 0 || b + 2 + n > buf.length) break;   // torn: incomplete
+      recs.push(JSON.parse(buf.subarray(b + 1, b + 1 + n).toString("utf8"))); p = b + 2 + n;
+    }
+    expect([snap.format, snap.gen]).toEqual([4, 2]);
+    expect(recs.map(r => r.s)).toEqual([3, 4]);
+    const f = fold(snap, recs);
+    expect(f.doc.rev).toBe(4); expect(f.lamport).toBe(9);
+    expect(f.doc.style).toEqual({ design: "excel", color: 35 });
+    expect(f.doc.edits).toEqual({ Overview: { C7: { orig: "TOTAL", text: "Totale", b: true }, D7: { fill: "#34C759", role: "header" } } });
+    expect(f.doc.preset?.slides.map(s => s.id)).toEqual(["s1"]);
+    expect(f.doc.updatedBy).toBe("rossim");
+    // the records the snapshot covers are folded once only
+    expect(fold(snap, [...recs, { ...recs[0], s: 1 }, { ...recs[0], s: 2 }]).doc).toEqual(f.doc);
   });
 });

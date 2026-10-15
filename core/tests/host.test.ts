@@ -7,7 +7,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Port, pair, transfer } from "../src/rpc/port";
 import { serve } from "../src/worker/host";
-import { applyOps, emptyDoc } from "../src/model/ops";
+import { fold } from "../src/model/fold";
+import { FakeDeck } from "./fakedeck";
 import type { CoreEvents, CoreMethods, DocEvent, PageEvents, PageMethods, StageSlide } from "../src/rpc/messages";
 import type { Op, WorkbookDoc } from "../src/model/types";
 import { A1 } from "../src/xlsx/util";
@@ -19,21 +20,24 @@ const book = (n: string) => { const b = fs.readFileSync(path.join(here, "../../t
 const tick = () => new Promise(r => setTimeout(r, 5));
 async function until(f: () => boolean, ms = 5000) { const t = Date.now(); while (!f()) { if (Date.now() - t > ms) throw new Error("timeout"); await tick(); } }
 
-/** an in-memory helper: applies ops to the latest document, like backend/slidebuilder/store.py */
+/** an in-memory helper's deck storage (fakedeck.ts, as helper/slidebuilder/decks.py); `doc` = everything on it, folded */
+let writers = 0;
 function server() {
-  let doc: WorkbookDoc = emptyDoc("report.xlsx");
-  return {
-    get doc() { return doc; },
-    getDoc: (since?: number) => since === doc.rev ? null : structuredClone(doc),
-    postOps: (ops: Op[], who: string) => { const r = applyOps(doc, ops); if (r.applied) { r.doc.rev = doc.rev + 1; r.doc.updatedBy = who; r.doc.log = [...(doc.log || []), { rev: r.doc.rev, by: who, at: 0 }]; } doc = r.doc; return { doc: structuredClone(doc) }; },
-  };
+  const deck = new FakeDeck("report.xlsx-0123456789", "report.xlsx");
+  return { deck, get doc() { return fold(deck.snap, deck.records()).doc; },
+    open: () => deck.open(`p${++writers}@pc#${"abcdefgh".slice(writers % 8)}${"a".repeat(writers % 8)}`) };
 }
 function page(srv: ReturnType<typeof server>, who: string) {
   const [a, b] = pair();
-  const host = serve(new Port<CoreMethods, PageMethods, PageEvents, CoreEvents>(b));
+  const host = serve(new Port<CoreMethods, PageMethods, PageEvents, CoreEvents>(b), { autoTail: false });
   const port = new Port<PageMethods, CoreMethods, CoreEvents, PageEvents>(a);
-  port.handle("getDoc", x => srv.getDoc(x.since));
-  port.handle("postOps", x => srv.postOps(x.ops, who));
+  const api = srv.deck.api(); void who;
+  port.handle("deckSnapshot", () => api.snapshot(""));
+  port.handle("deckTail", x => api.tail(x.key, x.since));
+  port.handle("deckAppend", x => api.append(x.key, x.writer, x.record));
+  port.handle("deckCompact", x => api.compact(x.key, x.baseGen, x.snapshot));
+  port.handle("deckRotate", x => api.rotate(x.key, x.writer));
+  port.handle("deckPrepare", () => null);
   port.handle("digitWidth", () => 0);
   port.handle("convertPicture", () => null);
   port.handle("analyzeImages", () => []);
@@ -58,7 +62,7 @@ describe("core host", () => {
     expect(preset.tables.length).toBeGreaterThan(0);
     // by number: the workbook being opened (S2.6: the page asks the worker instead of laying out its mirror)
     expect((await p.port.call("defaultPreset", { book: info.book })).tables.map(t => t.sheet)).toEqual(preset.tables.map(t => t.sheet));
-    const st = await p.port.call("start", { name: "report.xlsx", doc: srv.getDoc()!, preset, inputs, stage: { slide: 0, known: [] } });
+    const st = await p.port.call("start", { name: "report.xlsx", deck: srv.open(), preset, inputs, stage: { slide: 0, known: [] } });
     expect(st.view.preset).toEqual(preset);
     expect(st.history).toEqual({ undo: 0, redo: 0, undoLabel: "", redoLabel: "" });
     // the first redraw: the slices, the snapshot, then the stage's slide, sent unasked (S4.1)
@@ -117,8 +121,8 @@ describe("core host", () => {
       await p.port.call("index", { buf: book("report.xlsx") });
     }
     const preset = await a.port.call("defaultPreset", {}), sheet = preset.tables[0].sheet;
-    await a.port.call("start", { name: "report.xlsx", doc: srv.getDoc()!, preset, inputs }); await a.port.call("flush", {});
-    await b.port.call("start", { name: "report.xlsx", doc: srv.getDoc()!, preset: null, inputs });
+    await a.port.call("start", { name: "report.xlsx", deck: srv.open(), preset, inputs }); await a.port.call("flush", {});
+    await b.port.call("start", { name: "report.xlsx", deck: srv.open(), preset: null, inputs });
     await a.port.call("apply", { label: "A1", ops: [{ op: "cell.patch", sheet, ref: "C5", patch: { b: true } } as Op] }); await a.port.call("flush", {});
     await b.port.call("apply", { label: "B1", ops: [{ op: "cell.patch", sheet, ref: "C5", patch: { i: true } } as Op] }); await b.port.call("flush", {});
     await a.port.call("poll", {});
@@ -141,7 +145,7 @@ describe("opening another workbook while one is open", () => {
     const srv = server(), p = page(srv, "anna");
     await p.port.call("init", { served: true, client: "c1", me: "anna" });
     const a = await p.port.call("index", { buf: book("report.xlsx") }), preset = await p.port.call("defaultPreset", {});
-    await p.port.call("start", { name: "report.xlsx", doc: srv.getDoc()!, preset, inputs });
+    await p.port.call("start", { name: "report.xlsx", deck: srv.open(), preset, inputs });
     await p.port.call("apply", { label: "Bold", ops: [{ op: "cell.patch", sheet: preset.tables[0].sheet, ref: "C5", patch: { b: true } } as Op] });
     await until(() => p.last().history.undo === 1);
     // B is indexed (big.xlsx is "big": its sheets are read on demand) while A stays open
@@ -154,7 +158,7 @@ describe("opening another workbook while one is open", () => {
     await expect(p.port.call("ensure", { book: 999, names })).rejects.toThrow(/no longer open/);
     const slicesForB = p.seen.filter(e => e.k === "slices" && (e.v as { book: number }).book === b.book);
     expect(slicesForB.length).toBeGreaterThan(0);
-    const st = await p.port.call("start", { name: "big.xlsx", doc: emptyDoc("big.xlsx"), preset: null, inputs: { ...inputs, workbook: "big.xlsx" } });
+    const st = await p.port.call("start", { name: "big.xlsx", deck: new FakeDeck("big.xlsx-0123456789", "big.xlsx").open("me@pc#mmmmmmmm"), preset: null, inputs: { ...inputs, workbook: "big.xlsx" } });
     expect(st.history).toEqual({ undo: 0, redo: 0, undoLabel: "", redoLabel: "" });   // as v3: a new workbook, no history
     await expect(p.port.call("getSheetMeta", { book: a.book, names, load: false })).rejects.toThrow(/no longer open/);
   });
@@ -164,7 +168,7 @@ describe("opening another workbook while one is open", () => {
     await p.port.call("init", { served: true, client: "c1", me: "anna" });
     await p.port.call("index", { buf: book("report.xlsx") });
     const preset = await p.port.call("defaultPreset", {}), sheet = preset.tables[0].sheet;
-    await p.port.call("start", { name: "report.xlsx", doc: srv.getDoc()!, preset, inputs });
+    await p.port.call("start", { name: "report.xlsx", deck: srv.open(), preset, inputs });
     // the stage's layers are keyed by what they are drawn from: the keys of the restored state come back after the undo
     const keys = async () => (await p.port.call("stage", { slide: 0, known: [] }))!.layers.map(l => l.key).join("\n");
     const before = await keys();
@@ -222,11 +226,11 @@ describe("what the wizard and the formula bar read (S2.5)", () => {
     await p.port.call("init", { served: true, client: "c1", me: "anna" });
     const first = await p.port.call("index", transfer({ buf: book("report.xlsx") }, []));
     const preset = await p.port.call("defaultPreset", { book: first.book });
-    await p.port.call("start", { book: first.book, name: "report.xlsx", doc: srv.getDoc()!, preset, inputs });
+    await p.port.call("start", { book: first.book, name: "report.xlsx", deck: srv.open(), preset, inputs });
     const a = await p.port.call("index", transfer({ buf: book("report.xlsx") }, []));
     const b = await p.port.call("index", transfer({ buf: book("report.xlsx") }, []));
     expect(b.book).toBeGreaterThan(a.book);
-    await expect(p.port.call("start", { book: a.book, name: "other.xlsx", doc: srv.getDoc()!, preset: null, inputs })).rejects.toThrow(/no longer being opened/);
+    await expect(p.port.call("start", { book: a.book, name: "other.xlsx", deck: srv.open(), preset: null, inputs })).rejects.toThrow(/no longer being opened/);
     // the first workbook's document is still the open one: an edit reaches it
     const sheet = preset.tables[0].sheet;
     expect((await p.port.call("apply", { label: "B", ops: [{ op: "cell.patch", sheet, ref: "C5", patch: { b: true } } as Op] })).changed).toBe(true);
@@ -249,7 +253,7 @@ describe("the stage's slide (S4.1)", () => {
     await p.port.call("init", { served: true, client: "c1", me: "anna" });
     await p.port.call("index", transfer({ buf: book("report.xlsx") }, []));
     const preset = await p.port.call("defaultPreset", {});
-    await p.port.call("start", { name: "report.xlsx", doc: srv.getDoc()!, preset, inputs });
+    await p.port.call("start", { name: "report.xlsx", deck: srv.open(), preset, inputs });
     const slide = preset.slides.findIndex(s => s.tables.length > 1);
     return { p, preset, slide: slide >= 0 ? slide : preset.slides.findIndex(s => s.tables.length) };
   }
@@ -303,7 +307,7 @@ describe("the stage's slide (S4.1)", () => {
     await p.port.call("init", { served: true, client: "c1", me: "anna" });
     await p.port.call("index", transfer({ buf: book("deck20.xlsx") }, []));
     const preset = await p.port.call("defaultPreset", {});
-    await p.port.call("start", { name: "deck20.xlsx", doc: srv.getDoc()!, preset, inputs });
+    await p.port.call("start", { name: "deck20.xlsx", deck: srv.open(), preset, inputs });
     const content = preset.slides.flatMap((s, i) => s.tables.length ? [i] : []).slice(0, 3);
     const cells = async (slide: number) => (await p.port.call("stage", { slide, known: [], nodes: true }))!.layers.filter(l => l.table !== null)
       .flatMap(l => l.nodes.filter(n => n.t === "hit" && n.kind === "t").map(n => (n as { label?: string }).label)).join("|");
@@ -342,7 +346,7 @@ describe("the stage's slide (S4.1)", () => {
     await p.port.call("index", transfer({ buf: book("report.xlsx") }, []));
     const preset = await p.port.call("defaultPreset", {}), slide = preset.slides.findIndex(s => s.tables.length);
     const t0 = Date.now();
-    const st = await p.port.call("start", { name: "report.xlsx", doc: srv.getDoc()!, preset, inputs: { ...inputs, logoSrc: "/assets/logo.png" }, stage: { slide, known: [] } });
+    const st = await p.port.call("start", { name: "report.xlsx", deck: srv.open(), preset, inputs: { ...inputs, logoSrc: "/assets/logo.png" }, stage: { slide, known: [] } });
     expect(st.view.preset).toEqual(preset);
     expect(Date.now() - t0).toBeLessThan(1000);                                               // not held by the logo
     const s = await p.port.call("stage", { slide, known: [], nodes: true });

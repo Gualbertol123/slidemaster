@@ -1,7 +1,7 @@
-# Slide Builder 3 – architecture and API contract
+# Slide Builder – architecture and API contract
 
 This is the contract between the browser app (`app/`, built into
-`backend/slide_builder.html`) and the local helper (`backend/slidebuilder/`). A future central
+`helper/slide_builder.html`) and the local helper (`helper/slidebuilder/`). A future central
 server (Node/Next.js, Python, …) can replace the helper by implementing the same endpoints.
 
 ## 1. Deployment model (unchanged)
@@ -15,10 +15,11 @@ server (Node/Next.js, Python, …) can replace the helper by implementing the sa
 Slide Builder\                     ROOT
 ├─ *.xlsx / *.xlsm / *.xlsb / *.xls workbooks (Open menu)
 ├─ export\                          PDFs / PNGs
-└─ backend\
-   ├─ slide_builder.py              entry point (thin)
-   ├─ slide_builder.html            the app (BUILT from app/)
-   ├─ slidebuilder\                 helper package
+├─ helper\                          the program (backend\ until 3.8)
+│  ├─ slide_builder.py              entry point (thin)
+│  ├─ slide_builder.html            the app (BUILT from app/)
+│  └─ slidebuilder\                 helper package
+└─ backend\                         the user's files, shared with Slide Builder 3
    ├─ logo.png
    └─ data\                         ALL persistent state (see §3)
 ```
@@ -30,14 +31,22 @@ a random `client` id. Presence and `updatedBy` use these.
 
 ## 3. Data (`backend/data/`)
 
+Since 4.0 a workbook's document lives in a **deck** (storage v4, §5.1, docs/next/04 §2): a snapshot plus append-only
+journals of operation records. The document inside – `preset`, `style`, `edits` – has the shape of §3.1, unchanged.
+
 ```
 data/
 ├─ config.json                 shared defaults for new decks          {schema, rev, updated, updatedBy, defaults:{style}}
-├─ workbooks/<key>.json        one document per workbook (below)
+├─ v4/decks/<key>/             one deck per workbook: snapshot.json {format 4, gen, workbook, lamport, rev, frontier,
+│                              seen, doc}, j/<journal>.log (framed records, one writer each), presence/<user@host#client>
+│                              (empty files), lock, moved-from-v3.json, rolled-back.json, incident-*.json (§5.1)
+├─ v4/storage.json             optional {"storage": "lean-lock"} (ADR-006's fallback); v4/pinned-v3.json decks kept on v3
+├─ workbooks/<key>.json        Slide Builder 3's documents: read once by the migration, then FROZEN (schema 4,
+│                              movedTo "v4", movedGen) so v3 refuses them; a rollback writes them back (schema 3)
 ├─ users/<user>.json           personal preferences                   {schema, lastFile, pdfMode, zoom, versions}
-├─ presence/hb~<user>~<host>~<client>~<workbook>.json heartbeat     {user, host, client, workbook, at} (parts %-encoded; the name is enough)
-├─ backups/<key>/<rev>.json    rolling copies of workbook docs (last 30, at most one per 5 min)
-├─ backups/upgrades/<kind>/<file>.v<n>.<time>.json   a file as it was before a format upgrade (§3.3)
+├─ backups/v4/<key>/<gen>.json each compaction's snapshot (last 30)
+├─ backups/<key>/<rev>.json    v3's rolling copies of workbook docs (kept, read only)
+├─ backups/upgrades/<kind>/<file>.v<n>.<time>.json   a file as it was before a format upgrade or the migration (§3.3)
 ├─ backups/before-update-<time>/   saved setups copied by tools/update.py before an update (last 5)
 ├─ app-version.json            version installed by a ZIP update (tools/update.py)
 ├─ locks/<name>.lock           lock files (§4)
@@ -53,7 +62,7 @@ data/
 {
   "schema": 3,
   "workbook": "IBD weekly.xlsx",
-  "rev": 42,                       // +1 for every successful batch of operations
+  "rev": 42,                       // derived by the fold: the records folded so far (v3: +1 per batch)
   "updated": 1791214363000,        // ms since epoch
   "updatedBy": "rossim",
   "preset": {                      // null = no preset yet (the wizard creates one)
@@ -73,7 +82,7 @@ data/
     "design": "glass", "glass": "subtle", "color": 35, "logo": "logo.png",
     "pn": {"on": true, "start": 1, "pos": "br", "font": "auto", "size": 16, "format": "n", "style": "capsule", "cover": false}
   },
-  "log": [{"rev": 42, "by": "rossim", "at": 1791214363000}],   // last 20 revisions, written by the helper
+  "log": [{"rev": 42, "by": "rossim", "at": 1791214363000}],   // last 20 records, derived by the fold
   "edits": {                       // per sheet, per cell address
     "Overview": {"C7": {"orig": "TOTAL", "text": "Totale", "sz": 14, "b": true, "i": false,
                         "color": "#A8101A", "fill": "#34C759", "align": "center", "role": "header"}}
@@ -81,13 +90,17 @@ data/
 }
 ```
 
-A document that does not exist is returned as `{"schema":3,"workbook":<name>,"rev":0,"preset":null,"style":{},"edits":{}}`.
+A deck that does not exist yet starts from `{"schema":3,"workbook":<name>,"rev":0,"preset":null,"style":{},"edits":{}}`
+(the snapshot of gen 1 that `POST /api/decks/open` writes). Since 4.0 `rev`, `updated`, `updatedBy` and `log` are
+derived by the fold (`core/src/model/fold.ts`) from the records' `by` and `at`; the helper writes none of them.
 
 ### 3.2 Operations
 
-Clients never send whole documents. They send a list of operations; the helper applies them to the
-**latest** document under the lock (§4). Values `null` mean "delete this key". Semantics are
-defined once, here, and tested on both sides with `shared/ops-vectors.json`.
+Clients never send whole documents. They append records of operations to the deck's journals (§5.1); every page
+folds the snapshot and the records past its frontier in (Lamport time, writer, seq) order, one copy per (writer, seq)
+(`core/src/model/fold.ts`). Values `null` mean "delete this key". The semantics are defined once, here, implemented
+**only** in `core/src/model/ops.ts` and tested with `shared/ops-vectors.json` (which also holds the fold's ordering
+and de-duplication cases). The helper never parses or applies an operation (since 4.0; v3's `ops.py` is gone).
 
 | op | fields | effect |
 |---|---|---|
@@ -134,11 +147,14 @@ So two people changing different columns, rules or text boxes never overwrite ea
 | note `auto` | automated comment settings `{mode?:"summary"\|"sections" (missing = sections), kinds?[], showTitle?, names?, bullets? (false = off), tables?[] (more table ids of the slide), groups[], title?, top, minAbs?, exclude?[], noun, detail:"full"\|"short", share, breadth, missing}`: the text is written from the table at render time (`model/comment.ts`, `render/comment.ts`); `text` is then empty |
 | cell `font` / note `font` | font family chosen for a cell / text box (a library, Windows or Google font name) |
 
-Any other op, or an op with missing/invalid fields, is skipped. If at least one op was applied:
-`rev += 1`, `updated = now`, `updatedBy = user`. Field-level merging means two people editing
+Any other op, or an op with missing/invalid fields, is skipped (by the fold, in every page alike). A record
+with at least one applied op counts as a revision: `rev += 1`, `updated = at`, `updatedBy = by`. Field-level merging means two people editing
 different cells, slides or style keys never lose each other's work; the same field → last write wins.
 
-`config.json` accepts only `style.patch`, applied to `defaults.style`.
+`config.json`: only `defaults.style` changes. The page applies `style.patch` to the defaults it read (the core's
+operations) and sends the result with the `rev` it read; the helper replaces `defaults.style` only if `rev` is unchanged,
+under lock `config` (compare-and-set, `POST /api/config`), else 409 and the page tries again. v3 helpers still change
+the file their way (`style.patch` under the same lock, `rev + 1`), so neither loses the other's change.
 
 **Undo** on the client is the inverse operation computed from the values before the change, so it
 never reverts somebody else's change.
@@ -150,12 +166,12 @@ Shared by everybody using the folder, independent of workbooks: `data/fonts/font
 font files (`<Family>-<weight>[i]-<sha1>.<ext>`). Written under the `fonts` lock; a file is written before the
 index refers to it; files no family refers to are deleted. Google fonts are downloaded **by the page**
 (latin + latin-ext subsets) and stored like uploads, so slides and exports never need Google later. PDFs
-embed subsets of the fonts a slide uses (written by the page). Code: `backend/slidebuilder/fonts.py`, `app/src/state/fonts.ts`.
+embed subsets of the fonts a slide uses (written by the page). Code: `helper/slidebuilder/fonts.py`, `app/src/state/fonts.ts`.
 
 ### 3.3 Format versions and automatic upgrades
 
 Every saved file has `"schema"`: the format it is written in. Current formats are `SCHEMA` in
-`backend/slidebuilder/upgrade.py` (`workbook` 3, `config` 3, `prefs` 1); a file without the field is
+`helper/slidebuilder/upgrade.py` (`workbook` 3, `config` 3, `prefs` 1); a file without the field is
 the first numbered version of its kind. The helper is the only writer and stamps the current format on
 every write.
 
@@ -174,7 +190,7 @@ every write.
 * **A missing step** (format raised without a step) raises an error and leaves the file untouched.
 
 Changing the format: raise `SCHEMA[kind]`, add `@step(kind, n)` (convert the document in place), raise
-`FORMATS`, add a test and a new example file in `backend/tests/fixtures/saved/` (old examples are never
+`FORMATS`, add a test and a new example file in `helper/tests/fixtures/saved/` (old examples are never
 edited: `test_upgrade.py` reads every one of them on each run). Adding an optional field does not need
 a new format – readers ignore unknown keys and treat missing keys as defaults.
 
@@ -182,17 +198,19 @@ a new format – readers ignore unknown keys and treat missing keys as defaults.
 
 * Lock = create `data/locks/<name>.lock` with `os.open(O_CREAT | O_EXCL | O_WRONLY)`, write
   `{user, host, pid, at, token}`, close. Release = delete it, only if the token is still ours.
-* Ages of shared files (stale locks, presence, backup spacing, `updated`) are measured on the **file
+* Ages of shared files (stale locks, presence, journals' `at`, idle journals) are measured on the **file
   server's clock** (`fsclock.py`: mtime of a probe file), never on the PC's clock.
 * Long critical sections (the v2 migration) refresh their lock every 3 s (keepalive).
 * Wait up to 10 s, retrying every 50–200 ms (jittered). A lock file older than 15 s is stale: it is
   deleted and acquisition retried.
-* Critical section of a write: read latest doc → apply ops → write `<file>.<uuid>.tmp` → `fsync` →
-  `os.replace` (retried 20× over 2 s for Windows sharing violations) → release.
+* Critical section of a write (config.json, prefs, a snapshot, a frozen v3 document): read the latest file →
+  compare (`rev`, `gen`) and replace → write `<file>.<uuid>.tmp` → `fsync` → `os.replace` (retried 20× over 2 s for
+  Windows sharing violations) → release. Nothing in the helper applies an operation.
 * **Reads never return a made-up empty document for an existing but unreadable file**: parse is
   retried 5× over 0.5 s; then the request fails with 503 and nothing is written.
 * Lock names: `wb-<key>`, `config`, `user-<name>`, `fonts`, `migrate`, `export-<safe name>`, `export-feedback`,
-  `firstrun-<user-host>`.
+  `firstrun-<user-host>`; and each deck's own `data/v4/decks/<key>/lock` (compaction, migration and rollback after
+  `wb-<key>`, lean-lock appends). Appends to a deck's journals take no lock.
 
 ## 5. HTTP API
 
@@ -204,23 +222,20 @@ All responses JSON unless stated. Security for every request:
   placeholder `__SB_TOKEN__` in `slide_builder.html`. `/assets/*` may instead pass `?t=<token>`
   (used by `<img>`).
 * If an `Origin` header is present it must be `http://127.0.0.1:<port>` / `http://localhost:<port>`.
-* Request bodies are limited to 300 MB (uploads/exports) and 2 MB for JSON documents/ops.
+* Request bodies are limited to 300 MB (uploads/exports) and 2 MB for JSON (records, snapshots, config).
 
 | Method & path | Request | Response |
 |---|---|---|
 | `GET /` | – | the app, token injected |
 | `GET /api/health` | – | `{app, version, user, host, folder, export}` |
 | `GET /api/config` | – | config document |
-| `POST /api/config/ops` | `{ops}` | `{doc, applied, skipped}` |
+| `POST /api/config` | `{baseRev, style}` | `{doc}` – `defaults.style` replaced, compare-and-set on `rev` under lock `config` (shared with v3 helpers); 409 `{doc}` when it changed meanwhile: the page computes the defaults again with the core's operations |
 | `GET /api/me` | – | `{user, host, prefs:{lastFile, pdfMode, zoom}}` |
 | `PUT /api/me` | `{prefs}` | `{ok}` (personal file: whole replace) |
-| `GET /api/files` | – | `{workbooks:[{name, mtime, size, rev, updated, updatedBy}], folder}` (doc fields null when no doc) |
+| `GET /api/files` | – | `{workbooks:[{name, mtime, size, rev, updated, updatedBy}], folder}` (from the deck's snapshot, else a v3 document; null when neither) |
 | `GET /api/files/<name>/stat` | – | `{name, mtime, size}` of one workbook (one stat; 404 when gone) |
 | `GET /api/ping` | – (no token) | `{app, version}` – used by the “already running” probe |
 | `GET /files/<name>` | – | workbook bytes (workbook extensions only); headers `X-SB-Mtime`, `X-SB-Size`. Read is stable: retried while size/mtime change or the zip is incomplete; 503 if still changing. |
-| `GET /api/workbooks/<name>/doc?since=<rev>` | – | `204` when `doc.rev == since`, else `{doc}` |
-| `POST /api/workbooks/<name>/ops` | `{ops, client}` | `{doc, applied, skipped:[index…]}` |
-| `GET /api/workbooks/<name>/history` | – | `{backups:[{rev, updated, updatedBy}]}` |
 | `POST /api/logo?name=` | picture bytes (≤ 10 MB, PNG/JPG/GIF/WEBP/BMP) | `{name}` – saved in `data/assets`; `/assets/<name>` looks in data/assets, backend, the main folder (any case) |
 | `GET /api/fonts` | – | font library `{schema, fonts:[…]}` (§3.4) |
 | `POST /api/fonts?family=&weight=&style=&source=&name=&range=` | font file bytes (≤ 15 MB; TTF/OTF/WOFF/WOFF2 checked by signature) | font library |
@@ -228,8 +243,6 @@ All responses JSON unless stated. Security for every request:
 | `GET /sysfonts` · `GET /sysfonts/<file>` | – | this PC's Windows fonts `{fonts:[{file, family, subfamily, weight, italic, faces, size}]}` · one listed file |
 | `POST /api/fonts/capture?file=` | – | `{mode, file, family, sha1, embeddable, noSubset, faces, otherBuilds, otherHosts}`; in copy mode (`data/fonts/system/licence.json`) also `copied` and `faces` or `reason` |
 | `GET /fonts/<file>` | – (token header or `?t=`) | a font file |
-| `POST /api/presence` | `{client, workbook}` | `{others:[{user, host, client, workbook, at}]}` – others seen in the last 25 s |
-| `POST /api/presence/leave` | `{client}` | `{ok}` |
 | `GET /fieldcheck` (no token) | – | `tools/fieldcheck.html`: the field-test page of the browser's capabilities, on the app's origin |
 | `POST /api/upload?name=` · `GET /api/upload/<id>` | bytes | `{id, name}` · bytes (in memory, max 8 entries, 2 h) |
 | `POST /api/convert-workbook?name=` | bytes | `.xlsx` bytes (Excel COM, Windows) or 501 |
@@ -242,19 +255,67 @@ All responses JSON unless stated. Security for every request:
 Status codes: 400 bad request · 403 Host/token/Origin or file type · 404 · 409 format mismatch (a file newer than this helper, or a page built for other formats – §3.3) · 411/413 body · 501 converter
 not available · 503 document unreadable, lock busy, or workbook still being saved
 (clients keep their pending operations and retry). The old export routes (`/api/export`, `/api/assemble`,
-`/api/engine/*`) were removed in 3.8 and answer 404. `/api/me` preferences contain `null` for unset keys.
+`/api/engine/*`) were removed in 3.8, v3's storage routes (`/api/workbooks/<name>/doc|ops|history`, `/api/config/ops`,
+presence without a deck) in 4.0: they answer 404 (or 400). `/api/me` preferences contain `null` for unset keys.
 
 Export files are written to a unique temporary name in `export\` and renamed into place; when the
 target is locked (open in a viewer) the next free ` (2)`, ` (3)`… name is used.
+
+### 5.1 Decks (storage v4, `helper/slidebuilder/decks.py`, docs/next/04 §2)
+
+A deck is `data/v4/decks/<key>/`: `snapshot.json` + `j/<journal>.log` (framed records
+`<len>:<crc32 hex 8>:<json>\n`, one writer per file) + `presence/` + `lock`. Records are opaque to the helper:
+it checks the envelope (`w` = the journal's writer, `s`, `l` positive integers) and stamps `at` (file server's
+clock). The operations are folded by the core (`core/src/model/fold.ts`). The endpoints of 04 §2.2, plus the
+additions the page needs: `open` (a key and a writer id for this page session; a v3 deck is migrated first),
+`prepare` (the journal opened during the page's debounce, so an append costs write + flush only), the list of decks,
+`history` and the deck form of presence `leave`.
+
+| Method & path | Request | Response |
+|---|---|---|
+| `POST /api/decks/open` | `{workbook}` | `{key, writer, created, migrated, storage, snapshot}`; a deck Slide Builder 3 still owns is migrated first (`migrate_v3.py`: under v3's lock `wb-<key>`, byte backup, snapshot gen 1, `moved-from-v3.json`, the v3 file frozen with `schema 4, movedTo "v4"`); an empty deck is created when there is none; 409 for a deck pinned to v3 (`data/v4/pinned-v3.json`) |
+| `GET /api/decks` | – | `{decks:[{key, workbook, gen, rev, rolledBack}]}` (Prepare rollback) |
+| `GET /api/decks/<key>/snapshot` | – | `{snapshot}`; 404 no deck, 503 unreadable (never empty), 409 a newer format |
+| `GET /api/decks/<key>/tail?since=<json {journal: offset}>` | – | `{journals:{<journal>:{offset, records, ends}}, gen, readonly?}` – complete records past the offsets (≤ 8 journals read at once, listing cached 3 s – 04 §2.2 says 10 s; a newcomer's first records are seen sooner); an unreadable journal is left out this time; an offset inside a record is read again from the file's start |
+| `POST /api/decks/<key>/append` | `{writer, record}` | `{journal, offset, at}` once flushed (`os.fsync`); 503 → the page sends the same record again (a new file is used) |
+| `POST /api/decks/<key>/prepare` | `{writer}` | `{ok}` – opens the writer's journal ahead of its first append (idempotent; nothing for viewers who never edit; an empty journal is deleted by the owner's rotate or after 24 h) |
+| `POST /api/decks/<key>/compact` | `{baseGen, snapshot}` (≤ 32 MB) | `{gen, dropped}`; 409 `{gen}` when compacted meanwhile or behind; CAS under the deck lock |
+| `POST /api/decks/<key>/rotate` | `{writer}` | `{deleted}` – the writer's journals the frontier covers |
+| `GET /api/decks/<key>/history` | – | `{backups:[{gen, rev, at, by}]}` (`backups/v4/<key>/`, last 30) |
+| `POST /api/presence` · `POST /api/presence/leave` | `{deck, client}` | `{others:[{user, host, client, at}]}` · `{ok}` – presence v2 (empty files, mtime on the server's clock) |
+
+Every tail also returns `now` (the file server's time) and `skipped` (journals it could not read this time). A page
+compacts only records at least 30 s old on that clock (`COMPACT_MARGIN_MS`: a journal created since may still be
+missing from a reader's listing – the helper caches it 3 s, the SMB client 10 s more – and an earlier record in it
+must never be folded in after a newer one that replaced it), never on a round with `skipped` journals, and per
+writer only records 1..n without a gap; every journal's frontier is a prefix of records all in the snapshot.
+`now` is left out while the helper does not know the file server's clock (its probe failed; the offset is
+measured again at once when the PC clock was set): such a round is not complete either. The last frame of a journal
+that is incomplete, or whose missing bytes are zeros (the server lost power during an append nobody was told
+about), is a torn tail: ignored, never corruption. Inherent limit (B4): a page whose tails failed for longer than the
+margin may append a record with a stale Lamport time into a journal a compaction did not see yet; that record then
+lands on top of the snapshot (nothing is lost, every page converges, but a value somebody knowingly replaced can come
+back for that field).
+
+423: the deck is read-only (a journal is damaged in the middle; `incident-*.json` in the deck folder). 409 on append or
+tail: the deck was given back to Slide Builder 3 (`rolled-back.json`; the page reloads, its next open migrates again).
+A rollback is refused while somebody has the deck open or a record lies past the frontier; it writes the marker
+first, waits until every helper with an append handle has seen it (they look every 4 s), checks the frontier again
+(an append acknowledged meanwhile keeps the deck with v4) and only then gives v3 its document back
+(`helper/slidebuilder/migrate_v3.py`). A migration freezes the v3 file before it writes the snapshot.
+`tools/update.py --migrate-all` migrates every v3 deck (a deck a v3 helper is saving is skipped and reported);
+`--rollback [WORKBOOK]` gives one or every deck back (refused while a journal holds a record past the frontier).
+`SLIDEBUILDER_STORAGE=lean-lock` (or `data/v4/storage.json`): appends go to one shared journal under the deck lock.
 
 ## 6. Migration from v2
 
 At start-up, under lock `migrate`, if `backend/slide_builder_settings.txt` exists and
 `data/migrated.json` does not:
 
-* `app.design, glass, color, logo, pn` → `config.defaults.style`
-* each `presets[wb]` → `workbooks/<key>.json` `preset` (cover/index slides keep their position)
-* each `files[wb][sheet].cells` → `edits[sheet]`
+* `app.design, glass, color, logo, pn` → `config.defaults.style` (only when there is no config.json yet)
+* each workbook → a new deck (with the frozen stub in `workbooks/`) whose first record holds, as operations, its
+  `presets[wb]` (`preset.set`; cover/index slides keep their position) and its `files[wb][sheet].cells`
+  (`cell.patch`); the core folds them like any record
 * `app.lastFile, pdfMode` → `users/<current user>.json`
 * documents that already exist are not overwritten; the old file is kept, renamed
   `slide_builder_settings.v2-backup.txt`; `migrated.json` records what was imported.

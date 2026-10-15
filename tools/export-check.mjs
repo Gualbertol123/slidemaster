@@ -18,7 +18,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { BOOKS, DECKS, deckList, load, openBrowser, startHelper, wbPath } from "./capture-v3.mjs";
+import { BOOKS, DECKS, deckList, deckOps, load, openBrowser, startHelper } from "./capture-v3.mjs";
 import { goldenTexts, matchTexts } from "./export-dl.mjs";
 import { speedFactor } from "./calibrate.mjs";
 
@@ -61,9 +61,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       const deck = JSON.parse(fs.readFileSync(path.join(DECKS, id + ".json"), "utf8"));
       const file = id + path.extname(deck.workbook);
       fs.copyFileSync(path.join(BOOKS, deck.workbook), path.join(h.root, file));
-      await h.api(wbPath(file) + "/ops", "POST", { ops: deck.ops, client: "golden" });
+      await deckOps(h, file, deck.ops);
       for (const design of DESIGNS) {
-        await h.api(wbPath(file) + "/ops", "POST", { ops: [{ op: "style.patch", patch: { design } }], client: "golden" });
+        await deckOps(h, file, [{ op: "style.patch", patch: { design } }]);
         const slides = await load(page, h, file, "");
         const r = { deck: id, design, slides };
         const n = await exportOnce(page, h, () => page.click("#exportBtn"));

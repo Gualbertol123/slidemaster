@@ -1,5 +1,5 @@
 /* Application actions: start-up, opening workbooks, editing through operations, undo/redo,
-   polling for other people's changes, presence.
+   presence (the core worker reads other people's changes from the deck's journals itself, every 1.5 s).
    The core worker (PLAN S2.4, app/src/rpc/client.ts) OWNS the open workbook, its shared document and undo/redo.
    The page keeps read-only mirrors: the workbook's sheets as slices (deck.wb), the document's view (doc.view) and
    what undo/redo would do (deck.history). A change is sent to the worker as operations; so that code reading the
@@ -7,7 +7,7 @@
    ops) until the worker's snapshot that includes them arrives. */
 import { get, patch, patchAll, same, STAGE, THUMBS, toast, showBusy, hideBusy } from "./store";
 import { ask, runWizard } from "./dialogs";
-import { backend } from "../sync/api";
+import { backend, patchStyleDefault } from "../sync/api";
 import { connectCore, type CorePort } from "../rpc/client";
 import { browserText } from "../platform";
 import type { RunMetrics } from "@slide-builder/core/platform";
@@ -17,8 +17,9 @@ import { MirrorWorkbook } from "@slide-builder/core/xlsx/mirror";
 import type { SharedSlice, SheetSlice } from "@slide-builder/core/xlsx/slice";
 import { transfer } from "@slide-builder/core/rpc/port";
 import type { DocEvent, ViewInputs } from "@slide-builder/core/rpc/messages";
-import type { Change } from "@slide-builder/core/sync/docsync";
+import { COMPACT_MARGIN_MS, DocSync, type Change, type DeckApi, type DeckOpen } from "@slide-builder/core/sync/docsync";
 import { applyOps } from "@slide-builder/core/model/ops";
+import { fold } from "@slide-builder/core/model/fold";
 import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "@slide-builder/core/model/preset";
 import { resolveStyle } from "@slide-builder/core/model/style";
 import type { Design, Op, Preset, Prefs, RuntimeSlide, StylePatch } from "@slide-builder/core/model/types";
@@ -38,8 +39,12 @@ let openingWb: MirrorWorkbook | null = null, earlySlices: { book: number; shared
 export function core(): CorePort {
   if (port) return port;
   const c = connectCore(); port = c.port; coreStats.worker = !!c.worker;
-  port.handle("getDoc", a => backend.getDoc(a.name, a.since));
-  port.handle("postOps", a => backend.postOps(a.name, a.ops, a.client));
+  port.handle("deckSnapshot", a => backend.deckSnapshot(a.key));
+  port.handle("deckTail", a => backend.deckTail(a.key, a.since));
+  port.handle("deckAppend", a => backend.deckAppend(a.key, a.writer, a.record));
+  port.handle("deckCompact", a => backend.deckCompact(a.key, a.baseGen, a.snapshot));
+  port.handle("deckRotate", a => backend.deckRotate(a.key, a.writer));
+  port.handle("deckPrepare", a => backend.deckPrepare(a.key, a.writer));
   port.handle("digitWidth", a => browserText.maxDigitWidth(a.font));
   // the display list's text, measured with the page's fonts (decision 2026-10-12, 3; browserText answers synchronously)
   port.handle("measureRuns", a => {
@@ -61,6 +66,7 @@ export function core(): CorePort {
   port.on("stage", s => STAGE.pushed(s));
   port.on("progress", p => { if (p) showBusy(p.text, p.frac); else hideBusy(); });
   port.on("retiredSaved", () => { unsavedElsewhere = false; });
+  port.on("rest", r => { restDeck = r; });
   // an error in the worker's own work (e.g. a sheet read after a colleague's change): shown, never a busy screen left up
   port.on("error", e => { console.error("core worker: " + e.message + (e.stack ? "\n" + e.stack : "")); hideBusy(); toast("⚠ " + esc(e.message), [], true); });
   // the worker stopped: nothing can be read or saved any more – say so, and stop taking edits
@@ -114,7 +120,12 @@ export async function boot() {
     setInterval(() => { void tick(); }, 3000);
     setInterval(() => { void heartbeat(); }, 10000);
     void heartbeat();
-    addEventListener("pagehide", () => backend.leave(get().prefs.client));
+    addEventListener("pagehide", () => {
+      // the last one present compacts the deck it closes (04 §4.4): the worker's snapshot of the deck at rest
+      const r = restDeck; restDeck = null;
+      if (r && r.key === deckKey && !others().length) backend.deckCompactOnLeave(r.key, r.baseGen, r.json);
+      backend.leave(get().prefs.client, deckKey);
+    });
   }
   // closing the window while changes are not on the share (or in this browser's storage) yet: the browser asks first
   addEventListener("beforeunload", e => {
@@ -123,10 +134,14 @@ export async function boot() {
   });
 }
 let tickN = 0;
-/** one poll: other people's changes, helper health, the file on disk, fonts, shared config (every 3 s) */
+/** the open deck's key on the share (presence v2) and its state at rest while this page is alone there (pagehide) */
+let deckKey: string | null = null, restDeck: { key: string; baseGen: number; json: string } | null = null;
+/** the others on the open deck */
+const others = () => get().ui.others.filter(o => o.workbook === get().deck.file?.name);
+/** one tick: helper health, the file on disk, fonts, shared config (every 3 s; other people's changes come from the
+    worker, which reads the deck's journals every 1.5 s) */
 export async function tick() {
   tickN++;
-  if (get().doc.open) await core().call("poll", {}).catch(() => { /* next tick */ });
   if (tickN % 2 === 0) {
     setHealth(await backend.health());
     const { file } = get().deck;
@@ -140,13 +155,15 @@ export async function tick() {
 }
 /** the helper's health; an answer equal to the last one changes nothing (nothing re-renders) */
 export function setHealth(h: AppState["ui"]["health"]) { if (!same(h, get().ui.health)) patch("ui", { health: h }); }
-/** presence: who else has this workbook open (every 10 s) */
+/** presence: who else has this deck open (every 10 s); the worker learns whether this page is alone there */
 export async function heartbeat() {
   try {
-    const others = await backend.presence(get().prefs.client, get().deck.file?.name || null);
+    const key = deckKey, name = get().deck.file?.name || null;
+    const others = await backend.presence(get().prefs.client, key, name);
     // who is here: the seen-at times change every time, the list shown only when somebody comes or goes
     const who = (l: typeof others) => l.map(o => [o.user, o.host, o.client, o.workbook]);
     if (!same(who(others), who(get().ui.others))) patch("ui", { others });
+    if (key && key === deckKey && get().doc.open) void core().call("alone", { alone: !others.length }).catch(() => undefined);
   } catch { /* helper busy */ }
 }
 
@@ -262,8 +279,13 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   stale();
   layOutWhileIdle(wb);
   LCACHE.clear();
-  const doc = (await backend.getDoc(name))!;
+  // the deck on the share: its snapshot and the records past it, folded as the worker will (model/fold.ts)
+  const opened = await backend.openDeck(name);
   stale();
+  const tail = backend.served ? await backend.deckTail(opened.key, opened.snapshot.frontier) : undefined;
+  stale();
+  const deck: DeckOpen = { key: opened.key, writer: opened.writer, snapshot: opened.snapshot, ...(tail ? { tail } : {}) };
+  const doc = fold(deck.snapshot, Object.values(tail?.journals || {}).flatMap(j => j.records)).doc;
   // the open workbook has changes the helper does not have yet: switching keeps saving them (the worker retries),
   // but say so when saving is failing, so nobody closes the window thinking they are safe
   if (get().doc.open && get().doc.save === "error") unsavedElsewhere = true;
@@ -293,7 +315,8 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   starting = true; pending.length = 0;
   let st;
   // the stage's slide is drawn first: the one shown before, if the new deck has it, as the slides are resolved below
-  try { st = await core().call("start", { book: wb.book, name, doc, preset: newPreset, inputs: { ...viewInputs(name), version }, stage: STAGE.request(get().deck.cur) }); }
+  const leftKey = deckKey;
+  try { st = await core().call("start", { book: wb.book, name, deck, preset: newPreset, inputs: { ...viewInputs(name), version }, stage: STAGE.request(get().deck.cur) }); }
   catch (e) {
     // refused before the switch (another open came first): the worker still has the open document, and so does the page
     if ((e as { code?: string }).code === "NOT_STARTED") { patch("deck", { opening: "" }); throw gen !== openGen ? superseded() : e; }
@@ -303,6 +326,8 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
     throw e;
   }
   finally { starting = false; }
+  deckKey = deck.key; restDeck = null;
+  if (leftKey && leftKey !== deckKey) backend.leave(get().prefs.client, leftKey);
   base = st.view; predicted = { base, key: "" };
   openingWb = null;                                          // now the open one (deck.wb)
   const design = resolveStyle(get().doc.config.defaults.style, st.view.style).design;
@@ -310,7 +335,7 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   presetSig = JSON.stringify(st.view.preset);
   if (src === "folder") setPrefs({ lastFile: name });
   patchAll({
-    doc: { open: true, view: st.view, save: st.save, error: st.error },
+    doc: { open: true, view: st.view, save: st.save, error: st.error, health: st.deck },
     deck: { wb, file: { name, src, id, mtime, size }, history: st.history, slides, cur: Math.min(get().deck.cur, Math.max(0, slides.length - 1)),
       version, opening: "", remote: null },
     selection: { sel: null },
@@ -349,6 +374,7 @@ function onWorkerDoc(ev: DocEvent) {
   if (view !== d.view) docPatch.view = view;               // the same document: the same object (nothing re-renders)
   if (d.save !== save) docPatch.save = save;
   if (d.error !== ev.error) docPatch.error = ev.error;
+  if (!same(d.health, ev.deck)) docPatch.health = ev.deck;
   patchAll({ ...(Object.keys(docPatch).length ? { doc: docPatch } : {}), ...(same(h, ev.history) ? {} : { deck: { history: ev.history } }) });
   if (ev.change) void onDocChange(ev.change);
 }
@@ -411,7 +437,7 @@ export function change(label: string, ops: Op[], coalesce?: string) {
   void core().call("apply", { label, ops, coalesce }).catch(e => console.error(e));
 }
 /** the save state right after a change: waiting for the helper, or kept in this browser (file://) */
-const unsaved = () => get().doc.save === "outdated" ? "outdated" as const : backend.served ? "pending" as const : "local" as const;
+const unsaved = () => get().doc.save === "outdated" || get().doc.save === "readonly" ? get().doc.save as "outdated" | "readonly" : backend.served ? "pending" as const : "local" as const;
 export function undo(redo = false) {
   // nothing to undo (as v3, which returned on an empty stack); not while another workbook is starting
   // an edit (or undo) the worker has not confirmed yet counts too: the history mirror comes with its snapshot
@@ -419,7 +445,7 @@ export function undo(redo = false) {
   if (!get().doc.open || starting || !(redo ? canRedo : canUndo)) return;
   if (port?.closed) { toast("⚠ " + esc(port.closed.message), [], true); return; }
   pending.push({ seq: ++seq, ops: [], undo: !redo });
-  if (get().doc.save !== "outdated") patch("doc", { save: unsaved() });      // as DocSync did: "pending" until the helper has it
+  if (get().doc.save !== "outdated" && get().doc.save !== "readonly") patch("doc", { save: unsaved() });      // as DocSync did: "pending" until the helper has it
   void core().call("undo", { redo }).then(r => {
     if (r.label === null) return;
     patchAll({ selection: { sel: null } });
@@ -429,8 +455,53 @@ export function undo(redo = false) {
 export const styleChange = (label: string, patch: Extract<Op, { op: "style.patch" }>["patch"], coalesce?: string) => change(label, [{ op: "style.patch", patch } as Op], coalesce);
 export async function saveStyleAsDefault() {
   const st = get().doc.view?.style; if (!st) return;
-  try { const r = await backend.configOps([{ op: "style.patch", patch: JSON.parse(JSON.stringify(st)) } as Op]); patch("doc", { config: r.doc }); toast("This deck's style is now the default for new decks."); }
+  try {
+    patch("doc", { config: await patchStyleDefault(backend, JSON.parse(JSON.stringify(st))) });
+    toast("This deck's style is now the default for new decks.");
+  }
   catch (e) { toast("⚠ " + esc((e as Error).message), [], true); }
+}
+
+/* ---------------------------------------------------------------- administration */
+/** Options › Administration › Prepare rollback (04 §4.4): every deck saved and compacted, so that
+    "Update Slide Builder.bat --rollback" can give it back to Slide Builder 3 (it refuses a deck with changes past its
+    snapshot). The open deck through the worker, the others each with a DocSync of their own here, for this only. */
+export async function prepareRollback() {
+  if (!backend.served) return;
+  const go = await ask("Prepare rollback", "Every Slide Builder 4 deck is saved and its changes folded into its snapshot. Afterwards " +
+    "the maintainer can give decks back to Slide Builder 3 with <b>Update Slide Builder.bat --rollback</b>. Nothing else changes.",
+    [{ id: "cancel", label: "Cancel" }, { id: "go", label: "Prepare rollback", primary: true }], { width: 520 });
+  if (go !== "go") return;
+  const api: DeckApi = { served: true, snapshot: k => backend.deckSnapshot(k), tail: (k, s) => backend.deckTail(k, s),
+    append: (k, w, r) => backend.deckAppend(k, w, r), compact: (k, g, s) => backend.deckCompact(k, g, s), rotate: (k, w) => backend.deckRotate(k, w) };
+  const failed: string[] = [];
+  let done = 0;
+  // every deck once (what is old enough is folded at once), then ONE wait for the compaction margin (records younger
+  // than it may still be followed by others a listing has not shown yet: docsync.ts COMPACT_MARGIN_MS), then every deck
+  // again - about half a minute whatever the number of decks
+  const one = async (d: { key: string; workbook: string }, waitMs: number) => {
+    if (d.key === deckKey && get().doc.open) return await core().call("compactAll", { waitMs });
+    const s = new DocSync(api, d.workbook, await backend.openDeck(d.workbook), get().prefs.user, { autoTail: false });
+    try { return await s.compactAll(waitMs); } finally { s.dispose(); }
+  };
+  try {
+    const list = (await backend.decks()).filter(d => !d.rolledBack), left: typeof list = [];
+    for (const [i, d] of list.entries()) {
+      showBusy(`Preparing rollback: ${d.workbook}…`, i / Math.max(1, 2 * list.length));
+      try { if (await one(d, 0)) done++; else left.push(d); }
+      catch (e) { failed.push(d.workbook + " (" + ((e as Error).message || e) + ")"); }
+    }
+    if (left.length) {
+      for (let t = COMPACT_MARGIN_MS + 2000; t > 0; t -= 1000) { showBusy(`Preparing rollback: waiting for the last changes to settle (${Math.ceil(t / 1000)} s)…`, null); await new Promise(r => setTimeout(r, 1000)); }
+      for (const [i, d] of left.entries()) {
+        showBusy(`Preparing rollback: ${d.workbook}…`, 0.5 + i / Math.max(1, 2 * left.length));
+        try { if (await one(d, 15_000)) done++; else failed.push(d.workbook + " (still being edited)"); }
+        catch (e) { failed.push(d.workbook + " (" + ((e as Error).message || e) + ")"); }
+      }
+    }
+  } catch (e) { failed.push((e as Error).message || String(e)); }
+  finally { hideBusy(); }
+  toast(`Prepare rollback: <b>${done}</b> deck${done === 1 ? "" : "s"} ready` + (failed.length ? ` · not ready: ${esc(failed.join(", "))} – try again when nobody edits them` : "."), [], failed.length > 0);
 }
 
 /* ---------------------------------------------------------------- wizard */

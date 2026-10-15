@@ -1,5 +1,15 @@
 # Load test: shared-folder storage with 10 users
 
+> **Slide Builder 4 (storage v4, PLAN S5.4):** `tools/loadtest4.py` drives real v4 helpers (one per user, one
+> folder) the way the core's DocSync v4 does - an edit every 1-3 s, one record per 300 ms batch, a tail every
+> 1.5 s, presence every 10 s - with simulated share latency (`helper/slidebuilder/simfs.py`; for the decks every
+> read and write on an open handle is charged too, as docs/next/04 §2.5). `python tools/loadtest4.py --ci` is the
+> CI job (20 users at 15 and 40 ms: same deck, different decks, a burst, compaction while editing; criteria of
+> 05 §3.5; a scenario that misses only a timing target is run once more and that run decides – a hosted runner's
+> 2 CPUs for 20 helpers have moments of contention a share has not; a lost edit or views that differ fail at once). `--real-folder "T:\Slide Builder"` runs it on the real share (for people, before the cut-over).
+> The measured numbers are in PROGRESS.md (S5.4). Everything below is about v3's storage (its tool, `tools/loadtest.py`, was removed with v3's storage path in 4.0 – S5.5; it is in the git history, last in v3.8.0).
+
+
 Question: **is the network (the shared folder) the bottleneck, and what else could be considered?**
 
 Short answer: the network itself is not the problem. The cost is the number of **sequential file
@@ -27,7 +37,7 @@ to **285/870 ms**, and edits became visible to others after 1.4 s instead of 11 
     queued in the meantime go in the next batch. Failures are retried after 2–32 s;
   * `GET …/doc?since=<rev>` every 3 s (skipped while a save is in flight), and `POST /api/presence` every 10 s.
 * **Simulated share latency** (`--fs-ms`). The helpers run with `SLIDEBUILDER_SIM_FS_MS=N`
-  (`backend/slidebuilder/simfs.py`), and every data-folder file operation that would be an SMB round
+  (`helper/slidebuilder/simfs.py`), and every data-folder file operation that would be an SMB round
   trip sleeps N ms ±25 % first. That covers open/create, stat/exists/getmtime, replace/rename,
   remove, listdir, makedirs and fsync. **This is a simulation and a lower bound.** Real SMB often
   needs 2–3 round trips for open+read+close, and antivirus on the file server adds time to every
@@ -48,7 +58,7 @@ to **285/870 ms**, and edits became visible to others after 1.4 s instead of 11 
   poll round. Machine: Linux container, 4 vCPU, local disk (the 0 ms row is CPU-bound: 10 helpers
   plus the driver on 4 cores).
 
-Reproduce:
+Reproduce (with Slide Builder 3.8.0 or earlier: `git show v3.8.0:tools/loadtest.py > loadtest.py`):
 
 ```
 python tools/loadtest.py --users 10 --scenario same different --duration 30 --fs-ms 0 5 15 40 --json out.json
@@ -182,7 +192,7 @@ presence only every 30 s, would cut that. It does not affect saving, since prese
 ## 5. Recommendation
 
 1. **Measure your share first.** Run step 5 of `Install Slide Builder.bat` on a few PCs (cycle ÷ 4 ≈
-   `fs ms`), or `tools/loadtest.py --real-folder T:\… --scenario same`.
+   `fs ms`), or `tools/loadtest4.py --real-folder T:\…` (Slide Builder 4's storage).
 2. **Do option A now, regardless.** *(The backup part is done – §2b.)* The steady-state backup check alone turns a 15 ms share from
    "slightly slow" (p95 2.3 s) into "broken" (p95 9.7 s, 503s, 11 s to see changes). Removing it,
    moving the backup out of the lock and trimming the lock round trips takes the time under the

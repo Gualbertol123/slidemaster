@@ -1,13 +1,16 @@
 /* Talking to the helper (docs/ARCHITECTURE.md §5). When the page is opened from disk (file://)
    an in-browser backend keeps documents in localStorage, and exports are downloads (B1, editor/export.ts). */
-import { FORMATS, type ConfigDoc, type Op, type Prefs, type WorkbookDoc } from "@slide-builder/core/model/types";
+import { FORMATS, type ConfigDoc, type Prefs, type StylePatch, type WorkbookDoc } from "@slide-builder/core/model/types";
 import { applyOps, emptyDoc } from "@slide-builder/core/model/ops";
 import type { LibraryFont } from "@slide-builder/core/model/fonts";
+import type { DeckRecord, DeckSnapshot } from "@slide-builder/core/model/fold";
+import type { DeckOpen, TailResult } from "@slide-builder/core/sync/docsync";
 
 export interface Health { app: string; version: string; user: string; host: string; folder: string; export: string }
 export interface FileInfo { name: string; mtime: number; size: number; rev?: number | null; updated?: number | null; updatedBy?: string | null }
 export interface Other { user: string; host: string; client: string; workbook: string | null; at: number }
-export interface OpsResult<D> { doc: D; applied: number; skipped: number[] }
+/** POST /api/decks/open: the deck's key, a writer id for this page session, its snapshot */
+export type DeckOpenAnswer = Omit<DeckOpen, "tail"> & { created?: boolean; storage?: string };
 export interface ExportRes { ok: boolean; files?: string[]; error?: string }
 /** a Windows font captured (W13): its build, the PCs that have another, and in copy mode whether the helper put the
     family into the shared library (helper sysfonts.py) */
@@ -23,15 +26,27 @@ export interface Backend {
   me(): Promise<{ user: string; host: string; prefs: Prefs }>;
   savePrefs(p: Prefs): Promise<void>;
   config(): Promise<ConfigDoc>;
-  configOps(ops: Op[]): Promise<OpsResult<ConfigDoc>>;
+  /** the shared defaults changed by compare-and-set on their rev (409 + the current doc when somebody was first) */
+  configSet(baseRev: number, style: ConfigDoc["defaults"]["style"]): Promise<{ doc: ConfigDoc }>;
   files(): Promise<FileInfo[]>;
   /** one stat of one workbook (the changed-on-disk banner); null when it is gone or there is no helper */
   fileStat(name: string): Promise<{ mtime: number; size: number } | null>;
   readFile(name: string): Promise<{ buf: ArrayBuffer; mtime: number; size: number }>;
-  getDoc(name: string, since?: number): Promise<WorkbookDoc | null>;
-  postOps(name: string, ops: Op[], client: string): Promise<OpsResult<WorkbookDoc>>;
-  presence(client: string, workbook: string | null): Promise<Other[]>;
-  leave(client: string): void;
+  /* decks, storage v4 (docs/next/04 §2.2; helper/slidebuilder/decks.py) */
+  openDeck(workbook: string): Promise<DeckOpenAnswer>;
+  deckSnapshot(key: string): Promise<DeckSnapshot>;
+  deckTail(key: string, since: Record<string, number>): Promise<TailResult>;
+  deckAppend(key: string, writer: string, record: DeckRecord): Promise<{ journal: string; offset: number; at: number }>;
+  deckCompact(key: string, baseGen: number, snapshot: DeckSnapshot): Promise<{ gen: number }>;
+  /** the same, on pagehide: a request the browser still sends after the page is gone (false: too big for that) */
+  deckCompactOnLeave(key: string, baseGen: number, snapshotJson: string): boolean;
+  deckRotate(key: string, writer: string): Promise<{ deleted: string[] }>;
+  deckPrepare(key: string, writer: string): Promise<unknown>;
+  /** every deck on the share (Prepare rollback) */
+  decks(): Promise<{ key: string; workbook: string; gen: number; rev: number; rolledBack: boolean }[]>;
+  /** presence on a deck (v2): others there in the last 25 s */
+  presence(client: string, deck: string | null, workbook: string | null): Promise<Other[]>;
+  leave(client: string, deck: string | null): void;
   upload(name: string, buf: ArrayBuffer): Promise<string>;
   convertWorkbook(name: string, buf: ArrayBuffer): Promise<ArrayBuffer>;
   convertPicture(bytes: Uint8Array, ext: string): Promise<string | null>;
@@ -62,17 +77,18 @@ const SERVED = location.protocol.startsWith("http") && !!TOKEN && !TOKEN.startsW
 /** how long a request may take before it counts as failed (a hung share must not leave "Saving…" or "Opening…" for
     ever: DocSync then retries, an open shows the error); reading, uploading and converting a workbook take longer */
 const WAIT_MS = 60_000, WAIT_LONG_MS = 300_000, RETRY_MS = 500;
-async function req(path: string, init: RequestInit & { json?: unknown; timeout?: number } = {}): Promise<Response> {
+const FORMATS_HEADER = Object.entries(FORMATS).map(([k, v]) => k + "=" + v).join(";");
+async function req(path: string, init: RequestInit & { json?: unknown; timeout?: number; /** a write that may be sent twice */ idempotent?: boolean } = {}): Promise<Response> {
   const headers = new Headers(init.headers || {});
   headers.set("X-SB-Token", TOKEN);
-  headers.set("X-SB-Formats", Object.entries(FORMATS).map(([k, v]) => k + "=" + v).join(";"));
+  headers.set("X-SB-Formats", FORMATS_HEADER);
   let body = init.body;
   if (init.json !== undefined) { headers.set("Content-Type", "application/json"); body = JSON.stringify(init.json); }
   const ms = init.timeout ?? WAIT_MS;
   const signal = typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(ms) : undefined;
   // a read is asked again once when the connection to the helper drops (seen on Windows: a loopback request failing
   // with ERR_CONNECTION_TIMED_OUT left "No workbook" behind an open); a write is not – it may have arrived
-  const read = !init.method || init.method === "GET" || init.method === "HEAD";
+  const read = !init.method || init.method === "GET" || init.method === "HEAD" || !!init.idempotent;
   let r: Response;
   for (let again = read; ; again = false) {
     try { r = await fetch(path, { ...init, headers, body, cache: "no-store", ...(signal ? { signal } : {}) }); break; }
@@ -98,7 +114,9 @@ const json = async <T>(p: Promise<Response>): Promise<T> => {
   catch (e) { if (timedOut(e)) throw new ApiError(0, "The helper's answer did not arrive in time (is the shared folder slow or unreachable?)."); throw e; }
 };
 const blobToDataUrl = (b: Blob) => new Promise<string>(ok => { const fr = new FileReader(); fr.onload = () => ok(fr.result as string); fr.readAsDataURL(b); });
-const wbPath = (name: string) => "/api/workbooks/" + encodeURIComponent(name);
+const deckPath = (key: string) => "/api/decks/" + encodeURIComponent(key);
+/** what a request kept alive after the page is gone may carry (the browsers' limit for all of them together) */
+const KEEPALIVE_MAX = 60_000;
 
 export const helper: Backend = {
   served: true,
@@ -106,7 +124,7 @@ export const helper: Backend = {
   me: () => json(req("/api/me")),
   async savePrefs(prefs) { await req("/api/me", { method: "PUT", json: { prefs } }); },
   config: () => json(req("/api/config")),
-  configOps: ops => json(req("/api/config/ops", { method: "POST", json: { ops } })),
+  configSet: (baseRev, style) => json(req("/api/config", { method: "POST", json: { baseRev, style } })),
   async files() { return (await json<{ workbooks: FileInfo[] }>(req("/api/files"))).workbooks || []; },
   async fileStat(name) {
     try { return await json<{ mtime: number; size: number }>(req("/api/files/" + encodeURIComponent(name) + "/stat")); }
@@ -119,15 +137,29 @@ export const helper: Backend = {
     catch (e) { if (timedOut(e)) throw new ApiError(0, "Reading the workbook from the shared folder took too long."); throw e; }
     return { buf, mtime: +(r.headers.get("X-SB-Mtime") || 0), size: +(r.headers.get("X-SB-Size") || 0) };
   },
-  async getDoc(name, since) {
-    const r = await req(wbPath(name) + "/doc" + (since !== undefined ? "?since=" + since : ""));
-    if (r.status === 204) return null;
-    return (await r.json()).doc as WorkbookDoc;
+  openDeck: workbook => json(req("/api/decks/open", { method: "POST", json: { workbook }, idempotent: true })),
+  async deckSnapshot(key) { return (await json<{ snapshot: DeckSnapshot }>(req(deckPath(key) + "/snapshot"))).snapshot; },
+  deckTail: (key, since) => json(req(deckPath(key) + "/tail?since=" + encodeURIComponent(JSON.stringify(since)))),
+  deckAppend: (key, writer, record) => json(req(deckPath(key) + "/append", { method: "POST", json: { writer, record } })),
+  deckCompact: (key, baseGen, snapshot) => json(req(deckPath(key) + "/compact", { method: "POST", json: { baseGen, snapshot }, timeout: WAIT_LONG_MS })),
+  deckCompactOnLeave(key, baseGen, snapshotJson) {
+    const body = '{"baseGen":' + baseGen + ',"snapshot":' + snapshotJson + "}";
+    if (body.length > KEEPALIVE_MAX) return false;
+    try { fetch(deckPath(key) + "/compact", { method: "POST", keepalive: true, headers: { "X-SB-Token": TOKEN, "Content-Type": "application/json", "X-SB-Formats": FORMATS_HEADER }, body }); return true; }
+    catch { return false; }
   },
-  postOps: (name, ops, client) => json(req(wbPath(name) + "/ops", { method: "POST", json: { ops, client } })),
-  async presence(client, workbook) { return (await json<{ others: Other[] }>(req("/api/presence", { method: "POST", json: { client, workbook } }))).others || []; },
-  leave(client) {
-    try { fetch("/api/presence/leave", { method: "POST", keepalive: true, headers: { "X-SB-Token": TOKEN, "Content-Type": "application/json" }, body: JSON.stringify({ client }) }); } catch { /* page closing */ }
+  deckRotate: (key, writer) => json(req(deckPath(key) + "/rotate", { method: "POST", json: { writer } })),
+  // opening a journal twice is harmless (the helper keeps one handle per writer): asked again like a read
+  deckPrepare: (key, writer) => json(req(deckPath(key) + "/prepare", { method: "POST", json: { writer }, idempotent: true })),
+  async decks() { return (await json<{ decks: Awaited<ReturnType<Backend["decks"]>> }>(req("/api/decks"))).decks || []; },
+  async presence(client, deck, workbook) {
+    if (!deck) return [];
+    const others = (await json<{ others: Other[] }>(req("/api/presence", { method: "POST", json: { client, deck } }))).others || [];
+    return others.map(o => ({ ...o, workbook }));
+  },
+  leave(client, deck) {
+    if (!deck) return;
+    try { fetch("/api/presence/leave", { method: "POST", keepalive: true, headers: { "X-SB-Token": TOKEN, "Content-Type": "application/json" }, body: JSON.stringify({ client, deck }) }); } catch { /* page closing */ }
   },
   async upload(name, buf) { return (await json<{ id: string }>(req("/api/upload?name=" + encodeURIComponent(name), { method: "POST", body: buf, timeout: WAIT_LONG_MS }))).id; },
   async convertWorkbook(name, buf) { return (await req("/api/convert-workbook?name=" + encodeURIComponent(name), { method: "POST", body: buf, timeout: WAIT_LONG_MS })).arrayBuffer(); },
@@ -170,24 +202,37 @@ export const offline: Backend = {
   async me() { return { user: "", host: "", prefs: LS.get<Prefs>("prefs", {}) }; },
   async savePrefs(p) { LS.set("prefs", p); },
   async config() { return LS.get<ConfigDoc>("config", { schema: 3, rev: 0, defaults: { style: {} } }); },
-  async configOps(ops) {
+  async configSet(baseRev, style) {
     const c = await offline.config();
-    const r = applyOps({ preset: null, style: c.defaults.style, edits: {} }, ops);
-    const doc: ConfigDoc = { ...c, rev: c.rev + (r.applied ? 1 : 0), defaults: { style: r.doc.style } }; LS.set("config", doc);
-    return { doc, applied: r.applied, skipped: r.skipped };
+    if (c.rev !== baseRev) throw new ApiError(409, "the shared defaults were changed meanwhile - try again");
+    const doc: ConfigDoc = { ...c, rev: c.rev + 1, defaults: { ...c.defaults, style } }; LS.set("config", doc);
+    return { doc };
   },
   async files() { return []; },
   async fileStat() { return null; },
   readFile: offlineOnly,
-  async getDoc(name, since) { const d = LS.get<WorkbookDoc>("doc:" + name, emptyDoc(name)); return since !== undefined && d.rev === since ? null : d; },
-  async postOps(name, ops) {
-    const cur = LS.get<WorkbookDoc>("doc:" + name, emptyDoc(name));
-    const r = applyOps(cur, ops);
-    if (r.applied) { r.doc.rev = cur.rev + 1; r.doc.updated = Date.now(); r.doc.updatedBy = ""; }
-    // not stored: the save fails (the status bar shows it and the changes stay queued), never a false "saved"
-    if (!LS.set("doc:" + name, r.doc)) throw new ApiError(507, "This browser's storage is full or blocked: the changes are not saved. Start the helper (Start Slide Builder.bat) to keep working.");
-    return r;
+  /* opened from disk: one writer, this browser – the deck is the document in localStorage (as before), each record
+     applied to it at once (the key is the workbook's name) */
+  async openDeck(name) {
+    const doc = LS.get<WorkbookDoc>("doc:" + name, emptyDoc(name));
+    return { key: name, writer: "local@browser#" + Math.random().toString(32).slice(2, 10).padEnd(8, "a"),
+      snapshot: { format: 4, gen: 1, workbook: name, lamport: 0, rev: doc.rev || 0, frontier: {}, doc } };
   },
+  async deckSnapshot(key) { return (await offline.openDeck(key)).snapshot; },
+  async deckTail() { return { journals: {}, gen: 1 }; },
+  async deckAppend(key, writer, record) {
+    const cur = LS.get<WorkbookDoc>("doc:" + key, emptyDoc(key));
+    const r = applyOps(cur, record.ops), at = Date.now();
+    r.doc.rev = (cur.rev || 0) + 1; r.doc.updated = at; r.doc.updatedBy = "";
+    // not stored: the save fails (the status bar shows it and the changes stay queued), never a false "saved"
+    if (!LS.set("doc:" + key, r.doc)) throw new ApiError(507, "This browser's storage is full or blocked: the changes are not saved. Start the helper (Start Slide Builder.bat) to keep working.");
+    return { journal: writer, offset: r.doc.rev, at };
+  },
+  async deckCompact() { return { gen: 1 }; },
+  deckCompactOnLeave() { return false; },
+  async deckRotate() { return { deleted: [] }; },
+  async deckPrepare() { return null; },
+  async decks() { return []; },
   async presence() { return []; },
   leave() { /* nothing */ },
   upload: offlineOnly, convertWorkbook: offlineOnly,
@@ -210,3 +255,15 @@ export const offline: Backend = {
   uploadLogo: offlineOnly,
 };
 export const backend: Backend = SERVED ? helper : offline;
+
+/** the shared defaults' style patched with `patch` ("Use as default for new decks"): computed here with the core's
+ *  operations from the config read, compare-and-set on its rev (the helper applies no operation); when somebody was
+ *  first (409) read again and redo, up to `tries` times */
+export async function patchStyleDefault(b: Backend, patch: StylePatch, tries = 5): Promise<ConfigDoc> {
+  for (let i = 0; ; i++) {
+    const c = await b.config();
+    const style = applyOps({ preset: null, style: c.defaults.style, edits: {} }, [{ op: "style.patch", patch }]).doc.style;
+    try { return (await b.configSet(c.rev, style)).doc; }
+    catch (e) { if ((e as ApiError).status !== 409 || i >= tries - 1) throw e; }
+  }
+}

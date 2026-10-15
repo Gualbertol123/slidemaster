@@ -1,6 +1,6 @@
-/* Document operations – the ONLY way documents change (docs/ARCHITECTURE.md §3.2).
-   The helper applies the same rules in backend/slidebuilder/ops.py; both are tested against
-   shared/ops-vectors.json. Keep them in sync. */
+/* Document operations – the ONLY way documents change, and the ONLY implementation of their semantics
+   (docs/ARCHITECTURE.md §3.2; since 4.0 the helper applies none: it stores records of them, model/fold.ts folds
+   them). Pinned by shared/ops-vectors.json. */
 import type { CellEdit, Op, WorkbookDoc, StylePatch } from "./types";
 
 const SLIDE_KEYS = ["title", "subtitle", "date", "note", "logo", "layout", "align", "scale", "valign", "subs"] as const;

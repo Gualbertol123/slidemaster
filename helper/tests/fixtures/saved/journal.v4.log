@@ -1,0 +1,5 @@
+351:c7b9cd83:{"l":3,"s":1,"ops":[{"op":"preset.set","preset":{"sheets":["Overview"],"tables":[{"id":"k3j9x0a","sheet":"Overview","kind":"markers","anchor":"C3","index":0}],"slides":[{"id":"s1","type":"content","title":"Overview","tables":["k3j9x0a"],"layout":{"bands":[[0]],"w":[1]},"logo":false}]}}],"w":"rossim@PC-0042#k4p2x7qa","by":"rossim","at":1792033832313}
+143:f0cfb6d0:{"l":4,"s":2,"ops":[{"op":"style.patch","patch":{"design":"excel","color":35}}],"w":"rossim@PC-0042#k4p2x7qa","by":"rossim","at":1792033832314}
+184:2815f92f:{"l":7,"s":3,"ops":[{"op":"cell.patch","sheet":"Overview","ref":"C7","patch":{"orig":"TOTAL","text":"Totale","b":true}}],"w":"rossim@PC-0042#k4p2x7qa","by":"rossim","at":1792033832314}
+177:64360077:{"l":9,"s":4,"ops":[{"op":"cell.patch","sheet":"Overview","ref":"D7","patch":{"fill":"#34C759","role":"header"}}],"w":"rossim@PC-0042#k4p2x7qa","by":"rossim","at":1792033832314}
+74:ac02b8ca:{"l":11,"w"

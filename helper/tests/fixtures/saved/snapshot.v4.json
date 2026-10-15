@@ -1,0 +1,74 @@
+{
+  "format": 4,
+  "gen": 2,
+  "workbook": "IBD weekly.xlsx",
+  "lamport": 4,
+  "rev": 2,
+  "frontier": {
+    "rossim@PC-0042#k4p2x7qa": 522
+  },
+  "seen": {
+    "rossim@PC-0042#k4p2x7qa": 2
+  },
+  "doc": {
+    "schema": 3,
+    "workbook": "IBD weekly.xlsx",
+    "preset": {
+      "sheets": [
+        "Overview"
+      ],
+      "tables": [
+        {
+          "id": "k3j9x0a",
+          "sheet": "Overview",
+          "kind": "markers",
+          "anchor": "C3",
+          "index": 0
+        }
+      ],
+      "slides": [
+        {
+          "id": "s1",
+          "type": "content",
+          "title": "Overview",
+          "tables": [
+            "k3j9x0a"
+          ],
+          "layout": {
+            "bands": [
+              [
+                0
+              ]
+            ],
+            "w": [
+              1
+            ]
+          },
+          "logo": false
+        }
+      ]
+    },
+    "style": {
+      "design": "excel",
+      "color": 35
+    },
+    "edits": {},
+    "rev": 2
+  },
+  "updated": 1792033832314,
+  "updatedBy": "rossim",
+  "log": [
+    {
+      "rev": 1,
+      "by": "rossim",
+      "at": 1792033832313
+    },
+    {
+      "rev": 2,
+      "by": "rossim",
+      "at": 1792033832314
+    }
+  ],
+  "at": 1792033836314,
+  "by": "rossim"
+}
