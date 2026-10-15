@@ -13,6 +13,7 @@ import tempfile
 from .util import NO_WINDOW, log
 
 _conv_cache = {}
+WORKBOOK_EXTS = (".xls", ".xlsx", ".xlsm", ".xlsb")
 
 
 def _remember(cache, key, value, limit):
@@ -76,14 +77,15 @@ def convert_picture(data, ext):
         except Exception as e:
             log("GDI+ conversion failed (%s), trying PowerShell" % e)
         if not os.path.exists(dst):
-            q = lambda p: p.replace("'", "''")
-            ps = ("Add-Type -AssemblyName System.Drawing;$img=[System.Drawing.Image]::FromFile('%s');"
+            # the paths reach PowerShell as environment variables, never inside the command text (audit SEC-2)
+            ps = ("Add-Type -AssemblyName System.Drawing;$img=[System.Drawing.Image]::FromFile($env:SB_SRC);"
                   "$s=[Math]::Min(4,[Math]::Max(1,1600/[Math]::Max($img.Width,1)));$w=[int]($img.Width*$s);$h=[int]($img.Height*$s);"
                   "$bmp=New-Object System.Drawing.Bitmap($w,$h);$g=[System.Drawing.Graphics]::FromImage($bmp);"
                   "$g.SmoothingMode='HighQuality';$g.InterpolationMode='HighQualityBicubic';$g.Clear([System.Drawing.Color]::Transparent);"
-                  "$g.DrawImage($img,0,0,$w,$h);$bmp.Save('%s',[System.Drawing.Imaging.ImageFormat]::Png);$g.Dispose();$bmp.Dispose();$img.Dispose()") % (q(src), q(dst))
+                  "$g.DrawImage($img,0,0,$w,$h);$bmp.Save($env:SB_DST,[System.Drawing.Imaging.ImageFormat]::Png);$g.Dispose();$bmp.Dispose();$img.Dispose()")
             subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", ps],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60, creationflags=NO_WINDOW)
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60, creationflags=NO_WINDOW,
+                           env=dict(os.environ, SB_SRC=src, SB_DST=dst))
         if not os.path.exists(dst):
             raise RuntimeError("Windows could not convert this .%s picture" % ext)
         with open(dst, "rb") as f:
@@ -104,24 +106,30 @@ def convert_workbook(data, name):
         return _wb_cache[key]
     if not sys.platform.startswith("win"):
         raise RuntimeError("this needs Microsoft Excel on Windows")
-    ext = os.path.splitext(name)[1].lower() or ".xlsb"
+    # only a workbook extension names the temporary copy (Excel reads the format from the bytes): the name comes from
+    # the request and never reaches PowerShell (audit SEC-2)
+    ext = os.path.splitext(name)[1].lower()
+    if ext not in WORKBOOK_EXTS:
+        ext = ".xls"
     tmpd = tempfile.mkdtemp(prefix="slidebuilder_wb_")
     try:
         src, dst = os.path.join(tmpd, "in" + ext), os.path.join(tmpd, "out.xlsx")
         with open(src, "wb") as f:
             f.write(data)
-        q = lambda p: p.replace("'", "''")
+        # the paths reach PowerShell as environment variables, never inside the command text (audit SEC-2: PowerShell
+        # also ends a '...' string at the Unicode quotes, which doubling ' did not cover)
         ps = ("$ErrorActionPreference='Stop';$xl=New-Object -ComObject Excel.Application;"
               "try{ $xl.Visible=$false; $xl.DisplayAlerts=$false; $xl.AskToUpdateLinks=$false; $xl.EnableEvents=$false;"
               " try{ $xl.AutomationSecurity=3 }catch{};"
               " $m=[System.Reflection.Missing]::Value;"
               # a password that cannot match: a protected file fails at once instead of waiting on Excel's
               # invisible password prompt until the timeout (a file without a password ignores it)
-              " $wb=$xl.Workbooks.Open('%s',0,$true,$m,'slidebuilder-no-password'); $wb.SaveAs('%s',51); $wb.Close($false) }"
-              "finally{ $xl.Quit(); [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($xl) }") % (q(src), q(dst))
+              " $wb=$xl.Workbooks.Open($env:SB_SRC,0,$true,$m,'slidebuilder-no-password'); $wb.SaveAs($env:SB_DST,51); $wb.Close($false) }"
+              "finally{ $xl.Quit(); [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($xl) }")
         try:
             r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", ps],
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=240, creationflags=NO_WINDOW)
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=240, creationflags=NO_WINDOW,
+                               env=dict(os.environ, SB_SRC=src, SB_DST=dst))
         except subprocess.TimeoutExpired:
             raise RuntimeError("Excel did not finish within 4 minutes")
         if not os.path.exists(dst):
