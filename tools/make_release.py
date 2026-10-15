@@ -35,6 +35,7 @@ update = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(update)
 
 ROOT_FILES = ("Start Slide Builder.bat", "Update Slide Builder.bat", "Install Slide Builder.bat", "Start Slide Builder (v4 pilot).bat",
+              "Start Slide Builder (v3).bat",
               "README.md", "CHANGELOG.md",
               "tools/update.py", "tools/fieldcheck.html")
 SKIP_DIRS = {"data", "tests", "__pycache__", "engine", "export", "node_modules"}      # directly below helper/

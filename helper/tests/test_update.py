@@ -217,13 +217,13 @@ class UseThreeRollsBackTest(unittest.TestCase):
     def test_use_3_rolls_every_deck_back_first(self):
         self.assertTrue(update.decks_owned(self.root))
         calls = []
-        with mock.patch.object(update, "check_installed"), mock.patch.object(update, "activate", lambda *a: calls.append("activate") or "4.0.0"),                 mock.patch.object(update, "rollback_decks", lambda root, name: calls.append(("rollback", name)) or False):
+        with mock.patch.object(update, "check_installed"), mock.patch.object(update, "activate", lambda *a, **k: calls.append("activate") or "4.0.0"),                 mock.patch.object(update, "rollback_decks", lambda root, name: calls.append(("rollback", name)) or False):
             with self.assertRaises(SystemExit) as e:
                 update.use_version(self.root, "3.8.0", "stamp")
         self.assertIn("NOT used", str(e.exception))
         self.assertEqual(calls, [("rollback", "")])                    # not switched
         calls.clear()
-        with mock.patch.object(update, "check_installed"), mock.patch.object(update, "activate", lambda *a: calls.append("activate") or "4.0.0"),                 mock.patch.object(update, "rollback_decks", lambda root, name: calls.append(("rollback", name)) or True):
+        with mock.patch.object(update, "check_installed"), mock.patch.object(update, "activate", lambda *a, **k: calls.append("activate") or "4.0.0"),                 mock.patch.object(update, "rollback_decks", lambda root, name: calls.append(("rollback", name)) or True):
             update.use_version(self.root, "3.8.0", "stamp")
         self.assertEqual(calls, [("rollback", ""), "activate"])
         write(self.root, {"backend/data/v4/decks/A.xlsx-0123456789/rolled-back.json": "{}"})
@@ -292,12 +292,20 @@ class ReleaseInstallTest(unittest.TestCase):
         # the main folder's start file now knows app/current.json; the old one is in the backup folder
         self.assertIn("app\\current.json", read(self.root, "Start Slide Builder.bat"))
         self.assertNotEqual(read(self.root, "tools/update.py"), "# old updater\n")
+        # a folder that got its first version from a ZIP had no Update / Install / v3 start file: added (cutover.md)
+        for n in update.MISSING_ONLY + ("Install Slide Builder.bat",):
+            with open(os.path.join(self.root, n), "rb") as a, open(os.path.join(REPO, n), "rb") as b:
+                self.assertEqual(a.read(), b.read(), n)
+            self.assertIn("added " + n, out)
+        self.assertIn("updated Start Slide Builder.bat", out)
         self.assertEqual(self.saved_state(), before)
         out.encode("ascii")
         # the same ZIP again: nothing is extracted twice
+        write(self.root, {"Update Slide Builder.bat": "the running updater's start file"})
         rc, out = self.install("3.4.0")
         self.assertEqual(rc, 0, out)
         self.assertIn("already installed", out)
+        self.assertEqual(read(self.root, "Update Slide Builder.bat"), "the running updater's start file")   # never replaced
 
     def test_flip_rollback_and_prune(self):
         before = self.saved_state()
@@ -424,6 +432,31 @@ class ReleaseInstallTest(unittest.TestCase):
         self.assertIn("Already up to date (version 3.4.0)", out)
         rc, out = run("--root", self.root, "--check", "--api-url", api)
         self.assertIn("Already up to date (version 3.4.0)", out)
+
+    def test_a_rollback_with_use_is_held(self):
+        """after --use of an older version (the cut-over's global rollback) a plain update does not undo it"""
+        api = self.release_json(None)
+        self.assertEqual(self.install("3.4.0")[0], 0)
+        self.assertEqual(self.install("3.5.0")[0], 0)
+        self.assertNotIn("held", self.pointer())
+        self.assertEqual(run("--root", self.root, "--use", "3.4.0")[0], 0)
+        self.assertTrue(self.pointer()["held"])
+        with self.assertRaises(SystemExit) as e:
+            run("--root", self.root, "--api-url", api, "--yes")
+        self.assertIn("chosen with --use", str(e.exception))
+        self.assertEqual(self.pointer()["version"], "3.4.0")
+        self.assertEqual(run("--root", self.root, "--use", "3.4.0")[0], 0)      # the same --use again: still held
+        self.assertTrue(self.pointer()["held"])
+        self.assertEqual(run("--root", self.root, "--use", "3.5.0")[0], 0)      # forward again: no longer held
+        self.assertNotIn("held", self.pointer())
+
+    def test_newest_3x_stays_beside_4x(self):
+        """a 4.0.x hotfix never removes Slide Builder 3: "Start Slide Builder (v3).bat" and --use 3.x need it"""
+        for v in ("3.7.0", "3.8.0", "4.0.0-pilot", "4.0.0", "4.0.1"):
+            write(self.root, {"app/%s/MANIFEST.json" % v: "{}"})
+        removed = update.prune_versions(self.root, ["4.0.1", "4.0.0", "4.0.0-pilot"])
+        self.assertEqual(removed, ["3.7.0"])
+        self.assertEqual(update.installed_versions(self.root), ["3.8.0", "4.0.0-pilot", "4.0.0", "4.0.1"])
 
     def test_reinstall_keeps_previous_and_says_nothing_changed(self):
         self.install("3.4.0"); self.install("3.5.0")
