@@ -10,7 +10,7 @@ from unittest import mock
 
 from sbtest import TempDirs, make_png, make_xlsx_bytes
 
-from slidebuilder import APP_NAME, VERSION, paths, presence, server, store, workbooks
+from slidebuilder import APP_NAME, VERSION, decks, paths, server, store, workbooks
 
 TOKEN = "test-token-123"
 
@@ -79,7 +79,7 @@ class HttpTests(HttpBase):
         self.assertEqual(self.jreq("GET", "/api/health", headers={"Host": "localhost:%d" % self.port})[0], 200)
 
     def test_token_required(self):
-        for path in ("/api/health", "/api/config", "/files/A.xlsx", "/assets/logo.png", self.wb("A.xlsx") + "/doc"):
+        for path in ("/api/health", "/api/config", "/files/A.xlsx", "/assets/logo.png", "/api/decks/A.xlsx-0123456789/snapshot"):
             self.assertEqual(self.jreq("GET", path, token=False)[0], 403, path)
             self.assertEqual(self.jreq("GET", path, token=False, headers={"X-SB-Token": "wrong"})[0], 403, path)
         st, body = self.jreq("POST", "/api/export-file?name=x.pdf", b"%PDF-1.7", token=False, headers={"Content-Type": "text/plain"})
@@ -90,14 +90,14 @@ class HttpTests(HttpBase):
     def test_origin(self):
         self.assertEqual(self.jreq("GET", "/api/health", headers={"Origin": "https://evil.example"})[0], 403)
         self.assertEqual(self.jreq("GET", "/api/health", headers={"Origin": "null"})[0], 403)
-        self.assertEqual(self.jreq("POST", "/api/presence", {"client": "c"}, headers={"Origin": "http://127.0.0.1:1"})[0], 403)
+        self.assertEqual(self.jreq("POST", "/api/presence", {"deck": "A.xlsx-0123456789", "client": "c"}, headers={"Origin": "http://127.0.0.1:1"})[0], 403)
         self.assertEqual(self.jreq("GET", "/api/health", headers={"Origin": "http://127.0.0.1:%d" % self.port})[0], 200)
         self.assertEqual(self.jreq("GET", "/api/health", headers={"Origin": "http://localhost:%d" % self.port})[0], 200)
 
     def test_body_limit(self):
         s = socket.create_connection(("127.0.0.1", self.port), timeout=10)
         try:
-            s.sendall(("POST /api/config/ops HTTP/1.1\r\nHost: 127.0.0.1:%d\r\nX-SB-Token: %s\r\n"
+            s.sendall(("POST /api/config HTTP/1.1\r\nHost: 127.0.0.1:%d\r\nX-SB-Token: %s\r\n"
                        "Content-Type: application/json\r\nContent-Length: %d\r\n\r\n" % (self.port, TOKEN, 3 * 1024 * 1024)).encode())
             resp = b""
             while True:
@@ -111,9 +111,9 @@ class HttpTests(HttpBase):
         self.assertNotIn(b"Traceback", resp)
 
     def test_bad_json_and_no_tracebacks(self):
-        st, body = self.jreq("POST", self.wb("A.xlsx") + "/ops", b"{nope", headers={"Content-Type": "application/json"})
+        st, body = self.jreq("POST", "/api/decks/open", b"{nope", headers={"Content-Type": "application/json"})
         self.assertEqual((st, body), (400, {"error": "invalid JSON"}))
-        st, body = self.jreq("POST", self.wb("A.xlsx") + "/ops", {"ops": "x"})
+        st, body = self.jreq("POST", "/api/config", {"baseRev": "x"})
         self.assertEqual(st, 400)
         st, body = self.jreq("GET", "/api/nope")
         self.assertEqual((st, body), (404, {"error": "not found"}))
@@ -149,67 +149,39 @@ class HttpTests(HttpBase):
     def test_config(self):
         st, cfg = self.jreq("GET", "/api/config")
         self.assertEqual((st, cfg["rev"], cfg["defaults"]), (200, 0, {"style": {}}))
-        st, r = self.jreq("POST", "/api/config/ops", {"ops": [{"op": "style.patch", "patch": {"design": "excel"}}, {"op": "preset.set", "preset": None}]})
-        self.assertEqual((st, r["applied"], r["skipped"], r["doc"]["rev"]), (200, 1, [1], 1))
-        self.assertEqual(self.jreq("GET", "/api/config")[1]["defaults"]["style"], {"design": "excel"})
+        st, r = self.jreq("POST", "/api/config", {"baseRev": 0, "style": {"design": "excel"}})
+        self.assertEqual((st, r["doc"]["rev"], r["doc"]["updatedBy"]), (200, 1, "tester"))
+        self.assertEqual(self.jreq("GET", "/api/config")[1]["defaults"], {"style": {"design": "excel"}})
+        st, r = self.jreq("POST", "/api/config", {"baseRev": 0, "style": {"design": "glass"}})
+        self.assertEqual((st, r["doc"]["rev"], r["doc"]["defaults"]["style"]), (409, 1, {"design": "excel"}))   # read again, redo
+        self.assertEqual(self.jreq("POST", "/api/config", {"baseRev": 1})[0], 400)
+        # only defaults.style: anything else the page sends is not written (v3 let a page change only that, too)
+        st, r = self.jreq("POST", "/api/config", {"baseRev": 1, "style": {"design": "glass"}, "defaults": {"other": 1}})
+        self.assertEqual((st, r["doc"]["defaults"]), (200, {"style": {"design": "glass"}}))
 
-    # ---- workbook documents
-    def test_ops_and_since(self):
-        name = "IBD weekly #1.xlsx"
-        st, r = self.jreq("GET", self.wb(name) + "/doc")
-        self.assertEqual((st, r["doc"]["rev"], r["doc"]["workbook"]), (200, 0, name))
-        self.assertEqual(self.req("GET", self.wb(name) + "/doc?since=0")[0], 204)
-        ops = [{"op": "cell.patch", "sheet": "Overview", "ref": "C7", "patch": {"text": "Totale", "orig": "TOTAL"}},
-               {"op": "slide.patch", "id": "nope", "patch": {"title": "x"}}]
-        st, r = self.jreq("POST", self.wb(name) + "/ops", {"ops": ops, "client": "c1"})
-        self.assertEqual((st, r["applied"], r["skipped"], r["doc"]["rev"], r["doc"]["updatedBy"]), (200, 1, [1], 1, "tester"))
-        st, h, data = self.req("GET", self.wb(name) + "/doc?since=1")
-        self.assertEqual((st, data), (204, b""))
-        st, r = self.jreq("GET", self.wb(name) + "/doc?since=0")
-        self.assertEqual((st, r["doc"]["edits"]), (200, {"Overview": {"C7": {"text": "Totale", "orig": "TOTAL"}}}))
-        st, r = self.jreq("GET", self.wb(name) + "/history")
-        self.assertEqual((st, [b["rev"] for b in r["backups"]]), (200, [1]))
-        self.assertEqual(self.jreq("GET", self.wb(name) + "/doc?since=x")[0], 400)
-        self.assertEqual(self.jreq("GET", "/api/workbooks/" + urllib.parse.quote("a/b.xlsx", safe="") + "/doc")[0], 400)
+    def test_v3_storage_routes_are_gone(self):
+        """S5.5: v3's workbook documents, their operations and v3 presence are no longer served (decks: /api/decks)"""
+        for method, path, body in (("GET", self.wb("A.xlsx") + "/doc", None), ("POST", self.wb("A.xlsx") + "/ops", {"ops": []}),
+                                   ("GET", self.wb("A.xlsx") + "/history", None), ("POST", "/api/config/ops", {"ops": []})):
+            self.assertEqual(self.jreq(method, path, body)[0], 404, path)
+        self.assertEqual(self.jreq("POST", "/api/presence", {"client": "c", "workbook": "W.xlsx"})[0], 400)    # a deck is needed
 
-    def test_unreadable_doc_is_503_and_untouched(self):
-        p = store.workbook_path("Bad.xlsx")
-        os.makedirs(os.path.dirname(p))
-        with open(p, "wb") as f:
-            f.write(b"{torn")
-        self.assertEqual(self.jreq("GET", self.wb("Bad.xlsx") + "/doc")[0], 503)
-        st, body = self.jreq("POST", self.wb("Bad.xlsx") + "/ops", {"ops": [{"op": "style.patch", "patch": {"color": 1}}]})
-        self.assertEqual(st, 503)
-        self.assertIn("cannot be read", body["error"])
-        with open(p, "rb") as f:
-            self.assertEqual(f.read(), b"{torn")
-
-    # ---- presence
+    # ---- presence (per deck)
     def test_presence_between_two_clients(self):
+        key = self.jreq("POST", "/api/decks/open", {"workbook": "W.xlsx"})[1]["key"]
         with mock.patch.dict(os.environ, {"SLIDEBUILDER_USER": "alice", "SLIDEBUILDER_HOST": "pcA"}):
-            st, r = self.jreq("POST", "/api/presence", {"client": "ca", "workbook": "W.xlsx"})
+            st, r = self.jreq("POST", "/api/presence", {"deck": key, "client": "ca"})
             self.assertEqual((st, r), (200, {"others": []}))
         with mock.patch.dict(os.environ, {"SLIDEBUILDER_USER": "bob", "SLIDEBUILDER_HOST": "pcB"}):
-            st, r = self.jreq("POST", "/api/presence", {"client": "cb", "workbook": "W.xlsx"})
+            st, r = self.jreq("POST", "/api/presence", {"deck": key, "client": "cb"})
             self.assertEqual(st, 200)
-            self.assertEqual([(o["user"], o["host"], o["client"], o["workbook"]) for o in r["others"]], [("alice", "pcA", "ca", "W.xlsx")])
+            self.assertEqual([(o["user"], o["host"], o["client"]) for o in r["others"]], [("alice", "pcA", "ca")])
             self.assertIsInstance(r["others"][0]["at"], int)
         with mock.patch.dict(os.environ, {"SLIDEBUILDER_USER": "alice", "SLIDEBUILDER_HOST": "pcA"}):
-            r = self.jreq("POST", "/api/presence", {"client": "ca", "workbook": None})[1]
-            self.assertEqual([o["user"] for o in r["others"]], ["bob"])
-            mine = os.path.join(paths.DATA, "presence", presence.file_name("alice", "pcA", "ca", None))
-            self.assertEqual(self.jreq("POST", "/api/presence/leave", {"client": "wrong"}), (200, {"ok": True}))
-            self.assertTrue(os.path.exists(mine))
-            self.assertEqual(self.jreq("POST", "/api/presence/leave", {"client": "ca"}), (200, {"ok": True}))
-            self.assertFalse(os.path.exists(mine))
+            self.assertEqual(self.jreq("POST", "/api/presence/leave", {"deck": key, "client": "ca"}), (200, {"ok": True}))
         with mock.patch.dict(os.environ, {"SLIDEBUILDER_USER": "bob", "SLIDEBUILDER_HOST": "pcB"}):
-            self.assertEqual(self.jreq("POST", "/api/presence", {"client": "cb", "workbook": "W.xlsx"})[1], {"others": []})
-        # a heartbeat older than 25 s is not reported
-        p = os.path.join(paths.DATA, "presence", "carol@pcC.json")
-        with open(p, "w") as f:
-            json.dump({"user": "carol", "host": "pcC", "client": "cc", "workbook": "W.xlsx", "at": int(time.time() * 1000) - 26000}, f)
-        self.assertEqual(self.jreq("POST", "/api/presence", {"client": "cb", "workbook": "W.xlsx"})[1], {"others": []})
-        self.assertEqual(self.jreq("POST", "/api/presence", {})[0], 400)
+            self.assertEqual(self.jreq("POST", "/api/presence", {"deck": key, "client": "cb"})[1], {"others": []})
+        self.assertEqual(self.jreq("POST", "/api/presence", {"deck": key})[0], 400)
 
     # ---- files
     def test_files_listing_and_stable_read(self):

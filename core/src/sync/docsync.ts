@@ -36,7 +36,8 @@ export interface DeckApi {
 export type SaveState = "saved" | "pending" | "saving" | "error" | "local" | "outdated" | "readonly";
 const OUTDATED = "Slide Builder was updated – reload the page (F5) to continue.";
 /** `stateChanged`: the save state (`state`, `error`) changed, e.g. "saving" → "saved"; the status bar shows it at once */
-export interface Change { local: boolean; by?: string; presetChanged: boolean; styleChanged: boolean; editsChanged: boolean; stateChanged: boolean }
+/** `deckChanged`: the deck's snapshot or the records past it changed (the side panel's deck-health line) */
+export interface Change { local: boolean; by?: string; presetChanged: boolean; styleChanged: boolean; editsChanged: boolean; stateChanged: boolean; deckChanged?: boolean }
 
 export const DEBOUNCE_MS = 300, TAIL_MS = 1500;
 /** compaction policy (04 §2.2) */
@@ -92,6 +93,7 @@ export class DocSync {
   state: SaveState;
   error = "";
   private listeners = new Set<(c: Change) => void>();
+  private emittedHealth = "";
 
   constructor(private api: DeckApi, readonly name: string, open: DeckOpen, private me: string, opts: { autoTail?: boolean; /** COMPACT_MARGIN_MS (tests) */ compactMargin?: number } = {}) {
     this.margin = opts.compactMargin ?? COMPACT_MARGIN_MS;
@@ -115,12 +117,21 @@ export class DocSync {
       editsChanged: JSON.stringify(prev.edits) !== JSON.stringify(v.edits),
       stateChanged: !!prevState && (prevState[0] !== this.state || prevState[1] !== this.error),
     };
-    if (c.presetChanged || c.styleChanged || c.editsChanged || c.stateChanged || local) this.listeners.forEach(f => f(c));
+    // a compaction changes no content, but the deck's snapshot (gen) and backlog: the page shows them
+    const hh = this.health, h = hh.gen + "/" + hh.backlog + "/" + hh.journals;
+    if (h !== this.emittedHealth) { c.deckChanged = true; this.emittedHealth = h; }
+    if (c.presetChanged || c.styleChanged || c.editsChanged || c.stateChanged || c.deckChanged || local) this.listeners.forEach(f => f(c));
   }
   get busy() { return !!this.inflight || this.pending.length > 0; }
   /** records folded past the snapshot (what a compaction would fold in) */
   get backlog() { return this.entries.size; }
   get gen() { return this.snap.gen; }
+  /** for the side panel: the snapshot's gen, the records past it, and the journals those records are in */
+  get health() {
+    const js = new Set<string>();
+    for (const e of this.entries.values()) js.add(e.at[0][0]);
+    return { gen: this.snap.gen, backlog: this.entries.size, journals: js.size };
+  }
 
   /* ---------------------------------------------------------------- the document */
   private refold(): Folded { return fold(this.snap, [...this.entries.values()].map(e => e.rec)); }

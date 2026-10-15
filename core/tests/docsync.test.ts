@@ -135,6 +135,23 @@ describe("DocSync v4", () => {
     const c = user(deck, "carl");
     expect(c.server.edits.S).toEqual(a.server.edits.S); expect(c.server.rev).toBe(6);
   });
+  it("the deck's health (side panel): snapshot, changes past it and their journals; reported on change only", async () => {
+    const deck = new FakeDeck(), a = user(deck, "anna"), b = user(deck, "bob");
+    const seen: Change[] = [];
+    b.on(c => seen.push(c));
+    expect(b.health).toEqual({ gen: 1, backlog: 0, journals: 0 });
+    a.apply([cell("A1", { b: true })]); await a.flush(); a.apply([cell("A2", { b: true })]); await a.flush();
+    b.apply([cell("B1", { b: true })]); await b.flush();
+    await b.poll();
+    expect(b.health).toEqual({ gen: 1, backlog: 3, journals: 2 });
+    seen.length = 0;
+    await b.poll();                                                  // nothing new: nobody is told
+    expect(seen).toEqual([]);
+    await a.poll(); await a.compact(); await b.poll();               // anna compacts: no content changes, the health does
+    expect(b.health).toEqual({ gen: 2, backlog: 0, journals: 0 });
+    expect(seen.length).toBe(1);
+    expect(seen[0]).toMatchObject({ deckChanged: true, editsChanged: false, presetChanged: false, styleChanged: false });
+  });
   it("rotation: once a snapshot covers my journal it is deleted and my next record starts a new one", async () => {
     const deck = new FakeDeck(), a = user(deck, "anna"), b = user(deck, "bob");
     a.apply([cell("A1", { b: true })]); await a.flush();

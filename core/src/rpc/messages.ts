@@ -22,7 +22,9 @@ export interface WorkbookInfo {
 }
 /** what the renderers need from the page to draw like it (RenderCtx inputs that the worker cannot know) */
 export interface ViewInputs { defaults: Style | Record<string, unknown>; logoSrc: string; version: string; workbook: string }
-export interface DocState { view: WorkbookDoc; save: SaveState; error: string; history: HistorySummary }
+/** the open deck on the share, for the side panel's deck-health line (S5.5) */
+export interface DeckHealth { gen: number; backlog: number; /** the journals holding those records */ journals: number }
+export interface DocState { view: WorkbookDoc; save: SaveState; error: string; history: HistorySummary; deck: DeckHealth }
 export interface DocEvent extends Omit<DocState, "view"> {
   /** the document, only when its content changed since the last snapshot (not for a save-state or history change) */
   view?: WorkbookDoc;
@@ -65,7 +67,7 @@ export interface CoreMethods {
       when it is at rest, 04 §4.4) */
   alone(a: { alone: boolean }): void;
   /** Prepare rollback (04 §4.4), for the open deck: saved, then compacted until nothing lies past the frontier */
-  compactAll(a: Record<string, never>): boolean;
+  compactAll(a: { /** how long to wait for records younger than the compaction margin */ waitMs?: number }): boolean;
   /** a font file for the library (S3.2): a variable font becomes a static face at the weight the upload declares
       (every other axis at its default; hb-subset), so no PDF ever embeds a variable font; other fonts come back as
       they are (`variable: false`) */

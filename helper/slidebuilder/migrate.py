@@ -9,15 +9,16 @@ v2 file (backend/slide_builder_settings.txt)::
      presets: {<wb>: {version, updated, sheets, tables, slides}},
      files: {<wb>: {<sheet>: {cells: {<ref>: {…}}, layouts: {}}}}}
 """
+import base64
 import copy
 import datetime as _dt
+import hashlib
 import json
 import os
 import shutil
 
-from . import VERSION, paths, store
+from . import VERSION, decks, migrate_v3, paths, store
 from .locks import Lock
-from .ops import apply_ops
 from .util import current_host, current_user, log
 
 # DEFAULT_SETTINGS().app of v2 (backend/src/app.js)
@@ -104,6 +105,40 @@ def move_flat_layout():
     return False
 
 
+def import_writer(key):
+    """the writer id of the v2 import's record on a deck: the same on every try (base32 of the deck key's hash)"""
+    tag = base64.b32encode(hashlib.sha1(key.encode("utf-8")).digest()[:5]).decode("ascii").lower()
+    return "v2-import@slide-builder#" + tag
+
+
+def _unfinished_import(key):
+    """a deck the import created but whose record never arrived (the import stopped in between): the first snapshot,
+    nothing in it, and no record in any journal - nobody has used it since"""
+    try:
+        snap = decks.read_snapshot(key)
+    except Exception:                            # noqa: BLE001 - unreadable now: leave it
+        return False
+    doc = snap.get("doc") or {}
+    if snap.get("gen") != 1 or doc.get("preset") or doc.get("style") or doc.get("edits"):
+        return False
+    folder = decks.journal_dir(key)
+    try:
+        names = os.listdir(folder)
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    for n in names:                              # no complete record anywhere (a record torn by the crash is none)
+        try:
+            with open(os.path.join(folder, n), "rb") as f:
+                recs, _used, corrupt = decks.unframe(f.read())
+        except OSError:
+            return False
+        if recs or corrupt is not None:
+            return False
+    return True
+
+
 def migrate(settings_file=None, user=None, now=None):
     """Import the v2 settings file once. Returns the report written to migrated.json, or None."""
     with Lock("migrate", keepalive=True):
@@ -132,8 +167,10 @@ def _import(settings_file, user, now):
     if isinstance(old.get("app"), dict):
         app = norm_app(old.get("app"))
         style = {k: app[k] for k in ("design", "glass", "color", "logo", "pn") if k in app}
-        _, applied, _ = store.update_config([{"op": "style.patch", "patch": style}], user, now, only_if_missing=True)
-        report["config"] = bool(applied)
+        style = {k: v for k, v in style.items() if v is not None}        # null meant "not set" (v3 deleted it)
+        if isinstance(style.get("pn"), dict):
+            style["pn"] = {k: v for k, v in style["pn"].items() if v is not None}
+        report["config"] = bool(style) and store.create_config_if_missing({"style": style}, user, now)
         # personal preferences of whoever runs the import
         if not store.prefs_exist(user):
             prefs = {"lastFile": app.get("lastFile") or None, "pdfMode": app.get("pdfMode") or None}
@@ -151,19 +188,26 @@ def _import(settings_file, user, now):
         ops = workbook_ops(preset, sheets)
         if not ops:
             continue
-        if store.workbook_exists(name):
+        key = decks.deck_key(name)
+        if decks.deck_exists(key):
+            if not _unfinished_import(key):
+                report["skipped"].append(name)
+                continue
+        elif store.workbook_exists(name):
             report["skipped"].append(name)
             continue
-        p = presets.get(name)
-        stamp = p.get("updated") if isinstance(p, dict) and isinstance(p.get("updated"), (int, float)) else now
-        doc, applied, _ = apply_ops(store.default_workbook(name), ops, user, stamp)
-        if not applied:
-            continue
-        doc["rev"] = 1
-        if store.create_workbook_if_missing(name, doc):
-            report["workbooks"].append(name)
         else:
-            report["skipped"].append(name)
+            # a new deck whose first record holds the import (the core folds it, as any record: the helper applies no
+            # operation)
+            key, how = migrate_v3.ensure_deck(name)    # a new deck (and the frozen stub that keeps v3 off it)
+            if how != "created":
+                report["skipped"].append(name)
+                continue
+        # the import's writer is the deck's own (not random): an import interrupted after the deck was made is
+        # finished by the next start, and a record appended twice is folded once
+        w = import_writer(key)
+        decks.append(key, w, {"w": w, "s": 1, "l": 1, "by": user, "ops": ops})
+        report["workbooks"].append(name)
 
     target = _backup_name(settings_file)
     try:

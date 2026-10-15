@@ -18,6 +18,7 @@ import type { ConfigDoc, Op, Prefs, RuntimeSlide, SlideTextKey, WorkbookDoc } fr
 import type { LibraryFont } from "@slide-builder/core/model/fonts";
 import type { Health, Other } from "../sync/api";
 import type { SaveState } from "@slide-builder/core/sync/docsync";
+import type { DeckHealth } from "@slide-builder/core/rpc/messages";
 import type { HistorySummary } from "@slide-builder/core/sync/history";
 import type { Fmt } from "../editor/painter";
 import type { DialogReq, WizardReq } from "./dialogs";
@@ -39,6 +40,8 @@ export interface AppState {
     /** mirror of the worker's view, read-only: it changes through ops (state/app.ts change()) */
     view: WorkbookDoc | null;
     save: SaveState | null; error: string;
+    /** the open deck on the share (the side panel's deck-health line) */
+    health: DeckHealth | null;
     config: ConfigDoc;
     fonts: LibraryFont[];
   };
@@ -69,7 +72,7 @@ export interface AppState {
 type Slice = keyof AppState;
 
 export const initialState = (): AppState => ({
-  doc: { open: false, view: null, save: null, error: "", config: { schema: 3, rev: 0, defaults: { style: {} } } as ConfigDoc, fonts: [] },
+  doc: { open: false, view: null, save: null, error: "", health: null, config: { schema: 3, rev: 0, defaults: { style: {} } } as ConfigDoc, fonts: [] },
   deck: { file: null, wb: null, slides: [], cur: 0, version: "", history: { undo: 0, redo: 0, undoLabel: "", redoLabel: "" }, remote: null, opening: "" },
   selection: { sel: null, noteSel: null, textSel: null, painter: null },
   ui: {

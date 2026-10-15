@@ -420,6 +420,32 @@ class DeckTests(DeckBase):
         self.assertEqual(self.final_view(), acked)
         del ctx, snap
 
+    def test_rotate_never_deletes_a_journal_a_prepare_opens_meanwhile(self):
+        """review of S5.5: a prepare of the same writer while rotate lists the journals waits for it; its new journal
+        (empty when listed) is never deleted under it"""
+        import threading
+        from unittest import mock
+        w = decks.new_writer()
+        decks.append(self.key, w, self.rec(w, 1))
+        decks.compact(self.key, 1, self.compact_from_view(1))
+        real, started = os.listdir, []
+
+        def listdir(p):
+            if not started and p == decks.journal_dir(self.key):
+                t = threading.Thread(target=decks.prepare, args=(self.key, w))
+                started.append(t)
+                t.start()
+                time.sleep(0.3)                                         # the prepare would open its journal now
+            return real(p)
+        with mock.patch.object(decks.os, "listdir", side_effect=listdir):
+            deleted = decks.rotate(self.key, w)["deleted"]
+        started[0].join(10)
+        self.assertEqual(deleted, [w])                                  # the covered journal only
+        self.assertJournals([w + "~*"])                                 # the prepared one is there…
+        decks.append(self.key, w, self.rec(w, 2))                       # …and the next record goes into it
+        self.assertJournals([w + "~*"])
+        self.assertEqual(self.final_view(), {(w, 1), (w, 2)})
+
     def test_rotate_deletes_only_covered_journals(self):
         w = decks.new_writer()
         decks.append(self.key, w, self.rec(w, 1))
@@ -683,8 +709,8 @@ class DeckHttpTests(HttpBase):
         self.assertEqual(self.jreq("POST", base + "/append", {"writer": w, "record": {"w": "x", "s": 1, "l": 1}})[0], 400)
 
     def test_open_migrates_a_deck_saved_by_v3(self):
-        from slidebuilder import store
-        store.update_workbook(WB, [{"op": "style.patch", "patch": {"design": "excel"}}])
+        from sbtest import write_v3_doc
+        write_v3_doc(WB, {"style": {"design": "excel"}})
         st, r = self.jreq("POST", "/api/decks/open", {"workbook": WB})
         self.assertEqual((st, r["migrated"], r["snapshot"]["doc"]["style"]), (200, True, {"design": "excel"}), r)
         self.assertEqual(self.jreq("GET", "/api/decks")[1]["decks"][0]["workbook"], WB)

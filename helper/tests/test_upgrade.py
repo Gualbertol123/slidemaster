@@ -15,7 +15,6 @@ import unittest
 from sbtest import REPO, TempDirs
 
 from slidebuilder import paths, store, upgrade
-from slidebuilder.ops import apply_ops
 from slidebuilder.server import formats_match
 
 FIX = os.path.join(REPO, "helper", "tests", "fixtures", "saved")
@@ -75,8 +74,6 @@ class UpgradeTest(TempDirs):
                 doc = store.read_workbook(WB)
                 self.assertEqual(doc["schema"], upgrade.SCHEMA["workbook"], name)
                 self.assertTrue(doc["preset"]["slides"], name)
-                new, applied, _ = apply_ops(doc, [{"op": "cell.patch", "sheet": "SLIDE_1", "ref": "D6", "patch": {"b": True}}], "t", 1)
-                self.assertEqual(applied, 1, name)
         cfg = store.read_config()
         self.assertEqual(cfg["defaults"]["style"]["theme"]["id"], "custom")
         prefs = store.read_prefs("tester")
@@ -86,8 +83,8 @@ class UpgradeTest(TempDirs):
         self.assertFalse(os.path.isdir(paths.data_dir("backups", "upgrades")))
 
     def test_saving_stamps_the_format(self):
-        store.update_workbook(WB, [{"op": "preset.set", "preset": {"sheets": [], "tables": [], "slides": []}}])
-        self.assertEqual(store.read_workbook(WB)["schema"], upgrade.SCHEMA["workbook"])
+        store.replace_config_defaults(0, {})            # (workbook documents are decks since 4.0: not saved)
+        self.assertEqual(json.loads(self.raw(store.config_path()))["schema"], upgrade.SCHEMA["config"])
         store.write_prefs({"lastFile": "x.xlsx"}, "tester")
         self.assertEqual(json.loads(self.raw(store.user_path("tester")))["schema"], upgrade.SCHEMA["prefs"])
 
@@ -107,10 +104,8 @@ class UpgradeTest(TempDirs):
             self.assertEqual(len(backups), 1)
             self.assertTrue(re.match(r"^.+\.v3\.\d{8}-\d{6}\.json$", backups[0]), backups[0])
             self.assertEqual(self.raw(paths.data_dir("backups", "upgrades", "workbook", backups[0])), original)
-            # read again, save changes: no second conversion, the format stays
-            store.read_workbook(WB)
-            doc, applied, _ = store.update_workbook(WB, [{"op": "slide.patch", "id": "s1", "patch": {"title": "New"}}])
-            self.assertEqual((applied, doc["schema"]), (1, 4))
+            # read again: no second conversion, the format stays
+            self.assertEqual(store.read_workbook(WB)["schema"], 4)
             self.assertEqual(len(self.upgrades("workbook")), 1)
 
     def test_steps_are_chained(self):
@@ -163,8 +158,6 @@ class UpgradeTest(TempDirs):
         before = self.raw(path)
         with self.assertRaises(store.StoreTooNew):
             store.read_workbook(WB)
-        with self.assertRaises(store.StoreTooNew):
-            store.update_workbook(WB, [{"op": "slide.patch", "id": "s1", "patch": {"title": "x"}}])
         self.assertEqual(self.raw(path), before)
         self.assertEqual(store.upgrade_all(), [])                  # logged, skipped
 

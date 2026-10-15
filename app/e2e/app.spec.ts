@@ -853,9 +853,12 @@ test.describe.serial("two people, one shared folder", () => {
   });
 
   test("Prepare rollback: every deck's changes folded into its snapshot, nothing left past the frontier (04 §4.4)", async ({ browser }) => {
+    test.setTimeout(180_000);                     // the compaction margin: recent records are folded after a 30 s wait
     const a = await browser.newPage(), b = await browser.newPage();
     await openApp(a, ANNA); await openApp(b, BOB);
     await expect(a.locator(".thumb")).toHaveCount(4);
+    await openWorkbook(b, "report.xlsx"); await b.click('[data-a="continue"]');   // bob's last file is weekly.xlsx: both on the same deck
+    await expect(b.locator(".thumb")).toHaveCount(4);
     await a.locator('.thumb[data-i="2"]').click();
     await selectCell(a, "Kappa"); await a.keyboard.press("Control+b"); await saved(a);
     const past = (name: string) => {          // complete records past the snapshot's frontier, in every journal
@@ -867,9 +870,10 @@ test.describe.serial("two people, one shared folder", () => {
     const before = JSON.stringify(doc().edits);
     await a.click("#optBtn"); await a.click("#prepRollback");
     await a.click('.dlg button:has-text("Prepare rollback")');
-    await expect(a.locator("#toast")).toContainText(/Prepare rollback: \d+ decks? ready\./, { timeout: 30_000 });
+    await expect(a.locator("#toast")).toContainText(/Prepare rollback: \d+ decks? ready\./, { timeout: 120_000 });
     for (const d of fs.readdirSync(path.join(data(), "v4", "decks"))) expect(past(d.replace(/-[0-9a-f]{10}$/, "")), d).toBe(0);
     expect(JSON.stringify(doc().edits)).toBe(before);                     // the same document, now all in the snapshot
+    await expect(a.locator("#deckHealth")).toContainText(/snapshot \d+ · 0 changes since/, { timeout: 10_000 });   // the side panel says so
     // both pages go on as before: a change still reaches the other one
     const arrived = nextChange(b);
     await selectCell(a, "Kappa"); await a.keyboard.press("Control+b"); await saved(a);

@@ -20,7 +20,7 @@ import urllib.parse
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import APP_NAME, VERSION, decks, migrate_v3, paths, presence, store
+from . import APP_NAME, VERSION, decks, migrate_v3, paths, store
 from .convert import convert_picture, convert_workbook
 from .exports import ExportError, export_feedback, export_file
 from .fonts import FONT_MAX, FontError, add_face, font_file, read_library, remove_family
@@ -64,20 +64,6 @@ code{background:#f2f2f5;padding:2px 6px;border-radius:4px}</style></head><body>
 <code>app</code> folder. On a developer machine run:</p>
 <p><code>cd app &amp;&amp; npm run build</code></p>
 <p>then reload this page. The helper itself is running.</p></body></html>"""
-
-
-def timing_header():
-    """``X-SB-Timing: lock_wait_ms=..;write_ms=..;fs_ops=..`` on POST .../ops - only when
-    SLIDEBUILDER_TIMING or SLIDEBUILDER_SIM_FS_MS is set (load tests); clients may ignore it."""
-    if not (os.environ.get("SLIDEBUILDER_TIMING") or os.environ.get("SLIDEBUILDER_SIM_FS_MS") is not None):
-        return None
-    t = store.last_timing()
-    if not t:
-        return None
-    parts = ["lock_wait_ms=%.1f" % t["lock_wait_ms"], "write_ms=%.1f" % t["write_ms"]]
-    if t.get("fs_ops") is not None:
-        parts.append("fs_ops=%d" % t["fs_ops"])
-    return {"X-SB-Timing": ";".join(parts)}
 
 
 LOGO_MAX = 10 * 1024 * 1024
@@ -372,20 +358,6 @@ class Handler(BaseHTTPRequestHandler):
             if action == "history":
                 return self._send(200, {"backups": decks.history(key)})
             return False
-        if path.startswith("/api/workbooks/"):
-            name, action = self._workbook_route(path)
-            if action == "doc":
-                doc = store.read_workbook(name)
-                since = (q.get("since") or [None])[0]
-                if since is not None:
-                    try:
-                        if int(since) == int(doc.get("rev") or 0):
-                            return self._send(204)
-                    except ValueError:
-                        raise HttpError(400, "since must be a number")
-                return self._send(200, {"doc": doc})
-            if action == "history":
-                return self._send(200, {"backups": store.history(name)})
         return False
 
     def _page(self):
@@ -420,15 +392,6 @@ class Handler(BaseHTTPRequestHandler):
         with open(p, "rb") as f:
             data = f.read()
         return self._send(200, data, IMAGE_EXT[ext], {"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"})
-
-    @staticmethod
-    def _workbook_route(path):
-        rest = path[len("/api/workbooks/"):]
-        enc, _, action = rest.rpartition("/")
-        name = urllib.parse.unquote(enc)
-        if not valid_workbook_name(name):
-            raise HttpError(400, "invalid workbook name")
-        return name, action
 
     # ------------------------------------------------------------------ PUT
     def _put(self, path, q):
@@ -480,41 +443,21 @@ class Handler(BaseHTTPRequestHandler):
     def _post(self, path, q):
         if path.startswith("/api/decks/"):
             return self._post_deck(path)
-        if path.startswith("/api/workbooks/"):
-            name, action = self._workbook_route(path)
-            if action != "ops":
-                return False
+        if path == "/api/config":                      # the shared defaults' style: compare-and-set on rev (the page computed it)
             req = self._json()
-            ops = req.get("ops")
-            if not isinstance(ops, list):
-                raise HttpError(400, "ops must be a list")
-            doc, applied, skipped = store.update_workbook(name, ops)
-            return self._send(200, {"doc": doc, "applied": applied, "skipped": skipped}, headers=timing_header())
-        if path == "/api/config/ops":
-            ops = self._json().get("ops")
-            if not isinstance(ops, list):
-                raise HttpError(400, "ops must be a list")
-            doc, applied, skipped = store.update_config(ops)
-            return self._send(200, {"doc": doc, "applied": applied, "skipped": skipped})
-        if path == "/api/presence":
+            base, style = req.get("baseRev"), req.get("style")
+            if not isinstance(base, int) or isinstance(base, bool) or not isinstance(style, dict):
+                raise HttpError(400, "baseRev and style are required")
+            try:
+                return self._send(200, {"doc": store.replace_config_defaults(base, style)})
+            except store.ConfigConflict as e:
+                return self._send(409, {"error": str(e), "doc": e.doc})
+        if path == "/api/presence":                    # presence on a deck: {deck, client}
             req = self._json()
-            if "deck" in req:                            # presence v2 (decks): {deck, client}
-                return self._send(200, decks.heartbeat(req.get("deck"), req.get("client")))
-            client, wb = req.get("client"), req.get("workbook")
-            if not isinstance(client, str) or not client or len(client) > 200:
-                raise HttpError(400, "client is required")
-            if wb is not None and not isinstance(wb, str):
-                raise HttpError(400, "workbook must be a string or null")
-            return self._send(200, {"others": presence.heartbeat(client, wb)})
+            return self._send(200, decks.heartbeat(req.get("deck"), req.get("client")))
         if path == "/api/presence/leave":
             req = self._json()
-            if "deck" in req:
-                return self._send(200, {"ok": decks.leave(req.get("deck"), req.get("client"))})
-            client = req.get("client")
-            if not isinstance(client, str) or not client:
-                raise HttpError(400, "client is required")
-            presence.leave(client)
-            return self._send(200, {"ok": True})
+            return self._send(200, {"ok": decks.leave(req.get("deck"), req.get("client"))})
         if path == "/api/upload":
             name = os.path.basename((q.get("name") or ["workbook.xlsx"])[0].replace("\\", "/")) or "workbook.xlsx"
             uid = self.app.put_upload(name, self._body(BIG_LIMIT))

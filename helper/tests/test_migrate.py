@@ -1,10 +1,11 @@
 import json
 import os
 import unittest
+from unittest import mock
 
-from sbtest import TempDirs
+from sbtest import TempDirs, write_v3_doc
 
-from slidebuilder import migrate, paths, store
+from slidebuilder import decks, migrate, migrate_v3, paths, store
 from slidebuilder.util import doc_key
 
 V2 = {
@@ -48,7 +49,7 @@ class MigrationTests(TempDirs):
         with open(self.settings, "w", encoding="utf-8") as f:
             json.dump(V2, f, indent=2)
         # a document that exists already must not be overwritten
-        self.existing, _, _ = store.update_workbook("Existing.xlsx", [{"op": "style.patch", "patch": {"color": 1}}], "carol")
+        write_v3_doc("Existing.xlsx", {"style": {"color": 1}, "updatedBy": "carol"})
         with open(store.workbook_path("Existing.xlsx"), "rb") as f:
             self.existing_bytes = f.read()
 
@@ -57,27 +58,30 @@ class MigrationTests(TempDirs):
         self.assertEqual(sorted(rep["workbooks"]), ["Budget 2026.xlsm", "IBD weekly.xlsx"])
         self.assertEqual(rep["skipped"], ["Existing.xlsx"])
 
-        ibd = store.read_workbook("IBD weekly.xlsx")
-        self.assertEqual((ibd["schema"], ibd["workbook"], ibd["rev"], ibd["updatedBy"]), (3, "IBD weekly.xlsx", 1, "alice"))
-        self.assertEqual(ibd["updated"], 1791214363000)
-        p = ibd["preset"]
+        # each workbook: a new deck (with the frozen stub that keeps v3 off it) whose first record is the import, as
+        # operations - the core folds them (ops.ts; shared/ops-vectors.json covers what they do: an `orig` without text
+        # goes, an invalid cell address is skipped); the helper applies none
+        for name in ("IBD weekly.xlsx", "Budget 2026.xlsm"):
+            key = decks.deck_key(name)
+            snap = decks.read_snapshot(key)
+            self.assertEqual((snap["gen"], snap["doc"]["edits"], snap["doc"]["preset"]), (1, {}, None))
+            recs = [r for j in decks.tail(key, {})["journals"].values() for r in j["records"]]
+            self.assertEqual(len(recs), 1)
+            self.assertEqual((recs[0]["s"], recs[0]["l"], recs[0]["by"]), (1, 1, "alice"))
+            preset = migrate.convert_preset(V2["presets"].get(name))
+            self.assertEqual(recs[0]["ops"], migrate.workbook_ops(preset, V2["files"].get(name)))
+            self.assertEqual(migrate_v3.owner(name), "v4")
+            with open(store.workbook_path(name), encoding="utf-8") as f:
+                self.assertEqual(json.load(f)["movedTo"], "v4")
+        ops = recs[0]["ops"]                                     # Budget: the cells as v2 had them
+        self.assertEqual([o["ref"] for o in ops], ["A1", "B2", "bad ref"])
+        ibd = [r for j in decks.tail(decks.deck_key("IBD weekly.xlsx"), {})["journals"].values() for r in j["records"]][0]["ops"]
+        p = ibd[0]["preset"]
         self.assertEqual(p["sheets"], ["Overview", "Detail"])
         self.assertEqual(p["tables"], V2["presets"]["IBD weekly.xlsx"]["tables"])
-        self.assertEqual([s["type"] for s in p["slides"]], ["cover", "index", "content", "content"])   # positions kept
+        self.assertEqual([s_["type"] for s_ in p["slides"]], ["cover", "index", "content", "content"])   # positions kept
         self.assertEqual(p["slides"][1], {"id": "i1", "type": "index", "title": "Contents", "tables": []})
-        self.assertEqual(p["slides"][2]["layout"], {"bands": [[0]], "w": [1]})
-        self.assertFalse(p["slides"][2]["logo"])
         self.assertNotIn("version", p)
-        self.assertNotIn("updated", p)
-        self.assertEqual(ibd["edits"], {"Overview": {"C7": {"orig": "TOTAL", "text": "Totale", "sz": 14, "b": True},
-                                                     "D9": {"fill": "#34C759", "role": "header"}}})
-        self.assertEqual(ibd["style"], {})
-
-        bud = store.read_workbook("Budget 2026.xlsm")
-        self.assertIsNone(bud["preset"])
-        self.assertEqual(bud["edits"], {"Plan": {"B2": {"b": False, "color": "#A8101A"}}})
-        self.assertEqual(bud["rev"], 1)
-        self.assertTrue(os.path.exists(os.path.join(paths.DATA, "backups", doc_key("Budget 2026.xlsm"), "1.json")))
 
         with open(store.workbook_path("Existing.xlsx"), "rb") as f:
             self.assertEqual(f.read(), self.existing_bytes)
@@ -99,6 +103,37 @@ class MigrationTests(TempDirs):
         self.assertEqual(marker["backup"], "slide_builder_settings.v2-backup.txt")
         self.assertTrue(marker["config"] and marker["prefs"])
         self.assertEqual(os.listdir(os.path.join(paths.DATA, "locks")), [])
+
+    def test_an_import_interrupted_after_the_deck_was_made_is_finished_next_time(self):
+        """review of S5.5: the deck exists (with its frozen stub) but the import's record never arrived"""
+        real = decks.append
+        with mock.patch.object(decks, "append", side_effect=OSError("the share went away")):
+            with self.assertRaises(OSError):
+                migrate.migrate(self.settings, user="alice", now=5000)
+        self.assertTrue(os.path.exists(self.settings))                 # not marked as done
+        self.assertFalse(os.path.exists(os.path.join(paths.DATA, "migrated.json")))
+        made = [n for n in ("IBD weekly.xlsx", "Budget 2026.xlsm") if decks.deck_exists(decks.deck_key(n))]
+        self.assertEqual(len(made), 1)                                  # one deck made, its record lost…
+        key = decks.deck_key(made[0])                                   # …or torn: half a frame on the share
+        os.makedirs(decks.journal_dir(key), exist_ok=True)
+        with open(os.path.join(decks.journal_dir(key), migrate.import_writer(key) + "~1.log"), "wb") as f:
+            f.write(decks.frame({"w": "x"})[:9])
+        with mock.patch.object(decks, "append", side_effect=real):
+            rep = migrate.migrate(self.settings, user="alice", now=6000)
+        self.assertEqual(sorted(rep["workbooks"]), ["Budget 2026.xlsm", "IBD weekly.xlsx"])
+        for name in ("IBD weekly.xlsx", "Budget 2026.xlsm"):
+            recs = [r for j in decks.tail(decks.deck_key(name), {})["journals"].values() for r in j["records"]]
+            self.assertEqual(len(recs), 1, name)
+            self.assertEqual(recs[0]["w"], migrate.import_writer(decks.deck_key(name)))
+
+    def test_a_deck_used_since_is_never_imported_into(self):
+        key, how = migrate_v3.ensure_deck("IBD weekly.xlsx")            # made by Slide Builder 4 and edited there
+        w = decks.new_writer()
+        decks.append(key, w, {"w": w, "s": 1, "l": 1, "by": "bob", "ops": []})
+        rep = migrate.migrate(self.settings, user="alice", now=5000)
+        self.assertIn("IBD weekly.xlsx", rep["skipped"])
+        recs = [r for j in decks.tail(key, {})["journals"].values() for r in j["records"]]
+        self.assertEqual([r["w"] for r in recs], [w])
 
     def test_second_run_is_a_noop(self):
         migrate.migrate(self.settings, user="alice", now=5000)

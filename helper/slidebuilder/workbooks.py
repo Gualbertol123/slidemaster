@@ -3,9 +3,9 @@ import os
 import stat as stat_module
 import time
 
-from . import paths
+from . import decks, paths
 from .store import StoreUnreadable, read_workbook, workbook_exists
-from .util import safe_path
+from .util import doc_key, safe_path
 
 EOCD = b"PK\x05\x06"
 EOCD_WINDOW = 66 * 1024       # the end-of-central-directory record sits in the last 64 KB + 22 bytes
@@ -35,7 +35,14 @@ def list_workbooks():
                     continue
                 seen.add(n.lower())
                 row = {"name": n, "mtime": st.st_mtime, "size": st.st_size, "rev": None, "updated": None, "updatedBy": None}
-                if workbook_exists(n):
+                key = doc_key(n)
+                if os.path.exists(paths.data_dir("v4", "decks", key, "snapshot.json")):     # a Slide Builder 4 deck
+                    try:
+                        snap = decks.read_snapshot(key)
+                        row.update(rev=snap.get("rev"), updated=snap.get("updated") or snap.get("at"), updatedBy=snap.get("updatedBy") or snap.get("by"))
+                    except decks.DeckError:
+                        pass
+                elif workbook_exists(n):
                     try:
                         doc = read_workbook(n)
                         row.update(rev=doc.get("rev"), updated=doc.get("updated"), updatedBy=doc.get("updatedBy"))

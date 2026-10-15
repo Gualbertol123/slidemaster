@@ -7,7 +7,7 @@ from unittest import mock
 
 from sbtest import TempDirs
 
-from slidebuilder import fsclock, paths, presence, store
+from slidebuilder import fsclock, paths, store
 from slidebuilder.locks import Lock, LockTimeout
 
 REAL_TIME = time.time
@@ -62,26 +62,14 @@ class ClockSkewTests(TempDirs):
             finally:
                 self.assertTrue(l.release())
 
-    def test_presence_uses_one_timeline(self):
-        with skewed(120), mock.patch.dict(os.environ, {"SLIDEBUILDER_USER": "ahead", "SLIDEBUILDER_HOST": "pcA"}):
-            presence.heartbeat("ca", "W.xlsx")
-        with skewed(-120), mock.patch.dict(os.environ, {"SLIDEBUILDER_USER": "behind", "SLIDEBUILDER_HOST": "pcB"}):
-            others = presence.heartbeat("cb", "W.xlsx")
-            self.assertEqual([o["user"] for o in others], ["ahead"])
-            self.assertAlmostEqual(others[0]["at"] / 1000.0, REAL_TIME(), delta=2)
-        fsclock.reset()
-        self.assertEqual(sorted(o["user"] for o in presence.others("someone-else")), ["ahead", "behind"])
-
-    def test_document_timestamps_and_backup_spacing(self):
-        with skewed(600):
-            doc, _, _ = store.update_workbook("W.xlsx", [{"op": "style.patch", "patch": {"color": 1}}], "u")
-            self.assertAlmostEqual(doc["updated"] / 1000.0, REAL_TIME(), delta=2)
-        with skewed(-600):                                        # 10 min behind: still within 5 min of rev 1
-            store.update_workbook("W.xlsx", [{"op": "style.patch", "patch": {"color": 2}}], "u")
-        with skewed(600):                                         # 10 min ahead: still within 5 min of rev 1
-            store.update_workbook("W.xlsx", [{"op": "style.patch", "patch": {"color": 3}}], "u")
-        self.assertEqual([h["rev"] for h in store.history("W.xlsx")], [1])
-        self.assertEqual(sorted(os.listdir(os.path.join(paths.DATA, "backups", store.workbook_key("W.xlsx")))), ["1.json"])
+    def test_config_timestamps_use_the_file_server_clock(self):
+        with skewed(600):                                          # 10 min ahead
+            cfg = store.replace_config_defaults(0, {"color": 1}, "u")
+            self.assertAlmostEqual(cfg["updated"] / 1000.0, REAL_TIME(), delta=2)
+        with skewed(-600):                                         # 10 min behind
+            cfg = store.replace_config_defaults(1, {"color": 2}, "u")
+            self.assertAlmostEqual(cfg["updated"] / 1000.0, REAL_TIME(), delta=2)
+        # deck presence and `at` under skew: test_decks.test_6_clock_skew
 
 
 if __name__ == "__main__":

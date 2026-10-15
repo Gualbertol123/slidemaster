@@ -7,7 +7,7 @@
    ops) until the worker's snapshot that includes them arrives. */
 import { get, patch, patchAll, same, STAGE, THUMBS, toast, showBusy, hideBusy } from "./store";
 import { ask, runWizard } from "./dialogs";
-import { backend } from "../sync/api";
+import { backend, patchStyleDefault } from "../sync/api";
 import { connectCore, type CorePort } from "../rpc/client";
 import { browserText } from "../platform";
 import type { RunMetrics } from "@slide-builder/core/platform";
@@ -17,7 +17,7 @@ import { MirrorWorkbook } from "@slide-builder/core/xlsx/mirror";
 import type { SharedSlice, SheetSlice } from "@slide-builder/core/xlsx/slice";
 import { transfer } from "@slide-builder/core/rpc/port";
 import type { DocEvent, ViewInputs } from "@slide-builder/core/rpc/messages";
-import { DocSync, type Change, type DeckApi, type DeckOpen } from "@slide-builder/core/sync/docsync";
+import { COMPACT_MARGIN_MS, DocSync, type Change, type DeckApi, type DeckOpen } from "@slide-builder/core/sync/docsync";
 import { applyOps } from "@slide-builder/core/model/ops";
 import { fold } from "@slide-builder/core/model/fold";
 import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "@slide-builder/core/model/preset";
@@ -335,7 +335,7 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   presetSig = JSON.stringify(st.view.preset);
   if (src === "folder") setPrefs({ lastFile: name });
   patchAll({
-    doc: { open: true, view: st.view, save: st.save, error: st.error },
+    doc: { open: true, view: st.view, save: st.save, error: st.error, health: st.deck },
     deck: { wb, file: { name, src, id, mtime, size }, history: st.history, slides, cur: Math.min(get().deck.cur, Math.max(0, slides.length - 1)),
       version, opening: "", remote: null },
     selection: { sel: null },
@@ -374,6 +374,7 @@ function onWorkerDoc(ev: DocEvent) {
   if (view !== d.view) docPatch.view = view;               // the same document: the same object (nothing re-renders)
   if (d.save !== save) docPatch.save = save;
   if (d.error !== ev.error) docPatch.error = ev.error;
+  if (!same(d.health, ev.deck)) docPatch.health = ev.deck;
   patchAll({ ...(Object.keys(docPatch).length ? { doc: docPatch } : {}), ...(same(h, ev.history) ? {} : { deck: { history: ev.history } }) });
   if (ev.change) void onDocChange(ev.change);
 }
@@ -454,7 +455,10 @@ export function undo(redo = false) {
 export const styleChange = (label: string, patch: Extract<Op, { op: "style.patch" }>["patch"], coalesce?: string) => change(label, [{ op: "style.patch", patch } as Op], coalesce);
 export async function saveStyleAsDefault() {
   const st = get().doc.view?.style; if (!st) return;
-  try { const r = await backend.configOps([{ op: "style.patch", patch: JSON.parse(JSON.stringify(st)) } as Op]); patch("doc", { config: r.doc }); toast("This deck's style is now the default for new decks."); }
+  try {
+    patch("doc", { config: await patchStyleDefault(backend, JSON.parse(JSON.stringify(st))) });
+    toast("This deck's style is now the default for new decks.");
+  }
   catch (e) { toast("⚠ " + esc((e as Error).message), [], true); }
 }
 
@@ -472,19 +476,28 @@ export async function prepareRollback() {
     append: (k, w, r) => backend.deckAppend(k, w, r), compact: (k, g, s) => backend.deckCompact(k, g, s), rotate: (k, w) => backend.deckRotate(k, w) };
   const failed: string[] = [];
   let done = 0;
+  // every deck once (what is old enough is folded at once), then ONE wait for the compaction margin (records younger
+  // than it may still be followed by others a listing has not shown yet: docsync.ts COMPACT_MARGIN_MS), then every deck
+  // again - about half a minute whatever the number of decks
+  const one = async (d: { key: string; workbook: string }, waitMs: number) => {
+    if (d.key === deckKey && get().doc.open) return await core().call("compactAll", { waitMs });
+    const s = new DocSync(api, d.workbook, await backend.openDeck(d.workbook), get().prefs.user, { autoTail: false });
+    try { return await s.compactAll(waitMs); } finally { s.dispose(); }
+  };
   try {
-    const list = (await backend.decks()).filter(d => !d.rolledBack);
+    const list = (await backend.decks()).filter(d => !d.rolledBack), left: typeof list = [];
     for (const [i, d] of list.entries()) {
-      showBusy(`Preparing rollback: ${d.workbook}…`, i / Math.max(1, list.length));
-      try {
-        let ok: boolean;
-        if (d.key === deckKey && get().doc.open) ok = await core().call("compactAll", {});
-        else {
-          const s = new DocSync(api, d.workbook, await backend.openDeck(d.workbook), get().prefs.user, { autoTail: false });
-          try { ok = await s.compactAll(); } finally { s.dispose(); }
-        }
-        if (ok) done++; else failed.push(d.workbook + " (still being edited)");
-      } catch (e) { failed.push(d.workbook + " (" + ((e as Error).message || e) + ")"); }
+      showBusy(`Preparing rollback: ${d.workbook}…`, i / Math.max(1, 2 * list.length));
+      try { if (await one(d, 0)) done++; else left.push(d); }
+      catch (e) { failed.push(d.workbook + " (" + ((e as Error).message || e) + ")"); }
+    }
+    if (left.length) {
+      for (let t = COMPACT_MARGIN_MS + 2000; t > 0; t -= 1000) { showBusy(`Preparing rollback: waiting for the last changes to settle (${Math.ceil(t / 1000)} s)…`, null); await new Promise(r => setTimeout(r, 1000)); }
+      for (const [i, d] of left.entries()) {
+        showBusy(`Preparing rollback: ${d.workbook}…`, 0.5 + i / Math.max(1, 2 * left.length));
+        try { if (await one(d, 15_000)) done++; else failed.push(d.workbook + " (still being edited)"); }
+        catch (e) { failed.push(d.workbook + " (" + ((e as Error).message || e) + ")"); }
+      }
     }
   } catch (e) { failed.push((e as Error).message || String(e)); }
   finally { hideBusy(); }

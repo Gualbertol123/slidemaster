@@ -60,6 +60,16 @@ export function Issues() {
   return <div className="issues" id="issues" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
+/** the deck on the share (storage v4, S5.5): its snapshot, the changes past it (folded into the next one), its journals */
+export function DeckHealth() {
+  const health = useStore(s => s.doc.health), save = useStore(s => s.doc.save), open = useStore(s => s.doc.open);
+  if (!open || !health || save === "local") return null;
+  const warn = save === "readonly" || health.backlog > 2000;
+  return <div className={"dhealth" + (warn ? " warn" : "")} id="deckHealth" title="The deck on the shared folder: its snapshot, the changes saved since (folded into the next snapshot), the journals they are in">
+    Deck: snapshot {health.gen} · {health.backlog} change{health.backlog === 1 ? "" : "s"} since{health.backlog ? ` in ${health.journals} journal${health.journals === 1 ? "" : "s"}` : ""}{save === "readonly" ? " · read-only" : ""}
+  </div>;
+}
+
 export function Canvas() {
   const has = useStore(s => s.deck.slides.length > 0);
   return (

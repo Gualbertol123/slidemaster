@@ -11,13 +11,45 @@ from . import APP_NAME, VERSION, paths
 from .util import LOCAL, log
 
 
-def port_in_use_by_us(port):
-    """Another Slide Builder helper already answers on this port (unauthenticated /api/ping)."""
+def running_version(port):
+    """The version of the Slide Builder helper that answers on this port (unauthenticated /api/ping); None when none does."""
     try:
         with LOCAL.open("http://127.0.0.1:%d/api/ping" % port, timeout=1) as r:
-            return json.load(r).get("app") == APP_NAME
+            body = json.load(r)
+        return str(body.get("version") or "?") if body.get("app") == APP_NAME else None
     except Exception:
-        return False
+        return None
+
+
+def port_in_use_by_us(port):
+    """Another Slide Builder helper already answers on this port."""
+    return running_version(port) is not None
+
+
+def same_major(version):
+    """Slide Builder 3 and 4 keep the decks differently (IN-12): a 3.x helper's page is not this one's"""
+    return str(version).split(".")[0] == VERSION.split(".")[0]
+
+
+def bind_port(start, make, no_browser):
+    """The server on the first free port of start..start+19 - or "opened" when a helper of this major version already
+    runs there (its page is opened); one of another major version is left alone (IN-12: Slide Builder 3 and 4 run side
+    by side during the move); None when no port is free."""
+    for port in range(start, start + 20):
+        running = running_version(port)
+        if running is not None and same_major(running):
+            log("Slide Builder is already running on port %d - opening it." % port)
+            if not no_browser:
+                open_app("http://127.0.0.1:%d/" % port)
+            return "opened"
+        if running is not None:
+            log("Slide Builder %s (another version) is running on port %d - starting %s on the next port." % (running, port, VERSION))
+            continue
+        try:
+            return make(port)
+        except OSError:
+            continue
+    return None
 
 
 EDGE_APP_PATHS = r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe"
@@ -95,7 +127,7 @@ def main(argv=None):
     if args.install:
         from .firstrun import run_install
         sys.exit(run_install())
-    if os.environ.get("SLIDEBUILDER_SIM_FS_MS") is not None:      # load tests only (tools/loadtest.py)
+    if os.environ.get("SLIDEBUILDER_SIM_FS_MS") is not None:      # load tests only (tools/loadtest4.py)
         from . import simfs
         log("SIMULATION: +%g ms per data-folder file operation (SLIDEBUILDER_SIM_FS_MS) - not for real use" % simfs.install())
 
@@ -119,18 +151,9 @@ def main(argv=None):
     except Exception as e:                       # never block the start-up; files are converted when opened
         log("saved setups were not converted now (%s)" % e)
 
-    httpd = None
-    for port in range(args.port, args.port + 20):
-        if port_in_use_by_us(port):
-            log("Slide Builder is already running on port %d - opening it." % port)
-            if not args.no_browser:
-                open_app("http://127.0.0.1:%d/" % port)
-            return
-        try:
-            httpd = make_server(port, App())
-            break
-        except OSError:
-            continue
+    httpd = bind_port(args.port, lambda port: make_server(port, App()), args.no_browser)
+    if httpd == "opened":
+        return
     if not httpd:
         print("No free port found.")
         sys.exit(1)

@@ -1,6 +1,6 @@
 """SIMULATION ONLY - adds network-share latency to the helper's data-folder file operations.
 
-Used by ``tools/loadtest.py`` to answer "what happens to saving when the shared folder is N ms away".
+Used by ``tools/loadtest4.py`` to answer "what happens to saving when the shared folder is N ms away".
 It is installed only when the environment variable ``SLIDEBUILDER_SIM_FS_MS`` is set when the
 helper starts (``main.py``); a normal start never imports this module.
 
@@ -23,7 +23,7 @@ For the decks of Slide Builder 4 (``decks``, ``migrate_v3``) every write (``os.w
 an open handle is charged too, as docs/next/04 §2.5's model does: an append is write + flush = 2 round
 trips on a handle that is already open, a tail is open + read per journal.
 
-Only the names used by the storage modules (``store``, ``locks``, ``fsclock``, ``presence``,
+Only the names used by the storage modules (``store``, ``locks``, ``fsclock``,
 ``util``, ``decks``, ``migrate_v3``) are replaced - their module-level ``os`` / ``open`` are swapped for
 wrappers. The rest of the helper (HTTP server, exports, workbook reads) is untouched.
 
@@ -41,7 +41,7 @@ import types
 from . import paths
 
 ENV = "SLIDEBUILDER_SIM_FS_MS"
-MODULES = ("store", "locks", "fsclock", "presence", "util", "decks", "migrate_v3")
+MODULES = ("store", "locks", "fsclock", "util", "decks", "migrate_v3")
 HANDLE_MODULES = ("decks", "migrate_v3")         # reads and writes on open handles are charged too
 
 _state = {"ms": 0.0, "installed": None}
@@ -215,7 +215,7 @@ def install(ms=None):
             ms = 0.0
     _state["ms"] = max(0.0, float(ms))
     if _state["installed"] is None:
-        from . import decks, fsclock, locks, migrate_v3, presence, store, util   # noqa: F401  (make sure they are loaded)
+        from . import decks, fsclock, locks, migrate_v3, store, util   # noqa: F401  (make sure they are loaded)
         fake_os, fake_open = _make_os(), _wrap_path(_real_open)
         handle_os = _make_handle_os()
         saved = []

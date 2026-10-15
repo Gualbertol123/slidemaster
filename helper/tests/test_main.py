@@ -54,6 +54,38 @@ class EntryPointTests(TempDirs):
             p.stdout.close()
 
 
+class OtherVersionTests(unittest.TestCase):
+    """IN-12: a helper of another major version on the port is not opened; this one starts on the next port"""
+
+    def test_same_major(self):
+        from slidebuilder import main as m, VERSION
+        major = int(VERSION.split(".")[0])
+        self.assertTrue(m.same_major(VERSION))
+        self.assertTrue(m.same_major("%d.99.1" % major))
+        self.assertFalse(m.same_major("%d.8.0" % (major - 1)))
+        self.assertFalse(m.same_major("%d.0.0" % (major + 1)))
+
+    def test_skips_a_port_with_another_major_version(self):
+        from slidebuilder import main as m, VERSION
+        other = "%d.8.0" % (int(VERSION.split(".")[0]) - 1)
+        seen, opened = [], []
+
+        def make(port):
+            seen.append(port)
+            return "server on %d" % port
+        with unittest.mock.patch.object(m, "running_version", lambda port: other if port == 9100 else None), \
+                unittest.mock.patch.object(m, "open_app", opened.append):
+            self.assertEqual(m.bind_port(9100, make, False), "server on 9101")
+        self.assertEqual(seen, [9101])
+        self.assertEqual(opened, [])
+        # the same major version: its page is opened, nothing started
+        with unittest.mock.patch.object(m, "running_version", lambda port: VERSION if port == 9100 else None), \
+                unittest.mock.patch.object(m, "open_app", opened.append):
+            self.assertEqual(m.bind_port(9100, make, False), "opened")
+        self.assertEqual(opened, ["http://127.0.0.1:9100/"])
+        self.assertEqual(seen, [9101])
+
+
 class AppWindowTests(unittest.TestCase):
     """B12: the app opens in an Edge app window (msedge --app=<url>), else in a browser tab"""
 
@@ -133,15 +165,18 @@ class SelfTestTests(TempDirs):
         return out
 
     def test_passes_and_writes_nothing(self):
+        from slidebuilder import migrate_v3
         self.write("config.json", {"schema": 3, "rev": 1, "defaults": {"style": {}}})
         self.write("workbooks/report.xlsx-1a2b.json", {"workbook": "report.xlsx", "rev": 2, "edits": {"S": {"A1": {"b": True}}}})  # an old format
         self.write("users/anna.json", {"lastFile": "report.xlsx"})
-        os.makedirs(os.path.join(self.data, "locks"))
+        self.assertEqual(migrate_v3.ensure_deck("moved.xlsx")[1], "created")   # a Slide Builder 4 deck and its frozen stub
+        os.makedirs(os.path.join(self.data, "locks"), exist_ok=True)
         before = self.snapshot()
         r = self.selftest()
         self.assertEqual(r.returncode, 0, r.stdout)
         r.stdout.decode("ascii")
-        self.assertIn(b"3 saved setup(s) read", r.stdout)
+        self.assertIn(b"4 saved setup(s) read", r.stdout)                     # the frozen stub is fine
+        self.assertIn(b"1 Slide Builder 4 deck(s) read", r.stdout)
         self.assertIn(b"accepts create, rename and delete", r.stdout)
         self.assertEqual(self.snapshot(), before)          # not converted, no probe file left
 

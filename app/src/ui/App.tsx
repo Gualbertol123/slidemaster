@@ -5,7 +5,7 @@ import { guard, reloadWorkbook } from "../state/app";
 import { backend } from "../sync/api";
 import { Topbar } from "./Topbar";
 import { Ribbon, FxBar } from "./Ribbon";
-import { Busy, Canvas, Issues, Status, Thumbs, Toast } from "./Chrome";
+import { Busy, Canvas, DeckHealth, Issues, Status, Thumbs, Toast } from "./Chrome";
 import { TableRibbon } from "./TableTools";
 import { TablesDialog } from "./TablesDialog";
 import { TextStylesDialog } from "./TextStylesDialog";
@@ -41,6 +41,7 @@ export function App() {
             <div className="navhd"><span>SLIDES <span id="slideCount" style={{ fontWeight: "500", marginLeft: "4px" }}>{count || ""}</span></span></div>
             <Thumbs />
             <Issues />
+            <DeckHealth />
           </aside>
           <Canvas />
         </div>

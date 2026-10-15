@@ -20,6 +20,13 @@ For the maintainer
   file is backed up and frozen, so Slide Builder 3 refuses that deck from then on ("Slide Builder was updated").
   Going back: *Options › Administration › Prepare rollback* in 4.0, then `Update Slide Builder.bat --rollback`
   (one workbook, or every deck). A deck listed in `backend\data\v4\pinned-v3.json` stays with 3.x.
+* Slide Builder 3's storage path is gone from the program (S5.5): the helper no longer applies operations
+  (`ops.py`), saves v3 documents, keeps v3's 5-minute rolling backups or v3 presence; it reads v3 documents only to
+  move them. `tools/loadtest.py` gave way to `tools/loadtest4.py`. The side panel shows a deck-health line (the
+  deck's snapshot, the changes since and the journals they are in). The shared defaults (*Use as default for new
+  decks*) are stored by compare-and-set: the page computes them, the helper replaces `defaults.style` only if nobody
+  changed it meanwhile. A Slide Builder 4 started on a PC where 3.x already runs starts on the next port instead of
+  opening 3.x's page.
 * The program moved from `backend\` to `helper\` (PLAN S5.1). The data, the logo and the v2 settings stay in
   `backend\` (`backend\data\` is shared with Slide Builder 3); *Start* and *Install Slide Builder.bat* start
   `helper\` (or `backend\` in a folder that still has the 3.x program), and versions installed side by side keep

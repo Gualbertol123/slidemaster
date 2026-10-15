@@ -19,7 +19,7 @@ them somewhere else with :func:`configure` or the environment variables
     SLIDEBUILDER_ROOT   root folder (workbooks, export\)
     SLIDEBUILDER_DATA   data folder
     SLIDEBUILDER_APP_FILE   the app page to serve instead of helper/slide_builder.html (testing aid,
-                        used by tools/loadtest.py when the app has not been built)
+                        used by tools/loadtest4.py)
 """
 import os
 import re

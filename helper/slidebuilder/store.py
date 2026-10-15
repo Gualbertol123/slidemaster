@@ -1,30 +1,26 @@
-"""Persistent documents in ``data/`` (ARCHITECTURE §3, §4).
+"""Persistent documents in ``data/`` (ARCHITECTURE §3, §4): config.json, users/<user>.json, and - read only -
+Slide Builder 3's workbook documents (the migration and the self-test read them; decks are decks.py's).
 
 * reads retry parsing (5x over 0.5 s); an existing file that still cannot be read raises
   :class:`StoreUnreadable` (HTTP 503) - it is never replaced by an empty document;
 * writes go to a unique ``<file>.<uuid>.tmp``, are fsync'ed and moved into place with os.replace
   (retried 20x over ~2 s for Windows sharing violations);
-* changes to shared documents are operations applied to the latest version under a lock file.
+* config.json changes by compare-and-set on its rev under the lock ``config`` (the page computes the new
+  defaults with the core's operations; the helper applies none).
 """
 import copy
 import json
 import os
-import re
 import shutil
-import sys
-import threading
 import time
 
 from . import paths
 from . import upgrade as _up
-from .fsclock import fs_now, fs_now_ms
+from .fsclock import fs_now_ms
 from .locks import Lock
-from .ops import apply_ops
-from .util import current_user, doc_key, log, remove_quietly, safe_component, write_atomic
+from .util import current_user, doc_key, log, safe_component, write_atomic
 
 SCHEMA = _up.SCHEMA["workbook"]
-BACKUP_KEEP = 30
-BACKUP_EVERY = 300.0          # seconds: at most one backup per 5 minutes (plus always rev 1)
 PREF_DEFAULTS = {"lastFile": None, "pdfMode": None, "zoom": None}
 
 
@@ -123,6 +119,8 @@ def upgrade_all():
             continue
         try:
             before = read_json(path, None)
+            if isinstance(before, dict) and before.get("movedTo") == "v4":
+                continue                         # frozen by the migration to Slide Builder 4: its deck is in data/v4
             if isinstance(before, dict) and _up.needs_upgrade(kind, before):
                 _load(kind, path, None, lock_name, False)
                 done.append(os.path.basename(path))
@@ -167,120 +165,6 @@ def workbook_exists(name):
     return os.path.exists(workbook_path(name))
 
 
-LOG_KEEP = 20
-_timing = threading.local()
-
-
-def last_timing():
-    """{lock_wait_ms, write_ms, fs_ops} of this thread's last update_workbook (X-SB-Timing, load tests)."""
-    return getattr(_timing, "value", None)
-
-
-def _fs_count():
-    simfs = sys.modules.get(__package__ + ".simfs")
-    return simfs.count() if simfs is not None and simfs.installed() else None
-
-
-def update_workbook(name, ops, user=None, now=None):
-    """lock -> read latest -> apply -> write -> backup -> unlock. Returns (doc, applied, skipped)."""
-    user = user or current_user()
-    key = workbook_key(name)
-    _timing.value = None
-    n0, t0 = _fs_count(), time.perf_counter()
-    lock = Lock("wb-" + key).acquire()
-    t1 = time.perf_counter()
-    try:
-        return _update_locked(name, key, ops, user, now)
-    finally:
-        lock.release()
-        t2, n1 = time.perf_counter(), _fs_count()
-        _timing.value = {"lock_wait_ms": (t1 - t0) * 1000.0, "write_ms": (t2 - t1) * 1000.0,
-                         "fs_ops": (n1 - n0) if n0 is not None else None}
-
-
-def _update_locked(name, key, ops, user, now):
-    doc = read_workbook(name, locked=True)
-    new, applied, skipped = apply_ops(doc, ops, user, now if now is not None else server_now_ms())
-    if applied:
-        new["schema"] = SCHEMA
-        new["workbook"] = doc.get("workbook") or name
-        # short revision log: lets clients name everybody whose changes they just received
-        log_ = [x for x in (doc.get("log") or []) if isinstance(x, dict)][-(LOG_KEEP - 1):]
-        new["log"] = log_ + [{"rev": new["rev"], "by": new.get("updatedBy"), "at": new.get("updated")}]
-        # backups: the document remembers when its last backup was taken (file-server time), so a
-        # normal save never lists or stats the backup folder while holding the lock (that cost
-        # 30 extra round trips per save once 30 backups existed - see docs/LOADTEST.md)
-        at = new.get("updated") if isinstance(new.get("updated"), (int, float)) else server_now_ms()
-        last = doc.get("backupAt")
-        # a clock set back (more than the spacing) backs up again; a few ms back is the probe's mtime
-        # granularity (fsclock), not a new timeline
-        due = new["rev"] == 1 or not isinstance(last, (int, float)) or at - last >= BACKUP_EVERY * 1000 or at < last - BACKUP_EVERY * 1000
-        if due:
-            new["backupAt"] = at
-        write_json(workbook_path(name), new)
-        if due:
-            _backup(key, new)
-    return new, applied, skipped
-
-
-def create_workbook_if_missing(name, doc):
-    """Used by the migration: write `doc` unless a document already exists. Returns True if written."""
-    key = workbook_key(name)
-    with Lock("wb-" + key):
-        if os.path.exists(workbook_path(name)):
-            return False
-        doc = dict(doc, schema=SCHEMA)
-        write_json(workbook_path(name), doc)
-        _backup(key, doc)
-        return True
-
-
-# --------------------------------------------------------------------------- backups
-def _backup_dir(key):
-    return paths.data_dir("backups", key)
-
-
-def _backup_revs(folder):
-    out = []
-    try:
-        names = os.listdir(folder)
-    except OSError:
-        return out
-    for n in names:
-        m = re.match(r"^(\d+)\.json$", n)
-        if m:
-            out.append((int(m.group(1)), os.path.join(folder, n)))
-    out.sort()
-    return out
-
-
-def _backup(key, doc):
-    """Write a copy of `doc` and keep the last 30. The caller decides when (rev 1, then at most one
-    per 5 minutes via doc["backupAt"]). A failing backup never fails the write it belongs to."""
-    try:
-        rev = int(doc.get("rev") or 0)
-        folder = _backup_dir(key)
-        write_json(os.path.join(folder, "%d.json" % rev), doc)
-        for _, p in _backup_revs(folder)[:-BACKUP_KEEP]:
-            remove_quietly(p)
-        return True
-    except Exception as e:
-        log("backup of %s failed: %s" % (key, e))
-        return False
-
-
-def history(name):
-    """[{rev, updated, updatedBy}] of the backups of a workbook, newest first."""
-    out = []
-    for rev, p in reversed(_backup_revs(_backup_dir(workbook_key(name)))):
-        try:
-            d = read_json(p, None, attempts=2, delay=0.05) or {}
-        except StoreUnreadable:
-            d = {}
-        out.append({"rev": rev, "updated": d.get("updated"), "updatedBy": d.get("updatedBy")})
-    return out
-
-
 # --------------------------------------------------------------------------- config.json
 def config_path():
     return paths.data_dir("config.json")
@@ -307,18 +191,41 @@ def config_exists():
     return os.path.exists(config_path())
 
 
-def update_config(ops, user=None, now=None, only_if_missing=False):
-    """Only style.patch is accepted (applied to defaults.style). Returns (doc, applied, skipped)."""
+class ConfigConflict(RuntimeError):
+    """config.json changed since the page read it (HTTP 409): the page reads it again and redoes its change"""
+
+    def __init__(self, doc):
+        super().__init__("the shared defaults were changed meanwhile - try again")
+        self.doc = doc
+
+
+def replace_config_defaults(base_rev, style, user=None, now=None):
+    """Compare-and-set of config.json's ``defaults.style`` on its ``rev``, under the lock ``config`` - the lock under
+    which Slide Builder 3 helpers apply their changes to the same file, so neither loses the other's. The page computed
+    `style` from the rev it read (core/src/model/ops.ts): the helper applies no operation, and only ``defaults.style``
+    is ever replaced (as v3 lets a page change only that). Returns the new doc; ConfigConflict when the rev moved on."""
+    if not isinstance(style, dict):
+        raise ValueError("style must be an object")
     user = user or current_user()
     with Lock("config"):
-        if only_if_missing and os.path.exists(config_path()):
-            return read_config(locked=True), 0, list(range(len(ops)))
         doc = read_config(locked=True)
-        new, applied, skipped = apply_ops(doc, ops, user, now if now is not None else server_now_ms(), kind="config")
-        if applied:
-            new["schema"] = _up.SCHEMA["config"]
-            write_json(config_path(), new)
-        return new, applied, skipped
+        if doc.get("rev", 0) != base_rev:
+            raise ConfigConflict(doc)
+        new = dict(doc, defaults=dict(doc.get("defaults") or {}, style=style), rev=int(doc.get("rev") or 0) + 1,
+                   updated=now if now is not None else server_now_ms(), updatedBy=user, schema=_up.SCHEMA["config"])
+        write_json(config_path(), new)
+        return new
+
+
+def create_config_if_missing(defaults, user=None, now=None):
+    """the first config.json (the v2 import): written only when there is none. Returns True if written."""
+    user = user or current_user()
+    with Lock("config"):
+        if os.path.exists(config_path()):
+            return False
+        doc = dict(default_config(), defaults=defaults, rev=1, updated=now if now is not None else server_now_ms(), updatedBy=user)
+        write_json(config_path(), doc)
+        return True
 
 
 # --------------------------------------------------------------------------- users/<user>.json

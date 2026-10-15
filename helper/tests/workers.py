@@ -30,15 +30,21 @@ def lock_counter(root, data, user, n):
     return n
 
 
-def store_cells(root, data, user, column, n):
-    """n update_workbook calls, each patching its own cell (column<k>) of the same workbook."""
+def config_keys(root, data, user, prefix, n):
+    """n changes of config.json's defaults as a page makes them: read, compute, compare-and-set on rev, again on a
+    conflict (here each adds a colour; the page's computation is the core's operations)"""
     _setup(root, data, user)
     from slidebuilder import store
-    for k in range(1, n + 1):
-        ref = "%s%d" % (column, k)
-        store.update_workbook("Shared Deck.xlsx",
-                              [{"op": "cell.patch", "sheet": "Data", "ref": ref, "patch": {"text": user, "orig": ref, "b": True}}],
-                              user)
+    for k in range(n):
+        while True:
+            cfg = store.read_config()
+            style = dict(cfg["defaults"]["style"])
+            style["colors"] = dict(style.get("colors") or {}, **{"%s_%d" % (prefix, k): "#000000"})
+            try:
+                store.replace_config_defaults(cfg["rev"], style, user)
+                break
+            except store.ConfigConflict:
+                continue
     return n
 
 

@@ -6,7 +6,7 @@
 > read and write on an open handle is charged too, as docs/next/04 §2.5). `python tools/loadtest4.py --ci` is the
 > CI job (20 users at 15 and 40 ms: same deck, different decks, a burst, compaction while editing; criteria of
 > 05 §3.5). `--real-folder "T:\Slide Builder"` runs it on the real share (for people, before the cut-over).
-> The measured numbers are in PROGRESS.md (S5.4). Everything below is about v3's storage (`tools/loadtest.py`).
+> The measured numbers are in PROGRESS.md (S5.4). Everything below is about v3's storage (its tool, `tools/loadtest.py`, was removed with v3's storage path in 4.0 – S5.5; it is in the git history, last in v3.8.0).
 
 
 Question: **is the network (the shared folder) the bottleneck, and what else could be considered?**

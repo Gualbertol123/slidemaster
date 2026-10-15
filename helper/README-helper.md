@@ -32,13 +32,12 @@ idempotent.
 | `util` | logging, identity (user/host), name safety, `doc_key()`, `safe_path()`, atomic writes |
 | `fsclock` | the file server's clock (`fs_now(dir)`): ages of shared files never compare a server mtime with this PC's clock |
 | `locks` | `Lock(name)` – O_EXCL lock files in `data/locks`, 10 s wait, 15 s stale, owner token, keepalive |
-| `ops` | `apply_ops(doc, ops, user, now_ms, kind)` – §3.2 semantics (shared with the front end) |
-| `store` | workbook docs, `config.json`, `users/<user>.json`, backups; retried reads, `StoreUnreadable`; format upgrades on read (`StoreTooNew` → 409) |
+| `store` | `config.json` (compare-and-set of its defaults on `rev` under lock `config`, shared with v3 helpers: the page computes them), `users/<user>.json`, and v3's workbook documents read only (the migration, the self-test); retried reads, `StoreUnreadable`; format upgrades on read (`StoreTooNew` → 409). Applies no operation |
 | `upgrade` | saved-format versions (`SCHEMA`) and the upgrade steps n → n+1 (ARCHITECTURE §3.3) |
-| `presence` | heartbeat files `data/presence/hb~<user>~<host>~<client>~<workbook>.json`; others from one directory listing (old `<user>@<host>.json` still read) |
 | `decks` | Slide Builder 4's decks (docs/next/04 §2): `data/v4/decks/<key>/` snapshot + per-writer journals of framed records (`<len>:<crc32>:<json>\n`), append (one handle per writer session, `os.fsync`, `at` on the file server's clock), tail (≤ 8 parallel reads, listing cached 3 s, complete frames only), snapshot (retried; 503, never empty), compact (CAS on `gen` under the deck lock; covered journals idle 24 h dropped; backup to `backups/v4/<key>/` after the lock), rotate, presence v2 (empty files, scandir mtimes), incidents (a corrupt journal makes the deck read-only); `SLIDEBUILDER_STORAGE=lean-lock` (or `data/v4/storage.json`): one shared journal under the deck lock. **Never parses or applies operations** |
 | `workbooks` | listing of workbooks, path-safe lookup, stable read (`X-SB-Mtime` / `X-SB-Size`) |
-| `migrate` | one-time import of `slide_builder_settings.txt` (v2) under lock `migrate` |
+| `migrate` | one-time import of `slide_builder_settings.txt` (v2) under lock `migrate`: each workbook a new deck whose first record holds the import as operations (folded by the core) |
+| `migrate_v3` | a deck moves from Slide Builder 3 on its first v4 open (under `wb-<key>`: backup, the v3 file frozen first, then the snapshot), `--migrate-all`, rollback (`--rollback`, `--use <3.x>`), `pinned-v3.json` |
 | `exports` | `/api/export-file` (the page's PDF or PNG: temporary file, then atomic rename into `export\`, ` (2)` when locked) and `/api/export-feedback` (`export\feedback\*.json`) |
 | `fonts` | shared font library `data/fonts/` (fonts.json + files; signature-checked uploads, lock `fonts`) |
 | `sysfonts` | this PC's Windows fonts for the core (`GET /sysfonts`, names read with `struct`), and `POST /api/fonts/capture`: fingerprint mode (G0 R7), `data/fonts/system/fingerprints.json` under lock `fonts`; copy mode (W13: the family into the shared library, all faces or none) once `--allow-font-copy "<who confirmed>"` has recorded the licence owner's yes in `data/fonts/system/licence.json` |
@@ -58,8 +57,7 @@ idempotent.
 | `SLIDEBUILDER_USER`, `SLIDEBUILDER_HOST` | identity instead of the Windows login / computer name |
 | `SLIDEBUILDER_APP_WINDOW` | `0`: open the app in a normal browser tab instead of an Edge app window |
 | `SLIDEBUILDER_APP_FILE` | serve this page instead of `slide_builder.html` (testing aid) |
-| `SLIDEBUILDER_SIM_FS_MS` | **simulation for load tests**: +N ms (±25 %) per data-folder file operation that would be an SMB round trip (open, stat/exists/getmtime, replace/rename, remove, listdir, makedirs, fsync); `0` only counts them. Implies `SLIDEBUILDER_TIMING`. Never set it for real use. |
-| `SLIDEBUILDER_TIMING` | add `X-SB-Timing: lock_wait_ms=…;write_ms=…[;fs_ops=…]` to `POST /api/workbooks/<name>/ops` responses (lock acquisition incl. waiting for others / work under the lock / file operations of that save). Clients may ignore it. |
+| `SLIDEBUILDER_SIM_FS_MS` | **simulation for load tests**: +N ms (±25 %) per data-folder file operation that would be an SMB round trip (open, stat/exists/getmtime, replace/rename, remove, listdir, makedirs, fsync); `0` only counts them. Never set it for real use. |
 
 ## Tests
 
@@ -68,28 +66,31 @@ cd helper
 python3 -m unittest discover -s tests -v
 ```
 
-* `test_ops` – every case of `shared/ops-vectors.json` plus validation details
 * `test_locks` – 6 processes × 40 increments under the lock, stale-lock recovery, foreign-lock release, keepalive
-* `test_store` – 6 processes × 30 `update_workbook` calls → 180 cells, rev 180; unreadable doc stays untouched; backups
+* `test_store` – v3 documents read only; config compare-and-set (6 processes × 20 changes, nothing lost); prefs
+* `test_decks` – the deck storage (05 §3.6 tests 1–6): 20 processes × 500 records, a writer killed mid-append, duplicates,
+  CRC corruption → read-only, compaction races, clock skew; journal names never reused; prepare; presence v2; lean-lock
+* `test_migrate_v3` – 05 §3.6 tests 7–9 with the REAL v3 helper (a git worktree of v3.8.0): migration and freeze, a
+  racing v3 save, rollback and re-migration, half-done steps finished, config.json edited by v3 and v4 at once
 * `test_migrate` – realistic v2 file (cover/index presets, cell edits, `pn`, legacy `pageStart`); second run is a no-op
-* `test_http` – real server on a free port: Host/token/Origin/body limits, token injection, ops + `?since` 204,
+* `test_http` – real server on a free port: Host/token/Origin/body limits, token injection, config compare-and-set, deck routes, v3's routes gone (404),
   presence, `/files` stable read headers, uploads, `/api/export-file` and `/api/export-feedback` (the removed
   print routes answer 404), 501 converters off Windows
-* `test_fsclock` – clock skew between PCs (±60 s … ±10 min): fresh locks survive, stale ones are broken, presence/backups share one timeline
+* `test_fsclock` – clock skew between PCs (±60 s … ±10 min): fresh locks survive, stale ones are broken, config timestamps on the server's clock (deck presence: test_decks)
 * `test_exports`, `test_workbooks`, `test_main` – export naming/atomicity, stable reads, entry point
 * `test_firstrun` – `--install`: the five steps, shortcut fallback `.bat` on a temp desktop (and `.lnk` replacing it),
   shared-folder and journal probes (append twice + fsync, a lost append or a failed flush is a FAIL), exit codes,
   two runs in a row, real self-test
 * `test_fonts` – font library and logo upload/lookup;
   `test_upgrade` – saved-format examples and upgrades; `test_update` – the GitHub updater and side-by-side releases
-* `test_presence` – presence from file names and listing times; `test_release` – release ZIP and its manifest check;
+* `test_release` – release ZIP and its manifest check;
   `test_sharetest` – the field-test protocols with local processes; `test_anonymise` – the corpus anonymiser
-* `test_simfs` – latency simulation only touches data-folder calls, can be removed again; `X-SB-Timing` only when enabled
+* `test_simfs` – latency simulation only touches data-folder calls, can be removed again; the decks' round trips as 04 §2.2 counts them
 
 ## Load test
 
-`tools/loadtest.py` (standard library only) starts one helper per simulated user on a shared temp
-folder (or `--real-folder T:\…`) and measures saving, lock waits, visibility of other people's edits
-and correctness. Method and results: [`docs/LOADTEST.md`](../docs/LOADTEST.md).
+`tools/loadtest4.py` (standard library only) starts one v4 helper per simulated user on a shared temp
+folder (or `--real-folder T:\…`) and measures saving, visibility of other people's edits, compaction and
+correctness against 05 §3.5 (`--ci`: the CI job). Method and results: [`docs/LOADTEST.md`](../docs/LOADTEST.md).
 
 Multi-process tests use the `spawn` start method (same as Windows).

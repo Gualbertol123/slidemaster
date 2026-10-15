@@ -107,7 +107,7 @@ export class CoreHost {
     h("flush", async () => { await this.sync?.flush(); });
     h("poll", async () => { await this.sync?.poll(); });
     h("alone", a => { this.alone = a.alone; this.sync?.setAlone(a.alone); this.scheduleRest(); });
-    h("compactAll", async () => !this.sync || await this.sync.compactAll());
+    h("compactAll", async a => !this.sync || await this.sync.compactAll(a.waitMs));
     h("slideLists", a => this.lists(a));
     h("fontsSettling", () => !!(platform().text as { settling?: boolean }).settling || this.lateRedraws > 0);
     h("stage", a => { if (!a.nodes) this.stageReq = { ...a, fresh: false, have: undefined }; return this.queueStage(a); });
@@ -267,7 +267,9 @@ export class CoreHost {
     this.sendDoc(c);
     // a change (or the start): the slide on the stage drawn at once and sent unasked (keypress → pixels, S4.1) – never
     // waited for (a picture the page is slow to read must not hold the snapshot, a save, or a workbook's start)
-    if ((c || force) && this.stageReq) void this.queueStage(this.stageReq).then(s => { if (s) this.port.emit("stage", s); }, () => undefined);
+    // (a compaction that changed only the deck's health redraws nothing)
+    const drawn = force || (!!c && (c.local || c.presetChanged || c.styleChanged || c.editsChanged || c.stateChanged));
+    if (drawn && this.stageReq) void this.queueStage(this.stageReq).then(s => { if (s) this.port.emit("stage", s); }, () => undefined);
   }
   /** slices of every loaded sheet whose rectangle changed (or that is new) */
   private boxSig = "";
@@ -437,7 +439,7 @@ export class CoreHost {
   }
   private state(): DocState {
     const s = this.sync!;
-    return { view: s.view, save: s.state, error: s.error, history: this.history.summary() };
+    return { view: s.view, save: s.state, error: s.error, history: this.history.summary(), deck: s.health };
   }
   /** the view the page has: a snapshot whose document did not change (only the save state, the history or the
       revision number) is sent without it, so the page neither receives nor compares a copy of the document */

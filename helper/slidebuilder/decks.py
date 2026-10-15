@@ -879,25 +879,28 @@ def rotate(key, writer):
     if not isinstance(writer, str) or not WRITER_RE.match(writer):
         raise DeckError(400, "invalid writer")
     st = _writer_state(key, writer)
-    with st.lock:
-        _close(st)
-    snap = read_snapshot(key)
-    frontier = snap.get("frontier") or {}
-    folder = journal_dir(key)
     deleted = []
-    try:
-        names = [n for n in os.listdir(folder) if journal_writer(n) == writer]
-    except OSError:
-        names = []
-    for name in names:
-        j, p = stem(name), os.path.join(folder, name)
-        covered = j in frontier and _covered(p, frontier[j])
+    with st.lock:                              # the writer's own lock throughout: no prepare or append of this writer
+        _close(st)                             # opens a journal while its files are looked at and deleted
+        snap = read_snapshot(key)
+        frontier = snap.get("frontier") or {}
+        folder = journal_dir(key)
         try:
-            empty = not covered and os.path.getsize(p) == 0       # opened (prepare) but never written: nothing to keep
+            names = [n for n in os.listdir(folder) if journal_writer(n) == writer]
         except OSError:
-            empty = False
-        if (covered or empty) and remove_quietly(p):
-            deleted.append(j)
+            names = []
+        mine = _known_files(key)               # (another session's handle of the same writer id: never deleted under it)
+        for name in names:
+            if name in mine:
+                continue
+            j, p = stem(name), os.path.join(folder, name)
+            covered = j in frontier and _covered(p, frontier[j])
+            try:
+                empty = not covered and os.path.getsize(p) == 0   # opened (prepare) but never written: nothing to keep
+            except OSError:
+                empty = False
+            if (covered or empty) and remove_quietly(p):
+                deleted.append(j)
     with _guard:
         _listings.pop(key, None)
     return {"deleted": sorted(deleted)}

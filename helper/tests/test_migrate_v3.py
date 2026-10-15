@@ -415,8 +415,16 @@ class RealV3(TempDirs):
                     errors.append((st, b))
 
         def v4_side():
-            for i in range(15):
-                store.update_config([{"op": "style.patch", "patch": {"colors": {"v4k%d" % i: "#000002"}}}])
+            for i in range(15):                                   # as the page: read, compute, compare-and-set, again
+                while True:
+                    cfg = store.read_config()
+                    style = dict(cfg["defaults"]["style"])
+                    style["colors"] = dict(style.get("colors") or {}, **{"v4k%d" % i: "#000002"})
+                    try:
+                        store.replace_config_defaults(cfg["rev"], style)
+                        break
+                    except store.ConfigConflict:
+                        continue
         t = threading.Thread(target=v3_side)
         t.start()
         v4_side()

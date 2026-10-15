@@ -3,7 +3,7 @@ import threading
 import time
 import unittest
 
-from sbtest import TempDirs, make_xlsx_bytes
+from sbtest import write_v3_doc, TempDirs, make_xlsx_bytes
 
 from slidebuilder import paths, store, workbooks
 
@@ -19,7 +19,17 @@ class WorkbookTests(TempDirs):
         self.write("A.xlsx", make_xlsx_bytes())
         self.write("~$A.xlsx", b"lock")
         self.write("notes.txt", b"x")
-        store.update_workbook("A.xlsx", [{"op": "style.patch", "patch": {"color": 1}}], "alice")
+        self.write("B.xlsx", make_xlsx_bytes())
+        write_v3_doc("A.xlsx", {"rev": 1, "updated": 1791214363000, "updatedBy": "alice"})       # still Slide Builder 3's
+        from slidebuilder import decks, migrate_v3
+        migrate_v3.ensure_deck("B.xlsx")
+        key = decks.deck_key("B.xlsx")
+        w = decks.new_writer("bob")
+        decks.append(key, w, {"w": w, "s": 1, "l": 1, "by": "bob", "ops": []})
+        snap = decks.read_snapshot(key)
+        t = decks.tail(key, {})
+        decks.compact(key, 1, dict(snap, gen=2, lamport=1, rev=1, updated=t["now"], updatedBy="bob",
+                                   frontier={j: v["offset"] for j, v in t["journals"].items()}))
         rows = workbooks.list_workbooks()
         names = [r["name"] for r in rows]
         self.assertIn("A.xlsx", names)
@@ -28,6 +38,8 @@ class WorkbookTests(TempDirs):
         a = next(r for r in rows if r["name"] == "A.xlsx")
         self.assertEqual((a["rev"], a["updatedBy"]), (1, "alice"))
         self.assertIsInstance(a["updated"], int)
+        b = next(r for r in rows if r["name"] == "B.xlsx")                     # a deck: from its snapshot
+        self.assertEqual((b["rev"], b["updatedBy"]), (1, "bob"))
 
     def test_find_is_path_safe(self):
         self.write("A.xlsx", b"PK")

@@ -175,7 +175,7 @@ overwriting existing documents, and renames it `slide_builder_settings.v2-backup
 │          automated comment analysis/writing · font catalogue                                                    │
 │ render/  edits on top of the workbook · Excel design · Liquid Glass scene model · slide layout & composition  │
 │          → display lists (tables, whole slides) · page numbers/footer geometry · wallpaper · comment text        │
-│ core worker (Blob URL): owns the workbook · DocSync (ops, batching, retry, polling) · undo/redo · display lists │
+│ core worker (Blob URL): owns the workbook · DocSync (records, fold, tail, compaction) · undo/redo · display lists│
 │ export workers: PDF writer (HarfBuzz shaping, subsetting) · pictures (OffscreenCanvas) · PNGs · thumbnails      │
 │ sync/    HTTP client (token, formats) · offline store · rpc/ the typed messages to and from the core worker    │
 │ state/   one Zustand store in slices (read-only mirrors of the worker's document and sheets) · actions · dialogs │
@@ -185,25 +185,26 @@ overwriting existing documents, and renames it `slide_builder_settings.v2-backup
 └──────────────▲──────────────────────────────────────────────────────────────────▲──────────────────────────────┘
                │ HTTP on 127.0.0.1 (X-SB-Token, X-SB-Formats)                       │ PDF/PNG bytes to save
 ┌──────────────┴──────────── helper: helper/slidebuilder (Python ≥ 3.8 standard library) ──────────┴──────────────┐
-│ server (routing, Host/Origin/token/format checks) · store (documents, upgrades, backups) · ops (same semantics  │
-│ as the front end) · locks + fsclock (O_EXCL lock files, file-server clock) · presence · workbooks (stable reads)│
+│ server (routing, Host/Origin/token/format checks) · decks (snapshot + journals, opaque records, presence) ·    │
+│ store (config, prefs, upgrades) · locks + fsclock (O_EXCL lock files, file-server clock) · workbooks (reads)    │
 │ fonts + sysfonts (this PC's fonts, fingerprints) · exports (saves the page's PDFs/PNGs, problem reports) ·      │
-│ convert (Excel COM, GDI+) · migrate (v2) · upgrade (format versions) · firstrun (--install) · selftest          │
+│ convert (Excel COM, GDI+) · migrate (v2) · migrate_v3 (3 → 4) · upgrade · firstrun (--install) · selftest     │
 └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
         one helper per PC  ⇄  the same shared folder (SMB): workbooks, backend/data/, export/ — the only channel
 ```
 
 **Design principles**
-1. **All parsing, layout and rendering happen in the browser.** The helper moves bytes, stores documents,
-   merges operations under file locks, and saves the exports the page writes. The stage, the thumbnails
+1. **All parsing, layout and rendering happen in the browser.** The helper moves bytes, appends the pages' records to
+   the decks' journals and keeps their snapshots (records are opaque to it), and saves the exports the page writes. The stage, the thumbnails
    and the exports draw **the same display list** of a slide (built by the core worker, §10).
 2. **Documents change only through operations** (`preset.set`, `slide.patch`, `table.patch`,
-   `cell.patch`, `style.patch`) with field-level merge semantics, implemented twice (TypeScript
-   `model/ops.ts`, Python `ops.py`) and kept identical by `shared/ops-vectors.json`, which both test
-   suites run. Clients never write whole documents.
-3. **Optimistic local application, server-side merge.** The page applies ops immediately, sends them in
-   batches; the helper applies them to the *latest* document under the workbook's lock; the page rebases
-   its pending ops on the result (§6.3).
+   `cell.patch`, `style.patch`) with field-level merge semantics, implemented once, in TypeScript
+   (`core/src/model/ops.ts`), and pinned by `shared/ops-vectors.json`. Clients never write whole documents;
+   the helper never applies an operation (since 4.0).
+3. **Optimistic local application, a shared journal per deck.** The page applies ops immediately and appends
+   them in batches, one record each, to its own journal of the deck on the share (no lock); every page folds the
+   deck's snapshot and the records past it in Lamport order and rebases its pending ops on the result (§6.3,
+   docs/ARCHITECTURE.md §5.1, docs/next/04 §2).
 4. **The workbook is never modified**; user changes are keyed by sheet and cell address.
 5. **No runtime dependencies on users' PCs**: one HTML file + standard-library Python, no optional
    packages and nothing downloaded at install.
@@ -221,16 +222,18 @@ helper per PC plus files on the share is the only deployable topology (see `docs
 ```
 data/
 ├─ config.json                     shared defaults for new decks         {schema:3, rev, updated, updatedBy, defaults:{style}}
-├─ workbooks/<key>.json            ONE document per workbook (§4.2)
+├─ v4/decks/<key>/                 ONE deck per workbook: snapshot.json {format 4, gen, frontier, seen, lamport, doc (§4.2)},
+│                                  j/<journal>.log (framed records), presence/ (empty files), lock (docs/ARCHITECTURE.md §5.1)
+├─ workbooks/<key>.json            Slide Builder 3's documents: read once by the migration, then frozen (movedTo "v4")
 ├─ users/<user>.json               personal preferences                  {schema:1, lastFile, pdfMode, zoom, versions}
 ├─ fonts/fonts.json + font files   shared font library                   {schema:1, fonts:[{family, source, faces[], by, at}]}
 ├─ assets/                         logos uploaded via Options › Logo
-├─ presence/hb~<user>~<host>~<client>~<workbook>.json   heartbeats (who has which workbook open; read from the listing)
 ├─ locks/<name>.lock               lock files (short-lived)
 ├─ migrated.json                   marker: v2 settings were imported
 ├─ app-version.json                installed version (ZIP updates only)
 └─ backups/
-   ├─ <key>/<rev>.json             rolling copies of each workbook document (last 30, ≤ 1 per 5 min)
+   ├─ v4/<key>/<gen>.json          each compaction's snapshot (last 30)
+   ├─ <key>/<rev>.json             Slide Builder 3's rolling copies (kept, read only)
    ├─ upgrades/<kind>/<file>.v<n>.<time>.json   a file as it was before a format upgrade (kept)
    └─ before-update-<time>/        saved setups (+ replaced program files) before each update (last 5)
 ```
@@ -241,10 +244,9 @@ data/
 ```jsonc
 {
   "schema": 3, "workbook": "IBD weekly.xlsx",
-  "rev": 42,                         // +1 per successful batch of ops (helper)
-  "updated": 1791214363000,          // ms, file-server clock
-  "updatedBy": "rossim", "log": [{"rev": 42, "by": "rossim", "at": …}],   // last 20
-  "backupAt": 1791214000000,         // when the last rolling backup was taken (saves never list the folder)
+  "rev": 42,                         // derived by the fold: +1 per record with an applied op
+  "updated": 1791214363000,          // ms, file-server clock (the record's `at`)
+  "updatedBy": "rossim", "log": [{"rev": 42, "by": "rossim", "at": …}],   // last 20, derived by the fold
   "preset": {                        // null = no setup yet (the wizard creates one)
     "sheets": ["SLIDE_1", …],
     "tables": [ {"id": "k3j9x0a", "sheet": "SLIDE_1", "kind": "markers", "anchor": "C3", "index": 0,
@@ -296,8 +298,9 @@ data/
 deep merge) or deletes it when `null`; an empty map is removed. So two people changing different
 columns, text boxes, rules or designs never overwrite each other; the same field at the same time → last
 write wins. Unknown ops, invalid fields, unknown slide/table ids are **skipped** (reported by index). A
-batch with ≥ 1 applied op increments `rev` and sets `updated`/`updatedBy`. `config.json` accepts only
-`style.patch` (applied to `defaults.style`). The client computes an **inverse** op for each op before
+record with ≥ 1 applied op increments `rev` and sets `updated`/`updatedBy` (the fold, `model/fold.ts`). For
+`config.json` the page applies `style.patch` to `defaults.style` and the helper stores the result by compare-and-set
+on `rev` (`POST /api/config`). The client computes an **inverse** op for each op before
 applying it (`model/ops.ts inverseOf`) – that is the undo.
 
 ### 4.4 Format versions (`schema`)
@@ -342,7 +345,7 @@ Built by Vite + `vite-plugin-singlefile` into `helper/slide_builder.html`. `main
 | File | Responsibility |
 |---|---|
 | `types.ts` | **All persistent types** (§4) + `FORMATS`, `Op`, and the runtime `RuntimeSlide = {id, type, cfg: SlideDef, tables: TableLayout[], title, subtitle, label, missing}`. |
-| `ops.ts` | `applyOp/applyOps` (the semantics of §4.3), `inverseOf` (undo), `emptyDoc`. Mirrors `helper/slidebuilder/ops.py`. |
+| `ops.ts` | `applyOp/applyOps` (the semantics of §4.3), `inverseOf` (undo), `emptyDoc`. The only implementation (the helper applies none since 4.0). |
 | `preset.ts` | `resolveTable(wb, def, design)` (marker or range table → `TableLayout`, with that design's sizes; **`LCACHE`** keyed by sheet + region + def + sizes/merges + workbook identity), `tableSizes(def, design)`, `runtimeSlides(wb, preset, name, design)` (titles fall back to the sheet's A1, subtitles to A2), `defaultPreset(wb)` (one slide per sheet named "*slide*" with marker tables), `growG` (growing ranges). |
 | `style.ts` | Built-in style, `resolveStyle(...layers)` (scalars, `pn`/`footer` per field, theme/colours/text per entry, then per-design looks, clamping), themes (`THEMES`, `themeOf`), `palette(style)` (theme defaults + overrides), `COLOR_KEYS` (what Design… offers per design), `cleanFmt`, `mix`. |
 | `comment.ts` | Automated comments, pure functions over a `Grid` of displayed cells: `analyse(grid)` finds the label column, data rows, headers, **comparison groups** (a header matching Δ/vs/var/delta… with Abs. and % columns, classified week/target/month/quarter/year/yoy by regex), latest period, total rows, entities and **blocks** (a bold or "Total…" row with the rows under it). `writeComment` (sections mode) and `writeSummary` (summary mode: facts joined with "·", a judgement word from the week's % (thresholds 1 % and 0.3 %), drivers and offsets with materiality, plan gap closure). `shapeComment` applies layout options and the unit (`withUnit`, default "mln"). |
@@ -383,7 +386,7 @@ can start – the component tests – the same host runs in the page behind the 
   small, else the rectangle its tables, their grown ranges and their conditional formats' operands need), `doc` (view,
   save state, history, what changed, how many of the page's calls it includes), `stage` (the stage's slide drawn
   again), `progress`, `error` – after a change slices, then the snapshot, then the stage's slide;
-* the worker **asks** the page for `getDoc`/`postOps` (the page's backend: HTTP with its token, or localStorage
+* the worker **asks** the page for the deck calls – `deckSnapshot`/`deckTail`/`deckAppend`/`deckCompact`/`deckRotate`/`deckPrepare` (the page's backend: HTTP with its token, or localStorage
   from `file://`), `fontCatalog` / `fontFile` (the fonts the worker measures text with, S4.4: the library's and this
   PC's – the helper's /sysfonts, or from disk the browser's local fonts only when it has already given them;
   `app/src/state/fontfiles.ts`), `measureRuns` / `breakLines` / `digitWidth` (the page's measuring, for a font without
@@ -399,10 +402,10 @@ readable file there, counted in `coreStats.pageRuns`).
 | File | Responsibility |
 |---|---|
 | `sync/api.ts` | The `Backend` interface; `helper` (HTTP: adds `X-SB-Token` from `<meta name="sb-token">` and `X-SB-Formats`; `ApiError`) and `offline` (localStorage, for a page opened as `file://`). `backend = SERVED ? helper : offline`. |
-| `core/src/sync/docsync.ts` (in the worker) | **`DocSync`**: `server` doc + `inflight` + `pending` ops → `view`. `apply(ops)` (local, returns inverse), `flush()` (one request in flight, 300 ms debounce, retry 2–32 s, 409 → `outdated`), `poll()` (`?since=rev`, rebase), `on(listener)` with `Change {local, by, presetChanged, styleChanged, editsChanged}`. |
+| `core/src/sync/docsync.ts` (in the worker) | **`DocSync`** (storage v4): `fold(snapshot, records)` + `inflight` + `pending` ops → `view`. `apply(ops)` (local, returns inverse), `flush()` (one record per batch, one append in flight, 300 ms debounce, retry 2–32 s with the same record, 409 → `outdated`, 423 → read-only), `poll()` (tail every 1.5 s, rebase, authors), compaction and rotation, `health` (the side panel's deck line), `on(listener)` with `Change {local, by, presetChanged, styleChanged, editsChanged, stateChanged, deckChanged}`. |
 | `core/src/sync/history.ts` (in the worker) | Undo/redo of my own changes: inverse ops per step, 1.5 s coalescing per key, 200 steps, entries per workbook; `summary()` is what the page shows. |
 | `state/store.ts` | **One Zustand store** (`useStore`, `subscribeWithSelector`) in slices: `doc` (`open`, a read-only mirror of the worker's `view` and save state, shared config, font library), `deck` (file, the workbook mirror `wb`, slides, cur, version, `history` (what undo/redo would do), remote, opening), `selection` (`sel`/`noteSel`/`textSel`, painter), `ui` (zoom, busy, toast, dialogs, design scope, banners, health, presence, exporting), `prefs` (user, host, client, prefs). Components select what they render (`useStore(s => s.selection.sel)`; `ui/hooks.ts`: `useCtx`, `useStyle`); other code reads `get()` and writes `patch(slice, …)`/`patchAll`. A poll that brings nothing new keeps the old objects (`same`), so nothing re-renders. `STAGE`/`THUMBS` controller hooks filled by the editor. |
-| `state/app.ts` | The store's actions (module functions writing the store) and the page's end of the core worker (`core()`, `flushDoc`): `boot`, `openFromFolder`/`openLocalFile`/`openBuffer`, `onWorkerDoc` → `onDocChange`, `onStyleChanged`, **`change(label, ops, coalesce?)`** (to the worker), `undo`, `styleChange`, `lookChange` (scope: this design / all), `showVersion`, `ctx()` (memoised `RenderCtx`), `style()`, `tick` (poll 3 s, health + one-stat changed-on-disk check 6 s, fonts/config 30 s; the workbook list is read at start and when the Open menu opens), presence heartbeat 10 s. |
+| `state/app.ts` | The store's actions (module functions writing the store) and the page's end of the core worker (`core()`, `flushDoc`): `boot`, `openFromFolder`/`openLocalFile`/`openBuffer`, `onWorkerDoc` → `onDocChange`, `onStyleChanged`, **`change(label, ops, coalesce?)`** (to the worker), `undo`, `styleChange`, `lookChange` (scope: this design / all), `showVersion`, `ctx()` (memoised `RenderCtx`), `style()`, `tick` (every 3 s: health + one-stat changed-on-disk check 6 s, fonts/config 30 s; the worker tails the deck itself; the workbook list is read at start and when the Open menu opens), presence heartbeat 10 s. |
 | `state/dialogs.ts` | Promise-based dialogs (`ask`, `confirmBox`, `alertBox`, `runWizard`); which one is open: `ui.dialogs` in the store, rendered by `ui/`. |
 | `state/fonts.ts` | Font library in the page (store: `doc.fonts`, `ui.fontBusy`): `loadFonts`, `@font-face` in `<style id="fontcss">`, `addGoogleFont` (downloads faces, uploads them to the helper), `uploadFontFiles`, `removeFont`. The font files the workers measure and embed: `state/fontfiles.ts`. |
 
@@ -455,7 +458,8 @@ served: reopen `prefs.lastFile`, start `tick` (3 s) and the presence heartbeat (
    helper's memory store when served).
 2. The worker's `index` (a copy of the bytes; `indexWorkbook` there); `.xlsb/.xls/encrypted` → `POST /api/convert-workbook`
    (Excel COM) → index again. Small workbooks are parsed completely, big ones lazily; the page gets the slices.
-3. `LCACHE.clear()`, `GET /api/workbooks/<name>/doc`.
+3. `LCACHE.clear()`, `POST /api/decks/open` (a deck Slide Builder 3 still owns is migrated first), one tail, the
+   fold (`core/src/model/fold.ts`).
 4. Preset: continue with the saved one, or the wizard (with `defaultPreset` as draft, on the mirror); then the
    worker's `ensure(presetSheets)` parses only the sheets used.
 5. The worker's `start` (its `DocSync`; the stage's slide drawn first and sent unasked, then the snapshot);
@@ -473,17 +477,17 @@ served: reopen `prefs.lastFile`, start `tick` (3 s) and the presence heartbeat (
    built; their markup in pieces) and sends it, then the snapshot; the stage replaces the pieces that changed
    (`stage/patch.ts`). 350 ms later the thumbnail of that slide (and of the index slides) is asked for again: the
    export worker draws it only if its display list changed.
-3. `flush`: `POST /api/workbooks/<name>/ops {ops, client}` (one request in flight).
-4. Helper: Host/Origin/token/format checks → `store.update_workbook`: lock `wb-<key>` → read latest
-   (upgrading an older format) → `ops.apply_ops` → atomic write → rolling backup if due → unlock → `{doc,
-   applied, skipped}`.
-5. Page: `server = doc`, `view = server + inflight + pending` (rebase), emit with the authors of foreign
-   revisions (`doc.log`).
-6. Failure: ops go back to the front of `pending`; 409 → `outdated` (reload banner, no retries); other
-   errors → retry after 2, 4, … 32 s.
+3. `flush`: the pending ops become ONE record `{l, w, s, by, ops}` → `POST /api/decks/<key>/append` (one in flight;
+   the journal was opened during the debounce, `prepare`).
+4. Helper: Host/Origin/token/format checks → `decks.append`: stamp `at` (file server's clock), write the frame
+   `<len>:<crc32>:<json>\n` on the writer's open handle, `os.fsync` → `{journal, offset, at}`. No lock.
+5. Page: the record joins the folded state; "✓ Saved" (B6); `view = fold(snapshot, records) + pending` (rebase).
+6. Failure: the same record is sent again (2, 4, … 32 s; the fold keeps one copy per writer and seq); 409 →
+   `outdated` (reload banner); 423 → read-only (a damaged journal).
 
 ### 6.4 Seeing other people's changes
-Every 3 s the worker's `poll` (`DocSync.poll()`) → `GET …/doc?since=<rev>` (204 if unchanged) → rebase → `onDocChange`:
+Every 1.5 s the worker's DocSync reads the deck's journals from where it stopped (`GET …/tail?since=<offsets>`;
+a newer snapshot is loaded when another page compacted) → fold → rebase → `onDocChange`:
 preset changed → rebuild runtime slides + full render; titles/logo changed → rebuild; style changed →
 `onStyleChanged` (re-resolve slides if the design changed; wallpaper; full render); otherwise
 `STAGE.refresh()` (the worker rebuilds only the tables whose content changed) and thumbnails. The stage never
@@ -566,10 +570,11 @@ the app (an Edge app window, `msedge --app=<url>`, else a browser tab) → `serv
 | `util.py` | Logging, identity (`current_user/host`), `doc_key`, name/path safety (`safe_path` refuses escapes), atomic writes (`write_tmp` + fsync + `replace_retry` for Windows sharing violations), a no-proxy opener for 127.0.0.1, `is_network_path` (`--install` says whether the folder is on a network drive). |
 | `fsclock.py` | The **file server's clock**: offset measured by writing a probe file and reading its mtime (cached 30 s). All ages of shared files use it, so PCs with skewed clocks agree. |
 | `locks.py` | `Lock(name)`: `data/locks/<name>.lock` created with `O_CREAT\|O_EXCL` (atomic on SMB), body `{user, host, pid, at, token}`; wait ≤ 10 s with jitter; stale after 15 s (server clock) → atomically renamed away and re-checked; keepalive thread for long sections; release only with our token. |
-| `store.py` | Documents: retried reads (`StoreUnreadable` → 503, never replaced by empty), atomic writes, format upgrades on read, `update_workbook` under the lock, revision log, rolling backups (`backupAt` in the doc → a normal save never lists the backup folder), history, config and personal prefs. |
-| `ops.py` | Operation semantics (mirror of `model/ops.ts`). |
+| `store.py` | `config.json` (compare-and-set under lock `config`), personal prefs, and v3's workbook documents read only (migration, self-test); retried reads (`StoreUnreadable` → 503, never replaced by empty), atomic writes, format upgrades on read. |
+| `decks.py` | The decks of storage v4: snapshot + per-writer journals, append / tail / snapshot / compact / rotate / prepare, presence v2, incidents (docs/ARCHITECTURE.md §5.1). Never parses an operation. |
+| `migrate_v3.py` | A deck moves from Slide Builder 3 on its first v4 open (freeze), `--migrate-all`, rollback. |
 | `upgrade.py` | `SCHEMA`, `@step(kind, n)` upgrade functions (none yet), `TooNew`. |
-| `presence.py` | One heartbeat file per user@host whose **name** carries user, host, client and workbook; others = one directory listing, freshness from its modification times on the file-server clock (no file opened); old-format `<user>@<host>.json` still read; others seen in the last 25 s; cleanup after 24 h. |
+
 | `workbooks.py` | Listing (ROOT then `backend/`), path-safe lookup, **stable read** (size/mtime unchanged before/after, zip end record present; retried; `Unstable` → 503 while Excel is still saving). |
 | `fonts.py` | Font library: signature-checked files (≤ 15 MB, ≤ 64 faces/family), written before the index, under lock `fonts`; unreferenced files swept. |
 | `sysfonts.py` | This PC's Windows fonts for the core (`GET /sysfonts`, names read with `struct`) and `POST /api/fonts/capture` (fingerprints in `data/fonts/system/fingerprints.json`, lock `fonts`; copy mode once `data/fonts/system/licence.json` records the licence owner's yes, §6.10). |
@@ -584,11 +589,11 @@ the app (an Edge app window, `msedge --app=<url>`, else a browser tab) → `serv
 ### 7.3 Environment variables
 `SLIDEBUILDER_ROOT`, `SLIDEBUILDER_DATA` (folders) · `SLIDEBUILDER_USER`, `SLIDEBUILDER_HOST` (identity) ·
 `SLIDEBUILDER_APP_WINDOW` (`0`: a browser tab instead of the Edge app window) · `SLIDEBUILDER_APP_FILE` (serve
-another page) · `SLIDEBUILDER_SIM_FS_MS`, `SLIDEBUILDER_TIMING` (load tests; `X-SB-Timing` header) ·
+another page) · `SLIDEBUILDER_SIM_FS_MS` (load tests) · `SLIDEBUILDER_STORAGE` (`lean-lock`) ·
 `SLIDEBUILDER_SYSFONTS` (tests: another Windows fonts folder).
 
 ### 7.4 Lock names
-`wb-<key>` (a workbook document), `config`, `user-<name>`, `fonts`, `migrate`, `export-<name>`, `export-feedback`,
+`wb-<key>` (a deck's migration / rollback; Slide Builder 3's saves), each deck's own `v4/decks/<key>/lock`, `config`, `user-<name>`, `fonts`, `migrate`, `export-<name>`, `export-feedback`,
 `firstrun-<user-host>`, `update` (tools/update.py, own lock file).
 
 ### 7.5 Updating the program (`tools/update.py`)
@@ -624,12 +629,10 @@ JSON bodies ≤ 2 MB, uploads/exports ≤ 300 MB. Full shapes: `docs/ARCHITECTUR
 | `GET /` | the app with the token injected (`__SB_TOKEN__` replaced; `<meta name="sb-token">`) |
 | `GET /api/ping` (no token) · `GET /api/health` | liveness · app, version, user, host, folders (`{app, version, user, host, folder, export}`) |
 | `GET /api/files` · `GET /api/files/<name>/stat` · `GET /files/<name>` | workbooks in the folder (with doc rev/author; reads every deck, so only on demand) · one workbook's `{name, mtime, size}` (one stat, the changed-on-disk banner) · workbook bytes (stable read) |
-| `GET /api/workbooks/<name>/doc?since=rev` | the document (204 if unchanged) |
-| `POST /api/workbooks/<name>/ops` | `{ops, client}` → `{doc, applied, skipped}` |
-| `GET /api/workbooks/<name>/history` | rolling backups |
-| `GET /api/config` · `POST /api/config/ops` | shared defaults (style.patch only) |
+| `POST /api/decks/open` · `GET /api/decks` · `…/<key>/snapshot` · `…/tail` · `…/append` · `…/prepare` · `…/compact` · `…/rotate` · `…/history` | decks, storage v4 (docs/ARCHITECTURE.md §5.1) |
+| `GET /api/config` · `POST /api/config` | shared defaults (compare-and-set on `rev`; the page computes them) |
 | `GET /api/me` · `PUT /api/me` | user, host, personal preferences (whole replace) |
-| `POST /api/presence` · `POST /api/presence/leave` | heartbeat → others in the folder |
+| `POST /api/presence` · `POST /api/presence/leave` | `{deck, client}`: heartbeat → others on the deck |
 | `GET /fieldcheck` (no token) | `tools/fieldcheck.html`, the field-test page of the browser's capabilities (PLAN S0.6), on the app's origin |
 | `GET/POST/DELETE /api/fonts` · `GET /fonts/<file>` | font library · font files |
 | `GET /sysfonts` · `GET /sysfonts/<file>` | this PC's Windows fonts (`%WINDIR%\Fonts` and the per-user fonts folder; `SLIDEBUILDER_SYSFONTS` in tests): `{fonts: [{file, family, subfamily, weight, italic, faces, size}]}` · one listed `.ttf`/`.otf`/`.ttc` file |
@@ -648,13 +651,14 @@ workbook still being saved (clients keep their ops and retry) · 500 unexpected 
 ---
 
 ## 9. Concurrency and failure model
-* **Coordination only through files on the share.** Writes to a shared document happen under its lock
-  (`O_EXCL` lock file), read-latest → apply ops → temp file + fsync + `os.replace` (retried for Windows
-  sharing violations) → release. Ages (stale locks, presence, backups, `updated`) use the file server's
-  clock.
+* **Coordination only through files on the share.** An edit is one record appended to the page's own journal
+  of the deck (no lock; `os.fsync`); a compaction writes the next snapshot by compare-and-set on its `gen` under
+  the deck's lock; config.json, prefs and snapshots are written as temp file + fsync + `os.replace` (retried for
+  Windows sharing violations) under an `O_EXCL` lock file. Ages (stale locks, presence, records' `at`) use the file
+  server's clock.
 * **Field-level merge** (§4.3): different fields never conflict; the same field → the later write wins.
-* **Clients** keep `server + inflight + pending`; one request in flight; ops are never dropped on errors;
-  polling every 3 s; remote authors are shown.
+* **Clients** keep `fold(snapshot, records) + inflight + pending`; one append in flight; a record is never
+  dropped on errors (sent again; folded once); the deck is tailed every 1.5 s; remote authors are shown.
 * **Never lose data**: unreadable file → 503 and retry (never treated as empty); workbook still being
   written by Excel → 503 (stable read); format upgrades back up the original; updates back up saved setups.
 * **Measured** (`docs/LOADTEST.md`): 10 users on one workbook at 15 ms per SMB operation → save p50/p95
@@ -711,7 +715,7 @@ npm run bench                # benchmarks with thresholds: big30 parse (core; ne
 cd helper
 python -m unittest discover -s tests -v                  # helper tests (Python 3.8+)
 python slide_builder.py [--port 8765] [--no-browser] [--install] [--selftest] [--allow-font-copy WHO|off]
-python ../tools/loadtest.py --users 10 --scenario same --fs-ms 15        # load test (docs/LOADTEST.md)
+python ../tools/loadtest4.py --scenario same --users 10 --fs-ms 15     # load test of the decks (docs/LOADTEST.md)
 ```
 The root scripts run the same scripts of the workspace (`npm run <x> -w app`); inside `app/` they work as
 well. `core/` is pure TypeScript for the workers of v4 (`lib: ES2022 + WebWorker`, no DOM types). e2e, parity and the
@@ -724,7 +728,7 @@ needs `set NODE_OPTIONS=--use-system-ca` (Node 22).
 
 | Suite | Covers |
 |---|---|
-| `core/tests/ops.test.ts` + `helper/tests/test_ops.py` | every case of `shared/ops-vectors.json`; inverses |
+| `core/tests/ops.test.ts` · `docsync.test.ts` · `convergence.test.ts` | every case of `shared/ops-vectors.json` (ops and fold); inverses · DocSync v4 · 1 000-seed convergence |
 | `core/tests/xml.test.ts` (jsdom in this test only) | the core's XML tokenizer = DOMParser: rels, workbook, theme, styles, drawings of every corpus workbook and of a synthetic one (`zipbuild.ts`: gradient fills, custom theme, prefixed styles with BOM/CRLF, AlternateContent, charts, anchors; empty parts); entities, CDATA, namespaces, line ends, deep trees |
 | `core/tests/sheetstore.test.ts` (+ `sheet-v3.ts`, v3's parser kept as the reference) | every cell of every corpus sheet (big30 too when generated) equal to v3's regex parser: values, types, styles, runs, lookups, row info; crafted sheets with every cell shape (types, dates by format, rich/phonetic runs, escapes, prefixes, no `r`, unsorted/duplicates, unclosed tags) |
 | `core/tests/host.test.ts`, `slice.test.ts` | the core worker's host through its messages (slices → snapshot → the stage's slide, acks, undo/redo labels and coalescing, two people, each table a layer kept by its key) · every corpus deck gives the same slides, layouts, effective items and table display lists from slices as from the workbook (whole and cut to rectangles; conditional-format operands outside the table) |
@@ -740,7 +744,7 @@ needs `set NODE_OPTIONS=--use-system-ca` (Node 22).
 | `app/e2e/open.spec.ts` | a dropped workbook opens (two drops at once: one open), Reload from disk, the "saved again in Excel" banner |
 | `helper/tests/test_store.py`, `test_locks.py`, `test_fsclock.py` | multi-process saves, stale locks, clock skew |
 | `helper/tests/test_upgrade.py` | saved-format examples, upgrades once, too-new files, page/helper formats |
-| `helper/tests/test_presence.py`, `test_release.py`, `test_sharetest.py`, `test_anonymise.py` · `app/tests/parity.test.ts` | presence from one listing · release ZIP + manifest · field-test protocols · corpus anonymiser · parity rules (ΔE, PNG, modes) |
+| `helper/tests/test_decks.py`, `test_migrate_v3.py`, `test_release.py`, `test_sharetest.py`, `test_anonymise.py` · `app/tests/parity.test.ts` | presence from one listing · release ZIP + manifest · field-test protocols · corpus anonymiser · parity rules (ΔE, PNG, modes) |
 | `helper/tests/test_http.py`, `test_fonts.py` | API, security checks, fonts, logos |
 | `helper/tests/test_exports.py` | export naming and atomicity (` (2)` when the target is locked), `/api/export-file` (PDF/PNG only), `/api/export-feedback` |
 | `helper/tests/test_update.py`, `test_migrate.py`, `test_firstrun.py`, `test_workbooks.py`, `test_main.py`, `test_simfs.py` | updater, v2 import, `--install` (five steps, journal probe, shortcut), stable reads, entry point, load-test hook |
@@ -750,7 +754,7 @@ needs `set NODE_OPTIONS=--use-system-ca` (Node 22).
 ## 12. Where to change what
 | Task | Touch |
 |---|---|
-| **New saved field** | `model/types.ts` (type + `Op` patch type) → key lists in `model/ops.ts` **and** `helper/slidebuilder/ops.py` → a case in `shared/ops-vectors.json` → `docs/ARCHITECTURE.md` §3 → UI → rendering → if it changes how a table is drawn, add it to `tableKey` (`render/context.ts`) → tests. Optional fields need no format change. |
+| **New saved field** | `model/types.ts` (type + `Op` patch type) → key lists in `model/ops.ts` → a case in `shared/ops-vectors.json` → `docs/ARCHITECTURE.md` §3 → UI → rendering → if it changes how a table is drawn, add it to `tableKey` (`render/context.ts`) → tests. Optional fields need no format change. |
 | **Change the meaning/shape of saved data** | raise `SCHEMA[kind]` in `upgrade.py` + `@step(kind, old)`; raise `FORMATS`; test in `test_upgrade.py`; **add** `fixtures/saved/<kind>.v<n+1>.json`; ARCHITECTURE §3.3. |
 | Cell formatting control | `ui/Ribbon.tsx` → `editor/textfmt.ts` / `editor/edit.ts applySel` → `render/edits.ts` → painter (`editor/painter.ts`). |
 | Table geometry, drags | `editor/tables.ts`, `stage/drags.ts`, `stage/hit.ts`, `render/layout.ts computeLayout/sizingOf`. |
@@ -761,7 +765,7 @@ needs `set NODE_OPTIONS=--use-system-ca` (Node 22).
 | Automated comment wording | `model/comment.ts` (`writeSummary`, `writeComment`), options in `ui/CommentDialog.tsx`. |
 | Deck options | `ui/Topbar.tsx`, `ui/TextStylesDialog.tsx`, `model/style.ts`, style keys/maps in both `ops` files. |
 | Wizard | `wizard/Wizard.tsx`, `core/src/xlsx/detect.ts`, `core/src/xlsx/sheetview.ts`, `model/preset.ts`. |
-| Saving, polling, conflicts | `core/src/sync/docsync.ts`, `core/src/worker/host.ts`, `state/app.ts onDocChange`, `helper/slidebuilder/store.py`. |
+| Saving, tailing, conflicts | `core/src/sync/docsync.ts`, `core/src/model/fold.ts`, `core/src/worker/host.ts`, `state/app.ts onDocChange`, `helper/slidebuilder/decks.py`. |
 | HTTP endpoint | `server.py` + `sync/api.ts` + ARCHITECTURE §5 + `test_http.py`. |
 | Export | `editor/export.ts`, `rpc/export.ts`, `core/src/pdf/writer.ts`, `core/src/text/` (fonts, shaping, subsetting), `exports.py`. |
 | Install / start / update | `*.bat`, `firstrun.py`, `main.py`, `tools/update.py`. |
@@ -817,8 +821,7 @@ events and link updates off. TLS is never disabled (downloads use the system/cor
   pictures.
 * Layout depends on fonts installed on each PC (text is measured from the font files each PC has).
 * Debt noted during the last review: `render/roles.ts` is only used by a test; `commentText` treats a
-  missing `mode` as "sections" (legacy) while new comments default to "summary"; `tools/loadtest.py`'s `seed_backups` docstring predates
-  `backupAt`.
+  missing `mode` as "sections" (legacy) while new comments default to "summary"; `tools/loadtest.py` is gone (S5.5; `tools/loadtest4.py`).
 
 ---
 
@@ -867,13 +870,13 @@ helper/
 │  ├─ main.py                          command line: --port, --no-browser, --install, --selftest; Edge --app window
 │  ├─ server.py                        HTTP API on 127.0.0.1 (§8) and its security checks (Host, token, origin)
 │  ├─ paths.py                         folder layout: ROOT, DATA, export\
-│  ├─ store.py                         documents in data/: retried reads, atomic writes, backups
-│  ├─ ops.py                           document operations (same rules as core/src/model/ops.ts)
+│  ├─ store.py                         config.json, prefs; v3 documents read only
+│  ├─ decks.py                         storage v4: snapshot + journals, presence v2 (never applies an operation)
+│  ├─ migrate_v3.py                    a deck moves from Slide Builder 3 (freeze), rollback
 │  ├─ upgrade.py                       saved-format versions and their automatic upgrade
 │  ├─ migrate.py                       one-time import of v2 settings
 │  ├─ locks.py                         cross-PC lock files (O_CREAT|O_EXCL, stale-lock recovery)
 │  ├─ fsclock.py                       the file server's clock (ages from SMB mtimes, not the PC clock)
-│  ├─ presence.py                      who else is here: heartbeat file names, one directory listing
 │  ├─ workbooks.py                     workbook list, stable reads, per-file stat
 │  ├─ fonts.py                         shared font library in data/fonts
 │  ├─ sysfonts.py                      this PC's Windows fonts (/sysfonts), font fingerprints
@@ -881,7 +884,7 @@ helper/
 │  ├─ convert.py                       Windows-only conversions (EMF/WMF/TIFF pictures, .xls via Excel)
 │  ├─ firstrun.py                      --install: first-time set-up on a locked-down PC (5 steps)
 │  ├─ selftest.py                      --selftest: can this version run on this folder (read-only)
-│  ├─ simfs.py                         SIMULATION ONLY: network latency for tools/loadtest.py
+│  ├─ simfs.py                         SIMULATION ONLY: network latency for tools/loadtest4.py
 │  └─ util.py                          logging, identity, names, atomic file writes
 └─ tests/                              unittest: one test_<module>.py per module, sbtest.py (helpers),
                                        workers.py (multi-process), fixtures/saved/ (released data formats)
@@ -948,7 +951,7 @@ core/            package.json · tsconfig.json (ES2022 + WebWorker, no DOM) · v
 │  ├─ rpc/                             port.ts (typed postMessage RPC) · messages.ts (page ⇄ core worker)
 │  ├─ worker/host.ts · workers/core.worker.ts   the core worker: owns workbook, document, undo/redo; its entry
 │  ├─ worker/export-host.ts · workers/export.worker.ts   an export worker: PDFs, pictures, PNGs, thumbnails
-│  ├─ sync/                            docsync.ts (one shared document: ops, batching, retries, polling) · history.ts (undo/redo)
+│  ├─ sync/                            docsync.ts (a deck: records, fold, tail, compaction) · history.ts (undo/redo)
 │  ├─ xlsx/                            reading workbooks
 │  │  ├─ workbook.ts                   index first, sheets on demand
 │  │  ├─ sheetstore.ts                 byte scanner → columns of typed arrays; the Sheet's cells/rows views
@@ -993,7 +996,7 @@ tools/
 ├─ bench.mjs · calibrate.mjs           the page in Chromium (npm run bench) · machine speed for the time limits
 ├─ pdftext.py                          PDF text as JSON (dev only: pypdf)
 ├─ make_corpus.py · anonymise.py       corpus workbooks (dev only: openpyxl) · scramble a real workbook
-├─ loadtest.py                         N simulated users through the real helper
+├─ loadtest4.py                        N simulated users through real v4 helpers (05 §3.5)
 ├─ sharetest.py                        field test of the share from several PCs (gate G0)
 └─ fieldcheck.html                     browser capabilities on a PC (gate G0)
 docs/

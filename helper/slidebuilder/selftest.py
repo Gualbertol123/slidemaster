@@ -1,8 +1,8 @@
 """``slide_builder.py --selftest``: can THIS program run on this shared folder? (tools/update.py --release)
 
 Read-only for the saved setups: every deck, config.json and every user's preferences is read and
-converted to the current format in memory only (a file from a newer version fails the test), every
-deck goes through the ops code once. Then the data folder must accept create, rename and delete (a
+converted to the current format in memory only (a file from a newer version fails the test; a deck
+Slide Builder 4 froze - "movedTo" "v4" - is fine), and every Slide Builder 4 deck's snapshot is read. Then the data folder must accept create, rename and delete (a
 probe file in data/locks, removed again). Nothing else is written. Output is ASCII (cp1252 consoles).
 Exit code 0 = this version can be used; 1 = it must not become the current version.
 """
@@ -21,7 +21,6 @@ def _say(msg):
 def _check_saved():
     """[(file, problem)] for every saved setup this version cannot read (nothing is written)"""
     from . import upgrade
-    from .ops import apply_ops
     from .store import read_json
     bad, n = [], 0
     jobs = [("config", paths.data_dir("config.json"))]
@@ -38,9 +37,8 @@ def _check_saved():
             doc = read_json(path, None)
             if not isinstance(doc, dict):
                 raise ValueError("not a JSON object")
-            doc, _ = upgrade.upgrade(kind, copy.deepcopy(doc))
-            if kind == "workbook":
-                apply_ops(doc, [], None, 0)
+            if not (kind == "workbook" and doc.get("movedTo") == "v4"):      # frozen: the deck is in data/v4/decks
+                upgrade.upgrade(kind, copy.deepcopy(doc))
             n += 1
         except Exception as e:                     # noqa: BLE001 - report every bad file
             bad.append((label, str(e).splitlines()[0][:160] if str(e) else type(e).__name__))

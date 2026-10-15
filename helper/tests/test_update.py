@@ -186,6 +186,10 @@ class DeckJobsTest(unittest.TestCase):
         rc, out = run("--root", self.root, "--migrate-all")
         self.assertEqual(rc, 0, out)
         self.assertIn("Moved to Slide Builder 4: 1 deck(s): report.xlsx", out)
+        said = []                                                   # the frozen stub is not a second deck
+        with mock.patch.object(update, "say", said.append):
+            self.assertTrue(update.verify_saved(self.root))
+        self.assertIn("1 deck(s) open fine", said[-1])
         with open(v3, encoding="utf-8") as f:
             self.assertEqual(json.load(f)["schema"], 4)
         rc, out = run("--root", self.root, "--migrate-all")

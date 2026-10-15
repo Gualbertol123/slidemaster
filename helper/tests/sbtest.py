@@ -33,6 +33,8 @@ class TempDirs(unittest.TestCase):
         paths.configure()
 
     def tearDown(self):
+        from slidebuilder import decks
+        decks.reset()                          # the decks' handles and caches belong to this test's data folder
         for k, v in self._env.items():
             if v is None:
                 os.environ.pop(k, None)
@@ -60,3 +62,13 @@ def make_xlsx_bytes():
         z.writestr("xl/workbook.xml", "<workbook/>" * 50)
     return bio.getvalue()
 
+
+def write_v3_doc(name, doc):
+    """a workbook document as Slide Builder 3 saved it: data/workbooks/<key>.json (v4 only reads such files)"""
+    import json
+    from slidebuilder.util import doc_key
+    p = paths.data_dir("workbooks", doc_key(name) + ".json")
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(dict({"schema": 3, "workbook": name, "rev": 1, "preset": None, "style": {}, "edits": {}}, **doc), f)
+    return p

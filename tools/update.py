@@ -648,8 +648,13 @@ def activate(root, version, folder, stamp, fresh):
         tail = "\n".join("  " + x for x in out.splitlines()[-15:])
         say(tail)
         if fresh:                                 # out of the way at once (a rename), deleted when possible
+            for _ in range(20):                   # Windows: the self-test's process may hold the folder a moment longer
+                try:
+                    os.rename(folder, folder + ".part")
+                    break
+                except OSError:
+                    time.sleep(0.1)
             try:
-                os.rename(folder, folder + ".part")
                 remove_tree(folder + ".part")
             except OSError:
                 pass
@@ -851,7 +856,6 @@ def verify_saved(root):
     code = r"""
 import json, os, sys
 sys.path.insert(0, sys.argv[2])
-from slidebuilder import ops
 d = os.path.join(sys.argv[1], "backend", "data", "workbooks")
 ok, bad = 0, []
 for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
@@ -860,10 +864,28 @@ for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
     try:
         with open(os.path.join(d, f), encoding="utf-8") as fh:
             doc = json.load(fh)
-        ops.apply_ops(doc, [], None, 0)
+        if not isinstance(doc, dict):
+            raise ValueError("not a document")
+        if doc.get("movedTo") == "v4":          # a deck Slide Builder 4 owns: counted below, with its snapshot
+            continue
+        from slidebuilder import upgrade
+        upgrade.upgrade("workbook", doc)
         ok += 1
     except Exception as e:
         bad.append("%s: %s" % (f, e))
+dd = os.path.join(sys.argv[1], "backend", "data", "v4", "decks")
+for k in sorted(os.listdir(dd)) if os.path.isdir(dd) else []:
+    p = os.path.join(dd, k, "snapshot.json")
+    if not os.path.isfile(p):
+        continue
+    try:
+        with open(p, encoding="utf-8") as fh:
+            snap = json.load(fh)
+        if not isinstance(snap, dict) or not isinstance(snap.get("doc"), dict):
+            raise ValueError("not a snapshot")
+        ok += 1
+    except Exception as e:
+        bad.append("v4/decks/%s: %s" % (k, e))
 print(json.dumps({"ok": ok, "bad": bad}))
 """
     r = subprocess.run([sys.executable, "-c", code, root, program_dir(root) or os.path.join(root, "helper")], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
