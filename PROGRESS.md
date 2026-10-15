@@ -266,7 +266,10 @@ numbers measured twice). Measured numbers go into the step's line.
   (pages retry; e2e E15 "no console errors" then fails, seen in some M5 runs; Node: 3 000 requests, none dropped) –
   try HTTP keep-alive (one connection per request today, more requests now that the deck is tailed every 1.5 s);
   deck20 opens ~150 ms slower than in M4 (bench 389–419 ms vs 244–265: open + first tail + fold) – within the
-  +10 % tolerance, worth a look.
+  +10 % tolerance, worth a look. **Now failing CI by chance (2026-10-15, first thing in Prompt 9, before S6.1):** the release run of
+  v4.0.0 (#8) failed `bench` on `open_deck20_ms` 602 ms (limit 400, calibration ×1.00) – run 1's wizard 462 ms cold,
+  run 2 388 ms; 3 of the last 4 CI runs of this code (the M5b PR and main) failed the same way, one passed; this PC
+  saw a cold 977 ms (wizard 790) beside 387. The gate takes the worse of two runs, so one cold first open fails it.
 
 - ~~**Release v3.8.0**~~ **shipped 2026-10-14.** CI's text-only parity (digests checked in full comparisons only,
   370cf00) and a dialog focus race on slow runners (f135c40) were fixed on `v4/ci-parity-text-only`; CI green; the
