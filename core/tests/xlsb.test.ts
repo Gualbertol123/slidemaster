@@ -8,6 +8,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readWorkbook } from "../src/xlsx/workbook";
+import { evalCF } from "../src/xlsx/layout";
+import { makeZip } from "./zipbuild";
 import { Records } from "../src/xlsx/xlsb/records";
 import { readCfFormula } from "../src/xlsx/xlsb/formula";
 import { sliceBoxes, sliceShared, sliceSheet } from "../src/xlsx/slice";
@@ -174,5 +176,50 @@ describe("conditional-format formulas", () => {
     expect(formula([0x23, ...u32(1)])).toBeNull();                       // a defined name
     expect(formula([0x41, ...u16(9999)])).toBeNull();
     expect(formula([0x09])).toBeNull();                                 // an operator without operands
+  });
+});
+
+describe("crafted workbooks", () => {
+  const color = (r: number, g: number, b: number) => [0x05, 0xff, 0, 0, r, g, b, 0xff];
+  /** an .xlsb with one cell format, one differential format (a fill) and the given sheet records */
+  const book = (sheet: number[]) => makeZip({
+    "_rels/.rels": '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="r1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.bin"/></Relationships>',
+    "xl/_rels/workbook.bin.rels": '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.bin"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.bin"/></Relationships>',
+    "xl/workbook.bin": new Uint8Array(rec(156, [...u32(0), ...u32(1), ...wstr("rId1"), ...wstr("S")])),
+    "xl/styles.bin": new Uint8Array([...rec(617, u32(1)), ...rec(47, new Array(16).fill(0)), ...rec(618, []),
+      ...rec(505, u32(1)), ...rec(507, [0, 0x80, 0, 0, ...u16(1), ...u16(1), ...u16(12), ...color(255, 0, 0)]), ...rec(506, [])]),
+    "xl/worksheets/sheet1.bin": new Uint8Array(sheet),
+  });
+  const row = (r: number) => rec(0, [...u32(r), ...u32(0), ...u16(300), 0, 0, 0, ...u32(0)]);
+  const fmtInfo = (base: number) => rec(485, [...u32(0xffffffff), ...u16(base), ...u16(300), ...u16(0), 0, 0]);
+
+  it("short cells (BrtShort*) follow the row's previous cell", async () => {
+    const wb = await readWorkbook(book([...rec(145, []), ...row(0), ...rec(5, [...u32(1), ...u32(0), ...f64(5)]),
+      ...rec(16, [...u32(0), ...f64(7)]), ...rec(13, [...u32(0), ...u32((2 << 2) | 2)]), ...rec(17, [...u32(0), ...wstr("t")]),
+      ...row(1), ...rec(12, u32(0)), ...rec(146, [])]));
+    const S = wb.sheets[0];
+    expect([1, 2, 3, 4].map(c => S.get(1, c)?.v ?? null)).toEqual([null, 5, 7, 2]);
+    expect(S.get(1, 5)?.v).toBe("t");
+    expect(S.get(2, 1)?.t).toBe("blank");                             // a short cell first in its row is in column A
+  });
+  it("a conditional format whose formula cannot be shown never matches (not even 'not equal')", async () => {
+    const rule = (param: number, rgce: number[]) => rec(463, [...u32(1), ...u32(0), ...u32(0), ...u32(1), ...u32(param), ...u32(0), ...u32(0), ...u16(0),
+      ...u32(rgce.length + 8), ...u32(0), ...u32(0), ...u32(0xffffffff), ...u32(rgce.length), ...rgce, ...u32(0)]);
+    const cf = (rgce: number[], param: number) => [...rec(461, [...u32(1), ...u32(0), ...u32(1), ...u32(0), ...u32(0), ...u32(0), ...u32(3)]), ...rule(param, rgce), ...rec(464, []), ...rec(462, [])];
+    const sheet = (rgce: number[], param: number) => [...rec(145, []), ...row(0), ...rec(5, [...u32(1), ...u32(0), ...f64(5)]), ...rec(146, []), ...cf(rgce, param)];
+    const name = [0x23, ...u32(1)];                                      // a defined name: not shown
+    const S = (await readWorkbook(book(sheet(name, 4)))).sheets[0];
+    expect(S.cfRules[0]).toMatchObject({ type: "cellIs", op: "notEqual", formulas: ["#NAME?"] });
+    expect(evalCF(S, 1, 2)).toBeNull();
+    // the same rule with a number it can show matches
+    const T = (await readWorkbook(book(sheet([0x1e, ...u16(4)], 4)))).sheets[0];
+    expect(evalCF(T, 1, 2)).toEqual({ fill: "#FF0000" });
+  });
+  it("the default column width: as the .xlsx reader, a base width alone is not used; a record cut short loses only itself", async () => {
+    const S = (await readWorkbook(book([...fmtInfo(10), ...rec(145, []), ...row(0), ...rec(5, [...u32(0), ...u32(0), 1, 2]),
+      ...rec(5, [...u32(1), ...u32(0), ...f64(3)]), ...rec(146, [])]))).sheets[0];
+    expect(S.defColW).toBe(8.43);
+    expect(S.error).toBeUndefined();
+    expect(S.get(1, 2)?.v).toBe(3);
   });
 });

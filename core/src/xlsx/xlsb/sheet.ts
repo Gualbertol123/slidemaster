@@ -5,7 +5,7 @@
 import { ColumnsBuilder, type RowColumns, type SheetColumns } from "../sheetstore";
 import type { Range } from "../util";
 import type { CFRule, ColInfo, Shared } from "../types";
-import { Records, Rt, readRfx } from "./records";
+import { Records, Rt, XlsbError, readRfx } from "./records";
 import { asXlsxText, readRichStr } from "./strings";
 import { readCfFormula } from "./formula";
 
@@ -45,12 +45,15 @@ export class BinSheetReader {
   private readonly r: Records;
   private readonly cols: ColumnsBuilder;
   private row = 0;
+  /** the column of the row's last cell (0-based; -1 before the first): BrtShort* cells come right after it */
+  private col = -1;
   private defColW = 8.43; private defRowH = 15; private zeroH = false;
   private readonly colRanges: BinSheet["colRanges"] = [];
   private readonly merges: Range[] = [];
   private readonly cfRules: CFRule[] = [];
   private readonly unsupportedCF = new Set<string>();
   private cfRanges: Range[] | null = null;
+  private cfBase = { r: 1, c: 1 };
   private seen = false;
   /** sss: per font of styles.bin, 1 superscript / 2 subscript (the rich strings' raised parts) */
   constructor(bytes: Uint8Array, private readonly ctx: Shared, private readonly sss: number[] = []) { this.r = new Records(bytes); this.cols = new ColumnsBuilder(ctx); }
@@ -62,7 +65,8 @@ export class BinSheetReader {
     for (let k = 0; k < budget; k++) {
       if (!r.rec()) return true;
       this.seen = true;
-      this.record();
+      // a record shorter than its contents is skipped (it loses that record, not the sheet)
+      try { this.record(); } catch (e) { if (!(e instanceof XlsbError)) throw e; }
     }
     return false;
   }
@@ -72,33 +76,40 @@ export class BinSheetReader {
     switch (r.type) {
       case Rt.RowHdr: {
         const rw = r.u32() + 1, ixfe = r.u32(), h = r.u16(); r.u8(); const f = r.u8();
-        this.row = rw;
+        this.row = rw; this.col = -1;
         // fDyZero (hidden), fGhostDirty (a row format: customFormat="1" in the XML)
         B.row(rw, h / 20, !!(f & 0x10), f & 0x40 ? ixfe : null);
         return;
       }
       case Rt.CellBlank: case Rt.CellRk: case Rt.CellError: case Rt.CellBool: case Rt.CellReal: case Rt.CellSt: case Rt.CellIsst:
-      case Rt.FmlaString: case Rt.FmlaNum: case Rt.FmlaBool: case Rt.FmlaError: case Rt.CellRString: {
-        const c = r.u32() + 1, x = B.xf(r.u32() & 0xffffff), rw = this.row;
+      case Rt.FmlaString: case Rt.FmlaNum: case Rt.FmlaBool: case Rt.FmlaError: case Rt.CellRString:
+      case Rt.ShortBlank: case Rt.ShortRk: case Rt.ShortError: case Rt.ShortBool: case Rt.ShortReal: case Rt.ShortSt: case Rt.ShortIsst: {
+        // a short cell (Cell_Short) has no column: it is the one after the row's previous cell
+        const short = r.type >= Rt.ShortBlank && r.type <= Rt.ShortIsst;
+        const c0 = short ? this.col + 1 : r.u32(), x = B.xf(r.u32() & 0xffffff), rw = this.row, c = c0 + 1;
+        this.col = c0;
         if (c > 65535 || rw < 1) return;
         switch (r.type) {
-          case Rt.CellBlank: B.blank(rw, c, x); return;
-          case Rt.CellRk: B.num(rw, c, x, r.rk()); return;
-          case Rt.CellReal: case Rt.FmlaNum: B.num(rw, c, x, r.f64()); return;
-          case Rt.CellIsst: B.shared(rw, c, x, r.u32()); return;
-          case Rt.CellSt: B.str(rw, c, x, asXlsxText(r.wstr())); return;
+          case Rt.CellBlank: case Rt.ShortBlank: B.blank(rw, c, x); return;
+          case Rt.CellRk: case Rt.ShortRk: B.num(rw, c, x, r.rk()); return;
+          case Rt.CellReal: case Rt.ShortReal: case Rt.FmlaNum: B.num(rw, c, x, r.f64()); return;
+          case Rt.CellIsst: case Rt.ShortIsst: B.shared(rw, c, x, r.u32()); return;
+          case Rt.CellSt: case Rt.ShortSt: B.str(rw, c, x, asXlsxText(r.wstr())); return;
           // an empty result is written <v/> in the XML, which reads as a blank cell
           case Rt.FmlaString: { const s = r.wstr(); if (s) B.str(rw, c, x, asXlsxText(s)); else B.blank(rw, c, x); return; }
           case Rt.CellRString: { const s = readRichStr(r, this.sss); B.str(rw, c, x, s.text, s.scr); return; }
-          case Rt.CellBool: case Rt.FmlaBool: B.bool(rw, c, x, r.u8() !== 0); return;
-          case Rt.CellError: case Rt.FmlaError: { const e = r.u8(); B.err(rw, c, x, ERR[e] ?? "#N/A"); return; }
+          case Rt.CellBool: case Rt.ShortBool: case Rt.FmlaBool: B.bool(rw, c, x, r.u8() !== 0); return;
+          case Rt.CellError: case Rt.ShortError: case Rt.FmlaError: { const e = r.u8(); B.err(rw, c, x, ERR[e] ?? "#N/A"); return; }
         }
         return;
       }
       case Rt.WsFmtInfo: {
         const dxGCol = r.u32(), base = r.u16(), dy = r.u16(), f = r.u16();
-        // sheetFormatPr: defaultColWidth when set, else baseColWidth (written only when not 8) + 0.71, else 8.43
-        this.defColW = dxGCol !== 0xffffffff ? dxGCol / 256 : base !== 8 ? base + 0.71 : 8.43;
+        // as the .xlsx reader takes sheetFormatPr: defaultColWidth when set, else 8.43 – it looks for a
+        // "baseColumnWidth" attribute, which Excel never writes (it writes baseColWidth), so a base width alone is
+        // not used there either
+        void base;
+        this.defColW = dxGCol !== 0xffffffff ? dxGCol / 256 : 8.43;
         this.defRowH = dy / 20; this.zeroH = !!(f & 2);
         return;
       }
@@ -112,21 +123,23 @@ export class BinSheetReader {
       case Rt.BeginConditionalFormatting: {
         r.u32(); r.u32();
         const n = r.u32(), ranges: Range[] = [];
-        for (let k = 0; k < n && r.left >= 16; k++) ranges.push(readRfx(r));
-        this.cfRanges = ranges;
+        // relative references are offsets from the top-left cell of all the ranges (formula.ts)
+        let br = Infinity, bc = Infinity;
+        for (let k = 0; k < n && r.left >= 16; k++) { const g = readRfx(r); ranges.push(g); if (g.r1 < br) br = g.r1; if (g.c1 < bc) bc = g.c1; }
+        this.cfRanges = ranges; this.cfBase = ranges.length ? { r: br, c: bc } : { r: 1, c: 1 };
         return;
       }
       case Rt.EndConditionalFormatting: this.cfRanges = null; return;
       case Rt.BeginCFRule: {
-        const ranges = this.cfRanges || [];
+        const ranges = this.cfRanges || [], base = this.cfRanges ? this.cfBase : { r: 1, c: 1 };
         const iType = r.u32(), tpl = r.u32(), dxfId = r.i32(), pri = r.u32(), param = r.u32(); r.u32(); r.u32();
         const flags = r.u16(), cb = [r.u32(), r.u32(), r.u32()]; r.wstrNull();
         const { type, op } = cfType(iType, tpl, param);
         if (!["cellIs", "expression"].includes(type)) this.unsupportedCF.add(type);
-        // relative references are offsets from the top-left cell of all the ranges (formula.ts)
-        const base = ranges.length ? { r: Math.min(...ranges.map(g => g.r1)), c: Math.min(...ranges.map(g => g.c1)) } : { r: 1, c: 1 };
+        // a formula that cannot be shown keeps its place as an error value: no comparison with it matches (as for
+        // the .xlsx text of a name or another sheet's cell), and the next formula stays the second operand
         const formulas: string[] = [];
-        for (const n of cb) { if (!n) continue; const f = readCfFormula(r, base); if (f !== null) formulas.push(f); }
+        for (const n of cb) { if (!n) continue; formulas.push(readCfFormula(r, base) ?? "#NAME?"); }
         this.cfRules.push({ ranges, type, op, priority: pri, stop: !!(flags & 2), dxf: this.ctx.dxfs[dxfId] || null, formulas });
         return;
       }

@@ -41,7 +41,7 @@ idempotent.
 | `exports` | `/api/export-file` (the page's PDF or PNG: temporary file, then atomic rename into `export\`, ` (2)` when locked) and `/api/export-feedback` (`export\feedback\*.json`) |
 | `fonts` | shared font library `data/fonts/` (fonts.json + files; signature-checked uploads, lock `fonts`) |
 | `sysfonts` | this PC's Windows fonts for the core (`GET /sysfonts`, names read with `struct`), and `POST /api/fonts/capture`: fingerprint mode (G0 R7), `data/fonts/system/fingerprints.json` under lock `fonts`; copy mode (W13: the family into the shared library, all faces or none) once `--allow-font-copy "<who confirmed>"` has recorded the licence owner's yes in `data/fonts/system/licence.json` |
-| `convert` | EMF/WMF/TIFF → PNG (GDI+, PowerShell) and .xlsb/.xls → .xlsx (Excel COM) – Windows only (ported) |
+| `convert` | EMF/WMF/TIFF → PNG (GDI+, PowerShell) and .xls (or a protected file) → .xlsx (Excel COM) – Windows only (ported); an .xlsb is read by the page itself since 4.1 |
 | `firstrun` | `--install`: first-time set-up on a PC (5 steps, OK/WARN/FAIL, summary, exit code) |
 | `simfs` | **load tests only**: adds simulated SMB latency to data-folder file calls when `SLIDEBUILDER_SIM_FS_MS` is set; never imported otherwise |
 | `server` | HTTP API, security checks (Host, token, Origin, body limits), upload store |

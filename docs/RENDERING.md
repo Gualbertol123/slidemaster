@@ -38,8 +38,10 @@ sheet (shared strings stay in the workbook's table).
 **Robustness:** case-insensitive / %-encoded part names (`zget`), damaged sheets become
 `brokenSheet()` stubs (listed as “could not be read”), format detection:
 `PK..` zip, `D0 CF 11 E0` = old .xls or encrypted (IRM/sensitivity label) → `CFB`,
-`xl/workbook.bin` → `XLSB`. CFB/XLSB are sent to `POST /api/convert-workbook` (helper) (Excel COM, read-only
-temp copy, macros/events/link updates off) and the resulting .xlsx is read.
+`xl/workbook.bin` = an .xlsb, read natively since 4.1 (`xlsx/xlsb/`: BIFF12 records into the same structures,
+each value as the .xlsx reader has it for the same workbook saved by Excel). CFB is sent to
+`POST /api/convert-workbook` (helper) (Excel COM, read-only temp copy, macros/events/link updates off) and the
+resulting .xlsx is read.
 
 **Tables.** `findRegions()` (`xlsx/layout.ts`) pairs “x” cells (top-left with the nearest bottom-right whose rectangle
 holds no other marker). `buildLayout(S, g)` builds visible rows/cols (hidden ones skipped), merged

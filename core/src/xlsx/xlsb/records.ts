@@ -5,7 +5,8 @@
 /** record types read by the reader (MS-XLSB 2.3.2) */
 export const enum Rt {
   RowHdr = 0, CellBlank = 1, CellRk = 2, CellError = 3, CellBool = 4, CellReal = 5, CellSt = 6, CellIsst = 7,
-  FmlaString = 8, FmlaNum = 9, FmlaBool = 10, FmlaError = 11, SSTItem = 19,
+  FmlaString = 8, FmlaNum = 9, FmlaBool = 10, FmlaError = 11,
+  ShortBlank = 12, ShortRk = 13, ShortError = 14, ShortBool = 15, ShortReal = 16, ShortSt = 17, ShortIsst = 18, SSTItem = 19,
   Font = 43, Fmt = 44, Fill = 45, Border = 46, XF = 47, ColInfo = 60, CellRString = 62,
   WbProp = 153, BundleSh = 156, WsFmtInfo = 485, MergeCell = 176,
   BeginCFRule = 463, BeginConditionalFormatting = 461, EndConditionalFormatting = 462,

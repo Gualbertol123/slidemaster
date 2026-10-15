@@ -42,8 +42,8 @@ never modified. Several users can work on the same deck simultaneously.
 ### 1.1 Feature reference
 
 **Workbooks**
-* `.xlsx/.xlsm` are read in the browser; `.xlsb/.xls` (and IRM-protected files) are converted to `.xlsx`
-  by the installed Excel (COM) on Windows. Hidden sheets are skipped on purpose (user requirement).
+* `.xlsx/.xlsm` and (since 4.1) `.xlsb` are read in the browser; `.xls` (and IRM-protected files) are
+  converted to `.xlsx` by the installed Excel (COM) on Windows. Hidden sheets are skipped on purpose (user requirement).
 * Reads values (cached formula results – formulas are **not** recalculated), number formats (Italian
   separators by default, locale tags, dates), fonts, fills, borders, merges, hidden rows/columns,
   conditional formatting (`cellIs` and simple `expression` rules), rich-text **superscripts/subscripts**,
@@ -334,7 +334,7 @@ Built by Vite + `vite-plugin-singlefile` into `helper/slide_builder.html`. `main
 ### 5.1 `core/src/xlsx/` – reading workbooks
 | File | Responsibility |
 |---|---|
-| `workbook.ts` | `indexWorkbook(buf)`: sniff (`D0CF11E0` → `CFB` = .xls/encrypted, `.bin` part → `XLSB`, not zip → error), the zip's central directory (`zip.ts`, fflate inflates parts on demand), sheet list (hidden and chart sheets skipped), uncompressed sizes; `big` when > 12 MB sheet XML or > 6 MB file. `wb.ensure(names)` parses sheets lazily: `loadShared` once (theme, shared strings with rich-text runs, styles, number formats, fonts, fills, borders, `cellXfs`, `dxfs` – read with the core's XML tokenizer `xml.ts`; max digit width measured by the platform's `TextMeasurer`), `readSheet` = **byte scanner** (`sheetstore.ts`) over `sheetData` into typed-array columns (13 bytes a cell; yields every 4000 rows when reporting progress), v3's regular expressions for the rest of the sheet (merges, conditional formats, columns), drawings, `findRegions`. `makeSheet` adds geometry methods over the columns (`cells`/`rowInfo` are read-only map views; a `Cell` object is made on request) (`colPx` = Excel's width formula, `rowPx` = pt × 96/72, cumulative offsets, `cellAt`). |
+| `workbook.ts` | `indexWorkbook(buf)`: sniff (`D0CF11E0` → `CFB` = .xls/encrypted, not zip → error; a `.bin` workbook part is an .xlsb, read by `xlsb/`: BIFF12 records of the workbook, styles, shared strings and sheets into the same structures), the zip's central directory (`zip.ts`, fflate inflates parts on demand), sheet list (hidden and chart sheets skipped), uncompressed sizes; `big` when > 12 MB sheet XML or > 6 MB file. `wb.ensure(names)` parses sheets lazily: `loadShared` once (theme, shared strings with rich-text runs, styles, number formats, fonts, fills, borders, `cellXfs`, `dxfs` – read with the core's XML tokenizer `xml.ts`; max digit width measured by the platform's `TextMeasurer`), `readSheet` = **byte scanner** (`sheetstore.ts`) over `sheetData` into typed-array columns (13 bytes a cell; yields every 4000 rows when reporting progress), v3's regular expressions for the rest of the sheet (merges, conditional formats, columns), drawings, `findRegions`. `makeSheet` adds geometry methods over the columns (`cells`/`rowInfo` are read-only map views; a `Cell` object is made on request) (`colPx` = Excel's width formula, `rowPx` = pt × 96/72, cumulative offsets, `cellAt`). |
 | `layout.ts` | `findRegions(S)`: pairs "x" markers (top-left with the nearest bottom-right whose rectangle holds no other marker). `buildLayout(S, g, sizes)` → **`TableLayout`**: visible rows/cols, x/y/w/h maps (user sizes applied), one `Item` per cell or merged block (`effectiveMerges` = workbook merges − user splits + user merges), borders (shared edges → heavier style), fonts, fills, number-format text and colour, alignment, text overflow into empty neighbours, conditional formatting (`evalCF`, also with `from` for painted formats), pictures/shapes/text boxes (hidden rows/cols collapse anchored objects). |
 | `numfmt.ts` | `formatValue(cell)`: Excel number formats → text (sections, colours, locale tags, %, fractions, exponents, thousands scaling, General, dates/times incl. elapsed and Italian names). Separators: "." thousands, "," decimals. |
 | `drawing.ts` | `readDrawing`: anchors (two/one/absolute), groups, crop, rotation/flip, SVG preferred, EMF/WMF/TIFF via the helper (`setPictureConverter`), shapes and text boxes, charts listed (not drawn). `analyzeImages` samples each picture (round badge, white background → keyed transparent copy) for Liquid Glass. |
@@ -456,7 +456,7 @@ served: reopen `prefs.lastFile`, start `tick` (3 s) and the presence heartbeat (
 ### 6.2 Opening a workbook
 1. Bytes: `GET /files/<name>` (stable read; `X-SB-Mtime/Size`), or a dropped/browsed file (uploaded to the
    helper's memory store when served).
-2. The worker's `index` (a copy of the bytes; `indexWorkbook` there); `.xlsb/.xls/encrypted` → `POST /api/convert-workbook`
+2. The worker's `index` (a copy of the bytes; `indexWorkbook` there); `.xls/encrypted` → `POST /api/convert-workbook`
    (Excel COM) → index again. Small workbooks are parsed completely, big ones lazily; the page gets the slices.
 3. `LCACHE.clear()`, `POST /api/decks/open` (a deck Slide Builder 3 still owns is migrated first), one tail, the
    fold (`core/src/model/fold.ts`).
@@ -579,7 +579,7 @@ the app (an Edge app window, `msedge --app=<url>`, else a browser tab) → `serv
 | `fonts.py` | Font library: signature-checked files (≤ 15 MB, ≤ 64 faces/family), written before the index, under lock `fonts`; unreferenced files swept. |
 | `sysfonts.py` | This PC's Windows fonts for the core (`GET /sysfonts`, names read with `struct`) and `POST /api/fonts/capture` (fingerprints in `data/fonts/system/fingerprints.json`, lock `fonts`; copy mode once `data/fonts/system/licence.json` records the licence owner's yes, §6.10). |
 | `exports.py` | `/api/export-file` (the page's PDF / PNG, .pdf / .png only), `/api/export-feedback` (the pilot's problem reports, `export\feedback\*.json`); `save_export`: temp file → under lock `export-<name>` renamed into place; a target open in a viewer (locked) → ` (2)`, ` (3)`… |
-| `convert.py` | Windows only: `.xlsb/.xls` → `.xlsx` via Excel COM (read-only copy, macros/events off, 240 s timeout); EMF/WMF/TIFF → PNG via GDI+ (PowerShell fallback). |
+| `convert.py` | Windows only: `.xls` (and protected files) → `.xlsx` via Excel COM (read-only copy, macros/events off, 240 s timeout); EMF/WMF/TIFF → PNG via GDI+ (PowerShell fallback). |
 | `server.py` | HTTP server (`ThreadingHTTPServer`, HTTP/1.0), security guard, routing, body limits, exception → status mapping, upload store (8 entries, 2 h), asset lookup. |
 | `migrate.py` | One-time import of v2 settings under lock `migrate`. |
 | `firstrun.py` | `--install`: the 5-step first-time set-up with an OK/WARN/FAIL report (§2.2). |
@@ -640,7 +640,7 @@ JSON bodies ≤ 2 MB, uploads/exports ≤ 300 MB. Full shapes: `docs/ARCHITECTUR
 | `POST /api/logo?name=` · `GET /assets/<name>` | upload a logo to `data/assets` · images from data/assets, `backend/`, ROOT (case-insensitive) |
 | `POST /api/export-file?name=` | save a PDF or PNG the page wrote in `export\`; returns the name used |
 | `POST /api/export-feedback` | "Report a problem with this export" (the 3.7 pilot): the page's report + version, user, PC and time as a new `export\feedback\<date>-<time>-<user>.json` (≤ 64 KB, never replaces one); returns its name |
-| `POST /api/convert-workbook` · `POST /api/convert` | .xlsb/.xls → .xlsx · EMF/WMF/TIFF → PNG (Windows; else 501) |
+| `POST /api/convert-workbook` · `POST /api/convert` | .xls (or a protected file) → .xlsx · EMF/WMF/TIFF → PNG (Windows; else 501) |
 | `POST /api/upload` · `GET /api/upload/<id>` | temporary in-memory uploads (local files) |
 | `POST /api/open` | open the export folder/file |
 
