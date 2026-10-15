@@ -277,6 +277,10 @@ writer only records 1..n without a gap; every journal's frontier is a prefix of 
 
 423: the deck is read-only (a journal is damaged in the middle; `incident-*.json` in the deck folder). 409 on append or
 tail: the deck was given back to Slide Builder 3 (`rolled-back.json`; the page reloads, its next open migrates again).
+A rollback is refused while somebody has the deck open or a record lies past the frontier; it writes the marker
+first, waits until every helper with an append handle has seen it (they look every 4 s), checks the frontier again
+(an append acknowledged meanwhile keeps the deck with v4) and only then gives v3 its document back
+(`helper/slidebuilder/migrate_v3.py`). A migration freezes the v3 file before it writes the snapshot.
 `tools/update.py --migrate-all` migrates every v3 deck (a deck a v3 helper is saving is skipped and reported);
 `--rollback [WORKBOOK]` gives one or every deck back (refused while a journal holds a record past the frontier).
 `SLIDEBUILDER_STORAGE=lean-lock` (or `data/v4/storage.json`): appends go to one shared journal under the deck lock.

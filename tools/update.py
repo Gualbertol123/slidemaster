@@ -718,6 +718,12 @@ def use_version(root, ver, stamp):
         check_installed(folder)
     except (OSError, ValueError, KeyError) as e:
         raise SystemExit("Version %s is damaged (%s) - not used. Install it again with --release %s." % (ver, e, ver))
+    if version_key(ver)[0] < 4 and decks_owned(root):
+        # back to Slide Builder 3 (04 §4.4, global rollback): every deck first, with the 4.x program still in use
+        say("Giving every deck back to Slide Builder 3 first...")
+        if not rollback_decks(root, ""):
+            raise SystemExit("Some decks could not be given back to Slide Builder 3 (above): version %s is NOT used. "
+                             "Close them everywhere (Options › Administration › Prepare rollback), then try again." % ver)
     previous = activate(root, ver, folder, stamp, False)
     if previous == ver:
         say("Version %s was already the current version." % ver)
@@ -805,6 +811,16 @@ def decks_job(root, what, arg=""):
     except (ValueError, IndexError):
         say("Could not run it: " + (r.stderr or r.stdout).strip()[-600:])
         return None
+
+
+def decks_owned(root):
+    """Slide Builder 4 owns at least one deck of this folder (one not rolled back)"""
+    folder = os.path.join(data_dir(root), "v4", "decks")
+    for key in os.listdir(folder) if os.path.isdir(folder) else []:
+        d = os.path.join(folder, key)
+        if os.path.isfile(os.path.join(d, "snapshot.json")) and not os.path.isfile(os.path.join(d, "rolled-back.json")):
+            return True
+    return False
 
 
 def migrate_all_decks(root):

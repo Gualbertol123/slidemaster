@@ -18,6 +18,7 @@ import threading
 import time
 import unittest
 import uuid
+from unittest import mock
 
 from sbtest import REPO, TempDirs
 
@@ -124,12 +125,18 @@ class RealV3(TempDirs):
     def setUp(self):
         super().setUp()
         decks.reset()
+        self._quiet = os.environ.get("SLIDEBUILDER_ROLLBACK_QUIET")
+        os.environ["SLIDEBUILDER_ROLLBACK_QUIET"] = "0.2"          # the pause after a rollback's marker (14 s for real)
         os.makedirs(self.data, exist_ok=True)
         self.v3 = V3Helper(self.v3program, self.root, self.data)
 
     def tearDown(self):
         self.v3.stop()
         decks.reset()
+        if self._quiet is None:
+            os.environ.pop("SLIDEBUILDER_ROLLBACK_QUIET", None)
+        else:
+            os.environ["SLIDEBUILDER_ROLLBACK_QUIET"] = self._quiet
         super().tearDown()
 
     def v3file(self, wb=WB):
@@ -158,8 +165,8 @@ class RealV3(TempDirs):
         self.assertEqual((snap["gen"], snap["rev"], snap.get("updatedBy"), snap.get("log")),
                          (1, orig.get("rev", 0), orig.get("updatedBy"), orig.get("log")))
         frozen = self.read(self.v3file(wb))
-        self.assertEqual((frozen["schema"], frozen["movedTo"]), (4, "v4"))
-        self.assertEqual({k: v for k, v in frozen.items() if k not in ("schema", "movedTo")}, {k: v for k, v in orig.items() if k != "schema"})
+        self.assertEqual((frozen["schema"], frozen["movedTo"], frozen["movedGen"]), (4, "v4", 1))
+        self.assertEqual({k: v for k, v in frozen.items() if k not in ("schema", "movedTo", "movedGen")}, {k: v for k, v in orig.items() if k != "schema"})
         moved = self.read(decks.deck_dir(key, migrate_v3.MOVED))
         import hashlib
         self.assertEqual(moved["sha1"], hashlib.sha1(raw).hexdigest())
@@ -271,6 +278,107 @@ class RealV3(TempDirs):
         self.assertEqual(res["migrated"], ["A.xlsx"])
         self.assertEqual([x[0] for x in res["skipped"]], ["B.xlsx"])
         self.assertEqual(migrate_v3.migrate_all()["migrated"], ["B.xlsx"])     # run again later
+
+    # ---------------------------------------------------------------- review of S5.3: never owned by both, never stuck
+    def test_a_crash_after_the_freeze_is_finished_by_the_next_open(self):
+        self.assertEqual(self.v3.ops(WB, [cell("A1", "v3")])[0], 200)
+        key = decks.deck_key(WB)
+        with mock.patch.object(decks, "write_snapshot", side_effect=OSError(32, "sharing violation")):
+            with self.assertRaises(OSError):
+                migrate_v3.ensure_deck(WB)
+        self.assertFalse(decks.deck_exists(key))
+        self.assertEqual(self.v3.ops(WB, [cell("A2", "late")])[0], 409)   # already frozen: v3 refuses, never both
+        self.assertEqual(migrate_v3.ensure_deck(WB), (key, "migrated"))   # the next open finishes from the frozen file
+        self.assertEqual(decks.read_snapshot(key)["doc"]["edits"]["S"], {"A1": {"text": "v3"}})
+
+    def test_a_half_done_rollback_or_re_migration_is_finished_not_stuck(self):
+        self.assertEqual(self.v3.ops(WB, [cell("A1", "v3")])[0], 200)
+        key, _ = migrate_v3.ensure_deck(WB)
+        # a rollback that wrote its marker and stopped: the deck is still v4's (the v3 file is frozen)
+        with mock.patch.object(migrate_v3, "_backup_v3", side_effect=OSError(28, "disk full")):
+            with self.assertRaises(OSError):
+                migrate_v3.rollback(WB, quiet=0)
+        self.assertTrue(os.path.exists(decks.deck_dir(key, migrate_v3.ROLLED_BACK)))
+        self.assertEqual(self.v3.ops(WB, [cell("A2", "x")])[0], 409)
+        self.assertEqual(migrate_v3.rollback(WB, quiet=0), "rolled back")    # run again: it finishes
+        self.assertEqual(self.v3.ops(WB, [cell("A2", "v3 again")])[0], 200)
+        # a re-migration that froze the v3 file and stopped before its snapshot: the next open finishes it
+        decks.reset()
+        with mock.patch.object(decks, "write_snapshot", side_effect=OSError(32, "sharing violation")):
+            with self.assertRaises(OSError):
+                migrate_v3.ensure_deck(WB)
+        self.assertEqual(self.v3.ops(WB, [cell("A3", "x")])[0], 409)
+        self.assertEqual(migrate_v3.ensure_deck(WB), (key, "migrated"))
+        snap = decks.read_snapshot(key)
+        self.assertEqual((snap["gen"], snap["doc"]["edits"]["S"]["A2"]), (2, {"text": "v3 again"}))
+        self.assertFalse(os.path.exists(decks.deck_dir(key, migrate_v3.ROLLED_BACK)))
+        # and a rollback marker left behind with the file still frozen: the open takes the deck back as it is
+        with open(decks.deck_dir(key, migrate_v3.ROLLED_BACK), "w") as f:
+            json.dump({"state": "marked", "gen": snap["gen"]}, f)
+        self.assertEqual(migrate_v3.ensure_deck(WB), (key, "v4"))
+        self.assertFalse(os.path.exists(decks.deck_dir(key, migrate_v3.ROLLED_BACK)))
+
+    def test_a_new_deck_is_frozen_for_v3_at_once(self):
+        key, how = migrate_v3.ensure_deck("New.xlsx")
+        self.assertEqual(how, "created")
+        st, body = self.v3.ops("New.xlsx", [cell("A1", "v3")])
+        self.assertEqual(st, 409, body)                                  # v3 can never start a second deck
+        self.assertEqual(migrate_v3.ensure_deck("New.xlsx"), (key, "v4"))
+
+    def test_rollback_refused_while_somebody_has_the_deck_open(self):
+        key, _ = migrate_v3.ensure_deck(WB)
+        decks.heartbeat(key, "c1", user="anna", host="pc1")
+        with self.assertRaises(migrate_v3.NotMigrated) as e:
+            migrate_v3.rollback(WB, quiet=0)
+        self.assertIn("anna", str(e.exception))
+
+    def _compacted_with_records(self, key, w, n):
+        """n records of writer w, then a snapshot covering them (the document a page would fold; opaque here)"""
+        for s_ in range(1, n + 1):
+            decks.append(key, w, {"w": w, "s": s_, "l": s_, "ops": []})
+        snap = decks.read_snapshot(key)
+        t = decks.tail(key, {})
+        decks.compact(key, snap["gen"], dict(snap, gen=snap["gen"] + 1, lamport=n, rev=snap["rev"] + n, seen={w: n},
+                                             frontier=dict(snap["frontier"], **{j: v["offset"] for j, v in t["journals"].items()})))
+
+    def test_rollback_while_a_v4_helper_appends_loses_nothing(self):
+        key, _ = migrate_v3.ensure_deck(WB)
+        w = decks.new_writer("anna")
+        self._compacted_with_records(key, w, 3)
+        # 1. the helper has not looked at the folder since the marker: its append is acknowledged during the pause -
+        #    the rollback sees it past the frontier and refuses; the deck stays with v4, the record with it
+        result = {}
+        with mock.patch.object(decks, "_look"):
+            t = threading.Thread(target=lambda: result.setdefault("r", self._try_rollback()))
+            t.start()
+            time.sleep(0.3)
+            decks.append(key, w, {"w": w, "s": 4, "l": 4, "ops": []})
+            t.join()
+        self.assertIn("stays with Slide Builder 4", str(result["r"]))
+        self.assertFalse(os.path.exists(decks.deck_dir(key, migrate_v3.ROLLED_BACK)))
+        self.assertEqual(self.read(self.v3file())["movedTo"], "v4")
+        self.assertEqual(self.v3.ops(WB, [cell("A1", "x")])[0], 409)
+        # 2. once the helper has looked (its refresher, every REFRESH_S): appends are refused, the rollback goes through
+        snap = decks.read_snapshot(key)
+        t = decks.tail(key, snap["frontier"])
+        decks.compact(key, snap["gen"], dict(snap, gen=snap["gen"] + 1, lamport=4, rev=snap["rev"] + 1, seen={w: 4},
+                                             frontier=dict(snap["frontier"], **{j: v["offset"] for j, v in t["journals"].items()})))
+        t = threading.Thread(target=lambda: result.__setitem__("r", self._try_rollback()))
+        t.start()
+        time.sleep(0.3)
+        decks._look(key, 0)                                              # what the refresher does
+        with self.assertRaises(decks.DeckError) as e:
+            decks.append(key, w, {"w": w, "s": 5, "l": 5, "ops": []})
+        self.assertEqual(e.exception.status, 409)                        # not acknowledged: nothing to lose
+        t.join()
+        self.assertEqual(result["r"], "rolled back")
+        self.assertEqual(self.v3.ops(WB, [cell("A1", "v3")])[0], 200)
+
+    def _try_rollback(self):
+        try:
+            return migrate_v3.rollback(WB, quiet=1.0)
+        except migrate_v3.NotMigrated as e:
+            return e
 
     # ---------------------------------------------------------------- 9. coexistence
     def test_9_v3_and_v4_edit_config_json_at_once_nothing_lost(self):

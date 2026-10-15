@@ -180,6 +180,8 @@ class DeckJobsTest(unittest.TestCase):
         shutil.rmtree(self.root, ignore_errors=True)
 
     def test_migrate_all_then_rollback(self):
+        os.environ["SLIDEBUILDER_ROLLBACK_QUIET"] = "0.2"          # the subprocess inherits it (14 s for real)
+        self.addCleanup(os.environ.pop, "SLIDEBUILDER_ROLLBACK_QUIET", None)
         v3 = os.path.join(self.root, "backend", "data", "workbooks", "report.xlsx-%s.json" % hashlib.sha1(b"report.xlsx").hexdigest()[:10])
         rc, out = run("--root", self.root, "--migrate-all")
         self.assertEqual(rc, 0, out)
@@ -195,6 +197,32 @@ class DeckJobsTest(unittest.TestCase):
             back = json.load(f)
         self.assertEqual((back["schema"], back["rev"], back["style"]), (3, 4, {"design": "excel"}))
         self.assertFalse(os.path.exists(os.path.join(self.root, "backend", "data", "locks", "update.lock")))
+
+
+class UseThreeRollsBackTest(unittest.TestCase):
+    """--use <3.x> is the global rollback (04 §4.4): every deck goes back first, or the version is not switched"""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="sb-use3-")
+        write(self.root, {"app/3.8.0/MANIFEST.json": "{}", "backend/data/v4/decks/A.xlsx-0123456789/snapshot.json": "{}"})
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_use_3_rolls_every_deck_back_first(self):
+        self.assertTrue(update.decks_owned(self.root))
+        calls = []
+        with mock.patch.object(update, "check_installed"), mock.patch.object(update, "activate", lambda *a: calls.append("activate") or "4.0.0"),                 mock.patch.object(update, "rollback_decks", lambda root, name: calls.append(("rollback", name)) or False):
+            with self.assertRaises(SystemExit) as e:
+                update.use_version(self.root, "3.8.0", "stamp")
+        self.assertIn("NOT used", str(e.exception))
+        self.assertEqual(calls, [("rollback", "")])                    # not switched
+        calls.clear()
+        with mock.patch.object(update, "check_installed"), mock.patch.object(update, "activate", lambda *a: calls.append("activate") or "4.0.0"),                 mock.patch.object(update, "rollback_decks", lambda root, name: calls.append(("rollback", name)) or True):
+            update.use_version(self.root, "3.8.0", "stamp")
+        self.assertEqual(calls, [("rollback", ""), "activate"])
+        write(self.root, {"backend/data/v4/decks/A.xlsx-0123456789/rolled-back.json": "{}"})
+        self.assertFalse(update.decks_owned(self.root))
 
 
 def tree_hashes(root, skip=()):

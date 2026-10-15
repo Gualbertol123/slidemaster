@@ -63,6 +63,7 @@ READ_ATTEMPTS, READ_DELAY = 5, 0.1
 JOURNAL_RE = re.compile(r"^([A-Za-z0-9._-]{1,60}@[A-Za-z0-9._-]{1,60}#[a-z2-7]{8}|shared)(~[1-9][0-9]{0,15})?\.log$")
 STORAGE_TTL = 60.0                # s: the storage mode (an environment variable or data/v4/storage.json) is read again
 CHECK_TTL = 10.0                  # s: how long a deck's existence / incident files seen by this helper are trusted
+REFRESH_S = 4.0                   # s: decks with an open append handle are looked at again in the background (a rollback)
 WRITER_RE = re.compile(r"^[A-Za-z0-9._-]{1,60}@[A-Za-z0-9._-]{1,60}#[a-z2-7]{8}$")
 KEY_RE = re.compile(r"^[A-Za-z0-9._-]{1,60}-[0-9a-f]{10}$")
 CLIENT_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -443,6 +444,32 @@ def _validate_record(writer, record):
             raise DeckError(400, "the record's %s must be a positive integer" % k)
 
 
+_refresher = []
+
+
+def _start_refresher():
+    """every REFRESH_S, the folder of each deck this helper appends to is looked at again (incidents, a rollback),
+    off the edit path: an append never waits for it, and a rolled-back deck is refused within a few seconds"""
+    with _guard:
+        if _refresher:
+            return
+        t = threading.Thread(target=_refresh_loop, daemon=True, name="deck-folders")
+        _refresher.append(t)
+    t.start()
+
+
+def _refresh_loop():
+    while True:
+        time.sleep(REFRESH_S)
+        with _guard:
+            keys = {k for (k, _w), st in _writers.items() if st.fd is not None}
+        for key in keys:
+            try:
+                _look(key, 0)
+            except Exception:                      # noqa: BLE001 - a deck gone or the share away: the next append says so
+                pass
+
+
 def _open_new(key, st, writer, first):
     """a NEW journal file for this writer (O_EXCL: never a file another helper or an earlier handle wrote). The
     writer's first record (s = 1) starts <writer>.log, later files are <writer>~<n>.log with a number never used
@@ -467,6 +494,7 @@ def _open_new(key, st, writer, first):
             continue
         m = re.search(r"~([0-9]+)\.log$", name)
         st.fd, st.name, st.pos = fd, name, 0
+        _start_refresher()
         st.last_n = int(m.group(1)) if m else max(st.last_n, 1)
         with _guard:
             _listings.pop(key, None)
