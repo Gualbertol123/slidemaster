@@ -3,7 +3,7 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## 4.0.0 - unreleased
+## 4.0.0 - 2026-10-15
 
 What users notice – decks are stored the Slide Builder 4 way (PLAN M5)
 * **Other people's edits appear within about 1–2 seconds** (B5), also with many people on a slow share: every
