@@ -36,7 +36,8 @@ class EntryPointTests(TempDirs):
                     break
                 except OSError:
                     time.sleep(0.1)
-            self.assertEqual(body, {"app": "slide-builder", "version": "3.8.0"})
+            from slidebuilder import VERSION
+            self.assertEqual(body, {"app": "slide-builder", "version": VERSION})
             with self.assertRaises(urllib.error.HTTPError) as cm:
                 opener.open("http://127.0.0.1:%d/api/health" % port, timeout=2)
             self.assertEqual(cm.exception.code, 403)

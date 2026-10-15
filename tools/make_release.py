@@ -34,7 +34,8 @@ _spec = importlib.util.spec_from_file_location("sb_update", os.path.join(os.path
 update = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(update)
 
-ROOT_FILES = ("Start Slide Builder.bat", "Update Slide Builder.bat", "Install Slide Builder.bat", "README.md", "CHANGELOG.md",
+ROOT_FILES = ("Start Slide Builder.bat", "Update Slide Builder.bat", "Install Slide Builder.bat", "Start Slide Builder (v4 pilot).bat",
+              "README.md", "CHANGELOG.md",
               "tools/update.py", "tools/fieldcheck.html")
 SKIP_DIRS = {"data", "tests", "__pycache__", "engine", "export", "node_modules"}      # directly below helper/
 SKIP_FILE = re.compile(r"(\.pyc$|\.pyo$|\.update-tmp$|^logo[^/]*$|^slide_builder_settings|^~\$|\.(xlsx|xlsm|xlsb|xls)$|^\.)", re.I)
