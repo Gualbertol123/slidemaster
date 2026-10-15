@@ -259,7 +259,8 @@ S5.3), `history` and the deck form of presence `leave`.
 
 | Method & path | Request | Response |
 |---|---|---|
-| `POST /api/decks/open` | `{workbook}` | `{key, writer, created, storage, snapshot}`; creates an empty deck when there is none |
+| `POST /api/decks/open` | `{workbook}` | `{key, writer, created, migrated, storage, snapshot}`; a deck Slide Builder 3 still owns is migrated first (`migrate_v3.py`: under v3's lock `wb-<key>`, byte backup, snapshot gen 1, `moved-from-v3.json`, the v3 file frozen with `schema 4, movedTo "v4"`); an empty deck is created when there is none; 409 for a deck pinned to v3 (`data/v4/pinned-v3.json`) |
+| `GET /api/decks` | – | `{decks:[{key, workbook, gen, rev, rolledBack}]}` (Prepare rollback) |
 | `GET /api/decks/<key>/snapshot` | – | `{snapshot}`; 404 no deck, 503 unreadable (never empty), 409 a newer format |
 | `GET /api/decks/<key>/tail?since=<json {journal: offset}>` | – | `{journals:{<journal>:{offset, records, ends}}, gen, readonly?}` – complete records past the offsets (≤ 8 journals read at once, listing cached 3 s – 04 §2.2 says 10 s; a newcomer's first records are seen sooner); an unreadable journal is left out this time; an offset inside a record is read again from the file's start |
 | `POST /api/decks/<key>/append` | `{writer, record}` | `{journal, offset, at}` once flushed (`os.fsync`); 503 → the page sends the same record again (a new file is used) |
@@ -274,7 +275,10 @@ missing from a reader's listing – the helper caches it 3 s, the SMB client 10 
 must never be folded in after a newer one that replaced it), never on a round with `skipped` journals, and per
 writer only records 1..n without a gap; every journal's frontier is a prefix of records all in the snapshot.
 
-423: the deck is read-only (a journal is damaged in the middle; `incident-*.json` in the deck folder).
+423: the deck is read-only (a journal is damaged in the middle; `incident-*.json` in the deck folder). 409 on append or
+tail: the deck was given back to Slide Builder 3 (`rolled-back.json`; the page reloads, its next open migrates again).
+`tools/update.py --migrate-all` migrates every v3 deck (a deck a v3 helper is saving is skipped and reported);
+`--rollback [WORKBOOK]` gives one or every deck back (refused while a journal holds a record past the frontier).
 `SLIDEBUILDER_STORAGE=lean-lock` (or `data/v4/storage.json`): appends go to one shared journal under the deck lock.
 
 ## 6. Migration from v2

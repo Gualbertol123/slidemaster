@@ -634,12 +634,13 @@ class DeckHttpTests(HttpBase):
         self.assertEqual(self.jreq("GET", base + "/tail", token=False)[0], 403)
         self.assertEqual(self.jreq("POST", base + "/append", {"writer": w, "record": {"w": "x", "s": 1, "l": 1}})[0], 400)
 
-    def test_open_refuses_a_deck_still_owned_by_v3(self):
+    def test_open_migrates_a_deck_saved_by_v3(self):
         from slidebuilder import store
         store.update_workbook(WB, [{"op": "style.patch", "patch": {"design": "excel"}}])
         st, r = self.jreq("POST", "/api/decks/open", {"workbook": WB})
-        self.assertEqual(st, 409, r)
-        self.assertFalse(os.path.exists(paths.data_dir("v4")))
+        self.assertEqual((st, r["migrated"], r["snapshot"]["doc"]["style"]), (200, True, {"design": "excel"}), r)
+        self.assertEqual(self.jreq("GET", "/api/decks")[1]["decks"][0]["workbook"], WB)
+        self.assertEqual(self.jreq("POST", "/api/decks/open", {"workbook": WB})[1]["migrated"], False)
 
 
 if __name__ == "__main__":

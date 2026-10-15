@@ -51,7 +51,9 @@ jobs:
       fail-fast: false
       matrix: { python: ["3.8", "3.12"] }
     steps:
+      # the migration tests run the real v3 helper from a worktree of the last v3 release tag (05 §3.6, tests 7-9)
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
       - uses: actions/setup-python@v5
         with: { python-version: "${{ matrix.python }}" }
       - run: python -m unittest discover -s helper/tests

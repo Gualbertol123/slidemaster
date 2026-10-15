@@ -20,7 +20,7 @@ import urllib.parse
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import APP_NAME, VERSION, decks, paths, presence, store
+from . import APP_NAME, VERSION, decks, migrate_v3, paths, presence, store
 from .convert import convert_picture, convert_workbook
 from .exports import ExportError, export_feedback, export_file
 from .fonts import FONT_MAX, FontError, add_face, font_file, read_library, remove_family
@@ -301,6 +301,8 @@ class Handler(BaseHTTPRequestHandler):
             self._error(403, "forbidden")
         except FileNotFoundError:
             self._error(404, "not found")
+        except migrate_v3.NotMigrated as e:
+            self._error(e.status, str(e))
         except decks.DeckError as e:
             if e.status == 503:
                 log("busy: %s" % e)
@@ -354,6 +356,8 @@ class Handler(BaseHTTPRequestHandler):
             if not v:
                 return self._error(404, "upload expired, open the workbook again")
             return self._send(200, v[1], "application/octet-stream")
+        if path == "/api/decks":                          # every deck (Options › Administration › Prepare rollback)
+            return self._send(200, {"decks": migrate_v3.list_decks()})
         m = DECK_ROUTE.match(path)
         if m:
             key, action = urllib.parse.unquote(m.group(1)), m.group(2)
@@ -453,10 +457,9 @@ class Handler(BaseHTTPRequestHandler):
             wb = self._json().get("workbook")
             if not valid_workbook_name(wb):
                 raise HttpError(400, "invalid workbook name")
-            if store.workbook_exists(wb):
-                raise decks.DeckError(409, "this deck is still saved by Slide Builder 3 and has not been moved to Slide Builder 4 yet")
-            key, created = decks.create_if_missing(wb)
-            return self._send(200, {"key": key, "writer": decks.new_writer(), "created": created,
+            # the first open in Slide Builder 4 moves a v3 deck over (migrate_v3: under v3's lock, backup, freeze)
+            key, how = migrate_v3.ensure_deck(wb)
+            return self._send(200, {"key": key, "writer": decks.new_writer(), "created": how == "created", "migrated": how == "migrated",
                                     "storage": decks.storage_mode(), "snapshot": decks.read_snapshot(key)})
         m = DECK_ROUTE.match(path)
         if not m:

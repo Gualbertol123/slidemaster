@@ -47,6 +47,24 @@ def _check_saved():
     return n, bad
 
 
+def _check_decks():
+    """every deck's snapshot read once (data/v4/decks; nothing written): (count, [(deck, problem)])"""
+    from . import decks
+    folder = paths.data_dir("v4", "decks")
+    n, bad = 0, []
+    for key in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+        if not decks.KEY_RE.match(key) or not os.path.exists(os.path.join(folder, key, "snapshot.json")):
+            continue
+        try:
+            s = decks.read_snapshot(key)
+            if not isinstance(s.get("doc"), dict):
+                raise ValueError("the snapshot has no document")
+            n += 1
+        except Exception as e:                     # noqa: BLE001 - report every bad deck
+            bad.append(("v4/decks/" + key, str(e).splitlines()[0][:160] if str(e) else type(e).__name__))
+    return n, bad
+
+
 def _probe_folder():
     """create, write, rename and delete a file in data/locks; None when all work, else the problem"""
     folder = paths.data_dir("locks")
@@ -99,6 +117,12 @@ def run():
         _say("FAIL %s: %s" % (label, why))
     if not bad:
         _say("ok   %d saved setup(s) read (nothing written)" % n)
+    nd, bad_decks = _check_decks()
+    for label, why in bad_decks:
+        _say("FAIL %s: %s" % (label, why))
+    if not bad_decks:
+        _say("ok   %d Slide Builder 4 deck(s) read (nothing written)" % nd)
+    bad = bad + bad_decks
     problem = _probe_folder()
     if problem:
         _say("FAIL the data folder: " + problem)

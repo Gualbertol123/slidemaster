@@ -165,6 +165,38 @@ make_release = importlib.util.module_from_spec(spec_mr)
 spec_mr.loader.exec_module(make_release)
 
 
+class DeckJobsTest(unittest.TestCase):
+    """--migrate-all and --rollback (docs/next/04 §4.3, §4.4) with the program of this checkout"""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="sb-decks-")
+        shutil.copytree(os.path.join(REPO, "helper", "slidebuilder"), os.path.join(self.root, "helper", "slidebuilder"),
+                        ignore=shutil.ignore_patterns("__pycache__"))
+        shutil.copy2(os.path.join(REPO, "helper", "slide_builder.py"), os.path.join(self.root, "helper"))
+        write(self.root, {"backend/data/workbooks/report.xlsx-%s.json" % hashlib.sha1(b"report.xlsx").hexdigest()[:10]:
+                          json.dumps({"schema": 3, "workbook": "report.xlsx", "rev": 4, "preset": None, "style": {"design": "excel"}, "edits": {}})})
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_migrate_all_then_rollback(self):
+        v3 = os.path.join(self.root, "backend", "data", "workbooks", "report.xlsx-%s.json" % hashlib.sha1(b"report.xlsx").hexdigest()[:10])
+        rc, out = run("--root", self.root, "--migrate-all")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("Moved to Slide Builder 4: 1 deck(s): report.xlsx", out)
+        with open(v3, encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["schema"], 4)
+        rc, out = run("--root", self.root, "--migrate-all")
+        self.assertIn("Moved to Slide Builder 4: 0 deck(s)", out)
+        rc, out = run("--root", self.root, "--rollback")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("Given back to Slide Builder 3: 1 deck(s)", out)
+        with open(v3, encoding="utf-8") as f:
+            back = json.load(f)
+        self.assertEqual((back["schema"], back["rev"], back["style"]), (3, 4, {"design": "excel"}))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "backend", "data", "locks", "update.lock")))
+
+
 def tree_hashes(root, skip=()):
     """{relative path: sha256} of every file below root, except under the `skip` sub-folders"""
     out = {}

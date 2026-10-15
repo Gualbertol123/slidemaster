@@ -852,6 +852,31 @@ test.describe.serial("two people, one shared folder", () => {
     await page.click('[data-x="close"]'); await page.click('.modal [data-a="ok"]');
   });
 
+  test("Prepare rollback: every deck's changes folded into its snapshot, nothing left past the frontier (04 §4.4)", async ({ browser }) => {
+    const a = await browser.newPage(), b = await browser.newPage();
+    await openApp(a, ANNA); await openApp(b, BOB);
+    await expect(a.locator(".thumb")).toHaveCount(4);
+    await a.locator('.thumb[data-i="2"]').click();
+    await selectCell(a, "Kappa"); await a.keyboard.press("Control+b"); await saved(a);
+    const past = (name: string) => {          // complete records past the snapshot's frontier, in every journal
+      const d = deckDir(name)!, snap = JSON.parse(fs.readFileSync(path.join(d, "snapshot.json"), "utf8"));
+      let names: string[] = []; try { names = fs.readdirSync(path.join(d, "j")); } catch { /* none */ }
+      return names.reduce((n, f) => n + frames(fs.readFileSync(path.join(d, "j", f)), snap.frontier[f.replace(/\.log$/, "")] || 0).length, 0);
+    };
+    expect(past("report.xlsx")).toBeGreaterThan(0);
+    const before = JSON.stringify(doc().edits);
+    await a.click("#optBtn"); await a.click("#prepRollback");
+    await a.click('.dlg button:has-text("Prepare rollback")');
+    await expect(a.locator("#toast")).toContainText(/Prepare rollback: \d+ decks? ready\./, { timeout: 30_000 });
+    for (const d of fs.readdirSync(path.join(data(), "v4", "decks"))) expect(past(d.replace(/-[0-9a-f]{10}$/, "")), d).toBe(0);
+    expect(JSON.stringify(doc().edits)).toBe(before);                     // the same document, now all in the snapshot
+    // both pages go on as before: a change still reaches the other one
+    const arrived = nextChange(b);
+    await selectCell(a, "Kappa"); await a.keyboard.press("Control+b"); await saved(a);
+    await arrived;
+    await a.close(); await b.close();
+  });
+
   test("no page errors, console errors or warnings", async () => { expect(unexpected(errors)).toEqual([]); });
 });
 

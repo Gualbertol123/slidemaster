@@ -17,7 +17,7 @@ import { MirrorWorkbook } from "@slide-builder/core/xlsx/mirror";
 import type { SharedSlice, SheetSlice } from "@slide-builder/core/xlsx/slice";
 import { transfer } from "@slide-builder/core/rpc/port";
 import type { DocEvent, ViewInputs } from "@slide-builder/core/rpc/messages";
-import type { Change, DeckOpen } from "@slide-builder/core/sync/docsync";
+import { DocSync, type Change, type DeckApi, type DeckOpen } from "@slide-builder/core/sync/docsync";
 import { applyOps } from "@slide-builder/core/model/ops";
 import { fold } from "@slide-builder/core/model/fold";
 import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "@slide-builder/core/model/preset";
@@ -455,6 +455,39 @@ export async function saveStyleAsDefault() {
   const st = get().doc.view?.style; if (!st) return;
   try { const r = await backend.configOps([{ op: "style.patch", patch: JSON.parse(JSON.stringify(st)) } as Op]); patch("doc", { config: r.doc }); toast("This deck's style is now the default for new decks."); }
   catch (e) { toast("⚠ " + esc((e as Error).message), [], true); }
+}
+
+/* ---------------------------------------------------------------- administration */
+/** Options › Administration › Prepare rollback (04 §4.4): every deck saved and compacted, so that
+    "Update Slide Builder.bat --rollback" can give it back to Slide Builder 3 (it refuses a deck with changes past its
+    snapshot). The open deck through the worker, the others each with a DocSync of their own here, for this only. */
+export async function prepareRollback() {
+  if (!backend.served) return;
+  const go = await ask("Prepare rollback", "Every Slide Builder 4 deck is saved and its changes folded into its snapshot. Afterwards " +
+    "the maintainer can give decks back to Slide Builder 3 with <b>Update Slide Builder.bat --rollback</b>. Nothing else changes.",
+    [{ id: "cancel", label: "Cancel" }, { id: "go", label: "Prepare rollback", primary: true }], { width: 520 });
+  if (go !== "go") return;
+  const api: DeckApi = { served: true, snapshot: k => backend.deckSnapshot(k), tail: (k, s) => backend.deckTail(k, s),
+    append: (k, w, r) => backend.deckAppend(k, w, r), compact: (k, g, s) => backend.deckCompact(k, g, s), rotate: (k, w) => backend.deckRotate(k, w) };
+  const failed: string[] = [];
+  let done = 0;
+  try {
+    const list = (await backend.decks()).filter(d => !d.rolledBack);
+    for (const [i, d] of list.entries()) {
+      showBusy(`Preparing rollback: ${d.workbook}…`, i / Math.max(1, list.length));
+      try {
+        let ok: boolean;
+        if (d.key === deckKey && get().doc.open) ok = await core().call("compactAll", {});
+        else {
+          const s = new DocSync(api, d.workbook, await backend.openDeck(d.workbook), get().prefs.user, { autoTail: false });
+          try { ok = await s.compactAll(); } finally { s.dispose(); }
+        }
+        if (ok) done++; else failed.push(d.workbook + " (still being edited)");
+      } catch (e) { failed.push(d.workbook + " (" + ((e as Error).message || e) + ")"); }
+    }
+  } catch (e) { failed.push((e as Error).message || String(e)); }
+  finally { hideBusy(); }
+  toast(`Prepare rollback: <b>${done}</b> deck${done === 1 ? "" : "s"} ready` + (failed.length ? ` · not ready: ${esc(failed.join(", "))} – try again when nobody edits them` : "."), [], failed.length > 0);
 }
 
 /* ---------------------------------------------------------------- wizard */

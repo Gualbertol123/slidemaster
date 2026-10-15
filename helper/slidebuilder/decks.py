@@ -279,6 +279,8 @@ _listings = {}                            # key -> (monotonic time, [journal nam
 _snapsig = {}                             # key -> ((mtime_ns, size), gen)
 _readonly = {}                            # key -> reason (an incident this helper saw)
 _checked = {}                             # key -> monotonic time this helper last looked at the deck's folder
+_rolled = {}                              # key -> True: the deck was rolled back to Slide Builder 3
+ROLLED = "this deck was moved back to Slide Builder 3 - reload the page (F5) to continue"
 _guard = threading.Lock()
 _pool = None
 
@@ -305,6 +307,7 @@ def reset():
         _snapsig.clear()
         _readonly.clear()
         _checked.clear()
+        _rolled.clear()
         _storage.clear()
 
 
@@ -373,6 +376,8 @@ def _check_writable(key):
     """refuse a read-only deck; the folder is looked at once per helper (and when a journal is opened), later
     appends cost no round trip for this - a damaged journal is also seen by every tail"""
     _look(key)
+    if _rolled.get(key):
+        raise DeckError(409, ROLLED)
     reason = _readonly.get(key)
     if reason:
         raise DeckError(423, reason, readonly=True)
@@ -396,6 +401,10 @@ def _look(key, ttl=None):
             _checked.pop(key, None)
             raise DeckError(404, "no such deck")
         names = names or []
+    if "rolled-back.json" in names:            # back with Slide Builder 3 (migrate_v3.rollback): a v4 page reloads
+        _rolled[key] = True
+    else:
+        _rolled.pop(key, None)
     inc = sorted(n for n in names if n.startswith("incident-") and n.endswith(".json"))
     if inc:
         _readonly[key] = "a journal of this deck is damaged (%s) - the deck is read-only; tell the maintainer" % inc[0]
@@ -595,6 +604,8 @@ def tail(key, since):
     if not isinstance(since, dict) or any(not isinstance(k, str) or not isinstance(v, int) or isinstance(v, bool) or v < 0 for k, v in since.items()):
         raise DeckError(400, "since must map journal names to byte offsets")
     _look(key, CHECK_TTL)                         # exists, incidents: one listing at most every 10 s
+    if _rolled.get(key):
+        raise DeckError(409, ROLLED)
     folder = journal_dir(key)
     names = _listing(key)
 

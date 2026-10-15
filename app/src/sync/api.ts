@@ -43,6 +43,8 @@ export interface Backend {
   /** the same, on pagehide: a request the browser still sends after the page is gone (false: too big for that) */
   deckCompactOnLeave(key: string, baseGen: number, snapshotJson: string): boolean;
   deckRotate(key: string, writer: string): Promise<{ deleted: string[] }>;
+  /** every deck on the share (Prepare rollback) */
+  decks(): Promise<{ key: string; workbook: string; gen: number; rev: number; rolledBack: boolean }[]>;
   /** presence on a deck (v2): others there in the last 25 s */
   presence(client: string, deck: string | null, workbook: string | null): Promise<Other[]>;
   leave(client: string, deck: string | null): void;
@@ -156,6 +158,7 @@ export const helper: Backend = {
     catch { return false; }
   },
   deckRotate: (key, writer) => json(req(deckPath(key) + "/rotate", { method: "POST", json: { writer } })),
+  async decks() { return (await json<{ decks: Awaited<ReturnType<Backend["decks"]>> }>(req("/api/decks"))).decks || []; },
   async presence(client, deck, workbook) {
     if (!deck) return [];
     const others = (await json<{ others: Other[] }>(req("/api/presence", { method: "POST", json: { client, deck } }))).others || [];
@@ -244,6 +247,7 @@ export const offline: Backend = {
   async deckCompact() { return { gen: 1 }; },
   deckCompactOnLeave() { return false; },
   async deckRotate() { return { deleted: [] }; },
+  async decks() { return []; },
   async presence() { return []; },
   leave() { /* nothing */ },
   upload: offlineOnly, convertWorkbook: offlineOnly,

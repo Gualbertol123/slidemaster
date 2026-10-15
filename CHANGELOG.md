@@ -15,6 +15,11 @@ What users notice – decks are stored the Slide Builder 4 way (PLAN M5)
   until the maintainer looks at it (docs/next/04 §2.3: it must never happen; the helper writes an incident file).
 
 For the maintainer
+* **Decks move to Slide Builder 4 one by one**, the first time somebody opens them in 4.0 (or all at once with
+  `Update Slide Builder.bat --migrate-all`; a deck open in 3.x at that moment is skipped and moved later). The 3.x
+  file is backed up and frozen, so Slide Builder 3 refuses that deck from then on ("Slide Builder was updated").
+  Going back: *Options › Administration › Prepare rollback* in 4.0, then `Update Slide Builder.bat --rollback`
+  (one workbook, or every deck). A deck listed in `backend\data\v4\pinned-v3.json` stays with 3.x.
 * The program moved from `backend\` to `helper\` (PLAN S5.1). The data, the logo and the v2 settings stay in
   `backend\` (`backend\data\` is shared with Slide Builder 3); *Start* and *Install Slide Builder.bat* start
   `helper\` (or `backend\` in a folder that still has the 3.x program), and versions installed side by side keep
