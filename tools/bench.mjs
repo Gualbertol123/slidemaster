@@ -229,11 +229,15 @@ async function run(browser, port) {
         };
         document.querySelector('[data-a="continue"]').click(); requestAnimationFrame(tick);
       }));
-      await page.waitForFunction(() => document.querySelectorAll(".thumb").length >= 20, null, { timeout: 60000 }); await sleep(500);
+      // its after-work (the thumbnails drawn again, the save) counted here, not in big30's window: until the stage is
+      // idle, then 2 s
+      await page.waitForFunction(() => window.__sbTest.stageIdle(), null, { timeout: 60000 }); await sleep(2000);
+      await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 });
       const ltOpen = (await longTasks()).map(x => x.d);
       consult = { navy_ms: navy.ms, navy_kb: navy.kb, red_ms: red.ms, red_kb: red.kb, keypress: kp, drags: dr, open_ms: Math.round(box + first),
         longtasks: [...ltNavy, ...ltRed, ...ltKp, ...ltOpen] };
-      await design("glass");
+      await design("glass"); await sleep(1500);
+      consult.longtasks.push(...(await longTasks()).map(x => x.d));                         // the switch back's redraws
     }
     // ---- big30: the index, then one 130 000-row sheet
     await page.click("#openBtn"); await page.locator('[data-f="big30.xlsx"]').waitFor();
