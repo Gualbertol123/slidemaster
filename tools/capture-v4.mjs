@@ -5,7 +5,7 @@
    Each deck × design × version as capture-v3.mjs walks it; for each slide its elements are the display list's hits, named
    the way tools/stage-capture.mjs pairWithGolden pairs them (the slide's own by their hit id, a table's by kind in
    order after its "tw"), with their boxes, texts and first-run styles; the pixels of tests/corpus/pixels.json are the
-   whole slide drawn from its display list (dlparity's slideHook); comments.json, issues.json and pdf.json as
+   stage's own screenshot at 100 % (as GP's goldens, stage-capture.mjs stageHook); comments.json, issues.json and pdf.json as
    capture-v3 writes them. Written into golden/<deck>/<design>/<version>/ (only for the designs asked; nothing else in
    golden/ is touched) and golden/MANIFEST-v4.json (this environment: the comparison of these designs is full where
    Chromium and fonts are the same).
@@ -17,7 +17,6 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { capture } from "./capture-v3.mjs";
-import { slideHook as dlHook } from "./dlparity.mjs";
 import { hitsOf, pairWithGolden, settleStage, stageSlide } from "./stage-capture.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -45,7 +44,10 @@ async function hook(page, a) {
   const { items, ...head } = pairWithGolden(elementsOf(nodes), { ...shown, nodes });
   const bad = items.filter(i => /^(missing|extra)-/.test(i.cls));
   if (bad.length) throw new Error(`${a.deck} · ${a.design} · slide ${a.slide + 1}: elements that do not pair back: ${bad.map(i => i.cls).join(", ")}`);
-  const png = a.pixels ? (await dlHook(page, { ...a, pixels: true })).png : null;
+  // the pixels as GP defines them for every golden (stage-capture.mjs): the stage's own screenshot at 100 % – parity
+  // compares the stage with them, dlparity its canvas drawing under its own rule (as against v3's DOM screenshots)
+  const b = a.pixels ? await page.locator("#stage .slide").first().boundingBox() : null;
+  const png = b ? await page.screenshot({ clip: { x: Math.round(b.x), y: Math.round(b.y), width: 1600, height: 900 }, animations: "disabled", caret: "hide" }) : null;
   return { geometry: { ...head, slide: a.geometry.slide, label: a.geometry.label, items }, png };
 }
 

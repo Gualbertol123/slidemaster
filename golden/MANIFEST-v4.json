@@ -1,0 +1,42 @@
+{
+ "designs": [
+  "mckinsey",
+  "bain"
+ ],
+ "git": "d58945705f4a5b57b0e7cb5af0cdb5cf6bcbbf0a",
+ "page": "df74f699067d53c05468945630bf3844f9b8d7c095103dc35dc5762d2eff66fd",
+ "clock": "2026-10-01T10:00:00+02:00",
+ "locale": "en-GB",
+ "timezone": "Europe/Rome",
+ "viewport": "1900x1250@1",
+ "decks": [
+  "big",
+  "deck20",
+  "edge-1904",
+  "edge-formats",
+  "edge-macro",
+  "edge-pictures",
+  "missing-table",
+  "plain",
+  "report",
+  "report-looks",
+  "weekly",
+  "weekly-comments",
+  "weekly-looks",
+  "weekly-options"
+ ],
+ "slides": 90,
+ "environment": {
+  "chromium": "153.0.8010.12",
+  "chrome": "C:\\Users\\U508169\\AppData\\Local\\ms-playwright\\chromium-1243\\chrome-win64\\chrome.exe",
+  "platform": "win32 10.0.26100",
+  "fonts": 350,
+  "fontsSha256": "d1b6d2f54bfd8163a4beb57b6e5855d302f12dba82f01cf0e9d5bfc7804cfec4"
+ },
+ "fontsUsed": [
+  "\"DejaVu Serif\", Georgia, \"Times New Roman\", serif",
+  "Arial, \"Liberation Sans\", Arimo, sans-serif",
+  "Georgia, Gelasio, \"Times New Roman\", serif",
+  null
+ ]
+}

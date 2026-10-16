@@ -1,0 +1,13 @@
+{"scale":1,"w":1600,"h":900,"slide":2,"label":"Index","items":[
+{"cls":"title","text":"Contents","x":96,"y":70,"w":1408,"h":44,"color":"rgb(255, 255, 255)","size":"40px","weight":"700","font":"Georgia, Gelasio, \"Times New Roman\", serif"},
+{"cls":"ix-row x","text":"1\nLoans & deposits\n(mln Euro at last fixed exchange rate)\n3","x":96,"y":190,"w":1408,"h":56},
+{"cls":"ix-n","text":"1","x":96,"y":200,"w":36,"h":36,"color":"rgb(255, 255, 255)","size":"20.16px","weight":"700","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"ix-txt","text":"Loans & deposits\n(mln Euro at last fixed exchange rate)","x":150,"y":190,"w":535.9,"h":56},
+{"cls":"ix-t","text":"Loans & deposits","x":150,"y":190,"w":214.8,"h":56,"color":"rgb(5, 28, 44)","size":"28px","weight":"400","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"ix-s","text":"(mln Euro at last fixed exchange rate)","x":378.8,"y":190,"w":307.1,"h":56,"color":"rgba(5, 28, 44, 0.6)","size":"18.48px","weight":"400","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"ix-p","text":"3","x":1488.4,"y":190,"w":15.6,"h":56,"color":"rgb(34, 81, 255)","size":"28px","weight":"700","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"logowrap","x":1466,"y":854,"w":96,"h":32},
+{"cls":"logo","x":1466,"y":854,"w":96,"h":32},
+{"cls":"pageno plain","text":"2 / 3","x":1198,"y":845,"w":40,"h":22,"color":"rgb(255, 255, 255)","size":"12px","weight":"700","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"pageno plain footer","text":"Confidential - internal use only","x":56,"y":849,"w":217,"h":17,"color":"rgb(0, 0, 0)","size":"12px","weight":"400","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"}
+]}

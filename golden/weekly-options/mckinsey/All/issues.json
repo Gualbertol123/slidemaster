@@ -1,0 +1,14 @@
+[
+ {
+  "slide": 1,
+  "text": "Slide 1 · Cover\nCover slide · double-click the title to edit it, or use the wizard (step 3).\nPreset\n2 tables · 3 slides"
+ },
+ {
+  "slide": 2,
+  "text": "Slide 2 · Index\nIndex slide · lists 1 content slide(s) with their page numbers.\nPreset\n2 tables · 3 slides"
+ },
+ {
+  "slide": 3,
+  "text": "Slide 3 · Loans & deposits\nTotal Banks Loans & Deposits · C5:Q20 · LOANS_DEPOSITS C5:Q20 · 16×15\nDeposits · LOANS_DEPOSITS C25:Q40 · 16×15\n4 edited cells on LOANS_DEPOSITS\nPreset\n2 tables · 3 slides"
+ }
+]

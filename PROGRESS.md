@@ -118,6 +118,10 @@ numbers measured twice). Measured numbers go into the step's line.
 
 (Human decisions the plan needs, e.g. gate G0 outcomes. An agent never writes here on its own.)
 
+- 2026-10-17 · **M7b S7b.3 signed off** (product owner, in the session): "lets keep all of the combinations for now in a
+  dropdown, we can remove them later" (the topbar **Look** dropdown, 36 looks), then "Sign off" of both designs as they
+  are – Consulting Navy = Insight board (exhibit, all numbers, KPI line, dark band), Consulting Red = Signal (exhibit,
+  all numbers, message panel, tinted) – so the goldens are captured from that render (`tools/capture-v4.mjs`).
 - 2026-10-16 · **M7b pixel review (S7b.3), rounds 1–3 rejected; direction chosen**: the Excel-item tables ("too barebone … no
   difference between me making a small change in Excel and this … look out of the 80s") and the flat Liquid Glass scene
   ("a fake version of the liquid glass … they have to be DIFFERENT") are out; square corners are fine. Chosen from four

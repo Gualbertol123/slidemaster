@@ -1,0 +1,10 @@
+[
+ {
+  "slide": 1,
+  "text": "Slide 1 · FORMATS\nNumber formats, locale tags and rich text · FORMATS C4:F26 · 23×4\nPreset\n2 tables · 2 slides"
+ },
+ {
+  "slide": 2,
+  "text": "Slide 2 · LAYOUT\nMerges, hidden rows and columns, colours, wrapping · LAYOUT C4:K17 · 13×8 · 1 hidden rows, 1 hidden cols skipped\nNot reproduced on LAYOUT: colorScale conditional formats\nPreset\n2 tables · 2 slides"
+ }
+]

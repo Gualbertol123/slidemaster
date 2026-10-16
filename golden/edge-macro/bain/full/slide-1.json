@@ -1,0 +1,21 @@
+{"scale":1,"w":1600,"h":900,"slide":1,"label":"SLIDE","items":[
+{"cls":"title","text":"A macro-enabled workbook","x":56,"y":84,"w":404,"h":171.6,"color":"rgb(255, 255, 255)","size":"52px","weight":"700","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"tw","x":824,"y":215.7,"w":452,"h":240},
+{"cls":"t","text":"Name","x":824,"y":247.7,"w":160,"h":32,"color":"rgb(107, 107, 107)","size":"9.5px","weight":"700","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"t","text":"Q1","x":984,"y":247.7,"w":124,"h":32,"color":"rgb(107, 107, 107)","size":"9.5px","weight":"700","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"t","text":"Q2","x":1108,"y":247.7,"w":168,"h":32,"color":"rgb(107, 107, 107)","size":"9.5px","weight":"700","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"t","text":"Line 1","x":824,"y":279.7,"w":160,"h":44,"color":"rgb(26, 26, 26)","size":"14.67px","weight":"700","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"t","text":"100","x":984,"y":279.7,"w":124,"h":44,"color":"rgb(26, 26, 26)","size":"14.67px","weight":"400","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"t","text":"95","x":1108,"y":279.7,"w":168,"h":44,"color":"rgb(26, 26, 26)","size":"14.67px","weight":"400","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"t","text":"Line 2","x":824,"y":323.7,"w":160,"h":44,"color":"rgb(26, 26, 26)","size":"14.67px","weight":"700","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"t","text":"107","x":984,"y":323.7,"w":124,"h":44,"color":"rgb(26, 26, 26)","size":"14.67px","weight":"400","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"t","text":"104","x":1108,"y":323.7,"w":168,"h":44,"color":"rgb(26, 26, 26)","size":"14.67px","weight":"400","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"t","text":"Line 3","x":824,"y":367.7,"w":160,"h":44,"color":"rgb(26, 26, 26)","size":"14.67px","weight":"700","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"t","text":"114","x":984,"y":367.7,"w":124,"h":44,"color":"rgb(26, 26, 26)","size":"14.67px","weight":"400","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"t","text":"113","x":1108,"y":367.7,"w":168,"h":44,"color":"rgb(26, 26, 26)","size":"14.67px","weight":"400","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"t","text":"Line 4","x":824,"y":411.7,"w":160,"h":44,"color":"rgb(26, 26, 26)","size":"14.67px","weight":"700","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"t","text":"121","x":984,"y":411.7,"w":124,"h":44,"color":"rgb(26, 26, 26)","size":"14.67px","weight":"400","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"t","text":"122","x":1108,"y":411.7,"w":168,"h":44,"color":"rgb(26, 26, 26)","size":"14.67px","weight":"400","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"},
+{"cls":"logowrap","x":1466,"y":854,"w":96,"h":32},
+{"cls":"logo","x":1466,"y":854,"w":96,"h":32}
+]}
