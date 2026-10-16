@@ -194,7 +194,7 @@ const TableHits = memo(function TableHits({ i, R, c, box, s }: { i: number; R: R
         const h = e.currentTarget, { lx, ly, k } = tablePoint(h, T, c, e);
         if (!(e.buttons & 1)) { const ed = borderAt(T, c, lx, ly, k); h.style.cursor = ed ? (ed.kind === "col" ? "col-resize" : "row-resize") : ""; }
         const it = cellFromPoint(T, c, lx, ly); if (!it) return;
-        const g = cellBox(it, c);
+        const g = cellBox(it, c); if (!g) return;
         Object.assign(hov.current!.style, { display: "block", left: g.bx + "px", top: g.by + "px", width: g.bw + "px", height: g.bh + "px" });
         const cur = get().selection.sel;
         if (cellDrag && (e.buttons & 1) && cellDrag.t === i && cur && (cur.ar !== it.b.r || cur.ac !== it.b.c)) setSel(i, cur.anchor, { r: it.b.r, c: it.b.c });
@@ -245,7 +245,7 @@ function Selection({ m, s, drag }: { m: StageModel; s: number; drag: DragPreview
   const sel = useStore(st => st.selection.sel), c = ctx();
   if (!sel) return null;
   const place = m.tables.find(t => t.i === sel.t); if (!place) return null;
-  const b = boxOf(sel.t, place.box, drag), its = selItems().map(it => cellBox(it, c)); if (!its.length) return null;
+  const b = boxOf(sel.t, place.box, drag), its = selItems().map(it => cellBox(it, c)).filter((x): x is NonNullable<typeof x> => !!x); if (!its.length) return null;
   const x0 = Math.min(...its.map(a => a.bx)), y0 = Math.min(...its.map(a => a.by)), x1 = Math.max(...its.map(a => a.bx + a.bw)), y1 = Math.max(...its.map(a => a.by + a.bh));
   const at = (x: number, y: number, w: number, h: number) => ({ left: b.x + x * b.scale, top: b.y + y * b.scale, width: w * b.scale, height: h * b.scale });
   const a0 = activeItem(), a = a0 && cellBox(a0, c);

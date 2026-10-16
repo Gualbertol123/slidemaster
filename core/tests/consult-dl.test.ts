@@ -47,6 +47,7 @@ function cellTexts(nodes: DisplayList): Map<string, TextNode[]> {
   for (const n of nodes) {
     if (n.t === "hit") { at = n.kind === "t" ? n.id : null; if (at && !out.has(at)) out.set(at, []); continue; }
     if (at && n.t === "text") out.get(at)!.push(n);
+    if (at && n.t === "group") for (const k of n.children) if (k.t === "text") out.get(at)!.push(k);    // a label clipped at its column
   }
   return out;
 }

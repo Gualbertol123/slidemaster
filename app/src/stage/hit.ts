@@ -39,10 +39,11 @@ export function cellFromPoint(T: TableLayout, c: RenderCtx, lx: number, ly: numb
   if (!col || !row) return null;
   return itemAt(T, row[2], col[2]) || null;
 }
-/** a cell's box on screen in table px (Liquid Glass widens columns) */
-export function cellBox(it: Item, c: RenderCtx): Item {
+/** a cell's box on screen in table px (Liquid Glass widens columns); null: a cell the exhibit does not draw (a blank
+    spacer row, a caption, a value the compact exhibit leaves out) */
+export function cellBox(it: Item, c: RenderCtx): Item | null {
   if (!it.L) return it;
-  if (geomOf(c) === "exhibit") { const b = exhibitGeom(it.L, c).boxes.get(it.b.r + "," + it.b.c); return { ...it, bx: b?.x ?? 0, by: b?.y ?? 0, bw: b?.w ?? 0, bh: b?.h ?? 0, tw: undefined }; }
+  if (geomOf(c) === "exhibit") { const b = exhibitGeom(it.L, c).boxes.get(it.b.r + "," + it.b.c); return b ? { ...it, bx: b.x, by: b.y, bw: b.w, bh: b.h, tw: undefined } : null; }
   return geomOf(c) === "scene" ? gItem(it, glassGeom(it.L, c)) : it;
 }
 

@@ -56,12 +56,14 @@ export function consultToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics,
   if (o.tables === "rules") return rulesToDisplayList(L, ctx, m, opts);
   return exhibitToDisplayList(L, ctx, m, opts, o.numbers);
 }
+/** a text clipped at its column (a long label never runs into the numbers) */
+const clipTo = (n: Node, x: number, y: number, w: number, h: number): Node => ({ t: "group", clip: { x, y, w: Math.max(0, w), h }, children: [n] });
 export function exhibitToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics, opts: { noText?: boolean } = {}, numbers: "full" | "compact" = "full"): TableDL {
   const g = exhibitLayout(L, ctx, numbers)!, S = specOf(ctx), deck = ctx.style.text?.table?.font, family = deck ? fontStack(deck, S.table.family) : S.table.family;
   if (g.ex.kind !== "exhibit") return plainTable(L, ctx, m, g, family, opts);
   if (g.numbers === "full") return fullNumbers(ctx, m, g, family, opts);
   const P = paletteOf(ctx), T = typeset(m, family), nodes: DisplayList = [], texts: Node[] = [], navy = g.design === "mckinsey";
-  const cell = (x: ExCell | null | undefined, node: TextNode | null) => {
+  const cell = (x: ExCell | null | undefined, node: Node | null) => {
     if (!x) { if (node) texts.push(node); return; }
     const b = g.boxes.get(x.r + "," + x.c); if (b) texts.push(hitOf(x.it, b, x.text));
     if (node) texts.push(node);
@@ -96,13 +98,13 @@ export function exhibitToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics,
   function drawCell(c: ExCol, r: ExRow, cy: number, total: boolean) {
     const txt = (x: ExCell | null | undefined) => x && x.text.trim() ? x.text.trim() : "–";
     const neg = (x: ExCell | null | undefined) => !!x && x.v !== null && x.v < 0;
-    const show = (x: ExCell | null | undefined, node: TextNode) => cell(x, opts.noText ? null : node);
-    if (c.kind === "label") { show(r.label, T(txt(r.label), c.x, cy, total && !navy ? EXT.totalRed : EXT.text, true, P.ink)); return; }
+    const show = (x: ExCell | null | undefined, node: Node) => cell(x, opts.noText ? null : node);
+    if (c.kind === "label") { show(r.label, clipTo(T(txt(r.label), c.x, cy, total && !navy ? EXT.totalRed : EXT.text, true, P.ink), c.x, cy - g.pitch / 2, c.w - 6, g.pitch)); return; }
     if (c.kind === "latest") {
       const x = last === null ? null : r.cells.get(last);
       if (navy) { show(x, T(txt(x), c.x + c.w, cy, EXT.text, total, x && x.v !== null ? P.ink : P.muted, "end")); return; }
       if (total) { show(x, T(txt(x), c.x, cy, EXT.totalRed, true, P.ink)); return; }
-      const m0 = g.max.get(last!) || 0, w = x && x.v !== null && m0 ? Math.abs(x.v) / m0 * EXG.bain.bar : 0;
+      const m0 = g.max.get(last!) || 0, w = x && x.v !== null && m0 ? Math.min(1, Math.abs(x.v) / m0) * EXG.bain.bar : 0;
       if (w) nodes.push(rect(c.x, cy - EXG.bain.barH / 2, w, EXG.bain.barH, P.bar));
       show(x, T(txt(x), c.x + w + 6, cy, EXT.value, false, P.ink)); return;
     }
@@ -164,15 +166,15 @@ function fullNumbers(ctx: RenderCtx, m: Metrics, g: ExLayout, family: string, op
     if (total) { if (P.band) nodes.push(rect(0, top, g.W, g.pitch, P.band)); nodes.push(rect(0, top, g.W, navy ? 1.5 : 2, P.rule)); }
     else if (navy ? i > 0 : true) nodes.push(rect(0, navy ? top - .5 : top + g.pitch - 1, g.W, 1, P.hair));
     for (const c of g.cols) {
-      if (c.kind === "label") { hit(r.label); if (!opts.noText && r.label) texts.push(T(r.label.text.trim() || "–", c.x, cy, EXT.text, true, P.label)); continue; }
+      if (c.kind === "label") { hit(r.label); if (!opts.noText && r.label) texts.push(clipTo(T(r.label.text.trim() || "–", c.x, cy, EXT.text, true, P.label), c.x, top, c.w - 6, g.pitch)); continue; }
       if (c.kind === "num") {
         const x = r.cells.get(c.col!), v = x && x.v !== null ? x.v : null, s = x && x.text.trim() ? x.text.trim() : "–";
         // Red: the latest period's value as a light band under its number, from the lane's left, ∝ value
-        if (!navy && c.role === "latest" && !total && v !== null) { const m0 = g.max.get(c.col!) || 0, w = m0 ? Math.abs(v) / m0 * (c.w - 4) : 0; if (w) nodes.push(rect(c.x, cy - 8, w, 16, P.bar)); }
+        if (!navy && c.role === "latest" && !total && v !== null) { const m0 = g.max.get(c.col!) || 0, w = m0 ? Math.min(1, Math.abs(v) / m0) * (c.w - 4) : 0; if (w) nodes.push(rect(c.x, cy - 8, w, 16, P.bar)); }
         hit(x);
         if (opts.noText) continue;
         const color = s === "–" ? P.muted : v !== null && v < 0 ? P.neg : c.role === "pct" ? P.pct : P.ink;
-        texts.push(T(s, c.x + c.w - 2, cy, EXT.text, total, color, "end"));
+        texts.push(T(s, c.x + c.w - 2, cy, EXT.text, total || r.kind === "sub", color, "end"));
         continue;
       }
       if (c.kind === "lane") {

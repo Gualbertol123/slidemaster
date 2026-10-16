@@ -16,7 +16,9 @@ import { consultOptions } from "../model/designs";
 
 /** one cell of the exhibit: the item (for its hit, text and edits) and its value when it is a number */
 export interface ExCell { it: Item; r: number; c: number; text: string; v: number | null }
-export interface ExRow { r: number; kind: "body" | "total"; label: ExCell | null; cells: Map<number, ExCell> }
+/** body: a row of its own (the bars' scales, the facts); sub: a subtotal, an "of which" or a bold block head – drawn bold,
+    not counted; total: the table's total (a "Grand total", else a "Total…" row at the top or the bottom) */
+export interface ExRow { r: number; kind: "body" | "sub" | "total"; label: ExCell | null; cells: Map<number, ExCell> }
 /** consecutive period columns (their header texts), oldest first */
 export interface ExSeries { cols: number[]; labels: string[] }
 /** a reference column (Budget, Plan, Target, Prior year …) */
@@ -59,12 +61,18 @@ export function exhibitOf(L: TableLayout, ctx: RenderCtx): Exhibit {
       const r = L.rows[ri], c = L.cols[ci], it = items.get(r + "," + c), x = g[ri]?.[ci];
       return it && x && x.anchor ? { it, r, c, text: it.removed ? "" : String(it.text || ""), v: x.v } : null;
     };
-    const first = a.rows.length ? a.rows[0].r : g.length;
+    // a leading row of whole numbers 1900–2100 ("Region | 2023 | 2024", years Excel stores as numbers) is a header row
+    const yearRow = (ri: number) => { const xs = g[ri].slice(a.labelCol + 1).filter(x => x.anchor && x.v !== null); return xs.length > 0 && xs.every(x => Number.isInteger(x.v) && x.v! >= 1900 && x.v! <= 2100); };
+    let k0 = 0; while (k0 < a.rows.length && !TOTAL.test(a.rows[k0].label) && yearRow(a.rows[k0].r)) k0++;
+    const rowsA = a.rows.slice(k0);
+    const first = rowsA.length ? rowsA[0].r : g.length;
     const head = L.rows.slice(0, first).filter((_r, i) => g[i].some(x => x.text.trim()));
     const plain: Exhibit = { kind: "plain", labelCol: L.cols[a.labelCol] ?? L.cols[0], head, rows: [], total: null, series: null, refs: [], deltas: [] };
-    if (!a.rows.length) return plain;                                                  // no labelled numeric rows
-    const heads = Array.from({ length: C }, (_x, ci) => { const p: string[] = []; for (let ri = 0; ri < first; ri++) { const t = (g[ri][ci]?.text || "").trim(); if (t && !p.includes(t)) p.push(t); } return p; });
-    const numeric = (ci: number) => a.rows.some(d => { const x = g[d.r][ci]; return x.anchor && x.v !== null; });
+    if (!rowsA.length) return plain;                                                   // no labelled numeric rows
+    // a caption merged across every number column ("Loans (mln €)") is no number column's head
+    const caps = new Set(C - a.labelCol > 2 ? captions(L, ctx, head, L.cols[a.labelCol + 1], L.cols[C - 1]).map(it => String(it.text).trim()) : []);
+    const heads = Array.from({ length: C }, (_x, ci) => { const p: string[] = []; for (let ri = 0; ri < first; ri++) { const t = (g[ri][ci]?.text || "").trim(); if (t && !p.includes(t) && !(ci > a.labelCol && caps.has(t))) p.push(t); } return p; });
+    const numeric = (ci: number) => rowsA.some(d => { const x = g[d.r][ci]; return x.anchor && x.v !== null; });
     // variance groups: the comments' analysis (Δ / vs columns with Abs. and %)
     const deltas: ExDelta[] = a.groups.map(G => ({ label: G.name, abs: G.abs === null ? null : L.cols[G.abs], pct: G.pct === null ? null : L.cols[G.pct] }));
     const inDelta = new Set(a.groups.flatMap(G => [G.abs, G.pct]).filter((x): x is number => x !== null));
@@ -74,11 +82,11 @@ export function exhibitOf(L: TableLayout, ctx: RenderCtx): Exhibit {
     for (let ci = 0; ci <= C; ci++) { if (ci < C && isPeriod(ci)) run.push(ci); else { if (run.length >= 2 && run.length >= best.length) best = run; run = []; } }
     const series: ExSeries | null = best.length ? { cols: best.map(ci => L.cols[ci]), labels: best.map(ci => heads[ci].find(h => PERIOD.test(h) && !/\d[/.-]\d/.test(h)) || heads[ci][0]) } : null;
     const inSeries = new Set(best), refs: ExRef[] = [];
-    for (let ci = a.labelCol + 1; ci < C; ci++) if (!inDelta.has(ci) && !inSeries.has(ci) && numeric(ci)) refs.push({ col: L.cols[ci], label: heads[ci][0] || "" });
+    for (let ci = a.labelCol + 1; ci < C; ci++) if (!inDelta.has(ci) && !inSeries.has(ci) && numeric(ci)) refs.push({ col: L.cols[ci], label: heads[ci][heads[ci].length - 1] || "" });
     // every column with content has its place, or the table is drawn plainly: nothing may be left out
     for (let ci = 0; ci < C; ci++) {
       if (ci === a.labelCol || inDelta.has(ci) || inSeries.has(ci) || refs.some(x => x.col === L.cols[ci])) continue;
-      if (a.rows.some(d => g[d.r][ci].anchor && g[d.r][ci].text.trim())) return plain;
+      if (rowsA.some(d => g[d.r][ci].anchor && g[d.r][ci].text.trim())) return plain;
     }
     if (!series && !deltas.length) return plain;                                       // numbers, but nothing to show as an exhibit
     const rowOf = (ri: number, kind: ExRow["kind"]): ExRow => {
@@ -86,11 +94,28 @@ export function exhibitOf(L: TableLayout, ctx: RenderCtx): Exhibit {
       for (let ci = a.labelCol + 1; ci < C; ci++) { const x = cellAt(ri, ci); if (x) cells.set(x.c, x); }
       return { r: L.rows[ri], kind, label: cellAt(ri, a.labelCol), cells };
     };
-    const tot = a.total || a.rows.find(d => TOTAL.test(d.label)) || null;
-    return { kind: "exhibit", labelCol: L.cols[a.labelCol], head, rows: a.rows.filter(d => d !== tot).map(d => rowOf(d.r, "body")),
+    // the total: a "Grand total", else a "Total…" row at the table's top or bottom (subtotals sit between), else the last;
+    // subtotals, "of which" rows and bold block heads are drawn as such and left out of the scales and the facts
+    const totals = rowsA.filter(d => TOTAL.test(d.label)), ends = [rowsA[0], rowsA[rowsA.length - 1]];
+    const tot = totals.find(d => /grand/i.test(d.label)) || ends.find(d => totals.includes(d)) || totals[totals.length - 1] || null;
+    const ent = new Set(a.entities.map(d => d.r));
+    return { kind: "exhibit", labelCol: L.cols[a.labelCol], head, rows: rowsA.filter(d => d !== tot).map(d => rowOf(d.r, ent.has(d.r) ? "body" : "sub")),
       total: tot ? rowOf(tot.r, "total") : null, series, refs, deltas };
   });
 }
+
+/** the head items merged across the number columns from c1 to c2 (a table's caption) */
+function captions(L: TableLayout, ctx: RenderCtx, head: number[], c1: number, c2: number): Item[] {
+  const hs = new Set(head);
+  return effItems(L, ctx).filter(it => hs.has(it.b.r) && it.b.c <= c1 && it.b.c2 >= c2 && String(it.text || "").trim());
+}
+/** is a head item the table's caption (merged across every number column)? */
+const isCaption = (L: TableLayout, ex: Exhibit) => {
+  const ci = L.cols.indexOf(ex.labelCol), c1 = L.cols[ci + 1], c2 = L.cols[L.cols.length - 1];
+  return (it: Item) => L.cols.length - ci > 2 && it.b.c <= c1 && it.b.c2 >= c2;
+};
+/** the rows of their own: the bars' scales and the facts count them */
+export const bodyRows = (ex: Exhibit) => ex.rows.filter(r => r.kind === "body");
 
 /* ---- facts ---- */
 /** what a variance compares with (the comments' kinds, model/comment.ts kindOf) */
@@ -122,7 +147,7 @@ function factsOf(ex: Exhibit): ExFacts {
   let short: ExFacts["short"] = null, worst: ExFacts["worst"] = null;
   if (leadD) {
     const valOf = (row: ExRow) => (num(row, leadD.abs) || num(row, leadD.pct))?.v ?? null;
-    const withV = ex.rows.filter(row => valOf(row) !== null), below = withV.filter(row => valOf(row)! < 0);
+    const withV = bodyRows(ex).filter(row => valOf(row) !== null), below = withV.filter(row => valOf(row)! < 0);
     short = { n: below.length, of: withV.length };
     const w = below.sort((x, y) => valOf(x)! - valOf(y)!)[0];
     if (w) worst = { label: w.label ? w.label.text.replace(/\s*\(\d+\)\s*$/, "").trim() : "", abs: num(w, leadD.abs), pct: num(w, leadD.pct) };
@@ -192,16 +217,20 @@ function fullLayout(L: TableLayout, ctx: RenderCtx, d: "mckinsey" | "bain"): ExL
     let W = 0;
     at("label", Math.min(G.label[1], Math.max(G.label[0], Math.ceil(chars * 9.6) + 16)));
     const ser = ex.series, last = ser ? ser.cols[ser.cols.length - 1] : null;
-    if (ser) for (const col of ser.cols) at("num", col === last ? G.latest : G.num, { col, role: col === last ? "latest" : "period" });
+    // a number column: its width, or as wide as its longest text needs (14.67 px: a digit or letter ≈ 8.3 px, a separator
+    // or sign . , - + ' and space ≈ 4.6 px; 8 px to spare)
+    const textW = (t: string) => [...t].reduce((s, ch) => s + (/[.,\-+' ]/.test(ch) ? 4.6 : 8.3), 0);
+    const fit = (col: number, w: number) => Math.max(w, Math.ceil(Math.max(0, ...all.map(r => textW((r.cells.get(col)?.text || "").trim())))) + 8);
+    if (ser) for (const col of ser.cols) at("num", fit(col, col === last ? G.latest : G.num), { col, role: col === last ? "latest" : "period" });
     if (ser && G.trend) at("trend", G.trend);
-    for (const ref of ex.refs) at("num", G.ref, { col: ref.col, role: "ref", ref });
+    for (const ref of ex.refs) at("num", fit(ref.col, G.ref), { col: ref.col, role: "ref", ref });
     const groups: { x: number; w: number; delta: ExDelta; abs: ExCol | null; pct: ExCol | null }[] = [];
     for (const [i, delta] of ex.deltas.entries()) {
       W += G.ggap;
       const x0 = W;
       if (i < G.lanes) at("lane", G.lane, { delta });
-      const abs = delta.abs !== null ? at("num", G.abs, { col: delta.abs, role: "abs", delta }) : null;
-      const pct = delta.pct !== null ? at("num", G.pct, { col: delta.pct, role: "pct", delta }) : null;
+      const abs = delta.abs !== null ? at("num", fit(delta.abs, G.abs), { col: delta.abs, role: "abs", delta }) : null;
+      const pct = delta.pct !== null ? at("num", fit(delta.pct, G.pct), { col: delta.pct, role: "pct", delta }) : null;
       groups.push({ x: x0, w: W - x0, delta, abs, pct });
     }
     const head = G.head, pitch = pitchOf(L);
@@ -209,13 +238,13 @@ function fullLayout(L: TableLayout, ctx: RenderCtx, d: "mckinsey" | "bain"): ExL
     const H = head + all.length * pitch;
     // the bars' scales: the body rows' largest |value| (a variance: its absolute, else its %; Red: the latest period)
     const num = (r: ExRow, c: number | null) => { const x = c === null ? undefined : r.cells.get(c); return x && x.v !== null ? x.v : null; };
-    const scaleOf = (c: number | null) => { if (c === null) return; max.set(c, Math.max(0, ...ex.rows.map(r => Math.abs(num(r, c) ?? 0)))); };
+    const scaleOf = (c: number | null) => { if (c === null) return; max.set(c, Math.max(0, ...bodyRows(ex).map(r => Math.abs(num(r, c) ?? 0)))); };
     if (d === "bain") scaleOf(last);
     for (const c of cols) if (c.kind === "lane") scaleOf(c.delta!.abs ?? c.delta!.pct);
     // heads: per column its header cells (top to bottom, at most two lines); a variance group's title centred over the
     // group, its "Abs." / "%" right-aligned over their numbers
     const items = effItems(L, ctx);
-    const over = (col: number) => { const out: Item[] = []; for (const r of ex.head) { const it = items.find(x => x.b.r <= r && x.b.r2 >= r && x.b.c <= col && x.b.c2 >= col && String(x.text || "").trim()); if (it && !out.includes(it)) out.push(it); } return out; };
+    const cap = isCaption(L, ex), over = (col: number) => { const out: Item[] = []; for (const r of ex.head) { const it = items.find(x => x.b.r <= r && x.b.r2 >= r && x.b.c <= col && x.b.c2 >= col && String(x.text || "").trim() && (col === ex.labelCol || !cap(x))); if (it && !out.includes(it)) out.push(it); } return out; };
     const put = (it: Item | null, text: string, x: number, w: number, line: 0 | 1, align: ExHead["align"]) => {
       headTexts.push({ it, text, x, w, line, align });
       if (it && !boxes.has(it.b.r + "," + it.b.c)) boxes.set(it.b.r + "," + it.b.c, { x, y: line ? head / 2 : 0, w, h: head / 2 });
@@ -273,13 +302,13 @@ function compactLayout(L: TableLayout, ctx: RenderCtx, d: "mckinsey" | "bain"): 
     const H = head + all.length * pitch;
     // the bars' scales: the body rows' largest |value| per column
     const num = (r: ExRow, c: number | null) => { const x = c === null ? undefined : r.cells.get(c); return x && x.v !== null ? x.v : null; };
-    const scaleOf = (c: number | null) => { if (c === null) return; max.set(c, Math.max(0, ...ex.rows.map(r => Math.abs(num(r, c) ?? 0)))); };
+    const scaleOf = (c: number | null) => { if (c === null) return; max.set(c, Math.max(0, ...bodyRows(ex).map(r => Math.abs(num(r, c) ?? 0)))); };
     const last = ex.series ? ex.series.cols[ex.series.cols.length - 1] : null;
     scaleOf(last);
     for (const c of cols) if (c.kind === "dbar") scaleOf(c.delta!.abs ?? c.delta!.pct);
     // header cells: the first head row with text over the column
     const items = effItems(L, ctx), heads = new Map<ExCol, { it: Item; text: string }>();
-    const headOver = (col: number) => { for (const r of ex.head) { const it = items.find(x => x.b.r <= r && x.b.r2 >= r && x.b.c <= col && x.b.c2 >= col && String(x.text || "").trim()); if (it) return it; } return null; };
+    const cap = isCaption(L, ex), headOver = (col: number) => { for (const r of ex.head) { const it = items.find(x => x.b.r <= r && x.b.r2 >= r && x.b.c <= col && x.b.c2 >= col && String(x.text || "").trim() && (col === ex.labelCol || !cap(x))); if (it) return it; } return null; };
     for (const c of cols) {
       const col = c.kind === "label" ? ex.labelCol : c.kind === "latest" ? last : c.kind === "trend" ? null : c.ref ? c.ref.col : c.delta!.abs ?? c.delta!.pct;
       const it = col === null ? null : headOver(col);
@@ -319,7 +348,7 @@ function compactLayout(L: TableLayout, ctx: RenderCtx, d: "mckinsey" | "bain"): 
 /** a diverging bar: from the axis (the column's centre) towards the value's side, its length ∝ |value| / the column's max */
 export function barOf(c: ExCol, col: number | null, r: ExRow, max: Map<number, number>, half: number, h: number, cy: number) {
   const x0 = c.x + c.w / 2, cell = col === null ? undefined : r.cells.get(col), v = cell && cell.v !== null ? cell.v : null, m = col === null ? 0 : max.get(col) || 0;
-  const w = v === null || v === 0 || !m ? 0 : Math.max(2, Math.abs(v) / m * half);
+  const w = v === null || v === 0 || !m ? 0 : Math.max(2, Math.min(1, Math.abs(v) / m) * half);
   return { v, x: v !== null && v < 0 ? x0 - w : x0, y: cy - h / 2, w, h };
 }
 /** the exhibit's size and the boxes of the cells it shows (a plain table: Excel's geometry, its items' boxes) */
