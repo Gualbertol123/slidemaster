@@ -11,6 +11,8 @@ export class MirrorWorkbook implements Workbook {
   readonly zip = null as unknown as Zip;                          // the bytes stay in the worker
   readonly wbRels = {};
   readonly meta; readonly skipped; readonly hiddenSheets; readonly extLinks; readonly total; readonly ssSize; readonly big;
+  /** the page's mirror recalculates nothing: no linked workbook names */
+  readonly externals: string[] = [];
   /** the worker's number for this workbook (its slices carry it) */
   readonly book: number;
   sheets: Sheet[] = [];

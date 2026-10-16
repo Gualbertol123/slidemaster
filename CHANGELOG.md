@@ -3,6 +3,18 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.2.0 - unreleased (docs/next/07, PLAN M7–M8; B15, B22–B24)
+
+What users notice
+* The page is about 2 MB bigger (B23): it carries a formula engine (IronCalc, MIT/Apache-2.0) that is started only
+  when something needs it – a scenario run or the formula self-check – so opening Slide Builder and a deck is as fast
+  as before.
+
+For the maintainer
+* Workbook formulas are read (`.xlsx` and `.xlsb`), not only their cached values, and `core/src/calc/engine.ts`
+  recomputes them; `core/tests/formulas.test.ts` and `engine.test.ts` check both against Excel's own files in
+  `tests/corpus/workbooks/recalc/` (made with Excel by `spikes/recalc/make_linked.ps1`).
+
 ## 4.1.0 - unreleased
 
 What users notice

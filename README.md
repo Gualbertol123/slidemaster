@@ -490,6 +490,7 @@ script, so HarfBuzz is in the page once). `main.tsx` installs the platform, inje
 | `dl/` | The display list (`types.ts`: 8 node types in slide px 1600 × 900, ADR-004) and its backends: `svg.ts` (the stage, markup in pieces), `canvas.ts` (thumbnails, PNG, pictures, clipboard), `geom.ts` (geometry all backends share), `color.ts`, `key.ts` (content keys). |
 | `text/` | Fonts and text (ADR-005): `fonts.ts` (registry by SHA-1), `hb.ts` + `wasm/` (HarfBuzz), `shape.ts` (shaping, breaking, fitting), `measure.ts` (**text measured from font files** – the library's faces and this PC's; a font may make the slide wait 1.5 s at most, then the page measures and the slide is drawn again), `lines.ts` (CSS line-breaking rules), `kern.ts`, `outline.ts` (glyph outlines for fonts the browser would draw differently), `family.ts`, `resolve.ts` (which file draws a run in the PDF), `pdf.ts`, `subset.ts`, `static.ts`, `fvar.ts`, `sha1.ts`. |
 | `pdf/` | `writer.ts` (display list → PDF 1.7, pages `MediaBox [0 0 1200 675]`, Type0 fonts with ToUnicode, soft masks, transparency groups), `png.ts`, `ttf.ts`, `README.md`. |
+| `calc/` (4.2) | The **formula engine** (ADR-013, docs/next/07 §1.4): `wasm/` = IronCalc 0.9.0 (MIT or Apache-2.0, Rust → WASM, inlined by `tools/vendor-ironcalc.mjs` as zlib + base64 with the wasm-bindgen glue; instantiated on first use, never while opening), `engine.ts` (`CalcModel`: a workbook and its linked workbooks fed from the SheetStore – numbers by a tab-separated paste, texts quoted, formulas with Excel's `_xlfn.` prefixes dropped, `[n]Sheet` references renamed to the linked sheets' internal `«n»Sheet` names, whole columns / rows bounded to the used range except inside OFFSET / INDIRECT / ROW(S) / COLUMN(S); `set` an input cell, `evaluate`, `valueOf` read through a 15-significant-digit format, `selfCheck` = every formula cell against Excel's cached value: exact / volatile / locale / external / unreadable / different), `refs.ts` (formula tokenizer, shared-formula shift, sheet ids `[File.xlsx]Sheet`). `core/tests/engine.test.ts`: on the Excel-made recalc corpus every scenario value equals Excel's recalculated copy; `core/bench/engine.bench.test.ts` ⏱ first use < 200 ms, one value < 150 ms. |
 
 ### 5.4 The core worker – `core/src/worker/`, `workers/`, `rpc/`, `sync/`
 The core worker (`workers/core.worker.ts`, state and answers in `worker/host.ts`) **owns the open workbook, its
@@ -500,7 +501,8 @@ messages. The messages are typed in `rpc/messages.ts` over `rpc/port.ts` (calls 
   names that number), `ensure`, `getSheetMeta`, `getSheetWindow`, `detectTables`, `getCell`, `defaultPreset`,
   `start` (the deck as the helper opened it), `inputs`, `apply(label, ops, coalesce)`, `undo(redo)`, `flush`,
   `poll`, `alone`, `compactAll` (Prepare rollback), `staticFont`, `slideLists`, `fontsSettling` (capture tools),
-  `stage`, `linkExport`/`unlinkExport`;
+  `stage`, `linkExport`/`unlinkExport`, `calcCheck` (4.2: the formula engine's self-check of the open workbook, every
+  sheet read and the engine started on this first use);
 * the worker **sends** `slices`, `doc` (view when it changed, save state, error, history, deck health, what
   changed, how many of the page's calls it includes), `stage`, `progress`, `error`, `retiredSaved`, `rest` (a
   snapshot for pagehide);

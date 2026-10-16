@@ -84,7 +84,14 @@ export interface CoreMethods {
   linkExport(a: { id: number; port: MessagePort }): void;
   /** that export worker stopped: its channel is closed */
   unlinkExport(a: { id: number }): void;
+  /** the formula engine's self-check of the open workbook (PLAN S7.2, docs/next/07 §1.4): every formula cell
+      recomputed and compared with Excel's cached value; the engine is instantiated on this first use (B23). Null
+      when no workbook is open */
+  calcCheck(a: Record<string, never>): CalcCheck | null;
 }
+/** the self-check's result: how many formula cells are exact / volatile / locale-dependent / external / unreadable /
+    different, the first differences, the engine's times (ms) */
+export interface CalcCheck { counts: import("../calc/engine").SelfCheck["counts"]; different: import("../calc/engine").SelfCheck["different"]; formulas: number; ms: { load: number; build: number; evaluate: number; check: number } }
 export type SlideListsReq = DesignReq & { slides?: number[]; /** the date the page shows (its clock) */ today?: string };
 export interface SlideList { slide: number; dl: import("../render/excel-dl").TableDL }
 /** the stage's request: slide `slide` of the current design and version. `known`: the image ids the page already has

@@ -27,7 +27,7 @@ import type { RenderCtx } from "../render/context";
 import type { Design, Preset, RuntimeSlide, Style, WorkbookDoc } from "../model/types";
 import type { Workbook } from "../xlsx/types";
 import { Port, transfer, type Wire } from "../rpc/port";
-import type { CoreEvents, CoreMethods, DocState, ExportCoreMethods, PageEvents, PageMethods, SlideListsReq, StageLayer, StageReq, StageSlide, ViewInputs, WorkbookInfo } from "../rpc/messages";
+import type { CalcCheck, CoreEvents, CoreMethods, DocState, ExportCoreMethods, PageEvents, PageMethods, SlideListsReq, StageLayer, StageReq, StageSlide, ViewInputs, WorkbookInfo } from "../rpc/messages";
 import { weightOf, type DisplayList, type Node } from "../dl/types";
 import { stageHits, svgChunks } from "../dl/svg";
 import { contentKey } from "../dl/key";
@@ -37,6 +37,7 @@ import { fontStack } from "../model/fonts";
 
 type HostPort = Port<CoreMethods, PageMethods, PageEvents, CoreEvents>;
 
+const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 export class CoreHost {
   private served = false; private client = ""; private me = "";
   private candidate: Workbook | null = null;
@@ -118,6 +119,21 @@ export class CoreHost {
       this.exportLinks.set(a.id, a.port);
     });
     h("unlinkExport", a => { const mp = this.exportLinks.get(a.id); this.exportLinks.delete(a.id); if (mp) { mp.onmessage = null; mp.close(); } });
+    h("calcCheck", () => this.calcCheck());
+  }
+  /** the formula engine's self-check of the open workbook (S7.2): every sheet read, the engine loaded on first use */
+  private async calcCheck(): Promise<CalcCheck | null> {
+    const wb = this.wb; if (!wb) return null;
+    const t0 = now();
+    const [{ CalcModel, loadEngine }] = await Promise.all([import("../calc/engine"), wb.ensure(wb.meta.map(m => m.name), this.progress)]);
+    this.port.emit("progress", null);
+    const g = await loadEngine(); const t1 = now();
+    if (this.wb !== wb) return null;
+    const model = new CalcModel(g, [{ name: null, file: this.name, sheets: wb.sheets, externals: wb.externals }]);
+    const t2 = now(); const sc = model.selfCheck(); const t3 = now();
+    const out: CalcCheck = { counts: sc.counts, different: sc.different.slice(0, 20), formulas: model.formulas.length, ms: { load: t1 - t0, build: model.ms.build, evaluate: model.ms.evaluate, check: t3 - t2 } };
+    model.dispose();
+    return out;
   }
   /** the export workers' channels, by the page's number for each (closed when the worker stops) */
   private exportLinks = new Map<number, MessagePort>();

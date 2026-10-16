@@ -79,6 +79,9 @@ export interface Workbook {
   skipped: { name: string; why: string }[];
   hiddenSheets: string[];
   extLinks: number;
+  /** the file names the workbook's external links point at, in the "[n]" order of its formulas (S7.2; "?" when a
+      link has no readable target) */
+  externals: string[];
   sheets: Sheet[];
   shared: Shared | null;
   total: number; ssSize: number; big: boolean;

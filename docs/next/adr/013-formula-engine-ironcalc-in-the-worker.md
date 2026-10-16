@@ -31,6 +31,10 @@ accepted for HarfBuzz).
 − Functions IronCalc lacks give error cells; the self-check makes that visible before a run, but it is a limit.
 − `TEXT`/date format codes depend on the saving Excel's UI language; the engine uses English codes (07 §1.3).
 − External links are not an engine feature: ADR-014 loads linked files into the same model.
+− Values are read back through a 15-significant-digit format (no raw getter in the WASM API); the model built from
+  our SheetStore keeps no number formats, so `TEXT()` with locale codes and dynamic-array spills are limits (07 §1.4).
++ Measured in S7.2 (reference-speed PC): engine first use 113 ms (WASM 32 + model and self-check of the 20-sheet deck
+  81), one scenario value 74 ms; the page grows from 1,540,884 to 3,540,517 bytes (B23).
 
 ## Evidence and alternatives
 `spikes/recalc/results.json`, 07 §1.3. fast-formula-parser (MIT) lacks MATCH/INDEX/SUMIFS (throws) and a graph: 1 of

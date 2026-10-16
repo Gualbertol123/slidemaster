@@ -388,3 +388,21 @@ describe("the stage's slide (S4.1)", () => {
     expect(await stageOf(p, 999)).toBe(null);
   });
 });
+
+describe("the formula engine's self-check (S7.2)", () => {
+  it("calcCheck reads every sheet, starts the engine once and reports the classes; null without a workbook", async () => {
+    const srv = server(), p = page(srv, "anna");
+    await p.port.call("init", { served: false, client: "c", me: "anna" });
+    expect(await p.port.call("calcCheck", {})).toBeNull();
+    const info = await p.port.call("index", { buf: book("recalc/Banks.xlsx") });
+    await p.port.call("start", { book: info.book, name: "Banks.xlsx", deck: srv.open(), preset: null, inputs: { defaults: {}, logoSrc: "", version: "", workbook: "Banks.xlsx" } });
+    const c = (await p.port.call("calcCheck", {}))!;
+    expect(c.formulas).toBe(192);
+    // Peers.xlsx is not in the model yet (S7.3): the two cells that read it are external, their two dependants differ
+    expect(c.counts).toEqual({ exact: 192 - 3 - 2 - 2, volatile: 0, locale: 3, external: 2, unreadable: 0, different: 2 });
+    expect(c.different.map(d => d.sheet + "!" + d.ref).sort()).toEqual(["FromB!D6", "SLIDE_3!D14"]);
+    expect(c.ms.build).toBeGreaterThan(0); expect(c.ms.load).toBeGreaterThanOrEqual(0);
+    const again = (await p.port.call("calcCheck", {}))!;
+    expect(again.counts).toEqual(c.counts);
+  }, 60_000);
+});

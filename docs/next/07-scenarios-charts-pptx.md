@@ -132,7 +132,20 @@ used range; §1.4 rule 3 states where it is not.
    these cells" (then those cells are drawn with a red marker and listed in the report). This is the whole safety net:
    no silently wrong number.
 5. **Not supported and said so:** macros/UDFs, data tables, Power Query refreshes, RTD, cube functions, iterative
-   calculation (circular references are an error cell), `.xls` (converted by Excel as today, then values only).
+   calculation (circular references are an error cell), `.xls` (converted by Excel as today, then values only),
+   tables' structured references (`Table1[Col]`: the cell keeps its cached value and counts as unreadable).
+
+**Found while building S7.2 (recorded here, not in the engine's favour or against it):**
+* The engine's formatted read-back rounds to **15 significant digits** (its `General` display to 9 decimals), and it
+  exposes no raw-value getter; the core applies a `0.00000000000000E+00` style to the formula cells and parses the
+  text back. Equality with Excel is therefore checked to 1e-13 relative (`sameValue`), and a scenario value's text is
+  formatted from a 15-digit number – Excel's own display precision.
+* Sheet names are limited to 31 characters and may not contain `[ ] : * ? / \`, as in Excel: a linked workbook's sheet
+  gets the internal name `«n»Sheet` (cut to 31, made unique), never saved anywhere.
+* Bulk constants go in through the engine's tab-separated paste (`pasteCsvText`, 240 k cells in 0.3 s; `setUserInput`
+  does 15 k cells/s), strings cell by cell with a quote prefix so that no text is read as a number, date or formula.
+* Dynamic arrays spill in Excel; the spilled cells are constants in the file and in the model, so a workbook whose
+  slide tables are fed by spills shows `different` cells in the self-check (a limit, rare in reporting decks).
 
 ---
 

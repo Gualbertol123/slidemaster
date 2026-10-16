@@ -78,11 +78,21 @@ export async function indexWorkbook(buf: ArrayBuffer): Promise<Workbook> {
     meta.push({ name, path: f.name, size: entrySize(f) });
   }
   const rel = (re: RegExp) => Object.values(wbRels).find(r => re.test(r.type));
+  // the linked workbooks' file names, in the order the formulas' "[n]" count them: the <externalReference r:id> list
+  // of workbook.xml (a binary workbook: its BrtSupBookSrc records), each part's own relationship naming the file
+  const externals: string[] = [];
+  const extIds: string[] = /\.bin$/i.test(wbPath) ? (BIN_INFO.get(zip)?.books.flatMap(b => b.kind === "external" ? [b.relId] : []) ?? [])
+    : all(parseXml(await zget(zip, wbPath)!.async("string")), "externalReference").map(e => e.getAttributeNS(NS_R, "id") || e.getAttribute("r:id") || "");
+  for (const id of extIds) {
+    const part = wbRels[id]?.target; let name = "?";
+    try { if (part) { const rels = await readRels(zip, part); const t = Object.values(rels).find(r => r.external)?.target || Object.values(rels)[0]?.target; if (t) name = decodeURIComponent(t.replace(/\\/g, "/").split("/").pop() || "?"); } } catch { /* unreadable link part: "?" */ }
+    externals.push(name);
+  }
   const ssRel = rel(/sharedStrings$/), ssSize = ssRel ? entrySize(zget(zip, ssRel.target)) : 0;
   const total = meta.reduce((s, m) => s + m.size, 0) + ssSize;
   const wb: Workbook = {
     zip, wbRels, meta, skipped, hiddenSheets: skipped.filter(s => s.why === "hidden").map(s => s.name),
-    extLinks: Object.values(wbRels).filter(r => /externalLink/.test(r.type)).length,
+    extLinks: Object.values(wbRels).filter(r => /externalLink/.test(r.type)).length, externals,
     sheets: [], shared: null, total, ssSize, big: total > BIG_BYTES || buf.byteLength > 6 * 1048576,
     isLoaded: n => wb.sheets.some(S => S.name === n),
     ensure: (names, progress) => ensureSheets(wb, names, progress),
