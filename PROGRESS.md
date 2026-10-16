@@ -75,6 +75,14 @@ numbers measured twice). Measured numbers go into the step's line.
 - [x] S7.4 · Self-check, overlay, scenario RPC ⏱ (B23, B24) — branch `v4/M7-recalc` (PR to open). The worker keeps one engine model per open workbook (`ensureCalc`, rebuilt when sheets or links change, freed on another workbook); `scenarioPreview({sheet, ref, value} | null)` sets the input cell, evaluates, and shows every slide from a **view** of the workbook (`core/src/calc/overlay.ts`: the changed sheets copied with the recomputed cells' values – `CalcModel.changes()` against the baseline –, `RenderCtx.scenario` digest in every table key and the stage cache, LCACHE afresh); the answer counts the moved cells and those the self-check classes `different` (the gate of M8's runs); `null` restores the input cell and the workbook's own values. The document, the deck and the workbook file are never touched (host test: records and document identical before / after, texts follow Bank C's truth copy, cleared = as before). B24: the side panel's **Formulas** line with *Check* (`app/src/ui/Chrome.tsx CalcLine`, `ui.calc`, `checkFormulas()`), beside `#issues` so the parity goldens' issues capture is unchanged; e2e: 205 of 208 recompute like Excel · 3 locale-dependent (TEXT) on the linked pair. ⏱ `core/bench/engine.bench.test.ts`: the cold first use (WASM + the first model and self-check) 271 ms at calibration 38.5 ms (×1.20) = ≈ 225 ms at reference speed, warm models 102 ms, one value 83.8 ms → **the first-use budget is set to 300 ms cold** (PLAN Part F, 07 §6.4; 200 ms was a warm-model estimate – flagged under Waiting for). Review fixes: the input cell is restored from the engine's own content (`contentOf` / `restore`: an empty cell stays empty, a formula cell gets its formula back – tested), the clear path measures what is left in the engine (0), `scenarioPreview` runs in the change queue like every redraw, the page's mirror is documented as not overlaid during a preview (07 §2.4, ADR-014). Deferred to M8 and said so: `scenario.plan` / `cancel` (the run itself) and RC-06's "run anyway" gate (the `different` count is in the answer). Follow-up review: APPROVE; its one robustness point fixed (a preview waiting in the change queue checks the engine model is still the one it took: a rebuild meanwhile would have freed it), plus: the formula-cell restore proven by a second scenario, "All / None" in the wizard keeps a lost link's sheets, another person's preset change that adds a link attaches it (`onChange`). verified: tests ✓ clean clone ✓ review ✓ (numbers below)
 - [ ] S7.5 · Milestone close (AUDIT §0 twice) 🚦 G4
 
+### M7b · Two consulting designs, McKinsey and Bain (4.2.x; docs/next/08, ADR-018; between M7 and M8)
+- [ ] Phase 0 · Research and specs (08 §1–§6, ADR-018, `docs/next/designs/*-sketch.svg`) — branch `v4/M7b-consulting-designs`, documents only; 🚦 waiting for approval (Waiting for)
+- [ ] S7b.1 · Design type and plumbing
+- [ ] S7b.2 · The consulting renderer
+- [ ] S7b.3 · Pixel review 🚦
+- [ ] S7b.4 · Export and budgets ⏱
+- [ ] S7b.5 · Close (AUDIT §0 twice) 🚦
+
 ### M8 · Scenario export (4.2.0; B15)
 - [ ] S8.1 · Dialog
 - [ ] S8.2 · Names and files
@@ -282,6 +290,15 @@ numbers measured twice). Measured numbers go into the step's line.
 
 ## Waiting for
 
+- **M7b · Phase 0 approval, for the product owner (2026-10-16):** the research and the two specs are in
+  `docs/next/08-consulting-designs.md` (34 public references in §1, specs with every value in slide px and its source
+  in §2, plan §3, rows / B25–B26 / budgets §4, steps §5) and ADR-018; the sketches are
+  `docs/next/designs/mckinsey-sketch.svg` and `bain-sketch.svg` (palette, type, a labelled content slide, cover and
+  contents). Needed before any code: (1) approve or change the two specs; (2) the fonts – Georgia Bold + Arial
+  (McKinsey), Arial (Bain), Windows core fonts, no proprietary firm font (08 §2.3); (3) the B-items B25, B26 (no
+  change to existing behaviour); (4) the ten questions of 08 §6 – button / file names, two-line title band, theme,
+  tracker, Bain rule and table header, export menu item, workbook formatting, positive / negative colours. The
+  recommendation is given for each; "approve the recommendations" answers all of them.
 - **M7 · gate G4, for the product owner (2026-10-16):** when S7.5's two protocol runs are recorded, (1) push `v4/M7-recalc`
   and open ONE pull request "M7 · Recalculation core (S7.1–S7.5)"; (2) on your real decks: open each, press **Check**
   on the side panel's *Formulas* line and send back the line's text (e.g. "Formulas: 1,219 of 1,239 recompute like
