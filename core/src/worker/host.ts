@@ -19,6 +19,8 @@ import { tableDrawKey } from "../render/slide";
 import { computeLayout } from "../render/layout";
 import { excelTableDL, forgetMeasurements, measuredBuild, type TableDL } from "../render/excel-dl";
 import { glassTableDL } from "../render/glass-dl";
+import { consultTableDL } from "../render/consult-dl";
+import { isConsult } from "../model/designs";
 import { slideToDisplayList, type SlideImages } from "../render/slide-dl";
 import { keyOf } from "../render/edits";
 import { analyzeImages, IMGMETA } from "../xlsx/drawing";
@@ -438,7 +440,7 @@ export class CoreHost {
       const boxes = computeLayout(R, ctx).boxes, tables: TableDL[] = [];
       for (const [i, L] of R.tables.entries()) {
         const b = boxes[i], noText = a.thumb && L.items.length > 1200;
-        tables.push(glass ? await glassTableDL(L, ctx, { x: b?.x ?? 0, y: b?.y ?? 0, scale: b?.scale ?? 1 }, wall?.blur ?? null, { noText }) : await excelTableDL(L, ctx, { noText }));
+        tables.push(glass ? await glassTableDL(L, ctx, { x: b?.x ?? 0, y: b?.y ?? 0, scale: b?.scale ?? 1 }, wall?.blur ?? null, { noText }) : await flatTableDL(L, ctx, { noText }));
       }
       out.push({ slide: s, dl: await measuredBuild(m => slideToDisplayList(R, s, ctx, tables, boxes, { wall, logo }, m, a.today)) });
     }
@@ -484,7 +486,7 @@ export class CoreHost {
       let hit = this.stageCache.get(key);
       if (hit) this.stageCache.delete(key);
       else {
-        hit = { id: "t" + (++this.stageSeq), dl: glass ? await glassTableDL(L, ctx, place, img.wall?.blur ?? null) : await excelTableDL(L, ctx), svg: new Map() };
+        hit = { id: "t" + (++this.stageSeq), dl: glass ? await glassTableDL(L, ctx, place, img.wall?.blur ?? null) : await flatTableDL(L, ctx), svg: new Map() };
         // a table keeps its last few drawings (undo, redo); older ones of the same table go
         const mine = [...this.stageCache.keys()].filter(k => k.startsWith(who + "|"));
         for (const k of mine.slice(0, Math.max(0, mine.length - 2))) this.stageCache.delete(k);
@@ -594,6 +596,9 @@ async function glassFonts(ctx: RenderCtx) {
   const fams = [GLASS_FONT, ...new Set(ctx.slides.flatMap(R => R.tables.flatMap(L => L.items.flatMap(it => it.userFont ? [fontStack(it.userFont)] : [])))), ...(ctx.style.text?.table?.font ? [fontStack(ctx.style.text.table.font)] : [])];
   await tm.prepare(fams.flatMap(f => GLASS_WEIGHTS.map(w => `${w} 11px ${f}`)));
 }
+/** a table of the flat designs: Excel / Excel Refined (excel-dl.ts) or the consulting designs (consult-dl.ts) */
+const flatTableDL = (L: RuntimeSlide["tables"][number], ctx: RenderCtx, opts: { noText?: boolean } = {}) =>
+  isConsult(ctx.style.design) ? consultTableDL(L, ctx, opts) : excelTableDL(L, ctx, opts);
 /** how many table display lists the stage keeps (a deck's worth of the most recently shown) */
 const STAGE_CACHE = 200;
 /** the hit a text box's nodes start with: its bubble's, or its own */

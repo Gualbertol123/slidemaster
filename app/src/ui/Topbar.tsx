@@ -69,7 +69,7 @@ export function ThemePicker() {
       {THEMES.map(t => <button key={t.id} data-theme={t.id} className={cur.id === t.id ? "on" : ""} disabled={locked} title={locked ? lockTip : t.name} onClick={() => th({ id: t.id })}>{swatch(t)}<span>{t.name}</span></button>)}
       <button data-theme="custom" className={cur.id === "custom" ? "on" : ""} disabled={locked} title={locked ? lockTip : "Your own colours"} onClick={custom}>{swatch(cur.id === "custom" ? cur : { c1: "#fff", c2: "#ddd", c3: "#bbb", c4: "#999", a1: "#666" })}<span>Custom</span></button>
     </div>
-    {cur.id === "custom" && <div className="thcustom" id="themeCustom">
+    {cur.id === "custom" && !locked && <div className="thcustom" id="themeCustom">
       <span className="lbl">Background</span>{pick("c1", "1")}{pick("c2", "2")}{pick("c3", "3")}{pick("c4", "4")}
       <span className="lbl">Accents</span>{pick("a1", "1")}{pick("a2", "2")}
     </div>}

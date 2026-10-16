@@ -6,6 +6,8 @@
    the label its text as a reader has it (innerText, whitespace normalised as the parity tools do).
    Painting order is the page's: the elements without z-index in tree order, then the z-index 3 ones (the cover's
    text block, the contents rows and separators of Liquid Glass), then the page numbers (z-index 5).
+   The consulting designs (08 §2, S7b.2) have their own branch – title band, rules, cards, bullets, footnotes, cover and
+   contents – that reads every value from their spec (consult-spec.ts); the other designs' output does not change.
    Coordinates are slide px (1600 × 900). */
 import { parseColor, solid } from "../dl/color";
 import type { Node, Paint, TextNode } from "../dl/types";
@@ -16,11 +18,12 @@ import { cssLinear, glassBox, glassVars, type Wallpaper } from "./glass-dl";
 import { halfLeading, lu, primaryFamily, type Metrics, type TableDL } from "./excel-dl";
 import { pageNoFor, pageNoGeom, footerGeom, pageNumber, pnFmt } from "./pagenumbers";
 import { contrastVars, memoPart, noteParts, slideHasLogo, themeVars, type NotePart } from "./slide";
-import { tableW, type TBox } from "./layout";
+import { areaFor, tableW, type TBox } from "./layout";
 import { deckFmt, hasMarkup, slideTextFmt, titleGeom } from "./text";
 import { todayLabel } from "./cover";
 import { breakRuns, collapse } from "../text/lines";
 import { isConsult } from "../model/designs";
+import { specOf, type DesignSpec, type Stroke as SpecStroke, type TextSpec } from "./consult-spec";
 
 export const SLIDE_FONT = { glass: `-apple-system,"SF Pro Display","Segoe UI","Helvetica Neue",Inter,Arial,sans-serif`, excel: `"Century Gothic","CenturyGothic","URW Gothic","AppleGothic",Arial,sans-serif` };
 const GLASS_ROW_FONT = `-apple-system,"SF Pro Text","Segoe UI",Arial,sans-serif`;
@@ -45,6 +48,13 @@ function withFmt(base: TStyle, f: TextFmt, opts: { size?: boolean } = {}): TStyl
 }
 /** the reader's text of an element (innerText, as the parity tools normalise it) */
 const label = (t: string) => t.replace(/\s+\n/g, "\n").trim();
+/** a consulting design's text role (consult-spec.ts) as a style; `a` = its opacity */
+const specSt = (s: TextSpec, a?: number): TStyle => ({ family: s.family, size: s.size, weight: s.weight, italic: false,
+  color: a !== undefined && a < 1 ? { solid: parseColor(s.color).c, a } : solid(s.color), ls: s.ls || 0 });
+/** a consulting design's rule: a line across x1–x2 centred on y */
+const specRule = (x1: number, x2: number, y: number, s: SpecStroke): Node => ({ t: "line", x1, y1: y, x2, y2: y, stroke: { w: s.w, paint: solid(s.color) } });
+/** a text box paragraph drawn as a bullet in the consulting designs ("- " or "• " at its start) */
+const BULLET = /^(- |• )/;
 
 class Typesetter {
   constructor(private m: Metrics) {}
@@ -84,6 +94,8 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
   const V = glassVars(ctx), tv = themeVars(ctx), place = { x: 0, y: 0, scale: 1 }, wall = img.wall?.blur ?? null;
   const base = glassy ? SLIDE_FONT.glass : SLIDE_FONT.excel;
   const x1 = tv["--x1"] || "#1C4F8C";
+  // the consulting designs (08 §2, ADR-018): everything they draw comes from their spec, with the deck's colours
+  const C: DesignSpec | null = isConsult(d) ? specOf(ctx) : null;
   const images: Record<string, string> = {};
   const low: Node[] = [], z3: Node[] = [], z5: Node[] = [];
   const hit = (cls: string, x: number, y: number, w: number, h: number, text?: string): Node => ({ t: "hit", kind: "f", id: cls, x: r2(x), y: r2(y), w: r2(w), h: r2(h), ...(text !== undefined ? { label: text } : {}) });
@@ -97,19 +109,21 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
     const wf = +(contrastVars(ctx.style.contrast)["--wfade"] || 0);
     if (wf > 0) low.push({ t: "rect", x: 0, y: 0, w: 1600, h: 900, fill: { solid: [255, 255, 255], a: Math.min(1, wf) } });
     if (img.wall) images[img.wall.blur.blurId] = img.wall.blur.blurSrc;
-  } else low.push({ t: "rect", x: 0, y: 0, w: 1600, h: 900, fill: solid(tv["--slidebg"] || "#FFFFFF") });
+  } else if (C) low.push({ t: "rect", x: 0, y: 0, w: 1600, h: 900, fill: solid(R.type === "cover" ? C.cover.bg : R.type === "index" ? C.index.bg : C.bg) });
+  else low.push({ t: "rect", x: 0, y: 0, w: 1600, h: 900, fill: solid(tv["--slidebg"] || "#FFFFFF") });
 
   const pageNo = pageNoFor(ctx, idx), logo = slideHasLogo(R) ? img.logo : null, cover = R.type === "cover";
   // a page number in the top-left corner pushes the title to the right
   const shift = pageNo !== null && ctx.style.pn.pos === "tl" ? pageNoGeom(ctx, pageNo, glassy, !!logo, cover).w + 22 : 0;
-  if (cover) coverNodes();
+  if (cover) { if (C) consultCover(C); else coverNodes(); }
+  else if (C) { if (R.type === "index") consultIndex(C); else consultTitle(C); }
   else {
     oneLine("title", slideTextFmt(ctx, R, "title"), R.title, glassy ? 58 : 54, glassy ? 20 : 16, glassy ? 170 : 150,
       { family: base, size: glassy ? 48 : 44, weight: 700, italic: false, color: glassy ? solid("#0B0D17") : solid(x1), ls: glassy ? -1 : 0 }, glassy);
     if (R.subtitle) oneLine("subtitle", slideTextFmt(ctx, R, "subtitle"), R.subtitle, glassy ? 60 : 56, titleGeom(R, ctx).subTop, glassy ? 170 : 150,
       { family: base, size: glassy ? 19 : 18, weight: glassy ? 520 : 400, italic: false, color: glassy ? { solid: [18, 22, 44], a: .62 } : solid("#5B6B82"), ls: 0 }, false);
   }
-  if (R.type === "index") indexNodes();
+  if (R.type === "index" && !C) indexNodes();
   if (pageNo !== null) pageNoNodes(pageNo, false);
   const fg = footerGeom(ctx, idx, glassy, !!logo, cover, pageNo, today);
   if (fg) pageNoNodes(fg.label, true);
@@ -128,9 +142,9 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
   return { nodes: [...low, ...z3, ...z5], images };
 
   /* a nowrap line with an ellipsis in a box from left to 1600 − right (titles), the inherited line height unless set */
-  function oneLine(cls: string, f: TextFmt, text: string, left: number, top: number, right: number, st0: TStyle, shadow: boolean) {
+  function oneLine(cls: string, f: TextFmt, text: string, left: number, top: number, right: number, st0: TStyle, shadow: boolean, lh0 = INHERITED) {
     // a page number in the top-left corner: both texts start at 56 + its width + 22 (v3's slideMarkup's inline left)
-    const st = withFmt(st0, f), x = shift ? 56 + shift : left, w = 1600 - right - x, lh = T.lineH(st, f.lh ? +f.lh : INHERITED);
+    const st = withFmt(st0, f), x = shift ? 56 + shift : left, w = 1600 - right - x, lh = T.lineH(st, f.lh ? +f.lh : lh0);
     const plain = collapse(text).trim(), shown = T.ellipsis(plain, st, w), tw = T.adv(shown, st);
     const tx = f.align === "right" ? x + w - tw : f.align === "center" ? x + (w - tw) / 2 : x;
     const n = T.node(shown, tw > w ? x : tx, T.baseline(st, top, lh), st);
@@ -158,6 +172,130 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
     });
     // the text as drawn, line by line (the reader's text: GT checks what is shown, not the source)
     return { nodes: out, h: ls.length * H, text: drawn.join(" ") };
+  }
+
+  /* ---- the consulting designs (08 §2): every value from their spec (consult-spec.ts) ---- */
+  /** a text wrapped at w in at most max lines, the last one cut with an ellipsis (oneLine's rule) */
+  function wrapCut(text: string, st: TStyle, w: number, max: number): string[] {
+    if (!text) return [];
+    const ls = T.lines([{ text, st }], w).map(l => l.map(p => p.text).join(""));
+    if (ls.length <= max) return ls.map(l => l.replace(/ +$/, ""));
+    return [...ls.slice(0, max - 1).map(l => l.replace(/ +$/, "")), T.ellipsis(collapse(ls.slice(max - 1).join(" ")).trim(), st, w)];
+  }
+  /** lines of one style from top, each in a line box of height H, aligned in x … x + w (a line wider than w at x) */
+  function setLines(ls: string[], st: TStyle, x: number, top: number, w: number, H: number, align: string | undefined): Node[] {
+    return ls.map((l, k) => {
+      if (!l.trim()) return null;
+      const tw = T.adv(l, st), tx = tw > w ? x : align === "right" ? x + w - tw : align === "center" ? x + (w - tw) / 2 : x;
+      return T.node(l, tx, T.baseline(st, top + k * H, H), st);
+    }).filter((n): n is TextNode => !!n);
+  }
+
+  /** the title band (08 §2.0): up to band.lines lines, bottom-anchored (a one-line title sits on the last line), the
+      unit line, the rule under them (12 px above the content area areaFor gives) and the rule above the footer.
+      The tracker line is reserved and empty (no data for it yet) */
+  function consultTitle(S: DesignSpec) {
+    const B = S.band, f = slideTextFmt(ctx, R, "title"), st = withFmt(specSt(S.title), f), lh = S.title.lh || INHERITED;
+    const x = shift ? 56 + shift : B.x, w = B.x + B.w - x;
+    const plain = collapse(R.title || "").trim(), ls = wrapCut(plain, st, w, B.lines);
+    // the band's foot: its lines at the spec's line height – titleGeom's push moves the subtitle, rule and tables as much;
+    // a larger line height of the deck or slide is capped at what fits the band (never above titleTop)
+    const bottom = B.titleTop + B.lines * T.lineH(st, lh), top = B.titleTop;
+    const H = Math.min(T.lineH(st, f.lh ? +f.lh : lh), Math.floor((bottom - top) / B.lines * 64) / 64);
+    low.push(hit("title", x, top, w, bottom - top, plain), { t: "group", clip: { x, y: top, w, h: bottom - top }, children: setLines(ls, st, x, bottom - ls.length * H, w, H, f.align) });
+    if (R.subtitle) oneLine("subtitle", slideTextFmt(ctx, R, "subtitle"), R.subtitle, B.x, titleGeom(R, ctx).subTop, 1600 - B.x - B.w, specSt(S.subtitle), false, S.subtitle.lh || INHERITED);
+    const ry = (R.subtitle ? B.ruleY.sub : B.ruleY.none) + Math.min(200, titleGeom(R, ctx).push);   // areaFor's push
+    low.push(specRule(B.x, B.x + B.w, ry, S.rule));
+    if (S.bottomRule) low.push(specRule(B.x, B.x + B.w, S.bottomRule.y, S.bottomRule));
+  }
+
+  /** the cover (08 §2.1, §2.2): the design's background (a band in Consulting Red), the bar, the title (up to maxLines),
+      the subtitle under it, the date (its y the baseline, as the sketches) and the cover note under the date */
+  function consultCover(S: DesignSpec) {
+    const K = S.cover, c = R.cfg, date = c.date || today, note = c.note || "", t = R.title || "";
+    const tf: TextFmt = { ...slideTextFmt(ctx, R, "title"), size: c.fmt?.title?.size }, sf = slideTextFmt(ctx, R, "subtitle");
+    const nf = c.fmt?.note || {}, df = c.fmt?.date || {}, al = (f: TextFmt) => f.align || "left";
+    if (K.band) low.push(hit("cvx-band", 0, K.band.y, 1600, K.band.h), { t: "rect", x: 0, y: K.band.y, w: 1600, h: K.band.h, fill: solid(K.band.fill) });
+    const X = K.title.x, W = K.title.w;
+    const dSt = withFmt(specSt(K.date), df), ds = K.date.caps ? date.toUpperCase() : date, dH = T.lineH(dSt, df.lh ? +df.lh : INHERITED);
+    const dTop = K.date.y - (T.baseline(dSt, 0, dH)), dw = T.adv(ds, dSt);
+    const tSt = withFmt(specSt(K.title), tf), tH = T.lineH(tSt, tf.lh ? +tf.lh : K.title.lh || INHERITED), tText = collapse(t).trim();
+    const sSt = withFmt(specSt(K.subtitle, K.subtitle.a), sf), sH = T.lineH(sSt, sf.lh ? +sf.lh : K.subtitle.lh || INHERITED), sText = collapse(R.subtitle || "").trim();
+    let tl = wrapCut(tText, tSt, W, K.title.maxLines), sl = wrapCut(sText, sSt, W, 2);
+    // the block (bar, title, the subtitle 20 px under it – the sketches' gap) stays inside the cover's band, 48 px above
+    // its foot (white text is never drawn on the white below), or 24 px above the date: a block too tall moves up, at
+    // most to 48 px from the band's (slide's) top, and past that drops lines – the subtitle's second, then the title's
+    // last. An empty title or subtitle keeps a line's height for its editor
+    const limit = K.band ? K.band.y + K.band.h - 48 : dTop - 24, minBar = (K.band ? K.band.y : 0) + 48, lead = K.title.top - K.bar.y;
+    const blockH = () => Math.max(tH, tl.length * tH) + 20 + Math.max(sH, sl.length * sH);
+    while (limit - blockH() - lead < minBar) {
+      if (sl.length > 1) sl = wrapCut(sText, sSt, W, 1); else if (tl.length > 1) tl = wrapCut(tText, tSt, W, tl.length - 1); else break;
+    }
+    const dy = Math.min(0, limit - (K.title.top + blockH())), ty = K.title.top + dy, bary = K.bar.y + dy;
+    const th = Math.max(tH, tl.length * tH), sy = ty + th + 20, sh = Math.max(sH, sl.length * sH);
+    const inner: Node[] = [hit("cv-block x", X, bary, W, sy + sh - bary, label([t, R.subtitle || ""].filter(Boolean).join("\n"))),
+      hit("cv-bar", K.bar.x, bary, K.bar.w, K.bar.h), { t: "rect", x: K.bar.x, y: bary, w: K.bar.w, h: K.bar.h, fill: solid(K.bar.fill) },
+      hit("cv-title", X, ty, W, th, label(t)), ...setLines(tl, tSt, X, ty, W, tH, al(tf)),
+      hit("cv-sub", X, sy, W, sh, label(R.subtitle || "")), ...setLines(sl, sSt, X, sy, W, sH, al(sf))];
+    inner.push(hit("cvx-date", K.date.x, dTop, dw, dH, ds), T.node(ds, K.date.x, K.date.y, dSt));
+    if (note.trim()) {
+      // under the date, clear of the cover's logo (logoNodes: 96 from the right, at most 300 wide)
+      const nSt = withFmt(specSt(K.note, K.note.a), nf), nH = T.lineH(nSt, nf.lh ? +nf.lh : K.note.lh || INHERITED);
+      const nw = 1600 - 96 - 300 - 24 - X, ny = dTop + dH + 12, nl = wrapCut(collapse(note).trim(), nSt, nw, 2);
+      inner.push(hit("cv-kicker", X, ny, nw, nl.length * nH, label(note)), ...setLines(nl, nSt, X, ny, nw, nH, al(nf)));
+    }
+    z3.push(...inner);
+  }
+
+  /** the contents slide (08 §2.1, §2.2): the heading (with its rule in Consulting Red), rows at the spec's pitch – the
+      number (in a circle where the spec has one), the entry and its subtitle, the dotted leader, the page at the right */
+  function consultIndex(S: DesignSpec) {
+    const I = S.index, x0 = I.heading.x, right = 1600 - x0, f = slideTextFmt(ctx, R, "title");
+    oneLine("title", f, R.title, x0, I.heading.y, x0, specSt(I.heading), false, S.title.lh || INHERITED);
+    let y = I.heading.y + T.lineH(withFmt(specSt(I.heading), f), f.lh ? +f.lh : S.title.lh || INHERITED);
+    if (R.subtitle) {
+      // the unit line in the subtitle's style, in the page numbers' colour on a dark contents slide
+      const sf = slideTextFmt(ctx, R, "subtitle"), s0: TStyle = { ...specSt(S.subtitle), color: solid(I.bg === S.bg ? S.subtitle.color : I.page.color) };
+      oneLine("subtitle", sf, R.subtitle, x0, y + 8, x0, s0, false, S.subtitle.lh || INHERITED);
+      y += 8 + T.lineH(withFmt(s0, sf), sf.lh ? +sf.lh : S.subtitle.lh || INHERITED);
+    }
+    if (I.headingRule) { y += 16; low.push(specRule(x0, right, y, I.headingRule)); }
+    const items: { n: number; title: string; sub: string; page: string }[] = [], subs = R.cfg.subs !== false;
+    ctx.slides.forEach((Sl, i) => { if (Sl.type === "content") items.push({ n: items.length + 1, title: Sl.title, sub: subs ? Sl.subtitle || "" : "", page: String(pageNumber(ctx, i)) }); });
+    const xf = deckFmt(ctx, "index"), row: TextFmt = { ...xf, size: undefined, align: undefined }, top0 = Math.max(I.top, y + 30);
+    if (!items.length) {
+      const st = withFmt(specSt(I.entry), row), lh = T.lineH(st, INHERITED), t = "No content slides yet";
+      low.push(hit("ix-empty", x0, top0, T.adv(t, st), lh, t), T.node(t, x0, T.baseline(st, top0, lh), st));
+      return;
+    }
+    // the rows down to the content area's foot; more than fit at the pitch: two columns, the pitch (and the sizes with
+    // it) reduced where they still do not fit
+    const A = areaFor(R, ctx), avail = A.y + A.h - top0, two = items.length * I.pitch > avail, per = two ? Math.ceil(items.length / 2) : items.length;
+    const pitch = Math.min(I.pitch, Math.floor(avail / per)), k = pitch / I.pitch, colW = two ? (right - x0 - 48) / 2 : right - x0;
+    const eSt = withFmt({ ...specSt(I.entry), size: xf.size || r2(I.entry.size * k) }, row), pSt = withFmt({ ...specSt(I.page), size: xf.size || r2(I.page.size * k), tnum: true }, row);
+    const nSt: TStyle = { ...specSt(I.number), size: r2(I.number.size * k), tnum: true }, dd = I.number.circle ? r2(I.number.d * k) : 0, numW = Math.max(dd, T.adv("00", nSt));
+    const sSt: TStyle = { ...eSt, size: r2(eSt.size * .66), color: "solid" in eSt.color ? { solid: eSt.color.solid, a: (eSt.color.a ?? 1) * .7 } : eSt.color };
+    [items.slice(0, per), items.slice(per)].forEach((list, c) => list.forEach((it, j) => {
+      const x = x0 + c * (colW + 48), y = top0 + j * pitch, by = T.baseline(eSt, y, pitch), nTxt = String(it.n), ntw = T.adv(nTxt, nSt), out: Node[] = [];
+      if (I.number.circle) {
+        const cy = y + (pitch - dd) / 2;
+        out.push(hit("ix-n", x, cy, dd, dd, nTxt), { t: "rect", x, y: cy, w: dd, h: dd, r: dd / 2, fill: solid(I.number.circle) }, T.node(nTxt, x + (dd - ntw) / 2, T.baseline(nSt, cy, dd), nSt));
+      } else out.push(hit("ix-n", x, y, numW, pitch, nTxt), T.node(nTxt, x, by, nSt));
+      // the entry after the number, its subtitle after it, smaller and fainter; both cut before the page
+      const pw = T.adv(it.page, pSt), px = x + colW - pw, tx = x + numW + 18, room = Math.max(0, px - 24 - tx);
+      const tTitle = collapse(it.title).trim(), tSub = collapse(it.sub).trim(), tShown = T.ellipsis(tTitle, eSt, room), tw = Math.min(room, T.adv(tShown, eSt));
+      const sx = tx + tw + 14, sRoom = Math.max(0, px - 24 - sx), sShown = tSub && sRoom > 0 ? T.ellipsis(tSub, sSt, sRoom) : "", sw = sShown ? Math.min(sRoom, T.adv(sShown, sSt)) : 0;
+      const end = sw ? sx + sw : tx + tw;
+      out.push(hit("ix-txt", tx, y, end - tx, pitch, label(tTitle + (tSub ? "\n" + tSub : ""))), hit("ix-t", tx, y, tw, pitch, tTitle));
+      if (tShown) out.push(T.node(tShown, tx, by, eSt));
+      if (tSub) out.push(hit("ix-s", sx, y, sw, pitch, tSub), ...(sShown ? [T.node(sShown, sx, by, sSt)] : []));
+      if (I.leader) {
+        const lx = end + 12, lx2 = px - 12, ly = r2(by - .15 * eSt.size);
+        if (lx2 > lx) out.push(hit("ix-lead", lx, ly - I.leader.w / 2, lx2 - lx, I.leader.w), { t: "line", x1: lx, y1: ly, x2: lx2, y2: ly, stroke: { w: I.leader.w, paint: solid(I.leader.color), dash: [2, 8] } });
+      }
+      out.push(hit("ix-p", px, y, pw, pitch, it.page), T.node(it.page, px, by, pSt));
+      low.push(hit("ix-row x", x, y, colW, pitch, label([nTxt, tTitle, tSub, it.page].filter(Boolean).join("\n"))), ...out);
+    }));
   }
 
   function coverNodes() {
@@ -271,7 +409,10 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
     const geom = footer ? fg! : { label: text, ...pageNoGeom(ctx, text, glassy, !!logo, cover) };
     const { left, top, w, h, size, capsule } = geom, pos = footer ? ctx.style.footer.pos : ctx.style.pn.pos;
     const { f, legacy } = pnFmt(ctx);
-    const st = withFmt({ family: legacy && !f.font ? legacy.replace(/"/g, "'") : base, size, weight: capsule ? 650 : glassy ? 600 : 700, italic: false,
+    // the consulting designs: always plain (glassy false), in the spec's style under the deck's "pageno" text style; on a
+    // cover or contents slide of its own background (Consulting Navy's), in that slide's light ink
+    const own = C && (R.type === "index" ? C.index.bg !== C.bg && C.index.page.color : cover ? C.cover.bg !== C.bg && C.cover.date.color : null);
+    const st = C ? withFmt({ ...specSt(C.pageno), ...(own ? { color: solid(own) } : {}), family: legacy && !f.font ? legacy.replace(/"/g, "'") : C.pageno.family, size, tnum: true }, { ...f, size: undefined, align: undefined }) : withFmt({ family: legacy && !f.font ? legacy.replace(/"/g, "'") : base, size, weight: capsule ? 650 : glassy ? 600 : 700, italic: false,
       color: capsule ? solid("#0B0D17") : glassy ? { solid: [18, 22, 44], a: .62 } : solid(x1), ls: 0, tnum: true }, { ...f, size: undefined, align: undefined });
     const tw = T.adv(text, st), cls = (capsule ? "gls wb chrome pageno" : "pageno plain") + (footer ? " footer" : "");
     if (capsule) {
@@ -287,38 +428,56 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
     const n = part.n, { x, y, w, h } = nb;
     if (part.bubble) {
       if (glassy) low.push(...glassBox("card notebub", x, y, w, h, part.bubble.r, V, place, wall, { hit: { kind: "f", id: part.bubble.cls } }));
-      else {
+      else if (C) {
+        // the consulting card: a flat fill with the accent bar on the left, square corners (the corners slider does not
+        // apply); the notes section's card is the kicker / takeaway bar across its box
+        const X = Math.round(x), Y = Math.round(y), W = Math.round(x + w) - X, H = Math.round(y + h) - Y;
+        low.push(hit(part.bubble.cls, x, y, w, h), { t: "rect", x: X, y: Y, w: W, h: H, fill: solid(part.memo ? C.memo.kicker.fill : C.card.fill) },
+          ...(part.memo ? [] : [{ t: "rect", x: X, y: Y, w: C.card.bar.w, h: H, fill: solid(C.card.bar.color) } as Node]));
+      } else {
         // the framed box as Chromium paints an unscaled box: its edges on whole pixels (the hit keeps the layout's box)
-        const X = Math.round(x), Y = Math.round(y), W = Math.round(x + w) - X, H = Math.round(y + h) - Y, r = part.bubble.r, clean = d === "clean" || isConsult(d);
+        const X = Math.round(x), Y = Math.round(y), W = Math.round(x + w) - X, H = Math.round(y + h) - Y, r = part.bubble.r, clean = d === "clean";
         const sh = (dy: number, blur: number, spread: number, c: [number, number, number], a: number): Node => ({ t: "shadow", x: X, y: Y, w: W, h: H, r, dx: 0, dy, blur, spread, c, a });
         low.push(hit(part.bubble.cls, x, y, w, h), ...(clean ? [sh(8, 24, -12, [20, 30, 60], .18), sh(1, 3, 0, [20, 30, 60], .06)] : [sh(1, 2, 0, [0, 0, 0], .08)]),
           { t: "rect", x: X + .5, y: Y + .5, w: Math.max(0, W - 1), h: Math.max(0, H - 1), r: Math.max(0, r - .5), fill: solid("#FFFFFF"), stroke: { w: 1, paint: solid(clean ? "#E1E5EC" : "#BFBFBF") } });
       }
     }
     // the box: padding 4 / 6 px (10 / 18 with a bubble), the fitted font size, a flex column
-    const bub = part.cls.includes(" bub"), padY = bub ? 10 : 4, padX = bub ? 18 : 6;
-    const start = n.size || (part.memo ? 13 : 18);
-    const align = n.align || (part.memo ? "left" : part.side === "left" ? "right" : "left"), lh = n.lh || 1.28, auto = part.cls.includes(" auto"), pre = !auto;
+    const bub = part.cls.includes(" bub"), padY = bub ? (C ? (part.memo ? 4 : C.card.padY) : 10) : 4, padX = bub ? (C ? C.card.padX : 18) : 6;
+    // the consulting designs: text boxes in the spec's note style, the notes section as footnotes (its card: the kicker)
+    const kick = !!C && part.memo && bub;
+    const start = n.size || (C ? (part.memo ? (kick ? C.memo.kicker.size : C.memo.size) : C.note.size) : part.memo ? 13 : 18);
+    const align = n.align || (part.memo ? "left" : part.side === "left" ? "right" : "left"), lh = n.lh || (C ? (part.memo ? C.memo.lh || C.note.lh : C.note.lh) : 1.28), auto = part.cls.includes(" auto"), pre = !auto;
     const cx = x + padX, cw = Math.max(0, w - 2 * padX), txt = part.txt;
     // the box's text laid out at a font size: its blocks (paragraphs, headings, gaps) and its height
     const lay = (size: number) => {
-      const st: TStyle = withFmt({ family: glassy ? base : d === "clean" || isConsult(d) ? NOTE_FONT.clean : NOTE_FONT.excel, size, weight: glassy ? 500 : 400, italic: false, color: solid(glassy ? "#0B0D17" : "#16181D"), ls: 0 },
+      const st: TStyle = withFmt(C ? { family: part.memo ? C.memo.family : C.note.family, size, weight: kick ? C.memo.kicker.weight : part.memo ? C.memo.weight : 400, italic: false,
+        color: solid(kick ? C.memo.kicker.ink : part.memo ? C.memo.color : C.note.ink), ls: 0 }
+        : { family: glassy ? base : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel, size, weight: glassy ? 500 : 400, italic: false, color: solid(glassy ? "#0B0D17" : "#16181D"), ls: 0 },
         { font: n.font, b: n.b || undefined, i: n.i || undefined, color: n.color }, { size: false });
       const blocks: { nodes: Node[]; h: number; mt: number; mb: number; text?: string }[] = [];
       let text = txt;
-      if (hasMarkup(txt) || n.pgap != null) {
+      if (hasMarkup(txt) || n.pgap != null || (!!C && txt.split("\n").some(l => BULLET.test(l)))) {
         const pgap = n.pgap != null ? n.pgap * size : null, a1 = glassy ? (tv["--a1"] || "#3B82F6") : "#2F75B5";
         let prevNp = false;
         const lines = txt.split("\n"), texts: string[] = [];
         for (const raw of lines) {
           const kind = raw.startsWith("## ") ? "nh" : raw.startsWith("# ") ? "nt" : raw.trim() ? "np" : "gap";
           if (kind === "gap") { blocks.push({ nodes: [], h: pgap ?? .5 * size, mt: 0, mb: 0 }); prevNp = false; continue; }
-          const body = kind === "np" ? raw : raw.slice(kind === "nh" ? 3 : 2);
-          const bst: TStyle = kind === "nt" ? { ...st, size: r2(size * 1.32), weight: 800, color: glassy ? solid("#0B0D17") : solid(x1) } : kind === "nh" ? { ...st, weight: 700, color: solid(a1) } : st;
-          const runs = inlineRuns(body, bst), blh = kind === "nt" ? 1.15 : kind === "nh" ? 1.25 : lh;
-          const b = block(runs, cx, 0, cw, blh, align, pre);
+          // a consulting bullet: the spec's glyph in its colour replaces the "- " / "• ", the text hangs 0.9 em in; in a
+          // right- or centre-aligned box the glyph goes inline before the first line's text (no hanging indent)
+          const bullet = !!C && kind === "np" && BULLET.test(raw), hang = bullet && align !== "right" && align !== "center", ind = hang ? .9 * size : 0;
+          const body = kind === "np" ? (bullet ? raw.slice(2) : raw) : raw.slice(kind === "nh" ? 3 : 2);
+          // the consulting headings: the spec's # / ## styles at the fitted size's scale (caps and letter-spacing where set)
+          const hs = C && kind !== "np" ? (kind === "nt" ? C.note.h1 : C.note.h2) : null, hk = hs ? size / C!.note.size : 1;
+          const bst: TStyle = hs ? { ...st, family: hs.family, size: r2(hs.size * hk), weight: hs.weight, color: solid(hs.color), ls: hs.ls ? r2(hs.ls * hk) : 0 }
+            : kind === "nt" ? { ...st, size: r2(size * 1.32), weight: 800, color: glassy ? solid("#0B0D17") : solid(x1) } : kind === "nh" ? { ...st, weight: 700, color: solid(a1) } : st;
+          const runs0 = inlineRuns(hs?.caps ? body.toUpperCase() : body, bst), blh = kind === "nt" ? 1.15 : kind === "nh" ? 1.25 : lh;
+          const runs = bullet && !hang ? [{ text: C!.note.bullet + " ", st: { ...st, color: solid(C!.note.bulletColor) } }, ...runs0] : runs0;
+          const b = block(runs, cx + ind, 0, cw - ind, blh, align, pre);
+          if (hang && b.h) b.nodes.unshift(T.node(C!.note.bullet, cx, T.baseline(st, 0, T.lineH(st, blh)), { ...st, color: solid(C!.note.bulletColor) }));
           blocks.push({ ...b, mt: kind === "np" && prevNp && !auto ? (pgap ?? 0) : 0, mb: kind === "nt" ? .1 * bst.size : 0 });
-          texts.push(b.text);
+          texts.push(hang ? C!.note.bullet + " " + b.text : b.text);
           prevNp = kind === "np";
         }
         text = texts.join("\n");
@@ -351,7 +510,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
     while ((mm = re.exec(t))) {
       if (mm.index > at) out.push({ text: t.slice(at, mm.index), st });
       if (mm[1] !== undefined) out.push({ text: mm[1], st: { ...st, weight: 700 } });
-      else { const v = mm[2]; out.push({ text: v, st: { ...st, weight: 700, ...(/^\+/.test(v) ? { color: solid("#1F9D55") } : /^-/.test(v) ? { color: solid("#D92D20") } : {}) } }); }
+      else { const v = mm[2]; out.push({ text: v, st: { ...st, weight: 700, ...(/^\+/.test(v) ? { color: solid(C ? C.pos : "#1F9D55") } : /^-/.test(v) ? { color: solid(C ? C.neg : "#D92D20") } : {}) } }); }
       at = mm.index + mm[0].length;
     }
     if (at < t.length) out.push({ text: t.slice(at), st });
@@ -378,7 +537,8 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
       if (bubble) low.push(...chrome("gls wb chrome logowrap", lx, ly, lw, lh, Math.min(lh / 2, lh / 2 * rk), [logoHit, ...img]));
       else low.push(hit("logowrap plain", lx, ly, lw, lh), logoHit, ...img);
     } else {
-      const big = cover, ih = big ? 48 : 32, maxW = big ? 300 : 280, right = big ? 580 : 38, bottom = big ? 72 : 14;
+      // a consulting cover: bottom right (Excel's cover puts it beside its panel)
+      const big = cover, ih = big ? 48 : 32, maxW = big ? 300 : 280, right = big ? (C ? 96 : 580) : 38, bottom = big ? (C ? 64 : 72) : 14;
       const p = pic(0, 0, maxW, ih), x = 1600 - right - p.iw, y = 900 - bottom - ih;
       low.push(hit(big ? "logowrap big" : "logowrap", x, y, p.iw, ih), hit("logo", x, y, p.iw, ih), ...p.nodes.map(nd => ({ ...nd, x: r2((nd as { x: number }).x + x), y: r2((nd as { y: number }).y + y) })) as Node[]);
     }

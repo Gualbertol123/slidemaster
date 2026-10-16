@@ -262,7 +262,7 @@ new field would be a new op and a new B-item (§6 Q5).
 **Text boxes, comments, notes section**
 
 * A card (`bubble`) is the **takeaway box**: fill #F5F5F5, a 4 px #CC0000 bar on the left, square corners (B7).
-* Bullets: "- " / "• " paragraphs draw a **▸** (small triangle) in #CC0000 (B1).
+* Bullets: "- " / "• " paragraphs draw a **►** (a triangle pointer; ▸ is not in Arial) in #CC0000 (B1).
 * Notes section: footnote style (#666666, 13 px). With its card on, it becomes the **takeaway bar**: solid
   #CC0000, Arial Bold 18 px white (B6).
 * Automated comments: the text-box recipe.
@@ -318,6 +318,31 @@ new field would be a new op and a new B-item (§6 Q5).
   * Source Serif 4 (OFL): not metric-compatible with Georgia, and the decks themselves use Georgia;
   * Inter (OFL), closer to Bain's report sans (Graphik): its reports use Graphik, its decks Arial, and Arial needs
     no download (§6 Q2).
+
+### 2.4a As built (S7b.2), where it differs from or adds to the specs above (for the S7b.3 sign-off)
+
+* **Shrink to fit in table cells**: Arial is wider than many workbooks' fonts. A one-line cell (not wrapping, not
+  rotated, not allowed to run into empty neighbours) whose text no longer fits is drawn smaller, by the missing share,
+  down to 0.7× its size. Beyond that it is clipped as in Excel. On the corpus no cell clips; Excel Refined clips 2–40
+  per deck. One column can so show two sizes.
+* **Header rows keep the workbook's vertical alignment** (§2.1 said bottom-aligned).
+* **▲▼ / ◔◑◕● are drawn in the cell's colour**, not in the accent: colouring them would split a cell into runs.
+* **Colour scales** keep the app's green / red tints, as in Excel Refined, not the spec's `pos` / `neg`.
+* **The bottom rule** lies under the last header / body / total row. Rows after the data (a "Source:" line inside
+  the table) sit below it, like a footnote.
+* **The user's gridlines** ("on") are drawn over the design's rules; "off" does not remove the design's rules (they are
+  the design, not gridlines).
+* **Consulting Red bullet**: ► (U+25BA), because ▸ is not in Arial and a bullet must be measured and embedded from the
+  design's font. Bullets in right-aligned or centred text boxes sit before the first line's text (no hanging indent).
+* **Page numbers** keep the size of Options › Page numbers (default 16 px), so text and box agree (§2 said 15).
+  - On a dark cover or contents slide (Consulting Navy), the page number and footer take that slide's light ink.
+* **Cover**: the subtitle sits 20 px under the title. The cover note sits under the date. The logo is at the
+  bottom right (right edge 1504, bottom 836). On Consulting Red the title and subtitle stay inside the red band.
+* **Contents**: a subtitle is shown after its entry at 0.66 of its size and 70 % opacity. Too many entries for one
+  column flow into two.
+* **Code**: the shared table helpers are exported from `excel-dl.ts` (with an optional `look` for family / colour /
+  bold), not moved to an `excel-common.ts`. Excel and Excel Refined are byte-identical, checked on 264 table lists and
+  116 slides.
 
 ### 2.4 Sketches
 
