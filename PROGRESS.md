@@ -234,6 +234,15 @@ numbers measured twice). Measured numbers go into the step's line.
 
 ## Waiting for
 
+- **Phase 0 of the next features (F0 linked workbooks, F1 scenarios, F2 charts, F3 callouts, F4 free layout, F5 cell
+  gridlines, F6 PowerPoint), for the product owner, 2026-10-16** – branch `v4/design-scenarios-charts-pptx`, design only,
+  no product code: read `docs/next/07-scenarios-charts-pptx.md` (recommendation §1.4, data model §2, rendering §3, PPTX
+  §4, free layout §5, rows/B-items B15–B24/budgets §6, milestones M7–M12 §7) and ADR-013…017, then answer **07 §8 Q1–Q12**
+  under Decisions and approve or amend the B-items (PLAN Part B §8 is updated only after that). Already decided
+  2026-10-16: no Excel on the running PC (workbooks read-only, never saved); PowerPoint with editable text + tables and
+  native charts; raw Excel draws the user's objects. Spike: `spikes/recalc/` – IronCalc recomputes the 20-sheet spike
+  deck in 65 ms per scenario value, every non-volatile / non-locale / non-external cell equal to Excel across 10 banks
+  and two linked files; fast-formula-parser unusable (MATCH/INDEX/SUMIFS not implemented); HyperFormula GPL (excluded).
 - **M6 (Prompt 9), for the product owner and the maintainer, 2026-10-15:**
   1. open ONE pull request for `v4/M6-hardening` (pushed; no `gh` on this PC): https://github.com/Gualbertol123/slidemaster/compare/main...v4/M6-hardening – "M6 · Hardening (S6.1–S6.4; S6.5 waits)"; merge it when CI is green. Expect CI's `bench` to fail now and then on `open_deck20_ms` (item 3).
   2. **S6.5 and v4.1.0:** after four weekly cycles with no rollback (not before 2026-11-12), record them under Decisions ("4 weekly cycles after the cut-over, no rollback") and run Prompt 9 again: it removes `Start Slide Builder (v3).bat` from the release ZIP (`tools/make_release.py` ROOT_FILES) and from `tools/update.py` MISSING_ONLY, prepares 4.1.0 (no tag), and the maintainer then deletes the file from the share (data stays).
