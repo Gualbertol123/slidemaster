@@ -260,6 +260,15 @@ The list was built from four sources:
 | DS-07 | Per-design sizing (layout, scale, align, valign, cols/rows) incl. older shared sizing and raw Excel's text-box correction (`fixedScale`) | text (4), E4, E7 | U (moved) + GG |
 | DS-08 | Per-design looks: Apply to this design / all designs | design, E7 | U + E |
 | DS-09 | Switching design re-resolves slides with that design's sizes | E7 | E + GG |
+| DS-10 | Switch to Consulting Navy / Consulting Red (M7b, 08), saved and shared; a 4.0 / 4.1 page opens such a deck in Liquid Glass without losing its settings | – | E + U (fallback) + S (saved fixture) |
+| DS-11 | Consulting Navy furniture: two-line bottom-anchored title band, unit line, rules, footnotes, page number, footer, empty tracker slot | – | U (DL snapshot) + GG (own goldens) + **GP (human sign-off)** + SP |
+| DS-12 | Consulting Red furniture (as DS-11; red rule, no bottom rule) | – | U + GG + **GP (sign-off)** + SP |
+| DS-13 | Consulting tables: roles, rule recipe, header and total rows, highlights, colour scales, merges, sup/sub, wrapping, rotation, the workbook's pictures / shapes / text boxes, the user's cell colours | – | U + GG + GP |
+| DS-14 | Consulting text boxes, cards (so-what / takeaway), span columns, bullets, automated comments, notes section as footnotes or kicker / takeaway bar | – | U + GG + GP |
+| DS-15 | Consulting cover and contents slides | – | GG + GP |
+| DS-16 | Per-design sizing, looks and text styles in the consulting designs (DS-07, DS-08, TH-02); Reset returns to the spec | – | U + E |
+| DS-17 | Consulting export: PDF facts (TrueType subsets, never Type 3), budgets, B11 names, "every version × all five designs" | – | GF + E |
+| DS-18 | Liquid Glass, Excel, Excel Refined: 0 unaccepted parity / dlparity differences after M7b; the consulting goldens are their signed-off first render | – | GG + GP |
 | TH-01 | Design… button with swatch → Colours tab | E7 | E |
 | TH-02 | Scope This design only / All designs | E7 | E |
 | TH-03 | Themes Aurora, Ocean, Forest, Sunset, Graphite, Intesa Sanpaolo, Custom | E7, tables | GP (every theme) |
@@ -271,6 +280,7 @@ The list was built from four sources:
 | TH-11 | Contrast 0–100 (Glass) | E4 | GP |
 | TH-12 | Use as default for new decks (config.json) | – | E (new) + S (config shared with v3) |
 | TH-13 | Wallpaper (gradient, blobs, ribbons, grain), contrast baked | – | GP + GF (2 images per PDF) |
+| TH-14 | Colours tab in the consulting designs: accent, background, text, positive, negative; the shared theme not applied, a per-design theme applied | – | E + U |
 
 ### 4.4 Text toolbar, text styles, fonts
 
@@ -306,6 +316,7 @@ The list was built from four sources:
 | FT-12/13 | Family/weight/style from the file; latin subsets; safe names | text, test_fonts | U |
 | FT-14 | Exports embed the faces used. **v4: subset TrueType/CFF, never Type 3** | – | GF |
 | FT-15 | **New:** Windows fonts captured into the library so layout is identical on every PC | – | U + W13 |
+| FT-16 | Georgia / Arial of the consulting designs measured from their files; Gelasio stands in for Georgia when it is in the library | – | U + GF |
 
 ### 4.5 Cell editing
 

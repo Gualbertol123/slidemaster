@@ -76,7 +76,7 @@ numbers measured twice). Measured numbers go into the step's line.
 - [ ] S7.5 · Milestone close (AUDIT §0 twice) 🚦 G4
 
 ### M7b · Two consulting designs, McKinsey and Bain (4.2.x; docs/next/08, ADR-018; between M7 and M8)
-- [ ] Phase 0 · Research and specs (08 §1–§6, ADR-018, `docs/next/designs/*-sketch.svg`) — branch `v4/M7b-consulting-designs`, documents only; 🚦 waiting for approval (Waiting for)
+- [x] Phase 0 · Research and specs (08 §1–§6, ADR-018, `docs/next/designs/*-sketch.svg`) — branch `v4/M7b-consulting-designs` (b4fe48d), documents only; approved 2026-10-16 (Decisions)
 - [ ] S7b.1 · Design type and plumbing
 - [ ] S7b.2 · The consulting renderer
 - [ ] S7b.3 · Pixel review 🚦
@@ -118,6 +118,10 @@ numbers measured twice). Measured numbers go into the step's line.
 
 (Human decisions the plan needs, e.g. gate G0 outcomes. An agent never writes here on its own.)
 
+- 2026-10-16 · **M7b Phase 0 approved** ("neutral names, i approve all above. finish this wholly"): the two specs of
+  `docs/next/08-consulting-designs.md` §2, the fonts (Georgia + Arial), B25 / B26, ADR-018 and every recommendation of
+  08 §6. Q1: neutral names – the designs are shown as **"Consulting Navy"** (McKinsey style, id `mckinsey`) and
+  **"Consulting Red"** (Bain style, id `bain`) on buttons, in dialogs, menus and export file names.
 - 2026-10-16 · **Phase 0 of F0–F6 approved in full** ("i approve everything, continue"): `docs/next/07-scenarios-charts-pptx.md`
   §8 Q1–Q12 all answered yes as proposed (IronCalc + 2.8 MB page; the self-check gate stops a run unless "run anyway";
   linked workbooks by sheet id, same-folder files loaded for recalculation; PowerPoint fonts named, not embedded; glass
@@ -290,15 +294,6 @@ numbers measured twice). Measured numbers go into the step's line.
 
 ## Waiting for
 
-- **M7b · Phase 0 approval, for the product owner (2026-10-16):** the research and the two specs are in
-  `docs/next/08-consulting-designs.md` (34 public references in §1, specs with every value in slide px and its source
-  in §2, plan §3, rows / B25–B26 / budgets §4, steps §5) and ADR-018; the sketches are
-  `docs/next/designs/mckinsey-sketch.svg` and `bain-sketch.svg` (palette, type, a labelled content slide, cover and
-  contents). Needed before any code: (1) approve or change the two specs; (2) the fonts – Georgia Bold + Arial
-  (McKinsey), Arial (Bain), Windows core fonts, no proprietary firm font (08 §2.3); (3) the B-items B25, B26 (no
-  change to existing behaviour); (4) the ten questions of 08 §6 – button / file names, two-line title band, theme,
-  tracker, Bain rule and table header, export menu item, workbook formatting, positive / negative colours. The
-  recommendation is given for each; "approve the recommendations" answers all of them.
 - **M7 · gate G4, for the product owner (2026-10-16):** when S7.5's two protocol runs are recorded, (1) push `v4/M7-recalc`
   and open ONE pull request "M7 · Recalculation core (S7.1–S7.5)"; (2) on your real decks: open each, press **Check**
   on the side panel's *Formulas* line and send back the line's text (e.g. "Formulas: 1,219 of 1,239 recompute like

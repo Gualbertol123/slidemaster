@@ -1,6 +1,7 @@
 # ADR-018: Consulting designs as parameterised Excel-item renderers
 
-* **Status:** proposed (M7b Phase 0, 2026-10-16; needs the answers of 08 §6)
+* **Status:** accepted (2026-10-16, product owner; 08 §6 answered as recommended, neutral names "Consulting Navy" /
+  "Consulting Red")
 * **Deciders:** product owner, maintainers
 * **Related:** `docs/next/08-consulting-designs.md`; ADR-004 (display list), ADR-005 (text from font files),
   ADR-011 (goldens); 03 §4.2 (one set of geometry rules); 07 §3 (charts and callouts drawn per design)

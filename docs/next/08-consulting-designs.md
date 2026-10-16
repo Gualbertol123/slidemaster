@@ -1,7 +1,10 @@
-# 08 · Two consulting designs: "McKinsey" and "Bain" (M7b, Phase 0)
+# 08 · Two consulting designs: "McKinsey" and "Bain" (M7b)
 
-Status: **Phase 0 — research and specs, waiting for the product owner's approval** (PROGRESS "Waiting for").
-No product code is written before §2 and §6 are answered.
+Status: **approved 2026-10-16** (product owner: "neutral names, i approve all above"; PROGRESS Decisions). Every
+§6 recommendation is the decision; Q1 = neutral names: the designs are shown as **"Consulting Navy"** (code id
+`mckinsey`, the style of §2.1) and **"Consulting Red"** (code id `bain`, §2.2) in the design switch, dialogs, menus
+and export file names (`<workbook> - <version> - Consulting Navy.pdf`). The code ids and the golden folders keep
+`mckinsey` / `bain` (internal, never shown).
 
 The two designs are *in the style of* the slides of the two firms. They are not copies: no logo, wordmark,
 trademark, firm name on the slides, or proprietary typeface (Bower, Theinhardt / "McKinsey Sans", Graphik,
@@ -348,9 +351,9 @@ scene.
 | `core/src/render/pagenumbers.ts` | none (`glassy = false`) |
 | `core/src/worker/host.ts` | dispatch `glass ? glassTableDL : isConsult(d) ? consultTableDL : excelTableDL` (stage, slide lists, exports, thumbnails). Wallpaper and glass fonts stay glass-only. The faces to preload for the new designs: Georgia, Arial |
 | `core/src/text/resolve.ts` | `STAND_IN.Georgia = ["Gelasio"]` |
-| `app/src/ui/Topbar.tsx` | two more buttons in the design switch: `data-design="mckinsey"` "McKinsey" and `data-design="bain"` "Bain" (labels: §6 Q1). The existing ids and `data-*` are unchanged. `#glassSeg`, `#colorCtl` and contrast stay glass-only |
+| `app/src/ui/Topbar.tsx` | two more buttons in the design switch: `data-design="mckinsey"` "Consulting Navy" and `data-design="bain"` "Consulting Red" (§6 Q1: neutral names). The existing ids and `data-*` are unchanged. `#glassSeg`, `#colorCtl` and contrast stay glass-only |
 | `app/src/ui/TextStylesDialog.tsx` | `DESIGN_NAME` and the greyed-key texts from a shared label table (no hard-coded "Refined") |
-| `app/src/editor/export.ts` | `DESIGN_LABEL.mckinsey = "McKinsey"`, `.bain = "Bain"`. B11 names: `<workbook> - <version> - McKinsey.pdf` |
+| `app/src/editor/export.ts` | `DESIGN_LABEL.mckinsey = "Consulting Navy"`, `.bain = "Consulting Red"`. B11 names: `<workbook> - <version> - Consulting Navy.pdf` |
 | Export menu | `versions-3` ("every version × all three designs": Liquid Glass, Excel, Excel Refined) **unchanged**. A new item `versions-5`, "every version × all five designs" (§6 Q8) |
 | `app/src/ui/TableTools.tsx`, `Ribbon.tsx`, `Stage.tsx`, `CommentDialog.tsx`, `app/src/styles/app.css`, `app/src/editor/tables.ts`, `app/src/stage/hit.ts` | the new designs behave as Excel Refined (text boxes allowed, design fonts, no glass geometry). CSS: `.slide.consult` like `.slide.clean` for overlays |
 | Thumbnails, PNG, clipboard, "as pictures" | nothing: they draw the display list |
@@ -403,7 +406,7 @@ Tests:
 | DS-14 | Text boxes, cards (so-what / takeaway), span columns, bullets, automated comments, notes section as footnotes or kicker / takeaway bar | – | U + GG + GP |
 | DS-15 | Cover and contents slides of both designs | – | GG + GP |
 | DS-16 | Per-design sizing, looks and text styles for the new designs (DS-07, DS-08, TH-02); Reset returns to the spec | – | U + E |
-| DS-17 | Export: native PDF facts (fonts subset TrueType, never Type 3; no image but the user's), budgets; B11 names with "McKinsey" / "Bain"; "every version × all five designs" | – | GF + E |
+| DS-17 | Export: native PDF facts (fonts subset TrueType, never Type 3; no image but the user's), budgets; B11 names with "Consulting Navy" / "Consulting Red"; "every version × all five designs" | – | GF + E |
 | DS-18 | The three existing designs: 0 unaccepted parity / dlparity differences; the new designs' goldens are their signed-off first render | – | GG + GP |
 | TH-14 | Colours tab in the new designs: accent, background, text, positive, negative; the shared theme ignored, a per-design theme applied | – | E + U |
 | FT-16 | Georgia / Arial measured from their files; Gelasio stand-in for Georgia when it is in the library | – | U + GF |
@@ -412,8 +415,8 @@ Tests:
 
 | # | Change | Step |
 |---|---|---|
-| B25 | **McKinsey design** beside Liquid Glass, Excel and Excel Refined: navy / electric-blue palette, Georgia titles and Arial text, two-line action titles, hairline rules, footnote-style notes section, so-what cards; exports, thumbnails and "every version × all five designs" | M7b |
-| B26 | **Bain design**: red #CC0000 palette, Arial, two-line action titles, red rule, black table headers, takeaway cards and bar | M7b |
+| B25 | **Consulting Navy design** (McKinsey style) beside Liquid Glass, Excel and Excel Refined: navy / electric-blue palette, Georgia titles and Arial text, two-line action titles, hairline rules, footnote-style notes section, so-what cards; exports, thumbnails and "every version × all five designs" | M7b |
+| B26 | **Consulting Red design** (Bain style): red #CC0000 palette, Arial, two-line action titles, red rule, black table headers, takeaway cards and bar | M7b |
 
 Existing behaviour: **no change**. The design switch only grows. The "all three designs" export item stays as it
 is (the five-design export is a new item). Old pages open new decks as Liquid Glass without data loss (DS-10). If

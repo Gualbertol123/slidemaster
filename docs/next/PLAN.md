@@ -297,6 +297,13 @@ Approved 2026-10-16 (product owner: "I approve everything", `07-scenarios-charts
 | B23 | The page grows by ≈ 2.8 MB (the formula engine), loaded on first use only; start-up unchanged | M7 |
 | B24 | The Issues panel reports how many formulas recompute like Excel, locale-dependent `TEXT` cells, and missing chart / callout sources | M7, M9 |
 
+Approved 2026-10-16 (product owner: "neutral names, i approve all above", `08-consulting-designs.md` §4.2 and §6):
+
+| # | Change | Step |
+|---|---|---|
+| B25 | **Consulting Navy design** (in the style of McKinsey slides) beside Liquid Glass, Excel and Excel Refined: navy / electric-blue palette, Georgia titles and Arial text, two-line action titles, hairline rules, footnote-style notes section, so-what cards; exports, thumbnails and a new "every version × all five designs" export item | M7b |
+| B26 | **Consulting Red design** (in the style of Bain slides): red #CC0000 palette, Arial, two-line action titles, red rule, black table headers, takeaway cards and bar | M7b |
+
 ---
 
 ## Part C · The steps
@@ -842,3 +849,6 @@ Each feature area of `05-test-and-parity.md` §4 is touched by these steps and g
 | Chart DL build (pie, 12 slices) · callout DL build | S9.2 / S9.4 | 5 ms · 2 ms |
 | Free-layout drag frame | S10.2 | 16 ms |
 | PPTX 20 slides, Glass / Excel: time · size | S11.3 | 3 s / 1.5 s · 3 MB / 300 KB |
+| Export 20 slides (deck20): Consulting Navy / Consulting Red | S7b.4 | 1.5 s each |
+| PDF size per slide: Consulting Navy / Consulting Red | S7b.4 | 40 KB (+ 150 KB per document; measured in S7b.4, 08 §4.3) |
+| Keypress → pixels, drag frame, open deck20 – measured in Consulting Navy too | S7b.4 | 50 ms p95 · 16 ms · 400 ms (unchanged) |
