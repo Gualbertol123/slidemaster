@@ -924,7 +924,8 @@ test.describe.serial("two people, one shared folder", () => {
     await lastFileSaved("anna", "Banks.xlsx");
   });
 
-  test("consulting designs (M7b, DS-10): Consulting Navy and Consulting Red, saved, one undo step each, their own palette", async ({ page }) => {
+  test("consulting designs (M7b, DS-10): Consulting Navy and Consulting Red, saved, one undo step each, their own palette", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: ANNA.replace(/\/$/, "") });
     await openApp(page, ANNA);                                                       // Banks.xlsx, the last workbook
     await expect(page.locator("#stage .slide")).toHaveCount(1, { timeout: 20_000 });
     const bdoc = () => deckDoc("Banks.xlsx"), before = bdoc().style.design ?? "glass";
@@ -957,6 +958,14 @@ test.describe.serial("two people, one shared folder", () => {
     await page.keyboard.press("Control+z"); await saved(page);
     expect(bdoc().style.designs?.bain?.consult).toBeUndefined();
     await expect(page.locator("#lookSel")).toHaveValue("exhibit full panel tinted");
+    // S7b.4: thumbnails, a PNG of the slide (3× the slide) and the slide copied to the clipboard, in Consulting Red
+    await expect(page.locator(".thumb .frame canvas")).toHaveCount(await page.locator(".thumb").count(), { timeout: 15_000 });
+    const [png] = await fromMenu(page, "png-current");
+    const pb = fs.readFileSync(path.join(root(), "export", png));
+    expect([pb.subarray(1, 4).toString(), pb.readUInt32BE(16), pb.readUInt32BE(20)]).toEqual(["PNG", 4800, 2700]);
+    await page.click("#exportMenuBtn"); await page.click('[data-x="copy"]');
+    await expect(page.locator("#toast")).toContainText("copied", { timeout: 60_000 });
+    expect(await page.evaluate(async () => { const [item] = await navigator.clipboard.read(); const b = await createImageBitmap(await item.getType("image/png")); return [b.width, b.height]; })).toEqual([4800, 2700]);
     await page.click(`[data-design="${before}"]`); await saved(page);
     await expect(page.locator("#lookSel")).toHaveCount(0);                                   // consulting designs only
   });

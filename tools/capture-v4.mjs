@@ -33,7 +33,7 @@ export function elementsOf(nodes) {
   return { items };
 }
 
-/** capture-v3's slideHook: the slide's elements from its display list, its pixels drawn from it */
+/** capture-v3's slideHook: the slide's elements from its display list, its pixels the stage's screenshot */
 async function hook(page, a) {
   await settleStage(page);
   const nodes = await page.evaluate(async ({ design, version, slide }) => {

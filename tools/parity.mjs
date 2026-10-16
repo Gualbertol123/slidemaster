@@ -285,7 +285,9 @@ export function compare(goldenDir, actualDir, opts = {}) {
   // an entry with a digest accepts exactly the differences it was signed for (S4.4): if those of its scope changed, none is.
   // The digests are of a full comparison's differences (the reference PC's); a text-only comparison (another Chromium
   // or other fonts – CI's runners) states fewer of them (no sizes, no geometry), so there the scope alone accepts
-  if (full) for (const e of new Set(diffs.map(d => d.accepted).filter(x => x && x.digest))) {
+  // each in its design's own environment (M7b: the consulting designs' goldens are compared in full where theirs is)
+  for (const e of new Set(diffs.map(d => d.accepted).filter(x => x && x.digest))) {
+    if (!fullOf(e.design)) continue;
     const mine = diffs.filter(d => d.accepted === e);
     if (detailsDigest(mine) !== e.digest) for (const d of mine) { d.accepted = null; d.detail += " (the accepted entry's differences changed)"; }
   }

@@ -26,7 +26,8 @@
                      The frames per second, the page's most work in a frame and the pictures drawn are reported
      consulting      ⏱ M7b (08 §4.3), when the build has them: deck20 exported in Consulting Navy and Red (< 1.5 s,
                      < 40 KB per slide + 150 KB), keypress → pixels and the drags in Navy (as above), deck20 opened
-                     again in Navy (index → the preset box, Continue → first slide; < 400 ms), no task over 50 ms
+                     again in Navy (index → the preset box, Continue → the new deck's first slide drawn; < 400 ms), no
+                     task over 50 ms (the open included); this build's page must measure them (else over the limit)
      heap            after the big sheet was read: the page (performance.memory) plus the core worker, which
                      holds the workbook since S2.4 (Runtime.getHeapUsage over the DevTools protocol)    < 150 MB
    The two time limits are scaled by how much slower this machine is than the reference PC (tools/calibrate.mjs,
@@ -149,8 +150,10 @@ async function run(browser, port) {
       await page.waitForFunction(() => window.__sbTest.stageIdle());
       const cell = (await page.locator("#stage .slide > .tw .t").nth(8).boundingBox());
       await page.evaluate(() => {
-        // from the Enter that commits to the first frame after the stage's tables show the text (a <desc> of a cell)
+        // from the Enter that commits to the first frame after the stage's tables show the text (a <desc> of a cell);
+        // installed once (a second run – Consulting Navy – reuses them)
         window.__kp = { t0: null, done: null, want: "" };
+        if (window.__kpOn) return; window.__kpOn = true;
         addEventListener("keydown", e => { if (e.key === "Enter" && window.__kp.want && window.__kp.t0 === null) window.__kp.t0 = performance.now(); }, true);
         new MutationObserver(() => {
           const k = window.__kp; if (k.t0 === null || k.done !== null) return;
@@ -215,12 +218,21 @@ async function run(browser, port) {
       await page.click("#openBtn"); await page.locator('[data-f="deck20.xlsx"]').waitFor();
       await watch('[data-a="continue"]'); await page.click('[data-f="deck20.xlsx"]');
       const box = await took(page.locator('[data-a="continue"]').first());
-      await watch("#stage .slide.consult .t"); await page.click('[data-a="continue"]');
-      const first = await took(page.locator("#stage .slide.consult .t").first());
-      await page.locator(".thumb").nth(19).waitFor({ timeout: 60000 }); await sleep(500);
+      // the old deck stays on the stage until the new one starts: from the click on Continue (the page's clock) until
+      // the open is over (#fileName no longer "Opening …"), the stage shows the new deck's slide and a frame has passed
+      const first = await page.evaluate(() => new Promise((ok, no) => {
+        const t0 = performance.now(), T = window.__sbTest, name = () => document.querySelector("#fileName")?.textContent || "";
+        const tick = () => {
+          if (performance.now() - t0 > 30000) return no(new Error("deck20 did not open in Consulting Navy"));
+          if (!name().startsWith("Opening") && T.stageIdle() && document.querySelector("#stage .slide.consult .t")) return requestAnimationFrame(() => ok(performance.now() - t0));
+          requestAnimationFrame(tick);
+        };
+        document.querySelector('[data-a="continue"]').click(); requestAnimationFrame(tick);
+      }));
+      await page.waitForFunction(() => document.querySelectorAll(".thumb").length >= 20, null, { timeout: 60000 }); await sleep(500);
       const ltOpen = (await longTasks()).map(x => x.d);
       consult = { navy_ms: navy.ms, navy_kb: navy.kb, red_ms: red.ms, red_kb: red.kb, keypress: kp, drags: dr, open_ms: Math.round(box + first),
-        longtasks: [...ltNavy, ...ltRed, ...ltKp] , open_longtasks: ltOpen };
+        longtasks: [...ltNavy, ...ltRed, ...ltKp, ...ltOpen] };
       await design("glass");
     }
     // ---- big30: the index, then one 130 000-row sheet
@@ -366,14 +378,16 @@ const worst = {
   heap_mb: runs.some(r => r.big30.heap_mb == null) ? Infinity : Math.max(...runs.map(r => r.big30.heap_mb)),
   export_glass_ms: Math.max(...runs.map(r => r.export.glass_ms)), export_excel_ms: Math.max(...runs.map(r => r.export.excel_ms)),
   export_glass_kb: Math.max(...runs.map(r => r.export.glass_kb)), export_excel_kb: Math.max(...runs.map(r => r.export.excel_kb)),
-  // the consulting designs (M7b): not measured (an older build) counts as over the limit only when this build has them
+  // the consulting designs (M7b): an older build (--page) has none and is not gated on them; this build's own page must
+  // measure them – not measured counts as over the limit, never as passing
   ...(runs.every(r => r.consult) ? {
     export_navy_ms: Math.max(...runs.map(r => r.consult.navy_ms)), export_red_ms: Math.max(...runs.map(r => r.consult.red_ms)),
     export_navy_kb: Math.max(...runs.map(r => r.consult.navy_kb)), export_red_kb: Math.max(...runs.map(r => r.consult.red_kb)),
     keypress_navy_p95_ms: Math.max(...runs.map(r => r.consult.keypress.p95_ms)),
     drag_navy_frame_ms: Math.max(...runs.flatMap(r => Object.values(r.consult.drags).map(d => d.frame_ms))),
     open_navy_ms: Math.max(...runs.map(r => r.consult.open_ms)),
-    longest_navy_task_ms: Math.max(0, ...runs.flatMap(r => r.consult.longtasks)) } : {}),
+    longest_navy_task_ms: Math.max(0, ...runs.flatMap(r => r.consult.longtasks)) }
+    : arg("--page") ? {} : Object.fromEntries(["export_navy_ms", "export_red_ms", "export_navy_kb", "export_red_kb", "keypress_navy_p95_ms", "drag_navy_frame_ms", "open_navy_ms", "longest_navy_task_ms"].map(k => [k, Infinity]))),
 };
 const info = { longest_startup_task_ms: Math.max(0, ...runs.flatMap(r => r.boot.longtasks)), thumbs_frame_ms: Math.max(...runs.map(r => r.thumbs.frame_ms)) };
 const out = { page: path.relative(REPO, BACKEND) || BACKEND, chrome: CHROME, machine: `${os.cpus().length} × ${os.cpus()[0].model.trim()}, ${process.platform}`, calibration: { ms: +speed.ms.toFixed(1), factor: +speed.factor.toFixed(2) }, budget: BUDGET, limits: LIMITS, worst, info, runs };

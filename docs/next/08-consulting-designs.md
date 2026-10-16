@@ -538,7 +538,8 @@ ships.
 Measured in S7b.4 (this PC; `npm run bench` and `tools/export-check.mjs --decks deck20`, each twice): export of deck20
 Navy 342–458 ms / Red 230–422 ms; PDF 209 KB / 141 KB for 20 slides (≈ 10 / 7 KB per slide: the fonts once, the
 exhibits as vector text and rules); keypress → pixels in Navy p95 37–38 ms; drag frame in Navy 12–13.8 ms; deck20
-opened again in Navy 103–104 ms (the preset box, then Continue → first slide); no task over 50 ms. The limits above
+opened again in Navy 162 ms (the preset box, then Continue → the new deck's first slide drawn; the first measurement,
+103 ms, stopped at the old deck still on the stage – the review's H1); no task over 50 ms, the open included. The limits above
 stand (40 KB per slide + 150 KB is generous; kept so a later picture-heavy option fits).
 
 ### 4.4 ADR-018
