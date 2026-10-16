@@ -6,7 +6,9 @@
   "slides": [
    { "id": "s0", "type": "cover", "title": "Review", "tables": [] },
    { "id": "s1", "type": "content", "title": "Revenue grew in every region", "tables": ["t1"],
-     "sizes": { "mckinsey": { "scale": 0.8 }, "bain": { "align": "left" }, "glass": { "scale": 1 } } }
+     "sizes": { "mckinsey": { "scale": 0.8 }, "bain": { "align": "left" }, "glass": { "scale": 1 } } },
+   { "id": "s2", "type": "content", "title": "Shared sizing, older deck", "tables": ["t1"], "scale": 0.7, "align": "left",
+     "sizes": { "bain": { "scale": 0.9 } } }
   ]
  },
  "style": {

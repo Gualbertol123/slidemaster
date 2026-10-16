@@ -929,6 +929,13 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator('#themeList [data-theme="design"]')).toHaveClass(/on/);
     await expect(page.locator('[data-color="pos"]')).not.toHaveClass(/off/);
     await expect(page.locator('#lookScope [data-scope="design"]')).toContainText("Consulting Red");
+    // for all designs, the themes are not this design's: they cannot be picked here, and "Design palette" leaves them alone
+    const shared = JSON.stringify(bdoc().style.theme ?? null);
+    await page.click('#lookScope [data-scope="all"]');
+    await expect(page.locator('#themeList [data-theme="ocean"]')).toBeDisabled();
+    await page.click('#themeList [data-theme="design"]');
+    expect(JSON.stringify(bdoc().style.theme ?? null)).toBe(shared);
+    await page.click('#lookScope [data-scope="design"]');
     await page.click('.tsdlg [data-a="close"]');
     await page.click(`[data-design="${before}"]`); await saved(page);
   });

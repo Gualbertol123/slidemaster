@@ -24,15 +24,15 @@ function defined<T extends object>(o: T): Partial<T> {
   return out;
 }
 
-/** title / subtitle sizes the slide's layout is made for; `lines` = title lines the band holds (the consulting designs
-    reserve two, 08 §2.0: a larger title pushes the tables by both lines) */
-const BASE = { glass: { title: 48, sub: 19, subTop: 82, lines: 1 }, excel: { title: 44, sub: 18, subTop: 76, lines: 1 },
-  mckinsey: { title: 40, sub: 24, subTop: 124, lines: 2 }, bain: { title: 40, sub: 22, subTop: 124, lines: 2 } };
+/** title / subtitle sizes the slide's layout is made for; `push` = how far each px of a larger title moves the tables (the consulting designs
+    reserve two, 08 §2.0: a larger title pushes the tables by both lines, 2 × 1.1 per px) */
+const BASE = { glass: { title: 48, sub: 19, subTop: 82, push: 1.2 }, excel: { title: 44, sub: 18, subTop: 76, push: 1.2 },
+  mckinsey: { title: 40, sub: 24, subTop: 124, push: 2.2 }, bain: { title: 40, sub: 22, subTop: 124, push: 2.2 } };
 export const titleBase = (ctx: RenderCtx) => BASE[isConsult(ctx.style.design) ? ctx.style.design : ctx.style.design === "glass" ? "glass" : "excel"];
 export function titleGeom(R: RuntimeSlide, ctx: RenderCtx) {
   const b = titleBase(ctx);
   const t = slideTextFmt(ctx, R, "title").size || b.title, s = slideTextFmt(ctx, R, "subtitle").size || b.sub;
-  const dt = Math.max(0, (t - b.title) * 1.2 * b.lines), ds = R.subtitle ? Math.max(0, (s - b.sub) * 1.3) : 0;
+  const dt = Math.max(0, (t - b.title) * b.push), ds = R.subtitle ? Math.max(0, (s - b.sub) * 1.3) : 0;
   return { subTop: b.subTop + dt, push: dt + ds };
 }
 

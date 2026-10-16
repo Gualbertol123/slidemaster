@@ -37,6 +37,16 @@ describe("a deck saved in a consulting design", () => {
     expect(st.colors.accent).toBe("#0A2A66");
     expect((out as WorkbookDoc).preset!.slides[1].sizes!.mckinsey).toEqual({ scale: 0.8 });
   });
+  it("a 4.1 page giving a design its own sizing on a slide with shared sizing: the consulting designs' own entries stay", () => {
+    // what 4.1's sizingPatch sends (its design list has three designs): the shared sizing copied to the old designs, then cleared
+    const doc = saved(), s2 = doc.preset!.slides[2];
+    const op = { op: "slide.patch", id: s2.id, patch: { layout: null, scale: null, align: null, valign: null,
+      sizes: { excel: { scale: 0.7, align: "left" }, clean: { scale: 0.7, align: "left" }, glass: { scale: 0.6 } } } } as Op;
+    const { doc: out } = apply41(doc as never, [op] as never), s = (out as WorkbookDoc).preset!.slides[2];
+    expect(s.sizes!.bain).toEqual({ scale: 0.9 });                                    // its own entry: kept
+    expect(s.sizes!.mckinsey).toBeUndefined();                                         // it had none: automatic sizing from now on
+    expect([s.scale, s.align]).toEqual([undefined, undefined]);                        // (08 §3: the one thing a 4.1 page changes)
+  });
   it("is the same on this page's operations", () => {
     const doc = saved(), before = consultKeys(doc);
     const { doc: out } = applyOps(doc, [{ op: "style.patch", patch: { designs: { glass: { colors: { accent: "#123456" } } } } } as Op]);

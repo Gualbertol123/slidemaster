@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { patch, toast, useStore } from "../state/store";
+import { get, patch, toast, useStore } from "../state/store";
 import { esc } from "@slide-builder/core/xlsx/util";
 import { guard, lookChange, showVersion, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, styleChange, setPrefs, prepareRollback } from "../state/app";
 import { backend, type FileInfo } from "../sync/api";
@@ -48,7 +48,15 @@ function OpenMenu() {
 /* colour theme: built-in themes (incl. the Intesa Sanpaolo corporate colours) or a custom one */
 type TKey = "c1" | "c2" | "c3" | "c4" | "a1" | "a2";
 export function ThemePicker() {
-  const st = useStyle(), cur = themeOf(st);
+  const st = useStyle(), cur = themeOf(st), scope = useStore(s => s.ui.lookScope);
+  // a consulting design keeps its palette under a theme for all designs (08 §6 Q4): there, themes are picked for it alone
+  const locked = isConsult(st.design) && scope === "all", lockTip = "Consulting designs keep their own palette – choose “This design only” to give this design another theme";
+  // back to the design's own palette: the theme set for this design goes, whatever the scope (the shared theme is not its)
+  const designPalette = () => {
+    const own = { ...(((get().doc.view?.style || {}) as { designs?: Record<string, Record<string, unknown>> }).designs?.[st.design] || {}) };
+    delete own.theme;
+    styleChange("Design palette", { designs: { [st.design]: Object.keys(own).length ? own : null } } as never);
+  };
   const th = (patch: Partial<Theme>, coalesce?: string) => lookChange("Colour theme", { theme: patch }, coalesce);
   const swatch = (t: { c1: string; c2: string; c3: string; c4: string; a1: string }) => <i className="thsw" style={{ background: `linear-gradient(135deg,${t.c1},${t.c2} 40%,${t.c3} 75%,${t.c4})` }}><b style={{ background: t.a1 }} /></i>;
   const custom = () => th({ id: "custom", c1: cur.c1, c2: cur.c2, c3: cur.c3, c4: cur.c4, a1: cur.a1, a2: cur.a2 });
@@ -57,9 +65,9 @@ export function ThemePicker() {
   return <>
     <div className="opthd">Colour theme</div>
     <div className="themes" id="themeList">
-      {isConsult(st.design) && <button data-theme="design" className={cur.id.startsWith("consult-") ? "on" : ""} title="This design's own colours" onClick={() => lookChange("Design palette", { theme: null })}>{swatch(cur.id.startsWith("consult-") ? cur : themeOf({ ...st, theme: { id: st.design === "bain" ? "consult-red" : "consult-navy", c1: "", c2: "", c3: "", c4: "", a1: "", a2: "" } }))}<span>Design palette</span></button>}
-      {THEMES.map(t => <button key={t.id} data-theme={t.id} className={cur.id === t.id ? "on" : ""} title={t.name} onClick={() => th({ id: t.id })}>{swatch(t)}<span>{t.name}</span></button>)}
-      <button data-theme="custom" className={cur.id === "custom" ? "on" : ""} title="Your own colours" onClick={custom}>{swatch(cur.id === "custom" ? cur : { c1: "#fff", c2: "#ddd", c3: "#bbb", c4: "#999", a1: "#666" })}<span>Custom</span></button>
+      {isConsult(st.design) && <button data-theme="design" className={cur.id.startsWith("consult-") ? "on" : ""} title="This design's own colours" onClick={designPalette}>{swatch(cur.id.startsWith("consult-") ? cur : themeOf({ ...st, theme: { id: st.design === "bain" ? "consult-red" : "consult-navy", c1: "", c2: "", c3: "", c4: "", a1: "", a2: "" } }))}<span>Design palette</span></button>}
+      {THEMES.map(t => <button key={t.id} data-theme={t.id} className={cur.id === t.id ? "on" : ""} disabled={locked} title={locked ? lockTip : t.name} onClick={() => th({ id: t.id })}>{swatch(t)}<span>{t.name}</span></button>)}
+      <button data-theme="custom" className={cur.id === "custom" ? "on" : ""} disabled={locked} title={locked ? lockTip : "Your own colours"} onClick={custom}>{swatch(cur.id === "custom" ? cur : { c1: "#fff", c2: "#ddd", c3: "#bbb", c4: "#999", a1: "#666" })}<span>Custom</span></button>
     </div>
     {cur.id === "custom" && <div className="thcustom" id="themeCustom">
       <span className="lbl">Background</span>{pick("c1", "1")}{pick("c2", "2")}{pick("c3", "3")}{pick("c4", "4")}

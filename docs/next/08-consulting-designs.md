@@ -341,7 +341,7 @@ scene.
 | Where | Change |
 |---|---|
 | `core/src/model/types.ts` | `Design = "glass" \| "excel" \| "clean" \| "mckinsey" \| "bain"`. New `CONSULT = ["mckinsey","bain"] as const` and `isConsult(d)`. No new op, no new document field: `design` is a style field, and `sizes[d]` / `designs[d]` are already records keyed by design |
-| `core/src/model/style.ts` | Normalisation accepts the five (unknown → glass, as today). **Per-design defaults layer** `DESIGN_LOOK[d] = {theme, text}` for the consulting designs, applied under the user's layers, so the Text styles "Reset" (`text[role] = null`) and the colours "Theme" button return to the spec. The shared deck theme is not applied in a consulting design (its palette is its identity, §6 Q4): the order is built-in → `DESIGN_LOOK[d]` → the shared layers' text and colours → `designs[d]` (which may set a theme). `COLOR_KEYS[].designs` gains the new designs: accent, bg, ink, pos, neg all apply |
+| `core/src/model/style.ts` | Normalisation accepts the five (unknown → glass, as today). **Per-design defaults** (as built in S7b.1–S7b.2): the theme default is `CONSULT_THEMES` (`consult-navy` / `consult-red`), set when the design is resolved, under `designs[d]`; the text defaults are the spec's (`consult-spec.ts`), applied by the renderer under the deck's text styles exactly as the other designs' built-in defaults are – so the Text styles "Reset" (`text[role] = null`) and the colours "Theme" / "Design palette" buttons return to the spec without a defaults layer in `resolveStyle`. The shared deck theme is not applied in a consulting design (its palette is its identity, §6 Q4); a theme in `designs[d]` is. `COLOR_KEYS[].designs` gains the new designs: accent, bg, ink, pos, neg all apply |
 | `core/src/render/consult-spec.ts` (new) | `DesignSpec`: fonts by role, colours, rule widths and colours, table recipe flags (header fill or rules, row hairlines, total rule, verticals), card recipe, bullet glyph, band numbers, cover and contents recipes, **chart hooks** (palette, highlight mode, label style, legend swatch, callout defaults) for M9. `MCKINSEY` and `BAIN`: plain data, unit-tested against §2 |
 | `core/src/render/consult-dl.ts` (new) | `consultToDisplayList(L, ctx, m, spec, opts)` and its async wrapper `consultTableDL`, beside `excelToDisplayList`. It covers: effItems; roles (`roles.ts`); the measured text path (`Typesetter` / `breakRuns`); sup/sub; rotation; merges; pictures, shapes and text boxes of the workbook; colour scales; highlights; the rule recipe. Shared helpers move out of `excel-dl.ts` into `excel-common.ts` **without changing any output** (dlparity on Excel / Excel Refined must stay at 0 differences, and that is the proof). Nodes: only the eight types |
 | `core/src/render/layout.ts` | `DESIGNS` gains the two (`sizingPatch` copies the shared sizing to them as to the others). `areaFor` reads the band constants per design: unchanged for the old three. `tableW`: L.W for the new ones. `fixedScale` stays Excel-only. `notesOf`: the new designs draw text boxes |
@@ -364,19 +364,23 @@ and `designs.bain` and opened by a 4.0 / 4.1 page:
 
 1. `resolveStyle` turns the unknown design into Liquid Glass (`style.ts:25`), so the deck opens in Liquid Glass.
 2. `ops.ts` stores `style.design` as given and keeps the unknown keys of `sizes` / `designs`, and the helper keeps
-   the dict. Nothing is lost unless the user switches design on the old page, which is a normal edit.
+   the dict. Nothing is lost unless the user switches design on the old page, which is a normal edit. One case
+   changes a consulting design's view (review of S7b.1): on a slide still on the older *shared* sizing, a 4.1 page that
+   gives a design its own sizing copies the shared sizing to its three designs and clears it, so a consulting design
+   without its own entry for that slide falls back to automatic sizing (its own entries are kept). Tested.
 3. Edits made there go to glass's own sizes and looks, as they would for any glass deck.
 4. v3 (frozen, ADR-010) never opens a v4-format deck.
 
 Tests:
 
 * `core/tests/design-fallback.test.ts`:
-  * the 4.1 resolution rules (a frozen copy of `resolveStyle`'s normalisation at the `v4.1` tag, as a fixture)
-    give glass;
+  * the 4.1 resolution rules (`core/tests/fixtures/v41/`: `model/style.ts`, `ops.ts`, `types.ts` as on main at 4.1 –
+    there is no v4.1 tag; their semantics equal v4.0.0's) give glass;
   * applying a glass `style.patch` / `slide.patch` with 4.1's ops keeps every `mckinsey` / `bain` key;
   * the current code reads it back as McKinsey with its sizes and looks.
-* `helper/tests/test_decks.py`: a round trip of the unknown keys through `store.py`.
-* A new saved fixture `helper/tests/fixtures/saved/consult-4.2.json`, added, not edited.
+* `helper/tests/test_http.py` `test_config_keeps_a_consulting_design`: the helper stores the design and its settings as
+  given (it never reads a deck's style: decks are journals of ops, which keep the keys as the ops tests show).
+* The saved deck `core/tests/fixtures/consult-4.2.json` (new; with a slide on shared sizing).
 
 **Parity and goldens (ADR-011).**
 
