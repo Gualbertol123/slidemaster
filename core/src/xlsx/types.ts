@@ -54,6 +54,12 @@ export interface Sheet {
   /** the columns behind cells and rowInfo (absent for a broken sheet) */
   cols?: { cells: import("./sheetstore").SheetColumns; rows: import("./sheetstore").RowColumns };
   get(r: number, c: number): Cell | null;
+  /** the cell's formula as A1 text without "=" (PLAN S7.1), null for a constant or an unreadable formula */
+  formula(r: number, c: number): string | null;
+  /** the range of the array formula the cell masters, e.g. "C5:C9" (null: none) */
+  arrayRef(r: number, c: number): string | null;
+  /** formula cells of an .xlsb whose formula could not be decompiled (they keep their cached value only) */
+  unreadableFormulas?: number;
   rowHidden(r: number): boolean;
   colHidden(c: number): boolean;
   colInfo(c: number): ColInfo | undefined;

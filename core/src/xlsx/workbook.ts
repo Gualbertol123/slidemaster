@@ -15,7 +15,7 @@ import type { Range } from "./util";
 import { platform, type XmlElement } from "../platform";
 import type { Border, CFRule, ColInfo, Dxf, Font, Progress, Script, Shared, Sheet, SheetMeta, Workbook, Xf } from "./types";
 import type { RowColumns } from "./sheetstore";
-import { readWorkbookBin } from "./xlsb/workbook";
+import { readWorkbookBin, readWorkbookInfoBin, readSupTabsBin, type BinWorkbookInfo } from "./xlsb/workbook";
 import { readStylesBin } from "./xlsb/styles";
 import { readSstBin } from "./xlsb/strings";
 import { BinSheetReader } from "./xlsb/sheet";
@@ -59,9 +59,15 @@ export async function indexWorkbook(buf: ArrayBuffer): Promise<Workbook> {
   if (!wbPath || !zget(zip, wbPath)) throw new WorkbookError("NOTXLSX", "This file does not contain an Excel workbook.");
   // the sheets in tab order: <sheet name state r:id> of workbook.xml, or BrtBundleSh of workbook.bin
   let list: { name: string; state: string; rid: string }[];
-  if (/\.bin$/i.test(wbPath)) list = readWorkbookBin(zip.bytes(zget(zip, wbPath)!)).map(s => ({ name: s.name, state: s.state, rid: s.relId }));
-  else list = all(parseXml(await zget(zip, wbPath)!.async("string")), "sheet").map(s => ({ name: s.getAttribute("name") || "", state: s.getAttribute("state") || "visible", rid: s.getAttributeNS(NS_R, "id") || s.getAttribute("r:id") || "" }));
   const wbRels = await readRels(zip, wbPath);
+  if (/\.bin$/i.test(wbPath)) {
+    const bytes = zip.bytes(zget(zip, wbPath)!);
+    list = readWorkbookBin(bytes).map(s => ({ name: s.name, state: s.state, rid: s.relId }));
+    // the names and the sheet table the binary sheets' formulas refer to (S7.1); an external link part's sheet names
+    const info = readWorkbookInfoBin(bytes);
+    for (const b of info.books) if (b.kind === "external") { const rel = wbRels[b.relId]; const e = rel && zget(zip, rel.target); if (e && /\.bin$/i.test(e.name)) { try { b.sheets = readSupTabsBin(zip.bytes(e)); } catch { /* no sheet names: 3D references to it are unreadable */ } } }
+    BIN_INFO.set(zip, info);
+  } else list = all(parseXml(await zget(zip, wbPath)!.async("string")), "sheet").map(s => ({ name: s.getAttribute("name") || "", state: s.getAttribute("state") || "visible", rid: s.getAttributeNS(NS_R, "id") || s.getAttribute("r:id") || "" }));
   const meta: SheetMeta[] = [], skipped: { name: string; why: string }[] = [];
   for (const { name, state, rid } of list) {
     const r = wbRels[rid];
@@ -180,6 +186,8 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
 /** per workbook (its Shared): the superscript / subscript flag of each font of styles.bin, for the rich strings of
     binary sheets */
 const FONT_SCRIPTS = new WeakMap<Shared, number[]>();
+/** per binary workbook (its zip): the names and sheet table its formulas refer to (xlsb/formula.ts) */
+const BIN_INFO = new WeakMap<Zip, BinWorkbookInfo>();
 
 async function ensureSheets(wb: Workbook, names: string[], progress?: Progress): Promise<Sheet[]> {
   const todo = wb.meta.filter(m => names.includes(m.name) && !wb.isLoaded(m.name));
@@ -226,6 +234,15 @@ export function makeSheet(init: SheetInit, store?: SheetColumns): Sheet {
     get(r, c) {
       if (!store) return cells.get(r + "," + c) || null;
       const i = cellIndex(store, r, c); return i < 0 ? null : cellAt(store, ctx, i, r);
+    },
+    formula(r, c) {
+      if (!store || !store.fml.size) return null;
+      const i = cellIndex(store, r, c); if (i < 0) return null;
+      const k = store.fml.get(i); return k === undefined ? null : store.fmls[k];
+    },
+    arrayRef(r, c) {
+      if (!store || !store.arr.size) return null;
+      const i = cellIndex(store, r, c); return i < 0 ? null : store.arr.get(i) ?? null;
     },
     rowHidden(r) { const i = rowInfo.get(r); return i ? i.hidden : zeroH; },
     colHidden(c) { const i = colInfo(c); return i ? i.hidden : false; },
@@ -284,11 +301,13 @@ export async function readSheet(zip: Zip, sh: SheetMeta, ctx: Shared, tick?: (f:
 }
 /** a sheet from its BIFF12 records (sheetN.bin of an .xlsb) */
 export async function parseSheetBin(zip: Zip, sh: SheetMeta, bytes: Uint8Array, ctx: Shared, tick?: (f: number) => void): Promise<Sheet> {
-  const rd = new BinSheetReader(bytes, ctx, FONT_SCRIPTS.get(ctx));
+  const rd = new BinSheetReader(bytes, ctx, FONT_SCRIPTS.get(ctx), BIN_INFO.get(zip));
   if (!tick) rd.run();
   else { const pace = pacer(); while (!rd.run(20000)) { tick(Math.min(.95, rd.progress)); const w = pace(); if (w) await w; } }
   const b = rd.finish();
-  return finishSheet(zip, sh, ctx, b.store, b.rows, b);
+  const S = await finishSheet(zip, sh, ctx, b.store, b.rows, b);
+  if (rd.unreadable) S.unreadableFormulas = rd.unreadable;
+  return S;
 }
 /** a sheet from its inflated XML (readSheet without the inflate) */
 export async function parseSheet(zip: Zip, sh: SheetMeta, bytes: Uint8Array, ctx: Shared, tick?: (f: number) => void): Promise<Sheet> {

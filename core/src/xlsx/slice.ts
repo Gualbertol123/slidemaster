@@ -121,7 +121,8 @@ export function sliceSheet(S: Sheet, box: Range | null): SheetSlice {
   off.push(n);
   // v3's iteration order (only differs from the sorted one in unsorted files)
   const order = C.order ? Int32Array.from([...C.order].map(i => newIx[i]).filter(j => j >= 0)) : null;
-  const cells: SheetColumns = { n, col, kind, xf, num, rows: Int32Array.from(rowsL), rowOff: Int32Array.from(off), order, strs, runs };
+  // no formulas in a slice: the page's mirror draws values; the worker (the formula bar's getCell, the engine) has them
+  const cells: SheetColumns = { n, col, kind, xf, num, rows: Int32Array.from(rowsL), rowOff: Int32Array.from(off), order, strs, runs, fml: new Map(), fmls: [], arr: new Map() };
   let rn = R.rows.length; if (box) { let lo = 0, hi = R.rows.length; while (lo < hi) { const m = (lo + hi) >> 1; if (R.rows[m] <= box.r2) lo = m + 1; else hi = m; } rn = lo; }
   const rows: RowColumns = { rows: R.rows.slice(0, rn), h: R.h.slice(0, rn), hidden: R.hidden.slice(0, rn), hasS: R.hasS.slice(0, rn), s: R.s.slice(0, rn) };
   return { ...base, cells, rows };

@@ -3,7 +3,10 @@
 #   Peers.xlsx  : Peer sheet reads Banks.xlsx (bank + summary) and compares with its own peer data
 #   BanksBig.xlsx: Control + Data (52 weeks) + 20 slide sheets of formulas (the speed deck)
 #   truth\<bank>\{Banks,Peers}.xlsx: the same two files recalculated and saved by Excel for every bank (scenario ground truth)
-param([string]$Out = (Join-Path $PSScriptRoot "wb"))
+#   formulas.json: every formula cell's text as Excel's Range.Formula gives it (the reference for the readers, core/tests/formulas.test.ts)
+#   xlsb\<name>.xlsb: the same three files saved by Excel as Excel Binary Workbooks (the .xlsb formula reader's twins)
+# Output: tests\corpus\workbooks\recalc (committed; regenerate only on a PC with Excel).
+param([string]$Out = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "tests\corpus\workbooks\recalc"))
 $ErrorActionPreference = "Stop"
 [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo("en-US")
 [System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo("en-US")
@@ -146,6 +149,21 @@ try {
   $wbA.Save(); $wbB.Save()
   "saved " + $pathA + " and " + $pathB
 
+
+  $allFormulas = [ordered]@{}
+  function DumpFormulas($wb, $key) {
+    $sheets = [ordered]@{}
+    foreach ($ws in $wb.Worksheets) {
+      $cells = [ordered]@{}
+      $ur = $ws.UsedRange
+      foreach ($cell in $ur.Cells) { if ($cell.HasFormula) { $cells[$cell.Address($false, $false)] = [string]$cell.Formula } }
+      if ($cells.Count) { $sheets[$ws.Name] = $cells }
+    }
+    $allFormulas[$key] = $sheets
+  }
+  DumpFormulas $wbA "Banks.xlsx"; DumpFormulas $wbB "Peers.xlsx"
+  $xlsbDir = Join-Path $Out "xlsb"; New-Item -ItemType Directory -Force $xlsbDir | Out-Null
+
   # ---- scenario truth: every bank, both files recalculated by Excel ----
   foreach ($bank in $banks) {
     $wbA.Worksheets.Item("Control").Range("B2").Value2 = $bank
@@ -154,6 +172,8 @@ try {
     $wbA.SaveCopyAs((Join-Path $dir "Banks.xlsx")); $wbB.SaveCopyAs((Join-Path $dir "Peers.xlsx"))
   }
   $wbA.Worksheets.Item("Control").Range("B2").Value2 = "Bank A"; $xl.CalculateFull(); $wbA.Save(); $wbB.Save()
+  # the .xlsb twins, saved last (SaveAs moves the open workbooks to the new files; their links then name the twins)
+  $wbB.SaveAs((Join-Path $xlsbDir "Peers.xlsb"), 50); $wbA.SaveAs((Join-Path $xlsbDir "Banks.xlsb"), 50)
   $wbA.Close($false); $wbB.Close($false)
 
   # ---- BanksBig.xlsx: the speed deck (20 slide sheets, 52 weeks of data) ----
@@ -168,7 +188,43 @@ try {
   $xl.CalculateFull()
   $t0 = Get-Date; $xl.CalculateFull(); $t1 = Get-Date
   "Excel CalculateFull of BanksBig: " + [int]($t1 - $t0).TotalMilliseconds + " ms"
-  $wbC.SaveAs((Join-Path $Out "BanksBig.xlsx"), 51); $wbC.Close($false)
+  DumpFormulas $wbC "BanksBig.xlsx"
+  $wbC.SaveAs((Join-Path $Out "BanksBig.xlsx"), 51)
+  $wbC.SaveAs((Join-Path $xlsbDir "BanksBig.xlsb"), 50); $wbC.Close($false)
+  # ---- Functions.xlsx: one cell per newer / Analysis-ToolPak function, so the .xlsb reader's function table (Cetab,
+  # the fCeFunc ids) is learnt from Excel and checked against it (core/tests/formulas.test.ts) ----
+  $wbF = $xl.Workbooks.Add(); $wf = $wbF.Worksheets.Item(1); $wf.Name = "F"
+  $wf.Range("A1:A20").Value2 = 5; $wf.Range("B1").Value2 = "text"; $wf.Range("C1").Value2 = 44927
+  $funcs = @(
+    '=IFERROR(A1/0,0)', '=IFNA(A1,0)', '=SUMIFS(A1:A5,A1:A5,">1")', '=COUNTIFS(A1:A5,">1")', '=AVERAGEIF(A1:A5,">1")', '=AVERAGEIFS(A1:A5,A1:A5,">1")',
+    '=MAXIFS(A1:A5,A1:A5,">1")', '=MINIFS(A1:A5,A1:A5,">1")', '=EOMONTH(C1,0)', '=EDATE(C1,1)', '=NETWORKDAYS(C1,C1+10)', '=NETWORKDAYS.INTL(C1,C1+10)',
+    '=WORKDAY(C1,3)', '=WORKDAY.INTL(C1,3)', '=WEEKNUM(C1)', '=ISOWEEKNUM(C1)', '=YEARFRAC(C1,C1+100)', '=DAYS(C1+3,C1)', '=RANDBETWEEN(1,9)',
+    '=MROUND(A1,2)', '=QUOTIENT(A1,2)', '=GCD(A1,10)', '=LCM(A1,3)', '=ISEVEN(A1)', '=ISODD(A1)', '=FACTDOUBLE(A1)', '=MULTINOMIAL(A1,2)', '=SQRTPI(A1)',
+    '=SERIESSUM(A1,1,1,A1:A3)', '=CONVERT(A1,"m","ft")', '=BIN2DEC(101)', '=DEC2BIN(A1)', '=DEC2HEX(A1)', '=HEX2DEC("1F")', '=OCT2DEC(17)', '=DEC2OCT(A1)',
+    '=RANK.EQ(A1,A1:A5)', '=RANK.AVG(A1,A1:A5)', '=PERCENTRANK.INC(A1:A5,A1)', '=PERCENTRANK.EXC(A1:A5,A1)', '=PERCENTILE.INC(A1:A5,0.5)', '=PERCENTILE.EXC(A1:A5,0.5)',
+    '=QUARTILE.INC(A1:A5,1)', '=QUARTILE.EXC(A1:A5,1)', '=STDEV.S(A1:A5)', '=STDEV.P(A1:A5)', '=VAR.S(A1:A5)', '=VAR.P(A1:A5)', '=MODE.SNGL(A1:A5)', '=MEDIAN(A1:A5)',
+    '=NORM.DIST(A1,5,1,TRUE)', '=NORM.INV(0.5,5,1)', '=NORM.S.DIST(A1,TRUE)', '=NORM.S.INV(0.5)', '=T.DIST(A1,3,TRUE)', '=T.INV(0.5,3)', '=T.INV.2T(0.5,3)', '=CHISQ.DIST(A1,3,TRUE)',
+    '=CHISQ.INV(0.5,3)', '=F.DIST(A1,3,3,TRUE)', '=F.INV(0.5,3,3)', '=BINOM.DIST(2,5,0.5,TRUE)', '=POISSON.DIST(2,5,TRUE)', '=EXPON.DIST(A1,1,TRUE)', '=GAMMA.DIST(A1,1,1,TRUE)',
+    '=LOGNORM.DIST(A1,0,1,TRUE)', '=WEIBULL.DIST(A1,1,1,TRUE)', '=CONFIDENCE.NORM(0.05,1,10)', '=CONFIDENCE.T(0.05,1,10)', '=COVARIANCE.P(A1:A5,A1:A5)', '=COVARIANCE.S(A1:A5,A1:A5)',
+    '=CEILING.MATH(A1,2)', '=FLOOR.MATH(A1,2)', '=CEILING.PRECISE(A1,2)', '=FLOOR.PRECISE(A1,2)', '=ISO.CEILING(A1,2)', '=AGGREGATE(9,6,A1:A5)', '=NUMBERVALUE("1,5",",",".")',
+    '=UNICHAR(65)', '=UNICODE("A")', '=CONCAT(B1,B1)', '=TEXTJOIN(";",TRUE,A1:A3)', '=IFS(A1>1,"a",TRUE,"b")', '=SWITCH(A1,5,"five","other")', '=XLOOKUP(A1,A1:A5,A1:A5)',
+    '=XMATCH(A1,A1:A5)', '=LET(x,A1,x*2)', '=FORMULATEXT(A1)', '=ISFORMULA(A1)', '=SHEET()', '=SHEETS()', '=XNPV(0.1,A1:A3,C1:C3)', '=XIRR(A1:A3,C1:C3)',
+    '=CUMIPMT(0.05,10,1000,1,2,0)', '=CUMPRINC(0.05,10,1000,1,2,0)', '=EFFECT(0.05,12)', '=NOMINAL(0.05,12)', '=PRICE(C1,C1+365,0.05,0.06,100,2)', '=DISC(C1,C1+365,95,100)',
+    '=ACCRINT(C1,C1+180,C1+365,0.05,1000,2)', '=TBILLPRICE(C1,C1+100,0.05)', '=DURATION(C1,C1+365,0.05,0.06,2)', '=YIELD(C1,C1+365,0.05,95,100,2)', '=ERF(A1)', '=ERFC(A1)',
+    '=DELTA(A1,5)', '=GESTEP(A1,4)', '=BESSELJ(A1,1)', '=IMSUM("1+i","2")', '=COMPLEX(1,2)', '=IMREAL("1+2i")', '=BITAND(A1,3)', '=BITOR(A1,3)', '=BITXOR(A1,3)',
+    '=BITLSHIFT(A1,1)', '=BITRSHIFT(A1,1)', '=BASE(A1,2)', '=DECIMAL("101",2)', '=ARABIC("IV")', '=GAMMA(A1)', '=GAUSS(A1)', '=PHI(A1)', '=PERMUTATIONA(A1,2)', '=COMBINA(A1,2)',
+    '=SKEW.P(A1:A5)', '=MODE.MULT(A1:A5)', '=FORECAST.LINEAR(A1,A1:A5,A1:A5)', '=DATEDIF(C1,C1+40,"d")', '=HYPERLINK("http://x","x")', '=GETPIVOTDATA("x",A1)',
+    '=IMAGE("x")', '=TOCOL(A1:A3)', '=VSTACK(A1:A2,A3)', '=UNIQUE(A1:A5)', '=SORT(A1:A5)', '=SORTBY(A1:A5,A1:A5)', '=SEQUENCE(3)', '=RANDARRAY(2)', '=FILTER(A1:A5,A1:A5>1)',
+    '=TEXTSPLIT("a,b",",")', '=TEXTBEFORE("a,b",",")', '=TEXTAFTER("a,b",",")', '=LAMBDA(x,x+1)(A1)', '=MAP(A1:A3,LAMBDA(x,x*2))', '=SCAN(0,A1:A3,LAMBDA(a,b,a+b))',
+    '=ENCODEURL("a b")', '=WEBSERVICE("http://x")', '=FILTERXML("<a/>","/a")', '=SUMSQ(A1:A3)', '=COUNTBLANK(A1:A5)', '=CELL("address",A1)', '=INFO("osversion")',
+    '=N(A1)', '=T(B1)', '=TYPE(A1)', '=AREAS(A1:A3)', '=INDEX(A1:A5,2)', '=OFFSET(A1,1,0)', '=INDIRECT("A1")', '=TRANSPOSE(A1:A3)', '=ROW(A1)', '=COLUMN(A1)', '=ROWS(A1:A3)', '=COLUMNS(A1:B1)'
+  )
+  $row = 1
+  foreach ($f in $funcs) { try { $wf.Cells.Item($row, 5).Formula2 = $f } catch { try { $wf.Cells.Item($row, 5).Formula = $f } catch { $wf.Cells.Item($row, 5).Value2 = "not entered: " + $f } }; $row++ }
+  $xl.CalculateFull()
+  DumpFormulas $wbF "Functions.xlsx"
+  $wbF.SaveAs((Join-Path $Out "Functions.xlsx"), 51); $wbF.SaveAs((Join-Path $xlsbDir "Functions.xlsb"), 50); $wbF.Close($false)
+  ($allFormulas | ConvertTo-Json -Depth 5 -Compress) | Out-File -Encoding utf8 (Join-Path $Out "formulas.json")
   # one truth copy of the big file for another bank
   $wbC = $xl.Workbooks.Open((Join-Path $Out "BanksBig.xlsx"))
   $wbC.Worksheets.Item("Control").Range("B2").Value2 = "Bank G"; $xl.CalculateFull()

@@ -13,6 +13,7 @@
    row number is an integer (v3 kept "2.5" or NaN as keys no lookup could find). */
 import { isDateFmt } from "./numfmt";
 import { richRuns, xdec } from "./strings";
+import { shiftFormula } from "../calc/refs";
 import type { Cell, CellType, RowInfo, Script, Shared, Xf } from "./types";
 
 export const enum Kind { Blank = 0, Num = 1, Date = 2, Shared = 3, Str = 4, Bool = 5, Err = 6 }
@@ -28,6 +29,10 @@ export interface SheetColumns {
   strs: string[];
   /** superscript / subscript runs of inline strings, by cell index */
   runs: Map<number, Script[]>;
+  /** formula cells (PLAN S7.1): cell index → index in fmls of the cell's own A1 text (a shared formula's children hold
+      their shifted text, as Excel writes it when it does not share); `arr`: the range of an array formula by its
+      master cell's index */
+  fml: Map<number, number>; fmls: string[]; arr: Map<number, string>;
 }
 export interface RowColumns {
   rows: Int32Array; h: Float64Array; hidden: Uint8Array;
@@ -106,6 +111,11 @@ export class SheetScanner {
   // the attributes of the tag being read
   private aR = -1; private aR1 = -1; private aT = -1; private aT1 = -1; private aS = -1; private aS1 = -1;
   private aHt = -1; private aHt1 = -1; private aHid = -1; private aHid1 = -1; private aCf = -1; private aCf1 = -1;
+  // formulas (S7.1): the <f> of the cell being read, the shared masters seen so far (si → text and master cell)
+  private readonly fml = new Map<number, number>(); private readonly fmls: string[] = []; private readonly fmlIx = new Map<string, number>();
+  private readonly arr = new Map<number, string>();
+  private readonly sharedF = new Map<string, { text: string; row: number; col: number }>();
+  private fT = ""; private fSi = ""; private fRef = ""; private fText: string | null = null;
 
   constructor(private readonly b: Uint8Array, start: number, private readonly end: number, private readonly ctx: Shared, private readonly defRowH: number) {
     this.i = this.start = start;
@@ -226,12 +236,12 @@ export class SheetScanner {
     const self = b[gt - 1] === SL;
     // one pass over the body: the first <v>text</v>, the first <is>…</is>, up to </c>
     let v0 = -1, v1 = -1, is0 = -1, is1 = -1, next = gt + 1;
-    this.th = -1; this.f0 = this.f1 = this.i0 = this.i1 = -1;
+    this.th = -1; this.f0 = this.f1 = this.i0 = this.i1 = -1; this.fText = null;
     if (!self) next = this.commonBody(gt + 1);
     if (next >= 0) { v0 = this.f0; v1 = this.f1; is0 = this.i0; is1 = this.i1; }
     else if (!self) {
       next = gt + 1;
-      let k = gt + 1, closed = false;
+      let k = gt + 1, closed = false, seenF = false;
       for (;;) {
         while (k < end && b[k] !== LT) k++;
         if (k >= end) return -1;
@@ -243,7 +253,20 @@ export class SheetScanner {
           k++; continue;
         }
         this.name(k + 1);
-        if (v0 < 0 && this.named("v")) {
+        if (!seenF && this.named("f")) {                             // the formula: <f t= si= ref=>text</f> or <f …/>
+          seenF = true;
+          let q = this.na + 1; while (q < end && b[q] !== GT) q++;
+          if (q < end) {
+            const selfF = b[q - 1] === SL;
+            this.fAttrs(this.na + 1, selfF ? q - 1 : q);
+            if (selfF) this.fText = "";
+            else {
+              const t0 = q + 1; let t1 = t0, ok = false;
+              while (t1 < end) { while (t1 < end && b[t1] !== LT) t1++; if (t1 >= end) break; if (this.endTag(t1, "f") >= 0) { ok = true; break; } if (b[t1 + 1] === SL && this.endName(t1) && (this.named("c") || this.named("row"))) break; t1++; }
+              if (ok) this.fText = this.val(t0, t1);
+            }
+          }
+        } else if (v0 < 0 && this.named("v")) {
           let q = this.na + 1;
           if (b[q] !== GT && isWs(b[q])) { while (q < end && b[q] !== GT) q++; }
           if (b[q] === GT) {
@@ -271,8 +294,45 @@ export class SheetScanner {
     if (this.aR >= 0 && (this.plain(this.aR, this.aR1) ? this.aR1 > this.aR : this.val(this.aR, this.aR1) !== "")) { c = this.colOf(this.aR, this.aR1); if (c < 0) { this.lastC = -1; return next; } }
     else c = lastCol + 1;
     this.lastC = c;
+    const n0 = this.cells.n;
     this.cell(r, c, v0, v1, is0, is1);
+    if (this.fText !== null && this.cells.n > n0) this.formula(this.cells.n - 1, r, c);
     return next;
+  }
+  /** the <f> attributes t, si and ref of [a, z) (double-quoted, as attrs()) */
+  private fAttrs(a: number, z: number) {
+    const b = this.b; this.fT = this.fSi = this.fRef = "";
+    let p = a;
+    while (p < z) {
+      if (!isAttrName(b[p])) { p++; continue; }
+      const n0 = p; while (p < z && isAttrName(b[p])) p++;
+      const n1 = p; let q = p; while (q < z && isWs(b[q])) q++;
+      if (b[q] !== EQ) continue;
+      q++; while (q < z && isWs(b[q])) q++;
+      if (b[q] !== QU) continue;
+      const v0 = q + 1; let v1 = v0; while (v1 < z && b[v1] !== QU) v1++;
+      if (v1 >= z) continue;
+      p = v1 + 1;
+      let s0 = n0; { let k = n0; while (k < n1 && isAlnum(b[k])) k++; if (k > n0 && k + 1 < n1 && b[k] === COLON && isAlpha(b[k + 1])) s0 = k + 1; }
+      const L = n1 - s0;
+      if (L === 1 && b[s0] === 116) this.fT = this.val(v0, v1);
+      else if (L === 2 && b[s0] === 115 && b[s0 + 1] === 105) this.fSi = this.val(v0, v1);
+      else if (L === 3 && this.is(s0, "ref")) this.fRef = this.val(v0, v1);
+    }
+  }
+  /** the formula of the cell just pushed at index i: its own text, or a shared master's text shifted to this cell;
+      a data table (t="dataTable") has no text of its own and is not kept */
+  private formula(i: number, r: number, c: number) {
+    let text = this.fText || "";
+    if (this.fT === "shared") {
+      if (text) { if (this.fSi) this.sharedF.set(this.fSi, { text, row: r, col: c }); }
+      else { const m = this.sharedF.get(this.fSi); if (!m) return; text = shiftFormula(m.text, r - m.row, c - m.col); }
+    } else if (this.fT === "dataTable") return;
+    if (!text) return;
+    if (this.fT === "array" && this.fRef) this.arr.set(i, this.fRef);
+    let k = this.fmlIx.get(text);
+    if (k === undefined) { k = this.fmls.length; this.fmls.push(text); this.fmlIx.set(text, k); }
+    this.fml.set(i, k);
   }
   private colOf(v0: number, v1: number): number {
     const b = this.b;
@@ -459,7 +519,7 @@ export class SheetScanner {
 
   /** the columns, sorted, after the last run() */
   finish(): { cells: SheetColumns; rows: RowColumns } {
-    return { cells: sortCells(this.cells, this.runs, this.strs), rows: sortRows(this.rowR.done(), this.rowH.done(), this.rowHid.done(), this.rowHasS.done(), this.rowS.done()) };
+    return { cells: sortCells(this.cells, this.runs, this.strs, this.fml, this.fmls, this.arr), rows: sortRows(this.rowR.done(), this.rowH.done(), this.rowHid.done(), this.rowHasS.done(), this.rowS.done()) };
   }
 }
 
@@ -493,16 +553,24 @@ export class ColumnsBuilder {
   str(r: number, c: number, x: number, s: string, scr?: Script[]) { const i = this.cells.push(r, c, Kind.Str, x, this.intern(s)); if (scr) this.runs.set(i, scr); }
   bool(r: number, c: number, x: number, v: boolean) { this.cells.push(r, c, Kind.Bool, x, v ? 1 : 0); }
   err(r: number, c: number, x: number, s: string) { this.cells.push(r, c, Kind.Err, x, this.intern(s)); }
+  /** the formula (A1 text, S7.1) of the cell pushed last; `arrayRef` = the range of an array formula it masters */
+  formula(text: string, arrayRef?: string) {
+    const i = this.cells.n - 1; if (i < 0 || !text) return;
+    let k = this.fmlIx.get(text);
+    if (k === undefined) { k = this.fmls.length; this.fmls.push(text); this.fmlIx.set(text, k); }
+    this.fml.set(i, k); if (arrayRef) this.arr.set(i, arrayRef);
+  }
+  private readonly fml = new Map<number, number>(); private readonly fmls: string[] = []; private readonly fmlIx = new Map<string, number>(); private readonly arr = new Map<number, string>();
   row(r: number, h: number, hidden: boolean, s: number | null) {
     this.rowR.push(r); this.rowH.push(h); this.rowHid.push(hidden ? 1 : 0);
     if (s !== null) { this.rowHasS.push(1); this.rowS.push(s); } else { this.rowHasS.push(0); this.rowS.push(0); }
   }
   finish(): { cells: SheetColumns; rows: RowColumns } {
-    return { cells: sortCells(this.cells, this.runs, this.strs), rows: sortRows(this.rowR.done(), this.rowH.done(), this.rowHid.done(), this.rowHasS.done(), this.rowS.done()) };
+    return { cells: sortCells(this.cells, this.runs, this.strs, this.fml, this.fmls, this.arr), rows: sortRows(this.rowR.done(), this.rowH.done(), this.rowHid.done(), this.rowHasS.done(), this.rowS.done()) };
   }
 }
 
-function sortCells(C: Cols, runs: Map<number, Script[]>, strs: string[]): SheetColumns {
+function sortCells(C: Cols, runs: Map<number, Script[]>, strs: string[], fml: Map<number, number>, fmls: string[], arr: Map<number, string>): SheetColumns {
   const n0 = C.n, row = C.row;
   let sorted = true;
   for (let i = 1; i < n0; i++) if (row[i] < row[i - 1] || (row[i] === row[i - 1] && C.col[i] <= C.col[i - 1])) { sorted = false; break; }
@@ -510,7 +578,7 @@ function sortCells(C: Cols, runs: Map<number, Script[]>, strs: string[]): SheetC
     const rowsL: number[] = [], off: number[] = [];
     for (let i = 0; i < n0; i++) if (i === 0 || row[i] !== row[i - 1]) { rowsL.push(row[i]); off.push(i); }
     off.push(n0);
-    return { n: n0, col: C.col.slice(0, n0), kind: C.kind.slice(0, n0), xf: C.xf.slice(0, n0), num: C.num.slice(0, n0), rows: Int32Array.from(rowsL), rowOff: Int32Array.from(off), order: null, strs, runs };
+    return { n: n0, col: C.col.slice(0, n0), kind: C.kind.slice(0, n0), xf: C.xf.slice(0, n0), num: C.num.slice(0, n0), rows: Int32Array.from(rowsL), rowOff: Int32Array.from(off), order: null, strs, runs, fml, fmls, arr };
   }
   // not sorted, or duplicates: v3's Map kept the first position and the last value of each "r,c"
   const byKey = new Map<number, number>();
@@ -518,15 +586,17 @@ function sortCells(C: Cols, runs: Map<number, Script[]>, strs: string[]): SheetC
   const iter = Array.from(byKey.values());
   const srt = iter.slice().sort((p, q) => row[p] - row[q] || C.col[p] - C.col[q]);
   const n = srt.length, col = new Uint16Array(n), kind = new Uint8Array(n), xf = new Uint16Array(n), num = new Float64Array(n);
-  const pos = new Map<number, number>(), runs2 = new Map<number, Script[]>(), rowsL: number[] = [], off: number[] = [];
+  const pos = new Map<number, number>(), runs2 = new Map<number, Script[]>(), fml2 = new Map<number, number>(), arr2 = new Map<number, string>(), rowsL: number[] = [], off: number[] = [];
   srt.forEach((src, k) => {
     col[k] = C.col[src]; kind[k] = C.kind[src]; xf[k] = C.xf[src]; num[k] = C.num[src]; pos.set(src, k);
     const sc = runs.get(src); if (sc) runs2.set(k, sc);
+    const fk = fml.get(src); if (fk !== undefined) fml2.set(k, fk);
+    const ar = arr.get(src); if (ar !== undefined) arr2.set(k, ar);
     if (k === 0 || row[src] !== row[srt[k - 1]]) { rowsL.push(row[src]); off.push(k); }
   });
   off.push(n);
   const order = Int32Array.from(iter, src => pos.get(src)!);
-  return { n, col, kind, xf, num, rows: Int32Array.from(rowsL), rowOff: Int32Array.from(off), order, strs, runs: runs2 };
+  return { n, col, kind, xf, num, rows: Int32Array.from(rowsL), rowOff: Int32Array.from(off), order, strs, runs: runs2, fml: fml2, fmls, arr: arr2 };
 }
 function sortRows(r: Int32Array, h: Float64Array, hid: Uint8Array, hasS: Uint8Array, sv: Float64Array): RowColumns {
   let sorted = true;

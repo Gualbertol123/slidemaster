@@ -4,7 +4,7 @@ const { readWorkbook, buildIron } = await import("./eval_lib.mjs");
 const mod = await import("@ironcalc/wasm"); mod.initSync({ module: readFileSync(join(here, "node_modules/@ironcalc/wasm/wasm_bg.wasm")) });
 const now = () => performance.now();
 for (const file of ["BanksBig.xlsx", "Banks.xlsx"]) for (const mode of ["whole columns", "all whole-column refs bounded", "bounded, without Control!B8"]) {
-  const book = readWorkbook(join(here, "wb", file)); const data = book.sheets.find(s => s.name === "Data");
+  const book = readWorkbook(join(here, "..", "..", "tests", "corpus", "workbooks", "recalc", file)); const data = book.sheets.find(s => s.name === "Data");
   if (mode !== "whole columns") for (const s of book.sheets) for (const c of s.cells.values()) if (c.f) c.f = c.f.replace(/Data!(\$?)([A-Z])\:(\$?)([A-Z])/g, (_, d1, a, d2, b) => `Data!${d1}${a}$1:${d2}${b}$${data.maxRow}`);
   if (mode.endsWith("B8")) book.sheets.find(s => s.name === "Control").cells.set("8,2", { row: 8, col: 2, t: "n", v: 46300, f: null });
   const t0 = now(); const m = buildIron(mod, book); const t1 = now(); m.evaluate(); const t2 = now();

@@ -18,6 +18,10 @@ backend/slide_builder_settings.txt.unreadable-*
 !tests/corpus/workbooks/xlsb/*.xlsb
 !tests/corpus/workbooks/xlsb/*.xlsx
 !tests/corpus/workbooks/xlsb/*.xlsm
+# the recalculation corpus (spikes/recalc/make_linked.ps1, docs/next/07 §1.2): linked workbooks, Excel's recalculated
+# copies per scenario value, and their .xlsb twins
+!tests/corpus/workbooks/recalc/**/*.xlsx
+!tests/corpus/workbooks/recalc/**/*.xlsb
 
 __pycache__/
 *.pyc

@@ -1,6 +1,6 @@
 /* Recalculation spike (docs/next/07 §1): every formula cell of the given workbooks computed by two candidate engines and
    compared with Excel's cached values; the scenario check sets Control!B2 to each bank and compares with the copies
-   Excel saved for that bank (wb/truth/<bank>/). Node 22. Usage: node eval.mjs */
+   Excel saved for that bank (tests/corpus/workbooks/recalc/truth/<bank>/). Node 22. Usage: node eval.mjs */
 import { readFileSync, readdirSync, existsSync, writeFileSync } from "node:fs";
 import { join, basename, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url);
 const FormulaParser = require("fast-formula-parser");
 const { FormulaError } = FormulaParser;
 const here = dirname(fileURLToPath(import.meta.url));
-const WB = join(here, "wb");
+const WB = join(here, "..", "..", "tests", "corpus", "workbooks", "recalc");
 const now = () => performance.now();
 
 /* ------------------------------------------------------------------ xlsx reading: cells, cached values, formulas */

@@ -7,7 +7,10 @@ import type { Range } from "../util";
 import type { CFRule, ColInfo, Shared } from "../types";
 import { Records, Rt, XlsbError, readRfx } from "./records";
 import { asXlsxText, readRichStr } from "./strings";
-import { readCfFormula } from "./formula";
+import { readCfFormula, readParsedFormula } from "./formula";
+import type { BinWorkbookInfo } from "./workbook";
+import { shiftFormula } from "../../calc/refs";
+import { A1 } from "../util";
 
 const ERR: Record<number, string> = { 0x00: "#NULL!", 0x07: "#DIV/0!", 0x0f: "#VALUE!", 0x17: "#REF!", 0x1d: "#NAME?", 0x24: "#NUM!", 0x2a: "#N/A", 0x2b: "#GETTING_DATA" };
 const CF_OP = ["", "between", "notBetween", "equal", "notEqual", "greaterThan", "lessThan", "greaterThanOrEqual", "lessThanOrEqual"];
@@ -55,9 +58,33 @@ export class BinSheetReader {
   private cfRanges: Range[] | null = null;
   private cfBase = { r: 1, c: 1 };
   private seen = false;
-  /** sss: per font of styles.bin, 1 superscript / 2 subscript (the rich strings' raised parts) */
-  constructor(bytes: Uint8Array, private readonly ctx: Shared, private readonly sss: number[] = []) { this.r = new Records(bytes); this.cols = new ColumnsBuilder(ctx); }
+  /* formulas (S7.1): a cell whose formula is a PtgExp waits for the BrtShrFmla / BrtArrFmla record that follows its
+     master; the masters' texts, by "r,c", shift to the children */
+  private pending: { r: number; c: number } | null = null;
+  /** the shared / array formulas seen so far: the master's text and the range of cells it covers (a child cell's
+      PtgExp names the master's row; the range says which master) */
+  private readonly masters: { g: Range; text: string }[] = [];
+  /** formula cells the reader could not decompile (reported by the self-check) */
+  unreadable = 0;
+  /** sss: per font of styles.bin, 1 superscript / 2 subscript (the rich strings' raised parts); info: the workbook's
+      names and sheet table for 3D references (without it they read as unreadable) */
+  constructor(bytes: Uint8Array, private readonly ctx: Shared, private readonly sss: number[] = [], private readonly info?: BinWorkbookInfo) { this.r = new Records(bytes); this.cols = new ColumnsBuilder(ctx); }
   get progress() { return this.r.progress; }
+  /** the formula after a BrtFmla* value: its text goes to the cell just pushed; a PtgExp waits for the master's record */
+  private cellFormula(rw: number, c: number) {
+    const r = this.r;
+    if (r.left < 2) return;
+    r.u16();                                                          // grbitFlags
+    const f = readParsedFormula(r, { r: rw, c }, this.info);
+    if (f.exp) {
+      for (let k = this.masters.length - 1; k >= 0; k--) {
+        const m = this.masters[k];
+        if (rw >= m.g.r1 && rw <= m.g.r2 && c >= m.g.c1 && c <= m.g.c2) { this.cols.formula(shiftFormula(m.text, rw - m.g.r1, c - m.g.c1)); return; }
+      }
+      this.pending = { r: rw, c };                                     // the master itself: BrtShrFmla / BrtArrFmla comes next
+    } else if (f.text) this.cols.formula(f.text);
+    else this.unreadable++;
+  }
 
   /** reads up to `budget` records; true when the part is done */
   run(budget = Infinity): boolean {
@@ -92,15 +119,31 @@ export class BinSheetReader {
         switch (r.type) {
           case Rt.CellBlank: case Rt.ShortBlank: B.blank(rw, c, x); return;
           case Rt.CellRk: case Rt.ShortRk: B.num(rw, c, x, r.rk()); return;
-          case Rt.CellReal: case Rt.ShortReal: case Rt.FmlaNum: B.num(rw, c, x, r.f64()); return;
+          case Rt.CellReal: case Rt.ShortReal: B.num(rw, c, x, r.f64()); return;
+          case Rt.FmlaNum: B.num(rw, c, x, r.f64()); this.cellFormula(rw, c); return;
           case Rt.CellIsst: case Rt.ShortIsst: B.shared(rw, c, x, r.u32()); return;
           case Rt.CellSt: case Rt.ShortSt: B.str(rw, c, x, asXlsxText(r.wstr())); return;
           // an empty result is written <v/> in the XML, which reads as a blank cell
-          case Rt.FmlaString: { const s = r.wstr(); if (s) B.str(rw, c, x, asXlsxText(s)); else B.blank(rw, c, x); return; }
+          case Rt.FmlaString: { const s = r.wstr(); if (s) B.str(rw, c, x, asXlsxText(s)); else B.blank(rw, c, x); this.cellFormula(rw, c); return; }
           case Rt.CellRString: { const s = readRichStr(r, this.sss); B.str(rw, c, x, s.text, s.scr); return; }
-          case Rt.CellBool: case Rt.ShortBool: case Rt.FmlaBool: B.bool(rw, c, x, r.u8() !== 0); return;
-          case Rt.CellError: case Rt.ShortError: case Rt.FmlaError: { const e = r.u8(); B.err(rw, c, x, ERR[e] ?? "#N/A"); return; }
+          case Rt.CellBool: case Rt.ShortBool: B.bool(rw, c, x, r.u8() !== 0); return;
+          case Rt.FmlaBool: B.bool(rw, c, x, r.u8() !== 0); this.cellFormula(rw, c); return;
+          case Rt.CellError: case Rt.ShortError: { const e = r.u8(); B.err(rw, c, x, ERR[e] ?? "#N/A"); return; }
+          case Rt.FmlaError: { const e = r.u8(); B.err(rw, c, x, ERR[e] ?? "#N/A"); this.cellFormula(rw, c); return; }
         }
+        return;
+      }
+      case Rt.ShrFmla: case Rt.ArrFmla: {
+        // the master's text: rfx (its range), for an array formula a flags byte, then the formula with the master
+        // cell as the base of its relative references
+        // (a shared formula's references are offsets from the master; an array formula's are coordinates)
+        const g = readRfx(r), array = r.type === Rt.ArrFmla; if (array) r.u8();
+        const p = this.pending; this.pending = null;
+        const f = readParsedFormula(r, { r: g.r1, c: g.c1 }, this.info, !array);
+        if (!f.text) { if (p) this.unreadable++; return; }
+        this.masters.push({ g, text: f.text });
+        if (p && p.r === g.r1 && p.c === g.c1) this.cols.formula(f.text, array ? A1(g.r1, g.c1) + (g.r2 !== g.r1 || g.c2 !== g.c1 ? ":" + A1(g.r2, g.c2) : "") : undefined);
+        else if (p) this.cols.formula(shiftFormula(f.text, p.r - g.r1, p.c - g.c1));
         return;
       }
       case Rt.WsFmtInfo: {
