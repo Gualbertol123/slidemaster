@@ -85,8 +85,9 @@ describe("exhibitOf: tables from real workbooks (S7b.2 review)", () => {
     expect(f.worst?.label).toBe("ISP ALB");
     // the scales come from the body rows; a subtotal's bar stops at its half
     const g = exhibitLayout(slides[0].tables[0], ctx(), "compact")!, c = g.cols.find(k => k.kind === "dbar")!;
-    const big = { ...ex.rows[0], cells: new Map([[8, { ...ex.rows[0].cells.get(8)!, v: -1e9 }]]) };
+    const b0 = ex.rows.find(r => r.kind === "body")!, big = { ...b0, cells: new Map([[8, { ...b0.cells.get(8)!, v: -1e9 }]]) };
     expect(barOf(c, 8, big, g.max, 28, 9, 0).w).toBe(28);
+    expect(barOf(c, 8, { ...big, kind: "sub" }, g.max, 28, 9, 0).w).toBe(0);         // a subtotal: no bar
   });
   it("a header row of years stored as numbers is a header, not the first body row", async () => {
     const { ctx, slides } = await deckOf("deck20.json", "mckinsey", [patch("C6", "Bank"), patch("D6", "2024", "11/09/26"), patch("E6", "2025", "18/09/26"), patch("F6", "2026", "25/09/26")]);

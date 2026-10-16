@@ -94,10 +94,11 @@ export function exhibitOf(L: TableLayout, ctx: RenderCtx): Exhibit {
       for (let ci = a.labelCol + 1; ci < C; ci++) { const x = cellAt(ri, ci); if (x) cells.set(x.c, x); }
       return { r: L.rows[ri], kind, label: cellAt(ri, a.labelCol), cells };
     };
-    // the total: a "Grand total", else a "Total…" row at the table's top or bottom (subtotals sit between), else the last;
+    // the total: a "Grand total", else a "Total…" row at the table's top or bottom (subtotals sit between; only subtotals:
+    // no total, so no headline quotes one of them);
     // subtotals, "of which" rows and bold block heads are drawn as such and left out of the scales and the facts
     const totals = rowsA.filter(d => TOTAL.test(d.label)), ends = [rowsA[0], rowsA[rowsA.length - 1]];
-    const tot = totals.find(d => /grand/i.test(d.label)) || ends.find(d => totals.includes(d)) || totals[totals.length - 1] || null;
+    const tot = totals.find(d => /grand/i.test(d.label)) || ends.find(d => totals.includes(d)) || null;
     const ent = new Set(a.entities.map(d => d.r));
     return { kind: "exhibit", labelCol: L.cols[a.labelCol], head, rows: rowsA.filter(d => d !== tot).map(d => rowOf(d.r, ent.has(d.r) ? "body" : "sub")),
       total: tot ? rowOf(tot.r, "total") : null, series, refs, deltas };
@@ -345,10 +346,11 @@ function compactLayout(L: TableLayout, ctx: RenderCtx, d: "mckinsey" | "bain"): 
     return { design: d, ex, numbers: "compact", headTexts: [], W, H, head, pitch, tops, cols, heads, boxes, max };
   });
 }
-/** a diverging bar: from the axis (the column's centre) towards the value's side, its length ∝ |value| / the column's max */
+/** a diverging bar: from the axis (the column's centre) towards the value's side, its length ∝ |value| / the column's max
+    (at most the half); a subtotal has none (its value would dwarf the rows it sums) */
 export function barOf(c: ExCol, col: number | null, r: ExRow, max: Map<number, number>, half: number, h: number, cy: number) {
   const x0 = c.x + c.w / 2, cell = col === null ? undefined : r.cells.get(col), v = cell && cell.v !== null ? cell.v : null, m = col === null ? 0 : max.get(col) || 0;
-  const w = v === null || v === 0 || !m ? 0 : Math.max(2, Math.min(1, Math.abs(v) / m) * half);
+  const w = v === null || v === 0 || !m || r.kind === "sub" ? 0 : Math.max(2, Math.min(1, Math.abs(v) / m) * half);   // a subtotal: its number only
   return { v, x: v !== null && v < 0 ? x0 - w : x0, y: cy - h / 2, w, h };
 }
 /** the exhibit's size and the boxes of the cells it shows (a plain table: Excel's geometry, its items' boxes) */
