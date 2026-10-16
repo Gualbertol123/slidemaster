@@ -7,7 +7,7 @@
    ops) until the worker's snapshot that includes them arrives. */
 import { get, patch, patchAll, same, STAGE, THUMBS, toast, showBusy, hideBusy } from "./store";
 import { ask, runWizard } from "./dialogs";
-import { backend, patchStyleDefault } from "../sync/api";
+import { backend, openTail, patchStyleDefault } from "../sync/api";
 import { connectCore, type CorePort } from "../rpc/client";
 import { browserText } from "../platform";
 import type { RunMetrics } from "@slide-builder/core/platform";
@@ -116,7 +116,8 @@ export async function boot() {
   if (backend.served) {
     const files = await backend.files().catch(() => []);
     const last = get().prefs.prefs.lastFile;
-    if (last && files.some(f => f.name === last)) await guard(() => openFromFolder(last, false));
+    // the last workbook reopens only if the user has not opened one meanwhile: their choice wins (decided 2026-10-14)
+    if (last && openGen === 0 && files.some(f => f.name === last)) await guard(() => openFromFolder(last, false));
     setInterval(() => { void tick(); }, 3000);
     setInterval(() => { void heartbeat(); }, 10000);
     void heartbeat();
@@ -283,7 +284,7 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   // the deck on the share: its snapshot and the records past it, folded as the worker will (model/fold.ts)
   const opened = await backend.openDeck(name);
   stale();
-  const tail = backend.served ? await backend.deckTail(opened.key, opened.snapshot.frontier) : undefined;
+  const tail = backend.served ? await openTail(backend, opened.key, opened.snapshot.frontier) : undefined;
   stale();
   const deck: DeckOpen = { key: opened.key, writer: opened.writer, snapshot: opened.snapshot, ...(tail ? { tail } : {}) };
   const doc = fold(deck.snapshot, Object.values(tail?.journals || {}).flatMap(j => j.records)).doc;
@@ -430,12 +431,20 @@ let slidesDesign: Design | null = null;
 export function change(label: string, ops: Op[], coalesce?: string) {
   const { doc: { open, view }, deck: { file } } = get(); if (!open || !file || !view || starting) return;
   if (port?.closed) { toast("⚠ " + esc(port.closed.message), [], true); return; }
+  if (readOnly()) return;
   const r = applyOps(view, ops);
   if (!r.applied) return;
   pending.push({ seq: ++seq, ops });
   predicted = { base, key: pending.map(p => p.seq).join(",") };
   patch("doc", { view: r.doc, save: unsaved() });             // as DocSync did: "✓ Saved" only once the helper has it
   void core().call("apply", { label, ops, coalesce }).catch(e => console.error(e));
+}
+/** a read-only deck (a damaged journal: 423) is read, never changed - the change is refused with the reason, not shown
+    and silently never saved (audit DATA-4; CHANGELOG 4.0.0) */
+function readOnly() {
+  if (get().doc.save !== "readonly") return false;
+  toast("⚠ This deck is read-only: the change was not made. " + esc(get().doc.error || ""), [], true);
+  return true;
 }
 /** the save state right after a change: waiting for the helper, or kept in this browser (file://) */
 const unsaved = () => get().doc.save === "outdated" || get().doc.save === "readonly" ? get().doc.save as "outdated" | "readonly" : backend.served ? "pending" as const : "local" as const;
@@ -445,6 +454,7 @@ export function undo(redo = false) {
   const h = get().deck.history, canUndo = h.undo > 0 || pending.some(p => p.ops.length), canRedo = h.redo > 0 || pending.some(p => p.undo);
   if (!get().doc.open || starting || !(redo ? canRedo : canUndo)) return;
   if (port?.closed) { toast("⚠ " + esc(port.closed.message), [], true); return; }
+  if (readOnly()) return;
   pending.push({ seq: ++seq, ops: [], undo: !redo });
   if (get().doc.save !== "outdated" && get().doc.save !== "readonly") patch("doc", { save: unsaved() });      // as DocSync did: "pending" until the helper has it
   void core().call("undo", { redo }).then(r => {

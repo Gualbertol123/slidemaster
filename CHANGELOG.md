@@ -9,6 +9,8 @@ What users notice
 * **`.xlsb` workbooks (Excel Binary Workbook) open directly, without Excel** (B10): faster, also when PowerShell or
   Excel are restricted on the PC, and from a page opened from disk. They look exactly as the same workbook saved as
   `.xlsx`. Old `.xls` workbooks and protected files are still converted by the PC's Excel, as before.
+* A workbook you open in the first moments after Slide Builder starts stays open: the last workbook no longer
+  reopens over it (decided 2026-10-14, PROGRESS Decisions "all yes", 4).
 
 For the maintainer
 * The Slide Builder 4 pilot is gone (4.0 went live without it): `Start Slide Builder (v4 pilot).bat`, the helper's

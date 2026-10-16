@@ -1,4 +1,4 @@
-"""Folder layout (ARCHITECTURE §1.3, §2.1).
+r"""Folder layout (ARCHITECTURE §1.3, §2.1).
 
     Slide Builder\                  ROOT: Start Slide Builder.bat + the Excel workbooks
       export\                       every PDF / PNG is written here
@@ -32,7 +32,7 @@ CODE_DIRS = ("helper", "backend")          # the program's folder: 4.x, and 3.x 
 
 
 def _install_home():
-    """the main folder when this program runs from <main>\app\<ver>\helper (a release install), else None"""
+    r"""the main folder when this program runs from <main>\app\<ver>\helper (a release install), else None"""
     ver = os.path.dirname(HELPER)
     app = os.path.dirname(ver)
     if (os.path.basename(HELPER).lower() in CODE_DIRS and os.path.basename(app).lower() == "app"
@@ -43,7 +43,7 @@ def _install_home():
 
 
 def _home_backend():
-    """<main>\backend: the main folder's of a release install, else the one next to the program's folder"""
+    r"""<main>\backend: the main folder's of a release install, else the one next to the program's folder"""
     if INSTALL_HOME:
         return os.path.join(INSTALL_HOME, "backend")
     if os.path.basename(HELPER).lower() in CODE_DIRS:

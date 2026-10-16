@@ -5,6 +5,8 @@ these tests fold them by their envelope - (l, w, s) order, one copy per (w, s) -
 """
 import json
 import re
+import shutil
+import tempfile
 import multiprocessing
 import os
 import threading
@@ -104,6 +106,23 @@ class FramingTests(unittest.TestCase):
         flipped[len(a) + 20] ^= 0x01
         self.assertEqual(decks.unframe(bytes(flipped))[2], len(a))
 
+    def test_a_length_grown_past_the_end_is_corruption_not_a_torn_tail(self):
+        # audit (docs/next/AUDIT.md DATA-1): a frame's length damaged into a bigger number ran past the file's end and
+        # was read as a tail still being written - no incident, the records after it invisible, and the journal later
+        # counted as covered and deleted. A body never holds a raw line end (compact JSON), so a line end after the
+        # header of a frame that is not complete yet means the length is wrong.
+        a, b, c = (decks.frame({"w": "x", "s": s, "l": s}) for s in (1, 2, 3))
+        n = b[:b.index(b":")]
+        grown = a + b"9" + b[len(n):] + c if n[0:1] != b"9" else a + b"1" + b + c   # one digit changed: a bigger length
+        self.assertEqual(decks.unframe(grown)[2], len(a))
+        self.assertEqual(decks.unframe(a + b"9" + b + c)[2], len(a))              # a digit inserted before a header
+        self.assertEqual(decks.unframe(a + b"9" + b)[2], len(a))                  # …also in the last frame
+        path = os.path.join(tempfile.mkdtemp(), "j.log")
+        with open(path, "wb") as f:
+            f.write(grown)
+        self.assertFalse(decks._covered(path, len(a)))                            # never "covered", never deleted
+        shutil.rmtree(os.path.dirname(path))
+
 
 class SavedFormatTests(TempDirs):
     """the saved 4.0 deck format (fixtures/saved: snapshot.v4.json + journal.v4.log - never edited) is read by
@@ -195,6 +214,59 @@ class DeckTests(DeckBase):
         with self.assertRaises(decks.DeckError) as e:
             decks.read_snapshot(self.key)
         self.assertEqual(e.exception.status, 409)                     # too new: restart
+
+    def test_identifiers_with_a_line_end_are_refused(self):
+        # audit SEC-5: `$` also matches before a final line end, so "<key>\n" passed check_key and the request
+        # failed later as a 500 with a traceback instead of a 400
+        with self.assertRaises(decks.DeckError) as e:
+            decks.check_key(self.key + "\n")
+        self.assertEqual(e.exception.status, 400)
+        w = decks.new_writer("a") + "\n"
+        with self.assertRaises(decks.DeckError):
+            decks.append(self.key, w, self.rec(w, 1))
+        self.assertIsNone(decks.CLIENT_RE.match("client1\n"))
+        self.assertIsNone(decks.JOURNAL_RE.match(decks.new_writer("a") + ".log\n"))
+
+    def test_a_missing_snapshot_is_never_started_again_from_nothing(self):
+        # audit DATA-2 (docs/next/AUDIT.md): with snapshot.json gone (deleted, or not seen for a moment), the next open
+        # migrated the deck again from its frozen v3 file (or made an empty one) at gen 1, and its next compaction
+        # replaced backups/v4/<key>/2.json - the only copy of what had been compacted
+        from slidebuilder import migrate_v3
+        w = decks.new_writer("a")
+        decks.append(self.key, w, self.rec(w, 1))
+        os.remove(decks.snapshot_path(self.key))
+        for start in (lambda: migrate_v3.ensure_deck(WB), lambda: decks.create_if_missing(WB)):
+            with self.assertRaises(decks.DeckError) as e:
+                start()
+            self.assertEqual(e.exception.status, 503)
+            self.assertIn("snapshot.json is missing", str(e.exception))
+            self.assertFalse(decks.deck_exists(self.key))                    # nothing written in its place
+        # a deck moved from v3: its frozen v3 file is not migrated a second time
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "saved", "workbook.v3.json"), "rb") as f:
+            doc = json.loads(f.read())
+        wb = doc["workbook"] = "Moved from v3.xlsx"
+        raw = json.dumps(doc).encode("utf-8")
+        os.makedirs(os.path.dirname(migrate_v3.v3_path(wb)), exist_ok=True)
+        with open(migrate_v3.v3_path(wb), "wb") as f:
+            f.write(raw)
+        key, how = migrate_v3.ensure_deck(wb)
+        self.assertEqual(how, "migrated")
+        os.remove(decks.snapshot_path(key))
+        with open(migrate_v3.v3_path(wb), "rb") as f:
+            frozen = f.read()
+        with self.assertRaises(decks.DeckError) as e:
+            migrate_v3.ensure_deck(wb)
+        self.assertEqual(e.exception.status, 503)
+        self.assertFalse(decks.deck_exists(key))
+        with open(migrate_v3.v3_path(wb), "rb") as f:
+            self.assertEqual(f.read(), frozen)
+        # a backup of a gen is never replaced by a different snapshot of the same gen
+        snap = decks.read_snapshot(self.key) if decks.deck_exists(self.key) else decks.first_snapshot(WB, decks.empty_doc(WB))
+        a, b = dict(snap, gen=2, by="first"), dict(snap, gen=2, by="second")
+        self.assertTrue(decks._backup(self.key, a) and decks._backup(self.key, b))
+        with open(os.path.join(decks.backup_dir(self.key), "2.json"), encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["by"], "first")
+        self.assertEqual(len([n for n in os.listdir(decks.backup_dir(self.key)) if n.startswith("2")]), 2)
 
     def test_unreadable_journal_is_skipped_this_round_not_empty(self):
         w1, w2 = decks.new_writer("a"), decks.new_writer("b")

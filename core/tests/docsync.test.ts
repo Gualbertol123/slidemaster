@@ -216,6 +216,17 @@ describe("DocSync v4", () => {
     expect(deck.calls.append).toBe(0); expect(a.state).toBe("readonly");
     expect(await a.compact()).toBeNull();
   });
+  it("a read-only deck takes no change: nothing is shown that would never be saved (audit DATA-4)", async () => {
+    // CHANGELOG 4.0.0: "the deck can be read but not changed"; an edit was applied on screen, never saved, and closing
+    // the window did not warn - the edit was lost without a word
+    const deck = new FakeDeck(), a = user(deck, "anna");
+    deck.readonly = "a journal of this deck is damaged";
+    await a.poll();
+    const before = JSON.stringify(a.view);
+    expect(a.apply([cell("A1", { b: true })])).toBeNull();
+    expect(JSON.stringify(a.view)).toBe(before);
+    expect(a.state).toBe("readonly");
+  });
 });
 
 describe("DocSync v4 when a tail misses a journal (review of S5.2: the 10 s listing, an unreadable journal)", () => {

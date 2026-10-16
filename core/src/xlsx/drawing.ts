@@ -1,6 +1,6 @@
 /* Drawings: pictures, groups, text boxes, shapes – and a small image analysis used by Liquid Glass. */
 import type { Zip } from "./zip";
-import { NAMED } from "./color";
+import { NAMED, hex6 } from "./color";
 import { all, hashStr, kid, kids, parseXml, readRels, zget, NS_R } from "./util";
 import type { Anchor, AnchorPos, Crop, Drawing, DrawObj, Frac, Line, Para, Shared } from "./types";
 import { platform, type XmlElement } from "../platform";
@@ -55,8 +55,8 @@ export function drawColor(el: XmlElement, ctx: Pick<Shared, "theme">): string | 
   const c = kids(el, "srgbClr")[0] || kids(el, "schemeClr")[0] || kids(el, "prstClr")[0] || kids(el, "sysClr")[0];
   if (!c) return null;
   const v = c.getAttribute("val") || "";
-  if (c.localName === "srgbClr") return "#" + v;
-  if (c.localName === "sysClr") return "#" + (c.getAttribute("lastClr") || "000000");
+  if (c.localName === "srgbClr") return "#" + (hex6(v) || "000000");
+  if (c.localName === "sysClr") return "#" + (hex6(c.getAttribute("lastClr")) || "000000");
   if (c.localName === "prstClr") return NAMED[v.toLowerCase()] || ({ gray: "#808080", grey: "#808080", darkGray: "#A9A9A9", lightGray: "#D3D3D3", orange: "#FFA500" } as Record<string, string>)[v] || "#000000";
   const map: Record<string, number> = { lt1: 0, bg1: 0, dk1: 1, tx1: 1, lt2: 2, bg2: 2, dk2: 3, tx2: 3, accent1: 4, accent2: 5, accent3: 6, accent4: 7, accent5: 8, accent6: 9, hlink: 10, folHlink: 11 };
   return "#" + (ctx.theme[map[v]] || "000000");

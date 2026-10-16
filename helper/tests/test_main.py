@@ -87,6 +87,38 @@ class OtherVersionTests(unittest.TestCase):
         self.assertEqual(seen, [9101])
 
 
+class StartTimeTests(unittest.TestCase):
+    def test_a_free_port_is_found_free_at_once(self):
+        # audit PERF-1 (docs/next/AUDIT.md, PLAN Part F "helper start -> page ready 1 s"): on Windows a refused loopback
+        # connection is retried by TCP for ~2 s, so asking a free port for a running helper waited out the 1 s timeout
+        # at every start (helper start -> page ready measured 1.6 s)
+        import socket
+        import time
+        from slidebuilder import main as m
+        s = socket.socket()
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+        s.close()
+        t = time.perf_counter()
+        self.assertIsNone(m.running_version(port))
+        self.assertLess(time.perf_counter() - t, 0.5)
+
+
+class SourceTests(unittest.TestCase):
+    def test_every_module_compiles_without_a_warning(self):
+        # audit (docs/next/AUDIT.md SEC-11): paths.py's docstrings held "\a", "\b", "\ " - Python 3.12 printed a
+        # SyntaxWarning at every start, and the docstrings held a bell and a backspace
+        import glob
+        import warnings
+        helper = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        for f in sorted(glob.glob(os.path.join(helper, "slidebuilder", "*.py"))) + [os.path.join(helper, "slide_builder.py")]:
+            with open(f, encoding="utf-8") as fh:
+                src = fh.read()
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                compile(src, f, "exec")
+
+
 class AppWindowTests(unittest.TestCase):
     """B12: the app opens in an Edge app window (msedge --app=<url>), else in a browser tab"""
 

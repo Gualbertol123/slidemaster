@@ -256,6 +256,18 @@ export const offline: Backend = {
 };
 export const backend: Backend = SERVED ? helper : offline;
 
+/** the first tail of a deck being opened, with every journal read: one the helper could not read this time (`skipped`:
+ *  locked by an antivirus or the share for a moment) is asked for again, and the open fails rather than fold without
+ *  it - its records missing, the deck could look new and get a default or wizard preset over the user's (audit DATA-3) */
+export async function openTail(b: Backend, key: string, since: Record<string, number>, tries = 4, waitMs = 500): Promise<TailResult> {
+  for (let i = 0; ; i++) {
+    const t = await b.deckTail(key, since);
+    if (!t.skipped?.length) return t;
+    if (i >= tries - 1) throw new Error(`A journal of this deck cannot be read right now (${t.skipped.join(", ")}) – open it again in a moment.`);
+    await new Promise(r => setTimeout(r, waitMs));
+  }
+}
+
 /** the shared defaults' style patched with `patch` ("Use as default for new decks"): computed here with the core's
  *  operations from the config read, compare-and-set on its rev (the helper applies no operation); when somebody was
  *  first (409) read again and redo, up to `tries` times */

@@ -28,6 +28,9 @@ export function applyTint(hex: string, tint: number): string {
   const l = tint < 0 ? l0 * (1 + tint) : l0 * (1 - tint) + tint;
   return hslToHex(h, s, Math.max(0, Math.min(1, l)));
 }
+/** a colour value read from a workbook ("RRGGBB") when it is one, else null: values from the file go into CSS, SVG
+    and the wizard's HTML, so nothing else may pass (audit SEC-1: a crafted theme colour carried markup) */
+export const hex6 = (v: string | null | undefined): string | null => v && /^[0-9A-Fa-f]{6}$/.test(v) ? v : null;
 export type ColorFn = (el: XmlElement | null | undefined, fallback: string | null) => string | null;
 export function makeColor(theme: string[]): ColorFn {
   return function color(el, fallback) {
@@ -35,7 +38,7 @@ export function makeColor(theme: string[]): ColorFn {
     if (el.getAttribute("auto") === "1") return fallback;
     let hex: string | null = null;
     const rgb = el.getAttribute("rgb");
-    if (rgb) hex = rgb.slice(-6).toUpperCase();
+    if (rgb) hex = hex6(rgb.slice(-6).toUpperCase());
     else if (el.getAttribute("theme") !== null) hex = theme[+el.getAttribute("theme")!] || null;
     else if (el.getAttribute("indexed") !== null) { const i = +el.getAttribute("indexed")!; hex = i === 64 ? null : INDEXED[i] || null; }
     if (!hex) return fallback;

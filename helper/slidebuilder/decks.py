@@ -60,13 +60,13 @@ PRESENCE_WINDOW = 25.0            # s: "others here" = presence files touched in
 PRESENCE_CLEANUP = 24 * 3600.0    # s: presence files older than this are deleted by anyone
 BACKUP_KEEP = 30
 READ_ATTEMPTS, READ_DELAY = 5, 0.1
-JOURNAL_RE = re.compile(r"^([A-Za-z0-9._-]{1,60}@[A-Za-z0-9._-]{1,60}#[a-z2-7]{8}|shared)(~[1-9][0-9]{0,15})?\.log$")
+JOURNAL_RE = re.compile(r"^([A-Za-z0-9._-]{1,60}@[A-Za-z0-9._-]{1,60}#[a-z2-7]{8}|shared)(~[1-9][0-9]{0,15})?\.log\Z")
 STORAGE_TTL = 60.0                # s: the storage mode (an environment variable or data/v4/storage.json) is read again
 CHECK_TTL = 10.0                  # s: how long a deck's existence / incident files seen by this helper are trusted
 REFRESH_S = 4.0                   # s: decks with an open append handle are looked at again in the background (a rollback)
-WRITER_RE = re.compile(r"^[A-Za-z0-9._-]{1,60}@[A-Za-z0-9._-]{1,60}#[a-z2-7]{8}$")
-KEY_RE = re.compile(r"^[A-Za-z0-9._-]{1,60}-[0-9a-f]{10}$")
-CLIENT_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+WRITER_RE = re.compile(r"^[A-Za-z0-9._-]{1,60}@[A-Za-z0-9._-]{1,60}#[a-z2-7]{8}\Z")      # \Z: `$` admits a final line end
+KEY_RE = re.compile(r"^[A-Za-z0-9._-]{1,60}-[0-9a-f]{10}\Z")
+CLIENT_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}\Z")
 
 
 class DeckError(RuntimeError):
@@ -115,7 +115,12 @@ def unframe_ends(buf):
             return out, ends, p, p
         end = a + 10 + n
         if n_buf < end + 1:
-            break                                       # the body or its newline is still missing
+            # the body or its newline is still missing - unless a line end follows the header: a body never holds one
+            # (compact JSON), so its length is wrong (a damaged length field, digits before a header) - corruption,
+            # never a torn tail that would hide the records after it (docs/next/AUDIT.md DATA-1)
+            if b"\n" in buf[a + 10:n_buf]:
+                return out, ends, p, p
+            break
         body = buf[a + 10:end]
         if buf[end:end + 1] != b"\n" or zlib.crc32(body) & 0xFFFFFFFF != int(crc_raw, 16):
             # the last frame, with zeros where its body or newline should be (the file server lost power during an
@@ -271,6 +276,27 @@ def read_snapshot(key):
 
 def deck_exists(key):
     return os.path.exists(snapshot_path(key))
+
+
+def traces(key):
+    """what shows that a deck lived here although its snapshot.json is missing (journals, backups of its snapshots,
+    the migration's record) - the first one found, or None. Such a deck is never created or migrated again from
+    nothing: that would put gen 1 back over everything compacted (audit DATA-2, docs/next/AUDIT.md)"""
+    for folder, what in ((journal_dir(key), "its journals"), (backup_dir(key), "backups of its snapshots")):
+        try:
+            if any(not n.startswith(".") for n in os.listdir(folder)):
+                return what
+        except OSError:
+            pass
+    if os.path.exists(deck_dir(key, "moved-from-v3.json")):
+        return "moved-from-v3.json"
+    return None
+
+
+def missing_snapshot(key, what):
+    return DeckError(503, "this deck's snapshot.json is missing, but it left %s - the deck is not opened (it would "
+                     "start again from nothing); tell the maintainer, who restores snapshot.json from "
+                     "data/backups/v4/%s" % (what, key))
 
 
 # --------------------------------------------------------------------------- per-process state
@@ -758,6 +784,9 @@ def create_if_missing(workbook):
     with deck_lock(key):
         if deck_exists(key):
             return key, False
+        left = traces(key)
+        if left:
+            raise missing_snapshot(key, left)
         write_snapshot(key, first_snapshot(workbook, empty_doc(workbook)))
     return key, True
 
@@ -866,7 +895,11 @@ def _backup(key, snap):
     """backups/v4/<key>/<gen>.json, the last 30 kept; a failing backup never fails the compaction"""
     try:
         folder = backup_dir(key)
-        write_atomic(os.path.join(folder, "%d.json" % snap["gen"]), (json.dumps(snap, ensure_ascii=False) + "\n").encode("utf-8"))
+        body, path = (json.dumps(snap, ensure_ascii=False) + "\n").encode("utf-8"), os.path.join(folder, "%d.json" % snap["gen"])
+        old = _read_bytes(path, attempts=1) if os.path.exists(path) else None
+        if old is not None and old != body:      # another snapshot of the same gen is never replaced (audit DATA-2)
+            path = os.path.join(folder, "%d-%d.json" % (snap["gen"], server_ms()))
+        write_atomic(path, body)
         gens = sorted(int(n[:-5]) for n in os.listdir(folder) if re.match(r"^[0-9]+\.json$", n))
         for g in gens[:-BACKUP_KEEP]:
             remove_quietly(os.path.join(folder, "%d.json" % g))

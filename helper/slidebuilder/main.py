@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import socket
 import subprocess
 import sys
 import threading
@@ -13,6 +14,12 @@ from .util import LOCAL, log
 
 def running_version(port):
     """The version of the Slide Builder helper that answers on this port (unauthenticated /api/ping); None when none does."""
+    # a listening helper on this PC accepts a connection at once; a free port is refused - which Windows retries for
+    # ~2 s, so without this short first try every start waited out the 1 s timeout below (audit PERF-1)
+    try:
+        socket.create_connection(("127.0.0.1", port), timeout=0.25).close()
+    except OSError:
+        return None
     try:
         with LOCAL.open("http://127.0.0.1:%d/api/ping" % port, timeout=1) as r:
             body = json.load(r)

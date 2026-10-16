@@ -4,7 +4,7 @@
    same package with BIFF12 parts for the workbook, styles, shared strings and sheets: those are read by xlsb/ into
    the same structures (rels, theme and drawings stay XML). */
 import { BUILTIN, formatValue } from "./numfmt";
-import { makeColor } from "./color";
+import { hex6, makeColor } from "./color";
 import { readDrawing, analyzeImages } from "./drawing";
 import { findRegions } from "./layout";
 import { all, kid, kids, parseRange, parseXml, readRels, resolvePath, zget, fmtMB, nextFrame, pacer, WorkbookError, NS_R } from "./util";
@@ -95,7 +95,7 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
     const tx = parseXml(await zget(zip, th.target)!.async("string"));
     const cs = all(tx, "clrScheme")[0];
     if (cs) {
-      const get = (n: string) => { const e = kid(cs, n); if (!e) return null; const s = kid(e, "srgbClr"), y = kid(e, "sysClr"); return s ? s.getAttribute("val") : y ? (y.getAttribute("lastClr") || (y.getAttribute("val") === "window" ? "FFFFFF" : "000000")) : null; };
+      const get = (n: string) => { const e = kid(cs, n); if (!e) return null; const s = kid(e, "srgbClr"), y = kid(e, "sysClr"); return hex6(s ? s.getAttribute("val") : y ? (y.getAttribute("lastClr") || (y.getAttribute("val") === "window" ? "FFFFFF" : "000000")) : null); };
       theme = ["lt1","dk1","lt2","dk2","accent1","accent2","accent3","accent4","accent5","accent6","hlink","folHlink"].map((n, i) => get(n) || theme[i]);
     }
   }
