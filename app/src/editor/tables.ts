@@ -6,7 +6,7 @@ import { change, ctx } from "../state/app";
 import { buildLayout } from "@slide-builder/core/xlsx/layout";
 import type { TableLayout } from "@slide-builder/core/xlsx/types";
 import type { Layout, Op, RuntimeSlide, TableDef } from "@slide-builder/core/model/types";
-import { computeLayout, layoutOf, sizingChange, sizingOf, tableW } from "@slide-builder/core/render/layout";
+import { computeLayout, geomOf, layoutOf, sizingChange, sizingOf, tableH, tableW } from "@slide-builder/core/render/layout";
 import { tableSizes } from "@slide-builder/core/model/preset";
 import type { RenderCtx } from "@slide-builder/core/render/context";
 import { glassGeom } from "@slide-builder/core/render/glass";
@@ -17,7 +17,7 @@ const r1 = (v: number) => Math.round(v * 10) / 10;
 /** width of a column as shown (Liquid Glass may have widened it) */
 export function shownColW(L: TableLayout, c: number): number {
   const x = ctx();
-  return x.style.design === "glass" ? glassGeom(L, x).Wc.get(c) ?? L.colW.get(c)! : L.colW.get(c)!;
+  return geomOf(x) === "scene" ? glassGeom(L, x).Wc.get(c) ?? L.colW.get(c)! : L.colW.get(c)!;
 }
 export const shownRowH = (L: TableLayout, r: number) => L.rowH.get(r)!;
 
@@ -112,7 +112,7 @@ export function resetSizes(refs: TableRef[]) {
 export function makeSameSize(refs: TableRef[], opts: { width: boolean; height: boolean; target: "largest" | "smallest" | "first" }) {
   const defs = uniqueDefs(refs); if (defs.size < 1) return { ok: false, why: "Choose at least two tables." };
   const x = ctx(), list = [...defs.values()];
-  const Ws = list.map(L => tableW(L, x)), Hs = list.map(L => L.H);
+  const Ws = list.map(L => tableW(L, x)), Hs = list.map(L => tableH(L, x));
   const pick = (a: number[]) => opts.target === "first" ? a[0] : opts.target === "smallest" ? Math.min(...a) : Math.max(...a);
   const Wt = pick(Ws), Ht = pick(Hs);
   const ops: Op[] = [], newL = new Map<string, TableLayout>();

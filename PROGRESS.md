@@ -77,7 +77,7 @@ numbers measured twice). Measured numbers go into the step's line.
 
 ### M7b · Two consulting designs, McKinsey and Bain (4.2.x; docs/next/08, ADR-018; between M7 and M8)
 - [x] Phase 0 · Research and specs (08 §1–§6, ADR-018, `docs/next/designs/*-sketch.svg`) — branch `v4/M7b-consulting-designs` (b4fe48d), documents only; approved 2026-10-16 (Decisions)
-- [ ] S7b.1 · Design type and plumbing
+- [x] S7b.1 · Design type and plumbing — branch `v4/M7b-consulting-designs`, cddf865 + 5b3f15b (review fixes). `Design` grows to five (`core/src/model/designs.ts`: DESIGNS, the neutral names "Consulting Navy" / "Consulting Red", isConsult, designClass); resolveStyle keeps an unknown design → Liquid Glass and gives the consulting designs their own palette (`CONSULT_THEMES`) under a shared theme; COLOR_KEYS for them: accent, background, text, positive, negative; areaFor / titleGeom: the two-line title band (content area 170 / 138, a larger title pushes by 2.2 per px) for the new designs only; sizingPatch now also copies a shared sizing to the two new designs (invisible to the old three); design switch buttons, "every version × all five designs" (`versions-5`; `versions-3` unchanged), "Design palette" (always this design's own look). Saved format: the 4.1 rules frozen in `core/tests/fixtures/v41/` open a consulting deck as Liquid Glass and keep every consulting key through 4.1's edits; one case changes a consulting design's view (a 4.1 page clearing a slide's shared sizing: automatic sizing for a consulting design without its own entry) – documented in 08 §3 and tested. Review (independent sub-agent): REQUEST CHANGES – "Design palette" in "All designs" scope wiped every design's theme (high), push 2.4 instead of 2.2, the 4.1 shared-sizing case untested, doc locations – all fixed in 5b3f15b; re-check APPROVE (one low – the custom theme pickers under "All designs" – fixed in S7b.2). Results: working copy check 496 + 43 · helper OK · e2e 27 · parity 0 / dlparity 0 not accepted (text-only comparison: this PC's Chromium is not the goldens') · dlcheck 8/8; clean clone of cddf865: page reproducible · check 496 + 43 · helper OK on 3.8 and 3.12 · e2e 27 · parity / dlparity 0 not accepted · dlcheck 8/8; clean clone of 5b3f15b: page reproducible · check 497 + 43 · helper OK on 3.8 and 3.12 · e2e 26 + 1 failed, 27 on the re-run in the same clone (the loopback flake of this PC, M6 item 4) · parity / dlparity 0 not accepted · dlcheck 8/8. Surprise: the M7 session, working in the same checkout, committed fda6321 and f67f69b onto this branch; they were cherry-picked onto `v4/M7-recalc` (96b80a9, adfa758) and stay here too (M7b sits on M7). verified: tests ✓ clean clone ✓ review ✓
 - [ ] S7b.2 · The consulting renderer
 - [ ] S7b.3 · Pixel review 🚦
 - [ ] S7b.4 · Export and budgets ⏱
@@ -118,6 +118,11 @@ numbers measured twice). Measured numbers go into the step's line.
 
 (Human decisions the plan needs, e.g. gate G0 outcomes. An agent never writes here on its own.)
 
+- 2026-10-16 · **M7b pixel review (S7b.3), rounds 1–3 rejected; direction chosen**: the Excel-item tables ("too barebone … no
+  difference between me making a small change in Excel and this … look out of the 80s") and the flat Liquid Glass scene
+  ("a fake version of the liquid glass … they have to be DIFFERENT") are out; square corners are fine. Chosen from four
+  rendered concepts (`review/S7b.3/concepts/`): **Consulting Navy = "Insight board"**, **Consulting Red = "Signal"** – tables
+  drawn as data exhibits (08 §2.6, ADR-018 amendment).
 - 2026-10-16 · **M7b Phase 0 approved** ("neutral names, i approve all above. finish this wholly"): the two specs of
   `docs/next/08-consulting-designs.md` §2, the fonts (Georgia + Arial), B25 / B26, ADR-018 and every recommendation of
   08 §6. Q1: neutral names – the designs are shown as **"Consulting Navy"** (McKinsey style, id `mckinsey`) and

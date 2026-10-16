@@ -605,6 +605,15 @@ export function lookChange(label: string, part: LookPart, coalesce?: string) {
   }
   styleChange(label, { ...part, ...(Object.keys(dpatch).length ? { designs: dpatch } : {}) } as never, coalesce);
 }
+/** a consulting design's options (Design… › Layout): always this design's own (designs[d].consult), one undo step;
+    null resets one option (or, as the whole part, all of them) to the design's default */
+export function consultChange(label: string, part: Record<string, string | null> | null) {
+  const st = get().doc.view?.style || {}, d = style().design, own = { ...(((st.designs || {}) as Record<string, Record<string, unknown> | undefined>)[d] || {}) };
+  const cur = { ...((own.consult as Record<string, string> | undefined) || {}) };
+  if (part === null) delete own.consult;
+  else { for (const [k, v] of Object.entries(part)) { if (v === null) delete cur[k]; else cur[k] = v; } if (Object.keys(cur).length) own.consult = cur; else delete own.consult; }
+  styleChange(label, { designs: { [d]: Object.keys(own).length ? own : null } } as never);
+}
 /** the look set at the current scope (to show what can be reset there) */
 export function lookAt(): { theme?: Record<string, unknown>; colors?: Record<string, string>; text?: Record<string, unknown> } {
   const st = (get().doc.view?.style || {}) as Record<string, unknown>;

@@ -26,12 +26,13 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { capture, DECKS } from "./capture-v3.mjs";
-import { compare, writeReport } from "./parity.mjs";
+import { compare, goldenDesigns, writeReport } from "./parity.mjs";
 import { pairWithGolden, settleStage, stageSlide } from "./stage-capture.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)), REPO = path.resolve(HERE, "..");
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
-const DESIGNS = arg("--designs", "excel,clean,glass").split(",");
+// the three designs v3 had, and those whose goldens this build captured (tools/capture-v4.mjs, M7b)
+const DESIGNS = arg("--designs", null)?.split(",") || ["excel", "clean", "glass", ...goldenDesigns().filter(d => !["glass", "excel", "clean"].includes(d))];
 /** --control [text]: a negative control – every display-list table moved 3 px right (or, with "text", every text run
     1.5 px down); the run must then report differences, or the comparison is too loose */
 const CONTROL = process.argv.includes("--control") ? (arg("--control", "") === "text" ? "text" : "tables") : null;
@@ -136,7 +137,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   for (const d of res.diffs.filter(d => !d.accepted).slice(0, 40)) console.log(`DIFF  ${d.deck} · ${d.design} · ${d.version} · ${d.file} · ${d.kind}: ${d.detail}`);
   // every difference as data (as parity.mjs --diffs)
   if (arg("--diffs", null)) fs.writeFileSync(path.resolve(arg("--diffs", null)), JSON.stringify(res.diffs.map(({ accepted, ...d }) => ({ ...d, accepted: !!accepted })), null, 1));
-  console.log(`dlparity (${DESIGNS.join(", ")}): ${res.diffs.length} difference(s) ${JSON.stringify(kinds)}, ${res.unaccepted} not accepted (${res.full ? "full" : "text-only"} comparison)${res.recaptured ? ` (re-captured once: ${res.recaptured.join(", ")})` : ""} - report: ${path.relative(process.cwd(), path.join(report, "index.html"))}`);
+  console.log(`dlparity (${DESIGNS.join(", ")}): ${res.diffs.length} difference(s) ${JSON.stringify(kinds)}, ${res.unaccepted} not accepted (${res.full ? "full" : "text-only"} comparison${res.full4 !== undefined ? `; consulting designs: ${res.full4 ? "full" : "text-only"}` : ""})${res.recaptured ? ` (re-captured once: ${res.recaptured.join(", ")})` : ""} - report: ${path.relative(process.cwd(), path.join(report, "index.html"))}`);
   if (!given && !process.argv.includes("--keep")) fs.rmSync(actual, { recursive: true, force: true }); else console.log("capture kept in " + actual);
   if (CONTROL) {
     // the negative control passes when the moved tables (geometry and pixels) or text runs (pixels) were caught

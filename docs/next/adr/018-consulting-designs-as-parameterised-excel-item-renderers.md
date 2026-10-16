@@ -52,3 +52,15 @@ Alternatives:
 * **themes of Excel Refined:** rejected; Refined draws the workbook's own fills and borders, which consulting
   tables replace;
 * **two separate renderers:** rejected; their table recipes differ only in parameters.
+
+## Amendment 2026-10-16 (product owner, at the S7b.3 pixel review)
+The first render – the Excel item list with rules and colours – was rejected ("too barebone … no difference between me
+making a small change in Excel and this"), and so was a flat-material version of the Liquid Glass scene ("a fake version
+of the liquid glass … they have to be DIFFERENT; square corners are fine"). Decision: the consulting designs draw tables
+as **data exhibits**. `core/src/render/exhibit.ts` reads a table's meaning (label column, body and total rows, a series of
+period columns, reference columns, variance groups) and the designs draw it as an exhibit: Consulting Navy "Insight
+board" (a KPI line from the total row, trend lines, diverging variance bars) and Consulting Red "Signal" (a red message
+panel with the lead variance and its facts, grey evidence bars, red only for shortfalls). Every number is a cell of the
+table; a table that does not read as an exhibit is drawn as a plain typographic table. Exhibits have their own geometry
+(`exhibitGeom`), used by `computeLayout` through `tableW` / `tableH` and by the stage's hit-testing. Still no new node
+type and one `computeLayout`.

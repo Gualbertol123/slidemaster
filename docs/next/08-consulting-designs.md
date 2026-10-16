@@ -344,6 +344,78 @@ new field would be a new op and a new B-item (§6 Q5).
   bold), not moved to an `excel-common.ts`. Excel and Excel Refined are byte-identical, checked on 264 table lists and
   116 slides.
 
+### 2.5 Design pass (product owner, 2026-10-16, at the first pixel review)
+
+> "They look too barebone in the red and blue design. Make them more aesthetically appealing, like the liquid glass –
+> while still keeping the McKinsey/Bain professionality. These are just the same table with different colours."
+
+The first render showed the workbook's own tables, with their saturated conditional-format blocks and plain grid,
+recoloured. The designs had no character of their own. This pass adds one, in the spirit of Liquid Glass's capsules and
+cards but flat and restrained. Every value is in `consult-spec.ts` `look`. Where a value replaces one of §2.1 / §2.2,
+this section wins.
+
+| | Consulting Navy | Consulting Red |
+|---|---|---|
+| Signal chips | a cell coloured by a conditional format or a colour scale becomes a rounded tag (r 3, inset 3 / 2 px) in a soft tint, its number in the dark tone: green #E2F2E7 / #1E8E3E, red #FBE4E1 / #D93025, others in the accent's tint | same, others #F5E0E0 |
+| Header | navy text (#051C2C) over a 2 px navy rule; no top rule | charcoal band #1F1F1F, white bold, #5A5A5A separators |
+| Group headers (a header spanning columns) | a 2 px #2251FF underline, inset 6 | a 2 px #CC0000 underline |
+| Body | label column in navy; hairlines 1 px #E3E8EE | hairlines 1 px #E6E6E6 |
+| Total rows | band #EEF3FF, bold, 1 px navy rule above | band #F3F3F3, bold, 2 px red rule above |
+| Title rule | 1 px #051C2C + a 96 × 4 #2251FF segment at its left end | 1 px #D6D6D6 + a 120 × 4 #CC0000 segment |
+| Top of the slide | a 6 px navy band (content and contents slides) | – |
+| Unit line, footnotes | slate #4E5B66 | #666666 (as before) |
+| Cards | #F4F7FB, 4 px blue bar, soft shadow | #F7F7F7, 4 px red bar, soft shadow |
+| Text box "# heading" | a 24 × 3 accent bar above it | the same |
+| Cover | concentric blue arcs and a faint disc from the bottom-right corner | white pinstripes (α .1, every 12 px) across the right of the red band (B3) |
+| Contents | numbers in cyan rings | numbers in red discs (as before) |
+
+### 2.6 Exhibits (product owner, 2026-10-16: decided at the pixel review)
+
+Round 2 (the flat-material Liquid Glass scene) was rejected too: "they now look like a fake version of the liquid glass. I
+think I used the word revolutionary … please don't just change colours. They have to be DIFFERENT" (square corners are
+fine). Four concepts were rendered from deck20's real numbers (`review/S7b.3/concepts/`), and the product owner chose:
+
+* **Consulting Navy = "Insight board"**: a KPI line from the total row (headline value and up to three variances in large
+  Georgia numerals), then the table as an exhibit: bold labels, the latest period value, a trend line over the period
+  columns, reference columns in grey, every variance group as a diverging bar around its own axis (blue up, red down)
+  labelled with its %, and the total on a light band.
+* **Consulting Red = "Signal"**: a red message panel on the left third, carrying:
+  - the lead variance (vs budget) as a huge number;
+  - how many rows are short;
+  - the largest gap;
+  - the change vs the previous period.
+
+  The table on the right is the evidence: grey bars for the latest values, and diverging bars in dark grey for up and red
+  for down. Red marks only shortfalls.
+
+These replace §2.1 / §2.2 / §2.5 wherever they differ. `core/src/render/exhibit.ts` reads the table's meaning. Every
+number is a cell of the table, and text is never invented. A table with no labelled numeric rows is drawn as a plain
+typographic table in the design's style. ADR-018 has the amendment.
+
+### 2.7 Options and hybrids (product owner, 2026-10-16)
+
+Round 4 feedback:
+
+> "Better, but we can't remove numbers altogether, make the numbers easy to read. No full white background."
+
+Then:
+
+> "Don't necessarily delete anything, add options to make different hybrids."
+
+Every look built for the consulting designs stays a choice. The choice is per design, under **Design… › Layout**,
+saved in `designs[d].consult` (`model/designs.ts` `ConsultOptions`). Older pages keep the setting untouched (test).
+
+| Option | Choices | Consulting Navy default | Consulting Red default |
+|---|---|---|---|
+| Tables | Exhibit (§2.6) · Cards (the Liquid Glass scene in flat consulting materials) · Ruled (the §2.5 rule recipe) | Exhibit | Exhibit |
+| Numbers | All numbers (every cell of the table, right-aligned, full size) · Compact (latest value + trend, each change as bar + %) | All | All |
+| Headline | KPI line under the title · Message panel on the left · None | KPI line | Message panel |
+| Background | Dark band behind title and KPI line · Tinted slide · White | Dark band | Tinted |
+
+In "All numbers", exhibits show every number in fixed, right-aligned columns. The bars and trend lines sit beside the
+numbers in lanes of their own. The palette and fonts stay the design's own whatever the options, so a hybrid is still
+Navy or Red.
+
 ### 2.4 Sketches
 
 Both sketches are rendered from the numbers above and live in the repository:

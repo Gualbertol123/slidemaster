@@ -264,10 +264,12 @@ export async function capture(out, opts = {}) {
       fs.copyFileSync(path.join(BOOKS, deck.workbook), path.join(h.root, file));
       await deckOps(h, file, deck.ops);
       const versions = [["full", ""], ...(deck.ops.find(o => o.op === "preset.set")?.preset?.versions || []).map(v => [v.name, v.id])];
-      for (const design of opts.designs || DESIGNS) {
-        await deckOps(h, file, [{ op: "style.patch", patch: { design } }]);
+      for (const spec of opts.designs || DESIGNS) {
+        // "mckinsey@headline=panel+tables=cards": a consulting design with options (M7b; the folder keeps the whole name)
+        const [design, opt] = spec.split("@"), consult = opt ? Object.fromEntries(opt.split("+").map(kv => kv.split("="))) : null;
+        await deckOps(h, file, [{ op: "style.patch", patch: { design, designs: { [design]: consult ? { consult } : null } } }]);
         for (const [vname, vid] of versions) {
-          const dir = path.join(out, id, design, vname);
+          const dir = path.join(out, id, spec, vname);
           fs.mkdirSync(dir, { recursive: true });
           const n = await load(page, h, file, vid);
           const doc = await deckDoc(h, file);

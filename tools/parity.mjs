@@ -211,10 +211,20 @@ export function checkAccepted(list) {
   return list;
 }
 
+/** the designs the goldens hold: v3's three, and those captured by this build's tools/capture-v4.mjs (M7b) */
+export function goldenDesigns(goldenDir = path.join(REPO, "golden")) {
+  const f = path.join(goldenDir, "MANIFEST-v4.json"), v3 = readJson(path.join(goldenDir, "MANIFEST.json")).designs || ["glass", "excel", "clean"];
+  return [...v3, ...(fs.existsSync(f) ? readJson(f).designs || [] : []).filter(d => !v3.includes(d))];
+}
 export function compare(goldenDir, actualDir, opts = {}) {
   const gm = readJson(path.join(goldenDir, "MANIFEST.json")), am = readJson(path.join(actualDir, "MANIFEST.json"));
   const ge = gm.environment || {}, ae = am.environment || {};
   const full = opts.full ?? (ge.chromium === ae.chromium && ge.fontsSha256 === ae.fontsSha256);
+  // the designs v3 never had (M7b): their goldens are this build's own, captured in their own environment
+  // (golden/MANIFEST-v4.json, tools/capture-v4.mjs) – compared in full wherever Chromium and fonts are those
+  const m4 = fs.existsSync(path.join(goldenDir, "MANIFEST-v4.json")) ? readJson(path.join(goldenDir, "MANIFEST-v4.json")) : null, e4 = m4?.environment || {};
+  const full4 = opts.full ?? (e4.chromium === ae.chromium && e4.fontsSha256 === ae.fontsSha256);
+  const fullOf = design => m4?.designs?.includes(design) ? full4 : full;
   const accepted = checkAccepted(opts.accepted || []);
   const diffs = [], images = [], pixels = [];        // pixels: every compared screenshot's share of differing pixels
   const decks = opts.decks || gm.decks;
@@ -222,7 +232,7 @@ export function compare(goldenDir, actualDir, opts = {}) {
   const designs = opts.designs || null;                     // compare only these designs (the display list's, per step)
   for (const deck of decks) for (const design of files(path.join(goldenDir, deck)).filter(d => !designs || designs.includes(d))) for (const version of files(path.join(goldenDir, deck, design))) {
     const gd = path.join(goldenDir, deck, design, version), ad = path.join(actualDir, deck, design, version);
-    const scope = { deck, design, version };
+    const scope = { deck, design, version }, full = fullOf(design);
     for (const f of files(gd).sort((x, y) => x.localeCompare(y, "en", { numeric: true }))) {
       const diff = (kind, detail) => diffs.push({ ...scope, file: f, kind, detail });
       const gp = path.join(gd, f), ap = path.join(ad, f);
@@ -265,7 +275,7 @@ export function compare(goldenDir, actualDir, opts = {}) {
     const mine = diffs.filter(d => d.accepted === e);
     if (detailsDigest(mine) !== e.digest) for (const d of mine) { d.accepted = null; d.detail += " (the accepted entry's differences changed)"; }
   }
-  return { full, environment: { golden: ge, actual: ae }, diffs, images, pixels, unaccepted: diffs.filter(d => !d.accepted).length };
+  return { full, ...(m4 ? { full4 } : {}), environment: { golden: ge, actual: ae }, diffs, images, pixels, unaccepted: diffs.filter(d => !d.accepted).length };
 }
 function firstDiff(g, a) {
   const G = JSON.stringify(g, null, 1).split("\n"), A = JSON.stringify(a, null, 1).split("\n");
@@ -315,7 +325,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sb-parity-"));
     actual = tmp;
     console.log("capturing this build...");
-    await capture(actual, { decks: decks || undefined, pdf: !process.argv.includes("--no-pdf"), quiet: !process.argv.includes("--verbose"),
+    await capture(actual, { decks: decks || undefined, designs: goldenDesigns(golden), pdf: !process.argv.includes("--no-pdf"), quiet: !process.argv.includes("--verbose"),
       ...(stage ? { noGeometry: true, slideHook: stage.stageHook(golden), ...(sp ? { versionHook: (page, h, v) => stage.exportNative(page, h, v.dir) } : {}) } : {}) });
   }
   const accepted = fs.existsSync(acceptedFile) ? readJson(acceptedFile) : [];
@@ -334,7 +344,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (!res.full) console.log("NOTE: this machine's Chromium or fonts differ from the goldens' - only texts were compared (geometry, pixels and PDF positions need the same environment).");
   for (const d of res.diffs.slice(0, 40)) console.log(`${d.accepted ? "accepted " : "DIFF     "} ${d.deck} · ${d.design} · ${d.version} · ${d.file} · ${d.kind}: ${d.detail}`);
   if (res.diffs.length > 40) console.log(`... and ${res.diffs.length - 40} more (see the report)`);
-  console.log(`parity: ${res.diffs.length} difference(s), ${res.unaccepted} not accepted (${res.full ? "full" : "text-only"} comparison) - report: ${path.relative(process.cwd(), path.join(report, "index.html"))}`);
+  console.log(`parity: ${res.diffs.length} difference(s), ${res.unaccepted} not accepted (${res.full ? "full" : "text-only"} comparison${res.full4 !== undefined ? `; consulting designs: ${res.full4 ? "full" : "text-only"}` : ""}) - report: ${path.relative(process.cwd(), path.join(report, "index.html"))}`);
   if (tmp && !process.argv.includes("--keep")) fs.rmSync(tmp, { recursive: true, force: true });
   else if (tmp) console.log("capture kept in " + tmp);
   process.exitCode = res.unaccepted ? 1 : 0;

@@ -1,6 +1,6 @@
 /* Deck style = built-in defaults ← shared defaults (config.json) ← this workbook's style. */
 import type { ColorKey, Design, Look, Footer, PageNumbers, Style, StylePatch, TextFmt, TextRole, Theme } from "./types";
-import { isConsult, isDesign } from "./designs";
+import { cleanConsult, isConsult, isDesign } from "./designs";
 
 export const BUILTIN_PN: PageNumbers = { on: false, start: 1, pos: "br", font: "auto", size: 16, format: "n", style: "capsule", cover: false };
 export const BUILTIN_FOOTER: Footer = { on: false, text: "", pos: "bl", size: 14, style: "plain", cover: false };
@@ -28,7 +28,10 @@ export function resolveStyle(...layers: (StylePatch | null | undefined)[]): Styl
   // the design itself (Design… › "This design") still applies below
   if (isConsult(s.design)) s.theme = { ...CONSULT_THEME_REF[s.design] };
   // settings made for one design only (Design… › "This design") sit on top of the shared ones
-  for (const l of layers) { const d = l?.designs?.[s.design]; if (d && typeof d === "object") applyLook(s, d); }
+  for (const l of layers) {
+    const d = l?.designs?.[s.design];
+    if (d && typeof d === "object") { applyLook(s, d); if (isConsult(s.design) && d.consult) s.consult = { ...(s.consult || {}), ...cleanConsult(d.consult) }; }
+  }
   if (!["subtle", "medium", "strong"].includes(s.glass)) s.glass = "subtle";
   s.color = Math.max(0, Math.min(100, +s.color || 0));
   s.radius = Math.max(0, Math.min(200, isFinite(+s.radius) ? +s.radius : 100));

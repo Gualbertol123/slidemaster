@@ -6,7 +6,7 @@
 import { get } from "../state/store";
 import { change, ctx } from "../state/app";
 import type { Layout, Note, Op, RuntimeSlide, Side } from "@slide-builder/core/model/types";
-import { computeLayout, GX, GY, layoutOf, sizingOf, sizingPatch, tableW, type TBox } from "@slide-builder/core/render/layout";
+import { computeLayout, GX, GY, layoutOf, sizingOf, sizingPatch, tableH, tableW, type TBox } from "@slide-builder/core/render/layout";
 import { curSlide } from "../editor/edit";
 import { selCols, selRows, setColWidth, setRowHeight, stretchTable } from "../editor/tables";
 import { requestsIssued, setStage, stage } from "./data";
@@ -69,7 +69,7 @@ export function resizeDrag(R: RuntimeSlide, i: number, e: PointerEvent) {
   // the layout for the pointer's latest position, once per frame (the bisection lays the slide out ~20 times)
   const solve = () => {
     frame = 0; const ev = at; if (!ev) return; at = null;
-    const target = Math.max(30, Math.max(start.w + (ev.clientX - sx) / sc, (start.h + (ev.clientY - sy) / sc) * tableW(T, c) / T.H));
+    const target = Math.max(30, Math.max(start.w + (ev.clientX - sx) / sc, (start.h + (ev.clientY - sy) / sc) * tableW(T, c) / tableH(T, c)));
     let lo = 0.05, hi = 30;                                // 22 halvings: the weight to 1/100 000 (it is kept to 1/1 000)
     for (let n = 0; n < 22; n++) { const mid = (lo + hi) / 2; const ww = w0.slice(); ww[i] = mid; if (computeLayout(R, c, ww, lay).boxes[i].w < target) lo = mid; else hi = mid; }
     lay.w = w0.slice(); lay.w[i] = Math.round(lo * 1000) / 1000; moved = true;

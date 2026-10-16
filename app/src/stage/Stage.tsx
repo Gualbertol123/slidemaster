@@ -13,7 +13,7 @@ import { get, patch, STAGE, useStore } from "../state/store";
 import { ctx } from "../state/app";
 import type { RuntimeSlide, Side } from "@slide-builder/core/model/types";
 import { slideFrame } from "@slide-builder/core/render/slide";
-import { tableW } from "@slide-builder/core/render/layout";
+import { tableH, tableW } from "@slide-builder/core/render/layout";
 import { tableName } from "@slide-builder/core/model/preset";
 import type { RenderCtx } from "@slide-builder/core/render/context";
 import { selItems, activeItem, setSel } from "../editor/edit";
@@ -178,7 +178,7 @@ const TableHits = memo(function TableHits({ i, R, c, box, s }: { i: number; R: R
   if (!T) return null;
   const W = tableW(T, c);
   return (
-    <div className="hits" data-t={i} style={{ left: box.x, top: box.y, width: W, height: T.H, transform: `scale(${box.scale})`, transformOrigin: "0 0" }}
+    <div className="hits" data-t={i} style={{ left: box.x, top: box.y, width: W, height: tableH(T, c), transform: `scale(${box.scale})`, transformOrigin: "0 0" }}
       onPointerDown={e => {
         const h = e.currentTarget, { lx, ly, k } = tablePoint(h, T, c, e);
         const edge = borderAt(T, c, lx, ly, k);
@@ -214,7 +214,7 @@ const TableHits = memo(function TableHits({ i, R, c, box, s }: { i: number; R: R
 function SizeGuide({ d, T, c, inv }: { d: Extract<DragPreview, { kind: "border" }>; T: RuntimeSlide["tables"][number]; c: RenderCtx; inv: number }) {
   const p = d.edge.start + d.size, col = d.edge.kind === "col";
   return <>
-    <div className={"sizeguide " + d.edge.kind} style={col ? { left: p, top: 0, height: T.H, width: 2 * inv } : { top: p, left: 0, width: tableW(T, c), height: 2 * inv }} />
+    <div className={"sizeguide " + d.edge.kind} style={col ? { left: p, top: 0, height: tableH(T, c), width: 2 * inv } : { top: p, left: 0, width: tableW(T, c), height: 2 * inv }} />
     <div className="sizetip" style={{ ...(col ? { left: p + 6 * inv, top: 0 } : { left: 0, top: p + 6 * inv }), fontSize: 12 * inv, padding: `${2 * inv}px ${6 * inv}px`, borderRadius: 4 * inv }}>{Math.round(d.size)} px</div>
   </>;
 }

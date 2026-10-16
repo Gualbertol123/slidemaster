@@ -29,7 +29,7 @@ export interface ToastMsg { id: number; html: string; err?: boolean; actions?: {
 export interface Painter { pattern: (Fmt | null)[][]; sticky: boolean }
 export interface Dialogs {
   dialog: DialogReq | null; wizard: WizardReq | null; tables: boolean;
-  /** text styles & fonts dialog: which tab is open */ textStyles: "colors" | "styles" | "fonts" | null;
+  /** text styles & fonts dialog: which tab is open */ textStyles: "colors" | "styles" | "fonts" | "layout" | null;
   /** automated comment dialog for table `table` of the current slide */ comment: { table: number } | null;
 }
 

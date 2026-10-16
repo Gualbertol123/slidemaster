@@ -7,8 +7,9 @@ import type { Layout, Note, RuntimeSlide, Side, SlideSizing } from "../model/typ
 import type { RenderCtx } from "./context";
 import { glassGeom } from "./glass";
 import { effNote, titleGeom } from "./text";
-import { DESIGNS, isConsult } from "../model/designs";
+import { consultOptions, DESIGNS, isConsult } from "../model/designs";
 import { commentText } from "./comment";
+import { exhibitFacts, exhibitGeom, exhibitOf, type Exhibit, type ExFacts } from "./exhibit";
 
 export const SLIDE_W = 1600, SLIDE_H = 900;
 export const GX = 36, GY = 28, MAXK = 2.0;
@@ -17,9 +18,49 @@ export function areaFor(R: RuntimeSlide, ctx?: RenderCtx) {
   const a = ctx && isConsult(ctx.style.design) ? (R.subtitle ? { x: 50, y: 170, w: 1500, h: 652 } : { x: 50, y: 138, w: 1500, h: 684 })
     : R.subtitle ? { x: 50, y: 126, w: 1500, h: 696 } : { x: 50, y: 104, w: 1500, h: 718 };
   const push = ctx ? Math.min(200, titleGeom(R, ctx).push) : 0;          // larger titles push the tables down
-  return push ? { ...a, y: a.y + push, h: a.h - push } : a;
+  const b = push ? { ...a, y: a.y + push, h: a.h - push } : a;
+  if (!ctx || R.type !== "content" || !isConsult(ctx.style.design)) return b;
+  // the consulting designs' options (designs.ts consultOptions; product owner 2026-10-16: hybrids): a KPI line under the
+  // title moves the area down (when the first table has a headline), a message panel on the left moves it to x 560–1540,
+  // a dark header band keeps NAVY_BAND.gap between its foot and the area (08 §2.6, review/S7b.3/concepts)
+  const o = consultOptions(ctx), facts = o.headline !== "none" ? slideFacts(R, ctx)?.facts : null;
+  const p = o.headline === "kpi" && facts?.headline ? KPI_LINE.push : o.background === "band" ? NAVY_BAND.push : 0;
+  const c = p ? { ...b, y: b.y + p, h: b.h - p } : b;
+  return o.headline === "panel" ? { ...c, x: SIGNAL_AREA.x, w: SIGNAL_AREA.w } : c;
 }
-export const tableW = (L: TableLayout, ctx: RenderCtx) => ctx.style.design === "glass" ? glassGeom(L, ctx).W : L.W;
+/** Consulting Navy's KPI line: its top (the content area's top without it, less 4), its height, and how far it moves the
+    content area down */
+export const KPI_LINE = { dy: -4, h: 100, push: 128 };
+/** Consulting Navy's header band: its foot `gap` above the content area; without a KPI line the area moves `push` down */
+export const NAVY_BAND = { gap: 16, push: 14 };
+/** Consulting Red's content column, right of the message panel (x 0–500) */
+export const SIGNAL_AREA = { panel: 500, x: 560, w: 980 };
+/* the facts the consulting furniture quotes, of the slide's first table (exhibit.ts); per drawing context, cached on
+   the table */
+const factCache = new WeakMap<RenderCtx, WeakMap<TableLayout, { ex: Exhibit; facts: ExFacts } | null>>();
+export function slideFacts(R: RuntimeSlide, ctx: RenderCtx): { ex: Exhibit; facts: ExFacts } | null {
+  const L = R.tables[0];
+  if (!L) return null;
+  let m = factCache.get(ctx); if (!m) factCache.set(ctx, m = new WeakMap());
+  if (m.has(L)) return m.get(L)!;
+  const ex = exhibitOf(L, ctx), out = ex.kind === "exhibit" ? { ex, facts: exhibitFacts(ex) } : null;
+  m.set(L, out);
+  return out;
+}
+/** a table's natural size as drawn: Liquid Glass widens columns (glassGeom), the consulting designs draw an exhibit of
+    their own size (exhibit.ts); the others draw the workbook's geometry */
+/** which geometry a design's tables are drawn on: the Liquid Glass scene's (glassGeom: columns widened for the scene's
+    font – Liquid Glass, and the consulting designs' tables "cards"), an exhibit's own (the consulting designs' tables
+    "exhibit"), or the workbook's (Excel, Excel Refined, the consulting designs' tables "rules") */
+export function geomOf(ctx: RenderCtx): "scene" | "exhibit" | "workbook" {
+  const d = ctx.style.design;
+  if (d === "glass") return "scene";
+  if (!isConsult(d)) return "workbook";
+  const t = consultOptions(ctx).tables;
+  return t === "cards" ? "scene" : t === "exhibit" ? "exhibit" : "workbook";
+}
+export const tableW = (L: TableLayout, ctx: RenderCtx) => { const g = geomOf(ctx); return g === "scene" ? glassGeom(L, ctx).W : g === "exhibit" ? exhibitGeom(L, ctx).W : L.W; };
+export const tableH = (L: TableLayout, ctx: RenderCtx) => geomOf(ctx) === "exhibit" ? exhibitGeom(L, ctx).H : L.H;
 
 export function defaultLayout(R: RuntimeSlide): Layout {
   // tables of the same sheet that share rows sit side by side; everything else stacks, in slide order
@@ -123,7 +164,7 @@ export function computeLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay
   const sideH = (i: number) => Math.max(N[i].left?.h || 0, N[i].right?.h || 0);
   const tbW = (i: number) => Math.max(N[i].top?.w || 0, N[i].bottom?.w || 0);
   const unitW = (i: number, k: number) => Math.max(tableW(T[i], ctx) * ww[i] * k, tbW(i)) + ex[i].l + ex[i].r;
-  const unitH = (i: number, k: number) => Math.max(T[i].H * ww[i] * k, sideH(i)) + ex[i].t + ex[i].b;
+  const unitH = (i: number, k: number) => Math.max(tableH(T[i], ctx) * ww[i] * k, sideH(i)) + ex[i].t + ex[i].b;
   const fits = (k: number) => {
     let h = GY * (bands.length - 1);
     for (const b of bands) { let bw = GX * (b.length - 1); for (const i of b) bw += unitW(i, k); if (bw > A.w + .01) return false; h += Math.max(...b.map(i => unitH(i, k))); }
@@ -142,7 +183,7 @@ export function computeLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay
   bands.forEach((b, bi) => {
     let x = A.x + (align === "left" ? 0 : align === "right" ? A.w - dims[bi].w : (A.w - dims[bi].w) / 2);
     for (const i of b) {
-      const sc = k * ww[i], tw = tableW(T[i], ctx) * sc, th = T[i].H * sc;
+      const sc = k * ww[i], tw = tableW(T[i], ctx) * sc, th = tableH(T[i], ctx) * sc;
       const bx = x + ex[i].l, by = top + y + ex[i].t, n = N[i], notes: TBox["notes"] = {};
       const sh = Math.max(th, sideH(i));
       if (n.top) notes.top = { x: bx, y: by - ex[i].t, w: n.top.w || tw, h: ex[i].t - NOTE_GAP };

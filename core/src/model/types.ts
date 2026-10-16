@@ -55,9 +55,11 @@ export type Design = "glass" | "excel" | "clean" | "mckinsey" | "bain";
 export interface Style { design: Design; glass: "subtle" | "medium" | "strong"; color: number; logo: string; pn: PageNumbers;
   /** corner roundness, % of default (0–200) */ radius: number; /** background ↔ surfaces contrast 0–100 (50 = as designed) */ contrast: number; logoBubble: boolean; footer: Footer; theme: Theme;
   /** text styles of the deck, per kind of text */ text: Partial<Record<TextRole, TextFmt>>;
-  /** colour overrides over the theme */ colors: Partial<Record<ColorKey, string>> }
+  /** colour overrides over the theme */ colors: Partial<Record<ColorKey, string>>;
+  /** the current consulting design's options, as set for it (Design… › Layout); defaults in model/designs.ts */ consult?: Partial<import("./designs").ConsultOptions> }
 /** theme, colours and text styles – shared by all designs, or for one design only (StylePatch.designs) */
-export interface Look { theme?: Partial<Theme>; colors?: Partial<Record<ColorKey, string>>; text?: Partial<Record<TextRole, TextFmt>> }
+export interface Look { theme?: Partial<Theme>; colors?: Partial<Record<ColorKey, string>>; text?: Partial<Record<TextRole, TextFmt>>;
+  /** a consulting design's options (model/designs.ts ConsultOptions; kept under designs[d] only) */ consult?: Partial<import("./designs").ConsultOptions> }
 export type StylePatch = Partial<Omit<Style, "pn" | "footer" | "theme" | "text" | "colors">> & { pn?: Partial<PageNumbers>; footer?: Partial<Footer>; theme?: Partial<Theme>; text?: Partial<Record<TextRole, TextFmt>>; colors?: Partial<Record<ColorKey, string>>;
   /** settings for one design only, over the shared ones */ designs?: Partial<Record<Design, Look>> };
 
