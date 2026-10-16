@@ -55,15 +55,10 @@ li::marker { color: var(--a1); }
 .cover .foot { position: absolute; left: 20mm; right: 20mm; bottom: 14mm; font: 400 7.5pt/1.4 var(--font); color: #2A3348; }
 
 /* the glass materials (glass-dl.ts): tint, rim, sheen; the shadows are set by the script */
-.glass { position: relative; isolation: isolate; background: linear-gradient(180deg, rgba(255,255,255,.62), rgba(255,255,255,.44)); }
-.glass::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; padding: 1.25px; pointer-events: none;
-  background: linear-gradient(135deg, rgba(255,255,255,.71) 0%, rgba(255,255,255,.21) 13%, rgba(255,255,255,.035) 36%, rgba(255,255,255,0) 52%, rgba(255,255,255,.056) 72%, rgba(255,255,255,.54) 100%);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
-.glass::after { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
-  background: radial-gradient(130% 85% at 16% -20%, rgba(255,255,255,.21) 0%, rgba(255,255,255,.056) 36%, rgba(255,255,255,0) 56%); }
-.glass.chip { background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,.8)); }
-.glass.orb { background: linear-gradient(145deg, rgba(255,255,255,.56) 0%, rgba(147,170,255,.20) 70%, rgba(190,160,255,.18) 100%); }
-.glass.tilet { background: linear-gradient(145deg, rgba(255,255,255,.64) 0%, rgba(120,200,255,.16) 100%); }
+.glass { position: relative; isolation: isolate; border: 1.25px solid rgba(255,255,255,.62); border-top-color: rgba(255,255,255,.9); border-left-color: rgba(255,255,255,.8); background: rgba(255,255,255,.58); }
+.glass.chip { background: rgba(255,255,255,.86); }
+.glass.orb { background: rgba(236,240,255,.42); }
+.glass.tilet { background: rgba(240,248,255,.5); }
 
 /* ---- section opener: a small slide of wallpaper with a glass card, inside the page ---- */
 .part { break-before: page; }

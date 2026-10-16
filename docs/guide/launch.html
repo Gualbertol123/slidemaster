@@ -16,18 +16,12 @@ html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body { margin: 0; font: 400 26px/1.4 var(--font); color: var(--ink); font-variant-emoji: text; font-synthesis-weight: none; }
 .s { position: relative; width: 1600px; height: 900px; overflow: hidden; break-after: page; padding: 80px 100px;
   background: #E9EDF6 url(img/wall.jpg) center / cover no-repeat; }
-.s.soft { background-image: linear-gradient(rgba(255,255,255,.45), rgba(255,255,255,.45)), url(img/wall.jpg); }
 h1 { font: 700 64px/1.08 var(--font); letter-spacing: -.02em; margin: 0 0 14px; }
 h1.big { font-size: 112px; }
 .bar { width: 120px; height: 7px; border-radius: 4px; background: linear-gradient(90deg, var(--a1), var(--a2)); margin: 26px 0 30px; }
 .lead { font-size: 32px; color: var(--ink2); margin: 0; max-width: 1100px; }
-.glass { position: relative; isolation: isolate; border-radius: 28px; background: linear-gradient(118deg, rgba(255,255,255,.84), rgba(255,255,255,.6) 50%, rgba(255,255,255,.76)); }
-.glass::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; padding: 1.5px; pointer-events: none;
-  background: linear-gradient(135deg, rgba(255,255,255,.8), rgba(255,255,255,.2) 13%, rgba(255,255,255,0) 52%, rgba(255,255,255,.1) 72%, rgba(255,255,255,.7));
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
-.glass::after { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
-  background: radial-gradient(130% 85% at 16% -20%, rgba(255,255,255,.3), rgba(255,255,255,.08) 36%, rgba(255,255,255,0) 56%); }
-.cap { display: inline-block; padding: 10px 26px; border-radius: 99px; font: 600 24px var(--font); background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(255,255,255,.8)); }
+.glass { position: relative; isolation: isolate; border: 1.25px solid rgba(255,255,255,.62); border-top-color: rgba(255,255,255,.9); border-left-color: rgba(255,255,255,.8); border-radius: 28px; background: rgba(255,255,255,.72); }
+.cap { display: inline-block; padding: 10px 26px; border-radius: 99px; font: 600 24px var(--font); background: rgba(255,255,255,.9); }
 .cap.acc { color: #fff; background: linear-gradient(135deg, var(--a1), var(--a2)); }
 .shot { border-radius: 22px; overflow: hidden; padding: 12px; }
 .shot img { display: block; width: 100%; border-radius: 12px; }
@@ -40,15 +34,15 @@ h1.big { font-size: 112px; }
   background: linear-gradient(135deg, var(--a1), var(--a2)); margin-bottom: 18px; }
 .stat { font: 700 76px/1 var(--font); letter-spacing: -.02em; color: #4F6CF6; }
 .foot { position: absolute; left: 100px; right: 100px; bottom: 40px; display: flex; justify-content: space-between; align-items: center; font-size: 18px; color: #4A5468; }
-.pn { min-width: 64px; text-align: center; padding: 6px 16px; border-radius: 99px; font: 600 18px var(--font); color: var(--x); background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(255,255,255,.8)); }
+.pn { min-width: 64px; text-align: center; padding: 6px 16px; border-radius: 99px; font: 600 18px var(--font); color: var(--x); background: rgba(255,255,255,.9); }
 ul.ticks { list-style: none; padding: 0; margin: 0; }
 ul.ticks li { position: relative; padding-left: 48px; margin: 0 0 22px; font-size: 30px; }
 ul.ticks li::before { content: ""; position: absolute; left: 0; top: 12px; width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, var(--a1), var(--a2)); }
 ul.ticks li b { color: var(--ink); }
 .quote { font: 400 27px/1.45 var(--font); color: var(--ink); }
 .pos { color: #1E9E4A; font-weight: 600; } .neg { color: #D93025; font-weight: 600; }
-.orb { position: absolute; border-radius: 50%; background: linear-gradient(145deg, rgba(255,255,255,.56), rgba(147,170,255,.2) 70%, rgba(190,160,255,.18)); }
-.tile { position: absolute; border-radius: 60px; background: linear-gradient(145deg, rgba(255,255,255,.64), rgba(120,200,255,.16)); }
+.orb { position: absolute; border-radius: 50%; background: rgba(236,240,255,.42) !important; }
+.tile { position: absolute; border-radius: 60px; background: rgba(240,248,255,.5) !important; }
 </style>
 </head>
 <body>
