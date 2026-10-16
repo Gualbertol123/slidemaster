@@ -486,14 +486,14 @@ Branches `v4/M7-recalc`, `v4/M8-scenarios`, `v4/M9-charts-callouts`, `v4/M10-fre
 `v4/M12-audit`. Each milestone ends with the `AUDIT.md` §0 protocol twice on clean clones (results in `PROGRESS.md`).
 
 ### M7 · Recalculation core (F0; ships 4.2.0-pre, nothing visible but B23/B24 and the wizard's linked files)
-**S7.1 · Engine in the worker** ⏱ — *Read:* `core/src/text/wasm/`, `tools/vendor-harfbuzz.mjs`, `spikes/recalc/`, ADR-013. *Do:* vendor
+**S7.1 · Formulas read** — *Read:* `sheetstore.ts` scanner, `xlsb/sheet.ts`, `xlsb/formula.ts`. *Do:* keep `<f>` (shared expanded, array
+refs); `.xlsb` Rgce → A1 for cell formulas (or "values only" per sheet, reported). *Done when:* RC-01 on spike `.xlsx` and
+`.xlsb` twins; sheetstore equivalence tests unchanged; big30 parse budget unchanged (formulas are interned strings).
+**S7.2 · Engine in the worker** ⏱ — *Read:* `core/src/text/wasm/`, `tools/vendor-harfbuzz.mjs`, `spikes/recalc/`, ADR-013. *Do:* vendor
 `@ironcalc/wasm` 0.9.0 (MIT/Apache-2.0: licence file copied, ADR-013), inline like hb.wasm, lazy `initSync`; `core/src/calc/engine.ts`:
 build a model from SheetStores (strings, numbers, booleans, errors, formulas), rule 3 bounding, `set(sheetId, ref, value)`,
 `evaluate()`, `changed()` → overlay. *Done when:* unit tests on the spike corpus give §1.3's numbers; ⏱ first use < 200 ms;
 page size and open bench recorded; no DOM types in core.
-**S7.2 · Formulas read** — *Read:* `sheetstore.ts` scanner, `xlsb/sheet.ts`, `xlsb/formula.ts`. *Do:* keep `<f>` (shared expanded, array
-refs); `.xlsb` Rgce → A1 for cell formulas (or "values only" per sheet, reported). *Done when:* RC-01 on spike `.xlsx` and
-`.xlsb` twins; sheetstore equivalence tests unchanged; big30 parse budget unchanged (formulas are interned strings).
 **S7.3 · Linked workbooks** — *Read:* `workbook.ts` (externalLinks), `host.ts` open path, `wizard/Wizard.tsx` step 1. *Do:* `preset.links`,
 sheet ids, external links into one model (mangled names tested), the wizard's "+ Add a linked workbook", Issues lines. *Done when:*
 LK-01…LK-03, OV cases for sheet ids, e2e with two files.

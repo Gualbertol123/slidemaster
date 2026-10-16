@@ -68,9 +68,57 @@ numbers measured twice). Measured numbers go into the step's line.
 - [x] S6.4 · Documentation (README and ARCHITECTURE for v4) — [PR (to open)](https://github.com/Gualbertol123/slidemaster/compare/main...v4/M6-hardening), branch `v4/M6-hardening` (pushed); ce29447, f1357fc. `git mv` of the v3 documents to `docs/v3/` (README, ARCHITECTURE, LOADTEST, REVIEW, MIGRATION-PROMPT; history kept, each with an "archived" note, their links as they were); `docs/RENDERING.md` stays live (the algorithms still hold; its xlsb and moved-file lines updated). `README.md` (1,151 lines, v3's 16 sections plus §2.4 rollback and the 4.0 material): PLAN Part B's drawings redrawn to what was built – among the differences from Part B: the real folders (`state/ stage/ editor/ ui/ wizard/ rpc/ sync/ platform/`, no `store/ chrome/ dialogs/`); the workers never call the helper (the core worker asks the page; export workers hand bytes to the page, which POSTs them); export workers 0–3 on demand, stopped after 60 s idle; the stage gets SVG markup in pieces keyed by content, not `{slideId, tableId, dl}` patches; `os.fsync`, not FlushFileBuffers; keypress → pixels 25–42 ms p95 (not 5–15); no `v4\cache` (S6.2 not built). `docs/ARCHITECTURE.md` (868 lines): the v4 contract – files and who writes them, what Slide Builder 3 still reads, the deck document and key, operations and undo, journal naming and framing (`len:crc8hex:body\n`, the example frame checked against the saved journal byte for byte), records, Lamport, fold order, snapshot / compaction (CAS on gen, the policy numbers), rotation and backups, locks and every lock name, storage modes, incidents, the file server's clock, presence v2, migration and rollback, every HTTP endpoint (from the router), display-list nodes, the font library, formats (the native .xlsb), concurrency and failure. Two drafts written with a file:line evidence file each (where the code differs from docs/next/04 the document follows the code: e.g. freeze before snapshot, rollback marker first, listings cached 3 s, journals deleted by rotate and after 24 h idle), then an independent fact-check against b4a4450 (30 corrections), then the review. Code comments citing ARCHITECTURE sections renumbered (comment-only; the built page unchanged). README §11 proven from a clean clone: `review/S6.4/readme-11-transcript.txt` – a new clone of GitHub at ce29447, every command of §11.2–11.3 as written: npm ci, playwright install, build = committed page, check 457 + 41 (big30 cases skipped before big30 exists, as §11.2 says), helper 228 OK, e2e 23 + 1 failed (E15: Chromium `ERR_CONNECTION_TIMED_OUT` on a loopback request, the known M6 item) then 24 passed on the second run, parity 0 not accepted, dlparity 0 not accepted, big30 made, bench within its gates at ×1.06 (deck20 open 432 ms: over 425, within +10 % – the known item), load PASS ×5. Run 1 (working copy): build identical, check 460 + 41, the changed helper test module OK. Review: REQUEST CHANGES (a wrong section reference, prefs said to be written under a lock, a missed section number in helper/.gitignore; ~110 statements checked, 33 links and every anchor resolve) → fixed in f1357fc (with three nits) → the fixes are text only. Left as history: docs/next/* still link to the moved files. verified: tests ✓ clean clone ✓ review ✓
 - [ ] S6.5 · Remove the v3 start file — **stopped: not yet allowed.** PLAN / Prompt 9 allow it only after "Decisions" records 4 weekly cycles after the cut-over with no rollback; Decisions records v4.0 live on 2026-10-15 and the four weeks of monitoring running from that day, so the earliest is after 2026-11-12 (Waiting for). Nothing changed; v4.1.0 is not prepared (it belongs to this step).
 
+### M7 · Recalculation core (4.2.0-pre; docs/next/07 §7, ADR-013, ADR-014)
+- [ ] S7.1 · Formulas read (.xlsx shared/array, .xlsb Rgce)
+- [ ] S7.2 · IronCalc in the worker ⏱
+- [ ] S7.3 · Linked workbooks (B22)
+- [ ] S7.4 · Self-check, overlay, scenario RPC ⏱ (B23, B24)
+- [ ] S7.5 · Milestone close (AUDIT §0 twice) 🚦 G4
+
+### M8 · Scenario export (4.2.0; B15)
+- [ ] S8.1 · Dialog
+- [ ] S8.2 · Names and files
+- [ ] S8.3 · The run ⏱
+- [ ] S8.4 · Preview ⏱
+- [ ] S8.5 · Close 🚦 G5
+
+### M9 · Charts and callouts (4.3.0; B16, B17, B19, B24; ADR-015)
+- [ ] S9.1 · `item.patch`
+- [ ] S9.2 · Pie/donut display list ⏱ 🚦 G6
+- [ ] S9.3 · Chart UI
+- [ ] S9.4 · Callouts ⏱
+- [ ] S9.5 · Objects in raw Excel
+- [ ] S9.6 · Close
+
+### M10 · Free layout and cell gridlines (4.4.0; B18, B20; ADR-017)
+- [ ] S10.1 · Free layout model
+- [ ] S10.2 · Drags ⏱
+- [ ] S10.3 · Cell gridlines
+- [ ] S10.4 · Close 🚦 G7
+
+### M11 · PowerPoint (4.5.0; B21; ADR-016)
+- [ ] S11.1 · Writer skeleton
+- [ ] S11.2 · Tables and shapes
+- [ ] S11.3 · Charts, background layer, budgets ⏱
+- [ ] S11.4 · Menu and runs 🚦 G8
+- [ ] S11.5 · Close
+
+### M12 · Independent audit of 4.2–4.5
+- [ ] M12 · AUDIT-2.md
+
 ## Decisions
 
 (Human decisions the plan needs, e.g. gate G0 outcomes. An agent never writes here on its own.)
+
+- 2026-10-16 · **Phase 0 of F0–F6 approved in full** ("i approve everything, continue"): `docs/next/07-scenarios-charts-pptx.md`
+  §8 Q1–Q12 all answered yes as proposed (IronCalc + 2.8 MB page; the self-check gate stops a run unless "run anyway";
+  linked workbooks by sheet id, same-folder files loaded for recalculation; PowerPoint fonts named, not embedded; glass
+  tables as real tables over a picture; raw Excel draws every user object incl. comments and notes, with accepted
+  parity entries; numbers typed as numbers unless "treat as text"; locale-dependent `TEXT` cells keep their cached text
+  and are marked; free layout per design; four releases 4.2–4.5; spike workbooks under `tests/corpus/workbooks/recalc/`;
+  the product owner reports the self-check numbers of real workbooks at G4). B15–B24 are in PLAN Part B §8. Earlier the
+  same day: no Excel on the running PC (read-only, never saved); PowerPoint editable text + tables, native charts;
+  objects in raw Excel.
 
 - 2026-10-09 · M0 merged and v3.4.0 shipped with S0.6 open: gate G0 runs in parallel (PLAN Part C), results
   due before M3 (Acrobat, fonts) and M5 (storage).
