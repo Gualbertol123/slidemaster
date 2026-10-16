@@ -49,7 +49,7 @@ async function deck(file: string, design: Design) {
 }
 /** the furniture elements v3's slideMarkup wrote for weekly-options.json (cover, contents, content), by class – the
     ones the parity tools pair with hits; recorded from slideMarkup at S4.4 (502214c) before it was removed */
-const MARKUP: Record<Design, Record<string, number>[]> = {
+const MARKUP: Record<"glass" | "excel" | "clean", Record<string, number>[]> = {
   excel: [
     {"cvx-panel":1, "cvx-band":1, "cvx-band b2":1, "cv-block x":1, "cv-title":1, "cv-bar":1, "cv-sub":1, "cvx-rule":1, "cvx-date":1, "logowrap big":1, "logo":1},
     {"title":1, "ix-row x":1, "ix-n":1, "ix-txt":1, "ix-t":1, "ix-s":1, "ix-lead":1, "ix-p":1, "pageno plain":1, "pageno plain footer":1, "logowrap":1, "logo":1},
@@ -65,7 +65,7 @@ const MARKUP: Record<Design, Record<string, number>[]> = {
 };
 
 describe("the whole slide", () => {
-  for (const design of ["excel", "clean", "glass"] as Design[]) it(`${design}: every furniture element of v3's slideMarkup has its hit; the lists validate`, async () => {
+  for (const design of ["excel", "clean", "glass"] as const) it(`${design}: every furniture element of v3's slideMarkup has its hit; the lists validate`, async () => {
     const { ctx, slides, build } = await deck("weekly-options.json", design);
     for (let i = 0; i < slides.length; i++) {
       const dl = build(i);

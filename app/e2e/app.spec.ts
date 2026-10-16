@@ -912,6 +912,27 @@ test.describe.serial("two people, one shared folder", () => {
     await lastFileSaved("anna", "Banks.xlsx");
   });
 
+  test("consulting designs (M7b, DS-10): Consulting Navy and Consulting Red, saved, one undo step each, their own palette", async ({ page }) => {
+    await openApp(page, ANNA);                                                       // Banks.xlsx, the last workbook
+    await expect(page.locator("#stage .slide")).toHaveCount(1, { timeout: 20_000 });
+    const bdoc = () => deckDoc("Banks.xlsx"), before = bdoc().style.design ?? "glass";
+    await expect(page.locator('[data-design="mckinsey"]')).toHaveText(/Navy/);
+    await page.click('[data-design="mckinsey"]'); await saved(page);
+    await expect(page.locator("#stage .slide.consult.mckinsey")).toHaveCount(1);
+    expect(bdoc().style.design).toBe("mckinsey");
+    await page.keyboard.press("Control+z"); await saved(page);                        // one undo step back
+    expect(bdoc().style.design ?? "glass").toBe(before);
+    await page.click('[data-design="bain"]'); await saved(page);
+    await expect(page.locator("#stage .slide.consult.bain")).toHaveCount(1);
+    // the design's own palette is the theme it starts with; the Colours tab lists the keys it uses
+    await page.click("#themeBtn");
+    await expect(page.locator('#themeList [data-theme="design"]')).toHaveClass(/on/);
+    await expect(page.locator('[data-color="pos"]')).not.toHaveClass(/off/);
+    await expect(page.locator('#lookScope [data-scope="design"]')).toContainText("Consulting Red");
+    await page.click('.tsdlg [data-a="close"]');
+    await page.click(`[data-design="${before}"]`); await saved(page);
+  });
+
   test("no page errors, console errors or warnings", async () => { expect(unexpected(errors)).toEqual([]); });
 });
 

@@ -1,0 +1,17 @@
+{
+ "schema": 3, "workbook": "W.xlsx", "rev": 7,
+ "preset": {
+  "sheets": ["S"],
+  "tables": [{ "id": "t1", "sheet": "S", "kind": "range", "range": "A1:C4", "sizes": { "mckinsey": { "cols": { "B": 90 } } } }],
+  "slides": [
+   { "id": "s0", "type": "cover", "title": "Review", "tables": [] },
+   { "id": "s1", "type": "content", "title": "Revenue grew in every region", "tables": ["t1"],
+     "sizes": { "mckinsey": { "scale": 0.8 }, "bain": { "align": "left" }, "glass": { "scale": 1 } } }
+  ]
+ },
+ "style": {
+  "design": "mckinsey", "theme": { "id": "intesa" },
+  "designs": { "mckinsey": { "colors": { "accent": "#0A2A66" }, "text": { "title": { "size": 36 } } }, "bain": { "theme": { "id": "ocean" } } }
+ },
+ "edits": {}
+}

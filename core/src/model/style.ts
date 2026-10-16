@@ -1,5 +1,6 @@
 /* Deck style = built-in defaults ← shared defaults (config.json) ← this workbook's style. */
-import type { ColorKey, Look, Footer, PageNumbers, Style, StylePatch, TextFmt, TextRole, Theme } from "./types";
+import type { ColorKey, Design, Look, Footer, PageNumbers, Style, StylePatch, TextFmt, TextRole, Theme } from "./types";
+import { isConsult, isDesign } from "./designs";
 
 export const BUILTIN_PN: PageNumbers = { on: false, start: 1, pos: "br", font: "auto", size: 16, format: "n", style: "capsule", cover: false };
 export const BUILTIN_FOOTER: Footer = { on: false, text: "", pos: "bl", size: 14, style: "plain", cover: false };
@@ -22,10 +23,12 @@ export function resolveStyle(...layers: (StylePatch | null | undefined)[]): Styl
     if (l.footer) for (const [k, v] of Object.entries(l.footer)) if (v !== undefined && v !== null) (s.footer as unknown as Record<string, unknown>)[k] = v;
     applyLook(s, l);
   }
-  if (s.design !== "excel" && s.design !== "clean") s.design = "glass";
+  if (!isDesign(s.design)) s.design = "glass";                          // an unknown design (a newer page's) shows as Liquid Glass
+  // the consulting designs keep their own palette: the shared colour theme is not theirs (08 §6 Q4); a theme set for
+  // the design itself (Design… › "This design") still applies below
+  if (isConsult(s.design)) s.theme = { ...CONSULT_THEME_REF[s.design] };
   // settings made for one design only (Design… › "This design") sit on top of the shared ones
   for (const l of layers) { const d = l?.designs?.[s.design]; if (d && typeof d === "object") applyLook(s, d); }
-  if (s.design !== "excel" && s.design !== "clean") s.design = "glass";
   if (!["subtle", "medium", "strong"].includes(s.glass)) s.glass = "subtle";
   s.color = Math.max(0, Math.min(100, +s.color || 0));
   s.radius = Math.max(0, Math.min(200, isFinite(+s.radius) ? +s.radius : 100));
@@ -50,11 +53,18 @@ export const THEMES: ThemeDef[] = [
   { id: "graphite", name: "Graphite", c1: "#8E9AAF", c2: "#5C677D", c3: "#B8C0CC", c4: "#7D8597", a1: "#33415C", a2: "#7D8597", x: "#33415C" },
   { id: "intesa", name: "Intesa Sanpaolo", c1: "#00953B", c2: "#8DC63F", c3: "#F28C00", c4: "#5B6770", a1: "#00953B", a2: "#F28C00", x: "#006A35" },
 ];
+/** the consulting designs' own palettes (08 §2.1, §2.2): not in the theme list, the default of their design only */
+export const CONSULT_THEMES: ThemeDef[] = [
+  { id: "consult-navy", name: "Consulting Navy", c1: "#051C2C", c2: "#2251FF", c3: "#00A9F4", c4: "#99E6FF", a1: "#2251FF", a2: "#00A9F4", x: "#2251FF" },
+  { id: "consult-red", name: "Consulting Red", c1: "#CC0000", c2: "#981A1E", c3: "#F16666", c4: "#A4A4A3", a1: "#CC0000", a2: "#981A1E", x: "#CC0000" },
+];
+const CONSULT_THEME_REF: Record<"mckinsey" | "bain", Theme> = {
+  mckinsey: { id: "consult-navy", c1: "", c2: "", c3: "", c4: "", a1: "", a2: "" }, bain: { id: "consult-red", c1: "", c2: "", c3: "", c4: "", a1: "", a2: "" } };
 export const BUILTIN_THEME: Theme = { id: "aurora", c1: "", c2: "", c3: "", c4: "", a1: "", a2: "" };
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 /** the theme's colours: a built-in theme by id, or "custom" with the stored colours (missing ones from Aurora) */
 export function themeOf(s: Style): ThemeDef {
-  const t = s.theme || BUILTIN_THEME, base = THEMES.find(x => x.id === t.id);
+  const t = s.theme || BUILTIN_THEME, base = THEMES.find(x => x.id === t.id) || CONSULT_THEMES.find(x => x.id === t.id);
   if (base) return base;
   const A = THEMES[0], pick = (k: "c1" | "c2" | "c3" | "c4" | "a1" | "a2") => HEX.test(t[k] || "") ? t[k].toUpperCase() : A[k];
   const a1 = pick("a1");
@@ -84,12 +94,12 @@ export function cleanFmt(f: TextFmt): TextFmt {
    Every colour a slide uses comes from palette(): the theme gives the defaults, Style.colors overrides any
    of them. "Pure" Excel keeps the workbook's own colours and uses only the overrides that were set. */
 /** colours that can be overridden in Design… (Excel and Excel Refined keep the workbook's table colours) */
-export const COLOR_KEYS: { key: ColorKey; name: string; hint: string; designs: ("glass" | "excel" | "clean")[] }[] = [
-  { key: "accent", name: "Accent", hint: "titles, cover, contents numbers, rules", designs: ["glass", "excel", "clean"] },
-  { key: "bg", name: "Slide background", hint: "behind everything (Liquid Glass: Colour theme)", designs: ["excel", "clean"] },
-  { key: "ink", name: "Table text", hint: "numbers and labels", designs: ["glass"] },
-  { key: "pos", name: "Positive", hint: "green values / cells", designs: ["glass"] },
-  { key: "neg", name: "Negative", hint: "red values / cells", designs: ["glass"] },
+export const COLOR_KEYS: { key: ColorKey; name: string; hint: string; designs: Design[] }[] = [
+  { key: "accent", name: "Accent", hint: "titles, cover, contents numbers, rules", designs: ["glass", "excel", "clean", "mckinsey", "bain"] },
+  { key: "bg", name: "Slide background", hint: "behind everything (Liquid Glass: Colour theme)", designs: ["excel", "clean", "mckinsey", "bain"] },
+  { key: "ink", name: "Table text", hint: "numbers and labels", designs: ["glass", "mckinsey", "bain"] },
+  { key: "pos", name: "Positive", hint: "green values / cells", designs: ["glass", "mckinsey", "bain"] },
+  { key: "neg", name: "Negative", hint: "red values / cells", designs: ["glass", "mckinsey", "bain"] },
 ];
 export type Palette = Record<ColorKey, string>;
 export function mix(a: string, b: string, t: number): string {
@@ -101,6 +111,6 @@ export function mix(a: string, b: string, t: number): string {
 export function palette(s: Style): Palette {
   const t = themeOf(s), x = t.x;
   const base: Palette = { accent: x, bg: "#FFFFFF", head: x, headInk: "#FFFFFF", total: mix(x, "#FFFFFF", .88), totalInk: darkAccent(mix(x, "#000000", .25)),
-    ink: "#1F2430", pos: "#1E8E3E", neg: "#D93025", stripe: mix(x, "#FFFFFF", .965), rule: mix(x, "#FFFFFF", .86) };
+    ink: isConsult(s.design) ? "#000000" : "#1F2430", pos: "#1E8E3E", neg: "#D93025", stripe: mix(x, "#FFFFFF", .965), rule: mix(x, "#FFFFFF", .86) };
   return { ...base, ...(s.colors || {}) };
 }

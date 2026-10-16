@@ -9,6 +9,7 @@ import { lookAt, lookChange, saveStyleAsDefault } from "../state/app";
 import { addGoogleFont, inLibrary, removeFont, uploadFontFiles } from "../state/fonts";
 import { GOOGLE_POPULAR, fontStack } from "@slide-builder/core/model/fonts";
 import { COLOR_KEYS, palette } from "@slide-builder/core/model/style";
+import { DESIGN_LABEL } from "@slide-builder/core/model/designs";
 import { ThemePicker } from "./Topbar";
 import type { TextFmt, TextRole } from "@slide-builder/core/model/types";
 import { backend } from "../sync/api";
@@ -18,7 +19,6 @@ import { FontPicker } from "./FontPicker";
 import { Input } from "./Input";
 import { useStyle } from "./hooks";
 
-const DESIGN_NAME = { glass: "Liquid Glass", excel: "Excel", clean: "Excel Refined" } as const;
 type Cap = "size" | "b" | "i" | "color" | "align" | "lh";
 const ROLES: { role: TextRole; name: string; hint: string; caps: Cap[] }[] = [
   { role: "title", name: "Slide titles", hint: "every slide; the cover title keeps its automatic size", caps: ["size", "b", "i", "color", "align"] },
@@ -71,7 +71,7 @@ function ColorsTab() {
         const on = c.designs.includes(d), set_ = !!o[c.key];
         return <div className={"colrow" + (on ? "" : " off")} key={c.key} data-color={c.key} title={on ? "" : "Not used by this design"}>
           <label className="colsw"><Input type="color" value={P[c.key]} onCommit={e => set(c.key, (e.target as HTMLInputElement).value.toUpperCase())} /></label>
-          <div className="colname"><b>{c.name}</b><small>{c.hint}{on ? "" : " · " + c.designs.map(x => x === "glass" ? "Liquid Glass" : x === "excel" ? "Excel" : "Refined").join(", ") + " only"}</small></div>
+          <div className="colname"><b>{c.name}</b><small>{c.hint}{on ? "" : " · " + c.designs.map(x => DESIGN_LABEL[x]).join(", ") + " only"}</small></div>
           {set_ ? <button className="btn" title="Back to the theme's colour" onClick={() => set(c.key, null)}>Theme</button> : <small className="from">theme</small>}
         </div>;
       })}
@@ -129,7 +129,7 @@ export function TextStylesDialog() {
       <div className="dlg tsdlg">
         <div className="dlghd"><b>Design: colours, text &amp; fonts</b><span>Start from a theme, then change any colour, font or size – for the whole deck and every design. Formatting you give a single cell, text box or title with the toolbar stays on top.</span></div>
         {tab !== "fonts" && <div className="scope"><span>Apply to</span><div className="seg small" id="lookScope">
-          <button data-scope="design" className={scope === "design" ? "on" : ""} onClick={() => patch("ui", { lookScope: "design" })}>This design only – {DESIGN_NAME[design]}</button>
+          <button data-scope="design" className={scope === "design" ? "on" : ""} onClick={() => patch("ui", { lookScope: "design" })}>This design only – {DESIGN_LABEL[design]}</button>
           <button data-scope="all" className={scope === "all" ? "on" : ""} onClick={() => patch("ui", { lookScope: "all" })}>All designs</button></div>
           <small>{scope === "design" ? "Changes here apply only when this design is chosen; switch design at the top to give the others their own look." : "Changes here apply to every design (and replace what a design had set for itself)."}</small></div>}
         <div className="seg tabs"><button className={tab === "colors" ? "on" : ""} id="tabColors" onClick={() => setTab("colors")}>Colours</button><button className={tab === "styles" ? "on" : ""} id="tabStyles" onClick={() => setTab("styles")}>Text styles</button><button className={tab === "fonts" ? "on" : ""} id="tabFonts" onClick={() => setTab("fonts")}>Fonts ({fonts})</button></div>

@@ -20,6 +20,7 @@ import { tableW, type TBox } from "./layout";
 import { deckFmt, hasMarkup, slideTextFmt, titleGeom } from "./text";
 import { todayLabel } from "./cover";
 import { breakRuns, collapse } from "../text/lines";
+import { isConsult } from "../model/designs";
 
 export const SLIDE_FONT = { glass: `-apple-system,"SF Pro Display","Segoe UI","Helvetica Neue",Inter,Arial,sans-serif`, excel: `"Century Gothic","CenturyGothic","URW Gothic","AppleGothic",Arial,sans-serif` };
 const GLASS_ROW_FONT = `-apple-system,"SF Pro Text","Segoe UI",Arial,sans-serif`;
@@ -288,7 +289,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
       if (glassy) low.push(...glassBox("card notebub", x, y, w, h, part.bubble.r, V, place, wall, { hit: { kind: "f", id: part.bubble.cls } }));
       else {
         // the framed box as Chromium paints an unscaled box: its edges on whole pixels (the hit keeps the layout's box)
-        const X = Math.round(x), Y = Math.round(y), W = Math.round(x + w) - X, H = Math.round(y + h) - Y, r = part.bubble.r, clean = d === "clean";
+        const X = Math.round(x), Y = Math.round(y), W = Math.round(x + w) - X, H = Math.round(y + h) - Y, r = part.bubble.r, clean = d === "clean" || isConsult(d);
         const sh = (dy: number, blur: number, spread: number, c: [number, number, number], a: number): Node => ({ t: "shadow", x: X, y: Y, w: W, h: H, r, dx: 0, dy, blur, spread, c, a });
         low.push(hit(part.bubble.cls, x, y, w, h), ...(clean ? [sh(8, 24, -12, [20, 30, 60], .18), sh(1, 3, 0, [20, 30, 60], .06)] : [sh(1, 2, 0, [0, 0, 0], .08)]),
           { t: "rect", x: X + .5, y: Y + .5, w: Math.max(0, W - 1), h: Math.max(0, H - 1), r: Math.max(0, r - .5), fill: solid("#FFFFFF"), stroke: { w: 1, paint: solid(clean ? "#E1E5EC" : "#BFBFBF") } });
@@ -301,7 +302,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
     const cx = x + padX, cw = Math.max(0, w - 2 * padX), txt = part.txt;
     // the box's text laid out at a font size: its blocks (paragraphs, headings, gaps) and its height
     const lay = (size: number) => {
-      const st: TStyle = withFmt({ family: glassy ? base : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel, size, weight: glassy ? 500 : 400, italic: false, color: solid(glassy ? "#0B0D17" : "#16181D"), ls: 0 },
+      const st: TStyle = withFmt({ family: glassy ? base : d === "clean" || isConsult(d) ? NOTE_FONT.clean : NOTE_FONT.excel, size, weight: glassy ? 500 : 400, italic: false, color: solid(glassy ? "#0B0D17" : "#16181D"), ls: 0 },
         { font: n.font, b: n.b || undefined, i: n.i || undefined, color: n.color }, { size: false });
       const blocks: { nodes: Node[]; h: number; mt: number; mb: number; text?: string }[] = [];
       let text = txt;

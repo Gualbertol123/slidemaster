@@ -179,7 +179,7 @@ describe("table sizing per design", () => {
     expect(computeLayout(R, ctx({}, "excel")).k).toBeCloseTo(0.9, 5);
     expect(computeLayout(R, ctx({}, "clean")).k).toBeCloseTo(0.5, 5);
     const p = sizingPatch(R, ctx({}, "glass"), { scale: 0.7 });
-    expect(p).toEqual({ layout: null, scale: null, align: null, valign: null, sizes: { clean: { scale: 0.5 }, glass: { scale: 0.7 } } });   // Excel keeps its own entry
+    expect(p).toEqual({ layout: null, scale: null, align: null, valign: null, sizes: { clean: { scale: 0.5 }, mckinsey: { scale: 0.5 }, bain: { scale: 0.5 }, glass: { scale: 0.7 } } });   // Excel keeps its own entry; the designs still on the shared sizing get it copied
   });
   it("alignment is per design too", () => {
     const R = slide({ tables: ["a"], align: "left" }, { tables: [L] });

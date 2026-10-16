@@ -7,6 +7,7 @@ import { darken, hexRgb } from "../xlsx/color";
 import { tableKey, type RenderCtx } from "./context";
 import { palette } from "../model/style";
 import { effNote } from "./text";
+import { isConsult } from "../model/designs";
 import { wallBase } from "./wallpaper";
 import { MEMO_KEY, memoBox, SIDES, noteKey, notesOf } from "./layout";
 
@@ -46,7 +47,7 @@ export interface SlideOpts { interactive?: boolean }
     corners, glass, the colour under the wallpaper) – the overlays read the accent colours */
 export function slideFrame(R: RuntimeSlide, ctx: RenderCtx): { className: string; vars: [string, string][] } {
   const d = ctx.style.design, glassy = d === "glass", rk = ctx.style.radius / 100;
-  const className = "slide " + (d === "clean" ? "excel clean" : d) + (R.type !== "content" ? " " + R.type : "");
+  const className = "slide " + (d === "clean" ? "excel clean" : isConsult(d) ? "excel clean consult " + d : d) + (R.type !== "content" ? " " + R.type : "");
   const vars: [string, string][] = [["--rk", String(rk)]];
   for (const [k, v] of Object.entries(themeVars(ctx))) vars.push([k, v]);
   if (glassy) {

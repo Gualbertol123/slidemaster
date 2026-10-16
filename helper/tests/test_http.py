@@ -175,6 +175,13 @@ class HttpTests(HttpBase):
         st, r = self.jreq("POST", "/api/config", {"baseRev": 1, "style": {"design": "glass"}, "defaults": {"other": 1}})
         self.assertEqual((st, r["doc"]["defaults"]), (200, {"style": {"design": "glass"}}))
 
+    def test_config_keeps_a_consulting_design(self):
+        """M7b (08 §3): the helper stores a design it does not know as it is, with its per-design settings"""
+        style = {"design": "mckinsey", "designs": {"mckinsey": {"colors": {"accent": "#0A2A66"}}, "bain": {"theme": {"id": "ocean"}}}}
+        st, r = self.jreq("POST", "/api/config", {"baseRev": 0, "style": style})
+        self.assertEqual((st, r["doc"]["defaults"]["style"]), (200, style))
+        self.assertEqual(self.jreq("GET", "/api/config")[1]["defaults"], {"style": style})
+
     def test_v3_storage_routes_are_gone(self):
         """S5.5: v3's workbook documents, their operations and v3 presence are no longer served (decks: /api/decks)"""
         for method, path, body in (("GET", self.wb("A.xlsx") + "/doc", None), ("POST", self.wb("A.xlsx") + "/ops", {"ops": []}),

@@ -50,7 +50,8 @@ export interface Footer { on: boolean; text: string; pos: "tl" | "tc" | "tr" | "
 export interface Theme { id: string; c1: string; c2: string; c3: string; c4: string; a1: string; a2: string }
 /** colours that override the theme (all designs; some only apply to the Excel designs, see model/style.ts COLOR_KEYS) */
 export type ColorKey = "accent" | "bg" | "head" | "headInk" | "total" | "totalInk" | "ink" | "pos" | "neg" | "stripe" | "rule";
-export type Design = "glass" | "excel" | "clean";
+/** the slide design; "mckinsey" / "bain" are the consulting designs, shown as "Consulting Navy" / "Consulting Red" (model/designs.ts) */
+export type Design = "glass" | "excel" | "clean" | "mckinsey" | "bain";
 export interface Style { design: Design; glass: "subtle" | "medium" | "strong"; color: number; logo: string; pn: PageNumbers;
   /** corner roundness, % of default (0–200) */ radius: number; /** background ↔ surfaces contrast 0–100 (50 = as designed) */ contrast: number; logoBubble: boolean; footer: Footer; theme: Theme;
   /** text styles of the deck, per kind of text */ text: Partial<Record<TextRole, TextFmt>>;

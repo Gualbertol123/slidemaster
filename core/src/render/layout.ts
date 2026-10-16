@@ -7,12 +7,15 @@ import type { Layout, Note, RuntimeSlide, Side, SlideSizing } from "../model/typ
 import type { RenderCtx } from "./context";
 import { glassGeom } from "./glass";
 import { effNote, titleGeom } from "./text";
+import { DESIGNS, isConsult } from "../model/designs";
 import { commentText } from "./comment";
 
 export const SLIDE_W = 1600, SLIDE_H = 900;
 export const GX = 36, GY = 28, MAXK = 2.0;
 export function areaFor(R: RuntimeSlide, ctx?: RenderCtx) {
-  const a = R.subtitle ? { x: 50, y: 126, w: 1500, h: 696 } : { x: 50, y: 104, w: 1500, h: 718 };
+  // the consulting designs reserve a two-line title band and a rule under it (08 §2.0); the others as v3
+  const a = ctx && isConsult(ctx.style.design) ? (R.subtitle ? { x: 50, y: 170, w: 1500, h: 652 } : { x: 50, y: 138, w: 1500, h: 684 })
+    : R.subtitle ? { x: 50, y: 126, w: 1500, h: 696 } : { x: 50, y: 104, w: 1500, h: 718 };
   const push = ctx ? Math.min(200, titleGeom(R, ctx).push) : 0;          // larger titles push the tables down
   return push ? { ...a, y: a.y + push, h: a.h - push } : a;
 }
@@ -58,7 +61,6 @@ export function sizingPatch(R: RuntimeSlide, ctx: RenderCtx, entry: Sizing) {
 }
 /** a sizing patch that changes only some fields of the current design's sizing */
 export const sizingChange = (R: RuntimeSlide, ctx: RenderCtx, ch: Sizing) => { const { own: _o, ...cur } = sizingOf(R, ctx); return sizingPatch(R, ctx, { ...cur, ...ch }); };
-const DESIGNS = ["glass", "excel", "clean"] as const;
 const clean = (e: Sizing): SlideSizing => ({ ...(e.layout ? { layout: e.layout } : {}), ...(e.scale ? { scale: e.scale } : {}), ...(e.align && e.align !== "center" ? { align: e.align } : {}), ...(e.valign ? { valign: e.valign } : {}) });
 /** the fixed scale of the slide in this design ("Make same size"), 0 = none */
 function fixedScale(R: RuntimeSlide, ctx: RenderCtx): number {

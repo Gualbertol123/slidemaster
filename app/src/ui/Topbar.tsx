@@ -10,6 +10,7 @@ import { Field } from "./Field";
 import { openFontManager } from "./FontPicker";
 import type { Footer, PageNumbers, Theme } from "@slide-builder/core/model/types";
 import { THEMES, themeOf } from "@slide-builder/core/model/style";
+import { DESIGNS, isConsult } from "@slide-builder/core/model/designs";
 import { Input } from "./Input";
 import { useStyle } from "./hooks";
 
@@ -56,6 +57,7 @@ export function ThemePicker() {
   return <>
     <div className="opthd">Colour theme</div>
     <div className="themes" id="themeList">
+      {isConsult(st.design) && <button data-theme="design" className={cur.id.startsWith("consult-") ? "on" : ""} title="This design's own colours" onClick={() => lookChange("Design palette", { theme: null })}>{swatch(cur.id.startsWith("consult-") ? cur : themeOf({ ...st, theme: { id: st.design === "bain" ? "consult-red" : "consult-navy", c1: "", c2: "", c3: "", c4: "", a1: "", a2: "" } }))}<span>Design palette</span></button>}
       {THEMES.map(t => <button key={t.id} data-theme={t.id} className={cur.id === t.id ? "on" : ""} title={t.name} onClick={() => th({ id: t.id })}>{swatch(t)}<span>{t.name}</span></button>)}
       <button data-theme="custom" className={cur.id === "custom" ? "on" : ""} title="Your own colours" onClick={custom}>{swatch(cur.id === "custom" ? cur : { c1: "#fff", c2: "#ddd", c3: "#bbb", c4: "#999", a1: "#666" })}<span>Custom</span></button>
     </div>
@@ -63,7 +65,8 @@ export function ThemePicker() {
       <span className="lbl">Background</span>{pick("c1", "1")}{pick("c2", "2")}{pick("c3", "3")}{pick("c4", "4")}
       <span className="lbl">Accents</span>{pick("a1", "1")}{pick("a2", "2")}
     </div>}
-    <div className="optnote">Background colours of Liquid Glass and the accent colour of titles, cover, index and page numbers (both designs). The “Colour” slider sets how strong the background is.</div>
+    <div className="optnote">{isConsult(st.design) ? "Consulting designs keep their own palette: a theme chosen for “All designs” does not change them – choose “This design only” to give this design another theme."
+      : "Background colours of Liquid Glass and the accent colour of titles, cover, index and page numbers (both designs). The “Colour” slider sets how strong the background is."}</div>
   </>;
 }
 
@@ -180,6 +183,7 @@ function ExportButton() {
         <button data-x="versions" disabled={!versions.length} onClick={() => { close(); void exportVersions(null); }}>PDF · every version<small>{versions.map(v => v.name).join(", ") || "none yet"} · this design</small></button>
         <button data-x="versions-2" disabled={!versions.length} onClick={() => { close(); void exportVersions(["glass", "excel"]); }}>PDF · every version × Liquid Glass + Excel<small>{2 * versions.length} files</small></button>
         <button data-x="versions-3" disabled={!versions.length} onClick={() => { close(); void exportVersions(["glass", "excel", "clean"]); }}>PDF · every version × all three designs</button>
+        <button data-x="versions-5" disabled={!versions.length} onClick={() => { close(); void exportVersions([...DESIGNS]); }}>PDF · every version × all five designs<small>with Consulting Navy and Consulting Red · {DESIGNS.length * versions.length} files</small></button>
         <div className="sep" />
         <button data-x="report" onClick={() => { close(); void reportExportProblem(); }}>Report a problem with this export…<small>for the export pilot · {backend.served ? "saved in the export folder (feedback)" : "downloaded"}</small></button>
       </>}
@@ -221,7 +225,9 @@ export function Topbar() {
       <Others />
       <div className="spacer" />
       <div className="seg" title="Slide design (saved with this workbook)">
-        {([["glass", <><span className="lg">Liquid </span>Glass</>, "Liquid Glass: light glass surfaces over a coloured background"], ["excel", "Excel", "Excel: the workbook's tables exactly as they are – nothing added"], ["clean", <><span className="lg">Excel </span>Refined</>, "Excel Refined: the workbook's tables in one consistent, polished style, with comments and text boxes"]] as const).map(([d, l, t]) =>
+        {([["glass", <><span className="lg">Liquid </span>Glass</>, "Liquid Glass: light glass surfaces over a coloured background"], ["excel", "Excel", "Excel: the workbook's tables exactly as they are – nothing added"], ["clean", <><span className="lg">Excel </span>Refined</>, "Excel Refined: the workbook's tables in one consistent, polished style, with comments and text boxes"],
+          ["mckinsey", <><span className="lg">Consulting </span>Navy</>, "Consulting Navy: a consulting-report look – serif action titles, hairline rules, navy and blue"],
+          ["bain", <><span className="lg">Consulting </span>Red</>, "Consulting Red: a consulting-report look – bold red accents, black table headers, takeaway boxes"]] as const).map(([d, l, t]) =>
           <button key={d} data-design={d} disabled={!has} title={t} className={st.design === d ? "on" : ""} onClick={() => styleChange("Design", { design: d })}>{l}</button>)}
       </div>
       <button className="btn" id="themeBtn" disabled={!has} title="Colour theme, your own colours, text styles and fonts – for every design" onClick={() => openFontManager("colors")}>
