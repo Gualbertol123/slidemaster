@@ -1413,6 +1413,112 @@ Do, and record with numbers and path:line evidence:
 Finish with the summary verdict in AUDIT-2.md's first section and the list under PROGRESS "Waiting for".
 ```
 
+## Prompt 16 · The Slide Builder guide (A4 PDF, in the product's own design, for non-engineers)
+
+```text
+You write the user and owner guide of Slide Builder 4 (this checkout): ONE A4 PDF that explains, to people who are
+not software engineers (the users on the team, the product owner, the maintainer who runs the updates), what the
+program does, every function it has, and how it works underneath – concise and concrete. You change no product
+code and no document of docs/next; you add the guide and its sources under docs/guide/.
+
+WHO READS IT
+- Users: they open a workbook, run the wizard, edit, export. They want to know what every button does and why
+  something looks the way it does.
+- The owner and the maintainer: they want to understand what runs where, what is saved where, what can go wrong
+  and what to do then – without reading code.
+Tone: plain sentences, no jargon that is not explained in the same sentence, concrete numbers and names (the
+button's label, the folder's name), one idea per paragraph. English (the team's documents are in English; keep
+the few Italian words the product shows, e.g. number formats, as they appear). No marketing.
+
+LENGTH AND SHAPE
+- 14–20 A4 pages, portrait; a cover, a one-page "what it is" overview, the parts below, a one-page glossary.
+- Every function appears exactly once, with a picture or a labelled screenshot; nothing is described that the
+  program does not do today (the inventory of what it does is docs/next/05-test-and-parity.md §4 – its rows are
+  the complete list of behaviours, and the 4.2 additions are in docs/next/07-scenarios-charts-pptx.md §6.1–§6.3 and
+  CHANGELOG.md "4.2.0" – describe only what is built and merged: check PROGRESS.md's ticks and the CHANGELOG, not the
+  plan).
+- Facts come from README.md (§1 what it does, §2 deployment, §3 architecture, §4 data model, §6 flows, §7 the
+  helper, §9 failure model, §10 export, §14 gotchas), docs/ARCHITECTURE.md (the share, journals, deck files), the
+  CHANGELOG, and the running program. Every statement you make must be true of the current build: when in doubt,
+  run it (below) and look, do not guess.
+
+THE DESIGN OF THE PDF
+- It must look like Slide Builder's own slides, adapted to A4: the Liquid Glass design for the cover and the
+  section openers (its wallpaper, glass cards, capsules, Segoe UI), and the Excel Refined look for the body pages
+  (white, thin rules, the theme's accent colours). Take the actual colours, radii, shadows and type sizes from the
+  code and its themes – core/src/model/style.ts (THEMES: use "Aurora" unless config says otherwise, COLOR_KEYS),
+  core/src/render/glass.ts and glass-dl.ts (the materials), core/src/render/slide-dl.ts (SLIDE_FONT, title sizes),
+  core/src/render/wallpaper.ts (how the wallpaper is made – render one with the core in Node or screenshot one) –
+  and docs/next/03-architecture.md §4.3 (the recipes in words). Reuse, do not reinvent: fonts Segoe UI (headings)
+  and Segoe UI / Calibri (body), the theme's c1–c4 and a1/a2, 1 px hairlines, 8 px radii, the capsule for page
+  numbers, the footer "Source:" style for notes.
+- Build it as HTML + CSS (docs/guide/guide.html, guide.css, img/) and print it to PDF with Playwright's Chromium
+  (`page.pdf({ format: "A4", printBackground: true, margin: … })` in a small Node script docs/guide/build.mjs; the
+  repository already has Playwright and its Chromium – README §11.1). Page numbers and running headers in CSS
+  (@page / position: fixed). The PDF is docs/guide/Slide Builder 4 – guide.pdf; check it with
+  `python tools/pdfcheck.py info` (pages, fonts embedded, size < 8 MB) and open it once in Acrobat / Edge.
+- Pictures: real screenshots of the program (not mock-ups) taken with Playwright against the two e2e helpers on
+  a temp folder with the corpus workbooks (app/playwright.config.ts shows how the helpers start; app/e2e/
+  app.spec.ts's helpers openApp / openWorkbook; use tests/corpus/workbooks/weekly.xlsx and deck20.xlsx, and
+  recalc/Banks.xlsx + Peers.xlsx for linked workbooks) at 1500 × 900, in Liquid Glass unless the picture is about
+  another design; crop to what the paragraph talks about; label with numbered callouts drawn in the HTML, not in
+  the picture. Diagrams (the PCs, the share, the helper, the worker; the journey of one edit; the export) as
+  inline SVG in the product's colours – simple boxes and arrows, no stock icons.
+
+CONTENTS (sections; each a page or two)
+1. Cover: name, version (helper/slidebuilder/__init__.py), date, "for the team".
+2. What Slide Builder is, in one page: a workbook on the shared folder becomes a deck of slides that follow the
+   numbers; three designs (+ any added since); several people edit the same deck at once; exports to PDF (and
+   PowerPoint when built). One picture of the window with its parts named.
+3. Getting started: the shared folder, the start file, the window, Open ▾, the wizard's four steps (sheets,
+   tables, slides, versions) with one screenshot each; what "slides by <name>" and "x" markers mean.
+4. Editing: the text toolbar (one toolbar for any text), cells (colour, highlight, role, merge, painter), tables
+   (sizes, same size, position, gridlines, colour scales, drags), text boxes and the notes section, automated
+   comments (what they write and the options), the Design… dialog (designs, themes, colours, text styles, fonts),
+   versions, cover / index / page numbers / footer / logo, undo and the status bar – each as a short entry: what
+   it is for, where it is, what it does, one picture. Use 05 §4's rows as your checklist so nothing is left out.
+5. Working together: others' edits appear within 1–2 s, "✓ Saved", presence, what happens when two people change
+   the same thing, undo of your own changes only, the changed-on-disk banner, read-only decks.
+6. Export: every menu item, the file names, where files go, what "as pictures" is for, the size and speed you can
+   expect (numbers from PROGRESS Measurements / PLAN Part F).
+7. The 4.2 additions as far as they are merged: linked workbooks (how to add one, what the id "[File]Sheet" means),
+   the Formulas line (what "recompute like Excel", "locale-dependent", "different" mean and what to do), scenarios
+   if M8 is merged (run for each value), charts / callouts / free layout / PowerPoint only when merged.
+8. How it works underneath (two pages, for the owner and the maintainer, in plain words with one diagram each):
+   - the pieces: the shared folder (workbooks, export\, app\<version>, backend\data), the helper (a small Python
+     program on each PC that only moves files), the page in Edge (where everything is computed: reading the
+     workbook, laying out, drawing, writing the PDF), the worker inside the page that owns the deck;
+   - saving: each person appends to their own journal file; the others read the new lines every 1.5 s; a snapshot
+     is written now and then (what "Deck: snapshot n · m changes since" means); why nothing needs a lock and what
+     "read-only" means when a file is damaged;
+   - drawing: one display list drives the screen, the pictures and the PDF, so they match; fonts come from font
+     files so every PC lays out the same;
+   - the formula engine (4.2): formulas are read from the file and recomputed inside the page; Excel is never
+     opened; the self-check against Excel's saved values;
+   - what is never done: the workbook is never written; nothing is sent anywhere but the shared folder.
+9. When something looks wrong: the Issues panel's lines and what each means; the common messages (protected
+   file, old .xls, linked workbook not found, logo not found, fonts that differ between PCs); where the logs and
+   backups are; how to update (Update Slide Builder.bat) and roll back (README §2.3–§2.4), in the maintainer's
+   voice.
+10. Glossary: deck, preset, version, design, role, highlight, journal, snapshot, display list, linked workbook,
+    scenario, self-check – one line each.
+
+HOW TO WORK
+- Read first: README.md (all of §1–§10, §14), docs/ARCHITECTURE.md §1–§6, CHANGELOG.md, docs/next/05 §4, docs/next/07
+  §2.3, §6.1–§6.3, PROGRESS.md (what is merged), docs/next/PLAN.md Part B §1 (the window) and §8 (B-items).
+- Then run the program (README §11.2: build is committed; `python helper/slide_builder.py --no-browser --port 8765`
+  on a temp copy of tests/corpus/workbooks, or the e2e helpers) and take every screenshot from it.
+- Write the text first as docs/guide/guide.md (so it can be reviewed in plain form), then lay it out in HTML.
+- Facts check: for each section, list the README / 05 rows it is based on in a hidden comment of the HTML; a
+  fresh sub-agent then reviews the finished PDF against README and 05 §4 and reports every statement it cannot
+  confirm and every function of 05 §4 that is missing from the guide; fix and rebuild until it reports none.
+- Do not commit screenshots of a real deck of the bank (use the corpus workbooks only); do not include the
+  helper's token or any path of the real share other than its name as README gives it.
+- Commit docs/guide/ (sources, images, the PDF, build.mjs) on branch docs/guide in one or two commits; do not
+  push; tell the product owner where the PDF is and ask for their read-through (they decide the language and
+  whether the bank's name appears).
+```
+
 ## Appendix · Review checklist (used by every prompt's double-check step 3)
 
 Report each item as PASS or FAIL with evidence (commands run, path:line).
