@@ -1,6 +1,6 @@
 # ADR-014: Linked workbooks by sheet id; scenario state as an overlay that lives only in the core worker
 
-* **Status:** proposed (Phase 0 design, 2026-10-16; needs 07 §8 Q3, Q7, Q8)
+* **Status:** accepted (approved 2026-10-16 with 07 §8; built in M7 S7.3–S7.4)
 * **Deciders:** product owner, maintainers
 * **Related:** 07 §2.3–§2.5, ADR-013, ADR-006 (journals), PLAN Part B §2 (one owner per state)
 

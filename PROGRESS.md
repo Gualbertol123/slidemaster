@@ -282,6 +282,11 @@ numbers measured twice). Measured numbers go into the step's line.
 
 ## Waiting for
 
+- **M7 · gate G4, for the product owner (2026-10-16):** when S7.5's two protocol runs are recorded, (1) push `v4/M7-recalc`
+  and open ONE pull request "M7 · Recalculation core (S7.1–S7.5)"; (2) on your real decks: open each, press **Check**
+  on the side panel's *Formulas* line and send back the line's text (e.g. "Formulas: 1,219 of 1,239 recompute like
+  Excel · 20 locale-dependent (TEXT)") – no file leaves your PC; a `different` count above 0 is what M8's scenario runs
+  will stop on, so those numbers decide whether M8 starts as planned (07 §7 S7.5, G4).
 - **M7, for the product owner (FYI, 2026-10-16):** the engine's first-use budget is 300 ms cold instead of the 200 ms of
   07 §6.4 (that figure assumed a warm model; measured cold 225–235 ms at reference speed, warm 85–100 ms; one scenario
   value 74–88 ms against 150). Say so if 300 ms is not acceptable: the alternative is to build the model while the deck

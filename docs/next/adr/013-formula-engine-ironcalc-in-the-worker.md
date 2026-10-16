@@ -1,6 +1,6 @@
 # ADR-013: Recalculation by IronCalc (WASM) inside the core worker, checked against Excel's saved values; no Excel at run time
 
-* **Status:** proposed (Phase 0 design, 2026-10-16; needs the product owner's answer to 07 §8 Q1–Q2)
+* **Status:** accepted (approved 2026-10-16 with 07 §8; built in M7 S7.2–S7.4)
 * **Deciders:** product owner (no Excel on the running PC, 2026-10-16), maintainers
 * **Related:** `docs/next/07-scenarios-charts-pptx.md` §1, `spikes/recalc/`, ADR-001, ADR-002
 
