@@ -91,7 +91,9 @@ export interface CoreMethods {
 }
 /** the self-check's result: how many formula cells are exact / volatile / locale-dependent / external / unreadable /
     different, the first differences, the engine's times (ms) */
-export interface CalcCheck { counts: import("../calc/engine").SelfCheck["counts"]; different: import("../calc/engine").SelfCheck["different"]; formulas: number; ms: { load: number; build: number; evaluate: number; check: number } }
+export interface CalcCheck { counts: import("../calc/engine").SelfCheck["counts"]; different: import("../calc/engine").SelfCheck["different"]; formulas: number;
+  /** why values were read in the engine's General format (null: the 15-digit format applied) */ styleError: string | null;
+  ms: { load: number; build: number; evaluate: number; check: number } }
 export type SlideListsReq = DesignReq & { slides?: number[]; /** the date the page shows (its clock) */ today?: string };
 export interface SlideList { slide: number; dl: import("../render/excel-dl").TableDL }
 /** the stage's request: slide `slide` of the current design and version. `known`: the image ids the page already has

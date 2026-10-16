@@ -29,11 +29,12 @@ it("engine: first use under 200 ms, one scenario value under 150 ms (BanksBig)",
     const model = new CalcModel(g, [{ name: null, sheets: wb.sheets, externals: [] }]); model.selfCheck();
     const build = performance.now() - t1;
     const t2 = performance.now(); model.set(null, "Control", 2, 2, "Bank " + "BCDEFG"[run]); model.evaluate(); model.values(); const value = performance.now() - t2;
-    if (run) { builds.push(build); values.push(value); }
+    builds.push(build); if (run) values.push(value);
     model.dispose();
   }
-  const first = wasmMs + median(builds), value = median(values);
-  console.log(`bench · engine: WASM ${wasmMs.toFixed(0)} ms + model and self-check ${median(builds).toFixed(0)} ms = first use ${first.toFixed(0)} ms; one value ${value.toFixed(1)} ms (median of 5)`);
+  // the first use is the cold one: the WASM, then the first model ever built (the JIT is cold too)
+  const first = wasmMs + builds[0], value = median(values);
+  console.log(`bench · engine: WASM ${wasmMs.toFixed(0)} ms + first model and self-check ${builds[0].toFixed(0)} ms = first use ${first.toFixed(0)} ms (warm models ${median(builds.slice(1)).toFixed(0)} ms); one value ${value.toFixed(1)} ms (median of 5)`);
   expect(first, `first use ${first.toFixed(0)} ms (limit ${FIRST_USE_MS} × ${speed.factor.toFixed(2)} + 10 %)`).toBeLessThan(FIRST_USE_MS * speed.factor * SLACK);
   expect(value, `one value ${value.toFixed(1)} ms (limit ${VALUE_MS} × ${speed.factor.toFixed(2)} + 10 %)`).toBeLessThan(VALUE_MS * speed.factor * SLACK);
 }, 120_000);

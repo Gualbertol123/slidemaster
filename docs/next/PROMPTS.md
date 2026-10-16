@@ -792,6 +792,7 @@ Then STOP: "G3: agree the Monday, tag v4.0.0, follow cutover.md" under "Waiting 
 ## Prompt 9 · Hardening (S6.1–S6.5)
 
 ```text
+v4.0.0 is tagged and live on slider since 2026-10-15 (record under Decisions; the four weeks of monitoring run in parallel)
 You are a senior engineer on Slide Builder (this checkout). We rebuild it following docs/next/PLAN.md.
 This prompt covers milestone M6: steps S6.1–S6.5.
 
@@ -912,10 +913,7 @@ Write docs/next/AUDIT.md:
 - every finding with severity (critical / high / medium / low), how to reproduce it, and the fix you
   propose.
 
-Fix ONLY defects that have a failing reproduction, in a separate branch v4/audit-fixes with one commit
-per finding. Re-run the full protocol twice after the fixes and add the results to AUDIT.md.
-
-Final reply: the verdict, the findings by severity, what you fixed, and what still needs a human.
+Fix the defects and make recommendations for further improvements.
 ```
 
 ---

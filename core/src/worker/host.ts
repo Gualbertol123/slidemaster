@@ -129,11 +129,11 @@ export class CoreHost {
     this.port.emit("progress", null);
     const g = await loadEngine(); const t1 = now();
     if (this.wb !== wb) return null;
-    const model = new CalcModel(g, [{ name: null, file: this.name, sheets: wb.sheets, externals: wb.externals }]);
-    const t2 = now(); const sc = model.selfCheck(); const t3 = now();
-    const out: CalcCheck = { counts: sc.counts, different: sc.different.slice(0, 20), formulas: model.formulas.length, ms: { load: t1 - t0, build: model.ms.build, evaluate: model.ms.evaluate, check: t3 - t2 } };
-    model.dispose();
-    return out;
+    const model = new CalcModel(g, [{ name: null, file: this.name, sheets: wb.sheets, hidden: wb.hiddenSheets, externals: wb.externals }]);
+    try {
+      const t2 = now(); const sc = model.selfCheck(); const t3 = now();
+      return { counts: sc.counts, different: sc.different.slice(0, 20), formulas: model.formulas.length, styleError: model.styleError, ms: { load: t1 - t0, build: model.ms.build, evaluate: model.ms.evaluate, check: t3 - t2 } };
+    } finally { model.dispose(); }
   }
   /** the export workers' channels, by the page's number for each (closed when the worker stops) */
   private exportLinks = new Map<number, MessagePort>();

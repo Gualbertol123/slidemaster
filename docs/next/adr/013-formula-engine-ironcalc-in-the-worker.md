@@ -14,7 +14,8 @@ accepted for HarfBuzz).
 ## Decision
 * **`@ironcalc/wasm` 0.9.0** (MIT or Apache-2.0, Rust compiled to WebAssembly, 2,089,699 bytes; 714 KB gzip) is vendored
   and inlined in the page like `hb.wasm`, pinned by content hash, instantiated lazily in the core worker on first use.
-  Its licence texts are copied to `core/src/calc/wasm/LICENSE-ironcalc`.
+  The npm package ships no licence file: the MIT text with the holders' notice (EqualTo GmbH, Nicolás Hatcher) is
+  reproduced from the repository into `core/src/calc/wasm/LICENSE-ironcalc`.
 * The core builds the engine's model from its own SheetStore (cells, formula text read by S7.2), so the workbook is read
   once, by our reader, as today; whole-column/row references are bounded to the used range (07 §1.4 rule 3).
 * **Self-check**: on first use every formula cell is evaluated and compared with the cached value; cells are classed
@@ -33,6 +34,8 @@ accepted for HarfBuzz).
 − External links are not an engine feature: ADR-014 loads linked files into the same model.
 − Values are read back through a 15-significant-digit format (no raw getter in the WASM API); the model built from
   our SheetStore keeps no number formats, so `TEXT()` with locale codes and dynamic-array spills are limits (07 §1.4).
+− Hidden sheets are never read (WB-18), so a formula that reads one is classed `hidden` by the self-check and is not
+  recomputed until S7.3 reads hidden sheets into the model (never into the deck).
 + Measured in S7.2 (reference-speed PC): engine first use 113 ms (WASM 32 + model and self-check of the 20-sheet deck
   81), one scenario value 74 ms; the page grows from 1,540,884 to 3,540,517 bytes (B23).
 

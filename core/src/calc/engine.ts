@@ -32,10 +32,11 @@ export function loadEngine(): Promise<Glue> {
 
 /** a workbook of the model: the deck's (`name` null) or a linked one by file name; `externals` = the file names its
     external links refer to, in the "[n]" order of its formulas */
-export interface CalcBook { name: string | null; /** the deck's workbook's own file name (what linked workbooks' formulas call it) */ file?: string; sheets: Sheet[]; externals: string[] }
+export interface CalcBook { name: string | null; /** the deck's workbook's own file name (what linked workbooks' formulas call it) */ file?: string; sheets: Sheet[];
+  /** the workbook's hidden sheets (never read, WB-18): a formula that names one is classed `hidden` */ hidden?: string[]; externals: string[] }
 export type CellValue = number | string | boolean | { err: string } | null;
 export interface FormulaCell { book: string | null; sheet: string; r: number; c: number; text: string; array?: string }
-export type CheckClass = "exact" | "volatile" | "locale" | "external" | "unreadable" | "different";
+export type CheckClass = "exact" | "volatile" | "locale" | "external" | "hidden" | "unreadable" | "different";
 export interface SelfCheck {
   counts: Record<CheckClass, number>;
   /** the cells that differ from Excel's cached value (first 200), with both values */
@@ -69,10 +70,10 @@ export class CalcModel {
   /** internal (engine) sheet names by the same key, quoted for formulas */
   private readonly names = new Map<string, string>();
   readonly formulas: FormulaCell[] = [];
-  private readonly unreadable: number;
   private readonly books: CalcBook[];
-  /** cells whose formula names a linked workbook that is not in the model */
+  /** cells whose formula names a linked workbook that is not in the model, and cells that name a hidden sheet */
   private readonly externalCells = new Set<string>();
+  private readonly hiddenCells = new Set<string>();
   /** time spent, ms: building the model, the first evaluation */
   readonly ms = { build: 0, evaluate: 0 };
   /** why the 15-digit read-back format could not be applied (values then come in the engine's General format) */
@@ -82,13 +83,19 @@ export class CalcModel {
     const t0 = now();
     this.books = books;
     this.model = new g.Model("sb", "en", "UTC", "en");
+    try { this.build(books); } catch (e) { this.model.free(); throw e; }
+    this.ms.build = now() - t0;
+    const t1 = now(); this.model.evaluate(); this.ms.evaluate = now() - t1;
+  }
+  private unreadable = 0;
+  private build(books: CalcBook[]) {
     let unreadable = 0, first = true, n = 0;
     const used = new Set<string>();
     for (const [bi, b] of books.entries()) for (const S of b.sheets) {
       if (!first) this.model.newSheet(); first = false;
-      const internal = b.name === null ? S.name : mangle(bi, S.name, used);
+      let internal = b.name === null ? S.name : mangle(bi, S.name, used);
+      try { this.model.renameSheet(n, internal); } catch { internal = mangle(bi, "Sheet" + n, used); this.model.renameSheet(n, internal); }
       used.add(internal.toLowerCase());
-      try { this.model.renameSheet(n, internal); } catch { this.model.renameSheet(n, mangle(bi, "Sheet" + n, used)); }
       const key = b.name + "\u0000" + S.name;
       this.ix.set(key, n); this.names.set(key, quoteSheet(internal));
       unreadable += S.unreadableFormulas || 0;
@@ -102,8 +109,6 @@ export class CalcModel {
     } catch (e) { this.styleError = String((e as Error)?.message || e); }
     for (const b of books) for (const S of b.sheets) this.load(b, S);
     this.model.resumeEvaluation();
-    this.ms.build = now() - t0;
-    const t1 = now(); this.model.evaluate(); this.ms.evaluate = now() - t1;
   }
 
   /** every cell of a sheet into the engine: numbers in one tab-separated paste per used box (fast), everything else cell by cell */
@@ -132,7 +137,7 @@ export class CalcModel {
           const arr = C.arr.get(i);
           this.formulas.push({ book: b.name, sheet: S.name, r, c, text: C.fmls[fk], ...(arr ? { array: arr } : {}) });
           fmlBox = fmlBox ? { r1: Math.min(fmlBox.r1, r), c1: Math.min(fmlBox.c1, c), r2: Math.max(fmlBox.r2, r), c2: Math.max(fmlBox.c2, c) } : { r1: r, c1: c, r2: r, c2: c };
-          if (text === null) { this.externalCells.add(b.name + "\u0000" + S.name + "\u0000" + r + "," + c); continue; }
+          if (text === null) { (this.lastHidden ? this.hiddenCells : this.externalCells).add(b.name + "\u0000" + S.name + "\u0000" + r + "," + c); continue; }
           if (arr) { const m = /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/.exec(arr); const w = m && m[3] ? colNum(m[3]) - colNum(m[1]) + 1 : 1, h = m && m[4] ? +m[4] - +m[2] + 1 : 1; later.push([r, c, "\u0001" + w + "," + h + "," + text]); }
           else later.push([r, c, "=" + text]);
           continue;
@@ -178,9 +183,12 @@ export class CalcModel {
   /** a formula as the engine takes it: Excel's _xlfn./_xlws./_xlpm. prefixes dropped, "[n]Sheet" references renamed to
       the linked workbook's internal sheets (null when that workbook is not in the model), whole columns / rows bounded
       to the used range of their sheet (not inside OFFSET, INDIRECT, ROW(S), COLUMN(S)) */
+  /** set by prep(): the last null was a hidden sheet's reference (else a linked workbook's) */
+  private lastHidden = false;
   prep(text: string, b: CalcBook, S: Sheet): string | null {
     const toks = tokenize(text);
-    const stack: string[] = []; let out = "", external = false;
+    const stack: string[] = []; let out = "", external = false, hidden = false;
+    this.lastHidden = false;
     for (const t of toks) {
       if (t.kind === "str") { out += t.s; continue; }
       if (t.kind === "text") {
@@ -189,11 +197,12 @@ export class CalcModel {
         for (const m of s.matchAll(/([A-Za-z_][\w.]*)\s*\(|[()]/g)) { if (m[1]) stack.push(m[1].toUpperCase()); else if (m[0] === "(") stack.push(""); else stack.pop(); }
         out += s; continue;
       }
-      out += this.ref(t, b, S, stack.some(f => UNBOUNDED.has(f)), () => { external = true; });
+      out += this.ref(t, b, S, stack.some(f => UNBOUNDED.has(f)), () => { external = true; }, () => { hidden = true; });
     }
-    return external ? null : out;
+    this.lastHidden = hidden && !external;
+    return external || hidden ? null : out;
   }
-  private ref(t: Extract<FToken, { kind: "ref" }>, b: CalcBook, S: Sheet, unbounded: boolean, markExternal: () => void): string {
+  private ref(t: Extract<FToken, { kind: "ref" }>, b: CalcBook, S: Sheet, unbounded: boolean, markExternal: () => void, markHidden: () => void): string {
     // the sheet the reference names: this one, another of the same book, or a sheet of a linked book
     let book = b, sheetName = S.name, prefix = "";
     if (t.sheet !== null) {
@@ -204,7 +213,10 @@ export class CalcModel {
         book = linked; sheetName = m[2];
       } else sheetName = t.sheet;
       const key = book.name + "\u0000" + sheetName, q = this.names.get(key);
-      if (q === undefined) return t.s;                                // an unknown sheet: left as written (#REF! in the engine)
+      if (q === undefined) {
+        if (book.hidden?.some(h => h.toLowerCase() === sheetName.toLowerCase())) markHidden();   // a hidden sheet: never read (WB-18)
+        return t.s;                                                   // an unknown sheet: left as written (#REF! in the engine)
+      }
       prefix = q + "!";
     }
     const body = t.s.slice(t.s.length - t.s.replace(/^.*!/, "").length);
@@ -238,13 +250,15 @@ export class CalcModel {
 
   /** the self-check of 07 §1.4 (4): every formula cell against the workbook's cached value */
   selfCheck(): SelfCheck {
-    const counts: Record<CheckClass, number> = { exact: 0, volatile: 0, locale: 0, external: 0, unreadable: this.unreadable, different: 0 };
+    const counts: Record<CheckClass, number> = { exact: 0, volatile: 0, locale: 0, external: 0, hidden: 0, unreadable: this.unreadable, different: 0 };
     const different: SelfCheck["different"] = [];
     for (const f of this.formulas) {
       const S = this.books.find(b => b.name === f.book)!.sheets.find(s => s.name === f.sheet)!;
       const cell = S.get(f.r, f.c), cached: CellValue = !cell || cell.t === "blank" ? null : cell.t === "e" ? { err: String(cell.v) } : (cell.v as CellValue);
       const computed = this.valueOf(f.book, f.sheet, f.r, f.c);
-      if (this.externalCells.has(f.book + "\u0000" + f.sheet + "\u0000" + f.r + "," + f.c)) { counts.external++; continue; }
+      const ck = f.book + "\u0000" + f.sheet + "\u0000" + f.r + "," + f.c;
+      if (this.externalCells.has(ck)) { counts.external++; continue; }
+      if (this.hiddenCells.has(ck)) { counts.hidden++; continue; }
       if (sameValue(computed, cached)) { counts.exact++; continue; }
       if (VOLATILE.test(f.text)) { counts.volatile++; continue; }
       if (LOCALE.test(f.text)) { counts.locale++; continue; }

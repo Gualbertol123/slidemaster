@@ -120,10 +120,10 @@ used range; §1.4 rule 3 states where it is not.
    formulas or marks the sheet "formulas not readable in .xlsb" and falls back to values only). Memory: one string per
    formula cell (interned), nothing per value cell.
 3. **Whole-column and whole-row references** (`A:A`, `1:1`) are rewritten to the sheet's used range when the model is
-   built, **except** inside `OFFSET`, `INDIRECT`, `INDEX(…,0)`-style reference arithmetic, `ROW()`/`COLUMN()`/`ROWS()`
-   /`COLUMNS()` arguments, and when the used range of that sheet grows at run time (it cannot: the workbook is
-   read-only). The spike shows the exact result on every formula of its corpus with this rule; the self-check (4)
-   proves it per workbook.
+   built, **except** inside `OFFSET`, `INDIRECT`, `ROW()`/`COLUMN()`/`ROWS()`/`COLUMNS()` calls (at any depth); the
+   used range cannot grow at run time (the workbook is read-only). `INDEX(Data!G:G, …)` is bounded (tested: exact). The
+   spike shows the exact result on every formula of its corpus with this rule; the self-check (4) proves it per
+   workbook.
 4. **Self-check on first use** (the "check against Excel's saved values" of option (c), without Excel): the engine
    evaluates every formula cell once and compares with the cached values. Result per workbook: `exact` cells,
    `volatile`, `locale` (TEXT/date formats), `external` (links to files not opened), `different` (engine ≠ Excel). The
@@ -146,6 +146,13 @@ used range; §1.4 rule 3 states where it is not.
   does 15 k cells/s), strings cell by cell with a quote prefix so that no text is read as a number, date or formula.
 * Dynamic arrays spill in Excel; the spilled cells are constants in the file and in the model, so a workbook whose
   slide tables are fed by spills shows `different` cells in the self-check (a limit, rare in reporting decks).
+* Whole columns of **two different sheets inside one array expression** (`SUMPRODUCT((Data!A:A="x")*(Control!B:B))`)
+  are bounded to two different heights and give `#VALUE!` where Excel (both 1,048,576 rows) gives a number: classed
+  `different` by the self-check, not silent. Structured references (`Table1[Col]`) pass through as text and are
+  `different` too (not "unreadable": the formula text is read).
+* **Hidden sheets** are never read (WB-18), so a formula that names one is classed **`hidden`** (its own class in the
+  self-check and the Issues line) and its dependants `different`; S7.3 reads hidden sheets into the engine's model only
+  (they stay out of the deck).
 
 ---
 

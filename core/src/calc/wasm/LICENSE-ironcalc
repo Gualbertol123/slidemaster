@@ -1,10 +1,11 @@
 @ironcalc/wasm 0.9.0 – https://github.com/ironcalc/IronCalc
 Licensed under either of the MIT License or the Apache License, Version 2.0, at your option ("MIT/Apache-2.0" in the
-package's package.json). Slide Builder uses it under the MIT License:
+package's package.json; the npm package ships no licence file, so the MIT text is reproduced here from the repository's
+LICENSE-MIT). Slide Builder uses it under the MIT License:
 
 MIT License
 
-Copyright (c) IronCalc contributors
+Copyright (c) 2023 EqualTo GmbH, 2023 Nicolás Hatcher
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 documentation files (the "Software"), to deal in the Software without restriction, including without limitation the

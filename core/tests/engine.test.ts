@@ -68,6 +68,16 @@ describe("Banks.xlsx + Peers.xlsx (linked both ways)", () => {
     expect(model.prep("_xlfn.IFS(A1>1,\"a\",TRUE,\"b\")", b, S)).toBe("IFS(A1>1,\"a\",TRUE,\"b\")");
     expect(model.prep("[1]Peer!F7", b, S)).toBe("'«1»Peer'!F7");
   });
+  it("a reference to a hidden sheet (never read) is classed hidden, and its dependants different", () => {
+    // Data taken out of the model as if hidden: every formula that reads it is hidden, what depends on those differs
+    const sheets = banks.sheets.filter(s => s.name !== "Data");
+    const m = new CalcModel(g, [{ name: null, file: "Banks.xlsx", sheets, hidden: ["Data"], externals: ["Peers.xlsx"] }, { name: "Peers.xlsx", sheets: peers.sheets, externals: peers.externals }]);
+    const sc = m.selfCheck();
+    expect(sc.counts.hidden).toBeGreaterThan(40);                    // the cells that read Data directly; their dependants are different
+    expect(sc.counts.external).toBe(0);
+    expect(sc.different.some(d => d.ref === "H5" && d.sheet === "SLIDE_1")).toBe(true);   // G5-F5 of hidden-fed cells
+    m.dispose();
+  });
   it("a reference to a linked workbook that is not in the model is classed external", () => {
     const alone = new CalcModel(g, [{ name: null, sheets: banks.sheets, externals: ["Peers.xlsx"] }]);
     const sc = alone.selfCheck();
