@@ -189,7 +189,14 @@ export class SheetScanner {
     let p = gt + 1, lastCol = 0;
     for (;;) {
       while (p < end && b[p] !== LT) p++;
-      if (p >= end) { this.cells.n = savedN; for (const k of this.runs.keys()) if (k >= savedN) this.runs.delete(k); this.lastRow = saved; return i + 1; }
+      if (p >= end) {
+        this.cells.n = savedN; this.lastRow = saved;
+        for (const k of this.runs.keys()) if (k >= savedN) this.runs.delete(k);
+        for (const k of this.fml.keys()) if (k >= savedN) this.fml.delete(k);
+        for (const k of this.arr.keys()) if (k >= savedN) this.arr.delete(k);
+        for (const [si, m] of this.sharedF) if (m.row === r) this.sharedF.delete(si);
+        return i + 1;
+      }
       if (b[p + 1] === SL) { const after = this.endTag(p, "row"); if (after >= 0) { commit(); return after; } p++; continue; }
       this.name(p + 1);
       if (this.named("c") && !isW(b[this.na + 1])) {

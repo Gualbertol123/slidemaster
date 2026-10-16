@@ -1,6 +1,6 @@
 /* workbook.bin: the sheets in tab order (BrtBundleSh, MS-XLSB 2.4.304) – the name, whether it is shown and its
    relationship id, as <sheet name state r:id> of workbook.xml. For the formulas (PLAN S7.1) also the defined names
-   (BrtName, in nameindex order), the supporting books (BrtSupSelf / BrtSupSame / BrtSupBookSrc, in
+   (BrtName, in nameindex order), the supporting books (BrtSupSelf / BrtSupSame / BrtSupBookSrc / BrtSupAddin / BrtBeginSupBook, in
    iSupBook order) and the XTI table (BrtExternSheet) that 3D references index. */
 import { Records, Rt } from "./records";
 
@@ -43,6 +43,9 @@ export function readWorkbookInfoBin(bytes: Uint8Array): BinWorkbookInfo {
         }
         case Rt.SupSelf: case Rt.SupSame: info.books.push({ kind: "self" }); break;
         case Rt.SupBookSrc: { const relId = r.wstr(); info.books.push({ kind: "external", relId, sheets: [] }); break; }
+        // an add-in and a DDE / OLE link count as books too (the XTI indexes include them)
+        case Rt.SupAddin: info.books.push({ kind: "addin" }); break;
+        case Rt.BeginSupBook: info.books.push({ kind: "other" }); break;
         case Rt.ExternSheet: {
           const n = r.u32();
           for (let k = 0; k < n && r.left >= 12; k++) { const book = r.u32(), first = r.i32(), last = r.i32(); info.xti.push({ book, first, last }); }

@@ -17,7 +17,7 @@ export const enum Rt {
   /* formulas (PLAN S7.1): shared and array formulas after their master cell; the workbook's names and supporting
      books / sheet table for 3D references; the sheet names of an external link part */
   ArrFmla = 426, ShrFmla = 427, Name = 39,
-  BeginExternals = 353, EndExternals = 354, SupBookSrc = 355, SupSelf = 357, SupSame = 358, SupTabs = 359, ExternSheet = 362,
+  BeginExternals = 353, EndExternals = 354, SupBookSrc = 355, SupSelf = 357, SupSame = 358, SupTabs = 359, BeginSupBook = 360, ExternSheet = 362, SupAddin = 667,
 }
 
 export class XlsbError extends Error {}

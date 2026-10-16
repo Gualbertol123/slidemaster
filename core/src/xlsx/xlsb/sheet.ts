@@ -61,25 +61,30 @@ export class BinSheetReader {
   /* formulas (S7.1): a cell whose formula is a PtgExp waits for the BrtShrFmla / BrtArrFmla record that follows its
      master; the masters' texts, by "r,c", shift to the children */
   private pending: { r: number; c: number } | null = null;
-  /** the shared / array formulas seen so far: the master's text and the range of cells it covers (a child cell's
-      PtgExp names the master's row; the range says which master) */
-  private readonly masters: { g: Range; text: string }[] = [];
+  /** the shared / array formulas seen so far, by the master's row: the range of cells each covers and its text (null:
+      it could not be read); a child cell's PtgExp names the master's row, the range says which master */
+  private readonly masters = new Map<number, { g: Range; text: string | null; array: boolean }[]>();
   /** formula cells the reader could not decompile (reported by the self-check) */
   unreadable = 0;
   /** sss: per font of styles.bin, 1 superscript / 2 subscript (the rich strings' raised parts); info: the workbook's
       names and sheet table for 3D references (without it they read as unreadable) */
-  constructor(bytes: Uint8Array, private readonly ctx: Shared, private readonly sss: number[] = [], private readonly info?: BinWorkbookInfo) { this.r = new Records(bytes); this.cols = new ColumnsBuilder(ctx); }
+  constructor(bytes: Uint8Array, private readonly ctx: Shared, private readonly sss: number[] = [], private readonly info?: BinWorkbookInfo, private readonly name?: string) { this.r = new Records(bytes); this.cols = new ColumnsBuilder(ctx); }
   get progress() { return this.r.progress; }
   /** the formula after a BrtFmla* value: its text goes to the cell just pushed; a PtgExp waits for the master's record */
   private cellFormula(rw: number, c: number) {
     const r = this.r;
     if (r.left < 2) return;
     r.u16();                                                          // grbitFlags
-    const f = readParsedFormula(r, { r: rw, c }, this.info);
+    const f = readParsedFormula(r, { r: rw, c }, this.info, false, this.name);
     if (f.exp) {
-      for (let k = this.masters.length - 1; k >= 0; k--) {
-        const m = this.masters[k];
-        if (rw >= m.g.r1 && rw <= m.g.r2 && c >= m.g.c1 && c <= m.g.c2) { this.cols.formula(shiftFormula(m.text, rw - m.g.r1, c - m.g.c1)); return; }
+      const ms = this.masters.get(f.exp.r);
+      if (ms) for (let k = ms.length - 1; k >= 0; k--) {
+        const m = ms[k];
+        if (rw < m.g.r1 || rw > m.g.r2 || c < m.g.c1 || c > m.g.c2) continue;
+        if (m.text === null) this.unreadable++;                        // its master could not be read
+        else if (!m.array) this.cols.formula(shiftFormula(m.text, rw - m.g.r1, c - m.g.c1));
+        // a cell inside an array formula's range: no text of its own (the .xlsx scanner keeps none either)
+        return;
       }
       this.pending = { r: rw, c };                                     // the master itself: BrtShrFmla / BrtArrFmla comes next
     } else if (f.text) this.cols.formula(f.text);
@@ -139,11 +144,11 @@ export class BinSheetReader {
         // (a shared formula's references are offsets from the master; an array formula's are coordinates)
         const g = readRfx(r), array = r.type === Rt.ArrFmla; if (array) r.u8();
         const p = this.pending; this.pending = null;
-        const f = readParsedFormula(r, { r: g.r1, c: g.c1 }, this.info, !array);
+        const f = readParsedFormula(r, { r: g.r1, c: g.c1 }, this.info, !array, this.name);
+        const list = this.masters.get(g.r1); if (list) list.push({ g, text: f.text, array }); else this.masters.set(g.r1, [{ g, text: f.text, array }]);
         if (!f.text) { if (p) this.unreadable++; return; }
-        this.masters.push({ g, text: f.text });
         if (p && p.r === g.r1 && p.c === g.c1) this.cols.formula(f.text, array ? A1(g.r1, g.c1) + (g.r2 !== g.r1 || g.c2 !== g.c1 ? ":" + A1(g.r2, g.c2) : "") : undefined);
-        else if (p) this.cols.formula(shiftFormula(f.text, p.r - g.r1, p.c - g.c1));
+        else if (p && !array) this.cols.formula(shiftFormula(f.text, p.r - g.r1, p.c - g.c1));
         return;
       }
       case Rt.WsFmtInfo: {
@@ -182,7 +187,7 @@ export class BinSheetReader {
         // a formula that cannot be shown keeps its place as an error value: no comparison with it matches (as for
         // the .xlsx text of a name or another sheet's cell), and the next formula stays the second operand
         const formulas: string[] = [];
-        for (const n of cb) { if (!n) continue; formulas.push(readCfFormula(r, base) ?? "#NAME?"); }
+        for (const n of cb) { if (!n) continue; formulas.push(readCfFormula(r, base, this.info, this.name) ?? "#NAME?"); }
         this.cfRules.push({ ranges, type, op, priority: pri, stop: !!(flags & 2), dxf: this.ctx.dxfs[dxfId] || null, formulas });
         return;
       }

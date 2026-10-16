@@ -33,8 +33,11 @@ export function tokenize(f: string): FToken[] {
       if (pm) { const m = REF.exec(f.slice(i + pm[0].length)); if (m) { flush(); out.push(refToken(m, (pm[1] || "") + pm[2], pm[0])); i += pm[0].length + m[0].length; continue; } }
       const m = REF.exec(f.slice(i));
       if (m) { flush(); out.push(refToken(m, null, "")); i += m[0].length; continue; }
-      // a word (function name, name, TRUE): copied whole so its letters are never read as a reference
-      let j = i; while (j < f.length && isWord(f[j])) j++; text += f.slice(i, j); i = j; continue;
+      // a word (function name, name, TRUE): copied whole so its letters are never read as a reference; anything
+      // else here ("[" of a structured reference, a stray "$") is one character of text, so the loop always moves on
+      let j = i; while (j < f.length && isWord(f[j])) j++;
+      if (j === i) j = i + 1;
+      text += f.slice(i, j); i = j; continue;
     }
     text += ch; i++;
   }

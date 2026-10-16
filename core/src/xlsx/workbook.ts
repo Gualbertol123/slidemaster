@@ -301,7 +301,7 @@ export async function readSheet(zip: Zip, sh: SheetMeta, ctx: Shared, tick?: (f:
 }
 /** a sheet from its BIFF12 records (sheetN.bin of an .xlsb) */
 export async function parseSheetBin(zip: Zip, sh: SheetMeta, bytes: Uint8Array, ctx: Shared, tick?: (f: number) => void): Promise<Sheet> {
-  const rd = new BinSheetReader(bytes, ctx, FONT_SCRIPTS.get(ctx), BIN_INFO.get(zip));
+  const rd = new BinSheetReader(bytes, ctx, FONT_SCRIPTS.get(ctx), BIN_INFO.get(zip), sh.name);
   if (!tick) rd.run();
   else { const pace = pacer(); while (!rd.run(20000)) { tick(Math.min(.95, rd.progress)); const w = pace(); if (w) await w; } }
   const b = rd.finish();

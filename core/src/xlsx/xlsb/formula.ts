@@ -50,8 +50,6 @@ export const FN: Record<number, [string, number]> = {
   468: ["CONVERT", 3], 469: ["ACCRINT", -1], 471: ["WORKDAY", -1], 472: ["NETWORKDAYS", -1], 473: ["GCD", -1], 474: ["MULTINOMIAL", -1], 475: ["LCM", -1], 480: ["IFERROR", 2], 481: ["COUNTIFS", -1],
   482: ["SUMIFS", -1], 483: ["AVERAGEIF", -1], 484: ["AVERAGEIFS", -1],
 };
-/** tests only: the function ids the decompiler did not know (null when not collecting) */
-export const debug: { unknown: number[] | null } = { unknown: null };
 const wrapRow = (r: number) => ((r - 1) % 1048576 + 1048576) % 1048576 + 1, wrapCol = (c: number) => ((c - 1) % 16384 + 16384) % 16384 + 1;
 const numText = (n: number) => String(n).replace("e+", "E+").replace("e-", "E-");
 
@@ -66,11 +64,10 @@ function ref(row: number, colField: number, base: { r: number; c: number } | nul
 /** an area's text: whole columns ("C:C", every row) and whole rows ("3:3", every column) as Excel writes them */
 function area(r1: number, c1: number, r2: number, c2: number, base: { r: number; c: number } | null): string {
   const a = ref(r1, c1, base), b = ref(r2, c2, base);
-  if (!base) {
-    // every row (0 … 1048575) = a whole column, whatever the row flags say; every column = a whole row
-    if ((r1 >>> 0) === 0 && (r2 >>> 0) === 1048575) return a.replace(/\$?\d+$/, "") + ":" + b.replace(/\$?\d+$/, "");
-    if ((c1 & 0x3fff) === 0 && (c2 & 0x3fff) === 16383) return a.replace(/^\$?[A-Z]+/, "") + ":" + b.replace(/^\$?[A-Z]+/, "");
-  }
+  // every row (0 … 1048575, absolute rows: coordinates also in a shared formula) = a whole column; every column = a
+  // whole row (absolute columns)
+  if (!(c1 & 0x8000) && !(c2 & 0x8000) && (r1 >>> 0) === 0 && (r2 >>> 0) === 1048575) return a.replace(/\$?\d+$/, "") + ":" + b.replace(/\$?\d+$/, "");
+  if (!(c1 & 0x4000) && !(c2 & 0x4000) && (c1 & 0x3fff) === 0 && (c2 & 0x3fff) === 16383) return a.replace(/^\$?[A-Z]+/, "") + ":" + b.replace(/^\$?[A-Z]+/, "");
   return a + ":" + b;
 }
 /** a sheet name as a formula writes it: quoted when it has anything but word characters, or starts with a digit */
@@ -94,27 +91,27 @@ function prefix3d(ixti: number, info: BinWorkbookInfo | undefined): string | nul
 }
 
 /** CFParsedFormula at the reader's position (cce, rgce, cb, rgcb) → its text, or null when it cannot be shown */
-export function readCfFormula(r: Records, base: { r: number; c: number }): string | null {
-  return readParsedFormula(r, base, undefined, true).text;
+export function readCfFormula(r: Records, base: { r: number; c: number }, info?: BinWorkbookInfo, sheetName?: string): string | null {
+  return readParsedFormula(r, base, info, true, sheetName).text;
 }
 /** a cell's CellParsedFormula (BrtFmla*: after the value and grbitFlags), an array's or a shared formula's: the
     text, or `exp` = the master cell a PtgExp points at (the BrtShrFmla / BrtArrFmla that follows the master holds the
     text), or neither when the formula cannot be read. `relative`: a shared or conditional-format formula, whose
     relative references (PtgRefN, PtgAreaN, and the 3D ones) are offsets from `base`; a cell's own formula holds
     coordinates */
-export function readParsedFormula(r: Records, base: { r: number; c: number }, info: BinWorkbookInfo | undefined, relative = false): { text: string | null; exp?: { r: number; c: number } } {
+export function readParsedFormula(r: Records, base: { r: number; c: number }, info: BinWorkbookInfo | undefined, relative = false, sheetName?: string): { text: string | null; exp?: { r: number; c: number } } {
   if (r.left < 4) return { text: null };
   const cce = r.u32();
   if (cce > r.left) { r.p = r.end; return { text: null }; }
   const end = r.p + cce;
   let out: { text: string | null; exp?: { r: number; c: number } };
-  try { out = decompile(r, end, base, info, relative); } catch { out = { text: null }; }
+  try { out = decompile(r, end, base, info, relative, sheetName); } catch { out = { text: null }; }
   r.p = end;
   if (r.left >= 4) { const cb = r.u32(); r.p = Math.min(r.end, r.p + cb); }
   return out;
 }
 
-function decompile(r: Records, end: number, base: { r: number; c: number }, info: BinWorkbookInfo | undefined, relative: boolean): { text: string | null; exp?: { r: number; c: number } } {
+function decompile(r: Records, end: number, base: { r: number; c: number }, info: BinWorkbookInfo | undefined, relative: boolean, sheetName?: string): { text: string | null; exp?: { r: number; c: number } } {
   const b3 = relative ? base : null;                                 // 3D references: offsets only in shared formulas
   const st: string[] = [];
   const pop = () => { const x = st.pop(); if (x === undefined) throw new Error("stack"); return x; };
@@ -132,7 +129,7 @@ function decompile(r: Records, end: number, base: { r: number; c: number }, info
       case 0x15: st.push("(" + pop() + ")"); continue;
       case 0x16: st.push(""); continue;
       case 0x17: { const n = r.u16(); st.push('"' + r.chars(n).replace(/"/g, '""') + '"'); continue; }
-      case 0x18: { r.u8(); r.u16(); continue; }                                                     // PtgElf*/PtgSxName (tables, sheet-level names): not written by Excel for ranges we read
+      case 0x18: return { text: null };                                                            // PtgList (a table's structured reference) / PtgSxName: not read (07 §1.4 rule 5)
       case 0x19: {                                                    // PtgAttr: layout and optimisation hints
         const t = r.u8();
         if (t & 0x04) { const n = r.u16(); r.skip(2 * (n + 1)); }
@@ -148,14 +145,19 @@ function decompile(r: Records, end: number, base: { r: number; c: number }, info
     if (!cls) return { text: null };
     switch (base5) {
       case 0x00: return { text: null };                                                              // PtgArray: constants in rgcb (not decompiled)
-      case 0x01: { const id = r.u16(), f = FN[id]; if (!f || f[1] < 0) { debug.unknown?.push(id); return { text: null }; } call(f[0], f[1]); break; }      // PtgFunc
+      case 0x01: { const f = FN[r.u16()]; if (!f || f[1] < 0) return { text: null }; call(f[0], f[1]); break; }      // PtgFunc
       case 0x02: {                                                                                   // PtgFuncVar
         const n = r.u8(), raw = r.u16(), tab = raw & 0x7fff;
         if (raw & 0x8000) return { text: null };                                                     // fCeFunc (macro-sheet functions): not read
         if (tab === 255) { if (st.length < n || n < 1) throw new Error("stack"); const a = st.splice(st.length - n, n); const nm = a.shift()!; st.push(nm + "(" + a.join(",") + ")"); break; }   // a future function: its _xlfn. name is the first argument (kept, as the .xlsx text keeps it)
-        const f = FN[tab]; if (!f) { debug.unknown?.push(tab); return { text: null }; } call(f[0], n); break;
+        const f = FN[tab]; if (!f) return { text: null }; call(f[0], n); break;
       }
-      case 0x03: { const nm = nameOf(r.u32()); if (nm === null) return { text: null }; st.push(nm); break; }   // PtgName (LET parameters are _xlpm. names, kept as the .xlsx text keeps them)
+      case 0x03: {                                                                                 // PtgName (LET parameters are _xlpm. names, kept as the .xlsx text keeps them)
+        const ix = r.u32(), n = info?.names[ix - 1]; if (!n) return { text: null };
+        // a sheet-scoped name used from another sheet is written "Sheet!Name" in the .xlsx text
+        const scopeName = n.scope >= 0 ? info!.sheets[n.scope] : undefined;
+        st.push(scopeName !== undefined && scopeName !== sheetName ? quoteSheet(scopeName) + "!" + n.name : n.name); break;
+      }
       case 0x04: { const row = r.u32(); st.push(ref(row, r.u16(), null)); break; }                         // PtgRef
       case 0x05: { const r1 = r.u32(), r2 = r.u32(), c1 = r.u16(), c2 = r.u16(); st.push(area(r1, c1, r2, c2, null)); break; }   // PtgArea
       case 0x06: case 0x07: case 0x08: { r.skip(6); break; }                                          // PtgMemArea / MemErr / MemNoMem: the sub-expression follows
@@ -164,7 +166,11 @@ function decompile(r: Records, end: number, base: { r: number; c: number }, info
       case 0x0b: r.skip(12); st.push("#REF!"); break;
       case 0x0c: { const row = r.i32(); st.push(ref(row, r.u16(), base)); break; }                         // PtgRefN
       case 0x0d: { const r1 = r.i32(), r2 = r.i32(), c1 = r.u16(), c2 = r.u16(); st.push(area(r1, c1, r2, c2, base)); break; }   // PtgAreaN
-      case 0x19: { const ixti = r.u16(), nm = nameOf(r.u32()); if (nm === null) return { text: null }; void ixti; st.push(nm); break; }   // PtgNameX: a name of a supporting book (incl. _xlfn. future functions)
+      case 0x19: {                                                                                 // PtgNameX: a name through the XTI table (this workbook's: incl. the _xlfn. future functions)
+        const x = info?.xti[r.u16()], nm = nameOf(r.u32());
+        if (nm === null || !x || info!.books[x.book]?.kind !== "self") return { text: null };          // a linked workbook's own names are not read
+        st.push(nm); break;
+      }
       case 0x1a: { const p = prefix3d(r.u16(), info); if (p === null) return { text: null }; const row = b3 ? r.i32() : r.u32(); st.push(p + ref(row, r.u16(), b3)); break; }   // PtgRef3d
       case 0x1b: { const p = prefix3d(r.u16(), info); if (p === null) return { text: null }; const r1 = b3 ? r.i32() : r.u32(), r2 = b3 ? r.i32() : r.u32(), c1 = r.u16(), c2 = r.u16(); st.push(p + area(r1, c1, r2, c2, b3)); break; }   // PtgArea3d
       case 0x1c: { const p = prefix3d(r.u16(), info); r.skip(6); st.push((p ?? "") + "#REF!"); break; }

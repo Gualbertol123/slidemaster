@@ -75,6 +75,7 @@ describe("formulas of the recalc corpus equal Excel's Range.Formula", () => {
         if (g === undefined || fix(norm(g, externalNames(twin))) !== norm(f)) diffs.push(`${sh}!${ref}: file ${g ?? "(none)"} vs Excel ${f}`);
       }
       expect(diffs.slice(0, 20)).toEqual([]);
+      expect(got.count).toBe(Object.values(want).reduce((s, m) => s + Object.keys(m).length, 0));
     }, 60_000);
   }
   it("every binary formula of the twins is read (none unreadable); an array formula knows its range", async () => {
@@ -110,6 +111,13 @@ describe("shiftFormula and tokenize", () => {
     expect(shiftFormula("[1]Peer!F7+'[2]Other Sheet'!A1", 1, 1)).toBe("[1]Peer!G8+'[2]Other Sheet'!B2");
     expect(shiftFormula("TRUE+myName+A1", 1, 1)).toBe("TRUE+myName+B2");
     expect(shiftFormula("A1", 0, 0)).toBe("A1");
+  });
+  it("always moves on: structured references, a stray $, names of linked books", () => {
+    expect(shiftFormula("SUM([@Col])", 1, 0)).toBe("SUM([@Col])");
+    expect(shiftFormula("SUM(Table1[[#This Row],[Col]])+A1", 1, 0)).toBe("SUM(Table1[[#This Row],[Col]])+A2");
+    expect(shiftFormula("[1]!ExtName+A1", 0, 1)).toBe("[1]!ExtName+B1");
+    expect(shiftFormula("A1&$", 1, 1)).toBe("B2&$");
+    expect(shiftFormula("SUM(Table1[Col])", 0, 0)).toBe("SUM(Table1[Col])");
   });
   it("wraps at the sheet's edges as Excel does", () => {
     expect(shiftFormula("A1", -1, -1)).toBe("XFD1048576");
