@@ -32,6 +32,7 @@ carry out every step of [`PLAN.md`](PLAN.md); the step ids (S0.1 …) refer to P
 | 7 | Storage v4 | S5.1–S5.5 | needs the G0 storage decision; real-share load run | – |
 | 8 | Pilot and cut-over | S5.6–S5.7 | 🚦 G2 pilot; 🚦 G3 cut-over | v4.0 |
 | 9 | Hardening | S6.1–S6.5 | `.xlsb` twins from Windows; D+28 | v4.1 |
+| 7b | Two consulting designs (McKinsey, Bain) – between M7 and M8 of docs/next/07 | S7b.1–S7b.5 | 🚦 specs approved; 🚦 pixel review | 4.2.x |
 | 10 | Final independent audit | all | – | audit report |
 
 ---
@@ -787,6 +788,117 @@ S5.7 🚦 G3 cut-over package.
   - 4 weeks of monitoring (deck-health lines, incident files under data\v4\, user reports).
 - Run the release checklist up to tagging.
 Then STOP: "G3: agree the Monday, tag v4.0.0, follow cutover.md" under "Waiting for".
+```
+
+## Prompt 7b · Two consulting designs, "McKinsey" and "Bain" (M7b, between M7 and M8)
+
+```text
+You are a senior engineer on Slide Builder 4 (this checkout, branch main after the merge of v4/M7-recalc; if M7 is
+not merged yet, branch from v4/M7-recalc). You add TWO NEW DESIGNS, "McKinsey" and "Bain": design modes that sit
+beside Liquid Glass, Excel and Excel Refined in the design switch, are saved and shared like them (DS-01), have
+their own per-design sizing, looks and text styles (DS-07, DS-08, TH-02), draw every table, text box, comment, chart
+and callout, and export to PDF (and later PPTX) through the display list like the others. They are NOT themes of
+Liquid Glass: they are designs of their own (their own renderer recipes, fonts, palettes, furniture), in the style
+of the slides of those two consulting firms – not copies of their logos, trademarks or fonts.
+
+This is milestone M7b. Work the way docs/next/PLAN.md Part A and docs/next/PROMPTS.md require: branch
+v4/M7b-consulting-designs, one commit per step titled "S7b.n · <title>", one pull request, PROGRESS.md ticked per
+step with measured numbers, the double-check protocol after every step (the full test run; the same run from a clean
+clone; an independent review against the PROMPTS.md Appendix checklist by a fresh sub-agent; numbers measured
+twice), and the AUDIT.md §0 protocol twice on clean clones at the end.
+
+READ FIRST
+- README.md §1, §3.3, §5.3, §6.6; docs/ARCHITECTURE.md; docs/next/PLAN.md Parts A, B (§8 B-items), E, F;
+  docs/next/03-architecture.md §4 (rendering, the Liquid Glass recipes); docs/next/05-test-and-parity.md §1, §3.2,
+  §3.4, §4.3 (DS/TH rows); docs/next/07-scenarios-charts-pptx.md §3 (charts/callouts are drawn per design – your
+  designs must leave hooks for them), §6.3; docs/next/adr/004 (display list: the only contract; no new node types),
+  adr/005 (text measured from font files), adr/011 (goldens); PROGRESS.md (Decisions, Waiting for).
+- The code the designs live in: core/src/model/types.ts (Design = "glass" | "excel" | "clean" – grep every use:
+  sizes per design, DESIGNS in core/src/render/layout.ts, resolveStyle and COLOR_KEYS in core/src/model/style.ts,
+  SLIDE_FONT in render/slide-dl.ts, tableDrawKey in render/slide.ts), core/src/render/glass.ts + glass-dl.ts (the
+  scene model and its materials), excel-dl.ts, slide-dl.ts (titles, text boxes, notes, footer, page numbers, logo),
+  cover.ts, pagenumbers.ts, wallpaper.ts, core/src/text/ (fonts: library fonts, Windows fonts captured per deck, W13),
+  core/src/pdf/writer.ts; app/src/ui/Topbar.tsx (the design switch), app/src/ui/DesignDialog*, the Design… dialog's
+  Colours / Text styles / Fonts tabs; tools/parity.mjs, tools/capture-v3.mjs, tools/dlparity.mjs, tools/g1-package.mjs
+  (the pixel-review report of gate G1), tests/corpus/, tests/parity/accepted.json.
+
+PHASE 0 – RESEARCH FIRST, THEN STOP FOR APPROVAL (no product code)
+1. Look up references. Use web search and fetch to collect at least 12 public reference images or documents for
+   EACH firm's slide style (published reports, case studies, teaching decks, public style analyses, design-community
+   write-ups; e.g. McKinsey Global Institute reports, "McKinsey slide style" analyses; Bain & Company published
+   briefs and "Bain slide" analyses). For each reference record the URL, what it shows, and what you take from it.
+   Save the list in docs/next/08-consulting-designs.md §1 and the images you may legally keep for internal reference
+   (public web pages, no scraping behind logins) as links only – do not commit third-party images.
+2. From the references derive, per design, a written DESIGN SPEC (08 §2, one subsection per design), each item with
+   a measurable value in slide px (1600 × 900) and the reference it comes from:
+   - the grid: margins, content area, title band, the "action title" (one or two lines of sentence-case text stating
+     the message), subtitle/lead-in, the horizontal rule under the title (McKinsey: thin dark rule; Bain: often a
+     coloured bar or none – take it from the references, not from memory), the footer line with "Source:" /
+     "Note:" footnotes, page number position, the small tracker/section marker at the top right, the logo position;
+   - colour palette: ink, background (white), the one accent and its tints (McKinsey deep blue family; Bain red
+     family), table banding, highlight and emphasis colours, positive/negative colours – as hex values with the
+     reference each comes from; how the deck's Colours tab maps onto them (COLOR_KEYS);
+   - typography: typefaces by role (title, subtitle, table head, table body, footnotes, page number) with sizes in
+     px, weights, letter spacing, line heights. Only fonts the PC has or the library can hold with a licence we may
+     use: no Bower, Theinhardt or other proprietary firm fonts – choose the closest system or open fonts (e.g. Georgia
+     / Times New Roman for a serif title, Arial / Segoe UI for the sans; or an SIL-OFL font added to the library) and
+     say why; respect W13 (fonts captured per deck);
+   - tables: borders (which edges, weights, colours), header row style, total row style, number alignment, unit row,
+     column header wrapping, zebra banding or none, the "harvey ball" / arrow / highlight conventions you will support
+     through the existing roles (Header / Total / Body / Note) and highlights (CE-11, CE-13), hairline rules between
+     groups;
+   - text boxes, automated comments and the notes section: box style (none / thin rule / tinted box), bullet
+     markers, the "takeaway box" (Bain) or "so-what" side column (McKinsey), spacing;
+   - charts and callouts hooks (07 §3): palette order for series, label style, legend style, callout shapes;
+   - cover and index slides, versions (nothing changes), page numbers (format and position), the footer.
+3. Write the implementation plan in 08 §3: how the two designs enter the code with ONE set of geometry rules kept
+   (computeLayout unchanged): extend Design to "glass" | "excel" | "clean" | "mckinsey" | "bain"; where each use of
+   Design needs a case; a shared "consulting" renderer core/src/render/consult-dl.ts parameterised by a DesignSpec
+   object (two specs, one renderer) built from the Excel item list (effItems) like excel-dl.ts, not from the glass
+   scene; the furniture (title, rule, footer, tracker, page number) in slide-dl.ts per design; SLIDE_FONT entries;
+   per-design defaults in resolveStyle (text styles, colours) so "Reset" returns to the spec; the design switch
+   buttons and the Design… dialog; the export file names (B11: the design name in the file name); the saved format:
+   a deck saved with design "mckinsey" opened by a 4.0/4.1 page must fall back to a known design without data loss
+   (optional field semantics – state how, add a test); thumbnails; the parity harness: new goldens are CAPTURED FROM
+   YOUR OWN FIRST RENDER after the pixel sign-off (05 §2, ADR-011: goldens are evidence) under golden/<deck>/
+   mckinsey|bain/, existing goldens untouched, existing designs 0 unaccepted differences.
+4. Write 08 §4: the new 05 §4 rows (DS-10 … for each design: switch, looks, text styles, sizing, tables, text
+   boxes, comments, cover/index, page numbers/footer, export PDF facts, parity/pixel sign-off), the B-items (one per
+   design, plus one for any change to existing behaviour – there must be none), Part F budgets (export time and
+   PDF size per slide for each design, keypress → pixels unchanged, no new main-thread task), the ADR
+   (ADR-018 "Consulting designs as parameterised Excel-item renderers").
+5. Write 08 §5: the steps S7b.1 … (Read / Do / Done when, ⏱, 🚦) and §6: your questions. Then STOP and write under
+   PROGRESS.md "Waiting for" what you need: approval of the two specs (show the palette, type and a labelled layout
+   sketch as an SVG or PNG you render yourself from the spec – docs/next/designs/<design>-sketch.svg – so the
+   product owner sees the structure before any code), the font choices, the B-items.
+
+THEN, PER STEP AFTER APPROVAL (expected steps; adjust in 08 §5)
+S7b.1 · Design type and plumbing: Design extended; every switch/case; resolveStyle defaults per design; the switch
+       buttons; saved-format fallback test; parity still 0 for the three existing designs. No new drawing yet.
+S7b.2 · The consulting renderer: core/src/render/consult-dl.ts (tables from effItems: fills, borders, text with
+       the existing measured text path, roles, highlights, colour scales, merges, superscripts, pictures/shapes/text
+       boxes of the workbook) + furniture per design in slide-dl.ts + cover/index + page numbers/footer + the
+       notes/comment boxes. Unit tests: DL snapshots of every corpus slide in both designs (the DL validators pass;
+       no node outside the eight types); dlparity for the three old designs unchanged.
+S7b.3 · Pixel review 🚦: render every corpus slide in both designs (tools/g1-package.mjs style report) and the
+       product owner signs off; fix and re-review; then capture the goldens.
+S7b.4 · Export and budgets ⏱: PDF of deck20 in each design (GF facts: fonts subset, no Type 3, size budget per
+       slide you set in 08 §4, time < 1.5 s for 20 slides), PNG/clipboard/thumbnails, "every version × all
+       designs" now exports five designs (the menu text and the names), e2e for the switch and the export.
+S7b.5 · Close: AUDIT §0 twice on clean clones; CHANGELOG; PROGRESS; 🚦 final sign-off.
+
+HARD RULES (PLAN Part A, keep them)
+- Operation semantics only in core/src/model/ops.ts (a new design needs no new op: design is a style field).
+- Everything drawn goes through the display list (ADR-004): no new node types; no DOM types in core/.
+- Helper = Python standard library only; no native executable; no new runtime dependency without its licence in an
+  ADR (fonts included: SIL OFL / Apache only; no proprietary firm fonts; no copying of logos or trademarks).
+- Existing goldens and 05 §4 rows keep passing: 0 unaccepted parity differences for Liquid Glass, Excel, Excel
+  Refined; no test skipped; element ids and data-* the e2e uses stay.
+- Every user-visible change is a B-item approved by the product owner before it ships; the CHANGELOG lists it.
+- Stop at every 🚦 and whenever a decision changes what users see; write it under "Waiting for".
+- Never push tags, never write to a real user share; the product owner pushes.
+
+START WITH PHASE 0. Do not write product code until the specs in 08 are approved.
 ```
 
 ## Prompt 9 · Hardening (S6.1–S6.5)
