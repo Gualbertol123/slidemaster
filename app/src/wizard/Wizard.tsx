@@ -4,9 +4,10 @@
    (getSheetMeta: title, "x" regions, used range; sizes of table definitions), suggestions (detectTables) and the
    window of cells the preview shows (getSheetWindow) – never a whole sheet. */
 import { useEffect, useRef, useState } from "react";
-import { confirmBox, alertBox, type WizardReq } from "../state/dialogs";
+import { ask, confirmBox, alertBox, type WizardReq } from "../state/dialogs";
 import { get, hideBusy } from "../state/store";
-import { core } from "../state/app";
+import { core, linkWorkbook, linkableWorkbooks } from "../state/app";
+import { parseSheetId } from "@slide-builder/core/calc/refs";
 import { A1, esc, fmtMB, numToCol, uid } from "@slide-builder/core/xlsx/util";
 import type { SheetInfo, SheetWindow } from "@slide-builder/core/xlsx/sheetview";
 import type { DeckVersion, Preset, SlideDef, TableDef } from "@slide-builder/core/model/types";
@@ -17,6 +18,7 @@ import { Input } from "../ui/Input";
 interface W {
   step: 1 | 2 | 3 | 4; sheets: Set<string>; tables: TableDef[]; slides: SlideDef[];
   /** step 4: the deck's versions and the one being edited */ versions: DeckVersion[]; vcur: string | null;
+  /** the linked workbooks of the deck (file names), B22 */ links: string[];
   cur: string | null; sel: { r1: number; c1: number; r2: number; c2: number } | null;
   suggest: Record<string, string[]>; focusSlide: string | null; grids: Record<string, HTMLElement>; grow: boolean;
   /** keyboard: where a Shift+arrow / Shift+click selection starts, and the moving corner */
@@ -34,17 +36,22 @@ const previewSize = (S: SheetInfo) => ({ R2: Math.max(S.used.r2 + 3, 20), C2: Ma
 
 export function Wizard({ req }: { req: WizardReq }) {
   const { wb, name } = req;
-  const meta = wb.meta;
+  const meta = wb.meta;                                                 // grows when a linked workbook joins (wb.extend)
   const inMeta = (n: string) => meta.some(m => m.name === n);
+  /** a sheet of a linked workbook of the deck that is not in the folder now: kept (its tables, its link), shown as such */
+  const lostLink = (n: string) => { const b = parseSheetId(n).book; return !!b && (req.preset?.links || []).includes(b) && !meta.some(m => m.linked === b); };
+  /** a sheet's name as shown: a linked workbook's sheet with its file */
+  const shown = (id: string) => { const p = parseSheetId(id); return p.book ? <>{p.sheet}<span className="chip">{p.book}</span></> : id; };
   const ref = useRef<W | null>(null);
   const byName = (n: string | null): SheetInfo | undefined => n ? ref.current!.info[n] : undefined;
   if (!ref.current) {
     const P: Preset = JSON.parse(JSON.stringify(req.preset || { sheets: [], tables: [], slides: [] }));
     const w: W = {
-      step: 1, sheets: new Set((P.sheets && P.sheets.length ? P.sheets : P.tables.map(t => t.sheet)).filter(inMeta)),
-      tables: P.tables.filter(t => inMeta(t.sheet)), slides: P.slides.map(s => ({ ...s, tables: (s.tables || []).slice() })),
+      step: 1, sheets: new Set((P.sheets && P.sheets.length ? P.sheets : P.tables.map(t => t.sheet)).filter(n => inMeta(n) || lostLink(n))),
+      tables: P.tables.filter(t => inMeta(t.sheet) || lostLink(t.sheet)), slides: P.slides.map(s => ({ ...s, tables: (s.tables || []).slice() })),
       cur: null, sel: null, suggest: {}, focusSlide: null, grids: {}, grow: false, info: {}, sizes: {}, sizeSig: "", windows: {}, failed: {}, ready: false,
       versions: (P.versions || []).map(v => ({ ...v, hide: JSON.parse(JSON.stringify(v.hide || {})) })), vcur: null,
+      links: (P.links || []).slice(),
     };
     w.vcur = w.versions[0]?.id || null;
     ref.current = w;
@@ -130,7 +137,9 @@ export function Wizard({ req }: { req: WizardReq }) {
     });
     const versions = W.versions.filter(v => v.name.trim()).map(v => ({ id: v.id, name: v.name.trim(),
       hide: Object.fromEntries(Object.entries(v.hide).filter(([sh, rs]) => W.sheets.has(sh) && rs.length)) }));
-    close({ sheets: [...W.sheets], tables: W.tables.map(t => { const o = { ...t }; if (!o.name) delete o.name; return o; }), slides, ...(versions.length ? { versions } : {}) });
+    // the linked workbooks the deck draws from (a file linked but no longer used is dropped)
+    const links = W.links.filter(f => [...W.sheets].some(s => parseSheetId(s).book === f));
+    close({ sheets: [...W.sheets], tables: W.tables.map(t => { const o = { ...t }; if (!o.name) delete o.name; return o; }), slides, ...(versions.length ? { versions } : {}), ...(links.length ? { links } : {}) });
   }
 
   const steps = ["Sheets", "Tables", "Slides", "Versions"];
@@ -159,22 +168,34 @@ export function Wizard({ req }: { req: WizardReq }) {
     const lazy = meta.some(m => !byName(m.name));
     const mb = meta.filter(m => W.sheets.has(m.name) && !byName(m.name)).reduce((s, m) => s + m.size, 0);
     const toggle = (n: string, on: boolean) => { if (on) W.sheets.add(n); else W.sheets.delete(n); render(); };
+    // a linked workbook (S7.3, B22): a file of the same folder; its sheets join the list under their file
+    const addLink = async () => {
+      const files = await linkableWorkbooks(wb, name);
+      if (!files.length) { await alertBox("No workbook to link", "No other workbook was found in the folder."); return; }
+      const pick = await ask("Add a linked workbook", "Its sheets join this list; tables from them follow the file like the others, and a change in one file that the other reads is recalculated in both." + (files.length > 12 ? ` <b>${files.length - 12} more workbook${files.length > 13 ? "s" : ""}</b> of the folder are not listed: move the one you need next to this file's name in the folder, or rename it.` : ""), [...files.slice(0, 12).map(f => ({ id: f, label: f })), { id: "cancel", label: "Cancel" }], { width: 520 });
+      if (!pick || pick === "cancel") return;
+      if (!(await linkWorkbook(wb, pick))) { await alertBox("Could not link", `“${esc(pick)}” could not be read from the folder.`); return; }
+      if (!W.links.includes(pick)) W.links.push(pick);
+      try { const r = await core().call("getSheetMeta", { book: wb.book, names: meta.filter(m => m.linked === pick).map(m => m.name), load: false }); for (const x of r.sheets) W.info[x.name] = x; await suggestFor(r.sheets.map(x => x.name)); } catch (e) { console.error(e); }
+      render();
+    };
     const quick = (q: string) => { W.sheets.clear(); meta.forEach(m => { if (!(byName(m.name) || {} as SheetInfo).error && (q === "all" || (q === "slide" && SLIDE_RX.test(m.name)))) W.sheets.add(m.name); }); render(); };
     return [
       <div className="wizcol">
         <p className="lead">Choose the sheets you want to work with. Sheets whose name contains “slide” are pre-selected{hiddenN ? `; ${hiddenN} hidden sheet${hiddenN > 1 ? "s are" : " is"} not listed` : ""}.{lazy && <><br /><b>Large workbook:</b> only the sheets you select are read – pick only what you need.</>}</p>
-        <div className="dlgtools" style={{ padding: "0 0 8px" }}><button className="btn" onClick={() => quick("slide")}>Only “slide” sheets</button><button className="btn" onClick={() => quick("all")}>All</button><button className="btn" onClick={() => quick("none")}>None</button>
+        <div className="dlgtools" style={{ padding: "0 0 8px" }}><button className="btn" onClick={() => quick("slide")}>Only “slide” sheets</button><button className="btn" onClick={() => quick("all")}>All</button><button className="btn" data-a="link" onClick={() => void addLink()} title="Add the sheets of another workbook of the folder (B22)">+ Add a linked workbook…</button><button className="btn" onClick={() => quick("none")}>None</button>
           <span className="cnt">{W.sheets.size} of {meta.length} selected{mb ? ` · ${fmtMB(mb)} to read` : ""}</span></div>
         <div className="sheetlist big">{meta.map(m => {
           const S = byName(m.name), sz = m.size ? <span className="sz">{fmtMB(m.size)}</span> : null;
-          if (S && S.error) return <label className="sheetrow hid" key={m.name}><input type="checkbox" disabled /><span className="nm">{S.name}</span><span className="chip red">could not be read</span><span className="meta">{S.error}</span></label>;
+          if (S && S.error) return <label className="sheetrow hid" key={m.name}><input type="checkbox" disabled /><span className="nm">{shown(S.name)}</span><span className="chip red">could not be read</span><span className="meta">{S.error}</span></label>;
           const box = <input type="checkbox" value={m.name} checked={W.sheets.has(m.name)} onChange={e => toggle(m.name, (e.target as HTMLInputElement).checked)} />;
-          if (!S) return <label className="sheetrow" key={m.name}>{box}<span className="nm">{m.name}</span>{SLIDE_RX.test(m.name) && <span className="chip">slide</span>}{sz}<span className="meta">not read yet – it is read only if you select it</span></label>;
+          if (!S) return <label className="sheetrow" key={m.name}>{box}<span className="nm">{shown(m.name)}</span>{SLIDE_RX.test(parseSheetId(m.name).sheet) && <span className="chip">slide</span>}{sz}<span className="meta">not read yet – it is read only if you select it</span></label>;
           const U = S.used, nT = S.regions.length;
           const nS = (W.suggest[S.name] || []).length, mine = tablesOf(S.name).length;
-          return <label className="sheetrow" key={m.name}>{box}<span className="nm">{S.name}</span>{SLIDE_RX.test(S.name) && <span className="chip">slide</span>}{nT > 0 && <span className="chip green">{nT} × table</span>}{sz}
+          return <label className="sheetrow" key={m.name}>{box}<span className="nm">{shown(S.name)}</span>{SLIDE_RX.test(parseSheetId(S.name).sheet) && <span className="chip">slide</span>}{nT > 0 && <span className="chip green">{nT} × table</span>}{sz}
             <span className="meta">{S.title || "—"} · used range A1:{A1(U.r2, U.c2)} · {mine ? mine + " table(s) defined" : nS ? nS + " possible table(s) found" : "no table found"}</span></label>;
         })}</div>
+        {[...W.sheets].filter(lostLink).map(n => <label className="sheetrow hid" key={n}><input type="checkbox" checked disabled /><span className="nm">{shown(n)}</span><span className="chip red">not found in the folder</span><span className="meta">its tables and the link are kept; put the file back next to this one</span></label>)}
         {other.length > 0 && <p className="meta" style={{ marginTop: "8px" }}>Not listed: {other.map(x => x.name + " (" + x.why + ")").join(", ")}</p>}
       </div>,
       <><span className="hint">Next: pick the tables on each sheet.</span><button className="btn" data-a="cancel" onClick={() => close(null)}>Cancel</button><button className="btn primary" data-a="next" disabled={!W.sheets.size} onClick={() => void go(2)}>Next · Tables</button></>,
@@ -195,7 +216,7 @@ export function Wizard({ req }: { req: WizardReq }) {
     const cuts = V ? Object.entries(V.hide).flatMap(([sh, rs]) => rs.map(r => ({ sh, r }))) : [];
     return [
       <div className="wiz2 wiz4">
-        <div className="wtabs">{chosen.map(sh => <button key={sh.name} className={"wtab" + (sh.name === S?.name ? " on" : "")} onClick={() => { W.cur = sh.name; W.sel = null; render(); }}><span>{sh.name}</span><span className="badge2">{V ? (V.hide[sh.name] || []).length : 0}</span></button>)}</div>
+        <div className="wtabs">{chosen.map(sh => <button key={sh.name} className={"wtab" + (sh.name === S?.name ? " on" : "")} onClick={() => { W.cur = sh.name; W.sel = null; render(); }}><span>{shown(sh.name)}</span><span className="badge2">{V ? (V.hide[sh.name] || []).length : 0}</span></button>)}</div>
         <div className="wgridwrap">{S && <SheetGrid book={wb.book} S={S} W={W} tables={tablesOf(S.name)} onAdd={cut} onPick={() => render()} />}</div>
         <div className="wside">
           <div className="lbl">Versions</div>
@@ -233,7 +254,7 @@ export function Wizard({ req }: { req: WizardReq }) {
     };
     return [
       <div className="wiz2">
-        <div className="wtabs">{chosen.map(s => <button key={s.name} className={"wtab" + (s.name === W.cur ? " on" : "")} onClick={() => { W.cur = s.name; W.sel = null; render(); }}><span>{s.name}</span><span className="badge2">{tablesOf(s.name).length}</span></button>)}</div>
+        <div className="wtabs">{chosen.map(s => <button key={s.name} className={"wtab" + (s.name === W.cur ? " on" : "")} onClick={() => { W.cur = s.name; W.sel = null; render(); }}><span>{shown(s.name)}</span><span className="badge2">{tablesOf(s.name).length}</span></button>)}</div>
         <div className="wgridwrap">{S && <SheetGrid book={wb.book} S={S} W={W} tables={tablesOf(S.name)} onAdd={r => add(r)} onPick={() => render()} />}</div>
         <div className="wside">
           <div className="wsel"><div className="lbl">Selection</div>

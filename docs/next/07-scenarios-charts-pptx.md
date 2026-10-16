@@ -215,7 +215,9 @@ need no change: `item.patch` is a record op like the others.
 
 ### 2.3 Linked workbooks (F0): several files, one deck
 
-* **What the user sees.** Wizard step 1 gets *"+ Add a linked workbook…"*: the Open list (same folder) or Browse. Its
+* **What the user sees.** Wizard step 1 gets *"+ Add a linked workbook…"*: the Open list (same folder; Browse is not
+  built in S7.3 – a browsed file is not in the folder the helper serves, so it would need an upload path like WB-07:
+  recorded in PROGRESS, M8 decides). Its
   sheets appear under a tab named after the file; tables, charts and callouts can use them; the deck key and the
   journal stay those of the main workbook (nothing changes in storage); `preset.links` lists the files. Opening the
   deck opens the linked files too (read-only, same `/files/` path and stable-read rule WB-26; a missing linked file →
@@ -247,6 +249,14 @@ preview: steps 1–3 with the overlay kept as `previewOverlay`; the stage draws 
          `scenario.preview(null)` clears it. Edits during a preview are ordinary ops on the document (allowed: they are
          the user's deck, not the scenario); the overlay only changes what the workbook's cells say.
 ```
+
+**Built in S7.4 (and its limit):** the view lives only in the worker (ADR-014); the page's mirror keeps the workbook's
+own values during a preview, so what the page computes from its mirror – the ribbon's format state, the painter's
+source formats, the comment dialog's preview, the Issues panel's table lines – shows the real workbook while the stage
+shows the scenario. S8.4 decides whether the changed cells are mirrored to the page as slices (the overlay's sheets
+can be sliced like any other) or the preview banner says so. An export started before a preview builds its lists from
+the view for the slides it has not asked for yet (M8's runs set the view on purpose; a stray overlap is guarded in
+S8.3).
 
 * **The document is never changed by a run.** No `cell.patch` is generated; `edits` with `orig` keep behaving as
   CE-09 says (a text edit applies only while the Excel value is `orig`; under a scenario the overlay value is "the
@@ -487,7 +497,7 @@ differences; the only new accepted entries are B19's raw-Excel slides with text 
 
 | Budget | From step | Limit |
 |---|---|---|
-| Engine first use (instantiate + model of deck20 + self-check), in the worker | S7.1 | 200 ms (reference PC) |
+| Engine first use (instantiate + the first model of the 20-sheet recalc deck + self-check, cold), in the worker | S7.2 | 300 ms (reference PC; set at 200 ms in Phase 0 with a warm model in mind, measured cold 225–235 ms in S7.4) |
 | One scenario value recalculated, 20-sheet deck ≤ 2,000 formula cells | S7.4 | 150 ms |
 | One value recalculated + 20 Liquid Glass slides exported to PDF | S8.3 | 3 s |
 | 20 values × 1 design × 20 slides, PDF | S8.3 | 40 s |

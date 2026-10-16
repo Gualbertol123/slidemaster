@@ -14,7 +14,8 @@ const tmp = process.env.SB_E2E_TMP || fs.mkdtempSync(path.join(os.tmpdir(), "sb-
 const root = path.join(tmp, "root"), data = path.join(tmp, "data");
 if (fresh) {
   fs.mkdirSync(root, { recursive: true }); fs.mkdirSync(data, { recursive: true });
-  for (const f of ["report.xlsx", "plain.xlsx", "big.xlsx", "weekly.xlsx"]) fs.copyFileSync(path.join(__dirname, "tests/fixtures", f), path.join(root, f));
+  // Banks.xlsx and Peers.xlsx link to each other (S7.3, tests/corpus/workbooks/recalc)
+  for (const f of ["report.xlsx", "plain.xlsx", "big.xlsx", "weekly.xlsx", "Banks.xlsx", "Peers.xlsx"]) fs.copyFileSync(path.join(__dirname, "tests/fixtures", f), path.join(root, f));
 }
 process.env.SB_E2E_TMP = tmp; process.env.SB_E2E_ROOT = root; process.env.SB_E2E_DATA = data;
 // the browser: CHROME, else Playwright's own Chromium (npx playwright install chromium), the same on every OS

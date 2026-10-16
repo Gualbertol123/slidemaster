@@ -88,6 +88,10 @@ button{cursor:pointer}
 .issues h4{margin:0 0 6px;font-size:11.5px;color:var(--mute);font-weight:600}
 .dhealth{border-top:1px solid var(--line);padding:6px 14px 8px;font-size:11px;color:var(--mute)}
 .dhealth.warn{color:var(--warn,#b45309)}
+/* the Issues panel's "Formulas" line (B24): the self-check on request */
+.calcline{border-top:1px solid var(--line);padding:6px 14px 8px;font-size:11px;color:var(--mute);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.calcline.warn{color:var(--warn,#b45309)}
+.calcline .btn.small{padding:2px 8px;font-size:11px}
 .issues ul{margin:0;padding-left:16px}
 .issues li{margin:3px 0}
 .issues .warn{color:var(--warn)} .issues .err{color:var(--err)} .issues .ok{color:var(--ok)}

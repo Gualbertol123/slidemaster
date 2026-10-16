@@ -30,6 +30,9 @@ a change of one cell must update both. A scenario run must never change the save
 − A sheet id with `[` cannot be a real Excel sheet name (Excel forbids `[]`), so it is unambiguous, but tools that
   split on `!` must handle the bracket prefix (one helper `sheetId.ts`).
 − Edits during a preview apply to the document as usual; the preview changes only what the cells say (documented).
+− The page's mirror is not overlaid: during a preview the ribbon, painter, comment dialog and Issues lines computed
+  on the page show the real workbook's values while the stage shows the scenario's (07 §2.4; S8.4 decides mirroring).
+− Links are followed from file to file at most five deep (A → B → C …) and only for files of the same folder.
 
 ## Evidence and alternatives
 Spike pair `Banks.xlsx` ↔ `Peers.xlsx` (07 §1.2): with both files in one model every cross-file cell equals Excel for

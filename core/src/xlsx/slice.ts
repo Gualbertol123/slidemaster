@@ -29,6 +29,9 @@ export interface SheetSlice {
   cells: SheetColumns | null; rows: RowColumns | null;
   /** what Liquid Glass knows about this sheet's pictures (xlsx/drawing.ts analyzeImages) */
   imgmeta: [string, ImgMeta][];
+  /** a linked workbook's sheet (S7.3): its own styles, fonts and digit width (the cells' xf indexes point into them,
+      not into the deck's workbook's) */
+  shared?: SharedSlice;
 }
 
 export const sliceShared = (c: Shared): SharedSlice => ({ xfs: c.xfs, dxfs: c.dxfs, defaultFont: c.defaultFont, theme: c.theme, mdw: c.mdw });
@@ -88,8 +91,9 @@ export function sliceBoxes(wb: Workbook, layouts: { sheet: Sheet; g: Range }[], 
 }
 
 /** a slice of S: whole (box null) or the rectangle */
-export function sliceSheet(S: Sheet, box: Range | null): SheetSlice {
+export function sliceSheet(S: Sheet, box: Range | null, mainShared?: Shared | null): SheetSlice {
   const base = {
+    ...(mainShared && S.ctx !== mainShared ? { shared: sliceShared(S.ctx) } : {}),
     name: S.name, hidden: S.hidden, ...(S.error !== undefined ? { error: S.error } : {}), ...(S.size !== undefined ? { size: S.size } : {}),
     title: S.title, subtitle: S.subtitle, defColW: S.defColW, defRowH: S.defRowH, zeroH: S.zeroH, colRanges: S.colRanges,
     merges: S.merges, cfRules: S.cfRules, unsupportedCF: [...S.unsupportedCF], unpaired: S.unpaired, drawing: S.drawing,
@@ -141,8 +145,9 @@ export const sliceTransfer = (s: SheetSlice): ArrayBuffer[] => {
 };
 
 /** the slice as a Sheet again (read only), over the shared parts `ctx` */
-export function hydrateSheet(s: SheetSlice, ctx: Shared): Sheet {
+export function hydrateSheet(s: SheetSlice, mainCtx: Shared): Sheet {
   for (const [src, m] of s.imgmeta) if (!IMGMETA.has(src)) IMGMETA.set(src, m);
+  const ctx = s.shared ? hydrateShared(s.shared) : mainCtx;       // a linked sheet: its own workbook's styles
   const cells = s.cells ? new CellMap(s.cells, ctx) : new Map(), rowInfo = s.rows ? new RowMap(s.rows) : new Map();
   const S = makeSheet({
     name: s.name, cells, rowInfo, colRanges: s.colRanges, merges: s.merges, cfRules: s.cfRules, unsupportedCF: new Set(s.unsupportedCF),

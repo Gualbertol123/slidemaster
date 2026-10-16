@@ -88,7 +88,18 @@ export interface CoreMethods {
       recomputed and compared with Excel's cached value; the engine is instantiated on this first use (B23). Null
       when no workbook is open */
   calcCheck(a: Record<string, never>): CalcCheck | null;
+  /** a linked workbook joins workbook `book` (S7.3, B22, ADR-014): the page gives its bytes (a file of the same folder),
+      its sheets are listed under their ids "[file]Sheet" and read like the others; the answer is the workbook's new
+      index, or null when the file is not available */
+  link(a: { book: number; name: string }): WorkbookInfo | null;
+  /** a scenario on the stage (S7.4, docs/next/07 §2.4): the input cell set to `value` in the engine, every slide drawn
+      from the recomputed values until `null` clears it. Nothing is saved: the document, the deck and the workbook file
+      are untouched. The answer: how many formula cells moved, how many of them the self-check classes `different`
+      (the gate of a run, 07 §1.4 (4)), and the self-check itself */
+  scenarioPreview(a: ScenarioInput | null): ScenarioAnswer | null;
 }
+export interface ScenarioInput { sheet: string; ref: string; value: number | string | boolean }
+export interface ScenarioAnswer { changed: number; different: number; check: CalcCheck }
 /** the self-check's result: how many formula cells are exact / volatile / locale-dependent / external / unreadable /
     different, the first differences, the engine's times (ms) */
 export interface CalcCheck { counts: import("../calc/engine").SelfCheck["counts"]; different: import("../calc/engine").SelfCheck["different"]; formulas: number;
@@ -140,6 +151,9 @@ export interface PageMethods {
   fontCatalog(a: Record<string, never>): import("../text/resolve").CatalogFont[];
   /** a font file of that catalog (null: unreadable) */
   fontFile(a: { source: "library" | "system"; file: string }): ArrayBuffer | null;
+  /** the bytes of a linked workbook: a file of the same folder as the open one (null when it is not there, or the
+      page runs from disk) */
+  linkedWorkbook(a: { name: string }): ArrayBuffer | null;
 }
 /** events from the worker */
 export interface CoreEvents {

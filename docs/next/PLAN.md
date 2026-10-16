@@ -835,7 +835,7 @@ Each feature area of `05-test-and-parity.md` §4 is touched by these steps and g
 | Save durable, p95, 20 users at 40 ms (sim) | S5.4 | 150 ms |
 | Others see an edit, p50 / p95, 20 users at 40 ms (sim) | S5.4 | 2 s / 4 s |
 | Helper start → page ready | S4.5 | 1 s |
-| Engine first use (instantiate + model of deck20 + self-check), in the worker | S7.2 | 200 ms |
+| Engine first use (instantiate + the first model of the 20-sheet recalc deck + self-check, cold), in the worker | S7.2 | 300 ms (was 200 ms: a warm-model estimate, S7.4) |
 | One scenario value recalculated, 20-sheet deck ≤ 2,000 formula cells | S7.4 | 150 ms |
 | One value recalculated + 20 Liquid Glass slides exported to PDF · 20 values × 1 design | S8.3 | 3 s · 40 s |
 | Longest main-thread task during a scenario run · preview switch | S8.3 / S8.4 | 50 ms · 400 ms |

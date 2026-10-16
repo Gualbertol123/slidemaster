@@ -13,6 +13,7 @@ import { CellMap, RowMap, SheetScanner, cellAt, cellIndex, type SheetColumns } f
 import { xattrs, xdec, parseSSTRich } from "./strings";
 import type { Range } from "./util";
 import { platform, type XmlElement } from "../platform";
+import { parseSheetId, sheetId } from "../calc/refs";
 import type { Border, CFRule, ColInfo, Dxf, Font, Progress, Script, Shared, Sheet, SheetMeta, Workbook, Xf } from "./types";
 import type { RowColumns } from "./sheetstore";
 import { readWorkbookBin, readWorkbookInfoBin, readSupTabsBin, type BinWorkbookInfo } from "./xlsb/workbook";
@@ -93,13 +94,25 @@ export async function indexWorkbook(buf: ArrayBuffer): Promise<Workbook> {
   const wb: Workbook = {
     zip, wbRels, meta, skipped, hiddenSheets: skipped.filter(s => s.why === "hidden").map(s => s.name),
     extLinks: Object.values(wbRels).filter(r => /externalLink/.test(r.type)).length, externals,
-    sheets: [], shared: null, total, ssSize, big: total > BIG_BYTES || buf.byteLength > 6 * 1048576,
+    sheets: [], shared: null, linked: new Map(), total, ssSize, big: total > BIG_BYTES || buf.byteLength > 6 * 1048576,
     isLoaded: n => wb.sheets.some(S => S.name === n),
     ensure: (names, progress) => ensureSheets(wb, names, progress),
   };
   return wb;
 }
 export async function readWorkbook(buf: ArrayBuffer): Promise<Workbook> { const wb = await indexWorkbook(buf); await wb.ensure(wb.meta.map(m => m.name)); return wb; }
+
+/** a linked workbook joins `wb` (S7.3, ADR-014): its visible sheets are listed in `wb.meta` under their sheet ids
+    "[file]Sheet" (read on demand like the others, into `wb.sheets`), its hidden and skipped sheets in `wb.skipped`;
+    `lwb` itself is kept for its parts and for the formula engine. Attaching the same file twice changes nothing */
+export function attachLinked(wb: Workbook, file: string, lwb: Workbook) {
+  if (wb.linked.has(file)) return;
+  wb.linked.set(file, lwb);
+  for (const m of lwb.meta) wb.meta.push({ name: sheetId(file, m.name), path: m.path, size: m.size, linked: file });
+  for (const s of lwb.skipped) wb.skipped.push({ name: sheetId(file, s.name), why: s.why });
+}
+/** the sheets of `wb` that belong to the deck's own workbook (`null`) or to a linked one (its file name) */
+export function sheetsOf(wb: Workbook, file: string | null): Sheet[] { return wb.sheets.filter(S => parseSheetId(S.name).book === file); }
 
 const DEFAULT_THEME = ["FFFFFF","000000","E7E6E6","44546A","4472C4","ED7D31","A5A5A5","FFC000","5B9BD5","70AD47","0563C1","954F72"];
 async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
@@ -200,17 +213,32 @@ const FONT_SCRIPTS = new WeakMap<Shared, number[]>();
 const BIN_INFO = new WeakMap<Zip, BinWorkbookInfo>();
 
 async function ensureSheets(wb: Workbook, names: string[], progress?: Progress): Promise<Sheet[]> {
+  // a sheet id of a linked workbook that is not attached (the file was not found): a broken sheet, so its tables are
+  // "missing" and the Issues panel names it, and the deck still opens
+  const missing = names.filter(n => !wb.meta.some(m => m.name === n) && parseSheetId(n).book !== null && !wb.isLoaded(n));
   const todo = wb.meta.filter(m => names.includes(m.name) && !wb.isLoaded(m.name));
-  if (!todo.length) return [];
+  if (!todo.length && !missing.length) return [];
   const ctx = await loadShared(wb, progress);
+  const added: Sheet[] = [];
+  for (const n of missing) {
+    const { book, sheet } = parseSheetId(n);
+    const why = wb.linked.has(book!) ? `sheet “${sheet}” of ${book} is hidden or missing` : `the linked workbook “${book}” was not found in the folder`;
+    const S = brokenSheet(n, new Error(why), ctx); wb.sheets.push(S); added.push(S);
+  }
+  if (!todo.length) return added;
   const total = todo.reduce((s, m) => s + Math.max(m.size, 1), 0); let done = 0;
-  const added: Sheet[] = [], pace = pacer();
+  const pace = pacer();
   for (const [k, m] of todo.entries()) {
     const label = `Reading “${m.name}” (${k + 1} of ${todo.length}${m.size > 1048576 ? ", " + fmtMB(m.size) : ""})…`;
     if (progress) progress(label, done / total);
     { const w = pace(); if (w) await w; }                // not one timer per sheet: ~4 ms each in a worker (deck20: 20 sheets)
     let S: Sheet;
-    try { S = await readSheet(wb.zip, m, ctx, f => progress && progress(label, (done + f * Math.max(m.size, 1)) / total)); S.hidden = false; }
+    try {
+      // a linked workbook's sheet: its own parts (zip, styles, strings), the sheet named by its id
+      const lwb = m.linked ? wb.linked.get(m.linked) : undefined;
+      const lctx = lwb ? await loadShared(lwb, progress) : ctx;
+      S = await readSheet(lwb ? lwb.zip : wb.zip, m, lctx, f => progress && progress(label, (done + f * Math.max(m.size, 1)) / total)); S.hidden = false;
+    }
     catch (e) { console.error("sheet " + m.name, e); S = brokenSheet(m.name, e, ctx); }
     S.size = m.size;
     wb.sheets.push(S); added.push(S);

@@ -881,6 +881,37 @@ test.describe.serial("two people, one shared folder", () => {
     await a.close(); await b.close();
   });
 
+  test("linked workbooks (S7.3, B22): a folder file's sheets join the wizard, its table draws on a slide, the deck remembers the file", async ({ page }) => {
+    await openApp(page, ANNA);
+    await openWorkbook(page, "Banks.xlsx");                               // no deck yet: the wizard opens
+    await page.locator('[data-a="link"]').waitFor();
+    await page.click('[data-a="link"]');
+    await page.click('.dlg [data-a="Peers.xlsx"]');                       // the other workbooks of the folder, one button each
+    const row = page.locator('.sheetrow input[value="[Peers.xlsx]Peer"]');
+    await row.waitFor();
+    await expect(page.locator('.sheetrow:has(input[value="[Peers.xlsx]Peer"])')).toContainText("Peers.xlsx");   // shown with its file
+    await row.check();
+    await page.click('[data-a="next"]');
+    await page.locator(".wtab", { hasText: "Peers.xlsx" }).click();                  // the linked sheet's tab: "Peer" with its file chip
+    await page.fill("#wRange", "C4:G8"); await page.click("#wAdd");
+    await page.click('[data-a="next"]'); await page.click('[data-a="finish"]');
+    // the only table of the deck is the linked one: its cells are drawn from Peers.xlsx
+    await expect(page.locator("#stage .slide .t", { hasText: /^Peer avg$/ })).toHaveCount(1, { timeout: 20_000 });
+    await expect(page.locator("#stage .slide .t", { hasText: /^below peers$/ })).toHaveCount(1);
+    // the Issues panel's "Formulas" line (B24, S7.4): both files recompute like Excel but the locale-dependent cells
+    await expect(page.locator("#calcLine")).toContainText("Formulas: not checked yet");
+    await page.click("#calcCheckBtn");
+    await expect(page.locator("#calcLine")).toContainText("Formulas: 205 of 208 recompute like Excel · 3 locale-dependent (TEXT)", { timeout: 30_000 });
+    const bdoc = () => deckDoc("Banks.xlsx");
+    await pollFile(() => bdoc().preset.links, { timeout: 10_000 }).toEqual(["Peers.xlsx"]);
+    expect(bdoc().preset.tables.map((t: any) => t.sheet)).toEqual(["[Peers.xlsx]Peer"]);
+    // opened again, the deck brings its linked workbook back
+    await page.reload(); await page.locator("#openBtn").waitFor();
+    await openWorkbook(page, "Banks.xlsx"); await page.click('[data-a="continue"]');
+    await expect(page.locator("#stage .slide .t", { hasText: /^Peer avg$/ })).toHaveCount(1, { timeout: 20_000 });
+    await lastFileSaved("anna", "Banks.xlsx");
+  });
+
   test("no page errors, console errors or warnings", async () => { expect(unexpected(errors)).toEqual([]); });
 });
 

@@ -57,6 +57,14 @@ export function core(): CorePort {
   port.handle("fontCatalog", () => measureCatalog());
   setFontGate(fontReadable);
   port.handle("fontFile", a => fontFile(a));
+  // a linked workbook (S7.3): a file of the same folder, never from disk-opened pages
+  port.handle("linkedWorkbook", async a => {
+    if (!backend.served) return null;
+    const files = await backend.files().catch(() => [] as { name: string }[]);
+    if (!files.some(f => f.name === a.name)) return null;
+    const { buf } = await backend.readFile(a.name);
+    return transfer(buf, [buf]);
+  });
   port.handle("analyzeImages", async a => { await analyzeImages(a.srcs); return a.srcs.flatMap(s => IMGMETA.has(s) ? [[s, IMGMETA.get(s)!] as [string, ImgMeta]] : []); });
   port.on("slices", e => {
     const wb = [openingWb, get().deck.wb as MirrorWorkbook | null].find(w => w && w.book === e.book);
@@ -195,6 +203,26 @@ export async function openFromFolder(name: string, ask = true) {
   if (gen !== openGen) return;
   await openBuffer(file.buf, name, "folder", "", file.mtime, file.size, ask, async () => (await backend.readFile(name)).buf, gen);
 }
+/** the formula engine's self-check of the open workbook (B24, S7.4): the Issues panel's "Formulas" line; every sheet
+    is read and the engine starts on the first call, so it runs only when asked */
+export async function checkFormulas() {
+  if (!get().doc.open || get().ui.calc === "busy") return;
+  patch("ui", { calc: "busy" });
+  try { const c = await core().call("calcCheck", {}); patch("ui", { calc: c }); }
+  catch (e) { patch("ui", { calc: null }); toast("The formulas could not be checked: " + esc((e as Error).message || String(e)), [], true); }
+}
+/** the workbooks of the folder that can be linked to `wb` (S7.3): not the open one, not those linked already */
+export async function linkableWorkbooks(wb: MirrorWorkbook, name: string): Promise<string[]> {
+  if (!backend.served) return [];
+  const linked = new Set(wb.meta.flatMap(m => m.linked ? [m.linked] : []));
+  return (await backend.files().catch(() => [] as { name: string }[])).map(f => f.name).filter(n => n !== name && !linked.has(n) && /\.xls[xmb]$/i.test(n));
+}
+/** a linked workbook joins the open workbook's mirror (the worker reads it): false when the file is not available */
+export async function linkWorkbook(wb: MirrorWorkbook, file: string): Promise<boolean> {
+  const info = await core().call("link", { book: wb.book, name: file });
+  if (info) wb.extend(info);
+  return !!info;
+}
 /** opens are numbered: a newer open (a second drop, Browse… during an upload) makes an older one give up quietly */
 let openGen = 0;
 /** a workbook left while its changes were failing to save (the worker keeps retrying them): closing the window asks */
@@ -281,6 +309,10 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   stale();
   layOutWhileIdle(wb);
   LCACHE.clear();
+  patch("ui", { calc: null });                               // another workbook: its formulas are not checked yet
+  /** the deck's linked workbooks join the mirror too (the wizard lists their sheets; the worker attaches them again
+      at start for the slides) */
+  const linkAll = async (links: string[]) => { for (const f of links) { const info = await core().call("link", { book: wb.book, name: f }); if (info) wb.extend(info); } };
   // the deck on the share: its snapshot and the records past it, folded as the worker will (model/fold.ts)
   const opened = await backend.openDeck(name);
   stale();
@@ -293,6 +325,7 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   if (get().doc.open && get().doc.save === "error") unsavedElsewhere = true;
   if (get().doc.open && get().doc.save === "error") toast("⚠ The changes to “" + esc(get().deck.file?.name || "") + "” are not saved yet – they keep being retried. Keep this window open until they are saved.", [], true);
   let preset = doc.preset, newPreset: Preset | null = null;
+  if (preset?.links?.length) { await linkAll(preset.links); stale(); }
   try {
     if (preset && askUser) {
       const choice = await presetBox(name, preset);

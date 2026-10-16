@@ -14,7 +14,7 @@ import { unzlibSync } from "fflate";
 import type { Sheet } from "../xlsx/types";
 import { Kind, type SheetColumns } from "../xlsx/sheetstore";
 import { numToCol } from "../xlsx/util";
-import { tokenize, type FToken } from "./refs";
+import { parseSheetId, tokenize, type FToken } from "./refs";
 import { quoteSheet } from "../xlsx/xlsb/formula";
 import type { Model as IronModel } from "./wasm/ironcalc-glue";
 
@@ -30,8 +30,9 @@ export function loadEngine(): Promise<Glue> {
   });
 }
 
-/** a workbook of the model: the deck's (`name` null) or a linked one by file name; `externals` = the file names its
-    external links refer to, in the "[n]" order of its formulas */
+/** a workbook of the model: the deck's (`name` null) or a linked one by file name. A linked workbook's sheets may be
+    named by their plain names or by their sheet ids "[File.xlsx]Sheet" (as the deck's workbook holds them after
+    attachLinked): the engine uses the plain name */
 export interface CalcBook { name: string | null; /** the deck's workbook's own file name (what linked workbooks' formulas call it) */ file?: string; sheets: Sheet[];
   /** the workbook's hidden sheets (never read, WB-18): a formula that names one is classed `hidden` */ hidden?: string[]; externals: string[] }
 export type CellValue = number | string | boolean | { err: string } | null;
@@ -86,6 +87,30 @@ export class CalcModel {
     try { this.build(books); } catch (e) { this.model.free(); throw e; }
     this.ms.build = now() - t0;
     const t1 = now(); this.model.evaluate(); this.ms.evaluate = now() - t1;
+    this.baseline = this.values();
+  }
+  /** every formula cell's value right after the build: what a scenario's changes are measured against (a cell the
+      self-check classes `different` keeps Excel's cached value in the deck until a scenario moves it) */
+  baseline: CellValue[] = [];
+  /** the formula cells whose value differs from the baseline, by sheet id ("Sheet" or "[File.xlsx]Sheet") and "r,c" */
+  changes(): Map<string, Map<string, CellValue>> {
+    const out = new Map<string, Map<string, CellValue>>();
+    this.formulas.forEach((f, i) => {
+      const v = this.valueOf(f.book, f.sheet, f.r, f.c);
+      if (sameValue(v, this.baseline[i])) return;
+      const id = f.book === null ? f.sheet : "[" + f.book + "]" + f.sheet;
+      let m = out.get(id); if (!m) out.set(id, m = new Map()); m.set(f.r + "," + f.c, v);
+    });
+    return out;
+  }
+  /** what a cell holds in the engine, as the engine itself writes it: a constant, a formula ("=…"), or "" for an empty
+      cell – what `restore` puts back after a scenario moved the cell */
+  contentOf(book: string | null, sheet: string, r: number, c: number): string {
+    const si = this.ix.get(book + "\u0000" + sheet); return si === undefined ? "" : this.model.getCellContent(si, r, c);
+  }
+  restore(book: string | null, sheet: string, r: number, c: number, content: string): boolean {
+    const si = this.ix.get(book + "\u0000" + sheet); if (si === undefined) return false;
+    this.model.setUserInput(si, r, c, content); return true;
   }
   private unreadable = 0;
   private build(books: CalcBook[]) {
@@ -93,10 +118,11 @@ export class CalcModel {
     const used = new Set<string>();
     for (const [bi, b] of books.entries()) for (const S of b.sheets) {
       if (!first) this.model.newSheet(); first = false;
-      let internal = b.name === null ? S.name : mangle(bi, S.name, used);
+      const plain = plainName(S);
+      let internal = b.name === null ? plain : mangle(bi, plain, used);
       try { this.model.renameSheet(n, internal); } catch { internal = mangle(bi, "Sheet" + n, used); this.model.renameSheet(n, internal); }
       used.add(internal.toLowerCase());
-      const key = b.name + "\u0000" + S.name;
+      const key = b.name + "\u0000" + plain;
       this.ix.set(key, n); this.names.set(key, quoteSheet(internal));
       unreadable += S.unreadableFormulas || 0;
       n++;
@@ -114,7 +140,7 @@ export class CalcModel {
   /** every cell of a sheet into the engine: numbers in one tab-separated paste per used box (fast), everything else cell by cell */
   private load(b: CalcBook, S: Sheet) {
     const C = S.cols?.cells; if (!C || !C.n) return;
-    const si = this.ix.get(b.name + "\u0000" + S.name)!, ctx = S.ctx;
+    const sheet = plainName(S), si = this.ix.get(b.name + "\u0000" + sheet)!, ctx = S.ctx;
     const { rows, cols } = usedRange(S);
     // array formulas own their ranges: the cached values Excel wrote into them are not constants
     const arrays: { r1: number; c1: number; r2: number; c2: number }[] = [];
@@ -135,9 +161,9 @@ export class CalcModel {
         if (fk !== undefined) {
           const text = this.prep(C.fmls[fk], b, S);
           const arr = C.arr.get(i);
-          this.formulas.push({ book: b.name, sheet: S.name, r, c, text: C.fmls[fk], ...(arr ? { array: arr } : {}) });
+          this.formulas.push({ book: b.name, sheet, r, c, text: C.fmls[fk], ...(arr ? { array: arr } : {}) });
           fmlBox = fmlBox ? { r1: Math.min(fmlBox.r1, r), c1: Math.min(fmlBox.c1, c), r2: Math.max(fmlBox.r2, r), c2: Math.max(fmlBox.c2, c) } : { r1: r, c1: c, r2: r, c2: c };
-          if (text === null) { (this.lastHidden ? this.hiddenCells : this.externalCells).add(b.name + "\u0000" + S.name + "\u0000" + r + "," + c); continue; }
+          if (text === null) { (this.lastHidden ? this.hiddenCells : this.externalCells).add(b.name + "\u0000" + sheet + "\u0000" + r + "," + c); continue; }
           if (arr) { const m = /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/.exec(arr); const w = m && m[3] ? colNum(m[3]) - colNum(m[1]) + 1 : 1, h = m && m[4] ? +m[4] - +m[2] + 1 : 1; later.push([r, c, "\u0001" + w + "," + h + "," + text]); }
           else later.push([r, c, "=" + text]);
           continue;
@@ -175,7 +201,7 @@ export class CalcModel {
       try {
         this.model.setSelectedSheet(si);
         if ((fmlBox.r2 - fmlBox.r1 + 1) * (fmlBox.c2 - fmlBox.c1 + 1) <= 20000) { this.model.setSelectedCell(fmlBox.r1, fmlBox.c1); this.model.setSelectedRange(fmlBox.r1, fmlBox.c1, fmlBox.r2, fmlBox.c2); this.model.onApplyNamedStyle("sbprecise"); }
-        else for (const f of this.formulas) if (f.book === b.name && f.sheet === S.name) { this.model.setSelectedCell(f.r, f.c); this.model.onApplyNamedStyle("sbprecise"); }
+        else for (const f of this.formulas) if (f.book === b.name && f.sheet === sheet) { this.model.setSelectedCell(f.r, f.c); this.model.onApplyNamedStyle("sbprecise"); }
       } catch (e) { this.styleError = String((e as Error)?.message || e); }
     }
   }
@@ -204,7 +230,7 @@ export class CalcModel {
   }
   private ref(t: Extract<FToken, { kind: "ref" }>, b: CalcBook, S: Sheet, unbounded: boolean, markExternal: () => void, markHidden: () => void): string {
     // the sheet the reference names: this one, another of the same book, or a sheet of a linked book
-    let book = b, sheetName = S.name, prefix = "";
+    let book = b, sheetName = plainName(S), prefix = "";
     if (t.sheet !== null) {
       const m = /^\[(\d+)\](.*)$/.exec(t.sheet);
       if (m) {
@@ -221,7 +247,7 @@ export class CalcModel {
     }
     const body = t.s.slice(t.s.length - t.s.replace(/^.*!/, "").length);
     if (unbounded || (t.r1 !== null && t.c1 !== null)) return prefix + body;
-    const target = book.sheets.find(x => x.name === sheetName); if (!target) return prefix + body;
+    const target = book.sheets.find(x => plainName(x) === sheetName); if (!target) return prefix + body;
     const u = usedRange(target);
     if (t.r1 === null) return prefix + (t.c1Abs ? "$" : "") + numToCol(t.c1!) + "$1:" + (t.c2Abs ? "$" : "") + numToCol(t.c2!) + "$" + u.rows;   // A:A → A$1:A$<rows>
     return prefix + "$A" + (t.r1Abs ? "$" : "") + t.r1 + ":$" + numToCol(u.cols) + (t.r2Abs ? "$" : "") + t.r2;                           // 1:1 → $A1:$<cols>1
@@ -253,7 +279,7 @@ export class CalcModel {
     const counts: Record<CheckClass, number> = { exact: 0, volatile: 0, locale: 0, external: 0, hidden: 0, unreadable: this.unreadable, different: 0 };
     const different: SelfCheck["different"] = [];
     for (const f of this.formulas) {
-      const S = this.books.find(b => b.name === f.book)!.sheets.find(s => s.name === f.sheet)!;
+      const S = this.books.find(b => b.name === f.book)!.sheets.find(s => plainName(s) === f.sheet)!;
       const cell = S.get(f.r, f.c), cached: CellValue = !cell || cell.t === "blank" ? null : cell.t === "e" ? { err: String(cell.v) } : (cell.v as CellValue);
       const computed = this.valueOf(f.book, f.sheet, f.r, f.c);
       const ck = f.book + "\u0000" + f.sheet + "\u0000" + f.r + "," + f.c;
@@ -271,6 +297,8 @@ export class CalcModel {
 }
 
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
+/** a sheet's plain name: without the "[File.xlsx]" of a sheet id */
+const plainName = (S: Sheet) => parseSheetId(S.name).sheet;
 const colNum = (s: string) => { let n = 0; for (const ch of s) n = n * 26 + ch.charCodeAt(0) - 64; return n; };
 /** an internal sheet name for a linked workbook's sheet: "«n»Sheet", at most 31 characters (the engine's limit, as
     Excel's), unique within the model; never saved anywhere */

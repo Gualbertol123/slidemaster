@@ -370,7 +370,8 @@ operations are opaque to it. The full contract (torn tails, rotation, who delete
                  "sizes"?: {"glass"|"excel"|"clean": {layout?, scale?, align?, valign?}},
                  "notes"?: {"k3j9x0a:right": Note, "slide:notes": Note},
                  "fmt"?: {"title"|"subtitle"|"note"|"date": TextFmt}} ],
-    "versions"?: [{"id": "v1", "name": "All", "hide": {"SLIDE_1": ["H10:I11"]}}]
+    "versions"?: [{"id": "v1", "name": "All", "hide": {"SLIDE_1": ["H10:I11"]}}],
+    "links"?: ["Peers.xlsx"]        // 4.2: linked workbooks of the folder; their sheets are named "[Peers.xlsx]Peer" wherever a sheet name is stored
   },
   "style": { "design": "glass", "glass": "subtle", "color": 35, "logo": "logo.png", "radius": 100,
              "contrast": 50, "logoBubble"?: false, "pn": {…}, "footer": {…}, "theme": {…},
@@ -502,7 +503,12 @@ messages. The messages are typed in `rpc/messages.ts` over `rpc/port.ts` (calls 
   `start` (the deck as the helper opened it), `inputs`, `apply(label, ops, coalesce)`, `undo(redo)`, `flush`,
   `poll`, `alone`, `compactAll` (Prepare rollback), `staticFont`, `slideLists`, `fontsSettling` (capture tools),
   `stage`, `linkExport`/`unlinkExport`, `calcCheck` (4.2: the formula engine's self-check of the open workbook, every
-  sheet read and the engine started on this first use);
+  sheet read, the folder's workbooks its formulas link to attached, the engine started on this first use), `link` (4.2,
+  B22: a workbook of the folder joins the open one – the page gives its bytes through `linkedWorkbook` – and its sheets
+  are listed and read under their ids `[File.xlsx]Sheet`), `scenarioPreview` (4.2, S7.4: an input cell set in the
+  engine, the slides drawn from the recomputed values through a *view* of the workbook – `core/src/calc/overlay.ts`,
+  the changed sheets copied with those cells' values replaced, `RenderCtx.scenario` in every table's cache key –
+  until `null` clears it; the document, the deck and the workbook file are never touched);
 * the worker **sends** `slices`, `doc` (view when it changed, save state, error, history, deck health, what
   changed, how many of the page's calls it includes), `stage`, `progress`, `error`, `retiredSaved`, `rest` (a
   snapshot for pagehide);
