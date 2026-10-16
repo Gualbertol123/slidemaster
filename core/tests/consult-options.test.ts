@@ -4,10 +4,19 @@ import { describe, expect, it } from "vitest";
 import { resolveStyle } from "../src/model/style";
 import { applyOps } from "../src/model/ops";
 import { applyOps as apply41 } from "./fixtures/v41/ops";
-import { CONSULT_DEFAULTS, cleanConsult, consultOptions } from "../src/model/designs";
+import { CONSULT_DEFAULTS, cleanConsult, consultLookKey, consultLookName, consultLooks, consultOptions } from "../src/model/designs";
 import type { Op, WorkbookDoc } from "../src/model/types";
 
 describe("consulting design options", () => {
+  it("the Look dropdown: every distinct combination once, both defaults among them", () => {
+    const L = consultLooks(), keys = L.map(consultLookKey), names = L.map(consultLookName);
+    expect(L.length).toBe(36);
+    expect(new Set(keys).size).toBe(36);
+    expect(new Set(names).size).toBe(36);
+    for (const d of ["mckinsey", "bain"] as const) expect(keys).toContain(consultLookKey(CONSULT_DEFAULTS[d]));
+    expect(consultLookKey({ ...CONSULT_DEFAULTS.bain, tables: "cards", numbers: "compact" })).toBe(consultLookKey({ ...CONSULT_DEFAULTS.bain, tables: "cards" }));
+    expect(consultLookName(CONSULT_DEFAULTS.mckinsey)).toBe("Exhibit · All numbers · KPI line · Dark band");
+  });
   it("default per design", () => {
     expect(consultOptions({ style: resolveStyle({ design: "mckinsey" }) })).toEqual(CONSULT_DEFAULTS.mckinsey);
     expect(consultOptions({ style: resolveStyle({ design: "bain" }) })).toEqual({ tables: "exhibit", numbers: "full", headline: "panel", background: "tinted" });

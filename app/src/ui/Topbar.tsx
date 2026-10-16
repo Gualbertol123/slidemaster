@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { get, patch, toast, useStore } from "../state/store";
 import { esc } from "@slide-builder/core/xlsx/util";
-import { guard, lookChange, showVersion, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, styleChange, setPrefs, prepareRollback } from "../state/app";
+import { consultChange, guard, lookChange, showVersion, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, styleChange, setPrefs, prepareRollback } from "../state/app";
 import { backend, type FileInfo } from "../sync/api";
 import { doExport, exportVersions, type ExportKind } from "../editor/export";
 import { reportExportProblem } from "../editor/feedback";
@@ -10,7 +10,7 @@ import { Field } from "./Field";
 import { openFontManager } from "./FontPicker";
 import type { Footer, PageNumbers, Theme } from "@slide-builder/core/model/types";
 import { THEMES, themeOf } from "@slide-builder/core/model/style";
-import { DESIGNS, isConsult } from "@slide-builder/core/model/designs";
+import { CONSULT_DEFAULTS, DESIGNS, consultLookKey, consultLookName, consultLooks, consultOptions, isConsult } from "@slide-builder/core/model/designs";
 import { Input } from "./Input";
 import { useStyle } from "./hooks";
 
@@ -208,6 +208,25 @@ function VersionPicker() {
       <option value="">Full deck</option>{vs.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>;
 }
 
+/* a consulting design's look: every combination of its options in one list (Design… › Layout sets them one by one) */
+const LOOKS = consultLooks(), GROUPS = [["exhibit", "Exhibit tables"], ["cards", "Card tables"], ["rules", "Ruled tables"]] as const;
+function LookPicker() {
+  const st = useStyle(), has = useStore(s => s.doc.open), d = st.design;
+  if (!isConsult(d)) return null;
+  const cur = consultOptions({ style: st }), def = CONSULT_DEFAULTS[d];
+  const pick = (key: string) => {
+    const o = LOOKS.find(x => consultLookKey(x) === key); if (!o) return;
+    const part: Record<string, string | null> = {};
+    for (const k of ["tables", "headline", "background"] as const) part[k] = o[k] === def[k] ? null : o[k];
+    if (o.tables === "exhibit") part.numbers = o.numbers === def.numbers ? null : o.numbers;   // cards and ruled tables keep the Numbers choice
+    consultChange("Look: " + consultLookName(o), part);
+  };
+  return <label className="verpick" id="lookPick" title="Consulting look: how tables are drawn, the headline and the background (one by one: Design… › Layout)">
+    <span>Look</span><select id="lookSel" disabled={!has} value={consultLookKey(cur)} onChange={e => pick((e.target as HTMLSelectElement).value)}>
+      {GROUPS.map(([t, g]) => <optgroup key={t} label={g}>{LOOKS.filter(o => o.tables === t).map(o => { const k = consultLookKey(o);
+        return <option key={k} value={k}>{consultLookName(o)}{k === consultLookKey(def) ? " (design default)" : ""}</option>; })}</optgroup>)}</select></label>;
+}
+
 function Others() {
   const others = useStore(s => s.ui.others), file = useStore(s => s.deck.file), me = useStore(s => s.prefs.user);
   const here = others.filter(o => file && o.workbook === file.name);
@@ -246,6 +265,7 @@ export function Topbar() {
       {st.design === "glass" && <div className="colorctl" id="colorCtl" title="Background colour: from plain white to full colour">
         <span className="lbl">Colour</span><Input type="range" id="colorRange" min="0" max="100" step="5" disabled={!has} value={st.color} onChange={e => { const v = +(e.target as HTMLInputElement).value; document.getElementById("colorVal")!.textContent = v + "%"; debounced("color", () => styleChange("Background colour", { color: v }, "color")); }} /><span id="colorVal" className="cv">{st.color}%</span>
       </div>}
+      <LookPicker />
       <Options />
       <ServerPill />
       <ExportButton />

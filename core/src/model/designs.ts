@@ -23,6 +23,25 @@ export const CONSULT_DEFAULTS: Record<ConsultDesign, ConsultOptions> = {
 };
 export const CONSULT_CHOICES: { [K in keyof ConsultOptions]: readonly ConsultOptions[K][] } = {
   tables: ["exhibit", "cards", "rules"], numbers: ["full", "compact"], headline: ["kpi", "panel", "none"], background: ["band", "tinted", "white"] };
+/** the options' names and choices as users see them (Design… › Layout, the topbar's Look dropdown) */
+export const CONSULT_TEXT: { [K in keyof ConsultOptions]: { name: string; hint: string; labels: Record<ConsultOptions[K], string> } } = {
+  tables: { name: "Tables", hint: "how each table is drawn", labels: { exhibit: "Exhibit", cards: "Cards", rules: "Ruled" } },
+  numbers: { name: "Numbers", hint: "exhibits: every number, or the latest value with its trend and each change as bar + %", labels: { full: "All numbers", compact: "Compact" } },
+  headline: { name: "Headline", hint: "from the slide's first table: a KPI line under the title, a message panel on the left, or nothing", labels: { kpi: "KPI line", panel: "Message panel", none: "None" } },
+  background: { name: "Background", hint: "a dark band behind the title, a tinted slide, or white", labels: { band: "Dark band", tinted: "Tinted", white: "White" } },
+};
+/** every distinct look (product owner, 2026-10-16: "keep all of the combinations for now in a dropdown, we can remove them
+    later"): Numbers only changes exhibits, so cards and ruled tables come once each – 18 + 9 + 9 = 36 */
+export function consultLooks(): ConsultOptions[] {
+  const out: ConsultOptions[] = [];
+  for (const tables of CONSULT_CHOICES.tables) for (const numbers of tables === "exhibit" ? CONSULT_CHOICES.numbers : (["full"] as const))
+    for (const headline of CONSULT_CHOICES.headline) for (const background of CONSULT_CHOICES.background) out.push({ tables, numbers, headline, background });
+  return out;
+}
+/** a look's key (the dropdown's value) and name; Numbers is left out where it changes nothing */
+export const consultLookKey = (o: ConsultOptions) => [o.tables, o.tables === "exhibit" ? o.numbers : "-", o.headline, o.background].join(" ");
+export const consultLookName = (o: ConsultOptions) => [CONSULT_TEXT.tables.labels[o.tables], ...(o.tables === "exhibit" ? [CONSULT_TEXT.numbers.labels[o.numbers]] : []),
+  o.headline === "none" ? "No headline" : CONSULT_TEXT.headline.labels[o.headline], CONSULT_TEXT.background.labels[o.background] + (o.background === "band" ? "" : " background")].join(" · ");
 /** only valid values survive (documents are shared and may come from other pages) */
 export function cleanConsult(o: unknown): Partial<ConsultOptions> {
   const out: Partial<Record<keyof ConsultOptions, string>> = {};

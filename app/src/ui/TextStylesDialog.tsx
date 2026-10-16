@@ -9,7 +9,7 @@ import { consultChange, lookAt, lookChange, saveStyleAsDefault } from "../state/
 import { addGoogleFont, inLibrary, removeFont, uploadFontFiles } from "../state/fonts";
 import { GOOGLE_POPULAR, fontStack } from "@slide-builder/core/model/fonts";
 import { COLOR_KEYS, palette } from "@slide-builder/core/model/style";
-import { CONSULT_CHOICES, CONSULT_DEFAULTS, DESIGN_LABEL, consultOptions, isConsult, type ConsultOptions } from "@slide-builder/core/model/designs";
+import { CONSULT_CHOICES, CONSULT_DEFAULTS, CONSULT_TEXT, DESIGN_LABEL, consultOptions, isConsult, type ConsultOptions } from "@slide-builder/core/model/designs";
 import { ThemePicker } from "./Topbar";
 import type { TextFmt, TextRole } from "@slide-builder/core/model/types";
 import { backend } from "../sync/api";
@@ -120,12 +120,7 @@ function FontsTab() {
 }
 
 /* the consulting designs' options (Design… › Layout): every look built for them stays a choice, so hybrids can be made */
-const OPTION_TEXT: { [K in keyof ConsultOptions]: { name: string; hint: string; labels: Record<ConsultOptions[K], string> } } = {
-  tables: { name: "Tables", hint: "how each table is drawn", labels: { exhibit: "Exhibit", cards: "Cards", rules: "Ruled" } },
-  numbers: { name: "Numbers", hint: "exhibits: every number, or the latest value with its trend and each change as bar + %", labels: { full: "All numbers", compact: "Compact" } },
-  headline: { name: "Headline", hint: "from the slide's first table: a KPI line under the title, a message panel on the left, or nothing", labels: { kpi: "KPI line", panel: "Message panel", none: "None" } },
-  background: { name: "Background", hint: "a dark band behind the title, a tinted slide, or white", labels: { band: "Dark band", tinted: "Tinted", white: "White" } },
-};
+const OPTION_TEXT = CONSULT_TEXT;
 function LayoutTab() {
   const st = useStyle(), o = consultOptions({ style: st }), d = st.design, def = isConsult(d) ? CONSULT_DEFAULTS[d] : null;
   if (!def) return <div className="optnote">Layout options belong to the consulting designs (Consulting Navy, Consulting Red).</div>;
