@@ -535,6 +535,12 @@ ships.
 | Open deck20 → first slide in McKinsey | S7b.4 | 400 ms (unchanged) |
 | New main-thread work | – | none: the renderer runs in the core and export workers, like `excel-dl.ts` |
 
+Measured in S7b.4 (this PC; `npm run bench` and `tools/export-check.mjs --decks deck20`, each twice): export of deck20
+Navy 342–458 ms / Red 230–422 ms; PDF 209 KB / 141 KB for 20 slides (≈ 10 / 7 KB per slide: the fonts once, the
+exhibits as vector text and rules); keypress → pixels in Navy p95 37–38 ms; drag frame in Navy 12–13.8 ms; deck20
+opened again in Navy 103–104 ms (the preset box, then Continue → first slide); no task over 50 ms. The limits above
+stand (40 KB per slide + 150 KB is generous; kept so a later picture-heavy option fits).
+
 ### 4.4 ADR-018
 
 `docs/next/adr/018-consulting-designs-as-parameterised-excel-item-renderers.md` (status: proposed).

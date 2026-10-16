@@ -825,6 +825,18 @@ test.describe.serial("two people, one shared folder", () => {
     const xl = pdf("weekly - All - Excel.pdf").toString("latin1");
     expect(xl).toContain("/Font");
     expect(xl).not.toMatch(/\/Subtype\s*\/Image/);
+    // every version in all five designs (M7b, DS-17): ten PDFs, the consulting designs by their neutral names (B11)
+    const ten = await fromMenu(page, "versions-5");
+    expect([...ten].sort()).toEqual(names(["Liquid Glass", "Excel", "Excel Refined", "Consulting Navy", "Consulting Red"]));
+    await expect(page.locator("#toast")).toContainText("Saved 10 PDFs");
+    for (const d of ["Consulting Navy", "Consulting Red"]) {
+      const chief = pdf(`weekly - Chief - ${d}.pdf`), src = chief.toString("latin1");
+      expect(pdfPageTexts(chief)).toHaveLength(1);
+      expect(src).toContain("/FontFile2");                                                   // TrueType subsets (GF)
+      expect(src).not.toMatch(/\/Subtype\s*\/Type3/);
+      expect(src).not.toMatch(/\/Subtype\s*\/Image/);                                     // no picture but the user's
+      expect(pdfPageTexts(chief)[0].length).toBeGreaterThan(pdfPageTexts(pdf(`weekly - All - ${d}.pdf`))[0].length);   // "All" lacks the removed cells
+    }
   });
 
   test("wizard on a sheet larger than the preview: the selection box sits exactly on the selected cells", async ({ page }) => {
@@ -937,7 +949,16 @@ test.describe.serial("two people, one shared folder", () => {
     expect(JSON.stringify(bdoc().style.theme ?? null)).toBe(shared);
     await page.click('#lookScope [data-scope="design"]');
     await page.click('.tsdlg [data-a="close"]');
+    // the Look dropdown (owner, 2026-10-16: every combination): 36 looks, the design's default chosen; a pick is one undo step
+    await expect(page.locator("#lookSel option")).toHaveCount(36);
+    await expect(page.locator("#lookSel")).toHaveValue("exhibit full panel tinted");
+    await page.selectOption("#lookSel", "rules - kpi white"); await saved(page);
+    expect(bdoc().style.designs.bain.consult).toEqual({ tables: "rules", headline: "kpi", background: "white" });
+    await page.keyboard.press("Control+z"); await saved(page);
+    expect(bdoc().style.designs?.bain?.consult).toBeUndefined();
+    await expect(page.locator("#lookSel")).toHaveValue("exhibit full panel tinted");
     await page.click(`[data-design="${before}"]`); await saved(page);
+    await expect(page.locator("#lookSel")).toHaveCount(0);                                   // consulting designs only
   });
 
   test("no page errors, console errors or warnings", async () => { expect(unexpected(errors)).toEqual([]); });

@@ -3,15 +3,17 @@
    * qpdf --check, no Type 3, no variable fonts (tools/pdfcheck.py check);
    * its selectable text against the goldens (GT, decision 2026-10-12, 5): every golden text of each slide on its
      page, nothing else, the page count = the slide count;
-   * GF budgets (PLAN Part F): Excel designs < 40 KB per slide, Liquid Glass < 80 KB per slide + 190 KB per document –
-     gated on deck20 (the 20-slide reference, as the bench); for decks of 1–3 slides the fonts and the wallpaper, a cost per
-     document, can exceed it: reported, not gated (PROGRESS, Waiting for);
-   * the time from the click to the saved file (the page's own clock), ⏱ deck20: Liquid Glass < 2 s, Excel < 1 s – scaled
+   * GF budgets (PLAN Part F): Excel designs < 40 KB per slide, Liquid Glass < 80 KB per slide + 190 KB per document,
+     Consulting Navy / Red (M7b, 08 §4.3) < 40 KB per slide + 150 KB per document – gated on deck20 (the 20-slide
+     reference, as the bench); for decks of 1–3 slides the fonts and the wallpaper, a cost per document, can exceed it:
+     reported, not gated (PROGRESS, Waiting for);
+   * the time from the click to the saved file (the page's own clock), ⏱ deck20: Liquid Glass < 2 s, Excel < 1 s,
+     Consulting Navy / Red < 1.5 s – scaled
      by this machine's speed as `npm run bench` scales its limits (tools/calibrate.mjs, at most 2×).
 
    With --pictures, each deck is also exported "as pictures" (B9: 2× PNG pages): size and time are recorded.
 
-     node tools/export-check.mjs [--decks a,b] [--designs glass,excel,clean] [--pictures] [--out <dir>] [--json <file>]
+     node tools/export-check.mjs [--decks a,b] [--designs glass,excel,clean,mckinsey,bain] [--pictures] [--out <dir>] [--json <file>]
 */
 import fs from "node:fs";
 import os from "node:os";
@@ -19,7 +21,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { BOOKS, DECKS, deckList, deckOps, load, openBrowser, startHelper } from "./capture-v3.mjs";
-import { goldenTexts, matchTexts } from "./export-dl.mjs";
+import { goldenTexts, matchTexts, ownPdfText, squash } from "./export-dl.mjs";
 import { speedFactor } from "./calibrate.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -28,9 +30,11 @@ const PY = process.platform === "win32" ? "python" : "python3";
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 export const BUDGET = {
   /** bytes per slide (+ per document), PLAN Part F */
-  size: { excel: [40 * 1024, 0], clean: [40 * 1024, 0], glass: [80 * 1024, 190 * 1024] },
+  size: { excel: [40 * 1024, 0], clean: [40 * 1024, 0], glass: [80 * 1024, 190 * 1024],
+    // the consulting designs (M7b, 08 §4.3): as Excel per slide + their fonts once (Georgia Bold, Arial Regular / Bold subsets)
+    mckinsey: [40 * 1024, 150 * 1024], bain: [40 * 1024, 150 * 1024] },
   /** ms from the click to the file for 20 slides, PLAN Part F */
-  time: { excel: 1000, clean: 1000, glass: 2000 },
+  time: { excel: 1000, clean: 1000, glass: 2000, mckinsey: 1500, bain: 1500 },
 };
 
 /** clicks an export and waits for its toast; returns the files it saved (the names the page was given back) and the
@@ -48,7 +52,7 @@ export async function exportOnce(page, h, click) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const OUT = path.resolve(arg("--out", fs.mkdtempSync(path.join(os.tmpdir(), "sb-export-check-"))));
-  const DESIGNS = arg("--designs", "glass,excel,clean").split(",");
+  const DESIGNS = arg("--designs", "glass,excel,clean,mckinsey,bain").split(",");
   const decks = deckList(arg("--decks", null)?.split(",") || null);
   const PICTURES = process.argv.includes("--pictures");
   fs.mkdirSync(OUT, { recursive: true });
@@ -99,7 +103,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   for (const r of results) {
     const d = byFile.get(r.file), bad = [];
     if (d.text.length !== r.slides) bad.push(`${d.text.length} page(s) for ${r.slides} slide(s)`);
+    // the consulting designs (M7b): their own golden PDF's text is the reference (heads in capitals, cells quoted)
+    const own = ownPdfText(r.deck, r.design, "full");
     d.text.forEach((pageText, p) => {
+      if (own) { if (own[p] !== undefined && squash(pageText) !== own[p]) bad.push(`slide ${p + 1}: the text differs from the golden PDF's`); return; }
       const want = goldenTexts(r.deck, r.design, "full", p + 1);
       if (!want) return;
       const { missing, extra } = matchTexts(pageText, want);

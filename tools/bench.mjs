@@ -24,6 +24,9 @@
                      end and back with the wheel, traced: 60 fps – the longest time between two animation frames
                      (one frame missed is 33 ms)                                                        < 20 ms
                      The frames per second, the page's most work in a frame and the pictures drawn are reported
+     consulting      ⏱ M7b (08 §4.3), when the build has them: deck20 exported in Consulting Navy and Red (< 1.5 s,
+                     < 40 KB per slide + 150 KB), keypress → pixels and the drags in Navy (as above), deck20 opened
+                     again in Navy (index → the preset box, Continue → first slide; < 400 ms), no task over 50 ms
      heap            after the big sheet was read: the page (performance.memory) plus the core worker, which
                      holds the workbook since S2.4 (Runtime.getHeapUsage over the DevTools protocol)    < 150 MB
    The two time limits are scaled by how much slower this machine is than the reference PC (tools/calibrate.mjs,
@@ -50,8 +53,11 @@ const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? proces
 const BACKEND = path.resolve(arg("--page", path.join(REPO, "helper")));
 const GATE = !process.argv.includes("--no-gate");
 const BUDGET = { open_deck20_ms: 400, read_big30_ms: 1000, longest_task_ms: 50, first_draw_task_ms: 250, heap_mb: 150,
-  export_glass_ms: 2000, export_excel_ms: 1000, export_glass_kb: 80 * 20 + 190, export_excel_kb: 40 * 20, keypress_p95_ms: 50, drag_frame_ms: 16, thumbs_gap_ms: 20 }, SLACK = 1.1;
-const speed = speedFactor(), TIMED = ["open_deck20_ms", "read_big30_ms", "export_glass_ms", "export_excel_ms"];   // keypress: not scaled (decision 2026-10-12 names the others)
+  export_glass_ms: 2000, export_excel_ms: 1000, export_glass_kb: 80 * 20 + 190, export_excel_kb: 40 * 20, keypress_p95_ms: 50, drag_frame_ms: 16, thumbs_gap_ms: 20,
+  // M7b (08 §4.3): the consulting designs – export 1.5 s and 40 KB per slide + 150 KB; keypress, drags, open as the others
+  export_navy_ms: 1500, export_red_ms: 1500, export_navy_kb: 40 * 20 + 150, export_red_kb: 40 * 20 + 150, keypress_navy_p95_ms: 50, drag_navy_frame_ms: 16,
+  open_navy_ms: 400, longest_navy_task_ms: 50 }, SLACK = 1.1;
+const speed = speedFactor(), TIMED = ["open_deck20_ms", "read_big30_ms", "export_glass_ms", "export_excel_ms", "export_navy_ms", "export_red_ms", "open_navy_ms"];   // keypress: not scaled (decision 2026-10-12 names the others)
 const LIMITS = Object.fromEntries(Object.entries(BUDGET).map(([k, v]) => [k, TIMED.includes(k) ? Math.round(v * speed.factor) : v]));
 const CHROME = process.env.CHROME || chromium.executablePath();
 const PY = process.platform === "win32" ? "python" : "python3";
@@ -137,31 +143,36 @@ async function run(browser, port) {
     await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 });
     await sleep(500); await longTasks();
     // ---- keypress → pixels (S4.1): a cell of the second slide typed into and committed, 20 times
-    await page.locator(".thumb").nth(1).click();
-    await page.waitForFunction(() => window.__sbTest.stageIdle());
-    const cell = (await page.locator("#stage .slide > .tw .t").nth(8).boundingBox());
-    await page.evaluate(() => {
-      // from the Enter that commits to the first frame after the stage's tables show the text (a <desc> of a cell)
-      window.__kp = { t0: null, done: null, want: "" };
-      addEventListener("keydown", e => { if (e.key === "Enter" && window.__kp.want && window.__kp.t0 === null) window.__kp.t0 = performance.now(); }, true);
-      new MutationObserver(() => {
-        const k = window.__kp; if (k.t0 === null || k.done !== null) return;
-        if ([...document.querySelectorAll("#stage .slide > .tw desc")].some(d => d.textContent === k.want)) requestAnimationFrame(() => { if (k.done === null) k.done = performance.now(); });
-      }).observe(document.querySelector("#stage"), { subtree: true, childList: true });
-    });
-    const keys = [], cold = [];
-    for (let k = 0; k < 22; k++) {
-      const want = String(4100 + k);
-      await page.mouse.click(cell.x + 6, cell.y + cell.height / 2);
-      await page.keyboard.type(want);
-      await page.evaluate(w => { window.__kp = { t0: null, done: null, want: w }; }, want);
-      await page.keyboard.press("Enter");
-      await page.waitForFunction(() => window.__kp.done !== null, null, { timeout: 10000 });
-      keys.push(await page.evaluate(() => window.__kp.done - window.__kp.t0));
-      if (k === 1) cold.push(...keys.splice(0));                              // the two warm-up edits
-    }
-    keys.sort((a, b) => a - b);
-    const keypress = { cold_ms: cold.map(Math.round), p50_ms: Math.round(keys[Math.floor(keys.length * .5)]), p95_ms: Math.round(keys[Math.ceil(keys.length * .95) - 1]), max_ms: Math.round(keys[keys.length - 1]) };
+    /** keypress → pixels on the second slide: 2 untimed edits ("cold"), then 20 timed (p50 / p95 / max) */
+    const keypressRun = async () => {
+      await page.locator(".thumb").nth(1).click();
+      await page.waitForFunction(() => window.__sbTest.stageIdle());
+      const cell = (await page.locator("#stage .slide > .tw .t").nth(8).boundingBox());
+      await page.evaluate(() => {
+        // from the Enter that commits to the first frame after the stage's tables show the text (a <desc> of a cell)
+        window.__kp = { t0: null, done: null, want: "" };
+        addEventListener("keydown", e => { if (e.key === "Enter" && window.__kp.want && window.__kp.t0 === null) window.__kp.t0 = performance.now(); }, true);
+        new MutationObserver(() => {
+          const k = window.__kp; if (k.t0 === null || k.done !== null) return;
+          if ([...document.querySelectorAll("#stage .slide > .tw desc")].some(d => d.textContent === k.want)) requestAnimationFrame(() => { if (k.done === null) k.done = performance.now(); });
+        }).observe(document.querySelector("#stage"), { subtree: true, childList: true });
+      });
+      const keys = [], cold = [];
+      for (let k = 0; k < 22; k++) {
+        const want = String(4100 + k);
+        await page.mouse.click(cell.x + 6, cell.y + cell.height / 2);
+        await page.keyboard.type(want);
+        await page.evaluate(w => { window.__kp = { t0: null, done: null, want: w }; }, want);
+        await page.keyboard.press("Enter");
+        await page.waitForFunction(() => window.__kp.done !== null, null, { timeout: 10000 });
+        keys.push(await page.evaluate(() => window.__kp.done - window.__kp.t0));
+        if (k === 1) cold.push(...keys.splice(0));                              // the two warm-up edits
+      }
+      keys.sort((a, b) => a - b);
+      const keypress = { cold_ms: cold.map(Math.round), p50_ms: Math.round(keys[Math.floor(keys.length * .5)]), p95_ms: Math.round(keys[Math.ceil(keys.length * .95) - 1]), max_ms: Math.round(keys[keys.length - 1]) };
+      return keypress;
+    };
+    const keypress = await keypressRun();
     await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 });
     const ltEdit = (await longTasks()).map(x => x.d);
     const drags = await dragFrames(browser, page);
@@ -185,6 +196,33 @@ async function run(browser, port) {
     const thumbs = await thumbScroll(browser, page);
     await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 }); await sleep(300);
     const ltThumbs = (await longTasks()).map(x => x.d);
+    // ---- the consulting designs (M7b, 08 §4.3; after the thumbnails, so their scroll is measured as before; a build without them – --page of an older one – skips this): deck20
+    // exported in Consulting Navy and Red, keypress → pixels and the drags in Navy, deck20 opened again in Navy
+    let consult = null;
+    if (await page.locator('[data-design="mckinsey"]').count()) {
+      const design = async d => { await page.click(`[data-design="${d}"]`); await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 }); await sleep(300); await longTasks(); };
+      await design("mckinsey");
+      const navy = await exportOnce(), ltNavy = (await longTasks()).map(x => x.d);
+      await design("bain");
+      const red = await exportOnce(), ltRed = (await longTasks()).map(x => x.d);
+      await design("mckinsey");
+      const kp = await keypressRun();
+      await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 });
+      const ltKp = (await longTasks()).map(x => x.d);
+      const dr = await dragFrames(browser, page);
+      await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 }); await sleep(300); await longTasks();
+      // deck20 opened again (it is a deck now): index → the preset box, "Continue with preset" → first slide in Navy
+      await page.click("#openBtn"); await page.locator('[data-f="deck20.xlsx"]').waitFor();
+      await watch('[data-a="continue"]'); await page.click('[data-f="deck20.xlsx"]');
+      const box = await took(page.locator('[data-a="continue"]').first());
+      await watch("#stage .slide.consult .t"); await page.click('[data-a="continue"]');
+      const first = await took(page.locator("#stage .slide.consult .t").first());
+      await page.locator(".thumb").nth(19).waitFor({ timeout: 60000 }); await sleep(500);
+      const ltOpen = (await longTasks()).map(x => x.d);
+      consult = { navy_ms: navy.ms, navy_kb: navy.kb, red_ms: red.ms, red_kb: red.kb, keypress: kp, drags: dr, open_ms: Math.round(box + first),
+        longtasks: [...ltNavy, ...ltRed, ...ltKp] , open_longtasks: ltOpen };
+      await design("glass");
+    }
     // ---- big30: the index, then one 130 000-row sheet
     await page.click("#openBtn"); await page.locator('[data-f="big30.xlsx"]').waitFor();
     await watch([".wiz label", "DATA_1"]); await page.click('[data-f="big30.xlsx"]');
@@ -202,6 +240,7 @@ async function run(browser, port) {
     if (errors.length) throw new Error("page errors: " + errors.join("; "));
     return { boot: { longtasks: ltBoot }, deck20: { wizard_ms: Math.round(wizard), finish_to_slide_ms: Math.round(slides), open_ms: Math.round(wizard + slides), longtasks: ltDeck, first_draw_longtasks: ltFirstDraw },
       edit: { keypress, longtasks: ltEdit }, drags, thumbs: { ...thumbs, longtasks: ltThumbs },
+      consult,
       export: { glass_ms: glass.ms, glass_kb: glass.kb, glass_phases: glass.phases, excel_ms: excel.ms, excel_kb: excel.kb, excel_phases: excel.phases, longtasks: ltExport },
       big30: { index_to_wizard_ms: Math.round(index), read_sheet_ms: Math.round(read), read_to_grid_ms: Math.round(grid), longtasks: ltBig, heap_mb: heap,
         page_heap_mb: pageHeap == null ? null : Math.round(pageHeap), worker_heap_mb: workerHeap == null ? null : Math.round(workerHeap),
@@ -236,7 +275,8 @@ async function dragFrames(browser, page) {
     await drag("stretch", { x: edge.x, y: edge.b.y + edge.b.height / 4 }, -60, 0);
     const t0 = await at('#stage .slide > .tw[data-i="0"]');
     await drag("grip", await at('#stage .hbox[data-i="1"] .grip'), t0.x - (await at('#stage .hbox[data-i="1"] .grip')).x, t0.b.y + 4 - (await at('#stage .hbox[data-i="1"] .grip')).y);
-    await page.click("#slideNotes"); await page.locator("textarea.note-edit").fill("Source: ECB, monthly figures; the totals include the subsidiaries"); await page.keyboard.press("Control+Enter");
+    // the slide's notes (a second pass – the consulting designs – finds them made by the first)
+    if (!(await page.locator("#stage .tnote.memo").count())) { await page.click("#slideNotes"); await page.locator("textarea.note-edit").fill("Source: ECB, monthly figures; the totals include the subsidiaries"); await page.keyboard.press("Control+Enter"); }
     await page.locator("#stage .tnote.memo").waitFor(); await page.waitForTimeout(500);
     const note = await at("#stage .tnote.memo");
     await drag("note move", { x: note.x, y: note.y }, 60, -40);
@@ -326,13 +366,21 @@ const worst = {
   heap_mb: runs.some(r => r.big30.heap_mb == null) ? Infinity : Math.max(...runs.map(r => r.big30.heap_mb)),
   export_glass_ms: Math.max(...runs.map(r => r.export.glass_ms)), export_excel_ms: Math.max(...runs.map(r => r.export.excel_ms)),
   export_glass_kb: Math.max(...runs.map(r => r.export.glass_kb)), export_excel_kb: Math.max(...runs.map(r => r.export.excel_kb)),
+  // the consulting designs (M7b): not measured (an older build) counts as over the limit only when this build has them
+  ...(runs.every(r => r.consult) ? {
+    export_navy_ms: Math.max(...runs.map(r => r.consult.navy_ms)), export_red_ms: Math.max(...runs.map(r => r.consult.red_ms)),
+    export_navy_kb: Math.max(...runs.map(r => r.consult.navy_kb)), export_red_kb: Math.max(...runs.map(r => r.consult.red_kb)),
+    keypress_navy_p95_ms: Math.max(...runs.map(r => r.consult.keypress.p95_ms)),
+    drag_navy_frame_ms: Math.max(...runs.flatMap(r => Object.values(r.consult.drags).map(d => d.frame_ms))),
+    open_navy_ms: Math.max(...runs.map(r => r.consult.open_ms)),
+    longest_navy_task_ms: Math.max(0, ...runs.flatMap(r => r.consult.longtasks)) } : {}),
 };
 const info = { longest_startup_task_ms: Math.max(0, ...runs.flatMap(r => r.boot.longtasks)), thumbs_frame_ms: Math.max(...runs.map(r => r.thumbs.frame_ms)) };
 const out = { page: path.relative(REPO, BACKEND) || BACKEND, chrome: CHROME, machine: `${os.cpus().length} × ${os.cpus()[0].model.trim()}, ${process.platform}`, calibration: { ms: +speed.ms.toFixed(1), factor: +speed.factor.toFixed(2) }, budget: BUDGET, limits: LIMITS, worst, info, runs };
 if (arg("--json")) fs.writeFileSync(arg("--json"), JSON.stringify(out, null, 1));
 for (const [i, r] of runs.entries()) console.log(`bench · run ${i + 1}: deck20 open ${r.deck20.open_ms} ms (wizard ${r.deck20.wizard_ms} + slides ${r.deck20.finish_to_slide_ms}) · keypress → pixels (cold ${r.edit.keypress.cold_ms.join(" / ")}) p50 ${r.edit.keypress.p50_ms} / p95 ${r.edit.keypress.p95_ms} / max ${r.edit.keypress.max_ms} ms (tasks ${JSON.stringify(r.edit.longtasks)}) · thumbnails, 100 slides scrolled: ${r.thumbs.fps} fps, ${r.thumbs.frame_ms} ms/frame (longest gap ${r.thumbs.gap_ms} ms, ${r.thumbs.pictures} pictures, tasks ${JSON.stringify(r.thumbs.longtasks)}) · drags ${Object.entries(r.drags).map(([k, d]) => `${k} ${d.frame_ms} ms/frame (${d.frames} frames, longest gap ${d.gap_ms} ms, drop ${d.drop_task_ms} ms)`).join(", ")} · export deck20 Liquid Glass ${r.export.glass_ms} ms ${JSON.stringify(r.export.glass_phases)} ${r.export.glass_kb} KB, Excel ${r.export.excel_ms} ms ${JSON.stringify(r.export.excel_phases)} ${r.export.excel_kb} KB (tasks ${JSON.stringify(r.export.longtasks)}) · big30 index ${r.big30.index_to_wizard_ms} ms, sheet read ${r.big30.read_sheet_ms} ms (grid ${r.big30.read_to_grid_ms} ms) · long tasks ${JSON.stringify([...r.deck20.longtasks, ...r.big30.longtasks])} (first draw ${JSON.stringify(r.deck20.first_draw_longtasks)}) · heap ${r.big30.heap_mb} MB (page ${r.big30.page_heap_mb} + worker ${r.big30.worker_heap_mb}; ${r.big30.export_workers} export workers ${r.big30.export_heap_mb} MB, not gated) · start-up tasks ${JSON.stringify(r.boot.longtasks)}`);
 console.log(`bench · calibration ${speed.ms.toFixed(1)} ms: time limits × ${speed.factor.toFixed(2)}`);
-const bad = Object.entries(LIMITS).filter(([k, lim]) => worst[k] > lim * SLACK);
-for (const [k, lim] of Object.entries(LIMITS)) console.log(`bench · ${k}: ${worst[k]} (limit ${lim}${worst[k] > lim ? (worst[k] > lim * SLACK ? " – OVER +10 %" : " – over, within +10 %") : ""})`);
+const bad = Object.entries(LIMITS).filter(([k, lim]) => k in worst && worst[k] > lim * SLACK);
+for (const [k, lim] of Object.entries(LIMITS)) if (k in worst) console.log(`bench · ${k}: ${worst[k]} (limit ${lim}${worst[k] > lim ? (worst[k] > lim * SLACK ? " – OVER +10 %" : " – over, within +10 %") : ""})`);
 console.log(`bench · not gated: longest start-up task ${info.longest_startup_task_ms} ms; most page work in a frame of the thumbnail scroll ${info.thumbs_frame_ms} ms (a garbage collection can fall into one)`);
 if (GATE && bad.length) { console.error("bench: over the limit: " + bad.map(([k]) => k).join(", ")); process.exit(1); }
