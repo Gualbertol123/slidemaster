@@ -200,7 +200,8 @@ export class CoreHost {
     let answer: ScenarioAnswer | null = null;
     // in the change queue, like every other redraw of the slides (an apply or undo arriving meanwhile waits its turn)
     await this.later(async () => {
-      if (this.wb !== wb) return;
+      // the model may have been rebuilt (sheets or links changed) and freed while this call waited its turn
+      if (this.wb !== wb || this.calcSig(wb) !== c.sig) return;
       // the previous input cell back to what it held (a constant, a formula, or nothing at all)
       if (this.scen) { const p = at(this.scen.input); if (p) c.model.restore(p.book, p.sheet, p.r, p.c, this.scen.was); }
       this.scen = null;
@@ -348,7 +349,8 @@ export class CoreHost {
   private later(fn: () => Promise<void> | void): Promise<void> { return this.queue = this.queue.then(fn).catch(e => this.port.emit("error", { message: String((e as Error)?.message || e), stack: (e as Error)?.stack })); }
   private async onChange(sync: DocSync, c: Change) {
     if (sync !== this.sync) return;
-    if (c.presetChanged) { try { await this.wb!.ensure(presetSheets(sync.view.preset), this.progress); } finally { this.port.emit("progress", null); } }
+    // a preset change (also another person's) may add linked workbooks: attached before their sheets are read
+    if (c.presetChanged) { try { await this.attachLinks(this.wb!, sync.view.preset?.links || []); await this.wb!.ensure(presetSheets(sync.view.preset), this.progress); } finally { this.port.emit("progress", null); } }
     await this.refresh(c);
   }
   private style(): Style { return resolveStyle(this.inputs.defaults as never, this.sync?.view.style) as Style; }

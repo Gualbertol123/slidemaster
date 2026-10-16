@@ -515,5 +515,9 @@ describe("a scenario on the stage (S7.4, 07 §2.4, ADR-014)", () => {
     expect(await textsNow()).toContain("Title X");
     expect((await p.port.call("scenarioPreview", null))!.changed).toBe(0);
     expect(await textsNow()).toEqual(before);
+    // C3 is a formula again (not the constant it showed): it moves with the bank
+    await p.port.call("scenarioPreview", { sheet: "Control", ref: "B2", value: "Bank C" });
+    expect(await textsNow()).toContain("Loans & deposits - Bank C");
+    await p.port.call("scenarioPreview", null);
   }, 60_000);
 });

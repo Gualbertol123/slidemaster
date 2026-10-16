@@ -179,7 +179,7 @@ export function Wizard({ req }: { req: WizardReq }) {
       try { const r = await core().call("getSheetMeta", { book: wb.book, names: meta.filter(m => m.linked === pick).map(m => m.name), load: false }); for (const x of r.sheets) W.info[x.name] = x; await suggestFor(r.sheets.map(x => x.name)); } catch (e) { console.error(e); }
       render();
     };
-    const quick = (q: string) => { W.sheets.clear(); meta.forEach(m => { if (!(byName(m.name) || {} as SheetInfo).error && (q === "all" || (q === "slide" && SLIDE_RX.test(m.name)))) W.sheets.add(m.name); }); render(); };
+    const quick = (q: string) => { const lost = [...W.sheets].filter(lostLink); W.sheets.clear(); lost.forEach(n => W.sheets.add(n)); meta.forEach(m => { if (!(byName(m.name) || {} as SheetInfo).error && (q === "all" || (q === "slide" && SLIDE_RX.test(m.name)))) W.sheets.add(m.name); }); render(); };
     return [
       <div className="wizcol">
         <p className="lead">Choose the sheets you want to work with. Sheets whose name contains “slide” are pre-selected{hiddenN ? `; ${hiddenN} hidden sheet${hiddenN > 1 ? "s are" : " is"} not listed` : ""}.{lazy && <><br /><b>Large workbook:</b> only the sheets you select are read – pick only what you need.</>}</p>
