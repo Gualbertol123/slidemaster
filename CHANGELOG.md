@@ -3,7 +3,7 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## 4.2.0 - unreleased (docs/next/07, PLAN M7–M8; B15, B22–B24)
+## 4.2.0 - unreleased (docs/next/07, docs/next/08, PLAN M7, M7b, M8; B15, B22–B26)
 
 What users notice
 * **Linked workbooks** (B22): in the wizard's first step, *+ Add a linked workbook…* lists the other workbooks of the
@@ -18,7 +18,24 @@ What users notice
   when something needs it – a scenario run or the formula self-check – so opening Slide Builder and a deck is as fast
   as before.
 
+* **Two consulting designs** (B25, B26; M7b, docs/next/08): beside Liquid Glass, Excel and Excel Refined, the design
+  switch has **Consulting Navy** (navy and electric blue, Georgia titles, Arial text, two-line action titles) and
+  **Consulting Red** (red accent, Arial, a short red bar under the title). Their tables are drawn as data exhibits:
+  every number of the table in right-aligned columns, with trend lines and diverging bars beside them; Navy puts a KPI
+  line from the slide's first table under the title on a dark band, Red a message panel (the lead variance, how many
+  rows fall short, the largest gap). Every number shown is a cell of the table – edits, versions and scenarios
+  included. **Look ▾** in the top bar (and Design… › Layout, one option at a time) picks how tables are drawn
+  (exhibit, cards, ruled), all numbers or compact, the headline (KPI line, message panel, none) and the background
+  (dark band, tinted, white): 36 looks, saved per design with the workbook. Each design has its own colours, text
+  styles and sizing, as the others. Exports name them ("weekly - Chief - Consulting Navy.pdf"), and *Export ▾ › PDF ·
+  every version × all five designs* is a new item ("all three designs" stays as it is). A Slide Builder 4.0 or 4.1
+  page opens such a deck in Liquid Glass and keeps its consulting settings.
+
 For the maintainer
+* The consulting designs are one renderer with two specs (`core/src/render/consult-spec.ts`, `consult-dl.ts`,
+  `exhibit.ts`; ADR-018) drawing through the display list like the others; their goldens are their own signed-off
+  first render (`golden/<deck>/mckinsey|bain/`, `golden/MANIFEST-v4.json`, `tools/capture-v4.mjs`); the bench and
+  `tools/export-check.mjs` measure them (export < 1.5 s for deck20, < 40 KB per slide + 150 KB).
 * Workbook formulas are read (`.xlsx` and `.xlsb`), not only their cached values, and `core/src/calc/engine.ts`
   recomputes them; `core/tests/formulas.test.ts` and `engine.test.ts` check both against Excel's own files in
   `tests/corpus/workbooks/recalc/` (made with Excel by `spikes/recalc/make_linked.ps1`).
