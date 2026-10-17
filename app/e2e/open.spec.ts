@@ -49,7 +49,11 @@ test("a dropped workbook opens; of two drops at once the newer opens; reload fro
   await expect(page.locator("#toast.err, #toast .err")).toHaveCount(0);
   await expect(page.locator("#fileName")).toContainText("report.xlsx");
   await saved(page);
-  const thumbs = await page.locator(".thumb").count();
+  // the deck's slide count from the file line ("report.xlsx · 4 slides"), and every thumbnail of it shown – counting
+  // them as soon as the first one shows read 1 of 4 on GitHub's slower runners
+  const thumbs = +(/· (\d+) slides?/.exec((await page.locator("#fileName").textContent()) || "") || [])[1];
+  expect(thumbs).toBeGreaterThan(0);
+  await expect(page.locator(".thumb")).toHaveCount(thumbs, { timeout: 20_000 });
 
   // Reload from disk (↻): the same workbook again, without asking
   await page.click("#reloadBtn");
