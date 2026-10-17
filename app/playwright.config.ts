@@ -37,6 +37,8 @@ export default defineConfig({
   testMatch: /.*\.spec\.ts/,
   workers: 1,
   timeout: 90_000,
+  // on GitHub Actions each failure is also an annotation of the run (readable without the log's admin rights)
+  reporter: process.env.GITHUB_ACTIONS ? [["github"], ["list"]] : "list",
   use: { launchOptions: { executablePath: chrome }, viewport: { width: 1500, height: 900 } },
   webServer: [helper("anna", 8951), helper("bob", 8952)],
 });

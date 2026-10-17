@@ -407,4 +407,6 @@ for (const [i, r] of runs.entries()) if (r.consult) console.log(`bench · run ${
 const bad = Object.entries(LIMITS).filter(([k, lim]) => k in worst && worst[k] > lim * SLACK);
 for (const [k, lim] of Object.entries(LIMITS)) if (k in worst) console.log(`bench · ${k}: ${worst[k]} (limit ${lim}${worst[k] > lim ? (worst[k] > lim * SLACK ? " – OVER +10 %" : " – over, within +10 %") : ""})`);
 console.log(`bench · not gated: longest start-up task ${info.longest_startup_task_ms} ms; most page work in a frame of the thumbnail scroll ${info.thumbs_frame_ms} ms (a garbage collection can fall into one)`);
+// on GitHub Actions each gate over its limit is also an annotation of the run (readable without the log's admin rights)
+if (process.env.GITHUB_ACTIONS) for (const [k, lim] of bad) console.log(`::error title=bench ${k}::${worst[k]} (limit ${lim}, + 10 % allowed)`);
 if (GATE && bad.length) { console.error("bench: over the limit: " + bad.map(([k]) => k).join(", ")); process.exit(1); }

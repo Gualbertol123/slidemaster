@@ -47,9 +47,12 @@ test("a dropped workbook opens; of two drops at once the newer opens; reload fro
   await expect(page.locator(".wiz")).toHaveCount(0);
   await expect(page.locator('[data-a="continue"]')).toHaveCount(0);           // one open: no second question left behind
   await expect(page.locator("#toast.err, #toast .err")).toHaveCount(0);
-  await expect(page.locator("#fileName")).toContainText("report.xlsx");
+  // open, not "Opening report.xlsx…" (on GitHub's slower runners the test went on while it was, and counted the
+  // thumbnails of the workbook start-up had reopened: 1 of Banks.xlsx instead of report.xlsx's 4)
+  await expect(page.locator("#fileName")).toHaveText(/^report\.xlsx · \d+ slides?/, { timeout: 30_000 });
   await saved(page);
-  const thumbs = await page.locator(".thumb").count();
+  const thumbs = +/· (\d+) slides?/.exec((await page.locator("#fileName").textContent())!)![1];
+  await expect(page.locator(".thumb")).toHaveCount(thumbs, { timeout: 20_000 });
 
   // Reload from disk (↻): the same workbook again, without asking
   await page.click("#reloadBtn");
