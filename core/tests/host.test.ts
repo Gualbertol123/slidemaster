@@ -700,6 +700,12 @@ describe("the page follows a preview (S8.4, Decisions 2026-10-17: mirror the cel
     const during = await texts();
     expect(during).toContain("Bank C");                                 // Control!B2, the input cell, on the slide
     expect(during).toContain("Loans & deposits - Bank C");
+    // a preview that fails (an input that is no cell) still gives the page its cells back (review of S8.4)
+    k = p.seen.length;
+    expect(await p.port.call("scenarioPreview", { sheet: "Control", ref: "B2:C3", value: "x" })).toBeNull();
+    expect(sliceText(k)).toContain("Loans & deposits - Bank A"); expect(sliceText(k)).not.toContain("Bank C");
+    expect(JSON.stringify(p.seen.slice(k).filter(e => e.k === "slices").map(e => (e.v as { scenario?: boolean }).scenario))).not.toContain("true");
+    await p.port.call("scenarioPreview", { sheet: "Control", ref: "B2", value: "Bank C" });
     k = p.seen.length;
     await p.port.call("scenarioPreview", null);
     expect(sliceText(k)).toContain("Loans & deposits - Bank A"); expect(sliceText(k)).not.toContain("Bank C");

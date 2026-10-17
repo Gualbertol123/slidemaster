@@ -49,6 +49,8 @@ export interface SelfCheck {
   different: { book: string | null; sheet: string; ref: string; text: string; cached: CellValue; computed: CellValue }[];
   /** every different cell (not only the first 200): the run's gate checks the slides against all of them (S8.3) */
   allDifferent: SelfCheck["different"];
+  /** formula cells counted exact whose TEXT Slide Builder formats as Italian Excel does (textfmt.ts): shown apart */
+  textFormatted: number;
   /** the locale-dependent cells kept at Excel's cached value (07 §8 Q8; first 200): a scenario does not move them */
   pinned: { book: string | null; sheet: string; ref: string; text: string; cached: CellValue }[];
 }
@@ -96,7 +98,7 @@ export class CalcModel {
     try { this.build(books); } catch (e) { this.model.free(); throw e; }
     this.ms.build = now() - t0;
     const t1 = now();
-    try { this.model.evaluate(); if (this.pinLocale()) this.model.evaluate(); } catch (e) { this.model.free(); throw e; }
+    try { this.model.evaluate(); if (this.pinLocale()) this.evaluate(); } catch (e) { this.model.free(); throw e; }
     this.ms.evaluate = now() - t1;
     this.baseline = this.values();
   }
@@ -137,6 +139,10 @@ export class CalcModel {
   private textCells: TextCall[] = [];
   /** the formula cells whose TEXT is Slide Builder's (keys as externalCells): they recompute like Excel */
   private readonly ownText = new Set<string>();
+  /** TEXT calls whose texts were still changing after the last round of the last evaluation (0: settled) */
+  textUnsettled = 0;
+  /** TEXT calls of the last evaluation whose text Slide Builder could not say (kept the one they had) */
+  textUnknown = 0;
   /** the locale-dependent cells (TEXT whose engine value is not Excel's): each TEXT call's value and format moved to
       cells of a sheet of the model's own, the formula reading the text Slide Builder writes there (formatTexts) */
   private ownTextCells(): OwnText[] {
@@ -161,6 +167,9 @@ export class CalcModel {
         try { this.model.setUserInput(sheet.index, row, 1, "=" + v); this.model.setUserInput(sheet.index, row, 2, "=" + fm); this.model.setUserInput(sheet.index, row, 3, "'"); }
         catch { ok = false; break; }
         made.push({ si: sheet.index, row, text: null });
+        // read back at 15 significant digits, as the formula cells (the engine's General display rounds large amounts)
+        try { this.model.setSelectedSheet(sheet.index); for (const col of [1, 2]) { this.model.setSelectedCell(row, col); this.model.onApplyNamedStyle("sbprecise"); } }
+        catch (e) { this.styleError = String((e as Error)?.message || e); }
         text += src.slice(at, call.start) + quoteSheet(sheet.name) + "!$C$" + row; at = call.end;
       }
       if (!ok) continue;
@@ -174,20 +183,24 @@ export class CalcModel {
   /** the texts of the TEXT calls Slide Builder formats, after an evaluation: written where their formulas read them,
       evaluated again until nothing changes (a text that feeds another TEXT: a few rounds) */
   private formatTexts() {
-    for (let round = 0; round < 4; round++) {
-      let changed = false;
+    this.textUnsettled = 0; this.textUnknown = 0;
+    for (let round = 0; round < 8; round++) {
+      let changed = false; this.textUnknown = 0;
       this.model.pauseEvaluation();
       try {
         for (const t of this.textCells) {
-          // the text, or – a value TEXT cannot format (an error, a logical) – that error / #VALUE!, as an error value
+          // the text; an error passed to TEXT is TEXT's result too; what Slide Builder cannot say (a date before March
+          // 1900, a logical) keeps the text it had – Excel's at the start – and is counted (textUnknown), never invented
           const v = this.valueAt(t.si, t.row, 1), fm = this.valueAt(t.si, t.row, 2), txt = excelText(v, fm);
-          const content = txt !== null ? "'" + txt : v && typeof v === "object" ? v.err : "#VALUE!";
+          if (txt === null && !(v && typeof v === "object")) { this.textUnknown++; continue; }
+          const content = txt !== null ? "'" + txt : (v as { err: string }).err;
           if (content === t.text) continue;
           t.text = content; changed = true;
           this.model.setUserInput(t.si, t.row, 3, content);
         }
       } finally { this.model.resumeEvaluation(); }
       if (!changed) return;
+      if (round === 7) this.textUnsettled = this.textCells.length;     // still moving after the last round: said so
       this.model.evaluate();
     }
   }
@@ -466,7 +479,7 @@ export class CalcModel {
       counts.different++;
       different.push({ book: f.book, sheet: f.sheet, ref: numToCol(f.c) + f.r, text: f.text, cached, computed });
     }
-    return { counts, different: different.slice(0, 200), allDifferent: different, pinned: this.pinnedCells.slice(0, 200) };
+    return { counts, different: different.slice(0, 200), allDifferent: different, pinned: this.pinnedCells.slice(0, 200), textFormatted: this.ownText.size };
   }
   dispose() { this.model.free(); }
 }

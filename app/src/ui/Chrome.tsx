@@ -58,6 +58,7 @@ function CalcLine() {
   else {
     const c = calc.counts, parts = [`${c.exact} of ${calc.formulas} recompute like Excel`];
     if (c.volatile) parts.push(`${c.volatile} volatile (TODAY, NOW, RAND)`);
+    if (calc.textFormatted) parts.push(`${calc.textFormatted} with TEXT in Italian, formatted by Slide Builder`);
     if (c.locale) parts.push(`${c.locale} locale-dependent (TEXT)`);
     if (c.hidden) parts.push(`${c.hidden} read a hidden sheet`);
     if (c.external) parts.push(`${c.external} read a workbook not in the folder`);

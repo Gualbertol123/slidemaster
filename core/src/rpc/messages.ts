@@ -141,6 +141,7 @@ export interface ScenarioEvent {
     different, the first differences, the engine's times (ms) */
 export interface CalcCheck { counts: import("../calc/engine").SelfCheck["counts"]; different: import("../calc/engine").SelfCheck["different"]; formulas: number;
   /** defined names not given to the engine ("<book>!<name>", engine.ts namesSkipped) */ namesSkipped?: string[];
+  /** formula cells whose TEXT Slide Builder formats as this Italian Excel does (counted in `exact`) */ textFormatted?: number;
   /** why values were read in the engine's General format (null: the 15-digit format applied) */ styleError: string | null;
   ms: { load: number; build: number; evaluate: number; check: number } }
 export type SlideListsReq = DesignReq & { slides?: number[]; /** the date the page shows (its clock) */ today?: string;
@@ -207,7 +208,8 @@ export interface CoreEvents {
   /** slices of workbook `book` (the open one, or the one being opened) */
   slices: { book: number; shared: SharedSlice | null; sheets: SheetSlice[];
     /** the cells of these sheets changed – a preview shown or cleared (S8.4, the mirror follows the scenario): the page
-        builds its slides again from them */ rebuild?: true };
+        builds its slides again from them */ rebuild?: true;
+    /** these are a scenario's values (not the workbook's): an edit then takes its "Excel value" from what the page kept */ scenario?: boolean };
   /** after a change, the slide on the stage drawn again (the stage's last request, S4.1) */
   stage: StageSlide;
   progress: { text: string; frac: number | null } | null;

@@ -187,7 +187,7 @@ export class CoreHost {
       try {
         const t2 = now(); const check = model.selfCheck(); const t3 = now();
         const checkOut: CalcCheck = { counts: check.counts, different: check.different.slice(0, 20), formulas: model.formulas.length, styleError: model.styleError,
-          ...(model.namesSkipped.length ? { namesSkipped: model.namesSkipped.slice(0, 20) } : {}), ms: { load: t1 - t0, build: model.ms.build, evaluate: model.ms.evaluate, check: t3 - t2 } };
+          ...(model.namesSkipped.length ? { namesSkipped: model.namesSkipped.slice(0, 20) } : {}), ...(check.textFormatted ? { textFormatted: check.textFormatted } : {}), ms: { load: t1 - t0, build: model.ms.build, evaluate: model.ms.evaluate, check: t3 - t2 } };
         return { model, check, checkOut, sig: this.calcSig(wb) };
       } catch (e) { model.dispose(); throw e; }
     })();
@@ -212,7 +212,7 @@ export class CoreHost {
       if (box === undefined || !S) continue;                         // a sheet the page has no slice of (not on a slide)
       sheets.push(sliceSheet(S, JSON.parse(box), wb.shared));
     }
-    if (sheets.length) this.port.emit("slices", transfer({ book: this.wbBook, shared: null, sheets, rebuild: true as const }, sheets.flatMap(sliceTransfer)));
+    if (sheets.length) this.port.emit("slices", transfer({ book: this.wbBook, shared: null, sheets, rebuild: true as const, scenario: !!this.scen }, sheets.flatMap(sliceTransfer)));
   }
   /** `forRun`: a run starting clears the preview (it may while it is starting) */
   private async scenarioPreview(a: ScenarioInput | null, forRun = false): Promise<ScenarioAnswer | null> {
@@ -234,6 +234,9 @@ export class CoreHost {
       if (this.scen) { const p = at(this.scen.input); if (p) c.model.restore(p.book, p.sheet, p.r, p.c, this.scen.was); }
       const before = this.scen?.sheets ?? new Set<string>();
       this.scen = null;
+      // whatever happens below (an input that is not a cell, an engine error), the page and the stage are told: the
+      // sheets the last preview changed are sent back as they are now, and the slides drawn again
+      try {
       if (a) {
         const p = at(a); if (!p) return;
         const was = c.model.contentOf(p.book, p.sheet, p.r, p.c);
@@ -253,11 +256,13 @@ export class CoreHost {
         let left = 0; for (const m of c.model.changes().values()) left += m.size;
         answer = { changed: left, different: 0, check: c.checkOut };
       }
-      // the slides are built again from the view (or the workbook): every view is a new object, so the layout cache
-      // would miss anyway – clearing it keeps it from growing by one set of layouts per preview
-      LCACHE.clear(); this.slidesDesign = null;
-      this.sendViewSlices(new Set([...before, ...(this.scen?.sheets ?? [])]));
-      await this.refresh(null, true);
+      } finally {
+        // the slides are built again from the view (or the workbook): every view is a new object, so the layout cache
+        // would miss anyway – clearing it keeps it from growing by one set of layouts per preview
+        LCACHE.clear(); this.slidesDesign = null;
+        this.sendViewSlices(new Set([...before, ...(this.scen?.sheets ?? [])]));
+        await this.refresh(null, true);
+      }
     });
     if (refused) throw new Error("a run for each value is going on: preview once it has ended");
     return answer;
@@ -551,12 +556,13 @@ export class CoreHost {
     for (const [name, box] of boxes) {
       const k = JSON.stringify(box); if (sent.get(name) === k) continue;
       sent.set(name, k);
-      sheets.push(sliceSheet(wb.sheets.find(s => s.name === name)!, box, wb.shared));
+      // (while a preview shows, the page's copy follows the stage: the slice is cut from the scenario's view, S8.4)
+      sheets.push(sliceSheet((this.viewWb ?? wb).sheets.find(s => s.name === name) ?? wb.sheets.find(s => s.name === name)!, box, wb.shared));
     }
     if (sheets.length) {                                         // the shared parts once, with the first sheets (as above)
       const shared: SharedSlice | null = wb.shared && !this.sentSharedFor.has(this.wbBook) ? sliceShared(wb.shared) : null;
       if (shared) this.sentSharedFor.add(this.wbBook);
-      this.port.emit("slices", transfer({ book: this.wbBook, shared, sheets }, sheets.flatMap(sliceTransfer)));
+      this.port.emit("slices", transfer({ book: this.wbBook, shared, sheets, ...(this.scen ? { rebuild: true as const, scenario: true } : {}) }, sheets.flatMap(sliceTransfer)));
     }
   }
   /** what a slide needs besides its tables: the wallpaper (Liquid Glass) and the logo with its size. `stage`: the logo is

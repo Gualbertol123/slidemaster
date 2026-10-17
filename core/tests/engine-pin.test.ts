@@ -58,6 +58,14 @@ describe("locale-dependent cells keep Excel's value (07 §8 Q8)", () => {
     expect(m.valueOf(null, "S", 1, 3)).toBe("Rif. dicembre 2025");
     m.dispose();
   }, 60_000);
+  it("a large amount through Slide Builder's TEXT keeps all its digits under a scenario (review of S8.4)", async () => {
+    const wb = await readWorkbook(book(`<row r="1"><c r="A1"><v>1000000000000</v></c><c r="B1" t="str"><f>TEXT(A1,"#.##0")</f><v>1.000.000.000.000</v></c></row>`));
+    const m = new CalcModel(g, [{ name: null, sheets: wb.sheets, externals: [] }]);
+    expect(m.selfCheck().textFormatted).toBe(1);
+    m.set(null, "S", 1, 1, 1234567890123); m.evaluate();
+    expect(m.valueOf(null, "S", 1, 2)).toBe("1.234.567.890.123");
+    m.dispose();
+  }, 60_000);
   it("a workbook without such cells evaluates once and pins nothing", async () => {
     const wb = await readWorkbook(book(`<row r="1"><c r="A1"><v>2</v></c><c r="B1" t="str"><f>TEXT(A1,"00")</f><v>02</v></c></row>`));
     const m = new CalcModel(g, [{ name: null, sheets: wb.sheets, externals: [] }]);

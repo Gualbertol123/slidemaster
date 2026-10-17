@@ -270,6 +270,24 @@ later is given up. Names: S8.2's, and a name the helper gave a file open elsewhe
 Found by the large stand-in corpus and fixed in S8.3: defined names reach the engine (a constant or formula name
 through a cell of an internal sheet), and setting the input no longer evaluates the model twice per value.
 
+**Built in S8.4** (Decisions 2026-10-17, "Mirror the cells"): while a preview shows, the page's copy of the cells
+follows the stage – the worker sends the sheets the preview changed (and changes back on Clear, also when a preview
+fails) as slices cut from the scenario's view, and slices it sends meanwhile for another reason are cut from the view
+too; the page builds its slides from them, so the formula bar, the ribbon, the painter, the comment dialog and the
+Issues lines show the scenario. The input cell's own value is part of the view (a slide that shows the input cell
+shows the value). **Edits during a preview** are ordinary edits of the deck; their "Excel value" (`orig`, CE-09) is the
+workbook's own text, which the page keeps when a preview starts – so an edit of a cell the scenario changed belongs to
+the workbook's value: it shows once the preview is cleared (the page says so when it is made), and in a run only for a
+value that shows the same text.
+
+**TEXT in Italian (Decisions 2026-10-17, amends §8 Q8):** a TEXT cell the engine computes otherwise than Excel (codes of
+this PC's Italian Excel: `aaaa`, `gg`, `#.##0,0`) is formatted by Slide Builder (`core/src/calc/textfmt.ts`): each TEXT
+call's value and format are moved to cells of a sheet of the engine's own, and the text this Italian Excel would show is
+written where the formula reads it, after every evaluation – so such cells follow a scenario. A cell whose result still
+differs from Excel's saved text at load is kept at that text and marked as before ("keep and mark"). The Formulas line
+names how many are formatted by Slide Builder. Known limits: a TEXT whose value depends on its own cell (ROW, COLUMN,
+INDIRECT, OFFSET, CELL) or nested in another TEXT is kept; logical values and dates before March 1900 keep their last text.
+
 * **The document is never changed by a run.** No `cell.patch` is generated; `edits` with `orig` keep behaving as
   CE-09 says (a text edit applies only while the Excel value is `orig`; under a scenario the overlay value is "the
   Excel value", so an edited label stays when the value changes to something else – the table keeps the user's text
@@ -606,6 +624,8 @@ Effort (one engineer, the rhythm of M0–M6): M7 4 weeks, M8 3, M9 5, M10 3, M11
 8. **`TEXT` locale:** the self-check reports locale-dependent cells; under a scenario they are recomputed with English
    codes (IronCalc) – so an Italian-saved `"mmm aa"` label may change language in a run. Accept and show in the report,
    or should such cells keep their cached text and be marked "not recalculated"? (Recommended: keep and mark.)
+   *Answered "keep and mark" (2026-10-16); amended 2026-10-17: Slide Builder formats them as this Italian Excel does
+   where that gives Excel's saved text, and keeps and marks the others (§2.4 "TEXT in Italian").*
 9. **Free layout in thumbnails and PDFs:** identical by construction (same DL). Any per-design rule you want (e.g. free
    layout only in the current design, or copied to all three when switched on)? Proposed: per design, as sizes.
 10. **Releases:** four ships (4.2 scenarios, 4.3 charts/callouts, 4.4 free layout/gridlines, 4.5 PowerPoint) or fewer,

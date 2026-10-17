@@ -28,13 +28,40 @@ describe("TEXT with Italian Excel's codes", () => {
     expect(excelText("12", "00")).toBe("12");
     expect(excelText(true, "0")).toBeNull();
     expect(excelText({ err: "#N/A" }, "0")).toBeNull();
-    expect(excelText(5, 3)).toBeNull();
+    expect(excelText(5, 3)).toBe("3");                                            // a number as the format: its digits, as Excel
   });
   it("the codes translated", () => {
     expect(italianTextFormat("mmmm aaaa")).toBe("[$-410]mmmm yyyy");
     expect(italianTextFormat('#.##0,0" mln"')).toBe('#,##0.0" mln"');
     expect(italianTextFormat("hh:mm AM/PM")).toBe("[$-410]hh:mm AM/PM");
     expect(italianTextFormat("dd")).toBe("\\d\\d");
+  });
+});
+
+describe("TEXT with Italian Excel's codes: what the review of S8.4 found", () => {
+  it("colours dropped, a locale tag of its own kept, a condition's decimal comma", () => {
+    expect(excelText(-5, "#.##0;[Rosso]-#.##0")).toBe("-5");
+    expect(excelText(-5, "#.##0;[Red]-#.##0")).toBe("-5");
+    expect(excelText(serial(2026, 3, 1), "[$-409]mmmm")).toBe("March");
+    expect(italianTextFormat("[>=0,5]0,0;0")).toBe("[>=0.5]0.0;0");
+  });
+  it("times rounded to the second; no dates before 1 March 1900 or below 0", () => {
+    expect(excelText(45000.999, "gg/mm/aaaa hh:mm:ss")).toBe("15/03/2023 23:58:34");
+    expect(excelText(2.5, "gg/mm/aaaa")).toBeNull();
+    expect(excelText(-1, "gg/mm/aaaa")).toBeNull();
+    expect(excelText(-1, "0")).toBe("-1");                                         // (a number may be negative)
+  });
+  it("text values: Italian numbers only, the text section of a format; a number as the format", () => {
+    expect(excelText("0x1A", "0")).toBe("0x1A");
+    expect(excelText("1.234,5", "0,0")).toBe("1234,5");
+    expect(excelText("x", '@" mln"')).toBe("x mln");
+    expect(excelText(5, 0)).toBe("5");
+    expect(excelText(1e12 + 123, "#.##0")).toBe("1.000.000.000.123");
+  });
+  it("a quoted sheet name is not a call; calls that depend on their own cell are left out", () => {
+    expect(textCalls("'TEXT(1)'!A1&\"x\"")).toEqual([]);
+    expect(textCalls('TEXT(ROW(),"0")')).toBeNull();
+    expect(textCalls('TEXT(INDIRECT("B5"),"0")')).toBeNull();
   });
 });
 

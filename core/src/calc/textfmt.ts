@@ -8,18 +8,29 @@
    * month and day names in Italian.
    Pure functions; the page's number formatter (xlsx/numfmt) does the formatting. */
 import { formatValue } from "../xlsx/numfmt";
+import { parseNumber } from "../export/scenario";
 import { tokenize } from "./refs";
+
+/** colour names a format's [brackets] may carry, in Italian and English (TEXT shows no colour: they are dropped) */
+const COLOURS = /^(rosso|nero|blu|verde|giallo|bianco|magenta|ciano|red|black|blue|green|yellow|white|cyan|colou?re?\s*\d+|color\s*\d+)$/i;
 import type { CellValue } from "./engine";
 
 /** an Italian TEXT format as the file's (English-coded) number formats write it, with the Italian locale tag */
 export function italianTextFormat(fmt: string): string {
   if (/^\s*standard\s*$/i.test(fmt)) return "General";
-  let out = "", date = false;
+  let out = "", date = false, hasLocale = false;
   for (let i = 0; i < fmt.length; i++) {
     const ch = fmt[i];
     if (ch === '"') { const j = fmt.indexOf('"', i + 1); const end = j < 0 ? fmt.length : j; out += fmt.slice(i, end + 1); i = end; continue; }
     if (ch === "\\" && i + 1 < fmt.length) { out += fmt.slice(i, i + 2); i++; continue; }
-    if (ch === "[") { const j = fmt.indexOf("]", i); const end = j < 0 ? fmt.length - 1 : j; out += fmt.slice(i, end + 1); i = end; continue; }
+    if (ch === "[") {
+      const j = fmt.indexOf("]", i), end = j < 0 ? fmt.length - 1 : j, inner = fmt.slice(i + 1, end);
+      if (COLOURS.test(inner.trim())) { i = end; continue; }                       // a colour: TEXT shows none
+      if (/^\$/.test(inner)) hasLocale = true;                                       // a locale tag of its own: kept
+      // a condition's number has the Italian decimal comma: [>=0,5] is [>=0.5]
+      out += "[" + (/^[<>=]/.test(inner) ? inner.replace(/[.,]/g, c => c === "," ? "." : ",") : inner) + "]";
+      i = end; continue;
+    }
     const ap = /^(AM\/PM|A\/P)/i.exec(fmt.slice(i));
     if (ap) { out += ap[0]; i += ap[0].length - 1; date = true; continue; }
     if (ch === ".") out += ",";
@@ -30,17 +41,29 @@ export function italianTextFormat(fmt: string): string {
     else { if (/[mMhHsS]/.test(ch)) date = true; out += ch; }
   }
   // dates and times: Italian month and day names (numfmt's locale tag)
-  return date ? "[$-410]" + out : out;
+  return date && !hasLocale ? "[$-410]" + out : out;
 }
 
 /** what TEXT(value, fmt) shows in Italian Excel; null when it cannot say (the caller keeps Excel's saved text) */
 export function excelText(value: CellValue, fmt: CellValue): string | null {
+  if (typeof fmt === "number") fmt = String(fmt);                    // TEXT(5;0): the format "0"
   if (typeof fmt !== "string" || value === null || typeof value === "object") return null;
   if (typeof value === "boolean") return null;                         // (VERO / FALSO: not worth the guess)
-  let n: number | null = typeof value === "number" ? value : null;
-  if (typeof value === "string") { const t = value.trim(); if (t !== "" && isFinite(+t)) n = +t; else return value; }   // a text stays as it is
-  if (n === null || !isFinite(n)) return null;
   const f = italianTextFormat(fmt);
+  let n: number | null = typeof value === "number" ? value : null;
+  if (typeof value === "string") {
+    // a text that reads as a number (as this Italian Excel reads it) is formatted as one; any other text stays, put
+    // into a format's text section ("@ mln") when it has one
+    n = value.trim() === "" ? null : parseNumber(value);
+    if (n === null) return /@/.test(f) ? formatValue({ v: value, t: "s", fmt: f }).text : value;
+  }
+  if (n === null || !isFinite(n)) return null;
+  const date = f.startsWith("[$-410]") || /^\[\$-[0-9a-f]+\]/i.test(f) || /[ymdhs]/i.test(f.replace(/"[^"]*"|\\.|\[[^\]]*\]/g, ""));
+  if (date) {
+    // Excel's serial dates: none below 0, and 1900's false 29 February puts every date before 1 March 1900 a day off
+    if (n < 0 || n < 61) return null;
+    n = Math.round(n * 86400) / 86400;                                  // to the second, as Excel rounds before it shows a time
+  }
   try { return formatValue({ v: n, t: "n", fmt: f }, { intZeros: true }).text; } catch { return null; }
 }
 
@@ -55,6 +78,7 @@ export function textCalls(formula: string): { start: number; end: number; value:
     const start = m.index + m[1].length;
     if (start < from) continue;
     if (inString(formula, start)) continue;
+    // (a call whose value depends on its own cell – ROW(), COLUMN(), INDIRECT, OFFSET, CELL – cannot move: left out)
     let i = m.index + m[0].length, depth = 1, comma = -1;
     for (; i < formula.length && depth; i++) {
       const ch = formula[i];
@@ -68,6 +92,7 @@ export function textCalls(formula: string): { start: number; end: number; value:
     const open = m.index + m[0].length, end = i;                        // `end`: after the ")"
     const value = formula.slice(open, comma).trim(), format = formula.slice(comma + 1, end - 1).trim();
     if (/(^|[^\w.])(?:_xlfn\.)?TEXT\s*\(/i.test(value) || /(^|[^\w.])(?:_xlfn\.)?TEXT\s*\(/i.test(format)) return null;
+    if (/(^|[^\w.])(ROW|COLUMN|ROWS|COLUMNS|INDIRECT|OFFSET|CELL|INFO)\s*\(/i.test(value + " " + format)) return null;
     out.push({ start, end, value, format });
     from = end;
   }
@@ -75,7 +100,14 @@ export function textCalls(formula: string): { start: number; end: number; value:
 }
 const skipString = (f: string, i: number) => { let j = i + 1; while (j < f.length) { if (f[j] === '"') { if (f[j + 1] === '"') { j += 2; continue; } break; } j++; } return j; };
 const skipQuoted = (f: string, i: number) => { let j = i + 1; while (j < f.length) { if (f[j] === "'") { if (f[j + 1] === "'") { j += 2; continue; } break; } j++; } return j; };
-function inString(f: string, at: number) { let q = false; for (let i = 0; i < at; i++) if (f[i] === '"') q = !q; return q; }
+/** whether `at` lies inside a "string" or a 'quoted sheet name' */
+function inString(f: string, at: number) {
+  for (let i = 0; i < at; i++) {
+    if (f[i] === '"') { const j = skipString(f, i); if (j >= at) return true; i = j; }
+    else if (f[i] === "'") { const j = skipQuoted(f, i); if (j >= at) return true; i = j; }
+  }
+  return false;
+}
 
 /** an expression moved to another sheet: its references without a sheet get `prefix` ("'Control'!"), so they still
     point at the cell's own sheet */
