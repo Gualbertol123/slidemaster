@@ -4,7 +4,11 @@
    page the new sheet slices (when they change) and the document snapshot – in that order, so the page can redraw from
    what it received – then the slide on the stage. Transport-free: core.worker.ts connects it to
    postMessage; tests (and a page without workers) connect it in the same thread. */
-import { indexWorkbook } from "../xlsx/workbook";
+import { attachLinked, indexWorkbook, sheetsOf } from "../xlsx/workbook";
+import { overlayHash, overlayWorkbook } from "../calc/overlay";
+import { parseSheetId } from "../calc/refs";
+import { numToCol, splitRef } from "../xlsx/util";
+import type { CalcModel, SelfCheck } from "../calc/engine";
 import { setPictureConverter } from "../xlsx/drawing";
 import { sliceBoxes, sliceShared, sliceSheet, sliceTransfer, type SharedSlice, type SheetSlice } from "../xlsx/slice";
 import { cellInfo, sheetInfo, sheetWindow, tableSize } from "../xlsx/sheetview";
@@ -27,7 +31,7 @@ import type { RenderCtx } from "../render/context";
 import type { Design, Preset, RuntimeSlide, Style, WorkbookDoc } from "../model/types";
 import type { Workbook } from "../xlsx/types";
 import { Port, transfer, type Wire } from "../rpc/port";
-import type { CoreEvents, CoreMethods, DocState, ExportCoreMethods, PageEvents, PageMethods, SlideListsReq, StageLayer, StageReq, StageSlide, ViewInputs, WorkbookInfo } from "../rpc/messages";
+import type { CalcCheck, ScenarioAnswer, ScenarioInput, CoreEvents, CoreMethods, DocState, ExportCoreMethods, PageEvents, PageMethods, SlideListsReq, StageLayer, StageReq, StageSlide, ViewInputs, WorkbookInfo } from "../rpc/messages";
 import { weightOf, type DisplayList, type Node } from "../dl/types";
 import { stageHits, svgChunks } from "../dl/svg";
 import { contentKey } from "../dl/key";
@@ -37,6 +41,7 @@ import { fontStack } from "../model/fonts";
 
 type HostPort = Port<CoreMethods, PageMethods, PageEvents, CoreEvents>;
 
+const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 export class CoreHost {
   private served = false; private client = ""; private me = "";
   private candidate: Workbook | null = null;
@@ -118,7 +123,114 @@ export class CoreHost {
       this.exportLinks.set(a.id, a.port);
     });
     h("unlinkExport", a => { const mp = this.exportLinks.get(a.id); this.exportLinks.delete(a.id); if (mp) { mp.onmessage = null; mp.close(); } });
+    h("calcCheck", () => this.calcCheck());
+    h("scenarioPreview", a => this.scenarioPreview(a));
+    h("link", async a => {
+      const wb = this.bookOf(a.book);
+      if (!(await this.attachLinks(wb, [a.name]))) return null;
+      // a small linked workbook is read at once (the wizard shows its titles and suggestions), as the main one
+      const lwb = wb.linked.get(a.name)!;
+      if (!lwb.big) { try { await wb.ensure(wb.meta.filter(m => m.linked === a.name).map(m => m.name), this.progress); } finally { this.port.emit("progress", null); } }
+      if (wb === this.wb) await this.sendSlices(); else this.sendCandidateSlices();
+      return this.info(wb, a.book);
+    });
   }
+  private info(wb: Workbook, book: number): WorkbookInfo {
+    return { meta: wb.meta, skipped: wb.skipped, hiddenSheets: wb.hiddenSheets, extLinks: wb.extLinks, total: wb.total, ssSize: wb.ssSize, big: wb.big, book };
+  }
+  /** the linked workbooks `names` (file names of the same folder) join `wb` (S7.3): the page gives their bytes; a
+      name already attached or not available changes nothing. True when every name is attached */
+  private async attachLinks(wb: Workbook, names: string[]): Promise<boolean> {
+    let all = true;
+    for (const name of names) {
+      if (wb.linked.has(name)) continue;
+      let buf: ArrayBuffer | null = null;
+      try { buf = await this.port.call("linkedWorkbook", { name }); } catch { buf = null; }
+      if (!buf) { all = false; continue; }
+      try { attachLinked(wb, name, await indexWorkbook(buf)); } catch (e) { console.error("linked workbook " + name, e); all = false; }
+    }
+    return all;
+  }
+  /* ---------------------------------------------------------------- the formula engine (S7.2, S7.4) */
+  /** the engine's model of the open workbook and its linked workbooks, built on first use and kept while the workbook
+      is open (a scenario sets one cell and evaluates: ≈ 65 ms on the 20-sheet deck); with its self-check */
+  private calc: Promise<{ model: CalcModel; check: SelfCheck; checkOut: CalcCheck; sig: string }> | null = null;
+  private calcSig(wb: Workbook) { return wb.sheets.map(S => S.name).join("\n") + "|" + [...wb.linked.keys()].join(","); }
+  private async ensureCalc(wb: Workbook) {
+    const sig = this.calcSig(wb);
+    if (this.calc) { const c = await this.calc.catch(() => null); if (c && c.sig === sig && this.wb === wb) return c; if (c) c.model.dispose(); this.calc = null; }
+    const run = (async () => {
+      const t0 = now();
+      // the workbooks the formulas link to, when they are in the folder (ADR-014), then every sheet
+      const [{ CalcModel, loadEngine }] = await Promise.all([import("../calc/engine"), this.attachLinks(wb, wb.externals.filter(n => n !== "?"))]);
+      // and the linked workbooks' own links (A → B → C), at most five files deep
+      for (let depth = 0; depth < 5; depth++) {
+        const names = [...wb.linked.values()].flatMap(l => l.externals).filter(n => n !== "?" && n !== this.name && !wb.linked.has(n));
+        if (!names.length) break;
+        const before = wb.linked.size; await this.attachLinks(wb, [...new Set(names)]);
+        if (wb.linked.size === before) break;
+      }
+      try { await wb.ensure(wb.meta.map(m => m.name), this.progress); } finally { this.port.emit("progress", null); }
+      const g = await loadEngine(); const t1 = now();
+      if (this.wb !== wb) throw new Error("the workbook changed while the engine loaded");
+      const model = new CalcModel(g, [{ name: null, file: this.name, sheets: sheetsOf(wb, null), hidden: wb.hiddenSheets, externals: wb.externals },
+        ...[...wb.linked].map(([file, lwb]) => ({ name: file, sheets: sheetsOf(wb, file), hidden: lwb.hiddenSheets, externals: lwb.externals }))]);
+      try {
+        const t2 = now(); const check = model.selfCheck(); const t3 = now();
+        const checkOut: CalcCheck = { counts: check.counts, different: check.different.slice(0, 20), formulas: model.formulas.length, styleError: model.styleError, ms: { load: t1 - t0, build: model.ms.build, evaluate: model.ms.evaluate, check: t3 - t2 } };
+        return { model, check, checkOut, sig: this.calcSig(wb) };
+      } catch (e) { model.dispose(); throw e; }
+    })();
+    this.calc = run; run.catch(() => { if (this.calc === run) this.calc = null; });
+    return run;
+  }
+  /** the formula engine's self-check of the open workbook (S7.2) */
+  private async calcCheck(): Promise<CalcCheck | null> {
+    const wb = this.wb; if (!wb) return null;
+    return (await this.ensureCalc(wb)).checkOut;
+  }
+  /** the scenario on the stage: the engine's input and what that cell held before (the engine's own content, put
+      back when the scenario ends or moves), the view the renderers read, its digest (ctx.scenario) */
+  private scen: { input: ScenarioInput; was: string; view: Workbook; hash: string } | null = null;
+  private async scenarioPreview(a: ScenarioInput | null): Promise<ScenarioAnswer | null> {
+    const wb = this.wb; if (!wb) return null;
+    const c = await this.ensureCalc(wb);
+    if (this.wb !== wb) return null;
+    const at = (inp: ScenarioInput) => { const { book, sheet } = parseSheetId(inp.sheet), rc = splitRef(inp.ref); return rc ? { book, sheet, r: rc.r, c: rc.c } : null; };
+    let answer: ScenarioAnswer | null = null;
+    // in the change queue, like every other redraw of the slides (an apply or undo arriving meanwhile waits its turn)
+    await this.later(async () => {
+      // the model may have been rebuilt (sheets or links changed) and freed while this call waited its turn
+      if (this.wb !== wb || this.calcSig(wb) !== c.sig) return;
+      // the previous input cell back to what it held (a constant, a formula, or nothing at all)
+      if (this.scen) { const p = at(this.scen.input); if (p) c.model.restore(p.book, p.sheet, p.r, p.c, this.scen.was); }
+      this.scen = null;
+      if (a) {
+        const p = at(a); if (!p) return;
+        const was = c.model.contentOf(p.book, p.sheet, p.r, p.c);
+        if (!c.model.set(p.book, p.sheet, p.r, p.c, a.value)) return;
+        c.model.evaluate();
+        const changes = c.model.changes(), hash = overlayHash(changes);
+        let changed = 0, different = 0;
+        const diff = new Set(c.check.different.map(d => (d.book === null ? d.sheet : "[" + d.book + "]" + d.sheet) + "!" + d.ref));
+        for (const [sheet, m] of changes) for (const k of m.keys()) { changed++; const [r, col] = k.split(",").map(Number); if (diff.has(sheet + "!" + numToCol(col) + r)) different++; }
+        this.scen = { input: a, was, view: overlayWorkbook(wb, changes), hash };
+        answer = { changed, different, check: c.checkOut };
+      } else {
+        c.model.evaluate();
+        // nothing may be left behind: the engine is back at its baseline
+        let left = 0; for (const m of c.model.changes().values()) left += m.size;
+        answer = { changed: left, different: 0, check: c.checkOut };
+      }
+      // the slides are built again from the view (or the workbook): every view is a new object, so the layout cache
+      // would miss anyway – clearing it keeps it from growing by one set of layouts per preview
+      LCACHE.clear(); this.slidesDesign = null;
+      await this.refresh(null, true);
+    });
+    return answer;
+  }
+  /** what the renderers read: the scenario's view while one shows, else the workbook */
+  private get viewWb(): Workbook | null { return this.scen?.view ?? this.wb; }
   /** the export workers' channels, by the page's number for each (closed when the worker stops) */
   private exportLinks = new Map<number, MessagePort>();
   /** display lists are built one request at a time (export workers ask in parallel; each build asks the page to measure) */
@@ -146,7 +258,7 @@ export class CoreHost {
     finally { this.port.emit("progress", null); }
     superseded();
     this.sendCandidateSlices();
-    return { meta: wb.meta, skipped: wb.skipped, hiddenSheets: wb.hiddenSheets, extLinks: wb.extLinks, total: wb.total, ssSize: wb.ssSize, big: wb.big, book };
+    return this.info(wb, book);
   }
   private progress = (text: string, frac: number | null) => this.port.emit("progress", { text, frac });
   /** the workbook a call is about: the one being opened, or the open one (by the number index gave it) */
@@ -171,7 +283,7 @@ export class CoreHost {
     const boxes = sliceBoxes(wb, [], {}), sheets: SheetSlice[] = [], sent = this.boxesFor(this.candidateBook);
     for (const [name, box] of boxes) {
       const k = JSON.stringify(box); if (sent.get(name) === k) continue;
-      sent.set(name, k); sheets.push(sliceSheet(wb.sheets.find(s => s.name === name)!, box));
+      sent.set(name, k); sheets.push(sliceSheet(wb.sheets.find(s => s.name === name)!, box, wb.shared));
     }
     // the shared parts (styles, strings – large for a big workbook) travel once, with the first sheet that needs them:
     // the mirror needs them only to read sheets, and sending them alone would copy them onto the page for nothing
@@ -186,8 +298,9 @@ export class CoreHost {
     // failures before the switch carry NOT_STARTED: the open document stays open here and on the page
     const notStarted = (e: unknown) => Object.assign(e instanceof Error ? e : new Error(String(e)), { code: "NOT_STARTED" });
     if (gone()) throw notStarted(new Error(cand ? "this workbook is no longer being opened" : "no workbook"));
-    // the slides' sheets are read before the document changes owner: a sheet that fails leaves the open one as it was
-    try { await cand!.ensure(presetSheets(preset || doc.preset), this.progress); }
+    // the slides' sheets are read before the document changes owner: a sheet that fails leaves the open one as it was;
+    // the deck's linked workbooks first (a missing one leaves its sheets broken, the deck opens)
+    try { await this.attachLinks(cand!, (preset || doc.preset)?.links || []); await cand!.ensure(presetSheets(preset || doc.preset), this.progress); }
     catch (e) { throw notStarted(e); }
     finally { this.port.emit("progress", null); }
     if (gone()) throw notStarted(new Error("this workbook is no longer being opened"));
@@ -196,6 +309,8 @@ export class CoreHost {
     this.sync?.retire(() => this.port.emit("retiredSaved", { name: left }));
     if (this.wbBook && this.wbBook !== this.candidateBook) { this.sentBoxes.delete(this.wbBook); this.sentSharedFor.delete(this.wbBook); }
     this.wb = this.candidate; this.wbBook = this.candidateBook; this.candidate = null; this.name = name; this.inputs = inputs;
+    // another workbook: its own engine model, no scenario
+    if (this.calc) { void this.calc.then(c => c.model.dispose(), () => undefined); this.calc = null; } this.scen = null;
     this.stageCache.clear();                                    // another workbook (or the same file read again): its own tables
     LCACHE.clear(); this.slidesDesign = null; this.presetSig = ""; this.boxSig = "";
     this.history.undo = []; this.history.redo = [];         // a newly opened workbook starts without history (as v3)
@@ -234,7 +349,8 @@ export class CoreHost {
   private later(fn: () => Promise<void> | void): Promise<void> { return this.queue = this.queue.then(fn).catch(e => this.port.emit("error", { message: String((e as Error)?.message || e), stack: (e as Error)?.stack })); }
   private async onChange(sync: DocSync, c: Change) {
     if (sync !== this.sync) return;
-    if (c.presetChanged) { try { await this.wb!.ensure(presetSheets(sync.view.preset), this.progress); } finally { this.port.emit("progress", null); } }
+    // a preset change (also another person's) may add linked workbooks: attached before their sheets are read
+    if (c.presetChanged) { try { await this.attachLinks(this.wb!, sync.view.preset?.links || []); await this.wb!.ensure(presetSheets(sync.view.preset), this.progress); } finally { this.port.emit("progress", null); } }
     await this.refresh(c);
   }
   private style(): Style { return resolveStyle(this.inputs.defaults as never, this.sync?.view.style) as Style; }
@@ -243,13 +359,13 @@ export class CoreHost {
     const v = this.sync!.view, st = this.style(), s = design && design !== st.design ? resolveStyle(this.inputs.defaults as never, { ...(v.style || {}), design }) as Style : st;
     const vid = version ?? this.inputs.version;
     return { style: s, edits: v.edits || {}, slides: this.slidesFor(s.design), preset: v.preset || null, workbook: this.inputs.workbook || this.name,
-      logoSrc: this.inputs.logoSrc, sheet: n => this.wb?.sheets.find(x => x.name === n) || null,
-      version: (v.preset?.versions || []).find(x => x.id === vid) || null, ...(forExport ? { forExport: true } : {}) };
+      logoSrc: this.inputs.logoSrc, sheet: n => this.viewWb?.sheets.find(x => x.name === n) || null,
+      version: (v.preset?.versions || []).find(x => x.id === vid) || null, ...(forExport ? { forExport: true } : {}), ...(this.scen ? { scenario: this.scen.hash } : {}) };
   }
   private slidesFor(design: Design): RuntimeSlide[] {
     if (!this.wb || !this.sync) return [];
     if (design === this.slidesDesign) return this.slides;
-    return runtimeSlides(this.wb, this.sync.view.preset, this.name, design);
+    return runtimeSlides(this.viewWb!, this.sync.view.preset, this.name, design);
   }
   /** the slides of the current design (re-resolved when the preset or the design changed), then send */
   private async refresh(c: Change | null, force = false) {
@@ -257,7 +373,7 @@ export class CoreHost {
     const design = this.style().design, sig = JSON.stringify(this.sync.view.preset);
     if (force || sig !== this.presetSig || design !== this.slidesDesign) {
       this.presetSig = sig; this.slidesDesign = design;
-      this.slides = runtimeSlides(this.wb, this.sync.view.preset, this.name, design);
+      this.slides = runtimeSlides(this.viewWb!, this.sync.view.preset, this.name, design);
     } else {
       // same preset: the slide definitions (layout, titles, text boxes) live in the runtime slides
       const byId = new Map((this.sync.view.preset?.slides || []).map(s => [s.id, s]));
@@ -287,7 +403,7 @@ export class CoreHost {
     for (const [name, box] of boxes) {
       const k = JSON.stringify(box); if (sent.get(name) === k) continue;
       sent.set(name, k);
-      sheets.push(sliceSheet(wb.sheets.find(s => s.name === name)!, box));
+      sheets.push(sliceSheet(wb.sheets.find(s => s.name === name)!, box, wb.shared));
     }
     if (sheets.length) {                                         // the shared parts once, with the first sheets (as above)
       const shared: SharedSlice | null = wb.shared && !this.sentSharedFor.has(this.wbBook) ? sliceShared(wb.shared) : null;
@@ -362,7 +478,7 @@ export class CoreHost {
       // which table (tableDrawKey does not name it), then what it is
       // drawn from – with the edits of its own cells only (tableKey has the whole sheet's: an edit in one table must not
       // draw the others of its sheet again)
-      const who = L.sheet.name + "|" + (L.id || "") + "|" + ctx.style.design + "|" + soft;
+      const who = L.sheet.name + "|" + (L.id || "") + "|" + ctx.style.design + "|" + soft + "|" + (ctx.scenario || "");
       const own = { ...ctx, _keys: new Map([[L.sheet.name, ownEdits(L, ctx)]]) };
       const key = who + "|" + tableDrawKey(R, i, own) + "|" + styleSig + (glass ? "|" + place.x + "," + place.y + "," + place.scale : "");
       let hit = this.stageCache.get(key);

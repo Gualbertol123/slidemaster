@@ -1,0 +1,1797 @@
+{
+ "ffp": [
+  {
+   "total": 208,
+   "equal": 37,
+   "volatile": 3,
+   "byFunc": {
+    "MATCH": 4,
+    "INDEX": 3,
+    "EOMONTH": 1,
+    "ROUND": 30,
+    "SUMIFS": 30,
+    "IFERROR": 14,
+    "IF": 27,
+    "ABS": 6,
+    "SUM": 26,
+    "AVERAGE": 3,
+    "MAX": 5,
+    "MIN": 3,
+    "COUNTIF": 2,
+    "RANK": 3,
+    "SUMPRODUCT": 3,
+    "CHOOSE": 3,
+    "MOD": 3,
+    "TEXT": 3,
+    "OFFSET": 3,
+    "INDIRECT": 3,
+    "ROUNDUP": 3,
+    "ISNUMBER": 3,
+    "LARGE": 3,
+    "SMALL": 3,
+    "XLOOKUP": 3,
+    "IFS": 3,
+    "SWITCH": 3,
+    "LET": 3,
+    "FILTER": 3,
+    "AND": 2,
+    "OR": 2,
+    "PERCENTRANK.INC": 1
+   },
+   "mism": [
+    {
+     "at": "Banks.xlsx!Control!B3",
+     "f": "MATCH(B2,Data!H2:H11,0)",
+     "exp": 1,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!Control!B8",
+     "f": "INDEX(Data!G:G,MATCH(1,INDEX((Data!A:A=B2)*(Data!B:B=B4),0),0))",
+     "exp": 46104.37346483796,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!Control!B9",
+     "f": "EOMONTH(B8,0)",
+     "exp": 46112,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!D5",
+     "f": "ROUND(SUMIFS(Data!$C:$C,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-3)*Control!$B$5,1)",
+     "exp": 1624.7,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!E5",
+     "f": "ROUND(SUMIFS(Data!$C:$C,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-2)*Control!$B$5,1)",
+     "exp": 1688.3,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!F5",
+     "f": "ROUND(SUMIFS(Data!$C:$C,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-1)*Control!$B$5,1)",
+     "exp": 1675.1,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!G5",
+     "f": "ROUND(SUMIFS(Data!$C:$C,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-0)*Control!$B$5,1)",
+     "exp": 1678.4,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!H5",
+     "f": "G5-F5",
+     "exp": 3.300000000000182,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!I5",
+     "f": "IFERROR(H5/F5,0)",
+     "exp": 0.0019700316399022043,
+     "got": 0
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!J5",
+     "f": "ROUND(SUMIFS(Data!$E:$E,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-0)*Control!$B$5,1)",
+     "exp": 1714.9,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!K5",
+     "f": "IF(ABS(G5-J5)<0.05,0,G5-J5)",
+     "exp": -36.5,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!D6",
+     "f": "ROUND(SUMIFS(Data!$D:$D,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-3)*Control!$B$5,1)",
+     "exp": 2025.8,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!E6",
+     "f": "ROUND(SUMIFS(Data!$D:$D,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-2)*Control!$B$5,1)",
+     "exp": 2033.8,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!F6",
+     "f": "ROUND(SUMIFS(Data!$D:$D,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-1)*Control!$B$5,1)",
+     "exp": 2001.7,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!G6",
+     "f": "ROUND(SUMIFS(Data!$D:$D,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-0)*Control!$B$5,1)",
+     "exp": 1937.1,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!H6",
+     "f": "G6-F6",
+     "exp": -64.60000000000014,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!I6",
+     "f": "IFERROR(H6/F6,0)",
+     "exp": -0.03227256831693068,
+     "got": 0
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!J6",
+     "f": "ROUND(SUMIFS(Data!$F:$F,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-0)*Control!$B$5,1)",
+     "exp": 2034.9,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!K6",
+     "f": "IF(ABS(G6-J6)<0.05,0,G6-J6)",
+     "exp": -97.80000000000018,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!D7",
+     "f": "SUM(D5:D6)",
+     "exp": 3650.5,
+     "got": 0
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!E7",
+     "f": "SUM(E5:E6)",
+     "exp": 3722.1,
+     "got": 0
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!F7",
+     "f": "SUM(F5:F6)",
+     "exp": 3676.8,
+     "got": 0
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!G7",
+     "f": "SUM(G5:G6)",
+     "exp": 3615.5,
+     "got": 0
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!H7",
+     "f": "SUM(H5:H6)",
+     "exp": -61.299999999999955,
+     "got": 0
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!I7",
+     "f": "IFERROR(H7/F7,0)",
+     "exp": -0.016672106179286324,
+     "got": 0
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!J7",
+     "f": "SUM(J5:J6)",
+     "exp": 3749.8,
+     "got": 0
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!K7",
+     "f": "SUM(K5:K6)",
+     "exp": -134.30000000000018,
+     "got": 0
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!D8",
+     "f": "IF(D6=0,\"n/a\",D5/D6)",
+     "exp": 0.8020041465100207,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!E8",
+     "f": "IF(E6=0,\"n/a\",E5/E6)",
+     "exp": 0.8301209558461993,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!F8",
+     "f": "IF(F6=0,\"n/a\",F5/F6)",
+     "exp": 0.8368386871159513,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!G8",
+     "f": "IF(G6=0,\"n/a\",G5/G6)",
+     "exp": 0.8664498477104952,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!D9",
+     "f": "AVERAGE(D7:G7)",
+     "exp": 3666.2250000000004,
+     "got": 0
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!E9",
+     "f": "MAX(D7:G7)",
+     "exp": 3722.1,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!F9",
+     "f": "MIN(D7:G7)",
+     "exp": 3615.5,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!G9",
+     "f": "COUNTIF(H5:H6,\">0\")",
+     "exp": 1,
+     "got": 0
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!D11",
+     "f": "RANK(G5,Data!$C$2:$C$121)",
+     "exp": {
+      "err": "#N/A"
+     },
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!E11",
+     "f": "SUMPRODUCT((Data!$B$2:$B$121=Control!$B$4)*(Data!$C$2:$C$121>G5))+1",
+     "exp": 10,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!D12",
+     "f": "CHOOSE(MOD(Control!$B$3,3)+1,\"one\",\"two\",\"three\")",
+     "exp": "two",
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "mar yy",
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Banks.xlsx!SLIDE_1!F12",
+     "f": "OFFSET(D5,1,2)",
+     "exp": 2001.7,
+     "got": "#ERROR!"
+    }
+   ],
+   "ms": 1080,
+   "engine": "fast-formula-parser",
+   "label": "Banks+Peers (linked)",
+   "parseErrors": [
+    "Function MATCH is not implemented.",
+    "Function INDEX is not implemented.",
+    "text.match is not a function",
+    "Function SUMIFS is not implemented.",
+    "Function SUMIFS is not implemented.",
+    "Function SUMIFS is not implemented.",
+    "Function SUMIFS is not implemented.",
+    "Function SUMIFS is not implemented.",
+    "Function SUMIFS is not implemented.",
+    "Function SUMIFS is not implemented."
+   ]
+  },
+  {
+   "total": 1259,
+   "equal": 224,
+   "volatile": 20,
+   "byFunc": {
+    "MATCH": 21,
+    "INDEX": 20,
+    "EOMONTH": 1,
+    "ROUND": 200,
+    "SUMIFS": 200,
+    "IFERROR": 79,
+    "IF": 179,
+    "ABS": 40,
+    "SUM": 160,
+    "AVERAGE": 20,
+    "MAX": 39,
+    "MIN": 20,
+    "COUNTIF": 16,
+    "RANK": 20,
+    "SUMPRODUCT": 20,
+    "CHOOSE": 20,
+    "MOD": 20,
+    "TEXT": 20,
+    "OFFSET": 20,
+    "INDIRECT": 20,
+    "ROUNDUP": 20,
+    "ISNUMBER": 20,
+    "LARGE": 20,
+    "SMALL": 20,
+    "XLOOKUP": 20,
+    "IFS": 20,
+    "SWITCH": 20,
+    "LET": 20,
+    "FILTER": 20,
+    "AND": 19,
+    "OR": 19
+   },
+   "mism": [
+    {
+     "at": "BanksBig.xlsx!Control!B3",
+     "f": "MATCH(B2,Data!H2:H11,0)",
+     "exp": 1,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!Control!B8",
+     "f": "INDEX(Data!G:G,MATCH(1,INDEX((Data!A:A=B2)*(Data!B:B=B4),0),0))",
+     "exp": 46300.37353415509,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!Control!B9",
+     "f": "EOMONTH(B8,0)",
+     "exp": 46326,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!D5",
+     "f": "ROUND(SUMIFS(Data!$C:$C,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-3)*Control!$B$5,1)",
+     "exp": 1877.9,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!E5",
+     "f": "ROUND(SUMIFS(Data!$C:$C,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-2)*Control!$B$5,1)",
+     "exp": 1809.6,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!F5",
+     "f": "ROUND(SUMIFS(Data!$C:$C,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-1)*Control!$B$5,1)",
+     "exp": 1906.8,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!G5",
+     "f": "ROUND(SUMIFS(Data!$C:$C,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-0)*Control!$B$5,1)",
+     "exp": 1844,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!H5",
+     "f": "G5-F5",
+     "exp": -62.799999999999955,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!I5",
+     "f": "IFERROR(H5/F5,0)",
+     "exp": -0.03293475980700648,
+     "got": 0
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!J5",
+     "f": "ROUND(SUMIFS(Data!$E:$E,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-0)*Control!$B$5,1)",
+     "exp": 1919.9,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!K5",
+     "f": "IF(ABS(G5-J5)<0.05,0,G5-J5)",
+     "exp": -75.90000000000009,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!D6",
+     "f": "ROUND(SUMIFS(Data!$D:$D,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-3)*Control!$B$5,1)",
+     "exp": 2190.9,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!E6",
+     "f": "ROUND(SUMIFS(Data!$D:$D,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-2)*Control!$B$5,1)",
+     "exp": 2113.2,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!F6",
+     "f": "ROUND(SUMIFS(Data!$D:$D,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-1)*Control!$B$5,1)",
+     "exp": 2135.3,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!G6",
+     "f": "ROUND(SUMIFS(Data!$D:$D,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-0)*Control!$B$5,1)",
+     "exp": 2271.4,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!H6",
+     "f": "G6-F6",
+     "exp": 136.0999999999999,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!I6",
+     "f": "IFERROR(H6/F6,0)",
+     "exp": 0.06373811642392165,
+     "got": 0
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!J6",
+     "f": "ROUND(SUMIFS(Data!$F:$F,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-0)*Control!$B$5,1)",
+     "exp": 2225.8,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!K6",
+     "f": "IF(ABS(G6-J6)<0.05,0,G6-J6)",
+     "exp": 45.59999999999991,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!D7",
+     "f": "SUM(D5:D6)",
+     "exp": 4068.8,
+     "got": 0
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!E7",
+     "f": "SUM(E5:E6)",
+     "exp": 3922.7999999999997,
+     "got": 0
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!F7",
+     "f": "SUM(F5:F6)",
+     "exp": 4042.1000000000004,
+     "got": 0
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!G7",
+     "f": "SUM(G5:G6)",
+     "exp": 4115.4,
+     "got": 0
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!H7",
+     "f": "SUM(H5:H6)",
+     "exp": 73.29999999999995,
+     "got": 0
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!I7",
+     "f": "IFERROR(H7/F7,0)",
+     "exp": 0.01813413819549243,
+     "got": 0
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!J7",
+     "f": "SUM(J5:J6)",
+     "exp": 4145.700000000001,
+     "got": 0
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!K7",
+     "f": "SUM(K5:K6)",
+     "exp": -30.300000000000182,
+     "got": 0
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!D8",
+     "f": "IF(D6=0,\"n/a\",D5/D6)",
+     "exp": 0.8571363366652974,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!E8",
+     "f": "IF(E6=0,\"n/a\",E5/E6)",
+     "exp": 0.8563316297558206,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!F8",
+     "f": "IF(F6=0,\"n/a\",F5/F6)",
+     "exp": 0.8929892755116376,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!G8",
+     "f": "IF(G6=0,\"n/a\",G5/G6)",
+     "exp": 0.8118341111208945,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!D9",
+     "f": "AVERAGE(D7:G7)",
+     "exp": 4037.275,
+     "got": 0
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!E9",
+     "f": "MAX(D7:G7)",
+     "exp": 4115.4,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!F9",
+     "f": "MIN(D7:G7)",
+     "exp": 3922.7999999999997,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!G9",
+     "f": "COUNTIF(H5:H6,\">0\")",
+     "exp": 1,
+     "got": 0
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!D11",
+     "f": "RANK(G5,Data!$C$2:$C$521)",
+     "exp": {
+      "err": "#N/A"
+     },
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!E11",
+     "f": "SUMPRODUCT((Data!$B$2:$B$521=Control!$B$4)*(Data!$C$2:$C$521>G5))+1",
+     "exp": 10,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!D12",
+     "f": "CHOOSE(MOD(Control!$B$3,3)+1,\"one\",\"two\",\"three\")",
+     "exp": "two",
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "#ERROR!"
+    },
+    {
+     "at": "BanksBig.xlsx!SLIDE_1!F12",
+     "f": "OFFSET(D5,1,2)",
+     "exp": 2135.3,
+     "got": "#ERROR!"
+    }
+   ],
+   "ms": 30074,
+   "engine": "fast-formula-parser",
+   "label": "BanksBig (20 slide sheets)",
+   "parseErrors": [
+    "Function MATCH is not implemented.",
+    "Function INDEX is not implemented.",
+    "text.match is not a function",
+    "Function SUMIFS is not implemented.",
+    "Function SUMIFS is not implemented.",
+    "Function SUMIFS is not implemented.",
+    "Function SUMIFS is not implemented.",
+    "Function SUMIFS is not implemented.",
+    "Function SUMIFS is not implemented.",
+    "Function SUMIFS is not implemented."
+   ]
+  },
+  {
+   "total": 10,
+   "equal": 1,
+   "volatile": 0,
+   "byFunc": {
+    "SUM": 9
+   },
+   "mism": [
+    {
+     "at": "edge-formats.xlsx!LAYOUT!K6",
+     "f": "SUM(D6:J6)",
+     "exp": 0,
+     "got": 24
+    },
+    {
+     "at": "edge-formats.xlsx!LAYOUT!K7",
+     "f": "SUM(D7:J7)",
+     "exp": 0,
+     "got": -36
+    },
+    {
+     "at": "edge-formats.xlsx!LAYOUT!K8",
+     "f": "SUM(D8:J8)",
+     "exp": 0,
+     "got": -27
+    },
+    {
+     "at": "edge-formats.xlsx!LAYOUT!K9",
+     "f": "SUM(D9:J9)",
+     "exp": 0,
+     "got": 16.5
+    },
+    {
+     "at": "edge-formats.xlsx!LAYOUT!K10",
+     "f": "SUM(D10:J10)",
+     "exp": 0,
+     "got": 25.5
+    },
+    {
+     "at": "edge-formats.xlsx!LAYOUT!K12",
+     "f": "SUM(D12:J12)",
+     "exp": 0,
+     "got": -25.5
+    },
+    {
+     "at": "edge-formats.xlsx!LAYOUT!K13",
+     "f": "SUM(D13:J13)",
+     "exp": 0,
+     "got": -16.5
+    },
+    {
+     "at": "edge-formats.xlsx!LAYOUT!K14",
+     "f": "SUM(D14:J14)",
+     "exp": 0,
+     "got": 27
+    },
+    {
+     "at": "edge-formats.xlsx!LAYOUT!K15",
+     "f": "SUM(D15:J15)",
+     "exp": 0,
+     "got": 36
+    }
+   ],
+   "ms": 1,
+   "engine": "fast-formula-parser",
+   "label": "corpus edge-formats.xlsx",
+   "parseErrors": []
+  },
+  {
+   "total": 1,
+   "equal": 0,
+   "volatile": 0,
+   "byFunc": {
+    "SUM": 1
+   },
+   "mism": [
+    {
+     "at": "report.xlsx!SLIDE_1!D19",
+     "f": "SUM(D6:D18)",
+     "exp": 0,
+     "got": 112345678.081
+    }
+   ],
+   "ms": 0,
+   "engine": "fast-formula-parser",
+   "label": "corpus report.xlsx",
+   "parseErrors": []
+  }
+ ],
+ "iron": [
+  {
+   "engine": "ironcalc",
+   "label": "Banks (linked, alone)",
+   "total": 192,
+   "equal": 182,
+   "volatile": 3,
+   "byFunc": {
+    "TEXT": 3
+   },
+   "mism": [
+    {
+     "at": "SLIDE_1!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "mar yy",
+     "got": "Mar 26"
+    },
+    {
+     "at": "SLIDE_2!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "mar yy",
+     "got": "Mar 26"
+    },
+    {
+     "at": "SLIDE_3!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "mar yy",
+     "got": "Mar 26"
+    },
+    {
+     "at": "SLIDE_3!D14",
+     "f": "FromB!D4*2",
+     "exp": -827,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "FromB!D4",
+     "f": "[1]Peer!F7",
+     "exp": -413.5,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "FromB!D5",
+     "f": "[1]Peer!D8",
+     "exp": "below peers",
+     "got": "#ERROR!"
+    },
+    {
+     "at": "FromB!D6",
+     "f": "D4+SLIDE_3!H7",
+     "exp": -341.9000000000001,
+     "got": "#ERROR!"
+    }
+   ],
+   "loadMs": 85,
+   "evalMs": 2424
+  },
+  {
+   "engine": "ironcalc",
+   "label": "Peers (linked, alone)",
+   "total": 16,
+   "equal": 0,
+   "volatile": 0,
+   "byFunc": {
+    "VLOOKUP": 2,
+    "IFERROR": 3,
+    "SUM": 2,
+    "IF": 1,
+    "PERCENTRANK.INC": 1
+   },
+   "mism": [
+    {
+     "at": "Peer!C3",
+     "f": "\"Peer comparison - \"&[1]Control!$B$2",
+     "exp": "Peer comparison - Bank A",
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Peer!D5",
+     "f": "[1]SLIDE_1!G5",
+     "exp": 1678.4,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Peer!E5",
+     "f": "VLOOKUP([1]Control!$B$2,PeerData!$A$2:$C$11,2,FALSE)",
+     "exp": 1761,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Peer!F5",
+     "f": "D5-E5",
+     "exp": -82.59999999999991,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Peer!G5",
+     "f": "IFERROR(F5/E5,0)",
+     "exp": -0.04690516751845537,
+     "got": "0"
+    },
+    {
+     "at": "Peer!D6",
+     "f": "[1]SLIDE_1!G6",
+     "exp": 1937.1,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Peer!E6",
+     "f": "VLOOKUP([1]Control!$B$2,PeerData!$A$2:$C$11,3,FALSE)",
+     "exp": 2268,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Peer!F6",
+     "f": "D6-E6",
+     "exp": -330.9000000000001,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Peer!G6",
+     "f": "IFERROR(F6/E6,0)",
+     "exp": -0.14589947089947095,
+     "got": "0"
+    },
+    {
+     "at": "Peer!D7",
+     "f": "SUM(D5:D6)",
+     "exp": 3615.5,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Peer!E7",
+     "f": "SUM(E5:E6)",
+     "exp": 4029,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Peer!F7",
+     "f": "D7-E7",
+     "exp": -413.5,
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Peer!G7",
+     "f": "IFERROR(F7/E7,0)",
+     "exp": -0.10263092578803673,
+     "got": "0"
+    },
+    {
+     "at": "Peer!D8",
+     "f": "IF(F7>0,\"above peers\",\"below peers\")",
+     "exp": "below peers",
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Peer!E8",
+     "f": "_xlfn.PERCENTRANK.INC(PeerData!$B$2:$B$11,D5)",
+     "exp": {
+      "err": "#N/A"
+     },
+     "got": "#ERROR!"
+    },
+    {
+     "at": "Peer!F8",
+     "f": "[1]SLIDE_2!G7-D7",
+     "exp": 61.30000000000018,
+     "got": "#ERROR!"
+    }
+   ],
+   "loadMs": 2,
+   "evalMs": 0
+  },
+  {
+   "engine": "ironcalc",
+   "label": "BanksBig (20 slide sheets)",
+   "total": 1259,
+   "equal": 1219,
+   "volatile": 20,
+   "byFunc": {
+    "TEXT": 20
+   },
+   "mism": [
+    {
+     "at": "SLIDE_1!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_2!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_3!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_4!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_5!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_6!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_7!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_8!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_9!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_10!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_11!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_12!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_13!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_14!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_15!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_16!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_17!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_18!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_19!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_20!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    }
+   ],
+   "loadMs": 92,
+   "evalMs": 2185
+  },
+  {
+   "engine": "ironcalc",
+   "label": "corpus edge-formats.xlsx",
+   "total": 10,
+   "equal": 1,
+   "volatile": 0,
+   "byFunc": {
+    "SUM": 9
+   },
+   "mism": [
+    {
+     "at": "LAYOUT!K6",
+     "f": "SUM(D6:J6)",
+     "exp": 0,
+     "got": "24"
+    },
+    {
+     "at": "LAYOUT!K7",
+     "f": "SUM(D7:J7)",
+     "exp": 0,
+     "got": "-36"
+    },
+    {
+     "at": "LAYOUT!K8",
+     "f": "SUM(D8:J8)",
+     "exp": 0,
+     "got": "-27"
+    },
+    {
+     "at": "LAYOUT!K9",
+     "f": "SUM(D9:J9)",
+     "exp": 0,
+     "got": "16.5"
+    },
+    {
+     "at": "LAYOUT!K10",
+     "f": "SUM(D10:J10)",
+     "exp": 0,
+     "got": "25.5"
+    },
+    {
+     "at": "LAYOUT!K12",
+     "f": "SUM(D12:J12)",
+     "exp": 0,
+     "got": "-25.5"
+    },
+    {
+     "at": "LAYOUT!K13",
+     "f": "SUM(D13:J13)",
+     "exp": 0,
+     "got": "-16.5"
+    },
+    {
+     "at": "LAYOUT!K14",
+     "f": "SUM(D14:J14)",
+     "exp": 0,
+     "got": "27"
+    },
+    {
+     "at": "LAYOUT!K15",
+     "f": "SUM(D15:J15)",
+     "exp": 0,
+     "got": "36"
+    }
+   ],
+   "loadMs": 5,
+   "evalMs": 0
+  },
+  {
+   "engine": "ironcalc",
+   "label": "corpus report.xlsx",
+   "total": 1,
+   "equal": 0,
+   "volatile": 0,
+   "byFunc": {
+    "SUM": 1
+   },
+   "mism": [
+    {
+     "at": "SLIDE_1!D19",
+     "f": "SUM(D6:D18)",
+     "exp": 0,
+     "got": "112345678.081"
+    }
+   ],
+   "loadMs": 5,
+   "evalMs": 0
+  }
+ ],
+ "scenario": {
+  "ffp": {
+   "engine": "fast-formula-parser",
+   "values": 10,
+   "total": 2050,
+   "equal": 367,
+   "volatile": 30,
+   "msPerValue": [
+    1022.9,
+    976.4,
+    889.5,
+    980.7,
+    940.4,
+    990.5,
+    1015.6,
+    1046,
+    1024.4,
+    990.3
+   ],
+   "mism": [
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!Control!B3",
+     "f": "MATCH(B2,Data!H2:H11,0)",
+     "exp": 1,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!Control!B8",
+     "f": "INDEX(Data!G:G,MATCH(1,INDEX((Data!A:A=B2)*(Data!B:B=B4),0),0))",
+     "exp": 46104.37346483796,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!Control!B9",
+     "f": "EOMONTH(B8,0)",
+     "exp": 46112,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!D5",
+     "f": "ROUND(SUMIFS(Data!$C:$C,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-3)*Control!$B$5,1)",
+     "exp": 1624.7,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!E5",
+     "f": "ROUND(SUMIFS(Data!$C:$C,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-2)*Control!$B$5,1)",
+     "exp": 1688.3,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!F5",
+     "f": "ROUND(SUMIFS(Data!$C:$C,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-1)*Control!$B$5,1)",
+     "exp": 1675.1,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!G5",
+     "f": "ROUND(SUMIFS(Data!$C:$C,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-0)*Control!$B$5,1)",
+     "exp": 1678.4,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!H5",
+     "f": "G5-F5",
+     "exp": 3.300000000000182,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!I5",
+     "f": "IFERROR(H5/F5,0)",
+     "exp": 0.0019700316399022043,
+     "got": 0
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!J5",
+     "f": "ROUND(SUMIFS(Data!$E:$E,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-0)*Control!$B$5,1)",
+     "exp": 1714.9,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!K5",
+     "f": "IF(ABS(G5-J5)<0.05,0,G5-J5)",
+     "exp": -36.5,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!D6",
+     "f": "ROUND(SUMIFS(Data!$D:$D,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-3)*Control!$B$5,1)",
+     "exp": 2025.8,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!E6",
+     "f": "ROUND(SUMIFS(Data!$D:$D,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-2)*Control!$B$5,1)",
+     "exp": 2033.8,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!F6",
+     "f": "ROUND(SUMIFS(Data!$D:$D,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-1)*Control!$B$5,1)",
+     "exp": 2001.7,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!G6",
+     "f": "ROUND(SUMIFS(Data!$D:$D,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-0)*Control!$B$5,1)",
+     "exp": 1937.1,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!H6",
+     "f": "G6-F6",
+     "exp": -64.60000000000014,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!I6",
+     "f": "IFERROR(H6/F6,0)",
+     "exp": -0.03227256831693068,
+     "got": 0
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!J6",
+     "f": "ROUND(SUMIFS(Data!$F:$F,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-0)*Control!$B$5,1)",
+     "exp": 2034.9,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!K6",
+     "f": "IF(ABS(G6-J6)<0.05,0,G6-J6)",
+     "exp": -97.80000000000018,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!D7",
+     "f": "SUM(D5:D6)",
+     "exp": 3650.5,
+     "got": 0
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!E7",
+     "f": "SUM(E5:E6)",
+     "exp": 3722.1,
+     "got": 0
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!F7",
+     "f": "SUM(F5:F6)",
+     "exp": 3676.8,
+     "got": 0
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!G7",
+     "f": "SUM(G5:G6)",
+     "exp": 3615.5,
+     "got": 0
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!H7",
+     "f": "SUM(H5:H6)",
+     "exp": -61.299999999999955,
+     "got": 0
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!I7",
+     "f": "IFERROR(H7/F7,0)",
+     "exp": -0.016672106179286324,
+     "got": 0
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!J7",
+     "f": "SUM(J5:J6)",
+     "exp": 3749.8,
+     "got": 0
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!K7",
+     "f": "SUM(K5:K6)",
+     "exp": -134.30000000000018,
+     "got": 0
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!D8",
+     "f": "IF(D6=0,\"n/a\",D5/D6)",
+     "exp": 0.8020041465100207,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!E8",
+     "f": "IF(E6=0,\"n/a\",E5/E6)",
+     "exp": 0.8301209558461993,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "bank": "Bank A",
+     "at": "Banks.xlsx!SLIDE_1!F8",
+     "f": "IF(F6=0,\"n/a\",F5/F6)",
+     "exp": 0.8368386871159513,
+     "got": {
+      "err": "#ERROR!"
+     }
+    }
+   ]
+  },
+  "ffpBigMs": [
+   29652,
+   29897,
+   29084,
+   31170,
+   33333
+  ],
+  "ffpBigG": {
+   "total": 1239,
+   "equal": 223,
+   "mism": [
+    {
+     "at": "Control!B3",
+     "f": "MATCH(B2,Data!H2:H11,0)",
+     "exp": 7,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "at": "Control!B8",
+     "f": "INDEX(Data!G:G,MATCH(1,INDEX((Data!A:A=B2)*(Data!B:B=B4),0),0))",
+     "exp": 46300.373534722225,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "at": "Control!B9",
+     "f": "EOMONTH(B8,0)",
+     "exp": 46326,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "at": "SLIDE_1!D5",
+     "f": "ROUND(SUMIFS(Data!$C:$C,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-3)*Control!$B$5,1)",
+     "exp": 7160.3,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "at": "SLIDE_1!E5",
+     "f": "ROUND(SUMIFS(Data!$C:$C,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-2)*Control!$B$5,1)",
+     "exp": 7079.6,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "at": "SLIDE_1!F5",
+     "f": "ROUND(SUMIFS(Data!$C:$C,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-1)*Control!$B$5,1)",
+     "exp": 7140,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "at": "SLIDE_1!G5",
+     "f": "ROUND(SUMIFS(Data!$C:$C,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-0)*Control!$B$5,1)",
+     "exp": 7195.9,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "at": "SLIDE_1!H5",
+     "f": "G5-F5",
+     "exp": 55.899999999999636,
+     "got": {
+      "err": "#ERROR!"
+     }
+    },
+    {
+     "at": "SLIDE_1!I5",
+     "f": "IFERROR(H5/F5,0)",
+     "exp": 0.007829131652661013,
+     "got": 0
+    },
+    {
+     "at": "SLIDE_1!J5",
+     "f": "ROUND(SUMIFS(Data!$E:$E,Data!$A:$A,Control!$B$2,Data!$B:$B,Control!$B$4-0)*Control!$B$5,1)",
+     "exp": 7295.7,
+     "got": {
+      "err": "#ERROR!"
+     }
+    }
+   ]
+  },
+  "iron": {
+   "engine": "ironcalc",
+   "values": 10,
+   "total": 1890,
+   "equal": 1820,
+   "msPerValue": [
+    4060.2,
+    3937,
+    3840.9,
+    4049.9,
+    3948.7,
+    3872.4,
+    4147.7,
+    3896.2,
+    4202.7,
+    3988.4
+   ],
+   "mism": [
+    {
+     "bank": "Bank_A",
+     "at": "SLIDE_1!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "mar yy",
+     "got": "Mar 26"
+    },
+    {
+     "bank": "Bank_A",
+     "at": "SLIDE_2!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "mar yy",
+     "got": "Mar 26"
+    },
+    {
+     "bank": "Bank_A",
+     "at": "SLIDE_3!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "mar yy",
+     "got": "Mar 26"
+    },
+    {
+     "bank": "Bank_A",
+     "at": "SLIDE_3!D14",
+     "f": "FromB!D4*2",
+     "exp": -827,
+     "got": "#ERROR!"
+    },
+    {
+     "bank": "Bank_A",
+     "at": "FromB!D4",
+     "f": "[1]Peer!F7",
+     "exp": -413.5,
+     "got": "#ERROR!"
+    },
+    {
+     "bank": "Bank_A",
+     "at": "FromB!D5",
+     "f": "[1]Peer!D8",
+     "exp": "below peers",
+     "got": "#ERROR!"
+    },
+    {
+     "bank": "Bank_A",
+     "at": "FromB!D6",
+     "f": "D4+SLIDE_3!H7",
+     "exp": -341.9000000000001,
+     "got": "#ERROR!"
+    },
+    {
+     "bank": "Bank_B",
+     "at": "SLIDE_1!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "mar yy",
+     "got": "Mar 26"
+    },
+    {
+     "bank": "Bank_B",
+     "at": "SLIDE_2!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "mar yy",
+     "got": "Mar 26"
+    },
+    {
+     "bank": "Bank_B",
+     "at": "SLIDE_3!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "mar yy",
+     "got": "Mar 26"
+    },
+    {
+     "bank": "Bank_B",
+     "at": "SLIDE_3!D14",
+     "f": "FromB!D4*2",
+     "exp": 168.59999999999854,
+     "got": "#ERROR!"
+    },
+    {
+     "bank": "Bank_B",
+     "at": "FromB!D4",
+     "f": "[1]Peer!F7",
+     "exp": 84.29999999999927,
+     "got": "#ERROR!"
+    },
+    {
+     "bank": "Bank_B",
+     "at": "FromB!D5",
+     "f": "[1]Peer!D8",
+     "exp": "above peers",
+     "got": "#ERROR!"
+    },
+    {
+     "bank": "Bank_B",
+     "at": "FromB!D6",
+     "f": "D4+SLIDE_3!H7",
+     "exp": -11.00000000000091,
+     "got": "#ERROR!"
+    },
+    {
+     "bank": "Bank_C",
+     "at": "SLIDE_1!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "mar yy",
+     "got": "Mar 26"
+    },
+    {
+     "bank": "Bank_C",
+     "at": "SLIDE_2!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "mar yy",
+     "got": "Mar 26"
+    },
+    {
+     "bank": "Bank_C",
+     "at": "SLIDE_3!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "mar yy",
+     "got": "Mar 26"
+    },
+    {
+     "bank": "Bank_C",
+     "at": "SLIDE_3!D14",
+     "f": "FromB!D4*2",
+     "exp": 456,
+     "got": "#ERROR!"
+    },
+    {
+     "bank": "Bank_C",
+     "at": "FromB!D4",
+     "f": "[1]Peer!F7",
+     "exp": 228,
+     "got": "#ERROR!"
+    },
+    {
+     "bank": "Bank_C",
+     "at": "FromB!D5",
+     "f": "[1]Peer!D8",
+     "exp": "above peers",
+     "got": "#ERROR!"
+    },
+    {
+     "bank": "Bank_C",
+     "at": "FromB!D6",
+     "f": "D4+SLIDE_3!H7",
+     "exp": 442.3000000000002,
+     "got": "#ERROR!"
+    },
+    {
+     "bank": "Bank_D",
+     "at": "SLIDE_1!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "mar yy",
+     "got": "Mar 26"
+    },
+    {
+     "bank": "Bank_D",
+     "at": "SLIDE_2!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "mar yy",
+     "got": "Mar 26"
+    },
+    {
+     "bank": "Bank_D",
+     "at": "SLIDE_3!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "mar yy",
+     "got": "Mar 26"
+    },
+    {
+     "bank": "Bank_D",
+     "at": "SLIDE_3!D14",
+     "f": "FromB!D4*2",
+     "exp": 1318.7999999999993,
+     "got": "#ERROR!"
+    },
+    {
+     "bank": "Bank_D",
+     "at": "FromB!D4",
+     "f": "[1]Peer!F7",
+     "exp": 659.3999999999996,
+     "got": "#ERROR!"
+    },
+    {
+     "bank": "Bank_D",
+     "at": "FromB!D5",
+     "f": "[1]Peer!D8",
+     "exp": "above peers",
+     "got": "#ERROR!"
+    },
+    {
+     "bank": "Bank_D",
+     "at": "FromB!D6",
+     "f": "D4+SLIDE_3!H7",
+     "exp": 734.3999999999996,
+     "got": "#ERROR!"
+    },
+    {
+     "bank": "Bank_E",
+     "at": "SLIDE_1!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "mar yy",
+     "got": "Mar 26"
+    },
+    {
+     "bank": "Bank_E",
+     "at": "SLIDE_2!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "mar yy",
+     "got": "Mar 26"
+    }
+   ]
+  },
+  "ironBigMs": [
+   4265.6,
+   4050.8,
+   4059.7,
+   4094.6,
+   4037.4
+  ],
+  "ironBigG": {
+   "total": 1239,
+   "equal": 1219,
+   "mism": [
+    {
+     "at": "SLIDE_1!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_2!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_3!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_4!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_5!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_6!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_7!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_8!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_9!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    },
+    {
+     "at": "SLIDE_10!E12",
+     "f": "TEXT(Control!$B$8,\"mmm yy\")",
+     "exp": "ott yy",
+     "got": "Oct 26"
+    }
+   ]
+  }
+ },
+ "excelCells": {
+  "Banks.xlsx": 192,
+  "Peers.xlsx": 16,
+  "BanksBig.xlsx": 1259
+ },
+ "census": {
+  "MATCH": 25,
+  "TEXT": 117,
+  "INDEX": 23,
+  "EOMONTH": 2,
+  "ROUND": 230,
+  "SUMIFS": 230,
+  "IFERROR": 93,
+  "IF": 206,
+  "ABS": 46,
+  "SUM": 186,
+  "AVERAGE": 23,
+  "MAX": 44,
+  "MIN": 23,
+  "COUNTIF": 23,
+  "RANK": 23,
+  "SUMPRODUCT": 23,
+  "VLOOKUP": 25,
+  "LEFT": 23,
+  "MID": 23,
+  "LEN": 23,
+  "CHOOSE": 23,
+  "MOD": 23,
+  "OFFSET": 23,
+  "INDIRECT": 23,
+  "AVERAGEIF": 23,
+  "DATE": 23,
+  "CONCATENATE": 23,
+  "ROUNDUP": 23,
+  "TODAY": 23,
+  "ISNUMBER": 23,
+  "LARGE": 23,
+  "SMALL": 23,
+  "XLOOKUP": 23,
+  "IFS": 23,
+  "SWITCH": 23,
+  "LET": 23,
+  "FILTER": 23,
+  "AND": 21,
+  "OR": 21,
+  "PERCENTRANK.INC": 1
+ }
+}

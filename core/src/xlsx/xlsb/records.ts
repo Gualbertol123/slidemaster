@@ -14,6 +14,10 @@ export const enum Rt {
   BeginDXFs = 505, EndDXFs = 506, DXF = 507,
   BeginFonts = 611, EndFonts = 612, BeginFills = 603, EndFills = 604, BeginBorders = 613, EndBorders = 614,
   BeginSheetData = 145, EndSheetData = 146,
+  /* formulas (PLAN S7.1): shared and array formulas after their master cell; the workbook's names and supporting
+     books / sheet table for 3D references; the sheet names of an external link part */
+  ArrFmla = 426, ShrFmla = 427, Name = 39,
+  BeginExternals = 353, EndExternals = 354, SupBookSrc = 355, SupSelf = 357, SupSame = 358, SupTabs = 359, BeginSupBook = 360, ExternSheet = 362, SupAddin = 667,
 }
 
 export class XlsbError extends Error {}

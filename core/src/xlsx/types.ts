@@ -54,6 +54,12 @@ export interface Sheet {
   /** the columns behind cells and rowInfo (absent for a broken sheet) */
   cols?: { cells: import("./sheetstore").SheetColumns; rows: import("./sheetstore").RowColumns };
   get(r: number, c: number): Cell | null;
+  /** the cell's formula as A1 text without "=" (PLAN S7.1), null for a constant or an unreadable formula */
+  formula(r: number, c: number): string | null;
+  /** the range of the array formula the cell masters, e.g. "C5:C9" (null: none) */
+  arrayRef(r: number, c: number): string | null;
+  /** formula cells of an .xlsb whose formula could not be decompiled (they keep their cached value only) */
+  unreadableFormulas?: number;
   rowHidden(r: number): boolean;
   colHidden(c: number): boolean;
   colInfo(c: number): ColInfo | undefined;
@@ -65,7 +71,9 @@ export interface Sheet {
   xfAt(r: number, c: number): Xf;
 }
 
-export interface SheetMeta { name: string; path: string; size: number }
+/** a sheet of the workbook; of a linked workbook (S7.3, ADR-014) its `name` is the sheet id "[File.xlsx]Sheet" and
+    `linked` the file */
+export interface SheetMeta { name: string; path: string; size: number; linked?: string }
 export interface Workbook {
   zip: Zip;
   wbRels: Record<string, Rel>;
@@ -73,6 +81,12 @@ export interface Workbook {
   skipped: { name: string; why: string }[];
   hiddenSheets: string[];
   extLinks: number;
+  /** the file names the workbook's external links point at, in the "[n]" order of its formulas (S7.2; "?" when a
+      link has no readable target) */
+  externals: string[];
+  /** the linked workbooks attached to this one (S7.3), by file name: their sheets are read into `sheets` under their
+      sheet ids, their own `meta` / `externals` / `hiddenSheets` serve the formula engine */
+  linked: Map<string, Workbook>;
   sheets: Sheet[];
   shared: Shared | null;
   total: number; ssSize: number; big: boolean;

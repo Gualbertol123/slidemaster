@@ -32,6 +32,8 @@ carry out every step of [`PLAN.md`](PLAN.md); the step ids (S0.1 …) refer to P
 | 7 | Storage v4 | S5.1–S5.5 | needs the G0 storage decision; real-share load run | – |
 | 8 | Pilot and cut-over | S5.6–S5.7 | 🚦 G2 pilot; 🚦 G3 cut-over | v4.0 |
 | 9 | Hardening | S6.1–S6.5 | `.xlsb` twins from Windows; D+28 | v4.1 |
+| 7b | Two consulting designs (McKinsey, Bain) – between M7 and M8 of docs/next/07 | S7b.1–S7b.5 | 🚦 specs approved; 🚦 pixel review | 4.2.x |
+| 11–15 | docs/next/07 milestones M8 scenario export, M9 charts and callouts, M10 free layout and cell gridlines, M11 PowerPoint, M12 audit (see "Prompts 11–15" below) | S8.1–S11.5, audit | G5, G6, G7, G8 | 4.2.0–4.5.0 |
 | 10 | Final independent audit | all | – | audit report |
 
 ---
@@ -789,9 +791,121 @@ S5.7 🚦 G3 cut-over package.
 Then STOP: "G3: agree the Monday, tag v4.0.0, follow cutover.md" under "Waiting for".
 ```
 
+## Prompt 7b · Two consulting designs, "McKinsey" and "Bain" (M7b, between M7 and M8)
+
+```text
+You are a senior engineer on Slide Builder 4 (this checkout, branch main after the merge of v4/M7-recalc; if M7 is
+not merged yet, branch from v4/M7-recalc). You add TWO NEW DESIGNS, "McKinsey" and "Bain": design modes that sit
+beside Liquid Glass, Excel and Excel Refined in the design switch, are saved and shared like them (DS-01), have
+their own per-design sizing, looks and text styles (DS-07, DS-08, TH-02), draw every table, text box, comment, chart
+and callout, and export to PDF (and later PPTX) through the display list like the others. They are NOT themes of
+Liquid Glass: they are designs of their own (their own renderer recipes, fonts, palettes, furniture), in the style
+of the slides of those two consulting firms – not copies of their logos, trademarks or fonts.
+
+This is milestone M7b. Work the way docs/next/PLAN.md Part A and docs/next/PROMPTS.md require: branch
+v4/M7b-consulting-designs, one commit per step titled "S7b.n · <title>", one pull request, PROGRESS.md ticked per
+step with measured numbers, the double-check protocol after every step (the full test run; the same run from a clean
+clone; an independent review against the PROMPTS.md Appendix checklist by a fresh sub-agent; numbers measured
+twice), and the AUDIT.md §0 protocol twice on clean clones at the end.
+
+READ FIRST
+- README.md §1, §3.3, §5.3, §6.6; docs/ARCHITECTURE.md; docs/next/PLAN.md Parts A, B (§8 B-items), E, F;
+  docs/next/03-architecture.md §4 (rendering, the Liquid Glass recipes); docs/next/05-test-and-parity.md §1, §3.2,
+  §3.4, §4.3 (DS/TH rows); docs/next/07-scenarios-charts-pptx.md §3 (charts/callouts are drawn per design – your
+  designs must leave hooks for them), §6.3; docs/next/adr/004 (display list: the only contract; no new node types),
+  adr/005 (text measured from font files), adr/011 (goldens); PROGRESS.md (Decisions, Waiting for).
+- The code the designs live in: core/src/model/types.ts (Design = "glass" | "excel" | "clean" – grep every use:
+  sizes per design, DESIGNS in core/src/render/layout.ts, resolveStyle and COLOR_KEYS in core/src/model/style.ts,
+  SLIDE_FONT in render/slide-dl.ts, tableDrawKey in render/slide.ts), core/src/render/glass.ts + glass-dl.ts (the
+  scene model and its materials), excel-dl.ts, slide-dl.ts (titles, text boxes, notes, footer, page numbers, logo),
+  cover.ts, pagenumbers.ts, wallpaper.ts, core/src/text/ (fonts: library fonts, Windows fonts captured per deck, W13),
+  core/src/pdf/writer.ts; app/src/ui/Topbar.tsx (the design switch), app/src/ui/DesignDialog*, the Design… dialog's
+  Colours / Text styles / Fonts tabs; tools/parity.mjs, tools/capture-v3.mjs, tools/dlparity.mjs, tools/g1-package.mjs
+  (the pixel-review report of gate G1), tests/corpus/, tests/parity/accepted.json.
+
+PHASE 0 – RESEARCH FIRST, THEN STOP FOR APPROVAL (no product code)
+1. Look up references. Use web search and fetch to collect at least 12 public reference images or documents for
+   EACH firm's slide style (published reports, case studies, teaching decks, public style analyses, design-community
+   write-ups; e.g. McKinsey Global Institute reports, "McKinsey slide style" analyses; Bain & Company published
+   briefs and "Bain slide" analyses). For each reference record the URL, what it shows, and what you take from it.
+   Save the list in docs/next/08-consulting-designs.md §1 and the images you may legally keep for internal reference
+   (public web pages, no scraping behind logins) as links only – do not commit third-party images.
+2. From the references derive, per design, a written DESIGN SPEC (08 §2, one subsection per design), each item with
+   a measurable value in slide px (1600 × 900) and the reference it comes from:
+   - the grid: margins, content area, title band, the "action title" (one or two lines of sentence-case text stating
+     the message), subtitle/lead-in, the horizontal rule under the title (McKinsey: thin dark rule; Bain: often a
+     coloured bar or none – take it from the references, not from memory), the footer line with "Source:" /
+     "Note:" footnotes, page number position, the small tracker/section marker at the top right, the logo position;
+   - colour palette: ink, background (white), the one accent and its tints (McKinsey deep blue family; Bain red
+     family), table banding, highlight and emphasis colours, positive/negative colours – as hex values with the
+     reference each comes from; how the deck's Colours tab maps onto them (COLOR_KEYS);
+   - typography: typefaces by role (title, subtitle, table head, table body, footnotes, page number) with sizes in
+     px, weights, letter spacing, line heights. Only fonts the PC has or the library can hold with a licence we may
+     use: no Bower, Theinhardt or other proprietary firm fonts – choose the closest system or open fonts (e.g. Georgia
+     / Times New Roman for a serif title, Arial / Segoe UI for the sans; or an SIL-OFL font added to the library) and
+     say why; respect W13 (fonts captured per deck);
+   - tables: borders (which edges, weights, colours), header row style, total row style, number alignment, unit row,
+     column header wrapping, zebra banding or none, the "harvey ball" / arrow / highlight conventions you will support
+     through the existing roles (Header / Total / Body / Note) and highlights (CE-11, CE-13), hairline rules between
+     groups;
+   - text boxes, automated comments and the notes section: box style (none / thin rule / tinted box), bullet
+     markers, the "takeaway box" (Bain) or "so-what" side column (McKinsey), spacing;
+   - charts and callouts hooks (07 §3): palette order for series, label style, legend style, callout shapes;
+   - cover and index slides, versions (nothing changes), page numbers (format and position), the footer.
+3. Write the implementation plan in 08 §3: how the two designs enter the code with ONE set of geometry rules kept
+   (computeLayout unchanged): extend Design to "glass" | "excel" | "clean" | "mckinsey" | "bain"; where each use of
+   Design needs a case; a shared "consulting" renderer core/src/render/consult-dl.ts parameterised by a DesignSpec
+   object (two specs, one renderer) built from the Excel item list (effItems) like excel-dl.ts, not from the glass
+   scene; the furniture (title, rule, footer, tracker, page number) in slide-dl.ts per design; SLIDE_FONT entries;
+   per-design defaults in resolveStyle (text styles, colours) so "Reset" returns to the spec; the design switch
+   buttons and the Design… dialog; the export file names (B11: the design name in the file name); the saved format:
+   a deck saved with design "mckinsey" opened by a 4.0/4.1 page must fall back to a known design without data loss
+   (optional field semantics – state how, add a test); thumbnails; the parity harness: new goldens are CAPTURED FROM
+   YOUR OWN FIRST RENDER after the pixel sign-off (05 §2, ADR-011: goldens are evidence) under golden/<deck>/
+   mckinsey|bain/, existing goldens untouched, existing designs 0 unaccepted differences.
+4. Write 08 §4: the new 05 §4 rows (DS-10 … for each design: switch, looks, text styles, sizing, tables, text
+   boxes, comments, cover/index, page numbers/footer, export PDF facts, parity/pixel sign-off), the B-items (one per
+   design, plus one for any change to existing behaviour – there must be none), Part F budgets (export time and
+   PDF size per slide for each design, keypress → pixels unchanged, no new main-thread task), the ADR
+   (ADR-018 "Consulting designs as parameterised Excel-item renderers").
+5. Write 08 §5: the steps S7b.1 … (Read / Do / Done when, ⏱, 🚦) and §6: your questions. Then STOP and write under
+   PROGRESS.md "Waiting for" what you need: approval of the two specs (show the palette, type and a labelled layout
+   sketch as an SVG or PNG you render yourself from the spec – docs/next/designs/<design>-sketch.svg – so the
+   product owner sees the structure before any code), the font choices, the B-items.
+
+THEN, PER STEP AFTER APPROVAL (expected steps; adjust in 08 §5)
+S7b.1 · Design type and plumbing: Design extended; every switch/case; resolveStyle defaults per design; the switch
+       buttons; saved-format fallback test; parity still 0 for the three existing designs. No new drawing yet.
+S7b.2 · The consulting renderer: core/src/render/consult-dl.ts (tables from effItems: fills, borders, text with
+       the existing measured text path, roles, highlights, colour scales, merges, superscripts, pictures/shapes/text
+       boxes of the workbook) + furniture per design in slide-dl.ts + cover/index + page numbers/footer + the
+       notes/comment boxes. Unit tests: DL snapshots of every corpus slide in both designs (the DL validators pass;
+       no node outside the eight types); dlparity for the three old designs unchanged.
+S7b.3 · Pixel review 🚦: render every corpus slide in both designs (tools/g1-package.mjs style report) and the
+       product owner signs off; fix and re-review; then capture the goldens.
+S7b.4 · Export and budgets ⏱: PDF of deck20 in each design (GF facts: fonts subset, no Type 3, size budget per
+       slide you set in 08 §4, time < 1.5 s for 20 slides), PNG/clipboard/thumbnails, "every version × all
+       designs" now exports five designs (the menu text and the names), e2e for the switch and the export.
+S7b.5 · Close: AUDIT §0 twice on clean clones; CHANGELOG; PROGRESS; 🚦 final sign-off.
+
+HARD RULES (PLAN Part A, keep them)
+- Operation semantics only in core/src/model/ops.ts (a new design needs no new op: design is a style field).
+- Everything drawn goes through the display list (ADR-004): no new node types; no DOM types in core/.
+- Helper = Python standard library only; no native executable; no new runtime dependency without its licence in an
+  ADR (fonts included: SIL OFL / Apache only; no proprietary firm fonts; no copying of logos or trademarks).
+- Existing goldens and 05 §4 rows keep passing: 0 unaccepted parity differences for Liquid Glass, Excel, Excel
+  Refined; no test skipped; element ids and data-* the e2e uses stay.
+- Every user-visible change is a B-item approved by the product owner before it ships; the CHANGELOG lists it.
+- Stop at every 🚦 and whenever a decision changes what users see; write it under "Waiting for".
+- Never push tags, never write to a real user share; the product owner pushes.
+
+START WITH PHASE 0. Do not write product code until the specs in 08 are approved.
+```
+
 ## Prompt 9 · Hardening (S6.1–S6.5)
 
 ```text
+v4.0.0 is tagged and live on slider since 2026-10-15 (record under Decisions; the four weeks of monitoring run in parallel)
 You are a senior engineer on Slide Builder (this checkout). We rebuild it following docs/next/PLAN.md.
 This prompt covers milestone M6: steps S6.1–S6.5.
 
@@ -912,13 +1026,498 @@ Write docs/next/AUDIT.md:
 - every finding with severity (critical / high / medium / low), how to reproduce it, and the fix you
   propose.
 
-Fix ONLY defects that have a failing reproduction, in a separate branch v4/audit-fixes with one commit
-per finding. Re-run the full protocol twice after the fixes and add the results to AUDIT.md.
-
-Final reply: the verdict, the findings by severity, what you fixed, and what still needs a human.
+Fix the defects and make recommendations for further improvements.
 ```
 
 ---
+
+## Prompts 11–15 · Finishing `07-scenarios-charts-pptx.md` (M8 … M12)
+
+Five prompts, one per milestone, in the format of Prompts 1–10: send each to a fresh agent session with this
+repository checked out, in order, after the previous milestone's pull request is merged (or branch from its branch
+when it is not). Every prompt is resumable from the first unticked step of its milestone in `PROGRESS.md`. The
+standing rules, the double-check protocol and the review checklist are the same as in Prompts 1–10; each prompt
+repeats what it needs so that it is self-contained. The design every prompt builds is `docs/next/07-scenarios-charts-
+pptx.md` (approved 2026-10-16 with its B-items B15–B24 in PLAN Part B §8); nothing in it is re-decided here.
+
+| # | Prompt | 07 steps | Human gates inside | Ships |
+|---|---|---|---|---|
+| 11 | Scenario export | S8.1–S8.5 | 🚦 G5 real deck, 10 values | 4.2.0 |
+| 12 | Charts and callouts | S9.1–S9.6 | 🚦 G6 pixel sign-off of the pie recipe in three designs | 4.3.0 |
+| 13 | Free layout and cell gridlines | S10.1–S10.4 | 🚦 G7 handles and gridline look | 4.4.0 |
+| 14 | PowerPoint export | S11.1–S11.5 | 🚦 G8 three decks opened in PowerPoint 2016 | 4.5.0 |
+| 15 | Independent audit of 4.2–4.5 | all | – | `AUDIT-2.md` |
+
+### The block every prompt 11–14 starts with (copy it verbatim at the top of each)
+
+```text
+STANDING RULES (docs/next/PLAN.md Part A; docs/next/PROMPTS.md)
+- Read first: docs/next/PLAN.md Part A (rules), Part B §8 (B1–B24: the only user-visible changes allowed), Part F
+  (budgets), docs/next/07-scenarios-charts-pptx.md (the design: §2 data model, §3 rendering, §4 PPTX, §5 free
+  layout and gridlines, §6 rows / B-items / budgets, §7 your steps, §8 the answered questions), the ADRs 013–017,
+  docs/next/05-test-and-parity.md §1 (verification codes) and §4 (the rows that must keep passing), docs/next/
+  PROMPTS.md Appendix (the review checklist), README.md §5–§6 and §11, docs/ARCHITECTURE.md §2–§3, PROGRESS.md
+  (Steps, Decisions, Waiting for – continue from the first unticked step of your milestone; stop at a step whose
+  decision is not under Decisions).
+- Git: branch v4/M<n>-<name> from main (or from the previous milestone's branch when its PR is not merged; say so
+  in PROGRESS); one commit per step titled "S<n>.<k> · <title>"; one pull request per milestone; never push a tag;
+  never write to a real user share; the product owner pushes and merges.
+- Never: edit golden/ or */tests/fixtures/saved/ (add files only); add a Python runtime dependency or a native
+  executable (ADR-001); add a page dependency without its licence in an ADR (MIT / BSD / Apache only; no GPL /
+  AGPL / commercial); remove an element id or data-* the e2e uses without updating the test in the same commit;
+  skip or disable a test; put operation semantics anywhere but core/src/model/ops.ts (ADR-002; every new op or
+  key gets shared/ops-vectors.json cases and an inverse for undo); draw anything outside the display list's eight
+  node types (ADR-004; no DOM types in core/); change what users see outside B1–B24 (stop and write it under
+  "Waiting for"); change a budget of Part F on your own (flag it under Waiting for with the measurement).
+- Saved decks stay readable by 4.0 / 4.1 (new fields optional; `format` 4 / `workbook` 3 unchanged) or the format
+  goes up with a migration, a fixture and a test (README §4.4).
+- Environment: Windows 10/11, no admin rights; Node 22 portable (see PROGRESS Decisions and the memory note on
+  this PC: prefix its folder to PATH, NODE_OPTIONS=--use-system-ca behind the proxy); Python 3.8-compatible helper;
+  the e2e helpers use fixed ports 8951/8952 (one e2e run at a time); never edit sources while a background
+  `npm run check` reads them; Python on this PC takes C:\ paths and writes CRLF unless told not to (check
+  `git ls-files --eol | grep w/crlf` before `npm run build`: the committed page must reproduce from a clean clone).
+
+DOUBLE-CHECK PROTOCOL (after EVERY step, before ticking it in PROGRESS.md)
+1. Run: npm run build (the page is committed; app/tests/build.test.ts compares it), npm run check, python -m
+   unittest discover -s helper/tests (3.12 and 3.8), npm run test:e2e, npm run parity and npm run dlparity (0
+   unaccepted differences), npm run bench (every gate within its limit; the engine bench needs a quiet PC), the
+   step's own "Done when" checks, and tools/pdfcheck.py (+ qpdf) on every PDF the step makes.
+2. The same run again from a clean clone (`git clone -b <branch> <checkout>` into %TEMP%).
+3. An independent review by a fresh sub-agent against the PROMPTS.md Appendix checklist: give it the step's diff,
+   the 07 section it implements and the rows it guards; fix every REQUEST CHANGES item; record the verdict in the
+   step's PROGRESS line.
+4. Measure every number twice; put both in the step's PROGRESS line ("verified: tests ✓ clean clone ✓ review ✓").
+Finish the milestone with the docs/next/AUDIT.md §0 protocol (all 17 steps) twice on clean clones, the results in
+PROGRESS.md, the CHANGELOG section for the release, the version numbers prepared (release checklist §1), and the
+🚦 gate written under "Waiting for". Then stop.
+```
+
+## Prompt 11 · Scenario export (M8: S8.1–S8.5, B15) ⇢ 4.2.0
+
+```text
+<the standing block>
+
+You build M8 of docs/next/07-scenarios-charts-pptx.md: "run for each bank". M7 left in the core worker: the formula
+engine (core/src/calc/engine.ts), linked workbooks, the self-check (`calcCheck`), and `scenarioPreview({sheet, ref,
+value} | null)` which draws every slide and export list from a view of the workbook with the recomputed cells
+(core/src/calc/overlay.ts) and answers {changed, different, check}. Gate G4 (the product owner's self-check numbers
+of real decks) is under PROGRESS Decisions – read it: a `different` count above 0 there changes what the run's gate
+must say.
+
+Read also: core/src/worker/host.ts (ensureCalc, scenarioPreview, lists, the export channel), core/src/worker/
+export-host.ts and core/src/workers/export.worker.ts (one job per (design, version); three workers), core/src/rpc/
+messages.ts, app/src/editor/export.ts and app/src/ui/Topbar.tsx (the Export ▾ menu, EX-01…EX-17, B11 names),
+app/src/state/dialogs.ts and app/src/ui/Dialogs.tsx (dialogs), app/src/wizard/SheetGrid (the cell picker you reuse
+for "From a range…"), helper/slidebuilder/exports.py (save_export: temp, lock, rename, " (2)"), the e2e helpers in
+app/e2e/app.spec.ts (`exported`, `fromMenu`, `pollFile`), tests/corpus/workbooks/recalc/ (Banks.xlsx / Peers.xlsx:
+Control!B2 is the command cell; truth/<bank>/ are Excel's recalculated copies), core/tests/host.test.ts (the
+scenario describe), app/tests/fixtures/Banks.xlsx + Peers.xlsx (the e2e folder gets them).
+
+S8.1 · The dialog (07 §7 S8.1; rows SC-01, SC-07)
+- Export ▾ › "Run for each value…" opens a dialog: the input cell (the name box syntax "Sheet!C7", a sheet id
+  "[Peers.xlsx]Peer!C7" allowed, or "Pick a cell" which takes the stage's selected cell); the values: a textarea
+  (one per line, paste allowed), and "From a range…" which opens the wizard's grid (getSheetWindow) to drag a range
+  whose displayed texts become the values; de-duplicated keeping the order, blank lines skipped; the count shown;
+  "Treat as text" (07 §8 Q7: a value that parses as a number goes in as a number when the input cell holds a number
+  today, else text; the switch forces text); the designs (checkboxes: Liquid Glass, Excel, Excel Refined – and the
+  designs M7b added if present), the versions (checkboxes: Full deck + every version), PDF / PowerPoint (PowerPoint
+  greyed with "comes with 4.5" until M11), Preview (the selected value only) and Run.
+- Preview calls scenarioPreview; a banner on the stage names the value ("Previewing: Bank C – a scenario, not
+  saved · Clear"); editing stays allowed (07 §2.4); Clear calls scenarioPreview(null). S8.4 completes it.
+- The dialog's state is UI state (the store), never the document. Element ids: #scenarioDialog, #scInput,
+  #scValues, #scFromRange, #scText, #scDesigns, #scVersions, #scPreview, #scRun, #scBanner.
+- Done when: e2e SC-01 (values typed and from a range, de-dup, count), SC-07 (preview shows Bank C's title, Clear
+  restores), unit tests of the value parsing; no new console error.
+
+S8.2 · Names and files (07 §2.5; SC-03, SC-04)
+- core/src/export/names.ts: scenarioFileName(valueText, design, version | null, ext) = "<value> - <design>.<ext>" or
+  "<value> - <version> - <design>.<ext>"; `\ / : * ? " < > |` and controls → "_", trimmed spaces/dots, reserved
+  device names prefixed "_", empty → "(blank)", cut so that "<export folder>\<name>.<uuid>.tmp" stays under 240
+  characters (the helper's folder length comes from /api/ping or is assumed 60 when unknown – say which), equal
+  names inside one run get " (2)", " (3)" before the helper's own " (2)" for an open target (EX-11). The existing
+  B11 names move to the same module unchanged (their tests stay green).
+- Done when: unit tests for every rule incl. two values that collapse to one safe name; an e2e run of 2 equal
+  values gives "X - Excel.pdf" and "X (2) - Excel.pdf".
+
+S8.3 · The run ⏱ (07 §2.4, §6.4; SC-02, SC-05, SC-06, SC-08, SC-09, RC-06)
+- Worker RPC scenarioRun({input, values, designs, versions, kinds:["pdf"], runAnyway}) → id; events `scenario`
+  {id, done, total, value, status, files, error}; scenarioCancel({id}).
+- The loop (one value at a time, yielding between values so the stage is served): set the input through the
+  engine, evaluate, build the view (as scenarioPreview does) – then, for each (design, version), the export workers
+  build the lists through the existing channel and write the PDF; POST /api/export-file with the S8.2 name; the
+  value's files and status go in the report; the view is dropped; the document, the deck and the workbook file are
+  never touched (test: journal records and the document identical before and after; the workbook bytes identical).
+- The gate (07 §1.4 (4), RC-06): before the first value, if any formula cell of the slides' tables is classed
+  `different` by the self-check, the run stops with the list (sheet!ref, cached vs computed) unless the dialog's
+  "run anyway, mark these cells" was ticked – then those cells are drawn with a red corner marker (a `rect` node,
+  all designs) and listed in the report. G4's numbers decide the default wording.
+- Cancel between values: files already saved stay; the report says "cancelled after n of m".
+- The report dialog: per value: ok (its files) or failed (the reason); "Open folder"; the toast "Saved N files".
+- Exports started before a run or during one must not get scenario lists by accident: the export workers' lists()
+  takes an explicit scenario (the run's) or none; add the host test that proves an ordinary export during a run
+  draws the workbook's own values (07 §2.4 "guarded in S8.3").
+- ⏱ bench: one value recalculated + 20 Liquid Glass slides exported < 3 s; 20 values × 1 design × 20 slides < 40 s;
+  no main-thread task > 50 ms during a run (Long Tasks API in tools/bench.mjs); add the gates to `npm run bench`.
+- Done when: the brief's e2e "3 values × 2 designs → 6 files with the right names" (SC-02) on Banks.xlsx, SC-05
+  (hashes before/after), SC-06 (progress, cancel, report), SC-08/SC-09 (bench), RC-06 (a deck whose table reads a
+  `different` cell – make one with a formula the engine lacks, e.g. INFO("osversion") in a slide table – stops;
+  "run anyway" marks it).
+
+S8.4 · Preview ⏱ (SC-07; 07 §2.4 "Built in S7.4 (and its limit)")
+- Decide and record (Decisions): whether the overlay's changed cells are mirrored to the page as slices during a
+  preview (the ribbon, painter, comment dialog and Issues lines then follow the scenario) or the banner states that
+  they show the workbook. Implement the chosen way; ⏱ preview switch (value → stage drawn) < 400 ms on deck20.
+- Done when: SC-07 e2e extended (the banner, Clear, an edit during a preview saved as an ordinary op), the bench
+  gate.
+
+S8.5 · Close
+- AUDIT §0 twice on clean clones; CHANGELOG 4.2.0 (B15 under "What users notice", with B22–B24 already there);
+  versions prepared; 🚦 G5 under Waiting for: the product owner runs a real deck with 10 values and signs off the
+  names and the report. Stop.
+```
+
+## Prompt 12 · Charts and callouts (M9: S9.1–S9.6, B16, B17, B19, B24) ⇢ 4.3.0
+
+```text
+<the standing block>
+
+You build M9 of docs/next/07-scenarios-charts-pptx.md: pie / donut charts and data callouts on any slide, drawn per
+design with the existing eight display-list nodes (ADR-015), following reloads and scenarios because they read
+cells through the same `ctx.sheet()` facade as tables; and raw Excel starts drawing the user's objects (B19).
+If M7b (the consulting designs) was built, every "three designs" below means every design of the switch; their
+palettes come from each design's spec.
+
+Read also: 07 §2.2 (DataRef, ChartItem, ShapeItem, Item, the `item.patch` op with field-level merge), §3 (the node
+recipes per design, the palette rule, hit nodes), §6.1 (the rows that change: DS-02, DS-07, NB-18, AC-01), §6.2
+(CH-01…CH-04, CL-01, CL-02), ADR-015; core/src/model/ops.ts and shared/ops-vectors.json (the pattern of a map key
+and of an inverse), core/src/model/types.ts, core/src/render/slide-dl.ts (noteNodes: the text-box renderer you
+reuse for callout text; noteParts; the glass card recipe), core/src/render/glass.ts + glass-dl.ts (materials,
+palette, signals), excel-dl.ts, core/src/render/layout.ts (computeLayout, notesOf, fixedScale, the raw-Excel early
+return you remove), core/src/dl/types.ts (validators) and dl/geom.ts, core/src/render/context.ts (tableKey, the
+scenario digest), app/src/stage (hit testing, overlays, drags, actions), app/src/ui/Ribbon.tsx and TableTools.tsx,
+app/src/editor/issues.ts (SP rows), tests/parity/accepted.json and tools/parity.mjs (how an accepted difference is
+recorded and signed), core/tests/dl.test.ts, excel-dl.test.ts, glass-dl.test.ts, slide-dl.test.ts (the DL test
+patterns), tools/g1-package.mjs (the pixel-review package for a 🚦).
+
+S9.1 · item.patch (07 §2.2)
+- types: DataRef, ChartItem, ShapeItem, Item, Box; SlideDef.items?: Record<id, Item>. Op `item.patch {slide, id,
+  patch}`: field-level set/delete of the item's keys, map-merge for `colors` and `fmt`, `patch: null` deletes,
+  a patch with `kind` on a missing id creates; inverseOf for undo; fold / Lamport need nothing new. ≥ 16 vectors
+  (create, patch, delete, two writers merging different fields of one item, colors merge, unknown kind skipped,
+  invalid box skipped, inverses round-trip). Readable by 4.1 (optional field; test with a 4.1 snapshot fixture
+  added, never edited). README §4.2/§4.3 and docs/ARCHITECTURE.md §2–§3 updated.
+- Done when: ops vectors and the convergence property test pass; no op semantics outside ops.ts.
+
+S9.2 · Pie / donut display list ⏱ 🚦 G6 (07 §3; CH-01)
+- core/src/render/chart-dl.ts: data resolution (a DataRef of a table or of any sheet id + range, through
+  ctx.sheet(); numbers only, blanks skipped, the labels range or the row/column headers), slices as `path` nodes
+  (cubic Béziers, κ = 0.5523, a 1 px separator stroke in the background colour), labels (name / value / percent,
+  outside with a `line` leader under 12°), legend (right / bottom; capsule swatches in Liquid Glass, square
+  otherwise), title (the deck's "note" text style, `fmt` over it), per-slice `colors[i]` else the design's resolved
+  palette (resolveStyle per design), `hit {kind: "item"}` and `hit {kind: "slice"}` nodes; in Liquid Glass inside
+  the glass card recipe (group clip + wallblur image + tint + shadow). The cache key hashes the item and the
+  referenced values (and the scenario digest).
+- Placement: `box` in slide px, or `attach` to a table side (laid out by computeLayout like a text box: it gets a
+  NoteBox-like entry; keep computeLayout's signature).
+- ⏱ a 12-slice pie builds in < 5 ms (vitest bench). Unit tests: DL snapshots per design of a chart from a table and
+  from a hidden sheet's range; validators pass; a source that is missing draws the placeholder and reports.
+- 🚦 G6: a g1-style pixel package of the corpus charts in every design for the product owner; fix and re-review.
+
+S9.3 · Chart UI (CH-02, CH-03, CH-04, B24)
+- Ribbon: "Insert chart ▾" (from the selected cells; from a range…: sheet picker incl. hidden sheets' names? – no:
+  only sheets the wizard lists (WB-18 keeps hidden sheets hidden) and linked sheets); the side panel of the selected
+  chart (type pie / donut, labels, legend, title, colours per slice, data source shown as text); selection by its
+  hit node, delete, move/resize by drags (one op per drag, as text boxes); thumbnails follow.
+- Issues lines: "Chart n: source Sheet!C5:C9 not found", empty data.
+- Done when: e2e CH-02 (a pie from a range of a sheet on no slide), CH-03 (reload with a changed file → the pie
+  changes; scenarioPreview → the pie follows), CH-04.
+
+S9.4 · Callouts ⏱ (07 §3; CL-01, CL-02)
+- core/src/render/shape-dl.ts: rect / round / circle / pill (`rect` with radii), arrow and bubble (`path`), icons
+  (≈ 16 built-in `path` sets listed in 07 §3), fill / border / shadow per design (glass material when fill unset),
+  the text through noteNodes with `{Sheet!C7}` / `{[Peers.xlsx]Peer!F7}` tokens replaced by formatValue of the cell
+  (its number format; the overlay under a scenario); `#REF` + an Issues line for a missing reference. Ribbon
+  "Insert shape ▾", the fill / border / text controls on ribbon 2 for the selected shape, drags.
+- ⏱ a callout builds in < 2 ms. Done when: unit DL tests per design, e2e CL-01 and CL-02 (a callout quoting
+  Control!B2 follows scenarioPreview "Bank C").
+
+S9.5 · Objects in raw Excel (B19; DS-02, DS-07, NB-18, AC-01)
+- Remove notesOf's raw-Excel early return and fixedScale's correction (core/src/render/layout.ts); enable the text
+  box, notes and Comment… controls in raw Excel; raw Excel still adds no decoration of its own.
+- The corpus slides of raw Excel that have text boxes now differ from the goldens: list each in
+  tests/parity/accepted.json with reason "B19" and the product owner's sign-off (🚦 inside this step: show them the
+  before/after pictures); 0 unaccepted differences remain.
+- Done when: parity and dlparity 0 unaccepted; e2e E12 updated for NB-18's change (document the selector change
+  in the PR).
+
+S9.6 · Close
+- AUDIT §0 twice; CHANGELOG 4.3.0 (B16, B17, B19, B24's "chart / callout source not found" lines); versions
+  prepared; stop.
+```
+
+## Prompt 13 · Free layout and cell gridlines (M10: S10.1–S10.4, B18, B20) ⇢ 4.4.0
+
+```text
+<the standing block>
+
+You build M10 of docs/next/07-scenarios-charts-pptx.md: a per-slide, per-design "free layout" in which tables, text
+boxes, charts and callouts are moved and resized freely (no re-flow, no linked sizes, no auto-shrink, no
+attaching), one undo step each way and nothing lost (ADR-017); and gridlines on selected cells, copied by the
+format painter.
+
+Read also: 07 §5, §6.2 (FL-01…FL-03, GL-01, GL-02), ADR-017; core/src/render/layout.ts (computeLayout, sizingOf,
+sizingPatch, the `frees` branch of text boxes), app/src/stage/drags.ts (previews per frame from the same
+computeLayout; snapping SNAP = 8; one op on pointer-up), app/src/stage/hit.ts, app/src/editor/tables.ts
+(setColWidth, stretchTable, W/H boxes), app/src/ui/TableTools.tsx (ribbon 2: Gridlines ▾, Reset layout), app/src/
+editor/painter.ts (CE-15, CE-16), core/src/render/excel-dl.ts and glass-dl.ts (borders and hairlines), core/src/
+model/ops.ts (SLIDE_MAPS, TABLE_MAPS), shared/ops-vectors.json, core/tests/tables.test.ts, the e2e drag tests
+(E4, E7, E10, E11) and tools/bench.mjs's drag-frame measurement.
+
+S10.1 · Free layout model (07 §5.1; FL-01)
+- SlideDef.free?: Partial<Record<Design, FreeLayout>> with FreeLayout = { on, items: { "t:<tableId>" | "n:<noteKey>"
+  | "i:<itemId>": Box & { scale? } } }; `free` joins SLIDE_MAPS (map merge per design, an entry replaces the
+  design's layout whole); vectors and inverses.
+- computeLayout: with `free[design].on` it returns the saved boxes (tables scaled to their box, text boxes and
+  items as saved, items without an entry at their automatic position alone), k = 1, fit = 1, no bisection;
+  everything else unchanged (the geometry of automatic slides is byte-identical: dlparity 0).
+- Switching on: one slide.patch writing every current box (nothing moves – test: the DL before and after is
+  identical but for the hit nodes); switching off: `on: false`, the boxes kept; switching on again restores them;
+  one undo step each (unit test counting history steps).
+- Done when: unit tests + e2e FL-01 (positions before/after, undo count).
+
+S10.2 · Drags ⏱ (FL-02, FL-03)
+- drags.ts: freeMove / freeResize for every item kind (tables by corner = uniform scale, by edges = that axis; text
+  boxes, charts, callouts by edges and body), snapping to the other items' edges and the slide guides unless Alt is
+  held, previews per frame, one op on pointer-up; the stage's handles in free mode; "Reset layout" asks "Back to
+  automatic layout?" and switches off.
+- ⏱ a Playwright trace of each free drag ≤ 16 ms per frame on the CI machine (the existing drag bench gets the
+  free cases). Done when: e2e FL-02, FL-03 (raw Excel, text boxes drawn since B19), the bench gate.
+
+S10.3 · Cell gridlines (07 §5.2; GL-01, GL-02)
+- TableDef.cellGrid?: Record<A1, { h?, v?, o?, c?, w? }> joins TABLE_MAPS (map merge per cell), vectors and inverses;
+  Gridlines ▾ gets the section "Selected cells: H · V · Outline · Colour · Weight · Clear"; applied after the
+  table-level gridH / gridV and the workbook's borders in excel-dl.ts (`line` nodes replacing that edge's border)
+  and as hairlines in glass-dl.ts; versions keep them (VR-02); the painter copies cellGrid entries (CE-16's list
+  grows by one, its unit test too).
+- Done when: unit DL tests (every edge, outline of a rectangle, colour, weight), e2e GL-01 and GL-02; TA-10's
+  tests still pass.
+
+S10.4 · Close
+- AUDIT §0 twice; CHANGELOG 4.4.0 (B18, B20); versions prepared; 🚦 G7 under Waiting for: the product owner tries
+  the handles and the gridline look on a real deck and signs off. Stop.
+```
+
+## Prompt 14 · PowerPoint export (M11: S11.1–S11.5, B21) ⇢ 4.5.0
+
+```text
+<the standing block>
+
+You build M11 of docs/next/07-scenarios-charts-pptx.md: a .pptx next to every .pdf (current slide, whole deck,
+every version × design, M8's scenario runs) written in pure TypeScript in core/src/pptx/ from the display list plus
+a semantic layer, with editable text, real tables and native pie / donut charts; glass materials and shadows as
+pictures; fonts named, not embedded (ADR-016; 07 §4 is the fidelity contract – read it line by line, it is what
+the product owner approved).
+
+Read also: 07 §4.1–§4.4, §6.2 (PX-01…PX-04), §6.4, ADR-016; core/src/pdf/writer.ts and README.md (the writer
+pattern: a pure module fed by the export worker; images by content hash; fonts by the resolver), core/src/worker/
+export-host.ts (run / thumbs; the rasteriser; the OffscreenCanvas page renderer you use for the picture layer),
+core/src/workers/export.worker.ts, core/src/rpc/messages.ts (ExportJob, SlideListsReq), core/src/render/slide-dl.ts
++ excel-dl.ts + glass-dl.ts (where the semantic layer must be emitted alongside the DL: tables with rows / cols /
+cells / merges / borders / fonts, texts as paragraphs and runs, charts, pictures, and what is left for the picture
+layer), core/src/xlsx/zip.ts and fflate's zipSync (the writer's container), app/src/editor/export.ts and the Export
+▾ menu, helper/slidebuilder/exports.py (save_export accepts any extension? check, and the name rules), tools/
+pdfcheck.py (the pattern for tools/pptxcheck.py), the OOXML references you know (ECMA-376 presentationML, DrawingML
+tables `a:tbl`, charts `c:chartSpace` with `c:numCache` and the embedded workbook, slide size 12,192,000 ×
+6,858,000 EMU, 1 slide px = 7,620 EMU). PowerPoint 16 is on the development PC (`PowerPoint.Application`): the
+open-without-repair check runs here (dev tool only; the product never needs PowerPoint).
+
+S11.1 · Writer skeleton + the checker (PX-01 partly)
+- core/src/pptx/writer.ts: [Content_Types].xml, _rels, presentation.xml (16:9), one blank master and layout, a
+  theme, docProps; per slide: the picture layer as one PNG (the DL rendered at 2× with the existing rasteriser,
+  without the nodes the semantic layer replaces) and `p:sp` text boxes for every semantic text (font name, size px ×
+  0.75 pt, bold / italic / colour, alignment, line spacing, vertical anchor; superscripts as baseline; the title's
+  text shadow as outerShdw); pictures as `p:pic` with srcRect crop, rotation, flips. The semantic layer: the core's
+  `slideLists` answers `semantics` per slide for kind "pptx" (07 §4.1's interface); its boxes are the DL nodes' boxes.
+- tools/pptxcheck.py (Python, dev only; python-pptx 1.0.2 MIT as a dev package, stdlib for the structure): (1)
+  structure (zip, content types, every rels target exists, every XML parses, slide count, slide size); (2) text:
+  the GT golden texts found in the slide's shapes/tables; (3) on Windows with PowerPoint: Presentations.Open
+  (ReadOnly, WithWindow 0) must not raise (a repair = failure), slide count and shape texts read back; `--no-ppt`
+  for CI. Wire it into npm run export-check for every corpus deck × design.
+- Done when: every corpus deck's .pptx passes (1)–(3) on this PC; a deck with one slide too.
+
+S11.2 · Tables and shapes (PX-03)
+- `a:graphicFrame` + `a:tbl` from semantics.tables: column widths and row heights from the layout, merges
+  (gridSpan / rowSpan), cell fills, borders per side (width, dash, colour), margins, runs as above; cell-level
+  gridlines of M10 as borders; Liquid Glass: the card as a picture under a table with transparent fills, capsules
+  as rectangular cell fills (07 §4.2); callouts as `prstGeom` shapes (rect, roundRect, ellipse, rightArrow,
+  wedgeRoundRectCallout) with their text, icons as custGeom from the same path data; solid and simple linear
+  fills native, radial / alpha-stop gradients in the picture layer.
+- Done when: pptxcheck (python-pptx: shape.has_table for every table, texts per cell equal GT), the three designs
+  of the corpus open without repair.
+
+S11.3 · Charts, the background layer, budgets ⏱ (PX-04)
+- Native `c:pieChart` / `c:doughnutChart` with explicit point colours, data labels (name / value / percent), legend
+  position, the chart title, and an embedded `embeddings/chartN.xlsx` (two columns, written with fflate) so Edit
+  Data works; the wallpaper layer as JPEG once per deck, cards as PNG with alpha.
+- ⏱ 20 Liquid Glass slides → .pptx < 3 s (click → file), Excel < 1.5 s; size < 3 MB Glass (120 KB per slide + 400
+  KB once) / < 300 KB Excel; add the gates to npm run bench.
+- Done when: pptxcheck has_chart and the chart's cached values equal the source cells; budgets pass twice.
+
+S11.4 · Menu and runs 🚦 G8 (PX-01, PX-02)
+- Every Export ▾ item gets "PowerPoint" and "PDF + PowerPoint" (names per B11 / 07 §2.5 with .pptx); M8's dialog
+  gets the PowerPoint kind; "Saved N files" counts both; file:// mode downloads them.
+- Done when: e2e PX-01 (single, deck, versions × designs, a scenario run of 2 values × 1 design → 2 .pdf + 2
+  .pptx), PX-02 recorded on this PC's PowerPoint 16 in PROGRESS; 🚦 G8 under Waiting for: the product owner opens
+  three decks (one per design) in PowerPoint 2016 on a corporate PC (row W15) and signs off the fidelity table of
+  07 §4.2 – fonts substituted, nothing repaired.
+
+S11.5 · Close
+- AUDIT §0 twice (its PDF steps extended to the .pptx files); CHANGELOG 4.5.0 (B21, the fidelity table in two
+  sentences); versions prepared; stop.
+```
+
+## Prompt 15 · Independent audit of 4.2–4.5 (M12) → `docs/next/AUDIT-2.md`
+
+```text
+You are an independent auditor. Audit Slide Builder 4 as of the merge of M11 (4.5.0) against docs/next/07-
+scenarios-charts-pptx.md (the approved design of F0–F6), docs/next/PLAN.md Parts A–F (incl. B15–B24) and
+docs/next/05-test-and-parity.md plus 07 §6.2's rows, exactly as docs/next/AUDIT.md did for 4.0 (read it first: its
+§0 method is your method, its §1–§10 the shape of your report). Write docs/next/AUDIT-2.md; fix nothing in product
+code except what you can reproduce with a failing test first, each fix one commit on branch v4/audit-2-fixes.
+
+Do, and record with numbers and path:line evidence:
+1. Two clean clones; the full §0 protocol twice (install, build, page equality, big30, check, helper 3.8 and 3.12,
+   e2e, parity, dlparity, sp, bench, load, export-check incl. the .pptx checks, PDFs and PPTX × design × version,
+   helper start), identical results or the difference explained.
+2. Every row of 05 §4 and 07 §6.2 (RC, LK, SC, CH, CL, FL, GL, PX): the guard (test title, path:line) and verdict
+   PASS / PASS (partial) / MISSING / MANUAL, in an appendix table; the MISSING ones named in a finding.
+3. Behaviour changes 4.1 → 4.5: every CHANGELOG item mapped to B1–B24 or a Decision; anything visible outside them
+   is a finding (BEH-n).
+4. Part F and 07 §6.4 budgets measured on a quiet PC (calibration ≤ 1.3×): open deck20, read big30, longest task,
+   keypress → pixels, drags incl. free layout, exports PDF and PPTX, engine first use (cold) and one value, the
+   scenario run of 20 values, preview switch, chart and callout builds, thumbnails, save and visibility under load.
+5. Architecture and logic: one owner per state (the engine model, the overlay view and linked workbooks live only
+   in the worker; the page's mirror; name any second source of truth), op semantics only in ops.ts (item.patch,
+   free, cellGrid), no DOM types in core/, no new executable, stdlib helper, the licences of every runtime
+   dependency (IronCalc's MIT text with the holders' notice; fonts), the display-list contract (no node outside
+   the eight types in any design incl. M7b's), the REVIEW S1–S4 attacks against the helper (unchanged routes plus
+   /api/export-file with .pptx names and long scenario names: MAX_PATH, reserved device names, Unicode).
+6. Data safety: a scenario run never changes the document, the deck files or the workbook (hashes before/after on a
+   real-helper run with two users editing meanwhile); a deck with items / free / cellGrid / links opened by a 4.1
+   page (git worktree of tag v4.1.0 or the last 4.1 commit) is readable and loses nothing when saved back; a
+   missing linked workbook; a damaged .pptx is never left in export\ (temp + rename).
+7. Documentation truth: 30 random claims of README and ARCHITECTURE sampled with a seeded RNG, each TRUE / PARTLY /
+   FALSE with evidence; 07 §1.4's limits still true (15-digit read-back, hidden sheets, TEXT locale, spills).
+8. Findings with severity, reproduction, fix or proposal; what still needs a human (G-gates not yet signed, W
+   rows, PowerPoint 2016 on a corporate PC, Acrobat, the real share).
+Finish with the summary verdict in AUDIT-2.md's first section and the list under PROGRESS "Waiting for".
+```
+
+## Prompt 16 · The Slide Builder guide (A4 PDF, in the product's own design, for non-engineers)
+
+```text
+You write the user and owner guide of Slide Builder 4 (this checkout): ONE A4 PDF that explains, to people who are
+not software engineers (the users on the team, the product owner, the maintainer who runs the updates), what the
+program does, every function it has, and how it works underneath – concise and concrete. You change no product
+code and no document of docs/next; you add the guide and its sources under docs/guide/.
+
+WHO READS IT
+- Users: they open a workbook, run the wizard, edit, export. They want to know what every button does and why
+  something looks the way it does.
+- The owner and the maintainer: they want to understand what runs where, what is saved where, what can go wrong
+  and what to do then – without reading code.
+Tone: plain sentences, no jargon that is not explained in the same sentence, concrete numbers and names (the
+button's label, the folder's name), one idea per paragraph. English (the team's documents are in English; keep
+the few Italian words the product shows, e.g. number formats, as they appear). No marketing.
+
+LENGTH AND SHAPE
+- 14–20 A4 pages, portrait; a cover, a one-page "what it is" overview, the parts below, a one-page glossary.
+- Every function appears exactly once, with a picture or a labelled screenshot; nothing is described that the
+  program does not do today (the inventory of what it does is docs/next/05-test-and-parity.md §4 – its rows are
+  the complete list of behaviours, and the 4.2 additions are in docs/next/07-scenarios-charts-pptx.md §6.1–§6.3 and
+  CHANGELOG.md "4.2.0" – describe only what is built and merged: check PROGRESS.md's ticks and the CHANGELOG, not the
+  plan).
+- Facts come from README.md (§1 what it does, §2 deployment, §3 architecture, §4 data model, §6 flows, §7 the
+  helper, §9 failure model, §10 export, §14 gotchas), docs/ARCHITECTURE.md (the share, journals, deck files), the
+  CHANGELOG, and the running program. Every statement you make must be true of the current build: when in doubt,
+  run it (below) and look, do not guess.
+
+THE DESIGN OF THE PDF
+- It must look like Slide Builder's own slides, adapted to A4: the Liquid Glass design for the cover and the
+  section openers (its wallpaper, glass cards, capsules, Segoe UI), and the Excel Refined look for the body pages
+  (white, thin rules, the theme's accent colours). Take the actual colours, radii, shadows and type sizes from the
+  code and its themes – core/src/model/style.ts (THEMES: use "Aurora" unless config says otherwise, COLOR_KEYS),
+  core/src/render/glass.ts and glass-dl.ts (the materials), core/src/render/slide-dl.ts (SLIDE_FONT, title sizes),
+  core/src/render/wallpaper.ts (how the wallpaper is made – render one with the core in Node or screenshot one) –
+  and docs/next/03-architecture.md §4.3 (the recipes in words). Reuse, do not reinvent: fonts Segoe UI (headings)
+  and Segoe UI / Calibri (body), the theme's c1–c4 and a1/a2, 1 px hairlines, 8 px radii, the capsule for page
+  numbers, the footer "Source:" style for notes.
+- Build it as HTML + CSS (docs/guide/guide.html, guide.css, img/) and print it to PDF with Playwright's Chromium
+  (`page.pdf({ format: "A4", printBackground: true, margin: … })` in a small Node script docs/guide/build.mjs; the
+  repository already has Playwright and its Chromium – README §11.1). Page numbers and running headers in CSS
+  (@page / position: fixed). The PDF is docs/guide/Slide Builder 4 – guide.pdf; check it with
+  `python tools/pdfcheck.py info` (pages, fonts embedded, size < 8 MB) and open it once in Acrobat / Edge.
+- Pictures: real screenshots of the program (not mock-ups) taken with Playwright against the two e2e helpers on
+  a temp folder with the corpus workbooks (app/playwright.config.ts shows how the helpers start; app/e2e/
+  app.spec.ts's helpers openApp / openWorkbook; use tests/corpus/workbooks/weekly.xlsx and deck20.xlsx, and
+  recalc/Banks.xlsx + Peers.xlsx for linked workbooks) at 1500 × 900, in Liquid Glass unless the picture is about
+  another design; crop to what the paragraph talks about; label with numbered callouts drawn in the HTML, not in
+  the picture. Diagrams (the PCs, the share, the helper, the worker; the journey of one edit; the export) as
+  inline SVG in the product's colours – simple boxes and arrows, no stock icons.
+
+CONTENTS (sections; each a page or two)
+1. Cover: name, version (helper/slidebuilder/__init__.py), date, "for the team".
+2. What Slide Builder is, in one page: a workbook on the shared folder becomes a deck of slides that follow the
+   numbers; three designs (+ any added since); several people edit the same deck at once; exports to PDF (and
+   PowerPoint when built). One picture of the window with its parts named.
+3. Getting started: the shared folder, the start file, the window, Open ▾, the wizard's four steps (sheets,
+   tables, slides, versions) with one screenshot each; what "slides by <name>" and "x" markers mean.
+4. Editing: the text toolbar (one toolbar for any text), cells (colour, highlight, role, merge, painter), tables
+   (sizes, same size, position, gridlines, colour scales, drags), text boxes and the notes section, automated
+   comments (what they write and the options), the Design… dialog (designs, themes, colours, text styles, fonts),
+   versions, cover / index / page numbers / footer / logo, undo and the status bar – each as a short entry: what
+   it is for, where it is, what it does, one picture. Use 05 §4's rows as your checklist so nothing is left out.
+5. Working together: others' edits appear within 1–2 s, "✓ Saved", presence, what happens when two people change
+   the same thing, undo of your own changes only, the changed-on-disk banner, read-only decks.
+6. Export: every menu item, the file names, where files go, what "as pictures" is for, the size and speed you can
+   expect (numbers from PROGRESS Measurements / PLAN Part F).
+7. The 4.2 additions as far as they are merged: linked workbooks (how to add one, what the id "[File]Sheet" means),
+   the Formulas line (what "recompute like Excel", "locale-dependent", "different" mean and what to do), scenarios
+   if M8 is merged (run for each value), charts / callouts / free layout / PowerPoint only when merged.
+8. How it works underneath (two pages, for the owner and the maintainer, in plain words with one diagram each):
+   - the pieces: the shared folder (workbooks, export\, app\<version>, backend\data), the helper (a small Python
+     program on each PC that only moves files), the page in Edge (where everything is computed: reading the
+     workbook, laying out, drawing, writing the PDF), the worker inside the page that owns the deck;
+   - saving: each person appends to their own journal file; the others read the new lines every 1.5 s; a snapshot
+     is written now and then (what "Deck: snapshot n · m changes since" means); why nothing needs a lock and what
+     "read-only" means when a file is damaged;
+   - drawing: one display list drives the screen, the pictures and the PDF, so they match; fonts come from font
+     files so every PC lays out the same;
+   - the formula engine (4.2): formulas are read from the file and recomputed inside the page; Excel is never
+     opened; the self-check against Excel's saved values;
+   - what is never done: the workbook is never written; nothing is sent anywhere but the shared folder.
+9. When something looks wrong: the Issues panel's lines and what each means; the common messages (protected
+   file, old .xls, linked workbook not found, logo not found, fonts that differ between PCs); where the logs and
+   backups are; how to update (Update Slide Builder.bat) and roll back (README §2.3–§2.4), in the maintainer's
+   voice.
+10. Glossary: deck, preset, version, design, role, highlight, journal, snapshot, display list, linked workbook,
+    scenario, self-check – one line each.
+
+HOW TO WORK
+- Read first: README.md (all of §1–§10, §14), docs/ARCHITECTURE.md §1–§6, CHANGELOG.md, docs/next/05 §4, docs/next/07
+  §2.3, §6.1–§6.3, PROGRESS.md (what is merged), docs/next/PLAN.md Part B §1 (the window) and §8 (B-items).
+- Then run the program (README §11.2: build is committed; `python helper/slide_builder.py --no-browser --port 8765`
+  on a temp copy of tests/corpus/workbooks, or the e2e helpers) and take every screenshot from it.
+- Write the text first as docs/guide/guide.md (so it can be reviewed in plain form), then lay it out in HTML.
+- Facts check: for each section, list the README / 05 rows it is based on in a hidden comment of the HTML; a
+  fresh sub-agent then reviews the finished PDF against README and 05 §4 and reports every statement it cannot
+  confirm and every function of 05 §4 that is missing from the guide; fix and rebuild until it reports none.
+- Do not commit screenshots of a real deck of the bank (use the corpus workbooks only); do not include the
+  helper's token or any path of the real share other than its name as README gives it.
+- Commit docs/guide/ (sources, images, the PDF, build.mjs) on branch docs/guide in one or two commits; do not
+  push; tell the product owner where the PDF is and ask for their read-through (they decide the language and
+  whether the bank's name appears).
+```
 
 ## Appendix · Review checklist (used by every prompt's double-check step 3)
 

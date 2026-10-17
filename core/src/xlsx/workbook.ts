@@ -13,9 +13,10 @@ import { CellMap, RowMap, SheetScanner, cellAt, cellIndex, type SheetColumns } f
 import { xattrs, xdec, parseSSTRich } from "./strings";
 import type { Range } from "./util";
 import { platform, type XmlElement } from "../platform";
+import { parseSheetId, sheetId } from "../calc/refs";
 import type { Border, CFRule, ColInfo, Dxf, Font, Progress, Script, Shared, Sheet, SheetMeta, Workbook, Xf } from "./types";
 import type { RowColumns } from "./sheetstore";
-import { readWorkbookBin } from "./xlsb/workbook";
+import { readWorkbookBin, readWorkbookInfoBin, readSupTabsBin, type BinWorkbookInfo } from "./xlsb/workbook";
 import { readStylesBin } from "./xlsb/styles";
 import { readSstBin } from "./xlsb/strings";
 import { BinSheetReader } from "./xlsb/sheet";
@@ -59,9 +60,15 @@ export async function indexWorkbook(buf: ArrayBuffer): Promise<Workbook> {
   if (!wbPath || !zget(zip, wbPath)) throw new WorkbookError("NOTXLSX", "This file does not contain an Excel workbook.");
   // the sheets in tab order: <sheet name state r:id> of workbook.xml, or BrtBundleSh of workbook.bin
   let list: { name: string; state: string; rid: string }[];
-  if (/\.bin$/i.test(wbPath)) list = readWorkbookBin(zip.bytes(zget(zip, wbPath)!)).map(s => ({ name: s.name, state: s.state, rid: s.relId }));
-  else list = all(parseXml(await zget(zip, wbPath)!.async("string")), "sheet").map(s => ({ name: s.getAttribute("name") || "", state: s.getAttribute("state") || "visible", rid: s.getAttributeNS(NS_R, "id") || s.getAttribute("r:id") || "" }));
   const wbRels = await readRels(zip, wbPath);
+  if (/\.bin$/i.test(wbPath)) {
+    const bytes = zip.bytes(zget(zip, wbPath)!);
+    list = readWorkbookBin(bytes).map(s => ({ name: s.name, state: s.state, rid: s.relId }));
+    // the names and the sheet table the binary sheets' formulas refer to (S7.1); an external link part's sheet names
+    const info = readWorkbookInfoBin(bytes);
+    for (const b of info.books) if (b.kind === "external") { const rel = wbRels[b.relId]; const e = rel && zget(zip, rel.target); if (e && /\.bin$/i.test(e.name)) { try { b.sheets = readSupTabsBin(zip.bytes(e)); } catch { /* no sheet names: 3D references to it are unreadable */ } } }
+    BIN_INFO.set(zip, info);
+  } else list = all(parseXml(await zget(zip, wbPath)!.async("string")), "sheet").map(s => ({ name: s.getAttribute("name") || "", state: s.getAttribute("state") || "visible", rid: s.getAttributeNS(NS_R, "id") || s.getAttribute("r:id") || "" }));
   const meta: SheetMeta[] = [], skipped: { name: string; why: string }[] = [];
   for (const { name, state, rid } of list) {
     const r = wbRels[rid];
@@ -72,18 +79,40 @@ export async function indexWorkbook(buf: ArrayBuffer): Promise<Workbook> {
     meta.push({ name, path: f.name, size: entrySize(f) });
   }
   const rel = (re: RegExp) => Object.values(wbRels).find(r => re.test(r.type));
+  // the linked workbooks' file names, in the order the formulas' "[n]" count them: the <externalReference r:id> list
+  // of workbook.xml (a binary workbook: its BrtSupBookSrc records), each part's own relationship naming the file
+  const externals: string[] = [];
+  const extIds: string[] = /\.bin$/i.test(wbPath) ? (BIN_INFO.get(zip)?.books.flatMap(b => b.kind === "external" ? [b.relId] : []) ?? [])
+    : all(parseXml(await zget(zip, wbPath)!.async("string")), "externalReference").map(e => e.getAttributeNS(NS_R, "id") || e.getAttribute("r:id") || "");
+  for (const id of extIds) {
+    const part = wbRels[id]?.target; let name = "?";
+    try { if (part) { const rels = await readRels(zip, part); const t = Object.values(rels).find(r => r.external)?.target || Object.values(rels)[0]?.target; if (t) name = decodeURIComponent(t.replace(/\\/g, "/").split("/").pop() || "?"); } } catch { /* unreadable link part: "?" */ }
+    externals.push(name);
+  }
   const ssRel = rel(/sharedStrings$/), ssSize = ssRel ? entrySize(zget(zip, ssRel.target)) : 0;
   const total = meta.reduce((s, m) => s + m.size, 0) + ssSize;
   const wb: Workbook = {
     zip, wbRels, meta, skipped, hiddenSheets: skipped.filter(s => s.why === "hidden").map(s => s.name),
-    extLinks: Object.values(wbRels).filter(r => /externalLink/.test(r.type)).length,
-    sheets: [], shared: null, total, ssSize, big: total > BIG_BYTES || buf.byteLength > 6 * 1048576,
+    extLinks: Object.values(wbRels).filter(r => /externalLink/.test(r.type)).length, externals,
+    sheets: [], shared: null, linked: new Map(), total, ssSize, big: total > BIG_BYTES || buf.byteLength > 6 * 1048576,
     isLoaded: n => wb.sheets.some(S => S.name === n),
     ensure: (names, progress) => ensureSheets(wb, names, progress),
   };
   return wb;
 }
 export async function readWorkbook(buf: ArrayBuffer): Promise<Workbook> { const wb = await indexWorkbook(buf); await wb.ensure(wb.meta.map(m => m.name)); return wb; }
+
+/** a linked workbook joins `wb` (S7.3, ADR-014): its visible sheets are listed in `wb.meta` under their sheet ids
+    "[file]Sheet" (read on demand like the others, into `wb.sheets`), its hidden and skipped sheets in `wb.skipped`;
+    `lwb` itself is kept for its parts and for the formula engine. Attaching the same file twice changes nothing */
+export function attachLinked(wb: Workbook, file: string, lwb: Workbook) {
+  if (wb.linked.has(file)) return;
+  wb.linked.set(file, lwb);
+  for (const m of lwb.meta) wb.meta.push({ name: sheetId(file, m.name), path: m.path, size: m.size, linked: file });
+  for (const s of lwb.skipped) wb.skipped.push({ name: sheetId(file, s.name), why: s.why });
+}
+/** the sheets of `wb` that belong to the deck's own workbook (`null`) or to a linked one (its file name) */
+export function sheetsOf(wb: Workbook, file: string | null): Sheet[] { return wb.sheets.filter(S => parseSheetId(S.name).book === file); }
 
 const DEFAULT_THEME = ["FFFFFF","000000","E7E6E6","44546A","4472C4","ED7D31","A5A5A5","FFC000","5B9BD5","70AD47","0563C1","954F72"];
 async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
@@ -180,19 +209,36 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
 /** per workbook (its Shared): the superscript / subscript flag of each font of styles.bin, for the rich strings of
     binary sheets */
 const FONT_SCRIPTS = new WeakMap<Shared, number[]>();
+/** per binary workbook (its zip): the names and sheet table its formulas refer to (xlsb/formula.ts) */
+const BIN_INFO = new WeakMap<Zip, BinWorkbookInfo>();
 
 async function ensureSheets(wb: Workbook, names: string[], progress?: Progress): Promise<Sheet[]> {
+  // a sheet id of a linked workbook that is not attached (the file was not found): a broken sheet, so its tables are
+  // "missing" and the Issues panel names it, and the deck still opens
+  const missing = names.filter(n => !wb.meta.some(m => m.name === n) && parseSheetId(n).book !== null && !wb.isLoaded(n));
   const todo = wb.meta.filter(m => names.includes(m.name) && !wb.isLoaded(m.name));
-  if (!todo.length) return [];
+  if (!todo.length && !missing.length) return [];
   const ctx = await loadShared(wb, progress);
+  const added: Sheet[] = [];
+  for (const n of missing) {
+    const { book, sheet } = parseSheetId(n);
+    const why = wb.linked.has(book!) ? `sheet “${sheet}” of ${book} is hidden or missing` : `the linked workbook “${book}” was not found in the folder`;
+    const S = brokenSheet(n, new Error(why), ctx); wb.sheets.push(S); added.push(S);
+  }
+  if (!todo.length) return added;
   const total = todo.reduce((s, m) => s + Math.max(m.size, 1), 0); let done = 0;
-  const added: Sheet[] = [], pace = pacer();
+  const pace = pacer();
   for (const [k, m] of todo.entries()) {
     const label = `Reading “${m.name}” (${k + 1} of ${todo.length}${m.size > 1048576 ? ", " + fmtMB(m.size) : ""})…`;
     if (progress) progress(label, done / total);
     { const w = pace(); if (w) await w; }                // not one timer per sheet: ~4 ms each in a worker (deck20: 20 sheets)
     let S: Sheet;
-    try { S = await readSheet(wb.zip, m, ctx, f => progress && progress(label, (done + f * Math.max(m.size, 1)) / total)); S.hidden = false; }
+    try {
+      // a linked workbook's sheet: its own parts (zip, styles, strings), the sheet named by its id
+      const lwb = m.linked ? wb.linked.get(m.linked) : undefined;
+      const lctx = lwb ? await loadShared(lwb, progress) : ctx;
+      S = await readSheet(lwb ? lwb.zip : wb.zip, m, lctx, f => progress && progress(label, (done + f * Math.max(m.size, 1)) / total)); S.hidden = false;
+    }
     catch (e) { console.error("sheet " + m.name, e); S = brokenSheet(m.name, e, ctx); }
     S.size = m.size;
     wb.sheets.push(S); added.push(S);
@@ -226,6 +272,15 @@ export function makeSheet(init: SheetInit, store?: SheetColumns): Sheet {
     get(r, c) {
       if (!store) return cells.get(r + "," + c) || null;
       const i = cellIndex(store, r, c); return i < 0 ? null : cellAt(store, ctx, i, r);
+    },
+    formula(r, c) {
+      if (!store || !store.fml.size) return null;
+      const i = cellIndex(store, r, c); if (i < 0) return null;
+      const k = store.fml.get(i); return k === undefined ? null : store.fmls[k];
+    },
+    arrayRef(r, c) {
+      if (!store || !store.arr.size) return null;
+      const i = cellIndex(store, r, c); return i < 0 ? null : store.arr.get(i) ?? null;
     },
     rowHidden(r) { const i = rowInfo.get(r); return i ? i.hidden : zeroH; },
     colHidden(c) { const i = colInfo(c); return i ? i.hidden : false; },
@@ -284,11 +339,13 @@ export async function readSheet(zip: Zip, sh: SheetMeta, ctx: Shared, tick?: (f:
 }
 /** a sheet from its BIFF12 records (sheetN.bin of an .xlsb) */
 export async function parseSheetBin(zip: Zip, sh: SheetMeta, bytes: Uint8Array, ctx: Shared, tick?: (f: number) => void): Promise<Sheet> {
-  const rd = new BinSheetReader(bytes, ctx, FONT_SCRIPTS.get(ctx));
+  const rd = new BinSheetReader(bytes, ctx, FONT_SCRIPTS.get(ctx), BIN_INFO.get(zip), sh.name);
   if (!tick) rd.run();
   else { const pace = pacer(); while (!rd.run(20000)) { tick(Math.min(.95, rd.progress)); const w = pace(); if (w) await w; } }
   const b = rd.finish();
-  return finishSheet(zip, sh, ctx, b.store, b.rows, b);
+  const S = await finishSheet(zip, sh, ctx, b.store, b.rows, b);
+  if (rd.unreadable) S.unreadableFormulas = rd.unreadable;
+  return S;
 }
 /** a sheet from its inflated XML (readSheet without the inflate) */
 export async function parseSheet(zip: Zip, sh: SheetMeta, bytes: Uint8Array, ctx: Shared, tick?: (f: number) => void): Promise<Sheet> {

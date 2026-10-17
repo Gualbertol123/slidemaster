@@ -40,7 +40,9 @@ export interface SlideSizing { layout?: Layout; scale?: number; align?: "left" |
 /** a named version of the deck (e.g. "Chief", "All"): the cells removed from it, per sheet ("C5:D9" ranges) */
 export interface DeckVersion { id: string; name: string; hide: Record<string, string[]> }
 export interface Preset { sheets: string[]; tables: TableDef[]; slides: SlideDef[]; version?: number; updated?: number;
-  /** named versions for export (wizard › Versions) */ versions?: DeckVersion[] }
+  /** named versions for export (wizard › Versions) */ versions?: DeckVersion[];
+  /** linked workbooks (4.2, B22): file names in the same folder whose sheets the deck draws from, named by the sheet id
+      "[File.xlsx]Sheet" wherever a sheet name is stored (ADR-014) */ links?: string[] }
 
 export interface PageNumbers { on: boolean; start: number; pos: "tl" | "tc" | "tr" | "bl" | "bc" | "br"; font: string; size: number; format: "n" | "nN" | "page" | "p"; style: "capsule" | "plain"; cover: boolean }
 export interface Footer { on: boolean; text: string; pos: "tl" | "tc" | "tr" | "bl" | "bc" | "br"; size: number; style: "capsule" | "plain"; cover: boolean }

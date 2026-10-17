@@ -10,7 +10,10 @@ import type { Zip } from "./zip";
 export class MirrorWorkbook implements Workbook {
   readonly zip = null as unknown as Zip;                          // the bytes stay in the worker
   readonly wbRels = {};
-  readonly meta; readonly skipped; readonly hiddenSheets; readonly extLinks; readonly total; readonly ssSize; readonly big;
+  meta; skipped; readonly hiddenSheets; readonly extLinks; readonly total; readonly ssSize; readonly big;
+  /** the page's mirror recalculates nothing: no linked workbook names */
+  readonly externals: string[] = [];
+  readonly linked = new Map<string, Workbook>();
   /** the worker's number for this workbook (its slices carry it) */
   readonly book: number;
   sheets: Sheet[] = [];
@@ -20,6 +23,8 @@ export class MirrorWorkbook implements Workbook {
     this.total = info.total; this.ssSize = info.ssSize; this.big = info.big; this.book = info.book;
   }
   isLoaded(n: string) { return this.sheets.some(S => S.name === n); }
+  /** the index after a linked workbook joined (the worker's answer to `link`): its sheets are in `meta` now */
+  extend(info: WorkbookInfo) { this.meta = info.meta; this.skipped = info.skipped; }
   /** new slices from the worker: returns the sheets that were not here before */
   receive(shared: SharedSlice | null, slices: SheetSlice[]): Sheet[] {
     if (shared && !this.shared) this.shared = hydrateShared(shared);

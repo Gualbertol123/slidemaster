@@ -11,6 +11,7 @@ import { fold } from "../src/model/fold";
 import { FakeDeck } from "./fakedeck";
 import type { CoreEvents, CoreMethods, DocEvent, PageEvents, PageMethods, StageSlide } from "../src/rpc/messages";
 import type { Op, WorkbookDoc } from "../src/model/types";
+import type { SharedSlice, SheetSlice } from "../src/xlsx/slice";
 import { A1 } from "../src/xlsx/util";
 import { platform, setPlatform } from "../src/platform";
 import type { ImgMeta } from "../src/xlsx/drawing";
@@ -18,6 +19,13 @@ import type { ImgMeta } from "../src/xlsx/drawing";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const book = (n: string) => { const b = fs.readFileSync(path.join(here, "../../tests/corpus/workbooks", n)); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer; };
 const tick = () => new Promise(r => setTimeout(r, 5));
+/** the self-check of the recalc corpus: 208 formulas, 3 locale-dependent (TEXT); its 3 TODAY() cells equal Excel's
+    saved value only on the day Excel saved them (2026-10-16) – "exact" then, "volatile" on any other day */
+function expectCounts(counts: Record<string, number>) {
+  const { exact, volatile, ...rest } = counts;
+  expect([[205, 0], [202, 3]]).toContainEqual([exact, volatile]);
+  expect(rest).toEqual({ locale: 3, external: 0, hidden: 0, unreadable: 0, different: 0 });
+}
 async function until(f: () => boolean, ms = 5000) { const t = Date.now(); while (!f()) { if (Date.now() - t > ms) throw new Error("timeout"); await tick(); } }
 
 /** an in-memory helper's deck storage (fakedeck.ts, as helper/slidebuilder/decks.py); `doc` = everything on it, folded */
@@ -41,6 +49,8 @@ function page(srv: ReturnType<typeof server>, who: string) {
   port.handle("digitWidth", () => 0);
   port.handle("convertPicture", () => null);
   port.handle("analyzeImages", () => []);
+  // linked workbooks (S7.3): the recalc corpus is "the folder"
+  port.handle("linkedWorkbook", a => { try { return book("recalc/" + a.name); } catch { try { return book(a.name); } catch { return null; } } });
   // a snapshot carries the document only when it changed: the page keeps the last one (as app.ts does)
   const seen: { k: string; v: unknown }[] = [], docs: (DocEvent & { view: WorkbookDoc })[] = [];
   let view = null as unknown as WorkbookDoc;
@@ -387,4 +397,134 @@ describe("the stage's slide (S4.1)", () => {
     expect(Object.keys((await stageOf(p, slide, ids))!.images)).toEqual([]);
     expect(await stageOf(p, 999)).toBe(null);
   });
+});
+
+describe("the formula engine's self-check (S7.2)", () => {
+  it("calcCheck reads every sheet, starts the engine once and reports the classes; null without a workbook", async () => {
+    const srv = server(), p = page(srv, "anna");
+    await p.port.call("init", { served: false, client: "c", me: "anna" });
+    expect(await p.port.call("calcCheck", {})).toBeNull();
+    const info = await p.port.call("index", { buf: book("recalc/Banks.xlsx") });
+    await p.port.call("start", { book: info.book, name: "Banks.xlsx", deck: srv.open(), preset: null, inputs: { defaults: {}, logoSrc: "", version: "", workbook: "Banks.xlsx" } });
+    const c = (await p.port.call("calcCheck", {}))!;
+    // the formulas link to Peers.xlsx, a file of "the folder": the engine attaches it by itself (S7.3), so both files
+    // are in the model and nothing is external
+    expect(c.formulas).toBe(192 + 16);
+    expectCounts(c.counts);
+    expect(c.styleError).toBeNull();
+    expect(c.different).toEqual([]);
+    expect(c.ms.build).toBeGreaterThan(0); expect(c.ms.load).toBeGreaterThanOrEqual(0);
+    const again = (await p.port.call("calcCheck", {}))!;
+    expect(again.counts).toEqual(c.counts);
+  }, 60_000);
+});
+
+describe("linked workbooks (S7.3, B22, ADR-014)", () => {
+  const inputs = { defaults: {}, logoSrc: "", version: "", workbook: "Banks.xlsx" };
+  it("link: a folder workbook's sheets join under their ids, draw on slides, and the engine recalculates both files", async () => {
+    const srv = server(), p = page(srv, "anna");
+    await p.port.call("init", { served: false, client: "c", me: "anna" });
+    const info = await p.port.call("index", { buf: book("recalc/Banks.xlsx") });
+    expect(await p.port.call("link", { book: info.book, name: "Nope.xlsx" })).toBeNull();
+    const linked = (await p.port.call("link", { book: info.book, name: "Peers.xlsx" }))!;
+    expect(linked.meta.map(m => m.name)).toEqual([...info.meta.map(m => m.name), "[Peers.xlsx]Peer", "[Peers.xlsx]PeerData"]);
+    expect(linked.meta.find(m => m.name === "[Peers.xlsx]Peer")?.linked).toBe("Peers.xlsx");
+    const again = (await p.port.call("link", { book: info.book, name: "Peers.xlsx" }))!;
+    expect(again.meta.length).toBe(linked.meta.length);                // attaching twice changes nothing
+    // the wizard reads a linked sheet like any other
+    const meta = await p.port.call("getSheetMeta", { book: info.book, names: ["[Peers.xlsx]Peer"], load: true });
+    expect(meta.sheets[0].name).toBe("[Peers.xlsx]Peer"); expect(meta.sheets[0].used.r2).toBeGreaterThanOrEqual(8);
+    // a deck with a table of the linked sheet
+    const preset = { sheets: ["[Peers.xlsx]Peer"], links: ["Peers.xlsx"], tables: [{ id: "t1", sheet: "[Peers.xlsx]Peer", kind: "range" as const, range: "C4:G8" }], slides: [{ id: "s1", type: "content" as const, tables: ["t1"] }] };
+    const st = await p.port.call("start", { book: info.book, name: "Banks.xlsx", deck: srv.open(), preset, inputs, stage: { slide: 0, known: [] } });
+    expect(st.view.preset?.links).toEqual(["Peers.xlsx"]);
+    const slide = (await p.port.call("stage", { slide: 0, known: [], nodes: true }))!;
+    const walk = (ns: typeof slide.layers[0]["nodes"]): string[] => ns.flatMap(n => n.t === "text" ? [n.src] : n.t === "group" ? walk(n.children) : []);
+    const texts = slide.layers.flatMap(l => walk(l.nodes));
+    expect(texts).toContain("Peer avg"); expect(texts).toContain("below peers");   // Bank A is below its peers in the saved file
+    // the engine sees both files: nothing external, nothing different
+    const c = (await p.port.call("calcCheck", {}))!;
+    expect(c.formulas).toBe(192 + 16);
+    expectCounts(c.counts);
+  }, 60_000);
+  it("a linked sheet reaches the page's mirror with its own workbook's styles (review fix: not the deck's xf table)", async () => {
+    const { MirrorWorkbook } = await import("../src/xlsx/mirror");
+    const { formatValue } = await import("../src/xlsx/numfmt");
+    const { readWorkbook } = await import("../src/xlsx/workbook");
+    const srv = server(), p = page(srv, "anna");
+    await p.port.call("init", { served: false, client: "c", me: "anna" });
+    const info = await p.port.call("index", { buf: book("recalc/Banks.xlsx") });
+    const mirror = new MirrorWorkbook(info, async () => undefined);
+    for (const e of p.seen) if (e.k === "slices") { const x = e.v as { book: number; shared: SharedSlice | null; sheets: SheetSlice[] }; if (x.book === info.book) mirror.receive(x.shared, x.sheets); }
+    const n0 = p.seen.length;
+    // report.xlsx has another style table (percentages, dates, bold heads) than Banks.xlsx
+    const linked = (await p.port.call("link", { book: info.book, name: "report.xlsx" }))!; mirror.extend(linked);
+    for (const e of p.seen.slice(n0)) if (e.k === "slices") { const x = e.v as { book: number; shared: SharedSlice | null; sheets: SheetSlice[] }; if (x.book === info.book) mirror.receive(x.shared, x.sheets); }
+    const truth = await readWorkbook(book("report.xlsx"));
+    let n = 0;
+    for (const T of truth.sheets) {
+      const M = mirror.sheets.find(S => S.name === "[report.xlsx]" + T.name)!;
+      expect(M, T.name).toBeTruthy();
+      for (const cell of T.cells.values()) { const m = M.get(cell.r, cell.c)!; expect(formatValue(m).text, T.name + " " + A1(cell.r, cell.c)).toBe(formatValue(cell).text); expect(m.xf.font.b, T.name + " " + A1(cell.r, cell.c)).toBe(cell.xf.font.b); n++; }
+    }
+    expect(n).toBeGreaterThan(150);
+  }, 60_000);
+  it("a deck whose linked workbook is missing opens with that table missing", async () => {
+    const srv = server(), p = page(srv, "anna");
+    await p.port.call("init", { served: false, client: "c", me: "anna" });
+    const info = await p.port.call("index", { buf: book("recalc/Banks.xlsx") });
+    const preset = { sheets: ["SLIDE_1", "[Gone.xlsx]Peer"], links: ["Gone.xlsx"], tables: [{ id: "t0", sheet: "SLIDE_1", kind: "markers" as const, anchor: "B2", index: 0 }, { id: "t1", sheet: "[Gone.xlsx]Peer", kind: "range" as const, range: "C4:G8" }], slides: [{ id: "s1", type: "content" as const, tables: ["t0", "t1"] }] };
+    const st = await p.port.call("start", { book: info.book, name: "Banks.xlsx", deck: srv.open(), preset, inputs, stage: { slide: 0, known: [] } });
+    expect(st.view.preset?.tables.length).toBe(2);
+    const slide = (await p.port.call("stage", { slide: 0, known: [], nodes: true }))!;
+    expect(slide.layers.filter(l => l.table !== null).length).toBe(1);   // the Banks table is drawn, the linked one is missing
+    // the engine attaches the folder's Peers.xlsx by itself (the formulas link to it, ADR-014), so nothing is external
+    const c = (await p.port.call("calcCheck", {}))!;
+    expect(c.counts.external).toBe(0); expect(c.counts.different).toBe(0); expect(c.formulas).toBe(208);
+  }, 60_000);
+});
+
+describe("a scenario on the stage (S7.4, 07 §2.4, ADR-014)", () => {
+  const inputs = { defaults: {}, logoSrc: "", version: "", workbook: "Banks.xlsx" };
+  const walk = (ns: StageSlide["layers"][0]["nodes"]): string[] => ns.flatMap(n => n.t === "text" ? [n.src] : n.t === "group" ? walk(n.children) : []);
+  it("scenarioPreview recomputes the deck's tables from the engine's values and leaves document and workbook untouched", async () => {
+    const srv = server(), p = page(srv, "anna");
+    await p.port.call("init", { served: false, client: "c", me: "anna" });
+    expect(await p.port.call("scenarioPreview", { sheet: "Control", ref: "B2", value: "Bank C" })).toBeNull();   // no workbook
+    const info = await p.port.call("index", { buf: book("recalc/Banks.xlsx") });
+    const preset = { sheets: ["SLIDE_1"], tables: [{ id: "t0", sheet: "SLIDE_1", kind: "range" as const, range: "C3:K14" }], slides: [{ id: "s1", type: "content" as const, tables: ["t0"] }] };
+    await p.port.call("start", { book: info.book, name: "Banks.xlsx", deck: srv.open(), preset, inputs, stage: { slide: 0, known: [] } });
+    const textsNow = async () => walk((await p.port.call("stage", { slide: 0, known: [], nodes: true }))!.layers.flatMap(l => l.nodes));
+    const before = await textsNow();
+    expect(before).toContain("Loans & deposits - Bank A");
+    const recs = srv.deck.records().length, docBefore = JSON.stringify(srv.doc);
+    const a = (await p.port.call("scenarioPreview", { sheet: "Control", ref: "B2", value: "Bank C" }))!;
+    expect(a.changed).toBeGreaterThan(100); expect(a.different).toBe(0);
+    expect(a.check.counts.different).toBe(0);
+    const during = await textsNow();
+    expect(during).toContain("Loans & deposits - Bank C"); expect(during).not.toContain("Loans & deposits - Bank A");
+    // the numbers follow: the first SUMIFS cell of SLIDE_1 for Bank C, as Excel saved it in truth/Bank_C
+    const truth = await (await import("../src/xlsx/workbook")).readWorkbook(book("recalc/truth/Bank_C/Banks.xlsx"));
+    const d5 = truth.sheets.find(s => s.name === "SLIDE_1")!.get(5, 4)!.v as number;
+    expect(during.some(t => Math.abs(parseFloat(t.replace(/\./g, "").replace(",", ".")) - d5) < 0.06)).toBe(true);
+    // nothing saved, nothing changed in the document
+    expect(srv.deck.records().length).toBe(recs); expect(JSON.stringify(srv.doc)).toBe(docBefore);
+    // cleared: the workbook's own values again, nothing left behind in the engine
+    const z = (await p.port.call("scenarioPreview", null))!;
+    expect(z.changed).toBe(0);
+    expect(await textsNow()).toEqual(before);
+    // an empty cell as the input, then a formula cell: both go back to what they were (empty, the formula)
+    const e1 = (await p.port.call("scenarioPreview", { sheet: "Control", ref: "B20", value: 5 }))!;
+    expect(e1.changed).toBe(0);                                        // nothing reads B20
+    expect((await p.port.call("scenarioPreview", null))!.changed).toBe(0);
+    const f1 = (await p.port.call("scenarioPreview", { sheet: "SLIDE_1", ref: "C3", value: "Title X" }))!;
+    expect(f1.changed).toBe(1);
+    expect(await textsNow()).toContain("Title X");
+    expect((await p.port.call("scenarioPreview", null))!.changed).toBe(0);
+    expect(await textsNow()).toEqual(before);
+    // C3 is a formula again (not the constant it showed): it moves with the bank
+    await p.port.call("scenarioPreview", { sheet: "Control", ref: "B2", value: "Bank C" });
+    expect(await textsNow()).toContain("Loans & deposits - Bank C");
+    await p.port.call("scenarioPreview", null);
+  }, 60_000);
 });

@@ -2,7 +2,7 @@
 
 These are throw-away prototypes and benchmarks that back the decisions in `docs/next/`. They are not product
 code. Every number quoted in the design documents comes from one of these, run on a 4-vCPU Linux container
-with Chromium 1194. Re-run them on a corporate Windows PC in Phase 0 (`06-plan.md`).
+with Chromium 1194 (`recalc/`: a corporate Windows 11 PC, Node 22.23.3, Excel 16.0, 2026-10-16). Re-run them on a corporate Windows PC in Phase 0 (`06-plan.md`).
 
 | Folder | Question | Run | Result file |
 |---|---|---|---|
@@ -11,6 +11,7 @@ with Chromium 1194. Re-run them on a corporate Windows PC in Phase 0 (`06-plan.m
 | `parser/` | How fast is a columnar byte scanner vs v3's regex parser? How big is a shared parsed-sheet cache? | `cd parser && npm install && node --expose-gc parse_bench.mjs <big30.xlsx> xl/worksheets/sheet2.xml` | stdout |
 | `fonts/` | Can HarfBuzz `hb-subset.wasm` subset CFF fonts and instance variable fonts? | `node fonts/subset_check.mjs <hb-subset.wasm> <font> [wght]` | stdout |
 | `storage/` | Lock-free journals vs a lock, 10–20 users at 15/40 ms per SMB operation | `python3 storage/journal_sim.py --users 10 20 --fs-ms 15 40 --duration 30 --json out.json` | `storage/sim-results.json`, `storage/current-*.txt` (v3 `tools/loadtest.py`) |
+| `recalc/` | Can a JavaScript/WASM formula engine recompute the product owner's kind of workbooks like Excel, fast enough for "run for each bank"? (07 §1, ADR-013) | `cd recalc && npm i` the packages named in `README.md`, then `node eval.mjs`, `node iron_bounded2.mjs`; workbooks regenerated with Excel by `make_linked.ps1` | `recalc/results.json`, `recalc/README.md` |
 
 ## Prerequisites
 

@@ -2258,5 +2258,36 @@
       "lamport": 1,
       "updatedBy": "anna"
     }
+  },
+  {
+    "name": "cell.patch on a linked workbook's sheet id keeps the id as the sheet key (S7.3, ADR-014)",
+    "doc": {
+      "preset": null,
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "cell.patch",
+        "sheet": "[Peers.xlsx]Peer",
+        "ref": "C5",
+        "patch": {
+          "b": true
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {},
+      "edits": {
+        "[Peers.xlsx]Peer": {
+          "C5": {
+            "b": true
+          }
+        }
+      },
+      "applied": 1,
+      "skipped": []
+    }
   }
 ]

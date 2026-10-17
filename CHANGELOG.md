@@ -3,6 +3,26 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.2.0 - unreleased (docs/next/07, PLAN M7–M8; B15, B22–B24)
+
+What users notice
+* **Linked workbooks** (B22): in the wizard's first step, *+ Add a linked workbook…* lists the other workbooks of the
+  folder; the chosen file's sheets join the list (shown with the file's name) and its tables go on slides like any
+  other. A deck remembers its linked files; if one is missing when the deck opens, its tables are reported as missing
+  and everything else opens. Formulas that read another workbook of the folder are recalculated with that file.
+* **The Issues panel's "Formulas" line** (B24): *Check* recomputes every formula of the workbook (and of the folder's
+  workbooks it links to) and says how many give Excel's own saved value, and which do not: volatile (TODAY, NOW, RAND),
+  locale-dependent (TEXT codes written by an Excel in another language), read a hidden sheet, read a workbook not in
+  the folder, could not be read, or different from Excel. Nothing is changed by the check.
+* The page is about 2 MB bigger (B23): it carries a formula engine (IronCalc, MIT/Apache-2.0) that is started only
+  when something needs it – a scenario run or the formula self-check – so opening Slide Builder and a deck is as fast
+  as before.
+
+For the maintainer
+* Workbook formulas are read (`.xlsx` and `.xlsb`), not only their cached values, and `core/src/calc/engine.ts`
+  recomputes them; `core/tests/formulas.test.ts` and `engine.test.ts` check both against Excel's own files in
+  `tests/corpus/workbooks/recalc/` (made with Excel by `spikes/recalc/make_linked.ps1`).
+
 ## 4.1.0 - unreleased
 
 What users notice

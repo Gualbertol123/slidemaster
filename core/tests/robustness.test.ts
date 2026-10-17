@@ -46,6 +46,7 @@ function page() {
   port.handle("deckPrepare", () => null);
   port.handle("digitWidth", () => 0);
   port.handle("convertPicture", () => null);
+  port.handle("linkedWorkbook", () => null);
   port.handle("analyzeImages", () => []);
   const slices: CoreEvents["slices"][] = [], progress: string[] = [], errors: string[] = [], docs: DocEvent[] = [];
   port.on("slices", v => slices.push(v));
