@@ -41,7 +41,8 @@ describe("Banks.xlsx + Peers.xlsx (linked both ways)", () => {
     expect(sc.different).toEqual([]);
     expect(sc.counts.exact + sc.counts.volatile + sc.counts.locale).toBe(208);
     expect(sc.counts.external + sc.counts.unreadable + sc.counts.different).toBe(0);
-    expect(sc.counts.locale).toBe(3);                                  // TEXT(date, "mmm yy"): Italian Excel wrote "mar yy" (07 §1.3)
+    // TEXT(date, "mmm yy"): Italian Excel wrote "mar yy" – Slide Builder's own TEXT gives the same (textfmt.ts, M8)
+    expect(sc.counts.locale).toBe(0);
     expect(model.formulas.length).toBe(192 + 16);
   });
   it("every scenario value equals the copy Excel recalculated for that bank, in both files (RC-03)", async () => {

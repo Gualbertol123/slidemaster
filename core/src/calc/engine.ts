@@ -20,6 +20,7 @@ import { numToCol } from "../xlsx/util";
 import { parseSheetId, tokenize, type FToken } from "./refs";
 import { quoteSheet } from "../xlsx/xlsb/formula";
 import type { Model as IronModel } from "./wasm/ironcalc-glue";
+import { excelText, qualify, textCalls } from "./textfmt";
 
 type Glue = typeof import("./wasm/ironcalc-glue");
 let glue: Promise<Glue> | null = null;
@@ -110,9 +111,85 @@ export class CalcModel {
   /** 07 §8 Q8 ("keep and mark"): every TEXT cell whose engine value is not Excel's becomes Excel's cached value, a
       constant; the number of cells pinned (the model is evaluated again when there are any) */
   private pinLocale(): number {
+    // first Slide Builder's own Italian TEXT (Decisions 2026-10-17): where it gives Excel's saved text the cell follows
+    // a scenario; what still differs is kept at Excel's text below (07 §8 Q8)
+    this.model.pauseEvaluation();
+    let own: OwnText[] = [];
+    try { own = this.ownTextCells(); } finally { this.model.resumeEvaluation(); }
+    if (own.length) {
+      this.textCells = own.flatMap(o => o.calls);
+      this.model.evaluate(); this.formatTexts();
+      const back = own.filter(o => !sameValue(this.valueOf(o.f.book, o.f.sheet, o.f.r, o.f.c), this.cachedOf(o.f)));
+      if (back.length) {
+        const gone = new Set(back.flatMap(o => o.calls));
+        this.textCells = this.textCells.filter(t => !gone.has(t));
+        this.model.pauseEvaluation();
+        try { for (const o of back) this.model.setUserInput(o.si, o.f.r, o.f.c, o.content); } finally { this.model.resumeEvaluation(); }
+        this.model.evaluate();
+      }
+      for (const o of own) if (!back.includes(o)) this.ownText.add(o.key);
+    }
     this.model.pauseEvaluation();                                  // (each input would evaluate the whole model)
     try { this.pinCells(); } finally { this.model.resumeEvaluation(); }
-    return this.pinned.size;
+    return this.pinned.size + this.ownText.size;
+  }
+  /** the TEXT calls Slide Builder formats (helper cells A = the value, B = the format, C = the text the formula reads) */
+  private textCells: TextCall[] = [];
+  /** the formula cells whose TEXT is Slide Builder's (keys as externalCells): they recompute like Excel */
+  private readonly ownText = new Set<string>();
+  /** the locale-dependent cells (TEXT whose engine value is not Excel's): each TEXT call's value and format moved to
+      cells of a sheet of the model's own, the formula reading the text Slide Builder writes there (formatTexts) */
+  private ownTextCells(): OwnText[] {
+    const out: OwnText[] = [];
+    let sheet: { index: number; name: string } | null = null, row = 0;
+    for (const f of this.formulas) {
+      if (!LOCALE.test(f.text) || VOLATILE.test(f.text) || f.array) continue;
+      const key = f.book + "\u0000" + f.sheet, ck = key + "\u0000" + f.r + "," + f.c, si = this.ix.get(key);
+      if (si === undefined || this.externalCells.has(ck) || this.hiddenCells.has(ck)) continue;
+      if (sameValue(this.valueOf(f.book, f.sheet, f.r, f.c), this.cachedOf(f))) continue;
+      const calls = textCalls(f.text.replace(/^=/, ""));
+      if (!calls || !calls.length) continue;
+      const b = this.books.find(x => x.name === f.book)!, S = b.sheets.find(x => plainName(x) === f.sheet)!;
+      const own = quoteSheet(f.sheet) + "!", src = f.text.replace(/^=/, "");
+      const content = this.model.getCellContent(si, f.r, f.c);
+      const made: TextCall[] = []; let text = "", at = 0, ok = true;
+      for (const call of calls) {
+        const v = this.prep(qualify(call.value, own), b, S), fm = this.prep(qualify(call.format, own), b, S);
+        if (v === null || fm === null) { ok = false; break; }
+        sheet ??= this.helperSheet("text");
+        row++;
+        try { this.model.setUserInput(sheet.index, row, 1, "=" + v); this.model.setUserInput(sheet.index, row, 2, "=" + fm); this.model.setUserInput(sheet.index, row, 3, "'"); }
+        catch { ok = false; break; }
+        made.push({ si: sheet.index, row, text: null });
+        text += src.slice(at, call.start) + quoteSheet(sheet.name) + "!$C$" + row; at = call.end;
+      }
+      if (!ok) continue;
+      const formula = this.prep(text + src.slice(at), b, S);
+      if (formula === null) continue;
+      try { this.model.setUserInput(si, f.r, f.c, "=" + formula); } catch { continue; }
+      out.push({ f, si, key: ck, content, calls: made });
+    }
+    return out;
+  }
+  /** the texts of the TEXT calls Slide Builder formats, after an evaluation: written where their formulas read them,
+      evaluated again until nothing changes (a text that feeds another TEXT: a few rounds) */
+  private formatTexts() {
+    for (let round = 0; round < 4; round++) {
+      let changed = false;
+      this.model.pauseEvaluation();
+      try {
+        for (const t of this.textCells) {
+          // the text, or – a value TEXT cannot format (an error, a logical) – that error / #VALUE!, as an error value
+          const v = this.valueAt(t.si, t.row, 1), fm = this.valueAt(t.si, t.row, 2), txt = excelText(v, fm);
+          const content = txt !== null ? "'" + txt : v && typeof v === "object" ? v.err : "#VALUE!";
+          if (content === t.text) continue;
+          t.text = content; changed = true;
+          this.model.setUserInput(t.si, t.row, 3, content);
+        }
+      } finally { this.model.resumeEvaluation(); }
+      if (!changed) return;
+      this.model.evaluate();
+    }
   }
   /** one pass: a TEXT cell that reads another pinned one is pinned too (it might have been right after the first) */
   private pinCells() {
@@ -159,6 +236,15 @@ export class CalcModel {
     return true;
   }
   private unreadable = 0;
+  /** sheets of the model's own (defined names given through cells, TEXT formatted by Slide Builder): never a Sheet of a
+      workbook, so never in `ix`, `formulas`, the self-check or the views */
+  private extraSheets = 0;
+  private helperSheet(base: string): { index: number; name: string } {
+    this.model.newSheet(); const index = this.ix.size + this.extraSheets++;
+    // a name no sheet of the workbooks has (Excel allows « » in sheet names: tried until one is free)
+    for (let k = 0; k <= 50; k++) { const name = "«" + base + (k || "") + "»"; try { this.model.renameSheet(index, name); return { index, name }; } catch { /* taken */ } }
+    throw new Error("no sheet name for the model's own " + base);
+  }
   private build(books: CalcBook[]) {
     let unreadable = 0, first = true, n = 0;
     const used = new Set<string>();
@@ -200,11 +286,7 @@ export class CalcModel {
     // model's own, and the name points at that cell (the sheet is never shown: no Sheet of the workbook names it)
     let helper: number | null = null, row = 0, helperName = "«names»";
     const cellFor = (text: string): string => {
-      if (helper === null) {
-        this.model.newSheet(); helper = this.ix.size;
-        // a name no sheet of the workbooks has (Excel allows « » in sheet names: tried until one is free)
-        for (let k = 0; ; k++) { const nm = k ? "«names" + k + "»" : "«names»"; try { this.model.renameSheet(helper, nm); helperName = nm; break; } catch { if (k > 50) throw new Error("no sheet name for the defined names"); } }
-      }
+      if (helper === null) ({ index: helper, name: helperName } = this.helperSheet("names"));
       this.model.setUserInput(helper, ++row, 1, "=" + text);
       return quoteSheet(helperName) + "!$A$" + row;
     };
@@ -351,10 +433,13 @@ export class CalcModel {
     finally { this.model.resumeEvaluation(); }
     return true;
   }
-  evaluate() { this.model.evaluate(); }
+  evaluate() { this.model.evaluate(); if (this.textCells.length) this.formatTexts(); }
   /** the value of a cell as the engine holds it */
   valueOf(book: string | null, sheet: string, r: number, c: number): CellValue {
     const si = this.ix.get(book + "\u0000" + sheet); if (si === undefined) return null;
+    return this.valueAt(si, r, c);
+  }
+  private valueAt(si: number, r: number, c: number): CellValue {
     const t = this.model.getCellType(si, r, c);
     if (t === CELL_NUMBER) { const s = this.model.getFormattedCellValue(si, r, c); return s === "" ? null : parseFloat(s); }
     if (t === CELL_TEXT) return this.model.getFormattedCellValue(si, r, c);
@@ -399,3 +484,7 @@ function mangle(book: number, sheet: string, used: Set<string>): string {
   return name;
 }
 export type { SheetColumns };
+/** a TEXT call Slide Builder formats: its row of helper cells, the content written last */
+interface TextCall { si: number; row: number; text: string | null }
+/** a formula cell whose TEXT calls Slide Builder formats; `content`: what it held before (put back when it does not match) */
+interface OwnText { f: FormulaCell; si: number; key: string; content: string; calls: TextCall[] }

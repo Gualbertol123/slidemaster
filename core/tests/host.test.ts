@@ -23,8 +23,9 @@ const tick = () => new Promise(r => setTimeout(r, 5));
     saved value only on the day Excel saved them (2026-10-16) – "exact" then, "volatile" on any other day */
 function expectCounts(counts: Record<string, number>) {
   const { exact, volatile, ...rest } = counts;
-  expect([[205, 0], [202, 3]]).toContainEqual([exact, volatile]);
-  expect(rest).toEqual({ locale: 3, external: 0, hidden: 0, unreadable: 0, different: 0 });
+  // (the 3 TEXT cells with Italian codes recompute since M8: Slide Builder formats TEXT as this Italian Excel – textfmt.ts)
+  expect([[208, 0], [205, 3]]).toContainEqual([exact, volatile]);
+  expect(rest).toEqual({ locale: 0, external: 0, hidden: 0, unreadable: 0, different: 0 });
 }
 async function until(f: () => boolean, ms = 5000) { const t = Date.now(); while (!f()) { if (Date.now() - t > ms) throw new Error("timeout"); await tick(); } }
 
@@ -563,8 +564,9 @@ describe("Run for each value (S8.3, 07 §2.4, SC-02/03/05/06, RC-06)", () => {
     const recs = srv.deck.records().length, docBefore = JSON.stringify(srv.doc);
     const r = await run(p, ["Bank A", "Bank B", "Bank C"], ["glass", "excel"]);
     expect(r.id).toBeTruthy();
-    // SLIDE_1!E12 = TEXT(…,"mmm yy"): kept at Excel's text in every file (07 §8 Q8), named for the report
-    expect(r.id ? r.kept.map(k => k.sheet + "!" + k.ref) : null).toEqual(["SLIDE_1!E12"]);
+    // SLIDE_1!E12 = TEXT(…,"mmm yy"): formatted by Slide Builder as Italian Excel does (M8), so nothing is kept at its
+    // saved text (a cell that still is would be named here for the report: engine-pin.test.ts)
+    expect(r.id ? r.kept : null).toEqual([]);
     await end();
     expect(made.map(m => m.name).sort()).toEqual(["Bank A - Excel.pdf", "Bank A - Liquid Glass.pdf", "Bank B - Excel.pdf", "Bank B - Liquid Glass.pdf", "Bank C - Excel.pdf", "Bank C - Liquid Glass.pdf"]);
     for (const m of made) expect(m.texts, m.name).toContain("Loans & deposits - " + m.name.split(" - ")[0]);
@@ -674,4 +676,33 @@ describe("Run for each value (S8.3, 07 §2.4, SC-02/03/05/06, RC-06)", () => {
     const own = await p.port.call("slideLists", { design: "excel", version: "", forExport: true, thumb: false });
     expect(JSON.stringify(own).includes(RED)).toBe(false);
   }, 120_000);
+});
+
+describe("the page follows a preview (S8.4, Decisions 2026-10-17: mirror the cells)", () => {
+  const inputs = { defaults: {}, logoSrc: "", version: "", workbook: "Banks.xlsx" };
+  const walk = (ns: StageSlide["layers"][0]["nodes"]): string[] => ns.flatMap(n => n.t === "text" ? [n.src] : n.t === "group" ? walk(n.children) : []);
+  it("a preview sends the changed sheets' slices with the scenario's values (rebuild), Clear the workbook's; the input cell shows its value", async () => {
+    const srv = server(), p = page(srv, "anna");
+    await p.port.call("init", { served: false, client: "c", me: "anna" });
+    const info = await p.port.call("index", { buf: book("recalc/Banks.xlsx") });
+    // the input cell itself on a slide (Control!A2:B9) and a table that follows it (SLIDE_1)
+    const preset = { sheets: ["Control", "SLIDE_1"], tables: [{ id: "t0", sheet: "Control", kind: "range" as const, range: "A2:B9" }, { id: "t1", sheet: "SLIDE_1", kind: "range" as const, range: "C3:K14" }],
+      slides: [{ id: "s1", type: "content" as const, tables: ["t0", "t1"] }] };
+    await p.port.call("start", { book: info.book, name: "Banks.xlsx", deck: srv.open(), preset, inputs, stage: { slide: 0, known: [] } });
+    const texts = async () => walk((await p.port.call("stage", { slide: 0, known: [], nodes: true }))!.layers.flatMap(l => l.nodes));
+    const sliceText = (k: number) => JSON.stringify(p.seen.slice(k).filter(e => e.k === "slices" && (e.v as { rebuild?: boolean }).rebuild).map(e => e.v));
+    expect(await texts()).toContain("Bank A");
+    let k = p.seen.length;
+    await p.port.call("scenarioPreview", { sheet: "Control", ref: "B2", value: "Bank C" });
+    const sent = p.seen.slice(k).filter(e => e.k === "slices" && (e.v as { rebuild?: boolean }).rebuild).flatMap(e => (e.v as { sheets: { name: string }[] }).sheets.map(s => s.name));
+    expect(sent).toEqual(expect.arrayContaining(["Control", "SLIDE_1"]));   // (and the other sheets the page has that it moved)
+    expect(sliceText(k)).toContain("Loans & deposits - Bank C");
+    const during = await texts();
+    expect(during).toContain("Bank C");                                 // Control!B2, the input cell, on the slide
+    expect(during).toContain("Loans & deposits - Bank C");
+    k = p.seen.length;
+    await p.port.call("scenarioPreview", null);
+    expect(sliceText(k)).toContain("Loans & deposits - Bank A"); expect(sliceText(k)).not.toContain("Bank C");
+    expect(await texts()).toContain("Bank A"); expect(await texts()).not.toContain("Bank C");
+  }, 60_000);
 });

@@ -914,8 +914,10 @@ test.describe.serial("two people, one shared folder", () => {
     // the Issues panel's "Formulas" line (B24, S7.4): both files recompute like Excel but the locale-dependent cells
     await expect(page.locator("#calcLine")).toContainText("Formulas: not checked yet");
     await page.click("#calcCheckBtn");
-    // (the 3 TODAY() cells equal Excel's saved values only on the day it saved them, 2026-10-16: "volatile" on any other)
-    await expect(page.locator("#calcLine")).toContainText(/Formulas: (205 of 208 recompute like Excel|202 of 208 recompute like Excel · 3 volatile \(TODAY, NOW, RAND\)) · 3 locale-dependent \(TEXT\)/, { timeout: 30_000 });
+    // (the 3 TODAY() cells equal Excel's saved values only on the day it saved them, 2026-10-16: "volatile" on any other;
+    // the 3 TEXT cells with Italian codes recompute since M8 – Slide Builder formats TEXT as this Italian Excel does)
+    await expect(page.locator("#calcLine")).toContainText(/Formulas: (208 of 208 recompute like Excel|205 of 208 recompute like Excel · 3 volatile \(TODAY, NOW, RAND\))/, { timeout: 30_000 });
+    await expect(page.locator("#calcLine")).not.toContainText("locale");
     const bdoc = () => deckDoc("Banks.xlsx");
     await pollFile(() => bdoc().preset.links, { timeout: 10_000 }).toEqual(["Peers.xlsx"]);
     expect(bdoc().preset.tables.map((t: any) => t.sheet)).toEqual(["[Peers.xlsx]Peer"]);
@@ -1054,6 +1056,24 @@ test.describe.serial("two people, one shared folder", () => {
     await page.keyboard.press("Escape");
     await expect(dlg).toHaveCount(0);
     expect(bdoc()).toBe(before);
+    // S8.4 (Decisions: the cells mirrored to the page): during a preview the formula bar shows the scenario's value of
+    // the selected cell; an edit made meanwhile is an ordinary edit of the deck, saved, and stays after Clear
+    await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]');
+    await page.selectOption("#scValue", "Bank C"); await page.click("#scPreview");
+    await expect(page.locator("#scBanner")).toContainText("Previewing: Bank C", { timeout: 20_000 });
+    await selectCell(page, "3141");
+    await expect(page.locator("#fxInput")).toHaveValue("3141");
+    await selectCell(page, "Loans"); await page.keyboard.type("Loans X"); await page.keyboard.press("Enter");
+    await saved(page);
+    await pollFile(() => deckDoc("Banks.xlsx").edits["[Peers.xlsx]Peer"].C5.text, { timeout: 10_000 }).toBe("Loans X");
+    await page.click("#scClear");
+    await expect(page.locator("#scBanner")).toHaveCount(0);
+    await expect(cells.filter({ hasText: /^Loans X$/ })).toHaveCount(1);
+    await expect(cells.filter({ hasText: /^1761$/ })).toHaveCount(1);
+    await selectCell(page, "1761");
+    await expect(page.locator("#fxInput")).toHaveValue("1761");                     // the workbook's own value again
+    await page.keyboard.press("Control+z"); await saved(page);                      // (the next tests see the deck as it was)
+    await expect(cells.filter({ hasText: /^Loans$/ })).toHaveCount(1);
   });
 
   test("Run for each value (S8.3, SC-02/03/05/06): 3 values × 2 designs → 6 files with their names; files untouched; equal names; progress, cancel, report", async ({ page }) => {

@@ -88,9 +88,15 @@ export function core(): CorePort {
   });
   return port;
 }
-function receiveSlices(wb: MirrorWorkbook, e: { shared: SharedSlice | null; sheets: SheetSlice[] }) {
+function receiveSlices(wb: MirrorWorkbook, e: { shared: SharedSlice | null; sheets: SheetSlice[]; rebuild?: true }) {
   wb.receive(e.shared, e.sheets);
   LCACHE.clear();                                            // layouts of the replaced sheets
+  // a preview shown or cleared (S8.4): the cells of the page's slides are the stage's – the ribbon, the painter, the
+  // comment dialog and the Issues lines read them
+  if (e.rebuild && wb === get().deck.wb) {
+    const { file } = get().deck, preset = get().doc.view?.preset || null;
+    if (file) { patch("deck", { slides: runtimeSlides(wb, preset, file.name, style().design) }); slidesDesign = style().design; }
+  }
 }
 /** what the worker's renderers need from the page */
 function viewInputs(name = get().deck.file?.name || ""): ViewInputs {

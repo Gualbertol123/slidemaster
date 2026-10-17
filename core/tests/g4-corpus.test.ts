@@ -36,7 +36,8 @@ describe("G4 stand-in: Cruscotto.xlsm (Italian) + Benchmark.xlsm (English), link
     console.log("G4 stand-in self-check:", JSON.stringify(sc.counts), "of", model.formulas.length, "\n  different:", sc.different.map(d => `${d.book ?? files[0]} ${d.sheet}!${d.ref} = ${d.text}: cached ${JSON.stringify(d.cached)} computed ${JSON.stringify(d.computed)}`).join("\n  "));
     // Controllo!B10 TEXT(…;"mmmm aaaa") (Italian codes) and Compare!B10 TEXT(…,"dd mmm yyyy") (English codes, which this
     // Italian Excel writes "dd set yyyy"): kept at Excel's text (07 §8 Q8), so SLIDE Sintesi!D13, which reads B10, is exact
-    expect(sc.counts).toEqual({ exact: 152, volatile: 0, locale: 2, external: 0, hidden: 0, unreadable: 0, different: 0 });
+    // (since M8 both recompute: Slide Builder formats TEXT as this Italian Excel does – textfmt.ts)
+    expect(sc.counts).toEqual({ exact: 154, volatile: 0, locale: 0, external: 0, hidden: 0, unreadable: 0, different: 0 });
   });
   it("every scenario value against the copy Excel recalculated (8 banks, 2 rates)", async () => {
     const dirs = fs.readdirSync(path.join(G4, "truth")).sort();

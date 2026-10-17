@@ -32,7 +32,9 @@
      scenario        ⏱ M8 S8.3 (07 §6.4, SC-08 / SC-09), when the build has it: Run for each value on BanksBig
                      (tests/corpus/workbooks/recalc, 20 chained slide sheets; the input Control!B4, the week) in
                      Liquid Glass – one value recalculated and its 20 slides exported (< 3 s), 20 values (< 40 s), from
-                     the click on Run to the run's end; no main-thread task over 50 ms during the runs
+                     the click on Run to the run's end; no main-thread task over 50 ms during the runs; before them
+                     (S8.4) a preview's switch on deck20 – a cell of its slide the input, the engine warm – from the
+                     click on Preview until the stage shows the value (< 400 ms)
      heap          after the big sheet was read: the page (performance.memory) plus the core worker, which
                      holds the workbook since S2.4 (Runtime.getHeapUsage over the DevTools protocol)    < 150 MB
    The two time limits are scaled by how much slower this machine is than the reference PC (tools/calibrate.mjs,
@@ -65,8 +67,10 @@ const BUDGET = { open_deck20_ms: 400, read_big30_ms: 1000, longest_task_ms: 50, 
   open_navy_ms: 400, longest_navy_task_ms: 50, first_draw_navy_task_ms: 250,
   // M8 S8.3 (07 §6.4, SC-08 / SC-09): Run for each value on BanksBig (20 chained slide sheets), Liquid Glass – one value
   // recalculated + its 20 slides exported, 20 values; no main-thread task over 50 ms during the runs
-  scenario_one_ms: 3000, scenario_20_ms: 40000, scenario_task_ms: 50 }, SLACK = 1.1;
-const speed = speedFactor(), TIMED = ["open_deck20_ms", "read_big30_ms", "export_glass_ms", "export_excel_ms", "export_navy_ms", "export_red_ms", "open_navy_ms", "scenario_one_ms", "scenario_20_ms"];   // keypress: not scaled (decision 2026-10-12 names the others)
+  scenario_one_ms: 3000, scenario_20_ms: 40000, scenario_task_ms: 50,
+  // M8 S8.4 (07 §6.4): a preview's switch – the click on Preview to the stage showing the value – on deck20, warm engine
+  preview_switch_ms: 400 }, SLACK = 1.1;
+const speed = speedFactor(), TIMED = ["open_deck20_ms", "read_big30_ms", "export_glass_ms", "export_excel_ms", "export_navy_ms", "export_red_ms", "open_navy_ms", "scenario_one_ms", "scenario_20_ms", "preview_switch_ms"];   // keypress: not scaled (decision 2026-10-12 names the others)
 const LIMITS = Object.fromEntries(Object.entries(BUDGET).map(([k, v]) => [k, TIMED.includes(k) ? Math.round(v * speed.factor) : v]));
 const CHROME = process.env.CHROME || chromium.executablePath();
 const PY = process.platform === "win32" ? "python" : "python3";
@@ -256,10 +260,25 @@ async function run(browser, port) {
     // ---- Run for each value (S8.3, SC-08 / SC-09; a build without it – --page of an older one – skips this): BanksBig as a
     // new deck (the wizard's defaults: its 20 slide sheets), then one value and 20 values (weeks) in Liquid Glass, timed by
     // the page from the click on Run to the run's end; the long tasks of the runs gated at 50 ms
-    let scen = null;
+    let scen = null, previewSwitch = null;
     {
       // (the page is one file: its script names the run's panel when this build has it)
       if ((await page.content()).includes("scRunDialog")) {
+        // ---- a preview's switch (S8.4) on deck20, still open: a cell of its slide is the input; the first preview starts
+        // the engine (its first use, gated apart), the second is timed from the click until the stage shows the value
+        { const b = (await page.locator("#stage .slide .t").filter({ hasText: /^[0-9][0-9.,]*$/ }).first().boundingBox()); await page.mouse.click(b.x + 6, b.y + b.height / 2); }   // (as a person clicks: the hit layer takes it)
+        await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]'); await page.click("#scPick");
+        await page.fill("#scValues", "Bench one\nBench two"); await page.locator("#scInputNote", { hasText: "today" }).waitFor({ timeout: 60000 });
+        await page.selectOption("#scValue", "Bench one"); await page.click("#scPreview");
+        await page.locator("#scBanner", { hasText: "Bench one" }).waitFor({ timeout: 60000 });
+        await page.waitForFunction(() => window.__sbTest.stageIdle(), null, { timeout: 60000 }); await sleep(500); await longTasks();
+        await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]'); await page.selectOption("#scValue", "Bench two");
+        await watch(["#stage .slide .t", "Bench two"]); await page.click("#scPreview");
+        const previewMs = await took(page.locator("#stage .slide .t", { hasText: "Bench two" }).first());
+        const ltPreview = (await longTasks()).map(x => x.d);
+        await page.click("#scClear"); await page.locator("#scBanner").waitFor({ state: "detached" });
+        await page.waitForFunction(() => window.__sbTest.stageIdle(), null, { timeout: 60000 }); await sleep(500); await longTasks();
+        previewSwitch = { ms: Math.round(previewMs), longtasks: ltPreview };
         await page.click("#openBtn"); await page.locator('[data-f="BanksBig.xlsx"]').waitFor(); await page.click('[data-f="BanksBig.xlsx"]');
         await page.locator(".wiz .sheetrow").first().waitFor({ timeout: 60000 });          // the sheets read (as deck20's open)
         // its slide sheets have no closing "x": one table per sheet, typed as a range on each sheet's tab
@@ -292,7 +311,7 @@ async function run(browser, port) {
         await longTasks();
         const one = await runOnce([30]), ltOne = (await longTasks()).map(x => x.d);
         const twenty = await runOnce(Array.from({ length: 20 }, (_, i) => 20 + i)), ltTwenty = (await longTasks()).map(x => x.d);
-        scen = { one_ms: one, twenty_ms: twenty, longtasks: [...ltOne, ...ltTwenty], phases: { one: ltOne, twenty: ltTwenty } };
+        scen = { one_ms: one, twenty_ms: twenty, longtasks: [...ltOne, ...ltTwenty, ...previewSwitch.longtasks], phases: { one: ltOne, twenty: ltTwenty, preview: previewSwitch.longtasks }, preview_ms: previewSwitch.ms };
       }
     }
     // ---- big30: the index, then one 130 000-row sheet
@@ -452,8 +471,8 @@ const worst = {
   // Run for each value (S8.3): this build's page must measure it (not measured counts as over the limit)
   ...(runs.every(r => r.scen) ? {
     scenario_one_ms: Math.max(...runs.map(r => r.scen.one_ms)), scenario_20_ms: Math.max(...runs.map(r => r.scen.twenty_ms)),
-    scenario_task_ms: Math.max(0, ...runs.flatMap(r => r.scen.longtasks)) }
-    : arg("--page") ? {} : { scenario_one_ms: Infinity, scenario_20_ms: Infinity, scenario_task_ms: Infinity }),
+    scenario_task_ms: Math.max(0, ...runs.flatMap(r => r.scen.longtasks)), preview_switch_ms: Math.max(...runs.map(r => r.scen.preview_ms)) }
+    : arg("--page") ? {} : { scenario_one_ms: Infinity, scenario_20_ms: Infinity, scenario_task_ms: Infinity, preview_switch_ms: Infinity }),
 };
 const info = { longest_startup_task_ms: Math.max(0, ...runs.flatMap(r => r.boot.longtasks)), thumbs_frame_ms: Math.max(...runs.map(r => r.thumbs.frame_ms)) };
 const out = { page: path.relative(REPO, BACKEND) || BACKEND, chrome: CHROME, machine: `${os.cpus().length} × ${os.cpus()[0].model.trim()}, ${process.platform}`, calibration: { ms: +speed.ms.toFixed(1), factor: +speed.factor.toFixed(2) }, budget: BUDGET, limits: LIMITS, worst, info, runs };
@@ -461,7 +480,7 @@ if (arg("--json")) fs.writeFileSync(arg("--json"), JSON.stringify(out, null, 1))
 for (const [i, r] of runs.entries()) console.log(`bench · run ${i + 1}: deck20 open ${r.deck20.open_ms} ms (wizard ${r.deck20.wizard_ms} + slides ${r.deck20.finish_to_slide_ms}) · keypress → pixels (cold ${r.edit.keypress.cold_ms.join(" / ")}) p50 ${r.edit.keypress.p50_ms} / p95 ${r.edit.keypress.p95_ms} / max ${r.edit.keypress.max_ms} ms (tasks ${JSON.stringify(r.edit.longtasks)}) · thumbnails, 100 slides scrolled: ${r.thumbs.fps} fps, ${r.thumbs.frame_ms} ms/frame (longest gap ${r.thumbs.gap_ms} ms, ${r.thumbs.pictures} pictures, tasks ${JSON.stringify(r.thumbs.longtasks)}) · drags ${Object.entries(r.drags).map(([k, d]) => `${k} ${d.frame_ms} ms/frame (${d.frames} frames, longest gap ${d.gap_ms} ms, drop ${d.drop_task_ms} ms)`).join(", ")} · export deck20 Liquid Glass ${r.export.glass_ms} ms ${JSON.stringify(r.export.glass_phases)} ${r.export.glass_kb} KB, Excel ${r.export.excel_ms} ms ${JSON.stringify(r.export.excel_phases)} ${r.export.excel_kb} KB (tasks ${JSON.stringify(r.export.longtasks)}) · big30 index ${r.big30.index_to_wizard_ms} ms, sheet read ${r.big30.read_sheet_ms} ms (grid ${r.big30.read_to_grid_ms} ms) · long tasks ${JSON.stringify([...r.deck20.longtasks, ...r.big30.longtasks])} (first draw ${JSON.stringify(r.deck20.first_draw_longtasks)}) · heap ${r.big30.heap_mb} MB (page ${r.big30.page_heap_mb} + worker ${r.big30.worker_heap_mb}; ${r.big30.export_workers} export workers ${r.big30.export_heap_mb} MB, not gated) · start-up tasks ${JSON.stringify(r.boot.longtasks)}`);
 console.log(`bench · calibration ${speed.ms.toFixed(1)} ms: time limits × ${speed.factor.toFixed(2)}`);
 for (const [i, r] of runs.entries()) if (r.consult) console.log(`bench · run ${i + 1}: Consulting Navy long tasks by phase ${JSON.stringify(r.consult.phases)}`);
-for (const [i, r] of runs.entries()) if (r.scen) console.log(`bench · run ${i + 1}: Run for each value on BanksBig (20 slides, Liquid Glass): 1 value ${r.scen.one_ms} ms, 20 values ${r.scen.twenty_ms} ms, long tasks ${JSON.stringify(r.scen.phases)}`);
+for (const [i, r] of runs.entries()) if (r.scen) console.log(`bench · run ${i + 1}: Run for each value on BanksBig (20 slides, Liquid Glass): 1 value ${r.scen.one_ms} ms, 20 values ${r.scen.twenty_ms} ms; preview switch on deck20 ${r.scen.preview_ms} ms; long tasks ${JSON.stringify(r.scen.phases)}`);
 const bad = Object.entries(LIMITS).filter(([k, lim]) => k in worst && worst[k] > lim * SLACK);
 for (const [k, lim] of Object.entries(LIMITS)) if (k in worst) console.log(`bench · ${k}: ${worst[k]} (limit ${lim}${worst[k] > lim ? (worst[k] > lim * SLACK ? " – OVER +10 %" : " – over, within +10 %") : ""})`);
 console.log(`bench · not gated: longest start-up task ${info.longest_startup_task_ms} ms; most page work in a frame of the thumbnail scroll ${info.thumbs_frame_ms} ms (a garbage collection can fall into one)`);

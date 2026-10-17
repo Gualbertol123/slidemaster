@@ -135,6 +135,11 @@ numbers measured twice). Measured numbers go into the step's line.
 
 (Human decisions the plan needs, e.g. gate G0 outcomes. An agent never writes here on its own.)
 
+- 2026-10-17 · **M8 S8.4 and the TEXT cells** (product owner, in the session; recorded by the agent): during a preview
+  **the changed cells are mirrored to the page** ("Mirror the cells") – the ribbon, painter, comment dialog and Issues
+  follow the scenario; and **locale-dependent TEXT cells get Slide Builder's own Italian formatting in M8** ("Yes, in
+  M8"), so they follow a scenario instead of keeping Excel's saved text (amends 07 §8 Q8's "keep and mark" where the
+  formatting matches Excel; a cell it cannot match is still kept and marked).
 - 2026-10-17 · **M8: go for S8.3; macros left aside** (product owner, in the session: "Go for s3, let's leave the macros
   aside for now"; recorded by the agent): G4 stands on the stand-in's numbers (0 different), the VBA module of the
   stand-in is not built for now.

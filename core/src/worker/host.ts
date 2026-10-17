@@ -201,7 +201,19 @@ export class CoreHost {
   }
   /** the scenario on the stage: the engine's input and what that cell held before (the engine's own content, put
       back when the scenario ends or moves), the view the renderers read, its digest (ctx.scenario) */
-  private scen: { input: ScenarioInput; was: string; view: Workbook; hash: string } | null = null;
+  private scen: { input: ScenarioInput; was: string; view: Workbook; hash: string; /** the sheets it changed */ sheets: Set<string> } | null = null;
+  /** the page's copy of the cells follows the stage (S8.4, Decisions 2026-10-17: "Mirror the cells"): the sheets a
+      preview changed (or changed back) sent again as slices of the same rectangles, cut from the stage's view */
+  private sendViewSlices(names: Set<string>) {
+    const wb = this.wb; if (!wb || !names.size) return;
+    const sent = this.boxesFor(this.wbBook), view = this.viewWb!, sheets: SheetSlice[] = [];
+    for (const n of names) {
+      const box = sent.get(n), S = view.sheets.find(x => x.name === n);
+      if (box === undefined || !S) continue;                         // a sheet the page has no slice of (not on a slide)
+      sheets.push(sliceSheet(S, JSON.parse(box), wb.shared));
+    }
+    if (sheets.length) this.port.emit("slices", transfer({ book: this.wbBook, shared: null, sheets, rebuild: true as const }, sheets.flatMap(sliceTransfer)));
+  }
   /** `forRun`: a run starting clears the preview (it may while it is starting) */
   private async scenarioPreview(a: ScenarioInput | null, forRun = false): Promise<ScenarioAnswer | null> {
     const wb = this.wb; if (!wb) return null;
@@ -220,17 +232,20 @@ export class CoreHost {
       if (busy()) { refused = true; return; }
       // the previous input cell back to what it held (a constant, a formula, or nothing at all)
       if (this.scen) { const p = at(this.scen.input); if (p) c.model.restore(p.book, p.sheet, p.r, p.c, this.scen.was); }
+      const before = this.scen?.sheets ?? new Set<string>();
       this.scen = null;
       if (a) {
         const p = at(a); if (!p) return;
         const was = c.model.contentOf(p.book, p.sheet, p.r, p.c);
         if (!c.model.set(p.book, p.sheet, p.r, p.c, a.value)) return;
         c.model.evaluate();
-        const changes = c.model.changes(), hash = overlayHash(changes);
+        const changes = c.model.changes();
         let changed = 0, different = 0;
-        const diff = new Set(c.check.different.map(d => (d.book === null ? d.sheet : "[" + d.book + "]" + d.sheet) + "!" + d.ref));
+        const diff = new Set(c.check.allDifferent.map(d => (d.book === null ? d.sheet : "[" + d.book + "]" + d.sheet) + "!" + d.ref));
         for (const [sheet, m] of changes) for (const k of m.keys()) { changed++; const [r, col] = k.split(",").map(Number); if (diff.has(sheet + "!" + numToCol(col) + r)) different++; }
-        this.scen = { input: a, was, view: overlayWorkbook(wb, changes), hash };
+        withInput(changes, a.sheet, p.r, p.c, a.value);                // (counted above: the formulas that moved)
+        const hash = overlayHash(changes);
+        this.scen = { input: a, was, view: overlayWorkbook(wb, changes), hash, sheets: new Set(changes.keys()) };
         answer = { changed, different, check: c.checkOut };
       } else {
         c.model.evaluate();
@@ -241,6 +256,7 @@ export class CoreHost {
       // the slides are built again from the view (or the workbook): every view is a new object, so the layout cache
       // would miss anyway – clearing it keeps it from growing by one set of layouts per preview
       LCACHE.clear(); this.slidesDesign = null;
+      this.sendViewSlices(new Set([...before, ...(this.scen?.sheets ?? [])]));
       await this.refresh(null, true);
     });
     if (refused) throw new Error("a run for each value is going on: preview once it has ended");
@@ -322,7 +338,7 @@ export class CoreHost {
           if (was === null) was = c.model.contentOf(p.book, p.sheet, p.r, p.c);
           if (!c.model.set(p.book, p.sheet, p.r, p.c, a.values[i])) return;
           c.model.evaluate();
-          const changes = c.model.changes();
+          const changes = withInput(c.model.changes(), a.input.sheet, p.r, p.c, a.values[i]);
           run.view = overlayWorkbook(wb, changes); run.hash = run.id + "." + i + overlayHash(changes); run.slides.clear();
           ok = true;
         });
@@ -746,6 +762,12 @@ function ownEdits(L: RuntimeSlide["tables"][number], ctx: RenderCtx): string {
   const keys = (cache.ownKeys || (cache.ownKeys = new Set(L.items.map(keyOf)))) as Set<string>, out: Record<string, unknown> = {};
   for (const k of Object.keys(all)) if (keys.has(k)) out[k] = all[k];
   return JSON.stringify(out);
+}
+/** the changes with the input cell's own value: a slide that shows the input cell shows the scenario's value too */
+function withInput(changes: Map<string, Map<string, import("../calc/engine").CellValue>>, sheet: string, r: number, c: number, value: number | string | boolean) {
+  let m = changes.get(sheet); if (!m) changes.set(sheet, m = new Map());
+  m.set(r + "," + c, value);
+  return changes;
 }
 /** a run for each value (S8.3) */
 interface Run { id: string; /** the workbook it runs on (another one opened: the run ends) */ wb: Workbook; cancel: boolean;

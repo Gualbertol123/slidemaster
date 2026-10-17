@@ -205,7 +205,9 @@ export interface CoreEvents {
   [k: string]: unknown;
   doc: DocEvent;
   /** slices of workbook `book` (the open one, or the one being opened) */
-  slices: { book: number; shared: SharedSlice | null; sheets: SheetSlice[] };
+  slices: { book: number; shared: SharedSlice | null; sheets: SheetSlice[];
+    /** the cells of these sheets changed – a preview shown or cleared (S8.4, the mirror follows the scenario): the page
+        builds its slides again from them */ rebuild?: true };
   /** after a change, the slide on the stage drawn again (the stage's last request, S4.1) */
   stage: StageSlide;
   progress: { text: string; frac: number | null } | null;

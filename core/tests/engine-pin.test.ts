@@ -32,26 +32,30 @@ describe("locale-dependent cells keep Excel's value (07 §8 Q8)", () => {
       + `<row r="6"><c r="B6" t="str"><f>TEXT(A1,"0")</f><v>45000</v></c></row>`));
     const m = new CalcModel(g, [{ name: null, sheets: wb.sheets, externals: [] }]);
     const sc = m.selfCheck();
-    // B1…B5 pinned (locale), B6 equal as computed (exact, not pinned), the array D1:D2 locale as before (not pinned)
-    expect(sc.pinned.map(p => p.ref)).toEqual(["B1", "B2", "B3", "B4", "B5"]);
-    expect(sc.pinned.map(p => p.cached)).toEqual(["marzo 2023", 2023, true, { err: "#N/A" }, null]);
+    // B1…B3 (Italian codes) are formatted by Slide Builder as Italian Excel does (textfmt.ts, Decisions 2026-10-17): exact;
+    // B4 / B5, whose saved values no formatting gives, kept at them (locale); B6 equal as computed; the array D1:D2 left
+    expect(sc.pinned.map(p => p.ref)).toEqual(["B4", "B5"]);
+    expect(sc.pinned.map(p => p.cached)).toEqual([{ err: "#N/A" }, null]);
     expect(sc.different).toEqual([]);
-    expect(sc.counts.locale).toBe(6); expect(sc.counts.different).toBe(0);
+    expect(sc.counts.locale).toBe(3); expect(sc.counts.different).toBe(0);
     expect(m.valueOf(null, "S", 1, 3)).toBe("Rif. marzo 2023");
     expect(m.valueOf(null, "S", 2, 3)).toBe(2024);
     expect(m.valueOf(null, "S", 3, 3)).toBe(false);
     expect(m.valueOf(null, "S", 4, 3)).toBe(true);
     expect(m.valueOf(null, "S", 5, 3)).toBe(0);
-    // under a scenario a pinned cell does not move (marked in the run's report, S8.3); B6 follows
+    // under a scenario Slide Builder's TEXT follows (46000 = 9 December 2025) and so do the cells that read it; a pinned
+    // cell does not move (marked in the run's report, S8.3)
     m.set(null, "S", 1, 1, 46000); m.evaluate();
-    expect(m.valueOf(null, "S", 1, 3)).toBe("Rif. marzo 2023");
+    expect(m.valueOf(null, "S", 1, 3)).toBe("Rif. dicembre 2025");
+    expect(m.valueOf(null, "S", 2, 3)).toBe(2026);
     expect(m.valueOf(null, "S", 6, 2)).toBe("46000");
-    // a scenario input on a pinned cell, then put back: its content is Excel's value again
+    expect(m.valueOf(null, "S", 4, 2)).toEqual({ err: "#N/A" });
+    // a scenario input on such a cell, then put back: its formula (Slide Builder's TEXT) again
     const was = m.contentOf(null, "S", 1, 2);
     m.set(null, "S", 1, 2, "aprile 2023"); m.evaluate();
     expect(m.valueOf(null, "S", 1, 3)).toBe("Rif. aprile 2023");
     m.restore(null, "S", 1, 2, was); m.evaluate();
-    expect(m.valueOf(null, "S", 1, 3)).toBe("Rif. marzo 2023");
+    expect(m.valueOf(null, "S", 1, 3)).toBe("Rif. dicembre 2025");
     m.dispose();
   }, 60_000);
   it("a workbook without such cells evaluates once and pins nothing", async () => {
