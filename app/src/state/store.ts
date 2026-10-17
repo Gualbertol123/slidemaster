@@ -44,7 +44,8 @@ export interface ScenarioForm {
   /** "run anyway, mark these cells" (the gate, RC-06) */ runAnyway: boolean;
 }
 /** a scenario on the stage (S8.1, 07 §2.4): the value shown and its input cell; nothing of it is saved */
-export interface ScenarioPreview { value: string; input: string; changed: number; /** TEXT cells it could not format */ textUnknown?: number }
+export interface ScenarioPreview { value: string; input: string; changed: number; /** TEXT cells it could not format */ textUnknown?: number;
+  /** no formula moved, the value not being the cell's own */ still?: boolean }
 /** a run for each value (S8.3): its progress, then its report – UI state of this page */
 export interface RunState {
   id: string; total: number; done: number; /** the values as the input cell shows them */ shown: string[];

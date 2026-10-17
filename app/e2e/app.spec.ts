@@ -999,6 +999,11 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#scRangeSel")).toHaveText("C5");
     await expect(page.locator("#scRange .ovb.sel.one")).toHaveCount(1);
     await page.locator('#scRange td[data-r="2"][data-c="2"]').click();
+    await page.keyboard.press("Enter");                                              // Enter takes the cell, as the button
+    await expect(page.locator("#scRange")).toHaveCount(0);
+    await expect(page.locator("#scInput")).toHaveValue("Control!B2");
+    await page.click("#scSelect"); await page.selectOption("#scSheet", "Control");
+    await page.locator('#scRange td[data-r="2"][data-c="2"]').click();
     await page.click("#scUseCell");
     await expect(page.locator("#scRange")).toHaveCount(0);
     await expect(page.locator("#scInput")).toHaveValue("Control!B2");

@@ -127,7 +127,7 @@ function ScenarioBanner() {
   const p = useStore(s => s.ui.preview);
   if (!p) return null;
   return <div className="scbanner" id="scBanner" title={`${p.input} set to “${p.value}” in the formula engine: ${p.changed} formula cell${p.changed === 1 ? "" : "s"} recalculated`}>
-    Previewing: <b>{p.value}</b> – a scenario, not saved{p.textUnknown ? <span className="scbad"> · {p.textUnknown} TEXT cell{p.textUnknown === 1 ? "" : "s"} not formatted (previous text)</span> : null}{p.changed === 0 ? <span className="scbad" id="scNoChange"> · no formula of the workbook depends on {p.input}</span> : null}<button className="btn" id="scClear" onClick={() => void clearPreview()}>Clear</button></div>;
+    Previewing: <b>{p.value}</b> – a scenario, not saved{p.textUnknown ? <span className="scbad"> · {p.textUnknown} TEXT cell{p.textUnknown === 1 ? "" : "s"} not formatted (previous text)</span> : null}{p.still ? <span className="scbad" id="scNoChange"> · no formula changed with this value of {p.input}</span> : null}<button className="btn" id="scClear" onClick={() => void clearPreview()}>Clear</button></div>;
 }
 
 /** the zoom shown: the stage's scale (fit or chosen) */

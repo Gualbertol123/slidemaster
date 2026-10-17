@@ -108,7 +108,8 @@ export interface CoreMethods {
 }
 export interface ScenarioInput { sheet: string; ref: string; value: number | string | boolean }
 export interface ScenarioAnswer { changed: number; different: number; check: CalcCheck;
-  /** TEXT cells Slide Builder could not format for this value (they keep the text they had): said, not hidden */ textUnknown?: number }
+  /** TEXT cells Slide Builder could not format for this value (they keep the text they had): said, not hidden */ textUnknown?: number;
+  /** no formula moved although the value is not the input cell's own: the slides cannot follow this cell */ still?: boolean }
 export interface ScenarioRunReq {
   input: { sheet: string; ref: string };
   /** the values as they go into the engine (the page typed them, 07 §8 Q7) */

@@ -70,7 +70,7 @@ export async function previewValue(input: string, value: string, asText: boolean
     const a = await core().call("scenarioPreview", { sheet: r.cell.sheet, ref: r.cell.ref, value: typedValue(value, r.now?.t ?? null, asText) });
     if (seq !== previewSeq) return false;                                    // a newer preview or a clear came meanwhile
     if (!a) { patch("ui", { preview: null }); toast(`⚠ ${esc(inputCellText(r.cell))} could not be set to “${esc(value)}”: the formula engine could not take it.`, [], true); return false; }
-    patch("ui", { preview: { value, input: inputCellText(r.cell), changed: a.changed, ...(a.textUnknown ? { textUnknown: a.textUnknown } : {}) } });
+    patch("ui", { preview: { value, input: inputCellText(r.cell), changed: a.changed, ...(a.textUnknown ? { textUnknown: a.textUnknown } : {}), ...(a.still ? { still: true } : {}) } });
     return true;
   } catch (e) {
     console.error(e);

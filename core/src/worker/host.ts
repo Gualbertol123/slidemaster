@@ -188,13 +188,19 @@ export class CoreHost {
         const read = await readHiddenSheets(w, file), got = new Set(read.map(S => parseSheetId(S.name).sheet));
         return { read, unread: w.hiddenSheets.filter(n => !got.has(n)) };
       };
-      const own = await hiddenOf(wb, null), links = await Promise.all([...wb.linked].map(async ([file, lwb]) => ({ file, lwb, h: await hiddenOf(lwb, file) })));
+      let own: Awaited<ReturnType<typeof hiddenOf>>, links: { file: string; lwb: Workbook; h: Awaited<ReturnType<typeof hiddenOf>> }[];
+      if (wb.hiddenMeta?.length || [...wb.linked.values()].some(l => l.hiddenMeta?.length)) this.port.emit("progress", { text: "Reading the hidden data sheets…", frac: null });
+      try { own = await hiddenOf(wb, null); links = await Promise.all([...wb.linked].map(async ([file, lwb]) => ({ file, lwb, h: await hiddenOf(lwb, file) }))); }
+      finally { this.port.emit("progress", null); }
+      const hiddenIds = new Set([...own.read, ...links.flatMap(l => l.h.read)].map(S => S.name));
       if (this.wb !== wb) throw new Error("the workbook changed while the engine loaded");
       const model = new CalcModel(g, [{ name: null, file: this.name, sheets: [...sheetsOf(wb, null), ...own.read], hidden: own.unread, externals: wb.externals, names: wb.names },
         ...links.map(({ file, lwb, h }) => ({ name: file, sheets: [...sheetsOf(wb, file), ...h.read], hidden: h.unread, externals: lwb.externals, names: lwb.names }))]);
       try {
         const t2 = now(); const check = model.selfCheck(); const t3 = now();
-        const checkOut: CalcCheck = { counts: check.counts, different: check.different.slice(0, 20), formulas: model.formulas.length, styleError: model.styleError,
+        // (the page gets no cell of a hidden sheet: it is counted, never listed)
+        const shown = check.different.filter(d => !hiddenIds.has(d.book === null ? d.sheet : "[" + d.book + "]" + d.sheet));
+        const checkOut: CalcCheck = { counts: check.counts, different: shown.slice(0, 20), formulas: model.formulas.length, styleError: model.styleError,
           ...(model.namesSkipped.length ? { namesSkipped: model.namesSkipped.slice(0, 20) } : {}), ...(check.textFormatted ? { textFormatted: check.textFormatted } : {}), ms: { load: t1 - t0, build: model.ms.build, evaluate: model.ms.evaluate, check: t3 - t2 } };
         return { model, check, checkOut, sig: this.calcSig(wb) };
       } catch (e) { model.dispose(); throw e; }
@@ -258,7 +264,7 @@ export class CoreHost {
         const hash = overlayHash(changes);
         this.scen = { input: a, was, view: overlayWorkbook(wb, changes), hash, sheets: new Set(changes.keys()) };
         const unsure = c.model.textUnknown + c.model.textUnsettled;
-        answer = { changed, different, check: c.checkOut, ...(unsure ? { textUnknown: unsure } : {}) };
+        answer = { changed, different, check: c.checkOut, ...(unsure ? { textUnknown: unsure } : {}), ...(!changed && !sameInput(was, a.value) ? { still: true } : {}) };
       } else {
         c.model.evaluate();
         // nothing may be left behind: the engine is back at its baseline
@@ -367,7 +373,7 @@ export class CoreHost {
           this.port.call("scenarioFile", { id: run.id, design: j.d, version: j.v, name: j.name, title: j.name.replace(/\.pdf$/, ""), today: a.today })])));
         const files = res.flatMap(r => r.status === "fulfilled" ? [r.value.file] : []);
         // nothing moved although the value is not the cell's own: the slides cannot follow it
-        const still = !moves && (was === null || String(was).replace(/^'/, "") !== String(a.values[i]));
+        const still = !moves && !sameInput(was, a.values[i]);
         for (const f of files) run.taken.add(f.toUpperCase());
         const failed = res.flatMap((r, k) => r.status === "rejected" ? [jobs[k].name + ": " + String((r.reason as Error)?.message || r.reason)] : []);
         run.view = null; run.slides.clear();                       // the value's view is dropped
@@ -792,6 +798,12 @@ function withInput(changes: Map<string, Map<string, import("../calc/engine").Cel
   let m = changes.get(sheet); if (!m) changes.set(sheet, m = new Map());
   m.set(r + "," + c, value);
   return changes;
+}
+/** the engine's content of the input cell ("'Bank A", "12", "TRUE", "=…") is the value set: nothing could move */
+function sameInput(was: string | null, value: number | string | boolean): boolean {
+  if (was === null) return false;
+  const w = was.replace(/^'/, "");
+  return typeof value === "boolean" ? w.toUpperCase() === (value ? "TRUE" : "FALSE") : typeof value === "number" ? w !== "" && +w === value : w === value;
 }
 /** a run for each value (S8.3) */
 interface Run { id: string; /** the workbook it runs on (another one opened: the run ends) */ wb: Workbook; cancel: boolean;

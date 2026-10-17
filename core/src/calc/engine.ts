@@ -21,6 +21,7 @@ import { parseSheetId, tokenize, type FToken } from "./refs";
 import { quoteSheet } from "../xlsx/xlsb/formula";
 import type { Model as IronModel } from "./wasm/ironcalc-glue";
 import { excelText, qualify, textCalls } from "./textfmt";
+import { rewriteRangeIndex } from "./rangeindex";
 
 type Glue = typeof import("./wasm/ironcalc-glue");
 let glue: Promise<Glue> | null = null;
@@ -371,7 +372,16 @@ export class CalcModel {
           const arr = C.arr.get(i);
           this.formulas.push({ book: b.name, sheet, r, c, text: C.fmls[fk], ...(arr ? { array: arr } : {}) });
           fmlBox = fmlBox ? { r1: Math.min(fmlBox.r1, r), c1: Math.min(fmlBox.c1, c), r2: Math.max(fmlBox.r2, r), c2: Math.max(fmlBox.c2, c) } : { r1: r, c1: c, r2: r, c2: c };
-          if (text === null) { (this.lastHidden ? this.hiddenCells : this.externalCells).add(b.name + "\u0000" + sheet + "\u0000" + r + "," + c); continue; }
+          if (text === null) {
+            (this.lastHidden ? this.hiddenCells : this.externalCells).add(b.name + "\u0000" + sheet + "\u0000" + r + "," + c);
+            // a cell the engine cannot compute (it reads a workbook not in the folder, a hidden sheet not read) keeps
+            // Excel's saved value, so the cells that read it compute from that, not from an empty cell (found on the
+            // product owner's deck, 2026-10-18: those cells were 0)
+            const cached = kind === Kind.Num || kind === Kind.Date ? String(v) : kind === Kind.Bool ? (v ? "TRUE" : "FALSE") : kind === Kind.Err ? C.strs[v]
+              : kind === Kind.Shared || kind === Kind.Str ? "'" + ((kind === Kind.Shared ? ctx.sst[v] : C.strs[v]) ?? "") : null;
+            if (cached !== null && !arr) later.push([r, c, cached]);
+            continue;
+          }
           if (arr) { const m = /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/.exec(arr); const w = m && m[3] ? colNum(m[3]) - colNum(m[1]) + 1 : 1, h = m && m[4] ? +m[4] - +m[2] + 1 : 1; later.push([r, c, "\u0001" + w + "," + h + "," + text]); }
           else later.push([r, c, "=" + text]);
           continue;
@@ -420,7 +430,7 @@ export class CalcModel {
   /** set by prep(): the last null was a hidden sheet's reference (else a linked workbook's) */
   private lastHidden = false;
   prep(text: string, b: CalcBook, S: Sheet): string | null {
-    const toks = tokenize(text);
+    const toks = tokenize(rewriteRangeIndex(text));                  // (A:INDEX(…) ranges as OFFSET: rangeindex.ts)
     const stack: string[] = []; let out = "", external = false, hidden = false;
     this.lastHidden = false;
     for (const t of toks) {

@@ -134,6 +134,7 @@ export function readHiddenSheets(wb: Workbook, file: string | null = null): Prom
       return out;
     })();
     HIDDEN_READ.set(wb, p);
+    p.catch(() => { if (HIDDEN_READ.get(wb) === p) HIDDEN_READ.delete(wb); });   // (asked again next time)
   }
   return p;
 }

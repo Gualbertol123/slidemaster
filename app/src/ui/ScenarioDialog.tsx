@@ -38,7 +38,7 @@ function FromRange({ onUse, onCancel, onCell }: { onUse: (values: string[], brok
   }, [sheet]);
   async function use(r: string | null) {
     if (!r) return;
-    if (onCell) { onCell(sheet, r); return; }
+    if (onCell) { onCell(sheet, r.split(":")[0]); return; }              // (Enter in the grid gives "C7:C7")
     const g = parseRange(r), n = (g.r2 - g.r1 + 1) * (g.c2 - g.c1 + 1);
     if (n > MAX_CELLS) { setErr(`${r} has ${n.toLocaleString()} cells: choose at most ${MAX_CELLS.toLocaleString()}.`); return; }
     setBusy(true);
@@ -126,7 +126,7 @@ export function ScenarioDialog() {
             <textarea id="scValues" rows={7} spellCheck={false} placeholder={"One value per line – type or paste from Excel, e.g.\nBank A\nBank B\nBank C"} value={f.values}
               onKeyDown={e => e.stopPropagation()} onChange={e => set({ values: (e.target as HTMLTextAreaElement).value, broken: 0 })} />
             <div className="row">
-              <button className="btn" id="scFromRange" onClick={() => setRanging(true)}>From a range…</button>
+              <button className="btn" id="scFromRange" onClick={() => { setChoosing(false); setRanging(true); }}>From a range…</button>
               <label className="ck" title="Numbers go in as numbers when the input cell holds a number today; tick to give every value as text"><input type="checkbox" id="scText" checked={f.asText} onChange={e => set({ asText: (e.target as HTMLInputElement).checked })} /> Treat as text</label>
             </div>
           </>}

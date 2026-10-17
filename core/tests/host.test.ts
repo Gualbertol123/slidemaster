@@ -767,7 +767,9 @@ describe("hidden data sheets and inputs nothing reads (a real run, 2026-10-18; D
     const w = events.filter(e => e.value !== null).map(e => e.warning ?? "");
     expect(w[0]).toBe("");                                                          // 5 is the cell's own value
     expect(w[1]).toContain("no formula of the workbook changed with this value");
-    expect((await p.port.call("scenarioPreview", { sheet: "CONFIG", ref: "D1", value: 9 }))!.changed).toBe(0);
+    const pv = (await p.port.call("scenarioPreview", { sheet: "CONFIG", ref: "D1", value: 9 }))!;
+    expect(pv.changed).toBe(0); expect(pv.still).toBe(true);
+    expect((await p.port.call("scenarioPreview", { sheet: "CONFIG", ref: "D1", value: 5 }))!.still).toBeUndefined();   // its own value
     await p.port.call("scenarioPreview", null);
   }, 60_000);
 });
