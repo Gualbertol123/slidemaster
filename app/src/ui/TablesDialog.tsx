@@ -5,7 +5,7 @@ import { get, setDialogs, useStore } from "../state/store";
 import { useCtx } from "./hooks";
 import { tableName } from "@slide-builder/core/model/preset";
 import { allTables, alignTables, valignTables, copySizes, makeSameSize, resetSizes, type TableRef } from "../editor/tables";
-import { tableW } from "@slide-builder/core/render/layout";
+import { tableH, tableW } from "@slide-builder/core/render/layout";
 import { ctx } from "../state/app";
 
 export function TablesDialog() {
@@ -31,7 +31,7 @@ export function TablesDialog() {
               <label className="ck big"><input type="checkbox" checked={list.every(r => chosen.has(keyOf(r)))} onChange={e => { const n = new Set(chosen); list.forEach(r => (e.target as HTMLInputElement).checked ? n.add(keyOf(r)) : n.delete(keyOf(r))); setChosen(n); }} />
                 Slide {si + 1} · {R.label}</label>
               {list.map(r => <label key={keyOf(r)} className="ck tdtab"><input type="checkbox" data-t={keyOf(r)} checked={chosen.has(keyOf(r))} onChange={e => toggle(keyOf(r), (e.target as HTMLInputElement).checked)} />
-                {tableName(r.L, c.preset)} <small>{Math.round(tableW(r.L, c))} × {Math.round(r.L.H)} px</small></label>)}
+                {tableName(r.L, c.preset)} <small>{Math.round(tableW(r.L, c))} × {Math.round(tableH(r.L, c))} px</small></label>)}
             </div>)}
           </div>
           <div className="tdactions">

@@ -17,7 +17,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import esbuild from "esbuild";
 import { BOOKS, DECKS, deckOps, load, openBrowser, startHelper } from "./capture-v3.mjs";
-import { goldenTexts, matchTexts } from "./parity.mjs";
+import { goldenTexts, matchTexts, ownPdfText, squash } from "./parity.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
@@ -66,7 +66,7 @@ function resolveFonts(nodes, fonts, missing) {
 }
 const dataUrlBytes = src => { const i = src.indexOf(","), b64 = src.slice(i + 1); return new Uint8Array(Buffer.from(src.slice(0, i).includes(";base64") ? b64 : decodeURIComponent(b64), src.slice(0, i).includes(";base64") ? "base64" : "latin1")); };
 
-export { goldenTexts, matchTexts } from "./parity.mjs";
+export { goldenTexts, matchTexts, ownPdfText, squash } from "./parity.mjs";
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   fs.mkdirSync(OUT, { recursive: true });
@@ -120,7 +120,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const d = info[k], bad = [];
     const goldens = fs.readdirSync(path.join(REPO, "golden", r.deck, r.design, "full")).filter(f => /^slide-\d+\.json$/.test(f)).length;
     if (goldens !== d.text.length) bad.push(`${d.text.length} page(s), the goldens have ${goldens} slide(s)`);
+    // the consulting designs (M7b): their own golden PDF's text is the reference (heads in capitals, cells quoted)
+    const own = ownPdfText(r.deck, r.design, "full");
     d.text.forEach((pageText, p) => {
+      if (own) { if (own[p] !== undefined && squash(pageText) !== own[p]) bad.push(`slide ${p + 1}: the text differs from the golden PDF's`); return; }
       const want = goldenTexts(r.deck, r.design, "full", p + 1);
       if (!want) { bad.push(`slide ${p + 1}: no golden`); return; }
       const { missing, extra } = matchTexts(pageText, want);

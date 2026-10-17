@@ -62,7 +62,7 @@ export function borderDash(style: string, w: number): number[] | null {
   }
 }
 /** one side's border inside the box (x, y, w, h): lines along the side's middle; double = two lines of w/3 */
-function borderNodes(side: "top" | "bottom" | "left" | "right", b: BorderSide, x: number, y: number, w: number, h: number): Node[] {
+export function borderNodes(side: "top" | "bottom" | "left" | "right", b: BorderSide, x: number, y: number, w: number, h: number): Node[] {
   const bw = BORDER_W[b.style] ?? 1, { c, a } = parseColor(b.color);
   if (a === 0) return [];
   const paint: Paint = a < 1 ? { solid: c, a } : { solid: c };
@@ -139,9 +139,11 @@ export const SEAM = 1;
     on its own would). The fill painted first reaches SEAM px under the one painted after it, when that one is opaque
     and covers the whole shared edge – along that edge only, no corner (seamPath) – and the later fill paints over the
     strip: no outer edge moves; the shared edge's pixels show the two colours' mix instead of the slide's white */
-export function seamFills(items: Item[]): [number, number, number, number][] {
+export const seamFills = (items: Item[]) => seamFillsBy(items, items.map(it => it.fill));
+/** seamFills with the fills given apart from the items (fills[k]: what item k paints; the consulting designs') */
+export function seamFillsBy(items: Item[], fills: (string | null)[]): [number, number, number, number][] {
   const out = items.map((): [number, number, number, number] => [0, 0, 0, 0]);
-  const opaque = items.map(it => !!it.fill && !("a" in solid(it.fill)));
+  const opaque = fills.map(f => !!f && !("a" in solid(f)));
   const key = (v: number) => Math.round(v * 100);
   // the opaque fills by each of their edges
   const byLeft = new Map<number, number[]>(), byTop = new Map<number, number[]>(), byRight = new Map<number, number[]>(), byBottom = new Map<number, number[]>();
@@ -188,9 +190,11 @@ const text = (src: string, x: number, y: number, size: number, family: string, r
   t: "text", font: primaryFamily(family) || "Arial", css: family, ...(b ? { b: true } : {}), ...(i ? { i: true } : {}), size, x: r2(x), y: r2(y), src, w: run.w, fill: color, ...(deco ? { decoration: deco } : {}),
 });
 
-function cellText(it: Item, ctx: RenderCtx, m: Metrics): Node[] {
-  const f = it.font, size = +((f.sz || 11) * 96 / 72).toFixed(2), family = cellFamily(it, ctx), b = !!f.b, i = !!f.i;
-  const font = cssFont(size, family, b, i), color = solid(it.color || "#000");
+/** what a design draws a cell's text with instead of the workbook's (the consulting designs, consult-dl.ts): unset = the cell's own */
+export interface CellLook { family?: string; color?: string; b?: boolean }
+export function cellText(it: Item, ctx: RenderCtx, m: Metrics, look: CellLook = {}): Node[] {
+  const f = it.font, size = +((f.sz || 11) * 96 / 72).toFixed(2), family = look.family ?? cellFamily(it, ctx), b = look.b ?? !!f.b, i = !!f.i;
+  const font = cssFont(size, family, b, i), color = solid(look.color ?? (it.color || "#000"));
   const deco = f.u || f.s ? { ...(f.u ? { underline: true } : {}), ...(f.s ? { strike: true } : {}) } : undefined;
   const x = it.bx, y = it.by, w = it.tw || it.bw, h = it.bh;
   const out: Node[] = [{ t: "hit", kind: "t", id: `${it.b.r},${it.b.c}`, x, y, w, h, label: collapse(String(it.text)).trim() }];
@@ -284,7 +288,7 @@ function boxNodes(x: number, y: number, w: number, h: number, fill: string | nul
   if (line && line.w > 0) { const s = line.w / 2; out.push({ t: "rect", x: x + s, y: y + s, w: Math.max(0, w - line.w), h: Math.max(0, h - line.w), ...(r ? { r: Math.max(0, r - s) } : {}), stroke: { w: line.w, paint: solid(line.color) } }); }
   return out;
 }
-function shapeNodes(r: Rect, rr: number): Node[] {
+export function shapeNodes(r: Rect, rr: number): Node[] {
   return wrapT(boxTransform(r), boxNodes(r.x, r.y, r.w, r.h, r.fill, r.line, r.round && !r.ellipse ? rr : 0, !!r.ellipse));
 }
 
@@ -326,7 +330,7 @@ export function inlineLayout(paras: Para[], x: number, y: number, w: number, h: 
   }
   return out;
 }
-function textBoxNodes(tb: Rect, rr: number, m: Metrics): Node[] {
+export function textBoxNodes(tb: Rect, rr: number, m: Metrics): Node[] {
   const r = tb.round ? rr : 0, lw = tb.line && tb.line.w > 0 ? tb.line.w : 0;
   // box-sizing: border-box: the text sits inside the border and the padding (4px 8px), clipped at the padding box
   const inner = inlineLayout(tb.paras || [], tb.x + lw + 8, tb.y + lw + 4, Math.max(0, tb.w - 16 - 2 * lw), Math.max(0, tb.h - 8 - 2 * lw), tb.anchorV || "t", m, { family: XLFONT, size: 14.67, color: "#000", lh: 1.25 });
@@ -338,7 +342,7 @@ function textBoxNodes(tb: Rect, rr: number, m: Metrics): Node[] {
 }
 
 /* ---- pictures */
-function picNodes(p: Pic, forExport: boolean, images: Record<string, string>, m: Metrics): Node[] {
+export function picNodes(p: Pic, forExport: boolean, images: Record<string, string>, m: Metrics): Node[] {
   const M = boxTransform(p), hit: Node = { t: "hit", kind: "pic", id: p.name || "", x: p.x, y: p.y, w: p.w, h: p.h };
   return [...wrapT(M, [hit]), ...picBody(p, forExport, images, m, M)];       // the hit turns with the picture
 }

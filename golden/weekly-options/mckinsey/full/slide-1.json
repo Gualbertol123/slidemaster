@@ -1,0 +1,9 @@
+{"scale":1,"w":1600,"h":900,"slide":1,"label":"Cover","items":[
+{"cls":"logowrap big","x":1360,"y":788,"w":144,"h":48},
+{"cls":"logo","x":1360,"y":788,"w":144,"h":48},
+{"cls":"cv-block x","text":"Weekly report\nLoans and deposits","x":96,"y":280,"w":1100,"h":148.8},
+{"cls":"cv-bar","x":96,"y":280,"w":72,"h":6},
+{"cls":"cv-title","text":"Weekly report","x":96,"y":300,"w":1100,"h":70.4,"color":"rgb(255, 255, 255)","size":"64px","weight":"700","font":"Georgia, Gelasio, \"Times New Roman\", serif"},
+{"cls":"cv-sub","text":"Loans and deposits","x":96,"y":390.4,"w":1100,"h":38.4},
+{"cls":"cvx-date","text":"1 October 2026","x":96,"y":762,"w":124.1,"h":25.2,"color":"rgb(153, 230, 255)","size":"18px","weight":"400","font":"Arial, \"Liberation Sans\", Arimo, sans-serif"}
+]}

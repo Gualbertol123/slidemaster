@@ -12,6 +12,7 @@ import type { SlideTextKey } from "@slide-builder/core/model/types";
 import { activeItem, commitText, curSlide } from "../editor/edit";
 import { closeEditor, commitNote, slidePatch } from "./actions";
 import { cellBox } from "./hit";
+import { exhibitOf } from "@slide-builder/core/render/exhibit";
 import { editOf, type StageModel } from "./model";
 
 /** how an editor ends: commit (with a move of the selection for a cell) or cancel; once */
@@ -31,7 +32,8 @@ export function CellEditor({ m, s, initial }: { m: StageModel; s: number; initia
   const finish = useFinish((ok, move) => { if (ok) commitText(ref.current!.value, move); });
   useLayoutEffect(() => focusAll(ref.current, initial === undefined), [initial]);
   if (!it || !place) return null;
-  const g = cellBox(it, c), b = place.box, k = b.scale * s;
+  // a cell the exhibit does not draw: edited where its row's label is, else at the table's top left
+  const g = cellBox(it, c) || cellBox({ ...it, b: { ...it.b, c: it.L ? exhibitOf(it.L, c).labelCol : it.b.c, c2: it.b.c2 } }, c) || { ...it, bx: 0, by: 0, bw: 120, bh: 24 }, b = place.box, k = b.scale * s;
   const left = (b.x + g.bx * b.scale) * s, top = (b.y + g.by * b.scale) * s, w = g.bw * k, h = g.bh * k;
   const fpx = (effFmt(c, it).sz * 96 / 72) * k;
   return <input ref={ref} className="inline-edit" defaultValue={initial !== undefined ? initial : effText(c, it)}

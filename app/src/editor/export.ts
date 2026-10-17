@@ -7,6 +7,7 @@
 import { get, hideBusy, patch, showBusy, toast } from "../state/store";
 import { core, flushDoc, setPrefs, style } from "../state/app";
 import type { Design } from "@slide-builder/core/model/types";
+import { DESIGN_LABEL } from "@slide-builder/core/model/designs";
 import { todayLabel } from "@slide-builder/core/render/cover";
 import type { CatalogFont } from "@slide-builder/core/text/resolve";
 import type { ExportJob, ExportResult, Thumb } from "@slide-builder/core/rpc/messages";
@@ -16,7 +17,8 @@ import { catalog, fontFile, libraryCatalog } from "../state/fontfiles";
 import { esc } from "@slide-builder/core/xlsx/util";
 
 export type ExportKind = "pdf" | "pdf-exact" | "pdf-vector" | "pdf-current" | "png-current" | "png-all" | "copy";
-export const DESIGN_LABEL: Record<Design, string> = { glass: "Liquid Glass", excel: "Excel", clean: "Excel Refined" };
+/** the names users see (B11: in export file names) */
+export { DESIGN_LABEL };
 /** pixels per slide px: PDF pages as pictures (B9: 2×, was 4×) and PNG files / the clipboard (4800 × 2700, as before) */
 export const PICTURE_SCALE = 2, PNG_SCALE = 3;
 

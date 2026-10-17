@@ -825,6 +825,18 @@ test.describe.serial("two people, one shared folder", () => {
     const xl = pdf("weekly - All - Excel.pdf").toString("latin1");
     expect(xl).toContain("/Font");
     expect(xl).not.toMatch(/\/Subtype\s*\/Image/);
+    // every version in all five designs (M7b, DS-17): ten PDFs, the consulting designs by their neutral names (B11)
+    const ten = await fromMenu(page, "versions-5");
+    expect([...ten].sort()).toEqual(names(["Liquid Glass", "Excel", "Excel Refined", "Consulting Navy", "Consulting Red"]));
+    await expect(page.locator("#toast")).toContainText("Saved 10 PDFs");
+    for (const d of ["Consulting Navy", "Consulting Red"]) {
+      const chief = pdf(`weekly - Chief - ${d}.pdf`), src = chief.toString("latin1");
+      expect(pdfPageTexts(chief)).toHaveLength(1);
+      expect(src).toContain("/FontFile2");                                                   // TrueType subsets (GF)
+      expect(src).not.toMatch(/\/Subtype\s*\/Type3/);
+      expect(src).not.toMatch(/\/Subtype\s*\/Image/);                                     // no picture but the user's
+      expect(pdfPageTexts(chief)[0].length).toBeGreaterThan(pdfPageTexts(pdf(`weekly - All - ${d}.pdf`))[0].length);   // "All" lacks the removed cells
+    }
   });
 
   test("wizard on a sheet larger than the preview: the selection box sits exactly on the selected cells", async ({ page }) => {
@@ -911,6 +923,52 @@ test.describe.serial("two people, one shared folder", () => {
     await openWorkbook(page, "Banks.xlsx"); await page.click('[data-a="continue"]');
     await expect(page.locator("#stage .slide .t", { hasText: /^Peer avg$/ })).toHaveCount(1, { timeout: 20_000 });
     await lastFileSaved("anna", "Banks.xlsx");
+  });
+
+  test("consulting designs (M7b, DS-10): Consulting Navy and Consulting Red, saved, one undo step each, their own palette", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: ANNA.replace(/\/$/, "") });
+    await openApp(page, ANNA);                                                       // Banks.xlsx, the last workbook
+    await expect(page.locator("#stage .slide")).toHaveCount(1, { timeout: 20_000 });
+    const bdoc = () => deckDoc("Banks.xlsx"), before = bdoc().style.design ?? "glass";
+    await expect(page.locator('[data-design="mckinsey"]')).toHaveText(/Navy/);
+    await page.click('[data-design="mckinsey"]'); await saved(page);
+    await expect(page.locator("#stage .slide.consult.mckinsey")).toHaveCount(1);
+    expect(bdoc().style.design).toBe("mckinsey");
+    await page.keyboard.press("Control+z"); await saved(page);                        // one undo step back
+    expect(bdoc().style.design ?? "glass").toBe(before);
+    await page.click('[data-design="bain"]'); await saved(page);
+    await expect(page.locator("#stage .slide.consult.bain")).toHaveCount(1);
+    // the design's own palette is the theme it starts with; the Colours tab lists the keys it uses
+    await page.click("#themeBtn");
+    await expect(page.locator('#themeList [data-theme="design"]')).toHaveClass(/on/);
+    await expect(page.locator('[data-color="pos"]')).not.toHaveClass(/off/);
+    await expect(page.locator('#lookScope [data-scope="design"]')).toContainText("Consulting Red");
+    // for all designs, the themes are not this design's: they cannot be picked here, and "Design palette" leaves them alone
+    const shared = JSON.stringify(bdoc().style.theme ?? null);
+    await page.click('#lookScope [data-scope="all"]');
+    await expect(page.locator('#themeList [data-theme="ocean"]')).toBeDisabled();
+    await page.click('#themeList [data-theme="design"]');
+    expect(JSON.stringify(bdoc().style.theme ?? null)).toBe(shared);
+    await page.click('#lookScope [data-scope="design"]');
+    await page.click('.tsdlg [data-a="close"]');
+    // the Look dropdown (owner, 2026-10-16: every combination): 36 looks, the design's default chosen; a pick is one undo step
+    await expect(page.locator("#lookSel option")).toHaveCount(36);
+    await expect(page.locator("#lookSel")).toHaveValue("exhibit full panel tinted");
+    await page.selectOption("#lookSel", "rules - kpi white"); await saved(page);
+    expect(bdoc().style.designs.bain.consult).toEqual({ tables: "rules", headline: "kpi", background: "white" });
+    await page.keyboard.press("Control+z"); await saved(page);
+    expect(bdoc().style.designs?.bain?.consult).toBeUndefined();
+    await expect(page.locator("#lookSel")).toHaveValue("exhibit full panel tinted");
+    // S7b.4: thumbnails, a PNG of the slide (3× the slide) and the slide copied to the clipboard, in Consulting Red
+    await expect(page.locator(".thumb .frame canvas")).toHaveCount(await page.locator(".thumb").count(), { timeout: 15_000 });
+    const [png] = await fromMenu(page, "png-current");
+    const pb = fs.readFileSync(path.join(root(), "export", png));
+    expect([pb.subarray(1, 4).toString(), pb.readUInt32BE(16), pb.readUInt32BE(20)]).toEqual(["PNG", 4800, 2700]);
+    await page.click("#exportMenuBtn"); await page.click('[data-x="copy"]');
+    await expect(page.locator("#toast")).toContainText("copied", { timeout: 60_000 });
+    expect(await page.evaluate(async () => { const [item] = await navigator.clipboard.read(); const b = await createImageBitmap(await item.getType("image/png")); return [b.width, b.height]; })).toEqual([4800, 2700]);
+    await page.click(`[data-design="${before}"]`); await saved(page);
+    await expect(page.locator("#lookSel")).toHaveCount(0);                                   // consulting designs only
   });
 
   test("no page errors, console errors or warnings", async () => { expect(unexpected(errors)).toEqual([]); });

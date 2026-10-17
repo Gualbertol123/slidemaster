@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { patch, toast, useStore } from "../state/store";
+import { get, patch, toast, useStore } from "../state/store";
 import { esc } from "@slide-builder/core/xlsx/util";
-import { guard, lookChange, showVersion, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, styleChange, setPrefs, prepareRollback } from "../state/app";
+import { consultChange, guard, lookChange, showVersion, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, styleChange, setPrefs, prepareRollback } from "../state/app";
 import { backend, type FileInfo } from "../sync/api";
 import { doExport, exportVersions, type ExportKind } from "../editor/export";
 import { reportExportProblem } from "../editor/feedback";
@@ -10,6 +10,7 @@ import { Field } from "./Field";
 import { openFontManager } from "./FontPicker";
 import type { Footer, PageNumbers, Theme } from "@slide-builder/core/model/types";
 import { THEMES, themeOf } from "@slide-builder/core/model/style";
+import { CONSULT_DEFAULTS, DESIGNS, consultLookKey, consultLookName, consultLooks, consultOptions, isConsult } from "@slide-builder/core/model/designs";
 import { Input } from "./Input";
 import { useStyle } from "./hooks";
 
@@ -47,7 +48,15 @@ function OpenMenu() {
 /* colour theme: built-in themes (incl. the Intesa Sanpaolo corporate colours) or a custom one */
 type TKey = "c1" | "c2" | "c3" | "c4" | "a1" | "a2";
 export function ThemePicker() {
-  const st = useStyle(), cur = themeOf(st);
+  const st = useStyle(), cur = themeOf(st), scope = useStore(s => s.ui.lookScope);
+  // a consulting design keeps its palette under a theme for all designs (08 §6 Q4): there, themes are picked for it alone
+  const locked = isConsult(st.design) && scope === "all", lockTip = "Consulting designs keep their own palette – choose “This design only” to give this design another theme";
+  // back to the design's own palette: the theme set for this design goes, whatever the scope (the shared theme is not its)
+  const designPalette = () => {
+    const own = { ...(((get().doc.view?.style || {}) as { designs?: Record<string, Record<string, unknown>> }).designs?.[st.design] || {}) };
+    delete own.theme;
+    styleChange("Design palette", { designs: { [st.design]: Object.keys(own).length ? own : null } } as never);
+  };
   const th = (patch: Partial<Theme>, coalesce?: string) => lookChange("Colour theme", { theme: patch }, coalesce);
   const swatch = (t: { c1: string; c2: string; c3: string; c4: string; a1: string }) => <i className="thsw" style={{ background: `linear-gradient(135deg,${t.c1},${t.c2} 40%,${t.c3} 75%,${t.c4})` }}><b style={{ background: t.a1 }} /></i>;
   const custom = () => th({ id: "custom", c1: cur.c1, c2: cur.c2, c3: cur.c3, c4: cur.c4, a1: cur.a1, a2: cur.a2 });
@@ -56,14 +65,16 @@ export function ThemePicker() {
   return <>
     <div className="opthd">Colour theme</div>
     <div className="themes" id="themeList">
-      {THEMES.map(t => <button key={t.id} data-theme={t.id} className={cur.id === t.id ? "on" : ""} title={t.name} onClick={() => th({ id: t.id })}>{swatch(t)}<span>{t.name}</span></button>)}
-      <button data-theme="custom" className={cur.id === "custom" ? "on" : ""} title="Your own colours" onClick={custom}>{swatch(cur.id === "custom" ? cur : { c1: "#fff", c2: "#ddd", c3: "#bbb", c4: "#999", a1: "#666" })}<span>Custom</span></button>
+      {isConsult(st.design) && <button data-theme="design" className={cur.id.startsWith("consult-") ? "on" : ""} title="This design's own colours" onClick={designPalette}>{swatch(cur.id.startsWith("consult-") ? cur : themeOf({ ...st, theme: { id: st.design === "bain" ? "consult-red" : "consult-navy", c1: "", c2: "", c3: "", c4: "", a1: "", a2: "" } }))}<span>Design palette</span></button>}
+      {THEMES.map(t => <button key={t.id} data-theme={t.id} className={cur.id === t.id ? "on" : ""} disabled={locked} title={locked ? lockTip : t.name} onClick={() => th({ id: t.id })}>{swatch(t)}<span>{t.name}</span></button>)}
+      <button data-theme="custom" className={cur.id === "custom" ? "on" : ""} disabled={locked} title={locked ? lockTip : "Your own colours"} onClick={custom}>{swatch(cur.id === "custom" ? cur : { c1: "#fff", c2: "#ddd", c3: "#bbb", c4: "#999", a1: "#666" })}<span>Custom</span></button>
     </div>
-    {cur.id === "custom" && <div className="thcustom" id="themeCustom">
+    {cur.id === "custom" && !locked && <div className="thcustom" id="themeCustom">
       <span className="lbl">Background</span>{pick("c1", "1")}{pick("c2", "2")}{pick("c3", "3")}{pick("c4", "4")}
       <span className="lbl">Accents</span>{pick("a1", "1")}{pick("a2", "2")}
     </div>}
-    <div className="optnote">Background colours of Liquid Glass and the accent colour of titles, cover, index and page numbers (both designs). The “Colour” slider sets how strong the background is.</div>
+    <div className="optnote">{isConsult(st.design) ? "Consulting designs keep their own palette: a theme chosen for “All designs” does not change them – choose “This design only” to give this design another theme."
+      : "Background colours of Liquid Glass and the accent colour of titles, cover, index and page numbers (both designs). The “Colour” slider sets how strong the background is."}</div>
   </>;
 }
 
@@ -180,6 +191,7 @@ function ExportButton() {
         <button data-x="versions" disabled={!versions.length} onClick={() => { close(); void exportVersions(null); }}>PDF · every version<small>{versions.map(v => v.name).join(", ") || "none yet"} · this design</small></button>
         <button data-x="versions-2" disabled={!versions.length} onClick={() => { close(); void exportVersions(["glass", "excel"]); }}>PDF · every version × Liquid Glass + Excel<small>{2 * versions.length} files</small></button>
         <button data-x="versions-3" disabled={!versions.length} onClick={() => { close(); void exportVersions(["glass", "excel", "clean"]); }}>PDF · every version × all three designs</button>
+        <button data-x="versions-5" disabled={!versions.length} onClick={() => { close(); void exportVersions([...DESIGNS]); }}>PDF · every version × all five designs<small>with Consulting Navy and Consulting Red · {DESIGNS.length * versions.length} files</small></button>
         <div className="sep" />
         <button data-x="report" onClick={() => { close(); void reportExportProblem(); }}>Report a problem with this export…<small>for the export pilot · {backend.served ? "saved in the export folder (feedback)" : "downloaded"}</small></button>
       </>}
@@ -194,6 +206,25 @@ function VersionPicker() {
   return <label className="verpick" title="Version shown on screen (✦ Wizard › Versions); exports: Export ▾ › every version">
     <span>Version</span><select id="versionSel" value={version} onChange={e => showVersion((e.target as HTMLSelectElement).value)}>
       <option value="">Full deck</option>{vs.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>;
+}
+
+/* a consulting design's look: every combination of its options in one list (Design… › Layout sets them one by one) */
+const LOOKS = consultLooks(), GROUPS = [["exhibit", "Exhibit tables"], ["cards", "Card tables"], ["rules", "Ruled tables"]] as const;
+function LookPicker() {
+  const st = useStyle(), has = useStore(s => s.doc.open), d = st.design;
+  if (!isConsult(d)) return null;
+  const cur = consultOptions({ style: st }), def = CONSULT_DEFAULTS[d];
+  const pick = (key: string) => {
+    const o = LOOKS.find(x => consultLookKey(x) === key); if (!o) return;
+    const part: Record<string, string | null> = {};
+    for (const k of ["tables", "headline", "background"] as const) part[k] = o[k] === def[k] ? null : o[k];
+    if (o.tables === "exhibit") part.numbers = o.numbers === def.numbers ? null : o.numbers;   // cards and ruled tables keep the Numbers choice
+    consultChange("Look: " + consultLookName(o), part);
+  };
+  return <label className="verpick" id="lookPick" title="Consulting look: how tables are drawn, the headline and the background (one by one: Design… › Layout)">
+    <span>Look</span><select id="lookSel" disabled={!has} value={consultLookKey(cur)} onChange={e => pick((e.target as HTMLSelectElement).value)}>
+      {GROUPS.map(([t, g]) => <optgroup key={t} label={g}>{LOOKS.filter(o => o.tables === t).map(o => { const k = consultLookKey(o);
+        return <option key={k} value={k}>{consultLookName(o)}{k === consultLookKey(def) ? " (design default)" : ""}</option>; })}</optgroup>)}</select></label>;
 }
 
 function Others() {
@@ -221,7 +252,9 @@ export function Topbar() {
       <Others />
       <div className="spacer" />
       <div className="seg" title="Slide design (saved with this workbook)">
-        {([["glass", <><span className="lg">Liquid </span>Glass</>, "Liquid Glass: light glass surfaces over a coloured background"], ["excel", "Excel", "Excel: the workbook's tables exactly as they are – nothing added"], ["clean", <><span className="lg">Excel </span>Refined</>, "Excel Refined: the workbook's tables in one consistent, polished style, with comments and text boxes"]] as const).map(([d, l, t]) =>
+        {([["glass", <><span className="lg">Liquid </span>Glass</>, "Liquid Glass: light glass surfaces over a coloured background"], ["excel", "Excel", "Excel: the workbook's tables exactly as they are – nothing added"], ["clean", <><span className="lg">Excel </span>Refined</>, "Excel Refined: the workbook's tables in one consistent, polished style, with comments and text boxes"],
+          ["mckinsey", <><span className="lg">Consulting </span>Navy</>, "Consulting Navy: a consulting-report look – serif action titles, hairline rules, navy and blue"],
+          ["bain", <><span className="lg">Consulting </span>Red</>, "Consulting Red: a consulting-report look – bold red accents, black table headers, takeaway boxes"]] as const).map(([d, l, t]) =>
           <button key={d} data-design={d} disabled={!has} title={t} className={st.design === d ? "on" : ""} onClick={() => styleChange("Design", { design: d })}>{l}</button>)}
       </div>
       <button className="btn" id="themeBtn" disabled={!has} title="Colour theme, your own colours, text styles and fonts – for every design" onClick={() => openFontManager("colors")}>
@@ -232,6 +265,7 @@ export function Topbar() {
       {st.design === "glass" && <div className="colorctl" id="colorCtl" title="Background colour: from plain white to full colour">
         <span className="lbl">Colour</span><Input type="range" id="colorRange" min="0" max="100" step="5" disabled={!has} value={st.color} onChange={e => { const v = +(e.target as HTMLInputElement).value; document.getElementById("colorVal")!.textContent = v + "%"; debounced("color", () => styleChange("Background colour", { color: v }, "color")); }} /><span id="colorVal" className="cv">{st.color}%</span>
       </div>}
+      <LookPicker />
       <Options />
       <ServerPill />
       <ExportButton />

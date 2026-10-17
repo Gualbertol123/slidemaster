@@ -2227,5 +2227,49 @@
   "reason": "No light seam between two filled cells of a scaled table any more: each fill reaches 1 px under the opaque fill painted after it (excel-dl.ts seamFills, along the shared edge only; v3's screenshots, the goldens, have the seams).",
   "signedOff": "seams fix, product owner, 2026-10-14 (\"Fix all 4 points\")",
   "upTo": 1.6
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-comments",
+  "design": "bain",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "M7b: the consulting goldens are the stage's own screenshot (GP); the display list drawn on a canvas (dlparity) places the stage's SVG text up to 1 px apart on these text-dense comment slides – as the canvas approximations accepted for these decks in Liquid Glass (G1) and Excel Refined (S4.4, with caps). Geometry, texts and origins match (GG); parity (the stage) 0 differences.",
+  "signedOff": "S7b.3, product owner, 2026-10-17 (sign-off of both consulting designs; this entry listed for the owner in PROGRESS Waiting for)",
+  "digest": "bb9dbfd53fb3644f"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-comments",
+  "design": "mckinsey",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "M7b: the consulting goldens are the stage's own screenshot (GP); the display list drawn on a canvas (dlparity) places the stage's SVG text up to 1 px apart on these text-dense comment slides – as the canvas approximations accepted for these decks in Liquid Glass (G1) and Excel Refined (S4.4, with caps). Geometry, texts and origins match (GG); parity (the stage) 0 differences.",
+  "signedOff": "S7b.3, product owner, 2026-10-17 (sign-off of both consulting designs; this entry listed for the owner in PROGRESS Waiting for)",
+  "digest": "a279eb153468c985"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-looks",
+  "design": "bain",
+  "version": "full",
+  "file": "slide-1.png",
+  "kind": "pixels",
+  "reason": "M7b: the consulting goldens are the stage's own screenshot (GP); the display list drawn on a canvas (dlparity) places the stage's SVG text up to 1 px apart on these text-dense comment slides – as the canvas approximations accepted for these decks in Liquid Glass (G1) and Excel Refined (S4.4, with caps). Geometry, texts and origins match (GG); parity (the stage) 0 differences.",
+  "signedOff": "S7b.3, product owner, 2026-10-17 (sign-off of both consulting designs; this entry listed for the owner in PROGRESS Waiting for)",
+  "digest": "0df2c3cc8b97103b"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "weekly-options",
+  "design": "mckinsey",
+  "version": "full",
+  "file": "slide-3.png",
+  "kind": "pixels",
+  "reason": "M7b: the consulting goldens are the stage's own screenshot (GP); the display list drawn on a canvas (dlparity) places the stage's SVG text up to 1 px apart on these text-dense comment slides – as the canvas approximations accepted for these decks in Liquid Glass (G1) and Excel Refined (S4.4, with caps). Geometry, texts and origins match (GG); parity (the stage) 0 differences.",
+  "signedOff": "S7b.3, product owner, 2026-10-17 (sign-off of both consulting designs; this entry listed for the owner in PROGRESS Waiting for)",
+  "digest": "2bc4293763824cc1"
  }
 ]

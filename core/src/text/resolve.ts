@@ -27,6 +27,7 @@ const STAND_IN: Record<string, string[]> = {
   calibri: ["Carlito"], cambria: ["Caladea"], arial: ["Liberation Sans", "Arimo"], helvetica: ["Arial", "Liberation Sans", "Arimo"],
   "times new roman": ["Liberation Serif", "Tinos"], "courier new": ["Liberation Mono", "Cousine"], consolas: ["Liberation Mono", "DejaVu Sans Mono"],
   "segoe ui": ["Selawik", "Open Sans", "Noto Sans", "DejaVu Sans"], "century gothic": ["URW Gothic", "TeX Gyre Adventor"],
+  georgia: ["Gelasio"],                                                // the consulting designs' serif (08 §2.3): SIL OFL, metric-compatible
 };
 /** the face used when nothing in a list can be embedded */
 const LAST_RESORT = ["Arial", "Segoe UI", "Liberation Sans", "Arimo", "DejaVu Sans", "Noto Sans"];

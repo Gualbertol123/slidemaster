@@ -163,16 +163,24 @@ function cmpSlide(g, a, full, diff) {
 /** the build's PDF (the native export, S4.5) against the goldens: v3's page count and page size, and each page's
     text against the golden slide's texts (GT, decision 2026-10-12, 5 – v3's own PDF text is not the reference: it is
     unreadable for Liquid Glass and part of Excel Refined, and its fonts and runs were the old engine's) */
-function cmpPdf(g, a, full, diff, slideTexts) {
+function cmpPdf(g, a, full, diff, slideTexts, own = false) {
   if (g.pages !== a.pages) diff("pdf", `${g.pages} pages vs ${a.pages}`);
   if (JSON.stringify(g.sizes) !== JSON.stringify(a.sizes)) diff("pdf", `page sizes ${JSON.stringify(g.sizes[0])} vs ${JSON.stringify(a.sizes[0])}`);
   if (!full) return;                      // which text is clipped (an ellipsis) depends on the fonts
+  // a design whose goldens are this build's own signed-off render (M7b): its PDF's text, page by page, is the reference –
+  // the exhibits draw heads in capitals and quote cells in the KPI line / message panel, so cell texts alone cannot be
+  if (own) {
+    (a.pageText || []).forEach((t, p) => { const w = (g.pageText || [])[p]; if (w !== undefined && w !== t) diff("pdf-text", `page ${p + 1}: ${JSON.stringify(t.slice(firstAt(t, w), firstAt(t, w) + 60))} vs the golden's ${JSON.stringify(w.slice(firstAt(t, w), firstAt(t, w) + 60))}`); });
+    return;
+  }
   (a.pageText || []).forEach((pageText, p) => {
     const want = slideTexts(p + 1); if (!want) return;
     const { missing, extra } = matchTexts(pageText, want);
     if (missing.length || extra) diff("pdf-text", `page ${p + 1}: ${missing.length ? `missing ${JSON.stringify(missing.slice(0, 3))}` : ""}${extra ? ` not in the goldens: ${JSON.stringify(extra.slice(0, 60))}` : ""}`);
   });
 }
+/** where two texts first differ */
+const firstAt = (x, y) => { let i = 0; while (i < x.length && i < y.length && x[i] === y[i]) i++; return i; };
 /** the golden texts of a slide: every text element that holds no other text element (a cell, a title, a text box…) */
 export function goldenTexts(deck, design, version, n, goldenDir = path.join(REPO, "golden")) {
   const f = path.join(goldenDir, deck, design, version, `slide-${n}.json`);
@@ -181,7 +189,13 @@ export function goldenTexts(deck, design, version, n, goldenDir = path.join(REPO
   const CONTAINERS = /^(cv-block|ix-row|ix-txt|tw|xt)\b/;
   return items.filter(i => !CONTAINERS.test(i.cls) && !/^(hbox|edge|grip|emptyslide)/.test(i.cls)).map(i => i.text);
 }
-const squash = s => s.normalize("NFKC").replace(/\s+/g, "");
+export const squash = s => s.normalize("NFKC").replace(/\s+/g, "");
+/** a design whose goldens are this build's own render (MANIFEST-v4, M7b): its golden PDF's page texts (as squash), else null */
+export function ownPdfText(deck, design, version, goldenDir = path.join(REPO, "golden")) {
+  const m = path.join(goldenDir, "MANIFEST-v4.json"), f = path.join(goldenDir, deck, design, version, "pdf.json");
+  if (!fs.existsSync(m) || !(readJson(m).designs || []).includes(design) || !fs.existsSync(f)) return null;
+  return readJson(f).pageText || null;
+}
 /** the golden texts found in a page's text, each used up once; what is left on either side is a difference. The
     texts are taken in the goldens' (the page's) order, each from where the last one was found, so a short number is
     matched where it is drawn, not inside a neighbour */
@@ -211,10 +225,20 @@ export function checkAccepted(list) {
   return list;
 }
 
+/** the designs the goldens hold: v3's three, and those captured by this build's tools/capture-v4.mjs (M7b) */
+export function goldenDesigns(goldenDir = path.join(REPO, "golden")) {
+  const f = path.join(goldenDir, "MANIFEST-v4.json"), v3 = readJson(path.join(goldenDir, "MANIFEST.json")).designs || ["glass", "excel", "clean"];
+  return [...v3, ...(fs.existsSync(f) ? readJson(f).designs || [] : []).filter(d => !v3.includes(d))];
+}
 export function compare(goldenDir, actualDir, opts = {}) {
   const gm = readJson(path.join(goldenDir, "MANIFEST.json")), am = readJson(path.join(actualDir, "MANIFEST.json"));
   const ge = gm.environment || {}, ae = am.environment || {};
   const full = opts.full ?? (ge.chromium === ae.chromium && ge.fontsSha256 === ae.fontsSha256);
+  // the designs v3 never had (M7b): their goldens are this build's own, captured in their own environment
+  // (golden/MANIFEST-v4.json, tools/capture-v4.mjs) – compared in full wherever Chromium and fonts are those
+  const m4 = fs.existsSync(path.join(goldenDir, "MANIFEST-v4.json")) ? readJson(path.join(goldenDir, "MANIFEST-v4.json")) : null, e4 = m4?.environment || {};
+  const full4 = opts.full ?? (e4.chromium === ae.chromium && e4.fontsSha256 === ae.fontsSha256);
+  const fullOf = design => m4?.designs?.includes(design) ? full4 : full;
   const accepted = checkAccepted(opts.accepted || []);
   const diffs = [], images = [], pixels = [];        // pixels: every compared screenshot's share of differing pixels
   const decks = opts.decks || gm.decks;
@@ -222,7 +246,7 @@ export function compare(goldenDir, actualDir, opts = {}) {
   const designs = opts.designs || null;                     // compare only these designs (the display list's, per step)
   for (const deck of decks) for (const design of files(path.join(goldenDir, deck)).filter(d => !designs || designs.includes(d))) for (const version of files(path.join(goldenDir, deck, design))) {
     const gd = path.join(goldenDir, deck, design, version), ad = path.join(actualDir, deck, design, version);
-    const scope = { deck, design, version };
+    const scope = { deck, design, version }, full = fullOf(design);
     for (const f of files(gd).sort((x, y) => x.localeCompare(y, "en", { numeric: true }))) {
       const diff = (kind, detail) => diffs.push({ ...scope, file: f, kind, detail });
       const gp = path.join(gd, f), ap = path.join(ad, f);
@@ -237,7 +261,7 @@ export function compare(goldenDir, actualDir, opts = {}) {
           images.push({ ...scope, file: f, golden: gp, actual: ap, heat: r.heat ? encodePng(r.w, r.h, r.heat) : null });
         }
       } else if (/^slide-\d+\.json$/.test(f)) cmpSlide(readJson(gp), readJson(ap), full, diff);
-      else if (f === "pdf.json") { if (opts.pdf !== false) cmpPdf(readJson(gp), readJson(ap), full, diff, n => goldenTexts(deck, design, version, n, goldenDir)); }
+      else if (f === "pdf.json") { if (opts.pdf !== false) cmpPdf(readJson(gp), readJson(ap), full, diff, n => goldenTexts(deck, design, version, n, goldenDir), !!m4?.designs?.includes(design)); }
       else if (f === "comments.json" || f === "issues.json") {
         const g = readJson(gp), a = readJson(ap);
         if (JSON.stringify(g) !== JSON.stringify(a)) diff("text", `${f} differs: ${firstDiff(g, a)}`);
@@ -261,11 +285,13 @@ export function compare(goldenDir, actualDir, opts = {}) {
   // an entry with a digest accepts exactly the differences it was signed for (S4.4): if those of its scope changed, none is.
   // The digests are of a full comparison's differences (the reference PC's); a text-only comparison (another Chromium
   // or other fonts – CI's runners) states fewer of them (no sizes, no geometry), so there the scope alone accepts
-  if (full) for (const e of new Set(diffs.map(d => d.accepted).filter(x => x && x.digest))) {
+  // each in its design's own environment (M7b: the consulting designs' goldens are compared in full where theirs is)
+  for (const e of new Set(diffs.map(d => d.accepted).filter(x => x && x.digest))) {
+    if (!fullOf(e.design)) continue;
     const mine = diffs.filter(d => d.accepted === e);
     if (detailsDigest(mine) !== e.digest) for (const d of mine) { d.accepted = null; d.detail += " (the accepted entry's differences changed)"; }
   }
-  return { full, environment: { golden: ge, actual: ae }, diffs, images, pixels, unaccepted: diffs.filter(d => !d.accepted).length };
+  return { full, ...(m4 ? { full4 } : {}), environment: { golden: ge, actual: ae }, diffs, images, pixels, unaccepted: diffs.filter(d => !d.accepted).length };
 }
 function firstDiff(g, a) {
   const G = JSON.stringify(g, null, 1).split("\n"), A = JSON.stringify(a, null, 1).split("\n");
@@ -315,7 +341,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sb-parity-"));
     actual = tmp;
     console.log("capturing this build...");
-    await capture(actual, { decks: decks || undefined, pdf: !process.argv.includes("--no-pdf"), quiet: !process.argv.includes("--verbose"),
+    await capture(actual, { decks: decks || undefined, designs: goldenDesigns(golden), pdf: !process.argv.includes("--no-pdf"), quiet: !process.argv.includes("--verbose"),
       ...(stage ? { noGeometry: true, slideHook: stage.stageHook(golden), ...(sp ? { versionHook: (page, h, v) => stage.exportNative(page, h, v.dir) } : {}) } : {}) });
   }
   const accepted = fs.existsSync(acceptedFile) ? readJson(acceptedFile) : [];
@@ -334,7 +360,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (!res.full) console.log("NOTE: this machine's Chromium or fonts differ from the goldens' - only texts were compared (geometry, pixels and PDF positions need the same environment).");
   for (const d of res.diffs.slice(0, 40)) console.log(`${d.accepted ? "accepted " : "DIFF     "} ${d.deck} · ${d.design} · ${d.version} · ${d.file} · ${d.kind}: ${d.detail}`);
   if (res.diffs.length > 40) console.log(`... and ${res.diffs.length - 40} more (see the report)`);
-  console.log(`parity: ${res.diffs.length} difference(s), ${res.unaccepted} not accepted (${res.full ? "full" : "text-only"} comparison) - report: ${path.relative(process.cwd(), path.join(report, "index.html"))}`);
+  console.log(`parity: ${res.diffs.length} difference(s), ${res.unaccepted} not accepted (${res.full ? "full" : "text-only"} comparison${res.full4 !== undefined ? `; consulting designs: ${res.full4 ? "full" : "text-only"}` : ""}) - report: ${path.relative(process.cwd(), path.join(report, "index.html"))}`);
   if (tmp && !process.argv.includes("--keep")) fs.rmSync(tmp, { recursive: true, force: true });
   else if (tmp) console.log("capture kept in " + tmp);
   process.exitCode = res.unaccepted ? 1 : 0;

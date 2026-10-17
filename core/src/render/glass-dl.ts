@@ -24,7 +24,7 @@ import { hexRgb } from "../xlsx/color";
 import { breakRuns, collapse } from "../text/lines";
 import type { RenderCtx } from "./context";
 import { halfLeading, inlineLayout, lu, measuredBuild, primaryFamily, runsOf, type Metrics, type Run, type TableDL } from "./excel-dl";
-import { GLASS_FONT, glassPlan, type GCap, type GlassPlan, type GLine, type GShell, type GText } from "./glass";
+import { GLASS_FONT, glassPlan, type GCap, type GlassPlan, type GLine, type GShell, type GTbox, type GText } from "./glass";
 import { contrastVars, themeVars } from "./slide";
 
 /** where the slide puts the table: its top left in slide px and its scale */
@@ -154,8 +154,8 @@ function capNodes(c: GCap, V: GlassVars): Node[] {
 }
 
 /** a glass cell text (.t): see the header. Letter-spacing (CSS: after every character) is part of every advance. */
-export function glassText(t: GText, m: Metrics): Node[] {
-  const it = t.it, family = t.font ? fontStack(t.font) : GLASS_FONT, size = t.size, i = t.italic;
+export function glassText(t: GText, m: Metrics, scene = GLASS_FONT): Node[] {
+  const it = t.it, family = t.font ? fontStack(t.font) : scene, size = t.size, i = t.italic;
   const fontAt = (sz: number) => `${i ? "italic " : ""}${t.weight} ${sz}px ${family}`;
   const font = fontAt(size), ink = solid(t.ink);
   const x = r1(t.x), y = r1(t.y), w = Math.max(0, r1(t.w)), h = Math.max(0, r1(t.h));
@@ -236,21 +236,22 @@ export function glassToDisplayList(L: import("../xlsx/types").TableLayout, ctx: 
   // too – then the z-index 3 ones (.t cells, .tbox.gtb bodies) in tree order
   for (const e of plan.tbx) if (e.k === "shell") nodes.push(...glassBox(e.cls, r1(e.x), r1(e.y), Math.max(0, r1(e.w)), Math.max(0, r1(e.h)), +Math.max(0, e.rad).toFixed(1), V, place, wall, { tint: e.tint }));
   if (!opts.noText) for (const t of plan.texts) nodes.push(...glassText(t, m));
-  for (const e of plan.tbx) {
-    if (e.k === "shell") continue;
-    const tb = e.tb, paras = (tb.paras || []).map(p => ({ ...p, runs: p.runs.map(r => r.color ? { ...r, color: e.ink(r.color) } : r) }));
-    const x = r1(tb.x), y = r1(tb.y), w = Math.max(0, r1(tb.w)), h = Math.max(0, r1(tb.h));
-    const inner = inlineLayout(paras, x + 12, y + 8, Math.max(0, w - 24), Math.max(0, h - 16), tb.anchorV || "t", m, { family: GLASS_TBOX_FONT, size: 14.67, color: "#0B0D17", lh: 1.25 });
-    const label = (tb.paras || []).map(p => collapse(p.runs.map(r => r.text).join("")).trim() || " ").join("\n").replace(/\s+\n/g, "\n").trim();
-    const body: Node[] = [{ t: "hit", kind: "tbox", id: tb.name || "", x, y, w, h, label }, { t: "group", clip: { x, y, w, h }, children: inner }];
-    const M = tb.rot || tb.flipH || tb.flipV ? rotFlip(tb) : null;
-    nodes.push(...(M ? [{ t: "group" as const, transform: M, children: body }] : body));
-  }
+  for (const e of plan.tbx) if (e.k !== "shell") nodes.push(...tboxNodes(e, m));
   return { nodes, images };
+}
+/** a text box's body (.tbox.gtb): its paragraphs in the text box font, the colours of its runs as the plan inks them */
+export function tboxNodes(e: GTbox, m: Metrics, family = GLASS_TBOX_FONT, color = "#0B0D17"): Node[] {
+  const tb = e.tb, paras = (tb.paras || []).map(p => ({ ...p, runs: p.runs.map(r => r.color ? { ...r, color: e.ink(r.color) } : r) }));
+  const x = r1(tb.x), y = r1(tb.y), w = Math.max(0, r1(tb.w)), h = Math.max(0, r1(tb.h));
+  const inner = inlineLayout(paras, x + 12, y + 8, Math.max(0, w - 24), Math.max(0, h - 16), tb.anchorV || "t", m, { family, size: 14.67, color, lh: 1.25 });
+  const label = (tb.paras || []).map(p => collapse(p.runs.map(r => r.text).join("")).trim() || " ").join("\n").replace(/\s+\n/g, "\n").trim();
+  const body: Node[] = [{ t: "hit", kind: "tbox", id: tb.name || "", x, y, w, h, label }, { t: "group", clip: { x, y, w, h }, children: inner }];
+  const M = tb.rot || tb.flipH || tb.flipV ? rotFlip(tb) : null;
+  return M ? [{ t: "group" as const, transform: M, children: body }] : body;
 }
 
 const KAPPA = .5522847498;
-function circle(cx: number, cy: number, r: number): PathCmd[] {
+export function circle(cx: number, cy: number, r: number): PathCmd[] {
   const k = r * KAPPA;
   return [["M", cx + r, cy], ["C", cx + r, cy + k, cx + k, cy + r, cx, cy + r], ["C", cx - k, cy + r, cx - r, cy + k, cx - r, cy], ["C", cx - r, cy - k, cx - k, cy - r, cx, cy - r], ["C", cx + k, cy - r, cx + r, cy - k, cx + r, cy], ["Z"]];
 }
@@ -259,14 +260,14 @@ function rotFlip(o: { x: number; y: number; w: number; h: number; rot: number; f
   const A = cos * sx, B = sin * sx, C = -sin * sy, D = cos * sy;
   return [A, B, C, D, cx - A * cx - C * cy, cy - B * cx - D * cy];
 }
-function picId(src: string): string {
+export function picId(src: string): string {
   let a = 0x811c9dc5, b = 0x01000193;
   for (let i = 0; i < src.length; i++) { const c = src.charCodeAt(i); a = Math.imul(a ^ c, 0x01000193); b = Math.imul(b ^ c, 0x5bd1e995) ^ (b >>> 15); }
   return "p" + (a >>> 0).toString(16).padStart(8, "0") + (b >>> 0).toString(16).padStart(8, "0") + src.length.toString(36);
 }
 /** .pic.gpic (rounded, shadowed) and .pic.gcut (keyed, a drop shadow: its raster comes with the picture analysis; without
     one the picture is drawn plainly) */
-function glassPic(p: import("../xlsx/types").Pic, cls: "gcut" | "gpic", V: GlassVars, images: Record<string, string>, forExport: boolean): Node[] {
+export function glassPic(p: import("../xlsx/types").Pic, cls: "gcut" | "gpic", V: GlassVars, images: Record<string, string>, forExport: boolean): Node[] {
   const hit: Node = { t: "hit", kind: "pic", id: p.name || "", x: p.x, y: p.y, w: p.w, h: p.h };
   const M = p.rot || p.flipH || p.flipV ? rotFlip(p) : null;
   if (p.unsupported || !p.src) return forExport ? [] : [hit];

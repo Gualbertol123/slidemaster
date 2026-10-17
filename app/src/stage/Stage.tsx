@@ -13,7 +13,7 @@ import { get, patch, STAGE, useStore } from "../state/store";
 import { ctx } from "../state/app";
 import type { RuntimeSlide, Side } from "@slide-builder/core/model/types";
 import { slideFrame } from "@slide-builder/core/render/slide";
-import { tableW } from "@slide-builder/core/render/layout";
+import { tableH, tableW } from "@slide-builder/core/render/layout";
 import { tableName } from "@slide-builder/core/model/preset";
 import type { RenderCtx } from "@slide-builder/core/render/context";
 import { selItems, activeItem, setSel } from "../editor/edit";
@@ -178,7 +178,7 @@ const TableHits = memo(function TableHits({ i, R, c, box, s }: { i: number; R: R
   if (!T) return null;
   const W = tableW(T, c);
   return (
-    <div className="hits" data-t={i} style={{ left: box.x, top: box.y, width: W, height: T.H, transform: `scale(${box.scale})`, transformOrigin: "0 0" }}
+    <div className="hits" data-t={i} style={{ left: box.x, top: box.y, width: W, height: tableH(T, c), transform: `scale(${box.scale})`, transformOrigin: "0 0" }}
       onPointerDown={e => {
         const h = e.currentTarget, { lx, ly, k } = tablePoint(h, T, c, e);
         const edge = borderAt(T, c, lx, ly, k);
@@ -194,7 +194,7 @@ const TableHits = memo(function TableHits({ i, R, c, box, s }: { i: number; R: R
         const h = e.currentTarget, { lx, ly, k } = tablePoint(h, T, c, e);
         if (!(e.buttons & 1)) { const ed = borderAt(T, c, lx, ly, k); h.style.cursor = ed ? (ed.kind === "col" ? "col-resize" : "row-resize") : ""; }
         const it = cellFromPoint(T, c, lx, ly); if (!it) return;
-        const g = cellBox(it, c);
+        const g = cellBox(it, c); if (!g) return;
         Object.assign(hov.current!.style, { display: "block", left: g.bx + "px", top: g.by + "px", width: g.bw + "px", height: g.bh + "px" });
         const cur = get().selection.sel;
         if (cellDrag && (e.buttons & 1) && cellDrag.t === i && cur && (cur.ar !== it.b.r || cur.ac !== it.b.c)) setSel(i, cur.anchor, { r: it.b.r, c: it.b.c });
@@ -214,7 +214,7 @@ const TableHits = memo(function TableHits({ i, R, c, box, s }: { i: number; R: R
 function SizeGuide({ d, T, c, inv }: { d: Extract<DragPreview, { kind: "border" }>; T: RuntimeSlide["tables"][number]; c: RenderCtx; inv: number }) {
   const p = d.edge.start + d.size, col = d.edge.kind === "col";
   return <>
-    <div className={"sizeguide " + d.edge.kind} style={col ? { left: p, top: 0, height: T.H, width: 2 * inv } : { top: p, left: 0, width: tableW(T, c), height: 2 * inv }} />
+    <div className={"sizeguide " + d.edge.kind} style={col ? { left: p, top: 0, height: tableH(T, c), width: 2 * inv } : { top: p, left: 0, width: tableW(T, c), height: 2 * inv }} />
     <div className="sizetip" style={{ ...(col ? { left: p + 6 * inv, top: 0 } : { left: 0, top: p + 6 * inv }), fontSize: 12 * inv, padding: `${2 * inv}px ${6 * inv}px`, borderRadius: 4 * inv }}>{Math.round(d.size)} px</div>
   </>;
 }
@@ -245,7 +245,7 @@ function Selection({ m, s, drag }: { m: StageModel; s: number; drag: DragPreview
   const sel = useStore(st => st.selection.sel), c = ctx();
   if (!sel) return null;
   const place = m.tables.find(t => t.i === sel.t); if (!place) return null;
-  const b = boxOf(sel.t, place.box, drag), its = selItems().map(it => cellBox(it, c)); if (!its.length) return null;
+  const b = boxOf(sel.t, place.box, drag), its = selItems().map(it => cellBox(it, c)).filter((x): x is NonNullable<typeof x> => !!x); if (!its.length) return null;
   const x0 = Math.min(...its.map(a => a.bx)), y0 = Math.min(...its.map(a => a.by)), x1 = Math.max(...its.map(a => a.bx + a.bw)), y1 = Math.max(...its.map(a => a.by + a.bh));
   const at = (x: number, y: number, w: number, h: number) => ({ left: b.x + x * b.scale, top: b.y + y * b.scale, width: w * b.scale, height: h * b.scale });
   const a0 = activeItem(), a = a0 && cellBox(a0, c);

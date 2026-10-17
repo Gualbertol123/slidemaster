@@ -29,6 +29,8 @@ import { isNumText, tableKey, type RenderCtx } from "./context";
 import { fontStack } from "../model/fonts";
 import { mix } from "../model/style";
 import { platform } from "../platform";
+import { isConsult } from "../model/designs";
+import { specOf } from "./consult-spec";
 
 export const SYS0 = { green: "#34C759", greenInk: "#136B2E", red: "#FF3B30", redInk: "#A8101A", label: "#0B0D17", label2: "rgba(18,22,44,.68)", label3: "rgba(18,22,44,.46)" };
 
@@ -36,22 +38,25 @@ export const SYS0 = { green: "#34C759", greenInk: "#136B2E", red: "#FF3B30", red
 export const GLASS_FONT = `-apple-system,"SF Pro Text","Segoe UI","Helvetica Neue",Inter,Arial,sans-serif`;
 /** a glass cell text's width as drawn (letter-spacing −.12 px a character), measured from the font (S4.4: the page's
     canvas, the core worker's font files – the same widths) – or, where no font is at hand, the estimate of v3 */
-function glassWidth(text: string, px: number, weight: number, family: string | undefined): { w: number; measured: boolean } {
-  const n = [...text].length, w = platform().text.width?.(text, `${weight} ${px}px ${family ? fontStack(family) : GLASS_FONT}`);
+function glassWidth(text: string, px: number, weight: number, family: string | undefined, base = GLASS_FONT): { w: number; measured: boolean } {
+  const n = [...text].length, w = platform().text.width?.(text, `${weight} ${px}px ${family ? fontStack(family) : base}`);
   return w == null ? { w: n * px * (weight >= 600 ? .6 : .56), measured: false } : { w: w - .12 * n, measured: true };
 }
 /* Liquid Glass uses its own font, so columns are widened where the text needs it (never narrowed).
    Geometry is cached per table and per set of cell edits, and by whether the widths were measured (fonts arrive). */
+/** the font a scene's texts are drawn in when the user and the deck chose none: Liquid Glass's, or the consulting
+    design's table font (their option tables "cards" draws the same scene with flat materials, consult-cards.ts) */
+export const sceneFont = (ctx: RenderCtx) => isConsult(ctx.style.design) ? specOf(ctx).table.family : GLASS_FONT;
 export interface GlassGeom { key: string; W: number; X: Map<number, number>; Wc: Map<number, number>; map: (px: number) => number }
 export function glassGeom(L: TableLayout, ctx: RenderCtx): GlassGeom {
-  const family = ctx.style.text?.table?.font, ready = platform().text.width?.("0", `500 11px ${family ? fontStack(family) : GLASS_FONT}`) != null;
-  const key = tableKey(ctx, L) + (ready ? "|m" : "|e");
+  const family = ctx.style.text?.table?.font, base = sceneFont(ctx), ready = platform().text.width?.("0", `500 11px ${family ? fontStack(family) : base}`) != null;
+  const key = tableKey(ctx, L) + (ready ? "|m" : "|e") + (isConsult(ctx.style.design) ? "|" + ctx.style.design : "");
   return cache(L, "gg", key, () => {
     const need = new Map<number, number>();
     for (const it of effItems(L, ctx)) {
       if (!it.text || it.b.c !== it.b.c2 || it.wrap || it.ov) continue;
       // the cell's own font, at the weight its text is drawn with (500, bold 650: glassPlan's roles go either way)
-      const px = (it.font.sz || 11) * 96 / 72 * .97, w = glassWidth(String(it.text), px, it.font.b ? 650 : 500, it.userFont || family).w + 22;
+      const px = (it.font.sz || 11) * 96 / 72 * .97, w = glassWidth(String(it.text), px, it.font.b ? 650 : 500, it.userFont || family, base).w + 22;
       need.set(it.b.c, Math.max(need.get(it.b.c) || 0, w));
     }
     const X = new Map<number, number>(), Wc = new Map<number, number>(); let x = 0;
@@ -69,9 +74,9 @@ export function gItem(it: Item, G: GlassGeom): Item {
   return o;
 }
 /* shrink text that would not fit its cell (Excel widths are measured for Excel's font) – never below 70 % */
-function fitPx(it: Item, px: number, w: number, weight: number, family: string | undefined) {
+function fitPx(it: Item, px: number, w: number, weight: number, family: string | undefined, base = GLASS_FONT) {
   if (!it.text || it.wrap || it.ov) return px;
-  const avail = Math.max(10, w - 20), m = glassWidth(String(it.text), px, weight, family);
+  const avail = Math.max(10, w - 20), m = glassWidth(String(it.text), px, weight, family, base);
   // (unmeasured: v3's estimate, a little narrower for text than for numbers)
   const est = m.measured ? m.w : String(it.text).length * px * (it.isText ? 0.53 : 0.56);
   return est > avail ? px * Math.max(0.7, avail / est) : px;
@@ -408,7 +413,7 @@ export interface GlassPlan { W: number; H: number; shells: GShell[]; lines: GLin
 export function glassPlan(L: TableLayout, ctx: RenderCtx, opts: { noText?: boolean } = {}): GlassPlan {
   // colour overrides (green/red values, table text) for this table only
   const o = ctx.style.colors || {}, SYS = { ...SYS0, ...(o.pos ? { greenInk: mix(o.pos, "#000000", .3) } : {}), ...(o.neg ? { redInk: mix(o.neg, "#000000", .2) } : {}), ...(o.ink ? { label: o.ink } : {}) };
-  const G0 = glassGeom(L, ctx);
+  const G0 = glassGeom(L, ctx), base = sceneFont(ctx);
   const sc = inferRoles(buildScene(L, effItems(L, ctx).map(it => gItem(it, G0)), G0));    // Glass geometry (columns widened for the system font)
   const rowMed = median(L.rows.map(r => L.rowH.get(r)!)) || 20, rk = ctx.style.radius / 100;
   const plan: GlassPlan = { W: sc.G.W, H: L.H, shells: [], lines: [], caps: [], pics: [], texts: [], tbx: [] };
@@ -535,7 +540,7 @@ export function glassPlan(L: TableLayout, ctx: RenderCtx, opts: { noText?: boole
     const pad = it.indent ? { padL: 9 + it.indent * 9 } : it.align === "left" ? { padL: 10 } : it.align === "right" ? { padR: 10 } : {};
     const font = it.userFont || ctx.style.text?.table?.font;
     plan.texts.push({ k: "text", it, cls: it.rot ? "t ov" : ["t", it.wrap ? "wrap" : "", it.ov ? "ov" : ""].filter(Boolean).join(" "), x: it.bx, y: it.by, w: tw, h: it.bh,
-      size: +fitPx(it, (f.sz || 11) * 96 / 72 * .97, tw, weight, font).toFixed(2), ink, weight, single, align: it.align, valign: it.valign, ...pad,
+      size: +fitPx(it, (f.sz || 11) * 96 / 72 * .97, tw, weight, font, base).toFixed(2), ink, weight, single, align: it.align, valign: it.valign, ...pad,
       italic: role === "caption" || it.userI === true || (!!f.i && it.userI !== false && role !== "value"), num: !!t.num, ...(font ? { font } : {}), shadow: !!(cap && cap.strong) });
   }
   return plan;
