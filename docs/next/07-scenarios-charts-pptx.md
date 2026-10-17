@@ -258,6 +258,18 @@ can be sliced like any other) or the preview banner says so. An export started b
 the view for the slides it has not asked for yet (M8's runs set the view on purpose; a stray overlap is guarded in
 S8.3).
 
+**Built in S8.3:** `scenarioRun` / `scenarioCancel` and `scenario` events (`core/src/worker/host.ts`). A display list
+names whose values it draws (`SlideListsReq.scenario`): a run's id, `"preview"` (the stage's – the thumbnails ask for
+it), or none – the workbook's own values, also during a preview or a run, so an ordinary export never gets scenario
+lists by accident (it says so in its toast while a preview shows). A run belongs to its workbook (another one opened
+ends it), one runs at a time and a preview waits for it (one engine model). The gate checks every cell the self-check
+classes `different` against the cells the run draws (its designs; a cell every chosen version removes is skipped);
+"run anyway" answers one gate and marks those cells with a red corner (`render/marks.ts`), and the report names the
+locale-dependent cells kept at Excel's text. Cancel stops after the value being made; a file that has not come 30 s
+later is given up. Names: S8.2's, and a name the helper gave a file open elsewhere is not taken again in the run.
+Found by the large stand-in corpus and fixed in S8.3: defined names reach the engine (a constant or formula name
+through a cell of an internal sheet), and setting the input no longer evaluates the model twice per value.
+
 * **The document is never changed by a run.** No `cell.patch` is generated; `edits` with `orig` keep behaving as
   CE-09 says (a text edit applies only while the Excel value is `orig`; under a scenario the overlay value is "the
   Excel value", so an edited label stays when the value changes to something else – the table keeps the user's text
