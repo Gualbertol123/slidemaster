@@ -19,6 +19,13 @@ import type { ImgMeta } from "../src/xlsx/drawing";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const book = (n: string) => { const b = fs.readFileSync(path.join(here, "../../tests/corpus/workbooks", n)); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer; };
 const tick = () => new Promise(r => setTimeout(r, 5));
+/** the self-check of the recalc corpus: 208 formulas, 3 locale-dependent (TEXT); its 3 TODAY() cells equal Excel's
+    saved value only on the day Excel saved them (2026-10-16) – "exact" then, "volatile" on any other day */
+function expectCounts(counts: Record<string, number>) {
+  const { exact, volatile, ...rest } = counts;
+  expect([[205, 0], [202, 3]]).toContainEqual([exact, volatile]);
+  expect(rest).toEqual({ locale: 3, external: 0, hidden: 0, unreadable: 0, different: 0 });
+}
 async function until(f: () => boolean, ms = 5000) { const t = Date.now(); while (!f()) { if (Date.now() - t > ms) throw new Error("timeout"); await tick(); } }
 
 /** an in-memory helper's deck storage (fakedeck.ts, as helper/slidebuilder/decks.py); `doc` = everything on it, folded */
@@ -403,7 +410,7 @@ describe("the formula engine's self-check (S7.2)", () => {
     // the formulas link to Peers.xlsx, a file of "the folder": the engine attaches it by itself (S7.3), so both files
     // are in the model and nothing is external
     expect(c.formulas).toBe(192 + 16);
-    expect(c.counts).toEqual({ exact: 208 - 3, volatile: 0, locale: 3, external: 0, hidden: 0, unreadable: 0, different: 0 });
+    expectCounts(c.counts);
     expect(c.styleError).toBeNull();
     expect(c.different).toEqual([]);
     expect(c.ms.build).toBeGreaterThan(0); expect(c.ms.load).toBeGreaterThanOrEqual(0);
@@ -438,7 +445,7 @@ describe("linked workbooks (S7.3, B22, ADR-014)", () => {
     // the engine sees both files: nothing external, nothing different
     const c = (await p.port.call("calcCheck", {}))!;
     expect(c.formulas).toBe(192 + 16);
-    expect(c.counts).toEqual({ exact: 208 - 3, volatile: 0, locale: 3, external: 0, hidden: 0, unreadable: 0, different: 0 });
+    expectCounts(c.counts);
   }, 60_000);
   it("a linked sheet reaches the page's mirror with its own workbook's styles (review fix: not the deck's xf table)", async () => {
     const { MirrorWorkbook } = await import("../src/xlsx/mirror");
