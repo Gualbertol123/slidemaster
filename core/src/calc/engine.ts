@@ -37,7 +37,8 @@ export function loadEngine(): Promise<Glue> {
     named by their plain names or by their sheet ids "[File.xlsx]Sheet" (as the deck's workbook holds them after
     attachLinked): the engine uses the plain name */
 export interface CalcBook { name: string | null; /** the deck's workbook's own file name (what linked workbooks' formulas call it) */ file?: string; sheets: Sheet[];
-  /** the workbook's hidden sheets (never read, WB-18): a formula that names one is classed `hidden` */ hidden?: string[]; externals: string[] }
+  /** the workbook's hidden sheets (never read, WB-18): a formula that names one is classed `hidden` */ hidden?: string[]; externals: string[];
+  /** its defined names (workbook.ts `names`): given to the engine before the cells */ names?: { name: string; scope: string | null; formula: string }[] }
 export type CellValue = number | string | boolean | { err: string } | null;
 export interface FormulaCell { book: string | null; sheet: string; r: number; c: number; text: string; array?: string }
 export type CheckClass = "exact" | "volatile" | "locale" | "external" | "hidden" | "unreadable" | "different";
@@ -151,7 +152,9 @@ export class CalcModel {
   }
   restore(book: string | null, sheet: string, r: number, c: number, content: string): boolean {
     const si = this.ix.get(book + "\u0000" + sheet); if (si === undefined) return false;
-    this.model.setUserInput(si, r, c, content); return true;
+    this.model.pauseEvaluation();
+    try { this.model.setUserInput(si, r, c, content); } finally { this.model.resumeEvaluation(); }
+    return true;
   }
   private unreadable = 0;
   private build(books: CalcBook[]) {
@@ -174,10 +177,44 @@ export class CalcModel {
       const st = this.model.getCellStyle(0, 1, 1).style;
       this.model.createNamedStyle("sbprecise", { ...st, num_fmt: PRECISE }, { number_format: true, font: false, fill: false, border: false, alignment: false, protection: false });
     } catch (e) { this.styleError = String((e as Error)?.message || e); }
+    this.defineNames(books);
     for (const b of books) for (const S of b.sheets) this.load(b, S);
     this.model.resumeEvaluation();
   }
 
+  /** the defined names that could not be given to the engine (a name another book defined already, a formula it
+      refuses): the cells that use them come out #NAME? and the self-check reports them */
+  readonly namesSkipped: string[] = [];
+  /** the books' defined names, their references rewritten as cell formulas' are (a linked workbook's sheets by their
+      internal names, whole columns bounded); a sheet-level name scoped to that sheet. One namespace for the model: a
+      name the deck's workbook defines wins over a linked workbook's of the same name */
+  private defineNames(books: CalcBook[]) {
+    const seen = new Set<string>();
+    // the engine takes a reference only: a constant or a formula ("0.24", "SUMIFS(…)") goes into a cell of a sheet of the
+    // model's own, and the name points at that cell (the sheet is never shown: no Sheet of the workbook names it)
+    let helper: number | null = null, row = 0;
+    const cellFor = (text: string): string => {
+      if (helper === null) { this.model.newSheet(); helper = this.ix.size; this.model.renameSheet(helper, "«names»"); }
+      this.model.setUserInput(helper, ++row, 1, "=" + text);
+      return quoteSheet("«names»") + "!$A$" + row;
+    };
+    const define = (name: string, scope: number | null, text: string) => {
+      try { this.model.newDefinedName(name, scope, text); }                       // (the formula without "=")
+      catch { this.model.newDefinedName(name, scope, cellFor(text)); }
+    };
+    for (const b of books) {
+      const S0 = b.sheets[0]; if (!S0) continue;
+      for (const n of b.names || []) {
+        const scope = n.scope === null ? null : this.ix.get(b.name + "\u0000" + n.scope);
+        if (scope === undefined) continue;                               // a hidden or unread sheet's own name
+        const key = n.name.toLowerCase() + "|" + (scope ?? "");
+        const text = this.prep(n.formula.replace(/^=/, ""), b, S0);
+        if (seen.has(key) || text === null) { this.namesSkipped.push((b.name ?? "") + "!" + n.name); continue; }
+        try { define(n.name, scope, text); seen.add(key); }
+        catch { this.namesSkipped.push((b.name ?? "") + "!" + n.name); }
+      }
+    }
+  }
   /** every cell of a sheet into the engine: numbers in one tab-separated paste per used box (fast), everything else cell by cell */
   private load(b: CalcBook, S: Sheet) {
     const C = S.cols?.cells; if (!C || !C.n) return;
@@ -298,7 +335,10 @@ export class CalcModel {
       sheet is not in the model */
   set(book: string | null, sheet: string, r: number, c: number, value: number | string | boolean): boolean {
     const si = this.ix.get(book + "\u0000" + sheet); if (si === undefined) return false;
-    this.model.setUserInput(si, r, c, typeof value === "number" ? String(value) : typeof value === "boolean" ? (value ? "TRUE" : "FALSE") : "'" + value);
+    // (paused: setUserInput alone evaluates the whole model; the caller evaluates once – found by the large corpus, M8)
+    this.model.pauseEvaluation();
+    try { this.model.setUserInput(si, r, c, typeof value === "number" ? String(value) : typeof value === "boolean" ? (value ? "TRUE" : "FALSE") : "'" + value); }
+    finally { this.model.resumeEvaluation(); }
     return true;
   }
   evaluate() { this.model.evaluate(); }

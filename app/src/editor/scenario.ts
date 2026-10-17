@@ -9,6 +9,15 @@ import { esc } from "@slide-builder/core/xlsx/util";
 import { parseSheetId } from "@slide-builder/core/calc/refs";
 import { inputCellText, parseInputCell, typedValue, type InputCell } from "@slide-builder/core/export/scenario";
 import type { CellInfo } from "@slide-builder/core/xlsx/sheetview";
+import type { GateCell, ScenarioEvent } from "@slide-builder/core/rpc/messages";
+import type { Design } from "@slide-builder/core/model/types";
+import type { CatalogFont } from "@slide-builder/core/text/resolve";
+import { scenarioValues } from "@slide-builder/core/export/scenario";
+import { todayLabel } from "@slide-builder/core/render/cover";
+import { backend } from "../sync/api";
+import { catalog } from "../state/fontfiles";
+import { lastExport, scenarioPdf } from "./export";
+import type { ScenarioForm } from "../state/store";
 
 export function openScenario() {
   if (!get().deck.slides.length || !get().deck.wb) return;
@@ -77,4 +86,57 @@ export async function clearPreview() {
   catch (e) { console.error(e); toast("⚠ Clearing the preview failed: " + esc((e as Error).message || e), [], true); }
 }
 // another workbook (or the same one read again) has no scenario in the worker: the banner goes with it
-useStore.subscribe(s => s.deck.wb, () => { ++previewSeq; if (get().ui.preview) patch("ui", { preview: null }); });
+useStore.subscribe(s => s.deck.wb, () => { ++previewSeq; busyBy = 0; if (get().ui.preview) patch("ui", { preview: null }); });
+
+/* ---------------------------------------------------------------- the run (S8.3, 07 §2.4) */
+/** the fonts the run's PDFs may embed: asked once when Run is pressed (from disk the browser asks while the click counts) */
+let runCatalog: Promise<CatalogFont[]> | null = null;
+/** starts a run with the dialog's fields: the gate's cells when it refused (nothing was made), else null (the run
+    goes on in the core worker; its progress arrives as events) */
+export async function startRun(f: ScenarioForm): Promise<{ blocked: GateCell[]; more: boolean } | null> {
+  if (get().ui.run && (get().ui.run!.status === "running" || get().ui.run!.status === "cancelling")) return null;
+  runCatalog = catalog();
+  runCatalog.catch(() => undefined);
+  const values = scenarioValues(f.values), r = await resolveInput(f.input);
+  if (!r.ok) { toast("⚠ " + esc(r.why), [], true); return null; }
+  if (get().ui.preview) await clearPreview();                         // the run takes the formula engine
+  // the names must fit the export folder: its length from the helper (07 §2.5)
+  let folder: number | undefined;
+  if (backend.served) {
+    const h = get().ui.health || await backend.health();
+    if (!h?.export) { toast("⚠ The helper did not say where the export folder is – try again in a moment.", [], true); return null; }
+    folder = h.export.length;
+  }
+  const vers = get().doc.view?.preset?.versions || [];
+  const versions = f.versions.filter(v => v === "" || vers.some(x => x.id === v));
+  const a = await core().call("scenarioRun", { input: r.cell, values: values.map(v => typedValue(v, r.now?.t ?? null, f.asText)), designs: f.designs, versions, kinds: ["pdf"], runAnyway: f.runAnyway, folder, today: todayLabel() });
+  if (a.id === null) return { blocked: a.blocked, more: a.more };
+  patch("ui", { run: { id: a.id, total: a.total, done: 0, shown: a.shown, results: [], status: "running", marked: a.marked, kept: a.kept, t0: performance.now() } });
+  setDialogs({ scenario: false });
+  return null;
+}
+/** a file of the run (the core worker asks for each value × design × version) */
+export async function scenarioFile(a: { id: string; design: Design; version: string; name: string; title: string; today?: string }): Promise<{ file: string }> {
+  return { file: (await scenarioPdf(a, runCatalog || catalog())).file };
+}
+export function cancelRun() {
+  const R = get().ui.run; if (!R || R.status !== "running") return;
+  patch("ui", { run: { ...R, status: "cancelling" } });
+  void core().call("scenarioCancel", { id: R.id }).catch(() => undefined);
+}
+export const closeRun = () => { const R = get().ui.run; if (R && R.status !== "running" && R.status !== "cancelling") patch("ui", { run: null }); };
+/** the run's progress: a value made (or failed), then its end – the toast names what was saved */
+export function onScenarioEvent(e: ScenarioEvent) {
+  const R = get().ui.run; if (!R || R.id !== e.id) return;
+  if (e.value !== null) {
+    patch("ui", { run: { ...R, done: e.done, results: [...R.results, { value: e.value, status: e.status === "failed" ? "failed" : "ok", files: e.files, ...(e.error ? { error: e.error } : {}) }] } });
+    return;
+  }
+  const seconds = +((performance.now() - R.t0) / 1000).toFixed(1), files = R.results.flatMap(x => x.files);
+  patch("ui", { run: { ...R, done: e.done, status: e.status === "cancelled" ? "cancelled" : "end", seconds, ...(e.error ? { error: e.error } : {}) } });
+  lastExport.files = files; lastExport.ms = performance.now() - R.t0;
+  const failed = R.results.filter(x => x.status === "failed").length;
+  toast(`Saved <b>${files.length}</b> file${files.length === 1 ? "" : "s"}${backend.served ? " in the export folder" : " (downloaded)"} · ${e.status === "cancelled" ? `cancelled after ${e.done} of ${e.total} values` : `${e.done} value${e.done === 1 ? "" : "s"}`} · ${seconds} s`
+    + (failed ? ` · ⚠ ${failed} failed` : "") + (e.error ? ` · ⚠ ${esc(e.error)}` : ""),
+    backend.served ? [{ label: "Show folder", fn: () => { void backend.open({ folder: true }); } }] : [], !!failed || !!e.error);
+}

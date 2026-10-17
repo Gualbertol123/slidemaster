@@ -2,6 +2,7 @@
    folder – user "anna" on :8951 and user "bob" on :8952. Run: npm run build && npm run test:e2e */
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { pdfPageTexts } from "./pdftext";
@@ -1053,6 +1054,89 @@ test.describe.serial("two people, one shared folder", () => {
     await page.keyboard.press("Escape");
     await expect(dlg).toHaveCount(0);
     expect(bdoc()).toBe(before);
+  });
+
+  test("Run for each value (S8.3, SC-02/03/05/06): 3 values × 2 designs → 6 files with their names; files untouched; equal names; progress, cancel, report", async ({ page }) => {
+    await openApp(page, ANNA);                                                       // Banks.xlsx with the linked Peers table
+    await expect(page.locator("#stage .slide")).toHaveCount(1, { timeout: 20_000 });
+    await saved(page);
+    // SC-05: what a run must not change – both workbooks' bytes, the deck's files on the share, its document
+    const hashOf = (f: string) => createHash("sha256").update(fs.readFileSync(f)).digest("hex");
+    const dir = deckDir("Banks.xlsx")!, deckFiles = () => fs.readdirSync(dir, { recursive: true }).map(String).filter(f => fs.statSync(path.join(dir, f)).isFile()).sort();
+    const state = () => JSON.stringify({ banks: hashOf(path.join(root(), "Banks.xlsx")), peers: hashOf(path.join(root(), "Peers.xlsx")), deck: deckFiles().map(f => [f, hashOf(path.join(dir, f))]) });
+    const before = state(), docBefore = JSON.stringify(deckDoc("Banks.xlsx"));
+    const exportDir = path.join(root(), "export");
+    const runWith = async (input: string, values: string, designs: string[]) => {
+      await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]');
+      await page.fill("#scInput", input);
+      await expect(page.locator("#scInputNote")).toContainText("today");
+      await page.fill("#scValues", values);
+      for (const box of await page.locator("#scDesigns input").all()) await box.setChecked(designs.includes((await box.getAttribute("data-design"))!));
+      await page.click("#scRun");
+      await expect(page.locator("#scenarioDialog")).toHaveCount(0);
+      await expect(page.locator("#scRunDialog")).toBeVisible();
+    };
+    // SC-02: the brief's case – 3 values × 2 designs, each file drawn from its value (Peer avg loans: 1761 / 2490 / 3141)
+    await runWith("Control!B2", "Bank A\nBank B\nBank C", ["glass", "excel"]);
+    await expect(page.locator("#scRunStatus")).toContainText("Done: 3 of 3 values · 6 files", { timeout: 120_000 });
+    await expect(page.locator("#scReport li[data-status=ok]")).toHaveCount(3);
+    await expect(page.locator("#toast")).toContainText("Saved 6 files");
+    const peerAvg: Record<string, string> = { "Bank A": "1761", "Bank B": "2490", "Bank C": "3141" };
+    for (const bank of Object.keys(peerAvg)) for (const d of ["Liquid Glass", "Excel"]) {
+      const f = path.join(exportDir, `${bank} - ${d}.pdf`);
+      expect(fs.existsSync(f), f).toBe(true);
+      const text = pdfPageTexts(fs.readFileSync(f)).join(" ");
+      expect(text, f).toContain(peerAvg[bank]);
+      for (const other of Object.keys(peerAvg)) if (other !== bank) expect(text, f).not.toContain(peerAvg[other]);
+    }
+    await page.click("#scRunClose");
+    await expect(page.locator("#scRunDialog")).toHaveCount(0);
+    // SC-05: nothing of the run was saved anywhere; the slide shows the workbook's own values again
+    expect(state()).toBe(before); expect(JSON.stringify(deckDoc("Banks.xlsx"))).toBe(docBefore);
+    await expect(page.locator("#stage .slide .t").filter({ hasText: /^1761$/ })).toHaveCount(1);
+    // SC-03: two values that the input cell shows alike (a number cell: "12" and "12,0" are both 12) – two files
+    await runWith("Control!B4", "12\n12,0", ["excel"]);
+    await expect(page.locator("#scRunStatus")).toContainText("Done: 2 of 2 values · 2 files", { timeout: 60_000 });
+    for (const f of ["12 - Excel.pdf", "12 (2) - Excel.pdf"]) expect(fs.existsSync(path.join(exportDir, f)), f).toBe(true);
+    await expect(page.locator("#scReport")).toContainText("12 (2) - Excel.pdf");
+    await page.click("#scRunClose");
+    // SC-06: progress and cancel – the files made stay, the report says how far it got
+    await runWith("Control!B2", ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"].map(x => "Bank " + x).join("\n"), ["excel"]);
+    await expect(page.locator("#scReport li")).not.toHaveCount(0, { timeout: 60_000 });
+    await page.click("#scCancel");
+    await expect(page.locator("#scRunStatus")).toContainText(/Cancelled after \d+ of 10 values/, { timeout: 60_000 });
+    const n = +(/Cancelled after (\d+) of 10/.exec((await page.locator("#scRunStatus").textContent())!)![1]);
+    expect(n).toBeGreaterThanOrEqual(1); expect(n).toBeLessThan(10);
+    await expect(page.locator("#scReport li[data-status=ok]")).toHaveCount(n);
+    await expect(page.locator("#scOpenFolder")).toBeVisible();
+    await page.click("#scRunClose");
+    expect(state()).toBe(before);
+  });
+
+  test("Run for each value, the gate (RC-06): a slide cell the engine computes otherwise stops the run; run anyway marks it", async ({ page }) => {
+    await openApp(page, ANNA);
+    await openWorkbook(page, "Gate.xlsx");                                           // no deck yet: the wizard
+    await expect(page.locator(".wiz")).toBeVisible();
+    await page.click('[data-a="next"]'); await page.click('[data-a="next"]'); await page.click('[data-a="finish"]');
+    await expect(page.locator("#stage .slide .t").filter({ hasText: /^System$/ })).toHaveCount(1, { timeout: 20_000 });
+    await saved(page);
+    await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]');
+    await page.fill("#scInput", "Control!B2");
+    await expect(page.locator("#scInputNote")).toContainText("Holds “Bank A” today");
+    await page.fill("#scValues", "Gate one\nGate two");                            // (names no other test's files have)
+    for (const box of await page.locator("#scDesigns input").all()) await box.setChecked((await box.getAttribute("data-design")) === "excel");
+    await page.click("#scRun");
+    // stopped before the first value: SLIDE_1!D6 = INFO("osversion"), which the engine does not compute as Excel
+    await expect(page.locator("#scGate")).toContainText("SLIDE_1!D6", { timeout: 30_000 });
+    await expect(page.locator("#scRun")).toBeDisabled();
+    expect(fs.existsSync(path.join(root(), "export", "Gate one - Excel.pdf"))).toBe(false);
+    await page.check("#scAnyway");
+    await page.click("#scRun");
+    await expect(page.locator("#scRunStatus")).toContainText("Done: 2 of 2 values · 2 files", { timeout: 60_000 });
+    await expect(page.locator("#scMarked")).toContainText("SLIDE_1!D6");
+    expect(pdfPageTexts(fs.readFileSync(path.join(root(), "export", "Gate two - Excel.pdf"))).join(" ")).toContain("Gate two");
+    await page.click("#scRunClose");
+    await lastFileSaved("anna", "Gate.xlsx");
   });
 
   test("no page errors, console errors or warnings", async () => { expect(unexpected(errors)).toEqual([]); });

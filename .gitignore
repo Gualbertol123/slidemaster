@@ -26,6 +26,8 @@ backend/slide_builder_settings.txt.unreadable-*
 !tests/corpus/workbooks/recalc/**/*.xlsb
 # G4's stand-in (spikes/recalc/make_g4.ps1): two macro-enabled workbooks and Excel's recalculated copies
 !tests/corpus/workbooks/g4/**/*.xlsm
+# the large stand-in (spikes/recalc/make_large.ps1): three linked workbooks, a speed workbook, Excel's copies
+!tests/corpus/workbooks/large/**/*.xlsx
 
 __pycache__/
 *.pyc

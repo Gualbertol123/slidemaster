@@ -528,3 +528,109 @@ describe("a scenario on the stage (S7.4, 07 §2.4, ADR-014)", () => {
     await p.port.call("scenarioPreview", null);
   }, 60_000);
 });
+
+describe("Run for each value (S8.3, 07 §2.4, SC-02/03/05/06, RC-06)", () => {
+  const inputs = { defaults: {}, logoSrc: "", version: "", workbook: "Banks.xlsx" };
+  const walk = (ns: StageSlide["layers"][0]["nodes"]): string[] => ns.flatMap(n => n.t === "text" ? [n.src] : n.t === "group" ? walk(n.children) : []);
+  const RED = '"solid":[214,40,40]';
+  const preset = { sheets: ["SLIDE_1"], tables: [{ id: "t0", sheet: "SLIDE_1", kind: "range" as const, range: "C3:K14" }], slides: [{ id: "s1", type: "content" as const, tables: ["t0"] }] };
+  type Ev = CoreEvents["scenario"];
+  type OnFile = (a: { id: string; name: string; design: string }, p: ReturnType<typeof page>) => Promise<void> | void;
+  /** a page whose scenarioFile draws the run's lists (as an export worker does) and keeps their texts */
+  async function setup(file = "recalc/Banks.xlsx", deckPreset: Record<string, unknown> = preset, onFile?: OnFile) {
+    const srv = server(), p = page(srv, "anna"), events: Ev[] = [], made: { name: string; design: string; version: string; texts: string[]; red: number }[] = [];
+    p.port.on("scenario", e => events.push(e));
+    p.port.handle("scenarioFile", async a => {
+      await onFile?.(a, p);
+      const lists = await p.port.call("slideLists", { design: a.design, version: a.version, forExport: true, thumb: false, scenario: a.id });
+      const all = lists.flatMap(l => l.dl.nodes), red = JSON.stringify(all).split(RED).length - 1;
+      made.push({ name: a.name, design: a.design, version: a.version, texts: walk(all), red });
+      return { file: a.name };
+    });
+    await p.port.call("init", { served: false, client: "c", me: "anna" });
+    const bytes = book(file), copy = bytes.slice(0);
+    const info = await p.port.call("index", { buf: bytes });
+    await p.port.call("start", { book: info.book, name: file.split("/").pop()!, deck: srv.open(), preset: deckPreset as never, inputs, stage: { slide: 0, known: [] } });
+    const end = () => until(() => events.some(e => e.status === "end" || e.status === "cancelled"), 60_000);
+    return { srv, p, events, made, end, bytes, copy };
+  }
+  const run = (p: ReturnType<typeof page>, values: (string | number)[], designs: ("glass" | "excel" | "clean" | "mckinsey" | "bain")[], input = { sheet: "Control", ref: "B2" }, runAnyway = false) =>
+    p.port.call("scenarioRun", { input, values, designs, versions: [""], kinds: ["pdf"], runAnyway });
+
+  it("3 values × 2 designs → 6 files with their names; each drawn from its value; document, deck and workbook untouched", async () => {
+    const { srv, p, events, made, end, bytes, copy } = await setup();
+    await p.port.call("flush", {});                                   // the deck's own records of the start, saved first
+    const recs = srv.deck.records().length, docBefore = JSON.stringify(srv.doc);
+    const r = await run(p, ["Bank A", "Bank B", "Bank C"], ["glass", "excel"]);
+    expect(r.id).toBeTruthy();
+    // SLIDE_1!E12 = TEXT(…,"mmm yy"): kept at Excel's text in every file (07 §8 Q8), named for the report
+    expect(r.id ? r.kept.map(k => k.sheet + "!" + k.ref) : null).toEqual(["SLIDE_1!E12"]);
+    await end();
+    expect(made.map(m => m.name).sort()).toEqual(["Bank A - Excel.pdf", "Bank A - Liquid Glass.pdf", "Bank B - Excel.pdf", "Bank B - Liquid Glass.pdf", "Bank C - Excel.pdf", "Bank C - Liquid Glass.pdf"]);
+    for (const m of made) expect(m.texts, m.name).toContain("Loans & deposits - " + m.name.split(" - ")[0]);
+    // progress per value, then the end
+    expect(events.map(e => [e.done, e.status, e.value])).toEqual([[1, "ok", "Bank A"], [2, "ok", "Bank B"], [3, "ok", "Bank C"], [3, "end", null]]);
+    expect(events[2].files.sort()).toEqual(["Bank C - Excel.pdf", "Bank C - Liquid Glass.pdf"]);
+    // SC-05: no record, the same document, the workbook's bytes as they were; the slides show the workbook again
+    expect(srv.deck.records().length).toBe(recs); expect(JSON.stringify(srv.doc)).toBe(docBefore);
+    expect(Buffer.from(bytes).equals(Buffer.from(copy))).toBe(true);
+    const own = await p.port.call("slideLists", { design: "excel", version: "", forExport: true, thumb: false });
+    expect(walk(own.flatMap(l => l.dl.nodes))).toContain("Loans & deposits - Bank A");
+    // the engine is back at the workbook's values: nothing left moved
+    expect((await p.port.call("scenarioPreview", null))!.changed).toBe(0);
+  }, 120_000);
+  it("an ordinary export during a run draws the workbook's own values (07 §2.4, guarded in S8.3); a preview waits", async () => {
+    let seen: string[] | null = null, preview: string | null = null;
+    const { p, end, made } = await setup(undefined, undefined, async (_a, pp) => {
+      if (seen) return;
+      seen = walk((await pp.port.call("slideLists", { design: "excel", version: "", forExport: true, thumb: false })).flatMap(l => l.dl.nodes));
+      preview = await pp.port.call("scenarioPreview", { sheet: "Control", ref: "B2", value: "Bank D" }).then(() => "ran", e => String((e as Error).message));
+    });
+    await run(p, ["Bank C"], ["excel"]);
+    await end();
+    expect(seen).toContain("Loans & deposits - Bank A"); expect(seen).not.toContain("Loans & deposits - Bank C");
+    expect(made[0].texts).toContain("Loans & deposits - Bank C");
+    expect(preview).toMatch(/run for each value is going on/);
+  }, 120_000);
+  it("cancel between values: the files made stay, the end says cancelled after 1 of 3", async () => {
+    const { p, events, end, made } = await setup(undefined, undefined, (a, pp) => { if (a.name.startsWith("Bank A")) void pp.port.call("scenarioCancel", { id: a.id }); });
+    await run(p, ["Bank A", "Bank B", "Bank C"], ["excel"]);
+    await end();
+    expect(made.map(m => m.name)).toEqual(["Bank A - Excel.pdf"]);
+    expect(events.at(-1)).toMatchObject({ status: "cancelled", done: 1, total: 3 });
+  }, 120_000);
+  it("a file that fails: the value is reported failed with the reason, the others of the run are made", async () => {
+    const { p, events, end, made } = await setup(undefined, undefined, a => { if (a.name === "Bank B - Liquid Glass.pdf") throw new Error("the disk is full"); });
+    await run(p, ["Bank A", "Bank B"], ["excel", "glass"]);
+    await end();
+    expect(made.length).toBe(3);
+    expect(events[1]).toMatchObject({ status: "failed", value: "Bank B", files: ["Bank B - Excel.pdf"] });
+    expect(events[1].error).toContain("Bank B - Liquid Glass.pdf: the disk is full");
+  }, 120_000);
+  it("values that display alike get (2) inside the run (SC-03); the shown text is the input cell's", async () => {
+    const { p, made, end } = await setup();
+    const r = await run(p, [12, 12, 11.5], ["excel"], { sheet: "Control", ref: "B4" });
+    expect(r.id ? r.shown : null).toEqual(["12", "12", "11,5"]);
+    await end();
+    expect(made.map(m => m.name)).toEqual(["12 - Excel.pdf", "12 (2) - Excel.pdf", "11,5 - Excel.pdf"]);
+  }, 120_000);
+  it("the gate (RC-06): a slide cell the self-check classes different stops the run with the list; run anyway marks it", async () => {
+    const fp = { sheets: ["F"], tables: [{ id: "t0", sheet: "F", kind: "range" as const, range: "A1:G164" }], slides: [{ id: "s1", type: "content" as const, tables: ["t0"] }] };
+    const { p, made, end, events } = await setup("recalc/Functions.xlsx", fp);
+    const no = await run(p, [8], ["excel"], { sheet: "F", ref: "A1" });
+    expect(no.id).toBeNull();
+    if (no.id !== null) return;
+    expect(no.blocked.length).toBeGreaterThan(0);
+    expect(no.blocked.every(c => c.sheet === "F" && /^[A-Z]+\d+$/.test(c.ref))).toBe(true);
+    expect(made.length).toBe(0); expect(events.length).toBe(0);
+    const yes = await run(p, [8], ["excel", "glass", "clean", "mckinsey", "bain"], { sheet: "F", ref: "A1" }, true);
+    expect(yes.id ? yes.marked.length : -1).toBe(no.blocked.length);
+    await end();
+    // every design draws the red corner on the marked cells it shows
+    expect(made.length).toBe(5);
+    for (const m of made) expect(m.red, m.design).toBeGreaterThan(0);
+    // an ordinary list after the run: no marks
+    const own = await p.port.call("slideLists", { design: "excel", version: "", forExport: true, thumb: false });
+    expect(JSON.stringify(own).includes(RED)).toBe(false);
+  }, 120_000);
+});

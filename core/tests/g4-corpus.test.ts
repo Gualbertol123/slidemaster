@@ -24,7 +24,7 @@ describe("G4 stand-in: Cruscotto.xlsm (Italian) + Benchmark.xlsm (English), link
   const files = ["Cruscotto.xlsm", "Benchmark.xlsm"] as const;
   beforeAll(async () => {
     a = await read(path.join(G4, files[0])); b = await read(path.join(G4, files[1]));
-    model = new CalcModel(g, [{ name: null, file: files[0], sheets: a.sheets, externals: a.externals }, { name: files[1], sheets: b.sheets, externals: b.externals }]);
+    model = new CalcModel(g, [{ name: null, file: files[0], sheets: a.sheets, externals: a.externals, names: a.names }, { name: files[1], sheets: b.sheets, externals: b.externals, names: b.names }]);
   }, 60_000);
   it("reads both macro-enabled files and their links", () => {
     expect(a.externals).toEqual(["Benchmark.xlsm"]); expect(b.externals).toEqual(["Cruscotto.xlsm"]);

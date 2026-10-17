@@ -4,7 +4,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { get, patch, useStore, type ScenarioForm } from "../state/store";
 import { core } from "../state/app";
-import { closeScenario, pickedCell, previewValue, resolveInput, type Resolved } from "../editor/scenario";
+import { cancelRun, closeRun, closeScenario, pickedCell, previewValue, resolveInput, startRun, type Resolved } from "../editor/scenario";
+import { backend } from "../sync/api";
+import type { CellValue } from "@slide-builder/core/calc/engine";
+import type { GateCell } from "@slide-builder/core/rpc/messages";
 import { RangePicker } from "../wizard/Wizard";
 import { DESIGNS, DESIGN_LABEL } from "@slide-builder/core/model/designs";
 import { scenarioValues } from "@slide-builder/core/export/scenario";
@@ -84,6 +87,10 @@ export function ScenarioDialog() {
   const files = values.length * f.designs.length * vers.length;
   const toggle = <T,>(list: T[], x: T, on: boolean) => on ? [...list.filter(y => y !== x), x] : list.filter(y => y !== x);
   const preview = async () => { if (await previewValue(f.input, value, f.asText)) closeScenario(); };
+  // the gate (RC-06): what stopped the last Run, until the fields change
+  const [gate, setGate] = useState<{ blocked: GateCell[]; more: boolean } | null>(null), [starting, setStarting] = useState(false);
+  const run = async () => { setStarting(true); try { setGate(await startRun(get().ui.scenario)); } finally { setStarting(false); } };
+  useEffect(() => { setGate(null); }, [f.input, f.values, f.asText]);
   return (
     <div className="modal">
       <div className="dlg scdlg" id="scenarioDialog" style={{ width: `min(${ranging ? 940 : 640}px,94vw)` }}>
@@ -122,6 +129,11 @@ export function ScenarioDialog() {
               <label className="ck" title="PowerPoint files come with Slide Builder 4.5"><input type="checkbox" id="scPptx" disabled /> PowerPoint <small>comes with 4.5</small></label>
             </div>
           </div>
+          {gate && <div className="scgate" id="scGate">
+            <b>The run stopped before the first value:</b> {gate.blocked.length} cell{gate.blocked.length === 1 ? "" : "s"} on the slides {gate.blocked.length === 1 ? "is" : "are"} computed otherwise than Excel saved {gate.blocked.length === 1 ? "it" : "them"}{gate.more ? " (and maybe more: the formula check lists its first 200 differences)" : ""} – the files would show numbers Excel does not.
+            <ul>{gate.blocked.slice(0, 10).map(c => <li key={c.sheet + "!" + c.ref}><b>{c.sheet}!{c.ref}</b> Excel “{shownValue(c.cached)}”, recalculated “{shownValue(c.computed)}”</li>)}{gate.blocked.length > 10 && <li>… {gate.blocked.length - 10} more</li>}</ul>
+            <label className="ck"><input type="checkbox" id="scAnyway" checked={f.runAnyway} onChange={e => set({ runAnyway: (e.target as HTMLInputElement).checked })} /> Run anyway and mark these cells (a red corner on the slides, listed in the report)</label>
+          </div>}
           <div className="scnote" id="scSummary">{files ? `${values.length} × ${f.designs.length} design${f.designs.length === 1 ? "" : "s"} × ${vers.length} version${vers.length === 1 ? "" : "s"} = ${files} PDF${files === 1 ? "" : "s"}` : "Choose at least one value, design and version."}</div>
         </div>
         <div className="dlgft">
@@ -129,9 +141,32 @@ export function ScenarioDialog() {
           <button className="btn" id="scPreview" disabled={!values.length || !cell?.ok} title="Show this value on the slides (nothing is saved)" onClick={() => void preview()}>Preview</button>
           <span style={{ flex: "1" }} />
           <button className="btn" data-a="cancel" onClick={closeScenario}>Close</button>
-          <button className="btn primary" id="scRun" disabled title="Running the values comes with the next step of this release (S8.3)">Run</button>
+          <button className="btn primary" id="scRun" disabled={!files || !cell?.ok || starting || (!!gate && !f.runAnyway)} title={`Make ${files} PDF${files === 1 ? "" : "s"}: one per value × design × version`} onClick={() => void run()}>{starting ? "Starting…" : "Run"}</button>
         </div>
       </div>
     </div>
   );
+}
+
+const shownValue = (v: CellValue) => v === null || v === "" ? "empty" : typeof v === "object" ? v.err : String(v);
+
+/** a run's progress, then its report (S8.3, SC-06): a panel over the stage, not a modal – the deck stays editable */
+export function ScenarioRun() {
+  const R = useStore(s => s.ui.run)!;
+  const running = R.status === "running" || R.status === "cancelling", files = R.results.flatMap(x => x.files);
+  const failed = R.results.filter(x => x.status === "failed").length;
+  const status = R.status === "cancelling" ? `Cancelling after the value being made… ${R.done} of ${R.total}`
+    : running ? `Making “${R.shown[R.done] ?? ""}” – ${R.done} of ${R.total} done`
+    : (R.status === "cancelled" ? `Cancelled after ${R.done} of ${R.total} values` : `Done: ${R.done} of ${R.total} values`) + ` · ${files.length} file${files.length === 1 ? "" : "s"}${failed ? ` · ${failed} failed` : ""} · ${R.seconds} s`;
+  return <div className="scrun" id="scRunDialog" role="dialog" aria-label="Run for each value">
+    <div className="scrunhd"><b>Run for each value</b><span id="scRunStatus">{status}</span></div>
+    <div className="scbar"><i style={{ width: `${R.total ? Math.round(100 * R.done / R.total) : 0}%` }} /></div>
+    {R.error && <div className="scbad" id="scRunError">The run stopped: {R.error}</div>}
+    <ol className="screport" id="scReport">{R.results.map((x, i) => <li key={i} data-status={x.status}><b>{x.value}</b>{x.status === "ok" ? <small>{x.files.join(" · ")}</small> : <span className="scbad"> failed: {x.error}{x.files.length ? ` (made: ${x.files.join(" · ")})` : ""}</span>}</li>)}</ol>
+    {R.kept.length > 0 && <div className="scnote" id="scKept">Kept at Excel's own text in every file (TEXT with this PC's language codes, not recalculated): {R.kept.slice(0, 8).map(c => c.sheet + "!" + c.ref).join(", ")}{R.kept.length > 8 ? ` and ${R.kept.length - 8} more` : ""}</div>}
+    {R.marked.length > 0 && <div className="scnote" id="scMarked">Marked with a red corner – computed otherwise than Excel: {R.marked.slice(0, 8).map(c => c.sheet + "!" + c.ref).join(", ")}{R.marked.length > 8 ? ` and ${R.marked.length - 8} more` : ""}</div>}
+    <div className="scrunft">{running
+      ? <button className="btn" id="scCancel" disabled={R.status === "cancelling"} onClick={cancelRun}>Cancel</button>
+      : <>{backend.served && <button className="btn" id="scOpenFolder" onClick={() => void backend.open({ folder: true })}>Open folder</button>}<button className="btn primary" id="scRunClose" onClick={closeRun}>Close</button></>}</div>
+  </div>;
 }

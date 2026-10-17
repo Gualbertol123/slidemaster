@@ -39,9 +39,9 @@ const fileKey = (s: string) => s.toUpperCase();
 
 /** a value as a file name's first part: safe characters (controls – C0, DEL, C1 – and \ / : * ? " < > | and a lone
     surrogate → "_"), no leading / trailing spaces or dots, never a device name, never empty */
+const UNSAFE = /[\u0000-\u001f\u007f-\u009f\\/:*?"<>|]|[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
 export function safeValue(text: string): string {
-  let s = text.replace(/[\u0000-\u001f\u007f-\u009f\\/:*?"<>|]|[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, "_")
-    .replace(/^[\s.]+|[\s.]+$/g, "");
+  let s = text.replace(UNSAFE, "_").replace(/^[\s.]+|[\s.]+$/g, "");
   if (!s) return "(blank)";
   if (RESERVED.test(s.split(".")[0].trim())) s = "_" + s;
   return s;
@@ -66,7 +66,8 @@ export function runVersionLabels(versions: (string | null)[]): (string | null)[]
   if (versions.length === 1 && versions[0] === null) return [null];
   const used = new Set<string>();
   return versions.map(v => {
-    const base = cleanName(v ?? FULL_DECK);
+    // B11's cleaning, then what Windows and the request's URL cannot take either (C1 controls, a lone surrogate)
+    const base = cleanName((v ?? FULL_DECK).replace(UNSAFE, "_"));
     for (let k = 1; ; k++) { const l = k === 1 ? base : `${base} (${k})`; if (!used.has(fileKey(l))) { used.add(fileKey(l)); return l; } }
   });
 }

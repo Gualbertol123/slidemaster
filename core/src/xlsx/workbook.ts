@@ -69,6 +69,17 @@ export async function indexWorkbook(buf: ArrayBuffer): Promise<Workbook> {
     for (const b of info.books) if (b.kind === "external") { const rel = wbRels[b.relId]; const e = rel && zget(zip, rel.target); if (e && /\.bin$/i.test(e.name)) { try { b.sheets = readSupTabsBin(zip.bytes(e)); } catch { /* no sheet names: 3D references to it are unreadable */ } } }
     BIN_INFO.set(zip, info);
   } else list = all(parseXml(await zget(zip, wbPath)!.async("string")), "sheet").map(s => ({ name: s.getAttribute("name") || "", state: s.getAttribute("state") || "visible", rid: s.getAttributeNS(NS_R, "id") || s.getAttribute("r:id") || "" }));
+  // the defined names (the formula engine's, M8): a sheet-level name's localSheetId counts every sheet of the list
+  const names: { name: string; scope: string | null; formula: string }[] = [];
+  if (!/\.bin$/i.test(wbPath)) {
+    for (const d of all(parseXml(await zget(zip, wbPath)!.async("string")), "definedName")) {
+      const name = d.getAttribute("name") || "", formula = (d.textContent || "").trim(), local = d.getAttribute("localSheetId");
+      if (!name || !formula || /^_xlnm\./i.test(name) || /#REF!/.test(formula)) continue;
+      const scope = local !== null && local !== "" ? list[+local]?.name ?? null : null;
+      if (local !== null && local !== "" && scope === null) continue;
+      names.push({ name, scope, formula });
+    }
+  }
   const meta: SheetMeta[] = [], skipped: { name: string; why: string }[] = [];
   for (const { name, state, rid } of list) {
     const r = wbRels[rid];
@@ -93,7 +104,7 @@ export async function indexWorkbook(buf: ArrayBuffer): Promise<Workbook> {
   const total = meta.reduce((s, m) => s + m.size, 0) + ssSize;
   const wb: Workbook = {
     zip, wbRels, meta, skipped, hiddenSheets: skipped.filter(s => s.why === "hidden").map(s => s.name),
-    extLinks: Object.values(wbRels).filter(r => /externalLink/.test(r.type)).length, externals,
+    extLinks: Object.values(wbRels).filter(r => /externalLink/.test(r.type)).length, externals, names,
     sheets: [], shared: null, linked: new Map(), total, ssSize, big: total > BIG_BYTES || buf.byteLength > 6 * 1048576,
     isLoaded: n => wb.sheets.some(S => S.name === n),
     ensure: (names, progress) => ensureSheets(wb, names, progress),

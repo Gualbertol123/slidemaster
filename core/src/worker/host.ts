@@ -7,7 +7,10 @@
 import { attachLinked, indexWorkbook, sheetsOf } from "../xlsx/workbook";
 import { overlayHash, overlayWorkbook } from "../calc/overlay";
 import { parseSheetId } from "../calc/refs";
-import { numToCol, splitRef } from "../xlsx/util";
+import { A1, numToCol, splitRef } from "../xlsx/util";
+import { formatValue } from "../xlsx/numfmt";
+import { ASSUMED_FOLDER, runFileName, scenarioRunNames } from "../export/names";
+import { markCells } from "../render/marks";
 import type { CalcModel, SelfCheck } from "../calc/engine";
 import { setPictureConverter } from "../xlsx/drawing";
 import { sliceBoxes, sliceShared, sliceSheet, sliceTransfer, type SharedSlice, type SheetSlice } from "../xlsx/slice";
@@ -33,7 +36,7 @@ import type { RenderCtx } from "../render/context";
 import type { Design, Preset, RuntimeSlide, Style, WorkbookDoc } from "../model/types";
 import type { Workbook } from "../xlsx/types";
 import { Port, transfer, type Wire } from "../rpc/port";
-import type { CalcCheck, ScenarioAnswer, ScenarioInput, CoreEvents, CoreMethods, DocState, ExportCoreMethods, PageEvents, PageMethods, SlideListsReq, StageLayer, StageReq, StageSlide, ViewInputs, WorkbookInfo } from "../rpc/messages";
+import type { CalcCheck, GateCell, ScenarioAnswer, ScenarioInput, ScenarioRunReq, ScenarioRunStart, CoreEvents, CoreMethods, DocState, ExportCoreMethods, PageEvents, PageMethods, SlideListsReq, StageLayer, StageReq, StageSlide, ViewInputs, WorkbookInfo } from "../rpc/messages";
 import { weightOf, type DisplayList, type Node } from "../dl/types";
 import { stageHits, svgChunks } from "../dl/svg";
 import { contentKey } from "../dl/key";
@@ -127,6 +130,8 @@ export class CoreHost {
     h("unlinkExport", a => { const mp = this.exportLinks.get(a.id); this.exportLinks.delete(a.id); if (mp) { mp.onmessage = null; mp.close(); } });
     h("calcCheck", () => this.calcCheck());
     h("scenarioPreview", a => this.scenarioPreview(a));
+    h("scenarioRun", a => this.scenarioRun(a));
+    h("scenarioCancel", a => { const r = this.runs.get(a.id); if (r) r.cancel = true; });
     h("link", async a => {
       const wb = this.bookOf(a.book);
       if (!(await this.attachLinks(wb, [a.name]))) return null;
@@ -175,8 +180,8 @@ export class CoreHost {
       try { await wb.ensure(wb.meta.map(m => m.name), this.progress); } finally { this.port.emit("progress", null); }
       const g = await loadEngine(); const t1 = now();
       if (this.wb !== wb) throw new Error("the workbook changed while the engine loaded");
-      const model = new CalcModel(g, [{ name: null, file: this.name, sheets: sheetsOf(wb, null), hidden: wb.hiddenSheets, externals: wb.externals },
-        ...[...wb.linked].map(([file, lwb]) => ({ name: file, sheets: sheetsOf(wb, file), hidden: lwb.hiddenSheets, externals: lwb.externals }))]);
+      const model = new CalcModel(g, [{ name: null, file: this.name, sheets: sheetsOf(wb, null), hidden: wb.hiddenSheets, externals: wb.externals, names: wb.names },
+        ...[...wb.linked].map(([file, lwb]) => ({ name: file, sheets: sheetsOf(wb, file), hidden: lwb.hiddenSheets, externals: lwb.externals, names: lwb.names }))]);
       try {
         const t2 = now(); const check = model.selfCheck(); const t3 = now();
         const checkOut: CalcCheck = { counts: check.counts, different: check.different.slice(0, 20), formulas: model.formulas.length, styleError: model.styleError, ms: { load: t1 - t0, build: model.ms.build, evaluate: model.ms.evaluate, check: t3 - t2 } };
@@ -196,6 +201,8 @@ export class CoreHost {
   private scen: { input: ScenarioInput; was: string; view: Workbook; hash: string } | null = null;
   private async scenarioPreview(a: ScenarioInput | null): Promise<ScenarioAnswer | null> {
     const wb = this.wb; if (!wb) return null;
+    // the engine holds the run's values meanwhile (one model): a preview waits until the run ends
+    if (this.runs.size) throw new Error("a run for each value is going on: preview once it has ended");
     const c = await this.ensureCalc(wb);
     if (this.wb !== wb) return null;
     const at = (inp: ScenarioInput) => { const { book, sheet } = parseSheetId(inp.sheet), rc = splitRef(inp.ref); return rc ? { book, sheet, r: rc.r, c: rc.c } : null; };
@@ -233,6 +240,81 @@ export class CoreHost {
   }
   /** what the renderers read: the scenario's view while one shows, else the workbook */
   private get viewWb(): Workbook | null { return this.scen?.view ?? this.wb; }
+
+  /* ---------------------------------------------------------------- Run for each value (S8.3, 07 §2.4) */
+  /** the runs going on (one at a time): the view of the value being made, its digest, its slides by design, the
+      cells marked (run anyway) */
+  private runs = new Map<string, Run>(); private runSeq = 0;
+  /** the slide cells the self-check classes different (the gate, RC-06): the current design's tables' cells */
+  private gateCells(check: SelfCheck): { cells: GateCell[]; more: boolean; kept: { sheet: string; ref: string; text: string }[] } {
+    const id = (d: { book: string | null; sheet: string; ref: string }) => (d.book === null ? d.sheet : "[" + d.book + "]" + d.sheet) + "!" + d.ref;
+    const diff = new Map(check.different.map(d => [id(d), d])), pinned = new Map(check.pinned.map(d => [id(d), d]));
+    const out = new Map<string, GateCell>(), kept = new Map<string, { sheet: string; ref: string; text: string }>();
+    if (diff.size || pinned.size) for (const R of this.slidesFor(this.style().design, "own")) for (const L of R.tables) for (const it of L.items) {
+      const k = L.sheet.name + "!" + A1(it.b.src.r, it.b.src.c), d = diff.get(k), p = pinned.get(k);
+      if (d && !out.has(k)) out.set(k, { sheet: L.sheet.name, ref: d.ref, text: d.text, cached: d.cached, computed: d.computed });
+      if (p && !kept.has(k)) kept.set(k, { sheet: L.sheet.name, ref: p.ref, text: p.text });
+    }
+    return { cells: [...out.values()], more: check.counts.different > check.different.length, kept: [...kept.values()] };
+  }
+  private async scenarioRun(a: ScenarioRunReq): Promise<ScenarioRunStart> {
+    const wb = this.wb; if (!wb || !this.sync) throw new Error("no workbook is open");
+    if (this.runs.size) throw new Error("a run for each value is going on already");
+    if (!a.values.length || !a.designs.length || !a.versions.length) throw new Error("nothing to run: no value, design or version");
+    const rc = splitRef(a.input.ref), S = wb.sheets.find(x => x.name === a.input.sheet);
+    if (!rc || !S) throw new Error(`no cell ${a.input.sheet}!${a.input.ref} in this workbook`);
+    const c = await this.ensureCalc(wb);
+    if (this.wb !== wb) throw new Error("the workbook changed");
+    if (this.scen) await this.scenarioPreview(null);                // the run takes the engine: a preview ends first
+    const gate = this.gateCells(c.check);
+    if ((gate.cells.length || gate.more) && !a.runAnyway) return { id: null, blocked: gate.cells, more: gate.more };
+    // the values as the input cell shows them (its number format): the files' names
+    const cell = S.get(rc.r, rc.c), fmt = cell?.fmt || "General";
+    const shown = a.values.map(v => typeof v === "number" ? formatValue({ v, t: cell?.t === "d" ? "d" : "n", fmt }).text : typeof v === "boolean" ? formatValue({ v, t: "b", fmt }).text : v);
+    const vers = this.sync.view.preset?.versions || [];
+    const { stems, labels } = scenarioRunNames(shown, a.designs, a.versions.map(id => id ? (vers.find(x => x.id === id)?.name ?? id) : null), "pdf", a.folder ?? ASSUMED_FOLDER);
+    const id = "run" + ++this.runSeq;
+    const run: Run = { id, cancel: false, view: null, hash: "", slides: new Map(), marked: new Set(a.runAnyway ? gate.cells.map(g => g.sheet + "!" + g.ref) : []) };
+    this.runs.set(id, run);
+    void this.runLoop(run, a, wb, c, { book: parseSheetId(a.input.sheet).book, sheet: parseSheetId(a.input.sheet).sheet, r: rc.r, c: rc.c }, shown, stems, labels);
+    return { id, total: a.values.length, shown, marked: a.runAnyway ? gate.cells : [], kept: gate.kept };
+  }
+  /** one value at a time; between values the stage and every other request are served (the change queue) */
+  private async runLoop(run: Run, a: ScenarioRunReq, wb: Workbook, c: { model: CalcModel; sig: string }, p: { book: string | null; sheet: string; r: number; c: number },
+    shown: string[], stems: string[], labels: (string | null)[]) {
+    const total = a.values.length, live = () => this.wb === wb && this.calcSig(wb) === c.sig;
+    let done = 0, was: string | null = null, error = "";
+    try {
+      for (let i = 0; i < total && !run.cancel; i++) {
+        let ok = false;
+        await this.later(() => {
+          if (!live()) return;
+          if (was === null) was = c.model.contentOf(p.book, p.sheet, p.r, p.c);
+          if (!c.model.set(p.book, p.sheet, p.r, p.c, a.values[i])) return;
+          c.model.evaluate();
+          const changes = c.model.changes();
+          run.view = overlayWorkbook(wb, changes); run.hash = run.id + "." + i + overlayHash(changes); run.slides.clear();
+          ok = true;
+        });
+        if (!ok) throw new Error(live() ? "the input cell could not be set" : "the workbook changed during the run");
+        // one file per (design, version): the export workers, three at a time, through the page
+        const jobs = a.designs.flatMap(d => a.versions.map((v, j) => ({ d, v, name: runFileName(stems[i], d, labels[j], "pdf") })));
+        const res = await Promise.allSettled(jobs.map(j => this.port.call("scenarioFile", { id: run.id, design: j.d, version: j.v, name: j.name, title: j.name.replace(/\.pdf$/, ""), today: a.today })));
+        const files = res.flatMap(r => r.status === "fulfilled" ? [r.value.file] : []);
+        const failed = res.flatMap((r, k) => r.status === "rejected" ? [jobs[k].name + ": " + String((r.reason as Error)?.message || r.reason)] : []);
+        run.view = null; run.slides.clear();                       // the value's view is dropped
+        done++;
+        this.port.emit("scenario", { id: run.id, done, total, value: shown[i], status: failed.length ? "failed" : "ok", files, ...(failed.length ? { error: failed.join(" · ") } : {}) });
+        await new Promise(r => setTimeout(r, 0));                  // yield: requests waiting are served
+      }
+    } catch (e) { error = String((e as Error)?.message || e); }
+    finally {
+      // the input cell back to what it held, in the engine only (the workbook file is never written)
+      await this.later(() => { if (was !== null && live()) { c.model.restore(p.book, p.sheet, p.r, p.c, was); c.model.evaluate(); } });
+      this.runs.delete(run.id);
+      this.port.emit("scenario", { id: run.id, done, total, value: null, status: run.cancel && done < total ? "cancelled" : "end", files: [], ...(error ? { error } : {}) });
+    }
+  }
   /** the export workers' channels, by the page's number for each (closed when the worker stops) */
   private exportLinks = new Map<number, MessagePort>();
   /** display lists are built one request at a time (export workers ask in parallel; each build asks the page to measure) */
@@ -356,16 +438,27 @@ export class CoreHost {
     await this.refresh(c);
   }
   private style(): Style { return resolveStyle(this.inputs.defaults as never, this.sync?.view.style) as Style; }
-  private ctx(design?: Design, version?: string, forExport = false): RenderCtx {
+  /** `src`: whose values – the stage's ("stage": the preview's view while one shows), the workbook's own ("own"), or a
+      run's view */
+  private ctx(design?: Design, version?: string, forExport = false, src: Source = "stage"): RenderCtx {
     // another design: resolved as the page does (that design's own looks apply)
     const v = this.sync!.view, st = this.style(), s = design && design !== st.design ? resolveStyle(this.inputs.defaults as never, { ...(v.style || {}), design }) as Style : st;
-    const vid = version ?? this.inputs.version;
-    return { style: s, edits: v.edits || {}, slides: this.slidesFor(s.design), preset: v.preset || null, workbook: this.inputs.workbook || this.name,
-      logoSrc: this.inputs.logoSrc, sheet: n => this.viewWb?.sheets.find(x => x.name === n) || null,
-      version: (v.preset?.versions || []).find(x => x.id === vid) || null, ...(forExport ? { forExport: true } : {}), ...(this.scen ? { scenario: this.scen.hash } : {}) };
+    const vid = version ?? this.inputs.version, wb = typeof src === "object" ? src.view : src === "own" ? this.wb : this.viewWb;
+    const scenario = typeof src === "object" ? src.hash : src === "stage" && this.scen ? this.scen.hash : "";
+    return { style: s, edits: v.edits || {}, slides: this.slidesFor(s.design, src), preset: v.preset || null, workbook: this.inputs.workbook || this.name,
+      logoSrc: this.inputs.logoSrc, sheet: n => wb?.sheets.find(x => x.name === n) || null,
+      version: (v.preset?.versions || []).find(x => x.id === vid) || null, ...(forExport ? { forExport: true } : {}), ...(scenario ? { scenario } : {}) };
   }
-  private slidesFor(design: Design): RuntimeSlide[] {
+  private slidesFor(design: Design, src: Source = "stage"): RuntimeSlide[] {
     if (!this.wb || !this.sync) return [];
+    if (typeof src === "object") {
+      if (!src.view) return [];
+      const key = design + "|" + this.presetSig;
+      let R = src.slides.get(key); if (!R) src.slides.set(key, R = runtimeSlides(src.view, this.sync.view.preset, this.name, design));
+      return R;
+    }
+    // the workbook's own values while a preview shows: its own slides (the stage's are the preview's)
+    if (src === "own" && this.scen) return runtimeSlides(this.wb, this.sync.view.preset, this.name, design);
     if (design === this.slidesDesign) return this.slides;
     return runtimeSlides(this.viewWb!, this.sync.view.preset, this.name, design);
   }
@@ -432,7 +525,11 @@ export class CoreHost {
   /** whole slides as display lists (S3.5): background, furniture, the tables placed and scaled, text boxes */
   private async slideLists(a: SlideListsReq) {
     if (!this.wb || !this.sync) return [];
-    const ctx = this.ctx(a.design, a.version, a.forExport), glass = ctx.style.design === "glass", out: { slide: number; dl: TableDL }[] = [];
+    let src: Source = "own";
+    if (a.scenario === "preview") src = "stage";
+    else if (a.scenario) { const r = this.runs.get(a.scenario); if (!r || !r.view) throw new Error("this run has ended"); src = r; }
+    const run = typeof src === "object" ? src : null;
+    const ctx = this.ctx(a.design, a.version, a.forExport, src), glass = ctx.style.design === "glass", out: { slide: number; dl: TableDL }[] = [];
     await glassFonts(ctx);
     const { wall, logo } = await this.slideImages(ctx);
     for (const [s, R] of ctx.slides.entries()) {
@@ -440,7 +537,9 @@ export class CoreHost {
       const boxes = computeLayout(R, ctx).boxes, tables: TableDL[] = [];
       for (const [i, L] of R.tables.entries()) {
         const b = boxes[i], noText = a.thumb && L.items.length > 1200;
-        tables.push(glass ? await glassTableDL(L, ctx, { x: b?.x ?? 0, y: b?.y ?? 0, scale: b?.scale ?? 1 }, wall?.blur ?? null, { noText }) : await flatTableDL(L, ctx, { noText }));
+        const dl = glass ? await glassTableDL(L, ctx, { x: b?.x ?? 0, y: b?.y ?? 0, scale: b?.scale ?? 1 }, wall?.blur ?? null, { noText }) : await flatTableDL(L, ctx, { noText });
+        // a run started anyway: the cells the self-check classes different get their red corner (RC-06)
+        tables.push(run?.marked.size ? { ...dl, nodes: markCells(dl.nodes, L, run.marked) } : dl);
       }
       out.push({ slide: s, dl: await measuredBuild(m => slideToDisplayList(R, s, ctx, tables, boxes, { wall, logo }, m, a.today)) });
     }
@@ -611,6 +710,10 @@ function ownEdits(L: RuntimeSlide["tables"][number], ctx: RenderCtx): string {
   for (const k of Object.keys(all)) if (keys.has(k)) out[k] = all[k];
   return JSON.stringify(out);
 }
+/** a run for each value (S8.3) */
+interface Run { id: string; cancel: boolean; view: Workbook | null; hash: string; slides: Map<string, RuntimeSlide[]>; marked: Set<string> }
+/** whose values a slide is drawn from: the stage's, the workbook's own, a run's */
+type Source = "stage" | "own" | Run;
 /** the host behind a port (one per worker) */
 /** what a host can do beyond the core's pure code (the worker passes these; the page's in-thread fallback does not,
     so the page does not carry them) */

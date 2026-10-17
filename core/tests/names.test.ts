@@ -69,6 +69,8 @@ describe("a scenario run's names (S8.2, 07 §2.5, SC-03, SC-04)", () => {
     expect(runVersionLabels(["Chief"])).toEqual(["Chief"]);
     expect(runVersionLabels([null, "Chief"])).toEqual(["Full deck", "Chief"]);
     expect(runVersionLabels(["A/B", "A:B", "chief", "Chief"])).toEqual(["A_B", "A_B (2)", "chief", "Chief (2)"]);
+    expect(runVersionLabels(["Board\u0085", "x\ud800y"])).toEqual(["Board_", "x_y"]);   // a C1 control and a lone surrogate → "_"
+    expect(() => encodeURIComponent(runVersionLabels(["v\udc00"])[0]!)).not.toThrow();
   });
   it("equal names inside one run get (2), (3) after the value – also two values that collapse to one safe name", () => {
     const names = (values: string[], versions: (string | null)[] = [null], designs: ("excel" | "glass")[] = ["excel"]) => {

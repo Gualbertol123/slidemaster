@@ -75,6 +75,9 @@ export function core(): CorePort {
   port.on("progress", p => { if (p) showBusy(p.text, p.frac); else hideBusy(); });
   port.on("retiredSaved", () => { unsavedElsewhere = false; });
   port.on("rest", r => { restDeck = r; });
+  // Run for each value (S8.3): the core worker asks for each file; its progress comes as events
+  port.handle("scenarioFile", a => import("../editor/scenario").then(m => m.scenarioFile(a)));
+  port.on("scenario", e => { void import("../editor/scenario").then(m => m.onScenarioEvent(e)); });
   // an error in the worker's own work (e.g. a sheet read after a colleague's change): shown, never a busy screen left up
   port.on("error", e => { console.error("core worker: " + e.message + (e.stack ? "\n" + e.stack : "")); hideBusy(); toast("⚠ " + esc(e.message), [], true); });
   // the worker stopped: nothing can be read or saved any more – say so, and stop taking edits

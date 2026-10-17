@@ -104,7 +104,7 @@ try {
     @("Obiettivo",          '=CERCA.X(Controllo!$B$2;Anagrafica!$A$2:$A$9;Anagrafica!$E$2:$E$9)*Controllo!$B$12*12', '=INDICE(Anagrafica!$E$2:$E$9;CONFRONTA(Controllo!$B$2;Anagrafica!$A$2:$A$9;0))', '=C2/C12'),
     @("Media area",         '=MEDIA.PIÙ.SE(Dati!$C$2:$C$97;Dati!$G$2:$G$97;Controllo!$B$7;Dati!$B$2:$B$97;Controllo!$B$4)', '=CONTA.PIÙ.SE(Dati!$G$2:$G$97;Controllo!$B$7;Dati!$B$2:$B$97;Controllo!$B$4)', '=C2-C13'),
     @("Max / min mese",     '=MAX.PIÙ.SE(Dati!$C$2:$C$97;Dati!$A$2:$A$97;Controllo!$B$2)', '=MIN.PIÙ.SE(Dati!$C$2:$C$97;Dati!$A$2:$A$97;Controllo!$B$2)', '=MATR.SOMMA.PRODOTTO((Dati!$A$2:$A$97=Controllo!$B$2)*(Dati!$B$2:$B$97<=Controllo!$B$4)*Dati!$D$2:$D$97)'),
-    @("Posizione",          '=RANGO.EQ(C2;$G$2:$G$9)',              '=SCEGLI(Controllo!$B$3;"uno";"due";"tre";"quattro";"cinque";"sei";"sette";"otto")', '=MAIUSC(SINISTRA(Controllo!$B$2;5))&"-"&Controllo!$B$6'),
+    @("Posizione",          '=RANGO(C2;$G$2:$G$9)',              '=SCEGLI(Controllo!$B$3;"uno";"due";"tre";"quattro";"cinque";"sei";"sette";"otto")', '=MAIUSC(SINISTRA(Controllo!$B$2;5))&"-"&Controllo!$B$6'),
     @("Controllo",          '=SE(E(C4>0;C5>0);"ok";"verifica")',    '=ASS(C8)*100',            '=ANNO(Controllo!$B$9)*100+MESE(Controllo!$B$9)')
   )
   for ($i = 0; $i -lt $f.Count; $i++) {
