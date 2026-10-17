@@ -45,6 +45,8 @@ export interface SelfCheck {
   counts: Record<CheckClass, number>;
   /** the cells that differ from Excel's cached value (first 200), with both values */
   different: { book: string | null; sheet: string; ref: string; text: string; cached: CellValue; computed: CellValue }[];
+  /** the locale-dependent cells kept at Excel's cached value (07 §8 Q8; first 200): a scenario does not move them */
+  pinned: { book: string | null; sheet: string; ref: string; text: string; cached: CellValue }[];
 }
 
 const VOLATILE = /\b(?:TODAY|NOW|RAND|RANDBETWEEN|RANDARRAY)\s*\(/;
@@ -89,8 +91,8 @@ export class CalcModel {
     this.model = new g.Model("sb", "en", "UTC", "en");
     try { this.build(books); } catch (e) { this.model.free(); throw e; }
     this.ms.build = now() - t0;
-    const t1 = now(); this.model.evaluate();
-    if (this.pinLocale()) this.model.evaluate();
+    const t1 = now();
+    try { this.model.evaluate(); if (this.pinLocale()) this.model.evaluate(); } catch (e) { this.model.free(); throw e; }
     this.ms.evaluate = now() - t1;
     this.baseline = this.values();
   }
@@ -109,17 +111,25 @@ export class CalcModel {
     try { this.pinCells(); } finally { this.model.resumeEvaluation(); }
     return this.pinned.size;
   }
+  /** one pass: a TEXT cell that reads another pinned one is pinned too (it might have been right after the first) */
   private pinCells() {
     for (const f of this.formulas) {
-      if (!LOCALE.test(f.text) || VOLATILE.test(f.text)) continue;
+      // not an array formula (the engine refuses a constant inside an array), nor a cell never loaded (external, hidden)
+      if (!LOCALE.test(f.text) || VOLATILE.test(f.text) || f.array) continue;
+      const key = f.book + "\u0000" + f.sheet, ck = key + "\u0000" + f.r + "," + f.c, si = this.ix.get(key);
+      if (si === undefined || this.externalCells.has(ck) || this.hiddenCells.has(ck)) continue;
       const cached = this.cachedOf(f);
       if (sameValue(this.valueOf(f.book, f.sheet, f.r, f.c), cached)) continue;
-      const key = f.book + "\u0000" + f.sheet, si = this.ix.get(key); if (si === undefined) continue;
-      this.model.setUserInput(si, f.r, f.c, cached === null ? "" : typeof cached === "number" ? String(cached)
-        : typeof cached === "boolean" ? (cached ? "TRUE" : "FALSE") : typeof cached === "object" ? cached.err : "'" + cached);
-      this.pinned.add(key + "\u0000" + f.r + "," + f.c);
+      try {
+        this.model.setUserInput(si, f.r, f.c, cached === null ? "" : typeof cached === "number" ? String(cached)
+          : typeof cached === "boolean" ? (cached ? "TRUE" : "FALSE") : typeof cached === "object" ? cached.err : "'" + cached);
+      } catch { continue; }                                      // left as the engine computes it (counted locale, as before)
+      this.pinned.add(ck);
+      this.pinnedCells.push({ book: f.book, sheet: f.sheet, ref: numToCol(f.c) + f.r, text: f.text, cached });
     }
   }
+  /** the cells kept at Excel's value: a scenario does not move them (S8.3 marks them in the run's report) */
+  readonly pinnedCells: SelfCheck["pinned"] = [];
   /** every formula cell's value right after the build: what a scenario's changes are measured against (a cell the
       self-check classes `different` keeps Excel's cached value in the deck until a scenario moves it) */
   baseline: CellValue[] = [];
@@ -321,7 +331,7 @@ export class CalcModel {
       counts.different++;
       if (different.length < 200) different.push({ book: f.book, sheet: f.sheet, ref: numToCol(f.c) + f.r, text: f.text, cached, computed });
     }
-    return { counts, different };
+    return { counts, different, pinned: this.pinnedCells.slice(0, 200) };
   }
   dispose() { this.model.free(); }
 }

@@ -442,8 +442,8 @@ PowerPoint without a repair prompt for every corpus deck × design × version.
 | ID | Behaviour | Verified by |
 |---|---|---|
 | RC-01 | formulas read from `.xlsx` (shared, array) and `.xlsb` | U: every formula of the spike files text-equal to Excel's (`xlsb` twins made by `make-xlsb-twins.ps1`) |
-| RC-02 | self-check classes: exact / volatile / locale / external / different | U on the spike corpus: 1,219 / 20 / 20 / 0 / 0 (BanksBig), 182 / 3 / 3 / 4 / 0 (Banks alone), 0 external with Peers linked |
-| RC-03 | scenario value = Excel's saved copy | U: all 10 banks × both files = 100 % of non-volatile, non-locale cells (2,000 of 2,050) |
+| RC-02 | self-check classes: exact / volatile / locale / external / different; a locale-dependent `TEXT` cell the engine computes otherwise than Excel keeps Excel's value in the engine (§8 Q8, built in M8 after G4's stand-in), so the cells reading it are exact, and the self-check lists it (`pinned`) | U on the spike corpus: 1,219 / 20 / 20 / 0 / 0 (BanksBig), 182 / 3 / 3 / 4 / 0 (Banks alone), 0 external with Peers linked |
+| RC-03 | scenario value = Excel's saved copy (a pinned `TEXT` cell keeps its saved text: S8.3 marks it in the report) | U: all 10 banks × both files = 100 % of non-volatile, non-locale cells (2,000 of 2,050) |
 | RC-04 | whole-column references bounded; the exceptions kept | U (OFFSET/INDIRECT cases) + ⏱ 20-sheet deck < 150 ms per value |
 | RC-05 | engine loaded lazily; open budget unchanged | ⏱ bench: `open_deck20_ms` unchanged; `engine_first_use_ms` < 200 |
 | RC-06 | unsupported function → error cell, Issues line, run refused unless "run anyway" | U + E |

@@ -35,7 +35,12 @@ export async function resolveInput(text: string): Promise<Resolved> {
   if (!wb) return { ok: false, why: "No workbook is open." };
   const names = wb.meta.map(m => m.name);
   const sheet = names.find(n => n === c.sheet) ?? names.find(n => n.toLowerCase() === c.sheet.toLowerCase());
-  if (!sheet) return { ok: false, why: `No sheet “${c.sheet}” in this workbook${wb.meta.some(m => m.linked) ? " or its linked workbooks" : ""}.` };
+  if (!sheet) return { ok: false, why: c.sheet.startsWith("[")
+    ? `No sheet “${c.sheet}”: a linked workbook's sheets are known once the deck links it (✦ Wizard › 1 · + Add a linked workbook).`
+    : `No sheet “${c.sheet}” in this workbook${wb.meta.some(m => m.linked) ? " or its linked workbooks" : ""}.` };
+  // a large workbook reads only the slides' sheets at first: the input's sheet is read now (its cell's type decides how
+  // a value goes in – an unread sheet would look empty and send numbers in as text)
+  await core().call("getSheetMeta", { book: wb.book, names: [sheet], load: true }).catch(() => null);
   const now = await core().call("getCell", { book: wb.book, sheet, ref: c.ref }).catch(() => null);
   return { ok: true, cell: { sheet, ref: c.ref }, now: now && now.t !== "blank" ? now : null };
 }
@@ -44,9 +49,11 @@ let previewSeq = 0;
 /** one value on the stage (SC-07): the engine sets the input cell and every slide is drawn from the recomputed values;
     the banner names the value. Editing stays allowed (07 §2.4: edits are ordinary ops on the deck) */
 export async function previewValue(input: string, value: string, asText: boolean): Promise<boolean> {
-  const r = await resolveInput(input);
-  if (!r.ok) { toast("⚠ " + esc(r.why), [], true); return false; }
+  // the number is taken first: a workbook opened, another preview or a clear meanwhile makes this one stale
   const seq = ++previewSeq;
+  const r = await resolveInput(input);
+  if (seq !== previewSeq) return false;
+  if (!r.ok) { toast("⚠ " + esc(r.why), [], true); return false; }
   showBusy(`Previewing ${value}…`, null);
   try {
     const a = await core().call("scenarioPreview", { sheet: r.cell.sheet, ref: r.cell.ref, value: typedValue(value, r.now?.t ?? null, asText) });
@@ -56,9 +63,9 @@ export async function previewValue(input: string, value: string, asText: boolean
     return true;
   } catch (e) {
     console.error(e);
-    toast("⚠ Preview failed: " + esc((e as Error).message || e), [], true);
+    if (seq === previewSeq) toast("⚠ Preview failed: " + esc((e as Error).message || e), [], true);
     return false;
-  } finally { hideBusy(); }
+  } finally { if (seq === previewSeq) hideBusy(); }
 }
 /** back to the workbook's own values */
 export async function clearPreview() {
@@ -68,4 +75,4 @@ export async function clearPreview() {
   catch (e) { console.error(e); toast("⚠ Clearing the preview failed: " + esc((e as Error).message || e), [], true); }
 }
 // another workbook (or the same one read again) has no scenario in the worker: the banner goes with it
-useStore.subscribe(s => s.deck.wb, () => { if (get().ui.preview) { ++previewSeq; patch("ui", { preview: null }); } });
+useStore.subscribe(s => s.deck.wb, () => { ++previewSeq; if (get().ui.preview) patch("ui", { preview: null }); });

@@ -52,10 +52,11 @@ export function parseNumber(text: string): number | null {
   const sign = /^[-+]/.exec(s)?.[0] || ""; s = s.slice(sign.length);
   const e = /[eE]([-+]?\d+)$/.exec(s); if (e) { exp = "e" + e[1]; s = s.slice(0, e.index); }
   let plain: string | null = null;
-  if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) plain = s.replace(/\./g, "").replace(",", ".");   // 1.234 · 1.234,5
+  // (a thousands group never starts with 0: "0.035" is a decimal point)
+  if (/^[1-9]\d{0,2}(\.\d{3})+(,\d+)?$/.test(s)) plain = s.replace(/\./g, "").replace(",", ".");   // 1.234 · 1.234,5
   else if (/^\d+,\d+$/.test(s)) plain = s.replace(",", ".");                                 // 1,5
   else if (/^\d*\.\d+$|^\d+$/.test(s)) plain = s;                                            // 1.5 · .5 · 12
-  else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(s) && (s.includes(".") || /,.*,/.test(s))) plain = s.replace(/,/g, "");   // 1,234.5 · 1,234,567
+  else if (/^[1-9]\d{0,2}(,\d{3})+(\.\d+)?$/.test(s) && (s.includes(".") || /,.*,/.test(s))) plain = s.replace(/,/g, "");   // 1,234.5 · 1,234,567
   if (plain === null || (neg && sign)) return null;
   const n = Number(sign + plain + exp);
   if (!isFinite(n)) return null;

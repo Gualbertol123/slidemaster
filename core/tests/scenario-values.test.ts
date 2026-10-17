@@ -58,6 +58,12 @@ describe("Run for each value: a value's type (07 §8 Q7)", () => {
     expect(parseNumber("12,5%")).toBe(0.125);
     expect(parseNumber("1,23E-04")).toBeCloseTo(0.000123, 12);
     expect(parseNumber("1e3")).toBe(1000);
+    // a leading zero is never a thousands group (review of S8.1): rates typed either way
+    expect(parseNumber("0.035")).toBe(0.035);
+    expect(parseNumber("0.125")).toBe(0.125);
+    expect(parseNumber("0.500")).toBe(0.5);
+    expect(parseNumber("0,035")).toBe(0.035);
+    expect(parseNumber("3,5%")).toBe(0.035);
   });
   it("not numbers", () => {
     for (const t of ["", "Bank A", "31/03/2026", "1.235 €", "12.34.5", "1,2,3", "1.23,4.5", "e3", "-", "(-3)", "1 234", "0x10", "Infinity", "NaN"])

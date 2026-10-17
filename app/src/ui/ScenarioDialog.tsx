@@ -38,8 +38,9 @@ function FromRange({ onUse, onCancel }: { onUse: (values: string[]) => void; onC
     setBusy(true);
     try {
       const w = await core().call("getSheetWindow", { book: wb.book, sheet, r0: g.r1, r1: g.r2, c0: g.c1, c1: g.c2 });
-      // the texts the cells show (their number format applied), row by row; hidden rows and columns are not shown
-      onUse(w ? w.cells.map(c => c.text) : []);
+      // the texts the cells show (their number format applied), row by row; hidden rows and columns are not shown; a
+      // line break or tab inside a cell would split it into two values (one per line): it becomes a space
+      onUse(w ? w.cells.map(c => c.text.replace(/[\r\n\t]+/g, " ")) : []);
     } catch (e) { setErr(String((e as Error)?.message || e)); } finally { setBusy(false); }
   }
   return <div className="scrange" id="scRange">
@@ -68,7 +69,12 @@ export function ScenarioDialog() {
     return () => { live = false; clearTimeout(t); };
   }, [f.input]);
   useEffect(() => {
-    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); if (ranging) setRanging(false); else closeScenario(); } };
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // Escape in the range picker's grid clears its selection first (the grid's own handler), as in the wizard
+      if ((e.target as HTMLElement).closest?.(".wgrid-in") && document.querySelector("#scRange .ovb.sel")) return;
+      e.stopPropagation(); if (ranging) setRanging(false); else closeScenario();
+    };
     document.addEventListener("keydown", key, true);
     return () => document.removeEventListener("keydown", key, true);
   }, [ranging]);

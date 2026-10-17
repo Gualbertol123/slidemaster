@@ -988,6 +988,15 @@ test.describe.serial("two people, one shared folder", () => {
     await page.click("#scPick");
     await expect(page.locator("#scInput")).toHaveValue("[Peers.xlsx]Peer!E4");
     await expect(page.locator("#scInputNote")).toContainText("Holds “Peer avg” today (text)");
+    // the stage's keys stay out of the dialog (a cell is selected behind it): Space toggles the checkbox, Delete and
+    // Ctrl+Z change nothing (the document is compared at the end)
+    await page.locator("#scText").focus();
+    await page.keyboard.press("Space"); await expect(page.locator("#scText")).toBeChecked();
+    await page.keyboard.press("Space"); await expect(page.locator("#scText")).not.toBeChecked();
+    await page.keyboard.press("Delete"); await page.keyboard.press("Control+z"); await page.keyboard.press("x");
+    await expect(dlg).toBeVisible();
+    await page.fill("#scInput", "Control!B4");                                       // a number: numbers go in as numbers
+    await expect(page.locator("#scInputNote")).toContainText("Holds “12” today (a number)");
     await page.fill("#scInput", "control!b20");                                      // any case; an empty cell
     await expect(page.locator("#scInputNote")).toContainText("Empty today");
     await page.fill("#scInput", "Nowhere!B2");
