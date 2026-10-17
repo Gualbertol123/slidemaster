@@ -54,6 +54,9 @@ export interface SelfCheck {
   textFormatted: number;
   /** the locale-dependent cells kept at Excel's cached value (07 §8 Q8; first 200): a scenario does not move them */
   pinned: { book: string | null; sheet: string; ref: string; text: string; cached: CellValue }[];
+  /** every formula cell that reads a workbook not in the model ("linked") or a hidden sheet not read ("hidden"): it
+      keeps Excel's cached value, so a scenario does not move it (the run's report names those on the slides) */
+  frozen: { book: string | null; sheet: string; ref: string; text: string; why: "linked" | "hidden" }[];
 }
 
 const VOLATILE = /\b(?:TODAY|NOW|RAND|RANDBETWEEN|RANDARRAY)\s*\(/;
@@ -379,7 +382,9 @@ export class CalcModel {
             // product owner's deck, 2026-10-18: those cells were 0)
             const cached = kind === Kind.Num || kind === Kind.Date ? String(v) : kind === Kind.Bool ? (v ? "TRUE" : "FALSE") : kind === Kind.Err ? C.strs[v]
               : kind === Kind.Shared || kind === Kind.Str ? "'" + ((kind === Kind.Shared ? ctx.sst[v] : C.strs[v]) ?? "") : null;
-            if (cached !== null && !arr) later.push([r, c, cached]);
+            if (cached !== null) later.push([r, c, cached]);
+            // an array formula's other cells then are the constants Excel saved too (its anchor comes first, row by row)
+            if (arr) { const k = arrays.findIndex(x => x.r1 === r && x.c1 === c); if (k >= 0) arrays.splice(k, 1); }
             continue;
           }
           if (arr) { const m = /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/.exec(arr); const w = m && m[3] ? colNum(m[3]) - colNum(m[1]) + 1 : 1, h = m && m[4] ? +m[4] - +m[2] + 1 : 1; later.push([r, c, "\u0001" + w + "," + h + "," + text]); }
@@ -501,12 +506,16 @@ export class CalcModel {
   /** the self-check of 07 §1.4 (4): every formula cell against the workbook's cached value */
   selfCheck(): SelfCheck {
     const counts: Record<CheckClass, number> = { exact: 0, volatile: 0, locale: 0, external: 0, hidden: 0, unreadable: this.unreadable, different: 0 };
-    const different: SelfCheck["different"] = [];
+    const different: SelfCheck["different"] = [], frozen: SelfCheck["frozen"] = [];
     for (const f of this.formulas) {
       const cached = this.cachedOf(f), computed = this.valueOf(f.book, f.sheet, f.r, f.c);
       const ck = f.book + "\u0000" + f.sheet + "\u0000" + f.r + "," + f.c;
-      if (this.externalCells.has(ck)) { counts.external++; continue; }
-      if (this.hiddenCells.has(ck)) { counts.hidden++; continue; }
+      if (this.externalCells.has(ck) || this.hiddenCells.has(ck)) {
+        const linked = this.externalCells.has(ck);
+        counts[linked ? "external" : "hidden"]++;
+        frozen.push({ book: f.book, sheet: f.sheet, ref: numToCol(f.c) + f.r, text: f.text, why: linked ? "linked" : "hidden" });
+        continue;
+      }
       if (this.pinned.has(ck)) { counts.locale++; continue; }
       if (sameValue(computed, cached)) { counts.exact++; continue; }
       if (VOLATILE.test(f.text)) { counts.volatile++; continue; }
@@ -514,7 +523,7 @@ export class CalcModel {
       counts.different++;
       different.push({ book: f.book, sheet: f.sheet, ref: numToCol(f.c) + f.r, text: f.text, cached, computed });
     }
-    return { counts, different: different.slice(0, 200), allDifferent: different, pinned: this.pinnedCells.slice(0, 200), textFormatted: this.ownText.size };
+    return { counts, different: different.slice(0, 200), allDifferent: different, pinned: this.pinnedCells.slice(0, 200), textFormatted: this.ownText.size, frozen };
   }
   dispose() { this.model.free(); }
 }

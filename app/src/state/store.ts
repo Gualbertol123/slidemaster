@@ -18,7 +18,7 @@ import type { ConfigDoc, Op, Prefs, RuntimeSlide, SlideTextKey, WorkbookDoc } fr
 import type { LibraryFont } from "@slide-builder/core/model/fonts";
 import type { Health, Other } from "../sync/api";
 import type { SaveState } from "@slide-builder/core/sync/docsync";
-import type { DeckHealth } from "@slide-builder/core/rpc/messages";
+import type { DeckHealth, KeptCell } from "@slide-builder/core/rpc/messages";
 import type { HistorySummary } from "@slide-builder/core/sync/history";
 import type { Fmt } from "../editor/painter";
 import type { DialogReq, WizardReq } from "./dialogs";
@@ -52,7 +52,7 @@ export interface RunState {
   results: { value: string; status: "ok" | "failed"; files: string[]; error?: string; warning?: string }[];
   status: "running" | "cancelling" | "end" | "cancelled"; error?: string;
   /** cells drawn with the red corner (run anyway) */ marked: import("@slide-builder/core/rpc/messages").GateCell[];
-  /** slide cells kept at Excel's text (locale-dependent TEXT, 07 §8 Q8) */ kept: { sheet: string; ref: string; text: string }[];
+  /** slide cells kept at Excel's value in every file (locale-dependent TEXT, a linked workbook or hidden sheet not read) */ kept: KeptCell[];
   t0: number; seconds?: number;
 }
 

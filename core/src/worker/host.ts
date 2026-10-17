@@ -36,7 +36,7 @@ import type { RenderCtx } from "../render/context";
 import type { Design, Preset, RuntimeSlide, Style, WorkbookDoc } from "../model/types";
 import type { Workbook } from "../xlsx/types";
 import { Port, transfer, type Wire } from "../rpc/port";
-import type { CalcCheck, GateCell, ScenarioAnswer, ScenarioInput, ScenarioRunReq, ScenarioRunStart, CoreEvents, CoreMethods, DocState, ExportCoreMethods, PageEvents, PageMethods, SlideListsReq, StageLayer, StageReq, StageSlide, ViewInputs, WorkbookInfo } from "../rpc/messages";
+import type { CalcCheck, GateCell, KeptCell, ScenarioAnswer, ScenarioInput, ScenarioRunReq, ScenarioRunStart, CoreEvents, CoreMethods, DocState, ExportCoreMethods, PageEvents, PageMethods, SlideListsReq, StageLayer, StageReq, StageSlide, ViewInputs, WorkbookInfo } from "../rpc/messages";
 import { weightOf, type DisplayList, type Node } from "../dl/types";
 import { stageHits, svgChunks } from "../dl/svg";
 import { contentKey } from "../dl/key";
@@ -294,11 +294,14 @@ export class CoreHost {
   private get running() { return this.runs.size > 0 || this.runStarting; }
   /** the gate (RC-06): the cells the run will draw – the slides' tables in each of its designs, unless every chosen
       version removes the cell – that the self-check classes different (all of them, not only its first 200), and the
-      locale-dependent ones kept at Excel's text (named in the report) */
-  private gateCells(check: SelfCheck, designs: Design[], versions: string[]): { cells: GateCell[]; kept: { sheet: string; ref: string; text: string }[] } {
+      cells kept at Excel's value – locale-dependent TEXT, or reading a linked workbook / hidden sheet not in the model –
+      (named in the report) */
+  private gateCells(check: SelfCheck, designs: Design[], versions: string[]): { cells: GateCell[]; kept: KeptCell[] } {
     const id = (d: { book: string | null; sheet: string; ref: string }) => (d.book === null ? d.sheet : "[" + d.book + "]" + d.sheet) + "!" + d.ref;
-    const diff = new Map(check.allDifferent.map(d => [id(d), d])), pinned = new Map(check.pinned.map(d => [id(d), d]));
-    const out = new Map<string, GateCell>(), kept = new Map<string, { sheet: string; ref: string; text: string }>();
+    const diff = new Map(check.allDifferent.map(d => [id(d), d]));
+    const pinned = new Map<string, { ref: string; text: string; why: KeptCell["why"] }>([
+      ...check.frozen.map(d => [id(d), d] as const), ...check.pinned.map(d => [id(d), { ...d, why: "text" as const }] as const)]);
+    const out = new Map<string, GateCell>(), kept = new Map<string, KeptCell>();
     const vers = (this.sync?.view.preset?.versions || []).filter(v => versions.includes(v.id)), full = versions.includes("");
     const removed = (sheet: string, r: number, c: number) => !full && vers.length > 0 && vers.every(v => (v.hide?.[sheet] || []).some(rg => {
       const g = rangeToG(rg); return r > g.r1 && r < g.r2 && c > g.c1 && c < g.c2;           // (rangeToG's bounds are outside the range)
@@ -307,7 +310,7 @@ export class CoreHost {
       const k = L.sheet.name + "!" + A1(it.b.src.r, it.b.src.c), dd = diff.get(k), p = pinned.get(k);
       if (!dd && !p || removed(L.sheet.name, it.b.src.r, it.b.src.c)) continue;
       if (dd && !out.has(k)) out.set(k, { sheet: L.sheet.name, ref: dd.ref, text: dd.text, cached: dd.cached, computed: dd.computed });
-      if (p && !kept.has(k)) kept.set(k, { sheet: L.sheet.name, ref: p.ref, text: p.text });
+      if (p && !kept.has(k)) kept.set(k, { sheet: L.sheet.name, ref: p.ref, text: p.text, why: p.why });
     }
     return { cells: [...out.values()], kept: [...kept.values()] };
   }

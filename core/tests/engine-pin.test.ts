@@ -74,3 +74,18 @@ describe("locale-dependent cells keep Excel's value (07 §8 Q8)", () => {
     m.dispose();
   }, 60_000);
 });
+
+describe("a formula the engine cannot compute keeps Excel's value (2026-10-18, the product owner's deck)", () => {
+  it("an array formula reading a linked workbook not in the model: every cell of its range, and what reads them", async () => {
+    const wb = await readWorkbook(book(
+      `<row r="1"><c r="E1"><f t="array" ref="E1:E2">[1]X!A1:A2*2</f><v>7</v></c><c r="F1"><f>SUM(E1:E2)</f><v>15</v></c></row>`
+      + `<row r="2"><c r="E2"><v>8</v></c><c r="F2"><f>E2+1</f><v>9</v></c></row>`));
+    const m = new CalcModel(g, [{ name: null, sheets: wb.sheets, externals: ["Other.xlsx"] }]);
+    const sc = m.selfCheck();
+    expect(sc.frozen.map(d => d.ref + ":" + d.why)).toEqual(["E1:linked"]);
+    expect([m.valueOf(null, "S", 1, 5), m.valueOf(null, "S", 2, 5)]).toEqual([7, 8]);
+    expect([m.valueOf(null, "S", 1, 6), m.valueOf(null, "S", 2, 6)]).toEqual([15, 9]);
+    expect(sc.counts.different).toBe(0);
+    m.dispose();
+  }, 60_000);
+});

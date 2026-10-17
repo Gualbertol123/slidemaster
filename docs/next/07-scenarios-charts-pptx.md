@@ -265,7 +265,9 @@ lists by accident (it says so in its toast while a preview shows). A run belongs
 ends it), one runs at a time and a preview waits for it (one engine model). The gate checks every cell the self-check
 classes `different` against the cells the run draws (its designs; a cell every chosen version removes is skipped);
 "run anyway" answers one gate and marks those cells with a red corner (`render/marks.ts`), and the report names the
-locale-dependent cells kept at Excel's text. Cancel stops after the value being made; a file that has not come 30 s
+slide cells kept at Excel's value – locale-dependent TEXT it cannot format, and (after G5) formulas reading a linked
+workbook not in the folder or a hidden sheet not read: they keep Excel's saved value in the engine, so their dependants
+compute from it. Cancel stops after the value being made; a file that has not come 30 s
 later is given up. Names: S8.2's, and a name the helper gave a file open elsewhere is not taken again in the run.
 Found by the large stand-in corpus and fixed in S8.3: defined names reach the engine (a constant or formula name
 through a cell of an internal sheet), and setting the input no longer evaluates the model twice per value.

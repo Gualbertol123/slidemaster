@@ -8,7 +8,7 @@ import { core } from "../state/app";
 import { cancelRun, closeRun, closeScenario, pickedCell, previewValue, resolveInput, runGoing, startRun, type Resolved } from "../editor/scenario";
 import { backend } from "../sync/api";
 import type { CellValue } from "@slide-builder/core/calc/engine";
-import type { GateCell } from "@slide-builder/core/rpc/messages";
+import type { GateCell, KeptCell } from "@slide-builder/core/rpc/messages";
 import { RangePicker } from "../wizard/Wizard";
 import { DESIGNS, DESIGN_LABEL } from "@slide-builder/core/model/designs";
 import { inputCellText, scenarioValues } from "@slide-builder/core/export/scenario";
@@ -166,6 +166,8 @@ export function ScenarioDialog() {
 
 const shownValue = (v: CellValue) => v === null || v === "" ? "empty" : typeof v === "object" ? v.err : String(v);
 
+/** why a slide cell kept Excel's value, as the run's report says it */
+const KEPT_WHY: [KeptCell["why"], string][] = [["text", "TEXT with this PC's language codes"], ["linked", "reading another workbook not open here"], ["hidden", "reading a hidden sheet not read"]];
 /** a run's progress, then its report (S8.3, SC-06): a panel over the stage, not a modal – the deck stays editable */
 export function ScenarioRun() {
   const R = useStore(s => s.ui.run)!;
@@ -179,7 +181,10 @@ export function ScenarioRun() {
     <div className="scbar"><i style={{ width: `${R.total ? Math.round(100 * R.done / R.total) : 0}%` }} /></div>
     {R.error && <div className="scbad" id="scRunError">The run stopped: {R.error}</div>}
     <ol className="screport" id="scReport">{R.results.map((x, i) => <li key={i} data-status={x.status}><b>{x.value}</b>{x.status === "ok" ? <small>{x.files.join(" · ")}</small> : <span className="scbad"> failed: {x.error}{x.files.length ? ` (made: ${x.files.join(" · ")})` : ""}</span>}{x.warning && <span className="scbad"> ⚠ {x.warning}</span>}</li>)}</ol>
-    {R.kept.length > 0 && <div className="scnote" id="scKept">Kept at Excel's own text in every file (TEXT with this PC's language codes, not recalculated): {R.kept.slice(0, 8).map(c => c.sheet + "!" + c.ref).join(", ")}{R.kept.length > 8 ? ` and ${R.kept.length - 8} more` : ""}</div>}
+    {R.kept.length > 0 && <div className="scnote" id="scKept">Kept at Excel's own value in every file, not recalculated: {KEPT_WHY.map(([why, say]) => {
+      const cells = R.kept.filter(c => c.why === why);
+      return cells.length ? <span key={why} data-why={why}> {say}: {cells.slice(0, 8).map(c => c.sheet + "!" + c.ref).join(", ")}{cells.length > 8 ? ` and ${cells.length - 8} more` : ""}.</span> : null;
+    })}</div>}
     {R.marked.length > 0 && <div className="scnote" id="scMarked">Marked with a red corner – computed otherwise than Excel: {R.marked.slice(0, 8).map(c => c.sheet + "!" + c.ref).join(", ")}{R.marked.length > 8 ? ` and ${R.marked.length - 8} more` : ""}</div>}
     <div className="scrunft">{running
       ? <button className="btn" id="scCancel" disabled={R.status === "cancelling"} onClick={cancelRun}>Cancel</button>

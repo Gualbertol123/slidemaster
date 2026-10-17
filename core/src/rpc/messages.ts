@@ -110,6 +110,9 @@ export interface ScenarioInput { sheet: string; ref: string; value: number | str
 export interface ScenarioAnswer { changed: number; different: number; check: CalcCheck;
   /** TEXT cells Slide Builder could not format for this value (they keep the text they had): said, not hidden */ textUnknown?: number;
   /** no formula moved although the value is not the input cell's own: the slides cannot follow this cell */ still?: boolean }
+/** a slide cell a scenario does not move, kept at Excel's value: a TEXT with this PC's language codes (07 §8 Q8), or a
+    formula reading a linked workbook / a hidden sheet that is not in the model */
+export interface KeptCell { sheet: string; ref: string; text: string; why: "text" | "linked" | "hidden" }
 export interface ScenarioRunReq {
   input: { sheet: string; ref: string };
   /** the values as they go into the engine (the page typed them, 07 §8 Q7) */
@@ -129,7 +132,7 @@ export interface ScenarioRunReq {
 export interface GateCell { sheet: string; ref: string; text: string; cached: import("../calc/engine").CellValue; computed: import("../calc/engine").CellValue }
 export type ScenarioRunStart =
   | { id: string; total: number; /** the values' displayed texts (the input cell's number format), in order */ shown: string[]; marked: GateCell[];
-      /** slide cells kept at Excel's text in every file (locale-dependent TEXT, 07 §8 Q8): the report names them */ kept: { sheet: string; ref: string; text: string }[] }
+      /** slide cells kept at Excel's value in every file: the report names them */ kept: KeptCell[] }
   | { id: null; blocked: GateCell[] };
 /** progress of a run: after each value (status of that value), then once at its end (`end`) */
 export interface ScenarioEvent {
