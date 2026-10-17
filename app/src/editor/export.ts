@@ -15,6 +15,7 @@ import { backend } from "../sync/api";
 import { ExportPool } from "../rpc/export";
 import { catalog, fontFile, libraryCatalog } from "../state/fontfiles";
 import { esc } from "@slide-builder/core/xlsx/util";
+import { cleanName as clean, pdfName, pngName, stemOf, versionTitle } from "@slide-builder/core/export/names";
 
 export type ExportKind = "pdf" | "pdf-exact" | "pdf-vector" | "pdf-current" | "png-current" | "png-all" | "copy";
 /** the names users see (B11: in export file names) */
@@ -47,9 +48,6 @@ let exportPool: ExportPool | null = null;
 export const pool = () => exportPool ||= new ExportPool(core, { fontFile, pictureBytes });
 
 /* ---------------------------------------------------------------- writing the files */
-const stemOf = (name: string) => name.replace(/\.[^.]+$/, "");
-/** as the helper cleans names (exports.py clean_name) */
-const clean = (s: string) => s.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/[\\/:*?"<>|]+/g, "_").trim().replace(/^\.+|\.+$/g, "") || "slide";
 /** saved in the export folder (helper) or downloaded (from disk); returns the name used */
 async function save(name: string, data: ArrayBuffer, type: string): Promise<string> {
   if (backend.served) return (await backend.exportFile(name, data)).files![0];
@@ -118,7 +116,7 @@ export async function doExport(kind: ExportKind) {
     if (kind === "pdf-exact" || kind === "pdf-vector") setPrefs({ pdfMode: kind === "pdf-exact" ? "exact" : "vector" });
     const mode = kind === "pdf-exact" ? "exact" : kind === "pdf-vector" ? "vector" : pdfMode;
     const idx = kind === "pdf-current" || kind === "png-current" || kind === "copy" ? [cur] : all;
-    const stem = clean(stemOf(file.name)), label = (i: number) => clean(get().deck.slides[i].label || "slide");
+    const stem = clean(stemOf(file.name)), label = (i: number) => get().deck.slides[i].label || "slide";
     const design = style().design, version = get().deck.version;
     if (kind === "png-current" || kind === "png-all" || kind === "copy") {
       const r = await pool().run(job("png", design, version, idx, stem, await cat));
@@ -131,14 +129,14 @@ export async function doExport(kind: ExportKind) {
         return;
       }
       const names: string[] = [];
-      for (const [k, b] of r.files.entries()) names.push(await save(`${stem} - ${label(idx[k])}.png`, b, "image/png"));
+      for (const [k, b] of r.files.entries()) names.push(await save(pngName(stem, label(idx[k])), b, "image/png"));
       remember({ kind, design, version, files: names, missing: r.missing, unreadable: r.unreadable || [] }, t0);
       return done(names, t0, "");
     }
     // "<workbook> - slides.pdf" for the deck (one slide: that slide's name), " (images)" for pictures – as before
     const whole = idx.length === all.length && idx.length > 1;
     const { r, kind: made } = await runPdf(job(mode === "exact" ? "pictures" : "pdf", design, version, kind === "pdf-current" ? idx : undefined, stem, await cat));
-    const name = `${stem} - ${whole ? "slides" : label(idx[0])}${made === "pictures" ? " (images)" : ""}.pdf`, saved = await save(name, r.files[0], "application/pdf");
+    const name = pdfName(stem, whole ? null : label(idx[0]), made === "pictures"), saved = await save(name, r.files[0], "application/pdf");
     remember({ kind: made === "pictures" ? kind + " (as pictures)" : kind, design, version, files: [saved], missing: r.missing, unreadable: r.unreadable || [] }, t0);
     done([saved], t0, (made === "pictures" && mode !== "exact" ? NO_FONTS : "") + missingNote(r.missing, r.unreadable));
   } catch (e) {
@@ -174,7 +172,7 @@ export async function exportVersions(designs: Design[] | null) {
     // every job runs to its end (one failing does not stop the others, which still save their files); the busy
     // screen goes once all have settled, then the toast names what was saved and what failed
     const results = await Promise.allSettled(list.flatMap(d => versions.map(async v => {
-      const title = `${stem} - ${clean(v.name)} - ${DESIGN_LABEL[d]}`;
+      const title = versionTitle(stem, v.name, d);
       try {
         const { r, kind } = await runPdf(job(pictures ? "pictures" : "pdf", d, v.id, undefined, title, await cat));
         if (kind === "pictures" && !pictures) noFonts = true;
