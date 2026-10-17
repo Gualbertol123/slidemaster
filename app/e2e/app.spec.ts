@@ -913,7 +913,8 @@ test.describe.serial("two people, one shared folder", () => {
     // the Issues panel's "Formulas" line (B24, S7.4): both files recompute like Excel but the locale-dependent cells
     await expect(page.locator("#calcLine")).toContainText("Formulas: not checked yet");
     await page.click("#calcCheckBtn");
-    await expect(page.locator("#calcLine")).toContainText("Formulas: 205 of 208 recompute like Excel · 3 locale-dependent (TEXT)", { timeout: 30_000 });
+    // (the 3 TODAY() cells equal Excel's saved values only on the day it saved them, 2026-10-16: "volatile" on any other)
+    await expect(page.locator("#calcLine")).toContainText(/Formulas: (205 of 208 recompute like Excel|202 of 208 recompute like Excel · 3 volatile \(TODAY, NOW, RAND\)) · 3 locale-dependent \(TEXT\)/, { timeout: 30_000 });
     const bdoc = () => deckDoc("Banks.xlsx");
     await pollFile(() => bdoc().preset.links, { timeout: 10_000 }).toEqual(["Peers.xlsx"]);
     expect(bdoc().preset.tables.map((t: any) => t.sheet)).toEqual(["[Peers.xlsx]Peer"]);
