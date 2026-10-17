@@ -40,6 +40,7 @@ export interface ScenarioForm {
   /** the input cell as typed (name box syntax) */ input: string; /** the values, one per line */ values: string;
   /** "Treat as text" (07 §8 Q7) */ asText: boolean; designs: Design[]; /** version ids, "" = the full deck */ versions: string[];
   /** the value the Preview button shows */ value: string;
+  /** how many cells taken From a range… had line breaks (shown as spaces: not the cell's own text) */ broken: number;
 }
 /** a scenario on the stage (S8.1, 07 §2.4): the value shown and its input cell; nothing of it is saved */
 export interface ScenarioPreview { value: string; input: string; changed: number }
@@ -91,7 +92,7 @@ export const initialState = (): AppState => ({
   selection: { sel: null, noteSel: null, textSel: null, painter: null },
   ui: {
     zoom: "fit", busy: null, exporting: false, toast: null, lookScope: "design", fontBusy: "", changedOnDisk: false, logoMissing: false, fontBuilds: [], health: null, others: [], calc: null,
-    scenario: { input: "", values: "", asText: false, designs: [], versions: [""], value: "" }, preview: null,
+    scenario: { input: "", values: "", asText: false, designs: [], versions: [""], value: "", broken: 0 }, preview: null,
     dialogs: { dialog: null, wizard: null, tables: false, textStyles: null, comment: null, scenario: false },
   },
   prefs: { user: "", host: "", client: Math.random().toString(36).slice(2, 10) + Date.now().toString(36), prefs: {} },

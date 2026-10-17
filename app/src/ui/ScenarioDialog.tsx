@@ -17,7 +17,7 @@ const set = (p: Partial<ScenarioForm>) => patch("ui", { scenario: { ...get().ui.
 const typeName = (t: string) => t === "n" ? "a number" : t === "s" ? "text" : t === "b" ? "a logical" : t === "d" ? "a date" : t === "e" ? "an error" : "a value";
 
 /** From a range…: the wizard's sheet view; the dragged range's displayed texts become the values */
-function FromRange({ onUse, onCancel }: { onUse: (values: string[]) => void; onCancel: () => void }) {
+function FromRange({ onUse, onCancel }: { onUse: (values: string[], broken: number) => void; onCancel: () => void }) {
   const wb = useStore(s => s.deck.wb)!;
   const sheets = wb.meta.map(m => m.name).filter(n => !wb.hiddenSheets.includes(n));
   const [sheet, setSheet] = useState(() => { const p = resolveSheet(get().ui.scenario.input); return p && sheets.includes(p) ? p : sheets[0]; });
@@ -40,7 +40,8 @@ function FromRange({ onUse, onCancel }: { onUse: (values: string[]) => void; onC
       const w = await core().call("getSheetWindow", { book: wb.book, sheet, r0: g.r1, r1: g.r2, c0: g.c1, c1: g.c2 });
       // the texts the cells show (their number format applied), row by row; hidden rows and columns are not shown; a
       // line break or tab inside a cell would split it into two values (one per line): it becomes a space
-      onUse(w ? w.cells.map(c => c.text.replace(/[\r\n\t]+/g, " ")) : []);
+      const texts = w ? w.cells.map(c => c.text) : [];
+      onUse(texts.map(t => t.replace(/[\r\n\t]+/g, " ")), texts.filter(t => /[\r\n\t]/.test(t)).length);
     } catch (e) { setErr(String((e as Error)?.message || e)); } finally { setBusy(false); }
   }
   return <div className="scrange" id="scRange">
@@ -97,9 +98,10 @@ export function ScenarioDialog() {
             ? (cell.now ? <>Holds “{cell.now.text}” today ({typeName(cell.now.t)}).</> : <>Empty today.</>)
             : cell.why}</div>
           <div className="opthd">Values <span className="sccount" id="scCount">{values.length} value{values.length === 1 ? "" : "s"}{lines > values.length ? ` · ${lines - values.length} repeated left out` : ""}</span></div>
-          {ranging ? <FromRange onCancel={() => setRanging(false)} onUse={vs => { set({ values: vs.join("\n") }); setRanging(false); }} /> : <>
+          {f.broken > 0 && <div className="scnote scbad" id="scBroken">{f.broken} cell{f.broken === 1 ? "" : "s"} of the range had line breaks, shown here as spaces: such a value is not the cell's own text (a lookup on it may not find it).</div>}
+          {ranging ? <FromRange onCancel={() => setRanging(false)} onUse={(vs, broken) => { set({ values: vs.join("\n"), broken }); setRanging(false); }} /> : <>
             <textarea id="scValues" rows={7} spellCheck={false} placeholder={"One value per line – type or paste from Excel, e.g.\nBank A\nBank B\nBank C"} value={f.values}
-              onKeyDown={e => e.stopPropagation()} onChange={e => set({ values: (e.target as HTMLTextAreaElement).value })} />
+              onKeyDown={e => e.stopPropagation()} onChange={e => set({ values: (e.target as HTMLTextAreaElement).value, broken: 0 })} />
             <div className="row">
               <button className="btn" id="scFromRange" onClick={() => setRanging(true)}>From a range…</button>
               <label className="ck" title="Numbers go in as numbers when the input cell holds a number today; tick to give every value as text"><input type="checkbox" id="scText" checked={f.asText} onChange={e => set({ asText: (e.target as HTMLInputElement).checked })} /> Treat as text</label>

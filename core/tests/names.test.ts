@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ASSUMED_FOLDER, PATH_LIMIT, cleanName, nameBudget, pdfName, pngName, runFileName, safeValue, scenarioFileName, scenarioRunStems, stemOf, versionTitle } from "../src/export/names";
+import { ASSUMED_FOLDER, PATH_LIMIT, cleanName, nameBudget, pdfName, pngName, runFileName, safeValue, scenarioFileName, runVersionLabels, scenarioRunNames, stemOf, versionTitle } from "../src/export/names";
 
 describe("export names as before (B11, moved to core/src/export/names.ts)", () => {
   it("the deck, a slide, pictures, versions", () => {
@@ -56,23 +56,55 @@ describe("a scenario run's names (S8.2, 07 §2.5, SC-03, SC-04)", () => {
     expect(scenarioFileName("a".repeat(n - 1) + " b", "excel", null, "pdf")).toBe("a".repeat(n - 1) + " - Excel.pdf");
     expect(scenarioFileName("a".repeat(n - 1) + "😀", "excel", null, "pdf")).toBe("a".repeat(n - 1) + " - Excel.pdf");
   });
+  it("values and names Windows treats alike: C1 controls, lone surrogates, its upper-case comparison", () => {
+    expect(safeValue("\u0085X\u009f")).toBe("_X_");
+    expect(safeValue("a\ud800b")).toBe("a_b");
+    expect(safeValue("a\udc00b")).toBe("a_b");
+    expect(safeValue("a😀b")).toBe("a😀b");                                      // a pair is kept
+    expect(() => encodeURIComponent(safeValue("x\ud83d"))).not.toThrow();
+    expect(scenarioRunNames(["ſ", "S"], ["excel"], [null], "pdf").stems).toEqual(["ſ", "S (2)"]);   // "ſ" upper-cases to "S"
+  });
+  it("versions in the names: none for the full deck alone; with several, every one named (\"Full deck\"), alike ones apart", () => {
+    expect(runVersionLabels([null])).toEqual([null]);
+    expect(runVersionLabels(["Chief"])).toEqual(["Chief"]);
+    expect(runVersionLabels([null, "Chief"])).toEqual(["Full deck", "Chief"]);
+    expect(runVersionLabels(["A/B", "A:B", "chief", "Chief"])).toEqual(["A_B", "A_B (2)", "chief", "Chief (2)"]);
+  });
   it("equal names inside one run get (2), (3) after the value – also two values that collapse to one safe name", () => {
-    expect(scenarioRunStems(["X", "X"], ["excel"], [null], "pdf")).toEqual(["X", "X (2)"]);
-    const stems = scenarioRunStems(["A/B", "A:B", "A?B", "Bank C"], ["excel"], [null], "pdf");
-    expect(stems).toEqual(["A_B", "A_B (2)", "A_B (3)", "Bank C"]);
-    expect(runFileName(stems[0], "excel", null, "pdf")).toBe("A_B - Excel.pdf");
-    expect(runFileName(stems[1], "excel", null, "pdf")).toBe("A_B (2) - Excel.pdf");
+    const names = (values: string[], versions: (string | null)[] = [null], designs: ("excel" | "glass")[] = ["excel"]) => {
+      const r = scenarioRunNames(values, designs, versions, "pdf");
+      return r.stems.flatMap(s => designs.flatMap(d => r.labels.map(l => runFileName(s, d, l, "pdf"))));
+    };
+    expect(names(["X", "X"])).toEqual(["X - Excel.pdf", "X (2) - Excel.pdf"]);
+    expect(names(["A/B", "A:B", "A?B", "Bank C"])).toEqual(["A_B - Excel.pdf", "A_B (2) - Excel.pdf", "A_B (3) - Excel.pdf", "Bank C - Excel.pdf"]);
     // Windows names ignore case; a value that is literally "X (2)" keeps its name, the repeat moves on
-    expect(scenarioRunStems(["bank c", "Bank C"], ["excel"], [null], "pdf")).toEqual(["bank c", "Bank C (2)"]);
-    expect(scenarioRunStems(["X (2)", "X", "X"], ["excel"], [null], "pdf")).toEqual(["X (2)", "X", "X (3)"]);
-    expect(scenarioRunStems(["", " ", "."], ["excel"], [null], "pdf")).toEqual(["(blank)", "(blank) (2)", "(blank) (3)"]);
+    expect(names(["bank c", "Bank C"])).toEqual(["bank c - Excel.pdf", "Bank C (2) - Excel.pdf"]);
+    expect(names(["X (2)", "X", "X"])).toEqual(["X (2) - Excel.pdf", "X - Excel.pdf", "X (3) - Excel.pdf"]);
+    expect(names(["", " ", "."])).toEqual(["(blank) - Excel.pdf", "(blank) (2) - Excel.pdf", "(blank) (3) - Excel.pdf"]);
+  });
+  it("no two files of a run are one file, whatever \" - \" the values and versions hold (review of S8.2)", () => {
+    const all = (values: string[], versions: (string | null)[]) => {
+      const designs = ["excel", "glass"] as const, r = scenarioRunNames(values, [...designs], versions, "pdf");
+      return r.stems.flatMap(s => designs.flatMap(d => r.labels.map(l => runFileName(s, d, l, "pdf"))));
+    };
+    for (const [values, versions] of [
+      [["A", "A - X"], ["X - Chief", "Chief"]],
+      [["A", "A - Chief"], [null, "Chief"]],
+      [["A", "A - Full deck"], [null, "Chief"]],
+      [["Bank C", "bank c", "Bank/C", "Bank:C"], ["A/B", "A:B", "Chief", "chief", null]],
+    ] as [string[], (string | null)[]][]) {
+      const files = all(values, versions);
+      expect(new Set(files.map(f => f.toUpperCase())).size, files.join(" | ")).toBe(files.length);
+    }
+    const files = all(["A", "A - X"], ["X - Chief", "Chief"]);
+    expect(files).toContain("A - X - Chief - Excel.pdf"); expect(files).toContain("A - X (2) - Chief - Excel.pdf");
   });
   it("in a run, every value is cut for the longest version × design, the (2) inside the limit", () => {
-    const long = "L".repeat(300), stems = scenarioRunStems([long, long], ["glass", "bain"], ["Chief", "A much longer version name"], "pdf", 80);
+    const long = "L".repeat(300), r = scenarioRunNames([long, long], ["glass", "bain"], ["Chief", "A much longer version name"], "pdf", 80);
     const longest = " - A much longer version name - Consulting Red.pdf".length;
-    expect(stems[0].length).toBe(nameBudget(80) - longest);
-    expect(stems[1].endsWith(" (2)")).toBe(true); expect(stems[1].length).toBe(nameBudget(80) - longest);
-    for (const s of stems) for (const d of ["glass", "bain"] as const) for (const v of ["Chief", "A much longer version name"])
-      expect(runFileName(s, d, v, "pdf").length).toBeLessThanOrEqual(nameBudget(80));
+    expect(r.stems[0].length).toBe(nameBudget(80) - longest);
+    expect(r.stems[1].endsWith(" (2)")).toBe(true); expect(r.stems[1].length).toBe(nameBudget(80) - longest);
+    for (const s of r.stems) for (const d of ["glass", "bain"] as const) for (const l of r.labels)
+      expect(runFileName(s, d, l, "pdf").length).toBeLessThanOrEqual(nameBudget(80));
   });
 });

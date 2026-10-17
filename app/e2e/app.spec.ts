@@ -988,13 +988,22 @@ test.describe.serial("two people, one shared folder", () => {
     await page.click("#scPick");
     await expect(page.locator("#scInput")).toHaveValue("[Peers.xlsx]Peer!E4");
     await expect(page.locator("#scInputNote")).toContainText("Holds “Peer avg” today (text)");
-    // the stage's keys stay out of the dialog (a cell is selected behind it): Space toggles the checkbox, Delete and
-    // Ctrl+Z change nothing (the document is compared at the end)
+    // the stage's keys stay out of the dialog ("Peer avg" is selected behind it; focus on a button, where the stage's
+    // shortcuts would act): Delete, a letter, Ctrl+Z and Tab change nothing – the cell keeps its text, the name box its
+    // cell, the document is compared at the end – and Enter presses the focused button (the stage took it before)
+    const nameBefore = await page.locator("#nameBox").textContent();
+    await page.locator("#scFromRange").focus();
+    for (const k of ["Delete", "Backspace", "x", "Control+z", "Tab"]) await page.keyboard.press(k);
+    await expect(dlg).toBeVisible();
+    await expect(page.locator("#nameBox")).toHaveText(nameBefore!);
+    await expect(cells.filter({ hasText: /^Peer avg$/ })).toHaveCount(1);
+    await page.locator("#scFromRange").focus(); await page.keyboard.press("Enter");
+    await expect(page.locator("#scRange")).toBeVisible();
+    await page.keyboard.press("Escape");                                             // back to the values
+    await expect(page.locator("#scValues")).toBeVisible();
     await page.locator("#scText").focus();
     await page.keyboard.press("Space"); await expect(page.locator("#scText")).toBeChecked();
     await page.keyboard.press("Space"); await expect(page.locator("#scText")).not.toBeChecked();
-    await page.keyboard.press("Delete"); await page.keyboard.press("Control+z"); await page.keyboard.press("x");
-    await expect(dlg).toBeVisible();
     await page.fill("#scInput", "Control!B4");                                       // a number: numbers go in as numbers
     await expect(page.locator("#scInputNote")).toContainText("Holds “12” today (a number)");
     await page.fill("#scInput", "control!b20");                                      // any case; an empty cell

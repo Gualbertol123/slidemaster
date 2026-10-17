@@ -6,6 +6,7 @@ import { core, style } from "../state/app";
 import { activeItem } from "./edit";
 import { keyOf } from "@slide-builder/core/render/edits";
 import { esc } from "@slide-builder/core/xlsx/util";
+import { parseSheetId } from "@slide-builder/core/calc/refs";
 import { inputCellText, parseInputCell, typedValue, type InputCell } from "@slide-builder/core/export/scenario";
 import type { CellInfo } from "@slide-builder/core/xlsx/sheetview";
 
@@ -35,7 +36,8 @@ export async function resolveInput(text: string): Promise<Resolved> {
   if (!wb) return { ok: false, why: "No workbook is open." };
   const names = wb.meta.map(m => m.name);
   const sheet = names.find(n => n === c.sheet) ?? names.find(n => n.toLowerCase() === c.sheet.toLowerCase());
-  if (!sheet) return { ok: false, why: c.sheet.startsWith("[")
+  const book = parseSheetId(c.sheet).book;
+  if (!sheet) return { ok: false, why: book && !wb.meta.some(m => m.linked?.toLowerCase() === book.toLowerCase())
     ? `No sheet “${c.sheet}”: a linked workbook's sheets are known once the deck links it (✦ Wizard › 1 · + Add a linked workbook).`
     : `No sheet “${c.sheet}” in this workbook${wb.meta.some(m => m.linked) ? " or its linked workbooks" : ""}.` };
   // a large workbook reads only the slides' sheets at first: the input's sheet is read now (its cell's type decides how
@@ -45,7 +47,7 @@ export async function resolveInput(text: string): Promise<Resolved> {
   return { ok: true, cell: { sheet, ref: c.ref }, now: now && now.t !== "blank" ? now : null };
 }
 
-let previewSeq = 0;
+let previewSeq = 0, busyBy = 0;
 /** one value on the stage (SC-07): the engine sets the input cell and every slide is drawn from the recomputed values;
     the banner names the value. Editing stays allowed (07 §2.4: edits are ordinary ops on the deck) */
 export async function previewValue(input: string, value: string, asText: boolean): Promise<boolean> {
@@ -54,7 +56,7 @@ export async function previewValue(input: string, value: string, asText: boolean
   const r = await resolveInput(input);
   if (seq !== previewSeq) return false;
   if (!r.ok) { toast("⚠ " + esc(r.why), [], true); return false; }
-  showBusy(`Previewing ${value}…`, null);
+  showBusy(`Previewing ${value}…`, null); busyBy = seq;
   try {
     const a = await core().call("scenarioPreview", { sheet: r.cell.sheet, ref: r.cell.ref, value: typedValue(value, r.now?.t ?? null, asText) });
     if (seq !== previewSeq) return false;                                    // a newer preview or a clear came meanwhile
@@ -65,7 +67,7 @@ export async function previewValue(input: string, value: string, asText: boolean
     console.error(e);
     if (seq === previewSeq) toast("⚠ Preview failed: " + esc((e as Error).message || e), [], true);
     return false;
-  } finally { if (seq === previewSeq) hideBusy(); }
+  } finally { if (busyBy === seq) { busyBy = 0; hideBusy(); } }          // the busy box is this call's to hide
 }
 /** back to the workbook's own values */
 export async function clearPreview() {

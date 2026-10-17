@@ -22,27 +22,35 @@ export const pdfName = (stem: string, slide: string | null, pictures: boolean) =
 /** a slide as a PNG: "<workbook> - <slide>.png" */
 export const pngName = (stem: string, slide: string) => `${stem} - ${cleanName(slide)}.png`;
 
+
 /* ---------------------------------------------------------------- scenario runs (07 §2.5) */
 /** the length of a full path the helper writes (its temporary file included) is kept under this (audit SEC-6) */
 export const PATH_LIMIT = 240;
-/** the export folder's length when the page does not know it (from disk, or before /api/health answered) */
+/** the export folder's length when the page does not know it (the brief's figure; a run started by the page waits for
+    /api/health's folder, S8.3 – the team's share folder is 77 characters) */
 export const ASSUMED_FOLDER = 60;
 /** ".<32 hex>.tmp" after the name, and the "\" before it */
 const TMP_EXTRA = 1 + 32 + 4 + 1;
 const RESERVED = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])$/i;
+/** the name of the full deck in a run with several versions */
+export const FULL_DECK = "Full deck";
+/** how Windows compares file names (an upper-case table: "ſ" is "S" there) */
+const fileKey = (s: string) => s.toUpperCase();
 
-/** a value as a file name's first part: safe characters, no leading / trailing spaces or dots, never a device name,
-    never empty */
+/** a value as a file name's first part: safe characters (controls – C0, DEL, C1 – and \ / : * ? " < > | and a lone
+    surrogate → "_"), no leading / trailing spaces or dots, never a device name, never empty */
 export function safeValue(text: string): string {
-  let s = text.replace(/[\u0000-\u001f\u007f\\/:*?"<>|]/g, "_").replace(/^[\s.]+|[\s.]+$/g, "");
+  let s = text.replace(/[\u0000-\u001f\u007f-\u009f\\/:*?"<>|]|[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, "_")
+    .replace(/^[\s.]+|[\s.]+$/g, "");
   if (!s) return "(blank)";
   if (RESERVED.test(s.split(".")[0].trim())) s = "_" + s;
   return s;
 }
 /** the longest name (its extension included) the helper can write in an export folder of `folder` characters */
 export const nameBudget = (folder = ASSUMED_FOLDER) => PATH_LIMIT - 1 - TMP_EXTRA - folder;
-/** "<value> - <design>.<ext>" or "<value> - <version> - <design>.<ext>": the rest of the name after the value */
-const restOf = (design: Design, version: string | null, ext: string) => (version === null ? "" : ` - ${cleanName(version)}`) + ` - ${DESIGN_LABEL[design]}.${ext}`;
+/** "<value> - <design>.<ext>" or "<value> - <version> - <design>.<ext>": the rest of the name after the value
+    (`label`: the version as runVersionLabels names it, null for none) */
+const restOf = (design: Design, label: string | null, ext: string) => (label === null ? "" : ` - ${label}`) + ` - ${DESIGN_LABEL[design]}.${ext}`;
 /** cut to `n` characters (never inside a surrogate pair), then no trailing spaces or dots */
 function cut(s: string, n: number): string {
   if (s.length <= n) return s;
@@ -51,27 +59,44 @@ function cut(s: string, n: number): string {
   return t.replace(/[\s.]+$/, "") || "_";
 }
 
-/** one file of a run: the value made safe and cut so the name fits the export folder (`folder` characters; when not
-    known, ASSUMED_FOLDER). In a folder so deep that not even the rest of the name fits, the value keeps one character
-    (the helper then refuses the file, and the run's report says so) */
+/** the versions of a run as its file names show them: none for a run of the full deck alone; with several versions
+    every one is named – the full deck "Full deck" – cleaned as B11's names, and two that clean alike (Windows ignores
+    case) get " (2)", " (3)". `versions`: the versions' names, null for the full deck */
+export function runVersionLabels(versions: (string | null)[]): (string | null)[] {
+  if (versions.length === 1 && versions[0] === null) return [null];
+  const used = new Set<string>();
+  return versions.map(v => {
+    const base = cleanName(v ?? FULL_DECK);
+    for (let k = 1; ; k++) { const l = k === 1 ? base : `${base} (${k})`; if (!used.has(fileKey(l))) { used.add(fileKey(l)); return l; } }
+  });
+}
+
+/** one file of a run on its own: the value made safe and cut so the name fits the export folder (`folder` characters;
+    when not known, ASSUMED_FOLDER). In a folder so deep that not even the rest of the name fits, the value keeps one
+    character (the helper then refuses the file, and the run's report says so) */
 export function scenarioFileName(valueText: string, design: Design, version: string | null, ext: string, folder = ASSUMED_FOLDER): string {
-  const rest = restOf(design, version, ext);
+  const rest = restOf(design, version === null ? null : cleanName(version), ext);
   return cut(safeValue(valueText), nameBudget(folder) - rest.length) + rest;
 }
 
-/** a whole run's names: for each value, its first part – safe, cut to fit the longest (design, version) of the run, and
-    " (2)", " (3)" when it equals an earlier value's (ignoring case, as Windows does) – so that no two files of a run
-    are the same file. `versions`: the versions' names, null for "the deck without versions" (one file per design) */
-export function scenarioRunStems(values: string[], designs: Design[], versions: (string | null)[], ext: string, folder = ASSUMED_FOLDER): string[] {
-  const longest = Math.max(0, ...designs.flatMap(d => versions.map(v => restOf(d, v, ext).length)));
-  const room = nameBudget(folder) - longest, used = new Set<string>();
-  return values.map(v => {
+/** a whole run's names (S8.2, SC-03): `stems[i]` is value i's first part – safe, cut to fit the run's longest
+    (version, design) – and `labels[j]` version j's part; runFileName joins them. A value whose files would equal a
+    file of an earlier value (Windows ignores case; " - " can sit inside a value or a version name) gets " (2)", " (3)"
+    after the value, so no two files of a run are the same file */
+export function scenarioRunNames(values: string[], designs: Design[], versions: (string | null)[], ext: string, folder = ASSUMED_FOLDER): { stems: string[]; labels: (string | null)[] } {
+  const labels = runVersionLabels(versions);
+  const rests = designs.flatMap(d => labels.map(l => restOf(d, l, ext)));
+  const room = nameBudget(folder) - Math.max(0, ...rests.map(r => r.length)), used = new Set<string>();
+  const stems = values.map(v => {
     const base = safeValue(v);
     for (let k = 1; ; k++) {
       const suffix = k === 1 ? "" : ` (${k})`, stem = cut(base, room - suffix.length) + suffix;
-      if (!used.has(stem.toLowerCase())) { used.add(stem.toLowerCase()); return stem; }
+      const keys = rests.map(r => fileKey(stem + r));
+      if (keys.some(x => used.has(x))) continue;
+      keys.forEach(x => used.add(x)); return stem;
     }
   });
+  return { stems, labels };
 }
-/** the file of one value (its stem from scenarioRunStems) in one design and version */
-export const runFileName = (stem: string, design: Design, version: string | null, ext: string) => stem + restOf(design, version, ext);
+/** the file of one value (its stem) in one design and version (its label), both from scenarioRunNames */
+export const runFileName = (stem: string, design: Design, label: string | null, ext: string) => stem + restOf(design, label, ext);
