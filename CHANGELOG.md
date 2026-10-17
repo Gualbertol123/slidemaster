@@ -6,6 +6,23 @@ Releases are made with `docs/next/release-checklist.md`.
 ## 4.2.0 - unreleased (docs/next/07, docs/next/08, PLAN M7, M7b, M8; B15, B22–B26)
 
 What users notice
+* **Run for each value** (B15): *Export ▾ › Run for each value…* sets an input cell (e.g. the bank of a dashboard's
+  control sheet) to each value of a list – typed, pasted from Excel, or taken from a range of the workbook – and saves
+  one PDF per value, design and version, named "<value> - <design>.pdf" ("<value> - <version> - <design>.pdf" with
+  versions; two values that show alike get " (2)"). The workbook is recalculated by Slide Builder for each value;
+  nothing is saved – the workbook file and the deck stay as they are. A panel shows the progress, *Cancel* (after the
+  value being made), a report per value and *Open folder*; you can keep working on the deck meanwhile. Before the
+  first value, a cell on the slides that Slide Builder computes otherwise than Excel stops the run with its list,
+  unless *Run anyway and mark these cells* is ticked (they get a red corner). PowerPoint files come with 4.5.
+* **Preview** one value on the slides first: a banner names it ("Previewing: Bank C – a scenario, not saved · Clear");
+  the formula bar, toolbar and side panel show the scenario's values too. Edits made meanwhile are ordinary edits of
+  the deck (an edit of a cell the scenario changed belongs to the workbook's value: it shows once the preview is
+  cleared, and Slide Builder says so). An ordinary export during a preview uses the workbook's own values (its message
+  says so).
+* Workbooks made with **Italian Excel** recalculate like Excel: `TESTO(…;"mmmm aaaa")`, `TESTO(x;"#.##0,0")` and the
+  like are formatted as Italian Excel does (month names, separators), so titles built with them follow a scenario; the
+  Formulas line says how many ("n with TEXT in Italian, formatted by Slide Builder"). **Named ranges** (defined names)
+  are recalculated too.
 * **Linked workbooks** (B22): in the wizard's first step, *+ Add a linked workbook…* lists the other workbooks of the
   folder; the chosen file's sheets join the list (shown with the file's name) and its tables go on slides like any
   other. A deck remembers its linked files; if one is missing when the deck opens, its tables are reported as missing
@@ -32,6 +49,17 @@ What users notice
   page opens such a deck in Liquid Glass and keeps its consulting settings.
 
 For the maintainer
+* Scenario runs (M8): `scenarioRun` / `scenarioCancel` and `scenario` events in the core worker (`core/src/worker/
+  host.ts`); file names in `core/src/export/names.ts` (the B11 names moved there unchanged); display lists name whose
+  values they draw (`SlideListsReq.scenario`: a run, "preview", or the workbook's own); a preview mirrors its cells to
+  the page (slices flagged `rebuild` / `scenario`). Bench gates `scenario_one_ms`, `scenario_20_ms`,
+  `scenario_task_ms`, `preview_switch_ms`.
+* The formula engine reads defined names (`Workbook.names`; a constant or formula name through a cell of an internal
+  sheet), evaluates once per input, and formats TEXT with Italian codes itself (`core/src/calc/textfmt.ts`). Stand-in
+  corpora for the product owner's confidential dashboards, made with this PC's Italian Excel: `tests/corpus/
+  workbooks/g4/` (`spikes/recalc/make_g4.ps1`) and `tests/corpus/workbooks/large/` (`make_large.ps1`: three linked
+  workbooks, 22,956 formulas, and a 91,281-formula speed workbook, with Excel's recalculated copies); every formula
+  equals Excel's in the self-check and in every scenario case. `app/tests/fixtures/Gate.xlsx` (`make_gate.ps1`).
 * The consulting designs are one renderer with two specs (`core/src/render/consult-spec.ts`, `consult-dl.ts`,
   `exhibit.ts`; ADR-018) drawing through the display list like the others; their goldens are their own signed-off
   first render (`golden/<deck>/mckinsey|bain/`, `golden/MANIFEST-v4.json`, `tools/capture-v4.mjs`); the bench and

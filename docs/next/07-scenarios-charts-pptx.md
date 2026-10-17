@@ -286,7 +286,10 @@ call's value and format are moved to cells of a sheet of the engine's own, and t
 written where the formula reads it, after every evaluation – so such cells follow a scenario. A cell whose result still
 differs from Excel's saved text at load is kept at that text and marked as before ("keep and mark"). The Formulas line
 names how many are formatted by Slide Builder. Known limits: a TEXT whose value depends on its own cell (ROW, COLUMN,
-INDIRECT, OFFSET, CELL) or nested in another TEXT is kept; logical values and dates before March 1900 keep their last text.
+INDIRECT, OFFSET, CELL) or nested in another TEXT is kept; logical values and dates before March 1900 keep their last text
+(said in the banner and the run's report); a sheet-level defined name used inside a moved TEXT call is read at the
+workbook's level; a bare `SHEETS()` inside a moved TEXT call or a defined name counts the engine's own sheets (such a cell
+differs at load and keeps its own formula).
 
 * **The document is never changed by a run.** No `cell.patch` is generated; `edits` with `orig` keep behaving as
   CE-09 says (a text edit applies only while the Excel value is `orig`; under a scenario the overlay value is "the
