@@ -171,7 +171,7 @@ export function ScenarioRun() {
     <div className="scrunhd"><b>Run for each value</b><span id="scRunStatus">{status}</span></div>
     <div className="scbar"><i style={{ width: `${R.total ? Math.round(100 * R.done / R.total) : 0}%` }} /></div>
     {R.error && <div className="scbad" id="scRunError">The run stopped: {R.error}</div>}
-    <ol className="screport" id="scReport">{R.results.map((x, i) => <li key={i} data-status={x.status}><b>{x.value}</b>{x.status === "ok" ? <small>{x.files.join(" · ")}</small> : <span className="scbad"> failed: {x.error}{x.files.length ? ` (made: ${x.files.join(" · ")})` : ""}</span>}</li>)}</ol>
+    <ol className="screport" id="scReport">{R.results.map((x, i) => <li key={i} data-status={x.status}><b>{x.value}</b>{x.status === "ok" ? <small>{x.files.join(" · ")}</small> : <span className="scbad"> failed: {x.error}{x.files.length ? ` (made: ${x.files.join(" · ")})` : ""}</span>}{x.warning && <span className="scbad"> ⚠ {x.warning}</span>}</li>)}</ol>
     {R.kept.length > 0 && <div className="scnote" id="scKept">Kept at Excel's own text in every file (TEXT with this PC's language codes, not recalculated): {R.kept.slice(0, 8).map(c => c.sheet + "!" + c.ref).join(", ")}{R.kept.length > 8 ? ` and ${R.kept.length - 8} more` : ""}</div>}
     {R.marked.length > 0 && <div className="scnote" id="scMarked">Marked with a red corner – computed otherwise than Excel: {R.marked.slice(0, 8).map(c => c.sheet + "!" + c.ref).join(", ")}{R.marked.length > 8 ? ` and ${R.marked.length - 8} more` : ""}</div>}
     <div className="scrunft">{running

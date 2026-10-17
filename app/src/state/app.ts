@@ -92,6 +92,10 @@ export function core(): CorePort {
 /** while a preview shows (S8.4), the workbook's own text of every cell of the slides, by "<sheet>!<A1>": an edit made
     meanwhile keeps the workbook's value as its "Excel value" (CE-09), not the scenario's the page shows */
 let ownTexts: { wb: MirrorWorkbook; texts: Map<string, string> } | null = null;
+/** the preview ended on the page (Clear): the cells are the workbook's again */
+export function forgetWorkbookTexts() { ownTexts = null; }
+/** whether the page kept this cell's workbook text (a cell added during a preview has none: the worker is asked) */
+export function hasWorkbookText(sheet: string, key: string): boolean { const o = ownTexts; return !o || o.wb !== get().deck.wb || o.texts.has(sheet + "!" + key); }
 /** the text the workbook itself has in this cell (the cell's text, unless a preview shows another) */
 export function workbookText(sheet: string, key: string, shown: string): string {
   const o = ownTexts; return o && o.wb === get().deck.wb ? o.texts.get(sheet + "!" + key) ?? shown : shown;

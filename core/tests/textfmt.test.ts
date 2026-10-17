@@ -50,6 +50,11 @@ describe("TEXT with Italian Excel's codes: what the review of S8.4 found", () =>
     expect(excelText(2.5, "gg/mm/aaaa")).toBeNull();
     expect(excelText(-1, "gg/mm/aaaa")).toBeNull();
     expect(excelText(-1, "0")).toBe("-1");                                         // (a number may be negative)
+    // a time alone has no date part: any value from 0 (re-check of S8.4)
+    expect(excelText(0.5, "h:mm AM/PM")).toBe("12:00 PM");
+    expect(excelText(0.25, "hh:mm")).toBe("06:00");
+    expect(excelText(1.5, "[h]:mm")).toBe("36:00");
+    expect(excelText(-0.5, "hh:mm")).toBeNull();
   });
   it("text values: Italian numbers only, the text section of a format; a number as the format", () => {
     expect(excelText("0x1A", "0")).toBe("0x1A");

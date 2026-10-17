@@ -249,7 +249,8 @@ export class CoreHost {
         withInput(changes, a.sheet, p.r, p.c, a.value);                // (counted above: the formulas that moved)
         const hash = overlayHash(changes);
         this.scen = { input: a, was, view: overlayWorkbook(wb, changes), hash, sheets: new Set(changes.keys()) };
-        answer = { changed, different, check: c.checkOut };
+        const unsure = c.model.textUnknown + c.model.textUnsettled;
+        answer = { changed, different, check: c.checkOut, ...(unsure ? { textUnknown: unsure } : {}) };
       } else {
         c.model.evaluate();
         // nothing may be left behind: the engine is back at its baseline
@@ -337,7 +338,7 @@ export class CoreHost {
     };
     try {
       for (let i = 0; i < total && !run.cancel; i++) {
-        let ok = false;
+        let ok = false, unsure = 0;
         await this.later(() => {
           if (!live()) return;
           if (was === null) was = c.model.contentOf(p.book, p.sheet, p.r, p.c);
@@ -345,6 +346,7 @@ export class CoreHost {
           c.model.evaluate();
           const changes = withInput(c.model.changes(), a.input.sheet, p.r, p.c, a.values[i]);
           run.view = overlayWorkbook(wb, changes); run.hash = run.id + "." + i + overlayHash(changes); run.slides.clear();
+          unsure = c.model.textUnknown + c.model.textUnsettled;
           ok = true;
         });
         if (!ok) throw new Error(live() ? "the input cell could not be set" : "the workbook changed during the run");
@@ -358,7 +360,8 @@ export class CoreHost {
         const failed = res.flatMap((r, k) => r.status === "rejected" ? [jobs[k].name + ": " + String((r.reason as Error)?.message || r.reason)] : []);
         run.view = null; run.slides.clear();                       // the value's view is dropped
         done++;
-        this.port.emit("scenario", { id: run.id, done, total, value: shown[i], status: failed.length ? "failed" : "ok", files, ...(failed.length ? { error: failed.join(" · ") } : {}) });
+        this.port.emit("scenario", { id: run.id, done, total, value: shown[i], status: failed.length ? "failed" : "ok", files, ...(failed.length ? { error: failed.join(" · ") } : {}),
+          ...(unsure ? { warning: `${unsure} TEXT cell${unsure === 1 ? "" : "s"} could not be formatted for this value: they show the previous value's text` } : {}) });
         if (!live()) throw new Error("the workbook changed during the run");
         await new Promise(r => setTimeout(r, 0));                  // yield: requests waiting are served
       }

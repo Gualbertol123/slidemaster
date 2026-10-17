@@ -44,11 +44,11 @@ export interface ScenarioForm {
   /** "run anyway, mark these cells" (the gate, RC-06) */ runAnyway: boolean;
 }
 /** a scenario on the stage (S8.1, 07 §2.4): the value shown and its input cell; nothing of it is saved */
-export interface ScenarioPreview { value: string; input: string; changed: number }
+export interface ScenarioPreview { value: string; input: string; changed: number; /** TEXT cells it could not format */ textUnknown?: number }
 /** a run for each value (S8.3): its progress, then its report – UI state of this page */
 export interface RunState {
   id: string; total: number; done: number; /** the values as the input cell shows them */ shown: string[];
-  results: { value: string; status: "ok" | "failed"; files: string[]; error?: string }[];
+  results: { value: string; status: "ok" | "failed"; files: string[]; error?: string; warning?: string }[];
   status: "running" | "cancelling" | "end" | "cancelled"; error?: string;
   /** cells drawn with the red corner (run anyway) */ marked: import("@slide-builder/core/rpc/messages").GateCell[];
   /** slide cells kept at Excel's text (locale-dependent TEXT, 07 §8 Q8) */ kept: { sheet: string; ref: string; text: string }[];

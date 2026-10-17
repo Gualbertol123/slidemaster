@@ -2,7 +2,7 @@
    (ADR-014): the page asks it to show one value on the stage (scenarioPreview) and to clear it; nothing here writes the
    document, the deck or the workbook. The dialog's fields are UI state (store ui.scenario). */
 import { get, hideBusy, patch, setDialogs, showBusy, toast, useStore } from "../state/store";
-import { core, style } from "../state/app";
+import { core, forgetWorkbookTexts, style } from "../state/app";
 import { activeItem } from "./edit";
 import { keyOf } from "@slide-builder/core/render/edits";
 import { esc } from "@slide-builder/core/xlsx/util";
@@ -70,7 +70,7 @@ export async function previewValue(input: string, value: string, asText: boolean
     const a = await core().call("scenarioPreview", { sheet: r.cell.sheet, ref: r.cell.ref, value: typedValue(value, r.now?.t ?? null, asText) });
     if (seq !== previewSeq) return false;                                    // a newer preview or a clear came meanwhile
     if (!a) { patch("ui", { preview: null }); toast(`⚠ ${esc(inputCellText(r.cell))} could not be set to “${esc(value)}”: the formula engine could not take it.`, [], true); return false; }
-    patch("ui", { preview: { value, input: inputCellText(r.cell), changed: a.changed } });
+    patch("ui", { preview: { value, input: inputCellText(r.cell), changed: a.changed, ...(a.textUnknown ? { textUnknown: a.textUnknown } : {}) } });
     return true;
   } catch (e) {
     console.error(e);
@@ -82,6 +82,7 @@ export async function previewValue(input: string, value: string, asText: boolean
 export async function clearPreview() {
   ++previewSeq;
   patch("ui", { preview: null });
+  forgetWorkbookTexts();
   try { await core().call("scenarioPreview", null); }
   catch (e) { console.error(e); toast("⚠ Clearing the preview failed: " + esc((e as Error).message || e), [], true); }
 }
@@ -138,7 +139,7 @@ export const closeRun = () => { const R = get().ui.run; if (R && R.status !== "r
 export function onScenarioEvent(e: ScenarioEvent) {
   const R = get().ui.run; if (!R || R.id !== e.id) return;
   if (e.value !== null) {
-    patch("ui", { run: { ...R, done: e.done, results: [...R.results, { value: e.value, status: e.status === "failed" ? "failed" : "ok", files: e.files, ...(e.error ? { error: e.error } : {}) }] } });
+    patch("ui", { run: { ...R, done: e.done, results: [...R.results, { value: e.value, status: e.status === "failed" ? "failed" : "ok", files: e.files, ...(e.error ? { error: e.error } : {}), ...(e.warning ? { warning: e.warning } : {}) }] } });
     return;
   }
   const seconds = +((performance.now() - R.t0) / 1000).toFixed(1), files = R.results.flatMap(x => x.files);

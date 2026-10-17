@@ -58,10 +58,13 @@ export function excelText(value: CellValue, fmt: CellValue): string | null {
     if (n === null) return /@/.test(f) ? formatValue({ v: value, t: "s", fmt: f }).text : value;
   }
   if (n === null || !isFinite(n)) return null;
-  const date = f.startsWith("[$-410]") || /^\[\$-[0-9a-f]+\]/i.test(f) || /[ymdhs]/i.test(f.replace(/"[^"]*"|\\.|\[[^\]]*\]/g, ""));
-  if (date) {
-    // Excel's serial dates: none below 0, and 1900's false 29 February puts every date before 1 March 1900 a day off
-    if (n < 0 || n < 61) return null;
+  const codes = f.replace(/"[^"]*"|\\.|\[[^\]]*\]/g, ""), time = /[hs]/i.test(codes) || /\[[hms]+\]/i.test(f);
+  // a date part: a year or a day, or a month where no hour or second makes "m" the minutes
+  const day = /[yd]/i.test(codes) || (/m/i.test(codes) && !time);
+  if (day || time) {
+    if (n < 0) return null;                                              // (Excel shows no negative date or time)
+    // 1900's false 29 February puts every date before 1 March 1900 a day off: not said (a time alone is fine)
+    if (day && n < 61) return null;
     n = Math.round(n * 86400) / 86400;                                  // to the second, as Excel rounds before it shows a time
   }
   try { return formatValue({ v: n, t: "n", fmt: f }, { intZeros: true }).text; } catch { return null; }

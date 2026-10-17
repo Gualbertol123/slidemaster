@@ -107,7 +107,8 @@ export interface CoreMethods {
   scenarioCancel(a: { id: string }): void;
 }
 export interface ScenarioInput { sheet: string; ref: string; value: number | string | boolean }
-export interface ScenarioAnswer { changed: number; different: number; check: CalcCheck }
+export interface ScenarioAnswer { changed: number; different: number; check: CalcCheck;
+  /** TEXT cells Slide Builder could not format for this value (they keep the text they had): said, not hidden */ textUnknown?: number }
 export interface ScenarioRunReq {
   input: { sheet: string; ref: string };
   /** the values as they go into the engine (the page typed them, 07 §8 Q7) */
@@ -136,6 +137,8 @@ export interface ScenarioEvent {
   status: "ok" | "failed" | "end" | "cancelled";
   /** the files saved for this value (on the end event: none) */ files: string[];
   error?: string;
+  /** what the files of this value may show wrongly (TEXT cells Slide Builder could not format: they keep the previous
+      value's text) */ warning?: string;
 }
 /** the self-check's result: how many formula cells are exact / volatile / locale-dependent / external / unreadable /
     different, the first differences, the engine's times (ms) */
