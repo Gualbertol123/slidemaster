@@ -366,6 +366,17 @@ function RangeInput({ W, onAdd, onChange }: { W: W; onAdd: (r: string) => boolea
     <button className="btn primary" id="wAdd" onClick={add}>Add table</button></div>;
 }
 
+/** the wizard's sheet view on its own, for picking a range elsewhere (Run for each value… › From a range…, S8.1): drag,
+    Shift+click or Shift+arrows select; `onSel` hears the range ("C4:C13", null when none), Enter gives it to `onEnter` */
+export function RangePicker({ book, S, onSel, onEnter }: { book: number; S: SheetInfo; onSel: (r: string | null) => void; onEnter: (r: string) => void }) {
+  const ref = useRef<W | null>(null);
+  ref.current ||= { step: 2, sheets: new Set(), tables: [], slides: [], versions: [], vcur: null, links: [], cur: S.name, sel: null, suggest: {}, focusSlide: null,
+    grids: {}, grow: false, info: {}, sizes: {}, sizeSig: "", windows: {}, failed: {}, ready: true };
+  const W = ref.current, [, setN] = useState(0);
+  const rangeOf = () => W.sel ? A1(W.sel.r1, W.sel.c1) + ":" + A1(W.sel.r2, W.sel.c2) : null;
+  return <SheetGrid book={book} S={S} W={W} tables={[]} onAdd={r => { onEnter(r); return true; }} onPick={() => { setN(n => n + 1); onSel(rangeOf()); }} />;
+}
+
 /* the spreadsheet view is built once per sheet and re-attached afterwards (adding/removing tables stays instant) */
 function SheetGrid({ book, S, W, tables, onAdd, onPick }: { book: number; S: SheetInfo; W: W; tables: TableDef[]; onAdd: (r: string) => boolean; onPick: () => void }) {
   const host = useRef<HTMLDivElement>(null);

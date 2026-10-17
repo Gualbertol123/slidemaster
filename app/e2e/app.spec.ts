@@ -971,6 +971,72 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#lookSel")).toHaveCount(0);                                   // consulting designs only
   });
 
+  test("Run for each value… (S8.1, SC-01, SC-07): the input cell, values typed and from a range, de-duplicated; a preview on the stage, cleared", async ({ page }) => {
+    await openApp(page, ANNA);                                                       // Banks.xlsx with the linked Peers table
+    await expect(page.locator("#stage .slide")).toHaveCount(1, { timeout: 20_000 });
+    const bdoc = () => JSON.stringify(deckDoc("Banks.xlsx"));
+    const before = bdoc();
+    // the deck's one table is the linked Peers sheet: Peer avg loans are 1761 for Bank A, 3141 for Bank C (PeerData)
+    const cells = page.locator("#stage .slide .t");
+    await expect(cells.filter({ hasText: /^1761$/ })).toHaveCount(1);
+    await selectCell(page, "Peer avg");                                              // a cell of the linked workbook's sheet
+    await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]');
+    const dlg = page.locator("#scenarioDialog");
+    await expect(dlg).toBeVisible();
+    // the input cell: "Pick a cell" takes the stage's selection (a linked sheet's id), typed in the name box's syntax
+    await expect(page.locator("#scPick")).toContainText("[Peers.xlsx]Peer!E4");
+    await page.click("#scPick");
+    await expect(page.locator("#scInput")).toHaveValue("[Peers.xlsx]Peer!E4");
+    await expect(page.locator("#scInputNote")).toContainText("Holds “Peer avg” today (text)");
+    await page.fill("#scInput", "control!b20");                                      // any case; an empty cell
+    await expect(page.locator("#scInputNote")).toContainText("Empty today");
+    await page.fill("#scInput", "Nowhere!B2");
+    await expect(page.locator("#scInputNote")).toContainText("No sheet “Nowhere”");
+    await expect(page.locator("#scPreview")).toBeDisabled();
+    await page.fill("#scInput", "Control!B2");
+    await expect(page.locator("#scInputNote")).toContainText("Holds “Bank A” today (text)");
+    // values typed: blank lines skipped, repeats left out, the order kept
+    await page.fill("#scValues", "Bank A\nBank B\n\n  Bank A\nBank C\n");
+    await expect(page.locator("#scCount")).toHaveText("3 values · 1 repeated left out");
+    await expect(page.locator("#scValue option")).toHaveText(["Bank A", "Bank B", "Bank C"]);
+    // from a range: the wizard's sheet view, a range dragged / Shift+clicked; the texts the cells show become the values
+    await page.click("#scFromRange");
+    await page.selectOption("#scSheet", "Data");
+    await page.locator('#scRange td[data-r="2"][data-c="1"]').click();
+    await page.locator('#scRange td[data-r="25"][data-c="1"]').click({ modifiers: ["Shift"] });
+    await expect(page.locator("#scRangeSel")).toHaveText("A2:A25");
+    await page.click("#scUseRange");
+    await expect(page.locator("#scValues")).toHaveValue(/^Bank A\n(Bank A\n){11}(Bank B\n){11}Bank B$/);
+    await expect(page.locator("#scCount")).toHaveText("2 values · 22 repeated left out");
+    await page.fill("#scValues", "Bank A\nBank B\nBank C");
+    // the designs (all five), the versions (the full deck), PDF; PowerPoint comes with 4.5
+    await expect(page.locator("#scDesigns input")).toHaveCount(5);
+    await expect(page.locator("#scVersions input")).toHaveCount(1);
+    await expect(page.locator("#scPptx")).toBeDisabled();
+    await page.locator('#scDesigns [data-design="excel"]').check();
+    await expect(page.locator("#scSummary")).toContainText("= 6 PDFs");
+    // Preview (SC-07): Bank C on the stage, the banner names it; nothing is saved
+    await page.selectOption("#scValue", "Bank C");
+    await page.click("#scPreview");
+    await expect(dlg).toHaveCount(0);
+    await expect(page.locator("#scBanner")).toContainText("Previewing: Bank C – a scenario, not saved", { timeout: 20_000 });
+    await expect(cells.filter({ hasText: /^3141$/ })).toHaveCount(1);              // the linked file recalculated
+    await expect(cells.filter({ hasText: /^1761$/ })).toHaveCount(0);
+    expect(bdoc()).toBe(before);
+    // Clear: the workbook's own values again
+    await page.click("#scClear");
+    await expect(page.locator("#scBanner")).toHaveCount(0);
+    await expect(cells.filter({ hasText: /^1761$/ })).toHaveCount(1);
+    await expect(cells.filter({ hasText: /^3141$/ })).toHaveCount(0);
+    // the dialog opens again as it was left (UI state, never the document)
+    await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]');
+    await expect(page.locator("#scInput")).toHaveValue("Control!B2");
+    await expect(page.locator("#scCount")).toHaveText("3 values");
+    await page.keyboard.press("Escape");
+    await expect(dlg).toHaveCount(0);
+    expect(bdoc()).toBe(before);
+  });
+
   test("no page errors, console errors or warnings", async () => { expect(unexpected(errors)).toEqual([]); });
 });
 

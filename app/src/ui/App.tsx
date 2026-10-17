@@ -10,12 +10,13 @@ import { TableRibbon } from "./TableTools";
 import { TablesDialog } from "./TablesDialog";
 import { TextStylesDialog } from "./TextStylesDialog";
 import { CommentDialog } from "./CommentDialog";
+import { ScenarioDialog } from "./ScenarioDialog";
 import { Dialogs } from "./Dialogs";
 import { Wizard } from "../wizard/Wizard";
 
 export function App() {
   const changedOnDisk = useStore(s => s.ui.changedOnDisk), count = useStore(s => s.deck.slides.length);
-  const D = useStore(useShallow(s => ({ wizard: s.ui.dialogs.wizard, tables: s.ui.dialogs.tables, textStyles: !!s.ui.dialogs.textStyles, comment: !!s.ui.dialogs.comment })));
+  const D = useStore(useShallow(s => ({ wizard: s.ui.dialogs.wizard, tables: s.ui.dialogs.tables, textStyles: !!s.ui.dialogs.textStyles, comment: !!s.ui.dialogs.comment, scenario: s.ui.dialogs.scenario })));
   useEffect(() => {
     const over = (e: DragEvent) => { e.preventDefault(); document.body.classList.add("dragover"); };
     const leave = (e: DragEvent) => { if (!e.relatedTarget) document.body.classList.remove("dragover"); };
@@ -53,6 +54,7 @@ export function App() {
       {D.tables && <TablesDialog />}
       {D.textStyles && <TextStylesDialog />}
       {D.comment && <CommentDialog />}
+      {D.scenario && <ScenarioDialog />}
       <Dialogs />{/* last: confirmations open above the wizard and the other dialogs */}
     </>
   );

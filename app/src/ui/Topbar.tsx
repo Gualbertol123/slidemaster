@@ -5,6 +5,7 @@ import { consultChange, guard, lookChange, showVersion, openFromFolder, openLoca
 import { backend, type FileInfo } from "../sync/api";
 import { doExport, exportVersions, type ExportKind } from "../editor/export";
 import { reportExportProblem } from "../editor/feedback";
+import { openScenario } from "../editor/scenario";
 import { Dropdown } from "./Dropdown";
 import { Field } from "./Field";
 import { openFontManager } from "./FontPicker";
@@ -192,6 +193,9 @@ function ExportButton() {
         <button data-x="versions-2" disabled={!versions.length} onClick={() => { close(); void exportVersions(["glass", "excel"]); }}>PDF · every version × Liquid Glass + Excel<small>{2 * versions.length} files</small></button>
         <button data-x="versions-3" disabled={!versions.length} onClick={() => { close(); void exportVersions(["glass", "excel", "clean"]); }}>PDF · every version × all three designs</button>
         <button data-x="versions-5" disabled={!versions.length} onClick={() => { close(); void exportVersions([...DESIGNS]); }}>PDF · every version × all five designs<small>with Consulting Navy and Consulting Red · {DESIGNS.length * versions.length} files</small></button>
+        <div className="sep" />
+        <div className="hd">Scenarios</div>
+        <button data-x="scenario" onClick={() => { close(); openScenario(); }}>Run for each value…<small>an input cell set to each value of a list · one file per value</small></button>
         <div className="sep" />
         <button data-x="report" onClick={() => { close(); void reportExportProblem(); }}>Report a problem with this export…<small>for the export pilot · {backend.served ? "saved in the export folder (feedback)" : "downloaded"}</small></button>
       </>}

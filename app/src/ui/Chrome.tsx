@@ -8,6 +8,7 @@ import { Stage } from "../stage/Stage";
 import { zoomBy } from "../stage/actions";
 import { useStage } from "../stage/data";
 import { mountThumbs } from "../editor/thumbs";
+import { clearPreview } from "../editor/scenario";
 import { slideIssues } from "../editor/issues";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
 import { selStatus } from "./Ribbon";
@@ -109,6 +110,7 @@ export function Canvas() {
           <p style={{ fontSize: "12px" }}>…or drop an .xlsx file anywhere on this window.</p>
         </div>
       </div>}
+      <ScenarioBanner />
       {has && <div className="zoomctl" id="zoomctl" style={{ display: "flex" }}>
         <button id="zoomOut" title="Zoom out" onClick={() => zoomBy(1 / 1.25)}>−</button><ZoomVal />
         <button id="zoomIn" title="Zoom in" onClick={() => zoomBy(1.25)}>+</button>
@@ -116,6 +118,14 @@ export function Canvas() {
       </div>}
     </section>
   );
+}
+
+/** a scenario on the stage (S8.1, 07 §2.4): which value the slides show; nothing of it is saved */
+function ScenarioBanner() {
+  const p = useStore(s => s.ui.preview);
+  if (!p) return null;
+  return <div className="scbanner" id="scBanner" title={`${p.input} set to “${p.value}” in the formula engine: ${p.changed} formula cell${p.changed === 1 ? "" : "s"} recalculated`}>
+    Previewing: <b>{p.value}</b> – a scenario, not saved<button className="btn" id="scClear" onClick={() => void clearPreview()}>Clear</button></div>;
 }
 
 /** the zoom shown: the stage's scale (fit or chosen) */
