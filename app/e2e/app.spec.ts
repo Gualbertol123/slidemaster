@@ -991,6 +991,18 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#scPick")).toContainText("[Peers.xlsx]Peer!E4");
     await page.click("#scPick");
     await expect(page.locator("#scInput")).toHaveValue("[Peers.xlsx]Peer!E4");
+    // Select cell…: the wizard's sheet view, one cell only (a Shift+click moves it, never spans), marked red
+    await page.click("#scSelect");
+    await page.selectOption("#scSheet", "Control");
+    await page.locator('#scRange td[data-r="2"][data-c="2"]').click();
+    await page.locator('#scRange td[data-r="5"][data-c="3"]').click({ modifiers: ["Shift"] });
+    await expect(page.locator("#scRangeSel")).toHaveText("C5");
+    await expect(page.locator("#scRange .ovb.sel.one")).toHaveCount(1);
+    await page.locator('#scRange td[data-r="2"][data-c="2"]').click();
+    await page.click("#scUseCell");
+    await expect(page.locator("#scRange")).toHaveCount(0);
+    await expect(page.locator("#scInput")).toHaveValue("Control!B2");
+    await page.fill("#scInput", "[Peers.xlsx]Peer!E4");
     await expect(page.locator("#scInputNote")).toContainText("Holds “Peer avg” today (text)");
     // the stage's keys stay out of the dialog ("Peer avg" is selected behind it; focus on a button, where the stage's
     // shortcuts would act): Delete, a letter, Ctrl+Z and Tab change nothing – the cell keeps its text, the name box its

@@ -80,10 +80,15 @@ export async function indexWorkbook(buf: ArrayBuffer): Promise<Workbook> {
       names.push({ name, scope, formula });
     }
   }
-  const meta: SheetMeta[] = [], skipped: { name: string; why: string }[] = [];
+  const meta: SheetMeta[] = [], skipped: { name: string; why: string }[] = [], hiddenMeta: SheetMeta[] = [];
   for (const { name, state, rid } of list) {
     const r = wbRels[rid];
-    if (state !== "visible") { skipped.push({ name, why: "hidden" }); continue; }                 // hidden sheets stay hidden (never read)
+    if (state !== "visible") {                                                                   // hidden sheets stay hidden (never listed, WB-18)
+      skipped.push({ name, why: "hidden" });
+      // … but their cells feed the formulas that read them: the engine may read them (Decisions 2026-10-18)
+      if (r && zget(zip, r.target) && /\/worksheet$/.test(r.type)) { const f = zget(zip, r.target)!; hiddenMeta.push({ name, path: f.name, size: entrySize(f) }); }
+      continue;
+    }
     if (!r || !zget(zip, r.target)) { skipped.push({ name, why: "missing" }); continue; }
     if (!/\/worksheet$/.test(r.type)) { skipped.push({ name, why: /chartsheet/.test(r.type) ? "chart sheet" : "not a worksheet" }); continue; }
     const f = zget(zip, r.target)!;
@@ -103,13 +108,34 @@ export async function indexWorkbook(buf: ArrayBuffer): Promise<Workbook> {
   const ssRel = rel(/sharedStrings$/), ssSize = ssRel ? entrySize(zget(zip, ssRel.target)) : 0;
   const total = meta.reduce((s, m) => s + m.size, 0) + ssSize;
   const wb: Workbook = {
-    zip, wbRels, meta, skipped, hiddenSheets: skipped.filter(s => s.why === "hidden").map(s => s.name),
+    zip, wbRels, meta, skipped, hiddenSheets: skipped.filter(s => s.why === "hidden").map(s => s.name), hiddenMeta,
     extLinks: Object.values(wbRels).filter(r => /externalLink/.test(r.type)).length, externals, names,
     sheets: [], shared: null, linked: new Map(), total, ssSize, big: total > BIG_BYTES || buf.byteLength > 6 * 1048576,
     isLoaded: n => wb.sheets.some(S => S.name === n),
     ensure: (names, progress) => ensureSheets(wb, names, progress),
   };
   return wb;
+}
+/** the hidden sheets of `wb` for the formula engine only (Decisions 2026-10-18): read once, kept off `wb.sheets` (never
+    listed, sliced, sent to the page or drawn); `id` names them as `wb.sheets` names a linked workbook's sheets
+    ("[file]Sheet"), or plainly for the deck's own workbook. A sheet that cannot be read is left out (the formulas that
+    read it are then classed `hidden`, as before) */
+const HIDDEN_READ = new WeakMap<Workbook, Promise<Sheet[]>>();
+export function readHiddenSheets(wb: Workbook, file: string | null = null): Promise<Sheet[]> {
+  let p = HIDDEN_READ.get(wb);
+  if (!p) {
+    p = (async () => {
+      if (!wb.hiddenMeta?.length) return [];
+      const ctx = await loadShared(wb), out: Sheet[] = [];
+      for (const m of wb.hiddenMeta) {
+        try { const S = await readSheet(wb.zip, m, ctx); S.hidden = true; S.name = file ? sheetId(file, m.name) : m.name; out.push(S); }
+        catch (e) { console.error("hidden sheet " + m.name, e); }
+      }
+      return out;
+    })();
+    HIDDEN_READ.set(wb, p);
+  }
+  return p;
 }
 export async function readWorkbook(buf: ArrayBuffer): Promise<Workbook> { const wb = await indexWorkbook(buf); await wb.ensure(wb.meta.map(m => m.name)); return wb; }
 

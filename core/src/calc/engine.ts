@@ -171,9 +171,14 @@ export class CalcModel {
         if (v === null || fm === null) { ok = false; break; }
         const sheet = this.textSheet!;
         row++;
-        try { this.model.setUserInput(sheet.index, row, 1, "=" + v); this.model.setUserInput(sheet.index, row, 2, "=" + fm); this.model.setUserInput(sheet.index, row, 3, "'"); }
+        // a cell that is one TEXT call and nothing else: Excel's saved text is the call's text – written at once, so the
+        // first evaluation already gives it and no second one is needed when Slide Builder's formatting agrees (BanksBig:
+        // the first use within budget again); otherwise the text comes after the first evaluation (formatTexts)
+        const cached = this.cachedOf(f), whole = calls.length === 1 && call.start === 0 && call.end === src.length && typeof cached === "string";
+        const first = whole ? "'" + cached : "'";
+        try { this.model.setUserInput(sheet.index, row, 1, "=" + v); this.model.setUserInput(sheet.index, row, 2, "=" + fm); this.model.setUserInput(sheet.index, row, 3, first); }
         catch { ok = false; break; }
-        made.push({ si: sheet.index, row, text: null });
+        made.push({ si: sheet.index, row, text: whole ? first : null });
         text += src.slice(at, call.start) + quoteSheet(sheet.name) + "!$C$" + row; at = call.end;
       }
       if (!ok) continue;

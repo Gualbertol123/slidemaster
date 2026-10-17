@@ -9,6 +9,7 @@ import { Port, pair, transfer } from "../src/rpc/port";
 import { serve } from "../src/worker/host";
 import { fold } from "../src/model/fold";
 import { FakeDeck } from "./fakedeck";
+import { makeZip } from "./zipbuild";
 import type { CoreEvents, CoreMethods, DocEvent, PageEvents, PageMethods, StageSlide } from "../src/rpc/messages";
 import type { Op, WorkbookDoc } from "../src/model/types";
 import type { SharedSlice, SheetSlice } from "../src/xlsx/slice";
@@ -710,5 +711,63 @@ describe("the page follows a preview (S8.4, Decisions 2026-10-17: mirror the cel
     await p.port.call("scenarioPreview", null);
     expect(sliceText(k)).toContain("Loans & deposits - Bank A"); expect(sliceText(k)).not.toContain("Bank C");
     expect(await texts()).toContain("Bank A"); expect(await texts()).not.toContain("Bank C");
+  }, 60_000);
+});
+
+describe("hidden data sheets and inputs nothing reads (a real run, 2026-10-18; Decisions: hidden sheets for calculation)", () => {
+  const NSX = `xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"`;
+  const RELX = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+  const sheetX = (cells: string) => `<?xml version="1.0"?><worksheet ${NSX}><sheetData>${cells}</sheetData></worksheet>`;
+  /** CONFIG (the country), DATA (hidden: the numbers per country), SLIDE (reads DATA through a lookup) */
+  function dashboard() {
+    const sheets = [["CONFIG", "visible"], ["DATA", "hidden"], ["SLIDE", "visible"]];
+    return makeZip({
+      "[Content_Types].xml": `<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/></Types>`,
+      "_rels/.rels": `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${RELX}/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+      "xl/workbook.xml": `<?xml version="1.0"?><workbook ${NSX}><sheets>${sheets.map(([n, st], i) => `<sheet name="${n}" sheetId="${i + 1}"${st === "hidden" ? ' state="hidden"' : ""} r:id="rId${i + 1}"/>`).join("")}</sheets></workbook>`,
+      "xl/_rels/workbook.xml.rels": `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="${RELX}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}</Relationships>`,
+      "xl/worksheets/sheet1.xml": sheetX(`<row r="1"><c r="A1" t="inlineStr"><is><t>Country</t></is></c><c r="B1" t="inlineStr"><is><t>SER</t></is></c><c r="D1"><v>5</v></c></row>`),
+      "xl/worksheets/sheet2.xml": sheetX(`<row r="1"><c r="A1" t="inlineStr"><is><t>SER</t></is></c><c r="B1"><v>1111</v></c></row><row r="2"><c r="A2" t="inlineStr"><is><t>ALB</t></is></c><c r="B2"><v>2222</v></c></row>`),
+      "xl/worksheets/sheet3.xml": sheetX(`<row r="1"><c r="A1" t="inlineStr"><is><t>Profit</t></is></c><c r="B1"><f>VLOOKUP(CONFIG!B1,DATA!A1:B2,2,FALSE)</f><v>1111</v></c></row>`
+        + `<row r="2"><c r="A2" t="inlineStr"><is><t>Country</t></is></c><c r="B2" t="str"><f>CONFIG!B1</f><v>SER</v></c></row>`),
+    });
+  }
+  const walk = (ns: StageSlide["layers"][0]["nodes"]): string[] => ns.flatMap(n => n.t === "text" ? [n.src] : n.t === "group" ? walk(n.children) : []);
+  async function open() {
+    const srv = server(), p = page(srv, "anna"), events: CoreEvents["scenario"][] = [], made: { name: string; texts: string[] }[] = [];
+    p.port.on("scenario", e => events.push(e));
+    p.port.handle("scenarioFile", async a => {
+      const lists = await p.port.call("slideLists", { design: a.design, version: a.version, forExport: true, thumb: false, scenario: a.id });
+      made.push({ name: a.name, texts: walk(lists.flatMap(l => l.dl.nodes)) });
+      return { file: a.name };
+    });
+    await p.port.call("init", { served: false, client: "c", me: "anna" });
+    const info = await p.port.call("index", { buf: dashboard() });
+    expect(info.meta.map(m => m.name)).toEqual(["CONFIG", "SLIDE"]);              // the hidden sheet is never listed (WB-18)
+    const preset = { sheets: ["SLIDE"], tables: [{ id: "t0", sheet: "SLIDE", kind: "range" as const, range: "A1:B2" }], slides: [{ id: "s1", type: "content" as const, tables: ["t0"] }] };
+    await p.port.call("start", { book: info.book, name: "Dash.xlsm", deck: srv.open(), preset, inputs: { defaults: {}, logoSrc: "", version: "", workbook: "Dash.xlsm" }, stage: { slide: 0, known: [] } });
+    return { p, events, made, end: () => until(() => events.some(e => e.status === "end" || e.status === "cancelled"), 60_000) };
+  }
+  it("a slide reading a hidden data sheet follows the run; the hidden sheet stays off the page and the slides", async () => {
+    const { p, events, made, end } = await open();
+    const c = (await p.port.call("calcCheck", {}))!;
+    expect(c.counts.hidden).toBe(0); expect(c.counts.different).toBe(0);
+    await p.port.call("scenarioRun", { input: { sheet: "CONFIG", ref: "B1" }, values: ["SER", "ALB"], designs: ["excel"], versions: [""], kinds: ["pdf"], runAnyway: false });
+    await end();
+    expect(made.map(m => m.name)).toEqual(["SER - Excel.pdf", "ALB - Excel.pdf"]);
+    expect(made[0].texts).toContain("1111"); expect(made[1].texts).toContain("2222"); expect(made[1].texts).not.toContain("1111");
+    expect(events.filter(e => e.value !== null).map(e => e.warning)).toEqual([undefined, undefined]);
+    // the hidden sheet: not in the page's slices, not drawn
+    expect(JSON.stringify(p.seen.filter(e => e.k === "slices").map(e => (e.v as { sheets: { name: string }[] }).sheets.map(s => s.name)))).not.toContain("DATA");
+  }, 60_000);
+  it("an input no formula reads: the run says so for each value that differs from the cell's own", async () => {
+    const { p, events, end } = await open();
+    await p.port.call("scenarioRun", { input: { sheet: "CONFIG", ref: "D1" }, values: [5, 7], designs: ["excel"], versions: [""], kinds: ["pdf"], runAnyway: false });
+    await end();
+    const w = events.filter(e => e.value !== null).map(e => e.warning ?? "");
+    expect(w[0]).toBe("");                                                          // 5 is the cell's own value
+    expect(w[1]).toContain("no formula of the workbook changed with this value");
+    expect((await p.port.call("scenarioPreview", { sheet: "CONFIG", ref: "D1", value: 9 }))!.changed).toBe(0);
+    await p.port.call("scenarioPreview", null);
   }, 60_000);
 });

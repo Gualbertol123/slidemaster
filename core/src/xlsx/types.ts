@@ -80,6 +80,9 @@ export interface Workbook {
   meta: SheetMeta[];
   skipped: { name: string; why: string }[];
   hiddenSheets: string[];
+  /** the hidden worksheets' parts: read for the formula engine only (Decisions 2026-10-18), never listed (WB-18), never
+      in `sheets`, never on a slide or the page */
+  hiddenMeta?: SheetMeta[];
   extLinks: number;
   /** the file names the workbook's external links point at, in the "[n]" order of its formulas (S7.2; "?" when a
       link has no readable target) */

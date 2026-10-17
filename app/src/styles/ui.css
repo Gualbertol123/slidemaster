@@ -212,6 +212,7 @@ table.xs td.mk{background:#FFF4CC!important;color:#9A6B00;font-weight:700;text-a
 .ovb.sug{border:2px dashed #8A63D2;background:rgba(138,99,210,.05)}
 .ovb.sug button{position:absolute;right:-2px;top:-22px;pointer-events:auto;background:#8A63D2;color:#fff;border:0;border-radius:5px;font:600 11px/20px "Segoe UI",sans-serif;padding:0 8px}
 .ovb.sel{border:2px solid #16A34A;background:rgba(22,163,74,.10)}
+.ovb.sel.one{border-color:#D62828;background:rgba(214,40,40,.14)}
 .wside{border-left:1px solid var(--line);padding:12px;overflow:auto;display:flex;flex-direction:column;gap:8px;background:#FAFBFC}
 .wside .lbl{font-size:11.5px;color:var(--mute);font-weight:600}
 .wside .row{display:flex;gap:6px;align-items:center}

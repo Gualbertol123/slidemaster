@@ -4,7 +4,7 @@
    page the new sheet slices (when they change) and the document snapshot – in that order, so the page can redraw from
    what it received – then the slide on the stage. Transport-free: core.worker.ts connects it to
    postMessage; tests (and a page without workers) connect it in the same thread. */
-import { attachLinked, indexWorkbook, sheetsOf } from "../xlsx/workbook";
+import { attachLinked, indexWorkbook, readHiddenSheets, sheetsOf } from "../xlsx/workbook";
 import { overlayHash, overlayWorkbook } from "../calc/overlay";
 import { parseSheetId } from "../calc/refs";
 import { A1, numToCol, splitRef } from "../xlsx/util";
@@ -182,8 +182,16 @@ export class CoreHost {
       try { await wb.ensure(wb.meta.map(m => m.name), this.progress); } finally { this.port.emit("progress", null); }
       const g = await loadEngine(); const t1 = now();
       if (this.wb !== wb) throw new Error("the workbook changed while the engine loaded");
-      const model = new CalcModel(g, [{ name: null, file: this.name, sheets: sheetsOf(wb, null), hidden: wb.hiddenSheets, externals: wb.externals, names: wb.names },
-        ...[...wb.linked].map(([file, lwb]) => ({ name: file, sheets: sheetsOf(wb, file), hidden: lwb.hiddenSheets, externals: lwb.externals, names: lwb.names }))]);
+      // the hidden sheets too, for the engine only (Decisions 2026-10-18: their data feeds the slides' formulas); one that
+      // cannot be read stays "hidden" for the self-check
+      const hiddenOf = async (w: Workbook, file: string | null) => {
+        const read = await readHiddenSheets(w, file), got = new Set(read.map(S => parseSheetId(S.name).sheet));
+        return { read, unread: w.hiddenSheets.filter(n => !got.has(n)) };
+      };
+      const own = await hiddenOf(wb, null), links = await Promise.all([...wb.linked].map(async ([file, lwb]) => ({ file, lwb, h: await hiddenOf(lwb, file) })));
+      if (this.wb !== wb) throw new Error("the workbook changed while the engine loaded");
+      const model = new CalcModel(g, [{ name: null, file: this.name, sheets: [...sheetsOf(wb, null), ...own.read], hidden: own.unread, externals: wb.externals, names: wb.names },
+        ...links.map(({ file, lwb, h }) => ({ name: file, sheets: [...sheetsOf(wb, file), ...h.read], hidden: h.unread, externals: lwb.externals, names: lwb.names }))]);
       try {
         const t2 = now(); const check = model.selfCheck(); const t3 = now();
         const checkOut: CalcCheck = { counts: check.counts, different: check.different.slice(0, 20), formulas: model.formulas.length, styleError: model.styleError,
@@ -338,13 +346,15 @@ export class CoreHost {
     };
     try {
       for (let i = 0; i < total && !run.cancel; i++) {
-        let ok = false, unsure = 0;
+        let ok = false, unsure = 0, moves = 0;
         await this.later(() => {
           if (!live()) return;
           if (was === null) was = c.model.contentOf(p.book, p.sheet, p.r, p.c);
           if (!c.model.set(p.book, p.sheet, p.r, p.c, a.values[i])) return;
           c.model.evaluate();
-          const changes = withInput(c.model.changes(), a.input.sheet, p.r, p.c, a.values[i]);
+          const moved = c.model.changes();
+          moves = 0; for (const m of moved.values()) moves += m.size;
+          const changes = withInput(moved, a.input.sheet, p.r, p.c, a.values[i]);
           run.view = overlayWorkbook(wb, changes); run.hash = run.id + "." + i + overlayHash(changes); run.slides.clear();
           unsure = c.model.textUnknown + c.model.textUnsettled;
           ok = true;
@@ -356,12 +366,17 @@ export class CoreHost {
         const res = await Promise.allSettled(jobs.map(j => Promise.race([run.stop,
           this.port.call("scenarioFile", { id: run.id, design: j.d, version: j.v, name: j.name, title: j.name.replace(/\.pdf$/, ""), today: a.today })])));
         const files = res.flatMap(r => r.status === "fulfilled" ? [r.value.file] : []);
+        // nothing moved although the value is not the cell's own: the slides cannot follow it
+        const still = !moves && (was === null || String(was).replace(/^'/, "") !== String(a.values[i]));
         for (const f of files) run.taken.add(f.toUpperCase());
         const failed = res.flatMap((r, k) => r.status === "rejected" ? [jobs[k].name + ": " + String((r.reason as Error)?.message || r.reason)] : []);
         run.view = null; run.slides.clear();                       // the value's view is dropped
         done++;
         this.port.emit("scenario", { id: run.id, done, total, value: shown[i], status: failed.length ? "failed" : "ok", files, ...(failed.length ? { error: failed.join(" · ") } : {}),
-          ...(unsure ? { warning: `${unsure} TEXT cell${unsure === 1 ? "" : "s"} could not be formatted for this value: they show the previous value's text` } : {}) });
+          ...(unsure || still ? { warning: [
+            // no formula moved (a real run made identical files without a word, 2026-10-18): said, so nobody takes them for results
+            ...(still ? [`no formula of the workbook changed with this value: its files show the workbook's own numbers (does ${a.input.sheet}!${a.input.ref} feed the slides' cells?)`] : []),
+            ...(unsure ? [`${unsure} TEXT cell${unsure === 1 ? "" : "s"} could not be formatted for this value: they show the previous value's text`] : [])].join(" · ") } : {}) });
         if (!live()) throw new Error("the workbook changed during the run");
         await new Promise(r => setTimeout(r, 0));                  // yield: requests waiting are served
       }

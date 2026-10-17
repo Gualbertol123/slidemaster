@@ -24,6 +24,8 @@ interface W {
   /** keyboard: where a Shift+arrow / Shift+click selection starts, and the moving corner */
   anchor?: { r: number; c: number }; active?: { r: number; c: number };
   addSel?: () => void;
+  /** one cell only (Run for each value › Select cell…): a drag or Shift+click picks the cell under the pointer, shown red */
+  single?: boolean;
   /** what the worker said about the sheets it has read, the sizes of the table definitions, the preview windows */
   info: Record<string, SheetInfo>; sizes: Record<string, [number, number] | null>; sizeSig: string;
   windows: Record<string, SheetWindow | "loading">; failed: Record<string, string>; ready: boolean;
@@ -368,12 +370,13 @@ function RangeInput({ W, onAdd, onChange }: { W: W; onAdd: (r: string) => boolea
 
 /** the wizard's sheet view on its own, for picking a range elsewhere (Run for each value… › From a range…, S8.1): drag,
     Shift+click or Shift+arrows select; `onSel` hears the range ("C4:C13", null when none), Enter gives it to `onEnter` */
-export function RangePicker({ book, S, onSel, onEnter }: { book: number; S: SheetInfo; onSel: (r: string | null) => void; onEnter: (r: string) => void }) {
+export function RangePicker({ book, S, onSel, onEnter, single }: { book: number; S: SheetInfo; onSel: (r: string | null) => void; onEnter: (r: string) => void; single?: boolean }) {
   const ref = useRef<W | null>(null);
   ref.current ||= { step: 2, sheets: new Set(), tables: [], slides: [], versions: [], vcur: null, links: [], cur: S.name, sel: null, suggest: {}, focusSlide: null,
-    grids: {}, grow: false, info: {}, sizes: {}, sizeSig: "", windows: {}, failed: {}, ready: true };
+    grids: {}, grow: false, info: {}, sizes: {}, sizeSig: "", windows: {}, failed: {}, ready: true, ...(single ? { single: true } : {}) };
   const W = ref.current, [, setN] = useState(0);
-  const rangeOf = () => W.sel ? A1(W.sel.r1, W.sel.c1) + ":" + A1(W.sel.r2, W.sel.c2) : null;
+  // one cell: "C7"; a range: "C4:C13"
+  const rangeOf = () => !W.sel ? null : single ? A1(W.sel.r1, W.sel.c1) : A1(W.sel.r1, W.sel.c1) + ":" + A1(W.sel.r2, W.sel.c2);
   return <SheetGrid book={book} S={S} W={W} tables={[]} onAdd={r => { onEnter(r); return true; }} onPick={() => { setN(n => n + 1); onSel(rangeOf()); }} />;
 }
 
@@ -452,7 +455,7 @@ function drawGrid(S: SheetInfo, win: SheetWindow, W: W, onPick: () => void): HTM
   if (U.clipped) grid.insertAdjacentHTML("afterbegin", `<div class="clipnote">Showing A1:${A1(R2, C2)} – type larger ranges in the box on the right.</div>`);
   let anchor: { r: number; c: number } | null = null;
   const cellOf = (e: Event) => { const td = (e.target as Element).closest<HTMLElement>("td[data-r]"); return td ? { r: +td.dataset.r!, c: +td.dataset.c! } : null; };
-  const span = (a: { r: number; c: number }, b: { r: number; c: number }) => { W.anchor = a; W.active = b; W.sel = { r1: Math.min(a.r, b.r), c1: Math.min(a.c, b.c), r2: Math.max(a.r, b.r), c2: Math.max(a.c, b.c) }; onPick(); };
+  const span = (a: { r: number; c: number }, b: { r: number; c: number }) => { if (W.single) a = b; W.anchor = a; W.active = b; W.sel = { r1: Math.min(a.r, b.r), c1: Math.min(a.c, b.c), r2: Math.max(a.r, b.r), c2: Math.max(a.c, b.c) }; onPick(); };
   grid.tabIndex = 0;                                    // keyboard: arrows move, Shift+arrows extend, Enter adds the table
   grid.addEventListener("pointerdown", e => {
     const c = cellOf(e); if (!c) return; e.preventDefault(); grid.focus({ preventScroll: true });
@@ -512,7 +515,7 @@ function paintOverlays(S: SheetInfo, W: W, tables: TableDef[], onAdd: (r: string
     const g = rangeToG(r), b = boxFor(grid, g.r1 + 1, g.c1 + 1, g.r2 - 1, g.c2 - 1); if (!b) return;
     h += `<div class="ovb sug" data-r="${r}" style="left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px"><button title="Add this table">+ ${r}</button></div>`;
   });
-  if (W.sel) { const b = boxFor(grid, W.sel.r1, W.sel.c1, W.sel.r2, W.sel.c2); if (b) h += `<div class="ovb sel" style="left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px"></div>`; }
+  if (W.sel) { const b = boxFor(grid, W.sel.r1, W.sel.c1, W.sel.r2, W.sel.c2); if (b) h += `<div class="ovb sel${W.single ? " one" : ""}" style="left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px"></div>`; }
   setBoxes(ov, h);
   ov.querySelectorAll<HTMLElement>(".sug button").forEach(b => b.onclick = e => { e.stopPropagation(); W.sel = null; const was = W.grow; W.grow = false; onAdd(b.parentElement!.dataset.r!); W.grow = was; });
   ov.querySelectorAll<HTMLElement>(".tbl").forEach(b => b.onclick = () => { const el = document.querySelector(`.wtrow[data-id="${b.dataset.id}"]`); if (el) { el.scrollIntoView({ block: "nearest" }); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 900); } });

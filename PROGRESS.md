@@ -135,6 +135,10 @@ numbers measured twice). Measured numbers go into the step's line.
 
 (Human decisions the plan needs, e.g. gate G0 outcomes. An agent never writes here on its own.)
 
+- 2026-10-18 · **The formula engine reads hidden sheets, for calculation only** (product owner, in the session, after
+  a real run made identical files – the deck's data sheets are partly hidden; recorded by the agent): "Yes, for
+  calculation". Hidden sheets stay out of the wizard (WB-18), the slides and the page; their cells only feed the formulas
+  that read them (amends 07 §1.4's "never read" for the engine).
 - 2026-10-17 · **M8 S8.4 and the TEXT cells** (product owner, in the session; recorded by the agent): during a preview
   **the changed cells are mirrored to the page** ("Mirror the cells") – the ribbon, painter, comment dialog and Issues
   follow the scenario; and **locale-dependent TEXT cells get Slide Builder's own Italian formatting in M8** ("Yes, in

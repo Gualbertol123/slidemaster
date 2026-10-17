@@ -11,7 +11,7 @@ import type { CellValue } from "@slide-builder/core/calc/engine";
 import type { GateCell } from "@slide-builder/core/rpc/messages";
 import { RangePicker } from "../wizard/Wizard";
 import { DESIGNS, DESIGN_LABEL } from "@slide-builder/core/model/designs";
-import { scenarioValues } from "@slide-builder/core/export/scenario";
+import { inputCellText, scenarioValues } from "@slide-builder/core/export/scenario";
 import { parseRange } from "@slide-builder/core/xlsx/util";
 import type { SheetInfo } from "@slide-builder/core/xlsx/sheetview";
 
@@ -21,7 +21,8 @@ const set = (p: Partial<ScenarioForm>) => patch("ui", { scenario: { ...get().ui.
 const typeName = (t: string) => t === "n" ? "a number" : t === "s" ? "text" : t === "b" ? "a logical" : t === "d" ? "a date" : t === "e" ? "an error" : "a value";
 
 /** From a range…: the wizard's sheet view; the dragged range's displayed texts become the values */
-function FromRange({ onUse, onCancel }: { onUse: (values: string[], broken: number) => void; onCancel: () => void }) {
+/** Select cell… (the input cell, one cell – red) or From a range… (the values): the wizard's sheet view */
+function FromRange({ onUse, onCancel, onCell }: { onUse: (values: string[], broken: number) => void; onCancel: () => void; onCell?: (sheet: string, ref: string) => void }) {
   const wb = useStore(s => s.deck.wb)!;
   const sheets = wb.meta.map(m => m.name).filter(n => !wb.hiddenSheets.includes(n));
   const [sheet, setSheet] = useState(() => { const p = resolveSheet(get().ui.scenario.input); return p && sheets.includes(p) ? p : sheets[0]; });
@@ -37,6 +38,7 @@ function FromRange({ onUse, onCancel }: { onUse: (values: string[], broken: numb
   }, [sheet]);
   async function use(r: string | null) {
     if (!r) return;
+    if (onCell) { onCell(sheet, r); return; }
     const g = parseRange(r), n = (g.r2 - g.r1 + 1) * (g.c2 - g.c1 + 1);
     if (n > MAX_CELLS) { setErr(`${r} has ${n.toLocaleString()} cells: choose at most ${MAX_CELLS.toLocaleString()}.`); return; }
     setBusy(true);
@@ -52,13 +54,15 @@ function FromRange({ onUse, onCancel }: { onUse: (values: string[], broken: numb
     <div className="row">
       <label>Sheet</label>
       <select id="scSheet" value={sheet} onChange={e => setSheet((e.target as HTMLSelectElement).value)}>{sheets.map(n => <option key={n} value={n}>{n}</option>)}</select>
-      <span className="scnote">{range ? <>Selected <b id="scRangeSel">{range}</b></> : "Drag across the cells whose texts are the values"}</span>
+      <span className="scnote">{range ? <>Selected <b id="scRangeSel">{range}</b></> : onCell ? "Click the input cell" : "Drag across the cells whose texts are the values"}</span>
       <span style={{ flex: "1" }} />
       <button className="btn" onClick={onCancel}>Back</button>
-      <button className="btn primary" id="scUseRange" disabled={!range || busy} onClick={() => void use(range)}>Use these cells</button>
+      {onCell
+        ? <button className="btn primary" id="scUseCell" disabled={!range} onClick={() => void use(range)}>Use this cell</button>
+        : <button className="btn primary" id="scUseRange" disabled={!range || busy} onClick={() => void use(range)}>Use these cells</button>}
     </div>
     {err && <div className="scbad">{err}</div>}
-    <div className="wgridwrap scgrid">{info ? <RangePicker key={sheet} book={wb.book} S={info} onSel={setRange} onEnter={r => void use(r)} /> : !err && <div className="scnote" style={{ padding: "12px" }}>Reading “{sheet}”…</div>}</div>
+    <div className="wgridwrap scgrid">{info ? <RangePicker key={sheet + (onCell ? "|cell" : "")} book={wb.book} S={info} single={!!onCell} onSel={setRange} onEnter={r => void use(r)} /> : !err && <div className="scnote" style={{ padding: "12px" }}>Reading “{sheet}”…</div>}</div>
   </div>;
 }
 
@@ -66,7 +70,7 @@ export function ScenarioDialog() {
   const f = useStore(s => s.ui.scenario), versions = useStore(s => s.doc.view?.preset?.versions) || [];
   const values = useMemo(() => scenarioValues(f.values), [f.values]);
   const lines = useMemo(() => f.values.split(/\r\n|\r|\n|\t/).filter(l => l.trim()).length, [f.values]);
-  const [cell, setCell] = useState<Resolved | null>(null), [ranging, setRanging] = useState(false);
+  const [cell, setCell] = useState<Resolved | null>(null), [ranging, setRanging] = useState(false), [choosing, setChoosing] = useState(false);
   const picked = pickedCell();
   useEffect(() => {
     let live = true;
@@ -76,13 +80,14 @@ export function ScenarioDialog() {
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      if (choosing) { if (!((e.target as HTMLElement).closest?.(".wgrid-in") && document.querySelector("#scRange .ovb.sel"))) { e.stopPropagation(); setChoosing(false); } return; }
       // Escape in the range picker's grid clears its selection first (the grid's own handler), as in the wizard
       if ((e.target as HTMLElement).closest?.(".wgrid-in") && document.querySelector("#scRange .ovb.sel")) return;
       e.stopPropagation(); if (ranging) setRanging(false); else closeScenario();
     };
     document.addEventListener("keydown", key, true);
     return () => document.removeEventListener("keydown", key, true);
-  }, [ranging]);
+  }, [ranging, choosing]);
   const value = values.includes(f.value) ? f.value : values[0] || "";
   const vers = f.versions.filter(v => v === "" || versions.some(x => x.id === v));
   const files = values.length * f.designs.length * vers.length;
@@ -102,14 +107,16 @@ export function ScenarioDialog() {
   useEffect(() => { setGate(null); if (get().ui.scenario.runAnyway) set({ runAnyway: false }); }, [f.input, f.values, f.asText, f.designs.join(), f.versions.join()]);
   return (
     <div className="modal">
-      <div className="dlg scdlg" id="scenarioDialog" style={{ width: `min(${ranging ? 940 : 640}px,94vw)` }}>
+      <div className="dlg scdlg" id="scenarioDialog" style={{ width: `min(${ranging || choosing ? 940 : 640}px,94vw)` }}>
         <div className="dlghd"><b>Run for each value</b><span>One file per value: the input cell set to each value and the deck drawn from the recalculated workbook. Nothing is saved – the workbook and the deck stay as they are.</span></div>
         <div className="dlgbody scbody">
           <div className="opthd">Input cell</div>
           <div className="row">
             <input id="scInput" spellCheck={false} placeholder="e.g. Control!B2" value={f.input} onKeyDown={e => e.stopPropagation()} onChange={e => set({ input: (e.target as HTMLInputElement).value })} />
+            <button className="btn" id="scSelect" title="Choose the input cell on the workbook's sheets" onClick={() => { setRanging(false); setChoosing(true); }}>Select cell…</button>
             <button className="btn" id="scPick" disabled={!picked} title={picked ? `The cell selected on the slide: ${picked}` : "Select a cell on the slide first, then open this dialog again"} onClick={() => picked && set({ input: picked })}>Pick a cell{picked ? `: ${picked}` : ""}</button>
           </div>
+          {choosing && <FromRange onCancel={() => setChoosing(false)} onUse={() => undefined} onCell={(sheet, ref) => { set({ input: inputCellText({ sheet, ref }) }); setChoosing(false); }} />}
           <div className={"scnote" + (cell && !cell.ok ? " scbad" : "")} id="scInputNote">{!cell ? " " : cell.ok
             ? (cell.now ? <>Holds “{cell.now.text}” today ({typeName(cell.now.t)}).</> : <>Empty today.</>)
             : cell.why}</div>
