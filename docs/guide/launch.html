@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slide Builder 4 – launch</title>
+<style>
+/* The launch deck: 16:9 slides of 1600 × 900 px – Slide Builder's own slide size – in its Liquid Glass design.
+   Tokens as in guide.css: Aurora theme (core/src/model/style.ts), the glass materials of render/glass-dl.ts with the
+   5-layer shadows of dl/geom.ts (script below), Segoe UI (render/slide-dl.ts SLIDE_FONT.glass), and the product's own
+   wallpaper (img/wall.jpg). Facts: the same sources as guide.html; every number is in README / CHANGELOG. */
+:root { --a1: #3B82F6; --a2: #8B5CF6; --c3: #FF885C; --c4: #34C8B0; --x: #1C4F8C; --ink: #0B1020; --ink2: #3A4358;
+  --font: "Segoe UI", "Segoe UI Symbol", Arial, sans-serif; }
+@page { size: 1600px 900px; margin: 0; }
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; font: 400 26px/1.4 var(--font); color: var(--ink); font-variant-emoji: text; font-synthesis-weight: none; }
+.s { position: relative; width: 1600px; height: 900px; overflow: hidden; break-after: page; padding: 80px 100px;
+  background: #E9EDF6 url(img/wall.jpg) center / cover no-repeat; }
+h1 { font: 700 64px/1.08 var(--font); letter-spacing: -.02em; margin: 0 0 14px; }
+h1.big { font-size: 112px; }
+.bar { width: 120px; height: 7px; border-radius: 4px; background: linear-gradient(90deg, var(--a1), var(--a2)); margin: 26px 0 30px; }
+.lead { font-size: 32px; color: var(--ink2); margin: 0; max-width: 1100px; }
+.glass { position: relative; isolation: isolate; border: 1.25px solid rgba(255,255,255,.62); border-top-color: rgba(255,255,255,.9); border-left-color: rgba(255,255,255,.8); border-radius: 28px; background: rgba(255,255,255,.72); }
+.cap { display: inline-block; padding: 10px 26px; border-radius: 99px; font: 600 24px var(--font); background: rgba(255,255,255,.9); }
+.cap.acc { color: #fff; background: linear-gradient(135deg, var(--a1), var(--a2)); }
+.shot { border-radius: 22px; overflow: hidden; padding: 12px; }
+.shot img { display: block; width: 100%; border-radius: 12px; }
+.row { display: flex; gap: 36px; }
+.cards { display: grid; gap: 30px; }
+.card { padding: 34px 36px; }
+.card h3 { font: 700 34px/1.15 var(--font); margin: 0 0 10px; color: var(--ink); }
+.card p { margin: 0; color: var(--ink2); font-size: 25px; }
+.num { display: inline-flex; width: 56px; height: 56px; border-radius: 50%; align-items: center; justify-content: center; font: 700 28px var(--font); color: #fff;
+  background: linear-gradient(135deg, var(--a1), var(--a2)); margin-bottom: 18px; }
+.stat { font: 700 76px/1 var(--font); letter-spacing: -.02em; color: #4F6CF6; }
+.foot { position: absolute; left: 100px; right: 100px; bottom: 40px; display: flex; justify-content: space-between; align-items: center; font-size: 18px; color: #4A5468; }
+.pn { min-width: 64px; text-align: center; padding: 6px 16px; border-radius: 99px; font: 600 18px var(--font); color: var(--x); background: rgba(255,255,255,.9); }
+ul.ticks { list-style: none; padding: 0; margin: 0; }
+ul.ticks li { position: relative; padding-left: 48px; margin: 0 0 22px; font-size: 30px; }
+ul.ticks li::before { content: ""; position: absolute; left: 0; top: 12px; width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, var(--a1), var(--a2)); }
+ul.ticks li b { color: var(--ink); }
+.quote { font: 400 27px/1.45 var(--font); color: var(--ink); }
+.pos { color: #1E9E4A; font-weight: 600; } .neg { color: #D93025; font-weight: 600; }
+.orb { position: absolute; border-radius: 50%; background: rgba(236,240,255,.42) !important; }
+.tile { position: absolute; border-radius: 60px; background: rgba(240,248,255,.5) !important; }
+</style>
+</head>
+<body>
+
+<!-- 1 · title -->
+<section class="s">
+  <div class="orb glass" data-shadow="chrome" style="width:620px;height:620px;right:-60px;top:40px"></div>
+  <div class="tile glass" data-shadow="chrome" style="width:260px;height:260px;right:380px;top:420px"></div>
+  <div class="orb glass" data-shadow="chrome" style="width:210px;height:210px;right:150px;top:560px"></div>
+  <div class="cap glass" data-shadow="chip" style="display:inline-flex;align-items:center;gap:14px;padding:12px 28px 12px 14px">
+    <span style="width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#3A88FF,#9868FF)"></span>Slide Builder</div>
+  <div style="position:absolute;left:100px;bottom:150px">
+    <h1 class="big">Slide Builder 4</h1>
+    <div class="bar"></div>
+    <p class="lead">From the workbook to the deck – together, in minutes.</p>
+    <div style="margin-top:36px;display:flex;gap:18px"><span class="cap glass" data-shadow="chip">16 October 2026</span><span class="cap glass" data-shadow="chip">For the team</span></div>
+  </div>
+</section>
+
+<!-- 2 · what it is -->
+<section class="s">
+  <h1>Excel tables in, slides out</h1>
+  <div class="row" style="margin-top:44px;align-items:flex-start">
+    <ul class="ticks" style="width:520px;flex:none;margin-top:10px">
+      <li><b>Open</b> a workbook from the shared folder.</li>
+      <li><b>Pick</b> the tables – a wizard does most of it.</li>
+      <li><b>Polish</b> them on the slide, like in Excel.</li>
+      <li><b>Export</b> the deck as a PDF.</li>
+      <li style="margin-top:34px;font-size:25px;color:var(--ink2)">New figures in the workbook? The slides follow.</li>
+    </ul>
+    <div class="shot glass" data-shadow="card" style="flex:1"><img src="img/window.jpg" alt=""></div>
+  </div>
+  <div class="foot"><span>Slide Builder 4</span><span class="pn">2</span></div>
+</section>
+
+<!-- 3 · three designs -->
+<section class="s">
+  <h1>One deck, three looks</h1>
+  <p class="lead">Switch with one click. Each look keeps its own sizes.</p>
+  <div class="cards" style="grid-template-columns:1fr 1fr 1fr;margin-top:50px">
+    <div class="glass card" data-shadow="card" style="padding:16px 16px 26px"><img src="img/d-glass.jpg" style="width:100%;border-radius:14px;display:block" alt="">
+      <h3 style="margin:22px 10px 6px">Glass</h3><p style="margin:0 10px">Glass cards and colour capsules on a soft background.</p></div>
+    <div class="glass card" data-shadow="card" style="padding:16px 16px 26px"><img src="img/d-excel.jpg" style="width:100%;border-radius:14px;display:block" alt="">
+      <h3 style="margin:22px 10px 6px">Excel</h3><p style="margin:0 10px">Exactly as the workbook formats it.</p></div>
+    <div class="glass card" data-shadow="card" style="padding:16px 16px 26px"><img src="img/d-refined.jpg" style="width:100%;border-radius:14px;display:block" alt="">
+      <h3 style="margin:22px 10px 6px">Refined</h3><p style="margin:0 10px">Excel's tables, plus text boxes and comments.</p></div>
+  </div>
+  <div class="foot"><span>Slide Builder 4</span><span class="pn">3</span></div>
+</section>
+
+<!-- 4 · four steps -->
+<section class="s">
+  <h1>A new deck in four steps</h1>
+  <p class="lead">The wizard opens by itself the first time you open a workbook.</p>
+  <div class="cards" style="grid-template-columns:repeat(4,1fr);margin-top:50px">
+    <div class="glass card" data-shadow="card"><span class="num">1</span><h3>Sheets</h3><p>Tick the sheets you need.</p></div>
+    <div class="glass card" data-shadow="card"><span class="num">2</span><h3>Tables</h3><p>Drag across a table, or take the ones marked with "x".</p></div>
+    <div class="glass card" data-shadow="card"><span class="num">3</span><h3>Slides</h3><p>Put tables on slides; add a cover and an index.</p></div>
+    <div class="glass card" data-shadow="card"><span class="num">4</span><h3>Versions</h3><p>The same deck with some figures hidden, for another audience.</p></div>
+  </div>
+  <div class="shot glass" data-shadow="card" style="position:absolute;left:100px;right:100px;bottom:96px;height:250px;padding:12px"><img src="img/wiz-3.jpg" style="height:100%;width:100%;object-fit:cover;object-position:top" alt=""></div>
+  <div class="foot"><span>Slide Builder 4</span><span class="pn">4</span></div>
+</section>
+
+<!-- 5 · edit like in Excel -->
+<section class="s">
+  <h1>Edit on the slide, like in Excel</h1>
+  <div class="row" style="margin-top:40px;align-items:flex-start">
+    <div class="shot glass" data-shadow="card" style="flex:1"><img src="img/slide-objects.jpg" alt=""></div>
+    <ul class="ticks" style="width:470px;flex:none;margin-top:10px">
+      <li>Click a cell, type, <b>bold</b> it, colour it.</li>
+      <li>Resize and move tables by dragging.</li>
+      <li>Add a text box or a notes line.</li>
+      <li>Colour scales and highlights in one click.</li>
+      <li>Undo takes back <b>your</b> changes only.</li>
+    </ul>
+  </div>
+  <div class="foot"><span>The workbook itself is never changed.</span><span class="pn">5</span></div>
+</section>
+
+<!-- 6 · automated comment -->
+<section class="s">
+  <h1>A comment that writes itself</h1>
+  <p class="lead">Slide Builder reads the table and writes the analyst's summary – and rewrites it when the figures change.</p>
+  <div class="glass card" data-shadow="card" style="margin-top:50px;padding:44px 52px;max-width:1240px">
+    <div class="quote"><b>Total Banks Loans</b>: <span class="pos">+192 mln</span> (<span class="pos">+0,2%</span>) w/w · <span class="neg">-43 mln</span> vs Budget ·
+      <span class="pos">+454 mln</span> vs EoM Aug. Slightly positive week, driven by <b>BIB</b> (<span class="pos">+36 mln</span>) and <b>ISP RO</b>
+      (<span class="pos">+36 mln</span>). Below Budget mainly because of <b>ISP ALB</b> (<span class="neg">-78 mln</span>) and <b>VUB</b> (<span class="neg">-69 mln</span>).</div>
+  </div>
+  <div style="margin-top:34px;display:flex;gap:18px"><span class="cap glass" data-shadow="chip">Summary or detailed</span><span class="cap glass" data-shadow="chip">Follows every version</span><span class="cap glass" data-shadow="chip">Your own words when you want</span></div>
+  <div class="foot"><span>From the test workbook weekly.xlsx</span><span class="pn">6</span></div>
+</section>
+
+<!-- 7 · together -->
+<section class="s">
+  <h1>Everyone on the same deck, at the same time</h1>
+  <div class="cards" style="grid-template-columns:repeat(3,1fr);margin-top:60px">
+    <div class="glass card" data-shadow="card"><div class="stat">1–2 s</div><h3 style="margin-top:20px">to see a colleague's edit</h3><p>"Updated by bob just now"</p></div>
+    <div class="glass card" data-shadow="card"><div class="stat">✓ Saved</div><h3 style="margin-top:20px">as soon as you change</h3><p>Straight to the shared folder.</p></div>
+    <div class="glass card" data-shadow="card"><div class="stat">0</div><h3 style="margin-top:20px">locks and check-outs</h3><p>Two people, two changes: both stay.</p></div>
+  </div>
+  <div class="glass card" data-shadow="card" style="margin-top:40px;padding:22px 36px;display:inline-block"><p style="font-size:26px">You see who else is in the workbook, and your undo never touches their work.</p></div>
+  <div class="foot"><span>Slide Builder 4</span><span class="pn">7</span></div>
+</section>
+
+<!-- 8 · export -->
+<section class="s">
+  <h1>Export in seconds</h1>
+  <div class="row" style="margin-top:46px;align-items:flex-start">
+    <div style="flex:1">
+      <div class="cards" style="grid-template-columns:1fr 1fr">
+        <div class="glass card" data-shadow="card"><div class="stat">1.4 s</div><h3 style="margin-top:18px">a 20-slide Glass PDF</h3><p>about 1.3 MB, sharp at any zoom</p></div>
+        <div class="glass card" data-shadow="card"><div class="stat">1 click</div><h3 style="margin-top:18px">every version × design</h3><p>one PDF each, named for you</p></div>
+      </div>
+      <ul class="ticks" style="margin-top:44px">
+        <li>PDF, PNG pictures, or copy the slide into PowerPoint.</li>
+        <li>Files land in the <b>export</b> folder.</li>
+      </ul>
+    </div>
+    <div class="shot glass" data-shadow="card" style="width:300px;height:640px;flex:none;padding:10px"><img src="img/export-menu.jpg" style="height:100%;width:auto;max-width:100%;object-fit:contain;object-position:top" alt=""></div>
+  </div>
+  <div class="foot"><span>Measured on the 20-slide test deck</span><span class="pn">8</span></div>
+</section>
+
+<!-- 9 · new in 4.2 -->
+<section class="s">
+  <span class="cap acc">Coming with 4.2</span>
+  <h1 style="margin-top:26px">Several workbooks, one deck</h1>
+  <div class="cards" style="grid-template-columns:1fr 1fr;margin-top:44px;align-items:start">
+    <div class="glass card" data-shadow="card"><h3>Linked workbooks</h3><p>Take tables from other workbooks of the folder into the same deck.</p>
+      <img src="img/link-dialog.jpg" style="width:100%;border-radius:12px;margin-top:24px;display:block" alt=""></div>
+    <div class="glass card" data-shadow="card"><h3>The formula check</h3><p>One click tells you whether every formula still gives Excel's own result.</p>
+      <img src="img/formulas.jpg" style="width:62%;border-radius:12px;margin-top:24px;display:block" alt=""></div>
+  </div>
+  <div class="foot"><span>Built and tested; not released yet</span><span class="pn">9</span></div>
+</section>
+
+<!-- 10 · safe by design -->
+<section class="s">
+  <h1>Safe by design</h1>
+  <p class="lead">Built for our locked-down PCs and our shared folder.</p>
+  <div class="cards" style="grid-template-columns:repeat(3,1fr);margin-top:90px">
+    <div class="glass card" data-shadow="card" style="padding:50px 40px 60px"><span class="num">✓</span><h3>Your workbook stays yours</h3><p>Slide Builder only reads it. Every change is stored beside it.</p></div>
+    <div class="glass card" data-shadow="card" style="padding:50px 40px 60px"><span class="num">✓</span><h3>Nothing to install</h3><p>Runs on our standard PCs with Python, from the shared folder.</p></div>
+    <div class="glass card" data-shadow="card" style="padding:50px 40px 60px"><span class="num">✓</span><h3>Nothing is lost</h3><p>Every change is kept until it is safely on the share; backups are automatic.</p></div>
+  </div>
+  <div class="foot"><span>Slide Builder 4</span><span class="pn">10</span></div>
+</section>
+
+<!-- 11 · get started -->
+<section class="s">
+  <div class="orb glass" data-shadow="chrome" style="width:520px;height:520px;right:-80px;top:-60px"></div>
+  <div class="orb glass" data-shadow="chrome" style="width:200px;height:200px;right:330px;top:380px"></div>
+  <h1>Get started today</h1>
+  <div class="bar"></div>
+  <ul class="ticks" style="margin-top:20px;max-width:950px">
+    <li>Double-click <b>Start Slide Builder</b> on your desktop.</li>
+    <li>Click <b>Open</b> and pick your workbook.</li>
+    <li>Follow the wizard – then export.</li>
+  </ul>
+  <div class="glass card" data-shadow="card" style="position:absolute;left:100px;bottom:110px;padding:24px 34px;max-width:1000px">
+    <p style="font-size:25px"><b style="color:var(--ink)">Questions?</b> The full guide is <i>Slide Builder 4 – guide.pdf</i>, next to this deck. Or ask the maintainer.</p></div>
+  <div class="foot"><span>Slide Builder 4</span><span class="pn">11</span></div>
+</section>
+
+<script>
+/* the glass shadows: glass-dl.ts material() at the Subtle level, each soft shadow as 5 sharp layers (dl/geom.ts shadowLayers) */
+const GI = .35, NAVY = "28,40,100", W = "255,255,255";
+const S = (inset, dx, dy, blur, spread, c, a) => ({ inset, dx, dy, blur, spread, c, a });
+const MAT = {
+  card: [S(0, 0, 22, 48, -24, NAVY, .14 + .22 * GI), S(0, 0, 6, 16, -8, NAVY, .06 + .1 * GI), S(1, 0, 0, 0, .5, W, .6), S(1, 0, 1, 1, 0, W, .95)],
+  chip: [S(0, 0, 2, 7, -3, NAVY, .16 + .14 * GI), S(1, 0, 1, 1, 0, W, .95), S(1, 0, 0, 0, .5, "30,40,80", .06)],
+  chrome: [S(0, 0, 14, 30, -16, NAVY, .14 + .22 * GI), S(1, 0, 0, 0, .5, W, .6), S(1, 0, 1.5, 1, 0, W, .95)],
+};
+for (const el of document.querySelectorAll("[data-shadow]")) {
+  const out = [];
+  for (const s of MAT[el.dataset.shadow]) {
+    const steps = s.blur > .5 ? 5 : 1, a = s.a / steps;
+    for (let k = 0; k < steps; k++) {
+      const sp = steps === 1 ? s.spread : s.spread + s.blur * .6 * ((k + 1) / steps - .5);
+      out.push(`${s.inset ? "inset " : ""}${s.dx}px ${s.dy}px 0 ${sp.toFixed(2)}px rgba(${s.c},${a.toFixed(3)})`);
+    }
+  }
+  el.style.boxShadow = out.join(", ");
+}
+window.__ready = true;
+</script>
+</body>
+</html>
