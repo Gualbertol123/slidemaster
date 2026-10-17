@@ -282,6 +282,10 @@ async function run(browser, port) {
           const { files, ms } = await page.evaluate(() => ({ files: window.__sbTest.lastExport.files.length, ms: window.__sbTest.lastExport.ms }));
           const status = await page.locator("#scRunStatus").textContent();
           if (files !== values.length) throw new Error(`the run made ${files} of ${values.length} files: ${status}`);
+          // each file is the whole deck: its page tree counts the 20 slides
+          const first = await page.evaluate(() => window.__sbTest.lastExport.files[0]);
+          const count = /\/Type\/Pages\/Kids\[[^\]]*\]\/Count (\d+)/.exec(fs.readFileSync(path.join(h.root, "export", first), "latin1"));
+          if (!count || +count[1] !== 20) throw new Error(`${first} has ${count ? count[1] : "no"} pages, not 20`);
           await page.click("#scRunClose");
           return Math.round(ms);
         };

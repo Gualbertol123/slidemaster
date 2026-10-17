@@ -46,6 +46,8 @@ export interface SelfCheck {
   counts: Record<CheckClass, number>;
   /** the cells that differ from Excel's cached value (first 200), with both values */
   different: { book: string | null; sheet: string; ref: string; text: string; cached: CellValue; computed: CellValue }[];
+  /** every different cell (not only the first 200): the run's gate checks the slides against all of them (S8.3) */
+  allDifferent: SelfCheck["different"];
   /** the locale-dependent cells kept at Excel's cached value (07 §8 Q8; first 200): a scenario does not move them */
   pinned: { book: string | null; sheet: string; ref: string; text: string; cached: CellValue }[];
 }
@@ -182,8 +184,12 @@ export class CalcModel {
     this.model.resumeEvaluation();
   }
 
-  /** the defined names that could not be given to the engine (a name another book defined already, a formula it
-      refuses): the cells that use them come out #NAME? and the self-check reports them */
+  /** the defined names not given to the engine ("<book>!<name>"): a name another book of the model defines already (its
+      cells then read that book's – the self-check reports them if that differs from Excel), or one whose formula names
+      a workbook that is not in the model. Known limits of a name given through a cell (a constant or a formula): a name
+      that returns a range (OFFSET(…), INDEX(…):INDEX(…)) becomes the value of that range's first cell, a sheet-level
+      one reads other names as the workbook does, a relative one is anchored – the self-check reports what differs.
+      The .xlsb reader gives no names yet (its formulas that use names differ, and are reported) */
   readonly namesSkipped: string[] = [];
   /** the books' defined names, their references rewritten as cell formulas' are (a linked workbook's sheets by their
       internal names, whole columns bounded); a sheet-level name scoped to that sheet. One namespace for the model: a
@@ -192,11 +198,15 @@ export class CalcModel {
     const seen = new Set<string>();
     // the engine takes a reference only: a constant or a formula ("0.24", "SUMIFS(…)") goes into a cell of a sheet of the
     // model's own, and the name points at that cell (the sheet is never shown: no Sheet of the workbook names it)
-    let helper: number | null = null, row = 0;
+    let helper: number | null = null, row = 0, helperName = "«names»";
     const cellFor = (text: string): string => {
-      if (helper === null) { this.model.newSheet(); helper = this.ix.size; this.model.renameSheet(helper, "«names»"); }
+      if (helper === null) {
+        this.model.newSheet(); helper = this.ix.size;
+        // a name no sheet of the workbooks has (Excel allows « » in sheet names: tried until one is free)
+        for (let k = 0; ; k++) { const nm = k ? "«names" + k + "»" : "«names»"; try { this.model.renameSheet(helper, nm); helperName = nm; break; } catch { if (k > 50) throw new Error("no sheet name for the defined names"); } }
+      }
       this.model.setUserInput(helper, ++row, 1, "=" + text);
-      return quoteSheet("«names»") + "!$A$" + row;
+      return quoteSheet(helperName) + "!$A$" + row;
     };
     const define = (name: string, scope: number | null, text: string) => {
       try { this.model.newDefinedName(name, scope, text); }                       // (the formula without "=")
@@ -369,9 +379,9 @@ export class CalcModel {
       if (VOLATILE.test(f.text)) { counts.volatile++; continue; }
       if (LOCALE.test(f.text)) { counts.locale++; continue; }
       counts.different++;
-      if (different.length < 200) different.push({ book: f.book, sheet: f.sheet, ref: numToCol(f.c) + f.r, text: f.text, cached, computed });
+      different.push({ book: f.book, sheet: f.sheet, ref: numToCol(f.c) + f.r, text: f.text, cached, computed });
     }
-    return { counts, different, pinned: this.pinnedCells.slice(0, 200) };
+    return { counts, different: different.slice(0, 200), allDifferent: different, pinned: this.pinnedCells.slice(0, 200) };
   }
   dispose() { this.model.free(); }
 }

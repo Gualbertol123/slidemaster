@@ -37,7 +37,7 @@ function server() {
 }
 function page(srv: ReturnType<typeof server>, who: string) {
   const [a, b] = pair();
-  const host = serve(new Port<CoreMethods, PageMethods, PageEvents, CoreEvents>(b), { autoTail: false });
+  const host = serve(new Port<CoreMethods, PageMethods, PageEvents, CoreEvents>(b), { autoTail: false, cancelGraceMs: 300 });
   const port = new Port<PageMethods, CoreMethods, CoreEvents, PageEvents>(a);
   const api = srv.deck.api(); void who;
   port.handle("deckSnapshot", () => api.snapshot(""));
@@ -535,17 +535,17 @@ describe("Run for each value (S8.3, 07 §2.4, SC-02/03/05/06, RC-06)", () => {
   const RED = '"solid":[214,40,40]';
   const preset = { sheets: ["SLIDE_1"], tables: [{ id: "t0", sheet: "SLIDE_1", kind: "range" as const, range: "C3:K14" }], slides: [{ id: "s1", type: "content" as const, tables: ["t0"] }] };
   type Ev = CoreEvents["scenario"];
-  type OnFile = (a: { id: string; name: string; design: string }, p: ReturnType<typeof page>) => Promise<void> | void;
+  type OnFile = (a: { id: string; name: string; design: string }, p: ReturnType<typeof page>) => Promise<void | string> | void | string;
   /** a page whose scenarioFile draws the run's lists (as an export worker does) and keeps their texts */
   async function setup(file = "recalc/Banks.xlsx", deckPreset: Record<string, unknown> = preset, onFile?: OnFile) {
     const srv = server(), p = page(srv, "anna"), events: Ev[] = [], made: { name: string; design: string; version: string; texts: string[]; red: number }[] = [];
     p.port.on("scenario", e => events.push(e));
     p.port.handle("scenarioFile", async a => {
-      await onFile?.(a, p);
+      const saved = await onFile?.(a, p);                              // (a string: the name the helper saved it under)
       const lists = await p.port.call("slideLists", { design: a.design, version: a.version, forExport: true, thumb: false, scenario: a.id });
       const all = lists.flatMap(l => l.dl.nodes), red = JSON.stringify(all).split(RED).length - 1;
       made.push({ name: a.name, design: a.design, version: a.version, texts: walk(all), red });
-      return { file: a.name };
+      return { file: typeof saved === "string" ? saved : a.name };
     });
     await p.port.call("init", { served: false, client: "c", me: "anna" });
     const bytes = book(file), copy = bytes.slice(0);
@@ -613,6 +613,47 @@ describe("Run for each value (S8.3, 07 §2.4, SC-02/03/05/06, RC-06)", () => {
     expect(r.id ? r.shown : null).toEqual(["12", "12", "11,5"]);
     await end();
     expect(made.map(m => m.name)).toEqual(["12 - Excel.pdf", "12 (2) - Excel.pdf", "11,5 - Excel.pdf"]);
+  }, 120_000);
+  it("one run at a time; a cancel also ends a file that never comes", async () => {
+    let first = true;
+    const { p, events, end } = await setup(undefined, undefined, () => first ? new Promise<void>(() => { first = false; }) : undefined);
+    const r = await run(p, ["Bank A", "Bank B"], ["excel"]);
+    await expect(run(p, ["Bank C"], ["excel"])).rejects.toThrow(/going on already/);
+    await until(() => !first);                                         // the first file is hanging
+    await p.port.call("scenarioCancel", { id: r.id! });
+    await end();
+    expect(events.at(-1)).toMatchObject({ status: "cancelled", done: 1, total: 2 });
+    expect(events[0]).toMatchObject({ status: "failed", value: "Bank A" });
+    expect(events[0].error).toContain("cancelled: the file did not come");
+  }, 120_000);
+  it("another workbook opened during a run: the run ends, no file of the old run is drawn from the new deck", async () => {
+    const { srv, p, events, end, made } = await setup(undefined, undefined, async (a, pp) => {
+      if (!a.name.startsWith("Bank A")) return;
+      const info = await pp.port.call("index", { buf: book("report.xlsx") });
+      await pp.port.call("start", { book: info.book, name: "report.xlsx", deck: srv.open(), preset: null, inputs: { ...inputs, workbook: "report.xlsx" }, stage: { slide: 0, known: [] } });
+    });
+    await run(p, ["Bank A", "Bank B"], ["excel"]);
+    await end();
+    expect(made.length).toBe(0);                                       // "this run has ended": the file is not drawn
+    expect(events[0]).toMatchObject({ status: "failed", value: "Bank A" });
+    expect(events.at(-1)!.error).toMatch(/workbook changed/);
+  }, 120_000);
+  it("a name the helper gave a file open elsewhere (\" (2)\") is not taken again by a later value", async () => {
+    const { p, made, events, end } = await setup(undefined, undefined, a => a.name === "12 - Excel.pdf" ? "12 (2) - Excel.pdf" : undefined);
+    await run(p, [12, 12], ["excel"], { sheet: "Control", ref: "B4" });
+    await end();
+    expect(made.map(m => m.name)).toEqual(["12 - Excel.pdf", "12 (3) - Excel.pdf"]);
+    expect(events.slice(0, 2).map(e => e.files)).toEqual([["12 (2) - Excel.pdf"], ["12 (3) - Excel.pdf"]]);
+  }, 120_000);
+  it("the gate looks at the run's versions: cells every chosen version removes do not stop it", async () => {
+    const fp = { sheets: ["F"], tables: [{ id: "t0", sheet: "F", kind: "range" as const, range: "A1:G164" }], slides: [{ id: "s1", type: "content" as const, tables: ["t0"] }],
+      versions: [{ id: "v1", name: "Short", hide: { F: ["B1:G164"] } }] };
+    const { p, end } = await setup("recalc/Functions.xlsx", fp);
+    const full = await run(p, [8], ["excel"], { sheet: "F", ref: "A1" });
+    expect(full.id).toBeNull();
+    const short = await p.port.call("scenarioRun", { input: { sheet: "F", ref: "A1" }, values: [8], designs: ["excel"], versions: ["v1"], kinds: ["pdf"], runAnyway: false });
+    expect(short.id).toBeTruthy();
+    await end();
   }, 120_000);
   it("the gate (RC-06): a slide cell the self-check classes different stops the run with the list; run anyway marks it", async () => {
     const fp = { sheets: ["F"], tables: [{ id: "t0", sheet: "F", kind: "range" as const, range: "A1:G164" }], slides: [{ id: "s1", type: "content" as const, tables: ["t0"] }] };

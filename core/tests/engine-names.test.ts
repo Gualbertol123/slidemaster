@@ -46,6 +46,24 @@ describe("defined names (M8)", () => {
     expect([1, 2, 3, 4, 5].map(c => m.valueOf(null, "Calc", 1, c))).toEqual([90, 30, 22.5, 67.5, 31]);
     m.dispose();
   }, 60_000);
+  it("a sheet-level name shadows the workbook's on its sheet; a workbook with a sheet called «names» still builds", async () => {
+    const files = (await import("./zipbuild")).makeZip;
+    const wbx = (sheets: string[], names: string, cells: string[]) => files({
+      "[Content_Types].xml": `<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/></Types>`,
+      "_rels/.rels": `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+      "xl/workbook.xml": `<?xml version="1.0"?><workbook ${NS}><sheets>${sheets.map((n, i) => `<sheet name="${n}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets><definedNames>${names}</definedNames></workbook>`,
+      "xl/_rels/workbook.xml.rels": `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="${REL}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}</Relationships>`,
+      ...Object.fromEntries(cells.map((c, i) => [`xl/worksheets/sheet${i + 1}.xml`, sheet(c)])),
+    });
+    // "Rate" is 0.1 for the workbook and 0.2 on sheet B; the helper sheet's name is taken by the workbook
+    const wb = await readWorkbook(wbx(["A", "B", "«names»"], `<definedName name="Rate">0.1</definedName><definedName name="Rate" localSheetId="1">0.2</definedName>`,
+      [`<row r="1"><c r="A1"><f>Rate*100</f><v>10</v></c></row>`, `<row r="1"><c r="A1"><f>Rate*100</f><v>20</v></c></row>`, `<row r="1"><c r="A1"><v>5</v></c></row>`]));
+    const m = new CalcModel(g, [{ name: null, sheets: wb.sheets, externals: [], names: wb.names }]);
+    expect(m.namesSkipped).toEqual([]);
+    expect([m.valueOf(null, "A", 1, 1), m.valueOf(null, "B", 1, 1), m.valueOf(null, "«names»", 1, 1)]).toEqual([10, 20, 5]);
+    expect(m.selfCheck().counts.different).toBe(0);
+    m.dispose();
+  }, 60_000);
   it("without its names (as before M8) the same cells are #NAME?: the self-check reports them", async () => {
     const wb = await readWorkbook(book());
     const m = new CalcModel(g, [{ name: null, sheets: wb.sheets, externals: [] }]);

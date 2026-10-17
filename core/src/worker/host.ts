@@ -16,7 +16,7 @@ import { setPictureConverter } from "../xlsx/drawing";
 import { sliceBoxes, sliceShared, sliceSheet, sliceTransfer, type SharedSlice, type SheetSlice } from "../xlsx/slice";
 import { cellInfo, sheetInfo, sheetWindow, tableSize } from "../xlsx/sheetview";
 import { detectTables } from "../xlsx/detect";
-import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "../model/preset";
+import { defaultPreset, LCACHE, presetSheets, rangeToG, runtimeSlides } from "../model/preset";
 import { resolveStyle } from "../model/style";
 import { tableDrawKey } from "../render/slide";
 import { computeLayout, geomOf } from "../render/layout";
@@ -131,7 +131,9 @@ export class CoreHost {
     h("calcCheck", () => this.calcCheck());
     h("scenarioPreview", a => this.scenarioPreview(a));
     h("scenarioRun", a => this.scenarioRun(a));
-    h("scenarioCancel", a => { const r = this.runs.get(a.id); if (r) r.cancel = true; });
+    // the run stops after the value being made; a file of it that does not come within the grace period is given up
+    // (a stuck export worker cannot hold the run for ever)
+    h("scenarioCancel", a => { const r = this.runs.get(a.id); if (r && !r.cancel) { r.cancel = true; setTimeout(() => r.abort(new Error("cancelled: the file did not come")), this.opts.cancelGraceMs ?? 30_000); } });
     h("link", async a => {
       const wb = this.bookOf(a.book);
       if (!(await this.attachLinks(wb, [a.name]))) return null;
@@ -184,7 +186,8 @@ export class CoreHost {
         ...[...wb.linked].map(([file, lwb]) => ({ name: file, sheets: sheetsOf(wb, file), hidden: lwb.hiddenSheets, externals: lwb.externals, names: lwb.names }))]);
       try {
         const t2 = now(); const check = model.selfCheck(); const t3 = now();
-        const checkOut: CalcCheck = { counts: check.counts, different: check.different.slice(0, 20), formulas: model.formulas.length, styleError: model.styleError, ms: { load: t1 - t0, build: model.ms.build, evaluate: model.ms.evaluate, check: t3 - t2 } };
+        const checkOut: CalcCheck = { counts: check.counts, different: check.different.slice(0, 20), formulas: model.formulas.length, styleError: model.styleError,
+          ...(model.namesSkipped.length ? { namesSkipped: model.namesSkipped.slice(0, 20) } : {}), ms: { load: t1 - t0, build: model.ms.build, evaluate: model.ms.evaluate, check: t3 - t2 } };
         return { model, check, checkOut, sig: this.calcSig(wb) };
       } catch (e) { model.dispose(); throw e; }
     })();
@@ -199,18 +202,22 @@ export class CoreHost {
   /** the scenario on the stage: the engine's input and what that cell held before (the engine's own content, put
       back when the scenario ends or moves), the view the renderers read, its digest (ctx.scenario) */
   private scen: { input: ScenarioInput; was: string; view: Workbook; hash: string } | null = null;
-  private async scenarioPreview(a: ScenarioInput | null): Promise<ScenarioAnswer | null> {
+  /** `forRun`: a run starting clears the preview (it may while it is starting) */
+  private async scenarioPreview(a: ScenarioInput | null, forRun = false): Promise<ScenarioAnswer | null> {
     const wb = this.wb; if (!wb) return null;
     // the engine holds the run's values meanwhile (one model): a preview waits until the run ends
-    if (this.runs.size) throw new Error("a run for each value is going on: preview once it has ended");
+    const busy = () => !forRun && this.running;
+    if (busy()) throw new Error("a run for each value is going on: preview once it has ended");
     const c = await this.ensureCalc(wb);
     if (this.wb !== wb) return null;
     const at = (inp: ScenarioInput) => { const { book, sheet } = parseSheetId(inp.sheet), rc = splitRef(inp.ref); return rc ? { book, sheet, r: rc.r, c: rc.c } : null; };
-    let answer: ScenarioAnswer | null = null;
+    let answer: ScenarioAnswer | null = null, refused = false;
     // in the change queue, like every other redraw of the slides (an apply or undo arriving meanwhile waits its turn)
     await this.later(async () => {
-      // the model may have been rebuilt (sheets or links changed) and freed while this call waited its turn
+      // the model may have been rebuilt (sheets or links changed) and freed while this call waited its turn; a run may
+      // have started meanwhile (it owns the engine)
       if (this.wb !== wb || this.calcSig(wb) !== c.sig) return;
+      if (busy()) { refused = true; return; }
       // the previous input cell back to what it held (a constant, a formula, or nothing at all)
       if (this.scen) { const p = at(this.scen.input); if (p) c.model.restore(p.book, p.sheet, p.r, p.c, this.scen.was); }
       this.scen = null;
@@ -236,6 +243,7 @@ export class CoreHost {
       LCACHE.clear(); this.slidesDesign = null;
       await this.refresh(null, true);
     });
+    if (refused) throw new Error("a run for each value is going on: preview once it has ended");
     return answer;
   }
   /** what the renderers read: the scenario's view while one shows, else the workbook */
@@ -243,47 +251,69 @@ export class CoreHost {
 
   /* ---------------------------------------------------------------- Run for each value (S8.3, 07 §2.4) */
   /** the runs going on (one at a time): the view of the value being made, its digest, its slides by design, the
-      cells marked (run anyway) */
+      cells marked (run anyway), the names its files were saved under */
   private runs = new Map<string, Run>(); private runSeq = 0;
-  /** the slide cells the self-check classes different (the gate, RC-06): the current design's tables' cells */
-  private gateCells(check: SelfCheck): { cells: GateCell[]; more: boolean; kept: { sheet: string; ref: string; text: string }[] } {
+  /** a run being started (from its first check until it is registered): another run or a preview is refused meanwhile */
+  private runStarting = false;
+  private get running() { return this.runs.size > 0 || this.runStarting; }
+  /** the gate (RC-06): the cells the run will draw – the slides' tables in each of its designs, unless every chosen
+      version removes the cell – that the self-check classes different (all of them, not only its first 200), and the
+      locale-dependent ones kept at Excel's text (named in the report) */
+  private gateCells(check: SelfCheck, designs: Design[], versions: string[]): { cells: GateCell[]; kept: { sheet: string; ref: string; text: string }[] } {
     const id = (d: { book: string | null; sheet: string; ref: string }) => (d.book === null ? d.sheet : "[" + d.book + "]" + d.sheet) + "!" + d.ref;
-    const diff = new Map(check.different.map(d => [id(d), d])), pinned = new Map(check.pinned.map(d => [id(d), d]));
+    const diff = new Map(check.allDifferent.map(d => [id(d), d])), pinned = new Map(check.pinned.map(d => [id(d), d]));
     const out = new Map<string, GateCell>(), kept = new Map<string, { sheet: string; ref: string; text: string }>();
-    if (diff.size || pinned.size) for (const R of this.slidesFor(this.style().design, "own")) for (const L of R.tables) for (const it of L.items) {
-      const k = L.sheet.name + "!" + A1(it.b.src.r, it.b.src.c), d = diff.get(k), p = pinned.get(k);
-      if (d && !out.has(k)) out.set(k, { sheet: L.sheet.name, ref: d.ref, text: d.text, cached: d.cached, computed: d.computed });
+    const vers = (this.sync?.view.preset?.versions || []).filter(v => versions.includes(v.id)), full = versions.includes("");
+    const removed = (sheet: string, r: number, c: number) => !full && vers.length > 0 && vers.every(v => (v.hide?.[sheet] || []).some(rg => {
+      const g = rangeToG(rg); return r > g.r1 && r < g.r2 && c > g.c1 && c < g.c2;           // (rangeToG's bounds are outside the range)
+    }));
+    if (diff.size || pinned.size) for (const d of designs) for (const R of this.slidesFor(d, "own")) for (const L of R.tables) for (const it of L.items) {
+      const k = L.sheet.name + "!" + A1(it.b.src.r, it.b.src.c), dd = diff.get(k), p = pinned.get(k);
+      if (!dd && !p || removed(L.sheet.name, it.b.src.r, it.b.src.c)) continue;
+      if (dd && !out.has(k)) out.set(k, { sheet: L.sheet.name, ref: dd.ref, text: dd.text, cached: dd.cached, computed: dd.computed });
       if (p && !kept.has(k)) kept.set(k, { sheet: L.sheet.name, ref: p.ref, text: p.text });
     }
-    return { cells: [...out.values()], more: check.counts.different > check.different.length, kept: [...kept.values()] };
+    return { cells: [...out.values()], kept: [...kept.values()] };
   }
   private async scenarioRun(a: ScenarioRunReq): Promise<ScenarioRunStart> {
     const wb = this.wb; if (!wb || !this.sync) throw new Error("no workbook is open");
-    if (this.runs.size) throw new Error("a run for each value is going on already");
+    if (this.running) throw new Error("a run for each value is going on already");
     if (!a.values.length || !a.designs.length || !a.versions.length) throw new Error("nothing to run: no value, design or version");
     const rc = splitRef(a.input.ref), S = wb.sheets.find(x => x.name === a.input.sheet);
     if (!rc || !S) throw new Error(`no cell ${a.input.sheet}!${a.input.ref} in this workbook`);
-    const c = await this.ensureCalc(wb);
-    if (this.wb !== wb) throw new Error("the workbook changed");
-    if (this.scen) await this.scenarioPreview(null);                // the run takes the engine: a preview ends first
-    const gate = this.gateCells(c.check);
-    if ((gate.cells.length || gate.more) && !a.runAnyway) return { id: null, blocked: gate.cells, more: gate.more };
-    // the values as the input cell shows them (its number format): the files' names
-    const cell = S.get(rc.r, rc.c), fmt = cell?.fmt || "General";
-    const shown = a.values.map(v => typeof v === "number" ? formatValue({ v, t: cell?.t === "d" ? "d" : "n", fmt }).text : typeof v === "boolean" ? formatValue({ v, t: "b", fmt }).text : v);
-    const vers = this.sync.view.preset?.versions || [];
-    const { stems, labels } = scenarioRunNames(shown, a.designs, a.versions.map(id => id ? (vers.find(x => x.id === id)?.name ?? id) : null), "pdf", a.folder ?? ASSUMED_FOLDER);
-    const id = "run" + ++this.runSeq;
-    const run: Run = { id, cancel: false, view: null, hash: "", slides: new Map(), marked: new Set(a.runAnyway ? gate.cells.map(g => g.sheet + "!" + g.ref) : []) };
-    this.runs.set(id, run);
-    void this.runLoop(run, a, wb, c, { book: parseSheetId(a.input.sheet).book, sheet: parseSheetId(a.input.sheet).sheet, r: rc.r, c: rc.c }, shown, stems, labels);
-    return { id, total: a.values.length, shown, marked: a.runAnyway ? gate.cells : [], kept: gate.kept };
+    this.runStarting = true;                                         // (before the first await: one run at a time)
+    try {
+      const c = await this.ensureCalc(wb);
+      if (this.wb !== wb) throw new Error("the workbook changed");
+      if (this.scen) await this.scenarioPreview(null, true);         // the run takes the engine: a preview ends first
+      const gate = this.gateCells(c.check, a.designs, a.versions);
+      if (gate.cells.length && !a.runAnyway) return { id: null, blocked: gate.cells };
+      // the values as the input cell shows them (its number format): the files' names
+      const cell = S.get(rc.r, rc.c), fmt = cell?.fmt || "General";
+      const shown = a.values.map(v => typeof v === "number" ? formatValue({ v, t: cell?.t === "d" ? "d" : "n", fmt }).text : typeof v === "boolean" ? formatValue({ v, t: "b", fmt }).text : v);
+      const vers = this.sync.view.preset?.versions || [];
+      const { stems, labels, bump } = scenarioRunNames(shown, a.designs, a.versions.map(id => id ? (vers.find(x => x.id === id)?.name ?? id) : null), "pdf", a.folder ?? ASSUMED_FOLDER);
+      const id = "run" + ++this.runSeq;
+      let abort: (e: Error) => void = () => undefined;
+      const stop = new Promise<never>((_, no) => { abort = no; }); stop.catch(() => undefined);
+      const run: Run = { id, wb, cancel: false, stop, abort, view: null, hash: "", slides: new Map(), taken: new Set(), marked: new Set(a.runAnyway ? gate.cells.map(g => g.sheet + "!" + g.ref) : []) };
+      this.runs.set(id, run);
+      void this.runLoop(run, a, wb, c, { book: parseSheetId(a.input.sheet).book, sheet: parseSheetId(a.input.sheet).sheet, r: rc.r, c: rc.c }, shown, stems, labels, bump);
+      return { id, total: a.values.length, shown, marked: a.runAnyway ? gate.cells : [], kept: gate.kept };
+    } finally { this.runStarting = false; }
   }
   /** one value at a time; between values the stage and every other request are served (the change queue) */
   private async runLoop(run: Run, a: ScenarioRunReq, wb: Workbook, c: { model: CalcModel; sig: string }, p: { book: string | null; sheet: string; r: number; c: number },
-    shown: string[], stems: string[], labels: (string | null)[]) {
+    shown: string[], stems: string[], labels: (string | null)[], bump: (i: number, k: number) => string) {
     const total = a.values.length, live = () => this.wb === wb && this.calcSig(wb) === c.sig;
     let done = 0, was: string | null = null, error = "";
+    /** a name a file of this run was saved under already (the helper's own " (2)" for a file open elsewhere can take a
+        name the run planned for a later value): the next free " (k)" after the value */
+    const free = (i: number, d: Design, j: number) => {
+      let name = runFileName(stems[i], d, labels[j], "pdf");
+      for (let k = 2; run.taken.has(name.toUpperCase()); k++) name = runFileName(bump(i, k), d, labels[j], "pdf");
+      return name;
+    };
     try {
       for (let i = 0; i < total && !run.cancel; i++) {
         let ok = false;
@@ -297,21 +327,28 @@ export class CoreHost {
           ok = true;
         });
         if (!ok) throw new Error(live() ? "the input cell could not be set" : "the workbook changed during the run");
-        // one file per (design, version): the export workers, three at a time, through the page
-        const jobs = a.designs.flatMap(d => a.versions.map((v, j) => ({ d, v, name: runFileName(stems[i], d, labels[j], "pdf") })));
-        const res = await Promise.allSettled(jobs.map(j => this.port.call("scenarioFile", { id: run.id, design: j.d, version: j.v, name: j.name, title: j.name.replace(/\.pdf$/, ""), today: a.today })));
+        // one file per (design, version): the export workers, three at a time, through the page; a cancel also ends a
+        // file that does not come (a stuck worker), so the run always ends
+        const jobs = a.designs.flatMap(d => a.versions.map((v, j) => ({ d, v, name: free(i, d, j) })));
+        const res = await Promise.allSettled(jobs.map(j => Promise.race([run.stop,
+          this.port.call("scenarioFile", { id: run.id, design: j.d, version: j.v, name: j.name, title: j.name.replace(/\.pdf$/, ""), today: a.today })])));
         const files = res.flatMap(r => r.status === "fulfilled" ? [r.value.file] : []);
+        for (const f of files) run.taken.add(f.toUpperCase());
         const failed = res.flatMap((r, k) => r.status === "rejected" ? [jobs[k].name + ": " + String((r.reason as Error)?.message || r.reason)] : []);
         run.view = null; run.slides.clear();                       // the value's view is dropped
         done++;
         this.port.emit("scenario", { id: run.id, done, total, value: shown[i], status: failed.length ? "failed" : "ok", files, ...(failed.length ? { error: failed.join(" · ") } : {}) });
+        if (!live()) throw new Error("the workbook changed during the run");
         await new Promise(r => setTimeout(r, 0));                  // yield: requests waiting are served
       }
     } catch (e) { error = String((e as Error)?.message || e); }
     finally {
+      run.view = null;
       // the input cell back to what it held, in the engine only (the workbook file is never written)
       await this.later(() => { if (was !== null && live()) { c.model.restore(p.book, p.sheet, p.r, p.c, was); c.model.evaluate(); } });
       this.runs.delete(run.id);
+      // the run's layouts (built from its views) leave the layout cache
+      for (const [k, v] of LCACHE) if (v.wb !== this.wb) LCACHE.delete(k);
       this.port.emit("scenario", { id: run.id, done, total, value: null, status: run.cancel && done < total ? "cancelled" : "end", files: [], ...(error ? { error } : {}) });
     }
   }
@@ -527,7 +564,7 @@ export class CoreHost {
     if (!this.wb || !this.sync) return [];
     let src: Source = "own";
     if (a.scenario === "preview") src = "stage";
-    else if (a.scenario) { const r = this.runs.get(a.scenario); if (!r || !r.view) throw new Error("this run has ended"); src = r; }
+    else if (a.scenario) { const r = this.runs.get(a.scenario); if (!r || !r.view || r.wb !== this.wb) throw new Error("this run has ended"); src = r; }
     const run = typeof src === "object" ? src : null;
     const ctx = this.ctx(a.design, a.version, a.forExport, src), glass = ctx.style.design === "glass", out: { slide: number; dl: TableDL }[] = [];
     await glassFonts(ctx);
@@ -711,7 +748,9 @@ function ownEdits(L: RuntimeSlide["tables"][number], ctx: RenderCtx): string {
   return JSON.stringify(out);
 }
 /** a run for each value (S8.3) */
-interface Run { id: string; cancel: boolean; view: Workbook | null; hash: string; slides: Map<string, RuntimeSlide[]>; marked: Set<string> }
+interface Run { id: string; /** the workbook it runs on (another one opened: the run ends) */ wb: Workbook; cancel: boolean;
+  /** rejects on cancel (a file that does not come cannot hold the run) */ stop: Promise<never>; abort: (e: Error) => void;
+  view: Workbook | null; hash: string; slides: Map<string, RuntimeSlide[]>; marked: Set<string>; /** files saved, upper-cased */ taken: Set<string> }
 /** whose values a slide is drawn from: the stage's, the workbook's own, a run's */
 type Source = "stage" | "own" | Run;
 /** the host behind a port (one per worker) */
@@ -722,5 +761,7 @@ export interface HostOptions {
   staticFace?: (file: Uint8Array, weight: number) => Promise<{ data: Uint8Array; variable: boolean }>;
   /** false: the deck's journals are read only when the page asks ("poll"; tests) – else every 1.5 s */
   autoTail?: boolean;
+  /** how long a cancelled run waits for the files of the value being made (ms; 30 s) */
+  cancelGraceMs?: number;
 }
 export const serve = (port: HostPort, opts: HostOptions = {}) => new CoreHost(port, opts);

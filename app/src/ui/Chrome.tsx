@@ -63,6 +63,7 @@ function CalcLine() {
     if (c.external) parts.push(`${c.external} read a workbook not in the folder`);
     if (c.unreadable) parts.push(`${c.unreadable} could not be read`);
     if (c.different) { parts.push(`${c.different} different from Excel`); warn = true; }
+    if (calc.namesSkipped?.length) parts.push(`names not recalculated: ${calc.namesSkipped.map(n => n.replace(/^!/, "")).join(", ")}`);
     text = "Formulas: " + parts.join(" · ");
   }
   return <div className={"calcline" + (warn ? " warn" : "")} id="calcLine" title="Every formula of the workbook recomputed by Slide Builder and compared with the value Excel saved (docs/next/07 §1.4)">

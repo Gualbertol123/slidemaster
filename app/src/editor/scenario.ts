@@ -86,15 +86,19 @@ export async function clearPreview() {
   catch (e) { console.error(e); toast("⚠ Clearing the preview failed: " + esc((e as Error).message || e), [], true); }
 }
 // another workbook (or the same one read again) has no scenario in the worker: the banner goes with it
-useStore.subscribe(s => s.deck.wb, () => { ++previewSeq; busyBy = 0; if (get().ui.preview) patch("ui", { preview: null }); });
+useStore.subscribe(s => s.deck.wb, () => {
+  ++previewSeq; busyBy = 0; if (get().ui.preview) patch("ui", { preview: null });
+  // another workbook: its own gate (a "run anyway" ticked for the last one does not carry over)
+  if (get().ui.scenario.runAnyway) patch("ui", { scenario: { ...get().ui.scenario, runAnyway: false } });
+});
 
 /* ---------------------------------------------------------------- the run (S8.3, 07 §2.4) */
 /** the fonts the run's PDFs may embed: asked once when Run is pressed (from disk the browser asks while the click counts) */
 let runCatalog: Promise<CatalogFont[]> | null = null;
 /** starts a run with the dialog's fields: the gate's cells when it refused (nothing was made), else null (the run
     goes on in the core worker; its progress arrives as events) */
-export async function startRun(f: ScenarioForm): Promise<{ blocked: GateCell[]; more: boolean } | null> {
-  if (get().ui.run && (get().ui.run!.status === "running" || get().ui.run!.status === "cancelling")) return null;
+export async function startRun(f: ScenarioForm, t0 = performance.now()): Promise<{ blocked: GateCell[] } | null> {
+  if (runGoing()) { toast("A run for each value is going on: wait for it, or cancel it.", [], true); return null; }
   runCatalog = catalog();
   runCatalog.catch(() => undefined);
   const values = scenarioValues(f.values), r = await resolveInput(f.input);
@@ -103,15 +107,18 @@ export async function startRun(f: ScenarioForm): Promise<{ blocked: GateCell[]; 
   // the names must fit the export folder: its length from the helper (07 §2.5)
   let folder: number | undefined;
   if (backend.served) {
-    const h = get().ui.health || await backend.health();
+    const h = get().ui.health?.export ? get().ui.health : await backend.health();
     if (!h?.export) { toast("⚠ The helper did not say where the export folder is – try again in a moment.", [], true); return null; }
     folder = h.export.length;
   }
   const vers = get().doc.view?.preset?.versions || [];
   const versions = f.versions.filter(v => v === "" || vers.some(x => x.id === v));
   const a = await core().call("scenarioRun", { input: r.cell, values: values.map(v => typedValue(v, r.now?.t ?? null, f.asText)), designs: f.designs, versions, kinds: ["pdf"], runAnyway: f.runAnyway, folder, today: todayLabel() });
-  if (a.id === null) return { blocked: a.blocked, more: a.more };
-  patch("ui", { run: { id: a.id, total: a.total, done: 0, shown: a.shown, results: [], status: "running", marked: a.marked, kept: a.kept, t0: performance.now() } });
+  if (a.id === null) return { blocked: a.blocked };
+  // timed from the click on Run (the engine's first use, the gate and the folder included: the bench's figure)
+  patch("ui", { run: { id: a.id, total: a.total, done: 0, shown: a.shown, results: [], status: "running", marked: a.marked, kept: a.kept, t0 } });
+  // "run anyway" is for this run only: the next one stops at the gate again (RC-06)
+  patch("ui", { scenario: { ...get().ui.scenario, runAnyway: false } });
   setDialogs({ scenario: false });
   return null;
 }
@@ -119,6 +126,8 @@ export async function startRun(f: ScenarioForm): Promise<{ blocked: GateCell[]; 
 export async function scenarioFile(a: { id: string; design: Design; version: string; name: string; title: string; today?: string }): Promise<{ file: string }> {
   return { file: (await scenarioPdf(a, runCatalog || catalog())).file };
 }
+/** a run is going on (its panel shows progress) */
+export const runGoing = () => { const R = get().ui.run; return !!R && (R.status === "running" || R.status === "cancelling"); };
 export function cancelRun() {
   const R = get().ui.run; if (!R || R.status !== "running") return;
   patch("ui", { run: { ...R, status: "cancelling" } });

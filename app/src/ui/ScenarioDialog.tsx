@@ -2,9 +2,10 @@
    and versions to export for each value; Preview shows one value on the stage. The fields are UI state (store
    ui.scenario), never the document. */
 import { useEffect, useMemo, useState } from "react";
-import { get, patch, useStore, type ScenarioForm } from "../state/store";
+import { get, patch, toast, useStore, type ScenarioForm } from "../state/store";
+import { esc } from "@slide-builder/core/xlsx/util";
 import { core } from "../state/app";
-import { cancelRun, closeRun, closeScenario, pickedCell, previewValue, resolveInput, startRun, type Resolved } from "../editor/scenario";
+import { cancelRun, closeRun, closeScenario, pickedCell, previewValue, resolveInput, runGoing, startRun, type Resolved } from "../editor/scenario";
 import { backend } from "../sync/api";
 import type { CellValue } from "@slide-builder/core/calc/engine";
 import type { GateCell } from "@slide-builder/core/rpc/messages";
@@ -88,9 +89,17 @@ export function ScenarioDialog() {
   const toggle = <T,>(list: T[], x: T, on: boolean) => on ? [...list.filter(y => y !== x), x] : list.filter(y => y !== x);
   const preview = async () => { if (await previewValue(f.input, value, f.asText)) closeScenario(); };
   // the gate (RC-06): what stopped the last Run, until the fields change
-  const [gate, setGate] = useState<{ blocked: GateCell[]; more: boolean } | null>(null), [starting, setStarting] = useState(false);
-  const run = async () => { setStarting(true); try { setGate(await startRun(get().ui.scenario)); } finally { setStarting(false); } };
-  useEffect(() => { setGate(null); }, [f.input, f.values, f.asText]);
+  const [gate, setGate] = useState<{ blocked: GateCell[] } | null>(null), [starting, setStarting] = useState(false);
+  const going = useStore(s => !!s.ui.run && (s.ui.run.status === "running" || s.ui.run.status === "cancelling"));
+  const run = async () => {
+    const t0 = performance.now();
+    setStarting(true);
+    try { setGate(await startRun(get().ui.scenario, t0)); }
+    catch (e) { console.error(e); toast("⚠ The run could not start: " + esc((e as Error).message || e), [], true); }
+    finally { setStarting(false); }
+  };
+  // other fields: the gate is asked again, and "run anyway" is unticked (it answers that gate only)
+  useEffect(() => { setGate(null); if (get().ui.scenario.runAnyway) set({ runAnyway: false }); }, [f.input, f.values, f.asText, f.designs.join(), f.versions.join()]);
   return (
     <div className="modal">
       <div className="dlg scdlg" id="scenarioDialog" style={{ width: `min(${ranging ? 940 : 640}px,94vw)` }}>
@@ -130,7 +139,7 @@ export function ScenarioDialog() {
             </div>
           </div>
           {gate && <div className="scgate" id="scGate">
-            <b>The run stopped before the first value:</b> {gate.blocked.length} cell{gate.blocked.length === 1 ? "" : "s"} on the slides {gate.blocked.length === 1 ? "is" : "are"} computed otherwise than Excel saved {gate.blocked.length === 1 ? "it" : "them"}{gate.more ? " (and maybe more: the formula check lists its first 200 differences)" : ""} – the files would show numbers Excel does not.
+            <b>The run stopped before the first value:</b> {gate.blocked.length} cell{gate.blocked.length === 1 ? "" : "s"} on the slides {gate.blocked.length === 1 ? "is" : "are"} computed otherwise than Excel saved {gate.blocked.length === 1 ? "it" : "them"} – the files would show numbers Excel does not.
             <ul>{gate.blocked.slice(0, 10).map(c => <li key={c.sheet + "!" + c.ref}><b>{c.sheet}!{c.ref}</b> Excel “{shownValue(c.cached)}”, recalculated “{shownValue(c.computed)}”</li>)}{gate.blocked.length > 10 && <li>… {gate.blocked.length - 10} more</li>}</ul>
             <label className="ck"><input type="checkbox" id="scAnyway" checked={f.runAnyway} onChange={e => set({ runAnyway: (e.target as HTMLInputElement).checked })} /> Run anyway and mark these cells (a red corner on the slides, listed in the report)</label>
           </div>}
@@ -141,7 +150,7 @@ export function ScenarioDialog() {
           <button className="btn" id="scPreview" disabled={!values.length || !cell?.ok} title="Show this value on the slides (nothing is saved)" onClick={() => void preview()}>Preview</button>
           <span style={{ flex: "1" }} />
           <button className="btn" data-a="cancel" onClick={closeScenario}>Close</button>
-          <button className="btn primary" id="scRun" disabled={!files || !cell?.ok || starting || (!!gate && !f.runAnyway)} title={`Make ${files} PDF${files === 1 ? "" : "s"}: one per value × design × version`} onClick={() => void run()}>{starting ? "Starting…" : "Run"}</button>
+          <button className="btn primary" id="scRun" disabled={!files || !cell?.ok || starting || going || (!!gate && !f.runAnyway)} title={going ? "A run is going on: wait for it, or cancel it" : `Make ${files} PDF${files === 1 ? "" : "s"}: one per value × design × version`} onClick={() => void run()}>{starting ? "Starting…" : "Run"}</button>
         </div>
       </div>
     </div>

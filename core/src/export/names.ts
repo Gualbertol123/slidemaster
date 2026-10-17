@@ -84,7 +84,11 @@ export function scenarioFileName(valueText: string, design: Design, version: str
     (version, design) – and `labels[j]` version j's part; runFileName joins them. A value whose files would equal a
     file of an earlier value (Windows ignores case; " - " can sit inside a value or a version name) gets " (2)", " (3)"
     after the value, so no two files of a run are the same file */
-export function scenarioRunNames(values: string[], designs: Design[], versions: (string | null)[], ext: string, folder = ASSUMED_FOLDER): { stems: string[]; labels: (string | null)[] } {
+export function scenarioRunNames(values: string[], designs: Design[], versions: (string | null)[], ext: string, folder = ASSUMED_FOLDER): {
+  stems: string[]; labels: (string | null)[];
+  /** value i's first part with " (k)" (k ≥ 2), cut to fit as the others: for a name taken meanwhile (the helper's own
+      " (2)" for a file open elsewhere took a name the run planned) */
+  bump: (i: number, k: number) => string } {
   const labels = runVersionLabels(versions);
   const rests = designs.flatMap(d => labels.map(l => restOf(d, l, ext)));
   const room = nameBudget(folder) - Math.max(0, ...rests.map(r => r.length)), used = new Set<string>();
@@ -97,7 +101,7 @@ export function scenarioRunNames(values: string[], designs: Design[], versions: 
       keys.forEach(x => used.add(x)); return stem;
     }
   });
-  return { stems, labels };
+  return { stems, labels, bump: (i, k) => cut(safeValue(values[i]), room - ` (${k})`.length) + ` (${k})` };
 }
 /** the file of one value (its stem) in one design and version (its label), both from scenarioRunNames */
 export const runFileName = (stem: string, design: Design, label: string | null, ext: string) => stem + restOf(design, label, ext);

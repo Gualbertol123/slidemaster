@@ -128,7 +128,7 @@ export interface GateCell { sheet: string; ref: string; text: string; cached: im
 export type ScenarioRunStart =
   | { id: string; total: number; /** the values' displayed texts (the input cell's number format), in order */ shown: string[]; marked: GateCell[];
       /** slide cells kept at Excel's text in every file (locale-dependent TEXT, 07 §8 Q8): the report names them */ kept: { sheet: string; ref: string; text: string }[] }
-  | { id: null; blocked: GateCell[]; /** the self-check lists its first 200 differences: there may be more */ more: boolean };
+  | { id: null; blocked: GateCell[] };
 /** progress of a run: after each value (status of that value), then once at its end (`end`) */
 export interface ScenarioEvent {
   id: string; done: number; total: number;
@@ -140,6 +140,7 @@ export interface ScenarioEvent {
 /** the self-check's result: how many formula cells are exact / volatile / locale-dependent / external / unreadable /
     different, the first differences, the engine's times (ms) */
 export interface CalcCheck { counts: import("../calc/engine").SelfCheck["counts"]; different: import("../calc/engine").SelfCheck["different"]; formulas: number;
+  /** defined names not given to the engine ("<book>!<name>", engine.ts namesSkipped) */ namesSkipped?: string[];
   /** why values were read in the engine's General format (null: the 15-digit format applied) */ styleError: string | null;
   ms: { load: number; build: number; evaluate: number; check: number } }
 export type SlideListsReq = DesignReq & { slides?: number[]; /** the date the page shows (its clock) */ today?: string;
