@@ -84,6 +84,22 @@ numbers measured twice). Measured numbers go into the step's line.
 - [x] S7b.5 · Close (AUDIT §0 twice) 🚦 — 4b8fedd (CHANGELOG B25 / B26), bcaace5 + 50d961c (the self-check tests hold on any day: found by the second audit run at 2026-10-17 00:00 UTC – the recalc corpus' 3 TODAY() cells are "exact" only on the day Excel saved them; fixed on `v4/M7-recalc` and merged), 5a7ade6 (the Navy reopen's first-draw tasks under the first-draw limit, as deck20's open; tasks by phase), a1e1fc1 (`v4/M7-recalc` merged in: the M7b pull request follows M7's). AUDIT §0 on two clean clones of 5a7ade6: page reproducible ×2 · check 583 + 44 ×2 · helper OK on 3.12 and 3.8 ×2 · e2e 27 / 26 + 1 failed ("no console errors": ERR_CONNECTION_TIMED_OUT on /api/decks/open, the loopback flake of M6 item 4; 27 on the re-run in the same clone) · parity 0 / dlparity 0 not accepted ×2 (4 accepted, digests checked) · dlcheck 8/8 ×2 · bench: every gate within ×2 (longest task 0 / 54 ms – within +10 %; consulting: export Navy 289–308 / Red 214–233 ms, 209 / 141 KB, keypress Navy p95 37–39 ms, drag Navy 10.6–11.9 ms, open Navy 176–184 ms, first-draw 0–57 ms of 250) · load 5/5 PASS ×2 · export-check 70 PDFs GT equal ×2 · helper start → GET / 728–755 ms. Earlier pairs (4b8fedd, 50d961c) are superseded; the intermittent longest-task reading of this PC (50–63 ms in 3 of 8 runs, 0 in the others; as in M7's audit) is recorded, not hidden. 🚦 final sign-off: Waiting for. verified: tests ✓ clean clone ✓ review ✓ (S7b.2–S7b.4 reviews)
 
 ### M8 · Scenario export (4.2.0; B15)
+- G4 stand-in (Decisions 2026-10-17) — `Cruscotto.xlsm` (formulas typed in Italian through FormulaLocal: CERCA.X,
+  CERCA.VERT, CERCA.ORIZZ, INDICE/CONFRONTA, SOMMA.PIÙ.SE, MEDIA/CONTA/MAX/MIN.PIÙ.SE, MATR.SOMMA.PRODOTTO, SE.ERRORE,
+  RANGO.EQ, SCEGLI, TESTO with Italian codes, cross-sheet chains, a command cell for the bank and one for a rate, a cell
+  read back from the linked file) + `Benchmark.xlsm` (typed in English: XLOOKUP, VLOOKUP, INDEX/MATCH, SUMPRODUCT, TEXT
+  with English codes, reading Cruscotto), 154 formula cells, Excel's copies for 8 banks and 2 rates. **First reading:
+  151 of 154 recompute like Excel · 2 locale-dependent (TEXT) · 1 different** – `SLIDE Sintesi!D13 = Controllo!B10`, a
+  slide cell reading an Italian-coded TEXT cell (the engine gave #VALUE!, so a run of this deck would stop at S8.3's
+  gate). 07 §8 Q8 ("keep and mark") was not built: now a TEXT cell the engine computes otherwise than Excel keeps
+  Excel's cached value in the engine (`core/src/calc/engine.ts pinLocale`, evaluation paused while pinning), and the
+  self-check counts it locale. **Now: 152 of 154 recompute like Excel · 2 locale-dependent (TEXT) · 0 different; every
+  scenario value equals Excel's copy: 1,540 of 1,540** (`core/tests/g4-corpus.test.ts`). Cost: one more evaluation when
+  a workbook has such cells – BanksBig's first evaluation 74–75 ms (36–37 ms before; measured twice each). A pinned cell
+  does not follow a scenario (its Excel text stays, as Q8 accepted). **Not covered yet: the VBA module** – Excel here
+  does not allow scripts into VBA projects ("Trust access to the VBA project object model" is off), so the UDF cell
+  (`Macro!B1 = CommissioneBanca(…)`) caches #NAME? and both sides agree; with the module, Excel caches a number the
+  engine cannot compute (`different`, off the slides) – Waiting for.
 - [ ] S8.1 · Dialog
 - [ ] S8.2 · Names and files
 - [ ] S8.3 · The run ⏱
@@ -118,6 +134,12 @@ numbers measured twice). Measured numbers go into the step's line.
 
 (Human decisions the plan needs, e.g. gate G0 outcomes. An agent never writes here on its own.)
 
+- 2026-10-17 · **G4 measured on a stand-in, not on the real decks** (product owner, in the M8 session; recorded by the
+  agent): the team's dashboards are confidential and cannot be shared – "create files with multiple sheets … interconnected
+  between each other, and use formulas such as addition, subtractions, multiplication, X lookups, V lookups, cell pointing
+  towards each other, and a lot more … in Excel, both in Italian and in any other language"; "They are also files with
+  macros". Built by `spikes/recalc/make_g4.ps1` in this PC's Italian Excel (`tests/corpus/workbooks/g4/`, results under
+  M8). Earlier in the same session, when G4 was missing: "S8.1–S8.2 now, wait at S8.3".
 - 2026-10-17 · **M7b S7b.3 signed off** (product owner, in the session): "lets keep all of the combinations for now in a
   dropdown, we can remove them later" (the topbar **Look** dropdown, 36 looks), then "Sign off" of both designs as they
   are – Consulting Navy = Insight board (exhibit, all numbers, KPI line, dark band), Consulting Red = Signal (exhibit,

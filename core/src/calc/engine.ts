@@ -8,7 +8,10 @@
    * values are read back through a 15-significant-digit format (IronCalc's formatter rounds there; Excel's own
      display precision), so equality with Excel's cached values is checked to 1e-13 relative;
    * the self-check classes every formula cell: exact / volatile / locale (TEXT and date formats) / external (a
-     linked workbook that is not available) / unreadable (an .xlsb formula that could not be decompiled) / different.
+     linked workbook that is not available) / unreadable (an .xlsb formula that could not be decompiled) / different;
+   * a locale-dependent cell (TEXT with this PC's Excel codes, e.g. Italian "mmmm aaaa") that the engine computes
+     otherwise than Excel keeps Excel's cached value as a constant (07 §8 Q8, "keep and mark"): the cells that read it
+     get Excel's value, under a scenario too (where it does not follow the input); the self-check counts it `locale`.
    The WASM is instantiated on first use (never on the open path, B23). Nothing here touches the DOM. */
 import { unzlibSync } from "fflate";
 import type { Sheet } from "../xlsx/types";
@@ -86,8 +89,36 @@ export class CalcModel {
     this.model = new g.Model("sb", "en", "UTC", "en");
     try { this.build(books); } catch (e) { this.model.free(); throw e; }
     this.ms.build = now() - t0;
-    const t1 = now(); this.model.evaluate(); this.ms.evaluate = now() - t1;
+    const t1 = now(); this.model.evaluate();
+    if (this.pinLocale()) this.model.evaluate();
+    this.ms.evaluate = now() - t1;
     this.baseline = this.values();
+  }
+  /** the locale-dependent cells kept at Excel's cached value (keys as externalCells) */
+  private readonly pinned = new Set<string>();
+  /** Excel's cached value of a formula cell, from the workbook as read */
+  private cachedOf(f: FormulaCell): CellValue {
+    const S = this.books.find(b => b.name === f.book)!.sheets.find(s => plainName(s) === f.sheet)!;
+    const cell = S.get(f.r, f.c);
+    return !cell || cell.t === "blank" ? null : cell.t === "e" ? { err: String(cell.v) } : (cell.v as CellValue);
+  }
+  /** 07 §8 Q8 ("keep and mark"): every TEXT cell whose engine value is not Excel's becomes Excel's cached value, a
+      constant; the number of cells pinned (the model is evaluated again when there are any) */
+  private pinLocale(): number {
+    this.model.pauseEvaluation();                                  // (each input would evaluate the whole model)
+    try { this.pinCells(); } finally { this.model.resumeEvaluation(); }
+    return this.pinned.size;
+  }
+  private pinCells() {
+    for (const f of this.formulas) {
+      if (!LOCALE.test(f.text) || VOLATILE.test(f.text)) continue;
+      const cached = this.cachedOf(f);
+      if (sameValue(this.valueOf(f.book, f.sheet, f.r, f.c), cached)) continue;
+      const key = f.book + "\u0000" + f.sheet, si = this.ix.get(key); if (si === undefined) continue;
+      this.model.setUserInput(si, f.r, f.c, cached === null ? "" : typeof cached === "number" ? String(cached)
+        : typeof cached === "boolean" ? (cached ? "TRUE" : "FALSE") : typeof cached === "object" ? cached.err : "'" + cached);
+      this.pinned.add(key + "\u0000" + f.r + "," + f.c);
+    }
   }
   /** every formula cell's value right after the build: what a scenario's changes are measured against (a cell the
       self-check classes `different` keeps Excel's cached value in the deck until a scenario moves it) */
@@ -279,12 +310,11 @@ export class CalcModel {
     const counts: Record<CheckClass, number> = { exact: 0, volatile: 0, locale: 0, external: 0, hidden: 0, unreadable: this.unreadable, different: 0 };
     const different: SelfCheck["different"] = [];
     for (const f of this.formulas) {
-      const S = this.books.find(b => b.name === f.book)!.sheets.find(s => plainName(s) === f.sheet)!;
-      const cell = S.get(f.r, f.c), cached: CellValue = !cell || cell.t === "blank" ? null : cell.t === "e" ? { err: String(cell.v) } : (cell.v as CellValue);
-      const computed = this.valueOf(f.book, f.sheet, f.r, f.c);
+      const cached = this.cachedOf(f), computed = this.valueOf(f.book, f.sheet, f.r, f.c);
       const ck = f.book + "\u0000" + f.sheet + "\u0000" + f.r + "," + f.c;
       if (this.externalCells.has(ck)) { counts.external++; continue; }
       if (this.hiddenCells.has(ck)) { counts.hidden++; continue; }
+      if (this.pinned.has(ck)) { counts.locale++; continue; }
       if (sameValue(computed, cached)) { counts.exact++; continue; }
       if (VOLATILE.test(f.text)) { counts.volatile++; continue; }
       if (LOCALE.test(f.text)) { counts.locale++; continue; }
