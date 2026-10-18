@@ -2,6 +2,7 @@
    folder – user "anna" on :8951 and user "bob" on :8952. Run: npm run build && npm run test:e2e */
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { pdfPageTexts } from "./pdftext";
@@ -913,8 +914,11 @@ test.describe.serial("two people, one shared folder", () => {
     // the Issues panel's "Formulas" line (B24, S7.4): both files recompute like Excel but the locale-dependent cells
     await expect(page.locator("#calcLine")).toContainText("Formulas: not checked yet");
     await page.click("#calcCheckBtn");
-    // (the 3 TODAY() cells equal Excel's saved values only on the day it saved them, 2026-10-16: "volatile" on any other)
-    await expect(page.locator("#calcLine")).toContainText(/Formulas: (205 of 208 recompute like Excel|202 of 208 recompute like Excel · 3 volatile \(TODAY, NOW, RAND\)) · 3 locale-dependent \(TEXT\)/, { timeout: 30_000 });
+    // (the 3 TODAY() cells equal Excel's saved values only on the day it saved them, 2026-10-16: "volatile" on any other;
+    // the 3 TEXT cells with Italian codes recompute since M8 – Slide Builder formats TEXT as this Italian Excel does)
+    await expect(page.locator("#calcLine")).toContainText(/Formulas: (208 of 208 recompute like Excel|205 of 208 recompute like Excel · 3 volatile \(TODAY, NOW, RAND\))/, { timeout: 30_000 });
+    await expect(page.locator("#calcLine")).not.toContainText("locale");
+    await expect(page.locator("#calcLine")).toContainText("3 with TEXT in Italian, formatted by Slide Builder");
     const bdoc = () => deckDoc("Banks.xlsx");
     await pollFile(() => bdoc().preset.links, { timeout: 10_000 }).toEqual(["Peers.xlsx"]);
     expect(bdoc().preset.tables.map((t: any) => t.sheet)).toEqual(["[Peers.xlsx]Peer"]);
@@ -969,6 +973,216 @@ test.describe.serial("two people, one shared folder", () => {
     expect(await page.evaluate(async () => { const [item] = await navigator.clipboard.read(); const b = await createImageBitmap(await item.getType("image/png")); return [b.width, b.height]; })).toEqual([4800, 2700]);
     await page.click(`[data-design="${before}"]`); await saved(page);
     await expect(page.locator("#lookSel")).toHaveCount(0);                                   // consulting designs only
+  });
+
+  test("Run for each value… (S8.1, SC-01, SC-07): the input cell, values typed and from a range, de-duplicated; a preview on the stage, cleared", async ({ page }) => {
+    await openApp(page, ANNA);                                                       // Banks.xlsx with the linked Peers table
+    await expect(page.locator("#stage .slide")).toHaveCount(1, { timeout: 20_000 });
+    const bdoc = () => JSON.stringify(deckDoc("Banks.xlsx"));
+    const before = bdoc();
+    // the deck's one table is the linked Peers sheet: Peer avg loans are 1761 for Bank A, 3141 for Bank C (PeerData)
+    const cells = page.locator("#stage .slide .t");
+    await expect(cells.filter({ hasText: /^1761$/ })).toHaveCount(1);
+    await selectCell(page, "Peer avg");                                              // a cell of the linked workbook's sheet
+    await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]');
+    const dlg = page.locator("#scenarioDialog");
+    await expect(dlg).toBeVisible();
+    // the input cell: "Pick a cell" takes the stage's selection (a linked sheet's id), typed in the name box's syntax
+    await expect(page.locator("#scPick")).toContainText("[Peers.xlsx]Peer!E4");
+    await page.click("#scPick");
+    await expect(page.locator("#scInput")).toHaveValue("[Peers.xlsx]Peer!E4");
+    // Select cell…: the wizard's sheet view, one cell only (a Shift+click moves it, never spans), marked red
+    await page.click("#scSelect");
+    await page.selectOption("#scSheet", "Control");
+    await page.locator('#scRange td[data-r="2"][data-c="2"]').click();
+    await page.locator('#scRange td[data-r="5"][data-c="3"]').click({ modifiers: ["Shift"] });
+    await expect(page.locator("#scRangeSel")).toHaveText("C5");
+    await expect(page.locator("#scRange .ovb.sel.one")).toHaveCount(1);
+    await page.locator('#scRange td[data-r="2"][data-c="2"]').click();
+    await page.keyboard.press("Enter");                                              // Enter takes the cell, as the button
+    await expect(page.locator("#scRange")).toHaveCount(0);
+    await expect(page.locator("#scInput")).toHaveValue("Control!B2");
+    await page.click("#scSelect"); await page.selectOption("#scSheet", "Control");
+    await page.locator('#scRange td[data-r="2"][data-c="2"]').click();
+    await page.click("#scUseCell");
+    await expect(page.locator("#scRange")).toHaveCount(0);
+    await expect(page.locator("#scInput")).toHaveValue("Control!B2");
+    await page.fill("#scInput", "[Peers.xlsx]Peer!E4");
+    await expect(page.locator("#scInputNote")).toContainText("Holds “Peer avg” today (text)");
+    // the stage's keys stay out of the dialog ("Peer avg" is selected behind it; focus on a button, where the stage's
+    // shortcuts would act): Delete, a letter, Ctrl+Z and Tab change nothing – the cell keeps its text, the name box its
+    // cell, the document is compared at the end – and Enter presses the focused button (the stage took it before)
+    const nameBefore = await page.locator("#nameBox").textContent();
+    await page.locator("#scFromRange").focus();
+    for (const k of ["Delete", "Backspace", "x", "Control+z", "Tab"]) await page.keyboard.press(k);
+    await expect(dlg).toBeVisible();
+    await expect(page.locator("#nameBox")).toHaveText(nameBefore!);
+    await expect(cells.filter({ hasText: /^Peer avg$/ })).toHaveCount(1);
+    await page.locator("#scFromRange").focus(); await page.keyboard.press("Enter");
+    await expect(page.locator("#scRange")).toBeVisible();
+    await page.keyboard.press("Escape");                                             // back to the values
+    await expect(page.locator("#scValues")).toBeVisible();
+    await page.locator("#scText").focus();
+    await page.keyboard.press("Space"); await expect(page.locator("#scText")).toBeChecked();
+    await page.keyboard.press("Space"); await expect(page.locator("#scText")).not.toBeChecked();
+    await page.fill("#scInput", "Control!B4");                                       // a number: numbers go in as numbers
+    await expect(page.locator("#scInputNote")).toContainText("Holds “12” today (a number)");
+    await page.fill("#scInput", "control!b20");                                      // any case; an empty cell
+    await expect(page.locator("#scInputNote")).toContainText("Empty today");
+    await page.fill("#scInput", "Nowhere!B2");
+    await expect(page.locator("#scInputNote")).toContainText("No sheet “Nowhere”");
+    await expect(page.locator("#scPreview")).toBeDisabled();
+    await page.fill("#scInput", "Control!B2");
+    await expect(page.locator("#scInputNote")).toContainText("Holds “Bank A” today (text)");
+    // values typed: blank lines skipped, repeats left out, the order kept
+    await page.fill("#scValues", "Bank A\nBank B\n\n  Bank A\nBank C\n");
+    await expect(page.locator("#scCount")).toHaveText("3 values · 1 repeated left out");
+    await expect(page.locator("#scValue option")).toHaveText(["Bank A", "Bank B", "Bank C"]);
+    // from a range: the wizard's sheet view, a range dragged / Shift+clicked; the texts the cells show become the values
+    await page.click("#scFromRange");
+    await page.selectOption("#scSheet", "Data");
+    await page.locator('#scRange td[data-r="2"][data-c="1"]').click();
+    await page.locator('#scRange td[data-r="25"][data-c="1"]').click({ modifiers: ["Shift"] });
+    await expect(page.locator("#scRangeSel")).toHaveText("A2:A25");
+    await page.click("#scUseRange");
+    await expect(page.locator("#scValues")).toHaveValue(/^Bank A\n(Bank A\n){11}(Bank B\n){11}Bank B$/);
+    await expect(page.locator("#scCount")).toHaveText("2 values · 22 repeated left out");
+    await page.fill("#scValues", "Bank A\nBank B\nBank C");
+    // the designs (all five), the versions (the full deck), PDF; PowerPoint comes with 4.5
+    await expect(page.locator("#scDesigns input")).toHaveCount(5);
+    await expect(page.locator("#scVersions input")).toHaveCount(1);
+    await expect(page.locator("#scPptx")).toBeDisabled();
+    await page.locator('#scDesigns [data-design="excel"]').check();
+    await expect(page.locator("#scSummary")).toContainText("= 6 PDFs");
+    // Preview (SC-07): Bank C on the stage, the banner names it; nothing is saved
+    await page.selectOption("#scValue", "Bank C");
+    await page.click("#scPreview");
+    await expect(dlg).toHaveCount(0);
+    await expect(page.locator("#scBanner")).toContainText("Previewing: Bank C – a scenario, not saved", { timeout: 20_000 });
+    await expect(cells.filter({ hasText: /^3141$/ })).toHaveCount(1);              // the linked file recalculated
+    await expect(cells.filter({ hasText: /^1761$/ })).toHaveCount(0);
+    expect(bdoc()).toBe(before);
+    // Clear: the workbook's own values again
+    await page.click("#scClear");
+    await expect(page.locator("#scBanner")).toHaveCount(0);
+    await expect(cells.filter({ hasText: /^1761$/ })).toHaveCount(1);
+    await expect(cells.filter({ hasText: /^3141$/ })).toHaveCount(0);
+    // the dialog opens again as it was left (UI state, never the document)
+    await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]');
+    await expect(page.locator("#scInput")).toHaveValue("Control!B2");
+    await expect(page.locator("#scCount")).toHaveText("3 values");
+    await page.keyboard.press("Escape");
+    await expect(dlg).toHaveCount(0);
+    expect(bdoc()).toBe(before);
+    // S8.4 (Decisions: the cells mirrored to the page): during a preview the formula bar shows the scenario's value of
+    // the selected cell; an edit made meanwhile is an ordinary edit of the deck, saved, and stays after Clear
+    await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]');
+    await page.selectOption("#scValue", "Bank C"); await page.click("#scPreview");
+    await expect(page.locator("#scBanner")).toContainText("Previewing: Bank C", { timeout: 20_000 });
+    await selectCell(page, "3141");
+    await expect(page.locator("#fxInput")).toHaveValue("3141");
+    await selectCell(page, "Loans"); await page.keyboard.type("Loans X"); await page.keyboard.press("Enter");
+    await saved(page);
+    await pollFile(() => deckDoc("Banks.xlsx").edits["[Peers.xlsx]Peer"].C5.text, { timeout: 10_000 }).toBe("Loans X");
+    // a cell the scenario changed (3141 for Bank C): the edit belongs to the workbook's value (CE-09 "orig" 1761) – it
+    // shows once the preview is cleared, and the page says so
+    await selectCell(page, "3141"); await page.keyboard.type("9999"); await page.keyboard.press("Enter");
+    await expect(page.locator("#toast")).toContainText("shows once the preview is cleared");
+    await saved(page);
+    await pollFile(() => { const e = deckDoc("Banks.xlsx").edits["[Peers.xlsx]Peer"].E5; return [e.orig, e.text]; }, { timeout: 10_000 }).toEqual(["1761", "9999"]);
+    await page.click("#scClear");
+    await expect(page.locator("#scBanner")).toHaveCount(0);
+    await expect(cells.filter({ hasText: /^Loans X$/ })).toHaveCount(1);
+    await expect(cells.filter({ hasText: /^9999$/ })).toHaveCount(1);
+    await selectCell(page, "Loans X");
+    await expect(page.locator("#fxInput")).toHaveValue("Loans X");
+    // (the next tests see the deck as it was)
+    await page.keyboard.press("Control+z"); await saved(page); await page.keyboard.press("Control+z"); await saved(page);
+    await expect(cells.filter({ hasText: /^Loans$/ })).toHaveCount(1);
+    await expect(cells.filter({ hasText: /^1761$/ })).toHaveCount(1);
+  });
+
+  test("Run for each value (S8.3, SC-02/03/05/06): 3 values × 2 designs → 6 files with their names; files untouched; equal names; progress, cancel, report", async ({ page }) => {
+    await openApp(page, ANNA);                                                       // Banks.xlsx with the linked Peers table
+    await expect(page.locator("#stage .slide")).toHaveCount(1, { timeout: 20_000 });
+    await saved(page);
+    // SC-05: what a run must not change – both workbooks' bytes, the deck's files on the share, its document
+    const hashOf = (f: string) => createHash("sha256").update(fs.readFileSync(f)).digest("hex");
+    const dir = deckDir("Banks.xlsx")!, deckFiles = () => fs.readdirSync(dir, { recursive: true }).map(String).filter(f => fs.statSync(path.join(dir, f)).isFile()).sort();
+    const state = () => JSON.stringify({ banks: hashOf(path.join(root(), "Banks.xlsx")), peers: hashOf(path.join(root(), "Peers.xlsx")), deck: deckFiles().map(f => [f, hashOf(path.join(dir, f))]) });
+    const before = state(), docBefore = JSON.stringify(deckDoc("Banks.xlsx"));
+    const exportDir = path.join(root(), "export");
+    const runWith = async (input: string, values: string, designs: string[]) => {
+      await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]');
+      await page.fill("#scInput", input);
+      await expect(page.locator("#scInputNote")).toContainText("today");
+      await page.fill("#scValues", values);
+      for (const box of await page.locator("#scDesigns input").all()) await box.setChecked(designs.includes((await box.getAttribute("data-design"))!));
+      await page.click("#scRun");
+      await expect(page.locator("#scenarioDialog")).toHaveCount(0);
+      await expect(page.locator("#scRunDialog")).toBeVisible();
+    };
+    // SC-02: the brief's case – 3 values × 2 designs, each file drawn from its value (Peer avg loans: 1761 / 2490 / 3141)
+    await runWith("Control!B2", "Bank A\nBank B\nBank C", ["glass", "excel"]);
+    await expect(page.locator("#scRunStatus")).toContainText("Done: 3 of 3 values · 6 files", { timeout: 120_000 });
+    await expect(page.locator("#scReport li[data-status=ok]")).toHaveCount(3);
+    await expect(page.locator("#toast")).toContainText("Saved 6 files");
+    const peerAvg: Record<string, string> = { "Bank A": "1761", "Bank B": "2490", "Bank C": "3141" };
+    for (const bank of Object.keys(peerAvg)) for (const d of ["Liquid Glass", "Excel"]) {
+      const f = path.join(exportDir, `${bank} - ${d}.pdf`);
+      expect(fs.existsSync(f), f).toBe(true);
+      const text = pdfPageTexts(fs.readFileSync(f)).join(" ");
+      expect(text, f).toContain(peerAvg[bank]);
+      for (const other of Object.keys(peerAvg)) if (other !== bank) expect(text, f).not.toContain(peerAvg[other]);
+    }
+    await page.click("#scRunClose");
+    await expect(page.locator("#scRunDialog")).toHaveCount(0);
+    // SC-05: nothing of the run was saved anywhere; the slide shows the workbook's own values again
+    expect(state()).toBe(before); expect(JSON.stringify(deckDoc("Banks.xlsx"))).toBe(docBefore);
+    await expect(page.locator("#stage .slide .t").filter({ hasText: /^1761$/ })).toHaveCount(1);
+    // SC-03: two values that the input cell shows alike (a number cell: "12" and "12,0" are both 12) – two files
+    await runWith("Control!B4", "12\n12,0", ["excel"]);
+    await expect(page.locator("#scRunStatus")).toContainText("Done: 2 of 2 values · 2 files", { timeout: 60_000 });
+    for (const f of ["12 - Excel.pdf", "12 (2) - Excel.pdf"]) expect(fs.existsSync(path.join(exportDir, f)), f).toBe(true);
+    await expect(page.locator("#scReport")).toContainText("12 (2) - Excel.pdf");
+    await page.click("#scRunClose");
+    // SC-06: progress and cancel – the files made stay, the report says how far it got
+    await runWith("Control!B2", ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"].map(x => "Bank " + x).join("\n"), ["excel"]);
+    await expect(page.locator("#scReport li")).not.toHaveCount(0, { timeout: 60_000 });
+    await page.click("#scCancel");
+    await expect(page.locator("#scRunStatus")).toContainText(/Cancelled after \d+ of 10 values/, { timeout: 60_000 });
+    const n = +(/Cancelled after (\d+) of 10/.exec((await page.locator("#scRunStatus").textContent())!)![1]);
+    expect(n).toBeGreaterThanOrEqual(1); expect(n).toBeLessThan(10);
+    await expect(page.locator("#scReport li[data-status=ok]")).toHaveCount(n);
+    await expect(page.locator("#scOpenFolder")).toBeVisible();
+    await page.click("#scRunClose");
+    expect(state()).toBe(before);
+  });
+
+  test("Run for each value, the gate (RC-06): a slide cell the engine computes otherwise stops the run; run anyway marks it", async ({ page }) => {
+    await openApp(page, ANNA);
+    await openWorkbook(page, "Gate.xlsx");                                           // no deck yet: the wizard
+    await expect(page.locator(".wiz")).toBeVisible();
+    await page.click('[data-a="next"]'); await page.click('[data-a="next"]'); await page.click('[data-a="finish"]');
+    await expect(page.locator("#stage .slide .t").filter({ hasText: /^System$/ })).toHaveCount(1, { timeout: 20_000 });
+    await saved(page);
+    await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]');
+    await page.fill("#scInput", "Control!B2");
+    await expect(page.locator("#scInputNote")).toContainText("Holds “Bank A” today");
+    await page.fill("#scValues", "Gate one\nGate two");                            // (names no other test's files have)
+    for (const box of await page.locator("#scDesigns input").all()) await box.setChecked((await box.getAttribute("data-design")) === "excel");
+    await page.click("#scRun");
+    // stopped before the first value: SLIDE_1!D6 = INFO("osversion"), which the engine does not compute as Excel
+    await expect(page.locator("#scGate")).toContainText("SLIDE_1!D6", { timeout: 30_000 });
+    await expect(page.locator("#scRun")).toBeDisabled();
+    expect(fs.existsSync(path.join(root(), "export", "Gate one - Excel.pdf"))).toBe(false);
+    await page.check("#scAnyway");
+    await page.click("#scRun");
+    await expect(page.locator("#scRunStatus")).toContainText("Done: 2 of 2 values · 2 files", { timeout: 60_000 });
+    await expect(page.locator("#scMarked")).toContainText("SLIDE_1!D6");
+    expect(pdfPageTexts(fs.readFileSync(path.join(root(), "export", "Gate two - Excel.pdf"))).join(" ")).toContain("Gate two");
+    await page.click("#scRunClose");
+    await lastFileSaved("anna", "Gate.xlsx");
   });
 
   test("no page errors, console errors or warnings", async () => { expect(unexpected(errors)).toEqual([]); });

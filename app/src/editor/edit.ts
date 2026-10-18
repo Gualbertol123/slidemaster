@@ -1,6 +1,7 @@
 /* Selection (Excel-like) and cell edits expressed as operations. */
-import { get, patch } from "../state/store";
-import { change, ctx } from "../state/app";
+import { get, patch, toast } from "../state/store";
+import { esc } from "@slide-builder/core/xlsx/util";
+import { change, core, ctx, hasWorkbookText, workbookText } from "../state/app";
 import type { Item, TableLayout } from "@slide-builder/core/xlsx/types";
 import type { CellEdit, Op } from "@slide-builder/core/model/types";
 import { keyOf } from "@slide-builder/core/render/edits";
@@ -56,15 +57,28 @@ export function applySel(label: string, fn: (e: CellEdit, it: Item) => void, ite
   }
   if (ops.length || extra.length) change(label, [...ops, ...extra]);
 }
+/** the cell's Excel value as CE-09 records it: the workbook's own text, also while a preview shows another (S8.4) */
+const excelValue = (it: Item) => workbookText(it.L!.sheet.name, keyOf(it), it.text);
 export function setText(it: Item, val: string) {
-  applySel("Edit text", e => { if (val === it.text) { delete e.text; delete e.orig; } else { e.orig = it.text; e.text = val; } }, [it]);
+  // a cell added during a preview: its workbook value comes from the worker (the page holds the scenario's)
+  if (!hasWorkbookText(it.L!.sheet.name, keyOf(it))) {
+    const wb = get().deck.wb;
+    if (wb) void core().call("getCell", { book: wb.book, sheet: it.L!.sheet.name, ref: keyOf(it) }).then(c => {
+      const x = c?.text ?? "";
+      applySel("Edit text", e => { if (val === x) { delete e.text; delete e.orig; } else { e.orig = x; e.text = val; } }, [it]);
+    }, () => undefined);
+    return;
+  }
+  applySel("Edit text", e => { const x = excelValue(it); if (val === x) { delete e.text; delete e.orig; } else { e.orig = x; e.text = val; } }, [it]);
+  // a cell the previewed scenario changed: the edit belongs to the workbook's value, so it shows once the preview ends
+  if (excelValue(it) !== it.text) toast(`This cell shows the scenario's value: your text replaces the workbook's own “${esc(excelValue(it))}” and shows once the preview is cleared.`);
 }
 export function commitText(val: string, move?: [number, number]) {
   const it = activeItem(); if (!it) return;
   setText(it, val);
   if (move) moveSel(move[0], move[1], false);
 }
-export function clearText() { applySel("Clear text", (e, it) => { if (it.text === "") { delete e.text; delete e.orig; } else { e.orig = it.text; e.text = ""; } }); }
+export function clearText() { applySel("Clear text", (e, it) => { const x = excelValue(it); if (x === "") { delete e.text; delete e.orig; } else { e.orig = x; e.text = ""; } }); }
 export function setSize(f: (cur: number) => number | null) {
   applySel("Text size", (e, it) => { const cur = e.sz || it.font.sz || 11; const v = f(cur); if (v === null) delete e.sz; else e.sz = Math.max(5, Math.min(96, Math.round(v * 2) / 2)); });
 }

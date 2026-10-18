@@ -56,7 +56,9 @@ function stripLocale(sec: string): { sec: string; lang: Lang | null } {
 
 export interface Formatted { text: string; color?: string | null }
 
-export function formatValue(cell: Pick<Cell, "v" | "t" | "fmt">): Formatted {
+/** `opts.intZeros`: the integer part has at least as many digits as its format has zeros ("00" → "09"), as Excel does –
+    for TEXT (calc/textfmt.ts, M8); the page's own display keeps its behaviour (its goldens) */
+export function formatValue(cell: Pick<Cell, "v" | "t" | "fmt">, opts: { intZeros?: boolean } = {}): Formatted {
   const v = cell.v, f = cell.fmt || "General";
   if (cell.t === "e") return { text: String(v) };
   if (cell.t === "b") return { text: v ? "TRUE" : "FALSE" };
@@ -123,6 +125,7 @@ export function formatValue(cell: Pick<Cell, "v" | "t" | "fmt">): Formatted {
     if (dp) { dp = dp.replace(/0+$/, ""); if (dp.length < req) dp = dp.padEnd(req, "0"); }
     const intDigits = np.split(".")[0];
     if (!/0/.test(intDigits) && ip === "0") ip = "";
+    if (opts.intZeros) ip = ip.padStart((intDigits.match(/0/g) || []).length, "0");
     if (intDigits.includes(",")) ip = group(ip);
     numText = ip + (dp ? "," + dp : "");
     const isZero = !/[1-9]/.test(s);

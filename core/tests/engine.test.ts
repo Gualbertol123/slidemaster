@@ -41,7 +41,8 @@ describe("Banks.xlsx + Peers.xlsx (linked both ways)", () => {
     expect(sc.different).toEqual([]);
     expect(sc.counts.exact + sc.counts.volatile + sc.counts.locale).toBe(208);
     expect(sc.counts.external + sc.counts.unreadable + sc.counts.different).toBe(0);
-    expect(sc.counts.locale).toBe(3);                                  // TEXT(date, "mmm yy"): Italian Excel wrote "mar yy" (07 §1.3)
+    // TEXT(date, "mmm yy"): Italian Excel wrote "mar yy" – Slide Builder's own TEXT gives the same (textfmt.ts, M8)
+    expect(sc.counts.locale).toBe(0);
     expect(model.formulas.length).toBe(192 + 16);
   });
   it("every scenario value equals the copy Excel recalculated for that bank, in both files (RC-03)", async () => {
@@ -68,21 +69,37 @@ describe("Banks.xlsx + Peers.xlsx (linked both ways)", () => {
     expect(model.prep("_xlfn.IFS(A1>1,\"a\",TRUE,\"b\")", b, S)).toBe("IFS(A1>1,\"a\",TRUE,\"b\")");
     expect(model.prep("[1]Peer!F7", b, S)).toBe("'«1»Peer'!F7");
   });
-  it("a reference to a hidden sheet (never read) is classed hidden, and its dependants different", () => {
+  it("a reference to a hidden sheet not read is classed hidden; its dependants compute from Excel's saved values", () => {
     // Data taken out of the model as if hidden: every formula that reads it is hidden, what depends on those differs
     const sheets = banks.sheets.filter(s => s.name !== "Data");
     const m = new CalcModel(g, [{ name: null, file: "Banks.xlsx", sheets, hidden: ["Data"], externals: ["Peers.xlsx"] }, { name: "Peers.xlsx", sheets: peers.sheets, externals: peers.externals }]);
     const sc = m.selfCheck();
-    expect(sc.counts.hidden).toBeGreaterThan(40);                    // the cells that read Data directly; their dependants are different
+    expect(sc.counts.hidden).toBeGreaterThan(40);                    // the cells that read Data directly
     expect(sc.counts.external).toBe(0);
-    expect(sc.different.some(d => d.ref === "H5" && d.sheet === "SLIDE_1")).toBe(true);   // G5-F5 of hidden-fed cells
+    // they keep Excel's saved values in the engine (2026-10-18, the product owner's deck: they were empty), so the cells
+    // that read them – SLIDE_1!H5 = G5-F5 – recompute like Excel
+    expect(sc.different.some(d => d.ref === "H5" && d.sheet === "SLIDE_1")).toBe(false);
+    expect(sc.counts.different).toBe(0);
+    // positively: each such cell holds Excel's saved value, and SLIDE_1!H5 is Excel's
+    const rc = (ref: string) => { const m = /^([A-Z]+)(\d+)$/.exec(ref)!; return [+m[2], [...m[1]].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0)] as const; };
+    const saved = (sheet: string, ref: string): CellValue => { const x = banks.sheets.find(s => s.name === sheet)!.get(...rc(ref)); return !x || x.t === "blank" ? null : x.t === "e" ? { err: String(x.v) } : x.v as CellValue; };
+    expect(sc.frozen.length).toBe(sc.counts.hidden);
+    expect(sc.frozen.every(d => d.why === "hidden")).toBe(true);
+    for (const d of sc.frozen) expect(sameValue(m.valueOf(null, d.sheet, ...rc(d.ref)), saved(d.sheet, d.ref)), d.sheet + "!" + d.ref).toBe(true);
+    expect(sameValue(m.valueOf(null, "SLIDE_1", 5, 8), saved("SLIDE_1", "H5"))).toBe(true);
+    expect(typeof saved("SLIDE_1", "H5")).toBe("number");
     m.dispose();
   });
   it("a reference to a linked workbook that is not in the model is classed external", () => {
     const alone = new CalcModel(g, [{ name: null, sheets: banks.sheets, externals: ["Peers.xlsx"] }]);
     const sc = alone.selfCheck();
     expect(sc.counts.external).toBe(2);                                // FromB!D4 and D5 name [Peers.xlsx]Peer
-    expect(sc.counts.different).toBe(2);                               // FromB!D6 and SLIDE_3!D14 depend on them
+    // FromB!D6 and SLIDE_3!D14 depend on them: computed from their saved values (they were different, reading empty cells)
+    expect(sc.counts.different).toBe(0);
+    // positively: the two keep Excel's saved values, and are listed as such
+    expect(sc.frozen.map(d => d.sheet + "!" + d.ref + ":" + d.why).sort()).toEqual(["FromB!D4:linked", "FromB!D5:linked"]);
+    const S = banks.sheets.find(s => s.name === "FromB")!;
+    for (const r of [4, 5, 6]) { const x = S.get(r, 4)!; expect(x.v, "FromB!D" + r).not.toBeNull(); expect(sameValue(alone.valueOf(null, "FromB", r, 4), x.v as CellValue), "FromB!D" + r).toBe(true); }
     alone.dispose();
   });
 });

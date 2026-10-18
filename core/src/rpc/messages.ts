@@ -97,15 +97,64 @@ export interface CoreMethods {
       are untouched. The answer: how many formula cells moved, how many of them the self-check classes `different`
       (the gate of a run, 07 §1.4 (4)), and the self-check itself */
   scenarioPreview(a: ScenarioInput | null): ScenarioAnswer | null;
+  /** Run for each value (S8.3, B15, docs/next/07 §2.4): one value at a time – the input cell set in the engine, the
+      deck drawn from a view of the recomputed workbook, one file per (design, version) written by the export workers
+      through the page (scenarioFile), progress as `scenario` events. Refused before the first value (`blocked`) when a
+      formula cell of the slides' tables is classed `different` by the self-check, unless `runAnyway` (those cells are
+      then marked on the slides and in the report, RC-06). The document, the deck and the workbook file are never touched */
+  scenarioRun(a: ScenarioRunReq): ScenarioRunStart;
+  /** stop the run after the value being made (its files stay; the report says "cancelled after n of m") */
+  scenarioCancel(a: { id: string }): void;
 }
 export interface ScenarioInput { sheet: string; ref: string; value: number | string | boolean }
-export interface ScenarioAnswer { changed: number; different: number; check: CalcCheck }
+export interface ScenarioAnswer { changed: number; different: number; check: CalcCheck;
+  /** TEXT cells Slide Builder could not format for this value (they keep the text they had): said, not hidden */ textUnknown?: number;
+  /** no formula moved although the value is not the input cell's own: the slides cannot follow this cell */ still?: boolean }
+/** a slide cell a scenario does not move, kept at Excel's value: a TEXT with this PC's language codes (07 §8 Q8), or a
+    formula reading a linked workbook / a hidden sheet that is not in the model */
+export interface KeptCell { sheet: string; ref: string; text: string; why: "text" | "linked" | "hidden" }
+export interface ScenarioRunReq {
+  input: { sheet: string; ref: string };
+  /** the values as they go into the engine (the page typed them, 07 §8 Q7) */
+  values: (number | string | boolean)[];
+  designs: Design[];
+  /** version ids, "" = the full deck */
+  versions: string[];
+  kinds: "pdf"[];
+  /** run although slide cells are classed different: they are marked */
+  runAnyway: boolean;
+  /** the export folder's length (characters) the file names must fit (names.ts); omitted: assumed */
+  folder?: number;
+  /** the date the page shows (its clock) */
+  today?: string;
+}
+/** a formula cell of the slides that the engine computes otherwise than Excel (the gate of a run, RC-06) */
+export interface GateCell { sheet: string; ref: string; text: string; cached: import("../calc/engine").CellValue; computed: import("../calc/engine").CellValue }
+export type ScenarioRunStart =
+  | { id: string; total: number; /** the values' displayed texts (the input cell's number format), in order */ shown: string[]; marked: GateCell[];
+      /** slide cells kept at Excel's value in every file: the report names them */ kept: KeptCell[] }
+  | { id: null; blocked: GateCell[] };
+/** progress of a run: after each value (status of that value), then once at its end (`end`) */
+export interface ScenarioEvent {
+  id: string; done: number; total: number;
+  /** the value just made (its displayed text), or null on the end event */ value: string | null;
+  status: "ok" | "failed" | "end" | "cancelled";
+  /** the files saved for this value (on the end event: none) */ files: string[];
+  error?: string;
+  /** what the files of this value may show wrongly (TEXT cells Slide Builder could not format: they keep the previous
+      value's text) */ warning?: string;
+}
 /** the self-check's result: how many formula cells are exact / volatile / locale-dependent / external / unreadable /
     different, the first differences, the engine's times (ms) */
 export interface CalcCheck { counts: import("../calc/engine").SelfCheck["counts"]; different: import("../calc/engine").SelfCheck["different"]; formulas: number;
+  /** defined names not given to the engine ("<book>!<name>", engine.ts namesSkipped) */ namesSkipped?: string[];
+  /** formula cells whose TEXT Slide Builder formats as this Italian Excel does (counted in `exact`) */ textFormatted?: number;
   /** why values were read in the engine's General format (null: the 15-digit format applied) */ styleError: string | null;
   ms: { load: number; build: number; evaluate: number; check: number } }
-export type SlideListsReq = DesignReq & { slides?: number[]; /** the date the page shows (its clock) */ today?: string };
+export type SlideListsReq = DesignReq & { slides?: number[]; /** the date the page shows (its clock) */ today?: string;
+  /** whose values (S8.3): a run's id, "preview" (the scenario the stage shows – thumbnails), or none: the workbook's
+      own values, also while a preview or a run goes on (an ordinary export never gets scenario lists by accident) */
+  scenario?: string };
 export interface SlideList { slide: number; dl: import("../render/excel-dl").TableDL }
 /** the stage's request: slide `slide` of the current design and version. `known`: the image ids the page already has
     (not sent again); `fresh`: measure everything again (fonts arrived) */
@@ -154,13 +203,20 @@ export interface PageMethods {
   /** the bytes of a linked workbook: a file of the same folder as the open one (null when it is not there, or the
       page runs from disk) */
   linkedWorkbook(a: { name: string }): ArrayBuffer | null;
+  /** a run's file (S8.3): the page has an export worker write the PDF of `design` / `version` from the run's view
+      (`scenario` = the run's id) and saves it as `name` (the helper may add " (2)" for a target open elsewhere); the
+      name it was saved under */
+  scenarioFile(a: { id: string; design: Design; version: string; name: string; title: string; today?: string }): { file: string };
 }
 /** events from the worker */
 export interface CoreEvents {
   [k: string]: unknown;
   doc: DocEvent;
   /** slices of workbook `book` (the open one, or the one being opened) */
-  slices: { book: number; shared: SharedSlice | null; sheets: SheetSlice[] };
+  slices: { book: number; shared: SharedSlice | null; sheets: SheetSlice[];
+    /** the cells of these sheets changed – a preview shown or cleared (S8.4, the mirror follows the scenario): the page
+        builds its slides again from them */ rebuild?: true;
+    /** these are a scenario's values (not the workbook's): an edit then takes its "Excel value" from what the page kept */ scenario?: boolean };
   /** after a change, the slide on the stage drawn again (the stage's last request, S4.1) */
   stage: StageSlide;
   progress: { text: string; frac: number | null } | null;
@@ -170,6 +226,8 @@ export interface CoreEvents {
   /** the open deck at rest while this page is the only one there: the snapshot the page sends on pagehide to compact
       it (04 §4.4); null when there is none any more */
   rest: { key: string; baseGen: number; json: string } | null;
+  /** a run's progress (S8.3) */
+  scenario: ScenarioEvent;
 }
 export type PageEvents = Record<string, never>;
 export type { DeckVersion };

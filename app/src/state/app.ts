@@ -13,6 +13,7 @@ import { browserText } from "../platform";
 import type { RunMetrics } from "@slide-builder/core/platform";
 import { analyzeImages, IMGMETA, type ImgMeta } from "@slide-builder/core/xlsx/drawing";
 import { esc, fmtMB, nextFrame } from "@slide-builder/core/xlsx/util";
+import { keyOf } from "@slide-builder/core/render/edits";
 import { MirrorWorkbook } from "@slide-builder/core/xlsx/mirror";
 import type { SharedSlice, SheetSlice } from "@slide-builder/core/xlsx/slice";
 import { transfer } from "@slide-builder/core/rpc/port";
@@ -75,6 +76,9 @@ export function core(): CorePort {
   port.on("progress", p => { if (p) showBusy(p.text, p.frac); else hideBusy(); });
   port.on("retiredSaved", () => { unsavedElsewhere = false; });
   port.on("rest", r => { restDeck = r; });
+  // Run for each value (S8.3): the core worker asks for each file; its progress comes as events
+  port.handle("scenarioFile", a => import("../editor/scenario").then(m => m.scenarioFile(a)));
+  port.on("scenario", e => { void import("../editor/scenario").then(m => m.onScenarioEvent(e)); });
   // an error in the worker's own work (e.g. a sheet read after a colleague's change): shown, never a busy screen left up
   port.on("error", e => { console.error("core worker: " + e.message + (e.stack ? "\n" + e.stack : "")); hideBusy(); toast("⚠ " + esc(e.message), [], true); });
   // the worker stopped: nothing can be read or saved any more – say so, and stop taking edits
@@ -85,9 +89,32 @@ export function core(): CorePort {
   });
   return port;
 }
-function receiveSlices(wb: MirrorWorkbook, e: { shared: SharedSlice | null; sheets: SheetSlice[] }) {
+/** while a preview shows (S8.4), the workbook's own text of every cell of the slides, by "<sheet>!<A1>": an edit made
+    meanwhile keeps the workbook's value as its "Excel value" (CE-09), not the scenario's the page shows */
+let ownTexts: { wb: MirrorWorkbook; texts: Map<string, string> } | null = null;
+/** the preview ended on the page (Clear): the cells are the workbook's again */
+export function forgetWorkbookTexts() { ownTexts = null; }
+/** whether the page kept this cell's workbook text (a cell added during a preview has none: the worker is asked) */
+export function hasWorkbookText(sheet: string, key: string): boolean { const o = ownTexts; return !o || o.wb !== get().deck.wb || o.texts.has(sheet + "!" + key); }
+/** the text the workbook itself has in this cell (the cell's text, unless a preview shows another) */
+export function workbookText(sheet: string, key: string, shown: string): string {
+  const o = ownTexts; return o && o.wb === get().deck.wb ? o.texts.get(sheet + "!" + key) ?? shown : shown;
+}
+function receiveSlices(wb: MirrorWorkbook, e: { shared: SharedSlice | null; sheets: SheetSlice[]; rebuild?: true; scenario?: boolean }) {
+  // a preview starts: the workbook's own texts of the slides are kept before its values replace them
+  if (e.rebuild && e.scenario && wb === get().deck.wb && !(ownTexts && ownTexts.wb === wb)) {
+    const texts = new Map<string, string>();
+    for (const R of get().deck.slides) for (const L of R.tables) for (const it of L.items) texts.set(L.sheet.name + "!" + keyOf(it), it.text);
+    ownTexts = { wb, texts };
+  } else if (e.rebuild && !e.scenario) ownTexts = null;
   wb.receive(e.shared, e.sheets);
   LCACHE.clear();                                            // layouts of the replaced sheets
+  // a preview shown or cleared (S8.4): the cells of the page's slides are the stage's – the ribbon, the painter, the
+  // comment dialog and the Issues lines read them
+  if (e.rebuild && wb === get().deck.wb) {
+    const { file } = get().deck, preset = get().doc.view?.preset || null;
+    if (file) { patch("deck", { slides: runtimeSlides(wb, preset, file.name, style().design) }); slidesDesign = style().design; }
+  }
 }
 /** what the worker's renderers need from the page */
 function viewInputs(name = get().deck.file?.name || ""): ViewInputs {

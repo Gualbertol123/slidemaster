@@ -80,10 +80,16 @@ export interface Workbook {
   meta: SheetMeta[];
   skipped: { name: string; why: string }[];
   hiddenSheets: string[];
+  /** the hidden worksheets' parts: read for the formula engine only (Decisions 2026-10-18), never listed (WB-18), never
+      in `sheets`, never on a slide or the page */
+  hiddenMeta?: SheetMeta[];
   extLinks: number;
   /** the file names the workbook's external links point at, in the "[n]" order of its formulas (S7.2; "?" when a
       link has no readable target) */
   externals: string[];
+  /** the workbook's defined names (workbook.xml <definedName>; Excel's own _xlnm.* and #REF! ones left out): `scope` the
+      sheet of a sheet-level name, null for the workbook's; `formula` as Excel wrote it (M8, for the formula engine) */
+  names?: { name: string; scope: string | null; formula: string }[];
   /** the linked workbooks attached to this one (S7.3), by file name: their sheets are read into `sheets` under their
       sheet ids, their own `meta` / `externals` / `hiddenSheets` serve the formula engine */
   linked: Map<string, Workbook>;

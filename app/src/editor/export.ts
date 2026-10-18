@@ -15,6 +15,7 @@ import { backend } from "../sync/api";
 import { ExportPool } from "../rpc/export";
 import { catalog, fontFile, libraryCatalog } from "../state/fontfiles";
 import { esc } from "@slide-builder/core/xlsx/util";
+import { cleanName as clean, pdfName, pngName, stemOf, versionTitle } from "@slide-builder/core/export/names";
 
 export type ExportKind = "pdf" | "pdf-exact" | "pdf-vector" | "pdf-current" | "png-current" | "png-all" | "copy";
 /** the names users see (B11: in export file names) */
@@ -47,9 +48,6 @@ let exportPool: ExportPool | null = null;
 export const pool = () => exportPool ||= new ExportPool(core, { fontFile, pictureBytes });
 
 /* ---------------------------------------------------------------- writing the files */
-const stemOf = (name: string) => name.replace(/\.[^.]+$/, "");
-/** as the helper cleans names (exports.py clean_name) */
-const clean = (s: string) => s.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/[\\/:*?"<>|]+/g, "_").trim().replace(/^\.+|\.+$/g, "") || "slide";
 /** saved in the export folder (helper) or downloaded (from disk); returns the name used */
 async function save(name: string, data: ArrayBuffer, type: string): Promise<string> {
   if (backend.served) return (await backend.exportFile(name, data)).files![0];
@@ -65,7 +63,8 @@ export function download(name: string, data: BlobPart, type: string) {
 /** thumbnails (S4.3, B14): slides of the current design and version as pictures `width` px wide, drawn by an export
     worker as the PNG export draws them; `have`: the key of the picture shown of each slide (not drawn again) */
 export function thumbPictures(slides: number[], width: number, have: Record<number, string>): Promise<Thumb[]> {
-  return pool().thumbs({ design: style().design, version: get().deck.version, forExport: false, thumb: false, slides, today: todayLabel(), width, library: libraryCatalog(), have });
+  // the stage's values: a scenario previewed shows on the thumbnails too (S8.3: lists name whose values they draw)
+  return pool().thumbs({ design: style().design, version: get().deck.version, forExport: false, thumb: false, slides, today: todayLabel(), width, library: libraryCatalog(), have, scenario: "preview" });
 }
 function job(kind: ExportJob["kind"], design: Design, version: string, slides: number[] | undefined, title: string, cat: CatalogFont[]): ExportJob {
   return { kind, design, version, forExport: true, thumb: false, slides, today: todayLabel(), scale: kind === "pictures" ? PICTURE_SCALE : PNG_SCALE, title, catalog: cat };
@@ -81,6 +80,8 @@ const missingNote = (m: string[], u: string[] = []) => (u.length ? ` · fonts th
 /** from disk, several files are several downloads: a browser may ask once to allow that (refused, some are missing) */
 const MANY = " · if the browser asked to allow several downloads, allow them – otherwise some files are missing";
 const secs = (t0: number) => ` · ${((performance.now() - t0) / 1000).toFixed(1)} s`;
+/** an export while a scenario is previewed draws the workbook's own values (S8.3): said so */
+const previewNote = () => get().ui.preview ? ` · with the workbook's own values (the preview of “${esc(get().ui.preview!.value)}” is not exported: Run for each value… exports values)` : "";
 
 /** the last export's files and time (click to saved), for tests and the bench */
 export const lastExport = { files: [] as string[], ms: 0 };
@@ -118,7 +119,7 @@ export async function doExport(kind: ExportKind) {
     if (kind === "pdf-exact" || kind === "pdf-vector") setPrefs({ pdfMode: kind === "pdf-exact" ? "exact" : "vector" });
     const mode = kind === "pdf-exact" ? "exact" : kind === "pdf-vector" ? "vector" : pdfMode;
     const idx = kind === "pdf-current" || kind === "png-current" || kind === "copy" ? [cur] : all;
-    const stem = clean(stemOf(file.name)), label = (i: number) => clean(get().deck.slides[i].label || "slide");
+    const stem = clean(stemOf(file.name)), label = (i: number) => get().deck.slides[i].label || "slide";
     const design = style().design, version = get().deck.version;
     if (kind === "png-current" || kind === "png-all" || kind === "copy") {
       const r = await pool().run(job("png", design, version, idx, stem, await cat));
@@ -131,14 +132,14 @@ export async function doExport(kind: ExportKind) {
         return;
       }
       const names: string[] = [];
-      for (const [k, b] of r.files.entries()) names.push(await save(`${stem} - ${label(idx[k])}.png`, b, "image/png"));
+      for (const [k, b] of r.files.entries()) names.push(await save(pngName(stem, label(idx[k])), b, "image/png"));
       remember({ kind, design, version, files: names, missing: r.missing, unreadable: r.unreadable || [] }, t0);
       return done(names, t0, "");
     }
     // "<workbook> - slides.pdf" for the deck (one slide: that slide's name), " (images)" for pictures – as before
     const whole = idx.length === all.length && idx.length > 1;
     const { r, kind: made } = await runPdf(job(mode === "exact" ? "pictures" : "pdf", design, version, kind === "pdf-current" ? idx : undefined, stem, await cat));
-    const name = `${stem} - ${whole ? "slides" : label(idx[0])}${made === "pictures" ? " (images)" : ""}.pdf`, saved = await save(name, r.files[0], "application/pdf");
+    const name = pdfName(stem, whole ? null : label(idx[0]), made === "pictures"), saved = await save(name, r.files[0], "application/pdf");
     remember({ kind: made === "pictures" ? kind + " (as pictures)" : kind, design, version, files: [saved], missing: r.missing, unreadable: r.unreadable || [] }, t0);
     done([saved], t0, (made === "pictures" && mode !== "exact" ? NO_FONTS : "") + missingNote(r.missing, r.unreadable));
   } catch (e) {
@@ -152,7 +153,7 @@ function done(files: string[], t0: number, note: string) {
   lastExport.files = files; lastExport.ms = performance.now() - t0;
   if (!backend.served) { toast(`Downloaded <b>${esc(files.join(", "))}</b>${note}${files.length > 1 ? MANY : ""}`); return; }
   const acts = [{ label: "Open", fn: () => { void backend.open({ name: files[0] }); } }, { label: "Show folder", fn: () => { void backend.open({ folder: true }); } }];
-  toast(`Saved <b>${esc(files.join(", "))}</b> in the export folder${secs(t0)}${note}`, files.length === 1 ? acts : acts.slice(1));
+  toast(`Saved <b>${esc(files.join(", "))}</b> in the export folder${secs(t0)}${note}${previewNote()}`, files.length === 1 ? acts : acts.slice(1));
 }
 
 /* ---- every version (wizard › Versions), in the current design or in several designs: one PDF each, named
@@ -174,7 +175,7 @@ export async function exportVersions(designs: Design[] | null) {
     // every job runs to its end (one failing does not stop the others, which still save their files); the busy
     // screen goes once all have settled, then the toast names what was saved and what failed
     const results = await Promise.allSettled(list.flatMap(d => versions.map(async v => {
-      const title = `${stem} - ${clean(v.name)} - ${DESIGN_LABEL[d]}`;
+      const title = versionTitle(stem, v.name, d);
       try {
         const { r, kind } = await runPdf(job(pictures ? "pictures" : "pdf", d, v.id, undefined, title, await cat));
         if (kind === "pictures" && !pictures) noFonts = true;
@@ -188,7 +189,7 @@ export async function exportVersions(designs: Design[] | null) {
     failed.forEach(f => console.error("export failed:", f));
     lastExport.files = [...saved]; lastExport.ms = performance.now() - t0;
     remember({ kind: designs ? `versions-${list.length}` : "versions", design: list.join(" + "), version: versions.map(v => v.id).join(" + "), files: [...saved], missing: [...missing], unreadable: [...unreadable], failed }, t0);
-    toast(`Saved <b>${saved.length}</b> PDFs${backend.served ? " in the export folder" : " (downloaded)"}${saved.length ? ": " + esc(saved.join(", ")) : ""}${secs(t0)}${noFonts ? NO_FONTS : ""}${missingNote([...missing], [...unreadable])}${!backend.served && saved.length > 1 ? MANY : ""}`
+    toast(`Saved <b>${saved.length}</b> PDFs${backend.served ? " in the export folder" : " (downloaded)"}${saved.length ? ": " + esc(saved.join(", ")) : ""}${secs(t0)}${previewNote()}${noFonts ? NO_FONTS : ""}${missingNote([...missing], [...unreadable])}${!backend.served && saved.length > 1 ? MANY : ""}`
       + (failed.length ? ` · ⚠ ${failed.length} failed: ${esc(failed.slice(0, 2).join(" · "))}` : ""),
       backend.served ? [{ label: "Show folder", fn: () => { void backend.open({ folder: true }); } }] : [], failed.length > 0);
   } catch (e) {
@@ -196,4 +197,15 @@ export async function exportVersions(designs: Design[] | null) {
     remember({ kind: designs ? `versions-${designs.length}` : "versions", design: (designs || [style().design]).join(" + "), version: versions.map(v => v.id).join(" + "), files: [...saved], missing: [], unreadable: [], failed: [String((e as Error).message || e)] }, t0);
     toast("⚠ Export failed: " + esc((e as Error).message || e), [], true);
   } finally { patch("ui", { exporting: false }); }
+}
+
+/* ---- Run for each value (S8.3, B15): one file of a run, asked by the core worker for each value × design × version ---- */
+/** the PDF of one design and version drawn from the run's view (`id`: the run's), saved as `name` (S8.2's names); a
+    PDF of pictures when that is the chosen mode, or – from disk – when the browser gave no access to the PC's fonts
+    (" (images)", as every export). The name the helper saved it under */
+export async function scenarioPdf(a: { id: string; design: Design; version: string; name: string; title: string; today?: string }, cat: Promise<CatalogFont[]>): Promise<{ file: string; missing: string[]; unreadable: string[] }> {
+  const pictures = (get().prefs.prefs.pdfMode || "vector") === "exact";
+  const { r, kind } = await runPdf({ ...job(pictures ? "pictures" : "pdf", a.design, a.version, undefined, a.title, await cat), scenario: a.id, ...(a.today ? { today: a.today } : {}) });
+  const name = kind === "pictures" ? a.name.replace(/\.pdf$/i, " (images).pdf") : a.name;
+  return { file: await save(name, r.files[0], "application/pdf"), missing: r.missing, unreadable: r.unreadable || [] };
 }

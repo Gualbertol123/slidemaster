@@ -14,7 +14,8 @@ import { CalcModel, loadEngine } from "../src/calc/engine";
 // a 1 MB string literal (≈ 150 ms), so it happens before the clock starts
 import "../src/calc/wasm/ironcalc-wasm";
 import "../src/calc/wasm/ironcalc-glue";
-import { speedFactor } from "../../tools/calibrate.mjs";
+import { MAX_FACTOR, speedFactor } from "../../tools/calibrate.mjs";
+import { CI_FACTOR_FILE, engineCalibrationMs, engineFactor } from "./wasmcalib";
 
 const FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../tests/corpus/workbooks/recalc/BanksBig.xlsx");
 const FIRST_USE_MS = 300, VALUE_MS = 150, SLACK = 1.1;
@@ -36,6 +37,14 @@ it("engine: first use under 300 ms (cold), one scenario value under 150 ms (Bank
   }
   // the first use is the cold one: the WASM, then the first model ever built (the JIT is cold too)
   const first = wasmMs + builds[0], value = median(values);
+  // on CI the limits also follow how fast the runner runs the engine (decision 2026-10-18; measured after the timed
+  // builds, so the first use stays cold); elsewhere the JS calibration alone, as before
+  if (process.env.GITHUB_ACTIONS) {
+    const ms = engineCalibrationMs(g), ef = engineFactor(ms);
+    speed.factor = Math.min(MAX_FACTOR, Math.max(speed.factor, ef));
+    console.log(`bench · CI: engine calibration ${ms.toFixed(1)} ms (reference 64): factor ${ef.toFixed(2)}; time limits × ${speed.factor.toFixed(2)}`);
+    fs.writeFileSync(CI_FACTOR_FILE, JSON.stringify({ engine_ms: +ms.toFixed(1), factor: +speed.factor.toFixed(2) }));
+  }
   console.log(`bench · engine: WASM ${wasmMs.toFixed(0)} ms + first model and self-check ${builds[0].toFixed(0)} ms = first use ${first.toFixed(0)} ms (warm models ${median(builds.slice(1)).toFixed(0)} ms); one value ${value.toFixed(1)} ms (median of 5)`);
   expect(first, `first use ${first.toFixed(0)} ms (limit ${FIRST_USE_MS} × ${speed.factor.toFixed(2)} + 10 %)`).toBeLessThan(FIRST_USE_MS * speed.factor * SLACK);
   expect(value, `one value ${value.toFixed(1)} ms (limit ${VALUE_MS} × ${speed.factor.toFixed(2)} + 10 %)`).toBeLessThan(VALUE_MS * speed.factor * SLACK);

@@ -18,10 +18,11 @@ import type { ConfigDoc, Op, Prefs, RuntimeSlide, SlideTextKey, WorkbookDoc } fr
 import type { LibraryFont } from "@slide-builder/core/model/fonts";
 import type { Health, Other } from "../sync/api";
 import type { SaveState } from "@slide-builder/core/sync/docsync";
-import type { DeckHealth } from "@slide-builder/core/rpc/messages";
+import type { DeckHealth, KeptCell } from "@slide-builder/core/rpc/messages";
 import type { HistorySummary } from "@slide-builder/core/sync/history";
 import type { Fmt } from "../editor/painter";
 import type { DialogReq, WizardReq } from "./dialogs";
+import type { Design } from "@slide-builder/core/model/types";
 
 export interface Sel { t: number; anchor: { r: number; c: number }; ar: number; ac: number; r1: number; r2: number; c1: number; c2: number }
 export interface OpenFile { name: string; src: "folder" | "upload" | "local"; id: string; mtime: number; size: number }
@@ -31,6 +32,28 @@ export interface Dialogs {
   dialog: DialogReq | null; wizard: WizardReq | null; tables: boolean;
   /** text styles & fonts dialog: which tab is open */ textStyles: "colors" | "styles" | "fonts" | "layout" | null;
   /** automated comment dialog for table `table` of the current slide */ comment: { table: number } | null;
+  /** Export ▾ › Run for each value… (M8, B15) */ scenario: boolean;
+}
+/** the "Run for each value…" dialog's fields (M8, B15): UI state of this page, never the document; kept while the page
+    is open so the dialog opens again as it was left */
+export interface ScenarioForm {
+  /** the input cell as typed (name box syntax) */ input: string; /** the values, one per line */ values: string;
+  /** "Treat as text" (07 §8 Q7) */ asText: boolean; designs: Design[]; /** version ids, "" = the full deck */ versions: string[];
+  /** the value the Preview button shows */ value: string;
+  /** how many cells taken From a range… had line breaks (shown as spaces: not the cell's own text) */ broken: number;
+  /** "run anyway, mark these cells" (the gate, RC-06) */ runAnyway: boolean;
+}
+/** a scenario on the stage (S8.1, 07 §2.4): the value shown and its input cell; nothing of it is saved */
+export interface ScenarioPreview { value: string; input: string; changed: number; /** TEXT cells it could not format */ textUnknown?: number;
+  /** no formula moved, the value not being the cell's own */ still?: boolean }
+/** a run for each value (S8.3): its progress, then its report – UI state of this page */
+export interface RunState {
+  id: string; total: number; done: number; /** the values as the input cell shows them */ shown: string[];
+  results: { value: string; status: "ok" | "failed"; files: string[]; error?: string; warning?: string }[];
+  status: "running" | "cancelling" | "end" | "cancelled"; error?: string;
+  /** cells drawn with the red corner (run anyway) */ marked: import("@slide-builder/core/rpc/messages").GateCell[];
+  /** slide cells kept at Excel's value in every file (locale-dependent TEXT, a linked workbook or hidden sheet not read) */ kept: KeptCell[];
+  t0: number; seconds?: number;
 }
 
 export interface AppState {
@@ -68,6 +91,7 @@ export interface AppState {
     health: Health | null; others: Other[];
     /** the formula engine's self-check of the open workbook (B24): not asked yet, running, or its result */
     calc: import("@slide-builder/core/rpc/messages").CalcCheck | "busy" | null;
+    /** Run for each value: the dialog's fields, the scenario previewed on the stage */ scenario: ScenarioForm; preview: ScenarioPreview | null; run: RunState | null;
   };
   prefs: { user: string; host: string; client: string; prefs: Prefs };
 }
@@ -79,7 +103,8 @@ export const initialState = (): AppState => ({
   selection: { sel: null, noteSel: null, textSel: null, painter: null },
   ui: {
     zoom: "fit", busy: null, exporting: false, toast: null, lookScope: "design", fontBusy: "", changedOnDisk: false, logoMissing: false, fontBuilds: [], health: null, others: [], calc: null,
-    dialogs: { dialog: null, wizard: null, tables: false, textStyles: null, comment: null },
+    scenario: { input: "", values: "", asText: false, designs: [], versions: [""], value: "", broken: 0, runAnyway: false }, preview: null, run: null,
+    dialogs: { dialog: null, wizard: null, tables: false, textStyles: null, comment: null, scenario: false },
   },
   prefs: { user: "", host: "", client: Math.random().toString(36).slice(2, 10) + Date.now().toString(36), prefs: {} },
 });

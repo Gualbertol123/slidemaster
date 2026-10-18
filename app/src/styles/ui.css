@@ -212,6 +212,7 @@ table.xs td.mk{background:#FFF4CC!important;color:#9A6B00;font-weight:700;text-a
 .ovb.sug{border:2px dashed #8A63D2;background:rgba(138,99,210,.05)}
 .ovb.sug button{position:absolute;right:-2px;top:-22px;pointer-events:auto;background:#8A63D2;color:#fff;border:0;border-radius:5px;font:600 11px/20px "Segoe UI",sans-serif;padding:0 8px}
 .ovb.sel{border:2px solid #16A34A;background:rgba(22,163,74,.10)}
+.ovb.sel.one{border-color:#D62828;background:rgba(214,40,40,.14)}
 .wside{border-left:1px solid var(--line);padding:12px;overflow:auto;display:flex;flex-direction:column;gap:8px;background:#FAFBFC}
 .wside .lbl{font-size:11.5px;color:var(--mute);font-weight:600}
 .wside .row{display:flex;gap:6px;align-items:center}
@@ -304,3 +305,34 @@ table.xs td.mk{background:#FFF4CC!important;color:#9A6B00;font-weight:700;text-a
 .slide .hbox .edge.t{top:-11px}.slide .hbox .edge.b{bottom:-11px}
 .slide .hbox .edge:hover{background:rgba(10,102,216,.18);border-radius:4px}
 .slide .hbox .edgetip{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#0A66D8;color:#fff;font:600 15px/1 var(--font);padding:6px 10px;border-radius:6px;pointer-events:none}
+
+/* Run for each value… (M8, B15) and the scenario banner on the stage */
+.scdlg .scbody{overflow:auto;padding:4px 18px 8px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.scdlg .opthd{margin:10px 0 2px}
+.scdlg .row{display:flex;gap:8px;align-items:center}
+.scdlg #scInput{flex:1;height:32px;border:1px solid var(--line2);border-radius:6px;padding:0 8px;font-variant-numeric:tabular-nums}
+.scdlg textarea{width:100%;resize:vertical;border:1px solid var(--line2);border-radius:6px;padding:6px 8px;font:inherit;min-height:110px}
+.scdlg .sccount{font-weight:500;color:var(--mute);margin-left:6px}
+.scnote{font-size:12px;color:var(--mute);min-height:16px}
+.scbad{color:var(--err);font-size:12px}
+.scgrid2{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.scgrid2 .ck{margin:3px 0}
+.scgrid2 small{color:var(--mute);font-weight:400}
+.scrange{display:flex;flex-direction:column;gap:6px}
+.scrange select{height:28px}
+.scgrid{max-height:320px;border:1px solid var(--line);border-radius:6px}
+.scpv{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--mute)}
+.scpv select{height:30px;max-width:200px}
+.scbanner{position:absolute;left:50%;top:10px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:5px 6px 5px 14px;background:#EEF5FF;border:1px solid #C9DDF7;color:#0B4A99;border-radius:9px;font-size:12.5px;box-shadow:0 2px 8px rgba(20,24,40,.12);z-index:30;white-space:nowrap}
+.scbanner .btn{height:26px;font-size:12px;padding:0 10px}
+.scgate{border:1px solid #F3C4BF;background:#FFF5F4;border-radius:8px;padding:8px 10px;font-size:12.5px;color:#7A1F14}
+.scgate ul{margin:6px 0;padding-left:18px}
+.scgate li{font-variant-numeric:tabular-nums}
+.scrun{position:fixed;right:16px;bottom:44px;width:min(440px,calc(100vw - 32px));max-height:60vh;display:flex;flex-direction:column;gap:6px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 40px rgba(10,14,30,.25);padding:12px 14px;z-index:250}
+.scrunhd{display:flex;flex-direction:column;gap:2px}
+.scrunhd span{color:var(--mute);font-size:12.5px}
+.scbar{height:6px;border-radius:3px;background:#EEF0F4;overflow:hidden}
+.scbar i{display:block;height:100%;background:var(--accent);transition:width .2s}
+.screport{margin:0;padding-left:20px;overflow:auto;font-size:12.5px;display:flex;flex-direction:column;gap:3px}
+.screport small{display:block;color:var(--mute)}
+.scrunft{display:flex;justify-content:flex-end;gap:8px}

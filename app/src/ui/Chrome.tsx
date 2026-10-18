@@ -8,6 +8,7 @@ import { Stage } from "../stage/Stage";
 import { zoomBy } from "../stage/actions";
 import { useStage } from "../stage/data";
 import { mountThumbs } from "../editor/thumbs";
+import { clearPreview } from "../editor/scenario";
 import { slideIssues } from "../editor/issues";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
 import { selStatus } from "./Ribbon";
@@ -57,11 +58,13 @@ function CalcLine() {
   else {
     const c = calc.counts, parts = [`${c.exact} of ${calc.formulas} recompute like Excel`];
     if (c.volatile) parts.push(`${c.volatile} volatile (TODAY, NOW, RAND)`);
+    if (calc.textFormatted) parts.push(`${calc.textFormatted} with TEXT in Italian, formatted by Slide Builder`);
     if (c.locale) parts.push(`${c.locale} locale-dependent (TEXT)`);
     if (c.hidden) parts.push(`${c.hidden} read a hidden sheet`);
     if (c.external) parts.push(`${c.external} read a workbook not in the folder`);
     if (c.unreadable) parts.push(`${c.unreadable} could not be read`);
     if (c.different) { parts.push(`${c.different} different from Excel`); warn = true; }
+    if (calc.namesSkipped?.length) parts.push(`names not recalculated: ${calc.namesSkipped.map(n => n.replace(/^!/, "")).join(", ")}`);
     text = "Formulas: " + parts.join(" · ");
   }
   return <div className={"calcline" + (warn ? " warn" : "")} id="calcLine" title="Every formula of the workbook recomputed by Slide Builder and compared with the value Excel saved (docs/next/07 §1.4)">
@@ -109,6 +112,7 @@ export function Canvas() {
           <p style={{ fontSize: "12px" }}>…or drop an .xlsx file anywhere on this window.</p>
         </div>
       </div>}
+      <ScenarioBanner />
       {has && <div className="zoomctl" id="zoomctl" style={{ display: "flex" }}>
         <button id="zoomOut" title="Zoom out" onClick={() => zoomBy(1 / 1.25)}>−</button><ZoomVal />
         <button id="zoomIn" title="Zoom in" onClick={() => zoomBy(1.25)}>+</button>
@@ -116,6 +120,14 @@ export function Canvas() {
       </div>}
     </section>
   );
+}
+
+/** a scenario on the stage (S8.1, 07 §2.4): which value the slides show; nothing of it is saved */
+function ScenarioBanner() {
+  const p = useStore(s => s.ui.preview);
+  if (!p) return null;
+  return <div className="scbanner" id="scBanner" title={`${p.input} set to “${p.value}” in the formula engine: ${p.changed} formula cell${p.changed === 1 ? "" : "s"} recalculated`}>
+    Previewing: <b>{p.value}</b> – a scenario, not saved{p.textUnknown ? <span className="scbad"> · {p.textUnknown} TEXT cell{p.textUnknown === 1 ? "" : "s"} not formatted (previous text)</span> : null}{p.still ? <span className="scbad" id="scNoChange"> · no formula changed with this value of {p.input}</span> : null}<button className="btn" id="scClear" onClick={() => void clearPreview()}>Clear</button></div>;
 }
 
 /** the zoom shown: the stage's scale (fit or chosen) */

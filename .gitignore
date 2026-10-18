@@ -1,5 +1,7 @@
 # Generated at runtime (see README §2)
 export/
+# …but not the core's export module (run names and values, M8)
+!core/src/export/
 engine/
 backend/slide_builder_settings.txt
 backend/slide_builder_settings.txt.unreadable-*
@@ -22,6 +24,10 @@ backend/slide_builder_settings.txt.unreadable-*
 # copies per scenario value, and their .xlsb twins
 !tests/corpus/workbooks/recalc/**/*.xlsx
 !tests/corpus/workbooks/recalc/**/*.xlsb
+# G4's stand-in (spikes/recalc/make_g4.ps1): two macro-enabled workbooks and Excel's recalculated copies
+!tests/corpus/workbooks/g4/**/*.xlsm
+# the large stand-in (spikes/recalc/make_large.ps1): three linked workbooks, a speed workbook, Excel's copies
+!tests/corpus/workbooks/large/**/*.xlsx
 
 __pycache__/
 *.pyc
@@ -52,6 +58,7 @@ tests/parity/report/
 tests/parity/report-dl/
 tests/corpus/workbooks/big30.xlsx
 bench-results.json
+bench-calibration.json
 review/G1/img/
 review/G1/pdf/*.pdf
 review/S4.4/img/

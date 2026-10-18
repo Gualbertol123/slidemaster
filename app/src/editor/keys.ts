@@ -9,7 +9,7 @@ import { stopPainter } from "./painter";
 export function installKeys() {
   document.addEventListener("keydown", e => {
     const D = get().ui.dialogs;
-    if (D.dialog || D.wizard || D.tables || D.textStyles || D.comment) return;
+    if (D.dialog || D.wizard || D.tables || D.textStyles || D.comment || D.scenario) return;
     const t = e.target as HTMLElement;
     const inField = t.matches("input,select,textarea");
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
