@@ -14,6 +14,7 @@ import { A1, uid, esc } from "@slide-builder/core/xlsx/util";
 import type { Op, ScaleRule, Side } from "@slide-builder/core/model/types";
 import { Dropdown } from "./Dropdown";
 import { insertChartFromRange, insertChartFromSelection } from "../editor/charts";
+import { ShapeMenu, ShapeTools } from "./ShapeTools";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
 
 const uniq = (a: number[]) => [...new Set(a.map(v => Math.round(v)))];
@@ -145,7 +146,11 @@ export function TableRibbon() {
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="chartBtn" disabled={!R} title="A pie or donut chart of cells of the workbook: it follows the workbook when it changes" onClick={t}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="8" cy="8" r="6.2" /><path d="M8 1.8V8l5.3 3.1" /></svg>Insert chart ▾</button>}>
           {close => <ChartMenu close={close} />}</Dropdown>
+        <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="shapeBtn" disabled={!R} title="A callout: a shape or an icon, with text that can quote cells ({Sheet!C7})" onClick={t}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="2.5" width="11" height="8" rx="2" /><path d="M4 10.5 3 14l4-3.5" /></svg>Insert shape ▾</button>}>
+          {close => <ShapeMenu close={close} />}</Dropdown>
       </div>
+      <ShapeTools />
       <div className="grp">
         <span className="lbl">Text box</span>
         {(["top", "bottom", "left", "right"] as const).map(sd => <button key={sd} className="tb" data-addnote={sd} disabled={!R || tIdx < 0 || raw} title={raw ? rawTip : `Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd} of the table`} onClick={() => addNote(sd)}>

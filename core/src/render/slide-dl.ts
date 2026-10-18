@@ -8,12 +8,13 @@
    text block, the contents rows and separators of Liquid Glass), then the page numbers (z-index 5).
    The consulting designs (08 §2, S7b.2) have their own branch – title band, rules, cards, bullets, footnotes, cover and
    contents – that reads every value from their spec (consult-spec.ts); the other designs' output does not change.
-   Since 4.3 the slide's items – charts (chart-dl.ts) – are drawn over the tables and text boxes, in every design (B16).
+   Since 4.3 the slide's items – charts (chart-dl.ts) and callouts (shape-dl.ts, their text laid out as a text box's) –
+   are drawn over the tables and text boxes, in every design (B16, B17).
    Coordinates are slide px (1600 × 900). */
 import { parseColor, solid } from "../dl/color";
 import type { Node, Paint, RectNode, TextNode } from "../dl/types";
 import { fontStack } from "../model/fonts";
-import type { RuntimeSlide, TextFmt } from "../model/types";
+import type { Note, RuntimeSlide, TextFmt } from "../model/types";
 import type { RenderCtx } from "./context";
 import { cssLinear, glassBox, glassVars, type Wallpaper } from "./glass-dl";
 import { halfLeading, lu, primaryFamily, type Metrics, type TableDL } from "./excel-dl";
@@ -21,6 +22,7 @@ import { pageNoFor, pageNoGeom, footerGeom, pageNumber, pnFmt } from "./pagenumb
 import { contrastVars, memoPart, noteParts, slideHasLogo, themeVars, type NotePart } from "./slide";
 import { areaFor, itemBoxOf, KPI_LINE, NAVY_BAND, SIGNAL_AREA, slideFacts, tableH, tableW, type TBox } from "./layout";
 import { chartNodes, type PieGeom } from "./chart-dl";
+import { shapeNodes } from "./shape-dl";
 import type { Box } from "../model/types";
 import type { Exhibit, ExFacts } from "./exhibit";
 import { deckFmt, hasMarkup, slideTextFmt, titleGeom } from "./text";
@@ -177,11 +179,27 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
   // the slide's items, in their order (the later on top): beside their table or where they were put
   const items: Record<string, ItemInfo> = {};
   for (const [id, it] of Object.entries(R.cfg.items || {})) {
-    const box = itemBoxOf(R, id, boxes); if (!box || !it || it.kind !== "chart") continue;
-    const family = glassy ? base : C ? C.note.family : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel;
-    const c = chartNodes(it, id, box, ctx, m, { V, wall, family });
-    const s0 = low.length; low.push(...c.nodes);
-    items[id] = { box, issue: c.issue, geom: c.geom, at: [s0, low.length] };
+    const box = itemBoxOf(R, id, boxes); if (!box || !it || (it.kind !== "chart" && it.kind !== "shape")) continue;
+    const s0 = low.length;
+    if (it.kind === "chart") {
+      const family = glassy ? base : C ? C.note.family : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel;
+      const c = chartNodes(it, id, box, ctx, m, { V, wall, family });
+      low.push(...c.nodes);
+      items[id] = { box, issue: c.issue, geom: c.geom, at: [s0, low.length] };
+    } else {
+      const s = shapeNodes(it, id, box, ctx, { V, wall });
+      low.push(...s.nodes);
+      if (s.text.trim()) {
+        // the text as a text box's (markup, wrapping, shrinking to fit down to 9 px), in the shape's own format
+        const f = it.fmt || {}, deck = deckFmt(ctx, "note"), dark = s.ink === "#FFFFFF";
+        const n: Note = { text: s.text, ...(f.font ? { font: f.font } : deck.font ? { font: deck.font } : {}), ...(f.size && +f.size > 0 ? { size: Math.max(6, Math.min(120, +f.size)) } : {}),
+          ...(f.b !== undefined ? { b: !!f.b } : deck.b !== undefined ? { b: deck.b } : {}), ...(f.i ? { i: true } : {}), ...(f.lh && +f.lh > 0 ? { lh: Math.max(.8, Math.min(3, +f.lh)) } : {}),
+          color: /^#[0-9A-Fa-f]{6}$/.test(f.color || "") ? f.color! : !dark && /^#[0-9A-Fa-f]{6}$/.test(deck.color || "") ? deck.color! : s.ink,
+          align: f.align || "center", valign: f.valign || "middle" };
+        noteNodes({ i: -1, side: "top", key: "item:" + id, n, txt: s.text, memo: false, cls: "tnote item", bubble: null }, s.textBox);
+      }
+      items[id] = { box, issue: s.issue, geom: null, at: [s0, low.length] };
+    }
   }
   if (logo) logoNodes(logo);
   return { nodes: [...low, ...z3, ...z5], images, items };

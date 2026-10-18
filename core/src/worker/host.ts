@@ -708,7 +708,7 @@ export class CoreHost {
     const drawn = R.tables.flatMap((_, i) => boxes[i] && tables[i] ? [i] : []), layers: StageLayer[] = [];
     let run: DisplayList = [], k = 0, nf = 0, nn = 0, ni = 0;
     // the items' nodes by where each starts (slide-dl.ts: one contiguous run per item)
-    const itemAt = new Map(Object.entries(dl.items).map(([id, it]) => [it.at[0], { id, it }]));
+    const itemAt = new Map(Object.entries(dl.items).filter(([, it]) => it.at[1] > it.at[0]).map(([id, it]) => [it.at[0], { id, it }]));
     const flush = () => { if (run.length) { const pre = `f${nf++}-`; layers.push({ key: "f" + contentKey(run) + pre + mode, table: null, box: null, nodes: run, svg: markup(run, pre, false) }); } run = []; };
     for (let j = 0; j < dl.nodes.length; j++) {
       const n = dl.nodes[j], g = dl.nodes[j + 1];

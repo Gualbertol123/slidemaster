@@ -1,6 +1,7 @@
 /* The side panel of the selected chart (S9.3, B16; 07 §2.2): its type, labels, legend, title, a colour per slice, where its
    numbers come from (as text), delete. Each control is one item.patch (one undo step). The slices and their colours are
    the ones the worker drew (the stage's item info): the page has no sheet cells of a chart's source. */
+import { useMemo } from "react";
 import { useStore } from "../state/store";
 import { useStage } from "../stage/data";
 import type { ChartItem } from "@slide-builder/core/model/types";
@@ -12,12 +13,15 @@ import { useCurSlide } from "./hooks";
 const SHOW = [["label", "Names"], ["value", "Values"], ["percent", "Percent"]] as const;
 export function ChartPanel() {
   const itemSel = useStore(s => s.selection.itemSel), R = useCurSlide();
-  const info = useStage(s => itemSel && s.shown?.id === R?.id ? s.shown?.items?.[itemSel.id] ?? null : null);
+  // what the panel shows of the drawn chart (its slices, an Issues line), compared as JSON: another stage answer with
+  // the same chart re-renders nothing
+  const infoJson = useStage(s => { const x = itemSel && s.shown?.id === R?.id ? s.shown?.items?.[itemSel.id] : null; return x ? JSON.stringify({ issue: x.issue, slices: x.geom?.slices ?? [] }) : ""; });
+  const info = useMemo(() => infoJson ? JSON.parse(infoJson) as { issue: string | null; slices: { i: number; label: string; color: string }[] } : null, [infoJson]);
   const it = itemOf(itemSel?.id, R);
   if (!itemSel || !it || it.kind !== "chart" || !R) return null;
   const c = it as ChartItem, id = itemSel.id, show = c.show ?? ["percent"], legend = c.legend ?? "right";
   const set = (label: string, p: Record<string, unknown>) => itemPatch(label, id, p);
-  const slices = info?.geom?.slices ?? [];
+  const slices = info?.slices ?? [];
   return <div className="chartpanel" id="chartPanel" data-item={id}>
     <h4>Chart</h4>
     <div className="row"><span className="lbl">Type</span><div className="seg small">

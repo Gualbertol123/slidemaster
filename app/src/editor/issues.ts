@@ -11,10 +11,15 @@ export interface Issue { cls: "" | "ok" | "warn" | "err"; html: string }
 export function slideIssues(R: RuntimeSlide, ctx: RenderCtx, items?: Record<string, { issue: string | null }> | null): Issue[] {
   const out: Issue[] = [];
   // charts (B24): numbered in the slide's order
-  let n = 0;
-  for (const [id, it] of Object.entries(R.cfg.items || {})) if (it?.kind === "chart") { n++; const is = items?.[id]?.issue; if (is) out.push({ cls: /not found/.test(is) ? "err" : "warn", html: `Chart ${n}: ${esc(is)}` }); }
-  if (R.type === "cover") return [{ cls: "", html: "Cover slide · double-click the title to edit it, or use the wizard (step 3)." }];
-  if (R.type === "index") return [{ cls: "", html: `Index slide · lists ${ctx.slides.filter(s => s.type === "content").length} content slide(s) with their page numbers.` }];
+  let n = 0, k = 0;
+  for (const [id, it] of Object.entries(R.cfg.items || {})) {
+    const is = items?.[id]?.issue;
+    if (it?.kind === "chart") { n++; if (is) out.push({ cls: /not found/.test(is) ? "err" : "warn", html: `Chart ${n}: ${esc(is)}` }); }
+    else if (it?.kind === "shape") { k++; if (is) out.push({ cls: "err", html: `Callout ${k}: ${esc(is)} (shown as #REF)` }); }
+  }
+  // (a cover or contents slide can carry items too: their lines follow the slide's own)
+  if (R.type === "cover") return [{ cls: "", html: "Cover slide · double-click the title to edit it, or use the wizard (step 3)." }, ...out];
+  if (R.type === "index") return [{ cls: "", html: `Index slide · lists ${ctx.slides.filter(s => s.type === "content").length} content slide(s) with their page numbers.` }, ...out];
   if (R.missing) out.push({ cls: "err", html: `${R.missing} table${R.missing > 1 ? "s" : ""} of this slide could not be found (sheet renamed or deleted?). Open the wizard to fix.` });
   if (!R.tables.length) out.push({ cls: "warn", html: "No tables on this slide." });
   const { boxes } = computeLayout(R, ctx);

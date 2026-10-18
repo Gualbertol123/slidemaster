@@ -1007,12 +1007,61 @@ test.describe.serial("two people, one shared folder", () => {
     await page.click("#scBanner button");
     await expect(layer).toContainText("1761", { timeout: 20_000 });
     // the deck keeps the chart; the scenario changed nothing in it
-    const it = Object.values(deckDoc("Banks.xlsx").preset.slides[0].items || {}) as any[];
-    expect(it.map(x => x.values)).toEqual([{ table: deckDoc("Banks.xlsx").preset.tables[0].id, range: "E5:E6" }]);
-    // removed again (the Run tests below export this deck)
+    await pollFile(() => (Object.values(deckDoc("Banks.xlsx").preset.slides[0].items || {}) as any[]).map(x => x.values), { timeout: 10_000 })
+      .toEqual([{ table: deckDoc("Banks.xlsx").preset.tables[0].id, range: "E5:E6" }]);
+    // removed again (the Run tests below export this deck), and saved before the next test opens it
     await page.locator(".itembox[data-kind=chart]").click({ position: { x: 4, y: 4 } });
     await page.keyboard.press("Delete");
     await expect(page.locator(".itembox")).toHaveCount(0);
+    await pollFile(() => Object.keys(deckDoc("Banks.xlsx").preset.slides[0].items || {}), { timeout: 10_000 }).toEqual([]);
+    await lastFileSaved("anna", "Banks.xlsx");
+  });
+
+  test("callouts (S9.4, CL-01, CL-02, B17): shapes and icons, fill / border / text; a callout quoting Control!B2 follows the preview of Bank C; #REF", async ({ page }) => {
+    await openApp(page, ANNA);
+    await openWorkbook(page, "Banks.xlsx"); await page.click('[data-a="continue"]');
+    await expect(page.locator("#stage .slide .t", { hasText: /^1761$/ })).toHaveCount(1, { timeout: 20_000 });
+    const items = () => (deckDoc("Banks.xlsx").preset.slides[0].items || {}) as Record<string, any>;
+    // CL-01: a pill, typed in place; its fill, border and text size from ribbon 2 – each one change
+    await page.click("#shapeBtn"); await page.click('.shapemenu [data-shape="pill"]');
+    await expect(page.locator(".itembox[data-kind=shape]")).toHaveCount(1, { timeout: 10_000 });
+    await pollFile(() => Object.values(items()).map(i => i.shape), { timeout: 10_000 }).toEqual(["pill"]);
+    const id = Object.keys(items())[0];
+    await page.locator(".itembox[data-kind=shape]").dblclick();
+    await page.locator("#itemEdit").fill("Bank: {Control!B2}");
+    await page.keyboard.press("Control+Enter");
+    const layer = page.locator(`#stage svg.layer.item[data-item="${id}"]`);
+    await expect(layer).toContainText("Bank: Bank A", { timeout: 10_000 });         // CL-02: the cell's text
+    await page.locator(".itembox[data-kind=shape]").click();
+    await expect(page.locator("#shapeTools")).toBeVisible();
+    await page.click("#shapeFill"); await page.click('[data-fill="#FFF4D6"]');
+    await pollFile(() => items()[id].fill).toBe("#FFF4D6");
+    await page.click("#shapeBorder"); await page.click('[data-bw="2"]');
+    await pollFile(() => items()[id].border).toEqual({ color: "#1F2430", w: 2 });
+    await page.click("#shapeLarger");
+    await pollFile(() => items()[id].fmt).toEqual({ size: 20 });
+    await page.click("#undoBtn");
+    await pollFile(() => items()[id].fmt).toBeUndefined();
+    // an icon: a filled outline in its box
+    await page.click("#shapeBtn"); await page.click('.shapemenu [data-icon="warning"]');
+    await expect(page.locator(".itembox[data-kind=shape]")).toHaveCount(2, { timeout: 10_000 });
+    // CL-02: the preview of Bank C – the callout says Bank C; cleared, Bank A again
+    await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]');
+    await page.fill("#scInput", "Control!B2"); await page.fill("#scValues", "Bank A\nBank C");
+    await page.selectOption("#scValue", "Bank C"); await page.click("#scPreview");
+    await expect(layer).toContainText("Bank: Bank C", { timeout: 20_000 });
+    await page.click("#scBanner button");
+    await expect(layer).toContainText("Bank: Bank A", { timeout: 20_000 });
+    // a reference that cannot be read: #REF on the slide, the Issues line
+    await page.locator(`.itembox[data-item="${id}"]`).dblclick({ position: { x: 12, y: 12 } });    // (the icon sits in its middle)
+    await page.locator("#itemEdit").fill("Peers {Nowhere!B2}");
+    await page.keyboard.press("Control+Enter");
+    await expect(layer).toContainText("Peers #REF", { timeout: 10_000 });
+    await expect(page.locator("#issues")).toContainText("Callout 1: Nowhere!B2 not found (shown as #REF)");
+    // removed again (the Run tests export this deck)
+    for (const sel of [".itembox[data-kind=shape]:not([data-item=\"" + id + "\"])", `.itembox[data-item="${id}"]`]) { await page.locator(sel).click({ position: { x: 3, y: 3 } }); await page.keyboard.press("Delete"); }
+    await expect(page.locator(".itembox")).toHaveCount(0);
+    await pollFile(() => Object.keys(items())).toEqual([]);
     await lastFileSaved("anna", "Banks.xlsx");
   });
 
@@ -1264,6 +1313,19 @@ test.describe.serial("two people, one shared folder", () => {
     await page.click("#undoBtn");
     await pollFile(() => items()[id].show).toEqual(["percent"]);
     await expect(page.locator('#chartPanel [data-show="value"]')).not.toBeChecked();
+    // a slice's own colour (the product owner: "edit colours individually"), then the design's again – one change each
+    await page.locator('#chartSlices [data-slice="1"] input[type=color]').evaluate((el: HTMLInputElement) => { el.value = "#123456"; el.dispatchEvent(new Event("change", { bubbles: true })); });
+    await pollFile(() => items()[id].colors).toEqual({ "1": "#123456" });
+    await expect(page.locator('#chartSlices [data-slice="1"] i')).toHaveCSS("background-color", "rgb(18, 52, 86)", { timeout: 10_000 });
+    await page.click('#chartSlices [data-reset="1"]');
+    await pollFile(() => items()[id].colors).toBeUndefined();
+    // resized by its corner: one change, its corner where the pointer let go
+    const w0 = items()[id].box.w, zb = (await page.locator(".itembox[data-kind=chart] .size").boundingBox())!;
+    await page.mouse.move(zb.x + zb.width / 2, zb.y + zb.height / 2); await page.mouse.down();
+    await page.mouse.move(zb.x - 60, zb.y - 40, { steps: 5 }); await page.mouse.up();
+    await pollFile(() => items()[id].box.w).toBeLessThan(w0 - 40);
+    await page.click("#undoBtn");
+    await pollFile(() => items()[id].box.w).toBe(w0);
     // a click on the chart selects it, and the slice under the pointer
     const b = (await page.locator(".itembox[data-kind=chart]").boundingBox())!;
     const sb = (await page.locator("#stage .slide").boundingBox())!;
@@ -1281,6 +1343,7 @@ test.describe.serial("two people, one shared folder", () => {
     // CH-03 · a reload with a changed file: the chart reads the new numbers (B9: 1 234,5 → 9 999)
     await page.locator('#chartPanel [data-show="value"]').check();
     await expect(chartLayer).toContainText("1.235 €");
+    try {
     fs.writeFileSync(file, xlsxEdit(original, "xl/worksheets/sheet5.xml", x => x.replace("<c r=\"B9\" s=\"23\" t=\"n\"><v>1234.5</v>", "<c r=\"B9\" s=\"23\" t=\"n\"><v>9999</v>")));
     await page.click("#reloadBtn");
     await expect(chartLayer).toContainText("9.999 €", { timeout: 20_000 });
@@ -1291,7 +1354,7 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(chartLayer).toContainText("Chart: source Numbers!B9:B11 not found");
     await expect(page.locator(".itembox.broken")).toHaveCount(1);
     expect(Object.keys(items())).toEqual([id]);
-    fs.writeFileSync(file, original);
+    } finally { fs.writeFileSync(file, original); }            // the folder's report.xlsx as the later tests expect it
     await page.click("#reloadBtn");
     await expect(chartLayer).toContainText("1.235 €", { timeout: 20_000 });
     await expect(page.locator("#issues")).not.toContainText("Chart 1");

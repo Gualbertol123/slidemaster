@@ -7,6 +7,7 @@ import { sliceAt } from "@slide-builder/core/render/chart-dl";
 import { selectItem } from "../editor/charts";
 import { itemMove, itemResize, type DragPreview } from "./drags";
 import { slideScale } from "./actions";
+import { setStage } from "./data";
 import type { StageModel } from "./model";
 
 export function Items({ m, R, drag }: { m: StageModel; R: RuntimeSlide; drag: DragPreview | null }) {
@@ -18,6 +19,7 @@ export function Items({ m, R, drag }: { m: StageModel; R: RuntimeSlide; drag: Dr
     return <div key={p.id} className={"itembox" + (on ? " sel" : "") + (d?.moved ? " moving" : "") + (p.info?.issue ? " broken" : "")} data-item={p.id} data-kind={R.cfg.items?.[p.id]?.kind}
       title={p.info?.issue ? "Chart: " + p.info.issue : undefined}
       style={{ left: b.x, top: b.y, width: b.w, height: b.h }}
+      onDoubleClick={e => { const it = R.cfg.items?.[p.id]; if (it?.kind === "shape" && it.shape !== "icon") { e.stopPropagation(); setStage({ editor: { kind: "item", id: p.id } }); } }}
       onPointerDown={e => {
         e.stopPropagation();
         // the slice under the pointer (slide px from the box on screen)

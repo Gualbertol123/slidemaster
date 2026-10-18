@@ -252,12 +252,12 @@ export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, 
       const lines: (typeof items)[] = [[]]; let lw = 0;
       for (const e of items) { const ew = sw.w + 8 + e.tw + 18; if (lw + ew > W0 && lines[lines.length - 1].length) { lines.push([]); lw = 0; } lines[lines.length - 1].push(e); lw += ew; }
       const shownLines = lines.slice(0, 3), ly0 = Y0 + H0 - shownLines.length * rowH, more = items.length - shownLines.reduce((s, l) => s + l.length, 0);
-      if (more > 0) { const last = shownLines[2]; last.splice(last.length - 1, 1, { ...last[last.length - 1], label: `+${more + 1} more`, color: "" }); }
+      if (more > 0) { const last = shownLines[2], label = `+${more + 1} more`; last.splice(last.length - 1, 1, { ...last[last.length - 1], label, color: "", tw: m.run(label, font(lab)).w }); }
       shownLines.forEach((line, k) => {
         const full = line.reduce((s, e) => s + sw.w + 8 + e.tw + 18, -18); let xx = X0 + (W0 - full) / 2;
         for (const e of line) {
           if (e.color) legend.push({ t: "rect", x: r2(xx), y: r2(ly0 + k * rowH + (rowH - sw.h) / 2), w: sw.w, h: sw.h, ...(sw.r ? { r: sw.r } : {}), fill: solid(e.color) });
-          legend.push(textNode(m, ellipsis(m, e.label, lab, e.tw), xx + sw.w + 8, ly0 + k * rowH + (rowH - Math.round(lab.size * 1.25)) / 2, lab));
+          legend.push(textNode(m, ellipsis(m, e.label, lab, e.tw), e.color ? xx + sw.w + 8 : xx, ly0 + k * rowH + (rowH - Math.round(lab.size * 1.25)) / 2, lab));
           xx += sw.w + 8 + e.tw + 18;
         }
       });

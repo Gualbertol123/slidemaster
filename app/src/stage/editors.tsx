@@ -11,6 +11,7 @@ import { commentText } from "@slide-builder/core/render/comment";
 import type { SlideTextKey } from "@slide-builder/core/model/types";
 import { activeItem, commitText, curSlide } from "../editor/edit";
 import { closeEditor, commitNote, slidePatch } from "./actions";
+import { itemPatch } from "../editor/charts";
 import { cellBox } from "./hit";
 import { exhibitOf } from "@slide-builder/core/render/exhibit";
 import { editOf, type StageModel } from "./model";
@@ -59,6 +60,19 @@ export function TextEditor({ m, s, k }: { m: StageModel; s: number; k: SlideText
     style={{ left: hit.x * s - 4, top: hit.y * s - 4, width: Math.max(320, hit.w * s + 40), height: Math.max(28, hit.h * s + 8),
       fontSize: Math.max(14, (f?.size ?? 16) * s), fontWeight: f?.weight, fontStyle: f?.italic ? "italic" : undefined, fontFamily: f?.family }}
     onKeyDown={e => { e.stopPropagation(); if (e.key === "Enter") finish(true); if (e.key === "Escape") finish(false); }} onBlur={() => finish(true)} />;
+}
+
+/** a callout's text (S9.4): {Sheet!C7} quotes a cell; Ctrl+Enter or leaving it applies, Esc cancels */
+export function ItemEditor({ m, s, id }: { m: StageModel; s: number; id: string }) {
+  const ref = useRef<HTMLTextAreaElement>(null), R = curSlide(), it = R?.cfg.items?.[id];
+  const finish = useFinish(ok => { if (ok && R && it?.kind === "shape" && ref.current!.value !== (it.text || "")) itemPatch("Callout text", id, { text: ref.current!.value || null }); });
+  useLayoutEffect(() => focusAll(ref.current, true), []);
+  const place = m.items.find(p => p.id === id);
+  if (!R || !place || it?.kind !== "shape") return null;
+  const b = place.box;
+  return <textarea ref={ref} className="inline-edit note-edit" id="itemEdit" defaultValue={it.text || ""} placeholder="Text – {Sheet!C7} quotes a cell"
+    style={{ left: b.x * s - 2, top: b.y * s - 2, width: Math.max(200, b.w * s + 4), height: Math.max(48, b.h * s + 4), fontSize: Math.max(12, (it.fmt?.size || 18) * s), textAlign: (it.fmt?.align || "center") as "left" }}
+    onKeyDown={e => { e.stopPropagation(); if (e.key === "Escape") finish(false); if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) finish(true); }} onBlur={() => finish(true)} />;
 }
 
 export function NoteEditor({ m, s, k }: { m: StageModel; s: number; k: string }) {

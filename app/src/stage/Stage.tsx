@@ -26,7 +26,7 @@ import { borderAt, cellBox, cellFromPoint, tablePoint } from "./hit";
 import { borderDrag, gripDrag, noteEdge, noteMove, noteStretch, resizeDrag, stretchDrag, type DragPreview } from "./drags";
 import { editOf, stageModel, type NotePlace, type Rect, type StageModel } from "./model";
 import { PlainLayer, TableLayer, type Box } from "./SlideSvg";
-import { CellEditor, NoteEditor, TextEditor } from "./editors";
+import { CellEditor, ItemEditor, NoteEditor, TextEditor } from "./editors";
 import { Items } from "./items";
 
 const SIDES: Side[] = ["top", "bottom", "left", "right"];
@@ -93,6 +93,7 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
       {editor?.kind === "cell" && <CellEditor m={m} s={s} initial={editor.initial} />}
       {editor?.kind === "text" && <TextEditor m={m} s={s} k={editor.key} />}
       {editor?.kind === "note" && <NoteEditor m={m} s={s} k={editor.key} />}
+      {editor?.kind === "item" && <ItemEditor m={m} s={s} id={editor.id} />}
     </div>
   );
 });

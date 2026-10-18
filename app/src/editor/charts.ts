@@ -1,9 +1,9 @@
-/* Charts on slides (S9.3, B16; docs/next/07 §2.2, §3): insert one from the selected cells or from a range of a sheet the
+/* Charts and callouts on slides (S9.3, S9.4, B16, B17; docs/next/07 §2.2, §3): insert one from the selected cells or from a range of a sheet the
    wizard lists, select it (and one of its slices), change it, delete it – every change one `item.patch` operation
    (state/app.ts change), so each is one undo step. Moves and resizes are drags (stage/drags.ts itemMove / itemResize). */
 import { get, patch, toast } from "../state/store";
 import { change } from "../state/app";
-import type { ChartItem, DataRef, Item, ItemPatch, Op, RuntimeSlide } from "@slide-builder/core/model/types";
+import type { ChartItem, DataRef, Item, ItemPatch, Op, RuntimeSlide, ShapeItem } from "@slide-builder/core/model/types";
 import { A1 } from "@slide-builder/core/xlsx/util";
 import { curSlide } from "./edit";
 
@@ -51,6 +51,15 @@ export function insertChartFromRange(sheet: string, values: string, labels: stri
   if (l && !RANGE.test(l)) { toast("Type the cells of the names, e.g. B5:B9 – or leave it empty."); return null; }
   const norm = (s: string) => s.replace(/\$/g, "").toUpperCase();
   return addChart({ sheet, range: norm(v) }, l ? { sheet, range: norm(l) } : null, { x: 900, y: 200, w: 600, h: 440 }, null);
+}
+/** a new callout in the middle of the slide (an icon: a small square), selected; a shape opens for typing */
+export function insertShape(shape: ShapeItem["shape"], icon?: string) {
+  const R = curSlide(); if (!R) return null;
+  const id = newItemId(), box = shape === "icon" ? { x: 768, y: 418, w: 64, h: 64 } : shape === "circle" ? { x: 700, y: 350, w: 200, h: 200 } : { x: 640, y: 390, w: 320, h: 120 };
+  const it: ShapeItem = { kind: "shape", shape, ...(icon ? { icon } : {}), box, ...(shape === "bubble" ? { tail: { x: box.x + 60, y: box.y + box.h + 50 } } : {}) };
+  change(shape === "icon" ? "Insert icon" : "Insert shape", [{ op: "item.patch", slide: R.id, id, patch: it } as Op]);
+  selectItem(id);
+  return id;
 }
 /** how the side panel names where a chart's numbers come from ("Summary!C5:C9", a table's sheet for a table's range) */
 export function refText(ref: DataRef | undefined): string {

@@ -12,7 +12,8 @@ import { todayLabel } from "@slide-builder/core/render/cover";
 
 /** an editor open on the slide: a cell (with what typing started it), a slide text (title, subtitle, cover
     note or date) or a text box */
-export type Editor = { kind: "cell"; initial?: string } | { kind: "text"; key: import("@slide-builder/core/model/types").SlideTextKey } | { kind: "note"; key: string };
+export type Editor = { kind: "cell"; initial?: string } | { kind: "text"; key: import("@slide-builder/core/model/types").SlideTextKey } | { kind: "note"; key: string }
+  /** a callout's text (4.3) */ | { kind: "item"; id: string };
 export interface StageState {
   /** the slide drawn (null: none yet, or no slide) */
   shown: StageSlide | null;

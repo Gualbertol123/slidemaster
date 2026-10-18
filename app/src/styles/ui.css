@@ -152,6 +152,11 @@ button{cursor:pointer}
 .chartpanel .src{color:#5B6274;margin:4px 0}
 .chartpanel .err{color:#C42B1C;margin:4px 0}
 .chartmenu{padding:6px;min-width:300px}
+.shapemenu{padding:6px;width:300px}
+.shapemenu .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin:4px 0}
+.shapemenu .grid button{height:38px;display:flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:6px;background:none;cursor:pointer}
+.shapemenu .grid button:hover{border-color:#C9D3E3;background:#F3F6FB}
+.shapemenu .grid svg{width:24px;height:24px}
 .chartmenu .optgrid{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;margin:4px 0}
 .slide .hbox .grip,.slide .hbox .size{position:absolute;pointer-events:auto;opacity:0;transition:opacity .12s}
 .stagewrap:hover .hbox .grip,.stagewrap:hover .hbox .size,.slide .hbox.active .grip,.slide .hbox.active .size{opacity:1}

@@ -74,7 +74,9 @@ function CalcLine() {
 export function Issues() {
   const slides = useStore(s => s.deck.slides), cur = useStore(s => s.deck.cur), logoMissing = useStore(s => s.ui.logoMissing), fontBuilds = useStore(s => s.ui.fontBuilds), wb = useStore(s => s.deck.wb);
   const c = useCtx(), st = useStyle();
-  const R = slides[cur], items = useStage(s => R && s.shown?.id === R.id ? s.shown.items ?? null : null);
+  // the items' Issues lines as one string: a stage answer that changes none of them re-renders nothing here
+  const R = slides[cur], itemSig = useStage(s => R && s.shown?.id === R.id ? Object.entries(s.shown.items || {}).map(([id, x]) => id + "\u0000" + (x.issue || "")).join("\u0001") : "");
+  const items = itemSig ? Object.fromEntries(itemSig.split("\u0001").map(e => { const [id, issue] = e.split("\u0000"); return [id, { issue: issue || null }]; })) : null;
   if (!R) return <div className="issues" id="issues" />;
   const P = c.preset;
   // a linked workbook of the deck that is not in the folder (S7.3): its tables are missing until it is back
