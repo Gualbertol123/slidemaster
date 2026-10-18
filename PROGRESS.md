@@ -152,6 +152,13 @@ numbers measured twice). Measured numbers go into the step's line.
 
 (Human decisions the plan needs, e.g. gate G0 outcomes. An agent never writes here on its own.)
 
+- 2026-10-18 · **On CI the bench's limits follow the runner's engine speed** (product owner, in the session, after
+  three CI runs of M8 failed the bench on different gates by a few ms – first use 351 vs 348 – while the reference PC
+  passes with margin; recorded by the agent): "Scale CI for the engine". On GitHub Actions only, the engine bench times
+  a fixed IronCalc-only workload (core/bench/wasmcalib.ts, reference 64 ms on the reference PC) and scales its limits by
+  the larger of that factor and the JS one (at most 2, as before); the page bench scales its task and frame-gap limits
+  (longest_task, first_draw_task, their Navy twins, thumbs_gap, scenario_task) by the same factor. Budgets (Part F) and
+  every other machine unchanged; keypress and drag frames never scaled.
 - 2026-10-18 · **The formula engine reads hidden sheets, for calculation only** (product owner, in the session, after
   a real run made identical files – the deck's data sheets are partly hidden; recorded by the agent): "Yes, for
   calculation". Hidden sheets stay out of the wizard (WB-18), the slides and the page; their cells only feed the formulas
@@ -355,16 +362,11 @@ numbers measured twice). Measured numbers go into the step's line.
 
 ## Waiting for
 
-- **CI bench on GitHub's runners, for the product owner (2026-10-18, flagged – an agent does not change a Part F
-  budget):** the two CI runs of d526d53 failed the bench on different gates – run 1 the page's untimed limits
-  (longest_task_ms 58, longest_navy_task_ms 62 vs 50; thumbs_gap_ms 50.1 vs 20), run 2 the engine's first use (359 ms
-  vs 300 × 1.02 + 10 % = 336). On this PC both pass with margin (clean clones c11/c12: first use 211 / 207 ms, thumbs
-  gap 17.1 / 17.3 ms), and M8 is not the cause: main 19aed75 vs d526d53 on this PC, twice each, first use 207 / 206 vs
-  214 / 222 ms (+5 %, the TEXT set-up), one value 76 / 74 vs 41 / 42 ms. The runner runs the WASM ≈ 1.6× slower than
-  this PC while the calibration (a JS loop) scales the limit by ≈ 1.0, and the page's untimed limits are not scaled at
-  all. Options, yours to choose: (a) re-run failed jobs until green (as now); (b) on CI, scale the engine's first use
-  by a WASM calibration too, and the untimed page limits by the calibration; (c) make the bench job informational on
-  CI and keep the gate on the reference PC (AUDIT §0 runs it there).
+- **CI bench on GitHub's runners (2026-10-18): decided** – "Scale CI for the engine" (Decisions). Measured before:
+  the two CI runs of d526d53 and the one of 87d18bd failed the bench on different gates (page tasks 58 / 62 vs 50,
+  thumbs gap 50.1 vs 20; first use 359 vs 336 and 351 vs 348), while main 19aed75 and M8 measure alike on the reference
+  PC (first use 207 / 206 vs 214 / 222 ms). A thumbnail gap like run 1's 50.1 ms would still exceed a limit scaled 2×
+  (44 ms): if it recurs, it is a finding to look into, not noise.
 
 - **M8 · gate G5, for the product owner (2026-10-17):** M8 is done on `v4/M8-scenario-export` (S8.1–S8.5, not pushed).
   (1) **Push and open ONE pull request** "M8 · Scenario export – Run for each value (S8.1–S8.5)" (text:

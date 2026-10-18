@@ -58,6 +58,7 @@ tests/parity/report/
 tests/parity/report-dl/
 tests/corpus/workbooks/big30.xlsx
 bench-results.json
+bench-calibration.json
 review/G1/img/
 review/G1/pdf/*.pdf
 review/S4.4/img/
