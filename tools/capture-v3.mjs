@@ -245,13 +245,13 @@ async function exportPdf(page, h, dir) {
 }
 
 // ------------------------------------------------------------------------------------------- capture
-/* opts: decks, pdf (false: no export), quiet, allPixels; designs (default all three); slideHook(page, {deck, dir, design,
+/* opts: decks, deckDir (another folder of {workbook, ops} decks, e.g. tests/corpus/charts), pdf (false: no export), quiet, allPixels; designs (default all three); slideHook(page, {deck, dir, design,
    version, slide, geometry, pixels}) → {geometry?, png?}: replaces what is written for a slide (tools/dlparity.mjs
    writes the display list's geometry and pixels there; with `noGeometry` the page's DOM is not read for it – the
    stage from M4, tools/stage-capture.mjs); versionHook(page, helper, {deck, dir, design, version}): after the slides of
    a version (the native PDF for SP) */
 export async function capture(out, opts = {}) {
-  const decks = deckList(opts.decks);
+  const decks = deckList(opts.decks, opts.deckDir);
   const h = await startHelper();
   const { browser, page, errors } = await openBrowser();
   const env = environment(browser.version());
@@ -259,7 +259,7 @@ export async function capture(out, opts = {}) {
   try {
     await page.goto(h.url);
     for (const id of decks) {
-      const deck = JSON.parse(fs.readFileSync(path.join(DECKS, id + ".json"), "utf8"));
+      const deck = JSON.parse(fs.readFileSync(path.join(opts.deckDir || DECKS, id + ".json"), "utf8"));
       const file = id + path.extname(deck.workbook);
       fs.copyFileSync(path.join(BOOKS, deck.workbook), path.join(h.root, file));
       await deckOps(h, file, deck.ops);
@@ -338,8 +338,8 @@ export function walk(dir) {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]);
 }
-export function deckList(only) {
-  const all = fs.readdirSync(DECKS).filter(f => f.endsWith(".json")).map(f => f.slice(0, -5)).sort();
+export function deckList(only, dir = DECKS) {
+  const all = fs.readdirSync(dir).filter(f => f.endsWith(".json")).map(f => f.slice(0, -5)).sort();
   return only ? all.filter(d => only.includes(d)) : all;
 }
 

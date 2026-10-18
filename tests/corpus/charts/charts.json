@@ -1,0 +1,178 @@
+{
+ "workbook": "report.xlsx",
+ "ops": [
+  {
+   "op": "preset.set",
+   "preset": {
+    "sheets": [
+     "SLIDE_1",
+     "SLIDE_2 panel",
+     "SLIDE_3 pair"
+    ],
+    "tables": [
+     {
+      "id": "dhnms9c",
+      "sheet": "SLIDE_1",
+      "kind": "markers",
+      "anchor": "B3",
+      "index": 0
+     },
+     {
+      "id": "ybyk4v2",
+      "sheet": "SLIDE_3 pair",
+      "kind": "markers",
+      "anchor": "B3",
+      "index": 0
+     },
+     {
+      "id": "62de08x",
+      "sheet": "SLIDE_3 pair",
+      "kind": "markers",
+      "anchor": "G3",
+      "index": 1
+     }
+    ],
+    "slides": [
+     {
+      "id": "u9t3fqb",
+      "type": "content",
+      "title": "Loans by bank",
+      "subtitle": null,
+      "tables": [
+       "dhnms9c"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "9lywu2f",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "ybyk4v2",
+       "62de08x"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "ch3",
+      "type": "content",
+      "title": "Deposits and other figures",
+      "subtitle": "Charts without a table",
+      "tables": [],
+      "layout": null,
+      "date": null,
+      "note": null
+     }
+    ]
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "u9t3fqb",
+   "id": "pie1",
+   "patch": {
+    "kind": "chart",
+    "type": "pie",
+    "values": {
+     "table": "dhnms9c",
+     "range": "D6:D18"
+    },
+    "show": [
+     "label",
+     "percent"
+    ],
+    "legend": "none",
+    "box": {
+     "x": 0,
+     "y": 0,
+     "w": 560,
+     "h": 480
+    },
+    "attach": {
+     "table": "dhnms9c",
+     "side": "right"
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "ch3",
+   "id": "don1",
+   "patch": {
+    "kind": "chart",
+    "type": "donut",
+    "values": {
+     "table": "dhnms9c",
+     "range": "F12:F18"
+    },
+    "title": "Deposits, second half",
+    "show": [
+     "label",
+     "percent"
+    ],
+    "legend": "none",
+    "box": {
+     "x": 570,
+     "y": 180,
+     "w": 470,
+     "h": 440
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "ch3",
+   "id": "pie2",
+   "patch": {
+    "kind": "chart",
+    "type": "pie",
+    "values": {
+     "table": "dhnms9c",
+     "range": "F6:F11"
+    },
+    "show": [
+     "percent"
+    ],
+    "legend": "bottom",
+    "colors": {
+     "0": "#0A2A66"
+    },
+    "box": {
+     "x": 1070,
+     "y": 180,
+     "w": 470,
+     "h": 440
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "ch3",
+   "id": "num1",
+   "patch": {
+    "kind": "chart",
+    "type": "pie",
+    "values": {
+     "sheet": "Numbers",
+     "range": "B9:B11"
+    },
+    "series": "Numbers sheet (on no slide)",
+    "show": [
+     "value"
+    ],
+    "legend": "right",
+    "box": {
+     "x": 570,
+     "y": 640,
+     "w": 970,
+     "h": 180
+    }
+   }
+  }
+ ]
+}

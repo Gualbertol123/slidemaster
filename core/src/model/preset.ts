@@ -13,7 +13,22 @@ export const rangeToG = (range: string): Range => {
 };
 export const gToRange = (g: Range) => A1(g.r1 + 1, g.c1 + 1) + ":" + A1(g.r2 - 1, g.c2 - 1);
 export const validRange = (r: unknown) => /^\$?[A-Z]{1,3}\$?\d{1,7}(:\$?[A-Z]{1,3}\$?\d{1,7})?$/i.test(String(r || "").trim());
-export const presetSheets = (p: Preset | null | undefined) => [...new Set(((p && p.tables) || []).map(t => t.sheet))];
+/** the sheets a deck reads: its tables' and those its slide items (charts, callouts) draw from (4.3) */
+export const presetSheets = (p: Preset | null | undefined) => [...new Set([...((p && p.tables) || []).map(t => t.sheet), ...itemSheets(p)])];
+/** the sheet ids the slide items name: a chart's values / labels ranges, a callout's {Sheet!C7} references */
+export function itemSheets(p: Preset | null | undefined): string[] {
+  const out: string[] = [];
+  for (const s of (p && p.slides) || []) for (const it of Object.values(s.items || {})) {
+    if (!it || typeof it !== "object") continue;
+    for (const ref of it.kind === "chart" ? [it.values, it.labels] : []) if (ref && typeof ref === "object" && "sheet" in ref && typeof ref.sheet === "string" && ref.sheet) out.push(ref.sheet);
+    if (it.kind === "shape" && typeof it.text === "string") for (const m of it.text.matchAll(CELL_TOKEN)) out.push(tokenSheet(m[1]));
+  }
+  return out;
+}
+/** a cell quoted in a callout's text: {Sheet!C7}, {'Sheet name'!C7}, {[Peers.xlsx]Peer!F7} (07 §3) */
+export const CELL_TOKEN = /\{((?:'[^']+'|[^{}!]+))!\$?([A-Z]{1,3})\$?([0-9]{1,7})\}/g;
+/** the sheet id of a token's sheet part ('quoted' names unquoted) */
+export const tokenSheet = (s: string) => s.startsWith("'") && s.endsWith("'") && s.length > 1 ? s.slice(1, -1).replace(/''/g, "'") : s.trim();
 
 function cellHasData(S: Sheet, r: number, c: number) {
   const x = S.get(r, c);

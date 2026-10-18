@@ -8,6 +8,7 @@
    text block, the contents rows and separators of Liquid Glass), then the page numbers (z-index 5).
    The consulting designs (08 §2, S7b.2) have their own branch – title band, rules, cards, bullets, footnotes, cover and
    contents – that reads every value from their spec (consult-spec.ts); the other designs' output does not change.
+   Since 4.3 the slide's items – charts (chart-dl.ts) – are drawn over the tables and text boxes, in every design (B16).
    Coordinates are slide px (1600 × 900). */
 import { parseColor, solid } from "../dl/color";
 import type { Node, Paint, RectNode, TextNode } from "../dl/types";
@@ -18,7 +19,9 @@ import { cssLinear, glassBox, glassVars, type Wallpaper } from "./glass-dl";
 import { halfLeading, lu, primaryFamily, type Metrics, type TableDL } from "./excel-dl";
 import { pageNoFor, pageNoGeom, footerGeom, pageNumber, pnFmt } from "./pagenumbers";
 import { contrastVars, memoPart, noteParts, slideHasLogo, themeVars, type NotePart } from "./slide";
-import { areaFor, KPI_LINE, NAVY_BAND, SIGNAL_AREA, slideFacts, tableH, tableW, type TBox } from "./layout";
+import { areaFor, itemBoxOf, KPI_LINE, NAVY_BAND, SIGNAL_AREA, slideFacts, tableH, tableW, type TBox } from "./layout";
+import { chartNodes, type PieGeom } from "./chart-dl";
+import type { Box } from "../model/types";
 import type { Exhibit, ExFacts } from "./exhibit";
 import { deckFmt, hasMarkup, slideTextFmt, titleGeom } from "./text";
 import { todayLabel } from "./cover";
@@ -35,6 +38,11 @@ export interface SlideImages {
   wall: { sharp: { id: string; src: string }; blur: Wallpaper; base: string } | null;
   logo: { id: string; src: string; w: number; h: number } | null;
 }
+
+/** a whole slide's display list, and what the stage needs of its items: where each is, its chart's geometry (slice
+    picking), the Issues line of a source that is missing or empty */
+export interface ItemInfo { box: Box; issue: string | null; geom: PieGeom | null; /** its nodes: [start, end) in the slide's list */ at: [number, number] }
+export interface SlideDL extends TableDL { items: Record<string, ItemInfo> }
 
 /* ---- text ---- */
 /** the line height the slide's texts inherit where slide.css sets none: the page's body is font: 13px/1.4 (ui.css) */
@@ -113,7 +121,7 @@ class Typesetter {
 
 /* ---- the slide ---- */
 /** `today`: the date the page shows ({date} in footers, a cover without its own date) – the page's clock */
-export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx, tables: TableDL[], boxes: TBox[], img: SlideImages, m: Metrics, today = todayLabel()): TableDL {
+export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx, tables: TableDL[], boxes: TBox[], img: SlideImages, m: Metrics, today = todayLabel()): SlideDL {
   const T = new Typesetter(m), d = ctx.style.design, glassy = d === "glass", rk = ctx.style.radius / 100;
   const V = glassVars(ctx), tv = themeVars(ctx), place = { x: 0, y: 0, scale: 1 }, wall = img.wall?.blur ?? null;
   const base = glassy ? SLIDE_FONT.glass : SLIDE_FONT.excel;
@@ -166,8 +174,17 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
   });
   const memo = memoPart(R, ctx);
   if (memo) noteNodes(memo, memo.box);
+  // the slide's items, in their order (the later on top): beside their table or where they were put
+  const items: Record<string, ItemInfo> = {};
+  for (const [id, it] of Object.entries(R.cfg.items || {})) {
+    const box = itemBoxOf(R, id, boxes); if (!box || !it || it.kind !== "chart") continue;
+    const family = glassy ? base : C ? C.note.family : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel;
+    const c = chartNodes(it, id, box, ctx, m, { V, wall, family });
+    const s0 = low.length; low.push(...c.nodes);
+    items[id] = { box, issue: c.issue, geom: c.geom, at: [s0, low.length] };
+  }
   if (logo) logoNodes(logo);
-  return { nodes: [...low, ...z3, ...z5], images };
+  return { nodes: [...low, ...z3, ...z5], images, items };
 
   /* a nowrap line with an ellipsis in a box from left to 1600 − right (titles), the inherited line height unless set */
   function oneLine(cls: string, f: TextFmt, text: string, left: number, top: number, right: number, st0: TStyle, shadow: boolean, lh0 = INHERITED) {
