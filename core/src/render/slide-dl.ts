@@ -187,7 +187,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
       low.push(...c.nodes);
       items[id] = { box, issue: c.issue, geom: c.geom, at: [s0, low.length] };
     } else {
-      const s = shapeNodes(it, id, box, ctx, { V, wall });
+      const s = shapeNodes(it, id, box, ctx, { V, wall, panel: inPanel(box.x) });
       low.push(...s.nodes);
       if (s.text.trim()) {
         // the text as a text box's (markup, wrapping, shrinking to fit down to 9 px), in the shape's own format
@@ -196,7 +196,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
           ...(f.b !== undefined ? { b: !!f.b } : deck.b !== undefined ? { b: deck.b } : {}), ...(f.i ? { i: true } : {}), ...(f.lh && +f.lh > 0 ? { lh: Math.max(.8, Math.min(3, +f.lh)) } : {}),
           color: /^#[0-9A-Fa-f]{6}$/.test(f.color || "") ? f.color! : !dark && /^#[0-9A-Fa-f]{6}$/.test(deck.color || "") ? deck.color! : s.ink,
           align: f.align || "center", valign: f.valign || "middle" };
-        noteNodes({ i: -1, side: "top", key: "item:" + id, n, txt: s.text, memo: false, cls: "tnote item", bubble: null }, s.textBox);
+        noteNodes({ i: -1, side: "top", key: "item:" + id, n, txt: s.text, memo: false, cls: "tnote item", bubble: null, ...(s.ink === "#FFFFFF" && !/^#[0-9A-Fa-f]{6}$/.test(f.color || "") ? { ink: "#FFFFFF" } : {}) }, s.textBox);
       }
       items[id] = { box, issue: s.issue, geom: null, at: [s0, low.length] };
     }
@@ -644,8 +644,9 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
           const navyKick = !!C && C.id === "mckinsey" && !!part.bubble && !part.memo && kind === "nt";
           const hs: TextSpec | null = navyKick ? { family: C!.font.body, size: INSIGHT.kicker.size * C!.note.size / 15, weight: 700, color: C!.accent, caps: true, ls: INSIGHT.kicker.ls }
             : C && kind !== "np" ? (kind === "nt" ? C.note.h1 : C.note.h2) : null, hk = hs ? size / C!.note.size : 1;
-          const bst: TStyle = hs ? { ...st, family: hs.family, size: r2(hs.size * hk), weight: hs.weight, color: solid(hs.color), ls: hs.ls ? r2(hs.ls * hk) : 0 }
+          const bst0: TStyle = hs ? { ...st, family: hs.family, size: r2(hs.size * hk), weight: hs.weight, color: solid(hs.color), ls: hs.ls ? r2(hs.ls * hk) : 0 }
             : kind === "nt" ? { ...st, size: r2(size * 1.32), weight: 800, color: glassy ? solid("#0B0D17") : solid(x1) } : kind === "nh" ? { ...st, weight: 700, color: solid(a1) } : st;
+          const bst: TStyle = part.ink ? { ...bst0, color: solid(part.ink) } : bst0;
           const runs0 = inlineRuns(hs?.caps ? body.toUpperCase() : body, bst), blh = kind === "nt" ? 1.15 : kind === "nh" ? 1.25 : lh;
           const runs = bullet && !hang ? [{ text: C!.note.bullet + " ", st: { ...st, color: solid(C!.note.bulletColor) } }, ...runs0] : runs0;
           const b = block(runs, cx + ind, 0, cw - ind, blh, align, pre);

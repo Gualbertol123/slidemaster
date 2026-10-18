@@ -12,7 +12,7 @@ import type { Node, Paint, PathCmd, RGB } from "../dl/types";
 import type { RenderCtx } from "./context";
 import { glassBox, type GlassVars, type Wallpaper } from "./glass-dl";
 import { formatValue } from "../xlsx/numfmt";
-import { A1, colToNum } from "../xlsx/util";
+import { A1, colToNum, parseRange } from "../xlsx/util";
 import { CELL_TOKEN, tokenSheet } from "../model/preset";
 import { consultOptions, isConsult } from "../model/designs";
 import { specOf } from "./consult-spec";
@@ -30,6 +30,8 @@ export function calloutText(text: string, ctx: RenderCtx): { text: string; missi
   const out = text.replace(new RegExp(CELL_TOKEN.source, "g"), (_m, sh: string, col: string, row: string) => {
     const name = tokenSheet(sh), S = ctx.sheet?.(name) ?? null, r = +row, c = colToNum(col);
     if (!S || c < 1 || c > 16384 || r < 1 || r > 1048576) { missing.push(name + "!" + col + row); return "#REF"; }
+    // a cell the version shown removes is empty, as in its tables and charts
+    if ((ctx.version?.hide[S.name] || []).some(g => { const x = parseRange(g); return r >= x.r1 && r <= x.r2 && c >= x.c1 && c <= x.c2; })) return "";
     const cell = S.get(r, c), t = cell ? formatValue(cell).text : "";
     const e = ctx.edits[S.name]?.[A1(r, c)];
     return e && e.text !== undefined && e.orig === t ? e.text : t;
@@ -73,14 +75,18 @@ export function bubbleCmds(x: number, y: number, w: number, h: number, r: number
 
 /* ---- look per design ---- */
 interface ShapeLook { fill: string | null; border: { w: number; color: string; dash?: number[] } | null; shadow: boolean; glass: boolean; ink: string; radius: number }
-function lookOf(it: ShapeItem, ctx: RenderCtx): ShapeLook {
+function lookOf(it: ShapeItem, ctx: RenderCtx, panel = false): ShapeLook {
   const d = ctx.style.design, rk = ctx.style.radius / 100, own = typeof it.fill === "string" && HEX.test(it.fill) ? it.fill.toUpperCase() : null;
-  const none = it.fill === "none", b = it.border, w = b && Number.isFinite(+b.w) ? Math.max(0, Math.min(20, +b.w)) : 0;
-  const ownBorder = b && HEX.test(b.color || "") && w > 0 ? { w, color: b.color.toUpperCase(), ...(b.dash === "dashed" ? { dash: [w * 3, w * 2] } : b.dash === "dotted" ? { dash: [w, w * 1.5] } : {}) } : b && w <= 0 ? null : undefined;
+  const none = it.fill === "none", b = it.border && typeof it.border === "object" ? it.border : null, w = b && Number.isFinite(+b.w) ? Math.max(0, Math.min(20, +b.w)) : 0;
+  const ownBorder = b && typeof b.color === "string" && HEX.test(b.color) && w > 0 ? { w, color: b.color.toUpperCase(), ...(b.dash === "dashed" ? { dash: [w * 3, w * 2] } : b.dash === "dotted" ? { dash: [w, w * 1.5] } : {}) } : b && w <= 0 ? null : undefined;
   let L: ShapeLook;
   if (isConsult(d)) {
     const C = specOf(ctx);
-    L = it.shape === "circle" ? { fill: null, border: { w: C.chart.callout.outline.w, color: C.chart.callout.outline.color }, shadow: false, glass: false, ink: C.note.ink, radius: 0 }
+    // 08's callout hooks: a circle is an outline in the accent, an arrow is filled with it; on Consulting Red's message
+    // panel (red) the outline and the text are white and a shape is a white outline, no card
+    L = it.shape === "circle" ? { fill: null, border: { w: C.chart.callout.outline.w, color: panel ? "#FFFFFF" : C.chart.callout.outline.color }, shadow: false, glass: false, ink: panel ? "#FFFFFF" : C.note.ink, radius: 0 }
+      : it.shape === "arrow" ? { fill: panel ? "#FFFFFF" : C.accent, border: null, shadow: false, glass: false, ink: panel ? C.accent : "#FFFFFF", radius: 0 }
+      : panel ? { fill: null, border: { w: 1.5, color: "#FFFFFF" }, shadow: false, glass: false, ink: "#FFFFFF", radius: C.look.card.radius }
       // a card: white on the design's tinted ground, its own tint on a white one (as the text boxes' cards)
       : { fill: C.bg === "#FFFFFF" && consultOptions(ctx).background !== "white" ? "#FFFFFF" : C.card.fill, border: null, shadow: false, glass: false, ink: C.note.ink, radius: C.look.card.radius };
   } else if (d === "glass") L = { fill: null, border: null, shadow: true, glass: true, ink: "#0B0D17", radius: Math.round(22 * rk) };
@@ -90,17 +96,18 @@ function lookOf(it: ShapeItem, ctx: RenderCtx): ShapeLook {
   if (own || none) L = { ...L, fill: own, glass: false };
   if (ownBorder !== undefined) L = { ...L, border: ownBorder };
   if (Number.isFinite(it.radius as number) && (it.radius as number) >= 0) L = { ...L, radius: Math.min(200, +it.radius!) };
-  // dark fills take white text
+  // dark fills take white text, light ones the design's
   if (L.fill && luminance(L.fill) < .5) L = { ...L, ink: "#FFFFFF" };
+  else if ((own || none) && L.ink === "#FFFFFF" && !(none && panel)) L = { ...L, ink: isConsult(d) ? specOf(ctx).note.ink : "#16181D" };
   return L;
 }
 const luminance = (hex: string) => { const [r, g, b] = parseColor(hex).c; return (0.299 * r + 0.587 * g + 0.114 * b) / 255; };
 
-export interface ShapeEnv { V: GlassVars; wall: Wallpaper | null }
+export interface ShapeEnv { V: GlassVars; wall: Wallpaper | null; /** on Consulting Red's message panel (slide-dl.ts inPanel) */ panel?: boolean }
 /** a shape item → the nodes of its shape (the item's hit first), the box its text goes in, its text with the cell
     references replaced, and the Issues line of references that could not be read */
 export function shapeNodes(it: ShapeItem, id: string, box: Box, ctx: RenderCtx, env: ShapeEnv): { nodes: Node[]; text: string; textBox: Box; ink: string; issue: string | null } {
-  const { x, y, w, h } = box, L = lookOf(it, ctx), shape = it.shape;
+  const { x, y, w, h } = box, L = lookOf(it, ctx, !!env.panel), shape = it.shape;
   const ref = calloutText(typeof it.text === "string" ? it.text : "", ctx);
   const hitNode: Node = { t: "hit", kind: "item", id, x: r2(x), y: r2(y), w: r2(w), h: r2(h), label: ref.text };
   const fill: Paint | undefined = L.fill ? solid(L.fill) : undefined;
@@ -110,8 +117,8 @@ export function shapeNodes(it: ShapeItem, id: string, box: Box, ctx: RenderCtx, 
   const rectLike = shape === "rect" || shape === "round" || shape === "pill" || (shape === "circle" && Math.abs(w - h) < .5);
   if (shape === "icon") {
     // an icon: the built-in outline scaled into the box, filled with the text colour (an own fill colours it)
-    const name = it.icon && it.icon in ICONS ? it.icon : "info", s = Math.min(w, h) / 24, ox = x + (w - 24 * s) / 2, oy = y + (h - 24 * s) / 2;
-    const ink = typeof it.fill === "string" && HEX.test(it.fill) ? it.fill.toUpperCase() : HEX.test(it.fmt?.color || "") ? it.fmt!.color! : isConsult(ctx.style.design) ? specOf(ctx).accent : L.ink;
+    const name = typeof it.icon === "string" && Object.prototype.hasOwnProperty.call(ICONS, it.icon) ? it.icon : "info", s = Math.min(w, h) / 24, ox = x + (w - 24 * s) / 2, oy = y + (h - 24 * s) / 2;
+    const ink = typeof it.fill === "string" && HEX.test(it.fill) ? it.fill.toUpperCase() : typeof it.fmt?.color === "string" && HEX.test(it.fmt.color) ? it.fmt.color : env.panel ? "#FFFFFF" : isConsult(ctx.style.design) ? specOf(ctx).accent : L.ink;
     nodes.push(hitNode, { t: "path", d: iconCmds(name, ox, oy, s), fill: solid(ink), rule: "evenodd" });
     return { nodes, text: "", textBox: box, ink, issue: null };
   }

@@ -145,7 +145,11 @@ export function FxBar() {
 export function selStatus(): string {
   const R = curSlide(), it = activeItem(), its = selItems(), { selection: { noteSel, textSel, itemSel }, deck } = get();
   if (!R) return "";
-  if (itemSel && R.cfg.items?.[itemSel.id]) return (itemSel.slice !== null ? `Slice ${itemSel.slice + 1} of the chart selected` : "Chart selected") + " · drag to move, the corner to resize · Del removes it";
+  if (itemSel && R.cfg.items?.[itemSel.id]) {
+    const it = R.cfg.items[itemSel.id];
+    if (it.kind === "shape") return (it.shape === "icon" ? "Icon selected" : "Shape selected · double-click or Enter to write") + " · drag to move, the corner to resize · Del removes it";
+    return (itemSel.slice !== null ? `Slice ${itemSel.slice + 1} of the chart selected` : "Chart selected") + " · drag to move, the corner to resize · Del removes it";
+  }
   if (noteSel) return "Text box selected · double-click or Enter to write · Del removes it";
   if (textSel) return `${SLIDE_TEXT_LABEL[textSel]} selected · double-click or Enter to edit the text`;
   if (!it) return `Slide ${deck.cur + 1} of ${deck.slides.length}`;

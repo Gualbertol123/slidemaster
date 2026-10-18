@@ -129,3 +129,74 @@ describe("shapes and icons in every design (CL-01)", () => {
     }
   });
 });
+
+describe("callouts from a shared document and in their surroundings (review S9.4)", () => {
+  it("an icon name that is not the set's own (toString, constructor) and a border colour that is not a string draw safely", async () => {
+    for (const design of DESIGNS) {
+      const { build } = await setup(design, {
+        a: { kind: "shape", shape: "icon", icon: "toString", box },
+        b: { kind: "shape", shape: "icon", icon: "constructor", box: { ...box, x: 100 } },
+        c: { kind: "shape", shape: "rect", text: "x", border: { color: ["#FF0000"] as unknown as string, w: 2 }, box: { ...box, y: 500 } },
+        d: { kind: "shape", shape: "round", text: "y", border: "red" as never, box: { ...box, x: 100, y: 500 } },
+      });
+      expect(validate(build().nodes), design).toEqual([]);
+    }
+  });
+  it("on a dark fill every line is white, headings too", async () => {
+    for (const design of ["excel", "mckinsey", "glass"] as Design[]) {
+      const { build } = await setup(design, { k: { kind: "shape", shape: "rect", text: "# Heading\n## Sub\nBody **bold**", fill: "#0A2A66", box: { ...box, h: 220 } } });
+      const texts = flat(part(build().nodes, "k")).filter((n): n is TextNode => n.t === "text");
+      expect(texts.length, design).toBeGreaterThan(3);
+      for (const t of texts) expect(t.fill, `${design} ${t.src}`).toEqual({ solid: [255, 255, 255] });
+    }
+  });
+  it("Consulting Red's message panel: white icons, outlines and text, a shape as a white outline (no card); elsewhere the accent", async () => {
+    const { build } = await setup("bain", {
+      ic: { kind: "shape", shape: "icon", icon: "check", box: { x: 60, y: 700, w: 60, h: 60 } },
+      ci: { kind: "shape", shape: "circle", text: "12%", box: { x: 120, y: 400, w: 200, h: 200 } },
+      tx: { kind: "shape", shape: "round", text: "Note", box: { x: 60, y: 620, w: 300, h: 60 } },
+      ic2: { kind: "shape", shape: "icon", icon: "check", box: { x: 800, y: 700, w: 60, h: 60 } },
+    });
+    const dl = build(), fills = (id: string) => flat(part(dl.nodes, id)).flatMap(n => n.t === "path" || n.t === "rect" ? [JSON.stringify(n.fill ?? null) + JSON.stringify(n.stroke?.paint ?? null)] : []);
+    expect(fills("ic")).toEqual([JSON.stringify({ solid: [255, 255, 255] }) + "null"]);
+    expect(fills("ic2")).toEqual([JSON.stringify({ solid: [204, 0, 0] }) + "null"]);
+    expect(fills("ci")).toEqual(["null" + JSON.stringify({ solid: [255, 255, 255] })]);
+    expect(fills("tx")).toEqual(["null" + JSON.stringify({ solid: [255, 255, 255] })]);
+    for (const id of ["ci", "tx"]) for (const t of flat(part(dl.nodes, id)).filter((n): n is TextNode => n.t === "text")) expect(t.fill, id).toEqual({ solid: [255, 255, 255] });
+  });
+  it("a consulting arrow is filled with the accent and takes white text (08's callout hooks)", async () => {
+    const { ctx, env } = await setup("mckinsey");
+    const out = shapeNodes({ kind: "shape", shape: "arrow", text: "Next", box }, "a", box, ctx, env);
+    expect(out.nodes.find(n => n.t === "path")).toMatchObject({ fill: { solid: [34, 81, 255] } });
+    expect(out.ink).toBe("#FFFFFF");
+  });
+  it("a cell the version shown removes is quoted as empty", async () => {
+    const { ctx } = await setup("excel");
+    expect(calloutText("[{SLIDE_1!D6}]", { ...ctx, version: { id: "v", name: "V", hide: { SLIDE_1: ["D6:D7"] } } }).text).toBe("[]");
+  });
+  it("no two filled parts of an icon overlap (an overlap would be a hole under the even-odd rule): each pair is apart or one inside the other", () => {
+    // each part flattened to a polygon; sampled on a 0.08-unit grid
+    const polys = (name: string) => {
+      const out: [number, number][][] = []; let cur: [number, number][] = [], at: [number, number] = [0, 0];
+      for (const c of iconCmds(name, 0, 0, 1)) {
+        if (c[0] === "M") { if (cur.length) out.push(cur); cur = [[c[1], c[2]]]; at = [c[1], c[2]]; }
+        else if (c[0] === "L") { cur.push([c[1], c[2]]); at = [c[1], c[2]]; }
+        else if (c[0] === "C") { for (let k = 1; k <= 12; k++) { const t = k / 12, u = 1 - t; cur.push([u ** 3 * at[0] + 3 * u * u * t * c[1] + 3 * u * t * t * c[3] + t ** 3 * c[5], u ** 3 * at[1] + 3 * u * u * t * c[2] + 3 * u * t * t * c[4] + t ** 3 * c[6]]); } at = [c[5], c[6]]; }
+        else { out.push(cur); cur = []; }
+      }
+      if (cur.length) out.push(cur);
+      return out;
+    };
+    const inside = (p: [number, number][], x: number, y: number) => { let o = false; for (let i = 0, j = p.length - 1; i < p.length; j = i++) { const [xi, yi] = p[i], [xj, yj] = p[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) o = !o; } return o; };
+    for (const name of ICON_NAMES) {
+      const P = polys(name), pts: [number, number][] = [];
+      for (let x = .04; x < 24; x += .08) for (let y = .04; y < 24; y += .08) pts.push([x, y]);
+      const ins = P.map(p => pts.map(([x, y]) => inside(p, x, y)));
+      for (let a = 0; a < P.length; a++) for (let b = a + 1; b < P.length; b++) {
+        const both = pts.filter((_, k) => ins[a][k] && ins[b][k]).length, na = ins[a].filter(Boolean).length, nb = ins[b].filter(Boolean).length;
+        // apart, or one part wholly inside the other (a hole) – a few samples of tolerance along a shared edge
+        expect(both <= 3 || both >= Math.min(na, nb) - 3, `${name}: parts ${a} and ${b} overlap (${both} samples)`).toBe(true);
+      }
+    }
+  }, 60_000);
+});

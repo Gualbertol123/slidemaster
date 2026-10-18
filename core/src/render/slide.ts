@@ -64,6 +64,7 @@ export interface NotePart {
   cls: string;
   /** a bubble behind the text: a glass card (Liquid Glass) or a framed box (Excel designs); its radius */
   bubble: { cls: string; r: number } | null;
+  /** every line in this colour, headings too (a callout's text on a dark fill or on Consulting Red's panel) */ ink?: string;
 }
 /** table i's text boxes (empty ones only where they can be edited) */
 export function noteParts(R: RuntimeSlide, i: number, ctx: RenderCtx, opts: SlideOpts = {}): NotePart[] {

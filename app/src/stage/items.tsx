@@ -17,7 +17,7 @@ export function Items({ m, R, drag }: { m: StageModel; R: RuntimeSlide; drag: Dr
   return <>{m.items.map(p => {
     const d = drag?.kind === "item" && drag.id === p.id ? drag : null, b = d ? d.box : p.box, on = itemSel?.id === p.id;
     return <div key={p.id} className={"itembox" + (on ? " sel" : "") + (d?.moved ? " moving" : "") + (p.info?.issue ? " broken" : "")} data-item={p.id} data-kind={R.cfg.items?.[p.id]?.kind}
-      title={p.info?.issue ? "Chart: " + p.info.issue : undefined}
+      title={p.info?.issue ? (R.cfg.items?.[p.id]?.kind === "shape" ? "Callout: " : "Chart: ") + p.info.issue : undefined}
       style={{ left: b.x, top: b.y, width: b.w, height: b.h }}
       onDoubleClick={e => { const it = R.cfg.items?.[p.id]; if (it?.kind === "shape" && it.shape !== "icon") { e.stopPropagation(); setStage({ editor: { kind: "item", id: p.id } }); } }}
       onPointerDown={e => {
