@@ -33,7 +33,9 @@ export interface Dialogs {
   /** text styles & fonts dialog: which tab is open */ textStyles: "colors" | "styles" | "fonts" | "layout" | null;
   /** automated comment dialog for table `table` of the current slide */ comment: { table: number } | null;
   /** Export ▾ › Run for each value… (M8, B15) */ scenario: boolean;
+  /** choosing cells in the sheet view (M9): a new chart's, a chart's new cells, a cell a callout quotes */ pick: PickReq | null;
 }
+export type PickReq = { kind: "chart" } | { kind: "chart-cells"; id: string } | { kind: "cell"; id: string };
 /** the "Run for each value…" dialog's fields (M8, B15): UI state of this page, never the document; kept while the page
     is open so the dialog opens again as it was left */
 export interface ScenarioForm {
@@ -105,7 +107,7 @@ export const initialState = (): AppState => ({
   ui: {
     zoom: "fit", busy: null, exporting: false, toast: null, lookScope: "design", fontBusy: "", changedOnDisk: false, logoMissing: false, fontBuilds: [], health: null, others: [], calc: null,
     scenario: { input: "", values: "", asText: false, designs: [], versions: [""], value: "", broken: 0, runAnyway: false }, preview: null, run: null,
-    dialogs: { dialog: null, wizard: null, tables: false, textStyles: null, comment: null, scenario: false },
+    dialogs: { dialog: null, wizard: null, tables: false, textStyles: null, comment: null, scenario: false, pick: null },
   },
   prefs: { user: "", host: "", client: Math.random().toString(36).slice(2, 10) + Date.now().toString(36), prefs: {} },
 });

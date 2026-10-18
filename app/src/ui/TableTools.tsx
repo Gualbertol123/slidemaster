@@ -13,7 +13,7 @@ import { scaleColors } from "@slide-builder/core/render/scales";
 import { A1, uid, esc } from "@slide-builder/core/xlsx/util";
 import type { Op, ScaleRule, Side } from "@slide-builder/core/model/types";
 import { Dropdown } from "./Dropdown";
-import { insertChartFromRange, insertChartFromSelection } from "../editor/charts";
+import { insertChartFromSelection } from "../editor/charts";
 import { ShapeMenu, ShapeTools } from "./ShapeTools";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
 
@@ -69,22 +69,13 @@ function GridMenu({ close, T }: { close: () => void; T: import("@slide-builder/c
 
 const ROLES = [["auto", "Auto", "Detected from the Excel formatting"], ["header", "Header", "Column/row header"], ["total", "Total", "Highlighted total (tile)"], ["body", "Body", "Normal data"], ["caption", "Note", "Small note"]] as const;
 
-/** Insert chart ▾: from the selected cells (beside their table), or from a range of any sheet the wizard lists – a sheet on
-    no slide too, never a hidden one (WB-18) */
+/** Insert chart ▾: from the selected cells (beside their table), or cells chosen in the sheet view – any sheet the wizard
+    lists, a sheet on no slide too, never a hidden one (WB-18); no cell names typed (product owner 2026-10-19) */
 function ChartMenu({ close }: { close: () => void }) {
-  const sel = useStore(s => s.selection.sel), wb = useStore(s => s.deck.wb);
-  const sheets = (wb?.meta || []).map(m => m.name);
-  const [sheet, setSheet] = useState(sheets[0] || ""), [values, setValues] = useState(""), [labels, setLabels] = useState("");
+  const sel = useStore(s => s.selection.sel);
   return <div className="chartmenu">
     <button data-a="chart-sel" disabled={!sel} title={sel ? "" : "Select the cells of a table first"} onClick={() => { close(); insertChartFromSelection(); }}>From the selected cells<small>the numbers, and their names in the first column; beside the table</small></button>
-    <div className="sep" />
-    <div className="hd">From a range of a sheet</div>
-    <div className="optgrid">
-      <label>Sheet</label><select id="chartSheet" value={sheet} onChange={e => setSheet(e.target.value)}>{sheets.map(n => <option key={n} value={n}>{n}</option>)}</select>
-      <label>Numbers</label><input id="chartRange" placeholder="e.g. C5:C9" value={values} spellCheck={false} onChange={e => setValues(e.target.value)} />
-      <label>Names</label><input id="chartLabels" placeholder="e.g. B5:B9 (optional)" value={labels} spellCheck={false} onChange={e => setLabels(e.target.value)} />
-    </div>
-    <div className="wide"><button className="btn primary" id="chartInsert" onClick={() => { if (insertChartFromRange(sheet, values, labels)) close(); }}>Insert</button></div>
+    <button data-a="chart-pick" onClick={() => { close(); setDialogs({ pick: { kind: "chart" } }); }}>Choose the cells…<small>of any sheet: drag across the numbers, then their names</small></button>
   </div>;
 }
 

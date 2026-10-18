@@ -7,6 +7,7 @@ import { Topbar } from "./Topbar";
 import { Ribbon, FxBar } from "./Ribbon";
 import { Busy, Canvas, DeckHealth, Issues, Status, Thumbs, Toast } from "./Chrome";
 import { ChartPanel } from "./ChartPanel";
+import { PickCellsDialog } from "./PickCells";
 import { TableRibbon } from "./TableTools";
 import { TablesDialog } from "./TablesDialog";
 import { TextStylesDialog } from "./TextStylesDialog";
@@ -17,7 +18,7 @@ import { Wizard } from "../wizard/Wizard";
 
 export function App() {
   const changedOnDisk = useStore(s => s.ui.changedOnDisk), count = useStore(s => s.deck.slides.length);
-  const D = useStore(useShallow(s => ({ wizard: s.ui.dialogs.wizard, tables: s.ui.dialogs.tables, textStyles: !!s.ui.dialogs.textStyles, comment: !!s.ui.dialogs.comment, scenario: s.ui.dialogs.scenario, run: !!s.ui.run })));
+  const D = useStore(useShallow(s => ({ wizard: s.ui.dialogs.wizard, tables: s.ui.dialogs.tables, textStyles: !!s.ui.dialogs.textStyles, comment: !!s.ui.dialogs.comment, scenario: s.ui.dialogs.scenario, pick: !!s.ui.dialogs.pick, run: !!s.ui.run })));
   useEffect(() => {
     const over = (e: DragEvent) => { e.preventDefault(); document.body.classList.add("dragover"); };
     const leave = (e: DragEvent) => { if (!e.relatedTarget) document.body.classList.remove("dragover"); };
@@ -57,6 +58,7 @@ export function App() {
       {D.textStyles && <TextStylesDialog />}
       {D.comment && <CommentDialog />}
       {D.scenario && <ScenarioDialog />}
+      {D.pick && <PickCellsDialog />}
       {D.run && <ScenarioRun />}
       <Dialogs />{/* last: confirmations open above the wizard and the other dialogs */}
     </>

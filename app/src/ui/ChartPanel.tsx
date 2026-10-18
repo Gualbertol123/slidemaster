@@ -2,7 +2,7 @@
    numbers come from (as text), delete. Each control is one item.patch (one undo step). The slices and their colours are
    the ones the worker drew (the stage's item info): the page has no sheet cells of a chart's source. */
 import { useMemo } from "react";
-import { useStore } from "../state/store";
+import { setDialogs, useStore } from "../state/store";
 import { useStage } from "../stage/data";
 import type { ChartItem } from "@slide-builder/core/model/types";
 import { deleteItem, itemOf, itemPatch, refText, selectItem } from "../editor/charts";
@@ -43,6 +43,7 @@ export function ChartPanel() {
         {own && <button className="btn small" data-reset={s.i} title="The design's colour again" onClick={e => { e.stopPropagation(); set("Slice colour of the design", { colors: { [s.i]: null } }); }}>↺</button>}
       </div>;
     })}</div>}
+    <div className="row"><button className="btn small" id="chartCells" title="Choose other cells for this chart in the sheet view" onClick={() => setDialogs({ pick: { kind: "chart-cells", id } })}>Change the cells…</button></div>
     <div className="src" id="chartSource">Numbers: <code>{refText(c.values)}</code>{c.labels ? <> · names: <code>{refText(c.labels)}</code></> : null}{c.attach ? " · beside its table" : ""}</div>
     {info?.issue && <div className="err" id="chartIssue">{info.issue}</div>}
     <div className="row"><button className="btn small" id="chartDelete" onClick={deleteItem}>Delete chart</button></div>

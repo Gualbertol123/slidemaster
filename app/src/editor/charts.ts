@@ -43,14 +43,14 @@ export function insertChartFromSelection() {
   const values: DataRef = { table: T.def.id, range: multi ? range(sel.c2, sel.c2) : range(sel.c1, sel.c2) };
   return addChart(values, multi ? { table: T.def.id, range: range(sel.c1, sel.c1) } : null, { x: 0, y: 0, w: 520, h: 400 }, { table: T.def.id, side: "right" });
 }
-const RANGE = /^\$?[A-Za-z]{1,3}\$?\d{1,7}(:\$?[A-Za-z]{1,3}\$?\d{1,7})?$/;
-/** a chart of a range of any sheet the wizard lists (a sheet on no slide too), placed on the right half of the slide */
-export function insertChartFromRange(sheet: string, values: string, labels: string): string | null {
-  const v = values.trim(), l = labels.trim();
-  if (!sheet || !RANGE.test(v)) { toast("Type the cells of the numbers, e.g. C5:C9."); return null; }
-  if (l && !RANGE.test(l)) { toast("Type the cells of the names, e.g. B5:B9 – or leave it empty."); return null; }
-  const norm = (s: string) => s.replace(/\$/g, "").toUpperCase();
-  return addChart({ sheet, range: norm(v) }, l ? { sheet, range: norm(l) } : null, { x: 900, y: 200, w: 600, h: 440 }, null);
+/** a chart of cells chosen in the sheet view (PickCells.tsx: any sheet the wizard lists, a sheet on no slide too),
+    placed on the right half of the slide */
+export const insertChartRefs = (values: DataRef, labels: DataRef | null) => addChart(values, labels, { x: 900, y: 200, w: 600, h: 440 }, null);
+/** a cell quoted at the end of callout `id`'s text: {Sheet!C7}, a name with spaces or signs in quotes */
+export function quoteCell(id: string, sheet: string, ref: string) {
+  const it = itemOf(id); if (!it || it.kind !== "shape") return;
+  const name = /^[\w.[\]-]+$/.test(sheet) ? sheet : "'" + sheet.replace(/'/g, "''") + "'", cur = it.text || "";
+  itemPatch("Quote a cell", id, { text: cur + (cur && !/\s$/.test(cur) ? " " : "") + "{" + name + "!" + ref + "}" });
 }
 /** a new callout in the middle of the slide (an icon: a small square), selected; a shape opens for typing */
 export function insertShape(shape: ShapeItem["shape"], icon?: string) {

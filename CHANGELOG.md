@@ -7,8 +7,9 @@ Releases are made with `docs/next/release-checklist.md`.
 
 What users notice
 * **Charts** (B16): ribbon 2 › *Insert chart ▾* makes a pie of the selected cells (the last column's numbers, named by
-  the first, beside their table) or of any range of a sheet the wizard lists – a sheet that is on no slide too (hidden
-  sheets stay hidden). It follows the workbook: a reload or a scenario's preview draws it with the new numbers. Click
+  the first, beside their table) or of cells you choose in the sheet view (*Choose the cells…*: drag across the numbers,
+  then across their names – nothing to type), of any sheet the wizard lists, a sheet that is on no slide too (hidden
+  sheets stay hidden); *Change the cells…* in its side panel chooses others the same way. It follows the workbook: a reload or a scenario's preview draws it with the new numbers. Click
   a chart to select it (a click on a slice selects that slice), drag it anywhere (it snaps; Alt does not), drag its
   corner to resize it, Del removes it – each one undo step. Its side panel sets pie or donut, the labels (names,
   values, percent), the legend (right, below, none), the title, **a colour for each slice** (↺ back to the design's)
@@ -17,7 +18,8 @@ What users notice
   Red with their own chart palettes. Labels sit inside a slice when they fit, else outside with a leader line.
 * **Callouts** (B17): *Insert shape ▾* adds a rectangle, rounded rectangle, pill, circle, arrow or speech bubble, or
   one of 17 icons (arrows, check, warning, info, flag, star, bank, euro, percent, calendar, chart, target, bell, pin,
-  bulb, lock). Double-click (or Enter) to write its text; **{Sheet!C7}** quotes a cell as the workbook shows it (its
+  bulb, lock). Double-click (or Enter) to write its text; *Quote a cell…* picks a cell in the sheet view and adds it as
+  **{Sheet!C7}**, which quotes the cell as the workbook shows it (its
   number format) – {'Sheet name'!C7} for a name with spaces, {[Peers.xlsx]Peer!F7} for a linked workbook – and follows
   reloads and scenarios. Ribbon 2 sets the selected shape's fill, border (colour, weight, dashed, dotted, none) and
   text (size, bold, colour, alignment). Without a fill of its own a shape takes the design's material (glass, a framed

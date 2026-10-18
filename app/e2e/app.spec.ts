@@ -1030,8 +1030,16 @@ test.describe.serial("two people, one shared folder", () => {
     await pollFile(() => Object.values(items()).map(i => i.shape), { timeout: 10_000 }).toEqual(["pill"]);
     const id = Object.keys(items())[0];
     await page.locator(".itembox[data-kind=shape]").dblclick();
-    await page.locator("#itemEdit").fill("Bank: {Control!B2}");
+    await page.locator("#itemEdit").fill("Bank:");
     await page.keyboard.press("Control+Enter");
+    // the cell quoted from the sheet view (nothing typed): Quote a cell… › Control › B2
+    await page.locator(".itembox[data-kind=shape]").click();
+    await page.click("#shapeQuote");
+    await page.selectOption("#pkSheet", "Control");
+    await page.locator('#pkRange td[data-r="2"][data-c="2"]').click();
+    await expect(page.locator("#pkSel")).toHaveText("B2");
+    await page.click("#pkUse");
+    await pollFile(() => items()[id].text).toBe("Bank: {Control!B2}");
     const layer = page.locator(`#stage svg.layer.item[data-item="${id}"]`);
     await expect(layer).toContainText("Bank: Bank A", { timeout: 10_000 });         // CL-02: the cell's text
     await page.locator(".itembox[data-kind=shape]").click();
@@ -1293,17 +1301,41 @@ test.describe.serial("two people, one shared folder", () => {
     const chartLayer = page.locator("#stage svg.layer.item");
     // CH-02: Insert chart ▾ › from a range of a sheet that is on no slide (Numbers): the wizard's sheets, hidden ones not
     await page.click("#chartBtn");
-    await expect(page.locator("#chartSheet option")).toContainText(["SLIDE_1", "Numbers"]);
-    await expect(page.locator('#chartSheet option[value="Hidden data"]')).toHaveCount(0);
-    await page.selectOption("#chartSheet", "Numbers");
-    await page.fill("#chartRange", "b9:b11");
-    await page.click("#chartInsert");
+    // the cells chosen in the sheet view (no cell names typed: product owner 2026-10-19): the numbers, then their names
+    await page.click('[data-a="chart-pick"]');
+    await expect(page.locator("#pickCells")).toBeVisible();
+    await expect(page.locator("#pkSheet option")).toContainText(["SLIDE_1", "Numbers"]);
+    await expect(page.locator('#pkSheet option[value="Hidden data"]')).toHaveCount(0);
+    await page.selectOption("#pkSheet", "Numbers");
+    await expect(page.locator("#pkUse")).toBeDisabled();
+    await page.locator('#pkRange td[data-r="9"][data-c="2"]').click();
+    await page.locator('#pkRange td[data-r="11"][data-c="2"]').click({ modifiers: ["Shift"] });
+    await expect(page.locator("#pkSel")).toHaveText("B9:B11");
+    await page.click("#pkUse");                                                          // Next: their names
+    await expect(page.locator("#pickCells")).toContainText("Step 2 of 2");
+    await page.click("#pkNoNames");
+    await expect(page.locator("#pickCells")).toHaveCount(0);
     await expect(page.locator(".itembox[data-kind=chart]")).toHaveCount(1, { timeout: 10_000 });
     await pollFile(() => Object.values(items()).map(i => i.values), { timeout: 10_000 }).toEqual([{ sheet: "Numbers", range: "B9:B11" }]);
     const id = Object.keys(items())[0];
     await expect(chartLayer).toHaveCount(1);
     await expect(page.locator("#chartPanel")).toBeVisible();                       // the new chart is selected
     await expect(page.locator("#chartSource")).toContainText("Numbers!B9:B11");
+    await expect(page.locator("#chartSlices .slice")).toHaveCount(3);
+    // Change the cells…: the same sheet view; two of the numbers and their names, then back with undo
+    await page.click("#chartCells");
+    await expect(page.locator("#pkSheet")).toHaveValue("Numbers");
+    await page.locator('#pkRange td[data-r="9"][data-c="2"]').click();
+    await page.locator('#pkRange td[data-r="10"][data-c="2"]').click({ modifiers: ["Shift"] });
+    await page.click("#pkUse");
+    await page.selectOption("#pkSheet", "SLIDE_1");
+    await page.locator('#pkRange td[data-r="6"][data-c="3"]').click();
+    await page.locator('#pkRange td[data-r="7"][data-c="3"]').click({ modifiers: ["Shift"] });
+    await page.click("#pkUse");
+    await pollFile(() => [items()[id].values, items()[id].labels]).toEqual([{ sheet: "Numbers", range: "B9:B10" }, { sheet: "SLIDE_1", range: "C6:C7" }]);
+    await expect(page.locator("#chartSlices .nm")).toHaveText(["Alpha", "Beta"]);
+    await page.click("#undoBtn");
+    await pollFile(() => [items()[id].values, items()[id].labels]).toEqual([{ sheet: "Numbers", range: "B9:B11" }, undefined]);
     await expect(page.locator("#chartSlices .slice")).toHaveCount(3);
     await expect(page.locator("#issues")).not.toContainText("Chart 1");
     // the side panel: donut, values on the slices, a slice's colour – each one undo step

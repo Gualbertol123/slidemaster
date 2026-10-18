@@ -1,7 +1,7 @@
 /* Callouts on ribbon 2 (S9.4, B17; 07 §3): Insert shape ▾ (six shapes, the built-in icons) and, while a shape is
    selected, its fill, border and text – each change one item.patch (one undo step). Its text is edited on the slide
    (double-click, Enter); {Sheet!C7} quotes a cell, which follows reloads and scenarios. */
-import { useStore } from "../state/store";
+import { setDialogs, useStore } from "../state/store";
 import type { ShapeItem } from "@slide-builder/core/model/types";
 import { ICON_NAMES, iconCmds } from "@slide-builder/core/render/icons";
 import { arrowCmds, bubbleCmds, ellipseCmds } from "@slide-builder/core/render/shape-dl";
@@ -68,6 +68,7 @@ export function ShapeTools() {
           <div className="wide"><button data-ink="" onClick={() => { close(); set("Automatic text colour", { fmt: { color: null } }); }}>Automatic</button></div></>}
       </Dropdown>
       {(["left", "center", "right"] as const).map(a => <button key={a} className={"tb" + ((f.align || "center") === a ? " on" : "")} data-salign={a} title={a === "center" ? "Centre" : "Align " + a} onClick={() => set("Alignment", { fmt: { align: a === "center" ? null : a } })}>{a === "left" ? "⇤" : a === "center" ? "↔" : "⇥"}</button>)}
+      <button className="tb" id="shapeQuote" title="Quote a cell in the text: choose it in the sheet view (it shows what the cell shows, and follows the workbook)" onClick={() => setDialogs({ pick: { kind: "cell", id } })}>⌗ Quote a cell…</button>
       <button className="tb" id="shapeEdit" title="Write the text (double-click the shape, or Enter): {Sheet!C7} quotes a cell" onClick={() => setStage({ editor: { kind: "item", id } })}>✎ Text</button>
     </>}
   </div>;
