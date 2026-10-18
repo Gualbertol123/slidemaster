@@ -117,7 +117,12 @@ numbers measured twice). Measured numbers go into the step's line.
   value** (array formulas over their whole range too), so their dependants compute from it, and the run's report names
   such slide cells (`KeptCell.why`: text / linked / hidden); the first-use time on CI back within budget (a single TEXT
   call starts from its saved text). On the deck: 1,369 of 1,384 formulas exact, 11 kept (linked), 4 different (one
-  off-slide root, MASTER!S21); large corpus 22,956 / 22,956 in every case; G4 stand-in 154 / 154.
+  off-slide root, MASTER!S21); large corpus 22,956 / 22,956 in every case; G4 stand-in 154 / 154. Commits 9c7b806, 8fea458,
+  6cbc28f (review fixes: INDEX before A and reversed, whole columns, `KeptCell.why`, array formulas kept whole). Clean
+  clones of 8fea458 (c11) and 6cbc28f (c12): check 651 / 653 + 44, helper OK on 3.12 and 3.8, e2e 30, parity and
+  dlparity 0 not accepted, bench within limits (first use 211 / 207 ms, scenario_one 456 / 543 ms; longest_task 0 / 52
+  ms – the second over 50 within the +10 % tolerance, on a path this change does not touch: load on this PC). Review of
+  8fea458: REQUEST CHANGES → fixed in 6cbc28f → APPROVE. verified: tests ✓ clean clone ✓ review ✓
 
 ### M9 · Charts and callouts (4.3.0; B16, B17, B19, B24; ADR-015)
 - [ ] S9.1 · `item.patch`
