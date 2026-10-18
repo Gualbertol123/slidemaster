@@ -164,6 +164,14 @@ describe("callouts from a shared document and in their surroundings (review S9.4
     expect(fills("tx")).toEqual(["null" + JSON.stringify({ solid: [255, 255, 255] })]);
     for (const id of ["ci", "tx"]) for (const t of flat(part(dl.nodes, id)).filter((n): n is TextNode => n.t === "text")) expect(t.fill, id).toEqual({ solid: [255, 255, 255] });
   });
+  it("a consulting callout on a dark fill: the bullet glyph and the heading bar follow the white ink too", async () => {
+    const { build } = await setup("bain", { k: { kind: "shape", shape: "rect", text: "# Heading\n- item one", fill: "#1F1F1F", box: { x: 600, y: 300, w: 420, h: 220 } } });
+    const p = flat(part(build().nodes, "k"));
+    const bullet = p.find((n): n is TextNode => n.t === "text" && n.src.trim() === "►");
+    expect(bullet && bullet.fill).toEqual({ solid: [255, 255, 255] });
+    const bar = p.find(n => n.t === "rect" && n.w === 24 && n.h === 3);
+    expect(bar).toMatchObject({ fill: { solid: [255, 255, 255] } });
+  });
   it("a consulting arrow is filled with the accent and takes white text (08's callout hooks)", async () => {
     const { ctx, env } = await setup("mckinsey");
     const out = shapeNodes({ kind: "shape", shape: "arrow", text: "Next", box }, "a", box, ctx, env);

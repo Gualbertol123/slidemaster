@@ -256,7 +256,7 @@ export function Topbar() {
       <Others />
       <div className="spacer" />
       <div className="seg" title="Slide design (saved with this workbook)">
-        {([["glass", <><span className="lg">Liquid </span>Glass</>, "Liquid Glass: light glass surfaces over a coloured background"], ["excel", "Excel", "Excel: the workbook's tables exactly as they are – nothing added"], ["clean", <><span className="lg">Excel </span>Refined</>, "Excel Refined: the workbook's tables in one consistent, polished style, with comments and text boxes"],
+        {([["glass", <><span className="lg">Liquid </span>Glass</>, "Liquid Glass: light glass surfaces over a coloured background"], ["excel", "Excel", "Excel: the workbook's tables exactly as they are, no decoration added – your text boxes, comments, notes, charts and callouts are drawn too"], ["clean", <><span className="lg">Excel </span>Refined</>, "Excel Refined: the workbook's tables in one consistent, polished style"],
           ["mckinsey", <><span className="lg">Consulting </span>Navy</>, "Consulting Navy: a consulting-report look – serif action titles, hairline rules, navy and blue"],
           ["bain", <><span className="lg">Consulting </span>Red</>, "Consulting Red: a consulting-report look – bold red accents, black table headers, takeaway boxes"]] as const).map(([d, l, t]) =>
           <button key={d} data-design={d} disabled={!has} title={t} className={st.design === d ? "on" : ""} onClick={() => styleChange("Design", { design: d })}>{l}</button>)}
