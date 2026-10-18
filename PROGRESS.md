@@ -355,6 +355,17 @@ numbers measured twice). Measured numbers go into the step's line.
 
 ## Waiting for
 
+- **CI bench on GitHub's runners, for the product owner (2026-10-18, flagged – an agent does not change a Part F
+  budget):** the two CI runs of d526d53 failed the bench on different gates – run 1 the page's untimed limits
+  (longest_task_ms 58, longest_navy_task_ms 62 vs 50; thumbs_gap_ms 50.1 vs 20), run 2 the engine's first use (359 ms
+  vs 300 × 1.02 + 10 % = 336). On this PC both pass with margin (clean clones c11/c12: first use 211 / 207 ms, thumbs
+  gap 17.1 / 17.3 ms), and M8 is not the cause: main 19aed75 vs d526d53 on this PC, twice each, first use 207 / 206 vs
+  214 / 222 ms (+5 %, the TEXT set-up), one value 76 / 74 vs 41 / 42 ms. The runner runs the WASM ≈ 1.6× slower than
+  this PC while the calibration (a JS loop) scales the limit by ≈ 1.0, and the page's untimed limits are not scaled at
+  all. Options, yours to choose: (a) re-run failed jobs until green (as now); (b) on CI, scale the engine's first use
+  by a WASM calibration too, and the untimed page limits by the calibration; (c) make the bench job informational on
+  CI and keep the gate on the reference PC (AUDIT §0 runs it there).
+
 - **M8 · gate G5, for the product owner (2026-10-17):** M8 is done on `v4/M8-scenario-export` (S8.1–S8.5, not pushed).
   (1) **Push and open ONE pull request** "M8 · Scenario export – Run for each value (S8.1–S8.5)" (text:
   `%TEMP%\sb-work\pr-M8.md`); merge it when CI is green. (2) **G5:** on a real deck, *Export ▾ › Run for each
