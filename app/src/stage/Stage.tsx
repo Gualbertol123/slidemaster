@@ -27,6 +27,7 @@ import { borderDrag, gripDrag, noteEdge, noteMove, noteStretch, resizeDrag, stre
 import { editOf, stageModel, type NotePlace, type Rect, type StageModel } from "./model";
 import { PlainLayer, TableLayer, type Box } from "./SlideSvg";
 import { CellEditor, NoteEditor, TextEditor } from "./editors";
+import { Items } from "./items";
 
 const SIDES: Side[] = ["top", "bottom", "left", "right"];
 
@@ -73,14 +74,15 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
       <div ref={slideRef} className={frame.className} style={{ transform: `scale(${s})`, ...vars }}
         onPointerDown={e => {
           // a click on the empty slide clears every selection
-          if ((e.target as Element).closest(".hits,.tnote,.hbox,[data-edit]")) return;
-          const { sel, noteSel, textSel } = get().selection;
-          if (sel || noteSel || textSel) patch("selection", { sel: null, textSel: null, noteSel: null });
+          if ((e.target as Element).closest(".hits,.tnote,.hbox,.itembox,[data-edit]")) return;
+          const { sel, noteSel, textSel, itemSel } = get().selection;
+          if (sel || noteSel || textSel || itemSel) patch("selection", { sel: null, textSel: null, noteSel: null, itemSel: null });
         }}>
         <Layers m={m} layers={live.layers} drag={drag} armed={armed} />
         <div className="ovl">
           <TextLayer hits={m.hits} />
           <Notes m={m} R={R} drag={drag} />
+          <Items m={m} R={R} drag={drag} />
           {m.tables.map(t => <TableHits key={t.i} i={t.i} R={R} c={c} box={boxOf(t.i, t.box, drag)} s={s} />)}
           {m.tables.map(t => <HBox key={t.i} i={t.i} R={R} c={c} m={m} box={boxOf(t.i, t.box, drag)} drag={drag} slide={slideRef} />)}
           <Selection m={m} s={s} drag={drag} />
@@ -106,6 +108,11 @@ function Layers({ m, layers, drag, armed }: { m: StageModel; layers: import("@sl
   let f = 0, nk = 0;
   return <>{layers.map(l => {
     if (l.table !== null && l.box) return <TableLayer key={"t" + l.table} layer={l} to={drag?.kind === "resize" ? boxOf(l.table, l.box, drag) : null} armed={armed} />;
+    if (l.item) {
+      // a slide item: shifted while it is dragged (its new place is drawn on the drop)
+      const d = drag?.kind === "item" && drag.id === l.item && drag.moved && l.box ? drag : null;
+      return <PlainLayer key={"i" + l.item} layer={l} dx={d ? d.box.x - l.box!.x : 0} dy={d ? d.box.y - l.box!.y : 0} />;
+    }
     if (l.note) {
       const k = nk++, place = m.notes.find(n => n.layer === l), [dx, dy] = place ? noteShift(place, drag) : [0, 0];
       // a text box being stretched shows its text itself (Notes), until the slide drawn with the change replaces the drop's preview
@@ -258,7 +265,8 @@ function Selection({ m, s, drag }: { m: StageModel; s: number; drag: DragPreview
 /* ---- guides: where a table will go (grip), what a text box lines up with */
 function Guides({ drag, s }: { drag: DragPreview | null; s: number }) {
   if (drag?.kind === "grip") return <div className="dropmark" style={drag.mark ? { display: "block", left: drag.mark.x, top: drag.mark.y, width: drag.mark.w, height: drag.mark.h } : undefined} />;
-  if (drag?.kind === "note" && !drag.done) return <>
+  if ((drag?.kind === "note" || drag?.kind === "item") && !drag.done) return <>
+    {drag.kind === "item" && !drag.moved && <div className="itemguide" style={{ left: drag.box.x, top: drag.box.y, width: drag.box.w, height: drag.box.h }} />}
     {drag.v !== null && <div className="snapline v" style={{ display: "block", left: drag.v, width: 1.5 / Math.min(1, s) }} />}
     {drag.h !== null && <div className="snapline h" style={{ display: "block", top: drag.h, height: 1.5 / Math.min(1, s) }} />}
   </>;

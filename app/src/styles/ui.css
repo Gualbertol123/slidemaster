@@ -129,6 +129,30 @@ button{cursor:pointer}
 .slide .selbox{position:absolute;pointer-events:none;background:rgba(10,102,216,.10);box-shadow:inset 0 0 0 1.5px rgba(10,102,216,.9);z-index:2}
 .slide .actbox{position:absolute;pointer-events:none;box-shadow:inset 0 0 0 2.5px #0A66D8,0 0 0 1px rgba(255,255,255,.9);z-index:3}
 .slide .hbox{position:absolute;pointer-events:none;z-index:45}
+.slide .itembox{position:absolute;z-index:46;cursor:move;border-radius:4px;pointer-events:auto}
+.slide .itembox:hover{outline:1px dashed rgba(10,102,216,.55);outline-offset:2px}
+.slide .itembox.sel{outline:2px solid #0A66D8;outline-offset:2px}
+.slide .itembox.broken{outline:1px dashed rgba(200,40,30,.6)}
+.slide .itembox .size{position:absolute;right:-14px;bottom:-14px;width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid #0A66D8;cursor:nwse-resize;box-shadow:0 2px 8px rgba(10,102,216,.35)}
+.slide .itembox .slicemark{position:absolute;border-radius:50%;background:#fff;border:3px solid #0A66D8;pointer-events:none}
+.slide .itemguide{position:absolute;outline:2px dashed rgba(10,102,216,.8);pointer-events:none;z-index:47}
+.chartpanel{padding:8px 12px;border-top:1px solid var(--line,#e3e5ea);font-size:12px}
+.chartpanel h4{margin:0 0 6px}
+.chartpanel .row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 0}
+.chartpanel .lbl{width:48px;color:#5B6274}
+.chartpanel .chk{display:inline-flex;align-items:center;gap:3px}
+.chartpanel .ctitle{flex:1;min-width:80px}
+.chartpanel .slices{max-height:180px;overflow:auto;margin:6px 0}
+.chartpanel .slice{display:flex;align-items:center;gap:6px;padding:2px 4px;border-radius:4px;cursor:pointer}
+.chartpanel .slice.on{background:rgba(10,102,216,.12)}
+.chartpanel .slice .sw{position:relative;width:16px;height:16px}
+.chartpanel .slice .sw input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.chartpanel .slice .sw i{display:block;width:16px;height:16px;border-radius:3px;border:1px solid rgba(0,0,0,.15)}
+.chartpanel .slice .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chartpanel .src{color:#5B6274;margin:4px 0}
+.chartpanel .err{color:#C42B1C;margin:4px 0}
+.chartmenu{padding:6px;min-width:300px}
+.chartmenu .optgrid{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;margin:4px 0}
 .slide .hbox .grip,.slide .hbox .size{position:absolute;pointer-events:auto;opacity:0;transition:opacity .12s}
 .stagewrap:hover .hbox .grip,.stagewrap:hover .hbox .size,.slide .hbox.active .grip,.slide .hbox.active .size{opacity:1}
 .slide .hbox .grip{left:-2px;top:-34px;height:28px;padding:0 10px;border-radius:14px;background:#0A66D8;color:#fff;font:600 13px/28px var(--font);cursor:grab;user-select:none;white-space:nowrap;box-shadow:0 3px 10px rgba(10,102,216,.35)}

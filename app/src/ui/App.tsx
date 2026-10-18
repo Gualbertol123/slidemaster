@@ -6,6 +6,7 @@ import { backend } from "../sync/api";
 import { Topbar } from "./Topbar";
 import { Ribbon, FxBar } from "./Ribbon";
 import { Busy, Canvas, DeckHealth, Issues, Status, Thumbs, Toast } from "./Chrome";
+import { ChartPanel } from "./ChartPanel";
 import { TableRibbon } from "./TableTools";
 import { TablesDialog } from "./TablesDialog";
 import { TextStylesDialog } from "./TextStylesDialog";
@@ -41,6 +42,7 @@ export function App() {
           <aside className="nav">
             <div className="navhd"><span>SLIDES <span id="slideCount" style={{ fontWeight: "500", marginLeft: "4px" }}>{count || ""}</span></span></div>
             <Thumbs />
+            <ChartPanel />
             <Issues />
             <DeckHealth />
           </aside>

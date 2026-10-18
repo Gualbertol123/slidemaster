@@ -1,0 +1,60 @@
+/* Charts on slides (S9.3, B16; docs/next/07 §2.2, §3): insert one from the selected cells or from a range of a sheet the
+   wizard lists, select it (and one of its slices), change it, delete it – every change one `item.patch` operation
+   (state/app.ts change), so each is one undo step. Moves and resizes are drags (stage/drags.ts itemMove / itemResize). */
+import { get, patch, toast } from "../state/store";
+import { change } from "../state/app";
+import type { ChartItem, DataRef, Item, ItemPatch, Op, RuntimeSlide } from "@slide-builder/core/model/types";
+import { A1 } from "@slide-builder/core/xlsx/util";
+import { curSlide } from "./edit";
+
+/** a new item's id: short, random (as table and slide ids) */
+export const newItemId = () => "i" + Math.random().toString(36).slice(2, 9);
+export const itemOf = (id: string | null | undefined, R: RuntimeSlide | null = curSlide()): Item | null => (id && R?.cfg.items?.[id]) || null;
+/** the selected item (and slice) of the current slide */
+export const selectedItem = () => { const s = get().selection.itemSel; return s ? { ...s, it: itemOf(s.id) } : null; };
+/** selects item `id` (null clears); a slice of a chart with `slice` */
+export function selectItem(id: string | null, slice: number | null = null) {
+  patch("selection", id ? { itemSel: { id, slice }, sel: null, noteSel: null, textSel: null } : { itemSel: null });
+}
+/** one change of item `id` of the current slide */
+export function itemPatch(label: string, id: string, p: ItemPatch | null) {
+  const R = curSlide(); if (!R) return;
+  change(label, [{ op: "item.patch", slide: R.id, id, patch: p } as Op]);
+}
+export function deleteItem() {
+  const s = selectedItem(); if (!s?.it) return;
+  itemPatch(s.it.kind === "chart" ? "Remove chart" : "Remove shape", s.id, null);
+  selectItem(null);
+}
+/** a new chart: a pie with the shares on the slices and the legend on the right */
+function addChart(values: DataRef, labels: DataRef | null, box: ChartItem["box"], attach: ChartItem["attach"] | null) {
+  const R = curSlide(); if (!R) return null;
+  const id = newItemId(), it: ChartItem = { kind: "chart", type: "pie", values, ...(labels ? { labels } : {}), show: ["percent"], legend: "right", box, ...(attach ? { attach } : {}) };
+  change("Insert chart", [{ op: "item.patch", slide: R.id, id, patch: it } as Op]);
+  selectItem(id);
+  return id;
+}
+/** a chart of the selected cells, beside their table on the right: the last column's numbers, named by the first
+    column when more than one is selected (a column or a row alone: the headers beside it name the values) */
+export function insertChartFromSelection() {
+  const R = curSlide(), sel = get().selection.sel, T = sel && R ? R.tables[sel.t] : null;
+  if (!R || !sel || !T?.def) { toast("Select the cells of a table first (the numbers, and their names on the left if you like)."); return null; }
+  const range = (c1: number, c2: number) => A1(sel.r1, c1) + ":" + A1(sel.r2, c2), multi = sel.c2 > sel.c1 && sel.r2 > sel.r1;
+  const values: DataRef = { table: T.def.id, range: multi ? range(sel.c2, sel.c2) : range(sel.c1, sel.c2) };
+  return addChart(values, multi ? { table: T.def.id, range: range(sel.c1, sel.c1) } : null, { x: 0, y: 0, w: 520, h: 400 }, { table: T.def.id, side: "right" });
+}
+const RANGE = /^\$?[A-Za-z]{1,3}\$?\d{1,7}(:\$?[A-Za-z]{1,3}\$?\d{1,7})?$/;
+/** a chart of a range of any sheet the wizard lists (a sheet on no slide too), placed on the right half of the slide */
+export function insertChartFromRange(sheet: string, values: string, labels: string): string | null {
+  const v = values.trim(), l = labels.trim();
+  if (!sheet || !RANGE.test(v)) { toast("Type the cells of the numbers, e.g. C5:C9."); return null; }
+  if (l && !RANGE.test(l)) { toast("Type the cells of the names, e.g. B5:B9 – or leave it empty."); return null; }
+  const norm = (s: string) => s.replace(/\$/g, "").toUpperCase();
+  return addChart({ sheet, range: norm(v) }, l ? { sheet, range: norm(l) } : null, { x: 900, y: 200, w: 600, h: 440 }, null);
+}
+/** how the side panel names where a chart's numbers come from ("Summary!C5:C9", a table's sheet for a table's range) */
+export function refText(ref: DataRef | undefined): string {
+  if (!ref) return "–";
+  if ("table" in ref) { const t = get().doc.view?.preset?.tables.find(x => x.id === ref.table); return (t?.sheet || "(table removed)") + "!" + ref.range; }
+  return ref.sheet + "!" + ref.range;
+}

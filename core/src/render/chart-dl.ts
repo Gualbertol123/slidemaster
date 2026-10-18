@@ -68,6 +68,8 @@ export function chartData(it: ChartItem, ctx: RenderCtx): ChartData {
   const T = refTarget(it.values, ctx), source = T.source;
   if (!T.S || !T.g) return { ok: false, source, why: "missing" };
   const S = T.S, g = T.g, L = it.labels ? refTarget(it.labels, ctx) : null;
+  // (labels on another sheet object – a linked book reloaded, one sheet of a scenario's view – are not cached here)
+  if (L?.S && L.S !== S) return resolve(S, g, L, it, ctx, source);
   const key = JSON.stringify([g, it.labels ? [L!.sheet, L!.g] : null, it.series ?? null, ctx.edits[S.name] || null, L?.S && L.S !== S ? ctx.edits[L.S.name] || null : null, ctx.version?.hide || null]);
   let m = DATA.get(S); if (!m) DATA.set(S, m = new Map());
   const hit = m.get(key); if (hit) return hit;
@@ -139,10 +141,14 @@ export function chartLook(ctx: RenderCtx, family: string): ChartLook {
   return { colors: [P.accent, ...OFFICE.filter(c => c !== P.accent.toUpperCase())], other: null, sep: { w: 1, color: d === "clean" ? [255, 255, 255] : bg.c, a: 1 },
     gradient: false, family, ink: "#16181D", legend: "square", card: d === "clean" ? "plain" : null, pad: d === "clean" ? 14 : 6 };
 }
-const colourOf = (it: ChartItem, look: ChartLook, i: number) => {
+/** slice i's colour of n: its own, else the design's palette – which never gives the last slice the first one's colour
+    (they touch at 12 o'clock) */
+const colourOf = (it: ChartItem, look: ChartLook, i: number, n = 0) => {
   const own = it.colors?.[String(i)];
   if (typeof own === "string" && HEX.test(own)) return own.toUpperCase();
-  return i < look.colors.length || !look.other ? look.colors[i % look.colors.length] : look.other;
+  if (i >= look.colors.length && look.other) return look.other;
+  const L = look.colors.length, k = i % L;
+  return n > 1 && i === n - 1 && k === 0 && L > 1 ? look.colors[1] : look.colors[k];
 };
 
 /* ---- geometry ---- */
@@ -173,8 +179,8 @@ export function sliceCmds(cx: number, cy: number, r: number, ri: number, a0: num
 }
 /** where a chart's parts go inside its box: the title line, the legend, the pie's centre and radii, each slice's angles
     (the stage's slice picking uses the same numbers, so a click selects the slice drawn under it) */
-export interface PieGeom { cx: number; cy: number; r: number; ri: number; slices: { i: number; a0: number; a1: number }[] }
-export function sliceAt(G: PieGeom, x: number, y: number): number | null {
+export interface PieGeom { cx: number; cy: number; r: number; ri: number; slices: { i: number; a0: number; a1: number; label: string; color: string }[] }
+export function sliceAt(G: { cx: number; cy: number; r: number; ri: number; slices: { i: number; a0: number; a1: number }[] }, x: number, y: number): number | null {
   const dx = x - G.cx, dy = y - G.cy, d = Math.hypot(dx, dy);
   if (d > G.r || d < G.ri) return null;
   let a = Math.atan2(dx, -dy) / RAD; if (a < 0) a += 360;
@@ -205,8 +211,10 @@ export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, 
   const { x, y, w, h } = box, look = chartLook(ctx, env.family), data = chartData(it, ctx), rk = ctx.style.radius / 100;
   const note = deckFmt(ctx, "note"), f = it.fmt || {};
   const base: St = { family: f.font ? fontStack(f.font) : note.font ? fontStack(note.font) : look.family, size: 14, weight: 400, italic: false, color: look.ink };
-  const lab: St = { ...base, size: f.size && f.size > 0 ? +f.size : 14, weight: f.b ? 700 : 400, italic: !!f.i, color: HEX.test(f.color || "") ? f.color! : HEX.test(note.color || "") ? note.color! : look.ink };
-  const ttl: St = { ...base, size: note.size && note.size > 0 ? +note.size : 18, weight: note.b === false ? 400 : 700, italic: !!note.i, color: HEX.test(note.color || "") ? note.color! : look.ink };
+  // sizes from a shared document: finite, 6–72 px (an item's fmt is map-merged without checks)
+  const px = (v: unknown, d: number) => { const n = +(v as number); return Number.isFinite(n) && n > 0 ? Math.max(6, Math.min(72, n)) : d; };
+  const lab: St = { ...base, size: px(f.size, 14), weight: f.b ? 700 : 400, italic: !!f.i, color: HEX.test(f.color || "") ? f.color! : HEX.test(note.color || "") ? note.color! : look.ink };
+  const ttl: St = { ...base, size: px(note.size, 18), weight: note.b === false ? 400 : 700, italic: !!note.i, color: HEX.test(note.color || "") ? note.color! : look.ink };
   const hitNode: Node = { t: "hit", kind: "item", id, x: r2(x), y: r2(y), w: r2(w), h: r2(h), ...(data.ok ? { label: titleOf(it, data) } : {}) };
   const inner: Node[] = [];
   let issue: string | null = null, geom: PieGeom | null = null;
@@ -224,7 +232,7 @@ export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, 
     const legendPos = it.legend === "bottom" || it.legend === "none" ? it.legend : "right";
     // the legend: one entry per value, a swatch and the label
     const sw = look.legend === "capsule" ? { w: 18, h: 10, r: 5 } : look.legend === "line" ? { w: 16, h: 2, r: 0 } : { w: 10, h: 10, r: 0 };
-    const rowH = Math.max(18, Math.round(lab.size * 1.45)), entries = data.slices.map((s, i) => ({ i, label: s.label, color: colourOf(it, look, i) }));
+    const rowH = Math.max(18, Math.round(lab.size * 1.45)), entries = data.slices.map((s, i) => ({ i, label: s.label, color: colourOf(it, look, i, data.slices.length) }));
     let plot = { x: X0, y: top, w: W0, h: Math.max(10, Y0 + H0 - top) };
     const legend: Node[] = [];
     // (the right legend is placed once the pie's size is known: beside it, the two centred in the box)
@@ -243,11 +251,12 @@ export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, 
       const items = entries.map(e => ({ ...e, tw: Math.min(W0 - sw.w - 8, m.run(e.label, font(lab)).w) }));
       const lines: (typeof items)[] = [[]]; let lw = 0;
       for (const e of items) { const ew = sw.w + 8 + e.tw + 18; if (lw + ew > W0 && lines[lines.length - 1].length) { lines.push([]); lw = 0; } lines[lines.length - 1].push(e); lw += ew; }
-      const shownLines = lines.slice(0, 3), ly0 = Y0 + H0 - shownLines.length * rowH;
+      const shownLines = lines.slice(0, 3), ly0 = Y0 + H0 - shownLines.length * rowH, more = items.length - shownLines.reduce((s, l) => s + l.length, 0);
+      if (more > 0) { const last = shownLines[2]; last.splice(last.length - 1, 1, { ...last[last.length - 1], label: `+${more + 1} more`, color: "" }); }
       shownLines.forEach((line, k) => {
         const full = line.reduce((s, e) => s + sw.w + 8 + e.tw + 18, -18); let xx = X0 + (W0 - full) / 2;
         for (const e of line) {
-          legend.push({ t: "rect", x: r2(xx), y: r2(ly0 + k * rowH + (rowH - sw.h) / 2), w: sw.w, h: sw.h, ...(sw.r ? { r: sw.r } : {}), fill: solid(e.color) });
+          if (e.color) legend.push({ t: "rect", x: r2(xx), y: r2(ly0 + k * rowH + (rowH - sw.h) / 2), w: sw.w, h: sw.h, ...(sw.r ? { r: sw.r } : {}), fill: solid(e.color) });
           legend.push(textNode(m, ellipsis(m, e.label, lab, e.tw), xx + sw.w + 8, ly0 + k * rowH + (rowH - Math.round(lab.size * 1.25)) / 2, lab));
           xx += sw.w + 8 + e.tw + 18;
         }
@@ -260,15 +269,16 @@ export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, 
     const parts = data.slices.map((s, i) => {
       const span = total > 0 ? Math.abs(s.v) / total * 360 : 0, a0 = a; a += span;
       const words = [...(show.includes("label") ? [s.label] : []), ...(show.includes("value") ? [s.text] : []), ...(show.includes("percent") ? [pct(total > 0 ? Math.abs(s.v) / total : 0)] : [])];
-      return { i, a0, a1: a0 + span, span, color: colourOf(it, look, i), words };
+      return { i, a0, a1: a0 + span, span, color: colourOf(it, look, i, data.slices.length), words };
     }).filter(p => p.span > 0);
     // room around the pie for labels outside the thin slices: their leader and a line of text
     const thin = parts.length > 1 && parts.some(p => p.span < 30 && p.words.length), lh = Math.round(lab.size * 1.25);
     const r = Math.max(8, Math.min(plot.w / 2 - (thin ? 30 + 4 * lab.size : 2), plot.h / 2 - (thin ? 20 + lh : 2)));
     const outer = r + (thin ? 30 + 4 * lab.size : 0), group = legendRight ? Math.min(W0, 2 * outer + 16 + lwRight) : plot.w;
-    const cx = legendRight ? X0 + (W0 - group) / 2 + outer : plot.x + plot.w / 2, cy = plot.y + plot.h / 2, ri = it.type === "donut" ? r2(r * .58) : 0;
+    // (the pie stays inside its box however much room its outside labels ask for)
+    const cx = Math.max(X0 + r, Math.min(X0 + W0 - r, legendRight ? X0 + (W0 - group) / 2 + outer : plot.x + plot.w / 2)), cy = plot.y + plot.h / 2, ri = it.type === "donut" ? r2(r * .58) : 0;
     legendRight?.(Math.min(X0 + W0 - lwRight, cx + outer + 16));
-    geom = { cx: r2(cx), cy: r2(cy), r: r2(r), ri, slices: parts.map(p => ({ i: p.i, a0: p.a0, a1: p.a1 })) };
+    geom = { cx: r2(cx), cy: r2(cy), r: r2(r), ri, slices: parts.map(p => ({ i: p.i, a0: p.a0, a1: p.a1, label: data.slices[p.i].label, color: p.color })) };
     const sep: Paint = { solid: look.sep.color, a: look.sep.a };
     const slices: Node[] = [], labels: Node[] = [], hits: Node[] = [];
     const outside: { p: typeof parts[number]; y: number; right: boolean; lines: string[] }[] = [];
@@ -300,11 +310,16 @@ export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, 
     // outside labels: a leader from the slice's edge, the text beyond it; on each side pushed apart so none overlap
     for (const right of [true, false]) {
       const side = outside.filter(o => o.right === right).sort((p, q) => p.y - q.y);
-      for (let k = 1; k < side.length; k++) if (side[k].y < side[k - 1].y + lh) side[k].y = side[k - 1].y + lh;
+      const lo = plot.y + lh / 2, hi = Math.max(lo, plot.y + plot.h - lh / 2);
+      for (let k = 0; k < side.length; k++) side[k].y = Math.max(lo, k ? Math.max(side[k].y, side[k - 1].y + lh) : side[k].y);
+      // pushed past the bottom: the column moves up as a whole
+      for (let k = side.length - 1; k >= 0; k--) side[k].y = Math.min(side[k].y, k === side.length - 1 ? hi : side[k + 1].y - lh);
       for (const o of side) {
-        const mid = (o.p.a0 + o.p.a1) / 2, [ex, ey] = at(cx, cy, r, mid), [kx] = at(cx, cy, r + 12, mid), tx = right ? Math.max(kx, cx) + 8 : Math.min(kx, cx) - 8;
+        // the text starts beyond the circle at the label's own height (a label pushed down never lands on the slices)
+        const mid = (o.p.a0 + o.p.a1) / 2, [ex, ey] = at(cx, cy, r, mid), [kx] = at(cx, cy, r + 12, mid), ext = Math.sqrt(Math.max(0, (r + 6) ** 2 - (o.y - cy) ** 2));
+        const tx = right ? Math.max(kx, cx + ext) + 8 : Math.min(kx, cx - ext) - 8, room = right ? X0 + W0 - tx : tx - X0;
         labels.push({ t: "line", x1: r2(ex), y1: r2(ey), x2: r2(tx + (right ? -4 : 4)), y2: r2(o.y), stroke: { w: 1, paint: solid(look.ink === "#FFFFFF" ? "#FFFFFF" : "#8A93A3") } });
-        labels.push(textNode(m, o.lines[0], tx, o.y - lh / 2, lab, right ? "left" : "right"));
+        labels.push(textNode(m, ellipsis(m, o.lines[0], lab, Math.max(10, room)), tx, o.y - lh / 2, lab, right ? "left" : "right"));
       }
     }
     inner.push(...slices, ...labels, ...legend, ...hits);

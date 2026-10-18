@@ -13,6 +13,7 @@ import { scaleColors } from "@slide-builder/core/render/scales";
 import { A1, uid, esc } from "@slide-builder/core/xlsx/util";
 import type { Op, ScaleRule, Side } from "@slide-builder/core/model/types";
 import { Dropdown } from "./Dropdown";
+import { insertChartFromRange, insertChartFromSelection } from "../editor/charts";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
 
 const uniq = (a: number[]) => [...new Set(a.map(v => Math.round(v)))];
@@ -67,6 +68,25 @@ function GridMenu({ close, T }: { close: () => void; T: import("@slide-builder/c
 
 const ROLES = [["auto", "Auto", "Detected from the Excel formatting"], ["header", "Header", "Column/row header"], ["total", "Total", "Highlighted total (tile)"], ["body", "Body", "Normal data"], ["caption", "Note", "Small note"]] as const;
 
+/** Insert chart ▾: from the selected cells (beside their table), or from a range of any sheet the wizard lists – a sheet on
+    no slide too, never a hidden one (WB-18) */
+function ChartMenu({ close }: { close: () => void }) {
+  const sel = useStore(s => s.selection.sel), wb = useStore(s => s.deck.wb);
+  const sheets = (wb?.meta || []).map(m => m.name);
+  const [sheet, setSheet] = useState(sheets[0] || ""), [values, setValues] = useState(""), [labels, setLabels] = useState("");
+  return <div className="chartmenu">
+    <button data-a="chart-sel" disabled={!sel} title={sel ? "" : "Select the cells of a table first"} onClick={() => { close(); insertChartFromSelection(); }}>From the selected cells<small>the numbers, and their names in the first column; beside the table</small></button>
+    <div className="sep" />
+    <div className="hd">From a range of a sheet</div>
+    <div className="optgrid">
+      <label>Sheet</label><select id="chartSheet" value={sheet} onChange={e => setSheet(e.target.value)}>{sheets.map(n => <option key={n} value={n}>{n}</option>)}</select>
+      <label>Numbers</label><input id="chartRange" placeholder="e.g. C5:C9" value={values} spellCheck={false} onChange={e => setValues(e.target.value)} />
+      <label>Names</label><input id="chartLabels" placeholder="e.g. B5:B9 (optional)" value={labels} spellCheck={false} onChange={e => setLabels(e.target.value)} />
+    </div>
+    <div className="wide"><button className="btn primary" id="chartInsert" onClick={() => { if (insertChartFromRange(sheet, values, labels)) close(); }}>Insert</button></div>
+  </div>;
+}
+
 export function TableRibbon() {
   const sel = useStore(s => s.selection.sel), noteSel = useStore(s => s.selection.noteSel), anyTables = useStore(s => s.deck.slides.some(x => x.tables.length));
   const R = useCurSlide(), c = useCtx(), st = useStyle();
@@ -120,6 +140,11 @@ export function TableRibbon() {
           {close => R && tIdx >= 0 ? <GridMenu close={close} T={R.tables[tIdx]} /> : null}</Dropdown>
         <button className="tb" id="tablesDlg" disabled={!anyTables} title="Match sizes of tables on several slides, copy column widths between tables" onClick={() => setDialogs({ tables: true })}>Sizes…</button>
         <button className="tb" id="resetLayout" title="Automatic table positions for this slide (in this design)" disabled={!(R && sizingOf(R, c).layout)} onClick={() => R && slidePatch("Reset layout", sizingPatch(R, c, { scale: sizingOf(R, c).scale }))}>Reset layout</button>
+      </div>
+      <div className="grp">
+        <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="chartBtn" disabled={!R} title="A pie or donut chart of cells of the workbook: it follows the workbook when it changes" onClick={t}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="8" cy="8" r="6.2" /><path d="M8 1.8V8l5.3 3.1" /></svg>Insert chart ▾</button>}>
+          {close => <ChartMenu close={close} />}</Dropdown>
       </div>
       <div className="grp">
         <span className="lbl">Text box</span>

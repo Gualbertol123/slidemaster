@@ -227,4 +227,30 @@ describe("the chart on the slide, in every design (CH-01)", () => {
     const dl = att.build();
     expect(chartPart(dl.nodes, "c1")[0]).toMatchObject({ x: Math.round(b1.items!.c1.x * 100) / 100, y: Math.round(b1.y * 100) / 100 });
   });
+  it("a shared document's odd values (review S9.2): huge or text sizes, a text box size, an attached text width – valid nodes, no stretched layout", async () => {
+    const { ctx } = await setup("excel", {});
+    const env = { V: glassVars(ctx), wall: null, family: "Arial" };
+    for (const size of [1e6, "1e9", Infinity, -3] as unknown[]) {
+      const out = chartNodes({ ...PIE, fmt: { size: size as number } }, "c", PIE.box, ctx, M, env);
+      expect(validate(out.nodes), String(size)).toEqual([]);
+    }
+    const bad = await setup("excel", { c1: { ...PIE, box: { x: 0, y: 0, w: 560, h: 420 }, attach: { table: "dhnms9c", side: "right" } } });
+    (bad.slides[0].cfg.items!.c1.box as unknown as Record<string, unknown>).w = "300";
+    const plain = await setup("excel", {});
+    expect(computeLayout(bad.slides[0], bad.ctx).boxes[0].w).toBe(computeLayout(plain.slides[0], plain.ctx).boxes[0].w);
+  });
+  it("outside labels start beyond the circle at their own height, inside the box; the last slice never takes the first one's colour", async () => {
+    const { ctx } = await setup("excel", {});
+    const twelve: ChartItem = { ...PIE, values: { table: "dhnms9c", range: "D6:D18" }, show: ["label", "percent"], legend: "none" };
+    const out = chartNodes(twelve, "c", twelve.box, ctx, M, { V: glassVars(ctx), wall: null, family: "Arial" }), g = out.geom!;
+    const lines = flat(out.nodes).filter(n => n.t === "line") as { x2: number; y2: number }[];
+    expect(lines.length).toBeGreaterThan(0);
+    for (const l of lines) {
+      expect(Math.hypot(l.x2 - g.cx, l.y2 - g.cy)).toBeGreaterThan(g.r);
+      expect(l.y2).toBeGreaterThanOrEqual(twelve.box.y); expect(l.y2).toBeLessThanOrEqual(twelve.box.y + twelve.box.h);
+    }
+    const cols = g.slices.map(s => s.color);
+    expect(cols).toHaveLength(12);
+    expect(cols[11]).not.toBe(cols[0]);
+  });
 });

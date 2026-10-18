@@ -706,7 +706,9 @@ export class CoreHost {
     // the layers: a "tw" hit followed by its group is a table (in the order of the tables that have a box); the
     // nodes between tables are furniture layers, named by their content
     const drawn = R.tables.flatMap((_, i) => boxes[i] && tables[i] ? [i] : []), layers: StageLayer[] = [];
-    let run: DisplayList = [], k = 0, nf = 0, nn = 0;
+    let run: DisplayList = [], k = 0, nf = 0, nn = 0, ni = 0;
+    // the items' nodes by where each starts (slide-dl.ts: one contiguous run per item)
+    const itemAt = new Map(Object.entries(dl.items).map(([id, it]) => [it.at[0], { id, it }]));
     const flush = () => { if (run.length) { const pre = `f${nf++}-`; layers.push({ key: "f" + contentKey(run) + pre + mode, table: null, box: null, nodes: run, svg: markup(run, pre, false) }); } run = []; };
     for (let j = 0; j < dl.nodes.length; j++) {
       const n = dl.nodes[j], g = dl.nodes[j + 1];
@@ -717,6 +719,12 @@ export class CoreHost {
         if (svg === undefined) h.svg.set(how, svg = markup(g.children, pre, true));
         layers.push({ key: h.id + "|" + how, table: i, box: { x: g.transform[4], y: g.transform[5], w: n.w, h: n.h, scale: s }, nodes: a.nodes ? g.children : [], svg });
         j++;
+      } else if (itemAt.has(j)) {
+        // a slide item: a layer of its own (a drag moves it, a click selects it)
+        flush();
+        const { id, it } = itemAt.get(j)!, seg = dl.nodes.slice(it.at[0], it.at[1]), pre = `i${ni++}-`;
+        layers.push({ key: "i" + contentKey(seg) + pre + mode, table: null, item: id, box: { ...it.box, scale: 1 }, nodes: seg, svg: markup(seg, pre, false) });
+        j = it.at[1] - 1;
       } else if (n.t === "hit" && n.kind === "f" && NOTE_HIT.test(n.id)) {
         // a text box: its bubble (if any), then its own hit and the group of its text – a layer of its own, so a
         // drag can move it
@@ -738,7 +746,7 @@ export class CoreHost {
     for (const l of layers) if (have.has(l.key)) l.svg = [];
     const known = new Set(a.known), images: Record<string, string> = {};
     for (const [id, src] of Object.entries(dl.images)) if (!known.has(id)) images[id] = src;
-    return { slide: a.slide, id: R.id, design: ctx.style.design, layers, images };
+    return { slide: a.slide, id: R.id, design: ctx.style.design, layers, images, items: dl.items };
   }
   private state(): DocState {
     const s = this.sync!;

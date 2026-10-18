@@ -168,7 +168,9 @@ export interface StageReq { slide: number; today?: string; known: string[]; fres
     between them (slide px). `key` names the content: the same key, the same nodes (a table keeps its key while its
     cells do not change, wherever it moves). Text boxes come in the order the slide draws them: each table's (top,
     bottom, left, right, as noteParts lists them) then the notes section */
-export interface StageLayer { key: string; table: number | null; note?: boolean; box: { x: number; y: number; w: number; h: number; scale: number } | null;
+export interface StageLayer { key: string; table: number | null; note?: boolean;
+  /** a slide item's layer (4.3: a chart, a callout): its id; `box` its box */ item?: string;
+  box: { x: number; y: number; w: number; h: number; scale: number } | null;
   /** the nodes (a table's only when asked: StageReq.nodes) */
   nodes: import("../dl/types").DisplayList;
   /** the layer as SVG markup, one piece per node (core/dl/svg.ts svgChunks), pictures as "sbimg:<id>" for the page to
@@ -179,6 +181,9 @@ export interface StageSlide {
   layers: StageLayer[];
   /** pictures the page did not have (`known`), by image id */
   images: Record<string, string>;
+  /** the slide's items as drawn (4.3): box, a chart's geometry (the stage picks a slice by it), the Issues line of a
+      source that is missing or empty */
+  items?: Record<string, import("../render/slide-dl").ItemInfo>;
 }
 /** calls the worker makes */
 export interface PageMethods {

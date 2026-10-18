@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { pdfPageTexts } from "./pdftext";
 import { fold, type DeckRecord } from "../../core/src/model/fold";
+import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 
 const ANNA = "http://127.0.0.1:8951/", BOB = "http://127.0.0.1:8952/";
 const root = () => process.env.SB_E2E_ROOT!, data = () => process.env.SB_E2E_DATA!;
@@ -86,6 +87,11 @@ async function openApp(page: Page, url: string) {
   let last: string | null = null;
   try { last = JSON.parse(fs.readFileSync(path.join(data(), "users", (url === ANNA ? "anna" : "bob") + ".json"), "utf8")).lastFile || null; } catch { /* first start */ }
   if (last) await expect(page.locator("#fileName")).toHaveText(new RegExp("^" + last.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + " · \\d+ slides?"), { timeout: 30_000 });
+}
+/** a workbook with one part changed (a cell, a sheet's name: as if saved again in Excel) */
+function xlsxEdit(buf: Buffer, part: string, f: (xml: string) => string): Buffer {
+  const z = unzipSync(new Uint8Array(buf)); z[part] = strToU8(f(strFromU8(z[part])));
+  return Buffer.from(zipSync(z));
 }
 async function openWorkbook(page: Page, name: string) {
   await page.click("#openBtn");
@@ -975,6 +981,41 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#lookSel")).toHaveCount(0);                                   // consulting designs only
   });
 
+  test("charts follow a scenario (S9.3, CH-03): a pie from the linked Peers table, previewed for Bank C", async ({ page }) => {
+    await openApp(page, ANNA);
+    await openWorkbook(page, "Banks.xlsx"); await page.click('[data-a="continue"]');
+    await expect(page.locator("#stage .slide .t", { hasText: /^1761$/ })).toHaveCount(1, { timeout: 20_000 });
+    // from the selected cells: the Peer avg column (Loans, Deposits) – named by the column on its left (Item)
+    await selectCell(page, "1761");
+    const c2 = page.locator("#stage .slide .t", { hasText: /^2268$/ }).first(), bb = (await c2.boundingBox())!;
+    await page.keyboard.down("Shift"); await page.mouse.click(bb.x + 8, bb.y + bb.height / 2); await page.keyboard.up("Shift");
+    await page.click("#chartBtn"); await page.click('[data-a="chart-sel"]');
+    const layer = page.locator("#stage svg.layer.item");
+    await expect(layer).toHaveCount(1, { timeout: 10_000 });
+    await page.locator('#chartPanel [data-show="value"]').check();
+    await expect(layer).toContainText("1761");
+    await expect(page.locator("#chartSource")).toContainText("[Peers.xlsx]Peer!E5:E6");
+    await expect(page.locator("#chartSlices .nm")).toHaveText(["Loans", "Deposits"]);
+    // the preview of Bank C: the linked file recalculated, the chart with it; cleared, back to Bank A
+    await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]');
+    await page.fill("#scInput", "Control!B2");
+    await page.fill("#scValues", "Bank A\nBank C");
+    await page.selectOption("#scValue", "Bank C");
+    await page.click("#scPreview");
+    await expect(page.locator("#scBanner")).toContainText("Bank C", { timeout: 20_000 });
+    await expect(layer).toContainText("3141", { timeout: 20_000 });
+    await page.click("#scBanner button");
+    await expect(layer).toContainText("1761", { timeout: 20_000 });
+    // the deck keeps the chart; the scenario changed nothing in it
+    const it = Object.values(deckDoc("Banks.xlsx").preset.slides[0].items || {}) as any[];
+    expect(it.map(x => x.values)).toEqual([{ table: deckDoc("Banks.xlsx").preset.tables[0].id, range: "E5:E6" }]);
+    // removed again (the Run tests below export this deck)
+    await page.locator(".itembox[data-kind=chart]").click({ position: { x: 4, y: 4 } });
+    await page.keyboard.press("Delete");
+    await expect(page.locator(".itembox")).toHaveCount(0);
+    await lastFileSaved("anna", "Banks.xlsx");
+  });
+
   test("Run for each value… (S8.1, SC-01, SC-07): the input cell, values typed and from a range, de-duplicated; a preview on the stage, cleared", async ({ page }) => {
     await openApp(page, ANNA);                                                       // Banks.xlsx with the linked Peers table
     await expect(page.locator("#stage .slide")).toHaveCount(1, { timeout: 20_000 });
@@ -1183,6 +1224,90 @@ test.describe.serial("two people, one shared folder", () => {
     expect(pdfPageTexts(fs.readFileSync(path.join(root(), "export", "Gate two - Excel.pdf"))).join(" ")).toContain("Gate two");
     await page.click("#scRunClose");
     await lastFileSaved("anna", "Gate.xlsx");
+  });
+
+  test("charts (S9.3, CH-02/03/04, B16, B24): a pie from a sheet on no slide, changed in the side panel, moved, removed; it follows a reload and a scenario; a missing source", async ({ page }) => {
+    await openApp(page, ANNA);
+    await openWorkbook(page, "report.xlsx"); await page.click('[data-a="continue"]');
+    await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
+    // the slide with the bank table (the deck has a cover and contents by now)
+    let si = -1;
+    for (let i = 0; i < await page.locator(".thumb").count() && si < 0; i++) {
+      await page.locator(".thumb").nth(i).click(); await page.locator(`.thumb.on[data-i="${i}"]`).waitFor();
+      if (await page.locator("#stage .slide .t", { hasText: /^Alpha$/ }).first().waitFor({ timeout: 4000 }).then(() => true, () => false)) si = i;
+    }
+    expect(si).toBeGreaterThanOrEqual(0);
+    const file = path.join(root(), "report.xlsx"), original = fs.readFileSync(file);
+    const items = () => (doc().preset.slides[si].items || {}) as Record<string, any>;
+    const chartLayer = page.locator("#stage svg.layer.item");
+    // CH-02: Insert chart ▾ › from a range of a sheet that is on no slide (Numbers): the wizard's sheets, hidden ones not
+    await page.click("#chartBtn");
+    await expect(page.locator("#chartSheet option")).toContainText(["SLIDE_1", "Numbers"]);
+    await expect(page.locator('#chartSheet option[value="Hidden data"]')).toHaveCount(0);
+    await page.selectOption("#chartSheet", "Numbers");
+    await page.fill("#chartRange", "b9:b11");
+    await page.click("#chartInsert");
+    await expect(page.locator(".itembox[data-kind=chart]")).toHaveCount(1, { timeout: 10_000 });
+    await pollFile(() => Object.values(items()).map(i => i.values), { timeout: 10_000 }).toEqual([{ sheet: "Numbers", range: "B9:B11" }]);
+    const id = Object.keys(items())[0];
+    await expect(chartLayer).toHaveCount(1);
+    await expect(page.locator("#chartPanel")).toBeVisible();                       // the new chart is selected
+    await expect(page.locator("#chartSource")).toContainText("Numbers!B9:B11");
+    await expect(page.locator("#chartSlices .slice")).toHaveCount(3);
+    await expect(page.locator("#issues")).not.toContainText("Chart 1");
+    // the side panel: donut, values on the slices, a slice's colour – each one undo step
+    await page.click('#chartPanel [data-ctype="donut"]');
+    await pollFile(() => items()[id].type).toBe("donut");
+    await page.locator('#chartPanel [data-show="value"]').check();
+    await pollFile(() => items()[id].show).toEqual(["value", "percent"]);
+    await expect(chartLayer).toContainText("1.235 €");                            // B9's own number format
+    await page.click("#undoBtn");
+    await pollFile(() => items()[id].show).toEqual(["percent"]);
+    await expect(page.locator('#chartPanel [data-show="value"]')).not.toBeChecked();
+    // a click on the chart selects it, and the slice under the pointer
+    const b = (await page.locator(".itembox[data-kind=chart]").boundingBox())!;
+    const sb = (await page.locator("#stage .slide").boundingBox())!;
+    await page.mouse.click(sb.x + sb.width - 6, sb.y + 6);                          // the empty slide: nothing selected
+    await expect(page.locator("#chartPanel")).toHaveCount(0);
+    await page.mouse.click(b.x + 5, b.y + 5);
+    await expect(page.locator("#chartPanel")).toBeVisible();
+    // moved by a drag: one change, the chart placed freely; undo puts it back
+    const box0 = items()[id].box;
+    await page.mouse.move(b.x + b.width / 2, b.y + 20); await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2 - 200, b.y + 60, { steps: 6 }); await page.mouse.up();
+    await pollFile(() => items()[id].box.x).toBeLessThan(box0.x - 100);
+    await page.click("#undoBtn");
+    await pollFile(() => items()[id].box).toEqual(box0);
+    // CH-03 · a reload with a changed file: the chart reads the new numbers (B9: 1 234,5 → 9 999)
+    await page.locator('#chartPanel [data-show="value"]').check();
+    await expect(chartLayer).toContainText("1.235 €");
+    fs.writeFileSync(file, xlsxEdit(original, "xl/worksheets/sheet5.xml", x => x.replace("<c r=\"B9\" s=\"23\" t=\"n\"><v>1234.5</v>", "<c r=\"B9\" s=\"23\" t=\"n\"><v>9999</v>")));
+    await page.click("#reloadBtn");
+    await expect(chartLayer).toContainText("9.999 €", { timeout: 20_000 });
+    // CH-04 · the source sheet gone (renamed in Excel): a placeholder, the Issues line, the chart kept in the deck
+    fs.writeFileSync(file, xlsxEdit(original, "xl/workbook.xml", x => x.replace('name="Numbers"', 'name="Figures"')));
+    await page.click("#reloadBtn");
+    await expect(page.locator("#issues")).toContainText("Chart 1: source Numbers!B9:B11 not found", { timeout: 20_000 });
+    await expect(chartLayer).toContainText("Chart: source Numbers!B9:B11 not found");
+    await expect(page.locator(".itembox.broken")).toHaveCount(1);
+    expect(Object.keys(items())).toEqual([id]);
+    fs.writeFileSync(file, original);
+    await page.click("#reloadBtn");
+    await expect(chartLayer).toContainText("1.235 €", { timeout: 20_000 });
+    await expect(page.locator("#issues")).not.toContainText("Chart 1");
+    // removed with Del; undo brings it back
+    await page.locator(".itembox[data-kind=chart]").click({ position: { x: 4, y: 4 } });
+    await page.keyboard.press("Delete");
+    await expect(page.locator(".itembox")).toHaveCount(0);
+    await pollFile(() => Object.keys(items())).toEqual([]);
+    await page.click("#undoBtn");
+    await expect(page.locator(".itembox[data-kind=chart]")).toHaveCount(1);
+    await pollFile(() => Object.keys(items())).toEqual([id]);
+    // and removed for good (the later tests count this deck's slides and texts as they were)
+    await page.locator(".itembox[data-kind=chart]").click({ position: { x: 4, y: 4 } });
+    await page.keyboard.press("Delete");
+    await pollFile(() => Object.keys(items())).toEqual([]);
+    await lastFileSaved("anna", "report.xlsx");
   });
 
   test("no page errors, console errors or warnings", async () => { expect(unexpected(errors)).toEqual([]); });

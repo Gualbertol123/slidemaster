@@ -146,8 +146,9 @@ export function attachedOf(R: RuntimeSlide, i: number): Partial<Record<Side, { i
   if (!T || !items) return out;
   for (const [id, it] of Object.entries(items) as [string, Item][]) {
     const a = it && it.attach, b = it && it.box;
-    if (!a || !b || a.table !== (T.id || T.def?.id) || !SIDES.includes(a.side) || !(b.w > 0) || !(b.h > 0)) continue;
-    (out[a.side] ||= []).push({ id, w: b.w, h: b.h });
+    // (a shared document's box: finite numbers only, at most the slide's size)
+    if (!a || !b || a.table !== (T.id || T.def?.id) || !SIDES.includes(a.side) || typeof b.w !== "number" || typeof b.h !== "number" || !Number.isFinite(b.w) || !Number.isFinite(b.h) || b.w <= 0 || b.h <= 0) continue;
+    (out[a.side] ||= []).push({ id, w: Math.min(SLIDE_W, b.w), h: Math.min(SLIDE_H, b.h) });
   }
   return out;
 }
@@ -156,7 +157,7 @@ export function attachedOf(R: RuntimeSlide, i: number): Partial<Record<Side, { i
 export function itemBoxOf(R: RuntimeSlide, id: string, boxes: TBox[]): { x: number; y: number; w: number; h: number } | null {
   for (const b of boxes) { const n = b?.items?.[id]; if (n) return { x: n.x, y: n.y, w: n.w, h: n.h }; }
   const b = R.cfg.items?.[id]?.box;
-  return b && [b.x, b.y, b.w, b.h].every(v => typeof v === "number" && Number.isFinite(v)) && b.w > 0 && b.h > 0 ? { x: b.x, y: b.y, w: b.w, h: b.h } : null;
+  return b && [b.x, b.y, b.w, b.h].every(v => typeof v === "number" && Number.isFinite(v)) && b.w > 0 && b.h > 0 ? { x: b.x, y: b.y, w: Math.min(SLIDE_W, b.w), h: Math.min(SLIDE_H, b.h) } : null;
 }
 /** height of a text box above/below a table: explicit, or from its lines (wrapping is handled by shrinking the font) */
 const noteH = (n: Note) => n.h || Math.max(30, Math.max(1, String(n.text || "").split("\n").length) * (n.size || 18) * (n.lh || 1.28) + 12) + (n.bubble ? 20 : 0);

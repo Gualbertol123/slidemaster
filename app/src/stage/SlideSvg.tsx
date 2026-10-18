@@ -32,10 +32,10 @@ export const TableLayer = memo(function TableLayer({ layer, to, armed = false }:
   </div>;
 }, (a, b) => a.layer.key === b.layer.key && sameBox(a.layer.box, b.layer.box) && sameBox(a.to, b.to) && a.armed === b.armed);
 
-/** furniture and text boxes: slide px; `dx`, `dy` move it (a text box being dragged) */
+/** furniture, text boxes and slide items: slide px; `dx`, `dy` move it (a text box or an item being dragged) */
 export const PlainLayer = memo(function PlainLayer({ layer, dx = 0, dy = 0, hidden = false }: { layer: StageLayer; dx?: number; dy?: number; hidden?: boolean }) {
   const ref = useMarkup(layer);
-  return <svg ref={ref} aria-hidden="true" className={layer.note ? "layer note" : "layer"} viewBox="0 0 1600 900" width={1600} height={900}
+  return <svg ref={ref} aria-hidden="true" className={layer.note ? "layer note" : layer.item ? "layer item" : "layer"} {...(layer.item ? { "data-item": layer.item } : {})} viewBox="0 0 1600 900" width={1600} height={900}
     style={{ position: "absolute", left: 0, top: 0, overflow: "visible", pointerEvents: "none", ...(dx || dy ? { transform: `translate(${dx}px,${dy}px)`, willChange: "transform" } : {}), ...(hidden ? { visibility: "hidden" } : {}) }} />;
 }, (a, b) => a.layer.key === b.layer.key && a.dx === b.dx && a.dy === b.dy && a.hidden === b.hidden);
 
