@@ -26,6 +26,25 @@ export interface Note { text: string; font?: string; size?: number; /** line spa
   /** placed freely on the slide at x/y (slide px) after being moved; unset = next to its table */ x?: number; y?: number;
   /** left/right box only: a column beside ALL the tables of the slide, as tall as all of them */ span?: boolean;
   /** automated comment: the text is written from the table's numbers with these settings (model/comment.ts) */ auto?: import("./comment").CommentCfg }
+/* ---- slide items (4.3, B16/B17; docs/next/07 §2.2, ADR-015): charts and callouts, drawn in every design ---- */
+/** cells an item reads: a sheet id ("Sheet" or "[File.xlsx]Sheet") + one A1 rectangle, or a table of the deck + a range inside its sheet */
+export type DataRef = { sheet: string; range: string } | { table: string; range: string };
+/** a rectangle in slide px (1600 × 900) */
+export interface Box { x: number; y: number; w: number; h: number }
+export type ItemKind = "chart" | "shape";
+export interface ChartItem { kind: "chart"; type: "pie" | "donut" | "bar" | "column" | "line";
+  values: DataRef; labels?: DataRef; /** series name: the title when `title` is unset */ series?: string;
+  /** "" = no title; unset = the series name */ title?: string; legend?: "right" | "bottom" | "none"; show?: ("label" | "value" | "percent")[];
+  /** slice index → colour; absent = the design's palette */ colors?: Record<string, string>; /** degrees clockwise from 12 o'clock */ startAngle?: number;
+  /** label text style over the deck's "note" style */ fmt?: TextFmt;
+  box: Box; /** laid out beside a table, as a text box; else placed at `box` */ attach?: { table: string; side: Side } }
+export type ShapeKind = "rect" | "round" | "circle" | "pill" | "arrow" | "bubble" | "icon";
+export interface ShapeItem { kind: "shape"; shape: ShapeKind; /** a built-in icon name (render/icons.ts) */ icon?: string;
+  /** may quote cells: {Sheet!C7} / {[Peers.xlsx]Peer!F7} */ text?: string;
+  /** unset = the design's material; "none" = no fill */ fill?: string; border?: { color: string; w: number; dash?: "solid" | "dashed" | "dotted" } | null; radius?: number;
+  fmt?: TextFmt & { valign?: "top" | "middle" | "bottom"; pad?: number }; /** bubble tail tip, slide px */ tail?: { x: number; y: number };
+  box: Box; attach?: { table: string; side: Side } }
+export type Item = ChartItem | ShapeItem;
 export interface SlideDef {
   id: string; type: SlideType;
   title?: string | null; subtitle?: string | null; date?: string | null; note?: string | null;
@@ -34,6 +53,7 @@ export interface SlideDef {
   /** index slide: show the subtitles of the slides (default true) */ subs?: boolean;
   /** formatting of this slide's title, subtitle, cover note and date (over the deck text styles) */ fmt?: Partial<Record<SlideTextKey, TextFmt>>;
   /** table sizing of one design (over layout/scale, which older decks share between designs) */ sizes?: Partial<Record<Design, SlideSizing>>;
+  /** charts and callouts (4.3), by item id; changed only by `item.patch` */ items?: Record<string, Item>;
 }
 /** how one design shows a slide's tables: arrangement and weights, fixed scale, alignment */
 export interface SlideSizing { layout?: Layout; scale?: number; align?: "left" | "center" | "right"; valign?: "top" | "middle" | "bottom" }
@@ -81,11 +101,15 @@ export interface ConfigDoc { schema: number; rev: number; updated?: number; upda
 export interface Prefs { lastFile?: string | null; pdfMode?: "exact" | "vector" | null; zoom?: number | "fit" | null; /** version shown on screen, per workbook */ versions?: Record<string, string> | null; /** soft shadows on screen: one blurred shape instead of the 5 layers the PDF draws (B3) */ softShadows?: boolean | null }
 
 type Nullable<T> = { [K in keyof T]?: T[K] | null };
+type ItemFields = Omit<ChartItem, "kind" | "colors" | "fmt"> & Omit<ShapeItem, "kind" | "fmt">;
+export type ItemPatch = Nullable<Partial<ItemFields>> & { kind?: ItemKind; colors?: Record<string, string | null> | null; fmt?: Record<string, unknown> | null };
 export type Op =
   | { op: "preset.set"; preset: Preset | null }
   | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "valign" | "scale" | "subs">> & { notes?: Record<string, Note | null> | null; sizes?: Partial<Record<Design, SlideSizing | null>> | null; fmt?: Partial<Record<SlideTextKey, TextFmt | null>> | null } }
   | { op: "table.patch"; id: string; patch: { name?: string | null; gridH?: "on" | "off" | null; gridV?: "on" | "off" | null; cols?: Record<string, number | null> | null; rows?: Record<string, number | null> | null; scales?: Record<string, ScaleRule | null> | null; merges?: Record<string, "merge" | "split" | null> | null; sizes?: Partial<Record<Design, TableSizes | null>> | null } }
   | { op: "cell.patch"; sheet: string; ref: string; patch: Nullable<CellEdit> }
+  /** field-level patch of one slide item; `patch: null` deletes it; a patch with `kind` on a missing id creates it */
+  | { op: "item.patch"; slide: string; id: string; patch: ItemPatch | null }
   | { op: "style.patch"; patch: Nullable<Omit<StylePatch, "pn" | "footer" | "theme" | "text" | "colors">> & { pn?: Nullable<PageNumbers> | null; footer?: Nullable<Footer> | null; theme?: Nullable<Theme> | null; text?: Partial<Record<TextRole, TextFmt | null>> | null; colors?: Partial<Record<ColorKey, string | null>> | null; designs?: Partial<Record<Design, Look | null>> | null } };
 
 /* ---- runtime ---- */

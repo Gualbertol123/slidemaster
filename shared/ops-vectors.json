@@ -2289,5 +2289,1692 @@
       "applied": 1,
       "skipped": []
     }
+  },
+  {
+    "name": "item.patch with a kind and a box on a missing id creates the item (and the slide's items map)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "kind": "chart",
+          "type": "pie",
+          "values": {
+            "sheet": "Summary",
+            "range": "C5:C9"
+          },
+          "box": {
+            "x": 100,
+            "y": 120,
+            "w": 400,
+            "h": 300
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "item.patch sets and deletes plain keys of an item, keeping the others",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                },
+                "title": "Mix",
+                "legend": "right"
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "type": "donut",
+          "title": null,
+          "show": [
+            "label",
+            "percent"
+          ]
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "donut",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                },
+                "legend": "right",
+                "show": [
+                  "label",
+                  "percent"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "item.patch null deletes the item; the last item removes the items map",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": null
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "item.patch null deletes only that item",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                }
+              },
+              "k2": {
+                "kind": "shape",
+                "shape": "round",
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": null
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "k2": {
+                "kind": "shape",
+                "shape": "round",
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "item.patch null on a missing item is skipped",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "zz",
+        "patch": null
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 0,
+      "skipped": [
+        0
+      ]
+    }
+  },
+  {
+    "name": "item.patch without a kind on a missing id is skipped (nothing to patch)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "title": "Mix",
+          "box": {
+            "x": 100,
+            "y": 120,
+            "w": 400,
+            "h": 300
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 0,
+      "skipped": [
+        0
+      ]
+    }
+  },
+  {
+    "name": "item.patch creating without a box is skipped",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "kind": "chart",
+          "type": "pie",
+          "values": {
+            "sheet": "Summary",
+            "range": "C5:C9"
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 0,
+      "skipped": [
+        0
+      ]
+    }
+  },
+  {
+    "name": "item.patch with an unknown kind is skipped (a later page's item)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "kind": "table",
+          "box": {
+            "x": 100,
+            "y": 120,
+            "w": 400,
+            "h": 300
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 0,
+      "skipped": [
+        0
+      ]
+    }
+  },
+  {
+    "name": "item.patch with an invalid box is skipped (negative size, missing field, text, null)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": -5,
+            "h": 10
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 5
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "box": {
+            "x": "0",
+            "y": 0,
+            "w": 5,
+            "h": 5
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "box": null
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "box": {
+            "x": 10,
+            "y": 20,
+            "w": 30,
+            "h": 40
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 10,
+                  "y": 20,
+                  "w": 30,
+                  "h": 40
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [
+        0,
+        1,
+        2,
+        3
+      ]
+    }
+  },
+  {
+    "name": "item.patch on an unknown slide, without a preset or with a bad id is skipped",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "nope",
+        "id": "c1",
+        "patch": {
+          "kind": "chart",
+          "type": "pie",
+          "values": {
+            "sheet": "Summary",
+            "range": "C5:C9"
+          },
+          "box": {
+            "x": 100,
+            "y": 120,
+            "w": 400,
+            "h": 300
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "",
+        "patch": {
+          "kind": "chart",
+          "type": "pie",
+          "values": {
+            "sheet": "Summary",
+            "range": "C5:C9"
+          },
+          "box": {
+            "x": 100,
+            "y": 120,
+            "w": 400,
+            "h": 300
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": "x"
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 0,
+      "skipped": [
+        0,
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "item.patch without a preset is skipped",
+    "doc": {
+      "preset": null,
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "kind": "chart",
+          "type": "pie",
+          "values": {
+            "sheet": "Summary",
+            "range": "C5:C9"
+          },
+          "box": {
+            "x": 100,
+            "y": 120,
+            "w": 400,
+            "h": 300
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {},
+      "edits": {},
+      "applied": 0,
+      "skipped": [
+        0
+      ]
+    }
+  },
+  {
+    "name": "item.patch: two writers merging different fields of one item both win (move + recolour + retitle)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                },
+                "colors": {
+                  "0": "#112233"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "box": {
+            "x": 300,
+            "y": 200,
+            "w": 400,
+            "h": 300
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "colors": {
+            "2": "#445566"
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "title": "Share"
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 300,
+                  "y": 200,
+                  "w": 400,
+                  "h": 300
+                },
+                "colors": {
+                  "0": "#112233",
+                  "2": "#445566"
+                },
+                "title": "Share"
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 3,
+      "skipped": []
+    }
+  },
+  {
+    "name": "item.patch: the same field from two writers – the later op wins",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "legend": "right"
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "legend": "bottom"
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                },
+                "legend": "bottom"
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "item.patch colors map-merge: set, replace and delete slices; an emptied map is removed",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                },
+                "colors": {
+                  "0": "#111111",
+                  "1": "#222222"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "colors": {
+            "0": null,
+            "1": "#333333",
+            "3": "#444444"
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "colors": {
+            "1": null,
+            "3": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "item.patch colors null deletes the whole map",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                },
+                "colors": {
+                  "0": "#111111"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "colors": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "item.patch fmt map-merge per text key (size from one writer, bold from another)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "k1": {
+                "kind": "shape",
+                "shape": "pill",
+                "text": "{Summary!C7}",
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                },
+                "fmt": {
+                  "size": 18
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "k1",
+        "patch": {
+          "fmt": {
+            "b": true
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "k1",
+        "patch": {
+          "fmt": {
+            "size": 22,
+            "valign": "middle"
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "k1": {
+                "kind": "shape",
+                "shape": "pill",
+                "text": "{Summary!C7}",
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                },
+                "fmt": {
+                  "size": 22,
+                  "b": true,
+                  "valign": "middle"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "item.patch ignores keys it does not know",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "title": "T",
+          "secret": 1,
+          "__proto__x": 2
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                },
+                "title": "T"
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "item.patch values are deep-copied and replaced whole (a DataRef of a table)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "values": {
+            "table": "t9",
+            "range": "D5:D9"
+          },
+          "labels": {
+            "table": "t9",
+            "range": "B5:B9"
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "table": "t9",
+                  "range": "D5:D9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                },
+                "labels": {
+                  "table": "t9",
+                  "range": "B5:B9"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "item.patch a callout shape with border, tail and attach; border null removes it",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "k1",
+        "patch": {
+          "kind": "shape",
+          "shape": "bubble",
+          "box": {
+            "x": 100,
+            "y": 120,
+            "w": 400,
+            "h": 300
+          },
+          "border": {
+            "color": "#CC0000",
+            "w": 2,
+            "dash": "dashed"
+          },
+          "tail": {
+            "x": 90,
+            "y": 500
+          },
+          "attach": {
+            "table": "t1",
+            "side": "right"
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "k1",
+        "patch": {
+          "border": null,
+          "fill": "#FFF4D6"
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "k1": {
+                "kind": "shape",
+                "shape": "bubble",
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                },
+                "tail": {
+                  "x": 90,
+                  "y": 500
+                },
+                "attach": {
+                  "table": "t1",
+                  "side": "right"
+                },
+                "fill": "#FFF4D6"
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "item.patch then slide.patch: the slide's other keys and the items map do not touch each other",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                }
+              }
+            },
+            "notes": {
+              "t1:top": {
+                "text": "A"
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "title": "New",
+          "notes": {
+            "t1:top": null
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "legend": "none"
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Summary"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Summary",
+                  "range": "C5:C9"
+                },
+                "box": {
+                  "x": 100,
+                  "y": 120,
+                  "w": 400,
+                  "h": 300
+                },
+                "legend": "none"
+              }
+            },
+            "title": "New"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
   }
 ]

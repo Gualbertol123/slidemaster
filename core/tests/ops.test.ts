@@ -71,6 +71,32 @@ describe("inverse of map merges", () => {
   });
 });
 
+describe("inverse of item.patch (07 §2.2: undo of a chart or callout change)", () => {
+  const pie = { kind: "chart", type: "pie", values: { sheet: "S", range: "C5:C9" }, box: { x: 1, y: 2, w: 300, h: 200 }, colors: { 0: "#111111" }, fmt: { size: 14 } };
+  const base = () => ({ preset: { sheets: [], tables: [], slides: [{ id: "s", type: "content" as const, tables: [], items: { c1: pie } as any }] }, style: {}, edits: {} });
+  const cases: Op[] = [
+    { op: "item.patch", slide: "s", id: "k2", patch: { kind: "shape", shape: "round", box: { x: 0, y: 0, w: 10, h: 10 }, text: "{S!C7}" } },
+    { op: "item.patch", slide: "s", id: "c1", patch: null },
+    { op: "item.patch", slide: "s", id: "c1", patch: { type: "donut", title: "T", box: { x: 9, y: 9, w: 50, h: 50 } } },
+    { op: "item.patch", slide: "s", id: "c1", patch: { colors: { 0: null, 3: "#333333" }, fmt: { b: true, size: null } } },
+    { op: "item.patch", slide: "s", id: "c1", patch: { colors: null, fmt: null, legend: "none" } },
+  ];
+  for (const op of cases) it(JSON.stringify((op as any).patch).slice(0, 50) + " round-trips", () => {
+    const d: any = base(); const inv = inverseOf(d, op)!;
+    expect(applyOp(d, op)).toBe(true); expect(applyOp(d, inv)).toBe(true);
+    expect(d).toEqual(base());
+  });
+  it("a skipped patch has no inverse; undo of my move keeps another user's recolour", () => {
+    expect(inverseOf(base(), { op: "item.patch", slide: "s", id: "zz", patch: { title: "x" } } as Op)).toBeNull();
+    expect(inverseOf(base(), { op: "item.patch", slide: "nope", id: "c1", patch: null } as Op)).toBeNull();
+    const d: any = base(), mine: Op = { op: "item.patch", slide: "s", id: "c1", patch: { box: { x: 500, y: 2, w: 300, h: 200 } } };
+    const inv = inverseOf(d, mine)!; applyOp(d, mine);
+    applyOp(d, { op: "item.patch", slide: "s", id: "c1", patch: { colors: { 1: "#222222" } } });   // someone else
+    applyOp(d, inv);
+    expect(d.preset.slides[0].items.c1).toEqual({ ...pie, colors: { 0: "#111111", 1: "#222222" } });
+  });
+});
+
 describe("the saved 4.0 deck format (helper/tests/fixtures/saved: snapshot.v4.json + journal.v4.log, never edited)", () => {
   it("the snapshot and the records past its frontier fold into the deck; the torn tail is no record", async () => {
     const fs = await import("node:fs"), path = await import("node:path");

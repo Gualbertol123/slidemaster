@@ -1,0 +1,24 @@
+{
+ "schema": 3, "workbook": "W.xlsx", "rev": 12,
+ "preset": {
+  "sheets": ["S", "Data"],
+  "tables": [{ "id": "t1", "sheet": "S", "kind": "range", "range": "A1:C6" }],
+  "slides": [
+   { "id": "s0", "type": "cover", "title": "Review", "tables": [] },
+   { "id": "s1", "type": "content", "title": "Mix by region", "tables": ["t1"],
+     "notes": { "t1:top": { "text": "Totals in € m" } },
+     "items": {
+      "c1": { "kind": "chart", "type": "pie", "values": { "table": "t1", "range": "C2:C6" }, "labels": { "table": "t1", "range": "A2:A6" },
+              "show": ["label", "percent"], "legend": "right", "colors": { "0": "#0A2A66", "3": "#CC0000" }, "fmt": { "size": 14 },
+              "box": { "x": 900, "y": 200, "w": 560, "h": 420 }, "attach": { "table": "t1", "side": "right" } },
+      "c2": { "kind": "chart", "type": "donut", "values": { "sheet": "Data", "range": "B2:B5" }, "series": "Peers", "title": "",
+              "box": { "x": 80, "y": 520, "w": 360, "h": 300 } },
+      "k1": { "kind": "shape", "shape": "bubble", "text": "Total {S!C6}", "fill": "#FFF4D6", "border": { "color": "#CC0000", "w": 2 },
+              "tail": { "x": 860, "y": 400 }, "fmt": { "b": true, "valign": "middle", "pad": 12 }, "box": { "x": 600, "y": 120, "w": 240, "h": 90 } },
+      "k2": { "kind": "shape", "shape": "icon", "icon": "warning", "box": { "x": 560, "y": 130, "w": 40, "h": 40 } }
+     } }
+  ]
+ },
+ "style": { "design": "glass" },
+ "edits": { "S": { "A2": { "b": true } } }
+}

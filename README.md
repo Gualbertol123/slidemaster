@@ -369,7 +369,8 @@ operations are opaque to it. The full contract (torn tails, rotation, who delete
                  "layout"?, "scale"?, "align"?, "valign"?,            // shared sizing of older decks
                  "sizes"?: {"glass"|"excel"|"clean": {layout?, scale?, align?, valign?}},
                  "notes"?: {"k3j9x0a:right": Note, "slide:notes": Note},
-                 "fmt"?: {"title"|"subtitle"|"note"|"date": TextFmt}} ],
+                 "fmt"?: {"title"|"subtitle"|"note"|"date": TextFmt},
+                 "items"?: {"c1": Item}} ],                         // 4.3: charts and callouts (item.patch only)
     "versions"?: [{"id": "v1", "name": "All", "hide": {"SLIDE_1": ["H10:I11"]}}],
     "links"?: ["Peers.xlsx"]        // 4.2: linked workbooks of the folder; their sheets are named "[Peers.xlsx]Peer" wherever a sheet name is stored
   },
@@ -386,6 +387,14 @@ operations are opaque to it. The full contract (torn tails, rotation, who delete
   auto?: CommentCfg}`. Keys are `"<tableId>:<top|bottom|left|right>"`; `"slide:notes"` is the notes section.
   `x/y` = moved freely (takes no room from the tables); `span` = a column beside all tables; `auto` = an
   automated comment whose text is computed at render time.
+* `Item` (4.3, B16/B17, 07 §2.2) = a **chart** `{kind: "chart", type: "pie"|"donut"|"bar"|"column"|"line" (pie / donut drawn from 4.3, the others reserved), values: DataRef, labels?: DataRef,
+  series?, title? ("" = none, unset = the series name), legend?: "right"|"bottom"|"none", show?: ["label"|"value"|
+  "percent"], colors?: {"<slice index>": "#hex"}, startAngle?, fmt?: TextFmt, box, attach?: {table, side}}` or a
+  **callout** `{kind: "shape", shape: "rect"|"round"|"circle"|"pill"|"arrow"|"bubble"|"icon", icon?, text? (may quote
+  cells: "{Sheet!C7}", "{[Peers.xlsx]Peer!F7}"), fill? ("none" = no fill, unset = the design's material), border?:
+  {color, w, dash?}, radius?, fmt?: TextFmt & {valign?, pad?}, tail?: {x, y}, box, attach?}`. `DataRef` = `{sheet, range}`
+  (a sheet id and one A1 rectangle) or `{table, range}` (a table of the deck and a range in its sheet); `box` =
+  `{x, y, w, h}` in slide px. A 4.0 / 4.1 page keeps `items` (it ignores the key) and skips `item.patch`.
 * `CellEdit`: `text` + `orig` (the Excel text it replaced – a text edit applies only while the Excel value is still
   `orig`), `bg` = cell colour (`"none"` removes the Excel fill), `fill` = highlight, `cf = "Sheet!C6"` =
   conditional formatting painted from another cell (`"none"` removes the cell's own).
@@ -404,11 +413,15 @@ operations are opaque to it. The full contract (torn tails, rotation, who delete
 | `table.patch` | `id`, `patch` | name, gridH, gridV | cols, rows, scales, merges, sizes |
 | `cell.patch` | `sheet`, `ref` (A1), `patch` | text, orig, font, sz, b, i, color, fill, bg, cf, align, role | – |
 | `style.patch` | `patch` | design, glass, color, logo, radius, contrast, logoBubble | pn, footer, theme, text, colors, designs |
+| `item.patch` (4.3) | `slide`, `id`, `patch` | on `slides[slide].items[id]`: kind, type, values, labels, series, title, legend, show, startAngle, box, attach, shape, icon, text, fill, border, radius, tail; `patch: null` deletes the item | colors, fmt |
 
 **Map merge**: `null` deletes the whole map; an object sets each entry (replacing the entry whole, no deep
 merge) or deletes it when `null`; an empty map is removed. So two people changing different columns, text
 boxes, rules or designs never overwrite each other; the same field at the same time → the later record in
-Lamport order wins. Unknown ops, invalid fields, unknown slide/table ids are **skipped**. Removing a cell's
+Lamport order wins. Unknown ops, invalid fields, unknown slide/table ids are **skipped**. `item.patch` creates the
+item when the id is missing and the patch has a `kind` (`chart`/`shape`) and a `box`; an unknown `kind`, a box that is
+not four finite numbers with `w`, `h` > 0, or `box: null` skip the op – so two people moving and recolouring one chart
+both win, field by field. Removing a cell's
 `text` also removes its `orig`. The page computes an **inverse** op for each op before applying it
 (`ops.ts inverseOf`) – that is the undo.
 

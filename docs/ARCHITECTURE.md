@@ -219,8 +219,9 @@ Types from `core/src/model/types.ts`; the meaning is what its comments state.
 | Object | Fields |
 |---|---|
 | `TableDef` | `id`, `sheet`, and `kind: "markers"` with `anchor`, `index`, or `kind: "range"` with `range`, `grow?`; plus `name?`, `cols?` / `rows?` (`{"<column/row number>": px}`), `scales?` (`{<rule id>: {range, dir: "row"\|"col"\|"all", mode: "zero"\|"minmax", fill, ink, invert?}}`), `merges?` (`{"C4:D5": "merge"\|"split"}`), `gridH?` / `gridV?` (`"on"\|"off"`, unset = as in Excel), `sizes?` (`{glass\|excel\|clean: {cols?, rows?}}`, per design over `cols`/`rows`) |
-| `SlideDef` | `id`, `type: "cover"\|"index"\|"content"`, `tables: string[]`, `title?`, `subtitle?`, `date?`, `note?`, `layout?` (`{bands: number[][], w: number[]}`), `logo?`, `align?`, `valign?`, `scale?`, `notes?` (`{"<tableId>:<top\|bottom\|left\|right>": Note}`), `subs?` (index slide: show subtitles), `fmt?` (`{title\|subtitle\|note\|date: TextFmt}`), `sizes?` (`{glass\|excel\|clean: {layout?, scale?, align?, valign?}}`, per design over `layout`/`scale`) |
+| `SlideDef` | `id`, `type: "cover"\|"index"\|"content"`, `tables: string[]`, `items?` (4.3: `{<item id>: Item}`, charts and callouts, changed only by `item.patch`), `title?`, `subtitle?`, `date?`, `note?`, `layout?` (`{bands: number[][], w: number[]}`), `logo?`, `align?`, `valign?`, `scale?`, `notes?` (`{"<tableId>:<top\|bottom\|left\|right>": Note}`), `subs?` (index slide: show subtitles), `fmt?` (`{title\|subtitle\|note\|date: TextFmt}`), `sizes?` (`{glass\|excel\|clean: {layout?, scale?, align?, valign?}}`, per design over `layout`/`scale`) |
 | `Note` | `text`, `font?`, `size?`, `lh?` (line spacing), `pgap?` (space between paragraphs, lines), `b?`, `i?`, `align?`, `valign?`, `color?`, `w?`, `h?`, `bubble?`, `x?` / `y?` (placed freely, slide px), `span?` (left/right box beside all tables), `auto?` (`CommentCfg`: an automated comment written from the table, `model/comment.ts`) |
+| `Item` (4.3) | `kind: "chart"` – `type` (`pie`\|`donut`\|`bar`\|`column`\|`line`: pie / donut drawn from 4.3, the others reserved), `values` / `labels?` (`DataRef` = `{sheet, range}` or `{table, range}`), `series?`, `title?` (`""` = none), `legend?`, `show?`, `colors?` (`{<slice index>: hex}`), `startAngle?`, `fmt?`, `box` (`{x, y, w, h}` slide px), `attach?` (`{table, side}`); or `kind: "shape"` – `shape` (`rect`\|`round`\|`circle`\|`pill`\|`arrow`\|`bubble`\|`icon`), `icon?`, `text?` (may quote `{Sheet!C7}`), `fill?` (`"none"` = no fill), `border?`, `radius?`, `fmt?` (+ `valign`, `pad`), `tail?`, `box`, `attach?` (07 §2.2) |
 | `DeckVersion` | `id`, `name`, `hide: {<sheet>: ["C5:D9", …]}` – cells removed from that version |
 | `StylePatch` | `design` (`"glass"\|"excel"\|"clean"`), `glass` (`"subtle"\|"medium"\|"strong"`), `color`, `logo`, `radius`, `contrast`, `logoBubble`, `pn` (page numbers `{on, start, pos, font, size, format, style, cover}`), `footer` (`{on, text, pos, size, style, cover}`), `theme` (`{id, c1–c4, a1, a2}`; built-in ids `aurora`, `ocean`, `forest`, `sunset`, `graphite`, `intesa`), `text` (`{title\|subtitle\|table\|note\|index\|pageno: TextFmt}`), `colors` (`{accent, bg, head, headInk, total, totalInk, ink, pos, neg, stripe, rule}`), `designs` (`{glass\|excel\|clean: {theme?, colors?, text?}}`) |
 | `TextFmt` | `font?`, `size?` (slide px), `b?`, `i?`, `color?`, `align?`, `lh?` |
@@ -231,7 +232,7 @@ Types from `core/src/model/types.ts`; the meaning is what its comments state.
 ## 3. Operations
 
 Clients never send documents. They send **operations** inside journal records (§4). The semantics are implemented
-**only** in `core/src/model/ops.ts` and pinned by `shared/ops-vectors.json` (40 vectors: 35 operation cases and 5
+**only** in `core/src/model/ops.ts` and pinned by `shared/ops-vectors.json` (61 vectors: 56 operation cases and 5
 fold cases, run by `core/tests/ops.test.ts`). The helper applies no operation (it builds one record for the v2
 import, §13.6, without applying it).
 
@@ -245,16 +246,18 @@ nothing; an unknown `op` is skipped. Values are deep-copied. `null` means "delet
 | `table.patch` | `id`, `patch` | on the table with that `id`: keys `name, gridH, gridV` set / deleted; `cols, rows, scales, merges, sizes` map merges. Skipped without preset or table |
 | `cell.patch` | `sheet`, `ref`, `patch` | `sheet` non-empty, `ref` matching `^[A-Z]{1,3}[0-9]{1,7}$` (else skipped). On `doc.edits[sheet][ref]` (created if missing): keys `text, orig, font, sz, b, i, color, fill, bg, cf, align, role` set / deleted. Then: no `text` → `orig` deleted; an empty cell is deleted; an empty sheet is deleted |
 | `style.patch` | `patch` | on `doc.style`: keys `design, glass, color, logo, radius, contrast, logoBubble` set / deleted; `pn, footer, theme, text, colors, designs` map merges |
+| `item.patch` (4.3) | `slide`, `id`, `patch` | on `slides[slide].items[id]` (the slide's `items` map created / removed when emptied): `patch: null` deletes the item (skipped when it is missing); otherwise keys `kind, type, values, labels, series, title, legend, show, startAngle, box, attach, shape, icon, text, fill, border, radius, tail` set / deleted, `colors, fmt` map merges. A missing item is created only by a patch with a `kind` and a `box`. Skipped: no preset, no such slide, an empty id, `kind` other than `chart` / `shape`, a `box` that is not `{x, y, w, h}` finite numbers with `w`, `h` > 0 (or `null`) |
 
-**Map merge** (`mapMerge`, `ops.ts:63`): value `null` deletes the whole map; an object sets each entry (replacing
+**Map merge** (`mapMerge`, `ops.ts:90`): value `null` deletes the whole map; an object sets each entry (replacing
 that entry as a whole) or deletes it when `null`; a non-object is ignored; a map left empty is deleted. So two people
 changing different columns, rules, text boxes or designs do not overwrite each other; the same entry is last writer
 wins in fold order (§5).
 
-**Inverse operations and undo.** `inverseOf(doc, op)` (`ops.ts:94`) computes, from the document **before** the op,
+**Inverse operations and undo.** `inverseOf(doc, op)` (`ops.ts:121`) computes, from the document **before** the op,
 the op that restores the touched keys: `preset.set` → the previous preset; a patch → the previous value of each
 patched key (`null` where it was absent), per entry for map merges; a `cell.patch` that touches `text` also restores
-`orig`; `null` for a slide or table that does not exist. `DocSync.apply` collects the inverses of the ops that applied
+`orig`; `null` for a slide or table that does not exist; for `item.patch`, the deletion of an item it creates, the whole
+item for a deletion, else the previous value of each patched key (per entry for `colors` / `fmt`). `DocSync.apply` collects the inverses of the ops that applied
 (in reverse order); `History` (`core/src/sync/history.ts`) keeps up to 200 steps, coalesces changes with the same
 `coalesce` key within 1.5 s, and forgets the steps when another workbook opens. Undo appends the inverse as **new**
 operations in a new record, so it never reverts another person's later change to other keys.
