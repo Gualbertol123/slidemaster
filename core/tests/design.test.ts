@@ -54,13 +54,13 @@ describe("designs and colours", () => {
     expect(cl).toBe(ex);
     expect(cl).toContain(rgb("#1F4E79")); expect(cl).toContain(rgb("#00B050"));
   });
-  it("Excel is raw: the workbook's colours, whatever the deck's colours say; no text boxes", async () => {
+  it("Excel is raw: the workbook's colours, whatever the deck's colours say; the user's text boxes drawn (B19, DS-02 since 4.3)", async () => {
     const pure = drawn(table(), ctx({ design: "excel" }));
     expect(pure).toContain(rgb("#1F4E79")); expect(pure).toContain(rgb("#00B050"));
     expect(drawn(table(), ctx({ design: "excel", colors: { head: "#5B2C83", pos: "#0077B6" } }))).toBe(pure);
     const { notesOf } = await import("../src/render/layout");
     const R: any = { tables: [{ id: "t" }], cfg: { notes: { "t:right": { text: "x" } } } };
-    expect(notesOf(R, 0, ctx({ design: "excel" }))).toEqual({});
+    expect(notesOf(R, 0, ctx({ design: "excel" })).right?.text).toBe("x");
     expect(notesOf(R, 0, ctx({ design: "clean" })).right?.text).toBe("x");
   });
   it("each design can have its own colours, text styles and theme over the shared ones", () => {

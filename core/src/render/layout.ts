@@ -78,10 +78,10 @@ export function validLayout(L: Layout | null | undefined, n: number): L is Layou
   const seen = L.bands.flat(); return seen.length === n && new Set(seen).size === n && seen.every(i => Number.isInteger(i) && i >= 0 && i < n);
 }
 /* Table sizing (arrangement, weights, fixed scale) is kept per design: the designs draw the tables at
-   different sizes and only Liquid Glass and Excel Refined have text boxes, so sizing set in one design
-   must not shrink the tables of another. Older decks have one shared sizing (cfg.layout/cfg.scale): it
-   is used by every design without its own; raw Excel corrects the shared scale for the room the text
-   boxes took in the design it was made in. */
+   different sizes, so sizing set in one design must not shrink the tables of another. Older decks have one
+   shared sizing (cfg.layout/cfg.scale): it is used by every design without its own. (Until 4.3 raw Excel drew
+   no text boxes and corrected a shared scale for the room they took elsewhere; since B19 it draws them, as
+   every design, and the scale is the slide's.) */
 export type Sizing = { layout?: Layout | null; scale?: number | null; align?: SlideSizing["align"] | null; valign?: SlideSizing["valign"] | null };
 export function sizingOf(R: RuntimeSlide, ctx: RenderCtx): Sizing & { own: boolean } {
   const own = R.cfg?.sizes?.[ctx.style.design];
@@ -105,12 +105,8 @@ export const sizingChange = (R: RuntimeSlide, ctx: RenderCtx, ch: Sizing) => { c
 const clean = (e: Sizing): SlideSizing => ({ ...(e.layout ? { layout: e.layout } : {}), ...(e.scale ? { scale: e.scale } : {}), ...(e.align && e.align !== "center" ? { align: e.align } : {}), ...(e.valign ? { valign: e.valign } : {}) });
 /** the fixed scale of the slide in this design ("Make same size"), 0 = none */
 function fixedScale(R: RuntimeSlide, ctx: RenderCtx): number {
-  const sz = sizingOf(R, ctx), s = sz.scale && sz.scale > 0 ? sz.scale : 0;
-  if (!s || sz.own || ctx.style.design !== "excel" || !R.cfg.notes || !Object.keys(R.cfg.notes).length) return s;
-  // shared scale made with text boxes: grow it by as much as the missing text boxes let the tables grow
-  const withNotes = computeLayout({ ...R, cfg: { ...R.cfg, scale: undefined } }, { ...ctx, style: { ...ctx.style, design: "clean" } }).fit;
-  const bare = computeLayout({ ...R, cfg: { ...R.cfg, scale: undefined } }, ctx).fit;
-  return withNotes > 0 ? s * bare / withNotes : s;
+  const sz = sizingOf(R, ctx);
+  return sz.scale && sz.scale > 0 ? sz.scale : 0;
 }
 export function layoutOf(R: RuntimeSlide, ctx?: RenderCtx): Layout {
   const saved = ctx ? sizingOf(R, ctx).layout : R.cfg && R.cfg.layout;
@@ -128,10 +124,9 @@ export const MEMO_KEY = "slide:notes";
 export const memoBox = (n: Note) => ({ x: n.x ?? 56, y: n.y ?? 832, w: n.w || 900, h: n.h || 44 });
 export const SIDES: Side[] = ["top", "bottom", "left", "right"];
 export const noteKey = (R: RuntimeSlide, i: number, side: Side) => (R.tables[i].id || String(i)) + ":" + side;
-/** the text boxes of table i, with the deck's text box style applied */
+/** the text boxes of table i, with the deck's text box style applied – in every design (B19: raw Excel too) */
 export function notesOf(R: RuntimeSlide, i: number, ctx?: RenderCtx): Partial<Record<Side, Note>> {
   const out: Partial<Record<Side, Note>> = {}, all = R.cfg.notes || {};
-  if (ctx && ctx.style.design === "excel") return out;                 // raw Excel: nothing added to the workbook's tables
   for (const side of SIDES) {
     const n = all[noteKey(R, i, side)]; if (!n) continue;
     const e = ctx ? effNote(ctx, n) : n;

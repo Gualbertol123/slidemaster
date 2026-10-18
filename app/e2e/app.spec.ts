@@ -741,7 +741,7 @@ test.describe.serial("two people, one shared folder", () => {
     await pollFile(() => { const n: any = Object.values(notes()).find((x: any) => x.text === "Source: ECB"); return n && n.x; }, { timeout: 10_000 }).toBeUndefined();
   });
 
-  test("notes section of a slide: where the footer is, movable next to the page number; raw Excel adds nothing; menus open", async ({ page }) => {
+  test("notes section of a slide: where the footer is, movable next to the page number; raw Excel draws it too (B19); menus open", async ({ page }) => {
     await openApp(page, BOB);
     await expect(page.locator(".thumb")).toHaveCount(1);
     const wdoc = () => deckDoc("weekly.xlsx");
@@ -766,11 +766,13 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#stage .snapline.h")).toBeVisible();
     await page.mouse.up();
     await pollFile(() => wdoc().preset.slides[0].notes["slide:notes"].x, { timeout: 10_000 }).toBeGreaterThan(56);
-    // raw Excel: the workbook only – no comments, no text boxes, no notes
+    // raw Excel (B19, NB-18, AC-01 since 4.3): the user's notes section, text boxes and comments are drawn there too –
+    // the + buttons and Comment… are enabled; it adds no decoration of its own
     await page.click('[data-design="excel"]'); await saved(page);
-    await expect(page.locator("#stage .tnote")).toHaveCount(0);
-    await expect(page.locator("#stage .addnote")).toHaveCount(0);
-    await expect(page.locator("#commentBtn")).toBeDisabled();
+    await expect(page.locator("#stage .tnote.memo")).toContainText("Source: internal data");
+    expect(await page.locator("#stage .addnote").count()).toBeGreaterThan(0);
+    await expect(page.locator("#commentBtn")).toBeEnabled();
+    await expect(page.locator("#slideNotes")).toBeEnabled();
     await page.click('[data-design="glass"]'); await saved(page);
     await expect(memo).toBeVisible();
     await page.click("#optBtn"); await page.uncheck("#pnOn"); await saved(page); await page.keyboard.press("Escape");

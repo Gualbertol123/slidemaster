@@ -81,10 +81,10 @@ export function noteParts(R: RuntimeSlide, i: number, ctx: RenderCtx, opts: Slid
   return out;
 }
 /** the slide's notes section (sources, footnotes…): a text box of the slide itself, placed where the user put it –
-    by default where the footer is; not in raw Excel */
+    by default where the footer is; in every design (B19) */
 export function memoPart(R: RuntimeSlide, ctx: RenderCtx, opts: SlideOpts = {}): (NotePart & { box: { x: number; y: number; w: number; h: number } }) | null {
   const d = ctx.style.design, glassy = d === "glass", rk = ctx.style.radius / 100;
-  const memo = d === "excel" ? null : (R.cfg.notes || {})[MEMO_KEY];
+  const memo = (R.cfg.notes || {})[MEMO_KEY];
   if (!memo || !(String(memo.text || "").trim() || opts.interactive)) return null;
   const n = effNote(ctx, memo), txt = String(n.text || ""), mb = memoBox(memo);
   const bubble = n.bubble && txt.trim() ? (glassy ? { cls: "gls wb card notebub memo", r: Math.round(16 * rk) } : { cls: "notebub x memo", r: Math.round(8 * rk) }) : null;

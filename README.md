@@ -67,8 +67,9 @@ suggestions) → 3 Slides (drag tables between slides; optional cover and conten
 *All* = some cells blanked).
 
 **Designs** (top bar: *Liquid Glass · Excel · Excel Refined*)
-* **Excel** – the workbook's own formatting, nothing added (no text boxes, comments or notes section). Title,
-  logo, page number and footer stay.
+* **Excel** – the workbook's own formatting, no decoration of its own (no deck colours on tables, no glass). Title,
+  logo, page number and footer stay; since 4.3 (B19) the user's objects – text boxes, automated comments, the notes
+  section, charts and callouts – are drawn here too, as in every design.
 * **Excel Refined** – the same tables drawn like Excel, **plus** text boxes, automated comments and the notes
   section.
 * **Liquid Glass** – a light design: the table structure (header bands, boxes, rules, signals) is inferred from

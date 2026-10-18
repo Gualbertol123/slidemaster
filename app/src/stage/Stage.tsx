@@ -242,7 +242,7 @@ function HBox({ i, R, c, m, box, drag, slide }: { i: number; R: RuntimeSlide; c:
       {(["l", "r", "t", "b"] as const).map(ed => <div key={ed} className={"edge " + ed} data-edge={ed} title={`Drag to make the table ${ed === "l" || ed === "r" ? "wider or narrower" : "taller or shorter"}`}
         onPointerDown={e => { e.preventDefault(); e.stopPropagation(); stretchDrag(R, i, ed, e.nativeEvent); }} />)}
       {st && <div className="edgetip">{Math.round(st.f * 100)} %</div>}
-      {c.style.design !== "excel" && SIDES.map(sd => <button key={sd} className={"addnote " + sd} data-side={sd} title={`Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd}`}
+      {SIDES.map(sd => <button key={sd} className={"addnote " + sd} data-side={sd} title={`Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd}`}
         onPointerDown={e => { e.preventDefault(); e.stopPropagation(); addNote(i, sd); }}>+</button>)}
     </div>
   );

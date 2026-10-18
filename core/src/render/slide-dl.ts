@@ -648,12 +648,12 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
             : kind === "nt" ? { ...st, size: r2(size * 1.32), weight: 800, color: glassy ? solid("#0B0D17") : solid(x1) } : kind === "nh" ? { ...st, weight: 700, color: solid(a1) } : st;
           const bst: TStyle = part.ink ? { ...bst0, color: solid(part.ink) } : bst0;
           const runs0 = inlineRuns(hs?.caps ? body.toUpperCase() : body, bst), blh = kind === "nt" ? 1.15 : kind === "nh" ? 1.25 : lh;
-          const runs = bullet && !hang ? [{ text: C!.note.bullet + " ", st: { ...st, color: solid(C!.note.bulletColor) } }, ...runs0] : runs0;
+          const runs = bullet && !hang ? [{ text: C!.note.bullet + " ", st: { ...st, color: solid(part.ink || C!.note.bulletColor) } }, ...runs0] : runs0;
           const b = block(runs, cx + ind, 0, cw - ind, blh, align, pre);
-          if (hang && b.h) b.nodes.unshift(T.node(C!.note.bullet, cx, T.baseline(st, 0, T.lineH(st, blh)), { ...st, color: solid(C!.note.bulletColor) }));
+          if (hang && b.h) b.nodes.unshift(T.node(C!.note.bullet, cx, T.baseline(st, 0, T.lineH(st, blh)), { ...st, color: solid(part.ink || C!.note.bulletColor) }));
           // a "# " heading of a consulting design: a 24 × 3 accent bar 6 px above it (08 §2.5)
           const hbar = !!C && C.id !== "mckinsey" && kind === "nt" && b.h > 0;
-          if (hbar) b.nodes.unshift({ t: "rect", x: r2(align === "right" ? cx + cw - 24 : align === "center" ? cx + (cw - 24) / 2 : cx), y: -9, w: 24, h: 3, fill: solid(C!.accent) });
+          if (hbar) b.nodes.unshift({ t: "rect", x: r2(align === "right" ? cx + cw - 24 : align === "center" ? cx + (cw - 24) / 2 : cx), y: -9, w: 24, h: 3, fill: solid(part.ink || C!.accent) });
           blocks.push({ ...b, mt: (kind === "np" && prevNp && !auto ? (pgap ?? 0) : 0) + (hbar ? 9 : 0), mb: kind === "nt" ? .1 * bst.size : 0 });
           texts.push(hang ? C!.note.bullet + " " + b.text : b.text);
           prevNp = kind === "np";

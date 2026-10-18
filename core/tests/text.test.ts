@@ -163,16 +163,16 @@ describe("text boxes placed freely", () => {
 
 describe("table sizing per design", () => {
   const L = { id: "a", def: { id: "a" }, items: [], W: 600, H: 200, g: { r1: 1, c1: 1, r2: 20, c2: 5 }, rows: [], cols: [], sheet: { name: "S" } } as any;
-  it("raw Excel is not shrunk by text boxes, nor by a scale made with them", () => {
+  it("raw Excel gives text boxes room as the other designs do; a shared scale is the slide's (B19, DS-07 since 4.3)", () => {
     const notes = { "a:right": { text: "x", w: 500 } };
-    const clean = computeLayout(slide({ tables: ["a"], notes }, { tables: [L] }), ctx({}, "clean")).boxes[0].w;
-    const excel = computeLayout(slide({ tables: ["a"], notes }, { tables: [L] }), ctx({}, "excel")).boxes[0].w;
-    expect(excel).toBeGreaterThan(clean * 1.2);
-    // an older deck's shared fixed scale (set in Excel Refined with the text box): Excel grows by the same room
+    const clean = computeLayout(slide({ tables: ["a"], notes }, { tables: [L] }), ctx({}, "clean")).boxes[0];
+    const excel = computeLayout(slide({ tables: ["a"], notes }, { tables: [L] }), ctx({}, "excel")).boxes[0];
+    expect(excel.notes.right).toBeTruthy();
+    expect(excel.w).toBeCloseTo(clean.w, 5);
+    // an older deck's shared fixed scale: every design keeps it (raw Excel no longer corrects it)
     const shared = slide({ tables: ["a"], notes, scale: 0.5 }, { tables: [L] });
-    const kClean = computeLayout(shared, ctx({}, "clean")).k, kExcel = computeLayout(shared, ctx({}, "excel")).k;
-    expect(kClean).toBeCloseTo(0.5, 5);
-    expect(kExcel).toBeGreaterThan(0.6);
+    expect(computeLayout(shared, ctx({}, "clean")).k).toBeCloseTo(0.5, 5);
+    expect(computeLayout(shared, ctx({}, "excel")).k).toBeCloseTo(0.5, 5);
   });
   it("each design uses its own sizing, else the shared one", () => {
     const R = slide({ tables: ["a"], scale: 0.5, sizes: { excel: { scale: 0.9 } } }, { tables: [L] });

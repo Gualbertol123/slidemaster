@@ -152,6 +152,7 @@ numbers measured twice). Measured numbers go into the step's line.
 
 (Human decisions the plan needs, e.g. gate G0 outcomes. An agent never writes here on its own.)
 
+- 2026-10-18 · **B19 parity differences signed off** (product owner, in the session, on `review/S9.5/index.html`; recorded by the agent): "Sign off the 5 differences" – raw Excel draws the user's text boxes, automated comments and notes section: weekly-comments slide 1, weekly-looks slide 1, weekly-options slide 3 (Full, All, Chief), each in `tests/parity/accepted.json` for parity and dlparity with reason "B19" and the digest of its differences.
 - 2026-10-18 · **Gate G6 signed off: the pie / donut recipe as it is** (product owner, in the session, on `review/S9.2/index.html` – the chart corpus `tests/corpus/charts` in all five designs; recorded by the agent): "Sign off as is" – Liquid Glass in a glass card with the theme's tinted colours, Excel with the accent then Office's chart colours and no card, Excel Refined the same on a plain card, Consulting Navy / Red with their own chart palettes turning grey after 4–5 slices (08's highlight hooks), labels inside a slice when they fit, else outside with a leader. In the same session: "I also want to be able to edit colours individually" – the side panel's colour per slice (S9.3).
 - 2026-10-18 · **On CI the bench's limits follow the runner's engine speed** (product owner, in the session, after
   three CI runs of M8 failed the bench on different gates by a few ms – first use 351 vs 348 – while the reference PC
