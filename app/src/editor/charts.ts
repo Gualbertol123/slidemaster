@@ -46,7 +46,8 @@ export function insertChartFromSelection() {
 /** a chart of cells chosen in the sheet view (PickCells.tsx: any sheet the wizard lists, a sheet on no slide too),
     placed on the right half of the slide */
 export const insertChartRefs = (values: DataRef, labels: DataRef | null) => addChart(values, labels, { x: 900, y: 200, w: 600, h: 440 }, null);
-/** a cell quoted at the end of callout `id`'s text: {Sheet!C7}, a name with spaces or signs in quotes */
+/** a cell quoted at the end of callout `id`'s text: {Sheet!C7}, a name with spaces or signs in quotes (a sheet name
+    with both a quote and "!" cannot be quoted this way – the token parser, model/preset.ts CELL_TOKEN, stops at "!") */
 export function quoteCell(id: string, sheet: string, ref: string) {
   const it = itemOf(id); if (!it || it.kind !== "shape") return;
   const name = /^[\w.[\]-]+$/.test(sheet) ? sheet : "'" + sheet.replace(/'/g, "''") + "'", cur = it.text || "";

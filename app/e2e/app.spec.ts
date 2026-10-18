@@ -1301,8 +1301,16 @@ test.describe.serial("two people, one shared folder", () => {
     const chartLayer = page.locator("#stage svg.layer.item");
     // CH-02: Insert chart ▾ › from a range of a sheet that is on no slide (Numbers): the wizard's sheets, hidden ones not
     await page.click("#chartBtn");
-    // the cells chosen in the sheet view (no cell names typed: product owner 2026-10-19): the numbers, then their names
+    // the cells chosen in the sheet view (no cell names typed: product owner 2026-10-19): the numbers, then their names;
+    // Escape (and Cancel) close it without a chart
     await page.click('[data-a="chart-pick"]');
+    await expect(page.locator("#pickCells")).toBeVisible();
+    await page.locator("#pkSheet").focus(); await page.keyboard.press("Escape");
+    await expect(page.locator("#pickCells")).toHaveCount(0);
+    await page.click("#chartBtn"); await page.click('[data-a="chart-pick"]');
+    await page.click('#pickCells [data-a="cancel"]');
+    await expect(page.locator("#pickCells")).toHaveCount(0);
+    await page.click("#chartBtn"); await page.click('[data-a="chart-pick"]');
     await expect(page.locator("#pickCells")).toBeVisible();
     await expect(page.locator("#pkSheet option")).toContainText(["SLIDE_1", "Numbers"]);
     await expect(page.locator('#pkSheet option[value="Hidden data"]')).toHaveCount(0);
@@ -1313,6 +1321,17 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#pkSel")).toHaveText("B9:B11");
     await page.click("#pkUse");                                                          // Next: their names
     await expect(page.locator("#pickCells")).toContainText("Step 2 of 2");
+    // Escape goes back a step (the numbers kept, chosen again), Back too; then the names step once more
+    await page.locator("#pkSheet").focus(); await page.keyboard.press("Escape");
+    await expect(page.locator("#pickCells")).toContainText("Step 1 of 2");
+    await page.locator('#pkRange td[data-r="9"][data-c="2"]').click();
+    await page.locator('#pkRange td[data-r="11"][data-c="2"]').click({ modifiers: ["Shift"] });
+    await page.click("#pkUse");
+    await page.click("#pkBack");
+    await expect(page.locator("#pickCells")).toContainText("Step 1 of 2");
+    await page.locator('#pkRange td[data-r="9"][data-c="2"]').click();
+    await page.locator('#pkRange td[data-r="11"][data-c="2"]').click({ modifiers: ["Shift"] });
+    await page.click("#pkUse");
     await page.click("#pkNoNames");
     await expect(page.locator("#pickCells")).toHaveCount(0);
     await expect(page.locator(".itembox[data-kind=chart]")).toHaveCount(1, { timeout: 10_000 });

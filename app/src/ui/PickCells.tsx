@@ -3,7 +3,7 @@
    Select cell… / From a range… – a sheet of the list (hidden sheets are not offered, WB-18), cells dragged or
    Shift+clicked. A chart takes two steps – the numbers, then (or not) their names; a callout quotes one cell. */
 import { useEffect, useState } from "react";
-import { setDialogs, useStore, type PickReq } from "../state/store";
+import { get, setDialogs, toast, useStore, type PickReq } from "../state/store";
 import { core } from "../state/app";
 import { RangePicker } from "../wizard/Wizard";
 import type { SheetInfo } from "@slide-builder/core/xlsx/sheetview";
@@ -18,7 +18,11 @@ export function PickCellsDialog() {
   const sheets = (wb?.meta || []).map(m => m.name).filter(n => !(wb?.hiddenSheets || []).includes(n));
   const one = req.kind === "cell";
   // the sheet shown first: the chart's own (changing its cells), else the first of the list
-  const start = () => { const it = req.kind === "chart-cells" ? itemOf(req.id) : null, v = it?.kind === "chart" ? it.values : null; const s = v && "sheet" in v ? v.sheet : null; return s && sheets.includes(s) ? s : sheets[0] || ""; };
+  const start = () => {
+    const it = req.kind === "chart-cells" ? itemOf(req.id) : null, v = it?.kind === "chart" ? it.values : null;
+    const s = !v ? null : "sheet" in v ? v.sheet : get().doc.view?.preset?.tables.find(t => t.id === v.table)?.sheet ?? null;
+    return s && sheets.includes(s) ? s : sheets[0] || "";
+  };
   const [sheet, setSheet] = useState(start), [info, setInfo] = useState<SheetInfo | null>(null), [err, setErr] = useState("");
   const [range, setRange] = useState<string | null>(null);
   // a chart: the numbers first, then their names
@@ -31,11 +35,24 @@ export function PickCellsDialog() {
       .catch(e => { if (live) setErr(String((e as Error)?.message || e)); });
     return () => { live = false; };
   }, [sheet, wb?.book]);
-  if (!wb) return null;
+  // 2: nothing to choose from (no workbook, no sheet): no dialog left open behind the page
+  useEffect(() => { if (!wb || !sheets.length) { toast("Open a workbook first – its sheets are where the cells are chosen."); close(); } }, [!!wb, sheets.length]);
+  // 1: Escape: the grid's own selection first, then back from the names to the numbers, then the dialog closes
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if ((e.target as HTMLElement).closest?.(".wgrid-in") && document.querySelector("#pkRange .ovb.sel")) return;
+      e.stopPropagation();
+      if (values) { setValues(null); setRange(null); } else close();
+    };
+    document.addEventListener("keydown", key, true);
+    return () => document.removeEventListener("keydown", key, true);
+  }, [values]);
+  if (!wb || !sheets.length) return null;
   const finish = (labels: DataRef | null, v = values) => {
     if (!v) return;
     if (req.kind === "chart") insertChartRefs(v, labels);
-    else if (req.kind === "chart-cells") itemPatch("Chart cells", req.id, { values: v, labels });
+    else if (req.kind === "chart-cells") itemPatch("Chart cells", req.id, { values: v, labels, attach: null });
     close();
   };
   const use = (r: string | null) => {
