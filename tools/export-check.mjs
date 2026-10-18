@@ -2,7 +2,9 @@
    opened in the app, exported with the Export button (the export workers, saved by the helper). Each PDF is then checked:
    * qpdf --check, no Type 3, no variable fonts (tools/pdfcheck.py check);
    * its selectable text against the goldens (GT, decision 2026-10-12, 5): every golden text of each slide on its
-     page, nothing else, the page count = the slide count;
+     page, nothing else, the page count = the slide count (since 4.3, B19: a raw Excel slide with the user's text boxes,
+     comments or notes section equals Excel Refined's golden text – both draw the same tables and objects – and is
+     listed as such);
    * GF budgets (PLAN Part F): Excel designs < 40 KB per slide, Liquid Glass < 80 KB per slide + 190 KB per document,
      Consulting Navy / Red (M7b, 08 §4.3) < 40 KB per slide + 150 KB per document – gated on deck20 (the 20-slide
      reference, as the bench); for decks of 1–3 slides the fonts and the wallpaper, a cost per document, can exceed it:
@@ -110,7 +112,14 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       const want = goldenTexts(r.deck, r.design, "full", p + 1);
       if (!want) return;
       const { missing, extra } = matchTexts(pageText, want);
-      if (missing.length || extra) bad.push(`slide ${p + 1}: ${missing.length ? `missing ${JSON.stringify(missing.slice(0, 3))}` : ""}${extra ? ` not in the goldens: ${JSON.stringify(extra.slice(0, 60))}` : ""}`);
+      if (!missing.length && !extra) return;
+      // B19 (4.3, signed off 2026-10-18): raw Excel draws the user's text boxes, comments and notes section, as Excel
+      // Refined always has – a slide that has them reads as Excel Refined's golden (the same tables, the same objects)
+      if (r.design === "excel") {
+        const refined = goldenTexts(r.deck, "clean", "full", p + 1), m2 = refined && matchTexts(pageText, refined);
+        if (m2 && !m2.missing.length && !m2.extra) { (r.b19 ||= []).push(p + 1); return; }
+      }
+      bad.push(`slide ${p + 1}: ${missing.length ? `missing ${JSON.stringify(missing.slice(0, 3))}` : ""}${extra ? ` not in the goldens: ${JSON.stringify(extra.slice(0, 60))}` : ""}`);
     });
     r.gt = bad.length ? bad : "equal";
     const [per, once] = BUDGET.size[r.design], limit = per * r.slides + once;
@@ -127,6 +136,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   fs.writeFileSync(path.join(OUT, "export-check.json"), JSON.stringify(summary, null, 1));
   if (arg("--json", null)) fs.writeFileSync(arg("--json"), JSON.stringify(summary, null, 1));
   console.log(`calibration ${speed.ms.toFixed(1)} ms: time limits × ${speed.factor.toFixed(2)}`);
+  const b19 = results.filter(r => r.b19).map(r => `${r.deck} slide ${r.b19.join(", ")}`);
+  if (b19.length) console.log(`GT B19: raw Excel equal to Excel Refined's golden text (the user's objects drawn): ${b19.join("; ")}`);
   console.log(`${results.length} PDFs: GT ${results.filter(r => r.gt === "equal").length} equal · size ${results.filter(r => r.sizeOk).length} within budget · ${OUT}`);
   process.exitCode = ok ? 0 : 1;
 }
