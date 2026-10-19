@@ -8,7 +8,7 @@
 import { get } from "../state/store";
 import { change, ctx } from "../state/app";
 import type { Layout, Note, Op, RuntimeSlide, Side } from "@slide-builder/core/model/types";
-import { areaFor, computeLayout, freeKey, freeOf, GX, GY, layoutOf, MEMO_KEY, sizingOf, sizingPatch, tableH, tableW, type TBox } from "@slide-builder/core/render/layout";
+import { areaFor, computeLayout, freeKey, freeOf, GX, GY, itemBoxOf, layoutOf, MEMO_KEY, noteKey, sizingOf, sizingPatch, tableH, tableW, type TBox } from "@slide-builder/core/render/layout";
 import { curSlide } from "../editor/edit";
 import { selCols, selRows, setColWidth, setRowHeight, stretchTable } from "../editor/tables";
 import { requestsIssued, setStage, stage } from "./data";
@@ -180,12 +180,14 @@ function snapTo(list: number[], edges: number[]) {
 /** a table of a free layout: moved by its grip, resized by its corner or an edge keeping the workbook's proportions – the
     corner and the edges set its scale (an edge from its own axis, the opposite side staying), its box follows */
 export function freeTable(R: RuntimeSlide, i: number, how: "move" | "corner" | NEdge, e: PointerEvent) {
-  const c = ctx(), T = R.tables[i], all = computeLayout(R, c).boxes, start = all[i]; if (!T || !start || !freeOf(R, c)) return;
+  if (e.button !== 0) return;
+  const c = ctx(), T = R.tables[i], all = computeLayout(R, c).boxes, start = all[i], f = freeOf(R, c); if (!T || !start || !f) return;
   const W = tableW(T, c), H = tableH(T, c), sc = slideScale(), sx = e.clientX, sy = e.clientY, key = freeKey.table(R, i);
   // what it lines up with: the other tables, the text boxes, the items, the slide's guides
+  // (the table's own text boxes without a saved box move with it: not targets)
   const others: Rect[] = [];
-  all.forEach((b, k) => { if (!b) return; if (k !== i) others.push(b); for (const n of Object.values(b.notes)) if (n) others.push(n); for (const n of Object.values(b.items || {})) others.push(n); });
-  for (const id of Object.keys(R.cfg.items || {})) { const f = freeOf(R, c)!.items[freeKey.item(id)]; if (f) others.push(f); }
+  all.forEach((b, k) => { if (!b) return; if (k !== i) others.push(b); for (const [side, n] of Object.entries(b.notes)) if (n && (k !== i || f.items[freeKey.note(noteKey(R, k, side as Side))])) others.push(n); });
+  for (const id of Object.keys(R.cfg.items || {})) { const b = itemBoxOf(R, id, all, c); if (b) others.push(b); }
   const t = snapTargets({ ...R, tables: [] }, others);
   let box: Rect & { scale: number } = { x: start.x, y: start.y, w: start.w, h: start.h, scale: start.scale }, moved = false, at: PointerEvent | null = null, frame = 0;
   const solve = () => {
@@ -197,7 +199,10 @@ export function freeTable(R: RuntimeSlide, i: number, how: "move" | "corner" | N
       let x = Math.max(0, Math.min(1600 - start.w, start.x + dx)), y = Math.max(0, Math.min(900 - start.h, start.y + dy));
       const bx = snap ? snapTo(t.x, [x, x + start.w]) : null, by = snap ? snapTo(t.y, [y, y + start.h]) : null;
       if (bx) { x += bx.d; v = bx.line; } if (by) { y += by.d; h = by.line; }
-      box = { ...box, x, y };
+      // (a snap that would take it off the slide is not taken: the drop is where the preview is)
+      const cx = Math.max(0, Math.min(1600 - start.w, x)), cy = Math.max(0, Math.min(900 - start.h, y));
+      if (cx !== x) v = null; if (cy !== y) h = null;
+      box = { ...box, x: cx, y: cy };
     } else {
       // the new width from the pointer (an edge: its own axis; the corner: the larger of the two), snapped at the moving edge
       const horiz = how === "l" || how === "r";
@@ -230,20 +235,27 @@ export function freeTable(R: RuntimeSlide, i: number, how: "move" | "corner" | N
 export function noteStretch(R: RuntimeSlide, key: string, box: Rect, edge: NEdge, free: boolean, others: Rect[], e: PointerEvent) {
   const sc = slideScale(), cur = (R.cfg.notes || {})[key]; if (!cur) return;
   const { x: x0, y: y0, w: w0, h: h0 } = box, horiz = edge === "l" || edge === "r", targets = snapTargets(R, others);
-  const sx = e.clientX, sy = e.clientY; let size = horiz ? w0 : h0, now = box;
+  const sx = e.clientX, sy = e.clientY; let size = horiz ? w0 : h0, now = box, moved = false;
   follow(ev => {
     const d = (horiz ? ev.clientX - sx : ev.clientY - sy) / sc * (edge === "l" || edge === "t" ? -1 : 1);
     size = Math.max(horiz ? 120 : 40, (horiz ? w0 : h0) + d);
+    // a free layout keeps the box on the slide on the side that moves (the other side stays where it is)
+    const fl = free && key !== MEMO_KEY && !!freeOf(R, ctx()), room = edge === "r" ? 1600 - x0 : edge === "l" ? x0 + w0 : edge === "b" ? 900 - y0 : y0 + h0;
+    if (fl) size = Math.min(size, Math.max(horiz ? 120 : 40, room));
     // the moving edge, in slide px, and the nearest edge it can line up with
     const pos = edge === "r" ? x0 + size : edge === "l" ? x0 + w0 - size : edge === "b" ? y0 + size : y0 + h0 - size;
     let best: number | null = null;
     if (!(ev.altKey && freeOf(R, ctx()))) for (const t of horiz ? targets.x : targets.y) if (Math.abs(t - pos) <= SNAP && (best === null || Math.abs(t - pos) < Math.abs(best - pos))) best = t;
     if (best !== null) size += (edge === "r" || edge === "b" ? 1 : -1) * (best - pos);
+    if (fl) size = Math.min(size, Math.max(horiz ? 120 : 40, room));
+    moved ||= Math.abs(horiz ? ev.clientX - sx : ev.clientY - sy) >= 3;
     now = horiz ? { x: edge === "l" ? x0 + w0 - size : x0, y: y0, w: size, h: h0 } : { x: x0, y: edge === "t" ? y0 + h0 - size : y0, w: w0, h: size };
     preview({ kind: "note", key, box: now, moved: false, v: horiz ? best : null, h: horiz ? null : best });
   }, () => {
-    endPreview(Math.abs(size - (horiz ? w0 : h0)) >= 1);
-    if (Math.abs(size - (horiz ? w0 : h0)) < 1) return;
+    // (a box below the smallest size jumps to it on any jitter: only a real drag counts)
+    const changed = moved && Math.abs(size - (horiz ? w0 : h0)) >= 1;
+    endPreview(changed);
+    if (!changed) return;
     // a free layout: the layout's box (the text box itself unchanged)
     const fo = key !== MEMO_KEY ? freeOp(R, freeKey.note(key), now) : null;
     if (fo) { change(horiz ? "Text box width" : "Text box height", [fo]); return; }
@@ -285,9 +297,10 @@ export function itemMove(R: RuntimeSlide, id: string, box: Rect, others: Rect[],
     side), snapping unless Alt is held; one op on the drop */
 export function itemResize(R: RuntimeSlide, id: string, box: Rect, e: PointerEvent, edge: "corner" | NEdge = "corner", others: Rect[] = []) {
   if (e.button !== 0 || !R.cfg.items?.[id]) return;
-  const sc = slideScale(), sx = e.clientX, sy = e.clientY, targets = freeOf(R, ctx()) ? snapTargets(R, others) : null; let now = box;
+  const sc = slideScale(), sx = e.clientX, sy = e.clientY, targets = freeOf(R, ctx()) ? snapTargets(R, others) : null; let now = box, moved = false;
   follow(ev => {
     const dx = (ev.clientX - sx) / sc, dy = (ev.clientY - sy) / sc;
+    moved ||= Math.hypot(ev.clientX - sx, ev.clientY - sy) >= 3;
     let v: number | null = null, hl: number | null = null;
     if (edge === "corner") {
       let w = box.w + dx, h = box.h + dy;
@@ -304,7 +317,7 @@ export function itemResize(R: RuntimeSlide, id: string, box: Rect, e: PointerEve
     }
     preview({ kind: "item", id, box: now, moved: false, v, h: hl });
   }, () => {
-    const changed = Math.abs(now.w - box.w) >= 1 || Math.abs(now.h - box.h) >= 1 || Math.abs(now.x - box.x) >= 1 || Math.abs(now.y - box.y) >= 1;
+    const changed = moved && (Math.abs(now.w - box.w) >= 1 || Math.abs(now.h - box.h) >= 1 || Math.abs(now.x - box.x) >= 1 || Math.abs(now.y - box.y) >= 1);
     endPreview(changed);
     if (!changed) return;
     const it = R.cfg.items?.[id];

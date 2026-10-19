@@ -87,6 +87,18 @@ describe("inverse of a free layout switch (07 §5.1, B18: one undo step each way
   });
 });
 
+describe("map merges keep a \"__proto__\" entry of a shared document out (it would set the map's prototype)", () => {
+  it("slide.patch free from JSON with a __proto__ key: no own key, the map's prototype untouched", () => {
+    const d: any = { preset: { sheets: [], tables: [], slides: [{ id: "s", type: "content", tables: [] }] }, style: {}, edits: {} };
+    const op = JSON.parse('{"op":"slide.patch","id":"s","patch":{"free":{"__proto__":{"on":true,"items":{}},"glass":{"on":true,"items":{}}}}}');
+    expect(applyOp(d, op)).toBe(true);
+    const free = d.preset.slides[0].free;
+    expect(Object.getPrototypeOf(free)).toBe(Object.prototype);
+    expect(Object.keys(free)).toEqual(["glass"]);
+    expect((free as { on?: unknown }).on).toBeUndefined();
+  });
+});
+
 describe("inverse of item.patch (07 §2.2: undo of a chart or callout change)", () => {
   const pie = { kind: "chart", type: "pie", values: { sheet: "S", range: "C5:C9" }, box: { x: 1, y: 2, w: 300, h: 200 }, colors: { 0: "#111111" }, fmt: { size: 14 } };
   const base = () => ({ preset: { sheets: [], tables: [], slides: [{ id: "s", type: "content" as const, tables: [], items: { c1: pie } as any }] }, style: {}, edits: {} });

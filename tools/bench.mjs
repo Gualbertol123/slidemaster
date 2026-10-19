@@ -388,7 +388,24 @@ async function dragFrames(browser, page, withFree = false) {
       await drag("free corner", await at('#stage .hbox[data-i="0"] .size'), -60, -30);
       const fe = await at('#stage .hbox[data-i="0"] .edge.r');
       await drag("free edge", { x: fe.x, y: fe.b.y + fe.b.height / 4 }, 50, 0);
-      await drag("free note move", await at("#stage .tnote.memo"), -40, -30);
+      await drag("free notes section", await at("#stage .tnote.memo"), -40, -30);
+      // a table's text box (its body, then its right edge) and a callout (its body, then its right edge)
+      await page.locator('#stage .hbox[data-i="0"] .addnote.bottom').click();
+      await page.locator("textarea.note-edit").fill("Source: monthly figures"); await page.keyboard.press("Control+Enter");
+      await page.locator("#stage .tnote", { hasText: "Source: monthly figures" }).waitFor(); await idle();
+      await drag("free text box move", await at('#stage .tnote:has-text("Source: monthly figures")'), 40, 20);
+      const tb = await at('#stage .tnote:has-text("Source: monthly figures")');
+      await drag("free text box edge", { x: tb.b.x + tb.b.width - 2, y: tb.y }, 60, 0);
+      await page.click("#shapeBtn"); await page.click('.shapemenu [data-shape="pill"]');
+      await page.locator(".itembox[data-kind=shape]").waitFor(); await idle();
+      await drag("free callout move", await at(".itembox[data-kind=shape]"), -50, -30);
+      const cb = await at(".itembox[data-kind=shape]");
+      await drag("free callout edge", { x: cb.b.x + cb.b.width - 2, y: cb.y }, 50, 0);
+      // both removed again (the exports after this measure deck20 as it was)
+      await idle(); await page.locator(".itembox[data-kind=shape]").click({ position: { x: 4, y: 4 } }); await page.keyboard.press("Delete");
+      await page.locator(".itembox[data-kind=shape]").waitFor({ state: "detached" });
+      await page.locator("#stage .tnote", { hasText: "Source: monthly figures" }).click(); await page.click("#noteDelete");
+      await page.locator("#stage .tnote", { hasText: "Source: monthly figures" }).waitFor({ state: "detached" });
       await idle(); await page.click("#freeLayout"); await idle();
     }
   } finally { await browser.stopTracing(); }

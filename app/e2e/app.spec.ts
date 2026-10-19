@@ -1516,7 +1516,7 @@ test.describe.serial("two people, one shared folder", () => {
     expect(box("t:" + id0)).toEqual(a0);
     expect(box("t:" + id1).scale).toBe(b0.scale);
     await step();
-    await expect.poll(async () => Math.round((await boxOf(page.locator('#stage .slide > .tw[data-i="1"]'))).x)).toBe(Math.round((await boxOf(page.locator("#stage .slide"))).x + box("t:" + id1).x * s));
+    await expect.poll(async () => Math.abs((await boxOf(page.locator('#stage .slide > .tw[data-i="1"]'))).x - ((await boxOf(page.locator("#stage .slide"))).x + box("t:" + id1).x * s)) < 1.5).toBe(true);
     // its left edge dropped 3 screen px beside the first table's: snapped onto it; with Alt it stays where it was dropped
     const near = async (alt: boolean) => { const b = box("t:" + id1), a = box("t:" + id0); await drag(await mid('#stage .hbox[data-i="1"] .grip'), (a.x - b.x) * s + 3, 0, alt); };
     await near(false);

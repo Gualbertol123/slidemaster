@@ -146,7 +146,7 @@ const TextLayer = memo(function TextLayer({ hits }: { hits: StageModel["hits"] }
 /* ---- text boxes: the box to select, move, stretch and double-click; its bubble; the hint of an empty one */
 function Notes({ m, R, drag, freeLayout }: { m: StageModel; R: RuntimeSlide; drag: DragPreview | null; freeLayout: boolean }) {
   const noteSel = useStore(s => s.selection.noteSel);
-  const others = (self: string) => [...m.notes.filter(n => n.part.key !== self).map(n => n.box), ...m.hits.filter(h => /^pageno\b|^footer\b/.test(h.id))];
+  const others = (self: string) => [...m.notes.filter(n => n.part.key !== self).map(n => n.box), ...m.hits.filter(h => /^pageno\b|^footer\b/.test(h.id)), ...m.items.map(p => p.box)];
   return <>{m.notes.map(p => {
     const key = p.part.key, d = drag?.kind === "note" && drag.key === key ? drag : null, b = d ? d.box : resized(p, drag);
     // a free layout (B18): every text box but the notes section has its own box, stretched by any edge

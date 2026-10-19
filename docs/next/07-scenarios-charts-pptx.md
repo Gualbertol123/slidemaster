@@ -429,7 +429,8 @@ PowerPoint without a repair prompt for every corpus deck × design × version.
   `free: true`; items without an entry (added after the switch) get the automatic position **of that item alone**
   (next to its table for notes and attached items; the first empty spot in a grid for new charts) and the switch-on
   op writes them in. Nothing re-flows, no sizes are linked, no auto-shrink (the `fit` bisection is skipped), no
-  attaching. Items can leave the content area but not the slide (clamped 0–1600 / 0–900 as text boxes are).
+  attaching. Items can leave the content area but not the slide: the drags keep what they move inside 0–1600 / 0–900 as
+  text boxes are (S10.1: saved boxes are drawn as saved, so a box past the edge from before the switch does not move).
 * **Switching on** = one `slide.patch {free: {[design]: {on: true, items: <every current box as computed now>}}}` – the
   slide looks identical before and after. **Switching back** = one `slide.patch {free: {[design]: {…, on: false}}}` –
   the automatic layout returns as it was (its `sizes`, `layout`, `notes.x/y` were never changed by free mode) and the
@@ -437,8 +438,9 @@ PowerPoint without a repair prompt for every corpus deck × design × version.
 * **Drags (S4.2)**: `app/src/stage/drags.ts` gets `freeMove` / `freeResize` for every item kind: preview per frame
   with the same `computeLayout` (free branch), snapping to the other items' edges and the slide guides (the existing
   `snapTargets`, SNAP = 8) unless **Alt** is held, one op on pointer-up. Tables in free mode resize by their corner
-  (uniform scale) and edges (that axis stretched = the existing `stretchTable` column/row factors are *not* used:
-  free mode scales the drawn table so the workbook's proportions hold; W/H boxes still edit columns and rows).
+  (uniform scale) and edges (the existing `stretchTable` column/row factors are *not* used: free mode scales the drawn
+  table so the workbook's proportions hold – built in S10.2 as: an edge's own axis sets the uniform scale, the opposite
+  side stays, the other axis follows; no per-axis stretch; W/H boxes still edit columns and rows).
 * Raw Excel today correct sizes for text boxes it does not draw (`fixedScale`); with B19 raw Excel draws the user's
   objects, so `notesOf`'s `design === "excel"` early return and `fixedScale`'s correction go, and **the parity of raw
   Excel slides that have text boxes changes**: those corpus slides are re-captured as accepted differences under B19
