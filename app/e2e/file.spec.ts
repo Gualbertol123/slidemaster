@@ -106,6 +106,11 @@ test("opened from file://: exports are downloads (PDF with the PC's fonts, PNG)"
   expect(pdf.bytes.toString("latin1")).toContain("/FontFile2");                       // real text: the PC's fonts embedded
   expect(pdfPageTexts(pdf.bytes).join(" ")).toContain("Alpha");
   await expect(page.locator("#toast")).toContainText("Downloaded report - slides.pdf");
+  // PX-01 (B21): the PowerPoint file is a download too
+  const ppt = await download(page, async () => { await page.click("#exportMenuBtn"); await page.click('[data-x="pptx"]'); });
+  expect(ppt.name).toBe("report - slides.pptx");
+  expect(ppt.bytes.subarray(0, 4).toString("latin1")).toBe("PK\x03\x04");
+  await expect(page.locator("#toast")).toContainText("Downloaded report - slides.pptx");
   const png = await download(page, async () => { await page.click("#exportMenuBtn"); await page.click('[data-x="png-current"]'); });
   expect(png.name).toMatch(/^report - .+\.png$/);
   expect([png.bytes.readUInt32BE(16), png.bytes.readUInt32BE(20)]).toEqual([4800, 2700]);

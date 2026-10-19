@@ -113,6 +113,9 @@ async function exported(page: Page, click: () => Promise<unknown>): Promise<stri
   return files;
 }
 const fromMenu = (page: Page, x: string) => exported(page, async () => { await page.click("#exportMenuBtn"); await page.click(`[data-x="${x}"]`); });
+/** a PowerPoint file's slides (B21) and the texts of each slide (text boxes and table cells, in the order written) */
+const pptxSlides = (b: Buffer) => (strFromU8(unzipSync(new Uint8Array(b))["ppt/presentation.xml"]).match(/<p:sldId /g) || []).length;
+const pptxTexts = (b: Buffer) => { const z = unzipSync(new Uint8Array(b)); return Object.keys(z).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n)).sort().map(n => [...strFromU8(z[n]).matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(m => m[1]).join(" ")); };
 /** a user's preferences are saved 400 ms after a change; a test whose successor relies on "re-opens the last
     workbook" waits for them ("✓ Saved" shows at once since B6, so it no longer gives them time) */
 const lastFileSaved = (user: string, name: string) => expect.poll(() => {
@@ -838,6 +841,28 @@ test.describe.serial("two people, one shared folder", () => {
     const ten = await fromMenu(page, "versions-5");
     expect([...ten].sort()).toEqual(names(["Liquid Glass", "Excel", "Excel Refined", "Consulting Navy", "Consulting Red"]));
     await expect(page.locator("#toast")).toContainText("Saved 10 PDFs");
+    // PX-01 (B21): every version × Liquid Glass + Excel as PDF and PowerPoint – four of each, named alike (".pptx")
+    const both = await exported(page, async () => { await page.click("#exportMenuBtn"); await page.click('[data-x="vfmt-pdf-pptx"]'); await page.click('[data-x="versions-2"]'); });
+    expect([...both].sort()).toEqual([...names(["Liquid Glass", "Excel"]), ...names(["Liquid Glass", "Excel"]).map(n => n.replace(/\.pdf$/, ".pptx"))].sort());
+    await expect(page.locator("#toast")).toContainText("Saved 8 files");
+    // "All" lacks the removed cells in the PowerPoint file too; each one slide, its table a real table
+    for (const d of ["Liquid Glass", "Excel"]) {
+      const chief = pdf(`weekly - Chief - ${d}.pptx`), all = pdf(`weekly - All - ${d}.pptx`);
+      expect([pptxSlides(chief), pptxSlides(all)]).toEqual([1, 1]);
+      expect(pptxTexts(chief).join("").length).toBeGreaterThan(pptxTexts(all).join("").length);
+      expect(strFromU8(unzipSync(new Uint8Array(chief))["ppt/slides/slide1.xml"])).toContain("<a:tbl>");
+    }
+    // PowerPoint only: every version in this design
+    const pp = await exported(page, async () => { await page.click("#exportMenuBtn"); await page.click('[data-x="vfmt-pptx"]'); await page.click('[data-x="versions"]'); });
+    expect([...pp].sort()).toEqual(names(["Liquid Glass"]).map(n => n.replace(/\.pdf$/, ".pptx")));
+    // the current slide, the deck, and the deck as PDF + PowerPoint (one call, both files)
+    const cur = await fromMenu(page, "pptx-current");
+    expect(cur).toHaveLength(1); expect(cur[0]).toMatch(/^weekly - .+\.pptx$/);
+    const deck = await fromMenu(page, "pptx");
+    expect(deck).toHaveLength(1); expect(pptxSlides(pdf(deck[0]))).toBe(await page.locator(".thumb").count());
+    const pair = await fromMenu(page, "both");
+    expect(pair.map(f => path.extname(f)).sort()).toEqual([".pdf", ".pptx"]);
+    expect(path.basename(pair[0], path.extname(pair[0]))).toBe(path.basename(pair[1], path.extname(pair[1])));
     for (const d of ["Consulting Navy", "Consulting Red"]) {
       const chief = pdf(`weekly - Chief - ${d}.pdf`), src = chief.toString("latin1");
       expect(pdfPageTexts(chief)).toHaveLength(1);
@@ -1166,11 +1191,21 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#scValues")).toHaveValue(/^Bank A\n(Bank A\n){11}(Bank B\n){11}Bank B$/);
     await expect(page.locator("#scCount")).toHaveText("2 values · 22 repeated left out");
     await page.fill("#scValues", "Bank A\nBank B\nBank C");
-    // the designs (all five), the versions (the full deck), PDF; PowerPoint comes with 4.5
+    // the designs (all five), the versions (the full deck), the files: PDF, and PowerPoint since 4.5 (B21)
     await expect(page.locator("#scDesigns input")).toHaveCount(5);
     await expect(page.locator("#scVersions input")).toHaveCount(1);
-    await expect(page.locator("#scPptx")).toBeDisabled();
+    await expect(page.locator("#scPdf")).toBeChecked();
+    await expect(page.locator("#scPptx")).not.toBeChecked();
     await page.locator('#scDesigns [data-design="excel"]').check();
+    await expect(page.locator("#scSummary")).toContainText("= 6 PDFs");
+    await page.check("#scPptx");
+    await expect(page.locator("#scSummary")).toContainText("× 2 = 12 files (PDF + PowerPoint)");
+    await page.uncheck("#scPdf");
+    await expect(page.locator("#scSummary")).toContainText("= 6 PowerPoint files");
+    await page.uncheck("#scPptx");
+    await expect(page.locator("#scSummary")).toContainText("Choose at least one value, design, version and kind of file.");
+    await expect(page.locator("#scRun")).toBeDisabled();
+    await page.check("#scPdf");
     await expect(page.locator("#scSummary")).toContainText("= 6 PDFs");
     // Preview (SC-07): Bank C on the stage, the banner names it; nothing is saved
     await page.selectOption("#scValue", "Bank C");
@@ -1230,12 +1265,13 @@ test.describe.serial("two people, one shared folder", () => {
     const state = () => JSON.stringify({ banks: hashOf(path.join(root(), "Banks.xlsx")), peers: hashOf(path.join(root(), "Peers.xlsx")), deck: deckFiles().map(f => [f, hashOf(path.join(dir, f))]) });
     const before = state(), docBefore = JSON.stringify(deckDoc("Banks.xlsx"));
     const exportDir = path.join(root(), "export");
-    const runWith = async (input: string, values: string, designs: string[]) => {
+    const runWith = async (input: string, values: string, designs: string[], kinds = ["pdf"]) => {
       await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]');
       await page.fill("#scInput", input);
       await expect(page.locator("#scInputNote")).toContainText("today");
       await page.fill("#scValues", values);
       for (const box of await page.locator("#scDesigns input").all()) await box.setChecked(designs.includes((await box.getAttribute("data-design"))!));
+      await page.locator("#scPdf").setChecked(kinds.includes("pdf")); await page.locator("#scPptx").setChecked(kinds.includes("pptx"));
       await page.click("#scRun");
       await expect(page.locator("#scenarioDialog")).toHaveCount(0);
       await expect(page.locator("#scRunDialog")).toBeVisible();
@@ -1263,6 +1299,17 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#scRunStatus")).toContainText("Done: 2 of 2 values · 2 files", { timeout: 60_000 });
     for (const f of ["12 - Excel.pdf", "12 (2) - Excel.pdf"]) expect(fs.existsSync(path.join(exportDir, f)), f).toBe(true);
     await expect(page.locator("#scReport")).toContainText("12 (2) - Excel.pdf");
+    await page.click("#scRunClose");
+    // PX-01 (B21): a run of PDF and PowerPoint files – 2 values × 1 design → 2 PDFs and 2 .pptx, each drawn from its value
+    await runWith("Control!B2", "Bank A\nBank B", ["excel"], ["pdf", "pptx"]);
+    await expect(page.locator("#scRunStatus")).toContainText("Done: 2 of 2 values · 4 files", { timeout: 120_000 });
+    await expect(page.locator("#toast")).toContainText("Saved 4 files");
+    for (const bank of ["Bank A", "Bank B"]) {
+      expect(fs.existsSync(path.join(exportDir, `${bank} - Excel.pdf`))).toBe(true);
+      const text = pptxTexts(fs.readFileSync(path.join(exportDir, `${bank} - Excel.pptx`))).join(" ");
+      expect(text).toContain(peerAvg[bank]);
+      for (const other of Object.keys(peerAvg)) if (other !== bank) expect(text).not.toContain(peerAvg[other]);
+    }
     await page.click("#scRunClose");
     // SC-06: progress and cancel – the files made stay, the report says how far it got
     await runWith("Control!B2", ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"].map(x => "Bank " + x).join("\n"), ["excel"]);

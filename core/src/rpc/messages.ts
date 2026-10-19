@@ -113,6 +113,8 @@ export interface ScenarioAnswer { changed: number; different: number; check: Cal
 /** a slide cell a scenario does not move, kept at Excel's value: a TEXT with this PC's language codes (07 §8 Q8), or a
     formula reading a linked workbook / a hidden sheet that is not in the model */
 export interface KeptCell { sheet: string; ref: string; text: string; why: "text" | "linked" | "hidden" }
+/** what a run of each value makes per design and version (4.5, B21) */
+export type FileKind = "pdf" | "pptx";
 export interface ScenarioRunReq {
   input: { sheet: string; ref: string };
   /** the values as they go into the engine (the page typed them, 07 §8 Q7) */
@@ -120,7 +122,8 @@ export interface ScenarioRunReq {
   designs: Design[];
   /** version ids, "" = the full deck */
   versions: string[];
-  kinds: "pdf"[];
+  /** the files of each value × design × version: a PDF, a PowerPoint file (4.5, B21) or both */
+  kinds: FileKind[];
   /** run although slide cells are classed different: they are marked */
   runAnyway: boolean;
   /** the export folder's length (characters) the file names must fit (names.ts); omitted: assumed */
@@ -154,8 +157,12 @@ export interface CalcCheck { counts: import("../calc/engine").SelfCheck["counts"
 export type SlideListsReq = DesignReq & { slides?: number[]; /** the date the page shows (its clock) */ today?: string;
   /** whose values (S8.3): a run's id, "preview" (the scenario the stage shows – thumbnails), or none: the workbook's
       own values, also while a preview or a run goes on (an ordinary export never gets scenario lists by accident) */
-  scenario?: string };
-export interface SlideList { slide: number; dl: import("../render/excel-dl").TableDL }
+  scenario?: string;
+  /** for the PowerPoint export (07 §4.1): each list also says what is native in PowerPoint (SlideList.sem) */
+  pptx?: boolean };
+export interface SlideList { slide: number; dl: import("../render/excel-dl").TableDL;
+  /** asked with `pptx`: the kind of slide, its charts and callouts, the design's colours (pptx/scene.ts) */
+  sem?: import("../pptx/scene").SlideSem }
 /** the stage's request: slide `slide` of the current design and version. `known`: the image ids the page already has
     (not sent again); `fresh`: measure everything again (fonts arrived) */
 export interface StageReq { slide: number; today?: string; known: string[]; fresh?: boolean;
@@ -211,7 +218,7 @@ export interface PageMethods {
   /** a run's file (S8.3): the page has an export worker write the PDF of `design` / `version` from the run's view
       (`scenario` = the run's id) and saves it as `name` (the helper may add " (2)" for a target open elsewhere); the
       name it was saved under */
-  scenarioFile(a: { id: string; design: Design; version: string; name: string; title: string; today?: string }): { file: string };
+  scenarioFile(a: { id: string; design: Design; version: string; name: string; title: string; today?: string; /** unset: "pdf" */ kind?: FileKind }): { file: string };
 }
 /** events from the worker */
 export interface CoreEvents {
@@ -238,8 +245,8 @@ export type PageEvents = Record<string, never>;
 export type { DeckVersion };
 
 /* ---- the export workers (PLAN S3.7): on demand, up to three; each takes one (design, version) at a time ---- */
-/** what an export makes: a vector PDF, a PDF of pictures (PNG pages at `scale`), or PNG files */
-export type ExportKind = "pdf" | "pictures" | "png";
+/** what an export makes: a vector PDF, a PDF of pictures (PNG pages at `scale`), PNG files, or a PowerPoint file (B21) */
+export type ExportKind = "pdf" | "pictures" | "png" | "pptx";
 export interface ExportJob extends SlideListsReq {
   kind: ExportKind;
   /** pixels per slide px for pictures and PNGs (2: "as pictures", B9; 3: PNG and clipboard, 4800 × 2700) */
@@ -256,6 +263,9 @@ export interface ExportResult {
   missing: string[];
   /** fonts of the deck's library or this PC that could not be read (WOFF2 …): the next family of the list drew them */
   unreadable?: string[];
+  /** a PowerPoint file: the fonts it names that are not Windows fonts (the deck's library): PowerPoint substitutes
+      them where they are not installed (07 §4.2: named, not embedded) */
+  notEmbedded?: string[];
   /** where the time went, ms */
   ms: { lists: number; fonts: number; write: number };
 }

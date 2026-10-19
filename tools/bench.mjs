@@ -13,6 +13,9 @@
                      first export starts the export workers (cold, as for a user)                         < 2 s · < 1 s
                      its size (PLAN Part F): Glass < 80 KB per slide + 190 KB, Excel < 40 KB per slide;
                      no task on the page's thread over 50 ms while exporting
+     PowerPoint      ⏱ S11.3 (07 §4.4 / §6.4, PX-04), when the build has it: Export ▾ › PowerPoint · all slides of
+                     deck20 after each PDF (Liquid Glass, Excel): click → the .pptx saved                 < 3 s · < 1.5 s
+                     its size (PLAN Part F): Liquid Glass < 3 MB, Excel < 300 KB; the tasks as above
      keypress        ⏱ S4.1: a cell of deck20 typed into and committed with Enter, 2 untimed times (the first
                      rasters of the editor and of the table's layer: reported as "cold") then 20 timed: from the Enter
                      key to the first frame after the stage's table shows the new text (keypress → pixels, p95) < 50 ms
@@ -64,6 +67,8 @@ const BACKEND = path.resolve(arg("--page", path.join(REPO, "helper")));
 const GATE = !process.argv.includes("--no-gate");
 const BUDGET = { open_deck20_ms: 400, read_big30_ms: 1000, longest_task_ms: 50, first_draw_task_ms: 250, heap_mb: 150,
   export_glass_ms: 2000, export_excel_ms: 1000, export_glass_kb: 80 * 20 + 190, export_excel_kb: 40 * 20, keypress_p95_ms: 50, drag_frame_ms: 16, free_drag_frame_ms: 16, thumbs_gap_ms: 20,
+  // S11.3 (PLAN Part F, 07 §4.4): the PowerPoint file of deck20 – Liquid Glass 3 s and 3 MB, Excel 1.5 s and 300 KB
+  pptx_glass_ms: 3000, pptx_excel_ms: 1500, pptx_glass_kb: 3 * 1024, pptx_excel_kb: 300,
   // M7b (08 §4.3): the consulting designs – export 1.5 s and 40 KB per slide + 150 KB; keypress, drags, open as the others
   export_navy_ms: 1500, export_red_ms: 1500, export_navy_kb: 40 * 20 + 150, export_red_kb: 40 * 20 + 150, keypress_navy_p95_ms: 50, drag_navy_frame_ms: 16,
   open_navy_ms: 400, longest_navy_task_ms: 50, first_draw_navy_task_ms: 250,
@@ -72,7 +77,7 @@ const BUDGET = { open_deck20_ms: 400, read_big30_ms: 1000, longest_task_ms: 50, 
   scenario_one_ms: 3000, scenario_20_ms: 40000, scenario_task_ms: 50,
   // M8 S8.4 (07 §6.4): a preview's switch – the click on Preview to the stage showing the value – on deck20, warm engine
   preview_switch_ms: 400 }, SLACK = 1.1;
-const speed = speedFactor(), TIMED = ["open_deck20_ms", "read_big30_ms", "export_glass_ms", "export_excel_ms", "export_navy_ms", "export_red_ms", "open_navy_ms", "scenario_one_ms", "scenario_20_ms", "preview_switch_ms"];   // keypress: not scaled (decision 2026-10-12 names the others)
+const speed = speedFactor(), TIMED = ["open_deck20_ms", "read_big30_ms", "export_glass_ms", "export_excel_ms", "pptx_glass_ms", "pptx_excel_ms", "export_navy_ms", "export_red_ms", "open_navy_ms", "scenario_one_ms", "scenario_20_ms", "preview_switch_ms"];   // keypress: not scaled (decision 2026-10-12 names the others)
 // on CI only (decision 2026-10-18): the main-thread task and frame-gap limits follow the runner's speed too – the factor
 // the engine bench measured before this one (core/bench/wasmcalib.ts); keypress and drag frames stay as they are
 const UNTIMED_CI = ["longest_task_ms", "first_draw_task_ms", "longest_navy_task_ms", "first_draw_navy_task_ms", "thumbs_gap_ms", "scenario_task_ms"];
@@ -203,18 +208,23 @@ async function run(browser, port) {
     await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 });
     await longTasks();                                                                       // (the drops' redraws: in drags)
     // ---- export deck20 (S3.7): Liquid Glass (the default design), then Excel
-    const exportOnce = async () => {
+    const exportOnce = async (pptx = false) => {
       await page.evaluate(() => { window.__sbTest.lastExport.files = []; });
-      await page.click("#exportBtn");
+      if (pptx) { await page.click("#exportMenuBtn"); await page.click('[data-x="pptx"]'); }
+      else await page.click("#exportBtn");
       await page.waitForFunction(() => window.__sbTest.lastExport.files.length > 0 && !window.__sbTest.exporting(), null, { timeout: 120000 });
       const { files, ms, phases } = await page.evaluate(() => ({ files: [...window.__sbTest.lastExport.files], ms: window.__sbTest.lastExport.ms, phases: window.__sbTest.exportPhases() }));
       return { ms: Math.round(ms), phases: Object.fromEntries(Object.entries(phases).map(([k, v]) => [k, Math.round(v)])), kb: Math.round(fs.statSync(path.join(h.root, "export", files[0])).size / 102.4) / 10 };
     };
     const glass = await exportOnce();                                                        // cold: starts the export workers
+    // the PowerPoint file (S11.3), when the build has it: after the PDF, from the same workers
+    const hasPptx = await page.evaluate(async () => { const b = document.querySelector("#exportMenuBtn"); b.click(); await new Promise(r => setTimeout(r, 50)); const has = !!document.querySelector('[data-x="pptx"]'); b.click(); return has; });
+    const glassPptx = hasPptx ? await exportOnce(true) : null;
     const ltGlass = (await longTasks()).map(x => x.d);
     await page.click('[data-design="excel"]'); await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 }); await sleep(300);
     await longTasks();                                                                       // switching the design: not the export's
     const excel = await exportOnce();
+    const excelPptx = hasPptx ? await exportOnce(true) : null;
     const ltExport = [...ltGlass, ...(await longTasks()).map(x => x.d)];
     await page.click('[data-design="glass"]'); await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 }); await sleep(300); await longTasks();
     const thumbs = await thumbScroll(browser, page);
@@ -338,7 +348,8 @@ async function run(browser, port) {
     return { boot: { longtasks: ltBoot }, deck20: { wizard_ms: Math.round(wizard), finish_to_slide_ms: Math.round(slides), open_ms: Math.round(wizard + slides), longtasks: ltDeck, first_draw_longtasks: ltFirstDraw },
       edit: { keypress, longtasks: ltEdit }, drags, thumbs: { ...thumbs, longtasks: ltThumbs },
       consult, scen,
-      export: { glass_ms: glass.ms, glass_kb: glass.kb, glass_phases: glass.phases, excel_ms: excel.ms, excel_kb: excel.kb, excel_phases: excel.phases, longtasks: ltExport },
+      export: { glass_ms: glass.ms, glass_kb: glass.kb, glass_phases: glass.phases, excel_ms: excel.ms, excel_kb: excel.kb, excel_phases: excel.phases, longtasks: ltExport,
+        pptx: glassPptx && excelPptx ? { glass_ms: glassPptx.ms, glass_kb: glassPptx.kb, glass_phases: glassPptx.phases, excel_ms: excelPptx.ms, excel_kb: excelPptx.kb, excel_phases: excelPptx.phases } : null },
       big30: { index_to_wizard_ms: Math.round(index), read_sheet_ms: Math.round(read), read_to_grid_ms: Math.round(grid), longtasks: ltBig, heap_mb: heap,
         page_heap_mb: pageHeap == null ? null : Math.round(pageHeap), worker_heap_mb: workerHeap == null ? null : Math.round(workerHeap),
         export_workers: workers ? workers.exportWorkers : null, export_heap_mb: workers ? Math.round(workers.export) : null } };
@@ -495,6 +506,10 @@ const worst = {
   heap_mb: runs.some(r => r.big30.heap_mb == null) ? Infinity : Math.max(...runs.map(r => r.big30.heap_mb)),
   export_glass_ms: Math.max(...runs.map(r => r.export.glass_ms)), export_excel_ms: Math.max(...runs.map(r => r.export.excel_ms)),
   export_glass_kb: Math.max(...runs.map(r => r.export.glass_kb)), export_excel_kb: Math.max(...runs.map(r => r.export.excel_kb)),
+  // the PowerPoint file (S11.3): an older build (--page) has none and is not gated on it; this build must measure it
+  ...(runs.every(r => r.export.pptx) ? { pptx_glass_ms: Math.max(...runs.map(r => r.export.pptx.glass_ms)), pptx_excel_ms: Math.max(...runs.map(r => r.export.pptx.excel_ms)),
+    pptx_glass_kb: Math.max(...runs.map(r => r.export.pptx.glass_kb)), pptx_excel_kb: Math.max(...runs.map(r => r.export.pptx.excel_kb)) }
+    : arg("--page") ? {} : Object.fromEntries(["pptx_glass_ms", "pptx_excel_ms", "pptx_glass_kb", "pptx_excel_kb"].map(k => [k, Infinity]))),
   // the consulting designs (M7b): an older build (--page) has none and is not gated on them; this build's own page must
   // measure them – not measured counts as over the limit, never as passing
   ...(runs.every(r => r.consult) ? {

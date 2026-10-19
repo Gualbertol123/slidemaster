@@ -10,7 +10,9 @@ import { validate, type DisplayList } from "../dl/types";
 import { writePdf } from "../pdf/writer";
 import { isJpeg, isPng } from "../pdf/png";
 import { FontRegistry } from "../text/fonts";
-import { FontResolver, type CatalogFont } from "../text/resolve";
+import { FontResolver, pptxFamily, type CatalogFont } from "../text/resolve";
+import { writePptx } from "../pptx/writer";
+import { DESIGN_LABEL } from "../model/designs";
 import { prepareTextForPdf } from "../text/pdf";
 import { pdfSubsetter } from "../text/subset";
 
@@ -130,11 +132,13 @@ export class ExportHost {
     if (!this.core) throw new Error("the export worker is not connected to the workbook");
     const t0 = now();
     const { kind, scale, title, catalog, ...req } = job;
-    const lists: SlideList[] = await this.core.call("slideLists", req);
+    const lists: SlideList[] = await this.core.call("slideLists", kind === "pptx" ? { ...req, pptx: true } : req);
     if (!lists.length) throw new Error("nothing to export");
     const pages = lists.map(l => l.dl.nodes);
     // the export path checks what the designs hand it (the writer itself does not validate, core/pdf/README.md)
-    const bad = pages.flatMap((p, i) => validate(p, `slide ${lists[i].slide + 1}`));
+    const bad = [...pages.flatMap((p, i) => validate(p, `slide ${lists[i].slide + 1}`)),
+      // the PowerPoint export's chart cards (drawn alone for it) are checked as the lists are
+      ...lists.flatMap(l => Object.entries(l.sem?.items || {}).flatMap(([id, it]) => it.kind === "chart" ? validate(it.card, `slide ${l.slide + 1} chart ${id}`) : []))];
     if (bad.length) throw new Error("the slides could not be drawn: " + bad.slice(0, 3).join("; "));
     const images = await this.images(lists);
     const t1 = now();
@@ -145,6 +149,20 @@ export class ExportHost {
       const t2 = now();
       const bytes = writePdf({ pages: shaped, image: id => images.get(id), font: this.fonts.pdfFace, subset: await pdfSubsetter(), title });
       return { files: [own(bytes)], missing, unreadable, ms: { lists: t1 - t0, fonts: t2 - t1, write: now() - t2 } };
+    }
+    if (kind === "pptx") {
+      // PowerPoint (07 §4, B21): native shapes, tables and charts; fonts named (the first family of each list this PC
+      // has), not embedded – the deck's library fonts are reported, PowerPoint substitutes them where they are missing
+      const resolver = this.resolverFor(catalog), lib = new Set(catalog.filter(f => f.source === "library" && !f.copied).map(f => f.family.toLowerCase()));
+      const named = new Map<string, string>(), notEmbedded = new Set<string>();
+      const face = (css: string) => {
+        let f = named.get(css);
+        if (f === undefined) { f = pptxFamily(css, fam => resolver.has(fam)); named.set(css, f); }
+        if (lib.has(f.toLowerCase())) notEmbedded.add(f);
+        return f;
+      };
+      const bytes = writePptx({ slides: lists.map(l => ({ nodes: l.dl.nodes, sem: l.sem ?? null })), image: id => images.get(id), face, title, design: DESIGN_LABEL[req.design] || req.design });
+      return { files: [own(bytes)], missing: [], notEmbedded: [...notEmbedded], ms: { lists: t1 - t0, fonts: 0, write: now() - t1 } };
     }
     if (!this.opts.raster) throw new Error("pictures cannot be drawn here");
     const library = catalog.filter(f => f.source === "library");

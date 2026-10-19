@@ -715,6 +715,7 @@ picture). The backends do not validate.
 | SVG | `core/src/dl/svg.ts` | the editing stage | transparent `<rect data-hit data-id>` when asked for |
 | Canvas 2D | `core/src/dl/canvas.ts` | thumbnails, PNG export, the "as pictures" PDF, clipboard (OffscreenCanvas in a worker) | ignored |
 | PDF | `core/src/pdf/writer.ts` | vector PDF 1.7; each page `MediaBox [0 0 1200 675]`, the slide mapped by one `cm`; fonts subset and embedded as Type0 / Identity-H; `decorative` text as `/Artifact` | ignored |
+| PowerPoint (4.5) | `core/src/pptx/scene.ts` + `writer.ts` | native shapes, real tables, text boxes, charts on a master and layouts made from the deck; 1 px = 7 620 EMU, px × 0.6 pt; `decorative` text as its run's shadow | marks elements, cells, items |
 
 Geometry shared by all three (rounded rects, shadow layers, gradient strokes, image placement, decorations) is in
 `core/src/dl/geom.ts`. `core/src/pdf/README.md` describes how each node becomes PDF operators.
@@ -800,6 +801,7 @@ The page renders every export itself, in the export worker, from display lists:
 | PDF (vector) | `core/src/pdf/writer.ts`: one page per slide, text in embedded fonts subset per document (the subsetter passed in, hb-subset; without one TrueType is subset by `pdf/ttf.ts`), pictures as JPEG pass-through or Flate with an SMask |
 | PDF "as pictures" (`pdfMode: "exact"`) | each slide drawn by the canvas backend to PNG, one full-page image per page |
 | PNG | the canvas backend, one file per slide |
+| PowerPoint (4.5, B21) | `core/src/pptx/`: the lists asked with `pptx: true` (`SlideList.sem`: the kind of slide, charts' data, callouts' shapes, the palette); every node native (`core/src/pptx/README.md`), each picture once; fonts named, not embedded (`text/resolve.ts pptxFamily`) |
 
 The bytes are posted to `POST /api/export-file`, which saves them in `export\` (§10.2). The helper has no export
 engine (removed in 3.8).

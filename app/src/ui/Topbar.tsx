@@ -3,7 +3,7 @@ import { get, patch, toast, useStore } from "../state/store";
 import { esc } from "@slide-builder/core/xlsx/util";
 import { guard, lookChange, showVersion, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, styleChange, setPrefs, prepareRollback } from "../state/app";
 import { backend, type FileInfo } from "../sync/api";
-import { doExport, exportVersions, type ExportKind } from "../editor/export";
+import { doExport, exportVersions, type ExportKind, type Formats } from "../editor/export";
 import { reportExportProblem } from "../editor/feedback";
 import { openScenario } from "../editor/scenario";
 import { Dropdown } from "./Dropdown";
@@ -172,6 +172,10 @@ function ExportButton() {
   const can = slides > 0 && !exporting;
   const item = (k: ExportKind, label: string, small?: string, close?: () => void) =>
     <button data-x={k} className={k === "pdf-" + mode ? "cur" : ""} onClick={() => { close?.(); void doExport(k); }}>{label}{small && <small>{small}</small>}</button>;
+  // the versions' files (B21): PDF, PowerPoint or both – chosen in the menu, for this page
+  const [vf, setVf] = useState<Formats>(["pdf"]);
+  const vname = vf.length > 1 ? "PDF + PowerPoint" : vf[0] === "pptx" ? "PowerPoint" : "PDF", per = vf.length;
+  const fmt = (f: Formats, label: string) => <button key={f.join()} data-x={"vfmt-" + f.join("-")} className={f.join() === vf.join() ? "picked" : ""} onClick={() => setVf(f)}>{label}</button>;
   return (
     <Dropdown right style={{ display: "flex" }} button={(_o, toggle) => <>
       <button className="btn primary split" id="exportBtn" disabled={!can} onClick={() => void doExport("pdf")}>{exporting ? <><span className="spin" />Rendering…</> : "Export PDF"}</button>
@@ -183,16 +187,23 @@ function ExportButton() {
         {item("pdf-exact", "PDF · as pictures", "each slide as a 192 dpi image", close)}
         {item("pdf-current", "PDF · current slide only", undefined, close)}
         <div className="sep" />
+        <div className="hd">PowerPoint – editable text, real tables, native charts</div>
+        {item("pptx", "PowerPoint · all slides", "slide masters from the design · fonts named, not embedded", close)}
+        {item("pptx-current", "PowerPoint · current slide", undefined, close)}
+        {item("both", "PDF + PowerPoint · all slides", "both files at once", close)}
+        {item("both-current", "PDF + PowerPoint · current slide", undefined, close)}
+        <div className="sep" />
         <div className="hd">Images (4800 × 2700)</div>
         {item("copy", "Copy current slide", "paste into PowerPoint", close)}
         {item("png-current", "PNG · current slide", undefined, close)}
         {item("png-all", "PNG · every slide", undefined, close)}
         <div className="sep" />
         <div className="hd">Versions (✦ Wizard › Versions)</div>
-        <button data-x="versions" disabled={!versions.length} onClick={() => { close(); void exportVersions(null); }}>PDF · every version<small>{versions.map(v => v.name).join(", ") || "none yet"} · this design</small></button>
-        <button data-x="versions-2" disabled={!versions.length} onClick={() => { close(); void exportVersions(["glass", "excel"]); }}>PDF · every version × Liquid Glass + Excel<small>{2 * versions.length} files</small></button>
-        <button data-x="versions-3" disabled={!versions.length} onClick={() => { close(); void exportVersions(["glass", "excel", "clean"]); }}>PDF · every version × all three designs</button>
-        <button data-x="versions-5" disabled={!versions.length} onClick={() => { close(); void exportVersions([...DESIGNS]); }}>PDF · every version × all five designs<small>with Consulting Navy and Consulting Red · {DESIGNS.length * versions.length} files</small></button>
+        <div className="optrow vfmt" id="vFormats">{fmt(["pdf"], "PDF")}{fmt(["pptx"], "PowerPoint")}{fmt(["pdf", "pptx"], "PDF + PowerPoint")}</div>
+        <button data-x="versions" disabled={!versions.length} onClick={() => { close(); void exportVersions(null, vf); }}>{vname} · every version<small>{versions.map(v => v.name).join(", ") || "none yet"} · this design{per > 1 ? ` · ${per * versions.length} files` : ""}</small></button>
+        <button data-x="versions-2" disabled={!versions.length} onClick={() => { close(); void exportVersions(["glass", "excel"], vf); }}>{vname} · every version × Liquid Glass + Excel<small>{2 * per * versions.length} files</small></button>
+        <button data-x="versions-3" disabled={!versions.length} onClick={() => { close(); void exportVersions(["glass", "excel", "clean"], vf); }}>{vname} · every version × all three designs{per > 1 && <small>{3 * per * versions.length} files</small>}</button>
+        <button data-x="versions-5" disabled={!versions.length} onClick={() => { close(); void exportVersions([...DESIGNS], vf); }}>{vname} · every version × all five designs<small>with Consulting Navy and Consulting Red · {DESIGNS.length * per * versions.length} files</small></button>
         <div className="sep" />
         <div className="hd">Scenarios</div>
         <button data-x="scenario" onClick={() => { close(); openScenario(); }}>Run for each value…<small>an input cell set to each value of a list · one file per value</small></button>

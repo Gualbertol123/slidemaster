@@ -71,6 +71,14 @@ export interface Resolved {
   unreadable: string[];
 }
 
+/** the font a PowerPoint run names (07 §4.2: named, not embedded): the first family of the list this PC has (`has`),
+    else the list's first real family – what PowerPoint looks for on the PC that opens the file (it substitutes one it
+    does not have). The system families the PDF skips (-apple-system, SF Pro …) are skipped; generic ones are mapped */
+export function pptxFamily(css: string, has: (family: string) => boolean = () => false): string {
+  const fams = cssFamilies(css).filter(f => !SKIP.test(f)).map(f => GENERIC[f.toLowerCase()] || f);
+  return fams.find(f => has(f)) || fams[0] || "Arial";
+}
+
 export class FontResolver {
   /** catalog by lower-case family; library families shadow system ones */
   private byFamily = new Map<string, CatalogFont[]>();

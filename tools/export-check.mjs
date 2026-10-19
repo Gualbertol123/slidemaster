@@ -15,7 +15,16 @@
 
    With --pictures, each deck is also exported "as pictures" (B9: 2× PNG pages): size and time are recorded.
 
-     node tools/export-check.mjs [--decks a,b] [--designs glass,excel,clean,mckinsey,bain] [--pictures] [--out <dir>] [--json <file>]
+   PowerPoint (4.5, B21; docs/next/07 §4.3, 05 PX-01…PX-04): every deck × design – and the chart corpus
+   (tests/corpus/charts) – is also exported with Export ▾ › PowerPoint · all slides. Each .pptx is then checked by
+   tools/pptxcheck.py: (1) structure, (2) content, (3) opened in PowerPoint without a repair, its slide count and texts read
+   back (Windows with PowerPoint; --no-ppt or elsewhere: 1–2 only); its texts against the goldens (GT, as the PDF's: every
+   golden text in the slide's text boxes, tables and chart titles, nothing else; the consulting designs against the same
+   run's PDF text, which their own goldens check); its charts' cached values against the workbook's cells (openpyxl);
+   ⏱ deck20: Liquid Glass < 3 s, the other designs < 1.5 s (scaled as above); size: Liquid Glass < 120 KB per slide +
+   400 KB, the others < 15 KB per slide (300 KB for 20). --no-pptx skips this pass.
+
+     node tools/export-check.mjs [--decks a,b] [--designs glass,excel,clean,mckinsey,bain] [--pictures] [--no-pptx] [--no-ppt] [--out <dir>] [--json <file>]
 */
 import fs from "node:fs";
 import os from "node:os";
@@ -37,7 +46,23 @@ export const BUDGET = {
     mckinsey: [40 * 1024, 150 * 1024], bain: [40 * 1024, 150 * 1024] },
   /** ms from the click to the file for 20 slides, PLAN Part F */
   time: { excel: 1000, clean: 1000, glass: 2000, mckinsey: 1500, bain: 1500 },
+  /** the PowerPoint file (07 §4.4, 07 §6.4): bytes per slide (+ per document) and ms for 20 slides */
+  pptx: { size: { excel: [15 * 1024, 0], clean: [15 * 1024, 0], glass: [120 * 1024, 400 * 1024], mckinsey: [15 * 1024, 0], bain: [15 * 1024, 0] },
+    time: { excel: 1500, clean: 1500, glass: 3000, mckinsey: 1500, bain: 1500 } },
 };
+/** the chart corpus (M9): decks with charts and callouts, PowerPoint pass only (they have no v3 goldens) */
+const CHART_DECKS = path.join(REPO, "tests", "corpus", "charts");
+/** each chart of a deck as pptxcheck compares it: its slide (1-based), the sheet and range of its values */
+function chartSources(deck) {
+  const preset = deck.ops.find(o => o.op === "preset.set")?.preset || {}, tables = new Map((preset.tables || []).map(t => [t.id, t.sheet]));
+  const out = [];
+  (preset.slides || []).forEach((s, i) => { for (const it of Object.values(s.items || {})) if (it?.kind === "chart" && it.values?.range) out.push({ slide: i + 1, sheet: it.values.table ? tables.get(it.values.table) : it.values.sheet, range: it.values.range }); });
+  for (const o of deck.ops) if (o.op === "item.patch" && o.patch?.kind === "chart" && o.patch.values?.range) {
+    const i = (preset.slides || []).findIndex(s => s.id === o.slide);
+    out.push({ slide: i + 1, sheet: o.patch.values.table ? tables.get(o.patch.values.table) : o.patch.values.sheet, range: o.patch.values.range });
+  }
+  return out;
+}
 
 /** clicks an export and waits for its toast; returns the files it saved (the names the page was given back) and the
     page's click-to-file time */
@@ -56,21 +81,33 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const OUT = path.resolve(arg("--out", fs.mkdtempSync(path.join(os.tmpdir(), "sb-export-check-"))));
   const DESIGNS = arg("--designs", "glass,excel,clean,mckinsey,bain").split(",");
   const decks = deckList(arg("--decks", null)?.split(",") || null);
-  const PICTURES = process.argv.includes("--pictures");
+  const PICTURES = process.argv.includes("--pictures"), PPTX = !process.argv.includes("--no-pptx");
+  const chartDecks = PPTX && !arg("--decks", null) ? fs.readdirSync(CHART_DECKS).filter(f => f.endsWith(".json")).map(f => "charts/" + f.replace(/\.json$/, "")) : [];
+  const pptx = [];
   fs.mkdirSync(OUT, { recursive: true });
   const h = await startHelper(), results = [];
   let browser = null;
   try {
     const b = await openBrowser(), page = b.page;
     browser = b.browser;
-    for (const id of decks) {
-      const deck = JSON.parse(fs.readFileSync(path.join(DECKS, id + ".json"), "utf8"));
+    for (const id0 of [...decks, ...chartDecks]) {
+      const chartsOnly = id0.startsWith("charts/"), id = chartsOnly ? id0.slice(7) : id0;
+      const deck = JSON.parse(fs.readFileSync(chartsOnly ? path.join(CHART_DECKS, id + ".json") : path.join(DECKS, id + ".json"), "utf8"));
       const file = id + path.extname(deck.workbook);
       fs.copyFileSync(path.join(BOOKS, deck.workbook), path.join(h.root, file));
       await deckOps(h, file, deck.ops);
       for (const design of DESIGNS) {
         await deckOps(h, file, [{ op: "style.patch", patch: { design } }]);
         const slides = await load(page, h, file, "");
+        if (PPTX) {
+          const x = await exportOnce(page, h, async () => { await page.click("#exportMenuBtn"); await page.click('[data-x="pptx"]'); });
+          if (x.files.length !== 1) throw new Error(`${id} · ${design}: ${x.files.length} PowerPoint files`);
+          const f = path.join(OUT, `${id}-${design}.pptx`); fs.copyFileSync(x.files[0], f);
+          pptx.push({ deck: id, design, slides, file: f, name: path.basename(x.files[0]), ms: Math.round(x.ms), bytes: fs.statSync(f).size, toast: x.toast,
+            workbook: path.join(BOOKS, deck.workbook), charts: chartSources(deck) });
+          console.log(`${id} · ${design}: PowerPoint ${(fs.statSync(f).size / 1024).toFixed(1)} KB, ${Math.round(x.ms)} ms`);
+        }
+        if (chartsOnly) continue;
         const r = { deck: id, design, slides };
         const n = await exportOnce(page, h, () => page.click("#exportBtn"));
         if (n.files.length !== 1) throw new Error(`${id} · ${design}: ${n.files.length} files`);
@@ -139,5 +176,54 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const b19 = results.filter(r => r.b19).map(r => `${r.deck} slide ${r.b19.join(", ")}`);
   if (b19.length) console.log(`GT B19: raw Excel equal to Excel Refined's golden text (the user's objects drawn): ${b19.join("; ")}`);
   console.log(`${results.length} PDFs: GT ${results.filter(r => r.gt === "equal").length} equal · size ${results.filter(r => r.sizeOk).length} within budget · ${OUT}`);
+
+  // PowerPoint (B21): pptxcheck 1–3, GT, the charts' values, budgets
+  if (pptx.length) {
+    const rep = path.join(OUT, "pptxcheck.json"), sources = path.join(OUT, "chart-sources.json");
+    fs.writeFileSync(sources, JSON.stringify(Object.fromEntries(pptx.filter(p => p.charts.length).map(p => [p.file, { workbook: p.workbook, charts: p.charts }]))));
+    let out = "";
+    try { out = execFileSync(PY, [path.join(REPO, "tools", "pptxcheck.py"), "check", ...pptx.map(p => p.file), "--json", rep, "--sources", sources, ...(process.argv.includes("--no-ppt") ? ["--no-ppt"] : [])], { encoding: "utf8", env, maxBuffer: 256 << 20, timeout: 3_600_000 }); }
+    catch (e) { out = String(e.stdout || ""); ok = false; }
+    process.stdout.write(out);
+    const reports = new Map(JSON.parse(fs.readFileSync(rep, "utf8")).map(r => [path.resolve(r.file), r]));
+    const pdfOf = new Map(results.map(r => [`${r.deck}|${r.design}`, byFile.get(r.file)]));
+    for (const p of pptx) {
+      const R = reports.get(path.resolve(p.file)), bad = [];
+      if (!R) { ok = false; console.log(`PPTX FAIL ${p.deck} · ${p.design}: not checked`); continue; }
+      if (R.slides !== p.slides) bad.push(`${R.slides} slide(s) for ${p.slides}`);
+      (R.content?.slides || []).forEach((s, i) => {
+        // the golden texts that are one element of the file (a cell, a text box) are taken first, each once; the others
+        // – a golden text the file splits or joins otherwise – are looked for in the rest (one text per element, a
+        // separator no golden text holds between them)
+        const gt = want => {
+          const pool = s.texts.map(squash), rest = [];
+          for (const t of want) { const k = pool.indexOf(squash(t)); if (k >= 0) pool[k] = null; else rest.push(t); }
+          const m = matchTexts(s.texts.filter((_, k) => pool[k] !== null).join("\u0002"), rest);
+          return { missing: m.missing, extra: m.extra.replace(/\u0002/g, "") };
+        };
+        const own = ownPdfText(p.deck, p.design, "full"), pdf = pdfOf.get(`${p.deck}|${p.design}`);
+        // the consulting designs: the PowerPoint file's texts are the same run's PDF text (which their goldens check)
+        if (own) { if (pdf?.text[i] !== undefined) { const m = matchTexts(pdf.text[i], s.texts); if (m.missing.length || m.extra) bad.push(`slide ${i + 1}: ${m.missing.length ? `not in the PDF ${JSON.stringify(m.missing.slice(0, 3))}` : ""}${m.extra ? ` the PDF has more: ${JSON.stringify(m.extra.slice(0, 60))}` : ""}`); } return; }
+        const want = goldenTexts(p.deck, p.design, "full", i + 1);
+        if (!want) return;
+        const m = gt(want);
+        if (!m.missing.length && !m.extra) return;
+        if (p.design === "excel") { const refined = goldenTexts(p.deck, "clean", "full", i + 1), m2 = refined && gt(refined); if (m2 && !m2.missing.length && !m2.extra) return; }
+        bad.push(`slide ${i + 1}: ${m.missing.length ? `missing ${JSON.stringify(m.missing.slice(0, 3))}` : ""}${m.extra ? ` not in the goldens: ${JSON.stringify(m.extra.slice(0, 60))}` : ""}`);
+      });
+      p.gt = bad.length ? bad : "equal"; p.check = R.ok ? "ok" : R.problems;
+      const [per, once] = BUDGET.pptx.size[p.design], limit = per * p.slides + once, tlim = Math.round(BUDGET.pptx.time[p.design] * speed.factor);
+      p.sizeOk = p.bytes <= limit; p.limit = limit; p.tables = (R.content?.slides || []).reduce((s, x) => s + x.tables, 0); p.chartsFound = (R.content?.slides || []).reduce((s, x) => s + x.charts.length, 0);
+      p.pictures = (R.content?.slides || []).reduce((s, x) => s + x.pictures, 0); p.media = R.media; p.powerpoint = !!R.powerpoint;
+      const tag = `${p.deck} · ${p.design}`;
+      if (bad.length) { ok = false; console.log(`PPTX GT FAIL ${tag}: ${bad.slice(0, 4).join("; ")}`); }
+      if (!R.ok) { ok = false; console.log(`PPTX CHECK FAIL ${tag}: ${R.problems.slice(0, 4).join("; ")}`); }
+      if (p.deck === "deck20" && !p.sizeOk) { ok = false; console.log(`PPTX SIZE FAIL ${tag}: ${p.bytes} bytes > ${limit}`); }
+      if (p.deck === "deck20" && p.ms > tlim * 1.1) { ok = false; console.log(`PPTX TIME FAIL ${tag}: ${p.ms} ms > ${tlim} ms + 10 %`); }
+    }
+    fs.writeFileSync(path.join(OUT, "export-check-pptx.json"), JSON.stringify(pptx.map(p => ({ ...p, file: path.basename(p.file) })), null, 1));
+    const d20 = pptx.filter(p => p.deck === "deck20").map(p => `${p.design} ${(p.bytes / 1024).toFixed(0)} KB / ${p.ms} ms`).join(", ");
+    console.log(`${pptx.length} PowerPoint files: checked ${pptx.filter(p => p.check === "ok").length} ok (${pptx.filter(p => p.powerpoint).length} opened in PowerPoint) · GT ${pptx.filter(p => p.gt === "equal").length} equal · size ${pptx.filter(p => p.sizeOk).length} within budget${d20 ? ` · deck20: ${d20}` : ""}`);
+  }
   process.exitCode = ok ? 0 : 1;
 }

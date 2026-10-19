@@ -44,6 +44,7 @@ export interface ScenarioForm {
   /** the value the Preview button shows */ value: string;
   /** how many cells taken From a range… had line breaks (shown as spaces: not the cell's own text) */ broken: number;
   /** "run anyway, mark these cells" (the gate, RC-06) */ runAnyway: boolean;
+  /** the files per value × design × version: PDF, PowerPoint (4.5, B21) or both */ kinds: import("@slide-builder/core/rpc/messages").FileKind[];
 }
 /** a scenario on the stage (S8.1, 07 §2.4): the value shown and its input cell; nothing of it is saved */
 export interface ScenarioPreview { value: string; input: string; changed: number; /** TEXT cells it could not format */ textUnknown?: number;
@@ -106,7 +107,7 @@ export const initialState = (): AppState => ({
   selection: { sel: null, noteSel: null, textSel: null, itemSel: null, painter: null },
   ui: {
     zoom: "fit", busy: null, exporting: false, toast: null, lookScope: "design", fontBusy: "", changedOnDisk: false, logoMissing: false, fontBuilds: [], health: null, others: [], calc: null,
-    scenario: { input: "", values: "", asText: false, designs: [], versions: [""], value: "", broken: 0, runAnyway: false }, preview: null, run: null,
+    scenario: { input: "", values: "", asText: false, designs: [], versions: [""], value: "", broken: 0, runAnyway: false, kinds: ["pdf"] }, preview: null, run: null,
     dialogs: { dialog: null, wizard: null, tables: false, textStyles: null, comment: null, scenario: false, pick: null },
   },
   prefs: { user: "", host: "", client: Math.random().toString(36).slice(2, 10) + Date.now().toString(36), prefs: {} },
