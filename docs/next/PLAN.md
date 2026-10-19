@@ -296,6 +296,7 @@ Approved 2026-10-16 (product owner: "I approve everything", `07-scenarios-charts
 | B22 | **Linked workbooks**: a deck can draw from several files; external links are recalculated when the linked file is available | M7 |
 | B23 | The page grows by ≈ 2.8 MB (the formula engine), loaded on first use only; start-up unchanged | M7 |
 | B24 | The Issues panel reports how many formulas recompute like Excel, locale-dependent `TEXT` cells, and missing chart / callout sources | M7, M9 |
+| B25 | **Cell borders on selected cells** (*Borders ▾*, as Excel's: sides, outside, thick outside, none; style and colour), over the workbook's on the slide only, separate from the gridlines (B20); copied by the painter; drawn where workbook borders are drawn (product owner 2026-10-19) | M10 (S10.3b) |
 
 Approved 2026-10-16 (product owner: "neutral names, i approve all above", `08-consulting-designs.md` §4.2 and §6):
 
@@ -761,7 +762,7 @@ with the `AUDIT.md` §0 protocol twice on clean clones.
 | M7 · Recalculation core (F0 linked workbooks; ADR-013, ADR-014) | S7.1 formulas read (.xlsx shared/array, .xlsb Rgce) · S7.2 IronCalc in the worker ⏱ · S7.3 linked workbooks · S7.4 self-check, overlay, scenario RPC ⏱ · S7.5 close 🚦 G4 | 4.2.0-pre |
 | M8 · Scenario export (F1, B15) | S8.1 dialog · S8.2 names · S8.3 the run ⏱ · S8.4 preview ⏱ · S8.5 close 🚦 G5 | 4.2.0 ⇢ |
 | M9 · Charts and callouts (F2, F3, B16, B17, B19; ADR-015) | S9.1 `item.patch` · S9.2 pie/donut DL ⏱ 🚦 G6 · S9.3 chart UI · S9.4 callouts ⏱ · S9.5 objects in raw Excel · S9.6 close | 4.3.0 ⇢ |
-| M10 · Free layout and cell gridlines (F4, F5, B18, B20; ADR-017) | S10.1 model · S10.2 drags ⏱ · S10.3 cell gridlines · S10.4 close 🚦 G7 | 4.4.0 ⇢ |
+| M10 · Free layout, cell gridlines and borders (F4, F5, B18, B20, B25; ADR-017) | S10.1 model · S10.2 drags ⏱ · S10.3 cell gridlines · S10.3b cell borders · S10.4 close 🚦 G7 | 4.4.0 ⇢ |
 | M11 · PowerPoint (F6, B21; ADR-016) | S11.1 writer skeleton · S11.2 tables and shapes · S11.3 charts, background layer, budgets ⏱ · S11.4 menu and runs 🚦 G8 · S11.5 close | 4.5.0 ⇢ |
 | M12 · Independent audit of 4.2–4.5 | as Prompt 10 → `AUDIT-2.md` | – |
 

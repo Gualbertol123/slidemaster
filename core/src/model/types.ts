@@ -47,7 +47,8 @@ export interface ShapeItem { kind: "shape"; shape: ShapeKind; /** a built-in ico
 export type Item = ChartItem | ShapeItem;
 /** free layout of one design of a slide (4.4, B18; docs/next/07 §5.1, ADR-017): with `on`, the slide's tables, text boxes and
     items sit at these boxes (slide px) – keys "t:<tableId>", "n:<noteKey>", "i:<itemId>"; a table's `scale` is its drawn
-    scale (its box's width and height follow from it); `on: false` keeps the boxes for the next switch-on */
+    scale (its box's width and height follow from it); `on: false` keeps the boxes for the next switch-on. The slide's notes
+    section ("slide:notes") is not in it: it is placed by its own x / y in every layout */
 export interface FreeLayout { on: boolean; items: Record<string, Box & { scale?: number }> }
 export interface SlideDef {
   id: string; type: SlideType;

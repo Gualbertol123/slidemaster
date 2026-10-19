@@ -1,16 +1,16 @@
 /* The stage's slide items (S9.3, B16): over each chart a transparent box that selects it (a click on a slice selects
    that slice too: the worker's pie geometry, core render/chart-dl.ts sliceAt), moves it (a drag of its body) and resizes
-   it (its corner). The pixels are the item's own layer (Stage.tsx Layers), shifted while it moves. */
+   it (its corner; in a free layout, B18, also an edge). The pixels are the item's own layer (Stage.tsx Layers), shifted while it moves. */
 import { useStore } from "../state/store";
 import type { RuntimeSlide } from "@slide-builder/core/model/types";
 import { sliceAt } from "@slide-builder/core/render/chart-dl";
 import { selectItem } from "../editor/charts";
-import { itemMove, itemResize, type DragPreview } from "./drags";
+import { itemMove, itemResize, noteEdge, type DragPreview } from "./drags";
 import { slideScale } from "./actions";
 import { setStage } from "./data";
 import type { StageModel } from "./model";
 
-export function Items({ m, R, drag }: { m: StageModel; R: RuntimeSlide; drag: DragPreview | null }) {
+export function Items({ m, R, drag, free }: { m: StageModel; R: RuntimeSlide; drag: DragPreview | null; free: boolean }) {
   const itemSel = useStore(s => s.selection.itemSel);
   // what a moving item snaps to: the tables, the text boxes, the other items
   const others = (self: string) => [...m.tables.map(t => t.box), ...m.notes.map(n => n.box), ...m.items.filter(p => p.id !== self).map(p => p.box)];
@@ -19,6 +19,7 @@ export function Items({ m, R, drag }: { m: StageModel; R: RuntimeSlide; drag: Dr
     return <div key={p.id} className={"itembox" + (on ? " sel" : "") + (d?.moved ? " moving" : "") + (p.info?.issue ? " broken" : "")} data-item={p.id} data-kind={R.cfg.items?.[p.id]?.kind}
       title={p.info?.issue ? (R.cfg.items?.[p.id]?.kind === "shape" ? "Callout: " : "Chart: ") + p.info.issue : undefined}
       style={{ left: b.x, top: b.y, width: b.w, height: b.h }}
+      onPointerMove={free ? e => { if (!(e.buttons & 1)) { const ed = noteEdge(e.currentTarget, e.nativeEvent, true, "top"); e.currentTarget.style.cursor = ed ? (ed === "l" || ed === "r" ? "ew-resize" : "ns-resize") : ""; } } : undefined}
       onDoubleClick={e => { const it = R.cfg.items?.[p.id]; if (it?.kind === "shape" && it.shape !== "icon") { e.stopPropagation(); setStage({ editor: { kind: "item", id: p.id } }); } }}
       onPointerDown={e => {
         e.stopPropagation();
@@ -26,7 +27,9 @@ export function Items({ m, R, drag }: { m: StageModel; R: RuntimeSlide; drag: Dr
         const rc = e.currentTarget.getBoundingClientRect(), k = rc.width / b.w;
         const x = b.x + (e.clientX - rc.left) / k, y = b.y + (e.clientY - rc.top) / k, g = p.info?.geom;
         selectItem(p.id, g ? sliceAt(g, x, y) : null);
-        if ((e.target as Element).closest(".size")) { e.preventDefault(); itemResize(R, p.id, p.box, e.nativeEvent); }
+        const ed = free && !(e.target as Element).closest(".size") ? noteEdge(e.currentTarget, e.nativeEvent, true, "top") : null;
+        if ((e.target as Element).closest(".size")) { e.preventDefault(); itemResize(R, p.id, p.box, e.nativeEvent, "corner", others(p.id)); }
+        else if (ed) { e.preventDefault(); itemResize(R, p.id, p.box, e.nativeEvent, ed, others(p.id)); }
         else itemMove(R, p.id, p.box, others(p.id), e.nativeEvent);
       }}>
       {on && <div className="size" title="Drag to resize" />}

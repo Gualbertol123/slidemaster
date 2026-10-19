@@ -116,7 +116,7 @@ export function TableRibbon() {
       <div className="grp">
         <button className="tb" id="sameSize" disabled={!R || R.tables.length < 2} title="Make the tables on this slide exactly the same size"
           onClick={() => { const r = makeSameSize(currentTableRefs(), { width: true, height: true, target: "largest" }); if (!r.ok) toast(esc(r.why)); }}>⇔ Same size</button>
-        <Dropdown button={(_o, t) => <button className="tb" id="posBtn" disabled={!R || !R.tables.length} title="Position of the tables on the slide" onClick={t}>
+        <Dropdown button={(_o, t) => <button className="tb" id="posBtn" disabled={!R || !R.tables.length || free} title={free ? "In a free layout each table is placed by dragging it (Free layout off: the automatic positions)" : "Position of the tables on the slide"} onClick={t}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 1.5v13" /><rect x="3" y="3.5" width="10" height="3" /><rect x="4.5" y="9.5" width="7" height="3" /></svg>Position ▾</button>}>
           {close => <div className="posmenu" onClick={e => { if ((e.target as Element).closest("button")) close(); }}><div className="hd">Across the slide</div><div className="row">
         {(["left", "center", "right"] as const).map(a => <button key={a} className={"tb" + (align === a ? " on" : "")} data-talign={a} disabled={!R || !R.tables.length} title={`Align the tables ${a === "center" ? "in the centre" : "to the " + a}`} onClick={() => alignTables(a)}>

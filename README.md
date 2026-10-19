@@ -371,7 +371,8 @@ operations are opaque to it. The full contract (torn tails, rotation, who delete
                  "sizes"?: {"glass"|"excel"|"clean": {layout?, scale?, align?, valign?}},
                  "notes"?: {"k3j9x0a:right": Note, "slide:notes": Note},
                  "fmt"?: {"title"|"subtitle"|"note"|"date": TextFmt},
-                 "items"?: {"c1": Item}} ],                         // 4.3: charts and callouts (item.patch only)
+                 "items"?: {"c1": Item},                            // 4.3: charts and callouts (item.patch only)
+                 "free"?: {"glass"|"excel"|…: FreeLayout}} ],         // 4.4: free layout per design
     "versions"?: [{"id": "v1", "name": "All", "hide": {"SLIDE_1": ["H10:I11"]}}],
     "links"?: ["Peers.xlsx"]        // 4.2: linked workbooks of the folder; their sheets are named "[Peers.xlsx]Peer" wherever a sheet name is stored
   },
@@ -396,6 +397,11 @@ operations are opaque to it. The full contract (torn tails, rotation, who delete
   {color, w, dash?}, radius?, fmt?: TextFmt & {valign?, pad?}, tail?: {x, y}, box, attach?}`. `DataRef` = `{sheet, range}`
   (a sheet id and one A1 rectangle) or `{table, range}` (a table of the deck and a range in its sheet); `box` =
   `{x, y, w, h}` in slide px. A 4.0 / 4.1 page keeps `items` (it ignores the key) and skips `item.patch`.
+* `FreeLayout` (4.4, B18, 07 §5.1, ADR-017) = `{on, items: {"t:<tableId>"|"n:<noteKey>"|"i:<itemId>": {x, y, w, h,
+  scale?}}}` per design: with `on` the slide's tables, text boxes and items sit at these boxes (a table drawn at its
+  saved `scale`, its box following from it; without one, `w` / its width), nothing re-flows; what has no box (added
+  after the switch-on) sits where the automatic layout puts it beside its table. `on: false` keeps the boxes. The
+  notes section (`"slide:notes"`) keeps its own `x/y`. A 4.0 / 4.1 page keeps `free` and draws the automatic layout.
 * `CellEdit`: `text` + `orig` (the Excel text it replaced – a text edit applies only while the Excel value is still
   `orig`), `bg` = cell colour (`"none"` removes the Excel fill), `fill` = highlight, `cf = "Sheet!C6"` =
   conditional formatting painted from another cell (`"none"` removes the cell's own).
@@ -410,7 +416,7 @@ operations are opaque to it. The full contract (torn tails, rotation, who delete
 | op | fields | plain keys (`null` deletes, else set) | map keys (map merge) |
 |---|---|---|---|
 | `preset.set` | `preset` | replaces `doc.preset` (wizard; `null` allowed) | – |
-| `slide.patch` | `id`, `patch` | title, subtitle, date, note, logo, layout, align, scale, valign, subs | notes, fmt, sizes |
+| `slide.patch` | `id`, `patch` | title, subtitle, date, note, logo, layout, align, scale, valign, subs | notes, fmt, sizes, free (4.4: an entry per design, replaced whole) |
 | `table.patch` | `id`, `patch` | name, gridH, gridV | cols, rows, scales, merges, sizes |
 | `cell.patch` | `sheet`, `ref` (A1), `patch` | text, orig, font, sz, b, i, color, fill, bg, cf, align, role | – |
 | `style.patch` | `patch` | design, glass, color, logo, radius, contrast, logoBubble | pn, footer, theme, text, colors, designs |
@@ -501,7 +507,7 @@ script, so HarfBuzz is in the page once). `main.tsx` installs the platform, inje
 | `render/edits.ts` | `effItems(L, ctx)`: the workbook items with the user's changes – version blanking, gridlines, colour scales, painted conditional formats, cell edits (text only while `orig` matches), cell colour vs highlight, roles; per-table caches. |
 | `render/excel-dl.ts` | `excelToDisplayList`: a table (fills, borders as widths and dashes, texts with alignment, indent, overflow, wrapping, rotation, sup/sub runs, shapes, text boxes, pictures). **Excel and Excel Refined.** Adjacent opaque fills overlap by 1 px so no light seam shows. |
 | `render/glass.ts`, `glass-dl.ts` | Liquid Glass: `glassGeom`, `buildScene`, `inferRoles`, **`glassPlan`** (every decision once) · `glassToDisplayList` (materials, 5-layer shadows, the blurred wallpaper behind each surface, tint, rim, sheen, hairlines, capsules, texts). Details: `docs/RENDERING.md` §2.3. |
-| `render/layout.ts` | Where things go on a slide – pure, shared by the worker and the page (§6.6): `areaFor`, `defaultLayout`/`layoutOf`, per-design sizing (`sizingOf`, `sizingPatch`, `sizingChange`, `fixedScale`), `notesOf`, **`computeLayout`**. |
+| `render/layout.ts` | Where things go on a slide – pure, shared by the worker and the page (§6.6): `areaFor`, `defaultLayout`/`layoutOf`, per-design sizing (`sizingOf`, `sizingPatch`, `sizingChange`, `fixedScale`), `notesOf`, **`computeLayout`**; the free layout (4.4, B18): `freeOf`, `freeKey`, `freeBoxes` (every box as drawn: what switching on saves) and `computeLayout`'s free branch (the saved boxes, no bands, no fit). |
 | `render/slide-dl.ts`, `slide.ts` | **`slideToDisplayList`**: background and wallpaper, title, subtitle, cover, contents, page number, footer, logo, the tables placed by `computeLayout`, text boxes (fitted on their own layout) and notes section, hit nodes · composition shared with the stage (`slideFrame`, `noteParts`, `memoPart`, `tableDrawKey`). |
 | `render/text.ts`, `comment.ts`, `cover.ts`, `pagenumbers.ts`, `scales.ts`, `wallpaper.ts`, `roles.ts` | text styles and markup (`richText`) · comment text on slides · the cover's date · page number and footer placement · colour scales · the Liquid Glass wallpaper (drawn in the worker on an OffscreenCanvas) · row roles (only a test uses it). |
 | `dl/` | The display list (`types.ts`: 8 node types in slide px 1600 × 900, ADR-004) and its backends: `svg.ts` (the stage, markup in pieces), `canvas.ts` (thumbnails, PNG, pictures, clipboard), `geom.ts` (geometry all backends share), `color.ts`, `key.ts` (content keys). |
@@ -575,7 +581,7 @@ acknowledged yet. The page draws no slide itself.
 | `editor/thumbs.ts` | Thumbnails: **pictures drawn by an export worker** (OffscreenCanvas → `ImageBitmap`) shown in a `bitmaprenderer` canvas, 222 CSS px wide × the pixel ratio. Every slide keeps a light row; frames within 300 px of the view are asked for (6 at a time, nearest first), pictures 1 500 px away are let go; a slide is drawn again only when its content key changed (350 ms after an edit). |
 | `editor/keys.ts`, `issues.ts` | Global keyboard · side-panel notes. |
 | `ui/ShapeTools.tsx` (4.3) | *Insert shape ▾* (six shapes, the icons) and, while one is selected, its fill, border and text on ribbon 2; the text is edited on the slide (double-click, Enter: `stage/editors.tsx ItemEditor`). |
-| `editor/charts.ts`, `stage/items.tsx`, `ui/ChartPanel.tsx` (4.3) | **Charts** (B16): *Insert chart ▾* on ribbon 2 (from the selected cells – the last column's numbers named by the first, beside the table – or *Choose the cells…*: `ui/PickCells.tsx`, the wizard's sheet view (RangePicker) of any sheet the wizard lists, never a hidden one – the numbers, then their names; also the panel's *Change the cells…* and a callout's *Quote a cell…*; no cell names typed); the selected item (`selection.itemSel`, and a slice picked by `sliceAt` on the worker's geometry); moves and resizes (`stage/drags.ts itemMove` / `itemResize`, one `item.patch` each; a moved chart is placed freely); the side panel (type, labels, legend, title, a colour per slice, the source as text, delete); Del / Esc; the Issues lines "Chart n: source … not found" / "no numbers in …" from the stage's `StageSlide.items`. The worker sends each item as a stage layer of its own (`StageLayer.item`). |
+| `editor/charts.ts`, `stage/items.tsx`, `ui/ChartPanel.tsx` (4.3) | **Charts** (B16): *Insert chart ▾* on ribbon 2 (from the selected cells – the last column's numbers named by the first, beside the table – or *Choose the cells…*: `ui/PickCells.tsx`, the wizard's sheet view (RangePicker) of any sheet the wizard lists, never a hidden one – the numbers, then their names; also the panel's *Change the cells…* and a callout's *Quote a cell…*; no cell names typed); the selected item (`selection.itemSel`, and a slice picked by `sliceAt` on the worker's geometry); moves and resizes (`stage/drags.ts itemMove` / `itemResize`, one `item.patch` each; a moved chart is placed freely); in a free layout (4.4, B18) the drags write the slide's free boxes instead (`freeOp`: one `slide.patch` carrying the design's whole entry) – tables by the grip, the corner and the edges (`freeTable`, proportions kept), text boxes and items by any edge, snapping to the other boxes and the slide's guides unless Alt is held; the side panel (type, labels, legend, title, a colour per slice, the source as text, delete); Del / Esc; the Issues lines "Chart n: source … not found" / "no numbers in …" from the stage's `StageSlide.items`. The worker sends each item as a stage layer of its own (`StageLayer.item`). |
 | `ui/` | `App.tsx` (layout, drop to open, dialogs), `Chrome.tsx` (slide list, issues, deck health, stage frame, zoom, status bar, busy, toast), `Topbar.tsx`, `Ribbon.tsx` (text toolbar + formula bar), `TableTools.tsx` (layout toolbar), `TextStylesDialog.tsx` (Design…), `CommentDialog.tsx`, `TablesDialog.tsx` (Sizes…), `FontPicker.tsx`, `Dialogs.tsx`, `Dropdown.tsx`, `Field.tsx` (keeps its draft while focused), `Input.tsx` (uncontrolled), `hooks.ts`. |
 | `wizard/Wizard.tsx` | The 4 steps; reads sheets only through the worker (summaries, suggestions, windows of cells); the preview is drawn in blocks of 40 rows, one per frame. |
 | `styles/` | `ui.css`, `app.css` (the chrome; its end keeps the few slide rules the overlays and the comment preview need, inside `@scope (html) to (.ovl, svg)`). |

@@ -424,7 +424,8 @@ PowerPoint without a repair prompt for every corpus deck × design × version.
 * `SlideDef.free[design]` with `on: true` switches **that design of that slide** to free layout (coordinates are per
   design, as `sizes` are, because the designs draw tables at different widths).
 * `computeLayout(R, ctx)` keeps its signature. When `free[design].on`, it returns `{boxes, k: 1, fit: 1, reduced: false}`
-  where every table box is `items["t:<id>"]` (scale = box.w / tableW), every text box `items["n:<key>"]`, with
+  where every table box is `items["t:<id>"]` (scale = the entry's `scale`, else box.w / tableW – S10.1: the saved scale
+  wins, so a table that grows keeps its scale and its box follows), every text box `items["n:<key>"]`, with
   `free: true`; items without an entry (added after the switch) get the automatic position **of that item alone**
   (next to its table for notes and attached items; the first empty spot in a grid for new charts) and the switch-on
   op writes them in. Nothing re-flows, no sizes are linked, no auto-shrink (the `fit` bisection is skipped), no

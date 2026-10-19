@@ -91,7 +91,8 @@ function mapMerge(target: Record<string, unknown>, key: string, v: unknown) {
   if (v === null) { delete target[key]; return; }
   if (!isObj(v)) return;
   const m = (isObj(target[key]) ? target[key] : {}) as Record<string, unknown>;
-  for (const [k, x] of Object.entries(v)) { if (x === null) delete m[k]; else m[k] = clone(x); }
+  // (a "__proto__" entry would set the map's prototype, which a saved copy loses: skipped)
+  for (const [k, x] of Object.entries(v)) { if (k === "__proto__") continue; if (x === null) delete m[k]; else m[k] = clone(x); }
   if (Object.keys(m).length) target[key] = m; else delete target[key];
 }
 export function applyStylePatch(style: Record<string, unknown>, patch: Record<string, unknown>) {

@@ -20,6 +20,8 @@
      drag frames     ⏱ S4.2: on the same slide, a column border, the corner, a table border, the grip, and a text box
                      moved and stretched: the page's work in each frame of a drag (its main thread between two
                      animation frames, from a trace), the frame after the drop not counted (its redraw is reported) < 16 ms
+     free drags      ⏱ S10.2 (07 §6.4, FL-02), when the build has it: the same slide in a free layout – a table moved by
+                     its grip, scaled by its corner and by an edge, the notes section moved – traced as above    < 16 ms
      thumbnails      ⏱ S4.3 (B14): deck20's content slides five times (100 slides), the thumbnail list scrolled to the
                      end and back with the wheel, traced: 60 fps – the longest time between two animation frames
                      (one frame missed is 33 ms)                                                        < 20 ms
@@ -61,7 +63,7 @@ const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? proces
 const BACKEND = path.resolve(arg("--page", path.join(REPO, "helper")));
 const GATE = !process.argv.includes("--no-gate");
 const BUDGET = { open_deck20_ms: 400, read_big30_ms: 1000, longest_task_ms: 50, first_draw_task_ms: 250, heap_mb: 150,
-  export_glass_ms: 2000, export_excel_ms: 1000, export_glass_kb: 80 * 20 + 190, export_excel_kb: 40 * 20, keypress_p95_ms: 50, drag_frame_ms: 16, thumbs_gap_ms: 20,
+  export_glass_ms: 2000, export_excel_ms: 1000, export_glass_kb: 80 * 20 + 190, export_excel_kb: 40 * 20, keypress_p95_ms: 50, drag_frame_ms: 16, free_drag_frame_ms: 16, thumbs_gap_ms: 20,
   // M7b (08 §4.3): the consulting designs – export 1.5 s and 40 KB per slide + 150 KB; keypress, drags, open as the others
   export_navy_ms: 1500, export_red_ms: 1500, export_navy_kb: 40 * 20 + 150, export_red_kb: 40 * 20 + 150, keypress_navy_p95_ms: 50, drag_navy_frame_ms: 16,
   open_navy_ms: 400, longest_navy_task_ms: 50, first_draw_navy_task_ms: 250,
@@ -197,7 +199,7 @@ async function run(browser, port) {
     const keypress = await keypressRun();
     await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 });
     const ltEdit = (await longTasks()).map(x => x.d);
-    const drags = await dragFrames(browser, page);
+    const drags = await dragFrames(browser, page, true);
     await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 });
     await longTasks();                                                                       // (the drops' redraws: in drags)
     // ---- export deck20 (S3.7): Liquid Glass (the default design), then Excel
@@ -345,7 +347,7 @@ async function run(browser, port) {
 
 /** the drags of S4.2 on the slide shown, traced: per drag the most work the page's main thread did between two animation
     frames while the pointer moved (Part F: 16 ms), and the longest task after the drop (the slide drawn again) */
-async function dragFrames(browser, page) {
+async function dragFrames(browser, page, withFree = false) {
   const out = {}, sleep2 = () => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
   const at = async sel => { const b = await page.locator(sel).first().boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2, b }; };
   const drag = async (name, from, dx, dy) => {
@@ -377,6 +379,18 @@ async function dragFrames(browser, page) {
     await drag("note move", { x: note.x, y: note.y }, 60, -40);
     const moved = (await page.locator("#stage .tnote.memo").boundingBox());
     await drag("note stretch", { x: moved.x + moved.width - 2, y: moved.y + moved.height / 2 }, -200, 0);
+    // S10.2: the same slide in a free layout (a build without it – --page of an older one – skips this), then automatic again
+    if (withFree && await page.locator("#freeLayout").count()) {
+      const idle = async () => { await page.waitForFunction(() => window.__sbTest.stageIdle(), null, { timeout: 20000 }); await page.waitForTimeout(300); };
+      await idle(); await page.click("#freeLayout"); await idle();
+      await page.locator("#stage .stagewrap").hover();
+      await drag("free move", await at('#stage .hbox[data-i="1"] .grip'), -60, 40);
+      await drag("free corner", await at('#stage .hbox[data-i="0"] .size'), -60, -30);
+      const fe = await at('#stage .hbox[data-i="0"] .edge.r');
+      await drag("free edge", { x: fe.x, y: fe.b.y + fe.b.height / 4 }, 50, 0);
+      await drag("free note move", await at("#stage .tnote.memo"), -40, -30);
+      await idle(); await page.click("#freeLayout"); await idle();
+    }
   } finally { await browser.stopTracing(); }
   const { tasks, frames } = traced(trace, "drag");
   const res = {};
@@ -454,7 +468,10 @@ const worst = {
   read_big30_ms: Math.max(...runs.map(r => r.big30.read_sheet_ms)),
   longest_task_ms: Math.max(0, ...runs.flatMap(r => [...r.deck20.longtasks, ...r.edit.longtasks, ...r.thumbs.longtasks, ...r.export.longtasks, ...r.big30.longtasks])),
   keypress_p95_ms: Math.max(...runs.map(r => r.edit.keypress.p95_ms)),
-  drag_frame_ms: Math.max(...runs.flatMap(r => Object.values(r.drags).map(d => d.frame_ms))),
+  drag_frame_ms: Math.max(...runs.flatMap(r => Object.entries(r.drags).filter(([k]) => !k.startsWith("free ")).map(([, d]) => d.frame_ms))),
+  // the free layout's drags (S10.2): this build's page must measure them (not measured counts as over the limit)
+  ...(runs.every(r => Object.keys(r.drags).some(k => k.startsWith("free "))) ? { free_drag_frame_ms: Math.max(...runs.flatMap(r => Object.entries(r.drags).filter(([k]) => k.startsWith("free ")).map(([, d]) => d.frame_ms))) }
+    : arg("--page") ? {} : { free_drag_frame_ms: Infinity }),
   thumbs_gap_ms: Math.max(...runs.map(r => r.thumbs.gap_ms)),
   first_draw_task_ms: Math.max(0, ...runs.flatMap(r => r.deck20.first_draw_longtasks)),
   // no performance.memory or no worker heap (another browser): not measured counts as over the limit, never as 0

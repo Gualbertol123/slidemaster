@@ -151,8 +151,8 @@ export function attachedOf(R: RuntimeSlide, i: number): Partial<Record<Side, { i
     saved box, else at its own box; null for an item without a valid box */
 export function itemBoxOf(R: RuntimeSlide, id: string, boxes: TBox[], ctx?: RenderCtx): { x: number; y: number; w: number; h: number } | null {
   for (const b of boxes) { const n = b?.items?.[id]; if (n) return { x: n.x, y: n.y, w: n.w, h: n.h }; }
-  const f = ctx ? freeOf(R, ctx) : null, e = f ? freeEntry(f.items["i:" + id]) : null;
-  if (e && R.cfg.items?.[id]) return e;
+  const f = ctx ? freeOf(R, ctx) : null, e = f ? freeEntry(f.items[freeKey.item(id)]) : null;
+  if (e && R.cfg.items?.[id]) return { x: e.x, y: e.y, w: e.w, h: e.h };
   const b = R.cfg.items?.[id]?.box;
   return b && [b.x, b.y, b.w, b.h].every(v => typeof v === "number" && Number.isFinite(v)) && b.w > 0 && b.h > 0 ? { x: b.x, y: b.y, w: Math.min(SLIDE_W, b.w), h: Math.min(SLIDE_H, b.h) } : null;
 }
@@ -167,16 +167,17 @@ export function freeOf(R: RuntimeSlide, ctx: RenderCtx): FreeLayout | null {
   return f && f.on === true && f.items && typeof f.items === "object" && !Array.isArray(f.items) ? f : null;
 }
 /** the keys of a free layout's boxes: a table, a text box (its key in SlideDef.notes), a slide item */
-export const freeKey = { table: (R: RuntimeSlide, i: number) => "t:" + (R.tables[i].id || String(i)), note: (key: string) => "n:" + key, item: (id: string) => "i:" + id };
-/** a saved box (from a shared document: finite numbers, a positive size), kept on the slide (at most its size, inside it) */
+export const freeKey = { table: (R: RuntimeSlide, i: number) => "t:" + (R.tables[i].id || R.tables[i].def?.id || String(i)), note: (key: string) => "n:" + key, item: (id: string) => "i:" + id };
+/** how far a saved box may reach (a shared document's numbers; boxes drawn past the slide's edge stay where they are, so
+    switching on moves nothing – the drags keep what they move on the slide) */
+const FREE_MAX = 10 * SLIDE_W;
+/** a saved box: finite numbers within FREE_MAX, a positive size; a table's scale at least 0.05 */
 function freeEntry(e: unknown): (NoteBox & { scale?: number }) | null {
   const b = e as Record<string, unknown> | null;
-  if (!b || typeof b !== "object" || ![b.x, b.y, b.w, b.h].every(v => typeof v === "number" && Number.isFinite(v)) || (b.w as number) <= 0 || (b.h as number) <= 0) return null;
-  const w = Math.min(SLIDE_W, b.w as number), h = Math.min(SLIDE_H, b.h as number);
-  const sc = typeof b.scale === "number" && Number.isFinite(b.scale) && b.scale > 0 ? { scale: b.scale } : {};
-  return { x: clampTo(b.x as number, SLIDE_W - w), y: clampTo(b.y as number, SLIDE_H - h), w, h, ...sc };
+  if (!b || typeof b !== "object" || ![b.x, b.y, b.w, b.h].every(v => typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= FREE_MAX) || (b.w as number) <= 0 || (b.h as number) <= 0) return null;
+  const sc = typeof b.scale === "number" && Number.isFinite(b.scale) && b.scale >= .05 ? { scale: b.scale } : {};
+  return { x: b.x as number, y: b.y as number, w: b.w as number, h: b.h as number, ...sc };
 }
-const clampTo = (v: number, max: number) => Math.max(0, Math.min(max, v));
 /** a box that has no saved place (added after the switch-on): where the automatic layout puts it beside its table, moved
     with the table (`a` the table's automatic box, `t` its free one) */
 function besideFree(n: NoteBox, side: Side, a: TBox, t: TBox): NoteBox {
@@ -192,9 +193,10 @@ function freeLayout(R: RuntimeSlide, ctx: RenderCtx, f: FreeLayout): { boxes: TB
     const e = freeEntry(f.items[freeKey.table(R, i)]), W = tableW(L, ctx), H = tableH(L, ctx);
     let t: TBox;
     if (e && W > 0 && H > 0) {
-      // the drawn scale (its box follows from it, so a table that grows keeps its scale); at most the slide's size
-      const sc = Math.min(e.scale ?? e.w / W, SLIDE_W / W, SLIDE_H / H), w = W * sc, h = H * sc;
-      t = { i, band: i, x: clampTo(e.x, SLIDE_W - w), y: clampTo(e.y, SLIDE_H - h), w, h, scale: sc, notes: {} };
+      // the drawn scale: saved (its box follows from it, so a table that grows keeps its scale), else from the box's width;
+      // at least 0.05, its box at most FREE_MAX
+      const sc = Math.max(.05, Math.min(e.scale ?? e.w / W, FREE_MAX / W, FREE_MAX / H)), w = W * sc, h = H * sc;
+      t = { i, band: i, x: e.x, y: e.y, w, h, scale: sc, notes: {} };
     } else { const a = autoOf(i); t = { i, band: i, x: a.x, y: a.y, w: a.w, h: a.h, scale: a.scale, notes: {} }; }
     const N = notesOf(R, i, ctx);
     for (const side of SIDES) {

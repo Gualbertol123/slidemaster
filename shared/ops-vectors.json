@@ -4724,5 +4724,68 @@
       "applied": 1,
       "skipped": []
     }
+  },
+  {
+    "name": "slide.patch map merge skips a \"__proto__\" entry (it would set the map's prototype; a saved copy would lose it)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "__proto__": {
+              "on": true,
+              "items": {}
+            },
+            "glass": {
+              "on": true,
+              "items": {}
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {}
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
   }
 ]

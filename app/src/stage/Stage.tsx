@@ -13,7 +13,7 @@ import { get, patch, STAGE, useStore } from "../state/store";
 import { ctx } from "../state/app";
 import type { RuntimeSlide, Side } from "@slide-builder/core/model/types";
 import { slideFrame } from "@slide-builder/core/render/slide";
-import { tableH, tableW } from "@slide-builder/core/render/layout";
+import { freeOf, tableH, tableW } from "@slide-builder/core/render/layout";
 import { tableName } from "@slide-builder/core/model/preset";
 import type { RenderCtx } from "@slide-builder/core/render/context";
 import { selItems, activeItem, setSel } from "../editor/edit";
@@ -23,7 +23,7 @@ import { selectSlideText } from "../editor/textfmt";
 import { setStage, useStage } from "./data";
 import { addNote, editNote, openInline, pendingNote, selectNote, takePendingNote } from "./actions";
 import { borderAt, cellBox, cellFromPoint, tablePoint } from "./hit";
-import { borderDrag, gripDrag, noteEdge, noteMove, noteStretch, resizeDrag, stretchDrag, type DragPreview } from "./drags";
+import { borderDrag, freeTable, gripDrag, noteEdge, noteMove, noteStretch, resizeDrag, stretchDrag, type DragPreview } from "./drags";
 import { editOf, stageModel, type NotePlace, type Rect, type StageModel } from "./model";
 import { PlainLayer, TableLayer, type Box } from "./SlideSvg";
 import { CellEditor, ItemEditor, NoteEditor, TextEditor } from "./editors";
@@ -81,8 +81,8 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
         <Layers m={m} layers={live.layers} drag={drag} armed={armed} />
         <div className="ovl">
           <TextLayer hits={m.hits} />
-          <Notes m={m} R={R} drag={drag} />
-          <Items m={m} R={R} drag={drag} />
+          <Notes m={m} R={R} drag={drag} freeLayout={!!freeOf(R, c)} />
+          <Items m={m} R={R} drag={drag} free={!!freeOf(R, c)} />
           {m.tables.map(t => <TableHits key={t.i} i={t.i} R={R} c={c} box={boxOf(t.i, t.box, drag)} s={s} />)}
           {m.tables.map(t => <HBox key={t.i} i={t.i} R={R} c={c} m={m} box={boxOf(t.i, t.box, drag)} drag={drag} slide={slideRef} />)}
           <Selection m={m} s={s} drag={drag} />
@@ -144,12 +144,13 @@ const TextLayer = memo(function TextLayer({ hits }: { hits: StageModel["hits"] }
 }, (a, b) => a.hits === b.hits || a.hits.length === b.hits.length && a.hits.every((h, i) => JSON.stringify(h) === JSON.stringify(b.hits[i])));   // the furniture as it was: nothing to draw
 
 /* ---- text boxes: the box to select, move, stretch and double-click; its bubble; the hint of an empty one */
-function Notes({ m, R, drag }: { m: StageModel; R: RuntimeSlide; drag: DragPreview | null }) {
+function Notes({ m, R, drag, freeLayout }: { m: StageModel; R: RuntimeSlide; drag: DragPreview | null; freeLayout: boolean }) {
   const noteSel = useStore(s => s.selection.noteSel);
   const others = (self: string) => [...m.notes.filter(n => n.part.key !== self).map(n => n.box), ...m.hits.filter(h => /^pageno\b|^footer\b/.test(h.id))];
   return <>{m.notes.map(p => {
     const key = p.part.key, d = drag?.kind === "note" && drag.key === key ? drag : null, b = d ? d.box : resized(p, drag);
-    const free = p.part.cls.includes(" free"), empty = !p.part.txt.trim();
+    // a free layout (B18): every text box but the notes section has its own box, stretched by any edge
+    const free = p.part.cls.includes(" free") || freeLayout && !p.part.memo, empty = !p.part.txt.trim();
     // being stretched: the box shows its text itself (the page re-wraps it as the box changes); the drawn layer waits –
     // after the drop too, until the slide drawn with the new size arrives (else the old wrap shows for a moment)
     const live = !!d && !d.moved && !empty && p.look ? p.look : null;
@@ -227,20 +228,23 @@ function SizeGuide({ d, T, c, inv }: { d: Extract<DragPreview, { kind: "border" 
   </>;
 }
 
-/* ---- a table's handles: grip (move), corner (resize), borders (stretch), + buttons (text boxes) */
+/* ---- a table's handles: grip (move), corner (resize), borders (stretch), + buttons (text boxes); in a free layout (B18)
+   the grip moves the table anywhere, the corner and the borders scale it (its proportions kept) */
 function HBox({ i, R, c, m, box, drag, slide }: { i: number; R: RuntimeSlide; c: RenderCtx; m: StageModel; box: Box; drag: DragPreview | null; slide: React.RefObject<HTMLDivElement | null> }) {
   const T = R.tables[i]; if (!T) return null;
+  const free = !!freeOf(R, c);
   const st = drag?.kind === "stretch" && drag.i === i ? drag : null, b = st ? st.box : box, active = !!st || ((drag?.kind === "resize" || drag?.kind === "grip") && drag.i === i);
-  // handles move outwards past the table's own text boxes (not past boxes placed elsewhere on the slide)
+  // handles move outwards past the table's own text boxes (not past boxes placed elsewhere on the slide – in a free layout
+  // every box is placed on its own)
   const n: Partial<Record<Side, Rect>> = {};
-  for (const p of m.notes) if (p.part.i === i && !p.part.memo && !p.part.cls.includes(" free")) n[p.part.side] = p.box;
+  if (!free) for (const p of m.notes) if (p.part.i === i && !p.part.memo && !p.part.cls.includes(" free")) n[p.part.side] = p.box;
   const vars = { "--nt": (n.top ? b.y - n.top.y : 0) + "px", "--nb": (n.bottom ? n.bottom.y + n.bottom.h - b.y - b.h : 0) + "px", "--nl": (n.left ? b.x - n.left.x : 0) + "px", "--nr": (n.right ? n.right.x + n.right.w - b.x - b.w : 0) + "px" } as React.CSSProperties;
   return (
-    <div className={"hbox" + (active ? " active" : "")} data-i={i} style={{ left: b.x, top: b.y, width: b.w, height: b.h, ...vars }}>
-      <div className="grip" title="Drag to move this table" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); gripDrag(R, i, e.nativeEvent, slide.current!); }}>⠿ {tableName(T, c.preset)}</div>
-      <div className="size" title="Drag to resize (keeps the proportions)" onPointerEnter={() => setStage({ armed: true })} onPointerLeave={() => { const d = useStage.getState().drag; if (d?.kind !== "resize" || d.done) setStage({ armed: false }); }} onPointerDown={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); resizeDrag(R, i, e.nativeEvent); }} />
-      {(["l", "r", "t", "b"] as const).map(ed => <div key={ed} className={"edge " + ed} data-edge={ed} title={`Drag to make the table ${ed === "l" || ed === "r" ? "wider or narrower" : "taller or shorter"}`}
-        onPointerDown={e => { e.preventDefault(); e.stopPropagation(); stretchDrag(R, i, ed, e.nativeEvent); }} />)}
+    <div className={"hbox" + (active ? " active" : "") + (free ? " free" : "")} data-i={i} style={{ left: b.x, top: b.y, width: b.w, height: b.h, ...vars }}>
+      <div className="grip" title={free ? "Drag to move this table anywhere (Alt: no snapping)" : "Drag to move this table"} onPointerDown={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); if (free) freeTable(R, i, "move", e.nativeEvent); else gripDrag(R, i, e.nativeEvent, slide.current!); }}>⠿ {tableName(T, c.preset)}</div>
+      <div className="size" title="Drag to resize (keeps the proportions)" onPointerEnter={() => setStage({ armed: true })} onPointerLeave={() => { const d = useStage.getState().drag; if (d?.kind !== "resize" || d.done) setStage({ armed: false }); }} onPointerDown={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); if (free) freeTable(R, i, "corner", e.nativeEvent); else resizeDrag(R, i, e.nativeEvent); }} />
+      {(["l", "r", "t", "b"] as const).map(ed => <div key={ed} className={"edge " + ed} data-edge={ed} title={free ? "Drag to make the table larger or smaller (its proportions kept)" : `Drag to make the table ${ed === "l" || ed === "r" ? "wider or narrower" : "taller or shorter"}`}
+        onPointerDown={e => { e.preventDefault(); e.stopPropagation(); if (free) { e.currentTarget.setPointerCapture(e.pointerId); freeTable(R, i, ed, e.nativeEvent); } else stretchDrag(R, i, ed, e.nativeEvent); }} />)}
       {st && <div className="edgetip">{Math.round(st.f * 100)} %</div>}
       {SIDES.map(sd => <button key={sd} className={"addnote " + sd} data-side={sd} title={`Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd}`}
         onPointerDown={e => { e.preventDefault(); e.stopPropagation(); addNote(i, sd); }}>+</button>)}
@@ -266,6 +270,10 @@ function Selection({ m, s, drag }: { m: StageModel; s: number; drag: DragPreview
 /* ---- guides: where a table will go (grip), what a text box lines up with */
 function Guides({ drag, s }: { drag: DragPreview | null; s: number }) {
   if (drag?.kind === "grip") return <div className="dropmark" style={drag.mark ? { display: "block", left: drag.mark.x, top: drag.mark.y, width: drag.mark.w, height: drag.mark.h } : undefined} />;
+  if (drag?.kind === "resize" && !drag.done && (drag.v != null || drag.h != null)) return <>
+    {drag.v != null && <div className="snapline v" style={{ display: "block", left: drag.v, width: 1.5 / Math.min(1, s) }} />}
+    {drag.h != null && <div className="snapline h" style={{ display: "block", top: drag.h, height: 1.5 / Math.min(1, s) }} />}
+  </>;
   if ((drag?.kind === "note" || drag?.kind === "item") && !drag.done) return <>
     {drag.kind === "item" && !drag.moved && <div className="itemguide" style={{ left: drag.box.x, top: drag.box.y, width: drag.box.w, height: drag.box.h }} />}
     {drag.v !== null && <div className="snapline v" style={{ display: "block", left: drag.v, width: 1.5 / Math.min(1, s) }} />}

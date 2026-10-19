@@ -7,8 +7,6 @@ import { confirmBox } from "../state/dialogs";
 import type { Op, RuntimeSlide } from "@slide-builder/core/model/types";
 import { freeBoxes, freeOf } from "@slide-builder/core/render/layout";
 
-export const isFree = (R: RuntimeSlide | null | undefined) => !!R && !!freeOf(R, ctx());
-
 /** on: the boxes saved last time (and, for what was added since, where it is drawn now), else every box as drawn now */
 export function freeLayoutOn(R: RuntimeSlide) {
   const c = ctx(), d = c.style.design, f = R.cfg.free?.[d];

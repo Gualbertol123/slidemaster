@@ -1445,6 +1445,20 @@ test.describe.serial("two people, one shared folder", () => {
     await expect.poll(() => undoSteps()).toBe(u0 + 1);
     await page.waitForFunction(() => (window as any).__sbTest.stageIdle());
     expect(await places()).toEqual(before);
+    // the saved box is what the slide draws: the first table's moved 100 px right (one change), the second stays
+    const id0 = doc().preset.slides[si].tables[0], s = (await boxOf(page.locator("#stage .slide"))).width / 1600, x0 = free().items["t:" + id0].x;
+    await page.evaluate(([id, d, k]) => { const t = window as any, p = t.__sbTest.preset(), sl = p.slides.find((x: any) => x.id === id), f = sl.free[d];
+      t.__sbTest.change("Move table", [{ op: "slide.patch", id, patch: { free: { [d]: { ...f, items: { ...f.items, [k]: { ...f.items[k], x: f.items[k].x + 100 } } } } } }]); },
+      [doc().preset.slides[si].id, design(), "t:" + id0] as const);
+    await pollFile(() => free().items["t:" + id0].x, { timeout: 10_000 }).toBe(x0 + 100);
+    await expect.poll(() => undoSteps()).toBe(u0 + 2);
+    await page.waitForFunction(() => (window as any).__sbTest.stageIdle());
+    await expect.poll(async () => { const p = await places(); return [Math.abs((p[0][0] - before[0][0]) / s - 100) < 2, p[0][1] - before[0][1], p[1]]; }).toEqual([true, 0, before[1]]);
+    await page.click("#undoBtn");
+    await expect.poll(() => undoSteps()).toBe(u0 + 1);
+    await page.waitForFunction(() => (window as any).__sbTest.stageIdle());
+    await expect.poll(() => places()).toEqual(before);
+    await pollFile(() => free().items["t:" + id0].x, { timeout: 10_000 }).toBe(x0);
     // Reset layout asks first; Cancel changes nothing
     await page.click("#resetLayout");
     await expect(page.locator(".dlg")).toContainText("Back to automatic layout?");
@@ -1468,6 +1482,130 @@ test.describe.serial("two people, one shared folder", () => {
     await expect.poll(() => undoSteps()).toBe(u0);
     await page.waitForFunction(() => (window as any).__sbTest.stageIdle());
     expect(await places()).toEqual(before);
+  });
+
+  test("free layout drags (S10.2, FL-02, FL-03, B18): tables, text boxes and callouts moved and resized on their own, snapping unless Alt is held, one undo step each; raw Excel too", async ({ page }) => {
+    await openApp(page, ANNA);
+    await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
+    const si = doc().preset.slides.findIndex((s: any) => s.type === "content" && s.tables.length === 2);
+    await page.locator(`.thumb[data-i="${si}"]`).click(); await page.locator(`.thumb.on[data-i="${si}"]`).waitFor();
+    const slide = () => doc().preset.slides[si], [id0, id1] = slide().tables as string[];
+    const free = (d = "glass") => slide().free?.[d], box = (k: string, d = "glass") => free(d)?.items?.[k];
+    const undoSteps = () => page.evaluate(() => (window as any).__sbTest.history().undo as number);
+    const idle = () => page.waitForFunction(() => (window as any).__sbTest.stageIdle());
+    const drag = async (from: { x: number; y: number }, dx: number, dy: number, alt = false) => {
+      await page.mouse.move(from.x, from.y); if (alt) await page.keyboard.down("Alt");
+      await page.mouse.down(); await page.mouse.move(from.x + dx, from.y + dy, { steps: 10 }); await page.mouse.up();
+      if (alt) await page.keyboard.up("Alt");
+    };
+    const mid = async (sel: string) => { const b = await boxOf(page.locator(sel).first()); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
+    expect(doc().style.design || "glass").toBe("glass");
+    await page.locator("#stage .stagewrap").hover();
+    await page.click("#freeLayout");
+    await pollFile(() => free()?.on, { timeout: 10_000 }).toBe(true);
+    await idle();
+    const s = (await boxOf(page.locator("#stage .slide"))).width / 1600;               // screen px per slide px
+    let u = await undoSteps();
+    // one more undo step, drawn, and saved (the file is what the next drag's numbers are read from)
+    const pageFree = () => page.evaluate(i => JSON.stringify((window as any).__sbTest.preset().slides[i].free ?? null), si);
+    const step = async () => { u++; await expect.poll(() => undoSteps()).toBe(u); await idle(); const want = await pageFree(); await pollFile(() => JSON.stringify(slide().free ?? null), { timeout: 10_000 }).toBe(want); };
+    // the second table by its grip, Alt held (no snapping): moved by the pointer (left: it sits at the slide's right side), the first one stays
+    const a0 = box("t:" + id0), b0 = box("t:" + id1);
+    await drag(await mid('#stage .hbox[data-i="1"] .grip'), -90, 50, true);
+    await pollFile(() => Math.abs(box("t:" + id1).x - (b0.x - 90 / s)) < 2 && Math.abs(box("t:" + id1).y - (b0.y + 50 / s)) < 2, { timeout: 10_000 }).toBe(true);
+    expect(box("t:" + id0)).toEqual(a0);
+    expect(box("t:" + id1).scale).toBe(b0.scale);
+    await step();
+    await expect.poll(async () => Math.round((await boxOf(page.locator('#stage .slide > .tw[data-i="1"]'))).x)).toBe(Math.round((await boxOf(page.locator("#stage .slide"))).x + box("t:" + id1).x * s));
+    // its left edge dropped 3 screen px beside the first table's: snapped onto it; with Alt it stays where it was dropped
+    const near = async (alt: boolean) => { const b = box("t:" + id1), a = box("t:" + id0); await drag(await mid('#stage .hbox[data-i="1"] .grip'), (a.x - b.x) * s + 3, 0, alt); };
+    await near(false);
+    await pollFile(() => box("t:" + id1).x, { timeout: 10_000 }).toBe(a0.x);
+    await step();
+    await drag(await mid('#stage .hbox[data-i="1"] .grip'), 40, 0, true); await step();
+    await near(true);
+    await pollFile(() => Math.abs(box("t:" + id1).x - (a0.x + 3 / s)) < 1.5, { timeout: 10_000 }).toBe(true);
+    await step();
+    // back to its own column (it would cover the first table's handles)
+    await drag(await mid('#stage .hbox[data-i="1"] .grip'), (b0.x - box("t:" + id1).x) * s, 0, true); await step();
+    // the first table's corner: smaller, its proportions kept
+    await drag(await mid('#stage .hbox[data-i="0"] .size'), -70, -70, true);
+    await pollFile(() => box("t:" + id0).scale < a0.scale - .02, { timeout: 10_000 }).toBe(true);
+    const a1 = box("t:" + id0);
+    expect(a1.w / a1.h).toBeCloseTo(a0.w / a0.h, 1);
+    expect([a1.x, a1.y]).toEqual([a0.x, a0.y]);
+    await step();
+    // its left edge: wider to the left, its right side and top stay, the height follows
+    const el = await boxOf(page.locator('#stage .hbox[data-i="0"] .edge.l'));          // (a quarter down: the + button sits mid-way)
+    await drag({ x: el.x + el.width / 2, y: el.y + el.height / 4 }, -50, 0, true);
+    await pollFile(() => box("t:" + id0).w > a1.w + 20, { timeout: 10_000 }).toBe(true);
+    const a2 = box("t:" + id0);
+    expect(Math.abs(a2.x + a2.w - (a1.x + a1.w))).toBeLessThan(2);
+    expect(a2.y).toBe(a1.y);
+    expect(a2.w / a2.h).toBeCloseTo(a1.w / a1.h, 1);
+    await step();
+    // a text box (added with +, beside its table until moved): moved by its body and stretched by its left edge – the
+    // layout's box changes, the text box itself is not moved
+    await page.locator('#stage .hbox[data-i="0"] .addnote.bottom').click();
+    await expect(page.locator("textarea.note-edit")).toBeVisible();
+    await page.keyboard.type("Free note"); await page.keyboard.press("Control+Enter");
+    const note = page.locator("#stage .tnote", { hasText: "Free note" }), nk = "n:" + id0 + ":bottom";
+    await expect(note).toBeVisible();
+    u = await undoSteps(); await idle();
+    await drag(await mid('#stage .tnote:has-text("Free note")'), 70, 40, true);
+    await pollFile(() => box(nk)?.x ?? "none", { timeout: 10_000 }).not.toBe("none");
+    const n1 = box(nk);
+    expect(slide().notes[id0 + ":bottom"].x).toBeUndefined();
+    await step();
+    const nb = await boxOf(note);
+    await drag({ x: nb.x + 2, y: nb.y + nb.height / 2 }, -60, 0, true);
+    await pollFile(() => box(nk).w, { timeout: 10_000 }).toBeGreaterThan(n1.w + 30);
+    expect(Math.abs(box(nk).x + box(nk).w - (n1.x + n1.w))).toBeLessThan(2);
+    await step();
+    // a callout: its body and its right edge (in a free layout an item has edges too); its own box stays
+    await page.click("#shapeBtn"); await page.click('.shapemenu [data-shape="pill"]');
+    await expect(page.locator(".itembox[data-kind=shape]")).toHaveCount(1, { timeout: 10_000 });
+    await pollFile(() => Object.keys(slide().items || {}).length, { timeout: 10_000 }).toBe(1);
+    const iid = Object.keys(slide().items)[0], own = JSON.stringify(slide().items[iid].box);
+    u = await undoSteps(); await idle();
+    await drag(await mid(".itembox[data-kind=shape]"), -80, -60, true);
+    await pollFile(() => box("i:" + iid)?.x ?? "none", { timeout: 10_000 }).not.toBe("none");
+    const i1 = box("i:" + iid);
+    expect(JSON.stringify(slide().items[iid].box)).toBe(own);
+    await step();
+    const ib = await boxOf(page.locator(".itembox[data-kind=shape]"));
+    await drag({ x: ib.x + ib.width - 2, y: ib.y + ib.height / 2 }, 50, 0, true);
+    await pollFile(() => box("i:" + iid).w, { timeout: 10_000 }).toBeGreaterThan(i1.w + 30);
+    expect([box("i:" + iid).x, box("i:" + iid).y, box("i:" + iid).h]).toEqual([i1.x, i1.y, i1.h]);
+    await step();
+    // the callout and the text box go again (Del; the text box's 🗑) – the later steps count this deck's objects as before
+    await page.locator(".itembox[data-kind=shape]").click({ position: { x: 4, y: 4 } }); await page.keyboard.press("Delete");
+    await pollFile(() => Object.keys(slide().items || {}).length, { timeout: 10_000 }).toBe(0);
+    await note.click(); await page.click("#noteDelete");
+    await pollFile(() => slide().notes?.[id0 + ":bottom"] ?? "none", { timeout: 10_000 }).toBe("none");
+    // FL-03: raw Excel has its own free layout (sizes per design); its text boxes are drawn and move there too (B19)
+    await page.click('[data-design="excel"]'); await saved(page); await idle();
+    await page.locator('#stage .hbox[data-i="1"] .addnote.right').click();
+    await expect(page.locator("textarea.note-edit")).toBeVisible();
+    await page.keyboard.type("Excel note"); await page.keyboard.press("Control+Enter");
+    await expect(page.locator("#stage .tnote", { hasText: "Excel note" })).toBeVisible();
+    await expect(page.locator("#freeLayout")).not.toHaveClass(/\bon\b/);
+    await page.click("#freeLayout");
+    await pollFile(() => free("excel")?.on, { timeout: 10_000 }).toBe(true);
+    await idle();
+    const ek = "n:" + id1 + ":right", e0 = box(ek, "excel");
+    expect(e0).toBeTruthy();
+    await drag(await mid('#stage .tnote:has-text("Excel note")'), -40, 60, true);
+    await pollFile(() => Math.abs(box(ek, "excel").y - (e0.y + 60 / s)) < 2, { timeout: 10_000 }).toBe(true);
+    expect(free().on).toBe(true);                                                         // Liquid Glass's layout untouched
+    expect(box(ek)).toBeUndefined();
+    // back as the later tests expect the deck: the note gone, the automatic layouts, Liquid Glass
+    await page.locator("#stage .tnote", { hasText: "Excel note" }).click(); await page.click("#noteDelete");
+    await pollFile(() => slide().notes?.[id1 + ":right"] ?? "none", { timeout: 10_000 }).toBe("none");
+    await page.click("#freeLayout"); await pollFile(() => free("excel")?.on, { timeout: 10_000 }).toBe(false);
+    await page.click('[data-design="glass"]'); await saved(page);
+    await page.click("#freeLayout"); await pollFile(() => free()?.on, { timeout: 10_000 }).toBe(false);
+    await lastFileSaved("anna", "report.xlsx");
   });
 
   test("no page errors, console errors or warnings", async () => { expect(unexpected(errors)).toEqual([]); });

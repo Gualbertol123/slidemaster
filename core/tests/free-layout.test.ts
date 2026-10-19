@@ -92,17 +92,33 @@ describe("free layout: the saved boxes, nothing re-flows", () => {
     expect(L.boxes[1].x).toBe(items["t:dj7beg8"].x); expect(L.boxes[1].y).toBe(items["t:dj7beg8"].y);
     expect([L.k, L.fit]).toEqual([1, 1]);
   });
-  it("a box from a shared document: kept on the slide; an invalid one is ignored (the automatic place)", async () => {
+  it("a box from a shared document: past the slide's edge it stays where it is; an invalid one is ignored (the automatic place)", async () => {
     const { doc, at } = await open(), s0 = at("clean"), auto = computeLayout(s0.R, s0.ctx).boxes;
     const items = freeBoxes(s0.R, s0.ctx);
-    items["n:l4tsxhl:top"] = { x: 1580, y: -50, w: 300, h: 80 };                    // off the slide → inside it
+    items["n:l4tsxhl:top"] = { x: 1580, y: -50, w: 300, h: 80 };                    // partly off the slide: kept
     items["i:c1"] = { x: 1, y: 1, w: -5, h: 10 } as never;                           // invalid → beside its table
     items["t:dj7beg8"] = { x: "a", y: 0, w: 10, h: 10 } as never;                    // invalid → automatic
+    items["i:k1"] = { x: 1e9, y: 0, w: 10, h: 10 };                                  // beyond reach → its own box
     const d2 = structuredClone(doc); applyOp(d2, on("clean", items));
     const s = at("clean", d2), L = computeLayout(s.R, s.ctx).boxes;
-    expect(L[0].notes.top).toEqual({ x: 1300, y: 0, w: 300, h: 80, free: true });
+    expect(L[0].notes.top).toEqual({ x: 1580, y: -50, w: 300, h: 80, free: true });
     expect(L[0].items!.c1).toEqual(auto[0].items!.c1);
     expect([L[1].x, L[1].y, L[1].scale]).toEqual([auto[1].x, auto[1].y, auto[1].scale]);
+    expect(itemBoxOf(s.R, "k1", L, s.ctx)).toEqual({ x: 1200, y: 760, w: 200, h: 60 });
+  });
+  it("a table's scale from a shared document: NaN or below 0.05 → from its box's width; at least 0.05; a huge one bounded", async () => {
+    const { doc, at } = await open(), s0 = at("excel"), items = freeBoxes(s0.R, s0.ctx), W = tableW(s0.R.tables[0], s0.ctx), t = items["t:l4tsxhl"];
+    const scaleWith = (scale: unknown, w = t.w) => { const d2 = structuredClone(doc); applyOp(d2, on("excel", { ...items, "t:l4tsxhl": { ...t, w, scale } })); const s = at("excel", d2); return computeLayout(s.R, s.ctx).boxes[0].scale; };
+    expect(scaleWith(NaN, 400)).toBeCloseTo(400 / W);
+    expect(scaleWith(1e-9, 400)).toBeCloseTo(400 / W);
+    expect(scaleWith(undefined, 1e-6)).toBe(.05);
+    expect(scaleWith(1e12) * W).toBeLessThanOrEqual(16000 + 1e-6);
+  });
+  it("a text box placed past the slide's edge before the switch: switching on moves nothing (the display list is the same)", async () => {
+    const { doc, at } = await open([{ op: "slide.patch", id: SLIDE, patch: { notes: { "l4tsxhl:top": { text: "Out", x: 1450, y: 860, w: 300, h: 80 } } } } as Op]);
+    const before = at("excel"), d2 = structuredClone(doc);
+    applyOp(d2, on("excel", freeBoxes(before.R, before.ctx)));
+    expect(at("excel", d2).dl().nodes).toEqual(before.dl().nodes);
   });
   it("a text box or item added after the switch-on: its automatic place beside its table, moved with the table", async () => {
     const { doc, at } = await open(), s0 = at("excel"), items = freeBoxes(s0.R, s0.ctx), auto = computeLayout(s0.R, s0.ctx).boxes[1];
