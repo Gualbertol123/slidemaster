@@ -6,7 +6,17 @@ export interface Layout { bands: number[][]; w: number[] }
 export interface ScaleRule { range: string; dir: "row" | "col" | "all"; mode: "zero" | "minmax"; fill: boolean; ink: boolean; invert?: boolean }
 interface TableExtras { name?: string; cols?: Record<string, number>; rows?: Record<string, number>; scales?: Record<string, ScaleRule>; merges?: Record<string, "merge" | "split">;
   /** gridlines: "on" draws a line at every row/column edge, "off" removes them; unset = as in Excel */ gridH?: "on" | "off"; gridV?: "on" | "off";
-  /** column widths / row heights of one design (over cols/rows, which older decks share between designs) */ sizes?: Partial<Record<Design, TableSizes>> }
+  /** column widths / row heights of one design (over cols/rows, which older decks share between designs) */ sizes?: Partial<Record<Design, TableSizes>>;
+  /** gridlines on selected cells (4.4, B20), by the cell's A1 address: a light layer of their own, never a border */ cellGrid?: Record<string, CellGrid>;
+  /** cell borders on the slide (4.4, B28), by the cell's A1 address: over the workbook's, which is never changed */ borders?: Record<string, CellBorders> }
+/** a cell's own border on one side (product owner 2026-10-19: Borders ▾ as Excel's): a style and a colour, or "none" (the
+    workbook's border of that side removed on the slide) */
+export type CellBorderSide = { style: "thin" | "medium" | "thick" | "dashed" | "dotted" | "double"; color: string } | "none";
+export type CellBorders = Partial<Record<"top" | "left" | "right" | "bottom", CellBorderSide>>;
+/** a cell's own gridlines (07 §5.2; product owner 2026-10-19: separate from the cell borders, drawn where the cell has no
+    border): h = its top and bottom edges, v = its left and right ("off" = none, as unset); o = part of an outlined rectangle
+    (its edges where the next cell is not outlined – the outline of the selection); c = colour, w = weight in px (0.5–3) */
+export interface CellGrid { h?: "on" | "off"; v?: "on" | "off"; o?: boolean; c?: string; w?: number }
 export interface TableSizes { cols?: Record<string, number>; rows?: Record<string, number> }
 export type TableDef =
   | ({ id: string; sheet: string; kind: "markers"; anchor: string; index: number } & TableExtras)
@@ -45,6 +55,11 @@ export interface ShapeItem { kind: "shape"; shape: ShapeKind; /** a built-in ico
   fmt?: TextFmt & { valign?: "top" | "middle" | "bottom"; pad?: number }; /** bubble tail tip, slide px */ tail?: { x: number; y: number };
   box: Box; attach?: { table: string; side: Side } }
 export type Item = ChartItem | ShapeItem;
+/** free layout of one design of a slide (4.4, B18; docs/next/07 §5.1, ADR-017): with `on`, the slide's tables, text boxes and
+    items sit at these boxes (slide px) – keys "t:<tableId>", "n:<noteKey>", "i:<itemId>"; a table's `scale` is its drawn
+    scale (its box's width and height follow from it); `on: false` keeps the boxes for the next switch-on. The slide's notes
+    section ("slide:notes") is not in it: it is placed by its own x / y in every layout */
+export interface FreeLayout { on: boolean; items: Record<string, Box & { scale?: number }> }
 export interface SlideDef {
   id: string; type: SlideType;
   title?: string | null; subtitle?: string | null; date?: string | null; note?: string | null;
@@ -54,6 +69,7 @@ export interface SlideDef {
   /** formatting of this slide's title, subtitle, cover note and date (over the deck text styles) */ fmt?: Partial<Record<SlideTextKey, TextFmt>>;
   /** table sizing of one design (over layout/scale, which older decks share between designs) */ sizes?: Partial<Record<Design, SlideSizing>>;
   /** charts and callouts (4.3), by item id; changed only by `item.patch` */ items?: Record<string, Item>;
+  /** free layout per design (4.4, B18); an entry is replaced whole by slide.patch */ free?: Partial<Record<Design, FreeLayout>>;
 }
 /** how one design shows a slide's tables: arrangement and weights, fixed scale, alignment */
 export interface SlideSizing { layout?: Layout; scale?: number; align?: "left" | "center" | "right"; valign?: "top" | "middle" | "bottom" }
@@ -105,8 +121,8 @@ type ItemFields = Omit<ChartItem, "kind" | "colors" | "fmt"> & Omit<ShapeItem, "
 export type ItemPatch = Nullable<Partial<ItemFields>> & { kind?: ItemKind; colors?: Record<string, string | null> | null; fmt?: Record<string, unknown> | null };
 export type Op =
   | { op: "preset.set"; preset: Preset | null }
-  | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "valign" | "scale" | "subs">> & { notes?: Record<string, Note | null> | null; sizes?: Partial<Record<Design, SlideSizing | null>> | null; fmt?: Partial<Record<SlideTextKey, TextFmt | null>> | null } }
-  | { op: "table.patch"; id: string; patch: { name?: string | null; gridH?: "on" | "off" | null; gridV?: "on" | "off" | null; cols?: Record<string, number | null> | null; rows?: Record<string, number | null> | null; scales?: Record<string, ScaleRule | null> | null; merges?: Record<string, "merge" | "split" | null> | null; sizes?: Partial<Record<Design, TableSizes | null>> | null } }
+  | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "valign" | "scale" | "subs">> & { notes?: Record<string, Note | null> | null; sizes?: Partial<Record<Design, SlideSizing | null>> | null; fmt?: Partial<Record<SlideTextKey, TextFmt | null>> | null; free?: Partial<Record<Design, FreeLayout | null>> | null } }
+  | { op: "table.patch"; id: string; patch: { name?: string | null; gridH?: "on" | "off" | null; gridV?: "on" | "off" | null; cols?: Record<string, number | null> | null; rows?: Record<string, number | null> | null; scales?: Record<string, ScaleRule | null> | null; merges?: Record<string, "merge" | "split" | null> | null; sizes?: Partial<Record<Design, TableSizes | null>> | null; cellGrid?: Record<string, CellGrid | null> | null; borders?: Record<string, CellBorders | null> | null } }
   | { op: "cell.patch"; sheet: string; ref: string; patch: Nullable<CellEdit> }
   /** field-level patch of one slide item; `patch: null` deletes it; a patch with `kind` on a missing id creates it */
   | { op: "item.patch"; slide: string; id: string; patch: ItemPatch | null }

@@ -179,7 +179,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
   // the slide's items, in their order (the later on top): beside their table or where they were put
   const items: Record<string, ItemInfo> = {};
   for (const [id, it] of Object.entries(R.cfg.items || {})) {
-    const box = itemBoxOf(R, id, boxes); if (!box || !it || (it.kind !== "chart" && it.kind !== "shape")) continue;
+    const box = itemBoxOf(R, id, boxes, ctx); if (!box || !it || (it.kind !== "chart" && it.kind !== "shape")) continue;
     const s0 = low.length;
     if (it.kind === "chart") {
       const family = glassy ? base : C ? C.note.family : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel;

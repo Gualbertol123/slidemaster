@@ -31,8 +31,8 @@ test("opened from file://: choose a workbook, make the deck, edit a cell, keep i
   await expect(page.locator("#bannerOffline")).toBeVisible();
   await page.setInputFiles("#fileInput", REPORT);
   await expect(page.locator(".wiz")).toBeVisible();
-  await page.click('[data-a="next"]');                         // sheets → tables
-  await page.click('[data-a="next"]');                         // tables → slides
+  await page.click('[data-a="next"]:has-text("Tables")');                       // sheets → tables
+  await page.click('[data-a="next"]:has-text("Slides")');                       // tables → slides
   await page.click('[data-a="finish"]');
   await expect(page.locator(".thumb")).toHaveCount(2);
 
@@ -71,7 +71,7 @@ test("opened from file://: an .xlsb opens natively, without Excel", async ({ pag
   await expect(page.locator("#bannerOffline")).toBeVisible();
   await page.setInputFiles("#fileInput", path.join(here, "../../tests/corpus/workbooks/xlsb/report.xlsb"));
   await expect(page.locator(".wiz")).toBeVisible();
-  await page.click('[data-a="next"]'); await page.click('[data-a="next"]'); await page.click('[data-a="finish"]');
+  await page.click('[data-a="next"]:has-text("Tables")'); await page.click('[data-a="next"]:has-text("Slides")'); await page.click('[data-a="finish"]');
   await expect(page.locator(".thumb")).toHaveCount(2);
   await expect(page.locator("#stage .slide .t", { hasText: /^Alpha$/ })).toHaveCount(1);
   await expect(page.getByText(/converted by Excel/)).toHaveCount(0);
@@ -83,7 +83,7 @@ test("opened from file://: an .xlsb opens natively, without Excel", async ({ pag
 async function deck(page: Page) {
   await page.goto(PAGE);
   await page.setInputFiles("#fileInput", REPORT);
-  await page.click('[data-a="next"]'); await page.click('[data-a="next"]'); await page.click('[data-a="finish"]');
+  await page.click('[data-a="next"]:has-text("Tables")'); await page.click('[data-a="next"]:has-text("Slides")'); await page.click('[data-a="finish"]');
   await expect(page.locator(".thumb")).toHaveCount(2);
 }
 async function download(page: Page, click: () => Promise<unknown>) {

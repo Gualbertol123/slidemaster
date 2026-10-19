@@ -27,7 +27,7 @@ async function finishOpening(page: Page) {
   const wizard = page.locator(".wiz"), cont = page.locator('[data-a="continue"]');
   await expect(wizard.or(cont)).toBeVisible({ timeout: 20_000 });
   if (await cont.isVisible()) await cont.click();
-  else { await page.click('[data-a="next"]'); await page.click('[data-a="next"]'); await page.click('[data-a="finish"]'); }
+  else { await page.click('[data-a="next"]:has-text("Tables")'); await page.click('[data-a="next"]:has-text("Slides")'); await page.click('[data-a="finish"]'); }
 }
 
 test("a dropped workbook opens; of two drops at once the newer opens; reload from disk; changed on disk", async ({ page }) => {

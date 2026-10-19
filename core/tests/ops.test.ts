@@ -61,6 +61,8 @@ describe("inverse of map merges", () => {
   const cases: Op[] = [
     { op: "table.patch", id: "t", patch: { cols: { "2": 120, "3": 50 }, name: "X" } },
     { op: "table.patch", id: "t", patch: { cols: null } },
+    { op: "table.patch", id: "t", patch: { cellGrid: { C3: { h: "on", c: "#C00000", w: 2 }, C4: { o: true } } } },
+    { op: "table.patch", id: "t", patch: { borders: { C3: { bottom: { style: "medium", color: "#C00000" }, top: "none" } } } },
     { op: "slide.patch", id: "s", patch: { notes: { "t:top": null, "t:left": { text: "L" } }, align: "left", scale: .7 } },
     { op: "style.patch", patch: { radius: 40, contrast: 80, logoBubble: false } },
   ];
@@ -68,6 +70,34 @@ describe("inverse of map merges", () => {
     const d: any = base(); const inv = inverseOf(d, op)!;
     applyOp(d, op); applyOp(d, inv);
     expect(d).toEqual(base());
+  });
+});
+
+describe("inverse of a free layout switch (07 §5.1, B18: one undo step each way)", () => {
+  const boxes = { "t:t": { x: 50, y: 120, w: 600, h: 300, scale: 1.25 }, "n:t:top": { x: 50, y: 60, w: 600, h: 44 } };
+  const base = (free?: object) => ({ preset: { sheets: [], tables: [], slides: [{ id: "s", type: "content" as const, tables: ["t"], ...(free ? { free } : {}) }] }, style: {}, edits: {} });
+  const cases: [string, object | undefined, Op][] = [
+    ["on (no free layout before)", undefined, { op: "slide.patch", id: "s", patch: { free: { glass: { on: true, items: boxes } } } } as Op],
+    ["off (the boxes kept)", { glass: { on: true, items: boxes } }, { op: "slide.patch", id: "s", patch: { free: { glass: { on: false, items: boxes } } } } as Op],
+    ["on again, beside another design's", { glass: { on: false, items: boxes }, excel: { on: true, items: {} } }, { op: "slide.patch", id: "s", patch: { free: { glass: { on: true, items: boxes } } } } as Op],
+    ["a move (the design's whole entry)", { glass: { on: true, items: boxes } }, { op: "slide.patch", id: "s", patch: { free: { glass: { on: true, items: { ...boxes, "t:t": { ...boxes["t:t"], x: 90 } } } } } } as Op],
+  ];
+  for (const [name, free, op] of cases) it(name + " round-trips", () => {
+    const d: any = base(free); const inv = inverseOf(d, op)!;
+    expect(applyOp(d, op)).toBe(true); expect(applyOp(d, inv)).toBe(true);
+    expect(d).toEqual(base(free));
+  });
+});
+
+describe("map merges keep a \"__proto__\" entry of a shared document out (it would set the map's prototype)", () => {
+  it("slide.patch free from JSON with a __proto__ key: no own key, the map's prototype untouched", () => {
+    const d: any = { preset: { sheets: [], tables: [], slides: [{ id: "s", type: "content", tables: [] }] }, style: {}, edits: {} };
+    const op = JSON.parse('{"op":"slide.patch","id":"s","patch":{"free":{"__proto__":{"on":true,"items":{}},"glass":{"on":true,"items":{}}}}}');
+    expect(applyOp(d, op)).toBe(true);
+    const free = d.preset.slides[0].free;
+    expect(Object.getPrototypeOf(free)).toBe(Object.prototype);
+    expect(Object.keys(free)).toEqual(["glass"]);
+    expect((free as { on?: unknown }).on).toBeUndefined();
   });
 });
 

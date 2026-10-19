@@ -3976,5 +3976,1472 @@
       "applied": 2,
       "skipped": []
     }
+  },
+  {
+    "name": "slide.patch free on for one design writes its entry; another design's entry is kept",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "free": {
+              "excel": {
+                "on": false,
+                "items": {
+                  "t:a": {
+                    "x": 10,
+                    "y": 20,
+                    "w": 500,
+                    "h": 250,
+                    "scale": 1
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "glass": {
+              "on": true,
+              "items": {
+                "t:a": {
+                  "x": 50,
+                  "y": 120,
+                  "w": 600,
+                  "h": 300,
+                  "scale": 1.25
+                },
+                "n:a:right": {
+                  "x": 670,
+                  "y": 120,
+                  "w": 240,
+                  "h": 300
+                },
+                "i:c1": {
+                  "x": 930,
+                  "y": 120,
+                  "w": 300,
+                  "h": 220
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "free": {
+              "excel": {
+                "on": false,
+                "items": {
+                  "t:a": {
+                    "x": 10,
+                    "y": 20,
+                    "w": 500,
+                    "h": 250,
+                    "scale": 1
+                  }
+                }
+              },
+              "glass": {
+                "on": true,
+                "items": {
+                  "t:a": {
+                    "x": 50,
+                    "y": 120,
+                    "w": 600,
+                    "h": 300,
+                    "scale": 1.25
+                  },
+                  "n:a:right": {
+                    "x": 670,
+                    "y": 120,
+                    "w": 240,
+                    "h": 300
+                  },
+                  "i:c1": {
+                    "x": 930,
+                    "y": 120,
+                    "w": 300,
+                    "h": 220
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.patch free replaces the design's entry whole (a free move is one op carrying every box of that design)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {
+                  "t:a": {
+                    "x": 50,
+                    "y": 120,
+                    "w": 600,
+                    "h": 300,
+                    "scale": 1.25
+                  },
+                  "n:a:right": {
+                    "x": 670,
+                    "y": 120,
+                    "w": 240,
+                    "h": 300
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "glass": {
+              "on": true,
+              "items": {
+                "t:a": {
+                  "x": 80,
+                  "y": 120,
+                  "w": 600,
+                  "h": 300,
+                  "scale": 1.25
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {
+                  "t:a": {
+                    "x": 80,
+                    "y": 120,
+                    "w": 600,
+                    "h": 300,
+                    "scale": 1.25
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.patch free off keeps the boxes (on: false with the same items)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {
+                  "t:a": {
+                    "x": 50,
+                    "y": 120,
+                    "w": 600,
+                    "h": 300,
+                    "scale": 1.25
+                  },
+                  "i:c1": {
+                    "x": 930,
+                    "y": 120,
+                    "w": 300,
+                    "h": 220
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "glass": {
+              "on": false,
+              "items": {
+                "t:a": {
+                  "x": 50,
+                  "y": 120,
+                  "w": 600,
+                  "h": 300,
+                  "scale": 1.25
+                },
+                "i:c1": {
+                  "x": 930,
+                  "y": 120,
+                  "w": 300,
+                  "h": 220
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "free": {
+              "glass": {
+                "on": false,
+                "items": {
+                  "t:a": {
+                    "x": 50,
+                    "y": 120,
+                    "w": 600,
+                    "h": 300,
+                    "scale": 1.25
+                  },
+                  "i:c1": {
+                    "x": 930,
+                    "y": 120,
+                    "w": 300,
+                    "h": 220
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.patch free null for a design removes its entry; removing the last one removes the map",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "title": "T",
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {
+                  "t:a": {
+                    "x": 50,
+                    "y": 120,
+                    "w": 600,
+                    "h": 300,
+                    "scale": 1.25
+                  }
+                }
+              },
+              "excel": {
+                "on": false,
+                "items": {
+                  "t:a": {
+                    "x": 10,
+                    "y": 20,
+                    "w": 500,
+                    "h": 250,
+                    "scale": 1
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "glass": null
+          }
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "excel": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "title": "T"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.patch free: null deletes every design's free layout",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {
+                  "t:a": {
+                    "x": 50,
+                    "y": 120,
+                    "w": 600,
+                    "h": 300,
+                    "scale": 1.25
+                  }
+                }
+              },
+              "excel": {
+                "on": false,
+                "items": {
+                  "t:a": {
+                    "x": 10,
+                    "y": 20,
+                    "w": 500,
+                    "h": 250,
+                    "scale": 1
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ]
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.patch free from two writers: different designs both win; the same design – the later op's whole entry wins",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ]
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "glass": {
+              "on": true,
+              "items": {
+                "t:a": {
+                  "x": 50,
+                  "y": 120,
+                  "w": 600,
+                  "h": 300,
+                  "scale": 1.25
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "clean": {
+              "on": true,
+              "items": {
+                "t:a": {
+                  "x": 50,
+                  "y": 300,
+                  "w": 600,
+                  "h": 300,
+                  "scale": 1.25
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "glass": {
+              "on": true,
+              "items": {
+                "i:c1": {
+                  "x": 930,
+                  "y": 120,
+                  "w": 300,
+                  "h": 220
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {
+                  "i:c1": {
+                    "x": 930,
+                    "y": 120,
+                    "w": 300,
+                    "h": 220
+                  }
+                }
+              },
+              "clean": {
+                "on": true,
+                "items": {
+                  "t:a": {
+                    "x": 50,
+                    "y": 300,
+                    "w": 600,
+                    "h": 300,
+                    "scale": 1.25
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 3,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.patch free with the slide's other keys: notes and sizing are not touched (free mode never changes them)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "notes": {
+              "a:right": {
+                "text": "R"
+              }
+            },
+            "sizes": {
+              "glass": {
+                "scale": 0.8
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "glass": {
+              "on": true,
+              "items": {
+                "t:a": {
+                  "x": 50,
+                  "y": 120,
+                  "w": 600,
+                  "h": 300,
+                  "scale": 1.25
+                },
+                "n:a:right": {
+                  "x": 670,
+                  "y": 120,
+                  "w": 240,
+                  "h": 300
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "notes": {
+              "a:right": {
+                "text": "R"
+              }
+            },
+            "sizes": {
+              "glass": {
+                "scale": 0.8
+              }
+            },
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {
+                  "t:a": {
+                    "x": 50,
+                    "y": 120,
+                    "w": 600,
+                    "h": 300,
+                    "scale": 1.25
+                  },
+                  "n:a:right": {
+                    "x": 670,
+                    "y": 120,
+                    "w": 240,
+                    "h": 300
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.patch map merge skips a \"__proto__\" entry (it would set the map's prototype; a saved copy would lose it)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "__proto__": {
+              "on": true,
+              "items": {}
+            },
+            "glass": {
+              "on": true,
+              "items": {}
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {}
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "table.patch cellGrid sets cells' gridlines; another table and the table's other keys untouched",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9",
+            "gridH": "on"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "range",
+            "range": "G2:H9"
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "cellGrid": {
+            "C3": {
+              "h": "on"
+            },
+            "D3": {
+              "h": "on",
+              "v": "on",
+              "c": "#C00000",
+              "w": 2
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9",
+            "gridH": "on",
+            "cellGrid": {
+              "C3": {
+                "h": "on"
+              },
+              "D3": {
+                "h": "on",
+                "v": "on",
+                "c": "#C00000",
+                "w": 2
+              }
+            }
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "range",
+            "range": "G2:H9"
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "table.patch cellGrid replaces a cell's entry whole (no deep merge); null removes it; the last one removes the map",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9",
+            "cellGrid": {
+              "C3": {
+                "h": "on",
+                "c": "#C00000"
+              },
+              "C4": {
+                "o": true
+              }
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "cellGrid": {
+            "C3": {
+              "v": "on"
+            },
+            "C4": null
+          }
+        }
+      },
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "cellGrid": {
+            "C3": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9"
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "table.patch cellGrid: null clears every cell's gridlines of the table",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9",
+            "cellGrid": {
+              "C3": {
+                "h": "on"
+              },
+              "C4": {
+                "o": true
+              }
+            },
+            "cols": {
+              "3": 80
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "cellGrid": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9",
+            "cols": {
+              "3": 80
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "table.patch cellGrid from two writers: different cells both win, the same cell – the later entry",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9"
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "cellGrid": {
+            "C3": {
+              "h": "on"
+            }
+          }
+        }
+      },
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "cellGrid": {
+            "C4": {
+              "o": true
+            }
+          }
+        }
+      },
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "cellGrid": {
+            "C3": {
+              "v": "on",
+              "w": 3
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9",
+            "cellGrid": {
+              "C3": {
+                "v": "on",
+                "w": 3
+              },
+              "C4": {
+                "o": true
+              }
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 3,
+      "skipped": []
+    }
+  },
+  {
+    "name": "table.patch cellGrid outline of a rectangle: every cell of it marked, one op",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9"
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "cellGrid": {
+            "C3": {
+              "o": true
+            },
+            "D3": {
+              "o": true
+            },
+            "C4": {
+              "o": true
+            },
+            "D4": {
+              "o": true
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9",
+            "cellGrid": {
+              "C3": {
+                "o": true
+              },
+              "D3": {
+                "o": true
+              },
+              "C4": {
+                "o": true
+              },
+              "D4": {
+                "o": true
+              }
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "table.patch borders sets cells' borders (sides with a style and a colour, or \"none\"); the gridlines untouched",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9",
+            "cellGrid": {
+              "C3": {
+                "h": "on"
+              }
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "borders": {
+            "C3": {
+              "bottom": {
+                "style": "medium",
+                "color": "#C00000"
+              }
+            },
+            "C4": {
+              "top": "none",
+              "left": {
+                "style": "thin",
+                "color": "#000000"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9",
+            "cellGrid": {
+              "C3": {
+                "h": "on"
+              }
+            },
+            "borders": {
+              "C3": {
+                "bottom": {
+                  "style": "medium",
+                  "color": "#C00000"
+                }
+              },
+              "C4": {
+                "top": "none",
+                "left": {
+                  "style": "thin",
+                  "color": "#000000"
+                }
+              }
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "table.patch borders replaces a cell's entry whole; null removes it (the workbook's borders again); the last removes the map",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9",
+            "borders": {
+              "C3": {
+                "bottom": {
+                  "style": "medium",
+                  "color": "#C00000"
+                },
+                "top": {
+                  "style": "thin",
+                  "color": "#000000"
+                }
+              },
+              "C4": {
+                "top": "none"
+              }
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "borders": {
+            "C3": {
+              "left": {
+                "style": "medium",
+                "color": "#C00000"
+              }
+            },
+            "C4": null
+          }
+        }
+      },
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "borders": {
+            "C3": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9"
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "table.patch borders: null clears every cell's borders of the table; two writers on different cells both win",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9",
+            "borders": {
+              "C3": {
+                "bottom": {
+                  "style": "medium",
+                  "color": "#C00000"
+                }
+              }
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "borders": null
+        }
+      },
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "borders": {
+            "D5": {
+              "right": {
+                "style": "thin",
+                "color": "#000000"
+              }
+            }
+          }
+        }
+      },
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "borders": {
+            "D6": {
+              "right": {
+                "style": "medium",
+                "color": "#C00000"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9",
+            "borders": {
+              "D5": {
+                "right": {
+                  "style": "thin",
+                  "color": "#000000"
+                }
+              },
+              "D6": {
+                "right": {
+                  "style": "medium",
+                  "color": "#C00000"
+                }
+              }
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 3,
+      "skipped": []
+    }
   }
 ]

@@ -4,9 +4,9 @@
 import type { CellEdit, Op, WorkbookDoc, StylePatch } from "./types";
 
 const SLIDE_KEYS = ["title", "subtitle", "date", "note", "logo", "layout", "align", "scale", "valign", "subs"] as const;
-const SLIDE_MAPS = ["notes", "fmt", "sizes"] as const;
+const SLIDE_MAPS = ["notes", "fmt", "sizes", "free"] as const;
 const TABLE_KEYS = ["name", "gridH", "gridV"] as const;
-const TABLE_MAPS = ["cols", "rows", "scales", "merges", "sizes"] as const;
+const TABLE_MAPS = ["cols", "rows", "scales", "merges", "sizes", "cellGrid", "borders"] as const;
 const CELL_KEYS = ["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role"] as const;
 const STYLE_MAPS = ["pn", "footer", "theme", "text", "colors", "designs"] as const;
 const STYLE_KEYS = ["design", "glass", "color", "logo", "radius", "contrast", "logoBubble"] as const;
@@ -91,7 +91,8 @@ function mapMerge(target: Record<string, unknown>, key: string, v: unknown) {
   if (v === null) { delete target[key]; return; }
   if (!isObj(v)) return;
   const m = (isObj(target[key]) ? target[key] : {}) as Record<string, unknown>;
-  for (const [k, x] of Object.entries(v)) { if (x === null) delete m[k]; else m[k] = clone(x); }
+  // (a "__proto__" entry would set the map's prototype, which a saved copy loses: skipped)
+  for (const [k, x] of Object.entries(v)) { if (k === "__proto__") continue; if (x === null) delete m[k]; else m[k] = clone(x); }
   if (Object.keys(m).length) target[key] = m; else delete target[key];
 }
 export function applyStylePatch(style: Record<string, unknown>, patch: Record<string, unknown>) {

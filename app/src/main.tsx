@@ -37,6 +37,8 @@ installBrowserPlatform();
   thumbStats: () => ({ ...thumbStats }),
   // the bench's 100-slide deck (S4.3): the deck's preset, and a change made as the page makes it (one undo step)
   preset: () => structuredClone(ctx().preset), change,
+  // the undo / redo steps the page shows (FL-01: one step per switch)
+  history: () => ({ ...get().deck.history }),
   stageIdle: () => { const s = useStage.getState(), R = get().deck.slides[get().deck.cur]; return !stageBusy() && !!s.shown && !!R && s.shown.id === R.id && !s.editor && !s.drag; } };
 
 const add = (id: string, css: string) => { const s = document.createElement("style"); s.id = id; s.textContent = css; document.head.appendChild(s); };

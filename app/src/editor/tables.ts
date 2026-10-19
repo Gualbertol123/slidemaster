@@ -132,7 +132,8 @@ export function makeSameSize(refs: TableRef[], opts: { width: boolean; height: b
     const R = get().deck.slides[si], base = layoutOf(R, x);
     const w = base.w.map((v, i) => (R.tables[i].def && defs.has(R.tables[i].def!.id)) ? 1 : v);
     const lay: Layout = { bands: JSON.parse(JSON.stringify(base.bands)), w };
-    const tR: RuntimeSlide = { ...R, cfg: { ...R.cfg, scale: undefined, layout: lay, sizes: { ...R.cfg.sizes, [x.style.design]: { layout: lay } } }, tables: R.tables.map(L => (L.def && newL.get(L.def.id)) || L), _auto: undefined };
+    // (the automatic layout's fit: a slide in a free layout keeps its sizing for when it goes back)
+    const tR: RuntimeSlide = { ...R, cfg: { ...R.cfg, scale: undefined, layout: lay, sizes: { ...R.cfg.sizes, [x.style.design]: { layout: lay } }, free: undefined }, tables: R.tables.map(L => (L.def && newL.get(L.def.id)) || L), _auto: undefined };
     return { R, lay, fit: computeLayout(tR, x).fit };
   });
   const common = Math.min(...tmp.map(t => t.fit));

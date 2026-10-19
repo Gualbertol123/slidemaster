@@ -1,0 +1,53 @@
+{
+ "schema": 3,
+ "workbook": "W.xlsx",
+ "rev": 5,
+ "preset": {
+  "sheets": [
+   "S"
+  ],
+  "tables": [
+   {
+    "id": "t1",
+    "sheet": "S",
+    "kind": "range",
+    "range": "A1:D8",
+    "borders": {
+     "B3": {
+      "bottom": {
+       "style": "medium",
+       "color": "#C00000"
+      },
+      "top": "none"
+     },
+     "C3": {
+      "left": {
+       "style": "thin",
+       "color": "#000000"
+      },
+      "right": {
+       "style": "thin",
+       "color": "#000000"
+      }
+     }
+    },
+    "cellGrid": {
+     "B5": {
+      "o": true
+     }
+    }
+   }
+  ],
+  "slides": [
+   {
+    "id": "s1",
+    "type": "content",
+    "tables": [
+     "t1"
+    ]
+   }
+  ]
+ },
+ "style": {},
+ "edits": {}
+}

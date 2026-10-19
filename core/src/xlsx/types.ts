@@ -4,7 +4,7 @@ import type { ColorFn } from "./color";
 import type { Range, Rel } from "./util";
 
 export interface Font { name?: string; sz?: number; b?: boolean; i?: boolean; u?: boolean; s?: boolean; color?: string | null }
-export interface BorderSide { style: string; color: string }
+export interface BorderSide { style: string; color: string; /** px, over the style's width (a cell gridline's weight, 4.4) */ w?: number }
 export type Side = "left" | "right" | "top" | "bottom";
 export type Border = Partial<Record<Side, BorderSide>>;
 export interface Xf { fmt: string; font: Font; fill: string | null; border: Border; h: string; v: string; wrap: boolean; indent: number; rot: number }
@@ -116,6 +116,13 @@ export interface Item {
   userBg?: string;
   /** superscript / subscript parts of the text (from Excel) */ scripts?: Script[];
   /** removed in the version being shown (drawn empty) */ removed?: boolean;
+  /** the cell's own gridlines (TableDef.cellGrid, 4.4, B20): the edges they are drawn on (each edge once), after the fills
+      and borders – by Excel, Excel Refined, the consulting rules and cards tables, Liquid Glass */ cgrid?: Partial<Record<"top" | "left" | "right" | "bottom", BorderSide>>;
+  /** of those, the edges a border covers in the designs that draw the workbook's borders (Excel, Excel Refined): the border
+      shows there instead */ cgx?: Partial<Record<"top" | "left" | "right" | "bottom", true>>;
+  /** of those, the edges a border set on the slide covers (the consulting rules tables draw only those borders) */ cgu?: Partial<Record<"top" | "left" | "right" | "bottom", true>>;
+  /** the workbook's sides of a cell whose borders were set on the slide (Liquid Glass builds its scene from these) */ wb?: Pick<Item, "top" | "left" | "right" | "bottom">;
+  /** the sides whose border the user set on the slide (TableDef.borders, 4.4, B28): the consulting rules tables draw these */ ub?: Partial<Record<"top" | "left" | "right" | "bottom", true>>;
   edited?: boolean; /** font chosen on the slide (cell edit) */ userFont?: string; userB?: boolean; userI?: boolean; userColor?: string; userFill?: string; noFill?: boolean; role?: string;
   L?: TableLayout;
 }

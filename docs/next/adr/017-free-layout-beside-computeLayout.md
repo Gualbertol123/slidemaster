@@ -11,7 +11,8 @@ sizes, no auto-shrink, in every design, and go back to the automatic layout in o
 ## Decision
 * `SlideDef.free[design] = { on, items: { "t:<tableId>" | "n:<noteKey>" | "i:<itemId>": {x, y, w, h, scale?} } }`
   (optional; per design, as `sizes`).
-* `computeLayout` keeps its signature; with `on` it returns the saved boxes (tables scaled to their box) and skips the
+* `computeLayout` keeps its signature; with `on` it returns the saved boxes (tables at their saved `scale`, else scaled
+  to their box's width; built in S10.1) and skips the
   band/fit algorithm. Items without a box get their automatic position alone.
 * Switching on writes every current box into `items` (nothing moves); switching off sets `on: false` and keeps the
   boxes (the automatic sizing was never changed). Both are one `slide.patch`: one undo step each.

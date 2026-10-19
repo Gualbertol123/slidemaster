@@ -1,19 +1,20 @@
 /* Second toolbar row: LAYOUT – table cells (size, role, merge, colour scale), tables on the slide,
    text boxes around tables, slide options. Text formatting lives in the first row only. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { setDialogs, useStore, toast } from "../state/store";
 import { change } from "../state/app";
 import { applySel, selItems, selTable } from "../editor/edit";
 import { effFmt } from "@slide-builder/core/render/edits";
 import { slideHasLogo } from "@slide-builder/core/render/slide";
-import { sizingOf, sizingPatch } from "@slide-builder/core/render/layout";
+import { freeOf, sizingOf, sizingPatch } from "@slide-builder/core/render/layout";
 import { alignTables, canMerge, mergeSel, mergedInSel, unmergeSel, valignTables, currentTableRefs, makeSameSize, selCols, selRows, resetCellSizes, setColWidth, setRowHeight, shownColW, shownRowH } from "../editor/tables";
 import { addNote as addTextBox, addSlideNotes, attachNote, noteOf, patchNote } from "../stage/actions";
 import { scaleColors } from "@slide-builder/core/render/scales";
 import { A1, uid, esc } from "@slide-builder/core/xlsx/util";
-import type { Op, ScaleRule, Side } from "@slide-builder/core/model/types";
+import type { CellBorders, CellBorderSide, CellGrid, Op, ScaleRule, Side } from "@slide-builder/core/model/types";
 import { Dropdown } from "./Dropdown";
 import { insertChartFromSelection } from "../editor/charts";
+import { askAutomatic, freeLayoutOff, freeLayoutOn } from "../editor/free";
 import { ShapeMenu, ShapeTools } from "./ShapeTools";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
 
@@ -58,13 +59,107 @@ function ScaleMenu({ close }: { close: () => void }) {
   </div>;
 }
 
-/* gridlines of a table: as in Excel, all on, or none – separately for horizontal and vertical lines */
+/* gridlines of a table: as in Excel, all on, or none – separately for horizontal and vertical lines; and of the selected
+   cells (4.4, B20): their horizontal / vertical lines, the outline of the selection, its colour and weight, cleared */
+const GRID_COLORS = ["#404040", "#BFBFBF", "#1F4E79", "#0A66D8", "#C00000", "#2E7D32"];
+const GRID_W = [.5, 1, 2, 3];
 function GridMenu({ close, T }: { close: () => void; T: import("@slide-builder/core/xlsx/types").TableLayout }) {
   const set = (k: "gridH" | "gridV", v: "on" | "off" | null) => { if (!T.def) return; change(v === "on" ? "Add gridlines" : v === "off" ? "Remove gridlines" : "Gridlines from Excel", [{ op: "table.patch", id: T.def.id, patch: { [k]: v } } as Op]); close(); };
   const row = (k: "gridH" | "gridV", label: string) => <><label>{label}</label><div className="seg small" data-grid={k}>
     {([[null, "As in Excel"], ["on", "All"], ["off", "None"]] as const).map(([v, l]) => <button key={String(v)} data-v={String(v)} className={(T.def?.[k] ?? null) === v ? "on" : ""} onClick={() => set(k, v)}>{l}</button>)}</div></>;
+  // the selected cells of this table (their A1 keys) and what they have now
+  const sel = useStore(s => s.selection.sel), mine = sel && selTable() === T ? selItems() : [];
+  const keys = [...new Set(mine.map(it => A1(it.b.src.r, it.b.src.c)))], grid = T.def?.cellGrid || {}, cur = keys.map(k => grid[k] || {});
+  const all = (f: (g: CellGrid) => boolean) => cur.length > 0 && cur.every(f);
+  const one = <K extends keyof CellGrid>(k: K) => { const v = new Set(cur.map(g => g[k])); return v.size === 1 ? [...v][0] : undefined; };
+  // the colour and weight picked in this menu for this selection (undefined: not picked – the cells keep their own)
+  const [color, setColor] = useState<string | null | undefined>(undefined), [weight, setWeight] = useState<number | undefined>(undefined);
+  const sig = keys.join();
+  useEffect(() => { setColor(undefined); setWeight(undefined); }, [sig]);
+  const shownColor = color !== undefined ? color : one("c") ?? null, shownWeight = weight ?? one("w") ?? 1;
+  const cells = (label: string, f: (g: CellGrid) => CellGrid | null) => {
+    if (!T.def || !keys.length) return;
+    const m: Record<string, CellGrid | null> = {};
+    keys.forEach((k, n) => {
+      // an entry without lines draws nothing: none is kept; an unchanged cell is not written
+      const g = f({ ...cur[n] }), v = g && (g.h === "on" || g.v === "on" || g.o === true) ? g : null;
+      if (JSON.stringify(v) !== JSON.stringify(grid[k] ?? null)) m[k] = v;
+    });
+    if (Object.keys(m).length) change(label, [{ op: "table.patch", id: T.def.id, patch: { cellGrid: m } } as Op]);
+  };
+  const look = (g: CellGrid): CellGrid => {
+    if (color !== undefined) { if (color) g.c = color; else delete g.c; }
+    if (weight !== undefined) { if (weight !== 1) g.w = weight; else delete g.w; }
+    return g;
+  };
+  const lines = (k: "h" | "v") => all(g => g[k] === "on") ? cells(k === "h" ? "Remove horizontal cell lines" : "Remove vertical cell lines", g => { delete g[k]; return g; }) : cells(k === "h" ? "Horizontal cell lines" : "Vertical cell lines", g => look({ ...g, [k]: "on" }));
+  const range = sel && keys.length ? (keys.length === 1 ? keys[0] : A1(sel.r1, sel.c1) + ":" + A1(sel.r2, sel.c2)) : "";
   return <div className="scalemenu"><div className="hd">Gridlines of this table</div>
-    <div className="optgrid">{row("gridH", "Horizontal")}{row("gridV", "Vertical")}</div></div>;
+    <div className="optgrid">{row("gridH", "Horizontal")}{row("gridV", "Vertical")}</div>
+    <div className="sep" /><div className="hd">Selected cells {keys.length ? <b>{range}</b> : "– select cells of this table first"}</div>
+    <div className="optgrid" id="cellGrid">
+      <label>Lines</label><div className="seg small">
+        <button data-cg="h" disabled={!keys.length} className={all(g => g.h === "on") ? "on" : ""} title="A line above and below each selected cell" onClick={() => lines("h")}>H</button>
+        <button data-cg="v" disabled={!keys.length} className={all(g => g.v === "on") ? "on" : ""} title="A line left and right of each selected cell" onClick={() => lines("v")}>V</button>
+        <button data-cg="o" disabled={!keys.length} className={all(g => g.o === true) ? "on" : ""} title="A line around the selected cells" onClick={() => all(g => g.o === true) ? cells("Remove outline", g => { delete g.o; return g; }) : cells("Outline", g => look({ ...g, o: true }))}>Outline</button>
+        <button data-cg="clear" disabled={!keys.length || !cur.some(g => Object.keys(g).length)} title="The selected cells' gridlines removed (their borders are not touched)" onClick={() => cells("Clear cell lines", () => null)}>Clear</button></div>
+      <label>Colour</label><div className="row">
+        <button data-cgc="" className={"cgsw auto" + (shownColor === null ? " on" : "")} title="Automatic: grey lines, a dark outline" onClick={() => { setColor(null); cells("Line colour", g => (delete g.c, g)); }}>Auto</button>
+        {GRID_COLORS.map(c => <button key={c} data-cgc={c} className={"cgsw" + (shownColor === c ? " on" : "")} style={{ background: c }} title={c} onClick={() => { setColor(c); cells("Line colour", g => ({ ...g, c })); }} />)}</div>
+      <label>Weight</label><div className="seg small">
+        {GRID_W.map(w => <button key={w} data-cgw={w} className={shownWeight === w ? "on" : ""} onClick={() => { setWeight(w); cells("Line weight", g => w === 1 ? (delete g.w, g) : { ...g, w }); }}>{w} px</button>)}</div>
+    </div></div>;
+}
+
+/* Borders ▾ (4.4, B28; product owner 2026-10-19: as Excel's, separate from the gridlines): on the selected cells, over the
+   workbook's borders on the slide only – the sides of the selection, all, outside, thick outside, none; a style and a
+   colour; Clear goes back to the workbook's */
+type BEdge = "top" | "left" | "right" | "bottom";
+const B_STYLES: [Exclude<CellBorderSide, "none">["style"], string][] = [["thin", "Thin"], ["medium", "Medium"], ["thick", "Thick"], ["dashed", "Dashed"], ["dotted", "Dotted"], ["double", "Double"]];
+const B_PRESETS: [string, string, string][] = [["bottom", "Bottom", "A border under the selection"], ["top", "Top", "A border over the selection"], ["left", "Left", "A border left of the selection"], ["right", "Right", "A border right of the selection"],
+  ["all", "All borders", "Every edge of every selected cell"], ["outside", "Outside", "Around the selection"], ["thick", "Thick outside", "A thick border around the selection"], ["none", "No border", "No border on any edge of the selected cells"]];
+const FACING: Record<BEdge, BEdge> = { top: "bottom", bottom: "top", left: "right", right: "left" };
+/** the cells of the table across one side of a cell (the next row / column of the table, overlapping it) */
+function acrossIn(T: import("@slide-builder/core/xlsx/types").TableLayout, it: import("@slide-builder/core/xlsx/types").Item, side: BEdge) {
+  const step = (list: number[], v: number, d: number) => list[list.indexOf(v) + d];
+  if (side === "top" || side === "bottom") { const r = side === "top" ? step(T.rows, it.b.r, -1) : step(T.rows, it.b.r2, 1); return r === undefined ? [] : T.items.filter(o => o.b.r <= r && o.b.r2 >= r && o.b.c <= it.b.c2 && o.b.c2 >= it.b.c); }
+  const c = side === "left" ? step(T.cols, it.b.c, -1) : step(T.cols, it.b.c2, 1);
+  return c === undefined ? [] : T.items.filter(o => o.b.c <= c && o.b.c2 >= c && o.b.r <= it.b.r2 && o.b.r2 >= it.b.r);
+}
+function BorderMenu({ T }: { T: import("@slide-builder/core/xlsx/types").TableLayout }) {
+  const sel = useStore(s => s.selection.sel), mine = sel && selTable() === T ? selItems() : [];
+  const [style, setStyle] = useState<Exclude<CellBorderSide, "none">["style"]>("thin"), [color, setColor] = useState("#000000");
+  const cur = T.def?.borders || {};
+  const apply = (preset: string) => {
+    if (!T.def || !sel || !mine.length) return;
+    const m: Record<string, CellBorders | null> = {};
+    for (const it of mine) {
+      const k = A1(it.b.src.r, it.b.src.c);
+      if (preset === "clear") { if (cur[k]) m[k] = null; continue; }
+      // the sides of this cell on the selection's edge
+      const edge: Record<BEdge, boolean> = { top: it.b.r <= sel.r1, bottom: it.b.r2 >= sel.r2, left: it.b.c <= sel.c1, right: it.b.c2 >= sel.c2 };
+      const sides: BEdge[] = preset === "all" || preset === "none" ? ["top", "left", "right", "bottom"] : preset === "outside" || preset === "thick" ? (["top", "left", "right", "bottom"] as BEdge[]).filter(s => edge[s]) : edge[preset as BEdge] ? [preset as BEdge] : [];
+      if (!sides.length) continue;
+      const v: CellBorderSide = preset === "none" ? "none" : { style: preset === "thick" ? "thick" : style, color };
+      m[k] = { ...(m[k] || cur[k] || {}), ...Object.fromEntries(sides.map(s => [s, v])) };
+      // the last action wins, as in Excel: a cell across one of these sides that set its own facing side gets the same
+      for (const s of sides) for (const o of acrossIn(T, it, s)) {
+        const ok = A1(o.b.src.r, o.b.src.c), e = m[ok] ?? cur[ok], f = FACING[s];
+        if (e && f in e) m[ok] = { ...e, [f]: v };
+      }
+    }
+    if (Object.keys(m).length) change(preset === "clear" ? "Borders from Excel" : preset === "none" ? "No border" : "Borders", [{ op: "table.patch", id: T.def.id, patch: { borders: m } } as Op]);
+  };
+  const keys = mine.map(it => A1(it.b.src.r, it.b.src.c));
+  const range = sel && keys.length ? (keys.length === 1 ? keys[0] : A1(sel.r1, sel.c1) + ":" + A1(sel.r2, sel.c2)) : "";
+  return <div className="scalemenu" id="borderMenu"><div className="hd">Borders of the selected cells {keys.length ? <b>{range}</b> : "– select cells first"}</div>
+    <div className="bpresets">{B_PRESETS.map(([k, l, t]) => <button key={k} data-b={k} disabled={!keys.length} title={t} onClick={() => apply(k)}>{l}</button>)}</div>
+    <div className="optgrid">
+      <label>Style</label><div className="seg small">{B_STYLES.map(([k, l]) => <button key={k} data-bs={k} className={style === k ? "on" : ""} onClick={() => setStyle(k)}>{l}</button>)}</div>
+      <label>Colour</label><div className="row">{["#000000", "#7F7F7F", ...GRID_COLORS.slice(2)].map(c => <button key={c} data-bc={c} className={"cgsw" + (color === c ? " on" : "")} style={{ background: c }} title={c} onClick={() => setColor(c)} />)}</div>
+    </div>
+    <div className="row" style={{ justifyContent: "flex-end", marginTop: "8px" }}><button className="btn" data-b="clear" disabled={!keys.some(k => cur[k])} title="The workbook's own borders again on the selected cells" onClick={() => apply("clear")}>Clear (as in Excel)</button></div>
+  </div>;
 }
 
 const ROLES = [["auto", "Auto", "Detected from the Excel formatting"], ["header", "Header", "Column/row header"], ["total", "Total", "Highlighted total (tile)"], ["body", "Body", "Normal data"], ["caption", "Note", "Small note"]] as const;
@@ -94,7 +189,7 @@ export function TableRibbon() {
     if ((R.cfg.notes || {})[key]) { toast("This table already has a text box there – double-click it to edit."); return; }
     addTextBox(tIdx, side);                      // opens for typing as soon as the slide shows it
   };
-  const sz = R ? sizingOf(R, c) : null, align = sz?.align || "center";
+  const sz = R ? sizingOf(R, c) : null, align = sz?.align || "center", free = !!R && !!freeOf(R, c);
   // (since 4.3 raw Excel draws the user's text boxes, comments and notes too: B19)
   return (
     <nav className="ribbon ribbon2">
@@ -109,13 +204,15 @@ export function TableRibbon() {
         </Dropdown>
         {mergedInSel().length ? <button className="tb mergebtn" id="unmergeBtn" title="Split the merged cells in the selection" onClick={unmergeSel}>Unmerge</button>
           : <button className="tb mergebtn" id="mergeBtn" title="Merge the selected cells (the top-left value is kept)" disabled={!canMerge()} onClick={mergeSel}>Merge</button>}
+        <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="bordersBtn" disabled={!(hasSel && T?.def)} title="Borders of the selected cells, as in Excel – on the slide only (the workbook is not changed)" onClick={t}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="2" y="2" width="12" height="12" strokeDasharray="1.5 1.5" /><path d="M2 14h12" strokeWidth="2.2" /></svg>Borders ▾</button>}>{() => T ? <BorderMenu T={T} /> : null}</Dropdown>
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="scaleBtn" disabled={!hasSel} title="Colour scale: deeper green/red the bigger the number" onClick={t}>
           <i className="scaleico" />Colour scale</button>}>{close => <ScaleMenu close={close} />}</Dropdown>
       </div>
       <div className="grp">
         <button className="tb" id="sameSize" disabled={!R || R.tables.length < 2} title="Make the tables on this slide exactly the same size"
           onClick={() => { const r = makeSameSize(currentTableRefs(), { width: true, height: true, target: "largest" }); if (!r.ok) toast(esc(r.why)); }}>⇔ Same size</button>
-        <Dropdown button={(_o, t) => <button className="tb" id="posBtn" disabled={!R || !R.tables.length} title="Position of the tables on the slide" onClick={t}>
+        <Dropdown button={(_o, t) => <button className="tb" id="posBtn" disabled={!R || !R.tables.length || free} title={free ? "In a free layout each table is placed by dragging it (Free layout off: the automatic positions)" : "Position of the tables on the slide"} onClick={t}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 1.5v13" /><rect x="3" y="3.5" width="10" height="3" /><rect x="4.5" y="9.5" width="7" height="3" /></svg>Position ▾</button>}>
           {close => <div className="posmenu" onClick={e => { if ((e.target as Element).closest("button")) close(); }}><div className="hd">Across the slide</div><div className="row">
         {(["left", "center", "right"] as const).map(a => <button key={a} className={"tb" + (align === a ? " on" : "")} data-talign={a} disabled={!R || !R.tables.length} title={`Align the tables ${a === "center" ? "in the centre" : "to the " + a}`} onClick={() => alignTables(a)}>
@@ -126,11 +223,13 @@ export function TableRibbon() {
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">{v === "top" ? <><path d="M1.5 2h13" /><rect x="3.5" y="4" width="3" height="9" /><rect x="9.5" y="4" width="3" height="6" /></> : v === "middle" ? <><path d="M1.5 8h13" /><rect x="3.5" y="3" width="3" height="10" /><rect x="9.5" y="4.5" width="3" height="7" /></> : <><path d="M1.5 14h13" /><rect x="3.5" y="3" width="3" height="9" /><rect x="9.5" y="6" width="3" height="6" /></>}</svg></button>)}
           </div></div>}
         </Dropdown>
-        <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="gridBtn" disabled={!(tIdx >= 0 && R?.tables[tIdx]?.def)} title="Add or remove horizontal / vertical gridlines of the table" onClick={t}>
+        <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="gridBtn" disabled={!(tIdx >= 0 && R?.tables[tIdx]?.def)} title="Add or remove horizontal / vertical gridlines of the table, or lines on the selected cells" onClick={t}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="1.5" y="2.5" width="13" height="11" /><path d="M1.5 6.2h13M1.5 9.8h13M5.8 2.5v11M10.2 2.5v11" /></svg>Gridlines</button>}>
           {close => R && tIdx >= 0 ? <GridMenu close={close} T={R.tables[tIdx]} /> : null}</Dropdown>
         <button className="tb" id="tablesDlg" disabled={!anyTables} title="Match sizes of tables on several slides, copy column widths between tables" onClick={() => setDialogs({ tables: true })}>Sizes…</button>
-        <button className="tb" id="resetLayout" title="Automatic table positions for this slide (in this design)" disabled={!(R && sizingOf(R, c).layout)} onClick={() => R && slidePatch("Reset layout", sizingPatch(R, c, { scale: sizingOf(R, c).scale }))}>Reset layout</button>
+        <button className={"tb" + (free ? " on" : "")} id="freeLayout" disabled={!R || R.type !== "content"} title={free ? "Back to the automatic layout of this slide (the free places are kept)" : "Free layout: move and resize the tables, text boxes, charts and shapes of this slide one by one (in this design; Alt while dragging: no snapping)"}
+          onClick={() => R && (free ? freeLayoutOff(R) : freeLayoutOn(R))}>Free layout</button>
+        <button className="tb" id="resetLayout" title={free ? "Back to the automatic layout of this slide" : "Automatic table positions for this slide (in this design)"} disabled={!(R && (free || sizingOf(R, c).layout))} onClick={() => R && (free ? void askAutomatic(R) : slidePatch("Reset layout", sizingPatch(R, c, { scale: sizingOf(R, c).scale })))}>Reset layout</button>
       </div>
       <div className="grp">
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="chartBtn" disabled={!R} title="A pie or donut chart of cells of the workbook: it follows the workbook when it changes" onClick={t}>

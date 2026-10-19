@@ -197,6 +197,7 @@ export interface FreeLayout { on: boolean; items: Record<string, Box & { scale?:
 export interface CellGrid { h?: "on" | "off"; v?: "on" | "off"; o?: boolean; c?: string; w?: number }   // per cell: horizontal / vertical lines, outline, colour, weight px
 // SlideDef += items?: Record<string, Item>; free?: Partial<Record<Design, FreeLayout>>
 // TableDef += cellGrid?: Record<string /* A1 */, CellGrid>
+// TableDef += borders?: Record<string /* A1 */, Partial<Record<"top" | "left" | "right" | "bottom", {style, color} | "none">>>   // B28 (S10.3b, product owner 2026-10-19)
 // Preset  += links?: string[]                                        // file names of linked workbooks the deck draws from (§2.3)
 ```
 
@@ -206,7 +207,7 @@ export interface CellGrid { h?: "on" | "off"; v?: "on" | "off"; o?: boolean; c?:
 |---|---|---|---|
 | `item.patch {slide, id, patch}` **new** | sets / deletes fields of `slides[slide].items[id]`; `patch: null` deletes the item; a patch on a missing id with a `kind` creates it | **field-level** (plain keys set/delete, `colors`, `fmt` map-merge), so two people recolouring and moving one chart both win – the fix the audit asked for text boxes (SEC-9) is applied to the new objects from the start | current values of the patched keys, or `null` → the whole item on delete |
 | `slide.patch` | `free` joins `SLIDE_MAPS`: `free: {glass: FreeLayout | null}` | map merge per design (an entry replaces the design's layout whole: a free move is one op that writes the whole `items` map of that design – a single undo step by construction) | as `sizes` |
-| `table.patch` | `cellGrid` joins `TABLE_MAPS` | map merge per cell | as `cols` |
+| `table.patch` | `cellGrid` (and, B28, `borders`) join `TABLE_MAPS` | map merge per cell | as `cols` |
 | `preset.set` | `links` is part of the preset | replaced whole, as today | unchanged |
 
 Op vectors added: ≥ 24 cases (create / patch / delete item, field merge of two writers, `colors` merge, free on/off,
@@ -424,11 +425,13 @@ PowerPoint without a repair prompt for every corpus deck × design × version.
 * `SlideDef.free[design]` with `on: true` switches **that design of that slide** to free layout (coordinates are per
   design, as `sizes` are, because the designs draw tables at different widths).
 * `computeLayout(R, ctx)` keeps its signature. When `free[design].on`, it returns `{boxes, k: 1, fit: 1, reduced: false}`
-  where every table box is `items["t:<id>"]` (scale = box.w / tableW), every text box `items["n:<key>"]`, with
+  where every table box is `items["t:<id>"]` (scale = the entry's `scale`, else box.w / tableW – S10.1: the saved scale
+  wins, so a table that grows keeps its scale and its box follows), every text box `items["n:<key>"]`, with
   `free: true`; items without an entry (added after the switch) get the automatic position **of that item alone**
   (next to its table for notes and attached items; the first empty spot in a grid for new charts) and the switch-on
   op writes them in. Nothing re-flows, no sizes are linked, no auto-shrink (the `fit` bisection is skipped), no
-  attaching. Items can leave the content area but not the slide (clamped 0–1600 / 0–900 as text boxes are).
+  attaching. Items can leave the content area but not the slide: the drags keep what they move inside 0–1600 / 0–900 as
+  text boxes are (S10.1: saved boxes are drawn as saved, so a box past the edge from before the switch does not move).
 * **Switching on** = one `slide.patch {free: {[design]: {on: true, items: <every current box as computed now>}}}` – the
   slide looks identical before and after. **Switching back** = one `slide.patch {free: {[design]: {…, on: false}}}` –
   the automatic layout returns as it was (its `sizes`, `layout`, `notes.x/y` were never changed by free mode) and the
@@ -436,8 +439,9 @@ PowerPoint without a repair prompt for every corpus deck × design × version.
 * **Drags (S4.2)**: `app/src/stage/drags.ts` gets `freeMove` / `freeResize` for every item kind: preview per frame
   with the same `computeLayout` (free branch), snapping to the other items' edges and the slide guides (the existing
   `snapTargets`, SNAP = 8) unless **Alt** is held, one op on pointer-up. Tables in free mode resize by their corner
-  (uniform scale) and edges (that axis stretched = the existing `stretchTable` column/row factors are *not* used:
-  free mode scales the drawn table so the workbook's proportions hold; W/H boxes still edit columns and rows).
+  (uniform scale) and edges (the existing `stretchTable` column/row factors are *not* used: free mode scales the drawn
+  table so the workbook's proportions hold – built in S10.2 as: an edge's own axis sets the uniform scale, the opposite
+  side stays, the other axis follows; no per-axis stretch; W/H boxes still edit columns and rows).
 * Raw Excel today correct sizes for text boxes it does not draw (`fixedScale`); with B19 raw Excel draws the user's
   objects, so `notesOf`'s `design === "excel"` early return and `fixedScale`'s correction go, and **the parity of raw
   Excel slides that have text boxes changes**: those corpus slides are re-captured as accepted differences under B19
@@ -451,6 +455,16 @@ PowerPoint without a repair prompt for every corpus deck × design × version.
   section "Selected cells: H · V · Outline · Colour · Weight · Clear"; the format painter copies `cellGrid` entries
   (CE-16 list +1). Rendered in `excel-dl.ts` as `line` nodes (replacing the workbook border of that edge) and in
   `glass-dl.ts` as hairlines of the given colour; versions (VR-02) keep borders, so they keep these too.
+* **Amended by the product owner, 2026-10-19 (PROGRESS Decisions; built so in S10.3):** cell gridlines are a layer of their
+  own and never change a border – they are drawn after every fill and border, each shared edge once; where the design
+  draws a border on that edge (the workbook's or one set on the slide – not the table's own gridlines) the border shows
+  instead: Excel and Excel Refined hide the gridline under a workbook border, Liquid Glass and the consulting "cards"
+  tables (no workbook borders) draw every gridline as a line of its colour and weight, the consulting "rules" tables
+  hide it only under a border set on the slide; the consulting "exhibit" style draws none (its tables are exhibits, not
+  cells). `o` marks every cell of the outlined rectangle and the line is drawn where the next cell is not marked;
+  `h`/`v` "off" draws nothing (as unset). The painter copies a cell's entry – and a cell without one removes the
+  target's, as Excel's painter does with borders. **Cell borders** are a separate control (B28, S10.3b): *Borders ▾* as Excel's, over
+  the workbook's borders on the slide only, drawn where workbook borders are drawn today.
 
 ---
 

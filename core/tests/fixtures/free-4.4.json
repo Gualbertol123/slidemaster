@@ -1,0 +1,116 @@
+{
+ "schema": 3,
+ "workbook": "W.xlsx",
+ "rev": 9,
+ "preset": {
+  "sheets": [
+   "S"
+  ],
+  "tables": [
+   {
+    "id": "t1",
+    "sheet": "S",
+    "kind": "range",
+    "range": "A1:C6"
+   },
+   {
+    "id": "t2",
+    "sheet": "S",
+    "kind": "range",
+    "range": "E1:F6"
+   }
+  ],
+  "slides": [
+   {
+    "id": "s0",
+    "type": "cover",
+    "title": "Review",
+    "tables": []
+   },
+   {
+    "id": "s1",
+    "type": "content",
+    "title": "Free slide",
+    "tables": [
+     "t1",
+     "t2"
+    ],
+    "notes": {
+     "t1:right": {
+      "text": "Beside"
+     }
+    },
+    "sizes": {
+     "glass": {
+      "scale": 0.9
+     }
+    },
+    "items": {
+     "c1": {
+      "kind": "chart",
+      "type": "pie",
+      "values": {
+       "table": "t1",
+       "range": "C2:C6"
+      },
+      "box": {
+       "x": 900,
+       "y": 200,
+       "w": 400,
+       "h": 300
+      }
+     }
+    },
+    "free": {
+     "glass": {
+      "on": true,
+      "items": {
+       "t:t1": {
+        "x": 60,
+        "y": 140,
+        "w": 540,
+        "h": 270,
+        "scale": 1.2
+       },
+       "t:t2": {
+        "x": 700,
+        "y": 480,
+        "w": 300,
+        "h": 225,
+        "scale": 1.5
+       },
+       "n:t1:right": {
+        "x": 620,
+        "y": 140,
+        "w": 240,
+        "h": 270
+       },
+       "i:c1": {
+        "x": 1100,
+        "y": 120,
+        "w": 400,
+        "h": 300
+       }
+      }
+     },
+     "excel": {
+      "on": false,
+      "items": {
+       "t:t1": {
+        "x": 50,
+        "y": 104,
+        "w": 500,
+        "h": 250,
+        "scale": 1
+       }
+      }
+     }
+    }
+   }
+  ]
+ },
+ "style": {
+  "design": "glass"
+ },
+ "edits": {}
+}

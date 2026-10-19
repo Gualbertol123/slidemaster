@@ -132,6 +132,7 @@ export function glassBox(cls: string, x: number, y: number, w: number, h: number
 
 function lineNodes(l: GLine, V: GlassVars): Node[] {
   const x = r1(l.x), y = r1(l.y), w = Math.max(0, r1(l.w)), h = Math.max(0, r1(l.h)), INK: RGB = [30, 40, 80];
+  if (l.k === "cell") { const p = parseColor(l.color || "#404040"); return [{ t: "rect", x: l.x, y: l.y, w: Math.max(0, l.w), h: Math.max(0, l.h), fill: p.a < 1 ? { solid: p.c, a: p.a } : { solid: p.c } }]; }
   if (l.k === "rule") return [{ t: "rect", x, y, w, h, r: 1, fill: linear(90, w, h, [stop(0, V.a1, 1), stop(.7, V.a2, 1), stop(1, V.a2rgb, .15)]) }];
   if (l.k === "hsep") return [{ t: "shadow", x, y, w, h, dx: 0, dy: 1, blur: 0, spread: 0, c: WHITE, a: .6 }, { t: "rect", x, y, w, h, fill: linear(90, w, h, [stop(0, INK, 0), stop(.05, INK, .14), stop(.95, INK, .14), stop(1, INK, 0)]) }];
   return [{ t: "shadow", x, y, w, h, dx: 1, dy: 0, blur: 0, spread: 0, c: WHITE, a: .5 }, { t: "rect", x, y, w, h, fill: linear(180, w, h, [stop(0, INK, 0), stop(.5, INK, .16), stop(1, INK, 0)]) }];
