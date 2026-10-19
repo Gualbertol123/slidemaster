@@ -379,6 +379,15 @@ numbers measured twice). Measured numbers go into the step's line.
   for `main` too (765 ms against 583 with the margin) – while it passed in the morning (505 ms): it measures the PC's
   disk / memory load (the monitoring services), not M10. CI will tell; if it fails there too, the gate needs a look
   (not changed by me). Versions are 4.4.0; 4.2.0 and 4.3.0 are still untagged (G5).
+  (4) **CI on 403148e (2026-10-19 13:19 UTC):** core, unit, parity, load, pdf and helper green; the core parse gate passed
+  there (410 ms). **e2e:** the callouts test (S9.4, M9) failed twice at the double-click that opens a callout's text:
+  another callout was selected, and selecting this one brings its text tools – with M10's two new ribbon-2 buttons the
+  row wraps to one more line on Linux's wider fonts, so the slide moves down between the two clicks (locally the row
+  keeps its two lines: 2195 / 2725 px of buttons in 1500). Test fixed in the commit after 403148e: select, wait for the
+  stage, then double-click (what a user does). **UX note for G7:** on a narrow window, selecting a callout can move
+  the slide by a line of ribbon – say if ribbon 2 should be made to keep its height. **bench:** every gate within
+  but `longest_task_ms` 74 (limit 61 on CI) – two tasks of 74 / 68 ms in the second Liquid Glass export of run 2, none
+  in run 1 (the export path is unchanged by M10; free drags 5.3 ms): rerun the job; if it recurs, it is a finding.
 - **M9 · for the product owner (2026-10-18):** M9 is done on `v4/M9-charts-callouts` (S9.1–S9.6, not pushed; G6 and the B19 differences signed off). (1) **Push and open ONE pull request** "M9 · Charts and callouts (S9.1–S9.6, B16, B17, B19, B24)" (text: `%TEMP%\sb-work\pr-M9.md`); merge it when CI is green. (2) **4.2.0 was never tagged** (G5 above is still open): either sign off G5 and release 4.2.0 from `main` first, then 4.3.0 after this merge, or release once as 4.3.0 (its CHANGELOG keeps the 4.2.0 section below it). (3) Try charts and callouts on a real deck (Insert chart ▾ / Insert shape ▾ on ribbon 2) and say what to change. FYI: the bench's `read_big30_ms` read 1121 once in the audit (limit 1100 with the margin; 806–883 otherwise), and with the company's monitoring services busy this PC's page bench reads up to ~1700 – not a code change; a test of host.test.ts failed once under load and passes alone (S9.5).
 - **CI bench on GitHub's runners (2026-10-18): decided** – "Scale CI for the engine" (Decisions). Measured before:
   the two CI runs of d526d53 and the one of 87d18bd failed the bench on different gates (page tasks 58 / 62 vs 50,

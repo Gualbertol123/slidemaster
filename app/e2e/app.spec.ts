@@ -1063,7 +1063,11 @@ test.describe.serial("two people, one shared folder", () => {
     await page.click("#scBanner button");
     await expect(layer).toContainText("Bank: Bank A", { timeout: 20_000 });
     // a reference that cannot be read: #REF on the slide, the Issues line
-    await page.locator(`.itembox[data-item="${id}"]`).dblclick({ position: { x: 12, y: 12 } });    // (the icon sits in its middle)
+    // selected first (another callout is: selecting this one brings its text tools, and where ribbon 2 then wraps to one
+    // more line – narrower windows, wider fonts – the slide moves down between the two clicks of a double-click)
+    await page.locator(`.itembox[data-item="${id}"]`).click({ position: { x: 12, y: 12 } });    // (the icon sits in its middle)
+    await page.waitForFunction(() => (window as any).__sbTest.stageIdle());
+    await page.locator(`.itembox[data-item="${id}"]`).dblclick({ position: { x: 12, y: 12 } });
     await page.locator("#itemEdit").fill("Peers {Nowhere!B2}");
     await page.keyboard.press("Control+Enter");
     await expect(layer).toContainText("Peers #REF", { timeout: 10_000 });
@@ -1693,7 +1697,9 @@ test.describe.serial("two people, one shared folder", () => {
     await pollFile(() => Object.keys(bd()).length, { timeout: 10_000 }).toBe(3);
     expect(Object.entries(bd()).find(([k]) => k !== k1 && k !== k2)![1]).toEqual(bd()[k1]);
     // Clear on R1:R2 → only the painted cell keeps its own; then the deck as the later tests expect it
-    await selectCell(page, "R1"); await page.keyboard.down("Shift"); await page.mouse.click(r2.x + 6, r2.y + r2.height / 2); await page.keyboard.up("Shift");
+    await selectCell(page, "R1");
+    const r2b = (await page.locator("#stage .slide .t", { hasText: /^R2$/ }).first().boundingBox())!;      // (measured again: the ribbon may have changed)
+    await page.keyboard.down("Shift"); await page.mouse.click(r2b.x + 6, r2b.y + r2b.height / 2); await page.keyboard.up("Shift");
     await menu('[data-b="clear"]');
     await pollFile(() => Object.keys(bd()).length, { timeout: 10_000 }).toBe(1);
     await page.evaluate(([id]) => (window as any).__sbTest.change("Borders from Excel", [{ op: "table.patch", id, patch: { borders: null } }]), [tid]);
