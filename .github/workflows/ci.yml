@@ -166,7 +166,8 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: sudo apt-get install -y qpdf
-      - run: python -m pip install pypdf==6.7.5 pypdfium2==5.14.0 pillow==11.3.0
+      # python-pptx and openpyxl: tools/pptxcheck.py (S11.1, dev only; PowerPoint itself is checked on Windows, PROGRESS)
+      - run: python -m pip install pypdf==6.7.5 pypdfium2==5.14.0 pillow==11.3.0 python-pptx==1.0.2 openpyxl==3.1.5
       - run: npm run sp
       # PLAN S3.7: the native export of three corpus decks in every design, through the app (export workers, helper):
       # qpdf, no Type 3 / variable fonts, the text against the goldens, deck20's size and time (scaled like the bench)
@@ -174,7 +175,7 @@ jobs:
         run: |
           export CHROME="$(node -e "console.log(require('playwright').chromium.executablePath())")"
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          npm run export-check -- --decks weekly-options,report-looks,deck20 --out tests/parity/report/export
+          npm run export-check -- --decks weekly-options,report-looks,deck20 --no-ppt --out tests/parity/report/export
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: dl-report, path: "tests/parity/report/dl/", if-no-files-found: ignore }
