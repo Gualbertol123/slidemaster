@@ -120,7 +120,8 @@ export interface Item {
       and borders – by Excel, Excel Refined, the consulting rules and cards tables, Liquid Glass */ cgrid?: Partial<Record<"top" | "left" | "right" | "bottom", BorderSide>>;
   /** of those, the edges a border covers in the designs that draw the workbook's borders (Excel, Excel Refined): the border
       shows there instead */ cgx?: Partial<Record<"top" | "left" | "right" | "bottom", true>>;
-  /** the sides whose border the user set on the slide (TableDef.borders, 4.4, B25): the consulting rules tables draw these */ ub?: Partial<Record<"top" | "left" | "right" | "bottom", true>>;
+  /** the workbook's sides of a cell whose borders were set on the slide (Liquid Glass builds its scene from these) */ wb?: Pick<Item, "top" | "left" | "right" | "bottom">;
+  /** the sides whose border the user set on the slide (TableDef.borders, 4.4, B28): the consulting rules tables draw these */ ub?: Partial<Record<"top" | "left" | "right" | "bottom", true>>;
   edited?: boolean; /** font chosen on the slide (cell edit) */ userFont?: string; userB?: boolean; userI?: boolean; userColor?: string; userFill?: string; noFill?: boolean; role?: string;
   L?: TableLayout;
 }

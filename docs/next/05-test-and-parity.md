@@ -337,7 +337,7 @@ The list was built from four sources:
 | CE-13 | Role Auto/Header/Total/Body/Note | – | GG (new corpus variant) |
 | CE-14 | Merge/Unmerge (workbook merges split, user merges) | E6, tables | U + GG |
 | CE-15 | Format painter: single, sticky (double-click), Esc | E6 | E |
-| CE-16 | Painter copies size, B, I, colour, cell colour, highlight, align, role, CF, colour scales, cell gridlines (4.4, GL-02) | E7, tables | U + E |
+| CE-16 | Painter copies size, B, I, colour, cell colour, highlight, align, role, CF, colour scales, cell gridlines (4.4, GL-02), cell borders set on the slide (4.4, B28) | E7, tables | U + E |
 | CE-17 | Painter without selection → toast | – | E (new) |
 | CE-18 | Selection painting, Glass geometry aware | – | E + GG (hit rects) |
 | CE-19 | Click on empty slide clears selection | – | E (new) |
@@ -357,7 +357,7 @@ The list was built from four sources:
 | TA-07 | Grip drag moves next to/above/below another table | – | E (new) |
 | TA-08 | Same size (this slide) | E4 | E + GG |
 | TA-09 | Position L/C/R and T/M/B | E4, E7, tables | U + GG |
-| TA-10 | Gridlines H/V: As in Excel / All / None; per selected cell: H / V / Outline / colour / weight / Clear (4.4, GL-01: a layer of their own, the borders untouched) | E7, tables | U + GG + GP |
+| TA-10 | Gridlines H/V: As in Excel / All / None; per selected cell: H / V / Outline / colour / weight / Clear (4.4, GL-01: a layer of their own, the borders untouched); Borders ▾ on selected cells: Bottom / Top / Left / Right / All / Outside / Thick outside / No border, style, colour, Clear (4.4, B28: over the workbook's on the slide; Excel, Excel Refined, the consulting rules tables) | E7, tables | U + GG + GP |
 | TA-11 | Colour scales: row/col/all, ±zero or min→max, fill/ink, reverse, preview | E4, tables | U + GG + GP |
 | TA-12 | Colour scale list with ✕ | – | E (new) |
 | TA-13 | Reset layout (this slide, this design) | – | E (new) |

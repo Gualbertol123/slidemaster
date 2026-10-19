@@ -5,7 +5,7 @@
    Copied: size, bold, italic, text colour, cell colour, highlight, alignment, role – and, like Excel, the
    conditional formatting (the source's rules, applied to the target's values: cell.cf), colour scales
    (a scale rule over the painted range), the cells' own gridlines (4.4, B20: TableDef.cellGrid entries) and the borders set on
-   the slide (B25: TableDef.borders entries). */
+   the slide (B28: TableDef.borders entries). */
 import { get, patch, toast } from "../state/store";
 import { ctx } from "../state/app";
 import type { Item, Sheet, TableLayout } from "@slide-builder/core/xlsx/types";

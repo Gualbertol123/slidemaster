@@ -67,7 +67,7 @@ export function rulesToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics, o
     const b = it[side]; if (!b || ((side === "top" || side === "bottom") ? !gh : !gv)) continue;
     nodes.push(...borderNodes(side, b, it.bx, it.by, it.bw, it.bh));
   }
-  // the borders the user set on the slide (4.4, B25), then the gridlines on selected cells (B20)
+  // the borders the user set on the slide (4.4, B28), then the gridlines on selected cells (B20)
   for (const it of items) if (it.ub) for (const side of ["top", "left", "right", "bottom"] as const) { const b = it[side]; if (b && it.ub[side] && !((side === "top" || side === "bottom") ? gh : gv)) nodes.push(...borderNodes(side, b, it.bx, it.by, it.bw, it.bh)); }
   nodes.push(...cellGridNodes(items, (it, side) => !!it.ub?.[side]));     // (the rules draw a border only where it was set)
   nodes.push(...ruleNodes(L, items, kOf, T));

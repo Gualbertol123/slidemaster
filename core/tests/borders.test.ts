@@ -1,4 +1,4 @@
-/* Cell borders on the slide (S10.3b, B25; product owner 2026-10-19: Borders ▾ as Excel's, separate from the gridlines):
+/* Cell borders on the slide (S10.3b, B28; product owner 2026-10-19: Borders ▾ as Excel's, separate from the gridlines):
    TableDef.borders → the items' borders (effItems' withBorders) – over the workbook's, which is never changed; the cell
    across a side draws the same edge; drawn where workbook borders are drawn (Excel, Excel Refined, the consulting rules
    tables), not in Liquid Glass. */
@@ -41,17 +41,24 @@ function clean(L: TableLayout, items: Item[]) {
   throw new Error("no clean cell");
 }
 const RED = { style: "medium", color: "#C00000" } as const;
+/** a Liquid Glass plan without its items: its materials, lines, capsules, pictures and texts with their classes and boxes */
+const planSig = (p: ReturnType<typeof glassPlan>) => JSON.stringify([p.W, p.H, p.shells, p.lines, p.caps, p.pics, p.texts.map(t => [t.cls, t.x, t.y, t.w, t.h, t.it?.role]), p.tbx.map(e => e.k === "shell" ? e : [e.k])]);
 
-describe("cell borders on the slide (B25)", () => {
-  it("a side set: the cell's border, and the same edge on the cell across it; drawn by Excel in its style and colour", async () => {
+describe("cell borders on the slide (B28)", () => {
+  it("a side set: drawn once, in its style and colour – an inside edge by the cell below / right (as the workbook's model)", async () => {
     const base = await table("excel"), { a, below } = clean(base.L, base.items);
     const t = await table("excel", { [keyOf(a)]: { bottom: RED } });
     const A = t.items.find(x => keyOf(x) === keyOf(a))!, B = t.items.find(x => keyOf(x) === keyOf(below))!;
-    expect(A.bottom).toEqual(RED); expect(B.top).toEqual(RED);
-    expect(A.ub).toEqual({ bottom: true }); expect(B.ub).toEqual({ top: true });
+    expect(A.bottom ?? null).toBeNull(); expect(B.top).toEqual(RED);
+    expect(A.ub).toBeUndefined(); expect(B.ub).toEqual({ top: true });
     const red = lines(excelToDisplayList(t.L, t.c, M).nodes).filter(l => ink(l) === "C00000");
-    expect(red.length).toBe(2);
-    expect(red.every(l => l.stroke.w === 2)).toBe(true);
+    expect(red.length).toBe(1);
+    expect(red[0].stroke.w).toBe(2);
+    expect(red[0].y1).toBeCloseTo(B.by + 1);
+    // a side at the table's edge stays the cell's own
+    const last = base.items.find(it => single(it) && it.b.r === base.L.rows[base.L.rows.length - 1] && !it.bottom)!;
+    const t2 = await table("excel", { [keyOf(last)]: { bottom: RED } });
+    expect(t2.items.find(x => keyOf(x) === keyOf(last))!.bottom).toEqual(RED);
     // the workbook is untouched: its layout items keep their borders
     expect(t.L.items.find(x => keyOf(x) === keyOf(a))!.bottom ?? null).toBeNull();
   });
@@ -64,12 +71,19 @@ describe("cell borders on the slide (B25)", () => {
     expect(t.items.find(x => keyOf(x) === keyOf(withTop))!.top).toBeNull();
     expect(t.items.find(x => keyOf(x) === keyOf(above))!.bottom).toBeNull();
   });
-  it("a cell's own setting of that edge wins over its neighbour's", async () => {
+  it("the edge's owner's own setting wins (Borders ▾ writes both cells' entries, so the last action wins)", async () => {
     const base = await table("excel"), { a, below } = clean(base.L, base.items);
     const blue = { style: "thin", color: "#1F4E79" } as const;
     const t = await table("excel", { [keyOf(a)]: { bottom: RED }, [keyOf(below)]: { top: blue } });
-    expect(t.items.find(x => keyOf(x) === keyOf(a))!.bottom).toEqual(RED);
+    expect(t.items.find(x => keyOf(x) === keyOf(a))!.bottom ?? null).toBeNull();
     expect(t.items.find(x => keyOf(x) === keyOf(below))!.top).toEqual(blue);
+    expect(lines(excelToDisplayList(t.L, t.c, M).nodes).filter(l => ink(l) === "C00000" || ink(l) === "1F4E79").length).toBe(1);
+  });
+  it("\"none\" removes borders, never the table's own gridlines (a layer of their own)", async () => {
+    const base = await table("excel"), { a } = clean(base.L, base.items);
+    const { ctx, slides } = await deckOf("weekly.json", "excel", [{ op: "table.patch", id: TABLE, patch: { gridH: "on", gridV: "on", borders: { [keyOf(a)]: { top: "none", left: "none", right: "none", bottom: "none" } } } } as Op]);
+    const L = slides.flatMap(s => s.tables).find(x => x.def?.id === TABLE)! as TableLayout, A = effItems(L, ctx()).find(x => keyOf(x) === keyOf(a))!;
+    expect([A.top, A.left].map(b => b && b.color)).toEqual(["#BFBFBF", "#BFBFBF"]);
   });
   it("unknown styles and colours are ignored; every style draws", async () => {
     const base = await table("excel"), { a } = clean(base.L, base.items);
@@ -101,8 +115,22 @@ describe("cell borders on the slide (B25)", () => {
   it("drawn by the consulting rules tables; not by Liquid Glass (it draws no workbook borders)", async () => {
     const base = await table("mckinsey"), { a } = clean(base.L, base.items);
     const t = await table("mckinsey", { [keyOf(a)]: { right: RED } });
-    expect(lines(rulesToDisplayList(t.L, t.c, M).nodes).filter(l => ink(l) === "C00000").length).toBe(2);
+    expect(lines(rulesToDisplayList(t.L, t.c, M).nodes).filter(l => ink(l) === "C00000").length).toBe(1);
     const g0 = await table("glass"), g = await table("glass", { [keyOf(a)]: { right: RED } });
-    expect(JSON.stringify(glassPlan(g.L, g.c).lines)).toBe(JSON.stringify(glassPlan(g0.L, g0.c).lines));
+    expect(planSig(glassPlan(g.L, g.c))).toBe(planSig(glassPlan(g0.L, g0.c)));
+  });
+  it("Liquid Glass's scene and the consulting cards are not changed by borders set on the slide: a whole row's bottom, none over the table", async () => {
+    const g0 = await table("glass"), row = g0.L.rows[Math.floor(g0.L.rows.length / 2)];
+    const rowCells = Object.fromEntries(g0.items.filter(it => it.b.r === row).map(it => [keyOf(it), { bottom: RED } as CellBorders]));
+    const none = Object.fromEntries(g0.items.map(it => [keyOf(it), { top: "none", left: "none", right: "none", bottom: "none" } as CellBorders]));
+    for (const b of [rowCells, none]) {
+      const g = await table("glass", b);
+      expect(planSig(glassPlan(g.L, g.c))).toBe(planSig(glassPlan(g0.L, g0.c)));
+    }
+    const c0 = await deckOf("weekly.json", "mckinsey", [{ op: "style.patch", patch: { designs: { mckinsey: { consult: { tables: "cards" } } } } } as Op]);
+    const c1 = await deckOf("weekly.json", "mckinsey", [{ op: "style.patch", patch: { designs: { mckinsey: { consult: { tables: "cards" } } } } } as Op, { op: "table.patch", id: TABLE, patch: { borders: none } } as Op]);
+    const { cardsToDisplayList } = await import("../src/render/consult-cards");
+    const dl = (d: typeof c0) => { const L = d.slides.flatMap(s => s.tables).find(x => x.def?.id === TABLE)!; return JSON.stringify(cardsToDisplayList(L, d.ctx(), M).nodes); };
+    expect(dl(c1)).toBe(dl(c0));
   });
 });

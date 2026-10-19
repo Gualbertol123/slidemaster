@@ -68,7 +68,8 @@ export function glassGeom(L: TableLayout, ctx: RenderCtx): GlassGeom {
   });
 }
 export function gItem(it: Item, G: GlassGeom): Item {
-  const o = Object.assign({}, it);
+  // borders set on the slide (4.4) are not Liquid Glass's: its scene reads the workbook's
+  const o = Object.assign({}, it, it.wb || {});
   o.bx = G.X.get(it.b.c)!; o.bw = G.X.get(it.b.c2)! + G.Wc.get(it.b.c2)! - o.bx;
   if (it.tw) o.tw = G.map(it.bx + it.tw) - o.bx;
   return o;

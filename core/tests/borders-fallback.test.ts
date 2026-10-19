@@ -1,4 +1,4 @@
-/* S10.3b (07 §5.2, B25): a deck saved with cell borders set on the slide (4.4, `TableDef.borders`) stays readable and
+/* S10.3b (07 §5.2, B28): a deck saved with cell borders set on the slide (4.4, `TableDef.borders`) stays readable and
    editable by a 4.0 / 4.1 page, which keeps the entries and draws the workbook's borders. The 4.1 operations are frozen
    in fixtures/v41/ops.ts; the deck is fixtures/borders-4.4.json (added, never edited). */
 import { describe, expect, it } from "vitest";

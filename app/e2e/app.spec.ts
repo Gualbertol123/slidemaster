@@ -1659,7 +1659,7 @@ test.describe.serial("two people, one shared folder", () => {
     await expect.poll(async () => /192,0,0|#c00000/i.test(await layer.innerHTML())).toBe(false);
   });
 
-  test("cell borders on the slide (S10.3b, B25): Borders ▾ as Excel's – outside in a style and colour, none, clear; separate from the gridlines; the painter copies them", async ({ page }) => {
+  test("cell borders on the slide (S10.3b, B28): Borders ▾ as Excel's – outside in a style and colour, none, clear; separate from the gridlines; the painter copies them", async ({ page }) => {
     await openApp(page, ANNA);
     await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
     const tid = doc().preset.tables.find((t: any) => t.sheet === "SLIDE_3 pair" && t.index === 0).id;

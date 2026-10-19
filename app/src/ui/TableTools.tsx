@@ -111,13 +111,21 @@ function GridMenu({ close, T }: { close: () => void; T: import("@slide-builder/c
     </div></div>;
 }
 
-/* Borders ▾ (4.4, B25; product owner 2026-10-19: as Excel's, separate from the gridlines): on the selected cells, over the
+/* Borders ▾ (4.4, B28; product owner 2026-10-19: as Excel's, separate from the gridlines): on the selected cells, over the
    workbook's borders on the slide only – the sides of the selection, all, outside, thick outside, none; a style and a
    colour; Clear goes back to the workbook's */
 type BEdge = "top" | "left" | "right" | "bottom";
 const B_STYLES: [Exclude<CellBorderSide, "none">["style"], string][] = [["thin", "Thin"], ["medium", "Medium"], ["thick", "Thick"], ["dashed", "Dashed"], ["dotted", "Dotted"], ["double", "Double"]];
 const B_PRESETS: [string, string, string][] = [["bottom", "Bottom", "A border under the selection"], ["top", "Top", "A border over the selection"], ["left", "Left", "A border left of the selection"], ["right", "Right", "A border right of the selection"],
   ["all", "All borders", "Every edge of every selected cell"], ["outside", "Outside", "Around the selection"], ["thick", "Thick outside", "A thick border around the selection"], ["none", "No border", "No border on any edge of the selected cells"]];
+const FACING: Record<BEdge, BEdge> = { top: "bottom", bottom: "top", left: "right", right: "left" };
+/** the cells of the table across one side of a cell (the next row / column of the table, overlapping it) */
+function acrossIn(T: import("@slide-builder/core/xlsx/types").TableLayout, it: import("@slide-builder/core/xlsx/types").Item, side: BEdge) {
+  const step = (list: number[], v: number, d: number) => list[list.indexOf(v) + d];
+  if (side === "top" || side === "bottom") { const r = side === "top" ? step(T.rows, it.b.r, -1) : step(T.rows, it.b.r2, 1); return r === undefined ? [] : T.items.filter(o => o.b.r <= r && o.b.r2 >= r && o.b.c <= it.b.c2 && o.b.c2 >= it.b.c); }
+  const c = side === "left" ? step(T.cols, it.b.c, -1) : step(T.cols, it.b.c2, 1);
+  return c === undefined ? [] : T.items.filter(o => o.b.c <= c && o.b.c2 >= c && o.b.r <= it.b.r2 && o.b.r2 >= it.b.r);
+}
 function BorderMenu({ T }: { T: import("@slide-builder/core/xlsx/types").TableLayout }) {
   const sel = useStore(s => s.selection.sel), mine = sel && selTable() === T ? selItems() : [];
   const [style, setStyle] = useState<Exclude<CellBorderSide, "none">["style"]>("thin"), [color, setColor] = useState("#000000");
@@ -133,12 +141,18 @@ function BorderMenu({ T }: { T: import("@slide-builder/core/xlsx/types").TableLa
       const sides: BEdge[] = preset === "all" || preset === "none" ? ["top", "left", "right", "bottom"] : preset === "outside" || preset === "thick" ? (["top", "left", "right", "bottom"] as BEdge[]).filter(s => edge[s]) : edge[preset as BEdge] ? [preset as BEdge] : [];
       if (!sides.length) continue;
       const v: CellBorderSide = preset === "none" ? "none" : { style: preset === "thick" ? "thick" : style, color };
-      m[k] = { ...(cur[k] || {}), ...Object.fromEntries(sides.map(s => [s, v])) };
+      m[k] = { ...(m[k] || cur[k] || {}), ...Object.fromEntries(sides.map(s => [s, v])) };
+      // the last action wins, as in Excel: a cell across one of these sides that set its own facing side gets the same
+      for (const s of sides) for (const o of acrossIn(T, it, s)) {
+        const ok = A1(o.b.src.r, o.b.src.c), e = m[ok] ?? cur[ok], f = FACING[s];
+        if (e && f in e) m[ok] = { ...e, [f]: v };
+      }
     }
     if (Object.keys(m).length) change(preset === "clear" ? "Borders from Excel" : preset === "none" ? "No border" : "Borders", [{ op: "table.patch", id: T.def.id, patch: { borders: m } } as Op]);
   };
   const keys = mine.map(it => A1(it.b.src.r, it.b.src.c));
-  return <div className="scalemenu" id="borderMenu"><div className="hd">Borders of the selected cells {keys.length ? <b>{keys.length === 1 ? keys[0] : keys[0] + ":" + keys[keys.length - 1]}</b> : "– select cells first"}</div>
+  const range = sel && keys.length ? (keys.length === 1 ? keys[0] : A1(sel.r1, sel.c1) + ":" + A1(sel.r2, sel.c2)) : "";
+  return <div className="scalemenu" id="borderMenu"><div className="hd">Borders of the selected cells {keys.length ? <b>{range}</b> : "– select cells first"}</div>
     <div className="bpresets">{B_PRESETS.map(([k, l, t]) => <button key={k} data-b={k} disabled={!keys.length} title={t} onClick={() => apply(k)}>{l}</button>)}</div>
     <div className="optgrid">
       <label>Style</label><div className="seg small">{B_STYLES.map(([k, l]) => <button key={k} data-bs={k} className={style === k ? "on" : ""} onClick={() => setStyle(k)}>{l}</button>)}</div>

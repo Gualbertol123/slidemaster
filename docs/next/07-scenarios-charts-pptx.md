@@ -197,6 +197,7 @@ export interface FreeLayout { on: boolean; items: Record<string, Box & { scale?:
 export interface CellGrid { h?: "on" | "off"; v?: "on" | "off"; o?: boolean; c?: string; w?: number }   // per cell: horizontal / vertical lines, outline, colour, weight px
 // SlideDef += items?: Record<string, Item>; free?: Partial<Record<Design, FreeLayout>>
 // TableDef += cellGrid?: Record<string /* A1 */, CellGrid>
+// TableDef += borders?: Record<string /* A1 */, Partial<Record<"top" | "left" | "right" | "bottom", {style, color} | "none">>>   // B28 (S10.3b, product owner 2026-10-19)
 // Preset  += links?: string[]                                        // file names of linked workbooks the deck draws from (§2.3)
 ```
 
@@ -206,7 +207,7 @@ export interface CellGrid { h?: "on" | "off"; v?: "on" | "off"; o?: boolean; c?:
 |---|---|---|---|
 | `item.patch {slide, id, patch}` **new** | sets / deletes fields of `slides[slide].items[id]`; `patch: null` deletes the item; a patch on a missing id with a `kind` creates it | **field-level** (plain keys set/delete, `colors`, `fmt` map-merge), so two people recolouring and moving one chart both win – the fix the audit asked for text boxes (SEC-9) is applied to the new objects from the start | current values of the patched keys, or `null` → the whole item on delete |
 | `slide.patch` | `free` joins `SLIDE_MAPS`: `free: {glass: FreeLayout | null}` | map merge per design (an entry replaces the design's layout whole: a free move is one op that writes the whole `items` map of that design – a single undo step by construction) | as `sizes` |
-| `table.patch` | `cellGrid` joins `TABLE_MAPS` | map merge per cell | as `cols` |
+| `table.patch` | `cellGrid` (and, B28, `borders`) join `TABLE_MAPS` | map merge per cell | as `cols` |
 | `preset.set` | `links` is part of the preset | replaced whole, as today | unchanged |
 
 Op vectors added: ≥ 24 cases (create / patch / delete item, field merge of two writers, `colors` merge, free on/off,
@@ -462,7 +463,7 @@ PowerPoint without a repair prompt for every corpus deck × design × version.
   hide it only under a border set on the slide; the consulting "exhibit" style draws none (its tables are exhibits, not
   cells). `o` marks every cell of the outlined rectangle and the line is drawn where the next cell is not marked;
   `h`/`v` "off" draws nothing (as unset). The painter copies a cell's entry – and a cell without one removes the
-  target's, as Excel's painter does with borders. **Cell borders** are a separate control (B25, S10.3b): *Borders ▾* as Excel's, over
+  target's, as Excel's painter does with borders. **Cell borders** are a separate control (B28, S10.3b): *Borders ▾* as Excel's, over
   the workbook's borders on the slide only, drawn where workbook borders are drawn today.
 
 ---

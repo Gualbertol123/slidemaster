@@ -47,7 +47,7 @@ function acrossOf(L: TableLayout, items: Item[]) {
 }
 /** a table map's entry of a cell (an own key, an object) */
 function entryOf<T>(map: Record<string, T>, it: Item): T | null { const k = keyOf(it), e = Object.prototype.hasOwnProperty.call(map, k) ? map[k] : null; return e && typeof e === "object" ? e : null; }
-/* cell borders on the slide (4.4, B25; product owner 2026-10-19: Borders ▾ as Excel's, separate from the gridlines): a
+/* cell borders on the slide (4.4, B28; product owner 2026-10-19: Borders ▾ as Excel's, separate from the gridlines): a
    cell's side set to a style and a colour, or "none"; the cell across that side draws the same edge (its coincident side
    takes the same value unless it sets that side itself). The workbook is never changed */
 const BSTYLES = ["thin", "medium", "thick", "dashed", "dotted", "double"];
@@ -65,19 +65,32 @@ export function withBorders(L: TableLayout, items: Item[]): Item[] {
     if (Object.keys(m).length) own.set(it, m);
   }
   if (!own.size) return items;
+  // as in the workbook's model (xlsx/layout.ts), an inside edge belongs to one cell – the lower one's top, the right one's
+  // left – and a bottom / right is drawn only at the table's edge: a side set on the slide is moved to that owner (the
+  // owner's own setting of it wins), and the other cell's facing side is cleared
   const out = new Map<Item, Partial<Record<Edge, BorderSide | null>>>();
-  for (const [it, m] of own) {
-    out.set(it, { ...out.get(it), ...m });
-    for (const side of Object.keys(m) as Edge[]) for (const o of across(it, side)) {
-      const theirs = own.get(o); if (theirs && ACROSS[side] in theirs) continue;
-      out.set(o, { ...out.get(o), [ACROSS[side]]: m[side] });
-    }
+  const put = (it: Item, side: Edge, v: BorderSide | null) => out.set(it, { ...out.get(it), [side]: v });
+  // "none" removes a border, never the table's own gridline (a layer of its own)
+  const keep = (it: Item, side: Edge) => it[side] === GRIDLINE;
+  for (const [it, m] of own) for (const side of ["bottom", "right"] as Edge[]) {
+    if (!(side in m)) continue;
+    const v = m[side]!, n = across(it, side);
+    if (!n.length) { if (v || !keep(it, side)) put(it, side, v); continue; }
+    if (!keep(it, side)) put(it, side, null);
+    for (const o of n) if (!(own.get(o) && ACROSS[side] in own.get(o)!) && (v || !keep(o, ACROSS[side]))) put(o, ACROSS[side], v);
+  }
+  for (const [it, m] of own) for (const side of ["top", "left"] as Edge[]) {
+    if (!(side in m)) continue;
+    const v = m[side]!;
+    if (v || !keep(it, side)) put(it, side, v);
+    for (const o of across(it, side)) if (!keep(o, ACROSS[side])) put(o, ACROSS[side], null);
   }
   return items.map(it => {
     const m = out.get(it); if (!m) return it;
     const ub: NonNullable<Item["ub"]> = {};
     for (const [side, b] of Object.entries(m) as [Edge, BorderSide | null][]) if (b) ub[side] = true;
-    return Object.assign({}, it, m, Object.keys(ub).length ? { ub } : {});
+    // (Liquid Glass reads the workbook's sides to find its frames and grids: `wb` keeps them – it draws no borders)
+    return Object.assign({}, it, m, { wb: { top: it.top, left: it.left, right: it.right, bottom: it.bottom } }, Object.keys(ub).length ? { ub } : {});
   });
 }
 export function withCellGrid(L: TableLayout, items: Item[]): Item[] {
@@ -103,7 +116,7 @@ export function withCellGrid(L: TableLayout, items: Item[]): Item[] {
     for (const side of EDGES) {
       const b = cg0[side]; if (!b) continue;
       // each edge once: the cell below / right draws its top / left when it has one
-      if ((side === "bottom" || side === "right") && across(it, side).some(o => want.get(o)?.[ACROSS[side]])) continue;
+      if (side === "bottom" || side === "right") { const n = across(it, side); if (n.length && n.every(o => want.get(o)?.[ACROSS[side]])) continue; }
       cg[side] = b;
       if (real(it[side]) || across(it, side).some(o => real(o[ACROSS[side]]))) cgx[side] = true;
     }

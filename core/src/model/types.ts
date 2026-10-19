@@ -8,7 +8,7 @@ interface TableExtras { name?: string; cols?: Record<string, number>; rows?: Rec
   /** gridlines: "on" draws a line at every row/column edge, "off" removes them; unset = as in Excel */ gridH?: "on" | "off"; gridV?: "on" | "off";
   /** column widths / row heights of one design (over cols/rows, which older decks share between designs) */ sizes?: Partial<Record<Design, TableSizes>>;
   /** gridlines on selected cells (4.4, B20), by the cell's A1 address: a light layer of their own, never a border */ cellGrid?: Record<string, CellGrid>;
-  /** cell borders on the slide (4.4, B25), by the cell's A1 address: over the workbook's, which is never changed */ borders?: Record<string, CellBorders> }
+  /** cell borders on the slide (4.4, B28), by the cell's A1 address: over the workbook's, which is never changed */ borders?: Record<string, CellBorders> }
 /** a cell's own border on one side (product owner 2026-10-19: Borders ▾ as Excel's): a style and a colour, or "none" (the
     workbook's border of that side removed on the slide) */
 export type CellBorderSide = { style: "thin" | "medium" | "thick" | "dashed" | "dotted" | "double"; color: string } | "none";
