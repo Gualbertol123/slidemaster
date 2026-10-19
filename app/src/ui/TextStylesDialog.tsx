@@ -5,11 +5,11 @@
 import { useRef, useState } from "react";
 import { patch, setDialogs, useStore } from "../state/store";
 import { confirmBox } from "../state/dialogs";
-import { consultChange, lookAt, lookChange, saveStyleAsDefault } from "../state/app";
+import { lookAt, lookChange, saveStyleAsDefault } from "../state/app";
 import { addGoogleFont, inLibrary, removeFont, uploadFontFiles } from "../state/fonts";
 import { GOOGLE_POPULAR, fontStack } from "@slide-builder/core/model/fonts";
 import { COLOR_KEYS, palette } from "@slide-builder/core/model/style";
-import { CONSULT_CHOICES, CONSULT_DEFAULTS, CONSULT_TEXT, DESIGN_LABEL, consultOptions, isConsult, type ConsultOptions } from "@slide-builder/core/model/designs";
+import { DESIGN_LABEL } from "@slide-builder/core/model/designs";
 import { ThemePicker } from "./Topbar";
 import type { TextFmt, TextRole } from "@slide-builder/core/model/types";
 import { backend } from "../sync/api";
@@ -119,46 +119,28 @@ function FontsTab() {
   </div>;
 }
 
-/* the consulting designs' options (Design… › Layout): every look built for them stays a choice, so hybrids can be made */
-const OPTION_TEXT = CONSULT_TEXT;
-function LayoutTab() {
-  const st = useStyle(), o = consultOptions({ style: st }), d = st.design, def = isConsult(d) ? CONSULT_DEFAULTS[d] : null;
-  if (!def) return <div className="optnote">Layout options belong to the consulting designs (Consulting Navy, Consulting Red).</div>;
-  return <div className="layouttab" id="consultOptions">
-    {(Object.keys(OPTION_TEXT) as (keyof ConsultOptions)[]).map(k => <div className="colrow" key={k} data-option={k}>
-      <div className="colname"><b>{OPTION_TEXT[k].name}</b><small>{OPTION_TEXT[k].hint}</small></div>
-      <div className="seg small">{(CONSULT_CHOICES[k] as readonly string[]).map(v => <button key={v} data-value={v} className={o[k] === v ? "on" : ""}
-        onClick={() => consultChange(OPTION_TEXT[k].name + ": " + (OPTION_TEXT[k].labels as Record<string, string>)[v], { [k]: v === def[k] ? null : v })}>{(OPTION_TEXT[k].labels as Record<string, string>)[v]}</button>)}</div>
-    </div>)}
-    <div className="row" style={{ marginTop: "10px", gap: "8px" }}>
-      <button className="btn" id="consultReset" disabled={!st.consult || !Object.keys(st.consult).length} onClick={() => consultChange("Layout: design defaults", null)}>Back to the design's layout</button>
-    </div>
-    <div className="optnote">For {DESIGN_LABEL[d]} only; saved with this workbook. Mix them freely – e.g. a message panel with ruled tables.</div>
-  </div>;
-}
-
 export function TextStylesDialog() {
   const tab = useStore(s => s.ui.dialogs.textStyles) || "styles", scope = useStore(s => s.ui.lookScope), open = useStore(s => s.doc.open);
   const fonts = useStore(s => s.doc.fonts.length), design = useStyle().design;
   const close = () => setDialogs({ textStyles: null });
-  const setTab = (t: "colors" | "styles" | "fonts" | "layout") => setDialogs({ textStyles: t });
+  const setTab = (t: "colors" | "styles" | "fonts") => setDialogs({ textStyles: t });
   return (
     <div className="modal" onKeyDown={e => { if (e.key === "Escape") close(); }}>
       <div className="dlg tsdlg">
         <div className="dlghd"><b>Design: colours, text &amp; fonts</b><span>Start from a theme, then change any colour, font or size – for the whole deck and every design. Formatting you give a single cell, text box or title with the toolbar stays on top.</span></div>
-        {tab !== "fonts" && tab !== "layout" && <div className="scope"><span>Apply to</span><div className="seg small" id="lookScope">
+        {tab !== "fonts" && <div className="scope"><span>Apply to</span><div className="seg small" id="lookScope">
           <button data-scope="design" className={scope === "design" ? "on" : ""} onClick={() => patch("ui", { lookScope: "design" })}>This design only – {DESIGN_LABEL[design]}</button>
           <button data-scope="all" className={scope === "all" ? "on" : ""} onClick={() => patch("ui", { lookScope: "all" })}>All designs</button></div>
           <small>{scope === "design" ? "Changes here apply only when this design is chosen; switch design at the top to give the others their own look." : "Changes here apply to every design (and replace what a design had set for itself)."}</small></div>}
-        <div className="seg tabs"><button className={tab === "colors" ? "on" : ""} id="tabColors" onClick={() => setTab("colors")}>Colours</button><button className={tab === "styles" ? "on" : ""} id="tabStyles" onClick={() => setTab("styles")}>Text styles</button><button className={tab === "fonts" ? "on" : ""} id="tabFonts" onClick={() => setTab("fonts")}>Fonts ({fonts})</button>{isConsult(design) && <button className={tab === "layout" ? "on" : ""} id="tabLayout" onClick={() => setTab("layout")}>Layout</button>}</div>
+        <div className="seg tabs"><button className={tab === "colors" ? "on" : ""} id="tabColors" onClick={() => setTab("colors")}>Colours</button><button className={tab === "styles" ? "on" : ""} id="tabStyles" onClick={() => setTab("styles")}>Text styles</button><button className={tab === "fonts" ? "on" : ""} id="tabFonts" onClick={() => setTab("fonts")}>Fonts ({fonts})</button></div>
         <div className="dlgbody">
           {tab === "colors" ? <ColorsTab /> : tab === "styles" ? <>
             <div className="tsgrid">{ROLES.map(r => <StyleRow key={r.role} {...r} />)}</div>
             <div className="optnote" style={{ marginTop: "10px" }}>Saved with this workbook and shared with everybody who opens it. More fonts: the Fonts tab.</div>
-          </> : tab === "layout" ? <LayoutTab /> : <FontsTab />}
+          </> : <FontsTab />}
         </div>
         <div className="dlgft">
-          {tab !== "fonts" && tab !== "layout" && <button className="btn" id="tsDefault" disabled={!open} title="New decks start with this deck's style, including these text styles" onClick={() => void saveStyleAsDefault()}>Use as default for new decks</button>}
+          {tab !== "fonts" && <button className="btn" id="tsDefault" disabled={!open} title="New decks start with this deck's style, including these text styles" onClick={() => void saveStyleAsDefault()}>Use as default for new decks</button>}
           <span style={{ flex: "1" }} />
           <button className="btn primary" data-a="close" onClick={close}>Done</button>
         </div>

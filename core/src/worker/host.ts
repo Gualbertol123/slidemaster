@@ -19,6 +19,7 @@ import { detectTables } from "../xlsx/detect";
 import { defaultPreset, LCACHE, presetSheets, rangeToG, runtimeSlides } from "../model/preset";
 import { resolveStyle } from "../model/style";
 import { tableDrawKey } from "../render/slide";
+import { slideCtx } from "../render/look";
 import { computeLayout, geomOf } from "../render/layout";
 import { excelTableDL, forgetMeasurements, measuredBuild, type TableDL } from "../render/excel-dl";
 import { glassTableDL } from "../render/glass-dl";
@@ -620,10 +621,10 @@ export class CoreHost {
     const { wall, logo } = await this.slideImages(ctx);
     for (const [s, R] of ctx.slides.entries()) {
       if (a.slides && !a.slides.includes(s)) continue;
-      const boxes = computeLayout(R, ctx).boxes, tables: TableDL[] = [];
+      const boxes = computeLayout(R, ctx).boxes, tables: TableDL[] = [], sc = slideCtx(ctx, R);     // the slide's own look (B29)
       for (const [i, L] of R.tables.entries()) {
         const b = boxes[i], noText = a.thumb && L.items.length > 1200;
-        const dl = glass ? await glassTableDL(L, ctx, { x: b?.x ?? 0, y: b?.y ?? 0, scale: b?.scale ?? 1 }, wall?.blur ?? null, { noText }) : await flatTableDL(L, ctx, { noText });
+        const dl = glass ? await glassTableDL(L, sc, { x: b?.x ?? 0, y: b?.y ?? 0, scale: b?.scale ?? 1 }, wall?.blur ?? null, { noText }) : await flatTableDL(L, sc, { noText });
         // a run started anyway: the cells the self-check classes different get their red corner (RC-06)
         tables.push(run?.marked.size ? { ...dl, nodes: markCells(dl.nodes, L, run.marked) } : dl);
       }
@@ -659,19 +660,20 @@ export class CoreHost {
     const ctx = this.ctx(), R = ctx.slides[a.slide]; if (!R) return null;
     await glassFonts(ctx);
     const glass = ctx.style.design === "glass", img = await this.slideImages(ctx, true), soft = !!a.soft;
-    const boxes = computeLayout(R, ctx).boxes, tables: TableDL[] = [], hits: { id: string; dl: TableDL; svg: Map<string, string[]> }[] = [], styleSig = JSON.stringify(ctx.style);
+    const sc = slideCtx(ctx, R);                                       // the slide's own look (B29)
+    const boxes = computeLayout(R, ctx).boxes, tables: TableDL[] = [], hits: { id: string; dl: TableDL; svg: Map<string, string[]> }[] = [], styleSig = JSON.stringify(sc.style);
     for (const [i, L] of R.tables.entries()) {
       const b = boxes[i], place = { x: b?.x ?? 0, y: b?.y ?? 0, scale: b?.scale ?? 1 };
       // which table (tableDrawKey does not name it), then what it is
       // drawn from – with the edits of its own cells only (tableKey has the whole sheet's: an edit in one table must not
       // draw the others of its sheet again)
       const who = L.sheet.name + "|" + (L.id || "") + "|" + ctx.style.design + "|" + soft + "|" + (ctx.scenario || "");
-      const own = { ...ctx, _keys: new Map([[L.sheet.name, ownEdits(L, ctx)]]) };
+      const own = { ...sc, _keys: new Map([[L.sheet.name, ownEdits(L, sc)]]) };
       const key = who + "|" + tableDrawKey(R, i, own) + "|" + styleSig + (glass ? "|" + place.x + "," + place.y + "," + place.scale : "");
       let hit = this.stageCache.get(key);
       if (hit) this.stageCache.delete(key);
       else {
-        hit = { id: "t" + (++this.stageSeq), dl: glass ? await glassTableDL(L, ctx, place, img.wall?.blur ?? null) : await flatTableDL(L, ctx), svg: new Map() };
+        hit = { id: "t" + (++this.stageSeq), dl: glass ? await glassTableDL(L, sc, place, img.wall?.blur ?? null) : await flatTableDL(L, sc), svg: new Map() };
         // a table keeps its last few drawings (undo, redo); older ones of the same table go
         const mine = [...this.stageCache.keys()].filter(k => k.startsWith(who + "|"));
         for (const k of mine.slice(0, Math.max(0, mine.length - 2))) this.stageCache.delete(k);

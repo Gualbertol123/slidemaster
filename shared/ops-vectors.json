@@ -5443,5 +5443,141 @@
       "applied": 3,
       "skipped": []
     }
+  },
+  {
+    "name": "slide.patch looks (B29) writes one design's slide look; another design's is kept",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "looks": {
+              "bain": {
+                "band": "off"
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "looks": {
+            "mckinsey": {
+              "bars": "off",
+              "kpis": "2",
+              "kpiText": {
+                "size": 30
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "looks": {
+              "bain": {
+                "band": "off"
+              },
+              "mckinsey": {
+                "bars": "off",
+                "kpis": "2",
+                "kpiText": {
+                  "size": 30
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.patch looks: null clears a design's slide look, and the map when it is empty",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "looks": {
+              "bain": {
+                "band": "off"
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "looks": {
+            "bain": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ]
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
   }
 ]

@@ -5,6 +5,7 @@
    (freeTable, and the text box / item drags writing the slide's free boxes); Alt held: no snapping. While the pointer moves, a preview is
    drawn from store state (at most once per animation frame); on pointer-up ONE operation is sent, one undo step, as
    in v3. */
+import { slideCtx } from "@slide-builder/core/render/look";
 import { get } from "../state/store";
 import { change, ctx } from "../state/app";
 import type { Layout, Note, Op, RuntimeSlide, Side } from "@slide-builder/core/model/types";
@@ -65,7 +66,7 @@ export function borderDrag(t: number, e: PointerEvent, edge: Border, k: number) 
 
 /** the corner: the table's scale in its band, found by bisection so that the table is as large as the pointer */
 export function resizeDrag(R: RuntimeSlide, i: number, e: PointerEvent) {
-  const c = ctx(), sc = slideScale(), sx = e.clientX, sy = e.clientY;
+  const c = slideCtx(ctx(), R), sc = slideScale(), sx = e.clientX, sy = e.clientY;
   const start = computeLayout(R, c).boxes[i], base = layoutOf(R, c), w0 = base.w.slice(), T = R.tables[i];
   const lay: Layout = { bands: JSON.parse(JSON.stringify(base.bands)), w: w0.slice() };
   let moved = false, at: PointerEvent | null = null, frame = 0;
@@ -181,7 +182,7 @@ function snapTo(list: number[], edges: number[]) {
     corner and the edges set its scale (an edge from its own axis, the opposite side staying), its box follows */
 export function freeTable(R: RuntimeSlide, i: number, how: "move" | "corner" | NEdge, e: PointerEvent) {
   if (e.button !== 0) return;
-  const c = ctx(), T = R.tables[i], all = computeLayout(R, c).boxes, start = all[i], f = freeOf(R, c); if (!T || !start || !f) return;
+  const c = slideCtx(ctx(), R), T = R.tables[i], all = computeLayout(R, c).boxes, start = all[i], f = freeOf(R, c); if (!T || !start || !f) return;
   const W = tableW(T, c), H = tableH(T, c), sc = slideScale(), sx = e.clientX, sy = e.clientY, key = freeKey.table(R, i);
   // what it lines up with: the other tables, the text boxes, the items, the slide's guides
   // (the table's own text boxes without a saved box move with it: not targets)

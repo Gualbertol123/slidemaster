@@ -16,6 +16,7 @@ import type { Node, Paint, RectNode, TextNode } from "../dl/types";
 import { fontStack } from "../model/fonts";
 import type { Note, RuntimeSlide, TextFmt } from "../model/types";
 import type { RenderCtx } from "./context";
+import { slideCtx } from "./look";
 import { cssLinear, glassBox, glassVars, type Wallpaper } from "./glass-dl";
 import { halfLeading, lu, primaryFamily, type Metrics, type TableDL } from "./excel-dl";
 import { pageNoFor, pageNoGeom, footerGeom, pageNumber, pnFmt } from "./pagenumbers";
@@ -123,7 +124,8 @@ class Typesetter {
 
 /* ---- the slide ---- */
 /** `today`: the date the page shows ({date} in footers, a cover without its own date) – the page's clock */
-export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx, tables: TableDL[], boxes: TBox[], img: SlideImages, m: Metrics, today = todayLabel()): SlideDL {
+export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx, tables: TableDL[], boxes: TBox[], img: SlideImages, m: Metrics, today = todayLabel()): SlideDL {
+  const ctx = slideCtx(ctx0, R);                                // the slide's own look (B29)
   const T = new Typesetter(m), d = ctx.style.design, glassy = d === "glass", rk = ctx.style.radius / 100;
   const V = glassVars(ctx), tv = themeVars(ctx), place = { x: 0, y: 0, scale: 1 }, wall = img.wall?.blur ?? null;
   const base = glassy ? SLIDE_FONT.glass : SLIDE_FONT.excel;
@@ -289,12 +291,13 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
   /** Consulting Navy's KPI line: the headline, then up to three variances (red when negative, the first green, the others
       in the accent), each with its label in small capitals and its % under it; hairline separators between them */
   function kpiLine(S: DesignSpec, F: ExFacts, top: number, ink: Inks) {
-    const K = INSIGHT.kpi, dark = ink === LK!.dark, blocks = [F.headline!, ...F.kpis.slice(0, 3)];
+    const K = INSIGHT.kpi, dark = ink === LK!.dark, blocks = [F.headline!, ...F.kpis.slice(0, +O!.kpis)];          // B29: 1–3 variances
     blocks.forEach((fact, i) => {
       const x = INSIGHT.x + i * K.w, w = K.w - K.gap, text = figure(fact.value, i > 0), v = fact.value.v;
       const color = acc(i === 0 || v === null || v === 0 ? ink.head : v < 0 ? ink.neg : ink.pos);
-      const st0: TStyle = { family: S.font.title, size: K.size, weight: 700, italic: false, color: solid(color), ls: 0 };
-      const aw = T.adv(text, st0), vSt = aw > w ? { ...st0, size: Math.max(K.min, r2(K.size * w / aw)) } : st0;
+      // the figures' text format (B29: the look's kpiText over the design's), still fitted to their block
+      const st0: TStyle = withFmt({ family: S.font.title, size: K.size, weight: 700, italic: false, color: solid(color), ls: 0 }, O!.kpiText || {});
+      const aw = T.adv(text, st0), vSt = aw > w ? { ...st0, size: Math.max(K.min, r2(st0.size * w / aw)) } : st0;
       const lSt: TStyle = { family: S.font.body, size: K.label, weight: 700, italic: false, color: solid(acc(ink.label)), ls: K.ls };
       const nSt: TStyle = { ...lSt, size: K.note, weight: 400, ls: 0, color: solid(acc(ink.note)) };
       const lab = T.ellipsis(fact.label.toUpperCase(), lSt, w), note = fact.pct ? figure(fact.pct, true) : "";
@@ -324,7 +327,8 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
     }
     // the kicker (the lead's label and the latest period), the lead figure fitted to the panel, its line
     const kSt = white(P.kicker, 700, .85, 2), kick = T.ellipsis([lead.label, sf!.ex.series?.labels[sf!.ex.series.labels.length - 1]].filter(Boolean).join(" · ").toUpperCase(), kSt, W);
-    const lead0 = white(P.lead, 700), lt = figure(lead.value, true), lw = T.adv(lt, lead0), lSt = lw > W ? { ...lead0, size: r2(P.lead * W / lw) } : lead0;
+    // the lead figure's text format (B29: the look's panelText over the design's), still fitted to the panel
+    const lead0 = withFmt(white(P.lead, 700), O!.panelText || {}), lt = figure(lead.value, true), lw = T.adv(lt, lead0), lSt = lw > W ? { ...lead0, size: r2(lead0.size * W / lw) } : lead0;
     low.push(hit("sig-kicker", X, P.kickerY - P.kicker, W, P.kicker * 1.4, kick), T.node(kick, X, P.kickerY, kSt),
       hit("sig-lead", X, P.leadY - lSt.size * .75, W, lSt.size * .8, lt), T.node(lt, X - 4, P.leadY, lSt));
     const unit = collapse(R.subtitle || "").trim().replace(/^\((.*)\)$/, "$1"), lnSt = white(P.line, 400), lnH = T.lineH(lnSt, 1.3);

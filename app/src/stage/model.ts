@@ -73,5 +73,6 @@ export function firstText(nodes: DisplayList): TextNode | null {
   return null;
 }
 /** the slide text an element edits (data-edit), by its first class (v3's markup) */
-export const EDIT_OF: Record<string, import("@slide-builder/core/model/types").SlideTextKey> = { title: "title", subtitle: "subtitle", "cv-title": "title", "cv-sub": "subtitle", "cv-kicker": "note", "cv-chip": "date", "cvx-date": "date" };
+export const EDIT_OF: Record<string, import("@slide-builder/core/model/types").SlideTextKey | import("../editor/look").LookTextKey> = { title: "title", subtitle: "subtitle", "cv-title": "title", "cv-sub": "subtitle", "cv-kicker": "note", "cv-chip": "date", "cvx-date": "date",
+  /* the look's texts (B29): selected for their format, not edited */ kpi: "kpi", "sig-lead": "panel", "sig-kicker": "panel" };
 export const editOf = (id: string) => EDIT_OF[id.split(" ").find(c => c in EDIT_OF) || ""] ?? null;

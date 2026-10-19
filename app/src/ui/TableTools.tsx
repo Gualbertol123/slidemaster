@@ -1,5 +1,7 @@
 /* Second toolbar row: LAYOUT – table cells (size, role, merge, colour scale), tables on the slide,
    text boxes around tables, slide options. Text formatting lives in the first row only. */
+import { isConsult } from "@slide-builder/core/model/designs";
+import { LookGroup } from "./LookTools";
 import { useEffect, useState } from "react";
 import { setDialogs, useStore, toast } from "../state/store";
 import { change } from "../state/app";
@@ -257,6 +259,7 @@ export function TableRibbon() {
         {R?.type === "index" && <button className={"tb" + (R.cfg.subs !== false ? " on" : "")} id="ixSubs" title={R.cfg.subs !== false ? "Hide the slide subtitles in the contents list" : "Show the slide subtitles in the contents list"}
           onClick={() => slidePatch(R.cfg.subs !== false ? "Hide subtitles in contents" : "Show subtitles in contents", { subs: R.cfg.subs !== false ? false : null })}>Subtitles</button>}
       </div>
+      {isConsult(st.design) && <LookGroup />}
     </nav>
   );
 }

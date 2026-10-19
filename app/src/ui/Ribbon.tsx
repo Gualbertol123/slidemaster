@@ -1,6 +1,7 @@
 /* First toolbar row: TEXT. One set of controls for every text on a slide – table cells, text boxes,
    titles, subtitles, the cover note and date. They act on what is selected (named at the left); the
    row never changes shape. Deck-wide text styles and the font library: "Text styles…". */
+import { isLookText, LOOK_TEXT_LABEL } from "../editor/look";
 import { useEffect, useState } from "react";
 import { get, useStore } from "../state/store";
 import { core, undo } from "../state/app";
@@ -151,6 +152,7 @@ export function selStatus(): string {
     return (itemSel.slice !== null ? `Slice ${itemSel.slice + 1} of the chart selected` : "Chart selected") + " · drag to move, the corner to resize · Del removes it";
   }
   if (noteSel) return "Text box selected · double-click or Enter to write · Del removes it";
+  if (textSel && isLookText(textSel)) return `${LOOK_TEXT_LABEL[textSel]} selected · its font, size and colour above, its parts in the Headline group (this slide)`;
   if (textSel) return `${SLIDE_TEXT_LABEL[textSel]} selected · double-click or Enter to edit the text`;
   if (!it) return `Slide ${deck.cur + 1} of ${deck.slides.length}`;
   const e = editOf(it);

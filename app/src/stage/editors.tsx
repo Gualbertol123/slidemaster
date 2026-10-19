@@ -2,6 +2,7 @@
    text – title, subtitle, cover note or date – (double-click, Enter) and a text box (double-click, Enter, a new
    box). Each is placed over what it edits, in screen px inside .stagewrap, and closes on Enter / Escape / leaving
    it; while one is open the slide is not redrawn under it (E8, data.ts). */
+import { slideCtx } from "@slide-builder/core/render/look";
 import { useLayoutEffect, useRef } from "react";
 import { get } from "../state/store";
 import { ctx } from "../state/app";
@@ -28,7 +29,7 @@ const focusAll = (el: HTMLInputElement | HTMLTextAreaElement | null, select: boo
 };
 
 export function CellEditor({ m, s, initial }: { m: StageModel; s: number; initial?: string }) {
-  const ref = useRef<HTMLInputElement>(null), sel = get().selection.sel, it = activeItem(), c = ctx();
+  const ref = useRef<HTMLInputElement>(null), sel = get().selection.sel, it = activeItem(), R0 = curSlide(), c = R0 ? slideCtx(ctx(), R0) : ctx();
   const place = sel ? m.tables.find(t => t.i === sel.t) : null;
   const finish = useFinish((ok, move) => { if (ok) commitText(ref.current!.value, move); });
   useLayoutEffect(() => focusAll(ref.current, initial === undefined), [initial]);

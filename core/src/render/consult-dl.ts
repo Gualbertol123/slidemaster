@@ -102,9 +102,14 @@ export function exhibitToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics,
     if (c.kind === "label") { show(r.label, clipTo(T(txt(r.label), c.x, cy, total && !navy ? EXT.totalRed : EXT.text, true, P.ink), c.x, cy - g.pitch / 2, c.w - 6, g.pitch)); return; }
     if (c.kind === "latest") {
       const x = last === null ? null : r.cells.get(last);
-      if (navy) { show(x, T(txt(x), c.x + c.w, cy, EXT.text, total, x && x.v !== null ? P.ink : P.muted, "end")); return; }
+      if (navy) {
+        // the latest bar (B29 "band"): light, from the column's left, under the number
+        const m1 = g.max.get(last!) || 0, w1 = g.look.band === "on" && !total && r.kind !== "sub" && x && x.v !== null && m1 ? Math.min(1, Math.abs(x.v) / m1) * (c.w - 4) : 0;
+        if (w1) nodes.push(rect(c.x, cy - 8, w1, 16, P.bar));
+        show(x, T(txt(x), c.x + c.w, cy, EXT.text, total, x && x.v !== null ? P.ink : P.muted, "end")); return;
+      }
       if (total) { show(x, T(txt(x), c.x, cy, EXT.totalRed, true, P.ink)); return; }
-      const m0 = g.max.get(last!) || 0, w = x && x.v !== null && m0 && r.kind !== "sub" ? Math.min(1, Math.abs(x.v) / m0) * EXG.bain.bar : 0;
+      const m0 = g.max.get(last!) || 0, w = g.look.band === "on" && x && x.v !== null && m0 && r.kind !== "sub" ? Math.min(1, Math.abs(x.v) / m0) * EXG.bain.bar : 0;
       if (w) nodes.push(rect(c.x, cy - EXG.bain.barH / 2, w, EXG.bain.barH, P.bar));
       show(x, T(txt(x), c.x + w + 6, cy, EXT.value, false, P.ink)); return;
     }
@@ -170,7 +175,7 @@ function fullNumbers(ctx: RenderCtx, m: Metrics, g: ExLayout, family: string, op
       if (c.kind === "num") {
         const x = r.cells.get(c.col!), v = x && x.v !== null ? x.v : null, s = x && x.text.trim() ? x.text.trim() : "–";
         // Red: the latest period's value as a light band under its number, from the lane's left, ∝ value
-        if (!navy && c.role === "latest" && !total && r.kind !== "sub" && v !== null) { const m0 = g.max.get(c.col!) || 0, w = m0 ? Math.min(1, Math.abs(v) / m0) * (c.w - 4) : 0; if (w) nodes.push(rect(c.x, cy - 8, w, 16, P.bar)); }
+        if (g.look.band === "on" && c.role === "latest" && !total && r.kind !== "sub" && v !== null) { const m0 = g.max.get(c.col!) || 0, w = m0 ? Math.min(1, Math.abs(v) / m0) * (c.w - 4) : 0; if (w) nodes.push(rect(c.x, cy - 8, w, 16, P.bar)); }
         hit(x);
         if (opts.noText) continue;
         const color = s === "–" ? P.muted : v !== null && v < 0 ? P.neg : c.role === "pct" ? P.pct : P.ink;
