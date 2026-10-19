@@ -3,6 +3,27 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.5.0 - unreleased (docs/next/07 §4, PLAN M11; B21; ADR-016 amended 2026-10-19)
+
+What users notice
+* **PowerPoint export** (B21): *Export ▾ › PowerPoint · all slides / current slide* writes a `.pptx` beside where the
+  PDF goes, named as the PDF with `.pptx` ("<workbook> - slides.pptx"); *PDF + PowerPoint* makes both at once; the
+  *Versions* items make PDFs, PowerPoint files or both (a switch above them), named "<workbook> - <version> -
+  <design>.pptx"; *Run for each value…* has *Files: PDF · PowerPoint* (one file of each kind per value, design and
+  version, "Saved N files"). Opened from disk, they are downloads.
+* What is in the file: text you can edit (titles, subtitles, footers and page numbers are the layout's placeholders),
+  every table a real PowerPoint table (its cells' fills, borders and texts), pie and donut charts as PowerPoint charts
+  with their data (*Edit Data* works), callouts as PowerPoint shapes holding their text, the workbook's pictures and
+  the logo as pictures; everything else – Liquid Glass's frosted cards, capsules, shadows, the consulting designs' bars
+  and rules – as editable shapes. Each file has a slide master and one layout per kind of slide (cover, contents,
+  content), made from the deck: the background and the decoration every slide shares are on the layout once, the
+  theme has the design's colours and fonts. No connector shapes, no links outside the file.
+* In two sentences, the fidelity: positions and sizes are the slide's, so a PowerPoint file looks like the PDF; where
+  it cannot be exact, PowerPoint draws it its own way – a chart's labels and pie size, its blur for shadows and
+  gradient sheens, a line that wraps one word earlier when a font is substituted. Fonts are named, not embedded: the
+  Windows fonts the designs use are on every PC, and a font of the deck's library is named in the toast (PowerPoint
+  substitutes it where it is not installed).
+
 ## 4.4.0 - unreleased (docs/next/07 §5, docs/next/08 §2.8, PLAN M10, M7c; B18, B20, B28, B29; ADR-017)
 
 What users notice
