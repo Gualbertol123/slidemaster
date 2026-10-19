@@ -3976,5 +3976,753 @@
       "applied": 2,
       "skipped": []
     }
+  },
+  {
+    "name": "slide.patch free on for one design writes its entry; another design's entry is kept",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "free": {
+              "excel": {
+                "on": false,
+                "items": {
+                  "t:a": {
+                    "x": 10,
+                    "y": 20,
+                    "w": 500,
+                    "h": 250,
+                    "scale": 1
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "glass": {
+              "on": true,
+              "items": {
+                "t:a": {
+                  "x": 50,
+                  "y": 120,
+                  "w": 600,
+                  "h": 300,
+                  "scale": 1.25
+                },
+                "n:a:right": {
+                  "x": 670,
+                  "y": 120,
+                  "w": 240,
+                  "h": 300
+                },
+                "i:c1": {
+                  "x": 930,
+                  "y": 120,
+                  "w": 300,
+                  "h": 220
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "free": {
+              "excel": {
+                "on": false,
+                "items": {
+                  "t:a": {
+                    "x": 10,
+                    "y": 20,
+                    "w": 500,
+                    "h": 250,
+                    "scale": 1
+                  }
+                }
+              },
+              "glass": {
+                "on": true,
+                "items": {
+                  "t:a": {
+                    "x": 50,
+                    "y": 120,
+                    "w": 600,
+                    "h": 300,
+                    "scale": 1.25
+                  },
+                  "n:a:right": {
+                    "x": 670,
+                    "y": 120,
+                    "w": 240,
+                    "h": 300
+                  },
+                  "i:c1": {
+                    "x": 930,
+                    "y": 120,
+                    "w": 300,
+                    "h": 220
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.patch free replaces the design's entry whole (a free move is one op carrying every box of that design)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {
+                  "t:a": {
+                    "x": 50,
+                    "y": 120,
+                    "w": 600,
+                    "h": 300,
+                    "scale": 1.25
+                  },
+                  "n:a:right": {
+                    "x": 670,
+                    "y": 120,
+                    "w": 240,
+                    "h": 300
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "glass": {
+              "on": true,
+              "items": {
+                "t:a": {
+                  "x": 80,
+                  "y": 120,
+                  "w": 600,
+                  "h": 300,
+                  "scale": 1.25
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {
+                  "t:a": {
+                    "x": 80,
+                    "y": 120,
+                    "w": 600,
+                    "h": 300,
+                    "scale": 1.25
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.patch free off keeps the boxes (on: false with the same items)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {
+                  "t:a": {
+                    "x": 50,
+                    "y": 120,
+                    "w": 600,
+                    "h": 300,
+                    "scale": 1.25
+                  },
+                  "i:c1": {
+                    "x": 930,
+                    "y": 120,
+                    "w": 300,
+                    "h": 220
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "glass": {
+              "on": false,
+              "items": {
+                "t:a": {
+                  "x": 50,
+                  "y": 120,
+                  "w": 600,
+                  "h": 300,
+                  "scale": 1.25
+                },
+                "i:c1": {
+                  "x": 930,
+                  "y": 120,
+                  "w": 300,
+                  "h": 220
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "free": {
+              "glass": {
+                "on": false,
+                "items": {
+                  "t:a": {
+                    "x": 50,
+                    "y": 120,
+                    "w": 600,
+                    "h": 300,
+                    "scale": 1.25
+                  },
+                  "i:c1": {
+                    "x": 930,
+                    "y": 120,
+                    "w": 300,
+                    "h": 220
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.patch free null for a design removes its entry; removing the last one removes the map",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "title": "T",
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {
+                  "t:a": {
+                    "x": 50,
+                    "y": 120,
+                    "w": 600,
+                    "h": 300,
+                    "scale": 1.25
+                  }
+                }
+              },
+              "excel": {
+                "on": false,
+                "items": {
+                  "t:a": {
+                    "x": 10,
+                    "y": 20,
+                    "w": 500,
+                    "h": 250,
+                    "scale": 1
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "glass": null
+          }
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "excel": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "title": "T"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.patch free: null deletes every design's free layout",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {
+                  "t:a": {
+                    "x": 50,
+                    "y": 120,
+                    "w": 600,
+                    "h": 300,
+                    "scale": 1.25
+                  }
+                }
+              },
+              "excel": {
+                "on": false,
+                "items": {
+                  "t:a": {
+                    "x": 10,
+                    "y": 20,
+                    "w": 500,
+                    "h": 250,
+                    "scale": 1
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ]
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.patch free from two writers: different designs both win; the same design – the later op's whole entry wins",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ]
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "glass": {
+              "on": true,
+              "items": {
+                "t:a": {
+                  "x": 50,
+                  "y": 120,
+                  "w": 600,
+                  "h": 300,
+                  "scale": 1.25
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "clean": {
+              "on": true,
+              "items": {
+                "t:a": {
+                  "x": 50,
+                  "y": 300,
+                  "w": 600,
+                  "h": 300,
+                  "scale": 1.25
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "glass": {
+              "on": true,
+              "items": {
+                "i:c1": {
+                  "x": 930,
+                  "y": 120,
+                  "w": 300,
+                  "h": 220
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {
+                  "i:c1": {
+                    "x": 930,
+                    "y": 120,
+                    "w": 300,
+                    "h": 220
+                  }
+                }
+              },
+              "clean": {
+                "on": true,
+                "items": {
+                  "t:a": {
+                    "x": 50,
+                    "y": 300,
+                    "w": 600,
+                    "h": 300,
+                    "scale": 1.25
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 3,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.patch free with the slide's other keys: notes and sizing are not touched (free mode never changes them)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "notes": {
+              "a:right": {
+                "text": "R"
+              }
+            },
+            "sizes": {
+              "glass": {
+                "scale": 0.8
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "glass": {
+              "on": true,
+              "items": {
+                "t:a": {
+                  "x": 50,
+                  "y": 120,
+                  "w": 600,
+                  "h": 300,
+                  "scale": 1.25
+                },
+                "n:a:right": {
+                  "x": 670,
+                  "y": 120,
+                  "w": 240,
+                  "h": 300
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "a"
+            ],
+            "notes": {
+              "a:right": {
+                "text": "R"
+              }
+            },
+            "sizes": {
+              "glass": {
+                "scale": 0.8
+              }
+            },
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {
+                  "t:a": {
+                    "x": 50,
+                    "y": 120,
+                    "w": 600,
+                    "h": 300,
+                    "scale": 1.25
+                  },
+                  "n:a:right": {
+                    "x": 670,
+                    "y": 120,
+                    "w": 240,
+                    "h": 300
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
   }
 ]

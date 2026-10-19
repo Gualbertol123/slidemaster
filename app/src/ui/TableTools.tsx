@@ -6,7 +6,7 @@ import { change } from "../state/app";
 import { applySel, selItems, selTable } from "../editor/edit";
 import { effFmt } from "@slide-builder/core/render/edits";
 import { slideHasLogo } from "@slide-builder/core/render/slide";
-import { sizingOf, sizingPatch } from "@slide-builder/core/render/layout";
+import { freeOf, sizingOf, sizingPatch } from "@slide-builder/core/render/layout";
 import { alignTables, canMerge, mergeSel, mergedInSel, unmergeSel, valignTables, currentTableRefs, makeSameSize, selCols, selRows, resetCellSizes, setColWidth, setRowHeight, shownColW, shownRowH } from "../editor/tables";
 import { addNote as addTextBox, addSlideNotes, attachNote, noteOf, patchNote } from "../stage/actions";
 import { scaleColors } from "@slide-builder/core/render/scales";
@@ -14,6 +14,7 @@ import { A1, uid, esc } from "@slide-builder/core/xlsx/util";
 import type { Op, ScaleRule, Side } from "@slide-builder/core/model/types";
 import { Dropdown } from "./Dropdown";
 import { insertChartFromSelection } from "../editor/charts";
+import { askAutomatic, freeLayoutOff, freeLayoutOn } from "../editor/free";
 import { ShapeMenu, ShapeTools } from "./ShapeTools";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
 
@@ -94,7 +95,7 @@ export function TableRibbon() {
     if ((R.cfg.notes || {})[key]) { toast("This table already has a text box there – double-click it to edit."); return; }
     addTextBox(tIdx, side);                      // opens for typing as soon as the slide shows it
   };
-  const sz = R ? sizingOf(R, c) : null, align = sz?.align || "center";
+  const sz = R ? sizingOf(R, c) : null, align = sz?.align || "center", free = !!R && !!freeOf(R, c);
   // (since 4.3 raw Excel draws the user's text boxes, comments and notes too: B19)
   return (
     <nav className="ribbon ribbon2">
@@ -130,7 +131,9 @@ export function TableRibbon() {
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="1.5" y="2.5" width="13" height="11" /><path d="M1.5 6.2h13M1.5 9.8h13M5.8 2.5v11M10.2 2.5v11" /></svg>Gridlines</button>}>
           {close => R && tIdx >= 0 ? <GridMenu close={close} T={R.tables[tIdx]} /> : null}</Dropdown>
         <button className="tb" id="tablesDlg" disabled={!anyTables} title="Match sizes of tables on several slides, copy column widths between tables" onClick={() => setDialogs({ tables: true })}>Sizes…</button>
-        <button className="tb" id="resetLayout" title="Automatic table positions for this slide (in this design)" disabled={!(R && sizingOf(R, c).layout)} onClick={() => R && slidePatch("Reset layout", sizingPatch(R, c, { scale: sizingOf(R, c).scale }))}>Reset layout</button>
+        <button className={"tb" + (free ? " on" : "")} id="freeLayout" disabled={!R || R.type !== "content"} title={free ? "Back to the automatic layout of this slide (the free places are kept)" : "Free layout: move and resize the tables, text boxes, charts and shapes of this slide one by one (in this design; Alt while dragging: no snapping)"}
+          onClick={() => R && (free ? freeLayoutOff(R) : freeLayoutOn(R))}>Free layout</button>
+        <button className="tb" id="resetLayout" title={free ? "Back to the automatic layout of this slide" : "Automatic table positions for this slide (in this design)"} disabled={!(R && (free || sizingOf(R, c).layout))} onClick={() => R && (free ? void askAutomatic(R) : slidePatch("Reset layout", sizingPatch(R, c, { scale: sizingOf(R, c).scale })))}>Reset layout</button>
       </div>
       <div className="grp">
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="chartBtn" disabled={!R} title="A pie or donut chart of cells of the workbook: it follows the workbook when it changes" onClick={t}>

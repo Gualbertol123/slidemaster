@@ -71,6 +71,22 @@ describe("inverse of map merges", () => {
   });
 });
 
+describe("inverse of a free layout switch (07 §5.1, B18: one undo step each way)", () => {
+  const boxes = { "t:t": { x: 50, y: 120, w: 600, h: 300, scale: 1.25 }, "n:t:top": { x: 50, y: 60, w: 600, h: 44 } };
+  const base = (free?: object) => ({ preset: { sheets: [], tables: [], slides: [{ id: "s", type: "content" as const, tables: ["t"], ...(free ? { free } : {}) }] }, style: {}, edits: {} });
+  const cases: [string, object | undefined, Op][] = [
+    ["on (no free layout before)", undefined, { op: "slide.patch", id: "s", patch: { free: { glass: { on: true, items: boxes } } } } as Op],
+    ["off (the boxes kept)", { glass: { on: true, items: boxes } }, { op: "slide.patch", id: "s", patch: { free: { glass: { on: false, items: boxes } } } } as Op],
+    ["on again, beside another design's", { glass: { on: false, items: boxes }, excel: { on: true, items: {} } }, { op: "slide.patch", id: "s", patch: { free: { glass: { on: true, items: boxes } } } } as Op],
+    ["a move (the design's whole entry)", { glass: { on: true, items: boxes } }, { op: "slide.patch", id: "s", patch: { free: { glass: { on: true, items: { ...boxes, "t:t": { ...boxes["t:t"], x: 90 } } } } } } as Op],
+  ];
+  for (const [name, free, op] of cases) it(name + " round-trips", () => {
+    const d: any = base(free); const inv = inverseOf(d, op)!;
+    expect(applyOp(d, op)).toBe(true); expect(applyOp(d, inv)).toBe(true);
+    expect(d).toEqual(base(free));
+  });
+});
+
 describe("inverse of item.patch (07 §2.2: undo of a chart or callout change)", () => {
   const pie = { kind: "chart", type: "pie", values: { sheet: "S", range: "C5:C9" }, box: { x: 1, y: 2, w: 300, h: 200 }, colors: { 0: "#111111" }, fmt: { size: 14 } };
   const base = () => ({ preset: { sheets: [], tables: [], slides: [{ id: "s", type: "content" as const, tables: [], items: { c1: pie } as any }] }, style: {}, edits: {} });

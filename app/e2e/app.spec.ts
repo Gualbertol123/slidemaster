@@ -1426,6 +1426,50 @@ test.describe.serial("two people, one shared folder", () => {
     await lastFileSaved("anna", "report.xlsx");
   });
 
+  test("free layout (S10.1, FL-01, B18): switched on nothing moves; Reset layout asks and switches back; one undo step each way", async ({ page }) => {
+    await openApp(page, ANNA);
+    await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
+    const si = doc().preset.slides.findIndex((s: any) => s.type === "content" && s.tables.length === 2);
+    expect(si).toBeGreaterThanOrEqual(0);
+    await page.locator(`.thumb[data-i="${si}"]`).click(); await page.locator(`.thumb.on[data-i="${si}"]`).waitFor();
+    const design = () => doc().style.design || "glass", free = () => doc().preset.slides[si].free?.[design()];
+    const places = async () => { const out: number[][] = []; for (const i of [0, 1]) { const b = await boxOf(page.locator(`#stage .slide > .tw[data-i="${i}"]`)); out.push([b.x, b.y, b.width, b.height].map(v => Math.round(v * 2) / 2)); } return out; };
+    const undoSteps = () => page.evaluate(() => (window as any).__sbTest.history().undo as number);
+    await page.waitForFunction(() => (window as any).__sbTest.stageIdle());
+    const before = await places(), u0 = await undoSteps();
+    // on: every box saved as drawn – nothing moves
+    await page.click("#freeLayout");
+    await pollFile(() => free()?.on, { timeout: 10_000 }).toBe(true);
+    await expect(page.locator("#freeLayout")).toHaveClass(/\bon\b/);
+    expect(Object.keys(free().items).filter(k => k.startsWith("t:")).length).toBe(2);
+    await expect.poll(() => undoSteps()).toBe(u0 + 1);
+    await page.waitForFunction(() => (window as any).__sbTest.stageIdle());
+    expect(await places()).toEqual(before);
+    // Reset layout asks first; Cancel changes nothing
+    await page.click("#resetLayout");
+    await expect(page.locator(".dlg")).toContainText("Back to automatic layout?");
+    await page.click('.dlg button:has-text("Cancel")');
+    await expect(page.locator(".dlg")).toHaveCount(0);
+    expect(await undoSteps()).toBe(u0 + 1);
+    // …and switches back: the automatic layout, the boxes kept
+    const saved = JSON.stringify(free().items);
+    await page.click("#resetLayout"); await page.click('.dlg button:has-text("Automatic layout")');
+    await pollFile(() => free()?.on, { timeout: 10_000 }).toBe(false);
+    expect(JSON.stringify(free().items)).toBe(saved);
+    await expect(page.locator("#freeLayout")).not.toHaveClass(/\bon\b/);
+    await expect.poll(() => undoSteps()).toBe(u0 + 2);
+    await page.waitForFunction(() => (window as any).__sbTest.stageIdle());
+    expect(await places()).toEqual(before);
+    // one undo step: free again; another: as before the switch
+    await page.click("#undoBtn");
+    await pollFile(() => free()?.on, { timeout: 10_000 }).toBe(true);
+    await page.click("#undoBtn");
+    await pollFile(() => free() ?? "none", { timeout: 10_000 }).toBe("none");
+    await expect.poll(() => undoSteps()).toBe(u0);
+    await page.waitForFunction(() => (window as any).__sbTest.stageIdle());
+    expect(await places()).toEqual(before);
+  });
+
   test("no page errors, console errors or warnings", async () => { expect(unexpected(errors)).toEqual([]); });
 });
 

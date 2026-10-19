@@ -3,7 +3,7 @@
    sizingPatch / sizingChange). Pure: the core worker draws with it, the page computes drag previews with the same
    functions (stage/drags.ts), so a preview lands where the drawn slide will. */
 import type { TableLayout } from "../xlsx/types";
-import type { Item, Layout, Note, RuntimeSlide, Side, SlideSizing } from "../model/types";
+import type { FreeLayout, Item, Layout, Note, RuntimeSlide, Side, SlideSizing } from "../model/types";
 import type { RenderCtx } from "./context";
 import { glassGeom } from "./glass";
 import { effNote, titleGeom } from "./text";
@@ -147,10 +147,12 @@ export function attachedOf(R: RuntimeSlide, i: number): Partial<Record<Side, { i
   }
   return out;
 }
-/** where item `id` of the slide is drawn: beside its table (computeLayout's box), else at its own box; null for an item
-    without a valid box */
-export function itemBoxOf(R: RuntimeSlide, id: string, boxes: TBox[]): { x: number; y: number; w: number; h: number } | null {
+/** where item `id` of the slide is drawn: beside its table (computeLayout's box), else – in a free layout (`ctx`) – at its
+    saved box, else at its own box; null for an item without a valid box */
+export function itemBoxOf(R: RuntimeSlide, id: string, boxes: TBox[], ctx?: RenderCtx): { x: number; y: number; w: number; h: number } | null {
   for (const b of boxes) { const n = b?.items?.[id]; if (n) return { x: n.x, y: n.y, w: n.w, h: n.h }; }
+  const f = ctx ? freeOf(R, ctx) : null, e = f ? freeEntry(f.items["i:" + id]) : null;
+  if (e && R.cfg.items?.[id]) return e;
   const b = R.cfg.items?.[id]?.box;
   return b && [b.x, b.y, b.w, b.h].every(v => typeof v === "number" && Number.isFinite(v)) && b.w > 0 && b.h > 0 ? { x: b.x, y: b.y, w: Math.min(SLIDE_W, b.w), h: Math.min(SLIDE_H, b.h) } : null;
 }
@@ -158,10 +160,83 @@ export function itemBoxOf(R: RuntimeSlide, id: string, boxes: TBox[]): { x: numb
 const noteH = (n: Note) => n.h || Math.max(30, Math.max(1, String(n.text || "").split("\n").length) * (n.size || 18) * (n.lh || 1.28) + 12) + (n.bubble ? 20 : 0);
 const noteW = (n: Note) => n.w || NOTE_W;
 
+/* ---- free layout (4.4, B18; 07 §5.1, ADR-017): per slide and design, the saved boxes instead of the bands */
+/** the design's free layout when it is on, else null */
+export function freeOf(R: RuntimeSlide, ctx: RenderCtx): FreeLayout | null {
+  const f = R.cfg?.free?.[ctx.style.design];
+  return f && f.on === true && f.items && typeof f.items === "object" && !Array.isArray(f.items) ? f : null;
+}
+/** the keys of a free layout's boxes: a table, a text box (its key in SlideDef.notes), a slide item */
+export const freeKey = { table: (R: RuntimeSlide, i: number) => "t:" + (R.tables[i].id || String(i)), note: (key: string) => "n:" + key, item: (id: string) => "i:" + id };
+/** a saved box (from a shared document: finite numbers, a positive size), kept on the slide (at most its size, inside it) */
+function freeEntry(e: unknown): (NoteBox & { scale?: number }) | null {
+  const b = e as Record<string, unknown> | null;
+  if (!b || typeof b !== "object" || ![b.x, b.y, b.w, b.h].every(v => typeof v === "number" && Number.isFinite(v)) || (b.w as number) <= 0 || (b.h as number) <= 0) return null;
+  const w = Math.min(SLIDE_W, b.w as number), h = Math.min(SLIDE_H, b.h as number);
+  const sc = typeof b.scale === "number" && Number.isFinite(b.scale) && b.scale > 0 ? { scale: b.scale } : {};
+  return { x: clampTo(b.x as number, SLIDE_W - w), y: clampTo(b.y as number, SLIDE_H - h), w, h, ...sc };
+}
+const clampTo = (v: number, max: number) => Math.max(0, Math.min(max, v));
+/** a box that has no saved place (added after the switch-on): where the automatic layout puts it beside its table, moved
+    with the table (`a` the table's automatic box, `t` its free one) */
+function besideFree(n: NoteBox, side: Side, a: TBox, t: TBox): NoteBox {
+  const dx = side === "right" ? t.x + t.w - (a.x + a.w) : t.x - a.x, dy = side === "bottom" ? t.y + t.h - (a.y + a.h) : t.y - a.y;
+  return { x: n.x + dx, y: n.y + dy, w: n.w, h: n.h, free: true };
+}
+function freeLayout(R: RuntimeSlide, ctx: RenderCtx, f: FreeLayout): { boxes: TBox[]; k: number; fit: number; reduced: boolean } {
+  // the automatic layout only for what has no saved box (no bisection otherwise)
+  let auto: TBox[] | null = null;
+  const autoOf = (i: number) => (auto ??= autoLayout(R, ctx).boxes)[i];
+  const boxes: TBox[] = [];
+  R.tables.forEach((L, i) => {
+    const e = freeEntry(f.items[freeKey.table(R, i)]), W = tableW(L, ctx), H = tableH(L, ctx);
+    let t: TBox;
+    if (e && W > 0 && H > 0) {
+      // the drawn scale (its box follows from it, so a table that grows keeps its scale); at most the slide's size
+      const sc = Math.min(e.scale ?? e.w / W, SLIDE_W / W, SLIDE_H / H), w = W * sc, h = H * sc;
+      t = { i, band: i, x: clampTo(e.x, SLIDE_W - w), y: clampTo(e.y, SLIDE_H - h), w, h, scale: sc, notes: {} };
+    } else { const a = autoOf(i); t = { i, band: i, x: a.x, y: a.y, w: a.w, h: a.h, scale: a.scale, notes: {} }; }
+    const N = notesOf(R, i, ctx);
+    for (const side of SIDES) {
+      const n = N[side]; if (!n) continue;
+      const s = freeEntry(f.items[freeKey.note(noteKey(R, i, side))]);
+      if (s) t.notes[side] = { x: s.x, y: s.y, w: s.w, h: s.h, free: true };
+      else if (n.x != null && n.y != null) t.notes[side] = { x: n.x, y: n.y, w: n.w || NOTE_W, h: n.h || noteH(n), free: true };
+      else { const a = autoOf(i), nb = a.notes[side]; if (nb) t.notes[side] = besideFree(nb, side, a, t); }
+    }
+    const items: Record<string, NoteBox> = {};
+    for (const [side, list] of Object.entries(attachedOf(R, i)) as [Side, { id: string }[]][]) for (const { id } of list) {
+      const s = freeEntry(f.items[freeKey.item(id)]);
+      if (s) items[id] = { x: s.x, y: s.y, w: s.w, h: s.h };
+      else { const a = autoOf(i), nb = a.items?.[id]; if (nb) { const { free: _f, ...b } = besideFree(nb, side, a, t); items[id] = b; } }
+    }
+    if (Object.keys(items).length) t.items = items;
+    boxes[i] = t;
+  });
+  return { boxes, k: 1, fit: 1, reduced: false };
+}
+/** every box of the slide as it is drawn now in this design: what switching the free layout on saves (nothing moves) */
+export function freeBoxes(R: RuntimeSlide, ctx: RenderCtx): FreeLayout["items"] {
+  const out: FreeLayout["items"] = {}, { boxes } = computeLayout(R, ctx), box = (b: NoteBox) => ({ x: b.x, y: b.y, w: b.w, h: b.h });
+  boxes.forEach((b, i) => {
+    if (!b) return;
+    out[freeKey.table(R, i)] = { ...box(b), scale: b.scale };
+    for (const side of SIDES) { const n = b.notes[side]; if (n) out[freeKey.note(noteKey(R, i, side))] = box(n); }
+    for (const [id, n] of Object.entries(b.items || {})) out[freeKey.item(id)] = box(n);
+  });
+  for (const id of Object.keys(R.cfg.items || {})) if (!out[freeKey.item(id)]) { const b = itemBoxOf(R, id, boxes, ctx); if (b) out[freeKey.item(id)] = box(b); }
+  return out;
+}
+
 /** Tables (plus their text boxes) in bands. k = largest scale ≤ MAXK that fits the content area – or the
-    slide's fixed scale (set by "Make same size"), reduced only if it would not fit. */
+    slide's fixed scale (set by "Make same size"), reduced only if it would not fit. In a free layout (B18) the saved
+    boxes instead (`w` / `lay`, a drag's trial weights, lay out the bands: the automatic layout). */
 export function computeLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay?: Layout): { boxes: TBox[]; k: number; fit: number; reduced: boolean } {
   if (!R.tables.length) return { boxes: [], k: 1, fit: 1, reduced: false };
+  const f = !w && !lay ? freeOf(R, ctx) : null;
+  return f ? freeLayout(R, ctx, f) : autoLayout(R, ctx, w, lay);
+}
+function autoLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay?: Layout): { boxes: TBox[]; k: number; fit: number; reduced: boolean } {
   lay = lay || layoutOf(R, ctx); const ww = w || lay.w; const T = R.tables, A0 = areaFor(R, ctx);
   const bands = lay.bands.filter(b => b.length);
   const N = T.map((_, i) => notesOf(R, i, ctx));
