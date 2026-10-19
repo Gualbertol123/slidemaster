@@ -3,19 +3,20 @@
    the target. Double-click the button to keep painting; Esc stops. Only formatting is copied, never
    text. Values equal to the target's own Excel formatting are not stored (edits stay minimal).
    Copied: size, bold, italic, text colour, cell colour, highlight, alignment, role – and, like Excel, the
-   conditional formatting (the source's rules, applied to the target's values: cell.cf) and colour scales
-   (a scale rule over the painted range). */
+   conditional formatting (the source's rules, applied to the target's values: cell.cf), colour scales
+   (a scale rule over the painted range) and the cells' own gridlines (4.4, B20: TableDef.cellGrid entries). */
 import { get, patch, toast } from "../state/store";
 import { ctx } from "../state/app";
 import type { Item, Sheet, TableLayout } from "@slide-builder/core/xlsx/types";
-import type { Op, ScaleRule } from "@slide-builder/core/model/types";
+import type { CellGrid, Op, ScaleRule } from "@slide-builder/core/model/types";
 import { cellEditOf, effItems } from "@slide-builder/core/render/edits";
 import { applySel, itemAt, selItems, selTable } from "./edit";
 import { A1, inRange, parseRange, uid } from "@slide-builder/core/xlsx/util";
 
 type ScaleLook = Omit<ScaleRule, "range">;
 export interface Fmt { sz: number; b: boolean; i: boolean; color: string; fill: string | null; bg: string; align: string; role: string | null;
-  /** conditional formatting: "Sheet!A1" whose rules apply, null = none */ cf: string | null; scale: ScaleLook | null }
+  /** conditional formatting: "Sheet!A1" whose rules apply, null = none */ cf: string | null; scale: ScaleLook | null;
+  /** the cell's own gridlines (TableDef.cellGrid), null = none */ grid: CellGrid | null }
 
 const rulesAt = (sh: Sheet, r: number, c: number) => sh.cfRules.filter(rule => rule.ranges.some(g => inRange(g, r, c)));
 /** the conditional formatting a cell has now: painted (cell.cf) or its own rules */
@@ -36,7 +37,8 @@ function effOf(T: TableLayout, raw: Item): Item {
 function fmtOf(T: TableLayout, raw: Item, e: Item): Fmt {
   // the text colour without the conditional format (that one travels with the rules)
   return { sz: e.font.sz || 11, b: !!e.font.b, i: !!e.font.i, color: e.userColor || raw.baseColor || raw.font.color || "#000000",
-    fill: e.userFill || null, bg: e.noFill ? "none" : (e.baseFill || "none"), align: e.align, role: e.role || null, cf: cfRef(T, raw), scale: scaleAt(T, raw) };
+    fill: e.userFill || null, bg: e.noFill ? "none" : (e.baseFill || "none"), align: e.align, role: e.role || null, cf: cfRef(T, raw), scale: scaleAt(T, raw),
+    grid: T.def?.cellGrid?.[A1(raw.b.src.r, raw.b.src.c)] ?? null };
 }
 
 export function startPainter(sticky = false) {
@@ -54,6 +56,16 @@ function scaleOps(T: TableLayout, pattern: (Fmt | null)[]): Op[] {
   const sig = (r: ScaleLook) => [r.dir, r.mode, !!r.fill, !!r.ink, !!r.invert].join();
   if (Object.values(T.def.scales || {}).some(r => r.range === range && sig(r) === sig(look))) return [];
   return [{ op: "table.patch", id: T.def.id, patch: { scales: { [uid()]: { range, ...look } } } } as Op];
+}
+/** the cells' own gridlines travel as cellGrid entries of the target table (a cell without any: its entry removed) */
+function gridOps(T: TableLayout, fmtFor: Map<Item, Fmt>): Op[] {
+  if (!T.def) return [];
+  const cur = T.def.cellGrid || {}, m: Record<string, CellGrid | null> = {};
+  for (const [it, f] of fmtFor) {
+    const k = A1(it.b.src.r, it.b.src.c), now = cur[k] ?? null;
+    if (JSON.stringify(now) !== JSON.stringify(f.grid)) m[k] = f.grid ? { ...f.grid } : null;
+  }
+  return Object.keys(m).length ? [{ op: "table.patch", id: T.def.id, patch: { cellGrid: m } } as Op] : [];
 }
 export function stopPainter() { if (get().selection.painter) patch("selection", { painter: null }); }
 
@@ -82,6 +94,6 @@ export function applyPainter() {
     const k = f.cf ? f.cf.lastIndexOf("!") : -1, srcSheet = f.cf ? f.cf.slice(0, k) : "";
     const same = f.cf ? srcSheet === T.sheet.name && (() => { const at = f.cf!.slice(k + 1).match(/^([A-Z]+)(\d+)$/); if (!at) return false; const g = parseRange(at[0] + ":" + at[0]); const theirs = rulesAt(T.sheet, g.r1, g.c1); return theirs.length === mine.length && theirs.every((x, n) => x === mine[n]); })() : !ownRef;
     if (same) delete e.cf; else e.cf = f.cf || "none";
-  }, [...fmtFor.keys()].length ? [...fmtFor.keys()] : selItems(), scaleOps(T, p.pattern.flat()));
+  }, [...fmtFor.keys()].length ? [...fmtFor.keys()] : selItems(), [...scaleOps(T, p.pattern.flat()), ...gridOps(T, fmtFor)]);
   if (!p.sticky) stopPainter();
 }

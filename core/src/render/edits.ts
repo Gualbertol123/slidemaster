@@ -25,12 +25,49 @@ function withGrid(L: TableLayout, it: Item): Item {
   if (gv === "off") { o.left = null; o.right = null; } else if (gv === "on") { o.left = GRIDLINE; o.right = it.b.c2 >= lastC ? GRIDLINE : null; }
   return o;
 }
+/* gridlines on selected cells (4.4, B20, 07 §5.2; product owner 2026-10-19: a layer of their own, not the cell borders): a
+   cell's h / v draw on its own edges, o on the edges where the next cell is not outlined (the outline of a rectangle);
+   an edge where the cell, or the cell across it, has a border shows the border, not the gridline */
+export const CELL_LINE = { grid: "#BFBFBF", outline: "#404040" };
+type Edge = "top" | "left" | "right" | "bottom";
+const ACROSS: Record<Edge, Edge> = { top: "bottom", bottom: "top", left: "right", right: "left" };
+const EDGES: Edge[] = ["top", "left", "right", "bottom"];
+const isHex = (c: unknown): c is string => typeof c === "string" && /^#[0-9A-Fa-f]{6}$/.test(c);
+export function withCellGrid(L: TableLayout, items: Item[]): Item[] {
+  const g = L.def?.cellGrid; if (!g || typeof g !== "object" || !Object.keys(g).length) return items;
+  const ri = new Map(L.rows.map((r, k) => [r, k])), ci = new Map(L.cols.map((c, k) => [c, k])), at = new Map<string, Item>();
+  for (const it of items) for (let r = ri.get(it.b.r) ?? -1, r2 = ri.get(it.b.r2) ?? -1; r >= 0 && r <= r2; r++) for (let c = ci.get(it.b.c) ?? -1, c2 = ci.get(it.b.c2) ?? -1; c >= 0 && c <= c2; c++) at.set(r + "," + c, it);
+  const entry = (it: Item) => { const k = keyOf(it), e = Object.prototype.hasOwnProperty.call(g, k) ? g[k] : null; return e && typeof e === "object" ? e : null; };
+  // the cells across one side of a cell (a merged cell: every cell along that side)
+  const across = (it: Item, side: Edge): Item[] => {
+    const r0 = ri.get(it.b.r), r1 = ri.get(it.b.r2), c0 = ci.get(it.b.c), c1 = ci.get(it.b.c2), out = new Set<Item>();
+    if (r0 === undefined || r1 === undefined || c0 === undefined || c1 === undefined) return [];
+    if (side === "top" || side === "bottom") { const r = side === "top" ? r0 - 1 : r1 + 1; for (let c = c0; c <= c1; c++) { const o = at.get(r + "," + c); if (o) out.add(o); } }
+    else { const c = side === "left" ? c0 - 1 : c1 + 1; for (let r = r0; r <= r1; r++) { const o = at.get(r + "," + c); if (o) out.add(o); } }
+    return [...out];
+  };
+  return items.map(it => {
+    const e = entry(it); if (!e) return it;
+    const w = typeof e.w === "number" && Number.isFinite(e.w) ? Math.max(.5, Math.min(3, e.w)) : 1;
+    const line = (outline: boolean): BorderSide => ({ style: "thin", color: isHex(e.c) ? e.c : outline ? CELL_LINE.outline : CELL_LINE.grid, w });
+    const cg: NonNullable<Item["cgrid"]> = {};
+    if (e.h === "on") cg.top = cg.bottom = line(false);
+    if (e.v === "on") cg.left = cg.right = line(false);
+    if (e.o === true) for (const side of EDGES) { const n = across(it, side); if (!n.length || n.some(o => entry(o)?.o !== true)) cg[side] = line(true); }
+    // a border on that edge (the cell's own, or the one across it) shows instead
+    for (const side of EDGES) if (cg[side] && (it[side] || across(it, side).some(o => o[ACROSS[side]]))) delete cg[side];
+    return Object.keys(cg).length ? Object.assign({}, it, { cgrid: cg }) : it;
+  });
+}
 /** cells removed in a version: drawn completely empty (no value, no colour, no highlight) – borders stay */
 function removedCell(it: Item): Item {
   return { ...it, text: "", fill: null, baseFill: null, cf: null, scaleFill: undefined, scaleInk: undefined, userFill: undefined, userBg: undefined, scripts: undefined, removed: true };
 }
 export function effItems(L: TableLayout, ctx: RenderCtx): Item[] {
-  return cache(L, "eff", tableKey(ctx, L), () => {
+  return cache(L, "eff", tableKey(ctx, L), () => withCellGrid(L, effBase(L, ctx)));
+}
+function effBase(L: TableLayout, ctx: RenderCtx): Item[] {
+  {
     const cells = ctx.edits[L.sheet.name] || {};
     const scaled = applyScales(L, L.def?.scales);
     const cut = (ctx.version?.hide[L.sheet.name] || []).map(parseRange);
@@ -69,7 +106,7 @@ export function effItems(L: TableLayout, ctx: RenderCtx): Item[] {
       if (sc && sc.ink && !e.color) { o.color = sc.ink; o.scaleInk = sc.ink; o.nfColor = null; }
       return o;
     });
-  });
+  }
 }
 /** "Sheet!C6": the conditional-format rules covering that cell, applied to this cell */
 function paintedCF(ctx: RenderCtx, L: TableLayout, it: Item, ref: string): Dxf | null {

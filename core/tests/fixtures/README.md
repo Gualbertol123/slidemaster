@@ -9,5 +9,6 @@
 | `v41/ops.ts`, `v41/style.ts`, `v41/types.ts` | the 4.1 page's operations and style resolution, frozen (main at 4.1, before M7b): what an older page does with a deck in a consulting design (`design-fallback.test.ts`) | this repository |
 | `items-4.3.json` | a deck with charts and callouts (`SlideDef.items`, 4.3) read and edited by the frozen 4.1 operations (`items-fallback.test.ts`) | made by hand for M9 (S9.1) |
 | `free-4.4.json` | a deck with a free layout (`SlideDef.free`, 4.4) read and edited by the frozen 4.1 operations (`free-fallback.test.ts`) | made by hand for M10 (S10.1) |
+| `cellgrid-4.4.json` | a deck with gridlines on selected cells (`TableDef.cellGrid`, 4.4) read and edited by the frozen 4.1 operations (`cellgrid-fallback.test.ts`) | made by hand for M10 (S10.3) |
 | `consult-4.2.json` | a deck saved in Consulting Navy with settings of both consulting designs | made by hand for M7b |
 | `images/wall-blur.jpg` | a small JPEG (800 × 450, the spike's blurred wallpaper) | `spikes/pdfwriter/assets/` |

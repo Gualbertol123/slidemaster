@@ -33,6 +33,6 @@ export function sheetKey(ctx: RenderCtx, S: Sheet): string {
 /** cache key of one table: its sheet's edits + its own sizes/scales + the deck settings that change its drawing */
 export function tableKey(ctx: RenderCtx, L: import("../xlsx/types").TableLayout): string {
   const d = L.def;
-  return ctx.workbook + "|" + (ctx.scenario || "") + "|" + sheetKey(ctx, L.sheet) + "|" + (d ? JSON.stringify([d.cols, d.rows, d.scales, d.merges, d.gridH, d.gridV]) : "") + "|" + ctx.style.radius + "|" + (ctx.style.text?.table?.font || "") + "|" + JSON.stringify(ctx.version?.hide[L.sheet.name] || "") + "|" + JSON.stringify(ctx.style.colors || {}) + "|" + ctx.style.theme?.id + (ctx.style.theme?.id === "custom" ? ctx.style.theme.a1 : "");
+  return ctx.workbook + "|" + (ctx.scenario || "") + "|" + sheetKey(ctx, L.sheet) + "|" + (d ? JSON.stringify([d.cols, d.rows, d.scales, d.merges, d.gridH, d.gridV, d.cellGrid]) : "") + "|" + ctx.style.radius + "|" + (ctx.style.text?.table?.font || "") + "|" + JSON.stringify(ctx.version?.hide[L.sheet.name] || "") + "|" + JSON.stringify(ctx.style.colors || {}) + "|" + ctx.style.theme?.id + (ctx.style.theme?.id === "custom" ? ctx.style.theme.a1 : "");
 }
 export const isNumText = (t: unknown) => /^[-+(]?[\d.\s]*\d[\d.,\s]*%?\)?$/.test(String(t).trim());

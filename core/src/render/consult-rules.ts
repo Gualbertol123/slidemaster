@@ -19,7 +19,7 @@ import type { Item, Rect, TableLayout } from "../xlsx/types";
 import type { DisplayList, Node } from "../dl/types";
 import { parseColor, solid } from "../dl/color";
 import { fontStack } from "../model/fonts";
-import { borderNodes, cellText, cssFont, picNodes, runsOf, seamFillsBy, seamPath, shapeNodes, textBoxNodes, type Metrics, type TableDL } from "./excel-dl";
+import { borderNodes, cellGridNodes, cellText, cssFont, picNodes, runsOf, seamFillsBy, seamPath, shapeNodes, textBoxNodes, type Metrics, type TableDL } from "./excel-dl";
 import { effItems } from "./edits";
 import { rolesOf, type RowKind } from "./roles";
 import { specOf, type DesignSpec, type Stroke } from "./consult-spec";
@@ -67,6 +67,7 @@ export function rulesToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics, o
     const b = it[side]; if (!b || ((side === "top" || side === "bottom") ? !gh : !gv)) continue;
     nodes.push(...borderNodes(side, b, it.bx, it.by, it.bw, it.bh));
   }
+  nodes.push(...cellGridNodes(items));                              // gridlines on selected cells (4.4, B20)
   nodes.push(...ruleNodes(L, items, kOf, T));
   // the header band's separators: at the column edges inside the band, not at its outer edges
   if (banded && T.head.sep) for (const it of items) {

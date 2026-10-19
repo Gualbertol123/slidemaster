@@ -398,7 +398,7 @@ export interface GShell { k: "shell"; cls: string; x: number; y: number; w: numb
   tint?: { hex: string; strength: number; alpha: number };
   /** a coloured outline kept as a ring (box-shadow inset 1.5 px) */
   ring?: string; extra: string }
-export interface GLine { k: "rule" | "hsep" | "vsep"; x: number; y: number; w: number; h: number }
+export interface GLine { k: "rule" | "hsep" | "vsep" | "cell"; x: number; y: number; w: number; h: number; /** a cell's own gridline (4.4): its colour */ color?: string }
 export interface GCap { k: "cap"; cls: string; x: number; y: number; w: number; h: number; rad: number;
   /** an inline background: a colour scale's [colour, .95, .8] or another signal's [colour, .55, .38] */
   bg?: [string, number, number] }
@@ -480,6 +480,16 @@ export function glassPlan(L: TableLayout, ctx: RenderCtx, opts: { noText?: boole
   // a merged title over several columns (group header) gets a hairline under it
   if (!noH) for (const t of sc.texts) if (t.it.merged && t.n.c1 > t.n.c0 && t.n.r1 === t.n.r0 && sc.texts.some(o => o.n.r0 === t.n.r1 + 1 && o.n.c0 >= t.n.c0 && o.n.c1 <= t.n.c1) && t.role !== "heading")
     plan.lines.push({ k: "hsep", x: t.x + 14, y: t.y + t.h - 1, w: t.w - 28, h: 1 });
+
+  // gridlines on selected cells (4.4, B20): lines of their colour and weight on the cell's edges, in the scene's geometry
+  for (const it0 of effItems(L, ctx)) if (it0.cgrid) {
+    const it = gItem(it0, G0);
+    for (const [side, b] of Object.entries(it0.cgrid)) {
+      if (!b) continue;
+      const w = Math.max(.5, Math.min(3, b.w ?? 1)), x = side === "right" ? it.bx + it.bw - w : it.bx, y = side === "bottom" ? it.by + it.bh - w : it.by;
+      plan.lines.push(side === "top" || side === "bottom" ? { k: "cell", x, y, w: it.bw, h: w, color: b.color } : { k: "cell", x, y, w, h: it.bh, color: b.color });
+    }
+  }
 
   /* ---- signals: conditional / semantic colours become capsules ---- */
   const capOf = new Map<Item, { tone: string; strong: boolean; fill: string | null }>();

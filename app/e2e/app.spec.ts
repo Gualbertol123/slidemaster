@@ -1608,6 +1608,57 @@ test.describe.serial("two people, one shared folder", () => {
     await lastFileSaved("anna", "report.xlsx");
   });
 
+  test("gridlines on selected cells (S10.3, GL-01, GL-02, B20): H, V, outline, colour, weight, clear – separate from the borders; the painter copies them", async ({ page }) => {
+    await openApp(page, ANNA);
+    await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
+    // the pair's first table: cells without workbook borders (where a cell has one, the border shows instead: core unit tests)
+    const tid = doc().preset.tables.find((t: any) => t.sheet === "SLIDE_3 pair" && t.index === 0).id;
+    const si = doc().preset.slides.findIndex((s: any) => s.tables.includes(tid));
+    await page.locator(`.thumb[data-i="${si}"]`).click(); await page.locator(`.thumb.on[data-i="${si}"]`).waitFor();
+    const tdef = () => doc().preset.tables.find((t: any) => t.id === tid), cg = () => tdef().cellGrid || {};
+    const before = JSON.stringify({ ...tdef(), cellGrid: undefined });
+    const layer = page.locator('#stage .slide > .tw[data-i="0"]');
+    // (the menu stays open between clicks: it acts on the selection)
+    const menu = async (sel: string) => { if (!await page.locator("#cellGrid").isVisible()) await page.click("#gridBtn"); await page.click(`#cellGrid ${sel}`); };
+    await selectCell(page, "R1");
+    // V: the cell's left and right lines
+    await menu('[data-cg="v"]');
+    await pollFile(() => Object.values(cg()), { timeout: 10_000 }).toEqual([{ v: "on" }]);
+    const key = Object.keys(cg())[0];
+    // colour and weight: on the selected cell's lines; drawn on the slide in that colour
+    await menu('[data-cgc="#C00000"]');
+    await pollFile(() => cg()[key], { timeout: 10_000 }).toEqual({ v: "on", c: "#C00000" });
+    await menu('[data-cgw="2"]');
+    await pollFile(() => cg()[key], { timeout: 10_000 }).toEqual({ v: "on", c: "#C00000", w: 2 });
+    await expect.poll(async () => /192,0,0|#c00000/i.test(await layer.innerHTML())).toBe(true);
+    // H and Outline: added to the same cell's entry; H again removes the horizontal lines
+    await menu('[data-cg="h"]');
+    await pollFile(() => cg()[key], { timeout: 10_000 }).toEqual({ v: "on", h: "on", c: "#C00000", w: 2 });
+    await menu('[data-cg="o"]');
+    await pollFile(() => cg()[key]?.o, { timeout: 10_000 }).toBe(true);
+    await menu('[data-cg="h"]');
+    await pollFile(() => cg()[key]?.h ?? "none", { timeout: 10_000 }).toBe("none");
+    // the table's own settings and the cells' borders are not touched
+    expect(JSON.stringify({ ...tdef(), cellGrid: undefined })).toBe(before);
+    expect(doc().edits["SLIDE_3 pair"]?.[key]).toBeUndefined();
+    // GL-02: the format painter copies them to another cell
+    await selectCell(page, "R1"); await page.click("#painterBtn");
+    const target = page.locator("#stage .slide .t", { hasText: /^R2$/ }).first(), tb = (await target.boundingBox())!;
+    await page.mouse.click(tb.x + 6, tb.y + tb.height / 2);
+    await pollFile(() => Object.keys(cg()).length, { timeout: 10_000 }).toBe(2);
+    const other = Object.keys(cg()).find(k => k !== key)!;
+    expect(cg()[other]).toEqual(cg()[key]);
+    // Clear: the selected cell's gridlines gone (one change); undo brings them back
+    await selectCell(page, "R1"); await menu('[data-cg="clear"]');
+    await pollFile(() => Object.keys(cg()), { timeout: 10_000 }).toEqual([other]);
+    await page.click("#undoBtn");
+    await pollFile(() => Object.keys(cg()).sort(), { timeout: 10_000 }).toEqual([key, other].sort());
+    // and the deck as the later tests expect it: no cell gridlines
+    await page.evaluate(([id]) => (window as any).__sbTest.change("Clear cell lines", [{ op: "table.patch", id, patch: { cellGrid: null } }]), [tid]);
+    await pollFile(() => tdef().cellGrid ?? "none", { timeout: 10_000 }).toBe("none");
+    await expect.poll(async () => /192,0,0|#c00000/i.test(await layer.innerHTML())).toBe(false);
+  });
+
   test("no page errors, console errors or warnings", async () => { expect(unexpected(errors)).toEqual([]); });
 });
 

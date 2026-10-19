@@ -61,6 +61,7 @@ describe("inverse of map merges", () => {
   const cases: Op[] = [
     { op: "table.patch", id: "t", patch: { cols: { "2": 120, "3": 50 }, name: "X" } },
     { op: "table.patch", id: "t", patch: { cols: null } },
+    { op: "table.patch", id: "t", patch: { cellGrid: { C3: { h: "on", c: "#C00000", w: 2 }, C4: { o: true } } } },
     { op: "slide.patch", id: "s", patch: { notes: { "t:top": null, "t:left": { text: "L" } }, align: "left", scale: .7 } },
     { op: "style.patch", patch: { radius: 40, contrast: 80, logoBubble: false } },
   ];

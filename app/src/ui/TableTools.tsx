@@ -11,7 +11,7 @@ import { alignTables, canMerge, mergeSel, mergedInSel, unmergeSel, valignTables,
 import { addNote as addTextBox, addSlideNotes, attachNote, noteOf, patchNote } from "../stage/actions";
 import { scaleColors } from "@slide-builder/core/render/scales";
 import { A1, uid, esc } from "@slide-builder/core/xlsx/util";
-import type { Op, ScaleRule, Side } from "@slide-builder/core/model/types";
+import type { CellGrid, Op, ScaleRule, Side } from "@slide-builder/core/model/types";
 import { Dropdown } from "./Dropdown";
 import { insertChartFromSelection } from "../editor/charts";
 import { askAutomatic, freeLayoutOff, freeLayoutOn } from "../editor/free";
@@ -59,13 +59,43 @@ function ScaleMenu({ close }: { close: () => void }) {
   </div>;
 }
 
-/* gridlines of a table: as in Excel, all on, or none – separately for horizontal and vertical lines */
+/* gridlines of a table: as in Excel, all on, or none – separately for horizontal and vertical lines; and of the selected
+   cells (4.4, B20): their horizontal / vertical lines, the outline of the selection, its colour and weight, cleared */
+const GRID_COLORS = ["#404040", "#BFBFBF", "#1F4E79", "#0A66D8", "#C00000", "#2E7D32"];
+const GRID_W = [.5, 1, 2, 3];
 function GridMenu({ close, T }: { close: () => void; T: import("@slide-builder/core/xlsx/types").TableLayout }) {
   const set = (k: "gridH" | "gridV", v: "on" | "off" | null) => { if (!T.def) return; change(v === "on" ? "Add gridlines" : v === "off" ? "Remove gridlines" : "Gridlines from Excel", [{ op: "table.patch", id: T.def.id, patch: { [k]: v } } as Op]); close(); };
   const row = (k: "gridH" | "gridV", label: string) => <><label>{label}</label><div className="seg small" data-grid={k}>
     {([[null, "As in Excel"], ["on", "All"], ["off", "None"]] as const).map(([v, l]) => <button key={String(v)} data-v={String(v)} className={(T.def?.[k] ?? null) === v ? "on" : ""} onClick={() => set(k, v)}>{l}</button>)}</div></>;
+  // the selected cells of this table (their A1 keys) and what they have now
+  const sel = useStore(s => s.selection.sel), mine = sel && selTable() === T ? selItems() : [];
+  const keys = [...new Set(mine.map(it => A1(it.b.src.r, it.b.src.c)))], grid = T.def?.cellGrid || {}, cur = keys.map(k => grid[k] || {});
+  const all = (f: (g: CellGrid) => boolean) => cur.length > 0 && cur.every(f);
+  const one = <K extends keyof CellGrid>(k: K) => { const v = new Set(cur.map(g => g[k])); return v.size === 1 ? [...v][0] : undefined; };
+  const [color, setColor] = useState<string | null>(one("c") ?? null), [weight, setWeight] = useState<number>(one("w") ?? 1);
+  const cells = (label: string, f: (g: CellGrid) => CellGrid | null) => {
+    if (!T.def || !keys.length) return;
+    const m: Record<string, CellGrid | null> = {};
+    keys.forEach((k, n) => { const g = f({ ...cur[n] }); m[k] = g && Object.keys(g).length ? g : null; });
+    change(label, [{ op: "table.patch", id: T.def.id, patch: { cellGrid: m } } as Op]);
+  };
+  const look = (g: CellGrid): CellGrid => { if (color) g.c = color; else delete g.c; if (weight !== 1) g.w = weight; else delete g.w; return g; };
+  const lines = (k: "h" | "v") => all(g => g[k] === "on") ? cells(k === "h" ? "Remove cell lines" : "Remove cell lines", g => { delete g[k]; return g; }) : cells(k === "h" ? "Horizontal cell lines" : "Vertical cell lines", g => look({ ...g, [k]: "on" }));
   return <div className="scalemenu"><div className="hd">Gridlines of this table</div>
-    <div className="optgrid">{row("gridH", "Horizontal")}{row("gridV", "Vertical")}</div></div>;
+    <div className="optgrid">{row("gridH", "Horizontal")}{row("gridV", "Vertical")}</div>
+    <div className="sep" /><div className="hd">Selected cells {keys.length ? <b>{keys.length === 1 ? keys[0] : keys[0] + ":" + keys[keys.length - 1]}</b> : "– select cells of this table first"}</div>
+    <div className="optgrid" id="cellGrid">
+      <label>Lines</label><div className="seg small">
+        <button data-cg="h" disabled={!keys.length} className={all(g => g.h === "on") ? "on" : ""} title="A line above and below each selected cell" onClick={() => lines("h")}>H</button>
+        <button data-cg="v" disabled={!keys.length} className={all(g => g.v === "on") ? "on" : ""} title="A line left and right of each selected cell" onClick={() => lines("v")}>V</button>
+        <button data-cg="o" disabled={!keys.length} className={all(g => g.o === true) ? "on" : ""} title="A line around the selected cells" onClick={() => all(g => g.o === true) ? cells("Remove outline", g => { delete g.o; return g; }) : cells("Outline", g => look({ ...g, o: true }))}>Outline</button>
+        <button data-cg="clear" disabled={!keys.length || !cur.some(g => Object.keys(g).length)} title="The selected cells' gridlines removed (their borders are not touched)" onClick={() => cells("Clear cell lines", () => null)}>Clear</button></div>
+      <label>Colour</label><div className="row">
+        <button data-cgc="" className={"cgsw auto" + (color === null ? " on" : "")} title="Automatic: grey lines, a dark outline" onClick={() => { setColor(null); cells("Line colour", g => Object.keys(g).length ? (delete g.c, g) : g); }}>Auto</button>
+        {GRID_COLORS.map(c => <button key={c} data-cgc={c} className={"cgsw" + (color === c ? " on" : "")} style={{ background: c }} title={c} onClick={() => { setColor(c); cells("Line colour", g => Object.keys(g).length ? { ...g, c } : g); }} />)}</div>
+      <label>Weight</label><div className="seg small">
+        {GRID_W.map(w => <button key={w} data-cgw={w} className={weight === w ? "on" : ""} onClick={() => { setWeight(w); cells("Line weight", g => Object.keys(g).length ? (w === 1 ? (delete g.w, g) : { ...g, w }) : g); }}>{w} px</button>)}</div>
+    </div></div>;
 }
 
 const ROLES = [["auto", "Auto", "Detected from the Excel formatting"], ["header", "Header", "Column/row header"], ["total", "Total", "Highlighted total (tile)"], ["body", "Body", "Normal data"], ["caption", "Note", "Small note"]] as const;
@@ -127,7 +157,7 @@ export function TableRibbon() {
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">{v === "top" ? <><path d="M1.5 2h13" /><rect x="3.5" y="4" width="3" height="9" /><rect x="9.5" y="4" width="3" height="6" /></> : v === "middle" ? <><path d="M1.5 8h13" /><rect x="3.5" y="3" width="3" height="10" /><rect x="9.5" y="4.5" width="3" height="7" /></> : <><path d="M1.5 14h13" /><rect x="3.5" y="3" width="3" height="9" /><rect x="9.5" y="6" width="3" height="6" /></>}</svg></button>)}
           </div></div>}
         </Dropdown>
-        <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="gridBtn" disabled={!(tIdx >= 0 && R?.tables[tIdx]?.def)} title="Add or remove horizontal / vertical gridlines of the table" onClick={t}>
+        <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="gridBtn" disabled={!(tIdx >= 0 && R?.tables[tIdx]?.def)} title="Add or remove horizontal / vertical gridlines of the table, or lines on the selected cells" onClick={t}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="1.5" y="2.5" width="13" height="11" /><path d="M1.5 6.2h13M1.5 9.8h13M5.8 2.5v11M10.2 2.5v11" /></svg>Gridlines</button>}>
           {close => R && tIdx >= 0 ? <GridMenu close={close} T={R.tables[tIdx]} /> : null}</Dropdown>
         <button className="tb" id="tablesDlg" disabled={!anyTables} title="Match sizes of tables on several slides, copy column widths between tables" onClick={() => setDialogs({ tables: true })}>Sizes…</button>

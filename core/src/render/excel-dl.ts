@@ -63,7 +63,7 @@ export function borderDash(style: string, w: number): number[] | null {
 }
 /** one side's border inside the box (x, y, w, h): lines along the side's middle; double = two lines of w/3 */
 export function borderNodes(side: "top" | "bottom" | "left" | "right", b: BorderSide, x: number, y: number, w: number, h: number): Node[] {
-  const bw = BORDER_W[b.style] ?? 1, { c, a } = parseColor(b.color);
+  const bw = typeof b.w === "number" && b.w > 0 ? b.w : BORDER_W[b.style] ?? 1, { c, a } = parseColor(b.color);
   if (a === 0) return [];
   const paint: Paint = a < 1 ? { solid: c, a } : { solid: c };
   const horiz = side === "top" || side === "bottom";
@@ -124,6 +124,7 @@ export function excelToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics, o
     }
     for (const side of ["top", "left", "right", "bottom"] as const) { const b = it[side]; if (b) nodes.push(...borderNodes(side, b, it.bx, it.by, it.bw, it.bh)); }
   }
+  nodes.push(...cellGridNodes(items));
   if (!opts.noText) for (const it of items) if (it.text) nodes.push(...cellText(it, ctx, m));
   for (const r of L.rects) nodes.push(...shapeNodes(r, rr));
   for (const tb of L.texts as Rect[]) nodes.push(...textBoxNodes(tb, rr, m));
@@ -131,6 +132,12 @@ export function excelToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics, o
   return { nodes, images };
 }
 
+/** the cells' own gridlines (4.4, B20; effItems puts them where the cell has no border): after every fill and border */
+export function cellGridNodes(items: Item[]): Node[] {
+  const out: Node[] = [];
+  for (const it of items) if (it.cgrid) for (const side of ["top", "left", "right", "bottom"] as const) { const b = it.cgrid[side]; if (b) out.push(...borderNodes(side, b, it.bx, it.by, it.bw, it.bh)); }
+  return out;
+}
 /** how far a fill reaches under its neighbour's (table px) */
 export const SEAM = 1;
 /** for each item, how far its fill reaches under its neighbours' [left, top, right, bottom]: two opaque fills that meet
