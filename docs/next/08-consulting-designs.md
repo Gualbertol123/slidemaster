@@ -451,7 +451,9 @@ the deck and clears them on every slide (one undo step); **Deck's look** clears 
 with nothing or a table selected; the headline group with the title, the KPI line or the panel selected (so a slide
 whose headline is None can get it back). The KPI line and the panel are selectable texts (hit ids `kpi` and the panel's lead
 figure `sig-lead`), not editable – their words are the table's; a slide's text format is merged field by field over
-the deck's. Cover and contents slides have no parts (their look is the design's).
+the deck's. Cover and contents slides have no parts (their look is the design's). A slide's text format adds to the deck's: a field
+the deck sets (e.g. after *Apply to all*) is changed on a slide by choosing another value, not removed there; *Apply to
+all* gives every slide the current slide's KPI line / panel format whole.
 
 **Where it is drawn.** One context per slide (`render/look.ts` `slideCtx(ctx, R)`: the style's `consult` = the
 slide's effective look) at every slide entry – `computeLayout`, `areaFor`, `layoutOf`, `slideToDisplayList`, the

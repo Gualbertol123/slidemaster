@@ -79,7 +79,8 @@ export const slideLook = (cfg: { looks?: Partial<Record<Design, unknown>> } | un
 /** the look's cache key (the exhibit's geometry and drawing depend on it) */
 export const lookKey = (o: ConsultOptions) => JSON.stringify(o);
 const KEYS = new WeakMap<object, string>();
-/** the key of the look a context draws with, once per style object (it is asked for on every layout of a drag) */
+/** the key of the look a context draws with, once per style object (it is asked for on every layout of a drag); a
+    resolved style is never changed in place – a new look is a new style object (slideCtx, the app's style()) */
 export function lookKeyOf(ctx: { style: Pick<Style, "design" | "consult"> }): string {
   let k = KEYS.get(ctx.style); if (k === undefined) KEYS.set(ctx.style, k = lookKey(consultOptions(ctx)));
   return k;

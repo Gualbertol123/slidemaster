@@ -3,7 +3,7 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## 4.4.0 - unreleased (docs/next/07 §5, PLAN M10; B18, B20, B28; ADR-017)
+## 4.4.0 - unreleased (docs/next/07 §5, docs/next/08 §2.8, PLAN M10, M7c; B18, B20, B28, B29; ADR-017)
 
 What users notice
 * **Free layout** (B18): ribbon 2 › *Free layout* switches the current slide, in the current design, to a layout where
@@ -28,10 +28,21 @@ What users notice
   draw no borders, as before.
 * The format painter also copies a cell's gridlines and borders set on the slide (a cell without any removes the
   target's, as Excel's painter does).
+* **Composable consulting looks** (B29, asked for 2026-10-19): in Consulting Navy and Consulting Red every part of the
+  look is a selector of its own at the end of ribbon 2 – with nothing or a table selected: the table style (Exhibit,
+  Cards, Ruled), all numbers or compact, **Δ bars**, **Trend**, **Latest bar**; with the title, the KPI line or the
+  message panel selected: the headline (KPI line, panel, none), how many KPIs (1–3) and the ground (band, tint, white),
+  and the KPI line's or the panel's font, size, bold and colour with the usual text controls. A change applies to the
+  current slide (a dot marks a part the slide sets for itself); **Apply to all** makes it the deck's, **Deck's** brings
+  the slide back to the deck's look – one undo step each. The *Look ▾* dropdown and *Design… › Layout* of 4.2 are gone.
+  Slides with their own look show the deck's look in 4.0–4.3.
 * Decks with a free layout, cell gridlines or borders open in 4.0–4.3 with the automatic layout and the workbook's
   borders (those keep the settings in the deck).
 
 For maintainers
+* `SlideDef.looks` (per consulting design, the slide's parts over `designs[d].consult`; `slide.patch` map key, ops
+  vectors +2) and `render/look.ts` `slideCtx` at every slide entry; `ConsultOptions` gains bars, trend, band, kpis,
+  kpiText, panelText (defaults draw the 4.4 output: goldens unchanged).
 * `SlideDef.free` (per design `{on, items}`), `TableDef.cellGrid` and `TableDef.borders` – new map keys of
   `slide.patch` / `table.patch` (`shared/ops-vectors.json` +16 cases); `computeLayout`'s free branch (no bisection);
   the bench gate `free_drag_frame_ms` (16 ms, a free layout's drags).
