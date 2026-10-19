@@ -3,7 +3,8 @@
    clipboard – and saved by the helper in the export folder (POST /api/export-file), or downloaded when the page was
    opened from disk (B1). Fonts: the deck's library fonts and this PC's own (the helper's /sysfonts; from disk, the
    browser's local fonts, with permission). Every version × design runs as one job per (design, version), three at a
-   time, named "<workbook> - <version> - <design>.pdf" (B11). */
+   time, named "<workbook> - <version> - <design>.pdf" (B11). A PowerPoint file (4.5, B21; docs/next/07 §4) is made the
+   same way, by the same workers, next to or instead of each PDF: ".pptx" for ".pdf" in every name. */
 import { get, hideBusy, patch, showBusy, toast } from "../state/store";
 import { core, flushDoc, setPrefs, style } from "../state/app";
 import type { Design } from "@slide-builder/core/model/types";
@@ -15,9 +16,14 @@ import { backend } from "../sync/api";
 import { ExportPool } from "../rpc/export";
 import { catalog, fontFile, libraryCatalog } from "../state/fontfiles";
 import { esc } from "@slide-builder/core/xlsx/util";
-import { cleanName as clean, pdfName, pngName, stemOf, versionTitle } from "@slide-builder/core/export/names";
+import { cleanName as clean, pdfName, pngName, pptxName, stemOf, versionTitle } from "@slide-builder/core/export/names";
+import type { FileKind } from "@slide-builder/core/rpc/messages";
 
-export type ExportKind = "pdf" | "pdf-exact" | "pdf-vector" | "pdf-current" | "png-current" | "png-all" | "copy";
+export type ExportKind = "pdf" | "pdf-exact" | "pdf-vector" | "pdf-current" | "png-current" | "png-all" | "copy"
+  /* PowerPoint (B21): the deck or the current slide, alone or with its PDF */ | "pptx" | "pptx-current" | "both" | "both-current";
+/** the files an export makes per design and version (B21): a PDF, a PowerPoint file or both */
+export type Formats = FileKind[];
+export const PPTX_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
 /** the names users see (B11: in export file names) */
 export { DESIGN_LABEL };
 /** pixels per slide px: PDF pages as pictures (B9: 2×, was 4×) and PNG files / the clipboard (4800 × 2700, as before) */
@@ -77,6 +83,8 @@ async function runPdf(j: ExportJob): Promise<{ r: ExportResult; kind: ExportJob[
 const NO_FONTS = " · as pictures: this browser gave no access to the PC's fonts";
 const missingNote = (m: string[], u: string[] = []) => (u.length ? ` · fonts that could not be embedded (the next one of their list is used): ${esc(u.slice(0, 3).join(", "))}` : "")
   + (m.length ? ` · drawn with a default font: ${esc(m.slice(0, 3).join(" · "))}` : "");
+/** PowerPoint names fonts, it does not embed them (07 §4.2): the deck's library fonts are said */
+const namedNote = (n: string[] = []) => n.length ? ` · PowerPoint: fonts named, not embedded (PowerPoint substitutes them where they are not installed): ${esc(n.slice(0, 3).join(", "))}` : "";
 /** from disk, several files are several downloads: a browser may ask once to allow that (refused, some are missing) */
 const MANY = " · if the browser asked to allow several downloads, allow them – otherwise some files are missing";
 const secs = (t0: number) => ` · ${((performance.now() - t0) / 1000).toFixed(1)} s`;
@@ -118,7 +126,7 @@ export async function doExport(kind: ExportKind) {
     const pdfMode = get().prefs.prefs.pdfMode || "vector", all = get().deck.slides.map((_, i) => i), cur = get().deck.cur;
     if (kind === "pdf-exact" || kind === "pdf-vector") setPrefs({ pdfMode: kind === "pdf-exact" ? "exact" : "vector" });
     const mode = kind === "pdf-exact" ? "exact" : kind === "pdf-vector" ? "vector" : pdfMode;
-    const idx = kind === "pdf-current" || kind === "png-current" || kind === "copy" ? [cur] : all;
+    const idx = kind === "pdf-current" || kind === "pptx-current" || kind === "both-current" || kind === "png-current" || kind === "copy" ? [cur] : all;
     const stem = clean(stemOf(file.name)), label = (i: number) => get().deck.slides[i].label || "slide";
     const design = style().design, version = get().deck.version;
     if (kind === "png-current" || kind === "png-all" || kind === "copy") {
@@ -136,12 +144,25 @@ export async function doExport(kind: ExportKind) {
       remember({ kind, design, version, files: names, missing: r.missing, unreadable: r.unreadable || [] }, t0);
       return done(names, t0, "");
     }
-    // "<workbook> - slides.pdf" for the deck (one slide: that slide's name), " (images)" for pictures – as before
-    const whole = idx.length === all.length && idx.length > 1;
-    const { r, kind: made } = await runPdf(job(mode === "exact" ? "pictures" : "pdf", design, version, kind === "pdf-current" ? idx : undefined, stem, await cat));
-    const name = pdfName(stem, whole ? null : label(idx[0]), made === "pictures"), saved = await save(name, r.files[0], "application/pdf");
-    remember({ kind: made === "pictures" ? kind + " (as pictures)" : kind, design, version, files: [saved], missing: r.missing, unreadable: r.unreadable || [] }, t0);
-    done([saved], t0, (made === "pictures" && mode !== "exact" ? NO_FONTS : "") + missingNote(r.missing, r.unreadable));
+    // "<workbook> - slides.pdf" for the deck (one slide: that slide's name), " (images)" for pictures – as before; the
+    // PowerPoint file "<workbook> - slides.pptx" (B21), made by another worker at the same time
+    const whole = idx.length === all.length && idx.length > 1, current = idx.length === 1 && idx.length < all.length || /current$/.test(kind);
+    const formats: Formats = kind === "pptx" || kind === "pptx-current" ? ["pptx"] : kind === "both" || kind === "both-current" ? ["pdf", "pptx"] : ["pdf"];
+    const c = await cat, slides = current ? idx : undefined;
+    // (both at once: a file that was made is saved even when the other one failed – then the failure is said)
+    const [p1, p2] = await Promise.allSettled([
+      formats.includes("pdf") ? runPdf(job(mode === "exact" ? "pictures" : "pdf", design, version, slides, stem, c)) : null,
+      formats.includes("pptx") ? pool().run(job("pptx", design, version, slides, stem, c)) : null]);
+    const pdf = p1.status === "fulfilled" ? p1.value : null, ppt = p2.status === "fulfilled" ? p2.value : null;
+    const files: string[] = [];
+    if (pdf) files.push(await save(pdfName(stem, whole ? null : label(idx[0]), pdf.kind === "pictures"), pdf.r.files[0], "application/pdf"));
+    if (ppt) files.push(await save(pptxName(stem, whole ? null : label(idx[0])), ppt.files[0], PPTX_TYPE));
+    const fails = [p1, p2].flatMap(p => p.status === "rejected" ? [p.reason as Error] : []);
+    if (fails.length && !files.length) throw fails[0];
+    if (fails.length) toast("⚠ " + (p1.status === "rejected" ? "The PDF" : "The PowerPoint file") + " could not be made: " + esc(fails[0].message || String(fails[0])), [], true);
+    const missing = pdf?.r.missing || [], unreadable = pdf?.r.unreadable || [];
+    remember({ kind: pdf?.kind === "pictures" ? kind + " (as pictures)" : kind, design, version, files, missing, unreadable }, t0);
+    done(files, t0, (pdf?.kind === "pictures" && mode !== "exact" ? NO_FONTS : "") + missingNote(missing, unreadable) + namedNote(ppt?.notEmbedded));
   } catch (e) {
     console.error(e);
     remember({ kind, design: style().design, version: get().deck.version, files: [], missing: [], unreadable: [], failed: [String((e as Error).message || e)] }, t0);
@@ -157,39 +178,46 @@ function done(files: string[], t0: number, note: string) {
 }
 
 /* ---- every version (wizard › Versions), in the current design or in several designs: one PDF each, named
-   "<workbook> - <version> - <design>.pdf" (B11), three at a time ---- */
-export async function exportVersions(designs: Design[] | null) {
+   "<workbook> - <version> - <design>.pdf" (B11), three at a time; a PowerPoint file each instead or as well (B21) ---- */
+export async function exportVersions(designs: Design[] | null, formats: Formats = ["pdf"]) {
   const { file } = get().deck;
   if (!get().deck.slides.length || !file || get().ui.exporting) return;
   const versions = get().doc.view?.preset?.versions || [];
   if (!versions.length) { toast("No versions yet: open the ✦ Wizard › 4 · Versions to create them (e.g. Chief and All)."); return; }
   const t0 = performance.now();
   patch("ui", { exporting: true });
-  const stem = clean(stemOf(file.name)), saved: string[] = [], missing = new Set<string>(), unreadable = new Set<string>();
+  const stem = clean(stemOf(file.name)), saved: string[] = [], missing = new Set<string>(), unreadable = new Set<string>(), named = new Set<string>();
+  const what = formats.includes("pptx") ? "files" : "PDFs";
   try {
     const cat = catalog();
     await flushDoc();
-    const pictures = (get().prefs.prefs.pdfMode || "vector") === "exact", list = designs || [style().design], total = versions.length * list.length;
+    const pictures = (get().prefs.prefs.pdfMode || "vector") === "exact", list = designs || [style().design], total = versions.length * list.length * formats.length;
     let noFonts = false;
-    showBusy(`Exporting ${total} PDFs…`, 0);
+    showBusy(`Exporting ${total} ${what}…`, 0);
     // every job runs to its end (one failing does not stop the others, which still save their files); the busy
     // screen goes once all have settled, then the toast names what was saved and what failed
-    const results = await Promise.allSettled(list.flatMap(d => versions.map(async v => {
+    const results = await Promise.allSettled(list.flatMap(d => versions.flatMap(v => formats.map(async f => {
       const title = versionTitle(stem, v.name, d);
       try {
-        const { r, kind } = await runPdf(job(pictures ? "pictures" : "pdf", d, v.id, undefined, title, await cat));
-        if (kind === "pictures" && !pictures) noFonts = true;
-        r.missing.forEach(m => missing.add(m)); r.unreadable?.forEach(m => unreadable.add(m));
-        saved.push(await save(`${title}${kind === "pictures" ? " (images)" : ""}.pdf`, r.files[0], "application/pdf"));
+        if (f === "pptx") {
+          const r = await pool().run(job("pptx", d, v.id, undefined, title, await cat));
+          r.notEmbedded?.forEach(n => named.add(n));
+          saved.push(await save(`${title}.pptx`, r.files[0], PPTX_TYPE));
+        } else {
+          const { r, kind } = await runPdf(job(pictures ? "pictures" : "pdf", d, v.id, undefined, title, await cat));
+          if (kind === "pictures" && !pictures) noFonts = true;
+          r.missing.forEach(m => missing.add(m)); r.unreadable?.forEach(m => unreadable.add(m));
+          saved.push(await save(`${title}${kind === "pictures" ? " (images)" : ""}.pdf`, r.files[0], "application/pdf"));
+        }
         showBusy(`Exported ${saved.length} of ${total}…`, saved.length / total);
-      } catch (e) { throw new Error(`${v.name} – ${DESIGN_LABEL[d]}: ${(e as Error).message || e}`); }
-    })));
+      } catch (e) { throw new Error(`${v.name} – ${DESIGN_LABEL[d]}${formats.length > 1 ? ` (${f === "pptx" ? "PowerPoint" : "PDF"})` : ""}: ${(e as Error).message || e}`); }
+    }))));
     hideBusy();
     const failed = results.flatMap(r => r.status === "rejected" ? [String((r.reason as Error).message || r.reason)] : []);
     failed.forEach(f => console.error("export failed:", f));
     lastExport.files = [...saved]; lastExport.ms = performance.now() - t0;
-    remember({ kind: designs ? `versions-${list.length}` : "versions", design: list.join(" + "), version: versions.map(v => v.id).join(" + "), files: [...saved], missing: [...missing], unreadable: [...unreadable], failed }, t0);
-    toast(`Saved <b>${saved.length}</b> PDFs${backend.served ? " in the export folder" : " (downloaded)"}${saved.length ? ": " + esc(saved.join(", ")) : ""}${secs(t0)}${previewNote()}${noFonts ? NO_FONTS : ""}${missingNote([...missing], [...unreadable])}${!backend.served && saved.length > 1 ? MANY : ""}`
+    remember({ kind: (designs ? `versions-${list.length}` : "versions") + (formats.includes("pptx") ? " " + formats.join("+") : ""), design: list.join(" + "), version: versions.map(v => v.id).join(" + "), files: [...saved], missing: [...missing], unreadable: [...unreadable], failed }, t0);
+    toast(`Saved <b>${saved.length}</b> ${what}${backend.served ? " in the export folder" : " (downloaded)"}${saved.length ? ": " + esc(saved.join(", ")) : ""}${secs(t0)}${previewNote()}${noFonts ? NO_FONTS : ""}${missingNote([...missing], [...unreadable])}${namedNote([...named])}${!backend.served && saved.length > 1 ? MANY : ""}`
       + (failed.length ? ` · ⚠ ${failed.length} failed: ${esc(failed.slice(0, 2).join(" · "))}` : ""),
       backend.served ? [{ label: "Show folder", fn: () => { void backend.open({ folder: true }); } }] : [], failed.length > 0);
   } catch (e) {
@@ -200,6 +228,11 @@ export async function exportVersions(designs: Design[] | null) {
 }
 
 /* ---- Run for each value (S8.3, B15): one file of a run, asked by the core worker for each value × design × version ---- */
+/** the PowerPoint file of one design and version drawn from the run's view (B21), saved as `name` */
+export async function scenarioPptx(a: { id: string; design: Design; version: string; name: string; title: string; today?: string }, cat: Promise<CatalogFont[]>): Promise<{ file: string; notEmbedded: string[] }> {
+  const r = await pool().run({ ...job("pptx", a.design, a.version, undefined, a.title, await cat), scenario: a.id, ...(a.today ? { today: a.today } : {}) });
+  return { file: await save(a.name, r.files[0], PPTX_TYPE), notEmbedded: r.notEmbedded || [] };
+}
 /** the PDF of one design and version drawn from the run's view (`id`: the run's), saved as `name` (S8.2's names); a
     PDF of pictures when that is the chosen mode, or – from disk – when the browser gave no access to the PC's fonts
     (" (images)", as every export). The name the helper saved it under */

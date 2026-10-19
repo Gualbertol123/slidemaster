@@ -158,6 +158,30 @@ numbers measured twice). Measured numbers go into the step's line.
 
 (Human decisions the plan needs, e.g. gate G0 outcomes. An agent never writes here on its own.)
 
+- 2026-10-19 · **PowerPoint: slide masters generated, standardised and lean – no bulk pictures, no connections, tables**
+  (product owner, in the session that starts M11: "auto generate slidemasters as well for consistency on export,
+  everything has to be standardised and lean. no bulk images and connections on slides, use tables etc"; recorded by
+  the agent, with how it reads it). This amends 07 §4.1–§4.2, ADR-016 and B21 (both amended in S11.1's commit):
+  (1) **Slide masters**: each .pptx gets a master and one layout per kind of slide (cover "Title Slide", contents,
+  content "Title Only", and "Blank"), made from the deck itself: the title, subtitle, footer and page-number
+  placeholders where its slides have them, the background its slides share (Liquid Glass's wallpaper: one picture for
+  the whole file), the decoration every slide of a kind shares (drawn once, on its layout), and a theme with the design's
+  colours (its chart palette as accents) and fonts. Slides hold only what is theirs. (2) **No bulk pictures**: the
+  per-slide background PNG and the PNG per glass card of 07 §4.1 are dropped – everything is drawn natively from the
+  display list: Liquid Glass's frosted surfaces are the one blurred wallpaper picture, cropped to each surface's rounded
+  outline, under its tint, rim and sheens as gradient shapes; shadows are the shapes' own (PowerPoint's blur); capsules
+  stay rounded shapes behind real tables. The only pictures are the workbook's pictures, the logo and the wallpaper,
+  each stored once. (3) **No connections**: no connector shapes (lines are line shapes or table borders) and no link
+  outside the file (charts embed their data; nothing is linked). (4) **Tables**: every table is a real table – cell
+  fills, borders and separators on the cells, its texts in them; text that cannot fit a cell in PowerPoint (it runs past
+  it or is turned) is a text box over the table, in the table's group. Measured on this PC's PowerPoint 16 while
+  building it: every corpus deck × design opens in it and passes pptxcheck's lint (PowerPoint's open alone does not
+  catch every repair – the S11 review showed it).
+- 2026-10-19 · **Gate G7 signed off** (product owner, in the session after M10's merge: "all is checked" → "yes";
+  recorded by the agent in M11, as the M10 notes asked): free layout, cell gridlines and cell borders as built in M10
+  (PR #19, 4.4.0), with its two readings – a table's border handles scale the whole table; a gridline on an edge that
+  has a border shows the border.
+
 - 2026-10-19 · **Composable consulting looks (B29, M7c; 08 §2.8)** (product owner, in the session: "all is very good,
   but it has to be more flexible and composable. i do not want a list with all of the different versions, make it
   composable, with selectors for each composable part, such as with/without % bar on deltas (bar on the left),
@@ -380,7 +404,7 @@ numbers measured twice). Measured numbers go into the step's line.
 
 ## Waiting for
 
-- **M10 · gate G7, for the product owner (2026-10-19):** M10 is done on `v4/M10-free-layout` (S10.1–S10.4, not pushed).
+- ~~**M10 · gate G7, for the product owner (2026-10-19):**~~ **Done:** M10 merged as PR #19 (`main` eb49ce7), M7c as PR #20 (`main` e355761); G7 signed off (Decisions, 2026-10-19). The notes below are kept as they were. M10 is done on `v4/M10-free-layout` (S10.1–S10.4, not pushed).
   (1) **Push and open ONE pull request** "M10 · Free layout, cell gridlines and borders (S10.1–S10.4, B18, B20, B28)"
   (text: `%TEMP%\sb-work\pr-M10.md`); merge it when CI is green. (2) **G7:** on a real deck try *Free layout* (move and
   resize tables, text boxes, charts and callouts; Alt; *Reset layout* and switching on again), *Gridlines ▾ › Selected

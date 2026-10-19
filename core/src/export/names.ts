@@ -1,7 +1,8 @@
 /* Export file names (M8 S8.2, docs/next/07 §2.5; B11). Pure functions shared by the page and the tests.
    * The names exports always had (B11, moved here unchanged from app/src/editor/export.ts): "<workbook> - slides.pdf",
      "<workbook> - <slide>.pdf / .png", "<workbook> - <version> - <design>.pdf", " (images)" for a PDF of pictures.
-   * A scenario run's names (B15): "<value> - <design>.<ext>", with several versions "<value> - <version> - <design>.<ext>".
+   * A scenario run's names (B15): "<value> - <design>.<ext>", with several versions "<value> - <version> - <design>.<ext>";
+     a run of PDFs and PowerPoint files (4.5, B21) gives each value the same first part, cut to fit the longer .pptx.
      <value> is the input cell's displayed text, made safe for Windows: \ / : * ? " < > | and control characters → "_",
      spaces and dots trimmed at both ends, a reserved device name (CON, NUL, COM1, … – audit SEC-7) prefixed "_", empty →
      "(blank)"; cut so that the helper's temporary file "<export folder>\<name>.<32 hex>.tmp" (helper util.write_tmp)
@@ -19,6 +20,8 @@ export const cleanName = (s: string) => s.replace(/[\u0000-\u001f\u007f]+/g, " "
 export const versionTitle = (stem: string, version: string, design: Design) => `${stem} - ${cleanName(version)} - ${DESIGN_LABEL[design]}`;
 /** a PDF of the deck or of one slide: "<workbook> - slides.pdf", "<workbook> - <slide>.pdf"; pictures: " (images)" */
 export const pdfName = (stem: string, slide: string | null, pictures: boolean) => `${stem} - ${slide === null ? "slides" : cleanName(slide)}${pictures ? " (images)" : ""}.pdf`;
+/** the deck or one slide as a PowerPoint file (4.5, B21): the PDF's name with .pptx – "<workbook> - slides.pptx" */
+export const pptxName = (stem: string, slide: string | null) => `${stem} - ${slide === null ? "slides" : cleanName(slide)}.pptx`;
 /** a slide as a PNG: "<workbook> - <slide>.png" */
 export const pngName = (stem: string, slide: string) => `${stem} - ${cleanName(slide)}.png`;
 

@@ -23,6 +23,7 @@ import { specOf } from "./consult-spec";
 import { deckFmt } from "./text";
 import { fontStack } from "../model/fonts";
 import { parseColor, solid } from "../dl/color";
+import type { ChartSem } from "../pptx/scene";
 
 /* ---- data ---- */
 export interface Slice { label: string; v: number; text: string }
@@ -205,7 +206,8 @@ function ellipsis(m: Metrics, text: string, st: St, maxW: number): string {
 const lum = (hex: string) => { const [r, g, b] = parseColor(hex).c; return (0.299 * r + 0.587 * g + 0.114 * b) / 255; };
 const pct = (p: number) => formatValue({ v: p, t: "n", fmt: p > 0 && p < .01 ? "0.0%" : "0%" }).text;
 
-export interface ChartEnv { V: GlassVars; wall: Wallpaper | null; /** the design's text-box family (slide-dl.ts) */ family: string }
+export interface ChartEnv { V: GlassVars; wall: Wallpaper | null; /** the design's text-box family (slide-dl.ts) */ family: string;
+  /** the card alone, without the pie, labels and legend (the PowerPoint export draws those as a native chart) */ noContent?: boolean }
 /** a chart item → its nodes, and the line for the Issues panel when its source is missing or holds no numbers */
 export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, m: Metrics, env: ChartEnv): { nodes: Node[]; issue: string | null; geom: PieGeom | null } {
   const { x, y, w, h } = box, look = chartLook(ctx, env.family), data = chartData(it, ctx), rk = ctx.style.radius / 100;
@@ -223,7 +225,7 @@ export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, 
     // a placeholder on the stage (an export leaves the place empty, as a missing picture)
     if (!ctx.forExport) inner.push({ t: "rect", x: r2(x + .5), y: r2(y + .5), w: r2(Math.max(1, w - 1)), h: r2(Math.max(1, h - 1)), r: 6, fill: { solid: [255, 255, 255], a: .5 }, stroke: { w: 1, paint: solid("#9AA3B2"), dash: [5, 4] } },
       textNode(m, ellipsis(m, "Chart: " + issue, { ...base, size: 13, color: "#5B6274" }, w - 16), x + w / 2, y + h / 2 - 8, { ...base, size: 13, color: "#5B6274" }, "center"));
-  } else {
+  } else if (!env.noContent) {
     const pad = look.pad, X0 = x + pad, Y0 = y + pad, W0 = Math.max(10, w - 2 * pad), H0 = Math.max(10, h - 2 * pad);
     let top = Y0;
     const title = titleOf(it, data);
@@ -332,6 +334,28 @@ export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, 
       { t: "rect", x: X + .5, y: Y + .5, w: Math.max(0, W - 1), h: Math.max(0, H - 1), r: Math.max(0, rr - .5), fill: solid("#FFFFFF"), stroke: { w: 1, paint: solid("#E1E5EC") } }, ...inner], issue, geom };
   }
   return { nodes: [hitNode, ...inner], issue, geom };
+}
+/** what the PowerPoint export makes a native chart of (07 §4.2, B21): the slices' labels, values (the cells' own: a
+    negative one too, as Excel's pie takes its size) and colours, the labels shown, the legend's place, the title and the
+    fonts – the same choices as chartNodes – and the frame inside the card; null when the source holds no numbers */
+export function chartSem(it: ChartItem, box: Box, ctx: RenderCtx, family: string): ChartSem | null {
+  const look = chartLook(ctx, family), data = chartData(it, ctx);
+  if (!data.ok) return null;
+  const note = deckFmt(ctx, "note"), f = it.fmt || {};
+  const css = f.font ? fontStack(f.font) : note.font ? fontStack(note.font) : look.family;
+  const px = (v: unknown, d: number) => { const n = +(v as number); return Number.isFinite(n) && n > 0 ? Math.max(6, Math.min(72, n)) : d; };
+  const T = refTarget(it.values, ctx), first = T.S && T.g ? cellsOf(T.S, T.g).map(([r, c]) => T.S!.get(r, c)).find(x => x && x.t === "n") : null;
+  const n = data.slices.length, pad = look.pad, hex = (c: RGB) => "#" + c.map(v => Math.round(v).toString(16).padStart(2, "0")).join("").toUpperCase();
+  return {
+    type: it.type === "donut" ? "donut" : "pie", title: titleOf(it, data), series: data.series,
+    titleFont: { css, size: px(note.size, 18), color: HEX.test(note.color || "") ? note.color! : look.ink, b: note.b !== false, i: !!note.i },
+    labelFont: { css, size: px(f.size, 14), color: HEX.test(f.color || "") ? f.color! : HEX.test(note.color || "") ? note.color! : look.ink, b: !!f.b, i: !!f.i },
+    labels: data.slices.map(s => s.label), values: data.slices.map(s => s.v), colors: data.slices.map((_, i) => colourOf(it, look, i, n)),
+    show: Array.isArray(it.show) ? it.show.filter(k => k === "label" || k === "value" || k === "percent") : ["percent"],
+    legend: it.legend === "bottom" || it.legend === "none" ? it.legend : "right", startAngle: Number.isFinite(it.startAngle) ? +it.startAngle! : 0,
+    box: { x: box.x + pad, y: box.y + pad, w: Math.max(10, box.w - 2 * pad), h: Math.max(10, box.h - 2 * pad) },
+    sep: n > 1 ? { w: look.sep.w, color: hex(look.sep.color) } : null, fmt: first?.fmt || "General", hole: 58,
+  };
 }
 /** the title a chart shows: its own ("" = none), else the series name */
 export const titleOf = (it: ChartItem, data: ChartData) => (typeof it.title === "string" ? it.title : data.ok ? data.series : "").trim();

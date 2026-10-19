@@ -3,7 +3,7 @@
 import { describe, expect, test } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { zlibSync } from "fflate";
+import { strFromU8, unzipSync, zlibSync } from "fflate";
 import { cssFamilies, FontResolver, pickFace, type CatalogFont } from "../src/text/resolve";
 import { FontRegistry } from "../src/text/fonts";
 import { writePdf, fakeBold } from "../src/pdf/writer";
@@ -129,10 +129,11 @@ describe("the export host (worker/export-host.ts)", () => {
     page.handle("pictureBytes", x => { asked.pictures.push(x.src); const p = png(2, 2); return p.buffer as ArrayBuffer; });
     const host = new ExportHost(new Port(b) as unknown as ExportPort, { raster });
     const core = new Port<{ slideLists(x: unknown): SlideList[] }, Record<string, never>, Record<string, never>, Record<string, never>>(c);
-    core.handle("slideLists", () => { asked.lists++; return structuredClone(LISTS); });
+    core.handle("slideLists", x => { asked.lists++; lastReq = x; return structuredClone(LISTS); });
     host.link(new Port(d) as unknown as ExportCorePort);
     return { page, asked };
   }
+  let lastReq: unknown = null;
   const job = (kind: ExportJob["kind"]): ExportJob => ({ kind, design: "excel", version: "", forExport: true, thumb: false, scale: 2, title: "Weekly", catalog: [sys("Carlito-Regular.ttf", "Carlito"), sys("Carlito-Bold.ttf", "Carlito", 700)] });
 
   test("a vector PDF: one page per slide, the fonts it needs asked once, pictures the worker cannot read asked of the page", async () => {
@@ -160,6 +161,22 @@ describe("the export host (worker/export-host.ts)", () => {
     const pngs = (await page.call("run", { ...job("png"), scale: 3 })).files;
     expect(pngs.map(b => latin(new Uint8Array(b)).slice(1, 4))).toEqual(["PNG", "PNG"]);
     expect(seen).toEqual([2, 2, 2, 2, 2, 3]);
+  });
+  test("a PowerPoint file (B21): the lists asked with their semantics, no font file read (fonts are named), each picture once, the library's fonts said", async () => {
+    const { page, asked } = connect();
+    const r = await page.call("run", job("pptx"));
+    expect(lastReq).toMatchObject({ pptx: true, design: "excel" });
+    const z = unzipSync(new Uint8Array(r.files[0])), names = Object.keys(z);
+    expect(names.filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n))).toHaveLength(2);
+    expect(names.filter(n => n.startsWith("ppt/media/"))).toHaveLength(2);
+    expect(strFromU8(z["ppt/slides/slide1.xml"])).toContain('<a:latin typeface="Calibri"/>');
+    expect(strFromU8(z["docProps/core.xml"])).toContain("<dc:title>Weekly</dc:title>");
+    expect(asked.fonts).toEqual([]);
+    expect(asked.pictures).toEqual(["/assets/logo.gif?t=x"]);
+    expect(r.notEmbedded).toEqual([]);
+    // Calibri from the deck's library: named, and said not to be embedded (PowerPoint substitutes it where missing)
+    const lib = await page.call("run", { ...job("pptx"), catalog: [{ source: "library", file: "Calibri.ttf", family: "Calibri", weight: 400, italic: false }] });
+    expect(lib.notEmbedded).toEqual(["Calibri"]);
   });
   test("thumbnails (S4.3): pictures at the width asked; a slide whose picture the page shows (its key) is not drawn again", async () => {
     const seen: number[][] = [];

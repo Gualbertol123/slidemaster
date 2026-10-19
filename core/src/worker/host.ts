@@ -26,6 +26,8 @@ import { glassTableDL } from "../render/glass-dl";
 import { consultTableDL } from "../render/consult-dl";
 import { isConsult } from "../model/designs";
 import { slideToDisplayList, type SlideImages } from "../render/slide-dl";
+import { chartLook } from "../render/chart-dl";
+import type { SlideSem } from "../pptx/scene";
 import { keyOf } from "../render/edits";
 import { analyzeImages, IMGMETA } from "../xlsx/drawing";
 import { sha1 } from "../text/sha1";
@@ -37,7 +39,7 @@ import type { RenderCtx } from "../render/context";
 import type { Design, Preset, RuntimeSlide, Style, WorkbookDoc } from "../model/types";
 import type { Workbook } from "../xlsx/types";
 import { Port, transfer, type Wire } from "../rpc/port";
-import type { CalcCheck, GateCell, KeptCell, ScenarioAnswer, ScenarioInput, ScenarioRunReq, ScenarioRunStart, CoreEvents, CoreMethods, DocState, ExportCoreMethods, PageEvents, PageMethods, SlideListsReq, StageLayer, StageReq, StageSlide, ViewInputs, WorkbookInfo } from "../rpc/messages";
+import type { CalcCheck, GateCell, KeptCell, ScenarioAnswer, ScenarioInput, ScenarioRunReq, ScenarioRunStart, CoreEvents, CoreMethods, DocState, ExportCoreMethods, FileKind, PageEvents, PageMethods, SlideList, SlideListsReq, StageLayer, StageReq, StageSlide, ViewInputs, WorkbookInfo } from "../rpc/messages";
 import { weightOf, type DisplayList, type Node } from "../dl/types";
 import { stageHits, svgChunks } from "../dl/svg";
 import { contentKey } from "../dl/key";
@@ -332,7 +334,10 @@ export class CoreHost {
       const cell = S.get(rc.r, rc.c), fmt = cell?.fmt || "General";
       const shown = a.values.map(v => typeof v === "number" ? formatValue({ v, t: cell?.t === "d" ? "d" : "n", fmt }).text : typeof v === "boolean" ? formatValue({ v, t: "b", fmt }).text : v);
       const vers = this.sync.view.preset?.versions || [];
-      const { stems, labels, bump } = scenarioRunNames(shown, a.designs, a.versions.map(id => id ? (vers.find(x => x.id === id)?.name ?? id) : null), "pdf", a.folder ?? ASSUMED_FOLDER);
+      // (a run of PowerPoint files names them as its PDFs, cut to fit the longer extension)
+      const kinds: FileKind[] = a.kinds?.length ? [...new Set(a.kinds.filter(k => k === "pdf" || k === "pptx"))] : ["pdf"];
+      a = { ...a, kinds };
+      const { stems, labels, bump } = scenarioRunNames(shown, a.designs, a.versions.map(id => id ? (vers.find(x => x.id === id)?.name ?? id) : null), kinds.includes("pptx") ? "pptx" : "pdf", a.folder ?? ASSUMED_FOLDER);
       const id = "run" + ++this.runSeq;
       let abort: (e: Error) => void = () => undefined;
       const stop = new Promise<never>((_, no) => { abort = no; }); stop.catch(() => undefined);
@@ -349,9 +354,9 @@ export class CoreHost {
     let done = 0, was: string | null = null, error = "";
     /** a name a file of this run was saved under already (the helper's own " (2)" for a file open elsewhere can take a
         name the run planned for a later value): the next free " (k)" after the value */
-    const free = (i: number, d: Design, j: number) => {
-      let name = runFileName(stems[i], d, labels[j], "pdf");
-      for (let k = 2; run.taken.has(name.toUpperCase()); k++) name = runFileName(bump(i, k), d, labels[j], "pdf");
+    const free = (i: number, d: Design, j: number, ext: FileKind) => {
+      let name = runFileName(stems[i], d, labels[j], ext);
+      for (let k = 2; run.taken.has(name.toUpperCase()); k++) name = runFileName(bump(i, k), d, labels[j], ext);
       return name;
     };
     try {
@@ -372,9 +377,9 @@ export class CoreHost {
         if (!ok) throw new Error(live() ? "the input cell could not be set" : "the workbook changed during the run");
         // one file per (design, version): the export workers, three at a time, through the page; a cancel also ends a
         // file that does not come (a stuck worker), so the run always ends
-        const jobs = a.designs.flatMap(d => a.versions.map((v, j) => ({ d, v, name: free(i, d, j) })));
+        const jobs = a.designs.flatMap(d => a.versions.flatMap((v, j) => a.kinds.map(kind => ({ d, v, kind, name: free(i, d, j, kind) }))));
         const res = await Promise.allSettled(jobs.map(j => Promise.race([run.stop,
-          this.port.call("scenarioFile", { id: run.id, design: j.d, version: j.v, name: j.name, title: j.name.replace(/\.pdf$/, ""), today: a.today })])));
+          this.port.call("scenarioFile", { id: run.id, design: j.d, version: j.v, name: j.name, title: j.name.replace(/\.(pdf|pptx)$/, ""), today: a.today, kind: j.kind })])));
         const files = res.flatMap(r => r.status === "fulfilled" ? [r.value.file] : []);
         // nothing moved although the value is not the cell's own: the slides cannot follow it
         const still = !moves && !sameInput(was, a.values[i]);
@@ -616,7 +621,9 @@ export class CoreHost {
     if (a.scenario === "preview") src = "stage";
     else if (a.scenario) { const r = this.runs.get(a.scenario); if (!r || !r.view || r.wb !== this.wb) throw new Error("this run has ended"); src = r; }
     const run = typeof src === "object" ? src : null;
-    const ctx = this.ctx(a.design, a.version, a.forExport, src), glass = ctx.style.design === "glass", out: { slide: number; dl: TableDL }[] = [];
+    const ctx = this.ctx(a.design, a.version, a.forExport, src), glass = ctx.style.design === "glass", out: SlideList[] = [];
+    // the PowerPoint export: the design's chart colours as the theme's accents
+    const palette = a.pptx ? chartLook(ctx, "").colors.slice(0, 6) : [];
     await glassFonts(ctx);
     const { wall, logo } = await this.slideImages(ctx);
     for (const [s, R] of ctx.slides.entries()) {
@@ -628,7 +635,11 @@ export class CoreHost {
         // a run started anyway: the cells the self-check classes different get their red corner (RC-06)
         tables.push(run?.marked.size ? { ...dl, nodes: markCells(dl.nodes, L, run.marked) } : dl);
       }
-      out.push({ slide: s, dl: await measuredBuild(m => slideToDisplayList(R, s, ctx, tables, boxes, { wall, logo }, m, a.today)) });
+      const dl = await measuredBuild(m => slideToDisplayList(R, s, ctx, tables, boxes, { wall, logo }, m, a.today, { sem: !!a.pptx }));
+      if (!a.pptx) { out.push({ slide: s, dl }); continue; }
+      const items: SlideSem["items"] = {};
+      for (const [id, it] of Object.entries(dl.items)) if (it.pptx) items[id] = it.pptx;
+      out.push({ slide: s, dl: { nodes: dl.nodes, images: dl.images }, sem: { type: R.type === "cover" || R.type === "index" ? R.type : "content", items, palette } });
     }
     return out;
   }

@@ -101,6 +101,8 @@ function lookOf(it: ShapeItem, ctx: RenderCtx, panel = false): ShapeLook {
   else if ((own || none) && L.ink === "#FFFFFF" && !(none && panel)) L = { ...L, ink: isConsult(d) ? specOf(ctx).note.ink : "#16181D" };
   return L;
 }
+/** the corner radius a shape item is drawn with (the PowerPoint export's preset geometry, 07 §4.2) */
+export const shapeRadius = (it: ShapeItem, ctx: RenderCtx, panel = false) => lookOf(it, ctx, panel).radius;
 const luminance = (hex: string) => { const [r, g, b] = parseColor(hex).c; return (0.299 * r + 0.587 * g + 0.114 * b) / 255; };
 
 export interface ShapeEnv { V: GlassVars; wall: Wallpaper | null; /** on Consulting Red's message panel (slide-dl.ts inPanel) */ panel?: boolean }

@@ -140,6 +140,8 @@ body.painting .slide .hits{cursor:copy}
 .posmenu{padding:2px 4px 4px}
 .posmenu .row{display:flex;gap:4px;padding:2px 6px 6px}
 .menu .posmenu .row button{width:auto;flex:1;justify-content:center;border:1px solid var(--line);padding:6px}
+.menu .vfmt{justify-content:flex-start;gap:4px;margin:2px 10px 4px}
+.menu .vfmt button{width:auto;flex:none;justify-content:center;border:1px solid var(--line);padding:3px 10px;font-size:12px}
 .menu .posmenu .row button.on{background:var(--accent-soft);border-color:#C7DBF6;color:var(--accent)}
 /* the toolbar keeps its width whatever is selected (no wrapping, no jumping slide) */
 .ribbon .target{width:124px;flex:none;text-align:center}

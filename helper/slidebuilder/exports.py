@@ -5,10 +5,12 @@ problem report goes to ``/api/export-feedback``. The bytes go to a unique tempor
 folder; then, under lock ``export-<safe name>``, the final name is chosen and the temporary file is
 renamed into place. A target that is open in a viewer (locked) is skipped for " (2)", " (3)", ...
 """
+import io
 import json
 import os
 import re
 import time
+import zipfile
 
 from . import paths
 from .locks import Lock
@@ -59,20 +61,30 @@ def save_export(filename, data, export_dir=None):
         remove_quietly(tmp)
 
 
-EXPORT_FILE_TYPES = {".pdf": b"%PDF-", ".png": b"\x89PNG\r\n\x1a\n"}
+EXPORT_FILE_TYPES = {".pdf": b"%PDF-", ".png": b"\x89PNG\r\n\x1a\n", ".pptx": b"PK\x03\x04"}
+
+
+def _is_pptx(data):
+    """a PowerPoint file (4.5, B21): a zip whose parts include the presentation and its content types"""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            names = set(z.namelist())
+        return "[Content_Types].xml" in names and "ppt/presentation.xml" in names
+    except (zipfile.BadZipFile, ValueError, OSError):
+        return False
 
 
 def export_file(name, data, export_dir=None):
     """POST /api/export-file?name=: a PDF or PNG the page wrote itself (the native export, PLAN S3.7) saved as
     `name` in the export folder through save_export (temporary file, lock export-<name>, " (2)" when the target is
-    open). Only .pdf and .png names, and only bytes that start like one, are taken."""
+    open). Only .pdf, .png and .pptx names (4.5, B21), and only bytes that are one, are taken."""
     base = os.path.basename(str(name or "").replace("\\", "/"))
     ext = os.path.splitext(base)[1].lower()
     if ext not in EXPORT_FILE_TYPES:
-        raise ExportError("only .pdf and .png files are exported")
+        raise ExportError("only .pdf, .png and .pptx files are exported")
     # control characters (a tab or line break in a slide's name) are not allowed in Windows file names
     stem = clean_name(re.sub(r"[\x00-\x1f\x7f]+", " ", os.path.splitext(base)[0]))
-    if not data or not data.startswith(EXPORT_FILE_TYPES[ext]):
+    if not data or not data.startswith(EXPORT_FILE_TYPES[ext]) or (ext == ".pptx" and not _is_pptx(data)):
         raise ExportError("the exported file is empty or not a %s file" % ext[1:].upper())
     t0 = time.time()
     saved = save_export(stem[:200] + ext, data, export_dir)

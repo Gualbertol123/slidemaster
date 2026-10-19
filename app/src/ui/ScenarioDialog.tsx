@@ -90,7 +90,9 @@ export function ScenarioDialog() {
   }, [ranging, choosing]);
   const value = values.includes(f.value) ? f.value : values[0] || "";
   const vers = f.versions.filter(v => v === "" || versions.some(x => x.id === v));
-  const files = values.length * f.designs.length * vers.length;
+  const kinds = f.kinds?.length ? f.kinds : [], files = values.length * f.designs.length * vers.length * kinds.length;
+  /** "PDFs", "PowerPoint files" or "files" (both), as the summary and the Run button name them */
+  const what = (n: number) => kinds.length > 1 ? `file${n === 1 ? "" : "s"} (PDF + PowerPoint)` : kinds[0] === "pptx" ? `PowerPoint file${n === 1 ? "" : "s"}` : `PDF${n === 1 ? "" : "s"}`;
   const toggle = <T,>(list: T[], x: T, on: boolean) => on ? [...list.filter(y => y !== x), x] : list.filter(y => y !== x);
   const preview = async () => { if (await previewValue(f.input, value, f.asText)) closeScenario(); };
   // the gate (RC-06): what stopped the last Run, until the fields change
@@ -141,8 +143,8 @@ export function ScenarioDialog() {
             </div>
             <div>
               <div className="opthd">Files</div>
-              <label className="ck"><input type="checkbox" id="scPdf" checked disabled /> PDF</label>
-              <label className="ck" title="PowerPoint files come with Slide Builder 4.5"><input type="checkbox" id="scPptx" disabled /> PowerPoint <small>comes with 4.5</small></label>
+              <label className="ck"><input type="checkbox" id="scPdf" checked={kinds.includes("pdf")} onChange={e => set({ kinds: (["pdf", "pptx"] as const).filter(k => k === "pdf" ? (e.target as HTMLInputElement).checked : kinds.includes(k)) })} /> PDF</label>
+              <label className="ck" title="Editable text, real tables and native pie charts (B21)"><input type="checkbox" id="scPptx" checked={kinds.includes("pptx")} onChange={e => set({ kinds: (["pdf", "pptx"] as const).filter(k => k === "pptx" ? (e.target as HTMLInputElement).checked : kinds.includes(k)) })} /> PowerPoint</label>
             </div>
           </div>
           {gate && <div className="scgate" id="scGate">
@@ -150,14 +152,14 @@ export function ScenarioDialog() {
             <ul>{gate.blocked.slice(0, 10).map(c => <li key={c.sheet + "!" + c.ref}><b>{c.sheet}!{c.ref}</b> Excel “{shownValue(c.cached)}”, recalculated “{shownValue(c.computed)}”</li>)}{gate.blocked.length > 10 && <li>… {gate.blocked.length - 10} more</li>}</ul>
             <label className="ck"><input type="checkbox" id="scAnyway" checked={f.runAnyway} onChange={e => set({ runAnyway: (e.target as HTMLInputElement).checked })} /> Run anyway and mark these cells (a red corner on the slides, listed in the report)</label>
           </div>}
-          <div className="scnote" id="scSummary">{files ? `${values.length} × ${f.designs.length} design${f.designs.length === 1 ? "" : "s"} × ${vers.length} version${vers.length === 1 ? "" : "s"} = ${files} PDF${files === 1 ? "" : "s"}` : "Choose at least one value, design and version."}</div>
+          <div className="scnote" id="scSummary">{files ? `${values.length} × ${f.designs.length} design${f.designs.length === 1 ? "" : "s"} × ${vers.length} version${vers.length === 1 ? "" : "s"}${kinds.length > 1 ? " × 2" : ""} = ${files} ${what(files)}` : "Choose at least one value, design, version and kind of file."}</div>
         </div>
         <div className="dlgft">
           <label className="scpv">Preview <select id="scValue" disabled={!values.length} value={value} onChange={e => set({ value: (e.target as HTMLSelectElement).value })}>{values.map(v => <option key={v} value={v}>{v}</option>)}</select></label>
           <button className="btn" id="scPreview" disabled={!values.length || !cell?.ok} title="Show this value on the slides (nothing is saved)" onClick={() => void preview()}>Preview</button>
           <span style={{ flex: "1" }} />
           <button className="btn" data-a="cancel" onClick={closeScenario}>Close</button>
-          <button className="btn primary" id="scRun" disabled={!files || !cell?.ok || starting || going || (!!gate && !f.runAnyway)} title={going ? "A run is going on: wait for it, or cancel it" : `Make ${files} PDF${files === 1 ? "" : "s"}: one per value × design × version`} onClick={() => void run()}>{starting ? "Starting…" : "Run"}</button>
+          <button className="btn primary" id="scRun" disabled={!files || !cell?.ok || starting || going || (!!gate && !f.runAnyway)} title={going ? "A run is going on: wait for it, or cancel it" : `Make ${files} ${what(files)}: ${kinds.length > 1 ? "two" : "one"} per value × design × version`} onClick={() => void run()}>{starting ? "Starting…" : "Run"}</button>
         </div>
       </div>
     </div>

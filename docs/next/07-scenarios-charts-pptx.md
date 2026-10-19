@@ -348,6 +348,39 @@ ADR-004 holds: **no new node type.** Everything below is `rect`, `path`, `line`,
 
 ## 4. PowerPoint export (F6)
 
+> **Amended 2026-10-19 (product owner, PROGRESS Decisions: "auto generate slidemasters … standardised and lean. no
+> bulk images and connections on slides, use tables"; built in S11.1–S11.3).** What changed against the design below:
+> * **No picture layer.** The per-slide background PNG and the PNG per glass card are dropped: every display-list node
+>   is drawn natively (`core/src/pptx/scene.ts`). Liquid Glass's frosted surfaces are the deck's one blurred wallpaper
+>   picture, cropped (`a:srcRect`) to each surface's rounded outline, under its tint, rim and sheens as DrawingML
+>   gradients (alpha included); shadows are the shapes' own `outerShdw` / `innerShdw` (a sharp one is a shape of its
+>   own); capsules are rounded shapes behind the real table, not cell fills. The only pictures are the workbook's
+>   pictures, the logo and the wallpaper, each one part of the file however many slides show it.
+> * **Slide masters made from the deck** (`core/src/pptx/writer.ts`): one master, one layout per kind of slide (cover,
+>   contents, content) plus Blank, with the title / subtitle / footer / page-number placeholders where the deck's slides
+>   have them, the background they share (the wallpaper on the master) and the decoration every slide of a kind
+>   shares, drawn once on its layout; the theme has the design's chart palette as accents and its title / body fonts.
+>   Titles, cover subtitles, footers and page numbers are placeholders on the slides.
+> * **No connections**: no connector shapes (`p:cxnSp`) – lines are line shapes or table borders – and no relationship
+>   outside the file (`tools/pptxcheck.py` fails on either).
+> * **The semantic layer is mostly derived from the display list** (`scene.ts`): tables from the cells' hits (kind "t",
+>   the grid from their boxes, merges from boxes over several grid cells), fills from the solid rectangles (and seam
+>   polygons) over a cell, borders from the lines and thin separators on a cell edge, texts grouped by the element hit
+>   that holds them (its label tells paragraphs from wrapped lines). The core adds only what a display list cannot say
+>   (`SlideList.sem`, asked with `pptx: true`): the kind of slide, each chart's data, colours, labels and card
+>   (`chart-dl.ts chartSem`, the card drawn alone with `noContent`), each callout's shape kind, tail and radius, and the
+>   design's palette.
+> * **Points**: a slide px is 7,620 EMU = **0.6 pt** (1600 px across the 960 pt of the 16:9 slide), not 0.75 – font
+>   sizes, letter-spacing and line spacing are px × 0.6 pt. Line spacing is exact (`a:spcPts`, the display list's pitch);
+>   where PowerPoint 16 then draws the baseline was measured (the same in Segoe UI, Arial, Century Gothic, Georgia and
+>   Calibri): 0.75 S below the line's top, S − 0.225 em while S is 0.9–1.2 em (`scene.ts baselineIn`) – each text box's
+>   top inset puts its first baseline on the display list's. Letter-spacing is kept (`spc`).
+> * **Table rows never grow**: PowerPoint makes a row at least as high as its text, so a one-line cell's pitch is at
+>   most its row, an empty cell's paragraph is 1 pt (the 18 pt default made Excel's spacer rows 30 px), and a text
+>   that cannot fit (it runs past its cell, is turned, or is taller than the row) stays a text box over the table.
+>
+> The fidelity table below is amended in place; the rest of §4 stands.
+
 ### 4.1 The writer
 
 `core/src/pptx/` – pure TypeScript, like `core/src/pdf/`: a zip (fflate `zipSync`, already a dependency) of OOXML parts
@@ -377,14 +410,14 @@ line differently (fonts, no `textLength`), which is the accepted cost of editabl
 
 | DL / scene element | PPTX | Editable? | Notes |
 |---|---|---|---|
-| Titles, subtitles, cover texts, footer, page numbers, text boxes, callout text, chart titles | `p:sp` text boxes with `a:p`/`a:r` runs: font name, size (px × 0.75 pt), bold/italic/colour, alignment, line spacing (`a:lnSpc`), vertical anchor; `wrap="square"`, insets 0; autofit off | **yes** | letter-spacing (`ls`) dropped; text shadow (title) as `a:effectLst/outerShdw`; superscript/subscript as `baseline` |
-| Tables (all three designs) | `a:graphicFrame` + `a:tbl`: column widths and row heights from the layout, merged cells (`gridSpan`, `rowSpan`), cell fills (solid), borders per side (`a:lnL/R/T/B`, width, dash, colour), text runs as above, margins from the design | **yes, real tables** | Liquid Glass: the card (glass, shadow, rim) is a picture under the table; capsules (highlights, signals, colour-scale capsules) become **cell fills with the capsule colour** (rectangular, not pills); gradient/tinted fills flattened to their mid colour |
+| Titles, subtitles, cover texts, footer, page numbers, text boxes, callout text, chart titles | `p:sp` text boxes with `a:p`/`a:r` runs: font name, size (px × **0.6** pt), bold/italic/colour, alignment, exact line spacing (`a:spcPts`), top inset that puts the first baseline on the display list's; `wrap="square"`; autofit off. Titles, cover subtitles, footers and page numbers are the layout's **placeholders** | **yes** | letter-spacing kept (`spc`); text shadow (title) as the run's `outerShdw`; superscript/subscript as `baseline` |
+| Tables (all five designs) | `a:graphicFrame` + `a:tbl` ("No Style, No Grid"): the grid from the cells' boxes, merged cells (`gridSpan`, `rowSpan`), cell fills (solid), borders per side (`a:lnL/R/T/B`, width, dash, colour) – Liquid Glass's separators too –, text runs as above, margins from where the text sits | **yes, real tables** | (amended 2026-10-19) Liquid Glass: the card and the capsules are native shapes in the table's group, under the table; a text that would not fit its cell in PowerPoint is a text box over it |
 | Pie / donut charts | `c:chartSpace` with `c:pieChart`/`c:doughnutChart`, data points with explicit colours, data labels (value / percent / name), legend position, embedded `embeddings/chartN.xlsx` (a 2-column workbook written with fflate) so **Edit Data** works in PowerPoint | **yes, native chart** | PowerPoint draws it with its own geometry (label placement differs); the title is a chart title |
 | Pictures from the workbook, logo | `p:pic` with `a:srcRect` crop, rotation, flips | yes (move, crop) | EMF/WMF already converted to PNG by the helper |
 | Callout shapes (rect, round, circle, pill, arrow, bubble) | `p:sp` with `prstGeom` (`rect`, `roundRect`, `ellipse`, `rightArrow`…, `wedgeRoundRectCallout`) and the text inside | **yes** | icons: `p:sp` with `custGeom` from the same path data (editable as a shape) |
-| Shadows (5-layer recipe) | `a:effectLst/outerShdw` on the shape it belongs to (tables' cards: in the picture) | approximated | PowerPoint's blur, not 5 layers |
-| Glass materials: wallpaper, frosted cards, tints, rims, hairline gradients, keyed pictures' drop shadows | **PNG pictures** (background layer at 2× = 3,200 × 1,800, JPEG for the wallpaper layer, PNG with alpha for cards) | no | by decision |
-| Solid / simple linear gradient fills of rects (Excel designs, cover bar) | native `a:solidFill` / `a:gradFill` | yes | radial and alpha-stop gradients → picture |
+| Shadows (5-layer recipe) | the strongest layer as the shape's `outerShdw` (its spread as the shadow's size), inset ones as `innerShdw`; a sharp shadow (no blur) a shape of its own | approximated | PowerPoint's blur, not 5 layers |
+| Glass materials: wallpaper, frosted cards, tints, rims, hairline gradients, keyed pictures' drop shadows | (amended 2026-10-19) **native**: the wallpaper is the master's background (one JPEG); a frosted surface is a picture element showing the one blurred wallpaper (one JPEG part for the whole file) cropped to its rounded outline, under its tint, rim and sheens as gradient shapes of the same outline; a keyed picture's drop shadow is its `outerShdw` | yes (shapes) | no rendered picture per slide or per card: every surface shows the same stored image |
+| Fills of rects and paths, any design | native `a:solidFill` / `a:gradFill` (linear: the angle and the stops along the box's projection; radial: a circle path from its centre), alpha per stop | yes | an ellipse path is the `ellipse` preset, a rounded rect `roundRect`, other paths `custGeom` |
 | Cell-level gridlines (F5), borders | table cell borders | yes | |
 | Hit nodes | nothing | – | |
 
@@ -403,8 +436,11 @@ text, PowerPoint COM when present):
 2. **text**: every expected slide text (the GT golden texts) is found in the slide's shapes/table cells in order-
    insensitive comparison (python-pptx), chart data equals the source cells;
 3. **open / repair**: on Windows with PowerPoint, `PowerPoint.Application.Presentations.Open(path, ReadOnly, Untitled,
-   WithWindow=0)`: a file that needs repair raises (PowerPoint reports the repair as an error in automation, so the
-   check fails instead of showing a dialog); the slide count and the text of each shape are read back and compared;
+   WithWindow=0)`: a file PowerPoint cannot read raises (in automation it reports an error instead of a dialog – shown
+   with a non-numeric offset, a font size out of range, a duplicate relationship id); (amended in S11's review) **but
+   not every repair raises** – an unknown or misplaced child, a duplicate shape id, a negative size or a table row short
+   of a cell open silently – so check 1 also lints the slides, layouts, master and charts for those (the schema's child
+   order, unique ids, value ranges, row widths); the slide count and the text of each shape are read back and compared;
    then `Close`. This PC has PowerPoint 16 (checked 2026-10-16: `PowerPoint.Application.16`), so the check runs here
    and on the reference PC; CI (Linux) runs 1–2 only and the run on Windows is recorded in `PROGRESS.md` (as W14 for
    Acrobat). LibreOffice is not available here and is not a target;
@@ -413,9 +449,10 @@ text, PowerPoint COM when present):
    2016 on a corporate PC joins the W matrix (W15).
 
 ### 4.4 Budgets
-20 Liquid Glass slides → `.pptx` in < 3 s (click → file), Excel < 1.5 s; size < 3 MB Glass (the per-slide background
-PNG at 2× dominates: budget 120 KB per slide + 400 KB wallpaper once) / < 300 KB Excel; one `.pptx` opened in
-PowerPoint without a repair prompt for every corpus deck × design × version.
+20 Liquid Glass slides → `.pptx` in < 3 s (click → file), Excel < 1.5 s; size < 3 MB Glass (as designed, the per-slide
+background PNG at 2× was to dominate: 120 KB per slide + 400 KB wallpaper once; since the 2026-10-19 amendment there is
+none – the two wallpaper JPEGs, once each, dominate) / < 300 KB Excel; one `.pptx` opened in PowerPoint without a repair
+prompt, and passing pptxcheck's lint, for every corpus deck × design × version.
 
 ---
 
@@ -537,7 +574,7 @@ differences; the only new accepted entries are B19's raw-Excel slides with text 
 | B18 | **Free layout** per slide and design, with snapping (Alt disables); switch back is one undo step | M10 |
 | B19 | **Raw Excel draws the user's objects** (text boxes, notes section, comments, charts, callouts); it still adds no decoration of its own | M9/M10 |
 | B20 | **Gridlines on selected cells**, copied by the painter | M10 |
-| B21 | **PowerPoint export** next to every PDF export: editable text, real tables, native pie charts; glass materials and shadows as pictures; fonts named, not embedded | M11 |
+| B21 | **PowerPoint export** next to every PDF export: editable text, real tables, native pie charts; fonts named, not embedded; (amended 2026-10-19, product owner) slide masters and layouts made from the deck, everything native – glass materials and shadows as shapes, no picture per slide, no connector shapes, no links | M11 |
 | B22 | **Linked workbooks**: a deck can draw from several files; external links are recalculated when the linked file is available | M7 |
 | B23 | The page grows by ≈ 2.8 MB (the formula engine), loaded on first use only; start-up unchanged | M7 |
 | B24 | The Issues panel reports how many formulas recompute like Excel, locale-dependent `TEXT` cells, and missing chart / callout sources | M7, M9 |
@@ -609,8 +646,8 @@ CHANGELOG B16, B17, B19, B24.
 ### M11 · PowerPoint (F6; ships 4.5.0) ⇢
 **S11.1 · Writer skeleton** — zip, presentation/master/layout/theme, one text box per `texts` entry, pictures; `tools/pptxcheck.py` 1–3.
 *Done when:* a 20-slide deck opens in PowerPoint (COM check) with its texts. **S11.2 · Tables and shapes** — `a:tbl` from `semantics.tables`,
-callout shapes, borders, merges; glass card pictures. *Done when:* PX-03 for tables; GT texts found. **S11.3 · Charts, background layer,
-budgets** ⏱ — native pie/donut with embedded workbook; `picturesOnly` PNG layer; PX-04. **S11.4 · Menu and runs** — every Export item gets
+callout shapes, borders, merges; glass cards (amended 2026-10-19: native shapes over the cropped blurred wallpaper, not pictures). *Done when:* PX-03 for tables; GT texts found. **S11.3 · Charts, background layer,
+budgets** ⏱ — native pie/donut with embedded workbook; the background on the master (amended 2026-10-19: no `picturesOnly` PNG layer); PX-04. **S11.4 · Menu and runs** — every Export item gets
 *PowerPoint* / *PDF + PowerPoint*; scenario runs with `kinds`. *Done when:* PX-01, PX-02 recorded on this PC's PowerPoint 16; 🚦 **G8**
 the product owner opens three decks in PowerPoint 2016 (W15) and signs off the fidelity table. **S11.5 · Close** — AUDIT §0 twice;
 CHANGELOG B21.

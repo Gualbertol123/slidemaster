@@ -22,8 +22,9 @@ import { halfLeading, lu, primaryFamily, type Metrics, type TableDL } from "./ex
 import { pageNoFor, pageNoGeom, footerGeom, pageNumber, pnFmt } from "./pagenumbers";
 import { contrastVars, memoPart, noteParts, slideHasLogo, themeVars, type NotePart } from "./slide";
 import { areaFor, itemBoxOf, KPI_LINE, NAVY_BAND, SIGNAL_AREA, slideFacts, tableH, tableW, type TBox } from "./layout";
-import { chartNodes, type PieGeom } from "./chart-dl";
-import { shapeNodes } from "./shape-dl";
+import { chartNodes, chartSem, type PieGeom } from "./chart-dl";
+import { shapeNodes, shapeRadius } from "./shape-dl";
+import type { ItemSem } from "../pptx/scene";
 import type { Box } from "../model/types";
 import type { Exhibit, ExFacts } from "./exhibit";
 import { deckFmt, hasMarkup, slideTextFmt, titleGeom } from "./text";
@@ -44,7 +45,8 @@ export interface SlideImages {
 
 /** a whole slide's display list, and what the stage needs of its items: where each is, its chart's geometry (slice
     picking), the Issues line of a source that is missing or empty */
-export interface ItemInfo { box: Box; issue: string | null; geom: PieGeom | null; /** its nodes: [start, end) in the slide's list */ at: [number, number] }
+export interface ItemInfo { box: Box; issue: string | null; geom: PieGeom | null; /** its nodes: [start, end) in the slide's list */ at: [number, number];
+  /** what the PowerPoint export makes of it (asked with `sem`, 07 §4.1) */ pptx?: ItemSem }
 export interface SlideDL extends TableDL { items: Record<string, ItemInfo> }
 
 /* ---- text ---- */
@@ -124,7 +126,8 @@ class Typesetter {
 
 /* ---- the slide ---- */
 /** `today`: the date the page shows ({date} in footers, a cover without its own date) – the page's clock */
-export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx, tables: TableDL[], boxes: TBox[], img: SlideImages, m: Metrics, today = todayLabel()): SlideDL {
+/** `opts.sem`: each item also says what the PowerPoint export makes of it (ItemInfo.pptx) */
+export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx, tables: TableDL[], boxes: TBox[], img: SlideImages, m: Metrics, today = todayLabel(), opts: { sem?: boolean } = {}): SlideDL {
   const ctx = slideCtx(ctx0, R);                                // the slide's own look (B29)
   const T = new Typesetter(m), d = ctx.style.design, glassy = d === "glass", rk = ctx.style.radius / 100;
   const V = glassVars(ctx), tv = themeVars(ctx), place = { x: 0, y: 0, scale: 1 }, wall = img.wall?.blur ?? null;
@@ -187,7 +190,9 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
       const family = glassy ? base : C ? C.note.family : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel;
       const c = chartNodes(it, id, box, ctx, m, { V, wall, family });
       low.push(...c.nodes);
-      items[id] = { box, issue: c.issue, geom: c.geom, at: [s0, low.length] };
+      // the PowerPoint export: the card alone under a native chart
+      const sem = opts.sem ? chartSem(it, box, ctx, family) : null;
+      items[id] = { box, issue: c.issue, geom: c.geom, at: [s0, low.length], ...(sem ? { pptx: { kind: "chart", at: [s0, low.length], card: chartNodes(it, id, box, ctx, m, { V, wall, family, noContent: true }).nodes, chart: sem } } : {}) };
     } else {
       const s = shapeNodes(it, id, box, ctx, { V, wall, panel: inPanel(box.x) });
       low.push(...s.nodes);
@@ -200,7 +205,8 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
           align: f.align || "center", valign: f.valign || "middle" };
         noteNodes({ i: -1, side: "top", key: "item:" + id, n, txt: s.text, memo: false, cls: "tnote item", bubble: null, ...(s.ink === "#FFFFFF" && !/^#[0-9A-Fa-f]{6}$/.test(f.color || "") ? { ink: "#FFFFFF" } : {}) }, s.textBox);
       }
-      items[id] = { box, issue: s.issue, geom: null, at: [s0, low.length] };
+      items[id] = { box, issue: s.issue, geom: null, at: [s0, low.length],
+        ...(opts.sem ? { pptx: { kind: "shape", at: [s0, low.length], shape: it.shape, box, tail: it.tail ?? null, radius: shapeRadius(it, ctx, inPanel(box.x)) } } : {}) };
     }
   }
   if (logo) logoNodes(logo);

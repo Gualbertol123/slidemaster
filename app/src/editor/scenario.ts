@@ -16,7 +16,7 @@ import { scenarioValues } from "@slide-builder/core/export/scenario";
 import { todayLabel } from "@slide-builder/core/render/cover";
 import { backend } from "../sync/api";
 import { catalog } from "../state/fontfiles";
-import { lastExport, scenarioPdf } from "./export";
+import { lastExport, scenarioPdf, scenarioPptx } from "./export";
 import type { ScenarioForm } from "../state/store";
 
 export function openScenario() {
@@ -114,7 +114,7 @@ export async function startRun(f: ScenarioForm, t0 = performance.now()): Promise
   }
   const vers = get().doc.view?.preset?.versions || [];
   const versions = f.versions.filter(v => v === "" || vers.some(x => x.id === v));
-  const a = await core().call("scenarioRun", { input: r.cell, values: values.map(v => typedValue(v, r.now?.t ?? null, f.asText)), designs: f.designs, versions, kinds: ["pdf"], runAnyway: f.runAnyway, folder, today: todayLabel() });
+  const a = await core().call("scenarioRun", { input: r.cell, values: values.map(v => typedValue(v, r.now?.t ?? null, f.asText)), designs: f.designs, versions, kinds: f.kinds?.length ? f.kinds : ["pdf"], runAnyway: f.runAnyway, folder, today: todayLabel() });
   if (a.id === null) return { blocked: a.blocked };
   // timed from the click on Run (the engine's first use, the gate and the folder included: the bench's figure)
   patch("ui", { run: { id: a.id, total: a.total, done: 0, shown: a.shown, results: [], status: "running", marked: a.marked, kept: a.kept, t0 } });
@@ -124,8 +124,9 @@ export async function startRun(f: ScenarioForm, t0 = performance.now()): Promise
   return null;
 }
 /** a file of the run (the core worker asks for each value × design × version) */
-export async function scenarioFile(a: { id: string; design: Design; version: string; name: string; title: string; today?: string }): Promise<{ file: string }> {
-  return { file: (await scenarioPdf(a, runCatalog || catalog())).file };
+export async function scenarioFile(a: { id: string; design: Design; version: string; name: string; title: string; today?: string; kind?: "pdf" | "pptx" }): Promise<{ file: string }> {
+  const cat = runCatalog || catalog();
+  return { file: (a.kind === "pptx" ? await scenarioPptx(a, cat) : await scenarioPdf(a, cat)).file };
 }
 /** a run is going on (its panel shows progress) */
 export const runGoing = () => { const R = get().ui.run; return !!R && (R.status === "running" || R.status === "cancelling"); };

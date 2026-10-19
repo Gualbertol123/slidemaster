@@ -500,7 +500,7 @@ script, so HarfBuzz is in the page once). `main.tsx` installs the platform, inje
 | `comment.ts` | Automated comments over a `Grid` of displayed cells: `analyse` (label column, data rows, headers, comparison groups week/target/month/quarter/year/yoy, totals, blocks), `writeSummary`, `writeComment`, `shapeComment` (unit, default "mln"). |
 | `fonts.ts` | Font catalogue (Windows, popular Google fonts), `@font-face` generation, `readFontInfo` (family/weight/italic from `name`/`OS/2`), Google CSS parsing. |
 
-### 5.3 `core/src/render/`, `dl/`, `text/`, `pdf/` – from layouts to display lists and files
+### 5.3 `core/src/render/`, `dl/`, `text/`, `pdf/`, `pptx/` – from layouts to display lists and files
 | File | Responsibility |
 |---|---|
 | `render/chart-dl.ts` (4.3) | **Charts** (B16, 07 §3, ADR-015): `chartData` (a `DataRef` read through `ctx.sheet()` like the tables – numbers only; blank, text, hidden and version-removed cells skipped; labels from the item's range or the headers beside the values; cached per sheet object, so a reload or a scenario's view reads again), `chartNodes` (slices as cubic-Bézier `path`s, inside labels or outside with a leader, legend, title, the design's palette or `colors[i]`, Liquid Glass's glass card, Excel Refined's plain card; `hit` nodes `item` and `slice`; a missing / empty source draws a placeholder on the stage and gives the Issues line), `chartKey`, `sliceAt` (the stage's slice picking). Items attached to a table side are laid out by `computeLayout` (`TBox.items`, `itemBoxOf`). |
@@ -515,6 +515,7 @@ script, so HarfBuzz is in the page once). `main.tsx` installs the platform, inje
 | `dl/` | The display list (`types.ts`: 8 node types in slide px 1600 × 900, ADR-004) and its backends: `svg.ts` (the stage, markup in pieces), `canvas.ts` (thumbnails, PNG, pictures, clipboard), `geom.ts` (geometry all backends share), `color.ts`, `key.ts` (content keys). |
 | `text/` | Fonts and text (ADR-005): `fonts.ts` (registry by SHA-1), `hb.ts` + `wasm/` (HarfBuzz), `shape.ts` (shaping, breaking, fitting), `measure.ts` (**text measured from font files** – the library's faces and this PC's; a font may make the slide wait 1.5 s at most, then the page measures and the slide is drawn again), `lines.ts` (CSS line-breaking rules), `kern.ts`, `outline.ts` (glyph outlines for fonts the browser would draw differently), `family.ts`, `resolve.ts` (which file draws a run in the PDF), `pdf.ts`, `subset.ts`, `static.ts`, `fvar.ts`, `sha1.ts`. |
 | `pdf/` | `writer.ts` (display list → PDF 1.7, pages `MediaBox [0 0 1200 675]`, Type0 fonts with ToUnicode, soft masks, transparency groups), `png.ts`, `ttf.ts`, `README.md`. |
+| `pptx/` (4.5) | **PowerPoint** (B21, docs/next/07 §4, ADR-016 amended 2026-10-19): `scene.ts` (the display list + `SlideList.sem` → a native scene: real tables from the cells' hits, text boxes and placeholders whose first baseline is the display list's, Liquid Glass surfaces as the one blurred wallpaper cropped under gradient shapes, shadows, line shapes – never connectors –, callout presets holding their text, chart frames), `drawingml.ts` (the markup; 1 px = 7 620 EMU, sizes px × 0.6 pt), `chart.ts` (native pie / donut with cached data and an embedded workbook), `writer.ts` (the package: a master and one layout per kind of slide made from the deck – placeholders, the shared background and decoration once –, the theme, each picture once, the same bytes for the same slides), `README.md`. |
 | `calc/` (4.2) | The **formula engine** (ADR-013, docs/next/07 §1.4): `wasm/` = IronCalc 0.9.0 (MIT or Apache-2.0, Rust → WASM, inlined by `tools/vendor-ironcalc.mjs` as zlib + base64 with the wasm-bindgen glue; instantiated on first use, never while opening), `engine.ts` (`CalcModel`: a workbook and its linked workbooks fed from the SheetStore – numbers by a tab-separated paste, texts quoted, formulas with Excel's `_xlfn.` prefixes dropped, `[n]Sheet` references renamed to the linked sheets' internal `«n»Sheet` names, whole columns / rows bounded to the used range except inside OFFSET / INDIRECT / ROW(S) / COLUMN(S); `set` an input cell, `evaluate`, `valueOf` read through a 15-significant-digit format, `selfCheck` = every formula cell against Excel's cached value: exact / volatile / locale / external / unreadable / different), `refs.ts` (formula tokenizer, shared-formula shift, sheet ids `[File.xlsx]Sheet`). `core/tests/engine.test.ts`: on the Excel-made recalc corpus every scenario value equals Excel's recalculated copy; `core/bench/engine.bench.test.ts` ⏱ first use < 200 ms, one value < 150 ms. |
 
 ### 5.4 The core worker – `core/src/worker/`, `workers/`, `rpc/`, `sync/`
@@ -862,8 +863,16 @@ of their own, so the lists never pass through the page's thread. The same worker
   layers) and passed through as Flate images with PNG predictors (deck20: Excel 11.6 MB, Liquid Glass 69 MB).
 * **PNG** (current / every slide) at 3× (4800 × 2700) and **Copy current slide** (a `ClipboardItem` created at the
   click, its PNG following when drawn).
+* **PowerPoint** (4.5, B21): *Export ▾ › PowerPoint · all slides / current slide*, *PDF + PowerPoint* (both files at
+  once), the versions' items in PDF, PowerPoint or both, and *Run for each value…*'s *Files: PDF · PowerPoint*. The
+  same export workers write it with `core/src/pptx/` from the same display lists (asked with `pptx: true`, so the core
+  adds each chart's data and each callout's shape): editable text and real tables, native pie / donut charts with their
+  data (Edit Data works), everything else native shapes – no picture per slide; a master and layouts made from the
+  deck. Fonts are named, not embedded: the first family of each list this PC has; the deck's library fonts are said in
+  the toast (PowerPoint substitutes them where they are not installed). Checked by `tools/pptxcheck.py` (structure,
+  python-pptx, a lint of what PowerPoint repairs silently, PowerPoint 16 opening it).
 * **Names**: `<workbook> - slides.pdf` (one slide: `<workbook> - <slide>.pdf`), `<workbook> - <slide>.png`,
-  `<workbook> - <version> - <design>.pdf`, + ` (images)` for pictures.
+  `<workbook> - <version> - <design>.pdf`, + ` (images)` for pictures; the PowerPoint files the same with `.pptx`.
 * **Gates** (`npm run bench`, deck20): Liquid Glass < 2 s and ≤ 80 KB per slide + 190 KB, Excel < 1 s and ≤ 40 KB
   per slide (measured: 1.33 MB and 1.4 s; 313 KB and ≈ 0.4 s). `tools/export-check.mjs` exports every corpus deck
   in every design and checks qpdf, fonts, the text against the goldens, size and time.
@@ -1162,7 +1171,8 @@ core/            package.json · tsconfig.json (ES2022 + WebWorker, no DOM) · v
 │  ├─ dl/                              types · svg · canvas · geom · color · key
 │  ├─ text/                            fonts · hb · shape · measure · lines · kern · outline · family · resolve · pdf ·
 │  │                                   subset · static · fvar · sha1 · README.md · wasm/ (harfbuzzjs 0.4.12)
-│  └─ pdf/                             writer · png · ttf · README.md
+│  ├─ pdf/                             writer · png · ttf · README.md
+│  └─ pptx/                            scene · drawingml · chart · writer · README.md
 ├─ tests/                              Vitest (node; jsdom in dl and xml only), fixtures/
 └─ bench/parse.bench.test.ts           npm run bench -w core: big30 parse time and memory
 tools/

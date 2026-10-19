@@ -292,7 +292,7 @@ Approved 2026-10-16 (product owner: "I approve everything", `07-scenarios-charts
 | B18 | **Free layout** per slide and design, with snapping (Alt disables); switch back is one undo step | M10 |
 | B19 | **Raw Excel draws the user's objects** (text boxes, notes section, comments, charts, callouts); it still adds no decoration of its own | M9/M10 |
 | B20 | **Gridlines on selected cells**, copied by the painter | M10 |
-| B21 | **PowerPoint export** next to every PDF export: editable text, real tables, native pie charts; glass materials and shadows as pictures; fonts named, not embedded | M11 |
+| B21 | **PowerPoint export** next to every PDF export: editable text, real tables, native pie charts; fonts named, not embedded; (amended 2026-10-19, product owner) slide masters and layouts made from the deck, everything native – glass materials and shadows as shapes, no picture per slide, no connector shapes, no links | M11 |
 | B22 | **Linked workbooks**: a deck can draw from several files; external links are recalculated when the linked file is available | M7 |
 | B23 | The page grows by ≈ 2.8 MB (the formula engine), loaded on first use only; start-up unchanged | M7 |
 | B24 | The Issues panel reports how many formulas recompute like Excel, locale-dependent `TEXT` cells, and missing chart / callout sources | M7, M9 |

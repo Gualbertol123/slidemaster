@@ -1,6 +1,8 @@
+import io
 import json
 import os
 import threading
+import zipfile
 import unittest
 from unittest import mock
 
@@ -57,6 +59,23 @@ class ExportTests(TempDirs):
             self.assertEqual(f.read(), pdf)
         self.assertEqual(self.ls(), ["L.png", "Weekly - Chief - Excel.pdf", "Weekly - a_b_c_.png", "Weekly - slides.pdf"])
         self.assertFalse([n for n in os.listdir(paths.EXPORT_DIR) if n.endswith(".tmp")])
+
+    def test_export_file_saves_pptx(self):
+        # 4.5, B21: a PowerPoint file the page wrote – a zip with the presentation part – is saved like a PDF
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("[Content_Types].xml", "<Types/>")
+            z.writestr("ppt/presentation.xml", "<p:presentation/>")
+        self.assertEqual(exports.export_file("Weekly - slides.pptx", buf.getvalue())["files"], ["Weekly - slides.pptx"])
+        self.assertEqual(exports.export_file("Weekly - Chief - Excel.PPTX", buf.getvalue())["files"], ["Weekly - Chief - Excel.pptx"])
+        # a zip that is not a presentation, or bytes that are no zip, are refused
+        other = io.BytesIO()
+        with zipfile.ZipFile(other, "w") as z:
+            z.writestr("word/document.xml", "<w/>")
+        for data in (other.getvalue(), b"PK\x03\x04 not a zip", b"%PDF-1.7"):
+            with self.assertRaises(exports.ExportError):
+                exports.export_file("x.pptx", data)
+        self.assertEqual(self.ls(), ["Weekly - Chief - Excel.pptx", "Weekly - slides.pptx"])
 
     def test_export_file_name_without_control_characters(self):
         # a slide named with a tab or a line break (Alt+Enter in Excel) must not reach the file system
