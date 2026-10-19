@@ -659,7 +659,7 @@ test.describe.serial("two people, one shared folder", () => {
   test("automated comments: one short summary for the slide's tables, follows the numbers; text boxes stretch and snap", async ({ page }) => {
     await openApp(page, BOB);
     await openWorkbook(page, "weekly.xlsx");
-    await page.click('[data-a="next"]'); await page.click('[data-a="next"]'); await page.click('[data-a="finish"]');
+    await page.click('[data-a="next"]:has-text("Tables")'); await page.click('[data-a="next"]:has-text("Slides")'); await page.click('[data-a="finish"]');
     await expect(page.locator(".thumb")).toHaveCount(1);
     await page.click("#commentBtn");
     await expect(page.locator('#cmtMode [data-mode="summary"]')).toHaveClass(/on/);
@@ -787,7 +787,7 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(sup).toBeVisible();
     expect(await sup.evaluate(el => { const p = el.previousElementSibling; return !!p && p.tagName === "text" && +el.getAttribute("y")! < +p.getAttribute("y")! && +el.getAttribute("font-size")! < +p.getAttribute("font-size")!; })).toBe(true);
     await page.click("#wizardBtn");
-    await page.click('[data-a="next"]'); await page.click('[data-a="next"]');                // sheets → tables → slides
+    await page.click('[data-a="next"]:has-text("Tables")'); await page.click('[data-a="next"]:has-text("Slides")');                // sheets → tables → slides
     await page.click('[data-a="versions"]');
     await page.click('[data-addv="Chief"]'); await page.click('[data-addv="All"]');
     await page.fill("#wNewVersion", "Board"); await page.click("#wAddVersion");
@@ -1267,7 +1267,7 @@ test.describe.serial("two people, one shared folder", () => {
     await openApp(page, ANNA);
     await openWorkbook(page, "Gate.xlsx");                                           // no deck yet: the wizard
     await expect(page.locator(".wiz")).toBeVisible();
-    await page.click('[data-a="next"]'); await page.click('[data-a="next"]'); await page.click('[data-a="finish"]');
+    await page.click('[data-a="next"]:has-text("Tables")'); await page.click('[data-a="next"]:has-text("Slides")'); await page.click('[data-a="finish"]');
     await expect(page.locator("#stage .slide .t").filter({ hasText: /^System$/ })).toHaveCount(1, { timeout: 20_000 });
     await saved(page);
     await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]');
