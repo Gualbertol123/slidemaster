@@ -30,7 +30,7 @@ export interface ToastMsg { id: number; html: string; err?: boolean; actions?: {
 export interface Painter { pattern: (Fmt | null)[][]; sticky: boolean }
 export interface Dialogs {
   dialog: DialogReq | null; wizard: WizardReq | null; tables: boolean;
-  /** text styles & fonts dialog: which tab is open */ textStyles: "colors" | "styles" | "fonts" | "layout" | null;
+  /** text styles & fonts dialog: which tab is open */ textStyles: "colors" | "styles" | "fonts" | null;
   /** automated comment dialog for table `table` of the current slide */ comment: { table: number } | null;
   /** Export ▾ › Run for each value… (M8, B15) */ scenario: boolean;
   /** choosing cells in the sheet view (M9): a new chart's, a chart's new cells, a cell a callout quotes */ pick: PickReq | null;
@@ -81,7 +81,7 @@ export interface AppState {
     sel: Sel | null;
     /** selected text box ("<tableId>:<side>") */ noteSel: string | null;
     /** selected slide item (4.3: a chart; `slice`: one of its slices) */ itemSel: { id: string; slice: number | null } | null;
-    /** selected slide text: title, subtitle, cover note or date */ textSel: SlideTextKey | null;
+    /** selected slide text: title, subtitle, cover note or date – or a look text (B29: the KPI line, the message panel) */ textSel: SlideTextKey | import("../editor/look").LookTextKey | null;
     /** format painter: copied formats (rows × cols), sticky = keep painting */ painter: Painter | null;
   };
   ui: {

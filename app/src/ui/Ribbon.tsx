@@ -1,6 +1,7 @@
 /* First toolbar row: TEXT. One set of controls for every text on a slide – table cells, text boxes,
    titles, subtitles, the cover note and date. They act on what is selected (named at the left); the
    row never changes shape. Deck-wide text styles and the font library: "Text styles…". */
+import { isLookText, LOOK_TEXT_LABEL } from "../editor/look";
 import { useEffect, useState } from "react";
 import { get, useStore } from "../state/store";
 import { core, undo } from "../state/app";
@@ -79,9 +80,9 @@ export function Ribbon() {
         <Dropdown button={(_o, tg) => <button className="tb colorbtn" id="fillBtn" disabled={!cells} title={cells ? "Cell colour (replaces the Excel colour) or highlight" : "Cell colour – for table cells (text boxes: Bubble)"} onClick={tg}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M3 8.5 8.5 3l4.5 4.5-5.5 5.5z" /><path d="M13.5 10.5s1.2 1.4 1.2 2.2a1.2 1.2 0 0 1-2.4 0c0-.8 1.2-2.2 1.2-2.2z" fill="currentColor" /></svg><i className="sw" style={{ background: fillSw || "linear-gradient(90deg,#34C759 50%,#FF3B30 50%)" }} /></button>}>{close => <FillMenu close={close} />}</Dropdown>
       </div>
       <div className="grp">
-        {(["left", "center", "right"] as const).map(a => <button key={a} {...tb({ "data-align": a, title: a === "center" ? "Centre" : "Align " + a, active: f?.align === a })} onClick={() => t?.apply("Alignment", { align: a })}>
+        {(["left", "center", "right"] as const).map(a => <button key={a} {...tb({ "data-align": a, off: t?.can.align === false, title: a === "center" ? "Centre" : "Align " + a, active: f?.align === a })} onClick={() => t?.apply("Alignment", { align: a })}>
           <svg viewBox="0 0 16 16" stroke="currentColor" strokeWidth="1.6"><path d={ALIGN_ICON[a]} /></svg></button>)}
-        <button {...tb({ "data-align": "auto", title: cells ? "Alignment from Excel" : "Alignment of the design", style: { fontSize: "11px" }, active: has && !f?.align })} onClick={() => t?.apply("Alignment", { align: null })}>Auto</button>
+        <button {...tb({ "data-align": "auto", off: t?.can.align === false, title: cells ? "Alignment from Excel" : "Alignment of the design", style: { fontSize: "11px" }, active: has && !f?.align })} onClick={() => t?.apply("Alignment", { align: null })}>Auto</button>
         <Dropdown button={(_o, tg) => <button className="tb" id="spacingBtn" disabled={!t?.can.spacing} title={t?.can.spacing ? "Line and paragraph spacing" : "Line spacing – for text boxes"} onClick={tg}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 3.5h7M7 8h7M7 12.5h7" /><path d="M3 2v12M1.5 3.5 3 2l1.5 1.5M1.5 12.5 3 14l1.5-1.5" /></svg></button>}>
           {close => t ? <div className="spacemenu">
@@ -151,6 +152,7 @@ export function selStatus(): string {
     return (itemSel.slice !== null ? `Slice ${itemSel.slice + 1} of the chart selected` : "Chart selected") + " · drag to move, the corner to resize · Del removes it";
   }
   if (noteSel) return "Text box selected · double-click or Enter to write · Del removes it";
+  if (textSel && isLookText(textSel)) return `${LOOK_TEXT_LABEL[textSel]} selected · its font, size and colour above, its parts in the Headline group (this slide)`;
   if (textSel) return `${SLIDE_TEXT_LABEL[textSel]} selected · double-click or Enter to edit the text`;
   if (!it) return `Slide ${deck.cur + 1} of ${deck.slides.length}`;
   const e = editOf(it);

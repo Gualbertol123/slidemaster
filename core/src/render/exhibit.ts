@@ -12,7 +12,7 @@ import { tableKey } from "./context";
 import { cache, effItems } from "./edits";
 import { analysisOf, gridOf } from "./comment";
 import { cleanHead, TOTAL } from "../model/comment";
-import { consultOptions } from "../model/designs";
+import { consultOptions, lookKeyOf, type ConsultOptions } from "../model/designs";
 
 /** one cell of the exhibit: the item (for its hit, text and edits) and its value when it is a number */
 export interface ExCell { it: Item; r: number; c: number; text: string; v: number | null }
@@ -168,6 +168,7 @@ export interface ExCol { kind: "label" | "latest" | "trend" | "ref" | "dbar" | "
 export interface ExHead { it: Item | null; text: string; x: number; w: number; line: 0 | 1; align: "start" | "middle" | "end" }
 export interface ExLayout {
   design: "mckinsey" | "bain"; ex: Exhibit; W: number; H: number;
+  /** the look it is drawn with (B29: the parts of the deck's and the slide's look) */ look: ConsultOptions;
   /** "full": every cell's number in tabular columns, the graphics beside them; "compact": the concepts' look */
   numbers: "full" | "compact";
   /** full numbers: the head texts */ headTexts: ExHead[];
@@ -208,9 +209,9 @@ export function exhibitLayout(L: TableLayout, ctx: RenderCtx, numbers: "full" | 
   return numbers === "full" ? fullLayout(L, ctx, d) : compactLayout(L, ctx, d);
 }
 function fullLayout(L: TableLayout, ctx: RenderCtx, d: "mckinsey" | "bain"): ExLayout {
-  return cache(L, "exgeomF", tableKey(ctx, L) + "|" + d, () => {
+  return cache(L, "exgeomF", tableKey(ctx, L) + "|" + d + "|" + lookKeyOf(ctx), () => {
     const ex = exhibitOf(L, ctx), G = EXF[d], boxes = new Map<string, BoxR>(), max = new Map<number, number>(), tops = new Map<number, number>(), headTexts: ExHead[] = [];
-    const base = { design: d, ex, numbers: "full" as const, heads: new Map<ExCol, { it: Item; text: string }>(), headTexts, boxes, max, tops };
+    const look = consultOptions(ctx), base = { design: d, ex, look, numbers: "full" as const, heads: new Map<ExCol, { it: Item; text: string }>(), headTexts, boxes, max, tops };
     if (ex.kind !== "exhibit") return { ...base, W: L.W, H: L.H, head: 0, pitch: 0, cols: [] };
     const all = [...ex.rows, ...(ex.total ? [ex.total] : [])];
     const chars = Math.max(0, ...all.map(r => (r.label?.text || "").trim().length));
@@ -223,13 +224,14 @@ function fullLayout(L: TableLayout, ctx: RenderCtx, d: "mckinsey" | "bain"): ExL
     const textW = (t: string) => [...t].reduce((s, ch) => s + (/[.,\-+' ]/.test(ch) ? 4.6 : 8.3), 0);
     const fit = (col: number, w: number) => Math.max(w, Math.ceil(Math.max(0, ...all.map(r => textW((r.cells.get(col)?.text || "").trim())))) + 8);
     if (ser) for (const col of ser.cols) at("num", fit(col, col === last ? G.latest : G.num), { col, role: col === last ? "latest" : "period" });
-    if (ser && G.trend) at("trend", G.trend);
+    // the trend line (B29: either design; Red has no width of its own – Navy's)
+    if (ser && look.trend === "on") at("trend", G.trend || EXF.mckinsey.trend);
     for (const ref of ex.refs) at("num", fit(ref.col, G.ref), { col: ref.col, role: "ref", ref });
     const groups: { x: number; w: number; delta: ExDelta; abs: ExCol | null; pct: ExCol | null }[] = [];
     for (const [i, delta] of ex.deltas.entries()) {
       W += G.ggap;
       const x0 = W;
-      if (i < G.lanes) at("lane", G.lane, { delta });
+      if (look.bars === "on" && i < G.lanes) at("lane", G.lane, { delta });
       const abs = delta.abs !== null ? at("num", fit(delta.abs, G.abs), { col: delta.abs, role: "abs", delta }) : null;
       const pct = delta.pct !== null ? at("num", fit(delta.pct, G.pct), { col: delta.pct, role: "pct", delta }) : null;
       groups.push({ x: x0, w: W - x0, delta, abs, pct });
@@ -240,7 +242,7 @@ function fullLayout(L: TableLayout, ctx: RenderCtx, d: "mckinsey" | "bain"): ExL
     // the bars' scales: the body rows' largest |value| (a variance: its absolute, else its %; Red: the latest period)
     const num = (r: ExRow, c: number | null) => { const x = c === null ? undefined : r.cells.get(c); return x && x.v !== null ? x.v : null; };
     const scaleOf = (c: number | null) => { if (c === null) return; max.set(c, Math.max(0, ...bodyRows(ex).map(r => Math.abs(num(r, c) ?? 0)))); };
-    if (d === "bain") scaleOf(last);
+    if (look.band === "on") scaleOf(last);
     for (const c of cols) if (c.kind === "lane") scaleOf(c.delta!.abs ?? c.delta!.pct);
     // heads: per column its header cells (top to bottom, at most two lines); a variance group's title centred over the
     // group, its "Abs." / "%" right-aligned over their numbers
@@ -278,9 +280,9 @@ function fullLayout(L: TableLayout, ctx: RenderCtx, d: "mckinsey" | "bain"): ExL
   });
 }
 function compactLayout(L: TableLayout, ctx: RenderCtx, d: "mckinsey" | "bain"): ExLayout {
-  return cache(L, "exgeom", tableKey(ctx, L) + "|" + d, () => {
-    const ex = exhibitOf(L, ctx), G = EXG[d], boxes = new Map<string, BoxR>(), max = new Map<number, number>(), tops = new Map<number, number>();
-    if (ex.kind !== "exhibit") return { design: d, ex, numbers: "compact", headTexts: [], W: L.W, H: L.H, head: 0, pitch: 0, tops, cols: [], heads: new Map(), boxes, max };
+  return cache(L, "exgeom", tableKey(ctx, L) + "|" + d + "|" + lookKeyOf(ctx), () => {
+    const ex = exhibitOf(L, ctx), G = EXG[d], boxes = new Map<string, BoxR>(), max = new Map<number, number>(), tops = new Map<number, number>(), look = consultOptions(ctx);
+    if (ex.kind !== "exhibit") return { design: d, ex, look, numbers: "compact", headTexts: [], W: L.W, H: L.H, head: 0, pitch: 0, tops, cols: [], heads: new Map(), boxes, max };
     const all = [...ex.rows, ...(ex.total ? [ex.total] : [])];
     // the label column: as wide as the longest label needs (14.67 px bold, ~9.6 px a character), within the design's range
     const chars = Math.max(0, ...all.map(r => (r.label?.text || "").trim().length));
@@ -289,14 +291,14 @@ function compactLayout(L: TableLayout, ctx: RenderCtx, d: "mckinsey" | "bain"): 
     at("label", Math.min(G.label[1], Math.max(G.label[0], Math.ceil(chars * 9.6) + 16)));
     if (d === "mckinsey") {
       const N = EXG.mckinsey;
-      if (ex.series) { at("latest", N.latest); W += N.gap; at("trend", N.trend); }
+      if (ex.series) { at("latest", N.latest); if (look.trend === "on") { W += N.gap; at("trend", N.trend); } }
       for (const ref of ex.refs) at("ref", N.ref, { ref });
       if (ex.deltas.length) W += N.dgap;
-      for (const delta of ex.deltas) at("dbar", N.dbar, { delta });
+      for (const delta of ex.deltas) at(look.bars === "on" ? "dbar" : "dpct", look.bars === "on" ? N.dbar : N.ref, { delta });
     } else {
       const R = EXG.bain;
-      if (ex.series) at("latest", R.latest);
-      ex.deltas.forEach((delta, i) => at(i < 2 ? "dbar" : "dpct", i < 2 ? R.dbar : R.dpct, { delta }));
+      if (ex.series) { at("latest", R.latest); if (look.trend === "on") at("trend", EXG.mckinsey.trend); }
+      ex.deltas.forEach((delta, i) => { const bar = look.bars === "on" && i < 2; at(bar ? "dbar" : "dpct", bar ? R.dbar : R.dpct, { delta }); });
     }
     const head = G.head, pitch = pitchOf(L);
     all.forEach((r, i) => tops.set(r.r, head + i * pitch));
@@ -343,7 +345,7 @@ function compactLayout(L: TableLayout, ctx: RenderCtx, d: "mckinsey" | "bain"): 
         }
       }
     }
-    return { design: d, ex, numbers: "compact", headTexts: [], W, H, head, pitch, tops, cols, heads, boxes, max };
+    return { design: d, ex, look, numbers: "compact", headTexts: [], W, H, head, pitch, tops, cols, heads, boxes, max };
   });
 }
 /** a diverging bar: from the axis (the column's centre) towards the value's side, its length ∝ |value| / the column's max

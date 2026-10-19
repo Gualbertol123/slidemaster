@@ -5,6 +5,7 @@
 import type { TableLayout } from "../xlsx/types";
 import type { FreeLayout, Item, Layout, Note, RuntimeSlide, Side, SlideSizing } from "../model/types";
 import type { RenderCtx } from "./context";
+import { slideCtx } from "./look";
 import { glassGeom } from "./glass";
 import { effNote, titleGeom } from "./text";
 import { consultOptions, DESIGNS, isConsult } from "../model/designs";
@@ -13,7 +14,8 @@ import { exhibitFacts, exhibitGeom, exhibitOf, type Exhibit, type ExFacts } from
 
 export const SLIDE_W = 1600, SLIDE_H = 900;
 export const GX = 36, GY = 28, MAXK = 2.0;
-export function areaFor(R: RuntimeSlide, ctx?: RenderCtx) {
+export function areaFor(R: RuntimeSlide, ctx0?: RenderCtx) {
+  const ctx = ctx0 && slideCtx(ctx0, R);
   // the consulting designs reserve a two-line title band and a rule under it (08 §2.0); the others as v3
   const a = ctx && isConsult(ctx.style.design) ? (R.subtitle ? { x: 50, y: 170, w: 1500, h: 652 } : { x: 50, y: 138, w: 1500, h: 684 })
     : R.subtitle ? { x: 50, y: 126, w: 1500, h: 696 } : { x: 50, y: 104, w: 1500, h: 718 };
@@ -38,7 +40,8 @@ export const SIGNAL_AREA = { panel: 500, x: 560, w: 980 };
 /* the facts the consulting furniture quotes, of the slide's first table (exhibit.ts); per drawing context, cached on
    the table */
 const factCache = new WeakMap<RenderCtx, WeakMap<TableLayout, { ex: Exhibit; facts: ExFacts } | null>>();
-export function slideFacts(R: RuntimeSlide, ctx: RenderCtx): { ex: Exhibit; facts: ExFacts } | null {
+export function slideFacts(R: RuntimeSlide, ctx0: RenderCtx): { ex: Exhibit; facts: ExFacts } | null {
+  const ctx = slideCtx(ctx0, R);
   const L = R.tables[0];
   if (!L) return null;
   let m = factCache.get(ctx); if (!m) factCache.set(ctx, m = new WeakMap());
@@ -108,7 +111,8 @@ function fixedScale(R: RuntimeSlide, ctx: RenderCtx): number {
   const sz = sizingOf(R, ctx);
   return sz.scale && sz.scale > 0 ? sz.scale : 0;
 }
-export function layoutOf(R: RuntimeSlide, ctx?: RenderCtx): Layout {
+export function layoutOf(R: RuntimeSlide, ctx0?: RenderCtx): Layout {
+  const ctx = ctx0 && slideCtx(ctx0, R);
   const saved = ctx ? sizingOf(R, ctx).layout : R.cfg && R.cfg.layout;
   if (validLayout(saved, R.tables.length)) return saved;
   if (!R._auto || R._auto.w.length !== R.tables.length) R._auto = defaultLayout(R);
@@ -233,7 +237,8 @@ export function freeBoxes(R: RuntimeSlide, ctx: RenderCtx): FreeLayout["items"] 
 /** Tables (plus their text boxes) in bands. k = largest scale ≤ MAXK that fits the content area – or the
     slide's fixed scale (set by "Make same size"), reduced only if it would not fit. In a free layout (B18) the saved
     boxes instead (`w` / `lay`, a drag's trial weights, lay out the bands: the automatic layout). */
-export function computeLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay?: Layout): { boxes: TBox[]; k: number; fit: number; reduced: boolean } {
+export function computeLayout(R: RuntimeSlide, ctx0: RenderCtx, w?: number[], lay?: Layout): { boxes: TBox[]; k: number; fit: number; reduced: boolean } {
+  const ctx = slideCtx(ctx0, R);                                // the slide's own look (B29)
   if (!R.tables.length) return { boxes: [], k: 1, fit: 1, reduced: false };
   const f = !w && !lay ? freeOf(R, ctx) : null;
   return f ? freeLayout(R, ctx, f) : autoLayout(R, ctx, w, lay);

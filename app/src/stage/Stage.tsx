@@ -8,6 +8,8 @@
    - the selection, the drop mark, the snapping guides, the size guides;
    - the editor open on the slide (editors.tsx).
    Element ids, classes and data-* are v3's, so tests and the toolbars find the same things. */
+import { isLookText } from "../editor/look";
+import { slideCtx } from "@slide-builder/core/render/look";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { get, patch, STAGE, useStore } from "../state/store";
 import { ctx } from "../state/app";
@@ -16,7 +18,7 @@ import { slideFrame } from "@slide-builder/core/render/slide";
 import { freeOf, tableH, tableW } from "@slide-builder/core/render/layout";
 import { tableName } from "@slide-builder/core/model/preset";
 import type { RenderCtx } from "@slide-builder/core/render/context";
-import { selItems, activeItem, setSel } from "../editor/edit";
+import { selItems, activeItem, setSel, curSlide } from "../editor/edit";
 import { setColWidth, setRowHeight } from "../editor/tables";
 import { applyPainter } from "../editor/painter";
 import { selectSlideText } from "../editor/textfmt";
@@ -60,8 +62,9 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
   // the slide the stage shows – while another one is on its way (a slide switch) the stage keeps showing it, so nothing
   // flashes empty – and the render context as it is when that changes: the mirror alone changing (an edit before the
   // worker draws it) redraws nothing here
-  const slides = useStore(st => st.deck.slides), c = ctx();
+  const slides = useStore(st => st.deck.slides), c0 = ctx();
   const R = shown ? slides.find(x => x.id === shown.id) ?? null : null;
+  const c = R ? slideCtx(c0, R) : c0;                         // the slide's own look (B29): its tables' geometry
   const slideRef = useRef<HTMLDivElement>(null);
   const live = shown && R ? shown : null;
   const m = useMemo(() => live && R ? stageModel(live, R, c) : null, [live, R]);
@@ -139,7 +142,7 @@ const TextLayer = memo(function TextLayer({ hits }: { hits: StageModel["hits"] }
     return <div key={k} className={"tx " + h.id + (key && key === textSel ? " tsel" : "")} {...(key ? { "data-edit": key } : {})}
       style={{ left: h.x, top: h.y, width: h.w, height: h.h, ...(f ? { fontFamily: f.family, fontSize: f.size, fontWeight: f.weight, fontStyle: f.italic ? "italic" : undefined } : {}) }}
       onPointerDown={key ? e => { e.stopPropagation(); selectSlideText(key); } : undefined}
-      onDoubleClick={key ? () => setStage({ editor: { kind: "text", key } }) : undefined}>{h.label}</div>;
+      onDoubleClick={key && !isLookText(key) ? () => setStage({ editor: { kind: "text", key } }) : undefined}>{h.label}</div>;
   })}</>;
 }, (a, b) => a.hits === b.hits || a.hits.length === b.hits.length && a.hits.every((h, i) => JSON.stringify(h) === JSON.stringify(b.hits[i])));   // the furniture as it was: nothing to draw
 
@@ -254,7 +257,7 @@ function HBox({ i, R, c, m, box, drag, slide }: { i: number; R: RuntimeSlide; c:
 
 /* ---- the selection: the selected cells and the active one, in slide px */
 function Selection({ m, s, drag }: { m: StageModel; s: number; drag: DragPreview | null }) {
-  const sel = useStore(st => st.selection.sel), c = ctx();
+  const sel = useStore(st => st.selection.sel), R = curSlide(), c = R ? slideCtx(ctx(), R) : ctx();
   if (!sel) return null;
   const place = m.tables.find(t => t.i === sel.t); if (!place) return null;
   const b = boxOf(sel.t, place.box, drag), its = selItems().map(it => cellBox(it, c)).filter((x): x is NonNullable<typeof x> => !!x); if (!its.length) return null;

@@ -5,6 +5,8 @@ import type { Note, RuntimeSlide, Side } from "../model/types";
 import { glassLevel, themeOf } from "../model/style";
 import { darken, hexRgb } from "../xlsx/color";
 import { tableKey, type RenderCtx } from "./context";
+import { slideCtx } from "./look";
+import { isConsult, lookKeyOf } from "../model/designs";
 import { palette } from "../model/style";
 import { effNote } from "./text";
 import { designClass } from "../model/designs";
@@ -13,11 +15,14 @@ import { MEMO_KEY, memoBox, SIDES, noteKey, notesOf } from "./layout";
 
 /** what table i of a slide is drawn from (design, glass level, its content and edits, the export flag, its layout):
     the same key, the same drawing (the stage's table cache, core/worker/host.ts) */
-export function tableDrawKey(R: RuntimeSlide, i: number, ctx: RenderCtx): string {
+export function tableDrawKey(R: RuntimeSlide, i: number, ctx0: RenderCtx): string {
+  const ctx = slideCtx(ctx0, R);
   const L = R.tables[i];
   return ctx.style.design + "|" + glassLevel(ctx.style) + "|" + tableKey(ctx, L) + "|" + (ctx.forExport ? 1 : 0)
     // the layout itself (per-design sizes and grown ranges are not in tableKey)
-    + "|" + JSON.stringify(L.g) + "|" + [...L.colW.values()].join() + "|" + [...L.rowH.values()].join();
+    + "|" + JSON.stringify(L.g) + "|" + [...L.colW.values()].join() + "|" + [...L.rowH.values()].join()
+    // the consulting look (the deck's and this slide's parts, B29)
+    + (isConsult(ctx.style.design) ? "|" + lookKeyOf(ctx) : "");
 }
 export const slideHasLogo = (R: RuntimeSlide) => !(R.cfg && R.cfg.logo === false);
 /** contrast 0…100 (50 = as designed): lower fades the wallpaper (and glass) towards white,

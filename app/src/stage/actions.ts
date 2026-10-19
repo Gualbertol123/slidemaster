@@ -1,6 +1,7 @@
 /* What the keyboard, the toolbars and the stage's own handlers do on the slide (ported from v3's editor/stage.ts):
    open an editor, select, add, change or remove a text box, zoom. Everything that changes the document is an
    operation (state/app.ts change); the selection and the editor are store state that the stage draws. */
+import { isLookText } from "../editor/look";
 import { get, patch, patchAll, toast } from "../state/store";
 import { change, setZoom } from "../state/app";
 import type { Note, Op, RuntimeSlide, Side } from "@slide-builder/core/model/types";
@@ -21,7 +22,7 @@ export function openInline(initial?: string) {
 /** edits the selected title, subtitle, cover note or date (Enter, F2) */
 export function editSelectedText() {
   const key = get().selection.textSel;
-  if (key && !stage().editor && curSlide()) setStage({ editor: { kind: "text", key } });
+  if (key && !isLookText(key) && !stage().editor && curSlide()) setStage({ editor: { kind: "text", key } });   // a look text is not edited
 }
 /** edits text box `key` (double-click, Enter) */
 export function editNote(key: string) {

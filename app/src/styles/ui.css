@@ -365,3 +365,7 @@ table.xs td.mk{background:#FFF4CC!important;color:#9A6B00;font-weight:700;text-a
 .screport{margin:0;padding-left:20px;overflow:auto;font-size:12.5px;display:flex;flex-direction:column;gap:3px}
 .screport small{display:block;color:var(--mute)}
 .scrunft{display:flex;justify-content:flex-end;gap:8px}
+/* B29: the consulting look's parts in ribbon 2 – a part this slide sets for itself carries a dot */
+.lookgrp{gap:6px}
+.lookpart{display:inline-flex;align-items:center;gap:4px;position:relative}
+.lookpart.own::after{content:"";position:absolute;top:-2px;right:-3px;width:6px;height:6px;border-radius:50%;background:var(--accent)}

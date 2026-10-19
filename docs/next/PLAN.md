@@ -296,6 +296,7 @@ Approved 2026-10-16 (product owner: "I approve everything", `07-scenarios-charts
 | B22 | **Linked workbooks**: a deck can draw from several files; external links are recalculated when the linked file is available | M7 |
 | B23 | The page grows by ≈ 2.8 MB (the formula engine), loaded on first use only; start-up unchanged | M7 |
 | B24 | The Issues panel reports how many formulas recompute like Excel, locale-dependent `TEXT` cells, and missing chart / callout sources | M7, M9 |
+| B29 | **Composable consulting looks** (product owner 2026-10-19): the parts of Consulting Navy / Red – table style, all or compact numbers, Δ bars, trend line, latest-value bar, headline (KPI line, panel, none), number of KPIs, background, the KPI line's and the panel's text format – each a selector in the contextual ribbon; a change applies to the current slide, *Apply to all* makes it the deck's; replaces the Look ▾ dropdown and Design… › Layout of 4.2 (08 §2.8) | M7c |
 | B28 | **Cell borders on selected cells** (*Borders ▾*, as Excel's: sides, outside, thick outside, none; style and colour), over the workbook's on the slide only, separate from the gridlines (B20); copied by the painter; drawn where workbook borders are drawn (product owner 2026-10-19) | M10 (S10.3b) |
 
 Approved 2026-10-16 (product owner: "neutral names, i approve all above", `08-consulting-designs.md` §4.2 and §6):

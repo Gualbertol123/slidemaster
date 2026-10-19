@@ -963,14 +963,28 @@ test.describe.serial("two people, one shared folder", () => {
     expect(JSON.stringify(bdoc().style.theme ?? null)).toBe(shared);
     await page.click('#lookScope [data-scope="design"]');
     await page.click('.tsdlg [data-a="close"]');
-    // the Look dropdown (owner, 2026-10-16: every combination): 36 looks, the design's default chosen; a pick is one undo step
-    await expect(page.locator("#lookSel option")).toHaveCount(36);
-    await expect(page.locator("#lookSel")).toHaveValue("exhibit full panel tinted");
-    await page.selectOption("#lookSel", "rules - kpi white"); await saved(page);
-    expect(bdoc().style.designs.bain.consult).toEqual({ tables: "rules", headline: "kpi", background: "white" });
-    await page.keyboard.press("Control+z"); await saved(page);
-    expect(bdoc().style.designs?.bain?.consult).toBeUndefined();
-    await expect(page.locator("#lookSel")).toHaveValue("exhibit full panel tinted");
+    // B29 (08 §2.8): the look's parts in ribbon 2 – a change goes to this slide, "Apply to all" makes it the deck's
+    const slide0 = () => bdoc().preset.slides.find((x: any) => x.type !== "cover" && x.type !== "index") ?? bdoc().preset.slides[0];
+    await expect(page.locator("#lookGroup")).toHaveAttribute("data-mode", "table");
+    await expect(page.locator('#lookGroup [data-part="bars"]')).toHaveClass(/\bon\b/);
+    await page.click('#lookGroup [data-part="bars"]'); await saved(page);
+    expect(slide0().looks).toEqual({ bain: { bars: "off" } });
+    expect(bdoc().style.designs?.bain?.consult).toBeUndefined();                           // the deck's look untouched
+    await expect(page.locator('#lookGroup [data-part="bars"]')).toHaveClass(/\bown\b/);
+    await page.click("#lookApplyAll"); await saved(page);                                  // the deck's, cleared on the slide
+    expect(bdoc().style.designs.bain.consult).toEqual({ bars: "off" });
+    expect(slide0().looks).toBeUndefined();
+    await page.keyboard.press("Control+z"); await saved(page);                             // one undo step
+    expect(slide0().looks).toEqual({ bain: { bars: "off" } });
+    await page.click("#lookReset"); await saved(page);
+    expect(slide0().looks).toBeUndefined();
+    // the title selected: the headline's parts
+    await page.locator("#stage .slide .tx.title").first().click();
+    await expect(page.locator("#lookGroup")).toHaveAttribute("data-mode", "headline");
+    await page.click('#lookGroup [data-part="headline"] [data-value="none"]'); await saved(page);
+    expect(slide0().looks).toEqual({ bain: { headline: "none" } });
+    await page.click("#lookReset"); await saved(page);
+    await expect(page.locator("#lookSel, #tabLayout")).toHaveCount(0);                    // no dropdown, no Layout tab
     // S7b.4: thumbnails, a PNG of the slide (3× the slide) and the slide copied to the clipboard, in Consulting Red
     await expect(page.locator(".thumb .frame canvas")).toHaveCount(await page.locator(".thumb").count(), { timeout: 15_000 });
     const [png] = await fromMenu(page, "png-current");
@@ -980,7 +994,7 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#toast")).toContainText("copied", { timeout: 60_000 });
     expect(await page.evaluate(async () => { const [item] = await navigator.clipboard.read(); const b = await createImageBitmap(await item.getType("image/png")); return [b.width, b.height]; })).toEqual([4800, 2700]);
     await page.click(`[data-design="${before}"]`); await saved(page);
-    await expect(page.locator("#lookSel")).toHaveCount(0);                                   // consulting designs only
+    await expect(page.locator("#lookGroup")).toHaveCount(0);                                 // consulting designs only
   });
 
   test("charts follow a scenario (S9.3, CH-03): a pie from the linked Peers table, previewed for Bank C", async ({ page }) => {

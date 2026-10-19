@@ -402,8 +402,9 @@ Then:
 
 > "Don't necessarily delete anything, add options to make different hybrids."
 
-Every look built for the consulting designs stays a choice. The choice is per design, under **Design… › Layout**,
-saved in `designs[d].consult` (`model/designs.ts` `ConsultOptions`). Older pages keep the setting untouched (test).
+Every look built for the consulting designs stays a choice. The choice is per design, saved in `designs[d].consult`
+(`model/designs.ts` `ConsultOptions`). Older pages keep the setting untouched (test). (Set under *Design… › Layout* and
+the *Look ▾* dropdown in 4.2; since §2.8 / B29 each part is a selector in the ribbon, per slide or for the deck.)
 
 | Option | Choices | Consulting Navy default | Consulting Red default |
 |---|---|---|---|
@@ -415,6 +416,53 @@ saved in `designs[d].consult` (`model/designs.ts` `ConsultOptions`). Older pages
 In "All numbers", exhibits show every number in fixed, right-aligned columns. The bars and trend lines sit beside the
 numbers in lanes of their own. The palette and fonts stay the design's own whatever the options, so a hybrid is still
 Navy or Red.
+
+### 2.8 Composable looks (product owner, 2026-10-19)
+
+Review of 4.2–4.4:
+
+> "All is very good, but it has to be more flexible and composable. I do not want a list with all of the different
+> versions, make it composable, with selectors for each composable part, such as with/without % bar on deltas (bar on
+> the left), changing text/font/size in KPI line, and all of the other different variables. No large dropdowns, no
+> additional settings."
+
+Asked, the owner chose: the selectors in the **contextual ribbon** (no dropdown, no Layout tab, no dialog); the look
+is **the design's for the whole deck**, a **slide can have its own** ("when making changes they should first apply
+locally and then a button apply to all"); the slide keeps the deck's design (another design per slide is not asked).
+
+**The parts** (`model/designs.ts` `ConsultOptions`; every part independent):
+
+| Part | Choices | Navy default | Red default | Ribbon (in a consulting design) |
+|---|---|---|---|---|
+| tables | exhibit · cards · rules | exhibit | exhibit | table group: Exhibit / Cards / Ruled |
+| numbers | full · compact | full | full | table group: All / Compact |
+| bars | on · off – the Δ bar beside each variance (Navy every variance, Red the first two) | on | on | table group: Δ bars |
+| trend | on · off – the trend line after the periods | on | off | table group: Trend |
+| band | on · off – the light bar under the latest period's value | off | on | table group: Latest bar |
+| headline | kpi · panel · none | kpi | panel | headline group: KPI line / Panel / None |
+| kpis | 1 · 2 · 3 – the variances the KPI line quotes | 3 | 3 | headline group: 1 / 2 / 3 |
+| background | band · tinted · white | band | tinted | headline group: Band / Tint / White |
+| kpiText, panelText | a text format (font, size, bold, italic, colour) of the KPI line's figures / the panel's lead | – | – | the TEXT ribbon, with the KPI line or the panel selected |
+
+**Scope.** Effective look of a slide = the design's defaults ← the deck's (`style.designs[d].consult`) ← the slide's
+(`SlideDef.looks[d]`, a new optional slide map, `slide.patch {looks: {[d]: … | null}}`, merged per design like
+`free`). Every change in the ribbon goes to the **current slide**; **Apply to all** moves the parts the slide sets to
+the deck and clears them on every slide (one undo step); **Deck's look** clears the slide's own. The table group shows
+with nothing or a table selected; the headline group with the title, the KPI line or the panel selected (so a slide
+whose headline is None can get it back). The KPI line and the panel are selectable texts (hit ids `kpi` and the panel's lead
+figure `sig-lead`), not editable – their words are the table's; a slide's text format is merged field by field over
+the deck's. Cover and contents slides have no parts (their look is the design's). A slide's text format adds to the deck's: a field
+the deck sets (e.g. after *Apply to all*) is changed on a slide by choosing another value, not removed there; *Apply to
+all* gives every slide the current slide's KPI line / panel format whole.
+
+**Where it is drawn.** One context per slide (`render/look.ts` `slideCtx(ctx, R)`: the style's `consult` = the
+slide's effective look) at every slide entry – `computeLayout`, `areaFor`, `layoutOf`, `slideToDisplayList`, the
+worker's stage and export lists, the page's hit-testing of the current slide; the exhibit's caches are keyed by the
+look (`lookKey`). With every part at its default the output is the 4.4 output: goldens and snapshots unchanged.
+
+**Compatibility.** `looks` is an optional slide map: 4.0–4.4 pages ignore it (they draw the deck's look, or Liquid
+Glass before 4.2); the deck's `consult` keeps its 4.2 keys, the new parts are optional keys. B29 replaces the Look ▾
+dropdown and the Layout tab of 4.2 (B25 / B26).
 
 ### 2.4 Sketches
 
