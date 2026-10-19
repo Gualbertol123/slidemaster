@@ -6,7 +6,7 @@ import { glassLevel, themeOf } from "../model/style";
 import { darken, hexRgb } from "../xlsx/color";
 import { tableKey, type RenderCtx } from "./context";
 import { slideCtx } from "./look";
-import { consultOptions, isConsult, lookKey } from "../model/designs";
+import { isConsult, lookKeyOf } from "../model/designs";
 import { palette } from "../model/style";
 import { effNote } from "./text";
 import { designClass } from "../model/designs";
@@ -22,7 +22,7 @@ export function tableDrawKey(R: RuntimeSlide, i: number, ctx0: RenderCtx): strin
     // the layout itself (per-design sizes and grown ranges are not in tableKey)
     + "|" + JSON.stringify(L.g) + "|" + [...L.colW.values()].join() + "|" + [...L.rowH.values()].join()
     // the consulting look (the deck's and this slide's parts, B29)
-    + (isConsult(ctx.style.design) ? "|" + lookKey(consultOptions(ctx)) : "");
+    + (isConsult(ctx.style.design) ? "|" + lookKeyOf(ctx) : "");
 }
 export const slideHasLogo = (R: RuntimeSlide) => !(R.cfg && R.cfg.logo === false);
 /** contrast 0…100 (50 = as designed): lower fades the wallpaper (and glass) towards white,

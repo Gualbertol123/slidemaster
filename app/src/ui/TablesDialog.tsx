@@ -1,5 +1,6 @@
 /* "Table sizes" dialog: tables of the whole deck, grouped by slide. Make chosen tables exactly the
    same size (also across slides), copy column widths / row heights from one table, align, reset. */
+import { slideCtx } from "@slide-builder/core/render/look";
 import { useState } from "react";
 import { get, setDialogs, useStore } from "../state/store";
 import { useCtx } from "./hooks";
@@ -31,7 +32,7 @@ export function TablesDialog() {
               <label className="ck big"><input type="checkbox" checked={list.every(r => chosen.has(keyOf(r)))} onChange={e => { const n = new Set(chosen); list.forEach(r => (e.target as HTMLInputElement).checked ? n.add(keyOf(r)) : n.delete(keyOf(r))); setChosen(n); }} />
                 Slide {si + 1} · {R.label}</label>
               {list.map(r => <label key={keyOf(r)} className="ck tdtab"><input type="checkbox" data-t={keyOf(r)} checked={chosen.has(keyOf(r))} onChange={e => toggle(keyOf(r), (e.target as HTMLInputElement).checked)} />
-                {tableName(r.L, c.preset)} <small>{Math.round(tableW(r.L, c))} × {Math.round(tableH(r.L, c))} px</small></label>)}
+                {tableName(r.L, c.preset)} <small>{Math.round(tableW(r.L, slideCtx(c, R)))} × {Math.round(tableH(r.L, slideCtx(c, R)))} px</small></label>)}
             </div>)}
           </div>
           <div className="tdactions">

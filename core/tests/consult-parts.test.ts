@@ -8,7 +8,8 @@ import { slideToDisplayList } from "../src/render/slide-dl";
 import { computeLayout } from "../src/render/layout";
 import { validate, type DisplayList, type HitNode, type Node, type TextNode } from "../src/dl/types";
 import type { RenderCtx } from "../src/render/context";
-import type { ConsultOptions } from "../src/model/designs";
+import { consultOptions, type ConsultOptions } from "../src/model/designs";
+import { slideCtx } from "../src/render/look";
 import type { Metrics } from "../src/render/excel-dl";
 import { deckOf } from "./corpus-deck";
 import { wrapLines } from "../src/text/lines";
@@ -42,7 +43,9 @@ describe("exhibit parts", () => {
       }
       const g = exhibitLayout(L, withOpts(ctx(), { trend: "on" }))!, dl = consultToDisplayList(L, withOpts(ctx(), { trend: "on" }), M);
       expect(validate(dl.nodes)).toEqual([]);
-      expect(flat(dl.nodes).filter(n => n.t === "path").length, design).toBeGreaterThanOrEqual(g.ex.rows.length);   // a line per row
+      const paths = flat(dl.nodes).filter((n): n is Extract<Node, { t: "path" }> => n.t === "path" && !!n.stroke);
+      expect(paths.length, design).toBeGreaterThanOrEqual(g.ex.rows.length);                          // a line per row
+      for (const p of paths) { const xs = p.d.filter(c => c[0] !== "Z").map(c => c[1] as number); expect(Math.max(...xs) - Math.min(...xs), design).toBeGreaterThan(30); }   // a line, not a dot
     }
   });
   it("latest bar: drawn under the latest value when on, in both designs", async () => {
@@ -75,6 +78,12 @@ describe("headline parts", () => {
     const p0 = after(await slide("bain"), "sig-lead"), p1 = after(await slide("bain", { panelText: { size: 60, b: false } }), "sig-lead");
     expect(p1.size).toBeLessThanOrEqual(60); expect(p1.size).not.toBe(p0.size);
     expect(!!p1.b || (p1.weight ?? 400) >= 600).toBe(false);
+  });
+  it("a slide's text format is merged field by field over the deck's", async () => {
+    const { ctx, slides } = await deckOf("deck20.json", "mckinsey"), R = slides.find(s => s.type === "content")!;
+    const deck = withOpts(ctx(), { kpiText: { font: "Arial", size: 30 } });
+    (R.cfg as { looks?: unknown }).looks = { mckinsey: { kpiText: { size: 44 } } };
+    expect(consultOptions(slideCtx(deck, R)).kpiText).toEqual({ font: "Arial", size: 44 });
   });
   it("a slide's own look (SlideDef.looks) over the deck's: only that slide changes", async () => {
     const { ctx, slides } = await deckOf("deck20.json", "mckinsey"), c = ctx(), ids = slides.map((s, i) => [s, i] as const).filter(([s]) => s.type === "content").slice(0, 2);

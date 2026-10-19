@@ -788,7 +788,8 @@ const viewJson = (v: WorkbookDoc) => { const { rev, updated, updatedBy, log, sch
 /** every weight glassPlan draws a cell with (its roles, bold, the user's bold and not-bold) */
 const GLASS_WEIGHTS = [470, 500, 520, 640, 650, 680, 720, 740];
 async function glassFonts(ctx: RenderCtx) {
-  const tm = platform().text; if (geomOf(ctx) !== "scene" || !tm.prepare) return;
+  // any slide drawn as a scene (Liquid Glass, or a consulting slide whose tables are Cards – B29: maybe this slide only)
+  const tm = platform().text; if (!tm.prepare || !(geomOf(ctx) === "scene" || ctx.slides.some(R => geomOf(slideCtx(ctx, R)) === "scene"))) return;
   const fams = [sceneFont(ctx), ...new Set(ctx.slides.flatMap(R => R.tables.flatMap(L => L.items.flatMap(it => it.userFont ? [fontStack(it.userFont)] : [])))), ...(ctx.style.text?.table?.font ? [fontStack(ctx.style.text.table.font)] : [])];
   await tm.prepare(fams.flatMap(f => GLASS_WEIGHTS.map(w => `${w} 11px ${f}`)));
 }

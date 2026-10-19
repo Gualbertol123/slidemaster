@@ -190,8 +190,9 @@ function fullNumbers(ctx: RenderCtx, m: Metrics, g: ExLayout, family: string, op
         continue;
       }
       if (c.kind === "trend" && ser) {
-        const k = ser.cols.length, x0 = c.x + (c.w - G.spark) / 2, h = G.sparkH;
-        const pts = ser.cols.map((col, j) => { const v = r.cells.get(col)?.v ?? null; return v === null ? null : { x: x0 + j * G.spark / (k - 1), v }; }).filter((p): p is { x: number; v: number } => !!p);
+        // Consulting Red has no trend of its own (B29: Navy's spark in its column)
+        const SP = G.spark ? G : EXF.mckinsey, k = ser.cols.length, x0 = c.x + (c.w - SP.spark) / 2, h = SP.sparkH;
+        const pts = ser.cols.map((col, j) => { const v = r.cells.get(col)?.v ?? null; return v === null ? null : { x: x0 + j * SP.spark / (k - 1), v }; }).filter((p): p is { x: number; v: number } => !!p);
         if (pts.length < 2) continue;
         const lo = Math.min(...pts.map(p => p.v)), hi = Math.max(...pts.map(p => p.v)), y = (v: number) => hi === lo ? cy : cy + h / 2 - (v - lo) / (hi - lo) * h;
         const color = total ? P.rule : P.trend, e = pts[pts.length - 1];

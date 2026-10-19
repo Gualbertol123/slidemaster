@@ -402,8 +402,9 @@ Then:
 
 > "Don't necessarily delete anything, add options to make different hybrids."
 
-Every look built for the consulting designs stays a choice. The choice is per design, under **Design… › Layout**,
-saved in `designs[d].consult` (`model/designs.ts` `ConsultOptions`). Older pages keep the setting untouched (test).
+Every look built for the consulting designs stays a choice. The choice is per design, saved in `designs[d].consult`
+(`model/designs.ts` `ConsultOptions`). Older pages keep the setting untouched (test). (Set under *Design… › Layout* and
+the *Look ▾* dropdown in 4.2; since §2.8 / B29 each part is a selector in the ribbon, per slide or for the deck.)
 
 | Option | Choices | Consulting Navy default | Consulting Red default |
 |---|---|---|---|
@@ -448,8 +449,9 @@ locally and then a button apply to all"); the slide keeps the deck's design (ano
 `free`). Every change in the ribbon goes to the **current slide**; **Apply to all** moves the parts the slide sets to
 the deck and clears them on every slide (one undo step); **Deck's look** clears the slide's own. The table group shows
 with nothing or a table selected; the headline group with the title, the KPI line or the panel selected (so a slide
-whose headline is None can get it back). The KPI line and the panel are selectable texts (hit ids `kpi`, `panel`), not
-editable – their words are the table's.
+whose headline is None can get it back). The KPI line and the panel are selectable texts (hit ids `kpi` and the panel's lead
+figure `sig-lead`), not editable – their words are the table's; a slide's text format is merged field by field over
+the deck's. Cover and contents slides have no parts (their look is the design's).
 
 **Where it is drawn.** One context per slide (`render/look.ts` `slideCtx(ctx, R)`: the style's `consult` = the
 slide's effective look) at every slide entry – `computeLayout`, `areaFor`, `layoutOf`, `slideToDisplayList`, the

@@ -1,6 +1,7 @@
 /* Table geometry tools: column widths / row heights (typed or dragged), copying sizes between tables,
    "make same size" (also across slides), horizontal alignment. Everything becomes table.patch /
    slide.patch operations (one undo step per action). */
+import { slideCtx } from "@slide-builder/core/render/look";
 import { get } from "../state/store";
 import { change, ctx } from "../state/app";
 import { buildLayout } from "@slide-builder/core/xlsx/layout";
@@ -14,9 +15,14 @@ import { curSlide, selItems, selTable } from "./edit";
 import { A1, parseRange } from "@slide-builder/core/xlsx/util";
 
 const r1 = (v: number) => Math.round(v * 10) / 10;
+/** the render context of the slide a table is on (B29: a slide's own look) – the current slide when it has it */
+export function ctxFor(L: TableLayout) {
+  const cur = curSlide(), R = cur && cur.tables.includes(L) ? cur : get().deck.slides.find(s => s.tables.includes(L));
+  return R ? slideCtx(ctx(), R) : ctx();
+}
 /** width of a column as shown (Liquid Glass may have widened it) */
 export function shownColW(L: TableLayout, c: number): number {
-  const x = ctx();
+  const x = ctxFor(L);
   return geomOf(x) === "scene" ? glassGeom(L, x).Wc.get(c) ?? L.colW.get(c)! : L.colW.get(c)!;
 }
 export const shownRowH = (L: TableLayout, r: number) => L.rowH.get(r)!;
@@ -112,7 +118,7 @@ export function resetSizes(refs: TableRef[]) {
 export function makeSameSize(refs: TableRef[], opts: { width: boolean; height: boolean; target: "largest" | "smallest" | "first" }) {
   const defs = uniqueDefs(refs); if (defs.size < 1) return { ok: false, why: "Choose at least two tables." };
   const x = ctx(), list = [...defs.values()];
-  const Ws = list.map(L => tableW(L, x)), Hs = list.map(L => tableH(L, x));
+  const Ws = list.map(L => tableW(L, ctxFor(L))), Hs = list.map(L => tableH(L, ctxFor(L)));
   const pick = (a: number[]) => opts.target === "first" ? a[0] : opts.target === "smallest" ? Math.min(...a) : Math.max(...a);
   const Wt = pick(Ws), Ht = pick(Hs);
   const ops: Op[] = [], newL = new Map<string, TableLayout>();

@@ -17,7 +17,7 @@ const FIELD = { kpi: "kpiText", panel: "panelText" } as const;
 /** the look of the current slide: the design, the slide's own parts, the effective look and the deck's */
 export function lookState() {
   const R = curSlide(), d = style().design;
-  if (!R || !isConsult(d)) return null;
+  if (!R || !isConsult(d) || R.type === "cover" || R.type === "index") return null;          // their look is the design's
   const own = slideLook(R.cfg, d), c = ctx();
   return { R, d, own, eff: consultOptions(slideCtx(c, R)), deck: consultOptions(c) };
 }
@@ -34,17 +34,24 @@ export function setPart<K extends ConsultChoice>(k: K, v: ConsultOptions[K]) {
 }
 /** the KPI line's or the panel's text format on this slide */
 export function lookTextFmt(key: LookTextKey): TextFmt { return lookState()?.eff[FIELD[key]] || {}; }
+/** the slide's own format of a look text (what an edit starts from: the deck's stays the deck's) */
+export function lookTextOwn(key: LookTextKey): TextFmt { return lookState()?.own[FIELD[key]] || {}; }
 export function setLookText(key: LookTextKey, label: string, fmt: TextFmt) {
   const s = lookState(); if (!s) return;
   const next: Partial<ConsultOptions> = { ...s.own }, f = Object.fromEntries(Object.entries(fmt).filter(([, v]) => v !== undefined && v !== null)) as TextFmt;
-  if (Object.keys(f).length) next[FIELD[key]] = f; else delete next[FIELD[key]];
+  // the slide keeps the fields that differ from the deck's (merged over them field by field, render/look.ts)
+  const deck = (s.deck[FIELD[key]] || {}) as Record<string, unknown>, same = (a: TextFmt, b: TextFmt) => JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
+  const mine = Object.fromEntries(Object.entries(f).filter(([k, v]) => deck[k] !== v)) as TextFmt;
+  if (Object.keys(mine).length) next[FIELD[key]] = mine; else delete next[FIELD[key]];
+  if (same((next[FIELD[key]] || {}) as TextFmt, (s.own[FIELD[key]] || {}) as TextFmt)) return;      // nothing changes: no step
   writeOwn(label + " (" + LOOK_TEXT_LABEL[key] + ", this slide)", next);
 }
 /** the slide's parts become the deck's; every slide's own value of those parts goes */
 export function applyLookToAll() {
   const s = lookState(); if (!s || !Object.keys(s.own).length) return;
   const view = get().doc.view!, raw = (view.style?.designs || {}) as Record<string, Record<string, unknown> | undefined>;
-  const look = { ...(raw[s.d] || {}) }, consult = { ...((look.consult as Record<string, unknown>) || {}), ...s.own };
+  const look = { ...(raw[s.d] || {}) }, cur = (look.consult as Record<string, unknown>) || {}, consult: Record<string, unknown> = { ...cur, ...s.own };
+  for (const f of ["kpiText", "panelText"] as const) if (s.own[f] && cur[f]) consult[f] = { ...(cur[f] as object), ...s.own[f] };     // field by field
   const ops: Op[] = [{ op: "style.patch", patch: { designs: { [s.d]: { ...look, consult } } } } as Op];
   for (const S of view.preset?.slides || []) {
     const mine = (S.looks?.[s.d] || {}) as Record<string, unknown>, rest = Object.fromEntries(Object.entries(mine).filter(([k]) => !(k in s.own)));

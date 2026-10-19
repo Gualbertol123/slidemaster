@@ -9,7 +9,7 @@ import { effFmt } from "@slide-builder/core/render/edits";
 import { effNote, slideTextFmt } from "@slide-builder/core/render/text";
 import { A1 } from "@slide-builder/core/xlsx/util";
 import { applySel, curSlide, selItems } from "./edit";
-import { isLookText, LOOK_TEXT_LABEL, lookTextFmt, setLookText, type LookTextKey } from "./look";
+import { isLookText, LOOK_TEXT_LABEL, lookTextFmt, lookTextOwn, setLookText, type LookTextKey } from "./look";
 
 export type Align = "left" | "center" | "right";
 export type VAlign = "top" | "middle" | "bottom";
@@ -22,7 +22,7 @@ export interface TextTarget {
   label: string;
   shown: Shown;
   /** controls that do not apply to this kind of text */
-  can: { valign: boolean; fill: boolean; spacing?: boolean };
+  can: { valign: boolean; fill: boolean; spacing?: boolean; /** false: no alignment (a look text) */ align?: boolean };
   apply(label: string, p: FmtPatch): void;
   clear(): void;
 }
@@ -67,11 +67,11 @@ function slideTarget(key: SlideTextKey): TextTarget | null {
 
 /* ---- the look's texts (B29): the KPI line's figures, the message panel's lead – format only, on this slide ---- */
 function lookTarget(key: LookTextKey): TextTarget | null {
-  const own = lookTextFmt(key), el = domOf(key as never), cs = el ? getComputedStyle(el) : null;
-  const shown: Shown = { font: own.font || null, pt: own.size ? px2pt(own.size) : cs ? px2pt(parseFloat(cs.fontSize)) : null,
-    b: own.b ?? (cs ? parseInt(cs.fontWeight, 10) >= 600 : true), i: own.i ?? false, color: own.color || null, align: null, valign: null };
+  const eff = lookTextFmt(key), own = lookTextOwn(key), el = domOf(key as never), cs = el ? getComputedStyle(el) : null;
+  const shown: Shown = { font: eff.font || null, pt: eff.size ? px2pt(eff.size) : cs ? px2pt(parseFloat(cs.fontSize)) : null,
+    b: eff.b ?? (cs ? parseInt(cs.fontWeight, 10) >= 600 : true), i: eff.i ?? false, color: eff.color || null, align: null, valign: null };
   return {
-    kind: "slide", label: LOOK_TEXT_LABEL[key], shown, can: { valign: false, fill: false },
+    kind: "slide", label: LOOK_TEXT_LABEL[key], shown, can: { valign: false, fill: false, align: false },
     apply(label, p) {
       const next: TextFmt = { ...own };
       if ("font" in p) { if (p.font) next.font = p.font; else delete next.font; }

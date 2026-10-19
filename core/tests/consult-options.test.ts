@@ -1,5 +1,6 @@
-/* The consulting designs' options (Design… › Layout): stored per design in designs[d].consult, validated, defaults per
-   design; an older page keeps them (product owner, 2026-10-16: "add options to make different hybrids"). */
+/* The consulting designs' look (B29, 08 §2.8): its parts stored per design in designs[d].consult and per slide in
+   SlideDef.looks[d], validated, defaults per design; an older page keeps them (product owner, 2026-10-16: "add options to
+   make different hybrids"; 2026-10-19: "composable, with selectors for each composable part"). */
 import { describe, expect, it } from "vitest";
 import { resolveStyle } from "../src/model/style";
 import { applyOps } from "../src/model/ops";

@@ -5,7 +5,7 @@
    it from the context as before. Without slide parts the context is returned as it is. */
 import type { RuntimeSlide } from "../model/types";
 import type { RenderCtx } from "./context";
-import { isConsult, slideLook } from "../model/designs";
+import { isConsult, slideLook, type ConsultOptions } from "../model/designs";
 
 const MEMO = new WeakMap<RenderCtx, Map<string, RenderCtx>>();
 export function slideCtx<C extends RenderCtx>(ctx: C, R: RuntimeSlide | null | undefined): C {
@@ -15,6 +15,11 @@ export function slideCtx<C extends RenderCtx>(ctx: C, R: RuntimeSlide | null | u
   const key = R.id + "|" + JSON.stringify(own);
   let m = MEMO.get(ctx); if (!m) MEMO.set(ctx, m = new Map());
   let c = m.get(key) as C | undefined;
-  if (!c) { c = { ...ctx, style: { ...ctx.style, consult: { ...(ctx.style.consult || {}), ...own } } }; m.set(key, c); }
+  if (!c) {
+    // the parts replace the deck's; a text format (kpiText, panelText) is merged field by field over the deck's
+    const deck = (ctx.style.consult || {}) as Partial<ConsultOptions>, consult: Partial<ConsultOptions> = { ...deck, ...own };
+    for (const f of ["kpiText", "panelText"] as const) if (own[f] && deck[f]) consult[f] = { ...deck[f], ...own[f] };
+    c = { ...ctx, style: { ...ctx.style, consult } }; m.set(key, c);
+  }
   return c;
 }

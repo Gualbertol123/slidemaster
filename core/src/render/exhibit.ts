@@ -12,7 +12,7 @@ import { tableKey } from "./context";
 import { cache, effItems } from "./edits";
 import { analysisOf, gridOf } from "./comment";
 import { cleanHead, TOTAL } from "../model/comment";
-import { consultOptions, lookKey, type ConsultOptions } from "../model/designs";
+import { consultOptions, lookKeyOf, type ConsultOptions } from "../model/designs";
 
 /** one cell of the exhibit: the item (for its hit, text and edits) and its value when it is a number */
 export interface ExCell { it: Item; r: number; c: number; text: string; v: number | null }
@@ -209,7 +209,7 @@ export function exhibitLayout(L: TableLayout, ctx: RenderCtx, numbers: "full" | 
   return numbers === "full" ? fullLayout(L, ctx, d) : compactLayout(L, ctx, d);
 }
 function fullLayout(L: TableLayout, ctx: RenderCtx, d: "mckinsey" | "bain"): ExLayout {
-  return cache(L, "exgeomF", tableKey(ctx, L) + "|" + d + "|" + lookKey(consultOptions(ctx)), () => {
+  return cache(L, "exgeomF", tableKey(ctx, L) + "|" + d + "|" + lookKeyOf(ctx), () => {
     const ex = exhibitOf(L, ctx), G = EXF[d], boxes = new Map<string, BoxR>(), max = new Map<number, number>(), tops = new Map<number, number>(), headTexts: ExHead[] = [];
     const look = consultOptions(ctx), base = { design: d, ex, look, numbers: "full" as const, heads: new Map<ExCol, { it: Item; text: string }>(), headTexts, boxes, max, tops };
     if (ex.kind !== "exhibit") return { ...base, W: L.W, H: L.H, head: 0, pitch: 0, cols: [] };
@@ -280,7 +280,7 @@ function fullLayout(L: TableLayout, ctx: RenderCtx, d: "mckinsey" | "bain"): ExL
   });
 }
 function compactLayout(L: TableLayout, ctx: RenderCtx, d: "mckinsey" | "bain"): ExLayout {
-  return cache(L, "exgeom", tableKey(ctx, L) + "|" + d + "|" + lookKey(consultOptions(ctx)), () => {
+  return cache(L, "exgeom", tableKey(ctx, L) + "|" + d + "|" + lookKeyOf(ctx), () => {
     const ex = exhibitOf(L, ctx), G = EXG[d], boxes = new Map<string, BoxR>(), max = new Map<number, number>(), tops = new Map<number, number>(), look = consultOptions(ctx);
     if (ex.kind !== "exhibit") return { design: d, ex, look, numbers: "compact", headTexts: [], W: L.W, H: L.H, head: 0, pitch: 0, tops, cols: [], heads: new Map(), boxes, max };
     const all = [...ex.rows, ...(ex.total ? [ex.total] : [])];
@@ -294,7 +294,7 @@ function compactLayout(L: TableLayout, ctx: RenderCtx, d: "mckinsey" | "bain"): 
       if (ex.series) { at("latest", N.latest); if (look.trend === "on") { W += N.gap; at("trend", N.trend); } }
       for (const ref of ex.refs) at("ref", N.ref, { ref });
       if (ex.deltas.length) W += N.dgap;
-      for (const delta of ex.deltas) at(look.bars === "on" ? "dbar" : "dpct", look.bars === "on" ? N.dbar : EXG.bain.dpct, { delta });
+      for (const delta of ex.deltas) at(look.bars === "on" ? "dbar" : "dpct", look.bars === "on" ? N.dbar : N.ref, { delta });
     } else {
       const R = EXG.bain;
       if (ex.series) { at("latest", R.latest); if (look.trend === "on") at("trend", EXG.mckinsey.trend); }
