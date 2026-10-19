@@ -3,6 +3,39 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.4.0 - unreleased (docs/next/07 §5, PLAN M10; B18, B20, B28; ADR-017)
+
+What users notice
+* **Free layout** (B18): ribbon 2 › *Free layout* switches the current slide, in the current design, to a layout where
+  every table, text box, chart and callout sits where you put it: nothing moves when you switch it on, and from then on
+  nothing re-flows, shrinks or follows a table. Drag a table by its grip to move it, by its corner or any border to make
+  it larger or smaller (it keeps its proportions); drag a text box, chart or callout by its body to move it and by any
+  edge to size it. Everything snaps to the other boxes' edges, the content area and the slide's middle – hold **Alt**
+  for no snapping. Each drag is one undo step. *Reset layout* (or *Free layout* again) asks "Back to automatic layout?"
+  and brings the automatic layout back as it was; your free places are kept and come back when you switch it on again
+  – one undo step each way. Each design has its own free layout (the designs draw tables at different sizes); raw Excel
+  too. Exports and thumbnails show the slide as the stage does.
+* **Gridlines on selected cells** (B20): *Gridlines ▾ › Selected cells* draws light lines on the selected cells –
+  **H** (above and below each cell), **V** (left and right), **Outline** (around the selection) – in a colour and a
+  weight (0.5–3 px) of your choice; *Clear* removes them. They are a layer of their own: they never change a border,
+  and where a cell has a border that the design draws, the border shows. Liquid Glass and the consulting designs'
+  card tables draw them as lines of their colour; the consulting "exhibit" tables draw none.
+* **Cell borders** (B28, asked for in M10): *Borders ▾* on ribbon 2 sets the selected cells' borders as Excel's Borders
+  menu does – Bottom, Top, Left, Right, All borders, Outside, Thick outside, No border – in a style (thin, medium,
+  thick, dashed, dotted, double) and a colour; *Clear (as in Excel)* brings the workbook's borders back. They change
+  the slide only: the workbook is never changed. They are drawn where the designs draw the workbook's borders today
+  (Excel, Excel Refined, the consulting designs' ruled tables); Liquid Glass and the other consulting table styles
+  draw no borders, as before.
+* The format painter also copies a cell's gridlines and borders set on the slide (a cell without any removes the
+  target's, as Excel's painter does).
+* Decks with a free layout, cell gridlines or borders open in 4.0–4.3 with the automatic layout and the workbook's
+  borders (those keep the settings in the deck).
+
+For maintainers
+* `SlideDef.free` (per design `{on, items}`), `TableDef.cellGrid` and `TableDef.borders` – new map keys of
+  `slide.patch` / `table.patch` (`shared/ops-vectors.json` +16 cases); `computeLayout`'s free branch (no bisection);
+  the bench gate `free_drag_frame_ms` (16 ms, a free layout's drags).
+
 ## 4.3.0 - unreleased (docs/next/07, PLAN M9; B16, B17, B19, B24)
 
 What users notice
