@@ -28,6 +28,7 @@ async function table(design: Design, cells: Record<string, CellGrid | null> = {}
 }
 const noBorder = (it: Item) => !it.top && !it.bottom && !it.left && !it.right;
 const at = (items: Item[], r: number, c: number) => items.find(it => it.b.r === r && it.b.c === c);
+const single = (it: Item | undefined) => !!it && it.b.r === it.b.r2 && it.b.c === it.b.c2;
 /** a 2 × 2 block of single, borderless cells whose neighbours have no borders either (a clean place to draw on) */
 function cleanBlock(L: TableLayout, items: Item[]) {
   for (let i = 1; i + 2 < L.rows.length; i++) for (let j = 1; j + 2 < L.cols.length; j++) {
@@ -91,14 +92,15 @@ describe("gridlines on selected cells: the edges (GL-01)", () => {
     const withTop = base.items.find(it => it.top && !it.bottom && it.b.r === it.b.r2 && it.b.c === it.b.c2 && !base.items.some(o => o.b.r === it.b.r2 + 1 && o.b.c === it.b.c && o.top))!;
     expect(withTop).toBeTruthy();
     const k = keyOf(withTop), t = await table("excel", { [k]: { h: "on" } }), it = t.items.find(x => keyOf(x) === k)!;
-    expect(Object.keys(it.cgrid || {})).toEqual(["bottom"]);
+    expect(Object.keys(it.cgrid || {}).sort()).toEqual(["bottom", "top"]);
+    expect(Object.keys(it.cgx || {})).toEqual(["top"]);                                   // hidden where Excel draws a border
     expect(it.top).toEqual(withTop.top);
     // the cell above has a bottom border along this cell's top: also kept
     const above = base.items.find(x => x.bottom && x.b.r === x.b.r2 && x.b.c === x.b.c2 && base.items.some(o => o.b.r === x.b.r2 + 1 && o.b.c === x.b.c && o.b.c2 === x.b.c2 && !o.top && !o.bottom))!;
     if (above) {
       const below = base.items.find(o => o.b.r === above.b.r2 + 1 && o.b.c === above.b.c)!;
       const t2 = await table("excel", { [keyOf(below)]: { h: "on" } });
-      expect(Object.keys(t2.items.find(x => keyOf(x) === keyOf(below))!.cgrid || {})).not.toContain("top");
+      expect(Object.keys(t2.items.find(x => keyOf(x) === keyOf(below))!.cgx || {})).toContain("top");
     }
   });
   it("unknown values draw nothing; the entry of another table's cell does not leak; an empty map changes nothing", async () => {
@@ -110,7 +112,42 @@ describe("gridlines on selected cells: the edges (GL-01)", () => {
   });
 });
 
+describe("gridlines on selected cells: the table's gridlines, shared edges", () => {
+  it("over the table's gridlines \"All\": an outline in its colour is drawn (only real borders hide a cell's gridline)", async () => {
+    const { ctx, slides } = await deckOf("weekly.json", "excel", [{ op: "table.patch", id: TABLE, patch: { gridH: "on", gridV: "on" } } as Op]);
+    const L = slides.flatMap(s => s.tables).find(t => t.def?.id === TABLE)! as TableLayout, items = effItems(L, ctx());
+    const blk = cleanBlock(L, (await table("excel")).items), keys = blk.r.flatMap(r => blk.c.map(c => keyOf(at(items, r, c)!)));
+    const t = await deckOf("weekly.json", "excel", [{ op: "table.patch", id: TABLE, patch: { gridH: "on", gridV: "on", cellGrid: Object.fromEntries(keys.map(k => [k, { o: true, c: "#C00000" }])) } } as Op]);
+    const L2 = t.slides.flatMap(s => s.tables).find(x => x.def?.id === TABLE)! as TableLayout;
+    expect(effItems(L2, t.ctx()).some(it => it.cgx)).toBe(false);
+    expect(lines(excelToDisplayList(L2, t.ctx(), M).nodes).filter(l => ink(l) === "C00000").length).toBe(8);
+  });
+  it("an edge two cells share is drawn once (H on two cells one above the other: three lines, not four)", async () => {
+    const base = await table("excel"), blk = cleanBlock(base.L, base.items);
+    const a = at(base.items, blk.r[0], blk.c[0])!, b = at(base.items, blk.r[1], blk.c[0])!;
+    const t = await table("excel", { [keyOf(a)]: { h: "on" }, [keyOf(b)]: { h: "on" } });
+    expect(Object.keys(at(t.items, blk.r[0], blk.c[0])!.cgrid!)).toEqual(["top"]);
+    expect(Object.keys(at(t.items, blk.r[1], blk.c[0])!.cgrid!).sort()).toEqual(["bottom", "top"]);
+    expect(lines(excelToDisplayList(t.L, t.c, M).nodes).length).toBe(lines(excelToDisplayList(base.L, base.c, M).nodes).length + 3);
+  });
+});
+
 describe("gridlines on selected cells in the other designs", () => {
+  it("where a workbook border is (Excel hides the gridline there), Liquid Glass, the rules and the cards tables draw it – they draw no workbook border", async () => {
+    const base = await table("excel");
+    const withTop = base.items.find(it => single(it) && it.top && !it.bottom && !it.left && !it.right && !base.items.some(o => o.b.r === it.b.r && (o.b.c2 + 1 === it.b.c || o.b.c === it.b.c2 + 1) && (o.left || o.right)))!;
+    const k = keyOf(withTop);
+    const g = await table("glass", { [k]: { h: "on", c: "#1F4E79" } });
+    expect(glassPlan(g.L, g.c).lines.filter(l => l.k === "cell").length).toBeGreaterThanOrEqual(2);
+    const r = await table("mckinsey", { [k]: { h: "on", c: "#C00000" } });
+    expect(lines(rulesToDisplayList(r.L, r.c, M).nodes).filter(l => ink(l) === "C00000").length).toBe(2);
+    const cards = await deckOf("weekly.json", "mckinsey", [{ op: "table.patch", id: TABLE, patch: { cellGrid: { [k]: { h: "on", c: "#C00000" } } } } as Op, { op: "style.patch", patch: { designs: { mckinsey: { consult: { tables: "cards" } } } } } as Op]);
+    const L = cards.slides.flatMap(s => s.tables).find(x => x.def?.id === TABLE)!, c = cards.ctx();
+    const { cardsToDisplayList } = await import("../src/render/consult-cards");
+    const rects = flat(cardsToDisplayList(L, c, M).nodes).filter(n => n.t === "rect" && (n.fill as { solid?: number[] } | undefined)?.solid?.join() === "192,0,0");
+    expect(rects.length).toBe(2);
+  });
+
   it("Liquid Glass: hairlines of the cell's colour and weight on its edges, in the scene's geometry", async () => {
     const base = await table("glass"), blk = cleanBlock(base.L, base.items), k = keyOf(at(base.items, blk.r[0], blk.c[0])!);
     const t = await table("glass", { [k]: { v: "on", c: "#1F4E79", w: 2 } });

@@ -455,10 +455,14 @@ PowerPoint without a repair prompt for every corpus deck × design × version.
   (CE-16 list +1). Rendered in `excel-dl.ts` as `line` nodes (replacing the workbook border of that edge) and in
   `glass-dl.ts` as hairlines of the given colour; versions (VR-02) keep borders, so they keep these too.
 * **Amended by the product owner, 2026-10-19 (PROGRESS Decisions; built so in S10.3):** cell gridlines are a layer of their
-  own and never change a border – they are drawn after every fill and border, only on edges where neither the cell
-  nor the cell across it has a border (there the border shows); `o` marks every cell of the outlined rectangle and the
-  line is drawn where the next cell is not marked; `h`/`v` "off" draws nothing (as unset). The consulting "rules"
-  tables draw them as Excel does. **Cell borders** are a separate control (B25, S10.3b): *Borders ▾* as Excel's, over
+  own and never change a border – they are drawn after every fill and border, each shared edge once; where the design
+  draws a border on that edge (the workbook's or one set on the slide – not the table's own gridlines) the border shows
+  instead: Excel and Excel Refined hide the gridline under a workbook border, Liquid Glass and the consulting "cards"
+  tables (no workbook borders) draw every gridline as a line of its colour and weight, the consulting "rules" tables
+  hide it only under a border set on the slide; the consulting "exhibit" style draws none (its tables are exhibits, not
+  cells). `o` marks every cell of the outlined rectangle and the line is drawn where the next cell is not marked;
+  `h`/`v` "off" draws nothing (as unset). The painter copies a cell's entry – and a cell without one removes the
+  target's, as Excel's painter does with borders. **Cell borders** are a separate control (B25, S10.3b): *Borders ▾* as Excel's, over
   the workbook's borders on the slide only, drawn where workbook borders are drawn today.
 
 ---

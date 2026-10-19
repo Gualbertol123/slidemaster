@@ -94,6 +94,8 @@ export function cardsToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics, o
     const x = r1(l.x), y = r1(l.y), w = Math.max(0, r1(l.w)), h = Math.max(0, r1(l.h));
     if (l.k === "rule") nodes.push({ t: "rect", x, y, w, h: F.rule.w, fill: solid(F.rule.color) });
     else if (l.k === "hsep") nodes.push({ t: "rect", x, y, w, h: F.sep.w, fill: solid(F.sep.color) });
+    // a cell's own gridline (4.4, B20): its colour and weight
+    else if (l.k === "cell") nodes.push({ t: "rect", x: l.x, y: l.y, w: Math.max(0, l.w), h: Math.max(0, l.h), fill: solid(l.color || "#404040") });
     else nodes.push({ t: "rect", x, y, w: F.sep.w, h, fill: solid(F.sep.color) });
   }
   for (const c of plan.caps) nodes.push(...capNodes(c, F));

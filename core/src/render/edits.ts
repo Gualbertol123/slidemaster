@@ -83,17 +83,31 @@ export function withBorders(L: TableLayout, items: Item[]): Item[] {
 export function withCellGrid(L: TableLayout, items: Item[]): Item[] {
   const g = L.def?.cellGrid; if (!g || typeof g !== "object" || !Object.keys(g).length) return items;
   const across = acrossOf(L, items), entry = (it: Item) => entryOf(g, it);
-  return items.map(it => {
-    const e = entry(it); if (!e) return it;
+  const want = new Map<Item, NonNullable<Item["cgrid"]>>();
+  for (const it of items) {
+    const e = entry(it); if (!e) continue;
     const w = typeof e.w === "number" && Number.isFinite(e.w) ? Math.max(.5, Math.min(3, e.w)) : 1;
     const line = (outline: boolean): BorderSide => ({ style: "thin", color: isHex(e.c) ? e.c : outline ? CELL_LINE.outline : CELL_LINE.grid, w });
     const cg: NonNullable<Item["cgrid"]> = {};
     if (e.h === "on") cg.top = cg.bottom = line(false);
     if (e.v === "on") cg.left = cg.right = line(false);
     if (e.o === true) for (const side of EDGES) { const n = across(it, side); if (!n.length || n.some(o => entry(o)?.o !== true)) cg[side] = line(true); }
-    // a border on that edge (the cell's own, or the one across it) shows instead
-    for (const side of EDGES) if (cg[side] && (it[side] || across(it, side).some(o => o[ACROSS[side]]))) delete cg[side];
-    return Object.keys(cg).length ? Object.assign({}, it, { cgrid: cg }) : it;
+    if (Object.keys(cg).length) want.set(it, cg);
+  }
+  // a border the design draws on that edge (the workbook's or one set on the slide – not the table's own gridlines, which
+  // a cell's gridline is drawn over), the cell's or the one across it's
+  const real = (b: BorderSide | null | undefined) => !!b && b !== GRIDLINE;
+  return items.map(it => {
+    const cg0 = want.get(it); if (!cg0) return it;
+    const cg: NonNullable<Item["cgrid"]> = {}, cgx: NonNullable<Item["cgx"]> = {};
+    for (const side of EDGES) {
+      const b = cg0[side]; if (!b) continue;
+      // each edge once: the cell below / right draws its top / left when it has one
+      if ((side === "bottom" || side === "right") && across(it, side).some(o => want.get(o)?.[ACROSS[side]])) continue;
+      cg[side] = b;
+      if (real(it[side]) || across(it, side).some(o => real(o[ACROSS[side]]))) cgx[side] = true;
+    }
+    return Object.keys(cg).length ? Object.assign({}, it, { cgrid: cg }, Object.keys(cgx).length ? { cgx } : {}) : it;
   });
 }
 /** cells removed in a version: drawn completely empty (no value, no colour, no highlight) – borders stay */
@@ -105,46 +119,44 @@ export function effItems(L: TableLayout, ctx: RenderCtx): Item[] {
   return cache(L, "eff", tableKey(ctx, L), () => withCellGrid(L, withBorders(L, effBase(L, ctx))));
 }
 function effBase(L: TableLayout, ctx: RenderCtx): Item[] {
-  {
-    const cells = ctx.edits[L.sheet.name] || {};
-    const scaled = applyScales(L, L.def?.scales);
-    const cut = (ctx.version?.hide[L.sheet.name] || []).map(parseRange);
-    const isCut = (it: Item) => cut.some(g => it.b.src.r >= g.r1 && it.b.src.r <= g.r2 && it.b.src.c >= g.c1 && it.b.src.c <= g.c2);
-    return L.items.map(it0 => cut.length && isCut(it0) ? removedCell(it0) : it0).map(it0 => {
-      if (it0.removed) return it0;
-      const it = withGrid(L, it0);
-      const e = cells[keyOf(it)], sc = scaled.get(it0);
-      if (!e && !sc) return it;
-      if (!e) {
-        const o: Item = Object.assign({}, it);
-        if (sc!.fill) { o.fill = sc!.fill; o.scaleFill = sc!.fill; }
-        if (sc!.ink) { o.color = sc!.ink; o.scaleInk = sc!.ink; o.nfColor = null; }
-        return o;
-      }
-      const o: Item = Object.assign({}, it); o.font = Object.assign({}, it.font);
-      // painted conditional formatting: the workbook's own rules are replaced by those of the source cell
-      if (e.cf !== undefined) {
-        const dxf = e.cf === "none" ? null : paintedCF(ctx, L, it, e.cf);
-        o.cf = dxf; o.fill = it.baseFill; o.font.color = it.baseColor || o.font.color; o.color = it.nfColor || it.baseColor || "#000000";
-        if (dxf) { if (dxf.fill) o.fill = dxf.fill; if (dxf.color) { o.font.color = dxf.color; o.color = it.nfColor || dxf.color; } if (dxf.b !== undefined) o.font.b = dxf.b; if (dxf.i !== undefined) o.font.i = dxf.i; }
-      }
-      if (e.text !== undefined && e.orig === it.text) { o.text = e.text; o.edited = true; if (!it.text && o.text) { o.isText = !isNumText(o.text); o.ctype = o.isText ? "s" : "n"; } }
-      if (e.font) { o.font.name = e.font; o.userFont = e.font; }
-      if (e.sz) o.font.sz = e.sz;
-      if (e.b !== undefined) { o.font.b = e.b; o.userB = e.b; }
-      if (e.i !== undefined) { o.font.i = e.i; o.userI = e.i; }
-      if (e.color) { o.userColor = e.color; o.color = e.color; o.nfColor = null; }
-      // cell colour: replaces the Excel colour (the block colour in Liquid Glass); conditional formats stay on top
-      if (e.bg) { const bg = e.bg === "none" ? null : e.bg; o.baseFill = bg; o.userBg = e.bg; if (!(o.cf && o.cf.fill)) o.fill = bg; }
-      if (e.fill) { if (e.fill === "none") { o.fill = null; o.cf = null; o.baseFill = null; o.noFill = true; } else { o.fill = e.fill; o.userFill = e.fill; } }
-      if (e.align) o.align = e.align;
-      if (e.role) o.role = e.role;
-      // colour scales sit under explicit user colours
-      if (sc && sc.fill && !e.fill) { o.fill = sc.fill; o.scaleFill = sc.fill; }
-      if (sc && sc.ink && !e.color) { o.color = sc.ink; o.scaleInk = sc.ink; o.nfColor = null; }
+  const cells = ctx.edits[L.sheet.name] || {};
+  const scaled = applyScales(L, L.def?.scales);
+  const cut = (ctx.version?.hide[L.sheet.name] || []).map(parseRange);
+  const isCut = (it: Item) => cut.some(g => it.b.src.r >= g.r1 && it.b.src.r <= g.r2 && it.b.src.c >= g.c1 && it.b.src.c <= g.c2);
+  return L.items.map(it0 => cut.length && isCut(it0) ? removedCell(it0) : it0).map(it0 => {
+    if (it0.removed) return it0;
+    const it = withGrid(L, it0);
+    const e = cells[keyOf(it)], sc = scaled.get(it0);
+    if (!e && !sc) return it;
+    if (!e) {
+      const o: Item = Object.assign({}, it);
+      if (sc!.fill) { o.fill = sc!.fill; o.scaleFill = sc!.fill; }
+      if (sc!.ink) { o.color = sc!.ink; o.scaleInk = sc!.ink; o.nfColor = null; }
       return o;
-    });
-  }
+    }
+    const o: Item = Object.assign({}, it); o.font = Object.assign({}, it.font);
+    // painted conditional formatting: the workbook's own rules are replaced by those of the source cell
+    if (e.cf !== undefined) {
+      const dxf = e.cf === "none" ? null : paintedCF(ctx, L, it, e.cf);
+      o.cf = dxf; o.fill = it.baseFill; o.font.color = it.baseColor || o.font.color; o.color = it.nfColor || it.baseColor || "#000000";
+      if (dxf) { if (dxf.fill) o.fill = dxf.fill; if (dxf.color) { o.font.color = dxf.color; o.color = it.nfColor || dxf.color; } if (dxf.b !== undefined) o.font.b = dxf.b; if (dxf.i !== undefined) o.font.i = dxf.i; }
+    }
+    if (e.text !== undefined && e.orig === it.text) { o.text = e.text; o.edited = true; if (!it.text && o.text) { o.isText = !isNumText(o.text); o.ctype = o.isText ? "s" : "n"; } }
+    if (e.font) { o.font.name = e.font; o.userFont = e.font; }
+    if (e.sz) o.font.sz = e.sz;
+    if (e.b !== undefined) { o.font.b = e.b; o.userB = e.b; }
+    if (e.i !== undefined) { o.font.i = e.i; o.userI = e.i; }
+    if (e.color) { o.userColor = e.color; o.color = e.color; o.nfColor = null; }
+    // cell colour: replaces the Excel colour (the block colour in Liquid Glass); conditional formats stay on top
+    if (e.bg) { const bg = e.bg === "none" ? null : e.bg; o.baseFill = bg; o.userBg = e.bg; if (!(o.cf && o.cf.fill)) o.fill = bg; }
+    if (e.fill) { if (e.fill === "none") { o.fill = null; o.cf = null; o.baseFill = null; o.noFill = true; } else { o.fill = e.fill; o.userFill = e.fill; } }
+    if (e.align) o.align = e.align;
+    if (e.role) o.role = e.role;
+    // colour scales sit under explicit user colours
+    if (sc && sc.fill && !e.fill) { o.fill = sc.fill; o.scaleFill = sc.fill; }
+    if (sc && sc.ink && !e.color) { o.color = sc.ink; o.scaleInk = sc.ink; o.nfColor = null; }
+    return o;
+  });
 }
 /** "Sheet!C6": the conditional-format rules covering that cell, applied to this cell */
 function paintedCF(ctx: RenderCtx, L: TableLayout, it: Item, ref: string): Dxf | null {

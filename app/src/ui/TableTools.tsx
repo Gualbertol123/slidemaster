@@ -1,6 +1,6 @@
 /* Second toolbar row: LAYOUT – table cells (size, role, merge, colour scale), tables on the slide,
    text boxes around tables, slide options. Text formatting lives in the first row only. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { setDialogs, useStore, toast } from "../state/store";
 import { change } from "../state/app";
 import { applySel, selItems, selTable } from "../editor/edit";
@@ -72,18 +72,31 @@ function GridMenu({ close, T }: { close: () => void; T: import("@slide-builder/c
   const keys = [...new Set(mine.map(it => A1(it.b.src.r, it.b.src.c)))], grid = T.def?.cellGrid || {}, cur = keys.map(k => grid[k] || {});
   const all = (f: (g: CellGrid) => boolean) => cur.length > 0 && cur.every(f);
   const one = <K extends keyof CellGrid>(k: K) => { const v = new Set(cur.map(g => g[k])); return v.size === 1 ? [...v][0] : undefined; };
-  const [color, setColor] = useState<string | null>(one("c") ?? null), [weight, setWeight] = useState<number>(one("w") ?? 1);
+  // the colour and weight picked in this menu for this selection (undefined: not picked – the cells keep their own)
+  const [color, setColor] = useState<string | null | undefined>(undefined), [weight, setWeight] = useState<number | undefined>(undefined);
+  const sig = keys.join();
+  useEffect(() => { setColor(undefined); setWeight(undefined); }, [sig]);
+  const shownColor = color !== undefined ? color : one("c") ?? null, shownWeight = weight ?? one("w") ?? 1;
   const cells = (label: string, f: (g: CellGrid) => CellGrid | null) => {
     if (!T.def || !keys.length) return;
     const m: Record<string, CellGrid | null> = {};
-    keys.forEach((k, n) => { const g = f({ ...cur[n] }); m[k] = g && Object.keys(g).length ? g : null; });
-    change(label, [{ op: "table.patch", id: T.def.id, patch: { cellGrid: m } } as Op]);
+    keys.forEach((k, n) => {
+      // an entry without lines draws nothing: none is kept; an unchanged cell is not written
+      const g = f({ ...cur[n] }), v = g && (g.h === "on" || g.v === "on" || g.o === true) ? g : null;
+      if (JSON.stringify(v) !== JSON.stringify(grid[k] ?? null)) m[k] = v;
+    });
+    if (Object.keys(m).length) change(label, [{ op: "table.patch", id: T.def.id, patch: { cellGrid: m } } as Op]);
   };
-  const look = (g: CellGrid): CellGrid => { if (color) g.c = color; else delete g.c; if (weight !== 1) g.w = weight; else delete g.w; return g; };
-  const lines = (k: "h" | "v") => all(g => g[k] === "on") ? cells(k === "h" ? "Remove cell lines" : "Remove cell lines", g => { delete g[k]; return g; }) : cells(k === "h" ? "Horizontal cell lines" : "Vertical cell lines", g => look({ ...g, [k]: "on" }));
+  const look = (g: CellGrid): CellGrid => {
+    if (color !== undefined) { if (color) g.c = color; else delete g.c; }
+    if (weight !== undefined) { if (weight !== 1) g.w = weight; else delete g.w; }
+    return g;
+  };
+  const lines = (k: "h" | "v") => all(g => g[k] === "on") ? cells(k === "h" ? "Remove horizontal cell lines" : "Remove vertical cell lines", g => { delete g[k]; return g; }) : cells(k === "h" ? "Horizontal cell lines" : "Vertical cell lines", g => look({ ...g, [k]: "on" }));
+  const range = sel && keys.length ? (keys.length === 1 ? keys[0] : A1(sel.r1, sel.c1) + ":" + A1(sel.r2, sel.c2)) : "";
   return <div className="scalemenu"><div className="hd">Gridlines of this table</div>
     <div className="optgrid">{row("gridH", "Horizontal")}{row("gridV", "Vertical")}</div>
-    <div className="sep" /><div className="hd">Selected cells {keys.length ? <b>{keys.length === 1 ? keys[0] : keys[0] + ":" + keys[keys.length - 1]}</b> : "– select cells of this table first"}</div>
+    <div className="sep" /><div className="hd">Selected cells {keys.length ? <b>{range}</b> : "– select cells of this table first"}</div>
     <div className="optgrid" id="cellGrid">
       <label>Lines</label><div className="seg small">
         <button data-cg="h" disabled={!keys.length} className={all(g => g.h === "on") ? "on" : ""} title="A line above and below each selected cell" onClick={() => lines("h")}>H</button>
@@ -91,10 +104,10 @@ function GridMenu({ close, T }: { close: () => void; T: import("@slide-builder/c
         <button data-cg="o" disabled={!keys.length} className={all(g => g.o === true) ? "on" : ""} title="A line around the selected cells" onClick={() => all(g => g.o === true) ? cells("Remove outline", g => { delete g.o; return g; }) : cells("Outline", g => look({ ...g, o: true }))}>Outline</button>
         <button data-cg="clear" disabled={!keys.length || !cur.some(g => Object.keys(g).length)} title="The selected cells' gridlines removed (their borders are not touched)" onClick={() => cells("Clear cell lines", () => null)}>Clear</button></div>
       <label>Colour</label><div className="row">
-        <button data-cgc="" className={"cgsw auto" + (color === null ? " on" : "")} title="Automatic: grey lines, a dark outline" onClick={() => { setColor(null); cells("Line colour", g => Object.keys(g).length ? (delete g.c, g) : g); }}>Auto</button>
-        {GRID_COLORS.map(c => <button key={c} data-cgc={c} className={"cgsw" + (color === c ? " on" : "")} style={{ background: c }} title={c} onClick={() => { setColor(c); cells("Line colour", g => Object.keys(g).length ? { ...g, c } : g); }} />)}</div>
+        <button data-cgc="" className={"cgsw auto" + (shownColor === null ? " on" : "")} title="Automatic: grey lines, a dark outline" onClick={() => { setColor(null); cells("Line colour", g => (delete g.c, g)); }}>Auto</button>
+        {GRID_COLORS.map(c => <button key={c} data-cgc={c} className={"cgsw" + (shownColor === c ? " on" : "")} style={{ background: c }} title={c} onClick={() => { setColor(c); cells("Line colour", g => ({ ...g, c })); }} />)}</div>
       <label>Weight</label><div className="seg small">
-        {GRID_W.map(w => <button key={w} data-cgw={w} className={weight === w ? "on" : ""} onClick={() => { setWeight(w); cells("Line weight", g => Object.keys(g).length ? (w === 1 ? (delete g.w, g) : { ...g, w }) : g); }}>{w} px</button>)}</div>
+        {GRID_W.map(w => <button key={w} data-cgw={w} className={shownWeight === w ? "on" : ""} onClick={() => { setWeight(w); cells("Line weight", g => w === 1 ? (delete g.w, g) : { ...g, w }); }}>{w} px</button>)}</div>
     </div></div>;
 }
 

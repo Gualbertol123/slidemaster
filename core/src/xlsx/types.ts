@@ -116,8 +116,10 @@ export interface Item {
   userBg?: string;
   /** superscript / subscript parts of the text (from Excel) */ scripts?: Script[];
   /** removed in the version being shown (drawn empty) */ removed?: boolean;
-  /** the cell's own gridlines (TableDef.cellGrid, 4.4, B20): the edges they are drawn on – only where the cell has no
-      border – drawn after the fills and borders, by every design */ cgrid?: Partial<Record<"top" | "left" | "right" | "bottom", BorderSide>>;
+  /** the cell's own gridlines (TableDef.cellGrid, 4.4, B20): the edges they are drawn on (each edge once), after the fills
+      and borders – by Excel, Excel Refined, the consulting rules and cards tables, Liquid Glass */ cgrid?: Partial<Record<"top" | "left" | "right" | "bottom", BorderSide>>;
+  /** of those, the edges a border covers in the designs that draw the workbook's borders (Excel, Excel Refined): the border
+      shows there instead */ cgx?: Partial<Record<"top" | "left" | "right" | "bottom", true>>;
   /** the sides whose border the user set on the slide (TableDef.borders, 4.4, B25): the consulting rules tables draw these */ ub?: Partial<Record<"top" | "left" | "right" | "bottom", true>>;
   edited?: boolean; /** font chosen on the slide (cell edit) */ userFont?: string; userB?: boolean; userI?: boolean; userColor?: string; userFill?: string; noFill?: boolean; role?: string;
   L?: TableLayout;

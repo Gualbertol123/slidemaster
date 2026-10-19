@@ -87,7 +87,10 @@ describe("cell borders on the slide (B25)", () => {
     const t = await table("excel", { [keyOf(a)]: { top: RED } }, { [keyOf(a)]: { h: "on" } });
     const A = t.items.find(x => keyOf(x) === keyOf(a))!;
     expect(A.top).toEqual(RED);
-    expect(Object.keys(A.cgrid || {})).toEqual(["bottom"]);
+    expect(Object.keys(A.cgx || {})).toEqual(["top"]);                                    // the border shows there
+    const ls = lines(excelToDisplayList(t.L, t.c, M).nodes);
+    expect(ls.filter(l => ink(l) === "C00000").length).toBeGreaterThanOrEqual(1);          // the border (and the cell above's, if any)
+    expect(ls.filter(l => ink(l) === "BFBFBF" && Math.abs(l.y1 - (A.by + A.bh - .5)) < .01).length).toBe(1);   // the gridline below
   });
   it("a version that removes the cell keeps its borders (VR-02)", async () => {
     const base = await table("excel"), { a } = clean(base.L, base.items), k = keyOf(a);
