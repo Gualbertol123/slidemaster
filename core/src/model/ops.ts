@@ -10,6 +10,11 @@ const TABLE_MAPS = ["cols", "rows", "scales", "merges", "sizes"] as const;
 const CELL_KEYS = ["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role"] as const;
 const STYLE_MAPS = ["pn", "footer", "theme", "text", "colors", "designs"] as const;
 const STYLE_KEYS = ["design", "glass", "color", "logo", "radius", "contrast", "logoBubble"] as const;
+/* slide items (07 §2.2): plain keys of both kinds, and the two map-merge keys */
+const ITEM_KEYS = ["kind", "type", "values", "labels", "series", "title", "legend", "show", "startAngle", "box", "attach",
+  "shape", "icon", "text", "fill", "border", "radius", "tail"] as const;
+const ITEM_MAPS = ["colors", "fmt"] as const;
+const ITEM_KINDS = ["chart", "shape"];
 const REF = /^[A-Z]{1,3}[0-9]{1,7}$/;
 const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
 const clone = <T>(x: T): T => x === undefined ? x : JSON.parse(JSON.stringify(x));
@@ -51,6 +56,27 @@ export function applyOp(doc: Doc, op: Op | Record<string, unknown>): boolean {
       if (!Object.keys(sheet).length) delete doc.edits[o.sheet];
       return true;
     }
+    case "item.patch": {
+      if (typeof o.slide !== "string" || typeof o.id !== "string" || !o.id || o.id === "__proto__" || !doc.preset || (o.patch !== null && !isObj(o.patch))) return false;
+      const s = doc.preset.slides.find(x => x.id === o.slide) as unknown as Record<string, unknown> | undefined;
+      if (!s) return false;
+      const items = (isObj(s.items) ? s.items : {}) as Record<string, Record<string, unknown>>, cur = items[o.id];
+      if (o.patch === null) {
+        if (!isObj(cur)) return false;
+        delete items[o.id];
+      } else {
+        const p = o.patch;
+        if ("kind" in p && !ITEM_KINDS.includes(p.kind as string)) return false;      // an unknown kind (a later page's) is skipped
+        if ("box" in p && !isBox(p.box)) return false;                                // every item has a box; a bad one is skipped
+        if (!isObj(cur) && !("kind" in p && "box" in p)) return false;                // creating needs a kind and a box
+        const it = isObj(cur) ? cur : {};
+        for (const k of ITEM_KEYS) if (k in p) { const v = p[k]; if (v === null) delete it[k]; else it[k] = clone(v); }
+        for (const k of ITEM_MAPS) if (k in p) mapMerge(it, k, p[k]);
+        items[o.id] = it;
+      }
+      if (Object.keys(items).length) s.items = items; else delete s.items;
+      return true;
+    }
     case "style.patch": {
       if (!isObj(o.patch)) return false;
       applyStylePatch(doc.style as Record<string, unknown>, o.patch);
@@ -59,6 +85,7 @@ export function applyOp(doc: Doc, op: Op | Record<string, unknown>): boolean {
   }
   return false;
 }
+const isBox = (b: unknown) => isObj(b) && ["x", "y", "w", "h"].every(k => typeof b[k] === "number" && Number.isFinite(b[k])) && (b.w as number) > 0 && (b.h as number) > 0;
 /** map merge: null deletes the map; an object sets (replaces) or deletes (null) each entry; empty maps are removed */
 function mapMerge(target: Record<string, unknown>, key: string, v: unknown) {
   if (v === null) { delete target[key]; return; }
@@ -108,6 +135,12 @@ export function inverseOf(doc: Doc, op: Op): Op | null {
       const keys = new Set(Object.keys(op.patch)); if (keys.has("text")) keys.add("orig");
       for (const k of keys) patch[k] = (e as Record<string, unknown>)[k] === undefined ? null : clone((e as Record<string, unknown>)[k]);
       return { op: "cell.patch", sheet: op.sheet, ref: op.ref, patch } as Op;
+    }
+    case "item.patch": {
+      const s = doc.preset?.slides.find(x => x.id === op.slide); if (!s) return null;
+      const cur = s.items?.[op.id] as unknown as Record<string, unknown> | undefined;
+      if (!isObj(cur)) return op.patch && "kind" in op.patch ? { op: "item.patch", slide: op.slide, id: op.id, patch: null } : null;
+      return { op: "item.patch", slide: op.slide, id: op.id, patch: op.patch === null ? clone(cur) : inversePatch(cur, op.patch as Record<string, unknown>, ITEM_MAPS) } as Op;
     }
     case "style.patch": return { op: "style.patch", patch: inversePatch(doc.style as Record<string, unknown>, op.patch as Record<string, unknown>, STYLE_MAPS) } as Op;
   }

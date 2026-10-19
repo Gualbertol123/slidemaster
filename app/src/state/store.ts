@@ -33,7 +33,9 @@ export interface Dialogs {
   /** text styles & fonts dialog: which tab is open */ textStyles: "colors" | "styles" | "fonts" | "layout" | null;
   /** automated comment dialog for table `table` of the current slide */ comment: { table: number } | null;
   /** Export ▾ › Run for each value… (M8, B15) */ scenario: boolean;
+  /** choosing cells in the sheet view (M9): a new chart's, a chart's new cells, a cell a callout quotes */ pick: PickReq | null;
 }
+export type PickReq = { kind: "chart" } | { kind: "chart-cells"; id: string } | { kind: "cell"; id: string };
 /** the "Run for each value…" dialog's fields (M8, B15): UI state of this page, never the document; kept while the page
     is open so the dialog opens again as it was left */
 export interface ScenarioForm {
@@ -78,6 +80,7 @@ export interface AppState {
   selection: {
     sel: Sel | null;
     /** selected text box ("<tableId>:<side>") */ noteSel: string | null;
+    /** selected slide item (4.3: a chart; `slice`: one of its slices) */ itemSel: { id: string; slice: number | null } | null;
     /** selected slide text: title, subtitle, cover note or date */ textSel: SlideTextKey | null;
     /** format painter: copied formats (rows × cols), sticky = keep painting */ painter: Painter | null;
   };
@@ -100,11 +103,11 @@ type Slice = keyof AppState;
 export const initialState = (): AppState => ({
   doc: { open: false, view: null, save: null, error: "", health: null, config: { schema: 3, rev: 0, defaults: { style: {} } } as ConfigDoc, fonts: [] },
   deck: { file: null, wb: null, slides: [], cur: 0, version: "", history: { undo: 0, redo: 0, undoLabel: "", redoLabel: "" }, remote: null, opening: "" },
-  selection: { sel: null, noteSel: null, textSel: null, painter: null },
+  selection: { sel: null, noteSel: null, textSel: null, itemSel: null, painter: null },
   ui: {
     zoom: "fit", busy: null, exporting: false, toast: null, lookScope: "design", fontBusy: "", changedOnDisk: false, logoMissing: false, fontBuilds: [], health: null, others: [], calc: null,
     scenario: { input: "", values: "", asText: false, designs: [], versions: [""], value: "", broken: 0, runAnyway: false }, preview: null, run: null,
-    dialogs: { dialog: null, wizard: null, tables: false, textStyles: null, comment: null, scenario: false },
+    dialogs: { dialog: null, wizard: null, tables: false, textStyles: null, comment: null, scenario: false, pick: null },
   },
   prefs: { user: "", host: "", client: Math.random().toString(36).slice(2, 10) + Date.now().toString(36), prefs: {} },
 });

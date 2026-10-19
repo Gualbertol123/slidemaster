@@ -400,7 +400,7 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
     doc: { open: true, view: st.view, save: st.save, error: st.error, health: st.deck },
     deck: { wb, file: { name, src, id, mtime, size }, history: st.history, slides, cur: Math.min(get().deck.cur, Math.max(0, slides.length - 1)),
       version, opening: "", remote: null },
-    selection: { sel: null },
+    selection: { sel: null, itemSel: null },
     ui: { logoMissing: false, changedOnDisk: false },
   });
   STAGE.render(); THUMBS.render();
@@ -479,7 +479,7 @@ function onStyleChanged(configChanged = false) {
     const keep = old[cur]?.id;
     const slides = runtimeSlides(wb, get().doc.view?.preset || null, file.name, d); slidesDesign = d;
     const i = slides.findIndex(R => R.id === keep);
-    patchAll({ deck: { slides, ...(i >= 0 ? { cur: i } : {}) }, selection: { sel: null } });
+    patchAll({ deck: { slides, ...(i >= 0 ? { cur: i } : {}) }, selection: { sel: null, itemSel: null } });
   }
   // a new shared default style: the worker draws with it first, then the slides are redrawn
   if (get().doc.open && configChanged) void core().call("inputs", viewInputs()).then(() => { STAGE.render(); THUMBS.render(); });
@@ -519,6 +519,8 @@ export function undo(redo = false) {
   if (get().doc.save !== "outdated" && get().doc.save !== "readonly") patch("doc", { save: unsaved() });      // as DocSync did: "pending" until the helper has it
   void core().call("undo", { redo }).then(r => {
     if (r.label === null) return;
+    // (a selected chart stays selected: undoing one of its changes keeps it in the side panel; undoing its insert leaves a
+    // selection of nothing, which the panel, the status bar and the keys ignore)
     patchAll({ selection: { sel: null } });
     toast((redo ? "Redo: " : "Undo: ") + esc(r.label));
   }).catch(e => console.error(e));
@@ -594,7 +596,7 @@ export async function openWizard() {
 export function gotoSlide(i: number) {
   const { slides, cur } = get().deck;
   if (i < 0 || i >= slides.length || i === cur) return;
-  patchAll({ deck: { cur: i }, selection: { sel: null } }); STAGE.render();
+  patchAll({ deck: { cur: i }, selection: { sel: null, itemSel: null } }); STAGE.render();
 }
 /** the stage re-fits when the zoom changes (stage/Stage.tsx follows ui.zoom); "Fit" pressed again re-fits too
     (the panels above the stage may have changed its size since) */

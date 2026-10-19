@@ -19,7 +19,9 @@ export interface TablePlace { i: number; box: NonNullable<StageLayer["box"]> }
 export interface NotePlace { part: NotePart; box: Rect; layer: StageLayer | null; /** the size its text was fitted to */ size: number | null;
   /** how its first run is drawn (a stretch shows the text in it, re-wrapped live by the page) */ look: { family: string; weight: number; italic: boolean; color: string } | null }
 export interface FurnitureHit extends Rect { id: string; label?: string; font?: { family: string; size: number; weight: number; italic: boolean } }
-export interface StageModel { tables: TablePlace[]; notes: NotePlace[]; hits: FurnitureHit[] }
+/** a slide item (4.3: a chart) where its layer is, with what the worker said of it (its geometry, an Issues line) */
+export interface ItemPlace { id: string; box: Rect; layer: StageLayer | null; info: import("@slide-builder/core/render/slide-dl").ItemInfo | null }
+export interface StageModel { tables: TablePlace[]; notes: NotePlace[]; hits: FurnitureHit[]; items: ItemPlace[] }
 
 export function stageModel(shown: StageSlide, R: RuntimeSlide, c: RenderCtx): StageModel {
   const tables: TablePlace[] = shown.layers.flatMap(l => l.table !== null && l.box ? [{ i: l.table, box: l.box }] : []);
@@ -35,8 +37,11 @@ export function stageModel(shown: StageSlide, R: RuntimeSlide, c: RenderCtx): St
   const memo = memoPart(R, c, { interactive: true });
   if (memo) add(memo, memo.box);
   const hits: FurnitureHit[] = [];
-  for (const l of shown.layers) if (l.table === null && !l.note) collect(l.nodes, [1, 0, 0, 1, 0, 0], hits);
-  return { tables, notes, hits };
+  for (const l of shown.layers) if (l.table === null && !l.note && !l.item) collect(l.nodes, [1, 0, 0, 1, 0, 0], hits);
+  // the items the worker drew (the slide's own list: an item of a design the page has not drawn yet waits for its layer)
+  const items: ItemPlace[] = shown.layers.flatMap(l => l.item && l.box ? [{ id: l.item, box: { x: l.box.x, y: l.box.y, w: l.box.w, h: l.box.h }, layer: l, info: shown.items?.[l.item] ?? null }] : [])
+    .filter(p => R.cfg.items?.[p.id]);
+  return { tables, notes, hits, items };
 }
 
 const mul = (a: Matrix, b: Matrix): Matrix => [a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1], a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3], a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5]];

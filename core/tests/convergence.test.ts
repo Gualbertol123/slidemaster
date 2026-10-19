@@ -2,10 +2,12 @@
    appends that fail before, during (torn) or after the write (flush failed, answer lost), compactions at random
    moments that race each other. For 1 000 seeds: once the network is quiet every replica has the same document
    (invariant 2) and every edit is in it – nothing acknowledged is lost (invariant 1), nothing applied twice
-   (rev counts each record once, invariant 4), and the snapshot's gen only goes up (invariant 3). */
+   (rev counts each record once, invariant 4), and the snapshot's gen only goes up (invariant 3). Since 4.3 the writers
+   also patch fields of one chart (`item.patch`, 07 §2.2): each writer's own slice colour ends as it last set it. */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DocSync, type DeckApi } from "../src/sync/docsync";
 import type { Op } from "../src/model/types";
+import { emptyDoc } from "../src/model/ops";
 import { FakeDeck, type AppendFailure } from "./fakedeck";
 
 afterEach(() => { vi.useRealTimers(); });
@@ -50,11 +52,15 @@ class Net {
 }
 
 export async function run(seed: number) {
-  const rand = rng(seed), deck = new FakeDeck(), net = new Net(rand, deck, 0.15);
+  const doc0 = { ...emptyDoc("W.xlsx"), preset: { sheets: ["S"], tables: [], slides: [{ id: "s1", type: "content" as const, tables: [],
+    items: { c1: { kind: "chart" as const, type: "pie" as const, values: { sheet: "S", range: "B2:B6" }, box: { x: 10, y: 10, w: 300, h: 200 } } } }] } };
+  const rand = rng(seed), deck = new FakeDeck(undefined, undefined, doc0), net = new Net(rand, deck, 0.15);
   deck.listingLag = 3000;                         // a new journal is missing from listings for 3 s of the server's clock
   const writers = 2 + Math.floor(rand() * 4);
   const reps = Array.from({ length: writers }, (_, i) => new DocSync(net.api(), "W.xlsx", deck.open(`u${i}@pc#${"abcdefgh".slice(i) + "a".repeat(i)}`), "u" + i, { autoTail: false, compactMargin: 5000 }));
   const made: [string, string][] = [];
+  /** the slice colour each writer last gave the chart (field-level merge: nobody else writes that slice) */
+  const colours = new Map<number, string>();
   /** contended cells: the value each edit replaced, as its author saw it (that value must never win afterwards) */
   const overwrote: [string, string][] = [];
   const gens: number[] = [deck.snap.gen];
@@ -69,6 +75,10 @@ export async function run(seed: number) {
         const z = "Z" + (1 + Math.floor(rand() * 3)), seen = (r.view.edits.S?.[z] as { text?: string } | undefined)?.text;
         if (seen) overwrote.push([z, seen]);
         ops.push({ op: "cell.patch", sheet: "S", ref: z, patch: { text } } as Op);
+      }
+      if (rand() < 0.25) {                                               // a field of the shared chart
+        const w = reps.indexOf(r), c = "#" + (n % 0xffffff).toString(16).padStart(6, "0");
+        ops.push({ op: "item.patch", slide: "s1", id: "c1", patch: { colors: { [w]: c } } } as Op); colours.set(w, c);
       }
       r.apply(ops); made.push([ref, text]);
     } else if (x < 0.5) void r.flush();
@@ -90,7 +100,7 @@ export async function run(seed: number) {
     if (round > 4 && !net.queue.length && reps.every(r => !r.busy)) break;
   }
   for (let i = 0; i < 3; i++) { for (const r of reps) void r.poll(); await settle(); while (net.deliverOne()) await settle(); }
-  return { reps, made, gens, deck, overwrote };
+  return { reps, made, gens, deck, overwrote, colours };
 }
 
 describe("storage v4 converges (property test, 1 000 seeds)", () => {
@@ -98,7 +108,7 @@ describe("storage v4 converges (property test, 1 000 seeds)", () => {
     vi.useFakeTimers();                          // retries and debounces wait for the test (it delivers and flushes)
     let compactions = 0, duplicates = 0;
     for (let seed = 1; seed <= 1000; seed++) {
-      const { reps, made, gens, deck, overwrote } = await run(seed);
+      const { reps, made, gens, deck, overwrote, colours } = await run(seed);
       const ctx = `seed ${seed}`;
       for (const r of reps) expect(r.busy, ctx).toBe(false);
       const docs = reps.map(r => JSON.stringify(r.server));
@@ -106,6 +116,9 @@ describe("storage v4 converges (property test, 1 000 seeds)", () => {
       const doc = reps[0].server;
       for (const [ref, text] of made) expect(doc.edits.S?.[ref]?.text, `${ctx} ${ref}`).toBe(text);
       // B4: a value somebody knowingly replaced never comes back over the replacement (Lamport order across a compaction)
+      const chart = doc.preset!.slides[0].items!.c1 as { colors?: Record<string, string>; box: unknown };
+      for (const [w, c] of colours) expect(chart.colors?.[w], `${ctx} colour ${w}`).toBe(c);
+      expect(chart.box, ctx).toEqual({ x: 10, y: 10, w: 300, h: 200 });
       for (const [z, old] of overwrote) expect(doc.edits.S?.[z]?.text, `${ctx} ${z}`).not.toBe(old);
       const records = deck.written.filter(r => r.ops.length);      // (also those in journals deleted since)
       const distinct = new Set(records.map(r => r.w + ":" + r.s));

@@ -3,7 +3,7 @@
    sizingPatch / sizingChange). Pure: the core worker draws with it, the page computes drag previews with the same
    functions (stage/drags.ts), so a preview lands where the drawn slide will. */
 import type { TableLayout } from "../xlsx/types";
-import type { Layout, Note, RuntimeSlide, Side, SlideSizing } from "../model/types";
+import type { Item, Layout, Note, RuntimeSlide, Side, SlideSizing } from "../model/types";
 import type { RenderCtx } from "./context";
 import { glassGeom } from "./glass";
 import { effNote, titleGeom } from "./text";
@@ -78,10 +78,10 @@ export function validLayout(L: Layout | null | undefined, n: number): L is Layou
   const seen = L.bands.flat(); return seen.length === n && new Set(seen).size === n && seen.every(i => Number.isInteger(i) && i >= 0 && i < n);
 }
 /* Table sizing (arrangement, weights, fixed scale) is kept per design: the designs draw the tables at
-   different sizes and only Liquid Glass and Excel Refined have text boxes, so sizing set in one design
-   must not shrink the tables of another. Older decks have one shared sizing (cfg.layout/cfg.scale): it
-   is used by every design without its own; raw Excel corrects the shared scale for the room the text
-   boxes took in the design it was made in. */
+   different sizes, so sizing set in one design must not shrink the tables of another. Older decks have one
+   shared sizing (cfg.layout/cfg.scale): it is used by every design without its own. (Until 4.3 raw Excel drew
+   no text boxes and corrected a shared scale for the room they took elsewhere; since B19 it draws them, as
+   every design, and the scale is the slide's.) */
 export type Sizing = { layout?: Layout | null; scale?: number | null; align?: SlideSizing["align"] | null; valign?: SlideSizing["valign"] | null };
 export function sizingOf(R: RuntimeSlide, ctx: RenderCtx): Sizing & { own: boolean } {
   const own = R.cfg?.sizes?.[ctx.style.design];
@@ -105,12 +105,8 @@ export const sizingChange = (R: RuntimeSlide, ctx: RenderCtx, ch: Sizing) => { c
 const clean = (e: Sizing): SlideSizing => ({ ...(e.layout ? { layout: e.layout } : {}), ...(e.scale ? { scale: e.scale } : {}), ...(e.align && e.align !== "center" ? { align: e.align } : {}), ...(e.valign ? { valign: e.valign } : {}) });
 /** the fixed scale of the slide in this design ("Make same size"), 0 = none */
 function fixedScale(R: RuntimeSlide, ctx: RenderCtx): number {
-  const sz = sizingOf(R, ctx), s = sz.scale && sz.scale > 0 ? sz.scale : 0;
-  if (!s || sz.own || ctx.style.design !== "excel" || !R.cfg.notes || !Object.keys(R.cfg.notes).length) return s;
-  // shared scale made with text boxes: grow it by as much as the missing text boxes let the tables grow
-  const withNotes = computeLayout({ ...R, cfg: { ...R.cfg, scale: undefined } }, { ...ctx, style: { ...ctx.style, design: "clean" } }).fit;
-  const bare = computeLayout({ ...R, cfg: { ...R.cfg, scale: undefined } }, ctx).fit;
-  return withNotes > 0 ? s * bare / withNotes : s;
+  const sz = sizingOf(R, ctx);
+  return sz.scale && sz.scale > 0 ? sz.scale : 0;
 }
 export function layoutOf(R: RuntimeSlide, ctx?: RenderCtx): Layout {
   const saved = ctx ? sizingOf(R, ctx).layout : R.cfg && R.cfg.layout;
@@ -119,7 +115,8 @@ export function layoutOf(R: RuntimeSlide, ctx?: RenderCtx): Layout {
   return R._auto;
 }
 export interface NoteBox { x: number; y: number; w: number; h: number; /** placed freely on the slide (moved by the user) */ free?: boolean }
-export interface TBox { i: number; band: number; x: number; y: number; w: number; h: number; scale: number; notes: Partial<Record<Side, NoteBox>> }
+export interface TBox { i: number; band: number; x: number; y: number; w: number; h: number; scale: number; notes: Partial<Record<Side, NoteBox>>;
+  /** the slide items attached to this table (07 §2.2 `attach`), by item id: laid out beside it as text boxes are */ items?: Record<string, NoteBox> }
 export const NOTE_GAP = 14, NOTE_W = 240;
 /** the slide's notes section: a text box of the slide (not of a table), key in SlideDef.notes */
 export const MEMO_KEY = "slide:notes";
@@ -127,10 +124,9 @@ export const MEMO_KEY = "slide:notes";
 export const memoBox = (n: Note) => ({ x: n.x ?? 56, y: n.y ?? 832, w: n.w || 900, h: n.h || 44 });
 export const SIDES: Side[] = ["top", "bottom", "left", "right"];
 export const noteKey = (R: RuntimeSlide, i: number, side: Side) => (R.tables[i].id || String(i)) + ":" + side;
-/** the text boxes of table i, with the deck's text box style applied */
+/** the text boxes of table i, with the deck's text box style applied – in every design (B19: raw Excel too) */
 export function notesOf(R: RuntimeSlide, i: number, ctx?: RenderCtx): Partial<Record<Side, Note>> {
   const out: Partial<Record<Side, Note>> = {}, all = R.cfg.notes || {};
-  if (ctx && ctx.style.design === "excel") return out;                 // raw Excel: nothing added to the workbook's tables
   for (const side of SIDES) {
     const n = all[noteKey(R, i, side)]; if (!n) continue;
     const e = ctx ? effNote(ctx, n) : n;
@@ -138,6 +134,25 @@ export function notesOf(R: RuntimeSlide, i: number, ctx?: RenderCtx): Partial<Re
     out[side] = ctx && n.auto && R.tables[i] ? { ...e, text: commentText(R.tables[i], n.auto, ctx, R) } : e;
   }
   return out;
+}
+/** the slide's items attached to a side of table i (charts, callouts: 07 §2.2), in the slide's item order */
+export function attachedOf(R: RuntimeSlide, i: number): Partial<Record<Side, { id: string; w: number; h: number }[]>> {
+  const out: Partial<Record<Side, { id: string; w: number; h: number }[]>> = {}, T = R.tables[i], items = R.cfg.items;
+  if (!T || !items) return out;
+  for (const [id, it] of Object.entries(items) as [string, Item][]) {
+    const a = it && it.attach, b = it && it.box;
+    // (a shared document's box: finite numbers only, at most the slide's size)
+    if (!a || !b || a.table !== (T.id || T.def?.id) || !SIDES.includes(a.side) || typeof b.w !== "number" || typeof b.h !== "number" || !Number.isFinite(b.w) || !Number.isFinite(b.h) || b.w <= 0 || b.h <= 0) continue;
+    (out[a.side] ||= []).push({ id, w: Math.min(SLIDE_W, b.w), h: Math.min(SLIDE_H, b.h) });
+  }
+  return out;
+}
+/** where item `id` of the slide is drawn: beside its table (computeLayout's box), else at its own box; null for an item
+    without a valid box */
+export function itemBoxOf(R: RuntimeSlide, id: string, boxes: TBox[]): { x: number; y: number; w: number; h: number } | null {
+  for (const b of boxes) { const n = b?.items?.[id]; if (n) return { x: n.x, y: n.y, w: n.w, h: n.h }; }
+  const b = R.cfg.items?.[id]?.box;
+  return b && [b.x, b.y, b.w, b.h].every(v => typeof v === "number" && Number.isFinite(v)) && b.w > 0 && b.h > 0 ? { x: b.x, y: b.y, w: Math.min(SLIDE_W, b.w), h: Math.min(SLIDE_H, b.h) } : null;
 }
 /** height of a text box above/below a table: explicit, or from its lines (wrapping is handled by shrinking the font) */
 const noteH = (n: Note) => n.h || Math.max(30, Math.max(1, String(n.text || "").split("\n").length) * (n.size || 18) * (n.lh || 1.28) + 12) + (n.bubble ? 20 : 0);
@@ -159,10 +174,14 @@ export function computeLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay
   N.forEach((ns, i) => (["left", "right"] as const).forEach(sd => { const n = ns[sd]; if (n?.span) { spans.push({ i, side: sd, n }); delete ns[sd]; } }));
   const colR = Math.max(0, ...spans.filter(x => x.side === "right").map(x => noteW(x.n))), colL = Math.max(0, ...spans.filter(x => x.side === "left").map(x => noteW(x.n)));
   const A = { ...A0, x: A0.x + (colL ? colL + NOTE_GAP * 2 : 0), w: A0.w - (colL ? colL + NOTE_GAP * 2 : 0) - (colR ? colR + NOTE_GAP * 2 : 0) };
-  const ex = N.map(n => ({ l: n.left ? noteW(n.left) + NOTE_GAP : 0, r: n.right ? noteW(n.right) + NOTE_GAP : 0, t: n.top ? noteH(n.top) + NOTE_GAP : 0, b: n.bottom ? noteH(n.bottom) + NOTE_GAP : 0 }));
-  // text boxes stretched by the user: a side box taller than its table, a box above/below wider than it
-  const sideH = (i: number) => Math.max(N[i].left?.h || 0, N[i].right?.h || 0);
-  const tbW = (i: number) => Math.max(N[i].top?.w || 0, N[i].bottom?.w || 0);
+  // a side's text box sits next to the table, the items attached to that side beyond it (07 §2.2: charts, callouts)
+  const AT = T.map((_, i) => attachedOf(R, i)), along = (l: { w: number; h: number }[] | undefined, k: "w" | "h") => (l || []).reduce((s, x) => s + x[k] + NOTE_GAP, 0);
+  const nx = N.map(n => ({ l: n.left ? noteW(n.left) + NOTE_GAP : 0, r: n.right ? noteW(n.right) + NOTE_GAP : 0, t: n.top ? noteH(n.top) + NOTE_GAP : 0, b: n.bottom ? noteH(n.bottom) + NOTE_GAP : 0 }));
+  const ex = nx.map((e, i) => ({ l: e.l + along(AT[i].left, "w"), r: e.r + along(AT[i].right, "w"), t: e.t + along(AT[i].top, "h"), b: e.b + along(AT[i].bottom, "h") }));
+  // text boxes stretched by the user: a side box taller than its table, a box above/below wider than it (and items)
+  const most = (l: { w: number; h: number }[] | undefined, k: "w" | "h") => Math.max(0, ...(l || []).map(x => x[k]));
+  const sideH = (i: number) => Math.max(N[i].left?.h || 0, N[i].right?.h || 0, most(AT[i].left, "h"), most(AT[i].right, "h"));
+  const tbW = (i: number) => Math.max(N[i].top?.w || 0, N[i].bottom?.w || 0, most(AT[i].top, "w"), most(AT[i].bottom, "w"));
   const unitW = (i: number, k: number) => Math.max(tableW(T[i], ctx) * ww[i] * k, tbW(i)) + ex[i].l + ex[i].r;
   const unitH = (i: number, k: number) => Math.max(tableH(T[i], ctx) * ww[i] * k, sideH(i)) + ex[i].t + ex[i].b;
   const fits = (k: number) => {
@@ -186,11 +205,18 @@ export function computeLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay
       const sc = k * ww[i], tw = tableW(T[i], ctx) * sc, th = tableH(T[i], ctx) * sc;
       const bx = x + ex[i].l, by = top + y + ex[i].t, n = N[i], notes: TBox["notes"] = {};
       const sh = Math.max(th, sideH(i));
-      if (n.top) notes.top = { x: bx, y: by - ex[i].t, w: n.top.w || tw, h: ex[i].t - NOTE_GAP };
-      if (n.bottom) notes.bottom = { x: bx, y: sh + by + NOTE_GAP, w: n.bottom.w || tw, h: ex[i].b - NOTE_GAP };
-      if (n.left) notes.left = { x: bx - ex[i].l, y: by, w: ex[i].l - NOTE_GAP, h: n.left.h || th };
-      if (n.right) notes.right = { x: bx + tw + NOTE_GAP, y: by, w: ex[i].r - NOTE_GAP, h: n.right.h || th };
+      if (n.top) notes.top = { x: bx, y: by - nx[i].t, w: n.top.w || tw, h: nx[i].t - NOTE_GAP };
+      if (n.bottom) notes.bottom = { x: bx, y: sh + by + NOTE_GAP, w: n.bottom.w || tw, h: nx[i].b - NOTE_GAP };
+      if (n.left) notes.left = { x: bx - nx[i].l, y: by, w: nx[i].l - NOTE_GAP, h: n.left.h || th };
+      if (n.right) notes.right = { x: bx + tw + NOTE_GAP, y: by, w: nx[i].r - NOTE_GAP, h: n.right.h || th };
       boxes[i] = { i, band: bi, x: bx, y: by, w: tw, h: th, scale: sc, notes };
+      // the attached items, outwards from the table (and its text box on that side), at their own size
+      const At = AT[i], items: Record<string, NoteBox> = {};
+      let o = nx[i].r; for (const a of At.right || []) { items[a.id] = { x: bx + tw + NOTE_GAP + o, y: by, w: a.w, h: a.h }; o += a.w + NOTE_GAP; }
+      o = nx[i].l; for (const a of At.left || []) { o += a.w + NOTE_GAP; items[a.id] = { x: bx - o, y: by, w: a.w, h: a.h }; }
+      o = nx[i].t; for (const a of At.top || []) { o += a.h + NOTE_GAP; items[a.id] = { x: bx, y: by - o, w: a.w, h: a.h }; }
+      o = nx[i].b; for (const a of At.bottom || []) { items[a.id] = { x: bx, y: sh + by + NOTE_GAP + o, w: a.w, h: a.h }; o += a.h + NOTE_GAP; }
+      if (Object.keys(items).length) boxes[i].items = items;
       x += unitW(i, k) + GX;
     }
     y += dims[bi].h + GY;

@@ -5,11 +5,13 @@ import { clearSel, clearText, moveSel, selectAll } from "./edit";
 import { editNote, editSelectedText, openInline, patchNote, selectNote } from "../stage/actions";
 import { selectSlideText, toggleBold, toggleItalic } from "./textfmt";
 import { stopPainter } from "./painter";
+import { deleteItem, selectItem, selectedItem } from "./charts";
+import { setStage } from "../stage/data";
 
 export function installKeys() {
   document.addEventListener("keydown", e => {
     const D = get().ui.dialogs;
-    if (D.dialog || D.wizard || D.tables || D.textStyles || D.comment || D.scenario) return;
+    if (D.dialog || D.wizard || D.tables || D.textStyles || D.comment || D.scenario || D.pick) return;
     const t = e.target as HTMLElement;
     const inField = t.matches("input,select,textarea");
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
@@ -20,6 +22,12 @@ export function installKeys() {
     if (e.key === "Escape" && get().selection.painter) { stopPainter(); return; }
     if (e.key === "PageDown" || (e.key === "ArrowDown" && e.altKey)) { e.preventDefault(); gotoSlide(get().deck.cur + 1); return; }
     if (e.key === "PageUp" || (e.key === "ArrowUp" && e.altKey)) { e.preventDefault(); gotoSlide(get().deck.cur - 1); return; }
+    if (get().selection.itemSel && selectedItem()?.it && !get().selection.sel) {
+      if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); deleteItem(); return; }
+      if (e.key === "Enter" || e.key === "F2") { const it = selectedItem()?.it; if (it?.kind === "shape" && it.shape !== "icon") { e.preventDefault(); setStage({ editor: { kind: "item", id: get().selection.itemSel!.id } }); } return; }
+      if (e.key === "Escape") { selectItem(null); return; }
+      return;
+    }
     if ((get().selection.noteSel || get().selection.textSel) && !get().selection.sel) {
       if (mod && k === "b") { e.preventDefault(); toggleBold(); return; }
       if (mod && k === "i") { e.preventDefault(); toggleItalic(); return; }

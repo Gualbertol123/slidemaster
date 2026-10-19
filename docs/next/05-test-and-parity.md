@@ -252,12 +252,12 @@ The list was built from four sources:
 | ID | Behaviour | v3 test | v4 verification |
 |---|---|---|---|
 | DS-01 | Switch Liquid Glass / Excel / Excel Refined, saved and shared | E2, E7, design | E + GG + GP |
-| DS-02 | Excel adds nothing (no text boxes, comments, notes; no deck colours on tables); title, logo, page number, footer stay | design, E12 | GG + GP |
+| DS-02 | Excel adds no decoration of its own (no deck colours on tables, no glass); the user's objects – text boxes, comments, notes, charts, callouts – are drawn in it as in every design (B19, 4.3; the corpus slides that changed are accepted in tests/parity/accepted.json, "B19"); title, logo, page number, footer stay | design, E12 | GG + GP |
 | DS-03 | Excel Refined = Excel tables + text boxes, comments, notes | design, E7 | GG + GP |
 | DS-04 | Liquid Glass: roles, surfaces, frames, grids, rules, signals, media, implicit cards, separators, tinted glass, capsules, deep ink | design | U (scene unchanged) + GG + **GP (human sign-off)** + SP |
 | DS-05 | Glass strength Subtle/Medium/Strong | – | GP (each level) |
 | DS-06 | Background colour 0–100 % slider, one undo step | – | GP + U (coalesce) |
-| DS-07 | Per-design sizing (layout, scale, align, valign, cols/rows) incl. older shared sizing and raw Excel's text-box correction (`fixedScale`) | text (4), E4, E7 | U (moved) + GG |
+| DS-07 | Per-design sizing (layout, scale, align, valign, cols/rows) incl. older shared sizing (raw Excel's text-box correction went with B19 in 4.3: a shared scale is the slide's in every design) | text (4), E4, E7 | U (moved) + GG |
 | DS-08 | Per-design looks: Apply to this design / all designs | design, E7 | U + E |
 | DS-09 | Switching design re-resolves slides with that design's sizes | E7 | E + GG |
 | DS-10 | Switch to Consulting Navy / Consulting Red (M7b, 08), saved and shared; a 4.0 / 4.1 page opens such a deck in Liquid Glass without losing its settings | – | E + U (fallback) + S (saved fixture) |
@@ -386,13 +386,13 @@ The list was built from four sources:
 | NB-15 | Left/right as tall as the table; top/bottom as wide | tables | U + GG |
 | NB-16 | Span box beside all tables (via Comment… placement) | text | U + GG |
 | NB-17 | Free box takes no room from tables | text | U + GG |
-| NB-18 | Disabled in raw Excel with tooltip | E12 | E |
+| NB-18 | Enabled in every design (B19, 4.3; disabled in raw Excel before) | E12 | E |
 
 ### 4.8 Automated comments
 
 | ID | Behaviour | v3 test | v4 verification |
 |---|---|---|---|
-| AC-01 | ✎ Comment… for selected table/box (disabled in Excel) | E10, E12 | E |
+| AC-01 | ✎ Comment… for selected table/box (in every design since B19, 4.3) | E10, E12 | E |
 | AC-02 | Table picker for several tables | – | E (new) |
 | AC-03 | Summary (default for new) / Detailed; missing `mode` = Detailed (legacy) | E10, comment | U + **GT** |
 | AC-04 | Tables in this comment (multi-table) | E10 | GT |

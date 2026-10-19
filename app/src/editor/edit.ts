@@ -28,7 +28,7 @@ export function setSel(t: number, anchor: { r: number; c: number }, active: { r:
   let r1 = Math.min(a.b.r, b.b.r), r2 = Math.max(a.b.r2, b.b.r2), c1 = Math.min(a.b.c, b.b.c), c2 = Math.max(a.b.c2, b.b.c2);
   for (let k = 0; k < 4; k++) for (const it of T.items) if (it.b.r <= r2 && it.b.r2 >= r1 && it.b.c <= c2 && it.b.c2 >= c1) { r1 = Math.min(r1, it.b.r); r2 = Math.max(r2, it.b.r2); c1 = Math.min(c1, it.b.c); c2 = Math.max(c2, it.b.c2); }
   // one update: the stage paints the cells and takes the mark off a text box that was selected
-  patch("selection", { sel: { t, anchor: { r: a.b.r, c: a.b.c }, ar: b.b.r, ac: b.b.c, r1, r2, c1, c2 }, noteSel: null, textSel: null });
+  patch("selection", { sel: { t, anchor: { r: a.b.r, c: a.b.c }, ar: b.b.r, ac: b.b.c, r1, r2, c1, c2 }, noteSel: null, textSel: null, itemSel: null });
 }
 export function clearSel() { patch("selection", { sel: null }); }
 export function moveSel(dr: number, dc: number, extend: boolean) {

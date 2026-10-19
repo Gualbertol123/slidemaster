@@ -36,7 +36,7 @@ const one = <T>(xs: T[]): T | null => xs.length && xs.every(x => x === xs[0]) ? 
 
 /* ---- slide texts (title, subtitle, cover note, date) ---- */
 export function selectSlideText(key: SlideTextKey | null) {
-  patch("selection", key ? { textSel: key, sel: null, noteSel: null } : { textSel: key });     // the stage paints it
+  patch("selection", key ? { textSel: key, sel: null, noteSel: null, itemSel: null } : { textSel: key });     // the stage paints it
 }
 function domOf(key: SlideTextKey) { return document.querySelector<HTMLElement>(`#stage .slide [data-edit="${key}"]`); }
 

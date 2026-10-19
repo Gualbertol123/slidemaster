@@ -1,6 +1,7 @@
 /* Drags on the stage (ported from v3's editor/stage.ts): a column or row border, the table's corner (resize, keeps
    the proportions), a table border (stretch its columns or rows), the grip (move the table next to another), a text
-   box's body (move anywhere, snapping) and its outer edges (stretch, snapping). While the pointer moves, a preview is
+   box's body (move anywhere, snapping) and its outer edges (stretch, snapping), a slide item's body (a chart: move, snapping)
+   and its corner (resize). While the pointer moves, a preview is
    drawn from store state (at most once per animation frame); on pointer-up ONE operation is sent, one undo step, as
    in v3. */
 import { get } from "../state/store";
@@ -21,7 +22,8 @@ export type DragPreview = (
   | { kind: "resize"; i: number; boxes: TBox[] }
   | { kind: "stretch"; i: number; side: "l" | "r" | "t" | "b"; f: number; box: Rect }
   | { kind: "grip"; i: number; mark: Rect | null }
-  | { kind: "note"; key: string; box: Rect; moved: boolean; v: number | null; h: number | null }) & { done?: boolean; /** requests sent when it ended */ after?: number };
+  | { kind: "note"; key: string; box: Rect; moved: boolean; v: number | null; h: number | null }
+  | { kind: "item"; id: string; box: Rect; moved: boolean; v: number | null; h: number | null }) & { done?: boolean; /** requests sent when it ended */ after?: number };
 
 /* one store update per frame, however often the pointer moves */
 let raf = 0, next: DragPreview | null = null;
@@ -34,7 +36,7 @@ function endPreview(changed = false) {
   if (raf) cancelAnimationFrame(raf);
   const last = next; raf = 0; next = null;
   if (!changed || !last || last.kind === "border" || last.kind === "grip" || last.kind === "stretch") { setStage({ drag: null }); return; }
-  const done: DragPreview = last.kind === "note" ? { ...last, v: null, h: null, done: true, after: requestsIssued() } : { ...last, done: true, after: requestsIssued() };
+  const done: DragPreview = last.kind === "note" || last.kind === "item" ? { ...last, v: null, h: null, done: true, after: requestsIssued() } : { ...last, done: true, after: requestsIssued() };
   setStage({ drag: done });
   setTimeout(() => { if (stage().drag === done) setStage({ drag: null }); }, 2000);
 }
@@ -172,6 +174,49 @@ export function noteStretch(R: RuntimeSlide, key: string, box: Rect, edge: NEdge
     // a free box dragged by its left / top edge also moves
     if (free) { nextNote.x = Math.round(now.x); nextNote.y = Math.round(now.y); }
     change(horiz ? "Text box width" : "Text box height", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: nextNote } } } as Op]);
+  });
+}
+/** a slide item's body: moved anywhere on the slide, its edges snapping to the tables', text boxes' and other items'; one
+    item.patch on the drop – a chart beside a table is placed freely from then on (as a moved text box) */
+export function itemMove(R: RuntimeSlide, id: string, box: Rect, others: Rect[], e: PointerEvent) {
+  if (e.button !== 0 || stage().editor || !R.cfg.items?.[id]) return;
+  const sc = slideScale(), { x: x0, y: y0, w, h } = box, sx = e.clientX, sy = e.clientY;
+  let started = false, nx = x0, ny = y0, targets: { x: number[]; y: number[] } | null = null;
+  const snap = (a: number, size: number, list: number[]) => {
+    let best: { d: number; line: number } | null = null;
+    for (const t of list) for (const edge of [a, a + size]) { const d = t - edge; if (Math.abs(d) <= SNAP && (!best || Math.abs(d) < Math.abs(best.d))) best = { d, line: t }; }
+    return best;
+  };
+  follow(ev => {
+    const dx = (ev.clientX - sx) / sc, dy = (ev.clientY - sy) / sc;
+    if (!started) { if (Math.hypot(dx, dy) < 4) return; started = true; targets = snapTargets(R, others); }
+    nx = Math.max(0, Math.min(1600 - w, x0 + dx)); ny = Math.max(0, Math.min(900 - h, y0 + dy));
+    // Alt: no snapping (B18's rule, as the free layout will have it)
+    const bx = ev.altKey ? null : snap(nx, w, targets!.x), by = ev.altKey ? null : snap(ny, h, targets!.y);
+    if (bx) nx += bx.d; if (by) ny += by.d;
+    preview({ kind: "item", id, box: { x: nx, y: ny, w, h }, moved: true, v: bx ? bx.line : null, h: by ? by.line : null });
+  }, () => {
+    if (!started) return;
+    endPreview(true);
+    const it = R.cfg.items?.[id];
+    change(it?.kind === "chart" ? "Move chart" : "Move shape", [{ op: "item.patch", slide: R.id, id, patch: { box: { x: Math.round(nx), y: Math.round(ny), w: Math.round(w), h: Math.round(h) }, attach: null } } as Op]);
+  });
+}
+/** a slide item's corner: its width and height (at least 80 × 60, inside the slide); one item.patch on the drop */
+export function itemResize(R: RuntimeSlide, id: string, box: Rect, e: PointerEvent) {
+  if (e.button !== 0 || !R.cfg.items?.[id]) return;
+  const sc = slideScale(), sx = e.clientX, sy = e.clientY; let now = box;
+  follow(ev => {
+    const w = Math.max(80, Math.min(1600 - box.x, box.w + (ev.clientX - sx) / sc)), h = Math.max(60, Math.min(900 - box.y, box.h + (ev.clientY - sy) / sc));
+    now = { ...box, w, h };
+    preview({ kind: "item", id, box: now, moved: false, v: null, h: null });
+  }, () => {
+    const changed = Math.abs(now.w - box.w) >= 1 || Math.abs(now.h - box.h) >= 1;
+    endPreview(changed);
+    if (!changed) return;
+    const it = R.cfg.items?.[id];
+    // an item beside a table keeps its place there (the table makes room for its new size); a free one its corner
+    change(it?.kind === "chart" ? "Chart size" : "Shape size", [{ op: "item.patch", slide: R.id, id, patch: { box: { x: Math.round(it?.attach ? it.box.x : box.x), y: Math.round(it?.attach ? it.box.y : box.y), w: Math.round(now.w), h: Math.round(now.h) } } } as Op]);
   });
 }
 export function noteMove(R: RuntimeSlide, key: string, box: Rect, others: Rect[], e: PointerEvent) {

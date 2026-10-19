@@ -13,6 +13,8 @@ import { scaleColors } from "@slide-builder/core/render/scales";
 import { A1, uid, esc } from "@slide-builder/core/xlsx/util";
 import type { Op, ScaleRule, Side } from "@slide-builder/core/model/types";
 import { Dropdown } from "./Dropdown";
+import { insertChartFromSelection } from "../editor/charts";
+import { ShapeMenu, ShapeTools } from "./ShapeTools";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
 
 const uniq = (a: number[]) => [...new Set(a.map(v => Math.round(v)))];
@@ -67,6 +69,16 @@ function GridMenu({ close, T }: { close: () => void; T: import("@slide-builder/c
 
 const ROLES = [["auto", "Auto", "Detected from the Excel formatting"], ["header", "Header", "Column/row header"], ["total", "Total", "Highlighted total (tile)"], ["body", "Body", "Normal data"], ["caption", "Note", "Small note"]] as const;
 
+/** Insert chart ▾: from the selected cells (beside their table), or cells chosen in the sheet view – any sheet the wizard
+    lists, a sheet on no slide too, never a hidden one (WB-18); no cell names typed (product owner 2026-10-19) */
+function ChartMenu({ close }: { close: () => void }) {
+  const sel = useStore(s => s.selection.sel);
+  return <div className="chartmenu">
+    <button data-a="chart-sel" disabled={!sel} title={sel ? "" : "Select the cells of a table first"} onClick={() => { close(); insertChartFromSelection(); }}>From the selected cells<small>the numbers, and their names in the first column; beside the table</small></button>
+    <button data-a="chart-pick" onClick={() => { close(); setDialogs({ pick: { kind: "chart" } }); }}>Choose the cells…<small>of any sheet: drag across the numbers, then their names</small></button>
+  </div>;
+}
+
 export function TableRibbon() {
   const sel = useStore(s => s.selection.sel), noteSel = useStore(s => s.selection.noteSel), anyTables = useStore(s => s.deck.slides.some(x => x.tables.length));
   const R = useCurSlide(), c = useCtx(), st = useStyle();
@@ -83,8 +95,7 @@ export function TableRibbon() {
     addTextBox(tIdx, side);                      // opens for typing as soon as the slide shows it
   };
   const sz = R ? sizingOf(R, c) : null, align = sz?.align || "center";
-  // raw Excel shows the workbook only: no text boxes, no comments
-  const raw = st.design === "excel", rawTip = "Excel shows the workbook as it is – text boxes and comments are in Excel Refined and Liquid Glass";
+  // (since 4.3 raw Excel draws the user's text boxes, comments and notes too: B19)
   return (
     <nav className="ribbon ribbon2">
       <div className="grp" title="Size of the selected columns and rows, in table pixels (Excel at 100 %). Or drag a border on the slide; double-click a border for the Excel size.">
@@ -122,17 +133,26 @@ export function TableRibbon() {
         <button className="tb" id="resetLayout" title="Automatic table positions for this slide (in this design)" disabled={!(R && sizingOf(R, c).layout)} onClick={() => R && slidePatch("Reset layout", sizingPatch(R, c, { scale: sizingOf(R, c).scale }))}>Reset layout</button>
       </div>
       <div className="grp">
+        <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="chartBtn" disabled={!R} title="A pie or donut chart of cells of the workbook: it follows the workbook when it changes" onClick={t}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="8" cy="8" r="6.2" /><path d="M8 1.8V8l5.3 3.1" /></svg>Insert chart ▾</button>}>
+          {close => <ChartMenu close={close} />}</Dropdown>
+        <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="shapeBtn" disabled={!R} title="A callout: a shape or an icon, with text that can quote cells ({Sheet!C7})" onClick={t}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="2.5" width="11" height="8" rx="2" /><path d="M4 10.5 3 14l4-3.5" /></svg>Insert shape ▾</button>}>
+          {close => <ShapeMenu close={close} />}</Dropdown>
+      </div>
+      <ShapeTools />
+      <div className="grp">
         <span className="lbl">Text box</span>
-        {(["top", "bottom", "left", "right"] as const).map(sd => <button key={sd} className="tb" data-addnote={sd} disabled={!R || tIdx < 0 || raw} title={raw ? rawTip : `Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd} of the table`} onClick={() => addNote(sd)}>
+        {(["top", "bottom", "left", "right"] as const).map(sd => <button key={sd} className="tb" data-addnote={sd} disabled={!R || tIdx < 0} title={`Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd} of the table`} onClick={() => addNote(sd)}>
           {sd === "top" ? "↑" : sd === "bottom" ? "↓" : sd === "left" ? "←" : "→"}</button>)}
         <button className={"tb" + (note?.bubble ? " on" : "")} id="noteBubble" disabled={!note} title="Bubble around the selected text box, like the tables (glass card / framed box)" onClick={() => note && patchNote(note.bubble ? "Text box without bubble" : "Text box in a bubble", { bubble: !note.bubble })}>◯</button>
-        <button className={"tb" + (note?.auto ? " on" : "")} id="commentBtn" disabled={!R || !R.tables.length || raw} title={raw ? rawTip : "Automated comment: a commentary written from the table's numbers (headline, main contributors, downside), updated when the numbers change"}
+        <button className={"tb" + (note?.auto ? " on" : "")} id="commentBtn" disabled={!R || !R.tables.length} title={"Automated comment: a commentary written from the table's numbers (headline, main contributors, downside), updated when the numbers change"}
           onClick={() => setDialogs({ comment: { table: noteSel ? Math.max(0, R!.tables.findIndex(t => (t.id || "") === noteSel.split(":")[0])) : Math.max(0, tIdx) } })}>✎ Comment…</button>
         <button className="tb" id="noteAttach" disabled={!(note && note.x != null) || noteSel === "slide:notes"} title="Put the moved text box back next to its table (drag a text box to place it anywhere)" onClick={attachNote}>⤺ Attach</button>
         <button className="tb" id="noteDelete" disabled={!note} title="Delete the selected text box (Del)" onClick={() => patchNote("Remove text box", null)}>🗑</button>
       </div>
       <div className="grp">
-        <button className={"tb" + (R?.cfg.notes?.["slide:notes"] ? " on" : "")} id="slideNotes" disabled={!R || raw} title={raw ? rawTip : "Notes section of this slide (sources, footnotes…): starts where the footer is – drag it anywhere, e.g. next to the page number"} onClick={addSlideNotes}>✎ Notes</button>
+        <button className={"tb" + (R?.cfg.notes?.["slide:notes"] ? " on" : "")} id="slideNotes" disabled={!R} title={"Notes section of this slide (sources, footnotes…): starts where the footer is – drag it anywhere, e.g. next to the page number"} onClick={addSlideNotes}>✎ Notes</button>
         <button className={"tb" + (logoOn ? " on" : "")} id="logoToggle" disabled={!R || !logoName} title={R && !logoOn ? "The logo is hidden on this slide – click to show it" : "Hide the logo on this slide"}
           onClick={() => slidePatch(logoOn ? "Hide logo" : "Show logo", { logo: logoOn ? false : null })}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="3.5" width="13" height="9" rx="2" /><path d="m3.5 10.5 3-3 2 2 1.5-1.5 2.5 2.5" /></svg>Logo</button>
         {R?.type === "index" && <button className={"tb" + (R.cfg.subs !== false ? " on" : "")} id="ixSubs" title={R.cfg.subs !== false ? "Hide the slide subtitles in the contents list" : "Show the slide subtitles in the contents list"}

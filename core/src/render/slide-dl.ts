@@ -8,17 +8,22 @@
    text block, the contents rows and separators of Liquid Glass), then the page numbers (z-index 5).
    The consulting designs (08 §2, S7b.2) have their own branch – title band, rules, cards, bullets, footnotes, cover and
    contents – that reads every value from their spec (consult-spec.ts); the other designs' output does not change.
+   Since 4.3 the slide's items – charts (chart-dl.ts) and callouts (shape-dl.ts, their text laid out as a text box's) –
+   are drawn over the tables and text boxes, in every design (B16, B17).
    Coordinates are slide px (1600 × 900). */
 import { parseColor, solid } from "../dl/color";
 import type { Node, Paint, RectNode, TextNode } from "../dl/types";
 import { fontStack } from "../model/fonts";
-import type { RuntimeSlide, TextFmt } from "../model/types";
+import type { Note, RuntimeSlide, TextFmt } from "../model/types";
 import type { RenderCtx } from "./context";
 import { cssLinear, glassBox, glassVars, type Wallpaper } from "./glass-dl";
 import { halfLeading, lu, primaryFamily, type Metrics, type TableDL } from "./excel-dl";
 import { pageNoFor, pageNoGeom, footerGeom, pageNumber, pnFmt } from "./pagenumbers";
 import { contrastVars, memoPart, noteParts, slideHasLogo, themeVars, type NotePart } from "./slide";
-import { areaFor, KPI_LINE, NAVY_BAND, SIGNAL_AREA, slideFacts, tableH, tableW, type TBox } from "./layout";
+import { areaFor, itemBoxOf, KPI_LINE, NAVY_BAND, SIGNAL_AREA, slideFacts, tableH, tableW, type TBox } from "./layout";
+import { chartNodes, type PieGeom } from "./chart-dl";
+import { shapeNodes } from "./shape-dl";
+import type { Box } from "../model/types";
 import type { Exhibit, ExFacts } from "./exhibit";
 import { deckFmt, hasMarkup, slideTextFmt, titleGeom } from "./text";
 import { todayLabel } from "./cover";
@@ -35,6 +40,11 @@ export interface SlideImages {
   wall: { sharp: { id: string; src: string }; blur: Wallpaper; base: string } | null;
   logo: { id: string; src: string; w: number; h: number } | null;
 }
+
+/** a whole slide's display list, and what the stage needs of its items: where each is, its chart's geometry (slice
+    picking), the Issues line of a source that is missing or empty */
+export interface ItemInfo { box: Box; issue: string | null; geom: PieGeom | null; /** its nodes: [start, end) in the slide's list */ at: [number, number] }
+export interface SlideDL extends TableDL { items: Record<string, ItemInfo> }
 
 /* ---- text ---- */
 /** the line height the slide's texts inherit where slide.css sets none: the page's body is font: 13px/1.4 (ui.css) */
@@ -113,7 +123,7 @@ class Typesetter {
 
 /* ---- the slide ---- */
 /** `today`: the date the page shows ({date} in footers, a cover without its own date) – the page's clock */
-export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx, tables: TableDL[], boxes: TBox[], img: SlideImages, m: Metrics, today = todayLabel()): TableDL {
+export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx, tables: TableDL[], boxes: TBox[], img: SlideImages, m: Metrics, today = todayLabel()): SlideDL {
   const T = new Typesetter(m), d = ctx.style.design, glassy = d === "glass", rk = ctx.style.radius / 100;
   const V = glassVars(ctx), tv = themeVars(ctx), place = { x: 0, y: 0, scale: 1 }, wall = img.wall?.blur ?? null;
   const base = glassy ? SLIDE_FONT.glass : SLIDE_FONT.excel;
@@ -166,8 +176,33 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
   });
   const memo = memoPart(R, ctx);
   if (memo) noteNodes(memo, memo.box);
+  // the slide's items, in their order (the later on top): beside their table or where they were put
+  const items: Record<string, ItemInfo> = {};
+  for (const [id, it] of Object.entries(R.cfg.items || {})) {
+    const box = itemBoxOf(R, id, boxes); if (!box || !it || (it.kind !== "chart" && it.kind !== "shape")) continue;
+    const s0 = low.length;
+    if (it.kind === "chart") {
+      const family = glassy ? base : C ? C.note.family : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel;
+      const c = chartNodes(it, id, box, ctx, m, { V, wall, family });
+      low.push(...c.nodes);
+      items[id] = { box, issue: c.issue, geom: c.geom, at: [s0, low.length] };
+    } else {
+      const s = shapeNodes(it, id, box, ctx, { V, wall, panel: inPanel(box.x) });
+      low.push(...s.nodes);
+      if (s.text.trim()) {
+        // the text as a text box's (markup, wrapping, shrinking to fit down to 9 px), in the shape's own format
+        const f = it.fmt || {}, deck = deckFmt(ctx, "note"), dark = s.ink === "#FFFFFF";
+        const n: Note = { text: s.text, ...(f.font ? { font: f.font } : deck.font ? { font: deck.font } : {}), ...(f.size && +f.size > 0 ? { size: Math.max(6, Math.min(120, +f.size)) } : {}),
+          ...(f.b !== undefined ? { b: !!f.b } : deck.b !== undefined ? { b: deck.b } : {}), ...(f.i ? { i: true } : {}), ...(f.lh && +f.lh > 0 ? { lh: Math.max(.8, Math.min(3, +f.lh)) } : {}),
+          color: /^#[0-9A-Fa-f]{6}$/.test(f.color || "") ? f.color! : !dark && /^#[0-9A-Fa-f]{6}$/.test(deck.color || "") ? deck.color! : s.ink,
+          align: f.align || "center", valign: f.valign || "middle" };
+        noteNodes({ i: -1, side: "top", key: "item:" + id, n, txt: s.text, memo: false, cls: "tnote item", bubble: null, ...(s.ink === "#FFFFFF" && !/^#[0-9A-Fa-f]{6}$/.test(f.color || "") ? { ink: "#FFFFFF" } : {}) }, s.textBox);
+      }
+      items[id] = { box, issue: s.issue, geom: null, at: [s0, low.length] };
+    }
+  }
   if (logo) logoNodes(logo);
-  return { nodes: [...low, ...z3, ...z5], images };
+  return { nodes: [...low, ...z3, ...z5], images, items };
 
   /* a nowrap line with an ellipsis in a box from left to 1600 − right (titles), the inherited line height unless set */
   function oneLine(cls: string, f: TextFmt, text: string, left: number, top: number, right: number, st0: TStyle, shadow: boolean, lh0 = INHERITED) {
@@ -609,15 +644,16 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx: RenderCtx,
           const navyKick = !!C && C.id === "mckinsey" && !!part.bubble && !part.memo && kind === "nt";
           const hs: TextSpec | null = navyKick ? { family: C!.font.body, size: INSIGHT.kicker.size * C!.note.size / 15, weight: 700, color: C!.accent, caps: true, ls: INSIGHT.kicker.ls }
             : C && kind !== "np" ? (kind === "nt" ? C.note.h1 : C.note.h2) : null, hk = hs ? size / C!.note.size : 1;
-          const bst: TStyle = hs ? { ...st, family: hs.family, size: r2(hs.size * hk), weight: hs.weight, color: solid(hs.color), ls: hs.ls ? r2(hs.ls * hk) : 0 }
+          const bst0: TStyle = hs ? { ...st, family: hs.family, size: r2(hs.size * hk), weight: hs.weight, color: solid(hs.color), ls: hs.ls ? r2(hs.ls * hk) : 0 }
             : kind === "nt" ? { ...st, size: r2(size * 1.32), weight: 800, color: glassy ? solid("#0B0D17") : solid(x1) } : kind === "nh" ? { ...st, weight: 700, color: solid(a1) } : st;
+          const bst: TStyle = part.ink ? { ...bst0, color: solid(part.ink) } : bst0;
           const runs0 = inlineRuns(hs?.caps ? body.toUpperCase() : body, bst), blh = kind === "nt" ? 1.15 : kind === "nh" ? 1.25 : lh;
-          const runs = bullet && !hang ? [{ text: C!.note.bullet + " ", st: { ...st, color: solid(C!.note.bulletColor) } }, ...runs0] : runs0;
+          const runs = bullet && !hang ? [{ text: C!.note.bullet + " ", st: { ...st, color: solid(part.ink || C!.note.bulletColor) } }, ...runs0] : runs0;
           const b = block(runs, cx + ind, 0, cw - ind, blh, align, pre);
-          if (hang && b.h) b.nodes.unshift(T.node(C!.note.bullet, cx, T.baseline(st, 0, T.lineH(st, blh)), { ...st, color: solid(C!.note.bulletColor) }));
+          if (hang && b.h) b.nodes.unshift(T.node(C!.note.bullet, cx, T.baseline(st, 0, T.lineH(st, blh)), { ...st, color: solid(part.ink || C!.note.bulletColor) }));
           // a "# " heading of a consulting design: a 24 × 3 accent bar 6 px above it (08 §2.5)
           const hbar = !!C && C.id !== "mckinsey" && kind === "nt" && b.h > 0;
-          if (hbar) b.nodes.unshift({ t: "rect", x: r2(align === "right" ? cx + cw - 24 : align === "center" ? cx + (cw - 24) / 2 : cx), y: -9, w: 24, h: 3, fill: solid(C!.accent) });
+          if (hbar) b.nodes.unshift({ t: "rect", x: r2(align === "right" ? cx + cw - 24 : align === "center" ? cx + (cw - 24) / 2 : cx), y: -9, w: 24, h: 3, fill: solid(part.ink || C!.accent) });
           blocks.push({ ...b, mt: (kind === "np" && prevNp && !auto ? (pgap ?? 0) : 0) + (hbar ? 9 : 0), mb: kind === "nt" ? .1 * bst.size : 0 });
           texts.push(hang ? C!.note.bullet + " " + b.text : b.text);
           prevNp = kind === "np";

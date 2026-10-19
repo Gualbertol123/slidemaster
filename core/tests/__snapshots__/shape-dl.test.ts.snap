@@ -1,0 +1,531 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`shapes and icons in every design (CL-01) > bain: every shape with text, every icon – valid nodes, the item's hit first > bubble 1`] = `
+[
+  [
+    "hit",
+    "item",
+    "s5",
+  ],
+  [
+    "path",
+    13,
+    "{"solid":[255,255,255]}",
+    0,
+    "",
+  ],
+  [
+    "hit",
+    "f",
+    "tnote item",
+  ],
+  [
+    "group",
+    "clip",
+    [
+      [
+        "text",
+        "Total 1.234.568",
+        1202.5,
+        575.2,
+        18,
+        400,
+        "{"solid":[0,0,0]}",
+      ],
+    ],
+  ],
+]
+`;
+
+exports[`shapes and icons in every design (CL-01) > bain: every shape with text, every icon – valid nodes, the item's hit first > icon 1`] = `
+[
+  [
+    "hit",
+    "item",
+    "i0",
+  ],
+  [
+    "path",
+    8,
+    "{"solid":[255,255,255]}",
+    0,
+    "evenodd",
+  ],
+]
+`;
+
+exports[`shapes and icons in every design (CL-01) > bain: every shape with text, every icon – valid nodes, the item's hit first > rect 1`] = `
+[
+  [
+    "hit",
+    "item",
+    "s0",
+  ],
+  [
+    "rect",
+    60.8,
+    160.8,
+    418.5,
+    158.5,
+    0,
+    "null",
+    "{"w":1.5,"paint":{"solid":[255,255,255]}}",
+  ],
+  [
+    "hit",
+    "f",
+    "tnote item",
+  ],
+  [
+    "group",
+    "clip",
+    [
+      [
+        "text",
+        "Total 1.234.568",
+        202.5,
+        245.2,
+        18,
+        400,
+        "{"solid":[255,255,255]}",
+      ],
+    ],
+  ],
+]
+`;
+
+exports[`shapes and icons in every design (CL-01) > clean: every shape with text, every icon – valid nodes, the item's hit first > bubble 1`] = `
+[
+  [
+    "hit",
+    "item",
+    "s5",
+  ],
+  [
+    "path",
+    13,
+    "{"solid":[255,255,255]}",
+    1,
+    "",
+  ],
+  [
+    "hit",
+    "f",
+    "tnote item",
+  ],
+  [
+    "group",
+    "clip",
+    [
+      [
+        "text",
+        "Total 1.234.568",
+        1202.5,
+        574.9,
+        18,
+        400,
+        "{"solid":[22,24,29]}",
+      ],
+    ],
+  ],
+]
+`;
+
+exports[`shapes and icons in every design (CL-01) > clean: every shape with text, every icon – valid nodes, the item's hit first > icon 1`] = `
+[
+  [
+    "hit",
+    "item",
+    "i0",
+  ],
+  [
+    "path",
+    8,
+    "{"solid":[22,24,29]}",
+    0,
+    "evenodd",
+  ],
+]
+`;
+
+exports[`shapes and icons in every design (CL-01) > clean: every shape with text, every icon – valid nodes, the item's hit first > rect 1`] = `
+[
+  [
+    "hit",
+    "item",
+    "s0",
+  ],
+  [
+    "shadow",
+  ],
+  [
+    "shadow",
+  ],
+  [
+    "rect",
+    60.5,
+    160.5,
+    419,
+    159,
+    0,
+    "{"solid":[255,255,255]}",
+    "{"w":1,"paint":{"solid":[225,229,236]}}",
+  ],
+  [
+    "hit",
+    "f",
+    "tnote item",
+  ],
+  [
+    "group",
+    "clip",
+    [
+      [
+        "text",
+        "Total 1.234.568",
+        202.5,
+        244.9,
+        18,
+        400,
+        "{"solid":[22,24,29]}",
+      ],
+    ],
+  ],
+]
+`;
+
+exports[`shapes and icons in every design (CL-01) > excel: every shape with text, every icon – valid nodes, the item's hit first > bubble 1`] = `
+[
+  [
+    "hit",
+    "item",
+    "s5",
+  ],
+  [
+    "path",
+    13,
+    "{"solid":[255,255,255]}",
+    1,
+    "",
+  ],
+  [
+    "hit",
+    "f",
+    "tnote item",
+  ],
+  [
+    "group",
+    "clip",
+    [
+      [
+        "text",
+        "Total 1.234.568",
+        1202.5,
+        574.9,
+        18,
+        400,
+        "{"solid":[22,24,29]}",
+      ],
+    ],
+  ],
+]
+`;
+
+exports[`shapes and icons in every design (CL-01) > excel: every shape with text, every icon – valid nodes, the item's hit first > icon 1`] = `
+[
+  [
+    "hit",
+    "item",
+    "i0",
+  ],
+  [
+    "path",
+    8,
+    "{"solid":[22,24,29]}",
+    0,
+    "evenodd",
+  ],
+]
+`;
+
+exports[`shapes and icons in every design (CL-01) > excel: every shape with text, every icon – valid nodes, the item's hit first > rect 1`] = `
+[
+  [
+    "hit",
+    "item",
+    "s0",
+  ],
+  [
+    "rect",
+    60.5,
+    160.5,
+    419,
+    159,
+    0,
+    "{"solid":[255,255,255]}",
+    "{"w":1,"paint":{"solid":[191,191,191]}}",
+  ],
+  [
+    "hit",
+    "f",
+    "tnote item",
+  ],
+  [
+    "group",
+    "clip",
+    [
+      [
+        "text",
+        "Total 1.234.568",
+        202.5,
+        244.9,
+        18,
+        400,
+        "{"solid":[22,24,29]}",
+      ],
+    ],
+  ],
+]
+`;
+
+exports[`shapes and icons in every design (CL-01) > glass: every shape with text, every icon – valid nodes, the item's hit first > bubble 1`] = `
+[
+  [
+    "hit",
+    "item",
+    "s5",
+  ],
+  [
+    "path",
+    13,
+    "{"solid":[255,255,255],"a":0.72}",
+    1.5,
+    "",
+  ],
+  [
+    "hit",
+    "f",
+    "tnote item",
+  ],
+  [
+    "group",
+    "clip",
+    [
+      [
+        "text",
+        "Total 1.234.568",
+        1202.5,
+        574.9,
+        18,
+        500,
+        "{"solid":[11,13,23]}",
+      ],
+    ],
+  ],
+]
+`;
+
+exports[`shapes and icons in every design (CL-01) > glass: every shape with text, every icon – valid nodes, the item's hit first > icon 1`] = `
+[
+  [
+    "hit",
+    "item",
+    "i0",
+  ],
+  [
+    "path",
+    8,
+    "{"solid":[11,13,23]}",
+    0,
+    "evenodd",
+  ],
+]
+`;
+
+exports[`shapes and icons in every design (CL-01) > glass: every shape with text, every icon – valid nodes, the item's hit first > rect 1`] = `
+[
+  [
+    "hit",
+    "item",
+    "s0",
+  ],
+  [
+    "shadow",
+  ],
+  [
+    "shadow",
+  ],
+  [
+    "group",
+    "clip",
+    [
+      [
+        "rect",
+        60,
+        160,
+        420,
+        160,
+        0,
+        "{"solid":[255,255,255],"a":0.5}",
+        "",
+      ],
+      [
+        "shadow",
+      ],
+      [
+        "shadow",
+      ],
+      [
+        "shadow",
+      ],
+      [
+        "shadow",
+      ],
+      [
+        "rect",
+        60.6,
+        160.6,
+        418.8,
+        158.8,
+        0,
+        "null",
+        "{"w":1.25,"paint":{"linear":[0.15476190476190468,-0.40625,0.8452380952380952,1.40625],"stops":[{"o":0,"c":[255,255,255],"a":0.7075},{"o":0.13,"c":[255,255,255],"a":0.21},{"o":0.36,"c":[255,255,255],"a":0.034999999999999996},{"o":0.52,"c":[255,255,255],"a":0},{"o":0.72,"c":[255,255,255],"a":0.055999999999999994},{"o":1,"c":[255,255,255],"a":0.5425}]}}",
+      ],
+      [
+        "rect",
+        60,
+        160,
+        420,
+        160,
+        0,
+        "{"radial":{"cx":0.88,"cy":1.2,"rx":0.8,"ry":0.55,"stops":[{"o":0,"c":[255,255,255],"a":0.119},{"o":0.55,"c":[255,255,255],"a":0}]}}",
+        "",
+      ],
+      [
+        "rect",
+        60,
+        160,
+        420,
+        160,
+        0,
+        "{"radial":{"cx":0.16,"cy":-0.2,"rx":1.3,"ry":0.85,"stops":[{"o":0,"c":[255,255,255],"a":0.21},{"o":0.36,"c":[255,255,255],"a":0.055999999999999994},{"o":0.56,"c":[255,255,255],"a":0}]}}",
+        "",
+      ],
+    ],
+  ],
+  [
+    "hit",
+    "f",
+    "tnote item",
+  ],
+  [
+    "group",
+    "clip",
+    [
+      [
+        "text",
+        "Total 1.234.568",
+        202.5,
+        244.9,
+        18,
+        500,
+        "{"solid":[11,13,23]}",
+      ],
+    ],
+  ],
+]
+`;
+
+exports[`shapes and icons in every design (CL-01) > mckinsey: every shape with text, every icon – valid nodes, the item's hit first > bubble 1`] = `
+[
+  [
+    "hit",
+    "item",
+    "s5",
+  ],
+  [
+    "path",
+    13,
+    "{"solid":[255,255,255]}",
+    0,
+    "",
+  ],
+  [
+    "hit",
+    "f",
+    "tnote item",
+  ],
+  [
+    "group",
+    "clip",
+    [
+      [
+        "text",
+        "Total 1.234.568",
+        1202.5,
+        575.2,
+        18,
+        400,
+        "{"solid":[0,0,0]}",
+      ],
+    ],
+  ],
+]
+`;
+
+exports[`shapes and icons in every design (CL-01) > mckinsey: every shape with text, every icon – valid nodes, the item's hit first > icon 1`] = `
+[
+  [
+    "hit",
+    "item",
+    "i0",
+  ],
+  [
+    "path",
+    8,
+    "{"solid":[34,81,255]}",
+    0,
+    "evenodd",
+  ],
+]
+`;
+
+exports[`shapes and icons in every design (CL-01) > mckinsey: every shape with text, every icon – valid nodes, the item's hit first > rect 1`] = `
+[
+  [
+    "hit",
+    "item",
+    "s0",
+  ],
+  [
+    "rect",
+    60,
+    160,
+    420,
+    160,
+    0,
+    "{"solid":[255,255,255]}",
+    "",
+  ],
+  [
+    "hit",
+    "f",
+    "tnote item",
+  ],
+  [
+    "group",
+    "clip",
+    [
+      [
+        "text",
+        "Total 1.234.568",
+        202.5,
+        245.2,
+        18,
+        400,
+        "{"solid":[0,0,0]}",
+      ],
+    ],
+  ],
+]
+`;

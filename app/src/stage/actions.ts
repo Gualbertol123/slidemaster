@@ -63,7 +63,7 @@ export function attachNote() {
 export function noteOf(key: string): Note | null { return (curSlide()?.cfg.notes || {})[key] || null; }
 /** selects a text box (null: none) */
 export function selectNote(key: string | null) {
-  patch("selection", key ? { noteSel: key, sel: null, textSel: null } : { noteSel: null });
+  patch("selection", key ? { noteSel: key, sel: null, textSel: null, itemSel: null } : { noteSel: null });
 }
 export function patchNote(label: string, p: Partial<Note> | null) {
   const R = curSlide(), key = get().selection.noteSel; if (!R || !key) return;

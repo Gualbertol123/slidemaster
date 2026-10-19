@@ -67,8 +67,9 @@ suggestions) → 3 Slides (drag tables between slides; optional cover and conten
 *All* = some cells blanked).
 
 **Designs** (top bar: *Liquid Glass · Excel · Excel Refined*)
-* **Excel** – the workbook's own formatting, nothing added (no text boxes, comments or notes section). Title,
-  logo, page number and footer stay.
+* **Excel** – the workbook's own formatting, no decoration of its own (no deck colours on tables, no glass). Title,
+  logo, page number and footer stay; since 4.3 (B19) the user's objects – text boxes, automated comments, the notes
+  section, charts and callouts – are drawn here too, as in every design.
 * **Excel Refined** – the same tables drawn like Excel, **plus** text boxes, automated comments and the notes
   section.
 * **Liquid Glass** – a light design: the table structure (header bands, boxes, rules, signals) is inferred from
@@ -369,7 +370,8 @@ operations are opaque to it. The full contract (torn tails, rotation, who delete
                  "layout"?, "scale"?, "align"?, "valign"?,            // shared sizing of older decks
                  "sizes"?: {"glass"|"excel"|"clean": {layout?, scale?, align?, valign?}},
                  "notes"?: {"k3j9x0a:right": Note, "slide:notes": Note},
-                 "fmt"?: {"title"|"subtitle"|"note"|"date": TextFmt}} ],
+                 "fmt"?: {"title"|"subtitle"|"note"|"date": TextFmt},
+                 "items"?: {"c1": Item}} ],                         // 4.3: charts and callouts (item.patch only)
     "versions"?: [{"id": "v1", "name": "All", "hide": {"SLIDE_1": ["H10:I11"]}}],
     "links"?: ["Peers.xlsx"]        // 4.2: linked workbooks of the folder; their sheets are named "[Peers.xlsx]Peer" wherever a sheet name is stored
   },
@@ -386,6 +388,14 @@ operations are opaque to it. The full contract (torn tails, rotation, who delete
   auto?: CommentCfg}`. Keys are `"<tableId>:<top|bottom|left|right>"`; `"slide:notes"` is the notes section.
   `x/y` = moved freely (takes no room from the tables); `span` = a column beside all tables; `auto` = an
   automated comment whose text is computed at render time.
+* `Item` (4.3, B16/B17, 07 §2.2) = a **chart** `{kind: "chart", type: "pie"|"donut"|"bar"|"column"|"line" (pie / donut drawn from 4.3, the others reserved), values: DataRef, labels?: DataRef,
+  series?, title? ("" = none, unset = the series name), legend?: "right"|"bottom"|"none", show?: ["label"|"value"|
+  "percent"], colors?: {"<slice index>": "#hex"}, startAngle?, fmt?: TextFmt, box, attach?: {table, side}}` or a
+  **callout** `{kind: "shape", shape: "rect"|"round"|"circle"|"pill"|"arrow"|"bubble"|"icon", icon?, text? (may quote
+  cells: "{Sheet!C7}", "{[Peers.xlsx]Peer!F7}"), fill? ("none" = no fill, unset = the design's material), border?:
+  {color, w, dash?}, radius?, fmt?: TextFmt & {valign?, pad?}, tail?: {x, y}, box, attach?}`. `DataRef` = `{sheet, range}`
+  (a sheet id and one A1 rectangle) or `{table, range}` (a table of the deck and a range in its sheet); `box` =
+  `{x, y, w, h}` in slide px. A 4.0 / 4.1 page keeps `items` (it ignores the key) and skips `item.patch`.
 * `CellEdit`: `text` + `orig` (the Excel text it replaced – a text edit applies only while the Excel value is still
   `orig`), `bg` = cell colour (`"none"` removes the Excel fill), `fill` = highlight, `cf = "Sheet!C6"` =
   conditional formatting painted from another cell (`"none"` removes the cell's own).
@@ -404,11 +414,15 @@ operations are opaque to it. The full contract (torn tails, rotation, who delete
 | `table.patch` | `id`, `patch` | name, gridH, gridV | cols, rows, scales, merges, sizes |
 | `cell.patch` | `sheet`, `ref` (A1), `patch` | text, orig, font, sz, b, i, color, fill, bg, cf, align, role | – |
 | `style.patch` | `patch` | design, glass, color, logo, radius, contrast, logoBubble | pn, footer, theme, text, colors, designs |
+| `item.patch` (4.3) | `slide`, `id`, `patch` | on `slides[slide].items[id]`: kind, type, values, labels, series, title, legend, show, startAngle, box, attach, shape, icon, text, fill, border, radius, tail; `patch: null` deletes the item | colors, fmt |
 
 **Map merge**: `null` deletes the whole map; an object sets each entry (replacing the entry whole, no deep
 merge) or deletes it when `null`; an empty map is removed. So two people changing different columns, text
 boxes, rules or designs never overwrite each other; the same field at the same time → the later record in
-Lamport order wins. Unknown ops, invalid fields, unknown slide/table ids are **skipped**. Removing a cell's
+Lamport order wins. Unknown ops, invalid fields, unknown slide/table ids are **skipped**. `item.patch` creates the
+item when the id is missing and the patch has a `kind` (`chart`/`shape`) and a `box`; an unknown `kind`, a box that is
+not four finite numbers with `w`, `h` > 0, or `box: null` skip the op – so two people moving and recolouring one chart
+both win, field by field. Removing a cell's
 `text` also removes its `orig`. The page computes an **inverse** op for each op before applying it
 (`ops.ts inverseOf`) – that is the undo.
 
@@ -481,6 +495,8 @@ script, so HarfBuzz is in the page once). `main.tsx` installs the platform, inje
 ### 5.3 `core/src/render/`, `dl/`, `text/`, `pdf/` – from layouts to display lists and files
 | File | Responsibility |
 |---|---|
+| `render/chart-dl.ts` (4.3) | **Charts** (B16, 07 §3, ADR-015): `chartData` (a `DataRef` read through `ctx.sheet()` like the tables – numbers only; blank, text, hidden and version-removed cells skipped; labels from the item's range or the headers beside the values; cached per sheet object, so a reload or a scenario's view reads again), `chartNodes` (slices as cubic-Bézier `path`s, inside labels or outside with a leader, legend, title, the design's palette or `colors[i]`, Liquid Glass's glass card, Excel Refined's plain card; `hit` nodes `item` and `slice`; a missing / empty source draws a placeholder on the stage and gives the Issues line), `chartKey`, `sliceAt` (the stage's slice picking). Items attached to a table side are laid out by `computeLayout` (`TBox.items`, `itemBoxOf`). |
+| `render/shape-dl.ts`, `icons.ts` (4.3) | **Callouts** (B17, 07 §3): rect / round / pill / circle (`rect` with radii; a circle in a box that is not square is an ellipse `path`), arrow and bubble (`path`; the bubble's tail leaves the edge facing its tip), 17 built-in icons (M/L/C/Z outlines on a 24-unit grid, even-odd); the design's material when no fill is set (Liquid Glass's glass card, Excel's framed box, Excel Refined's card and shadow, the consulting card; a consulting circle is an accent outline); `calloutText` replaces `{Sheet!C7}`, `{'Sheet name'!C7}`, `{[Peers.xlsx]Peer!F7}` with the cell's text as the workbook shows it (number format, cell edit, a scenario's view) – `#REF` and the Issues line when it cannot be read. The text is laid out by the text-box renderer (`slide-dl.ts noteNodes`). |
 | `render/context.ts` | `RenderCtx = {style, edits, slides, preset, workbook, logoSrc, sheet?, version?, forExport?}` and `tableKey` (the cache key of a table's drawing). |
 | `render/edits.ts` | `effItems(L, ctx)`: the workbook items with the user's changes – version blanking, gridlines, colour scales, painted conditional formats, cell edits (text only while `orig` matches), cell colour vs highlight, roles; per-table caches. |
 | `render/excel-dl.ts` | `excelToDisplayList`: a table (fills, borders as widths and dashes, texts with alignment, indent, overflow, wrapping, rotation, sup/sub runs, shapes, text boxes, pictures). **Excel and Excel Refined.** Adjacent opaque fills overlap by 1 px so no light seam shows. |
@@ -558,6 +574,8 @@ acknowledged yet. The page draws no slide itself.
 | `editor/export.ts`, `feedback.ts` | `doExport(kind)`, `exportVersions(designs)` (§10) · *Report a problem with this export…*. |
 | `editor/thumbs.ts` | Thumbnails: **pictures drawn by an export worker** (OffscreenCanvas → `ImageBitmap`) shown in a `bitmaprenderer` canvas, 222 CSS px wide × the pixel ratio. Every slide keeps a light row; frames within 300 px of the view are asked for (6 at a time, nearest first), pictures 1 500 px away are let go; a slide is drawn again only when its content key changed (350 ms after an edit). |
 | `editor/keys.ts`, `issues.ts` | Global keyboard · side-panel notes. |
+| `ui/ShapeTools.tsx` (4.3) | *Insert shape ▾* (six shapes, the icons) and, while one is selected, its fill, border and text on ribbon 2; the text is edited on the slide (double-click, Enter: `stage/editors.tsx ItemEditor`). |
+| `editor/charts.ts`, `stage/items.tsx`, `ui/ChartPanel.tsx` (4.3) | **Charts** (B16): *Insert chart ▾* on ribbon 2 (from the selected cells – the last column's numbers named by the first, beside the table – or *Choose the cells…*: `ui/PickCells.tsx`, the wizard's sheet view (RangePicker) of any sheet the wizard lists, never a hidden one – the numbers, then their names; also the panel's *Change the cells…* and a callout's *Quote a cell…*; no cell names typed); the selected item (`selection.itemSel`, and a slice picked by `sliceAt` on the worker's geometry); moves and resizes (`stage/drags.ts itemMove` / `itemResize`, one `item.patch` each; a moved chart is placed freely); the side panel (type, labels, legend, title, a colour per slice, the source as text, delete); Del / Esc; the Issues lines "Chart n: source … not found" / "no numbers in …" from the stage's `StageSlide.items`. The worker sends each item as a stage layer of its own (`StageLayer.item`). |
 | `ui/` | `App.tsx` (layout, drop to open, dialogs), `Chrome.tsx` (slide list, issues, deck health, stage frame, zoom, status bar, busy, toast), `Topbar.tsx`, `Ribbon.tsx` (text toolbar + formula bar), `TableTools.tsx` (layout toolbar), `TextStylesDialog.tsx` (Design…), `CommentDialog.tsx`, `TablesDialog.tsx` (Sizes…), `FontPicker.tsx`, `Dialogs.tsx`, `Dropdown.tsx`, `Field.tsx` (keeps its draft while focused), `Input.tsx` (uncontrolled), `hooks.ts`. |
 | `wizard/Wizard.tsx` | The 4 steps; reads sheets only through the worker (summaries, suggestions, windows of cells); the preview is drawn in blocks of 40 rows, one per frame. |
 | `styles/` | `ui.css`, `app.css` (the chrome; its end keeps the few slide rules the overlays and the comment preview need, inside `@scope (html) to (.ovl, svg)`). |
