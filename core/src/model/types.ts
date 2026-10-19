@@ -7,7 +7,12 @@ export interface ScaleRule { range: string; dir: "row" | "col" | "all"; mode: "z
 interface TableExtras { name?: string; cols?: Record<string, number>; rows?: Record<string, number>; scales?: Record<string, ScaleRule>; merges?: Record<string, "merge" | "split">;
   /** gridlines: "on" draws a line at every row/column edge, "off" removes them; unset = as in Excel */ gridH?: "on" | "off"; gridV?: "on" | "off";
   /** column widths / row heights of one design (over cols/rows, which older decks share between designs) */ sizes?: Partial<Record<Design, TableSizes>>;
-  /** gridlines on selected cells (4.4, B20), by the cell's A1 address: a light layer of their own, never a border */ cellGrid?: Record<string, CellGrid> }
+  /** gridlines on selected cells (4.4, B20), by the cell's A1 address: a light layer of their own, never a border */ cellGrid?: Record<string, CellGrid>;
+  /** cell borders on the slide (4.4, B25), by the cell's A1 address: over the workbook's, which is never changed */ borders?: Record<string, CellBorders> }
+/** a cell's own border on one side (product owner 2026-10-19: Borders ▾ as Excel's): a style and a colour, or "none" (the
+    workbook's border of that side removed on the slide) */
+export type CellBorderSide = { style: "thin" | "medium" | "thick" | "dashed" | "dotted" | "double"; color: string } | "none";
+export type CellBorders = Partial<Record<"top" | "left" | "right" | "bottom", CellBorderSide>>;
 /** a cell's own gridlines (07 §5.2; product owner 2026-10-19: separate from the cell borders, drawn where the cell has no
     border): h = its top and bottom edges, v = its left and right ("off" = none, as unset); o = part of an outlined rectangle
     (its edges where the next cell is not outlined – the outline of the selection); c = colour, w = weight in px (0.5–3) */
@@ -117,7 +122,7 @@ export type ItemPatch = Nullable<Partial<ItemFields>> & { kind?: ItemKind; color
 export type Op =
   | { op: "preset.set"; preset: Preset | null }
   | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "valign" | "scale" | "subs">> & { notes?: Record<string, Note | null> | null; sizes?: Partial<Record<Design, SlideSizing | null>> | null; fmt?: Partial<Record<SlideTextKey, TextFmt | null>> | null; free?: Partial<Record<Design, FreeLayout | null>> | null } }
-  | { op: "table.patch"; id: string; patch: { name?: string | null; gridH?: "on" | "off" | null; gridV?: "on" | "off" | null; cols?: Record<string, number | null> | null; rows?: Record<string, number | null> | null; scales?: Record<string, ScaleRule | null> | null; merges?: Record<string, "merge" | "split" | null> | null; sizes?: Partial<Record<Design, TableSizes | null>> | null; cellGrid?: Record<string, CellGrid | null> | null } }
+  | { op: "table.patch"; id: string; patch: { name?: string | null; gridH?: "on" | "off" | null; gridV?: "on" | "off" | null; cols?: Record<string, number | null> | null; rows?: Record<string, number | null> | null; scales?: Record<string, ScaleRule | null> | null; merges?: Record<string, "merge" | "split" | null> | null; sizes?: Partial<Record<Design, TableSizes | null>> | null; cellGrid?: Record<string, CellGrid | null> | null; borders?: Record<string, CellBorders | null> | null } }
   | { op: "cell.patch"; sheet: string; ref: string; patch: Nullable<CellEdit> }
   /** field-level patch of one slide item; `patch: null` deletes it; a patch with `kind` on a missing id creates it */
   | { op: "item.patch"; slide: string; id: string; patch: ItemPatch | null }

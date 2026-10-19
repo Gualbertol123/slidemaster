@@ -33,19 +33,56 @@ type Edge = "top" | "left" | "right" | "bottom";
 const ACROSS: Record<Edge, Edge> = { top: "bottom", bottom: "top", left: "right", right: "left" };
 const EDGES: Edge[] = ["top", "left", "right", "bottom"];
 const isHex = (c: unknown): c is string => typeof c === "string" && /^#[0-9A-Fa-f]{6}$/.test(c);
-export function withCellGrid(L: TableLayout, items: Item[]): Item[] {
-  const g = L.def?.cellGrid; if (!g || typeof g !== "object" || !Object.keys(g).length) return items;
+/** the cells across one side of a cell, in the table's grid (a merged cell: every cell along that side) */
+function acrossOf(L: TableLayout, items: Item[]) {
   const ri = new Map(L.rows.map((r, k) => [r, k])), ci = new Map(L.cols.map((c, k) => [c, k])), at = new Map<string, Item>();
   for (const it of items) for (let r = ri.get(it.b.r) ?? -1, r2 = ri.get(it.b.r2) ?? -1; r >= 0 && r <= r2; r++) for (let c = ci.get(it.b.c) ?? -1, c2 = ci.get(it.b.c2) ?? -1; c >= 0 && c <= c2; c++) at.set(r + "," + c, it);
-  const entry = (it: Item) => { const k = keyOf(it), e = Object.prototype.hasOwnProperty.call(g, k) ? g[k] : null; return e && typeof e === "object" ? e : null; };
-  // the cells across one side of a cell (a merged cell: every cell along that side)
-  const across = (it: Item, side: Edge): Item[] => {
+  return (it: Item, side: Edge): Item[] => {
     const r0 = ri.get(it.b.r), r1 = ri.get(it.b.r2), c0 = ci.get(it.b.c), c1 = ci.get(it.b.c2), out = new Set<Item>();
     if (r0 === undefined || r1 === undefined || c0 === undefined || c1 === undefined) return [];
     if (side === "top" || side === "bottom") { const r = side === "top" ? r0 - 1 : r1 + 1; for (let c = c0; c <= c1; c++) { const o = at.get(r + "," + c); if (o) out.add(o); } }
     else { const c = side === "left" ? c0 - 1 : c1 + 1; for (let r = r0; r <= r1; r++) { const o = at.get(r + "," + c); if (o) out.add(o); } }
     return [...out];
   };
+}
+/** a table map's entry of a cell (an own key, an object) */
+function entryOf<T>(map: Record<string, T>, it: Item): T | null { const k = keyOf(it), e = Object.prototype.hasOwnProperty.call(map, k) ? map[k] : null; return e && typeof e === "object" ? e : null; }
+/* cell borders on the slide (4.4, B25; product owner 2026-10-19: Borders ▾ as Excel's, separate from the gridlines): a
+   cell's side set to a style and a colour, or "none"; the cell across that side draws the same edge (its coincident side
+   takes the same value unless it sets that side itself). The workbook is never changed */
+const BSTYLES = ["thin", "medium", "thick", "dashed", "dotted", "double"];
+export function withBorders(L: TableLayout, items: Item[]): Item[] {
+  const g = L.def?.borders; if (!g || typeof g !== "object" || !Object.keys(g).length) return items;
+  const across = acrossOf(L, items), own = new Map<Item, Partial<Record<Edge, BorderSide | null>>>();
+  for (const it of items) {
+    const e = entryOf(g, it); if (!e) continue;
+    const m: Partial<Record<Edge, BorderSide | null>> = {};
+    for (const side of EDGES) {
+      const v = (e as Record<string, unknown>)[side] as { style?: unknown; color?: unknown } | "none" | undefined;
+      if (v === "none") m[side] = null;
+      else if (v && typeof v === "object" && BSTYLES.includes(v.style as string) && isHex(v.color)) m[side] = { style: v.style as string, color: v.color };
+    }
+    if (Object.keys(m).length) own.set(it, m);
+  }
+  if (!own.size) return items;
+  const out = new Map<Item, Partial<Record<Edge, BorderSide | null>>>();
+  for (const [it, m] of own) {
+    out.set(it, { ...out.get(it), ...m });
+    for (const side of Object.keys(m) as Edge[]) for (const o of across(it, side)) {
+      const theirs = own.get(o); if (theirs && ACROSS[side] in theirs) continue;
+      out.set(o, { ...out.get(o), [ACROSS[side]]: m[side] });
+    }
+  }
+  return items.map(it => {
+    const m = out.get(it); if (!m) return it;
+    const ub: NonNullable<Item["ub"]> = {};
+    for (const [side, b] of Object.entries(m) as [Edge, BorderSide | null][]) if (b) ub[side] = true;
+    return Object.assign({}, it, m, Object.keys(ub).length ? { ub } : {});
+  });
+}
+export function withCellGrid(L: TableLayout, items: Item[]): Item[] {
+  const g = L.def?.cellGrid; if (!g || typeof g !== "object" || !Object.keys(g).length) return items;
+  const across = acrossOf(L, items), entry = (it: Item) => entryOf(g, it);
   return items.map(it => {
     const e = entry(it); if (!e) return it;
     const w = typeof e.w === "number" && Number.isFinite(e.w) ? Math.max(.5, Math.min(3, e.w)) : 1;
@@ -64,7 +101,8 @@ function removedCell(it: Item): Item {
   return { ...it, text: "", fill: null, baseFill: null, cf: null, scaleFill: undefined, scaleInk: undefined, userFill: undefined, userBg: undefined, scripts: undefined, removed: true };
 }
 export function effItems(L: TableLayout, ctx: RenderCtx): Item[] {
-  return cache(L, "eff", tableKey(ctx, L), () => withCellGrid(L, effBase(L, ctx)));
+  // the user's borders before the gridlines (a gridline shows only where no border is)
+  return cache(L, "eff", tableKey(ctx, L), () => withCellGrid(L, withBorders(L, effBase(L, ctx))));
 }
 function effBase(L: TableLayout, ctx: RenderCtx): Item[] {
   {

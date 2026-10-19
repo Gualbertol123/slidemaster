@@ -1659,6 +1659,49 @@ test.describe.serial("two people, one shared folder", () => {
     await expect.poll(async () => /192,0,0|#c00000/i.test(await layer.innerHTML())).toBe(false);
   });
 
+  test("cell borders on the slide (S10.3b, B25): Borders ▾ as Excel's – outside in a style and colour, none, clear; separate from the gridlines; the painter copies them", async ({ page }) => {
+    await openApp(page, ANNA);
+    await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
+    const tid = doc().preset.tables.find((t: any) => t.sheet === "SLIDE_3 pair" && t.index === 0).id;
+    const si = doc().preset.slides.findIndex((s: any) => s.tables.includes(tid));
+    await page.locator(`.thumb[data-i="${si}"]`).click(); await page.locator(`.thumb.on[data-i="${si}"]`).waitFor();
+    const tdef = () => doc().preset.tables.find((t: any) => t.id === tid), bd = () => tdef().borders || {};
+    const layer = page.locator('#stage .slide > .tw[data-i="0"]'), red = async () => /192,0,0/.test(await layer.innerHTML());
+    const menu = async (sel: string) => { if (!await page.locator("#borderMenu").isVisible()) await page.click("#bordersBtn"); await page.click(`#borderMenu ${sel}`); };
+    // R1 and R2 (one column, two rows): Outside, medium, red
+    await page.click('[data-design="excel"]'); await saved(page);
+    await selectCell(page, "R1");
+    const r2 = (await page.locator("#stage .slide .t", { hasText: /^R2$/ }).first().boundingBox())!;
+    await page.keyboard.down("Shift"); await page.mouse.click(r2.x + 6, r2.y + r2.height / 2); await page.keyboard.up("Shift");
+    await menu('[data-bs="medium"]'); await menu('[data-bc="#C00000"]'); await menu('[data-b="outside"]');
+    const B = { style: "medium", color: "#C00000" };
+    await pollFile(() => Object.values(bd()), { timeout: 10_000 }).toEqual([{ top: B, left: B, right: B }, { bottom: B, left: B, right: B }]);
+    await expect.poll(red).toBe(true);
+    const [k1, k2] = Object.keys(bd());
+    // the gridlines are another layer: none were written
+    expect(tdef().cellGrid).toBeUndefined();
+    // No border: every edge of both cells "none" (one change); Clear: the workbook's borders again; undo
+    await menu('[data-b="none"]');
+    await pollFile(() => bd()[k1], { timeout: 10_000 }).toEqual({ top: "none", left: "none", right: "none", bottom: "none" });
+    await expect.poll(red).toBe(false);
+    await page.click("#undoBtn");
+    await pollFile(() => bd()[k1], { timeout: 10_000 }).toEqual({ top: B, left: B, right: B });
+    // the painter copies a cell's borders to another cell
+    await selectCell(page, "R1"); await page.click("#painterBtn");
+    const r4 = (await page.locator("#stage .slide .t", { hasText: /^R4$/ }).first().boundingBox())!;
+    await page.mouse.click(r4.x + 6, r4.y + r4.height / 2);
+    await pollFile(() => Object.keys(bd()).length, { timeout: 10_000 }).toBe(3);
+    expect(Object.entries(bd()).find(([k]) => k !== k1 && k !== k2)![1]).toEqual(bd()[k1]);
+    // Clear on R1:R2 → only the painted cell keeps its own; then the deck as the later tests expect it
+    await selectCell(page, "R1"); await page.keyboard.down("Shift"); await page.mouse.click(r2.x + 6, r2.y + r2.height / 2); await page.keyboard.up("Shift");
+    await menu('[data-b="clear"]');
+    await pollFile(() => Object.keys(bd()).length, { timeout: 10_000 }).toBe(1);
+    await page.evaluate(([id]) => (window as any).__sbTest.change("Borders from Excel", [{ op: "table.patch", id, patch: { borders: null } }]), [tid]);
+    await pollFile(() => tdef().borders ?? "none", { timeout: 10_000 }).toBe("none");
+    await expect.poll(red).toBe(false);
+    await page.click('[data-design="glass"]'); await saved(page);
+  });
+
   test("no page errors, console errors or warnings", async () => { expect(unexpected(errors)).toEqual([]); });
 });
 

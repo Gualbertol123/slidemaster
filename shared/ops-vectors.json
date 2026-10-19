@@ -5172,5 +5172,276 @@
       "applied": 1,
       "skipped": []
     }
+  },
+  {
+    "name": "table.patch borders sets cells' borders (sides with a style and a colour, or \"none\"); the gridlines untouched",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9",
+            "cellGrid": {
+              "C3": {
+                "h": "on"
+              }
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "borders": {
+            "C3": {
+              "bottom": {
+                "style": "medium",
+                "color": "#C00000"
+              }
+            },
+            "C4": {
+              "top": "none",
+              "left": {
+                "style": "thin",
+                "color": "#000000"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9",
+            "cellGrid": {
+              "C3": {
+                "h": "on"
+              }
+            },
+            "borders": {
+              "C3": {
+                "bottom": {
+                  "style": "medium",
+                  "color": "#C00000"
+                }
+              },
+              "C4": {
+                "top": "none",
+                "left": {
+                  "style": "thin",
+                  "color": "#000000"
+                }
+              }
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "table.patch borders replaces a cell's entry whole; null removes it (the workbook's borders again); the last removes the map",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9",
+            "borders": {
+              "C3": {
+                "bottom": {
+                  "style": "medium",
+                  "color": "#C00000"
+                },
+                "top": {
+                  "style": "thin",
+                  "color": "#000000"
+                }
+              },
+              "C4": {
+                "top": "none"
+              }
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "borders": {
+            "C3": {
+              "left": {
+                "style": "medium",
+                "color": "#C00000"
+              }
+            },
+            "C4": null
+          }
+        }
+      },
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "borders": {
+            "C3": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9"
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "table.patch borders: null clears every cell's borders of the table; two writers on different cells both win",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9",
+            "borders": {
+              "C3": {
+                "bottom": {
+                  "style": "medium",
+                  "color": "#C00000"
+                }
+              }
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "borders": null
+        }
+      },
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "borders": {
+            "D5": {
+              "right": {
+                "style": "thin",
+                "color": "#000000"
+              }
+            }
+          }
+        }
+      },
+      {
+        "op": "table.patch",
+        "id": "t1",
+        "patch": {
+          "borders": {
+            "D6": {
+              "right": {
+                "style": "medium",
+                "color": "#C00000"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "B2:E9",
+            "borders": {
+              "D5": {
+                "right": {
+                  "style": "thin",
+                  "color": "#000000"
+                }
+              },
+              "D6": {
+                "right": {
+                  "style": "medium",
+                  "color": "#C00000"
+                }
+              }
+            }
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 3,
+      "skipped": []
+    }
   }
 ]

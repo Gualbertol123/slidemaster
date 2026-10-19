@@ -11,7 +11,7 @@ import { alignTables, canMerge, mergeSel, mergedInSel, unmergeSel, valignTables,
 import { addNote as addTextBox, addSlideNotes, attachNote, noteOf, patchNote } from "../stage/actions";
 import { scaleColors } from "@slide-builder/core/render/scales";
 import { A1, uid, esc } from "@slide-builder/core/xlsx/util";
-import type { CellGrid, Op, ScaleRule, Side } from "@slide-builder/core/model/types";
+import type { CellBorders, CellBorderSide, CellGrid, Op, ScaleRule, Side } from "@slide-builder/core/model/types";
 import { Dropdown } from "./Dropdown";
 import { insertChartFromSelection } from "../editor/charts";
 import { askAutomatic, freeLayoutOff, freeLayoutOn } from "../editor/free";
@@ -98,6 +98,43 @@ function GridMenu({ close, T }: { close: () => void; T: import("@slide-builder/c
     </div></div>;
 }
 
+/* Borders ▾ (4.4, B25; product owner 2026-10-19: as Excel's, separate from the gridlines): on the selected cells, over the
+   workbook's borders on the slide only – the sides of the selection, all, outside, thick outside, none; a style and a
+   colour; Clear goes back to the workbook's */
+type BEdge = "top" | "left" | "right" | "bottom";
+const B_STYLES: [Exclude<CellBorderSide, "none">["style"], string][] = [["thin", "Thin"], ["medium", "Medium"], ["thick", "Thick"], ["dashed", "Dashed"], ["dotted", "Dotted"], ["double", "Double"]];
+const B_PRESETS: [string, string, string][] = [["bottom", "Bottom", "A border under the selection"], ["top", "Top", "A border over the selection"], ["left", "Left", "A border left of the selection"], ["right", "Right", "A border right of the selection"],
+  ["all", "All borders", "Every edge of every selected cell"], ["outside", "Outside", "Around the selection"], ["thick", "Thick outside", "A thick border around the selection"], ["none", "No border", "No border on any edge of the selected cells"]];
+function BorderMenu({ T }: { T: import("@slide-builder/core/xlsx/types").TableLayout }) {
+  const sel = useStore(s => s.selection.sel), mine = sel && selTable() === T ? selItems() : [];
+  const [style, setStyle] = useState<Exclude<CellBorderSide, "none">["style"]>("thin"), [color, setColor] = useState("#000000");
+  const cur = T.def?.borders || {};
+  const apply = (preset: string) => {
+    if (!T.def || !sel || !mine.length) return;
+    const m: Record<string, CellBorders | null> = {};
+    for (const it of mine) {
+      const k = A1(it.b.src.r, it.b.src.c);
+      if (preset === "clear") { if (cur[k]) m[k] = null; continue; }
+      // the sides of this cell on the selection's edge
+      const edge: Record<BEdge, boolean> = { top: it.b.r <= sel.r1, bottom: it.b.r2 >= sel.r2, left: it.b.c <= sel.c1, right: it.b.c2 >= sel.c2 };
+      const sides: BEdge[] = preset === "all" || preset === "none" ? ["top", "left", "right", "bottom"] : preset === "outside" || preset === "thick" ? (["top", "left", "right", "bottom"] as BEdge[]).filter(s => edge[s]) : edge[preset as BEdge] ? [preset as BEdge] : [];
+      if (!sides.length) continue;
+      const v: CellBorderSide = preset === "none" ? "none" : { style: preset === "thick" ? "thick" : style, color };
+      m[k] = { ...(cur[k] || {}), ...Object.fromEntries(sides.map(s => [s, v])) };
+    }
+    if (Object.keys(m).length) change(preset === "clear" ? "Borders from Excel" : preset === "none" ? "No border" : "Borders", [{ op: "table.patch", id: T.def.id, patch: { borders: m } } as Op]);
+  };
+  const keys = mine.map(it => A1(it.b.src.r, it.b.src.c));
+  return <div className="scalemenu" id="borderMenu"><div className="hd">Borders of the selected cells {keys.length ? <b>{keys.length === 1 ? keys[0] : keys[0] + ":" + keys[keys.length - 1]}</b> : "– select cells first"}</div>
+    <div className="bpresets">{B_PRESETS.map(([k, l, t]) => <button key={k} data-b={k} disabled={!keys.length} title={t} onClick={() => apply(k)}>{l}</button>)}</div>
+    <div className="optgrid">
+      <label>Style</label><div className="seg small">{B_STYLES.map(([k, l]) => <button key={k} data-bs={k} className={style === k ? "on" : ""} onClick={() => setStyle(k)}>{l}</button>)}</div>
+      <label>Colour</label><div className="row">{["#000000", "#7F7F7F", ...GRID_COLORS.slice(2)].map(c => <button key={c} data-bc={c} className={"cgsw" + (color === c ? " on" : "")} style={{ background: c }} title={c} onClick={() => setColor(c)} />)}</div>
+    </div>
+    <div className="row" style={{ justifyContent: "flex-end", marginTop: "8px" }}><button className="btn" data-b="clear" disabled={!keys.some(k => cur[k])} title="The workbook's own borders again on the selected cells" onClick={() => apply("clear")}>Clear (as in Excel)</button></div>
+  </div>;
+}
+
 const ROLES = [["auto", "Auto", "Detected from the Excel formatting"], ["header", "Header", "Column/row header"], ["total", "Total", "Highlighted total (tile)"], ["body", "Body", "Normal data"], ["caption", "Note", "Small note"]] as const;
 
 /** Insert chart ▾: from the selected cells (beside their table), or cells chosen in the sheet view – any sheet the wizard
@@ -140,6 +177,8 @@ export function TableRibbon() {
         </Dropdown>
         {mergedInSel().length ? <button className="tb mergebtn" id="unmergeBtn" title="Split the merged cells in the selection" onClick={unmergeSel}>Unmerge</button>
           : <button className="tb mergebtn" id="mergeBtn" title="Merge the selected cells (the top-left value is kept)" disabled={!canMerge()} onClick={mergeSel}>Merge</button>}
+        <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="bordersBtn" disabled={!(hasSel && T?.def)} title="Borders of the selected cells, as in Excel – on the slide only (the workbook is not changed)" onClick={t}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="2" y="2" width="12" height="12" strokeDasharray="1.5 1.5" /><path d="M2 14h12" strokeWidth="2.2" /></svg>Borders ▾</button>}>{() => T ? <BorderMenu T={T} /> : null}</Dropdown>
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="scaleBtn" disabled={!hasSel} title="Colour scale: deeper green/red the bigger the number" onClick={t}>
           <i className="scaleico" />Colour scale</button>}>{close => <ScaleMenu close={close} />}</Dropdown>
       </div>

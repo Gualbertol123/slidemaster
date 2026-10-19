@@ -10,5 +10,6 @@
 | `items-4.3.json` | a deck with charts and callouts (`SlideDef.items`, 4.3) read and edited by the frozen 4.1 operations (`items-fallback.test.ts`) | made by hand for M9 (S9.1) |
 | `free-4.4.json` | a deck with a free layout (`SlideDef.free`, 4.4) read and edited by the frozen 4.1 operations (`free-fallback.test.ts`) | made by hand for M10 (S10.1) |
 | `cellgrid-4.4.json` | a deck with gridlines on selected cells (`TableDef.cellGrid`, 4.4) read and edited by the frozen 4.1 operations (`cellgrid-fallback.test.ts`) | made by hand for M10 (S10.3) |
+| `borders-4.4.json` | a deck with cell borders set on the slide (`TableDef.borders`, 4.4) read and edited by the frozen 4.1 operations (`borders-fallback.test.ts`) | made by hand for M10 (S10.3b) |
 | `consult-4.2.json` | a deck saved in Consulting Navy with settings of both consulting designs | made by hand for M7b |
 | `images/wall-blur.jpg` | a small JPEG (800 × 450, the spike's blurred wallpaper) | `spikes/pdfwriter/assets/` |

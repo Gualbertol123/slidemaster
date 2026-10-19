@@ -67,7 +67,9 @@ export function rulesToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics, o
     const b = it[side]; if (!b || ((side === "top" || side === "bottom") ? !gh : !gv)) continue;
     nodes.push(...borderNodes(side, b, it.bx, it.by, it.bw, it.bh));
   }
-  nodes.push(...cellGridNodes(items));                              // gridlines on selected cells (4.4, B20)
+  // the borders the user set on the slide (4.4, B25), then the gridlines on selected cells (B20)
+  for (const it of items) if (it.ub) for (const side of ["top", "left", "right", "bottom"] as const) { const b = it[side]; if (b && it.ub[side] && !((side === "top" || side === "bottom") ? gh : gv)) nodes.push(...borderNodes(side, b, it.bx, it.by, it.bw, it.bh)); }
+  nodes.push(...cellGridNodes(items));
   nodes.push(...ruleNodes(L, items, kOf, T));
   // the header band's separators: at the column edges inside the band, not at its outer edges
   if (banded && T.head.sep) for (const it of items) {

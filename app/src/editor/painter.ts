@@ -4,11 +4,12 @@
    text. Values equal to the target's own Excel formatting are not stored (edits stay minimal).
    Copied: size, bold, italic, text colour, cell colour, highlight, alignment, role – and, like Excel, the
    conditional formatting (the source's rules, applied to the target's values: cell.cf), colour scales
-   (a scale rule over the painted range) and the cells' own gridlines (4.4, B20: TableDef.cellGrid entries). */
+   (a scale rule over the painted range), the cells' own gridlines (4.4, B20: TableDef.cellGrid entries) and the borders set on
+   the slide (B25: TableDef.borders entries). */
 import { get, patch, toast } from "../state/store";
 import { ctx } from "../state/app";
 import type { Item, Sheet, TableLayout } from "@slide-builder/core/xlsx/types";
-import type { CellGrid, Op, ScaleRule } from "@slide-builder/core/model/types";
+import type { CellBorders, CellGrid, Op, ScaleRule } from "@slide-builder/core/model/types";
 import { cellEditOf, effItems } from "@slide-builder/core/render/edits";
 import { applySel, itemAt, selItems, selTable } from "./edit";
 import { A1, inRange, parseRange, uid } from "@slide-builder/core/xlsx/util";
@@ -16,7 +17,8 @@ import { A1, inRange, parseRange, uid } from "@slide-builder/core/xlsx/util";
 type ScaleLook = Omit<ScaleRule, "range">;
 export interface Fmt { sz: number; b: boolean; i: boolean; color: string; fill: string | null; bg: string; align: string; role: string | null;
   /** conditional formatting: "Sheet!A1" whose rules apply, null = none */ cf: string | null; scale: ScaleLook | null;
-  /** the cell's own gridlines (TableDef.cellGrid), null = none */ grid: CellGrid | null }
+  /** the cell's own gridlines (TableDef.cellGrid), null = none */ grid: CellGrid | null;
+  /** the borders set on the slide (TableDef.borders), null = the workbook's */ borders: CellBorders | null }
 
 const rulesAt = (sh: Sheet, r: number, c: number) => sh.cfRules.filter(rule => rule.ranges.some(g => inRange(g, r, c)));
 /** the conditional formatting a cell has now: painted (cell.cf) or its own rules */
@@ -38,7 +40,7 @@ function fmtOf(T: TableLayout, raw: Item, e: Item): Fmt {
   // the text colour without the conditional format (that one travels with the rules)
   return { sz: e.font.sz || 11, b: !!e.font.b, i: !!e.font.i, color: e.userColor || raw.baseColor || raw.font.color || "#000000",
     fill: e.userFill || null, bg: e.noFill ? "none" : (e.baseFill || "none"), align: e.align, role: e.role || null, cf: cfRef(T, raw), scale: scaleAt(T, raw),
-    grid: T.def?.cellGrid?.[A1(raw.b.src.r, raw.b.src.c)] ?? null };
+    grid: T.def?.cellGrid?.[A1(raw.b.src.r, raw.b.src.c)] ?? null, borders: T.def?.borders?.[A1(raw.b.src.r, raw.b.src.c)] ?? null };
 }
 
 export function startPainter(sticky = false) {
@@ -60,12 +62,16 @@ function scaleOps(T: TableLayout, pattern: (Fmt | null)[]): Op[] {
 /** the cells' own gridlines travel as cellGrid entries of the target table (a cell without any: its entry removed) */
 function gridOps(T: TableLayout, fmtFor: Map<Item, Fmt>): Op[] {
   if (!T.def) return [];
-  const cur = T.def.cellGrid || {}, m: Record<string, CellGrid | null> = {};
-  for (const [it, f] of fmtFor) {
-    const k = A1(it.b.src.r, it.b.src.c), now = cur[k] ?? null;
-    if (JSON.stringify(now) !== JSON.stringify(f.grid)) m[k] = f.grid ? { ...f.grid } : null;
+  const patch: Record<string, Record<string, unknown>> = {};
+  for (const key of ["cellGrid", "borders"] as const) {
+    const cur = (T.def[key] || {}) as Record<string, unknown>, m: Record<string, unknown> = {};
+    for (const [it, f] of fmtFor) {
+      const k = A1(it.b.src.r, it.b.src.c), now = cur[k] ?? null, want = key === "cellGrid" ? f.grid : f.borders;
+      if (JSON.stringify(now) !== JSON.stringify(want)) m[k] = want ? JSON.parse(JSON.stringify(want)) : null;
+    }
+    if (Object.keys(m).length) patch[key] = m;
   }
-  return Object.keys(m).length ? [{ op: "table.patch", id: T.def.id, patch: { cellGrid: m } } as Op] : [];
+  return Object.keys(patch).length ? [{ op: "table.patch", id: T.def.id, patch } as Op] : [];
 }
 export function stopPainter() { if (get().selection.painter) patch("selection", { painter: null }); }
 
