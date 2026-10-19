@@ -112,15 +112,16 @@ export function withCellGrid(L: TableLayout, items: Item[]): Item[] {
   const real = (b: BorderSide | null | undefined) => !!b && b !== GRIDLINE;
   return items.map(it => {
     const cg0 = want.get(it); if (!cg0) return it;
-    const cg: NonNullable<Item["cgrid"]> = {}, cgx: NonNullable<Item["cgx"]> = {};
+    const cg: NonNullable<Item["cgrid"]> = {}, cgx: NonNullable<Item["cgx"]> = {}, cgu: NonNullable<Item["cgu"]> = {};
     for (const side of EDGES) {
       const b = cg0[side]; if (!b) continue;
       // each edge once: the cell below / right draws its top / left when it has one
       if (side === "bottom" || side === "right") { const n = across(it, side); if (n.length && n.every(o => want.get(o)?.[ACROSS[side]])) continue; }
       cg[side] = b;
       if (real(it[side]) || across(it, side).some(o => real(o[ACROSS[side]]))) cgx[side] = true;
+      if (it.ub?.[side] || across(it, side).some(o => o.ub?.[ACROSS[side]])) cgu[side] = true;
     }
-    return Object.keys(cg).length ? Object.assign({}, it, { cgrid: cg }, Object.keys(cgx).length ? { cgx } : {}) : it;
+    return Object.keys(cg).length ? Object.assign({}, it, { cgrid: cg }, Object.keys(cgx).length ? { cgx } : {}, Object.keys(cgu).length ? { cgu } : {}) : it;
   });
 }
 /** cells removed in a version: drawn completely empty (no value, no colour, no highlight) – borders stay */

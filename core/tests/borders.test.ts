@@ -119,6 +119,13 @@ describe("cell borders on the slide (B28)", () => {
     const g0 = await table("glass"), g = await table("glass", { [keyOf(a)]: { right: RED } });
     expect(planSig(glassPlan(g.L, g.c))).toBe(planSig(glassPlan(g0.L, g0.c)));
   });
+  it("the consulting rules: a cell's gridline on an edge where a border was set on the slide shows the border only", async () => {
+    const base = await table("mckinsey"), { a } = clean(base.L, base.items);
+    const t = await table("mckinsey", { [keyOf(a)]: { bottom: RED } }, { [keyOf(a)]: { h: "on", c: "#00FF00" } });
+    const ls = lines(rulesToDisplayList(t.L, t.c, M).nodes), A = t.items.find(x => keyOf(x) === keyOf(a))!;
+    expect(ls.filter(l => ink(l) === "C00000").length).toBe(1);
+    expect(ls.filter(l => ink(l) === "00FF00").map(l => Math.abs(l.y1 - (A.by + .5)) < .01)).toEqual([true]);   // its top only
+  });
   it("Liquid Glass's scene and the consulting cards are not changed by borders set on the slide: a whole row's bottom, none over the table", async () => {
     const g0 = await table("glass"), row = g0.L.rows[Math.floor(g0.L.rows.length / 2)];
     const rowCells = Object.fromEntries(g0.items.filter(it => it.b.r === row).map(it => [keyOf(it), { bottom: RED } as CellBorders]));
