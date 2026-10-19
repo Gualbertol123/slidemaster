@@ -529,7 +529,7 @@ export function buildTable(prims: Prim[]): El[] {
     if (r1 - r0 > 1 || c1 - c0 > 1) cells[r0][c0].span = [r1 - r0, c1 - c0];
     span.set(o.n, { r0, c0, r1, c1 });
   }
-  const used = new Set<Prim>();
+  const used = new Set<Prim>(), overFill = new Set<Prim>();
   const box = { x: xs[0], y: ys[0], w: xs[nC] - xs[0], h: ys[nR] - ys[0] };
   /** the cell at a grid position (its merged cell's first one) */
   const cellAt = (r: number, c: number): Cell => { const o = cover[r][c], s = o ? span.get(o.n) : null; return s ? cells[s.r0][s.c0] : cells[r][c]; };
@@ -550,6 +550,7 @@ export function buildTable(prims: Prim[]): El[] {
         // a second fill over a cell: taken when it is opaque (it hides the first), else left a shape over the table
         const had = cells[r0][c0].fill, opaque = (el.fill.a ?? 1) >= .999;
         if (whole && (el.fill.a ?? 1) > 0 && (!had || opaque)) { cells[r0][c0].fill = el.fill; mark(p, i); }
+        else if (whole && had) overFill.add(p);                  // (drawn over the cell's own: over the table)
       }
       return;
     }
@@ -633,7 +634,7 @@ export function buildTable(prims: Prim[]): El[] {
     if (i === place) rest.push({ p: "el", el: tbl }, ...over);
     if (used.has(p)) return;
     // a cell text left out of the table, drawn before its first taken one, would be hidden by the cells' fills: over it
-    if (i > at && i < place && (p.p === "text" || (p.p === "el" && p.el.k === "sp" && (p.el.seg || (p.el.box.h <= 2.5 || p.el.box.w <= 2.5))))) over.push(p);
+    if (overFill.has(p) || (i > at && i < place && (p.p === "text" || (p.p === "el" && p.el.k === "sp" && (p.el.seg || (p.el.box.h <= 2.5 || p.el.box.w <= 2.5)))))) over.push(p);
     else rest.push(p);
   });
   if (place >= prims.length) rest.push({ p: "el", el: tbl }, ...over);

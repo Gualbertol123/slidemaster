@@ -159,10 +159,11 @@ export async function doExport(kind: ExportKind) {
     if (ppt) files.push(await save(pptxName(stem, whole ? null : label(idx[0])), ppt.files[0], PPTX_TYPE));
     const fails = [p1, p2].flatMap(p => p.status === "rejected" ? [p.reason as Error] : []);
     if (fails.length && !files.length) throw fails[0];
-    if (fails.length) toast("⚠ " + (p1.status === "rejected" ? "The PDF" : "The PowerPoint file") + " could not be made: " + esc(fails[0].message || String(fails[0])), [], true);
+    const failed = fails.map(e => `${p1.status === "rejected" ? "PDF" : "PowerPoint"}: ${e.message || String(e)}`);
     const missing = pdf?.r.missing || [], unreadable = pdf?.r.unreadable || [];
-    remember({ kind: pdf?.kind === "pictures" ? kind + " (as pictures)" : kind, design, version, files, missing, unreadable }, t0);
-    done(files, t0, (pdf?.kind === "pictures" && mode !== "exact" ? NO_FONTS : "") + missingNote(missing, unreadable) + namedNote(ppt?.notEmbedded));
+    remember({ kind: pdf?.kind === "pictures" ? kind + " (as pictures)" : kind, design, version, files, missing, unreadable, ...(failed.length ? { failed } : {}) }, t0);
+    done(files, t0, (pdf?.kind === "pictures" && mode !== "exact" ? NO_FONTS : "") + missingNote(missing, unreadable) + namedNote(ppt?.notEmbedded)
+      + (fails.length ? ` · ⚠ ${p1.status === "rejected" ? "the PDF" : "the PowerPoint file"} could not be made: ${esc(fails[0].message || String(fails[0]))}` : ""), fails.length > 0);
   } catch (e) {
     console.error(e);
     remember({ kind, design: style().design, version: get().deck.version, files: [], missing: [], unreadable: [], failed: [String((e as Error).message || e)] }, t0);
@@ -170,11 +171,11 @@ export async function doExport(kind: ExportKind) {
     toast("⚠ Export failed: " + esc((e as Error).message || e), [], true);
   } finally { patch("ui", { exporting: false }); }
 }
-function done(files: string[], t0: number, note: string) {
+function done(files: string[], t0: number, note: string, warn = false) {
   lastExport.files = files; lastExport.ms = performance.now() - t0;
-  if (!backend.served) { toast(`Downloaded <b>${esc(files.join(", "))}</b>${note}${files.length > 1 ? MANY : ""}`); return; }
+  if (!backend.served) { toast(`Downloaded <b>${esc(files.join(", "))}</b>${note}${files.length > 1 ? MANY : ""}`, [], warn); return; }
   const acts = [{ label: "Open", fn: () => { void backend.open({ name: files[0] }); } }, { label: "Show folder", fn: () => { void backend.open({ folder: true }); } }];
-  toast(`Saved <b>${esc(files.join(", "))}</b> in the export folder${secs(t0)}${note}${previewNote()}`, files.length === 1 ? acts : acts.slice(1));
+  toast(`Saved <b>${esc(files.join(", "))}</b> in the export folder${secs(t0)}${note}${previewNote()}`, files.length === 1 ? acts : acts.slice(1), warn);
 }
 
 /* ---- every version (wizard › Versions), in the current design or in several designs: one PDF each, named

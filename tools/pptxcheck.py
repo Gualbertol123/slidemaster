@@ -336,6 +336,8 @@ def content(path):
 PS_OPEN = r"""
 $ErrorActionPreference = "Stop"
 $files = Get-Content -Raw -Encoding UTF8 $args[0] | ConvertFrom-Json
+# a PowerPoint that was running before (someone's, another check's) is used and left running
+$was = $true; try { [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application") | Out-Null } catch { $was = $false }
 $app = New-Object -ComObject PowerPoint.Application
 $out = @()
 function texts($shapes, [ref]$acc) {
@@ -356,7 +358,7 @@ try {
     } catch { $r.error = $_.Exception.Message }
     $out += $r
   }
-} finally { $app.Quit() | Out-Null }
+} finally { if (-not $was) { $app.Quit() | Out-Null } }
 ConvertTo-Json -Depth 6 -InputObject @($out) | Out-File -Encoding UTF8 $args[1]
 """
 
@@ -373,17 +375,28 @@ def powerpoint_available():
 
 
 def powerpoint_open(paths, timeout=600):
-    """(3): each file opened in PowerPoint (read-only, no window): opened or the error, the slide count, the texts"""
+    """(3): each file opened in PowerPoint (read-only, no window): opened or the error, the slide count, the texts.
+    One PowerShell call per file, each within `timeout` s (reading back a large deck's table cells takes a while over
+    COM): a file that does not come back in time is a failure of its own, the others are still checked"""
     d = tempfile.mkdtemp(prefix="pptxcheck-")
-    script, lst, res = os.path.join(d, "open.ps1"), os.path.join(d, "files.json"), os.path.join(d, "out.json")
+    script = os.path.join(d, "open.ps1")
     with open(script, "w", encoding="utf-8-sig") as f:
         f.write(PS_OPEN)
-    with open(lst, "w", encoding="utf-8") as f:
-        json.dump([os.path.abspath(p) for p in paths], f)
-    subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, lst, res], capture_output=True, text=True, timeout=timeout)
-    with open(res, encoding="utf-8-sig") as f:
-        out = json.load(f)
-    return out if isinstance(out, list) else [out]
+    out = []
+    for k, p in enumerate(paths):
+        lst, res = os.path.join(d, "files%d.json" % k), os.path.join(d, "out%d.json" % k)
+        with open(lst, "w", encoding="utf-8") as f:
+            json.dump([os.path.abspath(p)], f)
+        try:
+            subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, lst, res], capture_output=True, text=True, timeout=timeout)
+            with open(res, encoding="utf-8-sig") as f:
+                r = json.load(f)
+            out.extend(r if isinstance(r, list) else [r])
+        except subprocess.TimeoutExpired:
+            out.append({"file": os.path.abspath(p), "ok": False, "slides": 0, "texts": [], "error": "not read back within %d s" % timeout})
+        except (OSError, ValueError) as e:
+            out.append({"file": os.path.abspath(p), "ok": False, "slides": 0, "texts": [], "error": "no answer: %s" % e})
+    return out
 
 
 def squash(s):

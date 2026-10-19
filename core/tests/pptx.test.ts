@@ -352,7 +352,9 @@ describe("review fixes (S11.1–S11.3)", () => {
     expect(order.indexOf("TABLE")).toBeLessThan(order.indexOf("text"));
     const tbl = g.children.find(e => e.k === "tbl") as TableEl;
     expect(tbl.cells[0][0].fill).toEqual({ solid: [0, 0, 200] });
-    expect(g.children.some(e => e.k === "sp" && !e.text && e.fill && "solid" in e.fill && e.fill.a === .3)).toBe(true);
+    // the translucent fill left out is drawn over the table, as it is over the cell's own fill
+    const tint = g.children.findIndex(e => e.k === "sp" && !e.text && !!e.fill && "solid" in e.fill && e.fill.a === .3);
+    expect(tint).toBeGreaterThan(g.children.findIndex(e => e.k === "tbl"));
   });
   it("a capsule's 1 px highlight is the capsule's inner shadow, not a shape of its own", () => {
     const dl: DisplayList = [{ t: "group", clip: { x: 10, y: 10, w: 60, h: 16, r: 8 }, children: [
