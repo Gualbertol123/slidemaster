@@ -306,6 +306,24 @@ Approved 2026-10-16 (product owner: "neutral names, i approve all above", `08-co
 | B25 | **Consulting Navy design** (in the style of McKinsey slides) beside Liquid Glass, Excel and Excel Refined: navy / electric-blue palette, Georgia titles and Arial text, two-line action titles, hairline rules, footnote-style notes section, so-what cards; exports, thumbnails and a new "every version × all five designs" export item | M7b |
 | B26 | **Consulting Red design** (in the style of Bain slides): red #CC0000 palette, Arial, two-line action titles, red rule, black table headers, takeaway cards and bar | M7b |
 
+Approved 2026-10-20 (product owner: "approved", `09-charts-annotations-icons.md` §7.3 and §9; PROGRESS Decisions):
+
+| # | Change | Step |
+|---|---|---|
+| B30 | **More charts** (F7): column, bar (clustered / stacked / 100 %), line (straight / smoothed, markers), area, scatter, waterfall, combined charts with a second value axis, category groups with dividers, per-point colours and labels, "actual inside target" bars (as wide as the target's outline) with their percentage, and annotations on the chart (arrows, lines, bands, icons, texts) in data coordinates; series and values from different tables, sheets and linked workbooks; native charts in PowerPoint | M14 |
+| B31 | **Legend control** (F15): positions right / left / top / bottom / top-right / inside / none; hide single entries | M14 |
+| B32 | **Snapping for every object** (F8): slide edges, centre and margins, other objects' edges and centres, equal spacing and size, several guides at once; Alt disables it everywhere; positions saved on a 1/4 px grid exactly as previewed | M15 |
+| B33 | **Lines and annotations** (F9): straight, elbow, curved lines, arrows, brackets, range markers, limiters, dividers, callout lines; end and middle handles; attach an end to an object; plain line shapes in PowerPoint | M15 |
+| B34 | **Icon library** (F10): the Tabler set (≈ 5,200 icons, MIT) searchable by name, tag and category, on slides as coloured, sized icons; the page grows by ≈ 0.6 MB, unpacked on first use | M15 |
+| B35 | The app's own toolbar icons become Tabler icons (F10) | M15 |
+| B36 | **Hide rows and columns on a slide** (F11); the table, its charts, comments and KPIs recompute; unhide restores | M16 |
+| B37 | **Versions that delete rows / columns** (F14), in the wizard and the ribbon (*For this version ▾*); emptied cells as today; everything recomputes for that version and all its exports | M16 |
+| B38 | **A fuller format painter** (F12): + font, vertical alignment, the new conditional formats (number display if 09 Q9 says so); an object painter for charts, callouts, icons, lines | M16 |
+| B39 | **More of Excel's conditional formats** (F17): colour scales, data bars, icon sets with their colours, top / bottom, above average, duplicates, text, dates, blanks / errors, any formula | M16 |
+| B40 | **New slide** (button, Ctrl+M) after the selected slide, and **Add table** listing the deck's tables (F16) | M13 |
+| B41 | A deck that uses an object newer than 4.0 (charts, callouts, free layout, looks, cell gridlines / borders, or any 4.6 object) opens only in 4.6 or later; an older window shows it read-only (09 §1, ADR-019; AUDIT-2 REL-1); decks without them are unchanged | M13 |
+| B42 | **Third-party notices**: `THIRD-PARTY-NOTICES.txt` in every release and an *About › Licences* view in ⚙ Options (AUDIT-2 LIC-1) | M13 |
+
 ---
 
 ## Part C · The steps
@@ -767,6 +785,21 @@ with the `AUDIT.md` §0 protocol twice on clean clones.
 | M11 · PowerPoint (F6, B21; ADR-016) | S11.1 writer skeleton · S11.2 tables and shapes · S11.3 charts, background layer, budgets ⏱ · S11.4 menu and runs 🚦 G8 · S11.5 close | 4.5.0 ⇢ |
 | M12 · Independent audit of 4.2–4.5 | as Prompt 10 → `AUDIT-2.md` | – |
 
+### M13–M17 · Charts, lines and annotations, snapping, icons, hidden rows, delete-versions, painter, Excel conditional formats, new slides (4.6–4.9)
+
+Designed in `09-charts-annotations-icons.md` (approved 2026-10-20) and ADR-019, ADR-020; the steps with their Read / Do /
+Done when are in **09 §8**. Branches `v4/M13-guard-slides`, `v4/M14-charts`, `v4/M15-lines-icons-snapping`,
+`v4/M16-tables-versions-cf`, `v4/M17-audit`; every milestone ends with the `AUDIT.md` §0 protocol twice on clean clones
+and CP-01 (the real 4.0.0, 4.1, 4.4 and 4.5 helpers and pages against the new objects).
+
+| Milestone | Steps | Ships |
+|---|---|---|
+| M13 · Format guard, notices, New slide / Add table (B40–B42; ADR-019, ADR-020) | S13.1 format guard ⏱ · S13.2 notices · S13.3 slide and table ops · S13.4 New slide, Add table · S13.5 close 🚦 G9a | 4.6.0 ⇢ |
+| M14 · Charts (F7, F15, B30, B31; ADR-015 amended) | S14.0 gates first · S14.1 model · S14.2 columns and bars ⏱ · S14.3 lines, combo, reference chart ⏱ 🚦 G9 · S14.4 scatter, waterfall · S14.5 chart panel · S14.6 PowerPoint ⏱ · S14.7 close | 4.7.0 ⇢ |
+| M15 · Lines, icons, snapping (F8–F10, B32–B35; ADR-020, ADR-017 amended) | S15.1 join and icon data · S15.2 icon items and picker ⏱ · S15.3 line items ⏱ · S15.4 snapping ⏱ · S15.5 PowerPoint lines and icons · S15.6 UI icons · S15.7 close 🚦 G10 | 4.8.0 ⇢ |
+| M16 · Tables (F11, F12, F14, F17, B36–B39) | S16.1 hidden set ⏱ · S16.2 delete-versions · S16.3 painter · S16.4 Excel CF ⏱ · S16.5 close 🚦 G11 | 4.9.0 ⇢ |
+| M17 · Independent persistence and compatibility audit of 4.6–4.9 | as Prompt 15 → `AUDIT-3.md` (09 §6 line by line) | – |
+
 ---
 
 ## Part D · Order, dependencies and time
@@ -852,5 +885,11 @@ Each feature area of `05-test-and-parity.md` §4 is touched by these steps and g
 | Free-layout drag frame | S10.2 | 16 ms |
 | PPTX 20 slides, Glass / Excel: time · size | S11.3 | 3 s / 1.5 s · 3 MB / 300 KB |
 | Export 20 slides (deck20): Consulting Navy / Consulting Red | S7b.4 | 1.5 s each |
+| Chart DL build: column 12 × 4 · the reference chart · line 12 × 52 · PowerPoint chart XML of the reference chart | S14.2–S14.6 | 5 ms · 5 ms · 10 ms · 10 ms |
+| Line DL build (20 lines with heads and labels) · snapping per drag frame, 60 objects (core part) | S15.3 / S15.4 | 3 ms · 1 ms (the drag frame stays 16 ms) |
+| Icon set first use (cold, in the worker) · icon picker keystroke → results drawn, p95 | S15.2 | 150 ms · 50 ms |
+| Page size `helper/slide_builder.html` | S13.1 (raised in S14.7, S15.1 by measurement) | today's 3,916,092 bytes + 60,000 in M13; expected ≤ 4,700,000 after M15 |
+| Table with 10 hidden rows: layout rebuild · CF evaluation, 10,000 cells × 5 rule types | S16.1 / S16.4 | ≤ the table's own build + 10 % · 30 ms |
+| PowerPoint deck20 with 6 combo charts | S14.6 | 3 s |
 | PDF size per slide: Consulting Navy / Consulting Red | S7b.4 | 40 KB (+ 150 KB per document; measured in S7b.4, 08 §4.3) |
 | Keypress → pixels, drag frame, open deck20 – measured in Consulting Navy too | S7b.4 | 50 ms p95 · 16 ms · 400 ms (unchanged) |

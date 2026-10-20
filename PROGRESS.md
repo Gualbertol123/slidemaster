@@ -159,10 +159,64 @@ numbers measured twice). Measured numbers go into the step's line.
   attacks with `.pptx` names. Verdict: not yet for the share (REL-1, LIC-1, gates) – Waiting for. verified: tests ✓
   clean clone ✓ review ✓ (read-only reviews by sub-agents, re-checked)
 
+### M13 · Format guard, notices, New slide / Add table (4.6.0; B40–B42; docs/next/09 §8, ADR-019, ADR-020)
+- [ ] S13.1 · Format guard ⏱ (CP-01, CP-02; page-size test)
+- [ ] S13.2 · Third-party notices (LI-01; AUDIT-2 LIC-1)
+- [ ] S13.3 · Slide and table ops (`slide.add/remove`, `table.add/remove`; a slide without tables lays out)
+- [ ] S13.4 · New slide, Add table UI (NS-01, NS-02)
+- [ ] S13.5 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.6.0; 🚦 G9a
+
+### M14 · Charts (4.7.0; B30, B31; docs/next/09 §8, ADR-015 amended)
+- [ ] S14.0 · Gates first (export-check gates PowerPoint "opened", `has_chart` / `has_table`; AUDIT-2 VER-3)
+- [ ] S14.1 · Model (`sers`, `groups`, `axes`, `marks`, legend; vectors; `knownOp`, `needsV5`)
+- [ ] S14.2 · Columns and bars ⏱ (CT-01, CT-02, LG-01)
+- [ ] S14.3 · Lines, areas, combo, second axis, groups, targets, marks ⏱ — the reference chart; 🚦 G9 (CT-03…CT-07)
+- [ ] S14.4 · Scatter, waterfall
+- [ ] S14.5 · Chart panel (CT-08)
+- [ ] S14.6 · PowerPoint ⏱ (PX-05, PX-06)
+- [ ] S14.7 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.7.0
+
+### M15 · Lines, icons, snapping (4.8.0; B32–B35; docs/next/09 §8, ADR-020, ADR-017 amended)
+- [ ] S15.1 · `Stroke.join` and the icon data (Tabler 3.49.0 vendored, hash test, notices entry)
+- [ ] S15.2 · Icon items and picker ⏱ (IC-01, IC-02)
+- [ ] S15.3 · Line items ⏱ (LN-01, LN-02)
+- [ ] S15.4 · Snapping ⏱ (SN-01…SN-04)
+- [ ] S15.5 · PowerPoint lines and icons (LN-03)
+- [ ] S15.6 · UI icons (B35)
+- [ ] S15.7 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.8.0; 🚦 G10
+
+### M16 · Tables: hidden rows, delete-versions, painter, Excel conditional formats (4.9.0; B36–B39; docs/next/09 §8)
+- [ ] S16.1 · Hidden set in `buildLayout` ⏱ (HR-01, HR-02)
+- [ ] S16.2 · Delete-versions (VD-01…VD-03)
+- [ ] S16.3 · Painter (PT-01…PT-03)
+- [ ] S16.4 · Excel conditional formats ⏱ (XC-01, XC-02)
+- [ ] S16.5 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.9.0; 🚦 G11
+
+### M17 · Independent persistence and compatibility audit of 4.6–4.9
+- [ ] M17 · AUDIT-3.md (09 §6 line by line, CP-01 by the auditor)
+
 ## Decisions
 
 (Human decisions the plan needs, e.g. gate G0 outcomes. An agent never writes here on its own.)
 
+- 2026-10-20 · **09 approved: F7–F17, B30–B42, milestones M13–M17** (product owner, on the Phase 0 summary: "approved.
+  1. yes. 2. keep like this. 3. same width" – the three numbers answer the three questions the summary put; recorded by
+  the agent). (1) **Q1 + Q17: yes** – the per-deck format guard of ADR-019 (marker `incident-format-5.json` + snapshot
+  format 5 for every deck that holds an object 4.0 does not know), and the share goes **from 4.0 straight to 4.6**
+  (M13 ships first; every Slide Builder window closed on update day): AUDIT-2 REL-1 answered with its option (a) plus
+  the release rule (c); 4.5 is not rolled out on its own. (2) **Q2: "index" = the legend** – F15 as designed (positions,
+  hidden entries, no legend). (3) **Q18: same width** – an "actual inside target" bar is drawn as wide as its target's
+  outline, the outline over the fill, on screen, in PDF and in PowerPoint alike. Every other question is taken **as 09
+  proposes**: Q4 the chart order (columns / bars → lines → combo + second axis + groups + targets + marks → area →
+  scatter → waterfall as stacked bars in PowerPoint); Q5 lines are plain shapes in PowerPoint (not attached there); Q6
+  one version both deletes rows / columns and empties cells, with the ribbon flow *For this version ▾*; Q7 rows hidden on
+  a slide are hidden for that slide's charts only; Q8 totals are not recomputed (Excel's value shown); Q10 Tabler icons
+  in the toolbars (B35, judged at G10); Q13 a line's style is one value (last writer wins); Q14 no "make readable by
+  4.5" command; Q15 Excel's icon sets in each design's colours; Q16 four releases 4.6.0–4.9.0. Questions the design left
+  open without a proposal are asked again at the step that needs them, and until then the current behaviour holds: Q3
+  explicit chart colours in every design (S14.2; kept as set meanwhile, as per-slice colours today), Q9 per-cell number
+  display and vertical alignment (S16.3), Q11 Italian icon search words (S15.2), Q12 *Delete* / *Duplicate slide* in the
+  slide list (S13.4; only *New slide* meanwhile), Q19 the painter onto a multi-selection (S16.3).
 - 2026-10-20 · **G8 signed off: PowerPoint export (M11, B21) as built** (product owner, after M11's merge: "i approve,
   tested all"; recorded by the agent in M12, which found it missing here). The fidelity table of 07 §4.2 (amended)
   stands; the four "to judge" items of G8 (substituted fonts not named in a run's report, the page-number placeholder
@@ -413,6 +467,26 @@ numbers measured twice). Measured numbers go into the step's line.
 - 2026-10-15 · **v4.0.0 live on `…\Chief Dashboard\slider`; the pilot removed** (product owner). The tag `v4.0.0` is on the PR #11 merge (0d5556e); the release run failed once on the flaky `open_deck20_ms` bench (Waiting for, M6) and passed on a re-run. The share was switched with 4.0's updater (`--release 4.0.0`); a network error interrupted it after `current.json` and the Start / Install start files, and `--zip` of the same release finished the rest (updater, Update and v3 start files). The pilot's files were deleted from the share by the product owner (`Start Slide Builder (v4 pilot).bat`, `app\pilot.json`, `app\4.0.0-pilot\`, `backend\data\v4-pilot*`, `export\v4-pilot\`) and from the repository by the agent at their request (the start file, `helper/slidebuilder/pilot.py`, `--pilot` in the helper and the updater, `docs/next/pilot-v4.md`, the rehearsal's `--pilot`; CHANGELOG 4.1.0). The merged branch `v4/M5b-cutover` is deleted. The four weeks of monitoring (`cutover.md` §4) run from 2026-10-15.
 
 ## Waiting for
+
+- ~~**Phase 0 of the next features (F7–F17), for the product owner, 2026-10-20**~~ **Done:** approved 2026-10-20
+  (Decisions); B30–B42 in PLAN Part B §8, M13–M17 in PLAN Part C and in the Steps above. The entry as it was: branch `v4/design-charts-icons`,
+  branched from `main` 36b75a7 (AUDIT-2 and its fixes merged, PR #22), design only, no product code. Asked by the owner on
+  2026-10-20: F7 more chart types and combined charts (their reference chart "Loans Volume – Weekly Evolution"), F8
+  snapping for every object, F9 lines and annotations, F10 the Tabler icon library, F11 hidden rows / columns on a slide,
+  F12 a fuller format painter, F13 everything saved / merged / undoable / exported, F14 delete-versions; in the same
+  message F15 legend control ("remove single index items, whole index, multiple positions"), F16 *New slide* and *Add
+  table*, F17 more of Excel's conditional formats (icon sets with colours). Read `docs/next/09-charts-annotations-icons.md`
+  (§0 what exists, §1 the format guard against AUDIT-2 DATA-7 / REL-1, §2 data model, §3 rendering, §4 PDF / PowerPoint,
+  §5 snapping, §6 the persistence audit of F13, §7 rows / B-items / budgets, §8 milestones M13–M17, §9 questions) and
+  ADR-019 (per-deck format guard), ADR-020 (Tabler icons, `Stroke.join`, third-party notices – AUDIT-2 LIC-1); look at the
+  pictures `review/P09/index.html` (`python spikes/charts/make_books.py` then `node tools/p09-package.mjs --tabler <the
+  @tabler/icons 3.49.0 package folder>`; not committed). Then answer **09 §9 Q1–Q19** under Decisions and approve or amend
+  the B-items **B30–B42** (09 §7.3): B30 more charts · B31 legend control · B32 snapping for every object · B33 lines and
+  annotations · B34 icon library (+ ≈ 0.6 MB page) · B35 (optional) Tabler icons in the toolbars · B36 hidden rows /
+  columns on a slide · B37 delete-versions · B38 fuller painter · B39 more Excel conditional formats · B40 *New slide* /
+  *Add table* · B41 decks with objects newer than 4.0 open only in 4.6+ (the format guard) · B42 third-party notices.
+  PLAN Part B §8 and Part C and the Steps of this file are updated only after the answer "approved". Nothing is built
+  before it.
 
 - **M12 · AUDIT-2, for the product owner (2026-10-20)** – `docs/next/AUDIT-2.md` (verdict: not yet for the share).
   (1) **REL-1 / DATA-7 before 4.5 reaches the share:** a Slide Builder 4.0 or 4.1 page that compacts a 4.5 deck deletes
