@@ -81,6 +81,22 @@ class ExportTests(TempDirs):
         # a slide named with a tab or a line break (Alt+Enter in Excel) must not reach the file system
         self.assertEqual(exports.export_file("Deck - Q3\tsales\nEMEA\x00.pdf", b"%PDF-x")["files"], ["Deck - Q3 sales EMEA.pdf"])
 
+    def test_export_file_never_names_a_device(self):
+        # AUDIT-2 SEC-7 (AUDIT SEC-7): CON, NUL, COM1, LPT¹ … are devices on older Windows and on SMB servers –
+        # prefixed "_" as the page's run names are (core/src/export/names.ts safeValue)
+        for name, want in [("CON.pptx", "_CON.pptx"), ("nul.pdf", "_nul.pdf"), ("COM1.png", "_COM1.png"), ("CON .pptx", "_CON.pptx"),
+                           ("LPT¹.pdf", "_LPT¹.pdf"), ("aux.backup.pdf", "_aux.backup.pdf"), ("CONSOLE.pdf", "CONSOLE.pdf")]:
+            data = b"%PDF-x" if name.endswith(".pdf") else make_png(2, 2) if name.endswith(".png") else self.pptx()
+            self.assertEqual(exports.export_file(name, data)["files"], [want], name)
+
+    @staticmethod
+    def pptx():
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("[Content_Types].xml", "<Types/>")
+            z.writestr("ppt/presentation.xml", "<p:presentation/>")
+        return buf.getvalue()
+
     def test_export_file_refuses_other_files(self):
         for name, data in [("x.exe", b"%PDF-1.7"), ("x.html", b"<html>"), ("x.pdf", b""), ("x.pdf", b"MZ"),
                            ("x.png", b"%PDF-1.7"), ("", b"%PDF-1.7"), ("x", b"%PDF-1.7")]:

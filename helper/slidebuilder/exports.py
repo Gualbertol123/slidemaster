@@ -61,6 +61,10 @@ def save_export(filename, data, export_dir=None):
         remove_quietly(tmp)
 
 
+# names Windows keeps for devices (on older Windows and SMB servers "CON.pdf" is the console): prefixed "_", as the page
+# names a run's files (core/src/export/names.ts RESERVED; AUDIT-2 SEC-7)
+RESERVED = re.compile(r"^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])$", re.I)
+
 EXPORT_FILE_TYPES = {".pdf": b"%PDF-", ".png": b"\x89PNG\r\n\x1a\n", ".pptx": b"PK\x03\x04"}
 
 
@@ -86,6 +90,8 @@ def export_file(name, data, export_dir=None):
     stem = clean_name(re.sub(r"[\x00-\x1f\x7f]+", " ", os.path.splitext(base)[0]))
     if not data or not data.startswith(EXPORT_FILE_TYPES[ext]) or (ext == ".pptx" and not _is_pptx(data)):
         raise ExportError("the exported file is empty or not a %s file" % ext[1:].upper())
+    if RESERVED.match(stem.split(".")[0].strip()):
+        stem = "_" + stem
     t0 = time.time()
     saved = save_export(stem[:200] + ext, data, export_dir)
     log("exported %s (%d bytes) in %.2fs" % (saved, len(data), time.time() - t0))
