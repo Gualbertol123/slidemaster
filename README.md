@@ -952,6 +952,16 @@ python tools/loadtest4.py --ci                          # 20 simulated users thr
   16 ms, thumbnail scrolling gap 20 ms. The time limits (open, read, exports, core parse) are scaled by this
   machine's speed (`tools/calibrate.mjs`, ≈ 32 ms on the reference PC), never more than 2×. The bench needs
   big30.xlsx (it exits 2 without it) and a quiet PC.
+* **How the bench decides on CI** (`tools/benchgate.mjs`, decision 2026-10-20): on GitHub Actions a **timing** gate
+  (ms) fails only when it is over its limit + 10 % in **two separate measurements**. When the first pass (the two
+  runs, the worse counting) is over, the bench measures again – `tools/bench.mjs` runs every scenario once more in a
+  fresh browser, helper and page and judges only the gates that were over on it; the core benches measure again in
+  the same process (big30 parse, chart, callout: the repeat runs warm) or, for the engine's cold first use, in a
+  fresh process – and fails
+  only if the repeat is over too. The report prints both numbers and "repeated after a stall" for a gate that passed
+  only on the repeat; a gate over in both keeps its `::error` annotation (both numbers), and `bench-results.json`
+  holds both (`gates`, `repeat`). Limits and scaling are the same as above. Size and memory gates (KB, MB), a value
+  not measured, and the render counts are never repeated. On any other machine nothing changes: one pass decides.
 * **Load test** (`tools/loadtest4.py`): `--ci` runs same deck 20 users at 15 and 40 ms, different decks, a burst and
   compaction while editing, with the limits save p95 150 ms, visible p95 4 s, no record lost, every view equal;
   `--scenario`, `--users`, `--fs-ms`, `--duration`, `--storage lean-lock`, `--real-folder "T:\…"` (a temporary
@@ -1179,6 +1189,7 @@ tools/
 ├─ update.py · make_release.py         updater (§7.5) · release ZIP + MANIFEST.json, --verify, --notes
 ├─ parity.mjs · capture-v3.mjs · stage-capture.mjs · dlparity.mjs · dlcheck.mjs   parity and screen = PDF checks
 ├─ bench.mjs · calibrate.mjs           the page in Chromium (npm run bench) · machine speed for the time limits
+├─ benchgate.mjs                       how every bench gate decides (on CI: a timing gate over twice fails)
 ├─ export-check.mjs · export-dl.mjs · g1-package.mjs · s44-package.mjs · textref.mjs · sysfonts.mjs
 ├─ pdfcheck.py · pdftext.py            PDF checks and text (dev only: pypdf, pypdfium2, qpdf)
 ├─ make_corpus.py · anonymise.py · make-xlsb-twins.ps1   corpus workbooks · scramble a real one · .xlsb twins (Excel)
