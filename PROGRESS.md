@@ -209,6 +209,33 @@ numbers measured twice). Measured numbers go into the step's line.
   Locally nothing changes (one pass, the worse run counts). Size gates (KB, MB) and render counts are never repeated.
   The report prints both measurements and "repeated after a stall" for a gate that passed only on the repeat, and keeps
   the `::error` line for a gate over in both. One function for every gate: `tools/benchgate.mjs` (README §11.3).
+- 2026-10-20 · **B43: Scan for "x" tables in the wizard** (product owner: "big files that do not get scanned internally
+  when selecting the sheets to examine. Please add a force to scan button so that X's can be scanned inside the tables
+  to already identify the tables"; recorded by the agent). A large workbook (over 12 MB of sheet XML or a 6 MB file)
+  reads a sheet only when it is selected, so step 1 showed "not read yet" and no "x" tables until *Next*. Step 1 of a
+  large workbook gets **Scan for "x" tables (n)**: the selected sheets not read yet are read at once – the same read
+  *Next* does, so no new memory risk – and show their "x" tables, title and suggestions; their "x" tables are defined
+  as *Next* would define them. Sheets not selected stay unread (to scan everything: *All*, then *Scan*). PLAN Part B
+  §8 B43, released with M13 (4.6.0).
+- 2026-10-20 · **B44: delete saved setups** (product owner: "i also want to be able to delete setups for documents";
+  then, asked by the agent, three answers: (1) **"Start over, keep a backup"** – the whole saved deck goes, kept as a
+  backup an administrator can restore; (2) offered **in the "Continue with preset" box and in ⚙ Options ›
+  Administration**; (3) **refused while others have it open**). A deck is moved – in one rename, all or nothing –
+  with its snapshot backups and its frozen v3 file to `data/v4/deleted/<key>~<ms>/` (helper `deckbin.py`), under the
+  `wb-<key>` lock and the deck lock; another window's presence refuses it (the asking window's own does not; its own
+  open deck is not offered); a deck given back to v3 or a document v3 owns is never deleted. In its place, under the
+  same locks, an **empty deck with gen + 1 and a creation id of its own** (the file `v4/decks/<key>/born`, which no
+  compaction of any version touches; a deck no delete created has none and behaves as before) and a frozen v3 stub: a window
+  whose presence lapsed (a sleeping PC) can neither compact over it with the old gen nor open a journal in it with a
+  writer of the old deck (writers are bound to `born` at `/api/decks/open`, cached 10 s; refused with "reload" –
+  while the helper that issued the writer runs and is 4.6 or later: the release rule closes every window on update
+  day); no append re-creates a deleted folder. (Left behind, the frozen v3 file would have been thawed and the old
+  setup brought back; the backups would have made the open refuse the deck: `decks.traces`.) *Saved setups…* lists
+  the setups and the deleted ones; *Restore…* works – all or nothing – while the workbook's deck is empty (not for
+  the deck this window has open). Two reviews: REQUEST CHANGES (11 findings), then REQUEST CHANGES (6: `born` moved
+  out of the snapshot – helpers before 4.6 rewrite it without the key – into its own file, cached; Restore not for the
+  open deck; tests for decks without `born`, a helper restart, lean-lock); all fixed but the note that the deleted
+  setup's linked workbooks stay listed in the new wizard. PLAN Part B §8 B44, M13 (4.6.0).
 
 - 2026-10-20 · **09 approved: F7–F17, B30–B42, milestones M13–M17** (product owner, on the Phase 0 summary: "approved.
   1. yes. 2. keep like this. 3. same width" – the three numbers answer the three questions the summary put; recorded by
@@ -479,7 +506,24 @@ numbers measured twice). Measured numbers go into the step's line.
 
 ## Waiting for
 
-- **CI bench repeat rule, branch `ci/bench-retry`, for the product owner (push, PR, merge), 2026-10-20.** Main's CI
+- **B43 + B44, branch `v4/B43-B44`, for the product owner (push, PR, merge), 2026-10-20.** Scan for "x" tables, and
+  delete / restore saved setups (Decisions). The two runs (working tree / clean clones of the branch): check 814 + 44 /
+  824 + 44 (on main 07fa018: its gate tests too); helper 3.12 and 3.8: 251 OK on the clean clone of the last commit
+  but one and on the last commit (the working tree's 12 `test_update` errors were the uncommitted `deckbin.py`: a
+  release ships only files git tracks); e2e 38 + 1 failed (the loopback `ERR_CONNECTION_TIMED_OUT`, here on
+  `/api/decks/open`, counted by the no-warnings test – as on ci/bench-retry) / 39 passed, the two new tests included;
+  host test 50/50; bench on the clean clone: run 1 over in its first pass only (big30 read 1392, longest task 66,
+  thumbnail gap 33.5 ms; its second pass 772 / 0 / 17.2 – the PC busy), run 2 every gate within (big30 read 1068,
+  within +10 %); on the last commit: one run stopped by the bench's own race (`tools/bench.mjs:179`: after the
+  thumbnail click `stageIdle()` can still be the previous slide's, so the cell had no box – unchanged since M11; a
+  follow-up), then two runs every gate within (deck20 open 356 / 352, big30 read 964 / 856, keypress p95 37 / 39, drag
+  frame 13.1 / 11.8 ms). Helper tests of B44: 12 (`test_deckbin.py`). Reviews: REQUEST CHANGES ×2, then APPROVE (its
+  three low points fixed). Open: the deleted setup's linked workbooks stay listed in the new wizard (cosmetic).
+  verified: tests ✓ clean clone ✓ review ✓.
+- **Follow-up: `tools/bench.mjs` keypress race** (2026-10-20, seen once): wait for the second slide's own table on the
+  stage after the thumbnail click, not only for `stageIdle()`.
+
+- ~~**CI bench repeat rule, branch `ci/bench-retry`**~~ **Done:** merged as PR #24 (main 07fa018, its CI run all green). Main's CI
   failed only the bench on #21–#23 (annotations read through the API: #21 longest_task_ms 99 / limit 61 and
   thumbs_gap_ms 50 / 24, plus core/tests/host.test.ts:91; #22 read_big30_ms 1337 / 1166; #23 one ~380 ms stall counted
   by drag_frame_ms 383.4, drag_navy_frame_ms 349.8 and longest_navy_task_ms 377). Fixed by the rule under Decisions

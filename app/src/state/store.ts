@@ -34,6 +34,7 @@ export interface Dialogs {
   /** automated comment dialog for table `table` of the current slide */ comment: { table: number } | null;
   /** Export ▾ › Run for each value… (M8, B15) */ scenario: boolean;
   /** choosing cells in the sheet view (M9): a new chart's, a chart's new cells, a cell a callout quotes */ pick: PickReq | null;
+  /** ⚙ Options › Administration › Saved setups (B44) */ setups?: boolean;
 }
 export type PickReq = { kind: "chart" } | { kind: "chart-cells"; id: string } | { kind: "cell"; id: string };
 /** the "Run for each value…" dialog's fields (M8, B15): UI state of this page, never the document; kept while the page

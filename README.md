@@ -61,7 +61,9 @@ never modified. Several users can work on the same deck at the same time.
 * Tables are found by **"x" markers** in the top-left and bottom-right corners of a region (the marker row
   and column are outside the table), or picked as ranges in the wizard (optionally "grows" to follow new rows).
 
-**Wizard** (✦ Wizard, 4 steps): 1 Sheets → 2 Tables (drag or type ranges on a sheet preview, detected
+**Wizard** (✦ Wizard, 4 steps): 1 Sheets (in a large workbook – over 12 MB of sheet data or a 6 MB file – a sheet
+is read only when selected; **Scan for "x" tables** reads the selected ones at once and shows their "x" tables
+there, B43) → 2 Tables (drag or type ranges on a sheet preview, detected
 suggestions) → 3 Slides (drag tables between slides; optional cover and contents slide; logo per slide) →
 4 **Versions** (named variants of the deck in which chosen cells are removed, e.g. *Chief* = everything,
 *All* = some cells blanked).
@@ -327,6 +329,10 @@ data/
 │  ├─ lock                         compaction / migration lock
 │  ├─ incident-<journal>-<offset>.json  a corrupt frame: the deck is read-only until the maintainer looks
 │  ├─ moved-from-v3.json · rolled-back.json   written by the migration / a rollback
+├─ v4/deleted/<key>~<ms>/          a deleted setup (B44, deckbin.py): deck/ (the deck's folder as it was), backups/,
+│                                  v3.json (its frozen v3 file), deleted.json {workbook, gen, slides, tables, by, at};
+│                                  the workbook gets an empty deck (gen + 1, its own v4/decks/<key>/born file);
+│                                  ⚙ Options › Administration › Saved setups restores it
 ├─ v4/pinned-v3.json · v4/storage.json   decks kept on 3.x · {"storage": "lean-lock"}  (both optional)
 ├─ workbooks/<key>.json            Slide Builder 3's documents: frozen (schema 4, movedTo "v4") once moved, read only
 ├─ users/<user>.json               personal preferences                  {schema:1, lastFile, pdfMode, zoom, versions…}

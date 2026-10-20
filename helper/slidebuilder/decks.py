@@ -181,6 +181,9 @@ def server_ms():
 
 
 _issued = set()                           # writer ids this helper gave out: only those may start <writer>.log
+_bound = {}                               # writer -> (key, born): the deck (its creation: born_of) it was issued for
+_borns = {}                               # key -> (monotonic time, born): born_of's cache (CHECK_TTL)
+DELETED = "this setup was deleted and the workbook was started again - reload the page (F5) to continue"
 _shared_last = {}                         # deck key -> the last shared journal number this helper gave out
 
 
@@ -190,6 +193,50 @@ def new_writer(user=None, host=None):
     w = "%s@%s#%s" % (safe_component(user or current_user(), 60), safe_component(host or current_host(), 60), rnd)
     _issued.add(w)
     return w
+
+
+BORN = "born"                             # data/v4/decks/<key>/born: the creation id of a deck a delete left (B44)
+
+
+def born_of(key, ttl=CHECK_TTL):
+    """the deck's creation id: the content of its `born` file - written only for the empty deck a delete leaves
+    (deckbin.py), so every other deck has none (None) and no compaction, of any version, ever touches it. Cached
+    for CHECK_TTL (on another PC a delete is seen up to that much later); a file that cannot be read now counts as
+    unchanged, and as UNKNOWN when nothing was read before"""
+    seen = _borns.get(key)
+    if seen is not None and time.monotonic() - seen[0] < ttl:
+        return seen[1]
+    try:
+        with open(deck_dir(key, BORN), "rb") as f:
+            v = f.read().decode("ascii", "replace").strip() or None
+    except FileNotFoundError:
+        v = None
+    except OSError:
+        return seen[1] if seen else UNKNOWN
+    _borns[key] = (time.monotonic(), v)
+    return v
+
+
+UNKNOWN = object()                        # born_of: the file could not be read and nothing was read before
+
+
+def bind_writer(writer, key):
+    """the writer was issued for this deck as it is now (its creation, born_of; B44) - a writer of a deck deleted
+    since never writes into the deck its workbook got afterwards. (In this helper's memory: a helper started again
+    forgets it, and a helper older than 4.6 never checks - the deleted deck's gen + 1 still stops their compactions)"""
+    b = born_of(key, 0)
+    if b is UNKNOWN:
+        raise DeckError(503, "the deck's folder cannot be read right now - trying again")
+    _bound[writer] = (key, b)
+
+
+def _check_born(key, writer):
+    b = _bound.get(writer)
+    if not b or b[0] != key:
+        return
+    cur = born_of(key)
+    if cur is not UNKNOWN and cur != b[1]:         # (not readable now: the deck's existence was checked already)
+        raise DeckError(409, DELETED)
 
 
 def journal_writer(name):
@@ -347,6 +394,8 @@ def reset():
         _checked.clear()
         _rolled.clear()
         _issued.clear()
+        _bound.clear()
+        _borns.clear()
         _shared_last.clear()
         _storage.clear()
 
@@ -509,8 +558,14 @@ def _open_new(key, st, writer):
     before (_new_number): after a rotation deleted a file, or a restart, its name does not come back."""
     _look(key, 0)                           # the deck still exists (never re-create a deleted deck's folder)
     _check_writable(key)
+    _check_born(key, writer)                # and it is the deck the writer was issued for (B44: not deleted since)
     folder = journal_dir(key)
-    os.makedirs(folder, exist_ok=True)
+    try:
+        os.mkdir(folder)                    # (not makedirs: a deck folder deleted meanwhile is never made again)
+    except FileExistsError:
+        pass
+    except FileNotFoundError:
+        raise DeckError(404, "no such deck")
     flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_APPEND | getattr(os, "O_BINARY", 0)
     # <writer>.log only for a writer this helper gave out and has not written yet: a writer of another helper (or of
     # this one before a restart) may have had a <writer>.log a rotation deleted, still named in the frontier
@@ -597,6 +652,9 @@ def _append_shared(key, record):
             if os.path.exists(deck_dir(key, "rolled-back.json")):
                 _rolled[key] = True
                 raise DeckError(409, ROLLED)
+            if not deck_exists(key):              # deleted (B44; taking the lock made its folder again: empty)
+                raise DeckError(404, "no such deck")
+            _check_born(key, rec.get("w"))
             os.makedirs(folder, exist_ok=True)
             names = os.listdir(folder)
             ns = [_shared_n(x) for x in names if journal_writer(x) == "shared"]
@@ -772,6 +830,18 @@ def first_snapshot(workbook, doc, by=None, at=None, rev=0, log_=None, updated=No
     if log_:
         snap["log"] = log_
     return snap
+
+
+def summary(snap):
+    """what a deck holds, for the lists of setups (B44): its workbook, gen, rev, last change, slides, tables, versions -
+    as of its snapshot (changes not folded into it yet are not counted)"""
+    doc = snap.get("doc") if isinstance(snap.get("doc"), dict) else {}
+    preset = doc.get("preset") if isinstance(doc.get("preset"), dict) else {}
+    slides = [s for s in (preset.get("slides") or []) if isinstance(s, dict) and (s.get("type") or "content") == "content"]
+    return {"workbook": snap.get("workbook"), "gen": snap.get("gen"), "rev": snap.get("rev"),
+            "updated": snap.get("updated"), "updatedBy": snap.get("updatedBy"),
+            "preset": bool(preset), "slides": len(slides), "tables": len(preset.get("tables") or []),
+            "versions": len(preset.get("versions") or [])}
 
 
 def create_if_missing(workbook):
@@ -960,6 +1030,22 @@ def rotate(key, writer):
     with _guard:
         _listings.pop(key, None)
     return {"deleted": sorted(deleted)}
+
+
+def forget(key):
+    """close this helper's append handles on the deck and forget what it cached of it (a deck deleted or restored,
+    deckbin.py: nobody has it open, so the handles are idle ones of a window closed less than IDLE_CLOSE ago)"""
+    with _guard:
+        items = [st for (k, _), st in _writers.items() if k == key]
+        _listings.pop(key, None)
+        _snapsig.pop(key, None)
+        _checked.pop(key, None)
+        _readonly.pop(key, None)
+        _rolled.pop(key, None)
+        _borns.pop(key, None)
+    for st in items:
+        with st.lock:
+            _close(st)
 
 
 def close_idle():

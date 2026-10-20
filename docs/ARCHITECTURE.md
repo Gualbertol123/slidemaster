@@ -138,6 +138,8 @@ being broken), `.clock-<host>-<pid>` (the file-server clock probe, §7.4).
 | `assets/*` | any helper (`POST /api/logo`) | atomic replace, no lock |
 | `workbooks/<key>.json` | v3 helpers while v3 owns the deck; the v4 migration (freeze) and rollback | under lock `wb-<key>` |
 | `backups/v4/<key>/*` | the helper that compacted, after releasing the deck lock | best effort |
+| `v4/deleted/<key>~<ms>/` | the helper of the person deleting or restoring a setup (B44, `deckbin.py`) | delete, under `wb-<key>` and the deck lock: the deck's folder renamed in one step (refused while another window has the deck open, or while a journal is still open on another PC), its backups moved with it, a copy of its v3 file; then an empty deck in its place (gen + 1, its own `born` file) and a frozen v3 stub; any failure puts back what moved. Restore, under `wb-<key>`: only while the workbook's deck is empty; the empty deck set aside, the deleted one moved back, all or nothing |
+| `v4/decks/<key>/born` | the helper deleting a setup, for the empty deck it leaves (B44); a restored deck brings its own (or none) | written once; no compaction touches it. A writer is bound to the deck's `born` when it is issued (`/api/decks/open`, `bind_writer`; cached 10 s, so another PC sees a delete up to 10 s later): a writer of a deleted deck never opens a journal in the deck its workbook got afterwards – while its helper (4.6+) runs |
 | `export/*` | the helper of the user who exported | temp file + rename under lock `export-<doc_key(name)>` |
 
 ### 1.5 What Slide Builder 3 still reads
@@ -486,8 +488,8 @@ deck not yet covered once more, at most 15 s each; a deck that still has records
 
 | Lock | File | Taken by |
 |---|---|---|
-| `wb-<key>` | `locks/wb-<key>.lock` | Slide Builder 3 saves; v4 migration and rollback (keepalive), before the deck lock |
-| deck lock | `v4/decks/<key>/lock` | compaction (keepalive), migration, rollback, creating a deck, lean-lock appends |
+| `wb-<key>` | `locks/wb-<key>.lock` | Slide Builder 3 saves; v4 migration and rollback (keepalive), before the deck lock; deleting and restoring a setup (B44) |
+| deck lock | `v4/decks/<key>/lock` | compaction (keepalive), migration, rollback, creating a deck, lean-lock appends, deleting a setup (the lock moves with the folder and is released there) |
 | `config` | `locks/config.lock` | `POST /api/config`, the v2 import, format upgrades of config.json (v3 too) |
 | `user-<name>` | `locks/user-<name>.lock` | format upgrade of a prefs file only (writing prefs takes no lock) |
 | `fonts` | `locks/fonts.lock` | font library changes, Windows-font captures, the copy-mode switch |
