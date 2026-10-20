@@ -68,18 +68,26 @@ export async function addGoogleFont(name: string): Promise<boolean> {
   finally { patch("ui", { fontBusy: "" }); }
 }
 
+type Face = { meta: Parameters<typeof backend.addFont>[0]; buf: ArrayBuffer };
+/** stores the faces of a family once every file has arrived: a failure halfway (a timeout, a file too large) leaves
+    nothing behind, so adding the family again fetches it whole (inLibrary would skip a half-stored one) */
+async function store(faces: Face[]): Promise<LibraryFont[]> {
+  let fonts: LibraryFont[] = lib();
+  for (const f of faces) fonts = await backend.addFont(f.meta, f.buf);
+  return fonts;
+}
+
 /** the faces the helper found, stored as uploads are: a variable file (most families on GitHub) is fetched once and
     becomes a static face at each weight (exports never embed a variable font) */
 async function fromHelper(family: string): Promise<LibraryFont[]> {
-  const g = await backend.googleFont(family), files = new Map<string, ArrayBuffer>();
-  let fonts: LibraryFont[] = lib();
+  const g = await backend.googleFont(family), files = new Map<string, ArrayBuffer>(), faces: Face[] = [];
   for (const f of g.faces) {
     let raw = files.get(f.file);
     if (!raw) { raw = await backend.googleFontFile(f.file); files.set(f.file, raw); }
     const base = f.file.split("/").pop() || "font.ttf", { buf, name } = f.variable ? await staticFile(raw, f.weight, base) : { buf: raw, name: base };
-    fonts = await backend.addFont({ family, weight: f.weight, style: f.style, source: "google", name, range: f.range }, buf);
+    faces.push({ meta: { family, weight: f.weight, style: f.style, source: "google", name, range: f.range }, buf });
   }
-  return fonts;
+  return store(faces);
 }
 
 /** the page asks Google itself (from disk: only the name is kept, the stylesheet is imported) */
@@ -94,12 +102,12 @@ async function fromBrowser(family: string): Promise<LibraryFont[]> {
   const faces = parseGoogleCss(css);
   if (!faces.length) throw new Error(`“${family}” is not a Google font – check the spelling on fonts.google.com`);
   if (!backend.served) { const fonts = await backend.addFont({ family, weight: 400, style: "normal", source: "google", name: "" }, new ArrayBuffer(0)); setLib(fonts); return fonts; }
-  let fonts: LibraryFont[] = lib();
+  const got: Face[] = [];
   for (const f of faces) {
     const data = await (await fetch(f.url)).arrayBuffer();
-    fonts = await backend.addFont({ family, weight: f.weight, style: f.style, source: "google", name: f.url.split("/").pop() || "font.woff2", range: f.range }, data);
+    got.push({ meta: { family, weight: f.weight, style: f.style, source: "google", name: f.url.split("/").pop() || "font.woff2", range: f.range }, buf: data });
   }
-  return fonts;
+  return store(got);
 }
 
 /** a variable font becomes a static face at its declared weight before it is stored (S3.2, by the core worker), so

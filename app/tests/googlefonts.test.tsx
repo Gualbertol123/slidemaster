@@ -62,6 +62,22 @@ describe("adding a Google font through the helper", () => {
     expect(toastText()).toMatch(/check the spelling.*Upload font files/);
   });
 
+  it("a file that fails halfway stores nothing, so adding the family again fetches it whole", async () => {
+    const unreachable = "Google Fonts cannot be reached from the Slide Builder helper (…). To add the font, … “Upload font files”";
+    let calls = net(url => url.startsWith("/api/fonts/google?") ? json(ROBOTO)
+      : url.includes("Roboto-Italic") ? json({ error: unreachable }, 502)                           // the second file
+      : url.startsWith("/api/fonts/google/file?") ? Promise.resolve(new Response(TTF)) : undefined);
+    expect(await M.fonts.addGoogleFont("Roboto")).toBe(false);
+    expect(calls.filter(c => c.url.startsWith("/api/fonts/google/file?")).length).toBe(2);
+    expect(calls.filter(c => c.method === "POST")).toEqual([]);                  // the regular face was not stored alone
+    expect(M.store.get().doc.fonts).toEqual([]);
+    expect(M.fonts.inLibrary("Roboto")).toBe(false);
+    expect(toastText()).toContain("Upload font files");
+    calls = net(url => url.startsWith("/api/fonts/google?") ? json(ROBOTO) : url.startsWith("/api/fonts/google/file?") ? Promise.resolve(new Response(TTF)) : undefined);
+    expect(await M.fonts.addGoogleFont("Roboto")).toBe(true);
+    expect(calls.filter(c => c.method === "POST").length).toBe(3);
+  });
+
   it("the helper cannot reach Google: the page tries googleapis itself (its PAC proxy may), then shows the helper's message", async () => {
     const unreachable = "Google Fonts cannot be reached from the Slide Builder helper (…). To add the font, download the family … and use “Upload font files”";
     let calls = net(url => url.startsWith("/api/fonts/google?") ? json({ error: unreachable }, 502) : undefined);

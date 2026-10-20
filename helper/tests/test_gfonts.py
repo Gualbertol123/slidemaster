@@ -2,6 +2,7 @@
 else the CSS API; the proxy setting; the messages. No network: fetch_url is a fake answering from a dict."""
 import os
 import socket
+import urllib.error
 import urllib.parse
 import urllib.request
 from unittest import mock
@@ -92,6 +93,20 @@ def css_url(spec=":ital,wght@0,400;0,700;1,400;1,700", family="Roboto"):
     return gfonts.CSS_API + family.replace(" ", "+") + spec + "&display=swap"
 
 
+class LocalAppData(object):
+    """this PC's folder (%LOCALAPPDATA%) is the test's own: a proxy.txt of the PC running the tests is never read"""
+
+    def setUp(self):
+        super().setUp()
+        self.local = os.path.join(self.tmp, "local")
+        self._local = mock.patch.dict(os.environ, {"LOCALAPPDATA": self.local})
+        self._local.start()
+
+    def tearDown(self):
+        self._local.stop()
+        super().tearDown()
+
+
 class Metadata(TempDirs):
     def test_parse_the_text_format(self):
         m = gfonts.parse_metadata(ROBOTO)
@@ -127,10 +142,11 @@ class Metadata(TempDirs):
         self.assertEqual([gfonts.repo_dir(f) for f in ("Open Sans", "Source Sans 3", "IBM Plex Sans")], ["opensans", "sourcesans3", "ibmplexsans"])
 
 
-class Proxy(TempDirs):
-    def write(self, text):
-        os.makedirs(paths.DATA, exist_ok=True)
-        with open(gfonts.proxy_file(), "w", encoding="utf-8") as f:
+class Proxy(LocalAppData, TempDirs):
+    def write(self, text, path=None):
+        path = path or gfonts.proxy_file()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
             f.write(text)
 
     def proxies(self):
@@ -147,8 +163,52 @@ class Proxy(TempDirs):
             self.write("none\n")
             self.assertEqual((gfonts.proxy_setting(), self.proxies()), ("", {}))
 
+    def test_this_pcs_proxy_txt_wins_over_the_shared_one(self):
+        # a laptop at home or on VPN: the office proxy in the shared data folder would fail there
+        self.write("proxy.bank.local:8080\n")
+        local = os.path.join(self.local, "SlideBuilder", "proxy.txt")
+        self.assertEqual(gfonts.local_proxy_file(), local)
+        self.write("none\n", local)
+        self.assertEqual(gfonts.proxy_source(), ("", local))
+        self.assertEqual(self.proxies(), {})
+        self.write("# nothing here\n", local)                                  # says nothing: the shared file
+        self.assertEqual(gfonts.proxy_source(), ("http://proxy.bank.local:8080", gfonts.proxy_file()))
+        msg = gfonts.unreachable_message([gfonts.NetError("https://raw.githubusercontent.com/x", None, "no answer (timed out)")])
+        self.assertIn(gfonts.proxy_file() + " (http://proxy.bank.local:8080)", msg)
+        self.assertIn(local + " (this PC only)", msg)
+        # not Windows (no LOCALAPPDATA): the shared file alone
+        with mock.patch.dict(os.environ):
+            del os.environ["LOCALAPPDATA"]
+            self.assertIsNone(gfonts.local_proxy_file())
+            self.assertEqual(gfonts.proxy_setting(), "http://proxy.bank.local:8080")
 
-class GoogleFontsHttp(test_http.HttpBase):
+    def test_a_refused_tunnel_keeps_the_proxys_status(self):
+        # HTTPS through a proxy is a CONNECT: http.client raises OSError("Tunnel connection failed: 407 ..."), urllib
+        # wraps it in a URLError, so no HTTPError carries the 407
+        class Opener:
+            def __init__(self, exc):
+                self.exc = exc
+
+            def open(self, req, timeout=None):
+                raise self.exc
+        tunnel = OSError("Tunnel connection failed: 407 Proxy Authentication Required")
+        for exc in (urllib.error.URLError(tunnel), tunnel):
+            with mock.patch.object(gfonts, "_opener", lambda: Opener(exc)):
+                with self.assertRaises(gfonts.NetError) as cm:
+                    gfonts.fetch_url(RAW + "ofl/roboto/METADATA.pb")
+            self.assertEqual(cm.exception.status, 407)
+        with mock.patch.object(gfonts, "_opener", lambda: Opener(urllib.error.URLError(tunnel))):
+            with self.assertRaises(gfonts.GFontError) as cm:
+                gfonts.family_faces("Roboto")
+        self.assertEqual(cm.exception.status, 502)
+        self.assertIn("password", str(cm.exception))
+        with mock.patch.object(gfonts, "_opener", lambda: Opener(urllib.error.URLError(DNS))):
+            with self.assertRaises(gfonts.NetError) as cm:
+                gfonts.fetch_url(RAW + "ofl/roboto/METADATA.pb")
+        self.assertEqual((cm.exception.status, cm.exception.reason), (None, "name not found (DNS)"))
+
+
+class GoogleFontsHttp(LocalAppData, test_http.HttpBase):
     def get(self, family):
         return self.jreq("GET", "/api/fonts/google?family=" + urllib.parse.quote(family))
 
@@ -202,14 +262,69 @@ class GoogleFontsHttp(test_http.HttpBase):
         self.assertIn("password", res["error"])
         self.assertIn("Upload font files", res["error"])
 
+    def test_a_rate_limit_on_github_goes_on_to_jsdelivr(self):
+        # 429 (or any answer but 404) says nothing about the font: never "check the spelling"
+        net = Net({RAW + "ofl/roboto/METADATA.pb": 429, JSD + "ofl/roboto/METADATA.pb": ROBOTO.encode(),
+                   RAW + "ofl/roboto/Roboto%5Bwdth%2Cwght%5D.ttf": 429, JSD + "ofl/roboto/Roboto%5Bwdth%2Cwght%5D.ttf": fake_font()},
+                  down={"fonts.googleapis.com"})
+        with mock.patch.object(gfonts, "fetch_url", net):
+            st, res = self.get("Roboto")
+            self.assertEqual((st, res.get("source")), (200, "github"), res)
+            st, h, data = self.file(res["faces"][0]["file"])
+        self.assertEqual((st, data), (200, fake_font()))
+        self.assertEqual([u.split("/")[2] for u in net.calls if u.endswith(".ttf")], ["raw.githubusercontent.com", "cdn.jsdelivr.net"])
+        # a 429 from both mirrors and googleapis down: unreachable (502), not "not a Google font"
+        net = Net({RAW + "ofl/roboto/METADATA.pb": 429, JSD + "ofl/roboto/METADATA.pb": 429}, down={"fonts.googleapis.com"})
+        with mock.patch.object(gfonts, "fetch_url", net):
+            st, res = self.get("Roboto")
+        self.assertEqual(st, 502)
+        self.assertIn("HTTP 429", res["error"])
+
+    def test_a_sign_in_page_is_not_the_repository(self):
+        # a proxy's sign-in page answering 200 to METADATA.pb: the other mirror is asked, and never "check the spelling"
+        page = b"<html><body><form>Sign in to the internet</form></body></html>"
+        net = Net({RAW + "ofl/roboto/METADATA.pb": page, JSD + "ofl/roboto/METADATA.pb": ROBOTO.encode()})
+        with mock.patch.object(gfonts, "fetch_url", net):
+            st, res = self.get("Roboto")
+        self.assertEqual((st, res.get("source")), (200, "github"))
+        net = Net({RAW + "ofl/roboto/METADATA.pb": page, JSD + "ofl/roboto/METADATA.pb": page}, down={"fonts.googleapis.com"})
+        with mock.patch.object(gfonts, "fetch_url", net):
+            st, res = self.get("Roboto")
+        self.assertEqual(st, 502)
+        self.assertIn("sign-in page", res["error"])
+        self.assertNotIn("check the spelling", res["error"])
+
+    def test_not_on_github_while_google_cannot_be_asked(self):
+        # the office: googleapis does not resolve, and GitHub names the family's folder otherwise (or has no TTF files)
+        with mock.patch.object(gfonts, "fetch_url", Net(down={"fonts.googleapis.com"})):
+            st, res = self.get("Noto Sans Display Extra")
+        self.assertEqual(st, 404)
+        for words in ("not found on GitHub", "could not be asked", "name not found (DNS)", "Upload font files"):
+            self.assertIn(words, res["error"])
+        self.assertNotIn("check the spelling", res["error"])
+        otf = 'name: "Otf"\nfonts {\n  style: "normal"\n  weight: 400\n  filename: "Otf-Regular.woff2"\n}\n'
+        with mock.patch.object(gfonts, "fetch_url", Net({RAW + "ofl/otf/METADATA.pb": otf.encode()}, down={"fonts.googleapis.com"})):
+            st, res = self.get("Otf")
+        self.assertEqual(st, 404)
+        self.assertIn("not found on GitHub", res["error"])
+
+    def test_a_file_too_large_says_what_to_do(self):
+        net = Net({RAW + "ofl/lato/Lato-400.ttf": fake_font()})
+        with mock.patch.object(gfonts, "fetch_url", net), mock.patch.object(gfonts, "FONT_MAX", len(fake_font()) - 1):
+            st, h, data = self.file("ofl/lato/Lato-400.ttf")
+        self.assertEqual(st, 413)
+        msg = data.decode("utf-8")
+        for words in ("too large for the font library", "Upload font files", "static folder"):
+            self.assertIn(words, msg)
+
     def test_unknown_family(self):
-        net = Net({css_url(spec): 400 for spec in (":ital,wght@0,400;0,700;1,400;1,700", ":wght@400;700", "")}, down=())
+        net = Net({css_url(spec, "Robotto"): 400 for spec in (":ital,wght@0,400;0,700;1,400;1,700", ":wght@400;700", "")}, down=())
         with mock.patch.object(gfonts, "fetch_url", net):
             st, res = self.get("Robotto")
         self.assertEqual(st, 404)
         self.assertIn("check the spelling", res["error"])
         self.assertIn("Upload font files", res["error"])
-        # the unknown family alone is not "unreachable" when only the CSS API is down
+        # the unknown family alone is not "unreachable" when only the CSS API is down (test_not_on_github_while_...)
         with mock.patch.object(gfonts, "fetch_url", Net(down={"fonts.googleapis.com"})):
             self.assertEqual(self.get("Robotto")[0], 404)
 

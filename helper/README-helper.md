@@ -40,7 +40,7 @@ idempotent.
 | `migrate_v3` | a deck moves from Slide Builder 3 on its first v4 open (under `wb-<key>`: backup, the v3 file frozen first, then the snapshot), `--migrate-all`, rollback (`--rollback`, `--use <3.x>`), `pinned-v3.json` |
 | `exports` | `/api/export-file` (the page's PDF or PNG: temporary file, then atomic rename into `export\`, ` (2)` when locked) and `/api/export-feedback` (`export\feedback\*.json`) |
 | `fonts` | shared font library `data/fonts/` (fonts.json + files; signature-checked uploads, lock `fonts`) |
-| `gfonts` | Google fonts fetched by the helper, not the page (`GET /api/fonts/google`, `/api/fonts/google/file`): google/fonts on GitHub (raw, else jsDelivr), else the CSS API; proxy from `data/proxy.txt`, else `HTTPS_PROXY` / Windows setting (no PAC) |
+| `gfonts` | Google fonts fetched by the helper, not the page (`GET /api/fonts/google`, `/api/fonts/google/file`): google/fonts on GitHub (raw, else jsDelivr), else the CSS API; proxy from this PC's `%LOCALAPPDATA%\SlideBuilder\proxy.txt`, else the shared `data/proxy.txt` (every PC), else `HTTPS_PROXY` / Windows setting (no PAC) |
 | `sysfonts` | this PC's Windows fonts for the core (`GET /sysfonts`, names read with `struct`), and `POST /api/fonts/capture`: fingerprint mode (G0 R7), `data/fonts/system/fingerprints.json` under lock `fonts`; copy mode (W13: the family into the shared library, all faces or none) once `--allow-font-copy "<who confirmed>"` has recorded the licence owner's yes in `data/fonts/system/licence.json` |
 | `convert` | EMF/WMF/TIFF → PNG (GDI+, PowerShell) and .xls (or a protected file) → .xlsx (Excel COM) – Windows only (ported); an .xlsb is read by the page itself since 4.1 |
 | `firstrun` | `--install`: first-time set-up on a PC (5 steps, OK/WARN/FAIL, summary, exit code) |
@@ -59,6 +59,19 @@ idempotent.
 | `SLIDEBUILDER_APP_WINDOW` | `0`: open the app in a normal browser tab instead of an Edge app window |
 | `SLIDEBUILDER_APP_FILE` | serve this page instead of `slide_builder.html` (testing aid) |
 | `SLIDEBUILDER_SIM_FS_MS` | **simulation for load tests**: +N ms (±25 %) per data-folder file operation that would be an SMB round trip (open, stat/exists/getmtime, replace/rename, remove, listdir, makedirs, fsync); `0` only counts them. Never set it for real use. |
+
+## Proxy for Google fonts
+
+Python does not read the browser's PAC file, so `gfonts` takes its proxy from the first line (`http://host:port`,
+`host:port`, or `none` for a direct connection; lines starting with `#` are skipped) of, in this order:
+
+1. `%LOCALAPPDATA%\SlideBuilder\proxy.txt` – this PC only (`LOCALAPPDATA` is the variable the tests point elsewhere;
+   without it, off Windows, this file is not looked for);
+2. `data\proxy.txt` in the shared data folder – every PC that uses the folder;
+3. neither: `HTTPS_PROXY` / the Windows proxy setting.
+
+The shared file suits the office PCs. A laptop at home or on VPN, where the office proxy does not answer, writes its
+own file (often just `none`). The "cannot be reached" message names both files.
 
 ## Tests
 

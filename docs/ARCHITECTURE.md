@@ -757,9 +757,16 @@ Geometry shared by all three (rounded rects, shadow layers, gradient strokes, im
   variable file made static at its weight first (core `text/static.ts`), so slides and exports never need Google
   later. The page asks Google itself only when the helper answers 502, and from disk (only the `latin` and
   `latin-ext` subsets when the stylesheet names subsets, `core/src/model/fonts.ts:148`).
-* Proxy: Python ignores PAC files. The helper uses the first line of `data/proxy.txt` (`http://host:port`, or `none`
-  for a direct connection), else `HTTPS_PROXY` / the Windows proxy setting (urllib's lookup). A proxy that asks for a
-  password (407) is not supported: the message says to upload the files.
+* Proxy: Python ignores PAC files. The helper uses the first line (`http://host:port`, or `none` for a direct
+  connection; `#` lines skipped) of this PC's `%LOCALAPPDATA%\SlideBuilder\proxy.txt`, else of the shared
+  `data/proxy.txt`, else `HTTPS_PROXY` / the Windows proxy setting (urllib's lookup). The shared file applies to every
+  PC using the data folder; a laptop at home or on VPN, where the office proxy does not answer, overrides it with its
+  own file (`none` there for a direct connection). A proxy that asks for a password (407, also when it refuses the
+  HTTPS tunnel: `Tunnel connection failed: 407`) is not supported: the message says to upload the files.
+* Only a 404 means a source lacks the family; any other answer (a 429 rate limit, a proxy's 403, a sign-in page
+  answering 200 to `METADATA.pb`) counts as unreachable and the next mirror is tried. When GitHub has no folder of
+  that name and googleapis cannot be asked, the 404 says so ("not found on GitHub; Google could not be asked") instead
+  of "check the spelling". The page stores a family's faces only once all its files have arrived.
 
 ### 12.2 Windows fonts (`helper/slidebuilder/sysfonts.py`)
 

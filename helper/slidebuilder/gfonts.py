@@ -12,9 +12,10 @@ googleapis, in this order:
 The page then stores each file as an upload is stored (POST /api/fonts): a variable TTF (most families on GitHub
 now ship only those) becomes a static face at 400 and 700 there (core text/static.ts), so exports embed static faces.
 
-Proxy: Python does not read a PAC file. The helper uses, in this order, the first line of data\proxy.txt
-("http://proxy.example:8080", or "none" for a direct connection), else HTTPS_PROXY / the Windows proxy setting
-(urllib's own lookup).
+Proxy: Python does not read a PAC file. The helper uses, in this order, the first line of this PC's
+%LOCALAPPDATA%\SlideBuilder\proxy.txt (a laptop at home or on VPN needs another proxy than the office), else of the
+shared data\proxy.txt ("http://proxy.example:8080", or "none" for a direct connection), else HTTPS_PROXY / the
+Windows proxy setting (urllib's own lookup).
 """
 import os
 import re
@@ -66,14 +67,22 @@ class NetError(Exception):
 
 # ---------------------------------------------------------------------------------------------------- network
 def proxy_file():
+    """the shared proxy file (every PC that uses this data folder)"""
     return paths.data_dir("proxy.txt")
 
 
-def proxy_setting():
-    """the proxy from data\\proxy.txt: a URL, "" for a direct connection ("none"), or None when the file says nothing
-    (then urllib looks at HTTPS_PROXY and the Windows setting)"""
+def local_proxy_file():
+    """this PC's proxy file, %LOCALAPPDATA%\\SlideBuilder\\proxy.txt (None without LOCALAPPDATA: not Windows)"""
+    local = os.environ.get("LOCALAPPDATA")
+    return os.path.join(local, "SlideBuilder", "proxy.txt") if local else None
+
+
+def _read_proxy(path):
+    """a proxy file's setting: a URL, "" for a direct connection ("none"), or None when it is missing or says nothing"""
+    if not path:
+        return None
     try:
-        with open(proxy_file(), "r", encoding="utf-8-sig") as f:
+        with open(path, "r", encoding="utf-8-sig") as f:
             lines = [x.strip() for x in f.read().splitlines()]
     except (OSError, UnicodeDecodeError):
         return None
@@ -83,6 +92,21 @@ def proxy_setting():
     if line.lower() in ("none", "direct"):
         return ""
     return line if "://" in line else "http://" + line
+
+
+def proxy_source():
+    """(setting, file): the first proxy file that says something, this PC's before the shared one; (None, None) when
+    neither does (then urllib looks at HTTPS_PROXY and the Windows setting)"""
+    for path in (local_proxy_file(), proxy_file()):
+        p = _read_proxy(path)
+        if p is not None:
+            return p, path
+    return None, None
+
+
+def proxy_setting():
+    """the proxy from the proxy files: a URL, "" for a direct connection, or None (see proxy_source)"""
+    return proxy_source()[0]
 
 
 def _opener():
@@ -99,9 +123,19 @@ def fetch_url(url, timeout=TIMEOUT):
     except urllib.error.HTTPError as e:
         raise NetError(url, e.code)
     except urllib.error.URLError as e:
-        raise NetError(url, None, _reason(e.reason))
+        raise NetError(url, _tunnel_status(e.reason), _reason(e.reason))
     except (socket.timeout, ssl.SSLError, OSError) as e:
-        raise NetError(url, None, _reason(e))
+        raise NetError(url, _tunnel_status(e), _reason(e))
+
+
+_TUNNEL = re.compile(r"Tunnel connection failed: (\d{3})")
+
+
+def _tunnel_status(e):
+    """the proxy's status when it refused an HTTPS tunnel (CONNECT): http.client raises OSError("Tunnel connection
+    failed: 407 Proxy Authentication Required"), which urllib wraps in a URLError, not an HTTPError"""
+    m = _TUNNEL.search(str(e))
+    return int(m.group(1)) if m else None
 
 
 def _reason(e):
@@ -112,11 +146,6 @@ def _reason(e):
     if isinstance(e, ssl.SSLError):
         return "secure connection refused (%s)" % (getattr(e, "reason", None) or e)
     return str(e) or e.__class__.__name__
-
-
-def _unreachable(e):
-    """a failure that says nothing about the font (the source is not reachable from this PC)"""
-    return e.status is None or e.status in (403, 407) or e.status >= 500
 
 
 # ---------------------------------------------------------------------------------------------------- METADATA.pb
@@ -209,18 +238,18 @@ def _github(family):
                 try:
                     text = fetch_url(mirror + "%s/%s/METADATA.pb" % (lic, d)).decode("utf-8", "replace")
                 except NetError as e:
-                    if e.status == 404:
-                        continue
+                    if e.status == 404:              # only a 404 says the mirror lacks it; anything else (a 429 rate
+                        continue                     # limit, a proxy's 403 or 407, no answer) says nothing about the font
                     raise
                 meta = parse_metadata(text)
+                if not meta.get("fonts"):            # a proxy's sign-in page answering 200: not the repository
+                    raise NetError(mirror, None, "the answer is not a METADATA.pb (a proxy's sign-in page?)")
                 faces = pick_faces(meta, "%s/%s/" % (lic, d))
                 if not faces:
                     raise Absent("no TrueType files on GitHub")
                 return {"family": (meta.get("name") or [family])[0], "source": "github", "license": lic, "faces": faces}
             raise Absent()
-        except NetError as e:
-            if not _unreachable(e):
-                raise Absent()
+        except NetError as e:                    # (a 404 never gets here: the next licence folder is tried)
             last = e
             log("google fonts: %s" % e)
     raise last
@@ -267,18 +296,23 @@ def _css_api(family):
 def family_faces(family):
     """GET /api/fonts/google: the faces of a Google font and where the helper takes them from"""
     family = clean_family(family)
-    failures = []
+    failures, absent = [], []
     for source in (_github, _css_api):
         try:
             res = source(family)
             log("google fonts: %s from %s (%d faces)" % (family, res["source"], len(res["faces"])))
             return res
         except Absent:
-            pass
+            absent.append(source)
         except NetError as e:
             failures.append(e)
     if len(failures) == 2:
         raise GFontError(502, unreachable_message(failures))
+    if absent == [_github]:
+        # GitHub has no folder of that name (or no TrueType files in it), and the CSS API, which knows every family by
+        # its name, could not be asked: the name may be right (the office: googleapis does not resolve)
+        raise GFontError(404, "\u201c%s\u201d was not found on GitHub (google/fonts), and Google Fonts could not be asked from "
+                              "this PC (%s). If the name is right, %s." % (family, "; ".join(str(e) for e in failures), UPLOAD_HINT))
     # a source answered without it (GitHub names a family's folder after it: a family it has under another name
     # is found by the CSS API, where that answers)
     raise GFontError(404, "\u201c%s\u201d is not a Google font \u2013 check the spelling on fonts.google.com, or %s" % (family, UPLOAD_HINT))
@@ -288,10 +322,12 @@ def unreachable_message(failures):
     why = "; ".join(sorted(set(str(e) for e in failures)))
     if any(e.status == 407 for e in failures):
         return ("The proxy asks for a password, which Slide Builder cannot give (%s). To add the font, %s." % (why, UPLOAD_HINT))
-    p = proxy_setting()
-    where = ("the proxy in %s (%s)" % (proxy_file(), p)) if p else "a direct connection" if p == "" else "this PC's proxy setting"
+    p, path = proxy_source()
+    where = ("the proxy in %s (%s)" % (path, p)) if p else ("a direct connection (%s)" % path) if p == "" else "this PC's proxy setting"
+    here = local_proxy_file()
     return ("Google Fonts cannot be reached from the Slide Builder helper through %s (%s). To add the font, %s; "
-            "or ask IT for the proxy address and write it in %s." % (where, why, UPLOAD_HINT, proxy_file()))
+            "or ask IT for the proxy address and write it in %s (every PC)%s." % (
+                where, why, UPLOAD_HINT, proxy_file(), " or %s (this PC only)" % here if here else ""))
 
 
 def face_file(ref):
@@ -309,12 +345,11 @@ def face_file(ref):
         try:
             data = fetch_url(url, FILE_TIMEOUT)
         except NetError as e:
-            failures.append(e)
-            if not _unreachable(e) and e.status != 404:
-                break
+            failures.append(e)                   # (any failure: the other mirror may answer, a 429 is GitHub's)
             continue
         if len(data) > FONT_MAX:
-            raise GFontError(413, "%s is larger than %d MB, too large for the font library" % (os.path.basename(ref), FONT_MAX // (1024 * 1024)))
+            raise GFontError(413, "%s is larger than %d MB, too large for the font library. To add the font, %s, choosing the "
+                                  "files in its static folder." % (os.path.basename(ref), FONT_MAX // (1024 * 1024), UPLOAD_HINT))
         if not detect_ext(data):
             failures.append(NetError(url, None, "the answer is not a font file"))
             continue
