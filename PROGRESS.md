@@ -528,6 +528,10 @@ numbers measured twice). Measured numbers go into the step's line.
   CHANGES (5) → APPROVE; update REQUEST CHANGES (7) → APPROVE; follow-ups APPROVE (3 low points fixed) → APPROVE.
   Not verifiable here (owner, on Windows): the office proxy/DNS against GitHub and jsDelivr, Edge, cmd.exe, the real
   github.com redirect, the bench on the reference PC. Needs the owner: **B45** (below), the update messages, A2, A4.
+  CI (45108d0): e2e red on both runs – "charts follow a scenario" lost its selection: start-up had reopened
+  Banks.xlsx, the test opened it again and selected cells while that open still ran (A5 moved the linking after
+  Continue, widening the window); reproduced locally with linking slowed 4 s (the callouts test failed), fixed in
+  the e2e only: `continueOpen` waits for the open to finish (6 sites); slowed 31/31, normal 39/39 passed.
   verified: tests ✓ clean clone ✓ review ✓.
 - **B45 (proposed, not approved): Google fonts through the helper.** GitHub google/fonts first, googleapis last; proxy in
   this PC's `%LOCALAPPDATA%\SlideBuilder\proxy.txt`, else the shared `data\proxy.txt`; the picker stops previews for the

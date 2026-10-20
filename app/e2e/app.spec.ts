@@ -97,6 +97,12 @@ async function openWorkbook(page: Page, name: string) {
   await page.click("#openBtn");
   await page.click(`[data-f="${name}"]`);
 }
+/** "Continue" in the saved-deck question, then wait until that open has finished: start-up may already show the same
+    workbook, and an edit made while the second open runs is cleared when it ends (the selection, for one) */
+async function continueOpen(page: Page, name: string) {
+  await page.click('[data-a="continue"]');
+  await expect(page.locator("#fileName")).toHaveText(new RegExp("^" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + " · \\d+ slides?"), { timeout: 30_000 });
+}
 async function selectCell(page: Page, text: string) {
   await page.locator("#stage .slide .t", { hasText: new RegExp("^" + text + "$") }).first().waitFor();
   const box = (await page.locator("#stage .slide .t", { hasText: new RegExp("^" + text + "$") }).first().boundingBox())!;
@@ -646,7 +652,7 @@ test.describe.serial("two people, one shared folder", () => {
     await a.locator('#fontLib [data-family="Quicksand"] .btn.icon').click(); await a.click('.modal [data-a="ok"]');
     await expect(a.locator('#fontLib [data-family="Quicksand"]')).toHaveCount(0);
     await a.click('.tsdlg [data-a="close"]');
-    await openWorkbook(b, "report.xlsx"); await b.click('[data-a="continue"]'); await expect(b.locator(".thumb")).toHaveCount(4);
+    await openWorkbook(b, "report.xlsx"); await continueOpen(b, "report.xlsx"); await expect(b.locator(".thumb")).toHaveCount(4);
     await b.click("#textStylesBtn"); await b.click("#tabFonts");
     await expect(b.locator('#fontLib [data-family="Corp Sans"]')).toBeVisible();
     await b.locator('#fontLib [data-family="Corp Sans"] .btn.icon').click(); await b.click('.modal [data-a="ok"]');
@@ -903,7 +909,7 @@ test.describe.serial("two people, one shared folder", () => {
     const a = await browser.newPage(), b = await browser.newPage();
     await openApp(a, ANNA); await openApp(b, BOB);
     await expect(a.locator(".thumb")).toHaveCount(4);
-    await openWorkbook(b, "report.xlsx"); await b.click('[data-a="continue"]');   // bob's last file is weekly.xlsx: both on the same deck
+    await openWorkbook(b, "report.xlsx"); await continueOpen(b, "report.xlsx");   // bob's last file is weekly.xlsx: both on the same deck
     await expect(b.locator(".thumb")).toHaveCount(4);
     await a.locator('.thumb[data-i="2"]').click();
     await selectCell(a, "Kappa"); await a.keyboard.press("Control+b"); await saved(a);
@@ -957,7 +963,7 @@ test.describe.serial("two people, one shared folder", () => {
     expect(bdoc().preset.tables.map((t: any) => t.sheet)).toEqual(["[Peers.xlsx]Peer"]);
     // opened again, the deck brings its linked workbook back
     await page.reload(); await page.locator("#openBtn").waitFor();
-    await openWorkbook(page, "Banks.xlsx"); await page.click('[data-a="continue"]');
+    await openWorkbook(page, "Banks.xlsx"); await continueOpen(page, "Banks.xlsx");
     await expect(page.locator("#stage .slide .t", { hasText: /^Peer avg$/ })).toHaveCount(1, { timeout: 20_000 });
     await lastFileSaved("anna", "Banks.xlsx");
   });
@@ -1024,7 +1030,7 @@ test.describe.serial("two people, one shared folder", () => {
 
   test("charts follow a scenario (S9.3, CH-03): a pie from the linked Peers table, previewed for Bank C", async ({ page }) => {
     await openApp(page, ANNA);
-    await openWorkbook(page, "Banks.xlsx"); await page.click('[data-a="continue"]');
+    await openWorkbook(page, "Banks.xlsx"); await continueOpen(page, "Banks.xlsx");
     await expect(page.locator("#stage .slide .t", { hasText: /^1761$/ })).toHaveCount(1, { timeout: 20_000 });
     // from the selected cells: the Peer avg column (Loans, Deposits) – named by the column on its left (Item)
     await selectCell(page, "1761");
@@ -1060,7 +1066,7 @@ test.describe.serial("two people, one shared folder", () => {
 
   test("callouts (S9.4, CL-01, CL-02, B17): shapes and icons, fill / border / text; a callout quoting Control!B2 follows the preview of Bank C; #REF", async ({ page }) => {
     await openApp(page, ANNA);
-    await openWorkbook(page, "Banks.xlsx"); await page.click('[data-a="continue"]');
+    await openWorkbook(page, "Banks.xlsx"); await continueOpen(page, "Banks.xlsx");
     await expect(page.locator("#stage .slide .t", { hasText: /^1761$/ })).toHaveCount(1, { timeout: 20_000 });
     const items = () => (deckDoc("Banks.xlsx").preset.slides[0].items || {}) as Record<string, any>;
     // CL-01: a pill, typed in place; its fill, border and text size from ribbon 2 – each one change
@@ -1352,7 +1358,7 @@ test.describe.serial("two people, one shared folder", () => {
 
   test("charts (S9.3, CH-02/03/04, B16, B24): a pie from a sheet on no slide, changed in the side panel, moved, removed; it follows a reload and a scenario; a missing source", async ({ page }) => {
     await openApp(page, ANNA);
-    await openWorkbook(page, "report.xlsx"); await page.click('[data-a="continue"]');
+    await openWorkbook(page, "report.xlsx"); await continueOpen(page, "report.xlsx");
     await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
     // the slide with the bank table (the deck has a cover and contents by now)
     let si = -1;
