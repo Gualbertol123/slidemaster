@@ -190,7 +190,10 @@ async function run(browser, port) {
         if (!sl || want !== [...sl.querySelectorAll(":scope > .tw desc")].map(d => d.textContent).join("\n")) return null;
         const c = sl.querySelectorAll(":scope > .tw .t")[8], r = c && c.getBoundingClientRect();
         return r && r.width > 0 && r.height > 0 ? { x: r.x, y: r.y, width: r.width, height: r.height } : null;
-      }, null, { timeout: 30000 })).jsonValue();
+      }, null, { timeout: 30000 }).catch(e => {
+        // say what never came (the check is null on every poll when the second slide has fewer than 9 cells)
+        throw new Error("keypress: slide 2's table never showed a 9th cell (" + e.message + ")");
+      })).jsonValue();
       await page.evaluate(() => {
         // from the Enter that commits to the first frame after the stage's tables show the text (a <desc> of a cell);
         // installed once (a second run – Consulting Navy – reuses them)
