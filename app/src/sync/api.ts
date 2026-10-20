@@ -9,6 +9,10 @@ import type { DeckOpen, TailResult } from "@slide-builder/core/sync/docsync";
 export interface Health { app: string; version: string; user: string; host: string; folder: string; export: string }
 export interface FileInfo { name: string; mtime: number; size: number; rev?: number | null; updated?: number | null; updatedBy?: string | null }
 export interface Other { user: string; host: string; client: string; workbook: string | null; at: number }
+/** a deck on the share as of its snapshot (helper decks.summary): its workbook, last change and size (B44) */
+export interface SetupInfo { key: string; workbook: string; gen: number; rev: number; rolledBack: boolean; /** it has a preset (a deck without one holds no setup) */ preset?: boolean; updated?: number | null; updatedBy?: string | null; slides?: number; tables?: number; versions?: number }
+/** a deleted setup kept as a backup (helper deckbin.py): `id` restores it */
+export interface DeletedSetup extends Partial<Omit<SetupInfo, "rolledBack">> { id: string; key: string; at: number; by?: string }
 /** POST /api/decks/open: the deck's key, a writer id for this page session, its snapshot */
 export type DeckOpenAnswer = Omit<DeckOpen, "tail"> & { created?: boolean; storage?: string };
 export interface ExportRes { ok: boolean; files?: string[]; error?: string }
@@ -42,8 +46,15 @@ export interface Backend {
   deckCompactOnLeave(key: string, baseGen: number, snapshotJson: string): boolean;
   deckRotate(key: string, writer: string): Promise<{ deleted: string[] }>;
   deckPrepare(key: string, writer: string): Promise<unknown>;
-  /** every deck on the share (Prepare rollback) */
-  decks(): Promise<{ key: string; workbook: string; gen: number; rev: number; rolledBack: boolean }[]>;
+  /** every deck on the share (Prepare rollback, Saved setups): what it holds as of its snapshot */
+  decks(): Promise<SetupInfo[]>;
+  /** B44: a deck deleted – kept as a backup on the share, an empty one in its place (409 while another window has it
+      open: the message names who; `client`: this window, whose own presence does not count) */
+  deleteDeck(key: string, client: string): Promise<{ id: string; workbook: string }>;
+  /** the deleted setups, newest first */
+  deletedDecks(): Promise<DeletedSetup[]>;
+  /** a deleted setup back (409 while the workbook has a setup of its own) */
+  restoreDeck(id: string, client: string): Promise<{ key: string; workbook: string }>;
   /** presence on a deck (v2): others there in the last 25 s */
   presence(client: string, deck: string | null, workbook: string | null): Promise<Other[]>;
   leave(client: string, deck: string | null): void;
@@ -151,7 +162,10 @@ export const helper: Backend = {
   deckRotate: (key, writer) => json(req(deckPath(key) + "/rotate", { method: "POST", json: { writer } })),
   // opening a journal twice is harmless (the helper keeps one handle per writer): asked again like a read
   deckPrepare: (key, writer) => json(req(deckPath(key) + "/prepare", { method: "POST", json: { writer }, idempotent: true })),
-  async decks() { return (await json<{ decks: Awaited<ReturnType<Backend["decks"]>> }>(req("/api/decks"))).decks || []; },
+  async decks() { return (await json<{ decks: SetupInfo[] }>(req("/api/decks"))).decks || []; },
+  deleteDeck: (key, client) => json(req(deckPath(key) + "/delete", { method: "POST", json: { client } })),
+  async deletedDecks() { return (await json<{ deleted: DeletedSetup[] }>(req("/api/decks/deleted"))).deleted || []; },
+  restoreDeck: (id, client) => json(req("/api/decks/restore", { method: "POST", json: { id, client } })),
   async presence(client, deck, workbook) {
     if (!deck) return [];
     const others = (await json<{ others: Other[] }>(req("/api/presence", { method: "POST", json: { client, deck } }))).others || [];
@@ -233,6 +247,7 @@ export const offline: Backend = {
   async deckRotate() { return { deleted: [] }; },
   async deckPrepare() { return null; },
   async decks() { return []; },
+  deleteDeck: offlineOnly, async deletedDecks() { return []; }, restoreDeck: offlineOnly,
   async presence() { return []; },
   leave() { /* nothing */ },
   upload: offlineOnly, convertWorkbook: offlineOnly,

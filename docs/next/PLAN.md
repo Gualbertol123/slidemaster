@@ -323,6 +323,8 @@ Approved 2026-10-20 (product owner: "approved", `09-charts-annotations-icons.md`
 | B40 | **New slide** (button, Ctrl+M) after the selected slide, and **Add table** listing the deck's tables (F16) | M13 |
 | B41 | A deck that uses an object newer than 4.0 (charts, callouts, free layout, looks, cell gridlines / borders, or any 4.6 object) opens only in 4.6 or later; an older window shows it read-only (09 §1, ADR-019; AUDIT-2 REL-1); decks without them are unchanged | M13 |
 | B42 | **Third-party notices**: `THIRD-PARTY-NOTICES.txt` in every release and an *About › Licences* view in ⚙ Options (AUDIT-2 LIC-1) | M13 |
+| B43 | **Scan for "x" tables** in the wizard's step 1 of a large workbook: the selected sheets are read at once (as *Next* reads them) and show their "x" tables and suggestions before *Next*; their "x" tables are defined (product owner, 2026-10-20) | M13 |
+| B44 | **Delete a saved setup** (the deck of a workbook: tables, slides, design, versions, comments) from the *Saved preset found* question (*Delete setup…*) and from ⚙ Options › Administration › **Saved setups**, which lists every setup and restores deleted ones; kept as a backup on the share (`data/v4/deleted/`); refused while a window has the deck open (product owner, 2026-10-20) | M13 |
 
 ---
 

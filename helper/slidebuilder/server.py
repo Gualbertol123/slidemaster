@@ -20,7 +20,7 @@ import urllib.parse
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import APP_NAME, VERSION, decks, migrate_v3, paths, store
+from . import APP_NAME, VERSION, deckbin, decks, migrate_v3, paths, store
 from .convert import convert_picture, convert_workbook
 from .exports import ExportError, export_feedback, export_file
 from .fonts import FONT_MAX, FontError, add_face, font_file, read_library, remove_family
@@ -95,7 +95,7 @@ def find_asset(name):
     return None
 
 
-DECK_ROUTE = re.compile(r"^/api/decks/([^/]+)/(snapshot|tail|append|prepare|compact|rotate|history)$")
+DECK_ROUTE = re.compile(r"^/api/decks/([^/]+)/(snapshot|tail|append|prepare|compact|rotate|history|delete)$")
 
 
 class HttpError(Exception):
@@ -365,8 +365,10 @@ class Handler(BaseHTTPRequestHandler):
             if not v:
                 return self._error(404, "upload expired, open the workbook again")
             return self._send(200, v[1], "application/octet-stream")
-        if path == "/api/decks":                          # every deck (Options › Administration › Prepare rollback)
+        if path == "/api/decks":                          # every deck (Options › Administration › Prepare rollback, Saved setups)
             return self._send(200, {"decks": migrate_v3.list_decks()})
+        if path == "/api/decks/deleted":                  # the deleted setups, kept as backups (B44, deckbin.py)
+            return self._send(200, {"deleted": deckbin.listing()})
         m = DECK_ROUTE.match(path)
         if m:
             key, action = urllib.parse.unquote(m.group(1)), m.group(2)
@@ -445,8 +447,13 @@ class Handler(BaseHTTPRequestHandler):
                 raise HttpError(400, "invalid workbook name")
             # the first open in Slide Builder 4 moves a v3 deck over (migrate_v3: under v3's lock, backup, freeze)
             key, how = migrate_v3.ensure_deck(wb)
-            return self._send(200, {"key": key, "writer": decks.new_writer(), "created": how == "created", "migrated": how == "migrated",
-                                    "storage": decks.storage_mode(), "snapshot": decks.read_snapshot(key)})
+            snap, writer = decks.read_snapshot(key), decks.new_writer()
+            decks.bind_writer(writer, key)                # (B44: a writer of a deck deleted since writes nothing)
+            return self._send(200, {"key": key, "writer": writer, "created": how == "created", "migrated": how == "migrated",
+                                    "storage": decks.storage_mode(), "snapshot": snap})
+        if path == "/api/decks/restore":                  # a deleted setup back (B44)
+            req = self._json()
+            return self._send(200, deckbin.restore(req.get("id"), req.get("client")))
         m = DECK_ROUTE.match(path)
         if not m:
             return False
@@ -461,6 +468,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, decks.compact(key, req.get("baseGen"), req.get("snapshot")))
         if action == "rotate":
             return self._send(200, decks.rotate(key, self._json().get("writer")))
+        if action == "delete":                            # the setup deleted, kept as a backup (B44)
+            return self._send(200, deckbin.delete(key, self._json().get("client")))
         return False
 
     def _post(self, path, q):

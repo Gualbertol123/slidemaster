@@ -369,3 +369,8 @@ table.xs td.mk{background:#FFF4CC!important;color:#9A6B00;font-weight:700;text-a
 .lookgrp{gap:6px}
 .lookpart{display:inline-flex;align-items:center;gap:4px;position:relative}
 .lookpart.own::after{content:"";position:absolute;top:-2px;right:-3px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+/* ⚙ Options › Administration › Saved setups (B44) */
+table.setups{width:100%;border-collapse:collapse;font-size:12.5px}
+table.setups th{text-align:left;font-weight:600;color:#667;padding:4px 6px;border-bottom:1px solid #E3E6EB}
+table.setups td{padding:5px 6px;border-bottom:1px solid #EEF0F3;vertical-align:middle}
+table.setups td:last-child{text-align:right;white-space:nowrap}

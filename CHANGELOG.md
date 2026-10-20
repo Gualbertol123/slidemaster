@@ -3,6 +3,19 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.6.0 - unreleased (PLAN M13)
+
+What users notice
+* **Scan for "x" tables** (B43): in a large workbook the wizard reads a sheet only when it is selected, so its first
+  step showed "not read yet" and no tables. The new button reads the selected sheets at once and shows each one's
+  "x" tables, title and suggested tables there; the "x" tables are defined, as *Next* would. Sheets not selected are
+  still not read.
+* **Delete a saved setup** (B44): the *Saved preset found* question has *Delete setup…*: the workbook's saved setup –
+  tables, slides, design, versions, comments – is deleted for everybody and the wizard starts as for a new file (the
+  workbook is not changed). ⚙ Options › Administration › **Saved setups…** lists every workbook's setup (slides,
+  tables, last change) with *Delete…*, and the deleted ones with *Restore…*: a deleted setup is kept as a backup on
+  the shared folder. A setup open in a window is not deleted – the message says who has it open.
+
 ## 4.5.0 - unreleased (docs/next/07 §4, PLAN M11; B21; ADR-016 amended 2026-10-19)
 
 What users notice

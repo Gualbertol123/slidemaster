@@ -6,7 +6,7 @@
    document right after a change sees it, the view mirror shows the operations at once (predicted with the core's
    ops) until the worker's snapshot that includes them arrives. */
 import { get, patch, patchAll, same, STAGE, THUMBS, toast, showBusy, hideBusy } from "./store";
-import { ask, runWizard } from "./dialogs";
+import { alertBox, ask, confirmBox, runWizard } from "./dialogs";
 import { backend, openTail, patchStyleDefault } from "../sync/api";
 import { connectCore, type CorePort } from "../rpc/client";
 import { browserText } from "../platform";
@@ -172,6 +172,8 @@ export async function boot() {
 let tickN = 0;
 /** the open deck's key on the share (presence v2) and its state at rest while this page is alone there (pagehide) */
 let deckKey: string | null = null, restDeck: { key: string; baseGen: number; json: string } | null = null;
+/** the deck this window has open (B44: its setup is not deleted from here), or null */
+export const openDeckKey = () => get().doc.open ? deckKey : null;
 /** the others on the open deck */
 const others = () => get().ui.others.filter(o => o.workbook === get().deck.file?.name);
 /** one tick: helper health, the file on disk, fonts, shared config (every 3 s; other people's changes come from the
@@ -303,12 +305,24 @@ async function loadWorkbook(buf: ArrayBuffer, name: string, again: () => Promise
   return wb;
 }
 
-async function presetBox(name: string, p: Preset): Promise<"continue" | "wizard" | null> {
+/** `canDelete`: the setup can be deleted from here (B44: the helper serves the deck, and it is not the one this window has open) */
+async function presetBox(name: string, p: Preset, canDelete: boolean): Promise<"continue" | "wizard" | "delete" | null> {
   const content = p.slides.filter(s => (s.type || "content") === "content").length;
   const extras = [p.slides.some(s => s.type === "cover") ? "cover" : "", p.slides.some(s => s.type === "index") ? "index" : ""].filter(Boolean);
   const r = await ask("Saved preset found", `${content} content slide${content === 1 ? "" : "s"}${extras.length ? " + " + extras.join(" and ") + " slide" : ""} · ${p.tables.length} table${p.tables.length === 1 ? "" : "s"} from ${new Set(p.tables.map(t => t.sheet)).size} sheet(s).`,
-    [{ id: "cancel", label: "Cancel" }, { id: "wizard", label: "Open editing wizard" }, { id: "continue", label: "Continue with preset", primary: true }], { sub: name, width: 520 });
-  return r === "continue" || r === "wizard" ? r : null;
+    [...(canDelete ? [{ id: "delete", label: "Delete setup…", danger: true }] : []), { id: "cancel", label: "Cancel" }, { id: "wizard", label: "Open editing wizard" }, { id: "continue", label: "Continue with preset", primary: true }], { sub: name, width: 560 });
+  return r === "continue" || r === "wizard" || r === "delete" ? r : null;
+}
+
+/** B44: a workbook's saved setup deleted on the share – for everybody, kept there as a backup (⚙ Options ›
+    Administration › Saved setups restores it); refused while a window has it open. True when it was deleted. */
+export async function deleteSetup(key: string, workbook: string, what: string): Promise<boolean> {
+  const ok = await confirmBox("Delete the saved setup?", `The setup of <b>${esc(workbook)}</b> (${esc(what)}) – its tables, slides, design, versions and comments – is deleted <b>for everybody</b>. The workbook itself is not changed; opening it starts the wizard as for a new file.<br><br>A backup is kept: <b>⚙ Options › Administration › Saved setups</b> can restore it.`, "Delete setup", true);
+  if (!ok) return false;
+  try { await backend.deleteDeck(key, get().prefs.client); }
+  catch (e) { await alertBox("The setup was not deleted", esc((e as Error).message || String(e))); return false; }
+  toast(`The setup of “${esc(workbook)}” was deleted – a backup is kept (⚙ Options › Administration › Saved setups).`);
+  return true;
 }
 
 /** the mirror's marker tables are laid out on first use (core/src/xlsx/slice.ts): here one sheet per idle moment
@@ -340,13 +354,17 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   /** the deck's linked workbooks join the mirror too (the wizard lists their sheets; the worker attaches them again
       at start for the slides) */
   const linkAll = async (links: string[]) => { for (const f of links) { const info = await core().call("link", { book: wb.book, name: f }); if (info) wb.extend(info); } };
-  // the deck on the share: its snapshot and the records past it, folded as the worker will (model/fold.ts)
-  const opened = await backend.openDeck(name);
-  stale();
-  const tail = backend.served ? await openTail(backend, opened.key, opened.snapshot.frontier) : undefined;
-  stale();
-  const deck: DeckOpen = { key: opened.key, writer: opened.writer, snapshot: opened.snapshot, ...(tail ? { tail } : {}) };
-  const doc = fold(deck.snapshot, Object.values(tail?.journals || {}).flatMap(j => j.records)).doc;
+  // the deck on the share: its snapshot and the records past it, folded as the worker will (model/fold.ts); read
+  // again when its setup was deleted (B44: the helper starts an empty one)
+  const readDeck = async () => {
+    const opened = await backend.openDeck(name);
+    stale();
+    const tail = backend.served ? await openTail(backend, opened.key, opened.snapshot.frontier) : undefined;
+    stale();
+    const deck: DeckOpen = { key: opened.key, writer: opened.writer, snapshot: opened.snapshot, ...(tail ? { tail } : {}) };
+    return { deck, doc: fold(deck.snapshot, Object.values(tail?.journals || {}).flatMap(j => j.records)).doc };
+  };
+  let { deck, doc } = await readDeck();
   // the open workbook has changes the helper does not have yet: switching keeps saving them (the worker retries),
   // but say so when saving is failing, so nobody closes the window thinking they are safe
   if (get().doc.open && get().doc.save === "error") unsavedElsewhere = true;
@@ -354,11 +372,22 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   let preset = doc.preset, newPreset: Preset | null = null;
   if (preset?.links?.length) { await linkAll(preset.links); stale(); }
   try {
-    if (preset && askUser) {
-      const choice = await presetBox(name, preset);
+    while (preset && askUser) {
+      const choice = await presetBox(name, preset, backend.served && !(deck.key === deckKey && get().doc.open));
       if (!choice) { if (gen === openGen) patch("deck", { opening: "" }); return; }
+      if (choice === "delete") {
+        const n = preset.slides.filter(s => (s.type || "content") === "content").length;
+        if (!(await deleteSetup(deck.key, name, `${n} slide${n === 1 ? "" : "s"}, ${preset.tables.length} table${preset.tables.length === 1 ? "" : "s"}`))) continue;
+        stale();
+        ({ deck, doc } = await readDeck());
+        preset = doc.preset;
+        if (preset) continue;                                 // (someone saved one meanwhile: asked about that one)
+        break;
+      }
       if (choice === "wizard") { const np = await runWizard(wb, name, preset); if (np) newPreset = np; }
-    } else if (!preset) {
+      break;
+    }
+    if (!preset) {
       const draft = await core().call("defaultPreset", { book: wb.book });  // the worker has the tables laid out (PLAN S2.6)
       if (!askUser && !wb.big && draft.slides.length) newPreset = draft;        // start-up / reload: "x" workbooks open as before
       else {

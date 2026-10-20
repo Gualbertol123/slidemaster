@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { get, patch, toast, useStore } from "../state/store";
+import { get, patch, setDialogs, toast, useStore } from "../state/store";
 import { esc } from "@slide-builder/core/xlsx/util";
 import { guard, lookChange, showVersion, openFromFolder, openLocalFile, openWizard, reloadWorkbook, saveStyleAsDefault, styleChange, setPrefs, prepareRollback } from "../state/app";
 import { backend, type FileInfo } from "../sync/api";
@@ -152,6 +152,8 @@ function Options() {
           <div className="opthd">Administration</div>
           <div className="optnote">Before decks are given back to Slide Builder 3 (Update Slide Builder.bat --rollback): every deck saved and its changes folded into its snapshot.</div>
           <div className="optrow"><button className="btn" id="prepRollback" onClick={() => void prepareRollback()}>Prepare rollback</button></div>
+          <div className="optnote">The setup saved for each workbook (tables, slides, design, versions): delete one to start that workbook again from the wizard – a backup is kept and can be restored.</div>
+          <div className="optrow"><button className="btn" id="savedSetups" onClick={() => setDialogs({ setups: true })}>Saved setups…</button></div>
         </>}
       </>}
     </Dropdown>

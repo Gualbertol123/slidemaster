@@ -421,7 +421,6 @@ def list_decks():
             s = decks.read_snapshot(key)
         except decks.DeckError:
             continue
-        out.append({"key": key, "workbook": s.get("workbook"), "gen": s.get("gen"), "rev": s.get("rev"),
-                    "rolledBack": os.path.exists(decks.deck_dir(key, ROLLED_BACK))})
+        out.append(dict(decks.summary(s), key=key, rolledBack=os.path.exists(decks.deck_dir(key, ROLLED_BACK))))
     return out
 

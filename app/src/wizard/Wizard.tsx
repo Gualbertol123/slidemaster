@@ -29,6 +29,7 @@ interface W {
   /** what the worker said about the sheets it has read, the sizes of the table definitions, the preview windows */
   info: Record<string, SheetInfo>; sizes: Record<string, [number, number] | null>; sizeSig: string;
   windows: Record<string, SheetWindow | "loading">; failed: Record<string, string>; ready: boolean;
+  /** step 1 of a large workbook: the selected sheets are being read (Scan) */ scanning?: boolean;
 }
 const defRange = (S: SheetInfo | undefined, d: TableDef) => d.kind === "markers"
   ? (() => { if (!S) return null; const g = S.regions.find(g => A1(g.r1, g.c1) === d.anchor) || S.regions[d.index]; return g ? gToRange(g) : null; })()
@@ -168,8 +169,14 @@ export function Wizard({ req }: { req: WizardReq }) {
   function stepSheets() {
     const hiddenN = wb.hiddenSheets.length, other = wb.skipped.filter(x => x.why !== "hidden");
     const lazy = meta.some(m => !byName(m.name));
-    const mb = meta.filter(m => W.sheets.has(m.name) && !byName(m.name)).reduce((s, m) => s + m.size, 0);
+    const unread = meta.filter(m => W.sheets.has(m.name) && !byName(m.name)), mb = unread.reduce((s, m) => s + m.size, 0);
     const toggle = (n: string, on: boolean) => { if (on) W.sheets.add(n); else W.sheets.delete(n); render(); };
+    // a large workbook: the selected sheets read now (as Next would), so their "x" tables and suggestions show here
+    const scan = async () => {
+      W.scanning = true; render();
+      try { await ensureChosen(); } catch (e) { await alertBox("Could not read the sheets", esc((e as Error).message || e)); }
+      W.scanning = false; render();
+    };
     // a linked workbook (S7.3, B22): a file of the same folder; its sheets join the list under their file
     const addLink = async () => {
       const files = await linkableWorkbooks(wb, name);
@@ -184,8 +191,9 @@ export function Wizard({ req }: { req: WizardReq }) {
     const quick = (q: string) => { const lost = [...W.sheets].filter(lostLink); W.sheets.clear(); lost.forEach(n => W.sheets.add(n)); meta.forEach(m => { if (!(byName(m.name) || {} as SheetInfo).error && (q === "all" || (q === "slide" && SLIDE_RX.test(m.name)))) W.sheets.add(m.name); }); render(); };
     return [
       <div className="wizcol">
-        <p className="lead">Choose the sheets you want to work with. Sheets whose name contains “slide” are pre-selected{hiddenN ? `; ${hiddenN} hidden sheet${hiddenN > 1 ? "s are" : " is"} not listed` : ""}.{lazy && <><br /><b>Large workbook:</b> only the sheets you select are read – pick only what you need.</>}</p>
+        <p className="lead">Choose the sheets you want to work with. Sheets whose name contains “slide” are pre-selected{hiddenN ? `; ${hiddenN} hidden sheet${hiddenN > 1 ? "s are" : " is"} not listed` : ""}.{lazy && <><br /><b>Large workbook:</b> only the sheets you select are read – pick only what you need. <b>Scan</b> reads them now and shows their “x” tables.</>}</p>
         <div className="dlgtools" style={{ padding: "0 0 8px" }}><button className="btn" onClick={() => quick("slide")}>Only “slide” sheets</button><button className="btn" onClick={() => quick("all")}>All</button><button className="btn" data-a="link" onClick={() => void addLink()} title="Add the sheets of another workbook of the folder (B22)">+ Add a linked workbook…</button><button className="btn" onClick={() => quick("none")}>None</button>
+          {lazy && <button className="btn" data-a="scan" disabled={!unread.length || W.scanning} onClick={() => void scan()} title="Read the selected sheets now and find their “x” tables (the tables are defined, as Next would)">{W.scanning ? "Scanning…" : `Scan for “x” tables${unread.length ? ` (${unread.length})` : ""}`}</button>}
           <span className="cnt">{W.sheets.size} of {meta.length} selected{mb ? ` · ${fmtMB(mb)} to read` : ""}</span></div>
         <div className="sheetlist big">{meta.map(m => {
           const S = byName(m.name), sz = m.size ? <span className="sz">{fmtMB(m.size)}</span> : null;
@@ -200,7 +208,7 @@ export function Wizard({ req }: { req: WizardReq }) {
         {[...W.sheets].filter(lostLink).map(n => <label className="sheetrow hid" key={n}><input type="checkbox" checked disabled /><span className="nm">{shown(n)}</span><span className="chip red">not found in the folder</span><span className="meta">its tables and the link are kept; put the file back next to this one</span></label>)}
         {other.length > 0 && <p className="meta" style={{ marginTop: "8px" }}>Not listed: {other.map(x => x.name + " (" + x.why + ")").join(", ")}</p>}
       </div>,
-      <><span className="hint">Next: pick the tables on each sheet.</span><button className="btn" data-a="cancel" onClick={() => close(null)}>Cancel</button><button className="btn primary" data-a="next" disabled={!W.sheets.size} onClick={() => void go(2)}>Next · Tables</button></>,
+      <><span className="hint">Next: pick the tables on each sheet.</span><button className="btn" data-a="cancel" onClick={() => close(null)}>Cancel</button><button className="btn primary" data-a="next" disabled={!W.sheets.size || W.scanning} onClick={() => void go(2)}>Next · Tables</button></>,
     ];
   }
 
