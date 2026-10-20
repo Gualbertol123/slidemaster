@@ -44,6 +44,7 @@ afterwards (close the black window, start it again) and reload the browser tab.
 """
 import argparse
 import datetime
+import email.utils
 import getpass
 import hashlib
 import io
@@ -314,15 +315,28 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def retry_at(headers, now=None):
-    """when GitHub answers again (epoch seconds), from Retry-After (seconds) or X-RateLimit-Reset (epoch); None if unknown"""
+    """when GitHub answers again (epoch seconds), from Retry-After (seconds or an HTTP date) or X-RateLimit-Reset
+    (epoch); None if unknown. Each header on its own: one that cannot be read does not hide the other."""
     now = time.time() if now is None else now
-    try:
-        if headers.get("Retry-After"):
-            return now + int(headers["Retry-After"])
-        if headers.get("X-RateLimit-Reset"):
-            return max(now, int(headers["X-RateLimit-Reset"]))
-    except ValueError:
-        pass
+    after = (headers.get("Retry-After") or "").strip()
+    if after:
+        try:
+            return now + max(0, int(after))
+        except ValueError:
+            pass
+        try:
+            d = email.utils.parsedate_to_datetime(after)     # "Wed, 21 Oct 2026 07:28:00 GMT"
+            if d.tzinfo is None:                             # "-0000": UTC
+                d = d.replace(tzinfo=datetime.timezone.utc)
+            return max(now, d.timestamp())
+        except (TypeError, ValueError, IndexError, OverflowError):   # Python 3.8 raises TypeError, 3.10+ ValueError
+            pass
+    reset = headers.get("X-RateLimit-Reset")
+    if reset:
+        try:
+            return max(now, int(reset))
+        except ValueError:
+            pass
     return None
 
 
@@ -335,18 +349,19 @@ def when_text(at, now=None):
     return "after %s (in %d minute%s)" % (clock, mins, "" if mins == 1 else "s")
 
 
-def http_request(url, timeout=60, follow=True):
+def http_request(url, timeout=60, follow=True, retries=True):
     """(status, headers, body) of a GET. Failures become a NetError with a sentence: a used-up GitHub limit (403/429
     with X-RateLimit-Remaining 0 or Retry-After) says when to try again, and is never retried (every retry costs
     another of the 60 requests an hour the office shares); other 4xx are not retried either; network errors and 5xx
-    are retried 3 times. follow=False: a redirect is returned as it is (its Location header), not followed."""
+    are retried 3 times (retries=False: not at all - an optional check). follow=False: a redirect is returned as it is
+    (its Location header), not followed."""
     req = urllib.request.Request(url, headers={"User-Agent": "SlideBuilder-updater"})
     # the Windows proxy settings, and the Windows certificate store (a company root CA is trusted)
     handlers = [urllib.request.HTTPSHandler(context=ssl.create_default_context())]
     opener = urllib.request.build_opener(*(handlers + ([] if follow else [_NoRedirect()])))
     host = urllib.parse.urlparse(url).netloc or url
     last = None
-    for wait in (0, 2, 4, 8):
+    for wait in ((0, 2, 4, 8) if retries else (0,)):
         if wait:
             say("  network problem (%s), retrying in %d s..." % (last, wait)); time.sleep(wait)
         try:
@@ -377,8 +392,8 @@ def http_request(url, timeout=60, follow=True):
                    "https://github.com), then try again in a few minutes." % (host, last))
 
 
-def http_get(url, timeout=60):
-    return http_request(url, timeout)[2]
+def http_get(url, timeout=60, retries=True):
+    return http_request(url, timeout, retries=retries)[2]
 
 
 def version_file(root):
@@ -880,11 +895,11 @@ def find_release_web(owner, name, want, web_base):
     return ver, url, None, url + ".sha256"
 
 
-def find_release_api(owner, name, want, api_base):
+def find_release_api(owner, name, want, api_base, retries=True):
     base = (api_base or "https://api.github.com/repos/%s/%s" % (owner, name)).rstrip("/")
     url = base + ("/releases/latest" if want in (None, "latest") else "/releases/tags/v" + want)
     try:
-        rel_ = json.loads(http_get(url).decode("utf-8"))
+        rel_ = json.loads(http_get(url, retries=retries).decode("utf-8"))
     except NetError as e:
         if e.status == 404:
             raise no_release(owner, name, "GitHub's API knows no %s" % ("latest release" if want in (None, "latest") else "release v" + want))
@@ -929,7 +944,8 @@ def release_checksums(found, repo, api_base=None, web_base=None):
             say("  (no .sha256 file with the release: %s)" % e)
         if web_base is None or api_base:            # the tests' fake web without a fake API: never the real API
             try:
-                d = find_release_api(*(parse_repo(repo) + (ver, api_base)))[2]
+                # not retried: the download is already here, and 2+4+8 s of waiting for an extra check is not worth it
+                d = find_release_api(*(parse_repo(repo) + (ver, api_base)), retries=False)[2]
                 if d:
                     out.append(("GitHub's digest", d))
             except SystemExit as e:                 # rate limit, no network: only an extra check
@@ -1180,7 +1196,12 @@ def main(argv=None):
                 say(msg)
                 return 0
             if a.check:
-                say("An update is available: %s -> %s." % (current_version(root) or "none", found[0]))
+                cur = current_version(root)
+                if cur and version_key(found[0]) < version_key(cur):
+                    say("Version %s is older than the current %s; it would be installed only because you named it."
+                        % (found[0], cur))
+                else:
+                    say("An update is available: %s -> %s." % (cur or "none", found[0]))
                 return 0
         stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         with UpdateLock(root):

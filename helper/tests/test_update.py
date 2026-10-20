@@ -744,6 +744,67 @@ class GitHubReleaseTest(unittest.TestCase):
         self.assertIsNone(update.retry_at({}))
         self.assertEqual(update.retry_at({"X-RateLimit-Reset": str(int(now) - 5)}, now), now)
 
+    def api_release(self, ver):
+        asset = {"name": "slidebuilder-%s.zip" % ver, "browser_download_url": "unused"}
+        return (200, {}, json.dumps({"tag_name": "v" + ver, "assets": [asset]}).encode())
+
+    def test_release_page_without_a_redirect_falls_back_to_the_api(self):
+        self.gh.routes["/o/r/releases/latest"] = (200, {}, b"<html>proxy login</html>")   # e.g. a proxy's login page
+        self.gh.routes["/api/repos/o/r/releases/latest"] = self.api_release("3.5.0")
+        rc, out = self.update("--release", "--check")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("The release page did not answer", out)
+        self.assertIn("An update is available: none -> 3.5.0.", out)
+        self.assertEqual(self.gh.api_hits(), ["/api/repos/o/r/releases/latest"])
+
+    def test_release_page_rate_limited_is_not_retried(self):
+        self.gh.routes["/o/r/releases/latest"] = (429, {"Retry-After": "60"}, b"")
+        self.gh.routes["/api/repos/o/r/releases/latest"] = self.api_release("3.5.0")
+        rc, out = self.update("--release", "--check")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("An update is available: none -> 3.5.0.", out)
+        self.assertNotIn("retrying", out)
+        self.assertEqual(self.gh.hits.count("/o/r/releases/latest"), 1)
+        self.assertEqual(self.gh.api_hits(), ["/api/repos/o/r/releases/latest"])
+
+    def test_missing_sha256_file_installs_on_the_manifest_check(self):
+        self.gh.publish("3.5.0", self.zips["3.5.0"])
+        del self.gh.routes["/o/r/releases/download/v3.5.0/slidebuilder-3.5.0.zip.sha256"]
+        self.gh.rate_limited("/api/repos/o/r/releases/tags/v3.5.0", time.time() + 600)
+        rc, out = self.update("--release")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("(no .sha256 file with the release:", out)
+        self.assertNotIn("checksum matches", out)
+        self.assertIn("MANIFEST.json verified: version 3.5.0", out)
+        self.assertEqual(self.pointer(), "3.5.0")
+
+    def test_api_digest_is_asked_once_without_retries(self):
+        self.gh.publish("3.5.0", self.zips["3.5.0"])
+        self.gh.routes["/api/repos/o/r/releases/tags/v3.5.0"] = (503, {}, b"unavailable")
+        rc, out = self.update("--release")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("its checksum is skipped", out)
+        self.assertNotIn("retrying", out)                          # no 2 + 4 + 8 s after the download
+        self.assertEqual(self.gh.api_hits(), ["/api/repos/o/r/releases/tags/v3.5.0"])
+
+    def test_check_with_an_older_version_named(self):
+        self.assertEqual(run("--root", self.root, "--zip", self.zips["3.5.0"], "--yes")[0], 0)
+        self.gh.publish("3.4.0", self.zips["3.4.0"])
+        rc, out = self.update("--check", "--release", "3.4.0")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("Version 3.4.0 is older than the current 3.5.0; it would be installed only because you named it.", out)
+        self.assertNotIn("An update is available", out)
+        self.assertEqual(self.pointer(), "3.5.0")
+
+    def test_retry_after_as_a_date(self):
+        now = 1792510080.0                                         # Mon, 20 Oct 2026 15:28:00 GMT
+        self.assertEqual(update.retry_at({"Retry-After": "Mon, 20 Oct 2026 15:30:00 GMT"}, now), now + 120)
+        self.assertEqual(update.retry_at({"Retry-After": "Mon, 20 Oct 2026 15:00:00 GMT"}, now), now)   # in the past
+        # an unreadable Retry-After does not hide X-RateLimit-Reset
+        self.assertEqual(update.retry_at({"Retry-After": "soon", "X-RateLimit-Reset": str(int(now) + 300)}, now), now + 300)
+        self.assertIsNone(update.retry_at({"Retry-After": "soon"}, now))
+        self.assertEqual(update.retry_at({"Retry-After": "90"}, now), now + 90)
+
     def test_no_network_is_one_sentence(self):
         self.gh.close()                                            # nothing listens there any more
         with self.assertRaises(SystemExit) as e:
