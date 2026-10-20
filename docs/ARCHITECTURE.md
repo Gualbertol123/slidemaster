@@ -660,6 +660,8 @@ Fonts (§12):
 | `GET /api/fonts` | – | the library `{schema: 1, fonts: [...]}` |
 | `POST /api/fonts?family=&weight=&style=&source=&name=&range=` | font bytes (≤ 15 MB) | the library; 400 not a font, bad family name, more than 64 faces |
 | `DELETE /api/fonts?family=` | – | the library; 400 without `family` |
+| `GET /api/fonts/google?family=` | – | a Google font's faces fetched by the helper (§12.1); 404 not a Google font, 502 unreachable |
+| `GET /api/fonts/google/file?ref=` | – | one of those files' bytes; 403 any other address, 413 over 15 MB, 502 unreachable |
 | `POST /api/fonts/capture?file=` | (body ignored, ≤ 2 MB) | `{mode: "fingerprint", file, family, sha1, embeddable, noSubset, faces, otherBuilds, otherHosts}`; in copy mode `mode: "copy"` plus `copied` and `copiedFaces`, `added` or `reason`; 400 bad name, 404 unlisted |
 
 Decks (`<key>` is URL-encoded; any `<key>` not matching §2.1 → 400; `DeckError` statuses below):
@@ -744,9 +746,27 @@ Geometry shared by all three (rounded rects, shadow layers, gradient strokes, im
   else 400), at most 15 MB; family names `^[\w][\w .\-&+]{0,63}$`; weight clamped 1–1000; `style` `italic` or
   `normal`; `source` `google` or `upload`; a face with the same weight, style and range is replaced; at most 64 faces
   per family. `DELETE` removes a family.
-* Google fonts are downloaded **by the page** (only the `latin` and `latin-ext` subsets when the stylesheet names
-  subsets, `core/src/model/fonts.ts:148`) and posted like uploads with `source=google` and `range`, so slides and
-  exports never need Google later.
+* Google fonts are downloaded **by the helper** (`helper/slidebuilder/gfonts.py`; until 4.5 by the page, but at the
+  office `fonts.googleapis.com` does not resolve for it): `GET /api/fonts/google?family=` reads
+  `<ofl|apache|ufl>/<folder>/METADATA.pb` of the google/fonts repository from `raw.githubusercontent.com`, else
+  `cdn.jsdelivr.net/gh/google/fonts`, else asks the CSS API (which answers Python with static TTF files), and answers
+  `{family, source, license?, faces: [{weight, style, file, variable, range?}]}` – regular and bold, upright and
+  italic as the family has them (a variable file gives both weights); 404 not a Google font, 502 unreachable (the
+  message says what to do). `GET /api/fonts/google/file?ref=` fetches one such file (a google/fonts path or a
+  `fonts.gstatic.com` address only, else 403). The page posts each face like an upload with `source=google`, a
+  variable file made static at its weight first (core `text/static.ts`), so slides and exports never need Google
+  later. The page asks Google itself only when the helper answers 502, and from disk (only the `latin` and
+  `latin-ext` subsets when the stylesheet names subsets, `core/src/model/fonts.ts:148`).
+* Proxy: Python ignores PAC files. The helper uses the first line (`http://host:port`, or `none` for a direct
+  connection; `#` lines skipped) of this PC's `%LOCALAPPDATA%\SlideBuilder\proxy.txt`, else of the shared
+  `data/proxy.txt`, else `HTTPS_PROXY` / the Windows proxy setting (urllib's lookup). The shared file applies to every
+  PC using the data folder; a laptop at home or on VPN, where the office proxy does not answer, overrides it with its
+  own file (`none` there for a direct connection). A proxy that asks for a password (407, also when it refuses the
+  HTTPS tunnel: `Tunnel connection failed: 407`) is not supported: the message says to upload the files.
+* Only a 404 means a source lacks the family; any other answer (a 429 rate limit, a proxy's 403, a sign-in page
+  answering 200 to `METADATA.pb`) counts as unreachable and the next mirror is tried. When GitHub has no folder of
+  that name and googleapis cannot be asked, the 404 says so ("not found on GitHub; Google could not be asked") instead
+  of "check the spelling". The page stores a family's faces only once all its files have arrived.
 
 ### 12.2 Windows fonts (`helper/slidebuilder/sysfonts.py`)
 

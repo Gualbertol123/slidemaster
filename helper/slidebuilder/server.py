@@ -24,6 +24,7 @@ from . import APP_NAME, VERSION, deckbin, decks, migrate_v3, paths, store
 from .convert import convert_picture, convert_workbook
 from .exports import ExportError, export_feedback, export_file
 from .fonts import FONT_MAX, FontError, add_face, font_file, read_library, remove_family
+from .gfonts import GFontError, face_file as google_font_file, family_faces as google_font
 from .sysfonts import SysFontError, capture as capture_sysfont, list_fonts as list_sysfonts, read_font as read_sysfont
 from .locks import LockTimeout
 from .store import StoreTooNew, StoreUnreadable
@@ -323,6 +324,8 @@ class Handler(BaseHTTPRequestHandler):
             self._error(503, str(e))
         except (ExportError, FontError, SysFontError) as e:
             self._error(400, str(e))
+        except GFontError as e:
+            self._error(e.status, str(e))
         except Exception:
             traceback.print_exc()
             self._error(500, "internal error - details are in the Slide Builder window")
@@ -348,6 +351,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, stat_workbook(urllib.parse.unquote(path[len("/api/files/"):-len("/stat")])))
         if path == "/api/fonts":
             return self._send(200, read_library())
+        if path == "/api/fonts/google":                   # a Google font's faces, fetched by the helper (not the page)
+            return self._send(200, google_font((q.get("family") or [""])[0]))
+        if path == "/api/fonts/google/file":              # one of its files (a google/fonts or fonts.gstatic.com file only)
+            return self._send(200, google_font_file((q.get("ref") or [""])[0]), "application/octet-stream")
         if path.startswith("/fonts/"):
             data, ctype = font_file(urllib.parse.unquote(path[len("/fonts/"):]))
             return self._send(200, data, ctype)
