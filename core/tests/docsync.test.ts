@@ -198,6 +198,36 @@ describe("DocSync v4", () => {
     expect(deck.doCompact(r.baseGen, r.snapshot).gen).toBe(2);
     a.setAlone(false); expect(a.restSnapshot()).toBeNull();
   });
+  it("a record of a newer page – an op or a key this page does not know – is never compacted away (AUDIT-2 DATA-7)", async () => {
+    // a 4.1 page folded 4.3's item.patch and 4.4's free / cellGrid / borders / looks as nothing and compacted: the
+    // snapshot said the records were in it, and the charts, callouts and layouts were gone for every page
+    const newer = [
+      { op: "item.patch", slide: "s1", id: "c1", patch: { kind: "map", box: { x: 0, y: 0, w: 10, h: 10 } } },  // an item kind of a later version
+      { op: "slide.patch", id: "s1", patch: { title: "T2", ribbon: { glass: "x" } } },                          // a key of a later version
+      { op: "table.patch", id: "t1", patch: { stripes: { A1: "on" } } },
+      { op: "chart.patch", slide: "s1", id: "c1", patch: {} },                                                   // an op of a later version
+    ];
+    for (const op of newer) {
+      const deck = new FakeDeck(), a = user(deck, "anna"), nina = writer("nina");
+      a.apply([{ op: "preset.set", preset: { slides: [{ id: "s1", title: "T" }], tables: [{ id: "t1", sheet: "S", range: "A1:B2" }] } } as unknown as Op]);
+      await a.flush();
+      deck.doAppend(nina, { l: 9, w: nina, s: 1, by: "nina", ops: [op] } as never);
+      a.apply([cell("A1", { b: true })]); await a.flush(); await a.poll();
+      a.setAlone(true);
+      expect(await a.compact(), op.op).toBeNull();
+      expect(a.restSnapshot()).toBeNull();
+      expect(deck.snap.gen).toBe(1);
+      expect(deck.records().some(r => r.w === nina)).toBe(true);
+    }
+    // what this page knows is compacted as before
+    const deck = new FakeDeck(), a = user(deck, "anna");
+    a.apply([{ op: "preset.set", preset: { slides: [{ id: "s1", title: "T" }], tables: [{ id: "t1", sheet: "S", range: "A1:B2" }] } } as unknown as Op,
+      { op: "item.patch", slide: "s1", id: "c1", patch: { kind: "shape", shape: "rect", box: { x: 0, y: 0, w: 10, h: 10 } } } as Op,
+      { op: "slide.patch", id: "s1", patch: { free: { glass: { on: true, items: {} } }, looks: { mckinsey: { kpis: "2" } } } } as Op,
+      { op: "table.patch", id: "t1", patch: { cellGrid: { A1: { o: true } }, borders: { A1: { top: "none" } } } } as Op]);
+    await a.flush(); await a.poll();
+    expect(await a.compact()).toBe(2);
+  });
   it("Prepare rollback: compactAll leaves nothing past the frontier", async () => {
     const deck = new FakeDeck(), a = user(deck, "anna"), b = user(deck, "bob");
     b.apply([cell("B1", { b: true })]); await b.flush();
