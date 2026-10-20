@@ -1,5 +1,6 @@
 /* ⏱ Browser benchmarks (PLAN S2.6, Part F; from spikes/baseline/measure.mjs): the built page with a real helper in
-   Chromium, each scenario twice; the worse run counts and CI fails above a limit + 10 %. Times are taken in the page:
+   Chromium, each scenario twice; the worse run counts and CI fails above a limit + 10 % – a timing gate only when a
+   repeat in a fresh page is over too (tools/benchgate.mjs, decision 2026-10-20). Times are taken in the page:
    from the click (a capture listener) to the moment the element is in the document (a MutationObserver) – Playwright's
    waits poll at up to 500 ms and added that much to some runs.
      open deck20     the wizard, then the 20 slides: index → wizard shown, Finish → first slide drawn   < 400 ms (sum)
@@ -58,6 +59,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { speedFactor } from "./calibrate.mjs";
 import { sysFontDirs } from "./sysfonts.mjs";
+import { SLACK, annotation, describe, judge, onCI } from "./benchgate.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)), REPO = path.resolve(HERE, "..");
 const require = createRequire(path.join(REPO, "package.json"));
@@ -76,7 +78,7 @@ const BUDGET = { open_deck20_ms: 400, read_big30_ms: 1000, longest_task_ms: 50, 
   // recalculated + its 20 slides exported, 20 values; no main-thread task over 50 ms during the runs
   scenario_one_ms: 3000, scenario_20_ms: 40000, scenario_task_ms: 50,
   // M8 S8.4 (07 §6.4): a preview's switch – the click on Preview to the stage showing the value – on deck20, warm engine
-  preview_switch_ms: 400 }, SLACK = 1.1;
+  preview_switch_ms: 400 };
 const speed = speedFactor(), TIMED = ["open_deck20_ms", "read_big30_ms", "export_glass_ms", "export_excel_ms", "pptx_glass_ms", "pptx_excel_ms", "export_navy_ms", "export_red_ms", "open_navy_ms", "scenario_one_ms", "scenario_20_ms", "preview_switch_ms"];   // keypress: not scaled (decision 2026-10-12 names the others)
 // on CI only (decision 2026-10-18): the main-thread task and frame-gap limits follow the runner's speed too – the factor
 // the engine bench measured before this one (core/bench/wasmcalib.ts); keypress and drag frames stay as they are
@@ -487,11 +489,8 @@ async function thumbScroll(browser, page) {
   return { slides: 100, frames: w.frames, fps: w.fps, frame_ms: w.frame_ms, gap_ms: w.gap_ms, pictures: asked.drawn - asked0.drawn };
 }
 
-const browser = await chromium.launch({ executablePath: CHROME });
-const runs = [];
-try { for (let i = 0; i < 2; i++) runs.push(await run(browser, 8981 + i)); }
-finally { await browser.close(); }
-const worst = {
+/** the gated values of some runs: the worse run counts */
+const worstOf = runs => ({
   open_deck20_ms: Math.max(...runs.map(r => r.deck20.open_ms)),
   read_big30_ms: Math.max(...runs.map(r => r.big30.read_sheet_ms)),
   longest_task_ms: Math.max(0, ...runs.flatMap(r => [...r.deck20.longtasks, ...r.edit.longtasks, ...r.thumbs.longtasks, ...r.export.longtasks, ...r.big30.longtasks])),
@@ -526,17 +525,37 @@ const worst = {
     scenario_one_ms: Math.max(...runs.map(r => r.scen.one_ms)), scenario_20_ms: Math.max(...runs.map(r => r.scen.twenty_ms)),
     scenario_task_ms: Math.max(0, ...runs.flatMap(r => r.scen.longtasks)), preview_switch_ms: Math.max(...runs.map(r => r.scen.preview_ms)) }
     : arg("--page") ? {} : { scenario_one_ms: Infinity, scenario_20_ms: Infinity, scenario_task_ms: Infinity, preview_switch_ms: Infinity }),
-};
+});
+
+const browser = await chromium.launch({ executablePath: CHROME });
+const runs = [];
+try { for (let i = 0; i < 2; i++) runs.push(await run(browser, 8981 + i)); }
+finally { await browser.close(); }
+const worst = worstOf(runs);
 const info = { longest_startup_task_ms: Math.max(0, ...runs.flatMap(r => r.boot.longtasks)), thumbs_frame_ms: Math.max(...runs.map(r => r.thumbs.frame_ms)) };
-const out = { page: path.relative(REPO, BACKEND) || BACKEND, chrome: CHROME, machine: `${os.cpus().length} × ${os.cpus()[0].model.trim()}, ${process.platform}`, calibration: { ms: +speed.ms.toFixed(1), factor: +speed.factor.toFixed(2) }, budget: BUDGET, limits: LIMITS, worst, info, runs };
+// on CI (decision 2026-10-20): the timing gates over their limit are measured again – every scenario run once more in a
+// fresh browser, helper and page (they build on each other's state), only those gates judged on it – and fail only if
+// the repeat is over too
+let repeat = null;
+const { gates, bad } = await judge({ limits: LIMITS, first: worst, ci: GATE && onCI(), again: async keys => {
+  console.log(`bench · over the limit in the first pass: ${keys.join(", ")} – measured again in a fresh page (CI)`);
+  // a repeat that fails (the helper or Chromium) measured nothing: those gates fail, the report and the JSON still come
+  try {
+    const b = await chromium.launch({ executablePath: CHROME });
+    try { const r = await run(b, 8983), w = worstOf([r]); repeat = { keys, values: Object.fromEntries(keys.map(k => [k, w[k]])), run: r }; }
+    finally { await b.close(); }
+  } catch (e) { console.error("bench · the repeat failed: " + (e?.stack || e)); repeat = { keys, values: {}, error: String(e?.message || e) }; }
+  return repeat.values;
+} });
+const out = { page: path.relative(REPO, BACKEND) || BACKEND, chrome: CHROME, machine: `${os.cpus().length} × ${os.cpus()[0].model.trim()}, ${process.platform}`, calibration: { ms: +speed.ms.toFixed(1), factor: +speed.factor.toFixed(2) }, budget: BUDGET, limits: LIMITS, worst, info, runs, gates, repeat };
 if (arg("--json")) fs.writeFileSync(arg("--json"), JSON.stringify(out, null, 1));
-for (const [i, r] of runs.entries()) console.log(`bench · run ${i + 1}: deck20 open ${r.deck20.open_ms} ms (wizard ${r.deck20.wizard_ms} + slides ${r.deck20.finish_to_slide_ms}) · keypress → pixels (cold ${r.edit.keypress.cold_ms.join(" / ")}) p50 ${r.edit.keypress.p50_ms} / p95 ${r.edit.keypress.p95_ms} / max ${r.edit.keypress.max_ms} ms (tasks ${JSON.stringify(r.edit.longtasks)}) · thumbnails, 100 slides scrolled: ${r.thumbs.fps} fps, ${r.thumbs.frame_ms} ms/frame (longest gap ${r.thumbs.gap_ms} ms, ${r.thumbs.pictures} pictures, tasks ${JSON.stringify(r.thumbs.longtasks)}) · drags ${Object.entries(r.drags).map(([k, d]) => `${k} ${d.frame_ms} ms/frame (${d.frames} frames, longest gap ${d.gap_ms} ms, drop ${d.drop_task_ms} ms)`).join(", ")} · export deck20 Liquid Glass ${r.export.glass_ms} ms ${JSON.stringify(r.export.glass_phases)} ${r.export.glass_kb} KB, Excel ${r.export.excel_ms} ms ${JSON.stringify(r.export.excel_phases)} ${r.export.excel_kb} KB (tasks ${JSON.stringify(r.export.longtasks)}) · big30 index ${r.big30.index_to_wizard_ms} ms, sheet read ${r.big30.read_sheet_ms} ms (grid ${r.big30.read_to_grid_ms} ms) · long tasks ${JSON.stringify([...r.deck20.longtasks, ...r.big30.longtasks])} (first draw ${JSON.stringify(r.deck20.first_draw_longtasks)}) · heap ${r.big30.heap_mb} MB (page ${r.big30.page_heap_mb} + worker ${r.big30.worker_heap_mb}; ${r.big30.export_workers} export workers ${r.big30.export_heap_mb} MB, not gated) · start-up tasks ${JSON.stringify(r.boot.longtasks)}`);
+const all = [...runs.map((r, i) => ["run " + (i + 1), r]), ...(repeat?.run ? [["repeat", repeat.run]] : [])];
+for (const [i, r] of all) console.log(`bench · ${i}: deck20 open ${r.deck20.open_ms} ms (wizard ${r.deck20.wizard_ms} + slides ${r.deck20.finish_to_slide_ms}) · keypress → pixels (cold ${r.edit.keypress.cold_ms.join(" / ")}) p50 ${r.edit.keypress.p50_ms} / p95 ${r.edit.keypress.p95_ms} / max ${r.edit.keypress.max_ms} ms (tasks ${JSON.stringify(r.edit.longtasks)}) · thumbnails, 100 slides scrolled: ${r.thumbs.fps} fps, ${r.thumbs.frame_ms} ms/frame (longest gap ${r.thumbs.gap_ms} ms, ${r.thumbs.pictures} pictures, tasks ${JSON.stringify(r.thumbs.longtasks)}) · drags ${Object.entries(r.drags).map(([k, d]) => `${k} ${d.frame_ms} ms/frame (${d.frames} frames, longest gap ${d.gap_ms} ms, drop ${d.drop_task_ms} ms)`).join(", ")} · export deck20 Liquid Glass ${r.export.glass_ms} ms ${JSON.stringify(r.export.glass_phases)} ${r.export.glass_kb} KB, Excel ${r.export.excel_ms} ms ${JSON.stringify(r.export.excel_phases)} ${r.export.excel_kb} KB (tasks ${JSON.stringify(r.export.longtasks)}) · big30 index ${r.big30.index_to_wizard_ms} ms, sheet read ${r.big30.read_sheet_ms} ms (grid ${r.big30.read_to_grid_ms} ms) · long tasks ${JSON.stringify([...r.deck20.longtasks, ...r.big30.longtasks])} (first draw ${JSON.stringify(r.deck20.first_draw_longtasks)}) · heap ${r.big30.heap_mb} MB (page ${r.big30.page_heap_mb} + worker ${r.big30.worker_heap_mb}; ${r.big30.export_workers} export workers ${r.big30.export_heap_mb} MB, not gated) · start-up tasks ${JSON.stringify(r.boot.longtasks)}`);
 console.log(`bench · calibration ${speed.ms.toFixed(1)} ms: time limits × ${speed.factor.toFixed(2)}${ciFactor > 1 ? `; CI: task and gap limits × ${ciFactor.toFixed(2)} (engine calibration)` : ""}`);
-for (const [i, r] of runs.entries()) if (r.consult) console.log(`bench · run ${i + 1}: Consulting Navy long tasks by phase ${JSON.stringify(r.consult.phases)}`);
-for (const [i, r] of runs.entries()) if (r.scen) console.log(`bench · run ${i + 1}: Run for each value on BanksBig (20 slides, Liquid Glass): 1 value ${r.scen.one_ms} ms, 20 values ${r.scen.twenty_ms} ms; preview switch on deck20 ${r.scen.preview_ms} ms; long tasks ${JSON.stringify(r.scen.phases)}`);
-const bad = Object.entries(LIMITS).filter(([k, lim]) => k in worst && worst[k] > lim * SLACK);
-for (const [k, lim] of Object.entries(LIMITS)) if (k in worst) console.log(`bench · ${k}: ${worst[k]} (limit ${lim}${worst[k] > lim ? (worst[k] > lim * SLACK ? " – OVER +10 %" : " – over, within +10 %") : ""})`);
+for (const [i, r] of all) if (r.consult) console.log(`bench · ${i}: Consulting Navy long tasks by phase ${JSON.stringify(r.consult.phases)}`);
+for (const [i, r] of all) if (r.scen) console.log(`bench · ${i}: Run for each value on BanksBig (20 slides, Liquid Glass): 1 value ${r.scen.one_ms} ms, 20 values ${r.scen.twenty_ms} ms; preview switch on deck20 ${r.scen.preview_ms} ms; long tasks ${JSON.stringify(r.scen.phases)}`);
+for (const g of gates) console.log(`bench · ${g.key}: ${describe(g, SLACK)}`);
 console.log(`bench · not gated: longest start-up task ${info.longest_startup_task_ms} ms; most page work in a frame of the thumbnail scroll ${info.thumbs_frame_ms} ms (a garbage collection can fall into one)`);
 // on GitHub Actions each gate over its limit is also an annotation of the run (readable without the log's admin rights)
-if (process.env.GITHUB_ACTIONS) for (const [k, lim] of bad) console.log(`::error title=bench ${k}::${worst[k]} (limit ${lim}, + 10 % allowed)`);
-if (GATE && bad.length) { console.error("bench: over the limit: " + bad.map(([k]) => k).join(", ")); process.exit(1); }
+if (process.env.GITHUB_ACTIONS) for (const g of gates) if (!g.pass) console.log(annotation("bench " + g.key, g));
+if (GATE && bad.length) { console.error("bench: over the limit: " + bad.join(", ")); process.exit(1); }

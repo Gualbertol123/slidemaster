@@ -199,6 +199,17 @@ numbers measured twice). Measured numbers go into the step's line.
 
 (Human decisions the plan needs, e.g. gate G0 outcomes. An agent never writes here on its own.)
 
+- 2026-10-20 · **CI repeats a timing gate before failing it** (product owner: "make a prompt for me to fix this" – the
+  go-ahead for the rule the prompt proposed; recorded by the agent). The last three merges to main (#21, #22, #23) failed
+  only the bench, each on a different timing gate, from stalls of GitHub's runner (#23: one ~380 ms stall counted by
+  three gates); AUDIT-2 PERF-4. **On CI only**, a timing gate (ms) fails only when it is over its limit + 10 % in **two
+  separate measurements**: when the first pass (the bench's two runs, the worse counting) is over, the bench measures
+  that scenario again in a fresh page (the core benches: again in the process, the engine's cold first use in a fresh
+  one) and fails only if the repeat is over too. Every limit and every scaling stays as it is (PLAN Part F unchanged).
+  Locally nothing changes (one pass, the worse run counts). Size gates (KB, MB) and render counts are never repeated.
+  The report prints both measurements and "repeated after a stall" for a gate that passed only on the repeat, and keeps
+  the `::error` line for a gate over in both. One function for every gate: `tools/benchgate.mjs` (README §11.3).
+
 - 2026-10-20 · **09 approved: F7–F17, B30–B42, milestones M13–M17** (product owner, on the Phase 0 summary: "approved.
   1. yes. 2. keep like this. 3. same width" – the three numbers answer the three questions the summary put; recorded by
   the agent). (1) **Q1 + Q17: yes** – the per-deck format guard of ADR-019 (marker `incident-format-5.json` + snapshot
@@ -467,6 +478,27 @@ numbers measured twice). Measured numbers go into the step's line.
 - 2026-10-15 · **v4.0.0 live on `…\Chief Dashboard\slider`; the pilot removed** (product owner). The tag `v4.0.0` is on the PR #11 merge (0d5556e); the release run failed once on the flaky `open_deck20_ms` bench (Waiting for, M6) and passed on a re-run. The share was switched with 4.0's updater (`--release 4.0.0`); a network error interrupted it after `current.json` and the Start / Install start files, and `--zip` of the same release finished the rest (updater, Update and v3 start files). The pilot's files were deleted from the share by the product owner (`Start Slide Builder (v4 pilot).bat`, `app\pilot.json`, `app\4.0.0-pilot\`, `backend\data\v4-pilot*`, `export\v4-pilot\`) and from the repository by the agent at their request (the start file, `helper/slidebuilder/pilot.py`, `--pilot` in the helper and the updater, `docs/next/pilot-v4.md`, the rehearsal's `--pilot`; CHANGELOG 4.1.0). The merged branch `v4/M5b-cutover` is deleted. The four weeks of monitoring (`cutover.md` §4) run from 2026-10-15.
 
 ## Waiting for
+
+- **CI bench repeat rule, branch `ci/bench-retry`, for the product owner (push, PR, merge), 2026-10-20.** Main's CI
+  failed only the bench on #21–#23 (annotations read through the API: #21 longest_task_ms 99 / limit 61 and
+  thumbs_gap_ms 50 / 24, plus core/tests/host.test.ts:91; #22 read_big30_ms 1337 / 1166; #23 one ~380 ms stall counted
+  by drag_frame_ms 383.4, drag_navy_frame_ms 349.8 and longest_navy_task_ms 377). Fixed by the rule under Decisions
+  (`tools/benchgate.mjs`, every gate of `tools/bench.mjs` and the four core benches; `core/tests/benchgate.test.ts`)
+  and the host test's race: after an edit the save's "saving" / "saved" snapshots (300 ms later, ack 1) could be the
+  last one the test read – reproduced with a 400 ms delay (the same assertion), the code right, the test now reads the
+  edit's own snapshot (50/50 before and after, in both runs). The CI path exercised locally with GITHUB_ACTIONS=1 and a
+  forced first pass: drag_frame_ms 1014.8 → repeated in a fresh page 11.4, passes with "repeated after a stall"; a
+  forced export_glass_kb fails without a repeat; thumbs_gap_ms (busy PC) 47.5 then 32.3 fails with both numbers in its
+  `::error`; the engine repeat in a fresh process 257 ms (cold) passes; `bench-results.json` holds `gates` and `repeat`.
+  Both runs (working tree / clean clone): check 823 + 44 / 824 + 44 tests; helper 240 OK on 3.12 and 3.8 / the same;
+  e2e 36 + 1 failed (a loopback `ERR_CONNECTION_TIMED_OUT` on a PowerPoint export, retried by the page, counted by the
+  no-warnings test; the re-run 37 passed) / 37 passed; host test 50/50 / 50/50; bench twice each, every gate within its
+  limit (no repeat: local) – deck20 open 361, 364 / 371, 365 ms; big30 read 1112 (within +10 %), 881 / 784, 842 ms; core
+  parse 397.5, 337.8 / 354.5, 350.7 ms; engine first use 226.9, 290.4 / 234.3, 224.6 ms; keypress p95 52, 31 / 24, 25 ms;
+  drag frame 13.9, 10.4 / 11.7, 10.6 ms. Review (fresh sub-agent, PROMPTS Appendix): APPROVE; its four low findings
+  fixed (a failed repeat keeps the report and the JSON, the engine child's failure logged, the report follows the strict
+  rule, "not measured" and two decimals below 10; README "the repeat runs warm"). verified: tests ✓ clean clone ✓ review ✓.
+  After the merge: main's CI run checked through the API.
 
 - ~~**Phase 0 of the next features (F7–F17), for the product owner, 2026-10-20**~~ **Done:** approved 2026-10-20
   (Decisions); B30–B42 in PLAN Part B §8, M13–M17 in PLAN Part C and in the Steps above. The entry as it was: branch `v4/design-charts-icons`,

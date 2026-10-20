@@ -3,10 +3,15 @@
    ever in this process (the loader's code is cold) – under 300 ms (07 §6.4 said 200 ms with a warm model in mind; the
    cold first build measured 225–235 ms at reference speed, the warm one 85–100 ms; recorded in PROGRESS S7.4);
    one scenario value (set the command cell, evaluate, read every formula cell back) under 150 ms. Median of 5 after a
-   warm-up; the time limits scale with this machine's speed like the other benches (tools/calibrate.mjs). */
+   warm-up; the time limits scale with this machine's speed like the other benches (tools/calibrate.mjs). On CI a time
+   over its limit is measured again – in a fresh process, so the first use is cold again – and fails only if over twice
+   (tools/benchgate.mjs, decision 2026-10-20). */
 import { expect, it } from "vitest";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { readWorkbook } from "../src/xlsx/workbook";
 import { CalcModel, loadEngine } from "../src/calc/engine";
@@ -15,15 +20,19 @@ import { CalcModel, loadEngine } from "../src/calc/engine";
 import "../src/calc/wasm/ironcalc-wasm";
 import "../src/calc/wasm/ironcalc-glue";
 import { MAX_FACTOR, speedFactor } from "../../tools/calibrate.mjs";
+import { describe, judge } from "../../tools/benchgate.mjs";
 import { CI_FACTOR_FILE, engineCalibrationMs, engineFactor } from "./wasmcalib";
 
-const FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../tests/corpus/workbooks/recalc/BanksBig.xlsx");
-const FIRST_USE_MS = 300, VALUE_MS = 150, SLACK = 1.1;
+const here = path.dirname(fileURLToPath(import.meta.url));
+const FILE = path.join(here, "../../tests/corpus/workbooks/recalc/BanksBig.xlsx");
+const FIRST_USE_MS = 300, VALUE_MS = 150;
 const median = (a: number[]) => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)];
+/** set in the process that measures again (below): it measures, leaves its numbers in this file and gates nothing */
+const REPEAT_FILE = process.env.SB_BENCH_REPEAT;
 
 it("engine: first use under 300 ms (cold), one scenario value under 150 ms (BanksBig)", async () => {
-  const speed = speedFactor();
-  console.log(`bench · calibration ${speed.ms.toFixed(1)} ms: time limit × ${speed.factor.toFixed(2)}`);
+  const speed = REPEAT_FILE ? { ms: 0, factor: 1 } : speedFactor();
+  if (!REPEAT_FILE) console.log(`bench · calibration ${speed.ms.toFixed(1)} ms: time limit × ${speed.factor.toFixed(2)}`);
   const wb = await readWorkbook(fs.readFileSync(FILE).buffer.slice(0) as ArrayBuffer);
   const t0 = performance.now(); const g = await loadEngine(); const wasmMs = performance.now() - t0;
   const builds: number[] = [], values: number[] = [];
@@ -37,6 +46,8 @@ it("engine: first use under 300 ms (cold), one scenario value under 150 ms (Bank
   }
   // the first use is the cold one: the WASM, then the first model ever built (the JIT is cold too)
   const first = wasmMs + builds[0], value = median(values);
+  console.log(`bench · engine${REPEAT_FILE ? " (repeat, a fresh process)" : ""}: WASM ${wasmMs.toFixed(0)} ms + first model and self-check ${builds[0].toFixed(0)} ms = first use ${first.toFixed(0)} ms (warm models ${median(builds.slice(1)).toFixed(0)} ms); one value ${value.toFixed(1)} ms (median of 5)`);
+  if (REPEAT_FILE) { fs.writeFileSync(REPEAT_FILE, JSON.stringify({ first_use_ms: first, value_ms: value })); return; }
   // on CI the limits also follow how fast the runner runs the engine (decision 2026-10-18; measured after the timed
   // builds, so the first use stays cold); elsewhere the JS calibration alone, as before
   if (process.env.GITHUB_ACTIONS) {
@@ -45,7 +56,24 @@ it("engine: first use under 300 ms (cold), one scenario value under 150 ms (Bank
     console.log(`bench · CI: engine calibration ${ms.toFixed(1)} ms (reference 64): factor ${ef.toFixed(2)}; time limits × ${speed.factor.toFixed(2)}`);
     fs.writeFileSync(CI_FACTOR_FILE, JSON.stringify({ engine_ms: +ms.toFixed(1), factor: +speed.factor.toFixed(2) }));
   }
-  console.log(`bench · engine: WASM ${wasmMs.toFixed(0)} ms + first model and self-check ${builds[0].toFixed(0)} ms = first use ${first.toFixed(0)} ms (warm models ${median(builds.slice(1)).toFixed(0)} ms); one value ${value.toFixed(1)} ms (median of 5)`);
-  expect(first, `first use ${first.toFixed(0)} ms (limit ${FIRST_USE_MS} × ${speed.factor.toFixed(2)} + 10 %)`).toBeLessThan(FIRST_USE_MS * speed.factor * SLACK);
-  expect(value, `one value ${value.toFixed(1)} ms (limit ${VALUE_MS} × ${speed.factor.toFixed(2)} + 10 %)`).toBeLessThan(VALUE_MS * speed.factor * SLACK);
-}, 120_000);
+  const limits = { first_use_ms: FIRST_USE_MS * speed.factor, value_ms: VALUE_MS * speed.factor };
+  const { gates, bad } = await judge({ limits, first: { first_use_ms: first, value_ms: value }, strict: true, again: () => measureAgain() });
+  const report = gates.map(x => `${x.key} ${describe(x)}`).join("; ");
+  console.log(`bench · engine: ${report} (limits ${FIRST_USE_MS} and ${VALUE_MS} ms × ${speed.factor.toFixed(2)})`);
+  expect(bad, report).toEqual([]);
+}, 240_000);
+
+/** this bench once more in a fresh process (a cold engine, as the first time): its first use and one value */
+function measureAgain(): Record<string, number> {
+  const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sb-bench-engine-")), "repeat.json");
+  const cli = path.join(path.dirname(createRequire(import.meta.url).resolve("vitest/package.json")), "vitest.mjs");
+  const r = spawnSync(process.execPath, [cli, "run", "--config", "vitest.bench.config.ts", "--silent=false", "bench/engine.bench.test.ts"],
+    { cwd: path.join(here, ".."), env: { ...process.env, SB_BENCH_REPEAT: out }, encoding: "utf8", timeout: 120_000 });
+  for (const line of (r.stdout || "").split("\n")) if (line.startsWith("bench · ")) console.log(line);
+  try { return JSON.parse(fs.readFileSync(out, "utf8")); }
+  catch {                                                                        // not measured: over (benchgate)
+    console.log(`bench · engine: the repeat measured nothing (exit ${r.status}${r.error ? ", " + r.error.message : ""}): ${(r.stderr || r.stdout || "").trim().split("\n").slice(-8).join(" | ")}`);
+    return {};
+  }
+  finally { fs.rmSync(path.dirname(out), { recursive: true, force: true }); }
+}
