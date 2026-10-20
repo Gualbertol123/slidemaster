@@ -87,10 +87,13 @@ describe("core host", () => {
     const sheet = preset.tables[0].sheet, n0 = p.docs.length;
     const r = await p.port.call("apply", { label: "Bold", ops: [{ op: "cell.patch", sheet, ref: "C5", patch: { b: true } } as Op] });
     expect(r.changed).toBe(true);
-    await until(() => p.docs.length > n0);
-    expect(p.last().change?.local).toBe(true); expect(p.last().ack).toBe(1);
-    expect(p.last().view.edits[sheet].C5).toEqual({ b: true });
-    expect(p.last().history).toMatchObject({ undo: 1, redo: 0, undoLabel: "Bold" });
+    // the edit's own snapshot: the save's "saving" and "saved" (300 ms later, ack 1 too) may already have followed it on a
+    // slow machine (CI, 2026-10-19), so the last snapshot is not necessarily the edit's
+    await until(() => p.docs.slice(n0).some(d => d.change?.local));
+    const edited = p.docs.slice(n0).find(d => d.change?.local)!;
+    expect(edited.ack).toBe(1);
+    expect(edited.view.edits[sheet].C5).toEqual({ b: true });
+    expect(edited.history).toMatchObject({ undo: 1, redo: 0, undoLabel: "Bold" });
     await p.port.call("flush", {});
     expect(srv.doc.edits[sheet].C5).toEqual({ b: true });
     // nothing to change: no history step, but the page still gets its acknowledgement
