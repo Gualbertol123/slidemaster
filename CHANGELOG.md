@@ -16,6 +16,15 @@ What users notice
   tables, last change) with *Delete…*, and the deleted ones with *Restore…*: a deleted setup is kept as a backup on
   the shared folder. A setup open in a window is not deleted – the message says who has it open.
 
+For the maintainer
+* **`Update Slide Builder.bat`** (A3) finds the newest release on the release page (github.com/…/releases/latest)
+  instead of GitHub's API, whose 60 requests an hour are shared by every PC on the office's internet address, and
+  downloads `slidebuilder-<ver>.zip` from there (checked against its `.sha256` file and MANIFEST.json; GitHub's
+  digest too when the API answers). When nothing newer exists it says so – the version in use and GitHub's newest –
+  and changes nothing (no backup). A used-up GitHub limit or no network is one sentence with the time to try again,
+  not a traceback; a used-up limit is no longer retried. The window needs Python 3.8 or newer and says when the
+  update stopped.
+
 ## 4.5.0 - unreleased (docs/next/07 §4, PLAN M11; B21; ADR-016 amended 2026-10-19)
 
 What users notice

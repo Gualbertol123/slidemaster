@@ -1,5 +1,6 @@
 """tools/update.py: connecting an existing folder to GitHub in place and updating it never touches the
 saved setups (decks, defaults, preferences, logo, v2 settings, workbooks, exports)."""
+import datetime
 import hashlib
 import importlib.util
 import io
@@ -10,9 +11,11 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 import zipfile
 from contextlib import redirect_stdout
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from unittest import mock
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -554,6 +557,212 @@ class ReleaseInstallTest(unittest.TestCase):
     def test_version_order(self):
         vs = ["3.10.0", "3.4.0", "3.4.0-rc1", "3.9.2"]
         self.assertEqual(sorted(vs, key=update.version_key), ["3.4.0-rc1", "3.4.0", "3.9.2", "3.10.0"])
+
+
+class FakeGitHub(object):
+    """github.com and api.github.com on 127.0.0.1: `routes` maps a path to (status, headers, body); every request is
+    recorded in `hits`. No real network in the tests."""
+
+    def __init__(self):
+        self.routes, self.hits = {}, []
+        fake = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                fake.hits.append(self.path)
+                status, headers, body = fake.routes.get(self.path, (404, {}, b"Not Found"))
+                self.send_response(status)
+                for k, v in headers.items():
+                    self.send_header(k, v)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        self.server = HTTPServer(("127.0.0.1", 0), Handler)
+        self.url = "http://127.0.0.1:%d" % self.server.server_port
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def close(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+    def api_hits(self):
+        return [h for h in self.hits if h.startswith("/api/")]
+
+    def publish(self, ver, zip_path, sums=None):
+        """a release as release.yml publishes it: /releases/latest -> /releases/tag/v<ver>, the ZIP and its .sha256"""
+        with open(zip_path, "rb") as f:
+            data = f.read()
+        web = "/o/r/releases"
+        dl = "%s/download/v%s/slidebuilder-%s.zip" % (web, ver, ver)
+        self.routes.update({
+            web + "/latest": (302, {"Location": self.url + web + "/tag/v" + ver}, b""),
+            web + "/tag/v" + ver: (200, {}, b"<html>release</html>"),
+            dl: (200, {}, data),
+            dl + ".sha256": (200, {}, (sums or "%s  dist/slidebuilder-%s.zip\n" % (hashlib.sha256(data).hexdigest(), ver)).encode()),
+        })
+
+    def rate_limited(self, path, reset):
+        self.routes[path] = (403, {"X-RateLimit-Limit": "60", "X-RateLimit-Remaining": "0", "X-RateLimit-Reset": str(int(reset))},
+                             b'{"message":"API rate limit exceeded for 203.0.113.7."}')
+
+
+class GitHubReleaseTest(unittest.TestCase):
+    """the one-click update of a side-by-side folder against a fake GitHub: no newer release, the API's limit used up,
+    no network, the download from the release page without the API (A3)"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.dist = tempfile.mkdtemp(prefix="sb-dist-")
+        cls.zips = {v: make_release.build(REPO, v, cls.dist, check_version=False)[0] for v in ("3.4.0", "3.5.0")}
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.dist, ignore_errors=True)
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="sb-gh-")
+        self.root = os.path.join(self.tmp, "Slide Builder")
+        os.makedirs(os.path.join(self.root, "backend"))
+        write(self.root, SAVED)
+        self.gh = FakeGitHub()
+        self.sleep = mock.patch.object(update.time, "sleep")
+        self.sleep.start()
+        self.env = mock.patch.dict(os.environ, {"no_proxy": "127.0.0.1,localhost", "NO_PROXY": "127.0.0.1,localhost"})
+        self.env.start()                 # the fake GitHub is local even on a PC with a proxy
+
+    def tearDown(self):
+        self.env.stop()
+        self.sleep.stop()
+        self.gh.close()
+        update.remove_tree(self.tmp)
+
+    def update(self, *extra):
+        return run("--root", self.root, "--repo", "https://github.com/o/r.git", "--web-url", self.gh.url,
+                   "--api-url", self.gh.url + "/api/repos/o/r", "--yes", *extra)
+
+    def pointer(self):
+        with open(os.path.join(self.root, "app", "current.json"), encoding="utf-8") as f:
+            return json.load(f)["version"]
+
+    def backups(self):
+        d = os.path.join(self.root, "backend", "data", "backups")
+        return sorted(os.listdir(d)) if os.path.isdir(d) else []
+
+    def test_download_from_the_release_page_without_the_api(self):
+        self.assertEqual(run("--root", self.root, "--zip", self.zips["3.4.0"], "--yes")[0], 0)
+        self.gh.publish("3.5.0", self.zips["3.5.0"])
+        self.gh.rate_limited("/api/repos/o/r/releases/tags/v3.5.0", time.time() + 600)
+        rc, out = self.update("--check")
+        self.assertIn("An update is available: 3.4.0 -> 3.5.0.", out)
+        self.assertEqual(self.gh.api_hits(), [])
+        rc, out = self.update()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("checksum matches the release's .sha256 file", out)
+        self.assertIn("its checksum is skipped", out)              # the API's digest is only an extra check
+        self.assertIn("MANIFEST.json verified: version 3.5.0", out)
+        self.assertEqual(self.pointer(), "3.5.0")
+        self.assertEqual(self.gh.api_hits(), ["/api/repos/o/r/releases/tags/v3.5.0"])
+        self.assertIn("/o/r/releases/download/v3.5.0/slidebuilder-3.5.0.zip", self.gh.hits)
+
+    def test_api_digest_checked_when_the_api_answers(self):
+        self.gh.publish("3.5.0", self.zips["3.5.0"])
+        asset = {"name": "slidebuilder-3.5.0.zip", "digest": "sha256:" + "0" * 64, "browser_download_url": "unused"}
+        self.gh.routes["/api/repos/o/r/releases/tags/v3.5.0"] = (200, {}, json.dumps({"tag_name": "v3.5.0", "assets": [asset]}).encode())
+        with self.assertRaises(SystemExit) as e:
+            self.update("--release")
+        self.assertIn("does not match GitHub's checksum", str(e.exception))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "app", "3.5.0")))
+
+    def test_wrong_sha256_file_refused(self):
+        self.gh.publish("3.5.0", self.zips["3.5.0"], sums="0" * 64 + "  dist/slidebuilder-3.5.0.zip\n")
+        self.gh.rate_limited("/api/repos/o/r/releases/tags/v3.5.0", time.time() + 600)
+        with self.assertRaises(SystemExit) as e:
+            self.update("--release")
+        self.assertIn("does not match", str(e.exception))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "app", "3.5.0")))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "app", "current.json")))
+
+    def test_no_newer_release_says_so_and_changes_nothing(self):
+        self.assertEqual(run("--root", self.root, "--zip", self.zips["3.5.0"], "--yes")[0], 0)
+        before = self.backups()
+        self.gh.publish("3.5.0", self.zips["3.5.0"])
+        rc, out = self.update()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("Already up to date (version 3.5.0): this folder runs 3.5.0 and the newest release on GitHub is 3.5.0 - "
+                      "there is no newer one.", out)
+        self.assertEqual(self.backups(), before)                   # no backup, no lock: nothing to do
+        # a version installed by hand is newer than GitHub's newest release: never "updated" back to it
+        self.gh.routes.clear()
+        self.gh.publish("3.4.0", self.zips["3.4.0"])
+        rc, out = self.update()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("No newer release: this folder runs version 3.5.0, which is newer than the newest release on GitHub "
+                      "(3.4.0). Nothing was changed.", out)
+        rc, out = self.update("--check")
+        self.assertIn("No newer release", out)
+        self.assertEqual(self.pointer(), "3.5.0")
+        self.assertFalse([h for h in self.gh.hits if "/download/" in h])
+        self.assertEqual(self.gh.api_hits(), [])
+        self.assertEqual(self.backups(), before)
+        # asked for by number, an older version is installed (the documented way back besides --use)
+        rc, out = self.update("--release", "3.4.0")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.pointer(), "3.4.0")
+
+    def test_rate_limit_is_one_sentence_with_the_time_to_retry(self):
+        self.assertEqual(run("--root", self.root, "--zip", self.zips["3.4.0"], "--yes")[0], 0)
+        before = self.backups()
+        self.gh.routes["/o/r/releases/latest"] = (502, {}, b"bad gateway")       # the web page fails: the API is asked
+        reset = time.time() + 25 * 60
+        self.gh.rate_limited("/api/repos/o/r/releases/latest", reset)
+        for extra in ((), ("--check",)):
+            with self.assertRaises(SystemExit) as e:
+                self.update(*extra)
+            msg = str(e.exception)
+            self.assertIn("60 questions an hour", msg)
+            self.assertIn("Nothing was changed", msg)
+            self.assertIn(datetime.datetime.fromtimestamp(reset).strftime("%H:%M"), msg)
+            self.assertNotIn("Traceback", msg)
+        self.assertEqual(self.gh.api_hits(), ["/api/repos/o/r/releases/latest"] * 2)   # never retried
+        self.assertEqual(self.backups(), before)
+        self.assertEqual(self.pointer(), "3.4.0")
+        # GitHub's secondary limit: Retry-After, 429
+        self.gh.routes["/api/repos/o/r/releases/latest"] = (429, {"Retry-After": "120"}, b"")
+        with self.assertRaises(SystemExit) as e:
+            self.update()
+        self.assertIn("(in 2 minutes)", str(e.exception))
+
+    def test_when_text(self):
+        now = time.mktime((2026, 10, 20, 15, 0, 0, 0, 0, -1))
+        self.assertEqual(update.when_text(now + 25 * 60 - 10, now), "after 15:24 (in 25 minutes)")
+        self.assertEqual(update.when_text(now + 30, now), "after 15:00 (in 1 minute)")
+        self.assertEqual(update.when_text(now + 10 * 3600, now), "after 21/10 01:00 (in 600 minutes)")
+        self.assertIsNone(update.retry_at({}))
+        self.assertEqual(update.retry_at({"X-RateLimit-Reset": str(int(now) - 5)}, now), now)
+
+    def test_no_network_is_one_sentence(self):
+        self.gh.close()                                            # nothing listens there any more
+        with self.assertRaises(SystemExit) as e:
+            self.update("--release")
+        msg = str(e.exception)
+        self.assertIn("Could not reach 127.0.0.1", msg)
+        self.assertIn("try again in a few minutes", msg)
+        self.assertEqual(self.backups(), [])
+        self.gh = FakeGitHub()                                     # for tearDown
+
+    def test_no_release_at_all(self):
+        self.gh.routes["/o/r/releases/latest"] = (302, {"Location": self.gh.url + "/o/r/releases"}, b"")
+        with self.assertRaises(SystemExit) as e:
+            self.update("--release")
+        self.assertIn("GitHub has no published release of o/r", str(e.exception))
+        self.assertEqual(self.gh.api_hits(), [])
+        with self.assertRaises(SystemExit) as e:
+            self.update("--release", "9.9.9")
+        self.assertIn("there is no release v9.9.9", str(e.exception))
 
 
 if __name__ == "__main__":
