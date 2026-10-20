@@ -40,6 +40,7 @@ idempotent.
 | `migrate_v3` | a deck moves from Slide Builder 3 on its first v4 open (under `wb-<key>`: backup, the v3 file frozen first, then the snapshot), `--migrate-all`, rollback (`--rollback`, `--use <3.x>`), `pinned-v3.json` |
 | `exports` | `/api/export-file` (the page's PDF or PNG: temporary file, then atomic rename into `export\`, ` (2)` when locked) and `/api/export-feedback` (`export\feedback\*.json`) |
 | `fonts` | shared font library `data/fonts/` (fonts.json + files; signature-checked uploads, lock `fonts`) |
+| `gfonts` | Google fonts fetched by the helper, not the page (`GET /api/fonts/google`, `/api/fonts/google/file`): google/fonts on GitHub (raw, else jsDelivr), else the CSS API; proxy from `data/proxy.txt`, else `HTTPS_PROXY` / Windows setting (no PAC) |
 | `sysfonts` | this PC's Windows fonts for the core (`GET /sysfonts`, names read with `struct`), and `POST /api/fonts/capture`: fingerprint mode (G0 R7), `data/fonts/system/fingerprints.json` under lock `fonts`; copy mode (W13: the family into the shared library, all faces or none) once `--allow-font-copy "<who confirmed>"` has recorded the licence owner's yes in `data/fonts/system/licence.json` |
 | `convert` | EMF/WMF/TIFF → PNG (GDI+, PowerShell) and .xls (or a protected file) → .xlsx (Excel COM) – Windows only (ported); an .xlsb is read by the page itself since 4.1 |
 | `firstrun` | `--install`: first-time set-up on a PC (5 steps, OK/WARN/FAIL, summary, exit code) |
@@ -81,7 +82,8 @@ python3 -m unittest discover -s tests -v
 * `test_firstrun` – `--install`: the five steps, shortcut fallback `.bat` on a temp desktop (and `.lnk` replacing it),
   shared-folder and journal probes (append twice + fsync, a lost append or a failed flush is a FAIL), exit codes,
   two runs in a row, real self-test
-* `test_fonts` – font library and logo upload/lookup;
+* `test_fonts` – font library and logo upload/lookup; `test_gfonts` – Google fonts fetched by the helper (a fake
+  network: GitHub, jsDelivr, googleapis, the proxy setting, the messages);
   `test_upgrade` – saved-format examples and upgrades; `test_update` – the GitHub updater and side-by-side releases
 * `test_release` – release ZIP and its manifest check;
   `test_sharetest` – the field-test protocols with local processes; `test_anonymise` – the corpus anonymiser

@@ -21,6 +21,9 @@ export interface ExportRes { ok: boolean; files?: string[]; error?: string }
 export interface FontCapture { mode: "fingerprint" | "copy"; family: string; sha1: string; otherHosts?: string[]; copied?: boolean; reason?: string }
 /** a font file of this PC (the helper's /sysfonts index) */
 export interface SysFont { file: string; family: string; subfamily: string; weight: number; italic: boolean; faces: number; size: number }
+/** a Google font as the helper finds it (helper gfonts.py): `file` names a face's file for googleFontFile (a variable
+    file gives several weights); `source` "github" (the google/fonts repository) or "googleapis" */
+export interface GoogleFont { family: string; source: string; license?: string; faces: { weight: number; style: "normal" | "italic"; file: string; variable: boolean; range?: string }[] }
 
 export class ApiError extends Error { constructor(public status: number, msg: string) { super(msg); } }
 
@@ -76,6 +79,9 @@ export interface Backend {
   fonts(): Promise<LibraryFont[]>;
   addFont(f: { family: string; weight: number; style: "normal" | "italic"; source: "upload" | "google"; name: string; range?: string }, data: ArrayBuffer): Promise<LibraryFont[]>;
   removeFont(family: string): Promise<LibraryFont[]>;
+  /** a Google font fetched by the helper, not the page (fonts.googleapis.com does not resolve at the office) */
+  googleFont(family: string): Promise<GoogleFont>;
+  googleFontFile(file: string): Promise<ArrayBuffer>;
   fontUrl(file: string): string;
   /** copies a picture into the shared folder (data/assets); returns the name to use */
   uploadLogo(name: string, data: ArrayBuffer): Promise<string>;
@@ -199,6 +205,9 @@ export const helper: Backend = {
     return (await json<{ fonts: LibraryFont[] }>(req("/api/fonts?" + q, { method: "POST", body: data }))).fonts || [];
   },
   async removeFont(family) { return (await json<{ fonts: LibraryFont[] }>(req("/api/fonts?family=" + encodeURIComponent(family), { method: "DELETE" }))).fonts || []; },
+  // (the helper may try GitHub, jsDelivr and googleapis in turn, each up to 20 s)
+  googleFont: family => json(req("/api/fonts/google?family=" + encodeURIComponent(family), { timeout: WAIT_LONG_MS })),
+  async googleFontFile(file) { return (await req("/api/fonts/google/file?ref=" + encodeURIComponent(file), { timeout: WAIT_LONG_MS })).arrayBuffer(); },
   fontUrl: file => "/fonts/" + encodeURIComponent(file) + "?t=" + encodeURIComponent(TOKEN),
   async uploadLogo(name, data) { return (await json<{ name: string }>(req("/api/logo?name=" + encodeURIComponent(name), { method: "POST", body: data }))).name; },
 };
@@ -266,6 +275,7 @@ export const offline: Backend = {
     LS.set("fonts", lib); return lib;
   },
   async removeFont(family) { const lib = LS.get<LibraryFont[]>("fonts", []).filter(x => x.family.toLowerCase() !== family.toLowerCase()); LS.set("fonts", lib); return lib; },
+  googleFont: offlineOnly, googleFontFile: offlineOnly,
   fontUrl: file => file,
   uploadLogo: offlineOnly,
 };
