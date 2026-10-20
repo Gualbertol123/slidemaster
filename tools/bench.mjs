@@ -175,8 +175,22 @@ async function run(browser, port) {
     /** keypress → pixels on the second slide: 2 untimed edits ("cold"), then 20 timed (p50 / p95 / max) */
     const keypressRun = async () => {
       await page.locator(".thumb").nth(1).click();
-      await page.waitForFunction(() => window.__sbTest.stageIdle());
-      const cell = (await page.locator("#stage .slide > .tw .t").nth(8).boundingBox());
+      // stageIdle() alone raced (seen once, 2026-10-20): it reads the stage's state, and the cell's box was then taken in a
+      // later round trip, from a document that could still hold the previous slide's tables (no box). Wait until the
+      // second slide is current and shown (stageIdle, the stage's slide 1, its thumbnail on) and the cells in the
+      // document are that slide's own (the labels of its table layers' markup, as drawn), and take the cell's box in
+      // the same check – nothing can redraw between the two
+      const cell = await (await page.waitForFunction(() => {
+        const T = window.__sbTest, s = T.stage();
+        if (!T.stageIdle() || !s || s.slide !== 1 || !document.querySelector('.thumb.on[data-i="1"]')) return null;
+        // the labels (<desc>) its table layers' markup holds (core/dl/svg.ts escapes & < > only), and those in the document
+        const want = s.layers.filter(l => l.table !== null).flatMap(l => [...l.svg.join("").matchAll(/<desc>([^<]*)<\/desc>/g)]
+          .map(m => m[1].replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&"))).join("\n");
+        const sl = document.querySelector("#stage .slide");
+        if (!sl || want !== [...sl.querySelectorAll(":scope > .tw desc")].map(d => d.textContent).join("\n")) return null;
+        const c = sl.querySelectorAll(":scope > .tw .t")[8], r = c && c.getBoundingClientRect();
+        return r && r.width > 0 && r.height > 0 ? { x: r.x, y: r.y, width: r.width, height: r.height } : null;
+      }, null, { timeout: 30000 })).jsonValue();
       await page.evaluate(() => {
         // from the Enter that commits to the first frame after the stage's tables show the text (a <desc> of a cell);
         // installed once (a second run – Consulting Navy – reuses them)
