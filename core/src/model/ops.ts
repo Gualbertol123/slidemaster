@@ -85,6 +85,23 @@ export function applyOp(doc: Doc, op: Op | Record<string, unknown>): boolean {
   }
   return false;
 }
+/** an op this page knows whole: a known type whose patch holds only keys this version applies, and an item of a known
+    kind. applyOp skips the rest – a later version's op, key or kind – and a snapshot folded without it would lose it for
+    every page: a 4.1 page did so with 4.3's charts and 4.4's free layouts (AUDIT-2 DATA-7). So a page never compacts
+    while a record holds an op it does not know whole (sync/docsync.ts candidate); a newer page will */
+export function knownOp(op: Op | Record<string, unknown>): boolean {
+  const o = op as Record<string, unknown>, p = o.patch;
+  const only = (...keys: readonly (readonly string[])[]) => isObj(p) && Object.keys(p).every(k => keys.some(ks => ks.includes(k)));
+  switch (o.op) {
+    case "preset.set": return true;
+    case "slide.patch": return only(SLIDE_KEYS, SLIDE_MAPS);
+    case "table.patch": return only(TABLE_KEYS, TABLE_MAPS);
+    case "cell.patch": return only(CELL_KEYS);
+    case "style.patch": return only(STYLE_KEYS, STYLE_MAPS);
+    case "item.patch": return p === null || (only(ITEM_KEYS, ITEM_MAPS) && (!("kind" in (p as object)) || ITEM_KINDS.includes((p as Record<string, unknown>).kind as string)));
+  }
+  return false;
+}
 const isBox = (b: unknown) => isObj(b) && ["x", "y", "w", "h"].every(k => typeof b[k] === "number" && Number.isFinite(b[k])) && (b.w as number) > 0 && (b.h as number) > 0;
 /** map merge: null deletes the map; an object sets (replaces) or deletes (null) each entry; empty maps are removed */
 function mapMerge(target: Record<string, unknown>, key: string, v: unknown) {

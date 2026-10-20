@@ -152,12 +152,22 @@ numbers measured twice). Measured numbers go into the step's line.
 - [x] S11.5 · Close — 637f7b4 (CHANGELOG 4.5.0: B21, the fidelity in two sentences; versions 4.5.0 prepared – release checklist §1). AUDIT §0 on two clean clones of 20ba9e9 (`%TEMP%\sb-work\m11\audit11.sh`, logs `audit-1.log` / `audit-2.log`, 2026-10-19 23:23 – 2026-10-20 00:51), identical results: page reproducible ×2 · check 816 + 44 ×2 · helper OK on 3.12 and 3.8 ×2 (1 skip) · e2e 37 ×2 · parity 0 / dlparity 0 not accepted ×2 · sp negative control detected, dlcheck 8/8 ×2 · load `--ci` 5/5 PASS ×2, 0 lost · export-check: 70 PDFs GT 70 equal ×2; **75 PowerPoint files (every corpus deck × design + the chart corpus): pptxcheck ok 75 ×2, opened in PowerPoint 16 75 ×2, GT 75 equal ×2, chart values equal to the workbook's cells** · helper start → GET / 727–750 ms · bench every gate within ×2 (drag_navy 16.3 once, within +10 %). Open on purpose, for G8: a run's report does not name the fonts PowerPoint substitutes; a picture that cannot be read is left out without a word (as the PDF); the page-number placeholder holds its text (it does not renumber when slides are moved in PowerPoint); tables sit in a group with their cards. verified: tests ✓ clean clone ✓ review ✓
 
 ### M12 · Independent audit of 4.2–4.5
-- [ ] M12 · AUDIT-2.md
+- [x] M12 · AUDIT-2.md — `docs/next/AUDIT-2.md` + `docs/next/audit/features-2.md`, `behaviour-2.md`; fixes on
+  `v4/audit-2-fixes` (from `main` d83e9dd, not pushed): af0a729 DATA-7 (a page never compacts a newer page's records),
+  cc217c3 SEC-6, 9c60077 SEC-7. AUDIT §0's protocol on two clean GitHub clones of d83e9dd and two clean clones of the
+  fixes (page reproducible ×4 · check 816 + 44 → 817 + 44 · helper 238 → 240 on 3.12 and 3.8 · e2e 37 ×4 · parity / dlparity 0 not accepted ×4 · dlcheck 8/8 ×4 · load 5/5 PASS ×4, 0 lost · 70 PDFs + 75 PowerPoint files GT equal, opened in PowerPoint ×4 · 15 + 15 version files ×4 · helper start 719–776 ms, page ready 847 ms; bench every gate within on the quiet runs, the core parse gate failed only while the audit's own experiment ran – PERF-4); the 4.1 page on a 4.5 deck (DATA-7), a 20-value scenario run with two users, the helper
+  attacks with `.pptx` names. Verdict: not yet for the share (REL-1, LIC-1, gates) – Waiting for. verified: tests ✓
+  clean clone ✓ review ✓ (read-only reviews by sub-agents, re-checked)
 
 ## Decisions
 
 (Human decisions the plan needs, e.g. gate G0 outcomes. An agent never writes here on its own.)
 
+- 2026-10-20 · **G8 signed off: PowerPoint export (M11, B21) as built** (product owner, after M11's merge: "i approve,
+  tested all"; recorded by the agent in M12, which found it missing here). The fidelity table of 07 §4.2 (amended)
+  stands; the four "to judge" items of G8 (substituted fonts not named in a run's report, the page-number placeholder
+  holding its text, tables grouped with their card, ~300 native shapes on a Liquid Glass slide) are accepted as they
+  are. The W15 check on PowerPoint 2016 on a corporate PC is still a field check (AUDIT-2 §9).
 - 2026-10-19 · **PowerPoint: slide masters generated, standardised and lean – no bulk pictures, no connections, tables**
   (product owner, in the session that starts M11: "auto generate slidemasters as well for consistency on export,
   everything has to be standardised and lean. no bulk images and connections on slides, use tables etc"; recorded by
@@ -404,7 +414,24 @@ numbers measured twice). Measured numbers go into the step's line.
 
 ## Waiting for
 
-- **M11 · gate G8, for the product owner (2026-10-20):** M11 (PowerPoint, B21, 4.5.0) is merged as one pull request
+- **M12 · AUDIT-2, for the product owner (2026-10-20)** – `docs/next/AUDIT-2.md` (verdict: not yet for the share).
+  (1) **REL-1 / DATA-7 before 4.5 reaches the share:** a Slide Builder 4.0 or 4.1 page that compacts a 4.5 deck deletes
+  its charts, callouts, free layouts, slide looks, gridlines and borders for everybody (reproduced with the real 4.1
+  helper and page). The share runs 4.0.0 and a running helper never learns of an update. `v4/audit-2-fixes` stops this
+  for every later version (4.5 never compacts a newer page's records), but 4.0 / 4.1 cannot be changed: choose (a) a
+  deck-format guard old helpers refuse, as a 4.5.1, (b) a data-format bump that makes old pages reload, or (c) a
+  release rule – every Slide Builder closed on update day, no `--use 4.0.0` / `4.1` afterwards – and correct
+  CHANGELOG 4.3.0 / 4.4.0's "those keep them in the deck". (2) **Merge `v4/audit-2-fixes`** (not pushed: DATA-7
+  af0a729, SEC-6 cc217c3, SEC-7 9c60077, the audit's documents). (3) **LIC-1:** no third-party licence notice ships
+  (React, zustand, fflate, IronCalc, HarfBuzz) – decide the notices file. (4) **Gates:** G5 on a real deck (and its
+  shrinking-spill question), the M7b final sign-off with its four dlparity entries. (5) **A release plan:** 4.1.0–4.5.0
+  are all "unreleased" (no tag after v4.0.0). (6) Lower findings for the agent once you choose: BEH-3 (four CHANGELOG
+  lines), LIM-1 (limits told to users), VER-3 (48 05-rows MISSING, PowerPoint checks to gate), DOC-A…K (README three
+  designs, "formulas are not recalculated", the guide's §6), ARCH-1…5. (7) Field checks still never run: PowerPoint
+  2016 on a corporate PC (W15), Acrobat (W14), the real share with a 4.0 and a 4.5 helper side by side, W1–W14.
+
+- ~~**M11 · gate G8, for the product owner (2026-10-20):**~~ **Done:** G8 signed off (Decisions, 2026-10-20); the W15
+  field check stays open (M12 above). M11 (PowerPoint, B21, 4.5.0) is merged as one pull request
   (see Decisions / the PR). **G8:** on a corporate PC with PowerPoint 2016 (row W15), open three decks exported as
   PowerPoint – one in Liquid Glass, one in Excel or Excel Refined, one in a consulting design – and check: nothing is
   repaired; the fonts are the designs' (a library font substituted is named in the toast); tables are real tables you

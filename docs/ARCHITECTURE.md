@@ -432,7 +432,9 @@ records past the snapshot and any of:
   for **5 s** (`REST_MS`).
 
 A compaction first reads the tails again; it does nothing on a round where a journal could not be read (`skipped`) or
-the tail had no `now` (the helper did not trust the file server's clock). The candidate snapshot (`candidate`,
+the tail had no `now` (the helper did not trust the file server's clock), and nothing while a record past the snapshot
+holds an op, a patch key or an item kind this page does not know (`knownOp`, `ops.ts`: a newer page's – folded as
+nothing, it would be lost for every page; AUDIT-2 DATA-7). The candidate snapshot (`candidate`,
 `docsync.ts:328`) folds only records
 
 * appended at least **30 s** before the last complete tail's `now` (`COMPACT_MARGIN_MS`): a journal created since may

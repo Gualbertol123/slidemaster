@@ -81,6 +81,38 @@ class ExportTests(TempDirs):
         # a slide named with a tab or a line break (Alt+Enter in Excel) must not reach the file system
         self.assertEqual(exports.export_file("Deck - Q3\tsales\nEMEA\x00.pdf", b"%PDF-x")["files"], ["Deck - Q3 sales EMEA.pdf"])
 
+    def test_export_file_never_names_a_device(self):
+        # AUDIT-2 SEC-7 (AUDIT SEC-7): CON, NUL, COM1, LPT¹ … are devices on older Windows and on SMB servers –
+        # prefixed "_" as the page's run names are (core/src/export/names.ts safeValue)
+        for name, want in [("CON.pptx", "_CON.pptx"), ("nul.pdf", "_nul.pdf"), ("COM1.png", "_COM1.png"), ("CON .pptx", "_CON.pptx"),
+                           ("LPT¹.pdf", "_LPT¹.pdf"), ("aux.backup.pdf", "_aux.backup.pdf"), ("CONSOLE.pdf", "CONSOLE.pdf")]:
+            data = b"%PDF-x" if name.endswith(".pdf") else make_png(2, 2) if name.endswith(".png") else self.pptx()
+            self.assertEqual(exports.export_file(name, data)["files"], [want], name)
+
+    def test_export_file_name_fits_a_deep_export_folder(self):
+        # AUDIT-2 SEC-6 (AUDIT SEC-6): a long name in a deep folder made "<folder>\<name>.<32 hex>.tmp" longer than
+        # Windows' 260 characters – the save failed as "not found" (404). The name is cut so the temporary file's full
+        # path stays under 240 characters (the page's run names: names.ts PATH_LIMIT); a folder too deep for any name
+        # is said
+        deep = os.path.join(self.tmp, "d" * (150 - len(self.tmp)))
+        for name in ("v" * 200 + ".pptx", "Q3 \U0001F4C8 " * 40 + ".pdf"):
+            data = self.pptx() if name.endswith(".pptx") else b"%PDF-x"
+            saved = exports.export_file(name, data, deep)["files"][0]
+            self.assertLess(len((os.path.join(deep, saved) + ".%s.tmp" % ("0" * 32)).encode("utf-16-le")) // 2, 240, saved)
+            self.assertTrue(os.path.isfile(os.path.join(deep, saved)))
+            self.assertEqual(os.path.splitext(saved)[1], os.path.splitext(name)[1])
+        self.assertFalse([n for n in os.listdir(deep) if n.endswith(".tmp")])
+        with self.assertRaisesRegex(exports.ExportError, "too long"):
+            exports.export_file("x.pdf", b"%PDF-x", os.path.join(self.tmp, "e" * (200 - len(self.tmp))))
+
+    @staticmethod
+    def pptx():
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("[Content_Types].xml", "<Types/>")
+            z.writestr("ppt/presentation.xml", "<p:presentation/>")
+        return buf.getvalue()
+
     def test_export_file_refuses_other_files(self):
         for name, data in [("x.exe", b"%PDF-1.7"), ("x.html", b"<html>"), ("x.pdf", b""), ("x.pdf", b"MZ"),
                            ("x.png", b"%PDF-1.7"), ("", b"%PDF-1.7"), ("x", b"%PDF-1.7")]:

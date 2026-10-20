@@ -12,7 +12,7 @@
    journals into a new snapshot: more than 2 000 records, a writer idle for over 24 h, or – when it is the only
    one there – the deck at rest); the helper takes it only if nobody compacted meanwhile (compare-and-set on gen). */
 import type { Op, WorkbookDoc } from "../model/types";
-import { applyOps, inverseOf, applyOp } from "../model/ops";
+import { applyOps, inverseOf, applyOp, knownOp } from "../model/ops";
 import { firstCopy, fold, nextSnapshot, recordId, validRecord, type DeckRecord, type DeckSnapshot, type Folded } from "../model/fold";
 
 export interface TailJournal { offset: number; records: DeckRecord[]; /** each record's end offset */ ends?: number[] }
@@ -333,6 +333,10 @@ export class DocSync {
     if (this.mine && (this.mine[0] === this.writer || this.mine[0].startsWith(this.writer + "~")))
       F[this.mine[0]] = Math.max(F[this.mine[0]] || 0, this.mine[1]);
     if (this.lastFullTail == null) return null;
+    // a record of a newer page (an op, key or item kind this page does not know) would be folded as nothing and lost
+    // for every page: nothing is compacted while one is past the snapshot – a newer page compacts it (AUDIT-2 DATA-7).
+    // Not just that record: the records after it in Lamport order must not be folded before it either
+    for (const e of this.entries.values()) if (!e.rec.ops.every(knownOp)) return null;
     const cutoff = this.lastFullTail - this.margin, seen = this.snap.seen || {};
     // each journal's records past the snapshot, in file order
     const byJ = new Map<string, { end: number; id: string }[]>();
