@@ -65,6 +65,11 @@ def save_export(filename, data, export_dir=None):
 # names a run's files (core/src/export/names.ts RESERVED; AUDIT-2 SEC-7)
 RESERVED = re.compile(r"^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])$", re.I)
 
+# the temporary file's full path ("<folder>\<name>.<32 hex>.tmp", util.write_tmp) is kept under this many characters –
+# Windows' limit is 260 – as the page's run names are (names.ts PATH_LIMIT; AUDIT-2 SEC-6)
+PATH_LIMIT = 240
+TMP_EXTRA = 1 + 32 + 4
+
 EXPORT_FILE_TYPES = {".pdf": b"%PDF-", ".png": b"\x89PNG\r\n\x1a\n", ".pptx": b"PK\x03\x04"}
 
 
@@ -92,8 +97,18 @@ def export_file(name, data, export_dir=None):
         raise ExportError("the exported file is empty or not a %s file" % ext[1:].upper())
     if RESERVED.match(stem.split(".")[0].strip()):
         stem = "_" + stem
+    # Windows counts a path in UTF-16 units (an emoji is two)
+    u16 = lambda s: len(s.encode("utf-16-le")) // 2
+    folder = os.path.abspath(export_dir or paths.EXPORT_DIR)
+    room = min(200, PATH_LIMIT - 2 - u16(folder) - TMP_EXTRA - len(ext))
+    if room < 1:
+        raise ExportError("the export folder's path is too long (%d characters) for a file name" % u16(folder))
+    stem = stem[:room]
+    while u16(stem) > room:
+        stem = stem[:-1]
+    stem = stem.rstrip(" .") or "_"
     t0 = time.time()
-    saved = save_export(stem[:200] + ext, data, export_dir)
+    saved = save_export(stem + ext, data, export_dir)
     log("exported %s (%d bytes) in %.2fs" % (saved, len(data), time.time() - t0))
     return {"ok": True, "files": [saved]}
 

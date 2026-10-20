@@ -89,6 +89,22 @@ class ExportTests(TempDirs):
             data = b"%PDF-x" if name.endswith(".pdf") else make_png(2, 2) if name.endswith(".png") else self.pptx()
             self.assertEqual(exports.export_file(name, data)["files"], [want], name)
 
+    def test_export_file_name_fits_a_deep_export_folder(self):
+        # AUDIT-2 SEC-6 (AUDIT SEC-6): a long name in a deep folder made "<folder>\<name>.<32 hex>.tmp" longer than
+        # Windows' 260 characters – the save failed as "not found" (404). The name is cut so the temporary file's full
+        # path stays under 240 characters (the page's run names: names.ts PATH_LIMIT); a folder too deep for any name
+        # is said
+        deep = os.path.join(self.tmp, "d" * (150 - len(self.tmp)))
+        for name in ("v" * 200 + ".pptx", "Q3 \U0001F4C8 " * 40 + ".pdf"):
+            data = self.pptx() if name.endswith(".pptx") else b"%PDF-x"
+            saved = exports.export_file(name, data, deep)["files"][0]
+            self.assertLess(len((os.path.join(deep, saved) + ".%s.tmp" % ("0" * 32)).encode("utf-16-le")) // 2, 240, saved)
+            self.assertTrue(os.path.isfile(os.path.join(deep, saved)))
+            self.assertEqual(os.path.splitext(saved)[1], os.path.splitext(name)[1])
+        self.assertFalse([n for n in os.listdir(deep) if n.endswith(".tmp")])
+        with self.assertRaisesRegex(exports.ExportError, "too long"):
+            exports.export_file("x.pdf", b"%PDF-x", os.path.join(self.tmp, "e" * (200 - len(self.tmp))))
+
     @staticmethod
     def pptx():
         buf = io.BytesIO()
