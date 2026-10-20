@@ -1,7 +1,7 @@
 # 09 · More charts, lines and annotations, snapping, icons, hidden rows, delete-versions, painter, Excel conditional formats, new slides (Slide Builder 4.6+)
 
-**Status: Phase 0, design only, 2026-10-20. Nothing in this document ships until the product owner answers §9 and
-approves the B-items of §7.3.** Written against `main` 36b75a7 (4.5.0 with AUDIT-2 and its three fixes merged, PR #22;
+**Status: approved by the product owner on 2026-10-20** ("approved"; Q1 / Q17 yes, Q2 the legend, Q18 same width,
+the other questions as proposed or asked again at their step – PROGRESS Decisions; B30–B42 in PLAN Part B §8). Written against `main` 36b75a7 (4.5.0 with AUDIT-2 and its three fixes merged, PR #22;
 the code is that of af0a729, so the path:line citations below hold for both). The rules of `PLAN.md`
 Part A hold for every milestone below: one milestone = one branch = one pull request, one commit per step, `PROGRESS.md`
 ticked with measured numbers, the double-check protocol of `PROMPTS.md` (its standing block, with B-numbers from B30),
@@ -399,7 +399,7 @@ checks the value.
 | Axes | `line` (axis line), `text` tick labels (the axis `num` format or the first cell's format, the workbook's locale: Italian `11.576` with a dot), optional gridlines (`line`, the design's rule colour) | the right axis only when a visible series uses `y2` |
 | Category groups, dividers | tick labels per group; divider `line` between groups (dash as styled) | |
 | Data labels | `text`; positions above / below / left / right / center / inside end / inside base / outside end; collision: a label that would overlap another of the same series moves to the other side, else hides (Issues: none – it is cosmetic) | `ofTarget`: value ÷ target, "97 %" (the workbook's percentage style, Italian space before % as the owner's chart) |
-| Target bars | the filled `rect` (the value) and over it the outlined `rect` of the target's height (stroke 1.5 px in the series colour, no fill), **the same width** – what PowerPoint can draw too (§4.2); the label inside the fill (white bold when the fill is dark, luminance < .6). The review picture shows the owner's inset look (fill 5 px inside the outline); G9 decides between it and the same-width look that PowerPoint reproduces exactly (Q18) | |
+| Target bars | the filled `rect` (the value) and over it the outlined `rect` of the target's height (stroke 1.5 px in the series colour, no fill), **the same width** – what PowerPoint can draw too (§4.2); the label inside the fill (white bold when the fill is dark, luminance < .6). Decided 2026-10-20 (Q18): the same width everywhere (the review picture still showed the inset look) | |
 | Marks | arrow: `line` + `path` head; line / band: `line` / `rect` with alpha; icon: the icon's `path`s; text: `text` | data coordinates → plot px each build |
 | Legend | `rect` swatch (or a `line` + marker for line series) + `text` per entry, at `legendAt`; hidden entries skipped; "inside" positions draw a card behind it in the design's material | |
 | Title, frame | `text`; `titleRule` = a `line` under the title (the reference chart's rule); `frame` = a `rect` stroke round the chart | |
@@ -840,6 +840,9 @@ Effort (one engineer, the rhythm of M7–M11): M13 2 weeks, M14 5, M15 4, M16 4,
 ---
 
 ## 9. Questions for the product owner (answers go under PROGRESS "Decisions"; nothing of §8 starts before 1–6)
+
+*Answered 2026-10-20 (PROGRESS Decisions): 1 and 17 yes; 2 the legend; 18 same width; 4–8, 10, 13–16 as proposed;
+3, 9, 11, 12, 19 asked again at S14.2, S16.3, S15.2, S13.4, S16.3.*
 
 1. **Format guard (B41).** A deck that gets a chart, callout, free layout, look, cell gridline / border or any 4.6
    object can no longer be edited by 4.0–4.5 (they show it read-only, with their existing "damaged – tell the

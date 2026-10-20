@@ -1,6 +1,6 @@
 # ADR-019: A deck that holds objects 4.0 does not know is marked for 4.6+ and raised to format 5 before they are written
 
-* **Status:** proposed (Phase 0 design `09-charts-annotations-icons.md` §1, 2026-10-20; needs §9 Q1, Q14, Q17)
+* **Status:** accepted 2026-10-20 (product owner; Phase 0 design `09-charts-annotations-icons.md` §1, 2026-10-20; answered: §9 Q1, Q14, Q17)
 * **Deciders:** product owner, maintainers
 * **Related:** AUDIT-2 DATA-7 and REL-1; ADR-002 (ops), ADR-006 (journal storage); README §4.4; `knownOp` (af0a729)
 

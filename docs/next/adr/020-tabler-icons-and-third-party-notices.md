@@ -1,6 +1,6 @@
 # ADR-020: The Tabler icon set is vendored into the core worker, unpacked on first use; notices ship for every runtime dependency
 
-* **Status:** proposed (Phase 0 design `09-charts-annotations-icons.md` §2.4, §3.5, 2026-10-20; needs §9 Q10, Q11)
+* **Status:** accepted 2026-10-20 (product owner; Phase 0 design `09-charts-annotations-icons.md` §2.4, §3.5, 2026-10-20; §9 Q10 answered, Q11 asked again at S15.2)
 * **Deciders:** product owner, maintainers
 * **Related:** ADR-004 (display list; amended below), ADR-013 (vendoring pattern of IronCalc), AUDIT-2 LIC-1 and ARCH-4
 
