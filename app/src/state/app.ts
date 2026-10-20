@@ -370,7 +370,10 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   if (get().doc.open && get().doc.save === "error") unsavedElsewhere = true;
   if (get().doc.open && get().doc.save === "error") toast("⚠ The changes to “" + esc(get().deck.file?.name || "") + "” are not saved yet – they keep being retried. Keep this window open until they are saved.", [], true);
   let preset = doc.preset, newPreset: Preset | null = null;
-  if (preset?.links?.length) { await linkAll(preset.links); stale(); }
+  // the preset's linked workbooks join once that preset is the one used (its wizard, or the deck) – not before the
+  // preset box: a setup deleted there (B44) would leave its links in the mirror, listed by the new file's wizard
+  let linked = false;
+  const linkPreset = async () => { if (!linked && preset?.links?.length) { linked = true; await linkAll(preset.links); stale(); } };
   try {
     while (preset && askUser) {
       const choice = await presetBox(name, preset, backend.served && !(deck.key === deckKey && get().doc.open));
@@ -384,7 +387,7 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
         if (preset) continue;                                 // (someone saved one meanwhile: asked about that one)
         break;
       }
-      if (choice === "wizard") { const np = await runWizard(wb, name, preset); if (np) newPreset = np; }
+      if (choice === "wizard") { await linkPreset(); const np = await runWizard(wb, name, preset); if (np) newPreset = np; }
       break;
     }
     if (!preset) {
@@ -395,7 +398,7 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
         if (!np) { if (gen === openGen) patch("deck", { opening: "" }); return; }
         newPreset = np;
       }
-    }
+    } else if (!newPreset) await linkPreset();             // "Continue with preset", or opened without asking
     stale();
     await core().call("ensure", { book: wb.book, names: presetSheets(newPreset || preset) });   // only the sheets the slides use
   } finally { hideBusy(); }
