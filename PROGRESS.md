@@ -414,6 +414,25 @@ numbers measured twice). Measured numbers go into the step's line.
 
 ## Waiting for
 
+- **Phase 0 of the next features (F7–F17), for the product owner, 2026-10-20** – branch `v4/design-charts-icons`,
+  branched from `main` 36b75a7 (AUDIT-2 and its fixes merged, PR #22), design only, no product code. Asked by the owner on
+  2026-10-20: F7 more chart types and combined charts (their reference chart "Loans Volume – Weekly Evolution"), F8
+  snapping for every object, F9 lines and annotations, F10 the Tabler icon library, F11 hidden rows / columns on a slide,
+  F12 a fuller format painter, F13 everything saved / merged / undoable / exported, F14 delete-versions; in the same
+  message F15 legend control ("remove single index items, whole index, multiple positions"), F16 *New slide* and *Add
+  table*, F17 more of Excel's conditional formats (icon sets with colours). Read `docs/next/09-charts-annotations-icons.md`
+  (§0 what exists, §1 the format guard against AUDIT-2 DATA-7 / REL-1, §2 data model, §3 rendering, §4 PDF / PowerPoint,
+  §5 snapping, §6 the persistence audit of F13, §7 rows / B-items / budgets, §8 milestones M13–M17, §9 questions) and
+  ADR-019 (per-deck format guard), ADR-020 (Tabler icons, `Stroke.join`, third-party notices – AUDIT-2 LIC-1); look at the
+  pictures `review/P09/index.html` (`python spikes/charts/make_books.py` then `node tools/p09-package.mjs --tabler <the
+  @tabler/icons 3.49.0 package folder>`; not committed). Then answer **09 §9 Q1–Q19** under Decisions and approve or amend
+  the B-items **B30–B42** (09 §7.3): B30 more charts · B31 legend control · B32 snapping for every object · B33 lines and
+  annotations · B34 icon library (+ ≈ 0.6 MB page) · B35 (optional) Tabler icons in the toolbars · B36 hidden rows /
+  columns on a slide · B37 delete-versions · B38 fuller painter · B39 more Excel conditional formats · B40 *New slide* /
+  *Add table* · B41 decks with objects newer than 4.0 open only in 4.6+ (the format guard) · B42 third-party notices.
+  PLAN Part B §8 and Part C and the Steps of this file are updated only after the answer "approved". Nothing is built
+  before it.
+
 - **M12 · AUDIT-2, for the product owner (2026-10-20)** – `docs/next/AUDIT-2.md` (verdict: not yet for the share).
   (1) **REL-1 / DATA-7 before 4.5 reaches the share:** a Slide Builder 4.0 or 4.1 page that compacts a 4.5 deck deletes
   its charts, callouts, free layouts, slide looks, gridlines and borders for everybody (reproduced with the real 4.1

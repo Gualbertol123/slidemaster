@@ -1,0 +1,58 @@
+{
+ "workbook": "report-drop.xlsx",
+ "ops": [
+  {
+   "op": "preset.set",
+   "preset": {
+    "sheets": [
+     "SLIDE_1"
+    ],
+    "tables": [
+     {
+      "id": "dhnms9c",
+      "sheet": "SLIDE_1",
+      "kind": "markers",
+      "anchor": "B3",
+      "index": 0
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "title": "Loans and deposits – version “Chief”: 3 rows and 2 columns deleted, 6 cells emptied",
+      "tables": [
+       "dhnms9c"
+      ],
+      "notes": {
+       "dhnms9c:bottom": {
+        "text": "",
+        "auto": {
+         "groups": [],
+         "top": 2,
+         "noun": "bank",
+         "detail": "full",
+         "share": true,
+         "breadth": true,
+         "missing": true,
+         "mode": "summary"
+        }
+       }
+      }
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {
+       "SLIDE_1": [
+        "F6:G8"
+       ]
+      }
+     }
+    ]
+   }
+  }
+ ]
+}
