@@ -68,7 +68,11 @@ What users notice (S14.5)
   which entries it lists; category groups (another range's categories beside the first) with their labels and dividers;
   marks at the selected point – an arrow from the axis, an icon or a text above it, a line or a band to the next point –
   with their text, icon, colour and place; a frame and a line under the title. Each change is one undo step, and two
-  people changing two different series at once both keep their change.
+  people changing two different series at once both keep their change, as do two people adding a series (or a group,
+  or a mark) at the same time. Two people changing the same series at once: the later change wins – also when one
+  sets a point's colour and the other the series' cells.
+- A pie switched to a column, line or other series chart keeps its slice colours (as the points' colours) and its
+  name and value labels.
 - A click on a chart's point or mark selects it (a ring shows it; the status line names it).
 - A stack per series is not offered: PowerPoint's native charts stack a whole chart, never one series apart, so it
   could not be exported (the panel shows it switched off and says why); the chart's own Stack setting is there.

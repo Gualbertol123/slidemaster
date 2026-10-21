@@ -1,7 +1,9 @@
 /* The chart panel's changes (S14.5, CT-08; docs/next/09 §2.2, §8 M14): each builds ONE item.patch from the chart as it
    is now, so every change is one undo step, and touches only the entries it changes – a whole series, group, axis or
    mark (item.patch merges these maps per entry) –, so two people changing two series (or a series and an axis) at once
-   both keep their change; the same series: the later one wins (09 §2.2, Q13). Pure functions of the item (tested on
+   both keep their change; the same series: the later one wins (09 §2.2, Q13) – a point's setting and a series' cells
+   included (`points` live in the series entry). A NEW series, group or mark gets a random id (newEntryId, as
+   newItemId does for items), so two people adding one at once add two (S14.5 review 1). Pure functions of the item (tested on
    their own, app/tests/chart-panel.test.tsx; no page state here, so the core's export runs them in node too); chart-send.ts
    sends them. */
 import type { ChartAxis, ChartGroup, ChartItem, ChartMark, ChartSeries, ChartType, DataRef, ItemPatch, LegendAt, MarkAt, SeriesType } from "@slide-builder/core/model/types";
@@ -16,6 +18,7 @@ export const CHART_TYPES: { t: ChartType; label: string }[] = [
 /** what a series may be in a combo: Excel's own combo set (09 §2.2: bar and scatter need axes of their own) */
 export const COMBO_TYPES: SeriesType[] = ["column", "line", "area"];
 export const isSeriesType = (t: ChartType) => t !== "pie" && t !== "donut";
+const HEX = /^#[0-9A-Fa-f]{6}$/;
 /** every series of the chart in its order (n, then id) – hidden ones too (the panel lists them, greyed) */
 export function allSeries(it: ChartItem): [string, Ser][] {
   return Object.entries(it.sers && typeof it.sers === "object" ? it.sers : {}).filter(([, s]) => s && typeof s === "object" && Array.isArray(s.vals))
@@ -24,9 +27,15 @@ export function allSeries(it: ChartItem): [string, Ser][] {
 const sorted = <T extends { n: number }>(m: Record<string, T> | undefined) => Object.entries(m && typeof m === "object" ? m : {}).filter(([, g]) => g && typeof g === "object")
   .sort(([a, p], [b, q]) => (+p.n || 0) - (+q.n || 0) || (a < b ? -1 : a > b ? 1 : 0));
 export const allGroups = (it: ChartItem): [string, ChartGroup][] => sorted(it.groups);
-/** an id no entry of `m` has: prefix + 1, 2, … */
+/** an id no entry of `m` has: prefix + 1, 2, … – only for an entry two writers would make the SAME (the type switch's
+    first series, the first group of the chart's present categories): both then write one equal entry */
 export function freeId(m: Record<string, unknown> | undefined, prefix: string): string {
   for (let k = 1; ; k++) if (!m || !(prefix + k in m)) return prefix + k;
+}
+/** a new entry's id: prefix + 5 random base-36 characters (none of `m`'s) – two writers adding at once never make the
+    same id, so item.patch (which replaces a whole entry) keeps both additions (S14.5 review 1) */
+export function newEntryId(m: Record<string, unknown> | undefined, prefix: string, rnd: () => number = Math.random): string {
+  for (;;) { const id = prefix + rnd().toString(36).slice(2, 7).padEnd(5, "0"); if (!m || !(id in m)) return id; }
 }
 const nextN = (m: Record<string, { n: number }> | undefined) => Math.max(0, ...Object.values(m || {}).filter(x => x && typeof x === "object").map(x => +x.n || 0)) + 1;
 /** an entry with these keys set (a null or undefined value: the key removed) */
@@ -39,10 +48,18 @@ function withKeys<T extends object>(cur: T, p: Record<string, unknown>): T {
 /* ---- the chart ---- */
 /** the type switch: a chart without series (a pie of one range, 4.3–4.6) gets its first series from its own numbers –
     `sers: {s1: {n: 1, vals: [values]}}`, `values` kept (09 §2.2) –, named as the pie's series name when it had one; its
-    names (`labels`) stay its categories. Back to pie or donut: the series are kept (switching again finds them) */
+    names (`labels`) stay its categories. The pie's own slice colours become the points' colours and its labels the
+    series' labels (S14.5 review 6: "label" → category, "value" → value; its "percent" – a share of the whole pie – has
+    no column / line counterpart, so it is not carried). Back to pie or donut: the series are kept (switching again finds
+    them). The first series' id is "s1" (freeId): two writers switching at once write one equal series */
 export function typePatch(it: ChartItem, t: ChartType): ItemPatch {
   if (!isSeriesType(t) || allSeries(it).length) return { type: t };
-  const s1: ChartSeries = { n: 1, vals: [it.values], ...(typeof it.series === "string" && it.series ? { name: it.series } : {}) };
+  const points: Record<string, PointSet> = {};
+  for (const [k, v] of Object.entries(it.colors && typeof it.colors === "object" ? it.colors : {}))
+    if (/^\d+$/.test(k) && typeof v === "string" && HEX.test(v)) points[k] = { color: v.toUpperCase() };
+  const show = (Array.isArray(it.show) ? it.show : []).flatMap(x => x === "label" ? ["category" as const] : x === "value" ? ["value" as const] : []);
+  const s1: ChartSeries = { n: 1, vals: [it.values], ...(typeof it.series === "string" && it.series ? { name: it.series } : {}),
+    ...(Object.keys(points).length ? { points } : {}), ...(show.length ? { labels: { show } } : {}) };
   return { type: t, sers: { [freeId(it.sers, "s")]: s1 } };
 }
 export const stackPatch = (v: "none" | "stacked" | "percent"): ItemPatch => ({ stack: v === "none" ? null : v });
@@ -57,7 +74,7 @@ export function numOrNull(v: string, lo = -Infinity, hi = Infinity): number | nu
 /* ---- series ---- */
 /** a new series of these cells, after the others (its name: the text beside its cells, until one is typed) */
 export function addSeriesPatch(it: ChartItem, vals: DataRef): ItemPatch {
-  return { sers: { [freeId(it.sers, "s")]: { n: nextN(it.sers), vals: [vals], ...(it.type === "combo" ? { type: "line" as const } : {}) } } };
+  return { sers: { [newEntryId(it.sers, "s")]: { n: nextN(it.sers), vals: [vals], ...(it.type === "combo" ? { type: "line" as const } : {}) } } };
 }
 /** a series removed – with its legend entry and the marks that stand on it (they would point at nothing) */
 export function removeSeriesPatch(it: ChartItem, id: string): ItemPatch {
@@ -106,12 +123,13 @@ export const legendHidePatch = (key: string, hide: boolean): ItemPatch => ({ leg
 
 /* ---- category groups and dividers ---- */
 /** a category group of these cells after the others. The first one: the chart's present categories (its names range,
-    when it has one) become a group before it, so they stay where they are */
+    when it has one) become a group before it, so they stay where they are (that one "g1": two writers make it equal;
+    the new group a random id, so both writers' groups stay) */
 export function addGroupPatch(it: ChartItem, cats: DataRef): ItemPatch {
   const groups: Record<string, ChartGroup> = {};
   let n = nextN(it.groups);
   if (!allGroups(it).length && it.labels) { groups[freeId(it.groups, "g")] = { n: 1, cats: it.labels }; n = 2; }
-  const id = freeId({ ...(it.groups || {}), ...groups }, "g");
+  const id = newEntryId({ ...(it.groups || {}), ...groups }, "g");
   groups[id] = { n, cats, ...(n > 1 ? { divider: { dash: "dashed" as const } } : {}) };
   return { groups };
 }
@@ -128,15 +146,25 @@ export function removeGroupPatch(it: ChartItem, id: string): ItemPatch {
 /* ---- marks ---- */
 export type MarkKind = "arrow" | "icon" | "text" | "line" | "band";
 /** a new mark at a point (the selected one): an arrow from the axis's floor up to it, an icon or a text above it, a line
-    or a band from it to the next point of its series */
-export function addMarkPatch(it: ChartItem, kind: MarkKind, at: { s: string; i: number }): ItemPatch {
+    or a band from it to the next point of its series. null – nothing to stand on (S14.5 review 3): the series is gone
+    (removed, undone, another writer), or `len` (the series' points, when known) has no such point, or – a line or a
+    band – no next one */
+export function addMarkPatch(it: ChartItem, kind: MarkKind, at: { s: string; i: number }, len?: number): ItemPatch | null {
+  if (!markFits(it, kind, at, len)) return null;
   const a: MarkAt = { s: at.s, i: at.i }, next: MarkAt = { s: at.s, i: at.i + 1 };
   const m: ChartMark = kind === "arrow" ? { kind, a, b: "floor", style: { w: 1.5, heads: { a: "triangle" } } }
     : kind === "icon" ? { kind, a, icon: "tabler:target", size: 26, dy: -40 }
       : kind === "text" ? { kind, a, text: "Note", dy: -14, fmt: { b: true } }
         : kind === "line" ? { kind, a, b: next, style: { w: 1.5, dash: "dashed" } }
           : { kind, a, b: next };
-  return { marks: { [freeId(it.marks, "m")]: m } };
+  return { marks: { [newEntryId(it.marks, "m")]: m } };
+}
+/** whether a mark of this kind can stand at this point: its series is there, the point is one of its `len`, and a
+    line or a band has a next point */
+export function markFits(it: ChartItem, kind: MarkKind, at: { s: string; i: number } | null | undefined, len?: number): boolean {
+  if (!at || !it.sers?.[at.s] || !Number.isInteger(at.i) || at.i < 0) return false;
+  if (len === undefined) return true;
+  return at.i < len && (kind !== "line" && kind !== "band" || at.i + 1 < len);
 }
 export function markPatch(it: ChartItem, id: string, p: Partial<Record<keyof ChartMark, unknown>>): ItemPatch | null {
   const cur = it.marks?.[id]; if (!cur) return null;

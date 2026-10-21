@@ -1525,6 +1525,86 @@ test.describe.serial("two people, one shared folder", () => {
     await lastFileSaved("anna", "report.xlsx");
   });
 
+  test("series charts (S14.5, CT-08): the type switch, a series from another sheet dragged in the sheet view, reordered, on the right axis; undo step by step", async ({ page }) => {
+    await openApp(page, ANNA);
+    await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
+    // the slide with the bank table, as the charts test above
+    let si = -1;
+    for (let i = 0; i < await page.locator(".thumb").count() && si < 0; i++) {
+      await page.locator(".thumb").nth(i).click(); await page.locator(`.thumb.on[data-i="${i}"]`).waitFor();
+      if (await page.locator("#stage .slide .t", { hasText: /^Alpha$/ }).first().waitFor({ timeout: 4000 }).then(() => true, () => false)) si = i;
+    }
+    expect(si).toBeGreaterThanOrEqual(0);
+    const items = () => (doc().preset.slides[si].items || {}) as Record<string, any>;
+    const undoSteps = () => page.evaluate(() => (window as any).__sbTest.history().undo as number);
+    const order = () => Object.entries(items()[id].sers || {}).sort(([a, p]: any, [b, q]: any) => p.n - q.n || (a < b ? -1 : 1)).map(([k]) => k);
+    // a pie of Numbers!B9:B11 (CH-02's way: the sheet view, without names)
+    await page.click("#chartBtn"); await page.click('[data-a="chart-pick"]');
+    await page.selectOption("#pkSheet", "Numbers");
+    await page.locator('#pkRange td[data-r="9"][data-c="2"]').click();
+    await page.locator('#pkRange td[data-r="11"][data-c="2"]').click({ modifiers: ["Shift"] });
+    await page.click("#pkUse"); await page.click("#pkNoNames");
+    await expect(page.locator(".itembox[data-kind=chart]")).toHaveCount(1, { timeout: 10_000 });
+    await pollFile(() => Object.keys(items()).length, { timeout: 10_000 }).toBe(1);
+    const id = Object.keys(items())[0], nums = { sheet: "Numbers", range: "B9:B11" };
+    await expect(page.locator("#chartPanel")).toBeVisible();
+    const u0 = await undoSteps();
+    // the type switch: one step; the old chart's numbers become its first series; the series panel replaces the slices
+    await page.click('#chartPanel [data-ctype="column"]');
+    await pollFile(() => [items()[id].type, items()[id].sers], { timeout: 10_000 }).toEqual(["column", { s1: { n: 1, vals: [nums] } }]);
+    await expect(page.locator("#chartSeriesPanel")).toBeVisible();
+    await expect(page.locator("#chartSlices")).toHaveCount(0);
+    await expect.poll(() => undoSteps()).toBe(u0 + 1);
+    // + Add series…: the sheet view in one step (no names step); another sheet's cells chosen by a drag across them
+    await page.click("#chartAddSeries");
+    await expect(page.locator("#pickCells")).toContainText("Chart: add a series");
+    await expect(page.locator("#pkNoNames")).toHaveCount(0);
+    await page.selectOption("#pkSheet", "SLIDE_1");
+    const c1 = await boxOf(page.locator('#pkRange td[data-r="6"][data-c="4"]')), c2 = await boxOf(page.locator('#pkRange td[data-r="8"][data-c="4"]'));
+    await page.mouse.move(c1.x + c1.width / 2, c1.y + c1.height / 2); await page.mouse.down();
+    await page.mouse.move(c2.x + c2.width / 2, c2.y + c2.height / 2, { steps: 6 }); await page.mouse.up();
+    await expect(page.locator("#pkSel")).toHaveText("D6:D8");
+    await page.click("#pkUse");
+    await expect(page.locator("#pickCells")).toHaveCount(0);
+    await pollFile(() => order().length, { timeout: 10_000 }).toBe(2);
+    const s2 = order()[1];
+    expect(s2).toMatch(/^s[0-9a-z]{5}$/);                                          // a random id: two writers adding at once keep both
+    expect(items()[id].sers[s2]).toEqual({ n: 2, vals: [{ sheet: "SLIDE_1", range: "D6:D8" }] });
+    await expect(page.locator("#chartSeriesPanel .ser")).toHaveCount(2);
+    await expect.poll(() => undoSteps()).toBe(u0 + 2);
+    // ↑: the new series first – one step
+    await page.click(`#chartSeriesPanel [data-ser="${s2}"] [data-a="up"]`);
+    await pollFile(() => order(), { timeout: 10_000 }).toEqual([s2, "s1"]);
+    await expect(page.locator("#chartSeriesPanel .ser").first()).toHaveAttribute("data-ser", s2);
+    await expect.poll(() => undoSteps()).toBe(u0 + 3);
+    // the right axis: one step; Axes then lists it
+    await page.click(`#chartSeriesPanel [data-ser="${s2}"] [data-a="more"]`);
+    await page.click(`#chartSeriesPanel [data-ser="${s2}"] [data-axis="y2"]`);
+    await pollFile(() => items()[id].sers[s2].axis, { timeout: 10_000 }).toBe("y2");
+    await expect(page.locator('#chartAxes [data-ax="y2"]')).toHaveCount(1);
+    await expect.poll(() => undoSteps()).toBe(u0 + 4);
+    await expect(page.locator("#stage svg.layer.item")).toHaveCount(1);
+    // undo, one step at a time: the axis, the order, the series, the switch
+    await page.click("#undoBtn");
+    await pollFile(() => items()[id].sers[s2].axis, { timeout: 10_000 }).toBeUndefined();
+    await expect(page.locator('#chartAxes [data-ax="y2"]')).toHaveCount(0);
+    await page.click("#undoBtn");
+    await pollFile(() => order(), { timeout: 10_000 }).toEqual(["s1", s2]);
+    await page.click("#undoBtn");
+    await pollFile(() => order(), { timeout: 10_000 }).toEqual(["s1"]);
+    await expect(page.locator("#chartSeriesPanel .ser")).toHaveCount(1);
+    await page.click("#undoBtn");
+    await pollFile(() => [items()[id].type, items()[id].sers], { timeout: 10_000 }).toEqual(["pie", undefined]);
+    await expect(page.locator("#chartSeriesPanel")).toHaveCount(0);
+    await expect(page.locator("#chartSlices .slice")).toHaveCount(3);
+    await expect.poll(() => undoSteps()).toBe(u0);
+    // removed (the later tests count this deck's slides and texts as they were)
+    await page.locator(".itembox[data-kind=chart]").click({ position: { x: 4, y: 4 } });
+    await page.keyboard.press("Delete");
+    await pollFile(() => Object.keys(items()), { timeout: 10_000 }).toEqual([]);
+    await lastFileSaved("anna", "report.xlsx");
+  });
+
   test("free layout (S10.1, FL-01, B18): switched on nothing moves; Reset layout asks and switches back; one undo step each way", async ({ page }) => {
     await openApp(page, ANNA);
     await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });

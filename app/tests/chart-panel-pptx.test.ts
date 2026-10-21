@@ -34,26 +34,29 @@ const PNG = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAA
 
 /** the chart as the panel makes it, step by step (each step one item.patch, as the page sends it) */
 function panelOps(): Op[] {
-  let it: ChartItem = { kind: "chart", type: "pie", values: { sheet: "SLIDE_1", range: "D6:D8" }, labels: { sheet: "SLIDE_1", range: "C6:C8" }, series: "Loans", box: { x: 120, y: 160, w: 1300, h: 640 } };
+  let it: ChartItem = { kind: "chart", type: "pie", values: { sheet: "SLIDE_1", range: "D6:D8" }, labels: { sheet: "SLIDE_1", range: "C6:C8" }, series: "Loans", box: { x: 120, y: 160, w: 1300, h: 640 },
+    colors: { 2: "#2E75B6" } };                                                // a slice's own colour: the point's after the switch (review 6)
   const ops: Op[] = [{ op: "item.patch", slide: "x", id: "c", patch: it } as Op];
   const step = (p: ItemPatch | null) => {
     expect(p).not.toBeNull();
     ops.push({ op: "item.patch", slide: "x", id: "c", patch: p } as Op);
     it = (applyOps(emptyDoc("W.xlsx"), [{ op: "preset.set", preset: { sheets: [], tables: [], slides: [{ id: "x", type: "content", tables: [] }] } } as Op, ...ops]).doc.preset!.slides[0].items!.c) as ChartItem;
   };
+  /** a new series' id (random since the S14.5 review: two writers adding at once keep both) */
+  const added = (p: ItemPatch) => { step(p); return Object.keys(p.sers!)[0]; };
   step(typePatch(it, "combo"));
-  step(addSeriesPatch(it, { sheet: "SLIDE_1", range: "F6:F8" }));               // Deposits (combo: a line)
-  step(seriesPatch(it, "s2", { axis: "y2", name: "Deposits", smooth: true }));
-  step(addSeriesPatch(it, { sheet: "Numbers", range: "B9:B11" }));              // another sheet
-  step(seriesPatch(it, "s3", { type: "column", name: "Other" }));
+  const s2 = added(addSeriesPatch(it, { sheet: "SLIDE_1", range: "F6:F8" }));   // Deposits (combo: a line)
+  step(seriesPatch(it, s2, { axis: "y2", name: "Deposits", smooth: true }));
+  const s3 = added(addSeriesPatch(it, { sheet: "Numbers", range: "B9:B11" }));  // another sheet
+  step(seriesPatch(it, s3, { type: "column", name: "Other" }));
   step(refPatch(it, { what: "target", ser: "s1" }, { sheet: "SLIDE_1", range: "F6:F8" }));
   step(labelsPatch(it, "s1", { show: ["ofTarget"], pos: "inEnd" }));
   step(pointPatch(it, "s1", 0, { color: "#A6A6A6" }));
-  step(legendHidePatch("s3", true));
+  step(legendHidePatch(s3, true));
   step({ legendAt: "top" });
   step(axisPatch(it, "y", { min: 0, num: "#,##0" }));
   step(addGroupPatch(it, { sheet: "SLIDE_1", range: "C9:C10" }));
-  step(addMarkPatch(it, "arrow", { s: "s2", i: 1 }));
+  step(addMarkPatch(it, "arrow", { s: s2, i: 1 }, 3));
   step(addMarkPatch(it, "text", { s: "s1", i: 2 }));
   return ops;
 }
@@ -80,6 +83,7 @@ describe("the panel's chart in the PowerPoint export (S14.5)", () => {
     expect(x).toContain('<c:legendPos val="t"/>');
     expect(x).toMatch(/<c:legendEntry><c:idx val="\d+"\/><c:delete val="1"\/><\/c:legendEntry>/);
     expect(x).toMatch(/<c:dPt><c:idx val="0"\/>.*A6A6A6/);
+    expect(x).toMatch(/<c:dPt><c:idx val="2"\/>.*2E75B6/);
     expect(x).toContain('<c:min val="0"/>');
     expect(x).toContain('<c:smooth val="1"/>');
     expect(x).not.toMatch(/<c:f>[^<]*[[\]]/);

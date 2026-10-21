@@ -194,10 +194,23 @@ numbers measured twice). Measured numbers go into the step's line.
   type in `chart-waterfall.ts` (`types.ts` is S14.P's: the field goes there at the merge, 09 §2.2 lists it)
 - [ ] S14.5 · Chart panel (CT-08) – built on the branch with the S14.4 review's findings 1–3 and 5–8 (CT-08 in
   `app/tests/chart-panel.test.tsx` – the page with report.xlsx – and the export of a panel-made chart in
-  `app/tests/chart-panel-pptx.test.ts`; the e2e run of CT-08 is the orchestrator's). A stack per series
+  `app/tests/chart-panel-pptx.test.ts`). A stack per series
   (`sers[s].stack`) is not offered: PowerPoint cannot draw it (the panel shows it disabled and says so). `m14.json`
-  raised by measurement to 140,896 (owner 2026-10-21)
-- [ ] S14.6 · PowerPoint ⏱ (PX-05, PX-06) — carried from the S14.3 review (2026-10-21): **the marks' arrowheads native**
+  raised by measurement to 140,896 (owner 2026-10-21). Review fixes (S14.5 review): new series / groups / marks get
+  random ids (two writers adding at once keep both); a mark only at a point that is still there (and a line or band
+  only before the series' last point), a stale point or mark leaves the selection; the pie's slice colours and labels
+  carried by the type switch; CT-08's Playwright spec (`app/e2e/app.spec.ts` "series charts (S14.5, CT-08)": type
+  switch, a series dragged from another sheet in the sheet view, reorder, right axis, undo step by step) – passed here
+  once on its own; ticked when the orchestrator's full e2e run passes it. Measured (review 4): a chart change from
+  the panel, Enter → pixels p95 75–110 ms against a cell's 25 ms (Measurements · M14) – 09 §7.4 gates no chart-panel
+  keypress, but it is over the 50 ms keypress budget's spirit: looked at in S14.6 (⏱) – the item op's path to the stage
+- **Risk (page total, S14.5 review 5):** M14 already uses ~137 KB of its page share against the plan's ~115 KB for the
+  whole milestone, and S14.6 adds about 15 KB more (~152 KB); with M15's ~+600 KB the merged page comes to about
+  4.73 MB, above the ~4.7 MB the owner expects (2026-10-21 "by measurement"). For the owner to see before M15 measures:
+  either the total is accepted by measurement, or a part is cut (M15's vendored icon set is the large one)
+- [ ] S14.6 · PowerPoint ⏱ (PX-05, PX-06) — also **CT-09** (E: a scenario run, the chart's labels follow each value –
+  the line's last label and the ofTarget percentage per value, 09 §3.3), carried from plan-M14's S14.5 rows (S14.5
+  review 8). Carried from the S14.3 review (2026-10-21): **the marks' arrowheads native**
   (finding 3, plan-M14 S14.6 "plain p:sp lines with native heads"): today an arrow in the export is its line plus a
   filled custGeom triangle. The overlay's line node gets its heads in the export data (ItemSem chart overlay) and the
   chart branch of `pptx/scene.ts` writes `a:headEnd` / `a:tailEnd` on that `p:sp` (never `p:cxnSp`). `scene.ts` is M15's
@@ -1044,6 +1057,9 @@ One table per parallel milestone (S14.P), so M14 and M15 never append to the sam
 | S14.4 | built page (bytes; not committed) | 4,081,346 (S14.2f built 4,064,448 on the same machine: +16,898; within 4,086,092: 4,746 left) | – |
 | S14.5 | the chart panel's cost on a keypress (09 §7.4 keypress → pixels p95 50 ms; `app/tests/chart-panel.test.tsx`, React's development build in jsdom): draws on 20 keypresses on the slide's table · its own draw on a chart change p50 / p95, ms | 0 · 6.93 / 13.05 | 0 · 7.20 / 20.88 |
 | S14.5 | built page (bytes; not committed): the chart panel and the S14.4 review follow-ups | 4,111,988 (S14.4 built 4,081,346: +30,642; over 4,086,092 – `m14.json` raised to the measured share 135,896 + 5,000 = 140,896, owner 2026-10-21 "by measurement"; new limit 4,116,988) | – |
+| S14.5 review | the chart panel's cost (`app/tests/chart-panel.test.tsx`, React's development build in jsdom; the panel with three series, a selected point and a mark): draws on 20 keypresses on the slide's table (now asserted ≤ 1) · its own draw (Profiler time of ItemPanel, not keypress → pixels) on a chart change p50 / p95, ms | 0 · 6.85 / 10.67 | 0 · 7.05 / 24.21 |
+| S14.5 review | keypress → pixels with a series chart selected (built page, deck20 slide 2, headless Chromium on a shared 4-core machine; a scratch run of tools/bench.mjs's method – typing on the slide deselects the chart, so the keypress is the chart panel's: the left axis' step typed and Enter, to the frame after the stage's first change; 2 cold + 20 timed) p50 / p95 / max, ms; beside it a cell of the same slide typed and Enter, measured the same way (first stage change) | chart 63 / 75 / 87 · cell 15 / 26 / 27 | chart 74 / 110 / 130 · cell 14 / 25 / 26 |
+| S14.5 review | built page (bytes; not committed) | 4,113,104 (S14.5 built 4,111,988: +1,116; M14's share 137,012, within m14.json 140,896 – no raise; limit 4,116,988: 3,884 left) | – |
 
 ### Measurements · M15 (4.8.0)
 M15 appends here only.

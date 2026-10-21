@@ -8,17 +8,18 @@
    Not offered: a stack per series (`sers[s].stack`) – PowerPoint's native charts stack a whole chart group, never one
    series apart, so the export could not draw it; the control is shown disabled with that reason (owner's rule: every
    feature works in the PowerPoint export). */
-import { memo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { setDialogs, useStore } from "../state/store";
 import { ctx, style } from "../state/app";
 import type { ChartAxis, ChartItem, DataRef, ItemPatch, LegendAt, LineOrNone, SeriesType } from "@slide-builder/core/model/types";
 import { chartLook } from "@slide-builder/core/render/chart-dl";
+import { seriesData } from "@slide-builder/core/render/chart-data";
 import { refText, selectItem } from "../editor/charts";
 import type { ItemSel } from "../state/store";
 import { isConsult } from "@slide-builder/core/model/designs";
 import {
   COMBO_TYPES, addMarkPatch, allGroups, allSeries, axisPatch, groupPatch, labelsPatch, legendAtPatch, legendHidePatch, markAtText,
-  markPatch, moveSeriesPatch, numOrNull, pointPatch, removeGroupPatch, removeMarkPatch, removeSeriesPatch, seriesPatch, stackPatch, type ChartRefWhat, type MarkKind, type PointSet,
+  markFits, markPatch, moveSeriesPatch, numOrNull, pointPatch, removeGroupPatch, removeMarkPatch, removeSeriesPatch, seriesPatch, stackPatch, type ChartRefWhat, type MarkKind, type PointSet,
 } from "../editor/chart-panel";
 import { chartChange } from "../editor/chart-send";
 import { Input } from "./Input";
@@ -33,6 +34,14 @@ const DIVIDERS = [["none", "No line"], ["solid", "Line"], ["dashed", "Dashed"], 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 const pick = (id: string, ref: ChartRefWhat) => setDialogs({ pick: { kind: "chart-ref", id, ref } });
 const refsText = (r: DataRef[] | undefined) => (r || []).map(refText).join(" + ") || "–";
+/** how many points series `sid` draws now – its group's categories (a point's index counts from its group's start, as
+    the stage's hits do); 0 when it draws none (hidden, its cells not found). Read when the panel draws and again when a
+    mark is added: the chart's data (cached by the core) may have changed since (a reload) */
+function pointsOf(c: ChartItem, sid: string): number {
+  const D = seriesData(c, ctx()); if (!D.ok) return 0;
+  const s = D.series.find(x => x.id === sid); if (!s) return 0;
+  return D.groups.find(g => g.start === s.start)?.len ?? 0;
+}
 /** a number box (empty = automatic) */
 function Num({ value, onCommit, title, id }: { value: number | undefined; onCommit: (v: number | null) => void; title: string; id?: string }) {
   return <Field className="num" id={id} title={title + " (empty = automatic)"} placeholder="auto" value={value === undefined ? "" : String(value)} onCommit={v => { const n = numOrNull(v); if (n !== undefined) onCommit(n); }} />;
@@ -53,6 +62,11 @@ function SeriesPanel({ c, id, sel }: { c: ChartItem; id: string; sel: ItemSel })
   const typeOf = (st: SeriesType | undefined): SeriesType => st || (t === "bar" ? "bar" : t === "line" ? "line" : t === "area" ? "area" : scatter ? "scatter" : "column");
   const stackable = t === "column" || t === "bar" || t === "area" || combo;
   const cur = sel.point ? sers.find(([x]) => x === sel.point!.s) : null, curMark = sel.mark ? c.marks?.[sel.mark] : null;
+  const curLen = cur && sel.point ? pointsOf(c, cur[0]) : 0;
+  // a selected point or mark that no longer resolves (its series removed – ×, undo, another writer –, the point past its
+  // series' end, the mark removed) leaves the selection: nothing may be added at it (S14.5 review 3)
+  const stalePoint = !!sel.point && (!cur || !markFits(c, "arrow", sel.point, curLen)), staleMark = !!sel.mark && !curMark;
+  useEffect(() => { if (stalePoint || staleMark) selectItem(id, sel.slice, { point: stalePoint ? null : sel.point, mark: staleMark ? null : sel.mark }); }, [id, stalePoint, staleMark, sel]);
   const usesY2 = sers.some(([, s]) => s.axis === "y2");
   return <div className="cser" id="chartSeriesPanel">
     {stackable && <div className="row"><span className="lbl">Stack</span><div className="seg small">
@@ -100,7 +114,7 @@ function SeriesPanel({ c, id, sel }: { c: ChartItem; id: string; sel: ItemSel })
         {fall && sers.length > 1 && <span className="note">A waterfall draws its first series.</span>}</div>
     </details>
 
-    {cur && sel.point && <PointBox c={c} sid={cur[0]} i={sel.point.i} fall={fall} line={typeOf(cur[1].type) === "line" || scatter} set={set} />}
+    {cur && sel.point && !stalePoint && <PointBox c={c} sid={cur[0]} i={sel.point.i} fall={fall} line={typeOf(cur[1].type) === "line" || scatter} set={set} />}
 
     <details className="sec" id="chartAxes"><summary>Axes</summary>
       {(scatter ? ["x", "y"] : usesY2 ? ["y", "y2", "x"] : ["y", "x"]).map(ax => <AxisRow key={ax} c={c} ax={ax as "x" | "y" | "y2"} cat={ax === "x" && !scatter} grid={ax === "y" && !isConsult(design)} set={set} />)}
@@ -134,9 +148,10 @@ function SeriesPanel({ c, id, sel }: { c: ChartItem; id: string; sel: ItemSel })
         {(m.kind === "icon" || m.kind === "text") && <Num value={m.dy} title="Up (−) or down (+) from its point, px" onCommit={v => set("Mark place", markPatch(c, mid, { dy: v }))} />}
         <button className="btn small" data-a="remove" title="Remove this mark" onClick={e => { e.stopPropagation(); set("Remove mark", removeMarkPatch(mid)); }}>×</button>
       </div>)}
-      <div className="row adds">{(["arrow", "icon", "text", "line", "band"] as MarkKind[]).map(k => <button key={k} className="btn small" data-addmark={k} disabled={!sel.point}
-        title={sel.point ? "At the selected point" : "Click a point of the chart first"} onClick={() => set("Add mark", addMarkPatch(c, k, sel.point!))}>
-        {k === "arrow" ? "+ Arrow from the floor" : k === "icon" ? "+ Icon above" : k === "text" ? "+ Text above" : k === "line" ? "+ Line to the next" : "+ Band to the next"}</button>)}</div>
+      <div className="row adds">{(["arrow", "icon", "text", "line", "band"] as MarkKind[]).map(k => { const fits = !!cur && markFits(c, k, sel.point, curLen); return <button key={k} className="btn small" data-addmark={k} disabled={!fits}
+        title={fits ? "At the selected point" : sel.point && cur && !stalePoint ? "The selected point is its series' last: there is no next point" : "Click a point of the chart first"}
+        onClick={() => { if (sel.point) set("Add mark", addMarkPatch(c, k, sel.point, pointsOf(c, sel.point.s))); }}>
+        {k === "arrow" ? "+ Arrow from the floor" : k === "icon" ? "+ Icon above" : k === "text" ? "+ Text above" : k === "line" ? "+ Line to the next" : "+ Band to the next"}</button>; })}</div>
     </details>
 
     <div className="row"><label className="chk"><Input type="checkbox" id="chartFrame" checked={!!c.frame && c.frame !== "none"} onCommit={e => set("Chart frame", { frame: (e.target as HTMLInputElement).checked ? { color: "#D9D9D9", w: 1 } : null })} />Frame</label>

@@ -205,8 +205,16 @@ export interface ChartMark { kind: "arrow" | "line" | "band" | "icon" | "text";
 
 * **Old charts** (no `sers`): exactly as today – `values` / `labels` / `series` / `legend` / `colors` keep their meaning;
   a pie stays a pie. A chart switched to a series chart in the panel gets `sers: {s1: {n: 1, vals: [values]}}`, and
-  `values` is kept (so the item stays valid for the code that requires it). `legend` keeps its three values;
+  `values` is kept (so the item stays valid for the code that requires it). As built (S14.5 review 6): the pie's own
+  slice colours (`colors[i]`) become `s1.points[i].color` and its labels (`show`: "label" → category, "value" → value)
+  `s1.labels`; its "percent" (a share of the whole pie) has no column / line counterpart and is not carried; slices
+  without a colour of their own start from the design's series colour. `legend` keeps its three values;
   `legendAt` (new key) wins when set.
+* **Ids of new entries** (S14.5 review 1): a series, group or mark the panel adds gets a random id (`s` / `g` / `m` + 5
+  base-36 characters, as `newItemId` for items), so two people adding one at once both keep theirs (item.patch
+  replaces a whole entry: a shared next id `s2` would let the later one overwrite the earlier). Two entries two writers
+  would make equal keep a fixed id: the type switch's first series `s1`, a chart's first group `g1` (its present
+  categories).
 * **Different sources in one chart** (the owner's "series from different tables, sheets or linked workbooks"): every
   `DataRef` (each `vals` entry, `target`, `xs`, a group's `cats`, a series `name`) names its own sheet id or table. A
   series may join several rectangles (`vals: [Weekly!C5:F5]`, or `[Targets!B3, [Budget.xlsx]Plan!D9]`). Category
@@ -231,7 +239,9 @@ export interface ChartMark { kind: "arrow" | "line" | "band" | "icon" | "text";
 * **Ops**: `item.patch` with `ITEM_KEYS += stack, gap, overlap, legendAt, frame, titleRule, plot` (and new values of
   `type`) and `ITEM_MAPS += sers, groups, axes, marks, legendHide, titleFmt`. Merge: per entry (a whole series / group /
   axis / mark); inverse: per entry, as `colors`. A series' `points` live inside the series, so two people editing points
-  of **one** series at once: the last one wins (as two people editing one `free` entry today; Q13).
+  of **one** series at once: the last one wins (as two people editing one `free` entry today; Q13) – this includes a
+  point's colour set by one and the series' cells (or order, name, axis) changed by the other: the panel sends the whole
+  series entry, so one of the two changes is lost (S14.5 review 7; undo and the other's redo bring it back).
 
 ### 2.3 Lines and annotations on the slide (F9)
 
