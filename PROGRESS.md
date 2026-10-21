@@ -565,6 +565,17 @@ numbers measured twice). Measured numbers go into the step's line.
   page, packed and inflated on first use (option A); `v4/*` branches may be pushed.
 - 2026-10-21 · **PowerPoint** (product owner: "ensure all of these new changes work with the powerpoint export as
   well"): every new feature is checked in the PowerPoint export (`core/tests/pptx-m13.test.ts` for M13).
+- 2026-10-21 · **B48–B50: the Intesa Sanpaolo template, comment borders, the macro's comments** (product owner: "the
+  excel and excel refined will have to follow this template. this makes very little changes, and much from now should
+  be preserved, but for instance the first slide should change. 2. make the borders of the auto comments editable in
+  thickness and colour. 3. in this docx file is the macro formula a friend of mine has used to make the auto comments.
+  i want you to replicate it exactly in structure but also keeping the current setups' modularity between adding and
+  removing sections in a comment, for instance i may want the delta vs monthly budget to only be included at the end of
+  the month, not the beginning"). The template and the macro stay out of the repository (the logo comes from the
+  deck's setting). Defaults taken where the owner did not answer (stated to them): type scaled × 4/3 to look as on the
+  template's 10-inch page; PowerPoint bullets upright (PDF/PNG tilted 10°); long titles shrink before "…"; page number
+  on, top right; the contents' "XX" = the page number; "0,0 %" kept; a clause without data left out; "the same week in
+  <year − 1>"; a new comment beside its own table in the macro's structure. Page budget by measurement (b48.json).
 
 ## Waiting for
 

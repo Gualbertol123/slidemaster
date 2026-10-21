@@ -9,6 +9,19 @@ Releases are made with `docs/next/release-checklist.md`.
 
 ## 4.7.0 - unreleased (PLAN M14: charts; B30, B31)
 
+What users notice (B48–B50, branch `v4/B48-B50-isp`)
+* **Excel and Excel Refined in the Intesa Sanpaolo template** (B48): the cover has the template's blue band, the deck's
+  logo above the title, the title in 26 pt bold blue and the subtitle in grey; titles and subtitles, the page number
+  (top right), the logo (bottom right), Century Gothic, the contents slide, bullets as tilted squares, outlined boxes and
+  the template's colours follow it. Long titles shrink to fit before they are cut. Liquid Glass and the consulting
+  designs are unchanged.
+* **Comment borders** (B49): a comment's box gets a border of the weight and colour you pick, or none.
+* **Comments as the macro writes them** (B50): vs Budget – Budget Performance and vs Previous Week – Weekly Momentum,
+  with the top contributors, the concentration ("largely driven by …"), the downside and the alerts (−5 % vs Budget,
+  −1 % week on week; editable); each section can still be added or removed, and has a rule: always, only in the last
+  week of the month, only in the first week, or from day N (e.g. "vs monthly Budget" only at the end of the month).
+  Comments written before keep their text until you switch them.
+
 (M14 writes this section on its own branch, v4/M14-charts. Shared preparation of both, S14.P, nothing users notice: the
 data model of 09 §2.2 / §2.3 and its ops, `Stroke.join` in every backend, the arrowheads, the PowerPoint gate of 09 §7.2,
 the per-kind item code paths, the page budget per milestone.)
