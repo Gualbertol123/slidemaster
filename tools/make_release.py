@@ -11,6 +11,7 @@ The ZIP holds what a shared folder needs to run one version side by side with ot
                           tests/, __pycache__ and anything that belongs to a user (logo, v2 settings)
     tools/update.py       the updater
     *.bat  README.md      the launchers and the guide (CHANGELOG.md when present)
+    THIRD-PARTY-NOTICES.txt  the licences of the third-party software in the page (tools/notices.mjs; LI-01)
     MANIFEST.json         {"app", "version", "commit", "files": {path: {"sha256", "size"}}}
 
 The ZIP is reproducible: files in sorted order, fixed timestamps, no build time in the manifest.
@@ -36,12 +37,12 @@ _spec.loader.exec_module(update)
 
 ROOT_FILES = ("Start Slide Builder.bat", "Update Slide Builder.bat", "Install Slide Builder.bat",
               "Start Slide Builder (v3).bat",
-              "README.md", "CHANGELOG.md",
+              "README.md", "CHANGELOG.md", "THIRD-PARTY-NOTICES.txt",
               "tools/update.py", "tools/fieldcheck.html")
 SKIP_DIRS = {"data", "tests", "__pycache__", "engine", "export", "node_modules"}      # directly below helper/
 SKIP_FILE = re.compile(r"(\.pyc$|\.pyo$|\.update-tmp$|^logo[^/]*$|^slide_builder_settings|^~\$|\.(xlsx|xlsm|xlsb|xls)$|^\.)", re.I)
 REQUIRED = ("helper/slide_builder.py", "helper/slide_builder.html", "helper/slidebuilder/__init__.py", "tools/update.py",
-            "Start Slide Builder.bat")
+            "Start Slide Builder.bat", "THIRD-PARTY-NOTICES.txt")
 
 
 def say(msg=""):

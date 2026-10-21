@@ -14,6 +14,8 @@ import { THEMES, themeOf } from "@slide-builder/core/model/style";
 import { DESIGNS, isConsult } from "@slide-builder/core/model/designs";
 import { Input } from "./Input";
 import { useStyle } from "./hooks";
+import { noticesText } from "./notices";
+import { ask } from "../state/dialogs";
 
 /* sliders: preview the number at once, apply (one operation, one undo step) when the hand rests */
 const sliderTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -147,6 +149,10 @@ function Options() {
         <div className="opthd">This deck's style</div>
         <div className="optnote">Design, colour, page numbers and logo are saved with this workbook and shared with everybody who opens it.</div>
         <div className="optrow"><button className="btn" id="styleDefault" onClick={() => void saveStyleAsDefault()}>Use as default for new decks</button></div>
+        <div className="sep" />
+        <div className="opthd">About</div>
+        <div className="optnote">Slide Builder includes open-source software; its licences ship with it (THIRD-PARTY-NOTICES.txt).</div>
+        <div className="optrow"><button className="btn" id="licencesBtn" onClick={() => void openLicences()}>Licences…</button></div>
         {backend.served && <>
           <div className="sep" />
           <div className="opthd">Administration</div>
@@ -158,6 +164,15 @@ function Options() {
       </>}
     </Dropdown>
   );
+}
+
+/* About › Licences: the third-party notices, inflated when asked for (ui/notices.ts) */
+async function openLicences() {
+  try {
+    const pre = `<pre id="licencesText" style="max-height:60vh;overflow:auto;white-space:pre-wrap;font-size:11px;margin:0">${esc(await noticesText())}</pre>`;
+    await ask("Licences", pre, [{ id: "ok", label: "OK", primary: true }], { sub: "Third-party software in Slide Builder", width: 760 });
+  }
+  catch (err) { toast("⚠ " + esc((err as Error).message), [], true); }
 }
 
 function ServerPill() {
