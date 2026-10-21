@@ -6,7 +6,9 @@ import type { SlideDef } from "./types";
 /** a copy of slide `s` under the id `id`: everything as it is (its tables – the same tables of the deck –, text, formats,
     hide, looks, sizes, free layouts, notes), its items under new ids from `itemId` (given the ids taken so far), with
     what names them – the free layouts' "i:<id>" boxes, the lines' ends attached to an item – renamed alike, so the copy
-    shares no item id with the original. `s` is left as it is */
+    shares no item id with the original. `s` is left as it is.
+    M15 and later: every new place that names an item id (groups, z-order, …) must be renamed here too (`key`, `ren`);
+    "t:" and "n:" free-layout keys name tables and notes, which the copy shares, and stay as they are */
 export function copySlide(s: SlideDef, id: string, itemId: (taken: (x: string) => boolean) => string): SlideDef {
   const c = JSON.parse(JSON.stringify(s)) as SlideDef;
   c.id = id;

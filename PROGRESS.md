@@ -166,7 +166,6 @@ numbers measured twice). Measured numbers go into the step's line.
 - [x] S13.4 · New slide, Add table UI (B40; NS-01, NS-02) — d0b6692, 92ab701. +8 KB page. Reviews: REQUEST CHANGES → APPROVE. verified: tests ✓ clean clone ✓ review ✓
 - [x] S13.6 · Hide slides per design (B47; HS-01…HS-03) — 681bc36, ec6faa8, c634e8e (e2e: a real version). Reviews: REQUEST CHANGES → APPROVE. verified: tests ✓ clean clone ✓ review ✓
   - Hide slide / Show slide are in the slide list's right-click menu only: the plan's "and the slide menu" names no other menu the app has (review of S13.6, 5; 09 §2.8b).
-- [ ] S13.7 · Delete slide and Duplicate slide (owner Q12, 2026-10-21; branch `v4/slide-menu`) — the slide list's right-click menu (`#ctxDupSlide`, `#ctxDelSlide`) and Delete on a selected thumbnail; one `slide.add` / `slide.remove` each (no new op or key: the guard, inverses and vectors of S13.3 hold). The copy: core `model/slidecopy.ts` (items under new ids, the free boxes and attached line ends renamed). Decided: content slides only are duplicated (the wizard keeps one cover / contents); any slide but the last may be deleted, after a question. +2,169 bytes page (`page-budget/s13-7.json`). Awaiting the orchestrator's checks and review.
 - [x] S13.B46 · Font cache (B46) — 0fa9408, dc2128a, 6dc9ab7. `data\fonts\cache\` (200 MB, oldest first), previews through the helper, e2e helpers without network (`SLIDEBUILDER_NO_NET`). Reviews: REQUEST CHANGES → APPROVE; round 2 APPROVE. verified: tests ✓ clean clone ✓ review ✓
 - [x] S13.5 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.6.0 — see Waiting for (M13). 🚦 G9a waived by the product owner ("I approve everything", Decisions 2026-10-21); the owner's PC checks are listed there.
 
@@ -212,6 +211,9 @@ numbers measured twice). Measured numbers go into the step's line.
     (`core/tests/__snapshots__/chart-dl.test.ts.snap`, `shape-dl.test.ts.snap`: re-record and check only the excel /
     clean entries move), and `core/tests/fixtures/dlhash-b48-base.json` (re-record with `DLHASH_WRITE=1`: M14 and M15
     change Liquid Glass and the consulting designs' charts, lines and icons by design).
+
+### S13.7 · Delete slide and Duplicate slide (after M13 closed; ships with the next release, 4.7.0 in CHANGELOG; owner Q12)
+- [ ] S13.7 · Delete slide and Duplicate slide (owner Q12, 2026-10-21; branch `v4/slide-menu`) — the slide list's right-click menu (`#ctxDupSlide`, `#ctxDelSlide`) and Delete in the slide list (on the slide shown); one `slide.add` / `slide.remove` each (no new op or key: the guard, inverses and vectors of S13.3 hold). The copy: core `model/slidecopy.ts` (items under new ids, the free boxes and attached line ends renamed). Decided: content slides only are duplicated (the wizard keeps one cover / contents); any slide but the last may be deleted, after a question. +2,156 bytes page (`page-budget/s13-7.json`, measured again on main 71d8806). Review: REQUEST CHANGES → "S13.7 · … (review fixes)": CHANGELOG bullet moved from the dated 4.6.0 notes to 4.7.0 (its own block, as B48–B50), Delete acts on `deck.cur`, `duplicateSlide` checks `doc.open`, one `slide.add` vector of a duplicated slide in `ops-vectors.json`, a comment pointing M15 at `slidecopy.ts`. Awaiting the orchestrator's checks (e2e `Delete slide and Duplicate slide`) and the second review.
 
 ### M14 · Charts (4.7.0; B30, B31; docs/next/09 §8, ADR-015 amended)
 - [ ] S14.0 · Gates first (export-check gates PowerPoint "opened", `has_chart` / `has_table`; AUDIT-2 VER-3) – built in

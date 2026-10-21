@@ -2,8 +2,8 @@
    New slide and Hide slide. Duplicate puts a copy of a content slide right after it – its tables (the same tables of the
    deck), text, hide, looks, free layout, its items under new ids – under a new id unique per writer, one slide.add, one
    undo step; the cover and the contents are not duplicated (the wizard keeps one of each). Delete asks first, then one
-   slide.remove, one undo step; its tables stay in the deck; Delete on a selected thumbnail asks the same; the last slide
-   is kept. (The exports of a copy: core/tests/slidemenu.test.ts; e2e: app.spec.ts "Delete slide and Duplicate slide".) */
+   slide.remove, one undo step; its tables stay in the deck; Delete in the slide list asks the same about the slide
+   shown; the last slide is kept. (The exports of a copy: core/tests/slidemenu.test.ts; e2e: app.spec.ts "Delete slide and Duplicate slide".) */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import fs from "node:fs";
@@ -14,7 +14,7 @@ vi.mock("../src/editor/thumbs", async orig => ({ ...(await orig() as object), mo
 vi.mock("../src/render/wall", async orig => ({ ...(await orig() as object), applyWall: () => { /* canvas */ } }));
 
 import { App } from "../src/ui/App";
-import { get } from "../src/state/store";
+import { get, patch } from "../src/state/store";
 import { change, gotoSlide, openLocalFile, style, undo } from "../src/state/app";
 import { installKeys } from "../src/editor/keys";
 import { deleteSlide, duplicateSlide } from "../src/editor/slides";
@@ -146,6 +146,30 @@ describe("Delete slide, Duplicate slide (S13.7)", () => {
     expect(get().ui.dialogs.dialog).toBeNull();
     await act(async () => undo(false)); await confirmed(h0);
     expect(ids()).toEqual(ids0);
+  });
+
+  it("Delete in the slide list acts on the slide shown, not the focused thumbnail (review of S13.7, 2)", async () => {
+    const ids0 = ids(), h0 = history();
+    await act(async () => { fireEvent.click(thumb(1)); }); await settle();
+    expect(get().deck.cur).toBe(1);
+    await act(async () => { fireEvent.keyDown(thumb(1), { key: "PageDown" }); }); await settle();   // the stage moves, the focus stays
+    expect(get().deck.cur).toBe(2);
+    await act(async () => { fireEvent.keyDown(thumb(1), { key: "Delete" }); });
+    await vi.waitFor(() => expect(get().ui.dialogs.dialog).toBeTruthy());
+    expect(get().ui.dialogs.dialog!.html).toContain(`Delete slide “${get().deck.slides[2].label}”?`);
+    await answer("ok"); await confirmed(h0 + 1);
+    expect(ids()).toEqual([...ids0.slice(0, 2), ...ids0.slice(3)]);
+    await act(async () => undo(false)); await confirmed(h0);
+    expect(ids()).toEqual(ids0);
+  });
+
+  it("Duplicate slide with no deck open does nothing, as New slide and Delete slide (review of S13.7, 3)", async () => {
+    const ids0 = ids(), h0 = history(), id = preset().slides.find(x => x.type === "content")!.id;
+    await act(async () => { patch("doc", { open: false }); });
+    expect(duplicateSlide(id)).toBeNull();
+    expect(await deleteSlide(id)).toBe(false);
+    await act(async () => { patch("doc", { open: true }); }); await settle();
+    expect(history()).toBe(h0); expect(ids()).toEqual(ids0);
   });
 
   it("the last slide is kept; a slide removed meanwhile (another writer) is not removed twice", async () => {

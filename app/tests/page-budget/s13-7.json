@@ -1,4 +1,4 @@
 {
-  "bytes": 2169,
-  "why": "S13.7 (Delete slide and Duplicate slide, owner Q12 of 2026-10-21): by measurement – the page built from origin/main 6392856 is 3,967,290 bytes (the committed one), with S13.7 3,969,459 (+2,169)."
+  "bytes": 2156,
+  "why": "S13.7 (Delete slide and Duplicate slide, owner Q12 of 2026-10-21): by measurement after the rebase on origin/main 71d8806 (B48–B50 merged) – the page built from origin/main is 4,017,563 bytes (the committed one), with S13.7 and its review fixes 4,019,719 (+2,156; first measured +2,169 on 6392856)."
 }

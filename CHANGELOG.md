@@ -25,6 +25,15 @@ What users notice (B48–B50, branch `v4/B48-B50-isp`)
 * **A 4.6.0 window on a 4.7 deck** (both read format 5): it keeps every border and macro comment as saved, but shows
   a macro comment as a summary, draws no comment border, and has no default page number in Excel – update to 4.7.
 
+What users notice (S13.7, branch `v4/slide-menu`)
+* **Delete slide and Duplicate slide** (owner Q12), as in PowerPoint: right-click a slide in the slide list ›
+  *Duplicate slide* puts a copy right after it – its tables, texts, formats, charts and callouts, free layout, looks and
+  hidden designs – and shows it; it exports exactly as the original but for its page number. *Delete slide* (or the
+  Delete key on a selected slide in the list) asks first; the slide's tables stay in the deck (*Add table* puts them on
+  a slide again). Each is one undo step. The cover and the contents slide are not duplicated (the deck keeps one of
+  each), and the last slide of a deck is not deleted.
+  A deck with a duplicated slide still opens in 4.6.0 (no new op or key).
+
 (M14 writes this section on its own branch, v4/M14-charts. Shared preparation of both, S14.P, nothing users notice: the
 data model of 09 §2.2 / §2.3 and its ops, `Stroke.join` in every backend, the arrowheads, the PowerPoint gate of 09 §7.2,
 the per-kind item code paths, the page budget per milestone.)
@@ -70,12 +79,6 @@ What users notice
   number). Exporting or copying the current slide still exports a hidden one. Hidden in Liquid Glass, a slide still
   shows in the other designs. Each change is one undo step. A deck with a hidden slide opens in 4.6 and later only
   (B41).
-* **Delete slide and Duplicate slide** (owner Q12), as in PowerPoint: right-click a slide in the slide list ›
-  *Duplicate slide* puts a copy right after it – its tables, texts, formats, charts and callouts, free layout, looks and
-  hidden designs – and shows it; it exports exactly as the original but for its page number. *Delete slide* (or the
-  Delete key on a selected slide in the list) asks first; the slide's tables stay in the deck (*Add table* puts them on
-  a slide again). Each is one undo step. The cover and the contents slide are not duplicated (the deck keeps one of
-  each), and the last slide of a deck is not deleted.
 
 For the maintainer
 * **Update day (4.0 → 4.6): every Slide Builder window and black window is closed on every PC before the update**

@@ -81,7 +81,7 @@ export function hideSlide(id: string, every = false): boolean {
     (one slide.add) */
 export function duplicateSlide(id: string): string | null {
   const p = get().doc.view?.preset, s = p?.slides.find(x => x.id === id);
-  if (!p || !s) return null;
+  if (!p || !s || !get().doc.open) return null;
   if (s.type !== "content") { toast("Only content slides are duplicated: the deck keeps one cover and one contents slide."); return null; }
   const nid = newId("s", x => p.slides.some(t => t.id === x));
   focusSlide(nid);
