@@ -12,6 +12,7 @@ import type { TableDef } from "../model/types";
 import type { HistorySummary } from "../sync/history";
 import type { Change, DeckOpen, SaveState, TailResult } from "../sync/docsync";
 import type { DeckRecord, DeckSnapshot } from "../model/fold";
+import type { M15CoreMethods } from "./messages-m15";
 
 /** what the page knows of a workbook before its sheets are read (indexWorkbook) */
 export interface WorkbookInfo {
@@ -36,8 +37,8 @@ export interface DocEvent extends Omit<DocState, "view"> {
 /** which design, version and purpose a display list is for */
 export interface DesignReq { design: Style["design"]; version: string; forExport: boolean; thumb: boolean }
 
-/** calls the page makes */
-export interface CoreMethods {
+/** calls the page makes; M15's are in messages-m15.ts (M14-M15-split §2: no two milestones at the same lines) */
+export interface CoreMethods extends M15CoreMethods {
   init(a: { served: boolean; client: string; me: string }): void;
   /** read a workbook's index (its sheets are read on demand); throws with `code` CFB/ENCRYPTED/NOTZIP/NOTXLSX */
   index(a: { buf: ArrayBuffer }): WorkbookInfo;
@@ -105,10 +106,6 @@ export interface CoreMethods {
   scenarioRun(a: ScenarioRunReq): ScenarioRunStart;
   /** stop the run after the value being made (its files stay; the report says "cancelled after n of m") */
   scenarioCancel(a: { id: string }): void;
-  /* ---- M15 (S15.2, 09 §3.5): the icon picker searches the worker's icon set; null without one (no worker) ---- */
-  iconSearch(a: import("../render/icon-search").IconSearchReq): import("../render/icon-search").IconSearchAnswer | null;
-  /** tiles of icon ids (the picker's grid as it scrolls, its recent icons) */
-  iconTiles(a: { ids: string[] }): Record<string, import("../render/icon-search").IconTile>;
 }
 export interface ScenarioInput { sheet: string; ref: string; value: number | string | boolean }
 export interface ScenarioAnswer { changed: number; different: number; check: CalcCheck;

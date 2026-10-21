@@ -26,7 +26,7 @@ import { iconId, iconSearch, iconTiles, svgD } from "../src/render/icon-search";
 import { sceneOf, type El, type ShapeEl, type SlideSem } from "../src/pptx/scene";
 import { writePptx } from "../src/pptx/writer";
 import { pptxFamily } from "../src/text/resolve";
-import { tabler } from "../src/icons";
+import { tabler, tablerLoaded } from "../src/icons";
 import type { RenderCtx } from "../src/render/context";
 import type { Design, Op, ShapeItem } from "../src/model/types";
 
@@ -202,7 +202,11 @@ describe("icons in PowerPoint (09 §4.3): native custom geometry, never a pictur
 
 describe("the picker's search and tiles (IC-01; render/icon-search.ts, in the worker)", () => {
   it("searches names and tags in one set and category, best first; tiles of the first hits and of the recent ids", () => {
+    // `cold` (the bench's first use, 09 §7.4): whether the set was not inflated before this search
+    const wasLoaded = tablerLoaded();
     const a = iconSearch({ query: "bank", style: "outline", category: null, draw: 10, also: ["tabler-filled:star", "target", "tabler:zzz-none"] })!;
+    expect(a.cold).toBe(!wasLoaded);
+    expect(iconSearch({ query: "bank", style: "outline", category: null, draw: 0 })!.cold).toBe(false);
     expect(a.categories.length).toBe(41);
     expect(a.names[0]).toBe("building-bank");
     expect(a.names.length).toBeGreaterThan(1);

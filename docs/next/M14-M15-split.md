@@ -71,3 +71,19 @@ only when an unchanged line stands between them, so these splits keep the two me
   with `pptx`), not from the deck's JSON. A missing sheet's table, hidden slides and slides or tables added by
   `slide.add` / `table.add` are therefore counted the way the export draws them, and pptxcheck (5) asks for exactly
   those counts.
+
+## 4. Recorded in M15 (S15.2 review)
+
+* **The icon block of the PowerPoint gate is M15's own:** `check_icons()` in `tools/pptxcheck.py` (check (6), between
+  separator lines before `main`, one call line in `check()`), `tools/real-icons.mjs` (the core's Tabler icons per slide,
+  merged into realObjectsOf's entries as `icons`: one import line and one line after `pageRealObjects` in
+  `tools/export-check.mjs`), the corpus deck `tests/corpus/charts/icons.json` (its paragraph above the README's table).
+* **`drawingml.ts`:** M15 adds one guard line at the top of `geom()` (`parts` → `partsGeom`, appended at the end of the
+  file); the rest of `geom()` is S14.P's.
+* **`rpc/messages.ts`:** M15's calls are `M15CoreMethods` in `rpc/messages-m15.ts`; `CoreMethods` extends it (one import
+  line, the interface's first line). M14 adds its own methods at the end of `CoreMethods` as before.
+* **The icon picker** (`app/src/ui/IconPicker.tsx`) has a mode `{ mode: "pick"; onPick; title? }` for a chart mark's
+  icon (09 §3.5): M14 calls `openIconPicker` and makes the change itself, without editing the picker.
+* **`recentIcons` and `iconOpts`** are typed in `IconPicker.tsx` (the helper keeps a preference key it does not know):
+  a candidate for `Prefs` in `model/types.ts` after both merges.
+

@@ -111,8 +111,11 @@ export interface IconCatalog {
   search(query: string, o?: { style?: IconStyle; category?: string; limit?: number }): IconHit[];
   icon(style: IconStyle, name: string): { d: PathCmd[]; paint: IconPaint }[] | null;
 }
-let catalog: (() => IconCatalog) | null = null;
-/** M15: register (or, with null, remove) the catalogue; `get` inflates the set on its first call */
-export function setIconCatalog(get: (() => IconCatalog) | null) { catalog = get; }
+let catalog: (() => IconCatalog) | null = null, catalogLoaded: () => boolean = () => false;
+/** M15: register (or, with null, remove) the catalogue; `get` inflates the set on its first call, `loaded` says whether
+    it has been (the first-use budget is a cold one, 09 §7.4) */
+export function setIconCatalog(get: (() => IconCatalog) | null, loaded: () => boolean = () => false) { catalog = get; catalogLoaded = get ? loaded : () => false; }
+/** whether the registered catalogue's set is inflated already */
+export const iconCatalogLoaded = () => catalogLoaded();
 /** the registered catalogue (inflated now if it was not), or null without one */
 export const iconCatalog = (): IconCatalog | null => catalog ? catalog() : null;

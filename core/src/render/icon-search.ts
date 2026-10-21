@@ -3,7 +3,7 @@
    24 × 24 grid. Runs in the core worker (worker/host.ts "iconSearch", "iconTiles") over the catalogue installTabler
    registered (render/icons.ts): the page holds no copy of the set and draws only the ≈ 120 tiles in view. Pure. */
 import type { PathCmd } from "../dl/types";
-import { ICONS, iconCatalog, iconCmds, type IconStyle } from "./icons";
+import { ICONS, iconCatalog, iconCatalogLoaded, iconCmds, type IconStyle } from "./icons";
 
 /** one path of a tile: SVG path data on the 24 grid, and how it is painted (stroked at the item's width, filled, half ink) */
 export interface IconTilePath { d: string; stroke: boolean; fill: boolean; alpha: number; evenodd?: boolean }
@@ -20,6 +20,7 @@ export interface IconSearchAnswer {
   /** every hit's name, best first */ names: string[];
   /** tiles of the first `draw` hits and of `also`, by id */ tiles: Record<string, IconTile>;
   /** the worker's time for this answer, ms; whether it was this worker's first search (it may have inflated the set) */ ms: number; first: boolean;
+  /** whether the set was not inflated before this search (its time is then the cold first use, 09 §7.4) */ cold: boolean;
 }
 
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
@@ -49,7 +50,7 @@ export function iconTiles(ids: string[]): Record<string, IconTile> {
 let loaded = false;
 /** a search of the picker, or null when no set is registered (the page's in-thread fallback) */
 export function iconSearch(a: IconSearchReq): IconSearchAnswer | null {
-  const t0 = now(), first = !loaded;
+  const t0 = now(), first = !loaded, cold = !iconCatalogLoaded();
   const cat = iconCatalog();
   if (!cat) return null;
   loaded = true;
@@ -58,5 +59,5 @@ export function iconSearch(a: IconSearchReq): IconSearchAnswer | null {
   const names = cat.search(typeof a.query === "string" ? a.query.slice(0, 200) : "", { style, ...(category ? { category } : {}) }).map(h => h.name);
   const draw = Math.max(0, Math.min(400, Math.floor(+a.draw) || 0));
   const tiles = iconTiles([...names.slice(0, draw).map(n => iconId(style, n)), ...(Array.isArray(a.also) ? a.also.slice(0, 40) : [])]);
-  return { version: cat.version, categories: cat.categories, names, tiles, ms: Math.round((now() - t0) * 100) / 100, first };
+  return { version: cat.version, categories: cat.categories, names, tiles, ms: Math.round((now() - t0) * 100) / 100, first, cold };
 }

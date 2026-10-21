@@ -272,7 +272,9 @@ async function run(browser, port) {
       await page.locator(".thumb").nth(1).click(); await page.waitForFunction(() => window.__sbTest.stageIdle(), null, { timeout: 60000 });
       await page.click("#shapeBtn"); await page.click("#moreIcons");
       await page.locator('#iconGrid[data-first="1"]').waitFor({ timeout: 60000 });
-      const firstUse = await page.evaluate(() => +document.querySelector("#iconGrid").dataset.ms);
+      // a cold first use only if nothing inflated the set before (a Tabler icon on deck20 would): else not measured
+      const { firstUse, coldSet } = await page.evaluate(() => { const g = document.querySelector("#iconGrid").dataset; return { firstUse: +g.ms, coldSet: g.cold === "1" }; });
+      if (!coldSet) console.log("bench · icon picker: the set was inflated before the picker's first search – icon_first_use_ms is not a cold first use (counted as not measured)");
       await page.evaluate(() => {
         window.__ic = { t0: null, done: null, want: null };
         addEventListener("keydown", () => { if (window.__ic.want !== null && window.__ic.t0 === null) window.__ic.t0 = performance.now(); }, true);
@@ -295,7 +297,7 @@ async function run(browser, port) {
       await page.evaluate(() => { window.__ic = { t0: null, done: null, want: null }; });
       await page.keyboard.press("Escape"); await page.locator("#iconPicker").waitFor({ state: "detached" });
       const cold = keyMs.splice(0, 2), sorted = keyMs.slice(0, 20).sort((a, b) => a - b);
-      icons = { first_use_ms: Math.round(firstUse * 10) / 10, cold_ms: cold.map(Math.round), p50_ms: Math.round(sorted[Math.floor(sorted.length * .5)]), p95_ms: Math.round(sorted[Math.ceil(sorted.length * .95) - 1]), max_ms: Math.round(sorted[sorted.length - 1]), longtasks: (await longTasks()).map(x => x.d) };
+      icons = { first_use_ms: coldSet ? Math.round(firstUse * 10) / 10 : Infinity, cold_set: coldSet, cold_ms: cold.map(Math.round), p50_ms: Math.round(sorted[Math.floor(sorted.length * .5)]), p95_ms: Math.round(sorted[Math.ceil(sorted.length * .95) - 1]), max_ms: Math.round(sorted[sorted.length - 1]), longtasks: (await longTasks()).map(x => x.d) };
     }
     // ---- the consulting designs (M7b, 08 §4.3; after the thumbnails, so their scroll is measured as before; a build without them – --page of an older one – skips this): deck20
     // exported in Consulting Navy and Red, keypress → pixels and the drags in Navy, deck20 opened again in Navy
@@ -558,7 +560,7 @@ async function thumbScroll(browser, page) {
 const worstOf = runs => ({
   open_deck20_ms: Math.max(...runs.map(r => r.deck20.open_ms)),
   read_big30_ms: Math.max(...runs.map(r => r.big30.read_sheet_ms)),
-  longest_task_ms: Math.max(0, ...runs.flatMap(r => [...r.deck20.longtasks, ...r.edit.longtasks, ...r.thumbs.longtasks, ...r.export.longtasks, ...r.big30.longtasks])),
+  longest_task_ms: Math.max(0, ...runs.flatMap(r => [...r.deck20.longtasks, ...r.edit.longtasks, ...r.thumbs.longtasks, ...r.export.longtasks, ...r.big30.longtasks, ...(r.icons?.longtasks ?? [])])),
   keypress_p95_ms: Math.max(...runs.map(r => r.edit.keypress.p95_ms)),
   drag_frame_ms: Math.max(...runs.flatMap(r => Object.entries(r.drags).filter(([k]) => !k.startsWith("free ")).map(([, d]) => d.frame_ms))),
   // the free layout's drags (S10.2): this build's page must measure them (not measured counts as over the limit)

@@ -26,6 +26,11 @@ check needs PowerPoint (Windows, COM through PowerShell). The helper stays stand
             (HasChart) per slide as python-pptx – a failure, never a count. Each report says `ppt`: opened / failed /
             absent (no PowerPoint here: 1, 2, 4 and python-pptx's part of 5 run) / skipped (--no-ppt). Also in (1): no
             chart formula (c:f) names another file (09 §4.2: no external links)
+        (6) icons (4.8, M15 S15.2; 09 §4.3, check_icons): every shape or group named "Icon n" is native custom geometry –
+            each of its shapes a:custGeom (never a preset), no picture (p:pic, a:blipFill) –, a shape without fill
+            (an outline icon) has a line, and every drawn line of an icon has round caps and joins (a:ln cap="rnd",
+            a:round); with --expect, each slide holds exactly the entries' `icons` (tools/real-icons.mjs: the core's
+            Tabler icons; a built-in icon or a name the set lacks stays the built-in shape, not named "Icon")
         exit 1 when any check fails; --json writes every file's report (the content of (2) included)
     python tools/pptxcheck.py info a.pptx [...]      the report of (1) and (2) as JSON, nothing checked
 """
@@ -475,6 +480,7 @@ def check(paths, slides=None, ppt=True, report=None, sources=None, expect=None):
         exp = (expect or {}).get(p, (expect or {}).get(os.path.abspath(p)))
         if exp is not None:
             bad = bad + real_objects(rep["content"], exp, "python-pptx reads")
+        bad = bad + check_icons(p, exp, rep)            # (6) M15: the icons (its own function below)
         src = (sources or {}).get(p) or (sources or {}).get(os.path.abspath(p))
         if src and rep["content"]:
             for k, spec in enumerate(src["charts"]):
@@ -518,6 +524,91 @@ def check(paths, slides=None, ppt=True, report=None, sources=None, expect=None):
         with open(report, "w", encoding="utf-8") as f:
             json.dump(reports, f, ensure_ascii=False, indent=1)
     return ok
+
+
+# ---- M15 (4.8; S15.2 review, 1): the icon block of the gate, its own functions (M14-M15-split §2) ----
+def _slide_parts(z):
+    """the slide parts in the file's order (presentation.xml's sldIdLst)"""
+    pres = ET.fromstring(z.read("ppt/presentation.xml"))
+    rels = {r.get("Id"): r.get("Target") for r in ET.fromstring(z.read("ppt/_rels/presentation.xml.rels")).findall("rel:Relationship", NS)}
+    return [posixpath.normpath(posixpath.join("ppt", rels[s.get("{%s}id" % NS["r"])])) for s in pres.findall("p:sldIdLst/p:sldId", NS)]
+
+
+ICON_NAME = re.compile(r"^Icon \d+$")
+
+
+def _icon_problems(el, where):
+    """what is wrong with one icon (an "Icon n" shape, or a group of them): its shapes custom geometry, no picture, an
+    outline shape stroked, every drawn line round-capped and round-joined"""
+    bad = []
+    if el.find(".//p:pic", NS) is not None or el.tag == P + "pic":
+        bad.append("%s: a picture" % where)
+    if el.find(".//a:blipFill", NS) is not None:
+        bad.append("%s: a picture fill (a:blipFill)" % where)
+    shapes = [el] if el.tag == P + "sp" else el.findall(".//p:sp", NS)
+    if not shapes:
+        bad.append("%s: no shape" % where)
+    for sp in shapes:
+        pr = sp.find("p:spPr", NS)
+        if pr is None or pr.find("a:custGeom", NS) is None:
+            bad.append("%s: not custom geometry (%s)" % (where, "a preset" if pr is not None and pr.find("a:prstGeom", NS) is not None else "no a:custGeom"))
+            continue
+        if not pr.findall("a:custGeom/a:pathLst/a:path", NS):
+            bad.append("%s: custom geometry without a path" % where)
+        ln = pr.find("a:ln", NS)
+        drawn = ln is not None and ln.find("a:noFill", NS) is None
+        if pr.find("a:noFill", NS) is not None and not drawn:
+            bad.append("%s: an outline icon (noFill) without a line" % where)
+        if drawn and (ln.get("cap") != "rnd" or ln.find("a:round", NS) is None):
+            bad.append("%s: its line is not round-capped and round-joined (cap=%s, %s)" % (where, ln.get("cap"), "a:round" if ln.find("a:round", NS) is not None else "no a:round"))
+    return bad
+
+
+def icons(path):
+    """per slide (in the file's order) its icons: the outermost shapes and groups named "Icon n" (a half-ink icon is a
+    group "Icon" of shapes "Icon"), each with its problems"""
+    z = zipfile.ZipFile(path)
+    out = []
+    for part in _slide_parts(z):
+        found = []
+
+        def walk(e):
+            for ch in e:
+                if ch.tag in (P + "sp", P + "grpSp", P + "pic"):
+                    nv = ch.find("./*/p:cNvPr", NS)
+                    if nv is not None and ICON_NAME.match(nv.get("name") or ""):
+                        found.append(ch)
+                        continue
+                if ch.tag == P + "grpSp":
+                    walk(ch)
+        tree = ET.fromstring(z.read(part)).find("p:cSld/p:spTree", NS)
+        walk(tree if tree is not None else [])
+        out.append(found)
+    return out
+
+
+def check_icons(path, expect=None, rep=None):
+    """(6) the icons of a file: each one native custom geometry with round strokes (_icon_problems); with `expect`
+    ({slide, icons} entries, the core's count, tools/real-icons.mjs) each slide holds exactly that many, a slide not
+    listed none. `rep` (a report) gets the counts per slide"""
+    try:
+        per = icons(path)
+    except (KeyError, zipfile.BadZipFile, ET.ParseError) as e:
+        return ["icons not read: %s" % e]
+    if rep is not None:
+        rep["icons"] = [len(x) for x in per]
+    bad = []
+    for i, found in enumerate(per):
+        for k, el in enumerate(found):
+            bad.extend(_icon_problems(el, "slide %d, icon %d" % (i + 1, k + 1)))
+    if expect is not None:
+        want = {e["slide"]: e.get("icons") or 0 for e in expect}
+        for n in sorted(set(want) | set(range(1, len(per) + 1))):
+            have = len(per[n - 1]) if 0 < n <= len(per) else 0
+            if have != want.get(n, 0):
+                bad.append("slide %d: %d icon(s), the export draws %d" % (n, have, want.get(n, 0)))
+    return bad
+# ---- end of M15's icon block ----
 
 
 def main(argv):

@@ -145,6 +145,38 @@ describe("the icon picker (S15.2, IC-01)", () => {
     expect((items()[id] as ShapeItem).stroke).toBe(3);
   });
 
+  it("Change icon…: tiles at the item's own line width; Escape closes the picker and keeps the icon selected (review 5, 7)", async () => {
+    const id = Object.keys(items()).find(k => (items()[k] as ShapeItem).stroke === 3)!;
+    await act(async () => selectItem(id)); await settle();
+    expect((get().prefs.prefs as Prefs & { iconOpts?: { stroke?: number } }).iconOpts?.stroke).toBe(1.5);   // the picker's own width
+    await click("#iconChange");
+    await type("bank");
+    const strokes = [...tiles()[0].querySelectorAll("path")].map(p => p.getAttribute("stroke-width")).filter(Boolean);
+    expect(strokes.length).toBeGreaterThan(0);
+    expect(strokes.every(w => w === "3")).toBe(true);                             // the item's 3, not the picker's 1.5
+    await act(async () => { fireEvent.keyDown($("#iconSearch")!, { key: "Escape" }); }); await settle();
+    expect($("#iconPicker")).toBeNull();
+    expect(get().selection.itemSel?.id).toBe(id);                                 // Escape did not reach the page's keys
+    // the picker's own width is not overwritten by an item's
+    expect((get().prefs.prefs as Prefs & { iconOpts?: { stroke?: number } }).iconOpts?.stroke).toBe(1.5);
+  });
+
+  it("pick (09 §3.5: a chart mark's icon, M14): the id goes to the caller, nothing changes in the deck", async () => {
+    const { openIconPicker } = await import("../src/ui/IconPicker");
+    const h = history(), before = JSON.stringify(items());
+    const got: string[] = [];
+    await act(async () => openIconPicker({ mode: "pick", title: "Icon of the mark", onPick: id => got.push(id) })); await settle();
+    expect($(".icdlg .dlghd b")!.textContent).toBe("Icon of the mark");
+    expect($("#iconSize")).toBeNull();
+    await type("bank");
+    await click('#iconGrid [data-icon="tabler:building-bank"]');
+    expect(got).toEqual(["tabler:building-bank"]);
+    expect($("#iconPicker")).toBeNull();
+    await settle();
+    expect(history()).toBe(h);
+    expect(JSON.stringify(items())).toBe(before);
+  });
+
   it("an icon the set does not have: drawn as “info”, with its Issues line", async () => {
     const h = history();
     await act(async () => itemPatch("Insert icon", "ibad", { kind: "shape", shape: "icon", icon: "tabler:no-such-icon", box: { x: 100, y: 100, w: 64, h: 64 } }));

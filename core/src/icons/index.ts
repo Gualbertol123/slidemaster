@@ -214,7 +214,7 @@ export const tablerLoaded = () => set !== null;
     icon picker's search (S15.2, render/icon-search.ts). The set is inflated only when the first Tabler name is drawn or
     the picker first asks */
 export function installTabler() {
-  setIconCatalog(tabler);
+  setIconCatalog(tabler, tablerLoaded);
   setVendoredIcons((s: IconSet, name: string) => {
     const p = tabler().icon(s === "tabler" ? "outline" : "filled", name);
     return p && { paths: p.map(x => x.d), paint: p.map(x => x.paint) };

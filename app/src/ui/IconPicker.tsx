@@ -4,17 +4,21 @@
    the slide draws. The search runs in the core worker over the set's index (core/src/render/icon-search.ts): the page
    holds no copy of the set, and the grid is virtualised – only the rows in view (≈ 100 tiles) are drawn, their path
    data asked as they scroll in. A new icon takes the picker's colour, size and outline width (remembered, as the
-   recent icons, in this user's preferences); a changed icon keeps its own. */
+   recent icons, in this user's preferences); a changed icon keeps its own, and its tiles are drawn at its own line width.
+   Mode "pick" hands the chosen id to its caller (09 §3.5: an icon for a chart mark, M14) and changes nothing itself. */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { create } from "zustand";
-import type { Prefs } from "@slide-builder/core/model/types";
+import type { Prefs, ShapeItem } from "@slide-builder/core/model/types";
+import { iconStroke } from "@slide-builder/core/render/shape-dl";
 import type { IconSearchAnswer, IconTile } from "@slide-builder/core/render/icon-search";
 import { core, setPrefs } from "../state/app";
 import { get } from "../state/store";
 import { insertShape, itemPatch } from "../editor/charts";
 import CSS from "./icon-picker.css?raw";
 
-export type PickerReq = { mode: "insert" } | { mode: "replace"; id: string };
+/** insert: a new icon item; replace: item `id`'s icon changed (Change icon…); pick: the id handed to `onPick` – a chart
+    mark's icon (09 §3.5, M14), the caller makes the change (and its undo step) */
+export type PickerReq = { mode: "insert" } | { mode: "replace"; id: string } | { mode: "pick"; onPick: (id: string) => void; title?: string };
 const usePicker = create<{ req: PickerReq | null }>(() => ({ req: null }));
 /** opens the picker: a new icon, or the icon of item `id` changed */
 export const openIconPicker = (req: PickerReq) => usePicker.setState({ req });
@@ -56,8 +60,10 @@ function IconPicker({ req }: { req: PickerReq }) {
   const [category, setCategory] = useState<string | null>(null);
   const [color, setColor] = useState<string | null>(typeof o.color === "string" ? o.color : null);
   const [size, setSize] = useState(SIZES.includes(o.size as number) ? o.size as number : 64);
-  const [stroke, setStroke] = useState(WIDTHS.includes(o.stroke as number) ? o.stroke as number : 2);
-  const [ans, setAns] = useState<{ names: string[]; categories: string[]; version: string; q: string; style: string; ms: number; first: boolean } | null>(null);
+  // Change icon…: the tiles drawn at the item's own line width (what it will look like), not the picker's
+  const item = req.mode === "replace" ? get().deck.slides[get().deck.cur]?.cfg.items?.[req.id] as ShapeItem | undefined : undefined;
+  const [stroke, setStroke] = useState(item ? iconStroke(item.stroke) : WIDTHS.includes(o.stroke as number) ? o.stroke as number : 2);
+  const [ans, setAns] = useState<{ names: string[]; categories: string[]; version: string; q: string; style: string; ms: number; first: boolean; cold: boolean } | null>(null);
   const [state, setState] = useState<"busy" | "ready" | "none">("busy");
   const [top, setTop] = useState(0);
   const [, bump] = useState(0);
@@ -76,7 +82,7 @@ function IconPicker({ req }: { req: PickerReq }) {
       if (!a) { setState("none"); return; }
       for (const [id, t] of Object.entries(a.tiles)) tiles.current.set(id, t);
       pickerStats.workerMs = a.ms; if (a.first) pickerStats.firstUse = a.ms;
-      setAns({ names: a.names, categories: a.categories, version: a.version, q, style, ms: a.ms, first: a.first }); setState("ready"); setTop(0);
+      setAns({ names: a.names, categories: a.categories, version: a.version, q, style, ms: a.ms, first: a.first, cold: a.cold }); setState("ready"); setTop(0);
       if (scroller.current) scroller.current.scrollTop = 0;
     }).catch(() => { if (n === seq.current) setState("none"); });
   }, [q, style, category, recent]);
@@ -100,20 +106,22 @@ function IconPicker({ req }: { req: PickerReq }) {
 
   const pick = (id: string) => {
     rememberIcon(id);
-    setPrefs({ iconOpts: { style, color, size, stroke } } as Partial<Prefs>);
+    // the new icon's options are remembered from Insert only (the others show none: an item's own width is not the picker's)
+    setPrefs({ iconOpts: req.mode === "insert" ? { style, color, size, stroke } : { ...o, style } } as Partial<Prefs>);
     close();
-    if (req.mode === "replace") itemPatch("Change icon", req.id, { icon: id });
+    if (req.mode === "pick") req.onPick(id);
+    else if (req.mode === "replace") itemPatch("Change icon", req.id, { icon: id });
     else insertShape("icon", id, { size, ...(color ? { fill: color } : {}), ...(id.startsWith("tabler:") && stroke !== 2 ? { stroke } : {}) });
   };
   const tile = (id: string, name?: string) => <button key={id} className="ictile" data-icon={id} title={name ?? label(id)} onClick={() => pick(id)}>
     <TileSvg tile={tiles.current.get(id)} stroke={stroke} /></button>;
   const ink = color ?? "#1F2430";
 
-  return <div className="modal" id="iconPicker" onKeyDown={e => { if (e.key === "Escape") close(); else e.stopPropagation(); }}
+  return <div className="modal" id="iconPicker" onKeyDown={e => { e.stopPropagation(); if (e.key === "Escape") close(); }}
     onPointerDown={e => { if (e.target === e.currentTarget) close(); }}>
     <style>{CSS}</style>
     <div className="dlg icdlg">
-      <div className="dlghd"><b>{req.mode === "replace" ? "Change icon" : "Insert icon"}</b>
+      <div className="dlghd"><b>{req.mode === "replace" ? "Change icon" : req.mode === "pick" ? req.title ?? "Choose icon" : "Insert icon"}</b>
         <span>Search by name or tag (English), or pick a category. Tabler Icons{ans ? " " + ans.version : ""} · MIT</span></div>
       <div className="ictools">
         <input ref={input} id="iconSearch" className="icsearch" placeholder="Search icons… (e.g. bank, arrow up, euro)" value={q}
@@ -130,7 +138,7 @@ function IconPicker({ req }: { req: PickerReq }) {
           {recent.length > 0 && !q.trim() && category === null && <><div className="ichd">Recent</div><div className="icrecent" id="iconRecent">{recent.map(id => tile(id))}</div></>}
           <div className="ichd">{state === "none" ? "" : state === "busy" ? "Searching…" : `${names.length.toLocaleString("en")} icon${names.length === 1 ? "" : "s"}${category ? " in " + category : ""}`}</div>
           {state === "none" ? <div className="icnone" id="iconNone">The icon set is read by Slide Builder's background worker, which this browser did not start. Reload the page; if it stays, the built-in icons of Insert shape ▾ still work.</div>
-            : <div className="icgrid" id="iconGrid" ref={scroller} data-q={ans?.q ?? ""} data-style={ans?.style ?? ""} data-n={names.length} data-ms={ans?.ms ?? ""} data-first={ans?.first ? "1" : "0"} onScroll={e => setTop((e.target as HTMLDivElement).scrollTop)}>
+            : <div className="icgrid" id="iconGrid" ref={scroller} data-q={ans?.q ?? ""} data-style={ans?.style ?? ""} data-n={names.length} data-ms={ans?.ms ?? ""} data-first={ans?.first ? "1" : "0"} data-cold={ans?.cold ? "1" : "0"} onScroll={e => setTop((e.target as HTMLDivElement).scrollTop)}>
               <div style={{ height: rows * TILE + "px", position: "relative" }}>
                 <div className="icrows" style={{ top: first * TILE + "px" }}>{ids.map((id, k) => tile(id, names[first * COLS + k]))}</div>
               </div>
@@ -147,7 +155,7 @@ function IconPicker({ req }: { req: PickerReq }) {
         <span className="lbl">Line</span>
         <div className="seg small" id="iconWidth">{WIDTHS.map(w => <button key={w} data-width={w} disabled={style === "filled"} className={stroke === w ? "on" : ""} title={style === "filled" ? "Filled icons have no outline" : `Outline ${w} px at 24 px`} onClick={() => setStroke(w)}>{w}</button>)}</div>
         <span style={{ flex: "1" }} /><button className="btn" onClick={close}>Cancel</button>
-      </div> : <div className="icopts"><span className="lbl">The icon keeps its colour, size and line (Icon tools on the ribbon).</span><span style={{ flex: "1" }} /><button className="btn" onClick={close}>Cancel</button></div>}
+      </div> : <div className="icopts"><span className="lbl">{req.mode === "replace" ? "The icon keeps its colour, size and line (Icon tools on the ribbon)." : ""}</span><span style={{ flex: "1" }} /><button className="btn" onClick={close}>Cancel</button></div>}
     </div>
   </div>;
 }
