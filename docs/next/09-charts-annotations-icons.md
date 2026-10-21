@@ -349,8 +349,15 @@ the op builder.
   content area at its automatic scale and writes no free entry (the next free move writes it, as items added after the
   switch-on are handled today, 07 §5.1). As built in S13.4 (`layout.ts` freeLayout, emptySpot): only a table with **no**
   entry (an unusable entry keeps the automatic place, as before); the first spot top to bottom, then left to right, GX /
-  GY away from the placed tables, their text boxes and the items; no spot that large → the first at ¾, ½, ⅓ or ¼ of
-  that scale; none either → the automatic layout's place.
+  GY away from the placed tables, their text boxes and the items, for the table **with the text boxes and attached
+  items that go beside it** (those without a place of their own: their bounding box is fitted, so a comment below the
+  new table never lands on another table – S13.4 review); no spot that large → the first at ¾, ½, ⅓ or ¼ of that
+  scale; none either → the automatic layout's place. Known and accepted (S13.4 review, for the 4.6.0 CHANGELOG at
+  S13.5): the spot is computed, not saved, so (a) in a format-4 deck that 4.5 pages still open (a table put on a
+  free-layout slide by the wizard, with no entry) a 4.5 page draws it at the automatic place and a 4.6 page at the empty
+  spot – their exports differ until someone moves it (`table.add` itself raises the deck to format 5, so 4.5 pages
+  never see a table added that way) – and (b) it can move when another box of the slide moves, until its first free
+  move writes its entry.
 * Undo of *Delete slide* restores the slide **as this page had it** when the remove was applied: the inverse is taken
   from the page's view then (`DocSync.apply`, `ops.ts` inverseOf). An edit of that slide by another user with a lower
   Lamport time that reaches this page only after the delete is folded before the remove – and is lost when the undo

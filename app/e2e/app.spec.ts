@@ -1,6 +1,6 @@
 /* End-to-end: the built app (helper/slide_builder.html) served by two real helpers that share one
    folder – user "anna" on :8951 and user "bob" on :8952. Run: npm run build && npm run test:e2e */
-import { test, expect, type Locator, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page, type Route } from "@playwright/test";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -1779,7 +1779,7 @@ test.describe.serial("two people, one shared folder", () => {
     await page.click('[data-design="glass"]'); await saved(page);
   });
 
-  test("New slide (S13.4, NS-01, B40): after the selected slide, its title typed at once; #newSlide, Ctrl+M, the slide list's menu; one undo step each", async ({ page }) => {
+  test("New slide (S13.4, NS-01, B40): after the selected slide, its title typed at once; #newSlide, Ctrl+M, the slide list's menu; one undo step each", async ({ page, browser }) => {
     await openApp(page, ANNA);
     await openWorkbook(page, "report.xlsx"); await continueOpen(page, "report.xlsx");
     await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
@@ -1837,6 +1837,57 @@ test.describe.serial("two people, one shared folder", () => {
     await page.click("#undoBtn"); await page.click("#undoBtn");
     await pollFile(() => ids(), { timeout: 10_000 }).toEqual(ids0);
     await saved(page);
+
+    // two writers (review of S13.4; 09 §2.8): anna and bob each press New slide after the same slide before either page
+    // has read the other's record – both slides stay, with different ids, in the same order on both pages; anna's undo
+    // takes away her slide only
+    const b = await browser.newPage();
+    await openApp(b, BOB); await openWorkbook(b, "report.xlsx"); await continueOpen(b, "report.xlsx");   // (bob's last file may be another)
+    await expect(b.locator(".thumb")).toHaveCount(n0, { timeout: 20_000 });
+    // (the deck is format 5 already – the slide.add above raised it – so a record is appended without a tail first)
+    await pollFile(() => JSON.parse(fs.readFileSync(path.join(deckDir("report.xlsx")!, "snapshot.json"), "utf8")).format, { timeout: 15_000 }).toBe(5);
+    const pageIds = (p: Page) => p.evaluate(() => (window as any).__sbTest.preset().slides.map((s: any) => s.id) as string[]);
+    await expect.poll(() => pageIds(b)).toEqual(ids0);
+    // no page reads the journals meanwhile: each one's next tail is held until both have added their slide
+    const TAIL = /\/api\/decks\/[^/]+\/tail\?since=/, held: Route[] = [], heldBy = { a: 0, b: 0 };
+    let holding = true;
+    const hold = (who: "a" | "b") => (r: Route) => { if (!holding) return void r.continue(); heldBy[who]++; held.push(r); };
+    await page.route(TAIL, hold("a")); await b.route(TAIL, hold("b"));
+    await expect.poll(() => heldBy.a > 0 && heldBy.b > 0, { timeout: 10_000 }).toBe(true);   // (a tail sent before is answered)
+    const after = ids0[0];
+    await page.locator('.thumb[data-i="0"]').click(); await page.locator('.thumb.on[data-i="0"]').waitFor();
+    await b.locator('.thumb[data-i="0"]').click(); await b.locator('.thumb.on[data-i="0"]').waitFor();
+    await page.click("#newSlide"); await expect(editor).toBeFocused({ timeout: 10_000 }); await page.keyboard.press("Escape");
+    const bEditor = b.locator("#stage input.inline-edit");
+    await b.click("#newSlide"); await expect(bEditor).toBeFocused({ timeout: 10_000 }); await b.keyboard.press("Escape");
+    await saved(page); await saved(b);
+    const mine = (await pageIds(page)).filter(id => !ids0.includes(id)), bens = (await pageIds(b)).filter(id => !ids0.includes(id));
+    expect(mine).toHaveLength(1); expect(bens).toHaveLength(1);                  // neither page has the other's yet
+    const [annaId, bobId] = [mine[0], bens[0]];
+    expect(annaId).not.toBe(bobId);
+    // both on the share
+    await pollFile(() => ids().length, { timeout: 10_000 }).toBe(n0 + 2);
+    const both = ids();
+    expect(both.filter(id => id !== annaId && id !== bobId)).toEqual(ids0);
+    expect(both.indexOf(after)).toBe(0);
+    expect([...both.slice(1, 3)].sort()).toEqual([annaId, bobId].sort());          // both after that slide
+    // the tails go on: each page reads the other's record, both show the share's order
+    holding = false; for (const r of held.splice(0)) await r.continue();
+    await expect.poll(() => pageIds(page), { timeout: 15_000 }).toEqual(both);
+    await expect.poll(() => pageIds(b), { timeout: 15_000 }).toEqual(both);
+    await expect(page.locator("#slideCount")).toHaveText(String(n0 + 2)); await expect(b.locator("#slideCount")).toHaveText(String(n0 + 2));
+    // anna's undo: her slide goes, bob's stays (on the share and on both pages)
+    await page.click("#undoBtn"); await saved(page);
+    const left = both.filter(id => id !== annaId);
+    await pollFile(() => ids(), { timeout: 10_000 }).toEqual(left);
+    await expect.poll(() => pageIds(page), { timeout: 15_000 }).toEqual(left);
+    await expect.poll(() => pageIds(b), { timeout: 15_000 }).toEqual(left);
+    // (bob's undo: the deck as it was for the next tests)
+    await b.click("#undoBtn"); await saved(b);
+    await pollFile(() => ids(), { timeout: 10_000 }).toEqual(ids0);
+    await expect.poll(() => pageIds(page), { timeout: 15_000 }).toEqual(ids0);
+    await page.unroute(TAIL); await b.unroute(TAIL);
+    await b.close();
   });
 
   test("Add table (S13.4, NS-02, B41, B42): the deck's tables, on no slide first; one added to a new slide; New table from cells; one undo step each; free layout places it in an empty spot", async ({ page }) => {

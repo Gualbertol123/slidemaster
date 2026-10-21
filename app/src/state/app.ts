@@ -535,9 +535,13 @@ export function change(label: string, ops: Op[], coalesce?: string): boolean {
   void core().call("apply", { label, ops, coalesce }).catch(e => console.error(e));
   return true;
 }
-/** the slide shown once the slides are made again with slide `id` in them (New slide: the slide it adds) */
-let focusNext: string | null = null;
-export function focusSlide(id: string | null) { focusNext = id; }
+/** the slide shown once the slides are made again with slide `id` in them (New slide: the slide it adds); `title`: its
+    title then opens for typing as soon as the stage shows it (Stage.tsx). A slide chosen meanwhile (gotoSlide) drops
+    both, so the title never opens on a later visit (S13.4 review) */
+let focusNext: string | null = null, titleNext: string | null = null;
+export function focusSlide(id: string | null, title = false) { focusNext = id; titleNext = title ? id : null; }
+export const pendingTitle = () => titleNext;
+export function takePendingTitle(id: string): boolean { if (titleNext !== id) return false; titleNext = null; return true; }
 /** a read-only deck (a damaged journal: 423) is read, never changed - the change is refused with the reason, not shown
     and silently never saved (audit DATA-4; CHANGELOG 4.0.0) */
 function readOnly() {
@@ -644,6 +648,7 @@ export async function openWizard() {
 export function gotoSlide(i: number) {
   const { slides, cur } = get().deck;
   if (i < 0 || i >= slides.length || i === cur) return;
+  focusNext = null; if (slides[i].id !== titleNext) titleNext = null;
   patchAll({ deck: { cur: i }, selection: { sel: null, itemSel: null } }); STAGE.render();
 }
 /** the stage re-fits when the zoom changes (stage/Stage.tsx follows ui.zoom); "Fit" pressed again re-fits too

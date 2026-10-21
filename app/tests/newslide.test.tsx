@@ -11,10 +11,17 @@ import { fileURLToPath } from "node:url";
 
 vi.mock("../src/editor/thumbs", async orig => ({ ...(await orig() as object), mountThumbs: () => { /* imperative */ } }));
 vi.mock("../src/render/wall", async orig => ({ ...(await orig() as object), applyWall: () => { /* canvas */ } }));
+// (review of S13.4: the Add table menu resolves its previews once, not on every render – counted here)
+const resolved = vi.hoisted(() => ({ n: 0 }));
+vi.mock("@slide-builder/core/model/preset", async orig => {
+  const m = await orig() as typeof import("@slide-builder/core/model/preset");
+  return { ...m, resolveTable: (...a: Parameters<typeof m.resolveTable>) => { resolved.n++; return m.resolveTable(...a); } };
+});
 
 import { App } from "../src/ui/App";
 import { get, setDialogs } from "../src/state/store";
-import { gotoSlide, openLocalFile, undo } from "../src/state/app";
+import { focusSlide, gotoSlide, openLocalFile, pendingTitle, undo } from "../src/state/app";
+import { PREVIEW_CELLS, previewOf } from "../src/ui/AddTable";
 import { installKeys } from "../src/editor/keys";
 import { addRangeTable, addTable, newId, newSlide, tableChoices } from "../src/editor/slides";
 import { useStage } from "../src/stage/data";
@@ -166,6 +173,61 @@ describe("New slide, Add table (S13.4)", () => {
     expect(preset().slides.find(s => s.id === R.id)!.tables).toEqual([]);
     await act(async () => undo(false)); await confirmed(h0);
   });
+
+  // (review of S13.4)
+  it("the title of a new slide never opens on a later visit: a slide chosen before the stage showed it drops the request", async () => {
+    const h0 = history();
+    await act(async () => gotoSlide(0)); await settle();
+    await act(async () => { newSlide(); }); await confirmed(h0 + 1);
+    // (each look renders what arrived meanwhile: an update outside act() waits for the next one)
+    await vi.waitFor(async () => { await act(async () => { /* flush */ }); expect(useStage.getState().editor).toEqual({ kind: "text", key: "title" }); }, { timeout: 10_000 });
+    await act(async () => { fireEvent.keyDown(document.querySelector("#stage input.inline-edit")!, { key: "Escape" }); }); await settle();
+    const id = get().deck.slides[get().deck.cur].id, at = get().deck.cur;
+    expect(pendingTitle()).toBeNull();                                            // taken when it opened
+    // as when the user picks another slide before the stage has drawn the new one
+    focusSlide(id, true);
+    await act(async () => gotoSlide(0)); await settle();
+    expect(pendingTitle()).toBeNull();
+    await act(async () => gotoSlide(at)); await settle(12);
+    expect(get().deck.slides[get().deck.cur].id).toBe(id);
+    expect(useStage.getState().editor).toBeNull();                                // no title editor on the later visit
+    // choosing the new slide itself keeps it
+    await act(async () => gotoSlide(0)); await settle();
+    focusSlide(id, true); gotoSlide(at);
+    expect(pendingTitle()).toBe(id);
+    focusSlide(null);
+    expect(pendingTitle()).toBeNull();
+    await settle(12); useStage.setState({ editor: null });
+    await act(async () => undo(false)); await confirmed(h0);
+  }, 30_000);
+
+  it("Add table: the previews are worked out once, not on every render; a large table gets none", async () => {
+    await act(async () => gotoSlide(0)); await settle();
+    await act(async () => { fireEvent.click(document.getElementById("addTable")!); });
+    expect(document.getElementById("addTableMenu")).not.toBeNull();
+    const n = resolved.n;
+    expect(n).toBeGreaterThan(0);
+    // the current slide changes (the menu re-renders): nothing resolved again
+    await act(async () => gotoSlide(1)); await settle();
+    await act(async () => gotoSlide(0)); await settle();
+    expect(document.getElementById("addTableMenu")).not.toBeNull();
+    expect(resolved.n).toBe(n);
+    await act(async () => { fireEvent.keyDown(document.body, { key: "Escape" }); fireEvent.pointerDown(document.body); fireEvent.mouseDown(document.body); }); await settle();
+    // the size known without resolving: over PREVIEW_CELLS no layout is built
+    const wb = get().deck.wb!, sheet = preset().tables[0].sheet, before = resolved.n;
+    const big = previewOf(wb, { id: "tbig", sheet, kind: "range", range: "A1:Z200", grow: false }, "glass");
+    expect(big.cells).toBe(26 * 200);
+    expect(big.cells).toBeGreaterThan(PREVIEW_CELLS);
+    expect(big).toMatchObject({ L: null, range: "A1:Z200" });
+    expect(resolved.n).toBe(before);
+    const small = previewOf(wb, { id: "tsmall", sheet, kind: "range", range: "B2:D6", grow: false }, "glass");
+    expect(small.cells).toBe(15);
+    expect(small.L).not.toBeNull();
+    expect(previewOf(wb, { id: "tgone", sheet: "No such sheet", kind: "range", range: "B2:D6", grow: false }, "glass").L).toBeNull();
+    // a mapped "x" table: its own range
+    const m = preset().tables.find(t => t.kind === "markers")!;
+    expect(previewOf(wb, m, "glass").range).toMatch(/^[A-Z]+\d+:[A-Z]+\d+$/);
+  }, 30_000);
 });
 
 describe("ids of new slides and tables (09 §2.8: unique per writer)", () => {

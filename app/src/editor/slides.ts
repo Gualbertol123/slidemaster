@@ -4,7 +4,6 @@
    added table at the first empty spot (render/layout.ts freeLayout); nothing is written for it here. */
 import { get, toast } from "../state/store";
 import { change, focusSlide } from "../state/app";
-import { editTitleWhenShown } from "../stage/actions";
 import { curSlide } from "./edit";
 import type { Preset, SlideDef, TableDef } from "@slide-builder/core/model/types";
 
@@ -24,9 +23,9 @@ export function newSlide(): string | null {
   const R = curSlide(), id = newId("s", x => p.slides.some(s => s.id === x));
   const slide: SlideDef = { id, type: "content", title: "New slide", subtitle: null, tables: [] };
   const after = R && p.slides.some(s => s.id === R.id) ? R.id : p.slides[p.slides.length - 1]?.id ?? null;
-  focusSlide(id); editTitleWhenShown(id);
+  focusSlide(id, true);
   if (change("New slide", [{ op: "slide.add", slide, after }])) return id;
-  focusSlide(null); editTitleWhenShown(null);
+  focusSlide(null);
   return null;
 }
 
