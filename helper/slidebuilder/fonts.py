@@ -4,6 +4,7 @@
                                  source: "upload", "google", or "system" (a Windows font copied by a capture in copy
                                  mode, sysfonts.py: every PC then lays it out with the same file, W13)
     data/fonts/<file>            the font files (.ttf .otf .woff .woff2), named after family/weight/style + content hash
+    data/fonts/cache/            what the helpers fetched from Google (gfonts.py, B46); a folder, so _sweep leaves it alone
 
 The library lives in the shared data folder, so a font added once is available to everybody, in every
 deck and in exports. Writes take the ``fonts`` lock; files are written before the index refers to them.

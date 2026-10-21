@@ -84,6 +84,8 @@ export interface Backend {
   /** a Google font fetched by the helper, not the page (fonts.googleapis.com does not resolve at the office) */
   googleFont(family: string): Promise<GoogleFont>;
   googleFontFile(file: string): Promise<ArrayBuffer>;
+  /** a font to show a Google family's name in the picker (B46: the helper keeps it in data\fonts\cache) */
+  googleFontPreview(family: string): Promise<ArrayBuffer>;
   fontUrl(file: string): string;
   /** copies a picture into the shared folder (data/assets); returns the name to use */
   uploadLogo(name: string, data: ArrayBuffer): Promise<string>;
@@ -215,6 +217,8 @@ export const helper: Backend = {
   // (the helper may try GitHub, jsDelivr and googleapis in turn, each up to 20 s)
   googleFont: family => json(req("/api/fonts/google?family=" + encodeURIComponent(family), { timeout: WAIT_LONG_MS })),
   async googleFontFile(file) { return (await req("/api/fonts/google/file?ref=" + encodeURIComponent(file), { timeout: WAIT_LONG_MS })).arrayBuffer(); },
+  // (WAIT_MS: a first preview at the office may take longer, then that window shows no more; the helper caches it anyway)
+  async googleFontPreview(family) { return (await req("/api/fonts/google/preview?family=" + encodeURIComponent(family))).arrayBuffer(); },
   fontUrl: file => "/fonts/" + encodeURIComponent(file) + "?t=" + encodeURIComponent(TOKEN),
   async uploadLogo(name, data) { return (await json<{ name: string }>(req("/api/logo?name=" + encodeURIComponent(name), { method: "POST", body: data }))).name; },
 };
@@ -283,7 +287,7 @@ export const offline: Backend = {
     LS.set("fonts", lib); return lib;
   },
   async removeFont(family) { const lib = LS.get<LibraryFont[]>("fonts", []).filter(x => x.family.toLowerCase() !== family.toLowerCase()); LS.set("fonts", lib); return lib; },
-  googleFont: offlineOnly, googleFontFile: offlineOnly,
+  googleFont: offlineOnly, googleFontFile: offlineOnly, googleFontPreview: offlineOnly,
   fontUrl: file => file,
   uploadLogo: offlineOnly,
 };

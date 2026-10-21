@@ -41,6 +41,31 @@ export function watchFontLoads() {
 
 export const inLibrary = (family: string) => lib().some(f => f.family.toLowerCase() === family.toLowerCase());
 
+/* previews of Google fonts not in the library yet, for the picker (B46): never a googleapis stylesheet (at the office
+   the name does not resolve for the page); the helper answers with googleapis' subset of the name's letters or the
+   family's regular file, fetched once for the office (data\fonts\cache). Only names on screen, 4 at a time; after one
+   failure the picker asks no more in this window and the names show in their fallback fonts */
+const PREVIEWS_AT_ONCE = 4;
+const previewed = new Set<string>(), queued: string[] = [];
+let previewing = 0, previewsFail = false;
+/** the name a preview is declared under: its own, so a subset never stands in for the library's faces */
+export const previewFamily = (family: string) => "sbpv " + family;
+export function previewFont(family: string) {
+  if (previewsFail || !backend.served || previewed.has(family) || inLibrary(family) || typeof FontFace === "undefined") return;
+  previewed.add(family); queued.push(family); nextPreview();
+}
+function nextPreview() {
+  while (!previewsFail && previewing < PREVIEWS_AT_ONCE && queued.length) {
+    const family = queued.shift()!;
+    previewing++;
+    void backend.googleFontPreview(family)
+      .then(buf => new FontFace(previewFamily(family), buf).load())
+      .then(face => { document.fonts?.add(face); })
+      .catch(e => { if (!previewsFail) console.info("font previews stop for this window:", e); previewsFail = true; queued.length = 0; })
+      .finally(() => { previewing--; nextPreview(); });
+  }
+}
+
 /** adds a Google font to the shared library: its files are saved in the Slide Builder folder, so slides
     and exports work even where Google cannot be reached later. With the helper, the helper fetches them (from the
     google/fonts repository on GitHub, else googleapis: helper gfonts.py) – at the office fonts.googleapis.com does not
@@ -78,12 +103,17 @@ async function store(faces: Face[]): Promise<LibraryFont[]> {
 }
 
 /** the faces the helper found, stored as uploads are: a variable file (most families on GitHub) is fetched once and
-    becomes a static face at each weight (exports never embed a variable font) */
-async function fromHelper(family: string): Promise<LibraryFont[]> {
+    becomes a static face at each weight (exports never embed a variable font). A 404 for a file: Google renamed it
+    since a helper kept the family's faces (data\fonts\cache), and the helper has forgotten them: asked again, once */
+async function fromHelper(family: string, again = true): Promise<LibraryFont[]> {
   const g = await backend.googleFont(family), files = new Map<string, ArrayBuffer>(), faces: Face[] = [];
   for (const f of g.faces) {
     let raw = files.get(f.file);
-    if (!raw) { raw = await backend.googleFontFile(f.file); files.set(f.file, raw); }
+    if (!raw) {
+      try { raw = await backend.googleFontFile(f.file); }
+      catch (e) { if (again && e instanceof ApiError && e.status === 404) return fromHelper(family, false); throw e; }
+      files.set(f.file, raw);
+    }
     const base = f.file.split("/").pop() || "font.ttf", { buf, name } = f.variable ? await staticFile(raw, f.weight, base) : { buf: raw, name: base };
     faces.push({ meta: { family, weight: f.weight, style: f.style, source: "google", name, range: f.range }, buf });
   }

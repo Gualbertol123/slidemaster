@@ -1,7 +1,11 @@
 """Google fonts fetched by the helper (gfonts.py): google/fonts on GitHub (raw.githubusercontent.com, else jsDelivr),
 else the CSS API; the proxy setting; the messages. No network: fetch_url is a fake answering from a dict."""
+import json
 import os
+import shutil
 import socket
+import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -11,7 +15,7 @@ import test_http
 from sbtest import TempDirs
 from test_fonts import fake_font
 
-from slidebuilder import gfonts, paths
+from slidebuilder import fonts, gfonts, paths
 
 RAW, JSD = gfonts.GITHUB
 ROBOTO = '''name: "Roboto"
@@ -209,6 +213,10 @@ class Proxy(LocalAppData, TempDirs):
 
 
 class GoogleFontsHttp(LocalAppData, test_http.HttpBase):
+    def forget(self):
+        """another office: nothing in data\\fonts\\cache (B46) yet"""
+        shutil.rmtree(gfonts.cache_dir(), ignore_errors=True)
+
     def get(self, family):
         return self.jreq("GET", "/api/fonts/google?family=" + urllib.parse.quote(family))
 
@@ -274,6 +282,7 @@ class GoogleFontsHttp(LocalAppData, test_http.HttpBase):
         self.assertEqual((st, data), (200, fake_font()))
         self.assertEqual([u.split("/")[2] for u in net.calls if u.endswith(".ttf")], ["raw.githubusercontent.com", "cdn.jsdelivr.net"])
         # a 429 from both mirrors and googleapis down: unreachable (502), not "not a Google font"
+        self.forget()
         net = Net({RAW + "ofl/roboto/METADATA.pb": 429, JSD + "ofl/roboto/METADATA.pb": 429}, down={"fonts.googleapis.com"})
         with mock.patch.object(gfonts, "fetch_url", net):
             st, res = self.get("Roboto")
@@ -287,6 +296,7 @@ class GoogleFontsHttp(LocalAppData, test_http.HttpBase):
         with mock.patch.object(gfonts, "fetch_url", net):
             st, res = self.get("Roboto")
         self.assertEqual((st, res.get("source")), (200, "github"))
+        self.forget()
         net = Net({RAW + "ofl/roboto/METADATA.pb": page, JSD + "ofl/roboto/METADATA.pb": page}, down={"fonts.googleapis.com"})
         with mock.patch.object(gfonts, "fetch_url", net):
             st, res = self.get("Roboto")
@@ -346,3 +356,337 @@ class GoogleFontsHttp(LocalAppData, test_http.HttpBase):
             self.assertEqual(self.req("GET", "/api/fonts/google?family=Roboto", token=False)[0], 403)
             self.assertEqual(self.file("ofl/lato/Lato-400.ttf", token=False)[0], 403)
             self.assertEqual(net.calls, [])
+
+
+# ---------------------------------------------------------------------------------------------------- B46 cache
+ROBOTO_FILES = {RAW + "ofl/roboto/METADATA.pb": ROBOTO.encode(), RAW + "ofl/roboto/Roboto%5Bwdth%2Cwght%5D.ttf": fake_font(size=200),
+                RAW + "ofl/roboto/Roboto-Italic%5Bwdth%2Cwght%5D.ttf": fake_font(b"true", 200)}
+OFFLINE = {"raw.githubusercontent.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"}
+SUBSET = "https://fonts.gstatic.com/l/font?kit=KFOmCnqEu92Fr1Me4GZNCzc&skey=a0a0114a1dcab3ac&v=v51"
+SUBSET_CSS = "@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 400;\n  src: url(%s) format('truetype');\n}\n" % SUBSET
+
+
+def preview_css_url(family):
+    return gfonts.CSS_API + family.replace(" ", "+") + "&text=" + urllib.parse.quote(family) + "&display=swap"
+
+
+def sweep_4_0_0(lib):
+    """fonts.py _sweep as 4.0.0 shipped it (git show v4.0.0:helper/slidebuilder/fonts.py:178-187), frozen: the share
+    runs 4.0.0 until update day, and its helpers sweep the same data\\fonts folder"""
+    from slidebuilder.fonts import FONT_TYPES, fonts_dir
+    from slidebuilder.util import remove_quietly
+    used = {x.get("file") for f in lib["fonts"] for x in f["faces"] if isinstance(x, dict)}
+    try:
+        names = os.listdir(fonts_dir())
+    except OSError:
+        return
+    for n in names:
+        if os.path.splitext(n)[1].lower() in FONT_TYPES and n not in used:
+            remove_quietly(os.path.join(fonts_dir(), n))
+
+
+class FontCache(LocalAppData, TempDirs):
+    """data\\fonts\\cache\\ on the shared folder: several helpers read and write it at once (B46)"""
+
+    def entries(self):
+        d = gfonts.cache_dir()
+        return sorted(n for n in os.listdir(d) if n.endswith(gfonts.CACHE_EXT)) if os.path.isdir(d) else []
+
+    def add_roboto(self):
+        res = gfonts.family_faces("Roboto")
+        return res, [gfonts.face_file(f) for f in sorted({x["file"] for x in res["faces"]})]
+
+    def test_a_second_pc_adding_the_same_family_makes_no_network_call(self):
+        with mock.patch.object(gfonts, "fetch_url", Net(ROBOTO_FILES)):
+            first = self.add_roboto()
+        self.assertEqual(len(self.entries()), 3)                 # the family's faces and its two files
+        net = Net(down=OFFLINE)
+        with mock.patch.object(gfonts, "fetch_url", net):
+            self.assertEqual(self.add_roboto(), first)
+            self.assertEqual(gfonts.family_faces("roboto")["family"], "Roboto")       # the folder name is the key
+        self.assertEqual(net.calls, [])
+        self.assertEqual([n for n in os.listdir(gfonts.cache_dir()) if n.endswith(".tmp")], [])
+
+    def test_a_half_written_or_corrupt_entry_is_fetched_again(self):
+        ref = "ofl/roboto/Roboto[wdth,wght].ttf"
+        with mock.patch.object(gfonts, "fetch_url", Net(ROBOTO_FILES)):
+            data = gfonts.face_file(ref)
+        path = gfonts._entry_path("file:" + ref)
+        with open(path, "rb") as f:
+            whole = f.read()
+        flipped = whole[:-1] + bytes([whole[-1] ^ 1])
+        for bad in (whole[:len(whole) // 2], whole[:3], b"", b"<html>" + whole[6:], flipped, whole + b"\0"):
+            with open(path, "wb") as f:
+                f.write(bad)
+            net = Net(ROBOTO_FILES)
+            with mock.patch.object(gfonts, "fetch_url", net):
+                self.assertEqual(gfonts.face_file(ref), data)
+            self.assertEqual(len(net.calls), 1, bad[:8])
+            with open(path, "rb") as f:
+                self.assertEqual(f.read(), whole)                 # written whole again
+        # an entry that is whole but not a font (written by something else) is not served
+        gfonts.cache_put("file:" + ref, b"<html>sign in</html>")
+        net = Net(ROBOTO_FILES)
+        with mock.patch.object(gfonts, "fetch_url", net):
+            self.assertEqual(gfonts.face_file(ref), data)
+        self.assertEqual(len(net.calls), 1)
+
+    def test_a_vanished_or_locked_entry_is_a_miss(self):
+        # another helper pruned it between the listing and the read, or (Windows) is replacing it right now
+        gfonts.cache_put("k", b"abc")
+        self.assertEqual(gfonts.cache_get("k"), b"abc")
+        os.remove(gfonts._entry_path("k"))
+        self.assertIsNone(gfonts.cache_get("k"))
+        gfonts.cache_put("k", b"abc")
+        for exc in (FileNotFoundError(2, "gone"), PermissionError(13, "sharing violation"), OSError(22, "SMB")):
+            with mock.patch.object(gfonts, "open", side_effect=exc, create=True):
+                self.assertIsNone(gfonts.cache_get("k"))
+        self.assertEqual(gfonts.cache_get("k"), b"abc")
+
+    def test_a_cache_that_cannot_be_written_does_not_fail_the_font(self):
+        os.makedirs(os.path.dirname(gfonts.cache_dir()), exist_ok=True)
+        with open(gfonts.cache_dir(), "w") as f:                  # (a file where the folder should be)
+            f.write("x")
+        with mock.patch.object(gfonts, "fetch_url", Net(ROBOTO_FILES)):
+            res, files = self.add_roboto()
+        self.assertEqual((res["source"], files[0]), ("github", fake_font(b"true", 200)))
+        os.remove(gfonts.cache_dir())
+        with mock.patch.object(gfonts, "write_atomic", side_effect=OSError(28, "disk full")), mock.patch.object(gfonts, "fetch_url", Net(ROBOTO_FILES)):
+            self.assertEqual(self.add_roboto()[0]["source"], "github")
+
+    def test_concurrent_writers_and_readers_see_whole_entries(self):
+        # several helpers (threads here) write the same entries while others read them: a reader gets the whole
+        # value or nothing, never a part
+        values = {"k%d" % i: os.urandom(50000 + i) for i in range(4)}
+        bad, stop = [], threading.Event()
+
+        def write():
+            for _ in range(15):
+                for k, v in values.items():
+                    gfonts.cache_put(k, v)
+
+        def read():
+            while not stop.is_set():
+                for k, v in values.items():
+                    got = gfonts.cache_get(k)
+                    if got is not None and got != v:
+                        bad.append(k)
+        writers = [threading.Thread(target=write) for _ in range(3)]
+        readers = [threading.Thread(target=read) for _ in range(2)]
+        for t in writers + readers:
+            t.start()
+        for t in writers:
+            t.join()
+        stop.set()
+        for t in readers:
+            t.join()
+        self.assertEqual(bad, [])
+        self.assertEqual({k: gfonts.cache_get(k) for k in values}, values)
+        self.assertEqual([n for n in os.listdir(gfonts.cache_dir()) if n.endswith(".tmp")], [])
+
+    def test_the_cap_prunes_the_oldest_first(self):
+        now = time.time()
+        for i in range(6):
+            gfonts.cache_put("e%d" % i, b"x" * 1000)
+            os.utime(gfonts._entry_path("e%d" % i), (now - 600 + i * 60,) * 2)
+        gfonts.cache_get("e0")                                    # read just now: used, so kept
+        d = gfonts.cache_dir()
+        stale_tmp, busy_tmp = os.path.join(d, "a.sbc.1.tmp"), os.path.join(d, "b.sbc.2.tmp")
+        for p, age in ((stale_tmp, 2 * 3600), (busy_tmp, 5)):    # a crashed writer's; one being written right now
+            with open(p, "wb") as f:
+                f.write(b"y" * 500)
+            os.utime(p, (now - age,) * 2)
+        size = os.path.getsize(gfonts._entry_path("e0"))
+        with mock.patch.object(gfonts, "CACHE_MAX", size * 5):
+            gfonts.cache_put("new", b"x" * 1000)
+        left = {k for k in ["e%d" % i for i in range(6)] + ["new"] if os.path.exists(gfonts._entry_path(k))}
+        self.assertEqual(left, {"e0", "e4", "e5", "new"})        # e1-e3 oldest; down to 90 % of the cap
+        self.assertFalse(os.path.exists(stale_tmp))
+        self.assertTrue(os.path.exists(busy_tmp))
+
+    def test_pruning_skips_a_file_in_use_and_goes_on(self):
+        # Windows: a file another helper is reading cannot be deleted (sharing violation): the next oldest goes instead
+        now = time.time()
+        for i in range(4):
+            gfonts.cache_put("e%d" % i, b"x" * 1000)
+            os.utime(gfonts._entry_path("e%d" % i), (now - 600 + i * 60,) * 2)
+        busy = gfonts._entry_path("e0")
+        real = gfonts.remove_quietly
+        size = os.path.getsize(busy)
+        with mock.patch.object(gfonts, "remove_quietly", lambda p: False if p == busy else real(p)), \
+                mock.patch.object(gfonts, "CACHE_MAX", size * 4):
+            gfonts.cache_put("new", b"x" * 1000)
+        left = {k for k in ("e0", "e1", "e2", "e3", "new") if os.path.exists(gfonts._entry_path(k))}
+        self.assertEqual(left, {"e0", "e3", "new"})
+
+    def test_a_family_older_than_a_month_is_asked_again_and_kept_when_google_cannot_be_reached(self):
+        old = time.time() - gfonts.FAMILY_MAX_AGE - 60
+        with mock.patch.object(gfonts.time, "time", lambda: old), mock.patch.object(gfonts, "fetch_url", Net(ROBOTO_FILES)):
+            gfonts.family_faces("Roboto")                         # fetched a month ago
+        net = Net(down=OFFLINE)
+        with mock.patch.object(gfonts, "fetch_url", net):
+            self.assertEqual(gfonts.family_faces("Roboto")["source"], "github")
+        self.assertTrue(net.calls)
+        renamed = ROBOTO.replace('name: "Roboto"', 'name: "Roboto Renamed"', 1)
+        with mock.patch.object(gfonts, "fetch_url", Net({RAW + "ofl/roboto/METADATA.pb": renamed.encode()})):
+            self.assertEqual(gfonts.family_faces("Roboto")["family"], "Roboto Renamed")
+        at = json.loads(gfonts.cache_get("family:roboto").decode("utf-8"))["at"]
+        self.assertGreater(at, old + 60)                          # (the new fetch's time is kept)
+
+    def test_reading_a_family_does_not_keep_it_fresh(self):
+        # a hit marks the entry used for pruning (mtime); the month is counted from the fetch, kept in the entry
+        month_ago = time.time() - gfonts.FAMILY_MAX_AGE - 60
+        with mock.patch.object(gfonts.time, "time", lambda: month_ago), mock.patch.object(gfonts, "fetch_url", Net(ROBOTO_FILES)):
+            gfonts.family_faces("Roboto")
+        os.utime(gfonts._entry_path("family:roboto"), None)      # read by some PC every day since
+        renamed = ROBOTO.replace('name: "Roboto"', 'name: "Roboto Renamed"', 1)
+        net = Net({RAW + "ofl/roboto/METADATA.pb": renamed.encode()})
+        with mock.patch.object(gfonts, "fetch_url", net):
+            self.assertEqual(gfonts.family_faces("Roboto")["family"], "Roboto Renamed")
+        self.assertTrue(net.calls)
+        net = Net(down=OFFLINE)                                  # and then fresh: no call for a month
+        with mock.patch.object(gfonts, "fetch_url", net):
+            self.assertEqual(gfonts.family_faces("Roboto")["family"], "Roboto Renamed")
+        self.assertEqual(net.calls, [])
+
+    def test_a_renamed_file_of_a_cached_family_is_found_again(self):
+        # google/fonts renamed the family's file (static -> variable) and pruning dropped the old file's entry; the
+        # family is read every day, so its entry is used and fresh: a 404 for its file asks for the family again
+        static = LATO.replace("Lato", "Roboto").replace('name: "Lato"', 'name: "Roboto"')
+        old = {RAW + "ofl/roboto/METADATA.pb": static.encode(), RAW + "ofl/roboto/Roboto-400.ttf": fake_font(size=200),
+               RAW + "ofl/roboto/Roboto-700.ttf": fake_font(size=210), RAW + "ofl/roboto/Roboto-400i.ttf": fake_font(size=220),
+               RAW + "ofl/roboto/Roboto-700i.ttf": fake_font(size=230)}
+        with mock.patch.object(gfonts, "fetch_url", Net(old)):
+            stale = gfonts.family_faces("Roboto")
+        self.assertEqual(stale["faces"][0]["file"], "ofl/roboto/Roboto-400.ttf")
+        for day in range(3):
+            gfonts.cache_get("family:roboto")                     # some PC reads the family every day
+            net = Net(ROBOTO_FILES)                              # the repository now: one variable file per style
+            with mock.patch.object(gfonts, "fetch_url", net):
+                res = gfonts.family_faces("Roboto")
+                if day == 0:
+                    self.assertEqual(res, stale)                     # (fresh: Google is not asked)
+                    with self.assertRaises(gfonts.GFontError) as cm:
+                        gfonts.face_file(res["faces"][0]["file"])
+                    self.assertEqual(cm.exception.status, 404)
+                    continue
+                self.assertEqual(res["faces"][0]["file"], "ofl/roboto/Roboto[wdth,wght].ttf")
+                self.assertEqual([gfonts.face_file(f["file"]) for f in res["faces"]][0], fake_font(size=200))
+
+    def test_4_0_sweep_leaves_the_cache_alone(self):
+        # until update day the share runs 4.0.0: its helpers delete the library's unused font files at the top of
+        # data\fonts (fonts.py _sweep, the same in 4.6) when a family is removed; the cache folder is not one of them
+        with mock.patch.object(gfonts, "fetch_url", Net(ROBOTO_FILES)):
+            self.add_roboto()
+        gfonts.cache_put("file:ofl/x/X.ttf", fake_font())
+        before = self.entries()
+        self.assertEqual(len(before), 4)
+        unused = os.path.join(fonts.fonts_dir(), "Unused-400.ttf")
+        with open(unused, "wb") as f:
+            f.write(fake_font())
+        lib = {"schema": 1, "fonts": [{"family": "Lato", "faces": [{"file": "Lato-400.ttf"}]}]}
+        for sweep in (sweep_4_0_0, fonts._sweep):
+            sweep(lib)
+            self.assertEqual(self.entries(), before)
+        self.assertFalse(os.path.exists(unused))                  # (the sweep did run)
+        self.assertEqual(os.path.dirname(gfonts.cache_dir()), fonts.fonts_dir())
+        self.assertEqual(os.path.splitext(gfonts.cache_dir())[1], "")         # no font extension on the folder
+
+
+class PreviewHttp(LocalAppData, test_http.HttpBase):
+    def preview(self, family, **kw):
+        return self.req("GET", "/api/fonts/google/preview?family=" + urllib.parse.quote(family), **kw)
+
+    def test_googleapis_subset_once_then_from_the_cache(self):
+        net = Net({preview_css_url("Open Sans"): SUBSET_CSS.encode(), SUBSET: fake_font(size=80)}, down={"raw.githubusercontent.com"})
+        with mock.patch.object(gfonts, "fetch_url", net):
+            st, h, data = self.preview("Open Sans")
+        self.assertEqual((st, data, h["content-type"]), (200, fake_font(size=80), "font/ttf"))
+        self.assertEqual(net.calls, [preview_css_url("Open Sans"), SUBSET])
+        net = Net(down=OFFLINE)
+        with mock.patch.object(gfonts, "fetch_url", net):
+            st, h, data = self.preview("Open Sans")
+        self.assertEqual((st, data, net.calls), (200, fake_font(size=80), []))
+
+    def test_the_github_regular_face_where_googleapis_does_not_answer(self):
+        # the office: googleapis does not resolve; the family's regular file (shared with adding the family) is the preview
+        net = Net(ROBOTO_FILES, down={"fonts.googleapis.com"})
+        with mock.patch.object(gfonts, "fetch_url", net):
+            st, h, data = self.preview("Roboto")
+        self.assertEqual((st, data), (200, fake_font(size=200)))
+        self.assertEqual([u for u in net.calls if u.endswith(".ttf")], [RAW + "ofl/roboto/Roboto%5Bwdth%2Cwght%5D.ttf"])
+        net = Net(down=OFFLINE)
+        with mock.patch.object(gfonts, "fetch_url", net):
+            self.assertEqual(self.preview("Roboto")[2], fake_font(size=200))
+            self.assertEqual(gfonts.face_file("ofl/roboto/Roboto[wdth,wght].ttf"), fake_font(size=200))   # adding it later
+        self.assertEqual(net.calls, [])
+
+    def test_nothing_reachable(self):
+        with mock.patch.object(gfonts, "fetch_url", Net(down=OFFLINE)):
+            st, h, data = self.preview("Roboto")
+        self.assertEqual(st, 502)
+        self.assertIn(b"cannot be reached", data)
+
+    def test_a_subset_link_elsewhere_is_never_fetched(self):
+        css = SUBSET_CSS.replace(SUBSET, "https://evil.example/l/font?kit=x")
+        net = Net({preview_css_url("Roboto"): css.encode()}, down={"raw.githubusercontent.com", "cdn.jsdelivr.net"})
+        with mock.patch.object(gfonts, "fetch_url", net):
+            self.assertEqual(self.preview("Roboto")[0], 502)
+        self.assertFalse([u for u in net.calls if "evil" in u])
+
+    def test_token_required(self):
+        with mock.patch.object(gfonts, "fetch_url", Net()) as net:
+            self.assertEqual(self.preview("Roboto", token=False)[0], 403)
+            self.assertEqual(self.req("GET", "/api/fonts/google/preview?family=Roboto&t=" + test_http.TOKEN, token=False)[0], 403)
+            self.assertEqual(net.calls, [])
+        self.assertEqual(self.preview("../x")[0], 400)
+
+
+class NoNet(LocalAppData, test_http.HttpBase):
+    """SLIDEBUILDER_NO_NET=1 (the e2e helpers, playwright.config.ts): the real fetch_url opens no connection, and the
+    preview, the family and the file answer the usual "cannot be reached" 502 - the same with or without network"""
+
+    def setUp(self):
+        super().setUp()
+        self.opened = []
+        self._nonet = mock.patch.dict(os.environ, {"SLIDEBUILDER_NO_NET": "1", "HTTPS_PROXY": "", "https_proxy": ""})
+        self._nonet.start()
+
+        def opener():
+            self.opened.append(True)
+            raise AssertionError("an outbound request with SLIDEBUILDER_NO_NET=1")
+        self._opener = mock.patch.object(gfonts, "_opener", opener)
+        self._opener.start()
+
+    def tearDown(self):
+        self._opener.stop()
+        self._nonet.stop()
+        super().tearDown()
+
+    def test_no_request_and_the_usual_unreachable_answers(self):
+        st, h, data = self.req("GET", "/api/fonts/google/preview?family=Roboto")
+        self.assertEqual(st, 502, data)
+        st2, res = self.jreq("GET", "/api/fonts/google?family=Roboto")
+        self.assertEqual(st2, 502, res)
+        st3, h3, data3 = self.req("GET", "/api/fonts/google/file?ref=" + urllib.parse.quote("ofl/roboto/Roboto[wdth,wght].ttf"))
+        self.assertEqual(st3, 502, data3)
+        for msg in (json.loads(data.decode("utf-8"))["error"], res["error"], json.loads(data3.decode("utf-8"))["error"]):
+            self.assertIn("cannot be reached", msg)
+            self.assertIn("SLIDEBUILDER_NO_NET", msg)
+            self.assertIn("Upload font files", msg)
+        self.assertEqual(self.opened, [])
+        self.assertFalse(os.path.isdir(gfonts.cache_dir()) and os.listdir(gfonts.cache_dir()))
+
+    def test_fetch_url_raises_at_once(self):
+        with self.assertRaises(gfonts.NetError) as cm:
+            gfonts.fetch_url(RAW + "ofl/roboto/METADATA.pb")
+        self.assertIsNone(cm.exception.status)
+        self.assertIn("SLIDEBUILDER_NO_NET", str(cm.exception))
+        self.assertEqual(self.opened, [])
+
+    def test_only_a_set_switch_counts(self):
+        for v in ("", "0"):
+            with mock.patch.dict(os.environ, {"SLIDEBUILDER_NO_NET": v}):
+                with self.assertRaises(AssertionError):
+                    gfonts.fetch_url(RAW + "ofl/roboto/METADATA.pb")
+        self.assertEqual(len(self.opened), 2)

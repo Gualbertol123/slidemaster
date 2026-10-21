@@ -24,7 +24,7 @@ from . import APP_NAME, VERSION, deckbin, decks, migrate_v3, paths, store
 from .convert import convert_picture, convert_workbook
 from .exports import ExportError, export_feedback, export_file
 from .fonts import FONT_MAX, FontError, add_face, font_file, read_library, remove_family
-from .gfonts import GFontError, face_file as google_font_file, family_faces as google_font
+from .gfonts import GFontError, face_file as google_font_file, family_faces as google_font, preview as google_preview, preview_type
 from .sysfonts import SysFontError, capture as capture_sysfont, list_fonts as list_sysfonts, read_font as read_sysfont
 from .locks import LockTimeout
 from .store import StoreTooNew, StoreUnreadable
@@ -356,6 +356,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, google_font((q.get("family") or [""])[0]))
         if path == "/api/fonts/google/file":              # one of its files (a google/fonts or fonts.gstatic.com file only)
             return self._send(200, google_font_file((q.get("ref") or [""])[0]), "application/octet-stream")
+        if path == "/api/fonts/google/preview":           # a font to show a Google family's name in the picker (B46)
+            data = google_preview((q.get("family") or [""])[0])
+            return self._send(200, data, preview_type(data))
         if path.startswith("/fonts/"):
             data, ctype = font_file(urllib.parse.unquote(path[len("/fonts/"):]))
             return self._send(200, data, ctype)
