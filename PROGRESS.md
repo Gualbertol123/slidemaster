@@ -208,15 +208,20 @@ numbers measured twice). Measured numbers go into the step's line.
   whole milestone, and S14.6 adds about 15 KB more (~152 KB); with M15's ~+600 KB the merged page comes to about
   4.73 MB, above the ~4.7 MB the owner expects (2026-10-21 "by measurement"). For the owner to see before M15 measures:
   either the total is accepted by measurement, or a part is cut (M15's vendored icon set is the large one)
-- [ ] S14.6 · PowerPoint ⏱ (PX-05, PX-06) — also **CT-09** (E: a scenario run, the chart's labels follow each value –
-  the line's last label and the ofTarget percentage per value, 09 §3.3), carried from plan-M14's S14.5 rows (S14.5
-  review 8). Carried from the S14.3 review (2026-10-21): **the marks' arrowheads native**
-  (finding 3, plan-M14 S14.6 "plain p:sp lines with native heads"): today an arrow in the export is its line plus a
-  filled custGeom triangle. The overlay's line node gets its heads in the export data (ItemSem chart overlay) and the
-  chart branch of `pptx/scene.ts` writes `a:headEnd` / `a:tailEnd` on that `p:sp` (never `p:cxnSp`). `scene.ts` is M15's
-  file (M14-M15-split.md §2): the change is agreed with M15 or made after M15 merges. Re-check on the owner's PC with
-  `reference-excel.pptx` and `lines-deck-excel.pptx`: legend line entries present (finding 1), an area's blank at zero
-  (finding 2)
+- [ ] S14.6 · PowerPoint ⏱ (PX-05, PX-06) – built on the branch. Every chart type is a native chart; the corpus test
+  `core/tests/pptx-charts-m14.test.ts` covers the four chart decks × five designs. It checks the kinds, caches equal to
+  the embedded cells with their number formats, native ends, no `p:cxnSp`, no link, and the same bytes again. The
+  embedded workbook now carries each cell's number format. **The marks' arrowheads are native** (S14.3 review finding
+  3): `ChartSem.arrows` → `pptx/chart-overlay.ts` writes one `prst="line"` shape with `a:headEnd` / `a:tailEnd`. This
+  took 2 lines in `scene.ts`'s chart branch (an import and the overlay line), with no hunk next to M15's. The Italian
+  separators note is in 09 §4.2 and CHANGELOG. Gates: pptxcheck (5) `kinds` (`tools/real-charts.mjs`, passed by
+  export-check) and `pptxcheck.py plots` for PX-06 (PowerPoint's `PlotArea.Inside*` and axis bounds within 2 px /
+  equal, Windows only). ⏱ `charts-m14.bench` reference chart semantics + XML + workbook ≤ 10 ms;
+  `tools/bench.mjs` `pptx_combo_ms` (deck20 + 6 combo charts, Liquid Glass, ≤ 3 s; run by the full bench). Package:
+  `node tools/m14-package.mjs --out DIR` (the page's exports + `<file>.plots.json`). Open for the owner's PC: PX-05
+  "PowerPoint opens it, Edit Data", PX-06 `pptxcheck.py plots`, and the S14.3 re-checks (legend line entries, an
+  area's blank at zero). Not done here: **CT-09** (E: a scenario run, the chart's labels follow each value; S14.5
+  review 8) and the chart panel's keypress p95 (75–110 ms) – both left open for S14.7 / the orchestrator
 - [ ] S14.7 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.7.0 — at the M14 × M15 merge (S14.3 review finding 7): a chart's
   icon mark draws a vendored icon through M15's `vendoredNodes` (per-path paint: filled parts, half-alpha paths) instead
   of stroking every path (`core/src/render/chart-marks.ts`, the "MERGE M15" note)
@@ -1060,6 +1065,11 @@ One table per parallel milestone (S14.P), so M14 and M15 never append to the sam
 | S14.5 review | the chart panel's cost (`app/tests/chart-panel.test.tsx`, React's development build in jsdom; the panel with three series, a selected point and a mark): draws on 20 keypresses on the slide's table (now asserted ≤ 1) · its own draw (Profiler time of ItemPanel, not keypress → pixels) on a chart change p50 / p95, ms | 0 · 6.85 / 10.67 | 0 · 7.05 / 24.21 |
 | S14.5 review | keypress → pixels with a series chart selected (built page, deck20 slide 2, headless Chromium on a shared 4-core machine; a scratch run of tools/bench.mjs's method – typing on the slide deselects the chart, so the keypress is the chart panel's: the left axis' step typed and Enter, to the frame after the stage's first change; 2 cold + 20 timed) p50 / p95 / max, ms; beside it a cell of the same slide typed and Enter, measured the same way (first stage change) | chart 63 / 75 / 87 · cell 15 / 26 / 27 | chart 74 / 110 / 130 · cell 14 / 25 / 26 |
 | S14.5 review | built page (bytes; not committed) | 4,113,104 (S14.5 built 4,111,988: +1,116; M14's share 137,012, within m14.json 140,896 – no raise; limit 4,116,988: 3,884 left) | – |
+| S14.6 | ⏱ the reference chart for PowerPoint: chartSem + chartXml + chartWorkbook (09 §7.4, limit 10 ms × speed factor ≈ 2; `core/bench/charts-m14.bench.test.ts`, median of 20), Liquid Glass · Excel, ms | 3.78 · 2.15 | 3.61 · 3.19 |
+| S14.6 | ⏱ column 12 × 4 · reference chart · line 12 × 52, display list (the same bench), Liquid Glass · Excel, ms | 1.83 · 0.85 · 1.68 · 0.79 · 4.03 · 2.05 | 2.14 · 0.88 · 2.12 · 0.91 · 7.79 · 2.56 |
+| S14.6 | ⏱ PowerPoint deck20 with 6 combo charts, Liquid Glass, click → file (09 §7.4, 3 s × speed factor; a scratch run of `tools/bench.mjs`'s `comboPptx` on the built page, headless Chromium, shared 4-core machine; the full bench is the orchestrator's) · deck20 without them, the same run, ms | 1,927 · 2,907 (cold workers) | 2,329 · 2,575 |
+| S14.6 | the same export **before the deck is saved**: 25.0–25.5 s, also on S14.5's build – the first item makes deck20 format 5, and the format guard's one-time wait (ADR-019, ~23 s) holds the save that an export waits for (`flushDoc`). The bench now waits for "✓ Saved" first. For the owner: a user's first export right after adding a deck's first chart waits that long (M13 behaviour) | 24,972 · 25,502 | 24,938 (S14.5: 25,159) |
+| S14.6 | built page (bytes; not committed) | 4,115,246 (S14.5 review built 4,113,104: +2,142; M14's share 139,154, within m14.json 140,896 – no raise; limit 4,116,988: 1,742 left) | – |
 
 ### Measurements · M15 (4.8.0)
 M15 appends here only.

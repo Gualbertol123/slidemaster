@@ -206,7 +206,7 @@ describe("scatter (CT-01): a numeric x axis, markers, an optional line", () => {
     // the workbook: x and y per series, no category column
     const sheet = strFromU8(unzipSync(chartWorkbook(sem))["xl/worksheets/sheet1.xml"]);
     expect(sheet).toContain('<dimension ref="A1:D13"/>');
-    expect(sheet).toContain('<c r="A2"><v>730</v></c><c r="B2"><v>2.1</v></c><c r="C2"><v>410</v></c><c r="D2"><v>1.6</v></c>');
+    expect(sheet).toContain('<c r="A2" s="1"><v>730</v></c><c r="B2" s="2"><v>2.1</v></c><c r="C2" s="1"><v>410</v></c><c r="D2" s="2"><v>1.6</v></c>');
     expect(sheet).toContain("Retail (x)");
   });
 });
@@ -403,7 +403,7 @@ describe("S14.4 review follow-ups", () => {
     }
     // a value edited in Edit Data (Volume 60 → 80): the columns after it move up by 20, each still adding up to its total
     // (every step keeps its side of zero; one that newly crosses it needs a new export – 09 §4.2)
-    const edited = sheet.replace(new RegExp(`(<c r="${valuesCol}3"><v>)60(</v>)`), "$180$2");
+    const edited = sheet.replace(new RegExp(`(<c r="${valuesCol}3"(?: s="\\d+")?><v>)60(</v>)`), "$180$2");
     expect(edited).not.toBe(sheet);
     at = evalBook(edited);
     // (each column from → to: the running totals now, the first and the last totals)

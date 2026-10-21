@@ -82,6 +82,17 @@ What users notice (S14.5)
   axis-line colour; in Liquid Glass a column across zero keeps one gradient in PowerPoint. A scatter point outside a
   fixed x axis range is left out, as in Excel and PowerPoint, instead of standing on the plot's edge.
 
+What users notice (S14.6)
+- PowerPoint export of every chart type (column, bar, line, area, scatter, combined on two axes, waterfall, pie,
+  donut) as a native chart: Edit Data shows each value with its own number format (a point's own where it has one).
+- A chart's arrows and lines are plain PowerPoint lines with PowerPoint's own arrowheads (triangle, open arrow,
+  stealth, oval, diamond; at either end or both, small / medium / large). They are not separate triangle shapes any
+  more. A limiter's bar end, which PowerPoint does not have, is still a short line beside it.
+- Numbers in a PowerPoint chart (axes, labels taken from the cells, Edit Data) are shown with the separators of the
+  computer that opens the file, as Excel does. On an Italian Windows PowerPoint shows 11.576 and 2,5 %; on an English
+  one it shows 11,576 and 2.5 %. The slide, the PDF and the PNG always show the workbook's Italian separators. The
+  "97 %" of "actual inside target" is written as text, so it is the same everywhere.
+
 ## 4.6.0 - unreleased (PLAN M13; prepared 2026-10-21, dated at the tag)
 
 What users notice

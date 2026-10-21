@@ -563,6 +563,83 @@ def chart_order(name, root):
     return out[:20]
 
 
+PS_PLOTS = r"""
+$ErrorActionPreference = "Stop"
+$job = Get-Content -Raw -Encoding UTF8 $args[0] | ConvertFrom-Json
+$was = $true; try { [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application") | Out-Null } catch { $was = $false }
+$app = New-Object -ComObject PowerPoint.Application
+$out = @{ file = $job.file; ok = $false; charts = @(); error = "" }
+function charts($shapes, $n, [ref]$acc) {
+  foreach ($sh in $shapes) {
+    if ($sh.Type -eq 6) { charts $sh.GroupItems $n $acc; continue }
+    if (-not $sh.HasChart) { continue }
+    $ch = $sh.Chart; $pa = $ch.PlotArea
+    $c = @{ slide = $n; left = $sh.Left; top = $sh.Top; width = $sh.Width; height = $sh.Height; inLeft = $pa.InsideLeft; inTop = $pa.InsideTop; inWidth = $pa.InsideWidth; inHeight = $pa.InsideHeight; ymin = $null; ymax = $null; y2min = $null; y2max = $null }
+    try { $ax = $ch.Axes(2, 1); $c.ymin = $ax.MinimumScale; $c.ymax = $ax.MaximumScale } catch {}
+    try { $ax = $ch.Axes(2, 2); $c.y2min = $ax.MinimumScale; $c.y2max = $ax.MaximumScale } catch {}
+    $acc.Value += $c
+  }
+}
+try {
+  $p = $app.Presentations.Open($job.file, -1, 0, 0)
+  $acc = @()
+  foreach ($s in $p.Slides) {
+    charts $s.Shapes $s.SlideIndex ([ref]$acc)
+    if ($job.png) { $s.Export((Join-Path $job.png ("slide-" + $s.SlideIndex + ".png")), "PNG", 1600, 900) }
+  }
+  $out.charts = $acc; $p.Close(); $out.ok = $true
+} catch { $out.error = $_.Exception.Message } finally { if (-not $was) { $app.Quit() | Out-Null } }
+ConvertTo-Json -Depth 6 -InputObject $out | Out-File -Encoding UTF8 $args[1]
+"""
+
+
+def plots(path, expect, png=None, timeout=600):
+    """PX-06 (4.7, S14.6; 09 §4.2), Windows with PowerPoint only: the marks over a native chart land on its data when
+    PowerPoint's plot is the slide's plot – each chart of `expect` ([{slide, frame, plot, val, val2?}], slide px; written by
+    core/tests/pptx-charts-m14.test.ts beside each file as <name>.plots.json) is found by its frame, and PowerPoint's
+    inner plot area (PlotArea.Inside*, points; 1 px = 0.6 pt) must be within 2 px of `plot`, its value axes' bounds
+    (MinimumScale / MaximumScale) the drawn ones. `png`: a folder for every slide exported by PowerPoint at 1600 × 900
+    (Slide.Export) to look at. Returns (problems, PowerPoint's charts)"""
+    if not powerpoint_available():
+        return ["PowerPoint is not available here (PX-06 runs on Windows with PowerPoint)"], []
+    d = tempfile.mkdtemp(prefix="pptxcheck-plots-")
+    script, job, res = os.path.join(d, "plots.ps1"), os.path.join(d, "job.json"), os.path.join(d, "out.json")
+    with open(script, "w", encoding="utf-8-sig") as f:
+        f.write(PS_PLOTS)
+    if png:
+        os.makedirs(png, exist_ok=True)
+    with open(job, "w", encoding="utf-8") as f:
+        json.dump({"file": os.path.abspath(path), "png": os.path.abspath(png) if png else ""}, f)
+    try:
+        subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, job, res], capture_output=True, text=True, timeout=timeout)
+        with open(res, encoding="utf-8-sig") as f:
+            r = json.load(f)
+    except (OSError, ValueError, subprocess.TimeoutExpired) as e:
+        return ["PowerPoint: no answer (%s)" % e], []
+    if not r.get("ok"):
+        return ["PowerPoint: %s" % (r.get("error") or "not opened")], []
+    got = r.get("charts") or []
+    got = got if isinstance(got, list) else [got]
+    px = lambda pt: (pt or 0) / 0.6
+    bad = []
+    for k, e in enumerate(expect):
+        F = e["frame"]
+        mine = [c for c in got if c["slide"] == e["slide"] and abs(px(c["left"]) - F["x"]) <= 2 and abs(px(c["top"]) - F["y"]) <= 2]
+        if not mine:
+            bad.append("chart %d (slide %d): no native chart at its frame (%.0f, %.0f)" % (k + 1, e["slide"], F["x"], F["y"]))
+            continue
+        c, P = mine[0], e["plot"]
+        at = {"x": px(c["left"] + c["inLeft"]), "y": px(c["top"] + c["inTop"]), "w": px(c["inWidth"]), "h": px(c["inHeight"])}
+        off = max(abs(at[q] - P[q]) for q in "xywh")
+        if off > 2:
+            bad.append("chart %d (slide %d): PowerPoint's plot %s is %.1f px off the slide's %s" % (k + 1, e["slide"], {q: round(v, 1) for q, v in at.items()}, off, P))
+        for key, lo, hi in (("val", "ymin", "ymax"), ("val2", "y2min", "y2max")):
+            V = e.get(key)
+            if V and (c.get(lo) is None or abs(c[lo] - V["min"]) > 1e-9 * max(1, abs(V["min"])) or abs(c[hi] - V["max"]) > 1e-9 * max(1, abs(V["max"]))):
+                bad.append("chart %d (slide %d): PowerPoint's %s axis %s–%s, drawn %s–%s" % (k + 1, e["slide"], "second" if key == "val2" else "value", c.get(lo), c.get(hi), V["min"], V["max"]))
+    return bad, got
+
+
 def real_objects(rep_content, expect, who):
     """(5) the gate of AUDIT-2 VER-3 / PX-03 (S14.P, 09 §7.2): each slide has exactly the real tables (has_table) and
     native charts (has_chart) the core's own export draws there (`expect`, tools/real-objects.mjs: a table of a sheet the
@@ -578,7 +655,22 @@ def real_objects(rep_content, expect, who):
             have = (len(s["charts"]) if k == "charts" else s["tables"]) if s else 0
             if have != w:
                 bad.append("slide %d: %s %d %s(s), the export draws %d" % (n, who, have, word, w))
+        # (4.7, S14.6, PX-05: tools/real-charts.mjs) each native chart's chart groups, as the core writes them
+        kinds = (want.get(n) or {}).get("kinds")
+        if kinds is not None and s is not None:
+            got = sorted(chart_kinds(c) for c in s["charts"])
+            if got != sorted(kinds):
+                bad.append("slide %d: %s chart types %s, the export writes %s" % (n, who, got, sorted(kinds)))
     return bad
+
+
+PLOT_KIND = {"BarPlot": "bar", "LinePlot": "line", "AreaPlot": "area", "XyPlot": "scatter", "PiePlot": "pie", "DoughnutPlot": "doughnut"}
+
+
+def chart_kinds(chart):
+    """a chart of the content (2) as tools/real-charts.mjs names it: its plots' kinds in order, joined ("bar+line"). (5)
+    compares them per slide, sorted, when an --expect entry has `kinds` (4.7, S14.6, PX-05: every chart type native)"""
+    return "+".join(PLOT_KIND.get(p, p) for p in chart.get("plots") or [])
 
 
 def check(paths, slides=None, ppt=True, report=None, sources=None, expect=None):
@@ -675,7 +767,18 @@ def main(argv):
     c.add_argument("--expect")
     i = sub.add_parser("info")
     i.add_argument("files", nargs="+")
+    m = sub.add_parser("plots", help="PX-06 (S14.6): PowerPoint's plot areas and axis bounds against the slide's (Windows)")
+    m.add_argument("files", nargs="+")
+    m.add_argument("--png", help="a folder: every slide exported by PowerPoint (1600 × 900)")
     a = ap.parse_args(argv)
+    if a.cmd == "plots":
+        ok = True
+        for p in a.files:
+            with open(re.sub(r"\.pptx$", "", p) + ".plots.json", encoding="utf-8") as f:
+                bad, _ = plots(p, json.load(f), os.path.join(a.png, os.path.splitext(os.path.basename(p))[0]) if a.png else None)
+            print(("PASS " if not bad else "FAIL ") + os.path.basename(p) + ("" if not bad else ": " + "; ".join(bad[:4])))
+            ok = ok and not bad
+        return 0 if ok else 1
     if a.cmd == "info":
         out = []
         for p in a.files:

@@ -34,6 +34,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { BOOKS, DECKS, deckList, deckOps, load, openBrowser, startHelper } from "./capture-v3.mjs";
+import { pageChartKinds, withChartKinds } from "./real-charts.mjs";   // M14 (S14.6): each chart's native kinds, pptxcheck (5)
 import { goldenTexts, matchTexts, ownPdfText, squash } from "./export-dl.mjs";
 import { speedFactor } from "./calibrate.mjs";
 import { pageRealObjects } from "./real-objects.mjs";
@@ -145,7 +146,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
           if (x.files.length !== 1) throw new Error(`${id} · ${design}: ${x.files.length} PowerPoint files`);
           const f = path.join(OUT, `${id}-${design}.pptx`); fs.copyFileSync(x.files[0], f);
           pptx.push({ deck: id, design, slides, file: f, name: path.basename(x.files[0]), ms: Math.round(x.ms), bytes: fs.statSync(f).size, toast: x.toast,
-            workbook: path.join(BOOKS, deck.workbook), charts: chartSources(deck), real });
+            workbook: path.join(BOOKS, deck.workbook), charts: chartSources(deck), real: withChartKinds(real, await page.evaluate(pageChartKinds(design))) });
           console.log(`${id} · ${design}: PowerPoint ${(fs.statSync(f).size / 1024).toFixed(1)} KB, ${Math.round(x.ms)} ms`);
         }
         if (chartsOnly) continue;

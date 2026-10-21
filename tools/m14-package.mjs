@@ -6,7 +6,11 @@
    file of each deck beside it (Export ▾ › PowerPoint: native charts, the marks as plain shapes over them) to open in
    PowerPoint. Writes review/G9/index.html, review/G9/img/ and review/G9/pptx/ (not committed: regenerate them).
 
-     node tools/m14-package.mjs [--decks series,lines,scatter-waterfall] [--designs glass,excel,clean,mckinsey,bain]
+     node tools/m14-package.mjs [--decks series,lines,scatter-waterfall] [--designs glass,excel,clean,mckinsey,bain] [--out DIR]
+
+   (S14.6) --out writes the package elsewhere (default review/G9). The PowerPoint files are the page's own exports: the
+   owner opens them in PowerPoint (PX-05: Edit Data; PX-06: the marks on the data – `python tools\pptxcheck.py plots`
+   with the .plots.json files that `CHART_PPTX_OUT=<dir> npx vitest run tests/pptx-charts-m14.test.ts` writes in core/).
 */
 import fs from "node:fs";
 import os from "node:os";
@@ -18,7 +22,7 @@ import { slideHook } from "./dlparity.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
-const OUT = path.join(REPO, "review", "G9"), IMG = path.join(OUT, "img"), PPTX = path.join(OUT, "pptx"), CHARTS = path.join(CORPUS, "charts");
+const OUT = path.resolve(arg("--out", path.join(REPO, "review", "G9"))), IMG = path.join(OUT, "img"), PPTX = path.join(OUT, "pptx"), CHARTS = path.join(CORPUS, "charts");
 const DESIGNS = arg("--designs", "glass,excel,clean,mckinsey,bain").split(","), decks = arg("--decks", "series,lines,scatter-waterfall").split(",");
 const NAMES0 = { glass: "Liquid Glass", excel: "Excel", clean: "Excel Refined", mckinsey: "Consulting Navy", bain: "Consulting Red" };
 // a design with options ("mckinsey@headline=panel") is named with them
@@ -45,6 +49,12 @@ const pptx = [];
         const x = await exportOnce(page, h, async () => { await page.click("#exportMenuBtn"); await page.click('[data-x="pptx"]'); });
         const name = `${id}-${design.split("@")[0]}.pptx`;
         fs.copyFileSync(x.files[0], path.join(PPTX, name)); pptx.push(name);
+        // (S14.6, PX-06) beside it what PowerPoint's plots must be: each series chart's frame, plot and value axes as the
+        // page's own export laid them out (pptxcheck.py plots, on Windows)
+        const lists = await page.evaluate(d => window.__sbTest.slideLists({ design: d, version: "", forExport: true, thumb: false, pptx: true }), design.split("@")[0]);
+        const plots = lists.flatMap((l, i) => Object.values(l.sem?.items || {}).flatMap(it => it?.kind === "chart" && it.chart?.bars ? [{ slide: i + 1, frame: it.chart.box, plot: it.chart.bars.plot,
+          val: { min: it.chart.bars.val.min, max: it.chart.bars.val.max }, ...(it.chart.bars.val2 ? { val2: { min: it.chart.bars.val2.min, max: it.chart.bars.val2.max } } : {}) }] : []));
+        fs.writeFileSync(path.join(PPTX, name.replace(/\.pptx$/, ".plots.json")), JSON.stringify(plots, null, 1));
       }
     }
   } finally { await browser.close(); h.stop(); }

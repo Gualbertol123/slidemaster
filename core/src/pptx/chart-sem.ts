@@ -2,6 +2,8 @@
    writes it as a native chart part. Its own file since S14.P, so that M14 (series charts, 09 §4.2) grows it without
    touching scene.ts, which M15 owns. */
 import type { Box } from "./scene";
+import type { Stroke } from "../dl/types";
+import type { Head, Heads } from "../model/types";
 
 export interface FontSem { css: string; size: number; color: string; b: boolean; i: boolean }
 export interface ChartSem {
@@ -12,7 +14,11 @@ export interface ChartSem {
   startAngle: number; /** the plot's frame inside the card, slide px */ box: Box; sep: { w: number; color: string } | null; fmt: string; hole: number;
   /** a series chart (09 §4.2): set exactly when type is not "pie" or "donut" */
   bars?: BarsSem;
+  /** (4.7, S14.6) the arrow and line marks over the chart, slide px: each written as one plain line shape from a to b
+      with native ends (a:headEnd at a, a:tailEnd at b; never p:cxnSp) – pptx/chart-overlay.ts */
+  arrows?: ArrowSem[];
 }
+export interface ArrowSem { a: { x: number; y: number }; b: { x: number; y: number }; stroke: Stroke; head?: Head; tail?: Head; size?: Heads["size"] }
 /** a line of an axis or of the gridlines: colour, width px, dash */
 export interface LineSem { color: string; w: number; dash?: "dash" | "sysDot" | "dashDot" }
 /** the value axis exactly as drawn: fixed bounds and unit (never PowerPoint's own), its format, gridlines, line, font */

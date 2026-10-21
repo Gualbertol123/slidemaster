@@ -184,7 +184,7 @@ export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, 
     if (fr) inner.push({ t: "rect", x: r2(x + fr.w / 2), y: r2(y + fr.w / 2), w: r2(Math.max(1, w - fr.w)), h: r2(Math.max(1, h - fr.w)), stroke: lineStroke(fr, "butt") });
     if (!env.noContent) inner.push(...seriesNodes(SL, id, frame, m, sty));
     // (the PowerPoint card: the title's rule under the native chart, the dividers and marks over it)
-    else { inner.push(...cardNodes(SL)); overlay = overlayNodes(SL); }
+    else { inner.push(...cardNodes(SL)); overlay = overlayNodes(SL, true); }
   } else if (!data.ok) {
     issue = data.why === "missing" ? `source ${data.source} not found` : `no numbers in ${data.source}`;
     // a placeholder on the stage (an export leaves the place empty, as a missing picture)
@@ -334,7 +334,10 @@ function seriesChartSem(it: ChartItem, box: Box, ctx: RenderCtx, look: ChartLook
   const L = seriesLayout(it, frame, ctx, m, seriesStyle(look, lab, ttl, rk));
   if ("why" in L) return null;
   const bars = seriesSem(L), first = bars.series[0];
+  // (S14.6: the arrow and line marks as line shapes with native ends over the chart – chart-overlay.ts)
+  const arrows = L.marks.arrows.map(({ drop: _d, ...a }) => a);
   return {
+    ...(arrows.length ? { arrows } : {}),
     type: it.type === "bar" ? "bar" : it.type === "line" || it.type === "area" || it.type === "combo" || it.type === "scatter" || it.type === "waterfall" ? it.type : "column", title: L.title, series: first?.name || "", titleFont: fontSem(L.titleSt), labelFont: fontSem(lab),
     labels: bars.cats, values: (first?.values || []).map(v => v ?? 0), colors: bars.series.map(s => s.color), show: [],
     legend: bars.legend ? (bars.legend.pos === "b" ? "bottom" : "right") : "none", startAngle: 0, box: frame, sep: null, fmt: first?.fmt || "General", hole: 0, bars,

@@ -228,17 +228,24 @@ describe("the reference chart (09 §3.3): the owner's \"Loans Volume – Weekly 
     // the embedded workbook: categories, the line, the actual, the target – blanks where a series has none
     const book = strFromU8(unzipSync(chartWorkbook(ch))["xl/worksheets/sheet1.xml"]);
     expect(book).toContain('<dimension ref="A1:D7"/>');
-    expect(book).toContain('<c r="B2"><v>11576</v></c></row>');
-    expect(book).toContain('<c r="C6"><v>11324</v></c><c r="D6"><v>11624</v></c>');
-    // over the chart: the divider, the arrow (its line and head), the icons, the texts – plain shapes in the chart's group
+    expect(book).toContain('<c r="B2" s="1"><v>11576</v></c></row>');
+    expect(book).toContain('<c r="C6" s="1"><v>11324</v></c><c r="D6" s="1"><v>11624</v></c>');
+    // over the chart: the divider, the icons, the texts – plain shapes in the chart's group; the arrow (S14.6) one line
+    // shape with a native head from the chart's semantics, not its display list's line and triangle
     if (info.pptx?.kind !== "chart") throw new Error();
     const over = info.pptx.overlay!;
-    expect(over.map(n => n.t)).toEqual(["line", "path", "path", "line", "path", "text", "text"]);
+    expect(over.map(n => n.t)).toEqual(["line", "path", "path", "text", "text"]);
+    expect(ch.arrows).toHaveLength(1);
+    expect(ch.arrows![0]).toMatchObject({ head: "triangle" });
+    expect(ch.arrows![0].tail).toBeUndefined();
     expect(flat(info.pptx.card).some(n => n.t === "line" && n.stroke.w === 1.5)).toBe(true);    // the title's rule, under the chart
     const z = unzipSync(pptxOf(lists)), slide = strFromU8(z["ppt/slides/slide1.xml"]);
     expect((slide.match(/<c:chart /g) || []).length).toBe(1);
     expect(slide).not.toContain("<p:cxnSp");
     expect(slide).not.toContain("<p:pic");
+    // the arrow: a plain line shape (prst line) whose a:ln ends in a native triangle at its first point – the point
+    expect(slide).toMatch(/<p:cNvPr id="\d+" name="Arrow \d+"\/>.*?<a:prstGeom prst="line">.*?<a:ln w="11430"[^>]*>.*?<a:headEnd type="triangle" w="med" len="med"\/><\/a:ln>/s);
+    expect(slide).not.toContain("<a:tailEnd");
     expect(slide).toMatch(/<p:grpSp><p:nvGrpSpPr><p:cNvPr id="\d+" name="Chart ref \d+"\/>.*<p:graphicFrame>.*<\/p:graphicFrame>.*<p:sp>.*11\.624.*<\/p:grpSp>/s);
     expect(Object.keys(z).some(n => n.endsWith(".rels") && /TargetMode="External"/.test(strFromU8(z[n])))).toBe(false);
   });

@@ -670,11 +670,34 @@ paths (no font, no picture). `pdfcheck.py` and the GF facts are unchanged.
 | scatter (as built, S14.4) | `c:scatterChart` `lineMarker` on two `c:valAx` (the x one at the bottom, both `crossBetween midCat`, labels `low`) with the drawn bounds and units; each series' x and y cached (`c:xVal` / `c:yVal`) from its own two columns of the embedded workbook (x, y); a series without a line has `a:ln noFill`; labels: value = y, category = x (Excel's X value); a point whose x is outside a fixed `axes.x` range is left out on the slide too (S14.4 review 2), as PowerPoint does |
 | per-point colour, marker, label | `c:dPt` (`spPr`, `c:marker`), `c:dLbl` per point; a custom label text (`ofTarget`, a hidden one) as a rich-text `c:dLbl/c:tx/c:rich` – static text written from our value, refreshed at every export |
 | "actual inside target" | two bar series on the same axis with `overlap 100` (`gapWidth` / `overlap` belong to the `c:barChart`, so both bars have one width): the **actual** series first (filled), the **target** series after it (`noFill` + outline, drawn on top so its outline shows); the percentage as the actual's rich-text label `inEnd` |
-| axes | `c:valAx` `min` / `max` / `majorUnit`, `numFmt formatCode` (the cells' code; PowerPoint shows it with the viewer's separators, as Excel would), `majorGridlines` only when `grid`, `c:txPr` bold / colour for the category labels |
+| axes | `c:valAx` `min` / `max` / `majorUnit`, `numFmt formatCode` (the cells' code; PowerPoint shows it with the viewer's separators, as Excel would – see "Italian separators" below), `majorGridlines` only when `grid`, `c:txPr` bold / colour for the category labels |
 | legend | `c:legend` `legendPos` r / l / t / b / tr; inside = `c:layout` manual; a hidden entry = `c:legendEntry/c:delete 1`; none = no `c:legend` |
 | title, rule, frame | `c:title` rich text; the chart space `spPr` outline = the frame; the title rule = a line shape |
 | marks (arrows, lines, bands, icons, texts) and dividers | **plain shapes over the chart in the chart's group** (`p:sp` lines with `a:headEnd` / `a:tailEnd`, icons as `custGeom`, texts as text boxes). To land on the data, the writer fixes the plot area (`c:plotArea/c:layout/c:manualLayout` `layoutTarget inner`; x / y / w / h are fractions of the **chart space**, i.e. our plot rectangle divided by the chart's box) and every axis's min / max / unit, and puts line points at category centres (`c:crossBetween between`, as the display list does; `dispBlanksAs gap` as `pptx/chart.ts:56` writes today), so PowerPoint's plot is our plot: a point is where we drew it. pptxcheck verifies it on Windows by exporting each chart slide from PowerPoint (COM `Slide.Export` PNG) and comparing the mark anchors with the drawn points (≤ 2 px at 1600) |
 | data | the embedded workbook (`embeddings/…xlsx`) gets every series' cached values in columns (categories in A, one column per series, blanks where a series has none, targets as their own columns), so **Edit Data** shows them; `--sources` in pptxcheck checks the caches against the workbook cells (each series against its own sheet / linked workbook). **No external links**: every `c:f` points into the embedded workbook (`Sheet1!$B$2:$B$7`), never at `[Budget.xlsx]Plan!D9` – a series from a linked workbook is a column of the embedded one; pptxcheck asserts that no `c:f` names a file and that no relationship is `TargetMode="External"` |
+
+As built in S14.6 (PX-05, PX-06):
+* **Marks' arrowheads are native.** An arrow or line mark is one `p:sp` (`a:prstGeom prst="line"`, flipH / flipV so
+  its first point is end a) from end a to end b, not shortened, with `a:headEnd` (end a) / `a:tailEnd` (end b) of the
+  mark's heads and size (`ChartSem.arrows`, `pptx/chart-overlay.ts`; `scene.ts`'s chart branch adds them after the
+  overlay's shapes). The export's overlay leaves out those lines' display-list nodes (the slide still draws the heads
+  with `render/heads.ts`). A limiter's `bar` has no native end, so its tick stays a shape of the overlay.
+* **The embedded workbook carries the number formats.** Each value cell has the format of its cache (a point's own
+  `formatCode` where it has one, otherwise the series'; a scatter series' x cells the x format) as a cell style
+  (`numFmt` ids from 164). Edit Data shows the values as the slide does.
+* **Italian separators.** The format codes are written as Excel stores them (`#,##0.0`: comma = thousands, point =
+  decimal; the file format is locale-free). PowerPoint and Excel show them with the separators of the computer that
+  opens the file. On an Italian Windows that is 11.576 and 2,5 %, as on the slide; on an English Windows it is 11,576
+  and 2.5 %. LibreOffice on this Linux machine is English, so its renders show the English separators. Our own texts
+  are written as static rich text and look the same everywhere: the `ofTarget` labels "97 %", the waterfall's labels,
+  and the marks' texts. Nothing in the file pins a locale (`c:lang` stays `en-US`, as Excel writes it), so the export
+  never changes a number's meaning, only how it is displayed.
+* **Checks.** `core/tests/pptx-charts-m14.test.ts` runs the whole chart corpus in every design and checks: the chart
+  kinds, caches equal to the embedded cells and their formats, native ends, no `p:cxnSp`, no link. pptxcheck (5)
+  compares each chart's groups with the core's (`tools/real-charts.mjs` → `kinds` in `--expect`; export-check passes
+  them). `pptxcheck.py plots` (PX-06, Windows) reads PowerPoint's plot areas (`PlotArea.Inside*`) and axis bounds and
+  requires them within 2 px of the slide's (`<file>.plots.json`). It also exports each slide at 1600 px (`--png`) so
+  the marks can be looked at.
 
 Where PowerPoint draws differently, and what the slide does about it (S14.3 review, 2026-10-21):
 * **Draw order of a combo.** PowerPoint draws every chart group on the secondary axis over those on the primary one;

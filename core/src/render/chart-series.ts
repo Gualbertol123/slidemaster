@@ -34,7 +34,7 @@ import { autoScale, axisFormat, ticks, tickText, type Scale } from "./chart-axes
 import { barSlots, gapOf, lightOf, outerRadius, overlapOf, stackBars, type StackMode } from "./chart-bars";
 import { stackAreas } from "./chart-area";
 import { lineStroke, linePath, lineStyleOf, markerNode, markerOf, markerPx, polyHitsBox, runs, strokeNear, type Pt } from "./chart-lines";
-import { markNodes, type Anchor, type MarkFrame } from "./chart-marks";
+import { markNodes, type Anchor, type MarkArrow, type MarkFrame } from "./chart-marks";
 import { scatterLine, scatterMarker, xAxisOf } from "./chart-scatter";
 import { STEP_NAMES, connectorLine, connectors, waterfallColors, waterfallSem, waterfallSteps, type Step, type StepKind } from "./chart-waterfall";
 import { legendAtOf, legendNodes, shownEntries, type LegendEntry, type LegendOut } from "./chart-legend";
@@ -103,7 +103,7 @@ export interface SeriesLayout {
   dividers: { x1: number; y1: number; x2: number; y2: number; line: LineSem }[];
   /** the title's rule (09 §3.3) */ rule: { x1: number; x2: number; y: number; line: LineSem } | null;
   /** the bars' gradient (Liquid Glass), PowerPoint's a:gradFill too (S14.2 review 1) */ gradient: boolean;
-  /** the marks' nodes (over the data), bands (under it) and hits */ marks: { nodes: Node[]; under: Node[]; hits: Node[] };
+  /** the marks' nodes (over the data), bands (under it) and hits */ marks: { nodes: Node[]; under: Node[]; hits: Node[]; arrows: MarkArrow[] };
   /* S14.4 */
   /** a scatter chart's numeric x axis (null: a category axis) */ xAxis: (ValAxis & { show: boolean }) | null;
   /** a waterfall: each category's column (null = a gap), the up / down / total colours, the kinds its legend lists */
@@ -448,7 +448,7 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   return { data, dir, mode, gap, overlap, title, titleSt, titleBox, plot, scale, num, valSt, catSt, valShow, catShow, skip, look,
     grid: typeof A.y?.grid === "boolean" ? A.y.grid : look.gridOn, colors, bars, labs, legend, ticks: tk, labels, issue,
     hidden: ser.flatMap((s, k) => entries.some(e => e.key === s.id) ? [] : [k]),
-    kinds, axes, y2, barGroups, traces, groupLabels, dividers, rule, gradient: sty.gradient, marks: { nodes: mk.nodes, under: mk.under, hits: mk.hits },
+    kinds, axes, y2, barGroups, traces, groupLabels, dividers, rule, gradient: sty.gradient, marks: { nodes: mk.nodes, under: mk.under, hits: mk.hits, arrows: mk.arrows },
     xAxis, connectors: W ? connectors(bars, W.steps, vps.y, connectorLine(ser[0].src, look.line?.color)) : [],
     fall: W && Wc ? { steps: W.steps, colors: Wc, legend: entries.filter(e => !legend.cut?.includes(e.key)).map(e => e.key as StepKind) } : null };
 }
@@ -481,9 +481,12 @@ export function cardNodes(L: SeriesLayout): Node[] {
     // (a waterfall's connectors: between the columns, under the labels – the native chart's own labels too)
     ...L.connectors.map((c): Node => ({ t: "line", x1: c.x1, y1: c.y, x2: c.x2, y2: c.y, stroke: lineStroke(c.line, "butt") }))];
 }
-/** what is drawn over a native chart as well as on the slide: the dividers and the marks (plain shapes in PowerPoint) */
-export function overlayNodes(L: SeriesLayout): Node[] {
-  return [...L.dividers.map((d): Node => ({ t: "line", x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2, stroke: lineStroke(d.line, "butt") })), ...L.marks.nodes];
+/** what is drawn over a native chart as well as on the slide: the dividers and the marks (plain shapes in PowerPoint);
+    `native` (the PowerPoint card, S14.6): without the arrow and line marks' lines and heads – the export writes each as
+    one line shape with native ends from the chart's semantics (ChartSem.arrows, pptx/chart-overlay.ts) */
+export function overlayNodes(L: SeriesLayout, native = false): Node[] {
+  const drop = native ? new Set(L.marks.arrows.flatMap(a => a.drop)) : null;
+  return [...L.dividers.map((d): Node => ({ t: "line", x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2, stroke: lineStroke(d.line, "butt") })), ...(drop ? L.marks.nodes.filter(n => !drop.has(n)) : L.marks.nodes)];
 }
 
 /** the nodes of a laid-out series chart: gridlines, areas, bars, the axis line, lines and markers, labels, the axes'

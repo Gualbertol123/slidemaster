@@ -238,5 +238,30 @@ class ScatterChartTests(unittest.TestCase):
         self.assertTrue(chk(range="B1:B4", name="Retail", mask={"sheet": "Scatter", "range": "A1:A4"}))
 
 
+class ChartKindsTests(unittest.TestCase):
+    """4.7 (S14.6, PX-05): (5) with `kinds` (tools/real-charts.mjs) – each slide's native charts' chart groups as python-pptx
+    reads them, compared sorted; and `plots` (PX-06) says plainly where PowerPoint is not present. Standard library only"""
+
+    def test_kinds_name_each_plot_in_order(self):
+        self.assertEqual(pptxcheck.chart_kinds({"plots": ["BarPlot", "LinePlot"]}), "bar+line")
+        self.assertEqual(pptxcheck.chart_kinds({"plots": ["XyPlot"]}), "scatter")
+        self.assertEqual(pptxcheck.chart_kinds({"plots": ["DoughnutPlot"]}), "doughnut")
+
+    def test_real_objects_compare_kinds_per_slide(self):
+        rep = {"slides": [{"tables": 0, "charts": [{"plots": ["LinePlot", "BarPlot"]}, {"plots": ["AreaPlot"]}]}]}
+        self.assertEqual(pptxcheck.real_objects(rep, [{"slide": 1, "tables": 0, "charts": 2, "kinds": ["area", "line+bar"]}], "x"), [])
+        # (no kinds: the counts only, as before S14.6)
+        self.assertEqual(pptxcheck.real_objects(rep, [{"slide": 1, "tables": 0, "charts": 2}], "x"), [])
+        bad = pptxcheck.real_objects(rep, [{"slide": 1, "tables": 0, "charts": 2, "kinds": ["area", "bar+line"]}], "x")
+        self.assertEqual(len(bad), 1)
+        self.assertIn("chart types", bad[0])
+
+    @unittest.skipIf(os.name == "nt", "the message for a machine without PowerPoint")
+    def test_plots_without_powerpoint_says_so(self):
+        bad, got = pptxcheck.plots("x.pptx", [])
+        self.assertEqual(got, [])
+        self.assertIn("PowerPoint is not available", bad[0])
+
+
 if __name__ == "__main__":
     unittest.main()

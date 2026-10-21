@@ -78,17 +78,27 @@ export function chartWorkbook(ch: ChartSem): Uint8Array {
   // (two category levels, S14.3: the groups' labels in A, the categories in B, the series from C on)
   // (a scatter chart, S14.4: no categories – each series' x values and y values in two columns, A–B, C–D, …)
   const xy = !!ch.bars?.xval;
-  const cols: { name: string; values: (number | null)[]; f?: (string | null)[] }[] = ch.bars ? (xy ? ch.bars.series.flatMap((s, k) => { const pts = scatterPts(s); return [{ name: `${s.name || `Series ${k + 1}`} (x)`, values: pts.map(p => p && p[0]) }, { name: s.name, values: pts.map(p => p && p[1]) }]; }) : ch.bars.series.map(s => ({ name: s.name, values: s.values, ...(s.f ? { f: s.f } : {}) }))) : [{ name: ch.series || "Series 1", values: ch.values }];
+  // (S14.6: each cell with its number format – a point's own where it has one, else its series' –, so Edit Data shows the
+  // values as the slide does; PowerPoint and Excel show them with the viewer's separators)
+  const cols: { name: string; values: (number | null)[]; f?: (string | null)[]; fmt?: (i: number) => string }[] = ch.bars ? (xy ? ch.bars.series.flatMap((s, k) => { const pts = scatterPts(s); return [{ name: `${s.name || `Series ${k + 1}`} (x)`, values: pts.map(p => p && p[0]), fmt: () => s.xFmt || "General" }, { name: s.name, values: pts.map(p => p && p[1]), fmt: (i: number) => s.fmts?.[i] || s.fmt }]; })
+    : ch.bars.series.map(s => ({ name: s.name, values: s.values, ...(s.f ? { f: s.f } : {}), fmt: (i: number) => s.fmts?.[i] || s.fmt }))) : [{ name: ch.series || "Series 1", values: ch.values, fmt: () => ch.fmt }];
   // (S14.4 review 3: columns no series reads – a waterfall's running total – after the series')
   const book = !xy && ch.bars?.book ? ch.bars.book : null, nSer = cols.length;
-  if (book) cols.push(...book.extra);
+  if (book) cols.push(...book.extra.map(c => ({ ...c, fmt: cols[book.values]?.fmt })));
+  // the number formats as cell styles: 0 = General, then one per other code (custom ids from 164)
+  const codes: string[] = [], styleOf = (code: string | undefined) => {
+    const c = (code || "").trim();
+    if (!c || c === "General") return 0;
+    let k = codes.indexOf(c); if (k < 0) { codes.push(c); k = codes.length - 1; }
+    return k + 1;
+  };
   const cats = ch.bars ? ch.bars.cats : ch.labels, lv = ch.bars?.levels || null, f = xy ? 1 : lv ? 3 : 2, last = numToCol(cols.length + f - 1);
   // a formula's cell names: {V} the values column, {R} the running total (the first extra column), {Rp} the row before's
   const fx = (t: string, row: number) => !book ? t : t.replace(/\{V\}/g, numToCol(book.values + f) + row).replace(/\{R\}/g, numToCol(nSer + f) + row).replace(/\{Rp\}/g, row > 2 ? numToCol(nSer + f) + (row - 1) : "0");
-  const cell = (c: { values: (number | null)[]; f?: (string | null)[] }, k: number, i: number) => {
-    const v = c.values[i], ref = `${numToCol(k + f)}${i + 2}`, fo = c.f?.[i];
-    if (fo) return v === null || v === undefined ? `<c r="${ref}" t="str"><f>${esc(fx(fo, i + 2))}</f><v></v></c>` : `<c r="${ref}"><f>${esc(fx(fo, i + 2))}</f><v>${num(v)}</v></c>`;
-    return v === null || v === undefined ? "" : `<c r="${ref}"><v>${num(v)}</v></c>`;
+  const cell = (c: { values: (number | null)[]; f?: (string | null)[]; fmt?: (i: number) => string }, k: number, i: number) => {
+    const v = c.values[i], st = styleOf(c.fmt?.(i)), ref = `${numToCol(k + f)}${i + 2}"${st ? ` s="${st}"` : ""}`, fo = c.f?.[i];
+    if (fo) return v === null || v === undefined ? `<c r="${ref} t="str"><f>${esc(fx(fo, i + 2))}</f><v></v></c>` : `<c r="${ref}><f>${esc(fx(fo, i + 2))}</f><v>${num(v)}</v></c>`;
+    return v === null || v === undefined ? "" : `<c r="${ref}><v>${num(v)}</v></c>`;
   };
   const rows = [`<row r="1">${xy ? "" : str("A1", "")}${lv ? str("B1", "") : ""}${cols.map((c, k) => str(numToCol(k + f) + "1", c.name || `Series ${k + 1}`)).join("")}</row>`,
     ...cats.map((l, i) => `<row r="${i + 2}">${xy ? "" : lv ? (lv[i] ? str("A" + (i + 2), lv[i]) : "") + str("B" + (i + 2), l) : str("A" + (i + 2), l)}${cols.map((c, k) => cell(c, k, i)).join("")}</row>`)];
@@ -100,8 +110,8 @@ export function chartWorkbook(ch: ChartSem): Uint8Array {
     "_rels/.rels": strToU8(XML_HEAD + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${R}/officeDocument" Target="xl/workbook.xml"/></Relationships>`),
     "xl/workbook.xml": strToU8(XML_HEAD + `<workbook xmlns="${S}" xmlns:r="${R}"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets>${calc}</workbook>`),
     "xl/_rels/workbook.xml.rels": strToU8(XML_HEAD + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${R}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${R}/styles" Target="styles.xml"/></Relationships>`),
-    "xl/styles.xml": strToU8(XML_HEAD + `<styleSheet xmlns="${S}"><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>`
-      + '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs></styleSheet>'),
+    "xl/styles.xml": strToU8(XML_HEAD + `<styleSheet xmlns="${S}">${codes.length ? `<numFmts count="${codes.length}">${codes.map((c, k) => `<numFmt numFmtId="${164 + k}" formatCode="${esc(c)}"/>`).join("")}</numFmts>` : ""}<fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>`
+      + `<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${codes.length + 1}"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>${codes.map((_, k) => `<xf numFmtId="${164 + k}" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>`).join("")}</cellXfs></styleSheet>`),
     "xl/worksheets/sheet1.xml": strToU8(XML_HEAD + `<worksheet xmlns="${S}"><dimension ref="A1:${last}${cats.length + 1}"/><sheetData>${rows.join("")}</sheetData></worksheet>`),
   };
   // a fixed time (local components: fflate writes DOS times from local getters), so the same chart gives the same bytes

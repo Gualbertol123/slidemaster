@@ -17,6 +17,8 @@
      PowerPoint      ⏱ S11.3 (07 §4.4 / §6.4, PX-04), when the build has it: Export ▾ › PowerPoint · all slides of
                      deck20 after each PDF (Liquid Glass, Excel): click → the .pptx saved                 < 3 s · < 1.5 s
                      its size (PLAN Part F): Liquid Glass < 3 MB, Excel < 300 KB; the tasks as above
+     combo charts    ⏱ S14.6 (09 §7.4, PX-05): deck20 with 6 combo charts (columns + a line on a second axis, an
+                     arrow mark) on slides 2–7, Liquid Glass, Export ▾ › PowerPoint: click → the .pptx saved     < 3 s
      keypress        ⏱ S4.1: a cell of deck20 typed into and committed with Enter, 2 untimed times (the first
                      rasters of the editor and of the table's layer: reported as "cold") then 20 timed: from the Enter
                      key to the first frame after the stage's table shows the new text (keypress → pixels, p95) < 50 ms
@@ -103,6 +105,38 @@ for (const f of ["deck20.xlsx", "big30.xlsx"]) if (!fs.existsSync(path.join(BOOK
 /** the scenario deck (S8.3): Control!B4 is the week, 20 slide sheets follow it (tests/corpus/workbooks/recalc) */
 const BANKSBIG = path.join(BOOKS, "recalc", "BanksBig.xlsx");
 
+/** S14.6 (09 §7.4 pptx_combo_ms): deck20 in Liquid Glass with a combo chart on each of slides 2–7 (its table's banks:
+    Week37 and Week38 as columns, Δ vs. Budget as a line on a second axis, an arrow mark onto the line's last point) –
+    one change, as the page makes it –, exported as PowerPoint (click → file, the page's clock); then the deck as it was
+    (the change undone). `exportOnce` is run()'s */
+async function comboPptx(page, exportOnce) {
+  await page.click('[data-design="glass"]'); await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 });
+  const h0 = await page.evaluate(() => window.__sbTest.history().undo);
+  const n = await page.evaluate(() => {
+    const t = window.__sbTest, P = t.preset(), ops = [];
+    for (const s of P.slides.slice(1, 7)) {
+      const tid = (s.tables || [])[0], sheet = (P.tables || []).find(x => x.id === tid)?.sheet;
+      if (!sheet) continue;
+      const ref = c => [{ sheet, range: `${c}10:${c}17` }];
+      ops.push({ op: "item.patch", slide: s.id, id: "benchcombo", patch: { kind: "chart", type: "combo", title: "Loans – combo", values: ref("D")[0], labels: { sheet, range: "C10:C17" },
+        box: { x: 900, y: 220, w: 640, h: 420 }, legendAt: "bottom",
+        sers: { a: { n: 1, type: "column", vals: ref("D") }, b: { n: 2, type: "column", vals: ref("E") }, c: { n: 3, type: "line", axis: "y2", vals: ref("H"), marker: { shape: "circle" }, labels: { show: ["value"] } } },
+        marks: { m1: { kind: "arrow", a: { s: "c", i: 7 }, b: "floor" } } } });
+    }
+    t.change("Bench: 6 combo charts", ops);
+    return ops.length;
+  });
+  await page.waitForFunction(() => window.__sbTest.stageIdle(), null, { timeout: 60000 });
+  // (saved first: the deck's first item makes it format 5, whose one-time wait of the format guard – ADR-019, ~23 s – is
+  // the save's, not the export's; an export waits for the save it follows)
+  await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 90000 });
+  const x = await exportOnce(true);
+  const steps = await page.evaluate(h => window.__sbTest.history().undo - h, h0);
+  await page.locator("#stage .stagewrap").click({ position: { x: 4, y: 4 } });
+  for (let k = 0; k < steps; k++) { await page.keyboard.press("Control+z"); await sleep(200); }
+  await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 });
+  return { charts: n, ms: x.ms, kb: x.kb, phases: x.phases };
+}
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 /** the JS heap of every dedicated worker in the browser (the core worker), MB; null if the protocol refused */
 /** the heap of the core worker (gated with the page's) and of the export workers (S3.7: named "sb-export"; started by
@@ -256,6 +290,8 @@ async function run(browser, port) {
     const excel = await exportOnce();
     const excelPptx = hasPptx ? await exportOnce(true) : null;
     const ltExport = [...ltGlass, ...(await longTasks()).map(x => x.d)];
+    const combo = hasPptx ? await comboPptx(page, exportOnce) : null;                 // S14.6: deck20 with 6 combo charts
+    await longTasks();
     await page.click('[data-design="glass"]'); await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 }); await sleep(300); await longTasks();
     const thumbs = await thumbScroll(browser, page);
     await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 }); await sleep(300);
@@ -379,7 +415,7 @@ async function run(browser, port) {
       edit: { keypress, longtasks: ltEdit }, drags, thumbs: { ...thumbs, longtasks: ltThumbs },
       consult, scen,
       export: { glass_ms: glass.ms, glass_kb: glass.kb, glass_phases: glass.phases, excel_ms: excel.ms, excel_kb: excel.kb, excel_phases: excel.phases, longtasks: ltExport,
-        pptx: glassPptx && excelPptx ? { glass_ms: glassPptx.ms, glass_kb: glassPptx.kb, glass_phases: glassPptx.phases, excel_ms: excelPptx.ms, excel_kb: excelPptx.kb, excel_phases: excelPptx.phases } : null },
+        pptx: glassPptx && excelPptx ? { glass_ms: glassPptx.ms, glass_kb: glassPptx.kb, glass_phases: glassPptx.phases, excel_ms: excelPptx.ms, excel_kb: excelPptx.kb, excel_phases: excelPptx.phases, ...(combo ? { combo } : {}) } : null },
       big30: { index_to_wizard_ms: Math.round(index), read_sheet_ms: Math.round(read), read_to_grid_ms: Math.round(grid), longtasks: ltBig, heap_mb: heap,
         page_heap_mb: pageHeap == null ? null : Math.round(pageHeap), worker_heap_mb: workerHeap == null ? null : Math.round(workerHeap),
         export_workers: workers ? workers.exportWorkers : null, export_heap_mb: workers ? Math.round(workers.export) : null } };
@@ -537,6 +573,8 @@ const worstOf = runs => ({
   ...(runs.every(r => r.export.pptx) ? { pptx_glass_ms: Math.max(...runs.map(r => r.export.pptx.glass_ms)), pptx_excel_ms: Math.max(...runs.map(r => r.export.pptx.excel_ms)),
     pptx_glass_kb: Math.max(...runs.map(r => r.export.pptx.glass_kb)), pptx_excel_kb: Math.max(...runs.map(r => r.export.pptx.excel_kb)) }
     : arg("--page") ? {} : Object.fromEntries(["pptx_glass_ms", "pptx_excel_ms", "pptx_glass_kb", "pptx_excel_kb"].map(k => [k, Infinity]))),
+  // deck20 with 6 combo charts as PowerPoint (S14.6): this build's page must measure it (not measured counts as over the limit)
+  ...(runs.every(r => r.export.pptx?.combo?.charts === 6) ? { pptx_combo_ms: Math.max(...runs.map(r => r.export.pptx.combo.ms)) } : arg("--page") ? {} : { pptx_combo_ms: Infinity }),
   // the consulting designs (M7b): an older build (--page) has none and is not gated on them; this build's own page must
   // measure them – not measured counts as over the limit, never as passing
   ...(runs.every(r => r.consult) ? {

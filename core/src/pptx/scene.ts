@@ -19,6 +19,7 @@ import type { Heads } from "../model/types";
 import { mul, pathBox, radii, rrectPath } from "../dl/geom";
 import type { ChartSem } from "./chart-sem";
 export type { ChartSem, FontSem } from "./chart-sem";
+import { arrowEls } from "./chart-overlay";   // M14 (S14.6): a chart's arrow marks with native ends
 
 /* ---- the scene ---- */
 export interface Box { x: number; y: number; w: number; h: number }
@@ -164,7 +165,7 @@ class Walker {
       const prims = this.sub(() => this.walk(it.card, c));
       const card = assemble(prims);
       // over the native chart: its overlay's shapes (lines with native heads, icons, texts), in the chart's group
-      const over = it.overlay?.length ? assemble(this.sub(() => this.walk(it.overlay!, c))) : [];
+      const over = [...(it.overlay?.length ? assemble(this.sub(() => this.walk(it.overlay!, c))) : []), ...arrowEls(it.chart)];
       this.prims.push({ p: "el", el: { k: "grp", name: "Chart " + id, children: [...card, { k: "chart", box: it.chart.box, chart: it.chart, name: "Chart" }, ...over] } });
       return;
     }

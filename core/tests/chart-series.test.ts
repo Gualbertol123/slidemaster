@@ -333,7 +333,7 @@ describe("PowerPoint: a native c:barChart from the same layout (09 §4.2)", () =
     for (const m of x.matchAll(/<c:f>([^<]*)<\/c:f>/g)) expect(m[1]).toMatch(/^Sheet1!\$[A-D]\$\d+(:\$[A-D]\$\d+)?$/);
     const book = strFromU8(unzipSync(chartWorkbook(ch))["xl/worksheets/sheet1.xml"]);
     expect(book).toContain('<dimension ref="A1:D10"/>');
-    expect(book).toContain("<c r=\"B2\"><v>-101.25</v></c><c r=\"C2\"><v>-90</v></c><c r=\"D2\"><v>-78.75</v></c>");
+    expect(book).toContain("<c r=\"B2\" s=\"1\"><v>-101.25</v></c><c r=\"C2\" s=\"1\"><v>-90</v></c><c r=\"D2\" s=\"1\"><v>-78.75</v></c>");
   });
   it("stacked and 100 %: grouping and overlap 100; bars: barDir bar; labels as drawn (positions, a hidden one, white inside a dark bar)", async () => {
     const st = (await semOf("excel", { ...COLS, stack: "stacked" })).ch.bars!;

@@ -13,11 +13,11 @@
    Tabler icon once M15 registers the set, else the built-in of the same name, else "info" and an Issues line); a text
    a `text` with the callouts' {Sheet!C7} tokens resolved. The PowerPoint export draws the same nodes as plain shapes over
    the native chart (pptx/scene.ts: the chart's overlay, in its group) – never pictures, never connector shapes. */
-import type { Box, ChartItem, ChartMark, MarkAt } from "../model/types";
+import type { Box, ChartItem, ChartMark, Head, Heads, MarkAt } from "../model/types";
 import type { Node, PathCmd, Stroke } from "../dl/types";
 import type { RenderCtx } from "./context";
 import type { Metrics } from "./excel-dl";
-import { headed } from "./heads";
+import { headGeom, headed } from "./heads";
 import { iconCmds, resolveIcon } from "./icons";
 import { calloutText } from "./shape-dl";
 import { lineH, lum, textNode, type St } from "./chart-font";
@@ -41,7 +41,12 @@ export interface MarkFrame {
 }
 /** the marks' nodes over the data, the bands under it (a band tints the plot, not the bars: on the slide and under the
     native chart), a hit per mark, the Issues lines */
-export interface MarksOut { nodes: Node[]; under: Node[]; hits: Node[]; issues: string[] }
+export interface MarksOut { nodes: Node[]; under: Node[]; hits: Node[]; issues: string[];
+  /** (S14.6) each arrow / line mark as the PowerPoint export writes it: one plain line shape from a to b (not shortened)
+      with native a:headEnd (end a) / a:tailEnd (end b); `drop` = its nodes the export's overlay leaves out (the line and
+      the heads PowerPoint draws itself – a limiter's "bar" tick stays a node: PowerPoint has no such end) */
+  arrows: MarkArrow[] }
+export interface MarkArrow { a: { x: number; y: number }; b: { x: number; y: number }; stroke: Stroke; head?: Head; tail?: Head; size?: Heads["size"]; drop: Node[] }
 
 /** a place in px, or why there is none ("" = a gap: nothing to say) */
 function placeOf(at: MarkAt | undefined, F: MarkFrame): Anchor | string {
@@ -93,7 +98,7 @@ const box = (nodes: Node[]): Box | null => {
 /** every mark's nodes (in id order: a later id on top), a hit per mark, and the Issues lines (a mark whose place or icon
     is not found; a quoted cell that cannot be read) */
 export function markNodes(it: ChartItem, id: string, F: MarkFrame, ctx: RenderCtx, m: Metrics): MarksOut {
-  const out: MarksOut = { nodes: [], under: [], hits: [], issues: [] };
+  const out: MarksOut = { nodes: [], under: [], hits: [], issues: [], arrows: [] };
   const list = Object.entries(it.marks && typeof it.marks === "object" ? it.marks : {}).filter(([, k]) => k && typeof k === "object").sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
   for (const [mid, k] of list) {
     const a = placeOf(k.a, F);
@@ -118,8 +123,13 @@ export function markNodes(it: ChartItem, id: string, F: MarkFrame, ctx: RenderCt
         // an arrow onto a marked point stops at the marker's ring
         const pa = { x: a1.x, y: a1.y }, pb = { x: b.x, y: b.y }, len = Math.hypot(pb.x - pa.x, pb.y - pa.y);
         if (a1.r > 0 && len > a1.r + 2) { pa.x += (pb.x - pa.x) * (a1.r + 1) / len; pa.y += (pb.y - pa.y) * (a1.r + 1) / len; }
-        const h = headed(pa, pb, stroke, heads);
-        nodes.push({ t: "line", x1: r2(h.a.x), y1: r2(h.a.y), x2: r2(h.b.x), y2: r2(h.b.y), stroke }, ...h.nodes);
+        const h = headed(pa, pb, stroke, heads), line: Node = { t: "line", x1: r2(h.a.x), y1: r2(h.a.y), x2: r2(h.b.x), y2: r2(h.b.y), stroke };
+        nodes.push(line, ...h.nodes);
+        // (S14.6, 09 §4.2: the export's native ends – the heads headed() drew, in its order: end a's, then end b's)
+        const nA = headGeom(heads?.a, pa, pb, stroke.w, heads?.size) ? 1 : 0, nB = headGeom(heads?.b, pb, pa, stroke.w, heads?.size) ? 1 : 0;
+        const ea = nA && heads!.a !== "bar" ? heads!.a : undefined, eb = nB && heads!.b !== "bar" ? heads!.b : undefined;
+        out.arrows.push({ a: { x: r2(pa.x), y: r2(pa.y) }, b: { x: r2(pb.x), y: r2(pb.y) }, stroke, ...(ea ? { head: ea } : {}), ...(eb ? { tail: eb } : {}), ...(heads?.size ? { size: heads.size } : {}),
+          drop: [line, ...(ea ? h.nodes.slice(0, nA) : []), ...(eb ? h.nodes.slice(nA, nA + nB) : [])] });
         break;
       }
       case "band": {

@@ -9,7 +9,8 @@ import { readWorkbook } from "../src/xlsx/workbook";
 import { applyOps, emptyDoc } from "../src/model/ops";
 import { runtimeSlides } from "../src/model/preset";
 import { resolveStyle } from "../src/model/style";
-import { chartNodes } from "../src/render/chart-dl";
+import { chartNodes, chartSem } from "../src/render/chart-dl";
+import { chartWorkbook, chartXml } from "../src/pptx/chart";
 import { glassVars } from "../src/render/glass-dl";
 import type { Metrics } from "../src/render/excel-dl";
 import type { Node } from "../src/dl/types";
@@ -121,5 +122,30 @@ it("chart: a line chart of 12 series × 52 points builds in under 10 ms (Liquid 
   await gate("line, 12 × 52", LINES_MS, 12 * 52, design => ({ ctx: ctxOf(design, n => n === "Gallery" ? big : null),
     it: (run, pass) => ({ ...chart, sers: { ...sers, s0: { ...sers.s0, name: `Series ${pass}.${run}` } } }) }));
 }, 60_000);
-// S14.6: the reference chart's PowerPoint semantics + chart XML ≤ 10 ms
-it.skip("chart: the reference chart's PowerPoint semantics and XML in under 10 ms (S14.6; skipped until introduced)", () => undefined);
+// S14.6: the reference chart's PowerPoint semantics + chart XML ≤ 10 ms – chartSem (its layout again, the series, groups,
+// axes, labels, marks and arrows), the chart part (chartXml) and its embedded workbook (chartWorkbook, zipped)
+const PPTX_MS = 10;
+it("chart: the reference chart's PowerPoint semantics, chart XML and embedded workbook in under 10 ms (Liquid Glass and Excel)", async () => {
+  const speed = speedFactor(), { item, ctxOf } = await linesDeck(), ref = item("ref");
+  const measure = (pass: number) => {
+    const ms: Record<string, number> = {};
+    for (const design of ["glass", "excel"] as Design[]) {
+      const ctx = ctxOf(design), times: number[] = [];
+      for (let run = 0; run < 23; run++) {
+        const it: ChartItem = { ...ref, sers: { ...ref.sers!, vol: { ...ref.sers!.vol, name: `Loans ${pass}.${run}` } } };
+        const t0 = performance.now();
+        const sem = chartSem(it, it.box, ctx, "Segoe UI", M)!, x = chartXml(sem, "rId1", css => css), wb = chartWorkbook(sem);
+        const t = performance.now() - t0;
+        if (run === 0) { expect(x).toContain("<c:lineChart>"); expect(x).toContain("<c:barChart>"); expect(sem.arrows).toHaveLength(1); expect(wb.length).toBeGreaterThan(500); }
+        if (run >= 3) times.push(t);
+      }
+      ms[design + "_ms"] = median(times);
+    }
+    return ms;
+  };
+  const limit = PPTX_MS * speed.factor;
+  const { gates, bad } = await judge({ limits: { glass_ms: limit, excel_ms: limit }, first: measure(0), again: () => measure(1), strict: true });
+  const report = gates.map(g => `${g.key.replace("_ms", "")} ${describe(g)}`).join(", ");
+  console.log(`bench · chart (the reference chart for PowerPoint: semantics + XML + workbook): ${gates.map(g => `${g.key.replace("_ms", "")} ${g.first.toFixed(2)} ms`).join(", ")} (median of 20; limit ${PPTX_MS} ms × ${speed.factor.toFixed(2)})${gates.some(g => "repeat" in g) ? " · " + report : ""}`);
+  expect(bad, `chart pptx: ${report} (+ 10 %)`).toEqual([]);
+}, 60_000);
