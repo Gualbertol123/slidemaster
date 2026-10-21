@@ -547,7 +547,7 @@ export function glassPlan(L: TableLayout, ctx: RenderCtx, opts: { noText?: boole
     let weight = WEIGHT[role] || 500;
     if (it.userB === true) weight = Math.max(weight, 720); else if (it.userB === false) weight = Math.min(weight, 470);
     else if (f.b && weight < 650) weight = 650;
-    const tw = it.tw || it.bw, single = !it.wrap && it.valign !== "top" && !it.rot;
+    const tw = it.tw || it.bw, single = !it.wrap && it.valign !== "top" && !(it.userVAlign === "bottom") && !it.rot;
     const pad = it.indent ? { padL: 9 + it.indent * 9 } : it.align === "left" ? { padL: 10 } : it.align === "right" ? { padR: 10 } : {};
     const font = it.userFont || ctx.style.text?.table?.font;
     plan.texts.push({ k: "text", it, cls: it.rot ? "t ov" : ["t", it.wrap ? "wrap" : "", it.ov ? "ov" : ""].filter(Boolean).join(" "), x: it.bx, y: it.by, w: tw, h: it.bh,

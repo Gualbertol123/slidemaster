@@ -7,7 +7,7 @@ const SLIDE_KEYS = ["title", "subtitle", "date", "note", "logo", "layout", "alig
 const SLIDE_MAPS = ["notes", "fmt", "sizes", "free", "looks", "hide"] as const;
 const TABLE_KEYS = ["name", "gridH", "gridV"] as const;
 const TABLE_MAPS = ["cols", "rows", "scales", "merges", "sizes", "cellGrid", "borders"] as const;
-const CELL_KEYS = ["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role"] as const;
+const CELL_KEYS = ["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role", "valign", "num"] as const;
 const STYLE_MAPS = ["pn", "footer", "theme", "text", "colors", "designs"] as const;
 const STYLE_KEYS = ["design", "glass", "color", "logo", "radius", "contrast", "logoBubble"] as const;
 /* slide items (07 §2.2): plain keys of every kind, and the map-merge keys. 09 §2.10's whole item.patch row (S14.P, for

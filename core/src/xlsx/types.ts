@@ -123,6 +123,7 @@ export interface Item {
   /** of those, the edges a border set on the slide covers (the consulting rules tables draw only those borders) */ cgu?: Partial<Record<"top" | "left" | "right" | "bottom", true>>;
   /** the workbook's sides of a cell whose borders were set on the slide (Liquid Glass builds its scene from these) */ wb?: Pick<Item, "top" | "left" | "right" | "bottom">;
   /** the sides whose border the user set on the slide (TableDef.borders, 4.4, B28): the consulting rules tables draw these */ ub?: Partial<Record<"top" | "left" | "right" | "bottom", true>>;
+  /** the vertical position set on the slide (CellEdit.valign, 4.9), in Excel's words */ userVAlign?: string;
   edited?: boolean; /** font chosen on the slide (cell edit) */ userFont?: string; userB?: boolean; userI?: boolean; userColor?: string; userFill?: string; noFill?: boolean; role?: string;
   L?: TableLayout;
 }

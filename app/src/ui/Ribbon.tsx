@@ -8,7 +8,8 @@ import { core, undo } from "../state/app";
 import { activeItem, applySel, commitText, curSlide, selItems, editOf } from "../editor/edit";
 import { kindText } from "../editor/item-text";
 import { startPainter, stopPainter } from "../editor/painter";
-import { SLIDE_TEXT_LABEL, stepSize, textTarget, type Align, type TextTarget, type VAlign } from "../editor/textfmt";
+import { numShown, SLIDE_TEXT_LABEL, stepNumber, stepSize, textTarget, type Align, type TextTarget, type VAlign } from "../editor/textfmt";
+import { numHas } from "@slide-builder/core/render/numdisplay";
 import { effFmt, effText, keyOf } from "@slide-builder/core/render/edits";
 import { A1 } from "@slide-builder/core/xlsx/util";
 import { Dropdown } from "./Dropdown";
@@ -57,12 +58,14 @@ const VALIGN_ICON: Record<VAlign, string> = { top: "M2 2.5h12M8 5v8M5.5 7.5 8 5l
 
 export function Ribbon() {
   const canUndo = useStore(s => s.deck.history.undo > 0), canRedo = useStore(s => s.deck.history.redo > 0);
-  const painter = useStore(s => !!s.selection.painter), open = useStore(s => s.doc.open);
+  const painter = useStore(s => !!s.selection.painter), open = useStore(s => s.doc.open), item = useStore(s => !!s.selection.itemSel);
   useStore(s => s.selection); useCurSlide();                 // what the text target is computed from
   const c = useCtx();
   const t = textTarget(), has = !!t, f = t?.shown, cells = t?.kind === "cells";
   const fillSw = cells ? (() => { const x = effFmt(c, activeItem()!); return x.bg && x.bg !== "none" ? x.bg : x.fill && x.fill !== "none" ? x.fill : null; })() : null;
   const tb = ({ active, off, ...props }: Record<string, unknown>) => ({ className: "tb" + (active ? " on" : ""), disabled: !has || !!off, ...props });
+  // the number display of the cells (4.9): the active cell's code; off for anything but cells
+  const num = cells ? numShown(activeItem()) : null, nb = (props: Record<string, unknown>) => tb({ off: !cells, ...props });
   return (
     <nav className="ribbon">
       <div className="grp">
@@ -103,9 +106,15 @@ export function Ribbon() {
       </div>
       <div className="grp">
         <button {...tb({ id: "clearFmt", title: "Remove your formatting from the selected text (back to the text style)" })} onClick={() => t?.clear()}>Clear format</button>
-        <button className={"tb" + (painter ? " on" : "")} id="painterBtn" disabled={!cells && !painter} title="Copy the format of table cells: click, then click or drag over the cells to paste. Double-click to paste several times; Esc stops."
+        <button className={"tb" + (painter ? " on" : "")} id="painterBtn" disabled={!cells && !item && !painter} title="Copy the format of table cells (or of a chart, callout, icon or line): click, then click or drag over the cells (objects of the same kind) to paste. Ctrl+click several, then let go of Ctrl, to paste onto all of them at once. Double-click to paste several times; Esc stops."
           onClick={() => painter ? stopPainter() : startPainter(false)} onDoubleClick={() => startPainter(true)}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="2" y="1.5" width="10" height="4" rx="1" /><path d="M12 3.5h1.5v3.5H7.5v2" /><rect x="6" y="9.5" width="3" height="5" rx="1" /></svg>Format</button>
+      </div>
+      <div className="grp numgrp" title="Number display of the selected cells (over Excel's format)">
+        <button {...nb({ id: "numDecDown", title: "Fewer decimals" })} onClick={() => stepNumber("dec-", activeItem())}>←.0</button>
+        <button {...nb({ id: "numDecUp", title: "More decimals" })} onClick={() => stepNumber("dec+", activeItem())}>.00</button>
+        <button {...nb({ id: "numPct", title: "Percent (on / off)", active: !!num && numHas(num, "pct") })} onClick={() => stepNumber("pct", activeItem())}>%</button>
+        <button {...nb({ id: "numThou", title: "Thousands separator (on / off)", active: !!num && numHas(num, "thou") })} onClick={() => stepNumber("thou", activeItem())}>000</button>
       </div>
       <div className="grp">
         <button className="tb" id="textStylesBtn" disabled={!open} title="Fonts, sizes and colours of ALL titles, subtitles, tables, text boxes, contents and page numbers in this deck – and the font library" onClick={() => openFontManager("styles")}>

@@ -6,6 +6,7 @@ import { get, patch } from "../state/store";
 import { change, ctx } from "../state/app";
 import type { Note, Op, SlideTextKey, TextFmt } from "@slide-builder/core/model/types";
 import { effFmt } from "@slide-builder/core/render/edits";
+import { numHas, stepNum, validNum, type NumStep } from "@slide-builder/core/render/numdisplay";
 import { effNote, slideTextFmt } from "@slide-builder/core/render/text";
 import { A1 } from "@slide-builder/core/xlsx/util";
 import { applySel, curSlide, selItems } from "./edit";
@@ -116,10 +117,10 @@ function cellTarget(): TextTarget | null {
   const its = selItems(), sel = get().selection.sel, T = curSlide()?.tables[sel?.t ?? -1]; if (!its.length || !sel || !T) return null;
   const c = ctx(), fs = its.map(x => effFmt(c, x)), deck = c.style.text?.table?.font || null;
   const shown: Shown = { font: one(fs.map(f => f.font || deck)), pt: one(fs.map(f => f.sz)), b: fs.every(f => f.b), i: fs.every(f => f.i),
-    color: one(fs.map(f => f.color)), align: one(fs.map(f => f.align)) as Align | null, valign: null };
+    color: one(fs.map(f => f.color)), align: one(fs.map(f => f.align)) as Align | null, valign: one(its.map(it => cellVAlign(it))) };
   const range = its.length > 1 ? `${A1(sel.r1, sel.c1)}:${A1(sel.r2, sel.c2)}` : A1(its[0].b.src.r, its[0].b.src.c);
   return {
-    kind: "cells", label: (its.length > 1 ? "Cells " : "Cell ") + range, shown, can: { valign: false, fill: true },
+    kind: "cells", label: (its.length > 1 ? "Cells " : "Cell ") + range, shown, can: { valign: true, fill: true },
     apply(label, p) {
       applySel(label, (e, it) => {
         if ("font" in p) { if (p.font) e.font = p.font; else delete e.font; }
@@ -128,12 +129,20 @@ function cellTarget(): TextTarget | null {
         if (p.i !== undefined) e.i = p.i;
         if ("color" in p) { if (p.color) e.color = p.color; else delete e.color; }
         if ("align" in p) { if (p.align) e.align = p.align; else delete e.align; }
+        // 4.9 (S16.3): the vertical position over Excel's (Excel's own: nothing stored)
+        if ("valign" in p) { if (p.valign && p.valign !== EXCEL_V[it.valign]) e.valign = p.valign; else delete e.valign; }
       });
     },
-    clear() { applySel("Clear formatting", e => { for (const k of ["font", "sz", "b", "i", "color", "fill", "bg", "align", "role"] as const) delete e[k]; }); },
+    clear() { applySel("Clear formatting", e => { for (const k of ["font", "sz", "b", "i", "color", "fill", "bg", "align", "role", "valign", "num"] as const) delete e[k]; }); },
   };
 }
 
+/** Excel's vertical words → the ribbon's (justify / distributed show as none) */
+const EXCEL_V: Record<string, VAlign> = { top: "top", center: "middle", bottom: "bottom" };
+/** a cell's vertical position now: set on the slide, else Excel's */
+function cellVAlign(it: import("@slide-builder/core/xlsx/types").Item): VAlign | null {
+  const e = effFmt(ctx(), it); return e.valign || EXCEL_V[it.valign] || null;
+}
 /** the text the formatting controls act on, or null when nothing is selected */
 export function textTarget(): TextTarget | null {
   const { sel, noteSel, textSel } = get().selection;
@@ -147,6 +156,27 @@ export function stepSize(dir: 1 | -1) {
   const t = textTarget(); if (!t) return;
   if (t.kind === "cells") { applySel("Text size", (e, it) => { const cur = e.sz || it.font.sz || 11; e.sz = stepPt(cur, dir); }); return; }
   t.apply("Text size", { pt: stepPt(t.shown.pt || 12, dir) });
+}
+/* ---- the number display of cells (4.9, S16.3, B38; 09 §9 Q9): Decimals −/+, %, Thousands – CellEdit.num ---- */
+type CellItem = import("@slide-builder/core/xlsx/types").Item;
+/** a number cell's value and the format code it is shown with now (null: not a number) */
+function numOf(it: CellItem): { v: number; own: string; cur: string } | null {
+  const x = it.L?.sheet.get(it.b.src.r, it.b.src.c); if (!x || (x.t !== "n" && x.t !== "d")) return null;
+  const own = x.fmt || "General", e = effFmt(ctx(), it);
+  return { v: x.v as number, own, cur: validNum(e.num) ? e.num : own };
+}
+/** the format code of the active cell (the ribbon shows % and Thousands pressed by it); null: not a number */
+export function numShown(it: CellItem | null): string | null { return it ? numOf(it)?.cur ?? null : null; }
+const NUM_LABEL: Record<NumStep, string> = { "dec+": "More decimals", "dec-": "Fewer decimals", pct: "Percent", thou: "Thousands separator" };
+/** one step on every selected number cell (one undo step); % and Thousands follow the active cell: on for all, or off */
+export function stepNumber(step: NumStep, active: CellItem | null) {
+  const a = active && numOf(active), on = step === "pct" || step === "thou" ? !(a && numHas(a.cur, step)) : null;
+  applySel(NUM_LABEL[step], (e, it) => {
+    const n = numOf(it); if (!n) return;
+    if (on !== null && numHas(n.cur, step as "pct" | "thou") === on) return;
+    const next = stepNum(n.cur, step, n.v); if (next === null) return;
+    if (next === n.own) delete e.num; else e.num = next;
+  });
 }
 export const toggleBold = () => { const t = textTarget(); if (t) t.apply("Bold", { b: !t.shown.b }); };
 export const toggleItalic = () => { const t = textTarget(); if (t) t.apply("Italic", { i: !t.shown.i }); };

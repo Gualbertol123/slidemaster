@@ -180,7 +180,9 @@ export type StylePatch = Partial<Omit<Style, "pn" | "footer" | "theme" | "text" 
 
 /** fill = highlight (a capsule in Liquid Glass); bg = cell colour that replaces the Excel colour ("none" removes it) */
 export interface CellEdit { text?: string; orig?: string; font?: string; sz?: number; b?: boolean; i?: boolean; color?: string; fill?: string; bg?: string;
-  /** conditional formatting copied with the format painter: the rules of "Sheet!A1" applied to this cell ("none" = no rules) */ cf?: string; align?: string; role?: string }
+  /** conditional formatting copied with the format painter: the rules of "Sheet!A1" applied to this cell ("none" = no rules) */ cf?: string; align?: string; role?: string;
+  /** 4.9 (S16.3, B38; 09 §9 Q9): the text's vertical position in the cell, over Excel's */ valign?: "top" | "middle" | "bottom";
+  /** 4.9: the number display, an Excel format code over the workbook's (render/numdisplay.ts: decimals, %, thousands) */ num?: string }
 export type Edits = Record<string, Record<string, CellEdit>>;
 
 /** data formats this page reads and writes – the same numbers as SCHEMA in helper/slidebuilder/upgrade.py
