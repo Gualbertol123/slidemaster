@@ -263,8 +263,9 @@ export function inverseOf(doc: Doc, op: Op): Op | null {
       return { op: "slide.remove", id: op.slide.id };
     }
     case "slide.remove": {
-      // the removed slide's definition and its previous neighbour (null: it was the first)
-      const slides = doc.preset?.slides || [], i = slides.findIndex(x => x.id === op.id); if (i < 0) return null;
+      // the removed slide's definition and its previous neighbour (null: it was the first); none when slide.add would
+      // skip that definition (a later version's slide type, …): the undo would be a skipped op (review of M13, 4)
+      const slides = doc.preset?.slides || [], i = slides.findIndex(x => x.id === op.id); if (i < 0 || !isSlide(slides[i])) return null;
       return { op: "slide.add", slide: clone(slides[i]), after: i ? slides[i - 1].id : null };
     }
     case "table.add": {

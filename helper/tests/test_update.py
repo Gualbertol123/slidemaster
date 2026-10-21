@@ -266,6 +266,7 @@ class UseBelowFormat5Test(unittest.TestCase):
         self.assertEqual(update.format5_decks(self.root), ["Charts.xlsx"])        # (one given back to v3 does not count)
         calls, out = self.use("4.5.0", "n")
         self.assertIn("These 1 deck(s) use Slide Builder 4.6 objects", out)
+        self.assertIn("new slides, hidden slides...)", out)               # (review of M13, 5: hidden slides are 4.6 too)
         self.assertIn("  Charts.xlsx", out)
         self.assertNotIn("Plain.xlsx", out)
         self.assertEqual(calls[0][0], "asked")

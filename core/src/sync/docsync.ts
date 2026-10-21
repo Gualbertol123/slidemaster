@@ -328,8 +328,10 @@ export class DocSync {
     for (let round = 0; round < 10 && !this.disposed; round++) {
       for (let i = 0, waited = false; i < 4; i++) {
         const m = await this.api.format5(this.key);
-        // the helper's own wait when shorter (its test setting; the 4.6 helper refuses the raise before it anyway)
-        const wait = typeof m?.wait === "number" && m.wait >= 0 ? Math.min(this.bumpWait, m.wait) : this.bumpWait;
+        // the helper's own wait when shorter (its test setting; the 4.6 helper refuses the raise before it anyway);
+        // one that is not a finite number ≥ 0 is ignored
+        const mw = m?.wait;
+        const wait = typeof mw === "number" && Number.isFinite(mw) && mw >= 0 ? Math.min(this.bumpWait, mw) : this.bumpWait;
         const left = typeof m?.at === "number" && typeof m.now === "number" ? Math.min(wait, m.at + wait - m.now) : waited ? 0 : wait;
         if (left <= 0) break;
         await this.sleep(left); waited = true;

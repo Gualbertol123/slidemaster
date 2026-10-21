@@ -457,13 +457,14 @@ describe("DocSync v4: the per-deck format guard (ADR-019 and its amendment)", ()
     expect(b.state).toBe("saved"); expect(b.view).toEqual(a.view);
   });
   it("a helper that waits less (its test setting, SLIDEBUILDER_TEST_BUMP_WAIT_S) shortens the page's wait – never lengthens it", async () => {
-    for (const [helperWait, expected] of [[10, 10], [100, 40]] as const) {
+    // review of M13, 3: a wait that is not a finite number ≥ 0 is ignored (the page's own wait)
+    for (const [helperWait, expected] of [[10, [10]], [100, [40]], [0, []], [-5, [40]], [NaN, [40]], [Infinity, [40]], [-Infinity, [40]]] as const) {
       const { deck } = await plainDeck();
       const base = deck.api();
       const api: DeckApi = { ...base, format5: async k => ({ ...(await base.format5(k)), wait: helperWait }) };
       const b = v5user(deck, "bea", api, { bumpWaitMs: 40 }), w = waits(b, deck);
       b.apply([chart]); await b.flush();
-      expect(w).toEqual([expected]);
+      expect(w).toEqual(expected);
       expect(deck.snap.format).toBe(5);
     }
   });

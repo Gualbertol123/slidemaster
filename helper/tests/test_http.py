@@ -151,11 +151,14 @@ class HttpTests(HttpBase):
 
     # ---- health / me / config
     def test_health_and_me(self):
+        self.assertIsNone(decks.TEST_BUMP_WAIT_S)      # (run without SLIDEBUILDER_TEST_BUMP_WAIT_S + SLIDEBUILDER_NO_NET)
         st, body = self.jreq("GET", "/api/health")
         self.assertEqual(st, 200)
         self.assertEqual((body["app"], body["version"], body["user"], body["host"]), (APP_NAME, VERSION, "tester", "pc1"))
         self.assertEqual((body["folder"], body["export"]), (paths.ROOT, paths.EXPORT_DIR))
         self.assertEqual(set(body), {"app", "version", "user", "host", "folder", "export"})     # no "engine" since 3.8 (B1)
+        with mock.patch.object(decks, "TEST_BUMP_WAIT_S", 2.0):    # review of M13, 3: the format guard's test wait in effect
+            self.assertEqual(self.jreq("GET", "/api/health")[1]["testBumpWaitS"], 2.0)
         st, me = self.jreq("GET", "/api/me")
         self.assertEqual(me, {"user": "tester", "host": "pc1", "prefs": {"lastFile": None, "pdfMode": None, "zoom": None}})
         self.assertEqual(self.jreq("PUT", "/api/me", {"prefs": {"lastFile": "A.xlsx", "zoom": 0.8}}), (200, {"ok": True}))

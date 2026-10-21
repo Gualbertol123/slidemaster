@@ -52,6 +52,7 @@ lower 5 to 4 (400).
 import base64
 import concurrent.futures
 import json
+import math
 import os
 import re
 import threading
@@ -73,12 +74,34 @@ OUTDATED5 = "Slide Builder was updated - reload the page (F5) to continue; your 
 # REFRESH_S 4 + the SMB directory cache 10 + 1; lean-lock (no refresher: only the page's tail looks again), CHECK_TTL
 # 10 + TAIL_MS 1.5 + 10 + 1. The worst of the two, as the mode can differ per PC (SLIDEBUILDER_STORAGE).
 BUMP_WAIT_S = 23.0
-# tests only (the e2e helpers): a shorter wait, told to the page by mark_format5. Never set on a shared folder in use:
-# a 4.0-4.5 page could then append after the raise (ADR-019 amendment)
-try:
-    BUMP_WAIT_S = float(os.environ.get("SLIDEBUILDER_TEST_BUMP_WAIT_S") or BUMP_WAIT_S)
-except ValueError:
-    pass
+BUMP_WAIT_MAX_S = BUMP_WAIT_S        # (the real wait: the test setting below never exceeds it)
+# tests only (the e2e helpers, tools/compat-old.mjs): a shorter wait, told to the page by mark_format5. Never set on a
+# shared folder in use: a 4.0-4.5 page could then append after the raise (ADR-019 amendment). Honoured only together
+# with SLIDEBUILDER_NO_NET=1 (what those helpers also set) and only as a number of seconds 0..23; the helper then warns
+# at start-up (main.py) and /api/health reports it ("testBumpWaitS")
+TEST_BUMP_WAIT_ENV = "SLIDEBUILDER_TEST_BUMP_WAIT_S"
+
+
+def read_test_bump_wait(env):
+    """-> (the test wait in s or None, the line to log or None) for an environment (see TEST_BUMP_WAIT_ENV)"""
+    raw = (env.get(TEST_BUMP_WAIT_ENV) or "").strip()
+    if not raw:
+        return None, None
+    if (env.get("SLIDEBUILDER_NO_NET") or "0").strip() in ("", "0"):
+        return None, "%s=%s ignored: a test setting, honoured only with SLIDEBUILDER_NO_NET=1" % (TEST_BUMP_WAIT_ENV, raw)
+    try:
+        v = float(raw)
+    except ValueError:
+        v = None
+    if v is None or not math.isfinite(v) or not 0 <= v <= BUMP_WAIT_MAX_S:
+        return None, "%s=%s ignored: not a number of seconds from 0 to %g" % (TEST_BUMP_WAIT_ENV, raw, BUMP_WAIT_MAX_S)
+    return v, ("WARNING - TEST SETTING %s=%s: the format guard waits %g s instead of %g s. Never use it on a shared "
+               "folder in use: a 4.0-4.5 page could append after the raise." % (TEST_BUMP_WAIT_ENV, raw, v, BUMP_WAIT_MAX_S))
+
+
+TEST_BUMP_WAIT_S, TEST_BUMP_WAIT_NOTE = read_test_bump_wait(os.environ)
+if TEST_BUMP_WAIT_S is not None:
+    BUMP_WAIT_S = TEST_BUMP_WAIT_S
 LISTING_TTL = 3.0                 # s: a deck's journal listing is cached (the SMB client may cache it 10 s more)
 TAIL_PARALLEL = 8                 # journals read at once by one tail
 IDLE_CLOSE = 600.0                # s: an append handle unused for this long is closed; the next append opens a new file

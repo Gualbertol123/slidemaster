@@ -140,6 +140,9 @@ def main(argv=None):
 
     from .migrate import migrate
     from .server import App, make_server
+    from . import decks
+    if decks.TEST_BUMP_WAIT_NOTE:                 # the format guard's test wait: in effect (a loud warning) or ignored
+        log(decks.TEST_BUMP_WAIT_NOTE)
 
     if not os.path.exists(paths.APP_FILE):
         print("slide_builder.html is missing in %s - build the app first (cd app && npm run build)." % paths.HELPER)

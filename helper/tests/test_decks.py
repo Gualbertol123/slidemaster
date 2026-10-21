@@ -877,12 +877,41 @@ class FormatGuardTests(DeckBase):
         code = "from slidebuilder import decks; print(decks.BUMP_WAIT_S)"
         here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         def run(env):
-            e = dict(os.environ); e.pop("SLIDEBUILDER_TEST_BUMP_WAIT_S", None); e.update(env)
+            e = dict(os.environ)
+            for k in ("SLIDEBUILDER_TEST_BUMP_WAIT_S", "SLIDEBUILDER_NO_NET"):
+                e.pop(k, None)
+            e.update(env)
             return subprocess.run([sys.executable, "-c", code], cwd=here, env=e, stdout=subprocess.PIPE,
                                   universal_newlines=True, check=True).stdout.strip()
         self.assertEqual(run({}), "23.0")
-        self.assertEqual(run({"SLIDEBUILDER_TEST_BUMP_WAIT_S": "2"}), "2.0")
-        self.assertEqual(run({"SLIDEBUILDER_TEST_BUMP_WAIT_S": "soon"}), "23.0")
+        self.assertEqual(run({"SLIDEBUILDER_TEST_BUMP_WAIT_S": "2", "SLIDEBUILDER_NO_NET": "1"}), "2.0")
+        self.assertEqual(run({"SLIDEBUILDER_TEST_BUMP_WAIT_S": "soon", "SLIDEBUILDER_NO_NET": "1"}), "23.0")
+        # review of M13, 3: not without SLIDEBUILDER_NO_NET; inf/nan (int(inf * 1000) raised) and out of 0..23 ignored
+        self.assertEqual(run({"SLIDEBUILDER_TEST_BUMP_WAIT_S": "2"}), "23.0")
+        for v in ("inf", "nan", "-1", "23.5", "1e9"):
+            self.assertEqual(run({"SLIDEBUILDER_TEST_BUMP_WAIT_S": v, "SLIDEBUILDER_NO_NET": "1"}), "23.0", v)
+
+    def test_the_test_wait_is_bounded_and_needs_no_net(self):
+        # review of M13, 3: read_test_bump_wait -> (seconds or None, the start-up log line)
+        f = decks.read_test_bump_wait
+        on = {"SLIDEBUILDER_NO_NET": "1"}
+        self.assertEqual(f({}), (None, None))
+        self.assertEqual(f(on), (None, None))
+        v, note = f(dict(on, SLIDEBUILDER_TEST_BUMP_WAIT_S="2"))
+        self.assertEqual(v, 2.0)
+        self.assertIn("WARNING - TEST SETTING", note)
+        self.assertEqual(f(dict(on, SLIDEBUILDER_TEST_BUMP_WAIT_S="0"))[0], 0.0)
+        self.assertEqual(f(dict(on, SLIDEBUILDER_TEST_BUMP_WAIT_S="23"))[0], 23.0)
+        for env in ({"SLIDEBUILDER_TEST_BUMP_WAIT_S": "2"}, {"SLIDEBUILDER_TEST_BUMP_WAIT_S": "2", "SLIDEBUILDER_NO_NET": "0"}):
+            v, note = f(env)
+            self.assertIsNone(v)
+            self.assertIn("honoured only with SLIDEBUILDER_NO_NET=1", note)
+        for raw in ("inf", "-inf", "nan", "-0.5", "23.01", "soon"):
+            v, note = f(dict(on, SLIDEBUILDER_TEST_BUMP_WAIT_S=raw))
+            self.assertIsNone(v, raw)
+            self.assertIn("ignored: not a number of seconds from 0 to 23", note)
+        with mock.patch.object(decks, "BUMP_WAIT_S", 2.0):               # (the bound is the real wait, not the current one)
+            self.assertEqual(f(dict(on, SLIDEBUILDER_TEST_BUMP_WAIT_S="20"))[0], 20.0)
 
     def test_the_marker_is_written_once_and_is_no_incident_here(self):
         w = decks.new_writer()

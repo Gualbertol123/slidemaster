@@ -30,7 +30,7 @@
         [--worktrees <dir>] [--keep-worktrees] [--keep-data] [--bump-wait-s N]
    --pythons: the interpreters for the OLD helpers (each version runs once per interpreter; "py -3.8" works on
    Windows). --bump-wait-s sets SLIDEBUILDER_TEST_BUMP_WAIT_S on the 4.6 helper only (default: unset = the real
-   23 s); the old helpers never get it. Exit code 1 when a case fails. */
+   23 s; 0..23 s, honoured only with SLIDEBUILDER_NO_NET=1, which every helper here has); the old helpers never get it. Exit code 1 when a case fails. */
 import { createRequire } from "node:module";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";

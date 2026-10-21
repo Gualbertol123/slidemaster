@@ -843,9 +843,9 @@ def use_version(root, ver, stamp, yes=False):
     marked = format5_decks(root) if version_key(ver)[:3] < FORMAT5_SINCE else []
     if marked:
         # ADR-019 (rule c): those decks hold Slide Builder 4.6 objects - read-only below 4.6, and Slide Builder 3 drops them
-        say("These %d deck(s) use Slide Builder 4.6 objects (charts, callouts, free layout, looks, cell gridlines or borders, new "
-            "slides...). In version %s they open read-only%s:" % (len(marked), ver, "" if version_key(ver)[0] >= 4 else
-                                                                   " and going back to Slide Builder 3 loses those objects"))
+        say("These %d deck(s) use Slide Builder 4.6 objects (charts, callouts, free layout, looks, cell gridlines or borders, "
+            "new slides, hidden slides...). In version %s they open read-only%s:"
+            % (len(marked), ver, "" if version_key(ver)[0] >= 4 else " and going back to Slide Builder 3 loses those objects"))
         for wb in marked:
             say("  " + wb)
         if not yes and not confirm("Use version %s anyway? [y/N] " % ver):

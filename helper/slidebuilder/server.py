@@ -340,8 +340,11 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/ping":
             return self._send(200, {"app": APP_NAME, "version": VERSION})
         if path == "/api/health":
-            return self._send(200, {"app": APP_NAME, "version": VERSION, "user": current_user(), "host": current_host(),
-                                    "folder": paths.ROOT, "export": paths.EXPORT_DIR})
+            health = {"app": APP_NAME, "version": VERSION, "user": current_user(), "host": current_host(),
+                      "folder": paths.ROOT, "export": paths.EXPORT_DIR}
+            if decks.TEST_BUMP_WAIT_S is not None:              # a test setting in effect (decks.TEST_BUMP_WAIT_ENV)
+                health["testBumpWaitS"] = decks.TEST_BUMP_WAIT_S
+            return self._send(200, health)
         if path == "/api/config":
             return self._send(200, store.read_config())
         if path == "/api/me":

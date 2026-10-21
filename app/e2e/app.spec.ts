@@ -1914,7 +1914,7 @@ test.describe.serial("two people, one shared folder", () => {
     await b.close();
   });
 
-  test("Add table (S13.4, NS-02, B41, B42): the deck's tables, on no slide first; one added to a new slide; New table from cells; one undo step each; free layout places it in an empty spot", async ({ page }) => {
+  test("Add table (S13.4, NS-02, B40): the deck's tables, on no slide first; one added to a new slide; New table from cells; one undo step each; free layout places it in an empty spot", async ({ page }) => {
     await openApp(page, ANNA);
     await openWorkbook(page, "report.xlsx"); await continueOpen(page, "report.xlsx");
     await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });

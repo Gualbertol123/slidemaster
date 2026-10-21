@@ -13,6 +13,11 @@ describe("operations follow shared/ops-vectors.json", () => {
       expect(doc.edits).toEqual(v.expect.edits);
       expect(applied).toBe(v.expect.applied);
       expect(skipped).toEqual(v.expect.skipped);
+      // each op's inverse on the document it applies to (null: none – the op would be skipped, or its undo would be)
+      if ("inverses" in v.expect) {
+        const d = structuredClone(v.doc);
+        expect(v.ops.map((op: Op) => { const inv = inverseOf(d, op); applyOp(d, op); return inv; })).toEqual(v.expect.inverses);
+      }
     });
   }
 });
@@ -155,6 +160,12 @@ describe("inverse of slide.add / slide.remove, table.add / table.remove (S13.3, 
     expect(inverseOf(base(), { op: "slide.add", slide: { id: "n1", type: "content", tables: [] }, after: "s1" })).toEqual({ op: "slide.remove", id: "n1" });
     expect(inverseOf(base(), { op: "slide.remove", id: "s2" })).toEqual({ op: "slide.add", slide: base().preset.slides[2], after: "s1" });
     expect(inverseOf(base(), { op: "slide.remove", id: "s0" })).toEqual({ op: "slide.add", slide: base().preset.slides[0], after: null });
+    // review of M13, 4: a definition slide.add would skip (an unknown type, a table twice): no inverse
+    for (const bad of [{ type: "later-type" }, { tables: ["t1", "t1"] }, { tables: "t1" }]) {
+      const d: any = base(); Object.assign(d.preset.slides[1], bad);
+      expect(inverseOf(d, { op: "slide.remove", id: "s1" })).toBeNull();
+      expect(applyOp(d, { op: "slide.remove", id: "s1" })).toBe(true);                     // (the remove itself applies)
+    }
     expect(inverseOf(base(), { op: "table.add", table: T3, slide: "s1", at: 1 })).toEqual({ op: "table.remove", id: "t3", slide: "s1" });
     expect(inverseOf(base(), { op: "table.remove", id: "t2", slide: "s1" })).toEqual({ op: "table.add", table: T2, slide: "s1", at: 1 });
   });

@@ -6388,6 +6388,97 @@
     }
   },
   {
+    "name": "review of M13, 4: slide.remove of a slide whose definition this page would not add (an unknown type, a table twice) removes it but has no inverse (its undo would be a skipped slide.add)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s0",
+            "type": "cover",
+            "tables": [],
+            "title": "Review"
+          },
+          {
+            "id": "s1",
+            "type": "later-type",
+            "tables": [],
+            "title": "A 4.7 slide"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t1"
+            ],
+            "title": "Twice"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.remove",
+        "id": "s1"
+      },
+      {
+        "op": "slide.remove",
+        "id": "s2"
+      },
+      {
+        "op": "slide.remove",
+        "id": "s0"
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          }
+        ],
+        "slides": []
+      },
+      "style": {},
+      "edits": {},
+      "applied": 3,
+      "skipped": [],
+      "inverses": [
+        null,
+        null,
+        {
+          "op": "slide.add",
+          "slide": {
+            "id": "s0",
+            "type": "cover",
+            "tables": [],
+            "title": "Review"
+          },
+          "after": null
+        }
+      ]
+    }
+  },
+  {
     "name": "slide.patch and item.patch on a slide removed meanwhile are skipped (that edit is lost, 09 §2.8)",
     "doc": {
       "preset": {
