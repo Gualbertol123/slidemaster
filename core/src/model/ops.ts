@@ -174,8 +174,13 @@ const V40_STYLE = ["design", "glass", "color", "logo", "radius", "contrast", "lo
     rows / columns, `"t3:r12": true` – a different key), a version's drop, cell valign / num): a deck holding a non-empty
     one is format 5 */
 const V5_SLIDE = ["items", "free", "looks", "hide", "hidden"], V5_TABLE = ["cellGrid", "borders"], V5_VERSION = ["drop"], V5_CELL = ["valign", "num"];
+/** keys of a text box (an entry of a slide's `notes` map) 4.0.0 does not draw (B49: a comment's border). 4.0 keeps a notes
+    entry whole, but would draw the box without them – and its dialogs would write them back unseen: format 5 */
+const V5_NOTE = ["frame"];
 const outside = (p: unknown, known: readonly string[]) => isObj(p) && Object.keys(p).some(k => !known.includes(k));
 const holds = (x: unknown, keys: readonly string[]) => isObj(x) && keys.some(k => x[k] != null && x[k] !== false && !(isObj(x[k]) && !Object.keys(x[k] as object).length));
+/** a slide's notes map (or a slide.patch's) with an entry holding a V5_NOTE key */
+const notesHold = (notes: unknown) => isObj(notes) && Object.values(notes).some(n => holds(n, V5_NOTE));
 /** an op 4.0.0 does not apply whole (it would skip it, or a key of it): the deck must be format 5 before the op is
     appended. item.patch (4.3), every op 4.0 lacks (slide.add / remove, table.add / remove, version.patch of 4.6 and
     any later one) and every key outside 4.0's lists (free, looks, cellGrid, borders, hidden, valign, num …). A
@@ -184,7 +189,7 @@ export function needsV5(op: Op | Record<string, unknown>): boolean {
   const o = op as Record<string, unknown>;
   switch (o.op) {
     case "preset.set": return isObj(o.preset) && presetNeedsV5(o.preset);
-    case "slide.patch": return outside(o.patch, V40_SLIDE);
+    case "slide.patch": return outside(o.patch, V40_SLIDE) || (isObj(o.patch) && notesHold(o.patch.notes));
     case "table.patch": return outside(o.patch, V40_TABLE);
     case "cell.patch": return outside(o.patch, V40_CELL);
     case "style.patch": return outside(o.patch, V40_STYLE);
@@ -193,7 +198,8 @@ export function needsV5(op: Op | Record<string, unknown>): boolean {
 }
 function presetNeedsV5(p: Record<string, unknown>): boolean {
   const some = (k: string, keys: readonly string[]) => Array.isArray(p[k]) && (p[k] as unknown[]).some(x => holds(x, keys));
-  return some("slides", V5_SLIDE) || some("tables", V5_TABLE) || some("versions", V5_VERSION);
+  return some("slides", V5_SLIDE) || some("tables", V5_TABLE) || some("versions", V5_VERSION)
+    || (Array.isArray(p.slides) && (p.slides as unknown[]).some(s => isObj(s) && notesHold(s.notes)));
 }
 /** the same on a document: it holds what 4.0.0 does not know (a deck with it is written as format 5, fold.ts
     nextSnapshot; a 4.6 page opening such a deck at format 4 raises it at once) */

@@ -24,6 +24,7 @@ import { contrastVars, memoPart, noteParts, slideHasLogo, themeVars, type NotePa
 import { areaFor, itemBoxOf, KPI_LINE, NAVY_BAND, SIGNAL_AREA, slideFacts, tableH, tableW, type TBox } from "./layout";
 import { chartNodes, chartSem, type PieGeom } from "./chart-dl";
 import { shapeNodes, shapeRadius } from "./shape-dl";
+import { frameStroke, noteFrame } from "./note-frame";
 import { lineNodes } from "./line-dl";
 import type { ItemSem } from "../pptx/scene";
 import type { Box, ChartItem, LineItem, ShapeItem } from "../model/types";
@@ -626,6 +627,10 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
 
   function noteNodes(part: NotePart, nb: { x: number; y: number; w: number; h: number }) {
     const n = part.n, { x, y, w, h } = nb;
+    // the box's own border (B49, note-frame.ts): on a box with text; an Excel bubble's frame takes it, else drawn after
+    // the bubble as a stroke inside the box's edges
+    const fr = part.txt.trim() ? noteFrame(n.frame, d) : null, line = fr && fr !== "none" ? fr : null;
+    let framed = false;
     if (part.bubble) {
       if (glassy) low.push(...glassBox("card notebub", x, y, w, h, part.bubble.r, V, place, wall, { hit: { kind: "f", id: part.bubble.cls } }));
       else if (C) {
@@ -638,9 +643,19 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
         // the framed box as Chromium paints an unscaled box: its edges on whole pixels (the hit keeps the layout's box)
         const X = Math.round(x), Y = Math.round(y), W = Math.round(x + w) - X, H = Math.round(y + h) - Y, r = part.bubble.r, clean = d === "clean";
         const sh = (dy: number, blur: number, spread: number, c: [number, number, number], a: number): Node => ({ t: "shadow", x: X, y: Y, w: W, h: H, r, dx: 0, dy, blur, spread, c, a });
+        // its frame: the design's 1 px line, the box's own border (B49) or none
+        const sw = line ? line.w : fr === "none" ? 0 : 1, k = sw / 2;
         low.push(hit(part.bubble.cls, x, y, w, h), ...(clean ? [sh(8, 24, -12, [20, 30, 60], .18), sh(1, 3, 0, [20, 30, 60], .06)] : [sh(1, 2, 0, [0, 0, 0], .08)]),
-          { t: "rect", x: X + .5, y: Y + .5, w: Math.max(0, W - 1), h: Math.max(0, H - 1), r: Math.max(0, r - .5), fill: solid("#FFFFFF"), stroke: { w: 1, paint: solid(clean ? "#E1E5EC" : "#BFBFBF") } });
+          sw ? { t: "rect", x: X + k, y: Y + k, w: Math.max(0, W - sw), h: Math.max(0, H - sw), r: Math.max(0, r - k), fill: solid("#FFFFFF"), stroke: line ? frameStroke(line) : { w: 1, paint: solid(clean ? "#E1E5EC" : "#BFBFBF") } }
+            : { t: "rect", x: X, y: Y, w: W, h: H, r, fill: solid("#FFFFFF") });
+        framed = true;
       }
+    }
+    if (line && !framed) {
+      // around the box (a glass card's corners), its stroke inside the edges; the PowerPoint export makes it a shape with
+      // that outline, grouped with the text box (pptx/scene.ts frameGroups)
+      const k = line.w / 2, r = part.bubble && glassy ? Math.max(0, part.bubble.r - k) : 0;
+      low.push({ t: "rect", x: r2(x + k), y: r2(y + k), w: r2(Math.max(0, w - line.w)), h: r2(Math.max(0, h - line.w)), ...(r ? { r } : {}), stroke: frameStroke(line) });
     }
     // the box: padding 4 / 6 px (10 / 18 with a bubble), the fitted font size, a flex column
     const bub = part.cls.includes(" bub"), padY = bub ? (C ? (part.memo ? 4 : C.card.padY) : 10) : 4, padX = bub ? (C ? C.card.padX : 18) : 6;

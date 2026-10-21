@@ -15,7 +15,9 @@ import { wallBase } from "@slide-builder/core/render/wallpaper";
 import { designClass } from "@slide-builder/core/model/designs";
 import { noteKey, SIDES } from "@slide-builder/core/render/layout";
 import { tableName } from "@slide-builder/core/model/preset";
-import type { Note, Op, RuntimeSlide, Side } from "@slide-builder/core/model/types";
+import type { LineOrNone, Note, Op, RuntimeSlide, Side } from "@slide-builder/core/model/types";
+import { FRAME_COLORS, FRAME_WEIGHTS, frameCss, noteFrame } from "@slide-builder/core/render/note-frame";
+import { Input } from "./Input";
 
 const NOUNS = ["country", "bank", "entity", "region", "product", "segment", "division"];
 const SIDE_LABEL: Record<Side, string> = { right: "Right of the table", left: "Left of the table", bottom: "Below the table", top: "Above the table" };
@@ -41,7 +43,10 @@ export function CommentDialog() {
   const [span, setSpan] = useState<boolean>(old ? !!old.note.span : (R?.tables.length || 0) > 1);
   const [size, setSize] = useState<number>(old?.note.w || old?.note.h || 440);
   const [bubble, setBubble] = useState(old ? !!old.note.bubble : true);
+  // the box's border (B49): unset = the design's, "none", or a weight and a colour (unset colour = the design's)
+  const [frame, setFrame] = useState<LineOrNone | undefined>(old?.note.frame);
   const close = () => setDialogs({ comment: null });
+  const frameObj = frame && typeof frame === "object" ? frame : null, previewFrame = frameCss(noteFrame(frame, c.style.design));
   if (!R || !L || !a) return null;
   const set = (p: Partial<CommentCfg>) => setCfg({ ...cfg, ...p });
   const groups = cfg.groups.length ? cfg.groups : defaultGroups(a);
@@ -70,6 +75,7 @@ export function CommentDialog() {
     if (side === "left" || side === "right") n.w = size; else n.h = size;
     if (!bubble) delete n.bubble;
     if (span && (side === "left" || side === "right")) n.span = true; else delete n.span;
+    if (frame === undefined) delete n.frame; else n.frame = structuredClone(frame);
     return n;
   };
   const opsFor = (X: RuntimeSlide, i: number, own: boolean): Record<string, Note | null> => {
@@ -141,8 +147,19 @@ export function CommentDialog() {
               <label>{side === "left" || side === "right" ? "Width" : "Height"}</label><div className="row"><input type="range" min={side === "left" || side === "right" ? 240 : 100} max={side === "left" || side === "right" ? 800 : 500} step="10" value={size} onChange={e => setSize(+(e.target as HTMLInputElement).value)} /><span className="cv">{size} px</span></div>
               <label></label><label className="ck"><input type="checkbox" checked={bubble} onChange={e => setBubble((e.target as HTMLInputElement).checked)} />In a bubble (glass card / framed box)</label>
             </div>
+            <div className="opthd">Border</div>
+            <div className="cmtgrid" id="cmtFrame">
+              <label>Thickness</label><div className="seg small">
+                <button data-fw="design" className={frame === undefined ? "on" : ""} title="As the design draws it: a bubble's own frame, none without a bubble" onClick={() => setFrame(undefined)}>Design</button>
+                <button data-fw="none" className={frame === "none" ? "on" : ""} title="No border (an Excel bubble without its frame too)" onClick={() => setFrame("none")}>None</button>
+                {FRAME_WEIGHTS.map(w => <button key={w} data-fw={w} className={frameObj?.w === w ? "on" : ""} onClick={() => setFrame({ ...(frameObj || {}), w })}>{w} px</button>)}</div>
+              <label>Colour</label><div className="row cmtfc">
+                <button data-fc="" className={"cgsw auto" + (frameObj && !frameObj.color ? " on" : "")} title="The design's frame colour" onClick={() => setFrame({ w: frameObj?.w ?? 1 })}>Auto</button>
+                {FRAME_COLORS.map(col => <button key={col} data-fc={col} className={"cgsw" + (frameObj?.color?.toUpperCase() === col ? " on" : "")} style={{ background: col }} title={col} onClick={() => setFrame({ w: frameObj?.w ?? 1, color: col })} />)}
+                <label className="cgsw custom" title="Any colour"><Input type="color" value={frameObj?.color || "#000000"} onCommit={e => setFrame({ w: frameObj?.w ?? 1, color: (e.target as HTMLInputElement).value.toUpperCase() })} />…</label></div>
+            </div>
           </div>
-          <div className={"cmtprev slide " + designClass(c.style.design)} style={c.style.design === "glass" ? { "--wallbase": wallBase(c.style) } as React.CSSProperties : undefined}><div className="tnote auto" id="cmtPreview" dangerouslySetInnerHTML={{ __html: richText(text) }} /></div>
+          <div className={"cmtprev slide " + designClass(c.style.design)} style={c.style.design === "glass" ? { "--wallbase": wallBase(c.style) } as React.CSSProperties : undefined}><div className="tnote auto" id="cmtPreview" style={previewFrame ? { border: previewFrame, padding: previewFrame === "none" ? undefined : "8px 10px" } : undefined} dangerouslySetInnerHTML={{ __html: richText(text) }} /></div>
         </div>
         <div className="dlgft">
           {old && <button className="btn" id="cmtRemove" onClick={remove}>Remove comment</button>}

@@ -481,7 +481,8 @@ deck not yet covered once more, at most 15 s each; a deck that still has records
 
 Decks are created and migrated at `format: 4` (`decks.CREATE_FORMAT`), which 4.0–4.5 read. A deck that receives or
 holds what 4.0.0 does not apply whole (`needsV5` / `docNeedsV5` in `core/src/model/ops.ts`: items, `free`, `looks`,
-`cellGrid`, `borders`, and every op or key added since) is raised once, by the page (`DocSync.upgrade`), before the
+`cellGrid`, `borders`, a text box's `frame` inside a slide's `notes` map (B49: 4.0 keeps the entry whole but would draw
+the box without it), and every op or key added since) is raised once, by the page (`DocSync.upgrade`), before the
 record is appended or a compaction would write it:
 
 1. `POST /api/decks/<key>/format5` writes `incident-format-5.json` `{deck, format: 5, what, by, at}` (O_EXCL; an
