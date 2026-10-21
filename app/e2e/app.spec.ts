@@ -127,12 +127,18 @@ async function selectCell(page: Page, text: string) {
   await page.mouse.click(box.x + 8, box.y + box.height / 2);
 }
 /** runs an export (a click) and returns the files it saved: the names the helper gave back (a toast still showing from
-    the last export is not taken for this one) */
+    the last export is not taken for this one). An export that saves nothing and says so (a warning toast: "Saved 0
+    PDFs · ⚠ 5 failed: …") fails at once with that message, not after the poll's minute */
 async function exported(page: Page, click: () => Promise<unknown>): Promise<string[]> {
-  await page.evaluate(() => { (window as any).__sbTest.lastExport.files = []; });
+  const before = await page.evaluate(() => { const t = (window as any).__sbTest; t.lastExport.files = []; return t.toastNow()?.id ?? 0; });
   await click();
-  let files: string[] = [];
-  await expect.poll(async () => (files = await page.evaluate(() => [...(window as any).__sbTest.lastExport.files] as string[])).length, { timeout: 60_000 }).toBeGreaterThan(0);
+  let files: string[] = [], warning = "";
+  await expect.poll(async () => {
+    ({ files, warning } = await page.evaluate((id) => { const t = (window as any).__sbTest, m = t.toastNow();
+      return { files: [...t.lastExport.files] as string[], warning: m && m.id > id && m.err && !t.exporting() ? String(m.html) : "" }; }, before));
+    return files.length > 0 || !!warning;
+  }, { timeout: 60_000 }).toBe(true);
+  expect(files, "the export saved nothing: " + warning.replace(/<[^>]*>/g, "")).not.toHaveLength(0);
   await expect(page.locator("#exportBtn")).toHaveText("Export PDF");
   return files;
 }
@@ -2078,7 +2084,8 @@ test.describe.serial("two people, one shared folder", () => {
     expect(cur).toHaveLength(1); expect(cur[0]).toContain("Zeta hidden");
     // every version × all five designs (S13.6 review, 6): the design that hides the slide has n - 1 pages, the others n
     const d0 = doc().style.design || "glass";
-    await change("Versions", [{ op: "preset.set", preset: { ...doc().preset, versions: [{ id: "vhs", name: "Chief" }] } }]);
+    // a version as the wizard makes it (DeckVersion: its removed cells per sheet, none here)
+    await change("Versions", [{ op: "preset.set", preset: { ...doc().preset, versions: [{ id: "vhs", name: "Chief", hide: {} }] } }]);
     await expect.poll(() => undoSteps()).toBe(u0 + 4);
     await saved(page);
     const LABEL: Record<string, string> = { glass: "Liquid Glass", excel: "Excel", clean: "Excel Refined", mckinsey: "Consulting Navy", bain: "Consulting Red" };
