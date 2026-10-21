@@ -63,11 +63,11 @@ async function setup(design: Design, items: Record<string, ChartItem>, extra: Op
   };
   return { wb, ctx, slides, view, build };
 }
-/** a chart's nodes on the slide: from its item hit to the next item's (or the logo / the end) */
+/** a chart's nodes on the slide: from its item hit to the next item's (or the logo, the page number / the end) */
 function chartPart(l: DisplayList, id: string): DisplayList {
   const k = l.findIndex(n => n.t === "hit" && n.kind === "item" && n.id === id);
   if (k < 0) return [];
-  const end = l.findIndex((n, j) => j > k && n.t === "hit" && (n.kind === "item" || (n.kind === "f" && /^logo/.test(n.id))));
+  const end = l.findIndex((n, j) => j > k && n.t === "hit" && (n.kind === "item" || (n.kind === "f" && /^(logo|pageno)/.test(n.id))));
   return l.slice(k, end < 0 ? undefined : end);
 }
 

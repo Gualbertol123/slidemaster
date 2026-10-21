@@ -441,7 +441,7 @@ describe("B48 fix: the furniture never overlaps – the source note and the foot
     }
     expect(checked).toBeGreaterThan(100);
     expect(bad).toEqual([]);
-  });
+  }, 120_000);   // ~3 s alone (every corpus deck × 10 variants); several times that under the full parallel suite
   it("the sample (weekly-options): the footer at the content's left margin on the logo's row, the source note beside it, the logo at the right", async () => {
     const { slides, build } = await deck("weekly-options.json", "excel");
     const i = slides.findIndex(S => S.type === "content"), { furniture } = slideParts(build(i));

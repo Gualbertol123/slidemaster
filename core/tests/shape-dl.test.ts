@@ -50,7 +50,8 @@ async function setup(design: Design, items: Record<string, ShapeItem> = {}) {
   const build = (c = ctx) => { const R = c.slides[0], b = computeLayout(R, c).boxes; return slideToDisplayList(R, 0, c, R.tables.map(L => excelToDisplayList(L, c, M)), b, { wall: null, logo: null }, M, "1 October 2026"); };
   return { wb, ctx, view, build, env: { V: glassVars(ctx), wall: null } };
 }
-const part = (l: DisplayList, id: string) => { const k = l.findIndex(n => n.t === "hit" && n.kind === "item" && n.id === id); const e = l.findIndex((n, j) => j > k && n.t === "hit" && (n.kind === "item" || /^logo/.test(n.id))); return l.slice(k, e < 0 ? undefined : e); };
+/** an item's nodes: from its hit to the next item's (or the logo, the page number / the end) */
+const part = (l: DisplayList, id: string) => { const k = l.findIndex(n => n.t === "hit" && n.kind === "item" && n.id === id); const e = l.findIndex((n, j) => j > k && n.t === "hit" && (n.kind === "item" || /^(logo|pageno)/.test(n.id))); return l.slice(k, e < 0 ? undefined : e); };
 
 describe("cell references in a callout's text (CL-02)", () => {
   it("a cell's text as the workbook shows it, through ctx.sheet; a sheet on no slide; #REF for what cannot be read", async () => {
