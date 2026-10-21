@@ -105,7 +105,8 @@ data\
 │  │  ├─ lock                          the deck lock (§7)
 │  │  ├─ moved-from-v3.json            written by the migration (§9.1)
 │  │  ├─ rolled-back.json              written by a rollback (§9.2)
-│  │  └─ incident-<journal>-<offset>.json   a damaged journal: the deck is read-only (§7.3)
+│  │  ├─ incident-<journal>-<offset>.json   a damaged journal: the deck is read-only (§7.3)
+│  │  └─ incident-format-5.json        the deck holds 4.6 objects (§6.5, ADR-019): read-only for 4.0–4.5 only
 │  ├─ storage.json                     optional {"storage": "lean-lock"} (§7.2)
 │  └─ pinned-v3.json                   optional: decks kept on Slide Builder 3 (§9.2)
 ├─ workbooks\<key>.json                Slide Builder 3's documents. Read by the migration, then FROZEN (§9.1)
@@ -132,6 +133,7 @@ being broken), `.clock-<host>-<pid>` (the file-server clock probe, §7.4).
 | `snapshot.json` | the helper, on a page's `compact`; the migration; `create` of a new deck | atomic replace under the deck lock |
 | `presence/*` | each helper its own user's file | create / `utime` |
 | `incident-*.json` | the first helper whose read finds damage | O_EXCL, never overwritten |
+| `incident-format-5.json` | a 4.6+ helper, asked by its page before the deck gets 4.6 objects (or before a format-5 compaction) | O_EXCL, never overwritten or removed; moves with the deck (deleted setups) |
 | `config.json` | v4 helpers (`POST /api/config`) and v3 helpers | atomic replace under lock `config` |
 | `users/<user>.json` | that user's helper (v3 or v4) | atomic whole replace |
 | `fonts/*` | any helper | under lock `fonts` |
@@ -390,7 +392,7 @@ on every PC, not by arrival.
 
 ```jsonc
 {
-  "format": 4,                  // anything else: 409 "saved by a newer Slide Builder"
+  "format": 4,                  // 4, or 5 once the deck holds 4.6 objects (§6.5); anything else: 409 "saved by a newer Slide Builder"
   "gen": 12,                    // 1 at creation or first migration; +1 per compaction and per re-migration (§9.1)
   "workbook": "IBD weekly.xlsx",
   "lamport": 8120,              // the highest Lamport time folded in
@@ -405,18 +407,19 @@ on every PC, not by arrival.
 
 The records **before** each frontier offset are in `doc`. A journal not in the frontier is read from 0. The helper
 writes the snapshot as compact JSON with a trailing newline, atomically (§7.1). An example (indented) is
-`helper/tests/fixtures/saved/snapshot.v4.json`.
+`helper/tests/fixtures/saved/snapshot.v4.json` (format 5: `snapshot.v5.json`).
 
 ### 6.2 `compact` (compare-and-set on `gen`)
 
 A page proposes `{baseGen, snapshot}` with `snapshot.gen = baseGen + 1`. The helper (`decks.py:782-825`):
 
-1. validates the shape (format 4, `gen = baseGen + 1`, frontier of non-negative integers, `lamport` and `rev`
+1. validates the shape (format 4 or 5, `gen = baseGen + 1`, frontier of non-negative integers, `lamport` and `rev`
    non-negative integers, `doc` an object) → else 400; refuses a read-only (423) or rolled-back (409) deck;
 2. stamps `by` (its user) and `at` (file-server time);
 3. under the deck lock (with keepalive), reads the current snapshot and answers **409 `{gen}`** unless its `gen` is
    `baseGen`; 409 also when the new frontier is behind the current one for a journal, leaves out a journal the current
-   frontier names that still exists, or `lamport` / `rev` would go back;
+   frontier names that still exists, or `lamport` / `rev` would go back; **400** when the current snapshot is format 5
+   and the new one is not (never lowered, §6.5); a format-5 snapshot over a format-4 one gets the marker first;
 4. writes the snapshot; then deletes the journals the new frontier covers (no complete record past the offset; an
    offset beyond the file's size is not trusted) **and** that nobody wrote to for 24 h, plus empty journals untouched
    for 24 h, never one this helper has open; if any were deleted, rewrites the snapshot without their frontier keys
@@ -471,6 +474,31 @@ deck not yet covered once more, at most 15 s each; a deck that still has records
 
 ---
 
+### 6.5 The format guard (ADR-019, amended 2026-10-21)
+
+Decks are created and migrated at `format: 4` (`decks.CREATE_FORMAT`), which 4.0–4.5 read. A deck that receives or
+holds what 4.0.0 does not apply whole (`needsV5` / `docNeedsV5` in `core/src/model/ops.ts`: items, `free`, `looks`,
+`cellGrid`, `borders`, and every op or key added since) is raised once, by the page (`DocSync.upgrade`), before the
+record is appended or a compaction would write it:
+
+1. `POST /api/decks/<key>/format5` writes `incident-format-5.json` `{deck, format: 5, what, by, at}` (O_EXCL; an
+   existing one is kept). Every 4.0–4.5 helper takes any `incident-*.json` for a damaged journal: from its next look
+   at the folder (at once when it opens a journal, every `REFRESH_S` = 4 s for a deck it has an append handle on) it
+   answers 423 to appends, prepare and compactions and reports `readonly` in tails;
+2. the page waits `REFRESH_S` + 1 s from the marker's `at` (an old page may still append until then);
+3. it tails once more (the next record's Lamport time is above everything appended in that gap);
+4. it compacts the snapshot **unchanged** with `gen + 1` and `format: 5` (on 409: reload, again; found at 5: done);
+5. only then the record is appended (it waits in the pending queue, "Saving…").
+
+A page opening a format-4 deck whose snapshot or journal already holds such content raises it at once; the pagehide
+snapshot never raises a deck (it cannot wait). Later snapshots of a format-5 deck are format 5 (`nextSnapshot`), even
+when every such object was deleted. 4.0–4.5 helpers refuse to read a format-5 snapshot (409: open, `rotate`, the
+compaction's read under the lock – and so the 24 h journal drop); their tail reports `gen: null` and never folds.
+The 4.6 helper does not count the marker as an incident, and answers **409** "reload the page" on a format-5 deck
+(the marker, or the snapshot read) to `open`, `snapshot`, `tail`, `append`, `prepare`, `compact` and `rotate` from a
+page that does not send `X-SB-Deck-Formats: 4,5` (`decks.check_page`: a 4.0–4.5 page left open while its PC's helper
+was restarted on 4.6 – its old token already gets 403).
+
 ## 7. Locks, storage modes, incidents
 
 ### 7.1 The lock protocol (`helper/slidebuilder/locks.py`)
@@ -515,7 +543,8 @@ When a tail finds corruption (§4.2), the helper writes `incident-<journal stem>
 `{deck, journal, offset, size, at, seenBy}` in the deck folder with O_EXCL (once, never overwritten) and logs
 `INCIDENT`. While any `incident-*.json` exists the deck is **read-only**: `append`, `prepare` and `compact` answer
 **423** `{error, readonly: true}`, and every tail carries `readonly: <reason>`; the page then stops saving and shows
-the reason. A helper looks at the deck folder (existence, incidents, `rolled-back.json`) when it opens a journal, at
+the reason (4.6+: `incident-format-5.json` is no incident, §6.5). A helper looks at the deck folder (existence,
+incidents, `rolled-back.json`, the format-5 marker) when it opens a journal, at
 most every 10 s from tails, and every 4 s in the background for decks it has an append handle on. Recovering a deck
 is a maintainer's manual job (there is no endpoint for it).
 
@@ -603,6 +632,8 @@ document. `GET /api/decks` lists every deck with `rolledBack`.
   `workbook=3;config=3;prefs=1`, `FORMATS` in `core/src/model/types.ts:68`) that differs from the helper's `SCHEMA`
   → **409** "Slide Builder was updated – reload the page". Requests without the header, or with one that cannot be
   parsed, are accepted; a format the header does not name is not compared.
+* **Deck formats.** Pages since 4.6 send `X-SB-Deck-Formats: 4,5` with every request (`DECK_FORMATS` in
+  `core/src/model/fold.ts`); without `5` in it, a request on a format-5 deck → **409** "reload the page" (§6.5).
 * **Bodies**: chunked bodies → 411 (a request without `Content-Length` has an empty body); JSON bodies ≤ 2 MB, a compaction ≤ 32 MB, uploads, exports
   and conversions ≤ 300 MB, a logo ≤ 10 MB, a font ≤ 15 MB → else **413**. Invalid JSON or a non-object → 400.
 * **Errors** are `{"error": "<message>"}` (deck errors add fields, e.g. `{gen}` or `{readonly: true}`). Every answer
@@ -668,14 +699,15 @@ Decks (`<key>` is URL-encoded; any `<key>` not matching §2.1 → 400; `DeckErro
 
 | Method & path | Request | Response |
 |---|---|---|
-| `POST /api/decks/open` | `{workbook}` | `{key, writer, created, migrated, storage: "journal"\|"lean-lock", snapshot}`; migrates or creates the deck first (§9.1). 400 bad name · 409 pinned to v3, a v3 file of a newer format, or a snapshot not of format 4 · 503 a lock busy or a file unreadable |
-| `GET /api/decks` | – | `{decks: [{key, workbook, gen, rev, rolledBack}]}` (unreadable snapshots left out) |
+| `POST /api/decks/open` | `{workbook}` | `{key, writer, created, migrated, storage: "journal"\|"lean-lock", snapshot}`; migrates or creates the deck first (§9.1). 400 bad name · 409 pinned to v3, a v3 file of a newer format, a snapshot not of format 4 or 5, or a format-5 deck without `X-SB-Deck-Formats: 4,5` · 503 a lock busy or a file unreadable |
+| `GET /api/decks` | – | `{decks: [{key, workbook, gen, rev, format, rolledBack, …}]}` (unreadable snapshots left out) |
 | `GET /api/decks/<key>/snapshot` | – | `{snapshot}`; 404 no deck · 409 newer format · 503 unreadable (after 5 tries; never an empty document) |
 | `GET /api/decks/<key>/tail?since=<JSON {stem: offset}>` | – | `{journals: {<stem>: {offset, records, ends}}, gen, now?, skipped?, readonly?}`: only journals with new complete records (`offset` = after the last; `ends` = each record's end offset); `skipped` = journals that could not be read now (asked again next time, never treated as empty); a journal deleted meanwhile counts as empty; `gen` = the snapshot's gen (null if unreadable now); `now` = file-server ms (only when trusted). 400 bad `since` · 404 no deck · 409 rolled back |
 | `POST /api/decks/<key>/append` | `{writer, record}` | `{journal: <stem>, offset: <end of the record>, at}` after `os.fsync`. 400 envelope (§4.3) · 404 · 409 rolled back · 423 read-only · 503 write failed (send the same record again; a new file is used) |
 | `POST /api/decks/<key>/prepare` | `{writer}` | `{ok: true}`; opens the writer's journal now (idempotent; nothing in lean-lock). 400 · 404 · 409 · 423 |
 | `POST /api/decks/<key>/compact` | `{baseGen, snapshot}` (≤ 32 MB) | `{gen, dropped: [stems]}` (§6.2). 400 shape · 409 `{gen}` lost the race or would go back · 409 rolled back · 423 read-only · 503 lock busy |
 | `POST /api/decks/<key>/rotate` | `{writer}` | `{deleted: [stems]}` (§6.4). 400 · 404 · 503 |
+| `POST /api/decks/<key>/format5` | `{}` | `{created, at, now}` (§6.5: the marker; `at` = when it was written, file-server ms). 404 · 409 rolled back · 423 read-only · 503 |
 | `GET /api/decks/<key>/history` | – | `{backups: [{gen, rev, at, by}]}` newest first |
 | `POST /api/presence` | `{deck, client}` | `{others: [{user, host, client, at}]}` (§8). 400 bad key or client · 404 no deck |
 | `POST /api/presence/leave` | `{deck, client}` | `{ok: <file was deleted>}` |

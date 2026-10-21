@@ -47,6 +47,7 @@ function page(srv: ReturnType<typeof server>, who: string) {
   port.handle("deckAppend", x => api.append(x.key, x.writer, x.record));
   port.handle("deckCompact", x => api.compact(x.key, x.baseGen, x.snapshot));
   port.handle("deckRotate", x => api.rotate(x.key, x.writer));
+  port.handle("deckFormat5", x => api.format5(x.key));
   port.handle("deckPrepare", () => null);
   port.handle("digitWidth", () => 0);
   port.handle("convertPicture", () => null);

@@ -233,6 +233,61 @@ class UseThreeRollsBackTest(unittest.TestCase):
         self.assertFalse(update.decks_owned(self.root))
 
 
+class UseBelowFormat5Test(unittest.TestCase):
+    """--use below 4.6 (ADR-019 rule c): the decks that hold 4.6 objects are named, and the switch waits for a yes"""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="sb-use45-")
+        d = "backend/data/v4/decks/"
+        write(self.root, {"app/4.5.0/MANIFEST.json": "{}", "app/4.6.0/MANIFEST.json": "{}", "app/3.8.0/MANIFEST.json": "{}",
+                          d + "Plain.xlsx-0123456789/snapshot.json": json.dumps({"format": 4, "workbook": "Plain.xlsx"}),
+                          d + "Charts.xlsx-0123456789/snapshot.json": json.dumps({"format": 5, "workbook": "Charts.xlsx"}),
+                          d + "Charts.xlsx-0123456789/incident-format-5.json": "{}",
+                          d + "Back.xlsx-0123456789/snapshot.json": json.dumps({"format": 5, "workbook": "Back.xlsx"}),
+                          d + "Back.xlsx-0123456789/incident-format-5.json": "{}",
+                          d + "Back.xlsx-0123456789/rolled-back.json": "{}"})
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def use(self, ver, answer=None, yes=False):
+        calls, out = [], io.StringIO()
+        asked = mock.patch("builtins.input", side_effect=(lambda q: calls.append(("asked", q)) or answer) if answer is not None else EOFError)
+        with asked, redirect_stdout(out), mock.patch.object(update, "check_installed"), \
+                mock.patch.object(update, "activate", lambda *a, **k: calls.append("activate") or "4.6.0"), \
+                mock.patch.object(update, "rollback_decks", lambda root, name: calls.append("rollback") or True):
+            try:
+                update.use_version(self.root, ver, "stamp", yes)
+            except SystemExit as e:
+                calls.append(("refused", str(e)))
+        return calls, out.getvalue()
+
+    def test_marked_decks_are_listed_and_asked_for(self):
+        self.assertEqual(update.format5_decks(self.root), ["Charts.xlsx"])        # (one given back to v3 does not count)
+        calls, out = self.use("4.5.0", "n")
+        self.assertIn("These 1 deck(s) use Slide Builder 4.6 objects", out)
+        self.assertIn("  Charts.xlsx", out)
+        self.assertNotIn("Plain.xlsx", out)
+        self.assertEqual(calls[0][0], "asked")
+        self.assertEqual(calls[1][0], "refused")
+        self.assertIn("Nothing was changed", calls[1][1])
+        self.assertEqual(len(calls), 2)                                          # not switched
+        self.assertEqual(self.use("4.5.0")[0][-1][0], "refused")                 # no console to answer: no
+        calls, _ = self.use("4.5.0", "y")
+        self.assertEqual(calls[-1], "activate")
+        calls, out = self.use("4.5.0", yes=True)                                 # --yes: named, not asked
+        self.assertEqual(calls, ["activate"])
+        self.assertIn("Charts.xlsx", out)
+        calls, out = self.use("3.8.0", "sì")                                     # to v3: the objects are lost there
+        self.assertIn("loses those objects", out)
+        self.assertEqual(calls[1:], ["rollback", "activate"])
+
+    def test_46_and_later_ask_nothing(self):
+        calls, out = self.use("4.6.0", "n")
+        self.assertEqual(calls, ["activate"])
+        self.assertNotIn("4.6 objects", out)
+
+
 def tree_hashes(root, skip=()):
     """{relative path: sha256} of every file below root, except under the `skip` sub-folders"""
     out = {}

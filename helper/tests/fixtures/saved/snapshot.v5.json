@@ -1,0 +1,97 @@
+{
+  "format": 5,
+  "gen": 3,
+  "workbook": "IBD weekly.xlsx",
+  "lamport": 4,
+  "rev": 2,
+  "frontier": {
+    "rossim@PC-0042#m5q2x7qa": 702
+  },
+  "seen": {
+    "rossim@PC-0042#m5q2x7qa": 2
+  },
+  "doc": {
+    "schema": 3,
+    "workbook": "IBD weekly.xlsx",
+    "preset": {
+      "sheets": [
+        "Overview"
+      ],
+      "tables": [
+        {
+          "id": "k3j9x0a",
+          "sheet": "Overview",
+          "kind": "markers",
+          "anchor": "C3",
+          "index": 0
+        }
+      ],
+      "slides": [
+        {
+          "id": "s1",
+          "type": "content",
+          "title": "Overview",
+          "tables": [
+            "k3j9x0a"
+          ],
+          "layout": {
+            "bands": [
+              [
+                0
+              ]
+            ],
+            "w": [
+              1
+            ]
+          },
+          "logo": false,
+          "items": {
+            "c1": {
+              "kind": "chart",
+              "type": "pie",
+              "values": {
+                "sheet": "Overview",
+                "range": "D4:D7"
+              },
+              "labels": {
+                "sheet": "Overview",
+                "range": "C4:C7"
+              },
+              "box": {
+                "x": 1000,
+                "y": 200,
+                "w": 500,
+                "h": 400
+              },
+              "colors": {
+                "0": "#1F4E79"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "style": {
+      "design": "excel",
+      "color": 35
+    },
+    "edits": {},
+    "rev": 2
+  },
+  "updated": 1792640000001,
+  "updatedBy": "rossim",
+  "log": [
+    {
+      "rev": 1,
+      "by": "rossim",
+      "at": 1792640000000
+    },
+    {
+      "rev": 2,
+      "by": "rossim",
+      "at": 1792640000001
+    }
+  ],
+  "at": 1792640006000,
+  "by": "rossim"
+}

@@ -1,11 +1,13 @@
 """Decks of Slide Builder 4 on the shared folder: a snapshot plus append-only journals (docs/next/04 §2, ADR-006).
 
     data/v4/decks/<key>/
-      snapshot.json          {"format": 4, "gen", "workbook", "lamport", "rev", "frontier": {journal: offset}, "by", "at", "doc"}
+      snapshot.json          {"format": 4 or 5, "gen", "workbook", "lamport", "rev", "frontier": {journal: offset}, "by", "at", "doc"}
       j/<journal>.log        framed records, append-only, ONE writer per file (no lock on the edit path)
       presence/<who>         empty files; their mtime (file-server clock) is the heartbeat
       lock                   compaction / migration lock (locks.Lock: O_EXCL, token, stale 15 s on the server clock)
       incident-*.json        a journal is corrupt in the middle: the deck is read-only (never happens; monitored)
+      incident-format-5.json the deck holds Slide Builder 4.6 objects (ADR-019): NOT an incident for 4.6 and later; every
+                             4.0-4.5 helper takes it for one, so their pages can no longer write, compact or open the deck
       moved-from-v3.json     written once by the migration (migrate_v3.py)
     data/backups/v4/<key>/<gen>.json   each compaction's snapshot (the last 30)
 
@@ -34,6 +36,16 @@ Storage modes (G0 decision 2026-10-14, ADR-006's fallback): ``journal`` (default
 append takes the deck lock and goes to ONE shared journal ``j/shared~<n>.log`` (n as above; a new one when the
 last ends in a torn frame) - same endpoints, same records, same fold. Set by ``SLIDEBUILDER_STORAGE`` or ``data/v4/storage.json`` ``{"storage": "lean-lock"}``. The two can
 even mix on one deck: the readers fold every journal they find.
+
+The format guard (ADR-019, amended 2026-10-21). A deck is created and migrated at format 4 (CREATE_FORMAT), which
+4.0-4.5 read. Before a 4.6 page writes anything 4.0.0 does not know (core/src/model/ops.ts needsV5) it raises the
+deck: the marker (:func:`mark_format5`), a wait of REFRESH_S + 1 s (an old helper re-reads the folder of a deck it
+appends to every REFRESH_S - the same in 4.0.0), a tail, then the snapshot unchanged with gen + 1 and format 5
+(compact). From then on: a 4.0-4.5 helper answers 423 to appends (the marker is an incident to it), refuses to read
+the snapshot (409: open, compaction under the lock, rotate, and so the 24 h journal drop), and its tail reports no gen
+and "read-only"; this helper refuses a format-5 deck to a page that does not send ``X-SB-Deck-Formats: 4,5``
+(:func:`check_page`: a 4.0-4.5 page left open while its PC's helper was restarted on 4.6) and a compaction that would
+lower 5 to 4 (400).
 """
 import base64
 import concurrent.futures
@@ -51,7 +63,10 @@ from .fsclock import fs_now, offset_nowait
 from .locks import Lock
 from .util import current_host, current_user, doc_key, log, remove_quietly, safe_component, write_atomic
 
-FORMAT = 4
+CREATE_FORMAT = 4                 # new and migrated decks: 4.0-4.5 read them until they hold a 4.6 object (ADR-019)
+READ_FORMATS = (4, 5)             # 5: the deck holds what 4.0.0 does not know (raised by the page, never lowered)
+MARKER5 = "incident-format-5.json"                 # (an "incident-" name: what every 4.0-4.5 helper honours)
+OUTDATED5 = "Slide Builder was updated - reload the page (F5) to continue; your last change was not saved"
 LISTING_TTL = 3.0                 # s: a deck's journal listing is cached (the SMB client may cache it 10 s more)
 TAIL_PARALLEL = 8                 # journals read at once by one tail
 IDLE_CLOSE = 600.0                # s: an append handle unused for this long is closed; the next append opens a new file
@@ -309,7 +324,7 @@ def read_snapshot(key):
             try:
                 snap = json.loads(raw.decode("utf-8-sig"))
                 if isinstance(snap, dict) and isinstance(snap.get("gen"), int):
-                    if snap.get("format") != FORMAT:
+                    if snap.get("format") not in READ_FORMATS:
                         raise DeckError(409, "this deck was saved by a newer Slide Builder (format %r) - close the Slide Builder "
                                              "window and start it again to use the update" % snap.get("format"))
                     return snap
@@ -365,6 +380,7 @@ _snapsig = {}                             # key -> ((mtime_ns, size), gen)
 _readonly = {}                            # key -> reason (an incident this helper saw)
 _checked = {}                             # key -> monotonic time this helper last looked at the deck's folder
 _rolled = {}                              # key -> True: the deck was rolled back to Slide Builder 3
+_v5 = {}                                  # key -> True: the deck's folder holds MARKER5 (as of the last look)
 ROLLED = "this deck was moved back to Slide Builder 3 - reload the page (F5) to continue"
 _guard = threading.Lock()
 _pool = None
@@ -393,6 +409,7 @@ def reset():
         _readonly.clear()
         _checked.clear()
         _rolled.clear()
+        _v5.clear()
         _issued.clear()
         _bound.clear()
         _borns.clear()
@@ -429,13 +446,18 @@ def readonly_reason(key):
     if key in _readonly:
         return _readonly[key]
     try:
-        names = [n for n in os.listdir(deck_dir(key)) if n.startswith("incident-") and n.endswith(".json")]
+        names = [n for n in os.listdir(deck_dir(key)) if _is_incident(n)]
     except OSError:
         return None
     if names:
         _readonly[key] = "a journal of this deck is damaged (%s) - the deck is read-only; tell the maintainer" % sorted(names)[0]
         return _readonly[key]
     return None
+
+
+def _is_incident(name):
+    """a real incident file (the format-5 marker is none for this helper; it is for 4.0-4.5)"""
+    return name.startswith("incident-") and name.endswith(".json") and name != MARKER5
 
 
 def _incident(key, journal, offset, size):
@@ -494,12 +516,86 @@ def _look(key, ttl=None):
         _rolled[key] = True
     else:
         _rolled.pop(key, None)
-    inc = sorted(n for n in names if n.startswith("incident-") and n.endswith(".json"))
+    inc = sorted(n for n in names if _is_incident(n))
+    _v5[key] = MARKER5 in names
     if inc:
         _readonly[key] = "a journal of this deck is damaged (%s) - the deck is read-only; tell the maintainer" % inc[0]
     else:
         _readonly.pop(key, None)
     _checked[key] = time.monotonic()
+
+
+# --------------------------------------------------------------------------- the format guard (ADR-019)
+def mark_format5(key, by=None):
+    """the deck's marker MARKER5, written once (O_EXCL; an existing one is kept): from their next look at the deck's
+    folder every 4.0-4.5 helper takes the deck for read-only. Returns {created, at, now} (the file server's ms; `at`:
+    when the marker was written - the page waits REFRESH_S + 1 s from then before it raises the snapshot)."""
+    check_key(key)
+    _look(key, 0)                                   # the deck exists (404) - and is not read-only or rolled back:
+    _check_writable(key)
+    path = deck_dir(key, MARKER5)
+    now = server_ms()
+    body = json.dumps({"deck": key, "format": 5, "what": "this deck uses Slide Builder 4.6 objects; it opens in Slide Builder "
+                       "4.6 or later", "by": by or "%s@%s" % (current_user(), current_host()), "at": now}, indent=1).encode("utf-8")
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_BINARY", 0), 0o644)
+    except FileExistsError:
+        _v5[key] = True
+        return {"created": False, "at": _marker_at(path, now), "now": now}
+    except OSError as e:
+        raise DeckError(503, "the deck could not be marked for Slide Builder 4.6 (%s) - trying again" % e)
+    try:
+        os.write(fd, body)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    _v5[key] = True
+    log("deck %s now holds Slide Builder 4.6 objects: %s written (4.0-4.5 take it for read-only)" % (key, MARKER5))
+    return {"created": True, "at": now, "now": now}
+
+
+def _marker_at(path, now):
+    """when an existing marker was written (its "at", else its mtime: the file server's clock)"""
+    try:
+        at = json.loads((_read_bytes(path, attempts=2, delay=0.05) or b"{}").decode("utf-8")).get("at")
+        if isinstance(at, int) and not isinstance(at, bool):
+            return at
+    except (DeckError, ValueError, UnicodeDecodeError, AttributeError):
+        pass
+    try:
+        return int(os.stat(path).st_mtime * 1000)
+    except OSError:
+        return now
+
+
+def page_formats(header):
+    """the snapshot formats a page reads, from its X-SB-Deck-Formats header ("4,5"; none = a 4.0-4.5 page)"""
+    out = set()
+    for x in (header or "").split(","):
+        x = x.strip()
+        if x.isdigit():
+            out.add(int(x))
+    return out
+
+
+def check_page(key, formats, snap=None):
+    """409 "reload" for a page that does not read format 5 (no X-SB-Deck-Formats: 4,5 - a 4.0-4.5 page still open
+    after its PC's helper was restarted on 4.6) on a deck that holds 4.6 objects: its marker (looked at again after
+    REFRESH_S at most: the bump's wait covers that), or the snapshot `snap` read for it. Pages that send the header
+    pay nothing."""
+    if 5 in formats:
+        return
+    if snap is not None and snap.get("format") == 5:
+        raise DeckError(409, OUTDATED5)
+    check_key(key)
+    _look(key, REFRESH_S)
+    if _v5.get(key):
+        raise DeckError(409, OUTDATED5)
+
+
+def is_format5(key):
+    """the deck is marked for 4.6 (its folder holds MARKER5)"""
+    return os.path.exists(deck_dir(key, MARKER5))
 
 
 def _new_number(names, prefix, floor=0):
@@ -821,7 +917,7 @@ def write_snapshot(key, snap):
 
 def first_snapshot(workbook, doc, by=None, at=None, rev=0, log_=None, updated=None, updated_by=None):
     """gen 1 of a deck: the document as it is (a v3 document or an empty one)"""
-    snap = {"format": FORMAT, "gen": 1, "workbook": workbook, "lamport": 0, "rev": rev, "frontier": {},
+    snap = {"format": CREATE_FORMAT, "gen": 1, "workbook": workbook, "lamport": 0, "rev": rev, "frontier": {},
             "by": by or current_user(), "at": at if at is not None else server_ms(), "doc": doc}
     if updated is not None:
         snap["updated"] = updated
@@ -838,7 +934,7 @@ def summary(snap):
     doc = snap.get("doc") if isinstance(snap.get("doc"), dict) else {}
     preset = doc.get("preset") if isinstance(doc.get("preset"), dict) else {}
     slides = [s for s in (preset.get("slides") or []) if isinstance(s, dict) and (s.get("type") or "content") == "content"]
-    return {"workbook": snap.get("workbook"), "gen": snap.get("gen"), "rev": snap.get("rev"),
+    return {"workbook": snap.get("workbook"), "gen": snap.get("gen"), "rev": snap.get("rev"), "format": snap.get("format"),
             "updated": snap.get("updated"), "updatedBy": snap.get("updatedBy"),
             "preset": bool(preset), "slides": len(slides), "tables": len(preset.get("tables") or []),
             "versions": len(preset.get("versions") or [])}
@@ -863,8 +959,8 @@ def create_if_missing(workbook):
 
 # --------------------------------------------------------------------------- compact
 def _validate_snapshot(snap, base):
-    if not isinstance(snap, dict) or snap.get("format") != FORMAT:
-        raise DeckError(400, "a snapshot of format 4 is expected")
+    if not isinstance(snap, dict) or snap.get("format") not in READ_FORMATS:
+        raise DeckError(400, "a snapshot of format 4 or 5 is expected")
     if snap.get("gen") != base + 1:
         raise DeckError(400, "the new snapshot's gen must be baseGen + 1")
     fr = snap.get("frontier")
@@ -910,6 +1006,12 @@ def compact(key, base_gen, snap, by=None):
                 raise DeckError(409, "the new snapshot leaves out a journal (%s)" % j)
         if snap["lamport"] < (cur.get("lamport") or 0) or snap["rev"] < (cur.get("rev") or 0):
             raise DeckError(409, "the new snapshot is behind the current one")
+        if cur.get("format") == 5 and snap["format"] != 5:
+            # a page that does not know 4.6's objects would write the deck without them (ADR-019: never lowered)
+            raise DeckError(400, "this deck uses Slide Builder 4.6 objects: its snapshot is never written in an older format")
+        if snap["format"] == 5 and cur.get("format") != 5 and not os.path.exists(deck_dir(key, MARKER5)):
+            # the marker always comes first: 4.0-4.5 helpers then refuse appends before they could miss the format
+            mark_format5(key)
         write_snapshot(key, snap)
         dropped = _drop_dead(key, snap["frontier"])
         if dropped:
@@ -1042,6 +1144,7 @@ def forget(key):
         _checked.pop(key, None)
         _readonly.pop(key, None)
         _rolled.pop(key, None)
+        _v5.pop(key, None)
         _borns.pop(key, None)
     for st in items:
         with st.lock:

@@ -53,3 +53,40 @@ pages – opening, already open (editing, the wizard, compacting), and the resta
 close. Alternatives: the format bump alone (old open pages keep writing: refused); raise `FORMATS.workbook` for all
 decks (every un-restarted PC locked out of every deck; an upgrade step for every deck folder); a release rule alone
 (nothing technical stops a forgotten window; kept in addition).
+
+## Amendment 2026-10-21 (S13.1): the gap after the marker, and the wait
+*Status: accepted (orchestrator default for M13, reported to the product owner at G9a).*
+
+**The gap.** Step 1 does not stop an old page at once. A 4.0–4.5 helper looks at the folder of a deck it has an
+append handle on every `REFRESH_S` = 4 s (`decks.py:66`, the same in 4.0.0, `_refresh_loop`); an append on an open
+handle checks nothing else (`_check_writable` → `_look(key)`, once per helper, no TTL). So for about 4 s after the
+marker an old page that has the deck open can still append – any record, a wizard `preset.set` built without the new
+objects included. (A helper without a handle on the deck looks again when it opens a journal: it refuses at once.)
+A record appended in that gap is never lost (the 4.6 pages fold it), but folded *after* the 4.6 record it would
+overwrite it if its Lamport time were higher.
+
+**The bump, as built** (`DocSync.upgrade`, `core/src/sync/docsync.ts`):
+1. `POST /api/decks/<key>/format5`: the marker (`decks.mark_format5`; it answers when the marker was written, `at`,
+   and the file server's `now`);
+2. **wait `REFRESH_S` + 1 s = 5 s from `at`** (`BUMP_WAIT_MS`; a marker written long ago is not waited for again):
+   every old helper has then seen the marker, and its pages' appends get 423;
+3. **tail once more**: the gap's records are read, so the record about to be appended gets a Lamport time above
+   every one of them (an old page's `preset.set` folds *before* it);
+4. compare-and-set: the snapshot unchanged, `gen + 1`, `format: 5` (on 409 reload and again; found at 5: done);
+5. append the record.
+
+The same sequence runs before a compaction whose snapshot would go from 4 to 5, and when a 4.6 page opens a format-4
+deck whose snapshot or journal already holds 4.6 content. The pagehide snapshot (a keepalive request) never raises a
+deck. As a second wall, the 4.6 helper writes the marker itself before it accepts a format-5 snapshot over a
+format-4 one.
+
+**Cost.** Once per deck: about 5 s of "Saving…" on the first edit that needs format 5 (the record waits in the pending
+queue; more edits join it). Accepted (M13 decision).
+
+**Not closed by it.** A record an old page appended *before* the marker is folded as before (it was already there);
+a format-4 deck holding 4.3–4.5 records that no 4.6 page has opened stays exposed to a 4.0–4.4 compaction until the
+rollout (unchanged, see Consequences).
+
+**Restarted helper.** The helper's token is random per process (`server.py` `App`), so an old page whose PC's helper
+was restarted on 4.6 already gets 403 "forbidden (token)"; `X-SB-Deck-Formats` (409) is the second wall behind it,
+tested with a valid token (`helper/tests/test_http.py` `DeckFormatHttpTests`).

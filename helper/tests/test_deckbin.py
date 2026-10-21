@@ -261,6 +261,27 @@ class DeckBinTests(TempDirs):
             deckbin.delete("nosuch-0123456789")
         self.assertEqual(c.exception.status, 404)
 
+    def test_a_format_5_deck_keeps_its_marker_in_the_bin_and_back(self):
+        # ADR-019: the marker goes wherever the deck goes; the empty deck a delete leaves is format 4 without one
+        decks.mark_format5(self.key)
+        snap = decks.read_snapshot(self.key)
+        decks.compact(self.key, snap["gen"], dict(snap, gen=snap["gen"] + 1, format=5))
+        r = deckbin.delete(self.key)
+        kept = os.path.join(deckbin.bin_dir(r["id"]), "deck")
+        self.assertTrue(os.path.exists(os.path.join(kept, decks.MARKER5)))
+        with open(os.path.join(kept, "snapshot.json"), encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["format"], 5)
+        new = decks.read_snapshot(self.key)
+        self.assertEqual(new["format"], 4)
+        self.assertFalse(decks.is_format5(self.key))
+        decks.check_page(self.key, set())                        # an old page may use the empty deck
+        deckbin.restore(r["id"])
+        self.assertTrue(decks.is_format5(self.key))
+        self.assertEqual(decks.read_snapshot(self.key)["format"], 5)
+        with self.assertRaises(decks.DeckError) as e:
+            decks.check_page(self.key, set())
+        self.assertEqual(e.exception.status, 409)
+
 
 class DeckBinHttpTests(HttpBase):
     def test_delete_list_restore_over_http(self):

@@ -19,7 +19,11 @@ export class FakeDeck {
   private current = new Map<string, string>();      // writer -> its open journal
   private next = new Map<string, number>();
   private clock = Date.now();          // the file server's ms, as `at` is
-  calls = { append: 0, tail: 0, compact: 0, snapshot: 0, rotate: 0 };
+  calls = { append: 0, tail: 0, compact: 0, snapshot: 0, rotate: 0, format5: 0 };
+  /** incident-format-5.json (ADR-019): when it was written (server ms) */
+  marker: number | null = null;
+  /** every call, in order (the bump's sequence) */
+  log: string[] = [];
   /** every complete record ever written (journals deleted since included) */
   written: DeckRecord[] = [];
   constructor(readonly key = "W.xlsx-0123456789", workbook = "W.xlsx", doc = emptyDoc(workbook)) {
@@ -37,7 +41,7 @@ export class FakeDeck {
   }
   /** the server side of an append (what the helper does), `fail`: how it goes wrong */
   doAppend(writer: string, record: DeckRecord, fail?: AppendFailure) {
-    this.calls.append++;
+    this.calls.append++; this.log.push("append");
     if (this.readonly) throw status(423, this.readonly);
     if (record.w !== writer) throw status(400, "not the journal's writer");
     if (fail === "before") throw new Error("the share is unavailable");
@@ -54,7 +58,7 @@ export class FakeDeck {
   /** journals left out of the next tails as unreadable ("skipped") */
   unreadable = new Set<string>();
   doTail(since: Record<string, number>): TailResult {
-    this.calls.tail++;
+    this.calls.tail++; this.log.push("tail");
     const out: TailResult = { journals: {}, gen: this.snap.gen, now: this.clock };
     for (const [name, j] of this.journals) {
       if (this.clock - j.created < this.listingLag) continue;
@@ -66,14 +70,17 @@ export class FakeDeck {
     return out;
   }
   doCompact(baseGen: number, s: DeckSnapshot) {
-    this.calls.compact++;
+    this.calls.compact++; this.log.push("compact:" + s.format);
     if (this.readonly) throw status(423, this.readonly);
     if (s.gen !== baseGen + 1) throw status(400, "gen");
+    if (s.format !== 4 && s.format !== 5) throw status(400, "format");
     if (this.snap.gen !== baseGen) throw status(409, "compacted meanwhile");
     for (const [j, off] of Object.entries(this.snap.frontier)) {
       if (s.frontier[j] === undefined ? this.journals.has(j) : s.frontier[j] < off) throw status(409, "behind");
     }
     if (s.lamport < this.snap.lamport || s.rev < this.snap.rev) throw status(409, "behind");
+    if (this.snap.format === 5 && s.format !== 5) throw status(400, "this deck uses Slide Builder 4.6 objects");   // never lowered
+    if (s.format === 5 && this.marker == null) this.marker = this.now();                                        // the marker first
     // a frontier past the complete records would hide records never folded: the helper's readers would skip them
     for (const [j, off] of Object.entries(s.frontier)) {
       const jj = this.journals.get(j);
@@ -81,6 +88,13 @@ export class FakeDeck {
     }
     this.snap = clone({ ...s, at: this.now() });
     return { gen: s.gen };
+  }
+  /** POST /api/decks/<key>/format5: the marker (O_EXCL: the first one stays) */
+  doFormat5() {
+    this.calls.format5++; this.log.push("format5");
+    const created = this.marker == null;
+    if (created) this.marker = this.now();
+    return { created, at: this.marker!, now: this.clock };
   }
   doRotate(writer: string) {
     this.calls.rotate++;
@@ -102,6 +116,7 @@ export class FakeDeck {
       append: async (_k, writer, record) => this.doAppend(writer, record, this.failures.shift()),
       compact: async (_k, baseGen, s) => this.doCompact(baseGen, s),
       rotate: async (_k, writer) => this.doRotate(writer),
+      format5: async () => this.doFormat5(),
     };
   }
   open(writer: string, withTail = true) {

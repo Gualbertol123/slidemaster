@@ -102,6 +102,47 @@ export function knownOp(op: Op | Record<string, unknown>): boolean {
   }
   return false;
 }
+/* ---- the per-deck format guard (ADR-019, docs/next/09 §1) ----
+   The share runs 4.0.0, and a 4.0–4.5 page folds an op, key or item kind it does not know as nothing (AUDIT-2 DATA-7).
+   A deck that receives or holds anything 4.0.0 does not apply whole is raised to snapshot format 5 first (DocSync
+   upgrade): no 4.0–4.5 helper then reads, compacts or appends to it. 4.0.0's lists, FROZEN (git show
+   v4.0.0:core/src/model/ops.ts:6-12) – never add to them: later keys go to the lists at the top, and are then
+   needsV5 by themselves. */
+const V40_SLIDE = ["title", "subtitle", "date", "note", "logo", "layout", "align", "scale", "valign", "subs", "notes", "fmt", "sizes"];
+const V40_TABLE = ["name", "gridH", "gridV", "cols", "rows", "scales", "merges", "sizes"];
+const V40_CELL = ["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role"];
+const V40_STYLE = ["design", "glass", "color", "logo", "radius", "contrast", "logoBubble", "pn", "footer", "theme", "text", "colors", "designs"];
+/** what a document holds that 4.0.0 does not know (4.3 items; 4.4 free, cellGrid, borders; 4.5 looks; M14–M16: hidden
+    slides, a version's drop, cell valign / num): a deck holding it is format 5 */
+const V5_SLIDE = ["items", "free", "looks", "hidden"], V5_TABLE = ["cellGrid", "borders"], V5_VERSION = ["drop"], V5_CELL = ["valign", "num"];
+const outside = (p: unknown, known: readonly string[]) => isObj(p) && Object.keys(p).some(k => !known.includes(k));
+const holds = (x: unknown, keys: readonly string[]) => isObj(x) && keys.some(k => x[k] != null && x[k] !== false && !(isObj(x[k]) && !Object.keys(x[k] as object).length));
+/** an op 4.0.0 does not apply whole (it would skip it, or a key of it): the deck must be format 5 before the op is
+    appended. item.patch (4.3), every op 4.0 lacks (slide.add / remove, table.add / remove, version.patch of 4.6 and
+    any later one) and every key outside 4.0's lists (free, looks, cellGrid, borders, hidden, valign, num …). A
+    preset.set 4.0 keeps whole (4.2's `links` too: AUDIT-2 §6) – unless the preset holds such content */
+export function needsV5(op: Op | Record<string, unknown>): boolean {
+  const o = op as Record<string, unknown>;
+  switch (o.op) {
+    case "preset.set": return isObj(o.preset) && presetNeedsV5(o.preset);
+    case "slide.patch": return outside(o.patch, V40_SLIDE);
+    case "table.patch": return outside(o.patch, V40_TABLE);
+    case "cell.patch": return outside(o.patch, V40_CELL);
+    case "style.patch": return outside(o.patch, V40_STYLE);
+  }
+  return true;
+}
+function presetNeedsV5(p: Record<string, unknown>): boolean {
+  const some = (k: string, keys: readonly string[]) => Array.isArray(p[k]) && (p[k] as unknown[]).some(x => holds(x, keys));
+  return some("slides", V5_SLIDE) || some("tables", V5_TABLE) || some("versions", V5_VERSION);
+}
+/** the same on a document: it holds what 4.0.0 does not know (a deck with it is written as format 5, fold.ts
+    nextSnapshot; a 4.6 page opening such a deck at format 4 raises it at once) */
+export function docNeedsV5(doc: Pick<WorkbookDoc, "preset" | "edits">): boolean {
+  if (isObj(doc.preset) && presetNeedsV5(doc.preset as unknown as Record<string, unknown>)) return true;
+  for (const sheet of Object.values(doc.edits || {})) for (const e of Object.values(sheet || {})) if (holds(e, V5_CELL)) return true;
+  return false;
+}
 const isBox = (b: unknown) => isObj(b) && ["x", "y", "w", "h"].every(k => typeof b[k] === "number" && Number.isFinite(b[k])) && (b.w as number) > 0 && (b.h as number) > 0;
 /** map merge: null deletes the map; an object sets (replaces) or deletes (null) each entry; empty maps are removed */
 function mapMerge(target: Record<string, unknown>, key: string, v: unknown) {
