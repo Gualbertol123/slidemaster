@@ -13,16 +13,32 @@ import { TableRibbon } from "../src/ui/TableTools";
 import { InsertSlots } from "../src/ui/InsertSlots";
 import { Ic } from "../src/ui/Ic";
 import { UI_ICONS, type UiIconName } from "../src/ui/ui-icons";
-import { tabler } from "@slide-builder/core/icons/index";
+import { arcCubics, tabler } from "@slide-builder/core/icons/index";
+import type { PathCmd } from "@slide-builder/core/dl/types";
+import { toCmds } from "../../tools/vendor-tabler.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 afterEach(cleanup);
 
-/** the absolute start point of each subpath ("M x y" at the start of a Tabler path) */
-const starts = (d: string) => [...d.matchAll(/M\s*(-?[\d.]+)[\s,]*(-?[\d.]+)/g)].map(m => [+m[1], +m[2]]);
+/** a Tabler path's data as the core's decoder draws it: absolute M L C Z, Q as its exact cubic, arcs as cubics (the same
+    conversions as tools/vendor-tabler.mjs + core/src/icons/index.ts decodeIcon, from the page's own copy of the text) */
+function drawn(d: string): PathCmd[] {
+  const out: PathCmd[] = [];
+  let x = 0, y = 0, sx = 0, sy = 0;
+  for (const c of toCmds(d)) {
+    if (c[0] === "Q") {
+      const [, qx, qy, ex, ey] = c;
+      out.push(["C", x + 2 / 3 * (qx - x), y + 2 / 3 * (qy - y), ex + 2 / 3 * (qx - ex), ey + 2 / 3 * (qy - ey), ex, ey]);
+    } else if (c[0] === "A") out.push(...arcCubics(x, y, c[1], c[2], c[3], !!c[4], !!c[5], c[6], c[7]));
+    else out.push(c);
+    if (c[0] === "Z") { x = sx; y = sy; }
+    else { x = c[c.length - 2] as number; y = c[c.length - 1] as number; if (c[0] === "M") { sx = x; sy = y; } }
+  }
+  return out;
+}
 
 describe("UI icons (S15.6, B35)", () => {
-  it("every icon is in the vendored Tabler set, with the same paths starting at the same points", () => {
+  it("every icon is in the vendored Tabler set, with the same paths through the same points (every point, not only the first)", () => {
     const set = tabler(), names = Object.keys(UI_ICONS) as UiIconName[];
     expect(names.length).toBeGreaterThanOrEqual(40);
     expect(names).toEqual([...names].sort());
@@ -32,9 +48,11 @@ describe("UI icons (S15.6, B35)", () => {
       expect(p!.length, n).toBe(UI_ICONS[n].length);
       UI_ICONS[n].forEach((d, i) => {
         expect(d.startsWith("M"), n).toBe(true);
-        const m = p![i].d[0] as [string, number, number];
-        expect(m[0], n).toBe("M");
-        expect(starts(d)[0], `${n} path ${i}`).toEqual([m[1], m[2]]);
+        const ours = drawn(d), theirs = p![i].d;
+        expect(theirs[0][0], n).toBe("M");
+        expect(ours.map(c => c[0]).join(""), `${n} path ${i}: commands`).toBe(theirs.map(c => c[0]).join(""));
+        ours.forEach((c, k) => c.slice(1).forEach((v, j) =>
+          expect(Math.abs((v as number) - (theirs[k][j + 1] as number)), `${n} path ${i} command ${k} number ${j}`).toBeLessThan(1e-6)));
         expect(p![i].paint, `${n} is stroked`).toMatchObject({ stroke: true, fill: false });
       });
     }
@@ -42,7 +60,7 @@ describe("UI icons (S15.6, B35)", () => {
 
   it("one look: 16 px, the 24 × 24 box, stroked in the text colour, round, hidden from assistive technology", () => {
     const { container } = render(<Ic n="trash" />);
-    expect(container.innerHTML).toMatchInlineSnapshot(`"<svg class="ic" data-ic="trash" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 7l16 0M10 11l0 6M14 11l0 6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"></path></svg>"`);
+    expect(container.innerHTML).toMatchInlineSnapshot(`"<svg class="ic" data-ic="trash" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" style="vertical-align: middle;"><path d="M4 7l16 0M10 11l0 6M14 11l0 6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"></path></svg>"`);
   });
 
   it("the toolbars draw them: each button keeps its label or title; every icon in them is a Tabler one", () => {
@@ -73,6 +91,17 @@ describe("UI icons (S15.6, B35)", () => {
     // a few buttons as they are drawn
     const snap = ["#undoBtn", "#wizardBtn", "#noteDelete", '[data-valign="middle"]'].map(s => container.querySelector(s)!.outerHTML.replace(/ title="[^"]*"/, ""));
     expect(snap).toMatchSnapshot();
+  });
+
+  it("the app's messages name the buttons by their words, not the old symbols (✦ Wizard, ⚙ Options; M15 review 8)", () => {
+    const code = (f: string) => fs.readFileSync(path.join(here, "../src", f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    for (const f of ["ui/Topbar.tsx", "editor/export.ts", "editor/scenario.ts", "state/app.ts"]) expect(code(f), f).not.toMatch(/[✦⚙]/u);
+    expect(code("ui/Topbar.tsx")).toContain("(Wizard › Versions)");
+  });
+
+  it("an icon sits on the text's middle, not its baseline (the zoom ± buttons, S15.6 recheck)", () => {
+    const { container } = render(<><button id="zoomOut"><Ic n="minus" /></button><button><Ic n="trash" />Delete</button></>);
+    for (const s of container.querySelectorAll<SVGElement>("svg.ic")) expect(s.style.verticalAlign, s.dataset.ic).toBe("middle");
   });
 
   it("the shape and line ribbons' and zoom buttons' symbols are Tabler icons too (source check)", () => {

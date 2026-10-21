@@ -61,7 +61,7 @@ never modified. Several users can work on the same deck at the same time.
 * Tables are found by **"x" markers** in the top-left and bottom-right corners of a region (the marker row
   and column are outside the table), or picked as ranges in the wizard (optionally "grows" to follow new rows).
 
-**Wizard** (✦ Wizard, 4 steps): 1 Sheets (in a large workbook – over 12 MB of sheet data or a 6 MB file – a sheet
+**Wizard** (top bar › Wizard, 4 steps): 1 Sheets (in a large workbook – over 12 MB of sheet data or a 6 MB file – a sheet
 is read only when selected; **Scan for "x" tables** reads the selected ones at once and shows their "x" tables
 there, B43) → 2 Tables (drag or type ranges on a sheet preview, detected
 suggestions) → 3 Slides (drag tables between slides; optional cover and contents slide; logo per slide) →
@@ -89,19 +89,19 @@ shared folder) and uploaded font files (.ttf/.otf/.woff/.woff2).
 **Cell editing (Excel-like)** – click/drag/Shift-select, type or F2 to edit, Enter/Tab, Del, Ctrl+B/I,
 Ctrl+A, Ctrl+Z/Y (undoes **only your own** changes), Ctrl+S (save now), PgUp/PgDn (slides). Text
 size/bold/italic/colour/alignment, role (how Liquid Glass draws the cell), **cell colour** (replaces the Excel
-fill), **highlight** (a capsule in Liquid Glass), merge/unmerge, ↺ Excel value, *Excel size*, **format painter**
+fill), **highlight** (a capsule in Liquid Glass), merge/unmerge, Excel value, *Excel size*, **format painter*  *
 (also copies conditional formatting and colour scales).
 
 **Tables** – drag column/row borders (double-click = Excel size) or type W/H; drag a table border to stretch,
-the corner to scale, the grip to move next to/above/below another table; *⇔ Same size*; *Sizes…* across slides;
+the corner to scale, the grip to move next to/above/below another table; *Same size*; *Sizes…* across slides  ;
 *Position ▾* (left/centre/right, top/middle/bottom); gridlines per direction; **colour scales** (deeper
 green/red with the size of the number, per row/column/range).
 
 **Text boxes** – above/below/left/right of a table, or beside all tables ("span"); movable anywhere with snapping
 guides; stretchable; optional bubble; markup `# title`, `## heading`, `**bold**`, `[[+12,3]]` (green/red by
-sign); line and paragraph spacing. The **notes section** (✎ Notes) is a text box of the slide itself.
+sign); line and paragraph spacing. The **notes section** (ribbon 2 › Notes) is a text box of the slide itself.
 
-**Automated comments** (✎ Comment…) – an analyst-style text written **live** from the table's numbers:
+**Automated comments** (ribbon 2 › Comment…) – an analyst-style text written **live** from the table's numbers:
 * *Summary* (default for new comments): one paragraph per block (sub-tables are detected), joining the
   comparisons found in the headers (week, Budget, month…), a judgement of the week ("Strong week" ≥ 1 %,
   "Solid week" ≥ 0.3 %…), the drivers and what offsets them.
@@ -115,7 +115,7 @@ each, `<workbook> - <version> - <design>.pdf`.
 **Deck options** (shared by everyone on the workbook) – design, glass strength, background colour, colour theme
 (Aurora, Ocean, Forest, Sunset, Graphite, Intesa Sanpaolo, Custom), corners, contrast, logo, page numbers
 (position, size, format, style, start), footer (`{date}`, `{workbook}`, `{title}`). *Use as default for new
-decks*. *⚙ Options › Administration › Prepare rollback* (for giving decks back to Slide Builder 3, §2.4).
+decks*. *Options › Administration › Prepare rollback* (for giving decks back to Slide Builder 3, §2.4).
 
 **Export** – PDF *text & tables* (vector, default), PDF *as pictures* (lossless PNG pages at 2×, "192 dpi",
 file name "(images)"), current slide PDF, current/every slide PNG (4800 × 2700), *Copy current slide*, every
@@ -192,7 +192,7 @@ A version in `app\<ver>\helper\` uses the main folder's workbooks, `export\` and
   (`migrate.py`).
 
 ### 2.4 Giving decks back to Slide Builder 3
-Until the v3 start file is removed (PLAN S6.5), a deck can go back: someone runs *⚙ Options › Administration ›
+Until the v3 start file is removed (PLAN S6.5), a deck can go back: someone runs *Options › Administration ›
 Prepare rollback* (every deck saved and compacted), everybody closes the deck, the maintainer runs
 `Update Slide Builder.bat --rollback "<workbook>"` (or without a name: every deck), and the people on that deck
 use `Start Slide Builder (v3).bat`. A rollback is refused while the deck is open (presence) or has records past
@@ -206,13 +206,13 @@ back first. Details and who decides: `docs/next/cutover.md` §3.
 ### 3.1 The app window
 ```
 ┌─ Slide Builder ─ (Edge app window: no tabs, no address bar) ──────────────────────────────────────────────────────┐
-│ Slide Builder [Open ▾][↻][✦ Wizard] IBD weekly.xlsx · 20 slides  Version[Full deck ▾] (AN) anna is also here        │
-│              [Liquid Glass|Excel|Excel Refined] [◐ Design…] [Subtle|Medium|Strong] Colour ▮▮▮▯ 35% [⚙ Options] [Export PDF|▾]│
+│ Slide Builder [Open ▾][Reload][Wizard] IBD weekly.xlsx · 20 slides  Version[Full deck ▾] (AN) anna is also here     │
+│              [Liquid Glass|Excel|Excel Refined] [Design…] [Subtle|Medium|Strong] Colour ▮▮▮▯ 35%     [Options] [Export PDF|▾]│
 ├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ↶ ↷ │ Font ▾  A− [11] A+  B  I  A▾ │ align │ Line spacing ▾ │ Clear format │ 🖌 Format │ Aa Text styles… │ ribbon 1: TEXT
-│ Cells W[ 64 ] H[ 21 ] Excel size │ Role ▾ Unmerge Merge Colour scale ▾ │ ⇔ Same size Position ▾ Gridlines ▾  │ ribbon 2: LAYOUT
-│   Sizes… Reset layout │ Text box ↑↓←→ ◯ ✎ Comment… ⤺ Attach 🗑 │ ✎ Notes │ Logo │ Subtitles                    │
-│ [SLIDE_1!C7 ] fx [ Totale                                         ] Enter ↵ apply · Esc cancel  ↺ Excel value   │ formula bar
+│ Undo Redo │ Font ▾  A− [11] A+  B  I  A▾ │ align │ Line spacing ▾ │ Clear format │ Format │ Aa Text styles…│ ribbon 1: TEXT
+│ Cells W[ 64 ] H[ 21 ] Excel size │ Role ▾ Unmerge Merge Colour scale ▾ │ Same size Position ▾ Gridlines ▾    │ ribbon 2: LAYOUT
+│   Sizes… Reset layout │ Text box (4 sides) Bubble Comment… Attach Delete │ Notes │ Logo │ Subtitles            │
+│ [SLIDE_1!C7 ] fx [ Totale                                         ] Enter ↵ apply · Esc cancel  Excel value     │ formula bar
 ├──────────────┬──────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ SLIDES 20    │   ┌───────────── the slide: SVG layers from the display list, 1600 × 900 slide px ───────────┐   │
 │ ┌──────────┐ │   │  Total Banks Loans & Deposits                                                          │   │
@@ -233,8 +233,8 @@ back first. Details and who decides: `docs/next/cutover.md` §3.
 │ Cell C7 · Arrows move · Shift extends · type or F2 to edit · Del clears · Ctrl+B/I · Ctrl+Z/Y · PgUp/PgDn slides  │
 │                                                                      Updated by bob just now        ✓ Saved     │
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-  dialogs: ✦ Wizard (4 steps) · Design… (colours / text styles / fonts) · ✎ Comment… · Sizes… · confirmations
-  menus:   Open ▾ (workbooks in the folder, Browse…) · ⚙ Options (page numbers, footer, logo, look, Administration)
+  dialogs: Wizard (4 steps) · Design… (colours / text styles / fonts) · Comment… · Sizes… · confirmations
+  menus:   Open ▾ (workbooks in the folder, Browse…) · Options (page numbers, footer, logo, look, Administration)
            · Export ▾ (PDF, pictures, PNG, copy, versions, Report a problem…)
   banners: "Opened directly from disk…" (file://) · "The workbook was saved again in Excel. [Reload now]"
   pill:    "Helper not running" / "Helper stopped" (only when there is a problem)
@@ -333,13 +333,13 @@ data/
 ├─ v4/deleted/<key>~<ms>/          a deleted setup (B44, deckbin.py): deck/ (the deck's folder as it was), backups/,
 │                                  v3.json (its frozen v3 file), deleted.json {workbook, gen, slides, tables, by, at};
 │                                  the workbook gets an empty deck (gen + 1, its own v4/decks/<key>/born file);
-│                                  ⚙ Options › Administration › Saved setups restores it
+│                                  Options › Administration › Saved setups restores it
 ├─ v4/pinned-v3.json · v4/storage.json   decks kept on 3.x · {"storage": "lean-lock"}  (both optional)
 ├─ workbooks/<key>.json            Slide Builder 3's documents: frozen (schema 4, movedTo "v4") once moved, read only
 ├─ users/<user>.json               personal preferences                  {schema:1, lastFile, pdfMode, zoom, versions…}
 ├─ fonts/fonts.json + font files   shared font library                   {schema:1, fonts:[…]}
 ├─ fonts/system/                   fingerprints.json (Windows font builds per PC), licence.json (copy mode)
-├─ assets/                         logos uploaded via ⚙ Options › Logo
+├─ assets/                         logos uploaded via Options › Logo
 ├─ locks/<name>.lock               lock files (short-lived)
 ├─ migrated.json                   marker: v2 settings were imported
 ├─ app-version.json                installed commit (git-less ZIP updates only)

@@ -127,3 +127,18 @@ only when an unchanged line stands between them, so these splits keep the two me
     `slideBg`), and a line's ink now follows `groundAt` at its middle (line-dl.ts `lineColor`'s optional `ground`);
     `tools/pptxcheck.py` (M15's line block) gains `_end_segment_empty` and `_quarter_problems` (the `quarter` key, called
     from `check_lines`; an expectation without it is checked as before).
+
+## 7. Recorded in M15 (S15.7, the close-out)
+
+* **Shared lines the close touched** (for the M14 merge):
+  - `app/e2e/app.spec.ts`: three tests added after "callouts (S9.4, CL-01, CL-02, B17)…" – IC-01, LN-01/LN-02, SN-02
+    (Banks.xlsx's first slide; each removes or undoes what it added).
+  - `app/src/ui/Ic.tsx` (`vertical-align: middle`), `app/tests/ui-icons.test.tsx` and its snapshot; the messages of
+    `app/src/ui/Topbar.tsx` (two strings), `app/src/editor/export.ts`, `app/src/editor/scenario.ts`,
+    `app/src/state/app.ts` (the old ✦ / ⚙ symbols dropped from their text only).
+  - `README.md` (the glyphs of §2 and the window sketch), `CHANGELOG.md` (4.8.0 only), `PROGRESS.md` (M15 rows, the
+    "Measurements · M15" table, one Waiting for entry), `app/tests/page-budget/m15.json`.
+  - `helper/slide_builder.html` rebuilt and committed: after the M14 merge it is rebuilt again (§1).
+* **Left for after the M14 merge** (PROGRESS Waiting for, M15 close-out): `#chartBtn` → `chart-pie`, the
+  `tools/pptxcheck.py` "PowerPoint is not available" line naming (6) and (7), `export-check --decks` for the
+  chart-corpus decks, and the page total base + m14 + m15 against the merged page.

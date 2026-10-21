@@ -184,6 +184,22 @@ describe("attached ends (LN-02 core part: they follow their object in automatic 
     expect((drawn(nodesOf(o.dl, "l2"))[0] as LineNode)).toMatchObject({ x1: 600, y1: 400, x2: 1000, y2: 400 });
     expect(freeBoxes(o.R, o.ctx)["i:l2"]).toMatchObject({ a: { x: 600, y: 400 }, b: { x: 1000, y: 400 } });
   });
+  it("known limit (M15 review 5): a 4.6 / 4.7 page switching free layout off and on saves a line's box only, so the ends reshaped there are lost", async () => {
+    // in 4.8 the line was reshaped in free layout: its entry's ends are not its own ends moved by one shift
+    const l3 = line("straight", { x: 500, y: 500 }, { x: 900, y: 500 });
+    const shaped: Op = { op: "slide.patch", id: SLIDE, patch: { free: { excel: { on: true, items: { "i:l3": { ...lineBox({ x: 600, y: 300 }, { x: 800, y: 500 }), a: { x: 600, y: 300 }, b: { x: 800, y: 500 } } } } } } } as Op;
+    expect((drawn(nodesOf((await build("excel", { l3 }, [shaped])).dl, "l3"))[0] as LineNode)).toMatchObject({ x1: 600, y1: 300, x2: 800, y2: 500 });
+    // an older page's freeBoxes (e6c1c4f layout.ts box()) writes the line's entry as the automatic layout draws it – the
+    // item's own box – with no a / b: 4.8 falls back to the item's own ends moved by that box's shift (here none)
+    const off_on: Op = { op: "slide.patch", id: SLIDE, patch: { free: { excel: { on: true, items: { "i:l3": { ...l3.box! } } } } } } as Op;
+    const o = await build("excel", { l3 }, [shaped, off_on]);
+    expect((drawn(nodesOf(o.dl, "l3"))[0] as LineNode)).toMatchObject({ x1: 500, y1: 500, x2: 900, y2: 500 });
+    // and an entry that box-only page moved afterwards: the item's own ends by the box's shift, still not the shape
+    const moved: Op = { op: "slide.patch", id: SLIDE, patch: { free: { excel: { on: true, items: { "i:l3": { ...l3.box!, x: l3.box!.x + 50, y: l3.box!.y - 20 } } } } } } as Op;
+    const m = await build("excel", { l3 }, [shaped, moved]);
+    expect((drawn(nodesOf(m.dl, "l3"))[0] as LineNode)).toMatchObject({ x1: 550, y1: 480, x2: 950, y2: 480 });
+    expect(freeBoxes(m.R, m.ctx)["i:l3"]).toMatchObject({ a: { x: 550, y: 480 }, b: { x: 950, y: 480 } });
+  });
   it("an end whose object is gone stays at its saved point, with the Issues line", async () => {
     const { dl } = await build("excel", { l1: att });
     expect(dl.items.l1.issue).toBe("its end lost its object");

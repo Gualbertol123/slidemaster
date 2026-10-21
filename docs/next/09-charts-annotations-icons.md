@@ -550,7 +550,9 @@ per-slice colours do today); in Liquid Glass and the consulting designs the same
   does not have shows the built-in "info" **and an Issues line** ("Icon 'x' is not in the icon set") instead of today's
   silent fallback (`shape-dl.ts:122`). Tabler's SVG uses arcs (`a`) and relative commands: `tools/vendor-tabler.mjs`
   converts every path to the display list's absolute `M L C Z` at vendor time (arcs to cubics, ≤ 90° each), so the
-  renderer only scales. Colour = the item's `fill` (its ink), else the design's ink as built-in icons today.
+  renderer only scales. *(amended: ADR-020 2026-10-21 – as built, the vendor step makes every command absolute and keeps
+  arcs (and quadratics) in the packed data, lossless and 17 % smaller; `core/src/icons/index.ts` converts them to cubics
+  of ≤ 90° when an icon is first drawn, so the display list still gets only `M L C Z`.)* Colour = the item's `fill` (its ink), else the design's ink as built-in icons today.
 * **The picker** (`app/src/ui/IconPicker.tsx`, opened from *Insert shape ▾ › More icons…* and from a chart mark): a
   search box (name and tags, prefix and substring, Italian synonyms not provided – Q11), a category list (41), a grid
   of results drawn as inline SVG from the same path data, outline / filled switch, colour and size of the inserted
@@ -853,7 +855,9 @@ columns), CH-01 (+ types), CL-01 (+ Tabler icons), FL-02 (+ snapping targets), E
 * **ADR-015** gets an amendment (series, groups, axes, marks; PowerPoint mapping §4.2) when M14 starts; ADR-017 one
   for snapping and the 1/4 px rule (M15).
 No other dependency is added: the charts, lines, snapping, CF and painter are our code; `@tabler/icons` is a
-**dev-dependency** read by the vendor script (the page carries the converted data, not the package).
+**dev-dependency** read by the vendor script (the page carries the converted data, not the package). *(amended: ADR-020 2026-10-21 – as built, `@tabler/icons` is no dependency at all, not even a dev-dependency:
+`tools/vendor-tabler.mjs` and `tools/vendor-ui-icons.mjs` fetch the 3.49.0 release tarball and check it against the
+registry's integrity; nothing is installed.)*
 
 ---
 

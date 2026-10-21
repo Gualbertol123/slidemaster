@@ -195,14 +195,33 @@ numbers measured twice). Measured numbers go into the step's line.
 - [ ] S14.7 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.7.0
 
 ### M15 · Lines, icons, snapping (4.8.0; B32–B35; docs/next/09 §8, ADR-020, ADR-017 amended)
-- [ ] S15.1 · `Stroke.join` and the icon data (Tabler 3.49.0 vendored, hash test, notices entry) – `Stroke.join` is in
-  S14.P; left for the branch: the icon data, its hash test and notices entry, `m15.json`'s page budget measured
-- [ ] S15.2 · Icon items and picker ⏱ (IC-01, IC-02)
-- [ ] S15.3 · Line items ⏱ (LN-01, LN-02)
-- [ ] S15.4 · Snapping ⏱ (SN-01…SN-04)
-- [ ] S15.5 · PowerPoint lines and icons (LN-03)
-- [ ] S15.6 · UI icons (B35)
-- [ ] S15.7 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.8.0; 🚦 G10
+- [x] S15.1 · `Stroke.join` and the icon data (Tabler 3.49.0 vendored, hash test, notices entry) — ee464e2, 1fdbf1e.
+  `Stroke.join` from S14.P; the set packed into `core/src/icons/data.ts`, inflated on first use in the worker, its own
+  sha256 test, one registration, old names apart; `m15.json` set by measurement (514,930 for the set). Reviews:
+  REQUEST CHANGES → fixed (1fdbf1e) → APPROVE. PR: pending (the owner opens it). runs: pending
+- [x] S15.2 · Icon items and picker ⏱ (IC-01, IC-02) — 893bcd6, 41581f4. The picker (search, 41 categories, recent,
+  outline / filled, colour, size, line), Change icon…, the item's `stroke`, the pick mode for M14, the PowerPoint gate
+  (6). Reviews: REQUEST CHANGES → fixed (41581f4) → APPROVE. Page +17,053. PR: pending. runs: pending
+- [x] S15.3 · Line items ⏱ (LN-01, LN-02) — d519ae9 (follow-ups in 878a549). Ten kinds, end and middle handles, Ctrl
+  attach in automatic and free layout, Detach, labels quoting cells, the PowerPoint lines and the gate (7). Reviews:
+  APPROVE with findings → fixed in 878a549 (S15.5) → APPROVE. Page +38,405. PR: pending. runs: pending
+- [x] S15.4 · Snapping ⏱ (SN-01…SN-04) — 7cb0c9e (follow-ups in 878a549). Every object, guides, equal spacing and
+  size, Alt everywhere, 1/4 px. Reviews: APPROVE with findings → fixed in 878a549 → APPROVE. Page +5,735. PR: pending.
+  runs: pending
+- [x] S15.5 · PowerPoint lines and icons (LN-03) — 878a549, 229e937. Native ends, solid tick shapes beside dashes,
+  custDash, the label's ground and ink, `lines-bent-ends`; pptxcheck 14/14 (python-pptx). Reviews: REQUEST CHANGES →
+  fixed (229e937) → APPROVE; recheck APPROVE (nit: the label-ink line in CHANGELOG – done at the close). Page +1,961,
+  +1,008. PR: pending. runs: pending
+- [x] S15.6 · UI icons (B35) — 9931300. 48 Tabler outline icons in `app/src/ui/ui-icons.ts`, one `Ic` component.
+  Review: APPROVE (low findings: the zoom ± alignment and the subset test's every point – done at the close; chart-pie
+  after M14 merges – Waiting for). Page +3,025. PR: pending. runs: pending
+- [x] S15.7 · Close — the milestone review (REQUEST CHANGES: 11 findings) fixed or recorded in "M15 · close-out:
+  milestone review fixes, CHANGELOG, PROGRESS" (merge of main de7d759 before it): three Playwright tests (IC-01,
+  LN-01/LN-02, SN-02), the 4.6/4.7 free-layout fallback pinned (core line-items test), the `Ic` alignment, the subset
+  test on every point, the glyph-free messages and README, the 09 amendment notes, CHANGELOG 4.8.0 complete; the page
+  rebuilt and committed (4,549,684 bytes) and `m15.json` re-based on main's page (587,394). The rest under Waiting for
+  (M15). AUDIT §0 ×2, e2e ×2, bench ×2, CP-01: runs: pending (the orchestrator). 🚦 G10 waived by the product owner
+  ("i approve everything", Decisions 2026-10-21); the owner's PC checks are listed under Waiting for.
 
 ### M16 · Tables: hidden rows, delete-versions, painter, Excel conditional formats (4.9.0; B36–B39; docs/next/09 §8)
 - [ ] S16.1 · Hidden set in `buildLayout` ⏱ (HR-01, HR-02)
@@ -549,6 +568,43 @@ numbers measured twice). Measured numbers go into the step's line.
   well"): every new feature is checked in the PowerPoint export (`core/tests/pptx-m13.test.ts` for M13).
 
 ## Waiting for
+
+- **M15 · 4.8.0, branch `v4/M15-lines-icons`, close-out (S15.7), 2026-10-21.** The milestone review (REQUEST
+  CHANGES, 11 findings; the code sound, every step APPROVE) is fixed in the close-out commit where it could be: the
+  three Playwright tests (finding 1), the page rebuilt and committed (2), `m15.json` re-based on main's page (3), the
+  4.6/4.7 free-layout note in CHANGELOG and its test (5), the stale CHANGELOG line and the label-ink line (6), the 09
+  amendment notes (7), the glyph-free UI text and README (8), the `Ic` alignment and the subset test (9). Waiting:
+  - **For the orchestrator (the runs):** the e2e suite ×2 with the three new tests and the existing SN-01/SN-03,
+    FL-02/FL-03 and Alt tests (run 1 and run 2 counts); `npm run bench` ×2 for `icon_first_use_ms` (150 ms),
+    `icon_picker_p95_ms` (50 ms), `snap_drag_frame_ms` (16 ms) and deck20 open with the icon set (400 ms) – until then
+    `tools/bench.mjs` counts them as Infinity (finding 4); AUDIT §0 ×2 on clean clones (check, helper on 3.12 and
+    3.8, parity, dlparity, export-check over the five designs, pptxcheck 14/14); CP-01 with a deck holding an attached
+    line in free layout, a Tabler icon with `stroke` and snapped 1/4 px boxes against the real 4.0.0 / 4.1 / 4.4 / 4.5
+    helpers and pages, and in a 4.6 page (lines invisible, records kept, no compaction). Then the verification lines
+    and runs of S15.1–S15.7 above.
+  - **After M14 merges into this branch (finding 11, and 3, 9):** resolve the shared lines (`tools/bench.mjs`
+    `longest_task_ms`, `core/src/rpc/messages.ts`, the `shared/ops-vectors.d` list); `#chartBtn` to `<Ic n="chart-pie" />`
+    and drop the `:not(#chartBtn)` in `app/tests/ui-icons.test.tsx`; the "PowerPoint is not available" line of
+    `tools/pptxcheck.py` to name checks (6) and (7); `export-check --decks` able to pick the chart-corpus decks; check
+    base + m14 + m15 (today 3,976,092 + 110,000 + 587,394 = 4,673,486) against the merged page; check
+    `docs/next/M14-M15-split.md` §6–§7 against the merged state; rerun the narrow tests.
+  - **For the product owner (G10 questions):** (a) **curly brackets** (09 §3.4): not built – `LineItem` has no key to
+    choose one (a new key is a 09 §9 decision); is B33 / LN-01 complete without them? (b) **Q11, Italian words in the
+    icon search** (09 §2.10 said it would be asked at S15.2; not asked): the search knows Tabler's English names and
+    tags only – add an Italian synonym list or not? (c) **the dashed limiter on PowerPoint 2016**: its ticks are a
+    solid shape of their own beside the dashed line – judge on the PC whether it reads as on the slide; (d) **labels
+    on Consulting Navy's index band and on Excel / Clean's gradient covers** (S15.5): the label's ground there is the
+    slide colour, not the band or gradient under it – acceptable, or follow the band?
+  - **🚦 G10 on the owner's PC** (waived – "i approve everything" – but these are the checks only the PC can do):
+    PowerPoint `ppt: opened` for lines-{5 designs}, lines-5-designs, lines-ticks, lines-bent-ends, icons-{5},
+    icons-5-designs and snap-quarter-px; by eye, every arrowhead along its end segment, dashed range ticks solid, icons
+    custom geometry with round caps; export-check with no `--decks` option (with `--decks none` it exports 0 files and
+    still looks like a pass); handles, guides, equal spacing and Alt in all five designs; the toolbar icons in light
+    and dark and the zoom ± alignment; B35 and LN-01 judged without curly brackets.
+  - **Known limit (finding 5, not fixable in old pages):** a 4.6 / 4.7 window that switches free layout off and on on
+    a slide with a line saves the line's box without its ends; 4.8 falls back to its own ends moved by the box
+    (`core/src/render/line-dl.ts` savedEnds; pinned in `core/tests/line-items.test.ts` "known limit (M15 review 5)").
+    CHANGELOG 4.8.0 says so; the close-every-window rule of update day covers it.
 
 - **M13 · 4.6.0, branch `v4/M13-format-guard`, for the product owner (PR, merge; tag and share update), 2026-10-21.**
   S13.1 format guard, S13.2 notices (B42), S13.3 slide/table ops, S13.4 New slide / Add table (B40), S13.6 hide
@@ -1054,3 +1110,8 @@ M15 appends here only.
 | S15.5 review | the page (built, not committed): S15.5 → with its review fixes (a line's file path without repeated points, the ink from the ground the line crosses, Consulting Red's cover band), bytes. M15's part 579,362, within `m15.json`'s 583,354 (not raised) | 4,542,699 → 4,543,707 (+1,008) | 4,543,707 (rebuilt) |
 | S15.5 review | pptxcheck (7) also fails a native end on a custom path's segment of no length, and checks the 1/4 px grid (1,905 EMU) of the shapes an entry names (`quarter`, e.g. snap-quarter-px's "Callout"s); new file lines-bent-ends (elbows bent at an end, hv / vh, mid 0 / 1, and a bracket of depth 0, 10 native ends) | 14 / 14 PASS (python-pptx) | – |
 | S15.5 review | ⏱ `core/bench/lines-m15.bench.test.ts` after the review fixes: 20 lines · snapping's core part per drag frame, ms | lines 1.09 · 1.01 (limit 3 × 2.00), snap 0.074 (limit 1 × 1.90) | – |
+| S15.6 | the page (built, not committed): S15.5 review → with the toolbar icons (48 Tabler outline icons, `Ic`), bytes. The "before" is the S15.5 review's rebuilt page (its +1,008 is that row's review fixes). M15's part against the prep page 582,387, within `m15.json`'s 583,354 | 4,543,707 → 4,546,732 (+3,025) | – |
+| S15.7 | the page built at the close and committed (`helper/slide_builder.html`), bytes: the S15.6 page + main's +2,945 (merge de7d759: main's committed page 3,964,345 → 3,967,290) + the close's fixes (+7) | 4,549,684 | (the orchestrator's clean-clone build) |
+| S15.7 | page budget part `m15.json` re-based (milestone review 3): M15's part = the close's page less main's page at 6392856 (3,967,290) = 582,394, + 5,000 (the owner's rule) · total with base and M14 | 587,394 · 4,673,486 | – |
+| S15.7 | ⏱ `tools/bench.mjs` `icon_first_use_ms` (< 150) · `icon_picker_p95_ms` (< 50) · `snap_drag_frame_ms` (< 16) · deck20 open with the icon set (< 400), Chromium, ms | (the orchestrator's bench run) | (the orchestrator's bench run) |
+| S15.7 | e2e (the suite, with IC-01, LN-01/LN-02, SN-02 new and SN-01/SN-03, FL-02/FL-03, Alt) · AUDIT §0 · CP-01 | runs: pending | runs: pending |

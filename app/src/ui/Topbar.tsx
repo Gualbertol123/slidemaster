@@ -207,7 +207,7 @@ function ExportButton() {
         {item("png-current", "PNG · current slide", undefined, close)}
         {item("png-all", "PNG · every slide", undefined, close)}
         <div className="sep" />
-        <div className="hd">Versions (✦ Wizard › Versions)</div>
+        <div className="hd">Versions (Wizard › Versions)</div>
         <div className="optrow vfmt" id="vFormats">{fmt(["pdf"], "PDF")}{fmt(["pptx"], "PowerPoint")}{fmt(["pdf", "pptx"], "PDF + PowerPoint")}</div>
         <button data-x="versions" disabled={!versions.length} onClick={() => { close(); void exportVersions(null, vf); }}>{vname} · every version<small>{versions.map(v => v.name).join(", ") || "none yet"} · this design{per > 1 ? ` · ${per * versions.length} files` : ""}</small></button>
         <button data-x="versions-2" disabled={!versions.length} onClick={() => { close(); void exportVersions(["glass", "excel"], vf); }}>{vname} · every version × Liquid Glass + Excel<small>{2 * per * versions.length} files</small></button>
@@ -227,7 +227,7 @@ function ExportButton() {
 function VersionPicker() {
   const vs = useStore(s => s.doc.view?.preset?.versions) || [], version = useStore(s => s.deck.version);
   if (!vs.length) return null;
-  return <label className="verpick" title="Version shown on screen (✦ Wizard › Versions); exports: Export ▾ › every version">
+  return <label className="verpick" title="Version shown on screen (Wizard › Versions); exports: Export ▾ › every version">
     <span>Version</span><select id="versionSel" value={version} onChange={e => showVersion((e.target as HTMLSelectElement).value)}>
       <option value="">Full deck</option>{vs.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>;
 }
