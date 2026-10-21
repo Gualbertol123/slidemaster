@@ -1,5 +1,5 @@
 {
-  "about": "A deck in 4.6's saved format (a format-5 snapshot and the journal records of two writers past its frontier) holding M15's lines and a Tabler icon (S14.P, docs/next/09 §2.3, §2.4, §6 rows 4 and 5): a straight arrow with a free-layout place in Liquid Glass, a dashed divider, an elbow callout line attached to the icon, a range marker. Made by hand for S14.P; added, never edited.",
+  "about": "A deck as 4.8 (M15) will save it, in the format 4.6 introduced (a format-5 snapshot and the journal records of two writers past its frontier) holding M15's lines and a Tabler icon (S14.P, docs/next/09 §2.3, §2.4, §6 rows 4 and 5): a straight arrow with a free-layout place in Liquid Glass, a dashed divider, an elbow callout line attached to the icon, a range marker. Made by hand for S14.P (named by the version that writes such records, as slides-4.6.json; S14.P review, 8); added, never edited.",
   "snapshot": {
     "format": 5,
     "gen": 2,

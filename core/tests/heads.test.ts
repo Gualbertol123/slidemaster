@@ -68,7 +68,8 @@ describe("drawingml a:ln: joins and native ends (09 §4.3; no connector shape)",
     expect(x).toMatch(/^<a:ln w="15240"><a:solidFill>.*<\/a:solidFill><a:custDash>.*<\/a:custDash><a:round\/><a:headEnd type="oval" w="sm" len="sm"\/><a:tailEnd type="triangle" w="med" len="med"\/><\/a:ln>$/);
     expect(ln({ w: 1, paint: { solid: [0, 0, 0] }, join: "bevel" }, 1, 1)).toContain("<a:bevel/>");
     expect(ln({ w: 1, paint: { solid: [0, 0, 0] }, join: "miter" }, 1, 1)).toContain('<a:miter lim="1000000"/>');
-    // unset: the markup of 4.6, unchanged
+    // unset: the markup of 4.6, unchanged – PowerPoint then uses its own default join, not miter (ADR-004 amendment:
+    // kept for existing files; every new stroke whose corners show sets join)
     expect(ln({ w: 1, paint: { solid: [0, 0, 0] }, cap: "round" }, 1, 1)).toBe('<a:ln w="7620" cap="rnd"><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln>');
   });
   it("model heads map to DrawingML's line-end types; the limiter's bar and none have no native end", () => {

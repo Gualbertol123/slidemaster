@@ -6,6 +6,7 @@ import { change } from "../state/app";
 import type { ChartItem, DataRef, Item, ItemPatch, Op, RuntimeSlide, ShapeItem } from "@slide-builder/core/model/types";
 import { A1 } from "@slide-builder/core/xlsx/util";
 import { curSlide } from "./edit";
+import { kindText } from "./item-text";
 
 /** a new item's id: short, random (as table and slide ids) */
 export const newItemId = () => "i" + Math.random().toString(36).slice(2, 9);
@@ -23,7 +24,7 @@ export function itemPatch(label: string, id: string, p: ItemPatch | null) {
 }
 export function deleteItem() {
   const s = selectedItem(); if (!s?.it) return;
-  itemPatch(s.it.kind === "chart" ? "Remove chart" : "Remove shape", s.id, null);
+  itemPatch(kindText(s.it).remove(s.it), s.id, null);
   selectItem(null);
 }
 /** a new chart: a pie with the shares on the slices and the legend on the right */

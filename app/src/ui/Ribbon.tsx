@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { get, useStore } from "../state/store";
 import { core, undo } from "../state/app";
 import { activeItem, applySel, commitText, curSlide, selItems, editOf } from "../editor/edit";
+import { kindText } from "../editor/item-text";
 import { startPainter, stopPainter } from "../editor/painter";
 import { SLIDE_TEXT_LABEL, stepSize, textTarget, type Align, type TextTarget, type VAlign } from "../editor/textfmt";
 import { effFmt, effText, keyOf } from "@slide-builder/core/render/edits";
@@ -146,11 +147,8 @@ export function FxBar() {
 export function selStatus(): string {
   const R = curSlide(), it = activeItem(), its = selItems(), { selection: { noteSel, textSel, itemSel }, deck } = get();
   if (!R) return "";
-  if (itemSel && R.cfg.items?.[itemSel.id]) {
-    const it = R.cfg.items[itemSel.id];
-    if (it.kind === "shape") return (it.shape === "icon" ? "Icon selected" : "Shape selected · double-click or Enter to write") + " · drag to move, the corner to resize · Del removes it";
-    return (itemSel.slice !== null ? `Slice ${itemSel.slice + 1} of the chart selected` : "Chart selected") + " · drag to move, the corner to resize · Del removes it";
-  }
+  // a slide item: its kind's words (editor/item-text.ts; M14 and M15 each in their own file)
+  if (itemSel && R.cfg.items?.[itemSel.id]) { const it = R.cfg.items[itemSel.id]; return kindText(it).status(it, itemSel); }
   if (noteSel) return "Text box selected · double-click or Enter to write · Del removes it";
   if (textSel && isLookText(textSel)) return `${LOOK_TEXT_LABEL[textSel]} selected · its font, size and colour above, its parts in the Headline group (this slide)`;
   if (textSel) return `${SLIDE_TEXT_LABEL[textSel]} selected · double-click or Enter to edit the text`;

@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { validate } from "../src/dl/types";
 import { readWorkbook } from "../src/xlsx/workbook";
 import { applyOps, emptyDoc } from "../src/model/ops";
-import { runtimeSlides } from "../src/model/preset";
+import { itemSheets, presetSheets, runtimeSlides } from "../src/model/preset";
 import { resolveStyle } from "../src/model/style";
 import { excelToDisplayList, type Metrics } from "../src/render/excel-dl";
 import { slideToDisplayList } from "../src/render/slide-dl";
@@ -17,7 +17,7 @@ import { computeLayout } from "../src/render/layout";
 import { DESIGNS } from "../src/model/designs";
 import { wrapLines } from "../src/text/lines";
 import type { RenderCtx } from "../src/render/context";
-import type { ChartType, Design, Item, Op } from "../src/model/types";
+import type { ChartType, Design, Item, Op, Preset } from "../src/model/types";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DECKS = path.join(here, "../../tests/corpus/decks"), BOOKS = path.join(here, "../../tests/corpus/workbooks");
@@ -63,11 +63,25 @@ describe("items by kind (S14.P dispatch)", () => {
     expect(dl.items.l1).toEqual({ box: line.box, issue: null, geom: null, at, pptx: { kind: "line", at, heads: { b: "triangle" } } });
     expect(at[0]).toBe(at[1]);
   });
+  // (S14.P review, 7: the two plans agree – nothing drawn here, and the page's Issues panel says so: app/tests/item-text.test.ts)
   it("a kind this page does not know (a later page's) is skipped: no nodes, no item info; the other items draw", async () => {
     const shape = { kind: "shape", shape: "pill", text: "Note", box: { x: 1200, y: 760, w: 200, h: 60 } };
     const known = await build("glass", { k1: shape });
     const later = await build("glass", { k1: shape }, { z9: { kind: "sticker", box: { x: 10, y: 10, w: 50, h: 50 } } as unknown as Item });
     expect(later.nodes).toEqual(known.nodes);
     expect(Object.keys(later.items)).toEqual(["k1"]);
+  });
+});
+
+describe("the sheets a deck's items read, per kind (S14.P review, 4: chartSheets for M14, shapeSheets / lineSheets for M15)", () => {
+  it("a chart's values and labels, a callout's and a line's {Sheet!C7} tokens; a later page's kind none", () => {
+    const box = { x: 0, y: 0, w: 9, h: 9 };
+    const preset = { sheets: [], tables: [], slides: [{ id: "s", type: "content", tables: [], items: {
+      c: { kind: "chart", type: "pie", values: { sheet: "Numbers", range: "B2:B4" }, labels: { table: "t1", range: "A2:A4" }, box },
+      k: { kind: "shape", shape: "pill", text: "{'Q3 data'!C7} and {[Peers.xlsx]Peer!F7}", box },
+      l: { kind: "line", route: "range", a: { x: 0, y: 1 }, b: { x: 9, y: 1 }, text: "{Targets!B3}", box },
+      z: { kind: "sticker", text: "{Hidden!A1}", values: { sheet: "Nope", range: "A1" }, box } } }] } as unknown as Preset;
+    expect(itemSheets(preset)).toEqual(["Numbers", "Q3 data", "[Peers.xlsx]Peer", "Targets"]);
+    expect(presetSheets(preset)).toEqual(["Numbers", "Q3 data", "[Peers.xlsx]Peer", "Targets"]);
   });
 });

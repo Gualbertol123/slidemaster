@@ -1,5 +1,5 @@
 {
-  "about": "A deck in 4.6's saved format (a format-5 snapshot and the journal records of two writers past its frontier) holding M14's series charts (S14.P, docs/next/09 §2.2, §6 rows 1-3 and 18): the reference chart of 09 §3.3 built up by two writers, and an old non-pie chart without series turned into a series chart. Made by hand for S14.P; added, never edited.",
+  "about": "A deck as 4.7 (M14) will save it, in the format 4.6 introduced (a format-5 snapshot and the journal records of two writers past its frontier) holding M14's series charts (S14.P, docs/next/09 §2.2, §6 rows 1-3 and 18): the reference chart of 09 §3.3 built up by two writers, and an old non-pie chart without series turned into a series chart. Made by hand for S14.P (named by the version that writes such records, as slides-4.6.json; S14.P review, 8); added, never edited.",
   "snapshot": {
     "format": 5,
     "gen": 2,

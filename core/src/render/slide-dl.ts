@@ -184,7 +184,8 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
   if (memo) noteNodes(memo, memo.box);
   // the slide's items, in their order (the later on top): beside their table or where they were put
   const items: Record<string, ItemInfo> = {};
-  // per kind (S14.P: M14 owns chartItem, M15 lineItem and shapeItem); a kind this page does not know is skipped
+  // per kind (S14.P: M14 owns chartItem, M15 lineItem and shapeItem); a kind this page does not know draws nothing and
+  // has no item info (never on the stage, never exported) – the Issues panel names it (app editor/item-text.ts)
   for (const [id, it] of Object.entries(R.cfg.items || {})) {
     const box = itemBoxOf(R, id, boxes, ctx); if (!box || !it) continue;
     const info = it.kind === "chart" ? chartItem(it, id, box) : it.kind === "shape" ? shapeItem(it, id, box) : it.kind === "line" ? lineItem(it, id, box) : null;

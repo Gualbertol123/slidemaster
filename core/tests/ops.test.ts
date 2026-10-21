@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
-import vectors from "../../shared/ops-vectors.json";
+import { loadVectors } from "./vectors";
 import { applyOps, inverseOf, applyOp, knownOp, needsV5, docNeedsV5 } from "../src/model/ops";
 import { fold, nextSnapshot } from "../src/model/fold";
 import type { Op } from "../src/model/types";
 
-describe("operations follow shared/ops-vectors.json", () => {
+// shared/ops-vectors.json and shared/ops-vectors.d/*.json (m14.json, m15.json: one file per parallel milestone)
+const vectors = loadVectors();
+
+describe("operations follow shared/ops-vectors.json (and ops-vectors.d/*.json)", () => {
   for (const v of (vectors as any[]).filter(x => !x.fold)) {
     it(v.name, () => {
       const { doc, applied, skipped } = applyOps(v.doc, v.ops);
@@ -22,7 +25,7 @@ describe("operations follow shared/ops-vectors.json", () => {
   }
 });
 
-describe("folding records follows shared/ops-vectors.json (Lamport order, copies once, the snapshot's seen)", () => {
+describe("folding records follows shared/ops-vectors.json and ops-vectors.d (Lamport order, copies once, the snapshot's seen)", () => {
   for (const v of (vectors as any[]).filter(x => x.fold)) {
     it(v.name, () => {
       const f = fold(v.fold.snapshot, v.fold.records);
@@ -452,7 +455,7 @@ describe("inverse of the new map merges and keys (S14.P)", () => {
   });
 });
 
-/** a saved deck of S14.P (fixtures/saved/*-4.6.json, added, never edited): its records fold, in any order, are known whole
+/** a saved deck of S14.P (fixtures/saved/charts-4.7.json, lines-4.8.json: named by the version that writes them; added, never edited): its records fold, in any order, are known whole
     by this page and format 5, and its next snapshot stays format 5 */
 async function savedDeck(name: string) {
   const fs = await import("node:fs"), path = await import("node:path");
@@ -468,9 +471,9 @@ async function savedDeck(name: string) {
   expect(next.doc.preset).toEqual(f.doc.preset);
   return { f, items: f.doc.preset!.slides[0].items as Record<string, any> };
 }
-describe("a deck saved with M14's series charts (fixtures/saved/charts-4.6.json, added, never edited)", () => {
+describe("a deck saved with M14's series charts (fixtures/saved/charts-4.7.json, added, never edited)", () => {
   it("two writers build the reference chart per series, mark, axis and legend entry; an old column chart gets series", async () => {
-    const { f, items } = await savedDeck("charts-4.6.json");
+    const { f, items } = await savedDeck("charts-4.7.json");
     expect([f.doc.rev, f.lamport, f.doc.updatedBy]).toEqual([9, 9, "bob"]);
     const c1 = items.c1;
     expect(Object.keys(c1.sers)).toEqual(["vol", "act"]);
@@ -487,9 +490,9 @@ describe("a deck saved with M14's series charts (fixtures/saved/charts-4.6.json,
       sers: { s1: { n: 1, vals: [{ table: "t1", range: "C5:F5" }], color: "#00B050" } }, legendAt: "top-right" });
   });
 });
-describe("a deck saved with M15's lines and a Tabler icon (fixtures/saved/lines-4.6.json, added, never edited)", () => {
+describe("a deck saved with M15's lines and a Tabler icon (fixtures/saved/lines-4.8.json, added, never edited)", () => {
   it("lines created, moved, attached, restyled and deleted by two writers; a line's free place in one design; the icon's stroke", async () => {
-    const { f, items } = await savedDeck("lines-4.6.json");
+    const { f, items } = await savedDeck("lines-4.8.json");
     expect([f.doc.rev, f.lamport, f.doc.updatedBy]).toEqual([9, 9, "bob"]);
     expect(Object.keys(items).sort()).toEqual(["k1", "l1", "l2", "r1"]);            // d1 deleted; bob's later restyle of it skipped
     expect(items.l1).toEqual({ kind: "line", route: "straight", a: { x: 220, y: 420 }, b: { x: 620, y: 420 }, box: { x: 219, y: 419, w: 402, h: 2 },

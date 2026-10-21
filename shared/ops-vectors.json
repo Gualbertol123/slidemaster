@@ -15709,5 +15709,184 @@
         ]
       }
     }
+  },
+  {
+    "name": "M14 item.patch a chart line switched off: frame and titleRule \"none\" are stored (null deletes the key: back to the design's line); inside a group or axis entry \"none\" and a null both survive (the entry is cloned whole)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "combo",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "frame": {
+                  "color": "#D9D9D9",
+                  "w": 1
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "frame": "none",
+          "titleRule": "none",
+          "groups": {
+            "g1": {
+              "n": 1,
+              "cats": [
+                "Q3",
+                "Q4"
+              ],
+              "divider": "none"
+            },
+            "g2": {
+              "n": 2,
+              "cats": [
+                "Budget"
+              ],
+              "divider": null
+            }
+          },
+          "axes": {
+            "y": {
+              "min": 0,
+              "line": "none"
+            },
+            "y2": {
+              "max": 9,
+              "line": null
+            }
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "frame": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "combo",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "titleRule": "none",
+                "groups": {
+                  "g1": {
+                    "n": 1,
+                    "cats": [
+                      "Q3",
+                      "Q4"
+                    ],
+                    "divider": "none"
+                  },
+                  "g2": {
+                    "n": 2,
+                    "cats": [
+                      "Budget"
+                    ],
+                    "divider": null
+                  }
+                },
+                "axes": {
+                  "y": {
+                    "min": 0,
+                    "line": "none"
+                  },
+                  "y2": {
+                    "max": 9,
+                    "line": null
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "frame": {
+              "color": "#D9D9D9",
+              "w": 1
+            },
+            "titleRule": null,
+            "groups": {
+              "g1": null,
+              "g2": null
+            },
+            "axes": {
+              "y": null,
+              "y2": null
+            }
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "frame": "none"
+          }
+        }
+      ]
+    }
   }
 ]

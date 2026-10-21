@@ -37,6 +37,9 @@ const PY = process.platform === "win32" ? "python" : "python3";
 export const CLOCK = "2026-10-01T10:00:00+02:00";
 export const DESIGNS = ["glass", "excel", "clean"];
 const FORMATS = "workbook=3;config=3;prefs=1";
+/** the deck snapshot formats the tools read (ADR-019): they fold with this checkout's core, so a deck that holds 4.6
+    objects (format 5: the chart corpus's item.patch) is theirs to change – without it the helper answers 409 "reload" */
+const DECK_FORMATS = "4,5";
 // v3's names for the parts 05 §2 lists: cells .t, cards .wb, tables .tw, text boxes .tnote (the "note" of the plan)
 // with their frames .notebub, workbook text boxes and shapes .tbox, pictures .pic, the notes section .memo, title,
 // subtitle, logo, page number, footer, cover (cv-/cvx-) and contents (ix-) parts, empty/missing markers
@@ -88,7 +91,7 @@ export async function startHelper() {
   if (!up) throw new Error("helper did not start:\n" + log);
   const token = /<meta\s+name="sb-token"\s+content="([^"]+)"/.exec(await (await fetch(url)).text())[1];
   const api = async (p, method = "GET", body) => {
-    const r = await fetch(url + p.replace(/^\//, ""), { method, headers: { "X-SB-Token": token, "X-SB-Formats": FORMATS, "Content-Type": "application/json" },
+    const r = await fetch(url + p.replace(/^\//, ""), { method, headers: { "X-SB-Token": token, "X-SB-Formats": FORMATS, "X-SB-Deck-Formats": DECK_FORMATS, "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body) });
     if (!r.ok && r.status !== 204) throw new Error(`${method} ${p}: HTTP ${r.status} ${await r.text()}`);
     return r.status === 204 ? null : r.json();

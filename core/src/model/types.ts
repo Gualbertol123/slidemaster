@@ -48,6 +48,11 @@ export type ChartType = "pie" | "donut" | "bar" | "column" | "line" | "area" | "
 export type SeriesType = "column" | "bar" | "line" | "area" | "scatter";
 /** a line's look: colour, weight px, dash */
 export interface LineStyle { color?: string; w?: number; dash?: "solid" | "dashed" | "dotted" | "dashdot" }
+/** a line that can be switched off (S14.P review, 2): unset = the design's default, "none" = no line, else its look.
+    Not `null`: item.patch's null deletes a plain key, so a stored null could never exist for `frame` / `titleRule`. Inside
+    a map entry (`groups[g].divider`, `axes[a].line`) the whole entry is cloned, so a null there would survive – the
+    page writes "none" there too, and a reader takes a null as "none" */
+export type LineOrNone = LineStyle | "none";
 export interface ChartSeries {
   /** order (ties: id); series are drawn and listed by n */ n: number;
   /** text, or a cell (follows the workbook) */ name?: string | DataRef;
@@ -69,9 +74,9 @@ export interface ChartSeries {
   /** kept, not drawn */ hide?: boolean;
 }
 /** a list of categories on the x axis; groups stand side by side, an optional divider between them */
-export interface ChartGroup { n: number; cats: DataRef | string[]; divider?: LineStyle | null; label?: string }
+export interface ChartGroup { n: number; cats: DataRef | string[]; divider?: LineOrNone | null; label?: string }
 export interface ChartAxis { show?: boolean; min?: number; max?: number; step?: number; num?: string; title?: string;
-  grid?: boolean; fmt?: TextFmt; line?: LineStyle | null }
+  grid?: boolean; fmt?: TextFmt; line?: LineOrNone | null }
 /** where a mark stands: a series' point, a category group's edge, or data coordinates (a category name or index) */
 export type MarkAt = { s: string; i: number }
   | { g: string; edge: "start" | "end" }
@@ -94,7 +99,7 @@ export interface ChartItem { kind: "chart"; /** without `sers` a type other than
   stack?: "none" | "stacked" | "percent"; /** % of a bar */ gap?: number; overlap?: number;
   /** wins over `legend` when set */ legendAt?: LegendAt;
   /** series id (or a pie's point index) → out of the legend, still drawn */ legendHide?: Record<string, true>;
-  frame?: LineStyle | null; titleRule?: LineStyle | null; /** the plot area inside the box (optional) */ plot?: Box;
+  /** unset = the design's; "none" = none */ frame?: LineOrNone; titleRule?: LineOrNone; /** the plot area inside the box (optional) */ plot?: Box;
   /** the title's own format (`fmt` is the labels') */ titleFmt?: TextFmt }
 /* ---- lines and annotations on the slide (4.8, M15; docs/next/09 §2.3) ---- */
 /** "bar" = a limiter tick */

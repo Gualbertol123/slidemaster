@@ -5,18 +5,23 @@ import type { RuntimeSlide } from "@slide-builder/core/model/types";
 import { tableName } from "@slide-builder/core/model/preset";
 import { computeLayout, sizingOf } from "@slide-builder/core/render/layout";
 import type { RenderCtx } from "@slide-builder/core/render/context";
+import { kindText, knownKind, laterKindsIssue } from "./item-text";
 
 export interface Issue { cls: "" | "ok" | "warn" | "err"; html: string }
 /** `items`: what the worker said of the slide's items as it drew them (stage: StageSlide.items) */
 export function slideIssues(R: RuntimeSlide, ctx: RenderCtx, items?: Record<string, { issue: string | null }> | null): Issue[] {
   const out: Issue[] = [];
-  // charts (B24): numbered in the slide's order
-  let n = 0, k = 0;
+  // the items (B24): numbered per kind in the slide's order, each kind's words its own (item-text.ts); a newer page's
+  // kinds one line
+  const count: Record<string, number> = {}, later: string[] = [];
   for (const [id, it] of Object.entries(R.cfg.items || {})) {
-    const is = items?.[id]?.issue;
-    if (it?.kind === "chart") { n++; if (is) out.push({ cls: /not found/.test(is) ? "err" : "warn", html: `Chart ${n}: ${esc(is)}` }); }
-    else if (it?.kind === "shape") { k++; if (is) out.push({ cls: "err", html: `Callout ${k}: ${esc(is)} (shown as #REF)` }); }
+    if (!it || typeof it !== "object") continue;
+    if (!knownKind(it.kind)) { later.push(String(it.kind)); continue; }
+    const n = count[it.kind] = (count[it.kind] || 0) + 1, is = items?.[id]?.issue;
+    if (is) out.push(kindText(it).issue(it, n, is));
   }
+  const lk = laterKindsIssue(later);
+  if (lk) out.push(lk);
   // (a cover or contents slide can carry items too: their lines follow the slide's own)
   if (R.type === "cover") return [{ cls: "", html: "Cover slide · double-click the title to edit it, or use the wizard (step 3)." }, ...out];
   if (R.type === "index") return [{ cls: "", html: `Index slide · lists ${ctx.slides.filter(s => s.type === "content").length} content slide(s) with their page numbers.` }, ...out];

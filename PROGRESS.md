@@ -168,9 +168,24 @@ numbers measured twice). Measured numbers go into the step's line.
   - Hide slide / Show slide are in the slide list's right-click menu only: the plan's "and the slide menu" names no other menu the app has (review of S13.6, 5; 09 §2.8b).
 - [ ] S13.5 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.6.0; 🚦 G9a
 
+### S14.P · The shared preparation of M14 and M15 (no version; branch `v4/M14-M15-prep`; docs/next/M14-M15-split.md)
+- [ ] S14.P · Shared prep: built and reviewed on `v4/M14-M15-prep` (3a0b630, de6075f, e9f8ac0, 6bb121a; review fixes
+  "S14.P · … (review fixes)"), not yet merged. It holds the model (09 §2.2, §2.3 types; the item.patch row of 09 §2.10
+  in `ops.ts`; vectors and the saved fixtures `charts-4.7.json` and `lines-4.8.json`; "no line" = `"none"`),
+  `Stroke.join` in every backend, `heads.ts` and native line ends, the per-kind item dispatch, `resolveIcon`, the
+  PowerPoint gate (pptxcheck (5), with expectations from the core's export, `tools/real-objects.mjs`), the UI slots
+  (ItemPanel, Insert ▾, the item words of `editor/item-text.ts`), the page budget per milestone
+  (`app/tests/page-budget/`), the vectors per milestone (`shared/ops-vectors.d/`), and 09 §7.4's bench entries
+  skipped until introduced. **Merge condition:** the merge to `main` rebuilds and commits `helper/slide_builder.html`,
+  then reruns `app/tests/build.test.ts` (up to date + page budget) and records the page's size below. It is the only
+  S14.P step that commits the page (M14-M15-split.md §1). Ticked at that merge: verified: tests ✓ clean clone ✓
+  review ✓.
+
 ### M14 · Charts (4.7.0; B30, B31; docs/next/09 §8, ADR-015 amended)
-- [ ] S14.0 · Gates first (export-check gates PowerPoint "opened", `has_chart` / `has_table`; AUDIT-2 VER-3)
-- [ ] S14.1 · Model (`sers`, `groups`, `axes`, `marks`, legend; vectors; `knownOp`, `needsV5`)
+- [ ] S14.0 · Gates first (export-check gates PowerPoint "opened", `has_chart` / `has_table`; AUDIT-2 VER-3) – built in
+  S14.P (the gate); on the branch this step only ticks it
+- [ ] S14.1 · Model (`sers`, `groups`, `axes`, `marks`, legend; vectors; `knownOp`, `needsV5`) – the lists, types,
+  vectors and fixtures are in S14.P; left for the branch: the ADR-015 amendment and the decision for old non-pie charts
 - [ ] S14.2 · Columns and bars ⏱ (CT-01, CT-02, LG-01)
 - [ ] S14.3 · Lines, areas, combo, second axis, groups, targets, marks ⏱ — the reference chart; 🚦 G9 (CT-03…CT-07)
 - [ ] S14.4 · Scatter, waterfall
@@ -179,7 +194,8 @@ numbers measured twice). Measured numbers go into the step's line.
 - [ ] S14.7 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.7.0
 
 ### M15 · Lines, icons, snapping (4.8.0; B32–B35; docs/next/09 §8, ADR-020, ADR-017 amended)
-- [ ] S15.1 · `Stroke.join` and the icon data (Tabler 3.49.0 vendored, hash test, notices entry)
+- [ ] S15.1 · `Stroke.join` and the icon data (Tabler 3.49.0 vendored, hash test, notices entry) – `Stroke.join` is in
+  S14.P; left for the branch: the icon data, its hash test and notices entry, `m15.json`'s page budget measured
 - [ ] S15.2 · Icon items and picker ⏱ (IC-01, IC-02)
 - [ ] S15.3 · Line items ⏱ (LN-01, LN-02)
 - [ ] S15.4 · Snapping ⏱ (SN-01…SN-04)
@@ -956,3 +972,18 @@ numbers measured twice). Measured numbers go into the step's line.
 | M4 follow-ups | deck20 Excel PDF (bench) | 256 KB → 313 KB (the seams' strips; budget 800) | clean clone 313 KB |
 | S4.5 | the page and the helper (bytes) | page 1,512,084 → 1,454,886 · helper code 225,261 → 151,210 | – |
 | S4.2 | longest gap between animation frames during a drag (not gated: compositor and GPU included) | ≤ 17.6 ms; the browser's first corner drag 83–100 ms, then 33 ms (once per GPU process) | the same in the clean clone |
+| S14.P | built page with S14.P (bytes; built on the branch, not committed: the merge to main commits it) · export-check, every corpus deck × design + the chart corpus, `--no-ppt` (no PowerPoint here) | 3,964,345 (M13 committed 3,960,844, +3,501; within base.json 3,976,092 alone) | 70 PDFs GT equal · 75 PowerPoint files ok, real tables and charts per slide = the core's export (missing-table slide 2: none expected, none found), GT equal |
+
+### Measurements · M14 (4.7.0)
+One table per parallel milestone (S14.P), so M14 and M15 never append to the same table. M14 appends here only.
+
+| Step | What | Run 1 | Run 2 |
+|---|---|---|---|
+| S14.P | page budget part `app/tests/page-budget/m14.json` (provisional, owner 2026-10-21), bytes | 110,000 | – |
+
+### Measurements · M15 (4.8.0)
+M15 appends here only.
+
+| Step | What | Run 1 | Run 2 |
+|---|---|---|---|
+| S14.P | page budget part `app/tests/page-budget/m15.json` (set by measurement at S15.1, owner 2026-10-21: icons in the page, packed, inflated on first use), bytes | 0 | – |

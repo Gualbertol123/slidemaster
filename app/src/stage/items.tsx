@@ -5,6 +5,7 @@ import { useStore } from "../state/store";
 import type { RuntimeSlide } from "@slide-builder/core/model/types";
 import { sliceAt } from "@slide-builder/core/render/chart-dl";
 import { selectItem } from "../editor/charts";
+import { kindText } from "../editor/item-text";
 import { itemMove, itemResize, noteEdge, type DragPreview } from "./drags";
 import { slideScale } from "./actions";
 import { setStage } from "./data";
@@ -17,7 +18,7 @@ export function Items({ m, R, drag, free }: { m: StageModel; R: RuntimeSlide; dr
   return <>{m.items.map(p => {
     const d = drag?.kind === "item" && drag.id === p.id ? drag : null, b = d ? d.box : p.box, on = itemSel?.id === p.id;
     return <div key={p.id} className={"itembox" + (on ? " sel" : "") + (d?.moved ? " moving" : "") + (p.info?.issue ? " broken" : "")} data-item={p.id} data-kind={R.cfg.items?.[p.id]?.kind}
-      title={p.info?.issue ? (R.cfg.items?.[p.id]?.kind === "shape" ? "Callout: " : "Chart: ") + p.info.issue : undefined}
+      title={p.info?.issue ? itemTitle(R, p.id, p.info.issue) : undefined}
       style={{ left: b.x, top: b.y, width: b.w, height: b.h }}
       onPointerMove={free ? e => { if (!(e.buttons & 1)) { const ed = noteEdge(e.currentTarget, e.nativeEvent, true, "top"); e.currentTarget.style.cursor = ed ? (ed === "l" || ed === "r" ? "ew-resize" : "ns-resize") : ""; } } : undefined}
       onDoubleClick={e => { const it = R.cfg.items?.[p.id]; if (it?.kind === "shape" && it.shape !== "icon") { e.stopPropagation(); setStage({ editor: { kind: "item", id: p.id } }); } }}
@@ -37,6 +38,8 @@ export function Items({ m, R, drag, free }: { m: StageModel; R: RuntimeSlide; dr
     </div>;
   })}</>;
 }
+/** a broken item's tooltip: its kind's name (editor/item-text.ts) and the problem */
+const itemTitle = (R: RuntimeSlide, id: string, issue: string) => { const it = R.cfg.items?.[id]; return (it ? kindText(it).name(it) : "Object") + ": " + issue; };
 /** the selected slice: a ring at the edge of its arc */
 function SliceMark({ g, i, box }: { g: NonNullable<NonNullable<StageModel["items"][number]["info"]>["geom"]>; i: number; box: { x: number; y: number } }) {
   const s = g.slices.find(x => x.i === i); if (!s) return null;

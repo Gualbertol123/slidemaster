@@ -20,7 +20,8 @@ check needs PowerPoint (Windows, COM through PowerShell). The helper stays stand
         (4) with --sources ({file: {workbook, charts: [{slide, sheet, range}]}}): each chart's cached values equal the
             workbook's cells (openpyxl, the values Excel saved; text, blank and hidden cells skipped as the chart skips them)
         (5) real objects, gated (S14.P; AUDIT-2 VER-3, PX-02 / PX-03, 09 §7.2): with --expect ({file: [{slide, tables,
-            charts}]}) each slide holds at least those real tables (python-pptx has_table) and native charts (has_chart);
+            charts}]}, tools/real-objects.mjs: what the core's own export draws) each slide holds exactly those real
+            tables (python-pptx has_table) and native charts (has_chart), a slide not listed none;
             where PowerPoint is present, it must open the file (3) and see the same tables (HasTable) and charts
             (HasChart) per slide as python-pptx – a failure, never a count. Each report says `ppt`: opened / failed /
             absent (no PowerPoint here: 1, 2, 4 and python-pptx's part of 5 run) / skipped (--no-ppt). Also in (1): no
@@ -291,7 +292,9 @@ def structure(path, slides=None):
                    if r.get("Type") == RT + "chart"]:
             croot = xml.get(ch)
             for f in (croot.iter("{%s}f" % NS["c"]) if croot is not None else []):
-                if "[" in (f.text or "") or re.search(r"\.xls[xmb]?\b", f.text or "", re.I):
+                # another workbook is named as [n] / [Book.xlsx] or by a path; Excel forbids [ ] / and the backslash in
+                # sheet names, so a sheet called like a file ('Q3.xlsx'!A1) does not trip it (S14.P review, 10)
+                if re.search(r"[\[\]\\/]", f.text or ""):
                     bad.append("slide %d: a chart formula names a file: %s" % (i + 1, f.text))
                     break
         for t in root.iter("{%s}t" % NS["a"]):
@@ -436,23 +439,25 @@ def source_values(workbook, sheet, rng):
 
 
 def real_objects(rep_content, expect, who):
-    """(5) the gate of AUDIT-2 VER-3 / PX-03 (S14.P, 09 §7.2): each slide has at least the real tables (has_table) and
-    native charts (has_chart) the deck puts there – never a picture of one; `who` names the reader in the message"""
+    """(5) the gate of AUDIT-2 VER-3 / PX-03 (S14.P, 09 §7.2): each slide has exactly the real tables (has_table) and
+    native charts (has_chart) the core's own export draws there (`expect`, tools/real-objects.mjs: a table of a sheet the
+    workbook lacks, a hidden slide are not drawn, so not expected) – never a picture of one, never one too many; a slide
+    `expect` does not list must hold none. `who` names the reader in the message"""
     bad = []
     slides = rep_content["slides"] if rep_content else []
-    for e in expect or []:
-        i = e["slide"] - 1
-        s = slides[i] if 0 <= i < len(slides) else None
+    want = {e["slide"]: e for e in expect or []}
+    for n in sorted(set(want) | set(range(1, len(slides) + 1))):
+        s = slides[n - 1] if 0 < n <= len(slides) else None
         for k, word in (("tables", "real table"), ("charts", "native chart")):
-            want = e.get(k) or 0
+            w = (want.get(n) or {}).get(k) or 0
             have = (len(s["charts"]) if k == "charts" else s["tables"]) if s else 0
-            if have < want:
-                bad.append("slide %d: %s %d %s(s), the deck has %d" % (e["slide"], who, have, word, want))
+            if have != w:
+                bad.append("slide %d: %s %d %s(s), the export draws %d" % (n, who, have, word, w))
     return bad
 
 
 def check(paths, slides=None, ppt=True, report=None, sources=None, expect=None):
-    """`expect` ({file: [{slide, tables, charts}]}): the real tables and native charts each slide must hold (5). Where
+    """`expect` ({file: [{slide, tables, charts}]}): the real tables and native charts each slide must hold (5), exactly. Where
     PowerPoint is present it is a gate, not a count (AUDIT-2 VER-3, 09 §7.2): the file must open, and PowerPoint must see
     as many tables (HasTable) and charts (HasChart) per slide as python-pptx does; without it (CI, Linux) the structural
     checks and python-pptx's counts run, and each report says `ppt: absent`"""
@@ -467,8 +472,8 @@ def check(paths, slides=None, ppt=True, report=None, sources=None, expect=None):
         except Exception as e:                      # noqa: BLE001 (a file python-pptx cannot read is a failure)
             bad = bad + ["python-pptx cannot read it: %s" % e]
             rep["content"] = None
-        exp = (expect or {}).get(p) or (expect or {}).get(os.path.abspath(p))
-        if exp:
+        exp = (expect or {}).get(p, (expect or {}).get(os.path.abspath(p)))
+        if exp is not None:
             bad = bad + real_objects(rep["content"], exp, "python-pptx reads")
         src = (sources or {}).get(p) or (sources or {}).get(os.path.abspath(p))
         if src and rep["content"]:

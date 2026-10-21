@@ -18,9 +18,9 @@
    PowerPoint (4.5, B21; docs/next/07 §4.3, 05 PX-01…PX-04): every deck × design – and the chart corpus
    (tests/corpus/charts) – is also exported with Export ▾ › PowerPoint · all slides. Each .pptx is then checked by
    tools/pptxcheck.py: (1) structure, (2) content, (3) opened in PowerPoint without a repair, its slide count and texts read
-   back (Windows with PowerPoint; --no-ppt or elsewhere: 1–2 only); (5) real objects (S14.P, AUDIT-2 VER-3): every content
-   slide with tables holds a real table and every chart a native chart (python-pptx), and where PowerPoint is present it
-   must open the file and see the same tables and charts – gated, not counted; its texts against the goldens (GT, as the PDF's: every
+   back (Windows with PowerPoint; --no-ppt or elsewhere: 1–2 only); (5) real objects (S14.P, AUDIT-2 VER-3): each slide
+   holds as many real tables and native charts (python-pptx) as the core's own export draws (tools/real-objects.mjs),
+   and where PowerPoint is present it must open the file and see the same tables and charts – gated, not counted; its texts against the goldens (GT, as the PDF's: every
    golden text in the slide's text boxes, tables and chart titles, nothing else; the consulting designs against the same
    run's PDF text, which their own goldens check); its charts' cached values against the workbook's cells (openpyxl);
    ⏱ deck20: Liquid Glass < 3 s, the other designs < 1.5 s (scaled as above); size: Liquid Glass < 120 KB per slide +
@@ -36,6 +36,7 @@ import { fileURLToPath } from "node:url";
 import { BOOKS, DECKS, deckList, deckOps, load, openBrowser, startHelper } from "./capture-v3.mjs";
 import { goldenTexts, matchTexts, ownPdfText, squash } from "./export-dl.mjs";
 import { speedFactor } from "./calibrate.mjs";
+import { pageRealObjects } from "./real-objects.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
@@ -54,7 +55,10 @@ export const BUDGET = {
 };
 /** the chart corpus (M9): decks with charts and callouts, PowerPoint pass only (they have no v3 goldens) */
 const CHART_DECKS = path.join(REPO, "tests", "corpus", "charts");
-/** each chart of a deck as pptxcheck compares it: its slide (1-based), the sheet and range of its values */
+/** each chart of a deck as pptxcheck compares it: its slide (1-based), the sheet and range of its values. Read from the
+    deck's preset.set and item.patch ops: slide n is the preset's n-th slide, so a deck with hidden slides or slides
+    added by slide.add would number them wrongly – the chart corpus has neither (the real-objects counts of (5) come from
+    the core and have no such limit) */
 function chartSources(deck) {
   const preset = deck.ops.find(o => o.op === "preset.set")?.preset || {}, tables = new Map((preset.tables || []).map(t => [t.id, t.sheet]));
   const out = [];
@@ -65,15 +69,6 @@ function chartSources(deck) {
   }
   return out;
 }
-/** what each slide must hold as real objects (S14.P gate; AUDIT-2 VER-3, PX-02 / PX-03, 09 §7.2): a content slide that
-    lists tables at least one real table (a:tbl, python-pptx has_table), and a native chart per chart of the slide – never
-    a picture of either. pptxcheck (5) gates it, and where PowerPoint is present also that PowerPoint sees the same */
-export function realObjects(deck) {
-  const preset = deck.ops.find(o => o.op === "preset.set")?.preset || {}, charts = chartSources(deck);
-  return (preset.slides || []).map((s, i) => ({ slide: i + 1, tables: s.type === "content" && (s.tables || []).length ? 1 : 0, charts: charts.filter(c => c.slide === i + 1).length }))
-    .filter(e => e.tables || e.charts);
-}
-
 /** clicks an export and waits for its toast; returns the files it saved (the names the page was given back) and the
     page's click-to-file time */
 export async function exportOnce(page, h, click) {
@@ -110,11 +105,15 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
         await deckOps(h, file, [{ op: "style.patch", patch: { design } }]);
         const slides = await load(page, h, file, "");
         if (PPTX) {
+          // the real tables and native charts each slide of the file must hold: as many as the core's own PowerPoint
+          // export draws (tools/real-objects.mjs: a missing sheet's table, hidden slides, slide.add / table.add all
+          // counted as the export counts them)
+          const real = await page.evaluate(pageRealObjects(design));
           const x = await exportOnce(page, h, async () => { await page.click("#exportMenuBtn"); await page.click('[data-x="pptx"]'); });
           if (x.files.length !== 1) throw new Error(`${id} · ${design}: ${x.files.length} PowerPoint files`);
           const f = path.join(OUT, `${id}-${design}.pptx`); fs.copyFileSync(x.files[0], f);
           pptx.push({ deck: id, design, slides, file: f, name: path.basename(x.files[0]), ms: Math.round(x.ms), bytes: fs.statSync(f).size, toast: x.toast,
-            workbook: path.join(BOOKS, deck.workbook), charts: chartSources(deck), real: realObjects(deck) });
+            workbook: path.join(BOOKS, deck.workbook), charts: chartSources(deck), real });
           console.log(`${id} · ${design}: PowerPoint ${(fs.statSync(f).size / 1024).toFixed(1)} KB, ${Math.round(x.ms)} ms`);
         }
         if (chartsOnly) continue;
