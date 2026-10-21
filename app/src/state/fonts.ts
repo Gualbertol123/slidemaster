@@ -103,12 +103,17 @@ async function store(faces: Face[]): Promise<LibraryFont[]> {
 }
 
 /** the faces the helper found, stored as uploads are: a variable file (most families on GitHub) is fetched once and
-    becomes a static face at each weight (exports never embed a variable font) */
-async function fromHelper(family: string): Promise<LibraryFont[]> {
+    becomes a static face at each weight (exports never embed a variable font). A 404 for a file: Google renamed it
+    since a helper kept the family's faces (data\fonts\cache), and the helper has forgotten them: asked again, once */
+async function fromHelper(family: string, again = true): Promise<LibraryFont[]> {
   const g = await backend.googleFont(family), files = new Map<string, ArrayBuffer>(), faces: Face[] = [];
   for (const f of g.faces) {
     let raw = files.get(f.file);
-    if (!raw) { raw = await backend.googleFontFile(f.file); files.set(f.file, raw); }
+    if (!raw) {
+      try { raw = await backend.googleFontFile(f.file); }
+      catch (e) { if (again && e instanceof ApiError && e.status === 404) return fromHelper(family, false); throw e; }
+      files.set(f.file, raw);
+    }
     const base = f.file.split("/").pop() || "font.ttf", { buf, name } = f.variable ? await staticFile(raw, f.weight, base) : { buf: raw, name: base };
     faces.push({ meta: { family, weight: f.weight, style: f.style, source: "google", name, range: f.range }, buf });
   }

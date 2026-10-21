@@ -16,6 +16,10 @@ if (fresh) {
   fs.mkdirSync(root, { recursive: true }); fs.mkdirSync(data, { recursive: true });
   // Banks.xlsx and Peers.xlsx link to each other (S7.3, tests/corpus/workbooks/recalc)
   for (const f of ["report.xlsx", "plain.xlsx", "big.xlsx", "weekly.xlsx", "Banks.xlsx", "Peers.xlsx", "Gate.xlsx"]) fs.copyFileSync(path.join(__dirname, "tests/fixtures", f), path.join(root, f));
+  // the helpers never reach Google (B46: the font picker's previews are fetched by the helper): a proxy nobody
+  // listens on fails each fetch at once, the same with or without network - the previews answer 502 (EXPECTED in
+  // app.spec.ts) and no data\fonts\cache is written. (On Windows, %LOCALAPPDATA%\SlideBuilder\proxy.txt would win.)
+  fs.writeFileSync(path.join(data, "proxy.txt"), "http://127.0.0.1:9\n");
 }
 process.env.SB_E2E_TMP = tmp; process.env.SB_E2E_ROOT = root; process.env.SB_E2E_DATA = data;
 // the browser: CHROME, else Playwright's own Chromium (npx playwright install chromium), the same on every OS

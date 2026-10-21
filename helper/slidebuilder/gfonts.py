@@ -30,10 +30,10 @@ import os
 import re
 import socket
 import ssl
-import urllib.error
-import urllib.parse
 import struct
 import time
+import urllib.error
+import urllib.parse
 import urllib.request
 
 from . import paths
@@ -54,7 +54,7 @@ _GSTATIC_SUBSET = re.compile(r"^https://fonts\.gstatic\.com/l/font\?[A-Za-z0-9._
 CACHE_MAX = 200 * 1024 * 1024                              # data\fonts\cache (owner, 2026-10-21)
 CACHE_KEEP = 0.9                                           # pruning goes down to 90 % of the cap, not once per entry
 CACHE_EXT = ".sbc"
-FAMILY_MAX_AGE = 30 * 86400                                # a family's faces are asked again after a month (files are renamed)
+FAMILY_MAX_AGE = 30 * 86400                                # a family's faces are asked again a month after they were fetched
 STALE_TMP_S = 3600                                         # a temp file this old is a crashed writer's
 _MAGIC = b"SBFC"
 _HEAD = struct.Struct(">4sQ32s")                           # magic, length, SHA-256 of the bytes that follow
@@ -179,12 +179,11 @@ def _entry_path(key):
 
 
 def _entry(path):
-    """(bytes, mtime) of a whole entry, or None: missing, vanished (pruned by another helper), locked (Windows, being
+    """the bytes of a whole entry, or None: missing, vanished (pruned by another helper), locked (Windows, being
     replaced), half-written or damaged are all a miss"""
     try:
         with open(path, "rb") as f:
             raw = f.read(_HEAD.size + FONT_MAX + 1)
-            mtime = os.fstat(f.fileno()).st_mtime
     except OSError:
         return None
     if len(raw) < _HEAD.size:
@@ -193,21 +192,27 @@ def _entry(path):
     data = raw[_HEAD.size:]
     if magic != _MAGIC or n != len(data) or hashlib.sha256(data).digest() != digest:
         return None
-    return data, mtime
+    return data
 
 
-def cache_get(key, max_age=None, stale=False):
-    """the cached bytes for `key`, or None; an entry older than max_age is a miss unless `stale`. A hit marks the entry
-    used (pruning deletes the least recently used first)"""
+def cache_get(key):
+    """the cached bytes for `key`, or None. A hit marks the entry used: its mtime is the order pruning goes by (least
+    recently used first), never its age - an entry that must be fetched again after a while keeps its fetch time
+    inside (family_faces)"""
     path = _entry_path(key)
     got = _entry(path)
-    if got is None or (max_age is not None and not stale and time.time() - got[1] > max_age):
+    if got is None:
         return None
     try:
         os.utime(path, None)
     except OSError:
         pass
-    return got[0]
+    return got
+
+
+def cache_drop(key):
+    """forgets `key` (its answer is known to be out of date); one another helper has open stays until the next fetch"""
+    remove_quietly(_entry_path(key))
 
 
 def cache_put(key, data):
@@ -402,33 +407,44 @@ def _css_api(family):
 
 # ---------------------------------------------------------------------------------------------------- the API
 def _family_entry(raw):
-    """a cached family_faces answer, or None when the entry is not one"""
+    """(fetched at, family_faces answer) of a cached family, or None when the entry is not one"""
     try:
-        res = json.loads(raw.decode("utf-8"))
+        ent = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
         return None
+    if not isinstance(ent, dict) or not isinstance(ent.get("at"), (int, float)):
+        return None
+    res = ent.get("res")
     ok = isinstance(res, dict) and isinstance(res.get("faces"), list) and res["faces"] and all(
         isinstance(f, dict) and (_REPO_FILE.match(str(f.get("file"))) or _GSTATIC_FILE.match(str(f.get("file")))) for f in res["faces"])
-    return res if ok else None
+    return (ent["at"], res) if ok else None
+
+
+def _family_key(ref):
+    """the cache key of the family a file named by family_faces belongs to (its google/fonts folder, or the folder
+    fonts.gstatic.com names after the family), or None"""
+    m = re.match(r"^(?:ofl|apache|ufl)/([a-z0-9]+)/", ref) or re.match(r"^https://fonts\.gstatic\.com/s/([a-z0-9]+)/", ref)
+    return "family:" + m.group(1) if m else None
 
 
 def family_faces(family):
     """GET /api/fonts/google: the faces of a Google font and where the helper takes them from; from the cache when a
-    helper fetched them in the last month (or longer ago, when Google cannot be asked now)"""
+    helper fetched them in the last month (or longer ago, when Google cannot be asked now). The month is counted from
+    the fetch (kept in the entry), not from the last read: a family read every day is still asked again"""
     family = clean_family(family)
     key = "family:" + repo_dir(family)
-    raw = cache_get(key, FAMILY_MAX_AGE)
-    if raw is not None and _family_entry(raw):
-        return _family_entry(raw)
+    raw = cache_get(key)
+    got = _family_entry(raw) if raw is not None else None
+    if got and time.time() - got[0] <= FAMILY_MAX_AGE:
+        return got[1]
     try:
         res = _family_faces(family)
     except GFontError:
-        old = cache_get(key, stale=True)
-        if old is not None and _family_entry(old):
+        if got:
             log("google fonts: %s from the cache (Google not asked again)" % family)
-            return _family_entry(old)
+            return got[1]
         raise
-    cache_put(key, json.dumps(res, sort_keys=True).encode("utf-8"))
+    cache_put(key, json.dumps({"at": time.time(), "res": res}, sort_keys=True).encode("utf-8"))
     return res
 
 
@@ -486,6 +502,8 @@ def face_file(ref):
 
 
 def _fetch_file(ref, urls):
+    """the file's bytes from the first address that has it; GFontError(404) when every one answered it is not there
+    (google/fonts renamed it, static to variable: the page asks for the family again, once)"""
     failures = []
     for url in urls:
         try:
@@ -500,6 +518,15 @@ def _fetch_file(ref, urls):
             failures.append(NetError(url, None, "the answer is not a font file"))
             continue
         return data
+    if any(e.status == 404 for e in failures):
+        # the family's faces the cache keeps (fresh for a month) name a file that is not there any more: forgotten, so
+        # the next family_faces asks Google (a file pruned from the cache would otherwise never be had again)
+        key = _family_key(ref)
+        if key:
+            cache_drop(key)
+        if all(e.status == 404 for e in failures):
+            raise GFontError(404, "%s is not on Google Fonts any more (the family's files changed). Add the family again; "
+                                  "if that fails, %s." % (os.path.basename(ref), UPLOAD_HINT))
     raise GFontError(502, unreachable_message(failures))
 
 

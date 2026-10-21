@@ -210,6 +210,7 @@ export const helper: Backend = {
   // (the helper may try GitHub, jsDelivr and googleapis in turn, each up to 20 s)
   googleFont: family => json(req("/api/fonts/google?family=" + encodeURIComponent(family), { timeout: WAIT_LONG_MS })),
   async googleFontFile(file) { return (await req("/api/fonts/google/file?ref=" + encodeURIComponent(file), { timeout: WAIT_LONG_MS })).arrayBuffer(); },
+  // (WAIT_MS: a first preview at the office may take longer, then that window shows no more; the helper caches it anyway)
   async googleFontPreview(family) { return (await req("/api/fonts/google/preview?family=" + encodeURIComponent(family))).arrayBuffer(); },
   fontUrl: file => "/fonts/" + encodeURIComponent(file) + "?t=" + encodeURIComponent(TOKEN),
   async uploadLogo(name, data) { return (await json<{ name: string }>(req("/api/logo?name=" + encodeURIComponent(name), { method: "POST", body: data }))).name; },

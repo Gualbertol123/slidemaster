@@ -78,6 +78,26 @@ describe("adding a Google font through the helper", () => {
     expect(calls.filter(c => c.method === "POST").length).toBe(3);
   });
 
+  it("a file Google renamed since the helper kept the family's faces: the page asks for the family again, once", async () => {
+    // the helper answers 404 for the old file and forgets the faces it kept (gfonts.py _fetch_file): asked again, it
+    // names the new file
+    const OLD = { ...ROBOTO, faces: [{ weight: 400, style: "normal", file: "ofl/roboto/Roboto-Regular.ttf", variable: false }] };
+    const gone = (u: string) => json({ error: decodeURIComponent(u.split("ref=")[1]).split("/").pop() + " is not on Google Fonts any more" }, 404);
+    let asked = 0;
+    let calls = net(url => url.startsWith("/api/fonts/google?") ? json(asked++ ? ROBOTO : OLD)
+      : url.includes("Roboto-Regular") ? gone(url) : url.startsWith("/api/fonts/google/file?") ? Promise.resolve(new Response(TTF)) : undefined);
+    expect(await M.fonts.addGoogleFont("Roboto")).toBe(true);
+    expect(calls.filter(c => c.url.startsWith("/api/fonts/google?")).length).toBe(2);
+    expect(calls.filter(c => c.method === "POST").length).toBe(3);
+    // still missing after that: the helper's message, no third try
+    M.store.patch("doc", { fonts: [] });
+    calls = net(url => url.startsWith("/api/fonts/google?") ? json(OLD) : url.startsWith("/api/fonts/google/file?") ? gone(url) : undefined);
+    expect(await M.fonts.addGoogleFont("Roboto")).toBe(false);
+    expect(calls.filter(c => c.url.startsWith("/api/fonts/google?")).length).toBe(2);
+    expect(calls.filter(c => c.method === "POST")).toEqual([]);
+    expect(toastText()).toContain("not on Google Fonts any more");
+  });
+
   it("the helper cannot reach Google: the page tries googleapis itself (its PAC proxy may), then shows the helper's message", async () => {
     const unreachable = "Google Fonts cannot be reached from the Slide Builder helper (…). To add the font, download the family … and use “Upload font files”";
     let calls = net(url => url.startsWith("/api/fonts/google?") ? json({ error: unreachable }, 502) : undefined);

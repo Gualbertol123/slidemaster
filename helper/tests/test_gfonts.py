@@ -1,5 +1,6 @@
 """Google fonts fetched by the helper (gfonts.py): google/fonts on GitHub (raw.githubusercontent.com, else jsDelivr),
 else the CSS API; the proxy setting; the messages. No network: fetch_url is a fake answering from a dict."""
+import json
 import os
 import shutil
 import socket
@@ -519,20 +520,58 @@ class FontCache(LocalAppData, TempDirs):
         self.assertEqual(left, {"e0", "e3", "new"})
 
     def test_a_family_older_than_a_month_is_asked_again_and_kept_when_google_cannot_be_reached(self):
-        with mock.patch.object(gfonts, "fetch_url", Net(ROBOTO_FILES)):
-            gfonts.family_faces("Roboto")
-        p = gfonts._entry_path("family:roboto")
         old = time.time() - gfonts.FAMILY_MAX_AGE - 60
-        os.utime(p, (old, old))
+        with mock.patch.object(gfonts.time, "time", lambda: old), mock.patch.object(gfonts, "fetch_url", Net(ROBOTO_FILES)):
+            gfonts.family_faces("Roboto")                         # fetched a month ago
         net = Net(down=OFFLINE)
         with mock.patch.object(gfonts, "fetch_url", net):
             self.assertEqual(gfonts.family_faces("Roboto")["source"], "github")
         self.assertTrue(net.calls)
-        os.utime(p, (old, old))
         renamed = ROBOTO.replace('name: "Roboto"', 'name: "Roboto Renamed"', 1)
         with mock.patch.object(gfonts, "fetch_url", Net({RAW + "ofl/roboto/METADATA.pb": renamed.encode()})):
             self.assertEqual(gfonts.family_faces("Roboto")["family"], "Roboto Renamed")
-        self.assertGreater(os.path.getmtime(p), old + 60)
+        at = json.loads(gfonts.cache_get("family:roboto").decode("utf-8"))["at"]
+        self.assertGreater(at, old + 60)                          # (the new fetch's time is kept)
+
+    def test_reading_a_family_does_not_keep_it_fresh(self):
+        # a hit marks the entry used for pruning (mtime); the month is counted from the fetch, kept in the entry
+        month_ago = time.time() - gfonts.FAMILY_MAX_AGE - 60
+        with mock.patch.object(gfonts.time, "time", lambda: month_ago), mock.patch.object(gfonts, "fetch_url", Net(ROBOTO_FILES)):
+            gfonts.family_faces("Roboto")
+        os.utime(gfonts._entry_path("family:roboto"), None)      # read by some PC every day since
+        renamed = ROBOTO.replace('name: "Roboto"', 'name: "Roboto Renamed"', 1)
+        net = Net({RAW + "ofl/roboto/METADATA.pb": renamed.encode()})
+        with mock.patch.object(gfonts, "fetch_url", net):
+            self.assertEqual(gfonts.family_faces("Roboto")["family"], "Roboto Renamed")
+        self.assertTrue(net.calls)
+        net = Net(down=OFFLINE)                                  # and then fresh: no call for a month
+        with mock.patch.object(gfonts, "fetch_url", net):
+            self.assertEqual(gfonts.family_faces("Roboto")["family"], "Roboto Renamed")
+        self.assertEqual(net.calls, [])
+
+    def test_a_renamed_file_of_a_cached_family_is_found_again(self):
+        # google/fonts renamed the family's file (static -> variable) and pruning dropped the old file's entry; the
+        # family is read every day, so its entry is used and fresh: a 404 for its file asks for the family again
+        static = LATO.replace("Lato", "Roboto").replace('name: "Lato"', 'name: "Roboto"')
+        old = {RAW + "ofl/roboto/METADATA.pb": static.encode(), RAW + "ofl/roboto/Roboto-400.ttf": fake_font(size=200),
+               RAW + "ofl/roboto/Roboto-700.ttf": fake_font(size=210), RAW + "ofl/roboto/Roboto-400i.ttf": fake_font(size=220),
+               RAW + "ofl/roboto/Roboto-700i.ttf": fake_font(size=230)}
+        with mock.patch.object(gfonts, "fetch_url", Net(old)):
+            stale = gfonts.family_faces("Roboto")
+        self.assertEqual(stale["faces"][0]["file"], "ofl/roboto/Roboto-400.ttf")
+        for day in range(3):
+            gfonts.cache_get("family:roboto")                     # some PC reads the family every day
+            net = Net(ROBOTO_FILES)                              # the repository now: one variable file per style
+            with mock.patch.object(gfonts, "fetch_url", net):
+                res = gfonts.family_faces("Roboto")
+                if day == 0:
+                    self.assertEqual(res, stale)                     # (fresh: Google is not asked)
+                    with self.assertRaises(gfonts.GFontError) as cm:
+                        gfonts.face_file(res["faces"][0]["file"])
+                    self.assertEqual(cm.exception.status, 404)
+                    continue
+                self.assertEqual(res["faces"][0]["file"], "ofl/roboto/Roboto[wdth,wght].ttf")
+                self.assertEqual([gfonts.face_file(f["file"]) for f in res["faces"]][0], fake_font(size=200))
 
     def test_4_0_sweep_leaves_the_cache_alone(self):
         # until update day the share runs 4.0.0: its helpers delete the library's unused font files at the top of
