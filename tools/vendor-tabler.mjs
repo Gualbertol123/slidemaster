@@ -23,7 +23,7 @@
    * the index: names (icons.json order, front-coded), the 41 categories, the tags (a dictionary, most used first) and the
      alias table (old name → new, per set).
    The format is read by core/src/icons/index.ts (FORMAT below); core/tests/icons.test.ts checks the inlined bytes'
-   sha256 (ARCH-4), the counts, and draws icons through the display list. */
+   sha256 against PACKED (ARCH-4), the counts, and draws icons through the display list. */
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -40,6 +40,11 @@ export const TARBALL = { url: `https://registry.npmjs.org/@tabler/icons/-/icons-
 export const ALIASES = { url: `https://raw.githubusercontent.com/tabler/tabler-icons/v${VERSION}/aliases.json`,
   commit: "bbed884d15354b5cebf2493371f20dc2d5e83eaf", blob: "6a8ea7324e4990de4255e236238eab2b7b4e76e5" };
 export const GRID = 1000, FORMAT = 1;
+/** the packed binary this script makes from the release above (format 1, grid 1/1000): pinned by hand, not generated, so
+    core/tests/icons.test.ts checks the committed data.ts against an independent value (ARCH-4; the S15.1 review). It does
+    not depend on zlib: the deflated bytes (data.ts's TABLER_SHA256) may differ between zlib builds, these may not. A
+    new release or format changes it on purpose: the script stops until it is updated here. */
+export const PACKED = { bytes: 868542, sha256: "982d079ac8be0f1208623bacd4a35cf186cf55a2d674110439c1867f38934573" };
 /** opcodes (one byte each, then varints): a path starts with PATH + paint bits (1 stroke, 2 fill, 4 half ink); an arc is
     ARC + bits (1 large arc, 2 sweep, 4 rx = ry, 8 rotated) */
 export const OP = { M: 1, L: 2, H: 3, V: 4, C: 5, Z: 6, Q: 7, PATH: 8, ARC: 16 };
@@ -296,6 +301,9 @@ async function main() {
   if (integrity(tgz) !== TARBALL.integrity) throw new Error(`${tgzFile}: integrity ${integrity(tgz)}, the registry's is ${TARBALL.integrity}`);
   if (gitBlob(al) !== ALIASES.blob) throw new Error(`${aliasFile}: git blob ${gitBlob(al)}, the tag's is ${ALIASES.blob}`);
   const files = untar(tgz), { raw, stats } = build(files, JSON.parse(al.toString("utf8")));
+  const rawSha = createHash("sha256").update(raw).digest("hex");
+  if (raw.length !== PACKED.bytes || rawSha !== PACKED.sha256)
+    throw new Error(`the packed set is ${raw.length} bytes, sha256 ${rawSha}; PACKED pins ${PACKED.bytes}, ${PACKED.sha256} (update PACKED only for a new release or format)`);
   const OUT = path.join(ROOT, "core/src/icons");
   fs.mkdirSync(OUT, { recursive: true });
   const { text, z, sha } = dataModule(raw, stats);

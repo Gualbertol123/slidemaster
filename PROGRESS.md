@@ -992,3 +992,9 @@ M15 appends here only.
 | S15.1 | page budget part `m15.json`, bytes: the measured set + 45,070 for M15's code (plan-M15 estimates; B35 not included) | 560,000 | – |
 | S15.1 | first use, cold, in Node (atob + inflate + index), ms · 7 search keystrokes, ms | ≈ 90 · ≈ 40 | – |
 | S15.1 | one-off: every icon (6,238) through `resolveIcon` → `vendoredNodes` → `validate` → `dl/svg.ts`, resvg at 96 px against the release's SVG file: icons with a pixel off by > 64/255 · the largest difference | 12 (≤ 10 px each) · 96/255 | – |
+| S15.1 review | worker start, the bundled `core/src/workers/main.ts` compiled and run in a fresh V8 context (Node 22.22, no code cache), mean of 6 medians of 20: `v4/M14-M15-prep` → with the set, ms (in the worker, off the page's thread) | 58.4 → 63.5 (≈ +5) | – |
+| S15.1 review | the page's thread: the worker script as the page's string literal (app/vite.config.ts) compiled and run, as above: prep → with the set, ms | 35.6 → 34.8 (no change within noise) | – |
+| S15.1 review | deck20 open (`tools/bench.mjs`, < 400 ms) in Chromium: for the orchestrator's bench run; the 09 §7.4 icon entries stay skipped until S15.2 | – | – |
+| S15.1 review | first use, cold, in Node (`decode64` + index; 3 runs) · 7 search keystrokes, ms | 67–83 · 32–51 | – |
+| S15.1 review | every icon (6,238) through `resolveIcon` → `vendoredNodes` → `validate` → `dl/svg.ts`, now repeatable: `TABLER_FULL=1 npx vitest run tests/icons.test.ts` in core/ · errors | 6,238 · 0 | – |
+| S15.1 review | the page (built, not committed): S15.1 → with the review fixes, bytes | 4,479,275 → 4,479,545 (+270) | – |

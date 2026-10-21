@@ -70,6 +70,15 @@ named Tabler.
 * **Only the workers import `core/src/icons/`** (`core/src/workers/main.ts` calls `installTabler`, which registers the
   set with `render/icons.ts` `setVendoredIcons`). The page's own bundle has no copy: a test checks the imports, and the
   notices test checks the bundle.
+* **The hash is checked against an independent value** (S15.1 review): `tools/vendor-tabler.mjs` pins the packed
+  binary by hand (`PACKED`: 868,542 bytes, sha256 `982d079a…`; it does not depend on zlib) and stops before writing
+  `data.ts` if its output differs. `core/tests/icons.test.ts` reads `PACKED` from the script and checks what the
+  committed data inflates to; it also asserts the zlib bytes' sha256 literally (Node 22.22's zlib 1.3.1 – another zlib
+  build may deflate differently, so regenerating `data.ts` is a deliberate step).
+* **One entry point registers the set** (`installTabler`): the workers and every core test and benchmark
+  (`core/tests/setup-icons.ts`, both vitest configs). The Node tools get their display lists from the page's worker.
+* **Old names are their own field** (`oldNames`), searched with the tags but not returned by `tags()`;
+  `category()`, `tags()` and `oldNames()` resolve an old name as `icon()` does.
 * **Measured (S15.1):** the set holds 5,184 outline and 1,054 filled icons, 41 categories, 7,596 distinct tags and 63 + 3
   aliases. Its sizes are 868,542 bytes packed, 381,825 zlib and 509,100 base64. The page grows by **514,930 bytes**:
   3,964,345 bytes built from `v4/M14-M15-prep`, 4,479,275 with S15.1. Inflating and indexing the set the first time

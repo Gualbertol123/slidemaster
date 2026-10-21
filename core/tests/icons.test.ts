@@ -1,27 +1,28 @@
 /* S15.1 · the vendored Tabler icon set (09 §2.4, §3.5, §7.2 ARCH-4; IC-02 data part, LI-01): the inlined bytes' hash,
    the release's counts, exact paths of known icons, paint, aliases, the search index, the lazy inflate, that only the
-   workers carry the data, and icons drawn through the display list (a sample here; every icon in the one-off check
-   of S15.1, PROGRESS). No network: the data is the committed core/src/icons/data.ts. */
+   workers carry the data, and icons drawn through the display list (a sample here; every icon with TABLER_FULL=1:
+   `TABLER_FULL=1 npx vitest run tests/icons.test.ts` in core/). No network: the data is the committed
+   core/src/icons/data.ts. The set is registered by tests/setup-icons.ts, the same entry point as the workers'. */
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { TABLER, TABLER_RAW_SHA256, TABLER_SHA256, TABLER_VERSION } from "../src/icons/data";
-import { arcCubics, installTabler, tabler, tablerLoaded } from "../src/icons";
-import { resolveIcon, setVendoredIcons, vendoredNodes } from "../src/render/icons";
+import { arcCubics, tabler, tablerLoaded } from "../src/icons";
+import { resolveIcon, vendoredNodes } from "../src/render/icons";
 import { toSvg } from "../src/dl/svg";
 import { validate, type PathCmd, type PathNode } from "../src/dl/types";
 import { decode64 } from "../src/text/hb";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
-afterAll(() => setVendoredIcons(null));
+const script = fs.readFileSync(path.join(ROOT, "tools/vendor-tabler.mjs"), "utf8");
 
 describe("Tabler data (ARCH-4)", () => {
-  it("is inflated only when the first Tabler icon is drawn", () => {
-    expect(tablerLoaded()).toBe(false);
-    installTabler();
+  it("is registered for every core test (tests/setup-icons.ts) and inflated only when the first Tabler icon is drawn", () => {
+    expect(fs.readFileSync(path.join(ROOT, "core/vitest.config.ts"), "utf8")).toContain('setupFiles: ["tests/setup-icons.ts"]');
+    expect(fs.readFileSync(path.join(ROOT, "core/vitest.bench.config.ts"), "utf8")).toContain('setupFiles: ["tests/setup-icons.ts"]');
     expect(tablerLoaded()).toBe(false);
     expect(resolveIcon("target")).toMatchObject({ src: "builtin" });       // a built-in name does not inflate it
     expect(tablerLoaded()).toBe(false);
@@ -30,13 +31,20 @@ describe("Tabler data (ARCH-4)", () => {
     console.log(`Tabler set inflated and indexed in ${(performance.now() - t0).toFixed(1)} ms`);
     expect(tablerLoaded()).toBe(true);
   });
-  it("the inlined bytes and what they inflate to have the hashes in data.ts; the header names the release's integrity", () => {
+  it("the inlined set inflates to the packed binary the vendor script pins (not data.ts's own constants); the header names the release's integrity", () => {
     const z = new Uint8Array(Buffer.from(TABLER, "base64")), raw = decode64(TABLER);
-    expect(sha(z)).toBe(TABLER_SHA256);
-    expect(sha(raw)).toBe(TABLER_RAW_SHA256);
+    // the independent copy: PACKED in tools/vendor-tabler.mjs, written by hand, checked by the script before it writes data.ts
+    const packed = /export const PACKED = \{ bytes: (\d+), sha256: "([0-9a-f]{64})" \}/.exec(script)!;
+    expect(packed[2]).toBe("982d079ac8be0f1208623bacd4a35cf186cf55a2d674110439c1867f38934573");
+    expect(raw.length).toBe(Number(packed[1]));
+    expect(sha(raw)).toBe(packed[2]);
+    expect(TABLER_RAW_SHA256).toBe(packed[2]);
+    // the deflated bytes as committed (zlib 1.3.1, level 9, of Node 22.22; another zlib build may deflate them differently,
+    // which PACKED tolerates and this line does not: regenerate only with a reason, and update it then)
+    expect(sha(z)).toBe("d692fcc9a51989bfb44ff561a08dae2c9ebc3834c3b938a050fcab3c4db496e3");
+    expect(TABLER_SHA256).toBe(sha(z));
     expect(TABLER_VERSION).toBe("3.49.0");
     const head = fs.readFileSync(path.join(ROOT, "core/src/icons/data.ts"), "utf8").slice(0, 800);
-    const script = fs.readFileSync(path.join(ROOT, "tools/vendor-tabler.mjs"), "utf8");
     const integrity = /integrity: "(sha512-[^"]+)"/.exec(script)![1];
     expect(integrity).toBe("sha512-l+GnSkFETx0U26icxv1VUFnxxiTqXfCcVRiRAnyMwibupM2S2L/hSaZ9gmSgz01rkrsH/93NvLsxykqdanc6lw==");
     expect(head).toContain(`@tabler/icons@3.49.0 (MIT, see ./LICENSE-tabler; ${integrity})`);
@@ -54,6 +62,15 @@ describe("Tabler data (ARCH-4)", () => {
     expect(t.categories).toEqual(expect.arrayContaining(["Arrows", "Charts", "Currencies", "E-commerce", "Shapes", "System"]));
     expect(t.category("arrow-up")).toBe("Arrows");
     expect(t.tags("cash")).toEqual(expect.arrayContaining(["money", "payment", "currency"]));
+    // old names: their own field, not tags; category, tags and oldNames resolve an old name as icon() does
+    expect(t.oldNames("package")).toContain("box-seam");
+    expect(t.tags("package")).not.toContain("box-seam");
+    expect(t.category("box-seam")).toBe(t.category("package"));
+    expect(t.tags("box-seam")).toEqual(t.tags("package"));
+    expect(t.oldNames("box-seam")).toEqual(t.oldNames("package"));
+    expect(t.category("no-such-icon")).toBeNull();
+    expect(t.tags("no-such-icon")).toEqual([]);
+    expect(t.oldNames("arrow-up")).toEqual([]);
     // the release's aliases (old name → new), per set
     expect(t.icon("outline", "box-seam")).toBe(t.icon("outline", "package"));
     expect(resolveIcon("tabler:box-seam")).toMatchObject({ src: "tabler", name: "box-seam", missing: false });
@@ -134,7 +151,9 @@ function drawn(style: "outline" | "filled", name: string, x = 100, y = 50, size 
   }
   const s = size / 24, pad = 2 * s;
   if (minX < x - pad || minY < y - pad || maxX > x + size + pad || maxY > y + size + pad) err.push(`${name}: outside its box ${[minX, minY, maxX, maxY]}`);
-  if (maxX - minX < s / 2 && maxY - minY < s / 2) err.push(`${name}: draws nothing visible`);
+  // a stroked path's ink reaches its width beyond its points (wifi-0 is one 0.01-long segment: a round dot 2 wide)
+  const ink = nodes.some(n => n.stroke) ? 2 * s : 0;
+  if (maxX - minX + ink < s / 2 && maxY - minY + ink < s / 2) err.push(`${name}: draws nothing visible`);
   return { nodes, err };
 }
 
@@ -167,6 +186,25 @@ describe("Tabler icons through the display list (IC-02, data part)", () => {
     expect(vendoredNodes({ src: "tabler", name: "x", asked: "tabler:x", missing: false, paths: [sq] }, 1, 2, .5, [0, 0, 0])[0])
       .toEqual({ t: "path", d: [["M", 1, 2], ["L", 13, 2], ["Z"]], stroke: { w: 1, paint: { solid: [0, 0, 0] }, cap: "round", join: "round" } });
   });
+});
+
+describe("every Tabler icon through the display list (TABLER_FULL=1; the S15.1 one-off check, repeatable)", () => {
+  it.runIf(process.env.TABLER_FULL === "1")("all 5,184 outline and 1,054 filled icons resolve and draw valid, finite nodes inside their box, in SVG too", () => {
+    const t = tabler(), errs: string[] = [];
+    let count = 0, svgLen = 0;
+    for (const style of ["outline", "filled"] as const) for (const name of t.names) {
+      if (!t.has(style, name)) continue;
+      const { nodes, err } = drawn(style, name);
+      errs.push(...err); count++;
+      const svg = toSvg(nodes, { imageHref: () => undefined });
+      if (/NaN|undefined|Infinity/.test(svg)) errs.push(`${style}:${name}: SVG ${svg.slice(0, 80)}`);
+      svgLen += svg.length;
+    }
+    for (const [from, style] of [["box-seam", "outline"]] as const) errs.push(...drawn(style, from).err);   // an old name too
+    console.log(`TABLER_FULL: ${count} icons drawn, ${svgLen} bytes of SVG, ${errs.length} errors`);
+    expect(errs).toEqual([]);
+    expect(count).toBe(5184 + 1054);
+  }, 120_000);
 });
 
 describe("only the workers carry the icon set", () => {

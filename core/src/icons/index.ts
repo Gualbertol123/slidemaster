@@ -14,9 +14,9 @@
      C (c1 from the start, end from the start, c2 from the end), Q (control from the start, end from the start), ARC + bits
      (1 large, 2 sweep, 4 rx = ry, 8 rotated: rx [ry] [rotation] dx dy), Z. Coordinates are 1/grid of the 24 × 24 box.
    Decoding gives the display list's absolute M L C Z: Q as its exact cubic, every arc as cubics of at most 90° each. */
-import { unzlibSync } from "fflate";
 import type { PathCmd } from "../dl/types";
 import { setVendoredIcons, type IconPaint, type IconSet } from "../render/icons";
+import { decode64 } from "../text/hb";
 import { TABLER, TABLER_VERSION } from "./data";
 
 export type TablerStyle = "outline" | "filled";
@@ -115,6 +115,10 @@ export class Tabler {
   private readonly cat: Uint8Array;
   private readonly sets: Uint8Array;
   private readonly tagText: string[];
+  /** per icon: its old names ("\n"-separated, from the release's alias table), or undefined */
+  private readonly oldText: (string | undefined)[];
+  /** per icon: what the search matches beyond the name – its tags and its old names */
+  private readonly findText: string[];
   private readonly at = new Map<string, number>();
   private readonly alias: Record<TablerStyle, Map<string, number>> = { outline: new Map(), filled: new Map() };
   private readonly span: Record<TablerStyle, Int32Array>;
@@ -127,7 +131,7 @@ export class Tabler {
     this.grid = r.u(); this.version = r.str();
     this.categories = Array.from({ length: r.u() }, () => r.str());
     const tags = Array.from({ length: r.u() }, () => r.str()), n = r.u();
-    this.names = new Array(n); this.cat = new Uint8Array(n); this.sets = new Uint8Array(n); this.tagText = new Array(n);
+    this.names = new Array(n); this.cat = new Uint8Array(n); this.sets = new Uint8Array(n); this.tagText = new Array(n); this.oldText = new Array(n);
     let prev = "";
     for (let i = 0; i < n; i++) {
       const k = r.u(), name = prev.slice(0, k) + r.str();
@@ -140,8 +144,9 @@ export class Tabler {
     for (const s of ["outline", "filled"] as const) for (let m = r.u(); m > 0; m--) {
       const from = r.str(), to = r.u();
       this.alias[s].set(from, to);
-      this.tagText[to] += from + "\n";                 // an old name finds its icon
+      if (!(this.oldText[to] ?? "\n").includes("\n" + from + "\n")) this.oldText[to] = (this.oldText[to] ?? "\n") + from + "\n";
     }
+    this.findText = this.tagText.map((t, i) => this.oldText[i] ? t + this.oldText[i]!.slice(1) : t);   // an old name finds its icon
     this.span = { outline: new Int32Array(2 * n).fill(-1), filled: new Int32Array(2 * n).fill(-1) };
     for (const [s, bit] of [["outline", 1], ["filled", 2]] as const) for (let i = 0; i < n; i++) if (this.sets[i] & bit) {
       const len = r.u(); this.span[s][2 * i] = r.p; this.span[s][2 * i + 1] = len; r.p += len;
@@ -163,8 +168,14 @@ export class Tabler {
     if (!p) { const o = this.span[style][2 * i]; p = decodeIcon(this.raw.subarray(o, o + this.span[style][2 * i + 1]), this.grid); this.cache[style].set(i, p); }
     return p;
   }
-  category(name: string): string | null { const i = this.at.get(name); return i === undefined ? null : this.categories[this.cat[i]]; }
-  tags(name: string): string[] { const i = this.at.get(name); return i === undefined ? [] : this.tagText[i].split("\n").filter(Boolean); }
+  /** the icon's index for a name or an old name of either set, or -1 */
+  private find(name: string): number { return this.at.get(name) ?? this.alias.outline.get(name) ?? this.alias.filled.get(name) ?? -1; }
+  /** the icon's category (an old name gives its icon's) */
+  category(name: string): string | null { const i = this.find(name); return i < 0 ? null : this.categories[this.cat[i]]; }
+  /** the icon's tags, the release's only (an old name gives its icon's; old names are oldNames) */
+  tags(name: string): string[] { const i = this.find(name); return i < 0 ? [] : this.tagText[i].split("\n").filter(Boolean); }
+  /** the icon's old names in the release's alias table (an old name gives its icon's) */
+  oldNames(name: string): string[] { const i = this.find(name); return i < 0 ? [] : (this.oldText[i] ?? "").split("\n").filter(Boolean); }
   /** icons for a query (words, each matching a word of the name or a tag: whole, start or inside) in a category and set,
       best first: the name itself, then name words, then tags; whole before start before inside, then shorter names */
   search(query: string, o: TablerSearch = {}): TablerHit[] {
@@ -174,7 +185,7 @@ export class Tabler {
     const hits: [number, number][] = [];
     for (let i = 0; i < this.names.length; i++) {
       if (!(this.sets[i] & bit) || (ci >= 0 && this.cat[i] !== ci)) continue;
-      const name = this.names[i], nm = "-" + name + "-", tg = this.tagText[i];
+      const name = this.names[i], nm = "-" + name + "-", tg = this.findText[i];
       let score = name === whole ? -10 : 0;
       for (const w of words) {
         const s = nm.includes("-" + w + "-") ? 0 : nm.includes("-" + w) ? 1 : tg.includes("\n" + w + "\n") ? 2 : tg.includes("\n" + w) ? 3 : name.includes(w) ? 4 : tg.includes(w) ? 5 : -1;
@@ -192,9 +203,7 @@ let set: Tabler | null = null;
 /** the set, inflated on the first call (≈ 0.87 MB from the 0.38 MB inlined) */
 export function tabler(): Tabler {
   if (set) return set;
-  const bin = atob(TABLER), z = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) z[i] = bin.charCodeAt(i);
-  set = new Tabler(unzlibSync(z));
+  set = new Tabler(decode64(TABLER));                    // the one base64 + zlib decoder (text/hb.ts, as the HarfBuzz modules)
   if (set.version !== TABLER_VERSION) throw new Error(`Tabler data ${set.version}, ${TABLER_VERSION} expected`);
   return set;
 }
