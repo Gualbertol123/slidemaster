@@ -483,18 +483,27 @@ record is appended or a compaction would write it:
 
 1. `POST /api/decks/<key>/format5` writes `incident-format-5.json` `{deck, format: 5, what, by, at}` (O_EXCL; an
    existing one is kept). Every 4.0–4.5 helper takes any `incident-*.json` for a damaged journal: from its next look
-   at the folder (at once when it opens a journal, every `REFRESH_S` = 4 s for a deck it has an append handle on) it
-   answers 423 to appends, prepare and compactions and reports `readonly` in tails;
-2. the page waits `REFRESH_S` + 1 s from the marker's `at` (an old page may still append until then);
-3. it tails once more (the next record's Lamport time is above everything appended in that gap);
-4. it compacts the snapshot **unchanged** with `gen + 1` and `format: 5` (on 409: reload, again; found at 5: done);
-5. only then the record is appended (it waits in the pending queue, "Saving…").
+   at the folder it answers 423 to appends, prepare and compactions and reports `readonly` in tails. That look comes
+   when it opens a journal, every `REFRESH_S` = 4 s for a deck it has an append handle on (journal mode), and at most
+   every `CHECK_TTL` = 10 s on its page's tail – the only one in lean-lock mode, which has no handle; the SMB
+   directory cache may add 10 s to each;
+2. the page waits `BUMP_WAIT_MS` = 23 s from the marker's `at` (10 + 1.5 + 10 + 1 s, lean-lock's bound, which covers
+   journal mode's 4 + 10 + 1 s; the mode may differ per PC), then asks for the marker again (the helper drops its
+   cached journal listing; a marker removed meanwhile is written again and waited for);
+3. it tails until no journal is skipped;
+4. it compacts the snapshot **unchanged** with `gen + 1` and `format: 5` (on 409: reload, from 1 again; found at 5:
+   done). The helper refuses this with 409 while the marker is younger than `BUMP_WAIT_S` − 1 s, and writes the
+   marker itself when it is missing – DocSync always asks `format5` first, so the page normally never sees that 409;
+5. only then the record is appended (it waits in the pending queue, "Saving…"), with a Lamport time 2^20 above
+   everything seen (`BUMP_LAMPORT`): a record an old page appended in the gap without this page reading it (a share
+   slower than the bound, a journal not listed yet) folds before it, since the old page never saw the 4.6 record.
 
 A page opening a format-4 deck whose snapshot or journal already holds such content raises it at once; the pagehide
 snapshot never raises a deck (it cannot wait). Later snapshots of a format-5 deck are format 5 (`nextSnapshot`), even
 when every such object was deleted. 4.0–4.5 helpers refuse to read a format-5 snapshot (409: open, `rotate`, the
 compaction's read under the lock – and so the 24 h journal drop); their tail reports `gen: null` and never folds.
-The 4.6 helper does not count the marker as an incident, and answers **409** "reload the page" on a format-5 deck
+A 4.6 helper that reads a format-5 snapshot whose marker is missing writes it again. The 4.6 helper does not count
+the marker as an incident, and answers **409** "reload the page" on a format-5 deck
 (the marker, or the snapshot read) to `open`, `snapshot`, `tail`, `append`, `prepare`, `compact` and `rotate` from a
 page that does not send `X-SB-Deck-Formats: 4,5` (`decks.check_page`: a 4.0–4.5 page left open while its PC's helper
 was restarted on 4.6 – its old token already gets 403).

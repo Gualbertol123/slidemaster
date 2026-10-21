@@ -30,6 +30,12 @@ export class FakeDeck {
     this.snap = { format: 4, gen: 1, workbook, lamport: 0, rev: doc.rev || 0, frontier: {}, doc };
   }
   now() { return this.clock += 1000; }
+  /** the file server's clock moves on (a wait) */
+  advance(ms: number) { this.clock += ms; }
+  /** decks.BUMP_WAIT_S (less its 1 s for the clocks): a raise to format 5 is refused (409) while the marker is younger */
+  bumpWaitMs = 0;
+  /** the helper's journal listing was dropped (format5): the next tail lists every journal, however new */
+  private fresh = false;
   private journalOf(writer: string): Journal & { name: string } {
     let name = this.current.get(writer);
     if (!name || !this.journals.has(name) || this.journals.get(name)!.sealed) {
@@ -59,9 +65,10 @@ export class FakeDeck {
   unreadable = new Set<string>();
   doTail(since: Record<string, number>): TailResult {
     this.calls.tail++; this.log.push("tail");
-    const out: TailResult = { journals: {}, gen: this.snap.gen, now: this.clock };
+    const out: TailResult = { journals: {}, gen: this.snap.gen, now: this.clock }, fresh = this.fresh;
+    this.fresh = false;
     for (const [name, j] of this.journals) {
-      if (this.clock - j.created < this.listingLag) continue;
+      if (!fresh && this.clock - j.created < this.listingLag) continue;
       if (this.unreadable.has(name)) { (out.skipped ||= []).push(name); continue; }
       const from = since[name] || 0, frames = j.frames.filter(f => f.end > from);
       if (frames.length) out.journals[name] = { offset: frames[frames.length - 1].end, records: frames.map(f => clone(f.rec)), ends: frames.map(f => f.end) };
@@ -80,7 +87,11 @@ export class FakeDeck {
     }
     if (s.lamport < this.snap.lamport || s.rev < this.snap.rev) throw status(409, "behind");
     if (this.snap.format === 5 && s.format !== 5) throw status(400, "this deck uses Slide Builder 4.6 objects");   // never lowered
-    if (s.format === 5 && this.marker == null) this.marker = this.now();                                        // the marker first
+    if (s.format === 5 && this.snap.format !== 5) {
+      // the marker first, and the bump's wait from it (decks.compact): else 409, the page asks again and waits
+      if (this.marker == null) { this.marker = this.now(); throw status(409, "the deck is being prepared"); }
+      if (this.clock - this.marker < this.bumpWaitMs) throw status(409, "the deck is being prepared");
+    }
     // a frontier past the complete records would hide records never folded: the helper's readers would skip them
     for (const [j, off] of Object.entries(s.frontier)) {
       const jj = this.journals.get(j);
@@ -94,6 +105,7 @@ export class FakeDeck {
     this.calls.format5++; this.log.push("format5");
     const created = this.marker == null;
     if (created) this.marker = this.now();
+    this.fresh = true;
     return { created, at: this.marker!, now: this.clock };
   }
   doRotate(writer: string) {

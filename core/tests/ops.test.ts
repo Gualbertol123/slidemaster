@@ -179,7 +179,7 @@ describe("the per-deck format guard: needsV5 / docNeedsV5 (ADR-019; 4.0.0's list
         "sers", "groups", "axes", "marks", "legendHide", "titleFmt"].map(k => ({ op: "item.patch", slide: "s1", id: "c1", patch: { [k]: null } })),
       S({ free: { glass: { on: true, items: {} } } }), S({ title: "T", free: null }),                       // 4.4
       S({ looks: { mckinsey: { kpis: "2" } } }),                                                             // 4.5
-      S({ hidden: { glass: true } }),                                                                        // M14–M16
+      S({ hidden: { glass: true } }), S({ hide: { glass: true } }),                                          // M14–M16, S13.6
       T({ cellGrid: { A1: { o: true } } }), T({ borders: { A1: { top: "none" } } }),                      // 4.4
       C({ valign: "top" }), C({ num: "0.0%" }),                                                              // M16
       { op: "slide.add", slide: { id: "s2", type: "content", tables: [] }, after: "s1" }, { op: "slide.remove", id: "s2" },   // M13
@@ -200,6 +200,7 @@ describe("the per-deck format guard: needsV5 / docNeedsV5 (ADR-019; 4.0.0's list
       d => { d.preset.slides[0].free = { glass: { on: false, items: {} } }; },
       d => { d.preset.slides[0].looks = { mckinsey: { kpis: "2" } }; },
       d => { d.preset.slides[0].hidden = { glass: true }; },
+      d => { d.preset.slides[0].hide = { glass: true }; },                // S13.6's name (review of S13.1, 4)
       d => { d.preset.tables[0].cellGrid = { A1: { h: "on" } }; },
       d => { d.preset.tables[0].borders = { A1: { top: "none" } }; },
       d => { d.preset.versions[0].drop = ["s1"]; },

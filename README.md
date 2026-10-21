@@ -450,7 +450,7 @@ Current formats: `SCHEMA = {workbook: 3, config: 3, prefs: 1}` (`helper/slidebui
 (`core/src/model/types.ts`; a helper test checks they match). The deck files have their own `format`: 4, or 5 once
 the deck holds objects 4.0 does not know (charts, callouts, free layout, looks, cell gridlines or borders and every
 later addition). A 4.6 page raises a deck to 5 before it writes such an object (marker `incident-format-5.json`, a
-5 s wait, then the snapshot again at format 5; ARCHITECTURE §6.5, ADR-019): 4.0–4.5 then show it read-only
+23 s wait, then the snapshot again at format 5; ARCHITECTURE §6.5, ADR-019): 4.0–4.5 then show it read-only
 ("a journal of this deck is damaged" – it means "update Slide Builder"), and it never goes back to 4.
 * **older file** → under its lock: re-read, copy to `backups/upgrades/…`, apply `@step(kind, n)` functions
   n → n+1 in order, write atomically (no step is defined yet). `store.upgrade_all()` runs at every start-up.

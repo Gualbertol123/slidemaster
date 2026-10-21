@@ -57,31 +57,50 @@ decks (every un-restarted PC locked out of every deck; an upgrade step for every
 ## Amendment 2026-10-21 (S13.1): the gap after the marker, and the wait
 *Status: accepted (orchestrator default for M13, reported to the product owner at G9a).*
 
-**The gap.** Step 1 does not stop an old page at once. A 4.0–4.5 helper looks at the folder of a deck it has an
-append handle on every `REFRESH_S` = 4 s (`decks.py:66`, the same in 4.0.0, `_refresh_loop`); an append on an open
-handle checks nothing else (`_check_writable` → `_look(key)`, once per helper, no TTL). So for about 4 s after the
-marker an old page that has the deck open can still append – any record, a wizard `preset.set` built without the new
-objects included. (A helper without a handle on the deck looks again when it opens a journal: it refuses at once.)
-A record appended in that gap is never lost (the 4.6 pages fold it), but folded *after* the 4.6 record it would
-overwrite it if its Lamport time were higher.
+**The gap.** Step 1 does not stop an old page at once. A 4.0–4.5 append checks the deck's folder once per helper
+(`_check_writable` → `_look(key)`, no TTL; v4.0.0 `decks.py:389-405`); what looks again depends on the storage mode
+(corrected by the review of S13.1, finding 1 – the first version of this amendment counted the refresher only):
+* **journal mode** (default): the folder of a deck the helper has an append handle on is listed again every
+  `REFRESH_S` = 4 s (`_refresh_loop`); a helper without a handle lists it when it opens a journal (`_open_new` →
+  `_look(key, 0)`), and the page's tail every `CHECK_TTL` = 10 s;
+* **lean-lock mode** (`SLIDEBUILDER_STORAGE` / `storage.json`, ADR-006's fallback): `_append_shared` has no handle,
+  so no refresher runs; only the page's tail (every `TAIL_MS` = 1.5 s) lists the folder again, at most every
+  `CHECK_TTL` = 10 s (v4.0.0 `decks.py:677`);
+* on the share, `os.listdir` may be answered from the SMB client's directory cache for up to 10 s more (the same
+  assumption as `LISTING_TTL` and `COMPACT_MARGIN_MS`).
+So an old page that has the deck open can still append for up to 4 + 10 s (journal) or 10 + 1.5 + 10 s (lean-lock)
+after the marker – any record, a wizard `preset.set` built without the new objects included. The mode can differ per
+PC (the environment variable), so the page cannot know which bound applies. A record appended in that gap is never
+lost (the 4.6 pages fold it), but folded *after* the 4.6 record it would overwrite it if its Lamport time were higher.
+`helper/tests/test_decks.py` `OldHelperTests` runs v4.0.0's own code: journal mode is refused after its refresher's
+look, lean-lock mode only after its page's tail (`test_lean_lock_appends_go_on_until_its_page_tails`).
 
 **The bump, as built** (`DocSync.upgrade`, `core/src/sync/docsync.ts`):
 1. `POST /api/decks/<key>/format5`: the marker (`decks.mark_format5`; it answers when the marker was written, `at`,
    and the file server's `now`);
-2. **wait `REFRESH_S` + 1 s = 5 s from `at`** (`BUMP_WAIT_MS`; a marker written long ago is not waited for again):
-   every old helper has then seen the marker, and its pages' appends get 423;
-3. **tail once more**: the gap's records are read, so the record about to be appended gets a Lamport time above
-   every one of them (an old page's `preset.set` folds *before* it);
-4. compare-and-set: the snapshot unchanged, `gen + 1`, `format: 5` (on 409 reload and again; found at 5: done);
-5. append the record.
+2. **wait 23 s from `at`** (`BUMP_WAIT_MS` = `decks.BUMP_WAIT_S`: the lean-lock bound 10 + 1.5 + 10 s + 1 s, which
+   also covers journal mode's 4 + 10 s + 1 s; a marker written long ago is not waited for again): every old helper
+   has then seen the marker, and its pages' appends get 423. Then `format5` is asked again: the 4.6 helper drops its
+   cached journal listing of the deck (`LISTING_TTL`), and a marker removed meanwhile is written again and waited for;
+3. **tail until no journal is skipped** (at most 5 reads, 1 s apart; else the bump fails and is retried as an
+   append is): the gap's records are read;
+4. compare-and-set: the snapshot unchanged, `gen + 1`, `format: 5` (on 409 reload and from step 1 again; found at 5:
+   done). The 4.6 helper refuses this raise with 409 while the marker is younger than `BUMP_WAIT_S` − 1 s (and
+   writes the marker first if it is missing), so the wait is a wall of the helper, not only the page's habit;
+5. append the record with a Lamport time **2^20 above everything seen** (`BUMP_LAMPORT`). An old page cannot have
+   read the 4.6 record, so a record it appended in the gap – past the bound above on a very slow share, or in a
+   journal the final tail did not list yet (the SMB cache) – still has a lower Lamport time and folds *before* it.
 
 The same sequence runs before a compaction whose snapshot would go from 4 to 5, and when a 4.6 page opens a format-4
 deck whose snapshot or journal already holds 4.6 content. The pagehide snapshot (a keepalive request) never raises a
 deck. As a second wall, the 4.6 helper writes the marker itself before it accepts a format-5 snapshot over a
-format-4 one.
+format-4 one, and refuses that snapshot (409) until the marker is old enough. A format-5 snapshot read by a 4.6
+helper without its marker (removed by hand, a backup put back by hand) gets the marker again (`decks.read_snapshot`):
+4.0–4.5 helpers then refuse an open page's appends, not only its reads.
 
-**Cost.** Once per deck: about 5 s of "Saving…" on the first edit that needs format 5 (the record waits in the pending
-queue; more edits join it). Accepted (M13 decision).
+**Cost.** Once per deck: about 23 s of "Saving…" on the first edit that needs format 5 (the record waits in the
+pending queue; more edits join it; a window closed meanwhile loses that record, as any unsaved one). The M13 default
+was 5 s; the review of S13.1 showed it too short for lean-lock and the SMB cache (finding 1).
 
 **Not closed by it.** A record an old page appended *before* the marker is folded as before (it was already there);
 a format-4 deck holding 4.3–4.5 records that no 4.6 page has opened stays exposed to a 4.0–4.4 compaction until the

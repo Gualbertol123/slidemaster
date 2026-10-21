@@ -265,7 +265,8 @@ class DeckBinTests(TempDirs):
         # ADR-019: the marker goes wherever the deck goes; the empty deck a delete leaves is format 4 without one
         decks.mark_format5(self.key)
         snap = decks.read_snapshot(self.key)
-        decks.compact(self.key, snap["gen"], dict(snap, gen=snap["gen"] + 1, format=5))
+        with mock.patch.object(decks, "BUMP_WAIT_S", 0):              # (the bump's wait: not here)
+            decks.compact(self.key, snap["gen"], dict(snap, gen=snap["gen"] + 1, format=5))
         r = deckbin.delete(self.key)
         kept = os.path.join(deckbin.bin_dir(r["id"]), "deck")
         self.assertTrue(os.path.exists(os.path.join(kept, decks.MARKER5)))

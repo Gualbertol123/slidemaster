@@ -1,7 +1,7 @@
 /* DocSync v4 (storage v4, docs/next/04 §2): appends, tails, rebase, Lamport order (B4), copies folded once,
    compaction and rotation, undo by inverse records – against the in-memory deck of fakedeck.ts. */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DocSync, type Change, type DeckApi } from "../src/sync/docsync";
+import { BUMP_WAIT_MS, DocSync, type Change, type DeckApi } from "../src/sync/docsync";
 import type { Op } from "../src/model/types";
 import { FakeDeck, status } from "./fakedeck";
 
@@ -418,7 +418,8 @@ describe("DocSync v4: the per-deck format guard (ADR-019 and its amendment)", ()
   const chart = { op: "item.patch", slide: "s1", id: "c1", patch: { kind: "shape", shape: "rect", box: { x: 0, y: 0, w: 10, h: 10 } } } as Op;
   const v5user = (deck: FakeDeck, who: string, api: DeckApi = deck.api(), o: Record<string, unknown> = {}) =>
     new DocSync(api, "W.xlsx", deck.open(writer(who)), who, { autoTail: false, compactMargin: 0, bumpWaitMs: 0, ...o });
-  const waits = (s: DocSync) => { const w: number[] = []; (s as unknown as { sleep: (ms: number) => Promise<void> }).sleep = async ms => { w.push(ms); }; return w; };
+  /** the bump's sleeps, recorded; the file server's clock moves on by as much */
+  const waits = (s: DocSync, deck?: FakeDeck) => { const w: number[] = []; (s as unknown as { sleep: (ms: number) => Promise<void> }).sleep = async ms => { w.push(ms); deck?.advance(ms); }; return w; };
   async function plainDeck() {
     const deck = new FakeDeck(), a = v5user(deck, "anna");
     a.apply([preset]); await a.flush();
@@ -439,13 +440,14 @@ describe("DocSync v4: the per-deck format guard (ADR-019 and its amendment)", ()
     const { deck, a } = await plainDeck();
     const old = writer("old"), base = deck.api();
     // a 4.0 page appends in the gap (its helper has not seen the marker yet): a wizard preset.set without the chart
-    const api: DeckApi = { ...base, format5: async k => { const r = await base.format5(k); deck.doAppend(old, { l: 50, w: old, s: 1, by: "old", ops: [preset] }); return r; } };
-    const b = v5user(deck, "bea", api, { bumpWaitMs: 40 }), w = waits(b);
+    const api: DeckApi = { ...base, format5: async k => { const r = await base.format5(k); if (r.created) deck.doAppend(old, { l: 50, w: old, s: 1, by: "old", ops: [preset] }); return r; } };
+    const b = v5user(deck, "bea", api, { bumpWaitMs: 40 }), w = waits(b, deck);
     const before = JSON.stringify(deck.snap.doc);
     deck.log.length = 0;
     b.apply([chart]); await b.flush();
-    expect(deck.log).toEqual(["format5", "append" /* the old page's */, "tail", "compact:5", "append"]);
-    expect(w).toEqual([40]);                                                 // REFRESH_S + 1 s in the product
+    expect(deck.log).toEqual(["format5", "append" /* the old page's */, "format5", "tail", "compact:5", "append"]);
+    expect(w).toEqual([40]);                                                 // BUMP_WAIT_MS = 23 s in the product
+    expect(BUMP_WAIT_MS).toBe(23_000);
     expect(deck.snap.format).toBe(5); expect(deck.snap.gen).toBe(2);
     expect(JSON.stringify(deck.snap.doc)).toBe(before);                      // folds nothing: the same document
     const mine = deck.records().find(r => r.w === b.writer)!;
@@ -453,6 +455,54 @@ describe("DocSync v4: the per-deck format guard (ADR-019 and its amendment)", ()
     await a.poll(); await b.poll();
     expect(Object.keys(a.view.preset!.slides[0].items || {})).toEqual(["c1"]);
     expect(b.state).toBe("saved"); expect(b.view).toEqual(a.view);
+  });
+  it("review of S13.1, 1: an old page's record appended after the final tail (its helper had not seen the marker) still folds before the 4.6 record", async () => {
+    const { deck, a } = await plainDeck();
+    const old = writer("old"), base = deck.api();
+    let once = true;
+    // the old page saw more than this page (l 1000): its wizard Finish, a preset.set without the chart, lands after the last tail
+    const api: DeckApi = { ...base, compact: async (k, g, sn) => {
+      if (once && sn.format === 5) { once = false; deck.doAppend(old, { l: 1000, w: old, s: 1, by: "old", ops: [preset] }); }
+      return base.compact(k, g, sn);
+    } };
+    const b = v5user(deck, "bea", api);
+    b.apply([chart]); await b.flush();
+    expect(deck.snap.format).toBe(5);
+    expect(deck.records().find(r => r.w === b.writer)!.l).toBeGreaterThan(1000 + 1);       // 2^20 above what it had seen
+    await a.poll(); await b.poll();
+    expect(Object.keys(a.view.preset!.slides[0].items || {})).toEqual(["c1"]);          // the chart survives in every fold
+    expect(b.view).toEqual(a.view);
+  });
+  it("review of S13.1, 2: the tail after the wait is repeated while a journal was skipped, on a fresh listing", async () => {
+    const { deck, a } = await plainDeck();
+    const old = writer("old"), base = deck.api();
+    let tails = 0;
+    const api: DeckApi = { ...base,
+      format5: async k => { const r = await base.format5(k);
+        if (!deck.journals.has(old)) { deck.doAppend(old, { l: 70, w: old, s: 1, by: "old", ops: [preset] }); deck.unreadable.add(old); }
+        return r; },
+      tail: async (k, s) => { const t = await base.tail(k, s); if (++tails === 1) deck.unreadable.clear(); return t; } };
+    const b = v5user(deck, "bea", api, { bumpWaitMs: 40 }), w = waits(b, deck);
+    deck.log.length = 0;
+    b.apply([chart]); await b.flush();
+    expect(w).toEqual([40, 40]);                                             // the wait; then 1 s (here 40 ms) before the second tail
+    // the marker, the wait, the marker again (the helper lists the journals afresh), a tail that skipped a journal, another
+    expect(deck.log).toEqual(["format5", "append" /* the old page's */, "format5", "tail", "tail", "compact:5", "append"]);
+    const mine = deck.records().find(r => r.w === b.writer)!;
+    expect(mine.l).toBeGreaterThan(70);
+    await a.poll();
+    expect(Object.keys(a.view.preset!.slides[0].items || {})).toEqual(["c1"]);
+  });
+  it("review of S13.1, 5: a raise the helper refuses as too early (409, the marker too young) waits for the rest and goes on", async () => {
+    const { deck } = await plainDeck();
+    deck.bumpWaitMs = 31_000;                                 // (the helper's clock a second behind the page's wait)
+    deck.marker = deck.now() - 10_000;                        // written by another 4.6 page 10 s ago (its bump under way)
+    const b = v5user(deck, "bea", deck.api(), { bumpWaitMs: 30_000 }), w = waits(b, deck);
+    deck.log.length = 0;
+    b.apply([chart]); await b.flush();
+    expect(w).toEqual([20_000, 1000]);                                       // what is left of the wait; after the 409, 1 s
+    expect(deck.log).toEqual(["format5", "format5", "tail", "compact:5" /* 409 */, "format5", "tail", "compact:5", "append"]);
+    expect(deck.snap.format).toBe(5); expect(b.state).toBe("saved");
   });
   it("the wait counts from the marker: one written long ago is not waited for again", async () => {
     const { deck } = await plainDeck();

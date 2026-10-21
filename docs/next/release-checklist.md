@@ -92,6 +92,11 @@ Copy-Item "T:\Slide Builder\app\X.Y.Z\Update Slide Builder.bat" "T:\Slide Builde
 - [ ] Double-click `T:\Slide Builder\Update Slide Builder.bat`: it says "Already up to date (version X.Y.Z) …"
       and waits for a key.
 - [ ] Everybody closes the black Slide Builder window and starts it again.
+- [ ] **4.6.0 and later (ADR-019), in the update-day message:** every Slide Builder window and black window is
+      closed before the update. A window of an older version left open on a deck that holds 4.6 objects turns
+      read-only, and an older version opening such a deck says "a journal of this deck is damaged - tell the
+      maintainer": that message means **update Slide Builder** (close the black window and start it again), not a
+      damaged deck. The first 4.6 object saved on a deck shows "Saving…" for about 25 seconds, once per deck.
 - [ ] Rollback, if needed: `python tools\update.py --use P.Q.R` (in `T:\Slide Builder`). **The first release on a
       share** (it still ran `backend\`, so there is no P.Q.R in `app\`): rename `app\current.json` to
       `app\current.json.off` - "Start Slide Builder.bat" then starts `backend\` again, as before the update.

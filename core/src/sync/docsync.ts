@@ -52,9 +52,16 @@ export const COMPACT_RECORDS = 2000, IDLE_WRITER_MS = 24 * 3600 * 1000, REST_MS 
     since may still be missing from a reader's listing (the helper caches it 3 s, the SMB client 10 s more), and
     a record in it could be one that a newer record already folded in overwrote (review of S5.2, finding 2) */
 export const COMPACT_MARGIN_MS = 30_000;
-/** the bump's wait after the marker (ADR-019 amendment): a 4.0–4.5 helper looks at the folder of a deck it appends to
-    every REFRESH_S = 4 s (decks.py, the same in 4.0.0) – until then an old page may still append; + 1 s */
-export const BUMP_WAIT_MS = 5000;
+/** the bump's wait after the marker (ADR-019 amendment; = decks.BUMP_WAIT_S): how long a 4.0–4.5 page may still append
+    after it. Journal mode: its helper looks at the deck's folder again every REFRESH_S = 4 s, and the SMB client may
+    answer that listing from its 10 s directory cache: 4 + 10 + 1 s. Lean-lock mode (no append handle, so no
+    refresher): only its page's tail looks again, at most every CHECK_TTL = 10 s, tailing every TAIL_MS = 1.5 s:
+    10 + 1.5 + 10 + 1 s. The mode may differ per PC (SLIDEBUILDER_STORAGE): the longer one, always */
+export const BUMP_WAIT_MS = 23_000;
+/** the first record after a bump is this far above every Lamport time seen: a record an old page appended in the gap
+    without this page reading it (a slower share than the bound above, a journal not listed yet) still folds before
+    it – an old page cannot have seen the 4.6 record, so it cannot count past it (review of S13.1, 1–2) */
+export const BUMP_LAMPORT = 2 ** 20;
 
 /** a record and where it is on the share: (journal, end offset) of each copy known */
 interface Entry { rec: DeckRecord; at: [string, number][] }
@@ -292,34 +299,51 @@ export class DocSync {
   get upgrading(): Promise<boolean> | null { return this.bump; }
   /** raise the deck to format 5 (one bump at a time; true when it is format 5 now). ADR-019, amended 2026-10-21:
       1. the helper writes incident-format-5.json: every 4.0–4.5 helper takes the deck for read-only from its next look
-         at the deck's folder – within REFRESH_S = 4 s for a deck it appends to, at once for any other;
-      2. wait REFRESH_S + 1 s from the marker's time (an old page may still append until then: a wizard preset.set too);
-      3. tail once more: the records of that gap are read, and the next record's Lamport time is above all of them;
-      4. compare-and-set: the snapshot as it is, gen + 1, format 5 (it folds nothing; on 409 reload and again);
-      5. only then the record is appended (flush). */
+         at the deck's folder;
+      2. wait BUMP_WAIT_MS from the marker's time (an old page may still append until then: a wizard preset.set too),
+         then ask for the marker again (the helper lists the journals afresh; a marker removed meanwhile is written
+         again, and waited for);
+      3. tail until no journal was skipped: the records of that gap are read;
+      4. compare-and-set: the snapshot as it is, gen + 1, format 5 (it folds nothing; on 409 – compacted meanwhile, or
+         the helper finds the marker too young – reload and from 1 again: the marker's wait is then what is left);
+      5. only then the record is appended (flush), with a Lamport time BUMP_LAMPORT above everything seen. */
   upgrade(): Promise<boolean> {
     if (this.snap.format >= 5) return Promise.resolve(true);
     return this.bump ||= this.raise().finally(() => { this.bump = null; });
   }
   private async raise(): Promise<boolean> {
     const prev = this.view;
-    const m = await this.api.format5(this.key);
-    const left = typeof m?.at === "number" && typeof m.now === "number" ? Math.min(this.bumpWait, m.at + this.bumpWait - m.now) : this.bumpWait;
-    if (left > 0) await this.sleep(left);
-    for (let i = 0; i < 10 && !this.disposed; i++) {
-      const t = await this.api.tail(this.key, { ...this.offsets });
-      this.merge(t);
-      if (t.readonly) throw Object.assign(new Error(t.readonly), { status: 423 });
-      if (t.gen != null && t.gen > this.snap.gen) await this.loadSnapshot();
-      if (this.snap.format >= 5) { this.recompute(); this.emit(prev, false); return true; }
-      const next: DeckSnapshot = { ...this.snap, gen: this.snap.gen + 1, format: 5 };
-      try { await this.api.compact(this.key, this.snap.gen, next); }
-      catch (e) {
-        if ((e as { status?: number }).status === 409) { await this.loadSnapshot(); continue; }    // compacted meanwhile
-        throw e;
+    for (let round = 0; round < 10 && !this.disposed; round++) {
+      for (let i = 0, waited = false; i < 4; i++) {
+        const m = await this.api.format5(this.key);
+        const left = typeof m?.at === "number" && typeof m.now === "number" ? Math.min(this.bumpWait, m.at + this.bumpWait - m.now) : waited ? 0 : this.bumpWait;
+        if (left <= 0) break;
+        await this.sleep(left); waited = true;
       }
-      this.rebase(next);
+      let t: TailResult | null = null;
+      for (let i = 0; i < 5 && !this.disposed; i++) {
+        if (i && this.bumpWait) await this.sleep(Math.min(1000, this.bumpWait));   // a journal unread (a hiccup): again
+        t = await this.api.tail(this.key, { ...this.offsets });
+        this.merge(t);
+        if (t.readonly) throw Object.assign(new Error(t.readonly), { status: 423 });
+        if (!t.skipped?.length) break;
+      }
+      if (!t || t.skipped?.length) return false;          // (the record waits; flush tries again later)
+      if (t.gen != null && t.gen > this.snap.gen) await this.loadSnapshot();
+      if (this.snap.format < 5) {
+        const next: DeckSnapshot = { ...this.snap, gen: this.snap.gen + 1, format: 5 };
+        try { await this.api.compact(this.key, this.snap.gen, next); }
+        catch (e) {
+          if ((e as { status?: number }).status !== 409) throw e;
+          const gen = this.snap.gen;
+          await this.loadSnapshot();                      // compacted meanwhile – or the marker too young for the helper:
+          if (this.snap.gen === gen && this.bumpWait) await this.sleep(Math.min(1000, this.bumpWait));   // a second later
+          continue;
+        }
+        this.rebase(next);
+      }
       this.recompute();
+      this.lamport = Math.max(this.lamport, this.folded.lamport) + BUMP_LAMPORT;
       this.emit(prev, false);                             // (records of others read meanwhile)
       return true;
     }

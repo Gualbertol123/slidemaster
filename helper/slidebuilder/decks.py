@@ -39,9 +39,11 @@ even mix on one deck: the readers fold every journal they find.
 
 The format guard (ADR-019, amended 2026-10-21). A deck is created and migrated at format 4 (CREATE_FORMAT), which
 4.0-4.5 read. Before a 4.6 page writes anything 4.0.0 does not know (core/src/model/ops.ts needsV5) it raises the
-deck: the marker (:func:`mark_format5`), a wait of REFRESH_S + 1 s (an old helper re-reads the folder of a deck it
-appends to every REFRESH_S - the same in 4.0.0), a tail, then the snapshot unchanged with gen + 1 and format 5
-(compact). From then on: a 4.0-4.5 helper answers 423 to appends (the marker is an incident to it), refuses to read
+deck: the marker (:func:`mark_format5`), a wait of BUMP_WAIT_S from the marker's time (how long a 4.0-4.5 helper
+may take to see it: REFRESH_S or CHECK_TTL + the page's 1.5 s tail, plus the SMB client's 10 s directory cache), the
+marker asked for again (this helper then lists the journals afresh), tails until every journal was read, then the
+snapshot unchanged with gen + 1 and format 5 (compact: refused with 409 while the marker is younger than the wait),
+and the record with a Lamport time 2^20 above everything seen. From then on: a 4.0-4.5 helper answers 423 to appends (the marker is an incident to it), refuses to read
 the snapshot (409: open, compaction under the lock, rotate, and so the 24 h journal drop), and its tail reports no gen
 and "read-only"; this helper refuses a format-5 deck to a page that does not send ``X-SB-Deck-Formats: 4,5``
 (:func:`check_page`: a 4.0-4.5 page left open while its PC's helper was restarted on 4.6) and a compaction that would
@@ -67,6 +69,10 @@ CREATE_FORMAT = 4                 # new and migrated decks: 4.0-4.5 read them un
 READ_FORMATS = (4, 5)             # 5: the deck holds what 4.0.0 does not know (raised by the page, never lowered)
 MARKER5 = "incident-format-5.json"                 # (an "incident-" name: what every 4.0-4.5 helper honours)
 OUTDATED5 = "Slide Builder was updated - reload the page (F5) to continue; your last change was not saved"
+# s: how long after the marker a 4.0-4.5 page may still append (= core BUMP_WAIT_MS; ADR-019 amendment): journal mode,
+# REFRESH_S 4 + the SMB directory cache 10 + 1; lean-lock (no refresher: only the page's tail looks again), CHECK_TTL
+# 10 + TAIL_MS 1.5 + 10 + 1. The worst of the two, as the mode can differ per PC (SLIDEBUILDER_STORAGE).
+BUMP_WAIT_S = 23.0
 LISTING_TTL = 3.0                 # s: a deck's journal listing is cached (the SMB client may cache it 10 s more)
 TAIL_PARALLEL = 8                 # journals read at once by one tail
 IDLE_CLOSE = 600.0                # s: an append handle unused for this long is closed; the next append opens a new file
@@ -327,6 +333,8 @@ def read_snapshot(key):
                     if snap.get("format") not in READ_FORMATS:
                         raise DeckError(409, "this deck was saved by a newer Slide Builder (format %r) - close the Slide Builder "
                                              "window and start it again to use the update" % snap.get("format"))
+                    if snap.get("format") == 5:
+                        _keep_marker(key)
                     return snap
                 last = "not a snapshot"
             except (ValueError, UnicodeDecodeError) as e:
@@ -529,10 +537,22 @@ def _look(key, ttl=None):
 def mark_format5(key, by=None):
     """the deck's marker MARKER5, written once (O_EXCL; an existing one is kept): from their next look at the deck's
     folder every 4.0-4.5 helper takes the deck for read-only. Returns {created, at, now} (the file server's ms; `at`:
-    when the marker was written - the page waits REFRESH_S + 1 s from then before it raises the snapshot)."""
+    when the marker was written - the page waits BUMP_WAIT_S from then before it raises the snapshot). The page asks
+    again after its wait: this helper's journal listing of the deck is dropped each time, so the page's next tail
+    lists the folder afresh (a journal an old helper opened in the gap is read before the snapshot is raised)."""
     check_key(key)
     _look(key, 0)                                   # the deck exists (404) - and is not read-only or rolled back:
     _check_writable(key)
+    with _guard:
+        _listings.pop(key, None)
+    created, at, now = _write_marker(key, by)
+    if created:
+        log("deck %s now holds Slide Builder 4.6 objects: %s written (4.0-4.5 take it for read-only)" % (key, MARKER5))
+    return {"created": created, "at": at, "now": now}
+
+
+def _write_marker(key, by=None):
+    """MARKER5 with O_EXCL: (created, at, now) - an existing one is kept and its time told"""
     path = deck_dir(key, MARKER5)
     now = server_ms()
     body = json.dumps({"deck": key, "format": 5, "what": "this deck uses Slide Builder 4.6 objects; it opens in Slide Builder "
@@ -541,7 +561,7 @@ def mark_format5(key, by=None):
         fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_BINARY", 0), 0o644)
     except FileExistsError:
         _v5[key] = True
-        return {"created": False, "at": _marker_at(path, now), "now": now}
+        return False, _marker_at(path, now), now
     except OSError as e:
         raise DeckError(503, "the deck could not be marked for Slide Builder 4.6 (%s) - trying again" % e)
     try:
@@ -550,8 +570,19 @@ def mark_format5(key, by=None):
     finally:
         os.close(fd)
     _v5[key] = True
-    log("deck %s now holds Slide Builder 4.6 objects: %s written (4.0-4.5 take it for read-only)" % (key, MARKER5))
-    return {"created": True, "at": now, "now": now}
+    return True, now, now
+
+
+def _keep_marker(key):
+    """a format-5 snapshot read without its marker (removed by hand, a backup put back by hand): written again, so
+    that 4.0-4.5 helpers refuse appends of a page still open on the deck, not only its reads (review of S13.1, 3)"""
+    if os.path.exists(deck_dir(key, MARKER5)):
+        return
+    try:
+        if _write_marker(key)[0]:
+            log("deck %s: format 5 without %s - written again" % (key, MARKER5))
+    except DeckError:
+        pass                                        # (the folder gone meanwhile: never re-created; the next read again)
 
 
 def _marker_at(path, now):
@@ -1009,9 +1040,15 @@ def compact(key, base_gen, snap, by=None):
         if cur.get("format") == 5 and snap["format"] != 5:
             # a page that does not know 4.6's objects would write the deck without them (ADR-019: never lowered)
             raise DeckError(400, "this deck uses Slide Builder 4.6 objects: its snapshot is never written in an older format")
-        if snap["format"] == 5 and cur.get("format") != 5 and not os.path.exists(deck_dir(key, MARKER5)):
-            # the marker always comes first: 4.0-4.5 helpers then refuse appends before they could miss the format
-            mark_format5(key)
+        if snap["format"] == 5 and cur.get("format") != 5:
+            # the marker always comes first, and BUMP_WAIT_S before the raise: by then no 4.0-4.5 page appends any more
+            # (the page waits for it - DocSync.upgrade; this makes the wall real for any other caller): 409, the page
+            # asks for the marker again and waits for the rest
+            created, at, now = _write_marker(key)
+            if created:
+                log("deck %s: %s written by a compaction to format 5 (refused until the wait has passed)" % (key, MARKER5))
+            if created or now - at < (BUMP_WAIT_S - 1.0) * 1000:
+                raise DeckError(409, "the deck is being prepared for Slide Builder 4.6 objects - trying again in a few seconds")
         write_snapshot(key, snap)
         dropped = _drop_dead(key, snap["frontier"])
         if dropped:

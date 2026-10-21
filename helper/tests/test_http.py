@@ -376,7 +376,11 @@ class DeckFormatHttpTests(HttpBase):
         self.assertEqual((st, m["created"]), (200, True))
         self.assertTrue(os.path.exists(decks.deck_dir(key, decks.MARKER5)))
         snap = self.jreq("GET", base + "/snapshot", headers=self.NEW)[1]["snapshot"]
-        self.assertEqual(self.jreq("POST", base + "/compact", {"baseGen": 1, "snapshot": dict(snap, gen=2, format=5)}, headers=self.NEW), (200, {"gen": 2, "dropped": []}))
+        up = {"baseGen": 1, "snapshot": dict(snap, gen=2, format=5)}
+        st, e = self.jreq("POST", base + "/compact", up, headers=self.NEW)
+        self.assertEqual(st, 409, e)                                      # the marker is younger than the bump's wait
+        with mock.patch.object(decks, "BUMP_WAIT_S", 0):
+            self.assertEqual(self.jreq("POST", base + "/compact", up, headers=self.NEW), (200, {"gen": 2, "dropped": []}))
         # a page without the header, with a valid token: 409 "reload" for everything it would do
         cur = self.jreq("GET", base + "/snapshot", headers=self.NEW)[1]["snapshot"]
         calls = [("POST", base + "/append", {"writer": w, "record": {"w": w, "s": 2, "l": 2, "ops": []}}),

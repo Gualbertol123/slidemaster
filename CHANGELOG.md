@@ -17,7 +17,7 @@ What users notice
   the shared folder. A setup open in a window is not deleted – the message says who has it open.
 * **Decks with Slide Builder 4.6 objects open in 4.6 and later only** (B41, ADR-019): a deck that holds charts,
   callouts, free layouts, looks, cell gridlines or borders, or any object added from 4.6 on, is marked for 4.6 before
-  the first such object is saved – once per deck, about 5 seconds of "Saving…". An older window that still has it open
+  the first such object is saved – once per deck, about 25 seconds of "Saving…". An older window that still has it open
   turns read-only and saves nothing more; an older version opening it shows "a journal of this deck is damaged – tell
   the maintainer": that message means **update Slide Builder** (close its black window and start it again). Decks
   without such objects keep opening in older versions.

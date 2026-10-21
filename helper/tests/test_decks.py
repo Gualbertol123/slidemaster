@@ -852,10 +852,12 @@ class DeckHttpTests(HttpBase):
 
 # --------------------------------------------------------------------------- the per-deck format guard (ADR-019)
 def raise_to_5(key):
-    """what a 4.6 page does (DocSync.upgrade): the marker, then the snapshot unchanged with gen + 1 and format 5"""
+    """what a 4.6 page does (DocSync.upgrade): the marker, the wait (none here), then the snapshot unchanged with
+    gen + 1 and format 5"""
     decks.mark_format5(key)
     snap = decks.read_snapshot(key)
-    decks.compact(key, snap["gen"], dict(snap, gen=snap["gen"] + 1, format=5))
+    with mock.patch.object(decks, "BUMP_WAIT_S", 0):
+        decks.compact(key, snap["gen"], dict(snap, gen=snap["gen"] + 1, format=5))
     return decks.read_snapshot(key)
 
 
@@ -917,18 +919,66 @@ class FormatGuardTests(DeckBase):
         self.assertEqual(e.exception.status, 400)
         self.assertIn("4.6", e.exception.args[0])
         self.assertEqual(decks.read_snapshot(self.key)["gen"], 2)
-        decks.compact(self.key, 2, dict(down, format=5))
+        decks.compact(self.key, 2, dict(down, format=5))               # (5 -> 5: no wait)
         self.assertEqual(decks.read_snapshot(self.key)["format"], 5)
         for bad in (6, None, "5"):
             with self.assertRaises(decks.DeckError) as e:
                 decks.compact(self.key, 3, dict(down, gen=4, format=bad))
             self.assertEqual(e.exception.status, 400, bad)
 
-    def test_a_format_5_snapshot_without_the_marker_gets_it_first(self):
+    def test_a_raise_to_5_needs_the_marker_and_the_wait_first(self):
+        # review of S13.1, 5: the helper's own wall - a raise is refused (409) until the marker is BUMP_WAIT_S old
+        self.assertEqual(decks.BUMP_WAIT_S, 23.0)
         snap = decks.read_snapshot(self.key)
-        decks.compact(self.key, 1, dict(snap, gen=2, format=5))          # (a page that skipped format5: never ours)
-        self.assertTrue(decks.is_format5(self.key))
+        up = dict(snap, gen=2, format=5)
+        with self.assertRaises(decks.DeckError) as e:
+            decks.compact(self.key, 1, up)                                # (a page that skipped format5: never ours)
+        self.assertEqual(e.exception.status, 409)
+        self.assertIn("prepared", e.exception.args[0])
+        self.assertTrue(decks.is_format5(self.key))                       # the marker is written: the wait starts now
+        self.assertEqual(decks.read_snapshot(self.key)["format"], 4)
+        with self.assertRaises(decks.DeckError) as e:
+            decks.compact(self.key, 1, up)                                # 0 s of the 23 s passed
+        self.assertEqual(e.exception.status, 409)
+        at = decks.mark_format5(self.key)["at"]
+        with mock.patch.object(decks, "server_ms", return_value=at + 21500):
+            with self.assertRaises(decks.DeckError):
+                decks.compact(self.key, 1, up)                            # 21.5 s: still refused
+        with mock.patch.object(decks, "server_ms", return_value=at + 22000):
+            decks.compact(self.key, 1, up)                                # 22 s (1 s for the clocks): raised
         self.assertEqual(decks.read_snapshot(self.key)["format"], 5)
+
+    def test_format5_lists_the_journals_afresh(self):
+        # review of S13.1, 2: the page asks for the marker again after its wait, so its next tail sees a journal an old
+        # helper opened in the gap at once, not LISTING_TTL later
+        w = decks.new_writer()
+        decks.append(self.key, w, self.rec(w, 1))
+        decks.mark_format5(self.key)
+        self.assertEqual(list(decks.tail(self.key, {})["journals"]), [w])
+        other = "old@pc9#abcdefgh"
+        with open(os.path.join(decks.journal_dir(self.key), other + ".log"), "wb") as f:   # another PC's helper, in the gap
+            f.write(decks.frame(self.rec(other, 1)))
+        self.assertNotIn(other, decks.tail(self.key, {})["journals"])    # the listing cached LISTING_TTL
+        self.assertFalse(decks.mark_format5(self.key)["created"])
+        self.assertIn(other, decks.tail(self.key, {})["journals"])
+
+    def test_a_format_5_snapshot_without_its_marker_gets_it_back(self):
+        # review of S13.1, 3: removed by hand, or a backup put back by hand - old helpers would refuse reads but take
+        # appends of a page still open; the next read here writes it again
+        raise_to_5(self.key)
+        os.remove(decks.deck_dir(self.key, decks.MARKER5))
+        self.assertEqual(decks.read_snapshot(self.key)["format"], 5)
+        self.assertTrue(decks.is_format5(self.key))
+        with open(decks.deck_dir(self.key, decks.MARKER5), encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["format"], 5)
+        # a format-4 deck never gets one; a deck folder gone is not re-created
+        other = decks.create_if_missing("Other.xlsx")[0]
+        decks.read_snapshot(other)
+        self.assertFalse(decks.is_format5(other))
+        os.remove(decks.deck_dir(self.key, decks.MARKER5))
+        with mock.patch.object(decks, "server_ms", side_effect=decks.DeckError(503, "the share is away")):
+            self.assertEqual(decks.read_snapshot(self.key)["format"], 5)  # a failed write never fails the read
+        self.assertFalse(decks.is_format5(self.key))
 
     def test_a_newer_format_is_still_refused(self):
         snap = decks.read_snapshot(self.key)
@@ -1096,13 +1146,42 @@ class OldHelperTests(DeckBase):
             os.utime(os.path.join(decks.journal_dir(self.key), n), (old_t, old_t))
         before = sorted(os.listdir(decks.journal_dir(self.key)))
         self.assertEqual(self.status(o.read_snapshot, self.key), 409)
-        cur = decks.read_snapshot(self.key)
+        with open(decks.snapshot_path(self.key), encoding="utf-8") as f:
+            cur = json.load(f)                                            # (not read here: that writes the marker again)
         self.assertEqual(self.status(o.compact, self.key, cur["gen"], dict(cur, gen=cur["gen"] + 1, format=4)), 409)
         self.assertEqual(self.status(o.compact, self.key, cur["gen"], dict(cur, gen=cur["gen"] + 1)), 400)   # format 5: not its own
         self.assertEqual(self.status(o.rotate, self.key, w), 409)
         self.assertEqual(sorted(os.listdir(decks.journal_dir(self.key))), before)    # the journals survive
         self.assertEqual(decks.read_snapshot(self.key), cur)
         self.assertIsNone(o.tail(self.key, {})["gen"])
+        # ... and the next read here writes the marker again: the old helper's appends are refused too (S13.1 review, 3)
+        self.assertTrue(decks.is_format5(self.key))
+        o.reset()
+        self.assertEqual(self.status(o.append, self.key, w, self.rec(w, 2)), 423)
+
+    def test_lean_lock_appends_go_on_until_its_page_tails(self):
+        # review of S13.1, 1a: in lean-lock mode (ADR-006's fallback) a 4.0 helper has no append handle, so no folder
+        # refresher; an append checks the folder once per helper (no TTL). Only its page's tail (every TAIL_MS = 1.5 s)
+        # looks again, at most every CHECK_TTL = 10 s - plus the SMB client's 10 s directory cache on a share. This is
+        # why BUMP_WAIT_S is 23 s, not REFRESH_S + 1 s
+        o = self.old
+        o.CHECK_TTL = 0.2
+        try:
+            with mock.patch.dict(os.environ, {"SLIDEBUILDER_STORAGE": "lean-lock"}):
+                self.assertEqual(o.storage_mode(), "lean-lock")
+                w = o.new_writer()
+                o.append(self.key, w, self.rec(w, 1))
+                self.assertNotIn("readonly", o.tail(self.key, {}))
+                decks.mark_format5(self.key)
+                for s in (2, 3, 4):
+                    time.sleep(3 * self.old.REFRESH_S)                       # past its (sped-up) REFRESH_S: no refresher here
+                    self.assertEqual(self.status(o.append, self.key, w, self.rec(w, s)), 200)
+                time.sleep(o.CHECK_TTL)
+                self.assertIn("readonly", o.tail(self.key, {}))             # its page's next tail, CHECK_TTL later
+                self.assertEqual(self.status(o.append, self.key, w, self.rec(w, 5)), 423)
+                self.assertEqual(sorted(r["s"] for j in decks.tail(self.key, {})["journals"].values() for r in j["records"]), [1, 2, 3, 4])
+        finally:
+            o.CHECK_TTL = 10.0
 
     def test_a_format_4_deck_stays_open_to_it(self):
         # CP-02: decks without 4.6 objects (everything the share's 4.0 made) keep working in 4.0 during the rollout
