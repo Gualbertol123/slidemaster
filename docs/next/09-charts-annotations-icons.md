@@ -554,7 +554,7 @@ per-slice colours do today); in Liquid Glass and the consulting designs the same
   arcs (and quadratics) in the packed data, lossless and 17 % smaller; `core/src/icons/index.ts` converts them to cubics
   of ≤ 90° when an icon is first drawn, so the display list still gets only `M L C Z`.)* Colour = the item's `fill` (its ink), else the design's ink as built-in icons today.
 * **The picker** (`app/src/ui/IconPicker.tsx`, opened from *Insert shape ▾ › More icons…* and from a chart mark): a
-  search box (name and tags, prefix and substring, Italian synonyms not provided – Q11), a category list (41), a grid
+  search box (name and tags, prefix and substring; Italian search words added by Q11's decision, `core/src/icons/search-it.ts`), a category list (41), a grid
   of results drawn as inline SVG from the same path data, outline / filled switch, colour and size of the inserted
   icon. Virtualised: only the visible tiles (≈ 120) are drawn. The search runs in the core worker over the index (§7.4
   budget), so the page holds no copy of the set.
@@ -949,7 +949,8 @@ Effort (one engineer, the rhythm of M7–M11): M13 2 weeks, M14 5, M15 4, M16 4,
 10. **Tabler in the app's toolbars (B35)**: replace today's toolbar icons and symbols with Tabler icons? Proposed: yes,
     in M15, as one consistent look (you judge it at G10).
 11. **Icon search language**: Tabler's names and tags are English. Enough, or should Italian search words be added
-    (≈ 300 common ones, maintained by us)?
+    (≈ 300 common ones, maintained by us)? *(decided 2026-10-21: add them – S15.2, `core/src/icons/search-it.ts`,
+    ADR-020 amendment.)*
 12. **Slide list**: with *New slide*, also *Delete slide* and *Duplicate slide* in the slide list's right-click menu?
 13. **Two people restyling one line at once**: the whole style is one value (the last one wins). Fine for lines?
 14. **Format 5 forever?** Deleting every 4.6 object leaves the deck at format 5. Want a command "make readable by

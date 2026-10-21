@@ -12,6 +12,8 @@ What users notice
   (1–3) chosen there. A selected icon has *Change icon…* (another one, same colour, size and place), its size and its
   line width on the ribbon; each change is one undo step. The icons are in Slide Builder itself: no internet needed.
   The 17 icons of earlier versions are still in the menu and look as before.
+* **Search the icons in Italian too** (09 §9 Q11): about 300 common Italian words – "banca", "obiettivo", "grafico",
+  "freccia su", "stretta di mano", "città" or "citta" – find their icons first, beside the English names and tags.
 * **Icons in PowerPoint are shapes**: each icon is an editable PowerPoint shape (custom geometry: its lines with round
   ends, or its filled outline, in its colour) – never a picture; in the PDF and on screen it is drawn as on the slide.
 * **An icon Slide Builder does not have** (a deck from a newer version, a mistyped name) shows the ⓘ icon and a line in

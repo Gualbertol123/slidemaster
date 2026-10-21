@@ -122,9 +122,9 @@ function IconPicker({ req }: { req: PickerReq }) {
     <style>{CSS}</style>
     <div className="dlg icdlg">
       <div className="dlghd"><b>{req.mode === "replace" ? "Change icon" : req.mode === "pick" ? req.title ?? "Choose icon" : "Insert icon"}</b>
-        <span>Search by name or tag (English), or pick a category. Tabler Icons{ans ? " " + ans.version : ""} · MIT</span></div>
+        <span>Search by name or tag (English or Italian), or pick a category. Tabler Icons{ans ? " " + ans.version : ""} · MIT</span></div>
       <div className="ictools">
-        <input ref={input} id="iconSearch" className="icsearch" placeholder="Search icons… (e.g. bank, arrow up, euro)" value={q}
+        <input ref={input} id="iconSearch" className="icsearch" placeholder="Search icons… (e.g. bank, freccia su, euro)" value={q}
           onChange={e => { typed.current = now(); setQ((e.target as HTMLInputElement).value); }}
           onKeyDown={e => { if (e.key === "Enter" && names.length) { e.preventDefault(); pick((style === "filled" ? "tabler-filled:" : "tabler:") + names[0]); } }} />
         <div className="seg small" id="iconStyle">{(["outline", "filled"] as const).map(s => <button key={s} data-style={s} className={style === s ? "on" : ""} onClick={() => { typed.current = now(); setStyle(s); }}>{s === "outline" ? "Outline" : "Filled"}</button>)}</div>

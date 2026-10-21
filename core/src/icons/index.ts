@@ -18,6 +18,7 @@ import type { PathCmd } from "../dl/types";
 import { setIconCatalog, setVendoredIcons, type IconPaint, type IconSet } from "../render/icons";
 import { decode64 } from "../text/hb";
 import { TABLER, TABLER_VERSION } from "./data";
+import { IT_WORDS } from "./search-it";
 
 export type TablerStyle = "outline" | "filled";
 /** one path of an icon on the 24 × 24 grid, and how it is painted */
@@ -176,20 +177,23 @@ export class Tabler {
   tags(name: string): string[] { const i = this.find(name); return i < 0 ? [] : this.tagText[i].split("\n").filter(Boolean); }
   /** the icon's old names in the release's alias table (an old name gives its icon's) */
   oldNames(name: string): string[] { const i = this.find(name); return i < 0 ? [] : (this.oldText[i] ?? "").split("\n").filter(Boolean); }
-  /** icons for a query (words, each matching a word of the name or a tag: whole, start or inside) in a category and set,
-      best first: the name itself, then name words, then tags; whole before start before inside, then shorter names */
+  /** icons for a query (words, each matching a word of the name or a tag: whole, start or inside; an Italian word of
+      ./search-it.ts matches its targets as whole words or names) in a category and set, best first: the name itself, then
+      the names an Italian word stands for (in its order), then name words, then tags; whole before start before inside,
+      then shorter names. Accents are folded */
   search(query: string, o: TablerSearch = {}): TablerHit[] {
-    const words = query.toLowerCase().split(/[\s,]+/).map(w => w.replace(/^-+|-+$/g, "")).filter(Boolean), whole = words.join("-");
+    const words = queryWords(query), whole = words.map(w => w.w).join("-"), exact = exactNames(words);
     const ci = o.category === undefined ? -1 : this.categories.indexOf(o.category), bit = o.style === "filled" ? 2 : o.style === "outline" ? 1 : 3;
     if (o.category !== undefined && ci < 0) return [];
     const hits: [number, number][] = [];
     for (let i = 0; i < this.names.length; i++) {
       if (!(this.sets[i] & bit) || (ci >= 0 && this.cat[i] !== ci)) continue;
       const name = this.names[i], nm = "-" + name + "-", tg = this.findText[i];
-      let score = name === whole ? -10 : 0;
-      for (const w of words) {
-        const s = nm.includes("-" + w + "-") ? 0 : nm.includes("-" + w) ? 1 : tg.includes("\n" + w + "\n") ? 2 : tg.includes("\n" + w) ? 3 : name.includes(w) ? 4 : tg.includes(w) ? 5 : -1;
-        if (s < 0) { score = NaN; break; }
+      let score = name === whole ? -100 : exact.get(name) ?? 0;
+      for (const { w, alts } of words) {
+        let s = nm.includes("-" + w + "-") ? 0 : nm.includes("-" + w) ? 1 : tg.includes("\n" + w + "\n") ? 2 : tg.includes("\n" + w) ? 3 : name.includes(w) ? 4 : tg.includes(w) ? 5 : 9;
+        for (const t of alts) if (s > 0 && nm.includes("-" + t + "-")) s = 0; else if (s > 2 && tg.includes("\n" + t + "\n")) s = 2;
+        if (s > 5) { score = NaN; break; }
         score += s;
       }
       if (score === score) hits.push([i, score]);
@@ -197,6 +201,45 @@ export class Tabler {
     hits.sort((a, b) => a[1] - b[1] || this.names[a[0]].length - this.names[b[0]].length || (this.names[a[0]] < this.names[b[0]] ? -1 : 1));
     return hits.slice(0, o.limit ?? hits.length).map(([i]) => ({ name: this.names[i], category: this.categories[this.cat[i]], outline: !!(this.sets[i] & 1), filled: !!(this.sets[i] & 2) }));
   }
+}
+
+/** accents off and lower case: "Città" → "citta" */
+export const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const IT_STOP = new Set(["di", "del", "della", "dei", "delle", "il", "lo", "la", "le", "gli", "un", "una", "uno", "per", "con", "da"]);
+let itWords: Map<string, string[]> | null = null;
+/** the Italian words (./search-it.ts), folded: word or phrase (words joined by spaces) → its targets, best first */
+export function italianWords(): Map<string, string[]> {
+  if (itWords) return itWords;
+  itWords = new Map();
+  for (const line of IT_WORDS.split("\n")) {
+    const c = line.indexOf(":");
+    if (c < 0) continue;
+    const targets = line.slice(c + 1).trim().split(/\s+/).filter(Boolean);
+    for (const k of line.slice(0, c).split("/")) itWords.set(fold(k).trim().replace(/\s+/g, " "), targets);
+  }
+  return itWords;
+}
+/** a query's words, each with the English targets it stands for when it is an Italian word; an Italian phrase of the list
+    is one word, and Italian articles and prepositions between words are dropped */
+function queryWords(query: string): { w: string; alts: string[] }[] {
+  const it = italianWords(), t = fold(query).split(/[\s,]+/).map(w => w.replace(/^-+|-+$/g, "")).filter(Boolean), out: { w: string; alts: string[] }[] = [];
+  for (let i = 0; i < t.length;) {
+    let n = Math.min(4, t.length - i);
+    for (; n > 1; n--) if (it.has(t.slice(i, i + n).join(" "))) break;
+    const k = t.slice(i, i + n).join(" ");
+    i += n;
+    if (n === 1 && IT_STOP.has(k) && t.length > 1) continue;
+    out.push({ w: k.replace(/ /g, "-"), alts: it.get(k) ?? [] });
+  }
+  return out;
+}
+/** the names the Italian words stand for, as a whole (each word's targets in turn, at most 64): name → its score */
+function exactNames(words: { w: string; alts: string[] }[]): Map<string, number> {
+  let combos: string[][] = [[]];
+  for (const { w, alts } of words) combos = combos.flatMap(c => [w, ...alts].map(a => [...c, a])).slice(0, 64);
+  const out = new Map<string, number>();
+  combos.slice(1).forEach((c, k) => { const n = c.join("-"); if (!out.has(n)) out.set(n, -50 + k / 100); });
+  return out;
 }
 
 let set: Tabler | null = null;

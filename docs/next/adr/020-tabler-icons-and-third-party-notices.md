@@ -85,3 +85,19 @@ named Tabler.
   took about 90 ms in Node. Every icon of both sets drawn through the display list and `dl/svg.ts`, then rasterised
   with resvg at 96 px, matches the release's own SVG file within 64/255 per pixel in 6,226 of 6,238 icons. In the
   other 12, at most 10 pixels differ, by at most 96/255.
+
+## Amendment 2026-10-21 (S15.2 · Italian search words; 09 §9 Q11, the owner's decision of 2026-10-21)
+* **Source.** Tabler's names and tags are English. `core/src/icons/search-it.ts` adds Italian search words, written and
+  maintained by us (not part of the Tabler release, not in `data.ts`, not touched by `tools/vendor-tabler.mjs`): 338
+  words and phrases on 245 lines, chosen for a bank's planning slides (banca, conto, mutuo, risparmio, obiettivo,
+  previsione, grafico, torta …) and general use (freccia, su, giù, avviso, persona, calendario, lucchetto …). Each line
+  is the Italian word with its forms or synonyms ("/"-separated; a phrase may have spaces, "stretta di mano"), then its
+  targets, best first: a Tabler icon name, or an English word that is a whole word of icon names or a tag.
+* **Search.** The query is folded (lower case, accents off: "città" = "citta"); a listed phrase counts as one word,
+  Italian articles and prepositions between words are dropped. An Italian word matches its targets as whole name words
+  or tags; the icons its targets name rank first, in the list's order ("banca" → building-bank, "freccia su" →
+  arrow-up), before ordinary name and tag matches. English search is unchanged; a word neither language knows finds
+  nothing.
+* **Maintenance.** Add or change a line, then run `npx vitest run tests/icons-it.test.ts` in `core/`: it fails on a
+  target the set does not have, a word listed twice, or a count outside 250–400 (raise the bound deliberately). On a
+  Tabler update the same test names any target the new release renamed or dropped; fix the line, not the data.
