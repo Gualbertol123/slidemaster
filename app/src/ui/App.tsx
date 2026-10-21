@@ -16,9 +16,10 @@ import { CommentDialog } from "./CommentDialog";
 import { ScenarioDialog, ScenarioRun } from "./ScenarioDialog";
 import { Dialogs } from "./Dialogs";
 import { Wizard } from "../wizard/Wizard";
+import { newSlide } from "../editor/slides";
 
 export function App() {
-  const changedOnDisk = useStore(s => s.ui.changedOnDisk), count = useStore(s => s.deck.slides.length);
+  const changedOnDisk = useStore(s => s.ui.changedOnDisk), count = useStore(s => s.deck.slides.length), open = useStore(s => s.doc.open);
   const D = useStore(useShallow(s => ({ wizard: s.ui.dialogs.wizard, tables: s.ui.dialogs.tables, textStyles: !!s.ui.dialogs.textStyles, comment: !!s.ui.dialogs.comment, scenario: s.ui.dialogs.scenario, pick: !!s.ui.dialogs.pick, setups: !!s.ui.dialogs.setups, run: !!s.ui.run })));
   useEffect(() => {
     const over = (e: DragEvent) => { e.preventDefault(); document.body.classList.add("dragover"); };
@@ -42,7 +43,8 @@ export function App() {
         </div>
         <div className="main">
           <aside className="nav">
-            <div className="navhd"><span>SLIDES <span id="slideCount" style={{ fontWeight: "500", marginLeft: "4px" }}>{count || ""}</span></span></div>
+            <div className="navhd"><span>SLIDES <span id="slideCount" style={{ fontWeight: "500", marginLeft: "4px" }}>{count || ""}</span></span>
+              <button className="newslide" id="newSlide" disabled={!open} title="A blank slide after the selected one (Ctrl+M)" onClick={() => newSlide()}>+ New slide</button></div>
             <Thumbs />
             <ChartPanel />
             <Issues />

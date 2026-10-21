@@ -192,16 +192,8 @@ function freeLayout(R: RuntimeSlide, ctx: RenderCtx, f: FreeLayout): { boxes: TB
   // the automatic layout only for what has no saved box (no bisection otherwise)
   let auto: TBox[] | null = null;
   const autoOf = (i: number) => (auto ??= autoLayout(R, ctx).boxes)[i];
-  const boxes: TBox[] = [];
-  R.tables.forEach((L, i) => {
-    const e = freeEntry(f.items[freeKey.table(R, i)]), W = tableW(L, ctx), H = tableH(L, ctx);
-    let t: TBox;
-    if (e && W > 0 && H > 0) {
-      // the drawn scale: saved (its box follows from it, so a table that grows keeps its scale), else from the box's width;
-      // at least 0.05, its box at most FREE_MAX
-      const sc = Math.max(.05, Math.min(e.scale ?? e.w / W, FREE_MAX / W, FREE_MAX / H)), w = W * sc, h = H * sc;
-      t = { i, band: i, x: e.x, y: e.y, w, h, scale: sc, notes: {} };
-    } else { const a = autoOf(i); t = { i, band: i, x: a.x, y: a.y, w: a.w, h: a.h, scale: a.scale, notes: {} }; }
+  const boxes: TBox[] = [], spot: number[] = [];
+  const place = (i: number, t: TBox) => {
     const N = notesOf(R, i, ctx);
     for (const side of SIDES) {
       const n = N[side]; if (!n) continue;
@@ -218,8 +210,52 @@ function freeLayout(R: RuntimeSlide, ctx: RenderCtx, f: FreeLayout): { boxes: TB
     }
     if (Object.keys(items).length) t.items = items;
     boxes[i] = t;
+  };
+  R.tables.forEach((L, i) => {
+    const k = freeKey.table(R, i), e = freeEntry(f.items[k]), W = tableW(L, ctx), H = tableH(L, ctx);
+    if (!e || !(W > 0 && H > 0)) {
+      // (a box that is there but unusable – a shared document's bad numbers – keeps the automatic place, as before 4.6)
+      if (f.items[k] === undefined) spot.push(i);
+      else { const a = autoOf(i); place(i, { i, band: i, x: a.x, y: a.y, w: a.w, h: a.h, scale: a.scale, notes: {} }); }
+      return;
+    }
+    // the drawn scale: saved (its box follows from it, so a table that grows keeps its scale), else from the box's width;
+    // at least 0.05, its box at most FREE_MAX
+    const sc = Math.max(.05, Math.min(e.scale ?? e.w / W, FREE_MAX / W, FREE_MAX / H));
+    place(i, { i, band: i, x: e.x, y: e.y, w: W * sc, h: H * sc, scale: sc, notes: {} });
   });
+  // a table with no saved box (added after the switch-on: Add table, 09 §2.8): at its automatic scale, at the first empty
+  // spot of the content area (top to bottom, left to right); no spot that large: the first at ¾, ½, ⅓ or ¼ of that scale;
+  // none either: where the automatic layout puts it. Nothing is written (the next free move does)
+  if (spot.length) {
+    const taken: Box[] = [];
+    const takeOf = (t: TBox) => { taken.push(t, ...Object.values(t.notes).filter(Boolean) as Box[], ...Object.values(t.items || {})); };
+    boxes.forEach(t => t && takeOf(t));
+    const attached = new Set(boxes.flatMap(t => t ? Object.keys(t.items || {}) : []));
+    for (const id of Object.keys(R.cfg.items || {})) if (!attached.has(id)) { const b = itemBoxOf(R, id, [], ctx); if (b) taken.push(b); }
+    for (const i of spot) {
+      const a = autoOf(i), p = emptySpot(areaFor(R, ctx), a.w, a.h, taken);
+      const t: TBox = p ? { i, band: i, x: p.x, y: p.y, w: a.w * p.f, h: a.h * p.f, scale: a.scale * p.f, notes: {} } : { i, band: i, x: a.x, y: a.y, w: a.w, h: a.h, scale: a.scale, notes: {} };
+      place(i, t); takeOf(t);
+    }
+  }
   return { boxes, k: 1, fit: 1, reduced: false };
+}
+/** where a w × h box added to a free layout goes: the first empty spot for it (firstEmpty), else for it at ¾, ½, ⅓ or ¼
+    of its size (`f`); null when there is none */
+export function emptySpot(A: Box, w: number, h: number, taken: Box[]): { x: number; y: number; f: number } | null {
+  for (const f of [1, .75, .5, 1 / 3, .25]) { const p = firstEmpty(A, w * f, h * f, taken); if (p) return { ...p, f }; }
+  return null;
+}
+/** the first place (top to bottom, then left to right) inside area `A` where a w × h box is GX / GY away from every box
+    of `taken`; null when there is none. The candidates are the area's corner and the right / bottom edges of the boxes */
+export function firstEmpty(A: Box, w: number, h: number, taken: Box[]): { x: number; y: number } | null {
+  if (!(w > 0 && h > 0) || w > A.w + .01 || h > A.h + .01) return null;
+  const xs = [A.x, ...taken.map(b => b.x + b.w + GX)].filter(x => x >= A.x && x + w <= A.x + A.w + .01).sort((p, q) => p - q);
+  const ys = [A.y, ...taken.map(b => b.y + b.h + GY)].filter(y => y >= A.y && y + h <= A.y + A.h + .01).sort((p, q) => p - q);
+  for (const y of ys) for (const x of xs)
+    if (!taken.some(b => x < b.x + b.w + GX && b.x < x + w + GX && y < b.y + b.h + GY && b.y < y + h + GY)) return { x, y };
+  return null;
 }
 /** every box of the slide as it is drawn now in this design: what switching the free layout on saves (nothing moves) */
 export function freeBoxes(R: RuntimeSlide, ctx: RenderCtx): FreeLayout["items"] {

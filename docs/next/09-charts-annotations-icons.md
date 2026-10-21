@@ -347,7 +347,10 @@ the op builder.
   (the removed slide's def and its previous neighbour kept in the inverse). `table.add` / `table.remove` likewise;
   `table.add` on a slide whose free layout is on in a design places the table at the first empty spot of that design's
   content area at its automatic scale and writes no free entry (the next free move writes it, as items added after the
-  switch-on are handled today, 07 §5.1).
+  switch-on are handled today, 07 §5.1). As built in S13.4 (`layout.ts` freeLayout, emptySpot): only a table with **no**
+  entry (an unusable entry keeps the automatic place, as before); the first spot top to bottom, then left to right, GX /
+  GY away from the placed tables, their text boxes and the items; no spot that large → the first at ¾, ½, ⅓ or ¼ of
+  that scale; none either → the automatic layout's place.
 * Undo of *Delete slide* restores the slide **as this page had it** when the remove was applied: the inverse is taken
   from the page's view then (`DocSync.apply`, `ops.ts` inverseOf). An edit of that slide by another user with a lower
   Lamport time that reaches this page only after the delete is folded before the remove – and is lost when the undo
@@ -355,7 +358,8 @@ the op builder.
   `patch: null`) behaves the same. This is the behaviour in 4.6 (pinned by `core/tests/ops.test.ts`, "undo of Delete
   slide puts back the slide as this page had it"); S13.4 may recompute the inverse against the server copy when Undo
   runs. Ids of added slides and tables must be unique per writer (writer id + seq, or random; S13.4): a `slide.add` with
-  an id that exists is skipped, so two pages making the same id would merge two users' slides.
+  an id that exists is skipped, so two pages making the same id would merge two users' slides. S13.4 makes them random:
+  "s" / "t" + 10 base-36 characters, made again while the deck has that id (`app/src/editor/slides.ts` newId).
 * `table.add` needs a whole definition with what its kind needs (a range's `range`, markers' `anchor` and `index`), and
   `slide.add` a slide whose `tables` holds each id once; otherwise the op is skipped. A `table.remove` of an id on the
   slide whose definition is missing from `preset.tables` applies but has no inverse (nothing visible is lost).

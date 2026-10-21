@@ -23,7 +23,7 @@ import { setColWidth, setRowHeight } from "../editor/tables";
 import { applyPainter } from "../editor/painter";
 import { selectSlideText } from "../editor/textfmt";
 import { setStage, useStage } from "./data";
-import { addNote, editNote, openInline, pendingNote, selectNote, takePendingNote } from "./actions";
+import { addNote, editNote, openInline, pendingNote, pendingTitle, selectNote, takePendingNote, takePendingTitle } from "./actions";
 import { borderAt, cellBox, cellFromPoint, tablePoint } from "./hit";
 import { borderDrag, freeTable, gripDrag, noteEdge, noteMove, noteStretch, resizeDrag, stretchDrag, type DragPreview } from "./drags";
 import { editOf, stageModel, type NotePlace, type Rect, type StageModel } from "./model";
@@ -70,6 +70,12 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
   const m = useMemo(() => live && R ? stageModel(live, R, c) : null, [live, R]);
   // a text box just added opens for typing as soon as it is on the slide
   useEffect(() => { const k = pendingNote(); if (k && m?.notes.some(n => n.part.key === k)) { takePendingNote(); editNote(k); } }, [m]);
+  // the title of a slide New slide added opens for typing as soon as the stage shows it
+  useEffect(() => {
+    if (live && pendingTitle() === live.id && m?.hits.some(h => editOf(h.id) === "title") && !useStage.getState().editor && takePendingTitle(live.id)) {
+      selectSlideText("title"); setStage({ editor: { kind: "text", key: "title" } });
+    }
+  }, [m]);
   if (!live || !R || !m) return null;
   const frame = slideFrame(R, c), vars = Object.fromEntries(frame.vars);
   return (
@@ -90,7 +96,7 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
           {m.tables.map(t => <HBox key={t.i} i={t.i} R={R} c={c} m={m} box={boxOf(t.i, t.box, drag)} drag={drag} slide={slideRef} />)}
           <Selection m={m} s={s} drag={drag} />
           <Guides drag={drag} s={s} />
-          {R.type === "content" && !R.tables.length && <div className="emptyslide">No tables on this slide – add some with the wizard.</div>}
+          {R.type === "content" && !R.tables.length && <div className="emptyslide">No tables on this slide – Add table (Insert) puts one here.</div>}
         </div>
       </div>
       {editor?.kind === "cell" && <CellEditor m={m} s={s} initial={editor.initial} />}

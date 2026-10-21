@@ -8,6 +8,7 @@ import { Stage } from "../stage/Stage";
 import { zoomBy } from "../stage/actions";
 import { useStage } from "../stage/data";
 import { mountThumbs } from "../editor/thumbs";
+import { newSlide } from "../editor/slides";
 import { clearPreview } from "../editor/scenario";
 import { slideIssues } from "../editor/issues";
 import { openLicences } from "./notices";
@@ -28,15 +29,32 @@ function badge(R: RuntimeSlide, c: RenderCtx): number {
   return n;
 }
 export function Thumbs() {
-  const slides = useStore(s => s.deck.slides), cur = useStore(s => s.deck.cur), fname = useStore(s => s.deck.file?.name);
+  const slides = useStore(s => s.deck.slides), cur = useStore(s => s.deck.cur), fname = useStore(s => s.deck.file?.name), open = useStore(s => s.doc.open);
   const c = useCtx();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => { if (ref.current) mountThumbs(ref.current); }, []);
   const sig = slides.map(R => R.id + R.label + R.type).join("|") + "|" + fname;
   useEffect(() => { THUMBS.render(); }, [sig]);           // new frames → fill them
   useEffect(() => { ref.current?.querySelector(".thumb.on")?.scrollIntoView({ block: "nearest" }); }, [cur]);
+  // right-click: the slide list's menu (S13.4, 09 §3.9: New slide – after the slide clicked)
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (!menu) return;
+    const off = (e: Event) => { if (!(e.target as Element)?.closest?.(".ctxmenu")) setMenu(null); };
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(null); };
+    document.addEventListener("pointerdown", off); document.addEventListener("keydown", key); addEventListener("blur", off);
+    return () => { document.removeEventListener("pointerdown", off); document.removeEventListener("keydown", key); removeEventListener("blur", off); };
+  }, [menu]);
   return (
-    <div className="thumbs" id="thumbs" ref={ref}>
+    <div className="thumbs" id="thumbs" ref={ref} onContextMenu={e => {
+      if (!open) return;
+      e.preventDefault();
+      const i = Number((e.target as Element).closest?.(".thumb")?.getAttribute("data-i") ?? -1);
+      if (i >= 0) gotoSlide(i);
+      setMenu({ x: Math.min(e.clientX, innerWidth - 210), y: Math.min(e.clientY, innerHeight - 60) });
+    }}>
+      {menu && <div className="menu ctxmenu" id="slideMenu" style={{ left: menu.x + "px", top: menu.y + "px" }}>
+        <button id="ctxNewSlide" onClick={() => { setMenu(null); newSlide(); }}>New slide<small>Ctrl+M</small></button></div>}
       {slides.map((R, i) => {
         const issues = badge(R, c);
         return <button key={R.id} className={"thumb" + (i === cur ? " on" : "")} data-i={i} onClick={() => gotoSlide(i)}>

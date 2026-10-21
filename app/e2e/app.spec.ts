@@ -1779,6 +1779,148 @@ test.describe.serial("two people, one shared folder", () => {
     await page.click('[data-design="glass"]'); await saved(page);
   });
 
+  test("New slide (S13.4, NS-01, B40): after the selected slide, its title typed at once; #newSlide, Ctrl+M, the slide list's menu; one undo step each", async ({ page }) => {
+    await openApp(page, ANNA);
+    await openWorkbook(page, "report.xlsx"); await continueOpen(page, "report.xlsx");
+    await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
+    const undoSteps = () => page.evaluate(() => (window as any).__sbTest.history().undo as number);
+    const ids = () => doc().preset.slides.map((s: any) => s.id) as string[];
+    const ids0 = ids(), n0 = ids0.length, u0 = await undoSteps();
+    const editor = page.locator("#stage input.inline-edit");
+    // #newSlide: a blank content slide after the first, shown, its title open for typing
+    await page.locator('.thumb[data-i="0"]').click(); await page.locator('.thumb.on[data-i="0"]').waitFor();
+    await page.click("#newSlide");
+    await expect(editor).toBeFocused({ timeout: 10_000 });
+    await expect(editor).toHaveValue("New slide");
+    await expect(page.locator('.thumb.on[data-i="1"]')).toBeVisible();
+    await expect(page.locator("#slideCount")).toHaveText(String(n0 + 1));
+    await page.keyboard.type("Outlook 2027"); await page.keyboard.press("Enter");
+    await pollFile(() => doc().preset.slides[1].title, { timeout: 10_000 }).toBe("Outlook 2027");
+    const added = doc().preset.slides[1];
+    expect(added).toMatchObject({ type: "content", tables: [] });
+    expect(ids0).not.toContain(added.id);
+    expect(ids().filter(id => id !== added.id)).toEqual(ids0);
+    await expect(page.locator("#stage .slide [data-edit=\"title\"]")).toHaveText("Outlook 2027");
+    await expect.poll(() => undoSteps()).toBe(u0 + 2);
+    // undo: the title, then the slide – one step
+    await page.click("#undoBtn"); await pollFile(() => doc().preset.slides[1].title, { timeout: 10_000 }).toBe("New slide");
+    await page.click("#undoBtn"); await pollFile(() => ids(), { timeout: 10_000 }).toEqual(ids0);
+    await expect(page.locator("#slideCount")).toHaveText(String(n0));
+    await page.click("#redoBtn"); await pollFile(() => ids().length, { timeout: 10_000 }).toBe(n0 + 1);
+    await page.click("#undoBtn"); await pollFile(() => ids(), { timeout: 10_000 }).toEqual(ids0);
+    // Ctrl+M (PowerPoint's): after the last slide
+    await page.locator(`.thumb[data-i="${n0 - 1}"]`).click(); await page.locator(`.thumb.on[data-i="${n0 - 1}"]`).waitFor();
+    await page.keyboard.press("Control+m");
+    await expect(editor).toBeFocused({ timeout: 10_000 });
+    await page.keyboard.press("Escape");
+    await pollFile(() => ids().length, { timeout: 10_000 }).toBe(n0 + 1);
+    expect(ids().slice(0, n0)).toEqual(ids0);
+    expect(doc().preset.slides[n0].title).toBe("New slide");
+    await expect(page.locator(`.thumb.on[data-i="${n0}"]`)).toBeVisible();
+    // the slide list's right-click menu: New slide after the slide clicked
+    await page.locator('.thumb[data-i="0"]').click({ button: "right" });
+    await expect(page.locator("#slideMenu")).toBeVisible();
+    await expect(page.locator('.thumb.on[data-i="0"]')).toBeVisible();
+    await page.click("#ctxNewSlide");
+    await expect(page.locator("#slideMenu")).toHaveCount(0);
+    await expect(editor).toBeFocused({ timeout: 10_000 });
+    await page.keyboard.press("Escape");
+    await pollFile(() => ids().length, { timeout: 10_000 }).toBe(n0 + 2);
+    expect(doc().preset.slides[1].title).toBe("New slide");
+    expect(new Set(ids()).size).toBe(n0 + 2);                                          // ids unique (09 §2.8)
+    // the menu closes on Escape without a slide
+    await page.locator('.thumb[data-i="0"]').click({ button: "right" });
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#slideMenu")).toHaveCount(0);
+    expect(ids().length).toBe(n0 + 2);
+    await expect.poll(() => undoSteps()).toBe(u0 + 2);
+    await page.click("#undoBtn"); await page.click("#undoBtn");
+    await pollFile(() => ids(), { timeout: 10_000 }).toEqual(ids0);
+    await saved(page);
+  });
+
+  test("Add table (S13.4, NS-02, B41, B42): the deck's tables, on no slide first; one added to a new slide; New table from cells; one undo step each; free layout places it in an empty spot", async ({ page }) => {
+    await openApp(page, ANNA);
+    await openWorkbook(page, "report.xlsx"); await continueOpen(page, "report.xlsx");
+    await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
+    const undoSteps = () => page.evaluate(() => (window as any).__sbTest.history().undo as number);
+    const P = () => doc().preset, u0 = await undoSteps(), defs0 = P().tables.map((t: any) => t.id) as string[];
+    const onSlides = (id: string) => P().slides.filter((s: any) => (s.tables || []).includes(id)).length;
+    // a new slide to add to
+    await page.locator('.thumb[data-i="0"]').click(); await page.locator('.thumb.on[data-i="0"]').waitFor();
+    await page.click("#newSlide");
+    await expect(page.locator("#stage input.inline-edit")).toBeFocused({ timeout: 10_000 });
+    await page.keyboard.press("Escape");
+    await pollFile(() => P().slides[1].title, { timeout: 10_000 }).toBe("New slide");
+    const sid = P().slides[1].id, slide = () => P().slides.find((s: any) => s.id === sid);
+    await expect(page.locator("#stage .emptyslide")).toBeVisible();
+    // the menu: every mapped table, the ones on no slide first, each with its sheet and range and a preview
+    await page.click("#addTable");
+    const rows = page.locator("#addTableMenu [data-table]");
+    await expect(rows).toHaveCount(defs0.length);
+    const listed = await rows.evaluateAll(els => els.map(e => (e as HTMLElement).dataset.table!));
+    expect([...listed].sort()).toEqual([...defs0].sort());
+    const used = listed.map(id => onSlides(id) > 0);
+    expect(used).toEqual([...used].sort((a, b) => Number(a) - Number(b)));             // unused first
+    await expect(page.locator("#addTableMenu svg.tprev").first()).toBeVisible();
+    const pick = listed[0], tdef = P().tables.find((t: any) => t.id === pick);
+    await expect(rows.first()).toContainText(tdef.sheet);
+    await rows.first().click();
+    await expect(page.locator("#addTableMenu")).toHaveCount(0);
+    await pollFile(() => slide().tables, { timeout: 10_000 }).toEqual([pick]);
+    await expect(page.locator('#stage .slide > .tw[data-i="0"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator("#stage .emptyslide")).toHaveCount(0);
+    await expect.poll(() => undoSteps()).toBe(u0 + 2);
+    // the menu again: that table is on this slide (not offered twice)
+    await page.click("#addTable");
+    await expect(page.locator(`#addTableMenu [data-table="${pick}"]`)).toBeDisabled();
+    await expect(page.locator(`#addTableMenu [data-table="${pick}"]`)).toContainText("on this slide");
+    // New table from cells…: the sheet view, a range of a sheet on no slide; its definition and its place in one step
+    await page.click('#addTableMenu [data-a="table-pick"]');
+    await expect(page.locator("#pickCells")).toBeVisible();
+    await expect(page.locator("#pickCells")).toContainText("New table from cells");
+    await page.selectOption("#pkSheet", "Numbers");
+    await expect(page.locator("#pkUse")).toBeDisabled();
+    await page.locator('#pkRange td[data-r="8"][data-c="1"]').click();
+    await page.locator('#pkRange td[data-r="11"][data-c="3"]').click({ modifiers: ["Shift"] });
+    await expect(page.locator("#pkSel")).toHaveText("A8:C11");
+    await expect(page.locator("#pkUse")).toHaveText("Add table");
+    await page.click("#pkUse");
+    await expect(page.locator("#pickCells")).toHaveCount(0);
+    await pollFile(() => slide().tables.length, { timeout: 10_000 }).toBe(2);
+    const nid = slide().tables[1];
+    expect(defs0).not.toContain(nid);
+    expect(P().tables.find((t: any) => t.id === nid)).toMatchObject({ sheet: "Numbers", kind: "range", range: "A8:C11" });
+    await expect(page.locator('#stage .slide > .tw[data-i="1"]')).toBeVisible({ timeout: 10_000 });
+    await expect.poll(() => undoSteps()).toBe(u0 + 3);
+    await page.click("#undoBtn");
+    await pollFile(() => slide().tables, { timeout: 10_000 }).toEqual([pick]);
+    expect(P().tables.some((t: any) => t.id === nid)).toBe(true);                        // the definition stays (09 §2.8)
+    // free layout on: a table added then sits in an empty spot of the content area, at its automatic scale; no box written
+    await page.waitForFunction(() => (window as any).__sbTest.stageIdle());
+    await page.click("#freeLayout");
+    const design = () => doc().style.design || "glass";
+    await pollFile(() => slide().free?.[design()]?.on, { timeout: 10_000 }).toBe(true);
+    // (the first table made small in the top left corner: room for the next one)
+    await page.evaluate(([id, d, k]) => { const t = window as any, sl = t.__sbTest.preset().slides.find((x: any) => x.id === id), f = sl.free[d], e = f.items[k];
+      t.__sbTest.change("Move table", [{ op: "slide.patch", id, patch: { free: { [d]: { ...f, items: { ...f.items, [k]: { x: 60, y: 200, w: e.w * .4, h: e.h * .4, scale: (e.scale || 1) * .4 } } } } } }]); },
+      [sid, design(), "t:" + pick] as const);
+    await pollFile(() => slide().free[design()].items["t:" + pick].x, { timeout: 10_000 }).toBe(60);
+    await page.click("#addTable");
+    await page.locator(`#addTableMenu [data-table="${nid}"]`).click();
+    await pollFile(() => slide().tables.length, { timeout: 10_000 }).toBe(2);
+    expect(slide().free[design()].items["t:" + nid]).toBeUndefined();
+    await page.waitForFunction(() => (window as any).__sbTest.stageIdle());
+    const a = await boxOf(page.locator('#stage .slide > .tw[data-i="0"]')), b = await boxOf(page.locator('#stage .slide > .tw[data-i="1"]'));
+    const apart = a.x + a.width <= b.x + 1 || b.x + b.width <= a.x + 1 || a.y + a.height <= b.y + 1 || b.y + b.height <= a.y + 1;
+    expect(apart).toBe(true);
+    // undo all: the table, the move, the free layout, the first table, the slide
+    for (let i = 0; i < 5; i++) await page.click("#undoBtn");
+    await pollFile(() => slide() ?? "removed", { timeout: 10_000 }).toBe("removed");
+    await expect.poll(() => undoSteps()).toBe(u0);
+    await saved(page);
+  });
+
   test("no page errors, console errors or warnings", async () => { expect(unexpected(errors)).toEqual([]); });
 });
 

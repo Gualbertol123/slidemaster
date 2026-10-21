@@ -7,6 +7,7 @@ import { selectSlideText, toggleBold, toggleItalic } from "./textfmt";
 import { stopPainter } from "./painter";
 import { deleteItem, selectItem, selectedItem } from "./charts";
 import { setStage } from "../stage/data";
+import { newSlide } from "./slides";
 
 export function installKeys() {
   document.addEventListener("keydown", e => {
@@ -18,6 +19,7 @@ export function installKeys() {
     if (mod && k === "z" && !inField) { e.preventDefault(); undo(e.shiftKey); return; }
     if (mod && k === "y" && !inField) { e.preventDefault(); undo(true); return; }
     if (mod && k === "s") { e.preventDefault(); void flushDoc(); return; }
+    if (mod && k === "m" && !inField && !e.altKey && !e.shiftKey) { e.preventDefault(); newSlide(); return; }     // PowerPoint's New slide
     if (inField || !get().deck.slides.length) return;
     if (e.key === "Escape" && get().selection.painter) { stopPainter(); return; }
     if (e.key === "PageDown" || (e.key === "ArrowDown" && e.altKey)) { e.preventDefault(); gotoSlide(get().deck.cur + 1); return; }

@@ -35,6 +35,11 @@ export const closeEditor = () => editorClosed();
 
 /* ---- text boxes */
 export const slidePatch = (label: string, R: RuntimeSlide, p: Record<string, unknown>) => change(label, [{ op: "slide.patch", id: R.id, patch: p } as Op]);
+/** the title of a slide New slide added (S13.4): opened for typing as soon as the stage shows that slide */
+let pendingTitleEdit: string | null = null;
+export function editTitleWhenShown(slideId: string | null) { pendingTitleEdit = slideId; }
+export function takePendingTitle(slideId: string): boolean { if (pendingTitleEdit !== slideId) return false; pendingTitleEdit = null; return true; }
+export const pendingTitle = () => pendingTitleEdit;
 /** a text box added by the + button or "Notes" opens for typing as soon as the slide shows it */
 let pendingNoteEdit: string | null = null;
 export function takePendingNote(): string | null { const k = pendingNoteEdit; pendingNoteEdit = null; return k; }
