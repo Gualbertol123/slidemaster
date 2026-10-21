@@ -1,0 +1,2702 @@
+[
+ {
+  "name": "version.patch (S16.2, B37) creates a version: a name on a missing id, appended after the others, with hide {}",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "version.patch",
+    "id": "v2",
+    "patch": {
+     "name": "All"
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {}
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "version.patch",
+     "id": "v2",
+     "patch": null
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "docNeedsV5": false
+  }
+ },
+ {
+  "name": "version.patch creates a version with its lists in one op (one undo step: the inverse deletes it)",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "version.patch",
+    "id": "v2",
+    "patch": {
+     "name": "All",
+     "hide": {
+      "S": [
+       "C5:D6"
+      ]
+     },
+     "drop": {
+      "S": [
+       "10:12",
+       "E"
+      ]
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      },
+      "drop": {
+       "S": [
+        "10:12",
+        "E"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "version.patch",
+     "id": "v2",
+     "patch": null
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "docNeedsV5": true
+  }
+ },
+ {
+  "name": "version.patch creates the first version of a deck (preset.versions made)",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "version.patch",
+    "id": "v1",
+    "patch": {
+     "name": "Chief"
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "version.patch",
+     "id": "v1",
+     "patch": null
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "docNeedsV5": false
+  }
+ },
+ {
+  "name": "version.patch renames a version; its lists stay",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      },
+      "drop": {
+       "S": [
+        "10:12"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "version.patch",
+    "id": "v2",
+    "patch": {
+     "name": "Everybody"
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "Everybody",
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      },
+      "drop": {
+       "S": [
+        "10:12"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "version.patch",
+     "id": "v2",
+     "patch": {
+      "name": "All"
+     }
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "docNeedsV5": true
+  }
+ },
+ {
+  "name": "version.patch drop: a sheet's list set (deleted rows and columns); another sheet's list stays",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      },
+      "drop": {
+       "S": [
+        "10:12"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "version.patch",
+    "id": "v2",
+    "patch": {
+     "drop": {
+      "T": [
+       "4:5",
+       "C"
+      ]
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      },
+      "drop": {
+       "S": [
+        "10:12"
+       ],
+       "T": [
+        "4:5",
+        "C"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "version.patch",
+     "id": "v2",
+     "patch": {
+      "drop": {
+       "T": null
+      }
+     }
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "docNeedsV5": true
+  }
+ },
+ {
+  "name": "version.patch drop: a sheet's list replaced whole",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      },
+      "drop": {
+       "S": [
+        "10:12"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "version.patch",
+    "id": "v2",
+    "patch": {
+     "drop": {
+      "S": [
+       "10:11",
+       "E:F"
+      ]
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      },
+      "drop": {
+       "S": [
+        "10:11",
+        "E:F"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "version.patch",
+     "id": "v2",
+     "patch": {
+      "drop": {
+       "S": [
+        "10:12"
+       ]
+      }
+     }
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "docNeedsV5": true
+  }
+ },
+ {
+  "name": "version.patch drop: null on a sheet clears its list; the map goes when it is empty",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      },
+      "drop": {
+       "S": [
+        "10:12"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "version.patch",
+    "id": "v2",
+    "patch": {
+     "drop": {
+      "S": null
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "version.patch",
+     "id": "v2",
+     "patch": {
+      "drop": {
+       "S": [
+        "10:12"
+       ]
+      }
+     }
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "docNeedsV5": false
+  }
+ },
+ {
+  "name": "version.patch drop: null clears every sheet's deleted rows and columns",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      },
+      "drop": {
+       "S": [
+        "10:12"
+       ],
+       "T": [
+        "C"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "version.patch",
+    "id": "v2",
+    "patch": {
+     "drop": null
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "version.patch",
+     "id": "v2",
+     "patch": {
+      "drop": {
+       "S": [
+        "10:12"
+       ],
+       "T": [
+        "C"
+       ]
+      }
+     }
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "docNeedsV5": false
+  }
+ },
+ {
+  "name": "version.patch hide: a sheet's emptied cells set and another cleared",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5:D6"
+       ],
+       "T": [
+        "B3"
+       ]
+      },
+      "drop": {
+       "S": [
+        "10:12"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "version.patch",
+    "id": "v2",
+    "patch": {
+     "hide": {
+      "S": [
+       "C5:D6",
+       "F8"
+      ],
+      "T": null
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5:D6",
+        "F8"
+       ]
+      },
+      "drop": {
+       "S": [
+        "10:12"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "version.patch",
+     "id": "v2",
+     "patch": {
+      "hide": {
+       "S": [
+        "C5:D6"
+       ],
+       "T": [
+        "B3"
+       ]
+      }
+     }
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "docNeedsV5": true
+  }
+ },
+ {
+  "name": "version.patch hide: null empties the version's cells to {} (the field stays)",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      },
+      "drop": {
+       "S": [
+        "10:12"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "version.patch",
+    "id": "v2",
+    "patch": {
+     "hide": null
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {},
+      "drop": {
+       "S": [
+        "10:12"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "version.patch",
+     "id": "v2",
+     "patch": {
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      }
+     }
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "docNeedsV5": true
+  }
+ },
+ {
+  "name": "version.patch Restore all: hide and drop null in one op; the inverse puts back each sheet's lists",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      },
+      "drop": {
+       "S": [
+        "10:12"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "version.patch",
+    "id": "v2",
+    "patch": {
+     "hide": null,
+     "drop": null
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {}
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "version.patch",
+     "id": "v2",
+     "patch": {
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      },
+      "drop": {
+       "S": [
+        "10:12"
+       ]
+      }
+     }
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "docNeedsV5": false
+  }
+ },
+ {
+  "name": "version.patch null deletes a version; the undo re-creates it, at the end, with its lists",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      },
+      "drop": {
+       "S": [
+        "10:12"
+       ]
+      }
+     },
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "version.patch",
+    "id": "v2",
+    "patch": null
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "version.patch",
+     "id": "v2",
+     "patch": {
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      },
+      "drop": {
+       "S": [
+        "10:12"
+       ]
+      }
+     }
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "docNeedsV5": false
+  }
+ },
+ {
+  "name": "version.patch null deletes the last version: preset.versions goes",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "version.patch",
+    "id": "v1",
+    "patch": null
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "version.patch",
+     "id": "v1",
+     "patch": {
+      "name": "Chief",
+      "hide": {}
+     }
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "docNeedsV5": false
+  }
+ },
+ {
+  "name": "version.patch skipped: no name for a missing id, a delete of a missing id, an empty name, no preset entry",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "version.patch",
+    "id": "v9",
+    "patch": {
+     "drop": {
+      "S": [
+       "3"
+      ]
+     }
+    }
+   },
+   {
+    "op": "version.patch",
+    "id": "v9",
+    "patch": null
+   },
+   {
+    "op": "version.patch",
+    "id": "v1",
+    "patch": {
+     "name": " "
+    }
+   },
+   {
+    "op": "version.patch",
+    "id": "",
+    "patch": {
+     "name": "X"
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 0,
+   "skipped": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "inverses": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "needsV5": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "docNeedsV5": false
+  }
+ },
+ {
+  "name": "version.patch ignores a list that is no list of strings and a __proto__ sheet",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "version.patch",
+    "id": "v1",
+    "patch": {
+     "drop": {
+      "S": "10:12",
+      "T": [
+       3
+      ],
+      "__proto__": [
+       "1"
+      ],
+      "U": [
+       "2"
+      ]
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {},
+      "drop": {
+       "U": [
+        "2"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "version.patch",
+     "id": "v1",
+     "patch": {
+      "drop": {
+       "S": null,
+       "T": null,
+       "U": null
+      }
+     }
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "docNeedsV5": true
+  }
+ },
+ {
+  "name": "versions with only emptied cells: docNeedsV5 false (4.0.0 knows hide; drop makes it true, the second case)",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "version.patch",
+    "id": "v2",
+    "patch": {
+     "name": "All",
+     "hide": {
+      "S": [
+       "C5"
+      ]
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "version.patch",
+     "id": "v2",
+     "patch": null
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "docNeedsV5": false
+  }
+ },
+ {
+  "name": "fold: two writers delete rows on two sheets of one version – both win, in either order (S16.2)",
+  "fold": {
+   "snapshot": {
+    "format": 5,
+    "gen": 1,
+    "workbook": "W.xlsx",
+    "lamport": 0,
+    "rev": 0,
+    "frontier": {},
+    "doc": {
+     "schema": 3,
+     "workbook": "W.xlsx",
+     "rev": 0,
+     "preset": {
+      "sheets": [
+       "S",
+       "T"
+      ],
+      "tables": [
+       {
+        "id": "t1",
+        "sheet": "S",
+        "kind": "range",
+        "range": "A1:F12"
+       },
+       {
+        "id": "t2",
+        "sheet": "T",
+        "kind": "range",
+        "range": "B2:E9"
+       }
+      ],
+      "slides": [
+       {
+        "id": "s1",
+        "type": "content",
+        "tables": [
+         "t1",
+         "t2"
+        ],
+        "title": "Loans"
+       }
+      ],
+      "versions": [
+       {
+        "id": "v1",
+        "name": "Chief",
+        "hide": {}
+       }
+      ]
+     },
+     "style": {},
+     "edits": {}
+    }
+   },
+   "records": [
+    {
+     "l": 1,
+     "w": "anna@pc#aaaaaaaa",
+     "s": 1,
+     "by": "anna",
+     "at": 1000,
+     "ops": [
+      {
+       "op": "version.patch",
+       "id": "v1",
+       "patch": {
+        "drop": {
+         "S": [
+          "10:12"
+         ]
+        }
+       }
+      }
+     ]
+    },
+    {
+     "l": 2,
+     "w": "bob@pc#bbbbbbbb",
+     "s": 1,
+     "by": "bob",
+     "at": 2000,
+     "ops": [
+      {
+       "op": "version.patch",
+       "id": "v1",
+       "patch": {
+        "drop": {
+         "T": [
+          "C"
+         ]
+        }
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "expect": {
+   "edits": {},
+   "rev": 2,
+   "lamport": 2,
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {},
+      "drop": {
+       "S": [
+        "10:12"
+       ],
+       "T": [
+        "C"
+       ]
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "name": "fold: two writers on one sheet of one version – the later list wins whole (Lamport; 09 accepts it, M16 plan Risks 1)",
+  "fold": {
+   "snapshot": {
+    "format": 5,
+    "gen": 1,
+    "workbook": "W.xlsx",
+    "lamport": 0,
+    "rev": 0,
+    "frontier": {},
+    "doc": {
+     "schema": 3,
+     "workbook": "W.xlsx",
+     "rev": 0,
+     "preset": {
+      "sheets": [
+       "S",
+       "T"
+      ],
+      "tables": [
+       {
+        "id": "t1",
+        "sheet": "S",
+        "kind": "range",
+        "range": "A1:F12"
+       },
+       {
+        "id": "t2",
+        "sheet": "T",
+        "kind": "range",
+        "range": "B2:E9"
+       }
+      ],
+      "slides": [
+       {
+        "id": "s1",
+        "type": "content",
+        "tables": [
+         "t1",
+         "t2"
+        ],
+        "title": "Loans"
+       }
+      ],
+      "versions": [
+       {
+        "id": "v1",
+        "name": "Chief",
+        "hide": {}
+       }
+      ]
+     },
+     "style": {},
+     "edits": {}
+    }
+   },
+   "records": [
+    {
+     "l": 1,
+     "w": "anna@pc#aaaaaaaa",
+     "s": 1,
+     "by": "anna",
+     "at": 1000,
+     "ops": [
+      {
+       "op": "version.patch",
+       "id": "v1",
+       "patch": {
+        "drop": {
+         "S": [
+          "10:12"
+         ]
+        }
+       }
+      }
+     ]
+    },
+    {
+     "l": 2,
+     "w": "bob@pc#bbbbbbbb",
+     "s": 1,
+     "by": "bob",
+     "at": 2000,
+     "ops": [
+      {
+       "op": "version.patch",
+       "id": "v1",
+       "patch": {
+        "drop": {
+         "S": [
+          "4"
+         ]
+        }
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "expect": {
+   "edits": {},
+   "rev": 2,
+   "lamport": 2,
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {},
+      "drop": {
+       "S": [
+        "4"
+       ]
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "name": "fold: two writers create two versions at once – both kept, in Lamport order",
+  "fold": {
+   "snapshot": {
+    "format": 5,
+    "gen": 1,
+    "workbook": "W.xlsx",
+    "lamport": 0,
+    "rev": 0,
+    "frontier": {},
+    "doc": {
+     "schema": 3,
+     "workbook": "W.xlsx",
+     "rev": 0,
+     "preset": {
+      "sheets": [
+       "S",
+       "T"
+      ],
+      "tables": [
+       {
+        "id": "t1",
+        "sheet": "S",
+        "kind": "range",
+        "range": "A1:F12"
+       },
+       {
+        "id": "t2",
+        "sheet": "T",
+        "kind": "range",
+        "range": "B2:E9"
+       }
+      ],
+      "slides": [
+       {
+        "id": "s1",
+        "type": "content",
+        "tables": [
+         "t1",
+         "t2"
+        ],
+        "title": "Loans"
+       }
+      ],
+      "versions": []
+     },
+     "style": {},
+     "edits": {}
+    }
+   },
+   "records": [
+    {
+     "l": 1,
+     "w": "anna@pc#aaaaaaaa",
+     "s": 1,
+     "by": "anna",
+     "at": 1000,
+     "ops": [
+      {
+       "op": "version.patch",
+       "id": "va",
+       "patch": {
+        "name": "Chief"
+       }
+      }
+     ]
+    },
+    {
+     "l": 2,
+     "w": "bob@pc#bbbbbbbb",
+     "s": 1,
+     "by": "bob",
+     "at": 2000,
+     "ops": [
+      {
+       "op": "version.patch",
+       "id": "vb",
+       "patch": {
+        "name": "All"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "expect": {
+   "edits": {},
+   "rev": 2,
+   "lamport": 2,
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "va",
+      "name": "Chief",
+      "hide": {}
+     },
+     {
+      "id": "vb",
+      "name": "All",
+      "hide": {}
+     }
+    ]
+   }
+  }
+ },
+ {
+  "name": "fold: one writer deletes a version another edits later – the edit is skipped (no name), the version stays deleted",
+  "fold": {
+   "snapshot": {
+    "format": 5,
+    "gen": 1,
+    "workbook": "W.xlsx",
+    "lamport": 0,
+    "rev": 0,
+    "frontier": {},
+    "doc": {
+     "schema": 3,
+     "workbook": "W.xlsx",
+     "rev": 0,
+     "preset": {
+      "sheets": [
+       "S",
+       "T"
+      ],
+      "tables": [
+       {
+        "id": "t1",
+        "sheet": "S",
+        "kind": "range",
+        "range": "A1:F12"
+       },
+       {
+        "id": "t2",
+        "sheet": "T",
+        "kind": "range",
+        "range": "B2:E9"
+       }
+      ],
+      "slides": [
+       {
+        "id": "s1",
+        "type": "content",
+        "tables": [
+         "t1",
+         "t2"
+        ],
+        "title": "Loans"
+       }
+      ],
+      "versions": [
+       {
+        "id": "v1",
+        "name": "Chief",
+        "hide": {}
+       }
+      ]
+     },
+     "style": {},
+     "edits": {}
+    }
+   },
+   "records": [
+    {
+     "l": 1,
+     "w": "anna@pc#aaaaaaaa",
+     "s": 1,
+     "by": "anna",
+     "at": 1000,
+     "ops": [
+      {
+       "op": "version.patch",
+       "id": "v1",
+       "patch": null
+      }
+     ]
+    },
+    {
+     "l": 2,
+     "w": "bob@pc#bbbbbbbb",
+     "s": 1,
+     "by": "bob",
+     "at": 2000,
+     "ops": [
+      {
+       "op": "version.patch",
+       "id": "v1",
+       "patch": {
+        "drop": {
+         "S": [
+          "3"
+         ]
+        }
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "expect": {
+   "edits": {},
+   "rev": 2,
+   "lamport": 2,
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ]
+   }
+  }
+ }
+]

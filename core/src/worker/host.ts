@@ -17,6 +17,8 @@ import { sliceBoxes, sliceShared, sliceSheet, sliceTransfer, type SharedSlice, t
 import { cellInfo, sheetInfo, sheetWindow, tableSize } from "../xlsx/sheetview";
 import { detectTables } from "../xlsx/detect";
 import { defaultPreset, LCACHE, presetSheets, rangeToG, runtimeSlides } from "../model/preset";
+import { versionDrop } from "../model/versions";
+import { dropHidden } from "../model/hidden";
 import { resolveStyle } from "../model/style";
 import { tableDrawKey } from "../render/slide";
 import { slideCtx } from "../render/look";
@@ -62,6 +64,8 @@ export class CoreHost {
   private readonly history = new History();
   private inputs: ViewInputs = { defaults: {}, logoSrc: "", version: "", workbook: "" };
   private slides: RuntimeSlide[] = []; private slidesDesign: Design | null = null; private presetSig = "";
+  /** what the stage's slides close up: the shown version's deleted rows / columns (4.9, B37), as JSON */
+  private slidesDrop = "";
   /** per workbook (the open one and the one being opened): the slice rectangles sent, by sheet */
   private sentBoxes = new Map<number, Map<string, string>>();
   private sentSharedFor = new Set<number>();
@@ -307,10 +311,13 @@ export class CoreHost {
       ...check.frozen.map(d => [id(d), d] as const), ...check.pinned.map(d => [id(d), { ...d, why: "text" as const }] as const)]);
     const out = new Map<string, GateCell>(), kept = new Map<string, KeptCell>();
     const vers = (this.sync?.view.preset?.versions || []).filter(v => versions.includes(v.id)), full = versions.includes("");
+    // a version's deleted rows / columns too (4.9, B37): the full deck's slides are read, every cell of them
+    const drops = new Map(vers.map(v => [v.id, Object.fromEntries(Object.entries(v.drop || {}).map(([s, l]) => [s, dropHidden(l)]))]));
+    const dropped = (id: string, sheet: string, r: number, c: number) => { const h = drops.get(id)?.[sheet]; return !!h && (h.rows.has(r) || h.cols.has(c)); };
     const removed = (sheet: string, r: number, c: number) => !full && vers.length > 0 && vers.every(v => (v.hide?.[sheet] || []).some(rg => {
       const g = rangeToG(rg); return r > g.r1 && r < g.r2 && c > g.c1 && c < g.c2;           // (rangeToG's bounds are outside the range)
-    }));
-    if (diff.size || pinned.size) for (const d of designs) for (const R of this.slidesFor(d, "own")) if (!hiddenIn(R.cfg, d)) for (const L of R.tables) for (const it of L.items) {
+    }) || dropped(v.id, sheet, r, c));
+    if (diff.size || pinned.size) for (const d of designs) for (const R of this.slidesFor(d, "own", "")) if (!hiddenIn(R.cfg, d)) for (const L of R.tables) for (const it of L.items) {
       const k = L.sheet.name + "!" + A1(it.b.src.r, it.b.src.c), dd = diff.get(k), p = pinned.get(k);
       if (!dd && !p || removed(L.sheet.name, it.b.src.r, it.b.src.c)) continue;
       if (dd && !out.has(k)) out.set(k, { sheet: L.sheet.name, ref: dd.ref, text: dd.text, cached: dd.cached, computed: dd.computed });
@@ -538,30 +545,33 @@ export class CoreHost {
     const v = this.sync!.view, st = this.style(), s = design && design !== st.design ? resolveStyle(this.inputs.defaults as never, { ...(v.style || {}), design }) as Style : st;
     const vid = version ?? this.inputs.version, wb = typeof src === "object" ? src.view : src === "own" ? this.wb : this.viewWb;
     const scenario = typeof src === "object" ? src.hash : src === "stage" && this.scen ? this.scen.hash : "";
-    return { style: s, edits: v.edits || {}, slides: this.slidesFor(s.design, src), preset: v.preset || null, workbook: this.inputs.workbook || this.name,
+    return { style: s, edits: v.edits || {}, slides: this.slidesFor(s.design, src, vid), preset: v.preset || null, workbook: this.inputs.workbook || this.name,
       logoSrc: this.inputs.logoSrc, sheet: n => wb?.sheets.find(x => x.name === n) || null,
       version: (v.preset?.versions || []).find(x => x.id === vid) || null, ...(forExport ? { forExport: true } : {}), ...(scenario ? { scenario } : {}) };
   }
-  private slidesFor(design: Design, src: Source = "stage"): RuntimeSlide[] {
+  /** `vid`: the version (4.9, B37: its deleted rows / columns close the tables up; "" the full deck) */
+  private slidesFor(design: Design, src: Source = "stage", vid = this.inputs.version): RuntimeSlide[] {
     if (!this.wb || !this.sync) return [];
+    const preset = this.sync.view.preset, drop = versionDrop(preset, vid), opts = drop ? { drop } : undefined;
     if (typeof src === "object") {
       if (!src.view) return [];
-      const key = design + "|" + this.presetSig;
-      let R = src.slides.get(key); if (!R) src.slides.set(key, R = runtimeSlides(src.view, this.sync.view.preset, this.name, design));
+      const key = design + "|" + (drop ? JSON.stringify(drop) : "") + "|" + this.presetSig;
+      let R = src.slides.get(key); if (!R) src.slides.set(key, R = runtimeSlides(src.view, preset, this.name, design, opts));
       return R;
     }
     // the workbook's own values while a preview shows: its own slides (the stage's are the preview's)
-    if (src === "own" && this.scen) return runtimeSlides(this.wb, this.sync.view.preset, this.name, design);
-    if (design === this.slidesDesign) return this.slides;
-    return runtimeSlides(this.viewWb!, this.sync.view.preset, this.name, design);
+    if (src === "own" && this.scen) return runtimeSlides(this.wb, preset, this.name, design, opts);
+    if (design === this.slidesDesign && JSON.stringify(drop || null) === this.slidesDrop) return this.slides;
+    return runtimeSlides(this.viewWb!, preset, this.name, design, opts);
   }
   /** the slides of the current design (re-resolved when the preset or the design changed), then send */
   private async refresh(c: Change | null, force = false) {
     if (!this.wb || !this.sync) return;
     const design = this.style().design, sig = JSON.stringify(this.sync.view.preset);
-    if (force || sig !== this.presetSig || design !== this.slidesDesign) {
-      this.presetSig = sig; this.slidesDesign = design;
-      this.slides = runtimeSlides(this.viewWb!, this.sync.view.preset, this.name, design);
+    const drop = versionDrop(this.sync.view.preset, this.inputs.version), dsig = JSON.stringify(drop || null);
+    if (force || sig !== this.presetSig || design !== this.slidesDesign || dsig !== this.slidesDrop) {
+      this.presetSig = sig; this.slidesDesign = design; this.slidesDrop = dsig;
+      this.slides = runtimeSlides(this.viewWb!, this.sync.view.preset, this.name, design, drop ? { drop } : undefined);
     } else {
       // same preset: the slide definitions (layout, titles, text boxes) live in the runtime slides
       const byId = new Map((this.sync.view.preset?.slides || []).map(s => [s.id, s]));

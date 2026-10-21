@@ -154,8 +154,9 @@ export interface SlideDef {
 }
 /** how one design shows a slide's tables: arrangement and weights, fixed scale, alignment */
 export interface SlideSizing { layout?: Layout; scale?: number; align?: "left" | "center" | "right"; valign?: "top" | "middle" | "bottom" }
-/** a named version of the deck (e.g. "Chief", "All"): the cells removed from it, per sheet ("C5:D9" ranges) */
-export interface DeckVersion { id: string; name: string; hide: Record<string, string[]> }
+/** a named version of the deck (e.g. "Chief", "All"): the cells removed from it, per sheet ("C5:D9" ranges); and (4.9,
+    B37, 09 §2.5) the rows / columns it deletes, per sheet ("5:7" rows, "C:D" columns: its tables close up) */
+export interface DeckVersion { id: string; name: string; hide: Record<string, string[]>; drop?: Record<string, string[]> }
 export interface Preset { sheets: string[]; tables: TableDef[]; slides: SlideDef[]; version?: number; updated?: number;
   /** named versions for export (wizard › Versions) */ versions?: DeckVersion[];
   /** linked workbooks (4.2, B22): file names in the same folder whose sheets the deck draws from, named by the sheet id
@@ -222,7 +223,11 @@ export type Op =
       the end); skipped when the table is on that slide already */
   | { op: "table.add"; table: TableDef; slide: string; at?: number }
   /** the inverse of table.add: the id leaves the slide's tables; the def stays in preset.tables */
-  | { op: "table.remove"; id: string; slide: string };
+  | { op: "table.remove"; id: string; slide: string }
+  /** a version (4.9, B37, 09 §2.5): `name` on a missing id creates it (appended, `hide: {}`); `null` deletes it; `hide` /
+      `drop` merged per sheet (a sheet's list replaced whole, null removes it); `hide: null` empties it */
+  | { op: "version.patch"; id: string; patch: VersionPatch | null };
+export type VersionPatch = { name?: string | null; hide?: Record<string, string[] | null> | null; drop?: Record<string, string[] | null> | null };
 
 /* ---- runtime ---- */
 export interface RuntimeSlide {
