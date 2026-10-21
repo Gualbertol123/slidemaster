@@ -15,12 +15,15 @@ What users notice (B48–B50, branch `v4/B48-B50-isp`)
   (top right; on by default unless the deck turned it off, none on the cover), the logo (bottom right), Century Gothic, the contents slide, bullets as tilted squares, outlined boxes and
   the template's colours follow it. Long titles shrink to fit before they are cut. Liquid Glass and the consulting
   designs are unchanged.
-* **Comment borders** (B49): a comment's box gets a border of the weight and colour you pick, or none.
+* **Comment borders** (B49): a comment's box gets a border of the weight and colour you pick, or none (in Excel and
+  Excel Refined a border without a colour takes the template's grey, #7F7F7F).
 * **Comments as the macro writes them** (B50): vs Budget – Budget Performance and vs Previous Week – Weekly Momentum,
   with the top contributors, the concentration ("largely driven by …"), the downside and the alerts (−5 % vs Budget,
   −1 % week on week; editable); each section can still be added or removed, and has a rule: always, only in the last
   week of the month, only in the first week, or from day N (e.g. "vs monthly Budget" only at the end of the month).
   Comments written before keep their text until you switch them.
+* **A 4.6.0 window on a 4.7 deck** (both read format 5): it keeps every border and macro comment as saved, but shows
+  a macro comment as a summary, draws no comment border, and has no default page number in Excel – update to 4.7.
 
 (M14 writes this section on its own branch, v4/M14-charts. Shared preparation of both, S14.P, nothing users notice: the
 data model of 09 §2.2 / §2.3 and its ops, `Stroke.join` in every backend, the arrowheads, the PowerPoint gate of 09 §7.2,

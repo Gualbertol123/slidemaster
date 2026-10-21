@@ -182,7 +182,7 @@ numbers measured twice). Measured numbers go into the step's line.
   S14.P step that commits the page (M14-M15-split.md §1). Ticked at that merge: verified: tests ✓ clean clone ✓
   review ✓.
 
-### B48–B50 · The Intesa Sanpaolo template (product owner 2026-10-21, B48–B50 approved; branch `v4/isp-template`, from `v4/M14-M15-prep`)
+### B48–B50 · The Intesa Sanpaolo template, comment borders, the macro's comments (product owner 2026-10-21, B48–B50 approved; branch `v4/B48-B50-isp` = `v4/isp-template` + `v4/isp-comments` on main)
 - [ ] B48 · Excel and Excel Refined follow the template (cover, contents, titles, page number, logo, bullets, boxes,
   palette; docs/RENDERING.md) — d86a56a, review REQUEST CHANGES (10 findings) → "B48 · … (review fixes)": one scale
   (× 4/3 for positions, type and lines), the cover's subtitle at 3.880 in, native PowerPoint bullets (`buChar`; the
@@ -191,6 +191,18 @@ numbers measured twice). Measured numbers go into the step's line.
   environment's kinds pinned on the reference PC with `tools/pin-accepted.mjs`), `core/tests/dlhash.test.ts`,
   export-check's scoped "GT B48", `app/tests/page-budget/b48.json` (provisional, 21,422 bytes: decision before the
   merge), the swatches' narrow subscription. Ticked when the orchestrator's runs and the re-review pass.
+  Then c773d66 (the source note beside the footer, titles shrink before "…"), 06b31a9 (the page number on by default,
+  top right). Page budget: b48.json 21,422 + b49-b50.json 20,049 (measured, 4,017,563 bytes).
+- [ ] B49 · Comment borders (weight, colour, none; `Note.frame`, V5_NOTE, vectors `shared/ops-vectors.d/b49.json`; PDF
+  and PowerPoint: an outline grouped with its text box) — dbedb1d, 24426cd; review APPROVE (3 low follow-ups); merge
+  with B48 5f69878 (the template's outline is the default, a user's border wins; `note-frame.test.ts`), 218eed0 (the
+  default colour #7F7F7F in Excel and Excel Refined). Ticked when the orchestrator's runs pass.
+- [ ] B50 · Comments in the macro's structure (`core/src/model/comment-macro.ts`: vs Budget – Budget Performance,
+  vs Previous Week – Weekly Momentum, contributors, concentration, downside, alerts −5 % / −1 %; the sample text of the
+  owner's macro reproduced exactly in `comment-macro.test.ts`; sections with include rules: always, last week of the
+  month, first week, from day N; thresholds per section; vectors `b50.json`) — 6659c1b, 0e31e52; review REQUEST
+  CHANGES (8) → fixed → APPROVE. Older pages: a 4.6.0 window shows a macro comment as a summary and no border, keeps
+  both (CHANGELOG 4.7.0). Ticked when the orchestrator's runs pass.
   - **Open at the M14 merge (B48 review, 6):** the template's "trend charts as a line only" is NOT done – M14's line
     and area charts must take `ISP.chart.lineW` and `ISP.chart.areaAsLine` (render/isp.ts) in Excel and Excel
     Refined. Expected conflicts: `chartLook` in `render/chart-dl.ts` (B48 adds the template's palette and the
