@@ -12,6 +12,7 @@ import { setStage, useStage } from "../stage/data";
 import { Dropdown } from "./Dropdown";
 import { Input } from "./Input";
 import { useCurSlide } from "./hooks";
+import { Ic } from "./Ic";
 import { openIconPicker } from "./IconPicker";
 import { LineTools } from "./LineTools";
 import { freeKey } from "@slide-builder/core/render/layout";
@@ -28,7 +29,7 @@ const PREVIEW: Record<string, string> = {
 export function ShapeInsert() {
   const R = useCurSlide();
   return <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="shapeBtn" disabled={!R} title="A callout: a shape or an icon, with text that can quote cells ({Sheet!C7})" onClick={t}>
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="2.5" width="11" height="8" rx="2" /><path d="M4 10.5 3 14l4-3.5" /></svg>Insert shape ▾</button>}>
+    <Ic n="shape" />Insert shape ▾</button>}>
     {close => <ShapeMenu close={close} />}</Dropdown>;
 }
 export function ShapeMenu({ close }: { close: () => void }) {
@@ -58,7 +59,7 @@ export function ShapeTools() {
   const icon = it.shape === "icon", size = +(f.size || 18), outline = icon && typeof it.icon === "string" && it.icon.startsWith("tabler:");
   return <div className="grp" id="shapeTools" data-item={id}>
     <span className="lbl">{icon ? "Icon" : "Shape"}</span>
-    <Dropdown button={(_o, t) => <button className="tb colorbtn" id="shapeFill" title={icon ? "Colour of the icon" : "Fill of the shape"} onClick={t}><span>◼</span><i className="sw" style={{ background: it.fill && it.fill !== "none" ? it.fill : "linear-gradient(135deg,#fff 45%,#cfd8e6 55%)" }} /></button>}>
+    <Dropdown button={(_o, t) => <button className="tb colorbtn" id="shapeFill" title={icon ? "Colour of the icon" : "Fill of the shape"} onClick={t}><Ic n="bucket-droplet" /><i className="sw" style={{ background: it.fill && it.fill !== "none" ? it.fill : "linear-gradient(135deg,#fff 45%,#cfd8e6 55%)" }} /></button>}>
       {close => <>
         <div className="hd">{icon ? "Icon colour" : "Fill"}</div>{sw(FILLS, c => set(icon ? "Icon colour" : "Shape fill", { fill: c }), "data-fill", close)}
         <div className="wide"><button data-fill="" onClick={() => { close(); set("Fill of the design", { fill: null }); }}>{icon ? "Text colour" : "The design's (glass, card…)"}</button>
@@ -67,7 +68,7 @@ export function ShapeTools() {
       </>}
     </Dropdown>
     {icon && <IconControls id={id} it={it} outline={outline} R={R!} />}
-    {!icon && <Dropdown button={(_o, t) => <button className="tb" id="shapeBorder" title="Border of the shape" onClick={t}>▢ Border ▾</button>}>
+    {!icon && <Dropdown button={(_o, t) => <button className="tb" id="shapeBorder" title="Border of the shape" onClick={t}><Ic n="square" />Border ▾</button>}>
       {close => <div className="bordermenu">
         <div className="hd">Colour</div>{sw(INKS.filter(c => c !== "#FFFFFF").concat("#BFBFBF"), c => set("Shape border", { border: { color: c, w: it.border?.w || 1.5, ...(it.border?.dash ? { dash: it.border.dash } : {}) } }), "data-border", close)}
         <div className="hd">Weight and style</div>
@@ -85,8 +86,8 @@ export function ShapeTools() {
           <div className="wide"><button data-ink="" onClick={() => { close(); set("Automatic text colour", { fmt: { color: null } }); }}>Automatic</button></div></>}
       </Dropdown>
       {(["left", "center", "right"] as const).map(a => <button key={a} className={"tb" + ((f.align || "center") === a ? " on" : "")} data-salign={a} title={a === "center" ? "Centre" : "Align " + a} onClick={() => set("Alignment", { fmt: { align: a === "center" ? null : a } })}>{a === "left" ? "⇤" : a === "center" ? "↔" : "⇥"}</button>)}
-      <button className="tb" id="shapeQuote" title="Quote a cell in the text: choose it in the sheet view (it shows what the cell shows, and follows the workbook)" onClick={() => setDialogs({ pick: { kind: "cell", id } })}>⌗ Quote a cell…</button>
-      <button className="tb" id="shapeEdit" title="Write the text (double-click the shape, or Enter): {Sheet!C7} quotes a cell" onClick={() => setStage({ editor: { kind: "item", id } })}>✎ Text</button>
+      <button className="tb" id="shapeQuote" title="Quote a cell in the text: choose it in the sheet view (it shows what the cell shows, and follows the workbook)" onClick={() => setDialogs({ pick: { kind: "cell", id } })}><Ic n="quote" />Quote a cell…</button>
+      <button className="tb" id="shapeEdit" title="Write the text (double-click the shape, or Enter): {Sheet!C7} quotes a cell" onClick={() => setStage({ editor: { kind: "item", id } })}><Ic n="pencil" />Text</button>
     </>}
   </div>;
 }

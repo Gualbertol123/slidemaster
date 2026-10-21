@@ -12,6 +12,7 @@ import { detachLine, insertLine, LINE_PRESETS, presetLine, reverseLine, setLineB
 import { Dropdown } from "./Dropdown";
 import { Input } from "./Input";
 import { useCurSlide } from "./hooks";
+import { Ic } from "./Ic";
 
 /** a preset's little picture (24 × 24): its route and heads, as the slide draws them */
 function Preview({ p }: { p: LinePreset }) {
@@ -26,7 +27,7 @@ function Preview({ p }: { p: LinePreset }) {
 export function LineInsert() {
   const R = useCurSlide();
   return <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="lineBtn" disabled={!R} title="A line, an arrow, a bracket or a range marker – attach its ends to tables, text boxes and shapes with Ctrl while dragging them" onClick={t}>
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M2 13 13 3" /><path d="M8.5 3H13v4.5" /></svg>Insert line ▾</button>}>
+    <Ic n="arrow-up-right" />Insert line ▾</button>}>
     {close => <div className="shapemenu linemenu">
       <div className="hd">Lines <small>drag the ends; Ctrl attaches an end to an object</small></div>
       <div className="grid">{LINE_PRESETS.map(p => <button key={p.id} data-line={p.id} title={p.title} onClick={() => { close(); insertLine(p.id); }}><Preview p={p.id} /></button>)}</div>
@@ -60,7 +61,7 @@ function LineControls({ id, it }: { id: string; it: LineItem }) {
       {close => <div className="col">{ROUTES.map(([r, l]) => <button key={r} data-route={r} className={it.route === r ? "on" : ""} onClick={() => { close(); setLineRoute(id, it, r); }}>{l}</button>)}
         {it.route === "elbow" && <><div className="hd">Elbow</div><button data-bend="hv" className={it.bend !== "vh" ? "on" : ""} onClick={() => { close(); setLineBend(id, "hv"); }}>Across first</button><button data-bend="vh" className={it.bend === "vh" ? "on" : ""} onClick={() => { close(); setLineBend(id, "vh"); }}>Down first</button></>}</div>}
     </Dropdown>
-    <Dropdown button={(_o, t) => <button className="tb colorbtn" id="lineColor" title="Colour of the line" onClick={t}><span>▬</span><i className="sw" style={{ background: color }} /></button>}>
+    <Dropdown button={(_o, t) => <button className="tb colorbtn" id="lineColor" title="Colour of the line" onClick={t}><Ic n="line" /><i className="sw" style={{ background: color }} /></button>}>
       {close => <><div className="hd">Colour</div>
         <div className="swatches">{INKS.map(x => <button key={x} data-lcolor={x} title={x} style={{ background: x }} onClick={() => { close(); style("Line colour", { color: x }); }} />)}</div>
         <div className="wide"><button data-lcolor="" onClick={() => { close(); style("Line colour of the design", { color: undefined }); }}>The design's</button>
@@ -75,6 +76,6 @@ function LineControls({ id, it }: { id: string; it: LineItem }) {
       onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); e.stopPropagation(); }} onCommit={e => setLineText(id, (e.target as HTMLInputElement).value)} />
     <button className={"tb" + (it.fmt?.b ? " on" : "")} id="lineBold" title="Bold label" onClick={() => setLineFmt(id, { b: it.fmt?.b ? null : true })}><b>B</b></button>
     <button className="tb" id="lineDetach" disabled={!it.ends?.a && !it.ends?.b} title="Free both ends from their objects (they stay where they are)" onClick={() => detachLine(id)}>Detach</button>
-    <button className="tb" id="lineReverse" title="Swap its start and end" onClick={() => reverseLine(id)}>⇄</button>
+    <button className="tb" id="lineReverse" title="Swap its start and end" onClick={() => reverseLine(id)}><Ic n="arrows-exchange" /></button>
   </div>;
 }

@@ -49,6 +49,10 @@ What users notice
   for a table pushed against the slide's right or bottom edge in free layout, a table resized by its top or bottom
   edge onto a guide, and an elbow's bend. An object saved by an earlier version moves by at most 1/8 px the first time
   it is dragged (only the values the drag changes; nothing moves when a deck is just opened).
+* **One look for the toolbars' icons** (B35): the buttons of the top bar and both ribbons (undo, alignment, spacing,
+  format painter, borders, position, text boxes, shapes, lines, zoom …) show Tabler icons in place of the hand-drawn
+  icons and symbols (↻ ✦ ⚙ ⤺ 🗑 ⇄ …), all the same size and in the buttons' text colour. The buttons keep their words
+  and their tooltips; nothing moved.
 
 ## 4.7.0 - unreleased (PLAN M14: charts; B30, B31)
 
