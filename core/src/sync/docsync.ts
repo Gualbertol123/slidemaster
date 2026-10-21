@@ -62,6 +62,11 @@ export const BUMP_WAIT_MS = 23_000;
     without this page reading it (a slower share than the bound above, a journal not listed yet) still folds before
     it – an old page cannot have seen the 4.6 record, so it cannot count past it (review of S13.1, 1–2) */
 export const BUMP_LAMPORT = 2 ** 20;
+/** every 4.6 page takes the jump, not only the one that raised the deck: its helper may not list a journal an old page
+    opened in the gap until 3 s (LISTING_TTL) + 10 s (SMB) after it (recheck of S13.1). So the first time a page sees
+    the deck go 4 -> 5 (rebase), and when it opens a format-5 deck raised less than this long ago (the snapshot's `at`,
+    the file server's ms, is the raise or a later compaction: the raise came BUMP_WAIT_MS after the marker at least) */
+export const BUMP_FRESH_MS = BUMP_WAIT_MS + 13_000;
 
 /** a record and where it is on the share: (journal, end offset) of each copy known */
 interface Entry { rec: DeckRecord; at: [string, number][] }
@@ -128,6 +133,12 @@ export class DocSync {
     this.folded = this.refold();
     this.server = this.folded.doc; this.view = this.server;
     this.lamport = Math.max(this.lamport, this.folded.lamport);
+    // a deck raised moments ago: a gap record this page's open tail did not list may be above everything seen
+    // (without the file server's time, or the snapshot's: as if moments ago)
+    if (api.served && this.snap.format >= 5) {
+      const now = open.tail?.now, at = this.snap.at;
+      if (typeof now !== "number" || typeof at !== "number" || now - at < BUMP_FRESH_MS) this.lamport += BUMP_LAMPORT;
+    }
     this.state = api.served ? (open.tail?.readonly ? "readonly" : "saved") : "local";
     if (open.tail?.readonly) this.error = open.tail.readonly;
     // a deck a 4.3–4.5 page gave such content to, still at format 4: raised before anything else (09 §1)
@@ -306,7 +317,8 @@ export class DocSync {
       3. tail until no journal was skipped: the records of that gap are read;
       4. compare-and-set: the snapshot as it is, gen + 1, format 5 (it folds nothing; on 409 – compacted meanwhile, or
          the helper finds the marker too young – reload and from 1 again: the marker's wait is then what is left);
-      5. only then the record is appended (flush), with a Lamport time BUMP_LAMPORT above everything seen. */
+      5. only then the record is appended (flush), with a Lamport time BUMP_LAMPORT above everything seen (rebase:
+         every page that sees the deck go 4 -> 5 jumps, and one that opens a deck raised moments ago: BUMP_FRESH_MS). */
   upgrade(): Promise<boolean> {
     if (this.snap.format >= 5) return Promise.resolve(true);
     return this.bump ||= this.raise().finally(() => { this.bump = null; });
@@ -342,8 +354,7 @@ export class DocSync {
         }
         this.rebase(next);
       }
-      this.recompute();
-      this.lamport = Math.max(this.lamport, this.folded.lamport) + BUMP_LAMPORT;
+      this.recompute();                                   // (the Lamport jump: rebase, as the deck went 4 -> 5)
       this.emit(prev, false);                             // (records of others read meanwhile)
       return true;
     }
@@ -397,10 +408,14 @@ export class DocSync {
       compaction's answer may arrive after a newer snapshot was loaded). */
   private rebase(s: DeckSnapshot) {
     if (s.gen <= this.snap.gen) return;
+    const raised = s.format >= 5 && this.snap.format < 5;
     this.snap = s;
     for (const [j, off] of Object.entries(s.frontier)) this.offsets[j] = Math.max(this.offsets[j] || 0, off);
     for (const [id, e] of this.entries) if (e.at.some(p => this.covered(p)) || e.rec.s <= (s.seen?.[e.rec.w] || 0)) this.entries.delete(id);
     this.lamport = Math.max(this.lamport, s.lamport);
+    // the deck went 4 -> 5 (raised here or by another page): every record of mine from now on folds after any record an
+    // old page appended in the gap, read or not (BUMP_LAMPORT, BUMP_FRESH_MS)
+    if (raised) this.lamport = Math.max(this.lamport, this.folded.lamport) + BUMP_LAMPORT;
     // my journal is all in the snapshot: a new one (the helper deletes the covered file)
     if (this.mine && this.covered(this.mine) && !this.inflight) { this.mine = null; this.prepared = 0; void this.api.rotate(this.key, this.writer).catch(() => undefined); }
   }

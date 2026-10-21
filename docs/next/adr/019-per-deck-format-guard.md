@@ -90,6 +90,10 @@ look, lean-lock mode only after its page's tail (`test_lean_lock_appends_go_on_u
 5. append the record with a Lamport time **2^20 above everything seen** (`BUMP_LAMPORT`). An old page cannot have
    read the 4.6 record, so a record it appended in the gap – past the bound above on a very slow share, or in a
    journal the final tail did not list yet (the SMB cache) – still has a lower Lamport time and folds *before* it.
+   Every other 4.6 page takes the same jump: the first time it sees the deck go from 4 to 5, and when it opens a
+   format-5 deck whose snapshot was written less than `BUMP_WAIT_MS` + 13 s ago (`BUMP_FRESH_MS`; the snapshot's
+   `at` against the open tail's `now`, both the file server's clock; without them, always) – its helper may not
+   list a gap journal for 3 s + 10 s yet.
 
 The same sequence runs before a compaction whose snapshot would go from 4 to 5, and when a 4.6 page opens a format-4
 deck whose snapshot or journal already holds 4.6 content. The pagehide snapshot (a keepalive request) never raises a

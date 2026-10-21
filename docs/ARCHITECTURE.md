@@ -497,6 +497,8 @@ record is appended or a compaction would write it:
 5. only then the record is appended (it waits in the pending queue, "Saving…"), with a Lamport time 2^20 above
    everything seen (`BUMP_LAMPORT`): a record an old page appended in the gap without this page reading it (a share
    slower than the bound, a journal not listed yet) folds before it, since the old page never saw the 4.6 record.
+   Every other 4.6 page jumps too, the first time it sees the deck go 4 → 5 and when it opens a format-5 deck whose
+   snapshot is younger than `BUMP_FRESH_MS` (`BUMP_WAIT_MS` + 13 s: its own helper's listing may still miss a gap journal).
 
 A page opening a format-4 deck whose snapshot or journal already holds such content raises it at once; the pagehide
 snapshot never raises a deck (it cannot wait). Later snapshots of a format-5 deck are format 5 (`nextSnapshot`), even
