@@ -25,6 +25,23 @@ What users notice (S14.2)
   and no link to the workbook.
 - Charts saved by earlier versions without series look exactly as before.
 
+What users notice (S14.3)
+- Line charts (straight or smoothed, with circle, square, diamond or triangle markers; a blank cell leaves a gap), area
+  charts (standard, stacked, 100 %) and combined charts – columns, lines and areas together, each series on the left
+  value axis or on a second one on the right (drawn only while a shown series uses it).
+- Category groups side by side on one axis (for example the weeks, then the month-end targets), with a divider between
+  them and, when the groups are named, their names in a second row of labels.
+- "Actual inside target" columns: the value filled, its target outlined over it at the same width, and the label
+  "97 %" (value ÷ target).
+- Per-point colours, marker colours and labels; labels above, below, left, right or centred on a line's points (one that
+  would overlap its neighbour moves to the other side, or is left out).
+- Annotations on a chart that follow the data: an arrow from the axis to a point, a line or a band at values, an icon or
+  a text (which can quote cells, as callouts do) above a column – they move with a reload, a scenario or a version.
+- The owner's "Loans Volume – Weekly Evolution" chart is rebuilt in the chart corpus (tests/corpus/charts/lines.json).
+- PowerPoint export: native line, area and combined charts with the second value axis, multi-level categories for named
+  groups, the targets as an outlined series over the actual one; the dividers and annotations are plain shapes (lines,
+  icon outlines, text boxes) over the chart in its group, placed on the data – no picture, no connector, no link.
+
 ## 4.6.0 - unreleased (PLAN M13; prepared 2026-10-21, dated at the tag)
 
 What users notice

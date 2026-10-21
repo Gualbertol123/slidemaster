@@ -17,8 +17,9 @@ check needs PowerPoint (Windows, COM through PowerShell). The helper stays stand
         (3) PowerPoint (unless --no-ppt, or no PowerPoint): Presentations.Open read-only without a window – a file
             it cannot read raises in automation (not every repair does: (1)'s lint covers those) –; the slide count and every shape's text read back and
             compared with (2)
-        (4) with --sources ({file: {workbook, charts: [{slide, sheet, range}]}}): each chart's cached values equal the
-            workbook's cells (openpyxl, the values Excel saved; text, blank and hidden cells skipped as the chart skips them)
+        (4) with --sources ({file: {workbook, charts: [{slide, sheet, range}]}}): each chart's cached values (one of its
+            series', blanks left out) equal the workbook's cells (openpyxl, the values Excel saved; text, blank and hidden
+            cells skipped as the chart skips them)
         (5) real objects, gated (S14.P; AUDIT-2 VER-3, PX-02 / PX-03, 09 §7.2): with --expect ({file: [{slide, tables,
             charts}]}, tools/real-objects.mjs: what the core's own export draws) each slide holds exactly those real
             tables (python-pptx has_table) and native charts (has_chart), a slide not listed none;
@@ -75,12 +76,12 @@ C = "{%s}" % NS["c"]
 C_ORDER = {
     "pieChart": ["varyColors", "ser", "dLbls", "firstSliceAng", "extLst"],
     "doughnutChart": ["varyColors", "ser", "dLbls", "firstSliceAng", "holeSize", "extLst"],
-    # (a pie's and a bar chart's series in one list: the schema's order of both, 4.7 / S14.2)
-    "ser": ["idx", "order", "tx", "spPr", "invertIfNegative", "pictureOptions", "explosion", "dPt", "dLbls", "trendline", "errBars", "cat", "val", "shape", "extLst"],
+    # (a pie's, a bar chart's, a line's and an area's series in one list: the schema's order of each, 4.7 / S14.2, S14.3)
+    "ser": ["idx", "order", "tx", "spPr", "invertIfNegative", "pictureOptions", "explosion", "marker", "dPt", "dLbls", "trendline", "errBars", "cat", "val", "smooth", "shape", "extLst"],
     "dPt": ["idx", "invertIfNegative", "marker", "bubble3D", "explosion", "spPr", "pictureOptions", "extLst"],
     "dLbls": ["dLbl", "delete", "numFmt", "spPr", "txPr", "dLblPos", "showLegendKey", "showVal", "showCatName", "showSerName", "showPercent", "showBubbleSize", "separator", "showLeaderLines", "leaderLines", "extLst"],
     "dLbl": ["idx", "delete", "layout", "tx", "numFmt", "spPr", "txPr", "dLblPos", "showLegendKey", "showVal", "showCatName", "showSerName", "showPercent", "showBubbleSize", "separator", "extLst"],
-    "chart": ["title", "autoTitleDeleted", "pivotFmts", "view3D", "floor", "sideWall", "backWall", "plotArea", "legend", "plotVisOnly", "dispBlanksAs", "extLst"],
+    "chart": ["title", "autoTitleDeleted", "pivotFmts", "view3D", "floor", "sideWall", "backWall", "plotArea", "legend", "plotVisOnly", "dispBlanksAs", "showDLblsOverMax", "extLst"],
     "chartSpace": ["date1904", "lang", "roundedCorners", "AlternateContent", "clrMapOvr", "pivotSource", "protection", "chart", "spPr", "txPr", "externalData", "printSettings", "userShapes", "extLst"],
     "legend": ["legendPos", "legendEntry", "layout", "overlay", "spPr", "txPr", "extLst"],
     # column and bar charts (4.7, S14.2; 09 §4.2): the plot area (any chart groups, then any axes), the bar group, its
@@ -95,6 +96,12 @@ C_ORDER = {
     "manualLayout": ["layoutTarget", "xMode", "yMode", "wMode", "hMode", "x", "y", "w", "h", "extLst"],
     "title": ["tx", "layout", "overlay", "spPr", "txPr", "extLst"],
     "legendEntry": ["idx", "delete", "txPr", "extLst"],
+    # line and area charts, a line's marker, multi-level categories (4.7, S14.3; 09 §4.2)
+    "lineChart": ["grouping", "varyColors", "ser", "dLbls", "dropLines", "hiLowLines", "upDownBars", "marker", "smooth", "axId", "extLst"],
+    "areaChart": ["grouping", "varyColors", "ser", "dLbls", "dropLines", "axId", "extLst"],
+    "marker": ["symbol", "size", "spPr", "extLst"],
+    "multiLvlStrRef": ["f", "multiLvlStrCache", "extLst"],
+    "multiLvlStrCache": ["ptCount", "lvl", "extLst"],
 }
 # a choice of the schema: one rank for every chart group and every axis of a plot area
 C_SLOT = dict([(k, "CHART") for k in ("areaChart", "area3DChart", "lineChart", "line3DChart", "stockChart", "radarChart", "scatterChart", "pieChart", "pie3DChart",
@@ -348,7 +355,9 @@ def _shape_texts(shape, out, info):
         info["charts"].append({"type": str(ch.chart_type), "title": ch.chart_title.text_frame.text if ch.has_title else "",
                                "categories": [str(c) for c in plot.categories], "values": list(plot.series[0].values),
                                # (4.7, S14.2) every series of every plot: its name and cached values (None = a gap)
-                               "series": [{"name": s.name, "values": list(s.values)} for pl in ch.plots for s in pl.series]})
+                               "series": [{"name": s.name, "values": list(s.values)} for pl in ch.plots for s in pl.series],
+                               # (4.7, S14.3) each chart group's kind (BarPlot, LinePlot, AreaPlot …) and the category levels
+                               "plots": [type(pl).__name__ for pl in ch.plots], "levels": plot.categories.depth})
         return
     if shape.shape_type == 13:
         info["pictures"] += 1
@@ -449,7 +458,9 @@ def source_values(workbook, sheet, rng):
     wb = openpyxl.load_workbook(workbook, data_only=True)
     ws = wb[sheet]
     out = []
-    for row in ws[rng]:
+    cells = ws[rng]
+    # (a single cell is a Cell, a row or a column a tuple of cells, a rectangle a tuple of rows)
+    for row in (cells if isinstance(cells, tuple) else ((cells,),)):
         for c in (row if isinstance(row, tuple) else (row,)):
             if ws.row_dimensions[c.row].hidden or ws.column_dimensions[c.column_letter].hidden:
                 continue
@@ -502,7 +513,9 @@ def check(paths, slides=None, ppt=True, report=None, sources=None, expect=None):
                 want = source_values(src["workbook"], spec["sheet"], spec["range"])
                 # (the cache keeps Excel's 15 significant digits: equal within that)
                 same = lambda a, b: len(a) == len(b) and all(abs(float(x) - y) <= 1e-12 * max(1.0, abs(y)) for x, y in zip(a, b))
-                mine = [c for c in found if same(c["values"], want)]
+                # (4.7, S14.3: any series of the chart – a combo's line, a group's columns –, its gaps left out: a series
+                # cached over every category of its chart holds blanks where its group has none)
+                mine = [c for c in found if any(same([v for v in x["values"] if v is not None], want) for x in (c.get("series") or [{"values": c["values"]}]))]
                 if not mine:
                     bad.append("chart %d (slide %d, %s!%s): no chart with the cells' values %s" % (k + 1, spec["slide"], spec["sheet"], spec["range"], want[:4]))
         if use_ppt:

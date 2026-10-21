@@ -1,26 +1,38 @@
-/* Series charts, columns and bars (4.7, S14.2; docs/next/09 §3.1–§3.2; CT-01, CT-02, LG-01): a chart with `sers` and
-   type column or bar, drawn with the display list's own nodes –
-   * the value axis (Excel's automatic bounds and unit, chart-axes.ts; or the axis's own min / max / step), its tick
-     labels in the axis's number format (else the cells'), gridlines where the design or the axis asks for them;
+/* Series charts (4.7, docs/next/09 §3.1–§3.3; S14.2 columns and bars – CT-01, CT-02, LG-01; S14.3 lines, areas, combo,
+   second axis, category groups, targets, marks – CT-03…CT-06): a chart with `sers`, drawn with the display list's own
+   nodes –
+   * the value axes: y on the left and, when a shown series stands on it, y2 on the right (Excel's automatic bounds and
+     unit, chart-axes.ts; or the axis's own min / max / step), tick labels in the axis's number format (else its first
+     series' cells'), gridlines where the design or the axis asks for them;
    * the category axis: its labels (one per category, every n-th when they are too narrow), the axis line at zero;
-   * the bars: clustered, stacked or 100 % (chart-bars.ts), Excel's gap width and overlap, per-point colours, the
-     design's radius on the outer end (Liquid Glass) and its gradient, negative values below (left of) the axis;
-   * data labels (value, name, category, percent; outside end, inside end, centre, inside base), white inside a dark
-     bar, one left out where it does not fit, `points[i].label` replacing (or, null, hiding) one;
-   * the legend (chart-legend.ts), the title (`titleFmt` over the deck's note style), and `hit` nodes: the item, and
-     one `point` per bar ("<item>:<series>:<i>").
+     category groups side by side (09 §2.2), a group's label in a second row when one is named, a divider between groups;
+   * per axis, in the order area → column → line (09 §3.1): areas (standard, stacked, 100 %; chart-area.ts), bars
+     (clustered, stacked or 100 %, chart-bars.ts; Excel's gap width and overlap, per-point colours, the design's radius on
+     the outer end and its gradient, negatives below the axis), "actual inside target" bars (the value filled, the
+     target outlined over it, the same width – Q18), lines (straight or smoothed, gaps, markers; chart-lines.ts);
+   * data labels: a bar's (value, name, category, percent, ofTarget; outside end, inside end, centre, inside base), white
+     inside a dark bar, left out where they do not fit; a line point's (above, below, left, right, centre – one that
+     would overlap its neighbour moves to the other side, else is left out); `points[i].label` replacing (or, null,
+     hiding) one;
+   * the marks (chart-marks.ts: arrows, lines, bands, icons, texts in data coordinates), the legend (chart-legend.ts),
+     the title (`titleFmt` over the deck's note style) and its rule, and `hit` nodes: one `point` per value
+     ("<item>:<series>:<i>"), one `mark` per mark ("<item>:<mark>").
    seriesLayout is the one place that decides where each part goes: the display list (seriesNodes) and the PowerPoint
-   chart (seriesSem: c:barChart with the same bounds, gap, overlap, plot rectangle as manualLayout and legend box) are
-   both made from it, so a native chart's bars stand where the slide's do. */
-import type { Box, ChartItem, TextFmt } from "../model/types";
-import type { Node, Paint } from "../dl/types";
+   chart (seriesSem: c:areaChart / c:barChart / c:lineChart groups on the primary and secondary axes, with the same
+   bounds, gap, overlap, plot rectangle as manualLayout and legend box) are both made from it, so a native chart's bars,
+   lines and points stand where the slide's do – and the marks drawn over it as plain shapes land on the data. */
+import type { Box, ChartItem, LineOrNone, TextFmt } from "../model/types";
+import type { Node, Paint, PathCmd } from "../dl/types";
 import type { Metrics } from "./excel-dl";
 import type { RenderCtx } from "./context";
-import type { BarsSem, BarSerSem, FontSem, LineSem } from "../pptx/chart-sem";
-import { seriesData, type SeriesData } from "./chart-data";
+import type { BarsSem, BarSerSem, FontSem, GroupSem, LabelPos, LineSem, MarkerSem, PointLabelSem } from "../pptx/chart-sem";
+import { seriesData, type SerData, type SeriesData } from "./chart-data";
 import { autoScale, axisFormat, ticks, tickText, type Scale } from "./chart-axes";
-import { barSlots, gapOf, outerRadius, overlapOf, stackBars, type Seg, type StackMode } from "./chart-bars";
-import { legendAtOf, legendNodes, shownEntries, type LegendOut } from "./chart-legend";
+import { barSlots, gapOf, outerRadius, overlapOf, stackBars, type StackMode } from "./chart-bars";
+import { stackAreas } from "./chart-area";
+import { lineStroke, linePath, lineStyleOf, markerNode, markerOf, markerPx, runs, type Pt } from "./chart-lines";
+import { markNodes, type Anchor, type MarkFrame } from "./chart-marks";
+import { legendAtOf, legendNodes, shownEntries, type LegendEntry, type LegendOut } from "./chart-legend";
 import { ellipsis, font, lineH, lum, textNode, type St } from "./chart-font";
 import { isConsult } from "../model/designs";
 import { specOf } from "./consult-spec";
@@ -51,10 +63,25 @@ export function withFmt(st: St, f: TextFmt | undefined): St {
     ...(f.b !== undefined ? { weight: f.b ? 700 : 400 } : {}), ...(f.i !== undefined ? { italic: !!f.i } : {}), ...(HEX.test(f.color || "") ? { color: f.color!.toUpperCase() } : {}) };
 }
 export const fontSem = (s: St): FontSem => ({ css: s.family, size: s.size, color: s.color, b: s.weight >= 600, i: s.italic });
+/** a line that can be "none" (09 §2.2 LineOrNone): its look, or null; unset → `dflt` */
+export function lineOrNone(v: LineOrNone | null | undefined, dflt: LineSem | null): LineSem | null {
+  if (v === undefined) return dflt;
+  if (v === null || v === "none" || typeof v !== "object") return null;
+  return lineStyleOf(v, dflt?.color || "#7F7F7F", dflt?.w || 1);
+}
 
 type Pos = "outEnd" | "inEnd" | "ctr" | "inBase";
-interface Bar { s: number; i: number; v: number; x: number; y: number; w: number; h: number; color: string; dir: "up" | "down" | "right" | "left"; outer: boolean }
+type Kind = "bar" | "line" | "area";
+type Axis = "y" | "y2";
+interface Bar { s: number; i: number; v: number; x: number; y: number; w: number; h: number; color: string; dir: "up" | "down" | "right" | "left"; outer: boolean;
+  /** the bar's segment in axis values (a 100 % share is to − from) */ from: number; to: number;
+  /** "actual inside target": the outlined target bar over it (same x and width) */ target: { y: number; h: number } | null }
 interface Lab { s: number; i: number; text: string; x: number; top: number; st: St; align: "left" | "center" | "right"; inside: boolean }
+/** a line or area series as drawn: its paths (one per run of values; an area's closed), stroke, marker, points */
+interface Trace { s: number; kind: "line" | "area"; axis: Axis; d: PathCmd[][]; stroke: LineSem | null; smooth: boolean; marker: MarkerSem | null; fill: string;
+  /** per category of the chart: the point (null = a gap) and, for an area, its band's lower edge */ pts: ({ x: number; y: number; lo: number; v: number } | null)[] }
+/** a value axis as drawn */
+interface ValAxis { scale: Scale; ticks: { v: number; text: string }[]; num: string; st: St; show: boolean; grid: LineSem | null; percent: boolean }
 export interface SeriesLayout {
   data: Extract<SeriesData, { ok: true }>; dir: "col" | "bar"; mode: StackMode; gap: number; overlap: number;
   title: string; titleSt: St; /** the title's text box (the PowerPoint title's manual layout) */ titleBox: Box | null; plot: Box; scale: Scale; num: string; valSt: St; catSt: St; valShow: boolean; catShow: boolean; skip: number;
@@ -62,113 +89,229 @@ export interface SeriesLayout {
   /** each series' label settings (null = none), as drawn */ labels: (BarSerSem["labels"] | null)[];
   /** the series (indexes) out of the legend (legendHide) */ hidden: number[];
   issue: string | null;
+  /* S14.3 */
+  /** each series' kind and value axis */ kinds: Kind[]; axes: Axis[];
+  /** the secondary value axis (right), when a shown series stands on it */ y2: ValAxis | null;
+  /** the bar groups: per axis, its series (indexes) and overlap (100 with targets) */ barGroups: { axis: Axis; series: number[]; overlap: number }[];
+  /** lines and areas */ traces: Trace[];
+  /** the category groups' labels (second row) and the dividers between groups */ groupLabels: { text: string; x: number; w: number }[] | null;
+  dividers: { x1: number; y1: number; x2: number; y2: number; line: LineSem }[];
+  /** the title's rule (09 §3.3) */ rule: { x1: number; x2: number; y: number; line: LineSem } | null;
+  /** the marks' nodes (over the data), bands (under it) and hits */ marks: { nodes: Node[]; under: Node[]; hits: Node[] };
 }
 export interface SeriesStyle { lab: St; ttl: St; family: string; colors: string[]; legend: "capsule" | "square" | "line"; ink: string; gradient: boolean; radius: number }
 
-/** where every part of a column or bar chart goes inside its frame (the box less the card's padding) */
-export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metrics, sty: SeriesStyle): SeriesLayout | { why: "missing" | "empty"; source: string } {
+/** the kind of chart group a series is drawn in: a horizontal bar chart's are all bars; a scatter series is not a combo
+    member (09 §2.2) and draws as a line until S14.4 */
+const kindOf = (s: SerData, dir: "col" | "bar"): Kind => dir === "bar" ? "bar" : s.type === "line" || s.type === "scatter" ? "line" : s.type === "area" ? "area" : "bar";
+/** a line point's label place, as PowerPoint names it (t / b / l / r / ctr; Excel's default for a line is right) */
+const linePos = (raw: unknown): "t" | "b" | "l" | "r" | "ctr" => raw === "above" || raw === "outEnd" ? "t" : raw === "below" || raw === "inBase" ? "b" : raw === "left" ? "l" : raw === "center" || raw === "inEnd" ? "ctr" : "r";
+const FLIP = { t: "b", b: "t", l: "r", r: "l", ctr: null } as const;
+
+/** where every part of a series chart goes inside its frame (the box less the card's padding) */
+export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metrics, sty: SeriesStyle, id = ""): SeriesLayout | { why: "missing" | "empty"; source: string } {
   const data = seriesData(it, ctx);
   if (!data.ok) return { why: data.why, source: data.source };
   const dir = it.type === "bar" ? "bar" : "col", mode: StackMode = it.stack === "stacked" || it.stack === "percent" ? it.stack : "none";
   const look = axisLook(ctx), A = it.axes || {}, ser = data.series;
   const colors = ser.map((s, k) => s.color || (k < sty.colors.length ? sty.colors[k] : sty.colors[k % sty.colors.length]));
+  const kinds = ser.map(s => kindOf(s, dir));
+  // the axis each series stands on: y2 only beside a y series (Excel's secondary axis needs a primary one)
+  const anyY = dir === "bar" || ser.some(s => s.axis !== "y2"), axes: Axis[] = ser.map(s => anyY && dir === "col" && s.axis === "y2" ? "y2" : "y");
+  const has2 = axes.includes("y2");
   const { x: X0, y: Y0, w: W0, h: H0 } = frame;
   let area: Box = { x: X0, y: Y0, w: W0, h: H0 };
-  // the title: the item's ("" = none), else the series' name when there is one series (as Excel)
+  // the title: the item's ("" = none), else the series' name when there is one series (as Excel); its rule below it
   const title = (typeof it.title === "string" ? it.title : ser.length === 1 ? ser[0].name : "").trim();
   const titleSt = withFmt(sty.ttl, it.titleFmt);
-  let titleBox: Box | null = null;
+  let titleBox: Box | null = null, rule: SeriesLayout["rule"] = null;
   if (title) {
-    const lh = lineH(titleSt), w = Math.min(W0, m.run(title, font(titleSt)).w);
-    titleBox = { x: X0 + (W0 - w) / 2, y: Y0, w, h: lh };
+    const lh = lineH(titleSt), w = Math.min(W0, m.run(title, font(titleSt)).w), al = it.titleFmt?.align;
+    titleBox = { x: al === "left" ? X0 : al === "right" ? X0 + W0 - w : X0 + (W0 - w) / 2, y: Y0, w, h: lh };
     area = { ...area, y: area.y + lh + 8, h: Math.max(10, area.h - lh - 8) };
+    const rl = lineOrNone(it.titleRule, null);
+    if (rl) { rule = { x1: X0, x2: X0 + W0, y: r2(Y0 + lh + 4 + rl.w / 2), line: rl }; area = { ...area, y: area.y + 8 + rl.w, h: Math.max(10, area.h - 8 - rl.w) }; }
   }
   // the legend
   // (Excel lists a stacked chart's and a bar chart's series bottom-up in a legend beside the plot, as they are drawn)
-  const at = legendAtOf(it), up = (dir === "bar" || mode !== "none") && at !== "top" && at !== "bottom";
-  const entries = shownEntries(it, ser.map((s, k) => ({ key: s.id, label: s.name, color: colors[k] })));
+  const at = legendAtOf(it), up = (dir === "bar" || mode !== "none" && kinds.every(k => k !== "line")) && at !== "top" && at !== "bottom";
+  const markers = ser.map((s, k) => kinds[k] === "line" ? markerOf(s.src.marker, colors[k], "#FFFFFF") : null);
+  const strokes = ser.map((s, k) => kinds[k] === "line" ? lineStyleOf(s.src.line, colors[k]) : null);
+  const entries = shownEntries(it, ser.map((s, k): LegendEntry => ({ key: s.id, label: s.name, color: colors[k], ...(strokes[k] ? { line: strokes[k]!, marker: markers[k] } : {}) })));
   const legend = legendNodes(up ? entries.slice().reverse() : entries, at, area, sty.legend, sty.lab, m, look.card);
   area = legend.area;
   // the axes' text
   const valSt = withFmt({ ...sty.lab, color: look.tick }, A.y?.fmt), catSt = withFmt({ ...sty.lab, color: look.tick }, A.x?.fmt);
-  const valShow = A.y?.show !== false, catShow = A.x?.show !== false;
-  const { segs, lo, hi } = stackBars(ser.map(s => s.vals), mode);
-  const num = axisFormat(A.y, mode === "percent", ser[0]?.fmt || "General");
+  const val2St = withFmt({ ...sty.lab, color: look.tick }, A.y2?.fmt);
+  const valShow = A.y?.show !== false, catShow = A.x?.show !== false, val2Show = has2 && A.y2?.show !== false;
+  // per axis: its bars (stacked as the chart says), areas (the same), lines, targets – the values its scale must hold
+  const per = (["y", "y2"] as Axis[]).map(ax => {
+    const idx = ser.map((_, k) => k).filter(k => axes[k] === ax);
+    const bi = idx.filter(k => kinds[k] === "bar"), ai = idx.filter(k => kinds[k] === "area"), li = idx.filter(k => kinds[k] === "line");
+    const sb = stackBars(bi.map(k => ser[k].vals), mode), sa = stackAreas(ai.map(k => ser[k].vals), mode);
+    let lo = Infinity, hi = -Infinity;
+    if (bi.length) { lo = sb.lo; hi = sb.hi; }
+    if (ai.length) { lo = Math.min(lo, sa.lo); hi = Math.max(hi, sa.hi); }
+    for (const k of li) for (const v of ser[k].vals) if (v !== null) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+    // (targets on a clustered axis: their tops must show)
+    const tgt = mode === "none" && bi.some(k => ser[k].target);
+    if (tgt) for (const k of bi) for (const v of ser[k].target || []) if (v !== null) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+    if (!Number.isFinite(lo)) { lo = 0; hi = 1; }
+    const percent = mode === "percent" && (bi.length > 0 || ai.length > 0);
+    return { ax, idx, bi, ai, li, sb, sa, lo, hi, tgt, percent, num: axisFormat(ax === "y" ? A.y : A.y2, percent, ser[idx[0]]?.fmt || "General") };
+  });
+  const [P1, P2] = per, num = P1.num;
   const tw = (t: string, st: St) => m.run(t, font(st)).w;
   const N = Math.max(1, data.cats.length), vlh = lineH(valSt), clh = lineH(catSt);
-  let plot: Box, scale: Scale, tk: { v: number; text: string }[], skip = 1;
-  const mkTicks = (s: Scale) => ticks(s).map(v => ({ v, text: tickText(v, num) }));
+  // a second row of category labels: the groups' own labels (multi-level categories), when one is named
+  const named = data.groups.length > 1 && data.groups.some(g => g.label) && dir === "col";
+  let plot: Box, scale: Scale, tk: { v: number; text: string }[], skip = 1, y2: ValAxis | null = null;
+  const mkTicks = (s: Scale, f: string) => ticks(s).map(v => ({ v, text: tickText(v, f) }));
   if (dir === "col") {
-    const top = area.y + (valShow ? Math.ceil(vlh / 2) : 4), catH = catShow ? clh + 6 : 0, h = Math.max(10, area.y + area.h - catH - top);
-    scale = autoScale(lo, hi, { maxN: Math.floor(h / (vlh * 1.6)), axis: A.y, percent: mode === "percent" });
-    tk = mkTicks(scale);
+    const lh2 = val2Show ? lineH(val2St) : 0;
+    const top = area.y + (valShow || val2Show ? Math.ceil(Math.max(valShow ? vlh : 0, lh2) / 2) : 4), catH = catShow ? clh + 6 + (named ? clh + 4 : 0) : 0, h = Math.max(10, area.y + area.h - catH - top);
+    scale = autoScale(P1.lo, P1.hi, { maxN: Math.floor(h / (vlh * 1.6)), axis: A.y, percent: P1.percent });
+    tk = mkTicks(scale, num);
     const yw = valShow ? Math.max(...tk.map(t => tw(t.text, valSt))) + 8 : 0;
-    plot = { x: area.x + yw, y: top, w: Math.max(10, area.w - yw - 4), h };
+    let y2w = 4;
+    if (has2) {
+      const s2 = autoScale(P2.lo, P2.hi, { maxN: Math.floor(h / (Math.max(lh2, vlh) * 1.6)), axis: A.y2, percent: P2.percent }), t2 = mkTicks(s2, P2.num);
+      if (val2Show) y2w = Math.max(...t2.map(t => tw(t.text, val2St))) + 8;
+      y2 = { scale: s2, ticks: t2, num: P2.num, st: val2St, show: val2Show, grid: A.y2?.grid === true ? look.grid : null, percent: P2.percent };
+    }
+    plot = { x: area.x + yw, y: top, w: Math.max(10, area.w - yw - y2w), h };
     const slot = plot.w / N;
     if (catShow && slot < 36) skip = Math.ceil(36 / slot);
   } else {
     const catW = catShow ? Math.min(area.w * .35, Math.max(...data.cats.map(c => tw(c, catSt))) + 10) : 0, valH = valShow ? vlh + 6 : 0;
     const w0 = Math.max(10, area.w - catW - 8);
-    const wide = Math.max(...mkTicks(autoScale(lo, hi, { axis: A.y, percent: mode === "percent" })).map(t => tw(t.text, valSt)));
-    scale = autoScale(lo, hi, { maxN: Math.floor(w0 / (wide + 16)), axis: A.y, percent: mode === "percent" });
-    tk = mkTicks(scale);
+    const wide = Math.max(...mkTicks(autoScale(P1.lo, P1.hi, { axis: A.y, percent: mode === "percent" }), num).map(t => tw(t.text, valSt)));
+    scale = autoScale(P1.lo, P1.hi, { maxN: Math.floor(w0 / (wide + 16)), axis: A.y, percent: mode === "percent" });
+    tk = mkTicks(scale, num);
     const half = valShow ? tw(tk[tk.length - 1].text, valSt) / 2 : 4;
     plot = { x: area.x + catW, y: area.y + 4, w: Math.max(10, area.w - catW - half - 2), h: Math.max(10, area.h - valH - 4) };
     const slot = plot.h / N;
     if (catShow && slot < clh + 2) skip = Math.ceil((clh + 2) / slot);
   }
-  // values → px along the value axis (clamped to the plot: a bar beyond an axis's own bounds ends at its edge)
-  const span = scale.max - scale.min || 1;
-  const vp = (v: number) => {
-    const t = Math.max(0, Math.min(1, (v - scale.min) / span));
-    return dir === "col" ? plot.y + plot.h - t * plot.h : plot.x + t * plot.w;
-  };
-  const gap = gapOf(it.gap), overlap = overlapOf(it.overlap, mode), n = mode === "none" ? ser.length : 1;
-  const slots = barSlots(n, gap, overlap), slot = (dir === "col" ? plot.w : plot.h) / N;
-  const base = Math.max(scale.min, Math.min(scale.max, 0));
-  const bars: Bar[] = [];
-  for (const g of segs) {
-    const s = ser[g.s], j = mode === "none" ? g.s : 0, own = s.src.points?.[String(g.i)]?.color;
-    const color = typeof own === "string" && HEX.test(own) ? own.toUpperCase() : colors[g.s];
-    const from = mode === "none" ? base : g.from, a = vp(from), b = vp(g.to);
-    const bw = slots.w * slot, off = slots.off(j) * slot;
-    if (dir === "col") {
-      const x = plot.x + g.i * slot + off, y = Math.min(a, b), h = Math.abs(b - a);
-      bars.push({ s: g.s, i: g.i, v: g.v, x, y, w: bw, h, color, dir: g.to >= from ? "up" : "down", outer: g.outer });
-    } else {
-      // Excel's bar chart: the first category at the bottom, the first series at the bottom of its cluster
-      const y = plot.y + plot.h - (g.i + 1) * slot + (slot - off - bw), x = Math.min(a, b), w = Math.abs(b - a);
-      bars.push({ s: g.s, i: g.i, v: g.v, x, y, w, h: bw, color, dir: g.to >= from ? "right" : "left", outer: g.outer });
+  // values → px along an axis (clamped to the plot: a bar beyond an axis's own bounds ends at its edge)
+  const vpOf = (S: Scale) => { const span = S.max - S.min || 1; return (v: number) => { const t = Math.max(0, Math.min(1, (v - S.min) / span)); return dir === "col" ? plot.y + plot.h - t * plot.h : plot.x + t * plot.w; }; };
+  const vps: Record<Axis, (v: number) => number> = { y: vpOf(scale), y2: y2 ? vpOf(y2.scale) : vpOf(scale) };
+  const gap = gapOf(it.gap), overlap = overlapOf(it.overlap, mode), slot = (dir === "col" ? plot.w : plot.h) / N;
+  const bars: Bar[] = [], barGroups: SeriesLayout["barGroups"] = [];
+  const anchors: (Anchor | null)[][] = ser.map(() => data.cats.map(() => null));
+  for (const P of per) {
+    if (!P.bi.length) continue;
+    const vp = vps[P.ax], S = P.ax === "y" ? scale : y2!.scale;
+    // "actual inside target" bars share one place with their targets: PowerPoint draws them as two series of one bar group
+    // at overlap 100 (09 §4.2), so the whole group stands at that overlap
+    const ov = P.tgt ? 100 : overlap, n = mode === "none" ? P.bi.length : 1;
+    barGroups.push({ axis: P.ax, series: P.bi, overlap: ov });
+    const slots = barSlots(n, gap, ov), base = Math.max(S.min, Math.min(S.max, 0));
+    for (const g of P.sb.segs) {
+      const k = P.bi[g.s], s = ser[k], j = mode === "none" ? g.s : 0, own = s.src.points?.[String(g.i - s.start)]?.color;
+      const color = typeof own === "string" && HEX.test(own) ? own.toUpperCase() : colors[k];
+      const from = mode === "none" ? base : g.from, a = vp(from), b = vp(g.to);
+      const bw = slots.w * slot, off = slots.off(j) * slot;
+      const t = mode === "none" && s.target ? s.target[g.i] : null, tb = t !== null && t !== undefined ? vp(t) : null;
+      if (dir === "col") {
+        const x = plot.x + g.i * slot + off, y = Math.min(a, b), h = Math.abs(b - a);
+        const bar: Bar = { s: k, i: g.i, v: g.v, x, y, w: bw, h, color, dir: g.to >= from ? "up" : "down", outer: g.outer, from: g.from, to: g.to, target: tb === null ? null : { y: Math.min(a, tb), h: Math.abs(tb - a) } };
+        bars.push(bar);
+        const end = bar.dir === "up" ? y : y + h;
+        anchors[k][g.i] = { x: x + bw / 2, y: end, top: bar.target ? Math.min(end, bar.target.y) : end, r: 0, color };
+      } else {
+        // Excel's bar chart: the first category at the bottom, the first series at the bottom of its cluster
+        const y = plot.y + plot.h - (g.i + 1) * slot + (slot - off - bw), x = Math.min(a, b), w = Math.abs(b - a);
+        bars.push({ s: k, i: g.i, v: g.v, x, y, w, h: bw, color, dir: g.to >= from ? "right" : "left", outer: g.outer, from: g.from, to: g.to, target: null });
+        anchors[k][g.i] = { x: g.to >= from ? x + w : x, y: y + bw / 2, top: y + bw / 2, r: 0, color };
+      }
     }
   }
+  // areas and lines (vertical charts): a point per category centre
+  const cx = (i: number) => plot.x + (i + .5) * slot, traces: Trace[] = [];
+  for (const P of per) {
+    const vp = vps[P.ax];
+    P.ai.forEach((k, j) => {
+      const pts = P.sa.bands[j].map((b, i) => b ? { x: cx(i), y: vp(b.hi), lo: vp(b.lo), v: b.v } : null);
+      const d = runs(pts).filter(r => r.length > 1).map(r => [...linePath(r, false), ...r.slice().reverse().map((p): PathCmd => ["L", r2(p.x), r2(p.lo)]), ["Z"] as PathCmd]);
+      traces.push({ s: k, kind: "area", axis: P.ax, d, stroke: null, smooth: false, marker: null, fill: colors[k], pts });
+      pts.forEach((p, i) => { if (p) anchors[k][i] = { x: p.x, y: p.y, top: p.y, r: 0, color: colors[k] }; });
+    });
+  }
+  for (const P of per) {
+    const vp = vps[P.ax];
+    for (const k of P.li) {
+      const s = ser[k], smooth = !!s.src.smooth, pts = s.vals.map((v, i) => v === null ? null : { x: cx(i), y: vp(v), lo: 0, v });
+      const d = runs(pts).filter(r => r.length > 1).map(r => linePath(r as Pt[], smooth));
+      const mk = markers[k], rr = mk ? markerPx(mk) / 2 + mk.w / 2 : strokes[k]!.w / 2;
+      traces.push({ s: k, kind: "line", axis: P.ax, d, stroke: strokes[k], smooth, marker: mk, fill: colors[k], pts });
+      pts.forEach((p, i) => { if (p) { const pc = s.src.points?.[String(i - s.start)]?.marker; anchors[k][i] = { x: p.x, y: p.y, top: p.y, r: rr, color: typeof pc === "string" && HEX.test(pc) ? pc.toUpperCase() : mk?.color || colors[k] }; } });
+    }
+  }
+  // the areas first, then the bars, then the lines (09 §3.1)
+  traces.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "area" ? -1 : 1));
   // data labels
   const labs: Lab[] = [], labels: SeriesLayout["labels"] = [];
   ser.forEach((s, k) => {
     const L = s.src.labels;
-    // (a share – "percent" – exists on a 100 % chart only, as in Excel)
-    const show = L && Array.isArray(L.show) ? L.show.filter((w): w is "value" | "name" | "category" | "percent" => w === "value" || w === "name" || w === "category" || (w === "percent" && mode === "percent")) : [];
     const custom = Object.entries(s.src.points || {}).filter(([, p]) => p && typeof p === "object" && "label" in p);
-    if (!show.length && !custom.some(([, p]) => typeof p.label === "string")) { labels.push(null); return; }
-    const raw = L?.pos, want: Pos = raw === "inEnd" ? "inEnd" : raw === "center" ? "ctr" : raw === "inBase" || raw === "below" || raw === "left" ? "inBase" : raw === "outEnd" || raw === "above" || raw === "right" ? "outEnd" : mode === "none" ? "outEnd" : "ctr";
-    // (a stacked bar has no outside end in Excel or PowerPoint: inside end there)
-    const pos: Pos = mode !== "none" && want === "outEnd" ? "inEnd" : want;
     const st = withFmt(sty.lab, L?.fmt), own = !!(L?.fmt && HEX.test(L.fmt.color || "")), numFmt = typeof L?.num === "string" && L.num.trim() ? L.num : null;
-    const points: NonNullable<BarSerSem["labels"]>["points"] = [];
+    const tgt = mode === "none" && !!s.target && kinds[k] === "bar";
+    // (a share – "percent" – exists on a 100 % chart only, as in Excel; ofTarget on a series with targets only)
+    const show = L && Array.isArray(L.show) ? L.show.filter((w): w is "value" | "name" | "category" | "percent" | "ofTarget" => w === "value" || w === "name" || w === "category" || (w === "percent" && mode === "percent" && kinds[k] !== "line") || (w === "ofTarget" && tgt)) : [];
+    if (!show.length && !custom.some(([, p]) => typeof p.label === "string")) { labels.push(null); return; }
+    const valueText = (i: number, v: number) => numFmt ? tickText(v, numFmt) : s.texts[i] || tickText(v, s.fmt);
+    const pts: PointLabelSem[] = [];
+    if (kinds[k] !== "bar") {
+      // a line's or an area's labels: at the point (an area's in the middle of its band)
+      const tr = traces.find(t => t.s === k)!, area = tr.kind === "area", want = area ? "ctr" : linePos(L?.pos), rr = tr.marker ? markerPx(tr.marker) / 2 + 2 : (tr.stroke?.w || 2) / 2 + 2;
+      const placed: Box[] = [];
+      tr.pts.forEach((p, i) => {
+        if (!p) return;
+        const pp = s.src.points?.[String(i - s.start)];
+        if (pp && pp.label === null) { pts.push({ i, hide: true }); return; }
+        const text = pp && typeof pp.label === "string" ? pp.label : show.map(w => w === "value" ? valueText(i, p.v) : w === "name" ? s.name : w === "category" ? data.cats[i] || "" : "").filter(t => t).join(", ");
+        if (!text) { pts.push({ i, hide: true }); return; }
+        const w = tw(text, st), lh = lineH(st);
+        const boxAt = (q: "t" | "b" | "l" | "r" | "ctr"): Box & { x0: number; align: Lab["align"] } => {
+          const y = area ? (p.y + p.lo) / 2 : p.y;
+          return q === "t" ? { x: p.x - w / 2, y: y - rr - lh, w, h: lh, x0: p.x, align: "center" } : q === "b" ? { x: p.x - w / 2, y: y + rr, w, h: lh, x0: p.x, align: "center" }
+            : q === "l" ? { x: p.x - rr - 2 - w, y: y - lh / 2, w, h: lh, x0: p.x - rr - 2, align: "right" } : q === "r" ? { x: p.x + rr + 2, y: y - lh / 2, w, h: lh, x0: p.x + rr + 2, align: "left" }
+              : { x: p.x - w / 2, y: y - lh / 2, w, h: lh, x0: p.x, align: "center" };
+        };
+        const hits = (b: Box) => placed.some(q => b.x < q.x + q.w && q.x < b.x + b.w && b.y < q.y + q.h && q.y < b.y + b.h);
+        let q: "t" | "b" | "l" | "r" | "ctr" | null = want, b = boxAt(want);
+        // one that would overlap its neighbour moves to the other side, else is left out (09 §3.1)
+        if (hits(b)) { const f = area ? null : FLIP[want]; q = f && !hits(boxAt(f)) ? f : null; if (q) b = boxAt(q); }
+        if (!q) { pts.push({ i, hide: true }); return; }
+        placed.push(b);
+        labs.push({ s: k, i, text, x: b.x0, top: b.y, st, align: b.align, inside: false });
+        const ownText = !!pp && typeof pp.label === "string";
+        if (ownText || q !== want) pts.push({ i, ...(ownText ? { text } : {}), ...(q !== want ? { pos: q } : {}) });
+      });
+      labels.push({ show: show.filter((w): w is "value" | "name" | "category" => w === "value" || w === "name" || w === "category"), pos: area ? null : want, num: numFmt, font: fontSem(st), points: pts });
+      return;
+    }
+    const raw = L?.pos, wantB: Pos = raw === "inEnd" ? "inEnd" : raw === "center" ? "ctr" : raw === "inBase" || raw === "below" || raw === "left" ? "inBase" : raw === "outEnd" || raw === "above" || raw === "right" ? "outEnd" : mode === "none" ? "outEnd" : "ctr";
+    // (a stacked bar has no outside end in Excel or PowerPoint: inside end there)
+    const pos: Pos = mode !== "none" && wantB === "outEnd" ? "inEnd" : wantB;
     for (const b of bars.filter(b => b.s === k)) {
-      const p = s.src.points?.[String(b.i)], seg = segs.find(g => g.s === k && g.i === b.i) as Seg;
+      const p = s.src.points?.[String(b.i - s.start)];
       let text: string;
-      if (p && p.label === null) { points.push({ i: b.i, hide: true }); continue; }
+      if (p && p.label === null) { pts.push({ i: b.i, hide: true }); continue; }
       if (p && typeof p.label === "string") text = p.label;
       else {
-        const share = mode === "percent" ? seg.to - seg.from : null;
-        text = show.map(w => w === "value" ? (numFmt ? tickText(b.v, numFmt) : s.texts[b.i] || tickText(b.v, s.fmt)) : w === "name" ? s.name : w === "category" ? data.cats[b.i] || "" : tickText(share ?? 0, "0%")).filter(t => t).join(", ");
+        const share = mode === "percent" ? b.to - b.from : null, t = s.target?.[b.i];
+        // ofTarget: the value ÷ its target, in the label's own percentage format (else Italian "97 %"); no target, none
+        const ofT = () => t ? tickText(b.v / t, numFmt && numFmt.includes("%") ? numFmt : "0 %") : "";
+        text = show.map(w => w === "value" ? valueText(b.i, b.v) : w === "name" ? s.name : w === "category" ? data.cats[b.i] || "" : w === "ofTarget" ? ofT() : tickText(share ?? 0, "0%")).filter(t => t).join(", ");
       }
-      if (!text) { points.push({ i: b.i, hide: true }); continue; }
+      if (!text) { pts.push({ i: b.i, hide: true }); continue; }
       const inside = pos !== "outEnd", white = inside && !own && lum(b.color) < .6, lst = white ? { ...st, color: "#FFFFFF" } : st;
       const w = tw(text, lst), lh = lineH(lst);
       // an inside label that does not fit its bar is left out (Excel would draw it over the edge)
       const len = dir === "col" ? b.h : b.w, across = dir === "col" ? b.w : b.h;
-      if (inside && ((dir === "col" ? lh : w) + 4 > len || (dir === "col" ? w : lh) > across + 8)) { points.push({ i: b.i, hide: true }); continue; }
+      if (inside && ((dir === "col" ? lh : w) + 4 > len || (dir === "col" ? w : lh) > across + 8)) { pts.push({ i: b.i, hide: true }); continue; }
       let x: number, top: number, align: Lab["align"] = "center";
       if (dir === "col") {
         x = b.x + b.w / 2;
@@ -183,53 +326,105 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
         else { x = right ? start + 4 : start - 4; align = right ? "left" : "right"; }
       }
       labs.push({ s: k, i: b.i, text, x, top, st: lst, align, inside });
-      // PowerPoint: our own texts (a point's label; a share, which a bar chart's labels cannot show) as static text
-      const ownText = (p && typeof p.label === "string") || show.includes("percent");
-      if (ownText || white) points.push({ i: b.i, ...(ownText ? { text } : {}), ...(white ? { color: "#FFFFFF" } : {}) });
+      // PowerPoint: our own texts (a point's label; a share or an ofTarget, which a bar chart's labels cannot show) as
+      // static text
+      const ownText = (p && typeof p.label === "string") || show.includes("percent") || show.includes("ofTarget");
+      if (ownText || white) pts.push({ i: b.i, ...(ownText ? { text } : {}), ...(white ? { color: "#FFFFFF" } : {}) });
     }
-    labels.push({ show, pos, num: numFmt, font: fontSem(st), points });
+    labels.push({ show: show.filter((w): w is "value" | "name" | "category" | "percent" => w !== "ofTarget"), pos, num: numFmt, font: fontSem(st), points: pts });
   });
-  const issue = data.issues.length ? data.issues.join("; ") : null;
+  // the category groups: their labels (a second row) and the dividers between them (from the plot's top through the
+  // category labels; default: the axis line's colour)
+  const catH = catShow ? clh + 6 + (named ? clh + 4 : 0) : 0;
+  const groupLabels = named ? data.groups.map(g => ({ text: g.label, x: plot.x + (g.start + g.len / 2) * slot, w: g.len * slot })) : null;
+  const dividers: SeriesLayout["dividers"] = [];
+  for (const g of data.groups.slice(1)) {
+    // (unset, null or "none": no divider)
+    const dl = g.divider && typeof g.divider === "object" ? lineStyleOf(g.divider, look.line?.color || "#BFBFBF", 1) : null;
+    if (!dl) continue;
+    if (dir === "col") { const x = r2(plot.x + g.start * slot); dividers.push({ x1: x, y1: r2(plot.y), x2: x, y2: r2(plot.y + plot.h + catH), line: dl }); }
+    else { const y = r2(plot.y + plot.h - g.start * slot); dividers.push({ x1: r2(frame.x), y1: y, x2: r2(plot.x + plot.w), y2: y, line: dl }); }
+  }
+  // the marks, in data coordinates
+  const F: MarkFrame = {
+    plot, cats: data.cats, slot, horizontal: dir === "bar", groups: new Map(data.groups.map(g => [g.id, { start: g.start, len: g.len }])),
+    // (a hidden series is not drawn: its marks are not either, and that is no mistake – no anchors, no Issues line)
+    series: new Map([...Object.keys(it.sers || {}).map((k): [string, { anchors: (Anchor | null)[]; start: number }] => [k, { anchors: [], start: 0 }]), ...ser.map((s, k): [string, { anchors: (Anchor | null)[]; start: number }] => [s.id, { anchors: anchors[k], start: s.start }])]),
+    vp: (v, ax) => ax === "y2" && !y2 ? null : vps[ax](v), ink: sty.ink, lab: sty.lab, withFmt,
+  };
+  const mk = markNodes(it, id, F, ctx, m);
+  const issues = [...data.issues, ...mk.issues];
+  const issue = issues.length ? issues.join("; ") : null;
   return { data, dir, mode, gap, overlap, title, titleSt, titleBox, plot, scale, num, valSt, catSt, valShow, catShow, skip, look,
     grid: typeof A.y?.grid === "boolean" ? A.y.grid : look.gridOn, colors, bars, labs, legend, ticks: tk, labels, issue,
-    hidden: ser.flatMap((s, k) => entries.some(e => e.key === s.id) ? [] : [k]) };
+    hidden: ser.flatMap((s, k) => entries.some(e => e.key === s.id) ? [] : [k]),
+    kinds, axes, y2, barGroups, traces, groupLabels, dividers, rule, marks: { nodes: mk.nodes, under: mk.under, hits: mk.hits } };
 }
 
-/** the nodes of a laid-out column or bar chart: gridlines, bars, the axis line, labels, the axes' texts, the legend,
-    the title, the point hits */
+const strokeOf = (s: LineSem) => ({ w: s.w, paint: solid(s.color), ...(s.dash === "sysDot" ? { dash: [2, 3] } : s.dash === "dash" ? { dash: [6, 4] } : s.dash === "dashDot" ? { dash: [6, 4, 2, 4] } : {}) });
+/** what is drawn under a native chart as well as on the slide (before the gridlines): the title's rule (the PowerPoint
+    title is the chart's own), the marks' bands */
+export function cardNodes(L: SeriesLayout): Node[] {
+  return [...(L.rule ? [{ t: "line", x1: r2(L.rule.x1), y1: L.rule.y, x2: r2(L.rule.x2), y2: L.rule.y, stroke: lineStroke(L.rule.line, "butt") } as Node] : []), ...L.marks.under];
+}
+/** what is drawn over a native chart as well as on the slide: the dividers and the marks (plain shapes in PowerPoint) */
+export function overlayNodes(L: SeriesLayout): Node[] {
+  return [...L.dividers.map((d): Node => ({ t: "line", x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2, stroke: lineStroke(d.line, "butt") })), ...L.marks.nodes];
+}
+
+/** the nodes of a laid-out series chart: gridlines, areas, bars, the axis line, lines and markers, labels, the axes'
+    texts, dividers and marks, the legend, the title, the point and mark hits */
 export function seriesNodes(L: SeriesLayout, id: string, frame: Box, m: Metrics, sty: SeriesStyle): Node[] {
   const out: Node[] = [], { plot, dir, scale } = L, span = scale.max - scale.min || 1;
-  if (L.title) out.push(textNode(m, ellipsis(m, L.title, L.titleSt, frame.w), frame.x + frame.w / 2, frame.y, L.titleSt, "center"));
+  if (L.title) {
+    const al = L.titleBox && L.titleBox.x <= frame.x + .01 && L.titleBox.w < frame.w - .01 ? "left" : L.titleBox && L.titleBox.x + L.titleBox.w >= frame.x + frame.w - .01 && L.titleBox.w < frame.w - .01 ? "right" : "center";
+    out.push(textNode(m, ellipsis(m, L.title, L.titleSt, frame.w), al === "left" ? frame.x : al === "right" ? frame.x + frame.w : frame.x + frame.w / 2, frame.y, L.titleSt, al));
+  }
+  out.push(...cardNodes(L));
+  const vpOf = (S: Scale) => { const sp = S.max - S.min || 1; return (v: number) => { const t = Math.max(0, Math.min(1, (v - S.min) / sp)); return dir === "col" ? plot.y + plot.h - t * plot.h : plot.x + t * plot.w; }; };
   const vp = (v: number) => { const t = Math.max(0, Math.min(1, (v - scale.min) / span)); return dir === "col" ? plot.y + plot.h - t * plot.h : plot.x + t * plot.w; };
-  const stroke = (s: LineSem) => ({ w: s.w, paint: solid(s.color), ...(s.dash === "sysDot" ? { dash: [2, 3] } : s.dash === "dash" ? { dash: [6, 4] } : {}) });
-  // gridlines (behind the bars)
+  // gridlines (behind the bars): the primary axis's, the secondary's when it asks for them
   if (L.grid && L.look.grid) for (const t of L.ticks) {
     const p = r2(vp(t.v));
-    out.push(dir === "col" ? { t: "line", x1: r2(plot.x), y1: p, x2: r2(plot.x + plot.w), y2: p, stroke: stroke(L.look.grid) } : { t: "line", x1: p, y1: r2(plot.y), x2: p, y2: r2(plot.y + plot.h), stroke: stroke(L.look.grid) });
+    out.push(dir === "col" ? { t: "line", x1: r2(plot.x), y1: p, x2: r2(plot.x + plot.w), y2: p, stroke: strokeOf(L.look.grid) } : { t: "line", x1: p, y1: r2(plot.y), x2: p, y2: r2(plot.y + plot.h), stroke: strokeOf(L.look.grid) });
   }
-  // the bars
+  if (L.y2?.grid) { const v2 = vpOf(L.y2.scale); for (const t of L.y2.ticks) { const p = r2(v2(t.v)); out.push({ t: "line", x1: r2(plot.x), y1: p, x2: r2(plot.x + plot.w), y2: p, stroke: strokeOf(L.y2.grid) }); } }
+  // areas (alpha .85)
+  for (const tr of L.traces) if (tr.kind === "area") for (const d of tr.d) out.push({ t: "path", d, fill: { solid: parseColor(tr.fill).c, a: .85 } });
+  // the bars, and over each its target's outline
   for (const b of L.bars) {
-    if (!(b.w > 0 && b.h > 0)) continue;
-    const c = parseColor(b.color).c, light = parseColor(mix(b.color, "#FFFFFF", .22)).c;
-    const lin: [number, number, number, number] = b.dir === "up" ? [0, 0, 0, 1] : b.dir === "down" ? [0, 1, 0, 0] : b.dir === "right" ? [1, 0, 0, 0] : [0, 0, 1, 0];
-    const fill: Paint = sty.gradient ? { linear: lin, stops: [{ o: 0, c: light, a: 1 }, { o: 1, c, a: 1 }] } : { solid: c };
-    const r = b.outer && sty.radius > 0 ? outerRadius(sty.radius, b.dir, b.w, b.h) : 0;
-    out.push({ t: "rect", x: r2(b.x), y: r2(b.y), w: r2(b.w), h: r2(b.h), ...(r ? { r } : {}), fill });
+    if (b.w > 0 && b.h > 0) {
+      const c = parseColor(b.color).c, light = parseColor(mix(b.color, "#FFFFFF", .22)).c;
+      const lin: [number, number, number, number] = b.dir === "up" ? [0, 0, 0, 1] : b.dir === "down" ? [0, 1, 0, 0] : b.dir === "right" ? [1, 0, 0, 0] : [0, 0, 1, 0];
+      const fill: Paint = sty.gradient ? { linear: lin, stops: [{ o: 0, c: light, a: 1 }, { o: 1, c, a: 1 }] } : { solid: c };
+      const r = b.outer && sty.radius > 0 && !b.target ? outerRadius(sty.radius, b.dir, b.w, b.h) : 0;
+      out.push({ t: "rect", x: r2(b.x), y: r2(b.y), w: r2(b.w), h: r2(b.h), ...(r ? { r } : {}), fill });
+    }
+    if (b.target && b.target.h > 0) out.push({ t: "rect", x: r2(b.x), y: r2(b.target.y), w: r2(b.w), h: r2(b.target.h), stroke: { w: 1.5, paint: solid(b.color) } });
   }
   // the category axis line, at zero (or the axis's end nearest it)
   const axisLine = L.look.line;
   if (axisLine) {
     const p = r2(vp(Math.max(scale.min, Math.min(scale.max, 0))));
-    out.push(dir === "col" ? { t: "line", x1: r2(plot.x), y1: p, x2: r2(plot.x + plot.w), y2: p, stroke: stroke(axisLine) } : { t: "line", x1: p, y1: r2(plot.y), x2: p, y2: r2(plot.y + plot.h), stroke: stroke(axisLine) });
+    out.push(dir === "col" ? { t: "line", x1: r2(plot.x), y1: p, x2: r2(plot.x + plot.w), y2: p, stroke: strokeOf(axisLine) } : { t: "line", x1: p, y1: r2(plot.y), x2: p, y2: r2(plot.y + plot.h), stroke: strokeOf(axisLine) });
+  }
+  // the lines and their markers
+  for (const tr of L.traces) if (tr.kind === "line") {
+    for (const d of tr.d) out.push({ t: "path", d, stroke: lineStroke(tr.stroke!) });
+    if (tr.marker) {
+      const own = L.data.series[tr.s].src.points || {}, st = L.data.series[tr.s].start;
+      tr.pts.forEach((p, i) => { if (!p) return; const pc = own[String(i - st)]?.marker, n = markerNode(tr.marker!, p.x, p.y, typeof pc === "string" && HEX.test(pc) ? pc.toUpperCase() : tr.marker!.color); if (n) out.push(n); });
+    }
   }
   // data labels
   for (const l of L.labs) out.push(textNode(m, l.text, l.x, l.top, l.st, l.align));
-  // the value axis's tick labels
+  // the value axes' tick labels
   if (L.valShow) for (const t of L.ticks) {
     const p = vp(t.v), lh = lineH(L.valSt);
     out.push(dir === "col" ? textNode(m, t.text, plot.x - 6, p - lh / 2, L.valSt, "right") : textNode(m, t.text, p, plot.y + plot.h + 4, L.valSt, "center"));
   }
-  // the category labels
+  if (L.y2?.show) { const v2 = vpOf(L.y2.scale), lh = lineH(L.y2.st); for (const t of L.y2.ticks) out.push(textNode(m, t.text, plot.x + plot.w + 6, v2(t.v) - lh / 2, L.y2.st, "left")); }
+  // the category labels, and the groups' labels under them
   if (L.catShow) {
     const N = Math.max(1, L.data.cats.length), slot = (dir === "col" ? plot.w : plot.h) / N, lh = lineH(L.catSt);
     L.data.cats.forEach((c, i) => {
@@ -237,30 +432,71 @@ export function seriesNodes(L: SeriesLayout, id: string, frame: Box, m: Metrics,
       if (dir === "col") out.push(textNode(m, ellipsis(m, c, L.catSt, slot * L.skip - 4), plot.x + (i + .5) * slot, plot.y + plot.h + 4, L.catSt, "center"));
       else out.push(textNode(m, ellipsis(m, c, L.catSt, plot.x - frame.x - 8), plot.x - 6, plot.y + plot.h - (i + .5) * slot - lh / 2, L.catSt, "right"));
     });
+    if (L.groupLabels) for (const g of L.groupLabels) if (g.text) out.push(textNode(m, ellipsis(m, g.text, L.catSt, g.w - 4), g.x, plot.y + plot.h + 4 + lh + 4, L.catSt, "center"));
   }
+  out.push(...overlayNodes(L));
   out.push(...L.legend.nodes);
-  // a hit per bar: the panel's point (per-point colour and label, S14.5)
+  // a hit per value (the panel's point: per-point colour and label, S14.5), one per mark
   for (const b of L.bars) {
     const s = L.data.series[b.s];
-    out.push({ t: "hit", kind: "point", id: `${id}:${s.id}:${b.i}`, x: r2(b.x), y: r2(b.y), w: r2(Math.max(1, b.w)), h: r2(Math.max(1, b.h)), label: `${s.name} · ${L.data.cats[b.i] || b.i + 1}: ${s.texts[b.i] || tickText(b.v, s.fmt)}` });
+    out.push({ t: "hit", kind: "point", id: `${id}:${s.id}:${b.i - s.start}`, x: r2(b.x), y: r2(b.y), w: r2(Math.max(1, b.w)), h: r2(Math.max(1, b.h)), label: `${s.name} · ${L.data.cats[b.i] || b.i + 1}: ${s.texts[b.i] || tickText(b.v, s.fmt)}` });
   }
+  for (const tr of L.traces) {
+    const s = L.data.series[tr.s], hs = Math.max(12, tr.marker ? markerPx(tr.marker) + 4 : 0);
+    tr.pts.forEach((p, i) => { if (p) out.push({ t: "hit", kind: "point", id: `${id}:${s.id}:${i - s.start}`, x: r2(p.x - hs / 2), y: r2(p.y - hs / 2), w: hs, h: hs, label: `${s.name} · ${L.data.cats[i] || i + 1}: ${s.texts[i] || tickText(p.v, s.fmt)}` }); });
+  }
+  out.push(...L.marks.hits);
   return out;
 }
 
-/** what the PowerPoint writer makes of the same layout: a c:barChart with these bounds, bars, labels and legend */
+/** what the PowerPoint writer makes of the same layout: chart groups (areas, bars, lines; primary, then secondary) with
+    these bounds, series, labels and legend */
 export function seriesSem(L: SeriesLayout): BarsSem {
-  const ser: BarSerSem[] = L.data.series.map((s, k) => ({
-    name: s.name, values: s.vals.slice(), color: L.colors[k], fmt: s.fmt,
-    points: Object.entries(s.src.points || {}).flatMap(([i, p]) => p && typeof p.color === "string" && HEX.test(p.color) && +i >= 0 && +i < s.vals.length ? [{ i: +i, color: p.color.toUpperCase() }] : []),
-    labels: L.labels[k] ?? null,
+  const ser: BarSerSem[] = L.data.series.map((s, k) => {
+    const kind = L.kinds[k], tr = L.traces.find(t => t.s === k);
+    const out: BarSerSem = {
+      name: s.name, values: s.vals.slice(), color: L.colors[k], fmt: s.fmt,
+      // (a point's index is the series' own – its group's –; PowerPoint's the chart's category)
+      points: kind === "bar" ? Object.entries(s.src.points || {}).flatMap(([i, p]) => p && typeof p.color === "string" && HEX.test(p.color) && +i >= 0 && +i + s.start < s.vals.length ? [{ i: +i + s.start, color: p.color.toUpperCase() }] : []) : [],
+      labels: L.labels[k] ?? null,
+      type: kind === "bar" ? (L.dir === "bar" ? "bar" : "column") : kind, axis: L.axes[k],
+    };
+    if (kind === "line") {
+      out.smooth = !!tr?.smooth; out.stroke = tr?.stroke ?? null; out.marker = tr?.marker ?? null;
+      out.markers = tr?.marker ? Object.entries(s.src.points || {}).flatMap(([i, p]) => p && typeof p.marker === "string" && HEX.test(p.marker) && +i >= 0 && +i + s.start < s.vals.length ? [{ i: +i + s.start, color: p.marker.toUpperCase() }] : []) : [];
+    }
+    if (kind === "area") out.alpha = .85;
+    return out;
+  });
+  // "actual inside target": each target series after the series list, its own column of the embedded workbook
+  const companion = new Map<number, number>();
+  L.barGroups.forEach(g => g.series.forEach(k => {
+    const s = L.data.series[k];
+    if (L.mode !== "none" || !s.target) return;
+    companion.set(k, ser.length);
+    ser.push({ name: `${s.name} – target`, values: s.target.slice(), color: L.colors[k], fmt: s.fmt, points: ser[k].points, labels: null, type: "column", axis: L.axes[k], target: { w: 1.5 } });
   }));
+  const grouping = L.mode === "none" ? "clustered" : L.mode === "stacked" ? "stacked" : "percentStacked";
+  const groups: GroupSem[] = [];
+  for (const ax of ["y", "y2"] as const) {
+    const of = (kind: Kind) => L.data.series.map((_, k) => k).filter(k => L.axes[k] === ax && L.kinds[k] === kind);
+    const ai = of("area"), li = of("line"), bg = L.barGroups.find(g => g.axis === ax);
+    if (ai.length) groups.push({ kind: "area", axis: ax, grouping: L.mode === "none" ? "standard" : grouping, gap: 0, overlap: 0, series: ai });
+    if (bg) groups.push({ kind: "bar", axis: ax, grouping, gap: L.gap, overlap: bg.overlap, series: bg.series.flatMap(k => companion.has(k) ? [k, companion.get(k)!] : [k]) });
+    if (li.length) groups.push({ kind: "line", axis: ax, grouping: "standard", gap: 0, overlap: 0, series: li });
+  }
   const lp = L.legend.at === "right" ? "r" : L.legend.at === "left" ? "l" : L.legend.at === "top" ? "t" : L.legend.at === "top-right" ? "tr" : L.legend.at === "inside-tl" || L.legend.at === "inside-tr" ? "r" : "b";
+  const y2 = L.y2;
   return {
-    dir: L.dir, grouping: L.mode === "none" ? "clustered" : L.mode === "stacked" ? "stacked" : "percentStacked", gap: L.gap, overlap: L.overlap,
+    dir: L.dir, grouping, gap: L.gap, overlap: L.barGroups[0]?.overlap ?? L.overlap,
     cats: L.data.cats.slice(), series: ser, title: L.titleBox,
     val: { min: L.scale.min, max: L.scale.max, step: L.scale.step, num: L.num, grid: L.grid ? L.look.grid : null, line: null, show: L.valShow, font: fontSem(L.valSt) },
     cat: { line: L.look.line, show: L.catShow, font: fontSem(L.catSt), skip: L.skip },
     plot: { x: r2(L.plot.x), y: r2(L.plot.y), w: r2(L.plot.w), h: r2(L.plot.h) },
-    legend: L.legend.box ? { pos: lp, box: L.legend.box, overlay: L.legend.at === "inside-tl" || L.legend.at === "inside-tr", hide: L.hidden } : null,
+    legend: L.legend.box ? { pos: lp, box: L.legend.box, overlay: L.legend.at === "inside-tl" || L.legend.at === "inside-tr", hide: [...L.hidden, ...companion.values()] } : null,
+    groups, val2: y2 ? { min: y2.scale.min, max: y2.scale.max, step: y2.scale.step, num: y2.num, grid: y2.grid, line: null, show: y2.show, font: fontSem(y2.st) } : null,
+    levels: L.groupLabels ? L.data.cats.map((_, i) => { const g = L.data.groups.find(x => x.start === i && x.len > 0); return g ? g.label : ""; }) : null,
   };
 }
+// (LabelPos is the PowerPoint writer's: re-exported for the tests)
+export type { LabelPos };

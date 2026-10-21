@@ -15,6 +15,7 @@ import type { Range } from "../xlsx/util";
 import type { RenderCtx } from "./context";
 import { formatValue } from "../xlsx/numfmt";
 import { A1, numToCol, parseRange } from "../xlsx/util";
+import { CELL_TOKEN, tokenSheet } from "../model/preset";
 
 /* ---- one rectangle ---- */
 export interface Slice { label: string; v: number; text: string }
@@ -125,6 +126,7 @@ export interface SerData {
   id: string; n: number; name: string; type: SeriesType; axis: "y" | "y2"; stack: string | null; color: string | null;
   /** per category of the chart (the series' group's slots; null elsewhere and in a gap) */ vals: (number | null)[];
   texts: string[]; fmt: string; target: (number | null)[] | null; source: string; src: ChartSeries;
+  /** its group's first category: the series' value i (its `points[i]`, a mark's { s, i }) stands at category start + i */ start: number;
 }
 export interface GroupData { id: string; n: number; start: number; len: number; label: string; divider: LineOrNone | null | undefined }
 export type SeriesData =
@@ -184,6 +186,9 @@ function refSheets(it: ChartItem, ctx: RenderCtx): string[] {
   for (const [, s] of seriesList(it)) { add(s.vals); add(s.target); add(s.name); }
   for (const g of Object.values(it.groups || {})) if (g && typeof g === "object") add(g.cats);
   add(it.labels);
+  // the cells a text mark quotes ({Targets!B3}: a reload of that sheet is another key, S14.3)
+  for (const k of Object.values(it.marks && typeof it.marks === "object" ? it.marks : {})) if (k && typeof k.text === "string")
+    for (const t of k.text.matchAll(CELL_TOKEN)) out.add(tokenSheet(t[1]));
   out.delete("");
   return [...out].sort();
 }
@@ -230,15 +235,18 @@ function resolveSeries(it: ChartItem, ctx: RenderCtx, key: string): SeriesData {
     const vals: (number | null)[] = cats.map(() => null), texts = cats.map(() => ""), target = t ? cats.map((): number | null => null) : null;
     for (let i = 0; i < g.len && i < r.vals.length; i++) { vals[g.start + i] = r.vals[i].v; texts[g.start + i] = r.vals[i].text; }
     if (t && target) for (let i = 0; i < g.len && i < t.vals.length; i++) target[g.start + i] = t.vals[i].v;
-    const type: SeriesType = s.type === "column" || s.type === "bar" || s.type === "line" || s.type === "area" || s.type === "scatter" ? s.type : it.type === "bar" ? "bar" : "column";
+    // (a series without a type takes the chart's: a line chart's are lines, an area chart's areas, a combo's columns)
+    const type: SeriesType = s.type === "column" || s.type === "bar" || s.type === "line" || s.type === "area" || s.type === "scatter" ? s.type
+      : it.type === "bar" ? "bar" : it.type === "line" ? "line" : it.type === "area" ? "area" : "column";
     return { id, n: +s.n || 0, name, type, axis: s.axis === "y2" ? "y2" : "y", stack: typeof s.stack === "string" ? s.stack : null,
       color: typeof s.color === "string" && /^#[0-9A-Fa-f]{6}$/.test(s.color) ? s.color.toUpperCase() : null,
-      vals, texts, fmt: r.vals.find(v => v.v !== null)?.fmt || "General", target, source: r.source, src: s };
+      vals, texts, fmt: r.vals.find(v => v.v !== null)?.fmt || "General", target, source: r.source, src: s, start: g.start };
   });
   if (!series.some(s => s.vals.some(v => v !== null && v !== 0))) return { ok: false, source: read.map(x => x.r.source).join(", "), why: "empty", key };
   return { ok: true, cats, groups, series, issues, key };
 }
-/** a chart draws its series (4.7, S14.2: columns and bars) rather than the pie of its one range */
+/** a chart draws its series (4.7: columns and bars S14.2; lines, areas and combos S14.3) rather than the pie of its one
+    range; scatter and waterfall (S14.4) still draw as before */
 export function hasSeries(it: ChartItem): boolean {
-  return (it.type === "column" || it.type === "bar") && seriesList(it).length > 0;
+  return (it.type === "column" || it.type === "bar" || it.type === "line" || it.type === "area" || it.type === "combo") && seriesList(it).length > 0;
 }

@@ -35,7 +35,9 @@ function chartSheets(it: ChartItem): string[] {
   const refs: unknown[] = [it.values, it.labels];
   for (const s of Object.values(it.sers && typeof it.sers === "object" ? it.sers : {})) if (s && typeof s === "object") refs.push(...(Array.isArray(s.vals) ? s.vals : []), ...(Array.isArray(s.target) ? s.target : []), s.name);
   for (const g of Object.values(it.groups && typeof it.groups === "object" ? it.groups : {})) if (g && typeof g === "object") refs.push(g.cats);
-  return [...new Set(refs.flatMap(refSheet))];
+  // (S14.3) the cells a text mark quotes, as a callout's
+  const marks = Object.values(it.marks && typeof it.marks === "object" ? it.marks : {}).flatMap(k => k && typeof k === "object" ? textSheets(k.text) : []);
+  return [...new Set([...refs.flatMap(refSheet), ...marks])];
 }
 /* ---- M14 above this line, M15 below it ---- */
 /** a callout or an icon (M15): the cells its text quotes */

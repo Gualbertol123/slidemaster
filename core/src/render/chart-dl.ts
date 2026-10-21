@@ -8,9 +8,10 @@
    text and hidden cells skipped, the cells a version removes too; labels from the item's labels range, else the row /
    column headers beside the values. Colours: the item's colors[i], else the design's palette (resolved per design,
    model/style.ts palette / consult-spec.ts specOf). Pure: the stage, thumbnails and every export draw the same nodes.
-   Since 4.7 (S14.2, docs/next/09 §3): a column or bar chart with `sers` is laid out by chart-series.ts (axes, bars,
-   labels, legend) inside the same card; its data comes from chart-data.ts, where every cell rule now lives. A chart
-   without `sers` draws exactly as before, whatever its type (09 §2.2). */
+   Since 4.7 (S14.2–S14.3, docs/next/09 §3): a column, bar, line, area or combo chart with `sers` is laid out by
+   chart-series.ts (axes, bars, lines, areas, labels, marks, legend) inside the same card; its data comes from
+   chart-data.ts, where every cell rule now lives. A chart without `sers` draws exactly as before, whatever its type
+   (09 §2.2). */
 import type { Box, ChartItem } from "../model/types";
 import type { Node, Paint, PathCmd, RGB } from "../dl/types";
 import type { RenderCtx } from "./context";
@@ -26,7 +27,8 @@ import { parseColor, solid } from "../dl/color";
 import type { ChartSem } from "../pptx/chart-sem";
 import { cellsOf, chartData, hasSeries, refTarget, seriesData, type ChartData } from "./chart-data";
 import { ellipsis, font, lum, textNode, type St } from "./chart-font";
-import { fontSem, seriesLayout, seriesNodes, seriesSem, type SeriesStyle } from "./chart-series";
+import { cardNodes, fontSem, lineOrNone, overlayNodes, seriesLayout, seriesNodes, seriesSem, type SeriesStyle } from "./chart-series";
+import { lineStroke } from "./chart-lines";
 
 /* ---- data (chart-data.ts since S14.2: every cell rule in one place) ---- */
 export { chartData, refTarget, type ChartData, type Slice } from "./chart-data";
@@ -152,20 +154,26 @@ function seriesStyle(look: ChartLook, lab: St, ttl: St, rk: number): SeriesStyle
 export interface ChartEnv { V: GlassVars; wall: Wallpaper | null; /** the design's text-box family (slide-dl.ts) */ family: string;
   /** the card alone, without the pie, labels and legend (the PowerPoint export draws those as a native chart) */ noContent?: boolean }
 /** a chart item → its nodes, and the line for the Issues panel when its source is missing or holds no numbers */
-export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, m: Metrics, env: ChartEnv): { nodes: Node[]; issue: string | null; geom: PieGeom | null } {
+export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, m: Metrics, env: ChartEnv): { nodes: Node[]; issue: string | null; geom: PieGeom | null;
+  /** with noContent (the PowerPoint card): what is drawn over the native chart – dividers and marks (S14.3) */ overlay?: Node[] } {
   const { x, y, w, h } = box, look = chartLook(ctx, env.family), rk = ctx.style.radius / 100;
   const { base, lab, ttl } = stylesOf(it, ctx, look);
   // a series chart (4.7, S14.2: columns and bars) is laid out by chart-series.ts; a chart without series is a pie
   const frame = { x: x + look.pad, y: y + look.pad, w: Math.max(10, w - 2 * look.pad), h: Math.max(10, h - 2 * look.pad) };
-  const sty = seriesStyle(look, lab, ttl, rk), SL = hasSeries(it) ? seriesLayout(it, frame, ctx, m, sty) : null;
+  const sty = seriesStyle(look, lab, ttl, rk), SL = hasSeries(it) ? seriesLayout(it, frame, ctx, m, sty, id) : null;
   const data: ChartData = SL ? ("why" in SL ? { ok: false, source: SL.source, why: SL.why } : { ok: true, source: "", series: SL.title, slices: [] }) : chartData(it, ctx);
   const label = SL && !("why" in SL) ? SL.title : data.ok ? titleOf(it, data) : "";
   const hitNode: Node = { t: "hit", kind: "item", id, x: r2(x), y: r2(y), w: r2(w), h: r2(h), ...(data.ok ? { label } : {}) };
   const inner: Node[] = [];
-  let issue: string | null = null, geom: PieGeom | null = null;
+  let issue: string | null = null, geom: PieGeom | null = null, overlay: Node[] | undefined;
   if (SL && !("why" in SL)) {
     issue = SL.issue;
+    // the frame round the chart (09 §2.2 `frame`: unset = the design's, which is none; "none" = none)
+    const fr = lineOrNone(it.frame, null);
+    if (fr) inner.push({ t: "rect", x: r2(x + fr.w / 2), y: r2(y + fr.w / 2), w: r2(Math.max(1, w - fr.w)), h: r2(Math.max(1, h - fr.w)), stroke: lineStroke(fr, "butt") });
     if (!env.noContent) inner.push(...seriesNodes(SL, id, frame, m, sty));
+    // (the PowerPoint card: the title's rule under the native chart, the dividers and marks over it)
+    else { inner.push(...cardNodes(SL)); overlay = overlayNodes(SL); }
   } else if (!data.ok) {
     issue = data.why === "missing" ? `source ${data.source} not found` : `no numbers in ${data.source}`;
     // a placeholder on the stage (an export leaves the place empty, as a missing picture)
@@ -273,13 +281,14 @@ export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, 
     inner.push(...slices, ...labels, ...legend, ...hits);
   }
   // the card behind the chart: a glass card (Liquid Glass), a plain rounded card (Excel Refined), none (Excel, consulting)
-  if (look.card === "glass") return { nodes: glassBox("gls wb card chart", x, y, w, h, Math.round(22 * rk), env.V, { x: 0, y: 0, scale: 1 }, env.wall, { content: inner, hit: { kind: "item", id, ...(data.ok ? { label } : {}) } }), issue, geom };
+  const more = overlay ? { overlay } : {};
+  if (look.card === "glass") return { nodes: glassBox("gls wb card chart", x, y, w, h, Math.round(22 * rk), env.V, { x: 0, y: 0, scale: 1 }, env.wall, { content: inner, hit: { kind: "item", id, ...(data.ok ? { label } : {}) } }), issue, geom, ...more };
   if (look.card === "plain") {
     const X = Math.round(x), Y = Math.round(y), W = Math.round(x + w) - X, H = Math.round(y + h) - Y, rr = Math.round(8 * rk);
     return { nodes: [hitNode, { t: "shadow", x: X, y: Y, w: W, h: H, r: rr, dx: 0, dy: 8, blur: 24, spread: -12, c: [20, 30, 60], a: .18 }, { t: "shadow", x: X, y: Y, w: W, h: H, r: rr, dx: 0, dy: 1, blur: 3, spread: 0, c: [20, 30, 60], a: .06 },
-      { t: "rect", x: X + .5, y: Y + .5, w: Math.max(0, W - 1), h: Math.max(0, H - 1), r: Math.max(0, rr - .5), fill: solid("#FFFFFF"), stroke: { w: 1, paint: solid("#E1E5EC") } }, ...inner], issue, geom };
+      { t: "rect", x: X + .5, y: Y + .5, w: Math.max(0, W - 1), h: Math.max(0, H - 1), r: Math.max(0, rr - .5), fill: solid("#FFFFFF"), stroke: { w: 1, paint: solid("#E1E5EC") } }, ...inner], issue, geom, ...more };
   }
-  return { nodes: [hitNode, ...inner], issue, geom };
+  return { nodes: [hitNode, ...inner], issue, geom, ...more };
 }
 /** what the PowerPoint export makes a native chart of (07 §4.2, B21): the slices' labels, values (the cells' own: a
     negative one too, as Excel's pie takes its size) and colours, the labels shown, the legend's place, the title and the
@@ -305,9 +314,9 @@ export function chartSem(it: ChartItem, box: Box, ctx: RenderCtx, family: string
     sep: n > 1 ? { w: look.sep.w, color: hex(look.sep.color) } : null, fmt: first?.fmt || "General", hole: 58,
   };
 }
-/** a column or bar chart for PowerPoint (09 §4.2, S14.2): the same layout as its display list (seriesLayout), so the
-    native chart's plot, bounds, bars, labels and legend are where the slide draws them; the pie fields carry the first
-    series (what a reader of the old fields expects) */
+/** a series chart for PowerPoint (09 §4.2; S14.2 columns and bars, S14.3 lines, areas, combos on two axes): the same
+    layout as its display list (seriesLayout), so the native chart's plot, bounds, bars, lines, labels and legend are
+    where the slide draws them; the pie fields carry the first series (what a reader of the old fields expects) */
 function seriesChartSem(it: ChartItem, box: Box, ctx: RenderCtx, look: ChartLook, m: Metrics): ChartSem | null {
   const { lab, ttl } = stylesOf(it, ctx, look), rk = ctx.style.radius / 100, pad = look.pad;
   const frame = { x: box.x + pad, y: box.y + pad, w: Math.max(10, box.w - 2 * pad), h: Math.max(10, box.h - 2 * pad) };
@@ -315,7 +324,7 @@ function seriesChartSem(it: ChartItem, box: Box, ctx: RenderCtx, look: ChartLook
   if ("why" in L) return null;
   const bars = seriesSem(L), first = bars.series[0];
   return {
-    type: it.type === "bar" ? "bar" : "column", title: L.title, series: first?.name || "", titleFont: fontSem(L.titleSt), labelFont: fontSem(lab),
+    type: it.type === "bar" ? "bar" : it.type === "line" || it.type === "area" || it.type === "combo" ? it.type : "column", title: L.title, series: first?.name || "", titleFont: fontSem(L.titleSt), labelFont: fontSem(lab),
     labels: bars.cats, values: (first?.values || []).map(v => v ?? 0), colors: bars.series.map(s => s.color), show: [],
     legend: bars.legend ? (bars.legend.pos === "b" ? "bottom" : "right") : "none", startAngle: 0, box: frame, sep: null, fmt: first?.fmt || "General", hole: 0, bars,
   };

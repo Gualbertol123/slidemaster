@@ -8,8 +8,11 @@ import type { Node } from "../dl/types";
 import type { Metrics } from "./excel-dl";
 import { ellipsis, font, lineH, textNode, type St } from "./chart-font";
 import { parseColor, solid } from "../dl/color";
+import type { LineSem, MarkerSem } from "../pptx/chart-sem";
+import { lineStroke, markerNode } from "./chart-lines";
 
-export interface LegendEntry { key: string; label: string; color: string }
+/** an entry: its series' key, name and colour; a line series' (S14.3) swatch is its line and marker */
+export interface LegendEntry { key: string; label: string; color: string; line?: LineSem; marker?: MarkerSem | null }
 export interface LegendOut { nodes: Node[]; area: Box; box: Box | null; at: LegendAt }
 const r2 = (v: number) => Math.round(v * 100) / 100 || 0;
 const POS: LegendAt[] = ["right", "left", "top", "bottom", "top-right", "inside-tl", "inside-tr", "none"];
@@ -28,7 +31,16 @@ export function legendNodes(entries: LegendEntry[], at: LegendAt, area: Box, kin
   if (at === "none" || !entries.length) return { nodes: [], area, box: null, at };
   const sw = kind === "capsule" ? { w: 18, h: 10, r: 5 } : kind === "line" ? { w: 16, h: 2, r: 0 } : { w: 10, h: 10, r: 0 };
   const rowH = Math.max(18, Math.round(st.size * 1.45)), lh = lineH(st), out: Node[] = [];
-  const swatch = (x: number, y: number, c: string) => out.push({ t: "rect", x: r2(x), y: r2(y + (rowH - sw.h) / 2), w: sw.w, h: sw.h, ...(sw.r ? { r: sw.r } : {}), fill: solid(c) });
+  const swatch = (x: number, y: number, c: string, e?: LegendEntry) => {
+    if (e?.line) {
+      // a line series: a stroke across the swatch's width (at most 4 px) and its marker in the middle (at most 10 px)
+      const cy = r2(y + rowH / 2);
+      out.push({ t: "line", x1: r2(x), y1: cy, x2: r2(x + Math.max(sw.w, 16)), y2: cy, stroke: lineStroke({ ...e.line, w: Math.min(4, e.line.w) }) });
+      if (e.marker) { const n = markerNode({ ...e.marker, size: Math.min(e.marker.size, 6) }, x + Math.max(sw.w, 16) / 2, y + rowH / 2, e.marker.color); if (n) out.push(n); }
+      return;
+    }
+    out.push({ t: "rect", x: r2(x), y: r2(y + (rowH - sw.h) / 2), w: sw.w, h: sw.h, ...(sw.r ? { r: sw.r } : {}), fill: solid(c) });
+  };
   const tw = (t: string) => m.run(t, font(st)).w;
   if (at === "top" || at === "bottom") {
     // entries flow left to right, centred, wrapping onto at most three rows
@@ -43,7 +55,7 @@ export function legendNodes(entries: LegendEntry[], at: LegendAt, area: Box, kin
       const full = line.reduce((s, e) => s + sw.w + 8 + e.tw + 18, -18); let x = area.x + (area.w - full) / 2;
       bx = Math.min(bx, x); bw = Math.max(bw, full);
       for (const e of line) {
-        if (e.color) swatch(x, y0 + k * rowH, e.color);
+        if (e.color) swatch(x, y0 + k * rowH, e.color, e);
         out.push(textNode(m, ellipsis(m, e.label, st, e.tw), e.color ? x + sw.w + 8 : x, y0 + k * rowH + (rowH - lh) / 2, st));
         x += sw.w + 8 + e.tw + 18;
       }
@@ -60,7 +72,7 @@ export function legendNodes(entries: LegendEntry[], at: LegendAt, area: Box, kin
   if (inside) out.push({ t: "rect", x: r2(x - 8), y: r2(y - 6), w: r2(lw + 16), h: r2(h + 12), r: 6, fill: { solid: parseColor(card.fill).c, a: card.a }, stroke: { w: 1, paint: solid(card.line) } });
   entries.slice(0, rows).forEach((e, k) => {
     const yy = y + k * rowH, last = k === rows - 1 && rows < entries.length, txt = last ? `+${entries.length - rows + 1} more` : e.label;
-    if (!last) swatch(x, yy, e.color);
+    if (!last) swatch(x, yy, e.color, e);
     out.push(textNode(m, ellipsis(m, txt, st, lw - sw.w - 8), last ? x : x + sw.w + 8, yy + (rowH - lh) / 2, st));
   });
   const box = { x: r2(x), y: r2(y), w: r2(lw), h };

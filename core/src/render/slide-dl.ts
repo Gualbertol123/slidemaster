@@ -204,7 +204,9 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     low.push(...c.nodes);
     // the PowerPoint export: the card alone under a native chart
     const sem = opts.sem ? chartSem(it, box, ctx, family, m) : null;
-    return { box, issue: c.issue, geom: c.geom, at: [s0, low.length], ...(sem ? { pptx: { kind: "chart", at: [s0, low.length], card: cachedChartNodes(it, id, box, ctx, m, { V, wall, family, noContent: true }).nodes, chart: sem } } : {}) };
+    // (the card under the native chart; dividers and marks over it as plain shapes, S14.3)
+    const card = sem ? cachedChartNodes(it, id, box, ctx, m, { V, wall, family, noContent: true }) : null;
+    return { box, issue: c.issue, geom: c.geom, at: [s0, low.length], ...(sem && card ? { pptx: { kind: "chart", at: [s0, low.length], card: card.nodes, chart: sem, ...(card.overlay?.length ? { overlay: card.overlay } : {}) } } : {}) };
   }
   /* a callout or an icon (4.3; Tabler icons 4.8, M15) */
   function shapeItem(it: ShapeItem, id: string, box: Box): ItemInfo {
