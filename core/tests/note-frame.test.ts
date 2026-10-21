@@ -74,7 +74,7 @@ describe("how a frame reads (note-frame.ts)", () => {
     expect(noteFrame(null, "excel")).toBe("none");
     expect(noteFrame({}, "excel")).toBeNull();
     expect(noteFrame({ w: 2, color: "#c00000" }, "excel")).toEqual({ w: 2, color: "#C00000" });
-    expect(noteFrame({ w: 2 }, "excel")).toEqual({ w: 2, color: "#BFBFBF" });
+    expect(noteFrame({ w: 2 }, "excel")).toEqual({ w: 2, color: "#7F7F7F" });                   // the ISP template's outline (B48)
     expect(noteFrame({ w: 2 }, "mckinsey")).toEqual({ w: 2, color: "#051C2C" });
     expect(noteFrame({ color: "#0A66D8" }, "clean")).toEqual({ w: 1, color: "#0A66D8" });
     expect(noteFrame({ w: 40, color: "red" }, "glass")).toEqual({ w: 12, color: "#A9B0BE" });

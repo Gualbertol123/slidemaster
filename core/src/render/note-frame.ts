@@ -11,8 +11,8 @@ import { parseColor } from "../dl/color";
 export const FRAME_WEIGHTS = [.5, 1, 1.5, 2, 3] as const;
 /** the colours offered (the Borders ▾ menu's), "" = the design's */
 export const FRAME_COLORS = ["#000000", "#7F7F7F", "#1F4E79", "#0A66D8", "#C00000", "#2E7D32"] as const;
-/** a border's colour when none is picked: the design's frame / rule colour */
-const DEFAULT_COLOR: Record<Design, string> = { glass: "#A9B0BE", excel: "#BFBFBF", clean: "#E1E5EC", mckinsey: "#051C2C", bain: "#D6D6D6" };
+/** a border's colour when none is picked: the design's frame / rule colour (Excel and Excel Refined: the ISP template's box outline, B48) */
+const DEFAULT_COLOR: Record<Design, string> = { glass: "#A9B0BE", excel: "#7F7F7F", clean: "#7F7F7F", mckinsey: "#051C2C", bain: "#D6D6D6" };
 export const frameDefaultColor = (d: Design) => DEFAULT_COLOR[d] || DEFAULT_COLOR.excel;
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 const DASH: Record<string, number[]> = { dashed: [4, 3], dotted: [1, 2], dashdot: [4, 2, 1, 2] };
