@@ -220,7 +220,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
       noteNodes({ i: -1, side: "top", key: "item:" + id, n, txt: s.text, memo: false, cls: "tnote item", bubble: null, ...(s.ink === "#FFFFFF" && !/^#[0-9A-Fa-f]{6}$/.test(f.color || "") ? { ink: "#FFFFFF" } : {}) }, s.textBox);
     }
     return { box, issue: s.issue, geom: null, at: [s0, low.length],
-      ...(opts.sem ? { pptx: { kind: "shape", at: [s0, low.length], shape: it.shape, box, tail: it.tail ?? null, radius: shapeRadius(it, ctx, inPanel(box.x)) } } : {}) };
+      ...(opts.sem ? { pptx: { kind: "shape", at: [s0, low.length], shape: it.shape, box, tail: it.tail ?? null, radius: shapeRadius(it, ctx, inPanel(box.x)), ...(s.icon ? { icon: s.icon } : {}) } } : {}) };
   }
   /* a line (4.8, M15; 09 §2.3): S14.P's stub draws nothing (render/line-dl.ts) */
   function lineItem(it: LineItem, id: string, box: Box): ItemInfo {

@@ -29,7 +29,10 @@ export interface LineEnd { type: "triangle" | "stealth" | "diamond" | "oval" | "
 export interface Line { w: number; paint: Paint; dash?: number[]; cap?: "butt" | "round" | "square"; join?: "miter" | "round" | "bevel"; head?: LineEnd; tail?: LineEnd }
 /** an outer or inner shadow: offset, blur px, colour and alpha; sx / sy: the shadow's size against the shape's (spread) */
 export interface Shadow { dx: number; dy: number; blur: number; c: RGB; a: number; sx?: number; sy?: number }
-export type Geom = { prst: string; adj?: Record<string, number> } | { path: PathCmd[]; open?: boolean };
+export type Geom = { prst: string; adj?: Record<string, number> } | { path: PathCmd[]; open?: boolean;
+  /** (S15.2, icons) the same outline as several a:path of one custGeom, each filled and / or stroked: an outline icon's
+      open strokes beside its filled dots in one shape. `path` is their concatenation */ parts?: GeomPart[] };
+export interface GeomPart { d: PathCmd[]; fill: boolean; stroke: boolean }
 export type Placeholder = "title" | "ctrTitle" | "subTitle" | "body" | "ftr" | "sldNum";
 export interface ShapeEl { k: "sp"; box: Box; rot?: number; flipH?: boolean; flipV?: boolean; geom: Geom; fill?: Paint | null; line?: Line | null;
   outer?: Shadow; inner?: Shadow; text?: TextBody; name?: string; ph?: Placeholder;
@@ -53,7 +56,8 @@ export type ItemSem =
   /** a chart: its card, the native chart (chart-sem.ts), and (4.7, M14) what is drawn over it – marks, dividers, the
       title rule – as plain shapes in the chart's group, never pictures */
   | { kind: "chart"; at: [number, number]; card: DisplayList; chart: ChartSem; overlay?: DisplayList }
-  | { kind: "shape"; at: [number, number]; shape: string; box: Box; tail?: { x: number; y: number } | null; radius: number }
+  | { kind: "shape"; at: [number, number]; shape: string; box: Box; tail?: { x: number; y: number } | null; radius: number;
+      /** a Tabler icon (4.8, S15.2): written as custom geometry from its paths, never a picture (iconEls) */ icon?: "tabler" | "tabler-filled" }
   /** a line (4.8, M15; 09 §4.3): its heads, written as native a:headEnd / a:tailEnd (no connector shape) */
   | { kind: "line"; at: [number, number]; heads: Heads | null };
 export interface SlideSem { type: "cover" | "index" | "content"; items: Record<string, ItemSem>; /** the design's chart / accent colours */ palette: string[] }
@@ -168,6 +172,7 @@ class Walker {
       this.prims.push({ p: "el", el: { k: "grp", name: "Chart " + id, children: [...card, { k: "chart", box: it.chart.box, chart: it.chart, name: "Chart" }, ...over] } });
       return;
     }
+    if (it.kind === "shape" && it.icon) { this.prims.push(...iconEls(nodes, c).map(el => ({ p: "el" as const, el }))); return; }
     const prims = this.sub(() => this.walk(nodes, c));
     const els = it.kind === "line" ? lineEls(assemble(prims), it) : callout(assemble(prims), it);
     this.prims.push(...els.map(el => ({ p: "el" as const, el })));
@@ -665,6 +670,38 @@ function isSeam(d: PathCmd[], b: Box) {
     native a:headEnd / a:tailEnd, Line.head / tail) */
 function lineEls(els: El[], _it: Extract<ItemSem, { kind: "line" }>): El[] {
   return els.length > 1 ? [{ k: "grp", name: "Line", children: els }] : els;
+}
+
+/* ---- icons (4.8, S15.2; 09 §4.3) ---- */
+const samePaint = (a: Paint | undefined, b: Paint | undefined) => !a || !b || JSON.stringify(a) === JSON.stringify(b);
+const sameStroke = (a: Stroke | undefined, b: Stroke | undefined) => !a || !b || JSON.stringify(a) === JSON.stringify(b);
+/** a Tabler icon's elements: its paths as custom geometry (never a picture, never a preset that only looks alike) – one
+    shape of several a:path while they share their ink and width (an outline icon's strokes beside its filled dots: one
+    shape), another where they differ (a path at half ink); outline paths noFill with round caps and joins
+    (`a:ln cap="rnd"`, `a:round`), filled ones solidFill. Several shapes are grouped as "Icon" */
+function iconEls(nodes: DisplayList, c: Ctx): El[] {
+  const s = decompose(c.M).sx, out: ShapeEl[] = [];
+  let cur: { parts: GeomPart[]; fill?: Paint; stroke?: Stroke } | null = null;
+  const flush = () => {
+    if (!cur) return;
+    const all = cur.parts.flatMap(p => p.d), b = pathBox(all);
+    if (b.w > 0 || b.h > 0) {
+      const parts = cur.parts.map(p => ({ ...p, d: p.d.map(x => shiftCmd(x, -b.x, -b.y)) }));
+      out.push({ k: "sp", box: b, geom: { path: parts.flatMap(p => p.d), open: !cur.fill, parts }, fill: cur.fill ? mulPaint(cur.fill, c.alpha) : null,
+        line: cur.stroke ? lineOf(cur.stroke, s, c.alpha) : null, name: "Icon" });
+    }
+    cur = null;
+  };
+  for (const n of nodes) {
+    if (n.t !== "path" || (!n.fill && !n.stroke)) continue;
+    if (cur && !(samePaint(cur.fill, n.fill) && sameStroke(cur.stroke, n.stroke))) flush();
+    cur ??= { parts: [] };
+    cur.parts.push({ d: mapPath(c.M, n.d), fill: !!n.fill, stroke: !!n.stroke });
+    if (n.fill) cur.fill = n.fill;
+    if (n.stroke) cur.stroke = n.stroke;
+  }
+  flush();
+  return out.length > 1 ? [{ k: "grp", name: "Icon", children: out }] : out;
 }
 
 /* ---- callouts ---- */

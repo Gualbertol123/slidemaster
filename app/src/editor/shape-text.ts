@@ -7,5 +7,6 @@ export const SHAPE_TEXT: KindText<ShapeItem> = {
   name: () => "Callout",
   status: it => (it.shape === "icon" ? "Icon selected" : "Shape selected · double-click or Enter to write") + " · drag to move, the corner to resize · Del removes it",
   remove: () => "Remove shape",
-  issue: (_it, n, problem) => ({ cls: "err", html: `Callout ${n}: ${esc(problem)} (shown as #REF)` }),
+  // an icon whose name the set does not have (09 §3.5) shows "info"; a callout's cell that cannot be read shows #REF
+  issue: (it, n, problem) => it.shape === "icon" ? { cls: "warn", html: `Icon ${n}: ${esc(problem)} (shown as “info”)` } : { cls: "err", html: `Callout ${n}: ${esc(problem)} (shown as #REF)` },
 };

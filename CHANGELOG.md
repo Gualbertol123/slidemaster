@@ -7,6 +7,19 @@ Releases are made with `docs/next/release-checklist.md`.
 
 (M15 writes this section on its own branch, v4/M15-lines-icons-snapping.)
 
+What users notice
+* **About 6,200 icons** (B34; Tabler Icons 3.49.0, MIT – named in the notices): ribbon 2 › *Insert shape ▾* ›
+  **More icons…** opens a picker – search by name or tag (English words, e.g. "bank", "arrow up"), outline or filled,
+  41 categories, the icons used last – and puts the icon on the slide in the colour, size (32–128 px) and line width
+  (1–3) chosen there. A selected icon has *Change icon…* (another one, same colour, size and place), its size and its
+  line width on the ribbon; each change is one undo step. The icons are in Slide Builder itself: no internet needed.
+  The 17 icons of earlier versions are still in the menu and look as before.
+* **Icons in PowerPoint are shapes**: each icon is an editable PowerPoint shape (custom geometry: its lines with round
+  ends, or its filled outline, in its colour) – never a picture; in the PDF and on screen it is drawn as on the slide.
+* **An icon Slide Builder does not have** (a deck from a newer version, a mistyped name) shows the ⓘ icon and a line in
+  the Issues panel naming it, instead of standing in silently. Older versions (4.6, 4.7) show ⓘ for the new icons
+  without that line – open such decks in 4.8.
+
 ## 4.7.0 - unreleased (PLAN M14: charts; B30, B31)
 
 (M14 writes this section on its own branch, v4/M14-charts. Shared preparation of both, S14.P, nothing users notice: the

@@ -105,6 +105,10 @@ export interface CoreMethods {
   scenarioRun(a: ScenarioRunReq): ScenarioRunStart;
   /** stop the run after the value being made (its files stay; the report says "cancelled after n of m") */
   scenarioCancel(a: { id: string }): void;
+  /* ---- M15 (S15.2, 09 §3.5): the icon picker searches the worker's icon set; null without one (no worker) ---- */
+  iconSearch(a: import("../render/icon-search").IconSearchReq): import("../render/icon-search").IconSearchAnswer | null;
+  /** tiles of icon ids (the picker's grid as it scrolls, its recent icons) */
+  iconTiles(a: { ids: string[] }): Record<string, import("../render/icon-search").IconTile>;
 }
 export interface ScenarioInput { sheet: string; ref: string; value: number | string | boolean }
 export interface ScenarioAnswer { changed: number; different: number; check: CalcCheck;

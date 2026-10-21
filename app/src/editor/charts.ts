@@ -54,11 +54,14 @@ export function quoteCell(id: string, sheet: string, ref: string) {
   const name = /^[\w.[\]-]+$/.test(sheet) ? sheet : "'" + sheet.replace(/'/g, "''") + "'", cur = it.text || "";
   itemPatch("Quote a cell", id, { text: cur + (cur && !/\s$/.test(cur) ? " " : "") + "{" + name + "!" + ref + "}" });
 }
-/** a new callout in the middle of the slide (an icon: a small square), selected; a shape opens for typing */
-export function insertShape(shape: ShapeItem["shape"], icon?: string) {
+/** a new callout in the middle of the slide (an icon: a square, 64 px unless the picker says – with its colour and
+    outline width, S15.2), selected; a shape opens for typing */
+export function insertShape(shape: ShapeItem["shape"], icon?: string, o: { size?: number; fill?: string; stroke?: number } = {}) {
   const R = curSlide(); if (!R) return null;
-  const id = newItemId(), box = shape === "icon" ? { x: 768, y: 418, w: 64, h: 64 } : shape === "circle" ? { x: 700, y: 350, w: 200, h: 200 } : { x: 640, y: 390, w: 320, h: 120 };
-  const it: ShapeItem = { kind: "shape", shape, ...(icon ? { icon } : {}), box, ...(shape === "bubble" ? { tail: { x: box.x + 60, y: box.y + box.h + 50 } } : {}) };
+  const s = Math.max(16, Math.min(400, Math.round(o.size || 64)));
+  const id = newItemId(), box = shape === "icon" ? { x: 800 - Math.round(s / 2), y: 450 - Math.round(s / 2), w: s, h: s } : shape === "circle" ? { x: 700, y: 350, w: 200, h: 200 } : { x: 640, y: 390, w: 320, h: 120 };
+  const it: ShapeItem = { kind: "shape", shape, ...(icon ? { icon } : {}), box, ...(shape === "bubble" ? { tail: { x: box.x + 60, y: box.y + box.h + 50 } } : {}),
+    ...(shape === "icon" && o.fill ? { fill: o.fill } : {}), ...(shape === "icon" && o.stroke ? { stroke: o.stroke } : {}) };
   change(shape === "icon" ? "Insert icon" : "Insert shape", [{ op: "item.patch", slide: R.id, id, patch: it } as Op]);
   selectItem(id);
   return id;

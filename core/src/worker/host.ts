@@ -47,6 +47,7 @@ import { contentKey } from "../dl/key";
 import { platform } from "../platform";
 import { sceneFont } from "../render/glass";
 import { fontStack } from "../model/fonts";
+import { iconSearch, iconTiles } from "../render/icon-search";
 
 type HostPort = Port<CoreMethods, PageMethods, PageEvents, CoreEvents>;
 
@@ -138,6 +139,9 @@ export class CoreHost {
     // the run stops after the value being made; a file of it that does not come within the grace period is given up
     // (a stuck export worker cannot hold the run for ever)
     h("scenarioCancel", a => { const r = this.runs.get(a.id); if (r && !r.cancel) { r.cancel = true; setTimeout(() => r.abort(new Error("cancelled: the file did not come")), this.opts.cancelGraceMs ?? 30_000); } });
+    // the icon picker (S15.2): the set registered by the worker entry (installTabler), never the page's copy
+    h("iconSearch", a => iconSearch(a));
+    h("iconTiles", a => iconTiles(a.ids || []));
     h("link", async a => {
       const wb = this.bookOf(a.book);
       if (!(await this.attachLinks(wb, [a.name]))) return null;

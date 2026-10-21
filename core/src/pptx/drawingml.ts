@@ -106,9 +106,12 @@ function geom(g: Geom, w: number, h: number): string {
   if ("prst" in g) return `<a:prstGeom prst="${g.prst}"><a:avLst>${Object.entries(g.adj || {}).map(([n, v]) => `<a:gd name="${n}" fmla="val ${Math.round(v)}"/>`).join("")}</a:avLst></a:prstGeom>`;
   const W = Math.max(1, E(w)), H = Math.max(1, E(h));
   const pt = (x: number, y: number) => `<a:pt x="${E(x)}" y="${E(y)}"/>`;
-  const body = g.path.map((c: PathCmd) => c[0] === "M" ? `<a:moveTo>${pt(c[1], c[2])}</a:moveTo>` : c[0] === "L" ? `<a:lnTo>${pt(c[1], c[2])}</a:lnTo>`
+  const body = (d: PathCmd[]) => d.map((c: PathCmd) => c[0] === "M" ? `<a:moveTo>${pt(c[1], c[2])}</a:moveTo>` : c[0] === "L" ? `<a:lnTo>${pt(c[1], c[2])}</a:lnTo>`
     : c[0] === "C" ? `<a:cubicBezTo>${pt(c[1], c[2])}${pt(c[3], c[4])}${pt(c[5], c[6])}</a:cubicBezTo>` : "<a:close/>").join("");
-  return `<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst><a:path w="${W}" h="${H}"${g.open ? ' fill="none"' : ""}>${body}</a:path></a:pathLst></a:custGeom>`;
+  // an icon's parts (S15.2): one a:path each, filled or not (fill="none"), stroked or not (stroke="0")
+  const paths = g.parts?.length ? g.parts.map(p => `<a:path w="${W}" h="${H}"${p.fill ? "" : ' fill="none"'}${p.stroke ? "" : ' stroke="0"'}>${body(p.d)}</a:path>`).join("")
+    : `<a:path w="${W}" h="${H}"${g.open ? ' fill="none"' : ""}>${body(g.path)}</a:path>`;
+  return `<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst>${paths}</a:pathLst></a:custGeom>`;
 }
 const xfrm = (b: { x: number; y: number; w: number; h: number }, o: { rot?: number; flipH?: boolean; flipV?: boolean } = {}, tag = "a:xfrm") =>
   `<${tag}${o.rot ? ` rot="${Math.round(o.rot * 60000)}"` : ""}${o.flipH ? ' flipH="1"' : ""}${o.flipV ? ' flipV="1"' : ""}><a:off x="${E(b.x)}" y="${E(b.y)}"/><a:ext cx="${Math.max(0, E(b.w))}" cy="${Math.max(0, E(b.h))}"/></${tag}>`;

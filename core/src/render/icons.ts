@@ -97,3 +97,22 @@ export function vendoredNodes(r: Extract<ResolvedIcon, { paths: PathCmd[][] }>, 
     return n;
   });
 }
+
+/* ---- the icon picker's catalogue (S15.2; 09 §3.5) ----
+   The picker searches in the core worker over the set's index (the page holds no copy of the set): installTabler
+   registers the set here too, and the host answers "iconSearch" / "iconTiles" from it (render/icon-search.ts). The page's
+   in-thread fallback (no worker) has none registered: the picker then says the icon set needs the worker. */
+export type IconStyle = "outline" | "filled";
+export interface IconHit { name: string; category: string; outline: boolean; filled: boolean }
+/** what the picker reads of a vendored set (core/src/icons Tabler has this shape) */
+export interface IconCatalog {
+  readonly version: string;
+  readonly categories: string[];
+  search(query: string, o?: { style?: IconStyle; category?: string; limit?: number }): IconHit[];
+  icon(style: IconStyle, name: string): { d: PathCmd[]; paint: IconPaint }[] | null;
+}
+let catalog: (() => IconCatalog) | null = null;
+/** M15: register (or, with null, remove) the catalogue; `get` inflates the set on its first call */
+export function setIconCatalog(get: (() => IconCatalog) | null) { catalog = get; }
+/** the registered catalogue (inflated now if it was not), or null without one */
+export const iconCatalog = (): IconCatalog | null => catalog ? catalog() : null;

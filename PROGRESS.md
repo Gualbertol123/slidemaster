@@ -998,3 +998,7 @@ M15 appends here only.
 | S15.1 review | first use, cold, in Node (`decode64` + index; 3 runs) · 7 search keystrokes, ms | 67–83 · 32–51 | – |
 | S15.1 review | every icon (6,238) through `resolveIcon` → `vendoredNodes` → `validate` → `dl/svg.ts`, now repeatable: `TABLER_FULL=1 npx vitest run tests/icons.test.ts` in core/ · errors | 6,238 · 0 | – |
 | S15.1 review | the page (built, not committed): S15.1 → with the review fixes, bytes | 4,479,275 → 4,479,545 (+270) | – |
+| S15.2 | the page (built, not committed): S15.1 → with the icon items and the picker, bytes | 4,479,545 → 4,495,767 (+16,222) | 4,495,767 (rebuilt) |
+| S15.2 | ⏱ `core/bench/lines-m15.bench.test.ts` (speed factor 2.00 here): the set's first use, cold, in the process (`decode64` + index; limit 150 ms) · a fresh inflate · the picker's keystroke in the worker (search + the first screen's 120 tiles as path data), p95 · median, ms | 67.5 · 68.3 · 10.19 · 4.07 | – |
+| S15.2 | ⏱ in Chromium (`tools/bench.mjs` icon picker: the worker's first answer, cold; the key → the hits drawn, p95 < 50 ms): for the orchestrator's bench run | – | – |
+| S15.2 | one-off: Tabler icons whose fill differs between the nonzero rule (SVG, the display list) and even-odd (what PowerPoint may use for an a:path of several subpaths), 48 × 48 samples per icon, filled paths of both sets | 0 | – |

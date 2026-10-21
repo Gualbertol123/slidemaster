@@ -15,7 +15,7 @@
      (1 large, 2 sweep, 4 rx = ry, 8 rotated: rx [ry] [rotation] dx dy), Z. Coordinates are 1/grid of the 24 × 24 box.
    Decoding gives the display list's absolute M L C Z: Q as its exact cubic, every arc as cubics of at most 90° each. */
 import type { PathCmd } from "../dl/types";
-import { setVendoredIcons, type IconPaint, type IconSet } from "../render/icons";
+import { setIconCatalog, setVendoredIcons, type IconPaint, type IconSet } from "../render/icons";
 import { decode64 } from "../text/hb";
 import { TABLER, TABLER_VERSION } from "./data";
 
@@ -210,9 +210,11 @@ export function tabler(): Tabler {
 /** whether the set has been inflated (for the first-use budget's measurement, 09 §7.4) */
 export const tablerLoaded = () => set !== null;
 
-/** register the set for resolveIcon (render/icons.ts): "tabler:x" and "tabler-filled:x" draw it from now on. The set is
-    inflated only when the first Tabler name is drawn */
+/** register the set for resolveIcon (render/icons.ts): "tabler:x" and "tabler-filled:x" draw it from now on, and for the
+    icon picker's search (S15.2, render/icon-search.ts). The set is inflated only when the first Tabler name is drawn or
+    the picker first asks */
 export function installTabler() {
+  setIconCatalog(tabler);
   setVendoredIcons((s: IconSet, name: string) => {
     const p = tabler().icon(s === "tabler" ? "outline" : "filled", name);
     return p && { paths: p.map(x => x.d), paint: p.map(x => x.paint) };

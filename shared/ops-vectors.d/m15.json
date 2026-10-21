@@ -1,1 +1,195 @@
-[]
+[
+  {
+    "name": "M15 S15.2 Change icon…: the picked icon replaces the name alone; its colour, line width and box stay",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "k1": {
+                "kind": "shape",
+                "shape": "icon",
+                "icon": "tabler:building-bank",
+                "fill": "#C42B1C",
+                "stroke": 1.5,
+                "box": {
+                  "x": 752,
+                  "y": 402,
+                  "w": 96,
+                  "h": 96
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "k1",
+        "patch": {
+          "icon": "tabler:currency-euro"
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "k1": {
+                "kind": "shape",
+                "shape": "icon",
+                "icon": "tabler:currency-euro",
+                "fill": "#C42B1C",
+                "stroke": 1.5,
+                "box": {
+                  "x": 752,
+                  "y": 402,
+                  "w": 96,
+                  "h": 96
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "k1",
+          "patch": {
+            "icon": "tabler:building-bank"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M15 S15.2 icon line width: 3 from the ribbon, then back to the default (null deletes the key)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "k1": {
+                "kind": "shape",
+                "shape": "icon",
+                "icon": "tabler:building-bank",
+                "fill": "#C42B1C",
+                "stroke": 1.5,
+                "box": {
+                  "x": 752,
+                  "y": 402,
+                  "w": 96,
+                  "h": 96
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "k1",
+        "patch": {
+          "stroke": 3
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "k1",
+        "patch": {
+          "stroke": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "k1": {
+                "kind": "shape",
+                "shape": "icon",
+                "icon": "tabler:building-bank",
+                "fill": "#C42B1C",
+                "box": {
+                  "x": 752,
+                  "y": 402,
+                  "w": 96,
+                  "h": 96
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "k1",
+          "patch": {
+            "stroke": 1.5
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "k1",
+          "patch": {
+            "stroke": 3
+          }
+        }
+      ]
+    }
+  }
+]

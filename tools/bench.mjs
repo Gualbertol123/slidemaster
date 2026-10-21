@@ -41,6 +41,9 @@
                      the click on Run to the run's end; no main-thread task over 50 ms during the runs; before them
                      (S8.4) a preview's switch on deck20 – a cell of its slide the input, the engine warm – from the
                      click on Preview until the stage shows the value (< 400 ms)
+     icon picker   ⏱ S15.2 (09 §7.4), when the build has it: Insert shape ▾ › More icons… on deck20 – the icon set's first
+                     use in the core worker (inflate + index, cold; the worker's own time)                 < 150 ms
+                     2 untimed then 20 timed keystrokes, the key → the first frame with that query's hits, p95 < 50 ms
      heap          after the big sheet was read: the page (performance.memory) plus the core worker, which
                      holds the workbook since S2.4 (Runtime.getHeapUsage over the DevTools protocol)    < 150 MB
    The two time limits are scaled by how much slower this machine is than the reference PC (tools/calibrate.mjs,
@@ -260,6 +263,40 @@ async function run(browser, port) {
     const thumbs = await thumbScroll(browser, page);
     await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 }); await sleep(300);
     const ltThumbs = (await longTasks()).map(x => x.d);
+    // ---- the icon picker (S15.2, 09 §7.4), when the build has it: Insert shape ▾ › More icons… on deck20's second slide.
+    // The set's first use in the core worker, cold (inflate + index: the worker's own time for the first answer, the
+    // grid's data-ms), then 2 untimed and 20 timed keystrokes – from the key to the first frame after the grid shows that
+    // query's hits (its data-q) – p95; closed without inserting anything
+    let icons = null;
+    if ((await page.content()).includes("moreIcons")) {
+      await page.locator(".thumb").nth(1).click(); await page.waitForFunction(() => window.__sbTest.stageIdle(), null, { timeout: 60000 });
+      await page.click("#shapeBtn"); await page.click("#moreIcons");
+      await page.locator('#iconGrid[data-first="1"]').waitFor({ timeout: 60000 });
+      const firstUse = await page.evaluate(() => +document.querySelector("#iconGrid").dataset.ms);
+      await page.evaluate(() => {
+        window.__ic = { t0: null, done: null, want: null };
+        addEventListener("keydown", () => { if (window.__ic.want !== null && window.__ic.t0 === null) window.__ic.t0 = performance.now(); }, true);
+        const g = document.querySelector("#iconGrid");
+        new MutationObserver(() => { const k = window.__ic; if (k.t0 === null || k.done !== null || g.dataset.q !== k.want) return; requestAnimationFrame(() => { if (k.done === null) k.done = performance.now(); }); })
+          .observe(g, { attributes: true, subtree: true, childList: true });
+      });
+      const keyMs = [];
+      // (each key after the previous one's hits are drawn; "|" starts a new query: the field emptied first, untimed)
+      for (const word of ["building bank", "|arrow up", "|chart pie"]) {
+        if (word.startsWith("|")) { await page.evaluate(() => { window.__ic = { t0: null, done: null, want: null }; }); await page.fill("#iconSearch", ""); await page.locator('#iconGrid[data-q=""]').waitFor({ timeout: 10000 }); }
+        const w = word.replace(/^\|/, "");
+        for (let k = 1; k <= w.length; k++) {
+          await page.evaluate(q => { window.__ic = { t0: null, done: null, want: q }; }, w.slice(0, k));
+          await page.keyboard.press(w[k - 1] === " " ? "Space" : w[k - 1]);
+          await page.waitForFunction(() => window.__ic.done !== null, null, { timeout: 10000 });
+          keyMs.push(await page.evaluate(() => window.__ic.done - window.__ic.t0));
+        }
+      }
+      await page.evaluate(() => { window.__ic = { t0: null, done: null, want: null }; });
+      await page.keyboard.press("Escape"); await page.locator("#iconPicker").waitFor({ state: "detached" });
+      const cold = keyMs.splice(0, 2), sorted = keyMs.slice(0, 20).sort((a, b) => a - b);
+      icons = { first_use_ms: Math.round(firstUse * 10) / 10, cold_ms: cold.map(Math.round), p50_ms: Math.round(sorted[Math.floor(sorted.length * .5)]), p95_ms: Math.round(sorted[Math.ceil(sorted.length * .95) - 1]), max_ms: Math.round(sorted[sorted.length - 1]), longtasks: (await longTasks()).map(x => x.d) };
+    }
     // ---- the consulting designs (M7b, 08 §4.3; after the thumbnails, so their scroll is measured as before; a build without them – --page of an older one – skips this): deck20
     // exported in Consulting Navy and Red, keypress → pixels and the drags in Navy, deck20 opened again in Navy
     let consult = null;
@@ -377,7 +414,7 @@ async function run(browser, port) {
     if (errors.length) throw new Error("page errors: " + errors.join("; "));
     return { boot: { longtasks: ltBoot }, deck20: { wizard_ms: Math.round(wizard), finish_to_slide_ms: Math.round(slides), open_ms: Math.round(wizard + slides), longtasks: ltDeck, first_draw_longtasks: ltFirstDraw },
       edit: { keypress, longtasks: ltEdit }, drags, thumbs: { ...thumbs, longtasks: ltThumbs },
-      consult, scen,
+      consult, scen, icons,
       export: { glass_ms: glass.ms, glass_kb: glass.kb, glass_phases: glass.phases, excel_ms: excel.ms, excel_kb: excel.kb, excel_phases: excel.phases, longtasks: ltExport,
         pptx: glassPptx && excelPptx ? { glass_ms: glassPptx.ms, glass_kb: glassPptx.kb, glass_phases: glassPptx.phases, excel_ms: excelPptx.ms, excel_kb: excelPptx.kb, excel_phases: excelPptx.phases } : null },
       big30: { index_to_wizard_ms: Math.round(index), read_sheet_ms: Math.round(read), read_to_grid_ms: Math.round(grid), longtasks: ltBig, heap_mb: heap,
@@ -548,6 +585,9 @@ const worstOf = runs => ({
     longest_navy_task_ms: Math.max(0, ...runs.flatMap(r => r.consult.longtasks)),
     first_draw_navy_task_ms: Math.max(0, ...runs.flatMap(r => r.consult.first_draw)) }
     : arg("--page") ? {} : Object.fromEntries(["export_navy_ms", "export_red_ms", "export_navy_kb", "export_red_kb", "keypress_navy_p95_ms", "drag_navy_frame_ms", "open_navy_ms", "longest_navy_task_ms", "first_draw_navy_task_ms"].map(k => [k, Infinity]))),
+  // the icon picker (S15.2): this build's page must measure it (not measured counts as over the limit)
+  ...(runs.every(r => r.icons) ? { icon_first_use_ms: Math.max(...runs.map(r => r.icons.first_use_ms)), icon_picker_p95_ms: Math.max(...runs.map(r => r.icons.p95_ms)) }
+    : arg("--page") ? {} : { icon_first_use_ms: Infinity, icon_picker_p95_ms: Infinity }),
   // Run for each value (S8.3): this build's page must measure it (not measured counts as over the limit)
   ...(runs.every(r => r.scen) ? {
     scenario_one_ms: Math.max(...runs.map(r => r.scen.one_ms)), scenario_20_ms: Math.max(...runs.map(r => r.scen.twenty_ms)),
@@ -581,6 +621,7 @@ const all = [...runs.map((r, i) => ["run " + (i + 1), r]), ...(repeat?.run ? [["
 for (const [i, r] of all) console.log(`bench · ${i}: deck20 open ${r.deck20.open_ms} ms (wizard ${r.deck20.wizard_ms} + slides ${r.deck20.finish_to_slide_ms}) · keypress → pixels (cold ${r.edit.keypress.cold_ms.join(" / ")}) p50 ${r.edit.keypress.p50_ms} / p95 ${r.edit.keypress.p95_ms} / max ${r.edit.keypress.max_ms} ms (tasks ${JSON.stringify(r.edit.longtasks)}) · thumbnails, 100 slides scrolled: ${r.thumbs.fps} fps, ${r.thumbs.frame_ms} ms/frame (longest gap ${r.thumbs.gap_ms} ms, ${r.thumbs.pictures} pictures, tasks ${JSON.stringify(r.thumbs.longtasks)}) · drags ${Object.entries(r.drags).map(([k, d]) => `${k} ${d.frame_ms} ms/frame (${d.frames} frames, longest gap ${d.gap_ms} ms, drop ${d.drop_task_ms} ms)`).join(", ")} · export deck20 Liquid Glass ${r.export.glass_ms} ms ${JSON.stringify(r.export.glass_phases)} ${r.export.glass_kb} KB, Excel ${r.export.excel_ms} ms ${JSON.stringify(r.export.excel_phases)} ${r.export.excel_kb} KB (tasks ${JSON.stringify(r.export.longtasks)}) · big30 index ${r.big30.index_to_wizard_ms} ms, sheet read ${r.big30.read_sheet_ms} ms (grid ${r.big30.read_to_grid_ms} ms) · long tasks ${JSON.stringify([...r.deck20.longtasks, ...r.big30.longtasks])} (first draw ${JSON.stringify(r.deck20.first_draw_longtasks)}) · heap ${r.big30.heap_mb} MB (page ${r.big30.page_heap_mb} + worker ${r.big30.worker_heap_mb}; ${r.big30.export_workers} export workers ${r.big30.export_heap_mb} MB, not gated) · start-up tasks ${JSON.stringify(r.boot.longtasks)}`);
 console.log(`bench · calibration ${speed.ms.toFixed(1)} ms: time limits × ${speed.factor.toFixed(2)}${ciFactor > 1 ? `; CI: task and gap limits × ${ciFactor.toFixed(2)} (engine calibration)` : ""}`);
 for (const [i, r] of all) if (r.consult) console.log(`bench · ${i}: Consulting Navy long tasks by phase ${JSON.stringify(r.consult.phases)}`);
+for (const [i, r] of all) if (r.icons) console.log(`bench · ${i}: icon picker: the set's first use in the worker ${r.icons.first_use_ms} ms; keystroke → hits drawn (cold ${r.icons.cold_ms.join(" / ")}) p50 ${r.icons.p50_ms} / p95 ${r.icons.p95_ms} / max ${r.icons.max_ms} ms (tasks ${JSON.stringify(r.icons.longtasks)})`);
 for (const [i, r] of all) if (r.scen) console.log(`bench · ${i}: Run for each value on BanksBig (20 slides, Liquid Glass): 1 value ${r.scen.one_ms} ms, 20 values ${r.scen.twenty_ms} ms; preview switch on deck20 ${r.scen.preview_ms} ms; long tasks ${JSON.stringify(r.scen.phases)}`);
 for (const g of gates) console.log(`bench · ${g.key}: ${describe(g, SLACK)}`);
 console.log(`bench · not gated: longest start-up task ${info.longest_startup_task_ms} ms; most page work in a frame of the thumbnail scroll ${info.thumbs_frame_ms} ms (a garbage collection can fall into one)`);
