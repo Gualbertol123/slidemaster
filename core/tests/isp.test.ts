@@ -133,6 +133,30 @@ describe("content slides (pages 3–13)", () => {
     expect([logo.y, logo.h]).toEqual([ISP.logo.top, ISP.logo.h]);
     expect(nodes.findIndex(n => n.t === "image" && n.id === "logo")).toBeLessThan(nodes.findIndex(n => n.t === "hit" && n.id === "title"));
   });
+  it("the page number on by default in Excel and Excel Refined, top right, not on the cover; a deck's own choice kept (B48)", async () => {
+    for (const d of ["excel", "clean"] as const) {
+      const { ctx, slides, build } = await deck("weekly-options.json", d);         // (its cover; the deck's own settings dropped)
+      ctx.style = resolveStyle({ design: d });
+      expect(ctx.style.pn.on).toBe(true);
+      const c = slides.findIndex(S => S.type === "cover"); expect(c).toBeGreaterThanOrEqual(0);
+      expect(pageNoFor(ctx, c)).toBeNull();                                      // the cover: none, as the template
+      const i = slides.findIndex(S => S.type === "content"), label = pageNoFor(ctx, i)!;
+      expect(label).toBe(String(i + 1));
+      const g = pageNoGeom(ctx, label, false, true, false);
+      expect([g.left + g.w, g.top]).toEqual([ISP.pageno.right, ISP.pageno.top]);
+      expect(hits(build(i).nodes).some(h => /pageno/.test(h.id))).toBe(true);
+      // turned off by the deck, or by the shared defaults: stays off
+      ctx.style = resolveStyle({ design: d }, { pn: { on: false } });
+      expect(pageNoFor(ctx, i)).toBeNull();
+      expect((await deck("weekly-looks.json", d, { on: false })).ctx.style.pn.on).toBe(false);
+      expect((await deck("weekly-looks.json", d)).ctx.style.pn.on).toBe(true);
+      expect(resolveStyle({ pn: { on: false } }, { design: d }).pn.on).toBe(false);
+      expect(resolveStyle({ design: d, pn: { on: null as never } }).pn.on).toBe(true);    // a removed setting: the default
+    }
+    // the other designs: off unless set, as before
+    for (const d of ["glass", "mckinsey", "bain"] as const) expect(resolveStyle({ design: d }).pn.on).toBe(false);
+    expect((await deck("weekly-looks.json", "glass")).ctx.style.pn.on).toBe(false);
+  });
 });
 const hs = (l: DisplayList, id: string) => hits(l).find(h => h.id === id)!;
 

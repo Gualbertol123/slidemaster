@@ -31,6 +31,9 @@ export function resolveStyle(...layers: (StylePatch | null | undefined)[]): Styl
     applyLook(s, l);
   }
   if (!isDesign(s.design)) s.design = "glass";                          // an unknown design (a newer page's) shows as Liquid Glass
+  // Excel and Excel Refined (the Intesa Sanpaolo template, B48): the page number is on by default, as on the template
+  // (top right: render/pagenumbers.ts pageNoGeom; not on the cover, pn.cover's default) – unless a layer set it, on or off
+  if (isIsp(s.design) && !layers.some(l => l && l.pn && l.pn.on !== undefined && l.pn.on !== null)) s.pn.on = true;
   // the consulting designs keep their own palette: the shared colour theme is not theirs (08 §6 Q4); a theme set for
   // the design itself (Design… › "This design") still applies below
   if (isConsult(s.design)) s.theme = { ...CONSULT_THEME_REF[s.design] };
