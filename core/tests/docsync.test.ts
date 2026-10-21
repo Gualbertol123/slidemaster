@@ -456,6 +456,17 @@ describe("DocSync v4: the per-deck format guard (ADR-019 and its amendment)", ()
     expect(Object.keys(a.view.preset!.slides[0].items || {})).toEqual(["c1"]);
     expect(b.state).toBe("saved"); expect(b.view).toEqual(a.view);
   });
+  it("a helper that waits less (its test setting, SLIDEBUILDER_TEST_BUMP_WAIT_S) shortens the page's wait – never lengthens it", async () => {
+    for (const [helperWait, expected] of [[10, 10], [100, 40]] as const) {
+      const { deck } = await plainDeck();
+      const base = deck.api();
+      const api: DeckApi = { ...base, format5: async k => ({ ...(await base.format5(k)), wait: helperWait }) };
+      const b = v5user(deck, "bea", api, { bumpWaitMs: 40 }), w = waits(b, deck);
+      b.apply([chart]); await b.flush();
+      expect(w).toEqual([expected]);
+      expect(deck.snap.format).toBe(5);
+    }
+  });
   it("review of S13.1, 1: an old page's record appended after the final tail (its helper had not seen the marker) still folds before the 4.6 record", async () => {
     const { deck, a } = await plainDeck();
     const old = writer("old"), base = deck.api();

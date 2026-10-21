@@ -32,6 +32,8 @@ const helper = (user: string, port: number) => ({
   // 502 (EXPECTED in app.spec.ts) and no data/fonts/cache is written
   env: { SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: user, SLIDEBUILDER_HOST: "pc-" + user, NO_PROXY: "*",
     SLIDEBUILDER_NO_NET: "1",
+    // the format guard's wait (ADR-019 amendment, 23 s) shortened for the run: no 4.0-4.5 page shares these folders
+    SLIDEBUILDER_TEST_BUMP_WAIT_S: "2",
     ...(SYSFONTS ? { SLIDEBUILDER_SYSFONTS: SYSFONTS } : {}) },
   reuseExistingServer: false, timeout: 90_000,
   stdout: "pipe" as const, stderr: "pipe" as const,          // the helpers' logs appear in the test output (CI diagnosis)

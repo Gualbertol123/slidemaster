@@ -73,6 +73,12 @@ OUTDATED5 = "Slide Builder was updated - reload the page (F5) to continue; your 
 # REFRESH_S 4 + the SMB directory cache 10 + 1; lean-lock (no refresher: only the page's tail looks again), CHECK_TTL
 # 10 + TAIL_MS 1.5 + 10 + 1. The worst of the two, as the mode can differ per PC (SLIDEBUILDER_STORAGE).
 BUMP_WAIT_S = 23.0
+# tests only (the e2e helpers): a shorter wait, told to the page by mark_format5. Never set on a shared folder in use:
+# a 4.0-4.5 page could then append after the raise (ADR-019 amendment)
+try:
+    BUMP_WAIT_S = float(os.environ.get("SLIDEBUILDER_TEST_BUMP_WAIT_S") or BUMP_WAIT_S)
+except ValueError:
+    pass
 LISTING_TTL = 3.0                 # s: a deck's journal listing is cached (the SMB client may cache it 10 s more)
 TAIL_PARALLEL = 8                 # journals read at once by one tail
 IDLE_CLOSE = 600.0                # s: an append handle unused for this long is closed; the next append opens a new file
@@ -536,7 +542,7 @@ def _look(key, ttl=None):
 # --------------------------------------------------------------------------- the format guard (ADR-019)
 def mark_format5(key, by=None):
     """the deck's marker MARKER5, written once (O_EXCL; an existing one is kept): from their next look at the deck's
-    folder every 4.0-4.5 helper takes the deck for read-only. Returns {created, at, now} (the file server's ms; `at`:
+    folder every 4.0-4.5 helper takes the deck for read-only. Returns {created, at, now, wait} (the file server's ms; `at`:
     when the marker was written - the page waits BUMP_WAIT_S from then before it raises the snapshot). The page asks
     again after its wait: this helper's journal listing of the deck is dropped each time, so the page's next tail
     lists the folder afresh (a journal an old helper opened in the gap is read before the snapshot is raised)."""
@@ -548,7 +554,7 @@ def mark_format5(key, by=None):
     created, at, now = _write_marker(key, by)
     if created:
         log("deck %s now holds Slide Builder 4.6 objects: %s written (4.0-4.5 take it for read-only)" % (key, MARKER5))
-    return {"created": created, "at": at, "now": now}
+    return {"created": created, "at": at, "now": now, "wait": int(BUMP_WAIT_S * 1000)}
 
 
 def _write_marker(key, by=None):

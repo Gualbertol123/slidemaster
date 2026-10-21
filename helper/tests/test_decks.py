@@ -868,6 +868,22 @@ class FormatGuardTests(DeckBase):
         self.assertFalse(decks.is_format5(self.key))
         self.assertEqual(decks.summary(snap)["format"], 4)
 
+    def test_the_marker_tells_the_page_the_helpers_wait(self):
+        self.assertEqual(decks.mark_format5(self.key)["wait"], int(decks.BUMP_WAIT_S * 1000))
+
+    def test_the_wait_is_23_s_unless_the_test_setting_shortens_it(self):
+        import subprocess
+        import sys
+        code = "from slidebuilder import decks; print(decks.BUMP_WAIT_S)"
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        def run(env):
+            e = dict(os.environ); e.pop("SLIDEBUILDER_TEST_BUMP_WAIT_S", None); e.update(env)
+            return subprocess.run([sys.executable, "-c", code], cwd=here, env=e, stdout=subprocess.PIPE,
+                                  universal_newlines=True, check=True).stdout.strip()
+        self.assertEqual(run({}), "23.0")
+        self.assertEqual(run({"SLIDEBUILDER_TEST_BUMP_WAIT_S": "2"}), "2.0")
+        self.assertEqual(run({"SLIDEBUILDER_TEST_BUMP_WAIT_S": "soon"}), "23.0")
+
     def test_the_marker_is_written_once_and_is_no_incident_here(self):
         w = decks.new_writer()
         decks.append(self.key, w, self.rec(w, 1))

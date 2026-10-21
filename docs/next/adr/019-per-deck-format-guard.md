@@ -113,3 +113,5 @@ rollout (unchanged, see Consequences).
 **Restarted helper.** The helper's token is random per process (`server.py` `App`), so an old page whose PC's helper
 was restarted on 4.6 already gets 403 "forbidden (token)"; `X-SB-Deck-Formats` (409) is the second wall behind it,
 tested with a valid token (`helper/tests/test_http.py` `DeckFormatHttpTests`).
+
+**Test setting (2026-10-21).** `SLIDEBUILDER_TEST_BUMP_WAIT_S` shortens the helper's wait (`decks.BUMP_WAIT_S`), and `mark_format5` tells the page its value (`wait`, ms): the page waits the shorter of its own 23 s and the helper's. Only the e2e helpers set it (`app/playwright.config.ts`, 2 s); it must never be set on a shared folder in use, as a 4.0–4.5 page could then append after the raise.

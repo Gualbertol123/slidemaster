@@ -280,7 +280,7 @@ describe("the per-deck format guard: needsV5 / docNeedsV5 (ADR-019; 4.0.0's list
       ...["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role"].map(k => C({ [k]: null })),
       ...["design", "glass", "color", "logo", "radius", "contrast", "logoBubble", "pn", "footer", "theme", "text", "colors", "designs"].map(k => ST({ [k]: null })),
       ST({ designs: { mckinsey: { consult: { kpis: "2" } }, bain: { consult: {} } } }),                          // inside a known map (CP-01 checks it survives)
-      S("not a patch"),                                                                                           // skipped by 4.0 and 4.6 alike
+      S("not a patch" as unknown as object),                                                                      // skipped by 4.0 and 4.6 alike
     ];
     for (const op of v40) expect(needsV5(op as Op), JSON.stringify(op)).toBe(false);
   });

@@ -36,7 +36,7 @@ export interface DeckApi {
   prepare?(key: string, writer: string): Promise<unknown>;
   /** ADR-019: the deck's marker incident-format-5.json (every 4.0–4.5 helper then takes the deck for read-only);
       `at` when it was written and `now`, the file server's ms (an existing one is fine: created false) */
-  format5(key: string): Promise<{ created?: boolean; at?: number | null; now?: number | null }>;
+  format5(key: string): Promise<{ created?: boolean; at?: number | null; now?: number | null; /** ms the helper waits (its own wall) */ wait?: number }>;
 }
 
 export type SaveState = "saved" | "pending" | "saving" | "error" | "local" | "outdated" | "readonly";
@@ -328,7 +328,9 @@ export class DocSync {
     for (let round = 0; round < 10 && !this.disposed; round++) {
       for (let i = 0, waited = false; i < 4; i++) {
         const m = await this.api.format5(this.key);
-        const left = typeof m?.at === "number" && typeof m.now === "number" ? Math.min(this.bumpWait, m.at + this.bumpWait - m.now) : waited ? 0 : this.bumpWait;
+        // the helper's own wait when shorter (its test setting; the 4.6 helper refuses the raise before it anyway)
+        const wait = typeof m?.wait === "number" && m.wait >= 0 ? Math.min(this.bumpWait, m.wait) : this.bumpWait;
+        const left = typeof m?.at === "number" && typeof m.now === "number" ? Math.min(wait, m.at + wait - m.now) : waited ? 0 : wait;
         if (left <= 0) break;
         await this.sleep(left); waited = true;
       }
