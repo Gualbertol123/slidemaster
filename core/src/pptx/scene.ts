@@ -16,6 +16,7 @@
      becomes a preset geometry holding its text. */
 import type { DisplayList, Matrix, Node, Paint, PathCmd, RGB, Stop, Stroke } from "../dl/types";
 import type { Heads } from "../model/types";
+import type { LineSem } from "../render/line-dl";
 import { mul, pathBox, radii, rrectPath } from "../dl/geom";
 import type { ChartSem } from "./chart-sem";
 export type { ChartSem, FontSem } from "./chart-sem";
@@ -58,8 +59,9 @@ export type ItemSem =
   | { kind: "chart"; at: [number, number]; card: DisplayList; chart: ChartSem; overlay?: DisplayList }
   | { kind: "shape"; at: [number, number]; shape: string; box: Box; tail?: { x: number; y: number } | null; radius: number;
       /** a Tabler icon (4.8, S15.2): written as custom geometry from its paths, never a picture (iconEls) */ icon?: "tabler" | "tabler-filled" }
-  /** a line (4.8, M15; 09 §4.3): its heads, written as native a:headEnd / a:tailEnd (no connector shape) */
-  | { kind: "line"; at: [number, number]; heads: Heads | null };
+  /** a line (4.8, M15; 09 §4.3): its heads, written as native a:headEnd / a:tailEnd (no connector shape); `line` (S15.3)
+      its geometry at the resolved ends, its stroke and its label's nodes (render/line-dl.ts LineSem) */
+  | { kind: "line"; at: [number, number]; heads: Heads | null; line?: LineSem };
 export interface SlideSem { type: "cover" | "index" | "content"; items: Record<string, ItemSem>; /** the design's chart / accent colours */ palette: string[] }
 
 /* ---- walking the display list ---- */
@@ -173,8 +175,11 @@ class Walker {
       return;
     }
     if (it.kind === "shape" && it.icon) { this.prims.push(...iconEls(nodes, c).map(el => ({ p: "el" as const, el }))); return; }
+    // a line (S15.3): its own shape from its geometry, its label (background and text box) walked alone
+    if (it.kind === "line" && it.line) { this.prims.push(...lineEls(it.line, assemble(this.sub(() => this.walk(it.line!.label, c)))).map(el => ({ p: "el" as const, el }))); return; }
     const prims = this.sub(() => this.walk(nodes, c));
-    const els = it.kind === "line" ? lineEls(assemble(prims), it) : callout(assemble(prims), it);
+    // (a line's member without its geometry – S14.P's – : its nodes' shapes, grouped)
+    const els = it.kind === "line" ? group(assemble(prims), "Line") : callout(assemble(prims), it);
     this.prims.push(...els.map(el => ({ p: "el" as const, el })));
   }
 
@@ -668,8 +673,29 @@ function isSeam(d: PathCmd[], b: Box) {
 /* ---- lines (4.8, M15; 09 §4.3) ---- */
 /** a line item's elements: S14.P keeps its shapes as drawn, grouped (M15 turns the stroke's head paths into the line's
     native a:headEnd / a:tailEnd, Line.head / tail) */
-function lineEls(els: El[], _it: Extract<ItemSem, { kind: "line" }>): El[] {
-  return els.length > 1 ? [{ k: "grp", name: "Line", children: els }] : els;
+/* ---- lines (4.8, M15 S15.3; 09 §4.3, LN-03) ---- */
+/** a line item's elements: one plain shape named "Line" – never a connector (p:cxnSp), and an attached line is written
+    where it is drawn (PowerPoint does not keep it attached) –: a straight one `a:prstGeom prst="line"` in its bounds,
+    flipped so that its first point is end a (flipH / flipV), any other route an open `a:custGeom`; its stroke on `a:ln`
+    (width, colour, dash, cap, join) with native a:headEnd (end a) / a:tailEnd (end b). The limiter's ticks ("bar"
+    heads, which PowerPoint has no end for) are segments of the same custom geometry when the line has no native end,
+    else a shape of their own beside it (an end of PowerPoint's applies to the path's ends). Its label's background
+    and text box are grouped with it ("Line") */
+const group = (els: El[], name: string): El[] => els.length > 1 ? [{ k: "grp", name, children: els }] : els;
+function lineEls(L: LineSem, label: El[]): El[] {
+  const st = L.stroke, line: Line = { w: st.w, paint: st.paint, ...(st.dash ? { dash: st.dash } : {}), ...(st.cap ? { cap: st.cap } : {}), ...(st.join ? { join: st.join } : {}) };
+  const end = (h: typeof L.head): LineEnd | undefined => h && h !== "bar" && h !== "none" ? { type: h, ...(L.size ? { size: L.size } : {}) } : undefined;
+  const head = end(L.head), tail = end(L.tail), native = !!(head || tail);
+  const shape = (d: PathCmd[], ln: Line): ShapeEl => { const b = pathBox(d); return { k: "sp", box: b, geom: { path: d.map(p => shiftCmd(p, -b.x, -b.y)), open: true }, fill: null, line: ln, name: "Line" }; };
+  const out: El[] = [];
+  if (L.straight && (!L.bars.length || native)) {
+    const { a, b } = L, box = { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) };
+    out.push({ k: "sp", box, ...(b.x < a.x ? { flipH: true } : {}), ...(b.y < a.y ? { flipV: true } : {}), geom: { prst: "line" }, fill: null, line: { ...line, ...(head ? { head } : {}), ...(tail ? { tail } : {}) }, name: "Line" });
+  } else out.push(shape(native ? L.route : [...L.route, ...L.bars.flat()], { ...line, ...(head ? { head } : {}), ...(tail ? { tail } : {}) }));
+  // ticks beside a line with a native end: their own shape (round caps, as drawn)
+  if (native && L.bars.length) out.push(shape(L.bars.flat(), { ...line, cap: "round", join: "round" }));
+  out.push(...label);
+  return group(out, "Line");
 }
 
 /* ---- icons (4.8, S15.2; 09 §4.3) ---- */

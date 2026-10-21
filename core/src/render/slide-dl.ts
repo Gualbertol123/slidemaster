@@ -24,7 +24,7 @@ import { contrastVars, memoPart, noteParts, slideHasLogo, themeVars, type NotePa
 import { areaFor, itemBoxOf, KPI_LINE, NAVY_BAND, SIGNAL_AREA, slideFacts, tableH, tableW, type TBox } from "./layout";
 import { chartNodes, chartSem, type PieGeom } from "./chart-dl";
 import { shapeNodes, shapeRadius } from "./shape-dl";
-import { lineNodes } from "./line-dl";
+import { lineEnds, lineNodes } from "./line-dl";
 import type { ItemSem } from "../pptx/scene";
 import type { Box, ChartItem, LineItem, ShapeItem } from "../model/types";
 import type { Exhibit, ExFacts } from "./exhibit";
@@ -222,13 +222,17 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     return { box, issue: s.issue, geom: null, at: [s0, low.length],
       ...(opts.sem ? { pptx: { kind: "shape", at: [s0, low.length], shape: it.shape, box, tail: it.tail ?? null, radius: shapeRadius(it, ctx, inPanel(box.x)), ...(s.icon ? { icon: s.icon } : {}) } } : {}) };
   }
-  /* a line (4.8, M15; 09 §2.3): S14.P's stub draws nothing (render/line-dl.ts) */
-  function lineItem(it: LineItem, id: string, box: Box): ItemInfo {
+  /* a line (4.8, M15 S15.3; 09 §2.3, §3.4): at its ends as resolved in this design (attached ends follow their object);
+     its box the bounds of what it draws (the stage's layer), not its saved `box` */
+  function lineItem(it: LineItem, id: string, _box: Box): ItemInfo {
     const s0 = low.length;
-    const l = lineNodes(it, id, box, ctx);
+    const family = glassy ? base : C ? C.note.family : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel;
+    // the label's ground: the slide's background colour (Liquid Glass: a white chip over its wallpaper)
+    const ground = glassy ? null : C ? (R.type === "cover" ? C.cover.bg : C.bg !== "#FFFFFF" || O!.background === "white" ? C.bg : LK!.tint) : tv["--slidebg"] || "#FFFFFF";
+    const l = lineNodes(it, id, lineEnds(R, id, it, boxes, ctx), ctx, { family, m, ground });
     low.push(...l.nodes);
-    return { box, issue: l.issue, geom: null, at: [s0, low.length],
-      ...(opts.sem ? { pptx: { kind: "line", at: [s0, low.length], heads: it.style?.heads ?? null } } : {}) };
+    return { box: l.box, issue: l.issue, geom: null, at: [s0, low.length],
+      ...(opts.sem ? { pptx: { kind: "line", at: [s0, low.length], heads: it.style?.heads ?? null, ...(l.sem ? { line: l.sem } : {}) } } : {}) };
   }
 
   /* a nowrap line with an ellipsis in a box from left to 1600 − right (titles), the inherited line height unless set */

@@ -19,6 +19,19 @@ What users notice
 * **An icon Slide Builder does not have** (a deck from a newer version, a mistyped name) shows the ⓘ icon and a line in
   the Issues panel naming it, instead of standing in silently. Older versions (4.6, 4.7) show ⓘ for the new icons
   without that line – open such decks in 4.8.
+* **Lines and arrows** (B33): ribbon 2 › **Insert line ▾** – a line, an arrow, a double arrow, an elbow arrow, a curved
+  arrow, a bracket, a range marker (ticks at its ends and a label above it), a limiter, a dashed divider and a thin
+  callout line. Drag a line to move it, its round handles to move its ends (Shift: straight, 45° or upright), its
+  middle handle to move an elbow's bend or bend a curve or a bracket. **Hold Ctrl while dragging an end** to attach it
+  to a table, a text box, a shape or an icon: it then follows that object when it moves, in every design and in free
+  layout; *Detach* frees both ends. The ribbon sets its kind, colour, weight, dashes, the end at each side (arrow, open
+  arrow, stealth, dot, diamond, tick) and a label, which can quote a cell like a callout ({Sheet!C7}). Each change is
+  one undo step. If an attached end's object is deleted, the end stays where it was and the Issues panel says "Line n:
+  its end lost its object".
+* **Lines in PowerPoint are ordinary line shapes** with PowerPoint's own arrowheads – never connectors and never
+  pictures – placed where the line is drawn on the slide (PowerPoint does not keep them attached). Their labels are
+  text boxes grouped with them. In the PDF and on screen they are drawn as on the slide. Older versions (4.6, 4.7) do
+  not show the new lines – open such decks in 4.8.
 
 ## 4.7.0 - unreleased (PLAN M14: charts; B30, B31)
 

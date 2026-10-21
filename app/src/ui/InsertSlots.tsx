@@ -4,11 +4,13 @@
 import type { ReactElement } from "react";
 import { ChartInsert } from "./InsertChart";
 import { ShapeInsert } from "./ShapeTools";
+import { LineInsert } from "./LineTools";
 
 export const INSERT_SLOTS: (() => ReactElement | null)[] = [
   ChartInsert,                                    // M14: Insert chart ▾
   /* ---- M14 above this line, M15 below it ---- */
-  ShapeInsert,                                    // M15: Insert shape ▾ (icons, More icons…); Insert line ▾ after it
+  ShapeInsert,                                    // M15: Insert shape ▾ (icons, More icons…)
+  LineInsert,                                     // M15: Insert line ▾ (S15.3)
 ];
 export function InsertSlots() {
   return <>{INSERT_SLOTS.map((Slot, k) => <Slot key={k} />)}</>;

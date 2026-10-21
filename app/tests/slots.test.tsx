@@ -7,14 +7,15 @@ import { INSERT_SLOTS, InsertSlots } from "../src/ui/InsertSlots";
 import { ItemPanel } from "../src/ui/ItemPanel";
 import { ChartInsert } from "../src/ui/InsertChart";
 import { ShapeInsert } from "../src/ui/ShapeTools";
+import { LineInsert } from "../src/ui/LineTools";
 
 afterEach(cleanup);
 describe("UI slots (S14.P)", () => {
-  it("the Insert entries, in order: chart (M14) then shape (M15); disabled without a slide", () => {
-    expect(INSERT_SLOTS).toEqual([ChartInsert, ShapeInsert]);
+  it("the Insert entries, in order: chart (M14) then shape and line (M15, S15.3); disabled without a slide", () => {
+    expect(INSERT_SLOTS).toEqual([ChartInsert, ShapeInsert, LineInsert]);
     const { container } = render(<InsertSlots />);
     const ids = [...container.querySelectorAll("button.tb")].map(b => b.id);
-    expect(ids).toEqual(["chartBtn", "shapeBtn"]);
+    expect(ids).toEqual(["chartBtn", "shapeBtn", "lineBtn"]);
     for (const b of container.querySelectorAll("button.tb")) expect((b as HTMLButtonElement).disabled).toBe(true);
   });
   it("the item panel draws nothing while no item is selected", () => {

@@ -31,6 +31,10 @@ check needs PowerPoint (Windows, COM through PowerShell). The helper stays stand
             (an outline icon) has a line, and every drawn line of an icon has round caps and joins (a:ln cap="rnd",
             a:round); with --expect, each slide holds exactly the entries' `icons` (tools/real-icons.mjs: the core's
             Tabler icons; a built-in icon or a name the set lacks stays the built-in shape, not named "Icon")
+        (7) lines (4.8, M15 S15.3; 09 §4.3, LN-03, check_lines): every shape or group named "Line n" is plain shapes – no
+            connector (p:cxnSp), no picture –; its stroke a:prstGeom "line" or an open a:custGeom (fill="none") with a
+            drawn a:ln whose ends (a:headEnd / a:tailEnd) are DrawingML's types; with --expect, each slide holds exactly
+            the entries' `lines` (tools/real-icons.mjs linesOf: the core's line items)
         exit 1 when any check fails; --json writes every file's report (the content of (2) included)
     python tools/pptxcheck.py info a.pptx [...]      the report of (1) and (2) as JSON, nothing checked
 """
@@ -481,6 +485,7 @@ def check(paths, slides=None, ppt=True, report=None, sources=None, expect=None):
         if exp is not None:
             bad = bad + real_objects(rep["content"], exp, "python-pptx reads")
         bad = bad + check_icons(p, exp, rep)            # (6) M15: the icons (its own function below)
+        bad = bad + check_lines(p, exp, rep)            # (7) M15: the lines (its own function below)
         src = (sources or {}).get(p) or (sources or {}).get(os.path.abspath(p))
         if src and rep["content"]:
             for k, spec in enumerate(src["charts"]):
@@ -609,6 +614,90 @@ def check_icons(path, expect=None, rep=None):
                 bad.append("slide %d: %d icon(s), the export draws %d" % (n, have, want.get(n, 0)))
     return bad
 # ---- end of M15's icon block ----
+
+
+# ---- M15 (4.8; S15.3): the line block of the gate (LN-03), its own functions ----
+LINE_NAME = re.compile(r"^Line \d+$")
+LINE_ENDS = {"none", "triangle", "stealth", "diamond", "oval", "arrow"}
+
+
+def _line_problems(el, where):
+    """what is wrong with one line (a "Line n" shape, or its group with its ticks and label): plain shapes only, its
+    stroke a line preset or an open custom geometry with a drawn a:ln, its ends DrawingML's own"""
+    bad = []
+    if el.tag == P + "cxnSp" or el.find(".//p:cxnSp", NS) is not None:
+        bad.append("%s: a connector shape (p:cxnSp)" % where)
+    if el.tag == P + "pic" or el.find(".//p:pic", NS) is not None or el.find(".//a:blipFill", NS) is not None:
+        bad.append("%s: a picture" % where)
+    shapes = [el] if el.tag == P + "sp" else el.findall(".//p:sp", NS)
+    strokes = 0
+    for sp in shapes:
+        pr = sp.find("p:spPr", NS)
+        if pr is None:
+            continue
+        prst = pr.find("a:prstGeom", NS)
+        paths = pr.findall("a:custGeom/a:pathLst/a:path", NS)
+        is_stroke = (prst is not None and prst.get("prst") == "line") or (paths and all(x.get("fill") == "none" for x in paths))
+        if not is_stroke:
+            continue                                    # the label's background and its text box
+        strokes += 1
+        ln = pr.find("a:ln", NS)
+        if ln is None or ln.find("a:noFill", NS) is not None or not int(ln.get("w") or 0):
+            bad.append("%s: a stroke without a drawn line" % where)
+            continue
+        for tag in ("a:headEnd", "a:tailEnd"):
+            e = ln.find(tag, NS)
+            if e is not None and e.get("type") not in LINE_ENDS:
+                bad.append("%s: %s type %s" % (where, tag, e.get("type")))
+    if not strokes:
+        bad.append("%s: no line shape (a:prstGeom line or an open a:custGeom)" % where)
+    return bad
+
+
+def lines(path):
+    """per slide (in the file's order) its lines: the outermost shapes and groups named "Line n", connectors too (named
+    or not: a connector is never allowed)"""
+    z = zipfile.ZipFile(path)
+    out = []
+    for part in _slide_parts(z):
+        found = []
+
+        def walk(e):
+            for ch in e:
+                if ch.tag in (P + "sp", P + "grpSp", P + "pic", P + "cxnSp"):
+                    nv = ch.find("./*/p:cNvPr", NS)
+                    if ch.tag == P + "cxnSp" or (nv is not None and LINE_NAME.match(nv.get("name") or "")):
+                        found.append(ch)
+                        continue
+                if ch.tag == P + "grpSp":
+                    walk(ch)
+        tree = ET.fromstring(z.read(part)).find("p:cSld/p:spTree", NS)
+        walk(tree if tree is not None else [])
+        out.append(found)
+    return out
+
+
+def check_lines(path, expect=None, rep=None):
+    """(7) the lines of a file: each one plain shapes with a drawn stroke and native ends (_line_problems); with `expect`
+    ({slide, lines} entries, tools/real-icons.mjs linesOf) each slide holds exactly that many, a slide not listed none"""
+    try:
+        per = lines(path)
+    except (KeyError, zipfile.BadZipFile, ET.ParseError) as e:
+        return ["lines not read: %s" % e]
+    if rep is not None:
+        rep["lines"] = [len(x) for x in per]
+    bad = []
+    for i, found in enumerate(per):
+        for k, el in enumerate(found):
+            bad.extend(_line_problems(el, "slide %d, line %d" % (i + 1, k + 1)))
+    if expect is not None:
+        want = {e["slide"]: e.get("lines") or 0 for e in expect}
+        for n in sorted(set(want) | set(range(1, len(per) + 1))):
+            have = len(per[n - 1]) if 0 < n <= len(per) else 0
+            if have != want.get(n, 0):
+                bad.append("slide %d: %d line(s), the export draws %d" % (n, have, want.get(n, 0)))
+    return bad
+# ---- end of M15's line block ----
 
 
 def main(argv):

@@ -8,6 +8,19 @@ import { Tabler, tabler, tablerLoaded } from "../src/icons";
 import { TABLER } from "../src/icons/data";
 import { decode64 } from "../src/text/hb";
 import { iconSearch } from "../src/render/icon-search";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { readWorkbook } from "../src/xlsx/workbook";
+import { applyOps, emptyDoc } from "../src/model/ops";
+import { runtimeSlides } from "../src/model/preset";
+import { resolveStyle } from "../src/model/style";
+import { slideToDisplayList } from "../src/render/slide-dl";
+import type { Metrics } from "../src/render/excel-dl";
+import type { RenderCtx } from "../src/render/context";
+import type { Design, Heads as LineHeads, Item, LineItem, Op, RuntimeSlide } from "../src/model/types";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 const median = (a: number[]) => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)];
 const p95 = (a: number[]) => a.slice().sort((x, y) => x - y)[Math.min(a.length - 1, Math.ceil(a.length * .95) - 1)];
@@ -38,7 +51,53 @@ it("icons: the set's first use (inflate + index) in under 150 ms, cold; the pick
   console.log(`bench · icons: first use (cold) ${cold.toFixed(1)} ms, again ${m.first_use_ms.toFixed(1)} ms (limit ${FIRST_MS} ms × ${speed.factor.toFixed(2)}); keystroke search + 120 tiles p95 ${m.key_p95_ms.toFixed(2)} ms, median ${m.key_median.toFixed(2)} ms (limit ${KEY_MS} ms)`);
   expect(bad, gates.map(g => `${g.key} ${describe(g)}`).join(", ")).toEqual([]);
 });
-// S15.3: 20 lines with heads and labels – their display list ≤ 3 ms
-it.skip("lines: 20 lines with heads and labels build in under 3 ms (S15.3; skipped until introduced)", () => undefined);
+// S15.3: 20 lines with heads and labels – their display list ≤ 3 ms: the slide with them less the same slide without
+// them (its furniture alone), in Liquid Glass and Excel; every route, filled / open / bar heads, a label on each, five
+// of them attached to an item (their ends resolved), median of 20 after 3 untimed
+const LINES_MS = 3;
+it("lines: 20 lines with heads and labels build in under 3 ms (S15.3; Liquid Glass and Excel)", async () => {
+  const speed = speedFactor();
+  const b = fs.readFileSync(path.join(here, "../../tests/corpus/workbooks/report.xlsx"));
+  const wb = await readWorkbook(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer);
+  const d = JSON.parse(fs.readFileSync(path.join(here, "../../tests/corpus/decks/report.json"), "utf8")) as { ops: Op[] };
+  const base = applyOps(emptyDoc("W.xlsx"), d.ops).doc;
+  const M: Metrics = {
+    run: (t, font) => { const size = parseFloat(/([\d.]+)px/.exec(font)![1]); return { w: [...t].length * size * .5, asc: size * .8, desc: size * .2 }; },
+    lines: t => [t],
+  };
+  const ROUTES: LineItem["route"][] = ["straight", "elbow", "curve", "bracket", "range"], HEADS: LineHeads[] = [{ b: "triangle" }, { a: "oval", b: "stealth" }, { b: "arrow" }, { a: "bar", b: "bar" }, { a: "diamond", b: "triangle", size: "l" }];
+  const lines = (run: number): Record<string, Item> => {
+    const out: Record<string, Item> = { k: { kind: "shape", shape: "icon", icon: "target", box: { x: 760, y: 420, w: 64, h: 64 } } };
+    for (let i = 0; i < 20; i++) {
+      const a = { x: 80 + (i % 5) * 300, y: 120 + Math.floor(i / 5) * 180 }, bb = { x: a.x + 220, y: a.y + 90 };
+      out["l" + i] = { kind: "line", route: ROUTES[i % 5], a, b: bb, mid: i % 5 === 1 ? .4 : i % 5 === 2 ? 40 : i % 5 === 3 ? 18 : undefined, style: { w: 1 + (i % 4) * .5, heads: HEADS[i % 5], ...(i % 3 ? {} : { dash: "dashed" }) },
+        ...(i % 4 === 0 ? { ends: { b: { to: "i:k", at: "t" } } } : {}), text: `Δ ${run + i} %`, box: { x: a.x - 1, y: a.y - 1, w: 222, h: 92 } } as LineItem;
+    }
+    return out;
+  };
+  const measure = () => {
+    const ms: Record<string, number> = {};
+    for (const design of ["glass", "excel"] as Design[]) {
+      const style = resolveStyle({}, { ...base.style, design });
+      const ctx: RenderCtx = { style, edits: {}, slides: runtimeSlides(wb, base.preset, "W.xlsx", design), preset: base.preset, workbook: "W.xlsx", logoSrc: "", sheet: n => wb.sheets.find(s => s.name === n) || null, version: null };
+      const R0: RuntimeSlide = { ...ctx.slides[0], tables: [], cfg: { ...ctx.slides[0].cfg, tables: [], items: { k: lines(0).k } } };
+      const img = { wall: null, logo: null }, times: number[] = [];
+      for (let run = 0; run < 23; run++) {
+        const R1: RuntimeSlide = { ...R0, cfg: { ...R0.cfg, items: lines(run) } };
+        const t0 = performance.now(); slideToDisplayList(R0, 0, ctx, [], [], img, M, "1 October 2026", { sem: true }); const bare = performance.now() - t0;
+        const t1 = performance.now(); const dl = slideToDisplayList(R1, 0, ctx, [], [], img, M, "1 October 2026", { sem: true }); const full = performance.now() - t1;
+        expect(Object.keys(dl.items)).toHaveLength(21);
+        if (run >= 3) times.push(Math.max(0, full - bare));
+      }
+      ms[design + "_ms"] = median(times);
+    }
+    return ms;
+  };
+  const limit = LINES_MS * speed.factor;
+  const { gates, bad } = await judge({ limits: { glass_ms: limit, excel_ms: limit }, first: measure(), again: () => measure(), strict: true });
+  const report = gates.map(g => `${g.key.replace("_ms", "")} ${describe(g)}`).join(", ");
+  console.log(`bench · lines (20 with heads and labels, 5 attached): ${gates.map(g => `${g.key.replace("_ms", "")} ${g.first.toFixed(2)} ms`).join(", ")} (median of 20; limit ${LINES_MS} ms × ${speed.factor.toFixed(2)})${gates.some(g => "repeat" in g) ? " · " + report : ""}`);
+  expect(bad, `lines: ${report} (+ 10 %)`).toEqual([]);
+});
 // S15.4: snapping, the core's part per drag frame with 60 objects ≤ 1 ms
 it.skip("snapping: one drag frame with 60 objects in under 1 ms (S15.4; skipped until introduced)", () => undefined);

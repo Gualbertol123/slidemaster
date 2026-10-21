@@ -13,6 +13,7 @@ import { Dropdown } from "./Dropdown";
 import { Input } from "./Input";
 import { useCurSlide } from "./hooks";
 import { openIconPicker } from "./IconPicker";
+import { LineTools } from "./LineTools";
 import { freeKey } from "@slide-builder/core/render/layout";
 import { change } from "../state/app";
 import { freeOp } from "../stage/drags";
@@ -48,6 +49,8 @@ const INKS = ["#0B0D17", "#5B6274", "#FFFFFF", "#1C4F8C", "#2251FF", "#1E8E3E", 
 export function ShapeTools() {
   const itemSel = useStore(s => s.selection.itemSel), R = useCurSlide();
   const it = itemOf(itemSel?.id, R);
+  // a line's controls in the same place (S15.3)
+  if (it?.kind === "line") return <LineTools />;
   if (!itemSel || !it || it.kind !== "shape") return null;
   const id = itemSel.id, f = it.fmt || {}, set = (label: string, p: Record<string, unknown>) => itemPatch(label, id, p);
   const sw = (list: string[], pick: (c: string) => void, attr: string, close: () => void) =>

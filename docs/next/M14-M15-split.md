@@ -87,3 +87,24 @@ only when an unchanged line stands between them, so these splits keep the two me
 * **`recentIcons` and `iconOpts`** are typed in `IconPicker.tsx` (the helper keeps a preference key it does not know):
   a candidate for `Prefs` in `model/types.ts` after both merges.
 
+
+## 5. Recorded in M15 (S15.3)
+
+* **Shared lines S15.3 touched** (each M15's own words or one line, for the merge that comes second):
+  - `render/slide-dl.ts`: the `line-dl` import line and the body of `lineItem` (M15's branch); the dispatch is unchanged.
+    A line's `ItemInfo.box` is the bounds of what it draws (its stage layer), not its saved `box`.
+  - `pptx/scene.ts` (M15's): the `line` member of `ItemSem` gains `line?: LineSem` (its geometry at the resolved ends and
+    its label's nodes); a member without it (S14.P's) still becomes its nodes' shapes, grouped "Line".
+  - `stage/Stage.tsx` (M15's) hands `stage/items.tsx` (M14's) the items that are not lines; lines are `stage/lines.tsx`.
+    `items.tsx` is not edited.
+  - `ui/InsertSlots.tsx`: one entry line below the separator (`LineInsert`); `app/tests/slots.test.tsx` (S14.P's)
+    names it in its two expectations – the one test line M14 might also touch if it adds an Insert entry.
+  - `core/tests/item-kinds.test.ts` (S14.P's): its "a line draws nothing until M15" case now says what S15.3 draws.
+  - `tools/pptxcheck.py`: check (7) `check_lines()` in its own block after the icon block, one call line in `check()`,
+    its paragraph in the module's docstring after (6); `tools/real-icons.mjs` `linesOf` / `pageLines` / `withLines`
+    (appended), one import line and one line in `tools/export-check.mjs` after the icons'.
+* **A line's free-layout place** (09 §2.3, plan-M15 risk 1): `freeBoxes` (`render/layout.ts`, M15's) saves a line's
+  ends with its bounds, and a free entry an older page wrote with its box only (no `a` / `b`) moves the ends as its box
+  moved (`line-dl.ts` `savedEnds`), so nothing jumps when a 4.6 / 4.7 page switched free layout on.
+* **A bracket is square only**: 09 §2.3 mentions a curly one, but `LineItem` has no field to choose it (types.ts is
+  S14.P's); a curly bracket needs a key (a decision under 09 §9).

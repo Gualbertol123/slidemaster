@@ -191,5 +191,687 @@
         }
       ]
     }
+  },
+  {
+    "name": "M15 S15.3 Insert line › Arrow as the page writes it (a straight line, its box the ends' bounds padded 1 px); the inverse deletes it",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l1",
+        "patch": {
+          "kind": "line",
+          "route": "straight",
+          "a": {
+            "x": 640,
+            "y": 450
+          },
+          "b": {
+            "x": 960,
+            "y": 450
+          },
+          "style": {
+            "heads": {
+              "b": "triangle"
+            }
+          },
+          "box": {
+            "x": 639,
+            "y": 449,
+            "w": 322,
+            "h": 2
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "box": {
+                  "x": 639,
+                  "y": 449,
+                  "w": 322,
+                  "h": 2
+                },
+                "route": "straight",
+                "a": {
+                  "x": 640,
+                  "y": 450
+                },
+                "b": {
+                  "x": 960,
+                  "y": 450
+                },
+                "style": {
+                  "heads": {
+                    "b": "triangle"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "M15 S15.3 an end dragged with Ctrl onto an object: ends (whole) and the end's point in one item.patch; dragged away: ends null deletes the key, the point stays",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "k1": {
+                "kind": "shape",
+                "shape": "rect",
+                "box": {
+                  "x": 200,
+                  "y": 700,
+                  "w": 200,
+                  "h": 100
+                }
+              },
+              "l1": {
+                "kind": "line",
+                "route": "straight",
+                "a": {
+                  "x": 680,
+                  "y": 390
+                },
+                "b": {
+                  "x": 920,
+                  "y": 510
+                },
+                "style": {
+                  "w": 1.5,
+                  "heads": {
+                    "b": "arrow",
+                    "size": "s"
+                  }
+                },
+                "box": {
+                  "x": 679,
+                  "y": 389,
+                  "w": 242,
+                  "h": 122
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l1",
+        "patch": {
+          "a": {
+            "x": 400,
+            "y": 750
+          },
+          "b": {
+            "x": 920,
+            "y": 510
+          },
+          "box": {
+            "x": 399,
+            "y": 509,
+            "w": 522,
+            "h": 242
+          },
+          "ends": {
+            "a": {
+              "to": "i:k1",
+              "at": "r"
+            }
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l1",
+        "patch": {
+          "a": {
+            "x": 520,
+            "y": 640
+          },
+          "b": {
+            "x": 920,
+            "y": 510
+          },
+          "box": {
+            "x": 519,
+            "y": 509,
+            "w": 402,
+            "h": 132
+          },
+          "ends": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "k1": {
+                "kind": "shape",
+                "shape": "rect",
+                "box": {
+                  "x": 200,
+                  "y": 700,
+                  "w": 200,
+                  "h": 100
+                }
+              },
+              "l1": {
+                "kind": "line",
+                "route": "straight",
+                "a": {
+                  "x": 520,
+                  "y": 640
+                },
+                "b": {
+                  "x": 920,
+                  "y": 510
+                },
+                "style": {
+                  "w": 1.5,
+                  "heads": {
+                    "b": "arrow",
+                    "size": "s"
+                  }
+                },
+                "box": {
+                  "x": 519,
+                  "y": 509,
+                  "w": 402,
+                  "h": 132
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": {
+            "a": {
+              "x": 680,
+              "y": 390
+            },
+            "b": {
+              "x": 920,
+              "y": 510
+            },
+            "box": {
+              "x": 679,
+              "y": 389,
+              "w": 242,
+              "h": 122
+            },
+            "ends": null
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": {
+            "a": {
+              "x": 400,
+              "y": 750
+            },
+            "b": {
+              "x": 920,
+              "y": 510
+            },
+            "box": {
+              "x": 399,
+              "y": 509,
+              "w": 522,
+              "h": 242
+            },
+            "ends": {
+              "a": {
+                "to": "i:k1",
+                "at": "r"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M15 S15.3 a free-layout drag of a line: the design's whole entry (bounds, a, b) in one slide.patch; the item's own a / b and the other design untouched",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "route": "straight",
+                "a": {
+                  "x": 680,
+                  "y": 390
+                },
+                "b": {
+                  "x": 920,
+                  "y": 510
+                },
+                "style": {
+                  "w": 1.5,
+                  "heads": {
+                    "b": "arrow",
+                    "size": "s"
+                  }
+                },
+                "box": {
+                  "x": 679,
+                  "y": 389,
+                  "w": 242,
+                  "h": 122
+                }
+              }
+            },
+            "free": {
+              "excel": {
+                "on": true,
+                "items": {
+                  "i:l1": {
+                    "x": 679,
+                    "y": 389,
+                    "w": 242,
+                    "h": 122,
+                    "a": {
+                      "x": 680,
+                      "y": 390
+                    },
+                    "b": {
+                      "x": 920,
+                      "y": 510
+                    }
+                  }
+                }
+              },
+              "glass": {
+                "on": true,
+                "items": {
+                  "i:l1": {
+                    "x": 99,
+                    "y": 99,
+                    "w": 242,
+                    "h": 122,
+                    "a": {
+                      "x": 100,
+                      "y": 100
+                    },
+                    "b": {
+                      "x": 340,
+                      "y": 220
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "excel": {
+              "on": true,
+              "items": {
+                "i:l1": {
+                  "x": 699,
+                  "y": 399,
+                  "w": 242,
+                  "h": 122,
+                  "a": {
+                    "x": 700,
+                    "y": 400
+                  },
+                  "b": {
+                    "x": 940,
+                    "y": 520
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "route": "straight",
+                "a": {
+                  "x": 680,
+                  "y": 390
+                },
+                "b": {
+                  "x": 920,
+                  "y": 510
+                },
+                "style": {
+                  "w": 1.5,
+                  "heads": {
+                    "b": "arrow",
+                    "size": "s"
+                  }
+                },
+                "box": {
+                  "x": 679,
+                  "y": 389,
+                  "w": 242,
+                  "h": 122
+                }
+              }
+            },
+            "free": {
+              "excel": {
+                "on": true,
+                "items": {
+                  "i:l1": {
+                    "x": 699,
+                    "y": 399,
+                    "w": 242,
+                    "h": 122,
+                    "a": {
+                      "x": 700,
+                      "y": 400
+                    },
+                    "b": {
+                      "x": 940,
+                      "y": 520
+                    }
+                  }
+                }
+              },
+              "glass": {
+                "on": true,
+                "items": {
+                  "i:l1": {
+                    "x": 99,
+                    "y": 99,
+                    "w": 242,
+                    "h": 122,
+                    "a": {
+                      "x": 100,
+                      "y": 100
+                    },
+                    "b": {
+                      "x": 340,
+                      "y": 220
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "free": {
+              "excel": {
+                "on": true,
+                "items": {
+                  "i:l1": {
+                    "x": 679,
+                    "y": 389,
+                    "w": 242,
+                    "h": 122,
+                    "a": {
+                      "x": 680,
+                      "y": 390
+                    },
+                    "b": {
+                      "x": 920,
+                      "y": 510
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M15 S15.3 an elbow's bend dragged (mid) and its route changed to a curve (mid null: back to the default bulge)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "route": "elbow",
+                "a": {
+                  "x": 680,
+                  "y": 390
+                },
+                "b": {
+                  "x": 920,
+                  "y": 510
+                },
+                "style": {
+                  "w": 1.5,
+                  "heads": {
+                    "b": "arrow",
+                    "size": "s"
+                  }
+                },
+                "box": {
+                  "x": 679,
+                  "y": 389,
+                  "w": 242,
+                  "h": 122
+                },
+                "bend": "hv",
+                "mid": 0.5
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l1",
+        "patch": {
+          "mid": 0.25
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l1",
+        "patch": {
+          "route": "curve",
+          "mid": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "route": "curve",
+                "a": {
+                  "x": 680,
+                  "y": 390
+                },
+                "b": {
+                  "x": 920,
+                  "y": 510
+                },
+                "style": {
+                  "w": 1.5,
+                  "heads": {
+                    "b": "arrow",
+                    "size": "s"
+                  }
+                },
+                "box": {
+                  "x": 679,
+                  "y": 389,
+                  "w": 242,
+                  "h": 122
+                },
+                "bend": "hv"
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": {
+            "mid": 0.5
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": {
+            "route": "elbow",
+            "mid": 0.25
+          }
+        }
+      ]
+    }
   }
 ]

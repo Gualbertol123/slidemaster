@@ -1,6 +1,6 @@
 /* S14.P: the slide's items go through a per-kind dispatch (render/slide-dl.ts chartItem / shapeItem / lineItem), so M14
    and M15 never edit the same lines. Guards: an old chart without `sers` draws exactly as before whatever its `type`
-   (09 §2.2: "Old charts (no sers): exactly as today"); a line item is kept and, until M15, draws nothing; a kind this
+   (09 §2.2: "Old charts (no sers): exactly as today"); a line item goes through its own branch (drawn since S15.3); a kind this
    page does not know is skipped. Same corpus deck and measurer as chart-dl.test.ts. */
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
@@ -54,14 +54,14 @@ describe("items by kind (S14.P dispatch)", () => {
       }
     }
   });
-  it("a line item is kept and (until M15) draws nothing: no nodes, no Issues line, an empty range; its PowerPoint member carries its heads", async () => {
+  it("a line item goes through its own branch (S15.3 draws it: core/tests/line-items.test.ts): its nodes one run after the slide's, no Issues line; its PowerPoint member carries its heads and geometry", async () => {
     const line = { kind: "line", route: "straight", a: { x: 100, y: 800 }, b: { x: 500, y: 800 }, style: { color: "#1F3864", w: 2, heads: { b: "triangle" } }, box: { x: 99, y: 799, w: 402, h: 2 } };
     const none = await build("excel", {}), dl = await build("excel", { l1: line });
-    expect(dl.nodes).toEqual(none.nodes);
     expect(validate(dl.nodes)).toEqual([]);
     const at = dl.items.l1.at;
-    expect(dl.items.l1).toEqual({ box: line.box, issue: null, geom: null, at, pptx: { kind: "line", at, heads: { b: "triangle" } } });
-    expect(at[0]).toBe(at[1]);
+    expect(dl.nodes.slice(0, at[0])).toEqual(none.nodes.slice(0, at[0]));
+    expect(dl.items.l1).toMatchObject({ issue: null, geom: null, at, pptx: { kind: "line", at, heads: { b: "triangle" }, line: { straight: true, a: line.a, b: line.b, tail: "triangle", head: null } } });
+    expect(at[1]).toBeGreaterThan(at[0]);
   });
   // (S14.P review, 7: the two plans agree – nothing drawn here, and the page's Issues panel says so: app/tests/item-text.test.ts)
   it("a kind this page does not know (a later page's) is skipped: no nodes, no item info; the other items draw", async () => {

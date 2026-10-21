@@ -32,6 +32,7 @@ import { editOf, stageModel, type NotePlace, type Rect, type StageModel } from "
 import { PlainLayer, TableLayer, type Box } from "./SlideSvg";
 import { CellEditor, ItemEditor, NoteEditor, TextEditor } from "./editors";
 import { Items } from "./items";
+import { Lines } from "./lines";
 
 const SIDES: Side[] = ["top", "bottom", "left", "right"];
 
@@ -78,14 +79,16 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
       selectSlideText("title"); setStage({ editor: { kind: "text", key: "title" } });
     }
   }, [m]);
-  if (!live || !R || !m) return null;
+  // (a line is not a box: stage/lines.tsx; the other kinds' boxes: stage/items.tsx)
+  const boxItems = useMemo(() => m ? { ...m, items: m.items.filter(p => R?.cfg.items?.[p.id]?.kind !== "line") } : null, [m]);
+  if (!live || !R || !m || !boxItems) return null;
   const frame = slideFrame(R, c), vars = Object.fromEntries(frame.vars);
   return (
     <div className="stagewrap" style={{ left, top, width: 1600 * s, height: 900 * s }}>
       <div ref={slideRef} className={frame.className} style={{ transform: `scale(${s})`, ...vars }}
         onPointerDown={e => {
           // a click on the empty slide clears every selection
-          if ((e.target as Element).closest(".hits,.tnote,.hbox,.itembox,[data-edit]")) return;
+          if ((e.target as Element).closest(".hits,.tnote,.hbox,.itembox,.linehit,.linehandle,[data-edit]")) return;
           const { sel, noteSel, textSel, itemSel } = get().selection;
           if (sel || noteSel || textSel || itemSel) patch("selection", { sel: null, textSel: null, noteSel: null, itemSel: null });
         }}>
@@ -93,7 +96,8 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
         <div className="ovl">
           <TextLayer hits={m.hits} />
           <Notes m={m} R={R} drag={drag} freeLayout={!!freeOf(R, c)} />
-          <Items m={m} R={R} drag={drag} free={!!freeOf(R, c)} />
+          <Items m={boxItems} R={R} drag={drag} free={!!freeOf(R, c)} />
+          <Lines m={m} R={R} s={s} />{/* lines (S15.3): their bands and handles; Items draws the boxes of the other kinds */}
           {m.tables.map(t => <TableHits key={t.i} i={t.i} R={R} c={c} box={boxOf(t.i, t.box, drag)} s={s} />)}
           {m.tables.map(t => <HBox key={t.i} i={t.i} R={R} c={c} m={m} box={boxOf(t.i, t.box, drag)} drag={drag} slide={slideRef} />)}
           <Selection m={m} s={s} drag={drag} />

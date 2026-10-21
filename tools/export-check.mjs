@@ -38,6 +38,7 @@ import { goldenTexts, matchTexts, ownPdfText, squash } from "./export-dl.mjs";
 import { speedFactor } from "./calibrate.mjs";
 import { pageRealObjects } from "./real-objects.mjs";
 import { pageIcons, withIcons } from "./real-icons.mjs";   // M15 (S15.2): the icons, pptxcheck (6)
+import { pageLines, withLines } from "./real-icons.mjs";   // M15 (S15.3): the lines, pptxcheck (7)
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
@@ -111,6 +112,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
           // counted as the export counts them)
           const real = await page.evaluate(pageRealObjects(design));
           withIcons(real, await page.evaluate(pageIcons(design)));     // M15: and the Tabler icons it draws (pptxcheck (6))
+          withLines(real, await page.evaluate(pageLines(design)));     // M15: and its lines (pptxcheck (7))
           const x = await exportOnce(page, h, async () => { await page.click("#exportMenuBtn"); await page.click('[data-x="pptx"]'); });
           if (x.files.length !== 1) throw new Error(`${id} · ${design}: ${x.files.length} PowerPoint files`);
           const f = path.join(OUT, `${id}-${design}.pptx`); fs.copyFileSync(x.files[0], f);
