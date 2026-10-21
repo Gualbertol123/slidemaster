@@ -19,6 +19,7 @@ import { askAutomatic, freeLayoutOff, freeLayoutOn } from "../editor/free";
 import { ShapeTools } from "./ShapeTools";
 import { InsertSlots } from "./InsertSlots";
 import { AddTableMenu } from "./AddTable";
+import { HideMenu } from "./HideMenu";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
 
 const uniq = (a: number[]) => [...new Set(a.map(v => Math.round(v)))];
@@ -192,6 +193,7 @@ export function TableRibbon() {
         <SizeBox label="H" title="Height of the selected rows (Enter to apply)" disabled={!hasSel} values={T ? rows.map(r => shownRowH(T, r)) : []} onSet={v => T && setRowHeight(T, rows, v)} />
         <button className="tb" id="sizeReset" disabled={!hasSel} title="Back to the widths and heights from Excel for the selected columns and rows"
           onClick={() => { if (T) resetCellSizes(T, cols, rows); }}>Excel size</button>
+        <HideMenu />
         <Dropdown button={(_o, t) => <button className="tb" id="roleBtn" disabled={!hasSel} title="Role of the selected cells: how Liquid Glass draws them" onClick={t}>Role: {role ? ROLES.find(r => r[0] === role)?.[1] : "–"} ▾</button>}>
           {close => <>{ROLES.map(([k, l, t]) => <button key={k} data-role={k} className={role === k ? "picked" : ""} onClick={() => { close(); applySel("Role: " + l, e => { if (k === "auto") delete e.role; else e.role = k; }); }}>{l}<small>{t}</small></button>)}</>}
         </Dropdown>

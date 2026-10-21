@@ -32,6 +32,7 @@ import { editOf, stageModel, type NotePlace, type Rect, type StageModel } from "
 import { PlainLayer, TableLayer, type Box } from "./SlideSvg";
 import { CellEditor, ItemEditor, NoteEditor, TextEditor } from "./editors";
 import { Items } from "./items";
+import { HiddenMarks } from "./HiddenMarks";
 
 const SIDES: Side[] = ["top", "bottom", "left", "right"];
 
@@ -98,6 +99,7 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
           {m.tables.map(t => <HBox key={t.i} i={t.i} R={R} c={c} m={m} box={boxOf(t.i, t.box, drag)} drag={drag} slide={slideRef} />)}
           <Selection m={m} s={s} drag={drag} />
           <Guides drag={drag} s={s} />
+          <HiddenMarks m={m} R={R} c={c} />
           {R.type === "content" && !R.tables.length && <div className="emptyslide">No tables on this slide – Add table (Insert) puts one here.</div>}
         </div>
       </div>
