@@ -7,11 +7,13 @@ import { darken, hexRgb } from "../xlsx/color";
 import { tableKey, type RenderCtx } from "./context";
 import { slideCtx } from "./look";
 import { isConsult, lookKeyOf } from "../model/designs";
+import { isIsp } from "../model/isp";
 import { palette } from "../model/style";
 import { effNote } from "./text";
 import { designClass } from "../model/designs";
 import { wallBase } from "./wallpaper";
 import { MEMO_KEY, memoBox, SIDES, noteKey, notesOf } from "./layout";
+import { ispNoteBox } from "./pagenumbers";
 
 /** what table i of a slide is drawn from (design, glass level, its content and edits, the export flag, its layout):
     the same key, the same drawing (the stage's table cache, core/worker/host.ts) */
@@ -37,7 +39,8 @@ export function contrastVars(contrast: number): Record<string, string> {
 /** accent colours of the theme as CSS variables (none for the default theme: the designs have their values) */
 export function themeVars(ctx: RenderCtx): Record<string, string> {
   const t = themeOf(ctx.style), o = ctx.style.colors || {}, P = palette(ctx.style), v: Record<string, string> = {};
-  if (t.id !== "aurora" || o.accent) {
+  // (Excel and Excel Refined: the default theme is the Intesa Sanpaolo template's, B48 – model/isp.ts)
+  if (t.id !== "aurora" || o.accent || isIsp(ctx.style.design)) {
     const a1 = o.accent || t.a1, x = o.accent || t.x;
     Object.assign(v, { "--a1": a1, "--a2": o.accent ? a1 : t.a2, "--a1rgb": hexRgb(a1).join(","), "--a2rgb": hexRgb(o.accent ? a1 : t.a2).join(","), "--x1": x, "--x2": darken(x, .6), "--ixink": darken(a1, .55) });
   }
@@ -47,7 +50,7 @@ export function themeVars(ctx: RenderCtx): Record<string, string> {
   if (o.bg && ctx.style.design !== "glass") v["--slidebg"] = P.bg;
   return v;
 }
-export interface SlideOpts { interactive?: boolean }
+export interface SlideOpts { interactive?: boolean; /** the date a footer's {date} shows (the page's clock) */ today?: string }
 /** the slide element (the stage, the comment preview): its classes (design, slide type) and CSS variables (theme,
     corners, glass, the colour under the wallpaper) – the overlays read the accent colours */
 export function slideFrame(R: RuntimeSlide, ctx: RenderCtx): { className: string; vars: [string, string][] } {
@@ -85,13 +88,19 @@ export function noteParts(R: RuntimeSlide, i: number, ctx: RenderCtx, opts: Slid
   }
   return out;
 }
+/** the notes section's box in Excel and Excel Refined: where the user put it, else on the template's bottom row */
+function ispMemoBox(ctx: RenderCtx, R: RuntimeSlide, n: Note, today?: string) {
+  const b = memoBox(n), def = ispNoteBox(ctx, R, b.w, b.h, today);
+  return { x: n.x ?? def.x, y: n.y ?? def.y, w: n.w || def.w, h: b.h };
+}
 /** the slide's notes section (sources, footnotes…): a text box of the slide itself, placed where the user put it –
     by default where the footer is; in every design (B19) */
 export function memoPart(R: RuntimeSlide, ctx: RenderCtx, opts: SlideOpts = {}): (NotePart & { box: { x: number; y: number; w: number; h: number } }) | null {
   const d = ctx.style.design, glassy = d === "glass", rk = ctx.style.radius / 100;
   const memo = (R.cfg.notes || {})[MEMO_KEY];
   if (!memo || !(String(memo.text || "").trim() || opts.interactive)) return null;
-  const n = effNote(ctx, memo), txt = String(n.text || ""), mb = memoBox(memo);
+  // Excel and Excel Refined: by default on the template's bottom row, beside the footer (B48 fix: never over it)
+  const n = effNote(ctx, memo), txt = String(n.text || ""), mb = isIsp(d) && (memo.x == null || memo.y == null) ? ispMemoBox(ctx, R, memo, opts.today) : memoBox(memo);
   const bubble = n.bubble && txt.trim() ? (glassy ? { cls: "gls wb card notebub memo", r: Math.round(16 * rk) } : { cls: "notebub x memo", r: Math.round(8 * rk) }) : null;
   const cls = `tnote memo free bottom${n.bubble ? " bub" : ""}${txt.trim() ? "" : " empty"}`;
   return { i: -1, side: "bottom", key: MEMO_KEY, n, txt, memo: true, cls, bubble, box: mb };

@@ -23,9 +23,14 @@ export interface CommentCfg {
   detail: "short" | "full";
   /** concentration ("largely driven by X, ~86 %"), breadth, missing data sentences */
   share: boolean; breadth: boolean; missing: boolean;
-  /** "summary": one short paragraph per block joining week, Budget and EoM (default for new comments);
-      "sections": one section per comparison (comments made before summaries existed) */
-  mode?: "summary" | "sections";
+  /** "summary": one short paragraph per block joining week, Budget and EoM;
+      "sections": one section per comparison (comments made before summaries existed);
+      "macro" (B50, the default for new comments): the friend's Excel macro's text, section by section (comment-macro.ts) */
+  mode?: "summary" | "sections" | "macro";
+  /** "macro": its sections in order, each with its rule for when it is written, its alert threshold and switches; unset =
+      the plan comparison and the shortest-term change (comment-macro.ts defaultSections). Inside the `notes` map: a deck
+      holding a "macro" comment is format 5 (ops.ts) */
+  sections?: import("./comment-macro").CommentSection[];
   /** summary: the comparisons it joins, by kind (default week, target, month) */
   kinds?: Group["kind"][];
   /** more tables of the same slide covered by this comment (table ids) */
@@ -312,7 +317,8 @@ export function withUnit(x: string, unit: string): string {
   return x + " " + u;
 }
 export function shapeComment(text: string, cfg: CommentCfg): string {
-  const unit = cfg.unit ?? DEFAULT_UNIT;
+  // the macro writes its amounts without a unit ("above Budget by +476")
+  const unit = cfg.unit ?? (cfg.mode === "macro" ? "" : DEFAULT_UNIT);
   let lines = text.replace(/\[\[([^\]]+)\]\]/g, (_m, x: string) => `[[${withUnit(x, unit)}]]`).split("\n");
   if (cfg.showTitle === false) { lines = lines.filter(l => !l.startsWith("# ")); while (lines[0] === "") lines.shift(); }
   if (cfg.bullets === false) lines = lines.map(l => l.replace(/^• /, ""));

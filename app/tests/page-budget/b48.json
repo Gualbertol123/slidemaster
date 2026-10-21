@@ -1,0 +1,4 @@
+{
+  "bytes": 21422,
+  "why": "B48 (Excel and Excel Refined follow the Intesa Sanpaolo template; product owner 2026-10-21, B48–B50 approved): the page grows by 21,422 bytes as measured at B48's review fixes (npm run build on v4/isp-template: 3,967,290 → 3,988,712). PROVISIONAL – set to the measurement, awaiting the orchestrator's decision before the merge (B48 review, 9); B49 and B50 add their own files."
+}

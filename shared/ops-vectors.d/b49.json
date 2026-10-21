@@ -1,0 +1,631 @@
+[
+  {
+    "name": "B49: a comment's border (notes entry frame): set on a new comment, changed, set to none, taken off – one undo step each",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "notes": {
+            "t1:right": {
+              "text": "",
+              "auto": {
+                "groups": [],
+                "top": 2,
+                "noun": "country",
+                "detail": "full",
+                "share": true,
+                "breadth": true,
+                "missing": true,
+                "mode": "summary"
+              },
+              "bubble": true,
+              "w": 440,
+              "frame": {
+                "w": 2,
+                "color": "#C00000"
+              }
+            }
+          }
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "notes": {
+            "t1:right": {
+              "text": "",
+              "auto": {
+                "groups": [],
+                "top": 2,
+                "noun": "country",
+                "detail": "full",
+                "share": true,
+                "breadth": true,
+                "missing": true,
+                "mode": "summary"
+              },
+              "bubble": true,
+              "w": 440,
+              "frame": {
+                "w": 0.5,
+                "color": "#1F4E79"
+              }
+            }
+          }
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "notes": {
+            "t1:right": {
+              "text": "",
+              "auto": {
+                "groups": [],
+                "top": 2,
+                "noun": "country",
+                "detail": "full",
+                "share": true,
+                "breadth": true,
+                "missing": true,
+                "mode": "summary"
+              },
+              "bubble": true,
+              "w": 440,
+              "frame": "none"
+            }
+          }
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "notes": {
+            "t1:right": {
+              "text": "",
+              "auto": {
+                "groups": [],
+                "top": 2,
+                "noun": "country",
+                "detail": "full",
+                "share": true,
+                "breadth": true,
+                "missing": true,
+                "mode": "summary"
+              },
+              "bubble": true,
+              "w": 440
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans",
+            "notes": {
+              "t1:right": {
+                "text": "",
+                "auto": {
+                  "groups": [],
+                  "top": 2,
+                  "noun": "country",
+                  "detail": "full",
+                  "share": true,
+                  "breadth": true,
+                  "missing": true,
+                  "mode": "summary"
+                },
+                "bubble": true,
+                "w": 440
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 4,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "notes": {
+              "t1:right": null
+            }
+          }
+        },
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "notes": {
+              "t1:right": {
+                "text": "",
+                "auto": {
+                  "groups": [],
+                  "top": 2,
+                  "noun": "country",
+                  "detail": "full",
+                  "share": true,
+                  "breadth": true,
+                  "missing": true,
+                  "mode": "summary"
+                },
+                "bubble": true,
+                "w": 440,
+                "frame": {
+                  "w": 2,
+                  "color": "#C00000"
+                }
+              }
+            }
+          }
+        },
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "notes": {
+              "t1:right": {
+                "text": "",
+                "auto": {
+                  "groups": [],
+                  "top": 2,
+                  "noun": "country",
+                  "detail": "full",
+                  "share": true,
+                  "breadth": true,
+                  "missing": true,
+                  "mode": "summary"
+                },
+                "bubble": true,
+                "w": 440,
+                "frame": {
+                  "w": 0.5,
+                  "color": "#1F4E79"
+                }
+              }
+            }
+          }
+        },
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "notes": {
+              "t1:right": {
+                "text": "",
+                "auto": {
+                  "groups": [],
+                  "top": 2,
+                  "noun": "country",
+                  "detail": "full",
+                  "share": true,
+                  "breadth": true,
+                  "missing": true,
+                  "mode": "summary"
+                },
+                "bubble": true,
+                "w": 440,
+                "frame": "none"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "B49: the border kept whole with the rest of the comment; other boxes of the slide untouched; removing the comment removes it",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans",
+            "notes": {
+              "t1:right": {
+                "text": "",
+                "auto": {
+                  "groups": [],
+                  "top": 2,
+                  "noun": "country",
+                  "detail": "full",
+                  "share": true,
+                  "breadth": true,
+                  "missing": true,
+                  "mode": "summary"
+                },
+                "bubble": true,
+                "w": 440,
+                "frame": {
+                  "w": 3
+                }
+              },
+              "t1:bottom": {
+                "text": "Own text"
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "notes": {
+            "t1:right": {
+              "text": "",
+              "auto": {
+                "groups": [],
+                "top": 2,
+                "noun": "country",
+                "detail": "full",
+                "share": true,
+                "breadth": true,
+                "missing": true,
+                "mode": "summary"
+              },
+              "bubble": true,
+              "w": 520,
+              "frame": {
+                "w": 3
+              }
+            }
+          }
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "notes": {
+            "t1:right": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans",
+            "notes": {
+              "t1:bottom": {
+                "text": "Own text"
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "notes": {
+              "t1:right": {
+                "text": "",
+                "auto": {
+                  "groups": [],
+                  "top": 2,
+                  "noun": "country",
+                  "detail": "full",
+                  "share": true,
+                  "breadth": true,
+                  "missing": true,
+                  "mode": "summary"
+                },
+                "bubble": true,
+                "w": 440,
+                "frame": {
+                  "w": 3
+                }
+              }
+            }
+          }
+        },
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "notes": {
+              "t1:right": {
+                "text": "",
+                "auto": {
+                  "groups": [],
+                  "top": 2,
+                  "noun": "country",
+                  "detail": "full",
+                  "share": true,
+                  "breadth": true,
+                  "missing": true,
+                  "mode": "summary"
+                },
+                "bubble": true,
+                "w": 520,
+                "frame": {
+                  "w": 3
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "fold: B49 two writers set the same comment's border – the later (Lamport) wins, in whatever order the records arrive",
+    "fold": {
+      "snapshot": {
+        "format": 5,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": {
+            "sheets": [
+              "S"
+            ],
+            "tables": [
+              {
+                "id": "t1",
+                "sheet": "S",
+                "kind": "range",
+                "range": "A1:C6"
+              }
+            ],
+            "slides": [
+              {
+                "id": "s1",
+                "type": "content",
+                "tables": [
+                  "t1"
+                ],
+                "title": "Loans",
+                "notes": {
+                  "t1:right": {
+                    "text": "",
+                    "auto": {
+                      "groups": [],
+                      "top": 2,
+                      "noun": "country",
+                      "detail": "full",
+                      "share": true,
+                      "breadth": true,
+                      "missing": true,
+                      "mode": "summary"
+                    },
+                    "bubble": true,
+                    "w": 440
+                  }
+                }
+              }
+            ]
+          },
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": 3,
+          "w": "bob@pc2#bbbbbbbb",
+          "s": 1,
+          "by": "bob",
+          "at": 2000,
+          "ops": [
+            {
+              "op": "slide.patch",
+              "id": "s1",
+              "patch": {
+                "notes": {
+                  "t1:right": {
+                    "text": "",
+                    "auto": {
+                      "groups": [],
+                      "top": 2,
+                      "noun": "country",
+                      "detail": "full",
+                      "share": true,
+                      "breadth": true,
+                      "missing": true,
+                      "mode": "summary"
+                    },
+                    "bubble": true,
+                    "w": 440,
+                    "frame": {
+                      "w": 1,
+                      "color": "#2E7D32"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "l": 2,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 1000,
+          "ops": [
+            {
+              "op": "slide.patch",
+              "id": "s1",
+              "patch": {
+                "notes": {
+                  "t1:right": {
+                    "text": "",
+                    "auto": {
+                      "groups": [],
+                      "top": 2,
+                      "noun": "country",
+                      "detail": "full",
+                      "share": true,
+                      "breadth": true,
+                      "missing": true,
+                      "mode": "summary"
+                    },
+                    "bubble": true,
+                    "w": 440,
+                    "frame": {
+                      "w": 2,
+                      "color": "#C00000"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {},
+      "rev": 2,
+      "lamport": 3,
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans",
+            "notes": {
+              "t1:right": {
+                "text": "",
+                "auto": {
+                  "groups": [],
+                  "top": 2,
+                  "noun": "country",
+                  "detail": "full",
+                  "share": true,
+                  "breadth": true,
+                  "missing": true,
+                  "mode": "summary"
+                },
+                "bubble": true,
+                "w": 440,
+                "frame": {
+                  "w": 1,
+                  "color": "#2E7D32"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+]

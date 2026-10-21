@@ -186,7 +186,8 @@ class VectorFilesTests(unittest.TestCase):
         shared = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "shared")
         d = os.path.join(shared, "ops-vectors.d")
         files = [os.path.join(shared, "ops-vectors.json")] + [os.path.join(d, f) for f in sorted(os.listdir(d)) if f.endswith(".json")]
-        self.assertEqual([os.path.basename(f) for f in files[1:]][:2], ["m14.json", "m15.json"])
+        names = [os.path.basename(f) for f in files[1:]]
+        self.assertTrue({"m14.json", "m15.json"} <= set(names), names)          # (and a step's own file: b49.json, B49)
         seen = {}
         for f in files:
             with open(f, encoding="utf-8") as h:

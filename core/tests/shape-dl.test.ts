@@ -50,7 +50,8 @@ async function setup(design: Design, items: Record<string, ShapeItem> = {}) {
   const build = (c = ctx) => { const R = c.slides[0], b = computeLayout(R, c).boxes; return slideToDisplayList(R, 0, c, R.tables.map(L => excelToDisplayList(L, c, M)), b, { wall: null, logo: null }, M, "1 October 2026"); };
   return { wb, ctx, view, build, env: { V: glassVars(ctx), wall: null } };
 }
-const part = (l: DisplayList, id: string) => { const k = l.findIndex(n => n.t === "hit" && n.kind === "item" && n.id === id); const e = l.findIndex((n, j) => j > k && n.t === "hit" && (n.kind === "item" || /^logo/.test(n.id))); return l.slice(k, e < 0 ? undefined : e); };
+/** an item's nodes: from its hit to the next item's (or the logo, the page number / the end) */
+const part = (l: DisplayList, id: string) => { const k = l.findIndex(n => n.t === "hit" && n.kind === "item" && n.id === id); const e = l.findIndex((n, j) => j > k && n.t === "hit" && (n.kind === "item" || /^(logo|pageno)/.test(n.id))); return l.slice(k, e < 0 ? undefined : e); };
 
 describe("cell references in a callout's text (CL-02)", () => {
   it("a cell's text as the workbook shows it, through ctx.sheet; a sheet on no slide; #REF for what cannot be read", async () => {
@@ -90,15 +91,17 @@ describe("shapes and icons in every design (CL-01)", () => {
     expect(summary(part(dl.nodes, "s5"))).toMatchSnapshot("bubble");
     expect(summary(part(dl.nodes, "i0"))).toMatchSnapshot("icon");
   });
-  it("the design's material when no fill is set: glass in Liquid Glass, a framed white box in Excel, a card in Excel Refined, an accent outline for a consulting circle", async () => {
+  it("the design's material when no fill is set: glass in Liquid Glass, the template's outlined box in Excel and Excel Refined, an accent outline for a consulting circle", async () => {
     const round: ShapeItem = { kind: "shape", shape: "round", text: "x", box };
     const g = await setup("glass"), gl = shapeNodes(round, "k", box, g.ctx, { V: g.env.V, wall: { blurId: "wb", blurSrc: "data:" } });
     const grp = gl.nodes.find(n => n.t === "group");
     expect(grp && grp.t === "group" && grp.children[0]).toMatchObject({ t: "image", id: "wb" });
     const x = await setup("excel"), xl = shapeNodes(round, "k", box, x.ctx, x.env).nodes.find(n => n.t === "rect")!;
-    expect(xl).toMatchObject({ fill: { solid: [255, 255, 255] }, stroke: { w: 1, paint: { solid: [191, 191, 191] } } });
+    // Excel and Excel Refined: the Intesa Sanpaolo template's outlined box (B48) – white, Nero 50 % at 1 pt, no shadow
+    expect(xl).toMatchObject({ fill: { solid: [255, 255, 255] }, stroke: { w: 2.222, paint: { solid: [127, 127, 127] } } });   // 1 pt × 4/3
     const c = await setup("clean"), cl = shapeNodes(round, "k", box, c.ctx, c.env).nodes;
-    expect(cl.filter(n => n.t === "shadow")).toHaveLength(2);
+    expect(cl.filter(n => n.t === "shadow")).toHaveLength(0);
+    expect(cl.find(n => n.t === "rect")).toMatchObject({ stroke: { w: 2.222, paint: { solid: [127, 127, 127] } } });
     const n = await setup("mckinsey"), circ = shapeNodes({ ...round, shape: "circle" }, "k", { ...box, w: 140 }, n.ctx, n.env).nodes.find(z => z.t === "rect")!;
     expect(circ).toMatchObject({ stroke: { w: 2, paint: { solid: [34, 81, 255] } } });
     expect("fill" in circ).toBe(false);

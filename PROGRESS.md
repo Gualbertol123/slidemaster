@@ -182,6 +182,36 @@ numbers measured twice). Measured numbers go into the step's line.
   S14.P step that commits the page (M14-M15-split.md §1). Ticked at that merge: verified: tests ✓ clean clone ✓
   review ✓.
 
+### B48–B50 · The Intesa Sanpaolo template, comment borders, the macro's comments (product owner 2026-10-21, B48–B50 approved; branch `v4/B48-B50-isp` = `v4/isp-template` + `v4/isp-comments` on main)
+- [ ] B48 · Excel and Excel Refined follow the template (cover, contents, titles, page number, logo, bullets, boxes,
+  palette; docs/RENDERING.md) — d86a56a, review REQUEST CHANGES (10 findings) → "B48 · … (review fixes)": one scale
+  (× 4/3 for positions, type and lines), the cover's subtitle at 3.880 in, native PowerPoint bullets (`buChar`; the
+  upright bullet is an accepted difference), the logo and cover band on the layouts (`SlideSem.layout`), "- " before
+  a figure stays a minus, parity entries per deck / version / file (`elements` / `text` pinned by digest here; the
+  environment's kinds pinned on the reference PC with `tools/pin-accepted.mjs`), `core/tests/dlhash.test.ts`,
+  export-check's scoped "GT B48", `app/tests/page-budget/b48.json` (provisional, 21,422 bytes: decision before the
+  merge), the swatches' narrow subscription. Ticked when the orchestrator's runs and the re-review pass.
+  Then c773d66 (the source note beside the footer, titles shrink before "…"), 06b31a9 (the page number on by default,
+  top right). Page budget: b48.json 21,422 + b49-b50.json 20,049 (measured, 4,017,563 bytes).
+- [ ] B49 · Comment borders (weight, colour, none; `Note.frame`, V5_NOTE, vectors `shared/ops-vectors.d/b49.json`; PDF
+  and PowerPoint: an outline grouped with its text box) — dbedb1d, 24426cd; review APPROVE (3 low follow-ups); merge
+  with B48 5f69878 (the template's outline is the default, a user's border wins; `note-frame.test.ts`), 218eed0 (the
+  default colour #7F7F7F in Excel and Excel Refined). Ticked when the orchestrator's runs pass.
+- [ ] B50 · Comments in the macro's structure (`core/src/model/comment-macro.ts`: vs Budget – Budget Performance,
+  vs Previous Week – Weekly Momentum, contributors, concentration, downside, alerts −5 % / −1 %; the sample text of the
+  owner's macro reproduced exactly in `comment-macro.test.ts`; sections with include rules: always, last week of the
+  month, first week, from day N; thresholds per section; vectors `b50.json`) — 6659c1b, 0e31e52; review REQUEST
+  CHANGES (8) → fixed → APPROVE. Older pages: a 4.6.0 window shows a macro comment as a summary and no border, keeps
+  both (CHANGELOG 4.7.0). Ticked when the orchestrator's runs pass.
+  - **Open at the M14 merge (B48 review, 6):** the template's "trend charts as a line only" is NOT done – M14's line
+    and area charts must take `ISP.chart.lineW` and `ISP.chart.areaAsLine` (render/isp.ts) in Excel and Excel
+    Refined. Expected conflicts: `chartLook` in `render/chart-dl.ts` (B48 adds the template's palette and the
+    doughnut's `hole`), `render/shape-dl.ts` `lookOf` (B48 gives Excel Refined the template's outlined box instead of
+    its shadow and #E1E5EC border – deliberate, the owner's template), their snapshots
+    (`core/tests/__snapshots__/chart-dl.test.ts.snap`, `shape-dl.test.ts.snap`: re-record and check only the excel /
+    clean entries move), and `core/tests/fixtures/dlhash-b48-base.json` (re-record with `DLHASH_WRITE=1`: M14 and M15
+    change Liquid Glass and the consulting designs' charts, lines and icons by design).
+
 ### M14 · Charts (4.7.0; B30, B31; docs/next/09 §8, ADR-015 amended)
 - [ ] S14.0 · Gates first (export-check gates PowerPoint "opened", `has_chart` / `has_table`; AUDIT-2 VER-3) – built in
   S14.P (the gate); on the branch this step only ticks it
@@ -547,6 +577,17 @@ numbers measured twice). Measured numbers go into the step's line.
   page, packed and inflated on first use (option A); `v4/*` branches may be pushed.
 - 2026-10-21 · **PowerPoint** (product owner: "ensure all of these new changes work with the powerpoint export as
   well"): every new feature is checked in the PowerPoint export (`core/tests/pptx-m13.test.ts` for M13).
+- 2026-10-21 · **B48–B50: the Intesa Sanpaolo template, comment borders, the macro's comments** (product owner: "the
+  excel and excel refined will have to follow this template. this makes very little changes, and much from now should
+  be preserved, but for instance the first slide should change. 2. make the borders of the auto comments editable in
+  thickness and colour. 3. in this docx file is the macro formula a friend of mine has used to make the auto comments.
+  i want you to replicate it exactly in structure but also keeping the current setups' modularity between adding and
+  removing sections in a comment, for instance i may want the delta vs monthly budget to only be included at the end of
+  the month, not the beginning"). The template and the macro stay out of the repository (the logo comes from the
+  deck's setting). Defaults taken where the owner did not answer (stated to them): type scaled × 4/3 to look as on the
+  template's 10-inch page; PowerPoint bullets upright (PDF/PNG tilted 10°); long titles shrink before "…"; page number
+  on, top right; the contents' "XX" = the page number; "0,0 %" kept; a clause without data left out; "the same week in
+  <year − 1>"; a new comment beside its own table in the macro's structure. Page budget by measurement (b48.json).
 
 ## Waiting for
 

@@ -85,8 +85,9 @@ describe("numbers and contents count the slides shown in the design (HS-02)", ()
     const shown = draw(ctxOf(q, design), 1), other = draw(ctxOf(q, design === "glass" ? "excel" : "glass", { on: true, format: "n" }), 1);
     expect(shown).toContain("Alpha"); expect(shown).toContain("Gamma"); expect(shown).not.toContain("Beta");
     // Gamma is page 4 in this design (cover 1, contents 2, Alpha 3); 5 in the other, where Beta shows
+    // (the page follows its entry; in the Excel designs' template contents it comes first, "XX Entry", B48)
     const gi = shown.indexOf("Gamma");
-    expect(shown.slice(gi, gi + 4)).toContain("4");
+    expect(shown.slice(design === "excel" || design === "clean" ? gi - 1 : gi, gi + 4)).toContain("4");
     expect(other).toContain("Beta");
     // the hidden slide draws (the stage), with no page number
     const hs = draw(ctxOf(q, design), 3);
