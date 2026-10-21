@@ -166,18 +166,29 @@ Test any change with layouts of very different kinds (see §10) – not only the
 * Logo: `ctx.logoSrc` → `/assets/<name>?t=<token>`; hidden per slide with `cfg.logo = false`.
 * **Excel and Excel Refined follow the Intesa Sanpaolo 16:9 template** (B48, product owner 2026-10-21; every measure in
   `render/isp.ts`, the colours in `model/isp.ts`; the template and its logo are not in the repository – the logo is the
-  deck's own). The template's 10 in slide maps to 160 px per inch; type sizes are its points at the export's 0.6 pt
-  per px (26 pt = 43.33 px). Cover: the blue diagonal band (Blu at 75 %), the logo above the title (26 pt bold Blu,
-  left-aligned), subtitle 16 pt Nero 50 %, the cover's note over and date under them, small. Contents ("INDICE"): the
-  heading, then per content slide a tilted square, the page bold in Blu and the entry (16 pt), closer rows and then
-  two columns when many. Content slides: title / subtitle at the template's place, the content area from x 70
-  (`areaFor`), the page number at the master's top right (also when set bottom right), the logo at its bottom right,
-  drawn first (the PowerPoint export's layouts take it). Text boxes: "- " / "• " paragraphs get the template's
-  bullets (a filled square tilted 10° at 25 % transparency; indented or "◦ ": the outline), cards are the template's
-  outlined box (1 pt #7F7F7F). Shapes' default: the same outline. Charts: the template's palette at 25 %
-  transparency, doughnut holes 75 %. The default theme (Aurora) and "Intesa Sanpaolo" resolve to the template's colours
-  in these two designs (`themeOf`); any other theme or colour override still applies. Liquid Glass and the
-  consulting designs never read it.
+  deck's own). **One scale** (B48 review, 4): the template's 10 in slide is the export's 13.33 in, so positions, type
+  sizes and line widths are all its own × 4/3 – 160 px per template inch, 20/9 px per template point (26 pt is 57.78
+  px, 34.67 pt in the PowerPoint file): a PDF or PNG of a slide matches the template's page at the same page size.
+  Line boxes are placed so that each first baseline is where PowerPoint draws the template's (one Century Gothic
+  ascent under the frame's top inset). Cover: the blue diagonal band (Blu at 75 %), the logo above the title (26 pt bold
+  Blu, left-aligned at 2.851 in), the subtitle 16 pt Nero 50 % at 3.880 in (lower only when a long title reaches it),
+  the cover's note over and date under them, small. Contents ("INDICE"): the heading, then per content slide a tilted
+  square, the page bold in Blu and the entry (16 pt, every 0.4 in), closer rows and then two columns when many. Content
+  slides: title / subtitle at the template's place, the content area from x 70, y 130 (178 with a subtitle;
+  `areaFor`), the page number at the master's top right (also when set bottom right), the logo at its bottom right,
+  drawn first. Text boxes: "- " / "• " paragraphs get the template's bullets (a filled square tilted 10° at 25 %
+  transparency; indented or "◦ ": the outline) – a "- " before a figure ("- 12 mln") is a minus and stays text; cards
+  are the template's outlined box (1 pt × 4/3, #7F7F7F). Shapes' default: the same outline. Charts: the template's
+  palette at 25 % transparency, doughnut holes 75 % (its "trend charts as a line only" waits for M14's line charts:
+  `ISP.chart.lineW` / `areaAsLine` are unused until that merge). The default theme (Aurora) and "Intesa Sanpaolo"
+  resolve to the template's colours in these two designs (`themeOf`); any other theme or colour override still
+  applies. **PowerPoint:** the logo and the cover's band are always on the slide's layout (`SlideDL.layout` →
+  `SlideSem.layout`, pptx/writer.ts – also with one slide of a kind; a slide without the logo gets a layout of its
+  own); a bullet is its paragraph's own (`buChar` ■ / □ in Arial at 110 %, its colour and alpha, a hanging indent),
+  so it follows the text when it is edited. **Accepted difference:** PowerPoint does not turn a bullet character, so
+  the PowerPoint bullet is upright where the PDF and PNG draw the template's 10° tilt (owner's question, B48 report).
+  Liquid Glass and the consulting designs never read any of this (`core/tests/dlhash.test.ts` holds their display
+  lists and .pptx to B48's base).
 
 ---
 

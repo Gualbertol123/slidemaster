@@ -125,8 +125,8 @@ describe("round 4: themes, gridlines, painted conditional formats, vertical alig
   it("tables can sit at the top, middle or bottom of the content area", () => {
     const T = fakeTable([[1, 2, 3], [4, 5, 6], [7, 8, 9]], 300, 90);
     const y = (valign?: string) => computeLayout(slide([T], { valign, scale: 1 }), ctx()).boxes[0].y;
-    expect(y("top")).toBe(122);            // under the template's title (B48)
-    expect(y("bottom")).toBeCloseTo(122 + 700 - 90, 5);
-    expect(y("middle")).toBeCloseTo(122 + (700 - 90) / 2, 5);
+    expect(y("top")).toBe(130);            // under the template's title (B48)
+    expect(y("bottom")).toBeCloseTo(130 + 692 - 90, 5);
+    expect(y("middle")).toBeCloseTo(130 + (692 - 90) / 2, 5);
   });
 });

@@ -10,7 +10,7 @@ import { insertShape, itemOf, itemPatch } from "../editor/charts";
 import { setStage } from "../stage/data";
 import { Dropdown } from "./Dropdown";
 import { Input } from "./Input";
-import { useCurSlide, useStyle } from "./hooks";
+import { useCurSlide, useDesign } from "./hooks";
 import { isIsp, ISP_FILLS } from "@slide-builder/core/model/isp";
 
 const SHAPES: [ShapeItem["shape"], string][] = [["rect", "Rectangle"], ["round", "Rounded rectangle"], ["pill", "Pill"], ["circle", "Circle"], ["arrow", "Arrow"], ["bubble", "Speech bubble"]];
@@ -41,7 +41,7 @@ const FILLS = ["#FFFFFF", "#F2F2F2", "#FFF4D6", "#E8F1FF", "#E6F6EC", "#FDE8E6",
 const INKS = ["#0B0D17", "#5B6274", "#FFFFFF", "#1C4F8C", "#2251FF", "#1E8E3E", "#C42B1C", "#B25000"];
 /** the selected shape's controls (only while one is selected) */
 export function ShapeTools() {
-  const itemSel = useStore(s => s.selection.itemSel), R = useCurSlide(), isp = isIsp(useStyle().design);
+  const itemSel = useStore(s => s.selection.itemSel), R = useCurSlide(), isp = isIsp(useDesign());
   const it = itemOf(itemSel?.id, R);
   if (!itemSel || !it || it.kind !== "shape") return null;
   const id = itemSel.id, f = it.fmt || {}, set = (label: string, p: Record<string, unknown>) => itemPatch(label, id, p);

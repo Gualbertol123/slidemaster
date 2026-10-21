@@ -97,10 +97,10 @@ describe("shapes and icons in every design (CL-01)", () => {
     expect(grp && grp.t === "group" && grp.children[0]).toMatchObject({ t: "image", id: "wb" });
     const x = await setup("excel"), xl = shapeNodes(round, "k", box, x.ctx, x.env).nodes.find(n => n.t === "rect")!;
     // Excel and Excel Refined: the Intesa Sanpaolo template's outlined box (B48) – white, Nero 50 % at 1 pt, no shadow
-    expect(xl).toMatchObject({ fill: { solid: [255, 255, 255] }, stroke: { w: 5 / 3, paint: { solid: [127, 127, 127] } } });
+    expect(xl).toMatchObject({ fill: { solid: [255, 255, 255] }, stroke: { w: 2.222, paint: { solid: [127, 127, 127] } } });   // 1 pt × 4/3
     const c = await setup("clean"), cl = shapeNodes(round, "k", box, c.ctx, c.env).nodes;
     expect(cl.filter(n => n.t === "shadow")).toHaveLength(0);
-    expect(cl.find(n => n.t === "rect")).toMatchObject({ stroke: { w: 5 / 3, paint: { solid: [127, 127, 127] } } });
+    expect(cl.find(n => n.t === "rect")).toMatchObject({ stroke: { w: 2.222, paint: { solid: [127, 127, 127] } } });
     const n = await setup("mckinsey"), circ = shapeNodes({ ...round, shape: "circle" }, "k", { ...box, w: 140 }, n.ctx, n.env).nodes.find(z => z.t === "rect")!;
     expect(circ).toMatchObject({ stroke: { w: 2, paint: { solid: [34, 81, 255] } } });
     expect("fill" in circ).toBe(false);

@@ -12,11 +12,11 @@ import { validate, type DisplayList, type HitNode, type Node, type PathNode, typ
 import { readWorkbook } from "../src/xlsx/workbook";
 import { applyOps, emptyDoc } from "../src/model/ops";
 import { runtimeSlides } from "../src/model/preset";
-import { resolveStyle, themeOf } from "../src/model/style";
+import { designOf, resolveStyle, themeOf } from "../src/model/style";
 import { ispChartColors, ispTint, ISP_CHART, ISP_FILLS, ISP_RGB, ISP_TEXT } from "../src/model/isp";
-import { ISP, tiltedSquare } from "../src/render/isp";
+import { ISP, K, tiltedSquare, tpt } from "../src/render/isp";
 import { excelToDisplayList, lu, type Metrics } from "../src/render/excel-dl";
-import { slideToDisplayList } from "../src/render/slide-dl";
+import { ISP_BULLET, slideToDisplayList, type SlideDL } from "../src/render/slide-dl";
 import { noteParts } from "../src/render/slide";
 import { areaFor, computeLayout } from "../src/render/layout";
 import { pageNoFor, pageNoGeom } from "../src/render/pagenumbers";
@@ -77,6 +77,19 @@ describe("the template's colours (model/isp.ts)", () => {
   });
 });
 
+describe("one scale (B48 review, 4): the template's 10 in slide onto the export's 13.33 in, positions, type and lines alike", () => {
+  it("26 pt is 34.67 pt in the export (57.78 px at 0.6 pt per px), 16 pt 21.33 pt, 1 pt 1.33 pt; 0.436 in is 0.581 in", () => {
+    expect(K).toBeCloseTo(1600 / 1200, 9);                                   // 13.33 in / 10 in: 160 px per template inch
+    expect(tpt(26) * .6).toBeCloseTo(26 * K, 1);
+    expect([ISP.title.size, ISP.sub.size, ISP.cover.title.size, ISP.index.size]).toEqual([tpt(26), tpt(16), tpt(26), tpt(16)]);
+    expect(ISP.box.w * .6).toBeCloseTo(K, 2);
+    // a position and a type size keep their proportion to the slide: the title's size against the slide's width is the
+    // template's (26 pt of 720 pt), as its x is (0.436 in of 10 in)
+    expect(ISP.title.size / 1600).toBeCloseTo(26 / 720, 4);
+    expect(ISP.title.x / 1600).toBeCloseTo(.436 / 10, 4);
+  });
+});
+
 describe("content slides (pages 3–13)", () => {
   for (const design of ["excel", "clean"] as Design[]) it(`${design}: title 26 pt bold Blu and subtitle 16 pt Nero 50 % at the template's place; the area under them`, async () => {
     const { ctx, slides, build } = await deck("weekly-options.json", design);
@@ -85,16 +98,16 @@ describe("content slides (pages 3–13)", () => {
     ctx.style.text = {};
     const dl = build(i), hs = hits(dl.nodes), t = hs.find(h => h.id === "title")!, s = hs.find(h => h.id === "subtitle")!;
     expect(validate(dl.nodes)).toEqual([]);
-    expect([t.x, t.y]).toEqual([69.76, 45]);
-    expect(t.h).toBeCloseTo(lu(1.4 * 43.33), 2);
-    expect([s.x, s.y]).toEqual([69.76, 124]);
+    expect([t.x, t.y]).toEqual([69.76, ISP.title.top]);
+    expect(t.h).toBeCloseTo(lu(1.4 * tpt(26)), 1);
+    expect([s.x, s.y]).toEqual([69.76, ISP.sub.top]);
     const tt = textsAfter(dl.nodes, "title")[0], st = textsAfter(dl.nodes, "subtitle")[0];
-    expect([tt.size, tt.weight, tt.fill]).toEqual([43.33, 700, { solid: BLU }]);
-    expect([st.size, st.weight, st.fill]).toEqual([26.67, 400, { solid: [127, 127, 127] }]);
+    expect([tt.size, tt.weight, tt.fill]).toEqual([tpt(26), 700, { solid: BLU }]);
+    expect([st.size, st.weight, st.fill]).toEqual([tpt(16), 400, { solid: [127, 127, 127] }]);
     expect(tt.css).toMatch(/^"Century Gothic"/);
-    expect(areaFor(R, ctx)).toEqual({ x: 70, y: 176, w: 1460, h: 646 });
+    expect(areaFor(R, ctx)).toEqual({ x: 70, y: 178, w: 1460, h: 644 });
     R.subtitle = "";
-    expect(areaFor(R, ctx)).toEqual({ x: 70, y: 122, w: 1460, h: 700 });
+    expect(areaFor(R, ctx)).toEqual({ x: 70, y: 130, w: 1460, h: 692 });
   });
   it("the page number at the master's top right (bottom right, the default, too); the logo at its bottom right, drawn first", async () => {
     const { ctx, slides, build } = await deck("weekly-options.json", "excel", { on: true, pos: "br", format: "n", size: 16 });
@@ -128,8 +141,13 @@ describe("the cover (page 1) and the contents (page 2)", () => {
     expect(band.d).toEqual([["M", 0, 0], ["L", 821.17, 0], ["L", 22.85, 140.35], ["Z"]]);
     expect(band.fill).toEqual({ solid: BLU, a: .75 });
     expect(hs(nodes, "logo")).toMatchObject({ x: 283.36, y: 337.76, h: 67.84 });
-    expect(hs(nodes, "cv-title")).toMatchObject({ x: 283.36, y: 456.16 });
+    expect(hs(nodes, "cv-title")).toMatchObject({ x: 283.36, y: ISP.cover.title.top });
+    expect(textsAfter(nodes, "cv-title")[0].size).toBe(tpt(26));
+    // the subtitle at 3.880 in (B48 review, 5): its baseline one ascent under 620.8 px, where PowerPoint draws it
+    expect(hs(nodes, "cv-sub")).toMatchObject({ x: 283.36, y: ISP.cover.sub.top });
+    expect(ISP.cover.sub.top).toBeCloseTo(3.88 * 160, -1);
     expect(textsAfter(nodes, "cv-sub")[0].fill).toEqual({ solid: [127, 127, 127] });
+    expect(textsAfter(nodes, "cv-sub")[0].size).toBe(tpt(16));
     // nothing of the old cover: no panel, bar or rule
     expect(hits(nodes).map(h => h.id).filter(id => /cvx-panel|cv-bar|cvx-rule/.test(id))).toEqual([]);
   });
@@ -142,7 +160,7 @@ describe("the cover (page 1) and the contents (page 2)", () => {
     expect(p.x).toBe(ISP.index.rowX);
     expect(t.x).toBeGreaterThan(p.x + p.w);
     const pt = textsAfter(nodes, "ix-p")[0];
-    expect([pt.weight, pt.fill, pt.size]).toEqual([700, { solid: BLU }, 26.67]);
+    expect([pt.weight, pt.fill, pt.size]).toEqual([700, { solid: BLU }, tpt(16)]);
     const mark = flat(nodes).find((n): n is PathNode => n.t === "path")!;
     expect(mark.fill).toEqual({ solid: BLU, a: .75 });
     expect(hs(nodes, "ix-n").label).toBe("01");
@@ -177,7 +195,7 @@ describe("text boxes (pages 4, 5, 12)", () => {
     expect(texts[1].x).toBeCloseTo(texts[0].x, 6);                          // the second level at the same indent (page 5)
     // the square: tilted −10°, its centre on the first line's x-height
     const sq = tiltedSquare(0, 0, 10);
-    expect(sq[1][2]).toBeLessThan(sq[0][2]);                                 // its top edge rises to the right
+    expect(sq[1][2] as number).toBeLessThan(sq[0][2] as number);                                 // its top edge rises to the right
     // Liquid Glass: "- " stays text
     const g = await deck("weekly-options.json", "glass"), gR = g.slides[i], gp = noteParts(gR, 0, g.ctx)[0];
     (gR.cfg.notes as Record<string, { text: string }>)[gp.key].text = "- First level";
@@ -189,7 +207,7 @@ describe("text boxes (pages 4, 5, 12)", () => {
       const { slides, build } = await deck("weekly-options.json", design);
       const nodes = flat(build(slides.findIndex(S => S.type === "content")).nodes), k = nodes.findIndex(x => x.t === "hit" && x.id === "notebub x");
       expect(k).toBeGreaterThanOrEqual(0);
-      expect(nodes[k + 1]).toMatchObject({ t: "rect", fill: { solid: [255, 255, 255] }, stroke: { w: 5 / 3, paint: { solid: [127, 127, 127] } } });
+      expect(nodes[k + 1]).toMatchObject({ t: "rect", fill: { solid: [255, 255, 255] }, stroke: { w: tpt(1), paint: { solid: [127, 127, 127] } } });
       expect(nodes.some(x => x.t === "shadow")).toBe(false);
     }
   });
@@ -224,8 +242,112 @@ describe("the PowerPoint export (layouts made from the deck)", () => {
       } else {
         expect(slideXml).toMatch(/<a:custGeom>[\s\S]*?<a:srgbClr val="003A79"><a:alpha val="75000"\/>/);
       }
-      expect(slideXml).toMatch(/sz="2600" b="1"/);                         // (the decks' own title colours and styles apply)
-      expect(slideXml).toMatch(/sz="1600"[^>]*><a:solidFill><a:srgbClr val="7F7F7F"/);
+      expect(slideXml).toMatch(/sz="3467" b="1"/);                         // 26 pt × 4/3 (the decks' own title colours and styles apply)
+      expect(slideXml).toMatch(/sz="213[34]"[^>]*><a:solidFill><a:srgbClr val="7F7F7F"/);   // 16 pt × 4/3 (the scene's px to 1/100)
     }
+  });
+});
+
+describe("B48 review fixes", () => {
+  const pptxOf = (lists: { nodes: DisplayList; sem: Parameters<typeof writePptx>[0]["slides"][number]["sem"] }[]) => {
+    const z = unzipSync(writePptx({ slides: lists, image: () => PNG, face: c => c.split(",")[0].replace(/['"]/g, ""), title: "T", design: "Excel" }));
+    const xml = (p: string) => strFromU8(z[p]);
+    const parts = (re: RegExp) => Object.keys(z).filter(p => re.test(p)).sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
+    return { xml, layouts: parts(/slideLayouts\/slideLayout\d+\.xml$/).map(xml), slides: parts(/slides\/slide\d+\.xml$/).map(xml), rels: parts(/slides\/_rels\/slide\d+\.xml\.rels$/).map(xml) };
+  };
+  const semOf = (R: { type: string }, dl: SlideDL, palette: string[]) =>
+    ({ type: (R.type === "cover" || R.type === "index" ? R.type : "content") as "content", items: {}, palette, ...(dl.layout ? { layout: dl.layout } : {}) });
+
+  it("5: the cover's subtitle stays at 3.880 in under a one-line title; a long title pushes it down by the gap", async () => {
+    const { slides, build } = await deck("weekly-options.json", "excel");
+    const i = slides.findIndex(S => S.type === "cover");
+    expect(hs(build(i).nodes, "cv-sub").y).toBe(ISP.cover.sub.top);
+    slides[i].title = "A cover title long enough to wrap onto a second and then a third line in the template's frame of seven inches";
+    const nodes = build(i).nodes, t = hs(nodes, "cv-title"), s = hs(nodes, "cv-sub");
+    expect(t.y + t.h).toBeGreaterThan(ISP.cover.sub.top - ISP.cover.sub.gap);
+    expect(s.y).toBeCloseTo(t.y + t.h + ISP.cover.sub.gap, 1);
+  });
+
+  it("7: \"- \" before a figure is a minus, not a bullet", async () => {
+    for (const t of ["- Revenue up", "  - second level", "• Point", "◦ Point"]) expect(ISP_BULLET.test(t), t).toBe(true);
+    for (const t of ["- 12 mln", "-  12 mln", "- €3 mln", "- .5 %", "- 0,5", "- $4", "-12 mln", "  - 3"]) expect(ISP_BULLET.test(t), t).toBe(false);
+    const { ctx, slides } = await deck("weekly-options.json", "excel");
+    const i = slides.findIndex(S => S.type === "content"), R = slides[i], part = noteParts(R, 0, ctx)[0];
+    (R.cfg.notes as Record<string, { text: string; align?: string }>)[part.key].text = "- 12 mln vs budget\n- Revenue up";
+    (R.cfg.notes as Record<string, { align?: string }>)[part.key].align = "left";
+    const dl = slideToDisplayList(R, i, ctx, [], computeLayout(R, ctx).boxes, { wall: null, logo: null }, M, "x");
+    const cls = noteParts(R, 0, ctx)[0].cls, k = dl.nodes.findIndex(x => x.t === "hit" && x.id === cls), box = dl.nodes[k + 1];
+    expect(textsAfter(dl.nodes, cls).map(t => t.src)).toEqual(["- 12 mln vs budget", "Revenue up"]);
+    expect((box.t === "group" ? flat(box.children) : []).filter(x => x.t === "path")).toHaveLength(1);
+  });
+
+  it("2: in PowerPoint a bullet is its paragraph's own (a square character in Blu at 75 %, hanging), not a shape over the text", async () => {
+    const { ctx, slides, build } = await deck("weekly-options.json", "excel");
+    const i = slides.findIndex(S => S.type === "content"), R = slides[i], part = noteParts(R, 0, ctx)[0];
+    const n = (R.cfg.notes as Record<string, { text: string; align?: string; size?: number }>)[part.key];
+    n.text = "- First level\n  - Second level\nA paragraph"; n.align = "left"; n.size = 18;
+    // the stage's, PDF's and PNG's list: the tilted squares, no "bu" hit; the PowerPoint export's: a "bu" hit before each
+    const boxOf = (l: DisplayList) => { const k = l.findIndex(x => x.t === "hit" && x.id === part.cls), g = l[k + 1]; return g.t === "group" ? flat(g.children) : []; };
+    expect(boxOf(build(i).nodes).some(x => x.t === "hit" && x.kind === "bu")).toBe(false);
+    expect(boxOf(build(i, true).nodes).filter(x => x.t === "hit" && x.kind === "bu").map(x => (x as HitNode).id)).toEqual(["1", "2"]);
+    const dl = build(i, true), { slides: xs } = pptxOf([{ nodes: dl.nodes, sem: semOf(R, dl, chartLook(ctx, "").colors.slice(0, 6)) }]);
+    const x = xs[0], paras = [...x.matchAll(/<a:p><a:pPr([^>]*)>(.*?)<\/a:pPr>(.*?)<\/a:p>/g)].map(m => ({ attrs: m[1], pPr: m[2], text: [...m[3].matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(t => t[1]).join("") }));
+    const first = paras.find(p => p.text === "First level")!, second = paras.find(p => p.text === "Second level")!, plainP = paras.find(p => p.text === "A paragraph")!;
+    expect(first.pPr).toContain('<a:buClr><a:srgbClr val="003A79"><a:alpha val="75000"/></a:srgbClr></a:buClr>');
+    expect(first.pPr).toContain('<a:buChar char="■"/>');
+    expect(second.pPr).toContain('<a:buChar char="□"/>');
+    expect(plainP.pPr).toContain("<a:buNone/>");
+    // hanging: the text 1 em (18 px = 137 160 EMU, less the square's offset) right of the bullet, the bullet at or right of the inset
+    const mi = (a: string) => [+/marL="(-?\d+)"/.exec(a)![1], +/indent="(-?\d+)"/.exec(a)![1]];
+    const [marL, indent] = mi(first.attrs);
+    expect(indent).toBeLessThan(0);
+    expect(marL + indent).toBeGreaterThanOrEqual(0);
+    expect(-indent).toBeGreaterThan(.6 * 18 * 7620);
+    expect(-indent).toBeLessThan(18 * 7620);
+    expect(mi(plainP.attrs)).toEqual([0, 0]);
+    // the text runs carry no "- " and no freeform lies over the text box (the only custom geometry is none here)
+    expect(x).not.toContain("<a:t>- ");
+    expect(x).not.toContain("<a:custGeom>");
+  });
+
+  it("3: the layouts carry the template's furniture even with one slide of each kind – the cover's band and logo, the logo of contents and content slides", async () => {
+    const { ctx, slides, build } = await deck("weekly-options.json", "excel");
+    const pick = ["cover", "index", "content"].map(k => slides.findIndex(S => S.type === k));
+    expect(pick.every(k => k >= 0)).toBe(true);
+    const pal = chartLook(ctx, "").colors.slice(0, 6);
+    const lists = pick.map(i => { const dl = build(i, true); return { nodes: dl.nodes, sem: semOf(slides[i], dl, pal) }; });
+    const p = pptxOf(lists), byName = (name: string) => p.layouts.find(l => l.includes(`<p:cSld name="${name}">`))!;
+    const cover = byName("Title Slide"), contents = byName("Contents"), content = byName("Title Only");
+    for (const l of [cover, contents, content]) expect(l).toContain("<p:pic>");
+    expect(cover).toMatch(/<a:custGeom>[\s\S]*?<a:srgbClr val="003A79"><a:alpha val="75000"\/>/);
+    expect(content).not.toContain("<a:custGeom>");
+    // the slides hold no logo and no band: theirs is the layout's
+    for (const s of p.slides) expect(s).not.toContain("<p:pic>");
+    expect(p.slides[0]).not.toContain("<a:custGeom>");
+    // each slide on its own kind's layout
+    expect(p.rels.map(r => /slideLayout(\d+)\.xml/.exec(r)![1])).toEqual(["1", "2", "3"]);
+    // a content slide without the logo: a layout of its own, without the picture (the other keeps it)
+    const j = pick[2], R = slides[j];
+    R.cfg = { ...R.cfg, logo: false };
+    const dl2 = build(j, true), p2 = pptxOf([...lists, { nodes: dl2.nodes, sem: semOf(R, dl2, pal) }]);
+    const second = p2.layouts.find(l => l.includes('<p:cSld name="Title Only 2">'))!;
+    expect(second).toBeTruthy();
+    expect(second).not.toContain("<p:pic>");
+    expect(p2.layouts.find(l => l.includes('<p:cSld name="Title Only">'))).toContain("<p:pic>");
+  });
+
+  it("10: the swatches' subscription reads the design alone – designOf is resolveStyle's design", () => {
+    const layers = [[], [null, { design: "excel" }], [{ design: "clean" }, { design: "mckinsey" }], [{ design: "excel" }, { glass: "subtle" }], [{ design: "nonsense" }], [{ design: "bain" }, { design: null }]] as unknown as Parameters<typeof designOf>[];
+    for (const l of layers) expect(designOf(...l)).toBe(resolveStyle(...l).design);
+  });
+
+  it("3: the other designs' lists name no layout nodes (their PowerPoint export is unchanged)", async () => {
+    for (const design of ["glass", "mckinsey", "bain"] as Design[]) {
+      const { slides, build } = await deck("weekly-options.json", design);
+      for (let i = 0; i < slides.length; i++) expect(build(i, true).layout, design).toBeUndefined();
+    }
+    const { slides, build } = await deck("weekly-options.json", "clean");
+    expect(build(slides.findIndex(S => S.type === "cover"), true).layout).toBeDefined();
+    expect(build(slides.findIndex(S => S.type === "cover")).layout).toBeUndefined();   // (the stage's list: none)
   });
 });

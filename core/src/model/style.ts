@@ -15,6 +15,12 @@ function applyLook(s: Style, l: Look) {
   // text styles: an entry for a kind of text replaces the earlier layer's entry as a whole
   if (l.text && typeof l.text === "object") for (const r of TEXT_ROLES) { const f = l.text[r]; if (f && typeof f === "object") s.text[r] = cleanFmt(f); }
 }
+/** the design style layers resolve to – resolveStyle's, without the rest (a narrow subscription of the page's, B48) */
+export function designOf(...layers: (StylePatch | null | undefined)[]): Design {
+  let d: unknown = BUILTIN_STYLE.design;
+  for (const l of layers) if (l && l.design !== undefined && l.design !== null) d = l.design;
+  return isDesign(d) ? d : "glass";
+}
 export function resolveStyle(...layers: (StylePatch | null | undefined)[]): Style {
   const s: Style = { ...BUILTIN_STYLE, pn: { ...BUILTIN_PN }, footer: { ...BUILTIN_FOOTER }, theme: { ...BUILTIN_STYLE.theme }, text: {}, colors: {} };
   for (const l of layers) {

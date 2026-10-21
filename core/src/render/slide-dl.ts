@@ -51,7 +51,10 @@ export interface SlideImages {
     picking), the Issues line of a source that is missing or empty */
 export interface ItemInfo { box: Box; issue: string | null; geom: PieGeom | null; /** its nodes: [start, end) in the slide's list */ at: [number, number];
   /** what the PowerPoint export makes of it (asked with `sem`, 07 §4.1) */ pptx?: ItemSem }
-export interface SlideDL extends TableDL { items: Record<string, ItemInfo> }
+export interface SlideDL extends TableDL { items: Record<string, ItemInfo>;
+  /** asked with `sem`, the Excel designs only (B48 review, 3): the nodes [start, end) of the template's furniture – the
+      logo, the cover's band – that the PowerPoint export always puts on the slide's layout (pptx/writer.ts) */
+  layout?: [number, number] }
 
 /* ---- text ---- */
 /** the line height the slide's texts inherit where slide.css sets none: the page's body is font: 13px/1.4 (ui.css) */
@@ -96,8 +99,9 @@ const figure = (c: { text: string; v: number | null }, signed: boolean) => {
 };
 /** a text box paragraph drawn as a bullet in the consulting designs ("- " or "• " at its start) */
 const BULLET = /^(- |• )/;
-/** the Excel designs' bullets (B48): a paragraph starting "- " / "• " (indented, or "◦ ": the second level) */
-const ISP_BULLET = /^([ \t]+)?(- |• |◦ )/;
+/** the Excel designs' bullets (B48): a paragraph starting "- " / "• " (indented, or "◦ ": the second level). A "- "
+    before a figure is a minus, not a bullet ("- 12 mln", "- €3", "- ,5": B48 review, 7) */
+export const ISP_BULLET = /^([ \t]+)?(- (?!\s*[\d.,€$£%])|• |◦ )/;
 
 class Typesetter {
   constructor(private m: Metrics) {}
@@ -166,7 +170,9 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
   const shift = pageNo !== null && ctx.style.pn.pos === "tl" ? pageNoGeom(ctx, pageNo, glassy, !!logo, cover).w + 22 : 0;
   // the Excel designs (the Intesa Sanpaolo template, B48): the logo first, under the furniture – decoration every slide of
   // a kind begins with, which the PowerPoint export puts on that kind's layout (pptx/writer.ts)
+  const lay0 = low.length;
   if (logo && isp) logoNodes(logo);
+  let lay1 = low.length;                                        // (the cover's band joins it: ispCover)
   if (cover) { if (C) consultCover(C); else if (isp) ispCover(); else coverNodes(); }
   else if (C) { if (R.type === "index") consultIndex(C); else consultContent(C); }
   else if (isp) { if (R.type === "index") ispIndex(); else ispTitles(); }
@@ -201,7 +207,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     if (info) items[id] = info;
   }
   if (logo && !isp) logoNodes(logo);
-  return { nodes: [...low, ...z3, ...z5], images, items };
+  return { nodes: [...low, ...z3, ...z5], images, items, ...(opts.sem && isp && lay1 > lay0 ? { layout: [lay0, lay1] as [number, number] } : {}) };
 
   /* ---- items ---- */
   /* a chart (4.3; series charts 4.7, M14) */
@@ -517,6 +523,8 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     const band = K.band, xs = band.map(p => p[0]), ys = band.map(p => p[1]);
     low.push(hit("cvx-band", 0, 0, Math.max(...xs), Math.max(...ys)),
       { t: "path", d: [...band.map(([x, y], i) => [i ? "L" : "M", x, y] as ["M" | "L", number, number]), ["Z"]], fill: { solid: parseColor(x1).c, a: K.bandAlpha } });
+    lay1 = low.length;                                          // the band is the cover layout's, with the logo
+
     const X = K.title.x, W = K.title.w;
     const kSt = withFmt({ family: base, size: K.note.size, weight: 700, italic: false, color: solid(x1), ls: K.note.ls }, nf);
     const tSt = withFmt({ family: base, size: tf.size || K.title.size, weight: 700, italic: false, color: solid(x1), ls: 0 }, { ...tf, size: undefined });
@@ -533,7 +541,8 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     const inner: Node[] = [];
     if (kick) { inner.push(hit("cv-kicker", X, y - kick.h - K.note.gap, W, kick.h, note.toUpperCase()), ...shiftY(kick.nodes, y - kick.h - K.note.gap)); }
     const y0 = kick ? y - kick.h - K.note.gap : y;
-    inner.push(hit("cv-title", X, y, W, tH, label(t)), ...shiftY(tl.nodes, y)); y += tH + K.sub.gap;
+    // the subtitle where the template has it (3.880 in), lower only when a long title reaches down to it (B48 review, 5)
+    inner.push(hit("cv-title", X, y, W, tH, label(t)), ...shiftY(tl.nodes, y)); y = r2(Math.max(K.sub.top, y + tH + K.sub.gap));
     inner.push(hit("cv-sub", X, y, W, sH, label(R.subtitle || "")), ...shiftY(sb.nodes, y)); y += sH + K.date.gap;
     inner.push(hit("cvx-date", X, y, dw, dH, date), T.node(date, X, T.baseline(dSt, y, dH), dSt));
     z3.push(hit("cv-block x", X, y0, W, y - y0, label([note ? note.toUpperCase() : "", t, R.subtitle || ""].filter(Boolean).join("\n"))), ...inner);
@@ -564,7 +573,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     const avail = ISP.area.bottom - top0, n = items.length;
     let pitch = Math.min(I.pitch, Math.floor(avail / n)), two = false;
     if (pitch < I.minPitch) { two = true; pitch = Math.min(I.pitch, Math.floor(avail / Math.ceil(n / 2))); }
-    const per = two ? Math.ceil(n / 2) : n, k = Math.min(1, pitch / I.pitch), size = xf.size || r2(I.size * k);
+    const per = two ? Math.ceil(n / 2) : n, k = Math.min(1, pitch / I.pitch), size = xf.size || (k < 1 ? r2(I.size * k) : I.size);
     const eSt = withFmt({ family: base, size, weight: 400, italic: false, color: solid("#000000"), ls: 0 }, row);
     const pSt: TStyle = { ...eSt, weight: 700, color: solid(x1), tnum: true }, sSt: TStyle = { ...eSt, size: r2(eSt.size * .75), color: solid(ISP_GREY) };
     const off = I.rowX - I.markX, colW = two ? 690 : 1450 - I.markX + off / 2, x0 = two ? 110 : I.markX - off / 2, side = r2(size * .75);
@@ -777,6 +786,9 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
               const sq = r2(ISP.bullet.side * size), qy = r2(T.baseline(st, 0, T.lineH(st, lh)) - .36 * size), qx = r2(cx + .42 * size), ink = parseColor(part.ink || x1).c;
               b.nodes.unshift(ibLevel === 1 ? { t: "path", d: tiltedSquare(qx, qy, sq), fill: { solid: ink, a: ISP.bullet.alpha } }
                 : { t: "path", d: tiltedSquare(qx, qy, r2(sq - ISP.bullet.outline * size)), stroke: { w: r2(ISP.bullet.outline * size), paint: { solid: ink, a: ISP.bullet.alpha } } });
+              // the PowerPoint export (opts.sem): a "bu" hit before the square makes it the paragraph's own bullet
+              // (pptx/scene.ts; B48 review, 2) – the stage, PDF and PNG lists have no such hit
+              if (opts.sem) b.nodes.unshift({ t: "hit", kind: "bu", id: String(ibLevel), x: r2(qx - sq / 2), y: r2(qy - sq / 2), w: sq, h: sq });
             }
             blocks.push({ ...b, mt: prevNp && !auto ? (pgap ?? 0) : 0, mb: 0 });
             texts.push(b.text); prevNp = true;
@@ -821,7 +833,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     const H = blocks.reduce((s, b) => s + b.mt + b.h + b.mb, 0), free = h - 2 * padY - H;
     let yy = y + padY + (just === "end" ? free : just === "center" ? free / 2 : 0);
     const kids: Node[] = [];
-    for (const b of blocks) { yy += b.mt; kids.push(...b.nodes.map(nd => nd.t === "text" || nd.t === "rect" ? { ...nd, y: r2(nd.y + yy) } : nd.t === "path" ? { ...nd, d: nd.d.map(c => c.map((v, k) => typeof v === "number" && k % 2 === 0 ? r2(v + yy) : v) as PathCmd) } : nd)); yy += b.h + b.mb; }
+    for (const b of blocks) { yy += b.mt; kids.push(...b.nodes.map(nd => nd.t === "text" || nd.t === "rect" || (nd.t === "hit" && nd.kind === "bu") ? { ...nd, y: r2(nd.y + yy) } : nd.t === "path" ? { ...nd, d: nd.d.map(c => c.map((v, k) => typeof v === "number" && k % 2 === 0 ? r2(v + yy) : v) as PathCmd) } : nd)); yy += b.h + b.mb; }
     low.push(hit(part.cls, x, y, w, h, label(auto ? text.split("\n").map(l => collapse(l).trim()).join("\n") : text)), { t: "group", clip: { x, y, w, h }, children: kids });
   }
 

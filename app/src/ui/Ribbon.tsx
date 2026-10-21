@@ -15,7 +15,7 @@ import { Dropdown } from "./Dropdown";
 import { Field } from "./Field";
 import { FontPicker, openFontManager } from "./FontPicker";
 import { Input } from "./Input";
-import { useCtx, useCurSlide, useStyle } from "./hooks";
+import { useCtx, useCurSlide, useDesign } from "./hooks";
 import { isIsp, ISP_FILLS, ISP_TEXT } from "@slide-builder/core/model/isp";
 
 const FILLS: [string, string][] = [["#34C759", "Green (positive)"], ["#FF3B30", "Red (negative)"], ["#FF9500", "Orange"], ["#FFCC00", "Yellow"], ["#007AFF", "Blue"], ["#5856D6", "Indigo"],
@@ -28,7 +28,7 @@ const swatches = (list: [string, string][], set: (v: string) => void, attr: stri
   <div className="swatches">{list.map(([c, n]) => <button key={c} title={n} {...{ [attr]: c }} style={{ background: c }} onClick={() => { close(); set(c); }} />)}</div>;
 
 function InkMenu({ t, close }: { t: TextTarget; close: () => void }) {
-  const set = (v: string | null) => t.apply(v ? "Text colour" : "Automatic text colour", { color: v }), isp = isIsp(useStyle().design);
+  const set = (v: string | null) => t.apply(v ? "Text colour" : "Automatic text colour", { color: v }), isp = isIsp(useDesign());
   return <>
     <div className="hd">Text colour</div>{swatches(INKS, set, "data-v", close)}
     {isp && <><div className="hd">Template colours <small>Intesa Sanpaolo: the colours for texts</small></div>{swatches(ISP_TEXT, set, "data-v", close)}</>}
@@ -39,7 +39,7 @@ function InkMenu({ t, close }: { t: TextTarget; close: () => void }) {
 function FillMenu({ close }: { close: () => void }) {
   const bg = (v: string | null) => applySel(v === null ? "Excel cell colour" : "Cell colour", e => { if (v === null) delete e.bg; else { e.bg = v; delete e.fill; } });
   const hl = (v: string | null) => applySel(v === null ? "Remove highlight" : "Highlight", e => { if (v === null) delete e.fill; else e.fill = v; });
-  const isp = isIsp(useStyle().design);
+  const isp = isIsp(useDesign());
   return <div className="fillmenu">
     <div className="hd">Cell colour <small>replaces the colour from Excel (in Liquid Glass: the colour of the block)</small></div>
     {swatches(FILLS.concat(BLOCKS), v => bg(v), "data-bg", close)}

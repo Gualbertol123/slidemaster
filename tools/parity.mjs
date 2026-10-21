@@ -183,11 +183,15 @@ function cmpPdf(g, a, full, diff, slideTexts, own = false) {
 const firstAt = (x, y) => { let i = 0; while (i < x.length && i < y.length && x[i] === y[i]) i++; return i; };
 /** the golden texts of a slide: every text element that holds no other text element (a cell, a title, a text box…) */
 export function goldenTexts(deck, design, version, n, goldenDir = path.join(REPO, "golden")) {
+  return goldenItems(deck, design, version, n, goldenDir)?.map(i => i.text) ?? null;
+}
+/** the same elements with their classes ({cls, text}) */
+export function goldenItems(deck, design, version, n, goldenDir = path.join(REPO, "golden")) {
   const f = path.join(goldenDir, deck, design, version, `slide-${n}.json`);
   if (!fs.existsSync(f)) return null;
   const items = JSON.parse(fs.readFileSync(f, "utf8")).items.filter(i => i.text);
   const CONTAINERS = /^(cv-block|ix-row|ix-txt|tw|xt)\b/;
-  return items.filter(i => !CONTAINERS.test(i.cls) && !/^(hbox|edge|grip|emptyslide)/.test(i.cls)).map(i => i.text);
+  return items.filter(i => !CONTAINERS.test(i.cls) && !/^(hbox|edge|grip|emptyslide)/.test(i.cls));
 }
 export const squash = s => s.normalize("NFKC").replace(/\s+/g, "");
 /** a design whose goldens are this build's own render (MANIFEST-v4, M7b): its golden PDF's page texts (as squash), else null */

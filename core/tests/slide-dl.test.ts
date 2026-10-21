@@ -97,7 +97,7 @@ describe("the whole slide", () => {
     expect(t.src.endsWith("…")).toBe(true);
     expect(t.w!).toBeLessThanOrEqual(1600 - 70 - 150);
     expect(h.label).toBe(slides[0].title);
-    expect(h.h).toBeCloseTo(lu(1.4 * 26 * 5 / 3), 2);               // the template's 26 pt (B48); the page's line-height 1.4
+    expect(h.h).toBeCloseTo(lu(1.4 * 26 * 4 / 3 * 5 / 3), 1);       // the template's 26 pt at 4/3 (B48); the page's line-height 1.4
     void ctx;
   });
   it("text boxes: padding, the fitted size (the largest from the start, 1 px steps, whose text fits), pre-wrap lines, the side's alignment", async () => {
@@ -147,12 +147,14 @@ describe("the whole slide", () => {
       expect(band.d[0]).toEqual(["M", 0, 0]);
       expect(at("logo").x).toBeCloseTo(283.36, 1); expect(at("logo").y).toBeCloseTo(337.76, 1);
       expect(at("logo").y + at("logo").h).toBeLessThan(at("cv-title").y);
-      expect(at("cv-title").x).toBeCloseTo(283.36, 1); expect(at("cv-title").y).toBeCloseTo(456.16, 1);
+      // (the frames' tops 2.851 in and 3.880 in; the line boxes' tops put the baselines where PowerPoint draws them)
+      expect(at("cv-title").x).toBeCloseTo(283.36, 1); expect(at("cv-title").y).toBeCloseTo(2.851 * 160, -1);
       const sub = at("cv-sub");
-      expect(sub.h).toBeCloseTo(lu(1.3 * 16 * 5 / 3), 2);
-      expect(sub.y).toBeCloseTo(at("cv-title").y + at("cv-title").h + 24, 6);
+      expect(sub.h).toBeCloseTo(lu(1.3 * 16 * 4 / 3 * 5 / 3), 1);
+      expect(sub.y).toBeCloseTo(3.88 * 160, -1);                       // the template's place, not under the title (B48 review, 5)
+      expect(sub.y).toBeGreaterThan(at("cv-title").y + at("cv-title").h);
       const title = textsAfter(nodes, "cv-title")[0];
-      expect([title.size, title.weight, title.fill]).toEqual([43.33, 700, { solid: [0, 58, 121] }]);
+      expect([title.size, title.weight, title.fill]).toEqual([57.778, 700, { solid: [0, 58, 121] }]);
     }
   });
   it("a text box's line ends: spaces before a line break count for the alignment while they fit, beyond the box they hang", async () => {

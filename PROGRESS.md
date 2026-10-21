@@ -182,6 +182,24 @@ numbers measured twice). Measured numbers go into the step's line.
   S14.P step that commits the page (M14-M15-split.md §1). Ticked at that merge: verified: tests ✓ clean clone ✓
   review ✓.
 
+### B48–B50 · The Intesa Sanpaolo template (product owner 2026-10-21, B48–B50 approved; branch `v4/isp-template`, from `v4/M14-M15-prep`)
+- [ ] B48 · Excel and Excel Refined follow the template (cover, contents, titles, page number, logo, bullets, boxes,
+  palette; docs/RENDERING.md) — d86a56a, review REQUEST CHANGES (10 findings) → "B48 · … (review fixes)": one scale
+  (× 4/3 for positions, type and lines), the cover's subtitle at 3.880 in, native PowerPoint bullets (`buChar`; the
+  upright bullet is an accepted difference), the logo and cover band on the layouts (`SlideSem.layout`), "- " before
+  a figure stays a minus, parity entries per deck / version / file (`elements` / `text` pinned by digest here; the
+  environment's kinds pinned on the reference PC with `tools/pin-accepted.mjs`), `core/tests/dlhash.test.ts`,
+  export-check's scoped "GT B48", `app/tests/page-budget/b48.json` (provisional, 21,422 bytes: decision before the
+  merge), the swatches' narrow subscription. Ticked when the orchestrator's runs and the re-review pass.
+  - **Open at the M14 merge (B48 review, 6):** the template's "trend charts as a line only" is NOT done – M14's line
+    and area charts must take `ISP.chart.lineW` and `ISP.chart.areaAsLine` (render/isp.ts) in Excel and Excel
+    Refined. Expected conflicts: `chartLook` in `render/chart-dl.ts` (B48 adds the template's palette and the
+    doughnut's `hole`), `render/shape-dl.ts` `lookOf` (B48 gives Excel Refined the template's outlined box instead of
+    its shadow and #E1E5EC border – deliberate, the owner's template), their snapshots
+    (`core/tests/__snapshots__/chart-dl.test.ts.snap`, `shape-dl.test.ts.snap`: re-record and check only the excel /
+    clean entries move), and `core/tests/fixtures/dlhash-b48-base.json` (re-record with `DLHASH_WRITE=1`: M14 and M15
+    change Liquid Glass and the consulting designs' charts, lines and icons by design).
+
 ### M14 · Charts (4.7.0; B30, B31; docs/next/09 §8, ADR-015 amended)
 - [ ] S14.0 · Gates first (export-check gates PowerPoint "opened", `has_chart` / `has_table`; AUDIT-2 VER-3) – built in
   S14.P (the gate); on the branch this step only ticks it
