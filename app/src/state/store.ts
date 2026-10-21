@@ -31,7 +31,7 @@ export interface ToastMsg { id: number; html: string; err?: boolean; actions?: {
 /** the format painter: the cells' formats (rows × cols) – or an object's look (`obj`, 4.9: a chart, a callout, an icon, a
     line onto others of its kind); `pend`: the targets Ctrl+clicked so far, pasted at once when Ctrl is let go (one undo step) */
 export interface Painter { pattern: (Fmt | null)[][]; sticky: boolean; obj?: import("../editor/painter").ObjLook;
-  pend?: { cells: { slide: number; t: number; r1: number; r2: number; c1: number; c2: number }[]; items: string[] } }
+  pend?: { cells: { slide: string; tid: string | null; t: number; r1: number; r2: number; c1: number; c2: number }[]; items: { slide: string; id: string }[] } }
 export interface Dialogs {
   dialog: DialogReq | null; wizard: WizardReq | null; tables: boolean;
   /** text styles & fonts dialog: which tab is open */ textStyles: "colors" | "styles" | "fonts" | null;

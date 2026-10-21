@@ -77,7 +77,7 @@ test("PT-01 Number group and vertical alignment of cells: saved per cell, drawn,
   expect(errors).toEqual([]);
 });
 
-test("PT-02 / PT-03 the painter copies number display and vertical position; Ctrl+click several ranges, let go: one paste, one undo step", async ({ page }) => {
+test("PT-01 / PT-02 the painter copies number display and vertical position; Ctrl+click several ranges, let go: one paste, one undo step", async ({ page }) => {
   const errors: string[] = [];
   await openApp(page, ANNA, errors);
   const nums = await numberSlide(page);
@@ -126,5 +126,54 @@ test("PT-03 objects: a callout's look onto two others with Ctrl (one undo step);
   await pollFile(() => [items().qb?.fill ?? null, items().qc?.fill ?? null]).toEqual([null, null]);
   await page.evaluate(id => (window as any).__sbTest.change("Remove callouts", ["qa", "qb", "qc"].map(k => ({ op: "item.patch", slide: id, id: k, patch: null }))), sid);
   await pollFile(() => Object.keys(items()).filter(k => /^q[abc]$/.test(k)).length).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test("PT-02 armed across slides: Ctrl+click a cell, go to the next slide with Ctrl held, Ctrl+click there, let go: one paste on both slides; Esc with targets collected drops them", async ({ page }) => {
+  const errors: string[] = [];
+  await openApp(page, ANNA, errors);
+  // two content slides with tables one after the other
+  const slides = deck().doc.preset.slides as any[], si = slides.findIndex((s, k) => s.type === "content" && s.tables.length && slides[k + 1]?.type === "content" && slides[k + 1].tables.length);
+  expect(si).toBeGreaterThanOrEqual(0);
+  const numCells = () => page.locator("#stage .slide .t").filter({ hasText: /^[+-]?\d[\d.]*(,\d+)?%?$/ });
+  await page.locator(`.thumb[data-i="${si}"]`).click(); await page.locator(`.thumb.on[data-i="${si}"]`).waitFor();
+  const edits = () => Object.entries(deck().doc.edits).flatMap(([sh, s]: [string, any]) => Object.entries(s).map(([k, e]) => ({ k: sh + "!" + k, e: e as any })));
+  const marked = () => edits().filter(x => x.e.valign === "top").length;
+  // the source: top
+  await clickCell(page, numCells().nth(0)); await page.click('[data-valign="top"]');
+  await pollFile(marked).toBe(1);
+  await clickCell(page, numCells().nth(0)); await page.click("#painterBtn");
+  const recs0 = deck().recs.length;
+  await clickCell(page, numCells().nth(2), ["Control"]);
+  // Ctrl still held: the next slide (Alt+↓), a cell there
+  await page.keyboard.down("Alt"); await page.keyboard.press("ArrowDown"); await page.keyboard.up("Alt");
+  await page.locator(`.thumb.on[data-i="${si + 1}"]`).waitFor();
+  await expect(page.locator("#painterBtn")).toHaveClass(/ on/);
+  await clickCell(page, numCells().nth(0));
+  await expect(page.locator("body")).toHaveAttribute("data-paint-pend", "2");
+  await page.waitForTimeout(500);
+  expect(deck().recs.length).toBe(recs0);
+  await page.keyboard.up("Control");
+  // (two slides may show the same sheet's cells: at least one more cell, from one record)
+  await pollFile(marked).toBeGreaterThanOrEqual(2);
+  expect(deck().recs.length).toBe(recs0 + 1);
+  await page.click("#undoBtn");
+  await pollFile(marked).toBe(1);
+  // Esc while targets are collected: nothing pasted, the painter off
+  await page.locator(`.thumb[data-i="${si}"]`).click(); await page.locator(`.thumb.on[data-i="${si}"]`).waitFor();
+  await clickCell(page, numCells().nth(0)); await page.click("#painterBtn");
+  const recs1 = deck().recs.length;
+  await clickCell(page, numCells().nth(3), ["Control"]);
+  await expect(page.locator("#stage .paintpend")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#painterBtn")).not.toHaveClass(/ on/);
+  await expect(page.locator("#stage .paintpend")).toHaveCount(0);
+  await page.keyboard.up("Control");
+  await page.waitForTimeout(500);
+  expect(deck().recs.length).toBe(recs1);
+  expect(marked()).toBe(1);
+  // the deck as it was
+  await clickCell(page, numCells().nth(0)); await page.click("#clearFmt");
+  await pollFile(marked).toBe(0);
   expect(errors).toEqual([]);
 });

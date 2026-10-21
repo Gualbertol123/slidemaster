@@ -179,6 +179,14 @@ function effBase(L: TableLayout, ctx: RenderCtx): Item[] {
   });
 }
 const VALIGN: Record<string, string> = { top: "top", middle: "center", bottom: "bottom" };
+/** where a cell's text is drawn in `design`, in the ribbon's words (null: none of the three – justify / distributed outside
+    Liquid Glass). `it`: the layout's item, or effBase's (its `userVAlign`). Liquid Glass centres everything but a top –
+    and a bottom set on the slide – so a workbook's bottom (Excel's default) is drawn in the middle there (S16.3 review, 1) */
+export function drawnVAlign(design: string, it: Pick<Item, "valign" | "userVAlign">): "top" | "middle" | "bottom" | null {
+  const v = it.userVAlign || it.valign;
+  if (design === "glass") return v === "top" ? "top" : it.userVAlign === "bottom" ? "bottom" : "middle";
+  return v === "top" ? "top" : v === "center" ? "middle" : v === "bottom" ? "bottom" : null;
+}
 /** a number shown with the cell's own format code (CellEdit.num): its text, and the code's [colour] unless a colour was set */
 function numDisplay(L: TableLayout, it: Item, o: Item, num: string) {
   const cell = L.sheet.get(it.b.src.r, it.b.src.c); if (!cell || (cell.t !== "n" && cell.t !== "d")) return;

@@ -5,7 +5,7 @@ import { isLookText, LOOK_TEXT_LABEL } from "../editor/look";
 import { useEffect, useState } from "react";
 import { get, useStore } from "../state/store";
 import { core, undo } from "../state/app";
-import { activeItem, applySel, commitText, curSlide, selItems, editOf } from "../editor/edit";
+import { activeItem, applySel, commitText, curSlide, selCells, selItems, editOf } from "../editor/edit";
 import { kindText } from "../editor/item-text";
 import { startPainter, stopPainter } from "../editor/painter";
 import { numShown, SLIDE_TEXT_LABEL, stepNumber, stepSize, textTarget, type Align, type TextTarget, type VAlign } from "../editor/textfmt";
@@ -38,8 +38,8 @@ function InkMenu({ t, close }: { t: TextTarget; close: () => void }) {
   </>;
 }
 function FillMenu({ close }: { close: () => void }) {
-  const bg = (v: string | null) => applySel(v === null ? "Excel cell colour" : "Cell colour", e => { if (v === null) delete e.bg; else { e.bg = v; delete e.fill; } });
-  const hl = (v: string | null) => applySel(v === null ? "Remove highlight" : "Highlight", e => { if (v === null) delete e.fill; else e.fill = v; });
+  const bg = (v: string | null) => applySel(v === null ? "Excel cell colour" : "Cell colour", e => { if (v === null) delete e.bg; else { e.bg = v; delete e.fill; } }, selCells());
+  const hl = (v: string | null) => applySel(v === null ? "Remove highlight" : "Highlight", e => { if (v === null) delete e.fill; else e.fill = v; }, selCells());
   const isp = isIsp(useDesign());
   return <div className="fillmenu">
     <div className="hd">Cell colour <small>replaces the colour from Excel (in Liquid Glass: the colour of the block)</small></div>
@@ -158,7 +158,7 @@ export function FxBar() {
 }
 
 export function selStatus(): string {
-  const R = curSlide(), it = activeItem(), its = selItems(), { selection: { noteSel, textSel, itemSel }, deck } = get();
+  const R = curSlide(), it = activeItem(), its = selCells(), { selection: { noteSel, textSel, itemSel }, deck } = get();
   if (!R) return "";
   // a slide item: its kind's words (editor/item-text.ts; M14 and M15 each in their own file)
   if (itemSel && R.cfg.items?.[itemSel.id]) { const it = R.cfg.items[itemSel.id]; return kindText(it).status(it, itemSel); }

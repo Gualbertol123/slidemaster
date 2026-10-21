@@ -10,12 +10,13 @@
    4.9 (S16.3; 09 §9 Q19): with Ctrl held, each click or drag (cells of any table of the slide, or objects) only collects
    a target; letting Ctrl go pastes onto all of them at once – one change, one undo step. A selected chart, callout, icon
    or line copies its look instead (its style keys, never its data, text or place) onto others of the same kind: one
-   item.patch per target. */
+   item.patch per target – a chart's series styles by position and its axes' formats too (09 §2.7). Targets are kept by
+   slide id and table id, and the vertical position is compared with where the design draws it (S16.3 review). */
 import { get, patch, toast } from "../state/store";
 import { change, ctx } from "../state/app";
 import type { Item, Sheet, TableLayout } from "@slide-builder/core/xlsx/types";
 import type { CellBorders, CellGrid, CellEdit, Item as SlideItem, Op, RuntimeSlide, ScaleRule } from "@slide-builder/core/model/types";
-import { cellEditOf, effItems } from "@slide-builder/core/render/edits";
+import { cellEditOf, drawnVAlign, effItems } from "@slide-builder/core/render/edits";
 import { validNum } from "@slide-builder/core/render/numdisplay";
 import { isDateFmt } from "@slide-builder/core/xlsx/numfmt";
 import { itemAt, selOps, selRanges, selTable, type CellRange } from "./edit";
@@ -43,8 +44,6 @@ function scaleAt(T: TableLayout, it: Item): ScaleLook | null {
   for (const r of Object.values(T.def?.scales || {})) { const g = parseRange(r.range); if (inRange(g, it.b.src.r, it.b.src.c)) { const { range: _r, ...look } = r; return look; } }
   return null;
 }
-/** Excel's vertical words → the cell edit's (justify / distributed: none of the three) */
-const V: Record<string, VAlign> = { top: "top", center: "middle", bottom: "bottom" };
 /** the workbook's own number format of a number cell (null: not a number) */
 function ownNum(T: TableLayout, raw: Item): string | null {
   const x = T.sheet.get(raw.b.src.r, raw.b.src.c);
@@ -61,12 +60,12 @@ function fmtOf(T: TableLayout, raw: Item, e: Item): Fmt {
   return { sz: e.font.sz || 11, b: !!e.font.b, i: !!e.font.i, color: e.userColor || raw.baseColor || raw.font.color || "#000000",
     fill: e.userFill || null, bg: e.noFill ? "none" : (e.baseFill || "none"), align: e.align, role: e.role || null, cf: cfRef(T, raw), scale: scaleAt(T, raw),
     grid: T.def?.cellGrid?.[A1(raw.b.src.r, raw.b.src.c)] ?? null, borders: T.def?.borders?.[A1(raw.b.src.r, raw.b.src.c)] ?? null,
-    font: e.userFont || null, valign: V[e.valign] || null, num: num === null ? null : validNum(own.num) ? own.num : num };
+    font: e.userFont || null, valign: drawnVAlign(ctx().style.design, e), num: num === null ? null : validNum(own.num) ? own.num : num };
 }
 
 /* ---- objects (4.9): the style keys copied per kind – never the data, the text, the place or the attachment ---- */
 const OBJ_KEYS: Record<string, string[]> = {
-  chart: ["legend", "legendAt", "show", "colors", "fmt", "titleFmt", "stack", "gap", "overlap", "frame", "titleRule", "startAngle"],
+  chart: ["legend", "legendAt", "show", "colors", "fmt", "titleFmt", "stack", "gap", "overlap", "frame", "titleRule", "startAngle", "sers", "axes"],
   shape: ["fill", "border", "radius", "fmt"],
   icon: ["fill", "stroke", "border"],
   line: ["style", "fmt"],
@@ -86,6 +85,7 @@ function objPatch(o: ObjLook, it: SlideItem): Record<string, unknown> | null {
   if (objKind(it) !== o.kind) return null;
   const cur = it as unknown as Record<string, unknown>, p: Record<string, unknown> = {};
   for (const k of OBJ_KEYS[o.kind]) {
+    if (k === "sers" || k === "axes") { const m = (k === "sers" ? sersPatch : axesPatch)(o.look[k] as Entries, cur[k] as Entries); if (m) p[k] = m; continue; }
     const want = o.look[k], now = cur[k];
     if (same(want, now)) continue;
     if (want === undefined) { p[k] = null; continue; }
@@ -96,6 +96,36 @@ function objPatch(o: ObjLook, it: SlideItem): Record<string, unknown> | null {
     } else p[k] = want;
   }
   return Object.keys(p).length ? p : null;
+}
+/* a chart's series and axes (09 §2.7, PT-03; S16.3 review, 3): only their look travels. item.patch replaces a map entry
+   whole (ops.ts mapMerge), so each changed entry is sent complete: the target's own, with the look keys the source's */
+type Entries = Record<string, Record<string, unknown>> | undefined;
+/** a series' look – never its name, values, group, axis, stack, type, per-point overrides or hidden state */
+const SER_LOOK = ["color", "line", "fill", "smooth", "marker", "labels"];
+/** an axis' look – never its scale (min / max / step: data) or its title (text) */
+const AXIS_LOOK = ["show", "num", "grid", "fmt", "line"];
+/** `entry` with the look keys of `from` (none: the entry's own look keys removed) */
+function relook(entry: Record<string, unknown>, from: Record<string, unknown> | undefined, keys: string[]) {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(entry)) if (!keys.includes(k)) out[k] = v;
+  for (const k of keys) if (from?.[k] !== undefined) out[k] = JSON.parse(JSON.stringify(from[k]));
+  return out;
+}
+const byN = (m: Entries) => Object.entries(m || {}).filter(([, v]) => v && typeof v === "object").sort(([a, x], [b, y]) => ((x.n as number) ?? 0) - ((y.n as number) ?? 0) || (a < b ? -1 : a > b ? 1 : 0));
+/** the series by position: the source's 1st series' look onto the target's 1st, …; a target series beyond the source's count keeps its own */
+function sersPatch(src: Entries, dst: Entries): Record<string, unknown> | null {
+  const s = byN(src), m: Record<string, unknown> = {};
+  byN(dst).forEach(([id, e], k) => { if (k >= s.length) return; const n = relook(e, s[k][1], SER_LOOK); if (!same(n, e)) m[id] = n; });
+  return Object.keys(m).length ? m : null;
+}
+/** the axes by name (x, y, y2): the target's scale and title kept; an axis only the source has comes as its look */
+function axesPatch(src: Entries, dst: Entries): Record<string, unknown> | null {
+  const m: Record<string, unknown> = {};
+  for (const a of new Set([...Object.keys(src || {}), ...Object.keys(dst || {})])) {
+    const e = dst?.[a] || {}, n = relook(e, src?.[a], AXIS_LOOK);
+    if (!same(n, dst?.[a] ? e : {})) m[a] = Object.keys(n).length ? n : null;
+  }
+  return Object.keys(m).length ? m : null;
 }
 function objOps(o: ObjLook, R: RuntimeSlide, ids: string[]): Op[] {
   const ops: Op[] = [];
@@ -174,7 +204,8 @@ function paintOps(T: TableLayout, gs: CellRange[], p: { pattern: (Fmt | null)[][
     set("role", f.role || undefined, !f.role);
     // 4.9: the font, the vertical position, the number display (a number cell only; the target's own code: nothing stored)
     if (f.font !== undefined) set("font", f.font || undefined, !f.font);
-    if (f.valign !== undefined) set("valign", f.valign || undefined, !f.valign || f.valign === V[it.valign]);
+    // (where the source is drawn; nothing stored where this design draws the target there anyway – S16.3 review, 1)
+    if (f.valign !== undefined) set("valign", f.valign || undefined, !f.valign || f.valign === drawnVAlign(ctx().style.design, it));
     // (a date stays a date and a number a number: a code of the other kind is not pasted, the cell keeps its own)
     if (f.num !== undefined) { const mine = ownNum(T, it); if (!(f.num && mine !== null && isDateFmt(f.num) !== isDateFmt(mine))) set("num", f.num || undefined, !f.num || mine === null || f.num === mine); }
     // conditional formatting: nothing stored when the target already has exactly the same rules
@@ -191,7 +222,9 @@ function paintOps(T: TableLayout, gs: CellRange[], p: { pattern: (Fmt | null)[][
 export function applyPainter(collect = false) {
   const p = get().selection.painter, T = selTable(), s = get().selection.sel; if (!p || p.obj || !T || !s) return;
   if (collect) {
-    const pend = p.pend || { cells: [], items: [] }, g = { slide: get().deck.cur, t: s.t, r1: s.r1, r2: s.r2, c1: s.c1, c2: s.c2 };
+    // the slide and the table by id (S16.3 review, 5): another writer may add or remove a slide before Ctrl is let go
+    const R = get().deck.slides[get().deck.cur]; if (!R) return;
+    const pend = p.pend || { cells: [], items: [] }, g = { slide: R.id, tid: T.def?.id ?? null, t: s.t, r1: s.r1, r2: s.r2, c1: s.c1, c2: s.c2 };
     patch("selection", { painter: { ...p, pend: { ...pend, cells: [...pend.cells, g] } } });
     return;
   }
@@ -207,7 +240,7 @@ export function paintItem(id: string, collect: boolean): boolean {
   if (objKind(it) !== p.obj.kind) { toast(`The format of ${KIND_NAME[p.obj.kind]} pastes onto ${KIND_NAME[p.obj.kind]} only.`); return true; }
   if (collect) {
     const pend = p.pend || { cells: [], items: [] };
-    if (!pend.items.includes(id)) patch("selection", { painter: { ...p, pend: { ...pend, items: [...pend.items, id] } } });
+    if (!pend.items.some(x => x.slide === R.id && x.id === id)) patch("selection", { painter: { ...p, pend: { ...pend, items: [...pend.items, { slide: R.id, id }] } } });
     return true;
   }
   const ops = objOps(p.obj, R, [id]);
@@ -219,11 +252,16 @@ export function paintItem(id: string, collect: boolean): boolean {
 export function flushPainter() {
   const p = get().selection.painter, pend = p?.pend; if (!p || !pend || (!pend.cells.length && !pend.items.length)) return;
   const deck = get().deck, ops: Op[] = [];
-  if (p.obj) { const R = deck.slides[deck.cur]; if (R) ops.push(...objOps(p.obj, R, pend.items)); }
+  // each target found again by its slide's id and its table's (a slide another writer removed: its targets dropped)
+  const slideOf = (id: string) => deck.slides.find(R => R.id === id);
+  if (p.obj) for (const R of new Set(pend.items.map(x => slideOf(x.slide)))) { if (R) ops.push(...objOps(p.obj, R, pend.items.filter(x => x.slide === R.id).map(x => x.id))); }
   else {
     // per table: its ranges together (a cell of two ranges once)
     const by = new Map<TableLayout, CellRange[]>();
-    for (const g of pend.cells) { const T = deck.slides[g.slide]?.tables[g.t]; if (T) by.set(T, [...(by.get(T) || []), g]); }
+    for (const g of pend.cells) {
+      const R = slideOf(g.slide), T = !R ? undefined : g.tid ? R.tables.find(x => x.def?.id === g.tid) : R.tables[g.t];
+      if (T) by.set(T, [...(by.get(T) || []), g]);
+    }
     for (const [T, gs] of by) ops.push(...paintOps(T, gs, p));
   }
   if (ops.length) change("Paste format", ops);

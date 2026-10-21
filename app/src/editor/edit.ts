@@ -17,8 +17,14 @@ function gridOf(T: GridLayout) {
 export function itemAt(T: TableLayout, r: number, c: number) { return gridOf(T).get(r + "," + c) || T.items.find(it => it.b.src.r === r && it.b.src.c === c); }
 export const curSlide = () => get().deck.slides[get().deck.cur];
 export function selTable() { const { sel } = get().selection; return sel ? curSlide()?.tables[sel.t] : undefined; }
-/** the selected cells: the range and, with Ctrl+click (S16.3, 09 §9 Q19), the table's other selected ranges – each cell once */
+/** the cells of the current range (the table tools – borders, merges, charts, rows – act on these) */
 export function selItems(): Item[] {
+  const sel = get().selection.sel, T = selTable(); if (!sel || !T) return [];
+  return T.items.filter(it => it.b.r <= sel.r2 && it.b.r2 >= sel.r1 && it.b.c <= sel.c2 && it.b.c2 >= sel.c1);
+}
+/** the cells of every selected range – the current one and the earlier Ctrl+click ones (S16.3, 09 §9 Q19), each cell once:
+    the format painter and the ribbon's text, colour and number controls act on these (S16.3 review, 2) */
+export function selCells(): Item[] {
   const sel = get().selection.sel, T = selTable(); if (!sel || !T) return [];
   const ranges = selRanges(sel);
   return T.items.filter(it => ranges.some(g => it.b.r <= g.r2 && it.b.r2 >= g.r1 && it.b.c <= g.c2 && it.b.c2 >= g.c1));

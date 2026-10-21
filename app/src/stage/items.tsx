@@ -17,10 +17,10 @@ export function Items({ m, R, drag, free }: { m: StageModel; R: RuntimeSlide; dr
   // what a moving item snaps to: the tables, the text boxes, the other items
   const others = (self: string) => [...m.tables.map(t => t.box), ...m.notes.map(n => n.box), ...m.items.filter(p => p.id !== self).map(p => p.box)];
   return <>{m.items.map(p => {
-    const d = drag?.kind === "item" && drag.id === p.id ? drag : null, b = d ? d.box : p.box, on = itemSel?.id === p.id;
-    return <div key={p.id} className={"itembox" + (on ? " sel" : "") + (pend?.includes(p.id) ? " paintpend" : "") + (d?.moved ? " moving" : "") + (p.info?.issue ? " broken" : "")} data-item={p.id} data-kind={R.cfg.items?.[p.id]?.kind}
+    const d = drag?.kind === "item" && drag.id === p.id ? drag : null, b = d ? d.box : p.box, on = itemSel?.id === p.id, painted = !!pend?.some(x => x.slide === R.id && x.id === p.id);
+    return <div key={p.id} className={"itembox" + (on ? " sel" : "") + (painted ? " paintpend" : "") + (d?.moved ? " moving" : "") + (p.info?.issue ? " broken" : "")} data-item={p.id} data-kind={R.cfg.items?.[p.id]?.kind}
       title={p.info?.issue ? itemTitle(R, p.id, p.info.issue) : undefined}
-      style={{ left: b.x, top: b.y, width: b.w, height: b.h, ...(pend?.includes(p.id) ? { outline: "2px dashed #0A66D8" } : {}) }}
+      style={{ left: b.x, top: b.y, width: b.w, height: b.h, ...(painted ? { outline: "2px dashed #0A66D8" } : {}) }}
       onPointerMove={free ? e => { if (!(e.buttons & 1)) { const ed = noteEdge(e.currentTarget, e.nativeEvent, true, "top"); e.currentTarget.style.cursor = ed ? (ed === "l" || ed === "r" ? "ew-resize" : "ns-resize") : ""; } } : undefined}
       onDoubleClick={e => { const it = R.cfg.items?.[p.id]; if (it?.kind === "shape" && it.shape !== "icon") { e.stopPropagation(); setStage({ editor: { kind: "item", id: p.id } }); } }}
       onPointerDown={e => {

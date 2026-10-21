@@ -5,11 +5,11 @@
 import { get, patch } from "../state/store";
 import { change, ctx } from "../state/app";
 import type { Note, Op, SlideTextKey, TextFmt } from "@slide-builder/core/model/types";
-import { effFmt } from "@slide-builder/core/render/edits";
+import { drawnVAlign, effFmt } from "@slide-builder/core/render/edits";
 import { numHas, stepNum, validNum, type NumStep } from "@slide-builder/core/render/numdisplay";
 import { effNote, slideTextFmt } from "@slide-builder/core/render/text";
 import { A1 } from "@slide-builder/core/xlsx/util";
-import { applySel, curSlide, selItems } from "./edit";
+import { applySel, curSlide, selCells } from "./edit";
 import { isLookText, LOOK_TEXT_LABEL, lookTextFmt, lookTextOwn, setLookText, type LookTextKey } from "./look";
 
 export type Align = "left" | "center" | "right";
@@ -114,7 +114,8 @@ function noteTarget(key: string): TextTarget | null {
 
 /* ---- table cells ---- */
 function cellTarget(): TextTarget | null {
-  const its = selItems(), sel = get().selection.sel, T = curSlide()?.tables[sel?.t ?? -1]; if (!its.length || !sel || !T) return null;
+  // every Ctrl+click range (4.9, Q19): the text and number controls act on all of them (the table tools: the current one)
+  const its = selCells(), sel = get().selection.sel, T = curSlide()?.tables[sel?.t ?? -1]; if (!its.length || !sel || !T) return null;
   const c = ctx(), fs = its.map(x => effFmt(c, x)), deck = c.style.text?.table?.font || null;
   const shown: Shown = { font: one(fs.map(f => f.font || deck)), pt: one(fs.map(f => f.sz)), b: fs.every(f => f.b), i: fs.every(f => f.i),
     color: one(fs.map(f => f.color)), align: one(fs.map(f => f.align)) as Align | null, valign: one(its.map(it => cellVAlign(it))) };
@@ -129,19 +130,18 @@ function cellTarget(): TextTarget | null {
         if (p.i !== undefined) e.i = p.i;
         if ("color" in p) { if (p.color) e.color = p.color; else delete e.color; }
         if ("align" in p) { if (p.align) e.align = p.align; else delete e.align; }
-        // 4.9 (S16.3): the vertical position over Excel's (Excel's own: nothing stored)
-        if ("valign" in p) { if (p.valign && p.valign !== EXCEL_V[it.valign]) e.valign = p.valign; else delete e.valign; }
-      });
+        // 4.9 (S16.3): the vertical position – nothing stored when it is where this design draws the cell anyway
+        // (Liquid Glass centres Excel's bottom: a Bottom pressed there is stored; S16.3 review, 1)
+        if ("valign" in p) { if (p.valign && p.valign !== drawnVAlign(c.style.design, it)) e.valign = p.valign; else delete e.valign; }
+      }, its);
     },
-    clear() { applySel("Clear formatting", e => { for (const k of ["font", "sz", "b", "i", "color", "fill", "bg", "align", "role", "valign", "num"] as const) delete e[k]; }); },
+    clear() { applySel("Clear formatting", e => { for (const k of ["font", "sz", "b", "i", "color", "fill", "bg", "align", "role", "valign", "num"] as const) delete e[k]; }, its); },
   };
 }
 
-/** Excel's vertical words → the ribbon's (justify / distributed show as none) */
-const EXCEL_V: Record<string, VAlign> = { top: "top", center: "middle", bottom: "bottom" };
-/** a cell's vertical position now: set on the slide, else Excel's */
+/** a cell's vertical position as drawn now: set on the slide, else where the design draws Excel's */
 function cellVAlign(it: import("@slide-builder/core/xlsx/types").Item): VAlign | null {
-  const e = effFmt(ctx(), it); return e.valign || EXCEL_V[it.valign] || null;
+  const c = ctx(), e = effFmt(c, it); return e.valign || drawnVAlign(c.style.design, it);
 }
 /** the text the formatting controls act on, or null when nothing is selected */
 export function textTarget(): TextTarget | null {
@@ -154,7 +154,7 @@ export function textTarget(): TextTarget | null {
 /** A−/A+: cells change one by one (each keeps its own size relation), other texts as one */
 export function stepSize(dir: 1 | -1) {
   const t = textTarget(); if (!t) return;
-  if (t.kind === "cells") { applySel("Text size", (e, it) => { const cur = e.sz || it.font.sz || 11; e.sz = stepPt(cur, dir); }); return; }
+  if (t.kind === "cells") { applySel("Text size", (e, it) => { const cur = e.sz || it.font.sz || 11; e.sz = stepPt(cur, dir); }, selCells()); return; }
   t.apply("Text size", { pt: stepPt(t.shown.pt || 12, dir) });
 }
 /* ---- the number display of cells (4.9, S16.3, B38; 09 §9 Q9): Decimals −/+, %, Thousands – CellEdit.num ---- */
@@ -176,7 +176,7 @@ export function stepNumber(step: NumStep, active: CellItem | null) {
     if (on !== null && numHas(n.cur, step as "pct" | "thou") === on) return;
     const next = stepNum(n.cur, step, n.v); if (next === null) return;
     if (next === n.own) delete e.num; else e.num = next;
-  });
+  }, selCells());
 }
 export const toggleBold = () => { const t = textTarget(); if (t) t.apply("Bold", { b: !t.shown.b }); };
 export const toggleItalic = () => { const t = textTarget(); if (t) t.apply("Italic", { i: !t.shown.i }); };

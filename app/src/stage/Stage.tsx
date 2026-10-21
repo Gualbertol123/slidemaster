@@ -20,7 +20,7 @@ import { tableName } from "@slide-builder/core/model/preset";
 import { hiddenIn } from "@slide-builder/core/render/pagenumbers";
 import { DESIGN_LABEL } from "@slide-builder/core/model/designs";
 import type { RenderCtx } from "@slide-builder/core/render/context";
-import { activeItem, addSel, setSel, curSlide, selRanges } from "../editor/edit";
+import { activeItem, addSel, setSel, selRanges } from "../editor/edit";
 import { setColWidth, setRowHeight } from "../editor/tables";
 import { applyPainter } from "../editor/painter";
 import { selectSlideText } from "../editor/textfmt";
@@ -269,8 +269,8 @@ function HBox({ i, R, c, m, box, drag, slide }: { i: number; R: RuntimeSlide; c:
 /* ---- the selection: the selected cells (each Ctrl+click range: 4.9) and the active one, in slide px; the format painter's
    targets collected with Ctrl (dashed, pasted when Ctrl is let go) */
 function Selection({ m, s, drag }: { m: StageModel; s: number; drag: DragPreview | null }) {
-  const sel = useStore(st => st.selection.sel), pend = useStore(st => st.selection.painter?.pend), cur = useStore(st => st.deck.cur);
-  const R = curSlide(), c = R ? slideCtx(ctx(), R) : ctx();
+  const sel = useStore(st => st.selection.sel), pend = useStore(st => st.selection.painter?.pend);
+  const R = useStore(st => st.deck.slides[st.deck.cur]), c = R ? slideCtx(ctx(), R) : ctx();
   /** the box of range g of table t, on the slide (null: not drawn) */
   const boxIn = (t: number, g: { r1: number; r2: number; c1: number; c2: number }) => {
     const place = m.tables.find(x => x.i === t), T = R?.tables[t]; if (!place || !T) return null;
@@ -279,7 +279,7 @@ function Selection({ m, s, drag }: { m: StageModel; s: number; drag: DragPreview
     const x0 = Math.min(...its.map(a => a.bx)), y0 = Math.min(...its.map(a => a.by)), x1 = Math.max(...its.map(a => a.bx + a.bw)), y1 = Math.max(...its.map(a => a.by + a.bh));
     return { n: its.length, b, box: { left: b.x + x0 * b.scale, top: b.y + y0 * b.scale, width: (x1 - x0) * b.scale, height: (y1 - y0) * b.scale } };
   };
-  const marks = (pend?.cells || []).filter(g => g.slide === cur).map((g, k) => { const x = boxIn(g.t, g); return x && <div key={"p" + k} className="selbox paintpend" style={{ ...x.box, outline: `${1.5 / s}px dashed #0A66D8` }} />; });
+  const marks = (pend?.cells || []).filter(g => g.slide === R?.id).map((g, k) => { const x = boxIn(g.tid ? R!.tables.findIndex(T => T.def?.id === g.tid) : g.t, g); return x && <div key={"p" + k} className="selbox paintpend" style={{ ...x.box, outline: `${1.5 / s}px dashed #0A66D8` }} />; });
   if (!sel) return <>{marks}</>;
   const ranges = selRanges(sel).map(g => boxIn(sel.t, g)).filter((x): x is NonNullable<typeof x> => !!x); if (!ranges.length) return <>{marks}</>;
   const b = ranges[0].b, a0 = activeItem(), a = a0 && cellBox(a0, c);

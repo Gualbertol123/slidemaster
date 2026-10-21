@@ -12,7 +12,7 @@ import { loadVectors } from "./vectors";
 import { deckOf } from "./corpus-deck";
 import { applyOps, docNeedsV5, knownOp, needsV5 } from "../src/model/ops";
 import { fold, nextSnapshot } from "../src/model/fold";
-import { effFmt, effItems, keyOf } from "../src/render/edits";
+import { drawnVAlign, effFmt, effItems, keyOf } from "../src/render/edits";
 import { MAX_DEC, numHas, stepNum } from "../src/render/numdisplay";
 import { excelToDisplayList, type Metrics } from "../src/render/excel-dl";
 import { glassPlan } from "../src/render/glass";
@@ -61,6 +61,17 @@ describe("number display steps (render/numdisplay.ts: Excel's Decimals −/+, %,
     expect(stepNum("0.00E+00", "dec-")).toBe("0.0E+00");
     expect(stepNum("0" + "." + "0".repeat(MAX_DEC), "dec+")).toBeNull();
   });
+  it("review 7: a workbook shown in thousands (Excel's trailing comma, \"#,##0,\") stays scaled through every step", () => {
+    // Thousands is Excel's Number-group separator button (Comma Style); the scaling a planning workbook uses ("#,##0," /
+    // "#,##0,," – values in thousands / millions) is the workbook's own and is never taken away by a step
+    expect(stepNum("#,##0,", "dec+")).toBe("#,##0.0,");
+    expect(stepNum("#,##0.0,", "dec-")).toBe("#,##0,");
+    expect(stepNum("#,##0,", "thou")).toBe("0,");
+    expect(stepNum("0,", "thou")).toBe("#,##0,");
+    expect(stepNum("#,##0,,", "dec+")).toBe("#,##0.0,,");
+    expect(numHas("#,##0,", "thou")).toBe(true); expect(numHas("0,", "thou")).toBe(false);
+  });
+
   it("General: from the decimals the value shows now", () => {
     expect(stepNum("General", "dec+", 3.25)).toBe("0.000");
     expect(stepNum("General", "dec-", 3.25)).toBe("0.0");
@@ -155,6 +166,24 @@ describe("drawn: every design puts the text where its cell says (PDF and PNG dra
     };
     const own = await y([]), top = await y([C("D8", { valign: "top" })]), mid = await y([C("D8", { valign: "middle" })]), bot = await y([C("D8", { valign: "bottom" })]);
     expect(top).toBeLessThan(own); expect(bot).toBeGreaterThan(own); expect(mid).toBeCloseTo(own, 1);
+  });
+
+  it("drawnVAlign (review 1): where each design draws a cell – the ribbon and the painter compare with this, not with Excel's word", async () => {
+    // Liquid Glass: Excel's bottom (the workbook default) and centre are drawn in the middle; only a bottom set on the slide at the bottom
+    expect(drawnVAlign("glass", { valign: "bottom" })).toBe("middle");
+    expect(drawnVAlign("glass", { valign: "center" })).toBe("middle");
+    expect(drawnVAlign("glass", { valign: "top" })).toBe("top");
+    expect(drawnVAlign("glass", { valign: "bottom", userVAlign: "bottom" })).toBe("bottom");
+    expect(drawnVAlign("glass", { valign: "center", userVAlign: "center" })).toBe("middle");
+    expect(drawnVAlign("glass", { valign: "justify" })).toBe("middle");
+    for (const d of ["excel", "clean", "mckinsey", "bain"]) {
+      expect(drawnVAlign(d, { valign: "bottom" })).toBe("bottom"); expect(drawnVAlign(d, { valign: "center" })).toBe("middle");
+      expect(drawnVAlign(d, { valign: "top" })).toBe("top"); expect(drawnVAlign(d, { valign: "justify" })).toBeNull();
+      expect(drawnVAlign(d, { valign: "bottom", userVAlign: "top" })).toBe("top");
+    }
+    // the same as effItems makes of a stored bottom in Liquid Glass (its item drawn at the bottom by glassText above)
+    const t = await table("glass", [C("D8", { valign: "bottom" })]), it = effItems(t.L, t.c).find(x => keyOf(x) === "D8")!;
+    expect(drawnVAlign("glass", it)).toBe("bottom");
   });
 });
 
