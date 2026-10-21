@@ -516,11 +516,42 @@ export function assemble(prims: Prim[]): El[] {
       if (pr.p === "bullet") g.bullets.push(pr.bu); else g.runs.push(pr.run);
     }
   }
-  return out.map(el => {
+  const owners: (Owner | null)[] = [];
+  return frameGroups(out.map((el, i) => {
     if (!el || el.k !== "sp" || !el.name?.startsWith("text:")) return el;
     const g = textAt.get(+el.name.slice(5))!;
+    owners[i] = g.owner;
     return g.runs.length ? textBox(g.runs, g.owner, g.bullets) : null;
-  }).filter((e): e is El => !!e);
+  }), owners).filter((e): e is El => !!e);
+}
+/** a text box's border (B49, render/note-frame.ts): the outline-only shape just before a text box ("tnote …") that lies
+    inside the box becomes one group with it, "Text box": its native outline (a:ln) at the box, the text over it, moved
+    together in PowerPoint. (The text box keeps its own frame and insets: an outline on it would sit on its PowerPoint
+    frame, which is wider than the box by the slack wrapped text needs.) */
+function frameGroups(els: (El | null)[], owners: (Owner | null)[]): (El | null)[] {
+  const out = [...els];
+  out.forEach((el, i) => {
+    const o = owners[i];
+    if (!el || el.k !== "sp" || !o || !/^tnote\b/.test(o.id)) return;
+    // back from the text box over what its text drew inside the box (a consulting heading's accent bar) to the border
+    const mid: number[] = [];
+    for (let j = i - 1; j >= 0; j--) {
+      const f = out[j];
+      if (!f) continue;
+      if (f.k === "sp" && !f.fill && f.line && "solid" in f.line.paint && !f.text && !f.seg && !f.rot && !f.fromShadow && inside(f.box, o.box, f.line.w + .5)) {
+        out[j] = null; mid.forEach(k => { out[k] = null; });
+        // the text inside the border: the text box's slack for PowerPoint's wrapping (textBody) never past the line
+        const a = f.box.x + f.line.w / 2, b = f.box.x + f.box.w - f.line.w / 2, t = { ...el };
+        if (t.box.x < a && t.text) { const dx = a - t.box.x; t.box = { ...t.box, x: a, w: t.box.w - dx }; t.text = { ...t.text, ins: [r2(Math.max(0, t.text.ins[0] - dx)), t.text.ins[1], t.text.ins[2], t.text.ins[3]] }; }
+        if (t.box.x + t.box.w > b && b > t.box.x) { const dx = t.box.x + t.box.w - b; t.box = { ...t.box, w: b - t.box.x }; if (t.text) t.text = { ...t.text, ins: [t.text.ins[0], t.text.ins[1], r2(Math.max(0, t.text.ins[2] - dx)), t.text.ins[3]] }; }
+        out[i] = { k: "grp", name: "Text box", children: [{ ...f, name: "Border" }, ...mid.reverse().map(k => els[k]!), t] };
+        return;
+      }
+      if ((f.k !== "sp" && f.k !== "pic") || !inside(f.box, o.box, 1) || boxNear(f.box, o.box, 1.5) || mid.length >= 8) return;
+      mid.push(j);
+    }
+  });
+  return out;
 }
 /** a thin solid rectangle with nothing else to it (a highlight line) */
 const hairline = (e: ShapeEl) => !e.text && !e.line && !e.outer && !e.inner && !e.rot && !e.seg && e.box.h <= 2.5 && e.box.w > 4 * e.box.h
