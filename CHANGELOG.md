@@ -21,8 +21,15 @@ What users notice
   turns read-only and saves nothing more; an older version opening it shows "a journal of this deck is damaged – tell
   the maintainer": that message means **update Slide Builder** (close its black window and start it again). Decks
   without such objects keep opening in older versions.
+* **Licences** (LI-01): ⚙ Options › About › *Licences…*, or *Licences…* on the start screen before any workbook is
+  open, shows the licences of the third-party software in Slide Builder (React, zustand, fflate, IronCalc,
+  harfbuzzjs / HarfBuzz); the release ZIP carries the same text as `THIRD-PARTY-NOTICES.txt`.
 
 For the maintainer
+* **`THIRD-PARTY-NOTICES.txt`** (AUDIT-2 LIC-1, ADR-020) is written by `node tools/notices.mjs` from the packages the
+  page and the core worker really bundle and the licence files of the inlined WASM; `make_release.py` refuses to build
+  without it, and `app/tests/notices.test.ts` / `helper/tests/test_release.py` fail when a runtime dependency has no
+  entry or the file is out of date (run the script after adding or updating a dependency).
 * **`Update Slide Builder.bat`** (A3) finds the newest release on the release page (github.com/…/releases/latest)
   instead of GitHub's API, whose 60 requests an hour are shared by every PC on the office's internet address, and
   downloads `slidebuilder-<ver>.zip` from there (checked against its `.sha256` file and MANIFEST.json; GitHub's

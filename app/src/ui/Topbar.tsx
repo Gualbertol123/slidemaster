@@ -14,6 +14,8 @@ import { THEMES, themeOf } from "@slide-builder/core/model/style";
 import { DESIGNS, isConsult } from "@slide-builder/core/model/designs";
 import { Input } from "./Input";
 import { useStyle } from "./hooks";
+import { openLicences } from "./notices";
+import { ask } from "../state/dialogs";
 
 /* sliders: preview the number at once, apply (one operation, one undo step) when the hand rests */
 const sliderTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -147,6 +149,10 @@ function Options() {
         <div className="opthd">This deck's style</div>
         <div className="optnote">Design, colour, page numbers and logo are saved with this workbook and shared with everybody who opens it.</div>
         <div className="optrow"><button className="btn" id="styleDefault" onClick={() => void saveStyleAsDefault()}>Use as default for new decks</button></div>
+        <div className="sep" />
+        <div className="opthd">About</div>
+        <div className="optnote">Slide Builder includes open-source software; its licences ship with it (THIRD-PARTY-NOTICES.txt).</div>
+        <div className="optrow"><button className="btn" id="licencesBtn" onClick={() => void openLicences()}>Licences…</button></div>
         {backend.served && <>
           <div className="sep" />
           <div className="opthd">Administration</div>

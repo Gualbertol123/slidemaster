@@ -16,6 +16,7 @@ are for a person** (agents never push tags and never touch the real share, PLAN 
 git clone https://github.com/gualbertol123/slidemaster.git /tmp/rel && cd /tmp/rel
 npm ci && npm run build && git diff --exit-code -- helper/slide_builder.html      # the committed page is fresh
 npm run check                                                                         # typecheck (core, app) + unit tests
+node tools/notices.mjs --check                                                        # THIRD-PARTY-NOTICES.txt up to date
 python3.8 -m unittest discover -s helper/tests && python3.12 -m unittest discover -s helper/tests
 npm run test:e2e && npm run parity
 ```

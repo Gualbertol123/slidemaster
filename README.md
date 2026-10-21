@@ -1199,6 +1199,7 @@ core/            package.json · tsconfig.json (ES2022 + WebWorker, no DOM) · v
 └─ bench/parse.bench.test.ts           npm run bench -w core: big30 parse time and memory
 tools/
 ├─ update.py · make_release.py         updater (§7.5) · release ZIP + MANIFEST.json, --verify, --notes
+├─ notices.mjs · licenses/            THIRD-PARTY-NOTICES.txt + the page's copy (About › Licences) · Apache-2.0 text
 ├─ parity.mjs · capture-v3.mjs · stage-capture.mjs · dlparity.mjs · dlcheck.mjs   parity and screen = PDF checks
 ├─ bench.mjs · calibrate.mjs           the page in Chromium (npm run bench) · machine speed for the time limits
 ├─ benchgate.mjs                       how every bench gate decides (on CI: a timing gate over twice fails)
