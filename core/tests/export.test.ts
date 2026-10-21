@@ -110,6 +110,30 @@ describe("the writer for the export", () => {
     expect(pdf).toContain("/Width 6/Height 3/ColorSpace/DeviceRGB/BitsPerComponent 8/Interpolate true/Filter/FlateDecode/DecodeParms<</Predictor 15/Colors 3/BitsPerComponent 8/Columns 6>>");
     expect(pdf).toContain(latin(p.data));                                // the IDAT bytes as they were
   });
+  test("a slide with no tables (S13.3, 09 §2.8: New slide, every table removed) is a page in every design", async () => {
+    const { applyOps, emptyDoc } = await import("../src/model/ops"), { runtimeSlides } = await import("../src/model/preset");
+    const { resolveStyle } = await import("../src/model/style"), { computeLayout } = await import("../src/render/layout");
+    const { slideToDisplayList } = await import("../src/render/slide-dl");
+    const T = { id: "t1", sheet: "S", kind: "range" as const, range: "A1:B2" };
+    const { doc, skipped } = applyOps(emptyDoc("W.xlsx"), [
+      { op: "preset.set", preset: { sheets: ["S"], tables: [T], slides: [{ id: "s1", type: "content", title: "Loans", tables: ["t1"] }] } },
+      { op: "slide.add", slide: { id: "n1", type: "content", tables: [] }, after: "s1" },
+      { op: "item.patch", slide: "n1", id: "k1", patch: { kind: "shape", shape: "bubble", text: "Note", box: { x: 100, y: 200, w: 300, h: 100 }, tail: { x: 120, y: 400 } } },
+      { op: "table.remove", id: "t1", slide: "s1" },                     // its only table taken off: a slide without tables too
+    ]);
+    expect(skipped).toEqual([]);
+    const reg = new FontRegistry(); reg.add(font("Carlito-Regular.ttf")); const face = reg.pdfFace(text({}))!;
+    const m = { run: (t: string, f: string) => { const size = parseFloat(/([\d.]+)px/.exec(f)![1]); return { w: [...t].length * size * .5, asc: size * .8, desc: size * .2 }; }, lines: (t: string) => [t] };
+    for (const design of ["glass", "excel", "clean", "mckinsey", "bain"] as const) {
+      const slides = runtimeSlides({ sheets: [], meta: [] } as never, doc.preset, "W.xlsx", design);
+      const ctx = { style: { ...resolveStyle({}, doc.style), design }, edits: {}, slides, preset: doc.preset, workbook: "W.xlsx", logoSrc: "", sheet: () => null, version: null, forExport: true };
+      expect(slides.map(R => [R.title, R.tables.length])).toEqual([["Loans", 0], ["New slide", 0]]);
+      const pages = slides.map((R, i) => slideToDisplayList(R, i, ctx, [], computeLayout(R, ctx).boxes, { wall: null, logo: null }, m as never, "1 October 2026").nodes);
+      const pdf = latin(writePdf({ pages, image: () => undefined, font: () => face, compress: false }));
+      expect((pdf.match(/\/Type\/Page\//g) || []).length, design).toBe(2);
+      expect(pdf, design).toContain("/FontFile2");
+    }
+  });
   test("data: URLs to bytes", () => {
     expect([...dataUrlBytes("data:image/png;base64,AAEC/w==")]).toEqual([0, 1, 2, 255]);
     expect([...dataUrlBytes("data:text/plain,a%20b")]).toEqual([97, 32, 98]);

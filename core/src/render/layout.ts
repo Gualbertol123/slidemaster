@@ -3,7 +3,7 @@
    sizingPatch / sizingChange). Pure: the core worker draws with it, the page computes drag previews with the same
    functions (stage/drags.ts), so a preview lands where the drawn slide will. */
 import type { TableLayout } from "../xlsx/types";
-import type { FreeLayout, Item, Layout, Note, RuntimeSlide, Side, SlideSizing } from "../model/types";
+import type { Box, FreeLayout, Item, Layout, Note, RuntimeSlide, Side, SlideSizing } from "../model/types";
 import type { RenderCtx } from "./context";
 import { slideCtx } from "./look";
 import { glassGeom } from "./glass";
@@ -237,11 +237,23 @@ export function freeBoxes(R: RuntimeSlide, ctx: RenderCtx): FreeLayout["items"] 
 /** Tables (plus their text boxes) in bands. k = largest scale ≤ MAXK that fits the content area – or the
     slide's fixed scale (set by "Make same size"), reduced only if it would not fit. In a free layout (B18) the saved
     boxes instead (`w` / `lay`, a drag's trial weights, lay out the bands: the automatic layout). */
-export function computeLayout(R: RuntimeSlide, ctx0: RenderCtx, w?: number[], lay?: Layout): { boxes: TBox[]; k: number; fit: number; reduced: boolean } {
+export function computeLayout(R: RuntimeSlide, ctx0: RenderCtx, w?: number[], lay?: Layout): { boxes: TBox[]; k: number; fit: number; reduced: boolean } & Partial<BlankAreas> {
   const ctx = slideCtx(ctx0, R);                                // the slide's own look (B29)
-  if (!R.tables.length) return { boxes: [], k: 1, fit: 1, reduced: false };
+  if (!R.tables.length) return { boxes: [], k: 1, fit: 1, reduced: false, ...blankAreas(R, ctx) };
   const f = !w && !lay ? freeOf(R, ctx) : null;
   return f ? freeLayout(R, ctx, f) : autoLayout(R, ctx, w, lay);
+}
+/** a slide with no tables (a blank slide of New slide, 09 §2.8; every table removed; tables missing from the workbook):
+    the band its title is drawn in (above the content area – or, in a consulting design with the message panel, the panel
+    left of it, x 0–SIGNAL_AREA.panel, where slide-dl signalPanel draws the title of a slide without facts), the content
+    area (what Add table and the next free placement fill) and its items' boxes (each where it is placed: the design's free box, else its own; an item attached to a table
+    not on the slide sits at its own box) */
+interface BlankAreas { title: Box; area: Box; items: Record<string, Box> }
+function blankAreas(R: RuntimeSlide, ctx: RenderCtx): BlankAreas {
+  const area = areaFor(R, ctx), items: Record<string, Box> = {};
+  for (const id of Object.keys(R.cfg.items || {})) { const b = itemBoxOf(R, id, [], ctx); if (b) items[id] = b; }
+  const panel = R.type === "content" && isConsult(ctx.style.design) && consultOptions(ctx).headline === "panel";
+  return { title: panel ? { x: 0, y: 0, w: SIGNAL_AREA.panel, h: SLIDE_H } : { x: area.x, y: 0, w: area.w, h: area.y }, area, items };
 }
 function autoLayout(R: RuntimeSlide, ctx: RenderCtx, w?: number[], lay?: Layout): { boxes: TBox[]; k: number; fit: number; reduced: boolean } {
   lay = lay || layoutOf(R, ctx); const ww = w || lay.w; const T = R.tables, A0 = areaFor(R, ctx);

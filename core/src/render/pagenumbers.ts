@@ -1,4 +1,8 @@
-/* Page numbers: pageNumber(i) = start + i (the cover counts as a page). */
+/* Page numbers: pageNumber(i) = start + i (the cover counts as a page). i is the slide's position in ctx.slides (the
+   runtime slides of preset.slides, worker/host.ts slidesFor), so a slide added or removed (slide.add / slide.remove,
+   S13.3) renumbers every slide after it, and the contents slide (slide-dl.ts indexNodes / consultIndex) with them.
+   S13.6 (hidden slides): leave the hidden slides of the design out of ctx.slides for the exports (host.ts ctx() /
+   slidesFor) – the numbers and the contents follow – while the stage keeps drawing them. */
 import type { RenderCtx } from "./context";
 import { deckFmt } from "./text";
 

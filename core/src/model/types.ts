@@ -128,7 +128,17 @@ export type Op =
   | { op: "cell.patch"; sheet: string; ref: string; patch: Nullable<CellEdit> }
   /** field-level patch of one slide item; `patch: null` deletes it; a patch with `kind` on a missing id creates it */
   | { op: "item.patch"; slide: string; id: string; patch: ItemPatch | null }
-  | { op: "style.patch"; patch: Nullable<Omit<StylePatch, "pn" | "footer" | "theme" | "text" | "colors">> & { pn?: Nullable<PageNumbers> | null; footer?: Nullable<Footer> | null; theme?: Nullable<Theme> | null; text?: Partial<Record<TextRole, TextFmt | null>> | null; colors?: Partial<Record<ColorKey, string | null>> | null; designs?: Partial<Record<Design, Look | null>> | null } };
+  | { op: "style.patch"; patch: Nullable<Omit<StylePatch, "pn" | "footer" | "theme" | "text" | "colors">> & { pn?: Nullable<PageNumbers> | null; footer?: Nullable<Footer> | null; theme?: Nullable<Theme> | null; text?: Partial<Record<TextRole, TextFmt | null>> | null; colors?: Partial<Record<ColorKey, string | null>> | null; designs?: Partial<Record<Design, Look | null>> | null } }
+  /* New slide, Add table (4.6, F16; docs/next/09 §2.8). A deck receiving them is format 5 first (ops.ts needsV5) */
+  /** a slide inserted after that slide id (null = first; a missing one = at the end); skipped when its id exists */
+  | { op: "slide.add"; slide: SlideDef; after: string | null }
+  /** the inverse of slide.add (and the undo of New slide); skipped when the id is missing */
+  | { op: "slide.remove"; id: string }
+  /** the def joins preset.tables if its id is new (an existing def is kept); its id joins slide.tables at `at` (else at
+      the end); skipped when the table is on that slide already */
+  | { op: "table.add"; table: TableDef; slide: string; at?: number }
+  /** the inverse of table.add: the id leaves the slide's tables; the def stays in preset.tables */
+  | { op: "table.remove"; id: string; slide: string };
 
 /* ---- runtime ---- */
 export interface RuntimeSlide {

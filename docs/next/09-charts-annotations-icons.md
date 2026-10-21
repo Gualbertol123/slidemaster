@@ -348,8 +348,20 @@ the op builder.
   `table.add` on a slide whose free layout is on in a design places the table at the first empty spot of that design's
   content area at its automatic scale and writes no free entry (the next free move writes it, as items added after the
   switch-on are handled today, 07 §5.1).
+* Undo of *Delete slide* restores the slide **as this page had it** when the remove was applied: the inverse is taken
+  from the page's view then (`DocSync.apply`, `ops.ts` inverseOf). An edit of that slide by another user with a lower
+  Lamport time that reaches this page only after the delete is folded before the remove – and is lost when the undo
+  adds back the older copy, although it was correctly ordered. *Delete* of a chart or shape (`item.patch` with
+  `patch: null`) behaves the same. This is the behaviour in 4.6 (pinned by `core/tests/ops.test.ts`, "undo of Delete
+  slide puts back the slide as this page had it"); S13.4 may recompute the inverse against the server copy when Undo
+  runs. Ids of added slides and tables must be unique per writer (writer id + seq, or random; S13.4): a `slide.add` with
+  an id that exists is skipped, so two pages making the same id would merge two users' slides.
+* `table.add` needs a whole definition with what its kind needs (a range's `range`, markers' `anchor` and `index`), and
+  `slide.add` a slide whose `tables` holds each id once; otherwise the op is skipped. A `table.remove` of an id on the
+  slide whose definition is missing from `preset.tables` applies but has no inverse (nothing visible is lost).
 * A blank slide (`type: "content"`, `tables: []`, title "New slide") must lay out: `computeLayout` with no tables
-  returns the title area and the items' boxes (today it returns no boxes, `layout.ts:242`; fixed in S13.3).
+  returns the title area and the items' boxes (today it returns no boxes, `layout.ts:242`; fixed in S13.3). The title
+  area is the band above the content area, or Consulting Red's message panel (x 0–500) when the slide has the panel.
 
 ### 2.9 Excel conditional formats (F17)
 No deck state: the rules come from the workbook (read-only). The core evaluates more rule types per cell and the
