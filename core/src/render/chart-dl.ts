@@ -26,6 +26,7 @@ import { deckFmt } from "./text";
 import { fontStack } from "../model/fonts";
 import { parseColor, solid } from "../dl/color";
 import type { ChartSem } from "../pptx/chart-sem";
+import { dropHidden, hideKey, hideSize, slideHidden, type HideSet } from "../model/hidden";
 
 /* ---- data ---- */
 export interface Slice { label: string; v: number; text: string }
@@ -59,11 +60,26 @@ function shown(S: Sheet, r: number, c: number, ctx: RenderCtx): string {
   return e && e.text !== undefined && e.orig === t ? e.text : t;
 }
 const cutOf = (ctx: RenderCtx, S: Sheet) => (ctx.version?.hide[S.name] || []).map(parseRange);
-/** the cells of a rectangle in reading order (rows, then columns), without hidden rows and columns */
-function cellsOf(S: Sheet, g: Range): [number, number][] {
+/** the cells of a rectangle in reading order (rows, then columns), without hidden rows and columns (Excel's, and those
+    of `hide`: hidden on the chart's slide or deleted by the version, 4.9) */
+function cellsOf(S: Sheet, g: Range, hide?: HideSet | null): [number, number][] {
   const out: [number, number][] = [];
-  for (let r = g.r1; r <= g.r2; r++) { if (S.rowHidden(r)) continue; for (let c = g.c1; c <= g.c2; c++) if (!S.colHidden(c)) out.push([r, c]); }
+  for (let r = g.r1; r <= g.r2; r++) { if (S.rowHidden(r) || hide?.rows.has(r)) continue; for (let c = g.c1; c <= g.c2; c++) if (!S.colHidden(c) && !hide?.cols.has(c)) out.push([r, c]); }
   return out;
+}
+/** the rows / columns a chart skips besides Excel's hidden ones (4.9, B36, 09 §3.6, Q7): those its slide hides of a table
+    the chart reads – by `{table}`, or a sheet range inside that table – and those the shown version deletes on the sheet.
+    A chart on another slide reading the same cells keeps them (the rows are hidden on that slide only) */
+function chartHide(it: ChartItem, ctx: RenderCtx, S: Sheet, g: Range, ref: DataRef | undefined): HideSet | null {
+  const h = dropHidden((ctx.version as { drop?: Record<string, unknown> } | null | undefined)?.drop?.[S.name]);
+  const R = ctx.slides.find(R => R.cfg.items && Object.values(R.cfg.items).includes(it))
+    ?? ctx.slides.find(R => R.cfg.items && Object.values(R.cfg.items).some(x => x && JSON.stringify(x) === JSON.stringify(it)));
+  if (R?.cfg.hidden) for (const L of R.tables) {
+    if (L.sheet !== S && L.sheet.name !== S.name) continue;
+    const mine = ref && "table" in ref ? ref.table === L.def?.id : g.r1 > L.g.r1 && g.r2 < L.g.r2 && g.c1 > L.g.c1 && g.c2 < L.g.c2;
+    if (mine) slideHidden(R.cfg, L.def?.id, h);
+  }
+  return hideSize(h) ? h : null;
 }
 const DATA = new WeakMap<Sheet, Map<string, ChartData>>();
 /** the chart's numbers, labels and series name (cached per sheet object: a reload or a scenario's view is another one) */
@@ -72,21 +88,22 @@ export function chartData(it: ChartItem, ctx: RenderCtx): ChartData {
   if (!T.S || !T.g) return { ok: false, source, why: "missing" };
   const S = T.S, g = T.g, L = it.labels ? refTarget(it.labels, ctx) : null;
   // (labels on another sheet object – a linked book reloaded, one sheet of a scenario's view – are not cached here)
-  if (L?.S && L.S !== S) return resolve(S, g, L, it, ctx, source);
-  const key = JSON.stringify([g, it.labels ? [L!.sheet, L!.g] : null, it.series ?? null, ctx.edits[S.name] || null, L?.S && L.S !== S ? ctx.edits[L.S.name] || null : null, ctx.version?.hide || null]);
+  const hide = chartHide(it, ctx, S, g, it.values);
+  if (L?.S && L.S !== S) return resolve(S, g, L, it, ctx, source, hide);
+  const key = JSON.stringify([g, it.labels ? [L!.sheet, L!.g] : null, it.series ?? null, ctx.edits[S.name] || null, L?.S && L.S !== S ? ctx.edits[L.S.name] || null : null, ctx.version?.hide || null, hideKey(hide)]);
   let m = DATA.get(S); if (!m) DATA.set(S, m = new Map());
   const hit = m.get(key); if (hit) return hit;
-  const out = resolve(S, g, L, it, ctx, source);
+  const out = resolve(S, g, L, it, ctx, source, hide);
   if (m.size > 200) m.clear();
   m.set(key, out);
   return out;
 }
-function resolve(S: Sheet, g: Range, L: ReturnType<typeof refTarget> | null, it: ChartItem, ctx: RenderCtx, source: string): ChartData {
-  const cells = cellsOf(S, g), cut = cutOf(ctx, S), col = g.c1 === g.c2 && g.r2 > g.r1;
+function resolve(S: Sheet, g: Range, L: ReturnType<typeof refTarget> | null, it: ChartItem, ctx: RenderCtx, source: string, hide: HideSet | null = null): ChartData {
+  const cells = cellsOf(S, g, hide), cut = cutOf(ctx, S), col = g.c1 === g.c2 && g.r2 > g.r1;
   const isCut = (r: number, c: number) => cut.some(x => r >= x.r1 && r <= x.r2 && c >= x.c1 && c <= x.c2);
   // labels: the item's range (cell k names value k), else the headers beside the values – the nearest column on the
   // left with text in those rows (a column of values), or the nearest row above (a row of values)
-  const lcells = L?.S && L.g ? cellsOf(L.S, L.g) : null;
+  const lcells = L?.S && L.g ? cellsOf(L.S, L.g, L.S === S ? hide : null) : null;
   let labelAt: (r: number, c: number, k: number) => string;
   if (lcells) labelAt = (_r, _c, k) => lcells[k] ? shown(L!.S!, lcells[k][0], lcells[k][1], ctx).trim() : "";
   else if (col) {

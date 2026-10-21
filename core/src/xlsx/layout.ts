@@ -49,11 +49,13 @@ export function effectiveMerges(S: Sheet, user?: Record<string, "merge" | "split
   }
   return [...S.merges.filter(m => !split.has(rangeKey(m)) && !added.some(a => overlaps(a, m))), ...added];
 }
-export function buildLayout(S: Sheet, g: Range, sizes?: Sizes): TableLayout | null {
+/** hide (4.9, B36, model/hidden.ts): rows / columns a slide hides or a version deletes, closed up as Excel's hidden ones */
+export function buildLayout(S: Sheet, g: Range, sizes?: Sizes, hide?: { rows: Set<number>; cols: Set<number> } | null): TableLayout | null {
   const rows: number[] = [], cols: number[] = [];
   let hr = 0, hc = 0;
-  for (let r = g.r1 + 1; r < g.r2; r++) S.rowHidden(r) ? hr++ : rows.push(r);
-  for (let c = g.c1 + 1; c < g.c2; c++) S.colHidden(c) ? hc++ : cols.push(c);
+  const rowOff = (r: number) => S.rowHidden(r) || !!hide?.rows.has(r), colOff = (c: number) => S.colHidden(c) || !!hide?.cols.has(c);
+  for (let r = g.r1 + 1; r < g.r2; r++) rowOff(r) ? hr++ : rows.push(r);
+  for (let c = g.c1 + 1; c < g.c2; c++) colOff(c) ? hc++ : cols.push(c);
   if (!rows.length || !cols.length) return null;
   const y = new Map<number, number>(), x = new Map<number, number>(), h = new Map<number, number>(), w = new Map<number, number>();
   const oc = sizes?.cols || {}, or = sizes?.rows || {}, fixedCols = new Set<number>();
@@ -115,8 +117,8 @@ export function buildLayout(S: Sheet, g: Range, sizes?: Sizes): TableLayout | nu
   }
   // drawings: hidden rows/cols collapse like in Excel ("move and size with cells");
   // "move but don't size" objects keep their size and move to the next visible position
-  const cx = (c: number, off: number) => { if (c <= g.c1) return 0; if (c >= g.c2) return W; if (S.colHidden(c)) { const n = cols.find(k => k > c); return n ? x.get(n)! : W; } return x.get(c)! + Math.min(off, w.get(c)!); };
-  const cy = (r: number, off: number) => { if (r <= g.r1) return 0; if (r >= g.r2) return H; if (S.rowHidden(r)) { const n = rows.find(k => k > r); return n ? y.get(n)! : H; } return y.get(r)! + Math.min(off, h.get(r)!); };
+  const cx = (c: number, off: number) => { if (c <= g.c1) return 0; if (c >= g.c2) return W; if (colOff(c)) { const n = cols.find(k => k > c); return n ? x.get(n)! : W; } return x.get(c)! + Math.min(off, w.get(c)!); };
+  const cy = (r: number, off: number) => { if (r <= g.r1) return 0; if (r >= g.r2) return H; if (rowOff(r)) { const n = rows.find(k => k > r); return n ? y.get(n)! : H; } return y.get(r)! + Math.min(off, h.get(r)!); };
   const fullX = (c: number, off: number) => S.colStart(c) + off, fullY = (r: number, off: number) => S.rowStart(r) + off;
   const pics: Pic[] = [], rects: Rect[] = [], texts: Rect[] = [];
   for (const A of S.drawing.anchors) {

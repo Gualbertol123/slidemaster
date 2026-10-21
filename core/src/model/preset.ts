@@ -1,5 +1,6 @@
 /* Presets: which tables exist ("x" markers or picked ranges) and which slides show them. */
 import { buildLayout } from "../xlsx/layout";
+import { hideFor, hideKey, hideSize, hiddenEntries, type DropMap, type HideSet } from "./hidden";
 import { A1, parseRange, uid } from "../xlsx/util";
 import type { Range } from "../xlsx/util";
 import type { Sheet, TableLayout, Workbook } from "../xlsx/types";
@@ -74,22 +75,37 @@ export function tableSizes(def: TableDef, design?: Design): TableSizes {
   return own || { ...(def.cols ? { cols: def.cols } : {}), ...(def.rows ? { rows: def.rows } : {}) };
 }
 const hasExtras = (def: TableDef, z: TableSizes) => !!(z.cols || z.rows || def.scales || def.merges);
-export function resolveTable(wb: Workbook, def: TableDef, design?: Design): TableLayout | null {
+const inside = (h: HideSet, g: Range): HideSet => ({ rows: new Set([...h.rows].filter(r => r > g.r1 && r < g.r2)), cols: new Set([...h.cols].filter(c => c > g.c1 && c < g.c2)) });
+/** layouts with hidden rows are kept for the last few sets only (each hide / unhide makes one: Risks 2 of the M16 plan) */
+const HIDDEN_MAX = 48;
+function trimHidden(fresh: string) {
+  const keys = [...LCACHE.keys()].filter(k => k.includes("|h"));
+  for (const k of keys.slice(0, Math.max(0, keys.length - HIDDEN_MAX))) if (k !== fresh) LCACHE.delete(k);
+}
+/** hide (4.9, B36): the rows / columns its slide hides or its version deletes (model/hidden.ts) – an own layout, cached
+    by the set; a set that would leave no row or column is not applied (the table never vanishes) */
+export function resolveTable(wb: Workbook, def: TableDef, design?: Design, hide?: HideSet | null): TableLayout | null {
   const z = tableSizes(def, design);
   const S = wb.sheets.find(s => s.name === def.sheet); if (!S) return null;
-  let L: TableLayout | null = null, g: Range | null = null;
+  let L: TableLayout | null = null, g: Range | null = null, T: TableLayout | null = null;
   if (def.kind === "markers") {
-    const T = S.tables.find(T => A1(T.g.r1, T.g.c1) === def.anchor) || S.tables[def.index] || null;
-    if (T && !hasExtras(def, z)) L = T;                       // shared layout of the "x" region
-    else if (T) g = T.g;
+    T = S.tables.find(T => A1(T.g.r1, T.g.c1) === def.anchor) || S.tables[def.index] || null;
+    if (T) g = T.g;
   } else if (validRange(def.range)) {
     g = rangeToG(def.range); if (def.grow) g = growG(S, g);
   }
-  if (!L && g) {
-    // own layout per table definition when it has sizes or colour scales (they must not leak to other tables)
-    const key = S.name + "|" + JSON.stringify(g) + (hasExtras(def, z) ? "|" + def.id + "|" + JSON.stringify([z.cols, z.rows, def.merges]) : "");
+  // the hidden rows / columns inside the table (the same layout whatever else the slide hides)
+  const h = g && hideSize(hide) ? inside(hide!, g) : null, hk = hideKey(h);
+  if (T && !hasExtras(def, z) && !hk) L = T;                  // shared layout of the "x" region
+  else if (g) {
+    // own layout per table definition when it has sizes, colour scales or hidden rows (they must not leak to other tables)
+    const key = S.name + "|" + JSON.stringify(g) + (hasExtras(def, z) || hk ? "|" + def.id + "|" + JSON.stringify([z.cols, z.rows, def.merges]) : "") + (hk ? "|h" + hk : "");
     const hit = LCACHE.get(key);
-    if (!hit || hit.wb !== wb) { const b = buildLayout(S, g, { cols: z.cols, rows: z.rows, merges: def.merges }); if (b) LCACHE.set(key, { wb, L: b }); else LCACHE.delete(key); }
+    if (!hit || hit.wb !== wb) {
+      const sz = { cols: z.cols, rows: z.rows, merges: def.merges }, b = hk ? buildLayout(S, g, sz, h) : null;
+      const out = b || buildLayout(S, g, sz);
+      if (out) { if (b) out.hide = hk; LCACHE.set(key, { wb, L: out }); if (hk) trimHidden(key); } else LCACHE.delete(key);
+    }
     L = LCACHE.get(key)?.L || null;
   }
   if (!L) return null;
@@ -120,12 +136,20 @@ export function defaultPreset(wb: Workbook): Preset {
 
 /** runtime slides: preset slides with their tables resolved against the workbook */
 /** the slides of a preset with their tables, sized for `design` (column widths and row heights are per design) */
-export function runtimeSlides(wb: Workbook, preset: Preset | null, workbookName: string, design?: Design): RuntimeSlide[] {
+/** opts.drop (4.9, S16.2): the shown version's deleted rows / columns per sheet; a slide's own `hidden` rows / columns
+    (S16.1) resolve that slide's tables on their own */
+export function runtimeSlides(wb: Workbook, preset: Preset | null, workbookName: string, design?: Design, opts?: { drop?: DropMap }): RuntimeSlide[] {
   if (!preset) return [];
-  const T: Record<string, TableLayout> = {};
-  for (const def of preset.tables || []) { const L = resolveTable(wb, def, design); if (L) T[def.id] = L; }
+  const T: Record<string, TableLayout> = {}, drop = opts?.drop && typeof opts.drop === "object" && Object.keys(opts.drop).length ? opts.drop : null;
+  const defs = new Map((preset.tables || []).map(d => [d.id, d]));
+  for (const def of preset.tables || []) { const L = resolveTable(wb, def, design, drop ? hideFor(null, def.id, def.sheet, drop) : null); if (L) T[def.id] = L; }
+  /** a table as this slide shows it: with the rows / columns it hides (and the version's), else the deck's layout */
+  const onSlide = (ps: SlideDef, id: string) => {
+    const def = defs.get(id);
+    return def && T[id] && ps.hidden && hiddenEntries(ps, id).length ? resolveTable(wb, def, design, hideFor(ps, id, def.sheet, drop)) || T[id] : T[id];
+  };
   return (preset.slides || []).map(ps => {
-    const tables = (ps.tables || []).map(id => T[id]).filter(Boolean);
+    const tables = (ps.tables || []).map(id => onSlide(ps, id)).filter(Boolean);
     const S0 = tables[0] && tables[0].sheet;
     const sameSheet = tables.length > 0 && tables.every(L => L.sheet === S0);
     const R: RuntimeSlide = { id: ps.id, type: ps.type || "content", cfg: ps, tables, missing: (ps.tables || []).filter(id => !T[id]).length, title: "", subtitle: "", label: "" };
