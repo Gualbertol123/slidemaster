@@ -208,6 +208,13 @@ body.painting .slide .hits{cursor:copy}
 .spacemenu .row{display:flex;gap:4px;padding:2px 6px 8px}
 .menu .spacemenu .row button{width:auto;flex:1;justify-content:center;border:1px solid var(--line);padding:5px 4px;font-size:12px}
 .cmtchecks.row3{flex-direction:row;flex-wrap:wrap;gap:6px 16px}
+.cmtsec{border:1px solid var(--line);border-radius:9px;padding:7px 9px;margin:6px 0;display:flex;flex-direction:column;gap:6px}
+.cmtsechd{display:flex;align-items:center;gap:6px}
+.cmtsechd .ck{flex:1;min-width:0}
+.cmtwhen{font-size:11px;color:#1F7A3E;white-space:nowrap}
+.cmtwhen.out{color:#B42318}
+.cmtsec .txt.num{flex:0 0 72px}
+.cmtsecoff{display:block;margin:4px 0;color:var(--mute)}
 .tsdlg .scope{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 18px 10px;padding:8px 10px;border-radius:10px;background:#F6F7F9}
 .tsdlg .scope > span{font-size:12px;font-weight:600;color:#3B4252}
 .tsdlg .scope small{color:var(--mute);font-size:11.5px;flex-basis:100%}

@@ -695,6 +695,10 @@ test.describe.serial("two people, one shared folder", () => {
     await page.click('[data-a="next"]:has-text("Tables")'); await page.click('[data-a="next"]:has-text("Slides")'); await page.click('[data-a="finish"]');
     await expect(page.locator(".thumb")).toHaveCount(1);
     await page.click("#commentBtn");
+    // a new comment is written as the macro writes it (B50); the summary joins the slide's tables
+    await expect(page.locator('#cmtMode [data-mode="macro"]')).toHaveClass(/on/);
+    await expect(page.locator("#cmtPreview")).toContainText("vs Budget - Budget Performance");
+    await page.click('#cmtMode [data-mode="summary"]');
     await expect(page.locator('#cmtMode [data-mode="summary"]')).toHaveClass(/on/);
     await expect(page.locator("#cmtTables input:checked")).toHaveCount(2);                 // both tables of the slide
     const prev = page.locator("#cmtPreview");
@@ -723,6 +727,7 @@ test.describe.serial("two people, one shared folder", () => {
     const auto: any = Object.values(wdoc().preset.slides[0].notes).find((n: any) => n.auto);
     expect(auto.auto).toMatchObject({ mode: "summary", kinds: ["week", "target"], unit: "mln EUR" });
     expect(auto.auto.minAbs).toBeUndefined();
+    expect(auto.auto.sections).toBeUndefined();                                            // (a summary: no macro sections)
     expect(auto.auto.tables).toHaveLength(1);
     const note = page.locator("#stage .tnote.auto");
     await expect(note).toHaveCount(1);

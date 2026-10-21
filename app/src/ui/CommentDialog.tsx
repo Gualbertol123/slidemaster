@@ -18,6 +18,8 @@ import { tableName } from "@slide-builder/core/model/preset";
 import type { LineOrNone, Note, Op, RuntimeSlide, Side } from "@slide-builder/core/model/types";
 import { FRAME_COLORS, FRAME_WEIGHTS, frameCss, noteFrame } from "@slide-builder/core/render/note-frame";
 import { Input } from "./Input";
+import { defaultSections } from "@slide-builder/core/model/comment-macro";
+import { CommentSections } from "./CommentSections";
 
 const NOUNS = ["country", "bank", "entity", "region", "product", "segment", "division"];
 const SIDE_LABEL: Record<Side, string> = { right: "Right of the table", left: "Left of the table", bottom: "Below the table", top: "Above the table" };
@@ -34,10 +36,11 @@ export function CommentDialog() {
   const [ti, setTi] = useState(Math.min(start, Math.max(0, (R?.tables.length || 1) - 1)));
   const L = R?.tables[ti], a = useMemo(() => L ? analysisOf(L, c) : null, [L, c]);
   const old = R ? existing(R, ti) : null;
-  // comments written before summaries existed keep their sections; a new comment on a slide with several
-  // tables covers all of them
+  // comments written before keep their settings and their text (before summaries existed: sections) until switched to
+  // another structure here; a new comment is written as the macro writes it (B50), and in "Summary" covers every table of
+  // the slide
   const [cfg, setCfg] = useState<CommentCfg>(() => old?.note.auto ? { ...DEFAULT_COMMENT, mode: "sections", ...old.note.auto }
-    : { ...DEFAULT_COMMENT, groups: a ? defaultGroups(a) : [], tables: (R?.tables || []).filter((_, i) => i !== ti).map(t => t.def?.id || t.id || "").filter(Boolean) });
+    : { ...DEFAULT_COMMENT, mode: "macro", sections: a ? defaultSections(a) : undefined, groups: a ? defaultGroups(a) : [], tables: (R?.tables || []).filter((_, i) => i !== ti).map(t => t.def?.id || t.id || "").filter(Boolean) });
   const [side, setSide] = useState<Side>(old?.side || "right");
   // a comment on several tables sits in a column beside all of them
   const [span, setSpan] = useState<boolean>(old ? !!old.note.span : (R?.tables.length || 0) > 1);
@@ -53,7 +56,7 @@ export function CommentDialog() {
   const toggleGroup = (id: string, on: boolean) => set({ groups: a.groups.map(g => g.id).filter(x => x === id ? on : groups.includes(x)) });
   const ex = new Set((cfg.exclude || []).map(x => x.toLowerCase()));
   const toggleEnt = (label: string, on: boolean) => set({ exclude: on ? (cfg.exclude || []).filter(x => x.toLowerCase() !== label.toLowerCase()) : [...(cfg.exclude || []), label] });
-  const summary = (cfg.mode ?? "sections") === "summary";
+  const summary = (cfg.mode ?? "sections") === "summary", macro = cfg.mode === "macro";
   const text = commentText(L, { ...cfg, groups }, c, R);
   const covered = summary ? commentTables(R, L, cfg) : [L];
   const blocks = covered.flatMap(T => analysisOf(T, c).blocks);
@@ -69,6 +72,8 @@ export function CommentDialog() {
 
   const noteFor = (keep: Note | undefined, own: boolean): Note => {
     const auto: CommentCfg = { ...cfg, groups };
+    // the macro's sections are saved with a macro comment only (another structure keeps a deck 4.0.0 can read)
+    if (macro) auto.sections = structuredClone(cfg.sections ?? defaultSections(a)); else delete auto.sections;
     if (!own) { delete auto.title; delete auto.exclude; delete auto.tables; }        // other tables: their own title and rows
     const n: Note = { ...(keep || {}), text: "", auto, bubble };
     delete n.w; delete n.h;
@@ -106,12 +111,14 @@ export function CommentDialog() {
           <div className="cmtset">
             {R.tables.length > 1 && <label className="cmtrow"><span>Table</span><select id="cmtTable" value={ti} onChange={e => setTi(+(e.target as HTMLSelectElement).value)}>
               {R.tables.map((T, i) => <option key={i} value={i}>{tableName(T, c.preset)}</option>)}</select></label>}
-            <div className="seg small cmtmode" id="cmtMode">{(["summary", "sections"] as const).map(m => <button key={m} data-mode={m} className={(cfg.mode ?? "sections") === m ? "on" : ""} onClick={() => set({ mode: m })}>{m === "summary" ? "Summary – short, joint" : "Detailed – one section per comparison"}</button>)}</div>
+            <div className="seg small cmtmode" id="cmtMode">{(["macro", "summary", "sections"] as const).map(m => <button key={m} data-mode={m} className={(cfg.mode ?? "sections") === m ? "on" : ""} title={m === "macro" ? "The Budget Performance / Weekly Momentum bullets, as the Excel macro writes them" : undefined} onClick={() => set({ mode: m })}>{m === "macro" ? "Report – as the macro" : m === "summary" ? "Summary – short, joint" : "Detailed – one section per comparison"}</button>)}</div>
             {summary && R.tables.length > 1 && <><div className="opthd">Tables in this comment</div>
               <div className="cmtchecks" id="cmtTables">{R.tables.map((T, i) => <label key={i} className="ck"><input type="checkbox" checked={i === ti || (cfg.tables || []).includes(tid(T))} disabled={i === ti} onChange={e => toggleTable(tid(T), (e.target as HTMLInputElement).checked)} />{tableName(T, c.preset)}</label>)}</div></>}
             <div className="cmtfound">Found: {summary ? <>{blocks.length} block{blocks.length === 1 ? "" : "s"} – {blocks.map(b => b.head ? cleanHead(b.head.label) : "rows without a total").join(", ")}</> : a.total ? <>total <b>{a.total.label}</b></> : "no total row (the sum of the rows is used)"}{!summary && <> · {a.entities.length} rows</>}{a.period ? <> · latest <b>{a.period.name}{a.period.date ? " " + a.period.date : ""}</b></> : ""}</div>
             <label className="cmtrow"><span>Title</span><input id="cmtTitle" className="txt" placeholder={a.total ? prettyLabel(a.total.label) : tableName(L, c.preset)} value={cfg.title || ""} onChange={e => set({ title: (e.target as HTMLInputElement).value })} onKeyDown={e => e.stopPropagation()} /></label>
-            {summary ? <><div className="opthd">Joins</div>
+            {macro ? <><div className="opthd">Sections <span className="cv">ticked ones, in this order</span></div>
+              <CommentSections a={a} sections={cfg.sections} onChange={sections => set({ sections })} /></>
+            : summary ? <><div className="opthd">Joins</div>
               <div className="cmtchecks" id="cmtKinds">{kindsHere.map(k => <label key={k} className="ck"><input type="checkbox" data-kind={k} checked={kinds.includes(k)} onChange={e => { const on = (e.target as HTMLInputElement).checked; set({ kinds: (["week", "target", "month", "quarter", "year", "yoy", "other"] as Group["kind"][]).filter(x => x === k ? on : kinds.includes(x)) }); }} />{KIND_LABEL[k]}{k === "week" ? " – judged: how good, who drives it" : ""}</label>)}</div></> : <>
             <div className="opthd">Sections</div>
             {!a.groups.length && <div className="optnote">No comparison columns found. Comments need headers like “Δ vs. Budget”, “vs. Prev. Week”, “Var. YoY”, with Abs. and/or % columns.</div>}
@@ -124,15 +131,16 @@ export function CommentDialog() {
             </div>
             <div className="opthd">Content</div>
             <div className="cmtgrid">
-              <label>Length</label><div className="seg small">{(["full", "short"] as const).map(d => <button key={d} className={cfg.detail === d ? "on" : ""} onClick={() => set({ detail: d })}>{d === "full" ? (summary ? "With plan drivers" : "Full analysis") : "Short"}</button>)}</div>
-              <label>Name the top</label><select id="cmtTop" value={cfg.top} onChange={e => set({ top: +(e.target as HTMLSelectElement).value })}>{[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n} name{n > 1 ? "s" : ""} per side</option>)}</select>
+              {!macro && <><label>Length</label><div className="seg small">{(["full", "short"] as const).map(d => <button key={d} className={cfg.detail === d ? "on" : ""} onClick={() => set({ detail: d })}>{d === "full" ? (summary ? "With plan drivers" : "Full analysis") : "Short"}</button>)}</div>
+              <label>Name the top</label><select id="cmtTop" value={cfg.top} onChange={e => set({ top: +(e.target as HTMLSelectElement).value })}>{[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n} name{n > 1 ? "s" : ""} per side</option>)}</select></>}
               {/* uncontrolled: what is typed stays as typed ("0.5" starts with "0", "mln EUR" has a space) while the
                   setting gets the cleaned value (a number > 0, a trimmed unit) */}
-              <label>Ignore below</label><input id="cmtMin" type="number" min="0" step="any" className="txt" placeholder="0 (all movements)" defaultValue={cfg.minAbs ?? ""} onChange={e => { const v = parseFloat((e.target as HTMLInputElement).value); set({ minAbs: isFinite(v) && v > 0 ? v : undefined }); }} onKeyDown={e => e.stopPropagation()} />
-              <label>Unit after amounts</label><input id="cmtUnit" className="txt" placeholder="none" defaultValue={cfg.unit ?? DEFAULT_UNIT} onChange={e => set({ unit: (e.target as HTMLInputElement).value.trim() === DEFAULT_UNIT ? undefined : (e.target as HTMLInputElement).value.trim() })} onKeyDown={e => e.stopPropagation()} title="Written after every amount, e.g. +476 mln (percentages keep their %). Empty = no unit." />
+              {!macro && <><label>Ignore below</label><input id="cmtMin" type="number" min="0" step="any" className="txt" placeholder="0 (all movements)" defaultValue={cfg.minAbs ?? ""} onChange={e => { const v = parseFloat((e.target as HTMLInputElement).value); set({ minAbs: isFinite(v) && v > 0 ? v : undefined }); }} onKeyDown={e => e.stopPropagation()} /></>}
+              {/* the macro writes no unit ("+476"): its default is none */}
+              <label>Unit after amounts</label><input id="cmtUnit" key={macro ? "m" : "o"} className="txt" placeholder="none" defaultValue={cfg.unit ?? (macro ? "" : DEFAULT_UNIT)} onChange={e => { const v = (e.target as HTMLInputElement).value.trim(); set({ unit: v === (macro ? "" : DEFAULT_UNIT) ? undefined : v }); }} onKeyDown={e => e.stopPropagation()} title="Written after every amount, e.g. +476 mln (percentages keep their %). Empty = no unit." />
               <label>Rows are</label><select id="cmtNoun" value={cfg.noun} onChange={e => set({ noun: (e.target as HTMLSelectElement).value })}>{NOUNS.map(n => <option key={n} value={n}>{n === "entity" ? "entities" : n.endsWith("y") ? n.slice(0, -1) + "ies" : n + "s"}</option>)}</select>
             </div>
-            {!summary && cfg.detail === "full" && <div className="cmtchecks">
+            {!summary && !macro && cfg.detail === "full" && <div className="cmtchecks">
               <label className="ck"><input type="checkbox" checked={cfg.share} onChange={e => set({ share: (e.target as HTMLInputElement).checked })} />Concentration (“largely driven by…, ~86%”)</label>
               <label className="ck"><input type="checkbox" checked={cfg.breadth} onChange={e => set({ breadth: (e.target as HTMLInputElement).checked })} />Broad-based moves</label>
               <label className="ck"><input type="checkbox" checked={cfg.missing} onChange={e => set({ missing: (e.target as HTMLInputElement).checked })} />Rows without data</label>

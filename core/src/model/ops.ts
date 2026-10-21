@@ -179,8 +179,11 @@ const V5_SLIDE = ["items", "free", "looks", "hide", "hidden"], V5_TABLE = ["cell
 const V5_NOTE = ["frame"];
 const outside = (p: unknown, known: readonly string[]) => isObj(p) && Object.keys(p).some(k => !known.includes(k));
 const holds = (x: unknown, keys: readonly string[]) => isObj(x) && keys.some(k => x[k] != null && x[k] !== false && !(isObj(x[k]) && !Object.keys(x[k] as object).length));
-/** a slide's notes map (or a slide.patch's) with an entry holding a V5_NOTE key */
-const notesHold = (notes: unknown) => isObj(notes) && Object.values(notes).some(n => holds(n, V5_NOTE));
+/** an automated comment 4.0.0 does not write (B50: the macro's text, `mode: "macro"`, and its `sections`): 4.0 would write
+    it as a summary (its commentText knows "sections" and "summary" only) and its dialog would drop the sections */
+const V5_AUTO = ["sections"], autoNew = (n: unknown) => isObj(n) && isObj(n.auto) && (n.auto.mode === "macro" || holds(n.auto, V5_AUTO));
+/** a slide's notes map (or a slide.patch's) with an entry holding a V5_NOTE key or a B50 comment */
+const notesHold = (notes: unknown) => isObj(notes) && Object.values(notes).some(n => holds(n, V5_NOTE) || autoNew(n));
 /** an op 4.0.0 does not apply whole (it would skip it, or a key of it): the deck must be format 5 before the op is
     appended. item.patch (4.3), every op 4.0 lacks (slide.add / remove, table.add / remove, version.patch of 4.6 and
     any later one) and every key outside 4.0's lists (free, looks, cellGrid, borders, hidden, valign, num …). A
