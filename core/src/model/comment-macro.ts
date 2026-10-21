@@ -90,7 +90,15 @@ export function sectionApplies(s: Pick<CommentSection, "when" | "day">, date: Da
   return day >= Math.max(1, Math.min(31, Math.round(s.day ?? 25)));
 }
 /** the sections a new comment starts with: the plan comparison and the shortest-term change (the macro's two) */
-export function defaultSections(a: Analysis): CommentSection[] { return defaultGroups(a).map(g => ({ g })); }
+export function defaultSections(a: Analysis): CommentSection[] { return defaultGroups(a).reduce<CommentSection[]>((on, g) => [...on, newSection(a, on, g)], []); }
+/** a section added after the others: a plan section after another plan section leaves out the YoY clause (the first one
+    already says it, word for word – the macro has one Budget section only) */
+export function newSection(a: Pick<Analysis, "groups">, on: CommentSection[], g: string): CommentSection {
+  const kind = (id: string) => a.groups.find(x => x.id === id)?.kind;
+  return kind(g) === "target" && on.some(s => kind(s.g) === "target") ? { g, yoy: false } : { g };
+}
+/** an alert threshold as saved: a fraction at or below 0 (a positive one would flag every named negative); else unset */
+export const cleanAlert = (x: number | undefined) => x === undefined || !isFinite(x) || x > 0 ? undefined : x;
 /** a comment's sections: its own (an empty list: none ticked – the title only), else the default ones */
 export const sectionsOf = (a: Analysis, cfg: Pick<CommentCfg, "sections">): CommentSection[] => cfg.sections ?? defaultSections(a);
 
@@ -139,12 +147,13 @@ export function writeMacro({ a, cfg, title }: MacroInput): string {
   const T = title.trim() || "Table", are = /s$/i.test(T) ? "are" : "is";
   const noun = (cfg.noun || "").trim() || "country";
   const ex = new Set((cfg.exclude || []).map(x => x.toLowerCase()));
-  const yoyG = a.groups.find(g => g.kind === "yoy" && (g.pct !== null || g.abs !== null));
-  const yoyCol = yoyG ? (yoyG.pct ?? yoyG.abs) : null;
+  // the YoY % (the macro's AH column); a YoY comparison with an amount only has no % to write: no YoY clause
+  const yoyCol = a.groups.find(g => g.kind === "yoy" && g.pct !== null)?.pct ?? null;
   const cell = (r: number, c: number | null) => c === null ? undefined : a.grid[r]?.[c];
   const num0 = (r: number, c: number | null) => cell(r, c)?.v ?? null;
   const date = periodDate(a);
-  const week = a.period ? /week|\bwk\b|\bw\d/i.test(a.period.name) || !!a.period.date : false;
+  // "week" only when the header says so (as comment.ts): a monthly column with a date is "as of 30/09/26 … same period"
+  const week = a.period ? /week|\bwk\b|\bw\d/i.test(a.period.name) : false;
   const asOf = a.period ? ` as of ${week ? "week " : ""}${a.period.date || a.period.name}` : "";
   const sameWeek = `versus the same ${week ? "week" : "period"} ${date ? "in " + (date.getUTCFullYear() - 1) : "of the previous year"}`;
   const out: string[] = ["# " + T];
@@ -152,7 +161,7 @@ export function writeMacro({ a, cfg, title }: MacroInput): string {
   if (!a.groups.some(g => g.abs !== null)) return out.concat("No comparison columns (e.g. “Δ vs. Budget”) were found in this table.").join("\n");
   for (const { s, g } of secs) {
     if (!sectionApplies(s, date)) continue;
-    const W = wordsOf(g), top = Math.max(1, Math.min(5, Math.round(s.top ?? 3))), alertAt = s.alert ?? defaultAlert(g), hasPct = g.pct !== null;
+    const W = wordsOf(g), top = Math.max(1, Math.min(5, Math.round(s.top ?? 3))), alertAt = cleanAlert(s.alert) ?? defaultAlert(g), hasPct = g.pct !== null;
     // the entities with a number in the section's column (IsNumeric), their % (0 when not a number) and YoY
     const ents: Ent[] = a.entities.filter(e => !ex.has(e.label.toLowerCase()) && e.label.trim()).flatMap((e: Row) => {
       const v = shown(cell(e.r, g.abs)); if (v === null) return [];
@@ -200,5 +209,11 @@ export function writeMacro({ a, cfg, title }: MacroInput): string {
   while (out[out.length - 1] === "") out.pop();
   return out.join("\n");
 }
-/** the comment's title: the user's, else the total row's label, else the table's name */
-export const macroTitle = (a: Analysis, cfg: Pick<CommentCfg, "title">, fallback: string) => (cfg.title || "").trim() || (a.total ? prettyLabel(a.total.label) : prettyLabel(fallback) || "Table");
+/** the title a comment gets with none typed: the total row's label, else the table's name, without a leading "Total" /
+    "Totale" ("TOTAL RETAIL LOANS" → "Retail Loans", the macro's title) */
+export function macroTitleFallback(a: Pick<Analysis, "total">, fallback: string): string {
+  const p = a.total ? prettyLabel(a.total.label) : prettyLabel(fallback);
+  return p.replace(/^tot(?:ale?|\.)?\s+/i, "").trim() || p || "Table";
+}
+/** the comment's title: the user's, else the fallback above */
+export const macroTitle = (a: Analysis, cfg: Pick<CommentCfg, "title">, fallback: string) => (cfg.title || "").trim() || macroTitleFallback(a, fallback);

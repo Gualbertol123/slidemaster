@@ -17,8 +17,8 @@ import type { CoreEvents, CoreMethods, ExportMethods, ExportPageMethods, PageEve
 import type { CatalogFont } from "../src/text/resolve";
 import type { Design, Note, Op, Preset } from "../src/model/types";
 import type { Node } from "../src/dl/types";
-import { analyse, shapeComment, DEFAULT_COMMENT, type CommentCfg, type GCell, type Grid } from "../src/model/comment";
-import { periodDate, roundWhole, sectionApplies, signedNumber, signedPct, wholePct, writeMacro, type CommentSection } from "../src/model/comment-macro";
+import { analyse, defaultGroups, shapeComment, DEFAULT_COMMENT, type CommentCfg, type GCell, type Grid } from "../src/model/comment";
+import { cleanAlert, defaultSections, macroTitle, macroTitleFallback, newSection, periodDate, roundWhole, sectionApplies, signedNumber, signedPct, wholePct, writeMacro, type CommentSection } from "../src/model/comment-macro";
 
 /* the weekly loans table as the macro's sheet has it: the latest week, Δ vs. Budget (R / S), Δ vs. Prev. Week (T / U),
    a monthly Budget comparison and the YoY % (AH); raw values (what the macro reads) behind the shown text */
@@ -209,7 +209,7 @@ describe("modular sections and their rules (B50)", () => {
 describe("saved in the deck (B50): the key, undo, the format guard; comments made before keep their settings", () => {
   const preset = (): Preset => ({ sheets: ["S"], tables: [{ id: "t1", sheet: "S", kind: "range", range: "A1:K14" } as never], slides: [{ id: "s1", type: "content", tables: ["t1"], title: "Loans" } as never] });
   const OLD: CommentCfg = { ...DEFAULT_COMMENT, mode: "summary" };
-  const MACRO: CommentCfg = { ...CFG, sections: [{ g: "Δ vs. Budget" }, { g: "Δ vs. EoM Budget", when: "monthEnd" }] };
+  const MACRO: CommentCfg = { ...CFG, sections: [{ g: "Δ vs. Budget" }, { g: "Δ vs. EoM Budget", when: "monthEnd", yoy: false }] };   // (as the dialog adds a second plan section)
   const SP = (notes: Record<string, Note | null>): Op => ({ op: "slide.patch", id: "s1", patch: { notes } } as Op);
   const n = (auto: CommentCfg): Note => ({ text: "", auto, w: 440 });
   it("each change one undo step (the inverse puts back the whole entry); known to this page", () => {
@@ -296,7 +296,7 @@ const texts = (ns: Node[]): Extract<Node, { t: "text" }>[] => ns.flatMap(x => x.
 
 describe("a macro comment in every design, exported (B50): PDF and PowerPoint", () => {
   const DESIGNS: Design[] = ["excel", "clean", "glass", "mckinsey", "bain"];
-  const auto: CommentCfg = { ...CFG, sections: [{ g: "Δ vs. Budget" }, { g: "Δ vs. Prev. Week" }, { g: "Δ vs. EoM Budget", when: "monthEnd" }] };
+  const auto: CommentCfg = { ...CFG, sections: [{ g: "Δ vs. Budget" }, { g: "Δ vs. Prev. Week" }, { g: "Δ vs. EoM Budget", when: "monthEnd", yoy: false }] };   // (as the dialog adds a second plan section)
   const deckPreset = (): Preset => ({ sheets: ["Loans"], tables: [{ id: "t1", sheet: "Loans", kind: "range", range: "A1:K14" } as never],
     slides: [{ id: "s1", type: "content", tables: ["t1"], title: "Retail Loans", notes: { "t1:bottom": { text: "", auto, h: 330, frame: { w: 1, color: "#C8C8C8" } } } } as never] });
   it("the text of the sample (and the month-end section on 25/09/26) with its bullets, bold names and coloured figures; native text in PowerPoint", async () => {
@@ -333,4 +333,65 @@ describe("a macro comment in every design, exported (B50): PDF and PowerPoint", 
     expect(all).toContain("vs Budget - Budget Performance");
     expect(all).not.toContain("vs EoM Budget");
   }, 60_000);
+});
+
+/* ---- B50 review fixes ---- */
+describe("B50 review fixes: YoY without %, 'week' only from the header, the title, a second plan section, the alert", () => {
+  /** the grid with the YoY column an amount ("Δ YoY" / "Abs.", e.g. +1.200) instead of a % */
+  const absYoy = (g = grid()) => {
+    g[1][10] = { ...g[1][10], text: "Abs." };
+    for (const r of g.slice(2)) r[10] = { ...r[10], v: r[10].v! * 10000, text: shownNum(r[10].v! * 10000) };
+    return g;
+  };
+  it("a YoY comparison with an amount only: no YoY clause, no YoY in the alert (not '+120000,0%')", () => {
+    const t = plain(write({}, absYoy()));
+    expect(t).not.toMatch(/YoY|%\s*versus the same/);
+    expect(t).toContain("• Retail Loans as of week 25/09/26 are above Budget by +476. The strongest positive contributions");
+    const es: [string, number, number, number?][] = [["A", 50, .02], ["C", -20, -.07, .45]];
+    const al = plain(budget(write({}, absYoy(grid(rows([30, 0], es))))));
+    expect(al).toContain("C stands out on the downside, at -7,0% versus Budget.");
+    expect(al).not.toContain("4500");
+  });
+  it("'week' only when the period's header says so: a monthly column with a date reads 'as of 30/09/26 … the same period in 2025'", () => {
+    const g = grid(SAMPLE, "30/09/26"); g[0][2] = { ...g[0][2], text: "Sep" };
+    const t = plain(write({}, g));
+    expect(t).toContain("• Retail Loans as of 30/09/26 are above Budget by +476, while recording a YoY change of +11,8% versus the same period in 2025.");
+    expect(t).not.toMatch(/\bweek 30\/09|same week/);
+    // the owner's header ("Week39") still reads "week"
+    expect(plain(write())).toContain("as of week 25/09/26 are above Budget by +476, while recording a YoY change of +11,8% versus the same week in 2025.");
+  });
+  it("the title with none typed: the total row's label without 'Total' / 'Totale' (the macro's 'Retail Loans')", () => {
+    const a = analyse(grid());
+    expect(macroTitle(a, {}, "Loans")).toBe("Retail Loans");
+    expect(macroTitle(a, { title: "  " }, "Loans")).toBe("Retail Loans");
+    expect(macroTitle(a, { title: "Mutui" }, "Loans")).toBe("Mutui");
+    expect(macroTitleFallback({ total: { label: "TOTALE IMPIEGHI" } as never }, "x")).toBe("Impieghi");
+    expect(macroTitleFallback({ total: { label: "Tot. Retail loans" } as never }, "x")).toBe("Retail loans");
+    expect(macroTitleFallback({ total: { label: "TOTAL" } as never }, "x")).toBe("Total");
+    expect(macroTitleFallback({ total: null }, "Total deposits")).toBe("deposits");
+    expect(macroTitleFallback({ total: { label: "Totalizer" } as never }, "x")).toBe("Totalizer");
+  });
+  it("a new comment as the dialog starts it (default sections, no title typed) writes the owner's sample exactly", () => {
+    const a = analyse(grid());
+    const cfg: CommentCfg = { ...DEFAULT_COMMENT, mode: "macro", sections: defaultSections(a), groups: defaultGroups(a) };
+    expect(cfg.title).toBeUndefined();
+    expect(defaultSections(a)).toEqual([{ g: "Δ vs. Budget" }, { g: "Δ vs. Prev. Week" }]);
+    const t = writeMacro({ a, cfg, title: macroTitle(a, cfg, "Loans") });
+    expect(plain(t).split("\n").filter(Boolean)).toEqual(MACRO_SAMPLE);
+  });
+  it("a plan section added after another one leaves out the YoY clause (said once); other sections keep it", () => {
+    const a = analyse(grid());
+    const on = defaultSections(a);
+    expect(newSection(a, on, "Δ vs. EoM Budget")).toEqual({ g: "Δ vs. EoM Budget", yoy: false });
+    expect(newSection(a, [{ g: "Δ vs. Prev. Week" }], "Δ vs. EoM Budget")).toEqual({ g: "Δ vs. EoM Budget" });
+    expect(newSection(a, [{ g: "Δ vs. EoM Budget" }], "Δ vs. Prev. Week")).toEqual({ g: "Δ vs. Prev. Week" });
+    const t = plain(write({ sections: [...on, newSection(a, on, "Δ vs. EoM Budget")] }));
+    expect(t.match(/while recording a YoY change/g)).toHaveLength(1);
+    expect(t).toContain("• Retail Loans as of week 25/09/26 are below EoM Budget by -35. The strongest positive contributions versus EoM Budget");
+  });
+  it("a positive alert threshold is not used (saved by hand or by an old page): the macro's -5 % applies", () => {
+    expect([.02, 0, -.03, undefined, NaN].map(cleanAlert)).toEqual([undefined, 0, -.03, undefined, undefined]);
+    const es: [string, number, number, number?][] = [["A", 50, .02], ["B", -10, -.049], ["C", -5, -.01]];
+    expect(plain(write({ sections: [{ g: "Δ vs. Budget", alert: .02 }] }, grid(rows([35, 0], es))))).not.toContain("stands out");
+  });
 });

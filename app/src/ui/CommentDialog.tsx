@@ -18,7 +18,7 @@ import { tableName } from "@slide-builder/core/model/preset";
 import type { LineOrNone, Note, Op, RuntimeSlide, Side } from "@slide-builder/core/model/types";
 import { FRAME_COLORS, FRAME_WEIGHTS, frameCss, noteFrame } from "@slide-builder/core/render/note-frame";
 import { Input } from "./Input";
-import { defaultSections } from "@slide-builder/core/model/comment-macro";
+import { defaultSections, macroTitleFallback } from "@slide-builder/core/model/comment-macro";
 import { CommentSections } from "./CommentSections";
 
 const NOUNS = ["country", "bank", "entity", "region", "product", "segment", "division"];
@@ -42,8 +42,10 @@ export function CommentDialog() {
   const [cfg, setCfg] = useState<CommentCfg>(() => old?.note.auto ? { ...DEFAULT_COMMENT, mode: "sections", ...old.note.auto }
     : { ...DEFAULT_COMMENT, mode: "macro", sections: a ? defaultSections(a) : undefined, groups: a ? defaultGroups(a) : [], tables: (R?.tables || []).filter((_, i) => i !== ti).map(t => t.def?.id || t.id || "").filter(Boolean) });
   const [side, setSide] = useState<Side>(old?.side || "right");
-  // a comment on several tables sits in a column beside all of them
-  const [span, setSpan] = useState<boolean>(old ? !!old.note.span : (R?.tables.length || 0) > 1);
+  // a comment on several tables sits in a column beside all of them; the macro's covers its own table only, so a new
+  // one sits beside it (switching a new comment to another structure puts it beside all of them again)
+  const many = (R?.tables.length || 0) > 1;
+  const [span, setSpan] = useState<boolean>(old ? !!old.note.span : false);
   const [size, setSize] = useState<number>(old?.note.w || old?.note.h || 440);
   const [bubble, setBubble] = useState(old ? !!old.note.bubble : true);
   // the box's border (B49): unset = the design's, "none", or a weight and a colour (unset colour = the design's)
@@ -73,7 +75,8 @@ export function CommentDialog() {
   const noteFor = (keep: Note | undefined, own: boolean): Note => {
     const auto: CommentCfg = { ...cfg, groups };
     // the macro's sections are saved with a macro comment only (another structure keeps a deck 4.0.0 can read)
-    if (macro) auto.sections = structuredClone(cfg.sections ?? defaultSections(a)); else delete auto.sections;
+    // (the macro's text covers its own table: the other tables of a summary are not kept with it)
+    if (macro) { auto.sections = structuredClone(cfg.sections ?? defaultSections(a)); delete auto.tables; } else delete auto.sections;
     if (!own) { delete auto.title; delete auto.exclude; delete auto.tables; }        // other tables: their own title and rows
     const n: Note = { ...(keep || {}), text: "", auto, bubble };
     delete n.w; delete n.h;
@@ -111,11 +114,11 @@ export function CommentDialog() {
           <div className="cmtset">
             {R.tables.length > 1 && <label className="cmtrow"><span>Table</span><select id="cmtTable" value={ti} onChange={e => setTi(+(e.target as HTMLSelectElement).value)}>
               {R.tables.map((T, i) => <option key={i} value={i}>{tableName(T, c.preset)}</option>)}</select></label>}
-            <div className="seg small cmtmode" id="cmtMode">{(["macro", "summary", "sections"] as const).map(m => <button key={m} data-mode={m} className={(cfg.mode ?? "sections") === m ? "on" : ""} title={m === "macro" ? "The Budget Performance / Weekly Momentum bullets, as the Excel macro writes them" : undefined} onClick={() => set({ mode: m })}>{m === "macro" ? "Report – as the macro" : m === "summary" ? "Summary – short, joint" : "Detailed – one section per comparison"}</button>)}</div>
+            <div className="seg small cmtmode" id="cmtMode">{(["macro", "summary", "sections"] as const).map(m => <button key={m} data-mode={m} className={(cfg.mode ?? "sections") === m ? "on" : ""} title={m === "macro" ? "The Budget Performance / Weekly Momentum bullets, as the Excel macro writes them" : undefined} onClick={() => { set({ mode: m }); if (!old) setSpan(m !== "macro" && many); }}>{m === "macro" ? "Report – as the macro" : m === "summary" ? "Summary – short, joint" : "Detailed – one section per comparison"}</button>)}</div>
             {summary && R.tables.length > 1 && <><div className="opthd">Tables in this comment</div>
               <div className="cmtchecks" id="cmtTables">{R.tables.map((T, i) => <label key={i} className="ck"><input type="checkbox" checked={i === ti || (cfg.tables || []).includes(tid(T))} disabled={i === ti} onChange={e => toggleTable(tid(T), (e.target as HTMLInputElement).checked)} />{tableName(T, c.preset)}</label>)}</div></>}
             <div className="cmtfound">Found: {summary ? <>{blocks.length} block{blocks.length === 1 ? "" : "s"} – {blocks.map(b => b.head ? cleanHead(b.head.label) : "rows without a total").join(", ")}</> : a.total ? <>total <b>{a.total.label}</b></> : "no total row (the sum of the rows is used)"}{!summary && <> · {a.entities.length} rows</>}{a.period ? <> · latest <b>{a.period.name}{a.period.date ? " " + a.period.date : ""}</b></> : ""}</div>
-            <label className="cmtrow"><span>Title</span><input id="cmtTitle" className="txt" placeholder={a.total ? prettyLabel(a.total.label) : tableName(L, c.preset)} value={cfg.title || ""} onChange={e => set({ title: (e.target as HTMLInputElement).value })} onKeyDown={e => e.stopPropagation()} /></label>
+            <label className="cmtrow"><span>Title</span><input id="cmtTitle" className="txt" placeholder={macro ? macroTitleFallback(a, tableName(L, c.preset)) : a.total ? prettyLabel(a.total.label) : tableName(L, c.preset)} value={cfg.title || ""} onChange={e => set({ title: (e.target as HTMLInputElement).value })} onKeyDown={e => e.stopPropagation()} /></label>
             {macro ? <><div className="opthd">Sections <span className="cv">ticked ones, in this order</span></div>
               <CommentSections a={a} sections={cfg.sections} onChange={sections => set({ sections })} /></>
             : summary ? <><div className="opthd">Joins</div>

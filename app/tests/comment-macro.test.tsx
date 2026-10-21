@@ -18,6 +18,9 @@ import { change, gotoSlide, openLocalFile, undo } from "../src/state/app";
 import { indexWorkbook } from "@slide-builder/core/xlsx/workbook";
 import { defaultPreset } from "@slide-builder/core/model/preset";
 import type { Op } from "@slide-builder/core/model/types";
+import { analyse, type GCell, type Grid } from "@slide-builder/core/model/comment";
+import type { CommentSection } from "@slide-builder/core/model/comment-macro";
+import { CommentSections } from "../src/ui/CommentSections";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 Element.prototype.scrollIntoView ??= function () { /* nothing to scroll */ };
@@ -102,4 +105,64 @@ describe("the macro's structure in the comment dialog (B50)", () => {
     await act(async () => undo(false)); await confirmed(h0 + 1);
     expect(autoNote(si)!.auto).toEqual(old.auto);
   }, 60_000);
+  it("B50 review: a slide with two tables – a new comment is the macro's, beside its own table (no span, no other tables kept); a summary goes beside all", async () => {
+    const slideId = get().deck.slides[si].id, P = get().doc.view!.preset!, mine = P.slides[si].tables as string[];
+    // the same range a second time (a table with comparison columns)
+    const twin = { ...structuredClone(P.tables.find(t => t.id === mine[0])!), id: mine[0] + "-twin" };
+    const h0 = history();
+    await act(async () => { change("two tables", [{ op: "table.add", table: twin, slide: slideId } as Op]); }); await confirmed(h0 + 1);
+    await vi.waitFor(() => expect(get().deck.slides[si].tables.length, JSON.stringify(get().doc.view!.preset!.slides[si].tables)).toBeGreaterThanOrEqual(2), { timeout: 10_000 }); await settle();
+    const ti = get().deck.slides[si].tables.length - 1;
+    await act(async () => { setDialogs({ comment: { table: ti } }); }); await settle();
+    expect($('#cmtMode [data-mode="macro"]').classList.contains("on")).toBe(true);
+    expect(($("#cmtSide") as HTMLSelectElement).value).toBe("right");
+    await act(async () => { fireEvent.click($('#cmtMode [data-mode="summary"]')); });
+    expect(($("#cmtSide") as HTMLSelectElement).value).toBe("span-right");
+    await act(async () => { fireEvent.click($('#cmtMode [data-mode="macro"]')); });
+    expect(($("#cmtSide") as HTMLSelectElement).value).toBe("right");
+    await act(async () => { fireEvent.click($("#cmtInsert")); }); await settle();
+    await confirmed(h0 + 2);
+    const n = Object.values(get().doc.view!.preset!.slides[si].notes || {}).find(x => x.auto?.mode === "macro")!;   // the first table's comment is the summary of the test above
+    expect(n.auto!.mode).toBe("macro");
+    expect(n.auto!.tables).toBeUndefined();
+    expect(n.span).toBeUndefined();
+    await act(async () => undo(false)); await confirmed(h0 + 1);
+    await act(async () => undo(false)); await confirmed(h0);
+  }, 60_000);
+});
+
+/* the section editor on its own (B50 review: 4, 5, 6) */
+describe("the section editor (B50 review)", () => {
+  // a table with a weekly Budget, a monthly Budget and the previous week, as the owner's sheet
+  const c = (text: string, v: number | null = null, anchor = true): GCell => ({ text, v, anchor, bold: false });
+  const g: Grid = [
+    [c("(mln)"), c("Week39"), c("Δ vs. Budget"), c("Δ vs. Budget", null, false), c("Δ vs. Prev. Week"), c("Δ vs. Prev. Week", null, false), c("Δ vs. EoM Budget"), c("Δ vs. EoM Budget", null, false)],
+    [c("(mln)"), c("25/09/26"), c("Abs."), c("%"), c("Abs."), c("%"), c("Abs."), c("%")],
+    [c("TOTAL"), c("10", 10), c("1", 1), c("1,0%", .01), c("2", 2), c("2,0%", .02), c("-3", -3), c("-3,0%", -.03)],
+    [c("A"), c("5", 5), c("1", 1), c("1,0%", .01), c("2", 2), c("2,0%", .02), c("-3", -3), c("-3,0%", -.03)],
+  ];
+  const a = analyse(g);
+  it("a plan section added after another plan section starts without the YoY clause", () => {
+    const got: CommentSection[][] = [];
+    render(<CommentSections a={a} sections={[{ g: "Δ vs. Budget" }, { g: "Δ vs. Prev. Week" }]} onChange={s => got.push(s)} />);
+    fireEvent.click(document.querySelector('.cmtsecoff[data-sec="Δ vs. EoM Budget"] input')!);
+    expect(got[0]).toEqual([{ g: "Δ vs. Budget" }, { g: "Δ vs. Prev. Week" }, { g: "Δ vs. EoM Budget", yoy: false }]);
+    cleanup();
+  });
+  it("a positive alert threshold is not saved (the field goes back to the saved one); the comment's objects are not changed", () => {
+    const got: CommentSection[][] = [];
+    // frozen: the editor must build fresh objects (it deleted unset keys in place before)
+    const secs = Object.freeze([Object.freeze({ g: "Δ vs. Budget" }), Object.freeze({ g: "Δ vs. Prev. Week", heading: undefined })]) as CommentSection[];
+    render(<CommentSections a={a} sections={secs} onChange={s => got.push(s)} />);
+    const alert = document.querySelector('.cmtsec[data-sec="Δ vs. Budget"] [data-alert]') as HTMLInputElement;
+    fireEvent.change(alert, { target: { value: "2" } });
+    expect(got).toEqual([]);
+    fireEvent.blur(alert);
+    expect(alert.value).toBe("-5");
+    fireEvent.change(alert, { target: { value: "-3" } });
+    expect(got).toEqual([[{ g: "Δ vs. Budget", alert: -.03 }, secs[1]]]);
+    expect(got[0][1]).toBe(secs[1]);
+    expect(secs[1]).toHaveProperty("heading");
+    cleanup();
+  });
 });

@@ -4,7 +4,7 @@
    latest period's date the analysis finds), its alert threshold (the macro's -5 % for a plan, -1 % otherwise), its
    heading and its parts (the YoY clause, the concentration sentence, the downside bullet, the alert sentence). */
 import type { Analysis, Group } from "@slide-builder/core/model/comment";
-import { defaultAlert, periodDate, sectionApplies, sectionHeading, sectionsOf, WHEN_LABEL, type CommentSection, type SectionWhen } from "@slide-builder/core/model/comment-macro";
+import { cleanAlert, defaultAlert, newSection, periodDate, sectionApplies, sectionHeading, sectionsOf, WHEN_LABEL, type CommentSection, type SectionWhen } from "@slide-builder/core/model/comment-macro";
 
 const WHENS: SectionWhen[] = ["always", "monthEnd", "firstWeek", "fromDay"];
 const fmtDate = (d: Date) => d.toISOString().slice(0, 10).split("-").reverse().join("/");
@@ -14,10 +14,9 @@ export function CommentSections({ a, sections, onChange }: { a: Analysis; sectio
   const on = cur.filter(s => a.groups.some(g => g.id === s.g && g.abs !== null));
   const off = a.groups.filter(g => !on.some(s => s.g === g.id));
   const set = (i: number, p: Partial<CommentSection>) => {
-    const next = on.map((s, k) => k === i ? { ...s, ...p } : s);
-    // unset keys are left out of the saved section (its defaults: the macro's)
-    for (const s of next) for (const k of Object.keys(s) as (keyof CommentSection)[]) if (s[k] === undefined) delete s[k];
-    onChange(next);
+    // fresh objects (the ones in the comment's settings are not changed); unset keys are left out of the saved section
+    // (its defaults: the macro's)
+    onChange(on.map((s, k) => k === i ? Object.fromEntries(Object.entries({ ...s, ...p }).filter(([, v]) => v !== undefined)) as unknown as CommentSection : s));
   };
   const move = (i: number, d: -1 | 1) => { const next = on.slice(), j = i + d; if (j < 0 || j >= next.length) return; [next[i], next[j]] = [next[j], next[i]]; onChange(next); };
   const row = (s: CommentSection, i: number, g: Group) => {
@@ -37,7 +36,7 @@ export function CommentSections({ a, sections, onChange }: { a: Analysis; sectio
             {when === "fromDay" && <input data-day type="number" min="1" max="31" className="txt num" value={s.day ?? 25} onChange={e => { const v = Math.round(+(e.target as HTMLInputElement).value); if (v >= 1 && v <= 31) set(i, { day: v }); }} onKeyDown={e => e.stopPropagation()} />}
           </div>
           <label>Alert at</label><div className="row">
-            <input data-alert type="number" step="0.5" max="0" className="txt num" defaultValue={+(alert * 100).toFixed(2)} onChange={e => { const v = parseFloat((e.target as HTMLInputElement).value); if (isFinite(v)) set(i, { alert: v / 100 === defaultAlert(g) ? undefined : v / 100 }); }} onKeyDown={e => e.stopPropagation()} />
+            <input data-alert type="number" step="0.5" max="0" className="txt num" defaultValue={+(alert * 100).toFixed(2)} onChange={e => { const v = cleanAlert(parseFloat((e.target as HTMLInputElement).value) / 100); if (v !== undefined) set(i, { alert: v === defaultAlert(g) ? undefined : v }); }} onBlur={e => { (e.target as HTMLInputElement).value = String(+(alert * 100).toFixed(2)); }} onKeyDown={e => e.stopPropagation()} />
             <span className="cv">% or worse among the named negatives</span></div>
           <label>Heading</label><input data-heading className="txt" placeholder={sectionHeading(g)} defaultValue={s.heading || ""} onChange={e => set(i, { heading: (e.target as HTMLInputElement).value.trim() || undefined })} onKeyDown={e => e.stopPropagation()} />
         </div>
@@ -54,6 +53,6 @@ export function CommentSections({ a, sections, onChange }: { a: Analysis; sectio
       {date ? <div className="optnote">Latest period: {fmtDate(date)} – each section's rule is decided from it.</div>
         : <div className="optnote">No date found in the period's header: every ticked section is written.</div>}
       {on.map((s, i) => row(s, i, a.groups.find(g => g.id === s.g)!))}
-      {off.map(g => <label key={g.id} className="ck cmtsecoff" data-sec={g.id}><input type="checkbox" checked={false} disabled={g.abs === null} onChange={() => onChange([...on, { g: g.id }])} />{sectionHeading(g)}</label>)}
+      {off.map(g => <label key={g.id} className="ck cmtsecoff" data-sec={g.id}><input type="checkbox" checked={false} disabled={g.abs === null} onChange={() => onChange([...on, newSection(a, on, g.id)])} />{sectionHeading(g)}</label>)}
     </div>);
 }
