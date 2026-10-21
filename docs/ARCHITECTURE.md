@@ -95,7 +95,8 @@ data\
 ├─ fonts\                              shared font library (§12)
 │  ├─ fonts.json                       the index
 │  ├─ <Family>-<weight>[i]-<sha1:10>.<ext>
-│  └─ system\fingerprints.json, system\licence.json     Windows-font captures, copy-mode switch
+│  ├─ system\fingerprints.json, system\licence.json     Windows-font captures, copy-mode switch
+│  └─ cache\<sha256(key):40>.sbc      what the helpers fetched from Google (B46, §12.1), ≤ 200 MB
 ├─ assets\                             pictures chosen in the app (POST /api/logo)
 ├─ v4\
 │  ├─ decks\<key>\                     one deck per workbook (§2.1, §4)
@@ -135,6 +136,7 @@ being broken), `.clock-<host>-<pid>` (the file-server clock probe, §7.4).
 | `config.json` | v4 helpers (`POST /api/config`) and v3 helpers | atomic replace under lock `config` |
 | `users/<user>.json` | that user's helper (v3 or v4) | atomic whole replace |
 | `fonts/*` | any helper | under lock `fonts` |
+| `fonts/cache/*` | any helper (B46) | atomic replace, no lock; entries checked on read (length + SHA-256); least recently used deleted over 200 MB |
 | `assets/*` | any helper (`POST /api/logo`) | atomic replace, no lock |
 | `workbooks/<key>.json` | v3 helpers while v3 owns the deck; the v4 migration (freeze) and rollback | under lock `wb-<key>` |
 | `backups/v4/<key>/*` | the helper that compacted, after releasing the deck lock | best effort |
@@ -662,6 +664,7 @@ Fonts (§12):
 | `DELETE /api/fonts?family=` | – | the library; 400 without `family` |
 | `GET /api/fonts/google?family=` | – | a Google font's faces fetched by the helper (§12.1); 404 not a Google font, 502 unreachable |
 | `GET /api/fonts/google/file?ref=` | – | one of those files' bytes; 403 any other address, 413 over 15 MB, 502 unreachable |
+| `GET /api/fonts/google/preview?family=` | – | a font to show the family's name in the picker (B46): googleapis' `&text=` subset, else the family's regular file; 400 bad name, 404 not a Google font, 502 unreachable |
 | `POST /api/fonts/capture?file=` | (body ignored, ≤ 2 MB) | `{mode: "fingerprint", file, family, sha1, embeddable, noSubset, faces, otherBuilds, otherHosts}`; in copy mode `mode: "copy"` plus `copied` and `copiedFaces`, `added` or `reason`; 400 bad name, 404 unlisted |
 
 Decks (`<key>` is URL-encoded; any `<key>` not matching §2.1 → 400; `DeckError` statuses below):
@@ -767,6 +770,20 @@ Geometry shared by all three (rounded rects, shadow layers, gradient strokes, im
   answering 200 to `METADATA.pb`) counts as unreachable and the next mirror is tried. When GitHub has no folder of
   that name and googleapis cannot be asked, the 404 says so ("not found on GitHub; Google could not be asked") instead
   of "check the spelling". The page stores a family's faces only once all its files have arrived.
+* Cache (B46, 4.6): what the helper fetched is kept in `data/fonts/cache/`, so it is fetched once for the office – a
+  family's faces (`family:<folder>`, asked again after 30 days, kept when Google cannot be asked then), each file
+  (`file:<ref>`) and each preview (`preview:<folder>`: the subset, or which file it was). Every helper reads and
+  writes it at once: an entry is `SBFC`, its length (8 bytes) and SHA-256, then the bytes, written to a temp file and
+  `os.replace`d; a missing, vanished, locked, half-written or damaged entry is a miss and is fetched again (a font
+  entry must also start like a font); a write that fails only costs a later fetch. After each write the helper
+  deletes the least recently used entries (a hit touches its entry) while the folder is over 200 MB, down to 90 %,
+  and temp files over an hour old; an entry another PC has open cannot be deleted on Windows and stays (the next one
+  goes). 4.0's `fonts.py _sweep` deletes only font files at the top of `data/fonts`, so it leaves `cache/` alone
+  (`test_gfonts.py` runs a frozen copy of it); `update.py` never touches `data`.
+* Picker previews (B46): the page never links a googleapis stylesheet. The Google names on screen (an
+  `IntersectionObserver`) are previewed through `GET /api/fonts/google/preview` with the token header, 4 at a time,
+  each loaded with `new FontFace("sbpv <family>", bytes)` (a name of its own, so a subset never stands in for the
+  library's faces); after one failure the picker asks no more in that window and the names show in fallback fonts.
 
 ### 12.2 Windows fonts (`helper/slidebuilder/sysfonts.py`)
 

@@ -41,6 +41,31 @@ export function watchFontLoads() {
 
 export const inLibrary = (family: string) => lib().some(f => f.family.toLowerCase() === family.toLowerCase());
 
+/* previews of Google fonts not in the library yet, for the picker (B46): never a googleapis stylesheet (at the office
+   the name does not resolve for the page); the helper answers with googleapis' subset of the name's letters or the
+   family's regular file, fetched once for the office (data\fonts\cache). Only names on screen, 4 at a time; after one
+   failure the picker asks no more in this window and the names show in their fallback fonts */
+const PREVIEWS_AT_ONCE = 4;
+const previewed = new Set<string>(), queued: string[] = [];
+let previewing = 0, previewsFail = false;
+/** the name a preview is declared under: its own, so a subset never stands in for the library's faces */
+export const previewFamily = (family: string) => "sbpv " + family;
+export function previewFont(family: string) {
+  if (previewsFail || !backend.served || previewed.has(family) || inLibrary(family) || typeof FontFace === "undefined") return;
+  previewed.add(family); queued.push(family); nextPreview();
+}
+function nextPreview() {
+  while (!previewsFail && previewing < PREVIEWS_AT_ONCE && queued.length) {
+    const family = queued.shift()!;
+    previewing++;
+    void backend.googleFontPreview(family)
+      .then(buf => new FontFace(previewFamily(family), buf).load())
+      .then(face => { document.fonts?.add(face); })
+      .catch(e => { if (!previewsFail) console.info("font previews stop for this window:", e); previewsFail = true; queued.length = 0; })
+      .finally(() => { previewing--; nextPreview(); });
+  }
+}
+
 /** adds a Google font to the shared library: its files are saved in the Slide Builder folder, so slides
     and exports work even where Google cannot be reached later. With the helper, the helper fetches them (from the
     google/fonts repository on GitHub, else googleapis: helper gfonts.py) – at the office fonts.googleapis.com does not

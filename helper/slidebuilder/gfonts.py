@@ -12,22 +12,33 @@ googleapis, in this order:
 The page then stores each file as an upload is stored (POST /api/fonts): a variable TTF (most families on GitHub
 now ship only those) becomes a static face at 400 and 700 there (core text/static.ts), so exports embed static faces.
 
+Cache (B46): what the helper fetched is kept in the shared data\fonts\cache\ (fetched once for the office: a second
+PC adding the same family, or showing the same preview, asks nothing of the network). Several helpers use it at once:
+an entry is written whole (temp file, then os.replace), carries its length and SHA-256 (a half-written or damaged
+entry is a miss and is fetched again), a reader treats a vanished or locked entry as a miss, and the folder is kept
+under CACHE_MAX by deleting the least recently used entries first. 4.0's fonts.py _sweep deletes only font files at
+the top of data\fonts, never a folder in it.
+
 Proxy: Python does not read a PAC file. The helper uses, in this order, the first line of this PC's
 %LOCALAPPDATA%\SlideBuilder\proxy.txt (a laptop at home or on VPN needs another proxy than the office), else of the
 shared data\proxy.txt ("http://proxy.example:8080", or "none" for a direct connection), else HTTPS_PROXY / the
 Windows proxy setting (urllib's own lookup).
 """
+import hashlib
+import json
 import os
 import re
 import socket
 import ssl
 import urllib.error
 import urllib.parse
+import struct
+import time
 import urllib.request
 
 from . import paths
-from .fonts import FONT_MAX, clean_family, detect_ext
-from .util import log
+from .fonts import FONT_MAX, FONT_TYPES, clean_family, detect_ext, fonts_dir
+from .util import log, remove_quietly, write_atomic
 
 GITHUB = ("https://raw.githubusercontent.com/google/fonts/main/", "https://cdn.jsdelivr.net/gh/google/fonts@main/")
 LICENCES = ("ofl", "apache", "ufl")
@@ -39,6 +50,14 @@ FILE_TIMEOUT = 90
 UPLOAD_HINT = "download the family from fonts.google.com (Download family) and use \u201cUpload font files\u201d"
 _REPO_FILE = re.compile(r"^(ofl|apache|ufl)/[a-z0-9]+/[A-Za-z0-9._\-\[\],]+\.(ttf|otf)$")
 _GSTATIC_FILE = re.compile(r"^https://fonts\.gstatic\.com/[A-Za-z0-9._\-/]+\.(ttf|otf|woff2?)$")
+_GSTATIC_SUBSET = re.compile(r"^https://fonts\.gstatic\.com/l/font\?[A-Za-z0-9._\-=&%]+$")   # a &text= subset (previews)
+CACHE_MAX = 200 * 1024 * 1024                              # data\fonts\cache (owner, 2026-10-21)
+CACHE_KEEP = 0.9                                           # pruning goes down to 90 % of the cap, not once per entry
+CACHE_EXT = ".sbc"
+FAMILY_MAX_AGE = 30 * 86400                                # a family's faces are asked again after a month (files are renamed)
+STALE_TMP_S = 3600                                         # a temp file this old is a crashed writer's
+_MAGIC = b"SBFC"
+_HEAD = struct.Struct(">4sQ32s")                           # magic, length, SHA-256 of the bytes that follow
 
 
 class GFontError(Exception):
@@ -146,6 +165,95 @@ def _reason(e):
     if isinstance(e, ssl.SSLError):
         return "secure connection refused (%s)" % (getattr(e, "reason", None) or e)
     return str(e) or e.__class__.__name__
+
+
+# ---------------------------------------------------------------------------------------------------- cache (B46)
+def cache_dir():
+    """data\\fonts\\cache: a folder, so fonts.py _sweep (which deletes unused font files at the top of data\\fonts, in 4.0
+    as now) never touches it"""
+    return os.path.join(fonts_dir(), "cache")
+
+
+def _entry_path(key):
+    return os.path.join(cache_dir(), hashlib.sha256(key.encode("utf-8")).hexdigest()[:40] + CACHE_EXT)
+
+
+def _entry(path):
+    """(bytes, mtime) of a whole entry, or None: missing, vanished (pruned by another helper), locked (Windows, being
+    replaced), half-written or damaged are all a miss"""
+    try:
+        with open(path, "rb") as f:
+            raw = f.read(_HEAD.size + FONT_MAX + 1)
+            mtime = os.fstat(f.fileno()).st_mtime
+    except OSError:
+        return None
+    if len(raw) < _HEAD.size:
+        return None
+    magic, n, digest = _HEAD.unpack_from(raw)
+    data = raw[_HEAD.size:]
+    if magic != _MAGIC or n != len(data) or hashlib.sha256(data).digest() != digest:
+        return None
+    return data, mtime
+
+
+def cache_get(key, max_age=None, stale=False):
+    """the cached bytes for `key`, or None; an entry older than max_age is a miss unless `stale`. A hit marks the entry
+    used (pruning deletes the least recently used first)"""
+    path = _entry_path(key)
+    got = _entry(path)
+    if got is None or (max_age is not None and not stale and time.time() - got[1] > max_age):
+        return None
+    try:
+        os.utime(path, None)
+    except OSError:
+        pass
+    return got[0]
+
+
+def cache_put(key, data):
+    """keeps `data` for `key`: written whole (temp + os.replace), so a reader sees the old entry or the new one; a
+    failure (the folder read-only, the disk full, the entry locked) costs only a later fetch"""
+    path = _entry_path(key)
+    try:
+        write_atomic(path, _HEAD.pack(_MAGIC, len(data), hashlib.sha256(data).digest()) + data)
+    except Exception as e:
+        log("font cache: not kept (%s)" % e)
+        return
+    try:
+        _prune(path)
+    except Exception as e:
+        log("font cache: not pruned (%s)" % e)
+
+
+def _prune(keep):
+    """deletes the least recently used entries while the folder is above CACHE_MAX (down to CACHE_KEEP of it), and
+    crashed writers' temp files. Never `keep` (just written); an entry another helper has open on Windows cannot be
+    deleted and stays (the next one goes); on SMB/POSIX a reader keeps what it opened"""
+    now, entries, total = time.time(), [], 0
+    for e in os.scandir(cache_dir()):
+        try:
+            st = e.stat()
+        except OSError:
+            continue                                     # (deleted by another helper meanwhile)
+        if e.name.endswith(".tmp"):
+            if now - st.st_mtime > STALE_TMP_S:
+                remove_quietly(e.path)
+            else:
+                total += st.st_size                      # another helper's entry on its way in
+        elif e.name.endswith(CACHE_EXT):
+            entries.append((st.st_mtime, e.path, st.st_size))
+            total += st.st_size
+    if total <= CACHE_MAX:
+        return
+    for _, path, size in sorted(entries):
+        if total <= CACHE_MAX * CACHE_KEEP:
+            break
+        if path != keep and remove_quietly(path):
+            total -= size
+
+
+def _font_entry(data):
+    return data if data and len(data) <= FONT_MAX and detect_ext(data) else None
 
 
 # ---------------------------------------------------------------------------------------------------- METADATA.pb
@@ -293,9 +401,38 @@ def _css_api(family):
 
 
 # ---------------------------------------------------------------------------------------------------- the API
+def _family_entry(raw):
+    """a cached family_faces answer, or None when the entry is not one"""
+    try:
+        res = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return None
+    ok = isinstance(res, dict) and isinstance(res.get("faces"), list) and res["faces"] and all(
+        isinstance(f, dict) and (_REPO_FILE.match(str(f.get("file"))) or _GSTATIC_FILE.match(str(f.get("file")))) for f in res["faces"])
+    return res if ok else None
+
+
 def family_faces(family):
-    """GET /api/fonts/google: the faces of a Google font and where the helper takes them from"""
+    """GET /api/fonts/google: the faces of a Google font and where the helper takes them from; from the cache when a
+    helper fetched them in the last month (or longer ago, when Google cannot be asked now)"""
     family = clean_family(family)
+    key = "family:" + repo_dir(family)
+    raw = cache_get(key, FAMILY_MAX_AGE)
+    if raw is not None and _family_entry(raw):
+        return _family_entry(raw)
+    try:
+        res = _family_faces(family)
+    except GFontError:
+        old = cache_get(key, stale=True)
+        if old is not None and _family_entry(old):
+            log("google fonts: %s from the cache (Google not asked again)" % family)
+            return _family_entry(old)
+        raise
+    cache_put(key, json.dumps(res, sort_keys=True).encode("utf-8"))
+    return res
+
+
+def _family_faces(family):
     failures, absent = [], []
     for source in (_github, _css_api):
         try:
@@ -332,7 +469,7 @@ def unreachable_message(failures):
 
 def face_file(ref):
     """GET /api/fonts/google/file: the bytes of one file named by family_faces (a google/fonts path, from either
-    mirror, or a fonts.gstatic.com address) - never any other address"""
+    mirror, or a fonts.gstatic.com address) - never any other address. From the cache when a helper fetched it."""
     ref = str(ref or "")
     if _REPO_FILE.match(ref) and ".." not in ref:
         urls = [m + urllib.parse.quote(ref) for m in GITHUB]
@@ -340,6 +477,15 @@ def face_file(ref):
         urls = [ref]
     else:
         raise PermissionError("not a Google font file")
+    data = _font_entry(cache_get("file:" + ref))
+    if data:
+        return data
+    data = _fetch_file(ref, urls)
+    cache_put("file:" + ref, data)
+    return data
+
+
+def _fetch_file(ref, urls):
     failures = []
     for url in urls:
         try:
@@ -355,3 +501,49 @@ def face_file(ref):
             continue
         return data
     raise GFontError(502, unreachable_message(failures))
+
+
+# ---------------------------------------------------------------------------------------------------- previews
+def _subset(family):
+    """the letters of the family's name as Google subsets them (googleapis &text=), or NetError / Absent"""
+    css = fetch_url(CSS_API + urllib.parse.quote(family).replace("%20", "+") + "&text=" + urllib.parse.quote(family) + "&display=swap")
+    for m in re.finditer(r"url\(([^)]+)\)", css.decode("utf-8", "replace")):
+        url = m.group(1).strip("'\" ")
+        if (_GSTATIC_SUBSET.match(url) or _GSTATIC_FILE.match(url)) and ".." not in url:
+            data = _font_entry(fetch_url(url))
+            if data:
+                return data
+            raise NetError(url, None, "the answer is not a font file")
+    raise Absent()
+
+
+def preview(family):
+    """GET /api/fonts/google/preview: a font to show the family's name in the picker - googleapis' subset of the name's
+    letters where it answers (a few KB), else the family's regular file (the one adding the family fetches). Fetched
+    once for the office: the subset, or which file it was, is kept in the cache."""
+    family = clean_family(family)
+    key = "preview:" + repo_dir(family)
+    raw = cache_get(key)
+    if raw is not None:
+        if _font_entry(raw):
+            return raw
+        try:
+            return face_file(json.loads(raw.decode("utf-8"))["ref"])
+        except (GFontError, PermissionError, UnicodeDecodeError, ValueError, KeyError, TypeError):
+            pass                                          # (not a pointer, or its file cannot be had: as if not cached)
+    try:
+        data = _subset(family)
+        cache_put(key, data)
+        return data
+    except (NetError, Absent) as e:
+        log("google fonts: no preview subset of %s (%s)" % (family, e))
+    faces = family_faces(family)["faces"]
+    face = min(faces, key=lambda f: (f.get("style") != "normal", abs(_num(f.get("weight"), 400) - 400)))
+    data = face_file(face["file"])
+    cache_put(key, json.dumps({"ref": face["file"]}).encode("utf-8"))
+    return data
+
+
+def preview_type(data):
+    """the content type of a preview (detect_ext names the extensions its first bytes may have)"""
+    return FONT_TYPES[(detect_ext(data) or (".ttf",))[0]]

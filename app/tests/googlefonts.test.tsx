@@ -94,16 +94,44 @@ describe("adding a Google font through the helper", () => {
   });
 });
 
-describe("font picker previews", () => {
-  it("previews come from googleapis; when it cannot be reached, the failed sheet goes and the names show in fallback fonts", async () => {
-    net(() => undefined);
+describe("font picker previews (B46)", () => {
+  it("only the names on screen, through the helper with the token, 4 at a time; none after a failure; never a googleapis link", async () => {
+    const asked: { family: string; token: string | null; done: (r: Response) => void }[] = [], faces: string[] = [];
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/fonts/google/preview?")) {
+        return new Promise<Response>(done => asked.push({ family: new URLSearchParams(url.split("?")[1]).get("family")!, token: new Headers(init?.headers).get("X-SB-Token"), done }));
+      }
+      if (url.startsWith("/api/fonts")) return json({ fonts: [] });
+      return Promise.reject(new Error("unexpected " + url));
+    }));
+    vi.stubGlobal("FontFace", class { constructor(public family: string, public buf: ArrayBuffer) { faces.push(family); } load() { return Promise.resolve(this); } });
+    const seen: Element[] = [];
+    let onScreen: (els: Element[]) => void = () => undefined;
+    vi.stubGlobal("IntersectionObserver", class {
+      constructor(cb: (e: { target: Element; isIntersecting: boolean }[]) => void) { onScreen = els => cb(els.map(target => ({ target, isIntersecting: true }))); }
+      observe(el: Element) { seen.push(el); } unobserve() { /* */ } disconnect() { /* */ }
+    });
     const { container } = render(<M.picker.FontPicker value={null} onPick={() => undefined} />);
-    const open = () => (container.querySelector("button.fontbtn") as HTMLButtonElement).click();
-    open();
-    await vi.waitFor(() => expect(document.querySelectorAll('link[href^="https://fonts.googleapis.com/css2?"]').length).toBe(1));
-    const link = document.querySelector('link[href^="https://fonts.googleapis.com/css2?"]') as HTMLLinkElement;
-    link.dispatchEvent(new Event("error"));                                     // the name does not resolve
-    expect(document.querySelectorAll('link[href^="https://fonts.googleapis.com/"]').length).toBe(0);
-    expect(document.querySelector('[data-font="Roboto"]')?.textContent).toBe("Roboto");
+    (container.querySelector("button.fontbtn") as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(container.querySelector('[data-font="Roboto"]')).not.toBeNull());
+    expect(document.querySelectorAll('link[href*="googleapis"]').length).toBe(0);
+    expect(asked).toEqual([]);                                                   // nothing until a name is on screen
+    const item = (f: string) => container.querySelector(`[data-font="${f}"]`)!;
+    expect(seen).toContain(item("Roboto"));
+    onScreen(["Inter", "Roboto", "Open Sans", "Lato", "Montserrat", "Poppins"].map(item));
+    await vi.waitFor(() => expect(asked.length).toBe(4));                        // 4 at a time
+    expect(asked.map(a => [a.family, a.token])).toEqual([["Inter", "test-token"], ["Roboto", "test-token"], ["Open Sans", "test-token"], ["Lato", "test-token"]]);
+    asked[0].done(new Response(TTF));
+    await vi.waitFor(() => expect(asked.length).toBe(5));
+    await vi.waitFor(() => expect(faces).toEqual(["sbpv Inter"]));               // a name of its own: never the library's faces
+    expect((item("Inter") as HTMLElement).style.fontFamily).toMatch(/^["']?sbpv Inter["']?, ?["']?Inter["']?,/);
+    asked[1].done(new Response(JSON.stringify({ error: "cannot be reached" }), { status: 502 }));
+    for (const a of asked.slice(2)) a.done(new Response(TTF));
+    await new Promise(ok => setTimeout(ok, 20));
+    expect(asked.length).toBe(5);                                                // Poppins is never asked after the failure
+    onScreen(["Raleway", "Nunito"].map(item));
+    await new Promise(ok => setTimeout(ok, 20));
+    expect(asked.length).toBe(5);
+    expect(item("Roboto").textContent).toBe("Roboto");                          // its fallback font
   });
 });

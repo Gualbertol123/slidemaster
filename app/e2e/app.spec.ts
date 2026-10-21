@@ -36,9 +36,11 @@ const doc = () => deckDoc("report.xlsx");
 const errors: string[] = [];
 /* browser messages the fixtures cause on purpose; any other console error or warning fails E15:
    the decks' default logo "logo.png" is not in the test folder (the app shows "Logo not found"), the helper
-   has no favicon, and the uploaded test fonts are name-table stubs (sfnt() below) that Chrome cannot decode */
+   has no favicon, the uploaded test fonts are name-table stubs (sfnt() below) that Chrome cannot decode, and where
+   the run has no network the font picker's previews (B46) fail with the helper's 502 (the picker then asks no more) */
 const EXPECTED = [/^console\.error: Failed to load resource: .* 404 .* @ \/assets\/logo\.png[?:]/, /^console\.error: Failed to load resource: .* 404 .* @ \/favicon\.ico:/,
-  /^console\.warning: Failed to decode downloaded font: http:\/\/127\.0\.0\.1:\d+\/fonts\/CorpSans-/];
+  /^console\.warning: Failed to decode downloaded font: http:\/\/127\.0\.0\.1:\d+\/fonts\/CorpSans-/,
+  /^console\.error: Failed to load resource: .* 502 .* @ \/api\/fonts\/google\/preview\?/];
 /** Chrome's font sanitiser names no file: its warning is expected only next to a stub font's decode warning */
 const unexpected = (list: string[]) => {
   const stubs = list.filter(e => EXPECTED[2].test(e)).length;
