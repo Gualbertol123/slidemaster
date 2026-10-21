@@ -8,12 +8,29 @@ export interface BorderSide { style: string; color: string; /** px, over the sty
 export type Side = "left" | "right" | "top" | "bottom";
 export type Border = Partial<Record<Side, BorderSide>>;
 export interface Xf { fmt: string; font: Font; fill: string | null; border: Border; h: string; v: string; wrap: boolean; indent: number; rot: number }
-export interface Dxf { fill?: string; color?: string; b?: boolean; i?: boolean }
+/** a conditional format's look (a <dxf>); a colour scale's result is a dxf fill. fmt: a number format code, u / s:
+    underline and strike, border: the sides it sets (S16.4) */
+export interface Dxf { fill?: string; color?: string; b?: boolean; i?: boolean; u?: boolean; s?: boolean; fmt?: string; border?: Border }
 export type CellType = "s" | "n" | "b" | "e" | "d" | "blank";
 /** a raised or lowered part of a cell's text: [start, end, kind] (Excel rich text, e.g. a footnote "(1)") */
 export type Script = [number, number, "sup" | "sub"];
 export interface Cell { r: number; c: number; v: string | number | boolean | null; t: CellType; xf: Xf; fmt: string; scr?: Script[] }
-export interface CFRule { ranges: Range[]; type: string; op: string | null; priority: number; stop: boolean; dxf: Dxf | null; formulas: string[] }
+/** a threshold of a colour scale, data bar or icon set: min, max, num, percent, percentile, formula (autoMin / autoMax of
+    the 2010 data bars); val as written (a number or a formula's text); gte false: the icon's threshold is ">" */
+export interface CFVO { type: string; val?: string; gte?: boolean }
+/** the 2010 extension of a data bar (x14:dataBar; .xlsx only – an .xlsb keeps it in future records not read) */
+export interface CFBar14 { minLength?: number; maxLength?: number; border?: boolean; gradient?: boolean; direction?: string; axis?: string;
+  negSame?: boolean; negBorderSame?: boolean; borderColor?: string; negColor?: string; negBorderColor?: string; axisColor?: string; cfvo?: CFVO[] }
+/** a rule (S16.4, B39: every type Excel 2016 writes is evaluated, xlsx/cf.ts). Only the keys of its type are set */
+export interface CFRule { ranges: Range[]; type: string; op: string | null; priority: number; stop: boolean; dxf: Dxf | null; formulas: string[];
+  /** containsText / notContainsText / beginsWith / endsWith */ text?: string;
+  /** top10 */ rank?: number; percent?: boolean; bottom?: boolean;
+  /** aboveAverage: below when false, equalAverage, standard deviations */ above?: boolean; equal?: boolean; stdDev?: number;
+  /** timePeriod: today, yesterday, tomorrow, last7Days, thisWeek, lastWeek, nextWeek, thisMonth, lastMonth, nextMonth */ period?: string;
+  scale?: { cfvo: CFVO[]; colors: string[] };
+  bar?: { cfvo: CFVO[]; color: string; minLength: number; maxLength: number; showValue: boolean; x14?: CFBar14 };
+  /** custom: per threshold its icon [set, index] (x14:cfIcon; NoIcons = null) */
+  icons?: { set: string; cfvo: CFVO[]; reverse: boolean; showValue: boolean; custom?: ([string, number] | null)[] } }
 
 export interface Shared { sst: string[]; sstRuns?: (Script[] | undefined)[]; xfs: Xf[]; dxfs: Dxf[]; defaultFont: Font; color: ColorFn; theme: string[]; mdw: number }
 
@@ -109,6 +126,7 @@ export interface Item {
   text: string; font: Font; color: string; align: string; valign: string; wrap: boolean; indent: number; rot: number;
   isText: boolean; merged: boolean; baseFill: string | null; /** font colour before conditional formatting */ baseColor?: string; cf: Dxf | null; nfColor: string | null; ctype: CellType;
   tw?: number; ov?: boolean;
+  /** Excel's data bar and icon (S16.4, xlsx/cf.ts; drawn by render/cf-dl.ts); cfHide: only the bar / icon shows */ cfBar?: CFBarLook; cfIcon?: CFIconLook; cfHide?: boolean;
   /* effective values after user edits */
   /** colour scale result (variable conditional formatting) */
   scaleFill?: string; scaleInk?: string;
@@ -126,6 +144,10 @@ export interface Item {
   edited?: boolean; /** font chosen on the slide (cell edit) */ userFont?: string; userB?: boolean; userI?: boolean; userColor?: string; userFill?: string; noFill?: boolean; role?: string;
   L?: TableLayout;
 }
+/** a data bar in a cell: from / to as fractions of the cell's bar area (0 = its left), the axis as a fraction (null: none) */
+export interface CFBarLook { from: number; to: number; fill: string; border: string | null; gradient: boolean; neg: boolean; axis: number | null; axisColor: string }
+/** an icon of an icon set: the set's name and the icon's index in it (0 = the lowest values' icon) */
+export interface CFIconLook { set: string; i: number }
 export interface Pic { x: number; y: number; w: number; h: number; rot: number; flipH: boolean; flipV: boolean; name: string; src?: string | null; crop?: Crop | null; unsupported?: string }
 export interface Rect { x: number; y: number; w: number; h: number; rot: number; flipH: boolean; flipV: boolean; name: string; fill: string | null; line: Line | null; round: boolean; ellipse?: boolean; paras?: Para[]; anchorV?: string }
 export interface TableLayout {

@@ -1,8 +1,8 @@
 /* Tables: "x" marker regions and the geometry/style of every visible cell in a region. */
-import { formatValue } from "./numfmt";
-import { A1, colToNum, inRange, parseRange, splitRef } from "./util";
+import { A1, parseRange, splitRef } from "./util";
+import { cfAt, cfBorders, cfKeys, cfText } from "./cf";
 import type { Range } from "./util";
-import type { Box, BorderSide, Cell, Dxf, Item, Pic, Rect, Sheet, TableLayout } from "./types";
+import type { Box, BorderSide, Item, Pic, Rect, Sheet, TableLayout } from "./types";
 
 export const BW: Record<string, number> = { hair: 1, thin: 1, dotted: 1, dashDot: 1, dashDotDot: 1, dashed: 1, mediumDashDot: 2, mediumDashDotDot: 2, mediumDashed: 2, slantDashDot: 2, medium: 2, thick: 3, double: 3 };
 const BRANK: Record<string, number> = { hair: 1, dotted: 2, dashDotDot: 3, dashDot: 4, dashed: 5, thin: 6, mediumDashDotDot: 7, slantDashDot: 8, mediumDashDot: 9, mediumDashed: 10, medium: 11, thick: 12, double: 13 };
@@ -92,17 +92,18 @@ export function buildLayout(S: Sheet, g: Range, sizes?: Sizes): TableLayout | nu
     let fill = xf.fill;
     const font = Object.assign({}, S.ctx.defaultFont, stripUndef(xf.font || {}));
     const baseColor = font.color || "#000000";
-    const cf = evalCF(S, b.src.r, b.src.c);
-    if (cf) { if (cf.fill) fill = cf.fill; if (cf.color) font.color = cf.color; if (cf.b !== undefined) font.b = cf.b; if (cf.i !== undefined) font.i = cf.i; }
+    const cfr = cfAt(S, b.src.r, b.src.c), cf = cfr?.dxf || null;
+    if (cf) { if (cf.fill) fill = cf.fill; if (cf.color) font.color = cf.color; if (cf.b !== undefined) font.b = cf.b; if (cf.i !== undefined) font.i = cf.i; if (cf.u !== undefined) font.u = cf.u; if (cf.s !== undefined) font.s = cf.s; }
     let text = "", nfColor: string | null = null;
-    if (cell && cell.t !== "blank") { const f = formatValue(cell); text = f.text; nfColor = f.color || null; if (cell.t === "e") errors.push(A1(b.src.r, b.src.c)); }
+    if (cell && cell.t !== "blank") { const f = cfText(cell, cf); text = f.text; nfColor = f.color || null; if (cell.t === "e") errors.push(A1(b.src.r, b.src.c)); }
     let align = xf.h || "general";
     if (align === "general") align = cell && (cell.t === "n" || cell.t === "d") ? "right" : cell && (cell.t === "b" || cell.t === "e") ? "center" : "left";
     if (align === "centerContinuous") align = "center";
     if (align === "fill" || align === "justify" || align === "distributed") align = "left";
     items.push({ ...(cell?.scr && cell.t === "s" && text === cell.v ? { scripts: cell.scr } : {}), b, bx, by, bw, bh, fill, top, left, right, bottom, text, font, color: nfColor || font.color || "#000000", align, valign: xf.v || "bottom", wrap: !!xf.wrap, indent: xf.indent || 0, rot: xf.rot || 0, isText: !!cell && cell.t === "s", merged: !!b.m,
-      baseFill: xf.fill, baseColor, cf, nfColor, ctype: cell ? cell.t : "blank" });
+      baseFill: xf.fill, baseColor, cf, nfColor, ctype: cell ? cell.t : "blank", ...cfKeys(cfr) });
   }
+  cfBorders(items, rows, cols);
   // text overflow into empty neighbours (Excel behaviour for unwrapped text)
   const occupied = new Set(items.filter(i => i.text).map(i => i.b.r + "," + i.b.c));
   for (const it of items) {
@@ -140,62 +141,6 @@ export function buildLayout(S: Sheet, g: Range, sizes?: Sizes): TableLayout | nu
   return { g, rows, cols, W, H, items, pics, rects, texts, hiddenRows: hr, hiddenCols: hc, errors, colX: x, colW: w, rowY: y, rowH: h, sheet: S, fixedCols };
 }
 
-/* ===================== conditional formatting =====================
-   cellIs (numbers and text) and expressions of the form  REF = "TEXT" / REF op number.
-   Relative references are offset from the top-left cell of the rule's range, like Excel does. */
-const cellValue = (x: Cell | null) => x && x.t !== "blank" ? x.v : null;
-function operand(S: Sheet, f: string, dr: number, dc: number): number | string | null {
-  const s = f.trim();
-  if (/^-?\d+(\.\d+)?$/.test(s)) return parseFloat(s);
-  const q = /^"(.*)"$/.exec(s); if (q) return q[1].replace(/""/g, '"');
-  const m = /^(\$?)([A-Z]{1,3})(\$?)(\d+)$/.exec(s);
-  if (m) {
-    const c = colToNum(m[2]) + (m[1] ? 0 : dc), r = +m[4] + (m[3] ? 0 : dr);
-    const v = cellValue(S.get(r, c)); return typeof v === "boolean" ? (v ? 1 : 0) : v as number | string | null;
-  }
-  return NaN;
-}
-const cmp = (op: string, v: number | string, a: number | string | null, b?: number | string | null): boolean => {
-  if (a === null || (typeof a === "number" && isNaN(a))) return false;
-  if (typeof v === "string" || typeof a === "string") {
-    const x = String(v).toLowerCase(), y = String(a).toLowerCase();
-    switch (op) { case "equal": return x === y; case "notEqual": return x !== y; default: return false; }
-  }
-  const bn = b as number;
-  switch (op) {
-    case "greaterThan": return v > a; case "greaterThanOrEqual": return v >= a;
-    case "lessThan": return v < a; case "lessThanOrEqual": return v <= a;
-    case "equal": return v === a; case "notEqual": return v !== a;
-    case "between": return typeof bn === "number" && v >= Math.min(a, bn) && v <= Math.max(a, bn);
-    case "notBetween": return typeof bn === "number" && (v < Math.min(a, bn) || v > Math.max(a, bn));
-  }
-  return false;
-};
-const OPS: Record<string, string> = { "=": "equal", "<>": "notEqual", ">": "greaterThan", ">=": "greaterThanOrEqual", "<": "lessThan", "<=": "lessThanOrEqual" };
-
-/** the conditional format of cell r,c. from = use the rules that cover another cell instead (format painter):
-    they are applied to this cell's value, relative references shifted by the distance – like Excel copies them */
-export function evalCF(S: Sheet, r: number, c: number, from?: { S: Sheet; r: number; c: number }): Dxf | null {
-  const cell = S.get(r, c), src = from || { S, r, c };
-  for (const rule of src.S.cfRules) {
-    if (!rule.ranges.some(g => inRange(g, src.r, src.c))) continue;
-    const o = rule.ranges[0], dr = r - o.r1, dc = c - o.c1;   // relative refs are written for the first cell of sqref (shifted to r,c)
-    let hit = false;
-    if (rule.type === "cellIs") {
-      if (!cell || cell.t === "blank" || cell.t === "e") continue;
-      const v = cell.t === "b" ? (cell.v ? 1 : 0) : cell.v as number | string;
-      const [a, b] = rule.formulas.map(f => operand(S, f, dr, dc));
-      hit = !!rule.op && cmp(rule.op, v, a, b);
-    } else if (rule.type === "expression") {
-      const m = /^\s*(\$?[A-Z]{1,3}\$?\d+)\s*(<>|>=|<=|=|>|<)\s*(.+?)\s*$/.exec(rule.formulas[0] || "");
-      if (m) {
-        const left = operand(S, m[1], dr, dc), right = operand(S, m[3], dr, dc);
-        hit = left !== null && cmp(OPS[m[2]], left as number | string, right);
-      }
-    }
-    if (hit && rule.dxf && Object.keys(rule.dxf).length) return rule.dxf;
-    if (hit && rule.stop) return null;
-  }
-  return null;
-}
+/* conditional formatting: xlsx/cf.ts (S16.4) */
+export { evalCF } from "./cf";
 export { splitRef };

@@ -33,7 +33,8 @@ export type Geom = { prst: string; adj?: Record<string, number> } | { path: Path
 export type Placeholder = "title" | "ctrTitle" | "subTitle" | "body" | "ftr" | "sldNum";
 export interface ShapeEl { k: "sp"; box: Box; rot?: number; flipH?: boolean; flipV?: boolean; geom: Geom; fill?: Paint | null; line?: Line | null;
   outer?: Shadow; inner?: Shadow; text?: TextBody; name?: string; ph?: Placeholder;
-  /** a line segment (line nodes; border candidates in tables) */ seg?: [number, number, number, number]; /** drawn for a sharp shadow */ fromShadow?: boolean }
+  /** a line segment (line nodes; border candidates in tables) */ seg?: [number, number, number, number]; /** drawn for a sharp shadow */ fromShadow?: boolean;
+  /** Excel's data bar / icon in a table cell (S16.4: a "cf" hit before it, render/cf-dl.ts) */ cf?: "bar" | "icon" }
 export interface PicEl { k: "pic"; box: Box; rot?: number; flipH?: boolean; flipV?: boolean; image: string; crop?: Crop; geom?: Geom; alpha?: number; outer?: Shadow; name?: string }
 export interface Crop { l: number; t: number; r: number; b: number }
 export interface TextBody { paras: Para[]; anchor: "t" | "ctr" | "b"; ins: [number, number, number, number]; wrap: boolean }
@@ -148,6 +149,8 @@ class Walker {
   /** with `split`: the primitives of the nodes `sem.layout` names (the layout's) */
   fixed: Prim[] = [];
   private owner: Owner | null = null;
+  /** the next shape is a data bar's / an icon's (S16.4) */
+  private cfMark: "bar" | "icon" | null = null;
   private seq = 0;
   /** a "bu" hit seen: the next path is that bullet's square */
   private bullet: 1 | 2 | null = null;
@@ -190,6 +193,14 @@ class Walker {
   }
 
   node(n: Node, c: Ctx) {
+    // (S16.4) a "cf" hit marks the shapes of the node after it as a data bar or an icon of a table cell
+    if (n.t === "hit" && n.kind === "cf") { this.cfMark = n.id === "icon" ? "icon" : "bar"; return; }
+    const mark = n.t !== "hit" && n.t !== "group" ? this.cfMark : null, k = this.prims.length;
+    if (mark) this.cfMark = null;
+    this.node0(n, c);
+    if (mark) for (let i = k; i < this.prims.length; i++) { const p = this.prims[i]; if (p.p === "el" && p.el.k === "sp") p.el.cf = mark; }
+  }
+  private node0(n: Node, c: Ctx) {
     switch (n.t) {
       case "hit": {
         // a paragraph's bullet (slide-dl.ts, the Excel designs' text boxes; only in the PowerPoint export's lists)
@@ -620,8 +631,9 @@ export function buildTable(prims: Prim[]): El[] {
   const cellAt = (r: number, c: number): Cell => { const o = cover[r][c], s = o ? span.get(o.n) : null; return s ? cells[s.r0][s.c0] : cells[r][c]; };
   let at = -1;
   const mark = (p: Prim, i: number) => { used.add(p); if (at < 0 || i < at) at = i; };
+  const fillOf = new Map<Cell, { p: Prim; i: number }>();
   prims.forEach((p, i) => {
-    if (p.p !== "el" || p.el.k !== "sp") return;
+    if (p.p !== "el" || p.el.k !== "sp" || p.el.cf) return;
     const el = p.el;
     // a cell's fill: a solid rectangle (or its seam polygon) over one cell or one merged cell
     if (el.fill && "solid" in el.fill && !el.line && !el.outer && !el.inner && !el.rot && !el.text && !el.fromShadow
@@ -634,7 +646,7 @@ export function buildTable(prims: Prim[]): El[] {
         const whole = s ? s.r0 === r0 && s.c0 === c0 && s.r1 === r1 && s.c1 === c1 : r1 - r0 === 1 && c1 - c0 === 1;
         // a second fill over a cell: taken when it is opaque (it hides the first), else left a shape over the table
         const had = cells[r0][c0].fill, opaque = (el.fill.a ?? 1) >= .999;
-        if (whole && (el.fill.a ?? 1) > 0 && (!had || opaque)) { cells[r0][c0].fill = el.fill; mark(p, i); }
+        if (whole && (el.fill.a ?? 1) > 0 && (!had || opaque)) { cells[r0][c0].fill = el.fill; fillOf.set(cells[r0][c0], { p, i }); mark(p, i); }
         else if (whole && had) overFill.add(p);                  // (drawn over the cell's own: over the table)
       }
       return;
@@ -709,6 +721,17 @@ export function buildTable(prims: Prim[]): El[] {
     cell.anchor = anchor;
     g.idx.forEach(i => mark(prims[i], i));
   }
+  // (S16.4, 09 §4.3) a data bar drawn over its cell's fill is a shape under the table: the fill leaves the table (the cell
+  // has none) and stays a shape where it was drawn, under the bar
+  prims.forEach((p, i) => {
+    if (p.p !== "el" || p.el.k !== "sp" || p.el.cf !== "bar") return;
+    const b = p.el.box, mx = b.x + b.w / 2, my = b.y + b.h / 2;
+    const c = xs.findIndex((x, k) => k < nC && mx >= x && mx < xs[k + 1]), r = ys.findIndex((y, k) => k < nR && my >= y && my < ys[k + 1]);
+    if (c < 0 || r < 0) return;
+    const cell = cellAt(r, c), f = fillOf.get(cell);
+    if (f && f.i < i) { cell.fill = null; used.delete(f.p); fillOf.delete(cell); }
+  });
+  at = -1; prims.forEach((p, i) => { if (used.has(p) && (at < 0 || i < at)) at = i; });
   if (at < 0) return assemble(prims);
   // the table where its cells' texts are drawn (fills and borders come before them); a line drawn between the first
   // fill and the texts stays over the fills: after the table
@@ -719,7 +742,8 @@ export function buildTable(prims: Prim[]): El[] {
     if (i === place) rest.push({ p: "el", el: tbl }, ...over);
     if (used.has(p)) return;
     // a cell text left out of the table, drawn before its first taken one, would be hidden by the cells' fills: over it
-    if (overFill.has(p) || (i > at && i < place && (p.p === "text" || (p.p === "el" && p.el.k === "sp" && (p.el.seg || (p.el.box.h <= 2.5 || p.el.box.w <= 2.5)))))) over.push(p);
+    // (an icon of Excel's icon sets: over the table, in its group; a data bar stays where it is drawn – under it)
+    if (overFill.has(p) || (i < place && p.p === "el" && p.el.k === "sp" && p.el.cf === "icon") || (i > at && i < place && !(p.p === "el" && p.el.k === "sp" && p.el.cf === "bar") && (p.p === "text" || (p.p === "el" && p.el.k === "sp" && (p.el.seg || (p.el.box.h <= 2.5 || p.el.box.w <= 2.5)))))) over.push(p);
     else rest.push(p);
   });
   if (place >= prims.length) rest.push({ p: "el", el: tbl }, ...over);

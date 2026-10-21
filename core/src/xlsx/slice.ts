@@ -40,6 +40,7 @@ export const hydrateShared = (s: SharedSlice): Shared => ({ sst: [], sstRuns: []
 const cellCount = (S: Sheet) => S.cols?.cells.n ?? 0;
 const union = (a: Range | null, b: Range): Range => a ? { r1: Math.min(a.r1, b.r1), c1: Math.min(a.c1, b.c1), r2: Math.max(a.r2, b.r2), c2: Math.max(a.c2, b.c2) } : { ...b };
 const meets = (a: Range, b: Range) => a.r1 <= b.r2 && b.r1 <= a.r2 && a.c1 <= b.c2 && b.c1 <= a.c2;
+const RANGE_RULES = new Set(["colorScale", "dataBar", "iconSet", "top10", "aboveAverage", "duplicateValues", "uniqueValues"]);
 
 /** the rectangle conditional formats need: every rule meeting `box`, its operands' cells for each cell of
     (rule range ∩ box) – relative references shift with the cell (layout.ts evalCF), absolute ones stay */
@@ -49,10 +50,18 @@ export function cfClosure(S: Sheet, box: Range): Range {
     let grown = false;
     for (const rule of S.cfRules) {
       const o = rule.ranges[0]; if (!o) continue;
+      // (S16.4) a rule on its range's values (scale, bar, icons, top / bottom, average, duplicates) needs all its cells
+      if (RANGE_RULES.has(rule.type) && rule.ranges.some(g => meets(g, out))) {
+        const C = S.cols?.cells, maxR = C && C.rows.length ? C.rows[C.rows.length - 1] : 1, maxC = C ? C.col.reduce((m, v) => v > m ? v : m, 1) : 1;
+        for (const g of rule.ranges) {
+          const h = { r1: g.r1, c1: g.c1, r2: Math.min(g.r2, Math.max(g.r1, maxR)), c2: Math.min(g.c2, Math.max(g.c1, maxC)) };
+          if (h.r1 < out.r1 || h.c1 < out.c1 || h.r2 > out.r2 || h.c2 > out.c2) { out = union(out, h); grown = true; }
+        }
+      }
       for (const g of rule.ranges) {
         if (!meets(g, out)) continue;
         const part = { r1: Math.max(g.r1, out.r1), c1: Math.max(g.c1, out.c1), r2: Math.min(g.r2, out.r2), c2: Math.min(g.c2, out.c2) };
-        for (const f of rule.formulas) for (const m of f.matchAll(/(\$?)([A-Z]{1,3})(\$?)(\d+)/g)) {
+        for (const f of [...rule.formulas, ...[...(rule.scale?.cfvo || []), ...(rule.bar?.cfvo || []), ...(rule.icons?.cfvo || [])].map(v => v.val || "")]) for (const m of f.matchAll(/(\$?)([A-Z]{1,3})(\$?)(\d+)/g)) {
           let c = 0; for (const ch of m[2]) c = c * 26 + ch.charCodeAt(0) - 64;
           const r = +m[4];
           const rr = m[3] ? [r, r] : [r + part.r1 - o.r1, r + part.r2 - o.r1], cc = m[1] ? [c, c] : [c + part.c1 - o.c1, c + part.c2 - o.c1];

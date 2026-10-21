@@ -1,8 +1,7 @@
 /* Cell edits applied on top of the workbook: text (only while the Excel value is unchanged),
    size, bold, italic, colours, alignment, role. */
 import { A1, parseRange, splitRef } from "../xlsx/util";
-import { evalCF } from "../xlsx/layout";
-import type { Dxf } from "../xlsx/types";
+import { cfAt, cfKeys, cfText, type CFResult } from "../xlsx/cf";
 import type { BorderSide, Item, TableLayout } from "../xlsx/types";
 import type { CellEdit } from "../model/types";
 import { isNumText, tableKey, type RenderCtx } from "./context";
@@ -126,7 +125,7 @@ export function withCellGrid(L: TableLayout, items: Item[]): Item[] {
 }
 /** cells removed in a version: drawn completely empty (no value, no colour, no highlight) – borders stay */
 function removedCell(it: Item): Item {
-  return { ...it, text: "", fill: null, baseFill: null, cf: null, scaleFill: undefined, scaleInk: undefined, userFill: undefined, userBg: undefined, scripts: undefined, removed: true };
+  return { ...it, text: "", fill: null, baseFill: null, cf: null, scaleFill: undefined, scaleInk: undefined, userFill: undefined, userBg: undefined, scripts: undefined, cfBar: undefined, cfIcon: undefined, cfHide: undefined, removed: true };
 }
 export function effItems(L: TableLayout, ctx: RenderCtx): Item[] {
   // the user's borders before the gridlines (a gridline shows only where no border is)
@@ -151,7 +150,12 @@ function effBase(L: TableLayout, ctx: RenderCtx): Item[] {
     const o: Item = Object.assign({}, it); o.font = Object.assign({}, it.font);
     // painted conditional formatting: the workbook's own rules are replaced by those of the source cell
     if (e.cf !== undefined) {
-      const dxf = e.cf === "none" ? null : paintedCF(ctx, L, it, e.cf);
+      // (S16.4: with them the data bar, the icon and the hidden value of the source's rules)
+      const res = e.cf === "none" ? null : paintedCF(ctx, L, it, e.cf), dxf = res?.dxf || null;
+      delete o.cfBar; delete o.cfIcon; delete o.cfHide;
+      // the value again as the painted rules show it (their number format; a value the workbook's rules hid)
+      if (it.cfHide || it.cf?.fmt || dxf?.fmt) { const x = L.sheet.get(it.b.src.r, it.b.src.c); o.text = x && x.t !== "blank" ? cfText(x, dxf).text : ""; }
+      Object.assign(o, cfKeys(res));
       o.cf = dxf; o.fill = it.baseFill; o.font.color = it.baseColor || o.font.color; o.color = it.nfColor || it.baseColor || "#000000";
       if (dxf) { if (dxf.fill) o.fill = dxf.fill; if (dxf.color) { o.font.color = dxf.color; o.color = it.nfColor || dxf.color; } if (dxf.b !== undefined) o.font.b = dxf.b; if (dxf.i !== undefined) o.font.i = dxf.i; }
     }
@@ -173,10 +177,10 @@ function effBase(L: TableLayout, ctx: RenderCtx): Item[] {
   });
 }
 /** "Sheet!C6": the conditional-format rules covering that cell, applied to this cell */
-function paintedCF(ctx: RenderCtx, L: TableLayout, it: Item, ref: string): Dxf | null {
+function paintedCF(ctx: RenderCtx, L: TableLayout, it: Item, ref: string): CFResult | null {
   const k = ref.lastIndexOf("!"), name = ref.slice(0, k), at = splitRef(ref.slice(k + 1));
   const S = name === L.sheet.name ? L.sheet : ctx.sheet?.(name) || null;
-  return S && at ? evalCF(L.sheet, it.b.src.r, it.b.src.c, { S, r: at.r, c: at.c }) : null;
+  return S && at ? cfAt(L.sheet, it.b.src.r, it.b.src.c, { S, r: at.r, c: at.c }) : null;
 }
 export function cellEditOf(ctx: RenderCtx, it: Item): CellEdit { return (ctx.edits[it.L!.sheet.name] || {})[keyOf(it)] || {}; }
 export function effText(ctx: RenderCtx, it: Item): string { const e = cellEditOf(ctx, it); return e.text !== undefined && e.orig === it.text ? e.text : it.text; }

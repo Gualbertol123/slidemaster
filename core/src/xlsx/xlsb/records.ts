@@ -10,6 +10,8 @@ export const enum Rt {
   Font = 43, Fmt = 44, Fill = 45, Border = 46, XF = 47, ColInfo = 60, CellRString = 62,
   WbProp = 153, BundleSh = 156, WsFmtInfo = 485, MergeCell = 176,
   BeginCFRule = 463, BeginConditionalFormatting = 461, EndConditionalFormatting = 462,
+  /* the parts of a rule (S16.4): icon set, data bar, colour scale, their thresholds and colours */
+  EndCFRule = 464, BeginIconSet = 465, EndIconSet = 466, BeginDatabar = 467, EndDatabar = 468, BeginColorScale = 469, EndColorScale = 470, CFVO = 471, Color = 564,
   BeginCellStyleXFs = 626, EndCellStyleXFs = 627, BeginCellXFs = 617, EndCellXFs = 618,
   BeginDXFs = 505, EndDXFs = 506, DXF = 507,
   BeginFonts = 611, EndFonts = 612, BeginFills = 603, EndFills = 604, BeginBorders = 613, EndBorders = 614,

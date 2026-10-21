@@ -4,8 +4,9 @@
    as the XML's <v>). Resumable like the scanner: run(budget) reads up to `budget` records. */
 import { ColumnsBuilder, type RowColumns, type SheetColumns } from "../sheetstore";
 import type { Range } from "../util";
-import type { CFRule, ColInfo, Shared } from "../types";
-import { Records, Rt, XlsbError, readRfx } from "./records";
+import type { CFRule, CFVO, ColInfo, Shared } from "../types";
+import { Records, Rt, XlsbError, readColor, readRfx } from "./records";
+import { unsupportedOf } from "../cf";
 import { asXlsxText, readRichStr } from "./strings";
 import { readCfFormula, readParsedFormula } from "./formula";
 import type { BinWorkbookInfo } from "./workbook";
@@ -37,6 +38,22 @@ function cfType(iType: number, tpl: number, param: number): { type: string; op: 
   return { type: "expression", op: null };
 }
 
+/** KPISets: the 2007 sets in their ST_IconSetType order, then the 2010 ones */
+const KPI_SETS = ["3Arrows", "3ArrowsGray", "3Flags", "3TrafficLights1", "3TrafficLights2", "3Signs", "3Symbols", "3Symbols2", "4Arrows", "4ArrowsGray",
+  "4RedToBlack", "4Rating", "4TrafficLights", "5Arrows", "5ArrowsGray", "5Rating", "5Quarters", "3Stars", "3Triangles", "5Boxes"];
+/** CFVOtype */
+const CFVO_TYPE: Record<number, string> = { 1: "num", 2: "min", 3: "max", 4: "percent", 5: "percentile", 7: "formula" };
+/** CFTemp of the time periods (0x0F…0x18) */
+const PERIODS = ["today", "tomorrow", "yesterday", "last7Days", "lastMonth", "nextMonth", "thisWeek", "nextWeek", "lastWeek", "thisMonth"];
+/** a rule's parameters as the .xlsx reader has them (cf-read.ts ruleParts): BrtBeginCFRule's iParam, flags (fStopTrue 2,
+    fAbove 4, fBottom 8, fPercent 16) and strParam */
+function cfParams(rule: CFRule, tpl: number, param: number, flags: number, text: string | null) {
+  if (text !== null && /^(containsText|notContainsText|beginsWith|endsWith)$/.test(rule.type)) rule.text = text;
+  if (rule.type === "top10") { rule.rank = param; rule.percent = !!(flags & 16); rule.bottom = !!(flags & 8); }
+  if (rule.type === "aboveAverage") { rule.above = tpl === 0x19 || tpl === 0x1d; rule.equal = tpl === 0x1d || tpl === 0x1e; rule.stdDev = param; }
+  if (rule.type === "timePeriod") rule.period = PERIODS[tpl - 0x0f] || "today";
+}
+
 export interface BinSheet {
   store: SheetColumns; rows: RowColumns;
   colRanges: { min: number; max: number; info: ColInfo }[];
@@ -56,6 +73,9 @@ export class BinSheetReader {
   private readonly cfRules: CFRule[] = [];
   private readonly unsupportedCF = new Set<string>();
   private cfRanges: Range[] | null = null;
+  /** the rule whose parts (thresholds, colours) follow, and which of them (S16.4) */
+  private cfRule: CFRule | null = null;
+  private cfPart: "scale" | "bar" | "icons" | null = null;
   private cfBase = { r: 1, c: 1 };
   private seen = false;
   /* formulas (S7.1): a cell whose formula is a PtgExp waits for the BrtShrFmla / BrtArrFmla record that follows its
@@ -181,14 +201,43 @@ export class BinSheetReader {
       case Rt.BeginCFRule: {
         const ranges = this.cfRanges || [], base = this.cfRanges ? this.cfBase : { r: 1, c: 1 };
         const iType = r.u32(), tpl = r.u32(), dxfId = r.i32(), pri = r.u32(), param = r.u32(); r.u32(); r.u32();
-        const flags = r.u16(), cb = [r.u32(), r.u32(), r.u32()]; r.wstrNull();
+        const flags = r.u16(), cb = [r.u32(), r.u32(), r.u32()], text = r.wstrNull();
         const { type, op } = cfType(iType, tpl, param);
-        if (!["cellIs", "expression"].includes(type)) this.unsupportedCF.add(type);
         // a formula that cannot be shown keeps its place as an error value: no comparison with it matches (as for
         // the .xlsx text of a name or another sheet's cell), and the next formula stays the second operand
         const formulas: string[] = [];
         for (const n of cb) { if (!n) continue; formulas.push(readCfFormula(r, base, this.info, this.name) ?? "#NAME?"); }
-        this.cfRules.push({ ranges, type, op, priority: pri, stop: !!(flags & 2), dxf: this.ctx.dxfs[dxfId] || null, formulas });
+        const rule: CFRule = { ranges, type, op, priority: pri, stop: !!(flags & 2), dxf: this.ctx.dxfs[dxfId] || null, formulas };
+        cfParams(rule, tpl, param, flags, text);
+        this.cfRules.push(rule); this.cfRule = rule;
+        return;
+      }
+      case Rt.EndCFRule: this.cfRule = null; this.cfPart = null; return;
+      /* the parts of a colour scale, data bar or icon set (BrtBeginColorScale / Databar / IconSet, BrtCFVO, BrtColor) */
+      case Rt.BeginColorScale: if (this.cfRule) { this.cfRule.scale = { cfvo: [], colors: [] }; this.cfPart = "scale"; } return;
+      case Rt.BeginDatabar: if (this.cfRule && r.left >= 3) {
+        const lo = r.u8(), hi = r.u8(), show = r.u8();
+        this.cfRule.bar = { cfvo: [], color: "#638EC6", minLength: lo, maxLength: hi, showValue: !!(show & 1) }; this.cfPart = "bar";
+      } return;
+      case Rt.BeginIconSet: if (this.cfRule && r.left >= 8) {
+        const set = r.i32(), f = r.u32();
+        this.cfRule.icons = { set: KPI_SETS[set] || "3TrafficLights1", cfvo: [], reverse: !!(f & 2), showValue: !(f & 1) }; this.cfPart = "icons";
+      } return;
+      case Rt.EndColorScale: case Rt.EndDatabar: case Rt.EndIconSet: this.cfPart = null; return;
+      case Rt.CFVO: {
+        const R = this.cfRule, part = this.cfPart; if (!R || !part || r.left < 24) return;
+        const t = r.u32(), num = r.f64(); r.u32(); const gte = r.u32(), cbF = r.u32();
+        const type = CFVO_TYPE[t] || "min", v: CFVO = { type };
+        if (type === "num" || type === "percent" || type === "percentile") v.val = String(num);
+        if (type === "formula" && cbF) v.val = readCfFormula(r, this.cfBase, this.info, this.name) ?? "#NAME?";
+        if (part === "icons" && !gte) v.gte = false;
+        (part === "scale" ? R.scale! : part === "bar" ? R.bar! : R.icons!).cfvo.push(v);
+        return;
+      }
+      case Rt.Color: {
+        const R = this.cfRule, part = this.cfPart; if (!R || (part !== "scale" && part !== "bar") || r.left < 8) return;
+        const col = this.ctx.color(readColor(r) as never, "#000000") || "#000000";
+        if (part === "scale") R.scale!.colors.push(col); else R.bar!.color = col;
         return;
       }
     }
@@ -198,6 +247,7 @@ export class BinSheetReader {
     const { cells: store, rows } = this.cols.finish();
     this.colRanges.sort((a, b) => a.min - b.min);
     this.cfRules.sort((a, b) => a.priority - b.priority);
+    for (const rule of this.cfRules) { const why = unsupportedOf(rule); if (why) this.unsupportedCF.add(why); }
     return { store, rows, colRanges: this.colRanges, merges: this.merges, cfRules: this.cfRules, unsupportedCF: this.unsupportedCF, defColW: this.defColW, defRowH: this.defRowH, zeroH: this.zeroH };
   }
 }

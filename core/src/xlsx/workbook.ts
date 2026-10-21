@@ -14,12 +14,13 @@ import { xattrs, xdec, parseSSTRich } from "./strings";
 import type { Range } from "./util";
 import { platform, type XmlElement } from "../platform";
 import { parseSheetId, sheetId } from "../calc/refs";
-import type { Border, CFRule, ColInfo, Dxf, Font, Progress, Script, Shared, Sheet, SheetMeta, Workbook, Xf } from "./types";
+import type { Border, ColInfo, Dxf, Font, Progress, Script, Shared, Sheet, SheetMeta, Workbook, Xf } from "./types";
 import type { RowColumns } from "./sheetstore";
 import { readWorkbookBin, readWorkbookInfoBin, readSupTabsBin, type BinWorkbookInfo } from "./xlsb/workbook";
 import { readStylesBin } from "./xlsb/styles";
 import { readSstBin } from "./xlsb/strings";
 import { BinSheetReader } from "./xlsb/sheet";
+import { readCFXml } from "./cf-read";
 
 export { xdec, xattrs, parseSST, parseSSTRich, richRuns } from "./strings";
 const entrySize = (f: ZipEntry | null) => f?.size || 0;
@@ -228,6 +229,11 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
       const f = kid(d, "font"); const o: Dxf = {};
       const fill = parseFill(kid(d, "fill"), true); if (fill) o.fill = fill;
       if (f) { const c = color(kid(f, "color"), null); if (c) o.color = c; if (kid(f, "b")) o.b = on(kid(f, "b")); if (kid(f, "i")) o.i = on(kid(f, "i")); }
+      // (S16.4) underline, strike, the number format and the border sides a rule sets
+      if (f && kid(f, "u")) o.u = kid(f, "u")!.getAttribute("val") !== "none";
+      if (f && kid(f, "strike")) o.s = on(kid(f, "strike"));
+      const nf = kid(d, "numFmt"); if (nf) o.fmt = nf.getAttribute("formatCode") || numFmts[nf.getAttribute("numFmtId") || ""] || "General";
+      const bd = parseBorder(kid(d, "border")); if (Object.keys(bd).length) o.border = bd;
       return o;
     });
   }
@@ -412,21 +418,7 @@ export async function parseSheet(zip: Zip, sh: SheetMeta, bytes: Uint8Array, ctx
   else { const pace = pacer(); while (!scan.run(4000)) { tick(Math.min(.95, scan.progress)); const w = pace(); if (w) await w; } }
   const { cells: store, rows } = scan.finish();
   const merges: Range[] = []; { const re = /<(?:\w+:)?mergeCell\b[^>]*?\bref="([^"]+)"/g; let q: RegExpExecArray | null; while ((q = re.exec(xml))) merges.push(parseRange(q[1])); }
-  const cfRules: CFRule[] = [], unsupportedCF = new Set<string>();
-  {
-    const re = /<(?:\w+:)?conditionalFormatting\b([^>]*)>([\s\S]*?)<\/(?:\w+:)?conditionalFormatting>/g; let q: RegExpExecArray | null;
-    while ((q = re.exec(xml))) {
-      const ranges = (xattrs(q[1]).sqref || "").split(/\s+/).filter(Boolean).map(parseRange);
-      const rr = /<(?:\w+:)?cfRule\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:\w+:)?cfRule>)/g; let k: RegExpExecArray | null;
-      while ((k = rr.exec(q[2]))) {
-        const a = xattrs(k[1]), type = a.type;
-        if (!["cellIs", "expression"].includes(type)) unsupportedCF.add(type);
-        const formulas: string[] = []; const fr = /<(?:\w+:)?formula(?:\s[^>]*)?>([^<]*)<\/(?:\w+:)?formula>/g; let f: RegExpExecArray | null; while ((f = fr.exec(k[2] || ""))) formulas.push(xdec(f[1]));
-        cfRules.push({ ranges, type, op: a.operator ?? null, priority: +(a.priority || 999), stop: a.stopIfTrue === "1", dxf: ctx.dxfs[+a.dxfId] || null, formulas });
-      }
-    }
-  }
-  cfRules.sort((a, b) => a.priority - b.priority);
+  const { cfRules, unsupportedCF } = readCFXml(xml, ctx);
   return finishSheet(zip, sh, ctx, store, rows, { colRanges, merges, cfRules, unsupportedCF, defColW, defRowH, zeroH });
 }
 /** the parts both formats share: drawings (XML in both), the Sheet facade, its title and table regions */

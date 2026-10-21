@@ -1,0 +1,4 @@
+{
+  "bytes": 64000,
+  "why": "M16 S16.4 (4.9.0, Excel's conditional formats, B39): measured +63,024 bytes (main's page built 3,967,290 → 4,030,314 with S16.4: the rule reader, the evaluator with its formula functions, the icon sets as vectors and the bars / icons layer), rounded up to the next 1,000. The plan expected ≈ 25 KB: the code ships twice, in the page and in the worker script the page carries as a string (app/vite.config.ts)."
+}
