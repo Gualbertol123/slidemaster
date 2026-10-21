@@ -6,7 +6,7 @@ import { backend } from "../sync/api";
 import { Topbar } from "./Topbar";
 import { Ribbon, FxBar } from "./Ribbon";
 import { Busy, Canvas, DeckHealth, Issues, Status, Thumbs, Toast } from "./Chrome";
-import { ChartPanel } from "./ChartPanel";
+import { ItemPanel } from "./ItemPanel";
 import { PickCellsDialog } from "./PickCells";
 import { SetupsDialog } from "./Setups";
 import { TableRibbon } from "./TableTools";
@@ -46,7 +46,7 @@ export function App() {
             <div className="navhd"><span>SLIDES <span id="slideCount" style={{ fontWeight: "500", marginLeft: "4px" }}>{count || ""}</span></span>
               <button className="newslide" id="newSlide" disabled={!open} title="A blank slide after the selected one (Ctrl+M)" onClick={() => newSlide()}>+ New slide</button></div>
             <Thumbs />
-            <ChartPanel />
+            <ItemPanel />
             <Issues />
             <DeckHealth />
           </aside>

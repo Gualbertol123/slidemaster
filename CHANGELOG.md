@@ -3,6 +3,16 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.8.0 - unreleased (PLAN M15: lines, icons, snapping; B32–B35)
+
+(M15 writes this section on its own branch, v4/M15-lines-icons-snapping.)
+
+## 4.7.0 - unreleased (PLAN M14: charts; B30, B31)
+
+(M14 writes this section on its own branch, v4/M14-charts. Shared preparation of both, S14.P, nothing users notice: the
+data model of 09 §2.2 / §2.3 and its ops, `Stroke.join` in every backend, the arrowheads, the PowerPoint gate of 09 §7.2,
+the per-kind item code paths, the page budget per milestone.)
+
 ## 4.6.0 - unreleased (PLAN M13; prepared 2026-10-21, dated at the tag)
 
 What users notice

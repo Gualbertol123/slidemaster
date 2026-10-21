@@ -15,9 +15,9 @@ import { scaleColors } from "@slide-builder/core/render/scales";
 import { A1, uid, esc } from "@slide-builder/core/xlsx/util";
 import type { CellBorders, CellBorderSide, CellGrid, Op, ScaleRule, Side } from "@slide-builder/core/model/types";
 import { Dropdown } from "./Dropdown";
-import { insertChartFromSelection } from "../editor/charts";
 import { askAutomatic, freeLayoutOff, freeLayoutOn } from "../editor/free";
-import { ShapeMenu, ShapeTools } from "./ShapeTools";
+import { ShapeTools } from "./ShapeTools";
+import { InsertSlots } from "./InsertSlots";
 import { AddTableMenu } from "./AddTable";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
 
@@ -167,16 +167,6 @@ function BorderMenu({ T }: { T: import("@slide-builder/core/xlsx/types").TableLa
 
 const ROLES = [["auto", "Auto", "Detected from the Excel formatting"], ["header", "Header", "Column/row header"], ["total", "Total", "Highlighted total (tile)"], ["body", "Body", "Normal data"], ["caption", "Note", "Small note"]] as const;
 
-/** Insert chart ▾: from the selected cells (beside their table), or cells chosen in the sheet view – any sheet the wizard
-    lists, a sheet on no slide too, never a hidden one (WB-18); no cell names typed (product owner 2026-10-19) */
-function ChartMenu({ close }: { close: () => void }) {
-  const sel = useStore(s => s.selection.sel);
-  return <div className="chartmenu">
-    <button data-a="chart-sel" disabled={!sel} title={sel ? "" : "Select the cells of a table first"} onClick={() => { close(); insertChartFromSelection(); }}>From the selected cells<small>the numbers, and their names in the first column; beside the table</small></button>
-    <button data-a="chart-pick" onClick={() => { close(); setDialogs({ pick: { kind: "chart" } }); }}>Choose the cells…<small>of any sheet: drag across the numbers, then their names</small></button>
-  </div>;
-}
-
 export function TableRibbon() {
   const sel = useStore(s => s.selection.sel), noteSel = useStore(s => s.selection.noteSel), anyTables = useStore(s => s.deck.slides.some(x => x.tables.length));
   const R = useCurSlide(), c = useCtx(), st = useStyle(), open = useStore(s => s.doc.open);
@@ -238,12 +228,7 @@ export function TableRibbon() {
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="addTable" disabled={!open} title="Add a table of the workbook to this slide: the deck's tables, or new from cells" onClick={t}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="1.5" y="2.5" width="13" height="11" /><path d="M1.5 6h13M6 6v7.5" /></svg>Add table ▾</button>}>
           {close => <AddTableMenu close={close} />}</Dropdown>
-        <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="chartBtn" disabled={!R} title="A pie or donut chart of cells of the workbook: it follows the workbook when it changes" onClick={t}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="8" cy="8" r="6.2" /><path d="M8 1.8V8l5.3 3.1" /></svg>Insert chart ▾</button>}>
-          {close => <ChartMenu close={close} />}</Dropdown>
-        <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="shapeBtn" disabled={!R} title="A callout: a shape or an icon, with text that can quote cells ({Sheet!C7})" onClick={t}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="2.5" width="11" height="8" rx="2" /><path d="M4 10.5 3 14l4-3.5" /></svg>Insert shape ▾</button>}>
-          {close => <ShapeMenu close={close} />}</Dropdown>
+        <InsertSlots />{/* Insert chart ▾, Insert shape ▾ … (InsertSlots.tsx: one entry per kind, S14.P) */}
       </div>
       <ShapeTools />
       <div className="grp">

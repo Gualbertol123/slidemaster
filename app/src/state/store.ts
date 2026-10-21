@@ -59,6 +59,14 @@ export interface RunState {
   /** slide cells kept at Excel's value in every file (locale-dependent TEXT, a linked workbook or hidden sheet not read) */ kept: KeptCell[];
   t0: number; seconds?: number;
 }
+/** the selected slide item and the part of it the panel edits (S14.P: the shape both M14 and M15 fill in) */
+export interface ItemSel {
+  id: string;
+  /** a pie's slice (4.3) */ slice: number | null;
+  /** a series chart's point (M14; the DL hit "point" "<item>:<series>:<i>") */ point?: { s: string; i: number } | null;
+  /** a chart's mark, by its id (M14; hit "mark") */ mark?: string | null;
+  /** a line's handle being dragged or edited (M15: end a, end b, the middle) */ handle?: "a" | "b" | "mid" | null;
+}
 
 export interface AppState {
   doc: {
@@ -82,7 +90,7 @@ export interface AppState {
   selection: {
     sel: Sel | null;
     /** selected text box ("<tableId>:<side>") */ noteSel: string | null;
-    /** selected slide item (4.3: a chart; `slice`: one of its slices) */ itemSel: { id: string; slice: number | null } | null;
+    /** selected slide item (4.3: a chart; `slice`: one of its slices) */ itemSel: ItemSel | null;
     /** selected slide text: title, subtitle, cover note or date – or a look text (B29: the KPI line, the message panel) */ textSel: SlideTextKey | import("../editor/look").LookTextKey | null;
     /** format painter: copied formats (rows × cols), sticky = keep painting */ painter: Painter | null;
   };
