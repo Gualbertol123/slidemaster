@@ -70,6 +70,12 @@ What users notice
   number). Exporting or copying the current slide still exports a hidden one. Hidden in Liquid Glass, a slide still
   shows in the other designs. Each change is one undo step. A deck with a hidden slide opens in 4.6 and later only
   (B41).
+* **Delete slide and Duplicate slide** (owner Q12), as in PowerPoint: right-click a slide in the slide list ›
+  *Duplicate slide* puts a copy right after it – its tables, texts, formats, charts and callouts, free layout, looks and
+  hidden designs – and shows it; it exports exactly as the original but for its page number. *Delete slide* (or the
+  Delete key on a selected slide in the list) asks first; the slide's tables stay in the deck (*Add table* puts them on
+  a slide again). Each is one undo step. The cover and the contents slide are not duplicated (the deck keeps one of
+  each), and the last slide of a deck is not deleted.
 
 For the maintainer
 * **Update day (4.0 → 4.6): every Slide Builder window and black window is closed on every PC before the update**

@@ -7,7 +7,7 @@ import { selectSlideText, toggleBold, toggleItalic } from "./textfmt";
 import { stopPainter } from "./painter";
 import { deleteItem, selectItem, selectedItem } from "./charts";
 import { setStage } from "../stage/data";
-import { newSlide } from "./slides";
+import { deleteSlide, newSlide } from "./slides";
 
 export function installKeys() {
   document.addEventListener("keydown", e => {
@@ -21,6 +21,9 @@ export function installKeys() {
     if (mod && k === "s") { e.preventDefault(); void flushDoc(); return; }
     if (mod && k === "m" && !inField && !e.altKey && !e.shiftKey) { e.preventDefault(); newSlide(); return; }     // PowerPoint's New slide
     if (inField || !get().deck.slides.length) return;
+    // Delete on a selected thumbnail (S13.7): asks, as the slide list's menu does
+    const th = e.key === "Delete" && !mod && !e.altKey ? t.closest?.("#thumbs .thumb") : null;
+    if (th) { e.preventDefault(); const R = get().deck.slides[Number(th.getAttribute("data-i"))]; if (R) void deleteSlide(R.id); return; }
     if (e.key === "Escape" && get().selection.painter) { stopPainter(); return; }
     if (e.key === "PageDown" || (e.key === "ArrowDown" && e.altKey)) { e.preventDefault(); gotoSlide(get().deck.cur + 1); return; }
     if (e.key === "PageUp" || (e.key === "ArrowUp" && e.altKey)) { e.preventDefault(); gotoSlide(get().deck.cur - 1); return; }
