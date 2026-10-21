@@ -1972,6 +1972,103 @@ test.describe.serial("two people, one shared folder", () => {
     await saved(page);
   });
 
+  test("Hide slide (S13.6, HS-01, HS-03, B47): per design from the slide list's menu, grayed and marked, the stage marks it; every design; one undo step each; the deck is format 5", async ({ page }) => {
+    await openApp(page, ANNA);
+    await openWorkbook(page, "report.xlsx"); await continueOpen(page, "report.xlsx");
+    await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
+    const undoSteps = () => page.evaluate(() => (window as any).__sbTest.history().undo as number);
+    const design = () => doc().style.design || "glass", other = () => design() === "excel" ? "glass" : "excel";
+    const k = (doc().preset.slides as any[]).map(s => s.type).lastIndexOf("content"), hideOf = () => doc().preset.slides[k].hide ?? null;
+    const u0 = await undoSteps(), d0 = design(), t = page.locator(`.thumb[data-i="${k}"]`);
+    // right-click › Hide slide: hidden in this design only
+    await t.click({ button: "right" });
+    await expect(page.locator("#ctxHideSlide")).toContainText("Hide slide");
+    await page.click("#ctxHideSlide");
+    await expect(page.locator("#slideMenu")).toHaveCount(0);
+    await pollFile(() => hideOf(), { timeout: 10_000 }).toEqual({ [d0]: true });
+    await expect(t).toHaveClass(/\bhid\b/);
+    await expect(t.locator(".hidmark")).toHaveText("hidden");
+    await expect(page.locator(`.thumb.on[data-i="${k}"]`)).toBeVisible();
+    await expect(page.locator("#stageHidden")).toContainText("not exported");                // the stage still shows it, marked
+    await expect(page.locator(".thumb.hid")).toHaveCount(1);
+    // HS-03: the key is newer than 4.0.0 – the deck is raised to format 5 (no older page can drop it)
+    await pollFile(() => JSON.parse(fs.readFileSync(path.join(deckDir("report.xlsx")!, "snapshot.json"), "utf8")).format, { timeout: 15_000 }).toBe(5);
+    // another design shows it
+    await page.evaluate(d => (window as any).__sbTest.change("Design", [{ op: "style.patch", patch: { design: d } }]), other());
+    await expect(t).not.toHaveClass(/\bhid\b/);
+    await expect(page.locator("#stageHidden")).toHaveCount(0);
+    await page.click("#undoBtn");
+    await expect(t).toHaveClass(/\bhid\b/);
+    // Hide in every design, then Show in every design
+    await t.click({ button: "right" });
+    await expect(page.locator("#ctxHideAll")).toHaveText("Hide in every design");
+    await page.click("#ctxHideAll");
+    await pollFile(() => Object.keys(hideOf() || {}).sort(), { timeout: 10_000 }).toEqual(["bain", "clean", "excel", "glass", "mckinsey"]);
+    await t.click({ button: "right" });
+    await expect(page.locator("#ctxHideSlide")).toContainText("Show slide");
+    await expect(page.locator("#ctxHideAll")).toHaveText("Show in every design");
+    await page.click("#ctxHideAll");
+    await pollFile(() => hideOf(), { timeout: 10_000 }).toBeNull();
+    await expect(t).not.toHaveClass(/\bhid\b/);
+    await expect(page.locator("#stageHidden")).toHaveCount(0);
+    // one undo step each: show all → hide all → hide here → nothing
+    await expect.poll(() => undoSteps()).toBe(u0 + 3);
+    await page.click("#undoBtn"); await pollFile(() => Object.keys(hideOf() || {}).length, { timeout: 10_000 }).toBe(5);
+    await page.click("#undoBtn"); await pollFile(() => hideOf(), { timeout: 10_000 }).toEqual({ [d0]: true });
+    await page.click("#undoBtn"); await pollFile(() => hideOf(), { timeout: 10_000 }).toBeNull();
+    await expect(page.locator(".thumb.hid")).toHaveCount(0);
+    await saved(page);
+  });
+
+  test("Hidden slides in the exports (S13.6, HS-02, B47): PDF, PNG all and PowerPoint leave them out; page numbers and the contents renumber; the current slide still exports; another design keeps it", async ({ page }) => {
+    await openApp(page, ANNA);
+    await openWorkbook(page, "report.xlsx"); await continueOpen(page, "report.xlsx");
+    await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
+    const undoSteps = () => page.evaluate(() => (window as any).__sbTest.history().undo as number);
+    const change = (label: string, ops: object[]) => page.evaluate(([l, o]) => (window as any).__sbTest.change(l, o), [label, ops] as const);
+    const slides = doc().preset.slides as any[], n = slides.length, k = slides.map(s => s.type).indexOf("content"), id = slides[k].id;
+    const ix = slides.map(s => s.type).indexOf("index"), u0 = await undoSteps();
+    const read = (f: string) => fs.readFileSync(path.join(root(), "export", f));
+    // page numbers "n / N" on every slide, and a title only this slide has
+    await change("Page numbers", [{ op: "style.patch", patch: { pn: { on: true, format: "nN", cover: true } } }]);
+    await change("Title", [{ op: "slide.patch", id, patch: { title: "Zeta hidden" } }]);
+    await expect.poll(() => undoSteps()).toBe(u0 + 2);
+    let text = pdfPageTexts(read((await exported(page, () => page.click("#exportBtn")))[0]));
+    expect(text).toHaveLength(n);
+    expect(text.join(" ")).toContain("Zeta hidden");
+    expect(text[n - 1]).toContain(`${n} / ${n}`);
+    // hidden in this design (the slide list's menu)
+    await page.locator(`.thumb[data-i="${k}"]`).click({ button: "right" }); await page.click("#ctxHideSlide");
+    await expect(page.locator(`.thumb[data-i="${k}"]`)).toHaveClass(/\bhid\b/);
+    await saved(page);
+    text = pdfPageTexts(read((await exported(page, () => page.click("#exportBtn")))[0]));
+    expect(text).toHaveLength(n - 1);
+    expect(text.join(" ")).not.toContain("Zeta hidden");                                 // neither its page nor a contents entry
+    expect(text[n - 2]).toContain(`${n - 1} / ${n - 1}`);                                 // the last page renumbered
+    if (ix >= 0) expect(text[ix]).toContain(`${ix + 1} / ${n - 1}`);
+    // PNG of every slide, PowerPoint: the same pages
+    expect(await fromMenu(page, "png-all")).toHaveLength(n - 1);
+    const [pptx] = await fromMenu(page, "pptx");
+    expect(pptxSlides(read(pptx))).toBe(n - 1);
+    expect(pptxTexts(read(pptx)).join(" ")).not.toContain("Zeta hidden");
+    // the current slide, hidden: exported all the same (asked for it)
+    await page.locator(`.thumb[data-i="${k}"]`).click(); await page.locator(`.thumb.on[data-i="${k}"]`).waitFor();
+    const [one] = await fromMenu(page, "pdf-current");
+    const cur = pdfPageTexts(read(one));
+    expect(cur).toHaveLength(1); expect(cur[0]).toContain("Zeta hidden");
+    // another design: every slide
+    await change("Design", [{ op: "style.patch", patch: { design: (doc().style.design || "glass") === "excel" ? "glass" : "excel" } }]);
+    await saved(page);
+    text = pdfPageTexts(read((await exported(page, () => page.click("#exportBtn")))[0]));
+    expect(text).toHaveLength(n);
+    expect(text.join(" ")).toContain("Zeta hidden");
+    // undo: the design, the hide, the title, the page numbers
+    for (let i = 0; i < 4; i++) await page.click("#undoBtn");
+    await expect.poll(() => undoSteps()).toBe(u0);
+    await pollFile(() => doc().preset.slides[k].hide ?? null, { timeout: 10_000 }).toBeNull();
+    await saved(page);
+  });
+
   test("no page errors, console errors or warnings", async () => { expect(unexpected(errors)).toEqual([]); });
 });
 

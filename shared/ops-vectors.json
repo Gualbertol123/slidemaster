@@ -8154,5 +8154,523 @@
         ]
       }
     }
+  },
+  {
+    "name": "slide.patch hide (S13.6, B47) hides a slide in one design; another design's entry is kept",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "S1",
+            "hide": {
+              "excel": true
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [],
+            "title": "S2"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "hide": {
+            "glass": true
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "S1",
+            "hide": {
+              "excel": true,
+              "glass": true
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [],
+            "title": "S2"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.patch hide: null shows the slide in that design again, and the map goes when it is empty (S13.6)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "S1",
+            "hide": {
+              "glass": true
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [],
+            "title": "S2",
+            "hide": {
+              "glass": true,
+              "bain": true
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "hide": {
+            "glass": null
+          }
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s2",
+        "patch": {
+          "hide": {
+            "bain": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "S1"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [],
+            "title": "S2",
+            "hide": {
+              "glass": true
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.patch hide: null clears every design (Show in every design); Hide in every design sets each (S13.6)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "S1",
+            "hide": {
+              "glass": true,
+              "excel": true
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [],
+            "title": "S2"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "hide": null
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s2",
+        "patch": {
+          "hide": {
+            "glass": true,
+            "excel": true,
+            "clean": true,
+            "mckinsey": true,
+            "bain": true
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "S1"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [],
+            "title": "S2",
+            "hide": {
+              "glass": true,
+              "excel": true,
+              "clean": true,
+              "mckinsey": true,
+              "bain": true
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.patch hide on a slide another user removed is skipped (S13.6, 09 §2.8)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "S1"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s2",
+        "patch": {
+          "hide": {
+            "glass": true
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "S1"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 0,
+      "skipped": [
+        0
+      ]
+    }
+  },
+  {
+    "name": "fold: two writers hide the same slide in two designs - both stay (merged per design); a show of one design after a hide of it wins by Lamport time (S13.6)",
+    "fold": {
+      "snapshot": {
+        "format": 5,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": {
+            "sheets": [
+              "S"
+            ],
+            "tables": [
+              {
+                "id": "t1",
+                "sheet": "S",
+                "kind": "range",
+                "range": "A1:C6"
+              }
+            ],
+            "slides": [
+              {
+                "id": "s1",
+                "type": "content",
+                "tables": [
+                  "t1"
+                ],
+                "title": "S1"
+              },
+              {
+                "id": "s2",
+                "type": "content",
+                "tables": [],
+                "title": "S2"
+              }
+            ]
+          },
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": 3,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 2,
+          "by": "anna",
+          "at": 3000,
+          "ops": [
+            {
+              "op": "slide.patch",
+              "id": "s2",
+              "patch": {
+                "hide": {
+                  "excel": null
+                }
+              }
+            }
+          ]
+        },
+        {
+          "l": 2,
+          "w": "bob@pc2#bbbbbbbb",
+          "s": 1,
+          "by": "bob",
+          "at": 2000,
+          "ops": [
+            {
+              "op": "slide.patch",
+              "id": "s1",
+              "patch": {
+                "hide": {
+                  "excel": true
+                }
+              }
+            },
+            {
+              "op": "slide.patch",
+              "id": "s2",
+              "patch": {
+                "hide": {
+                  "excel": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "l": 1,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 1000,
+          "ops": [
+            {
+              "op": "slide.patch",
+              "id": "s1",
+              "patch": {
+                "hide": {
+                  "glass": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {},
+      "rev": 3,
+      "lamport": 3,
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "S1",
+            "hide": {
+              "glass": true,
+              "excel": true
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [],
+            "title": "S2"
+          }
+        ]
+      }
+    }
   }
 ]

@@ -374,6 +374,32 @@ the op builder.
   returns the title area and the items' boxes (today it returns no boxes, `layout.ts:242`; fixed in S13.3). The title
   area is the band above the content area, or Consulting Red's message panel (x 0–500) when the slide has the panel.
 
+### 2.8b Hidden slides (B47, S13.6; product owner 2026-10-21)
+
+```ts
+// SlideDef += hide?: Partial<Record<Design, true>>      // hidden in these designs; slide.patch {hide: {glass: true}}
+```
+* One key, `hide` (not `hidden`: §2.5's slide `hidden` is F11's hidden rows / columns, `"t3:r12": true`). `SLIDE_MAPS
+  += hide`: merged per design (two users hiding the slide in two designs both land; `{glass: null}` shows it there
+  again, `hide: null` in every design, an empty map is removed). Inverse as every map merge (the previous entry of each
+  design named). `knownOp` knows it (a 4.6 page compacts it); `needsV5` by itself (not a 4.0.0 key) and `docNeedsV5`
+  for a non-empty map (`V5_SLIDE`). Vectors: one design kept beside another, null per design / whole, a removed slide,
+  two writers in two designs (fold).
+* **Exports** (`worker/host.ts` slideLists): a list asked for an export without naming slides (`forExport`, no
+  `slides`) leaves out the slides hidden in its design – PDF and PowerPoint of the deck, every version × design, Run for
+  each value; PNG of every slide names the shown slides (`editor/export.ts`). Slides named are drawn: the current slide
+  (PDF / PNG / PowerPoint / clipboard) exports even when it is hidden – it was asked for. The Run for each value gate
+  (RC-06) skips the cells of hidden slides. Every slide hidden: "nothing to export" (the page says so first).
+* **Numbers and contents** (`render/pagenumbers.ts`): `pageNumber(i)` = start + the slides before i not hidden in the
+  design; `N` = the shown slides; a hidden slide draws no page number; the contents slide (`slide-dl.ts` indexNodes /
+  consultIndex) lists only shown content slides, with their exported numbers. The same rule on the stage and the
+  thumbnails (they draw from the same ctx), so the numbers on screen are the exported ones; the slide list's own
+  numbers (1 … n) stay positions in the list, struck through on a hidden slide.
+* **UI**: the slide list's right-click menu (`Chrome.tsx`, beside S13.4's *New slide*): *Hide slide* / *Show slide* (the
+  current design), *Hide in every design* / *Show in every design* (all five; "show" when hidden in all). One op each,
+  one undo step. A hidden slide's thumbnail is grayed with a *hidden* tag and its number struck; the stage draws it
+  (it can be edited) with a mark "Hidden in <design> – not exported" (DOM, never in the display list).
+
 ### 2.9 Excel conditional formats (F17)
 No deck state: the rules come from the workbook (read-only). The core evaluates more rule types per cell and the
 result joins the laid-out cell (`Item.cf` grows from a dxf to `{dxf?, scale?: RGB, bar?: {from, to, fill, border,
@@ -393,7 +419,7 @@ format, border, underline and strike.
 |---|---|
 | `item.patch` | (every `item.patch` already needs format 5, 4.0 knowing no items; for `knownOp` of 4.6:) kind `line`; keys `stack, gap, overlap, legendAt, frame, titleRule, plot, route, a, b, mid, bend, ends, style, stroke`; maps `sers, groups, axes, marks, legendHide, titleFmt`; new values of `type` and `icon` need no list (values are not checked) |
 | `slide.patch` `free` | entries may carry a line's `a` / `b` (§2.3) – inside a known map, nothing to add |
-| `slide.patch` | map `hidden` |
+| `slide.patch` | map `hidden` (F11); map `hide` (B47, §2.8b – in 4.6.0) |
 | `cell.patch` | keys `valign`, `num` |
 | new ops | `version.patch`, `slide.add`, `slide.remove`, `table.add`, `table.remove` |
 
@@ -750,6 +776,9 @@ an e2e scenario run on the reference deck checks the line's last label and the o
 | XC-02 | top / bottom, above average, duplicates, text, dates, blanks / errors, formula rules | U |
 | NS-01 | New slide after the selected one; title editable; undo | E |
 | NS-02 | Add table lists mapped tables (unused first) and adds one; New table from cells | E |
+| HS-01 | Hide slide / Show slide (current design), Hide / Show in every design from the slide list's menu; grayed and marked in the list, marked on the stage; another design shows it; one undo step each | U (`app/tests/hide.test.tsx`) + E |
+| HS-02 | the design's exports (PDF, PNG all, PowerPoint, versions × designs, Run for each value) leave hidden slides out; page numbers and the contents count the shown slides; the current slide still exports | U (`core/tests/hide.test.ts`) + E |
+| HS-03 | an older page cannot drop `hide`: the key raises the deck to format 5 (`needsV5` / `docNeedsV5`), a 4.6 page compacts it (`knownOp`) | U + E (format 5) + CP-01 |
 | CP-01 | a 4.6 deck with every new object: the real **4.0.0** (the share's), 4.1, 4.4 and 4.5 helpers + pages – one that opens it, one that had it open before the bump (it edits, runs the wizard's `preset.set`, stays alone so it would compact), one whose PC helper is restarted on 4.6 – cannot remove or overwrite anything; journals survive the old helpers' idle clean-up (AUDIT-2 §6 repeated) | experiment script in every milestone close, its log in PROGRESS |
 | CP-02 | decks without new objects stay `format: 4` and open in 4.5 | helper test + E |
 | LI-01 | the release and the page carry the third-party notices (LIC-1) | U (`make_release` test: a runtime dependency without a notice fails) |
@@ -784,6 +813,7 @@ columns), CH-01 (+ types), CL-01 (+ Tabler icons), FL-02 (+ snapping targets), E
 | B40 | **New slide** (button, Ctrl+M) after the selected slide, and **Add table** listing the deck's tables (F16) | M13 |
 | B41 | A deck that uses an object newer than 4.0 (charts, callouts, free layout, looks, cell gridlines / borders, or any 4.6 object) opens only in 4.6 or later; an older window asks for a restart (§1, REL-1); decks without them are unchanged | M13 |
 | B42 | **Third-party notices**: `THIRD-PARTY-NOTICES.txt` in every release and an *About › Licences* view in ⚙ Options (LIC-1) | M13 |
+| B47 | **Hide slides** per design (§2.8b; product owner 2026-10-21): grayed in the slide list, left out of the design's exports; page numbers and the contents count the shown slides | M13 |
 
 ### 7.4 Part F additions (enforced by `npm run bench` from the step that introduces them)
 

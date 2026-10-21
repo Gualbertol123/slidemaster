@@ -17,6 +17,8 @@ import type { RuntimeSlide, Side } from "@slide-builder/core/model/types";
 import { slideFrame } from "@slide-builder/core/render/slide";
 import { freeOf, tableH, tableW } from "@slide-builder/core/render/layout";
 import { tableName } from "@slide-builder/core/model/preset";
+import { hiddenIn } from "@slide-builder/core/render/pagenumbers";
+import { DESIGN_LABEL } from "@slide-builder/core/model/designs";
 import type { RenderCtx } from "@slide-builder/core/render/context";
 import { selItems, activeItem, setSel, curSlide } from "../editor/edit";
 import { setColWidth, setRowHeight } from "../editor/tables";
@@ -99,6 +101,8 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
           {R.type === "content" && !R.tables.length && <div className="emptyslide">No tables on this slide – Add table (Insert) puts one here.</div>}
         </div>
       </div>
+      {/* a slide hidden in this design (S13.6): still drawn and edited here, marked (DOM, never exported) */}
+      {hiddenIn(R.cfg, c0.style.design) && <div className="stagehid" id="stageHidden">Hidden in {DESIGN_LABEL[c0.style.design]} – not exported</div>}
       {editor?.kind === "cell" && <CellEditor m={m} s={s} initial={editor.initial} />}
       {editor?.kind === "text" && <TextEditor m={m} s={s} k={editor.key} />}
       {editor?.kind === "note" && <NoteEditor m={m} s={s} k={editor.key} />}

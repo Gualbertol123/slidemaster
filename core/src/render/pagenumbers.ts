@@ -1,17 +1,25 @@
-/* Page numbers: pageNumber(i) = start + i (the cover counts as a page). i is the slide's position in ctx.slides (the
-   runtime slides of preset.slides, worker/host.ts slidesFor), so a slide added or removed (slide.add / slide.remove,
-   S13.3) renumbers every slide after it, and the contents slide (slide-dl.ts indexNodes / consultIndex) with them.
-   S13.6 (hidden slides): leave the hidden slides of the design out of ctx.slides for the exports (host.ts ctx() /
-   slidesFor) – the numbers and the contents follow – while the stage keeps drawing them. */
+/* Page numbers: pageNumber(i) = start + the slides before i that are not hidden in the design (the cover counts as a
+   page). i is the slide's position in ctx.slides (the runtime slides of preset.slides, worker/host.ts slidesFor), so a
+   slide added or removed (slide.add / slide.remove, S13.3) renumbers every slide after it, and the contents slide
+   (slide-dl.ts indexNodes / consultIndex) with them. A slide hidden in the design (S13.6, B47: SlideDef.hide) is left
+   out of that design's exports (host.ts slideLists), of the numbering and of the contents – on the stage and the
+   thumbnails too, which still draw it: it shows no page number, and the others show their exported one (09 §2.8b). */
 import type { RenderCtx } from "./context";
 import { deckFmt } from "./text";
+import type { Design, SlideDef } from "../model/types";
 
-export function pageNumber(ctx: RenderCtx, i: number) { const p = ctx.style.pn; return (isFinite(+p.start) ? +p.start : 1) + i; }
-/** label shown on slide i, or null */
+/** a slide definition hidden in design `d` (S13.6, B47) */
+export const hiddenIn = (cfg: Pick<SlideDef, "hide"> | null | undefined, d: Design) => cfg?.hide?.[d] === true;
+/** slide i of ctx is hidden in ctx's design */
+export const isHidden = (ctx: RenderCtx, i: number) => hiddenIn(ctx.slides[i]?.cfg, ctx.style.design);
+/** the slides before i that are not hidden */
+const shownBefore = (ctx: RenderCtx, i: number) => { let n = 0; for (let j = 0; j < i; j++) if (!isHidden(ctx, j)) n++; return n; };
+export function pageNumber(ctx: RenderCtx, i: number) { const p = ctx.style.pn; return (isFinite(+p.start) ? +p.start : 1) + shownBefore(ctx, i); }
+/** label shown on slide i, or null (a hidden slide has none) */
 export function pageNoFor(ctx: RenderCtx, i: number): string | null {
-  const p = ctx.style.pn; if (!p.on) return null;
+  const p = ctx.style.pn; if (!p.on || isHidden(ctx, i)) return null;
   if (ctx.slides[i] && ctx.slides[i].type === "cover" && !p.cover) return null;
-  const n = pageNumber(ctx, i), N = pageNumber(ctx, Math.max(0, ctx.slides.length - 1));
+  const n = pageNumber(ctx, i), N = pageNumber(ctx, 0) + Math.max(0, shownBefore(ctx, ctx.slides.length) - 1);
   return p.format === "nN" ? `${n} / ${N}` : p.format === "page" ? `Page ${n}` : p.format === "p" ? `p. ${n}` : String(n);
 }
 export const PN_FONTS: Record<string, string | null> = {

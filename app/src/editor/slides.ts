@@ -3,7 +3,8 @@
    sheet view (PickCells.tsx: its definition joins preset.tables with the same op). In a free layout the core places an
    added table at the first empty spot (render/layout.ts freeLayout); nothing is written for it here. */
 import { get, toast } from "../state/store";
-import { change, focusSlide } from "../state/app";
+import { change, focusSlide, style } from "../state/app";
+import { DESIGNS } from "@slide-builder/core/model/designs";
 import { curSlide } from "./edit";
 import type { Preset, SlideDef, TableDef } from "@slide-builder/core/model/types";
 
@@ -51,4 +52,16 @@ export function addRangeTable(sheet: string, range: string): string | null {
   const p = get().doc.view?.preset; if (!p) return null;
   const def: TableDef = { id: newId("t", x => p.tables.some(t => t.id === x)), sheet, kind: "range", range, grow: false };
   return addTable(def) ? def.id : null;
+}
+
+/** Hide slide / Show slide (S13.6, B47; the slide list's menu): slide `i` hidden in the current design – or, `every`, in
+    every design (shown in every design when it is hidden in all) – one slide.patch of `hide`, merged per design, so one
+    undo step. A hidden slide stays on the stage and in the list (grayed); the design's exports, page numbers and
+    contents leave it out (core render/pagenumbers.ts, worker/host.ts slideLists) */
+export function hideSlide(i: number, every = false): boolean {
+  const R = get().deck.slides[i]; if (!R) return false;
+  const d = style().design, h = R.cfg.hide || {}, all = DESIGNS.every(x => h[x] === true), on = h[d] === true;
+  const patch = every ? (all ? null : Object.fromEntries(DESIGNS.map(x => [x, true as const]))) : { [d]: on ? null : true as const };
+  return change(every ? (all ? "Show in every design" : "Hide in every design") : on ? "Show slide" : "Hide slide",
+    [{ op: "slide.patch", id: R.id, patch: { hide: patch } }]);
 }

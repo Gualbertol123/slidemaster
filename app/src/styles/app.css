@@ -276,3 +276,8 @@ body.painting .slide .hits{cursor:copy}
 .navhd .newslide:hover{background:var(--accent-soft)}
 .navhd .newslide:disabled{color:var(--mute);cursor:default;background:none}
 .menu.ctxmenu{position:fixed;display:block;min-width:200px}
+/* hidden slides (S13.6, B47): grayed in the list, marked on the stage */
+.thumb.hid .frame{opacity:.4;filter:grayscale(1)}
+.thumb.hid .cap .n{text-decoration:line-through}
+.thumb .cap .hidmark{background:#EEF0F4;color:var(--mute)}
+.stagehid{position:absolute;left:8px;top:8px;z-index:5;pointer-events:none;font:600 11.5px var(--font);padding:3px 9px;border-radius:8px;background:rgba(20,24,40,.72);color:#fff}

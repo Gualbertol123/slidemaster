@@ -24,6 +24,14 @@ What users notice
 * **Licences** (LI-01): ⚙ Options › About › *Licences…*, or *Licences…* on the start screen before any workbook is
   open, shows the licences of the third-party software in Slide Builder (React, zustand, fflate, IronCalc,
   harfbuzzjs / HarfBuzz); the release ZIP carries the same text as `THIRD-PARTY-NOTICES.txt`.
+* **Hide slides** (B47), as in PowerPoint: right-click a slide in the slide list › *Hide slide* hides it in the current
+  design (*Show slide* brings it back), *Hide in every design* in all five. A hidden slide stays in the list, grayed,
+  its number struck and marked *hidden*, and on the stage (marked "Hidden in …", still editable); it is left out of
+  that design's exports – PDF, PNG of every slide, PowerPoint, every version × design, Run for each value – and the
+  page numbers and the contents slide count only the slides shown (on the stage too; the hidden slide shows no page
+  number). Exporting or copying the current slide still exports a hidden one. Hidden in Liquid Glass, a slide still
+  shows in the other designs. Each change is one undo step. A deck with a hidden slide opens in 4.6 and later only
+  (B41).
 
 For the maintainer
 * **`THIRD-PARTY-NOTICES.txt`** (AUDIT-2 LIC-1, ADR-020) is written by `node tools/notices.mjs` from the packages the

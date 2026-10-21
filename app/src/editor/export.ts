@@ -9,6 +9,7 @@ import { get, hideBusy, patch, showBusy, toast } from "../state/store";
 import { core, flushDoc, setPrefs, style } from "../state/app";
 import type { Design } from "@slide-builder/core/model/types";
 import { DESIGN_LABEL } from "@slide-builder/core/model/designs";
+import { hiddenIn } from "@slide-builder/core/render/pagenumbers";
 import { todayLabel } from "@slide-builder/core/render/cover";
 import type { CatalogFont } from "@slide-builder/core/text/resolve";
 import type { ExportJob, ExportResult, Thumb } from "@slide-builder/core/rpc/messages";
@@ -123,10 +124,12 @@ export async function doExport(kind: ExportKind) {
   try {
     const cat = catalog();                                     // (from disk: asks for the PC's fonts while the click counts)
     await flushDoc();
-    const pdfMode = get().prefs.prefs.pdfMode || "vector", all = get().deck.slides.map((_, i) => i), cur = get().deck.cur;
+    // the deck: the slides not hidden in the design (S13.6, B47; the core leaves them out of a list asked without slides)
+    const pdfMode = get().prefs.prefs.pdfMode || "vector", all = get().deck.slides.flatMap((R, i) => hiddenIn(R.cfg, style().design) ? [] : [i]), cur = get().deck.cur;
     if (kind === "pdf-exact" || kind === "pdf-vector") setPrefs({ pdfMode: kind === "pdf-exact" ? "exact" : "vector" });
     const mode = kind === "pdf-exact" ? "exact" : kind === "pdf-vector" ? "vector" : pdfMode;
     const idx = kind === "pdf-current" || kind === "pptx-current" || kind === "both-current" || kind === "png-current" || kind === "copy" ? [cur] : all;
+    if (!idx.length) { toast("Every slide is hidden in this design: show one (right-click it in the slide list) to export the deck."); return; }
     const stem = clean(stemOf(file.name)), label = (i: number) => get().deck.slides[i].label || "slide";
     const design = style().design, version = get().deck.version;
     if (kind === "png-current" || kind === "png-all" || kind === "copy") {
