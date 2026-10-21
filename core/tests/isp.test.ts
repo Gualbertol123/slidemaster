@@ -119,9 +119,12 @@ describe("content slides (pages 3–13)", () => {
     const pt = textsAfter(dl.nodes, pn.id)[0];
     expect([pt.weight, pt.fill]).toEqual([700, { solid: BLU }]);
     expect(pt.x + pt.w!).toBeCloseTo(1537, 6);                               // right-aligned
-    // another corner: as chosen; Liquid Glass: unchanged
+    // another corner: as chosen – at the bottom on the logo's row, a bottom-left one at the content's margin (B48 fix);
+    // Liquid Glass: unchanged
     ctx.style.pn = { ...ctx.style.pn, pos: "bl" };
-    expect(pageNoGeom(ctx, label, false, true, false).left).toBe(56);
+    const bl = pageNoGeom(ctx, label, false, true, false);
+    expect(bl.left).toBe(ISP.area.x);
+    expect(bl.top + bl.h / 2).toBeCloseTo(ISP.logo.top + ISP.logo.h / 2, 0);
     const glass = await deck("weekly-options.json", "glass", { on: true, pos: "br" });
     expect(pageNoGeom(glass.ctx, label, true, true, false).top).toBeGreaterThan(800);
     // the logo: right edge and foot as the master's picture, the first thing after the background
@@ -349,5 +352,100 @@ describe("B48 review fixes", () => {
     const { slides, build } = await deck("weekly-options.json", "clean");
     expect(build(slides.findIndex(S => S.type === "cover"), true).layout).toBeDefined();
     expect(build(slides.findIndex(S => S.type === "cover")).layout).toBeUndefined();   // (the stage's list: none)
+  });
+});
+
+/* The slide's furniture never overlaps (B48 fix: the sample's source note was drawn over the footer "Confidential -
+   internal use only"). Each furniture text – title, subtitle, page number, footer, the notes section (sources) – and the
+   logo, as drawn: the box of its runs (the test metrics' ascent 0.8 em, descent 0.2 em) or the picture; the content –
+   tables, text boxes (their frame and text) and items – where it is drawn. */
+type Rect = { x: number; y: number; w: number; h: number };
+const runW = (n: TextNode) => n.w ?? M.run(n.src, `${n.size}px x`).w;
+const inkOf = (ts: TextNode[]): Rect | null => {
+  const rs = ts.filter(t => t.src.trim()).map(t => ({ x0: t.x, x1: t.x + runW(t), y0: t.y - .8 * t.size, y1: t.y + .2 * t.size }));
+  if (!rs.length) return null;
+  const x0 = Math.min(...rs.map(r => r.x0)), y0 = Math.min(...rs.map(r => r.y0));
+  return { x: x0, y: y0, w: Math.max(...rs.map(r => r.x1)) - x0, h: Math.max(...rs.map(r => r.y1)) - y0 };
+};
+const furnitureKind = (id: string) => id === "title" || id === "subtitle" ? id : /^pageno/.test(id) ? (/footer/.test(id) ? "footer" : "pageno")
+  : id === "logo" ? "logo" : /^tnote memo/.test(id) ? "note" : null;
+function slideParts(dl: SlideDL) {
+  const all = flat(dl.nodes), furniture: (Rect & { kind: string; text: string })[] = [], content: (Rect & { kind: string })[] = [];
+  const after = (k: number) => { const out: TextNode[] = []; for (const n of all.slice(k + 1)) { if (n.t === "hit") break; if (n.t === "text" && !n.decorative) out.push(n); } return out; };
+  all.forEach((n, k) => {
+    if (n.t !== "hit" || n.kind !== "f") return;
+    const kind = furnitureKind(n.id);
+    if (kind === "logo") furniture.push({ kind, text: "", x: n.x, y: n.y, w: n.w, h: n.h });
+    else if (kind) { const ts = after(k), r = inkOf(ts); if (r) furniture.push({ kind, text: ts.map(t => t.src).join(""), ...r }); }
+    else if (n.id === "tw" || /^notebub/.test(n.id)) content.push({ kind: n.id, x: n.x, y: n.y, w: n.w, h: n.h });
+    else if (/^tnote /.test(n.id)) { const r = inkOf(after(k)); if (r) content.push({ kind: "text box", ...r }); }
+  });
+  for (const [id, it] of Object.entries(dl.items)) content.push({ kind: "item " + id, ...it.box });
+  return { furniture, content };
+}
+const overlap = (a: Rect, b: Rect) => Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > .5 && Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > .5;
+const SOURCE = "Source: internal data; figures not audited";
+
+describe("B48 fix: the furniture never overlaps – the source note and the footer side by side on the logo's row", () => {
+  const files = fs.readdirSync(DECKS).filter(f => f.endsWith(".json")).sort();
+  const decks = async (file: string, design: Design) => { try { return await deck(file, design); } catch { return null; } };   // (the corpus's unreadable book)
+  for (const design of ["excel", "clean"] as Design[]) it(`${design}: every corpus deck, as saved and with a footer, a page number and a source note in each corner`, async () => {
+    const bad: string[] = [];
+    let checked = 0;
+    for (const file of files) {
+      const D = await decks(file, design); if (!D) continue;
+      const { ctx, slides, build } = D, saved = { pn: { ...ctx.style.pn }, footer: { ...ctx.style.footer } };
+      const variants: [string, () => void][] = [["as saved", () => {}]];
+      for (const fpos of ["bl", "bc", "br"]) for (const ppos of ["br", "bl", "tr"]) variants.push([`footer ${fpos}, page ${ppos}, source note`, () => {
+        ctx.style.footer = { ...saved.footer, on: true, pos: fpos, text: saved.footer.text || "Confidential - internal use only", size: 12, cover: false } as typeof ctx.style.footer;
+        ctx.style.pn = { ...saved.pn, on: true, pos: ppos, format: "nN", size: 14 } as typeof ctx.style.pn;
+        for (const R of slides) if (R.type === "content" && !(R.cfg.notes || {})["slide:notes"]) R.cfg.notes = { ...(R.cfg.notes || {}), "slide:notes": { text: SOURCE, size: 13 } };
+      }]);
+      for (const [name, apply] of variants) {
+        apply();
+        slides.forEach((R, i) => {
+          const { furniture, content } = slideParts(build(i)), at = `${file} ${name} slide ${i + 1}`;
+          checked++;
+          furniture.forEach((a, k) => {
+            for (const b of furniture.slice(k + 1)) if (overlap(a, b)) bad.push(`${at}: ${a.kind} "${a.text}" over ${b.kind} "${b.text}"`);
+            for (const c of content) if (overlap(a, c)) bad.push(`${at}: ${a.kind} "${a.text}" over the content (${c.kind})`);
+            if (a.kind !== "logo" && (a.x < 0 || a.y < 0 || a.x + a.w > 1600 || a.y + a.h > 900)) bad.push(`${at}: ${a.kind} "${a.text}" off the slide`);
+            if (/…$/.test(a.text)) bad.push(`${at}: ${a.kind} "${a.text}" cut`);
+          });
+        });
+      }
+    }
+    expect(checked).toBeGreaterThan(100);
+    expect(bad).toEqual([]);
+  });
+  it("the sample (weekly-options): the footer at the content's left margin on the logo's row, the source note beside it, the logo at the right", async () => {
+    const { slides, build } = await deck("weekly-options.json", "excel");
+    const i = slides.findIndex(S => S.type === "content"), { furniture } = slideParts(build(i));
+    const f = furniture.find(p => p.kind === "footer")!, n = furniture.find(p => p.kind === "note")!, logo = furniture.find(p => p.kind === "logo")!;
+    const mid = (r: Rect) => r.y + r.h / 2, row = ISP.logo.top + ISP.logo.h / 2;
+    expect(f.x).toBeCloseTo(ISP.area.x, 6);
+    for (const r of [f, n, logo]) expect(Math.abs(mid(r) - row)).toBeLessThan(3);
+    expect(n.x).toBeGreaterThanOrEqual(f.x + f.w + ISP.row.gap);
+    expect(n.x + n.w).toBeLessThan(logo.x);
+    const memo = hits(build(i).nodes).find(h => /^tnote memo/.test(h.id))!;
+    expect(memo.y).toBeGreaterThanOrEqual(ISP.area.bottom);                   // under the content area
+    expect(memo.y + memo.h).toBeLessThanOrEqual(900);
+    // a notes section the user moved stays where it was put
+    slides[i].cfg.notes = { ...slides[i].cfg.notes, "slide:notes": { ...slides[i].cfg.notes!["slide:notes"]!, x: 300, y: 700 } };
+    const moved = hits(build(i).nodes).find(h => /^tnote memo/.test(h.id))!;
+    expect([moved.x, moved.y]).toEqual([300, 700]);
+  });
+  it("a title too long for the 26 pt type shrinks to fit (not under 20 pt) before it is cut, on the same baseline", async () => {
+    const { slides, build } = await deck("weekly-options.json", "excel");
+    const i = slides.findIndex(S => S.type === "content");
+    slides[i].title = "Merges, hidden rows and columns, colours, wrapping and formats";   // 61 characters (edge-formats' kind)
+    const t = textsAfter(build(i).nodes, "title")[0];
+    expect(t.src).toBe(slides[i].title);
+    expect(t.size).toBeLessThan(ISP.title.size);
+    expect(t.size).toBeGreaterThanOrEqual(ISP.title.min);
+    expect(t.x + runW(t)).toBeLessThanOrEqual(ISP.area.x + ISP.area.w + .01);
+    // the baseline the 26 pt title has
+    const short = textsAfter((await deck("weekly-options.json", "excel")).build(i).nodes, "title")[0];
+    expect(t.y).toBeCloseTo(short.y, 6);
   });
 });

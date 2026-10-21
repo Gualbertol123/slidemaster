@@ -6,7 +6,8 @@
    thumbnails too, which still draw it: it shows no page number, and the others show their exported one (09 §2.8b). */
 import type { RenderCtx } from "./context";
 import { deckFmt } from "./text";
-import type { Design, SlideDef } from "../model/types";
+import type { Design, RuntimeSlide, SlideDef } from "../model/types";
+import { todayLabel } from "./cover";
 import { isIsp } from "../model/isp";
 import { ISP } from "./isp";
 
@@ -38,6 +39,8 @@ export function pageNoGeom(ctx: RenderCtx, label: string, glassy: boolean, hasLo
   // Excel and Excel Refined (the Intesa Sanpaolo template, B48): a number on the right – the default bottom right, where
   // the template has its logo, or the top right – sits where the template's master has it, top right
   if (isIsp(ctx.style.design) && (p.pos === "br" || p.pos === "tr")) return { left: ISP.pageno.right - w, top: ISP.pageno.top, w, h, size, capsule };
+  // … the bottom left or centre: on the template's bottom row, the logo's (B48 fix), a bottom-left one at the content's margin
+  if (isIsp(ctx.style.design) && p.pos[0] === "b") return { left: p.pos === "bl" ? ISP.area.x : (1600 - w) / 2, top: ispRowTop(h), w, h, size, capsule };
   const margin = 40, top = p.pos[0] === "t" ? (capsule ? 24 : 28) : 900 - margin + 6 - h;
   let left = p.pos[1] === "l" ? 56 : p.pos[1] === "c" ? (1600 - w) / 2 : 1600 - 44 - w;
   if (p.pos === "br" && hasLogo) left = (glassy ? (cover ? 1150 : 1256) : 1600 - 340) - 22 - w;   // never on top of the logo
@@ -66,13 +69,48 @@ export function footerGeom(ctx: RenderCtx, i: number, glassy: boolean, hasLogo: 
   if (f.pos[0] === "b" && f.pos[1] === "r" && hasLogo) left = (glassy ? (cover ? 1150 : 1256) : 1600 - 340) - 22 - w;
   if (f.pos === "bl" && hasLogo && cover) left = 1600 - 44 - w;
   let y = top;
-  // same corner as the page number: sit next to it (or above it in the centre)
+  // Excel and Excel Refined (B48 fix): a bottom footer on the template's bottom row, the logo's; a bottom-left one at the
+  // content's left margin (the cover's logo is not at the bottom: it stays there on the cover too)
+  const isp = isIsp(ctx.style.design);
+  if (isp && f.pos[0] === "b") { y = ispRowTop(h); if (f.pos === "bl") left = ISP.area.x; }
+  // same corner as the page number: sit next to it (or above it in the centre; on the Excel designs' row, left of it)
   // (the Excel designs' bottom-right page number sits at the top right, B48: a bottom-right footer stays where it is)
-  if (pageLabel !== null && ctx.style.pn.pos === f.pos && !(isIsp(ctx.style.design) && f.pos === "br")) {
+  if (pageLabel !== null && ctx.style.pn.pos === f.pos && !(isp && f.pos === "br")) {
     const g = pageNoGeom(ctx, pageLabel, glassy, hasLogo, cover);
     if (f.pos[1] === "l") left = g.left + g.w + 16;
-    else if (f.pos[1] === "r") left = g.left - 16 - w;
+    else if (f.pos[1] === "r" || (isp && f.pos === "bc")) left = g.left - 16 - w;
     else y = f.pos[0] === "b" ? g.top - h - 6 : g.top + g.h + 6;
   }
   return { label, left, top: y, w, h, size, capsule };
+}
+/** the top of a box `h` high centred on the template's bottom row (Excel and Excel Refined, B48 fix) */
+const ispRowTop = (h: number) => Math.round(ISP.row.mid - h / 2);
+
+/** Excel and Excel Refined (B48 fix): where the notes section goes by default on slide R – on the template's bottom row,
+    in the first stretch of it left free by the footer, a page number at the bottom and the logo (render/isp.ts ISP.row);
+    `w` / `h` the box's own size when set. Its text is centred in it, on the row. */
+export function ispNoteBox(ctx: RenderCtx, R: RuntimeSlide, w0: number, h: number, today = todayLabel()) {
+  const i = Math.max(0, ctx.slides.indexOf(R) >= 0 ? ctx.slides.indexOf(R) : ctx.slides.findIndex(S => S.cfg === R.cfg)), cover = R.type === "cover";
+  const hasLogo = !(R.cfg && R.cfg.logo === false) && !!ctx.style.logo, label = pageNoFor(ctx, i), G = ISP.row;
+  // what takes the row: the page number and footer when at the bottom (their estimated widths, widened for a wide face),
+  // the logo's widest picture at the bottom right (not on the cover: its logo is above the title)
+  const taken: [number, number][] = [];
+  const add = (g: { left: number; top: number; w: number; size: number } | null, text: string | null, pos: string) => {
+    if (!g || g.top < ISP.area.bottom || text === null) return;
+    const w = Math.max(g.w, Math.round(text.length * g.size * .65)), l = pos[1] === "l" ? g.left : pos[1] === "c" ? g.left + (g.w - w) / 2 : g.left + g.w - w;
+    taken.push([l - G.gap, l + w + G.gap]);
+  };
+  if (label !== null) add(pageNoGeom(ctx, label, false, hasLogo, cover), label, ctx.style.pn.pos);
+  const fg = footerGeom(ctx, i, false, hasLogo, cover, label, today);
+  if (fg) add(fg, fg.label, ctx.style.footer.pos);
+  if (hasLogo && !cover) taken.push([ISP.logo.right - ISP.logo.maxW - G.gap, 1600]);
+  // the free stretches of the row between the content area's edges, left to right
+  const free: [number, number][] = [];
+  let at = ISP.area.x;
+  for (const [a, b] of taken.sort((p, q) => p[0] - q[0])) { if (a > at) free.push([at, a]); at = Math.max(at, b); }
+  if (ISP.area.x + ISP.area.w > at) free.push([at, ISP.area.x + ISP.area.w]);
+  const span = (s: [number, number]) => s[1] - s[0];
+  const pick = free.find(s => span(s) >= w0) || free.find(s => span(s) >= G.minW) || free.sort((p, q) => span(q) - span(p))[0] || [ISP.area.x, ISP.area.x + ISP.area.w];
+  const top = Math.min(900 - h, Math.max(ISP.area.bottom, Math.round(G.mid - h / 2)));
+  return { x: pick[0], y: top, w: Math.min(w0, span(pick)), h };
 }

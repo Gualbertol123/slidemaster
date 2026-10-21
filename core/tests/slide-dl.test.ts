@@ -95,7 +95,8 @@ describe("the whole slide", () => {
     slides[0].title = "A very long title ".repeat(10).trim();
     const t = textsAfter(build(0).nodes, "title")[0], h = hits(build(0).nodes).find(x => x.id === "title")!;
     expect(t.src.endsWith("…")).toBe(true);
-    expect(t.w!).toBeLessThanOrEqual(1600 - 70 - 150);
+    expect(t.w!).toBeLessThanOrEqual(1600 - 70 - 70);                   // to the content area's right edge (B48 fix)
+    expect(t.size).toBeCloseTo(20 * 4 / 3 * 5 / 3, 2);                  // shrunk to the template's 20 pt first
     expect(h.label).toBe(slides[0].title);
     expect(h.h).toBeCloseTo(lu(1.4 * 26 * 4 / 3 * 5 / 3), 1);       // the template's 26 pt at 4/3 (B48); the page's line-height 1.4
     void ctx;

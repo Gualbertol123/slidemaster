@@ -195,7 +195,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     }
     for (const part of noteParts(R, i, ctx)) { const nb = b?.notes[part.side]; if (nb) noteNodes(part, nb); }
   });
-  const memo = memoPart(R, ctx);
+  const memo = memoPart(R, ctx, { today });
   if (memo) noteNodes(memo, memo.box);
   // the slide's items, in their order (the later on top): beside their table or where they were put
   const items: Record<string, ItemInfo> = {};
@@ -247,12 +247,21 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
   }
 
   /* a nowrap line with an ellipsis in a box from left to 1600 − right (titles), the inherited line height unless set */
-  function oneLine(cls: string, f: TextFmt, text: string, left: number, top: number, right: number, st0: TStyle, shadow: boolean, lh0 = INHERITED) {
+  function oneLine(cls: string, f: TextFmt, text: string, left: number, top: number, right: number, st0: TStyle, shadow: boolean, lh0 = INHERITED, fit = 0) {
     // a page number in the top-left corner: both texts start at 56 + its width + 22 (v3's slideMarkup's inline left)
-    const st = withFmt(st0, f), x = shift ? 56 + shift : left, w = 1600 - right - x, lh = T.lineH(st, f.lh ? +f.lh : lh0);
-    const plain = collapse(text).trim(), shown = T.ellipsis(plain, st, w), tw = T.adv(shown, st);
+    const st1 = withFmt(st0, f), x = shift ? 56 + shift : left, w = 1600 - right - x, lh = T.lineH(st1, f.lh ? +f.lh : lh0);
+    const plain = collapse(text).trim();
+    // `fit` (the Excel designs, B48 fix): a line too long for the box shrinks in 0.5 px steps, down to that size, on the
+    // same baseline – every size measured in the same round, as a text box's fitting
+    let st = st1;
+    if (fit && st1.size > fit) {
+      const sizes: number[] = []; for (let z = st1.size; z > fit; z = r2(z - .5)) sizes.push(z); sizes.push(fit);
+      const fits = sizes.map(z => T.adv(plain, { ...st1, size: z }) <= w + .01);
+      st = { ...st1, size: sizes[fits.indexOf(true) < 0 ? sizes.length - 1 : fits.indexOf(true)] };
+    }
+    const shown = T.ellipsis(plain, st, w), tw = T.adv(shown, st);
     const tx = f.align === "right" ? x + w - tw : f.align === "center" ? x + (w - tw) / 2 : x;
-    const n = T.node(shown, tw > w ? x : tx, T.baseline(st, top, lh), st);
+    const n = T.node(shown, tw > w ? x : tx, T.baseline(st1, top, lh), st);
     low.push(hit(cls, x, top, w, lh, plain), { t: "group", clip: { x, y: top, w, h: lh }, children: shadow ? [{ ...n, y: n.y + 1, fill: { solid: [255, 255, 255], a: .6 }, decorative: true }, n] : [n] });
   }
 
@@ -508,10 +517,12 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
   /* ---- Excel and Excel Refined: the Intesa Sanpaolo template (B48, render/isp.ts) ---- */
   /** a content slide's title (26 pt bold, the accent – the template's Blu) and subtitle (16 pt, Nero 50 %) */
   function ispTitles() {
-    oneLine("title", slideTextFmt(ctx, R, "title"), R.title, ISP.title.x, ISP.title.top, 150,
-      { family: base, size: ISP.title.size, weight: 700, italic: false, color: solid(x1), ls: 0 }, false);
-    if (R.subtitle) oneLine("subtitle", slideTextFmt(ctx, R, "subtitle"), R.subtitle, ISP.title.x, titleGeom(R, ctx).subTop, 150,
-      { family: base, size: ISP.sub.size, weight: 400, italic: false, color: solid(ISP_GREY), ls: 0 }, false);
+    // to the content area's right edge, clear of a page number at the top right; too long: smaller, then cut (B48 fix)
+    const right = 1600 - ISP.area.x - ISP.area.w, pn = pageNo !== null && (ctx.style.pn.pos === "br" || ctx.style.pn.pos === "tr") ? pageNoGeom(ctx, pageNo, false, !!logo, cover) : null;
+    oneLine("title", slideTextFmt(ctx, R, "title"), R.title, ISP.title.x, ISP.title.top, pn ? Math.max(right, 1600 - pn.left + ISP.row.gap) : right,
+      { family: base, size: ISP.title.size, weight: 700, italic: false, color: solid(x1), ls: 0 }, false, INHERITED, ISP.title.min);
+    if (R.subtitle) oneLine("subtitle", slideTextFmt(ctx, R, "subtitle"), R.subtitle, ISP.title.x, titleGeom(R, ctx).subTop, right,
+      { family: base, size: ISP.sub.size, weight: 400, italic: false, color: solid(ISP_GREY), ls: 0 }, false, INHERITED, ISP.sub.min);
   }
 
   /** the template's cover (page 1): the blue diagonal band at the top left, the deck's logo (logoNodes), the title and

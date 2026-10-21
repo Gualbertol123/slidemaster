@@ -35,9 +35,12 @@ const ROW = { size: SUB, pitch: r2(.4 * IN), frame: 1.866 * IN + INS.t };
 export const ISP = {
   /** "Titolo: 26pt C.Gothic bold, colore Blu" at (0.436 in, 0.307 in), no insets: the line box's top (1.4 em) whose
       baseline sits where PowerPoint draws the template's */
-  title: { x: r2(.436 * IN), top: lineTop(.307 * IN, TITLE), size: TITLE },
+  title: { x: r2(.436 * IN), top: lineTop(.307 * IN, TITLE), size: TITLE, min: tpt(20) },
   /** "Sottotitolo: 16pt C.Gothic, colore nero 50%" at 0.787 in */
-  sub: { top: lineTop(.787 * IN, SUB), size: SUB },
+  sub: { top: lineTop(.787 * IN, SUB), size: SUB, min: tpt(12) },
+  /* (B48 fix) a title or subtitle runs to the content area's right edge – clear of a page number at the top right – and
+     one too long for it shrinks to fit, down to `min` (20 pt / 12 pt on the template: v3's 44 px title fits what it
+     fitted), before it is cut with "…": the template's 26 pt type no longer cuts titles v3 showed whole */
   /** the content area: left at the title's x, as wide on the right; below the title's descent (and the subtitle's) */
   area: { x: 70, w: 1460, y: 130, ySub: 178, bottom: 822 },
   /** the page number (master: "Segnaposto numero diapositiva", 9.254 in, 0.148 in, 0.453 in wide, right-aligned, 10 pt
@@ -46,6 +49,12 @@ export const ISP = {
   pageno: { right: 1537, top: 31 },
   /** the logo at the bottom right (master: 8.068 in, 5.177 in, 0.191 in high): its right edge, top and height */
   logo: { right: r2((8.068 + 1.703) * IN), top: r2(5.177 * IN), h: r2(.191 * IN), maxW: 280 },
+  /** (B48 fix) the template's bottom area is one row, the logo's (5.177–5.368 in, under the content area): a page number
+      or footer at the bottom sits on it, centred on the logo's middle, a bottom-left one at the content's left margin;
+      the notes section (sources, footnotes) by default on the same row beside them – the first stretch of the row left
+      free between the content area's edges (`gap` clear of the footer, the page number and the logo), as wide as the
+      box asks or at least `minW`; the template has no room above the row without taking it from the content area */
+  row: { mid: r2((5.177 + .191 / 2) * IN), gap: 24, minW: 320 },
   cover: {
     /** the blue diagonal band at the top left ("Figura a mano libera 5": a freeform turned −15.24°, Blu at 75 %
         opacity), as the triangle it shows on the slide */

@@ -176,7 +176,12 @@ Test any change with layouts of very different kinds (see §10) – not only the
   square, the page bold in Blu and the entry (16 pt, every 0.4 in), closer rows and then two columns when many. Content
   slides: title / subtitle at the template's place, the content area from x 70, y 130 (178 with a subtitle;
   `areaFor`), the page number at the master's top right (also when set bottom right), the logo at its bottom right,
-  drawn first. Text boxes: "- " / "• " paragraphs get the template's bullets (a filled square tilted 10° at 25 %
+  drawn first. A title or subtitle runs to the content area's right edge (clear of a top-right page number) and shrinks
+  to fit, down to 20 / 12 pt, before it is cut with "…". **The bottom row** (B48 fix): the template's bottom area is one
+  row, the logo's – a bottom page number or footer sits on it (a bottom-left one at x 70), and the notes section
+  (sources, footnotes) goes by default on the same row beside them, in the first stretch left free by the footer, the
+  page number and the logo (`ispNoteBox`); there is no room above the row without taking it from the content area. A
+  notes section the user moved stays where it was put. Text boxes: "- " / "• " paragraphs get the template's bullets (a filled square tilted 10° at 25 %
   transparency; indented or "◦ ": the outline) – a "- " before a figure ("- 12 mln") is a minus and stays text; cards
   are the template's outlined box (1 pt × 4/3, #7F7F7F). Shapes' default: the same outline. Charts: the template's
   palette at 25 % transparency, doughnut holes 75 % (its "trend charts as a line only" waits for M14's line charts:
