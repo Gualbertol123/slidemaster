@@ -8,9 +8,8 @@
    sends them. */
 import type { ChartAxis, ChartGroup, ChartItem, ChartMark, ChartSeries, ChartType, DataRef, ItemPatch, LegendAt, MarkAt, SeriesType } from "@slide-builder/core/model/types";
 
-type Ser = ChartSeries & { points?: Record<string, PointSet> };
-/** a point's settings as the panel writes them (`total`: a waterfall's total column, 09 §3.2 – S14.4) */
-export type PointSet = NonNullable<ChartSeries["points"]>[string] & { total?: boolean };
+/** a point's settings as the panel writes them (colour, marker, label, a waterfall's `total`; core/src/model/types.ts) */
+export type PointSet = NonNullable<ChartSeries["points"]>[string];
 /** the chart types of the panel's switch, in its order */
 export const CHART_TYPES: { t: ChartType; label: string }[] = [
   { t: "pie", label: "Pie" }, { t: "donut", label: "Donut" }, { t: "column", label: "Column" }, { t: "bar", label: "Bar" }, { t: "line", label: "Line" },
@@ -20,9 +19,9 @@ export const COMBO_TYPES: SeriesType[] = ["column", "line", "area"];
 export const isSeriesType = (t: ChartType) => t !== "pie" && t !== "donut";
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 /** every series of the chart in its order (n, then id) – hidden ones too (the panel lists them, greyed) */
-export function allSeries(it: ChartItem): [string, Ser][] {
+export function allSeries(it: ChartItem): [string, ChartSeries][] {
   return Object.entries(it.sers && typeof it.sers === "object" ? it.sers : {}).filter(([, s]) => s && typeof s === "object" && Array.isArray(s.vals))
-    .sort(([a, p], [b, q]) => (Number.isFinite(+p.n) ? +p.n : 0) - (Number.isFinite(+q.n) ? +q.n : 0) || (a < b ? -1 : a > b ? 1 : 0)) as [string, Ser][];
+    .sort(([a, p], [b, q]) => (Number.isFinite(+p.n) ? +p.n : 0) - (Number.isFinite(+q.n) ? +q.n : 0) || (a < b ? -1 : a > b ? 1 : 0)) as [string, ChartSeries][];
 }
 const sorted = <T extends { n: number }>(m: Record<string, T> | undefined) => Object.entries(m && typeof m === "object" ? m : {}).filter(([, g]) => g && typeof g === "object")
   .sort(([a, p], [b, q]) => (+p.n || 0) - (+q.n || 0) || (a < b ? -1 : a > b ? 1 : 0));
@@ -99,7 +98,7 @@ export function seriesPatch(it: ChartItem, id: string, p: Partial<Record<keyof C
 /** one point's settings of a series (null removes a key – but `label: null` hides its label, `label: undefined`
     removes it; a point left with none goes) */
 export function pointPatch(it: ChartItem, id: string, i: number, p: Partial<Record<keyof PointSet, unknown>>): ItemPatch | null {
-  const cur = it.sers?.[id] as Ser | undefined; if (!cur) return null;
+  const cur = it.sers?.[id] as ChartSeries | undefined; if (!cur) return null;
   const { label, ...rest } = p, pts = { ...(cur.points || {}) }, next: Record<string, unknown> = withKeys(pts[String(i)] || {}, rest);
   if ("label" in p) { if (label === undefined) delete next.label; else next.label = label; }
   if (Object.keys(next).length) pts[String(i)] = next; else delete pts[String(i)];

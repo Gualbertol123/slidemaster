@@ -183,16 +183,30 @@ numbers measured twice). Measured numbers go into the step's line.
   review ✓.
 
 ### M14 · Charts (4.7.0; B30, B31; docs/next/09 §8, ADR-015 amended)
-- [ ] S14.0 · Gates first (export-check gates PowerPoint "opened", `has_chart` / `has_table`; AUDIT-2 VER-3) – built in
-  S14.P (the gate); on the branch this step only ticks it
-- [ ] S14.1 · Model (`sers`, `groups`, `axes`, `marks`, legend; vectors; `knownOp`, `needsV5`) – the lists, types,
-  vectors and fixtures are in S14.P; left for the branch: the ADR-015 amendment and the decision for old non-pie charts
-- [ ] S14.2 · Columns and bars ⏱ (CT-01, CT-02, LG-01)
-- [ ] S14.3 · Lines, areas, combo, second axis, groups, targets, marks ⏱ — the reference chart; 🚦 G9 (CT-03…CT-07)
-- [ ] S14.4 · Scatter, waterfall – built on the branch (CT-01 complete in the unit tests: `core/tests/chart-scatter-waterfall.test.ts`,
-  the corpus deck `tests/corpus/charts/scatter-waterfall.json`); a waterfall's `points[i].total` is read through a local
-  type in `chart-waterfall.ts` (`types.ts` is S14.P's: the field goes there at the merge, 09 §2.2 lists it)
-- [ ] S14.5 · Chart panel (CT-08) – built on the branch with the S14.4 review's findings 1–3 and 5–8 (CT-08 in
+- [x] S14.0 · Gates first (export-check gates PowerPoint "opened", `has_chart` / `has_table`; AUDIT-2 VER-3) – built in
+  S14.P (e9f8ac0, c6c74a4; on main by PR #28); on the branch the gate grew `kinds` (`tools/real-charts.mjs`, S14.6
+  53cdf19) and `plots` (Windows). Reviews: S14.P's (REQUEST CHANGES → APPROVE), S14.6's (APPROVE). runs: pending
+- [x] S14.1 · Model (`sers`, `groups`, `axes`, `marks`, legend; vectors; `knownOp`, `needsV5`) – the lists, types,
+  vectors and fixtures in S14.P (3a0b630, c6c74a4; on main); on the branch, in the close-out commit "M14 · close-out":
+  the ADR-015 amendment (series, groups, axes, marks; `chart-series.ts`'s one layout; `cachedChartNodes` per key; the
+  §4.2 PowerPoint mapping with marks as `p:sp` lines with native ends; waterfall and scatter as built), `total?: boolean`
+  on `points` in `types.ts` (the two local types in `chart-waterfall.ts` / `chart-panel.ts` dropped), and the decision
+  for old non-pie charts (Decisions 2026-10-21). Reviews: S14.P's, then the M14 milestone review (findings 1, 4, 9 →
+  fixed). runs: pending
+- [x] S14.2 · Columns and bars ⏱ (CT-01, CT-02, LG-01) – f65be42; review fixes 2f1ab48 (S14.2f, with the S14.3
+  re-check's two). Reviews: S14.2 (findings 1–6) → fixed → APPROVE. ⏱ column 12 × 4 display list 1.92 · 0.93 / 1.77 ·
+  1.33 ms (Measurements · M14). LG-01's E: the close-out's spec (below). runs: pending
+- [x] S14.3 · Lines, areas, combo, second axis, groups, targets, marks ⏱ — the reference chart; 🚦 G9 (CT-03…CT-07) –
+  a04c5ff, merge of prep 0490eaa, review fixes 9d03dc2 (and 2f1ab48's re-check two). Reviews: S14.3 (findings 1–10)
+  → fixed → APPROVE. ⏱ reference chart 1.05 · 0.64 / 1.61 · 0.66 ms, line 12 × 52 3.28 · 1.59 / 6.69 · 1.94 ms. 🚦 G9
+  waived (owner, "i approve everything", 2026-10-21); CT-07's picture sign-off under Waiting for. CT-03…CT-06's E: the
+  close-out's spec (below). runs: pending
+- [x] S14.4 · Scatter, waterfall – cf04788; review fixes in 40902d1 (findings 1–3, 5–8). CT-01 complete in the unit
+  tests (`core/tests/chart-scatter-waterfall.test.ts`, the corpus deck `tests/corpus/charts/scatter-waterfall.json`); a
+  waterfall's `points[i].total` is now in `types.ts` (close-out; M14 review 4). Reviews: S14.4 → fixed → APPROVE.
+  runs: pending
+- [x] S14.5 · Chart panel (CT-08) – 40902d1, review fixes e7dd112; reviews: S14.5 (findings 1–8) → fixed → APPROVE;
+  runs: pending (the CT-08 spec ticked by the orchestrator's full e2e run). Built with the S14.4 review's findings 1–3 and 5–8 (CT-08 in
   `app/tests/chart-panel.test.tsx` – the page with report.xlsx – and the export of a panel-made chart in
   `app/tests/chart-panel-pptx.test.ts`). A stack per series
   (`sers[s].stack`) is not offered: PowerPoint cannot draw it (the panel shows it disabled and says so). `m14.json`
@@ -208,7 +222,9 @@ numbers measured twice). Measured numbers go into the step's line.
   whole milestone, and S14.6 adds about 15 KB more (~152 KB); with M15's ~+600 KB the merged page comes to about
   4.73 MB, above the ~4.7 MB the owner expects (2026-10-21 "by measurement"). For the owner to see before M15 measures:
   either the total is accepted by measurement, or a part is cut (M15's vendored icon set is the large one)
-- [ ] S14.6 · PowerPoint ⏱ (PX-05, PX-06) – built on the branch. Every chart type is a native chart; the corpus test
+- [x] S14.6 · PowerPoint ⏱ (PX-05, PX-06) – 53cdf19, review fixes a04cc63; reviews: S14.6 (findings 1–9) → fixed →
+  APPROVE; runs: pending (export-check `kinds`, the full bench's `pptx_combo_ms`); PX-05 / PX-06 on the owner's PC
+  (Waiting for). Every chart type is a native chart; the corpus test
   `core/tests/pptx-charts-m14.test.ts` covers the four chart decks × five designs. It checks the kinds, caches equal to
   the embedded cells with their number formats, native ends, no `p:cxnSp`, no link, and the same bytes again. The
   embedded workbook now carries each cell's number format. **The marks' arrowheads are native** (S14.3 review finding
@@ -241,12 +257,18 @@ numbers measured twice). Measured numbers go into the step's line.
     bench deck20 is already format 5 by then (the free-layout drags earlier in the run raise it), so `combo_cold_ms`
     (1.9–2.3 s) does not show the 25 s; the bench has no fresh-deck case. A possible remedy for M13 or S14.7: let the export read the in-memory document instead of waiting
     for that save. Owner's decision needed.
-- [ ] S14.7 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.7.0 — at the M14 × M15 merge (S14.3 review finding 7): a chart's
-  icon mark draws a vendored icon through M15's `vendoredNodes` (per-path paint: filled parts, half-alpha paths) instead
-  of stroking every path (`core/src/render/chart-marks.ts`, the "MERGE M15" note). Carried over to S14.7 (S14.6 review
-  9): **CT-09** (a scenario run, the chart's labels follow each value) and **the chart panel's keypress p95** (75–110
-  ms against 50 ms: the item op's path to the stage); the owner's answer on the cold export (above); `m14.json` set
-  to the final measurement
+- [x] S14.7 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.7.0 – the close-out commit "M14 · close-out: milestone review
+  fixes, CHANGELOG, PROGRESS" after the M14 milestone review (REQUEST CHANGES, 11 findings; read-only): ADR-015
+  amendment (1); the E spec "series charts on a linked workbook (S14.7; CT-03, CT-04, CT-05, CT-06, LG-01, CT-09)" in
+  `app/e2e/app.spec.ts` – written here, not run (E runs are the orchestrator's) (2); CP-01 extended with every M14
+  object, the 4.6 pages and case m14 (3; log in Waiting for · M14); `points[i].total` in `types.ts` (4); the page
+  rebuilt and committed, 4,115,984 bytes, `m14.json` not raised (5; Measurements · M14); versions stay 4.6.0 until the
+  orchestrator's release step (6); the two performance exceptions written for the owner (7; Waiting for · M14, the
+  cold export also in CHANGELOG 4.7.0); README rows (8); S14.0 / S14.1 ticked, the old-chart decision (9; Decisions);
+  one CHANGELOG 4.7.0 section (10); the page total risk for the owner (11). Still at the M14 × M15 merge (S14.3 review
+  finding 7, routed to M15): a chart's icon mark draws a vendored icon through M15's `vendoredNodes` (per-path paint)
+  instead of stroking every path (`core/src/render/chart-marks.ts`, the "MERGE M15" note). runs: pending (AUDIT §0 ×2
+  on clean clones, the full e2e with the CT-08 and S14.7 specs, the full bench, export-check – the orchestrator)
 
 ### M15 · Lines, icons, snapping (4.8.0; B32–B35; docs/next/09 §8, ADR-020, ADR-017 amended)
 - [ ] S15.1 · `Stroke.join` and the icon data (Tabler 3.49.0 vendored, hash test, notices entry) – `Stroke.join` is in
@@ -601,9 +623,71 @@ numbers measured twice). Measured numbers go into the step's line.
   page, packed and inflated on first use (option A); `v4/*` branches may be pushed.
 - 2026-10-21 · **PowerPoint** (product owner: "ensure all of these new changes work with the powerpoint export as
   well"): every new feature is checked in the PowerPoint export (`core/tests/pptx-m13.test.ts` for M13).
+- 2026-10-21 · **Charts saved before 4.7 without series** (M14 milestone review 9; recorded by the agent under the
+  owner's "i approve everything" of the same day – the owner may overrule it): a chart without `sers` draws exactly as
+  before 4.7 whatever its `type` says – a donut as a donut, every other type (an old "column", "bar" or "line", which
+  4.3–4.6 drew as a pie) as a pie (09 §2.2, `chart-dl.ts`). Nothing is converted when a deck opens. The chart panel shows
+  the type the chart draws (Pie), so choosing Column or any other series type gives it its first series from its own
+  numbers (`typePatch`; `app/tests/chart-panel.test.tsx` "an old chart saved as type column…"); the user never has to
+  switch to Pie and back.
 
 ## Waiting for
 
+- **M14 · 4.7.0, branch `v4/M14-charts`, for the product owner (PR after B48–B50's and before M15's; merge; tag and
+  share update), 2026-10-21.** S14.0–S14.6 (f65be42, a04c5ff, 9d03dc2, 2f1ab48, cf04788, 40902d1, e7dd112, 53cdf19,
+  a04cc63; main merged in 29314e6) and the close-out "M14 · close-out: milestone review fixes, CHANGELOG, PROGRESS"
+  (B30 more charts, B31 legend control; CHANGELOG 4.7.0, unreleased until the tag). Gates waived by the owner ("i
+  approve everything", Decisions 2026-10-21); the checks below stay.
+  **Runs: pending** (the orchestrator, with numbers for the ticks): check (core + app), helper on 3.8 and 3.12, the
+  full e2e (with "series charts (S14.5, CT-08)" and the new "series charts on a linked workbook (S14.7; CT-03, CT-04,
+  CT-05, CT-06, LG-01, CT-09)" – written in the close-out, never run before), parity and dlparity, export-check (PDF and
+  PowerPoint, `kinds`), the full `tools/bench.mjs`, AUDIT §0 twice on clean clones; at release: versions 4.7.0 in
+  `package.json`, `app/package.json`, `core/package.json` and VERSION (release checklist §1), CHANGELOG dated, PLAN's
+  M14 row and B30 / B31 marked shipped at the tag.
+  **CP-01** (`tools/compat-old.mjs`, extended in the close-out: every M14 object in cases a–d, the 4.6 pages e6c1c4f
+  and 6392856, case m14): run here on the close-out's working tree (the rebuilt page), Linux, old helpers on Python 3.8.20 and 3.12.3,
+  this checkout's helper on 3.12.3, the real 23 s wait, `--port 9121` (another agent's helpers held 8961+), 2026-10-21
+  19:29–21:03 UTC: **72/72 PASS** – 4.0.0, 4.1, 4.4, 4.5 × 2 Pythons: CP-02, m14 (open refused 409, the deck's
+  snapshot unchanged), a, b-journal, c-journal, b-lean-lock, c-lean-lock, d (every M14 object present after each); 4.6
+  (e6c1c4f) × 2: CP-02, m14 – it opens the 4.7 deck and saves its edit but never compacts it (its `knownOp` does not
+  know the 4.7 keys: AUDIT-2 DATA-7), the M14 items unchanged; 4.6p (6392856) × 2: CP-02, m14 – it compacts the whole
+  4.7 journal (gen 4) and every M14 item, `points[2].total` inside the waterfall's series included, is byte-equal (JSON;
+  combo 1,807, waterfall 360, scatter 334, area 342 bytes). An earlier try with `--bump-wait-s 0` failed only
+  b/c-lean-lock on 4.0, as the helper's own warning says it must (the old page's gap records fold after the raise
+  without the wait); not a finding. Report: `cp-real.json` in the session's scratchpad (not committed).
+  **The E rows** (M14 review 2): CT-08 has its spec since S14.5; CT-03, CT-04, CT-05, CT-06, LG-01 and CT-09 (09 §6's
+  scenario guard) are one spec on the Banks deck: a combo of Peers.xlsx's D5:D6 (a linked workbook's sheet), the deck's
+  Peers table (E5:E6, also the targets) and Banks' own SLIDE_1 J5:J6 on two axes and two groups; per-point colour,
+  marker colour and label, ofTarget labels, the line's labels; a text mark quoting Control!B4 / B2 and an arrow,
+  following a reload (B4 12 → 13) and the preview of Bank C (the mark moves with its column); the legend top / bottom,
+  one entry hidden, all hidden, undo; a Run for each value (Bank A, Bank C × Excel, PDF): each file's line label
+  (2268 / 3852) and ofTarget percentages (95 % · 85 % / 105 % · 102 %). Gap, recorded: CT-03's "a group from another
+  table" – the Banks deck has one table, so the spec's second group comes from the main workbook's sheet; a group from
+  a table (`{table, range}`) is unit-tested (`core/tests/chart-series.test.ts`).
+  **Exceptions for the owner** (M14 review 7; not fixed in M14): (1) the chart panel's change → pixels p95 75–110 ms
+  (S14.5 review; a scratch run on the shared 4-core machine) against the 50 ms keypress budget – 09 §7.4 gates no
+  chart-panel keypress, a cell's keypress is unchanged (25–26 ms); the cause is the item op's path to the stage (the
+  chart's nodes are rebuilt on every change: its key changes); proposed to accept for 4.7.0 and look at it again in
+  M16. (2) The cold PowerPoint export (~25 s against 3 s): the format guard's one-time wait, which the owner kept
+  (Decisions 2026-10-21 "Format guard: the one-time wait stays"); written in CHANGELOG 4.7.0 ("the first export right
+  after adding a deck's first chart may take ~25 s"); the remedy (the export reads the in-memory document instead of
+  waiting for that save) is proposed for a later milestone. Owner: accept both, or ask for the fixes.
+  **Page total risk** (M14 review 11): M14's share is 139,892 bytes against the plan's ~115 KB; with M15's expected
+  ~600 KB the merged page comes to about 4.73 MB against the ~4.7 MB the owner expects – to see before M15 measures
+  (accept by measurement, or cut: M15's vendored icon set is the large part).
+  **Route to M15** (the orchestrator): rename M15's `tests/corpus/charts/lines.json` deck (e.g. `line-items.json`, its
+  tests and README entry: an add/add clash with M14's since a04c5ff); the chart-marks icon change at
+  `core/src/render/chart-marks.ts:150` ("MERGE M15": a vendored icon through `vendoredNodes`); the slide-finding loop
+  copied in the e2e (S14.5 re-check) into one shared helper.
+  **Owner's PC (Windows, PowerShell 5.1; gates waived, the checks stay):** PX-05 – PowerPoint opens every chart deck
+  without a repair prompt, Edit Data works, with the number formats and the waterfall's formulas; PX-06 – `pptxcheck.py
+  plots` on the files `core/tests/pptx-charts-m14.test.ts` writes (`$env:CHART_PPTX_OUT`) and the `tools/m14-package.mjs`
+  package; the S14.3 re-checks (the legend's line entries, an area's blank drawn at zero, group columns centred); a
+  bar's gradient direction in PowerPoint; whether "+N more" gets a text shape; flat bar ends; the text-mark colour
+  #595959; labels hidden by the line-label rule; the CT-03 demo's draw-order Issues line; CT-07, the reference chart's
+  picture sign-off (G9) – waived 2026-10-21 ("i approve everything"), recorded here; `node tools/compat-old.mjs
+  --pythons "py -3.8,py -3.12" --new-python python --out $env:TEMP\compat-old.json` (every RESULT PASS). Update day:
+  `docs/next/release-checklist.md` §6.
 - **M13 · 4.6.0, branch `v4/M13-format-guard`, for the product owner (PR, merge; tag and share update), 2026-10-21.**
   S13.1 format guard, S13.2 notices (B42), S13.3 slide/table ops, S13.4 New slide / Add table (B40), S13.6 hide
   slides (B47), B46 font cache, the B45 static-face names (a variable Google font's 400/700 faces were both named
@@ -1095,6 +1179,7 @@ One table per parallel milestone (S14.P), so M14 and M15 never append to the sam
 | S14.6 review | the same full bench run, its other gates over their limits on this shared machine (gates M14 adds nothing to; a loaded shared machine – the orchestrator's run decides): open_deck20 1,305 / 800, longest_task 149 / 50, keypress_p95 109 / 50, drag_frame 78.3 / 16, thumbs_gap 33.4 / 20, keypress_navy_p95 90 / 50, drag_navy_frame 25 / 16 (ms) – the PowerPoint, PDF, scenario and heap gates passed | – | – |
 | S14.6 | built page (bytes; not committed) | 4,115,246 (S14.5 review built 4,113,104: +2,142; M14's share 139,154, within m14.json 140,896 – no raise; limit 4,116,988: 1,742 left) | – |
 | S14.6 review | built page (bytes; not committed) | 4,115,984 (S14.6 built 4,115,246: +738; M14's share 139,892, within m14.json 140,896 – no raise; limit 4,116,988: 1,004 left) | – |
+| S14.7 | built page, **committed** (`npm run build` at the root, after main's S14.P merge and the close-out; the build test "up to date" + page budget passes), bytes | 4,115,984 (= base 3,976,092 + M14's share 139,892; within m14.json 140,896, so not raised – 1,004 left; limit 4,116,988) | 4,115,984 (rebuilt: the same sha256) |
 
 ### Measurements · M15 (4.8.0)
 M15 appends here only.

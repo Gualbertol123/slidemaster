@@ -18,7 +18,7 @@ import { App } from "../src/ui/App";
 import { ItemPanel } from "../src/ui/ItemPanel";
 import { get } from "../src/state/store";
 import { change, gotoSlide, openLocalFile, undo } from "../src/state/app";
-import { insertChartRefs, itemOf, selectItem } from "../src/editor/charts";
+import { insertChartRefs, itemOf, itemPatch, selectItem } from "../src/editor/charts";
 import {
   addGroupPatch, addMarkPatch, addSeriesPatch, allSeries, axisPatch, labelsPatch, legendHidePatch, moveSeriesPatch, newEntryId, pointPatch, refPatch,
   removeGroupPatch, removeSeriesPatch, seriesPatch, typePatch,
@@ -234,6 +234,20 @@ describe("the chart panel on the page (CT-08)", () => {
     await vi.waitFor(() => expect(document.getElementById("chartPanel")).toBeTruthy());
   });
   afterAll(() => cleanup());
+
+  it("an old chart saved as type \"column\" without series (4.3–4.6) shows Pie, as it draws; Column then gives it its series (M14 review 9)", async () => {
+    const h0 = history();
+    await act(async () => { itemPatch("Old column chart", id, { type: "column" }); }); await confirmed(h0 + 1);
+    expect(it_().type).toBe("column"); expect(it_().sers).toBeUndefined();
+    await vi.waitFor(() => expect(q('[data-ctype="pie"]').className).toBe("on"));
+    expect(q('[data-ctype="column"]').className).toBe("");
+    await act(async () => { fireEvent.click(q('[data-ctype="column"]')); }); await confirmed(h0 + 2);
+    expect(it_().sers).toEqual({ s1: { n: 1, vals: [{ sheet: "SLIDE_1", range: "D6:D8" }] } });
+    expect(q('[data-ctype="column"]').className).toBe("on");
+    await act(async () => undo(false)); await confirmed(h0 + 1);
+    await act(async () => undo(false)); await confirmed(h0);
+    expect(it_().type).toBe("pie");
+  });
 
   it("a pie switched to columns: one step, its first series from its numbers; the series panel replaces the slices; undo", async () => {
     const h0 = history();

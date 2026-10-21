@@ -7,91 +7,72 @@ Releases are made with `docs/next/release-checklist.md`.
 
 (M15 writes this section on its own branch, v4/M15-lines-icons-snapping.)
 
-## 4.7.0 - unreleased (PLAN M14: charts; B30, B31)
+## 4.7.0 - unreleased (PLAN M14: charts; B30, B31; docs/next/09; ADR-015 amended 2026-10-21; dated at the tag)
 
-(M14 writes this section on its own branch, v4/M14-charts. Shared preparation of both, S14.P, nothing users notice: the
-data model of 09 §2.2 / §2.3 and its ops, `Stroke.join` in every backend, the arrowheads, the PowerPoint gate of 09 §7.2,
-the per-kind item code paths, the page budget per milestone.)
+What users notice
+* **New chart types** (B30): column and bar (clustered, stacked, 100 %), line (straight or smoothed; circle, square,
+  diamond or triangle markers; a blank cell leaves a gap), area (standard, stacked, 100 %; a blank cell is drawn at
+  zero, as Excel and PowerPoint draw it), scatter (points at their x and y on a numeric x axis, an optional straight or
+  smoothed line), waterfall (steps floating on the running total in the design's positive and negative colours, columns
+  marked "a total" standing on the axis, thin connectors, values shown by default; legend Increase / Decrease / Total)
+  and combined charts – columns, lines and areas together, each series on the left value axis or on a second one on the
+  right (drawn only while a shown series uses it). In every design (Liquid Glass: gradient bars with a rounded end, on
+  its glass card).
+* **Several series per chart**, each from its own cells: any sheet, another slide's table, a linked workbook. Hidden
+  rows are left out; a version's removed cells and text cells are gaps. **Category groups** side by side on one axis
+  (for example the weeks, then the month-end targets), with a divider between them and, when named, their names in a
+  second row of labels.
+* **Axes** with Excel's automatic bounds and steps, or their own minimum, maximum, step and number format; gridlines on
+  request; gap width and overlap as Excel. **Data labels** (value, name, category, percent; outside or inside the end,
+  centre, inside the base; above, below, left, right or centred on a line's points – one that would overlap its
+  neighbour, a bar or the line moves to the other side or is left out). **"Actual inside target"** columns: the value
+  filled, its target outlined over it at the same width, the label "97 %" (value ÷ target). **Per-point** colours,
+  marker colours and labels (or none).
+* **The legend** (B31) right, left, top, bottom, top right or inside the plot; one entry or all of it hidden.
+* **Annotations that follow the data**: an arrow from the axis to a point, a line or a band at values, an icon or a text
+  (which can quote cells, as callouts do) above a column – they move with a reload, a scenario's value or a version.
+* **The chart's side panel**: the type switch offers every chart type (a pie or donut becomes a series chart of its own
+  numbers, keeping its slice colours as the points' colours and its name and value labels, and can go back); the series
+  list – add a series from cells chosen in the sheet view (any sheet, a linked workbook's too), remove, move up or down,
+  its name (typed or from a cell), colour, numbers, x values, targets, type and axis in a combined chart, smoothed line
+  and markers, labels and their place, hidden; the selected point's colour, marker colour, label and, in a waterfall,
+  "a total"; each axis; the legend; category groups; marks at the selected point; a frame and a line under the title.
+  A click on a point or a mark selects it (a ring shows it; the status line names it). Each change is one undo step;
+  two people changing two different series at once both keep their change, as do two people adding a series, a group
+  or a mark at the same time; on the same series the later change wins.
+* A stack per series is not offered: PowerPoint stacks a whole chart, never one series apart (the panel shows it
+  switched off and says why); the chart's own Stack setting is there.
+* **Charts made by earlier versions** look exactly as before: a chart without series draws as a pie (or a donut)
+  whatever type it was saved with; the panel shows it as the pie it draws, and choosing Column (or any series type)
+  gives it its first series.
+* **Issues line**: when a series on the left axis runs under a series on the right axis, the Issues panel says that
+  PowerPoint will draw the right axis's series on top (the slide draws them in the list's order).
+* The owner's "Loans Volume – Weekly Evolution" chart is rebuilt in the chart corpus (`tests/corpus/charts/lines.json`).
+* **PowerPoint export** of every chart type – column, bar, line, area, scatter, combined on two axes, waterfall, pie,
+  donut – as a native PowerPoint chart drawn where the slide draws it (the same plot area, axis bounds, bars, labels and
+  legend), its data in the embedded workbook: *Edit Data* shows each value with its own number format, and on a
+  waterfall moves its columns when a value changes (while each step keeps its side of zero). Named groups are
+  multi-level categories; targets an outlined series over the actual one; a waterfall the classic stacked construction
+  every PowerPoint opens. Arrows and lines on a chart are PowerPoint lines with PowerPoint's own arrowheads (triangle,
+  open arrow, stealth, oval, diamond; small / medium / large); dividers, bands, icons and texts are plain shapes over
+  the chart in its group. No picture, no connector shape, no link to the workbook.
+* **Italian separators in PowerPoint charts**: numbers inside a PowerPoint chart (axes, labels taken from the cells,
+  *Edit Data*) are shown with the separators of the computer that opens the file, as Excel does – on an Italian
+  Windows 11.576 and 2,5 %, on an English one 11,576 and 2.5 %. The slide, the PDF and the PNG always show the
+  workbook's Italian separators; the "97 %" of "actual inside target" is written as text, the same everywhere.
+* **The first save after a deck's first chart may take about 25 seconds** ("Saving…"): a deck holding a 4.7 chart is
+  marked for 4.6 and later once (the format guard's one-time wait, 4.6.0; Decisions 2026-10-21). An export started in
+  those seconds waits for that save, so **the first export right after adding a deck's first chart may take ~25 s**;
+  later saves and exports are as fast as before (a PowerPoint deck of 20 slides with 6 combined charts: about 2 s).
 
-What users notice (S14.2)
-- Column and bar charts with several series: clustered, stacked and 100 %, each series from its own cells (any sheet,
-  another slide's table, a linked workbook), hidden rows left out, a version's removed cells as gaps. The value axis
-  takes Excel's automatic bounds and steps (or its own minimum, maximum and step); gap width and overlap as Excel;
-  data labels (value, name, category, percent; outside or inside the end, centre, inside the base); per-point colours;
-  the legend right, left, top, bottom, top right or inside the plot, one entry or all of it hidden. In every design
-  (Liquid Glass: gradient bars with a rounded end, on its glass card).
-- PowerPoint export: these charts are native PowerPoint column / bar charts with their data in the embedded workbook
-  (Edit Data), drawn where the slide draws them (the same plot area, axis bounds, bars, labels and legend). No picture
-  and no link to the workbook.
-- Charts saved by earlier versions without series look exactly as before.
-
-What users notice (S14.3)
-- Line charts (straight or smoothed, with circle, square, diamond or triangle markers; a blank cell leaves a gap), area
-  charts (standard, stacked, 100 %) and combined charts – columns, lines and areas together, each series on the left
-  value axis or on a second one on the right (drawn only while a shown series uses it).
-- Category groups side by side on one axis (for example the weeks, then the month-end targets), with a divider between
-  them and, when the groups are named, their names in a second row of labels.
-- "Actual inside target" columns: the value filled, its target outlined over it at the same width, and the label
-  "97 %" (value ÷ target).
-- Per-point colours, marker colours and labels; labels above, below, left, right or centred on a line's points (one that
-  would overlap its neighbour moves to the other side, or is left out).
-- Annotations on a chart that follow the data: an arrow from the axis to a point, a line or a band at values, an icon or
-  a text (which can quote cells, as callouts do) above a column – they move with a reload, a scenario or a version.
-- The owner's "Loans Volume – Weekly Evolution" chart is rebuilt in the chart corpus (tests/corpus/charts/lines.json).
-- PowerPoint export: native line, area and combined charts with the second value axis, multi-level categories for named
-  groups, the targets as an outlined series over the actual one; the dividers and annotations are plain shapes (lines,
-  icon outlines, text boxes) over the chart in its group, placed on the data – no picture, no connector, no link.
-- (S14.3 review) The PowerPoint legend keeps its line entries (its box leaves room for PowerPoint's wider line keys);
-  an area's blank cell is drawn at zero on the slide, as PowerPoint and Excel draw it; columns of category groups stand
-  centred on their categories; a line's labels also keep off the bars and off the line itself (above / below → right /
-  left before they are left out); a text annotation over a light column is written in the design's ink; an Issues
-  line when a left-axis series runs under a right-axis one (PowerPoint draws the right axis's series on top).
-
-What users notice (S14.4)
-- Scatter charts: each series' points at their x and y values on a numeric x axis (Excel's automatic bounds, or its own
-  minimum, maximum and step; gridlines on request), circle markers unless another shape is chosen, and a straight or
-  smoothed line through the points when asked; labels show the y value (and the x value as the "category").
-- Waterfall charts: the steps of one series floating on the running total – increases in the design's positive colour,
-  decreases in its negative colour, columns marked as totals standing on the axis in the chart's ink – with thin
-  connectors between the steps and the values shown by default; the legend lists Increase, Decrease and Total.
-- PowerPoint export: a scatter chart is a native PowerPoint scatter chart, a waterfall a native stacked column chart
-  (the classic construction with an invisible base, which every PowerPoint opens) – both with their data in the
-  embedded workbook, drawn where the slide draws them; no picture, no connector shape, no link.
-
-What users notice (S14.5)
-- The chart's side panel: the type switch offers every chart type (a pie or donut made by an earlier version becomes a
-  series chart of its own numbers, and can go back); the series list – add a series from cells chosen in the sheet view
-  (any sheet, a linked workbook's too), remove it, move it up or down, its name (typed or from a cell), colour, numbers,
-  x values (scatter), targets ("actual inside target"), type and left / right axis in a combined chart, smoothed line
-  and markers, its labels and their place, hidden; the selected point's colour, marker colour and label (or none), and
-  in a waterfall "a total"; each axis' minimum, maximum, step, number format, gridlines, shown; the legend's place and
-  which entries it lists; category groups (another range's categories beside the first) with their labels and dividers;
-  marks at the selected point – an arrow from the axis, an icon or a text above it, a line or a band to the next point –
-  with their text, icon, colour and place; a frame and a line under the title. Each change is one undo step, and two
-  people changing two different series at once both keep their change, as do two people adding a series (or a group,
-  or a mark) at the same time. Two people changing the same series at once: the later change wins – also when one
-  sets a point's colour and the other the series' cells.
-- A pie switched to a column, line or other series chart keeps its slice colours (as the points' colours) and its
-  name and value labels.
-- A click on a chart's point or mark selects it (a ring shows it; the status line names it).
-- A stack per series is not offered: PowerPoint's native charts stack a whole chart, never one series apart, so it
-  could not be exported (the panel shows it switched off and says why); the chart's own Stack setting is there.
-- (S14.4 review) A waterfall's labels stay inside the chart (a decrease ending on the axis is labelled above its
-  column), so PowerPoint shows every one of them; Edit Data on a waterfall in PowerPoint moves its columns when a value
-  changes (formulas in the embedded workbook – while each step keeps its side of zero); its connectors take the design's
-  axis-line colour; in Liquid Glass a column across zero keeps one gradient in PowerPoint. A scatter point outside a
-  fixed x axis range is left out, as in Excel and PowerPoint, instead of standing on the plot's edge.
-
-What users notice (S14.6)
-- PowerPoint export of every chart type (column, bar, line, area, scatter, combined on two axes, waterfall, pie,
-  donut) as a native chart: Edit Data shows each value with its own number format (a point's own where it has one).
-- A chart's arrows and lines are plain PowerPoint lines with PowerPoint's own arrowheads (triangle, open arrow,
-  stealth, oval, diamond; at either end or both, small / medium / large). They are not separate triangle shapes any
-  more. A limiter's bar end, which PowerPoint does not have, is still a short line beside it.
-- Numbers in a PowerPoint chart (axes, labels taken from the cells, Edit Data) are shown with the separators of the
-  computer that opens the file, as Excel does. On an Italian Windows PowerPoint shows 11.576 and 2,5 %; on an English
-  one it shows 11,576 and 2.5 %. The slide, the PDF and the PNG always show the workbook's Italian separators. The
-  "97 %" of "actual inside target" is written as text, so it is the same everywhere.
+For the maintainer
+* A deck holding any of the new chart fields (`sers`, `groups`, `axes`, `marks`, `legendHide`, `titleFmt`, …) is
+  format 5 (ADR-019): 4.0–4.5 refuse it; a 4.6 page opens it, keeps every chart field byte for byte when it edits and
+  compacts (CP-01 case m14, `tools/compat-old.mjs`).
+* `tools/pptxcheck.py` checks the chart kinds of every export (`kinds`), and on Windows `plots` compares PowerPoint's
+  own plot areas, axis bounds and mark ends with the export's (`node tools/m14-package.mjs --out DIR` makes the
+  package).
+* The page grows by about 140 KB (4,115,984 bytes; `app/tests/page-budget/m14.json`).
 
 ## 4.6.0 - unreleased (PLAN M13; prepared 2026-10-21, dated at the tag)
 

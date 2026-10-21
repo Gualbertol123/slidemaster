@@ -23,10 +23,8 @@ import { lightOf } from "./chart-bars";
 export type StepKind = "up" | "down" | "total";
 /** one column: category i, the value it shows, its ends in axis values (from → to: `to` is the running total after it) */
 export interface Step { i: number; v: number; from: number; to: number; kind: StepKind }
-/** a point's settings as a waterfall reads them: `total` marks a total column (09 §3.2) */
-type WPoint = NonNullable<ChartSeries["points"]>[string] & { total?: unknown };
 /** whether point i (the series' own index) is a total */
-export const isTotal = (s: SerData, i: number): boolean => (s.src.points?.[String(i - s.start)] as WPoint | undefined)?.total === true;
+export const isTotal = (s: SerData, i: number): boolean => s.src.points?.[String(i - s.start)]?.total === true;
 /** the running total: per category its column (null = a gap: no column, the total unchanged), and the values the axis
     must hold (0 always: the first column and every total stand on it) */
 export function waterfallSteps(s: SerData): { steps: (Step | null)[]; lo: number; hi: number } {

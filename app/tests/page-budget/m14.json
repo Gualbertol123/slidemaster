@@ -1,4 +1,4 @@
 {
   "bytes": 140896,
-  "why": "M14 (4.7.0, charts): by measurement, the owner's decision of 2026-10-21 – the measured share + 5,000 bytes. S14.5 (the chart panel and the S14.4 review follow-ups) built 4,111,988 bytes = base 3,976,092 + 135,896; was 110,000 (provisional). Set to the measurement again at S14.7."
+  "why": "M14 (4.7.0, charts): by measurement, the owner's decision of 2026-10-21 – the measured share + 5,000 bytes. S14.5 (the chart panel and the S14.4 review follow-ups) built 4,111,988 bytes = base 3,976,092 + 135,896; was 110,000 (provisional). S14.7 (close, after main's S14.P merge, the committed page): 4,115,984 bytes built twice, identical = base + 139,892 – within this limit (1,004 left), so not raised."
 }
