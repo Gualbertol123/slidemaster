@@ -123,3 +123,7 @@ only when an unchanged line stands between them, so these splits keep the two me
     handle is not drawn).
   - `app/e2e/app.spec.ts`: one test added after "the + button puts a text box there at once…" (weekly.xlsx; it deletes
     its text box at the end).
+  - S15.5 review fixes: `render/slide-dl.ts` `groundAt` gains one line (a consulting cover: Consulting Red's band, else
+    `slideBg`), and a line's ink now follows `groundAt` at its middle (line-dl.ts `lineColor`'s optional `ground`);
+    `tools/pptxcheck.py` (M15's line block) gains `_end_segment_empty` and `_quarter_problems` (the `quarter` key, called
+    from `check_lines`; an expectation without it is checked as before).

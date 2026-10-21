@@ -18,7 +18,7 @@ import { resolveStyle } from "../src/model/style";
 import { excelToDisplayList, type Metrics } from "../src/render/excel-dl";
 import { slideToDisplayList } from "../src/render/slide-dl";
 import { computeLayout, freeBoxes } from "../src/render/layout";
-import { anchorPoint, anchorTargets, lineBox, lineEnds, routeDistance, routeOf } from "../src/render/line-dl";
+import { anchorPoint, anchorTargets, distinct, lineBox, lineEnds, routeDistance, routeOf } from "../src/render/line-dl";
 import { headLength } from "../src/render/heads";
 import { DESIGNS } from "../src/model/designs";
 import { wrapLines } from "../src/text/lines";
@@ -38,7 +38,7 @@ const M: Metrics = {
 const SLIDE = "u9t3fqb", TABLE = "dhnms9c";
 const DECK = JSON.parse(fs.readFileSync(path.join(DECKS, "report.json"), "utf8")) as { workbook: string; ops: Op[] };
 const WB = readWorkbook(ab(path.join(BOOKS, DECK.workbook)));
-async function build(design: Design, items: Record<string, object>, more: Op[] = [], look: object = {}) {
+async function build(design: Design, items: Record<string, object>, more: Op[] = [], look: object = {}, type: "cover" | "content" = "content") {
   const wb = await WB;
   const ops = [...DECK.ops, ...Object.entries(items).map(([id, patch]) => ({ op: "item.patch", slide: SLIDE, id, patch }) as Op), ...more];
   const { doc: view, skipped } = applyOps(emptyDoc("W.xlsx"), ops);
@@ -46,9 +46,10 @@ async function build(design: Design, items: Record<string, object>, more: Op[] =
   const style = resolveStyle({}, { ...view.style, design }, look);
   const slides = runtimeSlides(wb, view.preset, "W.xlsx", design);
   const ctx: RenderCtx = { style, edits: view.edits || {}, slides, preset: view.preset || null, workbook: "W.xlsx", logoSrc: "", sheet: n => wb.sheets.find(s => s.name === n) || null, version: null, forExport: true };
-  const R = ctx.slides[0], boxes = computeLayout(R, ctx).boxes;
+  // (a cover: the report's first slide drawn as a cover, its tables left out)
+  const R = type === "cover" ? { ...ctx.slides[0], type, tables: [] } : ctx.slides[0], boxes = computeLayout(R, ctx).boxes;
   const dl = slideToDisplayList(R, 0, ctx, R.tables.map(L => excelToDisplayList(L, ctx, M)), boxes, { wall: null, logo: null }, M, "1 October 2026", { sem: true });
-  const sem: SlideSem = { type: "content", items: Object.fromEntries(Object.entries(dl.items).flatMap(([id, it]) => it.pptx ? [[id, it.pptx]] : [])), palette: [] };
+  const sem: SlideSem = { type, items: Object.fromEntries(Object.entries(dl.items).flatMap(([id, it]) => it.pptx ? [[id, it.pptx]] : [])), palette: [] };
   return { dl, sem, R, ctx, boxes };
 }
 const line = (route: LineItem["route"], a: { x: number; y: number }, b: { x: number; y: number }, extra: Partial<LineItem> = {}): LineItem => ({ kind: "line", route, a, b, box: lineBox(a, b), ...extra });
@@ -121,7 +122,8 @@ describe("line items on the slide (LN-01: display-list nodes only, every design)
   it("colours per design: unset → the design's ink; a divider (straight, dashed, no heads) → its rule colour; never glass on a line", async () => {
     const want: Record<Design, [string, string]> = { glass: ["0B0D17", "9AA1AE"], excel: ["404040", "BFBFBF"], clean: ["404040", "BFBFBF"], mckinsey: ["051C2C", "D6DEE6"], bain: ["4D4D4D", ""] };
     for (const design of DESIGNS) {
-      const { dl } = await build(design, { p: line("straight", { x: 100, y: 300 }, { x: 400, y: 300 }), d: line("straight", { x: 100, y: 850 }, { x: 1500, y: 850 }, { style: { w: 1, dash: "dashed" } }) });
+      // (p right of Consulting Red's panel: on it a line is light, S15.5 review 2)
+      const { dl } = await build(design, { p: line("straight", { x: 900, y: 300 }, { x: 1200, y: 300 }), d: line("straight", { x: 100, y: 850 }, { x: 1500, y: 850 }, { style: { w: 1, dash: "dashed" } }) });
       const hex = (n: Node) => ((n as LineNode).stroke.paint as { solid: number[] }).solid.map(v => v.toString(16).padStart(2, "0")).join("").toUpperCase();
       expect(hex(drawn(nodesOf(dl, "p"))[0]), design).toBe(want[design][0]);
       if (want[design][1]) expect(hex(drawn(nodesOf(dl, "d"))[0]), design).toBe(want[design][1]);
@@ -332,7 +334,7 @@ describe("S15.3 follow-ups: ticks, the label's ground, the ink per theme, the st
     const chip = (dl: typeof mk.dl, id: string) => drawn(nodesOf(dl, id)).find(n => n.t === "rect")!;
     const txt = (dl: typeof mk.dl, id: string) => drawn(nodesOf(dl, id)).find(n => n.t === "text")!;
     expect(hexOf((chip(mk.dl, "top") as { fill: unknown }).fill)).toBe("051C2C");          // the navy band
-    expect(hexOf((txt(mk.dl, "top") as { fill: unknown }).fill)).toBe("FFFFFF");
+    expect(hexOf((txt(mk.dl, "top") as { fill: unknown }).fill)).toBe("F2F2F2");            // the line's light ink in the band (S15.5 review 2)
     expect(hexOf((chip(mk.dl, "low") as { fill: unknown }).fill)).not.toBe("051C2C");
     expect(hexOf((txt(mk.dl, "low") as { fill: unknown }).fill)).toBe("051C2C");
     // the background drawn first is the same colour as the low label's ground
@@ -344,7 +346,7 @@ describe("S15.3 follow-ups: ticks, the label's ground, the ink per theme, the st
     expect(bn.dl.nodes.some(n => n.t === "rect" && n.x === 0 && n.y === 0 && n.h === 900 && n.w < 1600 && hexOf(n.fill) === panel)).toBe(true);   // the panel's own colour
   });
   it("the ink per theme: the deck's text-box colour when set, Liquid Glass's text colour, a light ink on a dark slide colour (Excel, Clean)", async () => {
-    const p = line("straight", { x: 100, y: 300 }, { x: 400, y: 300 }), d = line("straight", { x: 100, y: 850 }, { x: 1500, y: 850 }, { style: { w: 1, dash: "dashed" } });
+    const p = line("straight", { x: 900, y: 300 }, { x: 1200, y: 300 }), d = line("straight", { x: 100, y: 850 }, { x: 1500, y: 850 }, { style: { w: 1, dash: "dashed" } });
     const ink = (dl: Awaited<ReturnType<typeof build>>["dl"], id: string) => hexOf((drawn(nodesOf(dl, id))[0] as LineNode).stroke.paint);
     for (const design of DESIGNS) {
       const t = await build(design, { p, d }, [], { text: { note: { color: "#123456" } } });
@@ -359,5 +361,104 @@ describe("S15.3 follow-ups: ticks, the label's ground, the ink per theme, the st
     }
     // Liquid Glass ignores a slide colour (its wallpaper): its text colour
     expect(ink((await build("glass", { p }, [], { colors: { bg: "#1A1A1A" } })).dl, "p")).toBe("0B0D17");
+  });
+});
+
+/* ---- S15.5 review follow-ups (w2-review-S15.5 findings 1–3) ---- */
+type Built = Awaited<ReturnType<typeof build>>;
+const lineShapes = (b: Built) => flat(sceneOf(b.dl.nodes, b.sem, () => true)).filter((e): e is ShapeEl => e.k === "sp" && e.name === "Line");
+describe("S15.5 follow-ups: no native end on a segment of no length; the ink on the ground the line crosses; Consulting Red's cover band", () => {
+  const BENT = {
+    h0: line("elbow", { x: 100, y: 100 }, { x: 400, y: 300 }, { mid: 0, style: { heads: { a: "triangle", b: "arrow" } } }),
+    h1: line("elbow", { x: 500, y: 100 }, { x: 800, y: 300 }, { mid: 1, style: { heads: { a: "stealth", b: "triangle" } } }),
+    v0: line("elbow", { x: 900, y: 100 }, { x: 1200, y: 300 }, { mid: 0, bend: "vh", style: { heads: { a: "oval", b: "triangle" } } }),
+    v1: line("elbow", { x: 1300, y: 100 }, { x: 1500, y: 300 }, { mid: 1, bend: "vh", style: { heads: { a: "diamond", b: "arrow" } } }),
+    k0: line("bracket", { x: 200, y: 500 }, { x: 600, y: 500 }, { mid: 0, style: { heads: { a: "arrow", b: "arrow" } } }),
+  };
+  it("an elbow bent at an end (mid 0 / 1, hv / vh) and a bracket of depth 0: the file's path repeats no point, its ends aimed as the slide aims its heads", async () => {
+    const b = await build("excel", BENT);
+    const shapes = lineShapes(b);
+    expect(shapes).toHaveLength(5);
+    for (const [k, id] of Object.keys(BENT).entries()) {
+      const s = shapes[k], it = BENT[id as keyof typeof BENT];
+      if ("prst" in s.geom) throw new Error(`${id}: a preset`);
+      const pts = s.geom.path.map(c => [c[1] as number, c[2] as number]);
+      for (let i = 1; i < pts.length; i++) expect(pts[i], `${id} point ${i}`).not.toEqual(pts[i - 1]);
+      expect(s.line, id).toHaveProperty("head"); expect(s.line, id).toHaveProperty("tail");
+      // the first / last segment points where the slide's head points (Route fromA / fromB), in the shape's own frame
+      const R = routeOf(it, it.a, it.b), o = s.box;
+      expect([pts[1][0] + o.x, pts[1][1] + o.y], id).toEqual([R.fromA.x, R.fromA.y]);
+      expect([pts.at(-2)![0] + o.x, pts.at(-2)![1] + o.y], id).toEqual([R.fromB.x, R.fromB.y]);
+    }
+    // the bracket of depth 0 is one segment; an elbow bent at an end two
+    expect(shapes.map(s => "path" in s.geom ? s.geom.path.length : 0)).toEqual([3, 3, 3, 3, 2]);
+    const bytes = pptx([b]), xml = strFromU8(unzipSync(bytes)["ppt/slides/slide1.xml"]);
+    // no a:lnTo repeats the point before it
+    for (const p of xml.match(/<a:path [^>]*>.*?<\/a:path>/gs) || []) {
+      const q = [...p.matchAll(/<a:(moveTo|lnTo)><a:pt x="(-?\d+)" y="(-?\d+)"\/>/g)].map(m => m[2] + "," + m[3]);
+      for (let i = 1; i < q.length; i++) expect(q[i]).not.toBe(q[i - 1]);
+    }
+    expect(xml).not.toContain("<p:cxnSp");
+    if (process.env.PPTX_OUT) {
+      const f = path.join(process.env.PPTX_OUT, "lines-bent-ends.pptx");
+      fs.writeFileSync(f, bytes);
+      fs.writeFileSync(f.replace(/\.pptx$/, ".expect.json"), JSON.stringify({ [f]: [{ slide: 1, tables: 1, charts: 0, lines: 5, heads: 10, dashed: 0 }] }));
+    }
+  });
+  it("distinct: drops a point that repeats the one before it, keeps cubics and a route of one point", () => {
+    expect(distinct([["M", 1, 1], ["L", 1, 1], ["L", 1, 5], ["L", 4, 5], ["L", 4, 5]])).toEqual([["M", 1, 1], ["L", 1, 5], ["L", 4, 5]]);
+    expect(distinct([["M", 0, 0], ["C", 1, 1, 2, 2, 3, 3], ["L", 3, 3]])).toEqual([["M", 0, 0], ["C", 1, 1, 2, 2, 3, 3]]);
+    expect(distinct([["M", 2, 2], ["L", 2, 2]])).toEqual([["M", 2, 2], ["L", 2, 2]]);
+  });
+  const ink = (b: Built, id: string) => hexOf((drawn(nodesOf(b.dl, id))[0] as LineNode).stroke.paint);
+  it("the ink on the ground the line crosses: Consulting Navy's cover, a dark header band, Consulting Red's panel and cover band – the slide and the file alike", async () => {
+    const p = line("straight", { x: 900, y: 400 }, { x: 1300, y: 400 }, { text: "On the cover" }), d = line("straight", { x: 900, y: 200 }, { x: 1300, y: 200 }, { style: { dash: "dashed" } });
+    const mkCover = await build("mckinsey", { p, d }, [], {}, "cover");
+    expect(ink(mkCover, "p")).toBe("F2F2F2");                                    // not the cover's own #051C2C
+    expect(ink(mkCover, "d")).toBe("8C8C8C");
+    const label = drawn(nodesOf(mkCover.dl, "p"));
+    expect(hexOf((label.find(n => n.t === "rect") as { fill: unknown }).fill)).toBe("051C2C");
+    expect(hexOf((label.find(n => n.t === "text") as { fill: unknown }).fill)).toBe("F2F2F2");
+    // the file: the same light ink on the line's a:ln
+    expect(lineShapes(mkCover).map(s => hexOf(s.line!.paint))).toEqual(["F2F2F2", "8C8C8C"]);
+    // a content slide: in the dark header band light, below it the design's ink
+    const top = line("straight", { x: 900, y: 60 }, { x: 1300, y: 60 }), low = line("straight", { x: 900, y: 860 }, { x: 1300, y: 860 });
+    const mk = await build("mckinsey", { top, low });
+    expect([ink(mk, "top"), ink(mk, "low")]).toEqual(["F2F2F2", "051C2C"]);
+    // Consulting Red: on its message panel light, beside it its ink
+    const inPanel = line("straight", { x: 60, y: 700 }, { x: 400, y: 700 }), right = line("straight", { x: 900, y: 700 }, { x: 1300, y: 700 });
+    const bn = await build("bain", { inPanel, right });
+    expect([ink(bn, "inPanel"), ink(bn, "right")]).toEqual(["F2F2F2", "4D4D4D"]);
+    // a line's own colour is kept on any ground
+    const own = await build("mckinsey", { p: { ...p, style: { color: "#C42B1C" } } }, [], {}, "cover");
+    expect(ink(own, "p")).toBe("C42B1C");
+    // the deck's light text colour on a dark ground; its dark one gives way to the light ink
+    expect(ink(await build("mckinsey", { p }, [], { text: { note: { color: "#FFE082" } } }, "cover"), "p")).toBe("FFE082");
+    expect(ink(await build("mckinsey", { p }, [], { text: { note: { color: "#123456" } } }, "cover"), "p")).toBe("F2F2F2");
+  });
+  it("Consulting Red's cover band: a label in it on the band's red, white; below it on the slide's white, the line's ink", async () => {
+    const inBand = line("straight", { x: 900, y: 400 }, { x: 1300, y: 400 }, { text: "In the band" });
+    const below = line("straight", { x: 900, y: 700 }, { x: 1300, y: 700 }, { text: "Below" });
+    const bn = await build("bain", { inBand, below }, [], {}, "cover");
+    const chip = (id: string) => hexOf((drawn(nodesOf(bn.dl, id)).find(n => n.t === "rect") as { fill: unknown }).fill);
+    const txt = (id: string) => hexOf((drawn(nodesOf(bn.dl, id)).find(n => n.t === "text") as { fill: unknown }).fill);
+    expect(chip("inBand")).toBe("CC0000");
+    expect(ink(bn, "inBand")).toBe("F2F2F2");
+    expect(txt("inBand")).toBe("F2F2F2");
+    expect(chip("below")).toBe("FFFFFF");
+    expect([ink(bn, "below"), txt("below")]).toEqual(["4D4D4D", "4D4D4D"]);
+    // the band drawn on the slide is the one the label sits on
+    expect(bn.dl.nodes.some(n => n.t === "rect" && n.x === 0 && n.y === 0 && n.w === 1600 && n.h === 520 && hexOf(n.fill) === "CC0000")).toBe(true);
+  });
+  it("a light line's label pushed off a dark band onto a light ground reads dark", async () => {
+    // a bracket whose spine is in Consulting Navy's band (to y 168 here) and whose label is pushed below it, onto the white
+    const mk = await build("mckinsey", { k: line("bracket", { x: 900, y: 100 }, { x: 1300, y: 100 }, { mid: 60, text: "Below the band" }) });
+    const band = mk.dl.nodes.find(n => n.t === "rect" && n.x === 0 && n.y === 0 && n.h < 900) as { h: number; fill: unknown };
+    expect([band.h, hexOf(band.fill)]).toEqual([168, "051C2C"]);
+    const ns = drawn(nodesOf(mk.dl, "k")), chip = ns.find(n => n.t === "rect") as { fill: unknown; y: number };
+    expect(ink(mk, "k")).toBe("F2F2F2");
+    expect(chip.y).toBeGreaterThanOrEqual(160);
+    expect(hexOf(chip.fill)).not.toBe("051C2C");
+    expect(hexOf((ns.find(n => n.t === "text") as { fill: unknown }).fill)).toBe("051C2C");          // the design's ink
   });
 });

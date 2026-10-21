@@ -666,9 +666,14 @@ paths (no font, no picture). `pdfcheck.py` and the GF facts are unchanged.
 
 ### 4.3 Lines, icons, conditional formats in PowerPoint
 * **Lines** (F9): `p:sp` with `a:prstGeom prst="line"` for straight ones (flipH / flipV for direction) and an open
-  `custGeom` for elbow / curve / bracket; style on `a:ln` (`w`, `a:prstDash`, `a:solidFill`, `a:round` / `a:miter`)
+  `custGeom` for elbow / curve / bracket; style on `a:ln` (`w`, `a:custDash`, `a:solidFill`, `a:round` / `a:miter`)
   and **native arrowheads** `a:headEnd` / `a:tailEnd` (`triangle`, `arrow`, `stealth`, `oval`, `diamond`; the limiter's
-  `bar` as a short perpendicular segment in the same `custGeom`). **Never `p:cxnSp`**: an attached line is a plain
+  `bar` as a short perpendicular segment in the same `custGeom`, or – beside a dashed route or a native end – a solid
+  round-capped shape of its own grouped with it). Dashes are written as `a:custDash` (S15.5, owner's open question 1):
+  the presets cannot give our dotted (1:2) and dash-dot (4:2:1:2) patterns (`sysDot` is 1:1, `dot` 1:3, `dashDot`
+  4:3:1:3), and one writer (`pptx/drawingml.ts` `ln`, shared by every shape) keeps every dash exact; dashed (4:3) is the
+  `dash` preset's pattern, so it looks the same. A custom path never starts or ends on a segment of no length (an elbow
+  bent at an end, a bracket of depth 0): PowerPoint aims a native end along that segment. **Never `p:cxnSp`**: an attached line is a plain
   shape at the place it was exported (PowerPoint does not keep it attached – the owner's rule, stated in the report).
   The label is a text box grouped with the line.
 * **Icons**: `custGeom` from the same path data; outline icons as stroked open paths (`a:ln` width, `cap="rnd"`,

@@ -196,7 +196,7 @@ describe("dropped = saved = exported (SN-03, the core's part)", () => {
     if (process.env.PPTX_OUT) {
       const f = path.join(process.env.PPTX_OUT, "snap-quarter-px.pptx");
       fs.writeFileSync(f, writePptx({ slides: all, image: () => new Uint8Array(0), face: css => pptxFamily(css), title: "Snap", design: "Excel" }));
-      fs.writeFileSync(path.join(process.env.PPTX_OUT, "snap-quarter-px.expect.json"), JSON.stringify({ [f]: all.map((_, k) => ({ slide: k + 1, tables: 1, charts: 0, lines: 0 })) }));
+      fs.writeFileSync(path.join(process.env.PPTX_OUT, "snap-quarter-px.expect.json"), JSON.stringify({ [f]: all.map((_, k) => ({ slide: k + 1, tables: 1, charts: 0, lines: 0, quarter: ["Callout"] })) }));
     }                                                  // Excel's rect, automatic and free
   });
 });

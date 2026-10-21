@@ -36,7 +36,10 @@ check needs PowerPoint (Windows, COM through PowerShell). The helper stays stand
             drawn a:ln whose ends (a:headEnd / a:tailEnd) are DrawingML's types; with --expect, each slide holds exactly
             the entries' `lines` (tools/real-icons.mjs linesOf: the core's line items) and, where the entry gives them
             (S15.5), exactly its `heads` (native a:headEnd / a:tailEnd of a type other than none, over its lines) and
-            `dashed` (lines with a dashed stroke: a:custDash or an a:prstDash other than solid)
+            `dashed` (lines with a dashed stroke: a:custDash or an a:prstDash other than solid); a native end never
+            sits on a custom path's segment of no length (PowerPoint aims it along that segment); where an entry gives
+            `quarter` (shape name prefixes), every shape or group so named has its a:off / a:ext on the 1/4 px grid
+            (1,905 EMU, 09 §2.6)
         exit 1 when any check fails; --json writes every file's report (the content of (2) included)
     python tools/pptxcheck.py info a.pptx [...]      the report of (1) and (2) as JSON, nothing checked
 """
@@ -651,8 +654,58 @@ def _line_problems(el, where):
             e = ln.find(tag, NS)
             if e is not None and e.get("type") not in LINE_ENDS:
                 bad.append("%s: %s type %s" % (where, tag, e.get("type")))
+            # (S15.5 review 1) PowerPoint aims a native end along the path's first / last segment: never one of no length
+            if e is not None and (e.get("type") or "none") != "none" and paths and _end_segment_empty(paths, tag == "a:headEnd"):
+                bad.append("%s: its %s sits on a segment of no length" % (where, tag))
     if not strokes:
         bad.append("%s: no line shape (a:prstGeom line or an open a:custGeom)" % where)
+    return bad
+
+
+def _end_segment_empty(paths, first):
+    """True when the open path's first (or last) segment is a lnTo to the point it starts from"""
+    cmds = [c for c in paths[0 if first else -1] if c.tag in (A + "moveTo", A + "lnTo", A + "cubicBezTo")]
+    pts = [[(int(q.get("x") or 0), int(q.get("y") or 0)) for q in c.findall("a:pt", NS)] for c in cmds]
+    if len(cmds) < 2 or not all(pts):
+        return False
+    if first:
+        return cmds[1].tag == A + "lnTo" and pts[1][0] == pts[0][-1]
+    return cmds[-1].tag == A + "lnTo" and pts[-1][0] == pts[-2][-1]
+
+
+def _quarter_problems(path, expect):
+    """(S15.5 review 4) the 1/4 px grid (1/4 px = 1,905 EMU): on each slide whose entry gives `quarter` (shape
+    name prefixes, e.g. ["Callout", "Icon"]), every shape or group so named ("<prefix> n") has its a:off and a:ext on it
+    (09 §2.6)"""
+    want = {e["slide"]: e["quarter"] for e in expect or [] if e.get("quarter")}
+    if not want:
+        return []
+    z, bad = zipfile.ZipFile(path), []
+    parts = _slide_parts(z)
+    for n, prefixes in sorted(want.items()):
+        if not 0 < n <= len(parts):
+            bad.append("slide %d: not in the file (quarter)" % n)
+            continue
+        name = re.compile(r"^(%s) \d+$" % "|".join(re.escape(x) for x in prefixes))
+        found = 0
+        for el in ET.fromstring(z.read(parts[n - 1])).iter():
+            if el.tag not in (P + "sp", P + "grpSp"):
+                continue
+            nv = el.find("./*/p:cNvPr", NS)
+            if nv is None or not name.match(nv.get("name") or ""):
+                continue
+            x = el.find("p:spPr/a:xfrm", NS)
+            if x is None:
+                x = el.find("p:grpSpPr/a:xfrm", NS)
+            if x is None:
+                continue
+            found += 1
+            off, ext = x.find("a:off", NS), x.find("a:ext", NS)
+            vals = [int(off.get("x")), int(off.get("y")), int(ext.get("cx")), int(ext.get("cy"))] if off is not None and ext is not None else []
+            if not vals or any(v % 1905 for v in vals):
+                bad.append("slide %d, %s: a:off / a:ext %s not on the 1/4 px grid (1,905 EMU)" % (n, nv.get("name"), vals))
+        if not found:
+            bad.append("slide %d: no shape named %s (quarter)" % (n, " / ".join(prefixes)))
     return bad
 
 
@@ -723,6 +776,10 @@ def check_lines(path, expect=None, rep=None):
             for key, idx, what in (("heads", 0, "native line end(s)"), ("dashed", 1, "dashed line(s)")):
                 if key in e and sum(x[idx] for x in f) != e[key]:
                     bad.append("slide %d: %d %s, the export draws %d" % (n, sum(x[idx] for x in f), what, e[key]))
+        try:
+            bad.extend(_quarter_problems(path, expect))
+        except (KeyError, zipfile.BadZipFile, ET.ParseError, ValueError) as e:
+            bad.append("the 1/4 px grid not read: %s" % e)
     return bad
 # ---- end of M15's line block ----
 

@@ -102,6 +102,35 @@ class LineChecks(unittest.TestCase):
         bare = self.deck(sp("Line 2", ln=solid))
         self.assertEqual(pptxcheck.check_lines(bare, [{"slide": 1, "lines": 1, "heads": 2, "dashed": 0}]), ["slide 1: 0 native line end(s), the export draws 2"])
 
+    def test_a_native_end_on_a_segment_of_no_length_fails(self):
+        """(S15.5 review 1) an elbow bent at an end written with a repeated point: PowerPoint would aim its end along a
+        segment of no length; the same route without the repeat passes"""
+        def path(*pts):
+            cmds = "".join(('<a:moveTo>' if i == 0 else '<a:lnTo>') + '<a:pt x="%d" y="%d"/>' % p + ('</a:moveTo>' if i == 0 else '</a:lnTo>') for i, p in enumerate(pts))
+            return ('<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst><a:path w="100" h="100" fill="none">%s</a:path></a:pathLst></a:custGeom>' % cmds)
+        bent_a = path((0, 0), (0, 0), (0, 100), (100, 100))          # mid 0: the first segment of no length
+        bent_b = path((0, 0), (100, 0), (100, 100), (100, 100))      # mid 1: the last
+        good = path((0, 0), (0, 100), (100, 100))
+        self.assertEqual(pptxcheck.check_lines(self.deck(sp("Line 2", geom=bent_a))), ["slide 1, line 1: its a:headEnd sits on a segment of no length"])
+        self.assertEqual(pptxcheck.check_lines(self.deck(sp("Line 2", geom=bent_b))), ["slide 1, line 1: its a:tailEnd sits on a segment of no length"])
+        self.assertEqual(pptxcheck.check_lines(self.deck(sp("Line 2", geom=good))), [])
+        # without native ends a repeated point is harmless (the ticks' shape, a plain elbow)
+        bare = '<a:ln w="15240"><a:solidFill><a:srgbClr val="404040"/></a:solidFill></a:ln>'
+        self.assertEqual(pptxcheck.check_lines(self.deck(sp("Line 2", geom=bent_a, ln=bare))), [])
+
+    def test_the_quarter_px_grid_where_an_entry_asks(self):
+        """(S15.5 review 4) `quarter`: every shape or group named with one of its prefixes has a:off / a:ext in
+        multiples of 1,905 EMU (1/4 px); an entry without it is not asked"""
+        def box(name, x, y, w, h, sid):
+            return ('<p:sp><p:nvSpPr><p:cNvPr id="%d" name="%s"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="%d" y="%d"/><a:ext cx="%d" cy="%d"/></a:xfrm>'
+                    '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:sp>' % (sid, name, x, y, w, h))
+        f = self.deck(box("Callout 2", 767715, 1531620, 2284095, 908685, 2) + box("Table 3", 1508760, 1088136, 100, 100, 3))
+        self.assertEqual(pptxcheck.check_lines(f, [{"slide": 1, "quarter": ["Callout"]}]), [])
+        self.assertEqual(pptxcheck.check_lines(f, [{"slide": 1}]), [])
+        self.assertEqual(pptxcheck.check_lines(f, [{"slide": 1, "quarter": ["Callout", "Table"]}]),
+                         ["slide 1, Table 3: a:off / a:ext [1508760, 1088136, 100, 100] not on the 1/4 px grid (1,905 EMU)"])
+        self.assertEqual(pptxcheck.check_lines(f, [{"slide": 1, "quarter": ["Icon"]}]), ["slide 1: no shape named Icon (quarter)"])
+
 
 if __name__ == "__main__":
     unittest.main()

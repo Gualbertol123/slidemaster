@@ -197,9 +197,11 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
   return { nodes: [...low, ...z3, ...z5], images, items };
 
   /* ---- items ---- */
-  /** the colour under a point (a line's label): Consulting Red's message panel, a consulting design's dark header band,
-      else the slide's own colour (Liquid Glass: none – a white chip over the wallpaper) */
+  /** the colour under a point (a line's label, a line's middle): Consulting Red's message panel, a consulting design's
+      dark header band, Consulting Red's cover band, else the slide's own colour (Liquid Glass: none – a white chip over
+      the wallpaper) */
   function groundAt(p: { x: number; y: number }): string | null {
+    if (C && R.type === "cover") { const K = C.cover.band; return K && p.y >= K.y && p.y < K.y + K.h ? K.fill : slideBg; }
     if (!C || !O || !LK || R.type !== "content") return slideBg;
     const panel = O.headline === "panel";
     if (inPanel(p.x)) return acc(LK.panel);

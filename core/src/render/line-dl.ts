@@ -191,24 +191,26 @@ export const darkGround = (hex: string | null | undefined) => !!hex && HEX.test(
 /** the line's colour: its own, else the design's ink (09 §3.4) – the colour the text boxes are written in when the deck
     sets one (the theme's text colour: Text format › Text boxes), else Liquid Glass's text colour, Excel's and Clean's
     #404040, the consulting designs' ink; a divider's (straight, dashed or dotted, no heads) the design's rule colour.
-    On a dark slide colour (Excel / Clean with a dark custom background) a light ink, so that it shows */
-export function lineColor(it: Pick<LineItem, "route" | "style">, ctx: RenderCtx): string {
+    On a dark ground a light ink, so that it shows: `ground` is the colour the line crosses (slide-dl.ts groundAt at its
+    middle: a dark custom slide colour, Consulting Navy's cover, a consulting design's dark header band, Consulting Red's
+    panel or cover band); without it (the toolbar's swatch) the slide colour of Excel / Clean */
+export function lineColor(it: Pick<LineItem, "route" | "style">, ctx: RenderCtx, ground?: string | null): string {
   const own = it.style?.color;
   if (typeof own === "string" && HEX.test(own)) return own.toUpperCase();
   const h = headsOf(it), divider = it.route === "straight" && !headOk(h.a) && !headOk(h.b) && !!it.style?.dash && it.style.dash !== "solid";
   const d = ctx.style.design, deck = deckFmt(ctx, "note").color, text = typeof deck === "string" && HEX.test(deck) ? deck.toUpperCase() : null;
+  const under = ground !== undefined ? ground : isConsult(d) || d === "glass" ? null : themeVars(ctx)["--slidebg"];
+  if (darkGround(under)) return divider ? "#8C8C8C" : text && !darkGround(text) ? text : "#F2F2F2";
   if (isConsult(d)) { const C = specOf(ctx); return divider ? (C.bottomRule?.color || "#BFBFBF") : text || (d === "mckinsey" ? "#051C2C" : "#4D4D4D"); }
   if (d === "glass") return divider ? "#9AA1AE" : text || "#0B0D17";
-  const bg = themeVars(ctx)["--slidebg"];
-  if (darkGround(bg)) return divider ? "#8C8C8C" : text && !darkGround(text) ? text : "#F2F2F2";
   return divider ? "#BFBFBF" : text || "#404040";
 }
 const DASH = { dashed: (w: number) => [w * 4, w * 3], dotted: (w: number) => [w, w * 2], dashdot: (w: number) => [w * 4, w * 2, w, w * 2] } as const;
 /** the stroke of a line item (09 §3.4): weight, colour, dash, caps and joins */
-export function lineStroke(it: Pick<LineItem, "route" | "style">, ctx: RenderCtx): Stroke {
+export function lineStroke(it: Pick<LineItem, "route" | "style">, ctx: RenderCtx, ground?: string | null): Stroke {
   const w = lineWeight(it), h = headsOf(it), dash = it.style?.dash && it.style.dash !== "solid" && it.style.dash in DASH ? DASH[it.style.dash](w) : undefined;
   const plain = !headOk(h.a) && !headOk(h.b) && !dash;
-  return { w, paint: solid(lineColor(it, ctx)), ...(dash ? { dash } : {}), cap: plain ? "round" : "butt", join: it.route === "curve" ? "round" : "miter" };
+  return { w, paint: solid(lineColor(it, ctx, ground)), ...(dash ? { dash } : {}), cap: plain ? "round" : "butt", join: it.route === "curve" ? "round" : "miter" };
 }
 /** the ground behind a label (it reads across the line): the colour under its centre (slide-dl.ts gives it: the slide's
     background, a consulting design's dark band or message panel); none (Liquid Glass, over its wallpaper) a white chip */
@@ -229,7 +231,7 @@ export interface LineEnv { family: string; m: Metrics;
 /** a line item at its resolved ends → its nodes (stroke, heads, label, hits) */
 export function lineNodes(it: LineItem, id: string, ends: Ends | null, ctx: RenderCtx, env: LineEnv): LineDL {
   if (!ends) return { nodes: [], issue: "its ends are not on the slide (no numbers)", box: it.box, sem: null };
-  const { a, b } = ends, R = routeOf(it, a, b), st = lineStroke(it, ctx), h = headsOf(it), size = h.size && h.size in { s: 1, m: 1, l: 1 } ? h.size : undefined;
+  const { a, b } = ends, R = routeOf(it, a, b), st = lineStroke(it, ctx, typeof env.ground === "function" ? env.ground(R.mid) : env.ground), h = headsOf(it), size = h.size && h.size in { s: 1, m: 1, l: 1 } ? h.size : undefined;
   const ha = headOk(h.a), hb = headOk(h.b), nodes: Node[] = [];
   // the stroke, shortened under filled heads; the heads
   let d = R.d, headNodes: Node[] = [];
@@ -255,7 +257,9 @@ export function lineNodes(it: LineItem, id: string, ends: Ends | null, ctx: Rend
   }
   // the label
   const ref = typeof it.text === "string" && it.text.trim() ? calloutText(it.text, ctx) : null, label: Node[] = [];
-  if (ref && ref.text.trim()) label.push(...labelNodes(it, id, ref.text, R, st, env));
+  // (a light ink on a light ground – a line across a dark band whose label is pushed off it – the design's own ink)
+  const dark = lineColor({ route: it.route, style: { ...it.style, color: undefined } }, ctx, null);
+  if (ref && ref.text.trim()) label.push(...labelNodes(it, id, ref.text, R, st, env, luminance(dark) > .6 ? "#404040" : dark));
   nodes.push(...label);
   // the bounds of everything drawn (routes, heads, label), for the stage's layer
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -266,8 +270,22 @@ export function lineNodes(it: LineItem, id: string, ends: Ends | null, ctx: Rend
   const box = { x: r2(x0 - pad), y: r2(y0 - pad), w: r2(x1 - x0 + 2 * pad), h: r2(y1 - y0 + 2 * pad) };
   const issue = ends.lost.length === 2 ? "both its ends lost their objects" : ends.lost.length ? "its end lost its object" : ref?.missing.length ? `the cell ${ref.missing[0]} cannot be read (shown as #REF)` : null;
   const bars = ([[h.a, a, R.fromA], [h.b, b, R.fromB]] as const).filter(([x]) => x === "bar").map(([, tip, from]) => headGeom("bar", tip, from, st.w, size)!.d);
-  const sem: LineSem = { route: R.d, straight: R.straight, a, b, stroke: st, head: ha && ha !== "bar" ? ha : null, tail: hb && hb !== "bar" ? hb : null, size: size ?? null, bars, label };
+  const sem: LineSem = { route: distinct(R.d), straight: R.straight, a, b, stroke: st, head: ha && ha !== "bar" ? ha : null, tail: hb && hb !== "bar" ? hb : null, size: size ?? null, bars, label };
   return { nodes, issue, box, sem };
+}
+/** a route without a segment of no length (a point that repeats the one before it: an elbow bent at an end, mid 0 or 1,
+    a bracket of depth 0): PowerPoint aims a native end (a:headEnd / a:tailEnd) along the path's first / last segment, so
+    the file's path must not end on one of no length – the slide aims its heads past them (Route fromA / fromB). A route
+    of one point keeps a segment (to itself) */
+export function distinct(d: PathCmd[]): PathCmd[] {
+  const out: PathCmd[] = [];
+  let cur: Pt | null = null;
+  for (const c of d) {
+    if (c[0] === "L" && cur && same(cur, { x: c[1], y: c[2] })) continue;
+    out.push(c);
+    cur = c[0] === "M" || c[0] === "L" ? { x: c[1], y: c[2] } : c[0] === "C" ? { x: c[5], y: c[6] } : cur;
+  }
+  return out.length === 1 && d.length > 1 ? [out[0], d[1]] : out;
 }
 /** a path's first and last segments shortened by ka / kb px (under a filled head), never past their middle */
 function shorten(d: PathCmd[], ka: number, kb: number): PathCmd[] {
@@ -298,7 +316,7 @@ function shorten(d: PathCmd[], ka: number, kb: number): PathCmd[] {
 }
 /** the label: its lines (wrapped at 320 px) centred on the route's middle – a range's above it, a bracket's beyond its
     spine – on a rect of the slide's ground; its hit (kind "item", the text) first, as a text box's */
-function labelNodes(it: LineItem, id: string, text: string, R: Route, st: Stroke, env: LineEnv): Node[] {
+function labelNodes(it: LineItem, id: string, text: string, R: Route, st: Stroke, env: LineEnv, dark: string): Node[] {
   const f = it.fmt || {}, size = typeof f.size === "number" && f.size > 0 ? Math.max(8, Math.min(72, f.size)) : 16;
   const weight = f.b ? 700 : 400, italic = !!f.i, family = typeof f.font === "string" && f.font ? `"${f.font}",${env.family}` : env.family;
   const font = `${italic ? "italic " : ""}${weight} ${size}px ${family}`;
@@ -311,8 +329,10 @@ function labelNodes(it: LineItem, id: string, text: string, R: Route, st: Stroke
   const cx = R.label.x + (R.push?.x ?? 0) * off, cy = R.label.y + (R.push?.y ?? 0) * off;
   const under = typeof env.ground === "function" ? env.ground({ x: cx, y: cy }) : env.ground;
   const bx = r2(cx - W / 2 - padX), by = r2(cy - H / 2 - padY), bw = r2(W + 2 * padX), bh = r2(H + 2 * padY), g = groundOf(under);
-  // the text in its own colour, else the line's – white where the line's ink would not read on a dark ground
-  const ink = typeof f.color === "string" && HEX.test(f.color) ? f.color : darkGround(under) && darkGround(ink0) ? "#FFFFFF" : ink0;
+  // the text in its own colour, else the line's – white where the line's ink would not read on a dark ground, dark where a
+  // light ink (a line across a dark band) would not read on a light one (its label pushed off the band)
+  const ink = typeof f.color === "string" && HEX.test(f.color) ? f.color : darkGround(under) && darkGround(ink0) ? "#FFFFFF"
+    : !darkGround(under) && luminance(ink0) > .6 ? dark : ink0;
   const align = f.align === "left" ? "left" : f.align === "right" ? "right" : "center";
   const out: Node[] = [{ t: "rect", x: bx, y: by, w: bw, h: bh, ...(g.r ? { r: g.r } : {}), fill: { solid: parseColor(g.color).c, ...(g.a < 1 ? { a: g.a } : {}) } },
     { t: "hit", kind: "item", id, x: bx, y: by, w: bw, h: bh, label: lines.join("\n") }];
