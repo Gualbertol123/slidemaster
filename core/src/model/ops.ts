@@ -1,7 +1,7 @@
 /* Document operations – the ONLY way documents change, and the ONLY implementation of their semantics
    (docs/ARCHITECTURE.md §3; since 4.0 the helper applies none: it stores records of them, model/fold.ts folds
    them). Pinned by shared/ops-vectors.json. */
-import type { CellEdit, Op, WorkbookDoc, StylePatch } from "./types";
+import type { CellEdit, Op, SlideDef, TableDef, WorkbookDoc, StylePatch } from "./types";
 
 const SLIDE_KEYS = ["title", "subtitle", "date", "note", "logo", "layout", "align", "scale", "valign", "subs"] as const;
 const SLIDE_MAPS = ["notes", "fmt", "sizes", "free", "looks"] as const;
@@ -15,6 +15,8 @@ const ITEM_KEYS = ["kind", "type", "values", "labels", "series", "title", "legen
   "shape", "icon", "text", "fill", "border", "radius", "tail"] as const;
 const ITEM_MAPS = ["colors", "fmt"] as const;
 const ITEM_KINDS = ["chart", "shape"];
+/* slide.add / table.add (4.6, 09 §2.8): the slide types and table kinds this page draws (a later page's are skipped) */
+const SLIDE_TYPES = ["cover", "index", "content"], TABLE_KINDS = ["markers", "range"];
 const REF = /^[A-Z]{1,3}[0-9]{1,7}$/;
 const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
 const clone = <T>(x: T): T => x === undefined ? x : JSON.parse(JSON.stringify(x));
@@ -82,9 +84,49 @@ export function applyOp(doc: Doc, op: Op | Record<string, unknown>): boolean {
       applyStylePatch(doc.style as Record<string, unknown>, o.patch);
       return true;
     }
+    /* 09 §2.8: records fold in Lamport order, so of two slides added after one slide the later lands directly after it
+       (the same on every page); `after` naming a slide removed meanwhile adds at the end */
+    case "slide.add": {
+      if (!doc.preset || !isSlide(o.slide) || (o.after !== null && typeof o.after !== "string")) return false;
+      const slides = doc.preset.slides, id = o.slide.id;
+      if (slides.some(x => x.id === id)) return false;                                // an id that exists: the first add stays
+      const at = o.after === null ? 0 : slides.findIndex(x => x.id === o.after) + 1 || slides.length;
+      slides.splice(at, 0, clone(o.slide));
+      return true;
+    }
+    case "slide.remove": {
+      if (typeof o.id !== "string" || !doc.preset) return false;
+      const i = doc.preset.slides.findIndex(x => x.id === o.id);
+      if (i < 0) return false;
+      doc.preset.slides.splice(i, 1);
+      return true;
+    }
+    case "table.add": {
+      if (!doc.preset || !isTable(o.table) || typeof o.slide !== "string") return false;
+      const s = doc.preset.slides.find(x => x.id === o.slide), id = o.table.id;
+      if (!s) return false;
+      const list = Array.isArray(s.tables) ? s.tables : (s.tables = []);
+      if (list.includes(id)) return false;                                            // on that slide already
+      if (!doc.preset.tables.some(x => x.id === id)) doc.preset.tables.push(clone(o.table));   // an existing def is kept
+      const at = typeof o.at === "number" && Number.isInteger(o.at) && o.at >= 0 && o.at <= list.length ? o.at : list.length;
+      list.splice(at, 0, id);
+      return true;
+    }
+    case "table.remove": {
+      if (typeof o.id !== "string" || typeof o.slide !== "string" || !doc.preset) return false;
+      const s = doc.preset.slides.find(x => x.id === o.slide), i = s && Array.isArray(s.tables) ? s.tables.indexOf(o.id) : -1;
+      if (!s || i < 0) return false;
+      s.tables.splice(i, 1);                                                          // its def, notes and free boxes stay
+      return true;
+    }
   }
   return false;
 }
+const okId = (x: unknown): x is string => typeof x === "string" && !!x && x !== "__proto__";
+/** a slide definition slide.add applies: an id, a type this page draws, a list of table ids (other keys kept whole) */
+const isSlide = (s: unknown): s is SlideDef => isObj(s) && okId(s.id) && SLIDE_TYPES.includes(s.type as string) && Array.isArray(s.tables) && s.tables.every(okId);
+/** a table definition table.add applies: an id, a sheet, a kind this page reads (other keys kept whole) */
+const isTable = (t: unknown): t is TableDef => isObj(t) && okId(t.id) && typeof t.sheet === "string" && !!t.sheet && TABLE_KINDS.includes(t.kind as string);
 /** an op this page knows whole: a known type whose patch holds only keys this version applies, and an item of a known
     kind. applyOp skips the rest – a later version's op, key or kind – and a snapshot folded without it would lose it for
     every page: a 4.1 page did so with 4.3's charts and 4.4's free layouts (AUDIT-2 DATA-7). So a page never compacts
@@ -99,6 +141,10 @@ export function knownOp(op: Op | Record<string, unknown>): boolean {
     case "cell.patch": return only(CELL_KEYS);
     case "style.patch": return only(STYLE_KEYS, STYLE_MAPS);
     case "item.patch": return p === null || (only(ITEM_KEYS, ITEM_MAPS) && (!("kind" in (p as object)) || ITEM_KINDS.includes((p as Record<string, unknown>).kind as string)));
+    // (the definitions are kept whole, keys this page does not draw too; a later page's slide type or table kind is not)
+    case "slide.add": return isObj(o.slide) && SLIDE_TYPES.includes(o.slide.type as string);
+    case "table.add": return isObj(o.table) && TABLE_KINDS.includes(o.table.kind as string);
+    case "slide.remove": case "table.remove": return true;
   }
   return false;
 }
@@ -204,6 +250,28 @@ export function inverseOf(doc: Doc, op: Op): Op | null {
       return { op: "item.patch", slide: op.slide, id: op.id, patch: op.patch === null ? clone(cur) : inversePatch(cur, op.patch as Record<string, unknown>, ITEM_MAPS) } as Op;
     }
     case "style.patch": return { op: "style.patch", patch: inversePatch(doc.style as Record<string, unknown>, op.patch as Record<string, unknown>, STYLE_MAPS) } as Op;
+    // 09 §2.8: an op that would be skipped has no inverse (as above); undo takes off only what the op put there
+    case "slide.add": {
+      if (!doc.preset || !isSlide(op.slide) || doc.preset.slides.some(x => x.id === op.slide.id)) return null;
+      return { op: "slide.remove", id: op.slide.id };
+    }
+    case "slide.remove": {
+      // the removed slide's definition and its previous neighbour (null: it was the first)
+      const slides = doc.preset?.slides || [], i = slides.findIndex(x => x.id === op.id); if (i < 0) return null;
+      return { op: "slide.add", slide: clone(slides[i]), after: i ? slides[i - 1].id : null };
+    }
+    case "table.add": {
+      const s = doc.preset?.slides.find(x => x.id === op.slide);
+      if (!s || !isTable(op.table) || (s.tables || []).includes(op.table.id)) return null;
+      return { op: "table.remove", id: op.table.id, slide: op.slide };          // (a new def stays in preset.tables)
+    }
+    case "table.remove": {
+      // the definition (it stays in preset.tables) and the table's index in the slide's tables
+      const s = doc.preset?.slides.find(x => x.id === op.slide), at = s && Array.isArray(s.tables) ? s.tables.indexOf(op.id) : -1;
+      const def = doc.preset?.tables.find(x => x.id === op.id);
+      if (at < 0 || !def) return null;
+      return { op: "table.add", table: clone(def), slide: op.slide, at };
+    }
   }
   return null;
 }

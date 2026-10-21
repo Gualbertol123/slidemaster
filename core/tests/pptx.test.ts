@@ -20,7 +20,8 @@ import { runtimeSlides } from "../src/model/preset";
 import { resolveStyle } from "../src/model/style";
 import { excelToDisplayList, type Metrics } from "../src/render/excel-dl";
 import { slideToDisplayList } from "../src/render/slide-dl";
-import { computeLayout } from "../src/render/layout";
+import { areaFor, computeLayout } from "../src/render/layout";
+import { pageNoFor } from "../src/render/pagenumbers";
 import { wrapLines } from "../src/text/lines";
 import type { RenderCtx } from "../src/render/context";
 import type { ChartItem, Design, Op, ShapeItem } from "../src/model/types";
@@ -378,5 +379,67 @@ describe("callouts (S11.2): preset shapes holding their text", () => {
     expect(arrow.fill).toEqual({ solid: [11, 42, 111] });
     // the text stays in the shape: no text box of its own over it
     expect(els.filter(e => e.k === "sp" && e.text?.paras[0]?.runs[0]?.text === "Next")).toHaveLength(1);
+  });
+});
+
+/* ---- a slide with no tables (S13.3, 09 §2.8: New slide; blank slides and added tables must export, VER-3) ---- */
+const BLANK: Op = { op: "slide.add", slide: { id: "nb1", type: "content", title: "New slide", tables: [] }, after: "index1" };
+const PILL: Op = { op: "item.patch", slide: "nb1", id: "k1", patch: { kind: "shape", shape: "pill", text: "Next steps", box: { x: 200, y: 300, w: 400, h: 120 } } };
+const PN: Op = { op: "style.patch", patch: { pn: { on: true, format: "n", start: 1 } } };
+async function weekly(design: Design, extra: Op[]) {
+  const d = JSON.parse(fs.readFileSync(path.join(DECKS, "weekly-options.json"), "utf8")) as { workbook: string; ops: Op[] };
+  const wb = await readWorkbook(ab(path.join(BOOKS, d.workbook)));
+  const { doc: view, skipped } = applyOps(emptyDoc("W.xlsx"), [...d.ops, ...extra]);
+  expect(skipped).toEqual([]);
+  const style = { ...resolveStyle({}, view.style), design }, sl = runtimeSlides(wb, view.preset, "W.xlsx", design);
+  const ctx: RenderCtx = { style, edits: view.edits || {}, slides: sl, preset: view.preset || null, workbook: "W.xlsx", logoSrc: "", sheet: n => wb.sheets.find(s => s.name === n) || null, version: null, forExport: true };
+  const draw = (i: number) => { const R = sl[i], boxes = computeLayout(R, ctx).boxes; return slideToDisplayList(R, i, ctx, R.tables.map(L => excelToDisplayList(L, ctx, M)), boxes, { wall: null, logo: null }, M, "1 October 2026", { sem: true }); };
+  return { sl, ctx, draw };
+}
+const texts = (ns: Node[]): string[] => ns.flatMap(n => n.t === "text" ? [n.src] : n.t === "group" ? texts(n.children) : []);
+const hits = (ns: Node[]): Extract<Node, { t: "hit" }>[] => ns.flatMap(n => n.t === "hit" ? [n] : n.t === "group" ? hits(n.children) : []);
+
+describe("a slide with no tables (S13.3, 09 §2.8): lays out, draws and exports in every design", () => {
+  it("computeLayout returns the title area, the content area and the items' boxes (no table box)", async () => {
+    const { sl, ctx } = await weekly("excel", [BLANK, PILL]);
+    const R = sl.find(s => s.id === "nb1")!, L = computeLayout(R, ctx);
+    expect(R.tables).toEqual([]); expect(R.title).toBe("New slide");
+    expect(L.boxes).toEqual([]);
+    expect(L.area).toEqual(areaFor(R, ctx));
+    expect(L.title).toEqual({ x: L.area!.x, y: 0, w: L.area!.w, h: L.area!.y });
+    expect(L.items).toEqual({ k1: { x: 200, y: 300, w: 400, h: 120 } });
+    // a blank slide without items: no item boxes, the areas still there
+    const { sl: s2, ctx: c2 } = await weekly("glass", [BLANK]);
+    const L2 = computeLayout(s2.find(s => s.id === "nb1")!, c2);
+    expect([L2.boxes, L2.items]).toEqual([[], {}]);
+    expect(L2.area!.h).toBeGreaterThan(600);
+  });
+  for (const design of ["glass", "excel", "clean", "mckinsey", "bain"] as Design[]) it(design + ": the display list holds the title and the item; the PowerPoint slide has its title and no table", async () => {
+    const { sl, draw } = await weekly(design, [BLANK, PILL]);
+    const i = sl.findIndex(s => s.id === "nb1"), dl = draw(i);
+    expect(texts(dl.nodes).join(" ")).toContain("New slide");
+    expect(dl.items.k1).toBeDefined();
+    const sem: SlideSem = { type: "content", items: Object.fromEntries(Object.entries(dl.items).flatMap(([id, it]) => it.pptx ? [[id, it.pptx]] : [])), palette: [] };
+    const bytes = writePptx({ slides: [{ nodes: dl.nodes, sem }], image: () => PNG, face: css => pptxFamily(css) });
+    const { s } = unzip(bytes), slide = s("ppt/slides/slide1.xml");
+    expect(xmlOk(slide)).toBe(true);
+    expect(slide).not.toContain("<a:tbl>");
+    expect(slide).toContain(">New slide<");
+    expect(slide).toContain(">Next steps<");
+  });
+  it("slide numbers and the contents slide follow added and removed slides (their positions in the slide list)", async () => {
+    const pn = (ctx: RenderCtx, id: string) => pageNoFor(ctx, ctx.slides.findIndex(s => s.id === id));
+    const before = await weekly("excel", [PN]);
+    expect(pn(before.ctx, "p2knyyz")).toBe("3");
+    const added = await weekly("excel", [PN, BLANK]);
+    expect(added.sl.map(s => s.id)).toEqual(["cover1", "index1", "nb1", "p2knyyz"]);
+    expect([pn(added.ctx, "nb1"), pn(added.ctx, "p2knyyz")]).toEqual(["3", "4"]);
+    // the contents slide lists the new slide first (01, page 3), the old one second (02, page 4)
+    const ix = added.draw(1);
+    expect(hits(ix.nodes).filter(h => h.id === "ix-n").map(h => h.label)).toEqual(["01", "02"]);
+    expect(texts(ix.nodes)).toEqual(expect.arrayContaining(["New slide", "3", "4"]));
+    const removed = await weekly("excel", [PN, BLANK, { op: "slide.remove", id: "nb1" }]);
+    expect(pn(removed.ctx, "p2knyyz")).toBe("3");
+    expect(hits(removed.draw(1).nodes).filter(h => h.id === "ix-n").map(h => h.label)).toEqual(["01"]);
   });
 });

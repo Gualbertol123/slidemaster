@@ -3,7 +3,9 @@
    moments that race each other. For 1 000 seeds: once the network is quiet every replica has the same document
    (invariant 2) and every edit is in it – nothing acknowledged is lost (invariant 1), nothing applied twice
    (rev counts each record once, invariant 4), and the snapshot's gen only goes up (invariant 3). Since 4.3 the writers
-   also patch fields of one chart (`item.patch`, 07 §2.2): each writer's own slice colour ends as it last set it. */
+   also patch fields of one chart (`item.patch`, 07 §2.2): each writer's own slice colour ends as it last set it. Since
+   4.6 they also add slides after any slide and tables to one slide, and remove their own (09 §2.8, S13.3): each is
+   there once, or gone. */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DocSync, type DeckApi } from "../src/sync/docsync";
 import type { Op } from "../src/model/types";
@@ -65,6 +67,8 @@ export async function run(seed: number) {
   /** contended cells: the value each edit replaced, as its author saw it (that value must never win afterwards) */
   const overwrote: [string, string][] = [];
   const gens: number[] = [deck.snap.gen];
+  /** slides (n…) and tables on s1 (t…) each writer added (true) or removed again (false) */
+  const added = new Map<string, boolean>();
   let n = 0;
   const steps = 60 + Math.floor(rand() * 80);
   for (let k = 0; k < steps; k++) {
@@ -80,6 +84,23 @@ export async function run(seed: number) {
       if (rand() < 0.25) {                                               // a field of the shared chart
         const w = reps.indexOf(r), c = "#" + (n % 0xffffff).toString(16).padStart(6, "0");
         ops.push({ op: "item.patch", slide: "s1", id: "c1", patch: { colors: { [w]: c } } } as Op); colours.set(w, c);
+      }
+      if (rand() < 0.2) {                                                // a slide or a table added or removed (09 §2.8, S13.3)
+        const w = reps.indexOf(r), slides = r.view.preset!.slides, y = rand();
+        const mine = slides.filter(s => s.id.startsWith(`n${w}x`)), tabs = slides.find(s => s.id === "s1")!.tables.filter(t => t.startsWith(`t${w}x`));
+        if (y < 0.4 || (y < 0.55 && !mine.length)) {                     // after any slide (another writer's too), or first
+          const id = `n${w}x${n}`, after = rand() < 0.2 ? null : slides[Math.floor(rand() * slides.length)].id;
+          ops.push({ op: "slide.add", slide: { id, type: "content", title: text, tables: [] }, after } as Op); added.set(id, true);
+        } else if (y < 0.55) {                                           // only the writer's own (so its add came first)
+          const id = mine[Math.floor(rand() * mine.length)].id;
+          ops.push({ op: "slide.remove", id } as Op); added.set(id, false);
+        } else if (y < 0.85 || !tabs.length) {
+          const id = `t${w}x${n}`;
+          ops.push({ op: "table.add", table: { id, sheet: "S", kind: "range", range: "A1:B" + n }, slide: "s1", at: Math.floor(rand() * 3) } as Op); added.set(id, true);
+        } else {
+          const id = tabs[Math.floor(rand() * tabs.length)];
+          ops.push({ op: "table.remove", id, slide: "s1" } as Op); added.set(id, false);
+        }
       }
       r.apply(ops); made.push([ref, text]);
     } else if (x < 0.5) void r.flush();
@@ -101,15 +122,15 @@ export async function run(seed: number) {
     if (round > 4 && !net.queue.length && reps.every(r => !r.busy)) break;
   }
   for (let i = 0; i < 3; i++) { for (const r of reps) void r.poll(); await settle(); while (net.deliverOne()) await settle(); }
-  return { reps, made, gens, deck, overwrote, colours };
+  return { reps, made, gens, deck, overwrote, colours, added };
 }
 
 describe("storage v4 converges (property test, 1 000 seeds)", () => {
   it("every replica ends with the same document, every edit in it, each record once, gen only going up", async () => {
     vi.useFakeTimers();                          // retries and debounces wait for the test (it delivers and flushes)
-    let compactions = 0, duplicates = 0;
+    let compactions = 0, duplicates = 0, structure = 0;
     for (let seed = 1; seed <= 1000; seed++) {
-      const { reps, made, gens, deck, overwrote, colours } = await run(seed);
+      const { reps, made, gens, deck, overwrote, colours, added } = await run(seed);
       const ctx = `seed ${seed}`;
       for (const r of reps) expect(r.busy, ctx).toBe(false);
       const docs = reps.map(r => JSON.stringify(r.server));
@@ -117,9 +138,17 @@ describe("storage v4 converges (property test, 1 000 seeds)", () => {
       const doc = reps[0].server;
       for (const [ref, text] of made) expect(doc.edits.S?.[ref]?.text, `${ctx} ${ref}`).toBe(text);
       // B4: a value somebody knowingly replaced never comes back over the replacement (Lamport order across a compaction)
-      const chart = doc.preset!.slides[0].items!.c1 as { colors?: Record<string, string>; box: unknown };
+      const chart = doc.preset!.slides.find(s => s.id === "s1")!.items!.c1 as { colors?: Record<string, string>; box: unknown };
       for (const [w, c] of colours) expect(chart.colors?.[w], `${ctx} colour ${w}`).toBe(c);
       expect(chart.box, ctx).toEqual({ x: 10, y: 10, w: 300, h: 200 });
+      // S13.3: each slide or table added is there once, each removed by its writer is gone; a removed table's def stays
+      const s1 = doc.preset!.slides.find(s => s.id === "s1")!;
+      for (const [id, on] of added) {
+        const count = id.startsWith("n") ? doc.preset!.slides.filter(s => s.id === id).length : s1.tables.filter(t => t === id).length;
+        expect(count, `${ctx} ${id}`).toBe(on ? 1 : 0);
+        if (id.startsWith("t")) expect(doc.preset!.tables.some(t => t.id === id), `${ctx} def ${id}`).toBe(true);
+        structure++;
+      }
       for (const [z, old] of overwrote) expect(doc.edits.S?.[z]?.text, `${ctx} ${z}`).not.toBe(old);
       const records = deck.written.filter(r => r.ops.length);      // (also those in journals deleted since)
       const distinct = new Set(records.map(r => r.w + ":" + r.s));
@@ -132,5 +161,6 @@ describe("storage v4 converges (property test, 1 000 seeds)", () => {
     // the runs did exercise what they are about
     expect(compactions).toBeGreaterThan(500);
     expect(duplicates).toBeGreaterThan(100);
+    expect(structure).toBeGreaterThan(1000);
   }, 600_000);
 });

@@ -5579,5 +5579,1951 @@
       "applied": 1,
       "skipped": []
     }
+  },
+  {
+    "name": "slide.add inserts the slide after the one named; after null puts it first (09 §2.8)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s0",
+            "type": "cover",
+            "tables": [],
+            "title": "Review"
+          },
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.add",
+        "slide": {
+          "id": "n1",
+          "type": "content",
+          "tables": [],
+          "title": "New slide"
+        },
+        "after": "s1"
+      },
+      {
+        "op": "slide.add",
+        "slide": {
+          "id": "n0",
+          "type": "content",
+          "tables": [],
+          "title": "New slide"
+        },
+        "after": null
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "n0",
+            "type": "content",
+            "tables": [],
+            "title": "New slide"
+          },
+          {
+            "id": "s0",
+            "type": "cover",
+            "tables": [],
+            "title": "Review"
+          },
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "n1",
+            "type": "content",
+            "tables": [],
+            "title": "New slide"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.add keeps the whole definition (a blank slide, a slide with tables, keys it does not know) as a copy",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.add",
+        "slide": {
+          "id": "n1",
+          "type": "content",
+          "tables": [
+            "t1",
+            "t2"
+          ],
+          "title": "Both",
+          "notes": {
+            "t1:top": {
+              "text": "Hi"
+            }
+          },
+          "later": {
+            "x": 1
+          }
+        },
+        "after": "s1"
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "n1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t2"
+            ],
+            "title": "Both",
+            "notes": {
+              "t1:top": {
+                "text": "Hi"
+              }
+            },
+            "later": {
+              "x": 1
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.add after a slide removed meanwhile inserts at the end; an id that exists is skipped (the first add stays)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s0",
+            "type": "cover",
+            "tables": [],
+            "title": "Review"
+          },
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.add",
+        "slide": {
+          "id": "n1",
+          "type": "content",
+          "tables": [],
+          "title": "New slide"
+        },
+        "after": "gone"
+      },
+      {
+        "op": "slide.add",
+        "slide": {
+          "id": "s1",
+          "type": "content",
+          "tables": [],
+          "title": "Twin"
+        },
+        "after": "s0"
+      },
+      {
+        "op": "slide.add",
+        "slide": {
+          "id": "n1",
+          "type": "content",
+          "tables": [],
+          "title": "Again"
+        },
+        "after": "s0"
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s0",
+            "type": "cover",
+            "tables": [],
+            "title": "Review"
+          },
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "n1",
+            "type": "content",
+            "tables": [],
+            "title": "New slide"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "slide.add with a bad slide or after is skipped (no id, an empty id, an unknown type, tables not a list of ids, after a number or missing, not a slide)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.add",
+        "slide": {
+          "type": "content",
+          "tables": []
+        },
+        "after": null
+      },
+      {
+        "op": "slide.add",
+        "slide": {
+          "id": "",
+          "type": "content",
+          "tables": [],
+          "title": "New slide"
+        },
+        "after": null
+      },
+      {
+        "op": "slide.add",
+        "slide": {
+          "id": "n1",
+          "type": "section",
+          "tables": []
+        },
+        "after": null
+      },
+      {
+        "op": "slide.add",
+        "slide": {
+          "id": "n2",
+          "type": "content",
+          "tables": "t1"
+        },
+        "after": null
+      },
+      {
+        "op": "slide.add",
+        "slide": {
+          "id": "n3",
+          "type": "content",
+          "tables": [
+            1
+          ]
+        },
+        "after": null
+      },
+      {
+        "op": "slide.add",
+        "slide": {
+          "id": "n4",
+          "type": "content",
+          "tables": [],
+          "title": "New slide"
+        },
+        "after": 3
+      },
+      {
+        "op": "slide.add",
+        "slide": {
+          "id": "n5",
+          "type": "content",
+          "tables": [],
+          "title": "New slide"
+        }
+      },
+      {
+        "op": "slide.add",
+        "slide": "n6",
+        "after": null
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 0,
+      "skipped": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    }
+  },
+  {
+    "name": "slide.add without a preset is skipped",
+    "doc": {
+      "preset": null,
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.add",
+        "slide": {
+          "id": "n1",
+          "type": "content",
+          "tables": [],
+          "title": "New slide"
+        },
+        "after": null
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {},
+      "edits": {},
+      "applied": 0,
+      "skipped": [
+        0
+      ]
+    }
+  },
+  {
+    "name": "slide.add: two adds after one slide both land, the later one directly after it (Lamport order, 09 §2.8)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s0",
+            "type": "cover",
+            "tables": [],
+            "title": "Review"
+          },
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.add",
+        "slide": {
+          "id": "na",
+          "type": "content",
+          "tables": [],
+          "title": "Anna's"
+        },
+        "after": "s1"
+      },
+      {
+        "op": "slide.add",
+        "slide": {
+          "id": "nb",
+          "type": "content",
+          "tables": [],
+          "title": "Bob's"
+        },
+        "after": "s1"
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s0",
+            "type": "cover",
+            "tables": [],
+            "title": "Review"
+          },
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "nb",
+            "type": "content",
+            "tables": [],
+            "title": "Bob's"
+          },
+          {
+            "id": "na",
+            "type": "content",
+            "tables": [],
+            "title": "Anna's"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "slide.remove removes the slide (its tables stay mapped); a missing id is skipped",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s0",
+            "type": "cover",
+            "tables": [],
+            "title": "Review"
+          },
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.remove",
+        "id": "s1"
+      },
+      {
+        "op": "slide.remove",
+        "id": "s1"
+      },
+      {
+        "op": "slide.remove",
+        "id": "nope"
+      },
+      {
+        "op": "slide.remove"
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s0",
+            "type": "cover",
+            "tables": [],
+            "title": "Review"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [
+        1,
+        2,
+        3
+      ]
+    }
+  },
+  {
+    "name": "slide.patch and item.patch on a slide removed meanwhile are skipped (that edit is lost, 09 §2.8)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.remove",
+        "id": "s2"
+      },
+      {
+        "op": "slide.patch",
+        "id": "s2",
+        "patch": {
+          "title": "X"
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s2",
+        "id": "k1",
+        "patch": {
+          "kind": "shape",
+          "shape": "rect",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 10,
+            "h": 10
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "table.add: a new definition joins preset.tables, its id the slide's tables (at the end, or at `at`)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.add",
+        "table": {
+          "id": "t3",
+          "sheet": "S",
+          "kind": "range",
+          "range": "H1:I4"
+        },
+        "slide": "s1"
+      },
+      {
+        "op": "table.add",
+        "table": {
+          "id": "t2",
+          "sheet": "S",
+          "kind": "markers",
+          "anchor": "E1",
+          "index": 0
+        },
+        "slide": "s1",
+        "at": 0
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          },
+          {
+            "id": "t3",
+            "sheet": "S",
+            "kind": "range",
+            "range": "H1:I4"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t2",
+              "t1",
+              "t3"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "table.add of a mapped table keeps the definition there (a table.patch since is not undone); `at` past the end or not a whole number adds at the end",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0,
+            "name": "Mine",
+            "cols": {
+              "2": 80
+            }
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "title": "Blank"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.add",
+        "table": {
+          "id": "t2",
+          "sheet": "S",
+          "kind": "markers",
+          "anchor": "E1",
+          "index": 0
+        },
+        "slide": "s1",
+        "at": 9
+      },
+      {
+        "op": "table.add",
+        "table": {
+          "id": "t1",
+          "sheet": "S",
+          "kind": "range",
+          "range": "A1:C6"
+        },
+        "slide": "s1",
+        "at": 0.5
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0,
+            "name": "Mine",
+            "cols": {
+              "2": 80
+            }
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t2",
+              "t1"
+            ],
+            "title": "Blank"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "table.add is skipped when the table is on that slide already, the slide is missing, or the definition is bad",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.add",
+        "table": {
+          "id": "t1",
+          "sheet": "S",
+          "kind": "range",
+          "range": "A1:C6"
+        },
+        "slide": "s1"
+      },
+      {
+        "op": "table.add",
+        "table": {
+          "id": "t3",
+          "sheet": "S",
+          "kind": "range",
+          "range": "H1:I4"
+        },
+        "slide": "gone"
+      },
+      {
+        "op": "table.add",
+        "table": {
+          "id": "t9",
+          "sheet": "S",
+          "kind": "picture"
+        },
+        "slide": "s1"
+      },
+      {
+        "op": "table.add",
+        "table": {
+          "sheet": "S",
+          "kind": "range",
+          "range": "A1:B2"
+        },
+        "slide": "s1"
+      },
+      {
+        "op": "table.add",
+        "table": {
+          "id": "t9",
+          "kind": "range",
+          "range": "A1:B2"
+        },
+        "slide": "s1"
+      },
+      {
+        "op": "table.add",
+        "slide": "s1",
+        "id": "t2"
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 0,
+      "skipped": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    }
+  },
+  {
+    "name": "table.remove takes the id off the slide; the definition, its text boxes and free boxes stay (undo brings them back)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t2"
+            ],
+            "title": "Loans",
+            "notes": {
+              "t2:top": {
+                "text": "N"
+              }
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.remove",
+        "id": "t2",
+        "slide": "s1"
+      },
+      {
+        "op": "table.remove",
+        "id": "t2",
+        "slide": "s1"
+      },
+      {
+        "op": "table.remove",
+        "id": "t1",
+        "slide": "gone"
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans",
+            "notes": {
+              "t2:top": {
+                "text": "N"
+              }
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "table.add and table.remove without a preset are skipped",
+    "doc": {
+      "preset": null,
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.add",
+        "table": {
+          "id": "t1",
+          "sheet": "S",
+          "kind": "range",
+          "range": "A1:C6"
+        },
+        "slide": "s1"
+      },
+      {
+        "op": "table.remove",
+        "id": "t1",
+        "slide": "s1"
+      }
+    ],
+    "expect": {
+      "preset": null,
+      "style": {},
+      "edits": {},
+      "applied": 0,
+      "skipped": [
+        0,
+        1
+      ]
+    }
+  },
+  {
+    "name": "fold: two adds after one slide from two writers - both land, the later (Lamport) directly after it, in whatever order the records arrive (09 §6 row 10)",
+    "fold": {
+      "snapshot": {
+        "format": 5,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": {
+            "sheets": [
+              "S"
+            ],
+            "tables": [
+              {
+                "id": "t1",
+                "sheet": "S",
+                "kind": "range",
+                "range": "A1:C6"
+              },
+              {
+                "id": "t2",
+                "sheet": "S",
+                "kind": "markers",
+                "anchor": "E1",
+                "index": 0
+              }
+            ],
+            "slides": [
+              {
+                "id": "s0",
+                "type": "cover",
+                "tables": [],
+                "title": "Review"
+              },
+              {
+                "id": "s1",
+                "type": "content",
+                "tables": [
+                  "t1"
+                ],
+                "title": "Loans"
+              },
+              {
+                "id": "s2",
+                "type": "content",
+                "tables": [
+                  "t2"
+                ],
+                "title": "Deposits"
+              }
+            ]
+          },
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": 3,
+          "w": "bob@pc2#bbbbbbbb",
+          "s": 1,
+          "by": "bob",
+          "at": 2000,
+          "ops": [
+            {
+              "op": "slide.add",
+              "slide": {
+                "id": "nb",
+                "type": "content",
+                "tables": [],
+                "title": "Bob's"
+              },
+              "after": "s1"
+            }
+          ]
+        },
+        {
+          "l": 2,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 1000,
+          "ops": [
+            {
+              "op": "slide.add",
+              "slide": {
+                "id": "na",
+                "type": "content",
+                "tables": [],
+                "title": "Anna's"
+              },
+              "after": "s1"
+            }
+          ]
+        },
+        {
+          "l": 4,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 2,
+          "by": "anna",
+          "at": 3000,
+          "ops": [
+            {
+              "op": "slide.patch",
+              "id": "nb",
+              "patch": {
+                "subtitle": "seen by anna"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {},
+      "rev": 3,
+      "lamport": 4,
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s0",
+            "type": "cover",
+            "tables": [],
+            "title": "Review"
+          },
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "nb",
+            "type": "content",
+            "tables": [],
+            "title": "Bob's",
+            "subtitle": "seen by anna"
+          },
+          {
+            "id": "na",
+            "type": "content",
+            "tables": [],
+            "title": "Anna's"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "fold: one writer removes the slide another adds after - the add lands at the end; a remove and an edit of the same slide - the edit is lost",
+    "fold": {
+      "snapshot": {
+        "format": 5,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": {
+            "sheets": [
+              "S"
+            ],
+            "tables": [
+              {
+                "id": "t1",
+                "sheet": "S",
+                "kind": "range",
+                "range": "A1:C6"
+              },
+              {
+                "id": "t2",
+                "sheet": "S",
+                "kind": "markers",
+                "anchor": "E1",
+                "index": 0
+              }
+            ],
+            "slides": [
+              {
+                "id": "s0",
+                "type": "cover",
+                "tables": [],
+                "title": "Review"
+              },
+              {
+                "id": "s1",
+                "type": "content",
+                "tables": [
+                  "t1"
+                ],
+                "title": "Loans"
+              },
+              {
+                "id": "s2",
+                "type": "content",
+                "tables": [
+                  "t2"
+                ],
+                "title": "Deposits"
+              }
+            ]
+          },
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": 1,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 1000,
+          "ops": [
+            {
+              "op": "slide.remove",
+              "id": "s1"
+            }
+          ]
+        },
+        {
+          "l": 2,
+          "w": "bob@pc2#bbbbbbbb",
+          "s": 1,
+          "by": "bob",
+          "at": 2000,
+          "ops": [
+            {
+              "op": "slide.add",
+              "slide": {
+                "id": "nb",
+                "type": "content",
+                "tables": [],
+                "title": "New slide"
+              },
+              "after": "s1"
+            },
+            {
+              "op": "slide.patch",
+              "id": "s2",
+              "patch": {
+                "title": "Bob's"
+              }
+            }
+          ]
+        },
+        {
+          "l": 3,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 2,
+          "by": "anna",
+          "at": 3000,
+          "ops": [
+            {
+              "op": "slide.remove",
+              "id": "s2"
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {},
+      "rev": 3,
+      "lamport": 3,
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s0",
+            "type": "cover",
+            "tables": [],
+            "title": "Review"
+          },
+          {
+            "id": "nb",
+            "type": "content",
+            "tables": [],
+            "title": "New slide"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "fold: two writers add tables to one slide - both land in Lamport order; the same table twice - the first add stays, the second is skipped",
+    "fold": {
+      "snapshot": {
+        "format": 5,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": {
+            "sheets": [
+              "S"
+            ],
+            "tables": [
+              {
+                "id": "t1",
+                "sheet": "S",
+                "kind": "range",
+                "range": "A1:C6"
+              },
+              {
+                "id": "t2",
+                "sheet": "S",
+                "kind": "markers",
+                "anchor": "E1",
+                "index": 0
+              }
+            ],
+            "slides": [
+              {
+                "id": "s1",
+                "type": "content",
+                "tables": [],
+                "title": "Blank"
+              },
+              {
+                "id": "s2",
+                "type": "content",
+                "tables": [
+                  "t2"
+                ],
+                "title": "Deposits"
+              }
+            ]
+          },
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": 2,
+          "w": "bob@pc2#bbbbbbbb",
+          "s": 1,
+          "by": "bob",
+          "at": 2000,
+          "ops": [
+            {
+              "op": "table.add",
+              "table": {
+                "id": "t3",
+                "sheet": "S",
+                "kind": "range",
+                "range": "H1:I4"
+              },
+              "slide": "s1"
+            },
+            {
+              "op": "table.add",
+              "table": {
+                "id": "t1",
+                "sheet": "S",
+                "kind": "range",
+                "range": "A1:C6"
+              },
+              "slide": "s1",
+              "at": 0
+            }
+          ]
+        },
+        {
+          "l": 1,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 1000,
+          "ops": [
+            {
+              "op": "table.add",
+              "table": {
+                "id": "t1",
+                "sheet": "S",
+                "kind": "range",
+                "range": "A1:C6"
+              },
+              "slide": "s1"
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {},
+      "rev": 2,
+      "lamport": 2,
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          },
+          {
+            "id": "t3",
+            "sheet": "S",
+            "kind": "range",
+            "range": "H1:I4"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t3"
+            ],
+            "title": "Blank"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      }
+    }
   }
 ]
