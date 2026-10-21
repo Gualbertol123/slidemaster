@@ -92,7 +92,7 @@ class LineAreaChartTests(BarChartTests):
             return x.replace(b"<c:cat>", b'<c:smooth val="0"/><c:cat>', 1)
         self.assertTrue(any("after a later child in <c:ser>" in p for p in self.order_problems(self.deck("LINE_MARKERS", swap))))
 
-    def test_sources_take_any_series_and_leave_its_blanks_out(self):
+    def test_sources_match_a_series_at_its_categories(self):
         import openpyxl
         f = self.deck("LINE_MARKERS", series=[("Weekly", (11576, 11258, None)), ("Actual", (None, None, 11324))])
         book = os.path.join(self.tmp, "src.xlsx")
@@ -100,11 +100,20 @@ class LineAreaChartTests(BarChartTests):
         ws = wb.active
         ws.title = "Weekly"
         ws["A1"], ws["B1"], ws["C1"] = 11576, 11258, 11324
+        ws["A2"], ws["C2"] = 11576, 11258                     # B2 blank: a gap at the second category
         wb.save(book)
-        ok = pptxcheck.check([f], ppt=False, sources={f: {"workbook": book, "charts": [{"slide": 1, "sheet": "Weekly", "range": "A1:B1"}, {"slide": 1, "sheet": "Weekly", "range": "C1"}]}})
-        self.assertTrue(ok)
-        bad = pptxcheck.check([f], ppt=False, sources={f: {"workbook": book, "charts": [{"slide": 1, "sheet": "Weekly", "range": "A1:C1"}]}})
-        self.assertFalse(bad)
+        chk = lambda *specs: pptxcheck.check([f], ppt=False, sources={f: {"workbook": book, "charts": [dict(slide=1, sheet="Weekly", **x) for x in specs]}})
+        # a group's series: its cells from its group's first category on, gaps elsewhere; a series by its name
+        self.assertTrue(chk({"range": "A1:B1"}, {"range": "C1", "start": 2}, {"range": "C1", "start": 2, "name": "Actual"}))
+        # (S14.3 review 4) the same values one category off (the group's start missed), in another series, or with the
+        # blanks left out are not a match
+        self.assertFalse(chk({"range": "C1"}))
+        self.assertFalse(chk({"range": "C1", "start": 1}))
+        self.assertFalse(chk({"range": "A1:B1", "start": 1}))
+        self.assertFalse(chk({"range": "C1", "start": 2, "name": "Weekly"}))
+        self.assertFalse(chk({"range": "A1:C1"}))
+        # a blank cell is a gap at its own place: "11576, —, 11258" is not Weekly's "11576, 11258, —"
+        self.assertFalse(chk({"range": "A2:C2"}))
 
     def test_content_names_each_plot(self):
         ch = pptxcheck.content(self.deck("AREA_STACKED"))["slides"][0]["charts"][0]

@@ -17,9 +17,11 @@ check needs PowerPoint (Windows, COM through PowerShell). The helper stays stand
         (3) PowerPoint (unless --no-ppt, or no PowerPoint): Presentations.Open read-only without a window – a file
             it cannot read raises in automation (not every repair does: (1)'s lint covers those) –; the slide count and every shape's text read back and
             compared with (2)
-        (4) with --sources ({file: {workbook, charts: [{slide, sheet, range}]}}): each chart's cached values (one of its
-            series', blanks left out) equal the workbook's cells (openpyxl, the values Excel saved; text, blank and hidden
-            cells skipped as the chart skips them)
+        (4) with --sources ({file: {workbook, charts: [{slide, sheet, range, start?, name?}]}}): one series of the chart
+            (named `name`, when given) holds the workbook's cells at their category positions – the cells' first at
+            category `start` (a category group's first; default 0), a blank cell a gap there, and no value outside them
+            (openpyxl, the values Excel saved; hidden cells skipped as the chart skips them). A pie may instead hold the
+            cells' numbers with blanks and text left out (the old reading)
         (5) real objects, gated (S14.P; AUDIT-2 VER-3, PX-02 / PX-03, 09 §7.2): with --expect ({file: [{slide, tables,
             charts}]}, tools/real-objects.mjs: what the core's own export draws) each slide holds exactly those real
             tables (python-pptx has_table) and native charts (has_chart), a slide not listed none;
@@ -469,6 +471,36 @@ def source_values(workbook, sheet, rng):
     return out
 
 
+def source_cells(workbook, sheet, rng):
+    """a range's cells as a chart reads them, by position: rows then columns, hidden rows / columns skipped, a number as a
+    float, anything else (blank, text) None"""
+    import openpyxl
+    wb = openpyxl.load_workbook(workbook, data_only=True)
+    ws = wb[sheet]
+    cells = ws[rng]
+    out = []
+    for row in (cells if isinstance(cells, tuple) else ((cells,),)):
+        for c in (row if isinstance(row, tuple) else (row,)):
+            if ws.row_dimensions[c.row].hidden or ws.column_dimensions[c.column_letter].hidden:
+                continue
+            out.append(float(c.value) if isinstance(c.value, (int, float)) and not isinstance(c.value, bool) else None)
+    return out
+
+
+def series_at(values, cells, start):
+    """(4) a series' cached values hold the cells at categories start… (a blank cell is a gap) and nothing elsewhere (4.7,
+    S14.3 review 4: a series cached under the wrong categories – off by its group's start – fails)"""
+    if start < 0 or len(values) < start + len(cells):
+        return False
+    for i, v in enumerate(values):
+        w = cells[i - start] if start <= i < start + len(cells) else None
+        if (v is None) != (w is None):
+            return False
+        if w is not None and abs(float(v) - w) > 1e-12 * max(1.0, abs(w)):
+            return False
+    return True
+
+
 def real_objects(rep_content, expect, who):
     """(5) the gate of AUDIT-2 VER-3 / PX-03 (S14.P, 09 §7.2): each slide has exactly the real tables (has_table) and
     native charts (has_chart) the core's own export draws there (`expect`, tools/real-objects.mjs: a table of a sheet the
@@ -511,13 +543,19 @@ def check(paths, slides=None, ppt=True, report=None, sources=None, expect=None):
             for k, spec in enumerate(src["charts"]):
                 found = [c for s in rep["content"]["slides"][spec["slide"] - 1:spec["slide"]] for c in s["charts"]]
                 want = source_values(src["workbook"], spec["sheet"], spec["range"])
+                cells = source_cells(src["workbook"], spec["sheet"], spec["range"])
+                start, name = int(spec.get("start") or 0), spec.get("name")
                 # (the cache keeps Excel's 15 significant digits: equal within that)
                 same = lambda a, b: len(a) == len(b) and all(abs(float(x) - y) <= 1e-12 * max(1.0, abs(y)) for x, y in zip(a, b))
-                # (4.7, S14.3: any series of the chart – a combo's line, a group's columns –, its gaps left out: a series
-                # cached over every category of its chart holds blanks where its group has none)
-                mine = [c for c in found if any(same([v for v in x["values"] if v is not None], want) for x in (c.get("series") or [{"values": c["values"]}]))]
+                # (4.7, S14.3: one series of the chart – a combo's line, a group's columns – at its categories, from its
+                # group's start; a pie as before)
+                pie = lambda c: "PIE" in c["type"] or "DOUGHNUT" in c["type"]
+                mine = [c for c in found
+                        if any(series_at(list(x["values"]), cells, start) and (name is None or x.get("name") == name) for x in (c.get("series") or [{"values": c["values"]}]))
+                        or (pie(c) and not start and name is None and same(c["values"], want))]
                 if not mine:
-                    bad.append("chart %d (slide %d, %s!%s): no chart with the cells' values %s" % (k + 1, spec["slide"], spec["sheet"], spec["range"], want[:4]))
+                    bad.append("chart %d (slide %d, %s!%s%s): no series with the cells' values %s at categories %d…"
+                               % (k + 1, spec["slide"], spec["sheet"], spec["range"], " '%s'" % name if name else "", cells[:4], start))
         if use_ppt:
             o = opened.get(os.path.abspath(p).lower())
             if not o or not o.get("ok"):

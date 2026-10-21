@@ -41,6 +41,11 @@ What users notice (S14.3)
 - PowerPoint export: native line, area and combined charts with the second value axis, multi-level categories for named
   groups, the targets as an outlined series over the actual one; the dividers and annotations are plain shapes (lines,
   icon outlines, text boxes) over the chart in its group, placed on the data – no picture, no connector, no link.
+- (S14.3 review) The PowerPoint legend keeps its line entries (its box leaves room for PowerPoint's wider line keys);
+  an area's blank cell is drawn at zero on the slide, as PowerPoint and Excel draw it; columns of category groups stand
+  centred on their categories; a line's labels also keep off the bars and off the line itself (above / below → right /
+  left before they are left out); a text annotation over a light column is written in the design's ink; an Issues
+  line when a left-axis series runs under a right-axis one (PowerPoint draws the right axis's series on top).
 
 ## 4.6.0 - unreleased (PLAN M13; prepared 2026-10-21, dated at the tag)
 

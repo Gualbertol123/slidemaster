@@ -664,6 +664,20 @@ paths (no font, no picture). `pdfcheck.py` and the GF facts are unchanged.
 | marks (arrows, lines, bands, icons, texts) and dividers | **plain shapes over the chart in the chart's group** (`p:sp` lines with `a:headEnd` / `a:tailEnd`, icons as `custGeom`, texts as text boxes). To land on the data, the writer fixes the plot area (`c:plotArea/c:layout/c:manualLayout` `layoutTarget inner`; x / y / w / h are fractions of the **chart space**, i.e. our plot rectangle divided by the chart's box) and every axis's min / max / unit, and puts line points at category centres (`c:crossBetween between`, as the display list does; `dispBlanksAs gap` as `pptx/chart.ts:56` writes today), so PowerPoint's plot is our plot: a point is where we drew it. pptxcheck verifies it on Windows by exporting each chart slide from PowerPoint (COM `Slide.Export` PNG) and comparing the mark anchors with the drawn points (≤ 2 px at 1600) |
 | data | the embedded workbook (`embeddings/…xlsx`) gets every series' cached values in columns (categories in A, one column per series, blanks where a series has none, targets as their own columns), so **Edit Data** shows them; `--sources` in pptxcheck checks the caches against the workbook cells (each series against its own sheet / linked workbook). **No external links**: every `c:f` points into the embedded workbook (`Sheet1!$B$2:$B$7`), never at `[Budget.xlsx]Plan!D9` – a series from a linked workbook is a column of the embedded one; pptxcheck asserts that no `c:f` names a file and that no relationship is `TargetMode="External"` |
 
+Where PowerPoint draws differently, and what the slide does about it (S14.3 review, 2026-10-21):
+* **Draw order of a combo.** PowerPoint draws every chart group on the secondary axis over those on the primary one;
+  the slide draws areas, then columns, then lines (§3.1), whatever their axis. When a left axis's line or columns overlap
+  a right axis's columns or area, the two differ; the chart gets an Issues line naming both series (the user can move
+  the line to the right axis, or the columns to the left one).
+* **Blanks in an area.** PowerPoint's area charts ignore `dispBlanksAs gap` and drop to zero at a blank; the slide draws
+  an area's blank as zero too (no label, mark anchor or hit there). Lines keep their gaps.
+* **Legend keys.** PowerPoint (and LibreOffice) draw a line series' legend key much wider than the slide's 16 px swatch;
+  a legend box sized from the slide's entries loses its line entries. The writer widens the legend's manual box by
+  PowerPoint's line-key width per line entry (one row of a top / bottom legend: per entry; a column: once), keeping the
+  box's centre (top / bottom) or its outer edge (right / left).
+* **Single-slot columns.** Clustered column series that never share a category (category groups) stand at overlap 100,
+  centred on their categories, in both.
+
 ### 4.3 Lines, icons, conditional formats in PowerPoint
 * **Lines** (F9): `p:sp` with `a:prstGeom prst="line"` for straight ones (flipH / flipV for direction) and an open
   `custGeom` for elbow / curve / bracket; style on `a:ln` (`w`, `a:prstDash`, `a:solidFill`, `a:round` / `a:miter`)

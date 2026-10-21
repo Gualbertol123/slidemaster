@@ -13,7 +13,13 @@ import { lineStroke, markerNode } from "./chart-lines";
 
 /** an entry: its series' key, name and colour; a line series' (S14.3) swatch is its line and marker */
 export interface LegendEntry { key: string; label: string; color: string; line?: LineSem; marker?: MarkerSem | null }
-export interface LegendOut { nodes: Node[]; area: Box; box: Box | null; at: LegendAt }
+export interface LegendOut { nodes: Node[]; area: Box; box: Box | null; at: LegendAt;
+  /** the PowerPoint legend's box (S14.3 review 1): `box` widened for PowerPoint's line keys, which are far wider than the
+      slide's 16 px swatch (a box sized from the slide's entries loses its line entries); `box` itself when no line
+      entry is shown */ ppt?: Box | null }
+/** how much room a line series' legend key takes in PowerPoint beyond the slide's swatch: LibreOffice's key, the widest
+    seen, is about 77 px at a 14 px legend font (5.5 em) against the slide's 10–18 px swatch – 5 em more covers it */
+export const lineKeyExtra = (size: number) => Math.ceil(5 * size);
 const r2 = (v: number) => Math.round(v * 100) / 100 || 0;
 const POS: LegendAt[] = ["right", "left", "top", "bottom", "top-right", "inside-tl", "inside-tr", "none"];
 /** where a series chart's legend goes: legendAt, else the old key (right / bottom / none), else Excel's bottom */
@@ -61,7 +67,18 @@ export function legendNodes(entries: LegendEntry[], at: LegendAt, area: Box, kin
       }
     });
     const h = rows.length * rowH, box = { x: r2(bx), y: r2(y0), w: r2(bw), h };
-    return { nodes: out, at, box, area: at === "top" ? { ...area, y: area.y + h + 8, h: Math.max(10, area.h - h - 8) } : { ...area, h: Math.max(10, area.h - h - 8) } };
+    // PowerPoint: the same flow with each line entry's key wider, centred where the slide's legend is centred
+    let ppt: Box = box;
+    if (items.some(e => e.line)) {
+      const ex = lineKeyExtra(st.size), pl: number[] = [0];
+      for (const e of items) { const ew = sw.w + 8 + e.tw + 18 + (e.line ? ex : 0); if (pl[pl.length - 1] + ew > area.w && pl[pl.length - 1] > 0) pl.push(0); pl[pl.length - 1] += ew; }
+      const pw = Math.min(area.w, Math.max(...pl.map(w => w - 18))), ph = Math.min(3, pl.length) * rowH, cx = bx + bw / 2;
+      const px = Math.max(area.x, Math.min(area.x + area.w - pw, cx - pw / 2));
+      ppt = { x: r2(px), y: r2(at === "top" ? y0 : y0 + h - ph), w: r2(pw), h: ph };
+    }
+    // (the plot leaves room for the taller of the two: PowerPoint's wider keys may wrap onto another row)
+    const H = Math.max(h, ppt.h);
+    return { nodes: out, at, box, ppt, area: at === "top" ? { ...area, y: area.y + H + 8, h: Math.max(10, area.h - H - 8) } : { ...area, h: Math.max(10, area.h - H - 8) } };
   }
   // a column of entries: beside the plot (right, left, top-right) or over it (inside)
   const inside = at === "inside-tl" || at === "inside-tr", pad = inside ? 8 : 0;
@@ -76,6 +93,10 @@ export function legendNodes(entries: LegendEntry[], at: LegendAt, area: Box, kin
     out.push(textNode(m, ellipsis(m, txt, st, lw - sw.w - 8), last ? x : x + sw.w + 8, yy + (rowH - lh) / 2, st));
   });
   const box = { x: r2(x), y: r2(y), w: r2(lw), h };
-  if (inside) return { nodes: out, at, box, area };
-  return { nodes: out, at, box, area: at === "left" ? { ...area, x: area.x + lw + 16, w: Math.max(10, area.w - lw - 16) } : { ...area, w: Math.max(10, area.w - lw - 16) } };
+  // PowerPoint: one key column, wider when a shown entry is a line's; the outer edge kept (a right legend grows left) and
+  // the plot clear of it on the slide too
+  const ex = entries.slice(0, rows).some(e => e.line) ? lineKeyExtra(st.size) : 0, right = !(at === "left" || at === "inside-tl");
+  const ppt = ex ? { x: r2(right ? Math.max(area.x, x - ex) : x), y: r2(y), w: r2(lw + ex), h } : box, W = lw + ex;
+  if (inside) return { nodes: out, at, box, ppt, area };
+  return { nodes: out, at, box, ppt, area: at === "left" ? { ...area, x: area.x + W + 16, w: Math.max(10, area.w - W - 16) } : { ...area, w: Math.max(10, area.w - W - 16) } };
 }

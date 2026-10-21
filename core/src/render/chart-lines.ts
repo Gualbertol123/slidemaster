@@ -37,6 +37,40 @@ export function linePath(p: Pt[], smooth: boolean): PathCmd[] {
   }
   return d;
 }
+/** the drawn stroke on both sides of point i (its run's neighbours; smoothed as linePath draws it, 8 steps a segment):
+    what a label beside the point must not cover (09 §3.1, S14.3 review 9) */
+export function strokeNear(pts: (Pt | null)[], i: number, smooth: boolean): Pt[][] {
+  const at = (k: number) => k >= 0 && k < pts.length ? pts[k] : null, out: Pt[][] = [];
+  for (const k of [i - 1, i]) {
+    const p1 = at(k), p2 = at(k + 1);
+    if (!p1 || !p2) continue;
+    if (!smooth) { out.push([p1, p2]); continue; }
+    const p0 = at(k - 1) || p1, p3 = at(k + 2) || p2;
+    const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 }, c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 };
+    const seg: Pt[] = [];
+    for (let j = 0; j <= 8; j++) {
+      const t = j / 8, u = 1 - t;
+      seg.push({ x: u * u * u * p1.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * p2.x, y: u * u * u * p1.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t * t * t * p2.y });
+    }
+    out.push(seg);
+  }
+  return out;
+}
+/** whether a polyline crosses or enters a box (Liang–Barsky per segment) */
+export function polyHitsBox(poly: Pt[], b: { x: number; y: number; w: number; h: number }): boolean {
+  for (let k = 0; k + 1 < poly.length; k++) {
+    const { x: x1, y: y1 } = poly[k], dx = poly[k + 1].x - x1, dy = poly[k + 1].y - y1;
+    let t0 = 0, t1 = 1, ok = true;
+    for (const [p, q] of [[-dx, x1 - b.x], [dx, b.x + b.w - x1], [-dy, y1 - b.y], [dy, b.y + b.h - y1]]) {
+      if (p === 0) { if (q < 0) { ok = false; break; } continue; }
+      const r = q / p;
+      if (p < 0) { if (r > t1) { ok = false; break; } if (r > t0) t0 = r; }
+      else { if (r < t0) { ok = false; break; } if (r < t1) t1 = r; }
+    }
+    if (ok && t0 <= t1) return true;
+  }
+  return false;
+}
 /** a line's look: its own colour, weight (0.25–20 px; default 2.5) and dash, else the series' colour */
 export function lineStyleOf(st: LineStyle | undefined, color: string, w0 = 2.5): LineSem {
   const w = st && Number.isFinite(+(st.w as number)) && +(st.w as number) > 0 ? Math.max(.25, Math.min(20, +(st.w as number))) : w0;

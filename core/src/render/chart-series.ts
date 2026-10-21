@@ -30,7 +30,7 @@ import { seriesData, type SerData, type SeriesData } from "./chart-data";
 import { autoScale, axisFormat, ticks, tickText, type Scale } from "./chart-axes";
 import { barSlots, gapOf, outerRadius, overlapOf, stackBars, type StackMode } from "./chart-bars";
 import { stackAreas } from "./chart-area";
-import { lineStroke, linePath, lineStyleOf, markerNode, markerOf, markerPx, runs, type Pt } from "./chart-lines";
+import { lineStroke, linePath, lineStyleOf, markerNode, markerOf, markerPx, polyHitsBox, runs, strokeNear, type Pt } from "./chart-lines";
 import { markNodes, type Anchor, type MarkFrame } from "./chart-marks";
 import { legendAtOf, legendNodes, shownEntries, type LegendEntry, type LegendOut } from "./chart-legend";
 import { ellipsis, font, lineH, lum, textNode, type St } from "./chart-font";
@@ -79,7 +79,8 @@ interface Bar { s: number; i: number; v: number; x: number; y: number; w: number
 interface Lab { s: number; i: number; text: string; x: number; top: number; st: St; align: "left" | "center" | "right"; inside: boolean }
 /** a line or area series as drawn: its paths (one per run of values; an area's closed), stroke, marker, points */
 interface Trace { s: number; kind: "line" | "area"; axis: Axis; d: PathCmd[][]; stroke: LineSem | null; smooth: boolean; marker: MarkerSem | null; fill: string;
-  /** per category of the chart: the point (null = a gap) and, for an area, its band's lower edge */ pts: ({ x: number; y: number; lo: number; v: number } | null)[] }
+  /** per category of the chart: the point (null = a gap; an area's blank is drawn as zero and flagged `blank`: no label,
+      anchor or hit) and, for an area, its band's lower edge */ pts: ({ x: number; y: number; lo: number; v: number; blank?: boolean } | null)[] }
 /** a value axis as drawn */
 interface ValAxis { scale: Scale; ticks: { v: number; text: string }[]; num: string; st: St; show: boolean; grid: LineSem | null; percent: boolean }
 export interface SeriesLayout {
@@ -203,8 +204,11 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     if (!P.bi.length) continue;
     const vp = vps[P.ax], S = P.ax === "y" ? scale : y2!.scale;
     // "actual inside target" bars share one place with their targets: PowerPoint draws them as two series of one bar group
-    // at overlap 100 (09 §4.2), so the whole group stands at that overlap
-    const ov = P.tgt ? 100 : overlap, n = mode === "none" ? P.bi.length : 1;
+    // at overlap 100 (09 §4.2), so the whole group stands at that overlap. Clustered series that never share a category
+    // (category groups: each group's own columns) take one place too – overlap 100, each bar centred on its category,
+    // in PowerPoint as on the slide (S14.3 review 5)
+    const lone = mode === "none" && P.bi.length > 1 && data.cats.every((_, i) => P.bi.filter(k => ser[k].vals[i] !== null && ser[k].vals[i] !== undefined).length <= 1);
+    const ov = P.tgt || lone ? 100 : overlap, n = mode === "none" ? P.bi.length : 1;
     barGroups.push({ axis: P.ax, series: P.bi, overlap: ov });
     const slots = barSlots(n, gap, ov), base = Math.max(S.min, Math.min(S.max, 0));
     for (const g of P.sb.segs) {
@@ -232,10 +236,11 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   for (const P of per) {
     const vp = vps[P.ax];
     P.ai.forEach((k, j) => {
-      const pts = P.sa.bands[j].map((b, i) => b ? { x: cx(i), y: vp(b.hi), lo: vp(b.lo), v: b.v } : null);
-      const d = runs(pts).filter(r => r.length > 1).map(r => [...linePath(r, false), ...r.slice().reverse().map((p): PathCmd => ["L", r2(p.x), r2(p.lo)]), ["Z"] as PathCmd]);
+      // (a blank is zero, as PowerPoint draws it: one band across every category)
+      const pts = P.sa.bands[j].map((b, i) => ({ x: cx(i), y: vp(b.hi), lo: vp(b.lo), v: b.v, ...(b.blank ? { blank: true } : {}) }));
+      const d = runs<Pt & { lo: number }>(pts).filter(r => r.length > 1).map(r => [...linePath(r, false), ...r.slice().reverse().map((p): PathCmd => ["L", r2(p.x), r2(p.lo)]), ["Z"] as PathCmd]);
       traces.push({ s: k, kind: "area", axis: P.ax, d, stroke: null, smooth: false, marker: null, fill: colors[k], pts });
-      pts.forEach((p, i) => { if (p) anchors[k][i] = { x: p.x, y: p.y, top: p.y, r: 0, color: colors[k] }; });
+      pts.forEach((p, i) => { if (!p.blank) anchors[k][i] = { x: p.x, y: p.y, top: p.y, r: 0, color: colors[k] }; });
     });
   }
   for (const P of per) {
@@ -268,21 +273,42 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
       const placed: Box[] = [];
       tr.pts.forEach((p, i) => {
         if (!p) return;
+        // (an area's blank: PowerPoint draws it as zero and would label it "0" – hidden there, none on the slide)
+        if (p.blank) { pts.push({ i, hide: true }); return; }
         const pp = s.src.points?.[String(i - s.start)];
         if (pp && pp.label === null) { pts.push({ i, hide: true }); return; }
         const text = pp && typeof pp.label === "string" ? pp.label : show.map(w => w === "value" ? valueText(i, p.v) : w === "name" ? s.name : w === "category" ? data.cats[i] || "" : "").filter(t => t).join(", ");
         if (!text) { pts.push({ i, hide: true }); return; }
-        const w = tw(text, st), lh = lineH(st);
+        const w = tw(text, st), lh = lineH(st), run = m.run(text, font(st));
+        // (the figures' ink in a label's line box: from the baseline – where textNode puts it – up .72 em)
+        const figTop = Math.floor((lh - (run.asc + run.desc)) / 2) + run.asc - .72 * st.size;
         const boxAt = (q: "t" | "b" | "l" | "r" | "ctr"): Box & { x0: number; align: Lab["align"] } => {
           const y = area ? (p.y + p.lo) / 2 : p.y;
           return q === "t" ? { x: p.x - w / 2, y: y - rr - lh, w, h: lh, x0: p.x, align: "center" } : q === "b" ? { x: p.x - w / 2, y: y + rr, w, h: lh, x0: p.x, align: "center" }
             : q === "l" ? { x: p.x - rr - 2 - w, y: y - lh / 2, w, h: lh, x0: p.x - rr - 2, align: "right" } : q === "r" ? { x: p.x + rr + 2, y: y - lh / 2, w, h: lh, x0: p.x + rr + 2, align: "left" }
               : { x: p.x - w / 2, y: y - lh / 2, w, h: lh, x0: p.x, align: "center" };
         };
-        const hits = (b: Box) => placed.some(q => b.x < q.x + q.w && q.x < b.x + b.w && b.y < q.y + q.h && q.y < b.y + b.h);
+        // what a label must not cover: its neighbours' labels (09 §3.1); a line's also the bars (any axis's) and its own
+        // stroke on both sides of the point, tested against the text's ink (a figure's height, .72 em, on the baseline;
+        // 1 px in from each side) – a
+        // centred label sits on its point by choice (S14.3 review 9)
+        const over = (b: Box, q: Box) => b.x < q.x + q.w && q.x < b.x + b.w && b.y < q.y + q.h && q.y < b.y + b.h;
+        const near = area ? [] : strokeNear(tr.pts, i, tr.smooth);
+        const hits = (b: Box, q: "t" | "b" | "l" | "r" | "ctr") => {
+          if (placed.some(o => over(b, o))) return true;
+          if (area) return false;
+          const ink = { x: b.x + 1, y: b.y + figTop, w: Math.max(0, b.w - 2), h: .72 * st.size };
+          return bars.some(r => r.w > 0 && r.h > 0 && over(ink, r)) || (q !== "ctr" && near.some(l => polyHitsBox(l, ink)));
+        };
         let q: "t" | "b" | "l" | "r" | "ctr" | null = want, b = boxAt(want);
         // one that would overlap its neighbour moves to the other side, else is left out (09 §3.1)
-        if (hits(b)) { const f = area ? null : FLIP[want]; q = f && !hits(boxAt(f)) ? f : null; if (q) b = boxAt(q); }
+        // (a line's label whose stroke or a bar covers both sides tries the other two: above / below → right, left; left /
+        // right → above, below – S14.3 review 9)
+        if (hits(b, want)) {
+          const f = area ? null : FLIP[want], cross = want === "l" || want === "r" ? ["t", "b"] as const : want === "ctr" ? [] as const : ["r", "l"] as const;
+          const alt = (f ? [f] : []).concat(area ? [] : cross);
+          q = alt.find(x => !hits(boxAt(x), x)) ?? null; if (q) b = boxAt(q);
+        }
         if (!q) { pts.push({ i, hide: true }); return; }
         placed.push(b);
         labs.push({ s: k, i, text, x: b.x0, top: b.y, st, align: b.align, inside: false });
@@ -353,7 +379,7 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     vp: (v, ax) => ax === "y2" && !y2 ? null : vps[ax](v), ink: sty.ink, lab: sty.lab, withFmt,
   };
   const mk = markNodes(it, id, F, ctx, m);
-  const issues = [...data.issues, ...mk.issues];
+  const issues = [...data.issues, ...drawOrderIssues(ser.map(s => s.name), axes, bars, traces), ...mk.issues];
   const issue = issues.length ? issues.join("; ") : null;
   return { data, dir, mode, gap, overlap, title, titleSt, titleBox, plot, scale, num, valSt, catSt, valShow, catShow, skip, look,
     grid: typeof A.y?.grid === "boolean" ? A.y.grid : look.gridOn, colors, bars, labs, legend, ticks: tk, labels, issue,
@@ -361,6 +387,26 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     kinds, axes, y2, barGroups, traces, groupLabels, dividers, rule, marks: { nodes: mk.nodes, under: mk.under, hits: mk.hits } };
 }
 
+/** PowerPoint draws a chart's groups on the secondary axis over those on the primary one; the slide draws areas, then
+    columns, then lines whatever their axis (09 §3.1). Where the two orders disagree and the parts overlap – a left
+    axis's line or columns under a right axis's columns or area – the export differs from the slide: an Issues line names
+    the series (S14.3 review 8; documented in 09 §4.2's note on combo charts) */
+function drawOrderIssues(names: string[], axes: Axis[], bars: Bar[], traces: Trace[]): string[] {
+  const out: string[] = [], said = new Set<string>();
+  const say = (a: number, b: number, what: string) => {
+    const k = `${a}:${b}`; if (said.has(k)) return; said.add(k);
+    out.push(`'${names[a]}' (left axis) is drawn under '${names[b]}' (right axis) in PowerPoint, which draws the right axis's ${what} over the left axis's series`);
+  };
+  const drawn = (b: Bar) => b.w > 0 && b.h > 0, y2bars = bars.filter(b => drawn(b) && axes[b.s] === "y2"), y2areas = traces.filter(t => t.kind === "area" && t.axis === "y2");
+  // (an area's band at category i covers y1–y2: its top above its base by more than half a pixel)
+  const inBand = (a: Trace, i: number, y1: number, y2: number) => { const p = a.pts[i]; return !!p && !p.blank && p.lo - p.y > .5 && y1 < p.lo && y2 > p.y; };
+  for (const t of traces) if (t.kind === "line" && t.axis === "y") {
+    for (const b of y2bars) if (t.pts.some((_, i) => strokeNear(t.pts, i, t.smooth).some(l => polyHitsBox(l, b)))) say(t.s, b.s, "columns");
+    for (const a of y2areas) if (t.pts.some((p, i) => p && inBand(a, i, p.y, p.y + .01))) say(t.s, a.s, "area");
+  }
+  for (const b of bars) if (drawn(b) && axes[b.s] === "y") for (const a of y2areas) if (inBand(a, b.i, b.y, b.y + b.h)) say(b.s, a.s, "area");
+  return out;
+}
 const strokeOf = (s: LineSem) => ({ w: s.w, paint: solid(s.color), ...(s.dash === "sysDot" ? { dash: [2, 3] } : s.dash === "dash" ? { dash: [6, 4] } : s.dash === "dashDot" ? { dash: [6, 4, 2, 4] } : {}) });
 /** what is drawn under a native chart as well as on the slide (before the gridlines): the title's rule (the PowerPoint
     title is the chart's own), the marks' bands */
@@ -443,7 +489,7 @@ export function seriesNodes(L: SeriesLayout, id: string, frame: Box, m: Metrics,
   }
   for (const tr of L.traces) {
     const s = L.data.series[tr.s], hs = Math.max(12, tr.marker ? markerPx(tr.marker) + 4 : 0);
-    tr.pts.forEach((p, i) => { if (p) out.push({ t: "hit", kind: "point", id: `${id}:${s.id}:${i - s.start}`, x: r2(p.x - hs / 2), y: r2(p.y - hs / 2), w: hs, h: hs, label: `${s.name} · ${L.data.cats[i] || i + 1}: ${s.texts[i] || tickText(p.v, s.fmt)}` }); });
+    tr.pts.forEach((p, i) => { if (p && !p.blank) out.push({ t: "hit", kind: "point", id: `${id}:${s.id}:${i - s.start}`, x: r2(p.x - hs / 2), y: r2(p.y - hs / 2), w: hs, h: hs, label: `${s.name} · ${L.data.cats[i] || i + 1}: ${s.texts[i] || tickText(p.v, s.fmt)}` }); });
   }
   out.push(...L.marks.hits);
   return out;
@@ -493,7 +539,7 @@ export function seriesSem(L: SeriesLayout): BarsSem {
     val: { min: L.scale.min, max: L.scale.max, step: L.scale.step, num: L.num, grid: L.grid ? L.look.grid : null, line: null, show: L.valShow, font: fontSem(L.valSt) },
     cat: { line: L.look.line, show: L.catShow, font: fontSem(L.catSt), skip: L.skip },
     plot: { x: r2(L.plot.x), y: r2(L.plot.y), w: r2(L.plot.w), h: r2(L.plot.h) },
-    legend: L.legend.box ? { pos: lp, box: L.legend.box, overlay: L.legend.at === "inside-tl" || L.legend.at === "inside-tr", hide: [...L.hidden, ...companion.values()] } : null,
+    legend: L.legend.box ? { pos: lp, box: L.legend.ppt ?? L.legend.box, overlay: L.legend.at === "inside-tl" || L.legend.at === "inside-tr", hide: [...L.hidden, ...companion.values()] } : null,
     groups, val2: y2 ? { min: y2.scale.min, max: y2.scale.max, step: y2.scale.step, num: y2.num, grid: y2.grid, line: null, show: y2.show, font: fontSem(y2.st) } : null,
     levels: L.groupLabels ? L.data.cats.map((_, i) => { const g = L.data.groups.find(x => x.start === i && x.len > 0); return g ? g.label : ""; }) : null,
   };

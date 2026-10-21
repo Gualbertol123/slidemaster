@@ -22,9 +22,10 @@ import { slideToDisplayList, type ItemInfo, type SlideDL } from "../src/render/s
 import { computeLayout } from "../src/render/layout";
 import { cachedChartNodes, chartKey, chartNodes } from "../src/render/chart-dl";
 import { seriesData } from "../src/render/chart-data";
-import { linePath, markerOf, markerPx, runs } from "../src/render/chart-lines";
+import { linePath, markerOf, markerPx, polyHitsBox, runs, strokeNear } from "../src/render/chart-lines";
 import { stackAreas } from "../src/render/chart-area";
-import { seriesLayout, type SeriesStyle } from "../src/render/chart-series";
+import { seriesLayout, seriesSem, type SeriesStyle } from "../src/render/chart-series";
+import { lineKeyExtra } from "../src/render/chart-legend";
 import { setVendoredIcons } from "../src/render/icons";
 import { glassVars } from "../src/render/glass-dl";
 import { chartWorkbook, chartXml } from "../src/pptx/chart";
@@ -102,11 +103,11 @@ describe("the parts (chart-lines.ts, chart-area.ts)", () => {
     expect(markerPx(m)).toBeCloseTo(8.333, 3);
     expect(markerOf({ shape: "diamond", size: 1000, color: "#ff0000" }, "#123456", "#FFFFFF")).toMatchObject({ symbol: "diamond", size: 72, color: "#FF0000" });
   });
-  it("areas: standard from zero, stacked on the series below, 100 % shares; a blank is a gap and adds nothing", () => {
-    const v = [[10, 20, null], [5, null, 8]];
-    expect(stackAreas(v, "none").bands).toEqual([[{ lo: 0, hi: 10, v: 10 }, { lo: 0, hi: 20, v: 20 }, null], [{ lo: 0, hi: 5, v: 5 }, null, { lo: 0, hi: 8, v: 8 }]]);
+  it("areas: standard from zero, stacked on the series below, 100 % shares; a blank is zero (as PowerPoint draws it) and adds nothing", () => {
+    const v = [[10, 20, null], [5, null, 8]], Z = (lo: number) => ({ lo, hi: lo, v: 0, blank: true });
+    expect(stackAreas(v, "none").bands).toEqual([[{ lo: 0, hi: 10, v: 10 }, { lo: 0, hi: 20, v: 20 }, Z(0)], [{ lo: 0, hi: 5, v: 5 }, Z(0), { lo: 0, hi: 8, v: 8 }]]);
     const s = stackAreas(v, "stacked");
-    expect(s.bands[1]).toEqual([{ lo: 10, hi: 15, v: 5 }, null, { lo: 0, hi: 8, v: 8 }]);
+    expect(s.bands[1]).toEqual([{ lo: 10, hi: 15, v: 5 }, Z(20), { lo: 0, hi: 8, v: 8 }]);
     expect([s.lo, s.hi]).toEqual([0, 20]);
     expect(stackAreas([[1, 3], [3, 1]], "percent").bands[1]).toEqual([{ lo: .25, hi: 1, v: 3 }, { lo: .75, hi: 1, v: 1 }]);
   });
@@ -399,7 +400,9 @@ describe("category groups, per-point looks and labels (CT-05), sources (CT-03)",
     const preset = { sheets: [], tables: [], slides: [{ id: "s", type: "content", tables: [], items: { x: item } }] } as never;
     expect(itemSheets(preset)).toEqual(["Weekly", "Targets", "[Budget.xlsx]Plan", "Gallery"]);
     const out = chartNodes(item, "x", item.box, c2, M, { V: glassVars(c2), wall: null, family: "Arial" });
-    expect(out.issue).toBeNull();
+    // (every source read; the one Issues line is the draw order: a left axis's line through the right axis's columns,
+    // which PowerPoint draws over it – S14.3 review 8)
+    expect(out.issue).toBe("'Loans' (left axis) is drawn under 'Retail' (right axis) in PowerPoint, which draws the right axis's columns over the left axis's series");
     // (the reference chart's text marks quote Targets: that sheet is read for it too)
     expect(itemSheets({ sheets: [], tables: [], slides: [{ id: "s", type: "content", tables: [], items: { ref: it("ref") } }] } as never)).toEqual(["Weekly", "Targets"]);
   });
@@ -460,6 +463,148 @@ describe("marks follow the data (CT-06): a reload, a scenario's value, a version
     const t25 = T.find(t => t.src === "2,5 %")!, t20 = T.find(t => t.src === "2,0 %")!;
     expect(ref.y1).toBeLessThan(t20.y);
     expect(ref.y1).toBeGreaterThan(t25.y - 17);
+  });
+});
+
+describe("S14.3 review: the export as the slide", () => {
+  /** the Gallery sheet with some cells blank ("r,c") */
+  const blanks = (...rc: string[]) => (n: string, S: Sheet | null): Sheet | null => {
+    if (n !== "Gallery" || !S) return S;
+    const B = Object.create(S) as Sheet;
+    B.get = (r: number, c: number) => rc.includes(`${r},${c}`) ? null : S.get(r, c);
+    return B;
+  };
+  const legendLayout = (x: string) => { const m = /<c:legend>.*?<c:manualLayout><c:xMode val="edge"\/><c:yMode val="edge"\/><c:x val="([^"]+)"\/><c:y val="([^"]+)"\/><c:w val="([^"]+)"\/><c:h val="([^"]+)"\/>/.exec(x); return m ? m.slice(1).map(Number) : null; };
+
+  it("(2) an area's blank is drawn as zero on the slide – one band, no label, no hit there – and cached as a blank, which PowerPoint draws as zero", async () => {
+    // Corporate's Mar (D3) blank in the stacked areas: its band drops onto Retail's top there
+    const { item, lists } = await deck("excel", { sheet: blanks("3,4") }), { nodes, info } = item("ar");
+    if (process.env.CHART_PPTX_OUT) fs.writeFileSync(path.join(process.env.CHART_PPTX_OUT, "area-blank-excel.pptx"), pptxOf(lists));
+    const areas = flat(nodes).filter((n): n is PathNode => n.t === "path" && !!n.fill && "solid" in n.fill && n.fill.a === .85);
+    expect(areas).toHaveLength(3);                                         // not broken into two runs
+    expect(areas.every(a => a.d.filter(c => c[0] === "M").length === 1 && a.d[a.d.length - 1][0] === "Z")).toBe(true);
+    const corp = areas[1], n = 6, half = (corp.d.length - 1) / 2;          // M, 5 L along the top, 6 L back along the base, Z
+    const top = corp.d.slice(0, n), base = corp.d.slice(n, n * 2).reverse();
+    expect(half).toBe(n);
+    expect(top[2][2]).toBe(base[2][2]);                                   // Mar: top = base (zero height)
+    expect(top[1][2]).not.toBe(base[1][2]);
+    expect(texts(nodes).map(t => t.src)).not.toContain("335");             // no label at the blank (Mar's Corporate value)
+    expect(texts(nodes).map(t => t.src)).toContain("300");
+    const hits = flat(nodes).filter((h): h is HitNode => h.t === "hit" && h.kind === "point").map(h => h.id);
+    expect(hits).toContain("ar:corp:1");
+    expect(hits).not.toContain("ar:corp:2");
+    // PowerPoint: the series' cache keeps the blank (idx 2 missing, ptCount 6) – PowerPoint's areas ignore "gap" and drop
+    // to zero, as the slide now does
+    const ch = semOf(info), x = xml(ch);
+    expect(ch.bars!.series[1].values).toEqual([310, 300, null, 360, 372, 390]);
+    const ser = x.match(/<c:ser><c:idx val="1"\/>.*?<\/c:ser>/)![0];
+    expect(ser).toContain('<c:ptCount val="6"/>');
+    expect(ser.match(/<c:val>.*<\/c:val>/)![0]).not.toContain('<c:pt idx="2">');
+    expect(ser).toContain('<c:dLbl><c:idx val="2"/><c:delete val="1"/></c:dLbl>');   // no "0" label at the blank
+    // a standard (unstacked) area with a blank at its end: down to the axis there
+    const L = seriesLayout({ kind: "chart", type: "area", values: { sheet: "Gallery", range: "B2:G2" }, box: { x: 0, y: 0, w: 900, h: 500 }, sers: { a: { n: 1, vals: [{ sheet: "Gallery", range: "B2:G2" }] } } },
+      { x: 0, y: 0, w: 900, h: 500 }, (await deck("excel", { sheet: blanks("2,7") })).ctx, M, STY);
+    if ("why" in L) throw new Error(L.why);
+    const p = L.traces[0].pts[5]!;
+    expect([p.blank, p.y, L.traces[0].d.length]).toEqual([true, p.lo, 1]);
+  });
+
+  for (const at of ["right", "left", "top", "bottom", "top-right", "inside-tl", "inside-tr"] as const) it(`(1) the PowerPoint legend holds every line entry: ${at}`, async () => {
+    const { item } = await deck("excel", { patch: { ln: { legendAt: at } } }), { info } = item("ln");
+    const ch = semOf(info), Lg = ch.bars!.legend!, x = xml(ch), [fx, fy, fw, fh] = legendLayout(x)!;
+    // (what PowerPoint needs per entry: the widest line key seen – LibreOffice's, 77 px at 14 px –, 8 px, the name; a row
+    // of entries 18 px apart)
+    const size = ch.labelFont.size, key = 77 * size / 14, tw = (t: string) => [...t].length * size * .5;
+    const names = ["Retail", "Corporate", "SME"];
+    // the box written is the PowerPoint box (4 px / 2 px of slack each side), as wide as PowerPoint's entries
+    expect(fw * ch.box.w).toBeCloseTo(Lg.box.w + 8, 3);
+    expect(fx * ch.box.w + ch.box.x).toBeCloseTo(Lg.box.x - 4, 3);
+    expect(fy * ch.box.h + ch.box.y).toBeCloseTo(Lg.box.y - 2, 3);
+    expect(fh * ch.box.h).toBeCloseTo(Lg.box.h + 4, 3);
+    if (at === "top" || at === "bottom") expect(Lg.box.w).toBeGreaterThanOrEqual(names.reduce((s, n) => s + key + 8 + tw(n) + 18, -18));
+    else expect(Lg.box.w).toBeGreaterThanOrEqual(Math.max(...names.map(tw)) + key + 8);
+    expect(x).not.toContain("<c:legendEntry>");                            // every entry shown
+    // and the plot stays clear of it (beside or above / below it; an inside legend lies over the plot by design)
+    const P = ch.bars!.plot, B = Lg.box;
+    if (at === "right" || at === "top-right") expect(P.x + P.w).toBeLessThanOrEqual(B.x);
+    if (at === "left") expect(B.x + B.w).toBeLessThanOrEqual(P.x);
+    if (at === "top") expect(B.y + B.h).toBeLessThanOrEqual(P.y);
+    if (at === "bottom") expect(P.y + P.h).toBeLessThan(B.y);
+    if (at.startsWith("inside")) expect(x).toMatch(/<c:legend>.*<c:overlay val="1"\/>/);
+  });
+  it("(1) a legend of bars only is written as S14.2 wrote it (the slide's box)", async () => {
+    const { item } = await deck("excel"), L = item("ar");
+    const ch = semOf(L.info), lg = ch.bars!.legend!;
+    // (the stacked areas' legend: squares only – no line entry, so the box is the slide's own)
+    const pg = L.list.nodes.slice(L.info.at[0], L.info.at[1]);
+    const sq = flat(pg).filter((n): n is RectNode => n.t === "rect" && n.w === 10 && n.h === 10);
+    expect(sq.length).toBe(2);
+    expect(lg.box.x).toBeGreaterThanOrEqual(Math.min(...sq.map(r => r.x)) - .01);
+    expect(lg.box.w).toBeLessThan(lineKeyExtra(ch.labelFont.size) + 200);
+  });
+
+  it("(5) category groups' columns that never share a category: one place, centred on their categories (overlap 100), in PowerPoint too", async () => {
+    const { item } = await deck("excel"), { nodes, info } = item("gr");
+    const ch = semOf(info), P = ch.bars!.plot, slot = P.w / 6;
+    const bars = flat(nodes).filter((n): n is RectNode => n.t === "rect" && !!n.fill && !n.stroke && n.h > 20 && n.w > 20 && n.w < slot);
+    expect(bars).toHaveLength(6);
+    bars.forEach((b, k) => expect(b.x + b.w / 2).toBeCloseTo(P.x + (k + .5) * slot, 1));
+    expect(xml(ch)).toMatch(/<c:barChart><c:barDir val="col"\/><c:grouping val="clustered"\/>.*<c:gapWidth val="150"\/><c:overlap val="100"\/>/);
+    // two series sharing categories stay side by side (the combo slide: overlap 0, no c:overlap)
+    expect(xml(semOf(item("cb").info))).not.toContain("<c:overlap");
+  });
+
+  it("(9) a line's labels clear the bars and the line itself: moved to the other side, else to the cross positions, else left out – the same in PowerPoint", async () => {
+    const { item } = await deck("excel");
+    // the combo: "2,2" above Mar would sit on the Mar column, below it too, beside it too – left out, hidden in PowerPoint
+    const cb = item("cb"), T = texts(cb.nodes);
+    expect(T.map(t => t.src)).not.toContain("2,2");
+    const m = semOf(cb.info).bars!.series.find(s => s.name === "Margin %")!;
+    expect(m.labels!.points).toContainEqual({ i: 2, hide: true });
+    // no line label's figure on a bar
+    const rects = flat(cb.nodes).filter((n): n is RectNode => n.t === "rect" && !!n.fill && "solid" in n.fill && n.fill.a === undefined && !n.stroke && n.h > 20);   // (the bars; not the band)
+    for (const t of T.filter(t => /^\d,\d$/.test(t.src))) {
+      const w = t.src.length * t.size * .5, ink = { x: t.x - w / 2 + 1, y: t.y - t.size * .72, w: w - 2, h: t.size * .72 };
+      for (const r of rects) expect(ink.x < r.x + r.w && r.x < ink.x + ink.w && ink.y < r.y + r.h && r.y < ink.y + ink.h, t.src).toBe(false);
+    }
+    // the reference chart: the first 11.258 would sit on the falling line above its point, and the dip below it touches
+    // the figures under it – it goes to the right (dLblPos r); no label of the line on its own stroke
+    const ref = item("ref"), vol = semOf(ref.info).bars!.series[0];
+    expect(vol.labels!.pos).toBe("t");
+    expect(vol.labels!.points).toContainEqual({ i: 1, pos: "r" });
+    const { ctx, it } = await deck("excel"), L = seriesLayout(it("ref"), it("ref").box, ctx, M, STY);
+    if ("why" in L) throw new Error(L.why);
+    const tr = L.traces.find(t => t.kind === "line")!;
+    expect(L.labs.filter(l => l.s === tr.s)).toHaveLength(4);              // every point labelled
+    for (const l of L.labs.filter(l => l.s === tr.s)) {
+      const w = l.text.length * l.st.size * .5, x = l.align === "center" ? l.x - w / 2 : l.align === "right" ? l.x - w : l.x;
+      const lh = Math.round(l.st.size * 1.25), base = l.top + Math.floor((lh - l.st.size) / 2) + .8 * l.st.size;
+      const ink = { x: x + 1, y: base - .72 * l.st.size, w: w - 2, h: .72 * l.st.size };
+      expect(strokeNear(tr.pts, l.i, tr.smooth).some(p => polyHitsBox(p, ink)), `${l.text} @${l.i}`).toBe(false);
+    }
+  });
+  it("(9) strokeNear / polyHitsBox: a straight or smoothed stroke on both sides of a point, against a box", () => {
+    const pts = [{ x: 0, y: 100 }, { x: 100, y: 0 }, { x: 200, y: 100 }, null, { x: 400, y: 0 }];
+    expect(strokeNear(pts, 1, false)).toEqual([[pts[0], pts[1]], [pts[1], pts[2]]]);
+    expect(strokeNear(pts, 2, false)).toHaveLength(1);                    // the gap after it
+    expect(strokeNear(pts, 4, true)).toEqual([]);                          // a lone point
+    expect(strokeNear(pts, 1, true)[0]).toHaveLength(9);
+    expect(polyHitsBox([{ x: 0, y: 0 }, { x: 10, y: 10 }], { x: 4, y: 4, w: 2, h: 2 })).toBe(true);
+    expect(polyHitsBox([{ x: 0, y: 0 }, { x: 10, y: 10 }], { x: 6, y: 0, w: 4, h: 3 })).toBe(false);
+    expect(polyHitsBox([{ x: 0, y: 5 }, { x: 10, y: 5 }], { x: 2, y: 0, w: 2, h: 10 })).toBe(true);
+  });
+
+  it("(6) a text mark takes its anchor's colour unless that is light (the grey bar's #A6A6A6): then the design's ink", async () => {
+    const { item } = await deck("excel"), T = texts(item("ref").nodes);
+    expect(T.find(t => t.src === "12.000")!.fill).toEqual({ solid: [89, 89, 89] });            // Excel's ink, #595959
+    expect(T.find(t => t.src === "11.624")!.fill).toEqual({ solid: [31, 56, 100] });
+  });
+
+  it("(8) a left axis's line through a right axis's columns: an Issues line (PowerPoint draws the right axis's groups on top); the other way round, none", async () => {
+    const S = (await deck("excel")).it("cb").sers!;
+    const { item } = await deck("excel", { patch: { cb: { sers: { ...S, m: { ...S.m, axis: "y" }, ret: { ...S.ret, axis: "y2" } } } } });
+    expect(item("cb").info.issue).toMatch(/^'Margin %' \(left axis\) is drawn under 'Retail' \(right axis\) in PowerPoint/);
+    expect((await deck("excel")).item("cb").info.issue).toBeNull();
   });
 });
 

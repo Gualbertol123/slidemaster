@@ -191,8 +191,16 @@ numbers measured twice). Measured numbers go into the step's line.
 - [ ] S14.3 · Lines, areas, combo, second axis, groups, targets, marks ⏱ — the reference chart; 🚦 G9 (CT-03…CT-07)
 - [ ] S14.4 · Scatter, waterfall
 - [ ] S14.5 · Chart panel (CT-08)
-- [ ] S14.6 · PowerPoint ⏱ (PX-05, PX-06)
-- [ ] S14.7 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.7.0
+- [ ] S14.6 · PowerPoint ⏱ (PX-05, PX-06) — carried from the S14.3 review (2026-10-21): **the marks' arrowheads native**
+  (finding 3, plan-M14 S14.6 "plain p:sp lines with native heads"): today an arrow in the export is its line plus a
+  filled custGeom triangle. The overlay's line node gets its heads in the export data (ItemSem chart overlay) and the
+  chart branch of `pptx/scene.ts` writes `a:headEnd` / `a:tailEnd` on that `p:sp` (never `p:cxnSp`). `scene.ts` is M15's
+  file (M14-M15-split.md §2): the change is agreed with M15 or made after M15 merges. Re-check on the owner's PC with
+  `reference-excel.pptx` and `lines-deck-excel.pptx`: legend line entries present (finding 1), an area's blank at zero
+  (finding 2)
+- [ ] S14.7 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.7.0 — at the M14 × M15 merge (S14.3 review finding 7): a chart's
+  icon mark draws a vendored icon through M15's `vendoredNodes` (per-path paint: filled parts, half-alpha paths) instead
+  of stroking every path (`core/src/render/chart-marks.ts`, the "MERGE M15" note)
 
 ### M15 · Lines, icons, snapping (4.8.0; B32–B35; docs/next/09 §8, ADR-020, ADR-017 amended)
 - [ ] S15.1 · `Stroke.join` and the icon data (Tabler 3.49.0 vendored, hash test, notices entry) – `Stroke.join` is in
@@ -1021,6 +1029,8 @@ One table per parallel milestone (S14.P), so M14 and M15 never append to the sam
 | S14.3 | ⏱ the reference chart's display list (09 §3.3; `core/bench/charts-m14.bench.test.ts`, median of 20, limit 5 ms × speed factor ≈ 2), Liquid Glass · Excel, ms | 1.05 · 0.64 | 1.61 · 0.66 |
 | S14.3 | ⏱ a line chart of 12 series × 52 points, display list (limit 10 ms × speed factor ≈ 2), Liquid Glass · Excel, ms | 3.28 · 1.59 | 6.69 · 1.94 (a shared machine: the column chart measured 3.09 · 1.44 in the same run) |
 | S14.3 | built page (bytes; not committed) | 4,053,524 (S14.2 built 4,011,269: +42,255; within base.json + m14.json, 4,086,092: 32,568 left) | 4,053,524 |
+| S14.3 review | ⏱ reference chart · line 12 × 52, display list (the same bench), Liquid Glass · Excel, ms | 2.12 · 0.79 · 5.74 · 2.17 (limits 5 · 5 · 10 ms × ≈ 2; a shared machine) | – |
+| S14.3 review | built page (bytes; not committed) after merging prep (main 4.6.0): before the fixes 4,056,597, with them | 4,062,155 (+5,558; within 4,086,092: 23,937 left) | – |
 
 ### Measurements · M15 (4.8.0)
 M15 appends here only.
