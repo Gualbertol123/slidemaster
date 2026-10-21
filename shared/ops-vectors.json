@@ -8763,5 +8763,6951 @@
         ]
       }
     }
+  },
+  {
+    "name": "M14 item.patch creates the reference chart (09 §3.3) in one op: series, groups, axes, marks and the plain chart keys; the inverse deletes it",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "kind": "chart",
+          "type": "combo",
+          "title": "Loans Volume - Weekly Evolution",
+          "values": {
+            "sheet": "Weekly",
+            "range": "C5:F5"
+          },
+          "titleFmt": {
+            "b": true,
+            "color": "#1F3864"
+          },
+          "titleRule": {
+            "color": "#1F3864",
+            "w": 1.5
+          },
+          "frame": {
+            "color": "#D9D9D9",
+            "w": 1
+          },
+          "legendAt": "none",
+          "groups": {
+            "wk": {
+              "n": 1,
+              "cats": {
+                "sheet": "Weekly",
+                "range": "C4:F4"
+              }
+            },
+            "tgt": {
+              "n": 2,
+              "cats": {
+                "sheet": "Targets",
+                "range": "B2:C2"
+              },
+              "divider": {
+                "color": "#7F7F7F",
+                "w": 1,
+                "dash": "dashed"
+              }
+            }
+          },
+          "axes": {
+            "y": {
+              "min": 11000,
+              "max": 11700,
+              "step": 100,
+              "num": "#,##0",
+              "grid": false
+            },
+            "y2": {
+              "min": 0,
+              "max": 14000,
+              "step": 2000,
+              "num": "#,##0",
+              "grid": false
+            },
+            "x": {
+              "fmt": {
+                "b": true,
+                "color": "#1F3864"
+              }
+            }
+          },
+          "sers": {
+            "vol": {
+              "n": 1,
+              "group": "wk",
+              "type": "line",
+              "axis": "y",
+              "smooth": true,
+              "color": "#1F3864",
+              "vals": [
+                {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                }
+              ],
+              "marker": {
+                "shape": "circle",
+                "size": 9
+              },
+              "points": {
+                "0": {
+                  "marker": "#A6A6A6"
+                }
+              },
+              "labels": {
+                "show": [
+                  "value"
+                ],
+                "pos": "above",
+                "fmt": {
+                  "b": true,
+                  "color": "#1F3864"
+                }
+              }
+            },
+            "act": {
+              "n": 2,
+              "group": "tgt",
+              "type": "column",
+              "axis": "y2",
+              "vals": [
+                {
+                  "sheet": "Weekly",
+                  "range": "F5"
+                },
+                {
+                  "sheet": "Weekly",
+                  "range": "F5"
+                }
+              ],
+              "target": [
+                {
+                  "sheet": "Targets",
+                  "range": "B3:C3"
+                }
+              ],
+              "points": {
+                "0": {
+                  "color": "#1F3864"
+                },
+                "1": {
+                  "color": "#A6A6A6"
+                }
+              },
+              "labels": {
+                "show": [
+                  "ofTarget"
+                ],
+                "pos": "inEnd",
+                "fmt": {
+                  "b": true,
+                  "color": "#FFFFFF"
+                }
+              }
+            }
+          },
+          "marks": {
+            "start": {
+              "kind": "arrow",
+              "a": {
+                "s": "vol",
+                "i": 0
+              },
+              "b": "floor",
+              "style": {
+                "color": "#1F3864",
+                "w": 1.5,
+                "heads": {
+                  "a": "triangle"
+                }
+              }
+            },
+            "ib": {
+              "kind": "icon",
+              "icon": "tabler:target",
+              "a": {
+                "s": "act",
+                "i": 0
+              },
+              "dy": -46,
+              "size": 26
+            },
+            "tb": {
+              "kind": "text",
+              "text": "{Targets!B3}",
+              "a": {
+                "s": "act",
+                "i": 0
+              },
+              "dy": -14,
+              "fmt": {
+                "b": true,
+                "size": 22
+              }
+            }
+          },
+          "box": {
+            "x": 120,
+            "y": 180,
+            "w": 1360,
+            "h": 620
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "combo",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "title": "Loans Volume - Weekly Evolution",
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "legendAt": "none",
+                "frame": {
+                  "color": "#D9D9D9",
+                  "w": 1
+                },
+                "titleRule": {
+                  "color": "#1F3864",
+                  "w": 1.5
+                },
+                "sers": {
+                  "vol": {
+                    "n": 1,
+                    "group": "wk",
+                    "type": "line",
+                    "axis": "y",
+                    "smooth": true,
+                    "color": "#1F3864",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ],
+                    "marker": {
+                      "shape": "circle",
+                      "size": 9
+                    },
+                    "points": {
+                      "0": {
+                        "marker": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "value"
+                      ],
+                      "pos": "above",
+                      "fmt": {
+                        "b": true,
+                        "color": "#1F3864"
+                      }
+                    }
+                  },
+                  "act": {
+                    "n": 2,
+                    "group": "tgt",
+                    "type": "column",
+                    "axis": "y2",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      },
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      }
+                    ],
+                    "target": [
+                      {
+                        "sheet": "Targets",
+                        "range": "B3:C3"
+                      }
+                    ],
+                    "points": {
+                      "0": {
+                        "color": "#1F3864"
+                      },
+                      "1": {
+                        "color": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "ofTarget"
+                      ],
+                      "pos": "inEnd",
+                      "fmt": {
+                        "b": true,
+                        "color": "#FFFFFF"
+                      }
+                    }
+                  }
+                },
+                "groups": {
+                  "wk": {
+                    "n": 1,
+                    "cats": {
+                      "sheet": "Weekly",
+                      "range": "C4:F4"
+                    }
+                  },
+                  "tgt": {
+                    "n": 2,
+                    "cats": {
+                      "sheet": "Targets",
+                      "range": "B2:C2"
+                    },
+                    "divider": {
+                      "color": "#7F7F7F",
+                      "w": 1,
+                      "dash": "dashed"
+                    }
+                  }
+                },
+                "axes": {
+                  "y": {
+                    "min": 11000,
+                    "max": 11700,
+                    "step": 100,
+                    "num": "#,##0",
+                    "grid": false
+                  },
+                  "y2": {
+                    "min": 0,
+                    "max": 14000,
+                    "step": 2000,
+                    "num": "#,##0",
+                    "grid": false
+                  },
+                  "x": {
+                    "fmt": {
+                      "b": true,
+                      "color": "#1F3864"
+                    }
+                  }
+                },
+                "marks": {
+                  "start": {
+                    "kind": "arrow",
+                    "a": {
+                      "s": "vol",
+                      "i": 0
+                    },
+                    "b": "floor",
+                    "style": {
+                      "color": "#1F3864",
+                      "w": 1.5,
+                      "heads": {
+                        "a": "triangle"
+                      }
+                    }
+                  },
+                  "ib": {
+                    "kind": "icon",
+                    "icon": "tabler:target",
+                    "a": {
+                      "s": "act",
+                      "i": 0
+                    },
+                    "dy": -46,
+                    "size": 26
+                  },
+                  "tb": {
+                    "kind": "text",
+                    "text": "{Targets!B3}",
+                    "a": {
+                      "s": "act",
+                      "i": 0
+                    },
+                    "dy": -14,
+                    "fmt": {
+                      "b": true,
+                      "size": 22
+                    }
+                  }
+                },
+                "titleFmt": {
+                  "b": true,
+                  "color": "#1F3864"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "M14 item.patch a series chart from an old pie (the panel's type switch, 09 §2.2): type, sers s1 from values; values kept",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "type": "column",
+          "sers": {
+            "s1": {
+              "n": 1,
+              "vals": [
+                {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                }
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "column",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "sers": {
+                  "s1": {
+                    "n": 1,
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "type": "pie",
+            "sers": {
+              "s1": null
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M14 item.patch sers map-merge: add a series, replace one whole (its old keys go), delete one; the inverse per series",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "combo",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "sers": {
+                  "vol": {
+                    "n": 1,
+                    "group": "wk",
+                    "type": "line",
+                    "axis": "y",
+                    "smooth": true,
+                    "color": "#1F3864",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ],
+                    "marker": {
+                      "shape": "circle",
+                      "size": 9
+                    },
+                    "points": {
+                      "0": {
+                        "marker": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "value"
+                      ],
+                      "pos": "above",
+                      "fmt": {
+                        "b": true,
+                        "color": "#1F3864"
+                      }
+                    }
+                  },
+                  "act": {
+                    "n": 2,
+                    "group": "tgt",
+                    "type": "column",
+                    "axis": "y2",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      },
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      }
+                    ],
+                    "target": [
+                      {
+                        "sheet": "Targets",
+                        "range": "B3:C3"
+                      }
+                    ],
+                    "points": {
+                      "0": {
+                        "color": "#1F3864"
+                      },
+                      "1": {
+                        "color": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "ofTarget"
+                      ],
+                      "pos": "inEnd",
+                      "fmt": {
+                        "b": true,
+                        "color": "#FFFFFF"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "sers": {
+            "bud": {
+              "n": 3,
+              "vals": [
+                {
+                  "sheet": "[Budget.xlsx]Plan",
+                  "range": "D9"
+                }
+              ],
+              "type": "line",
+              "axis": "y2"
+            }
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "sers": {
+            "vol": {
+              "n": 1,
+              "vals": [
+                {
+                  "sheet": "Weekly",
+                  "range": "C6:F6"
+                }
+              ],
+              "color": "#C00000"
+            }
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "sers": {
+            "act": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "combo",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "sers": {
+                  "vol": {
+                    "n": 1,
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C6:F6"
+                      }
+                    ],
+                    "color": "#C00000"
+                  },
+                  "bud": {
+                    "n": 3,
+                    "vals": [
+                      {
+                        "sheet": "[Budget.xlsx]Plan",
+                        "range": "D9"
+                      }
+                    ],
+                    "type": "line",
+                    "axis": "y2"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 3,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "sers": {
+              "bud": null
+            }
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "sers": {
+              "vol": {
+                "n": 1,
+                "group": "wk",
+                "type": "line",
+                "axis": "y",
+                "smooth": true,
+                "color": "#1F3864",
+                "vals": [
+                  {
+                    "sheet": "Weekly",
+                    "range": "C5:F5"
+                  }
+                ],
+                "marker": {
+                  "shape": "circle",
+                  "size": 9
+                },
+                "points": {
+                  "0": {
+                    "marker": "#A6A6A6"
+                  }
+                },
+                "labels": {
+                  "show": [
+                    "value"
+                  ],
+                  "pos": "above",
+                  "fmt": {
+                    "b": true,
+                    "color": "#1F3864"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "sers": {
+              "act": {
+                "n": 2,
+                "group": "tgt",
+                "type": "column",
+                "axis": "y2",
+                "vals": [
+                  {
+                    "sheet": "Weekly",
+                    "range": "F5"
+                  },
+                  {
+                    "sheet": "Weekly",
+                    "range": "F5"
+                  }
+                ],
+                "target": [
+                  {
+                    "sheet": "Targets",
+                    "range": "B3:C3"
+                  }
+                ],
+                "points": {
+                  "0": {
+                    "color": "#1F3864"
+                  },
+                  "1": {
+                    "color": "#A6A6A6"
+                  }
+                },
+                "labels": {
+                  "show": [
+                    "ofTarget"
+                  ],
+                  "pos": "inEnd",
+                  "fmt": {
+                    "b": true,
+                    "color": "#FFFFFF"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M14 item.patch sers: deleting the last series removes the map (the chart draws as before 4.7: values kept); sers null deletes every series",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "column",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "sers": {
+                  "s1": {
+                    "n": 1,
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ]
+                  }
+                }
+              },
+              "c2": {
+                "kind": "chart",
+                "type": "line",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "sers": {
+                  "a": {
+                    "n": 1,
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5"
+                      }
+                    ]
+                  },
+                  "b": {
+                    "n": 2,
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "D5"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "sers": {
+            "s1": null
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c2",
+        "patch": {
+          "sers": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "column",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                }
+              },
+              "c2": {
+                "kind": "chart",
+                "type": "line",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "sers": {
+              "s1": {
+                "n": 1,
+                "vals": [
+                  {
+                    "sheet": "Weekly",
+                    "range": "C5:F5"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c2",
+          "patch": {
+            "sers": {
+              "a": {
+                "n": 1,
+                "vals": [
+                  {
+                    "sheet": "Weekly",
+                    "range": "C5"
+                  }
+                ]
+              },
+              "b": {
+                "n": 2,
+                "vals": [
+                  {
+                    "sheet": "Weekly",
+                    "range": "D5"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M14 item.patch sers two writers both win: two series edited at once (09 §6 row 1)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "combo",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "sers": {
+                  "vol": {
+                    "n": 1,
+                    "group": "wk",
+                    "type": "line",
+                    "axis": "y",
+                    "smooth": true,
+                    "color": "#1F3864",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ],
+                    "marker": {
+                      "shape": "circle",
+                      "size": 9
+                    },
+                    "points": {
+                      "0": {
+                        "marker": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "value"
+                      ],
+                      "pos": "above",
+                      "fmt": {
+                        "b": true,
+                        "color": "#1F3864"
+                      }
+                    }
+                  },
+                  "act": {
+                    "n": 2,
+                    "group": "tgt",
+                    "type": "column",
+                    "axis": "y2",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      },
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      }
+                    ],
+                    "target": [
+                      {
+                        "sheet": "Targets",
+                        "range": "B3:C3"
+                      }
+                    ],
+                    "points": {
+                      "0": {
+                        "color": "#1F3864"
+                      },
+                      "1": {
+                        "color": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "ofTarget"
+                      ],
+                      "pos": "inEnd",
+                      "fmt": {
+                        "b": true,
+                        "color": "#FFFFFF"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "sers": {
+            "vol": {
+              "n": 1,
+              "group": "wk",
+              "type": "line",
+              "axis": "y",
+              "smooth": true,
+              "color": "#00B050",
+              "vals": [
+                {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                }
+              ],
+              "marker": {
+                "shape": "circle",
+                "size": 9
+              },
+              "points": {
+                "0": {
+                  "marker": "#A6A6A6"
+                }
+              },
+              "labels": {
+                "show": [
+                  "value"
+                ],
+                "pos": "above",
+                "fmt": {
+                  "b": true,
+                  "color": "#1F3864"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "sers": {
+            "act": {
+              "n": 2,
+              "group": "tgt",
+              "type": "column",
+              "axis": "y",
+              "vals": [
+                {
+                  "sheet": "Weekly",
+                  "range": "F5"
+                },
+                {
+                  "sheet": "Weekly",
+                  "range": "F5"
+                }
+              ],
+              "target": [
+                {
+                  "sheet": "Targets",
+                  "range": "B3:C3"
+                }
+              ],
+              "points": {
+                "0": {
+                  "color": "#1F3864"
+                },
+                "1": {
+                  "color": "#A6A6A6"
+                }
+              },
+              "labels": {
+                "show": [
+                  "ofTarget"
+                ],
+                "pos": "inEnd",
+                "fmt": {
+                  "b": true,
+                  "color": "#FFFFFF"
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "combo",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "sers": {
+                  "vol": {
+                    "n": 1,
+                    "group": "wk",
+                    "type": "line",
+                    "axis": "y",
+                    "smooth": true,
+                    "color": "#00B050",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ],
+                    "marker": {
+                      "shape": "circle",
+                      "size": 9
+                    },
+                    "points": {
+                      "0": {
+                        "marker": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "value"
+                      ],
+                      "pos": "above",
+                      "fmt": {
+                        "b": true,
+                        "color": "#1F3864"
+                      }
+                    }
+                  },
+                  "act": {
+                    "n": 2,
+                    "group": "tgt",
+                    "type": "column",
+                    "axis": "y",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      },
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      }
+                    ],
+                    "target": [
+                      {
+                        "sheet": "Targets",
+                        "range": "B3:C3"
+                      }
+                    ],
+                    "points": {
+                      "0": {
+                        "color": "#1F3864"
+                      },
+                      "1": {
+                        "color": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "ofTarget"
+                      ],
+                      "pos": "inEnd",
+                      "fmt": {
+                        "b": true,
+                        "color": "#FFFFFF"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "sers": {
+              "vol": {
+                "n": 1,
+                "group": "wk",
+                "type": "line",
+                "axis": "y",
+                "smooth": true,
+                "color": "#1F3864",
+                "vals": [
+                  {
+                    "sheet": "Weekly",
+                    "range": "C5:F5"
+                  }
+                ],
+                "marker": {
+                  "shape": "circle",
+                  "size": 9
+                },
+                "points": {
+                  "0": {
+                    "marker": "#A6A6A6"
+                  }
+                },
+                "labels": {
+                  "show": [
+                    "value"
+                  ],
+                  "pos": "above",
+                  "fmt": {
+                    "b": true,
+                    "color": "#1F3864"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "sers": {
+              "act": {
+                "n": 2,
+                "group": "tgt",
+                "type": "column",
+                "axis": "y2",
+                "vals": [
+                  {
+                    "sheet": "Weekly",
+                    "range": "F5"
+                  },
+                  {
+                    "sheet": "Weekly",
+                    "range": "F5"
+                  }
+                ],
+                "target": [
+                  {
+                    "sheet": "Targets",
+                    "range": "B3:C3"
+                  }
+                ],
+                "points": {
+                  "0": {
+                    "color": "#1F3864"
+                  },
+                  "1": {
+                    "color": "#A6A6A6"
+                  }
+                },
+                "labels": {
+                  "show": [
+                    "ofTarget"
+                  ],
+                  "pos": "inEnd",
+                  "fmt": {
+                    "b": true,
+                    "color": "#FFFFFF"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M14 item.patch two writers, one series: the later op's whole series wins, its points too (09 §6 row 18, Q13)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "combo",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "sers": {
+                  "vol": {
+                    "n": 1,
+                    "group": "wk",
+                    "type": "line",
+                    "axis": "y",
+                    "smooth": true,
+                    "color": "#1F3864",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ],
+                    "marker": {
+                      "shape": "circle",
+                      "size": 9
+                    },
+                    "points": {
+                      "0": {
+                        "marker": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "value"
+                      ],
+                      "pos": "above",
+                      "fmt": {
+                        "b": true,
+                        "color": "#1F3864"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "sers": {
+            "vol": {
+              "n": 1,
+              "group": "wk",
+              "type": "line",
+              "axis": "y",
+              "smooth": true,
+              "color": "#1F3864",
+              "vals": [
+                {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                }
+              ],
+              "marker": {
+                "shape": "circle",
+                "size": 9
+              },
+              "points": {
+                "0": {
+                  "marker": "#A6A6A6"
+                },
+                "2": {
+                  "color": "#C00000"
+                }
+              },
+              "labels": {
+                "show": [
+                  "value"
+                ],
+                "pos": "above",
+                "fmt": {
+                  "b": true,
+                  "color": "#1F3864"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "sers": {
+            "vol": {
+              "n": 1,
+              "group": "wk",
+              "type": "line",
+              "axis": "y",
+              "smooth": true,
+              "color": "#1F3864",
+              "vals": [
+                {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                }
+              ],
+              "marker": {
+                "shape": "circle",
+                "size": 9
+              },
+              "points": {
+                "1": {
+                  "label": null
+                }
+              },
+              "labels": {
+                "show": [
+                  "value"
+                ],
+                "pos": "above",
+                "fmt": {
+                  "b": true,
+                  "color": "#1F3864"
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "combo",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "sers": {
+                  "vol": {
+                    "n": 1,
+                    "group": "wk",
+                    "type": "line",
+                    "axis": "y",
+                    "smooth": true,
+                    "color": "#1F3864",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ],
+                    "marker": {
+                      "shape": "circle",
+                      "size": 9
+                    },
+                    "points": {
+                      "1": {
+                        "label": null
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "value"
+                      ],
+                      "pos": "above",
+                      "fmt": {
+                        "b": true,
+                        "color": "#1F3864"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "sers": {
+              "vol": {
+                "n": 1,
+                "group": "wk",
+                "type": "line",
+                "axis": "y",
+                "smooth": true,
+                "color": "#1F3864",
+                "vals": [
+                  {
+                    "sheet": "Weekly",
+                    "range": "C5:F5"
+                  }
+                ],
+                "marker": {
+                  "shape": "circle",
+                  "size": 9
+                },
+                "points": {
+                  "0": {
+                    "marker": "#A6A6A6"
+                  }
+                },
+                "labels": {
+                  "show": [
+                    "value"
+                  ],
+                  "pos": "above",
+                  "fmt": {
+                    "b": true,
+                    "color": "#1F3864"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "sers": {
+              "vol": {
+                "n": 1,
+                "group": "wk",
+                "type": "line",
+                "axis": "y",
+                "smooth": true,
+                "color": "#1F3864",
+                "vals": [
+                  {
+                    "sheet": "Weekly",
+                    "range": "C5:F5"
+                  }
+                ],
+                "marker": {
+                  "shape": "circle",
+                  "size": 9
+                },
+                "points": {
+                  "0": {
+                    "marker": "#A6A6A6"
+                  },
+                  "2": {
+                    "color": "#C00000"
+                  }
+                },
+                "labels": {
+                  "show": [
+                    "value"
+                  ],
+                  "pos": "above",
+                  "fmt": {
+                    "b": true,
+                    "color": "#1F3864"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M14 item.patch groups and axes map-merge per entry: a group replaced whole (its divider gone), an axis added, one deleted",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "combo",
+                "title": "Loans Volume - Weekly Evolution",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "titleFmt": {
+                  "b": true,
+                  "color": "#1F3864"
+                },
+                "titleRule": {
+                  "color": "#1F3864",
+                  "w": 1.5
+                },
+                "frame": {
+                  "color": "#D9D9D9",
+                  "w": 1
+                },
+                "legendAt": "none",
+                "groups": {
+                  "wk": {
+                    "n": 1,
+                    "cats": {
+                      "sheet": "Weekly",
+                      "range": "C4:F4"
+                    }
+                  },
+                  "tgt": {
+                    "n": 2,
+                    "cats": {
+                      "sheet": "Targets",
+                      "range": "B2:C2"
+                    },
+                    "divider": {
+                      "color": "#7F7F7F",
+                      "w": 1,
+                      "dash": "dashed"
+                    }
+                  }
+                },
+                "axes": {
+                  "y": {
+                    "min": 11000,
+                    "max": 11700,
+                    "step": 100,
+                    "num": "#,##0",
+                    "grid": false
+                  },
+                  "y2": {
+                    "min": 0,
+                    "max": 14000,
+                    "step": 2000,
+                    "num": "#,##0",
+                    "grid": false
+                  },
+                  "x": {
+                    "fmt": {
+                      "b": true,
+                      "color": "#1F3864"
+                    }
+                  }
+                },
+                "sers": {
+                  "vol": {
+                    "n": 1,
+                    "group": "wk",
+                    "type": "line",
+                    "axis": "y",
+                    "smooth": true,
+                    "color": "#1F3864",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ],
+                    "marker": {
+                      "shape": "circle",
+                      "size": 9
+                    },
+                    "points": {
+                      "0": {
+                        "marker": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "value"
+                      ],
+                      "pos": "above",
+                      "fmt": {
+                        "b": true,
+                        "color": "#1F3864"
+                      }
+                    }
+                  },
+                  "act": {
+                    "n": 2,
+                    "group": "tgt",
+                    "type": "column",
+                    "axis": "y2",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      },
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      }
+                    ],
+                    "target": [
+                      {
+                        "sheet": "Targets",
+                        "range": "B3:C3"
+                      }
+                    ],
+                    "points": {
+                      "0": {
+                        "color": "#1F3864"
+                      },
+                      "1": {
+                        "color": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "ofTarget"
+                      ],
+                      "pos": "inEnd",
+                      "fmt": {
+                        "b": true,
+                        "color": "#FFFFFF"
+                      }
+                    }
+                  }
+                },
+                "marks": {
+                  "start": {
+                    "kind": "arrow",
+                    "a": {
+                      "s": "vol",
+                      "i": 0
+                    },
+                    "b": "floor",
+                    "style": {
+                      "color": "#1F3864",
+                      "w": 1.5,
+                      "heads": {
+                        "a": "triangle"
+                      }
+                    }
+                  },
+                  "ib": {
+                    "kind": "icon",
+                    "icon": "tabler:target",
+                    "a": {
+                      "s": "act",
+                      "i": 0
+                    },
+                    "dy": -46,
+                    "size": 26
+                  },
+                  "tb": {
+                    "kind": "text",
+                    "text": "{Targets!B3}",
+                    "a": {
+                      "s": "act",
+                      "i": 0
+                    },
+                    "dy": -14,
+                    "fmt": {
+                      "b": true,
+                      "size": 22
+                    }
+                  }
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "groups": {
+            "tgt": {
+              "n": 2,
+              "cats": [
+                "Eom Budget",
+                "EoM Ambition"
+              ]
+            },
+            "wk2": {
+              "n": 3,
+              "cats": {
+                "sheet": "Weekly",
+                "range": "G4:H4"
+              },
+              "divider": null
+            }
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "axes": {
+            "y2": null,
+            "x": {
+              "show": false
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "combo",
+                "title": "Loans Volume - Weekly Evolution",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "titleFmt": {
+                  "b": true,
+                  "color": "#1F3864"
+                },
+                "titleRule": {
+                  "color": "#1F3864",
+                  "w": 1.5
+                },
+                "frame": {
+                  "color": "#D9D9D9",
+                  "w": 1
+                },
+                "legendAt": "none",
+                "groups": {
+                  "wk": {
+                    "n": 1,
+                    "cats": {
+                      "sheet": "Weekly",
+                      "range": "C4:F4"
+                    }
+                  },
+                  "tgt": {
+                    "n": 2,
+                    "cats": [
+                      "Eom Budget",
+                      "EoM Ambition"
+                    ]
+                  },
+                  "wk2": {
+                    "n": 3,
+                    "cats": {
+                      "sheet": "Weekly",
+                      "range": "G4:H4"
+                    },
+                    "divider": null
+                  }
+                },
+                "axes": {
+                  "y": {
+                    "min": 11000,
+                    "max": 11700,
+                    "step": 100,
+                    "num": "#,##0",
+                    "grid": false
+                  },
+                  "x": {
+                    "show": false
+                  }
+                },
+                "sers": {
+                  "vol": {
+                    "n": 1,
+                    "group": "wk",
+                    "type": "line",
+                    "axis": "y",
+                    "smooth": true,
+                    "color": "#1F3864",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ],
+                    "marker": {
+                      "shape": "circle",
+                      "size": 9
+                    },
+                    "points": {
+                      "0": {
+                        "marker": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "value"
+                      ],
+                      "pos": "above",
+                      "fmt": {
+                        "b": true,
+                        "color": "#1F3864"
+                      }
+                    }
+                  },
+                  "act": {
+                    "n": 2,
+                    "group": "tgt",
+                    "type": "column",
+                    "axis": "y2",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      },
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      }
+                    ],
+                    "target": [
+                      {
+                        "sheet": "Targets",
+                        "range": "B3:C3"
+                      }
+                    ],
+                    "points": {
+                      "0": {
+                        "color": "#1F3864"
+                      },
+                      "1": {
+                        "color": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "ofTarget"
+                      ],
+                      "pos": "inEnd",
+                      "fmt": {
+                        "b": true,
+                        "color": "#FFFFFF"
+                      }
+                    }
+                  }
+                },
+                "marks": {
+                  "start": {
+                    "kind": "arrow",
+                    "a": {
+                      "s": "vol",
+                      "i": 0
+                    },
+                    "b": "floor",
+                    "style": {
+                      "color": "#1F3864",
+                      "w": 1.5,
+                      "heads": {
+                        "a": "triangle"
+                      }
+                    }
+                  },
+                  "ib": {
+                    "kind": "icon",
+                    "icon": "tabler:target",
+                    "a": {
+                      "s": "act",
+                      "i": 0
+                    },
+                    "dy": -46,
+                    "size": 26
+                  },
+                  "tb": {
+                    "kind": "text",
+                    "text": "{Targets!B3}",
+                    "a": {
+                      "s": "act",
+                      "i": 0
+                    },
+                    "dy": -14,
+                    "fmt": {
+                      "b": true,
+                      "size": 22
+                    }
+                  }
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "groups": {
+              "tgt": {
+                "n": 2,
+                "cats": {
+                  "sheet": "Targets",
+                  "range": "B2:C2"
+                },
+                "divider": {
+                  "color": "#7F7F7F",
+                  "w": 1,
+                  "dash": "dashed"
+                }
+              },
+              "wk2": null
+            }
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "axes": {
+              "y2": {
+                "min": 0,
+                "max": 14000,
+                "step": 2000,
+                "num": "#,##0",
+                "grid": false
+              },
+              "x": {
+                "fmt": {
+                  "b": true,
+                  "color": "#1F3864"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M14 item.patch marks map-merge: add an arrow and a band, delete an icon; a mark is replaced whole",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "combo",
+                "title": "Loans Volume - Weekly Evolution",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "titleFmt": {
+                  "b": true,
+                  "color": "#1F3864"
+                },
+                "titleRule": {
+                  "color": "#1F3864",
+                  "w": 1.5
+                },
+                "frame": {
+                  "color": "#D9D9D9",
+                  "w": 1
+                },
+                "legendAt": "none",
+                "groups": {
+                  "wk": {
+                    "n": 1,
+                    "cats": {
+                      "sheet": "Weekly",
+                      "range": "C4:F4"
+                    }
+                  },
+                  "tgt": {
+                    "n": 2,
+                    "cats": {
+                      "sheet": "Targets",
+                      "range": "B2:C2"
+                    },
+                    "divider": {
+                      "color": "#7F7F7F",
+                      "w": 1,
+                      "dash": "dashed"
+                    }
+                  }
+                },
+                "axes": {
+                  "y": {
+                    "min": 11000,
+                    "max": 11700,
+                    "step": 100,
+                    "num": "#,##0",
+                    "grid": false
+                  },
+                  "y2": {
+                    "min": 0,
+                    "max": 14000,
+                    "step": 2000,
+                    "num": "#,##0",
+                    "grid": false
+                  },
+                  "x": {
+                    "fmt": {
+                      "b": true,
+                      "color": "#1F3864"
+                    }
+                  }
+                },
+                "sers": {
+                  "vol": {
+                    "n": 1,
+                    "group": "wk",
+                    "type": "line",
+                    "axis": "y",
+                    "smooth": true,
+                    "color": "#1F3864",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ],
+                    "marker": {
+                      "shape": "circle",
+                      "size": 9
+                    },
+                    "points": {
+                      "0": {
+                        "marker": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "value"
+                      ],
+                      "pos": "above",
+                      "fmt": {
+                        "b": true,
+                        "color": "#1F3864"
+                      }
+                    }
+                  },
+                  "act": {
+                    "n": 2,
+                    "group": "tgt",
+                    "type": "column",
+                    "axis": "y2",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      },
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      }
+                    ],
+                    "target": [
+                      {
+                        "sheet": "Targets",
+                        "range": "B3:C3"
+                      }
+                    ],
+                    "points": {
+                      "0": {
+                        "color": "#1F3864"
+                      },
+                      "1": {
+                        "color": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "ofTarget"
+                      ],
+                      "pos": "inEnd",
+                      "fmt": {
+                        "b": true,
+                        "color": "#FFFFFF"
+                      }
+                    }
+                  }
+                },
+                "marks": {
+                  "start": {
+                    "kind": "arrow",
+                    "a": {
+                      "s": "vol",
+                      "i": 0
+                    },
+                    "b": "floor",
+                    "style": {
+                      "color": "#1F3864",
+                      "w": 1.5,
+                      "heads": {
+                        "a": "triangle"
+                      }
+                    }
+                  },
+                  "ib": {
+                    "kind": "icon",
+                    "icon": "tabler:target",
+                    "a": {
+                      "s": "act",
+                      "i": 0
+                    },
+                    "dy": -46,
+                    "size": 26
+                  },
+                  "tb": {
+                    "kind": "text",
+                    "text": "{Targets!B3}",
+                    "a": {
+                      "s": "act",
+                      "i": 0
+                    },
+                    "dy": -14,
+                    "fmt": {
+                      "b": true,
+                      "size": 22
+                    }
+                  }
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "marks": {
+            "band": {
+              "kind": "band",
+              "a": {
+                "x": 0,
+                "y": 11200
+              },
+              "b": {
+                "x": 3,
+                "y": 11400
+              },
+              "style": {
+                "color": "#D9D9D9"
+              }
+            },
+            "ib": null
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "marks": {
+            "start": {
+              "kind": "arrow",
+              "a": {
+                "s": "vol",
+                "i": 1
+              },
+              "b": "floor"
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "combo",
+                "title": "Loans Volume - Weekly Evolution",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "titleFmt": {
+                  "b": true,
+                  "color": "#1F3864"
+                },
+                "titleRule": {
+                  "color": "#1F3864",
+                  "w": 1.5
+                },
+                "frame": {
+                  "color": "#D9D9D9",
+                  "w": 1
+                },
+                "legendAt": "none",
+                "groups": {
+                  "wk": {
+                    "n": 1,
+                    "cats": {
+                      "sheet": "Weekly",
+                      "range": "C4:F4"
+                    }
+                  },
+                  "tgt": {
+                    "n": 2,
+                    "cats": {
+                      "sheet": "Targets",
+                      "range": "B2:C2"
+                    },
+                    "divider": {
+                      "color": "#7F7F7F",
+                      "w": 1,
+                      "dash": "dashed"
+                    }
+                  }
+                },
+                "axes": {
+                  "y": {
+                    "min": 11000,
+                    "max": 11700,
+                    "step": 100,
+                    "num": "#,##0",
+                    "grid": false
+                  },
+                  "y2": {
+                    "min": 0,
+                    "max": 14000,
+                    "step": 2000,
+                    "num": "#,##0",
+                    "grid": false
+                  },
+                  "x": {
+                    "fmt": {
+                      "b": true,
+                      "color": "#1F3864"
+                    }
+                  }
+                },
+                "sers": {
+                  "vol": {
+                    "n": 1,
+                    "group": "wk",
+                    "type": "line",
+                    "axis": "y",
+                    "smooth": true,
+                    "color": "#1F3864",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ],
+                    "marker": {
+                      "shape": "circle",
+                      "size": 9
+                    },
+                    "points": {
+                      "0": {
+                        "marker": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "value"
+                      ],
+                      "pos": "above",
+                      "fmt": {
+                        "b": true,
+                        "color": "#1F3864"
+                      }
+                    }
+                  },
+                  "act": {
+                    "n": 2,
+                    "group": "tgt",
+                    "type": "column",
+                    "axis": "y2",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      },
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      }
+                    ],
+                    "target": [
+                      {
+                        "sheet": "Targets",
+                        "range": "B3:C3"
+                      }
+                    ],
+                    "points": {
+                      "0": {
+                        "color": "#1F3864"
+                      },
+                      "1": {
+                        "color": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "ofTarget"
+                      ],
+                      "pos": "inEnd",
+                      "fmt": {
+                        "b": true,
+                        "color": "#FFFFFF"
+                      }
+                    }
+                  }
+                },
+                "marks": {
+                  "start": {
+                    "kind": "arrow",
+                    "a": {
+                      "s": "vol",
+                      "i": 1
+                    },
+                    "b": "floor"
+                  },
+                  "tb": {
+                    "kind": "text",
+                    "text": "{Targets!B3}",
+                    "a": {
+                      "s": "act",
+                      "i": 0
+                    },
+                    "dy": -14,
+                    "fmt": {
+                      "b": true,
+                      "size": 22
+                    }
+                  },
+                  "band": {
+                    "kind": "band",
+                    "a": {
+                      "x": 0,
+                      "y": 11200
+                    },
+                    "b": {
+                      "x": 3,
+                      "y": 11400
+                    },
+                    "style": {
+                      "color": "#D9D9D9"
+                    }
+                  }
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "marks": {
+              "band": null,
+              "ib": {
+                "kind": "icon",
+                "icon": "tabler:target",
+                "a": {
+                  "s": "act",
+                  "i": 0
+                },
+                "dy": -46,
+                "size": 26
+              }
+            }
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "marks": {
+              "start": {
+                "kind": "arrow",
+                "a": {
+                  "s": "vol",
+                  "i": 0
+                },
+                "b": "floor",
+                "style": {
+                  "color": "#1F3864",
+                  "w": 1.5,
+                  "heads": {
+                    "a": "triangle"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M14 item.patch legendHide and titleFmt map-merge per entry; the last entry removed removes the map",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "legendHide": {
+                  "2": true
+                },
+                "titleFmt": {
+                  "b": true
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "legendHide": {
+            "2": null,
+            "vol": true
+          },
+          "titleFmt": {
+            "size": 26,
+            "color": "#1F3864"
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "legendHide": {
+            "vol": null
+          },
+          "titleFmt": {
+            "b": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "titleFmt": {
+                  "size": 26,
+                  "color": "#1F3864"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "legendHide": {
+              "2": true,
+              "vol": null
+            },
+            "titleFmt": {
+              "size": null,
+              "color": null
+            }
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "legendHide": {
+              "vol": true
+            },
+            "titleFmt": {
+              "b": true
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M14 item.patch chart plain keys (stack, gap, overlap, legendAt, frame, titleRule, plot, new type values) set whole and deleted by null",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "type": "waterfall",
+          "stack": "percent",
+          "gap": 80,
+          "overlap": 100,
+          "legendAt": "inside-tr",
+          "frame": {
+            "color": "#D9D9D9",
+            "w": 1
+          },
+          "titleRule": {
+            "color": "#1F3864",
+            "w": 1.5
+          },
+          "plot": {
+            "x": 160,
+            "y": 260,
+            "w": 1200,
+            "h": 480
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "frame": {
+            "w": 2
+          },
+          "gap": null,
+          "plot": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "waterfall",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "stack": "percent",
+                "overlap": 100,
+                "legendAt": "inside-tr",
+                "frame": {
+                  "w": 2
+                },
+                "titleRule": {
+                  "color": "#1F3864",
+                  "w": 1.5
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "type": "pie",
+            "stack": null,
+            "gap": null,
+            "overlap": null,
+            "legendAt": null,
+            "frame": null,
+            "titleRule": null,
+            "plot": null
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "frame": {
+              "color": "#D9D9D9",
+              "w": 1
+            },
+            "gap": 80,
+            "plot": {
+              "x": 160,
+              "y": 260,
+              "w": 1200,
+              "h": 480
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M14 item.patch inverse round trip: a patch of keys and series entries, then its inverse, gives the item back",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "combo",
+                "title": "Loans Volume - Weekly Evolution",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "titleFmt": {
+                  "b": true,
+                  "color": "#1F3864"
+                },
+                "titleRule": {
+                  "color": "#1F3864",
+                  "w": 1.5
+                },
+                "frame": {
+                  "color": "#D9D9D9",
+                  "w": 1
+                },
+                "legendAt": "none",
+                "groups": {
+                  "wk": {
+                    "n": 1,
+                    "cats": {
+                      "sheet": "Weekly",
+                      "range": "C4:F4"
+                    }
+                  },
+                  "tgt": {
+                    "n": 2,
+                    "cats": {
+                      "sheet": "Targets",
+                      "range": "B2:C2"
+                    },
+                    "divider": {
+                      "color": "#7F7F7F",
+                      "w": 1,
+                      "dash": "dashed"
+                    }
+                  }
+                },
+                "axes": {
+                  "y": {
+                    "min": 11000,
+                    "max": 11700,
+                    "step": 100,
+                    "num": "#,##0",
+                    "grid": false
+                  },
+                  "y2": {
+                    "min": 0,
+                    "max": 14000,
+                    "step": 2000,
+                    "num": "#,##0",
+                    "grid": false
+                  },
+                  "x": {
+                    "fmt": {
+                      "b": true,
+                      "color": "#1F3864"
+                    }
+                  }
+                },
+                "sers": {
+                  "vol": {
+                    "n": 1,
+                    "group": "wk",
+                    "type": "line",
+                    "axis": "y",
+                    "smooth": true,
+                    "color": "#1F3864",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ],
+                    "marker": {
+                      "shape": "circle",
+                      "size": 9
+                    },
+                    "points": {
+                      "0": {
+                        "marker": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "value"
+                      ],
+                      "pos": "above",
+                      "fmt": {
+                        "b": true,
+                        "color": "#1F3864"
+                      }
+                    }
+                  },
+                  "act": {
+                    "n": 2,
+                    "group": "tgt",
+                    "type": "column",
+                    "axis": "y2",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      },
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      }
+                    ],
+                    "target": [
+                      {
+                        "sheet": "Targets",
+                        "range": "B3:C3"
+                      }
+                    ],
+                    "points": {
+                      "0": {
+                        "color": "#1F3864"
+                      },
+                      "1": {
+                        "color": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "ofTarget"
+                      ],
+                      "pos": "inEnd",
+                      "fmt": {
+                        "b": true,
+                        "color": "#FFFFFF"
+                      }
+                    }
+                  }
+                },
+                "marks": {
+                  "start": {
+                    "kind": "arrow",
+                    "a": {
+                      "s": "vol",
+                      "i": 0
+                    },
+                    "b": "floor",
+                    "style": {
+                      "color": "#1F3864",
+                      "w": 1.5,
+                      "heads": {
+                        "a": "triangle"
+                      }
+                    }
+                  },
+                  "ib": {
+                    "kind": "icon",
+                    "icon": "tabler:target",
+                    "a": {
+                      "s": "act",
+                      "i": 0
+                    },
+                    "dy": -46,
+                    "size": 26
+                  },
+                  "tb": {
+                    "kind": "text",
+                    "text": "{Targets!B3}",
+                    "a": {
+                      "s": "act",
+                      "i": 0
+                    },
+                    "dy": -14,
+                    "fmt": {
+                      "b": true,
+                      "size": 22
+                    }
+                  }
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "gap": 50,
+          "legendAt": "bottom",
+          "sers": {
+            "vol": null,
+            "bud": {
+              "n": 3,
+              "vals": [
+                {
+                  "sheet": "Targets",
+                  "range": "B3"
+                }
+              ]
+            }
+          },
+          "marks": {
+            "tb": {
+              "kind": "text",
+              "text": "x",
+              "a": {
+                "s": "act",
+                "i": 1
+              }
+            }
+          },
+          "axes": {
+            "y": {
+              "min": 0
+            }
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "gap": null,
+          "legendAt": "none",
+          "sers": {
+            "vol": {
+              "n": 1,
+              "group": "wk",
+              "type": "line",
+              "axis": "y",
+              "smooth": true,
+              "color": "#1F3864",
+              "vals": [
+                {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                }
+              ],
+              "marker": {
+                "shape": "circle",
+                "size": 9
+              },
+              "points": {
+                "0": {
+                  "marker": "#A6A6A6"
+                }
+              },
+              "labels": {
+                "show": [
+                  "value"
+                ],
+                "pos": "above",
+                "fmt": {
+                  "b": true,
+                  "color": "#1F3864"
+                }
+              }
+            },
+            "bud": null
+          },
+          "marks": {
+            "tb": {
+              "kind": "text",
+              "text": "{Targets!B3}",
+              "a": {
+                "s": "act",
+                "i": 0
+              },
+              "dy": -14,
+              "fmt": {
+                "b": true,
+                "size": 22
+              }
+            }
+          },
+          "axes": {
+            "y": {
+              "min": 11000,
+              "max": 11700,
+              "step": 100,
+              "num": "#,##0",
+              "grid": false
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "combo",
+                "title": "Loans Volume - Weekly Evolution",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "titleFmt": {
+                  "b": true,
+                  "color": "#1F3864"
+                },
+                "titleRule": {
+                  "color": "#1F3864",
+                  "w": 1.5
+                },
+                "frame": {
+                  "color": "#D9D9D9",
+                  "w": 1
+                },
+                "legendAt": "none",
+                "groups": {
+                  "wk": {
+                    "n": 1,
+                    "cats": {
+                      "sheet": "Weekly",
+                      "range": "C4:F4"
+                    }
+                  },
+                  "tgt": {
+                    "n": 2,
+                    "cats": {
+                      "sheet": "Targets",
+                      "range": "B2:C2"
+                    },
+                    "divider": {
+                      "color": "#7F7F7F",
+                      "w": 1,
+                      "dash": "dashed"
+                    }
+                  }
+                },
+                "axes": {
+                  "y": {
+                    "min": 11000,
+                    "max": 11700,
+                    "step": 100,
+                    "num": "#,##0",
+                    "grid": false
+                  },
+                  "y2": {
+                    "min": 0,
+                    "max": 14000,
+                    "step": 2000,
+                    "num": "#,##0",
+                    "grid": false
+                  },
+                  "x": {
+                    "fmt": {
+                      "b": true,
+                      "color": "#1F3864"
+                    }
+                  }
+                },
+                "sers": {
+                  "act": {
+                    "n": 2,
+                    "group": "tgt",
+                    "type": "column",
+                    "axis": "y2",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      },
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      }
+                    ],
+                    "target": [
+                      {
+                        "sheet": "Targets",
+                        "range": "B3:C3"
+                      }
+                    ],
+                    "points": {
+                      "0": {
+                        "color": "#1F3864"
+                      },
+                      "1": {
+                        "color": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "ofTarget"
+                      ],
+                      "pos": "inEnd",
+                      "fmt": {
+                        "b": true,
+                        "color": "#FFFFFF"
+                      }
+                    }
+                  },
+                  "vol": {
+                    "n": 1,
+                    "group": "wk",
+                    "type": "line",
+                    "axis": "y",
+                    "smooth": true,
+                    "color": "#1F3864",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ],
+                    "marker": {
+                      "shape": "circle",
+                      "size": 9
+                    },
+                    "points": {
+                      "0": {
+                        "marker": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "value"
+                      ],
+                      "pos": "above",
+                      "fmt": {
+                        "b": true,
+                        "color": "#1F3864"
+                      }
+                    }
+                  }
+                },
+                "marks": {
+                  "start": {
+                    "kind": "arrow",
+                    "a": {
+                      "s": "vol",
+                      "i": 0
+                    },
+                    "b": "floor",
+                    "style": {
+                      "color": "#1F3864",
+                      "w": 1.5,
+                      "heads": {
+                        "a": "triangle"
+                      }
+                    }
+                  },
+                  "ib": {
+                    "kind": "icon",
+                    "icon": "tabler:target",
+                    "a": {
+                      "s": "act",
+                      "i": 0
+                    },
+                    "dy": -46,
+                    "size": 26
+                  },
+                  "tb": {
+                    "kind": "text",
+                    "text": "{Targets!B3}",
+                    "a": {
+                      "s": "act",
+                      "i": 0
+                    },
+                    "dy": -14,
+                    "fmt": {
+                      "b": true,
+                      "size": 22
+                    }
+                  }
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "gap": null,
+            "legendAt": "none",
+            "sers": {
+              "vol": {
+                "n": 1,
+                "group": "wk",
+                "type": "line",
+                "axis": "y",
+                "smooth": true,
+                "color": "#1F3864",
+                "vals": [
+                  {
+                    "sheet": "Weekly",
+                    "range": "C5:F5"
+                  }
+                ],
+                "marker": {
+                  "shape": "circle",
+                  "size": 9
+                },
+                "points": {
+                  "0": {
+                    "marker": "#A6A6A6"
+                  }
+                },
+                "labels": {
+                  "show": [
+                    "value"
+                  ],
+                  "pos": "above",
+                  "fmt": {
+                    "b": true,
+                    "color": "#1F3864"
+                  }
+                }
+              },
+              "bud": null
+            },
+            "marks": {
+              "tb": {
+                "kind": "text",
+                "text": "{Targets!B3}",
+                "a": {
+                  "s": "act",
+                  "i": 0
+                },
+                "dy": -14,
+                "fmt": {
+                  "b": true,
+                  "size": 22
+                }
+              }
+            },
+            "axes": {
+              "y": {
+                "min": 11000,
+                "max": 11700,
+                "step": 100,
+                "num": "#,##0",
+                "grid": false
+              }
+            }
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "gap": 50,
+            "legendAt": "bottom",
+            "sers": {
+              "vol": null,
+              "bud": {
+                "n": 3,
+                "vals": [
+                  {
+                    "sheet": "Targets",
+                    "range": "B3"
+                  }
+                ]
+              }
+            },
+            "marks": {
+              "tb": {
+                "kind": "text",
+                "text": "x",
+                "a": {
+                  "s": "act",
+                  "i": 1
+                }
+              }
+            },
+            "axes": {
+              "y": {
+                "min": 0
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M14 item.patch an unknown value is skipped: a map given as a non-object (kept as it was, and by the undo too), a __proto__ series; the rest of the patch applies; a series' unknown keys are kept whole",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "sers": {
+                  "s1": {
+                    "n": 1,
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ]
+                  }
+                },
+                "marks": {
+                  "m1": {
+                    "kind": "text",
+                    "text": "Q3",
+                    "a": {
+                      "s": "s1",
+                      "i": 0
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "sers": "s2",
+          "marks": [
+            1,
+            2
+          ],
+          "axes": 7,
+          "gap": 120
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c1",
+        "patch": {
+          "sers": {
+            "__proto__": {
+              "n": 9,
+              "vals": []
+            },
+            "s2": {
+              "n": 2,
+              "vals": [],
+              "later": {
+                "k": 1
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "sers": {
+                  "s1": {
+                    "n": 1,
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ]
+                  },
+                  "s2": {
+                    "n": 2,
+                    "vals": [],
+                    "later": {
+                      "k": 1
+                    }
+                  }
+                },
+                "marks": {
+                  "m1": {
+                    "kind": "text",
+                    "text": "Q3",
+                    "a": {
+                      "s": "s1",
+                      "i": 0
+                    }
+                  }
+                },
+                "gap": 120
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "gap": null
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "c1",
+          "patch": {
+            "sers": {
+              "s2": null
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M14 item.patch a series patch on a missing chart, or on a slide removed meanwhile, is skipped",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "c9",
+        "patch": {
+          "sers": {
+            "s1": {
+              "n": 1,
+              "vals": []
+            }
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "gone",
+        "id": "c1",
+        "patch": {
+          "sers": {
+            "s1": {
+              "n": 1,
+              "vals": []
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 0,
+      "skipped": [
+        0,
+        1
+      ],
+      "inverses": [
+        null,
+        null
+      ]
+    }
+  },
+  {
+    "name": "M15 item.patch creates a line (a horizontal one: its box padded to 2 px high) and a vertical one; the inverse deletes each",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l1",
+        "patch": {
+          "kind": "line",
+          "route": "straight",
+          "a": {
+            "x": 200,
+            "y": 400
+          },
+          "b": {
+            "x": 600,
+            "y": 400
+          },
+          "style": {
+            "color": "#1F3864",
+            "w": 2,
+            "heads": {
+              "b": "triangle",
+              "size": "m"
+            }
+          },
+          "box": {
+            "x": 199,
+            "y": 399,
+            "w": 402,
+            "h": 2
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l2",
+        "patch": {
+          "kind": "line",
+          "route": "straight",
+          "a": {
+            "x": 800,
+            "y": 120
+          },
+          "b": {
+            "x": 800,
+            "y": 700
+          },
+          "style": {
+            "w": 1,
+            "dash": "dashed"
+          },
+          "box": {
+            "x": 799,
+            "y": 119,
+            "w": 2,
+            "h": 582
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "box": {
+                  "x": 199,
+                  "y": 399,
+                  "w": 402,
+                  "h": 2
+                },
+                "route": "straight",
+                "a": {
+                  "x": 200,
+                  "y": 400
+                },
+                "b": {
+                  "x": 600,
+                  "y": 400
+                },
+                "style": {
+                  "color": "#1F3864",
+                  "w": 2,
+                  "heads": {
+                    "b": "triangle",
+                    "size": "m"
+                  }
+                }
+              },
+              "l2": {
+                "kind": "line",
+                "box": {
+                  "x": 799,
+                  "y": 119,
+                  "w": 2,
+                  "h": 582
+                },
+                "route": "straight",
+                "a": {
+                  "x": 800,
+                  "y": 120
+                },
+                "b": {
+                  "x": 800,
+                  "y": 700
+                },
+                "style": {
+                  "w": 1,
+                  "dash": "dashed"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": null
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l2",
+          "patch": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "M15 item.patch a line of zero height (an unpadded box) is skipped: item.patch needs w, h > 0",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l1",
+        "patch": {
+          "kind": "line",
+          "route": "straight",
+          "a": {
+            "x": 200,
+            "y": 400
+          },
+          "b": {
+            "x": 600,
+            "y": 400
+          },
+          "style": {
+            "color": "#1F3864",
+            "w": 2,
+            "heads": {
+              "b": "triangle",
+              "size": "m"
+            }
+          },
+          "box": {
+            "x": 200,
+            "y": 400,
+            "w": 400,
+            "h": 0
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 0,
+      "skipped": [
+        0
+      ],
+      "inverses": [
+        null
+      ]
+    }
+  },
+  {
+    "name": "M15 item.patch moves a line (a, b, box), attaches its end a, restyles it: ends and style are replaced whole (heads gone when not given)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "route": "straight",
+                "a": {
+                  "x": 200,
+                  "y": 400
+                },
+                "b": {
+                  "x": 600,
+                  "y": 400
+                },
+                "style": {
+                  "color": "#1F3864",
+                  "w": 2,
+                  "heads": {
+                    "b": "triangle",
+                    "size": "m"
+                  }
+                },
+                "box": {
+                  "x": 199,
+                  "y": 399,
+                  "w": 402,
+                  "h": 2
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l1",
+        "patch": {
+          "a": {
+            "x": 220,
+            "y": 420
+          },
+          "b": {
+            "x": 620,
+            "y": 420
+          },
+          "box": {
+            "x": 219,
+            "y": 419,
+            "w": 402,
+            "h": 2
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l1",
+        "patch": {
+          "ends": {
+            "a": {
+              "to": "i:k1",
+              "at": "b",
+              "dy": 4
+            }
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l1",
+        "patch": {
+          "style": {
+            "color": "#C00000",
+            "w": 3,
+            "dash": "dotted"
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "route": "straight",
+                "a": {
+                  "x": 220,
+                  "y": 420
+                },
+                "b": {
+                  "x": 620,
+                  "y": 420
+                },
+                "style": {
+                  "color": "#C00000",
+                  "w": 3,
+                  "dash": "dotted"
+                },
+                "box": {
+                  "x": 219,
+                  "y": 419,
+                  "w": 402,
+                  "h": 2
+                },
+                "ends": {
+                  "a": {
+                    "to": "i:k1",
+                    "at": "b",
+                    "dy": 4
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 3,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": {
+            "a": {
+              "x": 200,
+              "y": 400
+            },
+            "b": {
+              "x": 600,
+              "y": 400
+            },
+            "box": {
+              "x": 199,
+              "y": 399,
+              "w": 402,
+              "h": 2
+            }
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": {
+            "ends": null
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": {
+            "style": {
+              "color": "#1F3864",
+              "w": 2,
+              "heads": {
+                "b": "triangle",
+                "size": "m"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M15 item.patch elbow, curve, bracket and range lines: route, mid, bend; the label text and fmt (a map)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "route": "straight",
+                "a": {
+                  "x": 200,
+                  "y": 400
+                },
+                "b": {
+                  "x": 600,
+                  "y": 400
+                },
+                "style": {
+                  "color": "#1F3864",
+                  "w": 2,
+                  "heads": {
+                    "b": "triangle",
+                    "size": "m"
+                  }
+                },
+                "box": {
+                  "x": 199,
+                  "y": 399,
+                  "w": 402,
+                  "h": 2
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l1",
+        "patch": {
+          "route": "elbow",
+          "mid": 0.3,
+          "bend": "vh"
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l1",
+        "patch": {
+          "route": "bracket",
+          "mid": 18,
+          "bend": null,
+          "text": "{Weekly!F5}",
+          "fmt": {
+            "b": true,
+            "size": 14
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l1",
+        "patch": {
+          "route": "range",
+          "style": {
+            "w": 1.5,
+            "heads": {
+              "a": "bar",
+              "b": "bar"
+            }
+          },
+          "fmt": {
+            "size": 12
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "route": "range",
+                "a": {
+                  "x": 200,
+                  "y": 400
+                },
+                "b": {
+                  "x": 600,
+                  "y": 400
+                },
+                "style": {
+                  "w": 1.5,
+                  "heads": {
+                    "a": "bar",
+                    "b": "bar"
+                  }
+                },
+                "box": {
+                  "x": 199,
+                  "y": 399,
+                  "w": 402,
+                  "h": 2
+                },
+                "mid": 18,
+                "text": "{Weekly!F5}",
+                "fmt": {
+                  "b": true,
+                  "size": 12
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 3,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": {
+            "route": "straight",
+            "mid": null,
+            "bend": null
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": {
+            "route": "elbow",
+            "mid": 0.3,
+            "bend": "vh",
+            "text": null,
+            "fmt": {
+              "b": null,
+              "size": null
+            }
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": {
+            "route": "bracket",
+            "style": {
+              "color": "#1F3864",
+              "w": 2,
+              "heads": {
+                "b": "triangle",
+                "size": "m"
+              }
+            },
+            "fmt": {
+              "size": 14
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M15 item.patch two writers on one line: a move and a restyle both win; the same key (style) - the later op's whole value wins",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "route": "straight",
+                "a": {
+                  "x": 200,
+                  "y": 400
+                },
+                "b": {
+                  "x": 600,
+                  "y": 400
+                },
+                "style": {
+                  "color": "#1F3864",
+                  "w": 2,
+                  "heads": {
+                    "b": "triangle",
+                    "size": "m"
+                  }
+                },
+                "box": {
+                  "x": 199,
+                  "y": 399,
+                  "w": 402,
+                  "h": 2
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l1",
+        "patch": {
+          "a": {
+            "x": 0,
+            "y": 10
+          },
+          "box": {
+            "x": 0,
+            "y": 9,
+            "w": 601,
+            "h": 392
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l1",
+        "patch": {
+          "style": {
+            "color": "#00B050",
+            "w": 2
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l1",
+        "patch": {
+          "style": {
+            "w": 4,
+            "heads": {
+              "a": "oval"
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "route": "straight",
+                "a": {
+                  "x": 0,
+                  "y": 10
+                },
+                "b": {
+                  "x": 600,
+                  "y": 400
+                },
+                "style": {
+                  "w": 4,
+                  "heads": {
+                    "a": "oval"
+                  }
+                },
+                "box": {
+                  "x": 0,
+                  "y": 9,
+                  "w": 601,
+                  "h": 392
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 3,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": {
+            "a": {
+              "x": 200,
+              "y": 400
+            },
+            "box": {
+              "x": 199,
+              "y": 399,
+              "w": 402,
+              "h": 2
+            }
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": {
+            "style": {
+              "color": "#1F3864",
+              "w": 2,
+              "heads": {
+                "b": "triangle",
+                "size": "m"
+              }
+            }
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": {
+            "style": {
+              "color": "#00B050",
+              "w": 2
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M15 item.patch null deletes a line; its inverse puts it back whole (attached end and style)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "route": "straight",
+                "a": {
+                  "x": 200,
+                  "y": 400
+                },
+                "b": {
+                  "x": 600,
+                  "y": 400
+                },
+                "style": {
+                  "color": "#1F3864",
+                  "w": 2,
+                  "heads": {
+                    "b": "triangle",
+                    "size": "m"
+                  }
+                },
+                "box": {
+                  "x": 199,
+                  "y": 399,
+                  "w": 402,
+                  "h": 2
+                },
+                "ends": {
+                  "a": {
+                    "to": "t:t1",
+                    "at": "r"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l1",
+        "patch": null
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": {
+            "kind": "line",
+            "route": "straight",
+            "a": {
+              "x": 200,
+              "y": 400
+            },
+            "b": {
+              "x": 600,
+              "y": 400
+            },
+            "style": {
+              "color": "#1F3864",
+              "w": 2,
+              "heads": {
+                "b": "triangle",
+                "size": "m"
+              }
+            },
+            "box": {
+              "x": 199,
+              "y": 399,
+              "w": 402,
+              "h": 2
+            },
+            "ends": {
+              "a": {
+                "to": "t:t1",
+                "at": "r"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M15 item.patch a later page's line kind or route value: an unknown kind is skipped, a route value is kept (values are not checked)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "route": "straight",
+                "a": {
+                  "x": 200,
+                  "y": 400
+                },
+                "b": {
+                  "x": 600,
+                  "y": 400
+                },
+                "style": {
+                  "color": "#1F3864",
+                  "w": 2,
+                  "heads": {
+                    "b": "triangle",
+                    "size": "m"
+                  }
+                },
+                "box": {
+                  "x": 199,
+                  "y": 399,
+                  "w": 402,
+                  "h": 2
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l2",
+        "patch": {
+          "kind": "connector",
+          "a": {
+            "x": 0,
+            "y": 0
+          },
+          "b": {
+            "x": 9,
+            "y": 9
+          },
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 9,
+            "h": 9
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "l1",
+        "patch": {
+          "route": "zigzag"
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "route": "zigzag",
+                "a": {
+                  "x": 200,
+                  "y": 400
+                },
+                "b": {
+                  "x": 600,
+                  "y": 400
+                },
+                "style": {
+                  "color": "#1F3864",
+                  "w": 2,
+                  "heads": {
+                    "b": "triangle",
+                    "size": "m"
+                  }
+                },
+                "box": {
+                  "x": 199,
+                  "y": 399,
+                  "w": 402,
+                  "h": 2
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [
+        0
+      ],
+      "inverses": [
+        null,
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": {
+            "route": "straight"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M15 item.patch a Tabler icon with its outline width (stroke); stroke null goes back to the default; the inverse per key",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "k1",
+        "patch": {
+          "kind": "shape",
+          "shape": "icon",
+          "icon": "tabler:target",
+          "stroke": 1.5,
+          "fill": "#1F3864",
+          "box": {
+            "x": 700,
+            "y": 300,
+            "w": 48,
+            "h": 48
+          }
+        }
+      },
+      {
+        "op": "item.patch",
+        "slide": "s1",
+        "id": "k1",
+        "patch": {
+          "icon": "tabler-filled:star",
+          "stroke": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "k1": {
+                "kind": "shape",
+                "box": {
+                  "x": 700,
+                  "y": 300,
+                  "w": 48,
+                  "h": 48
+                },
+                "shape": "icon",
+                "icon": "tabler-filled:star",
+                "fill": "#1F3864"
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "k1",
+          "patch": null
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "k1",
+          "patch": {
+            "icon": "tabler:target",
+            "stroke": 1.5
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "M15 slide.patch free: a line's entry carries its ends a / b in that design (inside the known map), replaced whole",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "route": "straight",
+                "a": {
+                  "x": 200,
+                  "y": 400
+                },
+                "b": {
+                  "x": 600,
+                  "y": 400
+                },
+                "style": {
+                  "color": "#1F3864",
+                  "w": 2,
+                  "heads": {
+                    "b": "triangle",
+                    "size": "m"
+                  }
+                },
+                "box": {
+                  "x": 199,
+                  "y": 399,
+                  "w": 402,
+                  "h": 2
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "glass": {
+              "on": true,
+              "items": {
+                "i:l1": {
+                  "x": 299,
+                  "y": 499,
+                  "w": 402,
+                  "h": 2,
+                  "a": {
+                    "x": 300,
+                    "y": 500
+                  },
+                  "b": {
+                    "x": 700,
+                    "y": 500
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "free": {
+            "glass": {
+              "on": true,
+              "items": {
+                "i:l1": {
+                  "x": 299,
+                  "y": 509,
+                  "w": 402,
+                  "h": 2,
+                  "a": {
+                    "x": 300,
+                    "y": 510
+                  },
+                  "b": {
+                    "x": 700,
+                    "y": 510
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "route": "straight",
+                "a": {
+                  "x": 200,
+                  "y": 400
+                },
+                "b": {
+                  "x": 600,
+                  "y": 400
+                },
+                "style": {
+                  "color": "#1F3864",
+                  "w": 2,
+                  "heads": {
+                    "b": "triangle",
+                    "size": "m"
+                  }
+                },
+                "box": {
+                  "x": 199,
+                  "y": 399,
+                  "w": 402,
+                  "h": 2
+                }
+              }
+            },
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {
+                  "i:l1": {
+                    "x": 299,
+                    "y": 509,
+                    "w": 402,
+                    "h": 2,
+                    "a": {
+                      "x": 300,
+                      "y": 510
+                    },
+                    "b": {
+                      "x": 700,
+                      "y": 510
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "free": {
+              "glass": null
+            }
+          }
+        },
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {
+                  "i:l1": {
+                    "x": 299,
+                    "y": 499,
+                    "w": 402,
+                    "h": 2,
+                    "a": {
+                      "x": 300,
+                      "y": 500
+                    },
+                    "b": {
+                      "x": 700,
+                      "y": 500
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "fold: M14 sers two writers both win - each edits a series of one chart, in any order the records arrive (09 §6 row 1)",
+    "fold": {
+      "snapshot": {
+        "format": 5,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": {
+            "sheets": [
+              "Weekly",
+              "Targets"
+            ],
+            "tables": [],
+            "slides": [
+              {
+                "id": "s1",
+                "type": "content",
+                "tables": [],
+                "items": {
+                  "c1": {
+                    "kind": "chart",
+                    "type": "combo",
+                    "values": {
+                      "sheet": "Weekly",
+                      "range": "C5:F5"
+                    },
+                    "box": {
+                      "x": 120,
+                      "y": 180,
+                      "w": 1360,
+                      "h": 620
+                    },
+                    "sers": {
+                      "vol": {
+                        "n": 1,
+                        "group": "wk",
+                        "type": "line",
+                        "axis": "y",
+                        "smooth": true,
+                        "color": "#1F3864",
+                        "vals": [
+                          {
+                            "sheet": "Weekly",
+                            "range": "C5:F5"
+                          }
+                        ],
+                        "marker": {
+                          "shape": "circle",
+                          "size": 9
+                        },
+                        "points": {
+                          "0": {
+                            "marker": "#A6A6A6"
+                          }
+                        },
+                        "labels": {
+                          "show": [
+                            "value"
+                          ],
+                          "pos": "above",
+                          "fmt": {
+                            "b": true,
+                            "color": "#1F3864"
+                          }
+                        }
+                      },
+                      "act": {
+                        "n": 2,
+                        "group": "tgt",
+                        "type": "column",
+                        "axis": "y2",
+                        "vals": [
+                          {
+                            "sheet": "Weekly",
+                            "range": "F5"
+                          },
+                          {
+                            "sheet": "Weekly",
+                            "range": "F5"
+                          }
+                        ],
+                        "target": [
+                          {
+                            "sheet": "Targets",
+                            "range": "B3:C3"
+                          }
+                        ],
+                        "points": {
+                          "0": {
+                            "color": "#1F3864"
+                          },
+                          "1": {
+                            "color": "#A6A6A6"
+                          }
+                        },
+                        "labels": {
+                          "show": [
+                            "ofTarget"
+                          ],
+                          "pos": "inEnd",
+                          "fmt": {
+                            "b": true,
+                            "color": "#FFFFFF"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": 2,
+          "w": "bob@pc2#bbbbbbbb",
+          "s": 1,
+          "by": "bob",
+          "at": 2000,
+          "ops": [
+            {
+              "op": "item.patch",
+              "slide": "s1",
+              "id": "c1",
+              "patch": {
+                "sers": {
+                  "act": {
+                    "n": 2,
+                    "group": "tgt",
+                    "type": "column",
+                    "axis": "y",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      },
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      }
+                    ],
+                    "target": [
+                      {
+                        "sheet": "Targets",
+                        "range": "B3:C3"
+                      }
+                    ],
+                    "points": {
+                      "0": {
+                        "color": "#1F3864"
+                      },
+                      "1": {
+                        "color": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "ofTarget"
+                      ],
+                      "pos": "inEnd",
+                      "fmt": {
+                        "b": true,
+                        "color": "#FFFFFF"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "l": 1,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 1000,
+          "ops": [
+            {
+              "op": "item.patch",
+              "slide": "s1",
+              "id": "c1",
+              "patch": {
+                "sers": {
+                  "vol": {
+                    "n": 1,
+                    "group": "wk",
+                    "type": "line",
+                    "axis": "y",
+                    "smooth": true,
+                    "color": "#00B050",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ],
+                    "marker": {
+                      "shape": "circle",
+                      "size": 9
+                    },
+                    "points": {
+                      "0": {
+                        "marker": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "value"
+                      ],
+                      "pos": "above",
+                      "fmt": {
+                        "b": true,
+                        "color": "#1F3864"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "l": 3,
+          "w": "carl@pc3#cccccccc",
+          "s": 1,
+          "by": "carl",
+          "at": 3000,
+          "ops": [
+            {
+              "op": "item.patch",
+              "slide": "s1",
+              "id": "c1",
+              "patch": {
+                "sers": {
+                  "bud": {
+                    "n": 3,
+                    "vals": [
+                      {
+                        "sheet": "[Budget.xlsx]Plan",
+                        "range": "D9"
+                      }
+                    ]
+                  }
+                },
+                "gap": 60
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {},
+      "rev": 3,
+      "lamport": 3,
+      "updatedBy": "carl",
+      "updated": 3000,
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "combo",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "sers": {
+                  "vol": {
+                    "n": 1,
+                    "group": "wk",
+                    "type": "line",
+                    "axis": "y",
+                    "smooth": true,
+                    "color": "#00B050",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ],
+                    "marker": {
+                      "shape": "circle",
+                      "size": 9
+                    },
+                    "points": {
+                      "0": {
+                        "marker": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "value"
+                      ],
+                      "pos": "above",
+                      "fmt": {
+                        "b": true,
+                        "color": "#1F3864"
+                      }
+                    }
+                  },
+                  "act": {
+                    "n": 2,
+                    "group": "tgt",
+                    "type": "column",
+                    "axis": "y",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      },
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      }
+                    ],
+                    "target": [
+                      {
+                        "sheet": "Targets",
+                        "range": "B3:C3"
+                      }
+                    ],
+                    "points": {
+                      "0": {
+                        "color": "#1F3864"
+                      },
+                      "1": {
+                        "color": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "ofTarget"
+                      ],
+                      "pos": "inEnd",
+                      "fmt": {
+                        "b": true,
+                        "color": "#FFFFFF"
+                      }
+                    }
+                  },
+                  "bud": {
+                    "n": 3,
+                    "vals": [
+                      {
+                        "sheet": "[Budget.xlsx]Plan",
+                        "range": "D9"
+                      }
+                    ]
+                  }
+                },
+                "gap": 60
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "fold: M14 two writers, one series - Lamport order decides: the later whole series wins, its points too (09 §6 row 18)",
+    "fold": {
+      "snapshot": {
+        "format": 5,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": {
+            "sheets": [
+              "Weekly",
+              "Targets"
+            ],
+            "tables": [],
+            "slides": [
+              {
+                "id": "s1",
+                "type": "content",
+                "tables": [],
+                "items": {
+                  "c1": {
+                    "kind": "chart",
+                    "type": "line",
+                    "values": {
+                      "sheet": "Weekly",
+                      "range": "C5:F5"
+                    },
+                    "box": {
+                      "x": 120,
+                      "y": 180,
+                      "w": 1360,
+                      "h": 620
+                    },
+                    "sers": {
+                      "vol": {
+                        "n": 1,
+                        "group": "wk",
+                        "type": "line",
+                        "axis": "y",
+                        "smooth": true,
+                        "color": "#1F3864",
+                        "vals": [
+                          {
+                            "sheet": "Weekly",
+                            "range": "C5:F5"
+                          }
+                        ],
+                        "marker": {
+                          "shape": "circle",
+                          "size": 9
+                        },
+                        "points": {
+                          "0": {
+                            "marker": "#A6A6A6"
+                          }
+                        },
+                        "labels": {
+                          "show": [
+                            "value"
+                          ],
+                          "pos": "above",
+                          "fmt": {
+                            "b": true,
+                            "color": "#1F3864"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": 2,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 1000,
+          "ops": [
+            {
+              "op": "item.patch",
+              "slide": "s1",
+              "id": "c1",
+              "patch": {
+                "sers": {
+                  "vol": {
+                    "n": 1,
+                    "group": "wk",
+                    "type": "line",
+                    "axis": "y",
+                    "smooth": true,
+                    "color": "#1F3864",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ],
+                    "marker": {
+                      "shape": "circle",
+                      "size": 9
+                    },
+                    "points": {
+                      "1": {
+                        "label": null
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "value"
+                      ],
+                      "pos": "above",
+                      "fmt": {
+                        "b": true,
+                        "color": "#1F3864"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "l": 1,
+          "w": "bob@pc2#bbbbbbbb",
+          "s": 1,
+          "by": "bob",
+          "at": 2000,
+          "ops": [
+            {
+              "op": "item.patch",
+              "slide": "s1",
+              "id": "c1",
+              "patch": {
+                "sers": {
+                  "vol": {
+                    "n": 1,
+                    "group": "wk",
+                    "type": "line",
+                    "axis": "y",
+                    "smooth": true,
+                    "color": "#1F3864",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ],
+                    "marker": {
+                      "shape": "circle",
+                      "size": 9
+                    },
+                    "points": {
+                      "0": {
+                        "marker": "#A6A6A6"
+                      },
+                      "2": {
+                        "color": "#C00000"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "value"
+                      ],
+                      "pos": "above",
+                      "fmt": {
+                        "b": true,
+                        "color": "#1F3864"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {},
+      "rev": 2,
+      "lamport": 2,
+      "updatedBy": "anna",
+      "updated": 1000,
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "line",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "sers": {
+                  "vol": {
+                    "n": 1,
+                    "group": "wk",
+                    "type": "line",
+                    "axis": "y",
+                    "smooth": true,
+                    "color": "#1F3864",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ],
+                    "marker": {
+                      "shape": "circle",
+                      "size": 9
+                    },
+                    "points": {
+                      "1": {
+                        "label": null
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "value"
+                      ],
+                      "pos": "above",
+                      "fmt": {
+                        "b": true,
+                        "color": "#1F3864"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "fold: M14 marks, groups and legendHide of two writers merge per entry; a mark deleted by one and restyled by the other - Lamport decides",
+    "fold": {
+      "snapshot": {
+        "format": 5,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": {
+            "sheets": [
+              "Weekly",
+              "Targets"
+            ],
+            "tables": [],
+            "slides": [
+              {
+                "id": "s1",
+                "type": "content",
+                "tables": [],
+                "items": {
+                  "c1": {
+                    "kind": "chart",
+                    "type": "combo",
+                    "title": "Loans Volume - Weekly Evolution",
+                    "values": {
+                      "sheet": "Weekly",
+                      "range": "C5:F5"
+                    },
+                    "titleFmt": {
+                      "b": true,
+                      "color": "#1F3864"
+                    },
+                    "titleRule": {
+                      "color": "#1F3864",
+                      "w": 1.5
+                    },
+                    "frame": {
+                      "color": "#D9D9D9",
+                      "w": 1
+                    },
+                    "legendAt": "none",
+                    "groups": {
+                      "wk": {
+                        "n": 1,
+                        "cats": {
+                          "sheet": "Weekly",
+                          "range": "C4:F4"
+                        }
+                      },
+                      "tgt": {
+                        "n": 2,
+                        "cats": {
+                          "sheet": "Targets",
+                          "range": "B2:C2"
+                        },
+                        "divider": {
+                          "color": "#7F7F7F",
+                          "w": 1,
+                          "dash": "dashed"
+                        }
+                      }
+                    },
+                    "axes": {
+                      "y": {
+                        "min": 11000,
+                        "max": 11700,
+                        "step": 100,
+                        "num": "#,##0",
+                        "grid": false
+                      },
+                      "y2": {
+                        "min": 0,
+                        "max": 14000,
+                        "step": 2000,
+                        "num": "#,##0",
+                        "grid": false
+                      },
+                      "x": {
+                        "fmt": {
+                          "b": true,
+                          "color": "#1F3864"
+                        }
+                      }
+                    },
+                    "sers": {
+                      "vol": {
+                        "n": 1,
+                        "group": "wk",
+                        "type": "line",
+                        "axis": "y",
+                        "smooth": true,
+                        "color": "#1F3864",
+                        "vals": [
+                          {
+                            "sheet": "Weekly",
+                            "range": "C5:F5"
+                          }
+                        ],
+                        "marker": {
+                          "shape": "circle",
+                          "size": 9
+                        },
+                        "points": {
+                          "0": {
+                            "marker": "#A6A6A6"
+                          }
+                        },
+                        "labels": {
+                          "show": [
+                            "value"
+                          ],
+                          "pos": "above",
+                          "fmt": {
+                            "b": true,
+                            "color": "#1F3864"
+                          }
+                        }
+                      },
+                      "act": {
+                        "n": 2,
+                        "group": "tgt",
+                        "type": "column",
+                        "axis": "y2",
+                        "vals": [
+                          {
+                            "sheet": "Weekly",
+                            "range": "F5"
+                          },
+                          {
+                            "sheet": "Weekly",
+                            "range": "F5"
+                          }
+                        ],
+                        "target": [
+                          {
+                            "sheet": "Targets",
+                            "range": "B3:C3"
+                          }
+                        ],
+                        "points": {
+                          "0": {
+                            "color": "#1F3864"
+                          },
+                          "1": {
+                            "color": "#A6A6A6"
+                          }
+                        },
+                        "labels": {
+                          "show": [
+                            "ofTarget"
+                          ],
+                          "pos": "inEnd",
+                          "fmt": {
+                            "b": true,
+                            "color": "#FFFFFF"
+                          }
+                        }
+                      }
+                    },
+                    "marks": {
+                      "start": {
+                        "kind": "arrow",
+                        "a": {
+                          "s": "vol",
+                          "i": 0
+                        },
+                        "b": "floor",
+                        "style": {
+                          "color": "#1F3864",
+                          "w": 1.5,
+                          "heads": {
+                            "a": "triangle"
+                          }
+                        }
+                      },
+                      "ib": {
+                        "kind": "icon",
+                        "icon": "tabler:target",
+                        "a": {
+                          "s": "act",
+                          "i": 0
+                        },
+                        "dy": -46,
+                        "size": 26
+                      },
+                      "tb": {
+                        "kind": "text",
+                        "text": "{Targets!B3}",
+                        "a": {
+                          "s": "act",
+                          "i": 0
+                        },
+                        "dy": -14,
+                        "fmt": {
+                          "b": true,
+                          "size": 22
+                        }
+                      }
+                    },
+                    "box": {
+                      "x": 120,
+                      "y": 180,
+                      "w": 1360,
+                      "h": 620
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": 1,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 1000,
+          "ops": [
+            {
+              "op": "item.patch",
+              "slide": "s1",
+              "id": "c1",
+              "patch": {
+                "marks": {
+                  "ib": null
+                },
+                "legendHide": {
+                  "vol": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "l": 2,
+          "w": "bob@pc2#bbbbbbbb",
+          "s": 1,
+          "by": "bob",
+          "at": 2000,
+          "ops": [
+            {
+              "op": "item.patch",
+              "slide": "s1",
+              "id": "c1",
+              "patch": {
+                "marks": {
+                  "ib": {
+                    "kind": "icon",
+                    "icon": "tabler:flag",
+                    "a": {
+                      "s": "act",
+                      "i": 0
+                    }
+                  },
+                  "ta": {
+                    "kind": "text",
+                    "text": "{Targets!C3}",
+                    "a": {
+                      "s": "act",
+                      "i": 1
+                    }
+                  }
+                },
+                "groups": {
+                  "tgt": {
+                    "n": 2,
+                    "cats": {
+                      "sheet": "Targets",
+                      "range": "B2:C2"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "l": 3,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 2,
+          "by": "anna",
+          "at": 3000,
+          "ops": [
+            {
+              "op": "item.patch",
+              "slide": "s1",
+              "id": "c1",
+              "patch": {
+                "legendHide": {
+                  "act": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {},
+      "rev": 3,
+      "lamport": 3,
+      "updatedBy": "anna",
+      "updated": 3000,
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "combo",
+                "title": "Loans Volume - Weekly Evolution",
+                "values": {
+                  "sheet": "Weekly",
+                  "range": "C5:F5"
+                },
+                "titleFmt": {
+                  "b": true,
+                  "color": "#1F3864"
+                },
+                "titleRule": {
+                  "color": "#1F3864",
+                  "w": 1.5
+                },
+                "frame": {
+                  "color": "#D9D9D9",
+                  "w": 1
+                },
+                "legendAt": "none",
+                "groups": {
+                  "wk": {
+                    "n": 1,
+                    "cats": {
+                      "sheet": "Weekly",
+                      "range": "C4:F4"
+                    }
+                  },
+                  "tgt": {
+                    "n": 2,
+                    "cats": {
+                      "sheet": "Targets",
+                      "range": "B2:C2"
+                    }
+                  }
+                },
+                "axes": {
+                  "y": {
+                    "min": 11000,
+                    "max": 11700,
+                    "step": 100,
+                    "num": "#,##0",
+                    "grid": false
+                  },
+                  "y2": {
+                    "min": 0,
+                    "max": 14000,
+                    "step": 2000,
+                    "num": "#,##0",
+                    "grid": false
+                  },
+                  "x": {
+                    "fmt": {
+                      "b": true,
+                      "color": "#1F3864"
+                    }
+                  }
+                },
+                "sers": {
+                  "vol": {
+                    "n": 1,
+                    "group": "wk",
+                    "type": "line",
+                    "axis": "y",
+                    "smooth": true,
+                    "color": "#1F3864",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "C5:F5"
+                      }
+                    ],
+                    "marker": {
+                      "shape": "circle",
+                      "size": 9
+                    },
+                    "points": {
+                      "0": {
+                        "marker": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "value"
+                      ],
+                      "pos": "above",
+                      "fmt": {
+                        "b": true,
+                        "color": "#1F3864"
+                      }
+                    }
+                  },
+                  "act": {
+                    "n": 2,
+                    "group": "tgt",
+                    "type": "column",
+                    "axis": "y2",
+                    "vals": [
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      },
+                      {
+                        "sheet": "Weekly",
+                        "range": "F5"
+                      }
+                    ],
+                    "target": [
+                      {
+                        "sheet": "Targets",
+                        "range": "B3:C3"
+                      }
+                    ],
+                    "points": {
+                      "0": {
+                        "color": "#1F3864"
+                      },
+                      "1": {
+                        "color": "#A6A6A6"
+                      }
+                    },
+                    "labels": {
+                      "show": [
+                        "ofTarget"
+                      ],
+                      "pos": "inEnd",
+                      "fmt": {
+                        "b": true,
+                        "color": "#FFFFFF"
+                      }
+                    }
+                  }
+                },
+                "marks": {
+                  "start": {
+                    "kind": "arrow",
+                    "a": {
+                      "s": "vol",
+                      "i": 0
+                    },
+                    "b": "floor",
+                    "style": {
+                      "color": "#1F3864",
+                      "w": 1.5,
+                      "heads": {
+                        "a": "triangle"
+                      }
+                    }
+                  },
+                  "tb": {
+                    "kind": "text",
+                    "text": "{Targets!B3}",
+                    "a": {
+                      "s": "act",
+                      "i": 0
+                    },
+                    "dy": -14,
+                    "fmt": {
+                      "b": true,
+                      "size": 22
+                    }
+                  },
+                  "ib": {
+                    "kind": "icon",
+                    "icon": "tabler:flag",
+                    "a": {
+                      "s": "act",
+                      "i": 0
+                    }
+                  },
+                  "ta": {
+                    "kind": "text",
+                    "text": "{Targets!C3}",
+                    "a": {
+                      "s": "act",
+                      "i": 1
+                    }
+                  }
+                },
+                "box": {
+                  "x": 120,
+                  "y": 180,
+                  "w": 1360,
+                  "h": 620
+                },
+                "legendHide": {
+                  "vol": true,
+                  "act": true
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "fold: M15 a line created by one writer, moved and attached by another, restyled by the first - any order",
+    "fold": {
+      "snapshot": {
+        "format": 5,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": {
+            "sheets": [
+              "Weekly",
+              "Targets"
+            ],
+            "tables": [],
+            "slides": [
+              {
+                "id": "s1",
+                "type": "content",
+                "tables": []
+              }
+            ]
+          },
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": 3,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 2,
+          "by": "anna",
+          "at": 3000,
+          "ops": [
+            {
+              "op": "item.patch",
+              "slide": "s1",
+              "id": "l1",
+              "patch": {
+                "style": {
+                  "color": "#C00000",
+                  "w": 3,
+                  "heads": {
+                    "a": "oval",
+                    "b": "stealth"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "l": 2,
+          "w": "bob@pc2#bbbbbbbb",
+          "s": 1,
+          "by": "bob",
+          "at": 2000,
+          "ops": [
+            {
+              "op": "item.patch",
+              "slide": "s1",
+              "id": "l1",
+              "patch": {
+                "a": {
+                  "x": 250,
+                  "y": 400
+                },
+                "box": {
+                  "x": 249,
+                  "y": 399,
+                  "w": 352,
+                  "h": 2
+                },
+                "ends": {
+                  "a": {
+                    "to": "i:k1",
+                    "at": "r"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "l": 1,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 1000,
+          "ops": [
+            {
+              "op": "item.patch",
+              "slide": "s1",
+              "id": "l1",
+              "patch": {
+                "kind": "line",
+                "route": "straight",
+                "a": {
+                  "x": 200,
+                  "y": 400
+                },
+                "b": {
+                  "x": 600,
+                  "y": 400
+                },
+                "style": {
+                  "color": "#1F3864",
+                  "w": 2,
+                  "heads": {
+                    "b": "triangle",
+                    "size": "m"
+                  }
+                },
+                "box": {
+                  "x": 199,
+                  "y": 399,
+                  "w": 402,
+                  "h": 2
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {},
+      "rev": 3,
+      "lamport": 3,
+      "updatedBy": "anna",
+      "updated": 3000,
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "box": {
+                  "x": 249,
+                  "y": 399,
+                  "w": 352,
+                  "h": 2
+                },
+                "route": "straight",
+                "a": {
+                  "x": 250,
+                  "y": 400
+                },
+                "b": {
+                  "x": 600,
+                  "y": 400
+                },
+                "style": {
+                  "color": "#C00000",
+                  "w": 3,
+                  "heads": {
+                    "a": "oval",
+                    "b": "stealth"
+                  }
+                },
+                "ends": {
+                  "a": {
+                    "to": "i:k1",
+                    "at": "r"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "fold: M15 a line deleted by one writer while another restyles it - the restyle after the delete is skipped, before it is lost with the line",
+    "fold": {
+      "snapshot": {
+        "format": 5,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": {
+            "sheets": [
+              "Weekly",
+              "Targets"
+            ],
+            "tables": [],
+            "slides": [
+              {
+                "id": "s1",
+                "type": "content",
+                "tables": [],
+                "items": {
+                  "l1": {
+                    "kind": "line",
+                    "route": "straight",
+                    "a": {
+                      "x": 200,
+                      "y": 400
+                    },
+                    "b": {
+                      "x": 600,
+                      "y": 400
+                    },
+                    "style": {
+                      "color": "#1F3864",
+                      "w": 2,
+                      "heads": {
+                        "b": "triangle",
+                        "size": "m"
+                      }
+                    },
+                    "box": {
+                      "x": 199,
+                      "y": 399,
+                      "w": 402,
+                      "h": 2
+                    }
+                  },
+                  "l2": {
+                    "kind": "line",
+                    "route": "straight",
+                    "a": {
+                      "x": 800,
+                      "y": 120
+                    },
+                    "b": {
+                      "x": 800,
+                      "y": 700
+                    },
+                    "style": {
+                      "w": 1,
+                      "dash": "dashed"
+                    },
+                    "box": {
+                      "x": 799,
+                      "y": 119,
+                      "w": 2,
+                      "h": 582
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": 2,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 1000,
+          "ops": [
+            {
+              "op": "item.patch",
+              "slide": "s1",
+              "id": "l1",
+              "patch": null
+            }
+          ]
+        },
+        {
+          "l": 3,
+          "w": "bob@pc2#bbbbbbbb",
+          "s": 1,
+          "by": "bob",
+          "at": 2000,
+          "ops": [
+            {
+              "op": "item.patch",
+              "slide": "s1",
+              "id": "l1",
+              "patch": {
+                "style": {
+                  "w": 5
+                }
+              }
+            }
+          ]
+        },
+        {
+          "l": 1,
+          "w": "carl@pc3#cccccccc",
+          "s": 1,
+          "by": "carl",
+          "at": 500,
+          "ops": [
+            {
+              "op": "item.patch",
+              "slide": "s1",
+              "id": "l2",
+              "patch": {
+                "style": {
+                  "w": 5
+                }
+              }
+            }
+          ]
+        },
+        {
+          "l": 4,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 2,
+          "by": "anna",
+          "at": 3000,
+          "ops": [
+            {
+              "op": "item.patch",
+              "slide": "s1",
+              "id": "l2",
+              "patch": null
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {},
+      "rev": 4,
+      "lamport": 4,
+      "updatedBy": "anna",
+      "updated": 3000,
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": []
+          }
+        ]
+      }
+    }
   }
 ]

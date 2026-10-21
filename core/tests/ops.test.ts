@@ -397,3 +397,107 @@ describe("a deck saved by 4.6 with New slide and Add table (fixtures/saved/slide
     expect(next.doc.preset).toEqual(p);
   });
 });
+
+/* ---- S14.P: 09 §2.10's item.patch row for M14 (charts) and M15 (lines, icons), in one edit of the lists ---- */
+describe("the item.patch row of 09 §2.10 (S14.P): known to this page, format 5, merged per entry", () => {
+  const KEYS = ["stack", "gap", "overlap", "legendAt", "frame", "titleRule", "plot", "route", "a", "b", "mid", "bend", "ends", "style", "stroke"];
+  const MAPS = ["sers", "groups", "axes", "marks", "legendHide", "titleFmt"];
+  const box = { x: 0, y: 0, w: 10, h: 2 };
+  const P = (patch: object | null, id = "c1") => ({ op: "item.patch", slide: "s1", id, patch }) as Op;
+  it("every new key and map, and kind line: knownOp (a 4.7 page compacts them) and needsV5 (4.0–4.5 never see them)", () => {
+    const ops = [...KEYS.map(k => P({ [k]: null })), ...MAPS.map(k => P({ [k]: { e1: null } })), ...MAPS.map(k => P({ [k]: null })),
+      P({ kind: "line", route: "straight", a: { x: 0, y: 1 }, b: { x: 10, y: 1 }, box }, "l1"), P(null, "l1")];
+    for (const op of ops) { expect(knownOp(op), JSON.stringify(op)).toBe(true); expect(needsV5(op), JSON.stringify(op)).toBe(true); }
+    // a later page's key or kind is still unknown: a page that meets one never compacts (AUDIT-2 DATA-7)
+    for (const op of [P({ sparkline: true }), P({ kind: "connector", box }, "x1"), P({ sers: {}, later: 1 })]) expect(knownOp(op), JSON.stringify(op)).toBe(false);
+  });
+  it("a deck holding a series chart or a line is format 5 (docNeedsV5 through items)", () => {
+    const doc = (items: object) => ({ preset: { sheets: [], tables: [], slides: [{ id: "s1", type: "content", tables: [], items }] }, edits: {} }) as any;
+    expect(docNeedsV5(doc({ l1: { kind: "line", route: "straight", a: { x: 0, y: 1 }, b: { x: 9, y: 1 }, box } }))).toBe(true);
+    expect(docNeedsV5(doc({ c1: { kind: "chart", type: "combo", values: { sheet: "S", range: "A1" }, sers: { s1: { n: 1, vals: [] } }, box } }))).toBe(true);
+  });
+  it("the S14.P fold vectors give one document in every order the records arrive (all permutations, not only reversed)", () => {
+    const perms = <T,>(a: T[]): T[][] => a.length <= 1 ? [a] : a.flatMap((x, i) => perms([...a.slice(0, i), ...a.slice(i + 1)]).map(p => [x, ...p]));
+    const mine = (vectors as any[]).filter(v => v.fold && /^fold: M1[45] /.test(v.name));
+    expect(mine).toHaveLength(5);
+    for (const v of mine) {
+      const want = fold(v.fold.snapshot, v.fold.records).doc;
+      for (const p of perms(v.fold.records as any[])) expect(fold(v.fold.snapshot, p).doc, v.name).toEqual(want);
+    }
+  });
+});
+
+describe("inverse of the new map merges and keys (S14.P)", () => {
+  const base = () => ({ preset: { sheets: [], tables: [], slides: [{ id: "s", type: "content" as const, tables: [], items: {
+    c: { kind: "chart", type: "combo", values: { sheet: "S", range: "A1:A3" }, box: { x: 0, y: 0, w: 9, h: 9 }, gap: 80,
+      sers: { a: { n: 1, vals: [{ sheet: "S", range: "A1:A3" }], points: { "0": { color: "#000000" } } }, b: { n: 2, vals: [] } },
+      marks: { m: { kind: "text", text: "x", a: { s: "a", i: 0 } } }, axes: { y: { min: 0 } }, legendHide: { a: true }, titleFmt: { b: true } },
+    l: { kind: "line", route: "elbow", a: { x: 0, y: 0 }, b: { x: 9, y: 9 }, mid: .5, ends: { a: { to: "i:c", at: "r" } }, style: { w: 2 }, box: { x: 0, y: 0, w: 9, h: 9 } } } as any }] }, style: {}, edits: {} });
+  const P = (id: string, patch: object | null) => ({ op: "item.patch", slide: "s", id, patch }) as Op;
+  const cases: Op[] = [
+    P("c", { sers: { a: { n: 1, vals: [] }, c: { n: 3, vals: [] }, b: null }, gap: null, stack: "stacked" }),
+    P("c", { sers: null, marks: null, axes: { y2: { max: 9 } }, legendHide: { a: null, b: true }, titleFmt: { size: 20 } }),
+    P("c", { sers: "x", marks: 1, legendAt: "left" }),                                  // a non-object map: ignored, and by its undo
+    P("l", { route: "curve", mid: null, bend: "vh", ends: null, style: { w: 4, heads: { a: "oval" } }, a: { x: 5, y: 5 } }),
+    P("l", null), P("n", { kind: "line", route: "straight", a: { x: 0, y: 1 }, b: { x: 9, y: 1 }, box: { x: 0, y: 0, w: 9, h: 2 } }),
+  ];
+  for (const op of cases) it(JSON.stringify((op as any).patch).slice(0, 60) + " round-trips", () => {
+    const d: any = base(); const inv = inverseOf(d, op)!;
+    expect(applyOp(d, op)).toBe(true); applyOp(d, inv);
+    expect(d).toEqual(base());
+  });
+  it("a create the page would skip (a later page's kind, a box of no height) has no inverse", () => {
+    expect(inverseOf(base(), P("n", { kind: "connector", box: { x: 0, y: 0, w: 9, h: 9 } }))).toBeNull();
+    expect(inverseOf(base(), P("n", { kind: "line", route: "straight", box: { x: 0, y: 0, w: 9, h: 0 } }))).toBeNull();
+  });
+});
+
+/** a saved deck of S14.P (fixtures/saved/*-4.6.json, added, never edited): its records fold, in any order, are known whole
+    by this page and format 5, and its next snapshot stays format 5 */
+async function savedDeck(name: string) {
+  const fs = await import("node:fs"), path = await import("node:path");
+  const saved = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", "saved", name), "utf8"));
+  const { snapshot: snap, records: recs } = saved as { snapshot: any; records: any[] };
+  expect(recs.every(r => r.ops.every(knownOp))).toBe(true);
+  expect(recs.every(r => r.ops.some(needsV5))).toBe(true);
+  const f = fold(snap, recs);
+  expect(fold(snap, [...recs].reverse()).doc).toEqual(f.doc);
+  expect(fold(snap, [...recs.slice(3), ...recs.slice(0, 3)]).doc).toEqual(f.doc);
+  const next = nextSnapshot(snap, f, {});
+  expect(next.format).toBe(5);
+  expect(next.doc.preset).toEqual(f.doc.preset);
+  return { f, items: f.doc.preset!.slides[0].items as Record<string, any> };
+}
+describe("a deck saved with M14's series charts (fixtures/saved/charts-4.6.json, added, never edited)", () => {
+  it("two writers build the reference chart per series, mark, axis and legend entry; an old column chart gets series", async () => {
+    const { f, items } = await savedDeck("charts-4.6.json");
+    expect([f.doc.rev, f.lamport, f.doc.updatedBy]).toEqual([9, 9, "bob"]);
+    const c1 = items.c1;
+    expect(Object.keys(c1.sers)).toEqual(["vol", "act"]);
+    expect(c1.sers.vol.color).toBe("#203864");                                     // bob's series, anna's other one: both
+    expect(c1.sers.act.hide).toBe(true);                                             // bob's later whole series
+    expect(c1.sers.act.target).toEqual([{ sheet: "Targets", range: "B3:C3" }]);
+    expect(Object.keys(c1.marks).sort()).toEqual(["ib", "ta"]);                      // start removed, ib and ta added
+    expect(c1.axes).toEqual({ y: { min: 11100, max: 11700, step: 100, num: "#,##0" }, y2: { min: 0, max: 14000, step: 2000, num: "#,##0", grid: false }, x: { fmt: { b: true, color: "#1F3864" } } });
+    expect(c1.legendHide).toBeUndefined();                                           // hidden, then shown again: the map goes
+    expect(c1.titleFmt).toEqual({ b: true, color: "#1F3864", size: 24 });
+    expect([c1.gap, c1.overlap, c1.groups.tgt.divider.dash]).toEqual([80, 100, "dashed"]);
+    // the old chart: values kept, a series from them, the new legend key
+    expect(items.p1).toEqual({ kind: "chart", type: "column", values: { table: "t1", range: "C5:F5" }, legend: "bottom", box: { x: 60, y: 520, w: 420, h: 330 },
+      sers: { s1: { n: 1, vals: [{ table: "t1", range: "C5:F5" }], color: "#00B050" } }, legendAt: "top-right" });
+  });
+});
+describe("a deck saved with M15's lines and a Tabler icon (fixtures/saved/lines-4.6.json, added, never edited)", () => {
+  it("lines created, moved, attached, restyled and deleted by two writers; a line's free place in one design; the icon's stroke", async () => {
+    const { f, items } = await savedDeck("lines-4.6.json");
+    expect([f.doc.rev, f.lamport, f.doc.updatedBy]).toEqual([9, 9, "bob"]);
+    expect(Object.keys(items).sort()).toEqual(["k1", "l1", "l2", "r1"]);            // d1 deleted; bob's later restyle of it skipped
+    expect(items.l1).toEqual({ kind: "line", route: "straight", a: { x: 220, y: 420 }, b: { x: 620, y: 420 }, box: { x: 219, y: 419, w: 402, h: 2 },
+      style: { color: "#C00000", w: 3, heads: { a: "oval", b: "stealth", size: "l" } } });
+    expect(items.l2.ends).toEqual({ a: { to: "i:k1", at: "r" }, b: { to: "t:t1", at: "l", dy: 12 } });
+    expect([items.l2.route, items.l2.bend, items.l2.mid]).toEqual(["elbow", "hv", .3]);
+    expect([items.r1.route, items.r1.style.heads, items.r1.text]).toEqual(["range", { a: "bar", b: "bar" }, "{Targets!B3}"]);
+    expect([items.k1.icon, items.k1.stroke]).toEqual(["tabler:target", 1.5]);
+    expect(f.doc.preset!.slides[0].free!.glass!.items["i:l1"]).toEqual({ x: 299, y: 519, w: 402, h: 2, a: { x: 300, y: 520 }, b: { x: 700, y: 520 } });
+  });
+});

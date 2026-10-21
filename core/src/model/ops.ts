@@ -10,11 +10,15 @@ const TABLE_MAPS = ["cols", "rows", "scales", "merges", "sizes", "cellGrid", "bo
 const CELL_KEYS = ["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role"] as const;
 const STYLE_MAPS = ["pn", "footer", "theme", "text", "colors", "designs"] as const;
 const STYLE_KEYS = ["design", "glass", "color", "logo", "radius", "contrast", "logoBubble"] as const;
-/* slide items (07 §2.2): plain keys of both kinds, and the two map-merge keys */
+/* slide items (07 §2.2): plain keys of every kind, and the map-merge keys. 09 §2.10's whole item.patch row (S14.P, for
+   M14's charts and M15's lines and icons at once): chart keys stack … plot, line keys route … style, the icon's stroke;
+   the chart maps merged per entry (a whole series / group / axis / mark, 09 §2.2); kind "line" */
 const ITEM_KEYS = ["kind", "type", "values", "labels", "series", "title", "legend", "show", "startAngle", "box", "attach",
-  "shape", "icon", "text", "fill", "border", "radius", "tail"] as const;
-const ITEM_MAPS = ["colors", "fmt"] as const;
-const ITEM_KINDS = ["chart", "shape"];
+  "shape", "icon", "text", "fill", "border", "radius", "tail",
+  "stack", "gap", "overlap", "legendAt", "frame", "titleRule", "plot",
+  "route", "a", "b", "mid", "bend", "ends", "style", "stroke"] as const;
+const ITEM_MAPS = ["colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt"] as const;
+const ITEM_KINDS = ["chart", "shape", "line"];
 /* slide.add / table.add (4.6, 09 §2.8): the slide types and table kinds this page draws (a later page's are skipped) */
 const SLIDE_TYPES = ["cover", "index", "content"], TABLE_KINDS = ["markers", "range"];
 const REF = /^[A-Z]{1,3}[0-9]{1,7}$/;
@@ -219,9 +223,10 @@ function inversePatch(cur: Record<string, unknown>, patch: Record<string, unknow
     const p = patch[k];
     if (maps.includes(k) && isObj(p)) {
       const m = (isObj(cur[k]) ? cur[k] : {}) as Record<string, unknown>, inv: Record<string, unknown> = {};
-      for (const kk of Object.keys(p)) inv[kk] = m[kk] === undefined ? null : clone(m[kk]);
+      for (const kk of Object.keys(p)) if (kk !== "__proto__") inv[kk] = m[kk] === undefined ? null : clone(m[kk]);
       out[k] = inv;
-    } else out[k] = cur[k] === undefined ? null : clone(cur[k]);
+    } else if (maps.includes(k) && p !== null) continue;          // a map given as a non-object: mapMerge ignores it, so does its undo
+    else out[k] = cur[k] === undefined ? null : clone(cur[k]);
   }
   return out;
 }
@@ -253,7 +258,8 @@ export function inverseOf(doc: Doc, op: Op): Op | null {
     case "item.patch": {
       const s = doc.preset?.slides.find(x => x.id === op.slide); if (!s) return null;
       const cur = s.items?.[op.id] as unknown as Record<string, unknown> | undefined;
-      if (!isObj(cur)) return op.patch && "kind" in op.patch ? { op: "item.patch", slide: op.slide, id: op.id, patch: null } : null;
+      // creating: the undo deletes it – unless the create would be skipped (a later page's kind, no valid box: 09 §2.8)
+      if (!isObj(cur)) return op.patch && "kind" in op.patch && ITEM_KINDS.includes(op.patch.kind as string) && isBox(op.patch.box) ? { op: "item.patch", slide: op.slide, id: op.id, patch: null } : null;
       return { op: "item.patch", slide: op.slide, id: op.id, patch: op.patch === null ? clone(cur) : inversePatch(cur, op.patch as Record<string, unknown>, ITEM_MAPS) } as Op;
     }
     case "style.patch": return { op: "style.patch", patch: inversePatch(doc.style as Record<string, unknown>, op.patch as Record<string, unknown>, STYLE_MAPS) } as Op;
