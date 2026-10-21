@@ -3,7 +3,8 @@
    rendered by PDFium (pypdfium2) and compared with the same display list drawn by core/src/dl/canvas.ts on a
    Chromium canvas. A pixel passes when its colour is within ΔE 2 (CIE76) of the other image's, or within the
    range of the other image's 3 × 3 neighbourhood both ways (1 px dilation: anti-aliasing and sub-pixel glyph
-   placement differ between PDFium and Skia); a fixture passes when 99.5 % of its pixels do.
+   placement differ between PDFium and Skia); a fixture passes when 99.5 % of its pixels do. The path fixture holds the
+   three stroke joins, round / bevel / miter (ADR-004 amendment 2026-10-21, S14.P): PDF `j` against canvas `lineJoin`.
 
      node tools/dlcheck.mjs [--out DIR] [--only rect,text]     (npm run sp)
 

@@ -17,7 +17,8 @@ export type Paint =
   | { linear: [number, number, number, number]; stops: Stop[] }
   | { radial: { cx: number; cy: number; rx: number; ry: number; stops: Stop[] } };
 /** a stroke, centred on the outline. A gradient stroke is allowed on rect and line only (drawn as a filled ring) */
-export interface Stroke { w: number; paint: Paint; dash?: number[]; cap?: "butt" | "round" | "square" }
+export interface Stroke { w: number; paint: Paint; dash?: number[]; cap?: "butt" | "round" | "square";
+  /** how segments meet (ADR-004 amendment, ADR-020; 09 §3): unset = "miter" (limit 10), as before */ join?: "miter" | "round" | "bevel" }
 /** one corner radius, or [top-left, top-right, bottom-right, bottom-left] */
 export type Radii = number | [number, number, number, number];
 export interface RRect { x: number; y: number; w: number; h: number; r?: Radii }
@@ -146,6 +147,7 @@ function strokeErrors(s: unknown, at: string, out: string[], gradientOk: boolean
   if (!gradientOk && isGradient(S.paint)) out.push(`${at}: a gradient stroke only on rect and line`);
   if (S.dash !== undefined && (!Array.isArray(S.dash) || !S.dash.length || !S.dash.every(v => num(v) && v >= 0) || S.dash.every(v => v === 0))) out.push(`${at}.dash: non-negative numbers, not all 0`);
   if (S.cap !== undefined && !["butt", "round", "square"].includes(S.cap)) out.push(`${at}.cap`);
+  if (S.join !== undefined && !["miter", "round", "bevel"].includes(S.join)) out.push(`${at}.join`);
 }
 function radiiErrors(r: unknown, at: string, out: string[]) {
   if (r === undefined) return;

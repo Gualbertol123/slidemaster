@@ -49,3 +49,33 @@ export function iconCmds(name: string, x: number, y: number, s: number): PathCmd
   }
   return out;
 }
+
+/* ---- icon names across sets (S14.P; 09 §2.4, §3.5, ADR-020) ----
+   An item's or a chart mark's `icon` is a built-in name ("target"), "tabler:<name>" (outline) or "tabler-filled:<name>".
+   The Tabler set is vendored by M15 (core/src/icons/, inflated on first use) and registered here with setVendoredIcons;
+   until it is, or for a name it does not have, a Tabler name falls back to the built-in icon of the same name, and an
+   unknown name to "info" – marked `missing`, so the Issues panel can name it (09 §3.5) instead of today's silent
+   fallback. M14's reference chart (tabler:target) therefore draws without M15. */
+export type IconSet = "tabler" | "tabler-filled";
+/** the vendored set's outline or filled icon on the 24 × 24 grid (absolute M L C Z), or null when it has no such name */
+export type VendoredIcons = (set: IconSet, name: string) => PathCmd[][] | null;
+let vendored: VendoredIcons | null = null;
+/** M15: register (or, with null, remove) the vendored Tabler set */
+export function setVendoredIcons(f: VendoredIcons | null) { vendored = f; }
+export type ResolvedIcon =
+  /** a built-in icon (iconCmds draws it, filled even-odd); `missing`: the asked name is known nowhere, "info" stands in */
+  | { src: "builtin"; name: string; asked: string; missing: boolean }
+  /** a vendored Tabler icon: its paths on the 24 grid (outline icons are stroked, filled ones filled; 09 §3.5) */
+  | { src: IconSet; name: string; asked: string; missing: false; paths: PathCmd[][] };
+const has = (name: string) => Object.prototype.hasOwnProperty.call(ICONS, name);
+/** what an icon name draws: tabler:x → the vendored icon when present, else the built-in x, else "info" */
+export function resolveIcon(name: unknown): ResolvedIcon {
+  const asked = typeof name === "string" ? name : "";
+  const m = /^(tabler|tabler-filled):(.+)$/.exec(asked);
+  const bare = m ? m[2] : asked;
+  if (m) {
+    const paths = vendored ? vendored(m[1] as IconSet, bare) : null;
+    if (paths && paths.length) return { src: m[1] as IconSet, name: bare, asked, missing: false, paths };
+  }
+  return has(bare) ? { src: "builtin", name: bare, asked, missing: false } : { src: "builtin", name: "info", asked, missing: true };
+}

@@ -121,6 +121,9 @@ describe("SVG backend", () => {
     expect(s.rect).toMatch(/fill-rule="evenodd" fill="url\(#d\d+\)"/);          // the gradient rim as a ring
     expect(s.path).toContain(`fill-rule="evenodd"`);
     expect(s.path).toContain(`stroke-linecap="round"`);
+    expect(s.path).toContain(`stroke-linejoin="round"`);
+    expect(s.path).toContain(`stroke-linejoin="bevel"`);
+    expect(s.path.match(/stroke-linejoin/g)).toHaveLength(2);                     // miter: SVG's default, not written
     expect(s.line).toContain(`stroke-width="0.5"`);
     expect(s.line).toContain(`stroke-dasharray="9 3 3 3"`);
     expect(s.image).toContain(`opacity="0.5"`);
@@ -401,6 +404,18 @@ describe("review fixes (S3.1)", () => {
     const r = recorder(); drawDl(r.ctx, [n], { image: () => undefined });
     expect(r.calls).toEqual(expect.arrayContaining(["lineJoin=miter", "miterLimit=10"]));
     expect(ops(one(n))).toContain("0 j 10 M");
+  });
+  it("Stroke.join (ADR-004 amendment, ADR-020): round / bevel / miter in all three backends; validate names a bad one", () => {
+    for (const [join, svgAttr, pdf] of [["round", `stroke-linejoin="round"`, "1 j 10 M"], ["bevel", `stroke-linejoin="bevel"`, "2 j 10 M"], ["miter", null, "0 j 10 M"]] as const) {
+      const n: Node = { t: "path", d: [["M", 0, 0], ["L", 50, 10], ["L", 100, 0]], stroke: { w: 4, paint: { solid: [0, 0, 0] }, join } };
+      const s = toSvg([n], { imageHref: () => undefined });
+      if (svgAttr) expect(s).toContain(svgAttr); else expect(s).not.toContain("stroke-linejoin");
+      const r = recorder(); drawDl(r.ctx, [n], { image: () => undefined });
+      expect(r.calls).toContain(`lineJoin=${join}`);
+      expect(ops(one(n))).toContain(pdf);
+      expect(validate([n])).toEqual([]);
+    }
+    expect(validate([{ t: "line", x1: 0, y1: 0, x2: 1, y2: 1, stroke: { w: 1, paint: { solid: [0, 0, 0] }, join: "mitre" } }])).toEqual(["dl[0]:line.stroke.join"]);
   });
   it("places glyphs with the widths it writes: W with decimals, TJ / Tc from the same widths", () => {
     const t = fx.lists.text.find(n => n.t === "text" && n.src.startsWith("Loans")) as TextNode;

@@ -14,13 +14,19 @@
      (a sharp one is a shape of its own). Gradients are DrawingML gradients, alpha included.
    - Items (charts, callouts; the core's `sem.items`): a chart is its card plus a native chart frame; a callout's shape
      becomes a preset geometry holding its text. */
-import type { DisplayList, Matrix, Node, Paint, PathCmd, RGB, Stop } from "../dl/types";
+import type { DisplayList, Matrix, Node, Paint, PathCmd, RGB, Stop, Stroke } from "../dl/types";
+import type { Heads } from "../model/types";
 import { mul, pathBox, radii, rrectPath } from "../dl/geom";
+import type { ChartSem } from "./chart-sem";
+export type { ChartSem, FontSem } from "./chart-sem";
 
 /* ---- the scene ---- */
 export interface Box { x: number; y: number; w: number; h: number }
-/** a stroke: width px, paint, dash pattern px, cap */
-export interface Line { w: number; paint: Paint; dash?: number[]; cap?: "butt" | "round" | "square" }
+/** a native line end (DrawingML a:headEnd at the path's first point, a:tailEnd at its last; 09 §4.3): its type and size */
+export interface LineEnd { type: "triangle" | "stealth" | "diamond" | "oval" | "arrow"; size?: "s" | "m" | "l" }
+/** a stroke: width px, paint, dash pattern px, cap, join (S14.P), native ends (S14.P: lines and chart marks; never a
+    connector shape) */
+export interface Line { w: number; paint: Paint; dash?: number[]; cap?: "butt" | "round" | "square"; join?: "miter" | "round" | "bevel"; head?: LineEnd; tail?: LineEnd }
 /** an outer or inner shadow: offset, blur px, colour and alpha; sx / sy: the shadow's size against the shape's (spread) */
 export interface Shadow { dx: number; dy: number; blur: number; c: RGB; a: number; sx?: number; sy?: number }
 export type Geom = { prst: string; adj?: Record<string, number> } | { path: PathCmd[]; open?: boolean };
@@ -43,15 +49,13 @@ export interface GroupEl { k: "grp"; children: El[]; name?: string }
 export type El = ShapeEl | PicEl | TableEl | ChartEl | GroupEl;
 
 /* ---- what the core says of a slide besides its display list (SlideList.sem, kind "pptx") ---- */
-export interface FontSem { css: string; size: number; color: string; b: boolean; i: boolean }
-export interface ChartSem {
-  type: "pie" | "donut"; title: string; titleFont: FontSem; labelFont: FontSem; series: string;
-  labels: string[]; values: number[]; colors: string[]; show: ("label" | "value" | "percent")[]; legend: "right" | "bottom" | "none";
-  startAngle: number; /** the plot's frame inside the card, slide px */ box: Box; sep: { w: number; color: string } | null; fmt: string; hole: number;
-}
 export type ItemSem =
-  | { kind: "chart"; at: [number, number]; card: DisplayList; chart: ChartSem }
-  | { kind: "shape"; at: [number, number]; shape: string; box: Box; tail?: { x: number; y: number } | null; radius: number };
+  /** a chart: its card, the native chart (chart-sem.ts), and (4.7, M14) what is drawn over it – marks, dividers, the
+      title rule – as plain shapes in the chart's group, never pictures */
+  | { kind: "chart"; at: [number, number]; card: DisplayList; chart: ChartSem; overlay?: DisplayList }
+  | { kind: "shape"; at: [number, number]; shape: string; box: Box; tail?: { x: number; y: number } | null; radius: number }
+  /** a line (4.8, M15; 09 §4.3): its heads, written as native a:headEnd / a:tailEnd (no connector shape) */
+  | { kind: "line"; at: [number, number]; heads: Heads | null };
 export interface SlideSem { type: "cover" | "index" | "content"; items: Record<string, ItemSem>; /** the design's chart / accent colours */ palette: string[] }
 
 /* ---- walking the display list ---- */
@@ -92,6 +96,9 @@ function mulPaint(p: Paint, k: number): Paint {
   if ("linear" in p) return { linear: p.linear, stops: p.stops.map(s => ({ ...s, a: s.a * k })) };
   return { radial: { ...p.radial, stops: p.radial.stops.map(s => ({ ...s, a: s.a * k })) } };
 }
+/** a display-list stroke under a scale and an alpha: its line (width, dash, cap, join) */
+const lineOf = (st: Stroke, s: number, alpha: number): Line => ({ w: st.w * s, paint: mulPaint(st.paint, alpha), ...(st.dash ? { dash: st.dash.map(v => v * s) } : {}),
+  ...(st.cap ? { cap: st.cap } : {}), ...(st.join ? { join: st.join } : {}) });
 const paintAlpha = (p: Paint) => "solid" in p ? p.a ?? 1 : ("linear" in p ? p.stops : p.radial.stops).reduce((m, s) => Math.max(m, s.a), 0);
 /** the most visible colour of a paint (a gradient's strongest stop) */
 function mainColour(p: Paint): { c: RGB; a: number } {
@@ -156,11 +163,13 @@ class Walker {
     if (it.kind === "chart") {
       const prims = this.sub(() => this.walk(it.card, c));
       const card = assemble(prims);
-      this.prims.push({ p: "el", el: { k: "grp", name: "Chart " + id, children: [...card, { k: "chart", box: it.chart.box, chart: it.chart, name: "Chart" }] } });
+      // over the native chart: its overlay's shapes (lines with native heads, icons, texts), in the chart's group
+      const over = it.overlay?.length ? assemble(this.sub(() => this.walk(it.overlay!, c))) : [];
+      this.prims.push({ p: "el", el: { k: "grp", name: "Chart " + id, children: [...card, { k: "chart", box: it.chart.box, chart: it.chart, name: "Chart" }, ...over] } });
       return;
     }
     const prims = this.sub(() => this.walk(nodes, c));
-    const els = callout(assemble(prims), it);
+    const els = it.kind === "line" ? lineEls(assemble(prims), it) : callout(assemble(prims), it);
     this.prims.push(...els.map(el => ({ p: "el" as const, el })));
   }
 
@@ -188,7 +197,7 @@ class Walker {
       case "line": {
         const [x1, y1] = apply(c.M, n.x1, n.y1), [x2, y2] = apply(c.M, n.x2, n.y2), s = decompose(c.M).sx;
         const x = Math.min(x1, x2), y = Math.min(y1, y2), w = Math.abs(x2 - x1), h = Math.abs(y2 - y1);
-        const line: Line = { w: n.stroke.w * s, paint: mulPaint(n.stroke.paint, c.alpha), ...(n.stroke.dash ? { dash: n.stroke.dash.map(v => v * s) } : {}), ...(n.stroke.cap ? { cap: n.stroke.cap } : {}) };
+        const line = lineOf(n.stroke, s, c.alpha);
         this.prims.push({ p: "el", el: { k: "sp", box: { x, y, w, h }, geom: { path: [["M", x1 - x, y1 - y], ["L", x2 - x, y2 - y]], open: true }, fill: null, line, seg: [x1, y1, x2, y2] } });
         return;
       }
@@ -260,7 +269,7 @@ class Walker {
       this.prims.push({ p: "el", el: { k: "sp", box: cl.box, geom: pre ? { prst: pre.prst } : { path: cl.path.map(p => shiftCmd(p, -cl.box.x, -cl.box.y)) }, fill: n.fill ? mulPaint(n.fill, c.alpha) : null, line: null } });
       return;
     }
-    const line: Line | null = n.stroke ? { w: n.stroke.w * s, paint: mulPaint(n.stroke.paint, c.alpha), ...(n.stroke.dash ? { dash: n.stroke.dash.map(v => v * s) } : {}), ...(n.stroke.cap ? { cap: n.stroke.cap } : {}) } : null;
+    const line: Line | null = n.stroke ? lineOf(n.stroke, s, c.alpha) : null;
     const el: ShapeEl = { k: "sp", box, ...(rot ? { rot } : {}), ...(flipV ? { flipV } : {}), geom: rectGeom(box.w, box.h, q), fill: n.fill ? mulPaint(n.fill, c.alpha) : null, line };
     // a highlight line along the top of the shape just drawn (a Liquid Glass capsule's border-top): that shape's inner
     // shadow, not a shape of its own – a table of capsules is not twice as many shapes
@@ -277,7 +286,7 @@ class Walker {
     const d = mapPath(c.M, n.d), b = pathBox(d), s = decompose(c.M).sx;
     if (b.w <= 0 && b.h <= 0) return;
     const pre = presetOf(d);
-    const line: Line | null = n.stroke ? { w: n.stroke.w * s, paint: mulPaint(n.stroke.paint, c.alpha), ...(n.stroke.dash ? { dash: n.stroke.dash.map(v => v * s) } : {}), ...(n.stroke.cap ? { cap: n.stroke.cap } : {}) } : null;
+    const line: Line | null = n.stroke ? lineOf(n.stroke, s, c.alpha) : null;
     this.prims.push({ p: "el", el: { k: "sp", box: b, geom: pre ? { prst: pre.prst } : { path: d.map(p => shiftCmd(p, -b.x, -b.y)) }, fill: n.fill ? mulPaint(n.fill, c.alpha) : null, line } });
   }
   private image(n: Extract<Node, { t: "image" }>, c: Ctx) {
@@ -649,6 +658,13 @@ function stronger(a: Line | null | undefined, b: Line): Line {
 /** a cell fill's polygon reaching under its neighbours (excel-dl.ts seamPath): a rectangle with strips, all axis-aligned */
 function isSeam(d: PathCmd[], b: Box) {
   return d.length <= 14 && d[0][0] === "M" && d[d.length - 1][0] === "Z" && d.slice(1, -1).every(c => c[0] === "L") && b.w > 0 && b.h > 0;
+}
+
+/* ---- lines (4.8, M15; 09 §4.3) ---- */
+/** a line item's elements: S14.P keeps its shapes as drawn, grouped (M15 turns the stroke's head paths into the line's
+    native a:headEnd / a:tailEnd, Line.head / tail) */
+function lineEls(els: El[], _it: Extract<ItemSem, { kind: "line" }>): El[] {
+  return els.length > 1 ? [{ k: "grp", name: "Line", children: els }] : els;
 }
 
 /* ---- callouts ---- */

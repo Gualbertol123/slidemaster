@@ -76,7 +76,7 @@ export function svgChunks(list: DisplayList, opts: SvgOptions): string[] {
     return ` ${what}="url(#${g})"`;
   };
   const strokeAttr = (s: Stroke, box: { x: number; y: number; w: number; h: number }) =>
-    paintAttr(s.paint, "stroke", box) + ` stroke-width="${f(s.w)}" stroke-miterlimit="10"` + (s.dash ? ` stroke-dasharray="${s.dash.map(f).join(" ")}"` : "") + (s.cap && s.cap !== "butt" ? ` stroke-linecap="${s.cap}"` : "");
+    paintAttr(s.paint, "stroke", box) + ` stroke-width="${f(s.w)}" stroke-miterlimit="10"` + (s.dash ? ` stroke-dasharray="${s.dash.map(f).join(" ")}"` : "") + (s.cap && s.cap !== "butt" ? ` stroke-linecap="${s.cap}"` : "") + (s.join && s.join !== "miter" ? ` stroke-linejoin="${s.join}"` : "");
   /** a clip, defined once per list however often it is used (a shadow's layers, a card's shadows share their outline) */
   const clips = new Map<string, string>();
   const clipDef = (d: PathCmd[], evenodd = false) => {

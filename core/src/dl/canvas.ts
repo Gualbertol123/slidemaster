@@ -60,7 +60,7 @@ function strokeSolid(ctx: Ctx, s: Stroke) {
   const p = s.paint as { solid: [number, number, number]; a?: number };
   ctx.save();
   ctx.strokeStyle = css(p.solid, p.a ?? 1); ctx.lineWidth = s.w; ctx.lineCap = s.cap || "butt";
-  ctx.lineJoin = "miter"; ctx.miterLimit = 10;                    // as the PDF (0 j 10 M) and the SVG
+  ctx.lineJoin = s.join || "miter"; ctx.miterLimit = 10;          // as the PDF (j, 10 M) and the SVG
   ctx.setLineDash(s.dash || []);
   ctx.stroke();
   ctx.restore();

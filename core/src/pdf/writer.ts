@@ -249,8 +249,8 @@ export function writePdf(doc: PdfInput): Uint8Array {
     }
     strokeSolid(path: string, s: Stroke) {
       const p = s.paint as { solid: [number, number, number]; a?: number }, a = p.a ?? 1;
-      const cap = s.cap === "round" ? 1 : s.cap === "square" ? 2 : 0;
-      this.ops.push(`q ${a < 1 ? `/${this.use("ExtGState", alphaGs(1, a))} gs ` : ""}${rgbOps(p.solid)} RG ${n2(s.w)} w ${cap} J 0 j 10 M ${s.dash ? `[${s.dash.map(n2).join(" ")}] 0 d ` : ""}${path}S Q`);
+      const cap = s.cap === "round" ? 1 : s.cap === "square" ? 2 : 0, join = s.join === "round" ? 1 : s.join === "bevel" ? 2 : 0;
+      this.ops.push(`q ${a < 1 ? `/${this.use("ExtGState", alphaGs(1, a))} gs ` : ""}${rgbOps(p.solid)} RG ${n2(s.w)} w ${cap} J ${join} j 10 M ${s.dash ? `[${s.dash.map(n2).join(" ")}] 0 d ` : ""}${path}S Q`);
     }
     draw(n: Node) {
       const o = this.ops;

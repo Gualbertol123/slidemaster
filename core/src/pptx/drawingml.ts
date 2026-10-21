@@ -2,7 +2,8 @@
    no p14 / p15 extensions, no SVG). Slide px → EMU: 1 px = 7 620 EMU (1600 px = 12 192 000, the 16:9 slide); font
    sizes px × 0.6 pt. Pure string building; the package (writer.ts) gives each slide its relationship ids. */
 import type { Paint, PathCmd, RGB, Stop } from "../dl/types";
-import type { Cell, El, Geom, Line, Para, Run, Shadow, ShapeEl, TableEl, TextBody } from "./scene";
+import type { Cell, El, Geom, Line, LineEnd, Para, Run, Shadow, ShapeEl, TableEl, TextBody } from "./scene";
+import type { Head } from "../model/types";
 
 export const EMU = 7620;
 export const SLIDE = { cx: 1600 * EMU, cy: 900 * EMU };
@@ -71,7 +72,22 @@ export function ln(l: Line | null | undefined, w: number, h: number, tag = "a:ln
   if (!l) return `<${tag}><a:noFill/></${tag}>`;
   const dash = l.dash && l.dash.length >= 2 && l.w > 0
     ? `<a:custDash>${pairs(l.dash).map(([d, s]) => `<a:ds d="${Math.max(1, Math.round(d / l.w * 100000))}" sp="${Math.max(1, Math.round(s / l.w * 100000))}"/>`).join("")}</a:custDash>` : "";
-  return `<${tag} w="${Math.max(0, E(l.w))}"${l.cap ? ` cap="${CAP[l.cap]}"` : ""}>${fill(l.paint, w, h)}${dash}</${tag}>`;
+  return `<${tag} w="${Math.max(0, E(l.w))}"${l.cap ? ` cap="${CAP[l.cap]}"` : ""}>${fill(l.paint, w, h)}${dash}${l.join ? JOIN[l.join] : ""}${lineEnd("a:headEnd", l.head)}${lineEnd("a:tailEnd", l.tail)}</${tag}>`;
+}
+/* joins and native line ends (S14.P; ADR-004 amendment, 09 §4.3): a:ln's children in the schema's order – fill, dash,
+   join, headEnd, tailEnd. Miter limit 10 (1 000 000 = 1000 %), as the display list's other backends */
+const JOIN = { round: "<a:round/>", bevel: "<a:bevel/>", miter: '<a:miter lim="1000000"/>' } as const;
+const END_SIZE = { s: "sm", m: "med", l: "lg" } as const;
+/** a:headEnd sits on the path's first point, a:tailEnd on its last (a line item's end a / end b) */
+export function lineEnd(tag: "a:headEnd" | "a:tailEnd", e: LineEnd | undefined): string {
+  if (!e) return "";
+  const z = END_SIZE[e.size || "m"];
+  return `<${tag} type="${e.type}" w="${z}" len="${z}"/>`;
+}
+/** a line item's head (model Heads, 09 §2.3) as a native end; "bar" (the limiter) and "none" have none – the limiter's tick
+    is a segment of the line's own geometry */
+export function headEnd(h: Head | undefined, size?: "s" | "m" | "l"): LineEnd | undefined {
+  return h && h !== "none" && h !== "bar" ? { type: h, ...(size ? { size } : {}) } : undefined;
 }
 const pairs = (d: number[]) => { const a = d.length % 2 ? [...d, ...d] : d, out: [number, number][] = []; for (let i = 0; i < a.length; i += 2) out.push([a[i], a[i + 1]]); return out; };
 function shadow(tag: "a:outerShdw" | "a:innerShdw", s: Shadow): string {

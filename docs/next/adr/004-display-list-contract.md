@@ -38,3 +38,11 @@ by node types:
 * Title `text-shadow`: an offset copy of the text run in the shadow's colour, drawn first – no new type.
 Shadows use 5 steps (v3's `printcss.ts` STEPS = 5, as in today's PDFs). Anything else a design needs is either
 expressed with these or recorded in `tests/parity/accepted.json` with its reason.
+
+## Amendment 2026-10-21 (ADR-020; docs/next/09 §3; shipped in S14.P, the shared preparation of M14 and M15)
+`Stroke.join?: "miter" | "round" | "bevel"` (unset = miter, limit 10, as before) – an attribute, not a node type, for
+Tabler's outline icons, smoothed chart lines with markers and elbow lines. Every backend draws it: SVG
+`stroke-linejoin`, canvas `lineJoin`, PDF `j` (0 / 1 / 2), PowerPoint `a:miter lim="1000000"` / `a:round` / `a:bevel`
+(written only when set, so earlier files are unchanged). `validate` names a bad value; the `path` fixture of
+`core/tests/dl-fixtures.ts` draws all three, so `tools/dlcheck.mjs` compares them PDF against canvas. Line ends
+(`core/src/render/heads.ts`) are `path` nodes; PowerPoint writes them natively (`a:headEnd` / `a:tailEnd`).
