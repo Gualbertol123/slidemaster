@@ -101,6 +101,13 @@ function manual(b: Box, frame: Box, inner: boolean): string {
 }
 const lnOf = (l: LineSem | null) => l ? `<a:ln w="${E(l.w)}"><a:solidFill>${clr(col(l.color))}</a:solidFill>${l.dash ? `<a:prstDash val="${l.dash}"/>` : ""}</a:ln>` : "<a:ln><a:noFill/></a:ln>";
 const solidSp = (c: string) => `<c:spPr><a:solidFill>${clr(col(c))}</a:solidFill><a:ln><a:noFill/></a:ln></c:spPr>`;
+/** a Liquid Glass bar (S14.2 review 1): its two stops as the display list draws them – the light one at the outer end
+    (a column's top, a bar's right; a negative bar's other end), the colour at the base – along the bar (90° for a column,
+    0° for a bar) */
+function gradSp(c: string, light: string, isCol: boolean, rev: boolean): string {
+  const lightFirst = isCol !== rev, [a, b] = lightFirst ? [light, c] : [c, light];
+  return `<c:spPr><a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0">${clr(col(a))}</a:gs><a:gs pos="100000">${clr(col(b))}</a:gs></a:gsLst><a:lin ang="${isCol ? 5400000 : 0}" scaled="0"/></a:gradFill><a:ln><a:noFill/></a:ln></c:spPr>`;
+}
 const NONE_SP = "<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>";
 /** a series' data labels: per point the hidden ones, the texts of our own (static rich text, refreshed at every export),
     the white ones inside a dark bar, a line label moved to the other side; then the series' own (number format, font,
@@ -127,11 +134,11 @@ function markerXml(mk: MarkerSem | null | undefined, color?: string): string {
 }
 /** one series of a chart group: the name, its look, per-point looks and labels, the categories, its cached values (a gap
     is a missing point); `c` is its column of the embedded workbook */
-function serXml(kind: GroupSem["kind"], s: BarSerSem, k: number, cat: string, n: number, c: string, face: (css: string) => string): string {
+function serXml(kind: GroupSem["kind"], s: BarSerSem, k: number, cat: string, n: number, c: string, face: (css: string) => string, isCol = true): string {
   const last = n + 1;
   const tx = `<c:tx><c:strRef><c:f>Sheet1!$${c}$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>${esc(s.name || `Series ${k + 1}`)}</c:v></c:pt></c:strCache></c:strRef></c:tx>`;
   const val = `<c:val><c:numRef><c:f>Sheet1!$${c}$2:$${c}$${last}</c:f><c:numCache><c:formatCode>${esc(s.fmt || "General")}</c:formatCode><c:ptCount val="${n}"/>`
-    + s.values.slice(0, n).map((v, i) => v === null || v === undefined ? "" : `<c:pt idx="${i}"><c:v>${num(v)}</c:v></c:pt>`).join("") + "</c:numCache></c:numRef></c:val>";
+    + s.values.slice(0, n).map((v, i) => v === null || v === undefined ? "" : `<c:pt idx="${i}"${s.fmts?.[i] ? ` formatCode="${esc(s.fmts[i])}"` : ""}><c:v>${num(v)}</c:v></c:pt>`).join("") + "</c:numCache></c:numRef></c:val>";
   const labels = s.labels ? barLabels(s.labels, face) : "", head = `<c:idx val="${k}"/><c:order val="${k}"/>${tx}`;
   if (kind === "line") {
     const dPts = (s.markers || []).map(p => `<c:dPt><c:idx val="${p.i}"/>${markerXml(s.marker, p.color)}<c:bubble3D val="0"/></c:dPt>`).join("");
@@ -139,9 +146,10 @@ function serXml(kind: GroupSem["kind"], s: BarSerSem, k: number, cat: string, n:
   }
   if (kind === "area") return `<c:ser>${head}<c:spPr><a:solidFill>${clr(col(s.color), s.alpha ?? 1)}</a:solidFill><a:ln><a:noFill/></a:ln></c:spPr>${labels}${cat}${val}</c:ser>`;
   // a bar; the target of "actual inside target": no fill, its outline in the series' (each point's) colour
-  const sp = (color: string) => s.target ? `<c:spPr><a:noFill/>${lnOf({ color, w: s.target.w })}</c:spPr>` : solidSp(color);
-  const dPts = s.points.map(p => `<c:dPt><c:idx val="${p.i}"/><c:invertIfNegative val="0"/><c:bubble3D val="0"/>${sp(p.color)}</c:dPt>`).join("");
-  return `<c:ser>${head}${sp(s.color)}<c:invertIfNegative val="0"/>${dPts}${labels}${cat}${val}</c:ser>`;
+  // (Liquid Glass: a gradient, S14.2 review 1)
+  const sp = (color: string, light?: string, rev = false) => s.target ? `<c:spPr><a:noFill/>${lnOf({ color, w: s.target.w })}</c:spPr>` : s.light && light ? gradSp(color, light, isCol, rev) : solidSp(color);
+  const dPts = s.points.map(p => `<c:dPt><c:idx val="${p.i}"/><c:invertIfNegative val="0"/><c:bubble3D val="0"/>${sp(p.color, p.light, !!p.rev)}</c:dPt>`).join("");
+  return `<c:ser>${head}${sp(s.color, s.light)}<c:invertIfNegative val="0"/>${dPts}${labels}${cat}${val}</c:ser>`;
 }
 /** the categories: one level (strRef, column A), or two (multiLvlStrRef: the categories in B, their groups' labels in A) */
 function catXml(B: BarsSem): string {
@@ -156,7 +164,7 @@ function groupsXml(B: BarsSem, face: (css: string) => string): string {
   const groups: GroupSem[] = B.groups ?? [{ kind: "bar", axis: "y", grouping: B.grouping, gap: B.gap, overlap: B.overlap, series: B.series.map((_, k) => k) }];
   return groups.map(g => {
     const ids = g.axis === "y2" ? `<c:axId val="510003"/><c:axId val="510004"/>` : `<c:axId val="510001"/><c:axId val="510002"/>`;
-    const sers = g.series.map(k => serXml(g.kind, B.series[k], k, cat, n, numToCol(k + first), face)).join("");
+    const sers = g.series.map(k => serXml(g.kind, B.series[k], k, cat, n, numToCol(k + first), face, B.dir === "col")).join("");
     if (g.kind === "line") return `<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>${sers}<c:marker val="1"/>${ids}</c:lineChart>`;
     if (g.kind === "area") return `<c:areaChart><c:grouping val="${g.grouping}"/><c:varyColors val="0"/>${sers}${ids}</c:areaChart>`;
     return `<c:barChart><c:barDir val="${B.dir}"/><c:grouping val="${g.grouping}"/><c:varyColors val="0"/>${sers}<c:gapWidth val="${Math.round(g.gap)}"/>${g.overlap ? `<c:overlap val="${Math.round(g.overlap)}"/>` : ""}${ids}</c:barChart>`;

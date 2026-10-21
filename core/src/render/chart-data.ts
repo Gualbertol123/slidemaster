@@ -126,6 +126,8 @@ export interface SerData {
   id: string; n: number; name: string; type: SeriesType; axis: "y" | "y2"; stack: string | null; color: string | null;
   /** per category of the chart (the series' group's slots; null elsewhere and in a gap) */ vals: (number | null)[];
   texts: string[]; fmt: string; target: (number | null)[] | null; source: string; src: ChartSeries;
+  /** per category, the cell's own number format ("" in a gap): PowerPoint's per-point formatCode where it is not `fmt`
+      (S14.2 review 5) */ fmts?: string[];
   /** its group's first category: the series' value i (its `points[i]`, a mark's { s, i }) stands at category start + i */ start: number;
 }
 export interface GroupData { id: string; n: number; start: number; len: number; label: string; divider: LineOrNone | null | undefined }
@@ -199,7 +201,8 @@ const SERIES = new Map<string, SeriesData>();
     reload, a scenario's overlay) and edits, the version's removed cells */
 export function seriesData(it: ChartItem, ctx: RenderCtx): SeriesData {
   const sheets = refSheets(it, ctx);
-  const key = JSON.stringify([it.sers, it.groups ?? null, it.labels ?? null, sheets.map(n => [n, genOf(ctx.sheet?.(n) ?? null), ctx.edits[ctx.sheet?.(n)?.name ?? n] || null]), ctx.version?.hide || null, ctx.preset?.tables || null]);
+  // (the chart's type: a series without its own type takes the chart's – S14.2 review 2)
+  const key = JSON.stringify([it.type, it.sers, it.groups ?? null, it.labels ?? null, sheets.map(n => [n, genOf(ctx.sheet?.(n) ?? null), ctx.edits[ctx.sheet?.(n)?.name ?? n] || null]), ctx.version?.hide || null, ctx.preset?.tables || null]);
   const hit = SERIES.get(key); if (hit) return hit;
   const out = resolveSeries(it, ctx, key);
   if (SERIES.size > 200) SERIES.clear();
@@ -232,15 +235,15 @@ function resolveSeries(it: ChartItem, ctx: RenderCtx, key: string): SeriesData {
     const g = groups.find(x => x.id === s.group) || groups[0], name = nameOf(s, r.first, k, ctx);
     if (r.missing) issues.push(`'${name}': ${r.source} not found`);
     if (r.vals.length && r.vals.length !== g.len && gdefs.length) issues.push(`'${name}' has ${r.vals.length} values for ${g.len} categories`);
-    const vals: (number | null)[] = cats.map(() => null), texts = cats.map(() => ""), target = t ? cats.map((): number | null => null) : null;
-    for (let i = 0; i < g.len && i < r.vals.length; i++) { vals[g.start + i] = r.vals[i].v; texts[g.start + i] = r.vals[i].text; }
+    const vals: (number | null)[] = cats.map(() => null), texts = cats.map(() => ""), fmts = cats.map(() => ""), target = t ? cats.map((): number | null => null) : null;
+    for (let i = 0; i < g.len && i < r.vals.length; i++) { vals[g.start + i] = r.vals[i].v; texts[g.start + i] = r.vals[i].text; fmts[g.start + i] = r.vals[i].fmt; }
     if (t && target) for (let i = 0; i < g.len && i < t.vals.length; i++) target[g.start + i] = t.vals[i].v;
     // (a series without a type takes the chart's: a line chart's are lines, an area chart's areas, a combo's columns)
     const type: SeriesType = s.type === "column" || s.type === "bar" || s.type === "line" || s.type === "area" || s.type === "scatter" ? s.type
       : it.type === "bar" ? "bar" : it.type === "line" ? "line" : it.type === "area" ? "area" : "column";
     return { id, n: +s.n || 0, name, type, axis: s.axis === "y2" ? "y2" : "y", stack: typeof s.stack === "string" ? s.stack : null,
       color: typeof s.color === "string" && /^#[0-9A-Fa-f]{6}$/.test(s.color) ? s.color.toUpperCase() : null,
-      vals, texts, fmt: r.vals.find(v => v.v !== null)?.fmt || "General", target, source: r.source, src: s, start: g.start };
+      vals, texts, fmts, fmt: r.vals.find(v => v.v !== null)?.fmt || "General", target, source: r.source, src: s, start: g.start };
   });
   if (!series.some(s => s.vals.some(v => v !== null && v !== 0))) return { ok: false, source: read.map(x => x.r.source).join(", "), why: "empty", key };
   return { ok: true, cats, groups, series, issues, key };

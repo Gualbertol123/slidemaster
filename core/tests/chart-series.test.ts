@@ -13,7 +13,7 @@ import { validate, type DisplayList, type HitNode, type Node, type RectNode, typ
 import { readWorkbook } from "../src/xlsx/workbook";
 import { applyOps, emptyDoc } from "../src/model/ops";
 import { itemSheets, runtimeSlides } from "../src/model/preset";
-import { resolveStyle } from "../src/model/style";
+import { mix, resolveStyle } from "../src/model/style";
 import { excelToDisplayList, type Metrics } from "../src/render/excel-dl";
 import { slideToDisplayList } from "../src/render/slide-dl";
 import { computeLayout } from "../src/render/layout";
@@ -403,5 +403,114 @@ describe("the chart corpus's series deck (tests/corpus/charts/series.json): ever
     expect(parts).toHaveLength(5);
     for (const p of parts) expect(strFromU8(z[p])).toContain("<c:barChart>");
     if (process.env.CHART_PPTX_OUT) fs.writeFileSync(path.join(process.env.CHART_PPTX_OUT, `series-${design}.pptx`), bytes);
+  });
+});
+
+describe("S14.2 review follow-ups (S14.2f) and the S14.3 re-check's", () => {
+  const STY = { lab: { family: "Arial", size: 14, weight: 400, italic: false, color: "#000000" }, ttl: { family: "Arial", size: 18, weight: 700, italic: false, color: "#000000" }, family: "Arial", colors: ["#111111", "#222222", "#333333"], legend: "square" as const, ink: "#000000", gradient: false, radius: 0 };
+  async function sem(design: Design, it: ChartItem, over?: (c: RenderCtx) => RenderCtx) {
+    const { ctx, build } = await setup(design, { c1: it });
+    const c = over ? over(ctx) : ctx, info = build({ ...c, forExport: true }, true).items.c1;
+    if (info.pptx?.kind !== "chart") throw new Error("no chart semantics");
+    return { ch: info.pptx.chart, x: chartXml(info.pptx.chart, "rId1", css => pptxFamily(css)) };
+  }
+  const light = (c: string) => mix(c, "#FFFFFF", .22).slice(1);
+  it("1 · Liquid Glass's gradient in PowerPoint: a:gradFill with the slide's two stops, the light one at the outer end (a negative bar's reversed); flat elsewhere", async () => {
+    const { ch, x } = await sem("glass", COLS), s0 = ch.bars!.series[0], c = s0.color.slice(1);
+    // a column: 90°, the light stop first (the top); the series' own spPr
+    expect(x).toContain(`<c:spPr><a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:srgbClr val="${light(s0.color)}"/></a:gs><a:gs pos="100000"><a:srgbClr val="${c}"/></a:gs></a:gsLst><a:lin ang="5400000" scaled="0"/></a:gradFill>`);
+    // R1's Q1 is −101.25: its bar goes down, its light stop at the bottom
+    expect(s0.points.find(p => p.i === 0)).toMatchObject({ rev: true });
+    expect(x).toContain(`<c:dPt><c:idx val="0"/><c:invertIfNegative val="0"/><c:bubble3D val="0"/><c:spPr><a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:srgbClr val="${c}"/></a:gs><a:gs pos="100000"><a:srgbClr val="${light(s0.color)}"/></a:gs>`);
+    // a horizontal bar: 0°, the light stop last (the right end)
+    const bar = await sem("glass", LOANS), b0 = bar.ch.bars!.series[0];
+    expect(bar.x).toContain(`<a:gs pos="0"><a:srgbClr val="${b0.color.slice(1)}"/></a:gs><a:gs pos="100000"><a:srgbClr val="${light(b0.color)}"/></a:gs></a:gsLst><a:lin ang="0" scaled="0"/>`);
+    // a per-point colour keeps its own gradient
+    const own = await sem("glass", { ...COLS, sers: { ...COLS.sers!, q2: { ...COLS.sers!.q2, points: { "4": { color: "#FF0000" } } } } });
+    expect(own.x).toContain(`<c:dPt><c:idx val="4"/><c:invertIfNegative val="0"/><c:bubble3D val="0"/><c:spPr><a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:srgbClr val="${light("#FF0000")}"/>`);
+    expect((await sem("excel", COLS)).x).not.toContain("gradFill");
+  });
+  it("2 · the series cache's key holds the chart's type: column → bar gives bar series", async () => {
+    const { ctx } = await setup("excel");
+    const a = seriesData({ ...COLS, type: "column" }, ctx), b = seriesData({ ...COLS, type: "bar" }, ctx);
+    expect(a.ok && a.series[0].type).toBe("column");
+    expect(b.ok && b.series[0].type).toBe("bar");
+  });
+  it("3 · a legend that overflows: the entries the slide does not list ('+N more') are deleted from PowerPoint's legend", async () => {
+    const Qs = ["I", "J", "K"], ten: ChartItem = { ...COLS, legendAt: "bottom", sers: Object.fromEntries(Array.from({ length: 10 }, (_, k) => [`s${k}`, { n: k, name: `A long series name ${k}`, vals: [Q(Qs[k % 3])] }])) };
+    const { ctx } = await setup("excel");
+    const L = seriesLayout(ten, { x: 0, y: 0, w: 600, h: 400 }, ctx, M, STY);
+    if ("why" in L) throw new Error(L.why);
+    const listed = texts(L.legend.nodes);
+    expect(listed.some(t => /^\+\d+ more$/.test(t))).toBe(true);
+    const cut = L.legend.cut!;
+    expect(cut.length).toBeGreaterThan(1);
+    for (const k of cut) expect(listed).not.toContain(`A long series name ${k.slice(1)}`);
+    const { ch, x } = await sem("excel", ten);
+    const hide = ch.bars!.legend!.hide;
+    expect(hide.length).toBeGreaterThan(1);
+    for (const i of hide) expect(x).toContain(`<c:legendEntry><c:idx val="${i}"/><c:delete val="1"/></c:legendEntry>`);
+    // a column legend (right) that runs out of rows: the same
+    const R = seriesLayout({ ...ten, legendAt: "right" }, { x: 0, y: 0, w: 600, h: 120 }, ctx, M, STY);
+    if ("why" in R) throw new Error(R.why);
+    expect(R.legend.cut!.length).toBeGreaterThan(1);
+    expect(R.legend.cut!.length + texts(R.legend.nodes).filter(t => t.startsWith("A long")).length).toBe(10);
+    // no overflow: nothing cut
+    const fit = seriesLayout(COLS, { x: 0, y: 0, w: 600, h: 400 }, ctx, M, STY);
+    expect("why" in fit ? null : fit.legend.cut).toEqual([]);
+  });
+  it("5 · a point whose cell has another number format than its series' carries it as the cache's per-point formatCode", async () => {
+    const pct = (c: RenderCtx): RenderCtx => {
+      const S = c.sheet!("SLIDE_1")!, view = Object.create(S) as Sheet;
+      view.get = (r: number, col: number) => r === 7 && col === 4 ? { ...S.get(r, col)!, fmt: "0.0%" } : S.get(r, col);
+      return { ...c, sheet: n => n === "SLIDE_1" ? view : c.sheet!(n) };
+    };
+    const { ch, x } = await sem("excel", LOANS, pct), s0 = ch.bars!.series[0];
+    expect(s0.fmt).not.toBe("0.0%");
+    expect(s0.fmts![1]).toBe("0.0%");
+    expect(s0.fmts!.filter(f => f)).toEqual(["0.0%"]);
+    expect(x).toMatch(/<c:pt idx="1" formatCode="0\.0%"><c:v>/);
+    expect((x.match(/<c:pt idx="\d+" formatCode="/g) || []).length).toBe(1);
+    // one format throughout: no per-point formatCode
+    expect((await sem("excel", LOANS)).ch.bars!.series[0].fmts).toBeUndefined();
+  });
+  it("6 · the wallpaper's part of the node key is a hash of the whole picture: two of one length and one tail differ", async () => {
+    const { ctx } = await setup("glass"), e = env(ctx);
+    const tail = "x".repeat(80), w1 = { blurId: "wall-a", blurSrc: "data:image/jpeg;base64,AAAA" + tail }, w2 = { blurId: "wall-a", blurSrc: "data:image/jpeg;base64,BBBB" + tail };
+    const a = cachedChartNodes(COLS, "c", COLS.box, ctx, M, { ...e, wall: w1 });
+    expect(cachedChartNodes(COLS, "c", COLS.box, ctx, M, { ...e, wall: { ...w1 } })).toBe(a);
+    expect(cachedChartNodes(COLS, "c", COLS.box, ctx, M, { ...e, wall: w2 })).not.toBe(a);
+  });
+  it("in the file (glass and Excel): the gradient, a cut legend and a per-point format pass as one deck – CHART_PPTX_OUT writes followups-<design>.pptx", async () => {
+    const Qs = ["I", "J", "K"], ten: ChartItem = { ...COLS, box: { x: 60, y: 120, w: 560, h: 420 }, legendAt: "bottom", sers: Object.fromEntries(Array.from({ length: 10 }, (_, k) => [`s${k}`, { n: k, name: `A long series name ${k}`, vals: [Q(Qs[k % 3])] }])) };
+    const loans: ChartItem = { ...LOANS, box: { x: 660, y: 120, w: 560, h: 420 }, sers: { ...LOANS.sers!, l: { ...LOANS.sers!.l, points: { "3": { color: "#C00000" } } } } };
+    for (const design of ["glass", "excel"] as Design[]) {
+      const { ctx, build } = await setup(design, { c1: ten, c2: loans });
+      const S = ctx.sheet!("SLIDE_1")!, view = Object.create(S) as Sheet;
+      view.get = (r: number, col: number) => r === 7 && col === 4 ? { ...S.get(r, col)!, fmt: "0.0%" } : S.get(r, col);
+      const dl = build({ ...ctx, sheet: n => n === "SLIDE_1" ? view : ctx.sheet!(n), forExport: true }, true);
+      const sem: SlideSem = { type: "content", items: Object.fromEntries(Object.entries(dl.items).flatMap(([id, it]) => it.pptx ? [[id, it.pptx]] : [])), palette: [] };
+      const PNG = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
+      const bytes = writePptx({ slides: [{ nodes: dl.nodes, sem }], image: () => PNG, face: css => pptxFamily(css) });
+      const z = unzipSync(bytes), parts = Object.keys(z).filter(n => /^ppt\/charts\/chart\d+\.xml$/.test(n)).map(n => strFromU8(z[n])).join("");
+      expect((strFromU8(z["ppt/slides/slide1.xml"]).match(/<c:chart /g) || []).length, design).toBe(2);
+      expect(parts.includes("<a:gradFill"), design).toBe(design === "glass");
+      expect(parts, design).toMatch(/<c:legendEntry><c:idx val="\d+"\/><c:delete val="1"\/><\/c:legendEntry>/);
+      expect(parts, design).toContain(' formatCode="0.0%"><c:v>');
+      if (process.env.CHART_PPTX_OUT) fs.writeFileSync(path.join(process.env.CHART_PPTX_OUT, `followups-${design}.pptx`), bytes);
+    }
+  });
+  it("re-check · 'lone' (overlap 100, centred bars) only on a chart with category groups: complementary series of an ordinary chart keep their slots", async () => {
+    const { ctx } = await setup("excel");
+    const it: ChartItem = { ...LOANS, type: "column", sers: { t: { n: 1, vals: [{ sheet: "SLIDE_1", range: "J6:J8" }] }, l: { n: 2, vals: [{ sheet: "SLIDE_1", range: "D6:D8" }] } } };
+    const L = seriesLayout(it, { x: 0, y: 0, w: 600, h: 400 }, ctx, M, STY);
+    if ("why" in L) throw new Error(L.why);
+    expect(L.barGroups[0].overlap).toBe(0);
+    expect(L.data.series[0].vals.every(v => v === null)).toBe(true);
+    // (the same series in two category groups: one place per category, overlap 100)
+    const g: ChartItem = { ...it, groups: { a: { n: 1, cats: ["A", "B", "C"] }, b: { n: 2, cats: ["D", "E", "F"] } }, sers: { t: { n: 1, group: "a", vals: [{ sheet: "SLIDE_1", range: "D6:D8" }] }, l: { n: 2, group: "b", vals: [{ sheet: "SLIDE_1", range: "F6:F8" }] } } };
+    const G = seriesLayout(g, { x: 0, y: 0, w: 600, h: 400 }, ctx, M, STY);
+    if ("why" in G) throw new Error(G.why);
+    expect(G.barGroups[0].overlap).toBe(100);
   });
 });

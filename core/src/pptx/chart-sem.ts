@@ -27,7 +27,10 @@ export type LabelPos = "outEnd" | "inEnd" | "ctr" | "inBase" | "t" | "b" | "l" |
 export interface MarkerSem { symbol: "circle" | "square" | "diamond" | "triangle" | "none"; size: number; color: string; ring: string; w: number }
 export interface BarSerSem {
   name: string; /** per category; null = no bar (a gap) */ values: (number | null)[]; color: string; fmt: string;
-  /** per point colours (points[i].color) */ points: { i: number; color: string }[];
+  /** per point colours (points[i].color); with a gradient each point's light stop and whether it is reversed (a
+      negative bar: the light stop at its base end) */ points: { i: number; color: string; light?: string; rev?: boolean }[];
+  /** S14.2 review 1, 5: a bar's gradient – the light stop at the outer end, the colour at the base (a:gradFill; unset =
+      solid) –; per category a point's own number format ("" = `fmt`; unset = all `fmt`) */ light?: string; fmts?: string[];
   labels: { show: ("value" | "name" | "category" | "percent")[]; pos: LabelPos; num: string | null; font: FontSem; points: PointLabelSem[] } | null;
   /* 4.7, S14.3 (unset: a bar series of the one bar group, as S14.2 wrote it) */
   /** the chart group it is drawn in, and its value axis */ type?: "column" | "bar" | "line" | "area"; axis?: "y" | "y2";

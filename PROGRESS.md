@@ -1031,6 +1031,8 @@ One table per parallel milestone (S14.P), so M14 and M15 never append to the sam
 | S14.3 | built page (bytes; not committed) | 4,053,524 (S14.2 built 4,011,269: +42,255; within base.json + m14.json, 4,086,092: 32,568 left) | 4,053,524 |
 | S14.3 review | ⏱ reference chart · line 12 × 52, display list (the same bench), Liquid Glass · Excel, ms | 2.12 · 0.79 · 5.74 · 2.17 (limits 5 · 5 · 10 ms × ≈ 2; a shared machine) | – |
 | S14.3 review | built page (bytes; not committed) after merging prep (main 4.6.0): before the fixes 4,056,597, with them | 4,062,155 (+5,558; within 4,086,092: 23,937 left) | – |
+| S14.2f | ⏱ column 12 × 4 · reference chart · line 12 × 52, display list (the same bench), Liquid Glass · Excel, ms | 1.70 · 0.80 · 1.29 · 0.79 · 4.16 · 1.84 (limits 5 · 5 · 10 ms × 1.8–2.0) | – |
+| S14.2f | built page (bytes; not committed): S14.2 review 1–6 and the S14.3 re-check's two | 4,064,448 (S14.3 review built 4,062,155: +2,293; within 4,086,092: 21,644 left) | – |
 
 ### Measurements · M15 (4.8.0)
 M15 appends here only.

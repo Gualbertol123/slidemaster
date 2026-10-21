@@ -115,6 +115,41 @@ class LineAreaChartTests(BarChartTests):
         # a blank cell is a gap at its own place: "11576, —, 11258" is not Weekly's "11576, 11258, —"
         self.assertFalse(chk({"range": "A2:C2"}))
 
+    def test_a_groups_start_skips_hidden_category_cells(self):
+        # (S14.3 re-check) the groups before a series' own: their category ranges' visible cells, as the chart counts
+        # them – a hidden row in the first group's range is no category
+        import openpyxl
+        f = self.deck("LINE_MARKERS", series=[("First", (5, 6, None)), ("Second", (None, None, 11324))])
+        book = os.path.join(self.tmp, "src.xlsx")
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Weekly"
+        ws["A1"], ws["A2"], ws["A3"], ws["C1"] = "R1", "hidden", "R2", 11324
+        ws.row_dimensions[2].hidden = True
+        wb.save(book)
+        chk = lambda **x: pptxcheck.check([f], ppt=False, sources={f: {"workbook": book, "charts": [dict(slide=1, sheet="Weekly", range="C1", **x)]}})
+        self.assertTrue(chk(before=[{"sheet": "Weekly", "range": "A1:A3"}], name="Second"))
+        # (the range's three cells, hidden one included – export-check's old count – put it one category off)
+        self.assertFalse(chk(start=3, name="Second"))
+        self.assertTrue(chk(start=1, before=[{"sheet": "Weekly", "range": "A3"}], name="Second"))
+
+    def test_series_order_is_checked_per_chart_group(self):
+        # (S14.2 review 4) each chart group's own c:ser type: a bar's explosion, a pie's invertIfNegative, an area's
+        # marker are refused; a line's marker and smooth pass
+        bar = self.deck("COLUMN_CLUSTERED", lambda x: x.replace(b"</c:tx>", b'</c:tx><c:explosion val="5"/>', 1))
+        self.assertIn("<c:explosion> in <c:ser> of <c:barChart>", " ".join(self.order_problems(bar)))
+        pie = self.deck("PIE", lambda x: x.replace(b"</c:tx>", b'</c:tx><c:invertIfNegative val="0"/>', 1), series=[("S", (1, 2, 3))])
+        self.assertIn("<c:invertIfNegative> in <c:ser> of <c:pieChart>", " ".join(self.order_problems(pie)))
+        self.assertEqual(self.order_problems(self.deck("PIE", series=[("S", (1, 2, 3))])), [])
+        area = self.deck("AREA", lambda x: x.replace(b"</c:tx>", b'</c:tx><c:marker><c:symbol val="none"/></c:marker>', 1))
+        self.assertIn("<c:marker> in <c:ser> of <c:areaChart>", " ".join(self.order_problems(area)))
+        # the helper alone: lint() no longer checks c:ser (no parent-blind list)
+        import xml.etree.ElementTree as ET
+        with zipfile.ZipFile(bar) as z:
+            root = ET.fromstring(z.read("ppt/charts/chart1.xml"))
+        self.assertEqual([p for p in pptxcheck.lint("c", root) if "<c:ser>" in p], [])
+        self.assertTrue(pptxcheck.chart_order("c", root))
+
     def test_content_names_each_plot(self):
         ch = pptxcheck.content(self.deck("AREA_STACKED"))["slides"][0]["charts"][0]
         self.assertEqual(ch["plots"], ["AreaPlot"])

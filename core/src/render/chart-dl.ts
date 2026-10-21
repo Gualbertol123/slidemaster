@@ -18,6 +18,7 @@ import type { RenderCtx } from "./context";
 import type { Metrics } from "./excel-dl";
 import { glassBox, type GlassVars, type Wallpaper } from "./glass-dl";
 import { formatValue } from "../xlsx/numfmt";
+import { hashStr } from "../xlsx/util";
 import { mix, palette, themeOf } from "../model/style";
 import { isConsult } from "../model/designs";
 import { specOf } from "./consult-spec";
@@ -45,15 +46,25 @@ export function chartKey(it: ChartItem, ctx: RenderCtx): string {
     measuredBuild: a probe that records what is asked, then the answers), so a hit is taken only when every text the
     chart measured measures the same again – asking the same measurer the same texts, so a probe still records them */
 type Measured = [string, string, boolean, number, number, number, string];
+/** the blurred wallpaper's content hash (FNV-1a over the whole data URL, S14.2 review 6: two wallpapers of one length
+    and one tail no longer share a key), remembered for the few wallpapers a session holds */
+const SRC_HASH = new Map<string, string>();
+function srcHash(src: string): string {
+  let h = SRC_HASH.get(src);
+  if (h === undefined) { if (SRC_HASH.size > 8) SRC_HASH.clear(); SRC_HASH.set(src, h = hashStr(src)); }
+  return h;
+}
 const NODES = new Map<string, { out: ReturnType<typeof chartNodes>; runs: Measured[] }>();
 export function cachedChartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, m: Metrics, env: ChartEnv): ReturnType<typeof chartNodes> {
-  const key = JSON.stringify([chartKey(it, ctx), id, box, env.family, env.V, env.wall ? [env.wall.blurId, env.wall.blurSrc.length, env.wall.blurSrc.slice(-64)] : null, !!env.noContent]);
+  const key = JSON.stringify([chartKey(it, ctx), id, box, env.family, env.V, env.wall ? [env.wall.blurId, srcHash(env.wall.blurSrc)] : null, !!env.noContent]);
   const hit = NODES.get(key);
   if (hit && hit.runs.every(([t, f, tn, w, a, d, adv]) => { const r = m.run(t, f, tn); return r.w === w && r.asc === a && r.desc === d && JSON.stringify(r.adv ?? null) === adv; })) return hit.out;
   const runs: Measured[] = [];
   const rec: Metrics = {
     run: (t, f, tn = false) => { const r = m.run(t, f, tn); runs.push([t, f, tn, r.w, r.asc, r.desc, JSON.stringify(r.adv ?? null)]); return r; },
     // (charts break no lines; a chart that did would not be cached, its breaks unchecked)
+    // (wrapped text is not replayed: its NaN never compares equal, so a chart that wraps text is rebuilt every time – by
+    // intent, S14.2 review 7)
     lines: (t, f, w) => { runs.push(["", "", false, NaN, NaN, NaN, ""]); return m.lines(t, f, w); },
   };
   const out = chartNodes(it, id, box, ctx, rec, env);

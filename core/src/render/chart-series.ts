@@ -42,6 +42,8 @@ import { parseColor, solid } from "../dl/color";
 
 const r2 = (v: number) => Math.round(v * 100) / 100 || 0;
 const HEX = /^#[0-9A-Fa-f]{6}$/;
+/** a Liquid Glass bar's light stop (its outer end) */
+const lightOf = (c: string) => mix(c, "#FFFFFF", .22);
 /** what the design gives a series chart besides chart-dl.ts's ChartLook */
 interface AxisLook { tick: string; grid: LineSem | null; gridOn: boolean; line: LineSem | null; card: { fill: string; a: number; line: string } }
 function axisLook(ctx: RenderCtx): AxisLook {
@@ -98,6 +100,7 @@ export interface SeriesLayout {
   /** the category groups' labels (second row) and the dividers between groups */ groupLabels: { text: string; x: number; w: number }[] | null;
   dividers: { x1: number; y1: number; x2: number; y2: number; line: LineSem }[];
   /** the title's rule (09 §3.3) */ rule: { x1: number; x2: number; y: number; line: LineSem } | null;
+  /** the bars' gradient (Liquid Glass), PowerPoint's a:gradFill too (S14.2 review 1) */ gradient: boolean;
   /** the marks' nodes (over the data), bands (under it) and hits */ marks: { nodes: Node[]; under: Node[]; hits: Node[] };
 }
 export interface SeriesStyle { lab: St; ttl: St; family: string; colors: string[]; legend: "capsule" | "square" | "line"; ink: string; gradient: boolean; radius: number }
@@ -206,8 +209,9 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     // "actual inside target" bars share one place with their targets: PowerPoint draws them as two series of one bar group
     // at overlap 100 (09 §4.2), so the whole group stands at that overlap. Clustered series that never share a category
     // (category groups: each group's own columns) take one place too – overlap 100, each bar centred on its category,
-    // in PowerPoint as on the slide (S14.3 review 5)
-    const lone = mode === "none" && P.bi.length > 1 && data.cats.every((_, i) => P.bi.filter(k => ser[k].vals[i] !== null && ser[k].vals[i] !== undefined).length <= 1);
+    // in PowerPoint as on the slide (S14.3 review 5) – only on a chart with category groups: an ordinary clustered chart
+    // keeps each series' slot, as Excel does, even where another series is blank (S14.3 re-check)
+    const lone = mode === "none" && data.groups.length > 1 && P.bi.length > 1 && data.cats.every((_, i) => P.bi.filter(k => ser[k].vals[i] !== null && ser[k].vals[i] !== undefined).length <= 1);
     const ov = P.tgt || lone ? 100 : overlap, n = mode === "none" ? P.bi.length : 1;
     barGroups.push({ axis: P.ax, series: P.bi, overlap: ov });
     const slots = barSlots(n, gap, ov), base = Math.max(S.min, Math.min(S.max, 0));
@@ -384,7 +388,7 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   return { data, dir, mode, gap, overlap, title, titleSt, titleBox, plot, scale, num, valSt, catSt, valShow, catShow, skip, look,
     grid: typeof A.y?.grid === "boolean" ? A.y.grid : look.gridOn, colors, bars, labs, legend, ticks: tk, labels, issue,
     hidden: ser.flatMap((s, k) => entries.some(e => e.key === s.id) ? [] : [k]),
-    kinds, axes, y2, barGroups, traces, groupLabels, dividers, rule, marks: { nodes: mk.nodes, under: mk.under, hits: mk.hits } };
+    kinds, axes, y2, barGroups, traces, groupLabels, dividers, rule, gradient: sty.gradient, marks: { nodes: mk.nodes, under: mk.under, hits: mk.hits } };
 }
 
 /** PowerPoint draws a chart's groups on the secondary axis over those on the primary one; the slide draws areas, then
@@ -440,7 +444,7 @@ export function seriesNodes(L: SeriesLayout, id: string, frame: Box, m: Metrics,
   // the bars, and over each its target's outline
   for (const b of L.bars) {
     if (b.w > 0 && b.h > 0) {
-      const c = parseColor(b.color).c, light = parseColor(mix(b.color, "#FFFFFF", .22)).c;
+      const c = parseColor(b.color).c, light = parseColor(lightOf(b.color)).c;
       const lin: [number, number, number, number] = b.dir === "up" ? [0, 0, 0, 1] : b.dir === "down" ? [0, 1, 0, 0] : b.dir === "right" ? [1, 0, 0, 0] : [0, 0, 1, 0];
       const fill: Paint = sty.gradient ? { linear: lin, stops: [{ o: 0, c: light, a: 1 }, { o: 1, c, a: 1 }] } : { solid: c };
       const r = b.outer && sty.radius > 0 && !b.target ? outerRadius(sty.radius, b.dir, b.w, b.h) : 0;
@@ -507,6 +511,18 @@ export function seriesSem(L: SeriesLayout): BarsSem {
       labels: L.labels[k] ?? null,
       type: kind === "bar" ? (L.dir === "bar" ? "bar" : "column") : kind, axis: L.axes[k],
     };
+    // each point's own number format where it is not the series' (PowerPoint's per-point formatCode, S14.2 review 5)
+    if (s.fmts?.some((f, i) => f && f !== s.fmt && s.vals[i] !== null)) out.fmts = s.fmts.map((f, i) => s.vals[i] !== null && f !== s.fmt ? f : "");
+    // Liquid Glass: each bar's gradient as drawn – the light stop at its outer end (a negative bar's at its other end)
+    if (kind === "bar" && L.gradient) {
+      const own = new Map(out.points.map(p => [p.i, p.color]));
+      const rev = new Set(L.bars.filter(b => b.s === k && b.w > 0 && b.h > 0 && (b.dir === "down" || b.dir === "left")).map(b => b.i));
+      out.light = lightOf(out.color);
+      out.points = [...new Set([...own.keys(), ...rev])].sort((a, b) => a - b).map(i => {
+        const c = own.get(i) ?? out.color;
+        return { i, color: c, light: lightOf(c), ...(rev.has(i) ? { rev: true } : {}) };
+      });
+    }
     if (kind === "line") {
       out.smooth = !!tr?.smooth; out.stroke = tr?.stroke ?? null; out.marker = tr?.marker ?? null;
       out.markers = tr?.marker ? Object.entries(s.src.points || {}).flatMap(([i, p]) => p && typeof p.marker === "string" && HEX.test(p.marker) && +i >= 0 && +i + s.start < s.vals.length ? [{ i: +i + s.start, color: p.marker.toUpperCase() }] : []) : [];
@@ -520,7 +536,7 @@ export function seriesSem(L: SeriesLayout): BarsSem {
     const s = L.data.series[k];
     if (L.mode !== "none" || !s.target) return;
     companion.set(k, ser.length);
-    ser.push({ name: `${s.name} – target`, values: s.target.slice(), color: L.colors[k], fmt: s.fmt, points: ser[k].points, labels: null, type: "column", axis: L.axes[k], target: { w: 1.5 } });
+    ser.push({ name: `${s.name} – target`, values: s.target.slice(), color: L.colors[k], fmt: s.fmt, points: ser[k].points.map(p => ({ i: p.i, color: p.color })), labels: null, type: "column", axis: L.axes[k], target: { w: 1.5 } });
   }));
   const grouping = L.mode === "none" ? "clustered" : L.mode === "stacked" ? "stacked" : "percentStacked";
   const groups: GroupSem[] = [];
@@ -539,7 +555,9 @@ export function seriesSem(L: SeriesLayout): BarsSem {
     val: { min: L.scale.min, max: L.scale.max, step: L.scale.step, num: L.num, grid: L.grid ? L.look.grid : null, line: null, show: L.valShow, font: fontSem(L.valSt) },
     cat: { line: L.look.line, show: L.catShow, font: fontSem(L.catSt), skip: L.skip },
     plot: { x: r2(L.plot.x), y: r2(L.plot.y), w: r2(L.plot.w), h: r2(L.plot.h) },
-    legend: L.legend.box ? { pos: lp, box: L.legend.ppt ?? L.legend.box, overlay: L.legend.at === "inside-tl" || L.legend.at === "inside-tr", hide: [...L.hidden, ...companion.values()] } : null,
+    legend: L.legend.box ? { pos: lp, box: L.legend.ppt ?? L.legend.box, overlay: L.legend.at === "inside-tl" || L.legend.at === "inside-tr",
+      // (the entries past the slide's room as well: "+N more" there, left out in PowerPoint – S14.2 review 3)
+      hide: [...L.hidden, ...L.data.series.flatMap((s, k) => L.legend.cut?.includes(s.id) ? [k] : []), ...companion.values()].sort((a, b) => a - b) } : null,
     groups, val2: y2 ? { min: y2.scale.min, max: y2.scale.max, step: y2.scale.step, num: y2.num, grid: y2.grid, line: null, show: y2.show, font: fontSem(y2.st) } : null,
     levels: L.groupLabels ? L.data.cats.map((_, i) => { const g = L.data.groups.find(x => x.start === i && x.len > 0); return g ? g.label : ""; }) : null,
   };

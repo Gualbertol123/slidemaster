@@ -59,30 +59,32 @@ const CHART_DECKS = path.join(REPO, "tests", "corpus", "charts");
     deck's preset.set and item.patch ops: slide n is the preset's n-th slide, so a deck with hidden slides or slides
     added by slide.add would number them wrongly – the chart corpus has neither (the real-objects counts of (5) come from
     the core and have no such limit) */
-/** the cells a range covers (A1 notation; a single cell is one) */
-function rangeCells(range) {
-  const m = /^\$?([A-Z]+)\$?(\d+)(?::\$?([A-Z]+)\$?(\d+))?$/.exec(String(range || "").trim().toUpperCase());
-  if (!m) return 0;
-  const col = c => [...c].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0);
-  const c1 = col(m[1]), r1 = +m[2], c2 = m[3] ? col(m[3]) : c1, r2 = m[4] ? +m[4] : r1;
-  return (Math.abs(c2 - c1) + 1) * (Math.abs(r2 - r1) + 1);
-}
 /** what pptxcheck --sources checks of a deck's charts: an old chart's values range; a series chart's (4.7, S14.3 review 4)
     each shown series of one range on one of the deck workbook's sheets, at its category group's first category
     (`start`: the groups before it, in their order, by their ranges' cells) and by its own name when it has one */
-function chartSources(deck) {
+export function chartSources(deck) {
   const preset = deck.ops.find(o => o.op === "preset.set")?.preset || {}, tables = new Map((preset.tables || []).map(t => [t.id, t.sheet]));
   const out = [], sheetOf = r => r.table ? tables.get(r.table) : r.sheet;
   const add = (slide, it) => {
     if (it.values?.range) out.push({ slide, sheet: sheetOf(it.values), range: it.values.range });
     if (!it.sers || typeof it.sers !== "object") return;
     const groups = Object.entries(it.groups || {}).filter(([, g]) => g && typeof g === "object").sort(([a, p], [b, q]) => (+p.n || 0) - (+q.n || 0) || (a < b ? -1 : a > b ? 1 : 0));
-    const startOf = gid => { let at = 0; for (const [id, g] of groups) { if (id === gid) return at; at += g.cats?.range ? rangeCells(g.cats.range) : 0; } return 0; };
+    // (a group's start: the categories of the groups before it – an inline list's length here; a range's cells counted
+    // by pptxcheck, which skips hidden rows and columns as the chart does: `before` – S14.3 re-check)
+    const startOf = gid => {
+      let at = 0; const before = [];
+      for (const [id, g] of groups) {
+        if (id === gid) break;
+        if (Array.isArray(g.cats)) at += g.cats.length;
+        else if (g.cats?.range && sheetOf(g.cats)) before.push({ sheet: sheetOf(g.cats), range: g.cats.range });
+      }
+      return { start: at, ...(before.length ? { before } : {}) };
+    };
     for (const s of Object.values(it.sers)) {
       if (!s || typeof s !== "object" || s.hide || !Array.isArray(s.vals) || s.vals.length !== 1) continue;
       const r = s.vals[0], sheet = r && sheetOf(r);
       if (!sheet || !r.range || sheet.startsWith("[")) continue;          // (a linked workbook's: not the deck's book)
-      out.push({ slide, sheet, range: r.range, start: groups.length ? startOf(groups.some(([id]) => id === s.group) ? s.group : groups[0][0]) : 0, ...(typeof s.name === "string" ? { name: s.name } : {}) });
+      out.push({ slide, sheet, range: r.range, ...(groups.length ? startOf(groups.some(([id]) => id === s.group) ? s.group : groups[0][0]) : { start: 0 }), ...(typeof s.name === "string" ? { name: s.name } : {}) });
     }
   };
   (preset.slides || []).forEach((s, i) => { for (const it of Object.values(s.items || {})) if (it?.kind === "chart") add(i + 1, it); });

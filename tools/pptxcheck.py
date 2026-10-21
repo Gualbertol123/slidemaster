@@ -17,9 +17,10 @@ check needs PowerPoint (Windows, COM through PowerShell). The helper stays stand
         (3) PowerPoint (unless --no-ppt, or no PowerPoint): Presentations.Open read-only without a window – a file
             it cannot read raises in automation (not every repair does: (1)'s lint covers those) –; the slide count and every shape's text read back and
             compared with (2)
-        (4) with --sources ({file: {workbook, charts: [{slide, sheet, range, start?, name?}]}}): one series of the chart
-            (named `name`, when given) holds the workbook's cells at their category positions – the cells' first at
-            category `start` (a category group's first; default 0), a blank cell a gap there, and no value outside them
+        (4) with --sources ({file: {workbook, charts: [{slide, sheet, range, start?, before?, name?}]}}): one series of the
+            chart (named `name`, when given) holds the workbook's cells at their category positions – the cells' first at
+            category `start` (default 0) plus the visible cells of the ranges `before` ([{sheet, range}]: the category
+            groups' before its own), a blank cell a gap there, and no value outside them
             (openpyxl, the values Excel saved; hidden cells skipped as the chart skips them). A pie may instead hold the
             cells' numbers with blanks and text left out (the old reading)
         (5) real objects, gated (S14.P; AUDIT-2 VER-3, PX-02 / PX-03, 09 §7.2): with --expect ({file: [{slide, tables,
@@ -78,17 +79,14 @@ C = "{%s}" % NS["c"]
 C_ORDER = {
     "pieChart": ["varyColors", "ser", "dLbls", "firstSliceAng", "extLst"],
     "doughnutChart": ["varyColors", "ser", "dLbls", "firstSliceAng", "holeSize", "extLst"],
-    # (a pie's, a bar chart's, a line's and an area's series in one list: the schema's order of each, 4.7 / S14.2, S14.3)
-    "ser": ["idx", "order", "tx", "spPr", "invertIfNegative", "pictureOptions", "explosion", "marker", "dPt", "dLbls", "trendline", "errBars", "cat", "val", "smooth", "shape", "extLst"],
     "dPt": ["idx", "invertIfNegative", "marker", "bubble3D", "explosion", "spPr", "pictureOptions", "extLst"],
     "dLbls": ["dLbl", "delete", "numFmt", "spPr", "txPr", "dLblPos", "showLegendKey", "showVal", "showCatName", "showSerName", "showPercent", "showBubbleSize", "separator", "showLeaderLines", "leaderLines", "extLst"],
     "dLbl": ["idx", "delete", "layout", "tx", "numFmt", "spPr", "txPr", "dLblPos", "showLegendKey", "showVal", "showCatName", "showSerName", "showPercent", "showBubbleSize", "separator", "extLst"],
     "chart": ["title", "autoTitleDeleted", "pivotFmts", "view3D", "floor", "sideWall", "backWall", "plotArea", "legend", "plotVisOnly", "dispBlanksAs", "showDLblsOverMax", "extLst"],
     "chartSpace": ["date1904", "lang", "roundedCorners", "AlternateContent", "clrMapOvr", "pivotSource", "protection", "chart", "spPr", "txPr", "externalData", "printSettings", "userShapes", "extLst"],
     "legend": ["legendPos", "legendEntry", "layout", "overlay", "spPr", "txPr", "extLst"],
-    # column and bar charts (4.7, S14.2; 09 §4.2): the plot area (any chart groups, then any axes), the bar group, its
-    # axes, a manual layout, a title, a hidden legend entry
-    "plotArea": ["layout", "CHART", "AXIS", "dTable", "spPr", "extLst"],
+    # column and bar charts (4.7, S14.2; 09 §4.2): the bar group, its axes, a manual layout, a title, a hidden legend
+    # entry (the plot area and each chart group's c:ser: chart_order below)
     "barChart": ["barDir", "grouping", "varyColors", "ser", "dLbls", "gapWidth", "overlap", "serLines", "axId", "extLst"],
     "catAx": ["axId", "scaling", "delete", "axPos", "majorGridlines", "minorGridlines", "title", "numFmt", "majorTickMark", "minorTickMark", "tickLblPos", "spPr", "txPr",
               "crossAx", "crosses", "crossesAt", "auto", "lblAlgn", "lblOffset", "tickLblSkip", "tickMarkSkip", "noMultiLvlLbl", "extLst"],
@@ -105,10 +103,6 @@ C_ORDER = {
     "multiLvlStrRef": ["f", "multiLvlStrCache", "extLst"],
     "multiLvlStrCache": ["ptCount", "lvl", "extLst"],
 }
-# a choice of the schema: one rank for every chart group and every axis of a plot area
-C_SLOT = dict([(k, "CHART") for k in ("areaChart", "area3DChart", "lineChart", "line3DChart", "stockChart", "radarChart", "scatterChart", "pieChart", "pie3DChart",
-                                      "doughnutChart", "barChart", "bar3DChart", "ofPieChart", "surfaceChart", "surface3DChart", "bubbleChart")]
-              + [(k, "AXIS") for k in ("valAx", "catAx", "dateAx", "serAx")])
 LN_TAGS = ("ln", "lnL", "lnR", "lnT", "lnB")
 
 
@@ -154,7 +148,6 @@ def lint(name, root):
             seq, last = C_ORDER[t], -1
             for ch in e:
                 n = _local(ch.tag)
-                n = C_SLOT.get(n, n) if t == "plotArea" else n
                 if n not in seq:
                     bad("<c:%s> in <c:%s>" % (n, t))
                     continue
@@ -257,6 +250,7 @@ def structure(path, slides=None):
     for n, root in xml.items():
         if re.match(r"ppt/(slides|slideLayouts|slideMasters|charts)/[^/]+\.xml$", n):
             bad.extend(lint(n, root))
+            bad.extend(chart_order(n, root))            # (1) M14: per parent (its own function below)
         if not n.endswith(".rels"):
             continue
         rids = [r.get("Id") for r in root.findall("rel:Relationship", NS)]
@@ -501,6 +495,53 @@ def series_at(values, cells, start):
     return True
 
 
+# ---- M14 (4.7; S14.2 review, 4): the chart part's order checks that depend on the parent, its own function ----
+# a choice of the schema: one rank for every chart group and every axis of a plot area
+C_SLOT = dict([(k, "CHART") for k in ("areaChart", "area3DChart", "lineChart", "line3DChart", "stockChart", "radarChart", "scatterChart", "pieChart", "pie3DChart",
+                                      "doughnutChart", "barChart", "bar3DChart", "ofPieChart", "surfaceChart", "surface3DChart", "bubbleChart")]
+              + [(k, "AXIS") for k in ("valAx", "catAx", "dateAx", "serAx")])
+# each chart group's own series type (ECMA-376 part 1, CT_PieSer, CT_BarSer, CT_LineSer, CT_AreaSer): a pie's c:ser takes
+# no invertIfNegative, a bar's no explosion, an area's no marker
+_PIE_SER = ["idx", "order", "tx", "spPr", "explosion", "dPt", "dLbls", "cat", "val", "extLst"]
+C_PARENT_ORDER = {
+    "plotArea": ["layout", "CHART", "AXIS", "dTable", "spPr", "extLst"],
+    "pieChart/ser": _PIE_SER,
+    "doughnutChart/ser": _PIE_SER,
+    "barChart/ser": ["idx", "order", "tx", "spPr", "invertIfNegative", "pictureOptions", "dPt", "dLbls", "trendline", "errBars", "cat", "val", "shape", "extLst"],
+    "lineChart/ser": ["idx", "order", "tx", "spPr", "marker", "dPt", "dLbls", "trendline", "errBars", "cat", "val", "smooth", "extLst"],
+    "areaChart/ser": ["idx", "order", "tx", "spPr", "pictureOptions", "dPt", "dLbls", "trendline", "errBars", "cat", "val", "extLst"],
+}
+
+
+def chart_order(name, root):
+    """(1) a chart part's children whose order depends on the parent (4.7, S14.2 review 4): the plot area's (its chart
+    groups, then its axes) and each chart group's c:ser, by the group's own series type; a c:ser under any other group is
+    not checked. The problems as lint() words them"""
+    out = []
+    if root.tag != C + "chartSpace":
+        return out
+
+    def check(e, key, label):
+        seq, last = C_PARENT_ORDER[key], -1
+        for ch in e:
+            n = _local(ch.tag)
+            n = C_SLOT.get(n, n) if key == "plotArea" else n
+            if n not in seq:
+                out.append("%s: <c:%s> in <c:%s>" % (name, n, label))
+                continue
+            if seq.index(n) < last:
+                out.append("%s: <c:%s> after a later child in <c:%s>" % (name, n, label))
+            last = max(last, seq.index(n))
+    for pa in root.iter(C + "plotArea"):
+        check(pa, "plotArea", "plotArea")
+        for g in pa:
+            key = _local(g.tag) + "/ser"
+            if key in C_PARENT_ORDER:
+                for ser in g.findall("c:ser", NS):
+                    check(ser, key, "ser> of <c:" + _local(g.tag))
+    return out[:20]
+
+
 def real_objects(rep_content, expect, who):
     """(5) the gate of AUDIT-2 VER-3 / PX-03 (S14.P, 09 §7.2): each slide has exactly the real tables (has_table) and
     native charts (has_chart) the core's own export draws there (`expect`, tools/real-objects.mjs: a table of a sheet the
@@ -544,7 +585,10 @@ def check(paths, slides=None, ppt=True, report=None, sources=None, expect=None):
                 found = [c for s in rep["content"]["slides"][spec["slide"] - 1:spec["slide"]] for c in s["charts"]]
                 want = source_values(src["workbook"], spec["sheet"], spec["range"])
                 cells = source_cells(src["workbook"], spec["sheet"], spec["range"])
-                start, name = int(spec.get("start") or 0), spec.get("name")
+                # (a group's start: `start` plus the visible cells of the category ranges `before` it – hidden rows and
+                # columns skipped, as the chart skips them; S14.3 re-check)
+                start = int(spec.get("start") or 0) + sum(len(source_cells(src["workbook"], b["sheet"], b["range"])) for b in spec.get("before") or [])
+                name = spec.get("name")
                 # (the cache keeps Excel's 15 significant digits: equal within that)
                 same = lambda a, b: len(a) == len(b) and all(abs(float(x) - y) <= 1e-12 * max(1.0, abs(y)) for x, y in zip(a, b))
                 # (4.7, S14.3: one series of the chart – a combo's line, a group's columns – at its categories, from its
