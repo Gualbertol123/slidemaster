@@ -642,7 +642,7 @@ export class CoreHost {
       if (!a.pptx) { out.push({ slide: s, dl }); continue; }
       const items: SlideSem["items"] = {};
       for (const [id, it] of Object.entries(dl.items)) if (it.pptx) items[id] = it.pptx;
-      out.push({ slide: s, dl: { nodes: dl.nodes, images: dl.images }, sem: { type: R.type === "cover" || R.type === "index" ? R.type : "content", items, palette } });
+      out.push({ slide: s, dl: { nodes: dl.nodes, images: dl.images }, sem: { type: R.type === "cover" || R.type === "index" ? R.type : "content", items, palette, ...(dl.layout ? { layout: dl.layout } : {}) } });
     }
     return out;
   }

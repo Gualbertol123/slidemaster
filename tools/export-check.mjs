@@ -4,7 +4,8 @@
    * its selectable text against the goldens (GT, decision 2026-10-12, 5): every golden text of each slide on its
      page, nothing else, the page count = the slide count (since 4.3, B19: a raw Excel slide with the user's text boxes,
      comments or notes section equals Excel Refined's golden text – both draw the same tables and objects – and is
-     listed as such);
+     listed as such; since B48, Excel and Excel Refined follow the Intesa Sanpaolo template: a slide whose text equals
+     the golden's with the template's bullets and contents marks as squares is listed as "GT B48", ispGoldenTexts);
    * GF budgets (PLAN Part F): Excel designs < 40 KB per slide, Liquid Glass < 80 KB per slide + 190 KB per document,
      Consulting Navy / Red (M7b, 08 §4.3) < 40 KB per slide + 150 KB per document – gated on deck20 (the 20-slide
      reference, as the bench); for decks of 1–3 slides the fonts and the wallpaper, a cost per document, can exceed it:
@@ -34,7 +35,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { BOOKS, DECKS, deckList, deckOps, load, openBrowser, startHelper } from "./capture-v3.mjs";
-import { goldenTexts, matchTexts, ownPdfText, squash } from "./export-dl.mjs";
+import { goldenItems, goldenTexts, matchTexts, ownPdfText, squash } from "./export-dl.mjs";
 import { speedFactor } from "./calibrate.mjs";
 import { pageRealObjects } from "./real-objects.mjs";
 
@@ -53,6 +54,43 @@ export const BUDGET = {
   pptx: { size: { excel: [15 * 1024, 0], clean: [15 * 1024, 0], glass: [120 * 1024, 400 * 1024], mckinsey: [15 * 1024, 0], bain: [15 * 1024, 0] },
     time: { excel: 1500, clean: 1500, glass: 3000, mckinsey: 1500, bain: 1500 } },
 };
+/** B48's expected text difference (the Intesa Sanpaolo template in Excel and Excel Refined, product owner 2026-10-21;
+    B48 review, 8) – the only one, scoped to these two designs: their goldens' texts as the template draws them. A text
+    box's paragraph starting "- " / "• " / "◦ " (not a minus before a figure: core render/slide-dl.ts ISP_BULLET) shows its
+    bullet as a square, not as text – unless its box is right-aligned or centred, where it stays text (so each text box
+    is taken in whichever form the page has); the contents rows' numbers ("01", class ix-n) are squares and each row
+    reads page then entry (ix-p before ix-t); a title or subtitle the template's larger type (26 / 16 pt × 4/3) cuts
+    with an ellipsis is taken as cut (its beginning and "…"; owner's question in the B48 report). Every other text
+    difference still fails. A slide that matches only so is
+    listed ("GT B48") */
+const ISP_BULLET = /^([ \t]+)?(- (?!\s*[\d.,€$£%])|• |◦ )/;
+export function ispGoldenTexts(deck, design, version, n, pageText = null) {
+  if (design !== "excel" && design !== "clean") return null;
+  const items = goldenItems(deck, design, version, n);
+  if (!items) return null;
+  const page = pageText === null ? null : squash(pageText), out = [];
+  for (const i of items) {
+    if (/^ix-n\b/.test(i.cls)) continue;
+    if (/^ix-p\b/.test(i.cls)) {
+      // the page before its row's entry (and the entry's subtitle)
+      let k = out.length; while (k > 0 && /^ix-s\b/.test(out[k - 1].cls)) k--;
+      if (k > 0 && /^ix-t\b/.test(out[k - 1].cls)) k--;
+      out.splice(k, 0, i); continue;
+    }
+    if (/^tnote\b/.test(i.cls)) {
+      const drawn = i.text.split("\n").map(l => l.replace(ISP_BULLET, "")).join("\n");
+      out.push({ ...i, text: page !== null && !page.includes(squash(drawn)) && page.includes(squash(i.text)) ? i.text : drawn });
+      continue;
+    }
+    if (/^(title|subtitle)\b/.test(i.cls) && page !== null && !page.includes(squash(i.text))) {
+      const t = squash(i.text);
+      let k = t.length - 1; while (k >= 8 && !page.includes(t.slice(0, k) + "...")) k--;
+      if (k >= 8) { out.push({ ...i, text: t.slice(0, k) + "..." }); continue; }
+    }
+    out.push(i);
+  }
+  return out.map(i => i.text);
+}
 /** the chart corpus (M9): decks with charts and callouts, PowerPoint pass only (they have no v3 goldens) */
 const CHART_DECKS = path.join(REPO, "tests", "corpus", "charts");
 /** each chart of a deck as pptxcheck compares it: its slide (1-based), the sheet and range of its values. Read from the
@@ -165,6 +203,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
         const refined = goldenTexts(r.deck, "clean", "full", p + 1), m2 = refined && matchTexts(pageText, refined);
         if (m2 && !m2.missing.length && !m2.extra) { (r.b19 ||= []).push(p + 1); return; }
       }
+      // B48: the template's bullets and contents marks (ispGoldenTexts) – raw Excel also as Excel Refined's (B19)
+      for (const d of r.design === "excel" ? ["excel", "clean"] : r.design === "clean" ? ["clean"] : []) {
+        const w = ispGoldenTexts(r.deck, d, "full", p + 1, pageText), m3 = w && matchTexts(pageText, w);
+        if (m3 && !m3.missing.length && !m3.extra) { (r.b48 ||= []).push(p + 1); return; }
+      }
       bad.push(`slide ${p + 1}: ${missing.length ? `missing ${JSON.stringify(missing.slice(0, 3))}` : ""}${extra ? ` not in the goldens: ${JSON.stringify(extra.slice(0, 60))}` : ""}`);
     });
     r.gt = bad.length ? bad : "equal";
@@ -184,6 +227,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   console.log(`calibration ${speed.ms.toFixed(1)} ms: time limits × ${speed.factor.toFixed(2)}`);
   const b19 = results.filter(r => r.b19).map(r => `${r.deck} slide ${r.b19.join(", ")}`);
   if (b19.length) console.log(`GT B19: raw Excel equal to Excel Refined's golden text (the user's objects drawn): ${b19.join("; ")}`);
+  const b48 = results.filter(r => r.b48).map(r => `${r.deck} · ${r.design} slide ${r.b48.join(", ")}`);
+  if (b48.length) console.log(`GT B48: equal to the golden text as the Intesa Sanpaolo template draws it (bullets and contents marks as squares): ${b48.join("; ")}`);
   console.log(`${results.length} PDFs: GT ${results.filter(r => r.gt === "equal").length} equal · size ${results.filter(r => r.sizeOk).length} within budget · ${OUT}`);
 
   // PowerPoint (B21): pptxcheck 1–3, GT, the charts' values, budgets
@@ -219,6 +264,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
         const m = gt(want);
         if (!m.missing.length && !m.extra) return;
         if (p.design === "excel") { const refined = goldenTexts(p.deck, "clean", "full", i + 1), m2 = refined && gt(refined); if (m2 && !m2.missing.length && !m2.extra) return; }
+        // B48 (ispGoldenTexts): the template's bullets are the paragraphs' own, its contents marks shapes – not text
+        for (const d of p.design === "excel" ? ["excel", "clean"] : p.design === "clean" ? ["clean"] : []) {
+          const w = ispGoldenTexts(p.deck, d, "full", i + 1, s.texts.join("\n")), m3 = w && gt(w);
+          if (m3 && !m3.missing.length && !m3.extra) { (p.b48 ||= []).push(i + 1); return; }
+        }
         bad.push(`slide ${i + 1}: ${m.missing.length ? `missing ${JSON.stringify(m.missing.slice(0, 3))}` : ""}${m.extra ? ` not in the goldens: ${JSON.stringify(m.extra.slice(0, 60))}` : ""}`);
       });
       p.gt = bad.length ? bad : "equal"; p.check = R.ok ? "ok" : R.problems;
@@ -235,6 +285,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       if (p.deck === "deck20" && p.ms > tlim * 1.1) { ok = false; console.log(`PPTX TIME FAIL ${tag}: ${p.ms} ms > ${tlim} ms + 10 %`); }
     }
     fs.writeFileSync(path.join(OUT, "export-check-pptx.json"), JSON.stringify(pptx.map(p => ({ ...p, file: path.basename(p.file) })), null, 1));
+    const pb48 = pptx.filter(p => p.b48).map(p => `${p.deck} · ${p.design} slide ${p.b48.join(", ")}`);
+    if (pb48.length) console.log(`PPTX GT B48: equal to the golden text as the Intesa Sanpaolo template draws it: ${pb48.join("; ")}`);
     const d20 = pptx.filter(p => p.deck === "deck20").map(p => `${p.design} ${(p.bytes / 1024).toFixed(0)} KB / ${p.ms} ms`).join(", ");
     const absent = pptx.some(p => p.ppt === "absent" || p.ppt === "skipped");
     console.log(`${pptx.length} PowerPoint files: checked ${pptx.filter(p => p.check === "ok").length} ok (${pptx.filter(p => p.powerpoint).length} opened in PowerPoint${absent ? "; PowerPoint not here: structure, python-pptx's real tables and charts only – the open / HasTable / HasChart gate runs on a PC with PowerPoint" : ", every one gated"}) · GT ${pptx.filter(p => p.gt === "equal").length} equal · size ${pptx.filter(p => p.sizeOk).length} within budget${d20 ? ` · deck20: ${d20}` : ""}`);

@@ -3,10 +3,13 @@
 import { useShallow } from "zustand/react/shallow";
 import { useStore } from "../state/store";
 import { ctx, ctxInputs, style } from "../state/app";
+import { designOf } from "@slide-builder/core/model/style";
 
 /** the render context (document, slides, config, workbook, version) */
 export function useCtx() { useStore(useShallow(ctxInputs)); return ctx(); }
 /** the deck's resolved style (shared config + the document's style) */
 export function useStyle() { useStore(useShallow(s => [s.doc.config, s.doc.view?.style])); return style(); }
+/** the deck's design alone (what the template's swatches depend on, B48): a re-render on a design change only */
+export const useDesign = () => useStore(s => designOf(s.doc.config.defaults.style, s.doc.view?.style));
 /** the slide on the stage */
 export const useCurSlide = () => useStore(s => s.deck.slides[s.deck.cur]);

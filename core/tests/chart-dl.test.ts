@@ -190,7 +190,12 @@ describe("the chart on the slide, in every design (CH-01)", () => {
     const own = paths({ ...PIE, colors: { "2": "#123456" } }), base = paths(PIE);
     expect(own[2]).toBe("18,52,86");
     expect(own.filter((_, i) => i !== 2)).toEqual(base.filter((_, i) => i !== 2));
-    expect(base[1]).toBe("68,114,196");            // Office blue after the accent
+    // the Intesa Sanpaolo template's palette (B48): Blu, Arancione, Giallo… each at 25 % transparency
+    expect(base.slice(0, 3)).toEqual(["64,107,155", "241,139,64", "241,206,64"]);
+    // with a colour theme of the user's: the theme's accent, then Office's colours
+    const { ctx: ocean } = await setup("excel", {});
+    ocean.style = { ...ocean.style, theme: { id: "ocean", c1: "", c2: "", c3: "", c4: "", a1: "", a2: "" } };
+    expect(paths(PIE, ocean)[1]).toBe("68,114,196");            // Office blue after the accent
     // Consulting Red: its palette (then "other" grey for any further slice)
     const { ctx: red } = await setup("bain", {});
     const r = paths(PIE, red);

@@ -5,7 +5,8 @@
    Standardised and lean (product owner, 2026-10-19): the master and its layouts are made from the slides themselves –
    one layout per kind of slide (cover, contents, content) with its title placeholder where the slides put their
    titles, its background (Liquid Glass's wallpaper: one picture for the whole deck) and the decoration every slide of
-   that kind shares (drawn once, on the layout); the theme takes the design's colours and fonts. Slides then hold only
+   that kind shares (drawn once, on the layout) – and what the core says a layout carries (SlideSem.layout: the Excel
+   designs' logo and cover band, B48); the theme takes the design's colours and fonts. Slides then hold only
    what is theirs: placeholders for the title, subtitle, footer and page number, real tables, native charts and shapes.
    No connectors and no links outside the file. */
 import { strToU8, zipSync } from "fflate";
@@ -14,7 +15,7 @@ import { isJpeg, isPng } from "../pdf/png";
 import { sha1 } from "../text/sha1";
 import { ZIP_TIME, chartWorkbook, chartXml } from "./chart";
 import { NS, SLIDE, XML_HEAD, esc, fill, spTree, type Refs } from "./drawingml";
-import { sceneOf, type El, type ShapeEl, type SlideSem } from "./scene";
+import { sceneParts, type El, type ShapeEl, type SlideSem } from "./scene";
 
 export interface PptxInput {
   slides: { nodes: DisplayList; sem: SlideSem | null }[];
@@ -71,7 +72,9 @@ export function writePptx(input: PptxInput): Uint8Array {
   // every slide's scene, its background and the layout it uses
   const scenes = input.slides.map(s => {
     const kind: Kind = s.sem?.type ?? "content";
-    let els = sceneOf(s.nodes, s.sem, has);
+    // (the nodes the core gives the layout – the Excel designs' logo and cover band, B48 – apart: `fixed`)
+    const parts = sceneParts(s.nodes, s.sem, has), fixed = parts.fixed;
+    let els = parts.els;
     // the background: the topmost opaque full-slide element among the first full-slide ones
     let bg: ReturnType<typeof bgOf> = null, cut = 0;
     for (let i = 0; i < els.length; i++) {
@@ -81,13 +84,18 @@ export function writePptx(input: PptxInput): Uint8Array {
       else if (!(e.k === "sp" && !e.text)) break;
     }
     els = els.slice(cut);
-    return { kind, els, bg };
+    // the layout a slide takes: one per kind of slide, and per set of `fixed` elements the core gives it
+    const lkey = fixed.length ? kind + "|" + JSON.stringify(fixed) : kind;
+    return { kind, els, bg, fixed, lkey };
   });
-  const kinds = [...new Set(scenes.map(s => s.kind))];
+  const lkeys = [...new Set(scenes.map(s => s.lkey))];
   const bgKey = (b: ReturnType<typeof bgOf>) => JSON.stringify(b);
-  // each layout: the background all its slides share, the decoration they all begin with (two slides or more)
-  const layouts = kinds.map(kind => {
-    const S = scenes.filter(s => s.kind === kind);
+  // each layout: the elements the core gives it (`fixed`), the background all its slides share, the decoration they all
+  // begin with (two slides or more)
+  const layouts = lkeys.map((lkey, li) => {
+    const S = scenes.filter(s => s.lkey === lkey), kind = S[0].kind, fixed = S[0].fixed;
+    // (a second layout of a kind – a slide without the logo – is named apart)
+    const nth = lkeys.slice(0, li).filter(k => scenes.find(s => s.lkey === k)!.kind === kind).length;
     const bg = S.every(s => bgKey(s.bg) === bgKey(S[0].bg)) ? S[0].bg : null;
     let common: El[] = [];
     if (S.length > 1) {
@@ -99,7 +107,7 @@ export function writePptx(input: PptxInput): Uint8Array {
     // the placeholders' frames: where this kind of slide has them
     const ph: Partial<Record<string, ShapeEl>> = {};
     for (const s of S) for (const e of s.els) if (e.k === "sp" && e.ph && !ph[e.ph]) ph[e.ph] = e;
-    return { kind, bg, common, ph, n: common.length };
+    return { kind, lkey, nth, bg, fixed, common, ph, n: common.length };
   });
   const master = layouts.find(l => l.kind === "content") ?? layouts[0];
   const masterBg = master?.bg ?? null;
@@ -139,7 +147,7 @@ export function writePptx(input: PptxInput): Uint8Array {
   };
   const bgXml = (b: ReturnType<typeof bgOf>, refs: Refs) => !b ? "" : "fill" in b ? `<p:bg><p:bgPr>${b.fill}<a:effectLst/></p:bgPr></p:bg>`
     : `<p:bg><p:bgPr><a:blipFill dpi="0" rotWithShape="1"><a:blip r:embed="${refs.image(b.image)}"/><a:srcRect/><a:stretch><a:fillRect/></a:stretch></a:blipFill><a:effectLst/></p:bgPr></p:bg>`;
-  const allLayouts = [...layouts.map(l => ({ ...l, blank: false })), { kind: "blank" as const, bg: null, common: [] as El[], ph: {} as Partial<Record<string, ShapeEl>>, n: 0, blank: true }];
+  const allLayouts = [...layouts.map(l => ({ ...l, blank: false })), { kind: "blank" as const, nth: 0, bg: null, fixed: [] as El[], common: [] as El[], ph: {} as Partial<Record<string, ShapeEl>>, n: 0, blank: true }];
   const mRels: { id: string; type: string; target: string }[] = allLayouts.map((_, i) => ({ id: "rId" + (i + 1), type: "slideLayout", target: `../slideLayouts/slideLayout${i + 1}.xml` }));
   mRels.push({ id: "rId" + (mRels.length + 1), type: "theme", target: "../theme/theme1.xml" });
   const mRefs = refsFor(mRels);
@@ -159,15 +167,16 @@ export function writePptx(input: PptxInput): Uint8Array {
     if (L.ph.ftr) phs.push(phTemplate("ftr", L.ph.ftr, L.ph.ftr.box));
     if (L.ph.sldNum) phs.push(phTemplate("sldNum", L.ph.sldNum, L.ph.sldNum.box));
     const bg = L.bg && bgKey(L.bg) !== bgKey(masterBg) ? bgXml(L.bg, refs) : "";
-    // the shared decoration first (under everything), then the placeholders' templates (not drawn on slides)
-    files[`ppt/slideLayouts/slideLayout${i + 1}.xml`] = strToU8(XML_HEAD + `<p:sldLayout ${ns} type="${meta.type}" preserve="1"><p:cSld name="${meta.name}">${bg}${spTree([...L.common, ...phs], refs)}</p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>`);
+    // the core's furniture and the shared decoration first (under everything), then the placeholders' templates (not
+    // drawn on slides)
+    files[`ppt/slideLayouts/slideLayout${i + 1}.xml`] = strToU8(XML_HEAD + `<p:sldLayout ${ns} type="${meta.type}" preserve="1"><p:cSld name="${meta.name}${L.nth ? ` ${L.nth + 1}` : ""}">${bg}${spTree([...L.fixed, ...L.common, ...phs], refs)}</p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>`);
     files[`ppt/slideLayouts/_rels/slideLayout${i + 1}.xml.rels`] = strToU8(rels(lRels));
   });
 
   // the slides
   let charts = 0;
   scenes.forEach((s, i) => {
-    const li = layouts.findIndex(l => l.kind === s.kind), L = layouts[li];
+    const li = layouts.findIndex(l => l.lkey === s.lkey), L = layouts[li];
     const sRels = [{ id: "rId1", type: "slideLayout", target: `../slideLayouts/slideLayout${li + 1}.xml` }];
     const refs = refsFor(sRels);
     refs.chart = el => {
