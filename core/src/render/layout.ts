@@ -13,6 +13,10 @@ import { commentText } from "./comment";
 import { exhibitFacts, exhibitGeom, exhibitOf, type Exhibit, type ExFacts } from "./exhibit";
 
 export const SLIDE_W = 1600, SLIDE_H = 900;
+/** where a drag drops a position or a size (09 §2.6, F8): on 1/4 px – exact in binary floating point and in PowerPoint's
+    EMU (1/4 px = 1,905 EMU), so the page's preview, the saved JSON, the PDF and the PowerPoint file show the same number
+    on every PC. One function for the preview and the op builders (stage/drags.ts, editor/lines.ts) */
+export const snapRound = (v: number) => Math.round(v * 4) / 4;
 export const GX = 36, GY = 28, MAXK = 2.0;
 export function areaFor(R: RuntimeSlide, ctx0?: RenderCtx) {
   const ctx = ctx0 && slideCtx(ctx0, R);

@@ -32,6 +32,16 @@ What users notice
   pictures – placed where the line is drawn on the slide (PowerPoint does not keep them attached). Their labels are
   text boxes grouped with them. In the PDF and on screen they are drawn as on the slide. Older versions (4.6, 4.7) do
   not show the new lines – open such decks in 4.8.
+* **Snapping for every object** (B32): moving or resizing a table in free layout, a text box, the notes section, a
+  chart, a shape, an icon or a line (its ends, its bend, the whole line) lines up with the slide's edges, its centre
+  lines and margins, the other objects' edges and centres, the tables' column and row borders and the other lines'
+  ends. Every line it matches is shown in pink (a centre dashed); it also offers **equal spacing** (the two equal gaps
+  are marked with their size in px) and, when resizing, **the same width or height** as another object (both marked).
+  The pull is 8 px on screen at any zoom. **Hold Alt to drag without snapping** – now for every object in every layout
+  (text boxes used to snap with Alt held outside free layout). The guides are only on screen, never in the PDF or
+  PowerPoint file.
+* **Objects stay exactly where they are dropped**: positions and sizes are saved on a 1/4 px grid, the same number the
+  screen showed while dragging, so the PDF and PowerPoint place them identically (no half-pixel jump on drop).
 
 ## 4.7.0 - unreleased (PLAN M14: charts; B30, B31)
 

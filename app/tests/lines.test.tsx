@@ -42,7 +42,7 @@ const items = () => R().cfg.items || {};
 const line = (id: string) => items()[id] as LineItem;
 const lastId = (before: string[]) => Object.keys(items()).find(k => !before.includes(k))!;
 /** a drag in slide px (the stage is at scale 1 here): down on `sel`, moves to the target, up – with the keys held */
-async function drag(sel: string, from: { x: number; y: number }, to: { x: number; y: number }, keys: { ctrlKey?: boolean; shiftKey?: boolean } = {}) {
+async function drag(sel: string, from: { x: number; y: number }, to: { x: number; y: number }, keys: { ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean } = {}) {
   const el = $(sel); expect(el, sel).toBeTruthy();
   await act(async () => {
     fireEvent.pointerDown(el!, { button: 0, clientX: from.x, clientY: from.y });
@@ -91,7 +91,8 @@ describe("lines on the slide (S15.3, LN-01 / LN-02)", () => {
     await click("#lineBtn"); await click('[data-line="arrow"]'); await confirmed(h0 + 1);
     const id = lastId(before), L0 = line(id);
     await waitDrawn(id);
-    await drag(`.linehandle.b[data-item="${id}"]`, L0.b, { x: L0.b.x + 100, y: L0.b.y + 50 });
+    // (Alt: no snapping – S15.4 – so the end lands exactly where the pointer goes)
+    await drag(`.linehandle.b[data-item="${id}"]`, L0.b, { x: L0.b.x + 100, y: L0.b.y + 50 }, { altKey: true });
     await confirmed(h0 + 2);
     expect(line(id).b).toEqual({ x: L0.b.x + 100, y: L0.b.y + 50 });
     expect(line(id).a).toEqual(L0.a);
@@ -105,7 +106,7 @@ describe("lines on the slide (S15.3, LN-01 / LN-02)", () => {
     expect(snap45({ x: 0, y: 0 }, { x: 10, y: 1 })).toEqual({ x: 10.05, y: 0 });
     // the body: the whole line
     const L2 = line(id), m = { x: (L2.a.x + L2.b.x) / 2, y: (L2.a.y + L2.b.y) / 2 };
-    await drag(`.linehit[data-item="${id}"]`, m, { x: m.x - 40, y: m.y - 30 });
+    await drag(`.linehit[data-item="${id}"]`, m, { x: m.x - 40, y: m.y - 30 }, { altKey: true });
     await confirmed(h0 + 4);
     expect(line(id).a).toEqual({ x: L2.a.x - 40, y: L2.a.y - 30 });
     expect(line(id).b).toEqual({ x: L2.b.x - 40, y: L2.b.y - 30 });
@@ -127,7 +128,7 @@ describe("lines on the slide (S15.3, LN-01 / LN-02)", () => {
     await act(async () => itemPatch("Move shape", shape, { box: { x: 300, y: 600, w: 200, h: 100 } })); await confirmed(h0 + 5);
     expect(lineNow(R(), id, ctx())!.a).toEqual({ x: 500, y: 650 });
     // dragged away without Ctrl: free again
-    await drag(`.linehandle.a[data-item="${id}"]`, { x: 500, y: 650 }, { x: 520, y: 640 });
+    await drag(`.linehandle.a[data-item="${id}"]`, { x: 500, y: 650 }, { x: 520, y: 640 }, { altKey: true });
     await confirmed(h0 + 6);
     expect(line(id).ends).toBeUndefined();
     expect(line(id).a).toEqual({ x: 520, y: 640 });
@@ -176,7 +177,7 @@ describe("lines on the slide (S15.3, LN-01 / LN-02)", () => {
     expect(R().cfg.free?.[d]?.items["i:" + id]).toMatchObject({ a: L0.a, b: L0.b });
     await waitDrawn(id);
     const m = { x: (L0.a.x + L0.b.x) / 2, y: L0.a.y };
-    await drag(`.linehit[data-item="${id}"]`, m, { x: m.x + 20, y: m.y + 10 });
+    await drag(`.linehit[data-item="${id}"]`, m, { x: m.x + 20, y: m.y + 10 }, { altKey: true });
     await confirmed(h0 + 3);
     expect(R().cfg.free?.[d]?.items["i:" + id]).toEqual({ x: L0.a.x + 19, y: L0.a.y + 9, w: 322, h: 2, a: { x: L0.a.x + 20, y: L0.a.y + 10 }, b: { x: L0.b.x + 20, y: L0.b.y + 10 } });
     expect(line(id)).toEqual(L0);

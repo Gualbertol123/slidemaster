@@ -5,7 +5,10 @@
    Shift keeps a straight line at 0 / 45 / 90°. The middle moves a straight line or a range whole, an elbow's bend, a
    curve's bulge, a bracket's depth. While the pointer moves the line's new route is drawn here (the page computes it
    with the core's own route code); on the drop ONE change is sent (editor/lines.ts), one undo step. Never a table's or
-   an item's drag code: stage/items.tsx draws the boxes of the other kinds (Stage.tsx hands it those alone). */
+   an item's drag code: stage/items.tsx draws the boxes of the other kinds (Stage.tsx hands it those alone).
+   Snapping (S15.4, 09 §5.1 / §5.3): an end, an elbow's bend and the whole line (its bounds) line up with the slide, the
+   other objects' edges and centres, the tables' cell borders and the other lines' ends (drags.ts snapTargets, collected
+   once per drag); Ctrl's anchor and Shift's angle go first; Alt: no snapping. The preview is on 1/4 px, as the drop. */
 import { useMemo, useState } from "react";
 import { useStore, patch } from "../state/store";
 import { change, ctx } from "../state/app";
@@ -17,10 +20,15 @@ import { kindText } from "../editor/item-text";
 import { selectItem } from "../editor/charts";
 import { anchorList, endOps, lineNow, midFor, midOps, moveOps, nearestAnchor, snap45, type LineNow } from "../editor/lines";
 import { slideScale } from "./actions";
+import { snapTargets } from "./drags";
+import { SnapGuides } from "./guides";
+import { snapRound } from "@slide-builder/core/render/layout";
+import { snapMove, snapPoint, snapTol, type SnapMarks, type SnapTargets } from "@slide-builder/core/render/snap";
 import type { StageModel } from "./model";
 
 type Handle = "a" | "b" | "mid" | "body";
-interface Live { id: string; handle: Handle; a: Pt; b: Pt; mid?: number; anchor: Pt | null; moved: boolean }
+interface Live { id: string; handle: Handle; a: Pt; b: Pt; mid?: number; anchor: Pt | null; moved: boolean; marks: SnapMarks | null }
+const q = (p: Pt): Pt => ({ x: snapRound(p.x), y: snapRound(p.y) });
 const d = (cmds: ReturnType<typeof routeOf>["d"]) => cmds.map(c => c[0] + c.slice(1).join(" ")).join(" ");
 
 export function Lines({ m, R, s }: { m: StageModel; R: RuntimeSlide; s: number }) {
@@ -40,21 +48,37 @@ export function Lines({ m, R, s }: { m: StageModel; R: RuntimeSlide; s: number }
     e.preventDefault(); e.stopPropagation();
     if (handle === "body") selectItem(id); else patch("selection", { itemSel: { id, slice: null, handle } });
     const sc = slideScale(), sx = e.clientX, sy = e.clientY, a0 = L.a, b0 = L.b, mid0 = routeOf(L.it, a0, b0).mid;
-    let cur: Live = { id, handle, a: a0, b: b0, anchor: null, moved: false }, at: Anchor | null = null, anchors: ReturnType<typeof anchorList> | null = null;
+    let cur: Live = { id, handle, a: a0, b: b0, anchor: null, moved: false, marks: null }, at: Anchor | null = null, anchors: ReturnType<typeof anchorList> | null = null;
+    // what it snaps to (once per drag): the slide, the tables, the items, the other lines (drags.ts), the text boxes, the page number
+    let T: SnapTargets | null = null;
+    const tol = snapTol(sc), targets = () => T ??= snapTargets(R, [...m.notes.map(n => n.box), ...m.hits.filter(h => /^pageno\b|^footer\b/.test(h.id))], { item: id });
     const move = (ev: PointerEvent) => {
       const dx = (ev.clientX - sx) / sc, dy = (ev.clientY - sy) / sc;
       if (!cur.moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 3) return;      // a click is not a drag
       at = null;
+      let marks: SnapMarks | null = null;
       if (handle === "a" || handle === "b") {
         const other = handle === "a" ? b0 : a0, from = handle === "a" ? a0 : b0;
         let p = { x: from.x + dx, y: from.y + dy };
         const near = ev.ctrlKey || ev.metaKey ? nearestAnchor(anchors ??= anchorList(R, id, c), p, Math.max(16, 16 / sc)) : null;
         if (near) { p = near.at; at = near.anchor; }
         else if (ev.shiftKey && (L.it.route === "straight" || L.it.route === "range")) p = snap45(other, p);
-        cur = { ...cur, [handle]: p, anchor: near ? near.at : null, moved: true };
+        else if (!ev.altKey) { const s2 = snapPoint(targets(), p, tol); p = s2.p; marks = s2.marks; }
+        cur = { ...cur, [handle]: near ? p : q(p), anchor: near ? near.at : null, moved: true, marks };
       } else if (handle === "mid" && L.it.route !== "straight" && L.it.route !== "range") {
-        cur = { ...cur, mid: midFor(L.it, a0, b0, { x: mid0.x + dx, y: mid0.y + dy }), moved: true };
-      } else cur = { ...cur, a: { x: a0.x + dx, y: a0.y + dy }, b: { x: b0.x + dx, y: b0.y + dy }, moved: true };
+        // an elbow's bend lines up too (a curve's bulge and a bracket's depth follow the pointer)
+        let p = { x: mid0.x + dx, y: mid0.y + dy };
+        if (L.it.route === "elbow" && !ev.altKey) { const s2 = snapPoint(targets(), p, tol); p = s2.p; marks = s2.marks; }
+        cur = { ...cur, mid: midFor(L.it, a0, b0, p), moved: true, marks };
+      } else {
+        // the whole line: its bounds line up (edges and centre), on 1/4 px
+        let sx2 = dx, sy2 = dy;
+        if (!ev.altKey) {
+          const x = Math.min(a0.x, b0.x) + dx, y = Math.min(a0.y, b0.y) + dy, s2 = snapMove(targets(), { x, y, w: Math.abs(b0.x - a0.x), h: Math.abs(b0.y - a0.y) }, tol, null);
+          sx2 += s2.box.x - x; sy2 += s2.box.y - y; marks = s2.marks;
+        }
+        cur = { ...cur, a: q({ x: a0.x + sx2, y: a0.y + sy2 }), b: q({ x: b0.x + sx2, y: b0.y + sy2 }), moved: true, marks };
+      }
       setLive(cur);
     };
     const up = (ev: PointerEvent) => {
@@ -70,6 +94,7 @@ export function Lines({ m, R, s }: { m: StageModel; R: RuntimeSlide; s: number }
   }
 
   return <>
+    {live?.marks && <SnapGuides marks={live.marks} s={s} />}
     <svg className="linehits" viewBox="0 0 1600 900" width={1600} height={900} style={{ position: "absolute", left: 0, top: 0, overflow: "visible", pointerEvents: "none", zIndex: 47 }}>
       {lines.map(({ id, L, issue }) => {
         const v = live?.id === id ? live : null, a = v ? v.a : L.a, b = v ? v.b : L.b, it = v?.mid !== undefined ? { ...L.it, mid: v.mid } : L.it;

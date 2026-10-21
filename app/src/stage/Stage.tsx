@@ -33,6 +33,7 @@ import { PlainLayer, TableLayer, type Box } from "./SlideSvg";
 import { CellEditor, ItemEditor, NoteEditor, TextEditor } from "./editors";
 import { Items } from "./items";
 import { Lines } from "./lines";
+import { SnapGuides } from "./guides";
 
 const SIDES: Side[] = ["top", "bottom", "left", "right"];
 
@@ -163,7 +164,8 @@ const TextLayer = memo(function TextLayer({ hits }: { hits: StageModel["hits"] }
 /* ---- text boxes: the box to select, move, stretch and double-click; its bubble; the hint of an empty one */
 function Notes({ m, R, drag, freeLayout }: { m: StageModel; R: RuntimeSlide; drag: DragPreview | null; freeLayout: boolean }) {
   const noteSel = useStore(s => s.selection.noteSel);
-  const others = (self: string) => [...m.notes.filter(n => n.part.key !== self).map(n => n.box), ...m.hits.filter(h => /^pageno\b|^footer\b/.test(h.id)), ...m.items.map(p => p.box)];
+  // (the tables, the items and the lines' ends come from the slide: drags.ts snapTargets)
+  const others = (self: string) => [...m.notes.filter(n => n.part.key !== self).map(n => n.box), ...m.hits.filter(h => /^pageno\b|^footer\b/.test(h.id))];
   return <>{m.notes.map(p => {
     const key = p.part.key, d = drag?.kind === "note" && drag.key === key ? drag : null, b = d ? d.box : resized(p, drag);
     // a free layout (B18): every text box but the notes section has its own box, stretched by any edge
@@ -287,14 +289,11 @@ function Selection({ m, s, drag }: { m: StageModel; s: number; drag: DragPreview
 /* ---- guides: where a table will go (grip), what a text box lines up with */
 function Guides({ drag, s }: { drag: DragPreview | null; s: number }) {
   if (drag?.kind === "grip") return <div className="dropmark" style={drag.mark ? { display: "block", left: drag.mark.x, top: drag.mark.y, width: drag.mark.w, height: drag.mark.h } : undefined} />;
-  if (drag?.kind === "resize" && !drag.done && (drag.v != null || drag.h != null)) return <>
-    {drag.v != null && <div className="snapline v" style={{ display: "block", left: drag.v, width: 1.5 / Math.min(1, s) }} />}
-    {drag.h != null && <div className="snapline h" style={{ display: "block", top: drag.h, height: 1.5 / Math.min(1, s) }} />}
-  </>;
+  // the snapping marks (S15.4, 09 §5.2: every matched line, equal gaps and sizes – stage/guides.tsx)
+  if (drag?.kind === "resize" && !drag.done && drag.marks) return <SnapGuides marks={drag.marks} s={s} />;
   if ((drag?.kind === "note" || drag?.kind === "item") && !drag.done) return <>
     {drag.kind === "item" && !drag.moved && <div className="itemguide" style={{ left: drag.box.x, top: drag.box.y, width: drag.box.w, height: drag.box.h }} />}
-    {drag.v !== null && <div className="snapline v" style={{ display: "block", left: drag.v, width: 1.5 / Math.min(1, s) }} />}
-    {drag.h !== null && <div className="snapline h" style={{ display: "block", top: drag.h, height: 1.5 / Math.min(1, s) }} />}
+    <SnapGuides marks={drag.marks} s={s} />
   </>;
   return <div className="dropmark" />;
 }

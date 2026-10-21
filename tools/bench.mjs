@@ -299,6 +299,9 @@ async function run(browser, port) {
       const cold = keyMs.splice(0, 2), sorted = keyMs.slice(0, 20).sort((a, b) => a - b);
       icons = { first_use_ms: coldSet ? Math.round(firstUse * 10) / 10 : Infinity, cold_set: coldSet, cold_ms: cold.map(Math.round), p50_ms: Math.round(sorted[Math.floor(sorted.length * .5)]), p95_ms: Math.round(sorted[Math.ceil(sorted.length * .95) - 1]), max_ms: Math.round(sorted[sorted.length - 1]), longtasks: (await longTasks()).map(x => x.d) };
     }
+    // ---- snapping (S15.4, 09 §7.4), when the build has it (stage/guides.tsx): a drag with snapping on among 60 objects
+    let snap = null;
+    if ((await page.content()).includes("snapgap")) { snap = await snapFrames(browser, page); await longTasks(); }
     // ---- the consulting designs (M7b, 08 §4.3; after the thumbnails, so their scroll is measured as before; a build without them – --page of an older one – skips this): deck20
     // exported in Consulting Navy and Red, keypress → pixels and the drags in Navy, deck20 opened again in Navy
     let consult = null;
@@ -416,7 +419,7 @@ async function run(browser, port) {
     if (errors.length) throw new Error("page errors: " + errors.join("; "));
     return { boot: { longtasks: ltBoot }, deck20: { wizard_ms: Math.round(wizard), finish_to_slide_ms: Math.round(slides), open_ms: Math.round(wizard + slides), longtasks: ltDeck, first_draw_longtasks: ltFirstDraw },
       edit: { keypress, longtasks: ltEdit }, drags, thumbs: { ...thumbs, longtasks: ltThumbs },
-      consult, scen, icons,
+      consult, scen, icons, snap,
       export: { glass_ms: glass.ms, glass_kb: glass.kb, glass_phases: glass.phases, excel_ms: excel.ms, excel_kb: excel.kb, excel_phases: excel.phases, longtasks: ltExport,
         pptx: glassPptx && excelPptx ? { glass_ms: glassPptx.ms, glass_kb: glassPptx.kb, glass_phases: glassPptx.phases, excel_ms: excelPptx.ms, excel_kb: excelPptx.kb, excel_phases: excelPptx.phases } : null },
       big30: { index_to_wizard_ms: Math.round(index), read_sheet_ms: Math.round(read), read_to_grid_ms: Math.round(grid), longtasks: ltBig, heap_mb: heap,
@@ -556,6 +559,50 @@ async function thumbScroll(browser, page) {
   return { slides: 100, frames: w.frames, fps: w.fps, frame_ms: w.frame_ms, gap_ms: w.gap_ms, pictures: asked.drawn - asked0.drawn };
 }
 
+/** S15.4 (09 §7.4 snap_drag_frame_ms): deck20's second slide with 56 shapes added in one change (60 objects with its
+    tables and text boxes: rows and columns of boxes, so equal gaps and every kind of guide come up), one of them dragged
+    across the others with snapping on, then once more by the right edge (equal sizes), traced as the drags of S4.2 –
+    the most work between two frames; then the deck as it was (undo) */
+async function snapFrames(browser, page) {
+  const idle = async () => { await page.waitForFunction(() => window.__sbTest.stageIdle(), null, { timeout: 30000 }); await page.waitForTimeout(300); };
+  await page.locator(".thumb").nth(1).click(); await idle();
+  const h0 = await page.evaluate(() => window.__sbTest.history().undo);
+  await page.evaluate(() => {
+    const t = window.__sbTest, id = t.stage().id, ops = [];
+    for (let i = 0; i < 56; i++) ops.push({ op: "item.patch", slide: id, id: "snapbench" + i, patch: { kind: "shape", shape: "rect", box: { x: 40 + (i % 14) * 110, y: 60 + Math.floor(i / 14) * 200, w: 70 + (i % 3) * 6, h: 50 + (i % 4) * 8 } } });
+    t.change("Bench: 56 shapes", ops);
+  });
+  await page.locator('.itembox[data-item="snapbench55"]').waitFor({ timeout: 30000 }); await idle();
+  await page.locator("#stage .stagewrap").hover();
+  const trace = path.join(os.tmpdir(), "sb-bench-snap-" + process.pid + ".json"), out = {}, sleep2 = () => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const drag = async (name, from, dx, dy) => {
+    await page.mouse.move(from.x, from.y); await sleep2();
+    await page.evaluate(n => { window.__drag = { name: n, frames: [] }; const tick = t => { if (!window.__drag) return; window.__drag.frames.push(t); requestAnimationFrame(tick); }; requestAnimationFrame(tick); performance.mark("snap:" + n); }, name);
+    await page.mouse.down();
+    for (let k = 1; k <= 24; k++) await page.mouse.move(from.x + dx * k / 24, from.y + dy * k / 24);
+    await page.evaluate(n => { performance.mark("up:" + n); window.__dragUp = performance.now(); }, name);
+    await page.mouse.up();
+    await page.waitForTimeout(700);
+    out[name] = await page.evaluate(() => { const d = window.__drag; window.__drag = null; return { frames: d.frames, up: window.__dragUp }; });
+  };
+  await browser.startTracing(page, { path: trace, categories: ["devtools.timeline", "blink.user_timing", "toplevel"] });
+  try {
+    const b = await page.locator('.itembox[data-item="snapbench15"]').boundingBox();
+    await drag("move", { x: b.x + b.width / 2, y: b.y + b.height / 2 }, 420, 230);
+    await idle();
+    const c = await page.locator('.itembox[data-item="snapbench15"] .size').boundingBox();
+    await drag("corner", { x: c.x + c.width / 2, y: c.y + c.height / 2 }, 90, 40);
+  } finally { await browser.stopTracing(); }
+  const { tasks, frames } = traced(trace, "snap"), res = {};
+  for (const [name, d] of Object.entries(out)) { const w = frames(name, d); if (!w) continue; res[name] = { frames: w.frames, frame_ms: w.frame_ms, gap_ms: w.gap_ms, drop_task_ms: Math.round(tasks.filter(e => e.ts >= w.end && e.ts <= w.end + 700000).reduce((x, e) => Math.max(x, e.dur / 1000), 0)) }; }
+  // back as it was: the drags and the shapes (the undo steps they made)
+  await idle(); await page.locator("#stage .stagewrap").click({ position: { x: 4, y: 4 } });
+  const steps = await page.evaluate(h => window.__sbTest.history().undo - h, h0);
+  for (let k = 0; k < steps; k++) { await page.keyboard.press("Control+z"); await page.waitForTimeout(200); }
+  await page.locator('.itembox[data-item="snapbench0"]').waitFor({ state: "detached", timeout: 30000 }); await idle();
+  return { objects: 60, drags: res, frame_ms: Math.max(0, ...Object.values(res).map(d => d.frame_ms)), measured: Object.keys(res).length === 2 };
+}
+
 /** the gated values of some runs: the worse run counts */
 const worstOf = runs => ({
   open_deck20_ms: Math.max(...runs.map(r => r.deck20.open_ms)),
@@ -590,6 +637,8 @@ const worstOf = runs => ({
   // the icon picker (S15.2): this build's page must measure it (not measured counts as over the limit)
   ...(runs.every(r => r.icons) ? { icon_first_use_ms: Math.max(...runs.map(r => r.icons.first_use_ms)), icon_picker_p95_ms: Math.max(...runs.map(r => r.icons.p95_ms)) }
     : arg("--page") ? {} : { icon_first_use_ms: Infinity, icon_picker_p95_ms: Infinity }),
+  // snapping (S15.4): this build's page must measure it (not measured counts as over the limit)
+  ...(runs.every(r => r.snap?.measured) ? { snap_drag_frame_ms: Math.max(...runs.map(r => r.snap.frame_ms)) } : arg("--page") ? {} : { snap_drag_frame_ms: Infinity }),
   // Run for each value (S8.3): this build's page must measure it (not measured counts as over the limit)
   ...(runs.every(r => r.scen) ? {
     scenario_one_ms: Math.max(...runs.map(r => r.scen.one_ms)), scenario_20_ms: Math.max(...runs.map(r => r.scen.twenty_ms)),

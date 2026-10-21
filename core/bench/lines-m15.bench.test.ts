@@ -8,6 +8,7 @@ import { Tabler, tabler, tablerLoaded } from "../src/icons";
 import { TABLER } from "../src/icons/data";
 import { decode64 } from "../src/text/hb";
 import { iconSearch } from "../src/render/icon-search";
+import { resizeMarks, snapEdge, snapMove, snapTargets, snapTol } from "../src/render/snap";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -99,5 +100,38 @@ it("lines: 20 lines with heads and labels build in under 3 ms (S15.3; Liquid Gla
   console.log(`bench · lines (20 with heads and labels, 5 attached): ${gates.map(g => `${g.key.replace("_ms", "")} ${g.first.toFixed(2)} ms`).join(", ")} (median of 20; limit ${LINES_MS} ms × ${speed.factor.toFixed(2)})${gates.some(g => "repeat" in g) ? " · " + report : ""}`);
   expect(bad, `lines: ${report} (+ 10 %)`).toEqual([]);
 });
-// S15.4: snapping, the core's part per drag frame with 60 objects ≤ 1 ms
-it.skip("snapping: one drag frame with 60 objects in under 1 ms (S15.4; skipped until introduced)", () => undefined);
+// S15.4: snapping, the core's part per drag frame with 60 objects ≤ 1 ms (09 §7.4): a busy slide – 44 boxes (text
+// boxes, charts, shapes) in rows and columns, 2 tables with 12 columns and 30 rows each (their boxes and cell borders),
+// 14 lines (their ends and middles) – the targets collected once at pointer-down (reported, not gated: the pointer-down
+// is not a frame), then a move of 24 frames (edges, centres, equal spacing, the marks) and a resize of 24 (an edge with
+// equal size, the marks); per frame the slower of the two, median of 20 drags after 3 untimed. The drag frame as a whole
+// (16 ms) is tools/bench.mjs's snap_drag_frame_ms, in Chromium
+const SNAP_MS = 1;
+it("snapping: one drag frame with 60 objects in under 1 ms (S15.4; the core's part)", async () => {
+  const speed = speedFactor();
+  const boxes = Array.from({ length: 44 }, (_, i) => ({ x: 60 + (i % 11) * 136, y: 90 + Math.floor(i / 11) * 190, w: 96 + (i % 3) * 8, h: 60 + (i % 4) * 10 }));
+  const tables = [{ x: 60, y: 120, w: 700, h: 600 }, { x: 820, y: 120, w: 700, h: 600 }];
+  const cells = tables.map(t => ({ x: Array.from({ length: 12 }, (_, k) => t.x + (k + 1) * t.w / 12), y: Array.from({ length: 30 }, (_, k) => t.y + (k + 1) * t.h / 30) }));
+  const points = Array.from({ length: 14 }, (_, i) => [{ x: 100 + i * 100, y: 780 }, { x: 160 + i * 100, y: 840 }, { x: 130 + i * 100, y: 810 }]).flat();
+  let collect = 0;
+  const run = () => {
+    const t0 = performance.now(), T = snapTargets({ boxes: [...boxes, ...tables], cells, points, top: 120 }); collect = performance.now() - t0;
+    let worst = 0, n = 0;
+    for (let f = 0; f < 24; f++) {
+      const t = performance.now();
+      const m = snapMove(T, { x: 300 + f * 13.3, y: 200 + f * 7.1, w: 120, h: 70 }, snapTol(.6));
+      const w = 120 + f * 9.7, d = snapEdge(T, true, 300 + w, snapTol(.6), { now: w, sign: 1 });
+      const r = resizeMarks(T, { x: 300, y: 200, w: w + d, h: 70 }, { x: ["r"] }, { w: true });
+      n += m.marks.guides.length + r.guides.length;
+      worst = Math.max(worst, performance.now() - t);
+    }
+    return { worst, n };
+  };
+  for (let k = 0; k < 3; k++) run();
+  const measure = () => { const w: number[] = []; for (let k = 0; k < 20; k++) w.push(run().worst); return { frame_ms: median(w) }; };
+  const first = measure();
+  expect(run().n).toBeGreaterThan(0);                                       // it snaps (the marks are there)
+  const { gates, bad } = await judge({ limits: { frame_ms: SNAP_MS * speed.factor }, first, again: () => measure(), strict: true });
+  console.log(`bench · snapping (60 objects, ${snapTargets({ boxes: [...boxes, ...tables], cells, points }).x.length} x targets): a drag frame's core part ${first.frame_ms.toFixed(3)} ms (median of 20 drags' slowest frame; limit ${SNAP_MS} ms × ${speed.factor.toFixed(2)}); targets collected in ${collect.toFixed(3)} ms`);
+  expect(bad, gates.map(g => `${g.key} ${describe(g)}`).join(", ")).toEqual([]);
+});
