@@ -48,6 +48,34 @@ describe("HarfBuzz, pinned and inlined", () => {
     const woff2 = new Uint8Array([0x77, 0x4f, 0x46, 0x32, 0, 0, 0, 0]);
     expect((await staticFace(woff2, 400)).data).toBe(woff2);      // unreadable here: kept for the screen as before
   });
+  it("the static faces get their own names (B45): family, Regular / Bold / Italic, full and PostScript names, fsSelection, macStyle", async () => {
+    const { staticFace } = await import("../src/text/static");
+    // nameIDs 1, 2, 4, 6, 16, 17 (Windows English first), OS/2 fsSelection ITALIC / BOLD / REGULAR, head.macStyle bold / italic
+    const names = (d: Uint8Array) => {
+      const u16 = (o: number) => (d[o] << 8) | d[o + 1];
+      const n = u16(4), at = (t: string) => { for (let i = 0; i < n; i++) { const r = 12 + 16 * i; if (latin1(d.subarray(r, r + 4)) === t) return ((d[r + 8] << 24) >>> 0) + (d[r + 9] << 16) + (d[r + 10] << 8) + d[r + 11]; } return -1; };
+      const o = at("name"), count = u16(o + 2), str = o + u16(o + 4), got: Record<number, string> = {};
+      for (let i = 0; i < count; i++) {
+        const r = o + 6 + 12 * i, pid = u16(r), id = u16(r + 6), len = u16(r + 8), off = u16(r + 10);
+        if (![1, 2, 4, 6, 16, 17].includes(id) || got[id] !== undefined) continue;
+        const b = d.subarray(str + off, str + off + len);
+        got[id] = pid === 3 ? String.fromCharCode(...Array.from({ length: len >> 1 }, (_, k) => (b[2 * k] << 8) | b[2 * k + 1])) : latin1(b);
+      }
+      const fs = u16(at("OS/2") + 62), mac = u16(at("head") + 44);
+      return { ...got, italic: !!(fs & 1), bold: !!(fs & 32), regular: !!(fs & 64), macBold: !!(mac & 1), macItalic: !!(mac & 2), weight: u16(at("OS/2") + 4) };
+    };
+    const r400 = await staticFace(VF, 400), r700 = await staticFace(VF, 700);
+    expect(names(r400.data)).toEqual({ 1: "Quicksand", 2: "Regular", 4: "Quicksand Regular", 6: "Quicksand-Regular", italic: false, bold: false, regular: true, macBold: false, macItalic: false, weight: 400 });
+    expect(names(r700.data)).toEqual({ 1: "Quicksand", 2: "Bold", 4: "Quicksand Bold", 6: "Quicksand-Bold", italic: false, bold: true, regular: false, macBold: true, macItalic: false, weight: 700 });
+    // the family the user chose, an italic face, a weight outside Regular / Bold (its own family, 16 / 17 typographic)
+    expect(names((await staticFace(VF, 700, { family: "My Sans", italic: true })).data)).toMatchObject({ 1: "My Sans", 2: "Bold Italic", 4: "My Sans Bold Italic", 6: "MySans-BoldItalic", italic: true, bold: true, regular: false, macBold: true, macItalic: true });
+    expect(names((await staticFace(VF, 300)).data)).toEqual({ 1: "Quicksand Light", 2: "Regular", 4: "Quicksand Light", 6: "Quicksand-Light", 16: "Quicksand", 17: "Light", italic: false, bold: false, regular: true, macBold: false, macItalic: false, weight: 300 });
+    // head.checkSumAdjustment written again: the whole font sums to 0xB1B0AFBA
+    for (const d of [r400.data, r700.data]) { let sum = 0; for (let k = 0; k < d.length; k += 4) sum = (sum + (((d[k] << 24) | ((d[k + 1] || 0) << 16) | ((d[k + 2] || 0) << 8) | (d[k + 3] || 0)) >>> 0)) >>> 0; expect(sum).toBe(0xb1b0afba); }
+    // the registry (and so the PDF) reads the family and the style from the stored face
+    const reg = new FontRegistry(), [a] = reg.add(r400.data), [b] = reg.add(r700.data);
+    expect([a.family, a.weight, b.family, b.weight]).toEqual(["Quicksand", 400, "Quicksand", 700]);
+  });
 });
 
 describe("the font registry", () => {

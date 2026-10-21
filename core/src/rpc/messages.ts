@@ -71,7 +71,7 @@ export interface CoreMethods {
   /** a font file for the library (S3.2): a variable font becomes a static face at the weight the upload declares
       (every other axis at its default; hb-subset), so no PDF ever embeds a variable font; other fonts come back as
       they are (`variable: false`) */
-  staticFont(a: { buf: ArrayBuffer; weight: number }): { buf: ArrayBuffer; variable: boolean };
+  staticFont(a: { buf: ArrayBuffer; weight: number; family?: string; italic?: boolean }): { buf: ArrayBuffer; variable: boolean };
   /** whole slides as display lists in slide px (S3.5): background, furniture, the tables placed, text boxes */
   slideLists(a: SlideListsReq): SlideList[];
   /** whether a font that missed its measuring budget is still coming (its slide is drawn again then): for the

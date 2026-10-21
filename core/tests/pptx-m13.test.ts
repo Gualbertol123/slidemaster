@@ -312,6 +312,8 @@ describe("a Google font added through the helper, in PowerPoint (B45, B46)", () 
     const s = Buffer.from(new Uint8Array(pdf.files[0])).toString("latin1");
     expect(h.asked.filter(f => f.startsWith("quicksand")).sort()).toEqual(["quicksand-400.ttf", "quicksand-700.ttf"]);
     expect((s.match(/\/BaseFont\s*\/[A-Z]{6}\+Quicksand[^/\s]*/g) || []).length).toBeGreaterThanOrEqual(2);
+    // each face under its own name (B45: not both "Quicksand-Light", the variable font's default instance)
+    expect(new Set((s.match(/\/BaseFont\s*\/[A-Z]{6}\+Quicksand[^/\s>]*/g) || []).map(m => m.split("+")[1]))).toEqual(new Set(["Quicksand-Regular", "Quicksand-Bold"]));
     expect(pdf.unreadable ?? []).toEqual([]);
   }, 120_000);
 });
