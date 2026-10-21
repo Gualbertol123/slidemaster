@@ -640,3 +640,53 @@ class PreviewHttp(LocalAppData, test_http.HttpBase):
             self.assertEqual(self.req("GET", "/api/fonts/google/preview?family=Roboto&t=" + test_http.TOKEN, token=False)[0], 403)
             self.assertEqual(net.calls, [])
         self.assertEqual(self.preview("../x")[0], 400)
+
+
+class NoNet(LocalAppData, test_http.HttpBase):
+    """SLIDEBUILDER_NO_NET=1 (the e2e helpers, playwright.config.ts): the real fetch_url opens no connection, and the
+    preview, the family and the file answer the usual "cannot be reached" 502 - the same with or without network"""
+
+    def setUp(self):
+        super().setUp()
+        self.opened = []
+        self._nonet = mock.patch.dict(os.environ, {"SLIDEBUILDER_NO_NET": "1", "HTTPS_PROXY": "", "https_proxy": ""})
+        self._nonet.start()
+
+        def opener():
+            self.opened.append(True)
+            raise AssertionError("an outbound request with SLIDEBUILDER_NO_NET=1")
+        self._opener = mock.patch.object(gfonts, "_opener", opener)
+        self._opener.start()
+
+    def tearDown(self):
+        self._opener.stop()
+        self._nonet.stop()
+        super().tearDown()
+
+    def test_no_request_and_the_usual_unreachable_answers(self):
+        st, h, data = self.req("GET", "/api/fonts/google/preview?family=Roboto")
+        self.assertEqual(st, 502, data)
+        st2, res = self.jreq("GET", "/api/fonts/google?family=Roboto")
+        self.assertEqual(st2, 502, res)
+        st3, h3, data3 = self.req("GET", "/api/fonts/google/file?ref=" + urllib.parse.quote("ofl/roboto/Roboto[wdth,wght].ttf"))
+        self.assertEqual(st3, 502, data3)
+        for msg in (json.loads(data.decode("utf-8"))["error"], res["error"], json.loads(data3.decode("utf-8"))["error"]):
+            self.assertIn("cannot be reached", msg)
+            self.assertIn("SLIDEBUILDER_NO_NET", msg)
+            self.assertIn("Upload font files", msg)
+        self.assertEqual(self.opened, [])
+        self.assertFalse(os.path.isdir(gfonts.cache_dir()) and os.listdir(gfonts.cache_dir()))
+
+    def test_fetch_url_raises_at_once(self):
+        with self.assertRaises(gfonts.NetError) as cm:
+            gfonts.fetch_url(RAW + "ofl/roboto/METADATA.pb")
+        self.assertIsNone(cm.exception.status)
+        self.assertIn("SLIDEBUILDER_NO_NET", str(cm.exception))
+        self.assertEqual(self.opened, [])
+
+    def test_only_a_set_switch_counts(self):
+        for v in ("", "0"):
+            with mock.patch.dict(os.environ, {"SLIDEBUILDER_NO_NET": v}):
+                with self.assertRaises(AssertionError):
+                    gfonts.fetch_url(RAW + "ofl/roboto/METADATA.pb")
+        self.assertEqual(len(self.opened), 2)

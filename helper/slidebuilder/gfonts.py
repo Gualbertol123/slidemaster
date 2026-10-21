@@ -23,6 +23,9 @@ Proxy: Python does not read a PAC file. The helper uses, in this order, the firs
 %LOCALAPPDATA%\SlideBuilder\proxy.txt (a laptop at home or on VPN needs another proxy than the office), else of the
 shared data\proxy.txt ("http://proxy.example:8080", or "none" for a direct connection), else HTTPS_PROXY / the
 Windows proxy setting (urllib's own lookup).
+
+SLIDEBUILDER_NO_NET=1 (the e2e helpers, app/playwright.config.ts): no outbound request at all - every fetch fails at
+once, so a family, a file and a preview answer the usual "cannot be reached" 502, the same with or without network.
 """
 import hashlib
 import json
@@ -133,8 +136,18 @@ def _opener():
     return urllib.request.build_opener(urllib.request.ProxyHandler({} if p == "" else {"http": p, "https": p} if p else None))
 
 
+NO_NET = "SLIDEBUILDER_NO_NET"
+
+
+def no_net():
+    """the helper's network is switched off (set and not "0"; see the docstring above)"""
+    return (os.environ.get(NO_NET) or "0").strip() not in ("", "0")
+
+
 def fetch_url(url, timeout=TIMEOUT):
     """the body of a GET, or NetError (tests replace this function)"""
+    if no_net():
+        raise NetError(url, None, "network switched off (%s=1)" % NO_NET)
     req = urllib.request.Request(url, headers={"User-Agent": "SlideBuilder (Python-urllib)"})
     try:
         with _opener().open(req, timeout=timeout) as r:
@@ -475,6 +488,9 @@ def unreachable_message(failures):
     why = "; ".join(sorted(set(str(e) for e in failures)))
     if any(e.status == 407 for e in failures):
         return ("The proxy asks for a password, which Slide Builder cannot give (%s). To add the font, %s." % (why, UPLOAD_HINT))
+    if no_net():
+        return ("Google Fonts cannot be reached from the Slide Builder helper: its network is switched off (%s=1 is set). "
+                "To add the font, %s." % (NO_NET, UPLOAD_HINT))
     p, path = proxy_source()
     where = ("the proxy in %s (%s)" % (path, p)) if p else ("a direct connection (%s)" % path) if p == "" else "this PC's proxy setting"
     here = local_proxy_file()

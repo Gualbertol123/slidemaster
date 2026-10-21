@@ -37,11 +37,12 @@ const errors: string[] = [];
 /* browser messages the fixtures cause on purpose; any other console error or warning fails E15:
    the decks' default logo "logo.png" is not in the test folder (the app shows "Logo not found"), the helper
    has no favicon, the uploaded test fonts are name-table stubs (sfnt() below) that Chrome cannot decode, and the font
-   picker's previews (B46) fail with the helper's 502: its proxy.txt names a dead port (playwright.config.ts), so the
-   helpers never reach Google (the picker then asks no more) */
+   picker's first preview (B46) fails with the helper's 502: the e2e helpers run with SLIDEBUILDER_NO_NET=1
+   (playwright.config.ts), so they never reach Google. Chrome logs any 5xx answer to a fetch itself (the page only
+   console.info's it and then asks no more), so it is matched exactly: status text, path and query */
 const EXPECTED = [/^console\.error: Failed to load resource: .* 404 .* @ \/assets\/logo\.png[?:]/, /^console\.error: Failed to load resource: .* 404 .* @ \/favicon\.ico:/,
   /^console\.warning: Failed to decode downloaded font: http:\/\/127\.0\.0\.1:\d+\/fonts\/CorpSans-/,
-  /^console\.error: Failed to load resource: .* 502 .* @ \/api\/fonts\/google\/preview\?/];
+  /^console\.error: Failed to load resource: the server responded with a status of 502 \(Bad Gateway\) @ \/api\/fonts\/google\/preview\?family=[^:@ ]+:\d+$/];
 /** Chrome's font sanitiser names no file: its warning is expected only next to a stub font's decode warning */
 const unexpected = (list: string[]) => {
   const stubs = list.filter(e => EXPECTED[2].test(e)).length;

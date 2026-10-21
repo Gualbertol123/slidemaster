@@ -168,6 +168,7 @@ A rollback (§9.2) gives v3 its document back as schema 3.
 | `SLIDEBUILDER_STORAGE` | `lean-lock` or anything else (= journal); wins over `v4/storage.json` |
 | `SLIDEBUILDER_USER`, `SLIDEBUILDER_HOST` | identity (tests) |
 | `SLIDEBUILDER_SYSFONTS` | font folders instead of `%WINDIR%\Fonts` and the per-user font folder |
+| `SLIDEBUILDER_NO_NET` | `1`: the helper makes no outbound request; Google fonts and previews answer the usual 502 "cannot be reached" (e2e, §12.1) |
 | `SLIDEBUILDER_ROLLBACK_QUIET` | the rollback's pause in seconds (tests) |
 | `SLIDEBUILDER_SIM_FS_MS` | load tests only: adds a delay to every data-folder file operation |
 | `SLIDEBUILDER_APP_WINDOW` | `0` = open a browser tab, not an Edge app window |

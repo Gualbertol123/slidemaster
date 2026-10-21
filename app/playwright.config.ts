@@ -16,10 +16,6 @@ if (fresh) {
   fs.mkdirSync(root, { recursive: true }); fs.mkdirSync(data, { recursive: true });
   // Banks.xlsx and Peers.xlsx link to each other (S7.3, tests/corpus/workbooks/recalc)
   for (const f of ["report.xlsx", "plain.xlsx", "big.xlsx", "weekly.xlsx", "Banks.xlsx", "Peers.xlsx", "Gate.xlsx"]) fs.copyFileSync(path.join(__dirname, "tests/fixtures", f), path.join(root, f));
-  // the helpers never reach Google (B46: the font picker's previews are fetched by the helper): a proxy nobody
-  // listens on fails each fetch at once, the same with or without network - the previews answer 502 (EXPECTED in
-  // app.spec.ts) and no data\fonts\cache is written. (On Windows, %LOCALAPPDATA%\SlideBuilder\proxy.txt would win.)
-  fs.writeFileSync(path.join(data, "proxy.txt"), "http://127.0.0.1:9\n");
 }
 process.env.SB_E2E_TMP = tmp; process.env.SB_E2E_ROOT = root; process.env.SB_E2E_DATA = data;
 // the browser: CHROME, else Playwright's own Chromium (npx playwright install chromium), the same on every OS
@@ -31,7 +27,11 @@ const PY = process.platform === "win32" ? "python" : "python3";
 const helper = (user: string, port: number) => ({
   command: `${PY} ../helper/slide_builder.py --no-browser --port ${port}`,
   url: `http://127.0.0.1:${port}/api/ping`,
+  // SLIDEBUILDER_NO_NET: the helpers never reach Google (B46: the font picker's previews are fetched by the helper) -
+  // each fetch fails at once, the same with or without network and whatever proxy.txt this PC has: the previews answer
+  // 502 (EXPECTED in app.spec.ts) and no data/fonts/cache is written
   env: { SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: user, SLIDEBUILDER_HOST: "pc-" + user, NO_PROXY: "*",
+    SLIDEBUILDER_NO_NET: "1",
     ...(SYSFONTS ? { SLIDEBUILDER_SYSFONTS: SYSFONTS } : {}) },
   reuseExistingServer: false, timeout: 90_000,
   stdout: "pipe" as const, stderr: "pipe" as const,          // the helpers' logs appear in the test output (CI diagnosis)
