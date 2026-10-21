@@ -503,6 +503,14 @@ numbers measured twice). Measured numbers go into the step's line.
   record was lost in any run. Accepted as a one-PC limit of the test; no tuning before S5.6.
 - 2026-10-15 · **G2: go, without the two pilot cycles** (product owner: "finish this prompt now. i will not wait 2 weeks"; recorded by the agent). The pilot is installed on `…\Chief Dashboard\slider` (4.0.0-pilot beside 3.8.0) but was not run by people; the rollback rehearsal on a copy is the automated one (`tools/cutover-rehearsal.mjs --pilot`, twice, every check passed). Accepted as not measured by the pilot, to be watched in the four weeks after the cut-over (cutover.md §4): several people on one deck on the real share and PCs, VPN, Edge and the Windows policies W1–W14 (G0's checks), the storage mode – "journal" ships (S5.4's 20-users-on-one-PC result already accepted).
 - 2026-10-15 · **v4.0.0 live on `…\Chief Dashboard\slider`; the pilot removed** (product owner). The tag `v4.0.0` is on the PR #11 merge (0d5556e); the release run failed once on the flaky `open_deck20_ms` bench (Waiting for, M6) and passed on a re-run. The share was switched with 4.0's updater (`--release 4.0.0`); a network error interrupted it after `current.json` and the Start / Install start files, and `--zip` of the same release finished the rest (updater, Update and v3 start files). The pilot's files were deleted from the share by the product owner (`Start Slide Builder (v4 pilot).bat`, `app\pilot.json`, `app\4.0.0-pilot\`, `backend\data\v4-pilot*`, `export\v4-pilot\`) and from the repository by the agent at their request (the start file, `helper/slidebuilder/pilot.py`, `--pilot` in the helper and the updater, `docs/next/pilot-v4.md`, the rehearsal's `--pilot`; CHANGELOG 4.1.0). The merged branch `v4/M5b-cutover` is deleted. The four weeks of monitoring (`cutover.md` §4) run from 2026-10-15.
+- 2026-10-21 · **Phase A answers** (product owner). (a) Adding a Google font shows "failed to fetch" – the page's own
+  request to fonts.googleapis.com (A1's cause as measured); (b) "Update Slide Builder.bat" gives a network error – 4.0's
+  updater, which reports every failure, the API's 403 included, as a network problem (A3); (c) gridlines: "forget the
+  error, i figured it out" – A4 closed, no B-item. **B45 approved** as built in Phase A (Google fonts through the
+  helper; proxy in this PC's `%LOCALAPPDATA%\SlideBuilder\proxy.txt`, else the shared `data\proxy.txt`; previews stop
+  for the window after one failed load; the new messages). **The updater's new messages approved.** **A2: option (a)**
+  – the helper keeps what it fetched in `data\fonts\cache\` and serves the picker's previews from it (on demand, no
+  catalogue in the release): B46, built with M13 (4.6.0).
 
 ## Waiting for
 
@@ -533,20 +541,20 @@ numbers measured twice). Measured numbers go into the step's line.
   Continue, widening the window); reproduced locally with linking slowed 4 s (the callouts test failed), fixed in
   the e2e only: `continueOpen` waits for the open to finish (6 sites); slowed 31/31, normal 39/39 passed.
   verified: tests ✓ clean clone ✓ review ✓.
-- **B45 (proposed, not approved): Google fonts through the helper.** GitHub google/fonts first, googleapis last; proxy in
+- ~~**B45 (proposed)**~~ **Approved 2026-10-21 (Decisions). B45: Google fonts through the helper.** GitHub google/fonts first, googleapis last; proxy in
   this PC's `%LOCALAPPDATA%\SlideBuilder\proxy.txt`, else the shared `data\proxy.txt`; the picker stops previews for the
   window after one failed load; the new messages. Built in Phase A as the fix of A1; the owner approves or asks for changes.
-- **Updater messages (proposed):** "Already up to date (version X): this folder runs X and the newest release on GitHub
+- ~~**Updater messages (proposed)**~~ **Approved 2026-10-21 (Decisions).** "Already up to date (version X): this folder runs X and the newest release on GitHub
   is X – there is no newer one."; "GitHub is not answering this office for now … Try again after HH:MM (in N minutes)."
   ; the .bat's "The update stopped – the message above says why (exit code N)". Maintainer-facing; the owner approves.
-- **A2 · proposal: cache the fonts (not built).** Added fonts are cached already (`data\fonts`; exports never go to
+- **A2 · cache the fonts: the owner chose (a) on 2026-10-21 (Decisions) – B46, built with M13.** Added fonts are cached already (`data\fonts`; exports never go to
   Google); what still goes out is adding a font and the picker's previews of families not added. (a) The helper keeps
   every stylesheet and file it fetched in `data\fonts\cache\` and serves the previews: about 0.12 MB for the 46
   popular families when googleapis answers (`&text=` subsets), else built from GitHub files on demand, ~1 MB per family
   opened (0.1–9 MB). (b) A catalogue of the 46 popular families shipped in the release with their OFL/Apache/UFL notices
   (LIC-1): static TTF ~28 MB (170 faces), GitHub originals ~48 MB, woff2 ~12 MB, notices 0.2 MB – every install and
   update download grows by it. Recommendation: (a), previews on demand; (b) only if adding fonts must work offline.
-- **A4 · gridline style (question to the owner).** No gridline control was removed in code: the Gridlines menu is as
+- ~~**A4 · gridline style (question to the owner).**~~ **Closed 2026-10-21:** the owner found it ("i figured it out"). No gridline control was removed in code: the Gridlines menu is as
   M10 shipped it (table H/V; selected cells H, V, Outline, Clear, 6 colours + Auto, 4 weights); line styles exist only
   under Borders ▾. Waiting for the owner's version, menu and screenshot; dashed/dotted/double gridlines would be a new
   B-item.
