@@ -64,6 +64,33 @@ REM later releases (the share has app\current.json): a plain double-click follow
 "T:\Slide Builder\Update Slide Builder.bat"
 ```
 - [ ] The output says "self-test passed" and "Version X.Y.Z is now the current version".
+
+**The first release after 4.0.0 (once, by hand).** The share's 4.0.0 updater still asks only GitHub's API (60
+requests an hour for the whole office) and retries a refusal, so until this release is installed a used-up limit
+still prints 4.0's old message ("Could not download …: HTTP Error 403: Forbidden"). Install it in PowerShell 5.1,
+one of these two ways:
+```
+# a) when GitHub's API limit is not used up
+& "T:\Slide Builder\Update Slide Builder.bat" --release X.Y.Z
+# b) otherwise: download slidebuilder-X.Y.Z.zip and slidebuilder-X.Y.Z.zip.sha256 with the browser from the
+#    release page (github.com/Gualbertol123/slidemaster/releases/tag/vX.Y.Z); the hash must equal the .sha256 file's
+Get-FileHash "$env:USERPROFILE\Downloads\slidebuilder-X.Y.Z.zip" -Algorithm SHA256
+Get-Content "$env:USERPROFILE\Downloads\slidebuilder-X.Y.Z.zip.sha256"
+& "T:\Slide Builder\Update Slide Builder.bat" --zip "$env:USERPROFILE\Downloads\slidebuilder-X.Y.Z.zip" --yes
+```
+- [ ] The output says "MANIFEST.json verified: version X.Y.Z" and "Version X.Y.Z is now the current version".
+
+**The new `Update Slide Builder.bat` (once, by hand).** An update replaces `tools\update.py` but never an existing
+`Update Slide Builder.bat` (it may be the file running the update), so its Python 3.8 check and its "The update
+stopped" line reach the share only this way. Do it while nobody is running an update: `Test-Path` must print
+`False` (no update lock). The old file stays as `Update Slide Builder.bat.old` until the next release.
+```
+Test-Path "T:\Slide Builder\backend\data\locks\update.lock"
+Copy-Item "T:\Slide Builder\Update Slide Builder.bat" "T:\Slide Builder\Update Slide Builder.bat.old"
+Copy-Item "T:\Slide Builder\app\X.Y.Z\Update Slide Builder.bat" "T:\Slide Builder\Update Slide Builder.bat" -Force
+```
+- [ ] Double-click `T:\Slide Builder\Update Slide Builder.bat`: it says "Already up to date (version X.Y.Z) …"
+      and waits for a key.
 - [ ] Everybody closes the black Slide Builder window and starts it again.
 - [ ] Rollback, if needed: `python tools\update.py --use P.Q.R` (in `T:\Slide Builder`). **The first release on a
       share** (it still ran `backend\`, so there is no P.Q.R in `app\`): rename `app\current.json` to

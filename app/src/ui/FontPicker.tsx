@@ -7,13 +7,17 @@ import { GOOGLE_POPULAR, SYSTEM_FONTS, fontStack } from "@slide-builder/core/mod
 import { backend } from "../sync/api";
 import { Dropdown } from "./Dropdown";
 
-/** small preview stylesheets for Google fonts not in the library yet (only the letters of their names) */
+/** small preview stylesheets for Google fonts not in the library yet (only the letters of their names). Where the page
+    cannot reach fonts.googleapis.com (the office, 2026-10) the sheet fails: it is removed, the picker asks no more in
+    this window and the names show in their fallback fonts (adding a font goes through the helper anyway) */
 const previewed = new Set<string>();
+let previewsFail = false;
 function preview(families: string[]) {
-  const todo = families.filter(f => !previewed.has(f) && !inLibrary(f)); if (!todo.length) return;
+  const todo = families.filter(f => !previewed.has(f) && !inLibrary(f)); if (previewsFail || !todo.length) return;
   todo.forEach(f => previewed.add(f));
   const link = document.createElement("link"); link.rel = "stylesheet";
   link.href = "https://fonts.googleapis.com/css2?" + todo.map(f => "family=" + encodeURIComponent(f).replace(/%20/g, "+")).join("&") + "&text=" + encodeURIComponent(todo.join("") + " ") + "&display=swap";
+  link.onerror = () => { previewsFail = true; link.remove(); };
   document.head.appendChild(link);
 }
 

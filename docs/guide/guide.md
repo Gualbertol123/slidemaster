@@ -388,6 +388,10 @@ Excel saved.
   current one in `app\<version>\`, runs its self-test, and only then makes it current. Everybody then closes Slide
   Builder, starts it again and reloads the page. Saved decks, settings, workbooks and exports are never changed by
   an update.
+  When there is no newer release it says so (the version in use and GitHub's newest) and changes nothing. If GitHub
+  answers that its limit is used up (60 questions an hour for the whole office), the message says at what time to
+  try again; `--zip "%USERPROFILE%\Downloads\slidebuilder-<version>.zip"` (the full path to the ZIP: the update
+  runs in the Slide Builder folder) installs a ZIP downloaded with the browser instead.
 * **Rolling back the program.** `Update Slide Builder.bat --use 4.0.0` (or another installed version) makes that
   version current again; a plain update then refuses to undo this until you choose a version on purpose.
 * **Giving a deck back to Slide Builder 3** (until its start file is removed): *⚙ Options › Administration ›

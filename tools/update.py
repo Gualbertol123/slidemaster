@@ -24,8 +24,11 @@ How it updates
     again skipping everything listed above.
 
 Side-by-side releases (--release, --zip <file>, --use)
-  * a release ZIP (tools/make_release.py) is checked against GitHub's SHA-256 "digest" of the asset when
-    the API gives one, and always against the MANIFEST.json inside it;
+  * the newest release is found on github.com/<owner>/<repo>/releases/latest (a web page: it does not use up
+    the 60 API requests an hour that every PC on the office's internet address shares); GitHub's API only when
+    that page does not answer. Nothing newer than the version in use: it says so and changes nothing (no backup);
+  * a release ZIP (tools/make_release.py) is checked against the .sha256 file published with it and GitHub's
+    SHA-256 "digest" of the asset when they can be had, and always against the MANIFEST.json inside it;
   * it is extracted to app\\<ver>.part\\ and renamed to app\\<ver>\\ only when complete, so an interrupted
     install leaves nothing that looks installed;
   * the new version's `slide_builder.py --selftest` must pass (it reads every saved setup without writing,
@@ -41,6 +44,7 @@ afterwards (close the black window, start it again) and reload the browser tab.
 """
 import argparse
 import datetime
+import email.utils
 import getpass
 import hashlib
 import io
@@ -55,6 +59,8 @@ import sys
 import tempfile
 import time
 import unicodedata
+import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 import zipfile
@@ -295,18 +301,99 @@ def parse_repo(repo):
     return m.group(1), m.group(2)
 
 
-def http_get(url, timeout=60):
-    req = urllib.request.Request(url, headers={"User-Agent": "SlideBuilder-updater"})
-    for wait in (0, 2, 4, 8):
-        if wait:
-            say("  network problem, retrying in %d s…" % wait); time.sleep(wait)
+class NetError(SystemExit):
+    """a GitHub request that failed, as one sentence for the person running the update (no traceback). A SystemExit,
+    so the callers that fall back on a failed request (update_with_zip) keep working. `status`: the HTTP status."""
+    def __init__(self, msg, status=None):
+        SystemExit.__init__(self, msg)
+        self.status = status
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None             # the 30x answer itself is wanted (its Location), see http_request(follow=False)
+
+
+def retry_at(headers, now=None):
+    """when GitHub answers again (epoch seconds), from Retry-After (seconds or an HTTP date) or X-RateLimit-Reset
+    (epoch); None if unknown. Each header on its own: one that cannot be read does not hide the other."""
+    now = time.time() if now is None else now
+    after = (headers.get("Retry-After") or "").strip()
+    if after:
         try:
-            # the Windows proxy settings, and the Windows certificate store (a company root CA is trusted)
-            with urllib.request.urlopen(req, timeout=timeout, context=ssl.create_default_context()) as r:
-                return r.read()
-        except Exception as e:        # noqa: BLE001 – report the last error
-            last = e
-    raise SystemExit("Could not download %s: %s" % (url, last))
+            return now + max(0, int(after))
+        except ValueError:
+            pass
+        try:
+            d = email.utils.parsedate_to_datetime(after)     # "Wed, 21 Oct 2026 07:28:00 GMT"
+            if d.tzinfo is None:                             # "-0000": UTC
+                d = d.replace(tzinfo=datetime.timezone.utc)
+            return max(now, d.timestamp())
+        except (TypeError, ValueError, IndexError, OverflowError):   # Python 3.8 raises TypeError, 3.10+ ValueError
+            pass
+    reset = headers.get("X-RateLimit-Reset")
+    if reset:
+        try:
+            return max(now, int(reset))
+        except ValueError:
+            pass
+    return None
+
+
+def when_text(at, now=None):
+    """'after 15:49 (in 25 minutes)', local time - the clock on the wall of the person reading it"""
+    now = time.time() if now is None else now
+    mins = max(1, int((at - now + 59) // 60))
+    t = datetime.datetime.fromtimestamp(at)
+    clock = t.strftime("%H:%M") if t.date() == datetime.datetime.fromtimestamp(now).date() else t.strftime("%d/%m %H:%M")
+    return "after %s (in %d minute%s)" % (clock, mins, "" if mins == 1 else "s")
+
+
+def http_request(url, timeout=60, follow=True, retries=True):
+    """(status, headers, body) of a GET. Failures become a NetError with a sentence: a used-up GitHub limit (403/429
+    with X-RateLimit-Remaining 0 or Retry-After) says when to try again, and is never retried (every retry costs
+    another of the 60 requests an hour the office shares); other 4xx are not retried either; network errors and 5xx
+    are retried 3 times (retries=False: not at all - an optional check). follow=False: a redirect is returned as it is
+    (its Location header), not followed."""
+    req = urllib.request.Request(url, headers={"User-Agent": "SlideBuilder-updater"})
+    # the Windows proxy settings, and the Windows certificate store (a company root CA is trusted)
+    handlers = [urllib.request.HTTPSHandler(context=ssl.create_default_context())]
+    opener = urllib.request.build_opener(*(handlers + ([] if follow else [_NoRedirect()])))
+    host = urllib.parse.urlparse(url).netloc or url
+    last = None
+    for wait in ((0, 2, 4, 8) if retries else (0,)):
+        if wait:
+            say("  network problem (%s), retrying in %d s..." % (last, wait)); time.sleep(wait)
+        try:
+            with opener.open(req, timeout=timeout) as r:
+                return r.status if hasattr(r, "status") else r.getcode(), r.headers, r.read()
+        except urllib.error.HTTPError as e:
+            if not follow and 300 <= e.code < 400:
+                return e.code, e.headers, b""
+            try:
+                body = e.read()
+            except Exception:         # noqa: BLE001 – the status is enough
+                body = b""
+            limited = e.code == 429 or (e.code == 403 and (e.headers.get("X-RateLimit-Remaining") == "0"
+                                                          or e.headers.get("Retry-After") or b"rate limit" in body.lower()))
+            if limited:
+                at = retry_at(e.headers)
+                raise NetError("GitHub is not answering this office for now: its limit for PCs without a GitHub login (60 "
+                               "questions an hour, shared by every PC on the office's internet address) is used up. "
+                               "Nothing was changed. Try again %s." % (when_text(at) if at else "in an hour"), e.code)
+            if e.code < 500:
+                raise NetError("GitHub answered %d %s for %s." % (e.code, e.reason, url), e.code)
+            last = "%s answered %d %s" % (host, e.code, e.reason)
+        except Exception as e:        # noqa: BLE001 – URLError, timeouts, a connection cut half-way
+            last = getattr(e, "reason", None) or e
+            if url.startswith("file:"):
+                break
+    raise NetError("Could not reach %s (%s). Nothing was changed. Check that this PC is on the internet (a browser opens "
+                   "https://github.com), then try again in a few minutes." % (host, last))
+
+
+def http_get(url, timeout=60, retries=True):
+    return http_request(url, timeout, retries=retries)[2]
 
 
 def version_file(root):
@@ -700,12 +787,13 @@ def activate(root, version, folder, stamp, fresh, held=False):
 
 
 def install_release(root, data, stamp, want=None, digest=None):
-    """install release ZIP bytes side by side and make it current. Returns (version, changed)."""
-    if digest:
-        algo, _, hexd = digest.partition(":")
+    """install release ZIP bytes side by side and make it current. Returns (version, changed). `digest`: "sha256:<hex>"
+    from GitHub's API, or a list of (where it came from, "sha256:<hex>") - each one must match; MANIFEST.json always."""
+    for src, d in ([("GitHub's digest", digest)] if isinstance(digest, str) else digest or []):
+        algo, _, hexd = d.partition(":")
         if algo.lower() != "sha256" or sha256_bytes(data) != hexd.lower():
-            raise SystemExit("The download does not match GitHub's checksum (%s) - nothing was installed. Try again." % digest)
-        say("  checksum matches GitHub's digest.")
+            raise SystemExit("The download does not match GitHub's checksum (%s) - nothing was installed. Try again." % d)
+        say("  checksum matches %s." % src)
     try:
         zf = zipfile.ZipFile(io.BytesIO(data))
         man = verify_release(zf)
@@ -767,13 +855,55 @@ def use_version(root, ver, stamp):
     return ver, True
 
 
-def find_release(repo, want, api_base=None):
-    """(version, download url, digest or None) of a GitHub release ("latest" or X.Y.Z)"""
-    owner, name = parse_repo(repo)
+GITHUB_WEB = "https://github.com"
+ASSET = "slidebuilder-%s.zip"       # the release's ZIP: tools/make_release.py, .github/workflows/release.yml (+ ".sha256")
+
+
+def no_release(owner, name, why):
+    return SystemExit("GitHub has no published release of %s/%s (%s). Nothing was changed." % (owner, name, why))
+
+
+def find_release_web(owner, name, want, web_base):
+    """the web pages, not the API (no 60-an-hour limit): github.com/<o>/<r>/releases/latest redirects to
+    .../releases/tag/v<ver>; the ZIP is .../releases/download/v<ver>/slidebuilder-<ver>.zip, its sha256sum next to it"""
+    web = "%s/%s/%s/releases" % (web_base.rstrip("/"), owner, name)
+    if want in (None, "latest"):
+        try:
+            status, headers, _ = http_request(web + "/latest", follow=False)
+        except NetError as e:
+            if e.status == 404:
+                raise no_release(owner, name, "%s/latest is not there" % web)
+            raise
+        loc = (headers.get("Location") or "") if 300 <= status < 400 else ""
+        m = re.search(r"/releases/tag/v([^/?#]+)/?$", loc)
+        if not m:
+            if re.search(r"/releases/?$", loc):         # what GitHub answers while there is no release at all
+                raise no_release(owner, name, "%s/latest leads to the empty list" % web)
+            raise NetError("%s/latest answered %d %s instead of the newest release's address." % (web, status, loc or "(no Location)"))
+        ver = urllib.parse.unquote(m.group(1))
+        if not VERSION_RE.match(ver):
+            raise SystemExit("The newest release on GitHub has an unexpected tag: v%s. Nothing was changed." % ver)
+    else:
+        ver = want
+        try:
+            http_request("%s/tag/v%s" % (web, ver), follow=False)
+        except NetError as e:
+            if e.status == 404:
+                raise no_release(owner, name, "there is no release v%s" % ver)
+            raise
+    url = "%s/download/v%s/%s" % (web, ver, ASSET % ver)
+    return ver, url, None, url + ".sha256"
+
+
+def find_release_api(owner, name, want, api_base, retries=True):
     base = (api_base or "https://api.github.com/repos/%s/%s" % (owner, name)).rstrip("/")
     url = base + ("/releases/latest" if want in (None, "latest") else "/releases/tags/v" + want)
     try:
-        rel_ = json.loads(http_get(url).decode("utf-8"))
+        rel_ = json.loads(http_get(url, retries=retries).decode("utf-8"))
+    except NetError as e:
+        if e.status == 404:
+            raise no_release(owner, name, "GitHub's API knows no %s" % ("latest release" if want in (None, "latest") else "release v" + want))
+        raise
     except ValueError:
         raise SystemExit("GitHub's answer about the release could not be read.")
     assets = [x for x in rel_.get("assets") or [] if re.match(r"^slidebuilder-.+\.zip$", x.get("name", ""))]
@@ -783,10 +913,63 @@ def find_release(repo, want, api_base=None):
     ver = a["name"][len("slidebuilder-"):-len(".zip")]
     if not VERSION_RE.match(ver):
         raise SystemExit("Release asset with an unexpected name: " + a["name"])
-    return ver, a["browser_download_url"], a.get("digest")
+    return ver, a["browser_download_url"], a.get("digest"), None
 
 
-def release_mode(root, a, stamp):
+def find_release(repo, want, api_base=None, web_base=None):
+    """(version, download url, API digest or None, URL of the .sha256 file or None) of a GitHub release ("latest" or
+    X.Y.Z). The web pages first (they do not use up the office's 60 API requests an hour); the API when they fail.
+    --api-url alone (the tests' file:// "API") asks only the API."""
+    owner, name = parse_repo(repo)
+    if web_base or not api_base:
+        try:
+            return find_release_web(owner, name, want, web_base or GITHUB_WEB)
+        except NetError as e:
+            say("  The release page did not answer (%s) - asking GitHub's API instead." % e)
+    return find_release_api(owner, name, want, api_base)
+
+
+def release_checksums(found, repo, api_base=None, web_base=None):
+    """the checksums to compare the download with: the API's digest if the API was asked, else the release's .sha256
+    file (written by release.yml) and, as an extra, the API's digest when the API answers. None of them is required -
+    MANIFEST.json inside the ZIP is always checked."""
+    ver, _url, digest, sums_url = found
+    out = [("GitHub's digest", digest)] if digest else []
+    if sums_url:
+        try:
+            m = re.match(r"\s*([0-9a-fA-F]{64})\b", http_get(sums_url).decode("ascii", "replace"))
+            if m:
+                out.append(("the release's .sha256 file", "sha256:" + m.group(1)))
+        except NetError as e:
+            say("  (no .sha256 file with the release: %s)" % e)
+        if web_base is None or api_base:            # the tests' fake web without a fake API: never the real API
+            try:
+                # not retried: the download is already here, and 2+4+8 s of waiting for an extra check is not worth it
+                d = find_release_api(*(parse_repo(repo) + (ver, api_base)), retries=False)[2]
+                if d:
+                    out.append(("GitHub's digest", d))
+            except SystemExit as e:                 # rate limit, no network: only an extra check
+                say("  (GitHub's API did not answer, its checksum is skipped: %s)" % e)
+    return out
+
+
+def not_newer(root, ver, want):
+    """the sentence to show when release `ver` is not newer than this folder's current version, else None. Asked for
+    the newest release, an older one is never installed over a newer version (a ZIP installed by hand)."""
+    cur = current_version(root)
+    if not cur or not os.path.isdir(os.path.join(app_dir(root), cur)):
+        return None
+    latest = want in (None, "latest")
+    if cur == ver:
+        return "Already up to date (version %s)%s" % (ver, (": this folder runs %s and the newest release on GitHub is %s - "
+                                                            "there is no newer one." % (cur, ver)) if latest else ".")
+    if latest and version_key(ver) < version_key(cur):
+        return ("No newer release: this folder runs version %s, which is newer than the newest release on GitHub (%s). "
+                "Nothing was changed." % (cur, ver))
+    return None
+
+
+def release_mode(root, a, stamp, found=None):
     """--release / --zip <file> / --use; returns (changed, ok)"""
     if a.use:
         return use_version(root, a.use, stamp)[1], True
@@ -798,12 +981,16 @@ def release_mode(root, a, stamp):
         except OSError as e:
             raise SystemExit("Cannot read %s: %s" % (a.zip, e))
         return install_release(root, data, stamp)[1], True
-    ver, url, digest = find_release(a.repo or DEFAULT_REPO, a.release, a.api_url)
-    if current_version(root) == ver and os.path.isdir(os.path.join(app_dir(root), ver)):
-        say("Already up to date (version %s)." % ver)
+    repo = a.repo or DEFAULT_REPO
+    found = found or find_release(repo, a.release, a.api_url, a.web_url)
+    ver, url = found[:2]
+    msg = not_newer(root, ver, a.release)        # again under the lock: somebody else may have just updated
+    if msg:
+        say(msg)
         return False, True
-    say("Downloading version %s..." % ver)
-    return install_release(root, http_get(url, timeout=300), stamp, want=ver, digest=digest)[1], True
+    say("Downloading version %s from %s ..." % (ver, url))
+    data = http_get(url, timeout=300)
+    return install_release(root, data, stamp, want=ver, digest=release_checksums(found, repo, a.api_url, a.web_url))[1], True
 
 
 # --------------------------------------------------------------------------- decks: v3 <-> v4 (docs/next/04 §4)
@@ -977,6 +1164,7 @@ def main(argv=None):
                     help="give WORKBOOK's deck (or, without a name, every deck) back to Slide Builder 3; refused for a deck with "
                          "changes past its snapshot (Options › Administration › Prepare rollback first)")
     ap.add_argument("--api-url", default=None, help=argparse.SUPPRESS)
+    ap.add_argument("--web-url", default=None, help=argparse.SUPPRESS)       # tests: a fake https://github.com
     ap.add_argument("--zip-url", default=None, help=argparse.SUPPRESS)
     ap.add_argument("--root", default=None, metavar="FOLDER", help="the Slide Builder folder (default: the one this updater belongs to)")
     ap.add_argument("--yes", action="store_true", help="do not ask questions")
@@ -996,19 +1184,31 @@ def main(argv=None):
         say("This folder uses side-by-side versions (app\\current.json, now %s): looking for the newest release." % current_version(root))
         a.release = "latest"
     if a.release or a.use or isinstance(a.zip, str):
-        if a.check:
-            if a.use or isinstance(a.zip, str):
-                raise SystemExit("--check works with --release only")
-            ver, _url, _d = find_release(a.repo or DEFAULT_REPO, a.release, a.api_url)
-            cur = current_version(root)
-            say("Already up to date (version %s)." % ver if cur == ver else "An update is available: %s -> %s." % (cur or "none", ver))
-            return 0
+        if a.check and (a.use or isinstance(a.zip, str)):
+            raise SystemExit("--check works with --release only")
+        found = None
+        if not (a.use or isinstance(a.zip, str)):
+            # asked before the lock and the backup: "nothing newer" and "GitHub does not answer" change nothing at all
+            # (a backup per run would push the useful ones out - only the last 5 are kept)
+            found = find_release(a.repo or DEFAULT_REPO, a.release, a.api_url, a.web_url)
+            msg = not_newer(root, found[0], a.release)
+            if msg:
+                say(msg)
+                return 0
+            if a.check:
+                cur = current_version(root)
+                if cur and version_key(found[0]) < version_key(cur):
+                    say("Version %s is older than the current %s; it would be installed only because you named it."
+                        % (found[0], cur))
+                else:
+                    say("An update is available: %s -> %s." % (cur or "none", found[0]))
+                return 0
         stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         with UpdateLock(root):
             dst, n = backup_saved(root, stamp)
             if n:
                 say("Saved setups copied to %s (%d files)." % (rel(root, dst), n))
-            changed, ok = release_mode(root, a, stamp)
+            changed, ok = release_mode(root, a, stamp, found)
         if changed:
             say("\nDone. Everybody who has Slide Builder open: close its black window and start it again.")
         return 0 if ok else 2

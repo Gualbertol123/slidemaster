@@ -503,9 +503,61 @@ numbers measured twice). Measured numbers go into the step's line.
   record was lost in any run. Accepted as a one-PC limit of the test; no tuning before S5.6.
 - 2026-10-15 · **G2: go, without the two pilot cycles** (product owner: "finish this prompt now. i will not wait 2 weeks"; recorded by the agent). The pilot is installed on `…\Chief Dashboard\slider` (4.0.0-pilot beside 3.8.0) but was not run by people; the rollback rehearsal on a copy is the automated one (`tools/cutover-rehearsal.mjs --pilot`, twice, every check passed). Accepted as not measured by the pilot, to be watched in the four weeks after the cut-over (cutover.md §4): several people on one deck on the real share and PCs, VPN, Edge and the Windows policies W1–W14 (G0's checks), the storage mode – "journal" ships (S5.4's 20-users-on-one-PC result already accepted).
 - 2026-10-15 · **v4.0.0 live on `…\Chief Dashboard\slider`; the pilot removed** (product owner). The tag `v4.0.0` is on the PR #11 merge (0d5556e); the release run failed once on the flaky `open_deck20_ms` bench (Waiting for, M6) and passed on a re-run. The share was switched with 4.0's updater (`--release 4.0.0`); a network error interrupted it after `current.json` and the Start / Install start files, and `--zip` of the same release finished the rest (updater, Update and v3 start files). The pilot's files were deleted from the share by the product owner (`Start Slide Builder (v4 pilot).bat`, `app\pilot.json`, `app\4.0.0-pilot\`, `backend\data\v4-pilot*`, `export\v4-pilot\`) and from the repository by the agent at their request (the start file, `helper/slidebuilder/pilot.py`, `--pilot` in the helper and the updater, `docs/next/pilot-v4.md`, the rehearsal's `--pilot`; CHANGELOG 4.1.0). The merged branch `v4/M5b-cutover` is deleted. The four weeks of monitoring (`cutover.md` §4) run from 2026-10-15.
+- 2026-10-21 · **Phase A answers** (product owner). (a) Adding a Google font shows "failed to fetch" – the page's own
+  request to fonts.googleapis.com (A1's cause as measured); (b) "Update Slide Builder.bat" gives a network error – 4.0's
+  updater, which reports every failure, the API's 403 included, as a network problem (A3); (c) gridlines: "forget the
+  error, i figured it out" – A4 closed, no B-item. **B45 approved** as built in Phase A (Google fonts through the
+  helper; proxy in this PC's `%LOCALAPPDATA%\SlideBuilder\proxy.txt`, else the shared `data\proxy.txt`; previews stop
+  for the window after one failed load; the new messages). **The updater's new messages approved.** **A2: option (a)**
+  – the helper keeps what it fetched in `data\fonts\cache\` and serves the picker's previews from it (on demand, no
+  catalogue in the release): B46, built with M13 (4.6.0).
 
 ## Waiting for
 
+- **Phase A · Google fonts, the updater, two follow-ups; branch `v4/fix-fonts-update` (pushed as
+  `claude/epic-bell-xw1w1u`), for the product owner (PR, merge), 2026-10-20.** A1: adding a Google font goes through the
+  helper (`helper/slidebuilder/gfonts.py`: google/fonts on raw.githubusercontent.com, then cdn.jsdelivr.net, googleapis
+  last; proxy from this PC's `%LOCALAPPDATA%\SlideBuilder\proxy.txt`, else the shared `data\proxy.txt`, else
+  HTTPS_PROXY / the Windows setting; the faces are stored only once every file arrived; every failure says what to do);
+  the picker's previews stop for the window after one failed load. A3: `tools/update.py` finds the release from
+  github.com/…/releases/latest (no API), downloads the tag's ZIP, checks the `.sha256` and MANIFEST.json (the API digest
+  once, no retries), says plainly when nothing is newer (before the lock and the backup), turns a used-up limit into
+  "try again after HH:MM"; the .bat needs Python 3.8+ and says why it stopped – it reaches the share only by hand
+  (`release-checklist.md`, with the first install after 4.0.0). A5: the bench's keypress run waits for slide 2's own
+  table; Delete setup no longer leaves the deleted setup's links in the new wizard (linking moves after the preset box).
+  New tests: `test_gfonts` 20, `test_update` +14, `googlefonts.test.tsx` 5, `deletesetup.test.tsx` 3. The two runs
+  (working tree e358b26 / clean clone of e358b26): build reproduces the committed page ✓ / ✓; check 824 + 52 / 824 + 52;
+  helper 3.12 and 3.8: 286 OK / 286 OK; e2e 39 / 39 passed; parity and dlparity 0 not accepted / 0 (text-only, Linux);
+  export-check 15 PowerPoint files ok / ok. Bench on this cloud machine (4 CPUs; CI decides): over in both measurements
+  on open_deck20_ms 714/642 / 614/653, read_big30_ms 1832/1555 / 1770/1770, plus longest_task_ms and drag_frame_ms in
+  the first run and core parse_ms 833/784 in the second; the unchanged base 80fbed4 on the same machine is over on the
+  same gates (two runs: open 676/700, 689/681; read 1688/1590, 1860/1873; core parse 737) and Phase A changes no core
+  file, so none is this branch's; keypress_p95 57→52 / 52, no "no box". Python 3.8.20 via uv. Reviews: fonts REQUEST
+  CHANGES (5) → APPROVE; update REQUEST CHANGES (7) → APPROVE; follow-ups APPROVE (3 low points fixed) → APPROVE.
+  Not verifiable here (owner, on Windows): the office proxy/DNS against GitHub and jsDelivr, Edge, cmd.exe, the real
+  github.com redirect, the bench on the reference PC. Needs the owner: **B45** (below), the update messages, A2, A4.
+  CI (45108d0): e2e red on both runs – "charts follow a scenario" lost its selection: start-up had reopened
+  Banks.xlsx, the test opened it again and selected cells while that open still ran (A5 moved the linking after
+  Continue, widening the window); reproduced locally with linking slowed 4 s (the callouts test failed), fixed in
+  the e2e only: `continueOpen` waits for the open to finish (6 sites); slowed 31/31, normal 39/39 passed.
+  verified: tests ✓ clean clone ✓ review ✓.
+- ~~**B45 (proposed)**~~ **Approved 2026-10-21 (Decisions). B45: Google fonts through the helper.** GitHub google/fonts first, googleapis last; proxy in
+  this PC's `%LOCALAPPDATA%\SlideBuilder\proxy.txt`, else the shared `data\proxy.txt`; the picker stops previews for the
+  window after one failed load; the new messages. Built in Phase A as the fix of A1; the owner approves or asks for changes.
+- ~~**Updater messages (proposed)**~~ **Approved 2026-10-21 (Decisions).** "Already up to date (version X): this folder runs X and the newest release on GitHub
+  is X – there is no newer one."; "GitHub is not answering this office for now … Try again after HH:MM (in N minutes)."
+  ; the .bat's "The update stopped – the message above says why (exit code N)". Maintainer-facing; the owner approves.
+- **A2 · cache the fonts: the owner chose (a) on 2026-10-21 (Decisions) – B46, built with M13.** Added fonts are cached already (`data\fonts`; exports never go to
+  Google); what still goes out is adding a font and the picker's previews of families not added. (a) The helper keeps
+  every stylesheet and file it fetched in `data\fonts\cache\` and serves the previews: about 0.12 MB for the 46
+  popular families when googleapis answers (`&text=` subsets), else built from GitHub files on demand, ~1 MB per family
+  opened (0.1–9 MB). (b) A catalogue of the 46 popular families shipped in the release with their OFL/Apache/UFL notices
+  (LIC-1): static TTF ~28 MB (170 faces), GitHub originals ~48 MB, woff2 ~12 MB, notices 0.2 MB – every install and
+  update download grows by it. Recommendation: (a), previews on demand; (b) only if adding fonts must work offline.
+- ~~**A4 · gridline style (question to the owner).**~~ **Closed 2026-10-21:** the owner found it ("i figured it out"). No gridline control was removed in code: the Gridlines menu is as
+  M10 shipped it (table H/V; selected cells H, V, Outline, Clear, 6 colours + Auto, 4 weights); line styles exist only
+  under Borders ▾. Waiting for the owner's version, menu and screenshot; dashed/dotted/double gridlines would be a new
+  B-item.
 - **B43 + B44, branch `v4/B43-B44`, for the product owner (push, PR, merge), 2026-10-20.** Scan for "x" tables, and
   delete / restore saved setups (Decisions). The two runs (working tree / clean clones of the branch): check 814 + 44 /
   824 + 44 (on main 07fa018: its gate tests too); helper 3.12 and 3.8: 251 OK on the clean clone of the last commit
@@ -518,10 +570,12 @@ numbers measured twice). Measured numbers go into the step's line.
   thumbnail click `stageIdle()` can still be the previous slide's, so the cell had no box – unchanged since M11; a
   follow-up), then two runs every gate within (deck20 open 356 / 352, big30 read 964 / 856, keypress p95 37 / 39, drag
   frame 13.1 / 11.8 ms). Helper tests of B44: 12 (`test_deckbin.py`). Reviews: REQUEST CHANGES ×2, then APPROVE (its
-  three low points fixed). Open: the deleted setup's linked workbooks stay listed in the new wizard (cosmetic).
+  three low points fixed). ~~Open: the deleted setup's linked workbooks stay listed in the new wizard (cosmetic).~~
+  Done in Phase A (`v4/fix-fonts-update`, 0f5c557 + 9b1ffaa).
   verified: tests ✓ clean clone ✓ review ✓.
-- **Follow-up: `tools/bench.mjs` keypress race** (2026-10-20, seen once): wait for the second slide's own table on the
-  stage after the thumbnail click, not only for `stageIdle()`.
+- ~~**Follow-up: `tools/bench.mjs` keypress race** (2026-10-20, seen once): wait for the second slide's own table on the
+  stage after the thumbnail click, not only for `stageIdle()`.~~ **Done** in Phase A (`v4/fix-fonts-update`, afb9886 +
+  9b1ffaa); to confirm with 2–3 bench runs on the reference PC.
 
 - ~~**CI bench repeat rule, branch `ci/bench-retry`**~~ **Done:** merged as PR #24 (main 07fa018, its CI run all green). Main's CI
   failed only the bench on #21–#23 (annotations read through the API: #21 longest_task_ms 99 / limit 61 and
