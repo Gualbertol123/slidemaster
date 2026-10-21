@@ -4,7 +4,7 @@
 import type { CellEdit, Op, SlideDef, TableDef, WorkbookDoc, StylePatch } from "./types";
 
 const SLIDE_KEYS = ["title", "subtitle", "date", "note", "logo", "layout", "align", "scale", "valign", "subs"] as const;
-const SLIDE_MAPS = ["notes", "fmt", "sizes", "free", "looks"] as const;
+const SLIDE_MAPS = ["notes", "fmt", "sizes", "free", "looks", "hide"] as const;
 const TABLE_KEYS = ["name", "gridH", "gridV"] as const;
 const TABLE_MAPS = ["cols", "rows", "scales", "merges", "sizes", "cellGrid", "borders"] as const;
 const CELL_KEYS = ["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role"] as const;
@@ -165,10 +165,10 @@ const V40_SLIDE = ["title", "subtitle", "date", "note", "logo", "layout", "align
 const V40_TABLE = ["name", "gridH", "gridV", "cols", "rows", "scales", "merges", "sizes"];
 const V40_CELL = ["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role"];
 const V40_STYLE = ["design", "glass", "color", "logo", "radius", "contrast", "logoBubble", "pn", "footer", "theme", "text", "colors", "designs"];
-/** what a document holds that 4.0.0 does not know (4.3 items; 4.4 free, cellGrid, borders; 4.5 looks; S13.6 hide (the
-    slide hidden per design: `hide: {glass: true}`); 09 §2.10's slide `hidden` (F11), a version's drop, cell valign /
-    num): a deck holding it is format 5. Both slide names are listed until 09 and S13.6 settle on one (review of S13.1,
-    4): a name listed here and never used costs nothing; one missing would leave a format-4 deck unraised */
+/** what a document holds that 4.0.0 does not know (4.3 items; 4.4 free, cellGrid, borders; 4.5 looks; 4.6 hide (S13.6,
+    B47: the slide hidden per design, `hide: {glass: true}`, merged per design); 09 §2.5's slide `hidden` (F11: hidden
+    rows / columns, `"t3:r12": true` – a different key), a version's drop, cell valign / num): a deck holding a non-empty
+    one is format 5 */
 const V5_SLIDE = ["items", "free", "looks", "hide", "hidden"], V5_TABLE = ["cellGrid", "borders"], V5_VERSION = ["drop"], V5_CELL = ["valign", "num"];
 const outside = (p: unknown, known: readonly string[]) => isObj(p) && Object.keys(p).some(k => !known.includes(k));
 const holds = (x: unknown, keys: readonly string[]) => isObj(x) && keys.some(k => x[k] != null && x[k] !== false && !(isObj(x[k]) && !Object.keys(x[k] as object).length));

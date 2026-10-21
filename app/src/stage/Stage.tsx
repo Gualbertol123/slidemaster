@@ -12,11 +12,13 @@ import { isLookText } from "../editor/look";
 import { slideCtx } from "@slide-builder/core/render/look";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { get, patch, STAGE, useStore } from "../state/store";
-import { ctx } from "../state/app";
+import { ctx, pendingTitle, takePendingTitle } from "../state/app";
 import type { RuntimeSlide, Side } from "@slide-builder/core/model/types";
 import { slideFrame } from "@slide-builder/core/render/slide";
 import { freeOf, tableH, tableW } from "@slide-builder/core/render/layout";
 import { tableName } from "@slide-builder/core/model/preset";
+import { hiddenIn } from "@slide-builder/core/render/pagenumbers";
+import { DESIGN_LABEL } from "@slide-builder/core/model/designs";
 import type { RenderCtx } from "@slide-builder/core/render/context";
 import { selItems, activeItem, setSel, curSlide } from "../editor/edit";
 import { setColWidth, setRowHeight } from "../editor/tables";
@@ -70,6 +72,12 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
   const m = useMemo(() => live && R ? stageModel(live, R, c) : null, [live, R]);
   // a text box just added opens for typing as soon as it is on the slide
   useEffect(() => { const k = pendingNote(); if (k && m?.notes.some(n => n.part.key === k)) { takePendingNote(); editNote(k); } }, [m]);
+  // the title of a slide New slide added opens for typing as soon as the stage shows it
+  useEffect(() => {
+    if (live && pendingTitle() === live.id && m?.hits.some(h => editOf(h.id) === "title") && !useStage.getState().editor && takePendingTitle(live.id)) {
+      selectSlideText("title"); setStage({ editor: { kind: "text", key: "title" } });
+    }
+  }, [m]);
   if (!live || !R || !m) return null;
   const frame = slideFrame(R, c), vars = Object.fromEntries(frame.vars);
   return (
@@ -90,9 +98,11 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
           {m.tables.map(t => <HBox key={t.i} i={t.i} R={R} c={c} m={m} box={boxOf(t.i, t.box, drag)} drag={drag} slide={slideRef} />)}
           <Selection m={m} s={s} drag={drag} />
           <Guides drag={drag} s={s} />
-          {R.type === "content" && !R.tables.length && <div className="emptyslide">No tables on this slide – add some with the wizard.</div>}
+          {R.type === "content" && !R.tables.length && <div className="emptyslide">No tables on this slide – Add table (Insert) puts one here.</div>}
         </div>
       </div>
+      {/* a slide hidden in this design (S13.6): still drawn and edited here, marked (DOM, never exported) */}
+      {hiddenIn(R.cfg, c0.style.design) && <div className="stagehid" id="stageHidden">Hidden in {DESIGN_LABEL[c0.style.design]} – not exported</div>}
       {editor?.kind === "cell" && <CellEditor m={m} s={s} initial={editor.initial} />}
       {editor?.kind === "text" && <TextEditor m={m} s={s} k={editor.key} />}
       {editor?.kind === "note" && <NoteEditor m={m} s={s} k={editor.key} />}

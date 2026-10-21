@@ -1,6 +1,6 @@
 /* End-to-end: the built app (helper/slide_builder.html) served by two real helpers that share one
    folder – user "anna" on :8951 and user "bob" on :8952. Run: npm run build && npm run test:e2e */
-import { test, expect, type Locator, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page, type Route } from "@playwright/test";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -1792,6 +1792,314 @@ test.describe.serial("two people, one shared folder", () => {
     await pollFile(() => tdef().borders ?? "none", { timeout: 10_000 }).toBe("none");
     await expect.poll(red).toBe(false);
     await page.click('[data-design="glass"]'); await saved(page);
+  });
+
+  test("New slide (S13.4, NS-01, B40): after the selected slide, its title typed at once; #newSlide, Ctrl+M, the slide list's menu; one undo step each", async ({ page, browser }) => {
+    await openApp(page, ANNA);
+    await openWorkbook(page, "report.xlsx"); await continueOpen(page, "report.xlsx");
+    await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
+    const undoSteps = () => page.evaluate(() => (window as any).__sbTest.history().undo as number);
+    const ids = () => doc().preset.slides.map((s: any) => s.id) as string[];
+    const ids0 = ids(), n0 = ids0.length, u0 = await undoSteps();
+    const editor = page.locator("#stage input.inline-edit");
+    // #newSlide: a blank content slide after the first, shown, its title open for typing
+    await page.locator('.thumb[data-i="0"]').click(); await page.locator('.thumb.on[data-i="0"]').waitFor();
+    await page.click("#newSlide");
+    await expect(editor).toBeFocused({ timeout: 10_000 });
+    await expect(editor).toHaveValue("New slide");
+    await expect(page.locator('.thumb.on[data-i="1"]')).toBeVisible();
+    await expect(page.locator("#slideCount")).toHaveText(String(n0 + 1));
+    await page.keyboard.type("Outlook 2027"); await page.keyboard.press("Enter");
+    await pollFile(() => doc().preset.slides[1].title, { timeout: 10_000 }).toBe("Outlook 2027");
+    const added = doc().preset.slides[1];
+    expect(added).toMatchObject({ type: "content", tables: [] });
+    expect(ids0).not.toContain(added.id);
+    expect(ids().filter(id => id !== added.id)).toEqual(ids0);
+    await expect(page.locator("#stage .slide [data-edit=\"title\"]")).toHaveText("Outlook 2027");
+    await expect.poll(() => undoSteps()).toBe(u0 + 2);
+    // undo: the title, then the slide – one step
+    await page.click("#undoBtn"); await pollFile(() => doc().preset.slides[1].title, { timeout: 10_000 }).toBe("New slide");
+    await page.click("#undoBtn"); await pollFile(() => ids(), { timeout: 10_000 }).toEqual(ids0);
+    await expect(page.locator("#slideCount")).toHaveText(String(n0));
+    await page.click("#redoBtn"); await pollFile(() => ids().length, { timeout: 10_000 }).toBe(n0 + 1);
+    await page.click("#undoBtn"); await pollFile(() => ids(), { timeout: 10_000 }).toEqual(ids0);
+    // Ctrl+M (PowerPoint's): after the last slide
+    await page.locator(`.thumb[data-i="${n0 - 1}"]`).click(); await page.locator(`.thumb.on[data-i="${n0 - 1}"]`).waitFor();
+    await page.keyboard.press("Control+m");
+    await expect(editor).toBeFocused({ timeout: 10_000 });
+    await page.keyboard.press("Escape");
+    await pollFile(() => ids().length, { timeout: 10_000 }).toBe(n0 + 1);
+    expect(ids().slice(0, n0)).toEqual(ids0);
+    expect(doc().preset.slides[n0].title).toBe("New slide");
+    await expect(page.locator(`.thumb.on[data-i="${n0}"]`)).toBeVisible();
+    // the slide list's right-click menu: New slide after the slide clicked
+    await page.locator('.thumb[data-i="0"]').click({ button: "right" });
+    await expect(page.locator("#slideMenu")).toBeVisible();
+    await expect(page.locator('.thumb.on[data-i="0"]')).toBeVisible();
+    await page.click("#ctxNewSlide");
+    await expect(page.locator("#slideMenu")).toHaveCount(0);
+    await expect(editor).toBeFocused({ timeout: 10_000 });
+    await page.keyboard.press("Escape");
+    await pollFile(() => ids().length, { timeout: 10_000 }).toBe(n0 + 2);
+    expect(doc().preset.slides[1].title).toBe("New slide");
+    expect(new Set(ids()).size).toBe(n0 + 2);                                          // ids unique (09 §2.8)
+    // the menu closes on Escape without a slide
+    await page.locator('.thumb[data-i="0"]').click({ button: "right" });
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#slideMenu")).toHaveCount(0);
+    expect(ids().length).toBe(n0 + 2);
+    await expect.poll(() => undoSteps()).toBe(u0 + 2);
+    await page.click("#undoBtn"); await page.click("#undoBtn");
+    await pollFile(() => ids(), { timeout: 10_000 }).toEqual(ids0);
+    await saved(page);
+
+    // two writers (review of S13.4; 09 §2.8): anna and bob each press New slide after the same slide before either page
+    // has read the other's record – both slides stay, with different ids, in the same order on both pages; anna's undo
+    // takes away her slide only
+    const b = await browser.newPage();
+    await openApp(b, BOB); await openWorkbook(b, "report.xlsx"); await continueOpen(b, "report.xlsx");   // (bob's last file may be another)
+    await expect(b.locator(".thumb")).toHaveCount(n0, { timeout: 20_000 });
+    // (the deck is format 5 already – the slide.add above raised it – so a record is appended without a tail first)
+    await pollFile(() => JSON.parse(fs.readFileSync(path.join(deckDir("report.xlsx")!, "snapshot.json"), "utf8")).format, { timeout: 15_000 }).toBe(5);
+    const pageIds = (p: Page) => p.evaluate(() => (window as any).__sbTest.preset().slides.map((s: any) => s.id) as string[]);
+    await expect.poll(() => pageIds(b)).toEqual(ids0);
+    // no page reads the journals meanwhile: each one's next tail is held until both have added their slide
+    const TAIL = /\/api\/decks\/[^/]+\/tail\?since=/, held: Route[] = [], heldBy = { a: 0, b: 0 };
+    let holding = true;
+    const hold = (who: "a" | "b") => (r: Route) => { if (!holding) return void r.continue(); heldBy[who]++; held.push(r); };
+    await page.route(TAIL, hold("a")); await b.route(TAIL, hold("b"));
+    await expect.poll(() => heldBy.a > 0 && heldBy.b > 0, { timeout: 10_000 }).toBe(true);   // (a tail sent before is answered)
+    const after = ids0[0];
+    await page.locator('.thumb[data-i="0"]').click(); await page.locator('.thumb.on[data-i="0"]').waitFor();
+    await b.locator('.thumb[data-i="0"]').click(); await b.locator('.thumb.on[data-i="0"]').waitFor();
+    await page.click("#newSlide"); await expect(editor).toBeFocused({ timeout: 10_000 }); await page.keyboard.press("Escape");
+    const bEditor = b.locator("#stage input.inline-edit");
+    await b.click("#newSlide"); await expect(bEditor).toBeFocused({ timeout: 10_000 }); await b.keyboard.press("Escape");
+    await saved(page); await saved(b);
+    const mine = (await pageIds(page)).filter(id => !ids0.includes(id)), bens = (await pageIds(b)).filter(id => !ids0.includes(id));
+    expect(mine).toHaveLength(1); expect(bens).toHaveLength(1);                  // neither page has the other's yet
+    const [annaId, bobId] = [mine[0], bens[0]];
+    expect(annaId).not.toBe(bobId);
+    // both on the share
+    await pollFile(() => ids().length, { timeout: 10_000 }).toBe(n0 + 2);
+    const both = ids();
+    expect(both.filter(id => id !== annaId && id !== bobId)).toEqual(ids0);
+    expect(both.indexOf(after)).toBe(0);
+    expect([...both.slice(1, 3)].sort()).toEqual([annaId, bobId].sort());          // both after that slide
+    // the tails go on: each page reads the other's record, both show the share's order
+    holding = false; for (const r of held.splice(0)) await r.continue();
+    await expect.poll(() => pageIds(page), { timeout: 15_000 }).toEqual(both);
+    await expect.poll(() => pageIds(b), { timeout: 15_000 }).toEqual(both);
+    await expect(page.locator("#slideCount")).toHaveText(String(n0 + 2)); await expect(b.locator("#slideCount")).toHaveText(String(n0 + 2));
+    // anna's undo: her slide goes, bob's stays (on the share and on both pages)
+    await page.click("#undoBtn"); await saved(page);
+    const left = both.filter(id => id !== annaId);
+    await pollFile(() => ids(), { timeout: 10_000 }).toEqual(left);
+    await expect.poll(() => pageIds(page), { timeout: 15_000 }).toEqual(left);
+    await expect.poll(() => pageIds(b), { timeout: 15_000 }).toEqual(left);
+    // (bob's undo: the deck as it was for the next tests)
+    await b.click("#undoBtn"); await saved(b);
+    await pollFile(() => ids(), { timeout: 10_000 }).toEqual(ids0);
+    await expect.poll(() => pageIds(page), { timeout: 15_000 }).toEqual(ids0);
+    await page.unroute(TAIL); await b.unroute(TAIL);
+    await b.close();
+  });
+
+  test("Add table (S13.4, NS-02, B41, B42): the deck's tables, on no slide first; one added to a new slide; New table from cells; one undo step each; free layout places it in an empty spot", async ({ page }) => {
+    await openApp(page, ANNA);
+    await openWorkbook(page, "report.xlsx"); await continueOpen(page, "report.xlsx");
+    await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
+    const undoSteps = () => page.evaluate(() => (window as any).__sbTest.history().undo as number);
+    const P = () => doc().preset, u0 = await undoSteps(), defs0 = P().tables.map((t: any) => t.id) as string[];
+    const onSlides = (id: string) => P().slides.filter((s: any) => (s.tables || []).includes(id)).length;
+    // a new slide to add to
+    await page.locator('.thumb[data-i="0"]').click(); await page.locator('.thumb.on[data-i="0"]').waitFor();
+    await page.click("#newSlide");
+    await expect(page.locator("#stage input.inline-edit")).toBeFocused({ timeout: 10_000 });
+    await page.keyboard.press("Escape");
+    await pollFile(() => P().slides[1].title, { timeout: 10_000 }).toBe("New slide");
+    const sid = P().slides[1].id, slide = () => P().slides.find((s: any) => s.id === sid);
+    await expect(page.locator("#stage .emptyslide")).toBeVisible();
+    // the menu: every mapped table, the ones on no slide first, each with its sheet and range and a preview
+    await page.click("#addTable");
+    const rows = page.locator("#addTableMenu [data-table]");
+    await expect(rows).toHaveCount(defs0.length);
+    const listed = await rows.evaluateAll(els => els.map(e => (e as HTMLElement).dataset.table!));
+    expect([...listed].sort()).toEqual([...defs0].sort());
+    const used = listed.map(id => onSlides(id) > 0);
+    expect(used).toEqual([...used].sort((a, b) => Number(a) - Number(b)));             // unused first
+    await expect(page.locator("#addTableMenu svg.tprev").first()).toBeVisible();
+    const pick = listed[0], tdef = P().tables.find((t: any) => t.id === pick);
+    await expect(rows.first()).toContainText(tdef.sheet);
+    await rows.first().click();
+    await expect(page.locator("#addTableMenu")).toHaveCount(0);
+    await pollFile(() => slide().tables, { timeout: 10_000 }).toEqual([pick]);
+    await expect(page.locator('#stage .slide > .tw[data-i="0"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator("#stage .emptyslide")).toHaveCount(0);
+    await expect.poll(() => undoSteps()).toBe(u0 + 2);
+    // the menu again: that table is on this slide (not offered twice)
+    await page.click("#addTable");
+    await expect(page.locator(`#addTableMenu [data-table="${pick}"]`)).toBeDisabled();
+    await expect(page.locator(`#addTableMenu [data-table="${pick}"]`)).toContainText("on this slide");
+    // New table from cells…: the sheet view, a range of a sheet on no slide; its definition and its place in one step
+    await page.click('#addTableMenu [data-a="table-pick"]');
+    await expect(page.locator("#pickCells")).toBeVisible();
+    await expect(page.locator("#pickCells")).toContainText("New table from cells");
+    await page.selectOption("#pkSheet", "Numbers");
+    await expect(page.locator("#pkUse")).toBeDisabled();
+    await page.locator('#pkRange td[data-r="8"][data-c="1"]').click();
+    await page.locator('#pkRange td[data-r="11"][data-c="3"]').click({ modifiers: ["Shift"] });
+    await expect(page.locator("#pkSel")).toHaveText("A8:C11");
+    await expect(page.locator("#pkUse")).toHaveText("Add table");
+    await page.click("#pkUse");
+    await expect(page.locator("#pickCells")).toHaveCount(0);
+    await pollFile(() => slide().tables.length, { timeout: 10_000 }).toBe(2);
+    const nid = slide().tables[1];
+    expect(defs0).not.toContain(nid);
+    expect(P().tables.find((t: any) => t.id === nid)).toMatchObject({ sheet: "Numbers", kind: "range", range: "A8:C11" });
+    await expect(page.locator('#stage .slide > .tw[data-i="1"]')).toBeVisible({ timeout: 10_000 });
+    await expect.poll(() => undoSteps()).toBe(u0 + 3);
+    await page.click("#undoBtn");
+    await pollFile(() => slide().tables, { timeout: 10_000 }).toEqual([pick]);
+    expect(P().tables.some((t: any) => t.id === nid)).toBe(true);                        // the definition stays (09 §2.8)
+    // free layout on: a table added then sits in an empty spot of the content area, at its automatic scale; no box written
+    await page.waitForFunction(() => (window as any).__sbTest.stageIdle());
+    await page.click("#freeLayout");
+    const design = () => doc().style.design || "glass";
+    await pollFile(() => slide().free?.[design()]?.on, { timeout: 10_000 }).toBe(true);
+    // (the first table made small in the top left corner: room for the next one)
+    await page.evaluate(([id, d, k]) => { const t = window as any, sl = t.__sbTest.preset().slides.find((x: any) => x.id === id), f = sl.free[d], e = f.items[k];
+      t.__sbTest.change("Move table", [{ op: "slide.patch", id, patch: { free: { [d]: { ...f, items: { ...f.items, [k]: { x: 60, y: 200, w: e.w * .4, h: e.h * .4, scale: (e.scale || 1) * .4 } } } } } }]); },
+      [sid, design(), "t:" + pick] as const);
+    await pollFile(() => slide().free[design()].items["t:" + pick].x, { timeout: 10_000 }).toBe(60);
+    await page.click("#addTable");
+    await page.locator(`#addTableMenu [data-table="${nid}"]`).click();
+    await pollFile(() => slide().tables.length, { timeout: 10_000 }).toBe(2);
+    expect(slide().free[design()].items["t:" + nid]).toBeUndefined();
+    await page.waitForFunction(() => (window as any).__sbTest.stageIdle());
+    const a = await boxOf(page.locator('#stage .slide > .tw[data-i="0"]')), b = await boxOf(page.locator('#stage .slide > .tw[data-i="1"]'));
+    const apart = a.x + a.width <= b.x + 1 || b.x + b.width <= a.x + 1 || a.y + a.height <= b.y + 1 || b.y + b.height <= a.y + 1;
+    expect(apart).toBe(true);
+    // undo all: the table, the move, the free layout, the first table, the slide
+    for (let i = 0; i < 5; i++) await page.click("#undoBtn");
+    await pollFile(() => slide() ?? "removed", { timeout: 10_000 }).toBe("removed");
+    await expect.poll(() => undoSteps()).toBe(u0);
+    await saved(page);
+  });
+
+  test("Hide slide (S13.6, HS-01, HS-03, B47): per design from the slide list's menu, grayed and marked, the stage marks it; every design; one undo step each; the deck is format 5", async ({ page }) => {
+    await openApp(page, ANNA);
+    await openWorkbook(page, "report.xlsx"); await continueOpen(page, "report.xlsx");
+    await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
+    const undoSteps = () => page.evaluate(() => (window as any).__sbTest.history().undo as number);
+    const design = () => doc().style.design || "glass", other = () => design() === "excel" ? "glass" : "excel";
+    const k = (doc().preset.slides as any[]).map(s => s.type).lastIndexOf("content"), hideOf = () => doc().preset.slides[k].hide ?? null;
+    const u0 = await undoSteps(), d0 = design(), t = page.locator(`.thumb[data-i="${k}"]`);
+    // right-click › Hide slide: hidden in this design only
+    await t.click({ button: "right" });
+    await expect(page.locator("#ctxHideSlide")).toContainText("Hide slide");
+    await page.click("#ctxHideSlide");
+    await expect(page.locator("#slideMenu")).toHaveCount(0);
+    await pollFile(() => hideOf(), { timeout: 10_000 }).toEqual({ [d0]: true });
+    await expect(t).toHaveClass(/\bhid\b/);
+    await expect(t.locator(".hidmark")).toHaveText("hidden");
+    await expect(page.locator(`.thumb.on[data-i="${k}"]`)).toBeVisible();
+    await expect(page.locator("#stageHidden")).toContainText("not exported");                // the stage still shows it, marked
+    await expect(page.locator(".thumb.hid")).toHaveCount(1);
+    // HS-03: the key is newer than 4.0.0 – the deck is raised to format 5 (no older page can drop it)
+    await pollFile(() => JSON.parse(fs.readFileSync(path.join(deckDir("report.xlsx")!, "snapshot.json"), "utf8")).format, { timeout: 15_000 }).toBe(5);
+    // another design shows it
+    await page.evaluate(d => (window as any).__sbTest.change("Design", [{ op: "style.patch", patch: { design: d } }]), other());
+    await expect(t).not.toHaveClass(/\bhid\b/);
+    await expect(page.locator("#stageHidden")).toHaveCount(0);
+    await page.click("#undoBtn");
+    await expect(t).toHaveClass(/\bhid\b/);
+    // Hide in every design, then Show in every design
+    await t.click({ button: "right" });
+    await expect(page.locator("#ctxHideAll")).toHaveText("Hide in every design");
+    await page.click("#ctxHideAll");
+    await pollFile(() => Object.keys(hideOf() || {}).sort(), { timeout: 10_000 }).toEqual(["bain", "clean", "excel", "glass", "mckinsey"]);
+    await t.click({ button: "right" });
+    await expect(page.locator("#ctxHideSlide")).toContainText("Show slide");
+    await expect(page.locator("#ctxHideAll")).toHaveText("Show in every design");
+    await page.click("#ctxHideAll");
+    await pollFile(() => hideOf(), { timeout: 10_000 }).toBeNull();
+    await expect(t).not.toHaveClass(/\bhid\b/);
+    await expect(page.locator("#stageHidden")).toHaveCount(0);
+    // one undo step each: show all → hide all → hide here → nothing
+    await expect.poll(() => undoSteps()).toBe(u0 + 3);
+    await page.click("#undoBtn"); await pollFile(() => Object.keys(hideOf() || {}).length, { timeout: 10_000 }).toBe(5);
+    await page.click("#undoBtn"); await pollFile(() => hideOf(), { timeout: 10_000 }).toEqual({ [d0]: true });
+    await page.click("#undoBtn"); await pollFile(() => hideOf(), { timeout: 10_000 }).toBeNull();
+    await expect(page.locator(".thumb.hid")).toHaveCount(0);
+    await saved(page);
+  });
+
+  test("Hidden slides in the exports (S13.6, HS-02, B47): PDF, PNG all and PowerPoint leave them out; page numbers and the contents renumber; the current slide still exports; another design keeps it", async ({ page }) => {
+    await openApp(page, ANNA);
+    await openWorkbook(page, "report.xlsx"); await continueOpen(page, "report.xlsx");
+    await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
+    const undoSteps = () => page.evaluate(() => (window as any).__sbTest.history().undo as number);
+    const change = (label: string, ops: object[]) => page.evaluate(([l, o]) => (window as any).__sbTest.change(l, o), [label, ops] as const);
+    const slides = doc().preset.slides as any[], n = slides.length, k = slides.map(s => s.type).indexOf("content"), id = slides[k].id;
+    const ix = slides.map(s => s.type).indexOf("index"), u0 = await undoSteps();
+    const read = (f: string) => fs.readFileSync(path.join(root(), "export", f));
+    // "n / N" as one run, whatever spacing the text extractor gives it, and not inside a longer number ("14 / 14")
+    const pn = (a: number, b: number) => new RegExp(`(^|\\D)${a}\\s*/\\s*${b}(\\D|$)`);
+    // page numbers "n / N" on every slide, and a title only this slide has
+    await change("Page numbers", [{ op: "style.patch", patch: { pn: { on: true, format: "nN", cover: true } } }]);
+    await change("Title", [{ op: "slide.patch", id, patch: { title: "Zeta hidden" } }]);
+    await expect.poll(() => undoSteps()).toBe(u0 + 2);
+    let text = pdfPageTexts(read((await exported(page, () => page.click("#exportBtn")))[0]));
+    expect(text).toHaveLength(n);
+    expect(text.join(" ")).toContain("Zeta hidden");
+    expect(text[n - 1]).toMatch(pn(n, n));
+    // hidden in this design (the slide list's menu)
+    await page.locator(`.thumb[data-i="${k}"]`).click({ button: "right" }); await page.click("#ctxHideSlide");
+    await expect(page.locator(`.thumb[data-i="${k}"]`)).toHaveClass(/\bhid\b/);
+    await saved(page);
+    text = pdfPageTexts(read((await exported(page, () => page.click("#exportBtn")))[0]));
+    expect(text).toHaveLength(n - 1);
+    expect(text.join(" ")).not.toContain("Zeta hidden");                                 // neither its page nor a contents entry
+    expect(text[n - 2]).toMatch(pn(n - 1, n - 1));                                       // the last page renumbered
+    if (ix >= 0) expect(text[ix]).toMatch(pn(ix + 1, n - 1));
+    // PNG of every slide, PowerPoint: the same pages
+    expect(await fromMenu(page, "png-all")).toHaveLength(n - 1);
+    const [pptx] = await fromMenu(page, "pptx");
+    expect(pptxSlides(read(pptx))).toBe(n - 1);
+    expect(pptxTexts(read(pptx)).join(" ")).not.toContain("Zeta hidden");
+    // the current slide, hidden: exported all the same (asked for it)
+    await page.locator(`.thumb[data-i="${k}"]`).click(); await page.locator(`.thumb.on[data-i="${k}"]`).waitFor();
+    const [one] = await fromMenu(page, "pdf-current");
+    const cur = pdfPageTexts(read(one));
+    expect(cur).toHaveLength(1); expect(cur[0]).toContain("Zeta hidden");
+    // every version × all five designs (S13.6 review, 6): the design that hides the slide has n - 1 pages, the others n
+    const d0 = doc().style.design || "glass";
+    await change("Versions", [{ op: "preset.set", preset: { ...doc().preset, versions: [{ id: "vhs", name: "Chief" }] } }]);
+    await expect.poll(() => undoSteps()).toBe(u0 + 4);
+    await saved(page);
+    const LABEL: Record<string, string> = { glass: "Liquid Glass", excel: "Excel", clean: "Excel Refined", mckinsey: "Consulting Navy", bain: "Consulting Red" };
+    const vfiles = await fromMenu(page, "versions-5");
+    expect(vfiles).toHaveLength(5);
+    await expect(page.locator("#toast")).toContainText("Saved 5 PDFs");
+    for (const [d, label] of Object.entries(LABEL)) {
+      const f = vfiles.find(x => new RegExp(` - Chief - ${label}( \\(images\\))?\\.pdf$`).test(x));
+      expect(f, d).toBeTruthy();
+      const pages = pdfPageTexts(read(f!));
+      expect(pages.length, d).toBe(d === d0 ? n - 1 : n);
+      expect(pages.join(" ").includes("Zeta hidden"), d).toBe(d !== d0);
+    }
+    // another design: every slide
+    await change("Design", [{ op: "style.patch", patch: { design: (doc().style.design || "glass") === "excel" ? "glass" : "excel" } }]);
+    await saved(page);
+    text = pdfPageTexts(read((await exported(page, () => page.click("#exportBtn")))[0]));
+    expect(text).toHaveLength(n);
+    expect(text.join(" ")).toContain("Zeta hidden");
+    // undo: the design, the versions, the hide, the title, the page numbers
+    for (let i = 0; i < 5; i++) await page.click("#undoBtn");
+    await expect.poll(() => undoSteps()).toBe(u0);
+    await pollFile(() => doc().preset.slides[k].hide ?? null, { timeout: 10_000 }).toBeNull();
+    await saved(page);
   });
 
   test("no page errors, console errors or warnings", async () => { expect(unexpected(errors)).toEqual([]); });

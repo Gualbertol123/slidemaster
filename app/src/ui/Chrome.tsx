@@ -8,6 +8,9 @@ import { Stage } from "../stage/Stage";
 import { zoomBy } from "../stage/actions";
 import { useStage } from "../stage/data";
 import { mountThumbs } from "../editor/thumbs";
+import { hideSlide, newSlide } from "../editor/slides";
+import { hiddenIn } from "@slide-builder/core/render/pagenumbers";
+import { DESIGNS } from "@slide-builder/core/model/designs";
 import { clearPreview } from "../editor/scenario";
 import { slideIssues } from "../editor/issues";
 import { openLicences } from "./notices";
@@ -28,20 +31,42 @@ function badge(R: RuntimeSlide, c: RenderCtx): number {
   return n;
 }
 export function Thumbs() {
-  const slides = useStore(s => s.deck.slides), cur = useStore(s => s.deck.cur), fname = useStore(s => s.deck.file?.name);
-  const c = useCtx();
+  const slides = useStore(s => s.deck.slides), cur = useStore(s => s.deck.cur), fname = useStore(s => s.deck.file?.name), open = useStore(s => s.doc.open);
+  const c = useCtx(), d = c.style.design;
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => { if (ref.current) mountThumbs(ref.current); }, []);
   const sig = slides.map(R => R.id + R.label + R.type).join("|") + "|" + fname;
   useEffect(() => { THUMBS.render(); }, [sig]);           // new frames → fill them
   useEffect(() => { ref.current?.querySelector(".thumb.on")?.scrollIntoView({ block: "nearest" }); }, [cur]);
+  // right-click: the slide list's menu (S13.4, 09 §3.9: New slide – after the slide clicked; S13.6: Hide slide)
+  // (the slide is kept by its id: another writer's slide.add / slide.remove while the menu is open moves its position)
+  const [menu, setMenu] = useState<{ x: number; y: number; id: string | null } | null>(null), mR = menu?.id ? slides.find(R => R.id === menu.id) : undefined;
+  useEffect(() => {
+    if (!menu) return;
+    const off = (e: Event) => { if (!(e.target as Element)?.closest?.(".ctxmenu")) setMenu(null); };
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(null); };
+    document.addEventListener("pointerdown", off); document.addEventListener("keydown", key); addEventListener("blur", off);
+    return () => { document.removeEventListener("pointerdown", off); document.removeEventListener("keydown", key); removeEventListener("blur", off); };
+  }, [menu]);
   return (
-    <div className="thumbs" id="thumbs" ref={ref}>
+    <div className="thumbs" id="thumbs" ref={ref} onContextMenu={e => {
+      if (!open) return;
+      e.preventDefault();
+      const i = Number((e.target as Element).closest?.(".thumb")?.getAttribute("data-i") ?? -1);
+      if (i >= 0) gotoSlide(i);
+      setMenu({ x: Math.min(e.clientX, innerWidth - 210), y: Math.min(e.clientY, innerHeight - 130), id: slides[i]?.id ?? null });
+    }}>
+      {menu && <div className="menu ctxmenu" id="slideMenu" style={{ left: menu.x + "px", top: menu.y + "px" }}>
+        <button id="ctxNewSlide" onClick={() => { setMenu(null); newSlide(); }}>New slide<small>Ctrl+M</small></button>
+        {mR && <>
+          <button id="ctxHideSlide" onClick={() => { setMenu(null); hideSlide(mR.id); }}>{hiddenIn(mR.cfg, d) ? "Show slide" : "Hide slide"}<small>this design</small></button>
+          <button id="ctxHideAll" onClick={() => { setMenu(null); hideSlide(mR.id, true); }}>{DESIGNS.every(x => hiddenIn(mR.cfg, x)) ? "Show in every design" : "Hide in every design"}</button></>}</div>}
       {slides.map((R, i) => {
-        const issues = badge(R, c);
-        return <button key={R.id} className={"thumb" + (i === cur ? " on" : "")} data-i={i} onClick={() => gotoSlide(i)}>
+        const issues = badge(R, c), hid = hiddenIn(R.cfg, d);
+        // a hidden slide (S13.6): grayed, its number struck – left out of this design's exports, numbers and contents
+        return <button key={R.id} className={"thumb" + (i === cur ? " on" : "") + (hid ? " hid" : "")} data-i={i} onClick={() => gotoSlide(i)} title={hid ? "Hidden in this design: not exported, numbered or listed in the contents" : undefined}>
           <div className="frame" data-i={i} />
-          <div className="cap"><span className="n">{i + 1}</span><b>{R.label}</b>{R.type !== "content" && <span className="tag">{R.type}</span>}{issues > 0 && <span className="badge">{issues}</span>}</div>
+          <div className="cap"><span className="n">{i + 1}</span><b>{R.label}</b>{hid && <span className="tag hidmark">hidden</span>}{R.type !== "content" && <span className="tag">{R.type}</span>}{issues > 0 && <span className="badge">{issues}</span>}</div>
         </button>;
       })}
     </div>

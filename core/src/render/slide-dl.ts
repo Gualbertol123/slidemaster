@@ -19,7 +19,7 @@ import type { RenderCtx } from "./context";
 import { slideCtx } from "./look";
 import { cssLinear, glassBox, glassVars, type Wallpaper } from "./glass-dl";
 import { halfLeading, lu, primaryFamily, type Metrics, type TableDL } from "./excel-dl";
-import { pageNoFor, pageNoGeom, footerGeom, pageNumber, pnFmt } from "./pagenumbers";
+import { pageNoFor, pageNoGeom, footerGeom, pageNumber, pnFmt, isHidden } from "./pagenumbers";
 import { contrastVars, memoPart, noteParts, slideHasLogo, themeVars, type NotePart } from "./slide";
 import { areaFor, itemBoxOf, KPI_LINE, NAVY_BAND, SIGNAL_AREA, slideFacts, tableH, tableW, type TBox } from "./layout";
 import { chartNodes, chartSem, type PieGeom } from "./chart-dl";
@@ -433,7 +433,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     if (I.headingRule) { y += 16; low.push(specRule(x0, right, y, I.headingRule)); }
     if (dark) { (band as RectNode).h = Math.round(y + 26); y += 26; }
     const items: { n: number; title: string; sub: string; page: string }[] = [], subs = R.cfg.subs !== false;
-    ctx.slides.forEach((Sl, i) => { if (Sl.type === "content") items.push({ n: items.length + 1, title: Sl.title, sub: subs ? Sl.subtitle || "" : "", page: String(pageNumber(ctx, i)) }); });
+    ctx.slides.forEach((Sl, i) => { if (Sl.type === "content" && !isHidden(ctx, i)) items.push({ n: items.length + 1, title: Sl.title, sub: subs ? Sl.subtitle || "" : "", page: String(pageNumber(ctx, i)) }); });
     const xf = deckFmt(ctx, "index"), row: TextFmt = { ...xf, size: undefined, align: undefined }, top0 = Math.max(I.top, y + 30);
     if (!items.length) {
       const st = withFmt({ ...specSt(I.entry), color: solid(ink) }, row), lh = T.lineH(st, INHERITED), t = "No content slides yet";
@@ -523,7 +523,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
 
   function indexNodes() {
     const items: { n: number; title: string; sub: string; page: string }[] = [], subs = R.cfg.subs !== false;
-    ctx.slides.forEach((S, i) => { if (S.type === "content") items.push({ n: items.length + 1, title: S.title, sub: subs ? S.subtitle || "" : "", page: String(pageNumber(ctx, i)) }); });
+    ctx.slides.forEach((S, i) => { if (S.type === "content" && !isHidden(ctx, i)) items.push({ n: items.length + 1, title: S.title, sub: subs ? S.subtitle || "" : "", page: String(pageNumber(ctx, i)) }); });
     if (!items.length) {
       const st: TStyle = { family: base, size: 22, weight: 400, italic: false, color: solid("#8A94A6"), ls: 0 }, lh = T.lineH(st, INHERITED), t = "No content slides yet";
       low.push(hit("ix-empty", 110, 200, T.adv(t, st), lh, t), T.node(t, 110, T.baseline(st, 200, lh), st));

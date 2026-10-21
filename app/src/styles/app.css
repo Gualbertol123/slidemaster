@@ -265,3 +265,19 @@ body.painting .slide .hits{cursor:copy}
 .slide .tnote .down{color:#D92D20;font-weight:700}
 .slide .tnote .flat{font-weight:700}
 }
+/* Add table ▾, New slide (S13.4) */
+.addtable .tlist{max-height:360px;overflow:auto}
+.addtable .tlist button{gap:10px}
+.addtable .tprev{flex:none;display:block;width:56px;height:34px;border:1px solid var(--line);border-radius:4px;background:#F7F8FA}
+.addtable .tname{display:flex;flex-direction:column;min-width:0}
+.addtable .tname small{margin-left:0}
+.addtable button:disabled{opacity:.5;cursor:default}
+.navhd .newslide{border:0;background:none;color:var(--accent);font:600 11.5px var(--font);padding:2px 4px;border-radius:5px;cursor:pointer}
+.navhd .newslide:hover{background:var(--accent-soft)}
+.navhd .newslide:disabled{color:var(--mute);cursor:default;background:none}
+.menu.ctxmenu{position:fixed;display:block;min-width:200px}
+/* hidden slides (S13.6, B47): grayed in the list, marked on the stage */
+.thumb.hid .frame{opacity:.4;filter:grayscale(1)}
+.thumb.hid .cap .n{text-decoration:line-through}
+.thumb .cap .hidmark{background:#EEF0F4;color:var(--mute)}
+.stagehid{position:absolute;left:8px;top:8px;z-index:5;pointer-events:none;font:600 11.5px var(--font);padding:3px 9px;border-radius:8px;background:rgba(20,24,40,.72);color:#fff}

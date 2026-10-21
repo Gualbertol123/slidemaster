@@ -484,8 +484,10 @@ async function onDocChange(c: Change) {
       presetSig = sig;                                       // the worker read the sheets and sent their slices
       const { slides: old, cur } = get().deck, keep = old[cur]?.id;
       const slides = runtimeSlides(wb, view.preset, file.name, style().design); slidesDesign = style().design;
-      const i = slides.findIndex(R => R.id === keep);
-      patchAll({ deck: { slides, cur: i >= 0 ? i : Math.max(0, Math.min(cur, slides.length - 1)) }, ...(c.local ? {} : { selection: { sel: null } }) });
+      const want = focusNext ? slides.findIndex(R => R.id === focusNext) : -1, i = want >= 0 ? want : slides.findIndex(R => R.id === keep);
+      if (want >= 0) focusNext = null;
+      patchAll({ deck: { slides, cur: i >= 0 ? i : Math.max(0, Math.min(cur, slides.length - 1)) },
+        ...(want >= 0 ? { selection: { sel: null, noteSel: null, textSel: null, itemSel: null } } : c.local ? {} : { selection: { sel: null } }) });
       STAGE.render(); THUMBS.render();
       return;
     }
@@ -521,17 +523,25 @@ function onStyleChanged(configChanged = false) {
 let slidesDesign: Design | null = null;
 /** every edit goes through here: ops go to the worker (which applies them, saves them and keeps them undoable);
     the mirror shows them at once */
-export function change(label: string, ops: Op[], coalesce?: string) {
-  const { doc: { open, view }, deck: { file } } = get(); if (!open || !file || !view || starting) return;
-  if (port?.closed) { toast("⚠ " + esc(port.closed.message), [], true); return; }
-  if (readOnly()) return;
+export function change(label: string, ops: Op[], coalesce?: string): boolean {
+  const { doc: { open, view }, deck: { file } } = get(); if (!open || !file || !view || starting) return false;
+  if (port?.closed) { toast("⚠ " + esc(port.closed.message), [], true); return false; }
+  if (readOnly()) return false;
   const r = applyOps(view, ops);
-  if (!r.applied) return;
+  if (!r.applied) return false;
   pending.push({ seq: ++seq, ops });
   predicted = { base, key: pending.map(p => p.seq).join(",") };
   patch("doc", { view: r.doc, save: unsaved() });             // as DocSync did: "✓ Saved" only once the helper has it
   void core().call("apply", { label, ops, coalesce }).catch(e => console.error(e));
+  return true;
 }
+/** the slide shown once the slides are made again with slide `id` in them (New slide: the slide it adds); `title`: its
+    title then opens for typing as soon as the stage shows it (Stage.tsx). A slide chosen meanwhile (gotoSlide) drops
+    both, so the title never opens on a later visit (S13.4 review) */
+let focusNext: string | null = null, titleNext: string | null = null;
+export function focusSlide(id: string | null, title = false) { focusNext = id; titleNext = title ? id : null; }
+export const pendingTitle = () => titleNext;
+export function takePendingTitle(id: string): boolean { if (titleNext !== id) return false; titleNext = null; return true; }
 /** a read-only deck (a damaged journal: 423) is read, never changed - the change is refused with the reason, not shown
     and silently never saved (audit DATA-4; CHANGELOG 4.0.0) */
 function readOnly() {
@@ -638,6 +648,7 @@ export async function openWizard() {
 export function gotoSlide(i: number) {
   const { slides, cur } = get().deck;
   if (i < 0 || i >= slides.length || i === cur) return;
+  focusNext = null; if (slides[i].id !== titleNext) titleNext = null;
   patchAll({ deck: { cur: i }, selection: { sel: null, itemSel: null } }); STAGE.render();
 }
 /** the stage re-fits when the zoom changes (stage/Stage.tsx follows ui.zoom); "Fit" pressed again re-fits too
