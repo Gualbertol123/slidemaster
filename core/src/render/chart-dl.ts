@@ -8,7 +8,7 @@
    text and hidden cells skipped, the cells a version removes too; labels from the item's labels range, else the row /
    column headers beside the values. Colours: the item's colors[i], else the design's palette (resolved per design,
    model/style.ts palette / consult-spec.ts specOf). Pure: the stage, thumbnails and every export draw the same nodes.
-   Since 4.7 (S14.2–S14.3, docs/next/09 §3): a column, bar, line, area or combo chart with `sers` is laid out by
+   Since 4.7 (S14.2–S14.4, docs/next/09 §3): a column, bar, line, area, combo, scatter or waterfall chart with `sers` is laid out by
    chart-series.ts (axes, bars, lines, areas, labels, marks, legend) inside the same card; its data comes from
    chart-data.ts, where every cell rule now lives. A chart without `sers` draws exactly as before, whatever its type
    (09 §2.2). */
@@ -335,7 +335,7 @@ function seriesChartSem(it: ChartItem, box: Box, ctx: RenderCtx, look: ChartLook
   if ("why" in L) return null;
   const bars = seriesSem(L), first = bars.series[0];
   return {
-    type: it.type === "bar" ? "bar" : it.type === "line" || it.type === "area" || it.type === "combo" ? it.type : "column", title: L.title, series: first?.name || "", titleFont: fontSem(L.titleSt), labelFont: fontSem(lab),
+    type: it.type === "bar" ? "bar" : it.type === "line" || it.type === "area" || it.type === "combo" || it.type === "scatter" || it.type === "waterfall" ? it.type : "column", title: L.title, series: first?.name || "", titleFont: fontSem(L.titleSt), labelFont: fontSem(lab),
     labels: bars.cats, values: (first?.values || []).map(v => v ?? 0), colors: bars.series.map(s => s.color), show: [],
     legend: bars.legend ? (bars.legend.pos === "b" ? "bottom" : "right") : "none", startAngle: 0, box: frame, sep: null, fmt: first?.fmt || "General", hole: 0, bars,
   };

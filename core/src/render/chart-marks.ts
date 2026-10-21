@@ -5,7 +5,8 @@
    * { s, i }: series s's value i (counted in its own group) – a bar's outer end, a line's point; on a target series the
      top of the **target** bar (09 §3.3), so an icon above an "actual inside target" column clears its outline;
    * { g, edge }: a category group's start or end edge (a divider's place), from the floor to the ceiling;
-   * { x, y, axis }: a category (its name, or its index) and a value on the axis y or y2.
+   * { x, y, axis }: a category (its name, or its index) and a value on the axis y or y2 (a scatter chart: a number on its
+     x axis and a value on y, S14.4).
    `b` is another such place, or "floor" / "ceiling" (the plot's bottom / top below / above `a`).
    Nodes only (ADR-004): an arrow is a `line` and its heads (render/heads.ts: filled `path`s, the line shortened under a
    filled head); a line a `line`; a band a `rect` (alpha .15, under the data); an icon its paths (render/icons.ts resolveIcon: a vendored
@@ -35,6 +36,7 @@ export interface MarkFrame {
   series: Map<string, { anchors: (Anchor | null)[]; start: number }>;
   groups: Map<string, { start: number; len: number }>;
   /** a value on an axis → px (null: no such axis is drawn) */ vp: (v: number, axis: "y" | "y2") => number | null;
+  /** a scatter chart's x value → px (S14.4): { x, y } marks stand at a number on its x axis, not on a category */ xp?: (x: number) => number;
   ink: string; lab: St; withFmt: (st: St, f: ChartMark["fmt"]) => St;
 }
 /** the marks' nodes over the data, the bands under it (a band tints the plot, not the bars: on the slide and under the
@@ -57,6 +59,13 @@ function placeOf(at: MarkAt | undefined, F: MarkFrame): Anchor | string {
     const k = at.edge === "end" ? G.start + G.len : G.start, P = F.plot;
     return F.horizontal ? { x: P.x + P.w, y: P.y + P.h - k * F.slot, top: P.y + P.h - k * F.slot, r: 0, color: F.ink }
       : { x: P.x + k * F.slot, y: P.y + P.h, top: P.y, r: 0, color: F.ink };
+  }
+  if (F.xp) {
+    const x = typeof at.x === "number" ? at.x : typeof at.x === "string" && at.x.trim() ? +at.x : NaN, v = F.vp(+at.y, "y");
+    if (!Number.isFinite(x)) return `x ${JSON.stringify(at.x)} not on the axis`;
+    if (v === null || !Number.isFinite(+at.y)) return `value ${at.y} not on the axis`;
+    const px = F.xp(x);
+    return { x: px, y: v, top: v, r: 0, color: F.ink };
   }
   const k = typeof at.x === "string" ? F.cats.indexOf(at.x) : Math.floor(+at.x);
   if (!(k >= 0 && k < F.cats.length)) return `category ${JSON.stringify(at.x)} not found`;

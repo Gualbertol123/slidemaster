@@ -102,6 +102,8 @@ C_ORDER = {
     "marker": ["symbol", "size", "spPr", "extLst"],
     "multiLvlStrRef": ["f", "multiLvlStrCache", "extLst"],
     "multiLvlStrCache": ["ptCount", "lvl", "extLst"],
+    # scatter charts (4.7, S14.4; 09 §4.2)
+    "scatterChart": ["scatterStyle", "varyColors", "ser", "dLbls", "axId", "extLst"],
 }
 LN_TAGS = ("ln", "lnL", "lnR", "lnT", "lnB")
 
@@ -269,7 +271,7 @@ def structure(path, slides=None):
         return bad + ["no ppt/presentation.xml"], facts
     sz = pres.find("p:sldSz", NS)
     if sz is None or (int(sz.get("cx")), int(sz.get("cy"))) != SLIDE_SIZE:
-        bad.append("slide size %s, not 16:9 12192000 × 6858000" % (None if sz is None else (sz.get("cx"), sz.get("cy"))))
+        bad.append("slide size %s, not 16:9 12192000 × 6858000" % ((None if sz is None else (sz.get("cx"), sz.get("cy"))),))
     ids = pres.findall("p:sldIdLst/p:sldId", NS)
     facts["slides"] = len(ids)
     if slides is not None and len(ids) != slides:
@@ -351,7 +353,7 @@ def _shape_texts(shape, out, info):
         info["charts"].append({"type": str(ch.chart_type), "title": ch.chart_title.text_frame.text if ch.has_title else "",
                                "categories": [str(c) for c in plot.categories], "values": list(plot.series[0].values),
                                # (4.7, S14.2) every series of every plot: its name and cached values (None = a gap)
-                               "series": [{"name": s.name, "values": list(s.values)} for pl in ch.plots for s in pl.series],
+                               "series": [dict({"name": s.name, "values": list(s.values)}, **scatter_xs(s)) for pl in ch.plots for s in pl.series],
                                # (4.7, S14.3) each chart group's kind (BarPlot, LinePlot, AreaPlot …) and the category levels
                                "plots": [type(pl).__name__ for pl in ch.plots], "levels": plot.categories.depth})
         return
@@ -481,6 +483,22 @@ def source_cells(workbook, sheet, rng):
     return out
 
 
+def scatter_xs(series):
+    """(4.7, S14.4) a scatter series' cached x values (None = no point), read from its c:xVal – python-pptx reads only the
+    y values; {} for any other series"""
+    xv = series._element.find(C + "xVal")
+    if xv is None:
+        return {}
+    cache = xv.find(".//" + C + "numCache")
+    if cache is None:
+        return {"xs": []}
+    n = int(cache.find(C + "ptCount").get("val"))
+    out = [None] * n
+    for pt in cache.findall(C + "pt"):
+        out[int(pt.get("idx"))] = float(pt.find(C + "v").text)
+    return {"xs": out}
+
+
 def series_at(values, cells, start):
     """(4) a series' cached values hold the cells at categories start… (a blank cell is a gap) and nothing elsewhere (4.7,
     S14.3 review 4: a series cached under the wrong categories – off by its group's start – fails)"""
@@ -510,6 +528,8 @@ C_PARENT_ORDER = {
     "barChart/ser": ["idx", "order", "tx", "spPr", "invertIfNegative", "pictureOptions", "dPt", "dLbls", "trendline", "errBars", "cat", "val", "shape", "extLst"],
     "lineChart/ser": ["idx", "order", "tx", "spPr", "marker", "dPt", "dLbls", "trendline", "errBars", "cat", "val", "smooth", "extLst"],
     "areaChart/ser": ["idx", "order", "tx", "spPr", "pictureOptions", "dPt", "dLbls", "trendline", "errBars", "cat", "val", "extLst"],
+    # (4.7, S14.4) CT_ScatterSer
+    "scatterChart/ser": ["idx", "order", "tx", "spPr", "marker", "dPt", "dLbls", "trendline", "errBars", "xVal", "yVal", "smooth", "extLst"],
 }
 
 
@@ -594,8 +614,10 @@ def check(paths, slides=None, ppt=True, report=None, sources=None, expect=None):
                 # (4.7, S14.3: one series of the chart – a combo's line, a group's columns – at its categories, from its
                 # group's start; a pie as before)
                 pie = lambda c: "PIE" in c["type"] or "DOUGHNUT" in c["type"]
+                # (4.7, S14.4: `axis: "x"` – a scatter series' x values, against its own c:xVal cache)
+                key = "xs" if spec.get("axis") == "x" else "values"
                 mine = [c for c in found
-                        if any(series_at(list(x["values"]), cells, start) and (name is None or x.get("name") == name) for x in (c.get("series") or [{"values": c["values"]}]))
+                        if any(key in x and series_at(list(x[key]), cells, start) and (name is None or x.get("name") == name) for x in (c.get("series") or [{"values": c["values"]}]))
                         or (pie(c) and not start and name is None and same(c["values"], want))]
                 if not mine:
                     bad.append("chart %d (slide %d, %s!%s%s): no series with the cells' values %s at categories %d…"

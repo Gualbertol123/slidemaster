@@ -7,7 +7,7 @@ export interface FontSem { css: string; size: number; color: string; b: boolean;
 export interface ChartSem {
   /** column / bar (4.7, S14.2), line / area / combo (S14.3): a series chart, written from `bars`; the pie fields then
       carry its first series */
-  type: "pie" | "donut" | "column" | "bar" | "line" | "area" | "combo"; title: string; titleFont: FontSem; labelFont: FontSem; series: string;
+  type: "pie" | "donut" | "column" | "bar" | "line" | "area" | "combo" | "scatter" | "waterfall"; title: string; titleFont: FontSem; labelFont: FontSem; series: string;
   labels: string[]; values: number[]; colors: string[]; show: ("label" | "value" | "percent")[]; legend: "right" | "bottom" | "none";
   startAngle: number; /** the plot's frame inside the card, slide px */ box: Box; sep: { w: number; color: string } | null; fmt: string; hole: number;
   /** a series chart (09 §4.2): set exactly when type is not "pie" or "donut" */
@@ -33,15 +33,18 @@ export interface BarSerSem {
       solid) –; per category a point's own number format ("" = `fmt`; unset = all `fmt`) */ light?: string; fmts?: string[];
   labels: { show: ("value" | "name" | "category" | "percent")[]; pos: LabelPos; num: string | null; font: FontSem; points: PointLabelSem[] } | null;
   /* 4.7, S14.3 (unset: a bar series of the one bar group, as S14.2 wrote it) */
-  /** the chart group it is drawn in, and its value axis */ type?: "column" | "bar" | "line" | "area"; axis?: "y" | "y2";
+  /** the chart group it is drawn in, and its value axis */ type?: "column" | "bar" | "line" | "area" | "scatter"; axis?: "y" | "y2";
   /** a line: smoothed; its stroke (width, dash) */ smooth?: boolean; stroke?: LineSem | null;
   /** a line's marker (null = none) and the points' own marker colours */ marker?: MarkerSem | null; markers?: { i: number; color: string }[];
   /** an area's fill opacity */ alpha?: number;
   /** the outlined target bars of "actual inside target" (09 §4.2): no fill, its outline in the series' (and each point's)
       colour, drawn over the actual series in the same bar group (overlap 100), never in the legend */ target?: { w: number };
+  /* 4.7, S14.4 */
+  /** a scatter series: per value its x (null = no point), the x cells' number format */ xs?: (number | null)[]; xFmt?: string;
+  /** drawn with no fill and no line (a waterfall's base, values and labels' carrier; 09 §4.2) – never in the legend */ invisible?: boolean;
 }
 /** one chart group of the plot area: its series (indexes into BarsSem.series), the axis pair it stands on, how it stacks */
-export interface GroupSem { kind: "bar" | "line" | "area"; axis: "y" | "y2"; grouping: "clustered" | "stacked" | "percentStacked" | "standard"; gap: number; overlap: number; series: number[] }
+export interface GroupSem { kind: "bar" | "line" | "area" | "scatter"; axis: "y" | "y2"; grouping: "clustered" | "stacked" | "percentStacked" | "standard"; gap: number; overlap: number; series: number[] }
 export interface BarsSem {
   dir: "col" | "bar"; grouping: "clustered" | "stacked" | "percentStacked"; gap: number; overlap: number;
   cats: string[]; series: BarSerSem[]; val: ValAxisSem; cat: CatAxisSem; /** the title's drawn box (null = no title) */ title: Box | null;
@@ -52,4 +55,6 @@ export interface BarsSem {
   /** the chart groups in the order they are written (areas, bars, lines; the primary axis's first) */ groups?: GroupSem[];
   /** the secondary value axis (right), when a series stands on it */ val2?: ValAxisSem | null;
   /** multi-level categories: each category's group label ("" but at a group's first category); null = one level */ levels?: string[] | null;
+  /* 4.7, S14.4 */
+  /** a scatter chart's numeric x axis (a c:valAx at the bottom in place of the category axis) */ xval?: ValAxisSem | null;
 }

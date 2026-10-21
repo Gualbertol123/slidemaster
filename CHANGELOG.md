@@ -47,6 +47,17 @@ What users notice (S14.3)
   left before they are left out); a text annotation over a light column is written in the design's ink; an Issues
   line when a left-axis series runs under a right-axis one (PowerPoint draws the right axis's series on top).
 
+What users notice (S14.4)
+- Scatter charts: each series' points at their x and y values on a numeric x axis (Excel's automatic bounds, or its own
+  minimum, maximum and step; gridlines on request), circle markers unless another shape is chosen, and a straight or
+  smoothed line through the points when asked; labels show the y value (and the x value as the "category").
+- Waterfall charts: the steps of one series floating on the running total – increases in the design's positive colour,
+  decreases in its negative colour, columns marked as totals standing on the axis in the chart's ink – with thin
+  connectors between the steps and the values shown by default; the legend lists Increase, Decrease and Total.
+- PowerPoint export: a scatter chart is a native PowerPoint scatter chart, a waterfall a native stacked column chart
+  (the classic construction with an invisible base, which every PowerPoint opens) – both with their data in the
+  embedded workbook, drawn where the slide draws them; no picture, no connector shape, no link.
+
 ## 4.6.0 - unreleased (PLAN M13; prepared 2026-10-21, dated at the tag)
 
 What users notice

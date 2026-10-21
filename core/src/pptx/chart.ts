@@ -8,7 +8,10 @@
    categories in A, one column per series) that Edit Data opens. Every formula points into that workbook
    (`Sheet1!$B$2:$B$7`), never at a linked file – a series from a linked workbook is a column of the embedded one.
    A bar chart's plot is fixed where the display list draws it (`c:manualLayout`, layoutTarget inner) and its value
-   axis has the drawn min / max / unit, so PowerPoint's bars stand where the slide's do. Written with fflate. */
+   axis has the drawn min / max / unit, so PowerPoint's bars stand where the slide's do. Since S14.4 also
+   `c:scatterChart` (two c:valAx, the x one at the bottom with the drawn bounds; each series' x and y values in two
+   columns of the embedded workbook) and a waterfall's stacked construction (render/chart-waterfall.ts: invisible series
+   with no fill and no line). Written with fflate. */
 import { strToU8, zipSync } from "fflate";
 import type { RGB } from "../dl/types";
 import { parseColor } from "../dl/color";
@@ -73,10 +76,12 @@ export function chartWorkbook(ch: ChartSem): Uint8Array {
   const str = (ref: string, t: string) => `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${esc(t)}</t></is></c>`;
   // a series chart: one column per series (B, C, …), blank where a series has no value; a pie: its one column
   // (two category levels, S14.3: the groups' labels in A, the categories in B, the series from C on)
-  const cols: { name: string; values: (number | null)[] }[] = ch.bars ? ch.bars.series.map(s => ({ name: s.name, values: s.values })) : [{ name: ch.series || "Series 1", values: ch.values }];
-  const cats = ch.bars ? ch.bars.cats : ch.labels, lv = ch.bars?.levels || null, f = lv ? 3 : 2, last = numToCol(cols.length + f - 1);
-  const rows = [`<row r="1">${str("A1", "")}${lv ? str("B1", "") : ""}${cols.map((c, k) => str(numToCol(k + f) + "1", c.name || `Series ${k + 1}`)).join("")}</row>`,
-    ...cats.map((l, i) => `<row r="${i + 2}">${lv ? (lv[i] ? str("A" + (i + 2), lv[i]) : "") + str("B" + (i + 2), l) : str("A" + (i + 2), l)}${cols.map((c, k) => { const v = c.values[i]; return v === null || v === undefined ? "" : `<c r="${numToCol(k + f)}${i + 2}"><v>${num(v)}</v></c>`; }).join("")}</row>`)];
+  // (a scatter chart, S14.4: no categories – each series' x values and y values in two columns, A–B, C–D, …)
+  const xy = !!ch.bars?.xval;
+  const cols: { name: string; values: (number | null)[] }[] = ch.bars ? (xy ? ch.bars.series.flatMap((s, k) => { const pts = scatterPts(s); return [{ name: `${s.name || `Series ${k + 1}`} (x)`, values: pts.map(p => p && p[0]) }, { name: s.name, values: pts.map(p => p && p[1]) }]; }) : ch.bars.series.map(s => ({ name: s.name, values: s.values }))) : [{ name: ch.series || "Series 1", values: ch.values }];
+  const cats = ch.bars ? ch.bars.cats : ch.labels, lv = ch.bars?.levels || null, f = xy ? 1 : lv ? 3 : 2, last = numToCol(cols.length + f - 1);
+  const rows = [`<row r="1">${xy ? "" : str("A1", "")}${lv ? str("B1", "") : ""}${cols.map((c, k) => str(numToCol(k + f) + "1", c.name || `Series ${k + 1}`)).join("")}</row>`,
+    ...cats.map((l, i) => `<row r="${i + 2}">${xy ? "" : lv ? (lv[i] ? str("A" + (i + 2), lv[i]) : "") + str("B" + (i + 2), l) : str("A" + (i + 2), l)}${cols.map((c, k) => { const v = c.values[i]; return v === null || v === undefined ? "" : `<c r="${numToCol(k + f)}${i + 2}"><v>${num(v)}</v></c>`; }).join("")}</row>`)];
   const files: Record<string, Uint8Array> = {
     "[Content_Types].xml": strToU8(XML_HEAD + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'
       + '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
@@ -109,6 +114,8 @@ function gradSp(c: string, light: string, isCol: boolean, rev: boolean): string 
   return `<c:spPr><a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0">${clr(col(a))}</a:gs><a:gs pos="100000">${clr(col(b))}</a:gs></a:gsLst><a:lin ang="${isCol ? 5400000 : 0}" scaled="0"/></a:gradFill><a:ln><a:noFill/></a:ln></c:spPr>`;
 }
 const NONE_SP = "<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>";
+/** a scatter series' points: per value its (x, y), null where either is missing (no point: neither is cached) */
+const scatterPts = (s: BarSerSem): ([number, number] | null)[] => s.values.map((v, i) => { const x = s.xs?.[i]; return v === null || v === undefined || x === null || x === undefined ? null : [x, v]; });
 /** a series' data labels: per point the hidden ones, the texts of our own (static rich text, refreshed at every export),
     the white ones inside a dark bar, a line label moved to the other side; then the series' own (number format, font,
     position – none on an area –, what they show) */
@@ -136,10 +143,16 @@ function markerXml(mk: MarkerSem | null | undefined, color?: string): string {
     is a missing point); `c` is its column of the embedded workbook */
 function serXml(kind: GroupSem["kind"], s: BarSerSem, k: number, cat: string, n: number, c: string, face: (css: string) => string, isCol = true): string {
   const last = n + 1;
+  if (kind === "scatter") return scatterSerXml(s, k, n, face);
   const tx = `<c:tx><c:strRef><c:f>Sheet1!$${c}$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>${esc(s.name || `Series ${k + 1}`)}</c:v></c:pt></c:strCache></c:strRef></c:tx>`;
   const val = `<c:val><c:numRef><c:f>Sheet1!$${c}$2:$${c}$${last}</c:f><c:numCache><c:formatCode>${esc(s.fmt || "General")}</c:formatCode><c:ptCount val="${n}"/>`
     + s.values.slice(0, n).map((v, i) => v === null || v === undefined ? "" : `<c:pt idx="${i}"${s.fmts?.[i] ? ` formatCode="${esc(s.fmts[i])}"` : ""}><c:v>${num(v)}</c:v></c:pt>`).join("") + "</c:numCache></c:numRef></c:val>";
   const labels = s.labels ? barLabels(s.labels, face) : "", head = `<c:idx val="${k}"/><c:order val="${k}"/>${tx}`;
+  // (a waterfall's base, values and labels' carrier: no fill, no line, no marker – S14.4)
+  if (s.invisible) {
+    if (kind === "line") return `<c:ser>${head}<c:spPr><a:ln><a:noFill/></a:ln></c:spPr><c:marker><c:symbol val="none"/></c:marker>${labels}${cat}${val}<c:smooth val="0"/></c:ser>`;
+    return `<c:ser>${head}${NONE_SP}<c:invertIfNegative val="0"/>${labels}${cat}${val}</c:ser>`;
+  }
   if (kind === "line") {
     const dPts = (s.markers || []).map(p => `<c:dPt><c:idx val="${p.i}"/>${markerXml(s.marker, p.color)}<c:bubble3D val="0"/></c:dPt>`).join("");
     return `<c:ser>${head}<c:spPr>${s.stroke ? lineLn(s.stroke) : "<a:ln><a:noFill/></a:ln>"}</c:spPr>${markerXml(s.marker)}${dPts}${labels}${cat}${val}<c:smooth val="${s.smooth ? 1 : 0}"/></c:ser>`;
@@ -150,6 +163,17 @@ function serXml(kind: GroupSem["kind"], s: BarSerSem, k: number, cat: string, n:
   const sp = (color: string, light?: string, rev = false) => s.target ? `<c:spPr><a:noFill/>${lnOf({ color, w: s.target.w })}</c:spPr>` : s.light && light ? gradSp(color, light, isCol, rev) : solidSp(color);
   const dPts = s.points.map(p => `<c:dPt><c:idx val="${p.i}"/><c:invertIfNegative val="0"/><c:bubble3D val="0"/>${sp(p.color, p.light, !!p.rev)}</c:dPt>`).join("");
   return `<c:ser>${head}${sp(s.color, s.light)}<c:invertIfNegative val="0"/>${dPts}${labels}${cat}${val}</c:ser>`;
+}
+/** a scatter series (S14.4): its look as a line series' (a line or none, its marker, the points' marker colours), its
+    labels, and its x and y values from its two columns of the embedded workbook (series k: x in column 2k + 1, y beside) */
+function scatterSerXml(s: BarSerSem, k: number, n: number, face: (css: string) => string): string {
+  const cx = numToCol(2 * k + 1), cy = numToCol(2 * k + 2), pts = scatterPts(s).slice(0, n);
+  const ref = (c: string, j: 0 | 1, fmt: string) => `<c:numRef><c:f>Sheet1!$${c}$2:$${c}$${n + 1}</c:f><c:numCache><c:formatCode>${esc(fmt || "General")}</c:formatCode><c:ptCount val="${n}"/>`
+    + pts.map((p, i) => p ? `<c:pt idx="${i}"><c:v>${num(p[j])}</c:v></c:pt>` : "").join("") + "</c:numCache></c:numRef>";
+  const tx = `<c:tx><c:strRef><c:f>Sheet1!$${cy}$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>${esc(s.name || `Series ${k + 1}`)}</c:v></c:pt></c:strCache></c:strRef></c:tx>`;
+  const dPts = (s.markers || []).map(p => `<c:dPt><c:idx val="${p.i}"/>${markerXml(s.marker, p.color)}<c:bubble3D val="0"/></c:dPt>`).join("");
+  return `<c:ser><c:idx val="${k}"/><c:order val="${k}"/>${tx}<c:spPr>${s.stroke ? lineLn(s.stroke) : "<a:ln><a:noFill/></a:ln>"}</c:spPr>${markerXml(s.marker)}${dPts}${s.labels ? barLabels(s.labels, face) : ""}`
+    + `<c:xVal>${ref(cx, 0, s.xFmt || "General")}</c:xVal><c:yVal>${ref(cy, 1, s.fmt)}</c:yVal><c:smooth val="${s.smooth ? 1 : 0}"/></c:ser>`;
 }
 /** the categories: one level (strRef, column A), or two (multiLvlStrRef: the categories in B, their groups' labels in A) */
 function catXml(B: BarsSem): string {
@@ -165,6 +189,7 @@ function groupsXml(B: BarsSem, face: (css: string) => string): string {
   return groups.map(g => {
     const ids = g.axis === "y2" ? `<c:axId val="510003"/><c:axId val="510004"/>` : `<c:axId val="510001"/><c:axId val="510002"/>`;
     const sers = g.series.map(k => serXml(g.kind, B.series[k], k, cat, n, numToCol(k + first), face, B.dir === "col")).join("");
+    if (g.kind === "scatter") return `<c:scatterChart><c:scatterStyle val="lineMarker"/><c:varyColors val="0"/>${sers}${ids}</c:scatterChart>`;
     if (g.kind === "line") return `<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>${sers}<c:marker val="1"/>${ids}</c:lineChart>`;
     if (g.kind === "area") return `<c:areaChart><c:grouping val="${g.grouping}"/><c:varyColors val="0"/>${sers}${ids}</c:areaChart>`;
     return `<c:barChart><c:barDir val="${B.dir}"/><c:grouping val="${g.grouping}"/><c:varyColors val="0"/>${sers}<c:gapWidth val="${Math.round(g.gap)}"/>${g.overlap ? `<c:overlap val="${Math.round(g.overlap)}"/>` : ""}${ids}</c:barChart>`;
@@ -172,10 +197,12 @@ function groupsXml(B: BarsSem, face: (css: string) => string): string {
 }
 /** a value axis with the drawn bounds and unit (the secondary one on the right, crossing its hidden category axis at the
     end) */
-function valAxXml(V: ValAxisSem, id: number, cross: number, pos: string, second: boolean, face: (css: string) => string): string {
+function valAxXml(V: ValAxisSem, id: number, cross: number, pos: string, second: boolean, face: (css: string) => string, xy = false): string {
+  // (a scatter chart's two value axes, S14.4: their labels at the plot's edge wherever the other axis crosses, points
+  // at their values – midCat)
   return `<c:valAx><c:axId val="${id}"/><c:scaling><c:orientation val="minMax"/><c:max val="${num(V.max)}"/><c:min val="${num(V.min)}"/></c:scaling><c:delete val="${V.show ? 0 : 1}"/><c:axPos val="${pos}"/>`
-    + `${V.grid ? `<c:majorGridlines><c:spPr>${lnOf(V.grid)}</c:spPr></c:majorGridlines>` : ""}<c:numFmt formatCode="${esc(V.num || "General")}" sourceLinked="0"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>`
-    + `<c:spPr><a:noFill/>${lnOf(V.line)}</c:spPr>${txPr(V.font, face)}<c:crossAx val="${cross}"/><c:crosses val="${second ? "max" : "autoZero"}"/><c:crossBetween val="between"/><c:majorUnit val="${num(V.step)}"/></c:valAx>`;
+    + `${V.grid ? `<c:majorGridlines><c:spPr>${lnOf(V.grid)}</c:spPr></c:majorGridlines>` : ""}<c:numFmt formatCode="${esc(V.num || "General")}" sourceLinked="0"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="${xy ? "low" : "nextTo"}"/>`
+    + `<c:spPr><a:noFill/>${lnOf(V.line)}</c:spPr>${txPr(V.font, face)}<c:crossAx val="${cross}"/><c:crosses val="${second ? "max" : "autoZero"}"/><c:crossBetween val="${xy ? "midCat" : "between"}"/><c:majorUnit val="${num(V.step)}"/></c:valAx>`;
 }
 /** the plot area's chart groups at the drawn rectangle, the value axes with the drawn bounds and units, the category axis
     line at zero, the legend at its drawn box */
@@ -185,7 +212,9 @@ function barXml(ch: ChartSem, B: BarsSem, rid: string, face: (css: string) => st
   const catAx = `<c:catAx><c:axId val="510001"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="${C.show ? 0 : 1}"/><c:axPos val="${isCol ? "b" : "l"}"/>`
     + `<c:numFmt formatCode="General" sourceLinked="1"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="low"/><c:spPr><a:noFill/>${lnOf(C.line)}</c:spPr>${txPr(C.font, face)}`
     + `<c:crossAx val="510002"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/>${C.skip > 1 ? `<c:tickLblSkip val="${C.skip}"/>` : ""}<c:noMultiLvlLbl val="0"/></c:catAx>`;
-  const valAx = valAxXml(V, 510002, 510001, isCol ? "l" : "b", false, face);
+  // (a scatter chart: its x axis, a c:valAx at the bottom, in place of the category axis – S14.4)
+  const X = B.xval;
+  const valAx = (X ? valAxXml(X, 510001, 510002, "b", false, face, true) : "") + valAxXml(V, 510002, 510001, isCol ? "l" : "b", false, face, !!X);
   // the secondary axes: a hidden category axis and the right value axis
   const second = B.val2 ? `<c:catAx><c:axId val="510003"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="1"/><c:axPos val="b"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>`
     + `<c:crossAx val="510004"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>` + valAxXml(B.val2, 510004, 510003, "r", true, face) : "";
@@ -197,6 +226,6 @@ function barXml(ch: ChartSem, B: BarsSem, rid: string, face: (css: string) => st
     + `${manual({ x: Lg.box.x - 4, y: Lg.box.y - 2, w: Lg.box.w + 8, h: Lg.box.h + 4 }, frame, false)}<c:overlay val="${Lg.overlay ? 1 : 0}"/>`
     + `${Lg.overlay ? `<c:spPr><a:solidFill>${clr([255, 255, 255], .85)}</a:solidFill>${lnOf({ color: "#D9D9D9", w: 1 })}</c:spPr>` : ""}${txPr(ch.labelFont, face)}</c:legend>` : "";
   return XML_HEAD + `<c:chartSpace xmlns:c="${NS.c}" xmlns:a="${NS.a}" xmlns:r="${NS.r}"><c:date1904 val="0"/><c:lang val="en-US"/><c:roundedCorners val="0"/>`
-    + `<c:chart>${title}<c:plotArea>${manual(B.plot, frame, true)}${chartPart}${catAx}${valAx}${second}<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr></c:plotArea>${legend}<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>`
+    + `<c:chart>${title}<c:plotArea>${manual(B.plot, frame, true)}${chartPart}${X ? "" : catAx}${valAx}${second}<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr></c:plotArea>${legend}<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>`
     + `<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>${txPr(ch.labelFont, face)}<c:externalData r:id="${rid}"><c:autoUpdate val="0"/></c:externalData></c:chartSpace>`;
 }

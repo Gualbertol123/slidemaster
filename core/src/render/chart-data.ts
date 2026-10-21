@@ -129,6 +129,8 @@ export interface SerData {
   /** per category, the cell's own number format ("" in a gap): PowerPoint's per-point formatCode where it is not `fmt`
       (S14.2 review 5) */ fmts?: string[];
   /** its group's first category: the series' value i (its `points[i]`, a mark's { s, i }) stands at category start + i */ start: number;
+  /** a scatter chart's (S14.4): per value its x (null = no point there), the x cell's text and the x cells' number format;
+      null on every other chart */ xs?: (number | null)[] | null; xTexts?: string[]; xFmt?: string;
 }
 export interface GroupData { id: string; n: number; start: number; len: number; label: string; divider: LineOrNone | null | undefined }
 export type SeriesData =
@@ -185,7 +187,7 @@ function refSheets(it: ChartItem, ctx: RenderCtx): string[] {
   const out = new Set<string>(), add = (ref: unknown) => {
     for (const r of Array.isArray(ref) ? ref : [ref]) if (r && typeof r === "object" && typeof (r as DataRef).range === "string") out.add(refTarget(r as DataRef, ctx).sheet);
   };
-  for (const [, s] of seriesList(it)) { add(s.vals); add(s.target); add(s.name); }
+  for (const [, s] of seriesList(it)) { add(s.vals); add(s.target); add(s.name); add(s.xs); }
   for (const g of Object.values(it.groups || {})) if (g && typeof g === "object") add(g.cats);
   add(it.labels);
   // the cells a text mark quotes ({Targets!B3}: a reload of that sheet is another key, S14.3)
@@ -214,7 +216,9 @@ function resolveSeries(it: ChartItem, ctx: RenderCtx, key: string): SeriesData {
   const read = list.map(([id, s], k) => ({ id, s, k, r: readRefs(s.vals, ctx), t: s.target ? readRefs(s.target, ctx) : null }));
   if (!read.length || read.every(x => x.r.missing && !x.r.vals.length)) return { ok: false, source: read[0]?.r.source || "?", why: "missing", key };
   // the category groups, in their order; without groups one, named by the labels range or the first series' headers
-  const gdefs = Object.entries(it.groups || {}).filter(([, g]) => g && typeof g === "object")
+  // (a scatter chart has no categories: its points stand on a numeric x axis, S14.4 – groups are not read)
+  const scatter = it.type === "scatter";
+  const gdefs = Object.entries(scatter ? {} : it.groups || {}).filter(([, g]) => g && typeof g === "object")
     .sort(([a, p], [b, q]) => (+p.n || 0) - (+q.n || 0) || (a < b ? -1 : a > b ? 1 : 0));
   const groups: GroupData[] = [], cats: string[] = [];
   if (gdefs.length) for (const [gid, g] of gdefs) {
@@ -224,8 +228,9 @@ function resolveSeries(it: ChartItem, ctx: RenderCtx, key: string): SeriesData {
     cats.push(...(names || []));
   } else {
     const len = Math.max(0, ...read.map(x => x.r.vals.length)), f = read.find(x => x.r.first)?.r.first;
-    const L = it.labels ? refTarget(it.labels, ctx) : null;
-    if (f) {
+    const L = it.labels && !scatter ? refTarget(it.labels, ctx) : null;
+    if (scatter) for (let k = 0; k < len; k++) cats.push(String(k + 1));
+    else if (f) {
       const at = labelsFor(f.S, f.g, L, ctx), cells = cellsOf(f.S, f.g);
       for (let k = 0; k < len; k++) cats.push(k < cells.length ? at(cells[k][0], cells[k][1], k) || numToCol(cells[k][1]) + cells[k][0] : L ? "" : String(k + 1));
     } else for (let k = 0; k < len; k++) cats.push(String(k + 1));
@@ -241,15 +246,29 @@ function resolveSeries(it: ChartItem, ctx: RenderCtx, key: string): SeriesData {
     // (a series without a type takes the chart's: a line chart's are lines, an area chart's areas, a combo's columns)
     const type: SeriesType = s.type === "column" || s.type === "bar" || s.type === "line" || s.type === "area" || s.type === "scatter" ? s.type
       : it.type === "bar" ? "bar" : it.type === "line" ? "line" : it.type === "area" ? "area" : "column";
-    return { id, n: +s.n || 0, name, type, axis: s.axis === "y2" ? "y2" : "y", stack: typeof s.stack === "string" ? s.stack : null,
+    const out: SerData = { id, n: +s.n || 0, name, type, axis: s.axis === "y2" ? "y2" : "y", stack: typeof s.stack === "string" ? s.stack : null,
       color: typeof s.color === "string" && /^#[0-9A-Fa-f]{6}$/.test(s.color) ? s.color.toUpperCase() : null,
       vals, texts, fmts, fmt: r.vals.find(v => v.v !== null)?.fmt || "General", target, source: r.source, src: s, start: g.start };
+    if (scatter) Object.assign(out, scatterXs(s, name, r.vals.length, cats.length, ctx, issues));
+    return out;
   });
   if (!series.some(s => s.vals.some(v => v !== null && v !== 0))) return { ok: false, source: read.map(x => x.r.source).join(", "), why: "empty", key };
   return { ok: true, cats, groups, series, issues, key };
 }
-/** a chart draws its series (4.7: columns and bars S14.2; lines, areas and combos S14.3) rather than the pie of its one
-    range; scatter and waterfall (S14.4) still draw as before */
+/** a scatter series' x values (09 §2.2 `xs`, S14.4): one per value, in reading order like the values (hidden cells
+    skipped, a removed, text or blank cell no number – that point is not drawn); without `xs` Excel's 1, 2, 3 …; an `xs`
+    that is not found draws on 1, 2, 3 … too, with an Issues line, as does a count that differs from the values' */
+function scatterXs(s: ChartSeries, name: string, n: number, len: number, ctx: RenderCtx, issues: string[]): Pick<SerData, "xs" | "xTexts" | "xFmt"> {
+  const ones = () => ({ xs: Array.from({ length: len }, (_, i): number | null => i < n ? i + 1 : null), xTexts: Array.from({ length: len }, (_, i) => i < n ? String(i + 1) : ""), xFmt: "General" });
+  if (!s.xs) return ones();
+  const x = readRefs(s.xs, ctx);
+  if (x.missing) { issues.push(`'${name}': x values ${x.source} not found`); return ones(); }
+  if (x.vals.length !== n) issues.push(`'${name}' has ${x.vals.length} x values for ${n} values`);
+  return { xs: Array.from({ length: len }, (_, i) => i < n && i < x.vals.length ? x.vals[i].v : null), xTexts: Array.from({ length: len }, (_, i) => i < n && i < x.vals.length ? x.vals[i].text : ""),
+    xFmt: x.vals.find(v => v.v !== null)?.fmt || "General" };
+}
+/** a chart draws its series (4.7: columns and bars S14.2; lines, areas and combos S14.3; scatter and waterfall S14.4)
+    rather than the pie of its one range */
 export function hasSeries(it: ChartItem): boolean {
-  return (it.type === "column" || it.type === "bar" || it.type === "line" || it.type === "area" || it.type === "combo") && seriesList(it).length > 0;
+  return (it.type === "column" || it.type === "bar" || it.type === "line" || it.type === "area" || it.type === "combo" || it.type === "scatter" || it.type === "waterfall") && seriesList(it).length > 0;
 }

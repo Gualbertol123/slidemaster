@@ -1,4 +1,5 @@
-"""tools/pptxcheck.py and the native column / bar charts of 4.7 (S14.2, 09 §4.2; line and area charts S14.3): the chart part's child order it checks
+"""tools/pptxcheck.py and the native column / bar charts of 4.7 (S14.2, 09 §4.2; line and area charts S14.3; scatter charts
+S14.4): the chart part's child order it checks
 (c:barChart, c:catAx, c:valAx, c:scaling, a manual layout, a bar series) accepts what python-pptx itself writes for
 every bar grouping and refuses an element out of the schema's order; content() lists every series with its cached
 values. Skipped where python-pptx is not installed (the helper itself needs only the standard library)."""
@@ -154,6 +155,72 @@ class LineAreaChartTests(BarChartTests):
         ch = pptxcheck.content(self.deck("AREA_STACKED"))["slides"][0]["charts"][0]
         self.assertEqual(ch["plots"], ["AreaPlot"])
         self.assertEqual(ch["levels"], 1)
+
+
+@unittest.skipUnless(HAVE_PPTX, "python-pptx is not installed (pip install python-pptx==1.0.2)")
+class ScatterChartTests(unittest.TestCase):
+    """4.7 (S14.4, 09 §4.2): c:scatterChart parts (CT_ScatterSer's order), each series' cached x values (c:xVal, which
+    python-pptx does not read) listed by content(), and --sources `axis: "x"` checked against them"""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="sb-pptxcheck-xy-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def deck(self, kind="XY_SCATTER", edit=None):
+        from pptx import Presentation
+        from pptx.chart.data import XyChartData
+        from pptx.enum.chart import XL_CHART_TYPE
+        from pptx.util import Emu
+        prs = Presentation()
+        prs.slide_width, prs.slide_height = Emu(12192000), Emu(6858000)
+        s = prs.slides.add_slide(prs.slide_layouts[6])
+        data = XyChartData()
+        a = data.add_series("Retail")
+        for x, y in ((730, 2.1), (755, 2.3), (805, 2.2)):
+            a.add_data_point(x, y)
+        s.shapes.add_chart(getattr(XL_CHART_TYPE, kind), 0, 0, Emu(6000000), Emu(4000000), data)
+        src = os.path.join(self.tmp, "src.pptx")
+        prs.save(src)
+        out = os.path.join(self.tmp, "xy-%d.pptx" % len(os.listdir(self.tmp)))
+        with zipfile.ZipFile(src) as z, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as b:
+            for i in z.infolist():
+                x = z.read(i.filename)
+                if edit and i.filename.startswith("ppt/charts/chart") and i.filename.endswith(".xml"):
+                    x = edit(x)
+                b.writestr(i, x)
+        return out
+
+    def test_every_scatter_python_pptx_writes_passes_and_order_is_checked(self):
+        for kind in ("XY_SCATTER", "XY_SCATTER_LINES", "XY_SCATTER_SMOOTH_NO_MARKERS"):
+            bad, _ = pptxcheck.structure(self.deck(kind))
+            self.assertEqual([p for p in bad if "<c:" in p], [], kind)
+
+        def swap(x):
+            # c:smooth after c:yVal; put it before c:xVal
+            x = x.replace(b'<c:smooth val="0"/>', b"", 1)
+            return x.replace(b"<c:xVal>", b'<c:smooth val="0"/><c:xVal>', 1)
+        bad, _ = pptxcheck.structure(self.deck("XY_SCATTER", swap))
+        self.assertIn("after a later child in <c:ser> of <c:scatterChart>", " ".join(bad))
+
+    def test_content_and_sources_read_the_x_values(self):
+        import openpyxl
+        f = self.deck()
+        ch = pptxcheck.content(f)["slides"][0]["charts"][0]
+        self.assertEqual(ch["series"][0]["xs"], [730.0, 755.0, 805.0])
+        self.assertEqual(ch["series"][0]["values"], [2.1, 2.3, 2.2])
+        book = os.path.join(self.tmp, "src.xlsx")
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Scatter"
+        for r, (x, y) in enumerate(((730, 2.1), (755, 2.3), (805, 2.2)), start=1):
+            ws["A%d" % r], ws["B%d" % r] = x, y
+        wb.save(book)
+        chk = lambda **x: pptxcheck.check([f], ppt=False, sources={f: {"workbook": book, "charts": [dict(slide=1, sheet="Scatter", start=0, **x)]}})
+        self.assertTrue(chk(range="A1:A3", axis="x", name="Retail"))
+        self.assertTrue(chk(range="B1:B3", name="Retail"))
+        # the y cells are not the x values, nor the x cells the y values
+        self.assertFalse(chk(range="B1:B3", axis="x"))
+        self.assertFalse(chk(range="A1:A3"))
 
 
 if __name__ == "__main__":

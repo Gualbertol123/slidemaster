@@ -2,6 +2,7 @@
    series' bar takes (Excel's gap width and overlap), where each bar starts and ends in values, and the design's corner
    radius on its outer end. Pure numbers: chart-series.ts turns them into `rect` nodes, and the PowerPoint writer gives
    its c:barChart the same grouping, gapWidth and overlap, so PowerPoint's bars are these bars. */
+import { mix } from "../model/style";
 
 export type StackMode = "none" | "stacked" | "percent";
 /** one bar: series s, category i, from → to in axis values (to is the outer end), v the value it shows */
@@ -55,3 +56,5 @@ export function outerRadius(r: number, dir: "up" | "down" | "right" | "left", w:
   if (!(k > 0)) return 0;
   return dir === "up" ? [k, k, 0, 0] : dir === "down" ? [0, 0, k, k] : dir === "right" ? [0, k, k, 0] : [k, 0, 0, k];
 }
+/** a Liquid Glass bar's light stop (its outer end) */
+export const lightOf = (c: string) => mix(c, "#FFFFFF", .22);

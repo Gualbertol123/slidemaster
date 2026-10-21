@@ -189,7 +189,9 @@ numbers measured twice). Measured numbers go into the step's line.
   vectors and fixtures are in S14.P; left for the branch: the ADR-015 amendment and the decision for old non-pie charts
 - [ ] S14.2 · Columns and bars ⏱ (CT-01, CT-02, LG-01)
 - [ ] S14.3 · Lines, areas, combo, second axis, groups, targets, marks ⏱ — the reference chart; 🚦 G9 (CT-03…CT-07)
-- [ ] S14.4 · Scatter, waterfall
+- [ ] S14.4 · Scatter, waterfall – built on the branch (CT-01 complete in the unit tests: `core/tests/chart-scatter-waterfall.test.ts`,
+  the corpus deck `tests/corpus/charts/scatter-waterfall.json`); a waterfall's `points[i].total` is read through a local
+  type in `chart-waterfall.ts` (`types.ts` is S14.P's: the field goes there at the merge, 09 §2.2 lists it)
 - [ ] S14.5 · Chart panel (CT-08)
 - [ ] S14.6 · PowerPoint ⏱ (PX-05, PX-06) — carried from the S14.3 review (2026-10-21): **the marks' arrowheads native**
   (finding 3, plan-M14 S14.6 "plain p:sp lines with native heads"): today an arrow in the export is its line plus a
@@ -1033,6 +1035,9 @@ One table per parallel milestone (S14.P), so M14 and M15 never append to the sam
 | S14.3 review | built page (bytes; not committed) after merging prep (main 4.6.0): before the fixes 4,056,597, with them | 4,062,155 (+5,558; within 4,086,092: 23,937 left) | – |
 | S14.2f | ⏱ column 12 × 4 · reference chart · line 12 × 52, display list (the same bench), Liquid Glass · Excel, ms | 1.70 · 0.80 · 1.29 · 0.79 · 4.16 · 1.84 (limits 5 · 5 · 10 ms × 1.8–2.0) | – |
 | S14.2f | built page (bytes; not committed): S14.2 review 1–6 and the S14.3 re-check's two | 4,064,448 (S14.3 review built 4,062,155: +2,293; within 4,086,092: 21,644 left) | – |
+| S14.4 | ⏱ column 12 × 4 · reference chart · line 12 × 52, display list (the same bench; S14.4 adds no budget of 09 §7.4), Liquid Glass · Excel, ms | 1.67 · 0.84 · 1.63 · 1.01 · 4.76 · 1.44 (limits 5 · 5 · 10 ms × 1.8–2.0) | 2.05 · 1.00 · 1.25 · 0.76 · 5.97 · 2.49 |
+| S14.4 | scatter (2 × 12 points, smoothed line, labels, marks) · waterfall across zero, display list (not gated; median of 20, data cached), Liquid Glass · Excel, ms | 3.12 · 1.12 · 0.67 · 0.46 | 1.85 · 0.91 · 0.58 · 0.47 |
+| S14.4 | built page (bytes; not committed) | 4,081,346 (S14.2f built 4,064,448 on the same machine: +16,898; within 4,086,092: 4,746 left) | – |
 
 ### Measurements · M15 (4.8.0)
 M15 appends here only.

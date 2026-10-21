@@ -179,7 +179,8 @@ export interface ChartSeries {
   labels?: { show: ("value" | "name" | "category" | "percent" | "ofTarget")[];
              pos?: "above" | "below" | "left" | "right" | "center" | "inEnd" | "inBase" | "outEnd";
              fmt?: TextFmt; num?: string /* number format code; else the cells' */ };
-  points?: Record<string /* index */, { color?: string; marker?: string /* hex */; label?: string | null /* null = none */ }>;
+  points?: Record<string /* index */, { color?: string; marker?: string /* hex */; label?: string | null /* null = none */;
+                                        total?: boolean /* waterfall: a total column (§3.2; S14.4) */ }>;
   hide?: boolean;                              // kept, not drawn
 }
 export interface ChartGroup { n: number; cats: DataRef | string[]; divider?: LineOrNone | null; label?: string }
@@ -655,7 +656,8 @@ paths (no font, no picture). `pdfcheck.py` and the GF facts are unchanged.
 | scatter | `c:scatterChart` `scatterStyle` lineMarker / smoothMarker |
 | combo, second axis | several chart groups in one `c:plotArea`; the secondary group on its own `c:valAx` (`crosses max`, right) and a hidden second `c:catAx` (`delete 1`), as Excel writes combos |
 | category groups | one `c:catAx` with all categories (both groups' names); each series cached with blanks (`c:ptCount` full, points only where it has values) – the same as Excel's combo of the owner's chart; the divider is a line shape over the chart (below) |
-| waterfall | `c:barChart` stacked with an invisible base series (`noFill`), up / down / total series coloured – the classic Excel 2013 construction (chartex `cx:waterfall` is a 2016 part PowerPoint 2016 reads, but python-pptx and older viewers do not; Q4) |
+| waterfall | `c:barChart` stacked with an invisible base series (`noFill`), up / down / total series coloured – the classic Excel 2013 construction (chartex `cx:waterfall` is a 2016 part PowerPoint 2016 reads, but python-pptx and older viewers do not; Q4). As built (S14.4): a column across zero puts its part below zero in a second series of its colour (stacked columns stack negatives downwards); two invisible series of a `c:lineChart` on the same axes carry the values themselves (Edit Data, `--sources`) and the data labels – each a rich-text label centred on a point at the label's centre as the slide draws it (a stacked column has no outside end); the connectors are lines on the card under the chart, as on the slide (never connector shapes) |
+| scatter (as built, S14.4) | `c:scatterChart` `lineMarker` on two `c:valAx` (the x one at the bottom, both `crossBetween midCat`, labels `low`) with the drawn bounds and units; each series' x and y cached (`c:xVal` / `c:yVal`) from its own two columns of the embedded workbook (x, y); a series without a line has `a:ln noFill`; labels: value = y, category = x (Excel's X value) |
 | per-point colour, marker, label | `c:dPt` (`spPr`, `c:marker`), `c:dLbl` per point; a custom label text (`ofTarget`, a hidden one) as a rich-text `c:dLbl/c:tx/c:rich` – static text written from our value, refreshed at every export |
 | "actual inside target" | two bar series on the same axis with `overlap 100` (`gapWidth` / `overlap` belong to the `c:barChart`, so both bars have one width): the **actual** series first (filled), the **target** series after it (`noFill` + outline, drawn on top so its outline shows); the percentage as the actual's rich-text label `inEnd` |
 | axes | `c:valAx` `min` / `max` / `majorUnit`, `numFmt formatCode` (the cells' code; PowerPoint shows it with the viewer's separators, as Excel would), `majorGridlines` only when `grid`, `c:txPr` bold / colour for the category labels |

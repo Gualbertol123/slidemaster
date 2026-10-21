@@ -22,6 +22,8 @@ export interface LegendOut { nodes: Node[]; area: Box; box: Box | null; at: Lege
 /** how much room a line series' legend key takes in PowerPoint beyond the slide's swatch: LibreOffice's key, the widest
     seen, is about 77 px at a 14 px legend font (5.5 em) against the slide's 10–18 px swatch – 5 em more covers it */
 export const lineKeyExtra = (size: number) => Math.ceil(5 * size);
+/** an entry PowerPoint draws with its wide line key: a line series', a scatter series' (its marker alone too, S14.4) */
+const wideKey = (e: LegendEntry) => !!(e.line || e.marker);
 const r2 = (v: number) => Math.round(v * 100) / 100 || 0;
 const POS: LegendAt[] = ["right", "left", "top", "bottom", "top-right", "inside-tl", "inside-tr", "none"];
 /** where a series chart's legend goes: legendAt, else the old key (right / bottom / none), else Excel's bottom */
@@ -40,10 +42,11 @@ export function legendNodes(entries: LegendEntry[], at: LegendAt, area: Box, kin
   const sw = kind === "capsule" ? { w: 18, h: 10, r: 5 } : kind === "line" ? { w: 16, h: 2, r: 0 } : { w: 10, h: 10, r: 0 };
   const rowH = Math.max(18, Math.round(st.size * 1.45)), lh = lineH(st), out: Node[] = [];
   const swatch = (x: number, y: number, c: string, e?: LegendEntry) => {
-    if (e?.line) {
+    if (e?.line || e?.marker) {
       // a line series: a stroke across the swatch's width (at most 4 px) and its marker in the middle (at most 10 px)
       const cy = r2(y + rowH / 2);
-      out.push({ t: "line", x1: r2(x), y1: cy, x2: r2(x + Math.max(sw.w, 16)), y2: cy, stroke: lineStroke({ ...e.line, w: Math.min(4, e.line.w) }) });
+      // (a scatter series without a line, S14.4: its marker alone)
+      if (e.line) out.push({ t: "line", x1: r2(x), y1: cy, x2: r2(x + Math.max(sw.w, 16)), y2: cy, stroke: lineStroke({ ...e.line, w: Math.min(4, e.line.w) }) });
       if (e.marker) { const n = markerNode({ ...e.marker, size: Math.min(e.marker.size, 6) }, x + Math.max(sw.w, 16) / 2, y + rowH / 2, e.marker.color); if (n) out.push(n); }
       return;
     }
@@ -74,9 +77,9 @@ export function legendNodes(entries: LegendEntry[], at: LegendAt, area: Box, kin
     let ppt: Box = box;
     // (only the entries PowerPoint lists: the cut ones are deleted there)
     const listed = more > 0 ? items.slice(0, fit - 1) : items;
-    if (listed.some(e => e.line)) {
+    if (listed.some(wideKey)) {
       const ex = lineKeyExtra(st.size), pl: number[] = [0];
-      for (const e of listed) { const ew = sw.w + 8 + e.tw + 18 + (e.line ? ex : 0); if (pl[pl.length - 1] + ew > area.w && pl[pl.length - 1] > 0) pl.push(0); pl[pl.length - 1] += ew; }
+      for (const e of listed) { const ew = sw.w + 8 + e.tw + 18 + (wideKey(e) ? ex : 0); if (pl[pl.length - 1] + ew > area.w && pl[pl.length - 1] > 0) pl.push(0); pl[pl.length - 1] += ew; }
       const pw = Math.min(area.w, Math.max(...pl.map(w => w - 18))), ph = Math.min(3, pl.length) * rowH, cx = bx + bw / 2;
       const px = Math.max(area.x, Math.min(area.x + area.w - pw, cx - pw / 2));
       ppt = { x: r2(px), y: r2(at === "top" ? y0 : y0 + h - ph), w: r2(pw), h: ph };
@@ -100,7 +103,7 @@ export function legendNodes(entries: LegendEntry[], at: LegendAt, area: Box, kin
   const box = { x: r2(x), y: r2(y), w: r2(lw), h }, cut = rows < entries.length ? entries.slice(rows - 1).map(e => e.key) : [];
   // PowerPoint: one key column, wider when a shown entry is a line's; the outer edge kept (a right legend grows left) and
   // the plot clear of it on the slide too
-  const ex = entries.slice(0, rows - (cut.length ? 1 : 0)).some(e => e.line) ? lineKeyExtra(st.size) : 0, right = !(at === "left" || at === "inside-tl");
+  const ex = entries.slice(0, rows - (cut.length ? 1 : 0)).some(wideKey) ? lineKeyExtra(st.size) : 0, right = !(at === "left" || at === "inside-tl");
   const ppt = ex ? { x: r2(right ? Math.max(area.x, x - ex) : x), y: r2(y), w: r2(lw + ex), h } : box, W = lw + ex;
   if (inside) return { nodes: out, at, box, ppt, cut, area };
   return { nodes: out, at, box, ppt, cut, area: at === "left" ? { ...area, x: area.x + W + 16, w: Math.max(10, area.w - W - 16) } : { ...area, w: Math.max(10, area.w - W - 16) } };

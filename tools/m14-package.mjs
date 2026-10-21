@@ -1,11 +1,12 @@
 /* The pixel review of the series charts (M14 S14.3, gate 🚦 G9; as tools/m9-package.mjs was for the pies, G6): every
    slide of the chart corpus (tests/corpus/charts – columns and bars, series.json; lines, areas, combos, category groups,
-   marks and the owner's reference chart "Loans Volume – Weekly Evolution", lines.json slide 1) drawn from its display
+   marks and the owner's reference chart "Loans Volume – Weekly Evolution", lines.json slide 1; scatter and waterfall
+   charts, scatter-waterfall.json – S14.4) drawn from its display
    list – as the stage, the PNG export and the thumbnails draw it – in every design of the switch, with the PowerPoint
    file of each deck beside it (Export ▾ › PowerPoint: native charts, the marks as plain shapes over them) to open in
    PowerPoint. Writes review/G9/index.html, review/G9/img/ and review/G9/pptx/ (not committed: regenerate them).
 
-     node tools/m14-package.mjs [--decks series,lines] [--designs glass,excel,clean,mckinsey,bain]
+     node tools/m14-package.mjs [--decks series,lines,scatter-waterfall] [--designs glass,excel,clean,mckinsey,bain]
 */
 import fs from "node:fs";
 import os from "node:os";
@@ -18,7 +19,7 @@ import { slideHook } from "./dlparity.mjs";
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
 const OUT = path.join(REPO, "review", "G9"), IMG = path.join(OUT, "img"), PPTX = path.join(OUT, "pptx"), CHARTS = path.join(CORPUS, "charts");
-const DESIGNS = arg("--designs", "glass,excel,clean,mckinsey,bain").split(","), decks = arg("--decks", "series,lines").split(",");
+const DESIGNS = arg("--designs", "glass,excel,clean,mckinsey,bain").split(","), decks = arg("--decks", "series,lines,scatter-waterfall").split(",");
 const NAMES0 = { glass: "Liquid Glass", excel: "Excel", clean: "Excel Refined", mckinsey: "Consulting Navy", bain: "Consulting Red" };
 // a design with options ("mckinsey@headline=panel") is named with them
 const NAMES = new Proxy({}, { get: (_t, k) => { const [d, o] = String(k).split("@"); return NAMES0[d] + (o ? " · " + o.replace(/=/g, ": ").replace(/\+/g, " · ") : ""); } });

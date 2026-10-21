@@ -68,7 +68,8 @@ export function chartSources(deck) {
   const add = (slide, it) => {
     if (it.values?.range) out.push({ slide, sheet: sheetOf(it.values), range: it.values.range });
     if (!it.sers || typeof it.sers !== "object") return;
-    const groups = Object.entries(it.groups || {}).filter(([, g]) => g && typeof g === "object").sort(([a, p], [b, q]) => (+p.n || 0) - (+q.n || 0) || (a < b ? -1 : a > b ? 1 : 0));
+    // (a scatter chart reads no category groups: its points stand on its x axis – S14.4)
+    const groups = Object.entries(it.type === "scatter" ? {} : it.groups || {}).filter(([, g]) => g && typeof g === "object").sort(([a, p], [b, q]) => (+p.n || 0) - (+q.n || 0) || (a < b ? -1 : a > b ? 1 : 0));
     // (a group's start: the categories of the groups before it – an inline list's length here; a range's cells counted
     // by pptxcheck, which skips hidden rows and columns as the chart does: `before` – S14.3 re-check)
     const startOf = gid => {
@@ -85,6 +86,9 @@ export function chartSources(deck) {
       const r = s.vals[0], sheet = r && sheetOf(r);
       if (!sheet || !r.range || sheet.startsWith("[")) continue;          // (a linked workbook's: not the deck's book)
       out.push({ slide, sheet, range: r.range, ...(groups.length ? startOf(groups.some(([id]) => id === s.group) ? s.group : groups[0][0]) : { start: 0 }), ...(typeof s.name === "string" ? { name: s.name } : {}) });
+      // (a scatter series' x values, against its c:xVal cache – S14.4)
+      const x = it.type === "scatter" && Array.isArray(s.xs) && s.xs.length === 1 ? s.xs[0] : null, xs = x && sheetOf(x);
+      if (xs && x.range && !xs.startsWith("[")) out.push({ slide, sheet: xs, range: x.range, start: 0, axis: "x", ...(typeof s.name === "string" ? { name: s.name } : {}) });
     }
   };
   (preset.slides || []).forEach((s, i) => { for (const it of Object.values(s.items || {})) if (it?.kind === "chart") add(i + 1, it); });
