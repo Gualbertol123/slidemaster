@@ -192,7 +192,11 @@ numbers measured twice). Measured numbers go into the step's line.
 - [ ] S14.4 · Scatter, waterfall – built on the branch (CT-01 complete in the unit tests: `core/tests/chart-scatter-waterfall.test.ts`,
   the corpus deck `tests/corpus/charts/scatter-waterfall.json`); a waterfall's `points[i].total` is read through a local
   type in `chart-waterfall.ts` (`types.ts` is S14.P's: the field goes there at the merge, 09 §2.2 lists it)
-- [ ] S14.5 · Chart panel (CT-08)
+- [ ] S14.5 · Chart panel (CT-08) – built on the branch with the S14.4 review's findings 1–3 and 5–8 (CT-08 in
+  `app/tests/chart-panel.test.tsx` – the page with report.xlsx – and the export of a panel-made chart in
+  `app/tests/chart-panel-pptx.test.ts`; the e2e run of CT-08 is the orchestrator's). A stack per series
+  (`sers[s].stack`) is not offered: PowerPoint cannot draw it (the panel shows it disabled and says so). `m14.json`
+  raised by measurement to 140,896 (owner 2026-10-21)
 - [ ] S14.6 · PowerPoint ⏱ (PX-05, PX-06) — carried from the S14.3 review (2026-10-21): **the marks' arrowheads native**
   (finding 3, plan-M14 S14.6 "plain p:sp lines with native heads"): today an arrow in the export is its line plus a
   filled custGeom triangle. The overlay's line node gets its heads in the export data (ItemSem chart overlay) and the
@@ -1038,6 +1042,8 @@ One table per parallel milestone (S14.P), so M14 and M15 never append to the sam
 | S14.4 | ⏱ column 12 × 4 · reference chart · line 12 × 52, display list (the same bench; S14.4 adds no budget of 09 §7.4), Liquid Glass · Excel, ms | 1.67 · 0.84 · 1.63 · 1.01 · 4.76 · 1.44 (limits 5 · 5 · 10 ms × 1.8–2.0) | 2.05 · 1.00 · 1.25 · 0.76 · 5.97 · 2.49 |
 | S14.4 | scatter (2 × 12 points, smoothed line, labels, marks) · waterfall across zero, display list (not gated; median of 20, data cached), Liquid Glass · Excel, ms | 3.12 · 1.12 · 0.67 · 0.46 | 1.85 · 0.91 · 0.58 · 0.47 |
 | S14.4 | built page (bytes; not committed) | 4,081,346 (S14.2f built 4,064,448 on the same machine: +16,898; within 4,086,092: 4,746 left) | – |
+| S14.5 | the chart panel's cost on a keypress (09 §7.4 keypress → pixels p95 50 ms; `app/tests/chart-panel.test.tsx`, React's development build in jsdom): draws on 20 keypresses on the slide's table · its own draw on a chart change p50 / p95, ms | 0 · 6.93 / 13.05 | 0 · 7.20 / 20.88 |
+| S14.5 | built page (bytes; not committed): the chart panel and the S14.4 review follow-ups | 4,111,988 (S14.4 built 4,081,346: +30,642; over 4,086,092 – `m14.json` raised to the measured share 135,896 + 5,000 = 140,896, owner 2026-10-21 "by measurement"; new limit 4,116,988) | – |
 
 ### Measurements · M15 (4.8.0)
 M15 appends here only.

@@ -291,7 +291,10 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     for (const k of P.li) {
       // (a scatter point at its x on the numeric axis; one without an x is not drawn)
       const s = ser[k], smooth = !!s.src.smooth, xs = scatter ? s.xs || [] : null;
-      const pts = s.vals.map((v, i) => v === null || xs && (xs[i] === null || xs[i] === undefined) ? null : { x: xs ? xp(xs[i]!) : cx(i), y: vp(v), lo: 0, v });
+      // (a scatter point whose x is outside the x axis's bounds – `axes.x` narrower than the data – is not drawn and breaks
+      // the line, as Excel and PowerPoint leave it out; S14.4 review 2)
+      const out = (x: number) => { const S = xAxis!.scale; return x < S.min - 1e-9 * Math.max(1, Math.abs(S.min)) || x > S.max + 1e-9 * Math.max(1, Math.abs(S.max)); };
+      const pts = s.vals.map((v, i) => v === null || xs && (xs[i] === null || xs[i] === undefined || out(xs[i]!)) ? null : { x: xs ? xp(xs[i]!) : cx(i), y: vp(v), lo: 0, v });
       const d = strokes[k] ? runs(pts).filter(r => r.length > 1).map(r => linePath(r as Pt[], smooth)) : [];
       const mk = markers[k], rr = mk ? markerPx(mk) / 2 + mk.w / 2 : (strokes[k]?.w ?? 2) / 2;
       traces.push({ s: k, kind: "line", axis: P.ax, d, stroke: strokes[k], smooth, marker: mk, fill: colors[k], pts });
@@ -380,7 +383,7 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
         text = show.map(w => w === "value" ? valueText(b.i, b.v) : w === "name" ? s.name : w === "category" ? data.cats[b.i] || "" : w === "ofTarget" ? ofT() : tickText(share ?? 0, "0%")).filter(t => t).join(", ");
       }
       if (!text) { pts.push({ i: b.i, hide: true }); continue; }
-      const inside = pos !== "outEnd", white = inside && !own && lum(b.color) < .6, lst = white ? { ...st, color: "#FFFFFF" } : st;
+      let inside = pos !== "outEnd", white = inside && !own && lum(b.color) < .6, lst = white ? { ...st, color: "#FFFFFF" } : st;
       const w = tw(text, lst), lh = lineH(lst);
       // an inside label that does not fit its bar is left out (Excel would draw it over the edge)
       const len = dir === "col" ? b.h : b.w, across = dir === "col" ? b.w : b.h;
@@ -390,6 +393,19 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
         x = b.x + b.w / 2;
         const up = b.dir === "up", end = up ? b.y : b.y + b.h, start = up ? b.y + b.h : b.y;
         top = pos === "outEnd" ? (up ? end - lh - 2 : end + 2) : pos === "inEnd" ? (up ? end + 3 : end - lh - 3) : pos === "inBase" ? (up ? start - lh - 3 : start + 3) : b.y + (b.h - lh) / 2;
+        // a waterfall's label stays inside the plot (S14.4 review 1): a decrease ending on the axis's minimum, an increase
+        // up to its maximum would put it under the category labels or over the title – and PowerPoint drops a label
+        // whose carrier point is outside the axis's bounds. It goes beyond the column's other end, else inside its end
+        // (white in a dark column), else as near as the plot allows
+        const lo = plot.y, hi = plot.y + plot.h - lh, ok = (t: number) => t >= lo - .01 && t <= hi + .01;
+        if (fall && !ok(top)) {
+          const flip = up ? start + 2 : start - lh - 2, inEnd = up ? end + 3 : end - lh - 3;
+          if (pos === "outEnd" && ok(flip)) top = flip;
+          else if (pos === "outEnd" && b.h >= lh + 4 && w <= b.w + 8 && ok(inEnd)) {
+            top = inEnd; inside = true; white = !own && lum(b.color) < .6;
+            if (white) lst = { ...st, color: "#FFFFFF" };
+          } else top = Math.max(lo, Math.min(hi, top));
+        }
       } else {
         top = b.y + (b.h - lh) / 2;
         const right = b.dir === "right", end = right ? b.x + b.w : b.x, start = right ? b.x : b.x + b.w;
@@ -433,7 +449,7 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     grid: typeof A.y?.grid === "boolean" ? A.y.grid : look.gridOn, colors, bars, labs, legend, ticks: tk, labels, issue,
     hidden: ser.flatMap((s, k) => entries.some(e => e.key === s.id) ? [] : [k]),
     kinds, axes, y2, barGroups, traces, groupLabels, dividers, rule, gradient: sty.gradient, marks: { nodes: mk.nodes, under: mk.under, hits: mk.hits },
-    xAxis, connectors: W ? connectors(bars, W.steps, vps.y, connectorLine(ser[0].src)) : [],
+    xAxis, connectors: W ? connectors(bars, W.steps, vps.y, connectorLine(ser[0].src, look.line?.color)) : [],
     fall: W && Wc ? { steps: W.steps, colors: Wc, legend: entries.filter(e => !legend.cut?.includes(e.key)).map(e => e.key as StepKind) } : null };
 }
 

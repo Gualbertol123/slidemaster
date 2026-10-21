@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { strFromU8, unzipSync } from "fflate";
 import { validate, type DisplayList, type HitNode, type LineNode, type Node, type RectNode, type TextNode } from "../src/dl/types";
 import { readWorkbook } from "../src/xlsx/workbook";
-import { applyOps, emptyDoc } from "../src/model/ops";
+import { applyOps, emptyDoc, inverseOf } from "../src/model/ops";
 import { itemSheets, runtimeSlides } from "../src/model/preset";
 import { resolveStyle } from "../src/model/style";
 import { excelToDisplayList, type Metrics } from "../src/render/excel-dl";
@@ -21,9 +21,11 @@ import { slideToDisplayList, type ItemInfo, type SlideDL } from "../src/render/s
 import { computeLayout } from "../src/render/layout";
 import { chartKey, chartNodes, chartSem } from "../src/render/chart-dl";
 import { seriesData, type SerData } from "../src/render/chart-data";
-import { seriesLayout, type SeriesLayout, type SeriesStyle } from "../src/render/chart-series";
+import { seriesLayout, seriesSem, type SeriesLayout, type SeriesStyle } from "../src/render/chart-series";
+import { lightOf } from "../src/render/chart-bars";
+import { lineH } from "../src/render/chart-font";
 import { scatterLine, scatterMarker, xAxisOf } from "../src/render/chart-scatter";
-import { connectorLine, waterfallSteps } from "../src/render/chart-waterfall";
+import { connectorLine, mixHex, waterfallSteps } from "../src/render/chart-waterfall";
 import { glassVars } from "../src/render/glass-dl";
 import { chartWorkbook, chartXml } from "../src/pptx/chart";
 import { writePptx } from "../src/pptx/writer";
@@ -324,5 +326,139 @@ describe("the cache", () => {
     // the sheets the deck reads include a scatter series' x values (a linked workbook's too)
     const xs: ChartItem = { ...it, sers: { s: { n: 1, xs: [{ sheet: "[Peers.xlsx]Vol", range: "B2:B7" }], vals: [{ sheet: "Scatter", range: "C2:C7" }] } } };
     expect(itemSheets({ sheets: [], tables: [], slides: [{ id: "s", type: "content", tables: [], items: { xs } }] } as never)).toEqual(["Scatter", "[Peers.xlsx]Vol"]);
+  });
+});
+
+/* ---- S14.4 review follow-ups (S14.5) ---- */
+/** a sheet with some cells' numbers replaced ("C5" → -900): the rest as the workbook has it */
+const withCells = (S: Sheet, cells: Record<string, number>): Sheet => {
+  const o = Object.create(S) as { get: (r: number, c: number) => unknown };
+  const base = (S as unknown as { get: (r: number, c: number) => Record<string, unknown> | undefined }).get.bind(S);
+  o.get = (r: number, c: number) => {
+    const k = Object.keys(cells).find(a => { const m = /^([A-Z]+)(\d+)$/.exec(a)!; return +m[2] === r && m[1].charCodeAt(0) - 64 === c; });
+    return k === undefined ? base(r, c) : { ...(base(r, c) || { t: "n", fmt: "General" }), t: "n", v: cells[k] };
+  };
+  return o as unknown as Sheet;
+};
+/** the formulas of an embedded workbook evaluated (IF, MIN, MAX, AND, N over its own cells; "" a blank) */
+function evalBook(sheetXml: string): (ref: string) => number | string {
+  const cells = new Map<string, { v: string; f?: string }>();
+  for (const m of sheetXml.matchAll(/<c r="([A-Z]+\d+)"[^>]*>(?:<f>(.*?)<\/f>)?(?:<v>(.*?)<\/v>)?/g)) cells.set(m[1], { v: m[3] ?? "", ...(m[2] ? { f: m[2].replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&") } : {}) });
+  const memo = new Map<string, number | string>();
+  const val = (ref: string): number | string => {
+    if (memo.has(ref)) return memo.get(ref)!;
+    const c = cells.get(ref); let out: number | string;
+    if (!c) out = ""; else if (!c.f) out = c.v === "" ? "" : +c.v;
+    else {
+      const js = c.f.replace(/([A-Z]+\d+)/g, (_, r) => `val("${r}")`).replace(/(?<![<>])=/g, "==");
+      // eslint-disable-next-line no-new-func
+      out = new Function("val", "IF", "MIN", "MAX", "AND", "N", "TRUE", `return ${js};`)(val, (c: unknown, a: unknown, b: unknown) => c ? a : b,
+        (...a: number[]) => Math.min(...a.map(Number)), (...a: number[]) => Math.max(...a.map(Number)), (...a: unknown[]) => a.every(Boolean), (x: unknown) => typeof x === "number" ? x : 0, true);
+    }
+    memo.set(ref, out); return out;
+  };
+  return val;
+}
+describe("S14.4 review follow-ups", () => {
+  const bridge = (cells: Record<string, number>) => (n: string, S: Sheet | null) => n === "Bridge" && S ? withCells(S, cells) : S;
+  it("1 · a waterfall's labels stay inside the plot (a decrease ending on the axis's minimum, an increase up to its maximum), and so do PowerPoint's carrier points", async () => {
+    const { ctx, it } = await deck("excel", { sheet: bridge({ C5: -900 }) });
+    for (const it2 of [{ ...it("wf"), sers: { w: { n: 1, vals: [{ sheet: "Bridge", range: "C4:C5" }] } }, axes: { y: { min: 0 } } } as ChartItem,
+      { ...it("wf"), sers: { w: { n: 1, vals: [{ sheet: "Bridge", range: "C4" }] } }, axes: { y: { min: 0, max: 900 } }, titleFmt: undefined, labels: undefined } as ChartItem]) {
+      const L = layoutOf(it2, ctx), P = L.plot;
+      expect(L.labs.length).toBe(L.bars.length);
+      for (const l of L.labs) { expect(l.top).toBeGreaterThanOrEqual(P.y - .01); expect(l.top + lineH(l.st)).toBeLessThanOrEqual(P.y + P.h + .01); }
+      const B = seriesSem(L), car = B.series.find(s => s.name === "Labels")!;
+      for (const v of car.values) if (v !== null) { expect(v).toBeGreaterThanOrEqual(L.scale.min); expect(v).toBeLessThanOrEqual(L.scale.max); }
+    }
+    // the decrease to 0: its label above its column (beyond the other end), not under the axis
+    const L = layoutOf({ ...it("wf"), sers: { w: { n: 1, vals: [{ sheet: "Bridge", range: "C4:C5" }] } }, axes: { y: { min: 0 } } } as ChartItem, ctx);
+    expect(L.labs.find(l => l.text === "-900")!.top + lineH(L.labs[1].st)).toBeLessThanOrEqual(L.bars[1].y);
+  });
+  it("2 · a scatter point outside a fixed x range is not drawn (no point on the plot's edge) and breaks the line", async () => {
+    const { ctx, it } = await deck("excel"), base = it("sc");
+    const L = layoutOf({ ...base, axes: { ...base.axes, x: { ...base.axes!.x, min: 800, max: 1000 } } }, ctx);
+    const ret = L.traces.find(t => t.s === 0)!;
+    // Retail's x: 730, 755, 805, 870, 870, 920, 905, 860, 940, 985, 1010, 1060 → the first two and the last two are out
+    expect(ret.pts.map(p => p === null)).toEqual([true, true, false, false, false, false, false, false, false, false, true, true]);
+    for (const tr of L.traces) for (const p of tr.pts) if (p) { expect(p.x).toBeGreaterThan(L.plot.x + .01); expect(p.x).toBeLessThan(L.plot.x + L.plot.w - .01); }
+    const sl = layoutOf({ ...it("sl"), axes: { x: { min: 760, max: 900 } } }, ctx), line = sl.traces.find(t => t.s === 0)!;
+    expect(line.pts.filter(p => p).length).toBeGreaterThan(1);
+    expect(line.d.length).toBeGreaterThanOrEqual(1);
+    for (const run of line.d) for (const c of run) if (c[0] !== "Z") expect(c[c.length - 2] as number).toBeGreaterThanOrEqual(sl.plot.x);
+  });
+  it("3 · Edit Data: the waterfall's construction columns are formulas over its values and a running total – the export's caches, and new columns when a value changes", async () => {
+    const { item } = await deck("excel"), sem = semOf(item("wz").info), B = sem.bars!;
+    const sheet = strFromU8(unzipSync(chartWorkbook(sem))["xl/worksheets/sheet1.xml"]);
+    expect(strFromU8(unzipSync(chartWorkbook(sem))["xl/workbook.xml"])).toContain('<calcPr fullCalcOnLoad="1"/>');
+    expect(sheet).toContain("Running total");
+    expect(sheet).not.toMatch(/<f>[^<]*\{/);
+    const n = B.cats.length, col = (k: number) => String.fromCharCode(66 + k);       // series k in column B + k
+    const bars = B.groups![0].series, valuesCol = col(B.series.findIndex(s => s.name === "Profit walk"));
+    // the formulas give the caches
+    let at = evalBook(sheet);
+    for (const k of bars) for (let i = 0; i < n; i++) {
+      const v = at(`${col(k)}${i + 2}`), want = B.series[k].values[i];
+      expect(typeof v === "number" ? v : 0, `${B.series[k].name} ${i}`).toBeCloseTo(want ?? 0, 9);
+    }
+    // a value edited in Edit Data (Volume 60 → 80): the columns after it move up by 20, each still adding up to its total
+    // (every step keeps its side of zero; one that newly crosses it needs a new export – 09 §4.2)
+    const edited = sheet.replace(new RegExp(`(<c r="${valuesCol}3"><v>)60(</v>)`), "$180$2");
+    expect(edited).not.toBe(sheet);
+    at = evalBook(edited);
+    // (each column from → to: the running totals now, the first and the last totals)
+    const span = [[0, 120], [120, 200], [200, 50], [50, -40], [-40, 0], [0, -20]];
+    for (let i = 0; i < n; i++) {
+      const vs = bars.map(k => at(`${col(k)}${i + 2}`)).map(v => typeof v === "number" ? v : 0);
+      const up = vs.filter(v => v > 0).reduce((a, v) => a + v, 0), dn = vs.filter(v => v < 0).reduce((a, v) => a + v, 0);
+      expect(up, `row ${i} top`).toBeCloseTo(Math.max(0, ...span[i]), 9);
+      expect(dn, `row ${i} bottom`).toBeCloseTo(Math.min(0, ...span[i]), 9);
+    }
+    // a chart without formulas keeps its workbook as before (no calcPr)
+    expect(strFromU8(unzipSync(chartWorkbook(semOf(item("sc").info)))["xl/workbook.xml"])).not.toContain("calcPr");
+  });
+  it("6 · Liquid Glass: a waterfall column across zero – its two PowerPoint parts carry the slide's one gradient, split at zero", async () => {
+    const { ctx, it, item } = await deck("glass"), sem = semOf(item("wz").info), B = sem.bars!;
+    const L = seriesLayout(it("wz"), item("wz").info.box, ctx, M, { ...STY, gradient: true }, "wz");
+    if ("why" in L) throw new Error();
+    const S2 = seriesSem(L), main = S2.series.find(s => s.name === "Decrease")!, below = S2.series.find(s => s.name === "Decrease (below 0)")!;
+    const b = L.bars.find(x => x.i === 3)!, c = b.color, light = lightOf(c);
+    const zeroY = L.plot.y + L.plot.h - (0 - L.scale.min) / (L.scale.max - L.scale.min) * L.plot.h, mid = mixHex(c, light, (zeroY - b.y) / b.h);
+    expect(main.points.find(p => p.i === 3)).toEqual({ i: 3, color: mid, light: c });
+    expect(below.points.find(p => p.i === 3)).toEqual({ i: 3, color: light, light: mid });
+    expect(B.series.some(s => s.name === "Decrease (below 0)")).toBe(true);
+  });
+  it("7 · a point's `total` round-trips through item.patch on `sers` (one series entry, merged per entry) and its undo", async () => {
+    const { view } = await deck("excel"), slide = view.preset!.slides[1].id;
+    const cur = view.preset!.slides[1].items!.wz as ChartItem, ser = cur.sers!.p;
+    const op = { op: "item.patch", slide, id: "wz", patch: { sers: { p: { ...ser, points: { ...ser.points, 2: { total: true } } } } } } as unknown as Op;
+    const inv = inverseOf(view, op)!;
+    const after = applyOps(view, [op]).doc, a = after.preset!.slides[1].items!.wz as ChartItem;
+    expect((a.sers!.p.points as Record<string, { total?: boolean }>)["2"].total).toBe(true);
+    expect((a.sers!.p.points as Record<string, { total?: boolean }>)["0"].total).toBe(true);
+    const back = applyOps(after, [inv]).doc;
+    expect(back.preset!.slides[1].items!.wz).toEqual(cur);
+    // another writer's new series at the same time: both kept (per entry)
+    const other = { op: "item.patch", slide, id: "wz", patch: { sers: { q: { n: 2, vals: [{ sheet: "Bridge", range: "C4:C9" }] } } } } as unknown as Op;
+    for (const order of [[op, other], [other, op]]) { const d = applyOps(view, order).doc.preset!.slides[1].items!.wz as ChartItem; expect(Object.keys(d.sers!).sort()).toEqual(["p", "q"]); expect((d.sers!.p.points as Record<string, { total?: boolean }>)["2"].total).toBe(true); }
+  });
+  it("8 · the connectors take the design's axis-line colour", async () => {
+    for (const [design, color] of [["excel", [191, 191, 191]], ["glass", [174, 182, 198]]] as const) {
+      const { item } = await deck(design);
+      const lines = flat(item("wf").nodes).filter((n): n is LineNode => n.t === "line" && JSON.stringify(n.stroke).includes("[4,3]"));
+      expect(lines).toHaveLength(5);
+      for (const l of lines) expect((l.stroke!.paint as { solid: number[] }).solid).toEqual(color);
+    }
+  });
+  it("5 · export-check's --sources: a waterfall's first series only; a scatter series' y values masked by its x cells", async () => {
+    // @ts-expect-error – a tool's plain JavaScript module, no declarations
+    const { chartSources } = await import("../../tools/export-check.mjs") as { chartSources: (d: unknown) => Record<string, unknown>[] };
+    const d = JSON.parse(fs.readFileSync(DECK, "utf8"));
+    const wz = d.ops.find((o: { id?: string }) => o.id === "wz");
+    wz.patch.sers.q = { n: 2, name: "Second", vals: [{ sheet: "Bridge", range: "C4:C9" }] };
+    const src = chartSources(d);
+    expect(src.filter(s => s.name === "Second")).toEqual([]);
+    expect(src.find(s => s.name === "Profit walk")).toMatchObject({ sheet: "Bridge", range: "E4:E9" });
+    expect(src.find(s => s.name === "Retail" && !s.axis)).toMatchObject({ range: "C2:C13", mask: { sheet: "Scatter", range: "B2:B13" } });
   });
 });

@@ -47,8 +47,9 @@ export function waterfallColors(ctx: RenderCtx, ink: string, first: string): Rec
 }
 /** the legend's entries, as Excel names them (legendHide keys: "up", "down", "total") */
 export const STEP_NAMES: Record<StepKind, string> = { up: "Increase", down: "Decrease", total: "Total" };
-/** the connectors' look: the series' `line`, else a thin grey dashed line */
-export const connectorLine = (s: ChartSeries): LineSem => s.line && typeof s.line === "object" ? lineStyleOf({ dash: "dashed", ...s.line }, "#8A93A3", 1) : { color: "#8A93A3", w: 1, dash: "dash" };
+/** the connectors' look: the series' `line`, else a thin dashed line in the design's axis-line colour (S14.4 review 8;
+    `color`, default a neutral grey) */
+export const connectorLine = (s: ChartSeries, color = "#8A93A3"): LineSem => s.line && typeof s.line === "object" ? lineStyleOf({ dash: "dashed", ...s.line }, color, 1) : { color, w: 1, dash: "dash" };
 /** a connector from each column's end (its running total) to the next column, across the gap between them */
 export function connectors(bars: { i: number; x: number; w: number }[], steps: (Step | null)[], vp: (v: number) => number, line: LineSem): { x1: number; x2: number; y: number; line: LineSem }[] {
   const out: { x1: number; x2: number; y: number; line: LineSem }[] = [], r2 = (v: number) => Math.round(v * 100) / 100 || 0;
@@ -74,7 +75,7 @@ export function waterfallSem(L: SeriesLayout, base: BarsSem): BarsSem {
   const invisible = (name: string, values: (number | null)[], type: "column" | "line"): BarSerSem => ({ name, values, color: "#FFFFFF", fmt: s.fmt, points: [], labels: null, type, axis: "y", invisible: true, ...(type === "line" ? { stroke: null, marker: null, smooth: false } : {}) });
   sem.push(invisible("Base", at(st => nz(baseVal(st))), "column"));
   const hidden = [0], bars: number[] = [0], kinds: { kind: StepKind; at: number }[] = [];
-  const barOf = new Map(L.bars.map(b => [b.i, b]));
+  const barOf = new Map(L.bars.map(b => [b.i, b])), zeroY = L.plot.y + L.plot.h - (0 - L.scale.min) / ((L.scale.max - L.scale.min) || 1) * L.plot.h;
   for (const kind of ["up", "down", "total"] as const) {
     const mine = W.steps.filter((st): st is Step => !!st && st.kind === kind);
     if (!mine.length) continue;
@@ -82,17 +83,24 @@ export function waterfallSem(L: SeriesLayout, base: BarsSem): BarsSem {
     // the part away from 0 beyond the base; a column across 0: its part above 0 here, the part below in the extra series
     const main = at(st => st.kind !== kind ? null : (() => { const [a, b] = lowHi(st); return nz(a >= 0 ? b - a : b <= 0 ? a - b : b); })());
     const below = at(st => { if (st.kind !== kind) return null; const [a, b] = lowHi(st); return a < 0 && b > 0 ? nz(a) : null; });
-    const pts = (vals: (number | null)[]) => vals.flatMap((v, i) => {
+    // (Liquid Glass, a column across 0: its two parts take the slide's one gradient split at 0 – the part above from the
+    // column's top colour to the colour at 0, the part below from there to its bottom colour; S14.4 review 6)
+    const pts = (vals: (number | null)[], part: "main" | "below") => vals.flatMap((v, i) => {
       if (v === null) return [];
       const B = barOf.get(i), own = B && B.color !== color ? B.color : null, rev = L.gradient && B && B.dir === "down";
+      const c = own || color, st = W.steps[i];
+      if (L.gradient && B && st && Math.min(st.from, st.to) < 0 && Math.max(st.from, st.to) > 0 && B.h > 0) {
+        const top = B.dir === "down" ? c : lightOf(c), bottom = B.dir === "down" ? lightOf(c) : c;
+        const mid = mixHex(top, bottom, Math.max(0, Math.min(1, (zeroY - B.y) / B.h)));
+        return [part === "main" ? { i, color: mid, light: top } : { i, color: bottom, light: mid }];
+      }
       if (!own && !rev) return [];
-      const c = own || color;
       return [{ i, color: c, ...(L.gradient ? { light: lightOf(c) } : {}), ...(rev ? { rev: true } : {}) }];
     });
-    const mk = (name: string, values: (number | null)[]): BarSerSem => ({ name, values, color, fmt: s.fmt, points: pts(values), labels: null, type: "column", axis: "y", ...(L.gradient ? { light: lightOf(color) } : {}) });
+    const mk = (name: string, values: (number | null)[], part: "main" | "below"): BarSerSem => ({ name, values, color, fmt: s.fmt, points: pts(values, part), labels: null, type: "column", axis: "y", ...(L.gradient ? { light: lightOf(color) } : {}) });
     bars.push(sem.length); kinds.push({ kind, at: sem.length });
-    sem.push(mk(STEP_NAMES[kind], main));
-    if (below.some(v => v !== null)) { bars.push(sem.length); hidden.push(sem.length); sem.push(mk(`${STEP_NAMES[kind]} (below 0)`, below)); }
+    sem.push(mk(STEP_NAMES[kind], main, "main"));
+    if (below.some(v => v !== null)) { bars.push(sem.length); hidden.push(sem.length); sem.push(mk(`${STEP_NAMES[kind]} (below 0)`, below, "below")); }
   }
   // the values (Edit Data, --sources) and the labels' carrier: at each label's centre, its text there
   const values = sem.length; hidden.push(values);
@@ -100,15 +108,55 @@ export function waterfallSem(L: SeriesLayout, base: BarsSem): BarsSem {
   const span = L.scale.max - L.scale.min || 1, P = L.plot;
   const labs = L.labs.filter(l => l.s === 0), carrier = sem.length;
   if (labs.length && font) {
-    const vAt = new Map(labs.map(l => [l.i, L.scale.min + (P.y + P.h - (l.top + lineH(l.st) / 2)) / P.h * span]));
-    const c = invisible("Labels", L.data.cats.map((_, i) => vAt.has(i) ? +vAt.get(i)!.toPrecision(15) : null), "line");
-    c.labels = { show: [], pos: "ctr", num: null, font, points: labs.map(l => ({ i: l.i, text: l.text, ...(l.st.color.toUpperCase() !== font.color.toUpperCase() ? { color: l.st.color } : {}) })) };
+    // (a carrier point outside the axis's bounds would lose its label in PowerPoint: the slide keeps its labels inside the
+    // plot, and any that is still out – the plot shorter than a label – stands on the bound with its label below / above
+    // it; S14.4 review 1)
+    const at = new Map(labs.map(l => {
+      const v = L.scale.min + (P.y + P.h - (l.top + lineH(l.st) / 2)) / P.h * span;
+      return [l.i, v > L.scale.max ? { v: L.scale.max, pos: "b" as const } : v < L.scale.min ? { v: L.scale.min, pos: "t" as const } : { v, pos: null }];
+    }));
+    const c = invisible("Labels", L.data.cats.map((_, i) => at.has(i) ? +at.get(i)!.v.toPrecision(15) : null), "line");
+    c.labels = { show: [], pos: "ctr", num: null, font, points: labs.map(l => ({ i: l.i, text: l.text, ...(l.st.color.toUpperCase() !== font.color.toUpperCase() ? { color: l.st.color } : {}), ...(at.get(l.i)!.pos ? { pos: at.get(l.i)!.pos } : {}) })) };
     hidden.push(carrier); sem.push(c);
   }
+  // Edit Data (S14.4 review 3): the construction columns are formulas over the values column and a running total column
+  // (after the series'), so a value changed in PowerPoint moves its columns – as long as each step keeps its kind and
+  // side of zero (a step that turns into another kind moves to that kind's series when the chart has one; a new
+  // crossing of zero needs a new export). The labels stay the texts of the export
+  const formulas = waterfallFormulas(W.steps, i => isTotal(s, i), sem, kinds, n);
   const groups: GroupSem[] = [{ kind: "bar", axis: "y", grouping: "stacked", gap: L.gap, overlap: 100, series: bars },
     { kind: "line", axis: "y", grouping: "standard", gap: 0, overlap: 0, series: sem.slice(values).map((_, k) => values + k) }];
   // the legend: the kinds the slide lists (legendHide by "up" / "down" / "total"; past the room: left out)
   const shown = new Set(W.legend);
   const legendHide = [...hidden, ...kinds.filter(k => !shown.has(k.kind)).map(k => k.at)].sort((a, b) => a - b);
-  return { ...base, grouping: "stacked", overlap: 100, series: sem, groups, val2: null, legend: base.legend ? { ...base.legend, hide: legendHide } : null };
+  return { ...base, grouping: "stacked", overlap: 100, series: sem, groups, val2: null, legend: base.legend ? { ...base.legend, hide: legendHide } : null,
+    book: { values, extra: [{ name: "Running total", values: formulas.run, f: formulas.runF }] } };
+}
+/** the formulas of a waterfall's embedded workbook (see waterfallSem): per row its running total ({R}: a total's own
+    value, else the row before's plus its value), the base under the column and each kind's part above / below 0 – the
+    same arithmetic as waterfallSem's, in Excel's words; sets `f` on the construction series */
+function waterfallFormulas(steps: (Step | null)[], total: (i: number) => boolean, sem: BarSerSem[], kinds: { kind: StepKind; at: number }[], n: number): { run: (number | null)[]; runF: string[] } {
+  const run: (number | null)[] = [], runF: string[] = [];
+  let r = 0;
+  for (let i = 0; i < n; i++) {
+    const st = steps[i];
+    if (st) r = st.to;
+    run.push(+r.toPrecision(15));
+    runF.push(total(i) ? `IF({V}="",{Rp},{V})` : `{Rp}+N({V})`);
+  }
+  const lohi = (i: number) => { const from = total(i) ? "0" : "{Rp}"; return [`MIN(${from},{R})`, `MAX(${from},{R})`]; };
+  sem[0].f = Array.from({ length: n }, (_, i) => { const [lo, hi] = lohi(i); return `IF({V}="","",IF(${lo}>=0,${lo},IF(${hi}<=0,${hi},0)))`; });
+  for (const { kind, at } of kinds) {
+    const cond = (i: number) => kind === "total" ? (total(i) ? "TRUE" : null) : total(i) ? null : kind === "up" ? "{V}>=0" : "{V}<0";
+    const below = sem[at + 1]?.name.endsWith("(below 0)") ? sem[at + 1] : null;
+    sem[at].f = Array.from({ length: n }, (_, i) => { const c = cond(i); if (!c) return null; const [lo, hi] = lohi(i); return `IF({V}="","",IF(${c},IF(${lo}>=0,${hi}-${lo},IF(${hi}<=0,${lo}-${hi},${hi})),""))`; });
+    if (below) below.f = Array.from({ length: n }, (_, i) => { const c = cond(i); if (!c) return null; const [lo, hi] = lohi(i); return `IF({V}="","",IF(AND(${c},${lo}<0,${hi}>0),${lo},""))`; });
+  }
+  return { run, runF };
+}
+/** the colour a fraction t of the way from a to b (#RRGGBB) */
+export function mixHex(a: string, b: string, t: number): string {
+  const p = (h: string) => [1, 3, 5].map(k => parseInt(h.slice(k, k + 2), 16));
+  const A = p(a), B = p(b);
+  return "#" + A.map((v, k) => Math.round(v + (B[k] - v) * t).toString(16).padStart(2, "0")).join("").toUpperCase();
 }

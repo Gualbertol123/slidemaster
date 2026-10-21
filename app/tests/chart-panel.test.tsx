@@ -1,0 +1,302 @@
+/* The chart panel (S14.5, CT-08; docs/next/09 §2.2, §8 M14): the type switch gives an old chart (a pie of one range) its
+   first series; series are added from cells of any sheet, removed and reordered; type and axis per series, colours per
+   series and per point, labels, axes, legend place and hidden entries, category groups and dividers, targets, marks –
+   each ONE item.patch (one undo step), changing only the entries it touches, so two writers on two series both keep
+   theirs (both fold orders). A stack per series is not offered (PowerPoint cannot draw it). The stage picks a point or
+   a mark from the chart's own hits. The panel's cost on a keypress (09 §7.4: keypress → pixels p95 50 ms). */
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { Profiler } from "react";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+vi.mock("../src/editor/thumbs", async orig => ({ ...(await orig() as object), mountThumbs: () => { /* imperative */ } }));
+vi.mock("../src/render/wall", async orig => ({ ...(await orig() as object), applyWall: () => { /* canvas */ } }));
+
+import { App } from "../src/ui/App";
+import { ItemPanel } from "../src/ui/ItemPanel";
+import { get } from "../src/state/store";
+import { change, gotoSlide, openLocalFile, undo } from "../src/state/app";
+import { insertChartRefs, itemOf, selectItem } from "../src/editor/charts";
+import {
+  addGroupPatch, addMarkPatch, addSeriesPatch, allSeries, axisPatch, labelsPatch, legendHidePatch, moveSeriesPatch, pointPatch, refPatch,
+  removeGroupPatch, removeSeriesPatch, seriesPatch, typePatch,
+} from "../src/editor/chart-panel";
+import { applyRef } from "../src/editor/chart-send";
+import { chartHitAt, chartHits } from "../src/stage/chart-hits";
+import { CHART_TEXT } from "../src/editor/chart-text";
+import type { ChartItem, ItemPatch, Op, WorkbookDoc } from "@slide-builder/core/model/types";
+import { applyOps, emptyDoc, inverseOf } from "@slide-builder/core/model/ops";
+import { indexWorkbook } from "@slide-builder/core/xlsx/workbook";
+import { defaultPreset } from "@slide-builder/core/model/preset";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+Element.prototype.scrollIntoView ??= function () { /* nothing to scroll */ };
+
+/* ---- the panel's changes as operations (editor/chart-panel.ts) ---- */
+const box = { x: 0, y: 0, w: 600, h: 400 };
+const pie: ChartItem = { kind: "chart", type: "pie", values: { sheet: "SLIDE_1", range: "D6:D8" }, labels: { sheet: "SLIDE_1", range: "C6:C8" }, series: "Loans", box };
+/** a deck with one slide holding `it` as item "c" */
+function docWith(it: ChartItem) {
+  const ops = [{ op: "preset.set", preset: { sheets: ["SLIDE_1"], tables: [], slides: [{ id: "s", type: "content", tables: [] }] } }, { op: "item.patch", slide: "s", id: "c", patch: it }] as Op[];
+  return applyOps(emptyDoc("W.xlsx"), ops).doc;
+}
+const itemIn = (d: Pick<WorkbookDoc, "preset">) => d.preset!.slides[0].items!.c as ChartItem;
+const op = (p: ItemPatch) => ({ op: "item.patch", slide: "s", id: "c", patch: p }) as Op;
+/** the same change of item `id` on the page's current slide */
+const op2 = (id: string, p: ItemPatch) => ({ op: "item.patch", slide: get().deck.slides[get().deck.cur].id, id, patch: p }) as Op;
+/** a patch applied, and undone by its inverse: back to the chart as it was */
+function roundTrip(it: ChartItem, p: ItemPatch | null) {
+  expect(p).not.toBeNull();
+  const d0 = docWith(it), o = op(p!), inv = inverseOf(d0, o)!, d1 = applyOps(d0, [o]).doc;
+  expect(applyOps(d1, [inv]).doc.preset!.slides[0].items!.c).toEqual(itemIn(d0));
+  return itemIn(d1);
+}
+
+const col = (() => { const d0 = docWith(pie); return itemIn(applyOps(d0, [op(typePatch(pie, "column"))]).doc); })();
+describe("the panel's changes (editor/chart-panel.ts): one item.patch each, undone by its inverse", () => {
+  it("the type switch: an old chart (no series) gets its first series from its numbers, `values` kept; back to pie keeps the series", () => {
+    const col = roundTrip(pie, typePatch(pie, "column"));
+    expect(col.type).toBe("column");
+    expect(col.sers).toEqual({ s1: { n: 1, vals: [pie.values], name: "Loans" } });
+    expect(col.values).toEqual(pie.values);
+    expect(col.labels).toEqual(pie.labels);
+    expect(typePatch(col, "pie")).toEqual({ type: "pie" });
+    expect(typePatch(col, "combo")).toEqual({ type: "combo" });                // its series are already there
+    expect(typePatch(pie, "donut")).toEqual({ type: "donut" });
+  });
+  it("series: add (from another sheet), remove (its legend entry and marks with it), reorder (two entries)", () => {
+    const two = roundTrip(col, addSeriesPatch(col, { sheet: "Numbers", range: "B9:B11" }));
+    expect(allSeries(two).map(([id, s]) => [id, s.n, s.vals])).toEqual([["s1", 1, [pie.values]], ["s2", 2, [{ sheet: "Numbers", range: "B9:B11" }]]]);
+    // a combo's new series: a line
+    expect(Object.values(addSeriesPatch({ ...two, type: "combo" }, pie.values).sers!)[0]).toMatchObject({ n: 3, type: "line" });
+    const moved = roundTrip(two, moveSeriesPatch(two, "s2", -1));
+    expect(allSeries(moved).map(([id]) => id)).toEqual(["s2", "s1"]);
+    expect(Object.keys(moveSeriesPatch(two, "s2", -1)!.sers!)).toEqual(["s2", "s1"]);   // only the two entries
+    expect(moveSeriesPatch(two, "s1", -1)).toBeNull();
+    // equal n: the order asked for, whatever the ids
+    const tied: ChartItem = { ...two, sers: { a: { n: 1, vals: [] }, b: { n: 1, vals: [] } } };
+    expect(allSeries(roundTrip(tied, moveSeriesPatch(tied, "b", -1))).map(([id]) => id)).toEqual(["b", "a"]);
+    const marked = roundTrip(two, { ...addMarkPatch(two, "arrow", { s: "s2", i: 1 }), legendHide: { s2: true } });
+    const gone = roundTrip(marked, removeSeriesPatch(marked, "s2"));
+    expect(Object.keys(gone.sers!)).toEqual(["s1"]);
+    expect(gone.marks).toBeUndefined();
+    expect(gone.legendHide).toBeUndefined();
+  });
+  it("per series: type and axis, colour, name from a cell, targets, x values, smoothing, labels; per point: colour, label, a waterfall total", () => {
+    let c = roundTrip(col, seriesPatch(col, "s1", { type: "line", axis: "y2", color: "#123456", smooth: true }));
+    expect(c.sers!.s1).toMatchObject({ type: "line", axis: "y2", color: "#123456", smooth: true });
+    c = roundTrip(c, seriesPatch(c, "s1", { axis: null }));
+    expect(c.sers!.s1.axis).toBeUndefined();
+    c = roundTrip(c, refPatch(c, { what: "name", ser: "s1" }, { sheet: "SLIDE_1", range: "D4:D5" }));
+    expect(c.sers!.s1.name).toEqual({ sheet: "SLIDE_1", range: "D4" });
+    c = roundTrip(c, refPatch(c, { what: "target", ser: "s1" }, { sheet: "SLIDE_1", range: "F6:F8" }));
+    expect(c.sers!.s1.target).toEqual([{ sheet: "SLIDE_1", range: "F6:F8" }]);
+    c = roundTrip(c, refPatch(c, { what: "xs", ser: "s1" }, { sheet: "SLIDE_1", range: "E6:E8" }));
+    expect(c.sers!.s1.xs).toEqual([{ sheet: "SLIDE_1", range: "E6:E8" }]);
+    c = roundTrip(c, labelsPatch(c, "s1", { show: ["value", "ofTarget"], pos: "inEnd" }));
+    expect(c.sers!.s1.labels).toEqual({ show: ["value", "ofTarget"], pos: "inEnd" });
+    c = roundTrip(c, labelsPatch(c, "s1", { show: [], pos: null }));
+    expect(c.sers!.s1.labels).toBeUndefined();
+    c = roundTrip(c, pointPatch(c, "s1", 2, { color: "#A6A6A6", label: null }));
+    expect(c.sers!.s1.points).toEqual({ 2: { color: "#A6A6A6", label: null } });
+    c = roundTrip(c, pointPatch(c, "s1", 2, { total: true }));
+    expect((c.sers!.s1.points!["2"] as { total?: boolean }).total).toBe(true);
+    c = roundTrip(c, pointPatch(c, "s1", 2, { color: null, label: undefined, total: null }));
+    expect(c.sers!.s1.points).toBeUndefined();
+  });
+  it("axes, legend (place, a hidden entry), category groups (the present categories become the first) and their dividers, marks", () => {
+    let c = roundTrip(col, axisPatch(col, "y", { min: 0, max: 9e6, step: 1e6, num: "#,##0", grid: false }));
+    expect(c.axes).toEqual({ y: { min: 0, max: 9e6, step: 1e6, num: "#,##0", grid: false } });
+    c = roundTrip(c, axisPatch(c, "y", { min: null, max: null, step: null, num: null, grid: null }));
+    expect(c.axes).toBeUndefined();
+    c = roundTrip(c, { legendAt: "inside-tr" });
+    c = roundTrip(c, legendHidePatch("s1", true));
+    expect([c.legendAt, c.legendHide]).toEqual(["inside-tr", { s1: true }]);
+    c = roundTrip(c, addGroupPatch(c, { sheet: "Numbers", range: "B9:B10" }));
+    expect(c.groups).toEqual({ g1: { n: 1, cats: pie.labels }, g2: { n: 2, cats: { sheet: "Numbers", range: "B9:B10" }, divider: { dash: "dashed" } } });
+    c = roundTrip(c, seriesPatch(c, "s1", { group: "g2" }));
+    const ungrouped = roundTrip(c, removeGroupPatch(c, "g2"));
+    expect(Object.keys(ungrouped.groups!)).toEqual(["g1"]);
+    expect(ungrouped.sers!.s1.group).toBeUndefined();
+    for (const k of ["arrow", "icon", "text", "line", "band"] as const) {
+      const m = Object.values(roundTrip(c, addMarkPatch(c, k, { s: "s1", i: 0 })).marks!)[0];
+      expect(m.kind).toBe(k);
+      expect(m.a).toEqual({ s: "s1", i: 0 });
+    }
+    expect(Object.values(addMarkPatch(c, "arrow", { s: "s1", i: 0 }).marks!)[0]).toMatchObject({ b: "floor", style: { heads: { a: "triangle" } } });
+  });
+  it("two writers: two series changed at once both stay (in either order); one series changed by both: the later one", () => {
+    const two = itemIn(applyOps(docWith(col), [op(addSeriesPatch(col, { sheet: "Numbers", range: "B9:B11" }))]).doc);
+    const a = op(seriesPatch(two, "s1", { color: "#111111" })!), b = op(seriesPatch(two, "s2", { axis: "y2" })!), ax = op(axisPatch(two, "y", { min: 0 }));
+    for (const order of [[a, b, ax], [ax, b, a], [b, a, ax]]) {
+      const c = itemIn(applyOps(docWith(two), order).doc);
+      expect([c.sers!.s1.color, c.sers!.s2.axis, c.axes?.y?.min]).toEqual(["#111111", "y2", 0]);
+    }
+    const x = op(seriesPatch(two, "s1", { color: "#222222" })!);
+    expect(itemIn(applyOps(docWith(two), [a, x]).doc).sers!.s1.color).toBe("#222222");
+    expect(itemIn(applyOps(docWith(two), [x, a]).doc).sers!.s1.color).toBe("#111111");
+  });
+});
+
+describe("the stage's point and mark hits (stage/chart-hits.ts)", () => {
+  const nodes = [{ t: "group", transform: [1, 0, 0, 1, 10, 20], children: [
+    { t: "hit", kind: "point", id: "c:s1:0", x: 0, y: 0, w: 20, h: 20, label: "Loans · Alpha" },
+    { t: "hit", kind: "point", id: "c:my:id:3", x: 30, y: 0, w: 20, h: 20 },
+    { t: "hit", kind: "mark", id: "c:m1", x: 5, y: 5, w: 30, h: 30 },
+    { t: "hit", kind: "item", id: "c", x: 0, y: 0, w: 100, h: 100 }] }] as never;
+  it("a point by series and index (a series id with ':' too), a mark before a point under it, nothing outside", () => {
+    expect(chartHits(nodes, "c").map(h => h.point ?? h.mark)).toEqual([{ s: "s1", i: 0 }, { s: "my:id", i: 3 }, "m1"]);
+    expect(chartHitAt(nodes, "c", 12, 22)?.point).toEqual({ s: "s1", i: 0 });
+    expect(chartHitAt(nodes, "c", 20, 30)?.mark).toBe("m1");
+    expect(chartHitAt(nodes, "c", 200, 200)).toBeNull();
+    expect(chartHitAt(nodes, "other", 12, 22)).toBeNull();
+  });
+  it("the status line names the selected point or mark", () => {
+    const c = { ...col, sers: { s1: { n: 1, name: "Loans", vals: [] } } };
+    expect(CHART_TEXT.status(c, { id: "c", slice: null, point: { s: "s1", i: 2 } })).toMatch(/^Point 3 of 'Loans' selected/);
+    expect(CHART_TEXT.status(c, { id: "c", slice: null, mark: "m1" })).toMatch(/^A mark of the chart selected/);
+  });
+});
+
+/* ---- the panel on the page (CT-08) ---- */
+async function settle(n = 8) { for (let i = 0; i < n; i++) await act(async () => { await new Promise(r => setTimeout(r, 0)); }); }
+const history = () => get().deck.history.undo;
+async function confirmed(steps: number) { await vi.waitFor(() => expect(history()).toBe(steps), { timeout: 10_000 }); await settle(); }
+const panel = () => document.getElementById("chartPanel")!;
+const q = (sel: string) => panel().querySelector(sel) as HTMLElement;
+/** a Field typed into and applied (Enter blurs it) */
+async function type(el: HTMLElement, v: string) {
+  await act(async () => { fireEvent.focus(el); fireEvent.change(el, { target: { value: v } }); fireEvent.blur(el); });
+}
+
+describe("the chart panel on the page (CT-08)", () => {
+  let id = "";
+  const it_ = () => itemOf(id) as ChartItem;
+  beforeAll(async () => {
+    const buf = fs.readFileSync(path.join(here, "fixtures/report.xlsx"));
+    const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+    const wb = await indexWorkbook(ab); await wb.ensure(wb.meta.map(m => m.name), () => { /* progress */ });
+    localStorage.setItem("sb3:doc:report.xlsx", JSON.stringify({ schema: 3, rev: 1, preset: defaultPreset(wb), style: {}, edits: {} }));
+    render(<App />);
+    const opening = openLocalFile(new File([ab], "report.xlsx"));
+    await vi.waitFor(() => expect(get().ui.dialogs.dialog).toBeTruthy());
+    await act(async () => { get().ui.dialogs.dialog!.resolve("continue"); await opening; });
+    await settle();
+    // (a content slide with a table: the keypress measurement types into it)
+    const si = get().deck.slides.findIndex(R => R.tables.some(T => T.def?.sheet === "SLIDE_1"));
+    expect(si).toBeGreaterThanOrEqual(0);
+    await act(async () => gotoSlide(si)); await settle();
+    const h0 = history();
+    await act(async () => { id = insertChartRefs({ sheet: "SLIDE_1", range: "D6:D8" }, { sheet: "SLIDE_1", range: "C6:C8" })!; });
+    await confirmed(h0 + 1);
+    await vi.waitFor(() => expect(document.getElementById("chartPanel")).toBeTruthy());
+  });
+  afterAll(() => cleanup());
+
+  it("a pie switched to columns: one step, its first series from its numbers; the series panel replaces the slices; undo", async () => {
+    const h0 = history();
+    expect(q('[data-ctype="pie"]').className).toBe("on");
+    expect(q("#chartSlices") ?? q("#chartSource")).toBeTruthy();
+    await act(async () => { fireEvent.click(q('[data-ctype="column"]')); }); await confirmed(h0 + 1);
+    expect(it_().sers).toEqual({ s1: { n: 1, vals: [{ sheet: "SLIDE_1", range: "D6:D8" }] } });
+    expect(q('[data-ctype="column"]').className).toBe("on");
+    expect(q("#chartSeriesPanel")).toBeTruthy();
+    expect(q("#chartSource")).toBeNull();
+    await act(async () => undo(false)); await confirmed(h0);
+    expect(it_().sers).toBeUndefined();
+    expect(q("#chartSeriesPanel")).toBeNull();
+    await act(async () => { fireEvent.click(q('[data-ctype="column"]')); }); await confirmed(h0 + 1);
+  });
+
+  it("+ Add series… asks for the cells in the sheet view; the chosen cells (another sheet) add a series – one step; ↑ reorders, × removes", async () => {
+    const h0 = history();
+    await act(async () => { fireEvent.click(q("#chartAddSeries")); }); await settle();
+    expect(get().ui.dialogs.pick).toEqual({ kind: "chart-ref", id, ref: { what: "add" } });
+    await vi.waitFor(() => expect(document.getElementById("pickCells")?.textContent).toContain("Chart: add a series"));
+    expect(document.getElementById("pkNoNames")).toBeNull();                        // one step: no names step
+    await act(async () => { fireEvent.click(document.querySelector('#pickCells [data-a="cancel"]')!); });
+    expect(document.getElementById("pickCells")).toBeNull();
+    // (what the dialog does with the cells chosen there)
+    await act(async () => { applyRef(id, { what: "add" }, { sheet: "SLIDE_1", range: "F6:F8" }); }); await confirmed(h0 + 1);
+    await act(async () => { applyRef(id, { what: "add" }, { sheet: "Numbers", range: "B9:B11" }); }); await confirmed(h0 + 2);
+    expect(allSeries(it_()).map(([k]) => k)).toEqual(["s1", "s2", "s3"]);
+    await vi.waitFor(() => expect(panel().querySelectorAll(".ser").length).toBe(3));
+    await act(async () => { fireEvent.click(q('[data-ser="s3"] [data-a="up"]')); }); await confirmed(h0 + 3);
+    expect(allSeries(it_()).map(([k]) => k)).toEqual(["s1", "s3", "s2"]);
+    expect(get().deck.history.undoLabel).toBe("Series order");
+    await act(async () => { fireEvent.click(q('[data-ser="s3"] [data-a="remove"]')); }); await confirmed(h0 + 4);
+    expect(allSeries(it_()).map(([k]) => k)).toEqual(["s1", "s2"]);
+    await act(async () => undo(false)); await confirmed(h0 + 3);
+    expect(allSeries(it_()).map(([k]) => k)).toEqual(["s1", "s3", "s2"]);
+  });
+
+  it("a series' details: its name, combo type, right axis, labels; the stack per series is disabled and says why", async () => {
+    let h = history();
+    await type(q('[data-ser="s2"] [data-a="name"]'), "Deposits"); await confirmed(h + 1);
+    expect(it_().sers!.s2.name).toBe("Deposits");
+    h = history();
+    await act(async () => { fireEvent.click(q('[data-ctype="combo"]')); }); await confirmed(h + 1);
+    await act(async () => { fireEvent.click(q('[data-ser="s2"] [data-a="more"]')); });
+    await act(async () => { fireEvent.click(q('[data-ser="s2"] [data-stype="line"]')); }); await confirmed(h + 2);
+    await act(async () => { fireEvent.click(q('[data-ser="s2"] [data-axis="y2"]')); }); await confirmed(h + 3);
+    expect(it_().sers!.s2).toMatchObject({ type: "line", axis: "y2", name: "Deposits" });
+    const box = q('[data-ser="s2"] [data-lshow="value"]') as HTMLInputElement;
+    await act(async () => { box.checked = true; fireEvent(box, new Event("change", { bubbles: true })); }); await confirmed(h + 4);
+    expect(it_().sers!.s2.labels).toEqual({ show: ["value"] });
+    const stack = q('[data-ser="s2"] [data-a="serstack"]') as HTMLSelectElement;
+    expect(stack.disabled).toBe(true);
+    expect(stack.title).toMatch(/PowerPoint/);
+    // the right axis shows in Axes once a series stands on it; its maximum: one step
+    expect(q('#chartAxes [data-ax="y2"]')).toBeTruthy();
+    await type(q('#chartAxes [data-ax="y2"] .num'), "0"); await confirmed(h + 5);
+    expect(it_().axes?.y2?.min).toBe(0);
+    expect(get().deck.history.undoLabel).toBe("Right axis: minimum");
+  });
+
+  it("legend place and a hidden entry; a group of other categories with a divider; one step each", async () => {
+    const h = history();
+    await act(async () => { fireEvent.change(q("#chartLegendAt"), { target: { value: "top" } }); }); await confirmed(h + 1);
+    expect(it_().legendAt).toBe("top");
+    const cb = q('#chartLegend [data-hide="s2"]') as HTMLInputElement;
+    await act(async () => { cb.checked = false; fireEvent(cb, new Event("change", { bubbles: true })); }); await confirmed(h + 2);
+    expect(it_().legendHide).toEqual({ s2: true });
+    await act(async () => { applyRef(id, { what: "group-add" }, { sheet: "Numbers", range: "B9:B10" }); }); await confirmed(h + 3);
+    expect(Object.keys(it_().groups!)).toEqual(["g1", "g2"]);
+    await vi.waitFor(() => expect(panel().querySelectorAll("#chartGroups .grp").length).toBe(2));
+    await act(async () => { fireEvent.change(q('#chartGroups [data-group="g2"] [data-a="divider"]'), { target: { value: "dotted" } }); }); await confirmed(h + 4);
+    expect(it_().groups!.g2.divider).toEqual({ dash: "dotted" });
+    await act(async () => undo(false)); await confirmed(h + 3);
+    expect(it_().groups!.g2.divider).toEqual({ dash: "dashed" });
+  });
+
+  it("a point selected (as the stage does): its colour and label; marks need a point and are added there; the panel's cost on a keypress", async () => {
+    const h = history();
+    expect((q('[data-addmark="arrow"]') as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => { selectItem(id, null, { point: { s: "s1", i: 1 } }); });
+    expect(q("#chartPoint")?.dataset.i).toBe("1");
+    await type(q('#chartPoint [data-a="plabel"]'), "Peak"); await confirmed(h + 1);
+    expect(it_().sers!.s1.points).toEqual({ 1: { label: "Peak" } });
+    await act(async () => { fireEvent.click(q('[data-addmark="arrow"]')); }); await confirmed(h + 2);
+    expect(Object.values(it_().marks!)).toEqual([{ kind: "arrow", a: { s: "s1", i: 1 }, b: "floor", style: { w: 1.5, heads: { a: "triangle" } } }]);
+    await vi.waitFor(() => expect(panel().querySelectorAll("#chartMarks .mark").length).toBe(1));
+    // the panel's cost on a keypress (09 §7.4, keypress → pixels p95 50 ms): a cell typed into on the slide's own table
+    // draws the panel at most once (here: not at all – the chart is unchanged), and when the chart itself changes (20
+    // changes of an axis) the panel's own draw stays far below the budget
+    const times: number[] = [];
+    const { unmount } = render(<Profiler id="p" onRender={(_id, _ph, actual) => times.push(actual)}><ItemPanel /></Profiler>);
+    const first = times.length;
+    for (let k = 0; k < 20; k++) await act(async () => { change("Cell", [{ op: "cell.patch", sheet: "SLIDE_1", ref: "E6", patch: { text: String(k + 1) + ",5", orig: "2,5" } } as Op]); });
+    const onKeys = times.length - first;
+    expect(onKeys).toBeLessThanOrEqual(20);
+    times.length = 0;
+    for (let k = 0; k < 20; k++) await act(async () => { change("Left axis: step", [op2(id, axisPatch(it_(), "y", { step: (k + 1) * 1e6 }))]); });
+    unmount();
+    const sortedT = times.slice().sort((a, b) => a - b), p95 = sortedT[Math.ceil(sortedT.length * .95) - 1] ?? 0;
+    // (CHART_PANEL_TIMES=<file>: the numbers appended there, for PROGRESS's measurements)
+    if (process.env.CHART_PANEL_TIMES) fs.appendFileSync(process.env.CHART_PANEL_TIMES, `chart panel: ${onKeys} draws on 20 keypresses; its draw on a chart change: p50 ${sortedT[Math.floor(sortedT.length / 2)]?.toFixed(2)} ms, p95 ${p95.toFixed(2)} ms, max ${sortedT[sortedT.length - 1]?.toFixed(2)} ms (${times.length} draws)\n`);
+    expect(times.length).toBeGreaterThanOrEqual(10);                              // (changes close together draw once)
+    expect(p95).toBeLessThan(50);
+  });
+});

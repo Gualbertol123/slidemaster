@@ -1,0 +1,175 @@
+/* The chart panel's changes (S14.5, CT-08; docs/next/09 §2.2, §8 M14): each builds ONE item.patch from the chart as it
+   is now, so every change is one undo step, and touches only the entries it changes – a whole series, group, axis or
+   mark (item.patch merges these maps per entry) –, so two people changing two series (or a series and an axis) at once
+   both keep their change; the same series: the later one wins (09 §2.2, Q13). Pure functions of the item (tested on
+   their own, app/tests/chart-panel.test.tsx; no page state here, so the core's export runs them in node too); chart-send.ts
+   sends them. */
+import type { ChartAxis, ChartGroup, ChartItem, ChartMark, ChartSeries, ChartType, DataRef, ItemPatch, LegendAt, MarkAt, SeriesType } from "@slide-builder/core/model/types";
+
+type Ser = ChartSeries & { points?: Record<string, PointSet> };
+/** a point's settings as the panel writes them (`total`: a waterfall's total column, 09 §3.2 – S14.4) */
+export type PointSet = NonNullable<ChartSeries["points"]>[string] & { total?: boolean };
+/** the chart types of the panel's switch, in its order */
+export const CHART_TYPES: { t: ChartType; label: string }[] = [
+  { t: "pie", label: "Pie" }, { t: "donut", label: "Donut" }, { t: "column", label: "Column" }, { t: "bar", label: "Bar" }, { t: "line", label: "Line" },
+  { t: "area", label: "Area" }, { t: "combo", label: "Combo" }, { t: "scatter", label: "Scatter" }, { t: "waterfall", label: "Waterfall" }];
+/** what a series may be in a combo: Excel's own combo set (09 §2.2: bar and scatter need axes of their own) */
+export const COMBO_TYPES: SeriesType[] = ["column", "line", "area"];
+export const isSeriesType = (t: ChartType) => t !== "pie" && t !== "donut";
+/** every series of the chart in its order (n, then id) – hidden ones too (the panel lists them, greyed) */
+export function allSeries(it: ChartItem): [string, Ser][] {
+  return Object.entries(it.sers && typeof it.sers === "object" ? it.sers : {}).filter(([, s]) => s && typeof s === "object" && Array.isArray(s.vals))
+    .sort(([a, p], [b, q]) => (Number.isFinite(+p.n) ? +p.n : 0) - (Number.isFinite(+q.n) ? +q.n : 0) || (a < b ? -1 : a > b ? 1 : 0)) as [string, Ser][];
+}
+const sorted = <T extends { n: number }>(m: Record<string, T> | undefined) => Object.entries(m && typeof m === "object" ? m : {}).filter(([, g]) => g && typeof g === "object")
+  .sort(([a, p], [b, q]) => (+p.n || 0) - (+q.n || 0) || (a < b ? -1 : a > b ? 1 : 0));
+export const allGroups = (it: ChartItem): [string, ChartGroup][] => sorted(it.groups);
+/** an id no entry of `m` has: prefix + 1, 2, … */
+export function freeId(m: Record<string, unknown> | undefined, prefix: string): string {
+  for (let k = 1; ; k++) if (!m || !(prefix + k in m)) return prefix + k;
+}
+const nextN = (m: Record<string, { n: number }> | undefined) => Math.max(0, ...Object.values(m || {}).filter(x => x && typeof x === "object").map(x => +x.n || 0)) + 1;
+/** an entry with these keys set (a null or undefined value: the key removed) */
+function withKeys<T extends object>(cur: T, p: Record<string, unknown>): T {
+  const out = { ...cur } as Record<string, unknown>;
+  for (const [k, v] of Object.entries(p)) { if (v === null || v === undefined) delete out[k]; else out[k] = v; }
+  return out as T;
+}
+
+/* ---- the chart ---- */
+/** the type switch: a chart without series (a pie of one range, 4.3–4.6) gets its first series from its own numbers –
+    `sers: {s1: {n: 1, vals: [values]}}`, `values` kept (09 §2.2) –, named as the pie's series name when it had one; its
+    names (`labels`) stay its categories. Back to pie or donut: the series are kept (switching again finds them) */
+export function typePatch(it: ChartItem, t: ChartType): ItemPatch {
+  if (!isSeriesType(t) || allSeries(it).length) return { type: t };
+  const s1: ChartSeries = { n: 1, vals: [it.values], ...(typeof it.series === "string" && it.series ? { name: it.series } : {}) };
+  return { type: t, sers: { [freeId(it.sers, "s")]: s1 } };
+}
+export const stackPatch = (v: "none" | "stacked" | "percent"): ItemPatch => ({ stack: v === "none" ? null : v });
+/** a number box: empty = unset (the default), else the number (clamped) */
+export function numOrNull(v: string, lo = -Infinity, hi = Infinity): number | null | undefined {
+  const t = v.trim().replace(",", ".");
+  if (!t) return null;
+  const n = +t;
+  return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : undefined;
+}
+
+/* ---- series ---- */
+/** a new series of these cells, after the others (its name: the text beside its cells, until one is typed) */
+export function addSeriesPatch(it: ChartItem, vals: DataRef): ItemPatch {
+  return { sers: { [freeId(it.sers, "s")]: { n: nextN(it.sers), vals: [vals], ...(it.type === "combo" ? { type: "line" as const } : {}) } } };
+}
+/** a series removed – with its legend entry and the marks that stand on it (they would point at nothing) */
+export function removeSeriesPatch(it: ChartItem, id: string): ItemPatch {
+  const marks = Object.entries(it.marks || {}).filter(([, k]) => k && (onSeries(k.a, id) || (typeof k.b === "object" && onSeries(k.b, id))));
+  return { sers: { [id]: null }, ...(it.legendHide?.[id] ? { legendHide: { [id]: null } } : {}), ...(marks.length ? { marks: Object.fromEntries(marks.map(([k]) => [k, null])) } : {}) };
+}
+const onSeries = (a: MarkAt | undefined, id: string) => !!a && "s" in a && a.s === id;
+/** a series one place up (-1) or down (+1): it swaps its `n` with its neighbour's – two entries, nothing else (equal n:
+    the neighbour's ± ½, so the order is the asked one whatever the ids) */
+export function moveSeriesPatch(it: ChartItem, id: string, dir: -1 | 1): ItemPatch | null {
+  const list = allSeries(it), k = list.findIndex(([x]) => x === id), j = k + dir;
+  if (k < 0 || j < 0 || j >= list.length) return null;
+  const [a, A] = list[k], [b, B] = list[j], na = +A.n || 0, nb = +B.n || 0;
+  const [toA, toB] = na !== nb ? [nb, na] : [nb + dir * .5, na];
+  return { sers: { [a]: { ...A, n: toA }, [b]: { ...B, n: toB } } };
+}
+/** one series' settings (null removes a key) – the whole entry, as item.patch replaces it */
+export function seriesPatch(it: ChartItem, id: string, p: Partial<Record<keyof ChartSeries, unknown>>): ItemPatch | null {
+  const cur = it.sers?.[id]; if (!cur) return null;
+  return { sers: { [id]: withKeys(cur, p) } };
+}
+/** one point's settings of a series (null removes a key – but `label: null` hides its label, `label: undefined`
+    removes it; a point left with none goes) */
+export function pointPatch(it: ChartItem, id: string, i: number, p: Partial<Record<keyof PointSet, unknown>>): ItemPatch | null {
+  const cur = it.sers?.[id] as Ser | undefined; if (!cur) return null;
+  const { label, ...rest } = p, pts = { ...(cur.points || {}) }, next: Record<string, unknown> = withKeys(pts[String(i)] || {}, rest);
+  if ("label" in p) { if (label === undefined) delete next.label; else next.label = label; }
+  if (Object.keys(next).length) pts[String(i)] = next; else delete pts[String(i)];
+  return seriesPatch(it, id, { points: Object.keys(pts).length ? pts : null });
+}
+/** a series' labels: what they show and where (none shown and no position: the key goes) */
+export function labelsPatch(it: ChartItem, id: string, p: { show?: string[]; pos?: string | null; num?: string | null }): ItemPatch | null {
+  const cur = it.sers?.[id]; if (!cur) return null;
+  const L = withKeys({ show: [], ...(cur.labels || {}) } as Record<string, unknown>, p) as NonNullable<ChartSeries["labels"]>;
+  return seriesPatch(it, id, { labels: (L.show || []).length || L.pos || L.num || L.fmt ? L : null });
+}
+
+/* ---- axes, legend ---- */
+export function axisPatch(it: ChartItem, ax: "x" | "y" | "y2", p: Partial<Record<keyof ChartAxis, unknown>>): ItemPatch {
+  const next = withKeys(it.axes?.[ax] || {}, p);
+  return { axes: { [ax]: Object.keys(next).length ? next : null } };
+}
+export const legendAtPatch = (v: LegendAt): ItemPatch => ({ legendAt: v });
+/** one legend entry hidden or shown again (a series id; a waterfall's "up" / "down" / "total") */
+export const legendHidePatch = (key: string, hide: boolean): ItemPatch => ({ legendHide: { [key]: hide ? true : null } });
+
+/* ---- category groups and dividers ---- */
+/** a category group of these cells after the others. The first one: the chart's present categories (its names range,
+    when it has one) become a group before it, so they stay where they are */
+export function addGroupPatch(it: ChartItem, cats: DataRef): ItemPatch {
+  const groups: Record<string, ChartGroup> = {};
+  let n = nextN(it.groups);
+  if (!allGroups(it).length && it.labels) { groups[freeId(it.groups, "g")] = { n: 1, cats: it.labels }; n = 2; }
+  const id = freeId({ ...(it.groups || {}), ...groups }, "g");
+  groups[id] = { n, cats, ...(n > 1 ? { divider: { dash: "dashed" as const } } : {}) };
+  return { groups };
+}
+export function groupPatch(it: ChartItem, id: string, p: Partial<Record<keyof ChartGroup, unknown>>): ItemPatch | null {
+  const cur = it.groups?.[id]; if (!cur) return null;
+  return { groups: { [id]: withKeys(cur, p) } };
+}
+/** a group removed; its series go back to the first group (their `group` key cleared, each a whole series entry) */
+export function removeGroupPatch(it: ChartItem, id: string): ItemPatch {
+  const mine = allSeries(it).filter(([, s]) => s.group === id);
+  return { groups: { [id]: null }, ...(mine.length ? { sers: Object.fromEntries(mine.map(([k, s]) => [k, withKeys(s, { group: null })])) } : {}) };
+}
+
+/* ---- marks ---- */
+export type MarkKind = "arrow" | "icon" | "text" | "line" | "band";
+/** a new mark at a point (the selected one): an arrow from the axis's floor up to it, an icon or a text above it, a line
+    or a band from it to the next point of its series */
+export function addMarkPatch(it: ChartItem, kind: MarkKind, at: { s: string; i: number }): ItemPatch {
+  const a: MarkAt = { s: at.s, i: at.i }, next: MarkAt = { s: at.s, i: at.i + 1 };
+  const m: ChartMark = kind === "arrow" ? { kind, a, b: "floor", style: { w: 1.5, heads: { a: "triangle" } } }
+    : kind === "icon" ? { kind, a, icon: "tabler:target", size: 26, dy: -40 }
+      : kind === "text" ? { kind, a, text: "Note", dy: -14, fmt: { b: true } }
+        : kind === "line" ? { kind, a, b: next, style: { w: 1.5, dash: "dashed" } }
+          : { kind, a, b: next };
+  return { marks: { [freeId(it.marks, "m")]: m } };
+}
+export function markPatch(it: ChartItem, id: string, p: Partial<Record<keyof ChartMark, unknown>>): ItemPatch | null {
+  const cur = it.marks?.[id]; if (!cur) return null;
+  return { marks: { [id]: withKeys(cur, p) } };
+}
+export const removeMarkPatch = (id: string): ItemPatch => ({ marks: { [id]: null } });
+/** how the panel names where a mark stands */
+export function markAtText(it: ChartItem, a: MarkAt | "floor" | "ceiling" | undefined): string {
+  if (!a) return "–";
+  if (a === "floor" || a === "ceiling") return a === "floor" ? "the axis's floor" : "the top";
+  if ("s" in a) { const s = it.sers?.[a.s]; return `${s && typeof s.name === "string" && s.name ? s.name : a.s} · point ${a.i + 1}`; }
+  if ("g" in a) return `group ${a.g} · ${a.edge}`;
+  return `x ${a.x} · y ${a.y}`;
+}
+
+/* ---- the cells chosen in the sheet view (PickCells.tsx, req.kind "chart-ref") ---- */
+/** what the cells are for: a new series' values, a series' values / x values / targets / name, a new group's or a
+    group's categories */
+export type ChartRefWhat = { what: "add" } | { what: "vals" | "xs" | "target" | "name"; ser: string } | { what: "group-add" } | { what: "cats"; group: string };
+/** the change the chosen cells make (null: the series or group is gone meanwhile) */
+export function refPatch(it: ChartItem, w: ChartRefWhat, ref: DataRef): ItemPatch | null {
+  switch (w.what) {
+    case "add": return addSeriesPatch(it, ref);
+    case "vals": return seriesPatch(it, w.ser, { vals: [ref] });
+    case "xs": return seriesPatch(it, w.ser, { xs: [ref] });
+    case "target": return seriesPatch(it, w.ser, { target: [ref] });
+    case "name": return seriesPatch(it, w.ser, { name: { ...ref, range: ref.range.split(":")[0] } });
+    case "group-add": return addGroupPatch(it, ref);
+    case "cats": return groupPatch(it, w.group, { cats: ref });
+  }
+}
+export const REF_TITLE: Record<ChartRefWhat["what"], string> = { add: "Chart: add a series", vals: "Chart: the series' numbers", xs: "Chart: the series' x values",
+  target: "Chart: the series' targets", name: "Chart: the series' name", "group-add": "Chart: add a category group", cats: "Chart: the group's categories" };
+export const REF_HINT: Record<ChartRefWhat["what"], string> = { add: "Drag across the numbers of the new series – any sheet, a linked workbook's too.",
+  vals: "Drag across the series' numbers.", xs: "Drag across the x values, one per number of the series.", target: "Drag across the targets, one per number of the series.",
+  name: "Click the cell with the series' name: the legend follows it.", "group-add": "Drag across the names of the new group's categories.", cats: "Drag across the group's category names." };

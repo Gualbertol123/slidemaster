@@ -222,6 +222,21 @@ class ScatterChartTests(unittest.TestCase):
         self.assertFalse(chk(range="B1:B3", axis="x"))
         self.assertFalse(chk(range="A1:A3"))
 
+    def test_a_y_cell_without_its_x_is_masked(self):
+        """S14.4 review 5: a y cell whose x cell is blank has no point, so no cache: `mask` (the x cells) leaves it out"""
+        import openpyxl
+        f = self.deck()
+        book = os.path.join(self.tmp, "src.xlsx")
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Scatter"
+        for r, (x, y) in enumerate(((730, 2.1), (755, 2.3), (805, 2.2), (None, 2.5)), start=1):
+            ws["A%d" % r], ws["B%d" % r] = x, y
+        wb.save(book)
+        chk = lambda **x: pptxcheck.check([f], ppt=False, sources={f: {"workbook": book, "charts": [dict(slide=1, sheet="Scatter", start=0, **x)]}})
+        self.assertFalse(chk(range="B1:B4", name="Retail"))
+        self.assertTrue(chk(range="B1:B4", name="Retail", mask={"sheet": "Scatter", "range": "A1:A4"}))
+
 
 if __name__ == "__main__":
     unittest.main()

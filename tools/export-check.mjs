@@ -81,13 +81,19 @@ export function chartSources(deck) {
       }
       return { start: at, ...(before.length ? { before } : {}) };
     };
-    for (const s of Object.values(it.sers)) {
-      if (!s || typeof s !== "object" || s.hide || !Array.isArray(s.vals) || s.vals.length !== 1) continue;
+    // (the series in their order – n, then id; a waterfall draws, and so caches, its first one only: S14.4 review 5)
+    let list = Object.entries(it.sers).filter(([, s]) => s && typeof s === "object" && !s.hide && Array.isArray(s.vals))
+      .sort(([a, p], [b, q]) => (Number.isFinite(+p.n) ? +p.n : 0) - (Number.isFinite(+q.n) ? +q.n : 0) || (a < b ? -1 : a > b ? 1 : 0)).map(([, s]) => s);
+    if (it.type === "waterfall") list = list.slice(0, 1);
+    for (const s of list) {
+      if (s.vals.length !== 1) continue;
       const r = s.vals[0], sheet = r && sheetOf(r);
       if (!sheet || !r.range || sheet.startsWith("[")) continue;          // (a linked workbook's: not the deck's book)
-      out.push({ slide, sheet, range: r.range, ...(groups.length ? startOf(groups.some(([id]) => id === s.group) ? s.group : groups[0][0]) : { start: 0 }), ...(typeof s.name === "string" ? { name: s.name } : {}) });
-      // (a scatter series' x values, against its c:xVal cache – S14.4)
+      // (a scatter series' x values, against its c:xVal cache – S14.4; its y values only where an x cell has a number: a
+      // point without its x is cached in neither – `mask`, S14.4 review 5)
       const x = it.type === "scatter" && Array.isArray(s.xs) && s.xs.length === 1 ? s.xs[0] : null, xs = x && sheetOf(x);
+      out.push({ slide, sheet, range: r.range, ...(groups.length ? startOf(groups.some(([id]) => id === s.group) ? s.group : groups[0][0]) : { start: 0 }), ...(typeof s.name === "string" ? { name: s.name } : {}),
+        ...(xs && x.range && !xs.startsWith("[") ? { mask: { sheet: xs, range: x.range } } : {}) });
       if (xs && x.range && !xs.startsWith("[")) out.push({ slide, sheet: xs, range: x.range, start: 0, axis: "x", ...(typeof s.name === "string" ? { name: s.name } : {}) });
     }
   };

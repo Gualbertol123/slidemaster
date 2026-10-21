@@ -17,7 +17,7 @@ check needs PowerPoint (Windows, COM through PowerShell). The helper stays stand
         (3) PowerPoint (unless --no-ppt, or no PowerPoint): Presentations.Open read-only without a window – a file
             it cannot read raises in automation (not every repair does: (1)'s lint covers those) –; the slide count and every shape's text read back and
             compared with (2)
-        (4) with --sources ({file: {workbook, charts: [{slide, sheet, range, start?, before?, name?}]}}): one series of the
+        (4) with --sources ({file: {workbook, charts: [{slide, sheet, range, start?, before?, name?, axis?, mask?}]}}): one series of the
             chart (named `name`, when given) holds the workbook's cells at their category positions – the cells' first at
             category `start` (default 0) plus the visible cells of the ranges `before` ([{sheet, range}]: the category
             groups' before its own), a blank cell a gap there, and no value outside them
@@ -502,7 +502,8 @@ def scatter_xs(series):
 def series_at(values, cells, start):
     """(4) a series' cached values hold the cells at categories start… (a blank cell is a gap) and nothing elsewhere (4.7,
     S14.3 review 4: a series cached under the wrong categories – off by its group's start – fails)"""
-    if start < 0 or len(values) < start + len(cells):
+    # (cells past the cache's end may only be gaps: a cache's ptCount can stop at its last point)
+    if start < 0 or len(values) < start + len(cells) and any(w is not None for w in cells[max(0, len(values) - start):]):
         return False
     for i, v in enumerate(values):
         w = cells[i - start] if start <= i < start + len(cells) else None
@@ -605,6 +606,11 @@ def check(paths, slides=None, ppt=True, report=None, sources=None, expect=None):
                 found = [c for s in rep["content"]["slides"][spec["slide"] - 1:spec["slide"]] for c in s["charts"]]
                 want = source_values(src["workbook"], spec["sheet"], spec["range"])
                 cells = source_cells(src["workbook"], spec["sheet"], spec["range"])
+                # (4.7, S14.4 review 5: `mask` {sheet, range} – a scatter series' x cells: a y cell whose x is blank or text
+                # has no point, so no cache)
+                if spec.get("mask"):
+                    m = source_cells(src["workbook"], spec["mask"]["sheet"], spec["mask"]["range"])
+                    cells = [c if k < len(m) and m[k] is not None else None for k, c in enumerate(cells)]
                 # (a group's start: `start` plus the visible cells of the category ranges `before` it – hidden rows and
                 # columns skipped, as the chart skips them; S14.3 re-check)
                 start = int(spec.get("start") or 0) + sum(len(source_cells(src["workbook"], b["sheet"], b["range"])) for b in spec.get("before") or [])

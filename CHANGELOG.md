@@ -58,6 +58,26 @@ What users notice (S14.4)
   (the classic construction with an invisible base, which every PowerPoint opens) – both with their data in the
   embedded workbook, drawn where the slide draws them; no picture, no connector shape, no link.
 
+What users notice (S14.5)
+- The chart's side panel: the type switch offers every chart type (a pie or donut made by an earlier version becomes a
+  series chart of its own numbers, and can go back); the series list – add a series from cells chosen in the sheet view
+  (any sheet, a linked workbook's too), remove it, move it up or down, its name (typed or from a cell), colour, numbers,
+  x values (scatter), targets ("actual inside target"), type and left / right axis in a combined chart, smoothed line
+  and markers, its labels and their place, hidden; the selected point's colour, marker colour and label (or none), and
+  in a waterfall "a total"; each axis' minimum, maximum, step, number format, gridlines, shown; the legend's place and
+  which entries it lists; category groups (another range's categories beside the first) with their labels and dividers;
+  marks at the selected point – an arrow from the axis, an icon or a text above it, a line or a band to the next point –
+  with their text, icon, colour and place; a frame and a line under the title. Each change is one undo step, and two
+  people changing two different series at once both keep their change.
+- A click on a chart's point or mark selects it (a ring shows it; the status line names it).
+- A stack per series is not offered: PowerPoint's native charts stack a whole chart, never one series apart, so it
+  could not be exported (the panel shows it switched off and says why); the chart's own Stack setting is there.
+- (S14.4 review) A waterfall's labels stay inside the chart (a decrease ending on the axis is labelled above its
+  column), so PowerPoint shows every one of them; Edit Data on a waterfall in PowerPoint moves its columns when a value
+  changes (formulas in the embedded workbook – while each step keeps its side of zero); its connectors take the design's
+  axis-line colour; in Liquid Glass a column across zero keeps one gradient in PowerPoint. A scatter point outside a
+  fixed x axis range is left out, as in Excel and PowerPoint, instead of standing on the plot's edge.
+
 ## 4.6.0 - unreleased (PLAN M13; prepared 2026-10-21, dated at the tag)
 
 What users notice
