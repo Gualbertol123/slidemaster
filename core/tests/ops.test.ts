@@ -165,6 +165,16 @@ describe("inverse of slide.add / slide.remove, table.add / table.remove (S13.3, 
     expect(d.preset.slides).toEqual(base().preset.slides);
     expect(d.preset.tables).toEqual([T1, T2, T3]);
   });
+  // review of S13.3, 4: a table.remove of an id on the slide whose definition is missing from preset.tables applies (the
+  // id comes off the slide) but has no inverse – there is no definition to add back – so it drops out of its undo step.
+  // Nothing visible is lost: the slide only referenced a table that does not exist. Left as is (not in the list below,
+  // which holds ops that are skipped too)
+  it("table.remove of a table with no definition applies but has no inverse (nothing visible is lost)", () => {
+    const d: any = base(); d.preset.slides[1].tables.push("t9");
+    const op: Op = { op: "table.remove", id: "t9", slide: "s1" };
+    expect(inverseOf(d, op)).toBeNull();
+    expect(applyOp(d, op)).toBe(true); expect(d.preset.slides[1].tables).toEqual(["t1", "t2"]);
+  });
   it("an op that would be skipped has no inverse", () => {
     const none: Op[] = [
       { op: "slide.add", slide: { id: "s1", type: "content", tables: [] }, after: null },          // the id exists
@@ -173,6 +183,10 @@ describe("inverse of slide.add / slide.remove, table.add / table.remove (S13.3, 
       { op: "table.add", table: T1, slide: "s1" },                                                 // on the slide already
       { op: "table.add", table: T3, slide: "nope" },
       { op: "table.remove", id: "t1", slide: "s2" }, { op: "table.remove", id: "t1", slide: "nope" },
+      // review of S13.3, 5: a definition without the fields its kind needs; a table id twice on an added slide
+      { op: "table.add", table: { id: "t4", sheet: "S", kind: "range" } as any, slide: "s2" },
+      { op: "table.add", table: { id: "t4", sheet: "S", kind: "markers", anchor: "E1" } as any, slide: "s2" },
+      { op: "slide.add", slide: { id: "n1", type: "content", tables: ["t1", "t1"] }, after: null },
     ];
     for (const op of none) { expect(inverseOf(base(), op), JSON.stringify(op)).toBeNull(); expect(applyOp(base(), op), JSON.stringify(op)).toBe(false); }
     expect(inverseOf({ preset: null, style: {}, edits: {} } as any, { op: "slide.remove", id: "s1" })).toBeNull();
@@ -186,6 +200,35 @@ describe("inverse of slide.add / slide.remove, table.add / table.remove (S13.3, 
     const e: any = base(), del: Op = { op: "slide.remove", id: "s1" }, back = inverseOf(e, del)!;
     applyOp(e, del); applyOp(e, back);
     expect(e.preset.slides.map((s: any) => s.id)).toEqual(["s0", "s1", "s2"]);
+  });
+  /* review of S13.3, 2 – pinned, not a bug to fix here (09 §2.8 "Undo of Delete slide"): the inverse of slide.remove is
+     taken from this page's view when the op is applied (DocSync.apply). An edit of that slide by another writer with a
+     LOWER Lamport time that reaches this page later is folded before the remove – and lost when Undo adds back the copy
+     from before it. item.patch with patch null (Delete of a chart or shape) behaves the same. S13.4 may recompute the
+     inverse against the server copy when Undo runs; until then this test holds the behaviour */
+  it("undo of Delete slide puts back the slide as this page had it: another writer's earlier (Lamport) edit that arrived later is lost", () => {
+    const snap = { format: 5, gen: 1, workbook: "W.xlsx", lamport: 0, rev: 0, frontier: {}, doc: { schema: 3, workbook: "W.xlsx", rev: 0, ...base() } } as any;
+    const A = "anna@pc1#aaaaaaaa", B = "bob@pc2#bbbbbbbb";
+    const del: Op = { op: "slide.remove", id: "s1" }, undo = inverseOf(base(), del)!;            // Anna's page: Bob's edit not seen yet
+    expect((undo as any).slide.title).toBe("Loans");
+    const recs = [
+      { l: 1, w: B, s: 1, by: "bob", at: 1000, ops: [{ op: "slide.patch", id: "s1", patch: { title: "Bob's" } }] },
+      { l: 2, w: A, s: 1, by: "anna", at: 2000, ops: [del] },
+      { l: 3, w: A, s: 2, by: "anna", at: 3000, ops: [undo] },
+    ] as any[];
+    // before the undo the fold has applied Bob's edit and then removed the slide; the undo restores Anna's copy
+    expect(fold(snap, recs.slice(0, 2)).doc.preset!.slides.map(s => s.id)).toEqual(["s0", "s2"]);
+    const f = fold(snap, recs);
+    expect(f.doc.preset!.slides.map(s => s.id)).toEqual(["s0", "s1", "s2"]);
+    expect(f.doc.preset!.slides[1].title).toBe("Loans");                                      // Bob's "Bob's" is lost
+    expect(fold(snap, [...recs].reverse()).doc).toEqual(f.doc);                                // the same on every page
+    // an item deleted the same way: the undo puts back this page's copy of the item
+    const itemDel: Op = { op: "item.patch", slide: "s1", id: "k1", patch: null }, itemUndo = inverseOf(base(), itemDel)!;
+    const g = fold(snap, [
+      { l: 1, w: B, s: 1, by: "bob", at: 1000, ops: [{ op: "item.patch", slide: "s1", id: "k1", patch: { box: { x: 5, y: 5, w: 9, h: 9 } } }] },
+      { l: 2, w: A, s: 1, by: "anna", at: 2000, ops: [itemDel] }, { l: 3, w: A, s: 2, by: "anna", at: 3000, ops: [itemUndo] },
+    ] as any[]);
+    expect((g.doc.preset!.slides[1].items as any).k1.box).toEqual({ x: 0, y: 0, w: 9, h: 9 });
   });
   it("knownOp: a 4.6 page knows the four ops whole (it compacts its own records); a later page's slide type or table kind it does not", () => {
     const known: object[] = [
@@ -254,7 +297,7 @@ describe("the per-deck format guard: needsV5 / docNeedsV5 (ADR-019; 4.0.0's list
       T({ cellGrid: { A1: { o: true } } }), T({ borders: { A1: { top: "none" } } }),                      // 4.4
       C({ valign: "top" }), C({ num: "0.0%" }),                                                              // M16
       { op: "slide.add", slide: { id: "s2", type: "content", tables: [] }, after: "s1" }, { op: "slide.remove", id: "s2" },   // M13
-      { op: "table.add", slide: "s1", id: "t2" }, { op: "table.remove", slide: "s1", id: "t2" },
+      { op: "table.add", table: { id: "t2", sheet: "S", kind: "range", range: "A1:B2" }, slide: "s1", at: 0 }, { op: "table.remove", slide: "s1", id: "t2" },
       { op: "version.patch", id: "v", patch: { drop: [] } },                                                 // M15
       { op: "chart.patch" }, ST({ ribbon: 1 }),                                                              // anything later
       { op: "preset.set", preset: { sheets: [], tables: [], slides: [{ id: "s1", type: "content", tables: [], items: { c1: { kind: "shape", shape: "rect", box } } }] } },

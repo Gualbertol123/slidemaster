@@ -7525,5 +7525,634 @@
         ]
       }
     }
+  },
+  {
+    "name": "table.remove of a table that is not on that slide (the slide exists) is skipped (review of S13.3, 6)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s0",
+            "type": "cover",
+            "tables": [],
+            "title": "Review"
+          },
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.remove",
+        "id": "t2",
+        "slide": "s1"
+      },
+      {
+        "op": "table.remove",
+        "id": "t9",
+        "slide": "s1"
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s0",
+            "type": "cover",
+            "tables": [],
+            "title": "Review"
+          },
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 0,
+      "skipped": [
+        0,
+        1
+      ]
+    }
+  },
+  {
+    "name": "slide.add of a cover and a contents (index) slide: both kept whole, where after puts them (review of S13.3, 6)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s0",
+            "type": "cover",
+            "tables": [],
+            "title": "Review"
+          },
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.add",
+        "slide": {
+          "id": "c2",
+          "type": "cover",
+          "tables": [],
+          "title": "Q3 review",
+          "subtitle": "Draft"
+        },
+        "after": "s2"
+      },
+      {
+        "op": "slide.add",
+        "slide": {
+          "id": "ix",
+          "type": "index",
+          "tables": [],
+          "title": "Contents"
+        },
+        "after": "s0"
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s0",
+            "type": "cover",
+            "tables": [],
+            "title": "Review"
+          },
+          {
+            "id": "ix",
+            "type": "index",
+            "tables": [],
+            "title": "Contents"
+          },
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          },
+          {
+            "id": "c2",
+            "type": "cover",
+            "tables": [],
+            "title": "Q3 review",
+            "subtitle": "Draft"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": []
+    }
+  },
+  {
+    "name": "table.add is skipped when the definition lacks what its kind needs (a range's range, markers' anchor and index); slide.add with a table id twice is skipped (review of S13.3, 5)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s0",
+            "type": "cover",
+            "tables": [],
+            "title": "Review"
+          },
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "table.add",
+        "table": {
+          "id": "t3",
+          "sheet": "S",
+          "kind": "range"
+        },
+        "slide": "s1"
+      },
+      {
+        "op": "table.add",
+        "table": {
+          "id": "t3",
+          "sheet": "S",
+          "kind": "range",
+          "range": ""
+        },
+        "slide": "s1"
+      },
+      {
+        "op": "table.add",
+        "table": {
+          "id": "t3",
+          "sheet": "S",
+          "kind": "markers",
+          "index": 1
+        },
+        "slide": "s1"
+      },
+      {
+        "op": "table.add",
+        "table": {
+          "id": "t3",
+          "sheet": "S",
+          "kind": "markers",
+          "anchor": "H1"
+        },
+        "slide": "s1"
+      },
+      {
+        "op": "table.add",
+        "table": {
+          "id": "t3",
+          "sheet": "S",
+          "kind": "markers",
+          "anchor": "H1",
+          "index": -1
+        },
+        "slide": "s1"
+      },
+      {
+        "op": "table.add",
+        "table": {
+          "id": "t3",
+          "sheet": "S",
+          "kind": "markers",
+          "anchor": "H1",
+          "index": "1"
+        },
+        "slide": "s1"
+      },
+      {
+        "op": "slide.add",
+        "slide": {
+          "id": "n1",
+          "type": "content",
+          "tables": [
+            "t1",
+            "t1"
+          ]
+        },
+        "after": "s1"
+      },
+      {
+        "op": "table.add",
+        "table": {
+          "id": "t3",
+          "sheet": "S",
+          "kind": "markers",
+          "anchor": "H1",
+          "index": 1
+        },
+        "slide": "s1"
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "E1",
+            "index": 0
+          },
+          {
+            "id": "t3",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "H1",
+            "index": 1
+          }
+        ],
+        "slides": [
+          {
+            "id": "s0",
+            "type": "cover",
+            "tables": [],
+            "title": "Review"
+          },
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t3"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t2"
+            ],
+            "title": "Deposits"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    }
+  },
+  {
+    "name": "fold: a Wizard's preset.set with a higher Lamport time replaces a concurrent slide.add (whole value); a slide.add after it lands in the new preset (review of S13.3, 6; app.ts warns only the wizard's author)",
+    "fold": {
+      "snapshot": {
+        "format": 5,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": {
+            "sheets": [
+              "S"
+            ],
+            "tables": [
+              {
+                "id": "t1",
+                "sheet": "S",
+                "kind": "range",
+                "range": "A1:C6"
+              },
+              {
+                "id": "t2",
+                "sheet": "S",
+                "kind": "markers",
+                "anchor": "E1",
+                "index": 0
+              }
+            ],
+            "slides": [
+              {
+                "id": "s0",
+                "type": "cover",
+                "tables": [],
+                "title": "Review"
+              },
+              {
+                "id": "s1",
+                "type": "content",
+                "tables": [
+                  "t1"
+                ],
+                "title": "Loans"
+              },
+              {
+                "id": "s2",
+                "type": "content",
+                "tables": [
+                  "t2"
+                ],
+                "title": "Deposits"
+              }
+            ]
+          },
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": 3,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 3000,
+          "ops": [
+            {
+              "op": "preset.set",
+              "preset": {
+                "sheets": [
+                  "S"
+                ],
+                "tables": [
+                  {
+                    "id": "t1",
+                    "sheet": "S",
+                    "kind": "range",
+                    "range": "A1:C6"
+                  }
+                ],
+                "slides": [
+                  {
+                    "id": "s1",
+                    "type": "content",
+                    "tables": [
+                      "t1"
+                    ],
+                    "title": "Loans (wizard)"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "l": 2,
+          "w": "bob@pc2#bbbbbbbb",
+          "s": 1,
+          "by": "bob",
+          "at": 2000,
+          "ops": [
+            {
+              "op": "slide.add",
+              "slide": {
+                "id": "nb",
+                "type": "content",
+                "tables": [],
+                "title": "Bob's"
+              },
+              "after": "s1"
+            }
+          ]
+        },
+        {
+          "l": 4,
+          "w": "carol@pc3#cccccccc",
+          "s": 1,
+          "by": "carol",
+          "at": 4000,
+          "ops": [
+            {
+              "op": "slide.add",
+              "slide": {
+                "id": "nc",
+                "type": "content",
+                "tables": [],
+                "title": "Carol's"
+              },
+              "after": "s1"
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {},
+      "rev": 3,
+      "lamport": 4,
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:C6"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans (wizard)"
+          },
+          {
+            "id": "nc",
+            "type": "content",
+            "tables": [],
+            "title": "Carol's"
+          }
+        ]
+      }
+    }
   }
 ]

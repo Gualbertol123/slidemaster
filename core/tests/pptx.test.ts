@@ -415,9 +415,13 @@ describe("a slide with no tables (S13.3, 09 §2.8): lays out, draws and exports 
     expect(L2.area!.h).toBeGreaterThan(600);
   });
   for (const design of ["glass", "excel", "clean", "mckinsey", "bain"] as Design[]) it(design + ": the display list holds the title and the item; the PowerPoint slide has its title and no table", async () => {
-    const { sl, draw } = await weekly(design, [BLANK, PILL]);
+    const { sl, ctx, draw } = await weekly(design, [BLANK, PILL]);
     const i = sl.findIndex(s => s.id === "nb1"), dl = draw(i);
     expect(texts(dl.nodes).join(" ")).toContain("New slide");
+    // the title computeLayout gives (review of S13.3, 7: S13.4 places things by it) holds the title the design draws
+    const T = computeLayout(sl[i], ctx).title!, h = hits(dl.nodes).find(n => n.id === "title")!;
+    expect(h, "title hit").toBeDefined();
+    expect([h.x >= T.x - 0.5, h.y >= T.y - 0.5, h.x + h.w <= T.x + T.w + 0.5, h.y + h.h <= T.y + T.h + 0.5], JSON.stringify({ T, h })).toEqual([true, true, true, true]);
     expect(dl.items.k1).toBeDefined();
     const sem: SlideSem = { type: "content", items: Object.fromEntries(Object.entries(dl.items).flatMap(([id, it]) => it.pptx ? [[id, it.pptx]] : [])), palette: [] };
     const bytes = writePptx({ slides: [{ nodes: dl.nodes, sem }], image: () => PNG, face: css => pptxFamily(css) });

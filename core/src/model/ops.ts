@@ -89,7 +89,10 @@ export function applyOp(doc: Doc, op: Op | Record<string, unknown>): boolean {
     case "slide.add": {
       if (!doc.preset || !isSlide(o.slide) || (o.after !== null && typeof o.after !== "string")) return false;
       const slides = doc.preset.slides, id = o.slide.id;
-      if (slides.some(x => x.id === id)) return false;                                // an id that exists: the first add stays
+      // an id that exists: the first add stays. So ids must be unique per writer (S13.4 makes them from the writer id and
+      // its seq, or random): two pages making the same id ("s" + count) would merge two users' slides – the second
+      // user's later slide.patch / table.add / item.patch landing on the first user's slide (review of S13.3, 3)
+      if (slides.some(x => x.id === id)) return false;
       const at = o.after === null ? 0 : slides.findIndex(x => x.id === o.after) + 1 || slides.length;
       slides.splice(at, 0, clone(o.slide));
       return true;
@@ -123,10 +126,14 @@ export function applyOp(doc: Doc, op: Op | Record<string, unknown>): boolean {
   return false;
 }
 const okId = (x: unknown): x is string => typeof x === "string" && !!x && x !== "__proto__";
-/** a slide definition slide.add applies: an id, a type this page draws, a list of table ids (other keys kept whole) */
-const isSlide = (s: unknown): s is SlideDef => isObj(s) && okId(s.id) && SLIDE_TYPES.includes(s.type as string) && Array.isArray(s.tables) && s.tables.every(okId);
-/** a table definition table.add applies: an id, a sheet, a kind this page reads (other keys kept whole) */
-const isTable = (t: unknown): t is TableDef => isObj(t) && okId(t.id) && typeof t.sheet === "string" && !!t.sheet && TABLE_KINDS.includes(t.kind as string);
+/** a slide definition slide.add applies: an id, a type this page draws, a list of distinct table ids (a table twice on
+    a slide: table.remove would take off one copy only) (other keys kept whole) */
+const isSlide = (s: unknown): s is SlideDef => isObj(s) && okId(s.id) && SLIDE_TYPES.includes(s.type as string) && Array.isArray(s.tables) && s.tables.every(okId) && new Set(s.tables).size === s.tables.length;
+/** a table definition table.add applies: an id, a sheet, a kind this page reads with the fields that kind needs – a
+    range's `range`, markers' `anchor` and `index` (resolveTable copes without them, but the table would draw nothing)
+    (other keys kept whole) */
+const isTable = (t: unknown): t is TableDef => isObj(t) && okId(t.id) && typeof t.sheet === "string" && !!t.sheet && TABLE_KINDS.includes(t.kind as string)
+  && (t.kind === "range" ? typeof t.range === "string" && !!t.range : typeof t.anchor === "string" && !!t.anchor && Number.isInteger(t.index) && (t.index as number) >= 0);
 /** an op this page knows whole: a known type whose patch holds only keys this version applies, and an item of a known
     kind. applyOp skips the rest – a later version's op, key or kind – and a snapshot folded without it would lose it for
     every page: a 4.1 page did so with 4.3's charts and 4.4's free layouts (AUDIT-2 DATA-7). So a page never compacts
