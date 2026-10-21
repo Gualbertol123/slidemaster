@@ -774,6 +774,62 @@ test.describe.serial("two people, one shared folder", () => {
     await pollFile(() => { const n: any = Object.values(notes()).find((x: any) => x.text === "Source: ECB"); return n && n.x; }, { timeout: 10_000 }).toBeUndefined();
   });
 
+  test("snapping (S15.4, SN-01/SN-03): a text box outside a free layout snaps, Alt turns it off; dropped = previewed = saved = reopened, on 1/4 px", async ({ page }) => {
+    await openApp(page, BOB);
+    await expect(page.locator(".thumb")).toHaveCount(1);                                   // weekly.xlsx (last file)
+    const wdoc = () => deckDoc("weekly.xlsx");
+    const note = () => Object.values(wdoc().preset.slides[0].notes || {}).find((x: any) => x.text === "Snap SN-03") as any;
+    await page.locator("#stage .stagewrap").hover();
+    await page.locator('#stage .hbox[data-i="0"] .addnote.bottom').click();
+    await expect(page.locator("textarea.note-edit")).toBeVisible();
+    await page.keyboard.type("Snap SN-03"); await page.keyboard.press("Control+Enter");
+    await pollFile(() => !!note(), { timeout: 10_000 }).toBe(true);
+    const box = page.locator("#stage .tnote", { hasText: "Snap SN-03" });
+    await expect(box).toBeVisible();
+    // no free layout in any design: the automatic layout's text box
+    expect(Object.values(wdoc().preset.slides[0].free || {}).some((f: any) => f?.on)).toBe(false);
+    const slide = await boxOf(page.locator("#stage .slide")), s = slide.width / 1600;
+    const sx = (b: { x: number }) => (b.x - slide.x) / s;                                  // screen → slide px
+    const tableX = sx(await boxOf(page.locator('#stage .slide > .tw[data-i="0"]')));
+    /** a drag of the box by its body (dx, dy screen px), Alt or not: its left edge in slide px while the preview is shown */
+    const drag = async (dx: number, dy: number, alt: boolean) => {
+      const b = await boxOf(box);
+      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); if (alt) await page.keyboard.down("Alt");
+      await page.mouse.down(); await page.mouse.move(b.x + b.width / 2 + dx, b.y + b.height / 2 + dy, { steps: 8 });
+      const shown = sx(await boxOf(page.locator("#stage .tnote", { hasText: "Snap SN-03" }).first()));
+      const guides = await page.locator("#stage .snapline.v").count();
+      await page.mouse.up(); if (alt) await page.keyboard.up("Alt");
+      return { shown, guides };
+    };
+    // Alt: 3 screen px right of the table's left edge, stays there – no guide
+    const x0 = sx(await boxOf(box));
+    const a = await drag((tableX - x0) * s + 3, 40, true);
+    expect(a.guides).toBe(0);
+    await pollFile(() => note()?.x != null, { timeout: 10_000 }).toBe(true);
+    const altX = note().x;
+    expect(Math.abs(altX - (tableX + 3 / s))).toBeLessThan(.6);
+    expect(altX * 4 % 1).toBe(0);                                                          // on 1/4 px
+    expect(Math.abs(a.shown - altX)).toBeLessThan(.1);                                     // dropped = previewed
+    // without Alt, 2 screen px off: onto the table's left edge, its guide drawn
+    const b = await drag((tableX - altX) * s + 2, 30, false);
+    expect(b.guides).toBeGreaterThan(0);
+    await pollFile(() => note().x !== altX, { timeout: 10_000 }).toBe(true);
+    const saved = note();
+    expect(Math.abs(saved.x - tableX)).toBeLessThan(.3);
+    expect(saved.x * 4 % 1).toBe(0); expect(saved.y * 4 % 1).toBe(0);
+    expect(Math.abs(b.shown - saved.x)).toBeLessThan(.1);
+    // reopened: drawn where it was saved
+    await openApp(page, BOB);
+    await expect(page.locator(".thumb")).toHaveCount(1);
+    const slide2 = await boxOf(page.locator("#stage .slide")), s2 = slide2.width / 1600, again = await boxOf(page.locator("#stage .tnote", { hasText: "Snap SN-03" }));
+    expect(Math.abs((again.x - slide2.x) / s2 - saved.x)).toBeLessThan(.1);
+    expect(Math.abs((again.y - slide2.y) / s2 - saved.y)).toBeLessThan(.1);
+    expect(note()).toMatchObject({ x: saved.x, y: saved.y });
+    // gone again (the later tests of weekly.xlsx count its text boxes)
+    await page.locator("#stage .tnote", { hasText: "Snap SN-03" }).click(); await page.click("#noteDelete");
+    await pollFile(() => !!note(), { timeout: 10_000 }).toBe(false);
+  });
+
   test("notes section of a slide: where the footer is, movable next to the page number; raw Excel draws it too (B19); menus open", async ({ page }) => {
     await openApp(page, BOB);
     await expect(page.locator(".thumb")).toHaveCount(1);

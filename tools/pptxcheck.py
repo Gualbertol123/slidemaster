@@ -34,7 +34,9 @@ check needs PowerPoint (Windows, COM through PowerShell). The helper stays stand
         (7) lines (4.8, M15 S15.3; 09 §4.3, LN-03, check_lines): every shape or group named "Line n" is plain shapes – no
             connector (p:cxnSp), no picture –; its stroke a:prstGeom "line" or an open a:custGeom (fill="none") with a
             drawn a:ln whose ends (a:headEnd / a:tailEnd) are DrawingML's types; with --expect, each slide holds exactly
-            the entries' `lines` (tools/real-icons.mjs linesOf: the core's line items)
+            the entries' `lines` (tools/real-icons.mjs linesOf: the core's line items) and, where the entry gives them
+            (S15.5), exactly its `heads` (native a:headEnd / a:tailEnd of a type other than none, over its lines) and
+            `dashed` (lines with a dashed stroke: a:custDash or an a:prstDash other than solid)
         exit 1 when any check fails; --json writes every file's report (the content of (2) included)
     python tools/pptxcheck.py info a.pptx [...]      the report of (1) and (2) as JSON, nothing checked
 """
@@ -677,6 +679,21 @@ def lines(path):
     return out
 
 
+def _line_facts(el):
+    """(native heads, dashed) of one line: its a:headEnd / a:tailEnd of a type other than none, and 1 when a stroke of
+    it is dashed (a:custDash, or an a:prstDash other than solid)"""
+    heads, dashed = 0, 0
+    for ln in el.iter(A + "ln"):
+        for tag in ("a:headEnd", "a:tailEnd"):
+            e = ln.find(tag, NS)
+            if e is not None and (e.get("type") or "none") != "none":
+                heads += 1
+        pd = ln.find("a:prstDash", NS)
+        if ln.find("a:custDash", NS) is not None or (pd is not None and pd.get("val") not in (None, "solid")):
+            dashed = 1
+    return heads, dashed
+
+
 def check_lines(path, expect=None, rep=None):
     """(7) the lines of a file: each one plain shapes with a drawn stroke and native ends (_line_problems); with `expect`
     ({slide, lines} entries, tools/real-icons.mjs linesOf) each slide holds exactly that many, a slide not listed none"""
@@ -684,8 +701,11 @@ def check_lines(path, expect=None, rep=None):
         per = lines(path)
     except (KeyError, zipfile.BadZipFile, ET.ParseError) as e:
         return ["lines not read: %s" % e]
+    facts = [[_line_facts(el) for el in found] for found in per]
     if rep is not None:
         rep["lines"] = [len(x) for x in per]
+        rep["line_heads"] = [sum(h for h, _ in f) for f in facts]
+        rep["lines_dashed"] = [sum(d for _, d in f) for f in facts]
     bad = []
     for i, found in enumerate(per):
         for k, el in enumerate(found):
@@ -696,6 +716,13 @@ def check_lines(path, expect=None, rep=None):
             have = len(per[n - 1]) if 0 < n <= len(per) else 0
             if have != want.get(n, 0):
                 bad.append("slide %d: %d line(s), the export draws %d" % (n, have, want.get(n, 0)))
+        # the native ends and the dashed lines, where the expectation counts them (S15.5)
+        for e in expect:
+            n = e["slide"]
+            f = facts[n - 1] if 0 < n <= len(facts) else []
+            for key, idx, what in (("heads", 0, "native line end(s)"), ("dashed", 1, "dashed line(s)")):
+                if key in e and sum(x[idx] for x in f) != e[key]:
+                    bad.append("slide %d: %d %s, the export draws %d" % (n, sum(x[idx] for x in f), what, e[key]))
     return bad
 # ---- end of M15's line block ----
 

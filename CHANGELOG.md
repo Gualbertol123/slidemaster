@@ -27,11 +27,15 @@ What users notice
   layout; *Detach* frees both ends. The ribbon sets its kind, colour, weight, dashes, the end at each side (arrow, open
   arrow, stealth, dot, diamond, tick) and a label, which can quote a cell like a callout ({Sheet!C7}). Each change is
   one undo step. If an attached end's object is deleted, the end stays where it was and the Issues panel says "Line n:
-  its end lost its object".
+  its end lost its object". A line without its own colour takes the colour the deck sets for text boxes (else the
+  design's ink); on a dark slide colour it is light, so it shows. A label sits on the colour under it – the slide, a
+  consulting design's dark band or Consulting Red's panel – in white where the line's ink would not read there.
 * **Lines in PowerPoint are ordinary line shapes** with PowerPoint's own arrowheads – never connectors and never
   pictures – placed where the line is drawn on the slide (PowerPoint does not keep them attached). Their labels are
-  text boxes grouped with them. In the PDF and on screen they are drawn as on the slide. Older versions (4.6, 4.7) do
-  not show the new lines – open such decks in 4.8.
+  text boxes grouped with them. Dashes are kept, and the ticks of a range marker or limiter stay solid with round ends
+  as on the slide (beside a dashed line or an arrowhead they are a small shape of their own in the same group). In the
+  PDF and on screen they are drawn as on the slide. Older versions (4.6, 4.7) do not show the new lines – open such
+  decks in 4.8.
 * **Snapping for every object** (B32): moving or resizing a table in free layout, a text box, the notes section, a
   chart, a shape, an icon or a line (its ends, its bend, the whole line) lines up with the slide's edges, its centre
   lines and margins, the other objects' edges and centres, the tables' column and row borders and the other lines'
@@ -41,7 +45,10 @@ What users notice
   (text boxes used to snap with Alt held outside free layout). The guides are only on screen, never in the PDF or
   PowerPoint file.
 * **Objects stay exactly where they are dropped**: positions and sizes are saved on a 1/4 px grid, the same number the
-  screen showed while dragging, so the PDF and PowerPoint place them identically (no half-pixel jump on drop).
+  screen showed while dragging, so the PDF and PowerPoint place them identically (no half-pixel jump on drop) – also
+  for a table pushed against the slide's right or bottom edge in free layout, a table resized by its top or bottom
+  edge onto a guide, and an elbow's bend. An object saved by an earlier version moves by at most 1/8 px the first time
+  it is dragged (only the values the drag changes; nothing moves when a deck is just opened).
 
 ## 4.7.0 - unreleased (PLAN M14: charts; B30, B31)
 

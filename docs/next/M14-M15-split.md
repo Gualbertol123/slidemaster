@@ -108,3 +108,18 @@ only when an unchanged line stands between them, so these splits keep the two me
   moved (`line-dl.ts` `savedEnds`), so nothing jumps when a 4.6 / 4.7 page switched free layout on.
 * **A bracket is square only**: 09 §2.3 mentions a curly one, but `LineItem` has no field to choose it (types.ts is
   S14.P's); a curly bracket needs a key (a decision under 09 §9).
+
+## 6. Recorded in M15 (S15.5, with the S15.3 / S15.4 follow-ups)
+
+* **Shared lines S15.5 touched**:
+  - `render/slide-dl.ts`: the slide's background colour is one const `slideBg` (declared just above "the background"),
+    the two background lines use it, and `groundAt` (the colour under a line's label: Consulting Red's panel, a
+    consulting design's dark band, else `slideBg`) sits at the top of the items' section, before `chartItem`. `chartItem`
+    and the dispatch are unchanged.
+  - `tools/pptxcheck.py` (M15's line block): `_line_facts` and the `heads` / `dashed` comparison in `check_lines`, two
+    report keys (`line_heads`, `lines_dashed`); `tools/real-icons.mjs` `linesOf` / `withLines` carry `heads` and `dashed`.
+    An expectation without them is checked as before (M14's entries are unaffected).
+  - `tools/bench.mjs`: only the `snapFrames` scenario (its comment, and a click that selects the item when its corner
+    handle is not drawn).
+  - `app/e2e/app.spec.ts`: one test added after "the + button puts a text box there at once…" (weekly.xlsx; it deletes
+    its text box at the end).

@@ -28,6 +28,8 @@ import { calloutText } from "./shape-dl";
 import { parseColor, solid } from "../dl/color";
 import { isConsult } from "../model/designs";
 import { specOf } from "./consult-spec";
+import { deckFmt } from "./text";
+import { themeVars } from "./slide";
 
 export type Pt = { x: number; y: number };
 const r2 = (v: number) => Math.round(v * 100) / 100 || 0;
@@ -179,16 +181,27 @@ export function routeDistance(d: PathCmd[], p: Pt): number {
 }
 
 /* ---- the look ---- */
-/** the line's colour: its own, else the design's ink – a divider's (straight, dashed or dotted, no heads) the design's rule
-    colour (09 §3.4) */
+/** relative luminance of a #RRGGBB colour (WCAG), 0–1 */
+export function luminance(hex: string): number {
+  const v = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(c => c <= .03928 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4);
+  return .2126 * v[0] + .7152 * v[1] + .0722 * v[2];
+}
+/** a ground dark enough for white ink (a dark band, Consulting Red's panel, a dark custom slide colour) */
+export const darkGround = (hex: string | null | undefined) => !!hex && HEX.test(hex) && luminance(hex) < .18;
+/** the line's colour: its own, else the design's ink (09 §3.4) – the colour the text boxes are written in when the deck
+    sets one (the theme's text colour: Text format › Text boxes), else Liquid Glass's text colour, Excel's and Clean's
+    #404040, the consulting designs' ink; a divider's (straight, dashed or dotted, no heads) the design's rule colour.
+    On a dark slide colour (Excel / Clean with a dark custom background) a light ink, so that it shows */
 export function lineColor(it: Pick<LineItem, "route" | "style">, ctx: RenderCtx): string {
   const own = it.style?.color;
   if (typeof own === "string" && HEX.test(own)) return own.toUpperCase();
   const h = headsOf(it), divider = it.route === "straight" && !headOk(h.a) && !headOk(h.b) && !!it.style?.dash && it.style.dash !== "solid";
-  const d = ctx.style.design;
-  if (isConsult(d)) { const C = specOf(ctx); return divider ? (C.bottomRule?.color || "#BFBFBF") : d === "mckinsey" ? "#051C2C" : "#4D4D4D"; }
-  if (d === "glass") return divider ? "#9AA1AE" : "#0B0D17";
-  return divider ? "#BFBFBF" : "#404040";
+  const d = ctx.style.design, deck = deckFmt(ctx, "note").color, text = typeof deck === "string" && HEX.test(deck) ? deck.toUpperCase() : null;
+  if (isConsult(d)) { const C = specOf(ctx); return divider ? (C.bottomRule?.color || "#BFBFBF") : text || (d === "mckinsey" ? "#051C2C" : "#4D4D4D"); }
+  if (d === "glass") return divider ? "#9AA1AE" : text || "#0B0D17";
+  const bg = themeVars(ctx)["--slidebg"];
+  if (darkGround(bg)) return divider ? "#8C8C8C" : text && !darkGround(text) ? text : "#F2F2F2";
+  return divider ? "#BFBFBF" : text || "#404040";
 }
 const DASH = { dashed: (w: number) => [w * 4, w * 3], dotted: (w: number) => [w, w * 2], dashdot: (w: number) => [w * 4, w * 2, w, w * 2] } as const;
 /** the stroke of a line item (09 §3.4): weight, colour, dash, caps and joins */
@@ -197,8 +210,8 @@ export function lineStroke(it: Pick<LineItem, "route" | "style">, ctx: RenderCtx
   const plain = !headOk(h.a) && !headOk(h.b) && !dash;
   return { w, paint: solid(lineColor(it, ctx)), ...(dash ? { dash } : {}), cap: plain ? "round" : "butt", join: it.route === "curve" ? "round" : "miter" };
 }
-/** the ground behind a label (it reads across the line): the slide's background colour (slide-dl.ts gives it); none
-    given (Liquid Glass, over its wallpaper) a white chip */
+/** the ground behind a label (it reads across the line): the colour under its centre (slide-dl.ts gives it: the slide's
+    background, a consulting design's dark band or message panel); none (Liquid Glass, over its wallpaper) a white chip */
 function groundOf(given: string | null | undefined): { color: string; a: number; r: number } {
   return given && HEX.test(given) ? { color: given, a: 1, r: 0 } : { color: "#FFFFFF", a: .85, r: 6 };
 }
@@ -210,7 +223,9 @@ export interface LineSem { route: PathCmd[]; straight: boolean; a: Pt; b: Pt; st
   /** native ends: a:headEnd on a (the path's first point), a:tailEnd on b */ head: Head | null; tail: Head | null; size: Heads["size"] | null;
   /** the limiter's ticks ("bar" heads), each a segment */ bars: PathCmd[][]; label: Node[] }
 export interface LineDL { nodes: Node[]; issue: string | null; /** the bounds of what is drawn (the stage's layer) */ box: Box; sem: LineSem | null }
-export interface LineEnv { family: string; m: Metrics; /** the slide's background colour behind a label; null: a white chip (Liquid Glass) */ ground?: string | null }
+export interface LineEnv { family: string; m: Metrics;
+  /** the colour under a label: one for the slide, or the colour at a point (slide-dl.ts groundAt); null: a white chip (Liquid Glass) */
+  ground?: string | null | ((p: Pt) => string | null) }
 /** a line item at its resolved ends → its nodes (stroke, heads, label, hits) */
 export function lineNodes(it: LineItem, id: string, ends: Ends | null, ctx: RenderCtx, env: LineEnv): LineDL {
   if (!ends) return { nodes: [], issue: "its ends are not on the slide (no numbers)", box: it.box, sem: null };
@@ -230,7 +245,9 @@ export function lineNodes(it: LineItem, id: string, ends: Ends | null, ctx: Rend
     for (const g of [ga, gb]) if (g) headNodes.push(g.filled ? { t: "path", d: g.d, fill: ink } : { t: "path", d: g.d, stroke: { w: st.w, paint: ink, cap: "round", join: "round" } });
   }
   nodes.push(...headNodes);
-  // hits along the line: a 12 px band (at least the weight and its heads), one box per segment
+  // hits along the line: a 12 px band (at least the weight and its heads), one axis-aligned box per segment – coarse on a
+  // long diagonal (its box covers the whole rectangle): the stage hit-tests a line by its SVG stroke (stage/lines.tsx),
+  // and snapping takes a line's ends and middle (stage/drags.ts snapTargets), never these boxes
   const pts = routePoints(R.d), band = Math.max(6, st.w / 2 + 2, ha || hb ? headLength(st.w, size) / 2 : 0);
   for (let i = 1; i < pts.length; i++) {
     const p = pts[i - 1], q = pts[i];
@@ -257,15 +274,25 @@ function shorten(d: PathCmd[], ka: number, kb: number): PathCmd[] {
   if (!(ka > 0) && !(kb > 0)) return d;
   const out = d.map(c => c.slice() as PathCmd);
   const move = (p: [number, number], q: [number, number], k: number): [number, number] => { const L = Math.hypot(q[0] - p[0], q[1] - p[1]); if (!(L > 0)) return p; const t = Math.min(k, L / 2) / L; return [r2(p[0] + (q[0] - p[0]) * t), r2(p[1] + (q[1] - p[1]) * t)]; };
-  if (ka > 0 && out.length > 1) {
-    const s = out[0] as ["M", number, number], n = out[1];
-    const toward: [number, number] = n[0] === "C" ? [n[1], n[2]] : [(n as ["L", number, number])[1], (n as ["L", number, number])[2]];
-    const [x, y] = move([s[1], s[2]], toward, ka); out[0] = ["M", x, y];
+  // the end points of the segments (a cubic: its control points first), so that a segment of no length – an elbow bent
+  // at an end (mid 0 or 1) – is passed over: the stroke goes back under the head along the first segment that has one
+  const pts = out.flatMap((c): [number, number][] => c[0] === "M" || c[0] === "L" ? [[c[1], c[2]]] : c[0] === "C" ? [[c[1], c[2]], [c[3], c[4]], [c[5], c[6]]] : []);
+  const away = (p: [number, number], list: [number, number][]) => list.find(q => Math.abs(q[0] - p[0]) > 1e-6 || Math.abs(q[1] - p[1]) > 1e-6) ?? p;
+  if (ka > 0 && out.length > 1 && out[0][0] === "M") {
+    const s = out[0] as ["M", number, number], [x, y] = move([s[1], s[2]], away([s[1], s[2]], pts.slice(1)), ka);
+    // a first segment of no length moves with its start (the bend stays a corner)
+    const n = out[1];
+    if ((n[0] === "L") && Math.abs(n[1] - s[1]) < 1e-6 && Math.abs(n[2] - s[2]) < 1e-6) out[1] = ["L", x, y];
+    out[0] = ["M", x, y];
   }
   if (kb > 0 && out.length > 1) {
-    const e = out[out.length - 1], prev = out[out.length - 2];
-    if (e[0] === "L") { const from: [number, number] = prev[0] === "C" ? [prev[5], prev[6]] : [(prev as ["L", number, number])[1], (prev as ["L", number, number])[2]]; const [x, y] = move([e[1], e[2]], from, kb); out[out.length - 1] = ["L", x, y]; }
-    else if (e[0] === "C") { const [x, y] = move([e[5], e[6]], [e[3], e[4]], kb); out[out.length - 1] = ["C", e[1], e[2], e[3], e[4], x, y]; }
+    const e = out[out.length - 1];
+    if (e[0] === "L" || e[0] === "C") {
+      const tip: [number, number] = e[0] === "L" ? [e[1], e[2]] : [e[5], e[6]], [x, y] = move(tip, away(tip, pts.slice(0, -1).reverse()), kb);
+      const p = out[out.length - 2];
+      if (e[0] === "L" && p[0] === "L" && Math.abs(p[1] - tip[0]) < 1e-6 && Math.abs(p[2] - tip[1]) < 1e-6) out[out.length - 2] = ["L", x, y];
+      out[out.length - 1] = e[0] === "L" ? ["L", x, y] : ["C", e[1], e[2], e[3], e[4], x, y];
+    }
   }
   return out;
 }
@@ -275,14 +302,17 @@ function labelNodes(it: LineItem, id: string, text: string, R: Route, st: Stroke
   const f = it.fmt || {}, size = typeof f.size === "number" && f.size > 0 ? Math.max(8, Math.min(72, f.size)) : 16;
   const weight = f.b ? 700 : 400, italic = !!f.i, family = typeof f.font === "string" && f.font ? `"${f.font}",${env.family}` : env.family;
   const font = `${italic ? "italic " : ""}${weight} ${size}px ${family}`;
-  const ink = typeof f.color === "string" && HEX.test(f.color) ? f.color : "solid" in st.paint ? "#" + st.paint.solid.map(v => v.toString(16).padStart(2, "0")).join("").toUpperCase() : "#404040";
+  const ink0 = "solid" in st.paint ? "#" + st.paint.solid.map(v => v.toString(16).padStart(2, "0")).join("").toUpperCase() : "#404040";
   const lines = text.split("\n").flatMap(p => p.trim() ? env.m.lines(p, font, 320) : [""]).slice(0, 6);
   const runs = lines.map(l => ({ l, r: env.m.run(l, font) })), lh = Math.round(size * 1.25);
   const W = Math.max(1, ...runs.map(x => x.r.w)), H = lh * lines.length, padX = 6, padY = 2;
   // the box's centre: on the middle, or pushed off the line by half the box and the stroke (a range, a bracket)
   const off = R.push ? (Math.abs(R.push.x) * (W / 2 + padX) + Math.abs(R.push.y) * (H / 2 + padY)) + st.w + 4 : 0;
   const cx = R.label.x + (R.push?.x ?? 0) * off, cy = R.label.y + (R.push?.y ?? 0) * off;
-  const bx = r2(cx - W / 2 - padX), by = r2(cy - H / 2 - padY), bw = r2(W + 2 * padX), bh = r2(H + 2 * padY), g = groundOf(env.ground);
+  const under = typeof env.ground === "function" ? env.ground({ x: cx, y: cy }) : env.ground;
+  const bx = r2(cx - W / 2 - padX), by = r2(cy - H / 2 - padY), bw = r2(W + 2 * padX), bh = r2(H + 2 * padY), g = groundOf(under);
+  // the text in its own colour, else the line's – white where the line's ink would not read on a dark ground
+  const ink = typeof f.color === "string" && HEX.test(f.color) ? f.color : darkGround(under) && darkGround(ink0) ? "#FFFFFF" : ink0;
   const align = f.align === "left" ? "left" : f.align === "right" ? "right" : "center";
   const out: Node[] = [{ t: "rect", x: bx, y: by, w: bw, h: bh, ...(g.r ? { r: g.r } : {}), fill: { solid: parseColor(g.color).c, ...(g.a < 1 ? { a: g.a } : {}) } },
     { t: "hit", kind: "item", id, x: bx, y: by, w: bw, h: bh, label: lines.join("\n") }];

@@ -5,7 +5,7 @@ type Lists = { dl: { nodes: unknown[] }; sem?: { items: Record<string, { kind: s
 export function iconsOf(lists: Lists): RealIcons[];
 export function pageIcons(design: string): string;
 export function withIcons(real: RealObjects[], icons: RealIcons[]): (RealObjects & { icons?: number })[];
-export interface RealLines { slide: number; lines: number }
+export interface RealLines { slide: number; lines: number; /** native a:headEnd / a:tailEnd (S15.5) */ heads?: number; /** lines with a dashed stroke (S15.5) */ dashed?: number }
 export function linesOf(lists: Lists): RealLines[];
 export function pageLines(design: string): string;
-export function withLines<T extends RealObjects>(real: T[], lines: RealLines[]): (T & { lines?: number })[];
+export function withLines<T extends RealObjects>(real: T[], lines: RealLines[]): (T & { lines?: number; heads?: number; dashed?: number })[];

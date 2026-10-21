@@ -5,7 +5,7 @@
    a text box outside a free layout and a line's end snap the same way; Alt turns it off for every object; the
    positions dropped are those previewed, on 1/4 px at any zoom, and those saved. (jsdom has no PointerEvent: a
    MouseEvent with its name stands in; the stage is at scale 1 unless a test sets it.) */
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import fs from "node:fs";
 import path from "node:path";
@@ -16,17 +16,22 @@ vi.mock("../src/render/wall", async orig => ({ ...(await orig() as object), appl
 
 import { App } from "../src/ui/App";
 import { get } from "../src/state/store";
-import { change, gotoSlide, openLocalFile } from "../src/state/app";
+import { change, ctx, gotoSlide, openLocalFile } from "../src/state/app";
+import { freeLayoutOff, freeLayoutOn } from "../src/editor/free";
+import { colEdges } from "../src/stage/hit";
 import { selectItem } from "../src/editor/charts";
 import { insertLine } from "../src/editor/lines";
 import { setStage, useStage } from "../src/stage/data";
 import { indexWorkbook } from "@slide-builder/core/xlsx/workbook";
 import { defaultPreset } from "@slide-builder/core/model/preset";
-import { noteKey } from "@slide-builder/core/render/layout";
-import type { LineItem, Op, RuntimeSlide, ShapeItem } from "@slide-builder/core/model/types";
+import { computeLayout, freeKey, noteKey, tableH, tableW } from "@slide-builder/core/render/layout";
+import { routeOf } from "@slide-builder/core/render/line-dl";
+import { slideCtx } from "@slide-builder/core/render/look";
+import type { Design, LineItem, Op, RuntimeSlide, ShapeItem } from "@slide-builder/core/model/types";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 Element.prototype.scrollIntoView ??= function () { /* nothing to scroll */ };
+Element.prototype.setPointerCapture ??= function () { /* jsdom: no capture */ };
 (globalThis as { PointerEvent?: unknown }).PointerEvent ??= class PointerEvent extends MouseEvent { pointerId = 1; };
 async function settle(n = 8) { for (let i = 0; i < n; i++) await act(async () => { await new Promise(r => setTimeout(r, 0)); }); }
 const history = () => get().deck.history.undo;
@@ -184,5 +189,126 @@ describe("snapping on the stage (S15.4, SN-01…SN-03)", () => {
       await confirmed(h0 + 2);
       expect(shape("sb").box.x).toBe(1210);
     } finally { await act(async () => { setStage({ scale: 1 }); }); await settle(); }
+  }, 60_000);
+
+  /* ---- S15.4 review follow-ups (w2-review-S15.4 findings 1, 2, 3, 5) ---- */
+  const q4 = (v: number) => Math.abs(v * 4 - Math.round(v * 4)) < 1e-9;
+  /** free layout on, table 0 at (x, y) at scale k (its width then off the 1/4 px grid), drawn */
+  async function freeTable0(x: number, y: number, k: number) {
+    const h0 = history();
+    await act(async () => freeLayoutOn(R())); await confirmed(h0 + 1);
+    const c = slideCtx(ctx(), R()), T = R().tables[0], W = tableW(T, c), H = tableH(T, c), d = c.style.design, key = freeKey.table(R(), 0);
+    const items = { ...R().cfg.free![d]!.items, [key]: { x, y, w: W * k, h: H * k, scale: k } };
+    await act(async () => change("Place table", [{ op: "slide.patch", id: R().id, patch: { free: { [d]: { on: true, items } } } } as Op])); await confirmed(h0 + 2);
+    await vi.waitFor(() => expect($('#stage .hbox[data-i="0"] .grip')).toBeTruthy(), { timeout: 10_000 });
+    await settle();
+    return { W, H, d, key, h0: h0 + 2 };
+  }
+  const freeBox = (d: Design, key: string) => R().cfg.free![d]!.items[key] as { x: number; y: number; w: number; h: number; scale: number };
+  const off = async () => { if (!R().cfg.free?.[ctx().style.design]?.on) return; const h0 = history(); await act(async () => freeLayoutOff(R())); await confirmed(h0 + 1); };
+
+  afterEach(async () => { await off(); });
+  it("a free table moved against the slide's right and bottom edges: dropped where previewed, on 1/4 px, on the slide (review 1)", async () => {
+    await clear();
+    const { W, d, key, h0 } = await freeTable0(100, 100, .7771);
+    expect(q4(W * .7771)).toBe(false);                                         // a width off the grid
+    let shown: { x: number; y: number } | null = null;
+    await drag('#stage .hbox[data-i="0"] .grip', { x: 110, y: 105 }, { x: 110 + 3000, y: 105 + 3000 }, {}, () => {
+      const b = (useStage.getState().drag as { boxes: { x: number; y: number }[] }).boxes[0]; shown = { x: b.x, y: b.y };
+    });
+    await confirmed(h0 + 1);
+    const f = freeBox(d, key);
+    expect(f.x).toBe(Math.floor((1600 - f.w) * 4) / 4);
+    expect(f.y).toBe(Math.floor((900 - f.h) * 4) / 4);
+    expect(q4(f.x) && q4(f.y)).toBe(true);
+    expect(f.x + f.w).toBeLessThanOrEqual(1600); expect(f.y + f.h).toBeLessThanOrEqual(900);
+    expect(shown).toEqual({ x: f.x, y: f.y });                                 // the preview is the drop
+    expect(f.scale).toBe(.7771);                                               // a move keeps its scale
+    await off();
+  }, 60_000);
+
+  it("a free table resized by its bottom or top edge: the snapped edge lands on the target exactly, its height on 1/4 px (review 2)", async () => {
+    await clear();
+    const { W, H, d, key, h0 } = await freeTable0(100, 100, .5);
+    const bottom0 = 100 + H * .5, target = Math.round(bottom0 + Math.min(120, (1500 * H / W - H * .5) / 2)) + .25;
+    await place({ sa: { x: 1300, y: target, w: 80, h: 40 } });
+    const h1 = history();
+    let marks: unknown = null;
+    await drag('#stage .hbox[data-i="0"] .edge.b', { x: 120, y: bottom0 }, { x: 120, y: target - 3 }, {}, () => { marks = (useStage.getState().drag as { marks: unknown }).marks; expect(guides("h")).toContainEqual([target, false]); });
+    await confirmed(h1 + 1);
+    const f = freeBox(d, key);
+    expect(f.y + f.h).toBe(target);                                            // on the guide, not 1/8 px off
+    expect(q4(f.h)).toBe(true);
+    expect(f.w / W).toBeCloseTo(f.scale, 12); expect(f.h / H).toBeCloseTo(f.scale, 12);
+    expect(marks).toBeTruthy();
+    // the top edge: up onto the shape's bottom when it is above
+    await place({ sb: { x: 1300, y: 20.5, w: 80, h: 40 } });
+    const h2 = history(), top0 = f.y;
+    await drag('#stage .hbox[data-i="0"] .edge.t', { x: 120, y: top0 }, { x: 120, y: 60.5 + 2 }, {}, () => { expect(guides("h")).toContainEqual([60.5, false]); });
+    await confirmed(h2 + 1);
+    const g = freeBox(d, key);
+    expect(g.y).toBe(60.5);
+    expect(g.y + g.h).toBeCloseTo(target, 6);                                  // the bottom stays (within its 1/4 px rounding)
+    expect(q4(g.h) && q4(g.y)).toBe(true);
+    void h0; await off();
+  }, 60_000);
+
+  it("a text box stretched by its edge outside a free layout snaps (Alt: off), dropped on 1/4 px (review 5)", async () => {
+    await clear();
+    await place({ sa: { x: 900, y: 640, w: 100, h: 60 } });
+    const key = noteKey(R(), 0, "bottom"), h0 = history();
+    await act(async () => change("Text box", [{ op: "slide.patch", id: R().id, patch: { notes: { [key]: { text: "Stretch me", x: 500, y: 760, w: 200, h: 50 } } } } as Op]));
+    await confirmed(h0 + 1);
+    await vi.waitFor(() => expect($(`#stage [data-note="${key}"]`)).toBeTruthy(), { timeout: 10_000 });
+    expect(R().cfg.free?.[ctx().style.design]?.on ?? false).toBe(false);
+    // jsdom lays nothing out: the box's rectangle on screen is its slide box (scale 1)
+    const el = $(`#stage [data-note="${key}"]`)!;
+    el.getBoundingClientRect = () => { const n = R().cfg.notes![key] as { x: number; y: number; w: number; h: number }; return { left: n.x, right: n.x + n.w, top: n.y, bottom: n.y + n.h, x: n.x, y: n.y, width: n.w, height: n.h, toJSON() { return this; } } as DOMRect; };
+    // the right edge 4 px short of A's left edge: onto it (width 400), the guide drawn
+    await drag(`#stage [data-note="${key}"]`, { x: 700, y: 785 }, { x: 896, y: 785 }, {}, () => { expect(guides("v")).toContainEqual([900, false]); });
+    await confirmed(h0 + 2);
+    expect(R().cfg.notes![key]).toMatchObject({ w: 400 });
+    // Alt: as dragged (to 1/4 px)
+    await drag(`#stage [data-note="${key}"]`, { x: 900, y: 785 }, { x: 896.6, y: 785 }, { altKey: true }, () => { expect($$("#stage .snapline.v")).toHaveLength(0); });
+    await confirmed(h0 + 3);
+    expect((R().cfg.notes![key] as { w: number }).w).toBe(396.5);
+    await act(async () => change("Text box gone", [{ op: "slide.patch", id: R().id, patch: { notes: { [key]: null } } } as Op])); await confirmed(h0 + 4);
+  }, 60_000);
+
+  it("an elbow's bend snaps onto an object's edge exactly, its fraction keeping the point (review 3)", async () => {
+    await clear();
+    await place({ sa: { x: 700, y: 640, w: 100, h: 60 } });
+    const h0 = history();
+    let id = "";
+    await act(async () => { id = insertLine("elbow")!; }); await confirmed(h0 + 1);
+    const a = { x: 301, y: 610 }, b = { x: 1004, y: 830 };
+    await act(async () => change("Place line", [{ op: "item.patch", slide: R().id, id, patch: { route: "elbow", bend: "hv", mid: .5, a, b, box: { x: 300, y: 609, w: 705, h: 222 } } } as Op])); await confirmed(h0 + 2);
+    await act(async () => { selectItem(id); }); await settle();
+    await vi.waitFor(() => expect($(`.linehandle.mid[data-item="${id}"]`)).toBeTruthy(), { timeout: 10_000 });
+    const m0 = routeOf(R().cfg.items![id] as LineItem, a, b).mid;
+    await drag(`.linehandle.mid[data-item="${id}"]`, m0, { x: 697, y: m0.y + 1 }, {}, () => { expect(guides("v")).toContainEqual([700, false]); });
+    await confirmed(h0 + 3);
+    const L = R().cfg.items![id] as LineItem, r = routeOf(L, a, b);
+    expect(r.d[1]).toEqual(["L", 700, 610]);                                   // the bend on the guide (1/1000 would give 700.03)
+    expect(r.d[2][1]).toBe(700);
+  }, 60_000);
+
+  it("another table's cell borders are targets: a shape's edge lines up with a column border (review 5)", async () => {
+    await clear();
+    const c = slideCtx(ctx(), R()), boxes = computeLayout(R(), c).boxes, t0 = boxes[0]!;
+    const inner = colEdges(R().tables[0], c).map(([x0, w]) => t0.x + (x0 + w) * t0.scale).filter(x => x > t0.x + 20 && x < t0.x + t0.w - 20);
+    expect(inner.length).toBeGreaterThan(0);
+    // a border away from every other target's x (the boxes' edges and centres, the slide's)
+    const others = [0, 50, 800, 1550, 1600, ...boxes.flatMap(bx => bx ? [bx.x, bx.x + bx.w / 2, bx.x + bx.w] : [])];
+    const x = inner.find(v => others.every(o => Math.abs(o - v) > 12) && inner.every(u => u === v || Math.abs(u - v) > 12));
+    expect(x, "a column border on its own").toBeTruthy();
+    await place({ sc: { x: Math.round(x!) + 40, y: 700, w: 60, h: 40 } });
+    const h0 = history();
+    await drag('.itembox[data-item="sc"]', { x: Math.round(x!) + 70, y: 720 }, { x: Math.round(x!) + 70 - (Math.round(x!) + 40 - x!) + 3, y: 720 }, {}, () => {
+      expect(guides("v").some(([at]) => Math.abs((at as number) - x!) < .26)).toBe(true);
+    });
+    await confirmed(h0 + 1);
+    expect(Math.abs(shape("sc").box.x - x!)).toBeLessThanOrEqual(.125);        // on the border, at 1/4 px
+    expect(q4(shape("sc").box.x)).toBe(true);
   }, 60_000);
 });

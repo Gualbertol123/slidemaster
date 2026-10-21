@@ -24,10 +24,14 @@ export function withIcons(real, icons) {
 
 /* ---- the lines (4.8, M15 S15.3; 09 §4.3, LN-03), for pptxcheck (7) check_lines: as many as the core's export draws –
    a line item with its geometry (pptx/scene.ts lineEls writes each as one shape, or one group, named "Line") ---- */
-/** [{slide, lines}] for the slides that hold any, from the core's PowerPoint lists. Self-contained (pageLines runs it) */
+/** [{slide, lines, heads, dashed}] for the slides that hold any, from the core's PowerPoint lists: the lines, their
+    native ends (a:headEnd / a:tailEnd: a head that is not the limiter's bar) and the dashed ones (S15.5). Self-contained
+    (pageLines runs it) */
 export function linesOf(lists) {
-  return lists.map((l, i) => ({ slide: i + 1, lines: Object.values((l.sem && l.sem.items) || {}).filter(x => x && x.kind === "line" && x.line).length }))
-    .filter(e => e.lines);
+  return lists.map((l, i) => {
+    const ls = Object.values((l.sem && l.sem.items) || {}).filter(x => x && x.kind === "line" && x.line).map(x => x.line);
+    return { slide: i + 1, lines: ls.length, heads: ls.reduce((n, L) => n + (L.head ? 1 : 0) + (L.tail ? 1 : 0), 0), dashed: ls.filter(L => L.stroke && L.stroke.dash && L.stroke.dash.length).length };
+  }).filter(e => e.lines);
 }
 /** the script page.evaluate runs in the page: the current deck's lines in `design` */
 export const pageLines = design => `(async () => (${linesOf})(await window.__sbTest.slideLists(${JSON.stringify({ design, version: "", forExport: true, thumb: false, pptx: true })})))()`;
@@ -35,7 +39,8 @@ export const pageLines = design => `(async () => (${linesOf})(await window.__sbT
 export function withLines(real, lines) {
   for (const e of lines) {
     const r = real.find(x => x.slide === e.slide);
-    if (r) r.lines = e.lines; else real.push({ slide: e.slide, tables: 0, charts: 0, lines: e.lines });
+    const add = { lines: e.lines, ...(e.heads !== undefined ? { heads: e.heads } : {}), ...(e.dashed !== undefined ? { dashed: e.dashed } : {}) };
+    if (r) Object.assign(r, add); else real.push({ slide: e.slide, tables: 0, charts: 0, ...add });
   }
   return real.sort((a, b) => a.slide - b.slide);
 }

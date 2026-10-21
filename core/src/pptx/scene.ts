@@ -670,17 +670,16 @@ function isSeam(d: PathCmd[], b: Box) {
   return d.length <= 14 && d[0][0] === "M" && d[d.length - 1][0] === "Z" && d.slice(1, -1).every(c => c[0] === "L") && b.w > 0 && b.h > 0;
 }
 
-/* ---- lines (4.8, M15; 09 §4.3) ---- */
-/** a line item's elements: S14.P keeps its shapes as drawn, grouped (M15 turns the stroke's head paths into the line's
-    native a:headEnd / a:tailEnd, Line.head / tail) */
-/* ---- lines (4.8, M15 S15.3; 09 §4.3, LN-03) ---- */
+/* ---- lines (4.8, M15 S15.3 / S15.5; 09 §4.3, LN-03) ---- */
 /** a line item's elements: one plain shape named "Line" – never a connector (p:cxnSp), and an attached line is written
     where it is drawn (PowerPoint does not keep it attached) –: a straight one `a:prstGeom prst="line"` in its bounds,
     flipped so that its first point is end a (flipH / flipV), any other route an open `a:custGeom`; its stroke on `a:ln`
     (width, colour, dash, cap, join) with native a:headEnd (end a) / a:tailEnd (end b). The limiter's ticks ("bar"
-    heads, which PowerPoint has no end for) are segments of the same custom geometry when the line has no native end,
-    else a shape of their own beside it (an end of PowerPoint's applies to the path's ends). Its label's background
-    and text box are grouped with it ("Line") */
+    heads, which PowerPoint has no end for) are drawn solid with round caps, as the slide draws them (render/heads.ts):
+    segments of the same custom geometry – its a:ln round-capped, which the ticks then cover at the ends – only beside a
+    straight solid route with no native end; else a shape of their own beside it (an a:ln is the shape's: a dashed
+    route would dash its ticks, a native end would land on a tick, an elbow's joins would turn round). Its label's
+    background and text box are grouped with it ("Line") */
 const group = (els: El[], name: string): El[] => els.length > 1 ? [{ k: "grp", name, children: els }] : els;
 function lineEls(L: LineSem, label: El[]): El[] {
   const st = L.stroke, line: Line = { w: st.w, paint: st.paint, ...(st.dash ? { dash: st.dash } : {}), ...(st.cap ? { cap: st.cap } : {}), ...(st.join ? { join: st.join } : {}) };
@@ -688,12 +687,14 @@ function lineEls(L: LineSem, label: El[]): El[] {
   const head = end(L.head), tail = end(L.tail), native = !!(head || tail);
   const shape = (d: PathCmd[], ln: Line): ShapeEl => { const b = pathBox(d); return { k: "sp", box: b, geom: { path: d.map(p => shiftCmd(p, -b.x, -b.y)), open: true }, fill: null, line: ln, name: "Line" }; };
   const out: El[] = [];
-  if (L.straight && (!L.bars.length || native)) {
+  const ticks = L.bars.length > 0, together = ticks && L.straight && !native && !line.dash;
+  if (L.straight && !together) {
     const { a, b } = L, box = { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) };
     out.push({ k: "sp", box, ...(b.x < a.x ? { flipH: true } : {}), ...(b.y < a.y ? { flipV: true } : {}), geom: { prst: "line" }, fill: null, line: { ...line, ...(head ? { head } : {}), ...(tail ? { tail } : {}) }, name: "Line" });
-  } else out.push(shape(native ? L.route : [...L.route, ...L.bars.flat()], { ...line, ...(head ? { head } : {}), ...(tail ? { tail } : {}) }));
-  // ticks beside a line with a native end: their own shape (round caps, as drawn)
-  if (native && L.bars.length) out.push(shape(L.bars.flat(), { ...line, cap: "round", join: "round" }));
+  } else if (together) out.push(shape([...L.route, ...L.bars.flat()], { ...line, cap: "round" }));
+  else out.push(shape(L.route, { ...line, ...(head ? { head } : {}), ...(tail ? { tail } : {}) }));
+  // the ticks on their own: solid, round caps and joins (as drawn)
+  if (ticks && !together) { const { dash: _d, ...solidLn } = line; out.push(shape(L.bars.flat(), { ...solidLn, cap: "round", join: "round" })); }
   out.push(...label);
   return group(out, "Line");
 }

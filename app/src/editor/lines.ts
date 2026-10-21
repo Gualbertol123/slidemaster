@@ -12,7 +12,7 @@
    too, so it stays there if its object goes. Pure builders (lineOps…) beside the actions that send them. */
 import type { Anchor, Heads, LineItem, LineRoute, LineStyle, Op, RuntimeSlide, TextFmt } from "@slide-builder/core/model/types";
 import type { RenderCtx } from "@slide-builder/core/render/context";
-import { computeLayout, freeKey, freeOf } from "@slide-builder/core/render/layout";
+import { computeLayout, freeKey, freeOf, snapRound } from "@slide-builder/core/render/layout";
 import { ANCHOR_AT, anchorPoint, anchorTargets, lineBox, lineEnds, routeOf, type Pt } from "@slide-builder/core/render/line-dl";
 import { slideCtx } from "@slide-builder/core/render/look";
 import { change, ctx } from "../state/app";
@@ -122,11 +122,13 @@ export function midOps(R: RuntimeSlide, id: string, c: RenderCtx, p: Pt): Op[] |
   if (it.route === "straight" || it.route === "range") { const m = routeOf(it, a, b).mid; return moveOps(R, id, c, p.x - m.x, p.y - m.y); }
   return [{ op: "item.patch", slide: R.id, id, patch: { mid: midFor(it, a, b, p) } } as Op];
 }
-/** the `mid` a middle handle at p gives (elbow: 0–1 along its first run; curve / bracket: px off the chord, signed) */
+/** the `mid` a middle handle at p gives (elbow: 0–1 along its first run; curve / bracket: px off the chord, signed). An
+    elbow's bend goes on 1/4 px – the point, not the fraction, is rounded (S15.4 review 3: a fraction on 1/1000 put a bend
+    snapped to a guide up to span / 2000 px off it) – the fraction kept to 1e-9, which routeOf draws back on that point */
 export function midFor(it: Pick<LineItem, "route" | "bend">, a: Pt, b: Pt, p: Pt): number {
   if (it.route === "elbow") {
-    const t = it.bend === "vh" ? (b.y - a.y ? (p.y - a.y) / (b.y - a.y) : .5) : (b.x - a.x ? (p.x - a.x) / (b.x - a.x) : .5);
-    return Math.round(Math.max(0, Math.min(1, t)) * 1000) / 1000;
+    const t = it.bend === "vh" ? (b.y - a.y ? (snapRound(p.y) - a.y) / (b.y - a.y) : .5) : (b.x - a.x ? (snapRound(p.x) - a.x) / (b.x - a.x) : .5);
+    return Math.round(Math.max(0, Math.min(1, t)) * 1e9) / 1e9;
   }
   const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len;
   return Math.round(((p.x - (a.x + b.x) / 2) * nx + (p.y - (a.y + b.y) / 2) * ny) * 4) / 4;

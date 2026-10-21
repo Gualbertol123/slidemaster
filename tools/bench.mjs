@@ -561,7 +561,8 @@ async function thumbScroll(browser, page) {
 
 /** S15.4 (09 §7.4 snap_drag_frame_ms): deck20's second slide with 56 shapes added in one change (60 objects with its
     tables and text boxes: rows and columns of boxes, so equal gaps and every kind of guide come up), one of them dragged
-    across the others with snapping on, then once more by the right edge (equal sizes), traced as the drags of S4.2 –
+    across the others with snapping on, then resized by its corner handle `.size` (equal sizes; the handle is drawn
+    while the item is selected – a click selects it when the move left it unselected), traced as the drags of S4.2 –
     the most work between two frames; then the deck as it was (undo) */
 async function snapFrames(browser, page) {
   const idle = async () => { await page.waitForFunction(() => window.__sbTest.stageIdle(), null, { timeout: 30000 }); await page.waitForTimeout(300); };
@@ -590,7 +591,10 @@ async function snapFrames(browser, page) {
     const b = await page.locator('.itembox[data-item="snapbench15"]').boundingBox();
     await drag("move", { x: b.x + b.width / 2, y: b.y + b.height / 2 }, 420, 230);
     await idle();
-    const c = await page.locator('.itembox[data-item="snapbench15"] .size').boundingBox();
+    const size = page.locator('.itembox[data-item="snapbench15"] .size');
+    if (!(await size.count())) { await page.locator('.itembox[data-item="snapbench15"]').click({ position: { x: 4, y: 4 } }); await idle(); }
+    await size.waitFor({ timeout: 10000 });
+    const c = await size.boundingBox();
     await drag("corner", { x: c.x + c.width / 2, y: c.y + c.height / 2 }, 90, 40);
   } finally { await browser.stopTracing(); }
   const { tasks, frames } = traced(trace, "snap"), res = {};

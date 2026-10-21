@@ -49,9 +49,10 @@ export function Lines({ m, R, s }: { m: StageModel; R: RuntimeSlide; s: number }
     if (handle === "body") selectItem(id); else patch("selection", { itemSel: { id, slice: null, handle } });
     const sc = slideScale(), sx = e.clientX, sy = e.clientY, a0 = L.a, b0 = L.b, mid0 = routeOf(L.it, a0, b0).mid;
     let cur: Live = { id, handle, a: a0, b: b0, anchor: null, moved: false, marks: null }, at: Anchor | null = null, anchors: ReturnType<typeof anchorList> | null = null;
-    // what it snaps to (once per drag): the slide, the tables, the items, the other lines (drags.ts), the text boxes, the page number
-    let T: SnapTargets | null = null;
-    const tol = snapTol(sc), targets = () => T ??= snapTargets(R, [...m.notes.map(n => n.box), ...m.hits.filter(h => /^pageno\b|^footer\b/.test(h.id))], { item: id });
+    // what it snaps to, collected at pointer-down (S15.4 review 4: not in the first drag frame): the slide, the tables,
+    // the items, the other lines (drags.ts), the text boxes, the page number
+    const T: SnapTargets = snapTargets(R, [...m.notes.map(n => n.box), ...m.hits.filter(h => /^pageno\b|^footer\b/.test(h.id))], { item: id });
+    const tol = snapTol(sc), targets = () => T;
     const move = (ev: PointerEvent) => {
       const dx = (ev.clientX - sx) / sc, dy = (ev.clientY - sy) / sc;
       if (!cur.moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 3) return;      // a click is not a drag

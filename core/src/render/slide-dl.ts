@@ -146,6 +146,9 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
   const chrome = (cls: string, x: number, y: number, w: number, h: number, r: number, content: Node[] = [], text?: string) =>
     glassBox(cls.replace(/^gls wb /, ""), x, y, w, h, r, V, place, wall, { content, hit: { kind: "f", id: cls, ...(text !== undefined ? { label: text } : {}) } });
 
+  // the slide's own colour (the Excel designs', a consulting design's ground; Liquid Glass: its wallpaper, none) – the
+  // background drawn here and the ground under a line's label (lineItem)
+  const slideBg: string | null = glassy ? null : C ? (R.type === "cover" ? C.cover.bg : C.bg !== "#FFFFFF" || O!.background === "white" ? C.bg : LK!.tint) : tv["--slidebg"] || "#FFFFFF";
   // the background: Liquid Glass's wallpaper (with the contrast veil), the Excel designs' slide colour
   if (glassy) {
     low.push({ t: "rect", x: 0, y: 0, w: 1600, h: 900, fill: solid(img.wall?.base || "#E9EDF6") });
@@ -153,8 +156,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     const wf = +(contrastVars(ctx.style.contrast)["--wfade"] || 0);
     if (wf > 0) low.push({ t: "rect", x: 0, y: 0, w: 1600, h: 900, fill: { solid: [255, 255, 255], a: Math.min(1, wf) } });
     if (img.wall) images[img.wall.blur.blurId] = img.wall.blur.blurSrc;
-  } else if (C) low.push({ t: "rect", x: 0, y: 0, w: 1600, h: 900, fill: solid(R.type === "cover" ? C.cover.bg : C.bg !== "#FFFFFF" || O!.background === "white" ? C.bg : LK!.tint) });
-  else low.push({ t: "rect", x: 0, y: 0, w: 1600, h: 900, fill: solid(tv["--slidebg"] || "#FFFFFF") });
+  } else low.push({ t: "rect", x: 0, y: 0, w: 1600, h: 900, fill: solid(slideBg!) });
 
   const pageNo = pageNoFor(ctx, idx), logo = slideHasLogo(R) ? img.logo : null, cover = R.type === "cover";
   // a page number in the top-left corner pushes the title to the right
@@ -195,6 +197,15 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
   return { nodes: [...low, ...z3, ...z5], images, items };
 
   /* ---- items ---- */
+  /** the colour under a point (a line's label): Consulting Red's message panel, a consulting design's dark header band,
+      else the slide's own colour (Liquid Glass: none – a white chip over the wallpaper) */
+  function groundAt(p: { x: number; y: number }): string | null {
+    if (!C || !O || !LK || R.type !== "content") return slideBg;
+    const panel = O.headline === "panel";
+    if (inPanel(p.x)) return acc(LK.panel);
+    if (O.background === "band" && !(panel && !slideFacts(R, ctx)?.facts.lead) && p.x >= (panel ? SIGNAL_AREA.panel : 0) && p.y < areaFor(R, ctx).y - NAVY_BAND.gap) return LK.band;
+    return slideBg;
+  }
   /* a chart (4.3; series charts 4.7, M14) */
   function chartItem(it: ChartItem, id: string, box: Box): ItemInfo {
     const s0 = low.length;
@@ -227,9 +238,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
   function lineItem(it: LineItem, id: string, _box: Box): ItemInfo {
     const s0 = low.length;
     const family = glassy ? base : C ? C.note.family : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel;
-    // the label's ground: the slide's background colour (Liquid Glass: a white chip over its wallpaper)
-    const ground = glassy ? null : C ? (R.type === "cover" ? C.cover.bg : C.bg !== "#FFFFFF" || O!.background === "white" ? C.bg : LK!.tint) : tv["--slidebg"] || "#FFFFFF";
-    const l = lineNodes(it, id, lineEnds(R, id, it, boxes, ctx), ctx, { family, m, ground });
+    const l = lineNodes(it, id, lineEnds(R, id, it, boxes, ctx), ctx, { family, m, ground: groundAt });
     low.push(...l.nodes);
     return { box: l.box, issue: l.issue, geom: null, at: [s0, low.length],
       ...(opts.sem ? { pptx: { kind: "line", at: [s0, low.length], heads: it.style?.heads ?? null, ...(l.sem ? { line: l.sem } : {}) } } : {}) };

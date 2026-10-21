@@ -194,11 +194,15 @@ function freeTrial(R: RuntimeSlide, key: string, box: Rect & { scale?: number })
   const c = ctx(), f = freeOf(R, c)!, d = c.style.design;
   return { ...R, cfg: { ...R.cfg, free: { ...R.cfg.free, [d]: { on: true, items: { ...f.items, [key]: box } } } } };
 }
-/** a moved box at (x, y), kept on the slide: snapped (unless Alt) and on 1/4 px – the preview and the drop */
-function moved(T: SnapTargets, b: Rect, alt: boolean, tol: number): { box: Rect; marks: SnapMarks | null } {
+/** v down to 1/4 px (the furthest a box of an unrounded size can go on the slide and stay on the grid) */
+const floor4 = (v: number) => Math.floor(v * 4 + 1e-9) / 4;
+/** a moved box at (x, y), kept on the slide: snapped (unless Alt) and on 1/4 px – the preview and the drop. Kept on the
+    slide after rounding (S15.4 review 1): a box of an unrounded size (a free table's, from its scale) pushed against the
+    right or bottom edge stops at the last 1/4 px that keeps it on the slide, so freeOp's clamp leaves it as previewed */
+export function moved(T: SnapTargets, b: Rect, alt: boolean, tol: number): { box: Rect; marks: SnapMarks | null } {
   const s = alt ? null : snapMove(T, b, tol);
   const box = s ? s.box : b;
-  return { box: { ...box, x: snapRound(box.x), y: snapRound(box.y) }, marks: s ? s.marks : null };
+  return { box: { ...box, x: Math.max(0, Math.min(snapRound(box.x), floor4(1600 - box.w))), y: Math.max(0, Math.min(snapRound(box.y), floor4(900 - box.h))) }, marks: s ? s.marks : null };
 }
 /** a table of a free layout: moved by its grip, resized by its corner or an edge keeping the workbook's proportions – the
     corner and the edges set its scale (an edge from its own axis, the opposite side staying), its box follows */
@@ -220,24 +224,32 @@ export function freeTable(R: RuntimeSlide, i: number, how: "move" | "corner" | N
     if (how === "move") {
       const m = moved(t, { x: Math.max(0, Math.min(1600 - start.w, start.x + dx)), y: Math.max(0, Math.min(900 - start.h, start.y + dy)), w: start.w, h: start.h }, !snap, tol);
       box = { ...box, x: m.box.x, y: m.box.y }; marks = m.marks;
+    } else if (how === "t" || how === "b") {
+      // a top or bottom edge (S15.4 review 2): the new height from the pointer, snapped at the moving edge, on 1/4 px – the
+      // width and the scale follow from it (the workbook's proportions), so the snapped edge is where the guide is
+      const bottom = start.y + start.h;
+      let h = start.h + (how === "t" ? -dy : dy);
+      if (snap) h += how === "b" ? snapEdge(t, false, start.y + h, tol, { now: h, sign: 1 }) : -snapEdge(t, false, bottom - h, tol, { now: h, sign: -1 });
+      const maxH = Math.min(how === "t" ? bottom : 900 - start.y, (1600 - start.x) * H / W);
+      h = Math.max(30 * H / W, Math.min(maxH, snapRound(h)));
+      const w = h * W / H;
+      box = { x: start.x, y: how === "t" ? snapRound(bottom - h) : start.y, w, h, scale: w / W };
+      if (snap) marks = resizeMarks(t, box, { y: [how] }, { w: true, h: true });
     } else {
-      // the new width from the pointer (an edge: its own axis; the corner: the larger of the two), snapped at the moving
-      // edge – to a target or to another object's width / height
-      const horiz = how === "l" || how === "r";
-      let w = how === "corner" ? Math.max(start.w + dx, (start.h + dy) * W / H) : horiz ? start.w + (how === "l" ? -dx : dx) : (start.h + (how === "t" ? -dy : dy)) * W / H;
+      // the new width from the pointer (a side edge: its own axis; the corner: the larger of the two), snapped at the
+      // moving edge – to a target or to another object's width / height
+      let w = how === "corner" ? Math.max(start.w + dx, (start.h + dy) * W / H) : start.w + (how === "l" ? -dx : dx);
       if (snap) {
         if (how === "corner" || how === "r") w += snapEdge(t, true, start.x + w, tol, { now: w, sign: 1 });
-        else if (how === "l") w -= snapEdge(t, true, start.x + start.w - w, tol, { now: w, sign: -1 });
-        else if (how === "b") w += snapEdge(t, false, start.y + w * H / W, tol, { now: w * H / W, sign: 1 }) * W / H;
-        else if (how === "t") w -= snapEdge(t, false, start.y + start.h - w * H / W, tol, { now: w * H / W, sign: -1 }) * W / H;
+        else w -= snapEdge(t, true, start.x + start.w - w, tol, { now: w, sign: -1 });
       }
       // at least 30 px wide, inside the slide on the sides that move; the width on 1/4 px
-      const right = start.x + start.w, bottom = start.y + start.h;
-      const maxW = Math.min(how === "l" ? right : 1600 - start.x, (how === "t" ? bottom : 900 - start.y) * W / H);
+      const right = start.x + start.w;
+      const maxW = Math.min(how === "l" ? right : 1600 - start.x, (900 - start.y) * W / H);
       w = Math.max(30, Math.min(maxW, snapRound(w)));
       const hh = w * H / W;
-      box = { x: how === "l" ? snapRound(right - w) : start.x, y: how === "t" ? snapRound(bottom - hh) : start.y, w, h: hh, scale: w / W };
-      if (snap) marks = resizeMarks(t, box, how === "corner" ? { x: ["r"], y: ["b"] } : horiz ? { x: [how === "l" ? "l" : "r"] } : { y: [how === "t" ? "t" : "b"] }, { w: true, h: true });
+      box = { x: how === "l" ? snapRound(right - w) : start.x, y: start.y, w, h: hh, scale: w / W };
+      if (snap) marks = resizeMarks(t, box, how === "corner" ? { x: ["r"], y: ["b"] } : { x: [how === "l" ? "l" : "r"] }, { w: true, h: true });
     }
     moved0 = true;
     // drawn in this frame (solve runs in one already)
@@ -297,11 +309,13 @@ export function noteStretch(R: RuntimeSlide, key: string, box: Rect, edge: NEdge
 export function itemMove(R: RuntimeSlide, id: string, box: Rect, others: Rect[], e: PointerEvent) {
   if (e.button !== 0 || stage().editor || !R.cfg.items?.[id]) return;
   const sc = slideScale(), tol = snapTol(sc), { x: x0, y: y0 } = box, w = snapRound(box.w), h = snapRound(box.h), sx = e.clientX, sy = e.clientY;
-  let started = false, nx = x0, ny = y0, targets: SnapTargets | null = null;
+  // its targets collected at pointer-down, not in the first drag frame (S15.4 review 4)
+  const targets = snapTargets(R, others, { item: id });
+  let started = false, nx = x0, ny = y0;
   follow(ev => {
     const dx = (ev.clientX - sx) / sc, dy = (ev.clientY - sy) / sc;
-    if (!started) { if (Math.hypot(dx, dy) < 4) return; started = true; targets = snapTargets(R, others, { item: id }); }
-    const m = moved(targets!, { x: Math.max(0, Math.min(1600 - w, x0 + dx)), y: Math.max(0, Math.min(900 - h, y0 + dy)), w, h }, ev.altKey, tol);
+    if (!started) { if (Math.hypot(dx, dy) < 4) return; started = true; }
+    const m = moved(targets, { x: Math.max(0, Math.min(1600 - w, x0 + dx)), y: Math.max(0, Math.min(900 - h, y0 + dy)), w, h }, ev.altKey, tol);
     nx = m.box.x; ny = m.box.y;
     preview({ kind: "item", id, box: { x: nx, y: ny, w, h }, moved: true, marks: m.marks });
   }, () => {
@@ -348,15 +362,17 @@ export function noteMove(R: RuntimeSlide, key: string, box: Rect, others: Rect[]
   if (e.button !== 0 || stage().editor) return;
   const sc = slideScale(), tol = snapTol(sc), cur = (R.cfg.notes || {})[key]; if (!cur) return;
   const { x: x0, y: y0 } = box, w = snapRound(box.w), h = snapRound(box.h), sx = e.clientX, sy = e.clientY;
-  let started = false, nx = x0, ny = y0, targets: SnapTargets | null = null;
+  // its targets collected at pointer-down, not in the first drag frame (S15.4 review 4)
+  const targets = snapTargets(R, others);
+  let started = false, nx = x0, ny = y0;
   follow(ev => {
     const dx = (ev.clientX - sx) / sc, dy = (ev.clientY - sy) / sc;
     if (!started) {
       if (Math.hypot(dx, dy) < 4) return;                          // a click (select, double-click to edit) is not a move
-      started = true; targets = snapTargets(R, others);
+      started = true;
     }
     // Alt: no snapping, in every layout (09 §5.1: before 4.8 a text box ignored Alt outside a free layout)
-    const m = moved(targets!, { x: Math.max(0, Math.min(1600 - w, x0 + dx)), y: Math.max(0, Math.min(900 - h, y0 + dy)), w, h }, ev.altKey, tol);
+    const m = moved(targets, { x: Math.max(0, Math.min(1600 - w, x0 + dx)), y: Math.max(0, Math.min(900 - h, y0 + dy)), w, h }, ev.altKey, tol);
     nx = m.box.x; ny = m.box.y;
     preview({ kind: "note", key, box: { x: nx, y: ny, w, h }, moved: true, marks: m.marks });
   }, () => {

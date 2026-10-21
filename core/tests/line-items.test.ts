@@ -38,12 +38,12 @@ const M: Metrics = {
 const SLIDE = "u9t3fqb", TABLE = "dhnms9c";
 const DECK = JSON.parse(fs.readFileSync(path.join(DECKS, "report.json"), "utf8")) as { workbook: string; ops: Op[] };
 const WB = readWorkbook(ab(path.join(BOOKS, DECK.workbook)));
-async function build(design: Design, items: Record<string, object>, more: Op[] = []) {
+async function build(design: Design, items: Record<string, object>, more: Op[] = [], look: object = {}) {
   const wb = await WB;
   const ops = [...DECK.ops, ...Object.entries(items).map(([id, patch]) => ({ op: "item.patch", slide: SLIDE, id, patch }) as Op), ...more];
   const { doc: view, skipped } = applyOps(emptyDoc("W.xlsx"), ops);
   expect(skipped).toEqual([]);
-  const style = resolveStyle({}, { ...view.style, design });
+  const style = resolveStyle({}, { ...view.style, design }, look);
   const slides = runtimeSlides(wb, view.preset, "W.xlsx", design);
   const ctx: RenderCtx = { style, edits: view.edits || {}, slides, preset: view.preset || null, workbook: "W.xlsx", logoSrc: "", sheet: n => wb.sheets.find(s => s.name === n) || null, version: null, forExport: true };
   const R = ctx.slides[0], boxes = computeLayout(R, ctx).boxes;
@@ -259,7 +259,7 @@ describe("lines in PowerPoint (09 §4.3, LN-03): plain shapes with native ends, 
     const bytes = pptx(slides);
     if (process.env.PPTX_OUT) {
       fs.writeFileSync(path.join(process.env.PPTX_OUT, "lines-5-designs.pptx"), bytes);
-      fs.writeFileSync(path.join(process.env.PPTX_OUT, "lines-5-designs.expect.json"), JSON.stringify({ [path.join(process.env.PPTX_OUT, "lines-5-designs.pptx")]: DESIGNS.map((_, k) => ({ slide: k + 1, tables: 1, charts: 0, lines: 5 })) }));
+      fs.writeFileSync(path.join(process.env.PPTX_OUT, "lines-5-designs.expect.json"), JSON.stringify({ [path.join(process.env.PPTX_OUT, "lines-5-designs.pptx")]: DESIGNS.map((_, k) => ({ slide: k + 1, tables: 1, charts: 0, lines: 5, heads: 4, dashed: 1 })) }));
     }
     const z = unzipSync(bytes);
     for (let k = 1; k <= DESIGNS.length; k++) {
@@ -268,5 +268,96 @@ describe("lines in PowerPoint (09 §4.3, LN-03): plain shapes with native ends, 
       expect(s).not.toContain("<p:pic>");
       expect((s.match(/name="Line \d+"/g) || []).length).toBeGreaterThanOrEqual(5);
     }
+  });
+});
+
+/* ---- S15.3 review follow-ups (w2-review-S15.3 findings 2–5) ---- */
+const hexOf = (p: unknown) => ((p as { solid: number[] }).solid).map(v => v.toString(16).padStart(2, "0")).join("").toUpperCase();
+describe("S15.3 follow-ups: ticks, the label's ground, the ink per theme, the stroke under a head at a bend", () => {
+  it("a dashed range or limiter: its ticks are a solid round-capped shape of their own, the dashed route apart (PowerPoint draws them as the slide)", async () => {
+    const dr = line("range", { x: 300, y: 600 }, { x: 900, y: 600 }, { style: { dash: "dashed" } });
+    const eb = line("elbow", { x: 300, y: 300 }, { x: 700, y: 450 }, { style: { heads: { a: "bar", b: "bar" } } });
+    const { dl, sem } = await build("excel", { dr, eb });
+    // the slide: the ticks solid, round caps
+    const ticks = drawn(nodesOf(dl, "dr")).filter((n): n is PathNode => n.t === "path" && !!n.stroke);
+    expect(ticks).toHaveLength(2);
+    for (const t of ticks) { expect(t.stroke!.dash).toBeUndefined(); expect(t.stroke!.cap).toBe("round"); }
+    const grp = sceneOf(dl.nodes, sem, () => true).filter(e => e.name === "Line");
+    expect(grp).toHaveLength(2);
+    for (const g of grp) {
+      const sps = flat([g]).filter((e): e is ShapeEl => e.k === "sp" && e.name === "Line");
+      expect(sps).toHaveLength(2);                                                // the route and its ticks
+      const [route, tk] = sps;
+      if ("prst" in tk.geom) throw new Error("ticks as a preset");
+      expect(tk.geom.path.filter(c => c[0] === "M")).toHaveLength(2);
+      expect(tk.line).toMatchObject({ cap: "round", join: "round" });
+      expect(tk.line).not.toHaveProperty("dash");
+      expect(route.line).not.toHaveProperty("head"); expect(route.line).not.toHaveProperty("tail");
+    }
+    const [r0] = flat([grp[0]]).filter((e): e is ShapeEl => e.k === "sp" && e.name === "Line");
+    expect(r0).toMatchObject({ geom: { prst: "line" } });
+    expect(r0.line!.dash).toBeTruthy();
+    const bytes = pptx([{ dl, sem }]), xml = strFromU8(unzipSync(bytes)["ppt/slides/slide1.xml"]);
+    if (process.env.PPTX_OUT) {
+      const f = path.join(process.env.PPTX_OUT, "lines-ticks.pptx");
+      fs.writeFileSync(f, bytes);
+      fs.writeFileSync(f.replace(/\.pptx$/, ".expect.json"), JSON.stringify({ [f]: [{ slide: 1, tables: 1, charts: 0, lines: 2, heads: 0, dashed: 1 }] }));
+    }
+    expect(xml).not.toContain("<p:cxnSp");
+    // the undashed ticks: a round cap without a dash in the same a:ln
+    expect(xml).toMatch(/<a:ln w="\d+" cap="rnd">(?:(?!<a:custDash|<a:prstDash|<\/a:ln>).)*<a:round\/>/s);
+    // a solid range keeps its ticks in the one geometry, round-capped (the caps under the ticks)
+    const solidR = await build("excel", { r: ALL.r });
+    const one = flat(sceneOf(solidR.dl.nodes, solidR.sem, () => true)).filter((e): e is ShapeEl => e.k === "sp" && e.name === "Line");
+    expect(one).toHaveLength(1);
+    expect(one[0].line).toMatchObject({ cap: "round" });
+  });
+  it("an elbow bent at an end (mid 0 or 1): the stroke is still shortened under a filled head (towards the first point that is not the tip)", async () => {
+    for (const mid of [0, 1]) {
+      const it0 = line("elbow", { x: 200, y: 200 }, { x: 600, y: 400 }, { mid, style: { heads: { a: "triangle", b: "triangle" } } });
+      const { dl } = await build("excel", { e: it0 });
+      const d = (drawn(nodesOf(dl, "e"))[0] as PathNode).d, L = headLength(2);
+      const pts = d.map(c => [c[1], c[2]] as [number, number]);
+      // neither end of the stroke stays on the tip
+      expect(pts[0], `mid ${mid}`).not.toEqual([200, 200]);
+      expect(pts.at(-1), `mid ${mid}`).not.toEqual([600, 400]);
+      if (mid === 0) { expect(pts[0]).toEqual([200, 200 + L]); expect(pts.at(-1)).toEqual([600 - L, 400]); }
+      else { expect(pts[0]).toEqual([200 + L, 200]); expect(pts.at(-1)).toEqual([600, 400 - L]); }
+    }
+  });
+  it("the label's ground: the slide's own colour, a consulting design's dark band or Consulting Red's panel under it – the text white on a dark ground", async () => {
+    const top = line("straight", { x: 900, y: 60 }, { x: 1300, y: 60 }, { text: "In the band" });
+    const low = line("straight", { x: 900, y: 860 }, { x: 1300, y: 860 }, { text: "Below" });
+    const mk = await build("mckinsey", { top, low });
+    const chip = (dl: typeof mk.dl, id: string) => drawn(nodesOf(dl, id)).find(n => n.t === "rect")!;
+    const txt = (dl: typeof mk.dl, id: string) => drawn(nodesOf(dl, id)).find(n => n.t === "text")!;
+    expect(hexOf((chip(mk.dl, "top") as { fill: unknown }).fill)).toBe("051C2C");          // the navy band
+    expect(hexOf((txt(mk.dl, "top") as { fill: unknown }).fill)).toBe("FFFFFF");
+    expect(hexOf((chip(mk.dl, "low") as { fill: unknown }).fill)).not.toBe("051C2C");
+    expect(hexOf((txt(mk.dl, "low") as { fill: unknown }).fill)).toBe("051C2C");
+    // the background drawn first is the same colour as the low label's ground
+    expect(hexOf((mk.dl.nodes[0] as { fill: unknown }).fill)).toBe(hexOf((chip(mk.dl, "low") as { fill: unknown }).fill));
+    const inPanel = line("straight", { x: 60, y: 700 }, { x: 400, y: 700 }, { text: "On the panel" });
+    const bn = await build("bain", { inPanel, low });
+    const panel = hexOf((chip(bn.dl, "inPanel") as { fill: unknown }).fill);
+    expect(panel).not.toBe(hexOf((chip(bn.dl, "low") as { fill: unknown }).fill));
+    expect(bn.dl.nodes.some(n => n.t === "rect" && n.x === 0 && n.y === 0 && n.h === 900 && n.w < 1600 && hexOf(n.fill) === panel)).toBe(true);   // the panel's own colour
+  });
+  it("the ink per theme: the deck's text-box colour when set, Liquid Glass's text colour, a light ink on a dark slide colour (Excel, Clean)", async () => {
+    const p = line("straight", { x: 100, y: 300 }, { x: 400, y: 300 }), d = line("straight", { x: 100, y: 850 }, { x: 1500, y: 850 }, { style: { w: 1, dash: "dashed" } });
+    const ink = (dl: Awaited<ReturnType<typeof build>>["dl"], id: string) => hexOf((drawn(nodesOf(dl, id))[0] as LineNode).stroke.paint);
+    for (const design of DESIGNS) {
+      const t = await build(design, { p, d }, [], { text: { note: { color: "#123456" } } });
+      expect(ink(t.dl, "p"), design).toBe("123456");
+    }
+    for (const design of ["excel", "clean"] as const) {
+      const dark = await build(design, { p, d }, [], { colors: { bg: "#1A1A1A" } });
+      expect(ink(dark.dl, "p"), design).toBe("F2F2F2");
+      expect(ink(dark.dl, "d"), design).toBe("8C8C8C");
+      const light = await build(design, { p, d }, [], { colors: { bg: "#FFF8E7" } });
+      expect(ink(light.dl, "p"), design).toBe("404040");
+    }
+    // Liquid Glass ignores a slide colour (its wallpaper): its text colour
+    expect(ink((await build("glass", { p }, [], { colors: { bg: "#1A1A1A" } })).dl, "p")).toBe("0B0D17");
   });
 });

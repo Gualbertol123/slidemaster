@@ -81,6 +81,27 @@ class LineChecks(unittest.TestCase):
             self.assertTrue(bad, what)
             self.assertTrue(all(b.startswith("slide 1, line 1: ") for b in bad), (what, bad))
 
+    def test_native_ends_and_dashes_are_counted_where_expected(self):
+        """(S15.5) the expectation's `heads` (native a:headEnd / a:tailEnd, "none" not counted) and `dashed` (a line with
+        a dashed stroke) per slide, exactly; an entry without them is not asked"""
+        plain = '<a:ln w="15240"><a:solidFill><a:srgbClr val="404040"/></a:solidFill><a:headEnd type="none"/><a:tailEnd type="arrow"/></a:ln>'
+        dashed = ('<a:ln w="15240"><a:solidFill><a:srgbClr val="404040"/></a:solidFill><a:custDash><a:ds d="400000" sp="300000"/></a:custDash>'
+                  '<a:miter lim="1000000"/></a:ln>')
+        preset = '<a:ln w="15240"><a:solidFill><a:srgbClr val="404040"/></a:solidFill><a:prstDash val="sysDot"/></a:ln>'
+        solid = '<a:ln w="15240"><a:solidFill><a:srgbClr val="404040"/></a:solidFill><a:prstDash val="solid"/></a:ln>'
+        # a dashed limiter: its route dashed, its ticks a solid shape of their own – one dashed line
+        ticks = grp("Line 6", [sp("Line 7", geom=OPEN, ln=dashed, sid=7), sp("Line 8", geom=OPEN, ln=solid, sid=8)])
+        f = self.deck(sp("Line 2") + sp("Line 3", ln=plain, sid=3) + sp("Line 4", ln=preset, sid=4) + ticks)
+        rep = {}
+        self.assertEqual(pptxcheck.check_lines(f, [{"slide": 1, "lines": 4, "heads": 3, "dashed": 2}], rep), [])
+        self.assertEqual((rep["line_heads"], rep["lines_dashed"]), ([3], [2]))
+        self.assertEqual(pptxcheck.check_lines(f, [{"slide": 1, "lines": 4}]), [])
+        self.assertEqual(pptxcheck.check_lines(f, [{"slide": 1, "lines": 4, "heads": 4, "dashed": 1}]),
+                         ["slide 1: 3 native line end(s), the export draws 4", "slide 1: 2 dashed line(s), the export draws 1"])
+        # a line written without its native ends (a picture of a head, or heads dropped) fails against the core's count
+        bare = self.deck(sp("Line 2", ln=solid))
+        self.assertEqual(pptxcheck.check_lines(bare, [{"slide": 1, "lines": 1, "heads": 2, "dashed": 0}]), ["slide 1: 0 native line end(s), the export draws 2"])
+
 
 if __name__ == "__main__":
     unittest.main()

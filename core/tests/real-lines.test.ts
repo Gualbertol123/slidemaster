@@ -51,9 +51,11 @@ describe("the PowerPoint gate's lines (tools/real-icons.mjs linesOf, pptxcheck (
     const out = process.env.PPTX_OUT;
     for (const design of ["excel", "glass", "clean", "mckinsey", "bain"] as Design[]) {
       const L = await lists(design) as unknown as { dl: { nodes: Node[] }; sem: SlideSem }[];
-      expect(linesOf(L), design).toEqual([{ slide: 1, lines: 1 }, { slide: 2, lines: 11 }]);
+      // (S15.5) with their native ends – s1 1, s2 2, s3 2, e1 1, v1 1, m2 1 (a bar is a tick, not an end) – and the
+      // dashed ones (s3, d1, x1)
+      expect(linesOf(L), design).toEqual([{ slide: 1, lines: 1, heads: 1, dashed: 0 }, { slide: 2, lines: 11, heads: 8, dashed: 3 }]);
       const expectation = withLines(withIcons(realObjectsOf(L), iconsOf(L)), linesOf(L));
-      expect(expectation, design).toEqual([{ slide: 1, tables: 1, charts: 0, icons: 1, lines: 1 }, { slide: 2, tables: 0, charts: 0, lines: 11 }]);
+      expect(expectation, design).toEqual([{ slide: 1, tables: 1, charts: 0, icons: 1, lines: 1, heads: 1, dashed: 0 }, { slide: 2, tables: 0, charts: 0, lines: 11, heads: 8, dashed: 3 }]);
       // the callout line follows its icon and its table, as drawn in this design
       const c1 = L[0].sem.items.c1;
       if (c1.kind !== "line" || !c1.line) throw new Error("no line geometry");
