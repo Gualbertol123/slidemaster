@@ -1,0 +1,4 @@
+{
+  "bytes": 13500,
+  "why": "M16 S16.2 (4.9.0, delete-versions, B37): by measurement – npm run build on m16/delete-versions over its base (S16.1's core commit eeeec71) 3,972,149 → 3,985,094 bytes, +12,945 (version.patch, model/versions.ts, For this version ▾, the wizard's Delete rows / columns); rounded up to 13,500."
+}

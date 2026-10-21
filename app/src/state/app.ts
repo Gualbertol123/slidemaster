@@ -22,6 +22,7 @@ import { COMPACT_MARGIN_MS, DocSync, type Change, type DeckApi, type DeckOpen } 
 import { applyOps } from "@slide-builder/core/model/ops";
 import { fold } from "@slide-builder/core/model/fold";
 import { defaultPreset, LCACHE, presetSheets, runtimeSlides } from "@slide-builder/core/model/preset";
+import { versionDrop } from "@slide-builder/core/model/versions";
 import { resolveStyle } from "@slide-builder/core/model/style";
 import type { Design, Op, Preset, Prefs, RuntimeSlide, StylePatch } from "@slide-builder/core/model/types";
 import type { AppState } from "./store";
@@ -114,8 +115,14 @@ function receiveSlices(wb: MirrorWorkbook, e: { shared: SharedSlice | null; shee
   // comment dialog and the Issues lines read them
   if (e.rebuild && wb === get().deck.wb) {
     const { file } = get().deck, preset = get().doc.view?.preset || null;
-    if (file) { patch("deck", { slides: runtimeSlides(wb, preset, file.name, style().design) }); slidesDesign = style().design; }
+    if (file) { patch("deck", { slides: deckSlides(wb, preset, file.name, style().design) }); slidesDesign = style().design; }
   }
+}
+/** the slides as the stage shows them: the version shown closes up the rows / columns it deletes (4.9, B37; the worker
+    resolves the same, host.ts slidesFor) */
+function deckSlides(wb: Parameters<typeof runtimeSlides>[0], preset: Preset | null, name: string, design: Design, version = get().deck.version) {
+  const drop = versionDrop(preset, version);
+  return runtimeSlides(wb, preset, name, design, drop ? { drop } : undefined);
 }
 /** what the worker's renderers need from the page */
 function viewInputs(name = get().deck.file?.name || ""): ViewInputs {
@@ -426,7 +433,7 @@ async function openBuffer(buf: ArrayBuffer, name: string, src: "folder" | "uploa
   base = st.view; predicted = { base, key: "" };
   openingWb = null;                                          // now the open one (deck.wb)
   const design = resolveStyle(get().doc.config.defaults.style, st.view.style).design;
-  const slides = runtimeSlides(wb, st.view.preset, name, design); slidesDesign = design;
+  const slides = deckSlides(wb, st.view.preset, name, design, version); slidesDesign = design;
   presetSig = JSON.stringify(st.view.preset);
   if (src === "folder") setPrefs({ lastFile: name });
   patchAll({
@@ -483,11 +490,13 @@ async function onDocChange(c: Change) {
     if (sig !== presetSig) {
       presetSig = sig;                                       // the worker read the sheets and sent their slices
       const { slides: old, cur } = get().deck, keep = old[cur]?.id;
-      const slides = runtimeSlides(wb, view.preset, file.name, style().design); slidesDesign = style().design;
+      const slides = deckSlides(wb, view.preset, file.name, style().design); slidesDesign = style().design;
       const want = focusNext ? slides.findIndex(R => R.id === focusNext) : -1, i = want >= 0 ? want : slides.findIndex(R => R.id === keep);
       if (want >= 0) focusNext = null;
       patchAll({ deck: { slides, cur: i >= 0 ? i : Math.max(0, Math.min(cur, slides.length - 1)) },
         ...(want >= 0 ? { selection: { sel: null, noteSel: null, textSel: null, itemSel: null } } : c.local ? {} : { selection: { sel: null } }) });
+      // the version shown was deleted (version.patch, 4.9: also by somebody else): the full deck
+      const vid = get().deck.version; if (vid && !(view.preset?.versions || []).some(v => v.id === vid)) return showVersion("");
       STAGE.render(); THUMBS.render();
       return;
     }
@@ -500,7 +509,7 @@ async function onDocChange(c: Change) {
     if (cfg.title !== R.cfg.title || cfg.subtitle !== R.cfg.subtitle || cfg.logo !== R.cfg.logo || cfg.date !== R.cfg.date || cfg.note !== R.cfg.note) titles = true;
     if (R.cfg !== cfg) { R.cfg = cfg; moved = true; }
   }
-  if (titles) { patch("deck", { slides: runtimeSlides(wb, view.preset, file.name, style().design) }); slidesDesign = style().design; }
+  if (titles) { patch("deck", { slides: deckSlides(wb, view.preset, file.name, style().design) }); slidesDesign = style().design; }
   else if (moved) patch("deck", { slides: [...get().deck.slides] });     // the same slide objects, so the list's readers see the change
   if (c.styleChanged) return onStyleChanged();
   if (titles) { STAGE.render(); THUMBS.render(); }
@@ -512,7 +521,7 @@ function onStyleChanged(configChanged = false) {
   const d = style().design, { wb, file, slides: old, cur } = get().deck;
   if (d !== slidesDesign && wb && file) {
     const keep = old[cur]?.id;
-    const slides = runtimeSlides(wb, get().doc.view?.preset || null, file.name, d); slidesDesign = d;
+    const slides = deckSlides(wb, get().doc.view?.preset || null, file.name, d); slidesDesign = d;
     const i = slides.findIndex(R => R.id === keep);
     patchAll({ deck: { slides, ...(i >= 0 ? { cur: i } : {}) }, selection: { sel: null, itemSel: null } });
   }
@@ -697,8 +706,15 @@ export function lookAt(): { theme?: Record<string, unknown>; colors?: Record<str
 /* ---------------------------------------------------------------- versions (wizard › Versions) */
 /** shows the deck as one of its versions ("" = full); remembered per workbook in the personal preferences */
 export function showVersion(id: string) {
-  patch("deck", { version: id });
-  const { file } = get().deck; if (file) setPrefs({ versions: { ...(get().prefs.prefs.versions || {}), [file.name]: id } });
+  const { file, wb, slides: old, cur } = get().deck, preset = get().doc.view?.preset || null;
+  // a version that deletes rows / columns (4.9, B37) has its own layouts: the slides are resolved again, the same one kept
+  const was = versionDrop(preset, get().deck.version), now = versionDrop(preset, id);
+  if (wb && file && JSON.stringify(was || null) !== JSON.stringify(now || null)) {
+    const keep = old[cur]?.id, slides = deckSlides(wb, preset, file.name, style().design, id), i = slides.findIndex(R => R.id === keep);
+    slidesDesign = style().design;
+    patchAll({ deck: { version: id, slides, ...(i >= 0 ? { cur: i } : {}) }, selection: { sel: null, itemSel: null } });
+  } else patch("deck", { version: id });
+  if (file) setPrefs({ versions: { ...(get().prefs.prefs.versions || {}), [file.name]: id } });
   // the worker takes this version first; the stage and thumbnails are then drawn with it
   if (get().doc.open) void core().call("inputs", viewInputs()).then(() => { STAGE.render(); THUMBS.render(); });
   else { STAGE.render(); THUMBS.render(); }
