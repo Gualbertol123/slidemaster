@@ -3,7 +3,7 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## 4.6.0 - unreleased (PLAN M13)
+## 4.6.0 - 2026-10-21 (PLAN M13)
 
 What users notice
 * **Scan for "x" tables** (B43): in a large workbook the wizard reads a sheet only when it is selected, so its first
@@ -21,7 +21,17 @@ What users notice
   turns read-only and saves nothing more; an older version opening it shows "a journal of this deck is damaged – tell
   the maintainer": that message means **update Slide Builder** (close its black window and start it again). Decks
   without such objects keep opening in older versions.
-* **Licences** (LI-01): ⚙ Options › About › *Licences…*, or *Licences…* on the start screen before any workbook is
+* **New slide and Add table** (B40): *+ New slide* in the slide list's header, Ctrl+M, or right-click the slide list ›
+  *New slide* adds a blank slide after the selected one, its title ready to type; ribbon 2 › Insert › *Add table* lists
+  the deck's tables (those on no slide first, each with a small sketch) and puts one on the current slide – on a free
+  layout in the first empty spot; *New table from cells…* makes one from cells picked on a sheet. One undo step each.
+* **Google fonts through Slide Builder** (B45): adding a Google font no longer needs fonts.googleapis.com from the page
+  (refused at the office: "failed to fetch"); the helper fetches it from Google's font collection on GitHub (or
+  jsDelivr, googleapis last). A proxy can be written in this PC's `%LOCALAPPDATA%\SlideBuilder\proxy.txt` or the
+  shared `data\proxy.txt`; every failure says what to do (e.g. *Upload font files*).
+* **Font previews from a shared cache** (B46): the font picker's previews are fetched once by the helper and kept in
+  `data\fonts\cache\` for the whole office (at most 200 MB); the page no longer asks Google for them.
+* **Licences** (B42, LI-01): ⚙ Options › About › *Licences…*, or *Licences…* on the start screen before any workbook is
   open, shows the licences of the third-party software in Slide Builder (React, zustand, fflate, IronCalc,
   harfbuzzjs / HarfBuzz); the release ZIP carries the same text as `THIRD-PARTY-NOTICES.txt`.
 * **Hide slides** (B47), as in PowerPoint: right-click a slide in the slide list › *Hide slide* hides it in the current
