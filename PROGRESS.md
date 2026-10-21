@@ -159,12 +159,15 @@ numbers measured twice). Measured numbers go into the step's line.
   attacks with `.pptx` names. Verdict: not yet for the share (REL-1, LIC-1, gates) – Waiting for. verified: tests ✓
   clean clone ✓ review ✓ (read-only reviews by sub-agents, re-checked)
 
-### M13 · Format guard, notices, New slide / Add table (4.6.0; B40–B42; docs/next/09 §8, ADR-019, ADR-020)
-- [ ] S13.1 · Format guard ⏱ (CP-01, CP-02; page-size test)
-- [ ] S13.2 · Third-party notices (LI-01; AUDIT-2 LIC-1)
-- [ ] S13.3 · Slide and table ops (`slide.add/remove`, `table.add/remove`; a slide without tables lays out)
-- [ ] S13.4 · New slide, Add table UI (NS-01, NS-02)
-- [ ] S13.5 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.6.0; 🚦 G9a
+### M13 · Format guard, notices, New slide / Add table, hide slides, font cache (4.6.0; B40–B47; docs/next/09 §8, ADR-019, ADR-020)
+- [x] S13.1 · Format guard ⏱ (CP-01, CP-02; page-size test) — 1c71612, 553be92, 9346242, cd900ef, 06a8bf1. Marker → 23 s → tail → CAS → append with a Lamport jump (ADR-019 amended: the wait covers lean-lock and the SMB listing cache, every 4.6 page jumps); `X-SB-Deck-Formats`, 409/400 walls; the test-only `SLIDEBUILDER_TEST_BUMP_WAIT_S` (with NO_NET only, 0–23 s, logged, in /api/health). v4.0.0's own helper code against a marked deck in `test_decks.OldHelperTests`. Reviews: REQUEST CHANGES (6) → APPROVE; one more gap → APPROVE. verified: tests ✓ clean clone ✓ review ✓
+- [x] S13.2 · Third-party notices (B42, LI-01; AUDIT-2 LIC-1) — 4bba553, bbedd8d. `THIRD-PARTY-NOTICES.txt` from `tools/notices.mjs`, About › Licences (also on the start screen), the release refuses to build without it. Reviews: APPROVE (5 low) → fixed → APPROVE. verified: tests ✓ clean clone ✓ review ✓
+- [x] S13.3 · Slide and table ops (`slide.add/remove`, `table.add/remove`; a slide without tables lays out) — ab90768, 1820a54. 99 vectors after M13 (+20); convergence 1,000 seeds with cross-writer deletes and undos; Consulting Red's panel title area. Reviews: APPROVE (findings) → fixed → APPROVE. verified: tests ✓ clean clone ✓ review ✓
+- [x] S13.4 · New slide, Add table UI (B40; NS-01, NS-02) — d0b6692, 92ab701. +8 KB page. Reviews: REQUEST CHANGES → APPROVE. verified: tests ✓ clean clone ✓ review ✓
+- [x] S13.6 · Hide slides per design (B47; HS-01…HS-03) — 681bc36, ec6faa8, c634e8e (e2e: a real version). Reviews: REQUEST CHANGES → APPROVE. verified: tests ✓ clean clone ✓ review ✓
+  - Hide slide / Show slide are in the slide list's right-click menu only: the plan's "and the slide menu" names no other menu the app has (review of S13.6, 5; 09 §2.8b).
+- [x] S13.B46 · Font cache (B46) — 0fa9408, dc2128a, 6dc9ab7. `data\fonts\cache\` (200 MB, oldest first), previews through the helper, e2e helpers without network (`SLIDEBUILDER_NO_NET`). Reviews: REQUEST CHANGES → APPROVE; round 2 APPROVE. verified: tests ✓ clean clone ✓ review ✓
+- [x] S13.5 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.6.0 — see Waiting for (M13). 🚦 G9a waived by the product owner ("I approve everything", Decisions 2026-10-21); the owner's PC checks are listed there.
 
 ### M14 · Charts (4.7.0; B30, B31; docs/next/09 §8, ADR-015 amended)
 - [ ] S14.0 · Gates first (export-check gates PowerPoint "opened", `has_chart` / `has_table`; AUDIT-2 VER-3)
@@ -511,9 +514,52 @@ numbers measured twice). Measured numbers go into the step's line.
   for the window after one failed load; the new messages). **The updater's new messages approved.** **A2: option (a)**
   – the helper keeps what it fetched in `data\fonts\cache\` and serves the picker's previews from it (on demand, no
   catalogue in the release): B46, built with M13 (4.6.0).
+- 2026-10-21 · **B47: hide slides** (product owner: "add the option to hide slides, like in powerpoint, and they will be
+  grayed out on the left bar and excluded from the export. slide numbers and contents page must update accordingly.
+  slides can be hidden in liquid glass but visible in the blue version"). Per design; grayed in the slide list; left out
+  of every export (PDF, PNG, PowerPoint, Run for each value); slide numbers and the contents slide count visible slides
+  only. PLAN Part B §8 B47, M13 (4.6.0), step S13.6.
+- 2026-10-21 · **Format guard: the one-time wait stays** (product owner: "Yes"). The first 4.6 save into a deck that
+  needs 4.6 waits about 23–25 s ("Saving…") so every older helper has seen the marker (ADR-019 amendment).
+- 2026-10-21 · **M14 and M15 in parallel after G9a** (product owner: "Yes"); separate gates (G9, G10) and releases.
+- 2026-10-21 · **A design with every slide hidden** (product owner: "yes that is acceptable"): "every version × design"
+  and Run for each value fail for that design with "nothing to export"; the single export shows a message.
+- 2026-10-21 · **Gates** (product owner: "i approve everything"): the milestones continue without stopping for approval
+  at each gate; the owner merges the PRs, runs the checks on the PC and updates the share.
+- 2026-10-21 · **Page size, icons, branches** (product owner: "1. approved 2. a 3. yes"): M14's page budget
+  provisionally +110,000 bytes, M15's by measurement (PLAN Part F, expected ≤ 4,700,000); the Tabler icons inside the
+  page, packed and inflated on first use (option A); `v4/*` branches may be pushed.
+- 2026-10-21 · **PowerPoint** (product owner: "ensure all of these new changes work with the powerpoint export as
+  well"): every new feature is checked in the PowerPoint export (`core/tests/pptx-m13.test.ts` for M13).
 
 ## Waiting for
 
+- **M13 · 4.6.0, branch `v4/M13-format-guard`, for the product owner (PR, merge; tag and share update), 2026-10-21.**
+  S13.1 format guard, S13.2 notices (B42), S13.3 slide/table ops, S13.4 New slide / Add table (B40), S13.6 hide
+  slides (B47), B46 font cache, the B45 static-face names (a variable Google font's 400/700 faces were both named
+  "… Light"), versions 4.6.0, CHANGELOG (unreleased until the tag). The runs: working tree 516807a (S13.1–S13.6) /
+  clean clone 5275742 / clean clone of the head 5f492be: build reproduces the page ✓ ✓ ✓; check 918 + 70 / 918 + 70 /
+  929 + 70; helper 3.12 and 3.8: 337 / 337 / 338 OK; e2e 41 + 1 failed (HS-02: the test's version had no `hide` –
+  fixed in the test, c634e8e; the export showed its error toast) then 43 / 43 / 43 passed; parity and dlparity 0 not
+  accepted (text-only, Linux) in all three; export-check 15 PowerPoint files ok in all three. Page 3,963,780 bytes
+  (budget 3,976,092). **CP-01** (`tools/compat-old.mjs`, 5e62589) against the real v4.0.0, 4.1 (061a5b3), 4.4
+  (a1d3aba), 4.5 (637f7b4), old helpers on Python 3.8.20 and 3.12.3, the real 23 s wait: 28/28 PASS on each; cases
+  b and c again 16/16 on each – (a) an old page cannot open a format-5 deck (409), nothing changes; (b) journal mode:
+  the old page turns read-only, its wizard Finish refused, no compaction from it, every 4.6 object kept; lean-lock:
+  its gap records (Lamport 4–5) fold before the 4.6 ones (1048581+), nothing lost; (c) its helper restarted as 4.6:
+  403 (token), 409 without the header; (d) journals aged 25 h survive; CP-02: a deck without 4.6 objects stays format
+  4 and edits in 4.0 and 4.5, `consult` kept. **PowerPoint** (owner): `core/tests/pptx-m13.test.ts` – added slides and
+  tables (real a:tbl), hidden slides left out with numbers and contents renumbered, a Google font named with bold and
+  italic, format 5 byte-identical to format 4 – in all five designs; pptxcheck structural on 17 files. Bench on this
+  cloud machine is not usable today (calibration ×1.8–2.0; agents running): base 80fbed4…5c5538a and M13 measured
+  alternately twice – keypress p95 64/68, 75/63 (base) vs 65/69, 69/62 (M13), the same; CI decides. Reviews: every
+  step REQUEST CHANGES or APPROVE with findings → fixed → APPROVE by a new reviewer; milestone review REQUEST CHANGES
+  (6: PROGRESS, update-day order and rollback, the test wait unbounded, an undo, docs) → fixed → APPROVE.
+  **Owner's PC (G9a waived, the checks stay):** `node tools/compat-old.mjs --pythons "py -3.8,py -3.12" --new-python
+  python --out $env:TEMP\compat-old.json` (70–80 min, every RESULT PASS); PowerPoint opens the files of
+  `core/tests/pptx-m13.test.ts` (`$env:SB_PPTX_OUT`) without a repair prompt; on a real deck: New slide, Add table,
+  hide a slide in Liquid Glass, export PDF and PowerPoint. Update day: `docs/next/release-checklist.md` §6 (every window
+  closed first). verified: tests ✓ clean clone ✓ review ✓.
 - **Phase A · Google fonts, the updater, two follow-ups; branch `v4/fix-fonts-update` (pushed as
   `claude/epic-bell-xw1w1u`), for the product owner (PR, merge), 2026-10-20.** A1: adding a Google font goes through the
   helper (`helper/slidebuilder/gfonts.py`: google/fonts on raw.githubusercontent.com, then cdn.jsdelivr.net, googleapis

@@ -26,6 +26,7 @@ import { glassTableDL } from "../render/glass-dl";
 import { consultTableDL } from "../render/consult-dl";
 import { isConsult } from "../model/designs";
 import { slideToDisplayList, type SlideImages } from "../render/slide-dl";
+import { hiddenIn, isHidden } from "../render/pagenumbers";
 import { chartLook } from "../render/chart-dl";
 import type { SlideSem } from "../pptx/scene";
 import { keyOf } from "../render/edits";
@@ -89,7 +90,7 @@ export class CoreHost {
     h("staticFont", async a => {
       // only the worker carries hb-subset (opts.staticFace); the page's in-thread fallback stores fonts as they are
       if (!this.opts.staticFace) return { buf: a.buf, variable: false };
-      const out = await this.opts.staticFace(new Uint8Array(a.buf), a.weight);
+      const out = await this.opts.staticFace(new Uint8Array(a.buf), a.weight, { family: a.family, italic: a.italic });
       return transfer({ buf: out.data.buffer as ArrayBuffer, variable: out.variable }, [out.data.buffer as ArrayBuffer]);
     });
     h("defaultPreset", a => { const wb = a.book !== undefined ? this.bookOf(a.book) : this.candidate; if (!wb) throw new Error("no workbook"); return defaultPreset(wb); });
@@ -295,8 +296,8 @@ export class CoreHost {
   /** a run being started (from its first check until it is registered): another run or a preview is refused meanwhile */
   private runStarting = false;
   private get running() { return this.runs.size > 0 || this.runStarting; }
-  /** the gate (RC-06): the cells the run will draw – the slides' tables in each of its designs, unless every chosen
-      version removes the cell – that the self-check classes different (all of them, not only its first 200), and the
+  /** the gate (RC-06): the cells the run will draw – the tables of the slides not hidden in each of its designs (S13.6),
+      unless every chosen version removes the cell – that the self-check classes different (all of them, not only its first 200), and the
       cells kept at Excel's value – locale-dependent TEXT, or reading a linked workbook / hidden sheet not in the model –
       (named in the report) */
   private gateCells(check: SelfCheck, designs: Design[], versions: string[]): { cells: GateCell[]; kept: KeptCell[] } {
@@ -309,7 +310,7 @@ export class CoreHost {
     const removed = (sheet: string, r: number, c: number) => !full && vers.length > 0 && vers.every(v => (v.hide?.[sheet] || []).some(rg => {
       const g = rangeToG(rg); return r > g.r1 && r < g.r2 && c > g.c1 && c < g.c2;           // (rangeToG's bounds are outside the range)
     }));
-    if (diff.size || pinned.size) for (const d of designs) for (const R of this.slidesFor(d, "own")) for (const L of R.tables) for (const it of L.items) {
+    if (diff.size || pinned.size) for (const d of designs) for (const R of this.slidesFor(d, "own")) if (!hiddenIn(R.cfg, d)) for (const L of R.tables) for (const it of L.items) {
       const k = L.sheet.name + "!" + A1(it.b.src.r, it.b.src.c), dd = diff.get(k), p = pinned.get(k);
       if (!dd && !p || removed(L.sheet.name, it.b.src.r, it.b.src.c)) continue;
       if (dd && !out.has(k)) out.set(k, { sheet: L.sheet.name, ref: dd.ref, text: dd.text, cached: dd.cached, computed: dd.computed });
@@ -515,6 +516,7 @@ export class CoreHost {
       compact: (key, baseGen, snapshot) => self.port.call("deckCompact", { key, baseGen, snapshot }),
       rotate: (key, writer) => self.port.call("deckRotate", { key, writer }),
       prepare: (key, writer) => self.port.call("deckPrepare", { key, writer }),
+      format5: key => self.port.call("deckFormat5", { key }),
     };
   })();
   /** the page's last presence heartbeat said this page is the only one with the deck open */
@@ -627,7 +629,8 @@ export class CoreHost {
     await glassFonts(ctx);
     const { wall, logo } = await this.slideImages(ctx);
     for (const [s, R] of ctx.slides.entries()) {
-      if (a.slides && !a.slides.includes(s)) continue;
+      // an export of the deck leaves out the design's hidden slides (S13.6, B47); slides named are drawn (the current one)
+      if (a.slides ? !a.slides.includes(s) : a.forExport && isHidden(ctx, s)) continue;
       const boxes = computeLayout(R, ctx).boxes, tables: TableDL[] = [], sc = slideCtx(ctx, R);     // the slide's own look (B29)
       for (const [i, L] of R.tables.entries()) {
         const b = boxes[i], noText = a.thumb && L.items.length > 1200;
@@ -841,7 +844,7 @@ type Source = "stage" | "own" | Run;
     so the page does not carry them) */
 export interface HostOptions {
   /** a static face of a variable font (text/static.ts: hb-subset) */
-  staticFace?: (file: Uint8Array, weight: number) => Promise<{ data: Uint8Array; variable: boolean }>;
+  staticFace?: (file: Uint8Array, weight: number, style?: { family?: string; italic?: boolean }) => Promise<{ data: Uint8Array; variable: boolean }>;
   /** false: the deck's journals are read only when the page asks ("poll"; tests) – else every 1.5 s */
   autoTail?: boolean;
   /** how long a cancelled run waits for the files of the value being made (ms; 30 s) */

@@ -3,14 +3,14 @@
 import { FORMATS, type ConfigDoc, type Prefs, type StylePatch, type WorkbookDoc } from "@slide-builder/core/model/types";
 import { applyOps, emptyDoc } from "@slide-builder/core/model/ops";
 import type { LibraryFont } from "@slide-builder/core/model/fonts";
-import type { DeckRecord, DeckSnapshot } from "@slide-builder/core/model/fold";
+import { DECK_FORMATS, type DeckRecord, type DeckSnapshot } from "@slide-builder/core/model/fold";
 import type { DeckOpen, TailResult } from "@slide-builder/core/sync/docsync";
 
 export interface Health { app: string; version: string; user: string; host: string; folder: string; export: string }
 export interface FileInfo { name: string; mtime: number; size: number; rev?: number | null; updated?: number | null; updatedBy?: string | null }
 export interface Other { user: string; host: string; client: string; workbook: string | null; at: number }
 /** a deck on the share as of its snapshot (helper decks.summary): its workbook, last change and size (B44) */
-export interface SetupInfo { key: string; workbook: string; gen: number; rev: number; rolledBack: boolean; /** it has a preset (a deck without one holds no setup) */ preset?: boolean; updated?: number | null; updatedBy?: string | null; slides?: number; tables?: number; versions?: number }
+export interface SetupInfo { key: string; workbook: string; gen: number; rev: number; rolledBack: boolean; /** 5: it holds Slide Builder 4.6 objects (ADR-019) */ format?: number; /** it has a preset (a deck without one holds no setup) */ preset?: boolean; updated?: number | null; updatedBy?: string | null; slides?: number; tables?: number; versions?: number }
 /** a deleted setup kept as a backup (helper deckbin.py): `id` restores it */
 export interface DeletedSetup extends Partial<Omit<SetupInfo, "rolledBack">> { id: string; key: string; at: number; by?: string }
 /** POST /api/decks/open: the deck's key, a writer id for this page session, its snapshot */
@@ -49,6 +49,8 @@ export interface Backend {
   deckCompactOnLeave(key: string, baseGen: number, snapshotJson: string): boolean;
   deckRotate(key: string, writer: string): Promise<{ deleted: string[] }>;
   deckPrepare(key: string, writer: string): Promise<unknown>;
+  /** ADR-019: the deck is about to hold 4.6 objects – its marker (every 4.0–4.5 helper then takes it for read-only) */
+  deckFormat5(key: string): Promise<{ created?: boolean; at?: number | null; now?: number | null }>;
   /** every deck on the share (Prepare rollback, Saved setups): what it holds as of its snapshot */
   decks(): Promise<SetupInfo[]>;
   /** B44: a deck deleted – kept as a backup on the share, an empty one in its place (409 while another window has it
@@ -82,6 +84,8 @@ export interface Backend {
   /** a Google font fetched by the helper, not the page (fonts.googleapis.com does not resolve at the office) */
   googleFont(family: string): Promise<GoogleFont>;
   googleFontFile(file: string): Promise<ArrayBuffer>;
+  /** a font to show a Google family's name in the picker (B46: the helper keeps it in data\fonts\cache) */
+  googleFontPreview(family: string): Promise<ArrayBuffer>;
   fontUrl(file: string): string;
   /** copies a picture into the shared folder (data/assets); returns the name to use */
   uploadLogo(name: string, data: ArrayBuffer): Promise<string>;
@@ -95,10 +99,13 @@ const SERVED = location.protocol.startsWith("http") && !!TOKEN && !TOKEN.startsW
     ever: DocSync then retries, an open shows the error); reading, uploading and converting a workbook take longer */
 const WAIT_MS = 60_000, WAIT_LONG_MS = 300_000, RETRY_MS = 500;
 const FORMATS_HEADER = Object.entries(FORMATS).map(([k, v]) => k + "=" + v).join(";");
+/** the deck snapshot formats this page reads: the 4.6 helper refuses a format-5 deck to a page without it (ADR-019) */
+const DECK_FORMATS_HEADER = DECK_FORMATS.join(",");
 async function req(path: string, init: RequestInit & { json?: unknown; timeout?: number; /** a write that may be sent twice */ idempotent?: boolean } = {}): Promise<Response> {
   const headers = new Headers(init.headers || {});
   headers.set("X-SB-Token", TOKEN);
   headers.set("X-SB-Formats", FORMATS_HEADER);
+  headers.set("X-SB-Deck-Formats", DECK_FORMATS_HEADER);
   let body = init.body;
   if (init.json !== undefined) { headers.set("Content-Type", "application/json"); body = JSON.stringify(init.json); }
   const ms = init.timeout ?? WAIT_MS;
@@ -162,12 +169,14 @@ export const helper: Backend = {
   deckCompactOnLeave(key, baseGen, snapshotJson) {
     const body = '{"baseGen":' + baseGen + ',"snapshot":' + snapshotJson + "}";
     if (body.length > KEEPALIVE_MAX) return false;
-    try { fetch(deckPath(key) + "/compact", { method: "POST", keepalive: true, headers: { "X-SB-Token": TOKEN, "Content-Type": "application/json", "X-SB-Formats": FORMATS_HEADER }, body }); return true; }
+    try { fetch(deckPath(key) + "/compact", { method: "POST", keepalive: true, headers: { "X-SB-Token": TOKEN, "Content-Type": "application/json", "X-SB-Formats": FORMATS_HEADER, "X-SB-Deck-Formats": DECK_FORMATS_HEADER }, body }); return true; }
     catch { return false; }
   },
   deckRotate: (key, writer) => json(req(deckPath(key) + "/rotate", { method: "POST", json: { writer } })),
   // opening a journal twice is harmless (the helper keeps one handle per writer): asked again like a read
   deckPrepare: (key, writer) => json(req(deckPath(key) + "/prepare", { method: "POST", json: { writer }, idempotent: true })),
+  // (an existing marker is fine: asked again like a read)
+  deckFormat5: key => json(req(deckPath(key) + "/format5", { method: "POST", json: {}, idempotent: true })),
   async decks() { return (await json<{ decks: SetupInfo[] }>(req("/api/decks"))).decks || []; },
   deleteDeck: (key, client) => json(req(deckPath(key) + "/delete", { method: "POST", json: { client } })),
   async deletedDecks() { return (await json<{ deleted: DeletedSetup[] }>(req("/api/decks/deleted"))).deleted || []; },
@@ -208,6 +217,8 @@ export const helper: Backend = {
   // (the helper may try GitHub, jsDelivr and googleapis in turn, each up to 20 s)
   googleFont: family => json(req("/api/fonts/google?family=" + encodeURIComponent(family), { timeout: WAIT_LONG_MS })),
   async googleFontFile(file) { return (await req("/api/fonts/google/file?ref=" + encodeURIComponent(file), { timeout: WAIT_LONG_MS })).arrayBuffer(); },
+  // (WAIT_MS: a first preview at the office may take longer, then that window shows no more; the helper caches it anyway)
+  async googleFontPreview(family) { return (await req("/api/fonts/google/preview?family=" + encodeURIComponent(family))).arrayBuffer(); },
   fontUrl: file => "/fonts/" + encodeURIComponent(file) + "?t=" + encodeURIComponent(TOKEN),
   async uploadLogo(name, data) { return (await json<{ name: string }>(req("/api/logo?name=" + encodeURIComponent(name), { method: "POST", body: data }))).name; },
 };
@@ -255,6 +266,7 @@ export const offline: Backend = {
   deckCompactOnLeave() { return false; },
   async deckRotate() { return { deleted: [] }; },
   async deckPrepare() { return null; },
+  async deckFormat5() { return { created: false }; },
   async decks() { return []; },
   deleteDeck: offlineOnly, async deletedDecks() { return []; }, restoreDeck: offlineOnly,
   async presence() { return []; },
@@ -275,7 +287,7 @@ export const offline: Backend = {
     LS.set("fonts", lib); return lib;
   },
   async removeFont(family) { const lib = LS.get<LibraryFont[]>("fonts", []).filter(x => x.family.toLowerCase() !== family.toLowerCase()); LS.set("fonts", lib); return lib; },
-  googleFont: offlineOnly, googleFontFile: offlineOnly,
+  googleFont: offlineOnly, googleFontFile: offlineOnly, googleFontPreview: offlineOnly,
   fontUrl: file => file,
   uploadLogo: offlineOnly,
 };

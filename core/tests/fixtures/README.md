@@ -11,5 +11,6 @@
 | `free-4.4.json` | a deck with a free layout (`SlideDef.free`, 4.4) read and edited by the frozen 4.1 operations (`free-fallback.test.ts`) | made by hand for M10 (S10.1) |
 | `cellgrid-4.4.json` | a deck with gridlines on selected cells (`TableDef.cellGrid`, 4.4) read and edited by the frozen 4.1 operations (`cellgrid-fallback.test.ts`) | made by hand for M10 (S10.3) |
 | `borders-4.4.json` | a deck with cell borders set on the slide (`TableDef.borders`, 4.4) read and edited by the frozen 4.1 operations (`borders-fallback.test.ts`) | made by hand for M10 (S10.3b) |
+| `saved/slides-4.6.json` | a deck as 4.6 saves it after New slide and Add table: a format-5 snapshot and two writers' records with `slide.add` / `slide.remove` / `table.add` / `table.remove` (09 §2.8), folded in `ops.test.ts` | made by hand for M13 (S13.3) |
 | `consult-4.2.json` | a deck saved in Consulting Navy with settings of both consulting designs | made by hand for M7b |
 | `images/wall-blur.jpg` | a small JPEG (800 × 450, the spike's blurred wallpaper) | `spikes/pdfwriter/assets/` |

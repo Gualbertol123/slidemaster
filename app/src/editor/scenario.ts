@@ -16,7 +16,7 @@ import { scenarioValues } from "@slide-builder/core/export/scenario";
 import { todayLabel } from "@slide-builder/core/render/cover";
 import { backend } from "../sync/api";
 import { catalog } from "../state/fontfiles";
-import { lastExport, scenarioPdf, scenarioPptx } from "./export";
+import { DESIGN_LABEL, lastExport, scenarioPdf, scenarioPptx, shownDesigns } from "./export";
 import type { ScenarioForm } from "../state/store";
 
 export function openScenario() {
@@ -100,6 +100,9 @@ let runCatalog: Promise<CatalogFont[]> | null = null;
     goes on in the core worker; its progress arrives as events) */
 export async function startRun(f: ScenarioForm, t0 = performance.now()): Promise<{ blocked: GateCell[] } | null> {
   if (runGoing()) { toast("A run for each value is going on: wait for it, or cancel it.", [], true); return null; }
+  // a design whose every slide is hidden (S13.6) is left out of the run, with a note; all of them: refused
+  const shownD = shownDesigns(f.designs);
+  if (f.designs.length && !shownD.list.length) { toast("Every slide is hidden in " + esc(shownD.skipped.map(d => DESIGN_LABEL[d]).join(", ")) + ": show one (right-click it in the slide list) to run for each value.", [], true); return null; }
   runCatalog = catalog();
   runCatalog.catch(() => undefined);
   const values = scenarioValues(f.values), r = await resolveInput(f.input);
@@ -114,13 +117,14 @@ export async function startRun(f: ScenarioForm, t0 = performance.now()): Promise
   }
   const vers = get().doc.view?.preset?.versions || [];
   const versions = f.versions.filter(v => v === "" || vers.some(x => x.id === v));
-  const a = await core().call("scenarioRun", { input: r.cell, values: values.map(v => typedValue(v, r.now?.t ?? null, f.asText)), designs: f.designs, versions, kinds: f.kinds?.length ? f.kinds : ["pdf"], runAnyway: f.runAnyway, folder, today: todayLabel() });
+  const a = await core().call("scenarioRun", { input: r.cell, values: values.map(v => typedValue(v, r.now?.t ?? null, f.asText)), designs: shownD.list, versions, kinds: f.kinds?.length ? f.kinds : ["pdf"], runAnyway: f.runAnyway, folder, today: todayLabel() });
   if (a.id === null) return { blocked: a.blocked };
   // timed from the click on Run (the engine's first use, the gate and the folder included: the bench's figure)
   patch("ui", { run: { id: a.id, total: a.total, done: 0, shown: a.shown, results: [], status: "running", marked: a.marked, kept: a.kept, t0 } });
   // "run anyway" is for this run only: the next one stops at the gate again (RC-06)
   patch("ui", { scenario: { ...get().ui.scenario, runAnyway: false } });
   setDialogs({ scenario: false });
+  if (shownD.skipped.length) toast("Run for each value" + shownD.note + ".");
   return null;
 }
 /** a file of the run (the core worker asks for each value × design × version) */

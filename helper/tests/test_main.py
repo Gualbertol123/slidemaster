@@ -213,6 +213,22 @@ class SelfTestTests(TempDirs):
         self.assertIn(b"accepts create, rename and delete", r.stdout)
         self.assertEqual(self.snapshot(), before)          # not converted, no probe file left
 
+    def test_reads_the_saved_format_5_deck(self):
+        # ADR-019: a deck with 4.6 objects (fixtures/saved: snapshot.v5.json, journal.v5.log, its marker) passes
+        import shutil
+        from slidebuilder import decks
+        fix = os.path.join(BACKEND, "tests", "fixtures", "saved")
+        with open(os.path.join(fix, "snapshot.v5.json"), encoding="utf-8") as f:
+            snap = json.load(f)
+        key = decks.deck_key(snap["workbook"])
+        os.makedirs(decks.journal_dir(key))
+        shutil.copy(os.path.join(fix, "snapshot.v5.json"), decks.snapshot_path(key))
+        shutil.copy(os.path.join(fix, "journal.v5.log"), os.path.join(decks.journal_dir(key), list(snap["frontier"])[0] + ".log"))
+        shutil.copy(os.path.join(fix, "incident-format-5.json"), decks.deck_dir(key, decks.MARKER5))
+        r = self.selftest()
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn(b"1 Slide Builder 4 deck(s) read", r.stdout)
+
     def test_fails_on_unreadable_or_too_new(self):
         p = self.write("workbooks/new.xlsx-9f9f.json", {"schema": 99})
         with open(os.path.join(self.data, "workbooks", "bad.xlsx-0000.json"), "w") as f:

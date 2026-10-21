@@ -831,7 +831,7 @@ def install_release(root, data, stamp, want=None, digest=None):
     return ver, True
 
 
-def use_version(root, ver, stamp):
+def use_version(root, ver, stamp, yes=False):
     folder = os.path.join(app_dir(root), ver)
     if not VERSION_RE.match(ver or "") or not os.path.isdir(folder):
         have = installed_versions(root)
@@ -840,6 +840,16 @@ def use_version(root, ver, stamp):
         check_installed(folder)
     except (OSError, ValueError, KeyError) as e:
         raise SystemExit("Version %s is damaged (%s) - not used. Install it again with --release %s." % (ver, e, ver))
+    marked = format5_decks(root) if version_key(ver)[:3] < FORMAT5_SINCE else []
+    if marked:
+        # ADR-019 (rule c): those decks hold Slide Builder 4.6 objects - read-only below 4.6, and Slide Builder 3 drops them
+        say("These %d deck(s) use Slide Builder 4.6 objects (charts, callouts, free layout, looks, cell gridlines or borders, "
+            "new slides, hidden slides...). In version %s they open read-only%s:"
+            % (len(marked), ver, "" if version_key(ver)[0] >= 4 else " and going back to Slide Builder 3 loses those objects"))
+        for wb in marked:
+            say("  " + wb)
+        if not yes and not confirm("Use version %s anyway? [y/N] " % ver):
+            raise SystemExit("Nothing was changed: version %s is not used." % ver)
     if version_key(ver)[0] < 4 and decks_owned(root):
         # back to Slide Builder 3 (04 §4.4, global rollback): every deck first, with the 4.x program still in use
         say("Giving every deck back to Slide Builder 3 first...")
@@ -853,6 +863,36 @@ def use_version(root, ver, stamp):
         return ver, False
     say("Version %s is now the current version%s." % (ver, (" (was %s)" % previous) if previous else ""))
     return ver, True
+
+
+FORMAT5_SINCE = (4, 6, 0)            # the first version that reads decks raised to format 5 (ADR-019)
+FORMAT5_MARKER = "incident-format-5.json"
+
+
+def format5_decks(root):
+    """the workbooks whose decks hold Slide Builder 4.6 objects (their folder has the marker; a deck given back to
+    Slide Builder 3 does not count), sorted"""
+    folder = os.path.join(data_dir(root), "v4", "decks")
+    out = []
+    for key in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+        d = os.path.join(folder, key)
+        if not os.path.isfile(os.path.join(d, FORMAT5_MARKER)) or os.path.isfile(os.path.join(d, "rolled-back.json")):
+            continue
+        try:
+            with open(os.path.join(d, "snapshot.json"), "rb") as f:
+                wb = json.loads(f.read().decode("utf-8-sig")).get("workbook")
+        except (OSError, ValueError, AttributeError):
+            wb = None
+        out.append(wb if isinstance(wb, str) and wb else key)
+    return sorted(out, key=lambda s: s.lower())
+
+
+def confirm(question):
+    """True for y / yes (s / si: an Italian keyboard habit); no answer possible (no console) is a no"""
+    try:
+        return input(question).strip().lower() in ("y", "yes", "s", "si", "sì")
+    except (EOFError, KeyboardInterrupt):
+        return False
 
 
 GITHUB_WEB = "https://github.com"
@@ -972,7 +1012,7 @@ def not_newer(root, ver, want):
 def release_mode(root, a, stamp, found=None):
     """--release / --zip <file> / --use; returns (changed, ok)"""
     if a.use:
-        return use_version(root, a.use, stamp)[1], True
+        return use_version(root, a.use, stamp, a.yes)[1], True
     if isinstance(a.zip, str):
         say("Installing %s (offline)..." % a.zip)
         try:

@@ -1,11 +1,15 @@
 """tools/make_release.py: the release ZIP holds exactly the program files, its MANIFEST.json verifies, and
 any damaged, extra, missing or unsafe entry is refused (by the same check tools/update.py uses)."""
+import ast
 import hashlib
 import importlib.util
 import io
 import json
 import os
+import re
 import shutil
+import sys
+import sysconfig
 import tempfile
 import unittest
 import zipfile
@@ -16,6 +20,17 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 spec = importlib.util.spec_from_file_location("sb_make_release", os.path.join(REPO, "tools", "make_release.py"))
 mr = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mr)
+
+
+def stdlib_roots():
+    """where the standard library lives: Lib (stdlib/platstdlib) and, on Windows CPython, <base_prefix>\\DLLs"""
+    dirs = [sysconfig.get_paths()[k] for k in ("stdlib", "platstdlib")] + [os.path.join(sys.base_prefix, "DLLs")]
+    return [os.path.normcase(os.path.realpath(d)) for d in dirs]
+
+
+def in_stdlib(origin, roots):
+    origin = os.path.normcase(os.path.realpath(origin))
+    return any(origin.startswith(r + os.sep) for r in roots) and "site-packages" not in origin
 
 
 def write(root, files):
@@ -50,6 +65,7 @@ class ReleaseTest(unittest.TestCase):
             "Update Slide Builder.bat": "@echo off\r\n",
             "Install Slide Builder.bat": "@echo off\r\n",
             "README.md": "# Slide Builder\n",
+            "THIRD-PARTY-NOTICES.txt": "## react 19.2.8 · MIT\n",
             # never shipped: user data, tests, caches, a user's logo and settings, workbooks, dot files
             "helper/data/config.json": "{}",
             "helper/data/workbooks/a.json": "{}",
@@ -87,7 +103,7 @@ class ReleaseTest(unittest.TestCase):
             man = json.loads(z.read("MANIFEST.json"))
             self.assertEqual(names, sorted([
                 "MANIFEST.json", "README.md", "Install Slide Builder.bat", "Start Slide Builder.bat", "Update Slide Builder.bat",
-                "helper/slide_builder.html",
+                "THIRD-PARTY-NOTICES.txt", "helper/slide_builder.html",
                 "helper/slide_builder.py", "helper/slidebuilder/__init__.py", "helper/slidebuilder/server.py", "tools/update.py"]))
             self.assertEqual(man["version"], "3.4.0")
             self.assertEqual(man["app"], "slide-builder")
@@ -146,6 +162,33 @@ class ReleaseTest(unittest.TestCase):
         with self.assertRaises(SystemExit) as e:
             self.build()
         self.assertIn("npm run build", str(e.exception))
+
+    def test_notices_must_be_there(self):
+        os.remove(os.path.join(self.root, "THIRD-PARTY-NOTICES.txt"))
+        with self.assertRaises(SystemExit) as e:
+            self.build()
+        self.assertIn("THIRD-PARTY-NOTICES.txt", str(e.exception))
+
+    def test_tests_check_the_notices_when_node_is_there(self):
+        """with the tests on, `node tools/notices.mjs --check` runs (after npm run check) and an out-of-date file stops
+        the release; without node on PATH it is skipped, as the npm checks are"""
+        calls = []
+        def call(cmd, **kw):
+            calls.append(cmd)
+            return 1 if cmd[-1] == "--check" and stale else 0
+        with mock.patch.object(mr.subprocess, "call", side_effect=call), redirect_stdout(io.StringIO()):
+            with mock.patch.object(mr.shutil, "which", return_value="/usr/bin/node"):
+                stale = False
+                mr.run_tests(self.root)
+                self.assertEqual(calls[-1], ["/usr/bin/node", os.path.join(self.root, "tools", "notices.mjs"), "--check"])
+                stale = True
+                with self.assertRaises(SystemExit) as e:
+                    mr.run_tests(self.root)
+                self.assertIn("node tools/notices.mjs", str(e.exception))
+            calls.clear()
+            with mock.patch.object(mr.shutil, "which", return_value=None):
+                mr.run_tests(self.root)
+                self.assertFalse(any(c[-1] == "--check" for c in calls), calls)
 
     def forged(self, good, extra):
         """a copy of the release with `extra` files added AND listed in its manifest with the right hashes"""
@@ -231,11 +274,99 @@ class RealTreeTest(unittest.TestCase):
             path, man = mr.build(REPO, "0.0.0-test", tmp, check_version=False)
             self.assertIn("helper/slide_builder.html", man["files"])
             self.assertIn("helper/slidebuilder/server.py", man["files"])
+            self.assertIn("THIRD-PARTY-NOTICES.txt", man["files"])
             self.assertFalse([n for n in man["files"] if n.startswith(("helper/data/", "helper/tests/", "app/", "docs/"))])
             with zipfile.ZipFile(path) as z:
                 mr.update.verify_release(z)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
+
+
+class NoticesTest(unittest.TestCase):
+    """LI-01 (AUDIT-2 LIC-1): THIRD-PARTY-NOTICES.txt ships in every release and names every runtime dependency.
+    What the bundles really hold is checked by app/tests/notices.test.ts; this test reads package-lock.json, so it
+    runs where node_modules is missing too."""
+
+    def read(self, *parts):
+        with open(os.path.join(REPO, *parts), encoding="utf-8") as f:
+            return f.read()
+
+    def sections(self):
+        """{name: version} of the "## <name> <version> ..." headings"""
+        return dict(re.findall(r"^## (\S+) (\S+) ", self.read("THIRD-PARTY-NOTICES.txt"), re.M))
+
+    def test_shipped_and_required(self):
+        self.assertIn("THIRD-PARTY-NOTICES.txt", mr.ROOT_FILES)
+        self.assertIn("THIRD-PARTY-NOTICES.txt", mr.REQUIRED)
+
+    def test_every_runtime_dependency_has_an_entry(self):
+        """the runtime dependencies of app/ and core/ in package-lock.json, and theirs, each at its locked version"""
+        pkgs = json.loads(self.read("package-lock.json"))["packages"]
+        todo = [n for ws in ("app", "core") for n in pkgs[ws].get("dependencies", {}) if not n.startswith("@slide-builder/")]
+        have, seen = self.sections(), set()
+        while todo:
+            n = todo.pop()
+            if n in seen:
+                continue
+            seen.add(n)
+            entry = pkgs["node_modules/" + n]
+            self.assertEqual(have.get(n), entry["version"], "%s %s has no entry in THIRD-PARTY-NOTICES.txt (node tools/notices.mjs)" % (n, entry["version"]))
+            todo += list(entry.get("dependencies", {}))
+        self.assertTrue({"react", "react-dom", "scheduler", "zustand", "fflate"} <= seen, seen)    # scheduler through react-dom
+
+    def test_vendored_licences_have_an_entry(self):
+        """every licence file next to an inlined WASM (core/src/**/wasm/) is reproduced whole, and so is the Apache-2.0 text"""
+        text = self.read("THIRD-PARTY-NOTICES.txt")
+        found = []
+        for base, _dirs, files in os.walk(os.path.join(REPO, "core", "src")):
+            if os.path.basename(base) != "wasm":
+                continue
+            rel = os.path.relpath(base, REPO).replace(os.sep, "/")
+            lic = sorted(f for f in files if f.startswith(("LICENSE", "COPYING")))
+            self.assertTrue(lic, rel + " has no licence file")
+            for f in lic:
+                found.append(f)
+                self.assertIn("(%s/%s)" % (rel, f), text)
+                self.assertIn(self.read(*(rel.split("/") + [f])).strip(), text, f)
+        self.assertEqual(sorted(found), ["COPYING-harfbuzz", "LICENSE-harfbuzzjs", "LICENSE-ironcalc"])
+        self.assertIn(self.read("tools", "licenses", "Apache-2.0.txt").strip(), text)
+        self.assertIn("IronCalc's WebAssembly has Rust libraries (crates) compiled in", text)   # (their own notices: AUDIT-2 LIC-1, open)
+        self.assertTrue({"IronCalc", "harfbuzzjs", "HarfBuzz", "Apache-2.0"} <= set(self.sections()))
+
+    def test_windows_dlls_folder_counts_as_standard_library(self):
+        """Windows CPython keeps compiled stdlib modules (unicodedata.pyd, _socket.pyd) in <base_prefix>\\DLLs"""
+        roots = stdlib_roots()
+        dlls = os.path.join(sys.base_prefix, "DLLs")
+        self.assertTrue(in_stdlib(os.path.join(dlls, "unicodedata.pyd"), roots))
+        self.assertTrue(in_stdlib(os.path.join(sysconfig.get_paths()["stdlib"], "json", "__init__.py"), roots))
+        self.assertFalse(in_stdlib(os.path.join(sysconfig.get_paths()["purelib"], "six.py"), roots))
+        self.assertFalse(in_stdlib(os.path.join(dlls, "site-packages", "x.pyd"), roots))
+        self.assertFalse(in_stdlib(os.path.join(os.sep, "elsewhere", "DLLs", "unicodedata.pyd"), roots))
+
+    def test_helper_uses_the_standard_library_only(self):
+        """the helper and the updater ship no third-party Python code, so they need no entry"""
+        std = stdlib_roots()
+        pkg = os.path.join(REPO, "helper", "slidebuilder")
+        files = [os.path.join(REPO, "helper", "slide_builder.py"), os.path.join(REPO, "tools", "update.py")]
+        files += [os.path.join(pkg, f) for f in os.listdir(pkg) if f.endswith(".py")]
+        local = {"slidebuilder"} | {f[:-3] for f in os.listdir(pkg) if f.endswith(".py")}
+        names = set()
+        for path in files:
+            with open(path, encoding="utf-8") as f:
+                tree = ast.parse(f.read(), path)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    names |= {a.name.split(".")[0] for a in node.names}
+                elif isinstance(node, ast.ImportFrom) and not node.level and node.module:
+                    names.add(node.module.split(".")[0])
+        for n in sorted(names - local):
+            if n in sys.builtin_module_names or (os.name != "nt" and n in ("winreg", "msvcrt", "_winapi", "winsound", "nt")):
+                continue                                     # (Windows' own standard modules, missing elsewhere)
+            spec = importlib.util.find_spec(n)
+            self.assertIsNotNone(spec, n)
+            if spec.origin in ("built-in", "frozen"):
+                continue
+            self.assertTrue(in_stdlib(spec.origin or "", std), "%s is not in the standard library (%s)" % (n, spec.origin))
 
 
 if __name__ == "__main__":

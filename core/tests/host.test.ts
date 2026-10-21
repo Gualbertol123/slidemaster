@@ -47,6 +47,7 @@ function page(srv: ReturnType<typeof server>, who: string) {
   port.handle("deckAppend", x => api.append(x.key, x.writer, x.record));
   port.handle("deckCompact", x => api.compact(x.key, x.baseGen, x.snapshot));
   port.handle("deckRotate", x => api.rotate(x.key, x.writer));
+  port.handle("deckFormat5", x => api.format5(x.key));
   port.handle("deckPrepare", () => null);
   port.handle("digitWidth", () => 0);
   port.handle("convertPicture", () => null);
@@ -679,6 +680,29 @@ describe("Run for each value (S8.3, 07 §2.4, SC-02/03/05/06, RC-06)", () => {
     // an ordinary list after the run: no marks
     const own = await p.port.call("slideLists", { design: "excel", version: "", forExport: true, thumb: false });
     expect(JSON.stringify(own).includes(RED)).toBe(false);
+  }, 120_000);
+  // S13.6 review, 6: a run's lists (slideLists with the run's id) leave out the slides hidden in each design, and the
+  // gate (RC-06) does not look at their cells
+  it("a slide hidden in a design: the run's files of that design leave it out, the others keep it (HS-02)", async () => {
+    const hp = { ...preset, slides: [...preset.slides, { id: "s2", type: "content" as const, title: "Secret page", tables: [], hide: { glass: true } }] };
+    const { p, made, end } = await setup(undefined, hp);
+    await run(p, ["Bank C"], ["glass", "excel"]);
+    await end();
+    const of = (d: string) => made.find(m => m.design === d)!;
+    expect(made.length).toBe(2);
+    expect(of("glass").texts).toContain("Loans & deposits - Bank C");
+    expect(of("glass").texts).not.toContain("Secret page");
+    expect(of("excel").texts).toContain("Secret page");
+  }, 120_000);
+  it("the gate skips the cells of a slide hidden in the run's design (RC-06, S13.6)", async () => {
+    const fp = { sheets: ["F"], tables: [{ id: "t0", sheet: "F", kind: "range" as const, range: "A1:G164" }],
+      slides: [{ id: "s1", type: "content" as const, tables: ["t0"], hide: { excel: true } }, { id: "s2", type: "content" as const, title: "Other", tables: [] }] };
+    const { p, end } = await setup("recalc/Functions.xlsx", fp);
+    const shown = await run(p, [8], ["glass"], { sheet: "F", ref: "A1" });
+    expect(shown.id).toBeNull();                                       // glass shows the slide: its cells stop the run
+    const hidden = await run(p, [8], ["excel"], { sheet: "F", ref: "A1" });
+    expect(hidden.id).toBeTruthy();                                    // excel hides it: nothing to stop
+    await end();
   }, 120_000);
 });
 

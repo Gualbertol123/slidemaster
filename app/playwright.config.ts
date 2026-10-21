@@ -27,7 +27,13 @@ const PY = process.platform === "win32" ? "python" : "python3";
 const helper = (user: string, port: number) => ({
   command: `${PY} ../helper/slide_builder.py --no-browser --port ${port}`,
   url: `http://127.0.0.1:${port}/api/ping`,
+  // SLIDEBUILDER_NO_NET: the helpers never reach Google (B46: the font picker's previews are fetched by the helper) -
+  // each fetch fails at once, the same with or without network and whatever proxy.txt this PC has: the previews answer
+  // 502 (EXPECTED in app.spec.ts) and no data/fonts/cache is written
   env: { SLIDEBUILDER_ROOT: root, SLIDEBUILDER_DATA: data, SLIDEBUILDER_USER: user, SLIDEBUILDER_HOST: "pc-" + user, NO_PROXY: "*",
+    SLIDEBUILDER_NO_NET: "1",
+    // the format guard's wait (ADR-019 amendment, 23 s) shortened for the run: no 4.0-4.5 page shares these folders
+    SLIDEBUILDER_TEST_BUMP_WAIT_S: "2",
     ...(SYSFONTS ? { SLIDEBUILDER_SYSFONTS: SYSFONTS } : {}) },
   reuseExistingServer: false, timeout: 90_000,
   stdout: "pipe" as const, stderr: "pipe" as const,          // the helpers' logs appear in the test output (CI diagnosis)

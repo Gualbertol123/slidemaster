@@ -1,0 +1,75 @@
+{
+  "about": "A deck as Slide Builder 4.6 saves it after New slide and Add table (S13.3, docs/next/09 §2.8): the format-5 snapshot and the records of two writers past its frontier. Made by hand for M13; added, never edited.",
+  "snapshot": {
+    "format": 5,
+    "gen": 2,
+    "workbook": "Weekly.xlsx",
+    "lamport": 6,
+    "rev": 4,
+    "frontier": {
+      "anna@pc1#aaaaaaaa": 2304,
+      "bob@pc2#bbbbbbbb": 731
+    },
+    "seen": {
+      "anna@pc1#aaaaaaaa": 6,
+      "bob@pc2#bbbbbbbb": 2
+    },
+    "updated": 1792000000000,
+    "updatedBy": "anna",
+    "log": [
+      { "rev": 3, "by": "bob", "at": 1791999990000 },
+      { "rev": 4, "by": "anna", "at": 1792000000000 }
+    ],
+    "at": 1792000005000,
+    "by": "anna",
+    "doc": {
+      "schema": 3,
+      "workbook": "Weekly.xlsx",
+      "rev": 4,
+      "preset": {
+        "sheets": ["SLIDE_1", "SLIDE_2"],
+        "tables": [
+          { "id": "t1", "sheet": "SLIDE_1", "kind": "markers", "anchor": "B3", "index": 0 },
+          { "id": "t2", "sheet": "SLIDE_2", "kind": "markers", "anchor": "B3", "index": 0 },
+          { "id": "t3", "sheet": "SLIDE_2", "kind": "range", "range": "H3:K9", "name": "Peers" }
+        ],
+        "slides": [
+          { "id": "cv", "type": "cover", "title": "Weekly report", "tables": [] },
+          { "id": "ix", "type": "index", "title": "Contents", "tables": [] },
+          { "id": "s1", "type": "content", "tables": ["t1"], "notes": { "t1:right": { "text": "Loans up" } } },
+          { "id": "s2", "type": "content", "tables": ["t2", "t3"] },
+          { "id": "n1", "type": "content", "title": "Summary", "tables": [] }
+        ]
+      },
+      "style": { "design": "excel", "pn": { "on": true, "format": "n" } },
+      "edits": {}
+    }
+  },
+  "records": [
+    { "l": 7, "w": "anna@pc1#aaaaaaaa", "s": 7, "by": "anna", "at": 1792000060000, "ops": [
+      { "op": "slide.add", "slide": { "id": "n2", "type": "content", "title": "New slide", "tables": [] }, "after": "s1" },
+      { "op": "slide.patch", "id": "n2", "patch": { "title": "Outlook", "subtitle": "Next quarter" } }
+    ] },
+    { "l": 7, "w": "bob@pc2#bbbbbbbb", "s": 3, "by": "bob", "at": 1792000061000, "ops": [
+      { "op": "slide.add", "slide": { "id": "n3", "type": "content", "title": "New slide", "tables": [] }, "after": "s1" }
+    ] },
+    { "l": 8, "w": "anna@pc1#aaaaaaaa", "s": 8, "by": "anna", "at": 1792000070000, "ops": [
+      { "op": "table.add", "table": { "id": "t3", "sheet": "SLIDE_2", "kind": "range", "range": "H3:K9" }, "slide": "n2" },
+      { "op": "table.add", "table": { "id": "t4", "sheet": "SLIDE_1", "kind": "range", "range": "B20:E26" }, "slide": "n2", "at": 0 },
+      { "op": "item.patch", "slide": "n2", "id": "k1", "patch": { "kind": "shape", "shape": "pill", "text": "Outlook", "box": { "x": 1200, "y": 780, "w": 300, "h": 70 } } }
+    ] },
+    { "l": 9, "w": "bob@pc2#bbbbbbbb", "s": 4, "by": "bob", "at": 1792000080000, "ops": [
+      { "op": "table.remove", "id": "t3", "slide": "s2" },
+      { "op": "slide.remove", "id": "n1" },
+      { "op": "slide.patch", "id": "n1", "patch": { "title": "Lost" } }
+    ] },
+    { "l": 10, "w": "anna@pc1#aaaaaaaa", "s": 9, "by": "anna", "at": 1792000090000, "ops": [
+      { "op": "slide.remove", "id": "n3" },
+      { "op": "slide.add", "slide": { "id": "n3", "type": "content", "title": "New slide", "tables": [] }, "after": "n2" }
+    ] },
+    { "l": 11, "w": "bob@pc2#bbbbbbbb", "s": 5, "by": "bob", "at": 1792000095000, "ops": [
+      { "op": "table.add", "table": { "id": "t3", "sheet": "SLIDE_2", "kind": "range", "range": "H3:K9" }, "slide": "s2", "at": 1 },
+      { "op": "table.remove", "id": "t3", "slide": "n2" }
+    ] }
+  ]
+}

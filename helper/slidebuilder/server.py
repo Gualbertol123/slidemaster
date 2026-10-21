@@ -24,7 +24,7 @@ from . import APP_NAME, VERSION, deckbin, decks, migrate_v3, paths, store
 from .convert import convert_picture, convert_workbook
 from .exports import ExportError, export_feedback, export_file
 from .fonts import FONT_MAX, FontError, add_face, font_file, read_library, remove_family
-from .gfonts import GFontError, face_file as google_font_file, family_faces as google_font
+from .gfonts import GFontError, face_file as google_font_file, family_faces as google_font, preview as google_preview, preview_type
 from .sysfonts import SysFontError, capture as capture_sysfont, list_fonts as list_sysfonts, read_font as read_sysfont
 from .locks import LockTimeout
 from .store import StoreTooNew, StoreUnreadable
@@ -39,6 +39,7 @@ UPLOAD_TTL = 2 * 3600
 TOKEN_PLACEHOLDER = b"__SB_TOKEN__"
 TOKEN_HEADER = "X-SB-Token"
 FORMATS_HEADER = "X-SB-Formats"
+DECK_FORMATS_HEADER = "X-SB-Deck-Formats"      # "4,5": the deck snapshot formats a 4.6+ page reads (ADR-019)
 
 
 def formats_match(header):
@@ -96,7 +97,7 @@ def find_asset(name):
     return None
 
 
-DECK_ROUTE = re.compile(r"^/api/decks/([^/]+)/(snapshot|tail|append|prepare|compact|rotate|history|delete)$")
+DECK_ROUTE = re.compile(r"^/api/decks/([^/]+)/(snapshot|tail|append|prepare|compact|rotate|history|delete|format5)$")
 
 
 class HttpError(Exception):
@@ -339,8 +340,11 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/ping":
             return self._send(200, {"app": APP_NAME, "version": VERSION})
         if path == "/api/health":
-            return self._send(200, {"app": APP_NAME, "version": VERSION, "user": current_user(), "host": current_host(),
-                                    "folder": paths.ROOT, "export": paths.EXPORT_DIR})
+            health = {"app": APP_NAME, "version": VERSION, "user": current_user(), "host": current_host(),
+                      "folder": paths.ROOT, "export": paths.EXPORT_DIR}
+            if decks.TEST_BUMP_WAIT_S is not None:              # a test setting in effect (decks.TEST_BUMP_WAIT_ENV)
+                health["testBumpWaitS"] = decks.TEST_BUMP_WAIT_S
+            return self._send(200, health)
         if path == "/api/config":
             return self._send(200, store.read_config())
         if path == "/api/me":
@@ -355,6 +359,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, google_font((q.get("family") or [""])[0]))
         if path == "/api/fonts/google/file":              # one of its files (a google/fonts or fonts.gstatic.com file only)
             return self._send(200, google_font_file((q.get("ref") or [""])[0]), "application/octet-stream")
+        if path == "/api/fonts/google/preview":           # a font to show a Google family's name in the picker (B46)
+            data = google_preview((q.get("family") or [""])[0])
+            return self._send(200, data, preview_type(data))
         if path.startswith("/fonts/"):
             data, ctype = font_file(urllib.parse.unquote(path[len("/fonts/"):]))
             return self._send(200, data, ctype)
@@ -380,12 +387,15 @@ class Handler(BaseHTTPRequestHandler):
         if m:
             key, action = urllib.parse.unquote(m.group(1)), m.group(2)
             if action == "snapshot":
-                return self._send(200, {"snapshot": decks.read_snapshot(key)})
+                snap = decks.read_snapshot(key)
+                decks.check_page(key, self._deck_formats(), snap)
+                return self._send(200, {"snapshot": snap})
             if action == "tail":
                 try:
                     since = json.loads((q.get("since") or ["{}"])[0])
                 except ValueError:
                     raise HttpError(400, "since must be JSON")
+                decks.check_page(key, self._deck_formats())
                 return self._send(200, decks.tail(key, since))
             if action == "history":
                 return self._send(200, {"backups": decks.history(key)})
@@ -445,6 +455,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, remove_family(family))
         return False
 
+    def _deck_formats(self):
+        """the deck formats the page reads (X-SB-Deck-Formats; a 4.0-4.5 page sends none: decks.check_page)"""
+        return decks.page_formats(self.headers.get(DECK_FORMATS_HEADER))
+
     # ------------------------------------------------------------------ POST
     def _post_deck(self, path):
         """the decks of Slide Builder 4 (docs/next/04 §2.2; helper/slidebuilder/decks.py)"""
@@ -454,7 +468,9 @@ class Handler(BaseHTTPRequestHandler):
                 raise HttpError(400, "invalid workbook name")
             # the first open in Slide Builder 4 moves a v3 deck over (migrate_v3: under v3's lock, backup, freeze)
             key, how = migrate_v3.ensure_deck(wb)
-            snap, writer = decks.read_snapshot(key), decks.new_writer()
+            snap = decks.read_snapshot(key)
+            decks.check_page(key, self._deck_formats(), snap)      # a 4.0-4.5 page never opens a 4.6 deck (ADR-019)
+            writer = decks.new_writer()
             decks.bind_writer(writer, key)                # (B44: a writer of a deck deleted since writes nothing)
             return self._send(200, {"key": key, "writer": writer, "created": how == "created", "migrated": how == "migrated",
                                     "storage": decks.storage_mode(), "snapshot": snap})
@@ -465,6 +481,10 @@ class Handler(BaseHTTPRequestHandler):
         if not m:
             return False
         key, action = urllib.parse.unquote(m.group(1)), m.group(2)
+        if action in ("append", "prepare", "compact", "rotate"):
+            decks.check_page(key, self._deck_formats())
+        if action == "format5":                           # the deck is about to hold 4.6 objects: its marker (ADR-019)
+            return self._send(200, decks.mark_format5(key))
         if action == "append":
             req = self._json()
             return self._send(200, decks.append(key, req.get("writer"), req.get("record")))

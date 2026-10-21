@@ -11,6 +11,7 @@ The ZIP holds what a shared folder needs to run one version side by side with ot
                           tests/, __pycache__ and anything that belongs to a user (logo, v2 settings)
     tools/update.py       the updater
     *.bat  README.md      the launchers and the guide (CHANGELOG.md when present)
+    THIRD-PARTY-NOTICES.txt  the licences of the third-party software in the page (tools/notices.mjs; LI-01)
     MANIFEST.json         {"app", "version", "commit", "files": {path: {"sha256", "size"}}}
 
 The ZIP is reproducible: files in sorted order, fixed timestamps, no build time in the manifest.
@@ -22,6 +23,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import zipfile
@@ -36,12 +38,12 @@ _spec.loader.exec_module(update)
 
 ROOT_FILES = ("Start Slide Builder.bat", "Update Slide Builder.bat", "Install Slide Builder.bat",
               "Start Slide Builder (v3).bat",
-              "README.md", "CHANGELOG.md",
+              "README.md", "CHANGELOG.md", "THIRD-PARTY-NOTICES.txt",
               "tools/update.py", "tools/fieldcheck.html")
 SKIP_DIRS = {"data", "tests", "__pycache__", "engine", "export", "node_modules"}      # directly below helper/
 SKIP_FILE = re.compile(r"(\.pyc$|\.pyo$|\.update-tmp$|^logo[^/]*$|^slide_builder_settings|^~\$|\.(xlsx|xlsm|xlsb|xls)$|^\.)", re.I)
 REQUIRED = ("helper/slide_builder.py", "helper/slide_builder.html", "helper/slidebuilder/__init__.py", "tools/update.py",
-            "Start Slide Builder.bat")
+            "Start Slide Builder.bat", "THIRD-PARTY-NOTICES.txt")
 
 
 def say(msg=""):
@@ -172,7 +174,8 @@ def release_notes(root, version):
 
 
 def run_tests(root):
-    """the helper tests, and the app and core checks when npm is installed (what CI runs)"""
+    """the helper tests, and the app and core checks when npm is installed (what CI runs), then whether
+    THIRD-PARTY-NOTICES.txt is current (`node tools/notices.mjs --check`) when node is on PATH"""
     say("Running the helper tests...")
     if subprocess.call([sys.executable, "-m", "unittest", "discover", "-s", os.path.join(root, "helper", "tests")], cwd=root):
         raise SystemExit("helper tests failed - no release built")
@@ -184,6 +187,11 @@ def run_tests(root):
         return
     if rc:
         raise SystemExit("app or core checks failed - no release built")
+    node = shutil.which("node")
+    if not node:
+        say("node not found: THIRD-PARTY-NOTICES.txt not checked (CI runs the check)")
+    elif subprocess.call([node, os.path.join(root, "tools", "notices.mjs"), "--check"], cwd=root):
+        raise SystemExit("THIRD-PARTY-NOTICES.txt is out of date: run node tools/notices.mjs - no release built")
 
 
 def main(argv=None):

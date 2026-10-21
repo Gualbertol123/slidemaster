@@ -11,7 +11,7 @@ import { runtimeSlides } from "../src/model/preset";
 import { resolveStyle } from "../src/model/style";
 import { excelToDisplayList, type Metrics } from "../src/render/excel-dl";
 import { slideToDisplayList } from "../src/render/slide-dl";
-import { computeLayout, freeBoxes, freeKey, freeOf, itemBoxOf, noteKey, tableW } from "../src/render/layout";
+import { areaFor, computeLayout, emptySpot, firstEmpty, freeBoxes, freeKey, freeOf, GX, GY, itemBoxOf, noteKey, tableH, tableW } from "../src/render/layout";
 import { History } from "../src/sync/history";
 import { wrapLines } from "../src/text/lines";
 import type { RenderCtx } from "../src/render/context";
@@ -131,6 +131,85 @@ describe("free layout: the saved boxes, nothing re-flows", () => {
     expect(b.notes.top!.y - b.y).toBeCloseTo(a2.notes.top!.y - a2.y);
     expect(b.notes.bottom).toEqual({ ...items["n:dj7beg8:bottom"], free: true });          // saved: stays
     expect(b.x).toBe(auto.x - 40);
+  });
+});
+
+describe("free layout: a table added after the switch-on (Add table, S13.4, 09 §2.8)", () => {
+  const apart = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) =>
+    a.x + a.w + GX <= b.x + .01 || b.x + b.w + GX <= a.x + .01 || a.y + a.h + GY <= b.y + .01 || b.y + b.h + GY <= a.y + .01;
+  for (const design of ["glass", "excel", "clean", "mckinsey", "bain"] as Design[]) it(design + ": at its automatic scale, at the first empty spot of the content area; no box written", async () => {
+    const { doc, at } = await open(), s0 = at(design), items = freeBoxes(s0.R, s0.ctx), A = areaFor(s0.R, s0.ctx), auto = computeLayout(s0.R, s0.ctx).boxes;
+    // the first table small in the top left corner, the second without a box (as table.add leaves it)
+    const W = tableW(s0.R.tables[0], s0.ctx), H = tableH(s0.R.tables[0], s0.ctx);
+    items["t:l4tsxhl"] = { x: A.x, y: A.y, w: W * .3, h: H * .3, scale: .3 };
+    delete items["t:dj7beg8"];
+    const d2 = structuredClone(doc); applyOp(d2, on(design, items));
+    const s = at(design, d2), L = computeLayout(s.R, s.ctx).boxes, b = L[1];
+    expect(b.scale).toBeCloseTo(auto[1].scale);
+    expect([b.w, b.h]).toEqual([auto[1].w, auto[1].h]);
+    expect(b.x).toBeGreaterThanOrEqual(A.x); expect(b.y).toBeGreaterThanOrEqual(A.y);
+    expect(b.x + b.w).toBeLessThanOrEqual(A.x + A.w + .01); expect(b.y + b.h).toBeLessThanOrEqual(A.y + A.h + .01);
+    const taken = [L[0], ...Object.values(L[0].notes), ...Object.values(L[0].items || {}), itemBoxOf(s.R, "k1", L, s.ctx)!];
+    for (const t of taken) if (t) expect(apart(b, t)).toBe(true);
+    expect(s.R.cfg.free![design]!.items["t:dj7beg8"]).toBeUndefined();
+    expect(at(design, d2).dl().nodes.length).toBeGreaterThan(0);
+    // the same on every call (the stage, the export, the drags read it)
+    expect(computeLayout(s.R, s.ctx).boxes[1]).toEqual(b);
+  });
+  // (review of S13.4: the text boxes that go beside the new table count when looking for room – they move with it)
+  for (const design of ["glass", "excel", "clean", "mckinsey", "bain"] as Design[]) it(design + ": its text box without a place of its own lands on nothing either", async () => {
+    const { doc, at } = await open(), s0 = at(design), items = freeBoxes(s0.R, s0.ctx), A = areaFor(s0.R, s0.ctx);
+    const W = tableW(s0.R.tables[0], s0.ctx), H = tableH(s0.R.tables[0], s0.ctx);
+    items["t:l4tsxhl"] = { x: A.x, y: A.y, w: W * .3, h: H * .3, scale: .3 };
+    delete items["t:dj7beg8"]; delete items["n:dj7beg8:bottom"];                   // the table and its comment below: no box
+    const d2 = structuredClone(doc); applyOp(d2, on(design, items));
+    const s = at(design, d2), L = computeLayout(s.R, s.ctx).boxes, b = L[1], note = b.notes.bottom!;
+    expect(note).toBeTruthy();
+    const taken = [L[0], ...Object.values(L[0].notes), ...Object.values(L[0].items || {}), itemBoxOf(s.R, "k1", L, s.ctx)!].filter(Boolean);
+    for (const t of taken) { expect(apart(b, t)).toBe(true); expect(apart(note, t)).toBe(true); }
+    expect(note.y).toBeGreaterThanOrEqual(b.y + b.h - .01);                         // still below its table
+    expect(note.y + note.h).toBeLessThanOrEqual(A.y + A.h + .01);
+  });
+  it("a table that fits above another but its comment would not: not there (it and its comment fit elsewhere, or smaller)", async () => {
+    const { doc, at } = await open(), s0 = at("excel"), items = freeBoxes(s0.R, s0.ctx), A = areaFor(s0.R, s0.ctx), auto = computeLayout(s0.R, s0.ctx).boxes;
+    const W = tableW(s0.R.tables[0], s0.ctx), H = tableH(s0.R.tables[0], s0.ctx), sc = A.w / W;
+    // the first table across the whole width, just below the room the second table needs (not its comment)
+    const y = A.y + auto[1].h + GY + 1;
+    items["t:l4tsxhl"] = { x: A.x, y, w: A.w, h: H * sc, scale: sc };
+    delete items["n:l4tsxhl:top"]; delete items["n:l4tsxhl:right"]; delete items["i:c1"];
+    items["n:l4tsxhl:top"] = { x: A.x + A.w - 10, y: A.y + A.h - 10, w: 10, h: 10 };     // out of the way
+    items["n:l4tsxhl:right"] = { x: A.x + A.w - 10, y: A.y + A.h - 30, w: 10, h: 10 };
+    items["i:c1"] = { x: A.x + A.w - 30, y: A.y + A.h - 10, w: 10, h: 10 };
+    delete items["t:dj7beg8"]; delete items["n:dj7beg8:bottom"];
+    const d2 = structuredClone(doc); applyOp(d2, on("excel", items));
+    const s = at("excel", d2), L = computeLayout(s.R, s.ctx).boxes, b = L[1], note = b.notes.bottom!;
+    expect(apart(note, L[0])).toBe(true);
+    expect(apart(b, L[0])).toBe(true);
+    // (the corner had room for the table alone at its scale: not taken, its comment would be on the first table)
+    expect(Math.abs(b.y - A.y) < .01 && Math.abs(b.scale - auto[1].scale) < 1e-9).toBe(false);
+  });
+  it("no empty spot even at a quarter of its scale: where the automatic layout puts it", async () => {
+    const { doc, at } = await open(), s0 = at("excel"), items = freeBoxes(s0.R, s0.ctx), A = areaFor(s0.R, s0.ctx), auto = computeLayout(s0.R, s0.ctx).boxes;
+    items["t:l4tsxhl"] = { ...items["t:l4tsxhl"], x: A.x, y: A.y, w: A.w, h: A.h, scale: Math.max(A.w / tableW(s0.R.tables[0], s0.ctx), A.h / tableH(s0.R.tables[0], s0.ctx)) };
+    delete items["t:dj7beg8"];
+    const d2 = structuredClone(doc); applyOp(d2, on("excel", items));
+    const s = at("excel", d2), b = computeLayout(s.R, s.ctx).boxes[1];
+    expect([b.x, b.y, b.w, b.h]).toEqual([auto[1].x, auto[1].y, auto[1].w, auto[1].h]);
+  });
+  it("firstEmpty: top to bottom, then left to right, GX / GY apart; null when nothing fits", () => {
+    const A = { x: 0, y: 0, w: 1000, h: 500 };
+    expect(firstEmpty(A, 100, 100, [])).toEqual({ x: 0, y: 0 });
+    expect(firstEmpty(A, 100, 100, [{ x: 0, y: 0, w: 300, h: 200 }])).toEqual({ x: 300 + GX, y: 0 });
+    expect(firstEmpty(A, 800, 100, [{ x: 0, y: 0, w: 300, h: 200 }])).toEqual({ x: 0, y: 200 + GY });
+    expect(firstEmpty(A, 100, 100, [{ x: 0, y: 0, w: 1000, h: 500 }])).toBeNull();
+    expect(firstEmpty(A, 1200, 100, [])).toBeNull();
+  });
+  it("emptySpot: its size first, else ¾, ½, ⅓, ¼ of it; null when not even a quarter fits", () => {
+    const A = { x: 0, y: 0, w: 1000, h: 500 }, top = { x: 0, y: 0, w: 1000, h: 300 };
+    expect(emptySpot(A, 400, 100, [top])).toEqual({ x: 0, y: 300 + GY, f: 1 });
+    expect(emptySpot(A, 400, 200, [top])).toEqual({ x: 0, y: 300 + GY, f: .75 });            // 172 px left: 150 fits
+    expect(emptySpot(A, 400, 400, [top])).toEqual({ x: 0, y: 300 + GY, f: 1 / 3 });
+    expect(emptySpot(A, 400, 800, [top])).toBeNull();
   });
 });
 

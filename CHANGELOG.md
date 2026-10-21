@@ -3,9 +3,11 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## 4.6.0 - unreleased (PLAN M13)
+## 4.6.0 - unreleased (PLAN M13; prepared 2026-10-21, dated at the tag)
 
 What users notice
+* **The share goes from 4.0 straight to 4.6**: users also get everything listed for 4.1–4.5 in CHANGELOG.md (never released
+  on their own).
 * **Scan for "x" tables** (B43): in a large workbook the wizard reads a sheet only when it is selected, so its first
   step showed "not read yet" and no tables. The new button reads the selected sheets at once and shows each one's
   "x" tables, title and suggested tables there; the "x" tables are defined, as *Next* would. Sheets not selected are
@@ -15,8 +17,42 @@ What users notice
   workbook is not changed). ⚙ Options › Administration › **Saved setups…** lists every workbook's setup (slides,
   tables, last change) with *Delete…*, and the deleted ones with *Restore…*: a deleted setup is kept as a backup on
   the shared folder. A setup open in a window is not deleted – the message says who has it open.
+* **Decks with Slide Builder 4.6 objects open in 4.6 and later only** (B41, ADR-019): a deck that holds charts,
+  callouts, free layouts, looks, cell gridlines or borders, or any object added from 4.6 on, is marked for 4.6 before
+  the first such object is saved – once per deck, about 25 seconds of "Saving…". An older window that still has it open
+  turns read-only and saves nothing more; an older version opening it shows "a journal of this deck is damaged – tell
+  the maintainer": that message means **update Slide Builder** (close its black window and start it again). Decks
+  without such objects keep opening in older versions.
+* **New slide and Add table** (B40): *+ New slide* in the slide list's header, Ctrl+M, or right-click the slide list ›
+  *New slide* adds a blank slide after the selected one, its title ready to type; ribbon 2 › Insert › *Add table* lists
+  the deck's tables (those on no slide first, each with a small sketch) and puts one on the current slide – on a free
+  layout in the first empty spot; *New table from cells…* makes one from cells picked on a sheet. One undo step each.
+* **Google fonts through Slide Builder** (B45): adding a Google font no longer needs fonts.googleapis.com from the page
+  (refused at the office: "failed to fetch"); the helper fetches it from Google's font collection on GitHub (or
+  jsDelivr, googleapis last). A proxy can be written in this PC's `%LOCALAPPDATA%\SlideBuilder\proxy.txt` or the
+  shared `data\proxy.txt`; every failure says what to do (e.g. *Upload font files*).
+* **Font previews from a shared cache** (B46): the font picker's previews are fetched once by the helper and kept in
+  `data\fonts\cache\` for the whole office (at most 200 MB); the page no longer asks Google for them.
+* **Licences** (B42, LI-01): ⚙ Options › About › *Licences…*, or *Licences…* on the start screen before any workbook is
+  open, shows the licences of the third-party software in Slide Builder (React, zustand, fflate, IronCalc,
+  harfbuzzjs / HarfBuzz); the release ZIP carries the same text as `THIRD-PARTY-NOTICES.txt`.
+* **Hide slides** (B47), as in PowerPoint: right-click a slide in the slide list › *Hide slide* hides it in the current
+  design (*Show slide* brings it back), *Hide in every design* in all five. A hidden slide stays in the list, grayed,
+  its number struck and marked *hidden*, and on the stage (marked "Hidden in …", still editable); it is left out of
+  that design's exports – PDF, PNG of every slide, PowerPoint, every version × design, Run for each value – and the
+  page numbers and the contents slide count only the slides shown (on the stage too; the hidden slide shows no page
+  number). Exporting or copying the current slide still exports a hidden one. Hidden in Liquid Glass, a slide still
+  shows in the other designs. Each change is one undo step. A deck with a hidden slide opens in 4.6 and later only
+  (B41).
 
 For the maintainer
+* **Update day (4.0 → 4.6): every Slide Builder window and black window is closed on every PC before the update**
+  (`docs/next/release-checklist.md` §6); a rollback to 4.0 keeps the decks holding 4.6 objects read-only there –
+  never delete their `incident-format-5.json`.
+* **`THIRD-PARTY-NOTICES.txt`** (AUDIT-2 LIC-1, ADR-020) is written by `node tools/notices.mjs` from the packages the
+  page and the core worker really bundle and the licence files of the inlined WASM; `make_release.py` refuses to build
+  without it, and `app/tests/notices.test.ts` / `helper/tests/test_release.py` fail when a runtime dependency has no
+  entry or the file is out of date (run the script after adding or updating a dependency).
 * **`Update Slide Builder.bat`** (A3) finds the newest release on the release page (github.com/…/releases/latest)
   instead of GitHub's API, whose 60 requests an hour are shared by every PC on the office's internet address, and
   downloads `slidebuilder-<ver>.zip` from there (checked against its `.sha256` file and MANIFEST.json; GitHub's
@@ -26,6 +62,9 @@ For the maintainer
   newer and says when the update stopped, but an update never replaces that file on a share that has one: there it
   is copied by hand (docs/next/release-checklist.md §6). The share's 4.0.0 updater still asks the API, so the first
   release after 4.0.0 is installed by hand too (same section).
+* **`--use` below 4.6** names the decks that hold 4.6 objects (they open read-only there; going back to Slide
+  Builder 3 loses those objects) and asks before it switches (`--yes`: named, not asked). *Prepare rollback* names
+  them too. New share file: `backend\data\v4\decks\<deck>\incident-format-5.json` – the mark; never delete it.
 
 ## 4.5.0 - unreleased (docs/next/07 §4, PLAN M11; B21; ADR-016 amended 2026-10-19)
 

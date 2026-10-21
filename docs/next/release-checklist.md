@@ -7,7 +7,7 @@ are for a person** (agents never push tags and never touch the real share, PLAN 
 ## 1. Content
 - [ ] The milestone's PR is merged into `main`; CI is green on `main` (unit, core, helper 3.8 + 3.12, e2e, parity).
 - [ ] Every step of the milestone is ticked in `PROGRESS.md` with its numbers.
-- [ ] `CHANGELOG.md` has a `## X.Y.Z - <date>` section; every user-visible change in it is in PLAN B1–B14.
+- [ ] `CHANGELOG.md` has a `## X.Y.Z - <date>` section; every user-visible change in it is in PLAN B1–B47 (Part B §8).
 - [ ] `VERSION = "X.Y.Z"` in `helper/slidebuilder/__init__.py` (`backend/` up to 3.8); `"version": "X.Y.Z"` in `package.json`,
       `app/package.json`, `core/package.json` and in `package-lock.json` (every place that names them).
 
@@ -16,10 +16,31 @@ are for a person** (agents never push tags and never touch the real share, PLAN 
 git clone https://github.com/gualbertol123/slidemaster.git /tmp/rel && cd /tmp/rel
 npm ci && npm run build && git diff --exit-code -- helper/slide_builder.html      # the committed page is fresh
 npm run check                                                                         # typecheck (core, app) + unit tests
+node tools/notices.mjs --check                                                        # THIRD-PARTY-NOTICES.txt up to date
 python3.8 -m unittest discover -s helper/tests && python3.12 -m unittest discover -s helper/tests
 npm run test:e2e && npm run parity
 ```
 - [ ] all green; `npm run parity` reports 0 unaccepted differences.
+
+### 2a. The format guard against the real older versions (CP-01, CP-02; ADR-019)
+`tools/compat-old.mjs` makes git worktrees of v4.0.0, 4.1 (`061a5b3`), 4.4 (`a1d3aba`) and 4.5 (`637f7b4`), starts each
+old helper with its own committed page next to this checkout's helper on the same workbook and data folders (fresh
+temporary ones per case; ports 8961 and up, never 8951/8952), and drives both pages with Playwright, without network.
+Cases per version: CP-02 (a deck without 4.6 objects stays format 4 and opens, edits and compacts in the old version;
+`style.designs.*.consult` kept), (a) the old page opens a format-5 deck holding every 4.6 object, (b) the old page has
+the deck open while a 4.6 page raises it – a cell and the wizard's Finish in the gap and after the raise, then alone
+past the compaction margin – in journal and in lean-lock storage, (c) the old user's helper restarted as 4.6 under the
+open old page (403 with the old token, 409 without `X-SB-Deck-Formats`), (d) the journals aged 25 h and the old helper's
+compact / rotate / idle loop. One `RESULT` line per version and case, a JSON report; exit code 1 when one fails.
+Takes about 35 minutes per Python (the real 23 s bump wait; `--bump-wait-s N` shortens the 4.6 side only).
+```
+node tools/compat-old.mjs --pythons "python3.8,python3.12" --out /tmp/compat-old.json
+```
+On Windows (PowerShell 5.1; `py -3.8` and `py -3.12` from the Python launcher):
+```
+node tools/compat-old.mjs --pythons "py -3.8,py -3.12" --new-python python --out $env:TEMP\compat-old.json
+```
+- [ ] every `RESULT` line says PASS (per version: CP-02, a, b-journal, c-journal, b-lean-lock, c-lean-lock, d).
 
 ## 3. The release ZIP
 ```
@@ -55,6 +76,9 @@ git push origin vX.Y.Z
 A test of the pipeline without a real release: tag `vX.Y.Z-rc1` (a pre-release; delete it afterwards).
 
 ## 6. Update the team's share (a person, on one PC, when nobody is in the middle of an export)
+- [ ] **Before anything else (4.6.0 and later, ADR-019): every Slide Builder window and every black window is closed
+      on every PC**, and stays closed until the update is done (announce it the day before). A window of an older
+      version left open on a deck that holds 4.6 objects turns read-only and loses the change it was saving.
 ```
 REM first time (the share still updates from git/ZIP): the share's updater is older and has no --release,
 REM so bring the new updater first (a plain update to main), then switch:
@@ -92,9 +116,18 @@ Copy-Item "T:\Slide Builder\app\X.Y.Z\Update Slide Builder.bat" "T:\Slide Builde
 - [ ] Double-click `T:\Slide Builder\Update Slide Builder.bat`: it says "Already up to date (version X.Y.Z) …"
       and waits for a key.
 - [ ] Everybody closes the black Slide Builder window and starts it again.
-- [ ] Rollback, if needed: `python tools\update.py --use P.Q.R` (in `T:\Slide Builder`). **The first release on a
-      share** (it still ran `backend\`, so there is no P.Q.R in `app\`): rename `app\current.json` to
-      `app\current.json.off` - "Start Slide Builder.bat" then starts `backend\` again, as before the update.
+- [ ] **4.6.0 and later (ADR-019), in the update-day message:** an older version opening a deck that holds 4.6
+      objects says "a journal of this deck is damaged - tell the maintainer": that message means **update Slide
+      Builder** (close the black window and start it again), not a damaged deck. The first 4.6 object saved on a deck
+      shows "Saving…" for about 25 seconds, once per deck.
+- [ ] Rollback, if needed: `python tools\update.py --use P.Q.R` (in `T:\Slide Builder`); below 4.6 it lists the decks
+      that hold 4.6 objects and asks first. **The first release on a share** (it still ran `backend\`, so there is no
+      P.Q.R in `app\`): first note the decks that hold 4.6 objects – ⚙ Options › Administration › *Prepare rollback*
+      names them, or `Get-ChildItem "T:\Slide Builder\backend\data\v4\decks" -Recurse -Filter incident-format-5.json`
+      lists them – then rename `app\current.json` to `app\current.json.off`: "Start Slide Builder.bat" starts
+      `backend\` again, as before the update. Those decks stay read-only in the older version (it says "a journal of
+      this deck is damaged"); **never delete `incident-format-5.json`** – it is what keeps the older version from
+      removing the 4.6 objects.
 
 ## 7. Record
 - [ ] `PROGRESS.md`: the ship step ticked with the date, the version and the release link.

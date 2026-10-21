@@ -71,7 +71,7 @@ export interface CoreMethods {
   /** a font file for the library (S3.2): a variable font becomes a static face at the weight the upload declares
       (every other axis at its default; hb-subset), so no PDF ever embeds a variable font; other fonts come back as
       they are (`variable: false`) */
-  staticFont(a: { buf: ArrayBuffer; weight: number }): { buf: ArrayBuffer; variable: boolean };
+  staticFont(a: { buf: ArrayBuffer; weight: number; family?: string; italic?: boolean }): { buf: ArrayBuffer; variable: boolean };
   /** whole slides as display lists in slide px (S3.5): background, furniture, the tables placed, text boxes */
   slideLists(a: SlideListsReq): SlideList[];
   /** whether a font that missed its measuring budget is still coming (its slide is drawn again then): for the
@@ -201,6 +201,8 @@ export interface PageMethods {
   deckCompact(a: { key: string; baseGen: number; snapshot: DeckSnapshot }): { gen: number };
   deckRotate(a: { key: string; writer: string }): { deleted: string[] };
   deckPrepare(a: { key: string; writer: string }): unknown;
+  /** ADR-019: the deck's format-5 marker (decks.mark_format5) */
+  deckFormat5(a: { key: string }): { created?: boolean; at?: number | null; now?: number | null };
   digitWidth(a: { font: string }): number;
   /** text measured with the page's fonts for the display list (decision 2026-10-12, 3): one call per measuring round of a table */
   measureRuns(a: { runs: import("../platform").RunReq[] }): import("../platform").RunMetrics[];

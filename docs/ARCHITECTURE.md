@@ -95,7 +95,8 @@ data\
 ├─ fonts\                              shared font library (§12)
 │  ├─ fonts.json                       the index
 │  ├─ <Family>-<weight>[i]-<sha1:10>.<ext>
-│  └─ system\fingerprints.json, system\licence.json     Windows-font captures, copy-mode switch
+│  ├─ system\fingerprints.json, system\licence.json     Windows-font captures, copy-mode switch
+│  └─ cache\<sha256(key):40>.sbc      what the helpers fetched from Google (B46, §12.1), ≤ 200 MB
 ├─ assets\                             pictures chosen in the app (POST /api/logo)
 ├─ v4\
 │  ├─ decks\<key>\                     one deck per workbook (§2.1, §4)
@@ -105,7 +106,8 @@ data\
 │  │  ├─ lock                          the deck lock (§7)
 │  │  ├─ moved-from-v3.json            written by the migration (§9.1)
 │  │  ├─ rolled-back.json              written by a rollback (§9.2)
-│  │  └─ incident-<journal>-<offset>.json   a damaged journal: the deck is read-only (§7.3)
+│  │  ├─ incident-<journal>-<offset>.json   a damaged journal: the deck is read-only (§7.3)
+│  │  └─ incident-format-5.json        the deck holds 4.6 objects (§6.5, ADR-019): read-only for 4.0–4.5 only
 │  ├─ storage.json                     optional {"storage": "lean-lock"} (§7.2)
 │  └─ pinned-v3.json                   optional: decks kept on Slide Builder 3 (§9.2)
 ├─ workbooks\<key>.json                Slide Builder 3's documents. Read by the migration, then FROZEN (§9.1)
@@ -132,9 +134,11 @@ being broken), `.clock-<host>-<pid>` (the file-server clock probe, §7.4).
 | `snapshot.json` | the helper, on a page's `compact`; the migration; `create` of a new deck | atomic replace under the deck lock |
 | `presence/*` | each helper its own user's file | create / `utime` |
 | `incident-*.json` | the first helper whose read finds damage | O_EXCL, never overwritten |
+| `incident-format-5.json` | a 4.6+ helper, asked by its page before the deck gets 4.6 objects (or before a format-5 compaction) | O_EXCL, never overwritten or removed; moves with the deck (deleted setups) |
 | `config.json` | v4 helpers (`POST /api/config`) and v3 helpers | atomic replace under lock `config` |
 | `users/<user>.json` | that user's helper (v3 or v4) | atomic whole replace |
 | `fonts/*` | any helper | under lock `fonts` |
+| `fonts/cache/*` | any helper (B46) | atomic replace, no lock; entries checked on read (length + SHA-256); least recently used deleted over 200 MB |
 | `assets/*` | any helper (`POST /api/logo`) | atomic replace, no lock |
 | `workbooks/<key>.json` | v3 helpers while v3 owns the deck; the v4 migration (freeze) and rollback | under lock `wb-<key>` |
 | `backups/v4/<key>/*` | the helper that compacted, after releasing the deck lock | best effort |
@@ -166,6 +170,7 @@ A rollback (§9.2) gives v3 its document back as schema 3.
 | `SLIDEBUILDER_STORAGE` | `lean-lock` or anything else (= journal); wins over `v4/storage.json` |
 | `SLIDEBUILDER_USER`, `SLIDEBUILDER_HOST` | identity (tests) |
 | `SLIDEBUILDER_SYSFONTS` | font folders instead of `%WINDIR%\Fonts` and the per-user font folder |
+| `SLIDEBUILDER_NO_NET` | `1`: the helper makes no outbound request; Google fonts and previews answer the usual 502 "cannot be reached" (e2e, §12.1) |
 | `SLIDEBUILDER_ROLLBACK_QUIET` | the rollback's pause in seconds (tests) |
 | `SLIDEBUILDER_SIM_FS_MS` | load tests only: adds a delay to every data-folder file operation |
 | `SLIDEBUILDER_APP_WINDOW` | `0` = open a browser tab, not an Edge app window |
@@ -390,7 +395,7 @@ on every PC, not by arrival.
 
 ```jsonc
 {
-  "format": 4,                  // anything else: 409 "saved by a newer Slide Builder"
+  "format": 4,                  // 4, or 5 once the deck holds 4.6 objects (§6.5); anything else: 409 "saved by a newer Slide Builder"
   "gen": 12,                    // 1 at creation or first migration; +1 per compaction and per re-migration (§9.1)
   "workbook": "IBD weekly.xlsx",
   "lamport": 8120,              // the highest Lamport time folded in
@@ -405,18 +410,19 @@ on every PC, not by arrival.
 
 The records **before** each frontier offset are in `doc`. A journal not in the frontier is read from 0. The helper
 writes the snapshot as compact JSON with a trailing newline, atomically (§7.1). An example (indented) is
-`helper/tests/fixtures/saved/snapshot.v4.json`.
+`helper/tests/fixtures/saved/snapshot.v4.json` (format 5: `snapshot.v5.json`).
 
 ### 6.2 `compact` (compare-and-set on `gen`)
 
 A page proposes `{baseGen, snapshot}` with `snapshot.gen = baseGen + 1`. The helper (`decks.py:782-825`):
 
-1. validates the shape (format 4, `gen = baseGen + 1`, frontier of non-negative integers, `lamport` and `rev`
+1. validates the shape (format 4 or 5, `gen = baseGen + 1`, frontier of non-negative integers, `lamport` and `rev`
    non-negative integers, `doc` an object) → else 400; refuses a read-only (423) or rolled-back (409) deck;
 2. stamps `by` (its user) and `at` (file-server time);
 3. under the deck lock (with keepalive), reads the current snapshot and answers **409 `{gen}`** unless its `gen` is
    `baseGen`; 409 also when the new frontier is behind the current one for a journal, leaves out a journal the current
-   frontier names that still exists, or `lamport` / `rev` would go back;
+   frontier names that still exists, or `lamport` / `rev` would go back; **400** when the current snapshot is format 5
+   and the new one is not (never lowered, §6.5); a format-5 snapshot over a format-4 one gets the marker first;
 4. writes the snapshot; then deletes the journals the new frontier covers (no complete record past the offset; an
    offset beyond the file's size is not trusted) **and** that nobody wrote to for 24 h, plus empty journals untouched
    for 24 h, never one this helper has open; if any were deleted, rewrites the snapshot without their frontier keys
@@ -471,6 +477,42 @@ deck not yet covered once more, at most 15 s each; a deck that still has records
 
 ---
 
+### 6.5 The format guard (ADR-019, amended 2026-10-21)
+
+Decks are created and migrated at `format: 4` (`decks.CREATE_FORMAT`), which 4.0–4.5 read. A deck that receives or
+holds what 4.0.0 does not apply whole (`needsV5` / `docNeedsV5` in `core/src/model/ops.ts`: items, `free`, `looks`,
+`cellGrid`, `borders`, and every op or key added since) is raised once, by the page (`DocSync.upgrade`), before the
+record is appended or a compaction would write it:
+
+1. `POST /api/decks/<key>/format5` writes `incident-format-5.json` `{deck, format: 5, what, by, at}` (O_EXCL; an
+   existing one is kept). Every 4.0–4.5 helper takes any `incident-*.json` for a damaged journal: from its next look
+   at the folder it answers 423 to appends, prepare and compactions and reports `readonly` in tails. That look comes
+   when it opens a journal, every `REFRESH_S` = 4 s for a deck it has an append handle on (journal mode), and at most
+   every `CHECK_TTL` = 10 s on its page's tail – the only one in lean-lock mode, which has no handle; the SMB
+   directory cache may add 10 s to each;
+2. the page waits `BUMP_WAIT_MS` = 23 s from the marker's `at` (10 + 1.5 + 10 + 1 s, lean-lock's bound, which covers
+   journal mode's 4 + 10 + 1 s; the mode may differ per PC), then asks for the marker again (the helper drops its
+   cached journal listing; a marker removed meanwhile is written again and waited for);
+3. it tails until no journal is skipped;
+4. it compacts the snapshot **unchanged** with `gen + 1` and `format: 5` (on 409: reload, from 1 again; found at 5:
+   done). The helper refuses this with 409 while the marker is younger than `BUMP_WAIT_S` − 1 s, and writes the
+   marker itself when it is missing – DocSync always asks `format5` first, so the page normally never sees that 409;
+5. only then the record is appended (it waits in the pending queue, "Saving…"), with a Lamport time 2^20 above
+   everything seen (`BUMP_LAMPORT`): a record an old page appended in the gap without this page reading it (a share
+   slower than the bound, a journal not listed yet) folds before it, since the old page never saw the 4.6 record.
+   Every other 4.6 page jumps too, the first time it sees the deck go 4 → 5 and when it opens a format-5 deck whose
+   snapshot is younger than `BUMP_FRESH_MS` (`BUMP_WAIT_MS` + 13 s: its own helper's listing may still miss a gap journal).
+
+A page opening a format-4 deck whose snapshot or journal already holds such content raises it at once; the pagehide
+snapshot never raises a deck (it cannot wait). Later snapshots of a format-5 deck are format 5 (`nextSnapshot`), even
+when every such object was deleted. 4.0–4.5 helpers refuse to read a format-5 snapshot (409: open, `rotate`, the
+compaction's read under the lock – and so the 24 h journal drop); their tail reports `gen: null` and never folds.
+A 4.6 helper that reads a format-5 snapshot whose marker is missing writes it again. The 4.6 helper does not count
+the marker as an incident, and answers **409** "reload the page" on a format-5 deck
+(the marker, or the snapshot read) to `open`, `snapshot`, `tail`, `append`, `prepare`, `compact` and `rotate` from a
+page that does not send `X-SB-Deck-Formats: 4,5` (`decks.check_page`: a 4.0–4.5 page left open while its PC's helper
+was restarted on 4.6 – its old token already gets 403).
+
 ## 7. Locks, storage modes, incidents
 
 ### 7.1 The lock protocol (`helper/slidebuilder/locks.py`)
@@ -515,7 +557,8 @@ When a tail finds corruption (§4.2), the helper writes `incident-<journal stem>
 `{deck, journal, offset, size, at, seenBy}` in the deck folder with O_EXCL (once, never overwritten) and logs
 `INCIDENT`. While any `incident-*.json` exists the deck is **read-only**: `append`, `prepare` and `compact` answer
 **423** `{error, readonly: true}`, and every tail carries `readonly: <reason>`; the page then stops saving and shows
-the reason. A helper looks at the deck folder (existence, incidents, `rolled-back.json`) when it opens a journal, at
+the reason (4.6+: `incident-format-5.json` is no incident, §6.5). A helper looks at the deck folder (existence,
+incidents, `rolled-back.json`, the format-5 marker) when it opens a journal, at
 most every 10 s from tails, and every 4 s in the background for decks it has an append handle on. Recovering a deck
 is a maintainer's manual job (there is no endpoint for it).
 
@@ -603,6 +646,8 @@ document. `GET /api/decks` lists every deck with `rolledBack`.
   `workbook=3;config=3;prefs=1`, `FORMATS` in `core/src/model/types.ts:68`) that differs from the helper's `SCHEMA`
   → **409** "Slide Builder was updated – reload the page". Requests without the header, or with one that cannot be
   parsed, are accepted; a format the header does not name is not compared.
+* **Deck formats.** Pages since 4.6 send `X-SB-Deck-Formats: 4,5` with every request (`DECK_FORMATS` in
+  `core/src/model/fold.ts`); without `5` in it, a request on a format-5 deck → **409** "reload the page" (§6.5).
 * **Bodies**: chunked bodies → 411 (a request without `Content-Length` has an empty body); JSON bodies ≤ 2 MB, a compaction ≤ 32 MB, uploads, exports
   and conversions ≤ 300 MB, a logo ≤ 10 MB, a font ≤ 15 MB → else **413**. Invalid JSON or a non-object → 400.
 * **Errors** are `{"error": "<message>"}` (deck errors add fields, e.g. `{gen}` or `{readonly: true}`). Every answer
@@ -661,21 +706,23 @@ Fonts (§12):
 | `POST /api/fonts?family=&weight=&style=&source=&name=&range=` | font bytes (≤ 15 MB) | the library; 400 not a font, bad family name, more than 64 faces |
 | `DELETE /api/fonts?family=` | – | the library; 400 without `family` |
 | `GET /api/fonts/google?family=` | – | a Google font's faces fetched by the helper (§12.1); 404 not a Google font, 502 unreachable |
-| `GET /api/fonts/google/file?ref=` | – | one of those files' bytes; 403 any other address, 413 over 15 MB, 502 unreachable |
+| `GET /api/fonts/google/file?ref=` | – | one of those files' bytes; 403 any other address, 404 not there any more (the cached faces of its family are forgotten; the page asks for the family again, once), 413 over 15 MB, 502 unreachable |
+| `GET /api/fonts/google/preview?family=` | – | a font to show the family's name in the picker (B46): googleapis' `&text=` subset, else the family's regular file; 400 bad name, 404 not a Google font, 502 unreachable |
 | `POST /api/fonts/capture?file=` | (body ignored, ≤ 2 MB) | `{mode: "fingerprint", file, family, sha1, embeddable, noSubset, faces, otherBuilds, otherHosts}`; in copy mode `mode: "copy"` plus `copied` and `copiedFaces`, `added` or `reason`; 400 bad name, 404 unlisted |
 
 Decks (`<key>` is URL-encoded; any `<key>` not matching §2.1 → 400; `DeckError` statuses below):
 
 | Method & path | Request | Response |
 |---|---|---|
-| `POST /api/decks/open` | `{workbook}` | `{key, writer, created, migrated, storage: "journal"\|"lean-lock", snapshot}`; migrates or creates the deck first (§9.1). 400 bad name · 409 pinned to v3, a v3 file of a newer format, or a snapshot not of format 4 · 503 a lock busy or a file unreadable |
-| `GET /api/decks` | – | `{decks: [{key, workbook, gen, rev, rolledBack}]}` (unreadable snapshots left out) |
+| `POST /api/decks/open` | `{workbook}` | `{key, writer, created, migrated, storage: "journal"\|"lean-lock", snapshot}`; migrates or creates the deck first (§9.1). 400 bad name · 409 pinned to v3, a v3 file of a newer format, a snapshot not of format 4 or 5, or a format-5 deck without `X-SB-Deck-Formats: 4,5` · 503 a lock busy or a file unreadable |
+| `GET /api/decks` | – | `{decks: [{key, workbook, gen, rev, format, rolledBack, …}]}` (unreadable snapshots left out) |
 | `GET /api/decks/<key>/snapshot` | – | `{snapshot}`; 404 no deck · 409 newer format · 503 unreadable (after 5 tries; never an empty document) |
 | `GET /api/decks/<key>/tail?since=<JSON {stem: offset}>` | – | `{journals: {<stem>: {offset, records, ends}}, gen, now?, skipped?, readonly?}`: only journals with new complete records (`offset` = after the last; `ends` = each record's end offset); `skipped` = journals that could not be read now (asked again next time, never treated as empty); a journal deleted meanwhile counts as empty; `gen` = the snapshot's gen (null if unreadable now); `now` = file-server ms (only when trusted). 400 bad `since` · 404 no deck · 409 rolled back |
 | `POST /api/decks/<key>/append` | `{writer, record}` | `{journal: <stem>, offset: <end of the record>, at}` after `os.fsync`. 400 envelope (§4.3) · 404 · 409 rolled back · 423 read-only · 503 write failed (send the same record again; a new file is used) |
 | `POST /api/decks/<key>/prepare` | `{writer}` | `{ok: true}`; opens the writer's journal now (idempotent; nothing in lean-lock). 400 · 404 · 409 · 423 |
 | `POST /api/decks/<key>/compact` | `{baseGen, snapshot}` (≤ 32 MB) | `{gen, dropped: [stems]}` (§6.2). 400 shape · 409 `{gen}` lost the race or would go back · 409 rolled back · 423 read-only · 503 lock busy |
 | `POST /api/decks/<key>/rotate` | `{writer}` | `{deleted: [stems]}` (§6.4). 400 · 404 · 503 |
+| `POST /api/decks/<key>/format5` | `{}` | `{created, at, now}` (§6.5: the marker; `at` = when it was written, file-server ms). 404 · 409 rolled back · 423 read-only · 503 |
 | `GET /api/decks/<key>/history` | – | `{backups: [{gen, rev, at, by}]}` newest first |
 | `POST /api/presence` | `{deck, client}` | `{others: [{user, host, client, at}]}` (§8). 400 bad key or client · 404 no deck |
 | `POST /api/presence/leave` | `{deck, client}` | `{ok: <file was deleted>}` |
@@ -767,6 +814,28 @@ Geometry shared by all three (rounded rects, shadow layers, gradient strokes, im
   answering 200 to `METADATA.pb`) counts as unreachable and the next mirror is tried. When GitHub has no folder of
   that name and googleapis cannot be asked, the 404 says so ("not found on GitHub; Google could not be asked") instead
   of "check the spelling". The page stores a family's faces only once all its files have arrived.
+* Cache (B46, 4.6): what the helper fetched is kept in `data/fonts/cache/`, so it is fetched once for the office – a
+  family's faces (`family:<folder>`, `{at, res}`: asked again 30 days after `at`, the fetch, however often it is read
+  meanwhile, and kept when Google cannot be asked then; a 404 for one of its files forgets it at once, and the page
+  asks for the family again), each file
+  (`file:<ref>`) and each preview (`preview:<folder>`: the subset, or which file it was). Every helper reads and
+  writes it at once: an entry is `SBFC`, its length (8 bytes) and SHA-256, then the bytes, written to a temp file and
+  `os.replace`d; a missing, vanished, locked, half-written or damaged entry is a miss and is fetched again (a font
+  entry must also start like a font); a write that fails only costs a later fetch. After each write the helper
+  deletes the least recently used entries (a hit sets its mtime, which only orders pruning) while the folder is over
+  200 MB, down to 90 %,
+  and temp files over an hour old; an entry another PC has open cannot be deleted on Windows and stays (the next one
+  goes). 4.0's `fonts.py _sweep` deletes only font files at the top of `data/fonts`, so it leaves `cache/` alone
+  (`test_gfonts.py` runs a frozen copy of it); `update.py` never touches `data`.
+* Picker previews (B46): the page never links a googleapis stylesheet. The Google names on screen (an
+  `IntersectionObserver`) are previewed through `GET /api/fonts/google/preview` with the token header, 4 at a time,
+  each loaded with `new FontFace("sbpv <family>", bytes)` (a name of its own, so a subset never stands in for the
+  library's faces); after one failure the picker asks no more in that window and the names show in fallback fonts.
+  Cost at the office (googleapis does not resolve there): every preview is the family's whole regular file, often
+  0.5–2 MB for a variable TTF (`METADATA.pb` lists either static or variable files, so there is no smaller face to
+  choose); scrolling the list the first day pulls some 20–40 MB through the proxy into the cache, and each window
+  holds about as much in `FontFace`s. A slow first preview may outlast the page's 60 s wait (the helper's worst case
+  is longer): that window shows no more previews, the helper still finishes and caches it for the next.
 
 ### 12.2 Windows fonts (`helper/slidebuilder/sysfonts.py`)
 

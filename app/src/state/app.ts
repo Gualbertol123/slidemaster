@@ -7,7 +7,7 @@
    ops) until the worker's snapshot that includes them arrives. */
 import { get, patch, patchAll, same, STAGE, THUMBS, toast, showBusy, hideBusy } from "./store";
 import { alertBox, ask, confirmBox, runWizard } from "./dialogs";
-import { backend, openTail, patchStyleDefault } from "../sync/api";
+import { backend, openTail, patchStyleDefault, type SetupInfo } from "../sync/api";
 import { connectCore, type CorePort } from "../rpc/client";
 import { browserText } from "../platform";
 import type { RunMetrics } from "@slide-builder/core/platform";
@@ -46,6 +46,7 @@ export function core(): CorePort {
   port.handle("deckCompact", a => backend.deckCompact(a.key, a.baseGen, a.snapshot));
   port.handle("deckRotate", a => backend.deckRotate(a.key, a.writer));
   port.handle("deckPrepare", a => backend.deckPrepare(a.key, a.writer));
+  port.handle("deckFormat5", a => backend.deckFormat5(a.key));
   port.handle("digitWidth", a => browserText.maxDigitWidth(a.font));
   // the display list's text, measured with the page's fonts (decision 2026-10-12, 3; browserText answers synchronously)
   port.handle("measureRuns", a => {
@@ -483,8 +484,10 @@ async function onDocChange(c: Change) {
       presetSig = sig;                                       // the worker read the sheets and sent their slices
       const { slides: old, cur } = get().deck, keep = old[cur]?.id;
       const slides = runtimeSlides(wb, view.preset, file.name, style().design); slidesDesign = style().design;
-      const i = slides.findIndex(R => R.id === keep);
-      patchAll({ deck: { slides, cur: i >= 0 ? i : Math.max(0, Math.min(cur, slides.length - 1)) }, ...(c.local ? {} : { selection: { sel: null } }) });
+      const want = focusNext ? slides.findIndex(R => R.id === focusNext) : -1, i = want >= 0 ? want : slides.findIndex(R => R.id === keep);
+      if (want >= 0) focusNext = null;
+      patchAll({ deck: { slides, cur: i >= 0 ? i : Math.max(0, Math.min(cur, slides.length - 1)) },
+        ...(want >= 0 ? { selection: { sel: null, noteSel: null, textSel: null, itemSel: null } } : c.local ? {} : { selection: { sel: null } }) });
       STAGE.render(); THUMBS.render();
       return;
     }
@@ -520,17 +523,25 @@ function onStyleChanged(configChanged = false) {
 let slidesDesign: Design | null = null;
 /** every edit goes through here: ops go to the worker (which applies them, saves them and keeps them undoable);
     the mirror shows them at once */
-export function change(label: string, ops: Op[], coalesce?: string) {
-  const { doc: { open, view }, deck: { file } } = get(); if (!open || !file || !view || starting) return;
-  if (port?.closed) { toast("⚠ " + esc(port.closed.message), [], true); return; }
-  if (readOnly()) return;
+export function change(label: string, ops: Op[], coalesce?: string): boolean {
+  const { doc: { open, view }, deck: { file } } = get(); if (!open || !file || !view || starting) return false;
+  if (port?.closed) { toast("⚠ " + esc(port.closed.message), [], true); return false; }
+  if (readOnly()) return false;
   const r = applyOps(view, ops);
-  if (!r.applied) return;
+  if (!r.applied) return false;
   pending.push({ seq: ++seq, ops });
   predicted = { base, key: pending.map(p => p.seq).join(",") };
   patch("doc", { view: r.doc, save: unsaved() });             // as DocSync did: "✓ Saved" only once the helper has it
   void core().call("apply", { label, ops, coalesce }).catch(e => console.error(e));
+  return true;
 }
+/** the slide shown once the slides are made again with slide `id` in them (New slide: the slide it adds); `title`: its
+    title then opens for typing as soon as the stage shows it (Stage.tsx). A slide chosen meanwhile (gotoSlide) drops
+    both, so the title never opens on a later visit (S13.4 review) */
+let focusNext: string | null = null, titleNext: string | null = null;
+export function focusSlide(id: string | null, title = false) { focusNext = id; titleNext = title ? id : null; }
+export const pendingTitle = () => titleNext;
+export function takePendingTitle(id: string): boolean { if (titleNext !== id) return false; titleNext = null; return true; }
 /** a read-only deck (a damaged journal: 423) is read, never changed - the change is refused with the reason, not shown
     and silently never saved (audit DATA-4; CHANGELOG 4.0.0) */
 function readOnly() {
@@ -573,12 +584,18 @@ export async function saveStyleAsDefault() {
     snapshot). The open deck through the worker, the others each with a DocSync of their own here, for this only. */
 export async function prepareRollback() {
   if (!backend.served) return;
+  // ADR-019: decks at format 5 hold 4.6 objects – read-only in 4.0–4.5, and Slide Builder 3 drops those objects
+  const v5 = (list: SetupInfo[]) => list.filter(d => d.format === 5 && !d.rolledBack).map(d => esc(d.workbook));
+  const marked = v5(await backend.decks().catch(() => []));
   const go = await ask("Prepare rollback", "Every Slide Builder 4 deck is saved and its changes folded into its snapshot. Afterwards " +
-    "the maintainer can give decks back to Slide Builder 3 with <b>Update Slide Builder.bat --rollback</b>. Nothing else changes.",
+    "the maintainer can give decks back to Slide Builder 3 with <b>Update Slide Builder.bat --rollback</b>. Nothing else changes." +
+    (marked.length ? `<br><br>${marked.length === 1 ? "This deck uses" : `These ${marked.length} decks use`} Slide Builder 4.6 objects and will ` +
+      `open read-only in 4.5 or earlier (Slide Builder 3 loses those objects): <b>${marked.join(", ")}</b>` : ""),
     [{ id: "cancel", label: "Cancel" }, { id: "go", label: "Prepare rollback", primary: true }], { width: 520 });
   if (go !== "go") return;
   const api: DeckApi = { served: true, snapshot: k => backend.deckSnapshot(k), tail: (k, s) => backend.deckTail(k, s),
-    append: (k, w, r) => backend.deckAppend(k, w, r), compact: (k, g, s) => backend.deckCompact(k, g, s), rotate: (k, w) => backend.deckRotate(k, w) };
+    append: (k, w, r) => backend.deckAppend(k, w, r), compact: (k, g, s) => backend.deckCompact(k, g, s), rotate: (k, w) => backend.deckRotate(k, w),
+    format5: k => backend.deckFormat5(k) };
   const failed: string[] = [];
   let done = 0;
   // every deck once (what is old enough is folded at once), then ONE wait for the compaction margin (records younger
@@ -606,7 +623,10 @@ export async function prepareRollback() {
     }
   } catch (e) { failed.push((e as Error).message || String(e)); }
   finally { hideBusy(); }
-  toast(`Prepare rollback: <b>${done}</b> deck${done === 1 ? "" : "s"} ready` + (failed.length ? ` · not ready: ${esc(failed.join(", "))} – try again when nobody edits them` : "."), [], failed.length > 0);
+  // (a compaction may have raised a deck that held 4.6 objects meanwhile: named as they are now)
+  const now = v5(await backend.decks().catch(() => []));
+  toast(`Prepare rollback: <b>${done}</b> deck${done === 1 ? "" : "s"} ready` + (failed.length ? ` · not ready: ${esc(failed.join(", "))} – try again when nobody edits them` : ".") +
+    (now.length ? ` · read-only below 4.6 (4.6 objects): ${now.join(", ")}` : ""), [], failed.length > 0);
 }
 
 /* ---------------------------------------------------------------- wizard */
@@ -628,6 +648,7 @@ export async function openWizard() {
 export function gotoSlide(i: number) {
   const { slides, cur } = get().deck;
   if (i < 0 || i >= slides.length || i === cur) return;
+  focusNext = null; if (slides[i].id !== titleNext) titleNext = null;
   patchAll({ deck: { cur: i }, selection: { sel: null, itemSel: null } }); STAGE.render();
 }
 /** the stage re-fits when the zoom changes (stage/Stage.tsx follows ui.zoom); "Fit" pressed again re-fits too

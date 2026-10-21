@@ -151,11 +151,14 @@ class HttpTests(HttpBase):
 
     # ---- health / me / config
     def test_health_and_me(self):
+        self.assertIsNone(decks.TEST_BUMP_WAIT_S)      # (run without SLIDEBUILDER_TEST_BUMP_WAIT_S + SLIDEBUILDER_NO_NET)
         st, body = self.jreq("GET", "/api/health")
         self.assertEqual(st, 200)
         self.assertEqual((body["app"], body["version"], body["user"], body["host"]), (APP_NAME, VERSION, "tester", "pc1"))
         self.assertEqual((body["folder"], body["export"]), (paths.ROOT, paths.EXPORT_DIR))
         self.assertEqual(set(body), {"app", "version", "user", "host", "folder", "export"})     # no "engine" since 3.8 (B1)
+        with mock.patch.object(decks, "TEST_BUMP_WAIT_S", 2.0):    # review of M13, 3: the format guard's test wait in effect
+            self.assertEqual(self.jreq("GET", "/api/health")[1]["testBumpWaitS"], 2.0)
         st, me = self.jreq("GET", "/api/me")
         self.assertEqual(me, {"user": "tester", "host": "pc1", "prefs": {"lastFile": None, "pdfMode": None, "zoom": None}})
         self.assertEqual(self.jreq("PUT", "/api/me", {"prefs": {"lastFile": "A.xlsx", "zoom": 0.8}}), (200, {"ok": True}))
@@ -343,6 +346,79 @@ class HttpTests(HttpBase):
             self.skipTest("Windows converts for real")
         self.assertEqual(self.jreq("POST", "/api/convert?ext=emf", b"xx")[0], 501)
         self.assertEqual(self.jreq("POST", "/api/convert-workbook?name=a.xlsb", b"xx")[0], 501)
+
+
+class DeckFormatHttpTests(HttpBase):
+    """ADR-019 over HTTP: a 4.0-4.5 page left open while its PC's helper was restarted on 4.6 gets 403 for its old token
+    (the token is random per process); were its token valid, the deck formats header is the second wall"""
+
+    NEW = {"X-SB-Deck-Formats": "4,5"}
+
+    def setUp(self):
+        super().setUp()
+        decks.reset()
+
+    def tearDown(self):
+        decks.reset()
+        super().tearDown()
+
+    def open(self, headers=None):
+        st, r = self.jreq("POST", "/api/decks/open", {"workbook": "W.xlsx"}, headers=headers or self.NEW)
+        self.assertEqual(st, 200, r)
+        return r
+
+    def test_a_page_without_the_header_is_refused_on_a_format_5_deck_only(self):
+        r = self.open({})                                            # a format-4 deck: old pages keep working (CP-02)
+        key, w = r["key"], r["writer"]
+        base = "/api/decks/" + key
+        self.assertEqual(r["snapshot"]["format"], 4)
+        self.assertEqual(self.jreq("POST", base + "/append", {"writer": w, "record": {"w": w, "s": 1, "l": 1, "ops": []}})[0], 200)
+        self.assertEqual(self.jreq("GET", base + "/tail?since={}")[0], 200)
+        # the 4.6 page raises the deck
+        st, m = self.jreq("POST", base + "/format5", {}, headers=self.NEW)
+        self.assertEqual((st, m["created"]), (200, True))
+        self.assertTrue(os.path.exists(decks.deck_dir(key, decks.MARKER5)))
+        snap = self.jreq("GET", base + "/snapshot", headers=self.NEW)[1]["snapshot"]
+        up = {"baseGen": 1, "snapshot": dict(snap, gen=2, format=5)}
+        st, e = self.jreq("POST", base + "/compact", up, headers=self.NEW)
+        self.assertEqual(st, 409, e)                                      # the marker is younger than the bump's wait
+        with mock.patch.object(decks, "BUMP_WAIT_S", 0):
+            self.assertEqual(self.jreq("POST", base + "/compact", up, headers=self.NEW), (200, {"gen": 2, "dropped": []}))
+        # a page without the header, with a valid token: 409 "reload" for everything it would do
+        cur = self.jreq("GET", base + "/snapshot", headers=self.NEW)[1]["snapshot"]
+        calls = [("POST", base + "/append", {"writer": w, "record": {"w": w, "s": 2, "l": 2, "ops": []}}),
+                 ("POST", base + "/prepare", {"writer": w}),
+                 ("POST", base + "/compact", {"baseGen": 2, "snapshot": dict(cur, gen=3, format=4)}),
+                 ("POST", base + "/compact", {"baseGen": 2, "snapshot": dict(cur, gen=3)}),
+                 ("POST", base + "/rotate", {"writer": w}),
+                 ("GET", base + "/tail?since={}", None),
+                 ("GET", base + "/snapshot", None),
+                 ("POST", "/api/decks/open", {"workbook": "W.xlsx"})]
+        for method, path, body in calls:
+            for headers in ({}, {"X-SB-Deck-Formats": "4"}):
+                st, e = self.jreq(method, path, body, headers=headers)
+                self.assertEqual(st, 409, (path, headers, e))
+                self.assertIn("reload the page", e["error"])
+        self.assertEqual(decks.read_snapshot(key)["gen"], 2)            # nothing it sent was taken
+        self.assertEqual([r["s"] for r in decks.tail(key, {})["journals"][w]["records"]], [1])
+        # the new page: everything as before; a compaction that would lower the format is refused
+        self.assertEqual(self.jreq("POST", base + "/append", {"writer": w, "record": {"w": w, "s": 2, "l": 2, "ops": []}}, headers=self.NEW)[0], 200)
+        self.assertEqual(self.jreq("GET", base + "/tail?since={}", headers=self.NEW)[1]["gen"], 2)
+        st, e = self.jreq("POST", base + "/compact", {"baseGen": 2, "snapshot": dict(cur, gen=3, format=4)}, headers=self.NEW)
+        self.assertEqual(st, 400)
+        self.assertIn("4.6", e["error"])
+        self.assertEqual(self.open()["snapshot"]["format"], 5)
+        st, m = self.jreq("POST", base + "/format5", {}, headers=self.NEW)
+        self.assertEqual((st, m["created"]), (200, False))
+        self.assertEqual([(d["key"], d["format"]) for d in self.jreq("GET", "/api/decks")[1]["decks"]], [(key, 5)])
+
+    def test_an_old_token_is_refused_first(self):
+        key = self.open()["key"]
+        st, _ = self.jreq("POST", "/api/decks/%s/append" % key, {"writer": "a@b#abcdefgh", "record": {}}, token=False, headers={"X-SB-Token": "the-token-of-the-helper-before-the-restart"})
+        self.assertEqual(st, 403)
+
+    def test_format5_of_a_missing_deck(self):
+        self.assertEqual(self.jreq("POST", "/api/decks/Nope.xlsx-0123456789/format5", {}, headers=self.NEW)[0], 404)
 
 
 if __name__ == "__main__":

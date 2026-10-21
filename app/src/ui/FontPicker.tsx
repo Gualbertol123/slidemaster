@@ -1,25 +1,12 @@
 /* Font menu used everywhere a font is chosen (toolbar, text styles): the shared library first, then the
    fonts every Windows PC has, then popular Google fonts (picking one adds it to the library). */
-import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { setDialogs, useStore } from "../state/store";
-import { addGoogleFont, inLibrary, loadFonts, uploadFontFiles } from "../state/fonts";
+import { addGoogleFont, inLibrary, loadFonts, previewFamily, previewFont, uploadFontFiles } from "../state/fonts";
 import { GOOGLE_POPULAR, SYSTEM_FONTS, fontStack } from "@slide-builder/core/model/fonts";
 import { backend } from "../sync/api";
 import { Dropdown } from "./Dropdown";
-
-/** small preview stylesheets for Google fonts not in the library yet (only the letters of their names). Where the page
-    cannot reach fonts.googleapis.com (the office, 2026-10) the sheet fails: it is removed, the picker asks no more in
-    this window and the names show in their fallback fonts (adding a font goes through the helper anyway) */
-const previewed = new Set<string>();
-let previewsFail = false;
-function preview(families: string[]) {
-  const todo = families.filter(f => !previewed.has(f) && !inLibrary(f)); if (previewsFail || !todo.length) return;
-  todo.forEach(f => previewed.add(f));
-  const link = document.createElement("link"); link.rel = "stylesheet";
-  link.href = "https://fonts.googleapis.com/css2?" + todo.map(f => "family=" + encodeURIComponent(f).replace(/%20/g, "+")).join("&") + "&text=" + encodeURIComponent(todo.join("") + " ") + "&display=swap";
-  link.onerror = () => { previewsFail = true; link.remove(); };
-  document.head.appendChild(link);
-}
 
 export function openFontManager(tab: "colors" | "styles" | "fonts" = "fonts") { setDialogs({ textStyles: tab }); void loadFonts(); }   // fonts colleagues just added
 
@@ -29,11 +16,12 @@ export function FontPicker(p: { value: string | null; onPick: (font: string | nu
   const lib = useStore(s => s.doc.fonts).map(f => f.family);
   const match = (f: string) => !q.trim() || f.toLowerCase().includes(q.trim().toLowerCase());
   const google = GOOGLE_POPULAR.filter(f => !inLibrary(f));
-  const item = (f: string, close: () => void, onPick = () => p.onPick(f)) =>
-    <button key={f} data-font={f} className={"fontitem" + (p.value === f ? " picked" : "")} style={{ fontFamily: fontStack(f) }} onClick={() => { close(); onPick(); }}>{f}</button>;
+  const item = (f: string, close: () => void, onPick = () => p.onPick(f), preview?: (el: HTMLElement | null) => void) =>
+    <button key={f} data-font={f} ref={preview} className={"fontitem" + (p.value === f ? " picked" : "")} style={{ fontFamily: preview ? `'${previewFamily(f)}',` + fontStack(f) : fontStack(f) }}
+      onClick={() => { close(); onPick(); }}>{f}</button>;
   const exact = q.trim() && ![...lib, ...SYSTEM_FONTS, ...GOOGLE_POPULAR].some(f => f.toLowerCase() === q.trim().toLowerCase()) ? q.trim() : "";
   return (
-    <Dropdown menuClass="fontmenu" onOpen={() => { setQ(""); preview(google); void loadFonts(); }} button={(_o, toggle) =>
+    <Dropdown menuClass="fontmenu" onOpen={() => { setQ(""); void loadFonts(); }} button={(_o, toggle) =>
       <button className="tb fontbtn" id={p.id} disabled={p.disabled} title={p.title || "Font"} onClick={toggle} style={{ fontFamily: p.value ? fontStack(p.value) : undefined }}>
         <span>{p.value || p.placeholder || "Default font"}</span><i className="caret">▾</i></button>}>
       {close => <>
@@ -43,7 +31,7 @@ export function FontPicker(p: { value: string | null; onPick: (font: string | nu
           {lib.some(match) && <><div className="hd">Font library <small>shared · saved in the Slide Builder folder</small></div>{lib.filter(match).map(f => item(f, close))}</>}
           {SYSTEM_FONTS.some(match) && <><div className="hd">On every Windows PC</div>{SYSTEM_FONTS.filter(match).map(f => item(f, close))}</>}
           {google.some(match) && <><div className="hd">Google Fonts <small>added to the library when picked</small></div>
-            {google.filter(match).map(f => item(f, close, () => void addGoogleFont(f).then(ok => ok && p.onPick(f))))}</>}
+            <OnScreen>{seen => google.filter(match).map(f => item(f, close, () => void addGoogleFont(f).then(ok => ok && p.onPick(f)), seen))}</OnScreen></>}
           {exact && <button className="fontitem add" onClick={() => { close(); void addGoogleFont(exact).then(ok => ok && p.onPick(exact)); }}>+ Add “{exact}” from Google Fonts</button>}
         </div>
         <div className="sep" />
@@ -58,6 +46,22 @@ export function FontPicker(p: { value: string | null; onPick: (font: string | nu
       </>}
     </Dropdown>
   );
+}
+
+/** the Google names in the open menu: each is previewed once it scrolls into view (state/fonts.ts previewFont) */
+function OnScreen({ children }: { children: (seen: (el: HTMLElement | null) => void) => ReactNode }) {
+  const io = useRef<IntersectionObserver | null>(null);
+  useEffect(() => () => io.current?.disconnect(), []);
+  const seen = useCallback((el: HTMLElement | null) => {
+    const f = el?.dataset.font;
+    if (!el || !f) return;
+    if (typeof IntersectionObserver === "undefined") return previewFont(f);
+    io.current ??= new IntersectionObserver(es => es.forEach(e => {
+      if (e.isIntersecting) { io.current?.unobserve(e.target); previewFont((e.target as HTMLElement).dataset.font || ""); }
+    }));
+    io.current.observe(el);
+  }, []);
+  return <>{children(seen)}</>;
 }
 
 function SearchBox({ value, onInput }: { value: string; onInput: (v: string) => void }) {
