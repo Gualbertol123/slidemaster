@@ -90,7 +90,7 @@ export class CoreHost {
     h("staticFont", async a => {
       // only the worker carries hb-subset (opts.staticFace); the page's in-thread fallback stores fonts as they are
       if (!this.opts.staticFace) return { buf: a.buf, variable: false };
-      const out = await this.opts.staticFace(new Uint8Array(a.buf), a.weight);
+      const out = await this.opts.staticFace(new Uint8Array(a.buf), a.weight, { family: a.family, italic: a.italic });
       return transfer({ buf: out.data.buffer as ArrayBuffer, variable: out.variable }, [out.data.buffer as ArrayBuffer]);
     });
     h("defaultPreset", a => { const wb = a.book !== undefined ? this.bookOf(a.book) : this.candidate; if (!wb) throw new Error("no workbook"); return defaultPreset(wb); });
@@ -844,7 +844,7 @@ type Source = "stage" | "own" | Run;
     so the page does not carry them) */
 export interface HostOptions {
   /** a static face of a variable font (text/static.ts: hb-subset) */
-  staticFace?: (file: Uint8Array, weight: number) => Promise<{ data: Uint8Array; variable: boolean }>;
+  staticFace?: (file: Uint8Array, weight: number, style?: { family?: string; italic?: boolean }) => Promise<{ data: Uint8Array; variable: boolean }>;
   /** false: the deck's journals are read only when the page asks ("poll"; tests) – else every 1.5 s */
   autoTail?: boolean;
   /** how long a cancelled run waits for the files of the value being made (ms; 30 s) */
