@@ -12,7 +12,7 @@ Releases are made with `docs/next/release-checklist.md`.
 What users notice (B48–B50, branch `v4/B48-B50-isp`)
 * **Excel and Excel Refined in the Intesa Sanpaolo template** (B48): the cover has the template's blue band, the deck's
   logo above the title, the title in 26 pt bold blue and the subtitle in grey; titles and subtitles, the page number
-  (top right), the logo (bottom right), Century Gothic, the contents slide, bullets as tilted squares, outlined boxes and
+  (top right; on by default unless the deck turned it off, none on the cover), the logo (bottom right), Century Gothic, the contents slide, bullets as tilted squares, outlined boxes and
   the template's colours follow it. Long titles shrink to fit before they are cut. Liquid Glass and the consulting
   designs are unchanged.
 * **Comment borders** (B49): a comment's box gets a border of the weight and colour you pick, or none.

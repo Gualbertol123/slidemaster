@@ -175,7 +175,8 @@ Test any change with layouts of very different kinds (see §10) – not only the
   the cover's note over and date under them, small. Contents ("INDICE"): the heading, then per content slide a tilted
   square, the page bold in Blu and the entry (16 pt, every 0.4 in), closer rows and then two columns when many. Content
   slides: title / subtitle at the template's place, the content area from x 70, y 130 (178 with a subtitle;
-  `areaFor`), the page number at the master's top right (also when set bottom right), the logo at its bottom right,
+  `areaFor`), the page number at the master's top right (also when set bottom right; on by default when no layer of the deck's style
+  sets `pn.on` – `resolveStyle`; a deck that turned it off keeps it off; none on the cover, `pn.cover`'s default), the logo at its bottom right,
   drawn first. A title or subtitle runs to the content area's right edge (clear of a top-right page number) and shrinks
   to fit, down to 20 / 12 pt, before it is cut with "…". **The bottom row** (B48 fix): the template's bottom area is one
   row, the logo's – a bottom page number or footer sits on it (a bottom-left one at x 70), and the notes section
