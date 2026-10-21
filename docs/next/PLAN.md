@@ -327,6 +327,7 @@ Approved 2026-10-20 (product owner: "approved", `09-charts-annotations-icons.md`
 | B44 | **Delete a saved setup** (the deck of a workbook: tables, slides, design, versions, comments) from the *Saved preset found* question (*Delete setup…*) and from ⚙ Options › Administration › **Saved setups**, which lists every setup and restores deleted ones; kept as a backup on the share (`data/v4/deleted/`); refused while a window has the deck open (product owner, 2026-10-20) | M13 |
 | B45 | **Google fonts through the helper**: added from google/fonts on GitHub (then jsDelivr, googleapis last), not from the page; a proxy in this PC's `%LOCALAPPDATA%\SlideBuilder\proxy.txt`, else the shared `data\proxy.txt`; the picker's previews stop for the window after one failed load; every failure says what to do (product owner, 2026-10-21) | Phase A (4.6.0) |
 | B46 | **Font cache**: the helper keeps the stylesheets and files it fetched in `data\fonts\cache\` and serves the picker's previews from it, fetched on demand, once for the office (product owner, 2026-10-21: A2 option (a)) | M13 |
+| B47 | **Hide slides** per design, like PowerPoint: a hidden slide is grayed in the slide list, left out of every export (PDF, PNG, PowerPoint, Run for each value); slide numbers and the contents slide count the visible slides only; hidden in one design, visible in another (product owner, 2026-10-21) | M13 |
 
 ---
 

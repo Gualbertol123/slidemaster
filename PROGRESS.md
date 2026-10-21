@@ -164,6 +164,7 @@ numbers measured twice). Measured numbers go into the step's line.
 - [ ] S13.2 · Third-party notices (LI-01; AUDIT-2 LIC-1)
 - [ ] S13.3 · Slide and table ops (`slide.add/remove`, `table.add/remove`; a slide without tables lays out)
 - [ ] S13.4 · New slide, Add table UI (NS-01, NS-02)
+- [ ] S13.6 · Hide slides per design (B47; HS-01…HS-03)
 - [ ] S13.5 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.6.0; 🚦 G9a
 
 ### M14 · Charts (4.7.0; B30, B31; docs/next/09 §8, ADR-015 amended)
@@ -511,6 +512,14 @@ numbers measured twice). Measured numbers go into the step's line.
   for the window after one failed load; the new messages). **The updater's new messages approved.** **A2: option (a)**
   – the helper keeps what it fetched in `data\fonts\cache\` and serves the picker's previews from it (on demand, no
   catalogue in the release): B46, built with M13 (4.6.0).
+- 2026-10-21 · **B47: hide slides** (product owner: "add the option to hide slides, like in powerpoint, and they will be
+  grayed out on the left bar and excluded from the export. slide numbers and contents page must update accordingly.
+  slides can be hidden in liquid glass but visible in the blue version"). Per design; grayed in the slide list; left out
+  of every export (PDF, PNG, PowerPoint, Run for each value); slide numbers and the contents slide count visible slides
+  only. PLAN Part B §8 B47, M13 (4.6.0), step S13.6.
+- 2026-10-21 · **Format guard: the one-time wait stays** (product owner: "Yes"). The first 4.6 save into a deck that
+  needs 4.6 waits about 23–25 s ("Saving…") so every older helper has seen the marker (ADR-019 amendment).
+- 2026-10-21 · **M14 and M15 in parallel after G9a** (product owner: "Yes"); separate gates (G9, G10) and releases.
 
 ## Waiting for
 
