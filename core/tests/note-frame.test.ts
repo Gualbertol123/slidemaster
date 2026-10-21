@@ -156,6 +156,10 @@ describe("drawn in every design and exported natively (B49)", () => {
       expect(grp, `${design}: the border and the text box in one group`).toBeTruthy();
       expect(grp!, design).toContain('name="Text box');
       expect(grp!.split("</p:grpSp>")[0], design).toContain("<p:txBody>");
+      // the text box inside the border's line (its slack for PowerPoint's wrapping stops at the line)
+      const sps = grp!.split("</p:grpSp>")[0].split("<p:sp>").slice(1).map(sp => { const m = /<a:off x="(-?\d+)" y="(-?\d+)"\/><a:ext cx="(\d+)" cy="(\d+)"\/>/.exec(sp)!; return { x: +m[1], w: +m[3], text: sp.includes("<p:txBody>") }; });
+      const border = sps[0], tb = sps.find(s => s.text)!;
+      expect(tb.x >= border.x && tb.x + tb.w <= border.x + border.w, `${design}: ${JSON.stringify(sps)}`).toBe(true);
       // the PDF: the same stroke
       const pdf = await h.run("pdf", design);
       keep(`b49-border-${design}.pdf`, pdf.files[0]);

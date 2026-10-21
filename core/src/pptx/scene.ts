@@ -495,7 +495,11 @@ function frameGroups(els: (El | null)[], owners: (Owner | null)[]): (El | null)[
       if (!f) continue;
       if (f.k === "sp" && !f.fill && f.line && "solid" in f.line.paint && !f.text && !f.seg && !f.rot && !f.fromShadow && inside(f.box, o.box, f.line.w + .5)) {
         out[j] = null; mid.forEach(k => { out[k] = null; });
-        out[i] = { k: "grp", name: "Text box", children: [{ ...f, name: "Border" }, ...mid.reverse().map(k => els[k]!), el] };
+        // the text inside the border: the text box's slack for PowerPoint's wrapping (textBody) never past the line
+        const a = f.box.x + f.line.w / 2, b = f.box.x + f.box.w - f.line.w / 2, t = { ...el };
+        if (t.box.x < a && t.text) { const dx = a - t.box.x; t.box = { ...t.box, x: a, w: t.box.w - dx }; t.text = { ...t.text, ins: [r2(Math.max(0, t.text.ins[0] - dx)), t.text.ins[1], t.text.ins[2], t.text.ins[3]] }; }
+        if (t.box.x + t.box.w > b && b > t.box.x) { const dx = t.box.x + t.box.w - b; t.box = { ...t.box, w: b - t.box.x }; if (t.text) t.text = { ...t.text, ins: [t.text.ins[0], t.text.ins[1], r2(Math.max(0, t.text.ins[2] - dx)), t.text.ins[3]] }; }
+        out[i] = { k: "grp", name: "Text box", children: [{ ...f, name: "Border" }, ...mid.reverse().map(k => els[k]!), t] };
         return;
       }
       if ((f.k !== "sp" && f.k !== "pic") || !inside(f.box, o.box, 1) || boxNear(f.box, o.box, 1.5) || mid.length >= 8) return;
