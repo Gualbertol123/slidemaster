@@ -22,6 +22,26 @@ npm run test:e2e && npm run parity
 ```
 - [ ] all green; `npm run parity` reports 0 unaccepted differences.
 
+### 2a. The format guard against the real older versions (CP-01, CP-02; ADR-019)
+`tools/compat-old.mjs` makes git worktrees of v4.0.0, 4.1 (`061a5b3`), 4.4 (`a1d3aba`) and 4.5 (`637f7b4`), starts each
+old helper with its own committed page next to this checkout's helper on the same workbook and data folders (fresh
+temporary ones per case; ports 8961 and up, never 8951/8952), and drives both pages with Playwright, without network.
+Cases per version: CP-02 (a deck without 4.6 objects stays format 4 and opens, edits and compacts in the old version;
+`style.designs.*.consult` kept), (a) the old page opens a format-5 deck holding every 4.6 object, (b) the old page has
+the deck open while a 4.6 page raises it – a cell and the wizard's Finish in the gap and after the raise, then alone
+past the compaction margin – in journal and in lean-lock storage, (c) the old user's helper restarted as 4.6 under the
+open old page (403 with the old token, 409 without `X-SB-Deck-Formats`), (d) the journals aged 25 h and the old helper's
+compact / rotate / idle loop. One `RESULT` line per version and case, a JSON report; exit code 1 when one fails.
+Takes about 35 minutes per Python (the real 23 s bump wait; `--bump-wait-s N` shortens the 4.6 side only).
+```
+node tools/compat-old.mjs --pythons "python3.8,python3.12" --out /tmp/compat-old.json
+```
+On Windows (PowerShell 5.1; `py -3.8` and `py -3.12` from the Python launcher):
+```
+node tools/compat-old.mjs --pythons "py -3.8,py -3.12" --new-python python --out $env:TEMP\compat-old.json
+```
+- [ ] every `RESULT` line says PASS (per version: CP-02, a, b-journal, c-journal, b-lean-lock, c-lean-lock, d).
+
 ## 3. The release ZIP
 ```
 python tools/make_release.py --version X.Y.Z            # runs the tests again, writes dist/slidebuilder-X.Y.Z.zip
