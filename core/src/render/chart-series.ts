@@ -488,6 +488,15 @@ export function overlayNodes(L: SeriesLayout, native = false): Node[] {
   const drop = native ? new Set(L.marks.arrows.flatMap(a => a.drop)) : null;
   return [...L.dividers.map((d): Node => ({ t: "line", x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2, stroke: lineStroke(d.line, "butt") })), ...(drop ? L.marks.nodes.filter(n => !drop.has(n)) : L.marks.nodes)];
 }
+/** (S14.6 review 6) each arrow / line mark's place in overlayNodes(L, true): the count of that overlay's nodes before it
+    (the dividers, then the other marks' nodes of a lower id – and none of its own), so that the export writes it where the
+    slide draws it (marks in id order, a later id on top; pptx/chart-overlay.ts overlayEls) */
+export function arrowPlaces(L: SeriesLayout): number[] {
+  const drop = new Set(L.marks.arrows.flatMap(a => a.drop)), at = new Map<Node, number>();
+  let kept = L.dividers.length;
+  for (const n of L.marks.nodes) if (!drop.has(n)) kept++; else if (!at.has(n)) at.set(n, kept);
+  return L.marks.arrows.map(a => at.get(a.drop[0]) ?? kept);
+}
 
 /** the nodes of a laid-out series chart: gridlines, areas, bars, the axis line, lines and markers, labels, the axes'
     texts, dividers and marks, the legend, the title, the point and mark hits */

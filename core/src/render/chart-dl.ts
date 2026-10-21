@@ -28,7 +28,7 @@ import { parseColor, solid } from "../dl/color";
 import type { ChartSem } from "../pptx/chart-sem";
 import { cellsOf, chartData, hasSeries, refTarget, seriesData, type ChartData } from "./chart-data";
 import { ellipsis, font, lum, textNode, type St } from "./chart-font";
-import { cardNodes, fontSem, lineOrNone, overlayNodes, seriesLayout, seriesNodes, seriesSem, type SeriesStyle } from "./chart-series";
+import { arrowPlaces, cardNodes, fontSem, lineOrNone, overlayNodes, seriesLayout, seriesNodes, seriesSem, type SeriesStyle } from "./chart-series";
 import { lineStroke } from "./chart-lines";
 
 /* ---- data (chart-data.ts since S14.2: every cell rule in one place) ---- */
@@ -335,7 +335,8 @@ function seriesChartSem(it: ChartItem, box: Box, ctx: RenderCtx, look: ChartLook
   if ("why" in L) return null;
   const bars = seriesSem(L), first = bars.series[0];
   // (S14.6: the arrow and line marks as line shapes with native ends over the chart – chart-overlay.ts)
-  const arrows = L.marks.arrows.map(({ drop: _d, ...a }) => a);
+  // (review 6: each with its place among the overlay's nodes, so that it stacks as on the slide)
+  const at = arrowPlaces(L), arrows = L.marks.arrows.map(({ drop: _d, ...a }, k) => ({ ...a, at: at[k] }));
   return {
     ...(arrows.length ? { arrows } : {}),
     type: it.type === "bar" ? "bar" : it.type === "line" || it.type === "area" || it.type === "combo" || it.type === "scatter" || it.type === "waterfall" ? it.type : "column", title: L.title, series: first?.name || "", titleFont: fontSem(L.titleSt), labelFont: fontSem(lab),

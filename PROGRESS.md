@@ -221,10 +221,32 @@ numbers measured twice). Measured numbers go into the step's line.
   `node tools/m14-package.mjs --out DIR` (the page's exports + `<file>.plots.json`). Open for the owner's PC: PX-05
   "PowerPoint opens it, Edit Data", PX-06 `pptxcheck.py plots`, and the S14.3 re-checks (legend line entries, an
   area's blank at zero). Not done here: **CT-09** (E: a scenario run, the chart's labels follow each value; S14.5
-  review 8) and the chart panel's keypress p95 (75–110 ms) – both left open for S14.7 / the orchestrator
+  review 8) and the chart panel's keypress p95 (75–110 ms) – both assigned to S14.7 (below)
+  - **S14.6 review fixes:** the corpus test names M14's four decks (`charts`, `lines`, `scatter-waterfall`, `series`),
+    so M15's `icons.json` in the same folder does not break it at the merge (review 1). The `lines.json` add/add
+    clash with M15 (review 2) is M15's to settle: M14 has had the file since S14.3 (`a04c5ff`), so M15 renames its
+    deck (e.g. `line-items.json`, with its tests and README entry) – for the orchestrator to route. `tools/bench.mjs`
+    ran in full once (review 3; Measurements · M14) and also reports `combo_cold_ms`, not gated (review 4). `pptxcheck.py
+    plots` now also compares each arrow / line mark's two ends with `arrows[].a/b` within 2 px (`compare_marks`,
+    unit-tested with faked PowerPoint output; review 5). Arrows keep their place in the stacking order (`ArrowSem.at`,
+    `overlayEls`; review 6). The embedded workbook's cell attributes are built whole (review 8; same bytes).
+  - **Sanctioned exception (ownership, review 7):** `core/src/pptx/scene.ts` belongs to M15 (plan-M14's ownership
+    table). S14.6 changed it in two lines only: the `chart-overlay` import and the chart branch's overlay line (now
+    `overlayEls(it.overlay || [], it.chart, walk)`); everything else lives in M14's `chart-overlay.ts` / `chart-sem.ts`.
+    It merges cleanly with M15 (`git merge-tree`).
+  - **Open exception for the owner (review 4):** the cold PowerPoint export takes ~25 s against 09 §7.4's 3 s. A user
+    who exports right after adding a deck's first chart waits for the save the format guard holds (ADR-019's one-time
+    wait, ~23 s; M13 behaviour, also on S14.5's build; measured 24.9–25.5 s in S14.6's scratch run on a fresh deck20).
+    `pptx_combo_ms` gates the warm path; `combo_cold_ms` reports the export at once after the change. In the full
+    bench deck20 is already format 5 by then (the free-layout drags earlier in the run raise it), so `combo_cold_ms`
+    (1.9–2.3 s) does not show the 25 s; the bench has no fresh-deck case. A possible remedy for M13 or S14.7: let the export read the in-memory document instead of waiting
+    for that save. Owner's decision needed.
 - [ ] S14.7 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.7.0 — at the M14 × M15 merge (S14.3 review finding 7): a chart's
   icon mark draws a vendored icon through M15's `vendoredNodes` (per-path paint: filled parts, half-alpha paths) instead
-  of stroking every path (`core/src/render/chart-marks.ts`, the "MERGE M15" note)
+  of stroking every path (`core/src/render/chart-marks.ts`, the "MERGE M15" note). Carried over to S14.7 (S14.6 review
+  9): **CT-09** (a scenario run, the chart's labels follow each value) and **the chart panel's keypress p95** (75–110
+  ms against 50 ms: the item op's path to the stage); the owner's answer on the cold export (above); `m14.json` set
+  to the final measurement
 
 ### M15 · Lines, icons, snapping (4.8.0; B32–B35; docs/next/09 §8, ADR-020, ADR-017 amended)
 - [ ] S15.1 · `Stroke.join` and the icon data (Tabler 3.49.0 vendored, hash test, notices entry) – `Stroke.join` is in
@@ -1069,7 +1091,10 @@ One table per parallel milestone (S14.P), so M14 and M15 never append to the sam
 | S14.6 | ⏱ column 12 × 4 · reference chart · line 12 × 52, display list (the same bench), Liquid Glass · Excel, ms | 1.83 · 0.85 · 1.68 · 0.79 · 4.03 · 2.05 | 2.14 · 0.88 · 2.12 · 0.91 · 7.79 · 2.56 |
 | S14.6 | ⏱ PowerPoint deck20 with 6 combo charts, Liquid Glass, click → file (09 §7.4, 3 s × speed factor; a scratch run of `tools/bench.mjs`'s `comboPptx` on the built page, headless Chromium, shared 4-core machine; the full bench is the orchestrator's) · deck20 without them, the same run, ms | 1,927 · 2,907 (cold workers) | 2,329 · 2,575 |
 | S14.6 | the same export **before the deck is saved**: 25.0–25.5 s, also on S14.5's build – the first item makes deck20 format 5, and the format guard's one-time wait (ADR-019, ~23 s) holds the save that an export waits for (`flushDoc`). The bench now waits for "✓ Saved" first. For the owner: a user's first export right after adding a deck's first chart waits that long (M13 behaviour) | 24,972 · 25,502 | 24,938 (S14.5: 25,159) |
+| S14.6 review | ⏱ `node tools/bench.mjs` in full, once (built page, headless Chromium, shared 4-core machine, calibration × 2.00): `pptx_combo_ms` (gated, after the save; limit 3 s × 2.00) · `combo_cold_ms` (not gated: exported at once after the change – deck20 is already format 5 here, so without the format guard's wait), ms | 1,968 · 2,322 | 1,548 · 1,944 |
+| S14.6 review | the same full bench run, its other gates over their limits on this shared machine (gates M14 adds nothing to; a loaded shared machine – the orchestrator's run decides): open_deck20 1,305 / 800, longest_task 149 / 50, keypress_p95 109 / 50, drag_frame 78.3 / 16, thumbs_gap 33.4 / 20, keypress_navy_p95 90 / 50, drag_navy_frame 25 / 16 (ms) – the PowerPoint, PDF, scenario and heap gates passed | – | – |
 | S14.6 | built page (bytes; not committed) | 4,115,246 (S14.5 review built 4,113,104: +2,142; M14's share 139,154, within m14.json 140,896 – no raise; limit 4,116,988: 1,742 left) | – |
+| S14.6 review | built page (bytes; not committed) | 4,115,984 (S14.6 built 4,115,246: +738; M14's share 139,892, within m14.json 140,896 – no raise; limit 4,116,988: 1,004 left) | – |
 
 ### Measurements · M15 (4.8.0)
 M15 appends here only.

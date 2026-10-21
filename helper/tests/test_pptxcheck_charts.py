@@ -263,5 +263,61 @@ class ChartKindsTests(unittest.TestCase):
         self.assertIn("PowerPoint is not available", bad[0])
 
 
+class PlotsMarksTests(unittest.TestCase):
+    """S14.6 review 5 (PX-06): `plots` compares each arrow / line mark's two ends with the slide's (`arrows[].a/b`, slide
+    px) within 2 px – PowerPoint's answer faked here (PS_PLOTS' JSON: points, msoTrue = -1 for a flip), so it runs
+    without PowerPoint. Standard library only"""
+
+    CHART = {"slide": 1, "left": 60.0, "top": 120.0, "width": 384.0, "height": 252.0, "inLeft": 30.0, "inTop": 24.0, "inWidth": 330.0, "inHeight": 204.0,
+             "ymin": 0, "ymax": 600, "y2min": None, "y2max": None}
+    EXPECT = {"slide": 1, "frame": {"x": 100, "y": 200, "w": 640, "h": 420}, "plot": {"x": 150, "y": 240, "w": 550, "h": 340}, "val": {"min": 0, "max": 600}}
+
+    @staticmethod
+    def line(a, b, name="Arrow 11"):
+        """the line shape pptx/chart-overlay.ts writes from a to b (slide px), as PowerPoint reports it (points)"""
+        return {"name": name, "left": min(a[0], b[0]) * .6, "top": min(a[1], b[1]) * .6, "width": abs(b[0] - a[0]) * .6, "height": abs(b[1] - a[1]) * .6,
+                "flipH": -1 if b[0] < a[0] else 0, "flipV": -1 if b[1] < a[1] else 0}
+
+    def run_(self, arrows, lines):
+        return pptxcheck.compare_plots([dict(self.EXPECT, arrows=arrows)], [dict(self.CHART, lines=lines)])
+
+    def test_line_ends_follow_the_flips(self):
+        self.assertEqual(pptxcheck.line_ends(self.line((300, 250), (200, 400))), ((300, 250), (200, 400)))
+        self.assertEqual(pptxcheck.line_ends(self.line((200, 400), (300, 250))), ((200, 400), (300, 250)))
+        self.assertEqual(pptxcheck.line_ends(self.line((200, 250), (300, 400))), ((200, 250), (300, 400)))
+        self.assertEqual(pptxcheck.line_ends(self.line((300, 400), (200, 250))), ((300, 400), (200, 250)))
+
+    def test_marks_on_their_points_pass(self):
+        A = [{"a": {"x": 300, "y": 250}, "b": {"x": 200, "y": 400}, "head": "triangle"}, {"a": {"x": 150, "y": 300}, "b": {"x": 700, "y": 300}}]
+        L = [self.line((300.8, 251.5), (199.0, 401.2)), self.line((150, 300), (700, 300), "Line 12")]
+        self.assertEqual(self.run_(A, L), [])
+        # (PowerShell gives one shape as an object, not a list)
+        self.assertEqual(self.run_(A[:1], L[0]), [])
+
+    def test_a_mark_off_by_more_than_2_px_fails(self):
+        bad = self.run_([{"a": {"x": 300, "y": 250}, "b": {"x": 200, "y": 400}}], [self.line((300, 250), (200, 403))])
+        # (the mark, then the shape no mark claims)
+        self.assertEqual(len(bad), 2)
+        self.assertIn("mark 1", bad[0])
+        self.assertIn("3.0 px off", bad[0])
+
+    def test_a_reversed_line_fails(self):
+        # (its head would be on the wrong end)
+        bad = self.run_([{"a": {"x": 300, "y": 250}, "b": {"x": 200, "y": 400}}], [self.line((200, 400), (300, 250))])
+        self.assertEqual(len(bad), 2)
+        self.assertIn("mark 1", bad[0])
+
+    def test_a_missing_or_extra_line_fails(self):
+        A = [{"a": {"x": 300, "y": 250}, "b": {"x": 200, "y": 400}}]
+        self.assertIn("no line shape", self.run_(A, [])[0])
+        bad = self.run_(A, [self.line((300, 250), (200, 400)), self.line((150, 300), (700, 300), "Line 12")])
+        self.assertEqual(bad, ["chart 1 (slide 1): Line 12: a line shape no mark of the slide has"])
+
+    def test_charts_without_marks_still_compare_the_plot(self):
+        self.assertEqual(pptxcheck.compare_plots([self.EXPECT], [self.CHART]), [])
+        moved = dict(self.CHART, inLeft=33.0)
+        self.assertIn("px off the slide's", pptxcheck.compare_plots([self.EXPECT], [moved])[0])
+
+
 if __name__ == "__main__":
     unittest.main()

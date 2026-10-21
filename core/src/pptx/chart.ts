@@ -96,9 +96,10 @@ export function chartWorkbook(ch: ChartSem): Uint8Array {
   // a formula's cell names: {V} the values column, {R} the running total (the first extra column), {Rp} the row before's
   const fx = (t: string, row: number) => !book ? t : t.replace(/\{V\}/g, numToCol(book.values + f) + row).replace(/\{R\}/g, numToCol(nSer + f) + row).replace(/\{Rp\}/g, row > 2 ? numToCol(nSer + f) + (row - 1) : "0");
   const cell = (c: { values: (number | null)[]; f?: (string | null)[]; fmt?: (i: number) => string }, k: number, i: number) => {
-    const v = c.values[i], st = styleOf(c.fmt?.(i)), ref = `${numToCol(k + f)}${i + 2}"${st ? ` s="${st}"` : ""}`, fo = c.f?.[i];
-    if (fo) return v === null || v === undefined ? `<c r="${ref} t="str"><f>${esc(fx(fo, i + 2))}</f><v></v></c>` : `<c r="${ref}><f>${esc(fx(fo, i + 2))}</f><v>${num(v)}</v></c>`;
-    return v === null || v === undefined ? "" : `<c r="${ref}><v>${num(v)}</v></c>`;
+    // (S14.6 review 8: the cell's attributes built whole – its reference, then its style when not General)
+    const v = c.values[i], st = styleOf(c.fmt?.(i)), at = `r="${numToCol(k + f)}${i + 2}"${st ? ` s="${st}"` : ""}`, fo = c.f?.[i];
+    if (fo) return v === null || v === undefined ? `<c ${at} t="str"><f>${esc(fx(fo, i + 2))}</f><v></v></c>` : `<c ${at}><f>${esc(fx(fo, i + 2))}</f><v>${num(v)}</v></c>`;
+    return v === null || v === undefined ? "" : `<c ${at}><v>${num(v)}</v></c>`;
   };
   const rows = [`<row r="1">${xy ? "" : str("A1", "")}${lv ? str("B1", "") : ""}${cols.map((c, k) => str(numToCol(k + f) + "1", c.name || `Series ${k + 1}`)).join("")}</row>`,
     ...cats.map((l, i) => `<row r="${i + 2}">${xy ? "" : lv ? (lv[i] ? str("A" + (i + 2), lv[i]) : "") + str("B" + (i + 2), l) : str("A" + (i + 2), l)}${cols.map((c, k) => cell(c, k, i)).join("")}</row>`)];

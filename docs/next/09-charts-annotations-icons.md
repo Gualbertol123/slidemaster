@@ -679,9 +679,12 @@ paths (no font, no picture). `pdfcheck.py` and the GF facts are unchanged.
 As built in S14.6 (PX-05, PX-06):
 * **Marks' arrowheads are native.** An arrow or line mark is one `p:sp` (`a:prstGeom prst="line"`, flipH / flipV so
   its first point is end a) from end a to end b, not shortened, with `a:headEnd` (end a) / `a:tailEnd` (end b) of the
-  mark's heads and size (`ChartSem.arrows`, `pptx/chart-overlay.ts`; `scene.ts`'s chart branch adds them after the
-  overlay's shapes). The export's overlay leaves out those lines' display-list nodes (the slide still draws the heads
-  with `render/heads.ts`). A limiter's `bar` has no native end, so its tick stays a shape of the overlay.
+  mark's heads and size (`ChartSem.arrows`, `pptx/chart-overlay.ts`). The export's overlay leaves out those lines'
+  display-list nodes (the slide still draws the heads with `render/heads.ts`). A limiter's `bar` has no native end, so
+  its tick stays a shape of the overlay. Each line shape keeps the mark's place in the stacking order, as on the slide
+  (marks in id order, a later id on top): `ArrowSem.at` is the count of overlay nodes under it, and `overlayEls`
+  writes the overlay in slices around the arrows (S14.6 review 6). A text or icon mark of a later id is over the
+  arrow, and a limiter's bar tick is over its line.
 * **The embedded workbook carries the number formats.** Each value cell has the format of its cache (a point's own
   `formatCode` where it has one, otherwise the series'; a scatter series' x cells the x format) as a cell style
   (`numFmt` ids from 164). Edit Data shows the values as the slide does.
@@ -696,8 +699,10 @@ As built in S14.6 (PX-05, PX-06):
   kinds, caches equal to the embedded cells and their formats, native ends, no `p:cxnSp`, no link. pptxcheck (5)
   compares each chart's groups with the core's (`tools/real-charts.mjs` → `kinds` in `--expect`; export-check passes
   them). `pptxcheck.py plots` (PX-06, Windows) reads PowerPoint's plot areas (`PlotArea.Inside*`) and axis bounds and
-  requires them within 2 px of the slide's (`<file>.plots.json`). It also exports each slide at 1600 px (`--png`) so
-  the marks can be looked at.
+  requires them within 2 px of the slide's (`<file>.plots.json`). It also reads each arrow / line mark's shape in the
+  chart's group (`Left` / `Top` / `Width` / `Height` and the flips) and requires its two ends within 2 px of the
+  mark's `a` and `b` (S14.6 review 5; `compare_marks`, unit-tested with PowerPoint's answer faked). It also exports
+  each slide at 1600 px (`--png`) so the marks can be looked at.
 
 Where PowerPoint draws differently, and what the slide does about it (S14.3 review, 2026-10-21):
 * **Draw order of a combo.** PowerPoint draws every chart group on the secondary axis over those on the primary one;

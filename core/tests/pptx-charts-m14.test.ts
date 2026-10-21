@@ -1,5 +1,5 @@
-/* M14 S14.6 (PX-05, PX-06; 09 §4.2): the whole chart corpus (tests/corpus/charts/*.json) as PowerPoint files, in every
-   design, through the core's own writer – the structure export-check's PowerPoint pass gates, checked here without a
+/* M14 S14.6 (PX-05, PX-06; 09 §4.2): M14's chart corpus (tests/corpus/charts/: charts, lines, scatter-waterfall,
+   series) as PowerPoint files, in every design, through the core's own writer – the structure export-check's PowerPoint pass gates, checked here without a
    browser:
    * every chart a native chart whose chart groups are the ones the core writes (tools/real-charts.mjs: "bar+line",
      "scatter", "pie" …), as many as the slide's chart items;
@@ -35,7 +35,9 @@ import { chartKindsOf, withChartKinds } from "../../tools/real-charts.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const BOOKS = path.join(here, "../../tests/corpus/workbooks"), CHARTS = path.join(here, "../../tests/corpus/charts");
-const DECKS = fs.readdirSync(CHARTS).filter(f => f.endsWith(".json")).map(f => f.replace(/\.json$/, "")).sort();
+// (S14.6 review 1: M14's four chart decks by name – the folder also holds other milestones' decks, M15's icons among
+// them, that have no chart items)
+const DECKS = ["charts", "lines", "scatter-waterfall", "series"];
 const OUT = process.env.CHART_PPTX_OUT;
 const ab = (f: string) => { const b = fs.readFileSync(f); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer; };
 const M: Metrics = {
@@ -110,6 +112,15 @@ describe("the chart corpus as PowerPoint files (S14.6, PX-05 / PX-06)", () => {
       for (const ch of sems) for (const a of ch.arrows || []) wantEnds += (a.head ? 1 : 0) + (a.tail ? 1 : 0);
       // an arrow shape is a plain line (prst line), never a connector; its ends on its own a:ln
       for (const m of s.matchAll(/<p:sp><p:nvSpPr><p:cNvPr id="\d+" name="Arrow \d+"\/>.*?<\/p:sp>/g)) expect(m[0]).toMatch(/<a:prstGeom prst="line">.*<a:(head|tail)End type="(triangle|arrow|stealth|oval|diamond)"/);
+      // (review 5: what `pptxcheck.py plots` reads back from PowerPoint – each line shape's ends from its box and flips –
+      // are the marks' ends, in the marks' order; 1 px = 7 620 EMU)
+      const lines = [...s.matchAll(/<p:sp><p:nvSpPr><p:cNvPr id="\d+" name="(?:Arrow|Line) \d+"\/>.*?<a:xfrm( flipH="1")?( flipV="1")?><a:off x="(-?\d+)" y="(-?\d+)"\/><a:ext cx="(\d+)" cy="(\d+)"\/>/g)].map(m => {
+        const [x, y, w, h] = [m[3], m[4], m[5], m[6]].map(v => +v / 7620);
+        return { a: { x: m[1] ? x + w : x, y: m[2] ? y + h : y }, b: { x: m[1] ? x : x + w, y: m[2] ? y : y + h } };
+      });
+      const marks = sems.flatMap(ch => ch.arrows || []);
+      expect(lines.length, n).toBe(marks.length);
+      marks.forEach((w, k) => { for (const e of ["a", "b"] as const) { expect(Math.abs(lines[k][e].x - w[e].x), `${n} mark ${k} ${e}`).toBeLessThanOrEqual(.01); expect(Math.abs(lines[k][e].y - w[e].y), `${n} mark ${k} ${e}`).toBeLessThanOrEqual(.01); } });
     });
     expect(ends).toBe(wantEnds);
     expect(cells).toBeGreaterThan(10);
@@ -134,6 +145,31 @@ describe("the chart corpus as PowerPoint files (S14.6, PX-05 / PX-06)", () => {
     for (const t of ["pie", "donut", "column", "bar", "line", "area", "scatter", "combo", "waterfall"]) expect(types, t).toContain(t);
     expect(all.some(c => c.bars?.val2)).toBe(true);
     expect(all.flatMap(c => c.arrows || []).filter(a => a.head || a.tail).length).toBeGreaterThanOrEqual(3);
+  });
+  it("the arrows stack as on the slide (review 6): a text mark of a later id over an arrow, of an earlier id under it; a limiter's bar tick over its line", async () => {
+    const marks = {
+      aa: { kind: "text", text: "EARLY", a: { s: "vol", i: 2 }, dy: -40 },
+      zz: { kind: "text", text: "LATE", a: { s: "vol", i: 2 }, dy: -60 },
+      zy: { kind: "line", a: { s: "vol", i: 1 }, b: { s: "vol", i: 3 }, style: { heads: { a: "bar", b: "diamond" } } },
+    };
+    const lists = await deck("lines", "excel", [{ op: "item.patch", slide: "r0", id: "ref", patch: { marks } } as unknown as Op]);
+    const s = strFromU8(unzipSync(pptxOf(lists))["ppt/slides/slide1.xml"]);
+    const grp = /<p:grpSp><p:nvGrpSpPr><p:cNvPr id="\d+" name="Chart ref \d+"\/>.*?<p:graphicFrame>.*$/.exec(s)![0];
+    // the shapes over the native chart, in document order (later = on top): their names and texts
+    const seq = [...grp.matchAll(/<p:sp><p:nvSpPr><p:cNvPr id="\d+" name="([^"]+)"\/>(.*?)<\/p:sp>/g)].map(m => /<a:t>(EARLY|LATE)<\/a:t>/.exec(m[2])?.[1] ?? m[1].replace(/ \d+$/, ""));
+    const at = (x: string) => seq.indexOf(x);
+    // marks in id order: aa (EARLY), ia, ib (icons), start (arrow), ta, tb (texts), zy (line, bar tick, diamond), zz (LATE)
+    expect(at("EARLY")).toBeGreaterThanOrEqual(0);
+    expect(at("EARLY")).toBeLessThan(at("Arrow"));
+    expect(seq.lastIndexOf("Arrow")).toBeLessThan(at("LATE"));
+    expect(at("LATE")).toBe(seq.length - 1);
+    // the first arrow ("start") under the later texts ta / tb: some shape between it and the zy line
+    const arrows = seq.flatMap((x, i) => x === "Arrow" ? [i] : []);
+    expect(arrows).toHaveLength(2);
+    expect(arrows[1] - arrows[0]).toBeGreaterThan(1);
+    // zy's bar tick (a shape of the overlay) right after its line, under LATE
+    expect(arrows[1] + 1).toBeLessThan(at("LATE"));
+    // a chart without arrows: one walk of its overlay, as before (the ids of the other charts unchanged is the bytes test)
   });
   it("every head PowerPoint has natively: both ends, sizes, a dashed line; a limiter's bar stays a shape beside the line (it has no native end)", async () => {
     const marks = {

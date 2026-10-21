@@ -570,11 +570,16 @@ $was = $true; try { [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoi
 $app = New-Object -ComObject PowerPoint.Application
 $out = @{ file = $job.file; ok = $false; charts = @(); error = "" }
 function charts($shapes, $n, [ref]$acc) {
+  # (S14.6 review 5) the arrow and line marks beside a chart in its group: their boxes and flips (their ends)
+  $lines = @()
+  foreach ($sh in $shapes) {
+    if ($sh.Type -ne 6 -and $sh.Name -match '^(Arrow|Line) \d+$') { $lines += @{ name = $sh.Name; left = $sh.Left; top = $sh.Top; width = $sh.Width; height = $sh.Height; flipH = [int]$sh.HorizontalFlip; flipV = [int]$sh.VerticalFlip } }
+  }
   foreach ($sh in $shapes) {
     if ($sh.Type -eq 6) { charts $sh.GroupItems $n $acc; continue }
     if (-not $sh.HasChart) { continue }
     $ch = $sh.Chart; $pa = $ch.PlotArea
-    $c = @{ slide = $n; left = $sh.Left; top = $sh.Top; width = $sh.Width; height = $sh.Height; inLeft = $pa.InsideLeft; inTop = $pa.InsideTop; inWidth = $pa.InsideWidth; inHeight = $pa.InsideHeight; ymin = $null; ymax = $null; y2min = $null; y2max = $null }
+    $c = @{ slide = $n; left = $sh.Left; top = $sh.Top; width = $sh.Width; height = $sh.Height; inLeft = $pa.InsideLeft; inTop = $pa.InsideTop; inWidth = $pa.InsideWidth; inHeight = $pa.InsideHeight; ymin = $null; ymax = $null; y2min = $null; y2max = $null; lines = $lines }
     try { $ax = $ch.Axes(2, 1); $c.ymin = $ax.MinimumScale; $c.ymax = $ax.MaximumScale } catch {}
     try { $ax = $ch.Axes(2, 2); $c.y2min = $ax.MinimumScale; $c.y2max = $ax.MaximumScale } catch {}
     $acc.Value += $c
@@ -595,10 +600,11 @@ ConvertTo-Json -Depth 6 -InputObject $out | Out-File -Encoding UTF8 $args[1]
 
 def plots(path, expect, png=None, timeout=600):
     """PX-06 (4.7, S14.6; 09 §4.2), Windows with PowerPoint only: the marks over a native chart land on its data when
-    PowerPoint's plot is the slide's plot – each chart of `expect` ([{slide, frame, plot, val, val2?}], slide px; written by
-    core/tests/pptx-charts-m14.test.ts beside each file as <name>.plots.json) is found by its frame, and PowerPoint's
-    inner plot area (PlotArea.Inside*, points; 1 px = 0.6 pt) must be within 2 px of `plot`, its value axes' bounds
-    (MinimumScale / MaximumScale) the drawn ones. `png`: a folder for every slide exported by PowerPoint at 1600 × 900
+    PowerPoint's plot is the slide's plot – each chart of `expect` ([{slide, frame, plot, val, val2?, arrows}], slide px;
+    written by core/tests/pptx-charts-m14.test.ts beside each file as <name>.plots.json) is found by its frame, and
+    PowerPoint's inner plot area (PlotArea.Inside*, points; 1 px = 0.6 pt) must be within 2 px of `plot`, its value axes'
+    bounds (MinimumScale / MaximumScale) the drawn ones, and each arrow / line mark's two ends (its line shape's box and
+    flips) within 2 px of the slide's `a` and `b` (compare_plots). `png`: a folder for every slide exported by PowerPoint at 1600 × 900
     (Slide.Export) to look at. Returns (problems, PowerPoint's charts)"""
     if not powerpoint_available():
         return ["PowerPoint is not available here (PX-06 runs on Windows with PowerPoint)"], []
@@ -620,7 +626,51 @@ def plots(path, expect, png=None, timeout=600):
         return ["PowerPoint: %s" % (r.get("error") or "not opened")], []
     got = r.get("charts") or []
     got = got if isinstance(got, list) else [got]
-    px = lambda pt: (pt or 0) / 0.6
+    return compare_plots(expect, got), got
+
+
+def _px(pt):
+    return (pt or 0) / 0.6
+
+
+def line_ends(ln):
+    """a line shape's two ends in slide px from PowerPoint's Left / Top / Width / Height (points) and its flips: unflipped
+    it runs from the box's top-left to its bottom-right; HorizontalFlip / VerticalFlip (msoTrue = -1) swap the sides –
+    as pptx/chart-overlay.ts writes it (flipH when b is left of a, flipV when b is above a)"""
+    x0, y0 = _px(ln.get("left")), _px(ln.get("top"))
+    x1, y1 = x0 + _px(ln.get("width")), y0 + _px(ln.get("height"))
+    if ln.get("flipH"):
+        x0, x1 = x1, x0
+    if ln.get("flipV"):
+        y0, y1 = y1, y0
+    return (x0, y0), (x1, y1)
+
+
+def compare_marks(arrows, lines, tol=2.0):
+    """(S14.6 review 5) each expected arrow / line mark ({a, b}, slide px) against PowerPoint's line shapes of the chart's
+    group (line_ends): one shape each, its first end on `a` and its second on `b` within `tol` px (the heads sit on the
+    ends, so a swapped line is a wrong arrow); no shape left over. Returns the problems"""
+    lines = lines if isinstance(lines, list) else ([lines] if lines else [])
+    left, bad = list(range(len(lines))), []
+    ends = [line_ends(l) for l in lines]
+    for k, e in enumerate(arrows or []):
+        a, b = (e["a"]["x"], e["a"]["y"]), (e["b"]["x"], e["b"]["y"])
+        off = lambda j: max(abs(ends[j][0][0] - a[0]), abs(ends[j][0][1] - a[1]), abs(ends[j][1][0] - b[0]), abs(ends[j][1][1] - b[1]))
+        best = min(left, key=off) if left else None
+        if best is None or off(best) > tol:
+            near = "" if best is None else ": the nearest, %s, runs %s → %s (%.1f px off)" % (lines[best].get("name", "?"), tuple(round(v, 1) for v in ends[best][0]), tuple(round(v, 1) for v in ends[best][1]), off(best))
+            bad.append("mark %d %s → %s: no line shape on it%s" % (k + 1, a, b, near))
+            continue
+        left.remove(best)
+    for j in left:
+        bad.append("%s: a line shape no mark of the slide has" % lines[j].get("name", "?"))
+    return bad
+
+
+def compare_plots(expect, got):
+    """PX-06's comparison (plots(), separate so that it runs without PowerPoint): `expect` as <name>.plots.json, `got`
+    PowerPoint's charts as PS_PLOTS reports them (points). Returns the problems"""
+    px = _px
     bad = []
     for k, e in enumerate(expect):
         F = e["frame"]
@@ -637,7 +687,9 @@ def plots(path, expect, png=None, timeout=600):
             V = e.get(key)
             if V and (c.get(lo) is None or abs(c[lo] - V["min"]) > 1e-9 * max(1, abs(V["min"])) or abs(c[hi] - V["max"]) > 1e-9 * max(1, abs(V["max"]))):
                 bad.append("chart %d (slide %d): PowerPoint's %s axis %s–%s, drawn %s–%s" % (k + 1, e["slide"], "second" if key == "val2" else "value", c.get(lo), c.get(hi), V["min"], V["max"]))
-    return bad, got
+        # (S14.6 review 5: the marks – the plan's "within 2 px at 1600" – each arrow's ends on the slide's)
+        bad.extend("chart %d (slide %d): %s" % (k + 1, e["slide"], m) for m in compare_marks(e.get("arrows") or [], c.get("lines") or []))
+    return bad
 
 
 def real_objects(rep_content, expect, who):

@@ -19,6 +19,8 @@
                      its size (PLAN Part F): Liquid Glass < 3 MB, Excel < 300 KB; the tasks as above
      combo charts    ⏱ S14.6 (09 §7.4, PX-05): deck20 with 6 combo charts (columns + a line on a second axis, an
                      arrow mark) on slides 2–7, Liquid Glass, Export ▾ › PowerPoint: click → the .pptx saved     < 3 s
+                     (warm: after the change's save). Reported, not gated: the same export at once after the change
+                     (combo_cold_ms; deck20 is already format 5 by then, so without the format guard's one-time wait)
      keypress        ⏱ S4.1: a cell of deck20 typed into and committed with Enter, 2 untimed times (the first
                      rasters of the editor and of the table's layer: reported as "cold") then 20 timed: from the Enter
                      key to the first frame after the stage's table shows the new text (keypress → pixels, p95) < 50 ms
@@ -127,15 +129,19 @@ async function comboPptx(page, exportOnce) {
     return ops.length;
   });
   await page.waitForFunction(() => window.__sbTest.stageIdle(), null, { timeout: 60000 });
-  // (saved first: the deck's first item makes it format 5, whose one-time wait of the format guard – ADR-019, ~23 s – is
-  // the save's, not the export's; an export waits for the save it follows)
+  // (S14.6 review 4) cold: exported at once after the change, before its save – the export waits for the save it
+  // follows: reported as combo_cold_ms, not gated. In this run deck20 is already format 5 here (the free-layout drags
+  // before it, slide.patch `free`, raised it), so this does not include the format guard's one-time wait (ADR-019,
+  // ~23 s): a fresh deck's first chart exported at once waits ~25 s (PROGRESS M14, an open exception for the owner)
+  const cold = await exportOnce(true);
+  // warm (gated, pptx_combo_ms): the same deck again, the save done – the export's own time
   await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 90000 });
   const x = await exportOnce(true);
   const steps = await page.evaluate(h => window.__sbTest.history().undo - h, h0);
   await page.locator("#stage .stagewrap").click({ position: { x: 4, y: 4 } });
   for (let k = 0; k < steps; k++) { await page.keyboard.press("Control+z"); await sleep(200); }
   await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 });
-  return { charts: n, ms: x.ms, kb: x.kb, phases: x.phases };
+  return { charts: n, ms: x.ms, kb: x.kb, phases: x.phases, cold_ms: cold.ms, cold_phases: cold.phases };
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 /** the JS heap of every dedicated worker in the browser (the core worker), MB; null if the protocol refused */
@@ -598,7 +604,9 @@ const runs = [];
 try { for (let i = 0; i < 2; i++) runs.push(await run(browser, 8981 + i)); }
 finally { await browser.close(); }
 const worst = worstOf(runs);
-const info = { longest_startup_task_ms: Math.max(0, ...runs.flatMap(r => r.boot.longtasks)), thumbs_frame_ms: Math.max(...runs.map(r => r.thumbs.frame_ms)) };
+const info = { longest_startup_task_ms: Math.max(0, ...runs.flatMap(r => r.boot.longtasks)), thumbs_frame_ms: Math.max(...runs.map(r => r.thumbs.frame_ms)),
+  // S14.6 review 4: the combo export right after the change, before its save (not gated)
+  ...(runs.every(r => r.export.pptx?.combo) ? { combo_cold_ms: Math.max(...runs.map(r => r.export.pptx.combo.cold_ms)) } : {}) };
 // on CI (decision 2026-10-20): the timing gates over their limit are measured again – every scenario run once more in a
 // fresh browser, helper and page (they build on each other's state), only those gates judged on it – and fail only if
 // the repeat is over too
@@ -621,7 +629,8 @@ console.log(`bench · calibration ${speed.ms.toFixed(1)} ms: time limits × ${sp
 for (const [i, r] of all) if (r.consult) console.log(`bench · ${i}: Consulting Navy long tasks by phase ${JSON.stringify(r.consult.phases)}`);
 for (const [i, r] of all) if (r.scen) console.log(`bench · ${i}: Run for each value on BanksBig (20 slides, Liquid Glass): 1 value ${r.scen.one_ms} ms, 20 values ${r.scen.twenty_ms} ms; preview switch on deck20 ${r.scen.preview_ms} ms; long tasks ${JSON.stringify(r.scen.phases)}`);
 for (const g of gates) console.log(`bench · ${g.key}: ${describe(g, SLACK)}`);
-console.log(`bench · not gated: longest start-up task ${info.longest_startup_task_ms} ms; most page work in a frame of the thumbnail scroll ${info.thumbs_frame_ms} ms (a garbage collection can fall into one)`);
+console.log(`bench · not gated: longest start-up task ${info.longest_startup_task_ms} ms; most page work in a frame of the thumbnail scroll ${info.thumbs_frame_ms} ms (a garbage collection can fall into one)${info.combo_cold_ms != null ? `; 6 combo charts exported at once after adding them, before the save (deck20 already format 5) ${info.combo_cold_ms} ms` : ""}`);
+for (const [i, r] of all) if (r.export.pptx?.combo) console.log(`bench · ${i}: 6 combo charts as PowerPoint: warm ${r.export.pptx.combo.ms} ms ${JSON.stringify(r.export.pptx.combo.phases)} ${r.export.pptx.combo.kb} KB · cold ${r.export.pptx.combo.cold_ms} ms ${JSON.stringify(r.export.pptx.combo.cold_phases)}`);
 // on GitHub Actions each gate over its limit is also an annotation of the run (readable without the log's admin rights)
 if (process.env.GITHUB_ACTIONS) for (const g of gates) if (!g.pass) console.log(annotation("bench " + g.key, g));
 if (GATE && bad.length) { console.error("bench: over the limit: " + bad.join(", ")); process.exit(1); }

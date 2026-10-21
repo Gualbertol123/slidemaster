@@ -18,7 +18,9 @@ export interface ChartSem {
       with native ends (a:headEnd at a, a:tailEnd at b; never p:cxnSp) – pptx/chart-overlay.ts */
   arrows?: ArrowSem[];
 }
-export interface ArrowSem { a: { x: number; y: number }; b: { x: number; y: number }; stroke: Stroke; head?: Head; tail?: Head; size?: Heads["size"] }
+export interface ArrowSem { a: { x: number; y: number }; b: { x: number; y: number }; stroke: Stroke; head?: Head; tail?: Head; size?: Heads["size"];
+  /** (S14.6 review 6) its place in the chart's overlay: the count of the overlay's nodes drawn under it (unset: over all) */
+  at?: number }
 /** a line of an axis or of the gridlines: colour, width px, dash */
 export interface LineSem { color: string; w: number; dash?: "dash" | "sysDot" | "dashDot" }
 /** the value axis exactly as drawn: fixed bounds and unit (never PowerPoint's own), its format, gridlines, line, font */
