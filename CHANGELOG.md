@@ -63,7 +63,7 @@ the per-kind item code paths, the page budget per milestone.)
 ## 4.6.0 - unreleased (PLAN M13; prepared 2026-10-21, dated at the tag)
 
 What users notice
-* **The share goes from 4.0 straight to 4.6**: users also get everything listed below for 4.1–4.5 (never released
+* **The share goes from 4.0 straight to 4.6**: users also get everything listed for 4.1–4.5 in CHANGELOG.md (never released
   on their own).
 * **Scan for "x" tables** (B43): in a large workbook the wizard reads a sheet only when it is selected, so its first
   step showed "not read yet" and no tables. The new button reads the selected sheets at once and shows each one's

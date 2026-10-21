@@ -48,6 +48,135 @@ describe("HarfBuzz, pinned and inlined", () => {
     const woff2 = new Uint8Array([0x77, 0x4f, 0x46, 0x32, 0, 0, 0, 0]);
     expect((await staticFace(woff2, 400)).data).toBe(woff2);      // unreadable here: kept for the screen as before
   });
+  it("the static faces get their own names (B45): family, Regular / Bold / Italic, full and PostScript names, fsSelection, macStyle", async () => {
+    const { staticFace } = await import("../src/text/static");
+    // nameIDs 1, 2, 4, 6, 16, 17 (Windows English first), OS/2 fsSelection ITALIC / BOLD / REGULAR, head.macStyle bold / italic
+    const names = (d: Uint8Array) => {
+      const u16 = (o: number) => (d[o] << 8) | d[o + 1];
+      const n = u16(4), at = (t: string) => { for (let i = 0; i < n; i++) { const r = 12 + 16 * i; if (latin1(d.subarray(r, r + 4)) === t) return ((d[r + 8] << 24) >>> 0) + (d[r + 9] << 16) + (d[r + 10] << 8) + d[r + 11]; } return -1; };
+      const o = at("name"), count = u16(o + 2), str = o + u16(o + 4), got: Record<number, string> = {};
+      for (let i = 0; i < count; i++) {
+        const r = o + 6 + 12 * i, pid = u16(r), id = u16(r + 6), len = u16(r + 8), off = u16(r + 10);
+        if (![1, 2, 4, 6, 16, 17].includes(id) || got[id] !== undefined) continue;
+        const b = d.subarray(str + off, str + off + len);
+        got[id] = pid === 3 ? String.fromCharCode(...Array.from({ length: len >> 1 }, (_, k) => (b[2 * k] << 8) | b[2 * k + 1])) : latin1(b);
+      }
+      const fs = u16(at("OS/2") + 62), mac = u16(at("head") + 44);
+      return { ...got, italic: !!(fs & 1), bold: !!(fs & 32), regular: !!(fs & 64), macBold: !!(mac & 1), macItalic: !!(mac & 2), weight: u16(at("OS/2") + 4) };
+    };
+    const r400 = await staticFace(VF, 400), r700 = await staticFace(VF, 700);
+    expect(names(r400.data)).toEqual({ 1: "Quicksand", 2: "Regular", 4: "Quicksand Regular", 6: "Quicksand-Regular", italic: false, bold: false, regular: true, macBold: false, macItalic: false, weight: 400 });
+    expect(names(r700.data)).toEqual({ 1: "Quicksand", 2: "Bold", 4: "Quicksand Bold", 6: "Quicksand-Bold", italic: false, bold: true, regular: false, macBold: true, macItalic: false, weight: 700 });
+    // the family the user chose, an italic face, a weight outside Regular / Bold (its own family, 16 / 17 typographic)
+    expect(names((await staticFace(VF, 700, { family: "My Sans", italic: true })).data)).toMatchObject({ 1: "My Sans", 2: "Bold Italic", 4: "My Sans Bold Italic", 6: "MySans-BoldItalic", italic: true, bold: true, regular: false, macBold: true, macItalic: true });
+    expect(names((await staticFace(VF, 300)).data)).toEqual({ 1: "Quicksand Light", 2: "Regular", 4: "Quicksand Light", 6: "Quicksand-Light", 16: "Quicksand", 17: "Light", italic: false, bold: false, regular: true, macBold: false, macItalic: false, weight: 300 });
+    // head.checkSumAdjustment written again: the whole font sums to 0xB1B0AFBA
+    for (const d of [r400.data, r700.data]) { let sum = 0; for (let k = 0; k < d.length; k += 4) sum = (sum + (((d[k] << 24) | ((d[k + 1] || 0) << 16) | ((d[k + 2] || 0) << 8) | (d[k + 3] || 0)) >>> 0)) >>> 0; expect(sum).toBe(0xb1b0afba); }
+    // the registry (and so the PDF) reads the family and the style from the stored face
+    const reg = new FontRegistry(), [a] = reg.add(r400.data), [b] = reg.add(r700.data);
+    expect([a.family, a.weight, b.family, b.weight]).toEqual(["Quicksand", 400, "Quicksand", 700]);
+  });
+});
+
+describe("static face names: the review's edge cases (B45)", () => {
+  // a font's tables, a name table built from records (format 0, or 1 with language tags), the records read back
+  const tablesOf = (d: Uint8Array) => {
+    const u16 = (o: number) => (d[o] << 8) | d[o + 1], u32 = (o: number) => ((d[o] << 24) >>> 0) + (d[o + 1] << 16) + (d[o + 2] << 8) + d[o + 3];
+    const m = new Map<string, Uint8Array>();
+    for (let i = 0; i < u16(4); i++) { const r = 12 + 16 * i; m.set(latin1(d.subarray(r, r + 4)), d.slice(u32(r + 8), u32(r + 8) + u32(r + 12))); }
+    return m;
+  };
+  type Rec = { pid: number; eid: number; lang: number; id: number; s: string };
+  const enc = (r: Rec) => r.pid === 3 ? Uint8Array.from(Array.from(r.s).flatMap(c => [c.charCodeAt(0) >> 8, c.charCodeAt(0) & 255])) : Uint8Array.from(Array.from(r.s, c => c.charCodeAt(0)));
+  const nameTable = (recs: Rec[], tags?: string[]) => {
+    const head = 6 + 12 * recs.length + (tags ? 2 + 4 * tags.length : 0), strs = [...recs.map(enc), ...(tags || []).map(t => enc({ pid: 3, eid: 1, lang: 0, id: 0, s: t }))];
+    const out = new Uint8Array(head + strs.reduce((s, b) => s + b.length, 0)), w16 = (o: number, v: number) => { out[o] = v >> 8; out[o + 1] = v & 255; };
+    w16(0, tags ? 1 : 0); w16(2, recs.length); w16(4, head);
+    let p = 0; const seen = new Map<string, number>();                 // identical strings stored once, as fonts do
+    recs.forEach((r, i) => {
+      const o = 6 + 12 * i, key = r.pid + ":" + r.s, at = seen.get(key) ?? p;
+      w16(o, r.pid); w16(o + 2, r.eid); w16(o + 4, r.lang); w16(o + 6, r.id); w16(o + 8, strs[i].length); w16(o + 10, at);
+      if (at === p) { seen.set(key, p); out.set(strs[i], head + p); p += strs[i].length; }
+    });
+    if (tags) { const o = 6 + 12 * recs.length; w16(o, tags.length); tags.forEach((_, k) => { const b = strs[recs.length + k]; w16(o + 2 + 4 * k, b.length); w16(o + 4 + 4 * k, p); out.set(b, head + p); p += b.length; }); }
+    return out.slice(0, head + p);
+  };
+  const withName = (name: Uint8Array | null) => { const t = tablesOf(REG); if (name) t.set("name", name); else t.delete("name"); return buildSfnt(0x00010000, t); };
+  const recsOf = (d: Uint8Array): Rec[] => {
+    const n = tablesOf(d).get("name")!, u16 = (o: number) => (n[o] << 8) | n[o + 1], str = u16(4), out: Rec[] = [];
+    for (let i = 0; i < u16(2); i++) {
+      const r = 6 + 12 * i, pid = u16(r), b = n.subarray(str + u16(r + 10), str + u16(r + 10) + u16(r + 8));
+      out.push({ pid, eid: u16(r + 2), lang: u16(r + 4), id: u16(r + 6), s: pid === 3 ? String.fromCharCode(...Array.from({ length: b.length >> 1 }, (_, k) => (b[2 * k] << 8) | b[2 * k + 1])) : latin1(b) });
+    }
+    return out;
+  };
+  const src = (fam: string): Rec[] => [
+    { pid: 1, eid: 0, lang: 0, id: 0, s: "(c) Mac" }, { pid: 1, eid: 0, lang: 0, id: 1, s: fam }, { pid: 1, eid: 0, lang: 0, id: 2, s: "Light" }, { pid: 1, eid: 0, lang: 0, id: 6, s: "X-Light" },
+    { pid: 3, eid: 1, lang: 0x409, id: 0, s: "(c) Win" }, { pid: 3, eid: 1, lang: 0x409, id: 1, s: fam }, { pid: 3, eid: 1, lang: 0x409, id: 2, s: "Light" }, { pid: 3, eid: 1, lang: 0x409, id: 6, s: "X-Light" },
+  ];
+  const ids = (rs: Rec[], pid: number) => Object.fromEntries(rs.filter(r => r.pid === pid && [1, 2, 3, 4, 6, 16, 17].includes(r.id)).map(r => [r.id, r.s]));
+
+  it("Mac Roman records of the rewritten names are written again with the same strings (ASCII), else dropped", async () => {
+    const { nameStaticFace } = await import("../src/text/static");
+    const out = recsOf(nameStaticFace(withName(nameTable(src("Demo Sans"))), 300));
+    const win = ids(out, 3);
+    expect(win).toEqual({ 1: "Demo Sans Light", 2: "Regular", 3: "DemoSans-Light", 4: "Demo Sans Light", 6: "DemoSans-Light", 16: "Demo Sans", 17: "Light" });
+    expect(ids(out, 1)).toEqual(win);
+    expect(out.filter(r => r.pid === 1).every(r => r.eid === 0 && r.lang === 0)).toBe(true);
+    expect(out.find(r => r.pid === 1 && r.id === 0)!.s).toBe("(c) Mac");                 // the other records stay
+    // a non-ASCII family: no Mac records for the rewritten ids (Mac Roman is not Latin-1)
+    const accented = recsOf(nameStaticFace(withName(nameTable(src("Demo Sans"))), 400, { family: "Café Sans" }));
+    expect(ids(accented, 1)).toEqual({});
+    expect(ids(accented, 3)[1]).toBe("Café Sans");
+    // no Mac records in the source: none written
+    expect(ids(recsOf(nameStaticFace(withName(nameTable(src("Demo Sans").filter(r => r.pid === 3))), 400)), 1)).toEqual({});
+  });
+  it("a weight that is not a multiple of 100 in 100–900 gets its own style name (W350), not its neighbour's", async () => {
+    const { nameStaticFace } = await import("../src/text/static");
+    const at = (w: number, italic = false) => ids(recsOf(nameStaticFace(withName(nameTable(src("Demo Sans"))), w, { italic })), 3);
+    expect(at(350)).toEqual({ 1: "Demo Sans W350", 2: "Regular", 3: "DemoSans-W350", 4: "Demo Sans W350", 6: "DemoSans-W350", 16: "Demo Sans", 17: "W350" });
+    expect(at(950)).toMatchObject({ 1: "Demo Sans W950", 6: "DemoSans-W950", 17: "W950" });
+    expect(at(1000, true)).toMatchObject({ 1: "Demo Sans W1000", 2: "Italic", 4: "Demo Sans W1000 Italic", 6: "DemoSans-W1000Italic", 17: "W1000 Italic" });
+    expect(at(50)).toMatchObject({ 1: "Demo Sans W50", 6: "DemoSans-W50" });
+    expect(at(400)[6]).toBe("DemoSans-Regular");
+    expect(at(900)[6]).toBe("DemoSans-Black");
+    const ps = [350, 400, 900, 950, 1000].map(w => at(w)[6]);
+    expect(new Set(ps).size).toBe(ps.length);
+  });
+  it("a format-1 name table is written as format 0 without the records that point at its language tags", async () => {
+    const { nameStaticFace } = await import("../src/text/static");
+    const recs = [...src("Demo Sans"), { pid: 3, eid: 1, lang: 0x8000, id: 0, s: "(c) tagged" }, { pid: 3, eid: 1, lang: 0x8001, id: 1, s: "Tagged family" }];
+    const out = nameStaticFace(withName(nameTable(recs, ["en", "fr"])), 400), n = tablesOf(out).get("name")!;
+    expect((n[0] << 8) | n[1]).toBe(0);
+    const rs = recsOf(out);
+    expect(rs.filter(r => r.lang >= 0x8000)).toEqual([]);
+    expect(rs.find(r => r.pid === 3 && r.id === 0)!.s).toBe("(c) Win");
+    expect(ids(rs, 3)[1]).toBe("Demo Sans");
+  });
+  it("comes back unchanged when the strings no longer fit 16-bit offsets, or when there is no name table", async () => {
+    const { nameStaticFace } = await import("../src/text/static");
+    // three records sharing one 30000-byte string: 30000 bytes stored in the font, 90000 once written apart
+    const big = [...src("Demo Sans"), ...[300, 301, 302].map(id => ({ pid: 3, eid: 1, lang: 0x409, id, s: "a".repeat(15000) }))];
+    const font = withName(nameTable(big));
+    expect(tablesOf(font).get("name")!.length).toBeLessThan(0x10000);
+    expect(nameStaticFace(font, 300)).toBe(font);
+    const bare = withName(null);
+    expect(nameStaticFace(bare, 700)).toBe(bare);
+  });
+  it("the directory checksums match the tables written (head with checkSumAdjustment 0)", async () => {
+    const { nameStaticFace } = await import("../src/text/static");
+    for (const d of [nameStaticFace(withName(nameTable(src("Demo Sans"))), 350), nameStaticFace(REG, 700, { italic: true })]) {
+      const u16 = (o: number) => (d[o] << 8) | d[o + 1], u32 = (o: number) => ((d[o] << 24) >>> 0) + (d[o + 1] << 16) + (d[o + 2] << 8) + d[o + 3];
+      expect(d).not.toBe(REG);
+      for (let i = 0; i < u16(4); i++) {
+        const r = 12 + 16 * i, tag = latin1(d.subarray(r, r + 4)), b = d.slice(u32(r + 8), u32(r + 8) + u32(r + 12));
+        if (tag === "head") b.fill(0, 8, 12);
+        let sum = 0; for (let k = 0; k < b.length; k += 4) sum = (sum + (((b[k] << 24) | ((b[k + 1] || 0) << 16) | ((b[k + 2] || 0) << 8) | (b[k + 3] || 0)) >>> 0)) >>> 0;
+        expect([tag, u32(r + 4)]).toEqual([tag, sum]);
+      }
+      expect(tablesOf(d).has("DSIG")).toBe(false);
+    }
+  });
 });
 
 describe("the font registry", () => {

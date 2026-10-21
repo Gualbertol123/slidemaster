@@ -114,7 +114,7 @@ async function fromHelper(family: string, again = true): Promise<LibraryFont[]> 
       catch (e) { if (again && e instanceof ApiError && e.status === 404) return fromHelper(family, false); throw e; }
       files.set(f.file, raw);
     }
-    const base = f.file.split("/").pop() || "font.ttf", { buf, name } = f.variable ? await staticFile(raw, f.weight, base) : { buf: raw, name: base };
+    const base = f.file.split("/").pop() || "font.ttf", { buf, name } = f.variable ? await staticFile(raw, f.weight, base, family, f.style === "italic") : { buf: raw, name: base };
     faces.push({ meta: { family, weight: f.weight, style: f.style, source: "google", name, range: f.range }, buf });
   }
   return store(faces);
@@ -141,11 +141,12 @@ async function fromBrowser(family: string): Promise<LibraryFont[]> {
 }
 
 /** a variable font becomes a static face at its declared weight before it is stored (S3.2, by the core worker), so
-    exports never embed a variable font; anything else, or a failure, is stored as it is */
-async function staticFile(buf: ArrayBuffer, weight: number, name: string): Promise<{ buf: ArrayBuffer; name: string }> {
+    exports never embed a variable font, named for the library's family and the face's weight and style (B45);
+    anything else, or a failure, is stored as it is */
+async function staticFile(buf: ArrayBuffer, weight: number, name: string, family: string, italic: boolean): Promise<{ buf: ArrayBuffer; name: string }> {
   try {
     const copy = buf.slice(0);                            // the original stays here for the fallback
-    const r = await core().call("staticFont", transfer({ buf: copy, weight }, [copy]));
+    const r = await core().call("staticFont", transfer({ buf: copy, weight, family, italic }, [copy]));
     return r.variable ? { buf: r.buf, name: name.replace(/\.[^.]+$/, "") + ".ttf" } : { buf, name };
   } catch (e) { console.warn("font kept as it is:", e); return { buf, name }; }
 }
@@ -159,7 +160,7 @@ export async function uploadFontFiles(files: File[]): Promise<string[]> {
   try {
     for (const file of files) {
       try {
-        const raw = await file.arrayBuffer(), info = await readFontInfo(raw, file.name), { buf, name } = await staticFile(raw, info.weight, file.name);
+        const raw = await file.arrayBuffer(), info = await readFontInfo(raw, file.name), { buf, name } = await staticFile(raw, info.weight, file.name, info.family, info.style === "italic");
         fonts = await backend.addFont({ family: info.family, weight: info.weight, style: info.style, source: "upload", name }, buf);
         added.add(info.family);
       } catch (e) { failed.push(`${file.name}: ${(e as Error).message}`); }
