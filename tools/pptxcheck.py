@@ -75,14 +75,31 @@ C = "{%s}" % NS["c"]
 C_ORDER = {
     "pieChart": ["varyColors", "ser", "dLbls", "firstSliceAng", "extLst"],
     "doughnutChart": ["varyColors", "ser", "dLbls", "firstSliceAng", "holeSize", "extLst"],
-    "ser": ["idx", "order", "tx", "spPr", "explosion", "dPt", "dLbls", "cat", "val", "extLst"],
+    # (a pie's and a bar chart's series in one list: the schema's order of both, 4.7 / S14.2)
+    "ser": ["idx", "order", "tx", "spPr", "invertIfNegative", "pictureOptions", "explosion", "dPt", "dLbls", "trendline", "errBars", "cat", "val", "shape", "extLst"],
     "dPt": ["idx", "invertIfNegative", "marker", "bubble3D", "explosion", "spPr", "pictureOptions", "extLst"],
     "dLbls": ["dLbl", "delete", "numFmt", "spPr", "txPr", "dLblPos", "showLegendKey", "showVal", "showCatName", "showSerName", "showPercent", "showBubbleSize", "separator", "showLeaderLines", "leaderLines", "extLst"],
     "dLbl": ["idx", "delete", "layout", "tx", "numFmt", "spPr", "txPr", "dLblPos", "showLegendKey", "showVal", "showCatName", "showSerName", "showPercent", "showBubbleSize", "separator", "extLst"],
     "chart": ["title", "autoTitleDeleted", "pivotFmts", "view3D", "floor", "sideWall", "backWall", "plotArea", "legend", "plotVisOnly", "dispBlanksAs", "extLst"],
     "chartSpace": ["date1904", "lang", "roundedCorners", "AlternateContent", "clrMapOvr", "pivotSource", "protection", "chart", "spPr", "txPr", "externalData", "printSettings", "userShapes", "extLst"],
     "legend": ["legendPos", "legendEntry", "layout", "overlay", "spPr", "txPr", "extLst"],
+    # column and bar charts (4.7, S14.2; 09 §4.2): the plot area (any chart groups, then any axes), the bar group, its
+    # axes, a manual layout, a title, a hidden legend entry
+    "plotArea": ["layout", "CHART", "AXIS", "dTable", "spPr", "extLst"],
+    "barChart": ["barDir", "grouping", "varyColors", "ser", "dLbls", "gapWidth", "overlap", "serLines", "axId", "extLst"],
+    "catAx": ["axId", "scaling", "delete", "axPos", "majorGridlines", "minorGridlines", "title", "numFmt", "majorTickMark", "minorTickMark", "tickLblPos", "spPr", "txPr",
+              "crossAx", "crosses", "crossesAt", "auto", "lblAlgn", "lblOffset", "tickLblSkip", "tickMarkSkip", "noMultiLvlLbl", "extLst"],
+    "valAx": ["axId", "scaling", "delete", "axPos", "majorGridlines", "minorGridlines", "title", "numFmt", "majorTickMark", "minorTickMark", "tickLblPos", "spPr", "txPr",
+              "crossAx", "crosses", "crossesAt", "crossBetween", "majorUnit", "minorUnit", "dispUnits", "extLst"],
+    "scaling": ["logBase", "orientation", "max", "min", "extLst"],
+    "manualLayout": ["layoutTarget", "xMode", "yMode", "wMode", "hMode", "x", "y", "w", "h", "extLst"],
+    "title": ["tx", "layout", "overlay", "spPr", "txPr", "extLst"],
+    "legendEntry": ["idx", "delete", "txPr", "extLst"],
 }
+# a choice of the schema: one rank for every chart group and every axis of a plot area
+C_SLOT = dict([(k, "CHART") for k in ("areaChart", "area3DChart", "lineChart", "line3DChart", "stockChart", "radarChart", "scatterChart", "pieChart", "pie3DChart",
+                                      "doughnutChart", "barChart", "bar3DChart", "ofPieChart", "surfaceChart", "surface3DChart", "bubbleChart")]
+              + [(k, "AXIS") for k in ("valAx", "catAx", "dateAx", "serAx")])
 LN_TAGS = ("ln", "lnL", "lnR", "lnT", "lnB")
 
 
@@ -128,6 +145,7 @@ def lint(name, root):
             seq, last = C_ORDER[t], -1
             for ch in e:
                 n = _local(ch.tag)
+                n = C_SLOT.get(n, n) if t == "plotArea" else n
                 if n not in seq:
                     bad("<c:%s> in <c:%s>" % (n, t))
                     continue
@@ -328,7 +346,9 @@ def _shape_texts(shape, out, info):
         ch = shape.chart
         plot = ch.plots[0]
         info["charts"].append({"type": str(ch.chart_type), "title": ch.chart_title.text_frame.text if ch.has_title else "",
-                               "categories": [str(c) for c in plot.categories], "values": list(plot.series[0].values)})
+                               "categories": [str(c) for c in plot.categories], "values": list(plot.series[0].values),
+                               # (4.7, S14.2) every series of every plot: its name and cached values (None = a gap)
+                               "series": [{"name": s.name, "values": list(s.values)} for pl in ch.plots for s in pl.series]})
         return
     if shape.shape_type == 13:
         info["pictures"] += 1

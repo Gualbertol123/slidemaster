@@ -29,9 +29,13 @@ export function itemSheets(p: Preset | null | undefined): string[] {
 }
 const refSheet = (ref: unknown): string[] => ref && typeof ref === "object" && "sheet" in ref && typeof (ref as { sheet: unknown }).sheet === "string" && (ref as { sheet: string }).sheet ? [(ref as { sheet: string }).sheet] : [];
 const textSheets = (text: unknown): string[] => typeof text === "string" ? [...text.matchAll(CELL_TOKEN)].map(m => tokenSheet(m[1])) : [];
-/** a chart (M14): its values and labels */
+/** a chart (M14): its values and labels; a series chart's (4.7) every series' values, targets and name cell, and its
+    groups' categories – each may be on another sheet or in a linked workbook */
 function chartSheets(it: ChartItem): string[] {
-  return [it.values, it.labels].flatMap(refSheet);
+  const refs: unknown[] = [it.values, it.labels];
+  for (const s of Object.values(it.sers && typeof it.sers === "object" ? it.sers : {})) if (s && typeof s === "object") refs.push(...(Array.isArray(s.vals) ? s.vals : []), ...(Array.isArray(s.target) ? s.target : []), s.name);
+  for (const g of Object.values(it.groups && typeof it.groups === "object" ? it.groups : {})) if (g && typeof g === "object") refs.push(g.cats);
+  return [...new Set(refs.flatMap(refSheet))];
 }
 /* ---- M14 above this line, M15 below it ---- */
 /** a callout or an icon (M15): the cells its text quotes */

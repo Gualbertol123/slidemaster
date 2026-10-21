@@ -980,6 +980,8 @@ One table per parallel milestone (S14.P), so M14 and M15 never append to the sam
 | Step | What | Run 1 | Run 2 |
 |---|---|---|---|
 | S14.P | page budget part `app/tests/page-budget/m14.json` (provisional, owner 2026-10-21), bytes | 110,000 | – |
+| S14.2 | ⏱ column chart 12 × 4 display list (`core/bench/charts-m14.bench.test.ts`, median of 20, limit 5 ms × speed factor 1.8–2.0; a shared machine, so the runs differ by up to 40 %), Liquid Glass · Excel, ms | 1.92 · 0.93 | 1.77 · 1.33 |
+| S14.2 | built page (bytes; not committed: the orchestrator rebuilds it) | 4,011,269 (S14.P built 3,964,345 on the same machine: +46,924; within base.json + m14.json, 4,086,092) | – |
 
 ### Measurements · M15 (4.8.0)
 M15 appends here only.

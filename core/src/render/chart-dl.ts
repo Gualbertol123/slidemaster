@@ -7,16 +7,16 @@
    Data: through ctx.sheet() like the tables, so a reload or a scenario's overlay redraws the chart; numbers only, blank,
    text and hidden cells skipped, the cells a version removes too; labels from the item's labels range, else the row /
    column headers beside the values. Colours: the item's colors[i], else the design's palette (resolved per design,
-   model/style.ts palette / consult-spec.ts specOf). Pure: the stage, thumbnails and every export draw the same nodes. */
-import type { Box, ChartItem, DataRef } from "../model/types";
-import type { Node, Paint, PathCmd, RGB, TextNode } from "../dl/types";
-import type { Sheet } from "../xlsx/types";
-import type { Range } from "../xlsx/util";
+   model/style.ts palette / consult-spec.ts specOf). Pure: the stage, thumbnails and every export draw the same nodes.
+   Since 4.7 (S14.2, docs/next/09 §3): a column or bar chart with `sers` is laid out by chart-series.ts (axes, bars,
+   labels, legend) inside the same card; its data comes from chart-data.ts, where every cell rule now lives. A chart
+   without `sers` draws exactly as before, whatever its type (09 §2.2). */
+import type { Box, ChartItem } from "../model/types";
+import type { Node, Paint, PathCmd, RGB } from "../dl/types";
 import type { RenderCtx } from "./context";
-import { primaryFamily, type Metrics } from "./excel-dl";
+import type { Metrics } from "./excel-dl";
 import { glassBox, type GlassVars, type Wallpaper } from "./glass-dl";
 import { formatValue } from "../xlsx/numfmt";
-import { A1, numToCol, parseRange } from "../xlsx/util";
 import { mix, palette, themeOf } from "../model/style";
 import { isConsult } from "../model/designs";
 import { specOf } from "./consult-spec";
@@ -24,98 +24,40 @@ import { deckFmt } from "./text";
 import { fontStack } from "../model/fonts";
 import { parseColor, solid } from "../dl/color";
 import type { ChartSem } from "../pptx/chart-sem";
+import { cellsOf, chartData, hasSeries, refTarget, seriesData, type ChartData } from "./chart-data";
+import { ellipsis, font, lum, textNode, type St } from "./chart-font";
+import { fontSem, seriesLayout, seriesNodes, seriesSem, type SeriesStyle } from "./chart-series";
 
-/* ---- data ---- */
-export interface Slice { label: string; v: number; text: string }
-export type ChartData =
-  | { ok: true; source: string; series: string; slices: Slice[] }
-  | { ok: false; source: string; why: "missing" | "empty" };
-/** the most cells a chart reads (a range the size of a sheet is a mistake, not a chart) */
-const MAX_CELLS = 2000;
-/** where a DataRef points: its sheet, its rectangle (a table's range follows the table when it grows), and how the
-    Issues panel names it ("Summary!C5:C9") */
-export function refTarget(ref: DataRef | undefined, ctx: RenderCtx): { S: Sheet | null; g: Range | null; source: string; sheet: string } {
-  if (!ref || typeof ref !== "object" || typeof ref.range !== "string") return { S: null, g: null, source: "?", sheet: "" };
-  const def = "table" in ref ? (ctx.preset?.tables || []).find(t => t.id === ref.table) : undefined;
-  const sheet = "table" in ref ? def?.sheet || "" : typeof ref.sheet === "string" ? ref.sheet : "";
-  const range = ref.range.replace(/\$/g, "").toUpperCase().trim(), source = (sheet || "?") + "!" + range;
-  const S = sheet ? ctx.sheet?.(sheet) ?? null : null;
-  let g = /^[A-Z]{1,3}[0-9]{1,7}(:[A-Z]{1,3}[0-9]{1,7})?$/.test(range) ? parseRange(range) : null;
-  if (!g || g.r2 < g.r1 || g.c2 < g.c1) return { S, g: null, source, sheet };
-  // a table that grows with new rows: a range ending on the table's saved last row ends on its current one
-  if (def && def.kind === "range" && def.grow) {
-    const L = ctx.slides.flatMap(R => R.tables).find(t => t.def?.id === def.id);
-    if (L && g.r2 === parseRange(def.range).r2 && L.g.r2 > g.r2) g = { ...g, r2: L.g.r2 };
-  }
-  if ((g.r2 - g.r1 + 1) * (g.c2 - g.c1 + 1) > MAX_CELLS) return { S, g: null, source, sheet };
-  return { S, g, source, sheet };
-}
-/** the text a cell shows: its formatted value, or the text a cell edit put there (while the Excel text is unchanged) */
-function shown(S: Sheet, r: number, c: number, ctx: RenderCtx): string {
-  const cell = S.get(r, c), t = cell ? formatValue(cell).text : "";
-  const e = ctx.edits[S.name]?.[A1(r, c)];
-  return e && e.text !== undefined && e.orig === t ? e.text : t;
-}
-const cutOf = (ctx: RenderCtx, S: Sheet) => (ctx.version?.hide[S.name] || []).map(parseRange);
-/** the cells of a rectangle in reading order (rows, then columns), without hidden rows and columns */
-function cellsOf(S: Sheet, g: Range): [number, number][] {
-  const out: [number, number][] = [];
-  for (let r = g.r1; r <= g.r2; r++) { if (S.rowHidden(r)) continue; for (let c = g.c1; c <= g.c2; c++) if (!S.colHidden(c)) out.push([r, c]); }
-  return out;
-}
-const DATA = new WeakMap<Sheet, Map<string, ChartData>>();
-/** the chart's numbers, labels and series name (cached per sheet object: a reload or a scenario's view is another one) */
-export function chartData(it: ChartItem, ctx: RenderCtx): ChartData {
-  const T = refTarget(it.values, ctx), source = T.source;
-  if (!T.S || !T.g) return { ok: false, source, why: "missing" };
-  const S = T.S, g = T.g, L = it.labels ? refTarget(it.labels, ctx) : null;
-  // (labels on another sheet object – a linked book reloaded, one sheet of a scenario's view – are not cached here)
-  if (L?.S && L.S !== S) return resolve(S, g, L, it, ctx, source);
-  const key = JSON.stringify([g, it.labels ? [L!.sheet, L!.g] : null, it.series ?? null, ctx.edits[S.name] || null, L?.S && L.S !== S ? ctx.edits[L.S.name] || null : null, ctx.version?.hide || null]);
-  let m = DATA.get(S); if (!m) DATA.set(S, m = new Map());
-  const hit = m.get(key); if (hit) return hit;
-  const out = resolve(S, g, L, it, ctx, source);
-  if (m.size > 200) m.clear();
-  m.set(key, out);
-  return out;
-}
-function resolve(S: Sheet, g: Range, L: ReturnType<typeof refTarget> | null, it: ChartItem, ctx: RenderCtx, source: string): ChartData {
-  const cells = cellsOf(S, g), cut = cutOf(ctx, S), col = g.c1 === g.c2 && g.r2 > g.r1;
-  const isCut = (r: number, c: number) => cut.some(x => r >= x.r1 && r <= x.r2 && c >= x.c1 && c <= x.c2);
-  // labels: the item's range (cell k names value k), else the headers beside the values – the nearest column on the
-  // left with text in those rows (a column of values), or the nearest row above (a row of values)
-  const lcells = L?.S && L.g ? cellsOf(L.S, L.g) : null;
-  let labelAt: (r: number, c: number, k: number) => string;
-  if (lcells) labelAt = (_r, _c, k) => lcells[k] ? shown(L!.S!, lcells[k][0], lcells[k][1], ctx).trim() : "";
-  else if (col) {
-    let lc = 0;
-    for (let c = g.c1 - 1; c >= 1 && c >= g.c1 - 30 && !lc; c--) for (let r = g.r1; r <= g.r2; r++) { const x = S.get(r, c); if (x && x.t === "s" && String(x.v).trim()) { lc = c; break; } }
-    labelAt = (r, _c, k) => (lc ? shown(S, r, lc, ctx).trim() : "") || String(k + 1);
-  } else {
-    let lr = 0;
-    for (let r = g.r1 - 1; r >= 1 && r >= g.r1 - 30 && !lr; r--) for (let c = g.c1; c <= g.c2; c++) { const x = S.get(r, c); if (x && x.t === "s" && String(x.v).trim()) { lr = r; break; } }
-    labelAt = (_r, c, k) => (lr ? shown(S, lr, c, ctx).trim() : "") || String(k + 1);
-  }
-  const slices: Slice[] = [];
-  cells.forEach(([r, c], k) => {
-    const x = S.get(r, c);
-    if (!x || x.t !== "n" || typeof x.v !== "number" || !Number.isFinite(x.v) || isCut(r, c)) return;
-    slices.push({ label: labelAt(r, c, k) || numToCol(c) + r, v: x.v, text: formatValue(x).text });
-  });
-  if (!slices.length || !slices.some(s => s.v !== 0)) return { ok: false, source, why: "empty" };
-  // the series name: the item's, else the nearest text above a column of values / left of a row of values (5 cells)
-  let series = typeof it.series === "string" ? it.series : "";
-  for (let k = 1; typeof it.series !== "string" && k <= 5 && !series; k++) {
-    const r = col ? g.r1 - k : g.r1, c = col ? g.c1 : g.c1 - k;
-    if (r < 1 || c < 1) break;
-    const x = S.get(r, c);
-    if (x && x.t === "s") series = shown(S, r, c, ctx).trim();
-  }
-  return { ok: true, source, series, slices };
-}
-/** what the chart is drawn from, as a cache key (the stage's layer key, 07 §3): the item, its data, the design's look */
+/* ---- data (chart-data.ts since S14.2: every cell rule in one place) ---- */
+export { chartData, refTarget, type ChartData, type Slice } from "./chart-data";
+/** what the chart is drawn from, as a cache key (the stage's layer key, 07 §3): the item, its data (a series chart's:
+    every sheet's generation, so a reload or a scenario's overlay is another key), the design's look, the scenario's
+    overlay hash, the export flag */
 export function chartKey(it: ChartItem, ctx: RenderCtx): string {
-  return JSON.stringify([it, chartData(it, ctx), ctx.style.design, ctx.style.theme, ctx.style.colors, ctx.style.text?.note || null, ctx.style.radius, ctx.scenario || "", !!ctx.forExport]);
+  return JSON.stringify([it, hasSeries(it) ? seriesData(it, ctx) : chartData(it, ctx), ctx.style.design, ctx.style.theme, ctx.style.colors, ctx.style.contrast ?? null, ctx.style.color ?? null,
+    ctx.style.text?.note || null, ctx.style.radius, ctx.scenario || "", !!ctx.forExport]);
+}
+/** the chart's nodes, built once per key (S14.2; 09 §3.2): the chart key plus where it stands, its id, the text-box
+    family, the glass variables and wallpaper – a slide rebuilt without a change to the chart reuses them (nodes are
+    never changed after they are built). The page measures text in rounds, each with a new measurer (excel-dl.ts
+    measuredBuild: a probe that records what is asked, then the answers), so a hit is taken only when every text the
+    chart measured measures the same again – asking the same measurer the same texts, so a probe still records them */
+type Measured = [string, string, boolean, number, number, number, string];
+const NODES = new Map<string, { out: ReturnType<typeof chartNodes>; runs: Measured[] }>();
+export function cachedChartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, m: Metrics, env: ChartEnv): ReturnType<typeof chartNodes> {
+  const key = JSON.stringify([chartKey(it, ctx), id, box, env.family, env.V, env.wall ? [env.wall.blurId, env.wall.blurSrc.length, env.wall.blurSrc.slice(-64)] : null, !!env.noContent]);
+  const hit = NODES.get(key);
+  if (hit && hit.runs.every(([t, f, tn, w, a, d, adv]) => { const r = m.run(t, f, tn); return r.w === w && r.asc === a && r.desc === d && JSON.stringify(r.adv ?? null) === adv; })) return hit.out;
+  const runs: Measured[] = [];
+  const rec: Metrics = {
+    run: (t, f, tn = false) => { const r = m.run(t, f, tn); runs.push([t, f, tn, r.w, r.asc, r.desc, JSON.stringify(r.adv ?? null)]); return r; },
+    // (charts break no lines; a chart that did would not be cached, its breaks unchecked)
+    lines: (t, f, w) => { runs.push(["", "", false, NaN, NaN, NaN, ""]); return m.lines(t, f, w); },
+  };
+  const out = chartNodes(it, id, box, ctx, rec, env);
+  if (NODES.size > 100) NODES.clear();
+  NODES.set(key, { out, runs });
+  return out;
 }
 
 /* ---- look per design ---- */
@@ -189,38 +131,42 @@ export function sliceAt(G: { cx: number; cy: number; r: number; ri: number; slic
   return null;
 }
 
-/* ---- text ---- */
-interface St { family: string; size: number; weight: number; italic: boolean; color: string }
-const font = (s: St) => `${s.italic ? "italic " : ""}${s.weight} ${s.size}px ${s.family}`;
-function textNode(m: Metrics, text: string, x: number, top: number, st: St, align: "left" | "center" | "right" = "left"): TextNode & { w: number } {
-  const run = m.run(text, font(st)), w = Math.max(0, run.w), lx = align === "center" ? x - w / 2 : align === "right" ? x - w : x;
-  const lh = Math.round(st.size * 1.25), base = top + Math.floor((lh - (run.asc + run.desc)) / 2) + run.asc;
-  return { t: "text", font: primaryFamily(st.family) || "Arial", css: st.family, weight: st.weight, ...(st.italic ? { i: true } : {}), size: st.size, x: r2(lx), y: r2(base), src: text, w, fill: solid(st.color) };
-}
-function ellipsis(m: Metrics, text: string, st: St, maxW: number): string {
-  if (m.run(text, font(st)).w <= maxW + .01) return text;
-  const ch = [...text]; let k = ch.length;
-  while (k > 0 && m.run(ch.slice(0, k).join("") + "…", font(st)).w > maxW + .01) k--;
-  return ch.slice(0, k).join("") + "…";
-}
-const lum = (hex: string) => { const [r, g, b] = parseColor(hex).c; return (0.299 * r + 0.587 * g + 0.114 * b) / 255; };
+/* ---- text (chart-font.ts) ---- */
 const pct = (p: number) => formatValue({ v: p, t: "n", fmt: p > 0 && p < .01 ? "0.0%" : "0%" }).text;
 
-export interface ChartEnv { V: GlassVars; wall: Wallpaper | null; /** the design's text-box family (slide-dl.ts) */ family: string;
-  /** the card alone, without the pie, labels and legend (the PowerPoint export draws those as a native chart) */ noContent?: boolean }
-/** a chart item → its nodes, and the line for the Issues panel when its source is missing or holds no numbers */
-export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, m: Metrics, env: ChartEnv): { nodes: Node[]; issue: string | null; geom: PieGeom | null } {
-  const { x, y, w, h } = box, look = chartLook(ctx, env.family), data = chartData(it, ctx), rk = ctx.style.radius / 100;
+/** the chart's text: its labels' style (the item's fmt over the deck's note style), its title's (the note style, bold) */
+function stylesOf(it: ChartItem, ctx: RenderCtx, look: ChartLook): { base: St; lab: St; ttl: St } {
   const note = deckFmt(ctx, "note"), f = it.fmt || {};
   const base: St = { family: f.font ? fontStack(f.font) : note.font ? fontStack(note.font) : look.family, size: 14, weight: 400, italic: false, color: look.ink };
   // sizes from a shared document: finite, 6–72 px (an item's fmt is map-merged without checks)
   const px = (v: unknown, d: number) => { const n = +(v as number); return Number.isFinite(n) && n > 0 ? Math.max(6, Math.min(72, n)) : d; };
   const lab: St = { ...base, size: px(f.size, 14), weight: f.b ? 700 : 400, italic: !!f.i, color: HEX.test(f.color || "") ? f.color! : HEX.test(note.color || "") ? note.color! : look.ink };
   const ttl: St = { ...base, size: px(note.size, 18), weight: note.b === false ? 400 : 700, italic: !!note.i, color: HEX.test(note.color || "") ? note.color! : look.ink };
-  const hitNode: Node = { t: "hit", kind: "item", id, x: r2(x), y: r2(y), w: r2(w), h: r2(h), ...(data.ok ? { label: titleOf(it, data) } : {}) };
+  return { base, lab, ttl };
+}
+/** what a series chart takes of the design's look: the label and title styles, the palette, the legend's swatch, the
+    gradient and the bars' corner radius (Liquid Glass's 4 px at 100 % roundness, none elsewhere) */
+function seriesStyle(look: ChartLook, lab: St, ttl: St, rk: number): SeriesStyle {
+  return { lab, ttl, family: look.family, colors: look.colors, legend: look.legend, ink: look.ink, gradient: look.gradient, radius: look.card === "glass" ? Math.round(4 * rk) : 0 };
+}
+export interface ChartEnv { V: GlassVars; wall: Wallpaper | null; /** the design's text-box family (slide-dl.ts) */ family: string;
+  /** the card alone, without the pie, labels and legend (the PowerPoint export draws those as a native chart) */ noContent?: boolean }
+/** a chart item → its nodes, and the line for the Issues panel when its source is missing or holds no numbers */
+export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, m: Metrics, env: ChartEnv): { nodes: Node[]; issue: string | null; geom: PieGeom | null } {
+  const { x, y, w, h } = box, look = chartLook(ctx, env.family), rk = ctx.style.radius / 100;
+  const { base, lab, ttl } = stylesOf(it, ctx, look);
+  // a series chart (4.7, S14.2: columns and bars) is laid out by chart-series.ts; a chart without series is a pie
+  const frame = { x: x + look.pad, y: y + look.pad, w: Math.max(10, w - 2 * look.pad), h: Math.max(10, h - 2 * look.pad) };
+  const sty = seriesStyle(look, lab, ttl, rk), SL = hasSeries(it) ? seriesLayout(it, frame, ctx, m, sty) : null;
+  const data: ChartData = SL ? ("why" in SL ? { ok: false, source: SL.source, why: SL.why } : { ok: true, source: "", series: SL.title, slices: [] }) : chartData(it, ctx);
+  const label = SL && !("why" in SL) ? SL.title : data.ok ? titleOf(it, data) : "";
+  const hitNode: Node = { t: "hit", kind: "item", id, x: r2(x), y: r2(y), w: r2(w), h: r2(h), ...(data.ok ? { label } : {}) };
   const inner: Node[] = [];
   let issue: string | null = null, geom: PieGeom | null = null;
-  if (!data.ok) {
+  if (SL && !("why" in SL)) {
+    issue = SL.issue;
+    if (!env.noContent) inner.push(...seriesNodes(SL, id, frame, m, sty));
+  } else if (!data.ok) {
     issue = data.why === "missing" ? `source ${data.source} not found` : `no numbers in ${data.source}`;
     // a placeholder on the stage (an export leaves the place empty, as a missing picture)
     if (!ctx.forExport) inner.push({ t: "rect", x: r2(x + .5), y: r2(y + .5), w: r2(Math.max(1, w - 1)), h: r2(Math.max(1, h - 1)), r: 6, fill: { solid: [255, 255, 255], a: .5 }, stroke: { w: 1, paint: solid("#9AA3B2"), dash: [5, 4] } },
@@ -327,7 +273,7 @@ export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, 
     inner.push(...slices, ...labels, ...legend, ...hits);
   }
   // the card behind the chart: a glass card (Liquid Glass), a plain rounded card (Excel Refined), none (Excel, consulting)
-  if (look.card === "glass") return { nodes: glassBox("gls wb card chart", x, y, w, h, Math.round(22 * rk), env.V, { x: 0, y: 0, scale: 1 }, env.wall, { content: inner, hit: { kind: "item", id, ...(data.ok ? { label: titleOf(it, data) } : {}) } }), issue, geom };
+  if (look.card === "glass") return { nodes: glassBox("gls wb card chart", x, y, w, h, Math.round(22 * rk), env.V, { x: 0, y: 0, scale: 1 }, env.wall, { content: inner, hit: { kind: "item", id, ...(data.ok ? { label } : {}) } }), issue, geom };
   if (look.card === "plain") {
     const X = Math.round(x), Y = Math.round(y), W = Math.round(x + w) - X, H = Math.round(y + h) - Y, rr = Math.round(8 * rk);
     return { nodes: [hitNode, { t: "shadow", x: X, y: Y, w: W, h: H, r: rr, dx: 0, dy: 8, blur: 24, spread: -12, c: [20, 30, 60], a: .18 }, { t: "shadow", x: X, y: Y, w: W, h: H, r: rr, dx: 0, dy: 1, blur: 3, spread: 0, c: [20, 30, 60], a: .06 },
@@ -338,8 +284,10 @@ export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, 
 /** what the PowerPoint export makes a native chart of (07 §4.2, B21): the slices' labels, values (the cells' own: a
     negative one too, as Excel's pie takes its size) and colours, the labels shown, the legend's place, the title and the
     fonts – the same choices as chartNodes – and the frame inside the card; null when the source holds no numbers */
-export function chartSem(it: ChartItem, box: Box, ctx: RenderCtx, family: string): ChartSem | null {
-  const look = chartLook(ctx, family), data = chartData(it, ctx);
+export function chartSem(it: ChartItem, box: Box, ctx: RenderCtx, family: string, m?: Metrics): ChartSem | null {
+  const look = chartLook(ctx, family);
+  if (hasSeries(it)) return m ? seriesChartSem(it, box, ctx, look, m) : null;
+  const data = chartData(it, ctx);
   if (!data.ok) return null;
   const note = deckFmt(ctx, "note"), f = it.fmt || {};
   const css = f.font ? fontStack(f.font) : note.font ? fontStack(note.font) : look.family;
@@ -355,6 +303,21 @@ export function chartSem(it: ChartItem, box: Box, ctx: RenderCtx, family: string
     legend: it.legend === "bottom" || it.legend === "none" ? it.legend : "right", startAngle: Number.isFinite(it.startAngle) ? +it.startAngle! : 0,
     box: { x: box.x + pad, y: box.y + pad, w: Math.max(10, box.w - 2 * pad), h: Math.max(10, box.h - 2 * pad) },
     sep: n > 1 ? { w: look.sep.w, color: hex(look.sep.color) } : null, fmt: first?.fmt || "General", hole: 58,
+  };
+}
+/** a column or bar chart for PowerPoint (09 §4.2, S14.2): the same layout as its display list (seriesLayout), so the
+    native chart's plot, bounds, bars, labels and legend are where the slide draws them; the pie fields carry the first
+    series (what a reader of the old fields expects) */
+function seriesChartSem(it: ChartItem, box: Box, ctx: RenderCtx, look: ChartLook, m: Metrics): ChartSem | null {
+  const { lab, ttl } = stylesOf(it, ctx, look), rk = ctx.style.radius / 100, pad = look.pad;
+  const frame = { x: box.x + pad, y: box.y + pad, w: Math.max(10, box.w - 2 * pad), h: Math.max(10, box.h - 2 * pad) };
+  const L = seriesLayout(it, frame, ctx, m, seriesStyle(look, lab, ttl, rk));
+  if ("why" in L) return null;
+  const bars = seriesSem(L), first = bars.series[0];
+  return {
+    type: it.type === "bar" ? "bar" : "column", title: L.title, series: first?.name || "", titleFont: fontSem(L.titleSt), labelFont: fontSem(lab),
+    labels: bars.cats, values: (first?.values || []).map(v => v ?? 0), colors: bars.series.map(s => s.color), show: [],
+    legend: bars.legend ? (bars.legend.pos === "b" ? "bottom" : "right") : "none", startAngle: 0, box: frame, sep: null, fmt: first?.fmt || "General", hole: 0, bars,
   };
 }
 /** the title a chart shows: its own ("" = none), else the series name */

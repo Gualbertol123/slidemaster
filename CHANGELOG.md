@@ -13,6 +13,18 @@ Releases are made with `docs/next/release-checklist.md`.
 data model of 09 §2.2 / §2.3 and its ops, `Stroke.join` in every backend, the arrowheads, the PowerPoint gate of 09 §7.2,
 the per-kind item code paths, the page budget per milestone.)
 
+What users notice (S14.2)
+- Column and bar charts with several series: clustered, stacked and 100 %, each series from its own cells (any sheet,
+  another slide's table, a linked workbook), hidden rows left out, a version's removed cells as gaps. The value axis
+  takes Excel's automatic bounds and steps (or its own minimum, maximum and step); gap width and overlap as Excel;
+  data labels (value, name, category, percent; outside or inside the end, centre, inside the base); per-point colours;
+  the legend right, left, top, bottom, top right or inside the plot, one entry or all of it hidden. In every design
+  (Liquid Glass: gradient bars with a rounded end, on its glass card).
+- PowerPoint export: these charts are native PowerPoint column / bar charts with their data in the embedded workbook
+  (Edit Data), drawn where the slide draws them (the same plot area, axis bounds, bars, labels and legend). No picture
+  and no link to the workbook.
+- Charts saved by earlier versions without series look exactly as before.
+
 ## 4.6.0 - unreleased (PLAN M13; prepared 2026-10-21, dated at the tag)
 
 What users notice
