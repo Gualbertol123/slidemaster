@@ -41,6 +41,7 @@ class Net {
       append: (_k, w, r) => this.hold(() => d.doAppend(w, JSON.parse(JSON.stringify(r)), this.rand() < this.failRate ? failures[Math.floor(this.rand() * 4)] : undefined)),
       compact: (_k, g, s) => this.hold(() => d.doCompact(g, JSON.parse(JSON.stringify(s)))),
       rotate: (_k, w) => this.hold(() => d.doRotate(w)),
+      format5: () => this.hold(() => d.doFormat5()),
     };
   }
   deliverOne() {
@@ -57,7 +58,7 @@ export async function run(seed: number) {
   const rand = rng(seed), deck = new FakeDeck(undefined, undefined, doc0), net = new Net(rand, deck, 0.15);
   deck.listingLag = 3000;                         // a new journal is missing from listings for 3 s of the server's clock
   const writers = 2 + Math.floor(rand() * 4);
-  const reps = Array.from({ length: writers }, (_, i) => new DocSync(net.api(), "W.xlsx", deck.open(`u${i}@pc#${"abcdefgh".slice(i) + "a".repeat(i)}`), "u" + i, { autoTail: false, compactMargin: 5000 }));
+  const reps = Array.from({ length: writers }, (_, i) => new DocSync(net.api(), "W.xlsx", deck.open(`u${i}@pc#${"abcdefgh".slice(i) + "a".repeat(i)}`), "u" + i, { autoTail: false, compactMargin: 5000, bumpWaitMs: 0 }));
   const made: [string, string][] = [];
   /** the slice colour each writer last gave the chart (field-level merge: nobody else writes that slice) */
   const colours = new Map<number, string>();

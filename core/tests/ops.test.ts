@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import vectors from "../../shared/ops-vectors.json";
-import { applyOps, inverseOf, applyOp } from "../src/model/ops";
-import { fold } from "../src/model/fold";
+import { applyOps, inverseOf, applyOp, knownOp, needsV5, docNeedsV5 } from "../src/model/ops";
+import { fold, nextSnapshot } from "../src/model/fold";
 import type { Op } from "../src/model/types";
 
 describe("operations follow shared/ops-vectors.json", () => {
@@ -150,5 +150,99 @@ describe("the saved 4.0 deck format (helper/tests/fixtures/saved: snapshot.v4.js
     expect(f.doc.updatedBy).toBe("rossim");
     // the records the snapshot covers are folded once only
     expect(fold(snap, [...recs, { ...recs[0], s: 1 }, { ...recs[0], s: 2 }]).doc).toEqual(f.doc);
+  });
+});
+
+describe("the per-deck format guard: needsV5 / docNeedsV5 (ADR-019; 4.0.0's lists frozen)", () => {
+  const S = (patch: object) => ({ op: "slide.patch", id: "s1", patch }), T = (patch: object) => ({ op: "table.patch", id: "t1", patch });
+  const C = (patch: object) => ({ op: "cell.patch", sheet: "S", ref: "A1", patch }), ST = (patch: object) => ({ op: "style.patch", patch });
+  const box = { x: 0, y: 0, w: 10, h: 10 };
+  it("everything 4.0.0 applies whole needs no format 5 (git show v4.0.0:core/src/model/ops.ts:6-12)", () => {
+    const v40: object[] = [
+      { op: "preset.set", preset: null }, { op: "preset.set", preset: { sheets: [], tables: [], slides: [], versions: [{ id: "v", name: "V", hide: {} }] } },
+      { op: "preset.set", preset: { sheets: [], tables: [], slides: [], links: ["Peers.xlsx"] } },               // 4.2: 4.0 keeps a preset whole
+      ...["title", "subtitle", "date", "note", "logo", "layout", "align", "scale", "valign", "subs", "notes", "fmt", "sizes"].map(k => S({ [k]: null })),
+      ...["name", "gridH", "gridV", "cols", "rows", "scales", "merges", "sizes"].map(k => T({ [k]: null })),
+      ...["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role"].map(k => C({ [k]: null })),
+      ...["design", "glass", "color", "logo", "radius", "contrast", "logoBubble", "pn", "footer", "theme", "text", "colors", "designs"].map(k => ST({ [k]: null })),
+      ST({ designs: { mckinsey: { consult: { kpis: "2" } }, bain: { consult: {} } } }),                          // inside a known map (CP-01 checks it survives)
+      S("not a patch"),                                                                                           // skipped by 4.0 and 4.6 alike
+    ];
+    for (const op of v40) expect(needsV5(op as Op), JSON.stringify(op)).toBe(false);
+  });
+  it("the guard list: 4.3–4.5's additions, M13's ops and the keys pre-listed for M14–M16 (09 §2.10)", () => {
+    const v5: object[] = [
+      { op: "item.patch", slide: "s1", id: "c1", patch: { kind: "chart", type: "pie", values: { sheet: "S", range: "A1:A3" }, box } },   // 4.3
+      { op: "item.patch", slide: "s1", id: "c1", patch: null }, { op: "item.patch", slide: "s1", id: "c1", patch: { colors: { 0: "#000" } } },
+      { op: "item.patch", slide: "s1", id: "l1", patch: { kind: "line", a: { x: 0, y: 0 }, b: { x: 1, y: 1 }, box } },                   // M14
+      ...["stack", "gap", "overlap", "legendAt", "frame", "titleRule", "plot", "route", "a", "b", "mid", "bend", "ends", "style", "stroke",
+        "sers", "groups", "axes", "marks", "legendHide", "titleFmt"].map(k => ({ op: "item.patch", slide: "s1", id: "c1", patch: { [k]: null } })),
+      S({ free: { glass: { on: true, items: {} } } }), S({ title: "T", free: null }),                       // 4.4
+      S({ looks: { mckinsey: { kpis: "2" } } }),                                                             // 4.5
+      S({ hidden: { glass: true } }), S({ hide: { glass: true } }),                                          // M14–M16, S13.6
+      T({ cellGrid: { A1: { o: true } } }), T({ borders: { A1: { top: "none" } } }),                      // 4.4
+      C({ valign: "top" }), C({ num: "0.0%" }),                                                              // M16
+      { op: "slide.add", slide: { id: "s2", type: "content", tables: [] }, after: "s1" }, { op: "slide.remove", id: "s2" },   // M13
+      { op: "table.add", slide: "s1", id: "t2" }, { op: "table.remove", slide: "s1", id: "t2" },
+      { op: "version.patch", id: "v", patch: { drop: [] } },                                                 // M15
+      { op: "chart.patch" }, ST({ ribbon: 1 }),                                                              // anything later
+      { op: "preset.set", preset: { sheets: [], tables: [], slides: [{ id: "s1", type: "content", tables: [], items: { c1: { kind: "shape", shape: "rect", box } } }] } },
+    ];
+    for (const op of v5) expect(needsV5(op as Op), JSON.stringify(op)).toBe(true);
+  });
+  it("docNeedsV5: non-empty items, free, looks, cellGrid, borders (and hidden, a version's drop, cell valign / num)", () => {
+    const base = () => ({ preset: { sheets: ["S"], tables: [{ id: "t1", sheet: "S", kind: "range", range: "A1:B2" }] as any[], slides: [{ id: "s1", type: "content", tables: ["t1"] }] as any[], versions: [{ id: "v", name: "V", hide: {} }] as any[] }, edits: { S: { A1: { b: true } } } as any });
+    expect(docNeedsV5(base() as any)).toBe(false);
+    expect(docNeedsV5({ preset: null, edits: {} } as any)).toBe(false);
+    const empty = base(); empty.preset.slides[0].items = {}; expect(docNeedsV5(empty as any)).toBe(false);
+    const cases: ((d: ReturnType<typeof base>) => void)[] = [
+      d => { d.preset.slides[0].items = { c1: { kind: "shape", shape: "rect", box } }; },
+      d => { d.preset.slides[0].free = { glass: { on: false, items: {} } }; },
+      d => { d.preset.slides[0].looks = { mckinsey: { kpis: "2" } }; },
+      d => { d.preset.slides[0].hidden = { glass: true }; },
+      d => { d.preset.slides[0].hide = { glass: true }; },                // S13.6's name (review of S13.1, 4)
+      d => { d.preset.tables[0].cellGrid = { A1: { h: "on" } }; },
+      d => { d.preset.tables[0].borders = { A1: { top: "none" } }; },
+      d => { d.preset.versions[0].drop = ["s1"]; },
+      d => { d.edits.S.A1.valign = "top"; },
+      d => { d.edits.S.A1.num = "0%"; },
+    ];
+    for (const f of cases) { const d = base(); f(d); expect(docNeedsV5(d as any), f.toString()).toBe(true); }
+  });
+  it("nextSnapshot: format 5 once the document holds such content, never lowered afterwards", () => {
+    const snap = { format: 4 as const, gen: 1, workbook: "W", lamport: 0, rev: 0, frontier: {}, doc: { schema: 3, workbook: "W", rev: 0, preset: { sheets: [], tables: [], slides: [{ id: "s1", type: "content" as const, tables: [] }] }, style: {}, edits: {} } };
+    const rec = (s: number, ops: object[]) => ({ l: s, w: "a@pc#aaaaaaaa", s, ops: ops as Op[] });
+    expect(nextSnapshot(snap, fold(snap, [rec(1, [C({ b: true })])]), {}).format).toBe(4);
+    const five = nextSnapshot(snap, fold(snap, [rec(1, [{ op: "item.patch", slide: "s1", id: "c1", patch: { kind: "shape", shape: "rect", box } }])]), {});
+    expect(five.format).toBe(5);
+    const gone = nextSnapshot(five, fold(five, [rec(2, [{ op: "item.patch", slide: "s1", id: "c1", patch: null }])]), {});
+    expect(gone.doc.preset!.slides[0].items).toBeUndefined();
+    expect(gone.format).toBe(5);
+  });
+});
+
+describe("the saved 4.6 deck format (helper/tests/fixtures/saved: snapshot.v5.json + journal.v5.log, never edited)", () => {
+  it("a format-5 snapshot and the records past its frontier fold into the deck; its next snapshot stays format 5", async () => {
+    const fs = await import("node:fs"), path = await import("node:path");
+    const dir = path.join(__dirname, "..", "..", "helper", "tests", "fixtures", "saved");
+    const snap = JSON.parse(fs.readFileSync(path.join(dir, "snapshot.v5.json"), "utf8"));
+    const buf = fs.readFileSync(path.join(dir, "journal.v5.log"));
+    const writer = Object.keys(snap.frontier)[0], from = snap.frontier[writer];
+    const recs: any[] = [];
+    for (let p = from; p < buf.length;) {
+      const a = buf.indexOf(58, p), b = buf.indexOf(58, a + 1), n = +buf.subarray(p, a).toString();
+      if (a < 0 || b < 0 || b + 2 + n > buf.length) break;
+      recs.push(JSON.parse(buf.subarray(b + 1, b + 1 + n).toString("utf8"))); p = b + 2 + n;
+    }
+    expect([snap.format, snap.gen]).toEqual([5, 3]);
+    expect(recs.map(r => r.s)).toEqual([3, 4]);
+    expect(recs.every(r => r.ops.every(knownOp))).toBe(true);         // a 4.6 page compacts them
+    expect(recs.every(r => r.ops.some(needsV5))).toBe(true);
+    const f = fold(snap, recs), s = f.doc.preset!.slides[0];
+    expect(Object.keys(s.items!).sort()).toEqual(["c1", "n1"]);
+    expect(s.free!.excel!.on).toBe(true); expect(s.looks).toEqual({ mckinsey: { kpis: "2" } });
+    expect(Object.keys(f.doc.preset!.tables[0])).toEqual(expect.arrayContaining(["cellGrid", "borders"]));
+    expect(nextSnapshot(snap, f, {}).format).toBe(5);
+    expect(JSON.parse(fs.readFileSync(path.join(dir, "incident-format-5.json"), "utf8")).format).toBe(5);
   });
 });

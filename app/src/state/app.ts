@@ -7,7 +7,7 @@
    ops) until the worker's snapshot that includes them arrives. */
 import { get, patch, patchAll, same, STAGE, THUMBS, toast, showBusy, hideBusy } from "./store";
 import { alertBox, ask, confirmBox, runWizard } from "./dialogs";
-import { backend, openTail, patchStyleDefault } from "../sync/api";
+import { backend, openTail, patchStyleDefault, type SetupInfo } from "../sync/api";
 import { connectCore, type CorePort } from "../rpc/client";
 import { browserText } from "../platform";
 import type { RunMetrics } from "@slide-builder/core/platform";
@@ -46,6 +46,7 @@ export function core(): CorePort {
   port.handle("deckCompact", a => backend.deckCompact(a.key, a.baseGen, a.snapshot));
   port.handle("deckRotate", a => backend.deckRotate(a.key, a.writer));
   port.handle("deckPrepare", a => backend.deckPrepare(a.key, a.writer));
+  port.handle("deckFormat5", a => backend.deckFormat5(a.key));
   port.handle("digitWidth", a => browserText.maxDigitWidth(a.font));
   // the display list's text, measured with the page's fonts (decision 2026-10-12, 3; browserText answers synchronously)
   port.handle("measureRuns", a => {
@@ -573,12 +574,18 @@ export async function saveStyleAsDefault() {
     snapshot). The open deck through the worker, the others each with a DocSync of their own here, for this only. */
 export async function prepareRollback() {
   if (!backend.served) return;
+  // ADR-019: decks at format 5 hold 4.6 objects – read-only in 4.0–4.5, and Slide Builder 3 drops those objects
+  const v5 = (list: SetupInfo[]) => list.filter(d => d.format === 5 && !d.rolledBack).map(d => esc(d.workbook));
+  const marked = v5(await backend.decks().catch(() => []));
   const go = await ask("Prepare rollback", "Every Slide Builder 4 deck is saved and its changes folded into its snapshot. Afterwards " +
-    "the maintainer can give decks back to Slide Builder 3 with <b>Update Slide Builder.bat --rollback</b>. Nothing else changes.",
+    "the maintainer can give decks back to Slide Builder 3 with <b>Update Slide Builder.bat --rollback</b>. Nothing else changes." +
+    (marked.length ? `<br><br>${marked.length === 1 ? "This deck uses" : `These ${marked.length} decks use`} Slide Builder 4.6 objects and will ` +
+      `open read-only in 4.5 or earlier (Slide Builder 3 loses those objects): <b>${marked.join(", ")}</b>` : ""),
     [{ id: "cancel", label: "Cancel" }, { id: "go", label: "Prepare rollback", primary: true }], { width: 520 });
   if (go !== "go") return;
   const api: DeckApi = { served: true, snapshot: k => backend.deckSnapshot(k), tail: (k, s) => backend.deckTail(k, s),
-    append: (k, w, r) => backend.deckAppend(k, w, r), compact: (k, g, s) => backend.deckCompact(k, g, s), rotate: (k, w) => backend.deckRotate(k, w) };
+    append: (k, w, r) => backend.deckAppend(k, w, r), compact: (k, g, s) => backend.deckCompact(k, g, s), rotate: (k, w) => backend.deckRotate(k, w),
+    format5: k => backend.deckFormat5(k) };
   const failed: string[] = [];
   let done = 0;
   // every deck once (what is old enough is folded at once), then ONE wait for the compaction margin (records younger
@@ -606,7 +613,10 @@ export async function prepareRollback() {
     }
   } catch (e) { failed.push((e as Error).message || String(e)); }
   finally { hideBusy(); }
-  toast(`Prepare rollback: <b>${done}</b> deck${done === 1 ? "" : "s"} ready` + (failed.length ? ` · not ready: ${esc(failed.join(", "))} – try again when nobody edits them` : "."), [], failed.length > 0);
+  // (a compaction may have raised a deck that held 4.6 objects meanwhile: named as they are now)
+  const now = v5(await backend.decks().catch(() => []));
+  toast(`Prepare rollback: <b>${done}</b> deck${done === 1 ? "" : "s"} ready` + (failed.length ? ` · not ready: ${esc(failed.join(", "))} – try again when nobody edits them` : ".") +
+    (now.length ? ` · read-only below 4.6 (4.6 objects): ${now.join(", ")}` : ""), [], failed.length > 0);
 }
 
 /* ---------------------------------------------------------------- wizard */

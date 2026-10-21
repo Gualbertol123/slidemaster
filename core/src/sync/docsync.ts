@@ -10,9 +10,12 @@
    A failed append keeps the record and sends it again, the same record (same writer and seq: the fold keeps one
    copy) – a failed read or write never resets the document. Now and then a page compacts the deck (folds the
    journals into a new snapshot: more than 2 000 records, a writer idle for over 24 h, or – when it is the only
-   one there – the deck at rest); the helper takes it only if nobody compacted meanwhile (compare-and-set on gen). */
+   one there – the deck at rest); the helper takes it only if nobody compacted meanwhile (compare-and-set on gen).
+   A deck that is about to receive, or already holds, what 4.0.0 does not know whole (model/ops.ts needsV5) is first
+   raised to snapshot format 5 (upgrade: ADR-019 and its amendment), so that no 4.0–4.5 window can read, fold or
+   overwrite it. */
 import type { Op, WorkbookDoc } from "../model/types";
-import { applyOps, inverseOf, applyOp, knownOp } from "../model/ops";
+import { applyOps, inverseOf, applyOp, knownOp, needsV5, docNeedsV5 } from "../model/ops";
 import { firstCopy, fold, nextSnapshot, recordId, validRecord, type DeckRecord, type DeckSnapshot, type Folded } from "../model/fold";
 
 export interface TailJournal { offset: number; records: DeckRecord[]; /** each record's end offset */ ends?: number[] }
@@ -31,6 +34,9 @@ export interface DeckApi {
   rotate(key: string, writer: string): Promise<{ deleted: string[] }>;
   /** open this writer's journal ahead of its first append (the append then costs write + flush only) */
   prepare?(key: string, writer: string): Promise<unknown>;
+  /** ADR-019: the deck's marker incident-format-5.json (every 4.0–4.5 helper then takes the deck for read-only);
+      `at` when it was written and `now`, the file server's ms (an existing one is fine: created false) */
+  format5(key: string): Promise<{ created?: boolean; at?: number | null; now?: number | null }>;
 }
 
 export type SaveState = "saved" | "pending" | "saving" | "error" | "local" | "outdated" | "readonly";
@@ -46,6 +52,21 @@ export const COMPACT_RECORDS = 2000, IDLE_WRITER_MS = 24 * 3600 * 1000, REST_MS 
     since may still be missing from a reader's listing (the helper caches it 3 s, the SMB client 10 s more), and
     a record in it could be one that a newer record already folded in overwrote (review of S5.2, finding 2) */
 export const COMPACT_MARGIN_MS = 30_000;
+/** the bump's wait after the marker (ADR-019 amendment; = decks.BUMP_WAIT_S): how long a 4.0–4.5 page may still append
+    after it. Journal mode: its helper looks at the deck's folder again every REFRESH_S = 4 s, and the SMB client may
+    answer that listing from its 10 s directory cache: 4 + 10 + 1 s. Lean-lock mode (no append handle, so no
+    refresher): only its page's tail looks again, at most every CHECK_TTL = 10 s, tailing every TAIL_MS = 1.5 s:
+    10 + 1.5 + 10 + 1 s. The mode may differ per PC (SLIDEBUILDER_STORAGE): the longer one, always */
+export const BUMP_WAIT_MS = 23_000;
+/** the first record after a bump is this far above every Lamport time seen: a record an old page appended in the gap
+    without this page reading it (a slower share than the bound above, a journal not listed yet) still folds before
+    it – an old page cannot have seen the 4.6 record, so it cannot count past it (review of S13.1, 1–2) */
+export const BUMP_LAMPORT = 2 ** 20;
+/** every 4.6 page takes the jump, not only the one that raised the deck: its helper may not list a journal an old page
+    opened in the gap until 3 s (LISTING_TTL) + 10 s (SMB) after it (recheck of S13.1). So the first time a page sees
+    the deck go 4 -> 5 (rebase), and when it opens a format-5 deck raised less than this long ago (the snapshot's `at`,
+    the file server's ms, is the raise or a later compaction: the raise came BUMP_WAIT_MS after the marker at least) */
+export const BUMP_FRESH_MS = BUMP_WAIT_MS + 13_000;
 
 /** a record and where it is on the share: (journal, end offset) of each copy known */
 interface Entry { rec: DeckRecord; at: [string, number][] }
@@ -90,23 +111,42 @@ export class DocSync {
       minus the margin, so every record it folds was appended before a complete read (re-review of S5.2, R2) */
   private lastFullTail: number | null = null;
   private readonly margin: number;
+  private readonly bumpWait: number;
+  /** the bump in progress (one at a time) */
+  private bump: Promise<boolean> | null = null;
+  /** raise the deck as soon as it holds 4.6 content (a page with the deck open; the tests and Prepare rollback's
+      own DocSyncs raise it only before a record or a compaction needs it) */
+  private readonly autoBump: boolean;
   state: SaveState;
   error = "";
   private listeners = new Set<(c: Change) => void>();
   private emittedHealth = "";
 
-  constructor(private api: DeckApi, readonly name: string, open: DeckOpen, private me: string, opts: { autoTail?: boolean; /** COMPACT_MARGIN_MS (tests) */ compactMargin?: number } = {}) {
+  constructor(private api: DeckApi, readonly name: string, open: DeckOpen, private me: string, opts: { autoTail?: boolean; /** COMPACT_MARGIN_MS (tests) */ compactMargin?: number;
+    /** BUMP_WAIT_MS (tests) */ bumpWaitMs?: number; /** default: autoTail */ bumpOnOpen?: boolean } = {}) {
     this.margin = opts.compactMargin ?? COMPACT_MARGIN_MS;
+    this.bumpWait = opts.bumpWaitMs ?? DocSync.bumpWaitMs;
+    this.autoBump = opts.bumpOnOpen ?? opts.autoTail !== false;
     this.key = open.key; this.writer = open.writer; this.snap = open.snapshot;
     this.offsets = { ...open.snapshot.frontier };
     if (open.tail) this.merge(open.tail);
     this.folded = this.refold();
     this.server = this.folded.doc; this.view = this.server;
     this.lamport = Math.max(this.lamport, this.folded.lamport);
+    // a deck raised moments ago: a gap record this page's open tail did not list may be above everything seen
+    // (without the file server's time, or the snapshot's: as if moments ago)
+    if (api.served && this.snap.format >= 5) {
+      const now = open.tail?.now, at = this.snap.at;
+      if (typeof now !== "number" || typeof at !== "number" || now - at < BUMP_FRESH_MS) this.lamport += BUMP_LAMPORT;
+    }
     this.state = api.served ? (open.tail?.readonly ? "readonly" : "saved") : "local";
     if (open.tail?.readonly) this.error = open.tail.readonly;
+    // a deck a 4.3–4.5 page gave such content to, still at format 4: raised before anything else (09 §1)
+    this.bumpIfDue();
     if (api.served && opts.autoTail !== false) this.scheduleTail();
   }
+  /** BUMP_WAIT_MS for DocSyncs made without the option (the core worker's; tests set 0) */
+  static bumpWaitMs = BUMP_WAIT_MS;
   on(fn: (c: Change) => void) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   private emit(prev: WorkbookDoc, local: boolean, by?: string, prevState?: [SaveState, string]) {
     const v = this.view;
@@ -201,7 +241,18 @@ export class DocSync {
   async flush(): Promise<void> {
     if (this.state === "outdated" || this.state === "readonly" || this.disposed) return;
     if (!this.inflight) {
-      if (!this.pending.length) return;
+      if (!this.pending.length || this.sending) return;          // (sending: a bump before this record is under way)
+      if (this.bump || this.dueV5(this.pending)) {
+        // ADR-019: the deck raised to format 5 first; the record waits in the queue meanwhile (more ops may join it)
+        this.sending = true;
+        const prev = this.view, before: [SaveState, string] = [this.state, this.error];
+        if (this.api.served) { this.state = "saving"; this.emit(prev, false, undefined, before); }
+        let ok = false;
+        try { ok = await this.upgrade(); if (!ok) throw new Error("The deck could not be prepared for Slide Builder 4.6 objects – trying again."); }
+        catch (e) { this.sending = false; this.failed(e, prev, before); return; }
+        this.sending = false;
+        if (this.disposed || this.inflight || !this.pending.length) return;
+      }
       this.inflight = { l: ++this.lamport, w: this.writer, s: ++this.seq, by: this.me || null, ops: this.pending };
       this.pending = [];
     } else if (this.sending) return;
@@ -229,17 +280,98 @@ export class DocSync {
       else if (this.retired && this.onRetiredSaved) { const f = this.onRetiredSaved; this.onRetiredSaved = null; f(); }
     } catch (e) {
       this.sending = false;
-      const status = (e as { status?: number }).status;
-      // the helper speaks a newer data format than this page: retrying cannot help, reloading does
-      if (status === 409) { this.state = "outdated"; this.error = (e as Error).message || OUTDATED; this.emit(prev, false, undefined, before); return; }
-      if (status === 423) { this.state = "readonly"; this.error = (e as Error).message; this.emit(prev, false, undefined, before); return; }
-      this.state = "error"; this.error = (e as Error).message || String(e);
-      this.retry = Math.min(this.retry + 1, 5);
-      this.emit(prev, false, undefined, before);
-      this.schedule(1000 * Math.pow(2, this.retry));        // 2 s … 32 s; the record stays as it is (same w, s)
+      this.failed(e, prev, before);
     }
   }
+  /** a failed append (or the bump before one) */
+  private failed(e: unknown, prev: WorkbookDoc, before: [SaveState, string]) {
+    const status = (e as { status?: number }).status;
+    // the helper speaks a newer data format than this page: retrying cannot help, reloading does
+    if (status === 409) { this.state = "outdated"; this.error = (e as Error).message || OUTDATED; this.emit(prev, false, undefined, before); return; }
+    if (status === 423) { this.state = "readonly"; this.error = (e as Error).message; this.emit(prev, false, undefined, before); return; }
+    this.state = "error"; this.error = (e as Error).message || String(e);
+    this.retry = Math.min(this.retry + 1, 5);
+    this.emit(prev, false, undefined, before);
+    this.schedule(1000 * Math.pow(2, this.retry));        // 2 s … 32 s; the record stays as it is (same w, s)
+  }
   private sending = false;
+
+  /* ---------------------------------------------------------------- the format guard (ADR-019) */
+  /** the deck is still format 4 but `ops` (or, without them, its snapshot or a record past it) hold what 4.0.0 does
+      not apply whole */
+  private dueV5(ops?: Op[]): boolean {
+    if (!this.api.served || this.snap.format >= 5) return false;
+    if (ops) return ops.some(needsV5);
+    if (docNeedsV5(this.snap.doc)) return true;
+    for (const e of this.entries.values()) if (e.rec.ops.some(needsV5)) return true;
+    return false;
+  }
+  /** the bump in progress (tests), or null */
+  get upgrading(): Promise<boolean> | null { return this.bump; }
+  /** raise the deck to format 5 (one bump at a time; true when it is format 5 now). ADR-019, amended 2026-10-21:
+      1. the helper writes incident-format-5.json: every 4.0–4.5 helper takes the deck for read-only from its next look
+         at the deck's folder;
+      2. wait BUMP_WAIT_MS from the marker's time (an old page may still append until then: a wizard preset.set too),
+         then ask for the marker again (the helper lists the journals afresh; a marker removed meanwhile is written
+         again, and waited for);
+      3. tail until no journal was skipped: the records of that gap are read;
+      4. compare-and-set: the snapshot as it is, gen + 1, format 5 (it folds nothing; on 409 – compacted meanwhile, or
+         the helper finds the marker too young – reload and from 1 again: the marker's wait is then what is left);
+      5. only then the record is appended (flush), with a Lamport time BUMP_LAMPORT above everything seen (rebase:
+         every page that sees the deck go 4 -> 5 jumps, and one that opens a deck raised moments ago: BUMP_FRESH_MS). */
+  upgrade(): Promise<boolean> {
+    if (this.snap.format >= 5) return Promise.resolve(true);
+    return this.bump ||= this.raise().finally(() => { this.bump = null; });
+  }
+  private async raise(): Promise<boolean> {
+    const prev = this.view;
+    for (let round = 0; round < 10 && !this.disposed; round++) {
+      for (let i = 0, waited = false; i < 4; i++) {
+        const m = await this.api.format5(this.key);
+        const left = typeof m?.at === "number" && typeof m.now === "number" ? Math.min(this.bumpWait, m.at + this.bumpWait - m.now) : waited ? 0 : this.bumpWait;
+        if (left <= 0) break;
+        await this.sleep(left); waited = true;
+      }
+      let t: TailResult | null = null;
+      for (let i = 0; i < 5 && !this.disposed; i++) {
+        if (i && this.bumpWait) await this.sleep(Math.min(1000, this.bumpWait));   // a journal unread (a hiccup): again
+        t = await this.api.tail(this.key, { ...this.offsets });
+        this.merge(t);
+        if (t.readonly) throw Object.assign(new Error(t.readonly), { status: 423 });
+        if (!t.skipped?.length) break;
+      }
+      if (!t || t.skipped?.length) return false;          // (the record waits; flush tries again later)
+      if (t.gen != null && t.gen > this.snap.gen) await this.loadSnapshot();
+      if (this.snap.format < 5) {
+        const next: DeckSnapshot = { ...this.snap, gen: this.snap.gen + 1, format: 5 };
+        try { await this.api.compact(this.key, this.snap.gen, next); }
+        catch (e) {
+          if ((e as { status?: number }).status !== 409) throw e;
+          const gen = this.snap.gen;
+          await this.loadSnapshot();                      // compacted meanwhile – or the marker too young for the helper:
+          if (this.snap.gen === gen && this.bumpWait) await this.sleep(Math.min(1000, this.bumpWait));   // a second later
+          continue;
+        }
+        this.rebase(next);
+      }
+      this.recompute();                                   // (the Lamport jump: rebase, as the deck went 4 -> 5)
+      this.emit(prev, false);                             // (records of others read meanwhile)
+      return true;
+    }
+    return false;
+  }
+  private sleep(ms: number) { return new Promise<void>(r => setTimeout(r, ms)); }
+  /** a page with the deck open raises it as soon as it holds 4.6 content (at open, or a 4.3–4.5 page's record read) */
+  private bumpIfDue() {
+    if (!this.autoBump || this.bump || this.state === "readonly" || this.state === "outdated" || this.retired || this.disposed || !this.dueV5()) return;
+    void this.upgrade().catch(e => {
+      const prev = this.view, before: [SaveState, string] = [this.state, this.error], status = (e as { status?: number }).status;
+      if (status === 409) { this.state = "outdated"; this.error = (e as Error).message || OUTDATED; }
+      else if (status === 423) { this.state = "readonly"; this.error = (e as Error).message; }
+      else return;                                    // the next record, compaction or poll tries again
+      this.emit(prev, false, undefined, before);
+    });
+  }
 
   /* ---------------------------------------------------------------- other people's changes */
   private scheduleTail() {
@@ -265,6 +397,7 @@ export class DocSync {
     } finally { this.polling = false; }
     this.recompute();
     this.emit(prev, false, by.size ? [...by].join(", ") : undefined, before);
+    this.bumpIfDue();
     void this.maybeCompact();
   }
   private async loadSnapshot() {
@@ -275,10 +408,14 @@ export class DocSync {
       compaction's answer may arrive after a newer snapshot was loaded). */
   private rebase(s: DeckSnapshot) {
     if (s.gen <= this.snap.gen) return;
+    const raised = s.format >= 5 && this.snap.format < 5;
     this.snap = s;
     for (const [j, off] of Object.entries(s.frontier)) this.offsets[j] = Math.max(this.offsets[j] || 0, off);
     for (const [id, e] of this.entries) if (e.at.some(p => this.covered(p)) || e.rec.s <= (s.seen?.[e.rec.w] || 0)) this.entries.delete(id);
     this.lamport = Math.max(this.lamport, s.lamport);
+    // the deck went 4 -> 5 (raised here or by another page): every record of mine from now on folds after any record an
+    // old page appended in the gap, read or not (BUMP_LAMPORT, BUMP_FRESH_MS)
+    if (raised) this.lamport = Math.max(this.lamport, this.folded.lamport) + BUMP_LAMPORT;
     // my journal is all in the snapshot: a new one (the helper deletes the covered file)
     if (this.mine && this.covered(this.mine) && !this.inflight) { this.mine = null; this.prepared = 0; void this.api.rotate(this.key, this.writer).catch(() => undefined); }
   }
@@ -308,8 +445,14 @@ export class DocSync {
       const by = this.merge(t);
       if (t.gen != null && t.gen > this.snap.gen) { await this.loadSnapshot(); this.recompute(); }
       if (this.skippedRound) { if (by.size) this.recompute(); return null; }     // a journal unread: maybe records missing
-      const next = this.candidate();
+      let next = this.candidate();
       if (!next) { if (by.size) this.recompute(); return null; }
+      if (next.format > this.snap.format) {
+        // the fold holds 4.6 content: the deck is raised first (marker, wait, CAS), then folded on the new snapshot
+        if (!await this.upgrade()) return null;
+        next = this.candidate();
+        if (!next) return null;
+      }
       try { await this.api.compact(this.key, this.snap.gen, next); }
       catch (e) {
         if ((e as { status?: number }).status === 409) { await this.loadSnapshot().catch(() => undefined); this.recompute(); return null; }
@@ -378,7 +521,8 @@ export class DocSync {
   restSnapshot(): { baseGen: number; snapshot: DeckSnapshot } | null {
     if (!this.alone || this.busy || !this.api.served || this.state !== "saved" || this.skippedRound) return null;
     const s = this.candidate();
-    return s ? { baseGen: this.snap.gen, snapshot: s } : null;
+    // (raising the deck needs the marker and the wait first: never in a request sent as the page goes)
+    return s && s.format <= this.snap.format ? { baseGen: this.snap.gen, snapshot: s } : null;
   }
   /** Prepare rollback (04 §4.4): everything saved, then compacted until no record lies past the frontier (records
       younger than the margin wait for it: up to `waitMs`) */

@@ -39,6 +39,7 @@ UPLOAD_TTL = 2 * 3600
 TOKEN_PLACEHOLDER = b"__SB_TOKEN__"
 TOKEN_HEADER = "X-SB-Token"
 FORMATS_HEADER = "X-SB-Formats"
+DECK_FORMATS_HEADER = "X-SB-Deck-Formats"      # "4,5": the deck snapshot formats a 4.6+ page reads (ADR-019)
 
 
 def formats_match(header):
@@ -96,7 +97,7 @@ def find_asset(name):
     return None
 
 
-DECK_ROUTE = re.compile(r"^/api/decks/([^/]+)/(snapshot|tail|append|prepare|compact|rotate|history|delete)$")
+DECK_ROUTE = re.compile(r"^/api/decks/([^/]+)/(snapshot|tail|append|prepare|compact|rotate|history|delete|format5)$")
 
 
 class HttpError(Exception):
@@ -380,12 +381,15 @@ class Handler(BaseHTTPRequestHandler):
         if m:
             key, action = urllib.parse.unquote(m.group(1)), m.group(2)
             if action == "snapshot":
-                return self._send(200, {"snapshot": decks.read_snapshot(key)})
+                snap = decks.read_snapshot(key)
+                decks.check_page(key, self._deck_formats(), snap)
+                return self._send(200, {"snapshot": snap})
             if action == "tail":
                 try:
                     since = json.loads((q.get("since") or ["{}"])[0])
                 except ValueError:
                     raise HttpError(400, "since must be JSON")
+                decks.check_page(key, self._deck_formats())
                 return self._send(200, decks.tail(key, since))
             if action == "history":
                 return self._send(200, {"backups": decks.history(key)})
@@ -445,6 +449,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, remove_family(family))
         return False
 
+    def _deck_formats(self):
+        """the deck formats the page reads (X-SB-Deck-Formats; a 4.0-4.5 page sends none: decks.check_page)"""
+        return decks.page_formats(self.headers.get(DECK_FORMATS_HEADER))
+
     # ------------------------------------------------------------------ POST
     def _post_deck(self, path):
         """the decks of Slide Builder 4 (docs/next/04 §2.2; helper/slidebuilder/decks.py)"""
@@ -454,7 +462,9 @@ class Handler(BaseHTTPRequestHandler):
                 raise HttpError(400, "invalid workbook name")
             # the first open in Slide Builder 4 moves a v3 deck over (migrate_v3: under v3's lock, backup, freeze)
             key, how = migrate_v3.ensure_deck(wb)
-            snap, writer = decks.read_snapshot(key), decks.new_writer()
+            snap = decks.read_snapshot(key)
+            decks.check_page(key, self._deck_formats(), snap)      # a 4.0-4.5 page never opens a 4.6 deck (ADR-019)
+            writer = decks.new_writer()
             decks.bind_writer(writer, key)                # (B44: a writer of a deck deleted since writes nothing)
             return self._send(200, {"key": key, "writer": writer, "created": how == "created", "migrated": how == "migrated",
                                     "storage": decks.storage_mode(), "snapshot": snap})
@@ -465,6 +475,10 @@ class Handler(BaseHTTPRequestHandler):
         if not m:
             return False
         key, action = urllib.parse.unquote(m.group(1)), m.group(2)
+        if action in ("append", "prepare", "compact", "rotate"):
+            decks.check_page(key, self._deck_formats())
+        if action == "format5":                           # the deck is about to hold 4.6 objects: its marker (ADR-019)
+            return self._send(200, decks.mark_format5(key))
         if action == "append":
             req = self._json()
             return self._send(200, decks.append(key, req.get("writer"), req.get("record")))

@@ -15,6 +15,12 @@ What users notice
   workbook is not changed). ⚙ Options › Administration › **Saved setups…** lists every workbook's setup (slides,
   tables, last change) with *Delete…*, and the deleted ones with *Restore…*: a deleted setup is kept as a backup on
   the shared folder. A setup open in a window is not deleted – the message says who has it open.
+* **Decks with Slide Builder 4.6 objects open in 4.6 and later only** (B41, ADR-019): a deck that holds charts,
+  callouts, free layouts, looks, cell gridlines or borders, or any object added from 4.6 on, is marked for 4.6 before
+  the first such object is saved – once per deck, about 25 seconds of "Saving…". An older window that still has it open
+  turns read-only and saves nothing more; an older version opening it shows "a journal of this deck is damaged – tell
+  the maintainer": that message means **update Slide Builder** (close its black window and start it again). Decks
+  without such objects keep opening in older versions.
 
 For the maintainer
 * **`Update Slide Builder.bat`** (A3) finds the newest release on the release page (github.com/…/releases/latest)
@@ -26,6 +32,9 @@ For the maintainer
   newer and says when the update stopped, but an update never replaces that file on a share that has one: there it
   is copied by hand (docs/next/release-checklist.md §6). The share's 4.0.0 updater still asks the API, so the first
   release after 4.0.0 is installed by hand too (same section).
+* **`--use` below 4.6** names the decks that hold 4.6 objects (they open read-only there; going back to Slide
+  Builder 3 loses those objects) and asks before it switches (`--yes`: named, not asked). *Prepare rollback* names
+  them too. New share file: `backend\data\v4\decks\<deck>\incident-format-5.json` – the mark; never delete it.
 
 ## 4.5.0 - unreleased (docs/next/07 §4, PLAN M11; B21; ADR-016 amended 2026-10-19)
 

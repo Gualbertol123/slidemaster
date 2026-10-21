@@ -328,6 +328,7 @@ data/
 │  ├─ presence/<user>@<host>#<client>   empty files; their mtime is the heartbeat
 │  ├─ lock                         compaction / migration lock
 │  ├─ incident-<journal>-<offset>.json  a corrupt frame: the deck is read-only until the maintainer looks
+│  ├─ incident-format-5.json       the deck holds Slide Builder 4.6 objects (ADR-019): read-only in 4.0–4.5 only
 │  ├─ moved-from-v3.json · rolled-back.json   written by the migration / a rollback
 ├─ v4/deleted/<key>~<ms>/          a deleted setup (B44, deckbin.py): deck/ (the deck's folder as it was), backups/,
 │                                  v3.json (its frozen v3 file), deleted.json {workbook, gen, slides, tables, by, at};
@@ -446,7 +447,11 @@ conflict → 409 with the current document, retried by the page).
 
 ### 4.4 Format versions (`schema`)
 Current formats: `SCHEMA = {workbook: 3, config: 3, prefs: 1}` (`helper/slidebuilder/upgrade.py`) = `FORMATS`
-(`core/src/model/types.ts`; a helper test checks they match). The deck files have their own `format: 4`.
+(`core/src/model/types.ts`; a helper test checks they match). The deck files have their own `format`: 4, or 5 once
+the deck holds objects 4.0 does not know (charts, callouts, free layout, looks, cell gridlines or borders and every
+later addition). A 4.6 page raises a deck to 5 before it writes such an object (marker `incident-format-5.json`, a
+23 s wait, then the snapshot again at format 5; ARCHITECTURE §6.5, ADR-019): 4.0–4.5 then show it read-only
+("a journal of this deck is damaged" – it means "update Slide Builder"), and it never goes back to 4.
 * **older file** → under its lock: re-read, copy to `backups/upgrades/…`, apply `@step(kind, n)` functions
   n → n+1 in order, write atomically (no step is defined yet). `store.upgrade_all()` runs at every start-up.
 * **newer file** (written by an already-updated PC) → never changed; HTTP 409 "restart Slide Builder".
@@ -455,7 +460,8 @@ Current formats: `SCHEMA = {workbook: 3, config: 3, prefs: 1}` (`helper/slidebui
   writing (its pending ops stay queued).
 * Optional new fields need **no** format change (readers ignore unknown keys; missing = default).
   `helper/tests/fixtures/saved/` keeps a real example of every released format (`config.v3.json`,
-  `workbook.v3.json`, `prefs.unnumbered.json`, `snapshot.v4.json`, `journal.v4.log`); never edit them.
+  `workbook.v3.json`, `prefs.unnumbered.json`, `snapshot.v4.json`, `journal.v4.log`, `snapshot.v5.json`,
+  `journal.v5.log`, `incident-format-5.json`); never edit them.
 
 ### 4.5 Slide Builder 3 documents and the move to v4
 On a deck's first open in 4.x (`POST /api/decks/open`), `migrate_v3.py` – under v3's lock `wb-<key>` and then the
