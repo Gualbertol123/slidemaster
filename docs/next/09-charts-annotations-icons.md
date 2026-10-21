@@ -855,7 +855,7 @@ Branches `v4/M13-guard-slides`, `v4/M14-charts`, `v4/M15-lines-icons-snapping`, 
 `v4/M17-audit`. Each ends with the AUDIT §0 protocol twice on clean clones (incl. export-check's PDF and PowerPoint
 passes) **and CP-01** (the 4.1 / 4.4 / 4.5 experiment with the new objects).
 
-### M13 · Format guard, notices, New slide / Add table (B40–B42; ships 4.6.0) ⇢
+### M13 · Format guard, notices, New slide / Add table, hide slides, font cache (B40–B47; ships 4.6.0) ⇢
 **S13.1 · Format guard** ⏱ — *Read:* `docsync.ts`, `fold.ts`, `decks.py` read / compact, README §4.4. *Do:* `needsV5`,
 `docNeedsV5`, `upgrade()`, the marker route, helper `CREATE_FORMAT` 4 / `READ_FORMATS` {4, 5} / no lowering / the
 `X-SB-Deck-Formats` check, fixtures v5, *Prepare rollback* and `update.py --use` lists; page-size test. *Done when:*

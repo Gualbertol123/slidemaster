@@ -3,9 +3,11 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## 4.6.0 - 2026-10-21 (PLAN M13)
+## 4.6.0 - unreleased (PLAN M13; prepared 2026-10-21, dated at the tag)
 
 What users notice
+* **The share goes from 4.0 straight to 4.6**: users also get everything listed below for 4.1–4.5 (never released
+  on their own).
 * **Scan for "x" tables** (B43): in a large workbook the wizard reads a sheet only when it is selected, so its first
   step showed "not read yet" and no tables. The new button reads the selected sheets at once and shows each one's
   "x" tables, title and suggested tables there; the "x" tables are defined, as *Next* would. Sheets not selected are
@@ -44,6 +46,9 @@ What users notice
   (B41).
 
 For the maintainer
+* **Update day (4.0 → 4.6): every Slide Builder window and black window is closed on every PC before the update**
+  (`docs/next/release-checklist.md` §6); a rollback to 4.0 keeps the decks holding 4.6 objects read-only there –
+  never delete their `incident-format-5.json`.
 * **`THIRD-PARTY-NOTICES.txt`** (AUDIT-2 LIC-1, ADR-020) is written by `node tools/notices.mjs` from the packages the
   page and the core worker really bundle and the licence files of the inlined WASM; `make_release.py` refuses to build
   without it, and `app/tests/notices.test.ts` / `helper/tests/test_release.py` fail when a runtime dependency has no

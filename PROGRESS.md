@@ -159,7 +159,7 @@ numbers measured twice). Measured numbers go into the step's line.
   attacks with `.pptx` names. Verdict: not yet for the share (REL-1, LIC-1, gates) – Waiting for. verified: tests ✓
   clean clone ✓ review ✓ (read-only reviews by sub-agents, re-checked)
 
-### M13 · Format guard, notices, New slide / Add table (4.6.0; B40–B42; docs/next/09 §8, ADR-019, ADR-020)
+### M13 · Format guard, notices, New slide / Add table, hide slides, font cache (4.6.0; B40–B47; docs/next/09 §8, ADR-019, ADR-020)
 - [ ] S13.1 · Format guard ⏱ (CP-01, CP-02; page-size test)
 - [ ] S13.2 · Third-party notices (LI-01; AUDIT-2 LIC-1)
 - [ ] S13.3 · Slide and table ops (`slide.add/remove`, `table.add/remove`; a slide without tables lays out)
