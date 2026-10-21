@@ -1,0 +1,380 @@
+{
+  "about": "A deck as 4.8 (M15) will save it, in the format 4.6 introduced (a format-5 snapshot and the journal records of two writers past its frontier) holding M15's lines and a Tabler icon (S14.P, docs/next/09 §2.3, §2.4, §6 rows 4 and 5): a straight arrow with a free-layout place in Liquid Glass, a dashed divider, an elbow callout line attached to the icon, a range marker. Made by hand for S14.P (named by the version that writes such records, as slides-4.6.json; S14.P review, 8); added, never edited.",
+  "snapshot": {
+    "format": 5,
+    "gen": 2,
+    "workbook": "Weekly.xlsx",
+    "lamport": 4,
+    "rev": 3,
+    "frontier": {
+      "anna@pc1#aaaaaaaa": 1630,
+      "bob@pc2#bbbbbbbb": 512
+    },
+    "seen": {
+      "anna@pc1#aaaaaaaa": 3,
+      "bob@pc2#bbbbbbbb": 1
+    },
+    "updated": 1792000000000,
+    "updatedBy": "anna",
+    "log": [
+      {
+        "rev": 2,
+        "by": "bob",
+        "at": 1791999990000
+      },
+      {
+        "rev": 3,
+        "by": "anna",
+        "at": 1792000000000
+      }
+    ],
+    "at": 1792000005000,
+    "by": "anna",
+    "doc": {
+      "schema": 3,
+      "workbook": "Weekly.xlsx",
+      "rev": 3,
+      "preset": {
+        "sheets": [
+          "Weekly",
+          "Targets"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "Weekly",
+            "kind": "range",
+            "range": "B3:F6"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "title": "Loans",
+            "tables": [
+              "t1"
+            ],
+            "items": {
+              "l1": {
+                "kind": "line",
+                "route": "straight",
+                "a": {
+                  "x": 200,
+                  "y": 400
+                },
+                "b": {
+                  "x": 600,
+                  "y": 400
+                },
+                "style": {
+                  "color": "#1F3864",
+                  "w": 2,
+                  "heads": {
+                    "b": "triangle"
+                  }
+                },
+                "box": {
+                  "x": 199,
+                  "y": 399,
+                  "w": 402,
+                  "h": 2
+                }
+              },
+              "k1": {
+                "kind": "shape",
+                "shape": "icon",
+                "icon": "tabler:target",
+                "stroke": 2,
+                "fill": "#1F3864",
+                "box": {
+                  "x": 700,
+                  "y": 300,
+                  "w": 48,
+                  "h": 48
+                }
+              },
+              "d1": {
+                "kind": "line",
+                "route": "straight",
+                "a": {
+                  "x": 100,
+                  "y": 840
+                },
+                "b": {
+                  "x": 1500,
+                  "y": 840
+                },
+                "style": {
+                  "w": 1,
+                  "dash": "dashed"
+                },
+                "box": {
+                  "x": 99,
+                  "y": 839,
+                  "w": 1402,
+                  "h": 2
+                }
+              }
+            },
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {
+                  "i:l1": {
+                    "x": 299,
+                    "y": 499,
+                    "w": 402,
+                    "h": 2,
+                    "a": {
+                      "x": 300,
+                      "y": 500
+                    },
+                    "b": {
+                      "x": 700,
+                      "y": 500
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "style": {
+        "design": "excel"
+      },
+      "edits": {}
+    }
+  },
+  "records": [
+    {
+      "l": 5,
+      "w": "anna@pc1#aaaaaaaa",
+      "s": 4,
+      "by": "anna",
+      "at": 1792000060000,
+      "ops": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l2",
+          "patch": {
+            "kind": "line",
+            "route": "elbow",
+            "bend": "hv",
+            "mid": 0.5,
+            "a": {
+              "x": 748,
+              "y": 324
+            },
+            "b": {
+              "x": 980,
+              "y": 520
+            },
+            "ends": {
+              "a": {
+                "to": "i:k1",
+                "at": "r"
+              },
+              "b": {
+                "to": "t:t1",
+                "at": "l",
+                "dy": 12
+              }
+            },
+            "style": {
+              "color": "#7F7F7F",
+              "w": 1.5,
+              "heads": {
+                "b": "arrow",
+                "size": "s"
+              }
+            },
+            "box": {
+              "x": 747,
+              "y": 323,
+              "w": 234,
+              "h": 198
+            }
+          }
+        }
+      ]
+    },
+    {
+      "l": 5,
+      "w": "bob@pc2#bbbbbbbb",
+      "s": 2,
+      "by": "bob",
+      "at": 1792000061000,
+      "ops": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": {
+            "a": {
+              "x": 220,
+              "y": 420
+            },
+            "b": {
+              "x": 620,
+              "y": 420
+            },
+            "box": {
+              "x": 219,
+              "y": 419,
+              "w": 402,
+              "h": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "l": 6,
+      "w": "bob@pc2#bbbbbbbb",
+      "s": 3,
+      "by": "bob",
+      "at": 1792000070000,
+      "ops": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l1",
+          "patch": {
+            "style": {
+              "color": "#C00000",
+              "w": 3,
+              "heads": {
+                "a": "oval",
+                "b": "stealth",
+                "size": "l"
+              }
+            }
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "k1",
+          "patch": {
+            "stroke": 1.5
+          }
+        }
+      ]
+    },
+    {
+      "l": 7,
+      "w": "anna@pc1#aaaaaaaa",
+      "s": 5,
+      "by": "anna",
+      "at": 1792000080000,
+      "ops": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "r1",
+          "patch": {
+            "kind": "line",
+            "route": "range",
+            "a": {
+              "x": 1200,
+              "y": 200
+            },
+            "b": {
+              "x": 1200,
+              "y": 600
+            },
+            "text": "{Targets!B3}",
+            "fmt": {
+              "b": true
+            },
+            "style": {
+              "w": 1,
+              "heads": {
+                "a": "bar",
+                "b": "bar"
+              }
+            },
+            "box": {
+              "x": 1199,
+              "y": 199,
+              "w": 2,
+              "h": 402
+            }
+          }
+        },
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "free": {
+              "glass": {
+                "on": true,
+                "items": {
+                  "i:l1": {
+                    "x": 299,
+                    "y": 519,
+                    "w": 402,
+                    "h": 2,
+                    "a": {
+                      "x": 300,
+                      "y": 520
+                    },
+                    "b": {
+                      "x": 700,
+                      "y": 520
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "l": 8,
+      "w": "anna@pc1#aaaaaaaa",
+      "s": 6,
+      "by": "anna",
+      "at": 1792000090000,
+      "ops": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "d1",
+          "patch": null
+        }
+      ]
+    },
+    {
+      "l": 9,
+      "w": "bob@pc2#bbbbbbbb",
+      "s": 4,
+      "by": "bob",
+      "at": 1792000100000,
+      "ops": [
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "d1",
+          "patch": {
+            "style": {
+              "w": 2
+            }
+          }
+        },
+        {
+          "op": "item.patch",
+          "slide": "s1",
+          "id": "l2",
+          "patch": {
+            "mid": 0.3
+          }
+        }
+      ]
+    }
+  ]
+}

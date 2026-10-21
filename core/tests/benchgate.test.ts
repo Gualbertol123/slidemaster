@@ -59,4 +59,8 @@ describe("bench gates", () => {
     const { bad } = await judge({ limits: { a_ms: 10, b_ms: 10, c_ms: 10 }, first: { a_ms: 50, b_ms: 50, c_ms: 5 }, again: r.again, ci: true });
     expect(r.asked).toEqual([["a_ms", "b_ms"]]); expect(bad).toEqual(["b_ms"]);
   });
+  it("a budget no run measured is not gated (S14.P: 09 §7.4's M14 / M15 entries in tools/bench.mjs, skipped until introduced)", async () => {
+    const { gates, bad } = await judge({ limits: { drag_frame_ms: 16, pptx_combo_ms: 3000, icon_first_use_ms: 150, snap_drag_frame_ms: 16 }, first: { drag_frame_ms: 9 }, ci: false });
+    expect(gates.map(g => g.key)).toEqual(["drag_frame_ms"]); expect(bad).toEqual([]);
+  });
 });

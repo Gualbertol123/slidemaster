@@ -1,0 +1,4 @@
+{
+  "bytes": 3976092,
+  "why": "M13 (4.6.0): 3,924,042 bytes at its start + 52,050 for all of M13 (docs/next/09 §8 M13). The page budget is this base plus every milestone's own file here; each is raised only by a decision, never to make a build pass."
+}

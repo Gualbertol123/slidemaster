@@ -177,5 +177,29 @@ class MigrationTests(TempDirs):
         self.assertEqual(migrate.norm_app(None)["design"], "glass")
 
 
+class VectorFilesTests(unittest.TestCase):
+    """the operation vectors the core runs (core/tests/vectors.ts): shared/ops-vectors.json and, since S14.P, one file per
+    parallel milestone in shared/ops-vectors.d (m14.json, m15.json). The helper applies no operation (test_import above),
+    so it checks only that each file is an array of cases and that no name is used twice across the files"""
+
+    def test_vector_files(self):
+        shared = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "shared")
+        d = os.path.join(shared, "ops-vectors.d")
+        files = [os.path.join(shared, "ops-vectors.json")] + [os.path.join(d, f) for f in sorted(os.listdir(d)) if f.endswith(".json")]
+        self.assertEqual([os.path.basename(f) for f in files[1:]][:2], ["m14.json", "m15.json"])
+        seen = {}
+        for f in files:
+            with open(f, encoding="utf-8") as h:
+                cases = json.load(h)
+            self.assertIsInstance(cases, list, f)
+            for c in cases:
+                self.assertIsInstance(c.get("name"), str, f)
+                self.assertIn("expect", c, c["name"])
+                self.assertTrue("fold" in c or ("doc" in c and isinstance(c.get("ops"), list)), c["name"])
+                self.assertNotIn(c["name"], seen, "%s: also in %s" % (c["name"], seen.get(c["name"])))
+                seen[c["name"]] = os.path.basename(f)
+        self.assertGreater(len(seen), 100)
+
+
 if __name__ == "__main__":
     unittest.main()

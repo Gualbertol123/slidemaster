@@ -38,3 +38,17 @@ by node types:
 * Title `text-shadow`: an offset copy of the text run in the shadow's colour, drawn first – no new type.
 Shadows use 5 steps (v3's `printcss.ts` STEPS = 5, as in today's PDFs). Anything else a design needs is either
 expressed with these or recorded in `tests/parity/accepted.json` with its reason.
+
+## Amendment 2026-10-21 (ADR-020; docs/next/09 §3; shipped in S14.P, the shared preparation of M14 and M15)
+`Stroke.join?: "miter" | "round" | "bevel"` (unset = miter, limit 10, as before) – an attribute, not a node type, for
+Tabler's outline icons, smoothed chart lines with markers and elbow lines. Every backend draws it: SVG
+`stroke-linejoin`, canvas `lineJoin`, PDF `j` (0 / 1 / 2), PowerPoint `a:miter lim="1000000"` / `a:round` / `a:bevel`
+(written only when set, so earlier files are unchanged). **Unset is not the same everywhere:** SVG, canvas and PDF
+draw an unset join as miter, but an `a:ln` without a join element gets PowerPoint's own default, which is not miter –
+so a corner drawn before 4.7 looks a little different in PowerPoint than on the slide and in the PDF. That predates
+S14.P and is kept on purpose (existing exports stay byte for byte as they were). The rule from here on: **every new
+stroke whose corners show sets `join` explicitly** – M15's elbow lines, brackets and Tabler outline icons (`round`),
+M14's chart lines with markers and smoothed lines – so all four backends draw the same corner (S14.P review, 9;
+`heads.ts`'s open heads already set `round`). `validate` names a bad value; the `path` fixture of
+`core/tests/dl-fixtures.ts` draws all three, so `tools/dlcheck.mjs` compares them PDF against canvas. Line ends
+(`core/src/render/heads.ts`) are `path` nodes; PowerPoint writes them natively (`a:headEnd` / `a:tailEnd`).

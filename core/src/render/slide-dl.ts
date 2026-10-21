@@ -24,8 +24,9 @@ import { contrastVars, memoPart, noteParts, slideHasLogo, themeVars, type NotePa
 import { areaFor, itemBoxOf, KPI_LINE, NAVY_BAND, SIGNAL_AREA, slideFacts, tableH, tableW, type TBox } from "./layout";
 import { chartNodes, chartSem, type PieGeom } from "./chart-dl";
 import { shapeNodes, shapeRadius } from "./shape-dl";
+import { lineNodes } from "./line-dl";
 import type { ItemSem } from "../pptx/scene";
-import type { Box } from "../model/types";
+import type { Box, ChartItem, LineItem, ShapeItem } from "../model/types";
 import type { Exhibit, ExFacts } from "./exhibit";
 import { deckFmt, hasMarkup, slideTextFmt, titleGeom } from "./text";
 import { todayLabel } from "./cover";
@@ -183,34 +184,52 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
   if (memo) noteNodes(memo, memo.box);
   // the slide's items, in their order (the later on top): beside their table or where they were put
   const items: Record<string, ItemInfo> = {};
+  // per kind (S14.P: M14 owns chartItem, M15 lineItem and shapeItem); a kind this page does not know draws nothing and
+  // has no item info (never on the stage, never exported) – the Issues panel names it (app editor/item-text.ts)
   for (const [id, it] of Object.entries(R.cfg.items || {})) {
-    const box = itemBoxOf(R, id, boxes, ctx); if (!box || !it || (it.kind !== "chart" && it.kind !== "shape")) continue;
-    const s0 = low.length;
-    if (it.kind === "chart") {
-      const family = glassy ? base : C ? C.note.family : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel;
-      const c = chartNodes(it, id, box, ctx, m, { V, wall, family });
-      low.push(...c.nodes);
-      // the PowerPoint export: the card alone under a native chart
-      const sem = opts.sem ? chartSem(it, box, ctx, family) : null;
-      items[id] = { box, issue: c.issue, geom: c.geom, at: [s0, low.length], ...(sem ? { pptx: { kind: "chart", at: [s0, low.length], card: chartNodes(it, id, box, ctx, m, { V, wall, family, noContent: true }).nodes, chart: sem } } : {}) };
-    } else {
-      const s = shapeNodes(it, id, box, ctx, { V, wall, panel: inPanel(box.x) });
-      low.push(...s.nodes);
-      if (s.text.trim()) {
-        // the text as a text box's (markup, wrapping, shrinking to fit down to 9 px), in the shape's own format
-        const f = it.fmt || {}, deck = deckFmt(ctx, "note"), dark = s.ink === "#FFFFFF";
-        const n: Note = { text: s.text, ...(f.font ? { font: f.font } : deck.font ? { font: deck.font } : {}), ...(f.size && +f.size > 0 ? { size: Math.max(6, Math.min(120, +f.size)) } : {}),
-          ...(f.b !== undefined ? { b: !!f.b } : deck.b !== undefined ? { b: deck.b } : {}), ...(f.i ? { i: true } : {}), ...(f.lh && +f.lh > 0 ? { lh: Math.max(.8, Math.min(3, +f.lh)) } : {}),
-          color: /^#[0-9A-Fa-f]{6}$/.test(f.color || "") ? f.color! : !dark && /^#[0-9A-Fa-f]{6}$/.test(deck.color || "") ? deck.color! : s.ink,
-          align: f.align || "center", valign: f.valign || "middle" };
-        noteNodes({ i: -1, side: "top", key: "item:" + id, n, txt: s.text, memo: false, cls: "tnote item", bubble: null, ...(s.ink === "#FFFFFF" && !/^#[0-9A-Fa-f]{6}$/.test(f.color || "") ? { ink: "#FFFFFF" } : {}) }, s.textBox);
-      }
-      items[id] = { box, issue: s.issue, geom: null, at: [s0, low.length],
-        ...(opts.sem ? { pptx: { kind: "shape", at: [s0, low.length], shape: it.shape, box, tail: it.tail ?? null, radius: shapeRadius(it, ctx, inPanel(box.x)) } } : {}) };
-    }
+    const box = itemBoxOf(R, id, boxes, ctx); if (!box || !it) continue;
+    const info = it.kind === "chart" ? chartItem(it, id, box) : it.kind === "shape" ? shapeItem(it, id, box) : it.kind === "line" ? lineItem(it, id, box) : null;
+    if (info) items[id] = info;
   }
   if (logo) logoNodes(logo);
   return { nodes: [...low, ...z3, ...z5], images, items };
+
+  /* ---- items ---- */
+  /* a chart (4.3; series charts 4.7, M14) */
+  function chartItem(it: ChartItem, id: string, box: Box): ItemInfo {
+    const s0 = low.length;
+    const family = glassy ? base : C ? C.note.family : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel;
+    const c = chartNodes(it, id, box, ctx, m, { V, wall, family });
+    low.push(...c.nodes);
+    // the PowerPoint export: the card alone under a native chart
+    const sem = opts.sem ? chartSem(it, box, ctx, family) : null;
+    return { box, issue: c.issue, geom: c.geom, at: [s0, low.length], ...(sem ? { pptx: { kind: "chart", at: [s0, low.length], card: chartNodes(it, id, box, ctx, m, { V, wall, family, noContent: true }).nodes, chart: sem } } : {}) };
+  }
+  /* a callout or an icon (4.3; Tabler icons 4.8, M15) */
+  function shapeItem(it: ShapeItem, id: string, box: Box): ItemInfo {
+    const s0 = low.length;
+    const s = shapeNodes(it, id, box, ctx, { V, wall, panel: inPanel(box.x) });
+    low.push(...s.nodes);
+    if (s.text.trim()) {
+      // the text as a text box's (markup, wrapping, shrinking to fit down to 9 px), in the shape's own format
+      const f = it.fmt || {}, deck = deckFmt(ctx, "note"), dark = s.ink === "#FFFFFF";
+      const n: Note = { text: s.text, ...(f.font ? { font: f.font } : deck.font ? { font: deck.font } : {}), ...(f.size && +f.size > 0 ? { size: Math.max(6, Math.min(120, +f.size)) } : {}),
+        ...(f.b !== undefined ? { b: !!f.b } : deck.b !== undefined ? { b: deck.b } : {}), ...(f.i ? { i: true } : {}), ...(f.lh && +f.lh > 0 ? { lh: Math.max(.8, Math.min(3, +f.lh)) } : {}),
+        color: /^#[0-9A-Fa-f]{6}$/.test(f.color || "") ? f.color! : !dark && /^#[0-9A-Fa-f]{6}$/.test(deck.color || "") ? deck.color! : s.ink,
+        align: f.align || "center", valign: f.valign || "middle" };
+      noteNodes({ i: -1, side: "top", key: "item:" + id, n, txt: s.text, memo: false, cls: "tnote item", bubble: null, ...(s.ink === "#FFFFFF" && !/^#[0-9A-Fa-f]{6}$/.test(f.color || "") ? { ink: "#FFFFFF" } : {}) }, s.textBox);
+    }
+    return { box, issue: s.issue, geom: null, at: [s0, low.length],
+      ...(opts.sem ? { pptx: { kind: "shape", at: [s0, low.length], shape: it.shape, box, tail: it.tail ?? null, radius: shapeRadius(it, ctx, inPanel(box.x)) } } : {}) };
+  }
+  /* a line (4.8, M15; 09 §2.3): S14.P's stub draws nothing (render/line-dl.ts) */
+  function lineItem(it: LineItem, id: string, box: Box): ItemInfo {
+    const s0 = low.length;
+    const l = lineNodes(it, id, box, ctx);
+    low.push(...l.nodes);
+    return { box, issue: l.issue, geom: null, at: [s0, low.length],
+      ...(opts.sem ? { pptx: { kind: "line", at: [s0, low.length], heads: it.style?.heads ?? null } } : {}) };
+  }
 
   /* a nowrap line with an ellipsis in a box from left to 1600 − right (titles), the inherited line height unless set */
   function oneLine(cls: string, f: TextFmt, text: string, left: number, top: number, right: number, st0: TStyle, shadow: boolean, lh0 = INHERITED) {

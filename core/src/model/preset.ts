@@ -3,7 +3,7 @@ import { buildLayout } from "../xlsx/layout";
 import { A1, parseRange, uid } from "../xlsx/util";
 import type { Range } from "../xlsx/util";
 import type { Sheet, TableLayout, Workbook } from "../xlsx/types";
-import type { Design, Preset, RuntimeSlide, SlideDef, TableDef, TableSizes } from "./types";
+import type { ChartItem, Design, LineItem, Preset, RuntimeSlide, ShapeItem, SlideDef, TableDef, TableSizes } from "./types";
 
 export const SLIDE_RX = /slide/i;
 export const visibleSheets = (wb: Workbook) => wb.sheets.filter(S => !S.hidden);
@@ -15,16 +15,34 @@ export const gToRange = (g: Range) => A1(g.r1 + 1, g.c1 + 1) + ":" + A1(g.r2 - 1
 export const validRange = (r: unknown) => /^\$?[A-Z]{1,3}\$?\d{1,7}(:\$?[A-Z]{1,3}\$?\d{1,7})?$/i.test(String(r || "").trim());
 /** the sheets a deck reads: its tables' and those its slide items (charts, callouts) draw from (4.3) */
 export const presetSheets = (p: Preset | null | undefined) => [...new Set([...((p && p.tables) || []).map(t => t.sheet), ...itemSheets(p)])];
-/** the sheet ids the slide items name: a chart's values / labels ranges, a callout's {Sheet!C7} references */
+/** the sheet ids the slide items name: a chart's values / labels ranges, a callout's {Sheet!C7} references. Per kind
+    (S14.P review, 4): each kind's own function below, so M14 (charts: sers / groups / marks) and M15 (line labels,
+    icons) never edit the same lines; a kind this page does not know names none */
 export function itemSheets(p: Preset | null | undefined): string[] {
   const out: string[] = [];
   for (const s of (p && p.slides) || []) for (const it of Object.values(s.items || {})) {
     if (!it || typeof it !== "object") continue;
-    for (const ref of it.kind === "chart" ? [it.values, it.labels] : []) if (ref && typeof ref === "object" && "sheet" in ref && typeof ref.sheet === "string" && ref.sheet) out.push(ref.sheet);
-    if (it.kind === "shape" && typeof it.text === "string") for (const m of it.text.matchAll(CELL_TOKEN)) out.push(tokenSheet(m[1]));
+    const f = ITEM_SHEETS[it.kind];
+    if (f) out.push(...f(it as never));
   }
   return out;
 }
+const refSheet = (ref: unknown): string[] => ref && typeof ref === "object" && "sheet" in ref && typeof (ref as { sheet: unknown }).sheet === "string" && (ref as { sheet: string }).sheet ? [(ref as { sheet: string }).sheet] : [];
+const textSheets = (text: unknown): string[] => typeof text === "string" ? [...text.matchAll(CELL_TOKEN)].map(m => tokenSheet(m[1])) : [];
+/** a chart (M14): its values and labels */
+function chartSheets(it: ChartItem): string[] {
+  return [it.values, it.labels].flatMap(refSheet);
+}
+/* ---- M14 above this line, M15 below it ---- */
+/** a callout or an icon (M15): the cells its text quotes */
+function shapeSheets(it: ShapeItem): string[] {
+  return textSheets(it.text);
+}
+/** a line (M15): the cells its label quotes */
+function lineSheets(it: LineItem): string[] {
+  return textSheets(it.text);
+}
+const ITEM_SHEETS: Record<string, (it: never) => string[]> = { chart: chartSheets, shape: shapeSheets, line: lineSheets };
 /** a cell quoted in a callout's text: {Sheet!C7}, {'Sheet name'!C7}, {[Peers.xlsx]Peer!F7} (07 §3) */
 export const CELL_TOKEN = /\{((?:'[^']+'|[^{}!]+))!\$?([A-Z]{1,3})\$?([0-9]{1,7})\}/g;
 /** the sheet id of a token's sheet part ('quoted' names unquoted) */

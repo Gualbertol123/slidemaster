@@ -18,6 +18,13 @@ const PREVIEW: Record<string, string> = {
   rect: d([["M", 2, 6], ["L", 22, 6], ["L", 22, 18], ["L", 2, 18], ["Z"]]), round: "M6 6h12a4 4 0 0 1 4 4v4a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4v-4a4 4 0 0 1 4-4z",
   pill: "M8 7h8a5 5 0 0 1 0 10H8a5 5 0 0 1 0-10z", circle: d(ellipseCmds(3, 3, 18, 18)), arrow: d(arrowCmds(2, 5, 20, 14)), bubble: d(bubbleCmds(2, 3, 20, 13, 3, { x: 7, y: 21 })),
 };
+/** Insert shape ▾: the ribbon's shape entry, one of the Insert slots (InsertSlots.tsx, S14.P) */
+export function ShapeInsert() {
+  const R = useCurSlide();
+  return <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="shapeBtn" disabled={!R} title="A callout: a shape or an icon, with text that can quote cells ({Sheet!C7})" onClick={t}>
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="2.5" width="11" height="8" rx="2" /><path d="M4 10.5 3 14l4-3.5" /></svg>Insert shape ▾</button>}>
+    {close => <ShapeMenu close={close} />}</Dropdown>;
+}
 export function ShapeMenu({ close }: { close: () => void }) {
   return <div className="shapemenu">
     <div className="hd">Shapes <small>with text; {"{Sheet!C7}"} quotes a cell</small></div>

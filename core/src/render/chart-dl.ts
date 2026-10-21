@@ -23,7 +23,7 @@ import { specOf } from "./consult-spec";
 import { deckFmt } from "./text";
 import { fontStack } from "../model/fonts";
 import { parseColor, solid } from "../dl/color";
-import type { ChartSem } from "../pptx/scene";
+import type { ChartSem } from "../pptx/chart-sem";
 
 /* ---- data ---- */
 export interface Slice { label: string; v: number; text: string }

@@ -41,25 +41,98 @@ export interface Note { text: string; font?: string; size?: number; /** line spa
 export type DataRef = { sheet: string; range: string } | { table: string; range: string };
 /** a rectangle in slide px (1600 × 900) */
 export interface Box { x: number; y: number; w: number; h: number }
-export type ItemKind = "chart" | "shape";
-export interface ChartItem { kind: "chart"; type: "pie" | "donut" | "bar" | "column" | "line";
+export type ItemKind = "chart" | "shape" | "line";
+/* ---- charts with series (4.7, M14; docs/next/09 §2.2, ADR-015 amendment). Every field optional: a chart without `sers`
+   draws exactly as before (values / labels / series / legend / colors keep their meaning; a pie stays a pie) ---- */
+export type ChartType = "pie" | "donut" | "bar" | "column" | "line" | "area" | "scatter" | "waterfall" | "combo";
+export type SeriesType = "column" | "bar" | "line" | "area" | "scatter";
+/** a line's look: colour, weight px, dash */
+export interface LineStyle { color?: string; w?: number; dash?: "solid" | "dashed" | "dotted" | "dashdot" }
+/** a line that can be switched off (S14.P review, 2): unset = the design's default, "none" = no line, else its look.
+    Not `null`: item.patch's null deletes a plain key, so a stored null could never exist for `frame` / `titleRule`. Inside
+    a map entry (`groups[g].divider`, `axes[a].line`) the whole entry is cloned, so a null there would survive – the
+    page writes "none" there too, and a reader takes a null as "none" */
+export type LineOrNone = LineStyle | "none";
+export interface ChartSeries {
+  /** order (ties: id); series are drawn and listed by n */ n: number;
+  /** text, or a cell (follows the workbook) */ name?: string | DataRef;
+  /** one or more rectangles, concatenated (values from different places) */ vals: DataRef[];
+  /** scatter: the x values */ xs?: DataRef[];
+  /** "actual inside target": the target per point (an outlined bar of that height) */ target?: DataRef[];
+  /** the category group the values stand on (default: the first) */ group?: string;
+  /** combo: this series' type (else the chart's) */ type?: SeriesType;
+  /** the value axis (y2 = right) */ axis?: "y" | "y2";
+  /** series with the same stack key stack (column / bar / area) */ stack?: string;
+  color?: string; line?: LineStyle; fill?: "solid" | "none";
+  /** line / scatter: smoothed (Catmull–Rom, 09 §3.2) */ smooth?: boolean;
+  marker?: { shape?: "circle" | "square" | "diamond" | "triangle" | "none"; size?: number; color?: string };
+  labels?: { show: ("value" | "name" | "category" | "percent" | "ofTarget")[];
+    pos?: "above" | "below" | "left" | "right" | "center" | "inEnd" | "inBase" | "outEnd";
+    fmt?: TextFmt; /** a number format code; else the cells' */ num?: string };
+  /** per point, by index: colour, marker colour (hex), label text (null = none) */
+  points?: Record<string, { color?: string; marker?: string; label?: string | null }>;
+  /** kept, not drawn */ hide?: boolean;
+}
+/** a list of categories on the x axis; groups stand side by side, an optional divider between them */
+export interface ChartGroup { n: number; cats: DataRef | string[]; divider?: LineOrNone | null; label?: string }
+export interface ChartAxis { show?: boolean; min?: number; max?: number; step?: number; num?: string; title?: string;
+  grid?: boolean; fmt?: TextFmt; line?: LineOrNone | null }
+/** where a mark stands: a series' point, a category group's edge, or data coordinates (a category name or index) */
+export type MarkAt = { s: string; i: number }
+  | { g: string; edge: "start" | "end" }
+  | { x: number | string; y: number; axis?: "y" | "y2" };
+/** an annotation in data coordinates (it follows the data and a scenario value) */
+export interface ChartMark { kind: "arrow" | "line" | "band" | "icon" | "text";
+  a: MarkAt; b?: MarkAt | "floor" | "ceiling";
+  style?: LineStyle & { heads?: Heads }; icon?: string; size?: number; text?: string; fmt?: TextFmt; dy?: number }
+/** the legend's place (F15); "inside-*" draws a card behind it */
+export type LegendAt = "right" | "left" | "top" | "bottom" | "top-right" | "inside-tl" | "inside-tr" | "none";
+export interface ChartItem { kind: "chart"; /** without `sers` a type other than donut draws as a pie, as before 4.7 (09 §2.2) */ type: ChartType;
   values: DataRef; labels?: DataRef; /** series name: the title when `title` is unset */ series?: string;
   /** "" = no title; unset = the series name */ title?: string; legend?: "right" | "bottom" | "none"; show?: ("label" | "value" | "percent")[];
   /** slice index → colour; absent = the design's palette */ colors?: Record<string, string>; /** degrees clockwise from 12 o'clock */ startAngle?: number;
   /** label text style over the deck's "note" style */ fmt?: TextFmt;
-  box: Box; /** laid out beside a table, as a text box; else placed at `box` */ attach?: { table: string; side: Side } }
+  box: Box; /** laid out beside a table, as a text box; else placed at `box` */ attach?: { table: string; side: Side };
+  /* 4.7 (M14; 09 §2.2): maps merged per entry by item.patch (a whole series / group / axis / mark) */
+  sers?: Record<string, ChartSeries>; groups?: Record<string, ChartGroup>; axes?: Partial<Record<"x" | "y" | "y2", ChartAxis>>;
+  marks?: Record<string, ChartMark>;
+  stack?: "none" | "stacked" | "percent"; /** % of a bar */ gap?: number; overlap?: number;
+  /** wins over `legend` when set */ legendAt?: LegendAt;
+  /** series id (or a pie's point index) → out of the legend, still drawn */ legendHide?: Record<string, true>;
+  /** unset = the design's; "none" = none */ frame?: LineOrNone; titleRule?: LineOrNone; /** the plot area inside the box (optional) */ plot?: Box;
+  /** the title's own format (`fmt` is the labels') */ titleFmt?: TextFmt }
+/* ---- lines and annotations on the slide (4.8, M15; docs/next/09 §2.3) ---- */
+/** "bar" = a limiter tick */
+export type Head = "none" | "arrow" | "triangle" | "stealth" | "oval" | "diamond" | "bar";
+export interface Heads { a?: Head; b?: Head; size?: "s" | "m" | "l" }
+/** an end attached to an object: it follows that point of the object in the design being drawn */
+export interface Anchor { /** "t:<table>" | "i:<item>" | "n:<noteKey>" */ to: string;
+  at: "l" | "r" | "t" | "b" | "c" | "tl" | "tr" | "bl" | "br"; dx?: number; dy?: number }
+export type LineRoute = "straight" | "elbow" | "curve" | "bracket" | "range";
+export interface LineItem { kind: "line"; route: LineRoute;
+  /** slide px; the ends when not attached */ a: { x: number; y: number }; b: { x: number; y: number };
+  /** elbow: where the bend sits (0–1 along the run); bracket: depth px; curve: bulge */ mid?: number;
+  /** elbow: horizontal first or vertical first */ bend?: "hv" | "vh";
+  /** attachment per end */ ends?: { a?: Anchor; b?: Anchor };
+  /** colour, weight 0.5–8 px, dash, heads */ style?: LineStyle & { heads?: Heads };
+  /** a label at the middle (may quote cells, {Sheet!C7}) */ text?: string; fmt?: TextFmt;
+  /** the bounds of a–b padded to ≥ 1 px each side (item.patch needs w, h > 0); drawing, hits and exports take the
+      geometry from the resolved ends, never from it */ box: Box;
+  /** never beside a table: a line's ends attach instead (`ends`) */ attach?: undefined }
 export type ShapeKind = "rect" | "round" | "circle" | "pill" | "arrow" | "bubble" | "icon";
-export interface ShapeItem { kind: "shape"; shape: ShapeKind; /** a built-in icon name (render/icons.ts) */ icon?: string;
+export interface ShapeItem { kind: "shape"; shape: ShapeKind;
+  /** a built-in icon name (render/icons.ts), or "tabler:<name>" / "tabler-filled:<name>" (4.8, 09 §2.4) */ icon?: string;
+  /** an outline icon's stroke width, px at 24 (1–3, default 2; 4.8) */ stroke?: number;
   /** may quote cells: {Sheet!C7} / {[Peers.xlsx]Peer!F7} */ text?: string;
   /** unset = the design's material; "none" = no fill */ fill?: string; border?: { color: string; w: number; dash?: "solid" | "dashed" | "dotted" } | null; radius?: number;
   fmt?: TextFmt & { valign?: "top" | "middle" | "bottom"; pad?: number }; /** bubble tail tip, slide px */ tail?: { x: number; y: number };
   box: Box; attach?: { table: string; side: Side } }
-export type Item = ChartItem | ShapeItem;
+export type Item = ChartItem | ShapeItem | LineItem;
 /** free layout of one design of a slide (4.4, B18; docs/next/07 §5.1, ADR-017): with `on`, the slide's tables, text boxes and
     items sit at these boxes (slide px) – keys "t:<tableId>", "n:<noteKey>", "i:<itemId>"; a table's `scale` is its drawn
     scale (its box's width and height follow from it); `on: false` keeps the boxes for the next switch-on. The slide's notes
     section ("slide:notes") is not in it: it is placed by its own x / y in every layout */
-export interface FreeLayout { on: boolean; items: Record<string, Box & { scale?: number }> }
+export interface FreeLayout { on: boolean; items: Record<string, Box & { scale?: number; /** a line's ends in this design (4.8, 09 §2.3) */ a?: { x: number; y: number }; b?: { x: number; y: number } }> }
 export interface SlideDef {
   id: string; type: SlideType;
   title?: string | null; subtitle?: string | null; date?: string | null; note?: string | null;
@@ -120,8 +193,13 @@ export interface ConfigDoc { schema: number; rev: number; updated?: number; upda
 export interface Prefs { lastFile?: string | null; pdfMode?: "exact" | "vector" | null; zoom?: number | "fit" | null; /** version shown on screen, per workbook */ versions?: Record<string, string> | null; /** soft shadows on screen: one blurred shape instead of the 5 layers the PDF draws (B3) */ softShadows?: boolean | null }
 
 type Nullable<T> = { [K in keyof T]?: T[K] | null };
-type ItemFields = Omit<ChartItem, "kind" | "colors" | "fmt"> & Omit<ShapeItem, "kind" | "fmt">;
-export type ItemPatch = Nullable<Partial<ItemFields>> & { kind?: ItemKind; colors?: Record<string, string | null> | null; fmt?: Record<string, unknown> | null };
+type ItemMaps = "colors" | "fmt" | "sers" | "groups" | "axes" | "marks" | "legendHide" | "titleFmt";
+type ItemFields = Omit<ChartItem, "kind" | ItemMaps> & Omit<ShapeItem, "kind" | "fmt"> & Omit<LineItem, "kind" | "fmt" | "attach">;
+/** an item.patch: plain keys replaced whole (null deletes), maps merged per entry (null deletes an entry, or the map) */
+export type ItemPatch = Nullable<Partial<ItemFields>> & { kind?: ItemKind; colors?: Record<string, string | null> | null; fmt?: Record<string, unknown> | null;
+  sers?: Record<string, ChartSeries | null> | null; groups?: Record<string, ChartGroup | null> | null;
+  axes?: Partial<Record<"x" | "y" | "y2", ChartAxis | null>> | null; marks?: Record<string, ChartMark | null> | null;
+  legendHide?: Record<string, true | null> | null; titleFmt?: Record<string, unknown> | null };
 export type Op =
   | { op: "preset.set"; preset: Preset | null }
   | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "valign" | "scale" | "subs">> & { notes?: Record<string, Note | null> | null; sizes?: Partial<Record<Design, SlideSizing | null>> | null; fmt?: Partial<Record<SlideTextKey, TextFmt | null>> | null; free?: Partial<Record<Design, FreeLayout | null>> | null; looks?: Partial<Record<Design, Partial<import("./designs").ConsultOptions> | null>> | null; hide?: Partial<Record<Design, true | null>> | null } }

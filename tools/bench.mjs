@@ -78,8 +78,19 @@ const BUDGET = { open_deck20_ms: 400, read_big30_ms: 1000, longest_task_ms: 50, 
   // recalculated + its 20 slides exported, 20 values; no main-thread task over 50 ms during the runs
   scenario_one_ms: 3000, scenario_20_ms: 40000, scenario_task_ms: 50,
   // M8 S8.4 (07 §6.4): a preview's switch – the click on Preview to the stage showing the value – on deck20, warm engine
-  preview_switch_ms: 400 };
-const speed = speedFactor(), TIMED = ["open_deck20_ms", "read_big30_ms", "export_glass_ms", "export_excel_ms", "pptx_glass_ms", "pptx_excel_ms", "export_navy_ms", "export_red_ms", "open_navy_ms", "scenario_one_ms", "scenario_20_ms", "preview_switch_ms"];   // keypress: not scaled (decision 2026-10-12 names the others)
+  preview_switch_ms: 400,
+  // 09 §7.4 (S14.P): the page's budgets of M14 and M15, skipped until the step that introduces each measures it – judge()
+  // gates only what a run measured (tools/benchgate.mjs). Each milestone fills in its own side of the line below
+  // S14.6: Export ▾ › PowerPoint of deck20 with 6 combo charts (Liquid Glass) < 3 s
+  pptx_combo_ms: 3000,
+  /* ---- M14 above this line, M15 below it ---- */
+  // S15.2: the icon set's first use (in the worker, cold) < 150 ms; the icon picker, keystroke → results drawn, p95 < 50 ms
+  // S15.4: a drag frame with snapping on, 60 objects on the slide < 16 ms (the drag-frame budget, unchanged)
+  icon_first_use_ms: 150, icon_picker_p95_ms: 50, snap_drag_frame_ms: 16,
+};
+/** 09 §7.4's times scaled by this machine's speed (the picker's keystroke and the drag frame are not, as keypress and drags) */
+const TIMED_09 = ["pptx_combo_ms", "icon_first_use_ms"];
+const speed = speedFactor(), TIMED = [...TIMED_09, "open_deck20_ms", "read_big30_ms", "export_glass_ms", "export_excel_ms", "pptx_glass_ms", "pptx_excel_ms", "export_navy_ms", "export_red_ms", "open_navy_ms", "scenario_one_ms", "scenario_20_ms", "preview_switch_ms"];   // keypress: not scaled (decision 2026-10-12 names the others)
 // on CI only (decision 2026-10-18): the main-thread task and frame-gap limits follow the runner's speed too – the factor
 // the engine bench measured before this one (core/bench/wasmcalib.ts); keypress and drag frames stay as they are
 const UNTIMED_CI = ["longest_task_ms", "first_draw_task_ms", "longest_navy_task_ms", "first_draw_navy_task_ms", "thumbs_gap_ms", "scenario_task_ms"];

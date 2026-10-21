@@ -86,7 +86,11 @@ export function nodeFixtures(a: FixtureAssets): Fixtures {
       // a slanted border (slantDashDot)
       { t: "path", d: [["M", 800, 520], ["L", 1500, 520], ["L", 1500, 524], ["L", 800, 524], ["Z"]], fill: { solid: INK } },
       // a sharp joint: the miter reaches out (limit 10 in every backend)
-      { t: "path", d: [["M", 900, 800], ["L", 1100, 620], ["L", 1300, 800]], stroke: { w: 10, paint: { solid: BLUE } } }],
+      { t: "path", d: [["M", 900, 800], ["L", 1100, 620], ["L", 1300, 800]], stroke: { w: 10, paint: { solid: BLUE } } },
+      // joins (ADR-004 amendment, ADR-020; 09 §3): round, bevel and an explicit miter – every backend draws all three
+      { t: "path", d: [["M", 110, 885], ["L", 190, 830], ["L", 270, 885]], stroke: { w: 14, paint: { solid: RED }, join: "round" } },
+      { t: "path", d: [["M", 330, 885], ["L", 410, 830], ["L", 490, 885]], stroke: { w: 14, paint: { solid: GREEN }, join: "bevel" } },
+      { t: "path", d: [["M", 550, 885], ["L", 630, 830], ["L", 710, 885]], stroke: { w: 14, paint: { solid: BLUE }, join: "miter", cap: "round" } }],
     line: [bg(),
       { t: "line", x1: 100, y1: 100, x2: 1500, y2: 100, stroke: { w: .5, paint: { solid: INK } } },
       { t: "line", x1: 100, y1: 160, x2: 1500, y2: 160, stroke: { w: 1, paint: { solid: INK } } },

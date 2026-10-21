@@ -12,5 +12,7 @@
 | `cellgrid-4.4.json` | a deck with gridlines on selected cells (`TableDef.cellGrid`, 4.4) read and edited by the frozen 4.1 operations (`cellgrid-fallback.test.ts`) | made by hand for M10 (S10.3) |
 | `borders-4.4.json` | a deck with cell borders set on the slide (`TableDef.borders`, 4.4) read and edited by the frozen 4.1 operations (`borders-fallback.test.ts`) | made by hand for M10 (S10.3b) |
 | `saved/slides-4.6.json` | a deck as 4.6 saves it after New slide and Add table: a format-5 snapshot and two writers' records with `slide.add` / `slide.remove` / `table.add` / `table.remove` (09 §2.8), folded in `ops.test.ts` | made by hand for M13 (S13.3) |
+| `saved/charts-4.7.json` | a deck as 4.7 (M14) will save it: a format-5 snapshot and two writers' records building series charts (`sers`, `groups`, `axes`, `marks`, `legendHide`, `titleFmt`; 09 §2.2, §6 rows 1–3, 18), folded in `ops.test.ts` | made by hand for S14.P (the shared preparation of M14 and M15) |
+| `saved/lines-4.8.json` | a deck as 4.8 (M15) will save it: lines (kind `line`; 09 §2.3, §6 rows 4–5), a line's place in a free layout and a Tabler icon's `stroke`, folded in `ops.test.ts` | made by hand for S14.P |
 | `consult-4.2.json` | a deck saved in Consulting Navy with settings of both consulting designs | made by hand for M7b |
 | `images/wall-blur.jpg` | a small JPEG (800 × 450, the spike's blurred wallpaper) | `spikes/pdfwriter/assets/` |

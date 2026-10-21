@@ -137,8 +137,8 @@ export class ExportHost {
     const pages = lists.map(l => l.dl.nodes);
     // the export path checks what the designs hand it (the writer itself does not validate, core/pdf/README.md)
     const bad = [...pages.flatMap((p, i) => validate(p, `slide ${lists[i].slide + 1}`)),
-      // the PowerPoint export's chart cards (drawn alone for it) are checked as the lists are
-      ...lists.flatMap(l => Object.entries(l.sem?.items || {}).flatMap(([id, it]) => it.kind === "chart" ? validate(it.card, `slide ${l.slide + 1} chart ${id}`) : []))];
+      // the PowerPoint export's chart cards and overlays (drawn alone for it) are checked as the lists are
+      ...lists.flatMap(l => Object.entries(l.sem?.items || {}).flatMap(([id, it]) => it.kind === "chart" ? [...validate(it.card, `slide ${l.slide + 1} chart ${id}`), ...(it.overlay ? validate(it.overlay, `slide ${l.slide + 1} chart ${id} overlay`) : [])] : []))];
     if (bad.length) throw new Error("the slides could not be drawn: " + bad.slice(0, 3).join("; "));
     const images = await this.images(lists);
     const t1 = now();

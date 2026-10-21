@@ -148,7 +148,8 @@ made – stay `format: 4` and keep opening in 4.0 during the rollout.
 ### 2.1 Principles kept (07 §2.1) and what changes
 * Everything saved is in `core/src/model/types.ts`; semantics only in `core/src/model/ops.ts`; every new key or op has
   `shared/ops-vectors.json` cases (create, patch, delete, two writers, inverse round trip, fold in any order, unknown
-  value skipped) and an inverse.
+  value skipped) and an inverse. From S14.P on, M14's cases go in `shared/ops-vectors.d/m14.json` and M15's in
+  `m15.json` (the two branches never append to one array; `docs/next/M14-M15-split.md`).
 * All new fields optional; `workbook: 3` unchanged; a deck's snapshot `format` becomes 5 only through §1.
 * Cell references stay **A1 text in a sheet id** (`Sheet`, `[File.xlsx]Sheet`), as tables, charts and versions store
   them; sheet renames and inserted rows are not tracked (Issues line, 07 §2.1).
@@ -181,9 +182,9 @@ export interface ChartSeries {
   points?: Record<string /* index */, { color?: string; marker?: string /* hex */; label?: string | null /* null = none */ }>;
   hide?: boolean;                              // kept, not drawn
 }
-export interface ChartGroup { n: number; cats: DataRef | string[]; divider?: LineStyle | null; label?: string }
+export interface ChartGroup { n: number; cats: DataRef | string[]; divider?: LineOrNone | null; label?: string }
 export interface ChartAxis { show?: boolean; min?: number; max?: number; step?: number; num?: string; title?: string;
-  grid?: boolean; fmt?: TextFmt; line?: LineStyle | null }
+  grid?: boolean; fmt?: TextFmt; line?: LineOrNone | null }
 export type MarkAt = { s: string; i: number }                 // a series' point
                    | { g: string; edge: "start" | "end" }    // a category group's edge
                    | { x: number | string; y: number; axis?: "y" | "y2" };   // data coordinates (category name or index)
@@ -195,7 +196,9 @@ export interface ChartMark { kind: "arrow" | "line" | "band" | "icon" | "text";
 //              stack?: "none" | "stacked" | "percent"; gap?: number /* % of a bar */; overlap?: number;
 //              legendAt?: "right" | "left" | "top" | "bottom" | "top-right" | "inside-tl" | "inside-tr" | "none";
 //              legendHide?: Record<string /* series id, or point index for pie */, true>;
-//              frame?: LineStyle | null; titleRule?: LineStyle | null; plot?: Box /* plot area inside the box, optional */
+//              frame?: LineOrNone; titleRule?: LineOrNone; plot?: Box /* plot area inside the box, optional */
+//              /* LineOrNone = LineStyle | "none": unset = the design's, "none" = no line (S14.P review: item.patch's null
+//                 deletes a plain key, so null cannot mean "none"; inside a group / axis entry a null survives, read as "none") */
 //              titleFmt?: TextFmt   /* the title's own format; today the title takes the deck's "note" style and `fmt` is the labels' */
 ```
 
@@ -719,10 +722,10 @@ document in any order, that it reaches every export and comes back on reopen on 
 
 | # | State | Saved as (op) | Merge with another user | Undo (inverse) | Fold in any order | Exports (PDF · PNG · PowerPoint · scenario) | Reopen / other PC | Guard |
 |---|---|---|---|---|---|---|---|---|
-| 1 | chart series (`sers`) | `item.patch` map | per series; same series → Lamport | per entry | OV "sers two writers both win" + reversed fold | DL · DL · `c:ser` + caches · overlay drawn | FX `charts-4.6.json` | U chart-dl CT-01…; PF caches; E CT-05 |
+| 1 | chart series (`sers`) | `item.patch` map | per series; same series → Lamport | per entry | OV "sers two writers both win" + reversed fold | DL · DL · `c:ser` + caches · overlay drawn | FX `charts-4.7.json` | U chart-dl CT-01…; PF caches; E CT-05 |
 | 2 | groups, axes, marks, legendHide | `item.patch` maps | per entry | per entry | OV per map | as 1; marks as shapes over the chart (PowerPoint) | FX | U; PF mark positions (Windows) |
 | 3 | chart plain keys (stack, gap, overlap, legendAt, frame, titleRule, plot, type values) | `item.patch` keys | per key (Lamport) | per key | OV | as 1 | FX | U; OV |
-| 4 | line items (route, a, b, mid, bend, ends, style, text) | `item.patch` kind `line` | per key; `ends`, `style` whole | per key; create ↔ delete | OV create / move / attach / delete | `line` / `path` · DL · `p:sp` line / custGeom with heads, no `cxnSp` · drawn | FX `lines-4.6.json` | U line-dl; E LN-01…; PF no `cxnSp` (exists) |
+| 4 | line items (route, a, b, mid, bend, ends, style, text) | `item.patch` kind `line` | per key; `ends`, `style` whole | per key; create ↔ delete | OV create / move / attach / delete | `line` / `path` · DL · `p:sp` line / custGeom with heads, no `cxnSp` · drawn | FX `lines-4.8.json` | U line-dl; E LN-01…; PF no `cxnSp` (exists) |
 | 5 | icon items (`icon: tabler:*`, `stroke`) | `item.patch` | per key | per key | OV | stroked `path` · DL · custGeom | FX; the set is in the page (no network) | U icons (every name resolves; `vendor-tabler` hash test); E IC-01 |
 | 6 | slide `hidden` rows / columns | `slide.patch` map | per row / column | per entry | OV | closed up in every export; PowerPoint table without the rows | FX `hidden-4.6.json` | U layout / comment / chart; E HR-01 |
 | 7 | version `drop` (and `hide` via the new op) | `version.patch` | per version, per sheet list | per entry; create ↔ delete | OV | each version's lists; every version × design; scenario × versions | FX `versions-4.6.json` | U; E VD-01…03; PF versions × designs (AUDIT §0 step 16) |

@@ -18,7 +18,9 @@
    PowerPoint (4.5, B21; docs/next/07 §4.3, 05 PX-01…PX-04): every deck × design – and the chart corpus
    (tests/corpus/charts) – is also exported with Export ▾ › PowerPoint · all slides. Each .pptx is then checked by
    tools/pptxcheck.py: (1) structure, (2) content, (3) opened in PowerPoint without a repair, its slide count and texts read
-   back (Windows with PowerPoint; --no-ppt or elsewhere: 1–2 only); its texts against the goldens (GT, as the PDF's: every
+   back (Windows with PowerPoint; --no-ppt or elsewhere: 1–2 only); (5) real objects (S14.P, AUDIT-2 VER-3): each slide
+   holds as many real tables and native charts (python-pptx) as the core's own export draws (tools/real-objects.mjs),
+   and where PowerPoint is present it must open the file and see the same tables and charts – gated, not counted; its texts against the goldens (GT, as the PDF's: every
    golden text in the slide's text boxes, tables and chart titles, nothing else; the consulting designs against the same
    run's PDF text, which their own goldens check); its charts' cached values against the workbook's cells (openpyxl);
    ⏱ deck20: Liquid Glass < 3 s, the other designs < 1.5 s (scaled as above); size: Liquid Glass < 120 KB per slide +
@@ -34,6 +36,7 @@ import { fileURLToPath } from "node:url";
 import { BOOKS, DECKS, deckList, deckOps, load, openBrowser, startHelper } from "./capture-v3.mjs";
 import { goldenTexts, matchTexts, ownPdfText, squash } from "./export-dl.mjs";
 import { speedFactor } from "./calibrate.mjs";
+import { pageRealObjects } from "./real-objects.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
@@ -52,7 +55,10 @@ export const BUDGET = {
 };
 /** the chart corpus (M9): decks with charts and callouts, PowerPoint pass only (they have no v3 goldens) */
 const CHART_DECKS = path.join(REPO, "tests", "corpus", "charts");
-/** each chart of a deck as pptxcheck compares it: its slide (1-based), the sheet and range of its values */
+/** each chart of a deck as pptxcheck compares it: its slide (1-based), the sheet and range of its values. Read from the
+    deck's preset.set and item.patch ops: slide n is the preset's n-th slide, so a deck with hidden slides or slides
+    added by slide.add would number them wrongly – the chart corpus has neither (the real-objects counts of (5) come from
+    the core and have no such limit) */
 function chartSources(deck) {
   const preset = deck.ops.find(o => o.op === "preset.set")?.preset || {}, tables = new Map((preset.tables || []).map(t => [t.id, t.sheet]));
   const out = [];
@@ -63,7 +69,6 @@ function chartSources(deck) {
   }
   return out;
 }
-
 /** clicks an export and waits for its toast; returns the files it saved (the names the page was given back) and the
     page's click-to-file time */
 export async function exportOnce(page, h, click) {
@@ -100,11 +105,15 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
         await deckOps(h, file, [{ op: "style.patch", patch: { design } }]);
         const slides = await load(page, h, file, "");
         if (PPTX) {
+          // the real tables and native charts each slide of the file must hold: as many as the core's own PowerPoint
+          // export draws (tools/real-objects.mjs: a missing sheet's table, hidden slides, slide.add / table.add all
+          // counted as the export counts them)
+          const real = await page.evaluate(pageRealObjects(design));
           const x = await exportOnce(page, h, async () => { await page.click("#exportMenuBtn"); await page.click('[data-x="pptx"]'); });
           if (x.files.length !== 1) throw new Error(`${id} · ${design}: ${x.files.length} PowerPoint files`);
           const f = path.join(OUT, `${id}-${design}.pptx`); fs.copyFileSync(x.files[0], f);
           pptx.push({ deck: id, design, slides, file: f, name: path.basename(x.files[0]), ms: Math.round(x.ms), bytes: fs.statSync(f).size, toast: x.toast,
-            workbook: path.join(BOOKS, deck.workbook), charts: chartSources(deck) });
+            workbook: path.join(BOOKS, deck.workbook), charts: chartSources(deck), real });
           console.log(`${id} · ${design}: PowerPoint ${(fs.statSync(f).size / 1024).toFixed(1)} KB, ${Math.round(x.ms)} ms`);
         }
         if (chartsOnly) continue;
@@ -179,10 +188,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
 
   // PowerPoint (B21): pptxcheck 1–3, GT, the charts' values, budgets
   if (pptx.length) {
-    const rep = path.join(OUT, "pptxcheck.json"), sources = path.join(OUT, "chart-sources.json");
+    const rep = path.join(OUT, "pptxcheck.json"), sources = path.join(OUT, "chart-sources.json"), expect = path.join(OUT, "real-objects.json");
     fs.writeFileSync(sources, JSON.stringify(Object.fromEntries(pptx.filter(p => p.charts.length).map(p => [p.file, { workbook: p.workbook, charts: p.charts }]))));
+    fs.writeFileSync(expect, JSON.stringify(Object.fromEntries(pptx.map(p => [p.file, p.real]))));
     let out = "";
-    try { out = execFileSync(PY, [path.join(REPO, "tools", "pptxcheck.py"), "check", ...pptx.map(p => p.file), "--json", rep, "--sources", sources, ...(process.argv.includes("--no-ppt") ? ["--no-ppt"] : [])], { encoding: "utf8", env, maxBuffer: 256 << 20, timeout: 3_600_000 }); }
+    try { out = execFileSync(PY, [path.join(REPO, "tools", "pptxcheck.py"), "check", ...pptx.map(p => p.file), "--json", rep, "--sources", sources, "--expect", expect, ...(process.argv.includes("--no-ppt") ? ["--no-ppt"] : [])], { encoding: "utf8", env, maxBuffer: 256 << 20, timeout: 3_600_000 }); }
     catch (e) { out = String(e.stdout || ""); ok = false; }
     process.stdout.write(out);
     const reports = new Map(JSON.parse(fs.readFileSync(rep, "utf8")).map(r => [path.resolve(r.file), r]));
@@ -214,7 +224,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       p.gt = bad.length ? bad : "equal"; p.check = R.ok ? "ok" : R.problems;
       const [per, once] = BUDGET.pptx.size[p.design], limit = per * p.slides + once, tlim = Math.round(BUDGET.pptx.time[p.design] * speed.factor);
       p.sizeOk = p.bytes <= limit; p.limit = limit; p.tables = (R.content?.slides || []).reduce((s, x) => s + x.tables, 0); p.chartsFound = (R.content?.slides || []).reduce((s, x) => s + x.charts.length, 0);
-      p.pictures = (R.content?.slides || []).reduce((s, x) => s + x.pictures, 0); p.media = R.media; p.powerpoint = !!R.powerpoint;
+      p.pictures = (R.content?.slides || []).reduce((s, x) => s + x.pictures, 0); p.media = R.media; p.powerpoint = !!R.powerpoint; p.ppt = R.ppt;
+      // the gate (S14.P; VER-3): where PowerPoint is present it must have opened the file and seen its real tables and
+      // charts (pptxcheck (3), (5)); a report without the answer is a failure, not a count
+      if ((R.ppt === "opened" && !R.powerpoint) || R.ppt === "failed") { ok = false; console.log(`PPTX POWERPOINT FAIL ${p.deck} · ${p.design}: ${R.ppt === "failed" ? "PowerPoint did not open it" : "no answer"}`); }
       const tag = `${p.deck} · ${p.design}`;
       if (bad.length) { ok = false; console.log(`PPTX GT FAIL ${tag}: ${bad.slice(0, 4).join("; ")}`); }
       if (!R.ok) { ok = false; console.log(`PPTX CHECK FAIL ${tag}: ${R.problems.slice(0, 4).join("; ")}`); }
@@ -223,7 +236,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     }
     fs.writeFileSync(path.join(OUT, "export-check-pptx.json"), JSON.stringify(pptx.map(p => ({ ...p, file: path.basename(p.file) })), null, 1));
     const d20 = pptx.filter(p => p.deck === "deck20").map(p => `${p.design} ${(p.bytes / 1024).toFixed(0)} KB / ${p.ms} ms`).join(", ");
-    console.log(`${pptx.length} PowerPoint files: checked ${pptx.filter(p => p.check === "ok").length} ok (${pptx.filter(p => p.powerpoint).length} opened in PowerPoint) · GT ${pptx.filter(p => p.gt === "equal").length} equal · size ${pptx.filter(p => p.sizeOk).length} within budget${d20 ? ` · deck20: ${d20}` : ""}`);
+    const absent = pptx.some(p => p.ppt === "absent" || p.ppt === "skipped");
+    console.log(`${pptx.length} PowerPoint files: checked ${pptx.filter(p => p.check === "ok").length} ok (${pptx.filter(p => p.powerpoint).length} opened in PowerPoint${absent ? "; PowerPoint not here: structure, python-pptx's real tables and charts only – the open / HasTable / HasChart gate runs on a PC with PowerPoint" : ", every one gated"}) · GT ${pptx.filter(p => p.gt === "equal").length} equal · size ${pptx.filter(p => p.sizeOk).length} within budget${d20 ? ` · deck20: ${d20}` : ""}`);
   }
   process.exitCode = ok ? 0 : 1;
 }

@@ -6,7 +6,7 @@ import { strToU8, zipSync } from "fflate";
 import type { RGB } from "../dl/types";
 import { parseColor } from "../dl/color";
 import { E, NS, PT, XML_HEAD, esc, clr } from "./drawingml";
-import type { ChartSem, FontSem } from "./scene";
+import type { ChartSem, FontSem } from "./chart-sem";
 
 const col = (s: string): RGB => parseColor(s).c;
 /** the time every zip entry carries (the package's and the embedded workbook's) */
