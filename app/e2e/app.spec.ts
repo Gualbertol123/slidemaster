@@ -33,18 +33,19 @@ function deckDoc(name: string) {
   return fold(snap, recs).doc as any;           // (the tests read it as freely as the JSON file before)
 }
 const doc = () => deckDoc("report.xlsx");
-/** wait until a deck's files stop changing (a compaction the page started on open – e.g. the first one after the
-    format-5 raise, which folds nothing – is over): what a test then compares is its own doing only */
-async function settledDeck(name: string, quietMs = 4000, timeout = 60_000) {
-  const d = deckDir(name)!, snapOf = () => fs.readdirSync(d, { recursive: true }).map(String).filter(f => !f.startsWith("presence")).sort()
-    .map(f => { const st = fs.statSync(path.join(d, f)); return st.isFile() ? f + ":" + st.size + ":" + st.mtimeMs : ""; }).join("|");
-  let last = snapOf(), since = Date.now();
-  for (const t0 = Date.now(); Date.now() - t0 < timeout; ) {
-    await new Promise(r => setTimeout(r, 250));
-    const now = snapOf();
-    if (now !== last) { last = now; since = Date.now(); } else if (Date.now() - since >= quietMs) return;
-  }
-  throw new Error("deck " + name + " kept changing for " + timeout + " ms");
+/** wait until a deck is folded to the end – every journal's length is the snapshot's frontier for it – and its files
+    rest: the compaction a page runs once records are COMPACT_MARGIN_MS (30 s) old would otherwise land inside a test
+    that compares the deck's files (the first one after the format-5 raise, which folds nothing, has a lot to fold) */
+async function settledDeck(name: string, timeout = 80_000) {
+  const d = deckDir(name)!;
+  const folded = () => {
+    const snap = JSON.parse(fs.readFileSync(path.join(d, "snapshot.json"), "utf8"));
+    let names: string[] = []; try { names = fs.readdirSync(path.join(d, "j")); } catch { /* no journal */ }
+    return names.every(n => fs.statSync(path.join(d, "j", n)).size === (snap.frontier?.[n.replace(/\.log$/, "")] || 0));
+  };
+  for (const t0 = Date.now(); Date.now() - t0 < timeout; await new Promise(r => setTimeout(r, 500)))
+    if (folded()) { await new Promise(r => setTimeout(r, 1500)); if (folded()) return; }
+  throw new Error("deck " + name + " was not folded to the end within " + timeout + " ms");
 }
 const errors: string[] = [];
 /* browser messages the fixtures cause on purpose; any other console error or warning fails E15:
@@ -1142,6 +1143,7 @@ test.describe.serial("two people, one shared folder", () => {
   });
 
   test("Run for each value… (S8.1, SC-01, SC-07): the input cell, values typed and from a range, de-duplicated; a preview on the stage, cleared", async ({ page }) => {
+    test.setTimeout(180_000);                              // (settledDeck may wait for the 30 s compaction margin)
     await openApp(page, ANNA);                                                       // Banks.xlsx with the linked Peers table
     await expect(page.locator("#stage .slide")).toHaveCount(1, { timeout: 20_000 });
     await settledDeck("Banks.xlsx");                       // (a compaction due at open: content unchanged, written anew)
@@ -1280,6 +1282,7 @@ test.describe.serial("two people, one shared folder", () => {
   });
 
   test("Run for each value (S8.3, SC-02/03/05/06): 3 values × 2 designs → 6 files with their names; files untouched; equal names; progress, cancel, report", async ({ page }) => {
+    test.setTimeout(180_000);                              // (settledDeck may wait for the 30 s compaction margin)
     await openApp(page, ANNA);                                                       // Banks.xlsx with the linked Peers table
     await expect(page.locator("#stage .slide")).toHaveCount(1, { timeout: 20_000 });
     await saved(page);
