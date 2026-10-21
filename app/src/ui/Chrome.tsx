@@ -39,7 +39,8 @@ export function Thumbs() {
   useEffect(() => { THUMBS.render(); }, [sig]);           // new frames → fill them
   useEffect(() => { ref.current?.querySelector(".thumb.on")?.scrollIntoView({ block: "nearest" }); }, [cur]);
   // right-click: the slide list's menu (S13.4, 09 §3.9: New slide – after the slide clicked; S13.6: Hide slide)
-  const [menu, setMenu] = useState<{ x: number; y: number; i: number } | null>(null);
+  // (the slide is kept by its id: another writer's slide.add / slide.remove while the menu is open moves its position)
+  const [menu, setMenu] = useState<{ x: number; y: number; id: string | null } | null>(null), mR = menu?.id ? slides.find(R => R.id === menu.id) : undefined;
   useEffect(() => {
     if (!menu) return;
     const off = (e: Event) => { if (!(e.target as Element)?.closest?.(".ctxmenu")) setMenu(null); };
@@ -53,13 +54,13 @@ export function Thumbs() {
       e.preventDefault();
       const i = Number((e.target as Element).closest?.(".thumb")?.getAttribute("data-i") ?? -1);
       if (i >= 0) gotoSlide(i);
-      setMenu({ x: Math.min(e.clientX, innerWidth - 210), y: Math.min(e.clientY, innerHeight - 130), i });
+      setMenu({ x: Math.min(e.clientX, innerWidth - 210), y: Math.min(e.clientY, innerHeight - 130), id: slides[i]?.id ?? null });
     }}>
       {menu && <div className="menu ctxmenu" id="slideMenu" style={{ left: menu.x + "px", top: menu.y + "px" }}>
         <button id="ctxNewSlide" onClick={() => { setMenu(null); newSlide(); }}>New slide<small>Ctrl+M</small></button>
-        {slides[menu.i] && <>
-          <button id="ctxHideSlide" onClick={() => { setMenu(null); hideSlide(menu.i); }}>{hiddenIn(slides[menu.i].cfg, d) ? "Show slide" : "Hide slide"}<small>this design</small></button>
-          <button id="ctxHideAll" onClick={() => { setMenu(null); hideSlide(menu.i, true); }}>{DESIGNS.every(x => hiddenIn(slides[menu.i].cfg, x)) ? "Show in every design" : "Hide in every design"}</button></>}</div>}
+        {mR && <>
+          <button id="ctxHideSlide" onClick={() => { setMenu(null); hideSlide(mR.id); }}>{hiddenIn(mR.cfg, d) ? "Show slide" : "Hide slide"}<small>this design</small></button>
+          <button id="ctxHideAll" onClick={() => { setMenu(null); hideSlide(mR.id, true); }}>{DESIGNS.every(x => hiddenIn(mR.cfg, x)) ? "Show in every design" : "Hide in every design"}</button></>}</div>}
       {slides.map((R, i) => {
         const issues = badge(R, c), hid = hiddenIn(R.cfg, d);
         // a hidden slide (S13.6): grayed, its number struck – left out of this design's exports, numbers and contents

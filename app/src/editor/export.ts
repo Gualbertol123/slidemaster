@@ -106,6 +106,15 @@ function remember(r: Omit<ExportRecord, "at" | "seconds" | "workbook" | "phases"
     ...(exportPool ? { phases: { ...exportPool.last } } : {}) };
 }
 
+/** the designs of a multi-design export (every version × design, Run for each value) that have a slide to export: a
+    design whose every slide is hidden (S13.6, B47) is skipped – the others are made – and `note` says so (the export
+    worker would fail on it with "nothing to export" part-way through the run) */
+export function shownDesigns(ds: Design[]): { list: Design[]; skipped: Design[]; note: string } {
+  const s = get().deck.slides, empty = (d: Design) => s.length > 0 && s.every(R => hiddenIn(R.cfg, d));
+  const skipped = ds.filter(empty), list = ds.filter(d => !skipped.includes(d));
+  return { list, skipped, note: skipped.length ? ` · ${esc(skipped.map(d => DESIGN_LABEL[d]).join(", "))} skipped: every slide is hidden there` : "" };
+}
+
 export async function doExport(kind: ExportKind) {
   const { file } = get().deck;
   if (!get().deck.slides.length || !file) return;
@@ -148,7 +157,9 @@ export async function doExport(kind: ExportKind) {
       return done(names, t0, "");
     }
     // "<workbook> - slides.pdf" for the deck (one slide: that slide's name), " (images)" for pictures – as before; the
-    // PowerPoint file "<workbook> - slides.pptx" (B21), made by another worker at the same time
+    // PowerPoint file "<workbook> - slides.pptx" (B21), made by another worker at the same time. A deck whose design
+    // shows one slide only (the others hidden, S13.6) is named after it too: the rule counts the pages the file holds,
+    // as for a one-slide deck (intended, 09 §2.8b)
     const whole = idx.length === all.length && idx.length > 1, current = idx.length === 1 && idx.length < all.length || /current$/.test(kind);
     const formats: Formats = kind === "pptx" || kind === "pptx-current" ? ["pptx"] : kind === "both" || kind === "both-current" ? ["pdf", "pptx"] : ["pdf"];
     const c = await cat, slides = current ? idx : undefined;
@@ -188,6 +199,9 @@ export async function exportVersions(designs: Design[] | null, formats: Formats 
   if (!get().deck.slides.length || !file || get().ui.exporting) return;
   const versions = get().doc.view?.preset?.versions || [];
   if (!versions.length) { toast("No versions yet: open the ✦ Wizard › 4 · Versions to create them (e.g. Chief and All)."); return; }
+  // a design whose every slide is hidden (S13.6): skipped with a note; all of them: refused before any job starts
+  const shown = shownDesigns(designs || [style().design]);
+  if (!shown.list.length) { toast("Every slide is hidden in " + esc(shown.skipped.map(d => DESIGN_LABEL[d]).join(", ")) + ": show one (right-click it in the slide list) to export.", [], true); return; }
   const t0 = performance.now();
   patch("ui", { exporting: true });
   const stem = clean(stemOf(file.name)), saved: string[] = [], missing = new Set<string>(), unreadable = new Set<string>(), named = new Set<string>();
@@ -195,7 +209,7 @@ export async function exportVersions(designs: Design[] | null, formats: Formats 
   try {
     const cat = catalog();
     await flushDoc();
-    const pictures = (get().prefs.prefs.pdfMode || "vector") === "exact", list = designs || [style().design], total = versions.length * list.length * formats.length;
+    const pictures = (get().prefs.prefs.pdfMode || "vector") === "exact", list = shown.list, total = versions.length * list.length * formats.length;
     let noFonts = false;
     showBusy(`Exporting ${total} ${what}…`, 0);
     // every job runs to its end (one failing does not stop the others, which still save their files); the busy
@@ -221,7 +235,7 @@ export async function exportVersions(designs: Design[] | null, formats: Formats 
     failed.forEach(f => console.error("export failed:", f));
     lastExport.files = [...saved]; lastExport.ms = performance.now() - t0;
     remember({ kind: (designs ? `versions-${list.length}` : "versions") + (formats.includes("pptx") ? " " + formats.join("+") : ""), design: list.join(" + "), version: versions.map(v => v.id).join(" + "), files: [...saved], missing: [...missing], unreadable: [...unreadable], failed }, t0);
-    toast(`Saved <b>${saved.length}</b> ${what}${backend.served ? " in the export folder" : " (downloaded)"}${saved.length ? ": " + esc(saved.join(", ")) : ""}${secs(t0)}${previewNote()}${noFonts ? NO_FONTS : ""}${missingNote([...missing], [...unreadable])}${namedNote([...named])}${!backend.served && saved.length > 1 ? MANY : ""}`
+    toast(`Saved <b>${saved.length}</b> ${what}${backend.served ? " in the export folder" : " (downloaded)"}${saved.length ? ": " + esc(saved.join(", ")) : ""}${secs(t0)}${previewNote()}${noFonts ? NO_FONTS : ""}${missingNote([...missing], [...unreadable])}${namedNote([...named])}${shown.note}${!backend.served && saved.length > 1 ? MANY : ""}`
       + (failed.length ? ` · ⚠ ${failed.length} failed: ${esc(failed.slice(0, 2).join(" · "))}` : ""),
       backend.served ? [{ label: "Show folder", fn: () => { void backend.open({ folder: true }); } }] : [], failed.length > 0);
   } catch (e) {

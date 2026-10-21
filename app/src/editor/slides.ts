@@ -54,12 +54,13 @@ export function addRangeTable(sheet: string, range: string): string | null {
   return addTable(def) ? def.id : null;
 }
 
-/** Hide slide / Show slide (S13.6, B47; the slide list's menu): slide `i` hidden in the current design – or, `every`, in
+/** Hide slide / Show slide (S13.6, B47; the slide list's menu): slide `id` hidden in the current design – or, `every`, in
     every design (shown in every design when it is hidden in all) – one slide.patch of `hide`, merged per design, so one
-    undo step. A hidden slide stays on the stage and in the list (grayed); the design's exports, page numbers and
-    contents leave it out (core render/pagenumbers.ts, worker/host.ts slideLists) */
-export function hideSlide(i: number, every = false): boolean {
-  const R = get().deck.slides[i]; if (!R) return false;
+    undo step. By id, not position: another writer's slide.add / slide.remove while the menu is open moves the slides.
+    A hidden slide stays on the stage and in the list (grayed); the design's exports, page numbers and contents leave it
+    out (core render/pagenumbers.ts, worker/host.ts slideLists) */
+export function hideSlide(id: string, every = false): boolean {
+  const R = get().deck.slides.find(x => x.id === id); if (!R) return false;
   const d = style().design, h = R.cfg.hide || {}, all = DESIGNS.every(x => h[x] === true), on = h[d] === true;
   const patch = every ? (all ? null : Object.fromEntries(DESIGNS.map(x => [x, true as const]))) : { [d]: on ? null : true as const };
   return change(every ? (all ? "Show in every design" : "Hide in every design") : on ? "Show slide" : "Hide slide",

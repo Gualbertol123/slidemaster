@@ -12,9 +12,12 @@ vi.mock("../src/editor/thumbs", async orig => ({ ...(await orig() as object), mo
 vi.mock("../src/render/wall", async orig => ({ ...(await orig() as object), applyWall: () => { /* canvas */ } }));
 
 import { App } from "../src/ui/App";
-import { get } from "../src/state/store";
-import { gotoSlide, openLocalFile, style, styleChange, undo } from "../src/state/app";
+import { get, THUMBS } from "../src/state/store";
+import { change, gotoSlide, openLocalFile, style, styleChange, undo } from "../src/state/app";
 import { hideSlide } from "../src/editor/slides";
+import { exportVersions, shownDesigns } from "../src/editor/export";
+import { startRun } from "../src/editor/scenario";
+import type { Op } from "@slide-builder/core/model/types";
 import { indexWorkbook } from "@slide-builder/core/xlsx/workbook";
 import { defaultPreset } from "@slide-builder/core/model/preset";
 
@@ -96,6 +99,68 @@ describe("Hide slide (S13.6, HS-01)", () => {
     expect(Object.keys(hideOf(1)!)).toHaveLength(5);
     await act(async () => undo(false)); await confirmed(h0);
     expect(hideOf(1)).toBeUndefined();
-    expect(hideSlide(99)).toBe(false);                                   // no such slide
+    expect(hideSlide("no-such-slide")).toBe(false);                      // no such slide
+  });
+
+  // review of S13.6, 1: hiding slide k renumbers every other slide ("n / N"), so every thumbnail must be asked for again
+  // (the worker redraws only those whose display list changed), after undo / redo too. A hide is a preset change: the
+  // page makes its slides again and redraws every thumbnail (app.ts onDocChange, presetChanged) – this guards it
+  it("a hide, its undo and its redo redraw every thumbnail (their page numbers moved)", async () => {
+    const refresh = vi.spyOn(THUMBS, "refresh"), render = vi.spyOn(THUMBS, "render"), h0 = history();
+    const all = () => render.mock.calls.length > 0 || refresh.mock.calls.some(c => c[0] === undefined);
+    try {
+      await act(async () => gotoSlide(1)); await settle();
+      for (const step of [() => { hideSlide(get().deck.slides[1].id); }, () => undo(false), () => undo(true), () => undo(false)]) {
+        refresh.mockClear(); render.mockClear();
+        await act(async () => { step(); }); await settle();
+        await vi.waitFor(() => expect(all()).toBe(true));
+      }
+      await confirmed(h0);
+    } finally { refresh.mockRestore(); render.mockRestore(); }
+  });
+
+  // review of S13.6, 2: the menu keeps the slide by id – a slide added before it while the menu is open (another
+  // writer's slide.add) does not make Hide slide hide another slide
+  it("the menu hides the slide right-clicked even when a slide was added before it meanwhile", async () => {
+    const h0 = history(), d = style().design, id = get().deck.slides[1].id;
+    const m = await menu(1);
+    await act(async () => { change("New slide", [{ op: "slide.add", slide: { id: "zz-other", type: "content", tables: [] }, after: null } as Op]); });
+    await confirmed(h0 + 1);
+    expect(get().deck.slides[1].id).not.toBe(id);                       // the positions moved under the open menu
+    await act(async () => { fireEvent.click(document.getElementById("ctxHideSlide") ?? m.hide); }); await confirmed(h0 + 2);
+    const byId = (x: string) => get().doc.view!.preset!.slides.find(s => s.id === x)!;
+    expect(byId(id).hide).toEqual({ [d]: true });
+    expect(get().doc.view!.preset!.slides.filter(s => s.hide).map(s => s.id)).toEqual([id]);
+    await act(async () => undo(false)); await confirmed(h0 + 1);
+    await act(async () => undo(false)); await confirmed(h0);
+    expect(get().deck.slides.some(R => R.id === "zz-other")).toBe(false);
+  });
+
+  // review of S13.6, 3: every version × design and Run for each value skip a design whose every slide is hidden (a
+  // note says so); every chosen design: refused before any job starts (the export worker said "nothing to export"
+  // part-way through)
+  it("every version × design and Run for each value: a design with every slide hidden is skipped; all of them refused", async () => {
+    const h0 = history(), ids = get().deck.slides.map(R => R.id);
+    await act(async () => { change("Hide all", ids.map(id => ({ op: "slide.patch", id, patch: { hide: { bain: true, mckinsey: true } } } as Op))); });
+    await confirmed(h0 + 1);
+    const s = shownDesigns(["glass", "bain", "excel", "mckinsey"]);
+    expect(s.list).toEqual(["glass", "excel"]);
+    expect(s.skipped).toEqual(["bain", "mckinsey"]);
+    expect(s.note).toMatch(/skipped: every slide is hidden there$/);
+    expect(shownDesigns(["glass"]).note).toBe("");
+    // all chosen designs empty: refused, nothing starts
+    const versions = [{ id: "v1", name: "Chief" }];
+    await act(async () => { change("Versions", [{ op: "preset.set", preset: { ...get().doc.view!.preset!, versions } } as Op]); });
+    await confirmed(h0 + 2);
+    await act(async () => { await exportVersions(["bain", "mckinsey"]); });
+    expect(get().ui.exporting).toBe(false);
+    expect(get().ui.toast?.html).toMatch(/^Every slide is hidden in .*: show one/);
+    const form = { ...get().ui.scenario, input: "x!A1", values: "1", designs: ["bain"] as never, versions: [""] };
+    await act(async () => { expect(await startRun(form)).toBeNull(); });
+    expect(get().ui.run).toBeNull();
+    expect(get().ui.toast?.html).toMatch(/^Every slide is hidden in .*to run for each value/);
+    await act(async () => undo(false)); await confirmed(h0 + 1);
+    await act(async () => undo(false)); await confirmed(h0);
+    expect(get().doc.view!.preset!.slides.some(x => x.hide)).toBe(false);
   });
 });

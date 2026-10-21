@@ -165,6 +165,7 @@ numbers measured twice). Measured numbers go into the step's line.
 - [ ] S13.3 · Slide and table ops (`slide.add/remove`, `table.add/remove`; a slide without tables lays out)
 - [ ] S13.4 · New slide, Add table UI (NS-01, NS-02)
 - [ ] S13.6 · Hide slides per design (B47; HS-01…HS-03)
+  - Hide slide / Show slide are in the slide list's right-click menu only: the plan's "and the slide menu" names no other menu the app has (review of S13.6, 5; 09 §2.8b).
 - [ ] S13.5 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.6.0; 🚦 G9a
 
 ### M14 · Charts (4.7.0; B30, B31; docs/next/09 §8, ADR-015 amended)

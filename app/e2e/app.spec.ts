@@ -2029,6 +2029,8 @@ test.describe.serial("two people, one shared folder", () => {
     const slides = doc().preset.slides as any[], n = slides.length, k = slides.map(s => s.type).indexOf("content"), id = slides[k].id;
     const ix = slides.map(s => s.type).indexOf("index"), u0 = await undoSteps();
     const read = (f: string) => fs.readFileSync(path.join(root(), "export", f));
+    // "n / N" as one run, whatever spacing the text extractor gives it, and not inside a longer number ("14 / 14")
+    const pn = (a: number, b: number) => new RegExp(`(^|\\D)${a}\\s*/\\s*${b}(\\D|$)`);
     // page numbers "n / N" on every slide, and a title only this slide has
     await change("Page numbers", [{ op: "style.patch", patch: { pn: { on: true, format: "nN", cover: true } } }]);
     await change("Title", [{ op: "slide.patch", id, patch: { title: "Zeta hidden" } }]);
@@ -2036,7 +2038,7 @@ test.describe.serial("two people, one shared folder", () => {
     let text = pdfPageTexts(read((await exported(page, () => page.click("#exportBtn")))[0]));
     expect(text).toHaveLength(n);
     expect(text.join(" ")).toContain("Zeta hidden");
-    expect(text[n - 1]).toContain(`${n} / ${n}`);
+    expect(text[n - 1]).toMatch(pn(n, n));
     // hidden in this design (the slide list's menu)
     await page.locator(`.thumb[data-i="${k}"]`).click({ button: "right" }); await page.click("#ctxHideSlide");
     await expect(page.locator(`.thumb[data-i="${k}"]`)).toHaveClass(/\bhid\b/);
@@ -2044,8 +2046,8 @@ test.describe.serial("two people, one shared folder", () => {
     text = pdfPageTexts(read((await exported(page, () => page.click("#exportBtn")))[0]));
     expect(text).toHaveLength(n - 1);
     expect(text.join(" ")).not.toContain("Zeta hidden");                                 // neither its page nor a contents entry
-    expect(text[n - 2]).toContain(`${n - 1} / ${n - 1}`);                                 // the last page renumbered
-    if (ix >= 0) expect(text[ix]).toContain(`${ix + 1} / ${n - 1}`);
+    expect(text[n - 2]).toMatch(pn(n - 1, n - 1));                                       // the last page renumbered
+    if (ix >= 0) expect(text[ix]).toMatch(pn(ix + 1, n - 1));
     // PNG of every slide, PowerPoint: the same pages
     expect(await fromMenu(page, "png-all")).toHaveLength(n - 1);
     const [pptx] = await fromMenu(page, "pptx");
@@ -2056,14 +2058,30 @@ test.describe.serial("two people, one shared folder", () => {
     const [one] = await fromMenu(page, "pdf-current");
     const cur = pdfPageTexts(read(one));
     expect(cur).toHaveLength(1); expect(cur[0]).toContain("Zeta hidden");
+    // every version × all five designs (S13.6 review, 6): the design that hides the slide has n - 1 pages, the others n
+    const d0 = doc().style.design || "glass";
+    await change("Versions", [{ op: "preset.set", preset: { ...doc().preset, versions: [{ id: "vhs", name: "Chief" }] } }]);
+    await expect.poll(() => undoSteps()).toBe(u0 + 4);
+    await saved(page);
+    const LABEL: Record<string, string> = { glass: "Liquid Glass", excel: "Excel", clean: "Excel Refined", mckinsey: "Consulting Navy", bain: "Consulting Red" };
+    const vfiles = await fromMenu(page, "versions-5");
+    expect(vfiles).toHaveLength(5);
+    await expect(page.locator("#toast")).toContainText("Saved 5 PDFs");
+    for (const [d, label] of Object.entries(LABEL)) {
+      const f = vfiles.find(x => new RegExp(` - Chief - ${label}( \\(images\\))?\\.pdf$`).test(x));
+      expect(f, d).toBeTruthy();
+      const pages = pdfPageTexts(read(f!));
+      expect(pages.length, d).toBe(d === d0 ? n - 1 : n);
+      expect(pages.join(" ").includes("Zeta hidden"), d).toBe(d !== d0);
+    }
     // another design: every slide
     await change("Design", [{ op: "style.patch", patch: { design: (doc().style.design || "glass") === "excel" ? "glass" : "excel" } }]);
     await saved(page);
     text = pdfPageTexts(read((await exported(page, () => page.click("#exportBtn")))[0]));
     expect(text).toHaveLength(n);
     expect(text.join(" ")).toContain("Zeta hidden");
-    // undo: the design, the hide, the title, the page numbers
-    for (let i = 0; i < 4; i++) await page.click("#undoBtn");
+    // undo: the design, the versions, the hide, the title, the page numbers
+    for (let i = 0; i < 5; i++) await page.click("#undoBtn");
     await expect.poll(() => undoSteps()).toBe(u0);
     await pollFile(() => doc().preset.slides[k].hide ?? null, { timeout: 10_000 }).toBeNull();
     await saved(page);

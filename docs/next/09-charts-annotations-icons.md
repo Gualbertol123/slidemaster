@@ -389,7 +389,12 @@ the op builder.
   `slides`) leaves out the slides hidden in its design – PDF and PowerPoint of the deck, every version × design, Run for
   each value; PNG of every slide names the shown slides (`editor/export.ts`). Slides named are drawn: the current slide
   (PDF / PNG / PowerPoint / clipboard) exports even when it is hidden – it was asked for. The Run for each value gate
-  (RC-06) skips the cells of hidden slides. Every slide hidden: "nothing to export" (the page says so first).
+  (RC-06) skips the cells of hidden slides. Every slide hidden: the deck export is refused with a note; every version ×
+  design and Run for each value skip a design whose every slide is hidden (a note names it) and are refused, before any
+  job starts, when that is every chosen design (`editor/export.ts` shownDesigns; the export worker would otherwise stop
+  part-way with "nothing to export") – owner to confirm skip-with-note over refusing the whole export. One slide shown:
+  the PDF / PowerPoint file is named after that slide, as a one-slide deck always was (the name follows the pages the
+  file holds) – intended.
 * **Numbers and contents** (`render/pagenumbers.ts`): `pageNumber(i)` = start + the slides before i not hidden in the
   design; `N` = the shown slides; a hidden slide draws no page number; the contents slide (`slide-dl.ts` indexNodes /
   consultIndex) lists only shown content slides, with their exported numbers. The same rule on the stage and the
@@ -398,7 +403,10 @@ the op builder.
 * **UI**: the slide list's right-click menu (`Chrome.tsx`, beside S13.4's *New slide*): *Hide slide* / *Show slide* (the
   current design), *Hide in every design* / *Show in every design* (all five; "show" when hidden in all). One op each,
   one undo step. A hidden slide's thumbnail is grayed with a *hidden* tag and its number struck; the stage draws it
-  (it can be edited) with a mark "Hidden in <design> – not exported" (DOM, never in the display list).
+  (it can be edited) with a mark "Hidden in <design> – not exported" (DOM, never in the display list). The menu keeps
+  the slide by id (another writer's slide.add / slide.remove while it is open moves the positions). The plan's "and the
+  slide menu": the app has no slide menu besides this one (the menu bar has Open and Export only), so the items live
+  there; a toolbar entry waits for the owner.
 
 ### 2.9 Excel conditional formats (F17)
 No deck state: the rules come from the workbook (read-only). The core evaluates more rule types per cell and the
