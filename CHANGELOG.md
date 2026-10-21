@@ -29,7 +29,7 @@ What users notice (B48–B50, branch `v4/B48-B50-isp`)
 data model of 09 §2.2 / §2.3 and its ops, `Stroke.join` in every backend, the arrowheads, the PowerPoint gate of 09 §7.2,
 the per-kind item code paths, the page budget per milestone.)
 
-## 4.6.0 - unreleased (PLAN M13; prepared 2026-10-21, dated at the tag)
+## 4.6.0 - 2026-10-21 (PLAN M13)
 
 What users notice
 * **The share goes from 4.0 straight to 4.6**: users also get everything listed for 4.1–4.5 in CHANGELOG.md (never released
