@@ -1,8 +1,19 @@
 # Slide Builder 4 – the guide
 
 For the team: the people who make the decks, the product owner and the maintainer.
-Program version 4.0.0 (`helper/slidebuilder/__init__.py`), with the 4.1 and 4.2 changes built so far (not yet
-released). Written on 16 October 2026. Every picture is a screenshot of the program, taken on test workbooks.
+Program version 4.6.0 (`helper/slidebuilder/__init__.py`): everything of 4.1–4.6, which reach the shared folder together
+as 4.6. Written on 21 October 2026. Every picture is a screenshot of the program, taken on the test workbooks of the
+repository.
+
+<!-- Placeholders for the parts being merged after 4.6 (a later pass fills them in, here and in guide.html; each is an
+     HTML comment of exactly these words where its text goes):
+     "4.7: charts"                            part 4, Charts – M14: the new chart kinds (CHANGELOG 4.7.0)
+     "4.8: lines, icons, snapping"           part 4, Shapes and icons / Free layout – M15 (CHANGELOG 4.8.0)
+     "4.9: tables"                           part 3, Cells and Tables – per-cell number display (decimals −/+, %,
+                                               thousands), vertical alignment, the painter on a multi-selection; the
+                                               slide list's Delete slide / Duplicate slide (owner decisions Q9, Q19, Q12)
+     "template, comments B48–B50"            part 3, Automated comments and Designs – the ISP template for Excel and
+                                               Excel Refined (B48), comment borders (B49), the macro comments (B50) -->
 
 ---
 
@@ -12,10 +23,11 @@ Slide Builder turns tables in an Excel workbook into a deck of 16:9 slides. The 
 folder; Slide Builder reads it and draws the slides from its numbers. When the workbook changes, the slides change
 with it.
 
-**Three designs.** *Glass* (Liquid Glass) redraws each table as translucent glass cards, capsules and fine lines
+**Five designs.** *Glass* (Liquid Glass) redraws each table as translucent glass cards, capsules and fine lines
 over a coloured background. *Excel* draws the table exactly as the workbook formats it. *Refined* (Excel Refined)
-draws it like Excel and also shows text boxes, automated comments and the notes section. You switch with one click;
-each design keeps its own table sizes.
+draws it like Excel in one polished style. *Navy* and *Red* (Consulting Navy, Consulting Red) draw each table as a
+data exhibit with trend lines and bars, under a headline of key figures. One click switches; each design keeps its
+own table sizes. Text boxes, comments, notes, charts and shapes show in every design.
 
 **Many people at once.** Everybody opens the same workbook from the shared folder and edits the same deck. Other
 people's changes appear on your screen within 1–2 seconds. Nothing has to be "checked out" or locked.
@@ -23,18 +35,19 @@ people's changes appear on your screen within 1–2 seconds. Nothing has to be "
 **Never touches the workbook.** Everything you change (a bold cell, a text box, a colour) is stored beside the
 workbook, in the folder `backend\data\`. The `.xlsx` file itself is never written.
 
-**Exports.** PDF with real text and lines, PDF made of pictures, PNG pictures of slides, and a copy of the slide
-for pasting into PowerPoint. Several versions and designs can be exported in one go.
+**Exports.** PDF with real text and lines, PDF made of pictures, PowerPoint files with editable text and real tables
+and charts, PNG pictures of slides, and a copy of the slide for pasting. Several versions and designs – or one file
+for each value of an input cell – can be exported in one go.
 
 *Picture: the window, with its parts numbered.*
-1 Open ▾ – the workbooks of the folder. 2 ↻ – read the workbook again. 3 ✦ Wizard – sheets, tables, slides,
-versions. 4 the workbook's name and number of slides; Version – which version you are looking at. 5 who else is
-in this workbook. 6 Glass · Excel · Refined – the design. 7 Design… – colours, text styles, fonts. 8 Subtle · Medium
-· Strong and Colour – the glass strength and how colourful the background is (Glass only). 9 ⚙ Options – page
-numbers, footer, logo, look. 10 Export PDF ▾. 11 the text toolbar. 12 the layout toolbar (cells, tables, text
-boxes). 13 the formula bar. 14 the slide list. 15 notes about the current slide (the Issues panel). 16 the Formulas
-line. 17 the deck's health line. 18 the slide. 19 zoom. 20 the status bar: what is selected, who changed what,
-whether your changes are saved.
+1 Open – the workbooks of the folder. 2 ↻ – read the workbook again. 3 ✦ Wizard – sheets, tables, slides, versions.
+4 the workbook's name and number of slides (with versions, the *Version* list follows it, and the initials of the
+colleagues in the same workbook). 5 Glass · Excel · Refined · Navy · Red – the design. 6 Design… – colours, text
+styles, fonts. 7 Subtle · Medium · Strong and Colour – the glass strength and how colourful the background is (Glass
+only). 8 ⚙ Options – page numbers, footer, logo, look, administration. 9 Export PDF ▾. 10 the text toolbar. 11 the
+layout toolbar (cells, tables, insert, text boxes). 12 the formula bar. 13 the slide list and + New slide. 14 notes
+about the current slide (the Issues panel). 15 the Formulas line. 16 the deck's health line. 17 the slide. 18 zoom.
+19 the status bar. 20 whether your changes are saved.
 
 ---
 
@@ -48,15 +61,17 @@ All workbooks live in one shared folder, for example `T:\Slide Builder\`. Its ma
 | `Start Slide Builder.bat` | starts Slide Builder on your PC (use the desktop shortcut it made) |
 | `Install Slide Builder.bat` | the first-time set-up on a PC: checks Python and the folder, makes the shortcut |
 | `Update Slide Builder.bat` | for the maintainer: installs a new version for everybody |
+| `THIRD-PARTY-NOTICES.txt` | the licences of the open-source parts of Slide Builder |
 | your `.xlsx`, `.xlsm`, `.xlsb` workbooks | read, never changed |
-| `export\` | where PDFs and pictures are saved |
+| `export\` | where PDFs, PowerPoint files and pictures are saved |
 | `app\<version>\` | the program, one folder per installed version |
 | `backend\data\` | everything people changed: the decks, settings, fonts, logos, backups |
 
 ### Starting
 Double-click the desktop shortcut (or `Start Slide Builder.bat`). A black console window opens – keep it open, it
 is the small program that reads and saves files for you (the *helper*). Slide Builder then opens in its own Edge
-window, without tabs or address bar. It reopens the last workbook you used.
+window, without tabs or address bar. It reopens the last workbook you used. Before any workbook is open, the start
+screen offers *Licences…*.
 
 ### Opening a workbook
 *Open* lists the workbooks of the folder, newest first, with the time they were saved and "slides by <name>" – the
@@ -71,12 +86,18 @@ encrypted with a password or a sensitivity label cannot be read; Slide Builder s
 The first time a workbook is opened, the wizard starts. If the workbook has sheets whose name contains "slide" with
 "x" tables on them, the deck is made directly at start-up and you can open the wizard later.
 
+A workbook that has a saved setup asks *Saved preset found*: *Continue with preset*, *Open editing wizard*, *Cancel*, or
+**Delete setup…** – the workbook's whole setup (tables, slides, design, versions, comments) is deleted for everybody
+and the wizard starts as for a new file. The workbook is not changed and a backup is kept (part 9, Saved setups).
+
 ### The wizard (✦ Wizard)
 Four steps; the step buttons at the top go back and forth; ✕ or Esc asks before closing.
 
 1. **Sheets.** Tick the sheets to use. Sheets whose name contains "slide" are ticked for you. Each line shows the
    sheet's size, its title and how many tables were found. *Only "slide" sheets*, *All*, *None*. Hidden sheets are
-   never listed. In a large workbook only the ticked sheets are read ("not read yet").
+   never listed. In a large workbook only the ticked sheets are read ("not read yet"); **Scan for "x" tables** reads
+   the ticked sheets at once and shows each one's "x" tables, title and suggested tables (they are defined, as *Next*
+   would). *+ Add a linked workbook…*: part 7.
 2. **Tables.** The sheet is shown like Excel. Drag across the cells of a table (or Shift+click, Shift+arrows) and
    press Enter or *Add table*; or type a range such as `C4:T56`. *grows when rows are added below* keeps a range
    table following new rows. *Use "x" tables* takes the tables marked with "x"; *Add detected tables* takes the dashed
@@ -104,6 +125,16 @@ The slide works like a sheet in Excel: click a cell, Shift+click or drag to sele
 F2 or a double-click to edit it, Enter / Tab to move on, Del to clear. Everything you change is stored as a change
 to the deck, keyed by sheet and cell; the workbook is not touched.
 
+### Slides: new, hidden
+* **+ New slide** in the slide list's header, **Ctrl+M**, or right-click the list › *New slide* adds a blank slide
+  after the selected one, its title ready to type. One undo step.
+* **Hide slide**, as in PowerPoint: right-click a slide › *Hide slide* hides it in the current design (*Show slide*
+  brings it back); *Hide in every design* hides it in all five. A hidden slide stays in the list – grayed, its number
+  struck, marked *HIDDEN* – and on the stage, where you can still edit it. It is left out of that design's exports
+  (PDF, PNG of every slide, PowerPoint, every version × design, Run for each value); page numbers and the index count
+  only the slides shown. Exporting or copying the current slide still exports a hidden one. Hidden in Glass, a slide
+  still shows in Navy. One undo step each.
+
 ### The text toolbar (first row)
 One toolbar for any text: cells, a text box, the notes section, the title, subtitle, cover note or date. The grey
 label on the left says what it will change (*No text selected*, *Cell C13*, *Cells D10:G12*, *Text box*, *Notes*,
@@ -119,11 +150,17 @@ middle / bottom for text boxes; *Clear format*; *Format* (the format painter); *
 * **Role** (Auto, Header, Total, Body, Note) tells Glass how to draw the cells; *Auto* is detected from the Excel
   formatting.
 * **Merge / Unmerge** joins cells (the top-left value is kept) or splits merges that come from Excel.
+* **Borders ▾** sets the selected cells' borders as Excel's Borders menu does – Bottom, Top, Left, Right, All borders,
+  Outside, Thick outside, No border – in a style (thin, medium, thick, dashed, dotted, double) and a colour; *Clear (as
+  in Excel)* brings the workbook's borders back. They change the slide only. Excel, Refined and the consulting designs'
+  ruled tables draw them; Glass and the other consulting table styles draw no borders.
 * **Format painter** (*Format*): click it, then click or drag over cells to copy size, bold, italic, colours,
-  highlight, alignment, role, conditional formats and colour scales. Double-click keeps it on; Esc stops.
+  highlight, alignment, role, conditional formats, colour scales, and the gridlines and borders set on the slide.
+  Double-click keeps it on; Esc stops.
 * **Formula bar.** The name box shows the cell; type there and press Enter. *↺ Excel value* goes back to the
   workbook's own text. A text you typed applies only while Excel's value stays the same; if the figure changes in
   the workbook, your text pauses and the Issues panel says so.
+<!-- 4.9: tables -->
 
 ### Tables
 * **W / H** set the width of the selected columns and the height of the rows in pixels; *Excel size* goes back to
@@ -136,12 +173,20 @@ middle / bottom for text boxes; *Clear format*; *Format* (the format painter); *
   align the tables of several slides, or *Reset to Excel sizes*.
 * **Position ▾** places the tables left / centre / right and top / middle / bottom. **Reset layout** puts this
   slide back to the automatic layout (in this design).
-* **Gridlines** per table: horizontal and vertical, each *As in Excel*, *All* or *None*.
+* **Gridlines ▾** per table: horizontal and vertical, each *As in Excel*, *All* or *None*. **Selected cells**: light
+  lines on the selected cells – H (above and below each cell), V (left and right), Outline (around the selection) – in
+  a colour and a weight (0.5–3 px); *Clear* removes them. They never change a border; where a design draws a border,
+  the border shows.
+* **Add table ▾** lists the deck's tables (those on no slide first, each with a small sketch) and puts one on the
+  current slide – on a free layout in the first empty spot; *New table from cells…* makes one from cells picked on a
+  sheet. One undo step each.
+* **Free layout**: part 4.
 * **Colour scale**: deeper green or red the bigger the number – across each row, down each column or over the whole
   selection; green for positive / red for negative, or low red → high green; on the cell colour or the number colour;
   reverse; with a preview. Scales are listed and can be removed with ✕.
 
 Table sizes belong to the design they were made in: a table can be wide in Glass and narrow in Excel.
+<!-- 4.9: tables -->
 
 ### Text boxes and the notes section
 * **Text box ↑ ↓ ← →** adds a box above, below, left or right of the selected table and opens it for writing. On the
@@ -151,7 +196,8 @@ Table sizes belong to the design they were made in: a table can be wide in Glass
 * Select a box to drag it anywhere (guides snap it to the tables and the slide), stretch it by its edges, give it
   a bubble (◯), put it back next to its table (⤺ *Attach*) or delete it (🗑 or Del). The text shrinks to fit.
 * **✎ Notes** adds the notes section: a text box of the slide itself, where the footer goes (sources, remarks).
-* Text boxes, comments and notes appear in Glass and Refined; Excel shows none (their buttons are greyed there).
+* Text boxes, comments and notes appear in every design, Excel included (it adds nothing of its own: the tables keep
+  the workbook's colours).
 
 ### Automated comments (✎ Comment…)
 A comment written from the table's own numbers, in the style of an analyst. It is rewritten every time the slide is
@@ -165,8 +211,24 @@ drawn, so it follows new figures, your edits and the version you look at.
   (beside all tables, or above / below / left / right of this table), its width, a bubble. A live preview shows the
   result. *Insert comment*, later *Update*; *Remove comment*.
 * If you edit a comment's text by hand it becomes ordinary fixed text.
+<!-- template, comments B48–B50 -->
 
-### Design… – designs, themes, colours, text styles, fonts
+### Designs
+* **Glass**, **Excel**, **Refined** as in part 1.
+* **Navy** (Consulting Navy: navy and electric blue, Georgia titles, Arial text, two-line action titles, a KPI line
+  from the slide's first table on a dark band) and **Red** (Consulting Red: a red accent, Arial, a short red bar under
+  the title, a message panel with the lead variance, how many rows fall short and the largest gap). Their tables are
+  data exhibits: every number in right-aligned columns, with trend lines and Δ bars. Every number shown is a cell of the
+  table – edits, versions and scenarios included.
+* **The consulting look** is set at the end of ribbon 2 (Navy and Red only). With nothing or a table selected: the
+  table style (*Exhibit*, *Cards*, *Ruled*), *All* numbers or *Compact*, *Δ bars*, *Trend*, *Latest bar*. With the title,
+  the KPI line or the message panel selected: the headline (KPI line, panel, none), how many KPIs (1–3), the ground
+  (band, tint, white), and the KPI line's or panel's font, size, bold and colour from the text toolbar. A change applies
+  to the current slide (a dot marks a part the slide sets itself); *Apply to all* makes it the deck's; *Deck's* brings the
+  slide back to the deck's look. One undo step each.
+<!-- template, comments B48–B50 -->
+
+### Design… – themes, colours, text styles, fonts
 * **Apply to:** *This design only* or *All designs*: each design can have its own look.
 * **Colours.** A theme – Aurora, Ocean, Forest, Sunset, Graphite, Intesa Sanpaolo or Custom (four background and two
   accent colours of your own) – gives the background of Glass and the accent of titles, cover, index and page
@@ -174,8 +236,10 @@ drawn, so it follows new figures, your edits and the version you look at.
   and Refined). *Reset all to the theme*.
 * **Text styles.** Font, size, bold, italic, colour and alignment of every slide title, subtitle, table, text box,
   contents list and page number / footer of the deck. A format you give a single cell or box stays on top.
-* **Fonts.** The shared font library: add a Google font (downloaded once into the folder, then available to
-  everybody) or upload your own font files (.ttf, .otf, .woff, .woff2); see who added each and remove it.
+* **Fonts.** The shared font library: add a Google font (fetched once by Slide Builder's helper into the folder,
+  then available to everybody) or upload your own font files (.ttf, .otf, .woff, .woff2); see who added each and
+  remove it. If the office network refuses a download, the message says what to do (e.g. *Upload font files*). The font
+  menu's previews come from a cache on the shared folder, filled once for the whole office.
 * *Use as default for new decks* makes this look the starting point of every new deck.
 * In the top bar: the glass strength *Subtle / Medium / Strong* and *Colour* 0–100 % (how colourful the background
   is) apply to Glass.
@@ -184,7 +248,7 @@ drawn, so it follows new figures, your edits and the version you look at.
 * **Cover and index** are made in the wizard (step 3). Double-click the cover's title, subtitle, note or date to
   edit it on the slide. The index lists the content slides with their page numbers; *Subtitles* (on the index
   slide's toolbar) shows or hides their subtitles.
-* **Page numbers**: on / off, start at, six positions, size, format (3 · 3 / 12 · Page 3 · p. 3), glass capsule or
+* **Page numbers** (they count only the slides shown in the design): on / off, start at, six positions, size, format (3 · 3 / 12 · Page 3 · p. 3), glass capsule or
   plain text, also on the cover.
 * **Footer**: a text with `{date}`, `{workbook}`, `{title}`, six positions, size, style, also on the cover. It sits
   next to the page number when both use the same corner.
@@ -218,12 +282,48 @@ version you looked at last, per workbook.
 | Ctrl+B, Ctrl+I | bold, italic |
 | Ctrl+Z, Ctrl+Y | undo, redo (your own changes) |
 | Ctrl+S | save now |
-| PgUp, PgDn | previous / next slide |
+| PgUp, PgDn · Ctrl+M | previous / next slide · new slide |
 | Esc | stop the format painter, close a menu or dialog |
 
 ---
 
-## 4. Working together
+## 4. Charts, shapes and free layout
+
+### Charts
+*Insert chart ▾* makes a pie of the selected cells (the last column's numbers, named by the first column, placed beside
+their table) or of cells you choose on any sheet the wizard lists, also one on no slide (*Choose the cells…*: drag
+across the numbers, then across their names – nothing to type). The chart follows the workbook: a reload or a
+scenario's preview draws it with the new numbers.
+
+Click a chart to select it (a click on a slice selects that slice), drag it anywhere (it snaps; hold Alt for no
+snapping), drag its corner to resize it, Del removes it – one undo step each. Its side panel: *Pie* or *Donut*; the
+labels (names, values, percent); the legend (right, below, none); the title (from the data, or your own); a colour for
+each slice (↺ back to the design's); *Change the cells…*; where its numbers come from; *Delete chart*. Each design draws
+it in its own look. Labels sit inside a slice when they fit, else outside with a leader line.
+<!-- 4.7: charts -->
+
+### Shapes and icons (callouts)
+*Insert shape ▾* adds a rectangle, rounded rectangle, pill, circle, arrow or speech bubble, or one of 17 icons. Double-
+click (or Enter) to write its text. *Quote a cell…* picks a cell on a sheet and adds it as `{Sheet!C7}`: the shape shows
+the cell as the workbook formats it, and follows reloads and scenarios (`{'Sheet name'!C7}` for a name with spaces,
+`{[Peers.xlsx]Peer!F7}` for a linked workbook). With a shape selected, ribbon 2 sets its fill, border (colour, weight,
+dashed, dotted, none) and text (size, bold, colour, alignment). Without a fill of its own a shape takes the design's
+material (glass, a framed box, a card).
+<!-- 4.8: lines, icons, snapping -->
+
+### Free layout
+*Free layout* (ribbon 2) switches the current slide, in the current design, to a layout where every table, text box,
+chart and shape stays where you put it: nothing moves when you switch it on, and nothing re-flows, shrinks or follows a
+table afterwards. Drag a table by its grip to move it, by its corner or a border to resize it (it keeps its
+proportions); drag a text box, chart or shape by its body to move it and by an edge to size it. Everything snaps to the
+other boxes' edges, the content area and the slide's middle – hold Alt for no snapping. *Reset layout* (or *Free
+layout* again) asks "Back to automatic layout?"; your free places are kept and come back when you switch it on again.
+Each design has its own free layout. One undo step each.
+<!-- 4.8: lines, icons, snapping -->
+
+---
+
+## 5. Working together
 
 * **Others' edits appear within about 1–2 seconds**, with their name in the status bar: "Updated by bob just now".
 * **"✓ Saved"** appears as soon as your change is on the shared folder. Before that you see "Unsaved changes…" or
@@ -242,42 +342,53 @@ version you looked at last, per workbook.
   maintainer looks at it; the status bar and the deck's health line say "read-only".
 * Somebody installed a version that changed the saved formats while you were working: the status bar asks you to
   reload the page (F5), and Slide Builder stops saving until you do.
+* **Decks with 4.6 objects open in 4.6 and later only.** The first time a deck gets an object older versions do not
+  know (a chart, a shape, a free layout, a look, cell gridlines or borders, a hidden slide…), Slide Builder marks the deck
+  for 4.6 – once per deck, about 25 seconds of "Saving…". A window of an older version that still has it open turns
+  read-only. Decks without such objects keep opening in older versions.
 
 ---
 
-## 5. Export
+## 6. Export
 
-*Export PDF* exports the whole deck in the mode you chose last (the first time: text & tables). The ▾ next to it
-opens the menu:
+*Export PDF* exports the whole deck in the mode you chose last. The ▾ menu:
 
 | Menu item | What you get |
 |---|---|
-| PDF · text & tables | one page per slide, real text and lines, sharp at any zoom (the default) |
+| PDF · text & tables | one page per slide, real text and lines (the default) |
 | PDF · as pictures | each slide as a 192 dpi picture |
 | PDF · current slide only | the slide on screen |
-| Copy current slide | a 4800 × 2700 picture on the clipboard, to paste into PowerPoint |
+| PowerPoint · all slides / current slide | a `.pptx` with editable text, real tables and charts |
+| PDF + PowerPoint · all slides / current slide | both files at once |
+| Copy current slide | a 4800 × 2700 picture on the clipboard |
 | PNG · current slide / every slide | 4800 × 2700 pictures |
-| PDF · every version | one PDF per version, in this design |
-| PDF · every version × Liquid Glass + Excel | two PDFs per version |
-| PDF · every version × all three designs | three PDFs per version |
-| Report a problem with this export… | writes a short report to `export\feedback\` for the maintainer |
+| Versions: PDF · PowerPoint · PDF + PowerPoint | the switch for the four items below |
+| every version | one file per version, in this design |
+| every version × Liquid Glass + Excel / all three / all five designs | one file per version and design |
+| Run for each value… | one file per value of an input cell (part 7) |
+| Report a problem with this export… | a short report in `export\feedback\` |
 
-**File names.** `<workbook> - slides.pdf`; one slide: `<workbook> - <slide>.pdf`; pictures:
-`<workbook> - <slide>.png`; versions: `<workbook> - <version> - <design>.pdf`; pictures in a PDF add " (images)".
-If a file of that name is open in a viewer, the new one is saved as "… (2)". Files go to the `export\` folder; a
-toast says "Saved … in the export folder" with *Open* and *Show folder*.
+**File names.** `<workbook> - slides.pdf` and `.pptx`; one slide: `<workbook> - <slide>.pdf`; pictures:
+`<workbook> - <slide>.png`; versions: `<workbook> - <version> - <design>.pdf` / `.pptx`; a run: `<value> - <design>.pdf`
+(`<value> - <version> - <design>.pdf` with versions). Pictures in a PDF add " (images)". A name in use gets " (2)".
 
-**What to expect.** Slide Builder writes the files itself, in the background; you can keep working. On the 20-slide
-test deck: a Glass PDF in about 1.4 s and 1.3 MB, an Excel PDF in about 0.4 s and 0.3 MB. "As pictures" is much
-bigger (11.6 MB for Excel, 69 MB for Glass on the same deck). Unsaved changes are saved first, so the export always
-shows them.
+**PowerPoint.** Titles, subtitles, footers and page numbers are the layout's placeholders; every table is a real
+PowerPoint table; pie and donut charts are PowerPoint charts with their data (*Edit Data* works); shapes hold their
+text; the workbook's pictures and the logo are pictures; everything else – Glass's cards and capsules, the consulting
+designs' bars and rules – is editable shapes. Each file has a slide master and one layout per kind of slide (cover,
+contents, content), with the design's colours and fonts. No connector shapes, no links outside the file. Positions and
+sizes are the slide's, so it looks like the PDF; where it cannot be exact PowerPoint draws it its own way (a chart's
+labels, blurred shadows, a line wrapping one word earlier when a font is replaced). Fonts are named, not embedded.
+
+**What to expect.** 20-slide test deck: Glass PDF ≈1.4 s / 1.3 MB, Excel PDF ≈0.4 s / 0.3 MB; PowerPoint Glass ≈0.6 s /
+0.5 MB, Excel ≈0.3 s / 0.14 MB. Hidden slides are left out.
 
 **Fonts in the PDF.** The fonts used are embedded, so the PDF looks the same everywhere. A font nobody has is
 replaced by a default one, and the toast names it.
 
 ---
 
-## 6. New in 4.2 (built, not yet released)
+## 7. Linked workbooks, formulas and scenarios
 
 ### Linked workbooks
 A deck can draw tables from more than one workbook of the folder. In wizard step 1 press *+ Add a linked
@@ -299,12 +410,31 @@ then reads, for example, "Formulas: 205 of 208 recompute like Excel · 3 locale-
 * **different from Excel** – shown as a warning. The slides still show Excel's saved values; tell the maintainer
   which workbook it was.
 
-The page is about 2 MB bigger for this: it carries a formula engine that starts only when *Check* is pressed, so
-opening Slide Builder and a deck is as fast as before.
+The line also says how many TEXT formulas written by an Italian Excel Slide Builder formats itself ("n with TEXT in
+Italian, formatted by Slide Builder"). The page is about 2 MB bigger for this: it carries a formula engine that starts
+only when it is needed, so opening Slide Builder and a deck is as fast as before.
+
+### Run for each value (scenarios)
+*Export ▾ › Run for each value…* sets an input cell – e.g. the bank of a dashboard's control sheet – to each value of a
+list and saves one file per value, design and version. The input cell: type it (`Control!B2`), *Select cell…* on a
+sheet, or *Pick a cell* (the cell selected on the slide). The values: typed, pasted from Excel, or *From a range…* of
+the workbook; *Treat as text*. Tick the designs, versions and files (PDF, PowerPoint); the line below counts the files.
+Slide Builder recalculates the workbook for each value; nothing is saved – the workbook and the deck stay as they are.
+A panel shows the progress, *Cancel* (after the value being made), a report per value and *Open folder*; you can keep
+working meanwhile. If a cell on the slides is one Slide Builder computes otherwise than Excel, the run stops with the
+list, unless *Run anyway and mark these cells* is ticked (they get a red corner).
+
+**Preview** one value on the slides first: pick it beside *Preview*. A banner says "Previewing: Bank C – a scenario,
+not saved" with *Clear*; the slides, charts, formula bar and side panel show the scenario's values. Edits made meanwhile
+are ordinary edits of the deck. An ordinary export during a preview uses the workbook's own values.
+
+Workbooks made with Italian Excel recalculate like Excel: `TESTO(…;"mmmm aaaa")` and the like are formatted as Italian
+Excel does. Named ranges are recalculated too. Measured: about 0.6 s for one value from the click, 3.2 s for 20 values.
+
 
 ---
 
-## 7. How it works underneath
+## 8. How it works underneath
 
 *For the owner and the maintainer.*
 
@@ -315,7 +445,7 @@ opening Slide Builder and a deck is as fast as before.
   only moves files: it hands the workbook's bytes to the page, appends changes to journal files, keeps snapshots,
   saves exports and fonts. It understands none of the slides. It listens only on the PC itself (127.0.0.1).
 * **The page in Edge** does all the work: it reads the workbook, lays out the tables, draws the slides and writes the
-  PDF.
+  PDF and PowerPoint files.
 * **The worker** is a background part of the page that owns the open workbook and the deck, so the window never
   freezes while a big workbook is read. Up to three export workers write PDFs and pictures in parallel.
 
@@ -339,21 +469,29 @@ slide on screen, the thumbnails, the PNG pictures and the PDF, so what you see i
 from the font files themselves, so line breaks are the same on every PC that has the same fonts; the side panel
 names a font that is another version on another PC ("Calibri on this PC is another version than on PC-B").
 
-### The formula engine (4.2)
+### The formula engine
 The formulas are read from the workbook file and recomputed inside the page by an embedded engine (IronCalc). Excel
-is not used. Today the engine is used for the self-check of the Formulas line: every formula cell against the value
-Excel saved.
+is not used. The engine serves the self-check of the Formulas line (every formula cell against the value Excel saved)
+and the scenarios (Run for each value, preview); it starts only when one of these is used. Otherwise the slides show the
+values Excel saved.
+
+### The 4.6 mark
+A deck that holds objects older versions do not know carries a mark file, `incident-format-5.json`, in its folder
+(`backend\data\v4\decks\<deck>\`). A version before 4.6 then opens the deck read-only instead of dropping what it does
+not know. Never delete this file.
 
 ### What is never done
 * The workbook is never written. Slide Builder only reads it.
 * Decks and workbooks go nowhere but the shared folder: the helper answers only on the PC itself. Only two things
-  reach the internet: the font menu loads previews of Google font names (and adding one downloads it), and
-  `Update Slide Builder.bat` downloads a new release from GitHub.
+  reach the internet: `Update Slide Builder.bat` downloads a new release from GitHub, and the helper fetches a Google
+  font being added, or a font preview not yet in the shared cache (from Google's font collection on GitHub, jsDelivr,
+  Google Fonts last; a proxy can be written in `%LOCALAPPDATA%\SlideBuilder\proxy.txt` or the shared
+  `backend\data\proxy.txt`). The page itself asks nothing of the internet.
 * Hidden sheets are never shown.
 
 ---
 
-## 8. When something looks wrong
+## 9. When something looks wrong
 
 ### The Issues panel
 | Line | What it means / what to do |
@@ -362,7 +500,11 @@ Excel saved.
 | Small text (≈8.6px at 100%) | the table is shrunk a lot: enlarge it or move it to its own slide |
 | N table(s) of this slide could not be found | a sheet was renamed or deleted: open the wizard |
 | No tables on this slide | add tables in wizard step 3 |
-| Chart on … not reproduced | charts are not drawn; paste the chart as a picture into the table area in Excel |
+| Chart on … not reproduced | an Excel chart inside the sheet is not drawn; paste it as a picture into the table area in Excel, or make a chart with *Insert chart ▾* |
+| Chart 1: source Summary!C5:C9 not found | a sheet was renamed or removed: *Change the cells…*; meanwhile a dashed placeholder, left out of exports |
+| Chart 1: no numbers in Summary!C5:C9 | the chosen cells hold no numbers |
+| Callout 1: Nowhere!B2 not found (shown as #REF) | the quoted cell's sheet is gone: quote the cell again |
+| N objects of a newer Slide Builder … | this window is an older version: close the black window and start Slide Builder again |
 | Picture(s) … that could not be read / conditional formats not reproduced | that element is left out |
 | N edited cells · M text edits paused | Excel's value changed under your text (new figures or rows inserted); check and retype |
 | Logo "logo.png" not found in the folder | choose the logo again in ⚙ Options |
@@ -377,11 +519,17 @@ Excel saved.
 * **"⚠ Not saved yet – retrying"** – the share is slow or unreachable; leave the window open, the change is kept.
 * **"Slide Builder was updated – reload the page (F5)"** – press F5.
 * **"⚠ This deck is read-only"** – call the maintainer.
+* **"A journal of this deck is damaged – tell the maintainer"** in an older version, on a deck that holds 4.6 objects:
+  that version is too old – close its black window and start Slide Builder again (it starts the new version).
+* **Adding a Google font fails** – the message says why and what to do; *Upload font files* always works.
 
 ### For the maintainer
 * **Logs.** The helper writes its log to its console window (with the time of each line); there is no log file.
   Problem reports from users are in `export\feedback\`. A damaged journal leaves an `incident-….json` in
   `backend\data\v4\decks\<deck>\`.
+* **Saved setups.** *⚙ Options › Administration › Saved setups…* lists every workbook's setup (slides, tables, last
+  change) with *Delete…*, and the deleted ones with *Restore…* (each kept as a backup on the shared folder). A setup
+  open in a window is not deleted – the message says who has it open.
 * **Backups.** `backend\data\backups\`: the last 30 snapshots of each deck (`v4\<deck>\`), files before a format
   upgrade (`upgrades\`), and the saved setups before each update (`before-update-<time>\`, last 5).
 * **Updating.** Run `Update Slide Builder.bat`. It downloads the newest release, checks it, installs it beside the
@@ -392,28 +540,41 @@ Excel saved.
   answers that its limit is used up (60 questions an hour for the whole office), the message says at what time to
   try again; `--zip "%USERPROFILE%\Downloads\slidebuilder-<version>.zip"` (the full path to the ZIP: the update
   runs in the Slide Builder folder) installs a ZIP downloaded with the browser instead.
+* **Update day, 4.0 → 4.6.** Every Slide Builder window and black window is closed on every PC before the update
+  (`docs/next/release-checklist.md` §6). The first release after 4.0.0 is installed by hand there (same section): the
+  share's 4.0.0 updater does not know the new way of finding releases.
 * **Rolling back the program.** `Update Slide Builder.bat --use 4.0.0` (or another installed version) makes that
-  version current again; a plain update then refuses to undo this until you choose a version on purpose.
+  version current again; a plain update then refuses to undo this until you choose a version on purpose. Below 4.6,
+  `--use` first names the decks that hold 4.6 objects (they open read-only there) and asks (`--yes`: named, not asked);
+  never delete their `incident-format-5.json`.
+* **Licences.** *⚙ Options › About › Licences…* shows the licences of the third-party software (React, zustand, fflate,
+  IronCalc, harfbuzzjs / HarfBuzz); the same text is `THIRD-PARTY-NOTICES.txt`.
 * **Giving a deck back to Slide Builder 3** (until its start file is removed): *⚙ Options › Administration ›
   Prepare rollback*, everybody closes the deck, then `Update Slide Builder.bat --rollback "<workbook>"`, and the people
   on that deck use `Start Slide Builder (v3).bat`. Details: `docs/next/cutover.md` §3.
 
 ---
 
-## 9. Glossary
+## 10. Glossary
 
 | Word | Meaning |
 |---|---|
 | deck | the slides of one workbook, with everything people changed; stored beside the workbook |
 | preset | the deck's setup from the wizard: sheets, tables, slides, versions |
 | version | the same deck with some cells removed, for another audience (e.g. Chief, All) |
-| design | how tables are drawn: Glass (Liquid Glass), Excel, Refined (Excel Refined) |
+| design | how tables are drawn: Glass (Liquid Glass), Excel, Refined (Excel Refined), Navy (Consulting Navy), Red (Consulting Red) |
+| look | in Navy and Red, how tables and the headline are drawn (exhibit, cards, ruled; KPI line, panel…), per slide or the deck's |
+| chart | a pie or donut drawn from cells of the workbook; it follows the workbook |
+| shape | a rectangle, pill, arrow, bubble… or an icon with text, which can quote a cell as `{Sheet!C7}` (a callout) |
+| free layout | a slide whose tables, boxes, charts and shapes stay where you dragged them, in one design |
+| hidden slide | a slide left out of a design's exports, page numbers and index, still in the list (grayed) |
 | role | how Glass treats a cell: header, total, body, note (Auto = detected) |
 | highlight | a capsule behind a value in Glass |
 | journal | the file of changes one open window makes to a deck, appended to line by line |
 | snapshot | the whole deck in one file; journals hold the changes since |
 | display list | the description of a slide that draws the screen, the pictures and the PDF alike |
 | linked workbook | another workbook of the folder whose sheets a deck uses; its sheets are named `[File.xlsx]Sheet` |
-| scenario | a run of the deck for several values of one input cell – planned, not yet in the program |
+| scenario | the deck recalculated for one value of an input cell: previewed on the slides, or one file per value (Run for each value) |
+| 4.6 mark | the file `incident-format-5.json` in a deck's folder: versions before 4.6 open that deck read-only |
 | self-check | the Formulas line's comparison of every recomputed formula with Excel's saved value |
 | helper | the small program in the console window that moves files between the page and the share |

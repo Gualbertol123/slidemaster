@@ -24,7 +24,7 @@
   @bottom-right { content: counter(page); font: 600 8pt var(--font); color: #1C4F8C; vertical-align: middle; text-align: center;
     width: 10mm; height: 5.4mm; margin-top: 5mm; border-radius: 3mm; background: linear-gradient(180deg, #EEF3FD, #E4EBFA);
     border: 1px solid #D3DDF2; }
-  @bottom-left { content: "Program 4.0.0 with the 4.1 and 4.2 changes built so far \00B7  16 October 2026"; font: 400 6.5pt var(--font); color: #9AA2B2; vertical-align: middle; margin-top: 5mm; }
+  @bottom-left { content: "Program 4.6.0 \00B7  21 October 2026"; font: 400 6.5pt var(--font); color: #9AA2B2; vertical-align: middle; margin-top: 5mm; }
 }
 @page cover { margin: 0; @top-left { content: none; border: 0 } @top-right { content: none; border: 0 } @bottom-right { content: none; background: none; border: 0 } @bottom-left { content: none } }
 * { box-sizing: border-box; }
@@ -63,7 +63,7 @@ li::marker { color: var(--a1); }
 /* ---- section opener: a small slide of wallpaper with a glass card, inside the page ---- */
 .part { break-before: page; }
 .part.flow { break-before: auto; margin-top: 8mm; }
-.opener { position: relative; height: 44mm; border-radius: var(--r); overflow: hidden; margin: 0 0 6mm;
+.opener { break-inside: avoid; break-after: avoid; position: relative; height: 44mm; border-radius: var(--r); overflow: hidden; margin: 0 0 6mm;
   background: #E9EDF6 url(img/wall.jpg) center 40% / cover no-repeat; }
 .opener .card { position: absolute; left: 8mm; top: 7mm; right: 8mm; bottom: 7mm; border-radius: 14px; padding: 6mm 8mm; display: flex; flex-direction: column; justify-content: center; }
 .opener .num { align-self: flex-start; margin-bottom: 2.5mm; padding: 1mm 3.4mm; font-size: 8pt; color: var(--x); }
@@ -119,3 +119,9 @@ svg.dia text { font-family: var(--font); }
 dl.gl { display: grid; grid-template-columns: 33mm 1fr; gap: 0; margin: 0; }
 dl.gl dt { font-weight: 600; color: var(--x); padding: 1.25mm 0; border-bottom: 1px solid var(--rule2); }
 dl.gl dd { margin: 0; padding: 1.25mm 0; border-bottom: 1px solid var(--rule2); }
+
+/* a tall menu shown in two halves side by side (Export ▾): the same picture, the lower half moved up */
+.menu2 { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; }
+.menu2 .shot.half { aspect-ratio: 348 / 712; overflow: hidden; }
+.menu2 .shot.half img { border-radius: 0; }
+.menu2 .shot.half.low img { transform: translateY(-50%); }
