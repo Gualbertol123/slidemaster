@@ -1,4 +1,4 @@
 {
-  "bytes": 0,
-  "why": "M15 (4.8.0, lines, icons, snapping): by measurement, the owner's decision of 2026-10-21 (icons inside the page, packed, inflated on first use: option A); set at S15.1 when the icon data is measured. Expected total of the page with M14 and M15: about 4.7 MB or less."
+  "bytes": 560000,
+  "why": "M15 (4.8.0, lines, icons, snapping), set at S15.1 by measurement (the owner's decision of 2026-10-21, option A: the Tabler set inside the page, packed, inflated on first use). The icon set with its loader, registration and notice: 514,930 bytes (the page built from v4/M14-M15-prep, 3,964,345 bytes, against the same tree with S15.1, 4,479,275). Plus 45,070 for M15's code (plan-M15: S15.2 about 15 KB, S15.3 15 KB, S15.4 6 KB, S15.5 4 KB; B35's 12 KB is not included). Total with base and M14: 4,646,092 bytes, within the 4.7 MB expected."
 }

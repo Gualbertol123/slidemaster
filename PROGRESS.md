@@ -987,3 +987,8 @@ M15 appends here only.
 | Step | What | Run 1 | Run 2 |
 |---|---|---|---|
 | S14.P | page budget part `app/tests/page-budget/m15.json` (set by measurement at S15.1, owner 2026-10-21: icons in the page, packed, inflated on first use), bytes | 0 | – |
+| S15.1 | the page with the Tabler set (bytes; built, not committed): from `v4/M14-M15-prep` 3,964,345 → with S15.1 | 4,479,275 (+514,930) | – |
+| S15.1 | the Tabler data (`core/src/icons/data.ts`): packed · zlib · base64, bytes | 868,542 · 381,825 · 509,100 | – |
+| S15.1 | page budget part `m15.json`, bytes: the measured set + 45,070 for M15's code (plan-M15 estimates; B35 not included) | 560,000 | – |
+| S15.1 | first use, cold, in Node (atob + inflate + index), ms · 7 search keystrokes, ms | ≈ 90 · ≈ 40 | – |
+| S15.1 | one-off: every icon (6,238) through `resolveIcon` → `vendoredNodes` → `validate` → `dl/svg.ts`, resvg at 96 px against the release's SVG file: icons with a pixel off by > 64/255 · the largest difference | 12 (≤ 10 px each) · 96/255 | – |
