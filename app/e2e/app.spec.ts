@@ -33,6 +33,19 @@ function deckDoc(name: string) {
   return fold(snap, recs).doc as any;           // (the tests read it as freely as the JSON file before)
 }
 const doc = () => deckDoc("report.xlsx");
+/** wait until a deck's files stop changing (a compaction the page started on open – e.g. the first one after the
+    format-5 raise, which folds nothing – is over): what a test then compares is its own doing only */
+async function settledDeck(name: string, quietMs = 4000, timeout = 60_000) {
+  const d = deckDir(name)!, snapOf = () => fs.readdirSync(d, { recursive: true }).map(String).filter(f => !f.startsWith("presence")).sort()
+    .map(f => { const st = fs.statSync(path.join(d, f)); return st.isFile() ? f + ":" + st.size + ":" + st.mtimeMs : ""; }).join("|");
+  let last = snapOf(), since = Date.now();
+  for (const t0 = Date.now(); Date.now() - t0 < timeout; ) {
+    await new Promise(r => setTimeout(r, 250));
+    const now = snapOf();
+    if (now !== last) { last = now; since = Date.now(); } else if (Date.now() - since >= quietMs) return;
+  }
+  throw new Error("deck " + name + " kept changing for " + timeout + " ms");
+}
 const errors: string[] = [];
 /* browser messages the fixtures cause on purpose; any other console error or warning fails E15:
    the decks' default logo "logo.png" is not in the test folder (the app shows "Logo not found"), the helper
@@ -1131,7 +1144,8 @@ test.describe.serial("two people, one shared folder", () => {
   test("Run for each value… (S8.1, SC-01, SC-07): the input cell, values typed and from a range, de-duplicated; a preview on the stage, cleared", async ({ page }) => {
     await openApp(page, ANNA);                                                       // Banks.xlsx with the linked Peers table
     await expect(page.locator("#stage .slide")).toHaveCount(1, { timeout: 20_000 });
-    const bdoc = () => JSON.stringify(deckDoc("Banks.xlsx"));
+    await settledDeck("Banks.xlsx");                       // (a compaction due at open: content unchanged, written anew)
+    const bdoc = () => deckDoc("Banks.xlsx");
     const before = bdoc();
     // the deck's one table is the linked Peers sheet: Peer avg loans are 1761 for Bank A, 3141 for Bank C (PeerData)
     const cells = page.locator("#stage .slide .t");
@@ -1224,7 +1238,7 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#scBanner")).toContainText("Previewing: Bank C – a scenario, not saved", { timeout: 20_000 });
     await expect(cells.filter({ hasText: /^3141$/ })).toHaveCount(1);              // the linked file recalculated
     await expect(cells.filter({ hasText: /^1761$/ })).toHaveCount(0);
-    expect(bdoc()).toBe(before);
+    expect(bdoc()).toEqual(before);
     // Clear: the workbook's own values again
     await page.click("#scClear");
     await expect(page.locator("#scBanner")).toHaveCount(0);
@@ -1236,7 +1250,7 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#scCount")).toHaveText("3 values");
     await page.keyboard.press("Escape");
     await expect(dlg).toHaveCount(0);
-    expect(bdoc()).toBe(before);
+    expect(bdoc()).toEqual(before);
     // S8.4 (Decisions: the cells mirrored to the page): during a preview the formula bar shows the scenario's value of
     // the selected cell; an edit made meanwhile is an ordinary edit of the deck, saved, and stays after Clear
     await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]');
@@ -1273,6 +1287,7 @@ test.describe.serial("two people, one shared folder", () => {
     const hashOf = (f: string) => createHash("sha256").update(fs.readFileSync(f)).digest("hex");
     const dir = deckDir("Banks.xlsx")!, deckFiles = () => fs.readdirSync(dir, { recursive: true }).map(String).filter(f => fs.statSync(path.join(dir, f)).isFile()).sort();
     const state = () => JSON.stringify({ banks: hashOf(path.join(root(), "Banks.xlsx")), peers: hashOf(path.join(root(), "Peers.xlsx")), deck: deckFiles().map(f => [f, hashOf(path.join(dir, f))]) });
+    await settledDeck("Banks.xlsx");
     const before = state(), docBefore = JSON.stringify(deckDoc("Banks.xlsx"));
     const exportDir = path.join(root(), "export");
     const runWith = async (input: string, values: string, designs: string[], kinds = ["pdf"]) => {
