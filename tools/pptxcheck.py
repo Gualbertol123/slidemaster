@@ -2,7 +2,7 @@
 structure check is the standard library; the text, table and chart checks need python-pptx 1.0.2 (MIT); the open
 check needs PowerPoint (Windows, COM through PowerShell). The helper stays standard-library only.
 
-    python tools/pptxcheck.py check a.pptx [b.pptx ...] [--slides N] [--no-ppt] [--json out.json] [--sources sources.json]
+    python tools/pptxcheck.py check a.pptx [b.pptx ...] [--slides N] [--no-ppt] [--json out.json] [--sources sources.json] [--expect expect.json]
         (1) structure: the zip opens; [Content_Types].xml types every part; every relationship's target exists and none
             points outside the file (no links); every XML part parses; the slide count (presentation.xml, = N when
             given); the slide size 12 192 000 × 6 858 000 EMU; no empty a:t; no connector shapes (p:cxnSp); every
@@ -19,6 +19,12 @@ check needs PowerPoint (Windows, COM through PowerShell). The helper stays stand
             compared with (2)
         (4) with --sources ({file: {workbook, charts: [{slide, sheet, range}]}}): each chart's cached values equal the
             workbook's cells (openpyxl, the values Excel saved; text, blank and hidden cells skipped as the chart skips them)
+        (5) real objects, gated (S14.P; AUDIT-2 VER-3, PX-02 / PX-03, 09 §7.2): with --expect ({file: [{slide, tables,
+            charts}]}) each slide holds at least those real tables (python-pptx has_table) and native charts (has_chart);
+            where PowerPoint is present, it must open the file (3) and see the same tables (HasTable) and charts
+            (HasChart) per slide as python-pptx – a failure, never a count. Each report says `ppt`: opened / failed /
+            absent (no PowerPoint here: 1, 2, 4 and python-pptx's part of 5 run) / skipped (--no-ppt). Also in (1): no
+            chart formula (c:f) names another file (09 §4.2: no external links)
         exit 1 when any check fails; --json writes every file's report (the content of (2) included)
     python tools/pptxcheck.py info a.pptx [...]      the report of (1) and (2) as JSON, nothing checked
 """
@@ -279,6 +285,15 @@ def structure(path, slides=None):
             bad.append("slide %d: no layout" % (i + 1))
         if root.find(".//p:cxnSp", NS) is not None:
             bad.append("slide %d: a connector shape" % (i + 1))
+        # (S14.P, 09 §4.2: no external links) a chart's formula never names another file – every c:f points into its own
+        # embedded workbook
+        for ch in [posixpath.normpath(posixpath.join(posixpath.dirname(part), r.get("Target"))) for r in (rel.findall("rel:Relationship", NS) if rel is not None else [])
+                   if r.get("Type") == RT + "chart"]:
+            croot = xml.get(ch)
+            for f in (croot.iter("{%s}f" % NS["c"]) if croot is not None else []):
+                if "[" in (f.text or "") or re.search(r"\.xls[xmb]?\b", f.text or "", re.I):
+                    bad.append("slide %d: a chart formula names a file: %s" % (i + 1, f.text))
+                    break
         for t in root.iter("{%s}t" % NS["a"]):
             if not (t.text or ""):
                 bad.append("slide %d: an empty a:t" % (i + 1))
@@ -340,20 +355,21 @@ $files = Get-Content -Raw -Encoding UTF8 $args[0] | ConvertFrom-Json
 $was = $true; try { [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application") | Out-Null } catch { $was = $false }
 $app = New-Object -ComObject PowerPoint.Application
 $out = @()
-function texts($shapes, [ref]$acc) {
+function texts($shapes, [ref]$acc, [ref]$nt, [ref]$nc) {
   foreach ($sh in $shapes) {
-    if ($sh.Type -eq 6) { texts $sh.GroupItems $acc; continue }
-    if ($sh.HasTable) { $t = $sh.Table; for ($r = 1; $r -le $t.Rows.Count; $r++) { for ($c = 1; $c -le $t.Columns.Count; $c++) { $x = $t.Cell($r, $c).Shape.TextFrame.TextRange.Text; if ($x.Trim()) { $acc.Value += $x } } }; continue }
+    if ($sh.Type -eq 6) { texts $sh.GroupItems $acc $nt $nc; continue }
+    if ($sh.HasChart) { $nc.Value++ }
+    if ($sh.HasTable) { $nt.Value++; $t = $sh.Table; for ($r = 1; $r -le $t.Rows.Count; $r++) { for ($c = 1; $c -le $t.Columns.Count; $c++) { $x = $t.Cell($r, $c).Shape.TextFrame.TextRange.Text; if ($x.Trim()) { $acc.Value += $x } } }; continue }
     if ($sh.HasTextFrame -and $sh.TextFrame.HasText) { $acc.Value += $sh.TextFrame.TextRange.Text }
   }
 }
 try {
   foreach ($f in $files) {
-    $r = @{ file = $f; ok = $false; slides = 0; texts = @(); error = "" }
+    $r = @{ file = $f; ok = $false; slides = 0; texts = @(); tables = @(); charts = @(); error = "" }
     try {
       $p = $app.Presentations.Open($f, -1, 0, 0)
       $r.slides = $p.Slides.Count
-      foreach ($s in $p.Slides) { $acc = @(); texts $s.Shapes ([ref]$acc); $r.texts += ,@($acc) }
+      foreach ($s in $p.Slides) { $acc = @(); $nt = 0; $nc = 0; texts $s.Shapes ([ref]$acc) ([ref]$nt) ([ref]$nc); $r.texts += ,@($acc); $r.tables += $nt; $r.charts += $nc }
       $p.Close(); $r.ok = $true
     } catch { $r.error = $_.Exception.Message }
     $out += $r
@@ -419,18 +435,41 @@ def source_values(workbook, sheet, rng):
     return out
 
 
-def check(paths, slides=None, ppt=True, report=None, sources=None):
+def real_objects(rep_content, expect, who):
+    """(5) the gate of AUDIT-2 VER-3 / PX-03 (S14.P, 09 §7.2): each slide has at least the real tables (has_table) and
+    native charts (has_chart) the deck puts there – never a picture of one; `who` names the reader in the message"""
+    bad = []
+    slides = rep_content["slides"] if rep_content else []
+    for e in expect or []:
+        i = e["slide"] - 1
+        s = slides[i] if 0 <= i < len(slides) else None
+        for k, word in (("tables", "real table"), ("charts", "native chart")):
+            want = e.get(k) or 0
+            have = (len(s["charts"]) if k == "charts" else s["tables"]) if s else 0
+            if have < want:
+                bad.append("slide %d: %s %d %s(s), the deck has %d" % (e["slide"], who, have, word, want))
+    return bad
+
+
+def check(paths, slides=None, ppt=True, report=None, sources=None, expect=None):
+    """`expect` ({file: [{slide, tables, charts}]}): the real tables and native charts each slide must hold (5). Where
+    PowerPoint is present it is a gate, not a count (AUDIT-2 VER-3, 09 §7.2): the file must open, and PowerPoint must see
+    as many tables (HasTable) and charts (HasChart) per slide as python-pptx does; without it (CI, Linux) the structural
+    checks and python-pptx's counts run, and each report says `ppt: absent`"""
     ok, reports = True, []
     use_ppt = ppt and powerpoint_available()
     opened = {os.path.abspath(r["file"]).lower(): r for r in powerpoint_open(paths)} if use_ppt else {}
     for p in paths:
         bad, facts = structure(p, slides)
-        rep = {"file": p, **facts, "structure": bad or "ok"}
+        rep = {"file": p, **facts, "structure": bad or "ok", "ppt": "opened" if use_ppt else "absent" if ppt else "skipped"}
         try:
             rep["content"] = content(p)
         except Exception as e:                      # noqa: BLE001 (a file python-pptx cannot read is a failure)
             bad = bad + ["python-pptx cannot read it: %s" % e]
             rep["content"] = None
+        exp = (expect or {}).get(p) or (expect or {}).get(os.path.abspath(p))
+        if exp:
+            bad = bad + real_objects(rep["content"], exp, "python-pptx reads")
         src = (sources or {}).get(p) or (sources or {}).get(os.path.abspath(p))
         if src and rep["content"]:
             for k, spec in enumerate(src["charts"]):
@@ -444,12 +483,20 @@ def check(paths, slides=None, ppt=True, report=None, sources=None):
         if use_ppt:
             o = opened.get(os.path.abspath(p).lower())
             if not o or not o.get("ok"):
+                rep["ppt"] = "failed"
                 bad.append("PowerPoint: %s" % ((o or {}).get("error") or "not opened"))
             else:
-                rep["powerpoint"] = {"slides": o["slides"]}
+                as_list = lambda v: v if isinstance(v, list) else ([] if v is None else [v])     # (ConvertTo-Json: one slide is a number)
+                rep["powerpoint"] = {"slides": o["slides"], "tables": as_list(o.get("tables")), "charts": as_list(o.get("charts"))}
                 if o["slides"] != facts.get("slides"):
                     bad.append("PowerPoint reads %s slides, the file has %s" % (o["slides"], facts.get("slides")))
                 if rep["content"]:
+                    # (5) PowerPoint sees every real table and native chart python-pptx sees (VER-3: gated, not counted)
+                    pt, pc = rep["powerpoint"]["tables"], rep["powerpoint"]["charts"]
+                    for i, s in enumerate(rep["content"]["slides"]):
+                        if (pt[i] if i < len(pt) else 0) != s["tables"] or (pc[i] if i < len(pc) else 0) != len(s["charts"]):
+                            bad.append("slide %d: PowerPoint sees %s table(s) and %s chart(s), python-pptx %d and %d"
+                                       % (i + 1, pt[i] if i < len(pt) else 0, pc[i] if i < len(pc) else 0, s["tables"], len(s["charts"])))
                     for i, (mine, theirs) in enumerate(zip(rep["content"]["slides"], o["texts"] or [])):
                         # (as sets: PowerPoint gives a merged cell's text for every cell it covers)
                         a, b = set(squash(t) for t in mine["texts"]), set(squash(t) for t in (theirs or []))
@@ -461,7 +508,7 @@ def check(paths, slides=None, ppt=True, report=None, sources=None):
         ok = ok and not bad
         print(("PASS " if not bad else "FAIL ") + os.path.basename(p) + ("" if not bad else ": " + "; ".join(bad[:4])))
     if not use_ppt and ppt:
-        print("(PowerPoint is not available here: checks 1–2 only)")
+        print("(PowerPoint is not available here: checks 1–2, 4 and python-pptx's real tables and charts (5) only; on a PC with PowerPoint, 3 and 5 are gates)")
     if report:
         with open(report, "w", encoding="utf-8") as f:
             json.dump(reports, f, ensure_ascii=False, indent=1)
@@ -477,6 +524,7 @@ def main(argv):
     c.add_argument("--no-ppt", action="store_true")
     c.add_argument("--json")
     c.add_argument("--sources")
+    c.add_argument("--expect")
     i = sub.add_parser("info")
     i.add_argument("files", nargs="+")
     a = ap.parse_args(argv)
@@ -491,7 +539,11 @@ def main(argv):
     if a.sources:
         with open(a.sources, encoding="utf-8") as f:
             sources = json.load(f)
-    return 0 if check(a.files, a.slides, not a.no_ppt, a.json, sources) else 1
+    expect = None
+    if a.expect:
+        with open(a.expect, encoding="utf-8") as f:
+            expect = json.load(f)
+    return 0 if check(a.files, a.slides, not a.no_ppt, a.json, sources, expect) else 1
 
 
 if __name__ == "__main__":
