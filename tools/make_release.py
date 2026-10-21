@@ -23,6 +23,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import zipfile
@@ -173,7 +174,8 @@ def release_notes(root, version):
 
 
 def run_tests(root):
-    """the helper tests, and the app and core checks when npm is installed (what CI runs)"""
+    """the helper tests, and the app and core checks when npm is installed (what CI runs), then whether
+    THIRD-PARTY-NOTICES.txt is current (`node tools/notices.mjs --check`) when node is on PATH"""
     say("Running the helper tests...")
     if subprocess.call([sys.executable, "-m", "unittest", "discover", "-s", os.path.join(root, "helper", "tests")], cwd=root):
         raise SystemExit("helper tests failed - no release built")
@@ -185,6 +187,11 @@ def run_tests(root):
         return
     if rc:
         raise SystemExit("app or core checks failed - no release built")
+    node = shutil.which("node")
+    if not node:
+        say("node not found: THIRD-PARTY-NOTICES.txt not checked (CI runs the check)")
+    elif subprocess.call([node, os.path.join(root, "tools", "notices.mjs"), "--check"], cwd=root):
+        raise SystemExit("THIRD-PARTY-NOTICES.txt is out of date: run node tools/notices.mjs - no release built")
 
 
 def main(argv=None):

@@ -25,6 +25,8 @@ const VENDORED = {
   "core/src/text/wasm": [
     { name: "harfbuzzjs", version: "0.4.12", check: ["hb-wasm.ts", "harfbuzzjs@0.4.12"], licence: "MIT, with Apache-2.0 parts (text below)",
       what: "text shaping (WebAssembly)", url: "https://github.com/harfbuzz/harfbuzzjs", file: "LICENSE-harfbuzzjs" },
+    /* 11.5.0 is the version string inside hb.wasm, NOT in hb-wasm.ts's header: the check below only stops the script when
+       harfbuzzjs changes – then read the HarfBuzz version in the new hb.wasm again, and its COPYING */
     { name: "HarfBuzz", version: "11.5.0", check: ["hb-wasm.ts", "harfbuzzjs@0.4.12"], licence: "Old MIT",
       what: "inside harfbuzzjs's WebAssembly", url: "https://github.com/harfbuzz/harfbuzz", file: "COPYING-harfbuzz" }],
 };
@@ -41,6 +43,9 @@ Not listed because Slide Builder does not ship them:
 - Fonts: none ship with Slide Builder. Google Fonts families added in the font manager are downloaded when added,
   each under its own licence (SIL Open Font License 1.1, Apache-2.0 or the Ubuntu Font Licence – the folder it comes
   from in https://github.com/google/fonts: ofl/, apache/ or ufl/); Windows fonts are the PC's own.
+
+IronCalc's WebAssembly has Rust libraries (crates) compiled in; they ship as part of IronCalc and are covered here by
+its MIT / Apache-2.0 licence below. A list of those libraries with their own notices is still to come (LIC-1).
 `;
 
 /** packages (name → {dir, version, where}) and inlined WASM folders (repo-relative) in the page's and the worker's bundles */

@@ -10,6 +10,7 @@ import { useStage } from "../stage/data";
 import { mountThumbs } from "../editor/thumbs";
 import { clearPreview } from "../editor/scenario";
 import { slideIssues } from "../editor/issues";
+import { openLicences } from "./notices";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
 import { selStatus } from "./Ribbon";
 import { esc } from "@slide-builder/core/xlsx/util";
@@ -113,6 +114,7 @@ export function Canvas() {
             <span style={{ fontSize: "12px" }}>Workbooks placed in the main <b>Slide Builder</b> folder appear in the Open menu · exports go to the <b>export</b> folder.</span></p>
           <button className="btn primary" id="emptyOpen" onClick={() => (backend.served ? document.getElementById("openBtn") : document.getElementById("fileInput"))?.click()}>Open workbook</button>
           <p style={{ fontSize: "12px" }}>…or drop an .xlsx file anywhere on this window.</p>
+          <p style={{ fontSize: "11px" }}>Slide Builder includes open-source software: <button className="btn" id="emptyLicences" onClick={() => void openLicences()}>Licences…</button></p>
         </div>
       </div>}
       <ScenarioBanner />

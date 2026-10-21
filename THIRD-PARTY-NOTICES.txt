@@ -10,6 +10,9 @@ Not listed because Slide Builder does not ship them:
   each under its own licence (SIL Open Font License 1.1, Apache-2.0 or the Ubuntu Font Licence – the folder it comes
   from in https://github.com/google/fonts: ofl/, apache/ or ufl/); Windows fonts are the PC's own.
 
+IronCalc's WebAssembly has Rust libraries (crates) compiled in; they ship as part of IronCalc and are covered here by
+its MIT / Apache-2.0 licence below. A list of those libraries with their own notices is still to come (LIC-1).
+
 ==============================================================================
 ## fflate 0.8.2 · MIT · the page and the core worker
 https://github.com/101arrowz/fflate

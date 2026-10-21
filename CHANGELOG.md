@@ -15,9 +15,9 @@ What users notice
   workbook is not changed). ⚙ Options › Administration › **Saved setups…** lists every workbook's setup (slides,
   tables, last change) with *Delete…*, and the deleted ones with *Restore…*: a deleted setup is kept as a backup on
   the shared folder. A setup open in a window is not deleted – the message says who has it open.
-* **Licences** (LI-01): ⚙ Options › About › *Licences…* shows the licences of the third-party software in Slide Builder
-  (React, zustand, fflate, IronCalc, harfbuzzjs / HarfBuzz); the release ZIP carries the same text as
-  `THIRD-PARTY-NOTICES.txt`.
+* **Licences** (LI-01): ⚙ Options › About › *Licences…*, or *Licences…* on the start screen before any workbook is
+  open, shows the licences of the third-party software in Slide Builder (React, zustand, fflate, IronCalc,
+  harfbuzzjs / HarfBuzz); the release ZIP carries the same text as `THIRD-PARTY-NOTICES.txt`.
 
 For the maintainer
 * **`THIRD-PARTY-NOTICES.txt`** (AUDIT-2 LIC-1, ADR-020) is written by `node tools/notices.mjs` from the packages the

@@ -14,7 +14,7 @@ import { THEMES, themeOf } from "@slide-builder/core/model/style";
 import { DESIGNS, isConsult } from "@slide-builder/core/model/designs";
 import { Input } from "./Input";
 import { useStyle } from "./hooks";
-import { noticesText } from "./notices";
+import { openLicences } from "./notices";
 import { ask } from "../state/dialogs";
 
 /* sliders: preview the number at once, apply (one operation, one undo step) when the hand rests */
@@ -164,15 +164,6 @@ function Options() {
       </>}
     </Dropdown>
   );
-}
-
-/* About › Licences: the third-party notices, inflated when asked for (ui/notices.ts) */
-async function openLicences() {
-  try {
-    const pre = `<pre id="licencesText" style="max-height:60vh;overflow:auto;white-space:pre-wrap;font-size:11px;margin:0">${esc(await noticesText())}</pre>`;
-    await ask("Licences", pre, [{ id: "ok", label: "OK", primary: true }], { sub: "Third-party software in Slide Builder", width: 760 });
-  }
-  catch (err) { toast("⚠ " + esc((err as Error).message), [], true); }
 }
 
 function ServerPill() {
