@@ -9,6 +9,8 @@ import { slideCtx } from "./look";
 import { glassGeom } from "./glass";
 import { effNote, titleGeom } from "./text";
 import { consultOptions, DESIGNS, isConsult } from "../model/designs";
+import { isIsp } from "../model/isp";
+import { ISP } from "./isp";
 import { commentText } from "./comment";
 import { exhibitFacts, exhibitGeom, exhibitOf, type Exhibit, type ExFacts } from "./exhibit";
 
@@ -18,6 +20,8 @@ export function areaFor(R: RuntimeSlide, ctx0?: RenderCtx) {
   const ctx = ctx0 && slideCtx(ctx0, R);
   // the consulting designs reserve a two-line title band and a rule under it (08 §2.0); the others as v3
   const a = ctx && isConsult(ctx.style.design) ? (R.subtitle ? { x: 50, y: 170, w: 1500, h: 652 } : { x: 50, y: 138, w: 1500, h: 684 })
+    // Excel and Excel Refined: under the Intesa Sanpaolo template's title and subtitle, from its left margin (B48)
+    : ctx && isIsp(ctx.style.design) ? { x: ISP.area.x, y: R.subtitle ? ISP.area.ySub : ISP.area.y, w: ISP.area.w, h: ISP.area.bottom - (R.subtitle ? ISP.area.ySub : ISP.area.y) }
     : R.subtitle ? { x: 50, y: 126, w: 1500, h: 696 } : { x: 50, y: 104, w: 1500, h: 718 };
   const push = ctx ? Math.min(200, titleGeom(R, ctx).push) : 0;          // larger titles push the tables down
   const b = push ? { ...a, y: a.y + push, h: a.h - push } : a;

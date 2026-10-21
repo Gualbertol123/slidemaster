@@ -7,6 +7,7 @@ import { darken, hexRgb } from "../xlsx/color";
 import { tableKey, type RenderCtx } from "./context";
 import { slideCtx } from "./look";
 import { isConsult, lookKeyOf } from "../model/designs";
+import { isIsp } from "../model/isp";
 import { palette } from "../model/style";
 import { effNote } from "./text";
 import { designClass } from "../model/designs";
@@ -37,7 +38,8 @@ export function contrastVars(contrast: number): Record<string, string> {
 /** accent colours of the theme as CSS variables (none for the default theme: the designs have their values) */
 export function themeVars(ctx: RenderCtx): Record<string, string> {
   const t = themeOf(ctx.style), o = ctx.style.colors || {}, P = palette(ctx.style), v: Record<string, string> = {};
-  if (t.id !== "aurora" || o.accent) {
+  // (Excel and Excel Refined: the default theme is the Intesa Sanpaolo template's, B48 – model/isp.ts)
+  if (t.id !== "aurora" || o.accent || isIsp(ctx.style.design)) {
     const a1 = o.accent || t.a1, x = o.accent || t.x;
     Object.assign(v, { "--a1": a1, "--a2": o.accent ? a1 : t.a2, "--a1rgb": hexRgb(a1).join(","), "--a2rgb": hexRgb(o.accent ? a1 : t.a2).join(","), "--x1": x, "--x2": darken(x, .6), "--ixink": darken(a1, .55) });
   }

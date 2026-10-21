@@ -105,7 +105,7 @@ exports[`shapes and icons in every design (CL-01) > clean: every shape with text
     "path",
     13,
     "{"solid":[255,255,255]}",
-    1,
+    1.6666666666666667,
     "",
   ],
   [
@@ -156,20 +156,14 @@ exports[`shapes and icons in every design (CL-01) > clean: every shape with text
     "s0",
   ],
   [
-    "shadow",
-  ],
-  [
-    "shadow",
-  ],
-  [
     "rect",
-    60.5,
-    160.5,
-    419,
-    159,
+    60.8,
+    160.8,
+    418.3,
+    158.3,
     0,
     "{"solid":[255,255,255]}",
-    "{"w":1,"paint":{"solid":[225,229,236]}}",
+    "{"w":1.6666666666666667,"paint":{"solid":[127,127,127]}}",
   ],
   [
     "hit",
@@ -205,7 +199,7 @@ exports[`shapes and icons in every design (CL-01) > excel: every shape with text
     "path",
     13,
     "{"solid":[255,255,255]}",
-    1,
+    1.6666666666666667,
     "",
   ],
   [
@@ -257,13 +251,13 @@ exports[`shapes and icons in every design (CL-01) > excel: every shape with text
   ],
   [
     "rect",
-    60.5,
-    160.5,
-    419,
-    159,
+    60.8,
+    160.8,
+    418.3,
+    158.3,
     0,
     "{"solid":[255,255,255]}",
-    "{"w":1,"paint":{"solid":[191,191,191]}}",
+    "{"w":1.6666666666666667,"paint":{"solid":[127,127,127]}}",
   ],
   [
     "hit",

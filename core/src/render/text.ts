@@ -4,6 +4,7 @@ import type { Note, RuntimeSlide, SlideTextKey, TextFmt, TextRole } from "../mod
 import type { RenderCtx } from "./context";
 import { esc } from "../xlsx/util";
 import { isConsult } from "../model/designs";
+import { ISP } from "./isp";
 
 export const deckFmt = (ctx: RenderCtx, role: TextRole): TextFmt => ctx.style.text?.[role] || {};
 const ROLE_OF: Record<SlideTextKey, TextRole | null> = { title: "title", subtitle: "subtitle", note: null, date: null };
@@ -24,9 +25,9 @@ function defined<T extends object>(o: T): Partial<T> {
   return out;
 }
 
-/** title / subtitle sizes the slide's layout is made for; `push` = how far each px of a larger title moves the tables (the consulting designs
+/** title / subtitle sizes the slide's layout is made for (Excel and Excel Refined: the Intesa Sanpaolo template's, B48); `push` = how far each px of a larger title moves the tables (the consulting designs
     reserve two, 08 §2.0: a larger title pushes the tables by both lines, 2 × 1.1 per px) */
-const BASE = { glass: { title: 48, sub: 19, subTop: 82, push: 1.2 }, excel: { title: 44, sub: 18, subTop: 76, push: 1.2 },
+const BASE = { glass: { title: 48, sub: 19, subTop: 82, push: 1.2 }, excel: { title: ISP.title.size, sub: ISP.sub.size, subTop: ISP.sub.top, push: 1.2 },
   mckinsey: { title: 40, sub: 24, subTop: 124, push: 2.2 }, bain: { title: 40, sub: 22, subTop: 124, push: 2.2 } };
 export const titleBase = (ctx: RenderCtx) => BASE[isConsult(ctx.style.design) ? ctx.style.design : ctx.style.design === "glass" ? "glass" : "excel"];
 export function titleGeom(R: RuntimeSlide, ctx: RenderCtx) {

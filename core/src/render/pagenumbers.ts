@@ -7,6 +7,8 @@
 import type { RenderCtx } from "./context";
 import { deckFmt } from "./text";
 import type { Design, SlideDef } from "../model/types";
+import { isIsp } from "../model/isp";
+import { ISP } from "./isp";
 
 /** a slide definition hidden in design `d` (S13.6, B47) */
 export const hiddenIn = (cfg: Pick<SlideDef, "hide"> | null | undefined, d: Design) => cfg?.hide?.[d] === true;
@@ -33,6 +35,9 @@ export function pageNoBox(ctx: RenderCtx, label: string, glassy: boolean) {
 /** where the page number goes on a slide (slide px) */
 export function pageNoGeom(ctx: RenderCtx, label: string, glassy: boolean, hasLogo: boolean, cover: boolean) {
   const p = ctx.style.pn, { size, capsule, w, h } = pageNoBox(ctx, label, glassy);
+  // Excel and Excel Refined (the Intesa Sanpaolo template, B48): a number on the right – the default bottom right, where
+  // the template has its logo, or the top right – sits where the template's master has it, top right
+  if (isIsp(ctx.style.design) && (p.pos === "br" || p.pos === "tr")) return { left: ISP.pageno.right - w, top: ISP.pageno.top, w, h, size, capsule };
   const margin = 40, top = p.pos[0] === "t" ? (capsule ? 24 : 28) : 900 - margin + 6 - h;
   let left = p.pos[1] === "l" ? 56 : p.pos[1] === "c" ? (1600 - w) / 2 : 1600 - 44 - w;
   if (p.pos === "br" && hasLogo) left = (glassy ? (cover ? 1150 : 1256) : 1600 - 340) - 22 - w;   // never on top of the logo
@@ -62,7 +67,8 @@ export function footerGeom(ctx: RenderCtx, i: number, glassy: boolean, hasLogo: 
   if (f.pos === "bl" && hasLogo && cover) left = 1600 - 44 - w;
   let y = top;
   // same corner as the page number: sit next to it (or above it in the centre)
-  if (pageLabel !== null && ctx.style.pn.pos === f.pos) {
+  // (the Excel designs' bottom-right page number sits at the top right, B48: a bottom-right footer stays where it is)
+  if (pageLabel !== null && ctx.style.pn.pos === f.pos && !(isIsp(ctx.style.design) && f.pos === "br")) {
     const g = pageNoGeom(ctx, pageLabel, glassy, hasLogo, cover);
     if (f.pos[1] === "l") left = g.left + g.w + 16;
     else if (f.pos[1] === "r") left = g.left - 16 - w;

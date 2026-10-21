@@ -164,6 +164,20 @@ Test any change with layouts of very different kinds (see §10) – not only the
   plain, position, font, size). Bottom-right numbers move left of the logo; top-left numbers push the
   title to the right.
 * Logo: `ctx.logoSrc` → `/assets/<name>?t=<token>`; hidden per slide with `cfg.logo = false`.
+* **Excel and Excel Refined follow the Intesa Sanpaolo 16:9 template** (B48, product owner 2026-10-21; every measure in
+  `render/isp.ts`, the colours in `model/isp.ts`; the template and its logo are not in the repository – the logo is the
+  deck's own). The template's 10 in slide maps to 160 px per inch; type sizes are its points at the export's 0.6 pt
+  per px (26 pt = 43.33 px). Cover: the blue diagonal band (Blu at 75 %), the logo above the title (26 pt bold Blu,
+  left-aligned), subtitle 16 pt Nero 50 %, the cover's note over and date under them, small. Contents ("INDICE"): the
+  heading, then per content slide a tilted square, the page bold in Blu and the entry (16 pt), closer rows and then
+  two columns when many. Content slides: title / subtitle at the template's place, the content area from x 70
+  (`areaFor`), the page number at the master's top right (also when set bottom right), the logo at its bottom right,
+  drawn first (the PowerPoint export's layouts take it). Text boxes: "- " / "• " paragraphs get the template's
+  bullets (a filled square tilted 10° at 25 % transparency; indented or "◦ ": the outline), cards are the template's
+  outlined box (1 pt #7F7F7F). Shapes' default: the same outline. Charts: the template's palette at 25 %
+  transparency, doughnut holes 75 %. The default theme (Aurora) and "Intesa Sanpaolo" resolve to the template's colours
+  in these two designs (`themeOf`); any other theme or colour override still applies. Liquid Glass and the
+  consulting designs never read it.
 
 ---
 

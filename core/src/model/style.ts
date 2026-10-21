@@ -1,6 +1,7 @@
 /* Deck style = built-in defaults ← shared defaults (config.json) ← this workbook's style. */
 import type { ColorKey, Design, Look, Footer, PageNumbers, Style, StylePatch, TextFmt, TextRole, Theme } from "./types";
 import { cleanConsult, isConsult, isDesign } from "./designs";
+import { isIsp, ISP_THEME, ISP_THEME_IDS } from "./isp";
 
 export const BUILTIN_PN: PageNumbers = { on: false, start: 1, pos: "br", font: "auto", size: 16, format: "n", style: "capsule", cover: false };
 export const BUILTIN_FOOTER: Footer = { on: false, text: "", pos: "bl", size: 14, style: "plain", cover: false };
@@ -66,8 +67,11 @@ const CONSULT_THEME_REF: Record<"mckinsey" | "bain", Theme> = {
 export const BUILTIN_THEME: Theme = { id: "aurora", c1: "", c2: "", c3: "", c4: "", a1: "", a2: "" };
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 /** the theme's colours: a built-in theme by id, or "custom" with the stored colours (missing ones from Aurora) */
-export function themeOf(s: Style): ThemeDef {
+export function themeOf(s: Pick<Style, "theme"> & Partial<Pick<Style, "design">>): ThemeDef {
   const t = s.theme || BUILTIN_THEME, base = THEMES.find(x => x.id === t.id) || CONSULT_THEMES.find(x => x.id === t.id);
+  // Excel and Excel Refined follow the Intesa Sanpaolo template (B48): the default theme and "Intesa Sanpaolo" are its
+  // colours there (model/isp.ts); the theme keeps its id and name (the Design… menu still shows it chosen)
+  if (base && isIsp(s.design) && ISP_THEME_IDS.includes(base.id)) return { ...base, ...ISP_THEME };
   if (base) return base;
   const A = THEMES[0], pick = (k: "c1" | "c2" | "c3" | "c4" | "a1" | "a2") => HEX.test(t[k] || "") ? t[k].toUpperCase() : A[k];
   const a1 = pick("a1");

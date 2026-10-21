@@ -1,5 +1,173 @@
 [
  {
+  "tool": "parity",
+  "design": "excel",
+  "kind": "elements",
+  "reason": "B48: Excel and Excel Refined follow the Intesa Sanpaolo 16:9 template (product owner 2026-10-21). The cover is the template's: the blue diagonal band (cvx-band, one freeform), the deck's logo above the title, the title, subtitle and date left-aligned – v3's navy panel, its two faint bands, the accent bar and the rule are gone (cvx-panel, cvx-band b2, cv-bar, cvx-rule); the contents rows lose their dotted leader (ix-lead) and their number badge becomes the template's tilted square (ix-n); the logo is drawn first on every slide (the PowerPoint export's layouts carry it), so the elements' order changes.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "parity",
+  "design": "excel",
+  "kind": "text",
+  "reason": "B48 (Intesa Sanpaolo template): the contents rows read 'page entry subtitle' (the template's 'XX Entry') instead of 'number entry subtitle … page'; text-box paragraphs starting '- ' / '• ' (the automated comments' bullets too) are drawn with the template's tilted-square bullets, so their text no longer starts with the bullet character.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "parity",
+  "design": "excel",
+  "kind": "style",
+  "reason": "B48 (Intesa Sanpaolo template): titles 26 pt bold in Blu RGB 0,58,121 (43.33 px), subtitles 16 pt Nero 50 % (#7F7F7F, 26.67 px), the cover title 26 pt bold Blu and subtitle 16 pt grey, contents rows 16 pt with the page bold Blu, page numbers in Blu; Excel Refined's text boxes in Century Gothic (were Segoe UI); the default theme and 'Intesa Sanpaolo' resolve to the template's colours in these two designs.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "parity",
+  "design": "excel",
+  "kind": "geometry",
+  "reason": "B48 (Intesa Sanpaolo template): title at (0.436 in, 0.307 in) and subtitle at 0.787 in of the template (x 69.76, top 45 / 124 px); the content area from x 70, 1460 wide, from y 122 (176 with a subtitle) – tables scale and move accordingly; the page number at the master's top right (a bottom-right number too), the logo at the master's bottom right (8.068 in, 5.177 in, 0.191 in high); the cover and contents laid out as the template's pages 1 and 2; text-box cards are the template's outlined box (1 pt #7F7F7F, square, no shadow).",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "parity",
+  "design": "excel",
+  "kind": "pixels",
+  "reason": "B48: Excel and Excel Refined follow the Intesa Sanpaolo 16:9 template (cover, contents, titles, page number, logo, outlined boxes, tilted-square bullets, the template's chart palette at 25 % transparency and thinner doughnuts) – every slide of these two designs looks different by design.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "parity",
+  "design": "excel",
+  "kind": "pdf-text",
+  "reason": "B48 (Intesa Sanpaolo template): the PDF's text follows the drawn slides – the contents rows 'page entry', the page number at the top right (its place in the text order), bullet characters drawn as shapes.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "parity",
+  "design": "clean",
+  "kind": "elements",
+  "reason": "B48: Excel and Excel Refined follow the Intesa Sanpaolo 16:9 template (product owner 2026-10-21). The cover is the template's: the blue diagonal band (cvx-band, one freeform), the deck's logo above the title, the title, subtitle and date left-aligned – v3's navy panel, its two faint bands, the accent bar and the rule are gone (cvx-panel, cvx-band b2, cv-bar, cvx-rule); the contents rows lose their dotted leader (ix-lead) and their number badge becomes the template's tilted square (ix-n); the logo is drawn first on every slide (the PowerPoint export's layouts carry it), so the elements' order changes.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "parity",
+  "design": "clean",
+  "kind": "text",
+  "reason": "B48 (Intesa Sanpaolo template): the contents rows read 'page entry subtitle' (the template's 'XX Entry') instead of 'number entry subtitle … page'; text-box paragraphs starting '- ' / '• ' (the automated comments' bullets too) are drawn with the template's tilted-square bullets, so their text no longer starts with the bullet character.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "parity",
+  "design": "clean",
+  "kind": "style",
+  "reason": "B48 (Intesa Sanpaolo template): titles 26 pt bold in Blu RGB 0,58,121 (43.33 px), subtitles 16 pt Nero 50 % (#7F7F7F, 26.67 px), the cover title 26 pt bold Blu and subtitle 16 pt grey, contents rows 16 pt with the page bold Blu, page numbers in Blu; Excel Refined's text boxes in Century Gothic (were Segoe UI); the default theme and 'Intesa Sanpaolo' resolve to the template's colours in these two designs.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "parity",
+  "design": "clean",
+  "kind": "geometry",
+  "reason": "B48 (Intesa Sanpaolo template): title at (0.436 in, 0.307 in) and subtitle at 0.787 in of the template (x 69.76, top 45 / 124 px); the content area from x 70, 1460 wide, from y 122 (176 with a subtitle) – tables scale and move accordingly; the page number at the master's top right (a bottom-right number too), the logo at the master's bottom right (8.068 in, 5.177 in, 0.191 in high); the cover and contents laid out as the template's pages 1 and 2; text-box cards are the template's outlined box (1 pt #7F7F7F, square, no shadow).",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "parity",
+  "design": "clean",
+  "kind": "pixels",
+  "reason": "B48: Excel and Excel Refined follow the Intesa Sanpaolo 16:9 template (cover, contents, titles, page number, logo, outlined boxes, tilted-square bullets, the template's chart palette at 25 % transparency and thinner doughnuts) – every slide of these two designs looks different by design.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "parity",
+  "design": "clean",
+  "kind": "pdf-text",
+  "reason": "B48 (Intesa Sanpaolo template): the PDF's text follows the drawn slides – the contents rows 'page entry', the page number at the top right (its place in the text order), bullet characters drawn as shapes.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "dlparity",
+  "design": "excel",
+  "kind": "elements",
+  "reason": "B48: Excel and Excel Refined follow the Intesa Sanpaolo 16:9 template (product owner 2026-10-21). The cover is the template's: the blue diagonal band (cvx-band, one freeform), the deck's logo above the title, the title, subtitle and date left-aligned – v3's navy panel, its two faint bands, the accent bar and the rule are gone (cvx-panel, cvx-band b2, cv-bar, cvx-rule); the contents rows lose their dotted leader (ix-lead) and their number badge becomes the template's tilted square (ix-n); the logo is drawn first on every slide (the PowerPoint export's layouts carry it), so the elements' order changes.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "dlparity",
+  "design": "excel",
+  "kind": "text",
+  "reason": "B48 (Intesa Sanpaolo template): the contents rows read 'page entry subtitle' (the template's 'XX Entry') instead of 'number entry subtitle … page'; text-box paragraphs starting '- ' / '• ' (the automated comments' bullets too) are drawn with the template's tilted-square bullets, so their text no longer starts with the bullet character.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "dlparity",
+  "design": "excel",
+  "kind": "style",
+  "reason": "B48 (Intesa Sanpaolo template): titles 26 pt bold in Blu RGB 0,58,121 (43.33 px), subtitles 16 pt Nero 50 % (#7F7F7F, 26.67 px), the cover title 26 pt bold Blu and subtitle 16 pt grey, contents rows 16 pt with the page bold Blu, page numbers in Blu; Excel Refined's text boxes in Century Gothic (were Segoe UI); the default theme and 'Intesa Sanpaolo' resolve to the template's colours in these two designs.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "dlparity",
+  "design": "excel",
+  "kind": "geometry",
+  "reason": "B48 (Intesa Sanpaolo template): title at (0.436 in, 0.307 in) and subtitle at 0.787 in of the template (x 69.76, top 45 / 124 px); the content area from x 70, 1460 wide, from y 122 (176 with a subtitle) – tables scale and move accordingly; the page number at the master's top right (a bottom-right number too), the logo at the master's bottom right (8.068 in, 5.177 in, 0.191 in high); the cover and contents laid out as the template's pages 1 and 2; text-box cards are the template's outlined box (1 pt #7F7F7F, square, no shadow).",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "dlparity",
+  "design": "excel",
+  "kind": "pixels",
+  "reason": "B48: Excel and Excel Refined follow the Intesa Sanpaolo 16:9 template (cover, contents, titles, page number, logo, outlined boxes, tilted-square bullets, the template's chart palette at 25 % transparency and thinner doughnuts) – every slide of these two designs looks different by design.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "dlparity",
+  "design": "excel",
+  "kind": "pdf-text",
+  "reason": "B48 (Intesa Sanpaolo template): the PDF's text follows the drawn slides – the contents rows 'page entry', the page number at the top right (its place in the text order), bullet characters drawn as shapes.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "dlparity",
+  "design": "clean",
+  "kind": "elements",
+  "reason": "B48: Excel and Excel Refined follow the Intesa Sanpaolo 16:9 template (product owner 2026-10-21). The cover is the template's: the blue diagonal band (cvx-band, one freeform), the deck's logo above the title, the title, subtitle and date left-aligned – v3's navy panel, its two faint bands, the accent bar and the rule are gone (cvx-panel, cvx-band b2, cv-bar, cvx-rule); the contents rows lose their dotted leader (ix-lead) and their number badge becomes the template's tilted square (ix-n); the logo is drawn first on every slide (the PowerPoint export's layouts carry it), so the elements' order changes.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "dlparity",
+  "design": "clean",
+  "kind": "text",
+  "reason": "B48 (Intesa Sanpaolo template): the contents rows read 'page entry subtitle' (the template's 'XX Entry') instead of 'number entry subtitle … page'; text-box paragraphs starting '- ' / '• ' (the automated comments' bullets too) are drawn with the template's tilted-square bullets, so their text no longer starts with the bullet character.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "dlparity",
+  "design": "clean",
+  "kind": "style",
+  "reason": "B48 (Intesa Sanpaolo template): titles 26 pt bold in Blu RGB 0,58,121 (43.33 px), subtitles 16 pt Nero 50 % (#7F7F7F, 26.67 px), the cover title 26 pt bold Blu and subtitle 16 pt grey, contents rows 16 pt with the page bold Blu, page numbers in Blu; Excel Refined's text boxes in Century Gothic (were Segoe UI); the default theme and 'Intesa Sanpaolo' resolve to the template's colours in these two designs.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "dlparity",
+  "design": "clean",
+  "kind": "geometry",
+  "reason": "B48 (Intesa Sanpaolo template): title at (0.436 in, 0.307 in) and subtitle at 0.787 in of the template (x 69.76, top 45 / 124 px); the content area from x 70, 1460 wide, from y 122 (176 with a subtitle) – tables scale and move accordingly; the page number at the master's top right (a bottom-right number too), the logo at the master's bottom right (8.068 in, 5.177 in, 0.191 in high); the cover and contents laid out as the template's pages 1 and 2; text-box cards are the template's outlined box (1 pt #7F7F7F, square, no shadow).",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "dlparity",
+  "design": "clean",
+  "kind": "pixels",
+  "reason": "B48: Excel and Excel Refined follow the Intesa Sanpaolo 16:9 template (cover, contents, titles, page number, logo, outlined boxes, tilted-square bullets, the template's chart palette at 25 % transparency and thinner doughnuts) – every slide of these two designs looks different by design.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
+  "tool": "dlparity",
+  "design": "clean",
+  "kind": "pdf-text",
+  "reason": "B48 (Intesa Sanpaolo template): the PDF's text follows the drawn slides – the contents rows 'page entry', the page number at the top right (its place in the text order), bullet characters drawn as shapes.",
+  "signedOff": "B48, product owner request 2026-10-21 (\"the excel and excel refined will have to follow this template\"; B48–B50 approved)"
+ },
+ {
   "tool": "dlparity",
   "deck": "deck20",
   "design": "glass",
