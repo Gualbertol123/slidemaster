@@ -18,7 +18,7 @@ import { addSel, selItems, setSel } from "../src/editor/edit";
 import { applyPainter, paintItem, startPainter, stopPainter } from "../src/editor/painter";
 import { selectItem } from "../src/editor/charts";
 import { keyOf } from "@slide-builder/core/render/edits";
-import { formatValue } from "@slide-builder/core/xlsx/numfmt";
+import { formatValue, isDateFmt } from "@slide-builder/core/xlsx/numfmt";
 import type { CellEdit, Op } from "@slide-builder/core/model/types";
 import type { Item, TableLayout } from "@slide-builder/core/xlsx/types";
 import { indexWorkbook } from "@slide-builder/core/xlsx/workbook";
@@ -37,6 +37,7 @@ function numbers(t: number) {
   return { T, nums: T.items.filter(it => it.ctype === "n" && it.text && !it.merged && it.b.r === it.b.r2 && it.b.c === it.b.c2) };
 }
 const sel1 = (t: number, it: Item) => setSel(t, { r: it.b.r, c: it.b.c }, { r: it.b.r, c: it.b.c });
+let home = 0;
 const key = (k: string) => { dispatchEvent(new KeyboardEvent("keyup", { key: k })); };
 
 describe("number display, vertical alignment and the fuller painter (S16.3)", () => {
@@ -52,7 +53,7 @@ describe("number display, vertical alignment and the fuller painter (S16.3)", ()
     await settle();
     const k = get().deck.slides.findIndex(s => s.tables.length >= 2 && s.tables.every(t => t.items.some(it => it.ctype === "n")));
     expect(k).toBeGreaterThanOrEqual(0);
-    await act(async () => gotoSlide(k)); await settle();
+    home = k; await act(async () => gotoSlide(k)); await settle();
   });
   afterAll(() => cleanup());
 
@@ -113,6 +114,22 @@ describe("number display, vertical alignment and the fuller painter (S16.3)", ()
     await confirmed(h0 + 2);
     expect(editOf(dst)).toMatchObject({ num: "0.000", valign: "top", font: "Arial" });
     expect(get().selection.painter).toBeNull();
+    // a date keeps its date format (a number's code is not pasted onto it), the rest of the look is
+    const all = get().deck.slides.flatMap((s, si) => s.tables.map((T, t) => ({ si, t, T: T as TableLayout })));
+    const date = all.flatMap(x => x.T.items.filter(it => { const c = x.T.sheet.get(it.b.src.r, it.b.src.c); return c && (c.t === "n" || c.t === "d") && isDateFmt(c.fmt); }).map(it => ({ ...x, it })))[0];
+    expect(date).toBeTruthy();
+    const h1 = history();
+    await act(async () => gotoSlide(date.si)); await settle();
+    const from = numbers(date.t).nums.find(it => !isDateFmt(it.L!.sheet.get(it.b.src.r, it.b.src.c)!.fmt))!;
+    expect(from).toBeTruthy();
+    await act(async () => change("Set up", [{ op: "cell.patch", sheet: from.L!.sheet.name, ref: keyOf(from), patch: { num: "0.000", valign: "top" } } as Op]));
+    await confirmed(h1 + 1);
+    await act(async () => { sel1(date.t, from); startPainter(false); }); await settle();
+    await act(async () => { sel1(date.t, date.it); applyPainter(); });
+    await confirmed(h1 + 2);
+    expect(editOf(date.it).valign).toBe("top"); expect(editOf(date.it).num).toBeUndefined();
+    await act(async () => undo(false)); await settle(8); await act(async () => undo(false)); await settle(8);
+    await act(async () => gotoSlide(home)); await settle();
   });
 
   it("PT-03 Ctrl+click several ranges (two tables), let go of Ctrl: one paste on all of them, one undo step", async () => {

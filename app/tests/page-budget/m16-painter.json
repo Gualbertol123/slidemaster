@@ -1,4 +1,4 @@
 {
-  "bytes": 10500,
-  "why": "S16.3 (4.9.0, B38: number display, cell vertical alignment, the fuller painter, multi-selection paste): measured +10,480 bytes with npm run build on m16/painter over origin/main cb9cb8a (3,967,290 → 3,977,770), rounded up to the next 500. Set by measurement (plan-M16: about +12 KB expected)."
+  "bytes": 11000,
+  "why": "S16.3 (4.9.0, B38: number display, cell vertical alignment, the fuller painter, multi-selection paste): measured +10,516 bytes with npm run build on m16/painter over origin/main cb9cb8a (3,967,290 → 3,977,806), rounded up to the next 500. Set by measurement (plan-M16: about +12 KB expected)."
 }

@@ -17,6 +17,7 @@ import type { Item, Sheet, TableLayout } from "@slide-builder/core/xlsx/types";
 import type { CellBorders, CellGrid, CellEdit, Item as SlideItem, Op, RuntimeSlide, ScaleRule } from "@slide-builder/core/model/types";
 import { cellEditOf, effItems } from "@slide-builder/core/render/edits";
 import { validNum } from "@slide-builder/core/render/numdisplay";
+import { isDateFmt } from "@slide-builder/core/xlsx/numfmt";
 import { itemAt, selOps, selRanges, selTable, type CellRange } from "./edit";
 import { A1, inRange, parseRange, uid } from "@slide-builder/core/xlsx/util";
 
@@ -174,7 +175,8 @@ function paintOps(T: TableLayout, gs: CellRange[], p: { pattern: (Fmt | null)[][
     // 4.9: the font, the vertical position, the number display (a number cell only; the target's own code: nothing stored)
     if (f.font !== undefined) set("font", f.font || undefined, !f.font);
     if (f.valign !== undefined) set("valign", f.valign || undefined, !f.valign || f.valign === V[it.valign]);
-    if (f.num !== undefined) { const mine = ownNum(T, it); set("num", f.num || undefined, !f.num || mine === null || f.num === mine); }
+    // (a date stays a date and a number a number: a code of the other kind is not pasted, the cell keeps its own)
+    if (f.num !== undefined) { const mine = ownNum(T, it); if (!(f.num && mine !== null && isDateFmt(f.num) !== isDateFmt(mine))) set("num", f.num || undefined, !f.num || mine === null || f.num === mine); }
     // conditional formatting: nothing stored when the target already has exactly the same rules
     const mine = rulesAt(T.sheet, it.b.src.r, it.b.src.c), ownRef = mine.length ? T.sheet.name + "!" + A1(it.b.src.r, it.b.src.c) : null;
     const k = f.cf ? f.cf.lastIndexOf("!") : -1, srcSheet = f.cf ? f.cf.slice(0, k) : "";
