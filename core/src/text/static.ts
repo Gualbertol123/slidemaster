@@ -45,23 +45,38 @@ export function nameStaticFace(data: Uint8Array, weight: number, style: { family
     if (!family) { family = fontName(font, [16]); if (!family) { family = fontName(font, [1]); while (STYLE_WORD.test(family)) family = family.replace(STYLE_WORD, ""); } }
     if (!family) return data;
     const italic = style.italic ?? (os2 && os2.length > 63 ? !!(os2[63] & 1) : head && head.length > 45 ? !!(head[45] & 2) : false);
-    const w = Math.min(900, Math.max(100, Math.round(weight / 100) * 100)), ribbi = w === 400 || w === 700, bold = w === 700;
-    const sub = (bold ? "Bold" : "Regular") + (italic ? " Italic" : ""), sub2 = ribbi ? (bold ? "Bold" : "") : WEIGHTS[w];
-    const typo = (ribbi ? sub : WEIGHTS[w] + (italic ? " Italic" : "")).replace(/^Regular Italic$/, "Italic");
+    // a weight between the named ones (350) or outside them (950) is named for itself ("W350"): rounded, it would
+    // take its neighbour's names and two faces of the family would share them
+    const w = Math.round(weight), word = WEIGHTS[w] || "W" + w, ribbi = w === 400 || w === 700, bold = w === 700;
+    const sub = (bold ? "Bold" : "Regular") + (italic ? " Italic" : ""), sub2 = ribbi ? (bold ? "Bold" : "") : word;
+    const typo = (ribbi ? sub : word + (italic ? " Italic" : "")).replace(/^Regular Italic$/, "Italic");
     const ps = ((family.replace(/[^A-Za-z0-9]/g, "") || "Font").slice(0, 40) + "-" + typo.replace(/ /g, "")).slice(0, 63);
     const set = new Map<number, string>([[1, ribbi ? family : family + " " + sub2], [2, sub.replace(/^Regular Italic$/, "Italic")], [3, ps], [4, family + (typo === "Regular" ? " Regular" : " " + typo)], [6, ps]]);
     if (!ribbi) { set.set(16, family); set.set(17, typo); }
     // the other records stay (copyright, version, licence, STAT's names ≥ 256…); these, the WWS names (21 / 22) and
-    // the variations' PostScript prefix (25) are written again or dropped
+    // the variations' PostScript prefix (25) are written again or dropped. The table is written as format 0: a
+    // format-1 table's records in a tagged language (languageID ≥ 0x8000) would point at tags no longer there and
+    // are dropped (the face keeps its own names, which returning the old table would not)
     const drop = new Set([1, 2, 3, 4, 6, 16, 17, 21, 22, 25]), recs: { pid: number; eid: number; lang: number; id: number; b: Uint8Array }[] = [];
     const count = (name[2] << 8) | name[3], str = (name[4] << 8) | name[5];
+    let mac = false;
     for (let i = 0; i < count; i++) {
       const r = 6 + 12 * i, g = (o: number) => (name[r + o] << 8) | name[r + o + 1], id = g(6);
-      if (!drop.has(id)) recs.push({ pid: g(0), eid: g(2), lang: g(4), id, b: name.subarray(str + g(10), str + g(10) + g(8)) });
+      if (drop.has(id)) { if (g(0) === 1 && g(2) === 0) mac = true; }
+      else if (g(4) < 0x8000) recs.push({ pid: g(0), eid: g(2), lang: g(4), id, b: name.subarray(str + g(10), str + g(10) + g(8)) });
     }
-    for (const [id, v] of set) { const b = new Uint8Array(2 * v.length); for (let k = 0; k < v.length; k++) { b[2 * k] = v.charCodeAt(k) >> 8; b[2 * k + 1] = v.charCodeAt(k) & 255; } recs.push({ pid: 3, eid: 1, lang: 0x409, id, b }); }
+    // Windows Unicode always; Mac Roman (English) as well when the font had such records and the names are ASCII
+    // (where Mac Roman and Unicode agree), else the Mac names go as before
+    mac &&= [...set.values()].every(v => /^[\x20-\x7e]*$/.test(v));
+    for (const [id, v] of set) {
+      const b = new Uint8Array(2 * v.length); for (let k = 0; k < v.length; k++) { b[2 * k] = v.charCodeAt(k) >> 8; b[2 * k + 1] = v.charCodeAt(k) & 255; }
+      recs.push({ pid: 3, eid: 1, lang: 0x409, id, b });
+      if (mac) recs.push({ pid: 1, eid: 0, lang: 0, id, b: Uint8Array.from(v, c => c.charCodeAt(0)) });
+    }
     recs.sort((a, b) => a.pid - b.pid || a.eid - b.eid || a.lang - b.lang || a.id - b.id);
-    const size = recs.reduce((s, r) => s + r.b.length, 0), out = new Uint8Array(6 + 12 * recs.length + size), w16 = (o: number, v: number) => { out[o] = v >> 8; out[o + 1] = v & 255; };
+    // string offsets are 16-bit: strings the old table shared (or new ones) that no longer fit leave the font as it was
+    const size = recs.reduce((s, r) => s + r.b.length, 0); if (size > 0xffff) return data;
+    const out = new Uint8Array(6 + 12 * recs.length + size), w16 = (o: number, v: number) => { out[o] = v >> 8; out[o + 1] = v & 255; };
     w16(2, recs.length); w16(4, 6 + 12 * recs.length);
     let p = 0;
     recs.forEach((r, i) => { const o = 6 + 12 * i; w16(o, r.pid); w16(o + 2, r.eid); w16(o + 4, r.lang); w16(o + 6, r.id); w16(o + 8, r.b.length); w16(o + 10, p); out.set(r.b, 6 + 12 * recs.length + p); p += r.b.length; });
