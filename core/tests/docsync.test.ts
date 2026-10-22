@@ -706,12 +706,24 @@ describe("DocSync v4: format 6 for 4.9 objects (ADR-019 amendment of 2026-10-22,
     const log = deck.log.join(" ");
     expect(log).toMatch(/^format5 .*compact:5 .*format6 .*compact:6 append$/);
     expect(deck.snap.format).toBe(6); expect(deck.marker6).not.toBeNull();
-    expect(deck.records().filter(r => r.w === a.writer).length).toBe(2);       // the preset, then chart + drop in one record
+    const recs = deck.records().filter(r => r.w === a.writer);
+    expect(recs.length).toBe(2);                                              // the preset, then chart + drop in one record
+    // two raises, two Lamport jumps: 4 -> 5 and 5 -> 6 (a 4.6–4.8 page's gap record must fold before the 4.9 one)
+    expect(recs[1].l).toBeGreaterThanOrEqual(recs[0].l + 2 * BUMP_LAMPORT);
     expect(a.state).toBe("saved");
   });
-  it("review: two 4.9 writers raising the same deck at once both save; the deck ends at format 6", async () => {
+  it("review: two 4.9 writers raising the same deck at once – one compare-and-set loses (409), reloads and goes on; both save; format 6", async () => {
     const { deck } = await deck5();
-    const mk = (w: string) => u(deck, w, deck.api(), { bumpWaitMs: 40 });
+    // both raises reach the compaction from the same snapshot generation: the second one gets the 409
+    const base = deck.api(), gen0 = deck.snap.gen, codes: string[] = [];
+    let arrived = 0, release: () => void = () => undefined;
+    const both = new Promise<void>(r => { release = r; });
+    const api: DeckApi = { ...base, compact: async (k, g, sn) => {
+      if (sn.format === 6 && g === gen0) { if (++arrived === 2) release(); await both; }
+      try { const r = await base.compact(k, g, sn); codes.push("ok:" + sn.format); return r; }
+      catch (e) { codes.push((e as { status?: number }).status + ":" + sn.format); throw e; }
+    } };
+    const mk = (w: string) => u(deck, w, api, { bumpWaitMs: 40 });
     const a = mk("ann2"), b = mk("bea");
     for (const s of [a, b]) (s as unknown as { sleep: (ms: number) => Promise<void> }).sleep = async ms => { await new Promise(r => setTimeout(r, 1)); deck.advance(ms); };
     a.apply([drop]); b.apply([hidden]);
@@ -722,6 +734,7 @@ describe("DocSync v4: format 6 for 4.9 objects (ADR-019 amendment of 2026-10-22,
     expect(a.view.preset!.versions![0].drop).toEqual({ S: ["2:2"] });
     expect(a.view.preset!.slides[0].hidden).toEqual({ "t1:r2": true });
     expect(b.view).toEqual(a.view);
+    expect(codes).toEqual(["ok:6", "409:6"]);                                 // a real collision, the loser carried on
   });
   it("never lowered: the helper refuses a format-5 snapshot on a format-6 deck", async () => {
     const { deck, a } = await deck5();
