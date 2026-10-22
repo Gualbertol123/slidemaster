@@ -7,6 +7,7 @@ import { Topbar } from "./Topbar";
 import { Ribbon, FxBar } from "./Ribbon";
 import { Busy, Canvas, DeckHealth, Issues, Status, Thumbs, Toast } from "./Chrome";
 import { ItemPanel } from "./ItemPanel";
+import { NavGrip, useNavWidth } from "./NavResize";
 import { PickCellsDialog } from "./PickCells";
 import { SetupsDialog } from "./Setups";
 import { TableRibbon } from "./TableTools";
@@ -20,6 +21,7 @@ import { newSlide } from "../editor/slides";
 
 export function App() {
   const changedOnDisk = useStore(s => s.ui.changedOnDisk), count = useStore(s => s.deck.slides.length), open = useStore(s => s.doc.open);
+  const [navW, setNavW] = useNavWidth();
   const D = useStore(useShallow(s => ({ wizard: s.ui.dialogs.wizard, tables: s.ui.dialogs.tables, textStyles: !!s.ui.dialogs.textStyles, comment: !!s.ui.dialogs.comment, scenario: s.ui.dialogs.scenario, pick: !!s.ui.dialogs.pick, setups: !!s.ui.dialogs.setups, run: !!s.ui.run })));
   useEffect(() => {
     const over = (e: DragEvent) => { e.preventDefault(); document.body.classList.add("dragover"); };
@@ -41,7 +43,7 @@ export function App() {
           <TableRibbon />
           <FxBar />
         </div>
-        <div className="main">
+        <div className="main" style={{ gridTemplateColumns: navW + "px minmax(0,1fr)" }}>
           <aside className="nav">
             <div className="navhd"><span>SLIDES <span id="slideCount" style={{ fontWeight: "500", marginLeft: "4px" }}>{count || ""}</span></span>
               <button className="newslide" id="newSlide" disabled={!open} title="A blank slide after the selected one (Ctrl+M)" onClick={() => newSlide()}>+ New slide</button></div>
@@ -51,6 +53,7 @@ export function App() {
             <DeckHealth />
           </aside>
           <Canvas />
+          <NavGrip width={navW} set={setNavW} />
         </div>
         <Status />
       </div>

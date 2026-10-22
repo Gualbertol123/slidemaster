@@ -197,9 +197,11 @@ function AxisRow({ c, ax, cat, grid, set }: { c: ChartItem; ax: "x" | "y" | "y2"
   return <div className="axis" data-ax={ax}>
     <div className="row"><b>{name}</b><label className="chk"><Input type="checkbox" data-a="show" checked={A.show !== false} onCommit={e => up("shown", { show: (e.target as HTMLInputElement).checked ? null : false })} />Shown</label>
       {!cat && <label className="chk"><Input type="checkbox" data-a="grid" checked={A.grid ?? grid} onCommit={e => up("gridlines", { grid: (e.target as HTMLInputElement).checked })} />Gridlines</label>}</div>
-    {!cat && <div className="row"><span className="lbl">Min</span><Num value={A.min} title="The axis's minimum" onCommit={v => up("minimum", { min: v })} />
-      <span className="lbl">Max</span><Num value={A.max} title="The axis's maximum" onCommit={v => up("maximum", { max: v })} />
-      <span className="lbl">Step</span><Num value={A.step} title="The step between its labels" onCommit={v => up("step", { step: v === null || v > 0 ? v : null })} /></div>}
+    {/* (4.10.2) Min / Max / Step: three equal columns, each label above its box – tidy at any panel width */}
+    {!cat && <div className="mms">
+      <label><span className="lbl">Min</span><Num value={A.min} title="The axis's minimum" onCommit={v => up("minimum", { min: v })} /></label>
+      <label><span className="lbl">Max</span><Num value={A.max} title="The axis's maximum" onCommit={v => up("maximum", { max: v })} /></label>
+      <label><span className="lbl">Step</span><Num value={A.step} title="The step between its labels" onCommit={v => up("step", { step: v === null || v > 0 ? v : null })} /></label></div>}
     {!cat && <div className="row"><span className="lbl">Format</span><Field className="nm" data-a="num" title="Its number format, as Excel writes it (#,##0 · 0.0% …); empty = its cells'" placeholder="As the cells" value={A.num || ""} onCommit={v => up("number format", { num: v.trim() || null })} /></div>}
   </div>;
 }

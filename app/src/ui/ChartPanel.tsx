@@ -33,7 +33,7 @@ export function ChartPanel() {
   const drawn = series ? c.type : c.type === "donut" ? "donut" : "pie";
   return <div className="chartpanel" id="chartPanel" data-item={id}>
     <h4>Chart</h4>
-    <div className="row"><span className="lbl">Type</span><div className="seg small ctypes">
+    <div className="row typerow"><span className="lbl">Type</span><div className="seg small ctypes">
       {CHART_TYPES.map(({ t, label }) => <button key={t} data-ctype={t} className={drawn === t ? "on" : ""} onClick={() => set(label + " chart", typePatch(c, t))}>{label}</button>)}</div></div>
     <div className="row"><span className="lbl">Title</span>
       <Field className="ctitle" id="chartTitle" title="The chart's title (Enter to apply); empty = no title" value={typeof c.title === "string" ? c.title : ""}

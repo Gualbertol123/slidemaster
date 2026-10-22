@@ -254,6 +254,22 @@ numbers measured twice). Measured numbers go into the step's line.
   `xlsb.test.ts` "4.10.1 ·" (crafted records + every corpus .xlsb reads with nothing skipped), app `item-text.test.ts`;
   page budget `page-budget/x4101.json` (+9,300 by measurement). Versions 4.10.1 (CHANGELOG dated 2026-10-22).
 
+- [x] 4.10.2 · the side panel too narrow for the chart panel (owner's report 2026-10-22 with a screenshot: "this bar is
+  too squashed and i cannot see all of the options clearly"; branch `v4/panel-width` on main c504829) — (commit: see the
+  branch; runs: by the orchestrator). The chart panel lives in the left side panel (`aside.nav`, 250 px): the type
+  buttons wrapped into each other (`.seg` is 32 px high), boxes had a fixed width, the small buttons were 32 px ones and
+  wrapped alone. Now: the side panel 340 px (fits 1366×768 and 1920×1080 with the slide still fitted by its height),
+  a grip on its edge by the stage (`ui/NavResize.tsx`, `#navGrip`: 280 … half the window, localStorage `sbNavWidth`
+  with try/catch, double-click = 340); the stage refits through its ResizeObserver (Stage.tsx `fitOrDefer`: deferred
+  while the button is held, so once on the grip's release). Chart panel (`chart-panel.css`, `ui.css`): the types a CSS
+  grid (auto-fill, minmax 72 px), boxes `flex:1 1 60px; min-width:0`, compact small buttons that keep their size,
+  Min/Max/Step a 3-column grid (labels above), a container query (≤ 300 px) puts a box's label on its own line; with a
+  chart selected the side panel scrolls as one page (it ran under the status bar). The other item tools (table, shapes,
+  lines, icons, text box) are in the ribbon, not the side panel: unchanged. Slide rendering unchanged. Tests: app
+  `nav-resize.test.tsx`, e2e `panel-width.spec.ts` PW-01 (1366×768, own workbook `tests/fixtures/Panel.xlsx`, a copy
+  of Targets.xlsx); page budget `page-budget/x4102.json` (+4,138 by measurement). Versions 4.10.2 (CHANGELOG dated
+  2026-10-22).
+
 ### S13.7 · Delete slide and Duplicate slide (after M13 closed; ships with the next release, 4.7.0 in CHANGELOG; owner Q12)
 - [x] S13.7 · Delete slide and Duplicate slide (c47d59a; merged into `v4/M16-tables`, its CHANGELOG block moved to 4.9.0 – 4.7.0 is dated; verified: tests ✓ clean clone ✓ review ✓ (4.9.0: PR #33 CI 18/18 on 7a658ec – fresh checkout, e2e, parity/dlparity, bench, load, helper 3.8/3.12; reviews APPROVE incl. the integration review; CP-01 m15/m16 PASS)) (owner Q12, 2026-10-21; branch `v4/slide-menu`) — the slide list's right-click menu (`#ctxDupSlide`, `#ctxDelSlide`) and Delete in the slide list (on the slide shown); one `slide.add` / `slide.remove` each (no new op or key: the guard, inverses and vectors of S13.3 hold). The copy: core `model/slidecopy.ts` (items under new ids, the free boxes and attached line ends renamed). Decided: content slides only are duplicated (the wizard keeps one cover / contents); any slide but the last may be deleted, after a question. +2,156 bytes page (`page-budget/s13-7.json`, measured again on main 71d8806). Review: REQUEST CHANGES → "S13.7 · … (review fixes)": CHANGELOG bullet moved from the dated 4.6.0 notes to 4.7.0 (its own block, as B48–B50), Delete acts on `deck.cur`, `duplicateSlide` checks `doc.open`, one `slide.add` vector of a duplicated slide in `ops-vectors.json`, a comment pointing M15 at `slidecopy.ts`. Awaiting the orchestrator's checks (e2e `Delete slide and Duplicate slide`) and the second review.
 
