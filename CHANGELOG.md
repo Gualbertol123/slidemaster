@@ -3,6 +3,37 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.11.0 - unreleased (B53: chart labels)
+
+What users notice
+* **More room for the chart itself** (B53): a chart keeps on its right only the width of the labels that are really
+  there – a reference line's label may use the card's own margin, and a gap arrow's label is measured on its own
+  difference (e.g. "−348") instead of on a number as wide as the line's value. A chart of one series with a reference
+  line, gap arrow or change pills has no legend unless a place is chosen for it (as Excel's single-series chart). A
+  value label above the highest point no longer runs over the title: the plot starts a little lower instead.
+* **A reference line's value shows as the axis does** (B53): a value cell in Excel's General format (and a typed value)
+  is shown in the format of the axis's numbers – "12.000", not "12000"; a line without a name shows its value alone.
+* **More places for every label** (B53): point values *Auto* (below a dip, above the rest, on the free side where two
+  would collide), and each point's own place (Chart panel › click a point › Label › Place); a reference line's label
+  right of the plot (as before), on the line inside the plot, above or below its right end, or above its left end; a gap
+  arrow from the line to the point (as Excel) or from the point to the line, its label left or right of the arrow, its
+  caption under or over the number; change pills above the axis, under the line, under each point, along the top or
+  below the category labels, their caption left, right or under the row.
+* **Drag any chart label on the slide** (B53): with the chart selected, drag its title, a point value, a reference
+  line's label, the gap arrow's label, a pill or a caption to where you want it. It keeps that place relative to where
+  the chart would put it, so it follows the data when the workbook changes. Each drag is one undo step; *Chart panel ›
+  Moved labels › Reset* puts every label back. PDF, PNG and PowerPoint draw them there (in PowerPoint a moved point
+  value is the chart's own data label, moved).
+* **An axis's minimum, maximum and step from Excel** (B53): *Chart panel › Axes › Cell…* under Min, Max or Step picks a
+  cell in the sheet view; the axis follows it on a reload, a scenario's value and *Run for each value*; × goes back to the
+  typed (or automatic) value. A cell without a number is named in the Issues panel. PowerPoint gets the same bounds.
+* Smoothed lines and markers stay per series (*Chart panel › Series › ▸ › Line: Smoothed, Markers*).
+* A deck that uses one of these is marked for Slide Builder 4.11 (format 8; the first such edit shows "Saving…" for
+  about 23 seconds once): Slide Builder 4.10 and older open it read-only and ask to update.
+* **Update day:** a Slide Builder 4.10 window still open during the update shows "⚠ a journal of this deck is damaged
+  (incident-format-8.json) – the deck is read-only; tell the maintainer" for decks that now use 4.11's chart labels.
+  This is expected and harmless: close the window and start Slide Builder again. Update everyone together.
+
 ## 4.10.2 - 2026-10-22
 
 What users notice

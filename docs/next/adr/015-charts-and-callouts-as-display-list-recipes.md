@@ -138,3 +138,38 @@ a reference line in the panel removes its gap arrows in the same patch (one undo
 **Format.** The entries fit inside `marks`, which 4.9 stores – but 4.9 does not *draw* them (`chart-marks.ts`
 `default: continue`), and its panel lists them as marks it cannot show: a deck holding one is raised to **format 7**
 (ADR-019 amendment of the same day).
+
+**Amendment 2026-10-22 (B53, 4.11): label places, labels moved by hand, axis bounds from cells, room.** The owner's
+second picture of the target chart. All of it is made in `seriesLayout` (and `chart-targets.ts`), so the slide, PDF, PNG
+and PowerPoint agree.
+* **Room.** The plot keeps on its right only the measured width of the labels present: a reference label "right"
+  (after the plot's end) may run into the card's own padding (`unit`, the item's box, against the frame) when nothing
+  stands beside the plot; a gap label is measured on its own difference and side (`labelSide`, `pos`), not on a sample
+  as wide as the line's value; the 4 px right-axis gap is not added to the labels' room. A line's value label above its
+  highest point brings the plot's top down by what it lacks (else it ran over the title – the one change to a chart
+  without targets, and only where it happened). One series with targets: no legend unless `legendAt` is chosen (the
+  pie's `legend` – "right" on every new chart – does not count on a series chart).
+* **A reference line's text.** The mark's `num`, else the cell's format – but a cell in General, and a typed value, take
+  the format its axis's tick labels show (the "12000" beside an axis of "12.000"); no name: the value alone.
+* **Places.** Series `labels.pos` "auto" (below a dip – both neighbours higher –, else above; the 4.7 collision rule then
+  flips it as before; PowerPoint: the series "t", each differing point its own `c:dLblPos`); `points[i].pos` (a line
+  point's; a bar's above / right → outside end, below / left → inside base, centre). Reference label `pos` adds
+  "below" (under the right end) and "inside" (on the line inside the plot, the card's ground – a white rectangle – behind
+  it so the dashes do not cross the text). Gap: `from` "point" (end a at the point, the default head at the line),
+  `labelSide`, `capPos` "above". Pills: `pos` "point" (under each pair's later point), "above" (a row along the plot's
+  top), "below" (a row under the category labels: the plot leaves its height); `capPos` "right" / "below".
+* **Labels moved by hand (`nudge`).** Per chart, a map label key → {dx, dy} as fractions of the chart's box (clamped to
+  ±1): "title", "v:<series>:<i>" (a point value, the series' own index), "r:<mark>", "g:<mark>" (the difference and its
+  caption together), "c:<mark>:<i>" (the pill ending at point i), "c:<mark>:cap". Each is added to where the layout puts
+  the label, so a label follows its point when the data move and its chart when it is resized; collisions are decided
+  before it (a moved label is where the user put it). The screen's list carries one `hit` "label" per label
+  ("<item>|<key>", invisible, never in an export's list) for the stage's drag; the drop is one `item.patch` of that entry.
+  PowerPoint: a point value is its series' `c:dLbl` with `c:layout/c:manualLayout` x / y (the offset as a fraction of the
+  chart space, the frame); the title's manual layout and the overlay's text boxes are placed from the moved layout.
+* **Axis bounds from cells.** `axes.<y|y2|x>.cells` {min, max, step}: each a DataRef (its first cell) over the typed
+  number; a cell without a number (a step ≤ 0) leaves the typed / automatic one and adds an Issues line; the chart's key
+  follows the cells' sheets (a reload, a scenario's value, *Run for each value*); PowerPoint writes the resolved `c:min`,
+  `c:max`, `c:majorUnit`.
+* **Format.** 4.10 keeps these keys whole (or, `nudge`, not at all) but draws them its own way: format 8 (ADR-019
+  amendment of the same day).
+

@@ -167,3 +167,22 @@ straight from 4, the re-check race, the 6 → 7 Lamport jump on another page, tw
 `chart-targets.test.ts` (vectors `b52.json`, needsV7, knownOp); helper `Format7Tests`, `DeckFormatHttpTests`
 (format 7), `test_update` format-7 list. Not run here: `tools/compat-old.mjs` against the real 4.9.0 page and helper (a
 case for it is the orchestrator's CP-01 run). Cost: once per deck, the same ≈ 23 s of "Saving…" on the first 4.10 edit.
+
+**Amendment 2026-10-22 (B53): format 8 for 4.11's chart labels.** 4.11 adds label places, labels moved by hand and an
+axis's bounds from cells (ADR-015 amendment). 4.10.1 keeps a chart's `sers`, `axes` and `marks` entries whole, but draws
+"auto" labels at the right, ignores a point's own place, a reference label "below" / "inside", a gap's `from` /
+`labelSide` / `capPos`, the pills' new rows and an axis's cells (automatic bounds instead), and skips the item's `nudge`
+key altogether (so a 4.10 fold – and its compaction, were it allowed – would lose the moved labels). So 4.11 raises a
+deck to **format 8** exactly as 4.10 raised to 7 (`needsV8` / `docNeedsV8`, from 4.10.1's FROZEN lists: its item keys
+and maps, mark keys, the `pos` values per mark kind, axis keys, series label places, point keys): an `item.patch` writing
+such content (a removal – null, or a `nudge` of null entries only – is not), a `slide.add` or `preset.set` carrying it.
+Marker **`incident-format-8.json`** (an incident to every 4.0–4.10 helper: 4.10's `_is_incident` excepts the format-5 to
+format-7 markers only, its `READ_FORMATS` is (4, 5, 6, 7)), the 23 s wait, tail, CAS to `format: 8`, the Lamport jump,
+never lowered; `POST …/format8`; `X-SB-Deck-Formats` `4,5,6,7,8`; DocSync's raise loop re-checks the queue after each
+raise (a 4.11 op joining a raise to 7 raises on to 8). `knownOp` learns `nudge` and the mark keys `labelSide`, `from`,
+`capPos`. `update.py --use 4.10` (and 4.6–4.9) names the format-8 decks once and asks; `capture-v3` reads 8;
+`compat-old.mjs` has 4.10.1 among the old versions and cases m53 / m53-before. Tests: core `docsync.test.ts` "format 8"
+(6), `chart-labels.test.ts` (vectors `b53.json`, needsV8, knownOp), helper `Format8Tests`, HTTP format 8,
+`test_update` format-8 list, e2e B53-01 (the deck goes to 8). Cost: once per deck, ≈ 23 s of "Saving…" on the first
+4.11 edit.
+

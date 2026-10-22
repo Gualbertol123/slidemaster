@@ -1,0 +1,4 @@
+{
+  "bytes": 20500,
+  "why": "B53 (chart labels: places for every label, labels dragged on the slide, an axis's min / max / step from cells, the plot's room, the 12000 fix; product owner 2026-10-22): by measurement on v4/B53-chart-labels – the page built from its base (main 50ecbc1, the 4.10.2 page, 4,926,959 bytes) is 4,947,073 bytes with B53 (+20,114): core render/chart-targets.ts / chart-series.ts places and nudges and the format-8 guard in the app's and the workers' bundles, the panels' new selects and axis cells, the stage's label drag; rounded up to the next 500."
+}
