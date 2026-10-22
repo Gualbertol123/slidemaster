@@ -37,17 +37,30 @@ import { SnapGuides } from "./guides";
 
 const SIDES: Side[] = ["top", "bottom", "left", "right"];
 
+/* While a button is held the slide keeps its size: a press that selects something can change the ribbon (a shape's
+   tools join it and it wraps to another row), and the slide fitted again at once would jump under the pointer as a drag
+   starts – and every text of the slide would be laid out again in the drag's first frame (Chromium lays SVG text out
+   again when its scale changes: 40+ ms with 60 objects, S15.4's snap_drag_frame_ms). The space is measured again when
+   the button is released */
+let held = false, refit: (() => void) | null = null;
+if (typeof addEventListener === "function") {
+  addEventListener("pointerdown", () => { held = true; }, true);
+  const up = () => { held = false; const f = refit; refit = null; f?.(); };
+  addEventListener("pointerup", up, true); addEventListener("pointercancel", up, true); addEventListener("blur", up);
+}
+
 /** the stage's frame: fits the slide into the space (or shows it at the chosen zoom) */
 export function Stage() {
   const host = useRef<HTMLDivElement>(null);
   const zoom = useStore(s => s.ui.zoom), fitTick = useStage(s => s.fitTick);
   const [size, setSize] = useState<[number, number]>([0, 0]);
   useLayoutEffect(() => {
-    const el = host.current!, measure = () => setSize(z => z[0] === el.clientWidth && z[1] === el.clientHeight ? z : [el.clientWidth, el.clientHeight]);
-    measure();
+    const el = host.current!, now = () => setSize(z => z[0] === el.clientWidth && z[1] === el.clientHeight ? z : [el.clientWidth, el.clientHeight]);
+    const measure = () => { if (held) refit = now; else now(); };
+    now();
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure); ro?.observe(el);
     addEventListener("resize", measure);
-    return () => { ro?.disconnect(); removeEventListener("resize", measure); };
+    return () => { ro?.disconnect(); removeEventListener("resize", measure); if (refit === now) refit = null; };
   }, [fitTick]);
   const [cw, ch] = size, fit = Math.min((cw - 56) / 1600, (ch - 64) / 900), s = zoom === "fit" ? (fit > 0 ? fit : 1) : zoom;
   useEffect(() => { if (useStage.getState().scale !== s) setStage({ scale: s }); }, [s]);
