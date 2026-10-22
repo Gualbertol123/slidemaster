@@ -239,7 +239,7 @@ decks*. *Options › Administration › Prepare rollback* (for giving decks back
 Cells › *Hide ▾* hides rows or columns of a table on that slide only. The contents slide's list and title move freely
 in free layout.
 
-**Charts, shapes, lines and icons** – charts of every common type (4.7, §1.1 above), callouts, shapes, lines and
+**Charts, shapes, lines and icons** – charts of every common type (4.7, §1.1 above) with *Targets* – reference lines from a cell, a gap arrow, change pills (4.10) –, callouts, shapes, lines and
 arrows (*Insert line ▾*; hold Ctrl while dragging an end to attach it to an object), about 6,200 icons (*Insert shape ▾ › More icons…*); snapping for every object (Alt:
 none).
 
