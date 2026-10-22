@@ -43,10 +43,13 @@ async function openApp(page: Page, url: string, errors: string[]) {
     await expect(page.locator("#fileName")).toHaveText(/^report\.xlsx · \d+ slides?/, { timeout: 30_000 });
   }
 }
+/** the stage draws the slide chosen (it keeps the previous slide until the new one arrives: a cell found before then is
+    the old slide's, detached a moment later – boundingBox() null) */
+const stageOn = (page: Page) => expect.poll(() => page.evaluate(() => (window as any).__sbTest.stageIdle() as boolean)).toBe(true);
 /** a slide of the deck with a number table, shown; its first table's number cells (the stage's text elements) */
 async function numberSlide(page: Page) {
   const si = deck().doc.preset.slides.findIndex((s: any) => s.type === "content" && s.tables.length >= 2);
-  await page.locator(`.thumb[data-i="${si}"]`).click(); await page.locator(`.thumb.on[data-i="${si}"]`).waitFor();
+  await page.locator(`.thumb[data-i="${si}"]`).click(); await page.locator(`.thumb.on[data-i="${si}"]`).waitFor(); await stageOn(page);
   return page.locator('#stage .slide .t').filter({ hasText: /^[+-]?\d[\d.]*(,\d+)?%?$/ });
 }
 async function clickCell(page: Page, l: ReturnType<Page["locator"]>, mods: ("Control")[] = []) {
@@ -137,7 +140,7 @@ test("PT-02 armed across slides: Ctrl+click a cell, go to the next slide with Ct
   const slides = deck().doc.preset.slides as any[], si = slides.findIndex((s, k) => s.type === "content" && s.tables.length && slides[k + 1]?.type === "content" && slides[k + 1].tables.length);
   expect(si).toBeGreaterThanOrEqual(0);
   const numCells = () => page.locator("#stage .slide .t").filter({ hasText: /^[+-]?\d[\d.]*(,\d+)?%?$/ });
-  await page.locator(`.thumb[data-i="${si}"]`).click(); await page.locator(`.thumb.on[data-i="${si}"]`).waitFor();
+  await page.locator(`.thumb[data-i="${si}"]`).click(); await page.locator(`.thumb.on[data-i="${si}"]`).waitFor(); await stageOn(page);
   const edits = () => Object.entries(deck().doc.edits).flatMap(([sh, s]: [string, any]) => Object.entries(s).map(([k, e]) => ({ k: sh + "!" + k, e: e as any })));
   const marked = () => edits().filter(x => x.e.valign === "top").length;
   // the source: top
@@ -148,7 +151,7 @@ test("PT-02 armed across slides: Ctrl+click a cell, go to the next slide with Ct
   await clickCell(page, numCells().nth(2), ["Control"]);
   // Ctrl still held: the next slide (Alt+↓), a cell there
   await page.keyboard.down("Alt"); await page.keyboard.press("ArrowDown"); await page.keyboard.up("Alt");
-  await page.locator(`.thumb.on[data-i="${si + 1}"]`).waitFor();
+  await page.locator(`.thumb.on[data-i="${si + 1}"]`).waitFor(); await stageOn(page);
   await expect(page.locator("#painterBtn")).toHaveClass(/ on/);
   await clickCell(page, numCells().nth(0));
   await expect(page.locator("body")).toHaveAttribute("data-paint-pend", "2");
@@ -161,7 +164,7 @@ test("PT-02 armed across slides: Ctrl+click a cell, go to the next slide with Ct
   await page.click("#undoBtn");
   await pollFile(marked).toBe(1);
   // Esc while targets are collected: nothing pasted, the painter off
-  await page.locator(`.thumb[data-i="${si}"]`).click(); await page.locator(`.thumb.on[data-i="${si}"]`).waitFor();
+  await page.locator(`.thumb[data-i="${si}"]`).click(); await page.locator(`.thumb.on[data-i="${si}"]`).waitFor(); await stageOn(page);
   await clickCell(page, numCells().nth(0)); await page.click("#painterBtn");
   const recs1 = deck().recs.length;
   await clickCell(page, numCells().nth(3), ["Control"]);
