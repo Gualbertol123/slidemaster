@@ -130,8 +130,9 @@ or merge it); on an axis whose lines PowerPoint stacks (the template's stacked a
 line cannot be a series there, so it is a plain line shape of the overlay, at the same place, with an Issues line. A
 100 % axis shows shares: a reference line (and a gap arrow to it) is not drawn there, with an Issues line. A stacked
 series' points stand on the stack's top, not on its own value: a gap arrow from it would measure the wrong thing, so it
-is not drawn, with an Issues line (change pills keep the series' own changes, placed by its drawn points). A value or
-name cell the shown version empties (its removed cells) hides that line and the gaps to it, with an Issues line. Removing
+is not drawn, with an Issues line (change pills keep the series' own changes, placed by its drawn points). A value
+cell the shown version empties (its removed cells) hides that line and the gaps to it, with an Issues line (an
+emptied name cell only leaves the name blank). Removing
 a reference line in the panel removes its gap arrows in the same patch (one undo step).
 
 **Format.** The entries fit inside `marks`, which 4.9 stores – but 4.9 does not *draw* them (`chart-marks.ts`

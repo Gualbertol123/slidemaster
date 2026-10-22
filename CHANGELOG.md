@@ -25,6 +25,9 @@ What users notice
 * **PowerPoint**: each reference line is a real series of the native chart (*Edit Data* shows its value; changing the
   first row moves the line), the gap arrow a line with a real arrowhead, the pills rounded rectangles with text – placed
   where the slide draws them; never pictures.
+* Where an extra can't be drawn faithfully it is left out and the Issues panel says so: reference lines on a 100 %
+  stacked chart, gap arrows from a stacked series, a line whose value cell the shown version empties; on a chart whose
+  lines are stacked, PowerPoint gets the reference line as a plain dashed line shape instead of a chart series.
 * A deck that holds one of these is marked for Slide Builder 4.10 (format 7; the first such edit shows "Saving…" for
   about 23 seconds once): Slide Builder 4.9 and older open it read-only and ask to update ("a journal of this deck is
   damaged … tell the maintainer" in 4.0–4.9 means: update Slide Builder).
