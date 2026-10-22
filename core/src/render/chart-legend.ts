@@ -29,7 +29,13 @@ const POS: LegendAt[] = ["right", "left", "top", "bottom", "top-right", "inside-
 /** where a series chart's legend goes: legendAt, else the old key (right / bottom / none), else Excel's bottom */
 export function legendAtOf(it: ChartItem): LegendAt {
   if (typeof it.legendAt === "string" && POS.includes(it.legendAt)) return it.legendAt;
-  return it.legend === "right" || it.legend === "none" ? it.legend : "bottom";
+  if (it.legend === "right" || it.legend === "none") return it.legend;
+  // (B53) a chart of one series with targets on it (a reference line, a gap arrow, change pills) has no legend unless
+  // one is asked for, as Excel's single-series chart: the line is named by its title and the targets by their labels
+  const sers = it.sers && typeof it.sers === "object" ? Object.values(it.sers).filter(s => s && typeof s === "object" && !s.hide) : [];
+  const targets = it.marks && typeof it.marks === "object" && Object.values(it.marks).some(k => k && typeof k === "object" && !k.off && (k.kind === "ref" || k.kind === "gap" || k.kind === "change"));
+  if (it.legend === undefined && sers.length === 1 && targets) return "none";
+  return "bottom";
 }
 /** the entries shown: every series' but those in legendHide */
 export function shownEntries(it: ChartItem, all: LegendEntry[]): LegendEntry[] {

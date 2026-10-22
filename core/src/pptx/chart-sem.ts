@@ -27,7 +27,9 @@ export interface LineSem { color: string; w: number; dash?: "dash" | "sysDot" | 
 export interface ValAxisSem { min: number; max: number; step: number; num: string; grid: LineSem | null; line: LineSem | null; show: boolean; font: FontSem }
 export interface CatAxisSem { line: LineSem | null; show: boolean; font: FontSem; /** a label every n categories */ skip: number }
 /** a point's own label: its text ("" = hidden) and / or the colour it is drawn in (white inside a dark bar) */
-export interface PointLabelSem { i: number; text?: string; hide?: boolean; color?: string; /** moved to the other side (S14.3: a line label that would overlap its neighbour) */ pos?: LabelPos }
+export interface PointLabelSem { i: number; text?: string; hide?: boolean; color?: string; /** moved to the other side (S14.3: a line label that would overlap its neighbour) */ pos?: LabelPos;
+  /** (B53) dragged on the stage: its offset from where its place puts it, as fractions of the chart space (c:dLbl's
+      manualLayout x / y) */ dx?: number; dy?: number }
 /** where a data label stands: a bar's (outside end, inside end, centre, inside base), a line point's (t, b, l, r, ctr);
     null = the chart group's own place (an area's labels take no position in PowerPoint) */
 export type LabelPos = "outEnd" | "inEnd" | "ctr" | "inBase" | "t" | "b" | "l" | "r" | null;

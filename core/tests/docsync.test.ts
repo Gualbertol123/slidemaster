@@ -864,3 +864,111 @@ describe("DocSync v4: format 7 for 4.10 chart marks (ADR-019 amendment for B52)"
     expect(() => deck.doCompact(deck.snap.gen, { ...deck.snap, gen: deck.snap.gen + 1, format: 6 })).toThrow(/objects/);
   });
 });
+
+describe("DocSync v4: format 8 for 4.11 label places, dragged labels, axis cells (ADR-019 amendment for B53)", () => {
+  const preset = { op: "preset.set", preset: { sheets: ["S"], slides: [{ id: "s1", type: "content", title: "T", tables: ["t1"] }], tables: [{ id: "t1", sheet: "S", kind: "range", range: "A1:B2" }],
+    versions: [{ id: "v1", name: "All", hide: {} }] } } as unknown as Op;
+  const chart = { op: "item.patch", slide: "s1", id: "c1", patch: { kind: "chart", type: "line", values: { sheet: "S", range: "B1:B2" }, box: { x: 0, y: 0, w: 10, h: 10 },
+    sers: { s1: { n: 1, vals: [{ sheet: "S", range: "B1:B2" }] } } } } as unknown as Op;
+  const ref = { op: "item.patch", slide: "s1", id: "c1", patch: { marks: { r1: { kind: "ref", value: { sheet: "S", range: "C1" }, name: "Budget" } } } } as unknown as Op;
+  const nudge = { op: "item.patch", slide: "s1", id: "c1", patch: { nudge: { title: { dx: .1, dy: 0 } } } } as unknown as Op;
+  const cells = { op: "item.patch", slide: "s1", id: "c1", patch: { axes: { y: { cells: { min: { sheet: "S", range: "D1" } } } } } } as unknown as Op;
+  const u = (deck: FakeDeck, who: string, api: DeckApi = deck.api(), o: Record<string, unknown> = {}) =>
+    new DocSync(api, "W.xlsx", deck.open(writer(who)), who, { autoTail: false, compactMargin: 0, bumpWaitMs: 0, ...o });
+  const waits = (s: DocSync, deck?: FakeDeck) => { const w: number[] = []; (s as unknown as { sleep: (ms: number) => Promise<void> }).sleep = async ms => { w.push(ms); deck?.advance(ms); }; return w; };
+  /** a format-7 deck with a chart and a reference line (as 4.10 reads it) */
+  async function deck7() {
+    const deck = new FakeDeck(), a = u(deck, "anna");
+    a.apply([preset]); await a.flush();
+    a.apply([chart, ref]); await a.flush();
+    expect(deck.snap.format).toBe(7);
+    return { deck, a };
+  }
+  it("B53: a dragged label raises a format-7 deck to 8 first – marker, wait, tail, CAS, then the record above a 4.10 page's gap record", async () => {
+    const { deck, a } = await deck7();
+    const old = writer("old410"), base = deck.api(), L = Math.max(...deck.records().map(r => r.l)) + 1;
+    const api: DeckApi = { ...base, format5: async (k, f) => { const r = await base.format5(k, f); if (r.created) deck.doAppend(old, { l: L, w: old, s: 1, by: "old", ops: [{ op: "item.patch", slide: "s1", id: "c1", patch: { title: "Old" } } as unknown as Op] }); return r; } };
+    const b = u(deck, "bea", api, { bumpWaitMs: 40 }), w = waits(b, deck), f7 = deck.calls.format7;
+    deck.log.length = 0;
+    b.apply([nudge]); await b.flush();
+    expect(deck.log).toEqual(["format8", "append" /* the old page's */, "format8", "tail", "compact:8", "append"]);
+    expect(w).toEqual([40]);
+    expect(deck.snap.format).toBe(8); expect(deck.marker8).not.toBeNull(); expect(deck.calls.format7).toBe(f7);
+    expect(deck.records().find(r => r.w === b.writer)!.l).toBeGreaterThan(L + BUMP_LAMPORT - 1);
+    await a.poll(); await b.poll();
+    const c = a.view.preset!.slides[0].items!.c1 as { title?: string; nudge?: Record<string, unknown> };
+    expect(c.title).toBe("Old"); expect(c.nudge).toEqual({ title: { dx: .1, dy: 0 } });
+    expect(b.view).toEqual(a.view);
+    expect(await b.compact()).not.toBeNull(); expect(deck.snap.format).toBe(8);
+  });
+  it("a format-4 deck goes straight to 8 (one bump, one marker); a reset (null) raises nothing", async () => {
+    const deck = new FakeDeck(), a = u(deck, "anna");
+    a.apply([{ ...preset, preset: { ...(preset as unknown as { preset: object }).preset, versions: undefined } } as unknown as Op]); await a.flush();
+    expect(deck.snap.format).toBe(4);
+    deck.log.length = 0;
+    a.apply([{ ...chart, patch: { ...(chart as unknown as { patch: object }).patch, axes: { y: { cells: { max: { sheet: "S", range: "D1" } } } } } } as unknown as Op]); await a.flush();
+    expect(deck.log).toEqual(["format8", "tail", "compact:8", "append"]);
+    expect(deck.snap.format).toBe(8); expect(deck.marker).toBeNull(); expect(deck.marker6).toBeNull(); expect(deck.marker7).toBeNull();
+    const d2 = (await deck7()).deck, b = u(d2, "bea");
+    d2.log.length = 0;
+    b.apply([{ op: "item.patch", slide: "s1", id: "c1", patch: { nudge: { title: null } } } as unknown as Op, { op: "item.patch", slide: "s1", id: "c1", patch: { nudge: null } } as unknown as Op]);
+    await b.flush();
+    expect(d2.log).toEqual(["append"]); expect(d2.snap.format).toBe(7);
+  });
+  it("re-check: a 4.11 op that joins the queue during a raise to 7 raises the deck on to 8 before the record is appended (two Lamport jumps)", async () => {
+    const deck = new FakeDeck(), a = u(deck, "anna", deck.api(), { bumpWaitMs: 40 });
+    a.apply([preset]); await a.flush();
+    a.apply([chart]); await a.flush();
+    expect(deck.snap.format).toBe(5);
+    let joined = false;
+    (a as unknown as { sleep: (ms: number) => Promise<void> }).sleep = async ms => { deck.advance(ms); if (!joined) { joined = true; a.apply([cells]); } };
+    deck.log.length = 0;
+    a.apply([ref]); await a.flush();
+    expect(deck.log.join(" ")).toMatch(/^format7 .*compact:7 .*format8 .*compact:8 append$/);
+    expect(deck.snap.format).toBe(8); expect(deck.marker8).not.toBeNull();
+    const recs = deck.records().filter(r => r.w === a.writer);
+    expect(recs[recs.length - 1].ops.length).toBe(2);
+    expect(recs[recs.length - 1].l).toBeGreaterThanOrEqual(recs[recs.length - 2].l + 2 * BUMP_LAMPORT);
+    expect(a.state).toBe("saved");
+  });
+  it("a page that sees the deck go 7 -> 8 jumps its Lamport time; one opening a format-7 deck whose journal holds a 4.11 key raises it", async () => {
+    const { deck, a } = await deck7();
+    const p = writer("p411");
+    deck.doAppend(p, { l: 9, w: p, s: 1, by: "p411", ops: [nudge] });
+    const b = u(deck, "bea", deck.api(), { bumpOnOpen: true });
+    expect(await b.upgrading).toBe(true);
+    expect(deck.snap.format).toBe(8); expect(deck.calls.format8).toBe(1);
+    const before = (a as unknown as { lamport: number }).lamport;
+    await a.poll();
+    expect((a as unknown as { lamport: number }).lamport).toBeGreaterThanOrEqual(before + BUMP_LAMPORT);
+  });
+  it("two 4.11 writers raising the same deck at once – one compare-and-set loses (409), reloads and goes on; both save; format 8", async () => {
+    const { deck } = await deck7();
+    const base = deck.api(), gen0 = deck.snap.gen, codes: string[] = [];
+    let arrived = 0, release: () => void = () => undefined;
+    const both = new Promise<void>(r => { release = r; });
+    const api: DeckApi = { ...base, compact: async (k, g, sn) => {
+      if (sn.format === 8 && g === gen0) { if (++arrived === 2) release(); await both; }
+      try { const r = await base.compact(k, g, sn); codes.push("ok:" + sn.format); return r; }
+      catch (e) { codes.push((e as { status?: number }).status + ":" + sn.format); throw e; }
+    } };
+    const mk = (w: string) => u(deck, w, api, { bumpWaitMs: 40 });
+    const a = mk("ann2"), b = mk("bea");
+    for (const s of [a, b]) (s as unknown as { sleep: (ms: number) => Promise<void> }).sleep = async ms => { await new Promise(r => setTimeout(r, 1)); deck.advance(ms); };
+    a.apply([nudge]); b.apply([cells]);
+    await Promise.all([a.flush(), b.flush()]);
+    expect(deck.snap.format).toBe(8);
+    expect([a.state, b.state]).toEqual(["saved", "saved"]);
+    await a.poll(); await b.poll();
+    const c = a.view.preset!.slides[0].items!.c1 as { nudge?: object; axes?: { y?: { cells?: object } } };
+    expect(c.nudge).toBeTruthy(); expect(c.axes?.y?.cells).toBeTruthy();
+    expect(b.view).toEqual(a.view);
+    expect(codes).toEqual(["ok:8", "409:8"]);
+  });
+  it("never lowered: the helper refuses a format-7 snapshot on a format-8 deck", async () => {
+    const { deck, a } = await deck7();
+    a.apply([nudge]); await a.flush();
+    expect(deck.snap.format).toBe(8);
+    expect(() => deck.doCompact(deck.snap.gen, { ...deck.snap, gen: deck.snap.gen + 1, format: 7 })).toThrow(/objects/);
+  });
+});

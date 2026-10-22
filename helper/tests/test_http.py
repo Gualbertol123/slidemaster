@@ -462,6 +462,31 @@ class DeckFormatHttpTests(HttpBase):
         self.assertEqual(st, 400)
         self.assertIn("4.10", e["error"])
 
+    def test_a_4_10_page_is_refused_on_a_format_8_deck(self):
+        # B53: the 4.11 page raises to 8 (format8: incident-format-8.json); a page sending "4,5,6,7" gets 409
+        v411 = {"X-SB-Deck-Formats": "4,5,6,7,8"}
+        r = self.open(v411)
+        key, w = r["key"], r["writer"]
+        base = "/api/decks/" + key
+        st, m = self.jreq("POST", base + "/format8", {}, headers=v411)
+        self.assertEqual((st, m["created"]), (200, True))
+        self.assertTrue(os.path.exists(decks.deck_dir(key, decks.MARKER8)))
+        snap = self.jreq("GET", base + "/snapshot", headers=v411)[1]["snapshot"]
+        with mock.patch.object(decks, "BUMP_WAIT_S", 0):
+            self.assertEqual(self.jreq("POST", base + "/compact", {"baseGen": 1, "snapshot": dict(snap, gen=2, format=8)}, headers=v411)[0], 200)
+        for headers in ({}, self.NEW, {"X-SB-Deck-Formats": "4,5,6"}, {"X-SB-Deck-Formats": "4,5,6,7"}):
+            for method, path, body in [("POST", "/api/decks/open", {"workbook": "W.xlsx"}), ("GET", base + "/snapshot", None),
+                                       ("GET", base + "/tail?since={}", None),
+                                       ("POST", base + "/append", {"writer": w, "record": {"w": w, "s": 1, "l": 1, "ops": []}})]:
+                st, e = self.jreq(method, path, body, headers=headers)
+                self.assertEqual(st, 409, (path, headers, e))
+                self.assertIn("reload the page", e["error"])
+        self.assertEqual(self.open(v411)["snapshot"]["format"], 8)
+        cur = decks.read_snapshot(key)
+        st, e = self.jreq("POST", base + "/compact", {"baseGen": 2, "snapshot": dict(cur, gen=3, format=7)}, headers=v411)
+        self.assertEqual(st, 400)
+        self.assertIn("4.11", e["error"])
+
     def test_an_old_token_is_refused_first(self):
         key = self.open()["key"]
         st, _ = self.jreq("POST", "/api/decks/%s/append" % key, {"writer": "a@b#abcdefgh", "record": {}}, token=False, headers={"X-SB-Token": "the-token-of-the-helper-before-the-restart"})
