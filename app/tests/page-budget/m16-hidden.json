@@ -1,4 +1,4 @@
 {
   "bytes": 10500,
-  "why": "M16 S16.1 (4.9.0, hidden rows and columns per slide, B36): measured 2026-10-21 with npm run build on m16/hidden from main cb9cb8a – 3,967,290 → 3,977,523 bytes (+10,233: the hidden set in core – model/hidden.ts, buildLayout, resolveTable / runtimeSlides, the chart resolver – and Hide ▾ / the stage's double marks), rounded up to 10,500. Set by measurement (M16 plan); raised only by a decision."
+  "why": "M16 S16.1 (4.9.0, hidden rows and columns per slide, B36): measured with npm run build – first on m16/hidden from main cb9cb8a (3,967,290 → 3,977,523, +10,233), again after rebasing onto main 71d8806 with B48–B50 (4,017,563 → 4,027,850, +10,287): the hidden set in core – model/hidden.ts, buildLayout, resolveTable / runtimeSlides, the chart resolver – and Hide ▾ / the stage's double marks; rounded up to 10,500. Set by measurement (M16 plan); raised only by a decision."
 }
