@@ -583,7 +583,7 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     // (a hidden series is not drawn: its marks are not either, and that is no mistake – no anchors, no Issues line)
     series: new Map([...Object.keys(it.sers || {}).map((k): [string, { anchors: (Anchor | null)[]; start: number }] => [k, { anchors: [], start: 0 }]), ...ser.map((s, k): [string, { anchors: (Anchor | null)[]; start: number }] => [s.id, { anchors: anchors[k], start: s.start }])]),
     vp: (v, ax) => ax === "y2" && !y2 ? null : vps[ax](v), ink: sty.ink, lab: sty.lab, withFmt, ...(xAxis ? { xp } : {}),
-    ...(refOk ? { targets: { plot, slot, ink: sty.ink, lab: sty.lab, withFmt, look: tlook, refs: new Map(refs.map(r => [r.id, r])), refOff, refLabelX, nudge, ground: "#FFFFFF",
+    ...(refOk ? { targets: { plot, slot, ink: sty.ink, lab: sty.lab, withFmt, look: tlook, refs: new Map(refs.map(r => [r.id, r])), refOff, refLabelX, nudge, ground: { fill: look.card.fill, a: look.card.a },
       ...(dir === "col" && catShow ? { below: r2(plot.y + plot.h + clh + 6 + (named ? clh + 4 : 0)) } : dir === "col" ? { below: r2(plot.y + plot.h + 4) } : {}),
       // (a stacked series' points stand on the stack's top, not on its own value: stacked)
       series: new Map(ser.map((s, k) => [s.id, { anchors: anchors[k], vals: s.vals, start: s.start, fmt: s.fmt, stacked: stackL.has(k) || (mode !== "none" && kinds[k] !== "line") }])) } } : {}),
@@ -591,6 +591,9 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   const mk = markNodes(it, id, F, ctx, m);
   const extra = data0.series.slice(ser.length).map(s => `'${s.name}' is not drawn: a waterfall draws one series`);
   if (screen) labelHits.push(...mk.labels);
+  // (B53 review) an axis's own max not above its min (typed, or a max below the automatic minimum): autoScale dropped it
+  for (const [nm, ax, S] of [["value", A.y, scale], ["right", A.y2, y2?.scale]] as const)
+    if (ax && S && typeof ax.max === "number" && Number.isFinite(ax.max) && ax.max !== S.max) axIssues.push(`the ${nm} axis's max (${ax.max}) is not above its min (${S.min}): automatic instead`);
   const issues = [...data.issues, ...extra, ...axIssues, ...drawOrderIssues(ser.map(s => s.name), axes, bars, traces), ...refIssues, ...mk.issues];
   const issue = issues.length ? issues.join("; ") : null;
   return { data, dir, mode, gap, overlap, title, titleSt, titleBox, plot, scale, num, valSt, catSt, valShow, catShow, skip, look,

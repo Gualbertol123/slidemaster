@@ -149,6 +149,19 @@ test.describe.serial("chart labels (B53)", () => {
     expect(n.dx * 820).toBeCloseTo(-60, 0); expect(n.dy * 560).toBeCloseTo(-20, 0);
     await expect.poll(async () => { const h = (await labelHits(page, "b53c"))["g:g1"]; return h ? Math.round(h.x - L.x) : null; }, { timeout: 20_000 }).toBe(-60);
     await saved(page);
+    // (review) a click on the budget line's label selects its mark (no step); a drag of it moves it (one step)
+    const R1 = (await labelHits(page, "b53c"))["r:r1"];
+    const rx = ib!.x + (R1.x - 700 + R1.w / 2) * kx, ry = ib!.y + (R1.y - 180 + R1.h / 2) * kx;
+    u = await undoSteps(page);
+    await page.mouse.click(rx, ry);
+    await expect(page.locator('.pointmark[data-mark="r1"]')).toBeVisible({ timeout: 10_000 });
+    expect(await undoSteps(page)).toBe(u);
+    await page.mouse.move(rx, ry); await page.mouse.down();
+    await page.mouse.move(rx, ry + 15 * kx, { steps: 4 }); await page.mouse.move(rx, ry + 30 * kx, { steps: 4 });
+    await page.mouse.up();
+    await expect.poll(() => undoSteps(page)).toBe(u + 1);
+    await pollFile(() => Math.round((item().nudge?.["r:r1"]?.dy ?? 0) * 560), { timeout: 10_000 }).toBe(30);
+    await saved(page);
 
     // the PDF: the gap (−348) and the axis's top at the cell's 12.000; PNG: a picture; PowerPoint: the resolved c:max,
     // the gap label a text box, no picture of the chart

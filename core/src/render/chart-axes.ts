@@ -39,7 +39,8 @@ export function autoScale(lo: number, hi: number, opts: { maxN?: number; axis?: 
   if (lo > hi) [lo, hi] = [hi, lo];
   // 100 %: 0 to 100 % (or −100 % when there are negatives), Excel's tenths
   if (opts.percent) { lo = lo < 0 ? -1 : 0; hi = hi > 0 ? 1 : 0; if (lo === hi) hi = 1; }
-  const fixMin = isNum(A.min) ? A.min : null, fixMax = isNum(A.max) ? A.max : null;
+  const fixMin = isNum(A.min) ? A.min : null;
+  let fixMax = isNum(A.max) ? A.max : null;
   // the range the bounds come from
   let a: number, b: number;
   if (opts.percent) { a = lo; b = hi; }
@@ -47,8 +48,12 @@ export function autoScale(lo: number, hi: number, opts: { maxN?: number; axis?: 
   else if (lo >= 0) { const sp = hi - lo; a = sp > hi / 6 ? 0 : lo - sp / 2; b = hi + sp / 20; }
   else if (hi <= 0) { const sp = hi - lo; b = sp > -lo / 6 ? 0 : hi + sp / 2; a = lo - sp / 20; }
   else { const sp = hi - lo; a = lo - sp / 20; b = hi + sp / 20; }
+  // (B53 review: a max not above the min – both the axis's own, or a max below the automatic minimum – is dropped: the
+  // automatic maximum stands, never an axis whose min is above its max, in PowerPoint neither)
+  const autoB = b;
   if (fixMin !== null) a = fixMin;
-  if (fixMax !== null) b = fixMax;
+  if (fixMax !== null && !(fixMax > a)) fixMax = null;
+  b = fixMax !== null ? fixMax : autoB;
   if (!(b > a)) b = a + (Math.abs(a) || 1);
   if (isNum(A.step) && A.step > 0) {
     const step = A.step;

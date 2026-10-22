@@ -256,7 +256,7 @@ numbers measured twice). Measured numbers go into the step's line.
   compat-old 4.10 + m53 / m53-before). Vectors `b53.json`. Tests: core `chart-labels.test.ts` (27), `docsync.test.ts`
   format 8, helper `Format8Tests` / HTTP format 8 / `test_update`, app `chart-labels-panel.test.tsx`, e2e B53-01,
   pptxcheck 6 / 6 (`chart-labels` CHART_PPTX_OUT); snapshots: B52's target-lines (room) and chart-series' screen-only
-  label hits; page budget `page-budget/b53.json` (+20,114 measured). Version 4.11.0 (CHANGELOG unreleased).
+  label hits; page budget `page-budget/b53.json` (+21,675 measured with the review fixes). Version 4.11.0 (CHANGELOG unreleased).
 
 - [x] 4.10.1 · .xlsb that failed with "a string is longer than its record" (owner's report 2026-10-22, "Dashboard.xlsb",
   Sheets step; branch `v4/xlsb-string-fix` on main a6d5ce3) — (commit: see the branch; runs: by the orchestrator). Root

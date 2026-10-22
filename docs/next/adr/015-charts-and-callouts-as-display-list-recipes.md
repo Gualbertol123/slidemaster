@@ -154,7 +154,7 @@ and PowerPoint agree.
 * **Places.** Series `labels.pos` "auto" (below a dip – both neighbours higher –, else above; the 4.7 collision rule then
   flips it as before; PowerPoint: the series "t", each differing point its own `c:dLblPos`); `points[i].pos` (a line
   point's; a bar's above / right → outside end, below / left → inside base, centre). Reference label `pos` adds
-  "below" (under the right end) and "inside" (on the line inside the plot, the card's ground – a white rectangle – behind
+  "below" (under the right end) and "inside" (on the line inside the plot, the card's ground – its fill and opacity – behind
   it so the dashes do not cross the text). Gap: `from` "point" (end a at the point, the default head at the line),
   `labelSide`, `capPos` "above". Pills: `pos` "point" (under each pair's later point), "above" (a row along the plot's
   top), "below" (a row under the category labels: the plot leaves its height); `capPos` "right" / "below".
@@ -163,13 +163,15 @@ and PowerPoint agree.
   caption together), "c:<mark>:<i>" (the pill ending at point i), "c:<mark>:cap". Each is added to where the layout puts
   the label, so a label follows its point when the data move and its chart when it is resized; collisions are decided
   before it (a moved label is where the user put it). The screen's list carries one `hit` "label" per label
-  ("<item>|<key>", invisible, never in an export's list) for the stage's drag; the drop is one `item.patch` of that entry.
+  ("<item>|<key>", invisible, never in an export's list) for the stage's drag; the drop is one `item.patch` of that entry, and a click without a move selects the mark or point
+  under the label, as without one (review).
   PowerPoint: a point value is its series' `c:dLbl` with `c:layout/c:manualLayout` x / y (the offset as a fraction of the
   chart space, the frame); the title's manual layout and the overlay's text boxes are placed from the moved layout.
 * **Axis bounds from cells.** `axes.<y|y2|x>.cells` {min, max, step}: each a DataRef (its first cell) over the typed
   number; a cell without a number (a step ≤ 0) leaves the typed / automatic one and adds an Issues line; the chart's key
   follows the cells' sheets (a reload, a scenario's value, *Run for each value*); PowerPoint writes the resolved `c:min`,
-  `c:max`, `c:majorUnit`.
+  `c:max`, `c:majorUnit`. A min not below the max goes back to the typed / automatic bounds with an Issues line, and
+  `autoScale` drops any max not above the min (also a max cell below the automatic minimum): never min ≥ max (review).
 * **Format.** 4.10 keeps these keys whole (or, `nudge`, not at all) but draws them its own way: format 8 (ADR-019
   amendment of the same day).
 

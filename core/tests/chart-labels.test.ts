@@ -21,6 +21,7 @@ import { computeLayout } from "../src/render/layout";
 import { chartKey } from "../src/render/chart-dl";
 import { legendAtOf } from "../src/render/chart-legend";
 import { seriesLayout, type SeriesLayout, type SeriesStyle } from "../src/render/chart-series";
+import { autoScale, ticks } from "../src/render/chart-axes";
 import { chartXml } from "../src/pptx/chart";
 import { writePptx } from "../src/pptx/writer";
 import type { ChartSem } from "../src/pptx/chart-sem";
@@ -168,6 +169,8 @@ describe("label places (B53 3), in every design", () => {
     expect(i.x + (i as TextNode & { w: number }).w).toBeLessThanOrEqual(R2.x2); expect(i.y).toBeGreaterThan(R2.y - 14); expect(i.y).toBeLessThan(R2.y + 14);
     const ground = L.marks.nodes.find((n): n is RectNode => n.t === "rect" && !n.r && n.y <= R2.y && n.y + n.h >= R2.y);
     expect(ground).toBeTruthy();
+    // (review: the card's own fill and opacity – Liquid Glass's translucent card shows no white chip)
+    if (design === "glass") expect((ground!.fill as { a?: number }).a).toBeLessThan(1);
     // nothing on the right: the plot reaches the frame but for the right axis's 4 px gap and the gap label's overhang
     expect(L.plot.x + L.plot.w).toBeGreaterThan(FRAME.x + FRAME.w - 60);
     // the gap: from the point to the line (end a at the point, the head at the line), its label left of the arrow, the caption over it
@@ -270,6 +273,27 @@ describe("axis scale from cells (B53 4)", () => {
     const xml = chartXml(semOf(b.item("tl").info), "rId1", css => pptxFamily(css));
     expect(xml).toContain('<c:max val="12100"/>'); expect(xml).toContain('<c:min val="11411"/>'); expect(xml).toContain('<c:majorUnit val="50"/>');
   });
+  it("review: a min cell not below the max cell – both go back to typed / automatic, an Issues line; PowerPoint's c:min below c:max", async () => {
+    const { ctx, it, item } = await deck("excel", { patch: p => { (p.axes as Record<string, Record<string, unknown>>).y = { num: "#,##0", min: 11300, cells: { min: { sheet: "Targets", range: "C3" }, max: { sheet: "Weekly", range: "D5" } } }; } });
+    const L = layoutOf(it("tl"), ctx);
+    expect(L.scale.min).toBe(11300); expect(L.scale.max).toBeGreaterThan(12000); expect(L.ticks.length).toBeGreaterThan(2);
+    expect(L.issue).toContain("the value axis's min (12000) is not below its max (11411)");
+    const xml = chartXml(semOf(item("tl").info), "rId1", css => pptxFamily(css));
+    const mn = +/<c:min val="([\d.-]+)"\/>/.exec(xml)![1], mx = +/<c:max val="([\d.-]+)"\/>/.exec(xml)![1];
+    expect(mn).toBeLessThan(mx);
+  });
+  it("review: a max cell below the automatic minimum is dropped (automatic), with an Issues line; autoScale never gives min ≥ max", async () => {
+    expect(autoScale(0, 100, { axis: { min: 50, max: 10 } })).toMatchObject({ min: 50 });
+    const S0 = autoScale(0, 100, { axis: { min: 50, max: 10 } });
+    expect(S0.max).toBeGreaterThan(S0.min); expect(ticks(S0).length).toBeGreaterThan(2);
+    const low = (n: string, S: Sheet | null) => n === "Targets" && S ? withCell(S, 3, 4, 5000) : S;
+    const { ctx, it, item } = await deck("excel", { sheet: low, patch: p => { (p.axes as Record<string, Record<string, unknown>>).y = { num: "#,##0", cells: { max: { sheet: "Targets", range: "D3" } } }; } });
+    const L = layoutOf(it("tl"), ctx);
+    expect(L.scale.max).toBeGreaterThan(L.scale.min); expect(L.scale.max).toBeGreaterThanOrEqual(12000);
+    expect(L.issue).toContain("the value axis's max (5000) is not above its min");
+    const xml = chartXml(semOf(item("tl").info), "rId1", css => pptxFamily(css));
+    expect(+/<c:min val="([\d.-]+)"\/>/.exec(xml)![1]).toBeLessThan(+/<c:max val="([\d.-]+)"\/>/.exec(xml)![1]);
+  });
   it("a cell without a number leaves the typed setting (else automatic) and says so in Issues", async () => {
     const { ctx, it } = await deck("excel", { patch: p => { cells(p); (p.axes as Record<string, Record<string, unknown>>).y.step = 200; } });
     const L = layoutOf(it("tl"), ctx);
@@ -287,7 +311,8 @@ describe("the format guard (B53: format 8) and the vectors", () => {
       ip({ marks: { p: { kind: "change", capPos: "right" } } }), ip({ marks: { g: { kind: "gap", ref: "r", labelSide: "left" } } })];
     for (const o of yes) { expect(needsV8(o), JSON.stringify(o)).toBe(true); expect(knownOp(o), JSON.stringify(o)).toBe(true); }
     const no = [ip({ nudge: null }), ip({ nudge: { title: null } }), ip({ marks: { r: { kind: "ref", value: 1, pos: "above" } } }), ip({ sers: { s: { n: 1, vals: [], labels: { show: ["value"], pos: "above" } } } }),
-      ip({ axes: { y: { min: 1, max: 2, step: 1 } } }), ip({ marks: { p: { kind: "change", pos: "line" } } })];
+      ip({ axes: { y: { min: 1, max: 2, step: 1 } } }), ip({ marks: { p: { kind: "change", pos: "line" } } }),
+      ip({ axes: { y: { min: 1, cells: null } } }), ip({ axes: { y: { min: 1, cells: {} } } })];
     for (const o of no) expect(needsV8(o), JSON.stringify(o)).toBe(false);
     // (a 4.10 mark alone is format 7, not 8)
     expect(needsV7(no[2])).toBe(true);

@@ -358,7 +358,7 @@ const markV8 = (k: unknown) => isObj(k) && (Object.keys(k).some(x => !V410_MARK_
   || (k.pos !== undefined && k.pos !== null && !!V410_MARK_POS[k.kind as string] && !V410_MARK_POS[k.kind as string].includes(k.pos as string)));
 const serV8 = (s: unknown) => isObj(s) && ((isObj(s.labels) && s.labels.pos !== undefined && s.labels.pos !== null && !V410_LABEL_POS.includes(s.labels.pos as string))
   || (isObj(s.points) && Object.values(s.points).some(p => isObj(p) && Object.keys(p).some(x => !V410_POINT_KEYS.includes(x)))));
-const axisV8 = (a: unknown) => isObj(a) && Object.keys(a).some(x => !V410_AXIS_KEYS.includes(x));
+const axisV8 = (a: unknown) => isObj(a) && Object.keys(a).some(x => !V410_AXIS_KEYS.includes(x) && a[x] !== null && !(isObj(a[x]) && !Object.keys(a[x] as object).length));
 const some = (m: unknown, f: (x: unknown) => boolean) => isObj(m) && Object.values(m).some(f);
 /** an item (or an item.patch) holding what 4.10.1 does not draw whole: a later key (`nudge`), a later series label place
     or point key, axis key (`cells`), mark key or place */

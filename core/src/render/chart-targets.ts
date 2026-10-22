@@ -77,6 +77,11 @@ export function axisFromCells(A: ChartAxis | undefined, ctx: RenderCtx, name: st
     if (c && c.v !== null && (key !== "step" || c.v > 0)) out[key] = c.v;
     else issues.push(`the ${name} axis's ${key === "step" ? "major unit" : key}: ${c ? (c.gone ? `${c.source} is emptied by the version shown` : `no ${key === "step" ? "positive number" : "number"} in ${c.source}`) : `${refTarget(ref, ctx).source} not found`}`);
   }
+  // (B53 review) a min not below the max: the bounds read from cells go back to the typed ones (else automatic)
+  if (typeof out.min === "number" && typeof out.max === "number" && out.min >= out.max && (isRef(C.min) || isRef(C.max))) {
+    issues.push(`the ${name} axis's min (${out.min}) is not below its max (${out.max}): ${isRef(C.min) && isRef(C.max) ? "both are" : isRef(C.min) ? "the min is" : "the max is"} typed or automatic instead`);
+    for (const key of ["min", "max"] as const) if (isRef(C[key])) { if (typeof A[key] === "number") out[key] = A[key]; else delete out[key]; }
+  }
   return out;
 }
 /** the marks of the chart that are on, in id order (a later id on top) */
@@ -157,7 +162,7 @@ export interface TargetFrame {
   /** the series drawn, by id */ series: Map<string, SerPts>;
   look: TargetLook;
   /** (B53) a dragged label's offset in px (0, 0 when none) – keys as ChartItem.nudge's; the card's ground behind an
-      "inside" label; the top of the row under the category labels (pills "below") */ nudge?: (key: string) => { x: number; y: number }; ground?: string; below?: number;
+      "inside" label (the card's fill and opacity); the top of the row under the category labels (pills "below") */ nudge?: (key: string) => { x: number; y: number }; ground?: { fill: string; a: number }; below?: number;
 }
 export interface TargetOut { nodes: Node[]; issues: string[];
   /** (B53) the labels the stage can drag: their nudge key and box */ labels?: { key: string; box: { x: number; y: number; w: number; h: number } }[];
@@ -176,7 +181,7 @@ export function refNodes(R: RefLine, m: Metrics, labelX: number, F?: Pick<Target
       : L.pos === "below" ? [R.x2 - 4, R.y + 2, "right"] : L.pos === "inside" ? [R.x2 - 6, R.y - lh / 2, "right"] : [R.x2 - 4, R.y - lh - 2, "right"];
     const t = placed(m, L.text, x + d.x, top + d.y, L.st, al);
     // ("inside": on the line, the card's ground behind the text so the dashes do not cross it)
-    if (L.pos === "inside") nodes.push({ t: "rect", x: r2(t.box.x - 4), y: r2(t.box.y), w: r2(t.box.w + 8), h: r2(t.box.h), fill: solid(F?.ground || "#FFFFFF") });
+    if (L.pos === "inside") nodes.push({ t: "rect", x: r2(t.box.x - 4), y: r2(t.box.y), w: r2(t.box.w + 8), h: r2(t.box.h), fill: { solid: parseColor(F?.ground?.fill || "#FFFFFF").c, ...(F?.ground && F.ground.a < 1 ? { a: F.ground.a } : {}) } });
     nodes.push(t.node); out.labels!.push({ key, box: t.box });
   }
   return out;

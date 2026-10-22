@@ -145,6 +145,14 @@ describe("the label places, axis cells and moved labels on the page", () => {
     const h = history();
     await drag(1, 1); await settle();
     expect(history()).toBe(h); expect(host.querySelector(".labelghost")).toBeNull();
+    // (review) a click without a move is a click: the stage's selection callback runs, nothing is written; a drag does not call it
+    let clicked = 0;
+    const press = (dx: number) => act(async () => {
+      labelDrag(R, id, "r:x", { x: 100, y: 100, w: 40, h: 16 }, { x: 0, y: 0, w: 600, h: 400 }, host, new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }), () => { clicked++; });
+      window.dispatchEvent(new PointerEvent("pointerup", { clientX: 10 + dx, clientY: 10 }));
+    });
+    await press(2); await settle();
+    expect([clicked, history()]).toEqual([1, h]);
     await step(() => drag(60, -40), "Move chart label");
     const n = it_().nudge!["v:s1:1"];
     expect(n.dx).toBeGreaterThan(0); expect(n.dy).toBeLessThan(0);

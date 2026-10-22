@@ -445,8 +445,9 @@ export function noteMove(R: RuntimeSlide, key: string, box: Rect, others: Rect[]
 /** (B53) a chart's label dragged on the stage (the selected chart's title, a point value, a reference line's, gap arrow's
     or pill's label, a caption): a dashed ghost of its box follows the pointer; on the drop the label's offset from where
     the chart puts it (ChartItem.nudge, a fraction of the chart's box: it follows the data and a resize) – one op, one
-    undo step. A click that does not move (under 3 px) changes nothing */
-export function labelDrag(R: RuntimeSlide, id: string, key: string, box: Rect, itemBox: Rect, host: HTMLElement, e: PointerEvent) {
+    undo step. A click that does not move (under 3 px) changes nothing and is a click: `click` (the stage selects the mark
+    or point under it, as without a label – B53 review) */
+export function labelDrag(R: RuntimeSlide, id: string, key: string, box: Rect, itemBox: Rect, host: HTMLElement, e: PointerEvent, click?: () => void) {
   if (e.button !== 0) return;
   const sc = slideScale(), sx = e.clientX, sy = e.clientY;
   const ghost = document.createElement("div");
@@ -459,7 +460,7 @@ export function labelDrag(R: RuntimeSlide, id: string, key: string, box: Rect, i
     ghost.style.transform = `translate(${dx}px,${dy}px)`;
   }, () => {
     ghost.remove();
-    if (Math.hypot(dx, dy) < 3) return;
+    if (Math.hypot(dx, dy) < 3) { click?.(); return; }
     const it = R.cfg.items?.[id];
     if (!it || it.kind !== "chart") return;
     change("Move chart label", [{ op: "item.patch", slide: R.id, id, patch: nudgePatch(it, key, dx, dy, itemBox) } as Op]);

@@ -42,10 +42,11 @@ const ItemBox = memo(function ItemBox({ p, m, R, free, d, sel, painted }: { p: I
         const rc = e.currentTarget.getBoundingClientRect(), k = rc.width / b.w;
         const x = b.x + (e.clientX - rc.left) / k, y = b.y + (e.clientY - rc.top) / k, g = p.info?.geom;
         // (B53) the selected chart's label under the pointer: dragged to a place of its own (one undo step)
-        const lab = on && !g && p.layer && !(e.target as Element).closest(".size") ? labelHitAt(p.layer.nodes, p.id, x, y) : null;
-        if (lab) { e.preventDefault(); labelDrag(R, p.id, lab.key, lab.box, b, e.currentTarget, e.nativeEvent); return; }
         // (a series chart: the point or mark under the pointer, from its layer's hits – S14.5)
         const h = !g && p.layer ? chartHitAt(p.layer.nodes, p.id, x, y) : null;
+        const lab = on && !g && p.layer && !(e.target as Element).closest(".size") ? labelHitAt(p.layer.nodes, p.id, x, y) : null;
+        // (a click on a label without a move selects what is under it – its mark, or the point its label belongs to)
+        if (lab) { e.preventDefault(); labelDrag(R, p.id, lab.key, lab.box, b, e.currentTarget, e.nativeEvent, () => selectItem(p.id, null, h ? { point: h.point ?? null, mark: h.mark ?? null } : {})); return; }
         selectItem(p.id, g ? sliceAt(g, x, y) : null, h ? { point: h.point ?? null, mark: h.mark ?? null } : {});
         const ed = free && !(e.target as Element).closest(".size") ? noteEdge(e.currentTarget, e.nativeEvent, true, "top") : null;
         if ((e.target as Element).closest(".size")) { e.preventDefault(); itemResize(R, p.id, p.box, e.nativeEvent, "corner", others(p.id)); }
