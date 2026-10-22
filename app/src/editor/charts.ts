@@ -56,16 +56,20 @@ export function quoteCell(id: string, sheet: string, ref: string) {
 }
 /** a new callout in the middle of the slide (an icon: a square, 64 px unless the picker says – with its colour and
     outline width, S15.2), selected; a shape opens for typing */
-export function insertShape(shape: ShapeItem["shape"], icon?: string, o: { size?: number; fill?: string; stroke?: number } = {}) {
+export function insertShape(shape: ShapeItem["shape"], icon?: string, o: { size?: number; fill?: string; stroke?: number; textBox?: boolean } = {}) {
   const R = curSlide(); if (!R) return null;
   const s = Math.max(16, Math.min(400, Math.round(o.size || 64)));
   const id = newItemId(), box = shape === "icon" ? { x: 800 - Math.round(s / 2), y: 450 - Math.round(s / 2), w: s, h: s } : shape === "circle" ? { x: 700, y: 350, w: 200, h: 200 } : { x: 640, y: 390, w: 320, h: 120 };
   const it: ShapeItem = { kind: "shape", shape, ...(icon ? { icon } : {}), box, ...(shape === "bubble" ? { tail: { x: box.x + 60, y: box.y + box.h + 50 } } : {}),
-    ...(shape === "icon" && o.fill ? { fill: o.fill } : {}), ...(shape === "icon" && o.stroke ? { stroke: o.stroke } : {}) };
-  change(shape === "icon" ? "Insert icon" : "Insert shape", [{ op: "item.patch", slide: R.id, id, patch: it } as Op]);
+    ...(shape === "icon" && o.fill ? { fill: o.fill } : {}), ...(shape === "icon" && o.stroke ? { stroke: o.stroke } : {}),
+    // a text box (4.12): the rectangle with No fill and No border (the ribbon's own values), its text on the left
+    ...(o.textBox ? { fill: "none", border: { color: "#000000", w: 0 }, fmt: { align: "left" as const } } : {}) };
+  change(shape === "icon" ? "Insert icon" : o.textBox ? "Insert text box" : "Insert shape", [{ op: "item.patch", slide: R.id, id, patch: it } as Op]);
   selectItem(id);
   return id;
 }
+/** a text box anywhere on the slide (4.12, the icon and shape window's side column): a rectangle without fill or border */
+export const insertTextBox = () => insertShape("rect", undefined, { textBox: true });
 /** how the side panel names where a chart's numbers come from ("Summary!C5:C9", a table's sheet for a table's range) */
 export function refText(ref: DataRef | undefined): string {
   if (!ref) return "–";

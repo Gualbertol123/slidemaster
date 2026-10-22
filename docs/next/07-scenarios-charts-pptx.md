@@ -633,7 +633,7 @@ product owner runs a real deck (10 values) and signs off the names and the repor
 labels, legend, leaders, hit nodes; glass card recipe. *Done when:* CH-01 DL snapshots per design, 🚦 **G6** pixel sign-off of the three
 designs (GP report of the chart corpus slides). **S9.3 · Chart UI** — ribbon *Insert chart ▾* (from selected cells / from range…), side panel
 of the selected chart (type, labels, legend, colours, title), Issues lines. *Done when:* CH-02…CH-04. **S9.4 · Callouts** ⏱ — shapes, icons,
-`{ref}` substitution with number formats, UI (*Insert shape ▾*, fill/border/text controls on ribbon 2). *Done when:* CL-01, CL-02.
+`{ref}` substitution with number formats, UI (*Insert shape ▾* – since 4.12 *Shapes & icons…*, one window –, fill/border/text controls on ribbon 2). *Done when:* CL-01, CL-02.
 **S9.5 · Objects in raw Excel** — `notesOf` and `fixedScale` changes, accepted parity entries signed (B19). **S9.6 · Close** — AUDIT §0 twice;
 CHANGELOG B16, B17, B19, B24.
 

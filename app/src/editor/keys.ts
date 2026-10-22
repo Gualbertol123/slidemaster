@@ -8,11 +8,13 @@ import { stopPainter } from "./painter";
 import { deleteItem, selectItem, selectedItem } from "./charts";
 import { setStage } from "../stage/data";
 import { deleteSlide, newSlide } from "./slides";
+import { pickerOpen } from "../ui/IconPicker";
 
 export function installKeys() {
   document.addEventListener("keydown", e => {
     const D = get().ui.dialogs;
-    if (D.dialog || D.wizard || D.tables || D.textStyles || D.comment || D.scenario || D.pick) return;
+    // (the icon and shape window, 4.12: its own store – nothing reaches the deck behind it while it is open)
+    if (D.dialog || D.wizard || D.tables || D.textStyles || D.comment || D.scenario || D.pick || pickerOpen()) return;
     const t = e.target as HTMLElement;
     const inField = t.matches("input,select,textarea");
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();

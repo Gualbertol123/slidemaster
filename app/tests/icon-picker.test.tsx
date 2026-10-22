@@ -1,6 +1,7 @@
-/* The icon picker and icon items (S15.2, IC-01; docs/next/09 §3.5): the page with the core in-thread and the deck in this
-   browser (offline). The page's in-thread core has no icon set (only the workers carry it): the picker says so. With
-   the set registered as the workers do (installTabler), Insert shape ▾ › More icons… opens the picker: a search by name
+/* The icon and shape window and icon items (S15.2, IC-01; docs/next/09 §3.5; one window since 4.12): the page with the
+   core in-thread and the deck in this browser (offline). The page's in-thread core has no icon set (only the workers
+   carry it): the window says so. With the set registered as the workers do (installTabler), the ribbon's one button,
+   Shapes & icons… (4.12; before it Insert shape ▾ › More icons…), opens the window: a search by name
    and tag, the outline / filled switch, a category, a virtualised grid (only the rows in view drawn, their tiles asked as
    they scroll in), the colour, size and line width of the new icon, the recent icons; Change icon… swaps a selected
    icon, keeping its colour and size; the ribbon sets its size and line width; a name the set does not have gives the
@@ -16,14 +17,15 @@ vi.mock("../src/render/wall", async orig => ({ ...(await orig() as object), appl
 
 import { App } from "../src/ui/App";
 import { get } from "../src/state/store";
-import { gotoSlide, openLocalFile } from "../src/state/app";
+import { gotoSlide, openLocalFile, setPrefs } from "../src/state/app";
 import { itemPatch, selectItem } from "../src/editor/charts";
 import { TILE } from "../src/ui/IconPicker";
 import { useStage } from "../src/stage/data";
 import { indexWorkbook } from "@slide-builder/core/xlsx/workbook";
 import { defaultPreset } from "@slide-builder/core/model/preset";
-import { setIconCatalog, setVendoredIcons } from "@slide-builder/core/render/icons";
-import { installTabler } from "@slide-builder/core/icons/index";
+import { ICON_NAMES, setIconCatalog, setVendoredIcons } from "@slide-builder/core/render/icons";
+import { installTabler, tabler } from "@slide-builder/core/icons/index";
+import { LEGACY_ICONS } from "../src/ui/icon-legacy";
 import type { Prefs, ShapeItem } from "@slide-builder/core/model/types";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -36,7 +38,7 @@ const click = async (sel: string) => { const e = $(sel); expect(e, sel).toBeTrut
 const items = () => get().deck.slides[get().deck.cur].cfg.items || {};
 const grid = () => $("#iconGrid")!;
 const tiles = () => [...document.querySelectorAll<HTMLElement>("#iconGrid .ictile")];
-async function openPicker() { await click("#shapeBtn"); await click("#moreIcons"); expect($("#iconPicker")).toBeTruthy(); }
+async function openPicker() { await click("#shapeBtn"); expect($("#iconPicker")).toBeTruthy(); }
 async function type(q: string) {
   const input = $("#iconSearch") as HTMLInputElement;
   await act(async () => { fireEvent.change(input, { target: { value: q } }); });
@@ -182,5 +184,162 @@ describe("the icon picker (S15.2, IC-01)", () => {
     await act(async () => itemPatch("Insert icon", "ibad", { kind: "shape", shape: "icon", icon: "tabler:no-such-icon", box: { x: 100, y: 100, w: 64, h: 64 } }));
     await confirmed(h + 1);
     await vi.waitFor(() => expect($("#issues")!.textContent).toContain("the icon “tabler:no-such-icon” is not in the icon set (shown as “info”)"), { timeout: 10_000 });
+  });
+
+  /* ---- 4.12: one window (the owner's request of 2026-10-22) ---- */
+  const offered = () => [...document.querySelectorAll<HTMLElement>("#iconPicker [data-icon]")].map(e => e.dataset.icon!);
+  const key = async (k: string, o: Record<string, unknown> = {}) => { await act(async () => { fireEvent.keyDown(document.activeElement!, { key: k, ...o }); }); await settle(); };
+  const focused = () => document.activeElement as HTMLElement;
+
+  it("4.12 · one entry point: Shapes & icons… opens the one window – no dropdown, no More icons…, the shapes in its side column", async () => {
+    installTabler();
+    expect(document.querySelectorAll("#shapeBtn").length).toBe(1);
+    expect($("#shapeBtn")!.textContent!.trim()).toBe("Shapes & icons…");
+    expect($("#shapeBtn")!.getAttribute("aria-haspopup")).toBe("dialog");
+    await click("#shapeBtn");
+    // the window at once (no menu first): one dialog, modal, named by its title
+    expect(document.querySelectorAll("#iconPicker").length).toBe(1);
+    const dlg = $('#iconPicker [role="dialog"]')!;
+    expect(dlg.getAttribute("aria-modal")).toBe("true");
+    expect($("#" + dlg.getAttribute("aria-labelledby"))!.textContent).toBe("Insert an icon or a shape");
+    expect($(".shapemenu")).toBeNull();
+    expect($("#moreIcons")).toBeNull();
+    expect([...document.querySelectorAll<HTMLElement>("#iconShapes [data-shape]")].map(b => b.dataset.shape)).toEqual(["text", "rect", "round", "pill", "circle", "arrow", "bubble"]);
+    // the search box has the focus
+    expect(document.activeElement).toBe($("#iconSearch"));
+    await key("Escape");
+    expect($("#iconPicker")).toBeNull();
+  });
+
+  it("4.12 · the Tabler icons only: none of the 17 built-in icons is offered (each has its counterpart in the set)", async () => {
+    // a built-in name among the recent icons (kept by an older page) is not offered either
+    await act(async () => setPrefs({ recentIcons: ["warning", "tabler:building-bank", "bank"] } as Partial<Prefs>)); await settle();
+    await openPicker();
+    await vi.waitFor(() => expect(+grid().dataset.n!).toBeGreaterThan(5000), { timeout: 10_000 }); await settle();
+    await vi.waitFor(() => expect($('#iconRecent [data-icon="tabler:building-bank"]')).toBeTruthy());
+    expect([...document.querySelectorAll<HTMLElement>("#iconRecent [data-icon]")].map(e => e.dataset.icon)).toEqual(["tabler:building-bank"]);
+    for (const w of ["", "warning", "bank", "pin", "chart"]) {
+      await type(w);
+      expect(offered().length, w).toBeGreaterThan(0);
+      expect(offered().every(id => /^tabler(-filled)?:[a-z0-9-]+$/.test(id)), w).toBe(true);
+      for (const n of ICON_NAMES) expect(offered(), w).not.toContain(n);
+    }
+    // the built-ins are true duplicates: each has its counterpart, in the set
+    expect(Object.keys(LEGACY_ICONS).sort()).toEqual([...ICON_NAMES].sort());
+    for (const id of Object.values(LEGACY_ICONS)) {
+      const [set, name] = id.split(":");
+      expect(tabler().has(set === "tabler-filled" ? "filled" : "outline", name), id).toBe(true);
+    }
+    await key("Escape");
+  });
+
+  it("4.12 · the side column inserts a shape and a text box: one undo step each, the window closed, the new item selected and drawn", async () => {
+    let h = history(), before = Object.keys(items());
+    await openPicker(); await click('#iconShapes [data-shape="pill"]');
+    await confirmed(h + 1);
+    expect($("#iconPicker")).toBeNull();
+    let id = Object.keys(items()).find(k => !before.includes(k))!;
+    expect(items()[id]).toEqual({ kind: "shape", shape: "pill", box: { x: 640, y: 390, w: 320, h: 120 } });
+    expect(get().selection.itemSel?.id).toBe(id);
+    h = history(); before = Object.keys(items());
+    await openPicker(); await click('#iconShapes [data-shape="text"]');
+    await confirmed(h + 1);
+    expect($("#iconPicker")).toBeNull();
+    id = Object.keys(items()).find(k => !before.includes(k))!;
+    // a text box: the rectangle with the ribbon's No fill and No border, its text on the left (no new key)
+    expect(items()[id]).toEqual({ kind: "shape", shape: "rect", box: { x: 640, y: 390, w: 320, h: 120 }, fill: "none", border: { color: "#000000", w: 0 }, fmt: { align: "left" } });
+    expect(get().selection.itemSel?.id).toBe(id);
+    await vi.waitFor(() => expect(useStage.getState().shown?.items?.[id]).toBeTruthy(), { timeout: 10_000 });
+    expect(useStage.getState().shown!.items![id].issue).toBeNull();
+    expect($("#shapeTools")).toBeTruthy();                                         // its text tools on the ribbon
+  });
+
+  it("4.12 · a deck with a built-in icon: drawn as before, no Issues line; its colour on the ribbon; Change icon… opens the new window at its counterpart; undo", async () => {
+    let h = history();
+    await act(async () => itemPatch("Insert icon", "iold", { kind: "shape", shape: "icon", icon: "warning", fill: "#C42B1C", box: { x: 200, y: 200, w: 64, h: 64 } }));
+    await confirmed(h + 1);
+    await vi.waitFor(() => expect(useStage.getState().shown?.items?.iold).toBeTruthy(), { timeout: 10_000 });
+    expect(useStage.getState().shown!.items!.iold.issue).toBeNull();
+    await act(async () => selectItem("iold")); await settle();
+    h = history();
+    await click("#shapeFill"); await click('[data-fill="#1E8E3E"]');
+    await confirmed(h + 1);
+    expect(items().iold).toEqual({ kind: "shape", shape: "icon", icon: "warning", fill: "#1E8E3E", box: { x: 200, y: 200, w: 64, h: 64 } });
+    h = history();
+    const opts0 = JSON.stringify((get().prefs.prefs as Prefs & { iconOpts?: unknown }).iconOpts);
+    await click("#iconChange");
+    expect($(".icdlg .dlghd b")!.textContent).toBe("Change icon");
+    expect($("#iconShapes")).toBeNull();                                           // icons only when changing one
+    expect(($("#iconSearch") as HTMLInputElement).value).toBe("alert triangle");
+    expect($('#iconStyle [data-style="filled"]')!.className).toContain("on");
+    await vi.waitFor(() => expect(grid().dataset.q).toBe("alert triangle"), { timeout: 10_000 }); await settle();
+    expect(tiles()[0].dataset.icon).toBe("tabler-filled:alert-triangle");
+    await click('#iconGrid [data-icon="tabler-filled:alert-triangle"]');
+    await confirmed(h + 1);
+    // (review) Change icon… leaves the Insert defaults (its filled counterpart is not the next new icon's style)
+    expect(JSON.stringify((get().prefs.prefs as Prefs & { iconOpts?: unknown }).iconOpts)).toBe(opts0);
+    expect(items().iold).toEqual({ kind: "shape", shape: "icon", icon: "tabler-filled:alert-triangle", fill: "#1E8E3E", box: { x: 200, y: 200, w: 64, h: 64 } });
+    await click("#undoBtn");
+    await vi.waitFor(() => expect((items().iold as ShapeItem).icon).toBe("warning"));
+  });
+
+  it("4.12 · the keyboard: the search focused, ↓ into the grid, the arrows move, ↑ back, Tab stays in the window, Enter inserts, Escape closes", async () => {
+    await openPicker();
+    await vi.waitFor(() => expect(grid().dataset.q).toBe(""), { timeout: 10_000 }); await settle();
+    expect(document.activeElement).toBe($("#iconSearch"));
+    const cols = +grid().dataset.cols!;
+    expect(cols).toBeGreaterThanOrEqual(4);
+    await key("ArrowDown"); expect(focused().dataset.idx).toBe("0");
+    await key("ArrowRight"); expect(focused().dataset.idx).toBe("1");
+    await key("ArrowDown"); expect(focused().dataset.idx).toBe(String(1 + cols));
+    await key("ArrowLeft"); expect(focused().dataset.idx).toBe(String(cols));
+    await key("ArrowUp"); expect(focused().dataset.idx).toBe("0");
+    expect(document.querySelectorAll('#iconGrid [tabindex="0"]').length).toBe(1);   // the grid is one Tab stop
+    // a row out of view: the grid scrolls to it and draws it
+    await key("PageDown"); await key("PageDown"); await key("PageDown");
+    expect(+focused().dataset.idx!).toBeGreaterThan(cols * 8);
+    await key("Home"); expect(focused().dataset.idx).toBe("0");
+    await key("ArrowUp"); expect(document.activeElement).toBe($("#iconSearch"));
+    // Tab from the last control goes round to the first; Shift+Tab from the first to the last
+    const all = [...$(".icdlg")!.querySelectorAll<HTMLElement>('input:not([disabled]), button:not([disabled]):not([tabindex="-1"]), [tabindex="0"]')];
+    expect(all[0]).toBe($("#iconSearch"));
+    expect(all[all.length - 1]).toBe($("#iconCancel"));
+    act(() => all[all.length - 1].focus());
+    await key("Tab"); expect(document.activeElement).toBe(all[0]);
+    await key("Tab", { shiftKey: true }); expect(document.activeElement).toBe(all[all.length - 1]);
+    // Enter in the search box inserts the first hit
+    act(() => $("#iconSearch")!.focus());
+    await type("bank");
+    const h = history(), before = Object.keys(items()), first = tiles()[0].dataset.icon!;
+    expect(first).toMatch(/^tabler(-filled)?:/);
+    await key("Enter");
+    await confirmed(h + 1);
+    expect($("#iconPicker")).toBeNull();
+    const id = Object.keys(items()).find(k => !before.includes(k))!;
+    expect((items()[id] as ShapeItem).icon).toBe(first);
+    // Escape closes, nothing changed
+    // (review) Enter typed before the answer to the last key: that answer's first hit, not the previous search's
+    await openPicker();
+    await vi.waitFor(() => expect(grid().dataset.q).toBe(""), { timeout: 10_000 }); await settle();
+    const h1 = history(), before1 = Object.keys(items());
+    await act(async () => { fireEvent.change($("#iconSearch")!, { target: { value: "euro" } }); fireEvent.keyDown($("#iconSearch")!, { key: "Enter" }); });
+    await confirmed(h1 + 1);
+    const id1 = Object.keys(items()).find(k => !before1.includes(k))!;
+    expect((items()[id1] as ShapeItem).icon).toMatch(/^tabler(-filled)?:currency-euro$/);
+    // (review) a second open while one is open starts afresh (its own search, its own mode)
+    await openPicker();
+    await type("bank");
+    const { openIconPicker } = await import("../src/ui/IconPicker");
+    await act(async () => openIconPicker({ mode: "pick", title: "Icon of the mark", onPick: () => undefined })); await settle();
+    expect($(".icdlg .dlghd b")!.textContent).toBe("Icon of the mark");
+    expect(($("#iconSearch") as HTMLInputElement).value).toBe("");
+    expect($("#iconShapes")).toBeNull();
+    await key("Escape");
+    await openPicker();
+    const h2 = history();
+    await key("Escape");
+    expect($("#iconPicker")).toBeNull();
+    await settle();
+    expect(history()).toBe(h2);
   });
 });

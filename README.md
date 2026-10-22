@@ -161,7 +161,7 @@ designs, charts and callouts, free layout, borders and PowerPoint export – see
   the points ("+26 (+0.2%)", green or red). Each is switched on or off and styled in the chart panel's *Targets*; in
   PowerPoint the lines are real chart series. Decks using them open read-only in 4.9 and older: update together.
 
-The reference below lists every feature as it stands in 4.11.0.
+The reference below lists every feature as it stands in 4.12.0.
 
 **Workbooks**
 * `.xlsx`, `.xlsm` and (since 4.1) `.xlsb` are read by the page itself. Old `.xls` workbooks and protected
@@ -240,7 +240,7 @@ Cells › *Hide ▾* hides rows or columns of a table on that slide only. The co
 in free layout.
 
 **Charts, shapes, lines and icons** – charts of every common type (4.7, §1.1 above) with *Targets* – reference lines from a cell, a gap arrow, change pills (4.10) –, callouts, shapes, lines and
-arrows (*Insert line ▾*; hold Ctrl while dragging an end to attach it to an object), about 6,200 icons (*Insert shape ▾ › More icons…*); snapping for every object (Alt:
+arrows (*Insert line ▾*; hold Ctrl while dragging an end to attach it to an object), about 6,200 icons with the shapes and a text box in one window (*Shapes & icons…*); snapping for every object (Alt:
 none).
 
 **Export** – PDF *text & tables* (vector, default), PDF *as pictures* (lossless PNG pages at 2×, "192 dpi",
@@ -740,7 +740,7 @@ acknowledged yet. The page draws no slide itself.
 | `editor/export.ts`, `feedback.ts` | `doExport(kind)`, `exportVersions(designs)` (§10) · *Report a problem with this export…*. |
 | `editor/thumbs.ts` | Thumbnails: **pictures drawn by an export worker** (OffscreenCanvas → `ImageBitmap`) shown in a `bitmaprenderer` canvas, 222 CSS px wide × the pixel ratio. Every slide keeps a light row; frames within 300 px of the view are asked for (6 at a time, nearest first), pictures 1 500 px away are let go; a slide is drawn again only when its content key changed (350 ms after an edit). |
 | `editor/keys.ts`, `issues.ts` | Global keyboard · side-panel notes. |
-| `ui/ShapeTools.tsx` (4.3) | *Insert shape ▾* (six shapes, the icons) and, while one is selected, its fill, border and text on ribbon 2; the text is edited on the slide (double-click, Enter: `stage/editors.tsx ItemEditor`). |
+| `ui/ShapeTools.tsx` (4.3) | *Shapes & icons…* (4.12: opens `ui/IconPicker.tsx`, the icons with `ui/ShapeColumn.tsx`'s shapes and text box at its side) and, while one is selected, its fill, border and text on ribbon 2; the text is edited on the slide (double-click, Enter: `stage/editors.tsx ItemEditor`). |
 | `editor/charts.ts`, `stage/items.tsx`, `ui/ChartPanel.tsx` (4.3) | **Charts** (B16): *Insert chart ▾* on ribbon 2 (from the selected cells – the last column's numbers named by the first, beside the table – or *Choose the cells…*: `ui/PickCells.tsx`, the wizard's sheet view (RangePicker) of any sheet the wizard lists, never a hidden one – the numbers, then their names; also the panel's *Change the cells…* and a callout's *Quote a cell…*; no cell names typed); the selected item (`selection.itemSel`, and a slice picked by `sliceAt` on the worker's geometry); moves and resizes (`stage/drags.ts itemMove` / `itemResize`, one `item.patch` each; a moved chart is placed freely); in a free layout (4.4, B18) the drags write the slide's free boxes instead (`freeOp`: one `slide.patch` carrying the design's whole entry) – tables by the grip, the corner and the edges (`freeTable`, proportions kept), text boxes and items by any edge, snapping to the other boxes and the slide's guides unless Alt is held; the side panel (type, labels, legend, title, a colour per slice, the source as text, delete); Del / Esc; the Issues lines "Chart n: source … not found" / "no numbers in …" from the stage's `StageSlide.items`. The worker sends each item as a stage layer of its own (`StageLayer.item`). |
 | `ui/` | `App.tsx` (layout, drop to open, dialogs), `Chrome.tsx` (slide list, issues, deck health, stage frame, zoom, status bar, busy, toast), `Topbar.tsx`, `Ribbon.tsx` (text toolbar + formula bar), `TableTools.tsx` (layout toolbar), `TextStylesDialog.tsx` (Design…), `CommentDialog.tsx`, `TablesDialog.tsx` (Sizes…), `FontPicker.tsx`, `Dialogs.tsx`, `Dropdown.tsx`, `Field.tsx` (keeps its draft while focused), `Input.tsx` (uncontrolled), `hooks.ts`. |
 | `wizard/Wizard.tsx` | The 4 steps; reads sheets only through the worker (summaries, suggestions, windows of cells); the preview is drawn in blocks of 40 rows, one per frame. |

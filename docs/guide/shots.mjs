@@ -32,7 +32,7 @@ const helper = spawn(process.platform === "win32" ? "python" : "python3", [path.
   stdio: ["ignore", log, log] });
 const K = 4 / 3;                                          // CSS px → the 2000 × 1200 picture coordinates
 /** the printed width in guide.html (mm) of each picture this script takes: the JPEG is stored at about 190 dpi of it */
-const PRINT_MM = { window: 140, "layout-ribbon": 180, "borders-menu": 74, "grid-menu": 60, "add-table": 62, "shape-menu": 58, "slide-menu": 50,
+const PRINT_MM = { window: 140, "layout-ribbon": 180, "borders-menu": 74, "grid-menu": 60, "add-table": 62, "shape-menu": 120, "slide-menu": 50,
   "hidden-thumb": 36, "export-menu": 38, "d-navy": 58, "d-red": 58, looks: 110, chart: 120, "shape-ribbon": 180, "d-glass-items": 92,
   scenario: 78, "scenario-banner": 78 };
 const DPI = 190;
@@ -137,7 +137,7 @@ try {
     await shot("layout-ribbon", await around([".ribbon2"], 0));
   });
 
-  // Borders ▾, Gridlines ▾, Add table ▾, Insert shape ▾ (a cell selected first)
+  // Borders ▾, Gridlines ▾, Add table ▾ (a cell selected first)
   const menu = (name, btn, list) => step(name, async () => {
     await clickCell("VUB"); await sleep(300);
     await page.click(btn); await sleep(500);
@@ -147,7 +147,16 @@ try {
   await menu("borders-menu", "#bordersBtn", "#borderMenu");
   await menu("grid-menu", "#gridBtn", ".menu:visible");
   await menu("add-table", 'button:has-text("Add table")', "#addTableMenu");
-  await menu("shape-menu", "#shapeBtn", ".shapemenu");
+  // Shapes & icons… (4.12): one window – the icons, the shapes and a text box at its side; taken once its grid is drawn
+  await step("shape-menu", async () => {
+    await clickCell("VUB"); await sleep(300);
+    await page.click("#shapeBtn");
+    await page.waitForFunction(() => /^[1-9]\d{3}$/.test(document.querySelector("#iconGrid")?.dataset.n || ""), null, { timeout: 30_000 });
+    await sleep(1200);                                                            // its rows past the first drawn too
+    await page.mouse.move(2, 2);                                                  // no tile under the pointer
+    await shot("shape-menu", await around([".icdlg"], 0));
+    await escape();
+  });
 
   // the slide list's right-click menu, then slide 2 (the index) hidden in Liquid Glass
   await step("slide-menu", async () => {
@@ -197,7 +206,7 @@ try {
     await settle(1500);
     await box("chartPanel", "#chartPanel"); await box("item", "#stage svg.layer.item");
     await shot("chart", await around(["#stage .slide", "#chartPanel"], 10));       // the slide and the chart's side panel
-    await page.click("#shapeBtn"); await page.click('.shapemenu [data-shape="pill"]');
+    await page.click("#shapeBtn"); await page.click('#iconShapes [data-shape="pill"]');
     await page.locator(".itembox[data-kind=shape]").waitFor();
     await page.locator(".itembox[data-kind=shape]").dblclick();
     await page.locator("#itemEdit").fill("Total loans: {LOANS_DEPOSITS!F8}");      // a quoted cell (Quote a cell…), no claim of our own

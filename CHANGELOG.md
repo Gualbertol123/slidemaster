@@ -3,7 +3,7 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## 4.12.0 - unreleased
+## 4.12.0 - 2026-10-22
 
 What users notice
 * **Ctrl + mouse wheel zooms the slide, not the page** (the owner's request of 2026-10-22): over the slide the point
@@ -27,6 +27,20 @@ What users notice
   slide, and the slide gets the room. Below 1100 px wide it starts folded until you open it; your choice is kept in
   this browser, like its width.
 * The status bar's texts give way on a narrow window; the save state and the zoom always show.
+* **One window for icons and shapes.** *Insert shape ▾* (a menu of six shapes, 17 built-in icons and *More icons…*) is
+  now one button, *Shapes & icons…*, that opens one large window: about 6,200 icons to search by name or tag (English
+  or Italian), by category, outline or filled, with the new icon's colour, size and line; the shapes that carry text
+  sit in a column at its side – a **text box** (new: no fill, no border, text on the left), rectangle, rounded
+  rectangle, pill, circle, arrow and speech bubble. In a narrower window (up to about 1,100 px) that column sits above
+  the icons. The window fits screens from 1024 × 768 to 1920 × 1080, its icons in as many columns as fit.
+* **The 17 built-in icons are no longer offered** – each has the same picture among the new icons (e.g. *warning* →
+  *alert triangle*, *bank* → *building bank*, *pin* → *map pin*). Decks that already have them are unchanged: they are
+  drawn, exported to PDF, PNG and PowerPoint and edited exactly as before (colour, size, place, undo). *Change icon…* on
+  one opens the new window at its counterpart.
+* The keyboard in the window: the search box has the focus; ↓ goes into the icons, the arrow keys, Home, End and
+  Page Up / Down move through them (↑ from the first row back to the search), Enter inserts, Tab stays in the window,
+  Escape closes it and gives the focus back to the button.
+* No change to the deck format: a deck made with 4.12 opens in 4.11 (a text box is a rectangle without fill or border).
 
 Under the hood
 * app/src/stage/zoom.ts (the zoom's maths, the wheel and the keys), app/src/ui/OverflowBar.tsx (the toolbars' plan:
@@ -34,6 +48,9 @@ Under the hood
   not read). No change to the slides, the exports or the deck's format.
 * Tests: tests/zoom.test.tsx, tests/responsive.test.tsx, e2e/responsive.spec.ts (RZ-01–RZ-03, its own workbook
   tests/fixtures/Zoom.xlsx); page budget page-budget/responsive.json.
+* app/src/ui/IconPicker.tsx (the one window), ShapeColumn.tsx (its side column), icon-legacy.ts (the built-in icons'
+  Tabler counterparts); tests/icon-picker.test.tsx, e2e/icons-412.spec.ts (ICW-01–ICW-05, its own workbook
+  tests/fixtures/Icons.xlsx); page budget page-budget/icons.json.
 
 ## 4.11.0 - 2026-10-22 (B53: chart labels)
 

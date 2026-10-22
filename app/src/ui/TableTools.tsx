@@ -237,7 +237,7 @@ export function TableRibbon() {
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="addTable" disabled={!open} title="Add a table of the workbook to this slide: the deck's tables, or new from cells" onClick={t}>
           <Ic n="table-plus" />Add table ▾</button>}>
           {close => <AddTableMenu close={close} />}</Dropdown>
-        <InsertSlots />{/* Insert chart ▾, Insert shape ▾ … (InsertSlots.tsx: one entry per kind, S14.P) */}
+        <InsertSlots />{/* Insert chart ▾, Shapes & icons… … (InsertSlots.tsx: one entry per kind, S14.P) */}
       </div>
       <ShapeTools />
       <div className="grp" data-prio="2">

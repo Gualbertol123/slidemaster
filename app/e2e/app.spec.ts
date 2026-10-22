@@ -1284,7 +1284,7 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#stage .slide .t", { hasText: /^1761$/ })).toHaveCount(1, { timeout: 20_000 });
     const items = () => (deckDoc("Banks.xlsx").preset.slides[0].items || {}) as Record<string, any>;
     // CL-01: a pill, typed in place; its fill, border and text size from ribbon 2 – each one change
-    await page.click("#shapeBtn"); await page.click('.shapemenu [data-shape="pill"]');
+    await page.click("#shapeBtn"); await page.click('#iconShapes [data-shape="pill"]');
     await expect(page.locator(".itembox[data-kind=shape]")).toHaveCount(1, { timeout: 10_000 });
     await pollFile(() => Object.values(items()).map(i => i.shape), { timeout: 10_000 }).toEqual(["pill"]);
     const id = Object.keys(items())[0];
@@ -1311,8 +1311,11 @@ test.describe.serial("two people, one shared folder", () => {
     await pollFile(() => items()[id].fmt).toEqual({ size: 20 });
     await page.click("#undoBtn");
     await pollFile(() => items()[id].fmt).toBeUndefined();
-    // an icon: a filled outline in its box
-    await page.click("#shapeBtn"); await page.click('.shapemenu [data-icon="warning"]');
+    // an icon: from the one window (4.12: the built-in "warning" is no longer offered – its Tabler counterpart)
+    await page.click("#shapeBtn");
+    await page.fill("#iconSearch", "alert triangle");
+    await expect(page.locator("#iconGrid")).toHaveAttribute("data-q", "alert triangle", { timeout: 20_000 });
+    await page.locator('#iconGrid [data-icon$=":alert-triangle"]').first().click();
     await expect(page.locator(".itembox[data-kind=shape]")).toHaveCount(2, { timeout: 10_000 });
     // CL-02: the preview of Bank C – the callout says Bank C; cleared, Bank A again
     await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]');
@@ -1340,14 +1343,14 @@ test.describe.serial("two people, one shared folder", () => {
 
   /* M15 (4.8): the E rows of docs/next/09 §7.1 that the core tests cannot reach – IC-01, LN-01 / LN-02 and SN-02 (the
      M15 milestone review's finding 1). Each one starts and ends with Banks.xlsx's first slide as it was. */
-  test("icons (S15.2, IC-01, B34): More icons… – search, a category, colour, size and line chosen there; changed on the ribbon; Change icon…; saved", async ({ page }) => {
+  test("icons (S15.2, IC-01, B34; 4.12 one window): Shapes & icons… – search, a category, colour, size and line chosen there; changed on the ribbon; Change icon…; saved", async ({ page }) => {
     await openApp(page, ANNA);
     await openWorkbook(page, "Banks.xlsx"); await continueOpen(page, "Banks.xlsx");
     await expect(page.locator("#stage .slide .t", { hasText: /^1761$/ })).toHaveCount(1, { timeout: 20_000 });
     const items = () => (deckDoc("Banks.xlsx").preset.slides[0].items || {}) as Record<string, any>;
     expect(Object.keys(items())).toEqual([]);
     // the picker: the whole set (inflated on first use in the core worker), then "bank", best first
-    await page.click("#shapeBtn"); await page.click("#moreIcons");
+    await page.click("#shapeBtn");
     await expect(page.locator("#iconPicker")).toBeVisible();
     await expect(page.locator("#iconGrid")).toHaveAttribute("data-n", /^[1-9]\d{3}$/, { timeout: 20_000 });
     await page.fill("#iconSearch", "bank");
@@ -1357,7 +1360,7 @@ test.describe.serial("two people, one shared folder", () => {
     // a category narrows the hits (building-bank is in Buildings)
     await page.click('#iconCats [data-cat="Buildings"]');
     await expect(page.locator('#iconCats [data-cat="Buildings"]')).toHaveClass(/\bon\b/);
-    await expect(page.locator("#iconPicker .ichd").last()).toContainText("in Buildings", { timeout: 10_000 });
+    await expect(page.locator("#iconCount")).toContainText("in Buildings", { timeout: 10_000 });
     expect(+(await page.locator("#iconGrid").getAttribute("data-n"))!).toBeLessThanOrEqual(all);
     await expect(page.locator('#iconGrid [data-icon="tabler:building-bank"]')).toBeVisible();
     // the new icon's colour, size and line width, then the icon: one item, as chosen
@@ -1493,7 +1496,7 @@ test.describe.serial("two people, one shared folder", () => {
     const idle = () => page.waitForFunction(() => (window as any).__sbTest.stageIdle());
     expect(Object.keys(items())).toEqual([]);
     for (let k = 1; k <= 3; k++) {
-      await page.click("#shapeBtn"); await page.click('.shapemenu [data-shape="rect"]');
+      await page.click("#shapeBtn"); await page.click('#iconShapes [data-shape="rect"]');
       await pollFile(() => Object.keys(items()).length, { timeout: 10_000 }).toBe(k);
     }
     const [A, B, C] = Object.keys(items());
@@ -2128,7 +2131,7 @@ test.describe.serial("two people, one shared folder", () => {
     expect(Math.abs(box(nk).x + box(nk).w - (n1.x + n1.w))).toBeLessThan(2);
     await step();
     // a callout: its body and its right edge (in a free layout an item has edges too); its own box stays
-    await page.click("#shapeBtn"); await page.click('.shapemenu [data-shape="pill"]');
+    await page.click("#shapeBtn"); await page.click('#iconShapes [data-shape="pill"]');
     await expect(page.locator(".itembox[data-kind=shape]")).toHaveCount(1, { timeout: 10_000 });
     await pollFile(() => Object.keys(slide().items || {}).length, { timeout: 10_000 }).toBe(1);
     const iid = Object.keys(slide().items)[0], own = JSON.stringify(slide().items[iid].box);
