@@ -15,6 +15,7 @@ import type { Sheet } from "../xlsx/types";
 import type { Range } from "../xlsx/util";
 import type { RenderCtx } from "./context";
 import { formatValue } from "../xlsx/numfmt";
+import { editedCellText } from "../xlsx/cf";
 import { A1, numToCol, parseRange } from "../xlsx/util";
 import { CELL_TOKEN, tokenSheet } from "../model/preset";
 import { dropHidden, hideKey, hideSize, type HideSet } from "../model/hidden";
@@ -48,7 +49,7 @@ export function refTarget(ref: DataRef | undefined, ctx: RenderCtx): { S: Sheet 
 export function shown(S: Sheet, r: number, c: number, ctx: RenderCtx): string {
   const cell = S.get(r, c), t = cell ? formatValue(cell).text : "";
   const e = ctx.edits[S.name]?.[A1(r, c)];
-  return e && e.text !== undefined && e.orig === t ? e.text : t;
+  return editedCellText(S, r, c, t, e);
 }
 /** the version's removed cells of a sheet: is (r, c) one of them */
 function removedOf(ctx: RenderCtx, S: Sheet): (r: number, c: number) => boolean {

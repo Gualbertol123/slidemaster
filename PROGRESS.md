@@ -321,6 +321,14 @@ numbers measured twice). Measured numbers go into the step's line.
 - [ ] S16.2 · Delete-versions (VD-01…VD-03)
 - [ ] S16.3 · Painter (PT-01…PT-03)
 - [ ] S16.4 · Excel conditional formats ⏱ (XC-01, XC-02)
+  - For S16.5 (review of S16.4): owner sign-off on two plan deviations – `expression` rules use xlsx/cf.ts's own
+    evaluator, not the formula engine (tables are laid out synchronously; the engine is not on the page; an unknown
+    function is listed as "not reproduced"); page budget m16-cf.json 65,000 bytes (+64,697 measured after the re-check fix), against the plan's ≈ 25 KB
+    (the code ships twice: page and worker script). app/e2e/cf.spec.ts: 2 passed (re-check fix run, this PC's Chromium). Not yet verified: XC-01's
+    comparison with Excel (skipped until the owner PC's cf-rules.excel.json is committed). The B48 hash re-record
+    (ebb3df9) comes from the colour scale on D6:J15 of edge-formats.xlsx, "not reproduced" before – not from `$K6<0`,
+    which main already evaluated. Re-check fix: a chart's labels and a text box's {Sheet!C7} keep a text edit made on the
+    text the rules show (xlsx/cf.ts editedCellText; chart-dl.ts, shape-dl.ts), as the tables' origMatches. Branch: m16/excel-cf-main.
 - [ ] S16.5 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.9.0; 🚦 G11
 
 ### M17 · Independent persistence and compatibility audit of 4.6–4.9

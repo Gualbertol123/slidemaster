@@ -12,6 +12,7 @@ import type { Node, Paint, PathCmd, RGB } from "../dl/types";
 import type { RenderCtx } from "./context";
 import { glassBox, type GlassVars, type Wallpaper } from "./glass-dl";
 import { formatValue } from "../xlsx/numfmt";
+import { editedCellText } from "../xlsx/cf";
 import { A1, colToNum, parseRange } from "../xlsx/util";
 import { CELL_TOKEN, tokenSheet } from "../model/preset";
 import { droppedCell } from "../model/versions";
@@ -37,7 +38,7 @@ export function calloutText(text: string, ctx: RenderCtx): { text: string; missi
     if (droppedCell(ctx.version, S.name, r, c)) return "";                    // a deleted row / column too (4.9, B37)
     const cell = S.get(r, c), t = cell ? formatValue(cell).text : "";
     const e = ctx.edits[S.name]?.[A1(r, c)];
-    return e && e.text !== undefined && e.orig === t ? e.text : t;
+    return editedCellText(S, r, c, t, e);
   });
   return { text: out, missing };
 }

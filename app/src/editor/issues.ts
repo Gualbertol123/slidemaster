@@ -4,6 +4,7 @@ import type { Sheet } from "@slide-builder/core/xlsx/types";
 import type { RuntimeSlide } from "@slide-builder/core/model/types";
 import { tableName } from "@slide-builder/core/model/preset";
 import { computeLayout, sizingOf } from "@slide-builder/core/render/layout";
+import { origMatches } from "@slide-builder/core/render/edits";
 import type { RenderCtx } from "@slide-builder/core/render/context";
 import { kindText, knownKind, laterKindsIssue } from "./item-text";
 
@@ -43,11 +44,11 @@ export function slideIssues(R: RuntimeSlide, ctx: RenderCtx, items?: Record<stri
     const D = S.drawing;
     if (D.charts.length) out.push({ cls: "warn", html: `Chart${D.charts.length > 1 ? "s" : ""} on ${esc(S.name)} not reproduced: ${D.charts.map(esc).join(", ")}. In Excel: copy the chart › Paste Special › Picture (PNG) inside the table area.` });
     if (D.unsupported.length) out.push({ cls: "warn", html: `Picture${D.unsupported.length > 1 ? "s" : ""} on ${esc(S.name)} that could not be read: ${D.unsupported.map(esc).join(", ")}` });
-    if (S.unsupportedCF.size) out.push({ cls: "warn", html: `Not reproduced on ${esc(S.name)}: ${[...S.unsupportedCF].join(", ")} conditional formats` });
+    if (S.unsupportedCF.size) out.push({ cls: "warn", html: `Conditional formats not reproduced on ${esc(S.name)}: ${esc([...S.unsupportedCF].join(", "))}` });
     const cells = ctx.edits[S.name] || {}, n = Object.keys(cells).length;
     if (n) {
       const all = R.tables.filter(T => T.sheet === S).flatMap(T => T.items);
-      const stale = Object.entries(cells).filter(([k, e]) => e.text !== undefined && all.some(it => A1(it.b.src.r, it.b.src.c) === k) && !all.some(it => A1(it.b.src.r, it.b.src.c) === k && it.text === e.orig)).length;
+      const stale = Object.entries(cells).filter(([k, e]) => e.text !== undefined && all.some(it => A1(it.b.src.r, it.b.src.c) === k) && !all.some(it => A1(it.b.src.r, it.b.src.c) === k && origMatches(e, it))).length;
       out.push({ cls: "", html: `${n} edited cell${n > 1 ? "s" : ""} on ${esc(S.name)}` + (stale ? ` · <span class="warn">${stale} text edit${stale > 1 ? "s" : ""} paused: the Excel value changed (rows inserted above the table, or new figures)</span>` : "") });
     }
   }
