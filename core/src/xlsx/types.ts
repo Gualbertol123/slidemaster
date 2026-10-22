@@ -139,6 +139,8 @@ export interface TableLayout {
   sheet: Sheet;
   def?: import("../model/types").TableDef;
   id?: string;
+  /** the rows / columns closed up on its slide or by its version (4.9, model/hidden.ts hideKey; "" or absent: none) */
+  hide?: string;
   /* caches */
   _cache?: Record<string, unknown>;
 }
