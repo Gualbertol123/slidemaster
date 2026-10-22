@@ -155,7 +155,7 @@ export async function boot() {
   try { patch("doc", { config: await backend.config() }); } catch { /* defaults */ }
   await core().call("init", { served: backend.served, client: get().prefs.client, me: get().prefs.user });
   watchFontLoads(); await loadFonts();
-  const zoom = get().prefs.prefs.zoom; if (zoom != null) patch("ui", { zoom });
+  // (the zoom is view state since 4.12: every window starts at Fit – a zoom an older page kept in the prefs is not read)
   if (backend.served) {
     const files = await backend.files().catch(() => []);
     const last = get().prefs.prefs.lastFile;
@@ -662,8 +662,9 @@ export function gotoSlide(i: number) {
   patchAll({ deck: { cur: i }, selection: { sel: null, itemSel: null } }); STAGE.render();
 }
 /** the stage re-fits when the zoom changes (stage/Stage.tsx follows ui.zoom); "Fit" pressed again re-fits too
-    (the panels above the stage may have changed its size since) */
-export function setZoom(z: "fit" | number) { const unchanged = get().ui.zoom === z; patch("ui", { zoom: z }); setPrefs({ zoom: z }); if (unchanged) STAGE.fit(); }
+    (the panels above the stage may have changed its size since). View state only (4.12): not in the deck, not in the
+    prefs (stage/zoom.ts) */
+export function setZoom(z: "fit" | number) { const unchanged = get().ui.zoom === z; patch("ui", { zoom: z }); if (unchanged) STAGE.fit(); }
 
 /* ---------------------------------------------------------------- look: theme, colours, text styles
    Design… edits either the current design only ("design") or all designs ("all"). Writing for all designs

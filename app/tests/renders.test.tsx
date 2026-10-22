@@ -123,6 +123,8 @@ describe("render counts", () => {
 
   it("dragging the side panel's grip re-renders nothing until the release (4.10.2 review): one commit then", async () => {
     try { localStorage.removeItem("sbNavWidth"); } catch { /* none */ }
+    // (4.12: jsdom's window is 1024 px wide – the side panel is a rail there until it is opened)
+    if (!document.querySelector("#navGrip")) await act(async () => { fireEvent.click(document.querySelector("#navRail #navRailBtn")!); });
     const g = document.querySelector("#navGrip") as HTMLElement, main = document.querySelector(".main") as HTMLElement;
     const x0 = parseFloat(g.style.left);
     counts.clear();
@@ -136,6 +138,6 @@ describe("render counts", () => {
     await settle();
     expect(localStorage.getItem("sbNavWidth")).toBe(String(x0 + 40));
     expect(main.style.gridTemplateColumns).toBe(`${x0 + 40}px minmax(0,1fr)`);
-    try { localStorage.removeItem("sbNavWidth"); } catch { /* none */ }
+    try { localStorage.removeItem("sbNavWidth"); localStorage.removeItem("sbNavRail"); } catch { /* none */ }
   });
 });

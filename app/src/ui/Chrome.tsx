@@ -2,10 +2,10 @@
    overlay and toast. Each reads only what it shows from the store. */
 import { useEffect, useRef, useState } from "react";
 import { patch, useStore, THUMBS } from "../state/store";
-import { checkFormulas, gotoSlide, setZoom } from "../state/app";
+import { checkFormulas, gotoSlide } from "../state/app";
 import { backend } from "../sync/api";
 import { Stage } from "../stage/Stage";
-import { zoomBy } from "../stage/actions";
+import { ZOOM_MAX, ZOOM_MIN, zoomFit, zoomStep, zoomTo } from "../stage/zoom";
 import { useStage } from "../stage/data";
 import { mountThumbs } from "../editor/thumbs";
 import { deleteSlide, duplicateSlide, hideSlide, newSlide } from "../editor/slides";
@@ -147,11 +147,6 @@ export function Canvas() {
         </div>
       </div>}
       <ScenarioBanner />
-      {has && <div className="zoomctl" id="zoomctl" style={{ display: "flex" }}>
-        <button id="zoomOut" title="Zoom out" onClick={() => zoomBy(1 / 1.25)}><Ic n="minus" /></button><ZoomVal />
-        <button id="zoomIn" title="Zoom in" onClick={() => zoomBy(1.25)}><Ic n="plus" /></button>
-        <button id="zoomFit" title="Fit" style={{ width: "auto", padding: "0 8px" }} onClick={() => setZoom("fit")}>Fit</button>
-      </div>}
     </section>
   );
 }
@@ -164,8 +159,18 @@ function ScenarioBanner() {
     Previewing: <b>{p.value}</b> – a scenario, not saved{p.textUnknown ? <span className="scbad"> · {p.textUnknown} TEXT cell{p.textUnknown === 1 ? "" : "s"} not formatted (previous text)</span> : null}{p.still ? <span className="scbad" id="scNoChange"> · no formula changed with this value of {p.input}</span> : null}<button className="btn" id="scClear" onClick={() => void clearPreview()}>Clear</button></div>;
 }
 
-/** the zoom shown: the stage's scale (fit or chosen) */
-function ZoomVal() { const s = useStage(st => st.scale); return <span id="zoomVal">{Math.round(s * 100) + "%"}</span>; }
+/** the slide's zoom in the status bar (4.12): − / + step (Ctrl + − / +, Ctrl + wheel over the slide), the zoom shown
+    (fit or chosen; a click: 100 %), Fit (Ctrl + 0) – the stage's own view, never saved */
+function ZoomCtl() {
+  const has = useStore(s => s.deck.slides.length > 0), fit = useStore(s => s.ui.zoom === "fit"), s = useStage(st => st.scale);
+  if (!has) return null;
+  return <div className="zoomctl" id="zoomctl" role="group" aria-label="Zoom of the slide">
+    <button id="zoomOut" title="Zoom out (Ctrl + − or Ctrl + wheel)" disabled={s <= ZOOM_MIN + 1e-3} onClick={() => zoomStep(-1)}><Ic n="minus" /></button>
+    <button id="zoomVal" className="zv" title="The slide's zoom – click for 100 %" onClick={() => zoomTo(1)}>{Math.round(s * 100) + "%"}</button>
+    <button id="zoomIn" title="Zoom in (Ctrl + + or Ctrl + wheel)" disabled={s >= ZOOM_MAX - 1e-3} onClick={() => zoomStep(1)}><Ic n="plus" /></button>
+    <button id="zoomFit" className={"fit" + (fit ? " on" : "")} aria-pressed={fit} title="Fit the slide to the window (Ctrl + 0)" onClick={zoomFit}>Fit</button>
+  </div>;
+}
 
 const SAVE_TEXT: Record<string, string> = { pending: "Unsaved changes…", saving: "Saving…", saved: "✓ Saved", local: "Saved in this browser only (helper not running)", error: "⚠ Not saved yet – retrying: ", outdated: "⚠ ", readonly: "⚠ " };
 /** "Updated by bob 3 min ago" counts on while it is shown (once every 10 s, only this bar) */
@@ -182,10 +187,11 @@ export function Status() {
   return (
     <footer className="statusbar">
       <span id="sbSel">{selStatus()}</span>
-      <span>Arrows move · Shift extends · type or F2 to edit · Del clears · Ctrl+B/I · Ctrl+Z/Y · PgUp/PgDn slides</span>
+      <span className="sbhint">Arrows move · Shift extends · type or F2 to edit · Del clears · Ctrl+B/I · Ctrl+Z/Y · PgUp/PgDn slides · Ctrl+wheel zooms</span>
       <span className="spacer" />
       {remote && <span id="sbRemote" className="remote">Updated by {remote.by} {ago < 1 ? "just now" : ago + " min ago"}</span>}
       <span id="sbSave" className={st === "error" || st === "outdated" || st === "readonly" ? "err" : st === "saved" ? "ok" : ""}>{st ? SAVE_TEXT[st] + (st === "error" || st === "outdated" || st === "readonly" ? err : "") : ""}</span>
+      <ZoomCtl />
     </footer>
   );
 }

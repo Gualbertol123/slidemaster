@@ -8,6 +8,7 @@ import { App } from "./ui/App";
 import { boot, change, core, coreStats, ctx } from "./state/app";
 import { get } from "./state/store";
 import { installKeys } from "./editor/keys";
+import { installZoom } from "./stage/zoom";
 import { indexWorkbook, readWorkbook } from "@slide-builder/core/xlsx/workbook";
 import { buildLayout } from "@slide-builder/core/xlsx/layout";
 import { formatValue } from "@slide-builder/core/xlsx/numfmt";
@@ -47,4 +48,5 @@ add("uicss", uiCss + "\n" + extraCss);
 // idempotent; the built page renders once
 createRoot(document.getElementById("root")!).render(import.meta.env.DEV ? <StrictMode><App /></StrictMode> : <App />);
 installKeys();
+installZoom();
 void boot();
