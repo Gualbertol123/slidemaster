@@ -116,7 +116,7 @@ function decompile(r: Records, end: number, base: { r: number; c: number }, info
   const st: string[] = [];
   const pop = () => { const x = st.pop(); if (x === undefined) throw new Error("stack"); return x; };
   const call = (name: string, n: number) => { if (st.length < n) throw new Error("stack"); const a = st.splice(st.length - n, n); st.push(name + "(" + a.join(",") + ")"); };
-  const nameOf = (ix: number) => { const n = info?.names[ix - 1]; return n ? n.name : null; };
+  const nameOf = (ix: number) => { const n = info?.names[ix - 1]; return n && n.name ? n.name : null; };   // "": a name that could not be read
   while (r.p < end) {
     const ptg = r.u8(), base5 = ptg & 0x1f, cls = ptg & 0x60;
     if (ptg >= 0x03 && ptg <= 0x11) { const b = pop(), a = pop(); st.push(a + BIN[ptg] + b); continue; }
@@ -153,7 +153,7 @@ function decompile(r: Records, end: number, base: { r: number; c: number }, info
         const f = FN[tab]; if (!f) return { text: null }; call(f[0], n); break;
       }
       case 0x03: {                                                                                 // PtgName (LET parameters are _xlpm. names, kept as the .xlsx text keeps them)
-        const ix = r.u32(), n = info?.names[ix - 1]; if (!n) return { text: null };
+        const ix = r.u32(), n = info?.names[ix - 1]; if (!n || !n.name) return { text: null };
         // a sheet-scoped name used from another sheet is written "Sheet!Name" in the .xlsx text
         const scopeName = n.scope >= 0 ? info!.sheets[n.scope] : undefined;
         st.push(scopeName !== undefined && scopeName !== sheetName ? quoteSheet(scopeName) + "!" + n.name : n.name); break;

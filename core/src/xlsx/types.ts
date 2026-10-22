@@ -78,6 +78,9 @@ export interface Sheet {
   arrayRef(r: number, c: number): string | null;
   /** formula cells of an .xlsb whose formula could not be decompiled (they keep their cached value only) */
   unreadableFormulas?: number;
+  /** (4.10.1) what of an .xlsb sheet could not be read and was skipped (a conditional format, cells, …), in words for
+      the Issues panel */
+  notRead?: string[];
   rowHidden(r: number): boolean;
   colHidden(c: number): boolean;
   colInfo(c: number): ColInfo | undefined;

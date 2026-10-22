@@ -5,7 +5,7 @@
 import { ColumnsBuilder, type RowColumns, type SheetColumns } from "../sheetstore";
 import type { Range } from "../util";
 import type { CFRule, CFVO, ColInfo, Shared } from "../types";
-import { Records, Rt, XlsbError, readColor, readRfx } from "./records";
+import { Records, Rt, XlsbError, readColor, readRfx, recName } from "./records";
 import { unsupportedOf } from "../cf";
 import { asXlsxText, readRichStr } from "./strings";
 import { readCfFormula, readParsedFormula } from "./formula";
@@ -61,7 +61,18 @@ export interface BinSheet {
   colRanges: { min: number; max: number; info: ColInfo }[];
   merges: Range[]; cfRules: CFRule[]; unsupportedCF: Set<string>;
   defColW: number; defRowH: number; zeroH: boolean;
+  /** (4.10.1) what could not be read and was skipped, in words for the Issues panel */
+  notRead: string[];
 }
+
+/** the records of a conditional format and its parts */
+const CF_RECORDS = new Set<number>([Rt.BeginConditionalFormatting, Rt.BeginCFRule, Rt.BeginColorScale, Rt.BeginDatabar, Rt.BeginIconSet, Rt.CFVO, Rt.Color]);
+const CELL_RECORDS = new Set<number>([Rt.CellBlank, Rt.CellRk, Rt.CellError, Rt.CellBool, Rt.CellReal, Rt.CellSt, Rt.CellIsst, Rt.FmlaString, Rt.FmlaNum, Rt.FmlaBool,
+  Rt.FmlaError, Rt.CellRString, Rt.ShortBlank, Rt.ShortRk, Rt.ShortError, Rt.ShortBool, Rt.ShortReal, Rt.ShortSt, Rt.ShortIsst]);
+const OTHER: Record<number, [string, string]> = {
+  [Rt.RowHdr]: ["a row's height and format", "rows' heights and formats"], [Rt.ColInfo]: ["a column's width and format", "columns' widths and formats"],
+  [Rt.MergeCell]: ["a merged range", "merged ranges"], [Rt.WsFmtInfo]: ["the default row height and column width", "the default row height and column width"],
+};
 
 export class BinSheetReader {
   private readonly r: Records;
@@ -88,9 +99,13 @@ export class BinSheetReader {
   private readonly masters = new Map<number, { g: Range; text: string | null; array: boolean }[]>();
   /** formula cells the reader could not decompile (reported by the self-check) */
   unreadable = 0;
+  /** (4.10.1) records that could not be read, by type; a rule whose differential format was read only in part */
+  private readonly lost = new Map<number, number>();
+  private badDxfRule = false;
   /** sss: per font of styles.bin, 1 superscript / 2 subscript (the rich strings' raised parts); info: the workbook's
       names and sheet table for 3D references (without it they read as unreadable) */
-  constructor(bytes: Uint8Array, private readonly ctx: Shared, private readonly sss: number[] = [], private readonly info?: BinWorkbookInfo, private readonly name?: string) { this.r = new Records(bytes); this.cols = new ColumnsBuilder(ctx); }
+  constructor(bytes: Uint8Array, private readonly ctx: Shared, private readonly sss: number[] = [], private readonly info?: BinWorkbookInfo, private readonly name?: string,
+    private readonly badDxfs?: ReadonlySet<number>) { this.r = new Records(bytes); this.cols = new ColumnsBuilder(ctx); }
   get progress() { return this.r.progress; }
   /** the formula after a BrtFmla* value: its text goes to the cell just pushed; a PtgExp waits for the master's record */
   private cellFormula(rw: number, c: number) {
@@ -119,10 +134,35 @@ export class BinSheetReader {
     for (let k = 0; k < budget; k++) {
       if (!r.rec()) return true;
       this.seen = true;
-      // a record shorter than its contents is skipped (it loses that record, not the sheet)
-      try { this.record(); } catch (e) { if (!(e instanceof XlsbError)) throw e; }
+      // a record shorter than its contents is skipped (it loses that record, not the sheet) and named (4.10.1)
+      try { this.record(); } catch (e) { if (!(e instanceof XlsbError)) throw e; this.skipped(); }
     }
     return false;
+  }
+
+  private skipped() {
+    const t = this.r.type;
+    if (CF_RECORDS.has(t)) {
+      // the rule (or the parts of one) is not drawn: its later parts must not land on another rule
+      if (t === Rt.BeginCFRule || this.cfRule) { const R = this.cfRule; if (R) this.cfRules.splice(this.cfRules.indexOf(R), 1); this.cfRule = null; this.cfPart = null; this.lost.set(Rt.BeginCFRule, (this.lost.get(Rt.BeginCFRule) || 0) + 1); }
+      else if (t === Rt.BeginConditionalFormatting) { this.cfRanges = []; this.lost.set(Rt.BeginCFRule, (this.lost.get(Rt.BeginCFRule) || 0) + 1); }
+      return;
+    }
+    if (t === Rt.ShrFmla || t === Rt.ArrFmla) { if (this.pending) this.unreadable++; this.pending = null; return; }
+    this.lost.set(t, (this.lost.get(t) || 0) + 1);
+  }
+  /** what was skipped, in words */
+  private notRead(): string[] {
+    const out: string[] = [];
+    const cf = this.lost.get(Rt.BeginCFRule) || 0;
+    if (cf) out.push(cf > 1 ? `${cf} conditional formats could not be read and are not drawn` : "a conditional format could not be read and is not drawn");
+    if (this.badDxfRule) out.push("the format of a conditional format could not be read entirely (drawn with the part that could)");
+    for (const [t, n] of this.lost) {
+      if (t === Rt.BeginCFRule) continue;
+      if (CELL_RECORDS.has(t)) out.push(n > 1 ? `${n} cells could not be read (${recName(t)}) and are left empty` : `1 cell could not be read (${recName(t)}) and is left empty`);
+      else { const w = OTHER[t]; out.push(w ? `${n > 1 && w[1] !== w[0] ? n + " " + w[1] : w[0]} could not be read (${recName(t)})` : `${n} record${n > 1 ? "s" : ""} could not be read (${recName(t)})`); }
+    }
+    return out;
   }
 
   private record() {
@@ -199,8 +239,9 @@ export class BinSheetReader {
         this.cfRanges = ranges; this.cfBase = ranges.length ? { r: br, c: bc } : { r: 1, c: 1 };
         return;
       }
-      case Rt.EndConditionalFormatting: this.cfRanges = null; return;
+      case Rt.EndConditionalFormatting: this.cfRanges = null; this.cfRule = null; this.cfPart = null; return;
       case Rt.BeginCFRule: {
+        this.cfRule = null; this.cfPart = null;
         const ranges = this.cfRanges || [], base = this.cfRanges ? this.cfBase : { r: 1, c: 1 };
         const iType = r.u32(), tpl = r.u32(), dxfId = r.i32(), pri = r.u32(), param = r.u32(); r.u32(); r.u32();
         const flags = r.u16(), cb = [r.u32(), r.u32(), r.u32()], text = r.wstrNull();
@@ -211,6 +252,7 @@ export class BinSheetReader {
         for (const n of cb) { if (!n) continue; formulas.push(readCfFormula(r, base, this.info, this.name) ?? "#NAME?"); }
         const rule: CFRule = { ranges, type, op, priority: pri, stop: !!(flags & 2), dxf: this.ctx.dxfs[dxfId] || null, formulas };
         cfParams(rule, tpl, param, flags, text);
+        if (this.badDxfs?.has(dxfId)) this.badDxfRule = true;
         this.cfRules.push(rule); this.cfRule = rule;
         return;
       }
@@ -253,6 +295,6 @@ export class BinSheetReader {
     // (S16.4 review) the 2010 look of a data bar (gradient, border, axis, negative colours: the x14 future records) is
     // not read from an .xlsb: its bars are drawn as Excel 2007's – named, as the same workbook saved as .xlsx differs
     if (this.cfRules.some(r => r.bar)) this.unsupportedCF.add(XLSB_BAR_LOOK);
-    return { store, rows, colRanges: this.colRanges, merges: this.merges, cfRules: this.cfRules, unsupportedCF: this.unsupportedCF, defColW: this.defColW, defRowH: this.defRowH, zeroH: this.zeroH };
+    return { store, rows, colRanges: this.colRanges, merges: this.merges, cfRules: this.cfRules, unsupportedCF: this.unsupportedCF, defColW: this.defColW, defRowH: this.defRowH, zeroH: this.zeroH, notRead: this.notRead() };
   }
 }
