@@ -36,6 +36,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { BOOKS, DECKS, deckList, deckOps, load, openBrowser, startHelper } from "./capture-v3.mjs";
+import { pageChartKinds, withChartKinds } from "./real-charts.mjs";   // M14 (S14.6): each chart's native kinds, pptxcheck (5)
 import { goldenItems, goldenTexts, matchTexts, ownPdfText, squash } from "./export-dl.mjs";
 import { speedFactor } from "./calibrate.mjs";
 import { pageRealObjects } from "./real-objects.mjs";
@@ -111,14 +112,46 @@ const CHART_DECKS = path.join(REPO, "tests", "corpus", "charts");
     deck's preset.set and item.patch ops: slide n is the preset's n-th slide, so a deck with hidden slides or slides
     added by slide.add would number them wrongly – the chart corpus has neither (the real-objects counts of (5) come from
     the core and have no such limit) */
-function chartSources(deck) {
+/** what pptxcheck --sources checks of a deck's charts: an old chart's values range; a series chart's (4.7, S14.3 review 4)
+    each shown series of one range on one of the deck workbook's sheets, at its category group's first category
+    (`start`: the groups before it, in their order, by their ranges' cells) and by its own name when it has one */
+export function chartSources(deck) {
   const preset = deck.ops.find(o => o.op === "preset.set")?.preset || {}, tables = new Map((preset.tables || []).map(t => [t.id, t.sheet]));
-  const out = [];
-  (preset.slides || []).forEach((s, i) => { for (const it of Object.values(s.items || {})) if (it?.kind === "chart" && it.values?.range) out.push({ slide: i + 1, sheet: it.values.table ? tables.get(it.values.table) : it.values.sheet, range: it.values.range }); });
-  for (const o of deck.ops) if (o.op === "item.patch" && o.patch?.kind === "chart" && o.patch.values?.range) {
-    const i = (preset.slides || []).findIndex(s => s.id === o.slide);
-    out.push({ slide: i + 1, sheet: o.patch.values.table ? tables.get(o.patch.values.table) : o.patch.values.sheet, range: o.patch.values.range });
-  }
+  const out = [], sheetOf = r => r.table ? tables.get(r.table) : r.sheet;
+  const add = (slide, it) => {
+    if (it.values?.range) out.push({ slide, sheet: sheetOf(it.values), range: it.values.range });
+    if (!it.sers || typeof it.sers !== "object") return;
+    // (a scatter chart reads no category groups: its points stand on its x axis – S14.4)
+    const groups = Object.entries(it.type === "scatter" ? {} : it.groups || {}).filter(([, g]) => g && typeof g === "object").sort(([a, p], [b, q]) => (+p.n || 0) - (+q.n || 0) || (a < b ? -1 : a > b ? 1 : 0));
+    // (a group's start: the categories of the groups before it – an inline list's length here; a range's cells counted
+    // by pptxcheck, which skips hidden rows and columns as the chart does: `before` – S14.3 re-check)
+    const startOf = gid => {
+      let at = 0; const before = [];
+      for (const [id, g] of groups) {
+        if (id === gid) break;
+        if (Array.isArray(g.cats)) at += g.cats.length;
+        else if (g.cats?.range && sheetOf(g.cats)) before.push({ sheet: sheetOf(g.cats), range: g.cats.range });
+      }
+      return { start: at, ...(before.length ? { before } : {}) };
+    };
+    // (the series in their order – n, then id; a waterfall draws, and so caches, its first one only: S14.4 review 5)
+    let list = Object.entries(it.sers).filter(([, s]) => s && typeof s === "object" && !s.hide && Array.isArray(s.vals))
+      .sort(([a, p], [b, q]) => (Number.isFinite(+p.n) ? +p.n : 0) - (Number.isFinite(+q.n) ? +q.n : 0) || (a < b ? -1 : a > b ? 1 : 0)).map(([, s]) => s);
+    if (it.type === "waterfall") list = list.slice(0, 1);
+    for (const s of list) {
+      if (s.vals.length !== 1) continue;
+      const r = s.vals[0], sheet = r && sheetOf(r);
+      if (!sheet || !r.range || sheet.startsWith("[")) continue;          // (a linked workbook's: not the deck's book)
+      // (a scatter series' x values, against its c:xVal cache – S14.4; its y values only where an x cell has a number: a
+      // point without its x is cached in neither – `mask`, S14.4 review 5)
+      const x = it.type === "scatter" && Array.isArray(s.xs) && s.xs.length === 1 ? s.xs[0] : null, xs = x && sheetOf(x);
+      out.push({ slide, sheet, range: r.range, ...(groups.length ? startOf(groups.some(([id]) => id === s.group) ? s.group : groups[0][0]) : { start: 0 }), ...(typeof s.name === "string" ? { name: s.name } : {}),
+        ...(xs && x.range && !xs.startsWith("[") ? { mask: { sheet: xs, range: x.range } } : {}) });
+      if (xs && x.range && !xs.startsWith("[")) out.push({ slide, sheet: xs, range: x.range, start: 0, axis: "x", ...(typeof s.name === "string" ? { name: s.name } : {}) });
+    }
+  };
+  (preset.slides || []).forEach((s, i) => { for (const it of Object.values(s.items || {})) if (it?.kind === "chart") add(i + 1, it); });
+  for (const o of deck.ops) if (o.op === "item.patch" && o.patch?.kind === "chart") add((preset.slides || []).findIndex(s => s.id === o.slide) + 1, o.patch);
   return out;
 }
 /** clicks an export and waits for its toast; returns the files it saved (the names the page was given back) and the
@@ -167,7 +200,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
           if (x.files.length !== 1) throw new Error(`${id} · ${design}: ${x.files.length} PowerPoint files`);
           const f = path.join(OUT, `${id}-${design}.pptx`); fs.copyFileSync(x.files[0], f);
           pptx.push({ deck: id, design, slides, file: f, name: path.basename(x.files[0]), ms: Math.round(x.ms), bytes: fs.statSync(f).size, toast: x.toast,
-            workbook: path.join(BOOKS, deck.workbook), charts: chartSources(deck), real, pageNos });
+            workbook: path.join(BOOKS, deck.workbook), charts: chartSources(deck), real: withChartKinds(real, await page.evaluate(pageChartKinds(design))), pageNos });
           console.log(`${id} · ${design}: PowerPoint ${(fs.statSync(f).size / 1024).toFixed(1)} KB, ${Math.round(x.ms)} ms`);
         }
         if (chartsOnly) continue;

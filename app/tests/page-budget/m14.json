@@ -1,4 +1,4 @@
 {
-  "bytes": 110000,
-  "why": "M14 (4.7.0, charts): provisional, the owner's decision of 2026-10-21 (plan-M14 Risks 1: S14.2 alone needs about 30 KB); set to the measurement at S14.7."
+  "bytes": 155082,
+  "why": "M14 (4.7.0, charts): by measurement, the owner's decision of 2026-10-21 – the measured share + 5,000 bytes. S14.5 built 4,111,988 bytes = base 3,976,092 + 135,896 (was 110,000, provisional); S14.7 (the close-out) 4,115,984 = base + 139,892 (140,896 not raised). Merge of main 4.6.0 + B48–B50 (71d8806) with the template in the charts (Excel and Excel Refined: palette, lines of the template's width, areas as lines; the series colour's reset): 4,167,645 bytes built twice, identical = base 3,976,092 + b48 21,422 + b49-b50 20,049 + M14 150,082 (m15 0) → 150,082 + 5,000 = 155,082."
 }

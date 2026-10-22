@@ -81,9 +81,9 @@ export const ISP = {
   bullet: { side: .5, indent: 1, turn: -10, alpha: .75, outline: .075 },
   /** text boxes in a box: white with the template's outline (Nero 50 %, 1 pt on the template; page 4), square corners */
   box: { border: "#7F7F7F", w: tpt(1) },
-  /** charts (page 10): doughnuts thinner (the hole's share of the radius); trend charts as a line only – lineW and
-      areaAsLine are NOT used yet: M14's line and area charts take them at its merge (PROGRESS, B48) */
-  chart: { hole: .75, lineW: tpt(1.5), areaAsLine: true },
+  /** charts (page 10): doughnuts thinner (the hole's share of the radius); trend charts as a line only – a line
+      series' default width, and area series drawn as lines (chart-dl.ts chartLook → chart-series.ts, the M14 merge) */
+  chart: { hole: .75, lineW: 1.5 * K * PT, areaAsLine: true },   // (lineW unrounded: exactly 2 pt in the PowerPoint export)
 };
 
 /** a tilted square centred on (cx, cy) of side s, as path commands */

@@ -72,8 +72,9 @@ export interface ChartSeries {
   labels?: { show: ("value" | "name" | "category" | "percent" | "ofTarget")[];
     pos?: "above" | "below" | "left" | "right" | "center" | "inEnd" | "inBase" | "outEnd";
     fmt?: TextFmt; /** a number format code; else the cells' */ num?: string };
-  /** per point, by index: colour, marker colour (hex), label text (null = none) */
-  points?: Record<string, { color?: string; marker?: string; label?: string | null }>;
+  /** per point, by index: colour, marker colour (hex), label text (null = none); `total`: a waterfall's total column,
+      standing on the axis (Excel's "Set as total"; 09 §2.2, §3.2) */
+  points?: Record<string, { color?: string; marker?: string; label?: string | null; total?: boolean }>;
   /** kept, not drawn */ hide?: boolean;
 }
 /** a list of categories on the x axis; groups stand side by side, an optional divider between them */

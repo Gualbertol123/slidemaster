@@ -1093,6 +1093,129 @@ test.describe.serial("two people, one shared folder", () => {
     await lastFileSaved("anna", "Banks.xlsx");
   });
 
+  test("series charts on a linked workbook (S14.7; CT-03, CT-04, CT-05, CT-06, LG-01, CT-09): a combo of two workbooks on two axes and two groups, per-point colours and labels, ofTarget, marks that follow a reload and a scenario, the legend; a scenario run's labels follow each value", async ({ page }) => {
+    test.setTimeout(240_000);
+    await openApp(page, ANNA);                                                       // Banks.xlsx with the linked Peers table
+    await expect(page.locator("#stage .slide .t", { hasText: /^1761$/ })).toHaveCount(1, { timeout: 20_000 });
+    const pre = await page.evaluate(() => (window as any).__sbTest.preset());
+    const slide = pre.slides[0].id as string, T = pre.tables[0].id as string;
+    expect(pre.tables[0].sheet).toBe("[Peers.xlsx]Peer");
+    const items = () => (deckDoc("Banks.xlsx").preset.slides[0].items || {}) as Record<string, any>;
+    const layer = page.locator("#stage svg.layer.item");
+    const svgText = (re: RegExp) => layer.locator("text").filter({ hasText: re }).first();
+    // CT-03 / CT-04: one combo chart of a linked workbook's sheet (the bank's own loans and deposits, Peers.xlsx's D5:D6),
+    // the deck's table of it (the peer average, E5:E6 – also the columns' targets) and the main workbook's own sheet
+    // (SLIDE_1's budget, J5:J6); the line on the right axis; two category groups – the first from the linked table, the
+    // second from the main workbook's sheet. CT-05: a point's own colour, a point's marker colour, a point's own label,
+    // ofTarget labels inside the columns' ends, the line's values above it. CT-06: a text mark quoting two cells above
+    // the first column, an arrow from the floor to it. (Made as the chart panel makes it: one item.patch, one undo step.)
+    const id = "ct" + Date.now().toString(36);
+    const chart = { kind: "chart", type: "combo", values: { table: T, range: "E5:E6" }, labels: { table: T, range: "C5:C6" }, title: "",
+      box: { x: 100, y: 470, w: 1400, h: 400 }, legendAt: "right", axes: { y: { min: 0, max: 5000, step: 1000 }, y2: { min: 0, max: 5000, step: 1000 } },
+      groups: { g1: { n: 1, cats: { table: T, range: "C5:C6" }, label: "Peers" }, g2: { n: 2, cats: { sheet: "SLIDE_1", range: "C5:C6" }, label: "Own" } },
+      sers: {
+        s1: { n: 1, name: "Bank", type: "column", vals: [{ sheet: "[Peers.xlsx]Peer", range: "D5:D6" }], target: [{ table: T, range: "E5:E6" }],
+          labels: { show: ["ofTarget"], pos: "inEnd" }, points: { 0: { color: "#C00000" } } },
+        s3: { n: 2, name: "Budget", type: "column", vals: [{ sheet: "SLIDE_1", range: "J5:J6" }] },
+        s2: { n: 3, name: "Peer avg", type: "line", axis: "y2", group: "g2", vals: [{ table: T, range: "E5:E6" }], marker: { shape: "diamond", size: 8 },
+          labels: { show: ["value"], pos: "above" }, points: { 0: { label: "Peer start" }, 1: { marker: "#00B050" } } } },
+      marks: { m1: { kind: "text", a: { s: "s1", i: 0 }, text: "Week {Control!B4} of {Control!B2}", dy: -60 },
+        m2: { kind: "arrow", a: { s: "s1", i: 0 }, b: "floor", style: { color: "#333333", w: 1.5, heads: { b: "triangle" } } } } };
+    expect(await page.evaluate(([s, i, p]) => (window as any).__sbTest.change("Chart", [{ op: "item.patch", slide: s, id: i, patch: p }]), [slide, id, chart] as const)).toBeTruthy();
+    await expect(layer).toHaveCount(1, { timeout: 10_000 });
+    await pollFile(() => Object.keys(items()[id].sers).sort(), { timeout: 10_000 }).toEqual(["s1", "s2", "s3"]);
+    // Bank A: Peers D5:D6 = 1678,4 / 1937,1 against 1761 / 2268 → 95 % and 85 %; the line's last label 2268
+    await expect(layer).toContainText(/95\s?%/, { timeout: 20_000 });
+    await expect(layer).toContainText(/85\s?%/);
+    await expect(layer).toContainText("2268");
+    await expect(layer).toContainText("Peer start");                                // a point's own label in place of 1761
+    await expect(layer).toContainText("Week 12 of Bank A");                          // the mark's quoted cells
+    await expect(layer).toContainText("Peers"); await expect(layer).toContainText("Own");   // the groups' names
+    expect(await layer.innerHTML()).toMatch(/rgb\(192,0,0\)/);                       // the first column's own colour
+    expect(await layer.innerHTML()).toMatch(/rgb\(0,176,80\)/);                      // the second point's marker colour
+    await expect(page.locator("#issues")).not.toContainText("Chart 1");             // (the right axis' series drawn last: no draw-order line)
+    // LG-01: the legend's place (right → top → bottom), one entry hidden, all hidden – in the chart panel, one step each
+    await page.locator(".itembox[data-kind=chart]").click({ position: { x: 4, y: 4 } });
+    await expect(page.locator("#chartSeriesPanel")).toBeVisible();
+    await page.locator("#chartLegend summary").click();
+    await expect(svgText(/^Budget$/)).toHaveCount(1);
+    const yOf = async () => (await boxOf(svgText(/^Budget$/))).y;
+    await page.selectOption("#chartLegendAt", "top");
+    await pollFile(() => items()[id].legendAt, { timeout: 10_000 }).toBe("top");
+    await expect.poll(yOf).toBeLessThan((await boxOf(svgText(/^2268$/))).y);       // above the plot
+    const yTop = await yOf();
+    await page.selectOption("#chartLegendAt", "bottom");
+    await pollFile(() => items()[id].legendAt, { timeout: 10_000 }).toBe("bottom");
+    await expect.poll(yOf).toBeGreaterThan(yTop + 100);                           // below the plot
+    await page.locator('#chartLegend [data-hide="s2"]').uncheck();
+    await pollFile(() => items()[id].legendHide, { timeout: 10_000 }).toEqual({ s2: true });
+    await expect(svgText(/^Peer avg$/)).toHaveCount(0);
+    await expect(svgText(/^Budget$/)).toHaveCount(1);
+    await page.selectOption("#chartLegendAt", "none");
+    await pollFile(() => items()[id].legendAt, { timeout: 10_000 }).toBe("none");
+    await expect(svgText(/^Budget$/)).toHaveCount(0);
+    await expect(svgText(/^Bank$/)).toHaveCount(0);
+    await page.click("#undoBtn");
+    await pollFile(() => items()[id].legendAt, { timeout: 10_000 }).toBe("bottom");
+    await expect(svgText(/^Budget$/)).toHaveCount(1);
+    // CT-06 · a reload with a changed file: the mark quotes the new week (Control!B4 12 → 13)
+    const file = path.join(root(), "Banks.xlsx"), original = fs.readFileSync(file);
+    try {
+      fs.writeFileSync(file, xlsxEdit(original, "xl/worksheets/sheet1.xml", x => x.replace('<c r="B4"><v>12</v></c>', '<c r="B4"><v>13</v></c>')));
+      await page.click("#reloadBtn");
+      await expect(layer).toContainText("Week 13 of Bank A", { timeout: 20_000 });
+    } finally { fs.writeFileSync(file, original); }
+    await page.click("#reloadBtn");
+    await expect(layer).toContainText("Week 12 of Bank A", { timeout: 20_000 });
+    // CT-06 · the preview of Bank C: the labels, the line and the marks follow (the mark stands on the first column,
+    // which grows from 1678,4 to 3302,6 on the same fixed axis)
+    const yMarkA = (await boxOf(svgText(/^Week 12 of Bank A$/))).y;
+    await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]');
+    await page.fill("#scInput", "Control!B2");
+    await page.fill("#scValues", "Bank A\nBank C");
+    await page.selectOption("#scValue", "Bank C");
+    await page.click("#scPreview");
+    await expect(page.locator("#scBanner")).toContainText("Bank C", { timeout: 20_000 });
+    await expect(layer).toContainText("3852", { timeout: 20_000 });                  // the line's last label
+    await expect(layer).toContainText(/105\s?%/); await expect(layer).toContainText(/102\s?%/);   // 3302,6 / 3141 · 3918,3 / 3852
+    await expect(layer).not.toContainText("2268");
+    await expect(svgText(/^Week 12 of Bank C$/)).toHaveCount(1);
+    expect((await boxOf(svgText(/^Week 12 of Bank C$/))).y).toBeLessThan(yMarkA - 20);
+    await page.click("#scBanner button");
+    await expect(layer).toContainText("2268", { timeout: 20_000 });
+    await expect(layer).toContainText("Week 12 of Bank A");
+    // CT-09 · Run for each value: Bank A and Bank C, Excel, PDF – each file's chart labels drawn from its value
+    const exportDir = path.join(root(), "export"), outs = ["Bank A", "Bank C"].map(b => path.join(exportDir, `${b} - Excel.pdf`));
+    for (const f of outs) fs.rmSync(f, { force: true });
+    await page.click("#exportMenuBtn"); await page.click('[data-x="scenario"]');
+    await page.fill("#scInput", "Control!B2");
+    await page.fill("#scValues", "Bank A\nBank C");
+    for (const box of await page.locator("#scDesigns input").all()) await box.setChecked((await box.getAttribute("data-design")) === "excel");
+    await page.locator("#scPdf").setChecked(true); await page.locator("#scPptx").setChecked(false);
+    await page.click("#scRun");
+    await expect(page.locator("#scRunStatus")).toContainText("Done: 2 of 2 values · 2 files", { timeout: 120_000 });
+    await page.click("#scRunClose");
+    const count = (t: string, s: string) => t.split(s).length - 1;
+    const want: Record<string, { last: string; other: string; pct: RegExp[] }> = {
+      "Bank A": { last: "2268", other: "3852", pct: [/95\s?%/, /85\s?%/] }, "Bank C": { last: "3852", other: "2268", pct: [/105\s?%/, /102\s?%/] } };
+    for (const [i, bank] of ["Bank A", "Bank C"].entries()) {
+      expect(fs.existsSync(outs[i]), outs[i]).toBe(true);
+      const text = pdfPageTexts(fs.readFileSync(outs[i])).join(" ");
+      // the peer average's deposits: once in the table, once as the line's last label
+      expect(count(text, want[bank].last), outs[i]).toBeGreaterThanOrEqual(2);
+      expect(text, outs[i]).not.toContain(want[bank].other);
+      for (const re of want[bank].pct) expect(text, outs[i]).toMatch(re);
+      expect(text, outs[i]).toContain("Week 12 of " + bank);
+    }
+    for (const f of outs) fs.rmSync(f, { force: true });
+    // removed (the later tests export this deck), and saved before the next test opens it
+    await page.locator(".itembox[data-kind=chart]").click({ position: { x: 4, y: 4 } });
+    await page.keyboard.press("Delete");
+    await expect(page.locator(".itembox")).toHaveCount(0);
+    await pollFile(() => Object.keys(items()), { timeout: 10_000 }).toEqual([]);
+    await lastFileSaved("anna", "Banks.xlsx");
+  });
+
   test("callouts (S9.4, CL-01, CL-02, B17): shapes and icons, fill / border / text; a callout quoting Control!B2 follows the preview of Bank C; #REF", async ({ page }) => {
     await openApp(page, ANNA);
     await openWorkbook(page, "Banks.xlsx"); await continueOpen(page, "Banks.xlsx");
@@ -1527,6 +1650,86 @@ test.describe.serial("two people, one shared folder", () => {
     await page.locator(".itembox[data-kind=chart]").click({ position: { x: 4, y: 4 } });
     await page.keyboard.press("Delete");
     await pollFile(() => Object.keys(items())).toEqual([]);
+    await lastFileSaved("anna", "report.xlsx");
+  });
+
+  test("series charts (S14.5, CT-08): the type switch, a series from another sheet dragged in the sheet view, reordered, on the right axis; undo step by step", async ({ page }) => {
+    await openApp(page, ANNA);
+    await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
+    // the slide with the bank table, as the charts test above
+    let si = -1;
+    for (let i = 0; i < await page.locator(".thumb").count() && si < 0; i++) {
+      await page.locator(".thumb").nth(i).click(); await page.locator(`.thumb.on[data-i="${i}"]`).waitFor();
+      if (await page.locator("#stage .slide .t", { hasText: /^Alpha$/ }).first().waitFor({ timeout: 4000 }).then(() => true, () => false)) si = i;
+    }
+    expect(si).toBeGreaterThanOrEqual(0);
+    const items = () => (doc().preset.slides[si].items || {}) as Record<string, any>;
+    const undoSteps = () => page.evaluate(() => (window as any).__sbTest.history().undo as number);
+    const order = () => Object.entries(items()[id].sers || {}).sort(([a, p]: any, [b, q]: any) => p.n - q.n || (a < b ? -1 : 1)).map(([k]) => k);
+    // a pie of Numbers!B9:B11 (CH-02's way: the sheet view, without names)
+    await page.click("#chartBtn"); await page.click('[data-a="chart-pick"]');
+    await page.selectOption("#pkSheet", "Numbers");
+    await page.locator('#pkRange td[data-r="9"][data-c="2"]').click();
+    await page.locator('#pkRange td[data-r="11"][data-c="2"]').click({ modifiers: ["Shift"] });
+    await page.click("#pkUse"); await page.click("#pkNoNames");
+    await expect(page.locator(".itembox[data-kind=chart]")).toHaveCount(1, { timeout: 10_000 });
+    await pollFile(() => Object.keys(items()).length, { timeout: 10_000 }).toBe(1);
+    const id = Object.keys(items())[0], nums = { sheet: "Numbers", range: "B9:B11" };
+    await expect(page.locator("#chartPanel")).toBeVisible();
+    const u0 = await undoSteps();
+    // the type switch: one step; the old chart's numbers become its first series; the series panel replaces the slices
+    await page.click('#chartPanel [data-ctype="column"]');
+    await pollFile(() => [items()[id].type, items()[id].sers], { timeout: 10_000 }).toEqual(["column", { s1: { n: 1, vals: [nums] } }]);
+    await expect(page.locator("#chartSeriesPanel")).toBeVisible();
+    await expect(page.locator("#chartSlices")).toHaveCount(0);
+    await expect.poll(() => undoSteps()).toBe(u0 + 1);
+    // + Add series…: the sheet view in one step (no names step); another sheet's cells chosen by a drag across them
+    await page.click("#chartAddSeries");
+    await expect(page.locator("#pickCells")).toContainText("Chart: add a series");
+    await expect(page.locator("#pkNoNames")).toHaveCount(0);
+    await page.selectOption("#pkSheet", "SLIDE_1");
+    const c1 = await boxOf(page.locator('#pkRange td[data-r="6"][data-c="4"]')), c2 = await boxOf(page.locator('#pkRange td[data-r="8"][data-c="4"]'));
+    await page.mouse.move(c1.x + c1.width / 2, c1.y + c1.height / 2); await page.mouse.down();
+    await page.mouse.move(c2.x + c2.width / 2, c2.y + c2.height / 2, { steps: 6 }); await page.mouse.up();
+    await expect(page.locator("#pkSel")).toHaveText("D6:D8");
+    await page.click("#pkUse");
+    await expect(page.locator("#pickCells")).toHaveCount(0);
+    await pollFile(() => order().length, { timeout: 10_000 }).toBe(2);
+    const s2 = order()[1];
+    expect(s2).toMatch(/^s[0-9a-z]{5}$/);                                          // a random id: two writers adding at once keep both
+    expect(items()[id].sers[s2]).toEqual({ n: 2, vals: [{ sheet: "SLIDE_1", range: "D6:D8" }] });
+    await expect(page.locator("#chartSeriesPanel .ser")).toHaveCount(2);
+    await expect.poll(() => undoSteps()).toBe(u0 + 2);
+    // ↑: the new series first – one step
+    await page.click(`#chartSeriesPanel [data-ser="${s2}"] [data-a="up"]`);
+    await pollFile(() => order(), { timeout: 10_000 }).toEqual([s2, "s1"]);
+    await expect(page.locator("#chartSeriesPanel .ser").first()).toHaveAttribute("data-ser", s2);
+    await expect.poll(() => undoSteps()).toBe(u0 + 3);
+    // the right axis: one step; Axes then lists it
+    await page.click(`#chartSeriesPanel [data-ser="${s2}"] [data-a="more"]`);
+    await page.click(`#chartSeriesPanel [data-ser="${s2}"] [data-axis="y2"]`);
+    await pollFile(() => items()[id].sers[s2].axis, { timeout: 10_000 }).toBe("y2");
+    await expect(page.locator('#chartAxes [data-ax="y2"]')).toHaveCount(1);
+    await expect.poll(() => undoSteps()).toBe(u0 + 4);
+    await expect(page.locator("#stage svg.layer.item")).toHaveCount(1);
+    // undo, one step at a time: the axis, the order, the series, the switch
+    await page.click("#undoBtn");
+    await pollFile(() => items()[id].sers[s2].axis, { timeout: 10_000 }).toBeUndefined();
+    await expect(page.locator('#chartAxes [data-ax="y2"]')).toHaveCount(0);
+    await page.click("#undoBtn");
+    await pollFile(() => order(), { timeout: 10_000 }).toEqual(["s1", s2]);
+    await page.click("#undoBtn");
+    await pollFile(() => order(), { timeout: 10_000 }).toEqual(["s1"]);
+    await expect(page.locator("#chartSeriesPanel .ser")).toHaveCount(1);
+    await page.click("#undoBtn");
+    await pollFile(() => [items()[id].type, items()[id].sers], { timeout: 10_000 }).toEqual(["pie", undefined]);
+    await expect(page.locator("#chartSeriesPanel")).toHaveCount(0);
+    await expect(page.locator("#chartSlices .slice")).toHaveCount(3);
+    await expect.poll(() => undoSteps()).toBe(u0);
+    // removed (the later tests count this deck's slides and texts as they were)
+    await page.locator(".itembox[data-kind=chart]").click({ position: { x: 4, y: 4 } });
+    await page.keyboard.press("Delete");
+    await pollFile(() => Object.keys(items()), { timeout: 10_000 }).toEqual([]);
     await lastFileSaved("anna", "report.xlsx");
   });
 

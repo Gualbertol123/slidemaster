@@ -1,0 +1,300 @@
+{
+ "workbook": "charts/bridge.xlsx",
+ "ops": [
+  {
+   "op": "preset.set",
+   "preset": {
+    "sheets": [
+     "Bridge",
+     "Scatter"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "x0",
+      "type": "content",
+      "title": "Scatter charts",
+      "tables": []
+     },
+     {
+      "id": "x1",
+      "type": "content",
+      "title": "Waterfall charts",
+      "tables": []
+     }
+    ]
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "x0",
+   "id": "sc",
+   "patch": {
+    "kind": "chart",
+    "type": "scatter",
+    "title": "Scatter · margin against volume",
+    "values": {
+     "sheet": "Scatter",
+     "range": "C2:C13"
+    },
+    "legendAt": "bottom",
+    "axes": {
+     "x": {
+      "num": "#,##0",
+      "grid": true
+     },
+     "y": {
+      "num": "0.0"
+     }
+    },
+    "sers": {
+     "ret": {
+      "n": 1,
+      "name": "Retail",
+      "xs": [
+       {
+        "sheet": "Scatter",
+        "range": "B2:B13"
+       }
+      ],
+      "vals": [
+       {
+        "sheet": "Scatter",
+        "range": "C2:C13"
+       }
+      ],
+      "labels": {
+       "show": [
+        "value"
+       ],
+       "pos": "right"
+      },
+      "points": {
+       "11": {
+        "label": "Dec",
+        "marker": "#C00000"
+       }
+      }
+     },
+     "corp": {
+      "n": 2,
+      "name": "Corporate",
+      "xs": [
+       {
+        "sheet": "Scatter",
+        "range": "D2:D13"
+       }
+      ],
+      "vals": [
+       {
+        "sheet": "Scatter",
+        "range": "E2:E13"
+       }
+      ],
+      "smooth": true,
+      "marker": {
+       "shape": "diamond",
+       "size": 9
+      },
+      "line": {
+       "w": 2
+      }
+     }
+    },
+    "marks": {
+     "m1": {
+      "kind": "arrow",
+      "a": {
+       "s": "ret",
+       "i": 9
+      },
+      "b": "floor"
+     },
+     "m2": {
+      "kind": "text",
+      "a": {
+       "x": 600,
+       "y": 2.6
+      },
+      "text": "Corporate trend"
+     }
+    },
+    "box": {
+     "x": 60,
+     "y": 190,
+     "w": 730,
+     "h": 640
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "x0",
+   "id": "sl",
+   "patch": {
+    "kind": "chart",
+    "type": "scatter",
+    "title": "Scatter · straight line, no markers, legend right",
+    "values": {
+     "sheet": "Scatter",
+     "range": "C2:C7"
+    },
+    "legendAt": "right",
+    "sers": {
+     "ret": {
+      "n": 1,
+      "name": "Retail H1",
+      "xs": [
+       {
+        "sheet": "Scatter",
+        "range": "B2:B7"
+       }
+      ],
+      "vals": [
+       {
+        "sheet": "Scatter",
+        "range": "C2:C7"
+       }
+      ],
+      "line": {
+       "w": 2.5,
+       "dash": "dashed"
+      },
+      "marker": {
+       "shape": "none"
+      }
+     },
+     "corp": {
+      "n": 2,
+      "name": "Corporate H1",
+      "xs": [
+       {
+        "sheet": "Scatter",
+        "range": "D2:D7"
+       }
+      ],
+      "vals": [
+       {
+        "sheet": "Scatter",
+        "range": "E2:E7"
+       }
+      ],
+      "marker": {
+       "shape": "square",
+       "size": 8
+      }
+     }
+    },
+    "box": {
+     "x": 810,
+     "y": 190,
+     "w": 730,
+     "h": 640
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "x1",
+   "id": "wf",
+   "patch": {
+    "kind": "chart",
+    "type": "waterfall",
+    "title": "Waterfall · budget bridge",
+    "values": {
+     "sheet": "Bridge",
+     "range": "C4:C9"
+    },
+    "legendAt": "none",
+    "labels": {
+     "sheet": "Bridge",
+     "range": "B4:B9"
+    },
+    "sers": {
+     "w": {
+      "n": 1,
+      "name": "Bridge",
+      "vals": [
+       {
+        "sheet": "Bridge",
+        "range": "C4:C9"
+       }
+      ],
+      "points": {
+       "0": {
+        "total": true
+       },
+       "5": {
+        "total": true
+       }
+      }
+     }
+    },
+    "box": {
+     "x": 60,
+     "y": 190,
+     "w": 730,
+     "h": 640
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "x1",
+   "id": "wz",
+   "patch": {
+    "kind": "chart",
+    "type": "waterfall",
+    "title": "Waterfall · across zero, legend right",
+    "values": {
+     "sheet": "Bridge",
+     "range": "E4:E9"
+    },
+    "legendAt": "right",
+    "labels": {
+     "sheet": "Bridge",
+     "range": "D4:D9"
+    },
+    "sers": {
+     "p": {
+      "n": 1,
+      "name": "Profit walk",
+      "vals": [
+       {
+        "sheet": "Bridge",
+        "range": "E4:E9"
+       }
+      ],
+      "line": {
+       "dash": "dotted",
+       "color": "#595959"
+      },
+      "points": {
+       "0": {
+        "total": true
+       },
+       "5": {
+        "total": true
+       },
+       "4": {
+        "color": "#7F7F7F"
+       }
+      },
+      "labels": {
+       "show": [
+        "value"
+       ],
+       "pos": "center"
+      }
+     }
+    },
+    "box": {
+     "x": 810,
+     "y": 190,
+     "w": 730,
+     "h": 640
+    }
+   }
+  }
+ ]
+}

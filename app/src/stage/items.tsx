@@ -9,6 +9,7 @@ import { kindText } from "../editor/item-text";
 import { itemMove, itemResize, noteEdge, type DragPreview } from "./drags";
 import { slideScale } from "./actions";
 import { setStage } from "./data";
+import { chartHitAt, selectedHit } from "./chart-hits";
 import type { StageModel } from "./model";
 
 export function Items({ m, R, drag, free }: { m: StageModel; R: RuntimeSlide; drag: DragPreview | null; free: boolean }) {
@@ -27,7 +28,9 @@ export function Items({ m, R, drag, free }: { m: StageModel; R: RuntimeSlide; dr
         // the slice under the pointer (slide px from the box on screen)
         const rc = e.currentTarget.getBoundingClientRect(), k = rc.width / b.w;
         const x = b.x + (e.clientX - rc.left) / k, y = b.y + (e.clientY - rc.top) / k, g = p.info?.geom;
-        selectItem(p.id, g ? sliceAt(g, x, y) : null);
+        // (a series chart: the point or mark under the pointer, from its layer's hits – S14.5)
+        const h = !g && p.layer ? chartHitAt(p.layer.nodes, p.id, x, y) : null;
+        selectItem(p.id, g ? sliceAt(g, x, y) : null, h ? { point: h.point ?? null, mark: h.mark ?? null } : {});
         const ed = free && !(e.target as Element).closest(".size") ? noteEdge(e.currentTarget, e.nativeEvent, true, "top") : null;
         if ((e.target as Element).closest(".size")) { e.preventDefault(); itemResize(R, p.id, p.box, e.nativeEvent, "corner", others(p.id)); }
         else if (ed) { e.preventDefault(); itemResize(R, p.id, p.box, e.nativeEvent, ed, others(p.id)); }
@@ -35,6 +38,7 @@ export function Items({ m, R, drag, free }: { m: StageModel; R: RuntimeSlide; dr
       }}>
       {on && <div className="size" title="Drag to resize" />}
       {on && itemSel?.slice !== null && itemSel?.slice !== undefined && p.info?.geom && <SliceMark g={p.info.geom} i={itemSel.slice} box={b} />}
+      {on && (itemSel?.point || itemSel?.mark) && p.layer && !d?.moved && <PointMark nodes={p.layer.nodes} id={p.id} sel={itemSel} box={b} />}
     </div>;
   })}</>;
 }
@@ -45,4 +49,9 @@ function SliceMark({ g, i, box }: { g: NonNullable<NonNullable<StageModel["items
   const s = g.slices.find(x => x.i === i); if (!s) return null;
   const mid = (s.a0 + s.a1) / 2 * Math.PI / 180, r = g.r + 6, inv = 1 / Math.max(.2, slideScale());
   return <div className="slicemark" data-slice={i} style={{ left: g.cx + r * Math.sin(mid) - box.x - 7 * inv, top: g.cy - r * Math.cos(mid) - box.y - 7 * inv, width: 14 * inv, height: 14 * inv }} />;
+}
+/** the selected point or mark of a series chart (S14.5): a ring round its hit box */
+function PointMark({ nodes, id, sel, box }: { nodes: import("@slide-builder/core/dl/types").DisplayList; id: string; sel: { point?: { s: string; i: number } | null; mark?: string | null }; box: { x: number; y: number } }) {
+  const h = selectedHit(nodes, id, sel); if (!h) return null;
+  return <div className="pointmark" data-point={h.point ? `${h.point.s}:${h.point.i}` : undefined} data-mark={h.mark} style={{ left: h.box.x - box.x - 3, top: h.box.y - box.y - 3, width: h.box.w + 6, height: h.box.h + 6 }} />;
 }

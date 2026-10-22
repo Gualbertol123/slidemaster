@@ -1,0 +1,630 @@
+{
+ "workbook": "charts/loans-weekly.xlsx",
+ "ops": [
+  {
+   "op": "preset.set",
+   "preset": {
+    "sheets": [
+     "Weekly",
+     "Targets",
+     "Gallery"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "r0",
+      "type": "content",
+      "title": "Loans volume – weekly evolution (the owner's reference chart)",
+      "tables": []
+     },
+     {
+      "id": "r1",
+      "type": "content",
+      "title": "Lines and areas",
+      "tables": []
+     },
+     {
+      "id": "r2",
+      "type": "content",
+      "title": "A combined chart on two axes",
+      "tables": []
+     },
+     {
+      "id": "r3",
+      "type": "content",
+      "title": "Category groups with a divider",
+      "tables": []
+     }
+    ]
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "r0",
+   "id": "ref",
+   "patch": {
+    "kind": "chart",
+    "type": "combo",
+    "title": "Loans Volume - Weekly Evolution",
+    "values": {
+     "sheet": "Weekly",
+     "range": "C5:F5"
+    },
+    "titleFmt": {
+     "b": true,
+     "color": "#1F3864"
+    },
+    "titleRule": {
+     "color": "#1F3864",
+     "w": 1.5
+    },
+    "frame": {
+     "color": "#D9D9D9",
+     "w": 1
+    },
+    "legendAt": "none",
+    "groups": {
+     "wk": {
+      "n": 1,
+      "cats": {
+       "sheet": "Weekly",
+       "range": "C4:F4"
+      }
+     },
+     "tgt": {
+      "n": 2,
+      "cats": {
+       "sheet": "Targets",
+       "range": "B2:C2"
+      },
+      "divider": {
+       "color": "#7F7F7F",
+       "w": 1,
+       "dash": "dashed"
+      }
+     }
+    },
+    "axes": {
+     "y": {
+      "min": 11000,
+      "max": 11700,
+      "step": 100,
+      "num": "#,##0",
+      "grid": false
+     },
+     "y2": {
+      "min": 0,
+      "max": 14000,
+      "step": 2000,
+      "num": "#,##0",
+      "grid": false
+     },
+     "x": {
+      "fmt": {
+       "b": true,
+       "color": "#1F3864"
+      }
+     }
+    },
+    "sers": {
+     "vol": {
+      "n": 1,
+      "group": "wk",
+      "type": "line",
+      "axis": "y",
+      "smooth": true,
+      "color": "#1F3864",
+      "vals": [
+       {
+        "sheet": "Weekly",
+        "range": "C5:F5"
+       }
+      ],
+      "marker": {
+       "shape": "circle",
+       "size": 9
+      },
+      "points": {
+       "0": {
+        "marker": "#A6A6A6"
+       }
+      },
+      "labels": {
+       "show": [
+        "value"
+       ],
+       "pos": "above",
+       "fmt": {
+        "b": true,
+        "color": "#1F3864"
+       }
+      }
+     },
+     "act": {
+      "n": 2,
+      "group": "tgt",
+      "type": "column",
+      "axis": "y2",
+      "vals": [
+       {
+        "sheet": "Weekly",
+        "range": "F5"
+       },
+       {
+        "sheet": "Weekly",
+        "range": "F5"
+       }
+      ],
+      "target": [
+       {
+        "sheet": "Targets",
+        "range": "B3:C3"
+       }
+      ],
+      "points": {
+       "0": {
+        "color": "#1F3864"
+       },
+       "1": {
+        "color": "#A6A6A6"
+       }
+      },
+      "labels": {
+       "show": [
+        "ofTarget"
+       ],
+       "pos": "inEnd",
+       "fmt": {
+        "b": true,
+        "color": "#FFFFFF"
+       }
+      }
+     }
+    },
+    "marks": {
+     "start": {
+      "kind": "arrow",
+      "a": {
+       "s": "vol",
+       "i": 0
+      },
+      "b": "floor",
+      "style": {
+       "color": "#1F3864",
+       "w": 1.5,
+       "heads": {
+        "a": "triangle"
+       }
+      }
+     },
+     "ib": {
+      "kind": "icon",
+      "icon": "tabler:target",
+      "a": {
+       "s": "act",
+       "i": 0
+      },
+      "dy": -46,
+      "size": 26
+     },
+     "ia": {
+      "kind": "icon",
+      "icon": "tabler:target",
+      "a": {
+       "s": "act",
+       "i": 1
+      },
+      "dy": -46,
+      "size": 26
+     },
+     "tb": {
+      "kind": "text",
+      "text": "{Targets!B3}",
+      "a": {
+       "s": "act",
+       "i": 0
+      },
+      "dy": -14,
+      "fmt": {
+       "b": true,
+       "size": 22
+      }
+     },
+     "ta": {
+      "kind": "text",
+      "text": "{Targets!C3}",
+      "a": {
+       "s": "act",
+       "i": 1
+      },
+      "dy": -14,
+      "fmt": {
+       "b": true,
+       "size": 22
+      }
+     }
+    },
+    "box": {
+     "x": 120,
+     "y": 180,
+     "w": 1360,
+     "h": 620
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "r1",
+   "id": "ln",
+   "patch": {
+    "kind": "chart",
+    "type": "line",
+    "title": "Lines · markers, smoothed, labels",
+    "values": {
+     "sheet": "Gallery",
+     "range": "B2:G2"
+    },
+    "legendAt": "bottom",
+    "sers": {
+     "ret": {
+      "n": 1,
+      "vals": [
+       {
+        "sheet": "Gallery",
+        "range": "B2:G2"
+       }
+      ],
+      "marker": {
+       "shape": "circle",
+       "size": 9
+      },
+      "labels": {
+       "show": [
+        "value"
+       ],
+       "pos": "above"
+      }
+     },
+     "corp": {
+      "n": 2,
+      "vals": [
+       {
+        "sheet": "Gallery",
+        "range": "B3:G3"
+       }
+      ],
+      "smooth": true,
+      "marker": {
+       "shape": "diamond",
+       "size": 10
+      },
+      "line": {
+       "dash": "dashed",
+       "w": 2
+      }
+     },
+     "sme": {
+      "n": 3,
+      "vals": [
+       {
+        "sheet": "Gallery",
+        "range": "B4:G4"
+       }
+      ],
+      "marker": {
+       "shape": "square",
+       "size": 8
+      },
+      "points": {
+       "2": {
+        "marker": "#C00000",
+        "label": "Low"
+       }
+      },
+      "labels": {
+       "show": [
+        "value"
+       ],
+       "pos": "below"
+      }
+     }
+    },
+    "box": {
+     "x": 60,
+     "y": 190,
+     "w": 730,
+     "h": 640
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "r1",
+   "id": "ar",
+   "patch": {
+    "kind": "chart",
+    "type": "area",
+    "title": "Stacked areas · SME out of the legend",
+    "values": {
+     "sheet": "Gallery",
+     "range": "B2:G2"
+    },
+    "stack": "stacked",
+    "legendAt": "top",
+    "legendHide": {
+     "sme": true
+    },
+    "sers": {
+     "ret": {
+      "n": 1,
+      "vals": [
+       {
+        "sheet": "Gallery",
+        "range": "B2:G2"
+       }
+      ]
+     },
+     "corp": {
+      "n": 2,
+      "vals": [
+       {
+        "sheet": "Gallery",
+        "range": "B3:G3"
+       }
+      ],
+      "labels": {
+       "show": [
+        "value"
+       ]
+      }
+     },
+     "sme": {
+      "n": 3,
+      "vals": [
+       {
+        "sheet": "Gallery",
+        "range": "B4:G4"
+       }
+      ]
+     }
+    },
+    "box": {
+     "x": 810,
+     "y": 190,
+     "w": 730,
+     "h": 640
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "r2",
+   "id": "cb",
+   "patch": {
+    "kind": "chart",
+    "type": "combo",
+    "title": "Volumes (columns) and margin (line, right axis)",
+    "values": {
+     "sheet": "Gallery",
+     "range": "B2:G2"
+    },
+    "legendAt": "top",
+    "legendHide": {
+     "corp": true
+    },
+    "axes": {
+     "y": {
+      "min": 0,
+      "max": 600,
+      "step": 100
+     },
+     "y2": {
+      "min": 0,
+      "max": 3,
+      "step": 0.5,
+      "num": "0.0\" %\""
+     }
+    },
+    "sers": {
+     "ret": {
+      "n": 1,
+      "vals": [
+       {
+        "sheet": "Gallery",
+        "range": "B2:G2"
+       }
+      ]
+     },
+     "corp": {
+      "n": 2,
+      "vals": [
+       {
+        "sheet": "Gallery",
+        "range": "B3:G3"
+       }
+      ]
+     },
+     "m": {
+      "n": 3,
+      "type": "line",
+      "axis": "y2",
+      "vals": [
+       {
+        "sheet": "Gallery",
+        "range": "B5:G5"
+       }
+      ],
+      "smooth": true,
+      "marker": {
+       "shape": "diamond",
+       "size": 11
+      },
+      "labels": {
+       "show": [
+        "value"
+       ],
+       "pos": "above",
+       "num": "0.0",
+       "fmt": {
+        "b": true
+       }
+      }
+     }
+    },
+    "marks": {
+     "q2": {
+      "kind": "band",
+      "a": {
+       "x": "Apr",
+       "y": 0
+      },
+      "b": {
+       "x": "Jun",
+       "y": 600
+      },
+      "style": {
+       "color": "#FFC000"
+      }
+     },
+     "max": {
+      "kind": "text",
+      "text": "Peak margin",
+      "a": {
+       "s": "m",
+       "i": 5
+      },
+      "dy": -30
+     },
+     "avg": {
+      "kind": "line",
+      "a": {
+       "x": 0,
+       "y": 2.45,
+       "axis": "y2"
+      },
+      "style": {
+       "color": "#C00000",
+       "dash": "dotted",
+       "w": 1.5
+      }
+     }
+    },
+    "box": {
+     "x": 120,
+     "y": 190,
+     "w": 1360,
+     "h": 640
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "r3",
+   "id": "gr",
+   "patch": {
+    "kind": "chart",
+    "type": "column",
+    "title": "Two halves as category groups",
+    "values": {
+     "sheet": "Gallery",
+     "range": "B2:D2"
+    },
+    "legendAt": "right",
+    "groups": {
+     "h1": {
+      "n": 1,
+      "cats": {
+       "sheet": "Gallery",
+       "range": "B1:D1"
+      },
+      "label": "H1"
+     },
+     "h2": {
+      "n": 2,
+      "cats": {
+       "sheet": "Gallery",
+       "range": "E1:G1"
+      },
+      "label": "H2",
+      "divider": {
+       "dash": "dotted",
+       "w": 1.5
+      }
+     }
+    },
+    "sers": {
+     "r1": {
+      "n": 1,
+      "name": "Retail",
+      "group": "h1",
+      "vals": [
+       {
+        "sheet": "Gallery",
+        "range": "B2:D2"
+       }
+      ]
+     },
+     "r2": {
+      "n": 2,
+      "name": "Retail",
+      "group": "h2",
+      "vals": [
+       {
+        "sheet": "Gallery",
+        "range": "E2:G2"
+       }
+      ],
+      "color": "#5B9BD5"
+     },
+     "c": {
+      "n": 3,
+      "name": "Corporate H2",
+      "group": "h2",
+      "type": "line",
+      "vals": [
+       {
+        "sheet": "Gallery",
+        "range": "E3:G3"
+       }
+      ],
+      "marker": {}
+     }
+    },
+    "marks": {
+     "edge": {
+      "kind": "arrow",
+      "a": {
+       "g": "h2",
+       "edge": "start"
+      },
+      "b": {
+       "x": "Feb",
+       "y": 500
+      },
+      "style": {
+       "heads": {
+        "a": "none",
+        "b": "stealth"
+       }
+      }
+     },
+     "flag": {
+      "kind": "icon",
+      "icon": "flag",
+      "a": {
+       "s": "r2",
+       "i": 2
+      },
+      "size": 22
+     }
+    },
+    "box": {
+     "x": 120,
+     "y": 190,
+     "w": 1360,
+     "h": 640
+    }
+   }
+  }
+ ]
+}

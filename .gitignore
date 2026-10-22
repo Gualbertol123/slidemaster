@@ -16,6 +16,8 @@ backend/slide_builder_settings.txt.unreadable-*
 !app/tests/fixtures/*.xlsx
 !tests/corpus/workbooks/*.xlsx
 !tests/corpus/workbooks/*.xlsm
+# the chart corpus's own workbooks (tests/corpus/charts; S14.3: the reference chart's loans-weekly.xlsx)
+!tests/corpus/workbooks/charts/*.xlsx
 # the .xlsb twins of the corpus and Excel's own .xlsx of each (tools/make-xlsb-twins.ps1)
 !tests/corpus/workbooks/xlsb/*.xlsb
 !tests/corpus/workbooks/xlsb/*.xlsx

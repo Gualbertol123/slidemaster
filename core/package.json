@@ -1,6 +1,6 @@
 {
   "name": "@slide-builder/core",
-  "version": "4.6.0",
+  "version": "4.7.0",
   "private": true,
   "type": "module",
   "description": "The Slide Builder core: pure TypeScript with no DOM (it runs in workers from M2 of docs/next/PLAN.md). Hosts install what it needs from them through src/platform.ts.",

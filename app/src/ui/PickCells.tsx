@@ -10,18 +10,22 @@ import type { SheetInfo } from "@slide-builder/core/xlsx/sheetview";
 import type { DataRef } from "@slide-builder/core/model/types";
 import { insertChartRefs, itemOf, itemPatch, quoteCell } from "../editor/charts";
 import { addRangeTable } from "../editor/slides";
+import { REF_HINT, REF_TITLE } from "../editor/chart-panel";
+import { applyRef } from "../editor/chart-send";
 
 const close = () => setDialogs({ pick: null });
-const TITLE: Record<PickReq["kind"], string> = { chart: "Insert chart", "chart-cells": "Chart: change the cells", cell: "Quote a cell", table: "New table from cells" };
+const TITLE: Record<PickReq["kind"], string> = { chart: "Insert chart", "chart-cells": "Chart: change the cells", cell: "Quote a cell", table: "New table from cells", "chart-ref": "Chart" };
 
 export function PickCellsDialog() {
   const req = useStore(s => s.ui.dialogs.pick)!, wb = useStore(s => s.deck.wb);
   const sheets = (wb?.meta || []).map(m => m.name).filter(n => !(wb?.hiddenSheets || []).includes(n));
   // a callout's cell, a new table's range (S13.4): one step; a chart: the numbers, then their names
-  const one = req.kind === "cell", table = req.kind === "table";
+  // (the chart panel's cells, S14.5: one step – a series' name is one cell)
+  const ref = req.kind === "chart-ref" ? req.ref : null;
+  const one = req.kind === "cell" || ref?.what === "name", table = req.kind === "table";
   // the sheet shown first: the chart's own (changing its cells), else the first of the list
   const start = () => {
-    const it = req.kind === "chart-cells" ? itemOf(req.id) : null, v = it?.kind === "chart" ? it.values : null;
+    const it = req.kind === "chart-cells" || req.kind === "chart-ref" ? itemOf(req.id) : null, v = it?.kind === "chart" ? it.values : null;
     const s = !v ? null : "sheet" in v ? v.sheet : get().doc.view?.preset?.tables.find(t => t.id === v.table)?.sheet ?? null;
     return s && sheets.includes(s) ? s : sheets[0] || "";
   };
@@ -59,16 +63,17 @@ export function PickCellsDialog() {
   };
   const use = (r: string | null) => {
     if (!r) return;
+    if (req.kind === "chart-ref") { applyRef(req.id, req.ref, { sheet, range: one ? r.split(":")[0] : r }); close(); return; }
     if (one) { if (req.kind === "cell") quoteCell(req.id, sheet, r.split(":")[0]); close(); return; }
     if (table) { addRangeTable(sheet, r); close(); return; }
     if (!values) { setValues({ sheet, range: r }); setRange(null); return; }       // step 1 done: now the names
     finish({ sheet, range: r });
   };
-  const hint = one ? "Click the cell to quote" : table ? "Drag across the cells of the table" : !values ? "Drag across the numbers of the chart" : "Drag across their names (or go on without)";
+  const hint = ref ? (ref.what === "name" ? "Click the cell" : "Drag across the cells") : one ? "Click the cell to quote" : table ? "Drag across the cells of the table" : !values ? "Drag across the numbers of the chart" : "Drag across their names (or go on without)";
   return (
     <div className="modal">
       <div className="dlg pkdlg" id="pickCells" style={{ width: "min(940px,94vw)" }}>
-        <div className="dlghd"><b>{TITLE[req.kind]}</b><span>{one ? "The callout shows what the cell shows, and follows the workbook when it changes." : table ? "The table joins the deck and this slide; it follows the workbook when it changes." : !values ? "Step 1 of 2: the numbers. A pie gets one slice per number; blank cells and text are left out." : `Step 2 of 2: the names of the ${values.range} numbers – one name per number, in the same order.`}</span></div>
+        <div className="dlghd"><b>{ref ? REF_TITLE[ref.what] : TITLE[req.kind]}</b><span>{ref ? REF_HINT[ref.what] : one ? "The callout shows what the cell shows, and follows the workbook when it changes." : table ? "The table joins the deck and this slide; it follows the workbook when it changes." : !values ? "Step 1 of 2: the numbers. A pie gets one slice per number; blank cells and text are left out." : `Step 2 of 2: the names of the ${values.range} numbers – one name per number, in the same order.`}</span></div>
         <div className="dlgbody">
           <div className="scrange" id="pkRange">
             <div className="row">
@@ -84,8 +89,8 @@ export function PickCellsDialog() {
           {values && <button className="btn" id="pkBack" onClick={() => { setValues(null); setRange(null); }}>Back</button>}
           <span style={{ flex: "1" }} />
           <button className="btn" data-a="cancel" onClick={close}>Cancel</button>
-          {!one && !table && values && <button className="btn" id="pkNoNames" onClick={() => finish(null)} title="The names beside the numbers (the column on their left, the row above), or 1, 2, 3…">Without names</button>}
-          <button className="btn primary" id="pkUse" disabled={!range} onClick={() => use(range)}>{one ? "Quote this cell" : table ? "Add table" : !values ? "Next: their names" : req.kind === "chart" ? "Insert chart" : "Use these cells"}</button>
+          {!one && !table && !ref && values && <button className="btn" id="pkNoNames" onClick={() => finish(null)} title="The names beside the numbers (the column on their left, the row above), or 1, 2, 3…">Without names</button>}
+          <button className="btn primary" id="pkUse" disabled={!range} onClick={() => use(range)}>{ref ? "Use these cells" : one ? "Quote this cell" : table ? "Add table" : !values ? "Next: their names" : req.kind === "chart" ? "Insert chart" : "Use these cells"}</button>
         </div>
       </div>
     </div>

@@ -15,6 +15,7 @@ const bytes = writePptx({ slides: lists.map(l => ({ nodes: l.dl.nodes, sem: l.se
 | `scene.ts` | `sceneOf(nodes, sem, hasImage)`: the display list → a native scene (shapes, pictures, text boxes, real tables, chart frames, groups); `baselineIn` (PowerPoint's baseline in a line of exact spacing, measured) |
 | `drawingml.ts` | the scene → PresentationML / DrawingML markup; EMU (`E`: 1 px = 7 620 EMU) and points (`PT` = 0.6 per px) |
 | `chart.ts` | a pie / donut as `c:chartSpace` with cached labels and values, and the embedded two-column workbook |
+| `chart-sem.ts`, `chart-overlay.ts` | (4.7, M14) what the core says of a chart (series charts: chart groups, axes, legend, `arrows`); a chart's arrow and line marks as line shapes with native `a:headEnd` / `a:tailEnd` over it (S14.6; 09 §4.2) – since 4.7 `chart.ts` also writes bar / line / area / scatter charts, combos on two axes and waterfalls, and the embedded workbook carries each cell's number format |
 | `writer.ts` | `writePptx(input)`: the package – content types, relationships, the master and its layouts made from the deck, the theme, slides, media once each, docProps; the same slides give the same bytes |
 
 ## The slide and its units

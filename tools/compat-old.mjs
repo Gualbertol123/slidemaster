@@ -17,6 +17,16 @@
             the same calls with a valid token but without X-SB-Deck-Formats -> 409; nothing written
      d      the decks' journals aged 25 h (utime); the old helper's clean-up paths (compact -> _drop_dead, rotate, the
             idle-handle loop) -> every journal survives, byte for byte
+     m14    (4.7, M14 milestone review 3) the 4.7 page makes every M14 chart object – series (`sers`, with per-point
+            colours and labels, targets, the right axis, a combo series, a waterfall's `points[i].total`, scatter `xs`),
+            `groups`, `axes`, `marks`, `legendHide`, `titleFmt`, `legendAt`, `stack`, `frame` / `titleRule`, the new types
+            (combo, area, scatter, waterfall) – plus one per-entry patch (a series added by its own record); then the
+            old page opens the deck (format 5), edits a cell and is left alone past the compaction margin -> every M14
+            item is byte-equal (JSON) in the folded deck and in every snapshot written after them; the old page's edit
+            kept when it compacted. The 4.6 pages read format 5: 4.6 (e6c1c4f, the M13 merge) does not know the 4.7 keys
+            in knownOp, 4.6p (v4.6.0 = 6392856, main with S14.P, + the dated CHANGELOG) knows them and stores a whole series entry – `total` inside a
+            series survives only because of that. For 4.0–4.5 (format 5 refused) the case checks the same with the open
+            refused. Cases a–d also make the M14 objects (missing46 checks them)
    The old pages are driven through Playwright (open, Continue, a cell typed, ✦ Wizard -> Finish); the 4.6 page's
    objects are made with the page's own change() (window.__sbTest.change: the op path of its buttons). Direct API
    probes are sent from inside the old page with its own headers (X-SB-Token from its meta tag, X-SB-Formats, no
@@ -43,12 +53,14 @@ const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const flag = k => process.argv.includes(k);
-const REFS = { "4.0": "v4.0.0", "4.1": "061a5b3", "4.4": "a1d3aba", "4.5": "637f7b4" };
-const VERSIONS = arg("--versions", "4.0,4.1,4.4,4.5").split(",").filter(Boolean);
+const REFS = { "4.0": "v4.0.0", "4.1": "061a5b3", "4.4": "a1d3aba", "4.5": "637f7b4", "4.6": "e6c1c4f", "4.6p": "v4.6.0" };   // (4.6p: the released 4.6.0 – 6392856, main with S14.P, + the dated CHANGELOG)
+/** the versions that read format 5 (4.6.0, M13's format guard): cases a–d expect a refusal, so only cp02 and m14 run */
+const READS_V5 = new Set(["4.6", "4.6p"]);
+const VERSIONS = arg("--versions", "4.0,4.1,4.4,4.5,4.6,4.6p").split(",").filter(Boolean);
 const DEFAULT_PY = process.platform === "win32" ? "python" : "python3";
 const PYTHONS = arg("--pythons", DEFAULT_PY).split(",").filter(Boolean);
 const NEW_PY = arg("--new-python", DEFAULT_PY);
-const CASES = arg("--cases", "cp02,a,b,c,d").split(",").filter(Boolean);
+const CASES = arg("--cases", "cp02,a,b,c,d,m14").split(",").filter(Boolean);
 const MODES = arg("--modes", "journal,lean-lock").split(",").filter(Boolean);
 const OUT = path.resolve(arg("--out", path.join(os.tmpdir(), "sb-compat-old", "compat-old.json")));
 const WT = path.resolve(arg("--worktrees", path.join(os.tmpdir(), "sb-compat-old", "worktrees")));
@@ -331,10 +343,44 @@ async function addEvery46Object(p) {
     ["Gridlines", [{ op: "table.patch", id: t0, patch: { cellGrid: { C6: { h: "on", v: "on", c: "#336699", w: 1 } } } }]],
     ["Borders", [{ op: "table.patch", id: t0, patch: { borders: { C6: { top: { style: "thick", color: "#C00000" }, bottom: "none" } } } }]],
     ["Hide slide", [{ op: "slide.patch", id: ids.s2, patch: { hide: { glass: true } } }]],
+    ...m14Steps(ids.s2, t0),                     // (on the second content slide: the old page types into the first one's cells)
   ];
-  for (const [l, ops] of steps) { const ok = await change(p, l, ops); if (!ok) throw new Error("4.6 page refused " + l); await sleep(150); }
+  for (const [l, ops] of steps) { const ok = await change(p, l, ops); if (!ok) throw new Error("the new page refused " + l); await sleep(150); }
   return ids;
 }
+/** every M14 (4.7) chart object (09 §2.2), as the chart panel's item.patch records: four charts and one per-entry
+    patch of a series map (a series added on its own) */
+function m14Steps(slide, t0) {
+  const r = range => ({ table: t0, range }), box = { x: 60, y: 60, w: 480, h: 300 };
+  return [
+    ["Combo chart", [{ op: "item.patch", slide, id: "cpCombo", patch: { kind: "chart", type: "combo", values: r("D6:D8"), labels: r("C6:C8"), box,
+      sers: {
+        s1: { n: 1, name: "Actual", vals: [r("D6:D8")], type: "column", target: [r("E6:E8")], color: "#1F4E79",
+          points: { 0: { color: "#C00000", label: "first" }, 2: { label: null } }, labels: { show: ["value", "ofTarget"], pos: "inEnd", num: "0.0" } },
+        s2: { n: 2, name: { table: t0, range: "E5" }, vals: [r("E6:E8")], type: "line", axis: "y2", smooth: true,
+          marker: { shape: "diamond", size: 7, color: "#FFC000" }, line: { color: "#ED7D31", w: 2, dash: "dashed" }, labels: { show: ["name"], pos: "above" } } },
+      groups: { g1: { n: 1, cats: r("C6:C7"), label: "Weeks", divider: { color: "#7F7F7F", w: 1, dash: "dotted" } }, g2: { n: 2, cats: ["Target"], label: "Month", divider: "none" } },
+      axes: { y: { min: 0, max: 100, step: 20, num: "0", grid: true, title: "Left" }, y2: { show: true, num: "0.0%" }, x: { line: "none" } },
+      marks: { m1: { kind: "arrow", a: { s: "s1", i: 1 }, b: "floor", style: { color: "#333333", w: 1.5, heads: { b: "triangle", size: "m" } } },
+        m2: { kind: "text", a: { s: "s1", i: 0 }, text: "CP-01 {SLIDE_1!C6}", dy: -12 },
+        m3: { kind: "band", a: { x: 0, y: 10 }, b: { x: 1, y: 30 }, style: { color: "#DDEBF7" } },
+        m4: { kind: "icon", a: { g: "g1", edge: "end" }, icon: "star", size: 18 } },
+      legendAt: "top", legendHide: { s2: true }, titleFmt: { bold: true, size: 18, color: "#1F4E79" }, title: "CP-01 combo",
+      stack: "stacked", gap: 60, overlap: -10, frame: "none", titleRule: { color: "#000000", w: 1 }, plot: { x: 40, y: 50, w: 400, h: 220 } } }]],
+    ["Waterfall chart", [{ op: "item.patch", slide, id: "cpWaterfall", patch: { kind: "chart", type: "waterfall", values: r("D6:D8"), labels: r("C6:C8"), box: { ...box, y: 380 },
+      sers: { w1: { n: 1, vals: [r("D6:D8")], points: { 2: { total: true, color: "#00B050" } }, line: { color: "#8A93A3", dash: "dashed" } } },
+      legendHide: { up: true, total: true } } }]],
+    ["Scatter chart", [{ op: "item.patch", slide, id: "cpScatter", patch: { kind: "chart", type: "scatter", values: r("D6:D8"), box: { ...box, x: 560 },
+      sers: { p1: { n: 1, xs: [r("E6:E8")], vals: [r("D6:D8")], smooth: true, marker: { shape: "square" }, hide: false } },
+      axes: { x: { min: 0, grid: true }, y: { max: 1000 } } } }]],
+    ["Area chart", [{ op: "item.patch", slide, id: "cpArea", patch: { kind: "chart", type: "area", values: r("D6:D8"), labels: r("C6:C8"), box: { ...box, x: 560, y: 380 },
+      sers: { a1: { n: 1, vals: [r("D6:D8")], fill: "solid", stack: "k" }, a2: { n: 2, vals: [r("E6:E8")], hide: true } }, stack: "percent" } }]],
+    ["Add series", [{ op: "item.patch", slide, id: "cpCombo", patch: { sers: { s3: { n: 3, vals: [r("F6:F8")], type: "area", points: { 1: { marker: "#00FF00" } } } } } }]],
+  ];
+}
+const M14_IDS = ["cpCombo", "cpWaterfall", "cpScatter", "cpArea"];
+/** the M14 items of a document, each as its JSON (byte-equal comparison) */
+const m14Items = (doc, slide) => Object.fromEntries(M14_IDS.map(k => [k, JSON.stringify(doc.preset?.slides.find(s => s.id === slide)?.items?.[k] ?? null)]));
 /** what of the 4.6 objects a document is missing */
 function missing46(doc, ids) {
   const miss = [], sl = id => doc.preset?.slides.find(s => s.id === id), tb = id => doc.preset?.tables.find(t => t.id === id);
@@ -349,6 +395,15 @@ function missing46(doc, ids) {
   if (t0?.borders?.C6?.top?.color !== "#C00000") miss.push("borders");
   if (s2?.hide?.glass !== true) miss.push("hide");
   if (doc.style?.designs?.mckinsey?.consult?.tables !== "rules") miss.push("style.designs.mckinsey.consult");
+  const it = s2?.items || {};
+  if (!it.cpCombo?.sers?.s1 || !it.cpCombo?.sers?.s3 || it.cpCombo?.sers?.s2?.axis !== "y2") miss.push("m14.sers");
+  if (it.cpCombo?.groups?.g2?.cats?.[0] !== "Target") miss.push("m14.groups");
+  if (it.cpCombo?.axes?.y?.max !== 100) miss.push("m14.axes");
+  if (it.cpCombo?.marks?.m1?.style?.heads?.b !== "triangle" || !it.cpCombo?.marks?.m4) miss.push("m14.marks");
+  if (it.cpCombo?.legendHide?.s2 !== true || it.cpWaterfall?.legendHide?.total !== true) miss.push("m14.legendHide");
+  if (it.cpCombo?.titleFmt?.bold !== true) miss.push("m14.titleFmt");
+  if (it.cpWaterfall?.sers?.w1?.points?.[2]?.total !== true) miss.push("m14.points.total");
+  if (it.cpScatter?.type !== "scatter" || it.cpArea?.type !== "area" || it.cpWaterfall?.type !== "waterfall" || it.cpCombo?.type !== "combo") miss.push("m14.types");
   return miss;
 }
 const CONSULT = { op: "style.patch", patch: { designs: { mckinsey: { consult: { tables: "rules", bars: "off" } } } } };
@@ -587,6 +642,75 @@ async function caseB(run, oldDir, py, mode, withC) {
   } finally { if (w) w.stop(); await closePage(a); await closePage(b); await stopHelper(anna); await stopHelper(bob); }
 }
 
+/** m14 (4.7, M14 milestone review 3): the new page makes every M14 object; the old page opens the deck (format 5),
+    edits a cell and is left alone past the compaction margin -> every M14 item byte-equal (JSON), in the folded deck
+    and in every snapshot written after them */
+async function caseM14(run, oldDir, py) {
+  const env = scenarioEnv(run.version + "-m14");
+  const anna = await startHelper({ dir: ROOT, py: NEW_PY, port: nextPort(), user: "anna", env, extra: ext46 });
+  let a, b, bob, w;
+  try {
+    a = await openPage(anna, "4.7");
+    await wizardNew(a);
+    const pre = await a.page.evaluate(() => window.__sbTest.preset());
+    // the charts on the second content slide (the old page types into the first one's cells, which charts would cover)
+    const content = pre.slides.filter(s => s.type === "content"), t0 = content[0].tables[0];
+    const s1 = content[1] || pre.slides[pre.slides.length - 1];
+    for (const [l, ops] of m14Steps(s1.id, t0)) { if (!await change(a, l, ops)) throw new Error("the 4.7 page refused " + l); await sleep(150); }
+    const dir = deckDir(env);
+    if (!await waitFor(() => readJson(path.join(dir, "snapshot.json")).format === 5, 90_000, 500)) throw new Error("the 4.7 page did not raise the deck");
+    if (!await waitSaved(a, 60_000)) throw new Error("the 4.7 page did not save its charts");
+    await closePage(a); a = null;
+    await sleep(3000);
+    const before = deckDoc(dir), want = m14Items(before.doc, s1.id), snapSha0 = sha(fs.readFileSync(path.join(dir, "snapshot.json")));
+    const missing = Object.entries(want).filter(([, v]) => v === "null").map(([k]) => k);
+    if (missing.length) throw new Error("the 4.7 deck lacks " + missing.join(", "));
+    const wantSerKeys = JSON.parse(want.cpCombo).sers ? Object.keys(JSON.parse(want.cpCombo).sers).sort().join(",") : "";
+    w = watchDeck(env);
+    bob = await startHelper({ dir: oldDir, py, port: nextPort(), user: "bob", env });
+    b = await openPage(bob, run.version);
+    const resp = b.page.waitForResponse(r => r.url().endsWith("/api/decks/open"), { timeout: 30_000 });
+    await openWorkbook(b);
+    const r = await resp, openStatus = r.status();
+    await sleep(2000);
+    let editHow = "not offered", saved = false, comp = null;
+    const continued = await b.page.locator('[data-a="continue"]').isVisible().catch(() => false);
+    if (openStatus < 400 && continued) {
+      await b.page.click('[data-a="continue"]');
+      await b.page.locator("#fileName").filter({ hasText: fileNameRe("report.xlsx") }).waitFor({ timeout: 30_000 }).catch(() => {});
+      editHow = await editCell(b, "Gamma", "Old" + run.version.replace(/\W/g, ""), "C8");
+      saved = await waitSaved(b, 20_000);
+      // left alone: the old page compacts (records older than the 30 s margin, nobody else present) – waited for until
+      // one of its snapshots folds the whole 4.7 journal (every M14 record), not only the records older than the margin
+      const gen0 = readJson(path.join(dir, "snapshot.json")).gen;
+      const newJ = journals(dir).filter(n => n.startsWith("anna@")).map(n => [n.slice(0, -4), fs.statSync(path.join(dir, "j", n)).size]);
+      comp = await waitFor(() => { const s = readJson(path.join(dir, "snapshot.json"));
+        return s.gen > gen0 && s.by === "bob" && newJ.every(([w, size]) => (s.frontier?.[w] || 0) >= size) ? s : null; }, 150_000, 1000);
+    }
+    w.stop();
+    const after = deckDoc(dir), got = m14Items(after.doc, s1.id);
+    const changed = M14_IDS.filter(k => got[k] !== want[k]);
+    // every snapshot file the old page wrote (the deck's own and its backups) holds the M14 items byte-equal – or not yet
+    // (an item whose records are still past that snapshot's frontier: "null"); the one that folds them all, equal
+    const snapFiles = [path.join(dir, "snapshot.json")];
+    try { const bd = path.join(env.data, "backups", "v4", path.basename(dir)); for (const n of fs.readdirSync(bd)) snapFiles.push(path.join(bd, n)); } catch { /* none */ }
+    const snapsBad = snapFiles.map(f => { try { const sn = readJson(f); return sn.by === "bob" ? { f: path.basename(f), bad: M14_IDS.filter(k => { const v = m14Items(sn.doc, s1.id)[k]; return v !== want[k] && !(v === "null" && sn.gen !== comp?.gen); }) } : null; } catch { return null; } })
+      .filter(x => x && x.bad.length);
+    const oldEdit = after.doc.edits?.SLIDE_1?.C8?.text, wantEdit = "Old" + run.version.replace(/\W/g, "");
+    const sv = { text: (await saveText(b)).slice(0, 160), cls: await saveClass(b) };
+    const obs = { openStatus, continueOffered: continued, edit: editHow, saved, oldCompacted: comp ? { gen: comp.gen, format: comp.format } : null,
+      formatNow: after.snap.format, m14ItemsChanged: changed, comboSeries: wantSerKeys, snapshotsByOldPageLosingM14: snapsBad,
+      oldEdit: oldEdit ?? null, oldPageState: sv, snapshotUnchanged: openStatus >= 400 ? sha(fs.readFileSync(path.join(dir, "snapshot.json"))) === snapSha0 : undefined,
+      bytes: Object.fromEntries(M14_IDS.map(k => [k, want[k].length])), pageErrors: b.errors.slice(0, 4).map(e => e.slice(0, 140)) };
+    // refused (4.0–4.5): nothing changed; opened (4.6 pages): the M14 items equal, and the old edit kept wherever the
+    // old page compacted (a page that turned read-only on the 4.7 keys compacts nothing and keeps nothing of its own)
+    // (4.6p must compact – it knows every 4.7 key –, so its snapshot holding the M14 items is the point of the case)
+    const pass = !changed.length && !snapsBad.length && after.snap.format === 5
+      && (openStatus >= 400 ? obs.snapshotUnchanged === true : (!comp || oldEdit === wantEdit)) && (run.version !== "4.6p" || !!comp);
+    result(run, "m14", pass, obs);
+  } finally { if (w) w.stop(); await closePage(a); await closePage(b); await stopHelper(anna); await stopHelper(bob); }
+}
+
 /** d: the journals aged 25 h; the old helper's paths that delete journals (compact -> _drop_dead, rotate) and its
     idle-handle loop (every 60 s) */
 async function caseD(run, oldDir, py, decksToAge) {
@@ -641,6 +765,8 @@ try {
       log(`== ${v} (${REFS[v]}) on ${run.python}; 4.6 helper on ${NEW_PY}`);
       const step = async (name, f) => { try { return await f(); } catch (e) { result(run, name, false, "ERROR " + (e.stack || e.message).split("\n").slice(0, 3).join(" | ")); return null; } };
       if (CASES.includes("cp02")) await step("CP-02", () => caseCP02(run, oldDir, py));
+      if (CASES.includes("m14")) await step("m14", () => caseM14(run, oldDir, py));
+      if (READS_V5.has(v)) { if (!flag("--keep-data")) for (const e of envs.splice(0)) fs.rmSync(e.base, { recursive: true, force: true }); continue; }
       const aged = [];
       if (CASES.includes("a") || CASES.includes("d")) { const r = await step("a", () => caseA(run, oldDir, py)); if (r) aged.push({ ...r, label: "a (made by 4.6)" }); }
       if (CASES.includes("b") || CASES.includes("c"))

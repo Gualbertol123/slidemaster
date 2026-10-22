@@ -22,7 +22,7 @@ import { halfLeading, lu, primaryFamily, type Metrics, type TableDL } from "./ex
 import { pageNoFor, pageNoGeom, footerGeom, pageNumber, pnFmt, isHidden } from "./pagenumbers";
 import { contrastVars, memoPart, noteParts, slideHasLogo, themeVars, type NotePart } from "./slide";
 import { areaFor, itemBoxOf, KPI_LINE, NAVY_BAND, SIGNAL_AREA, slideFacts, tableH, tableW, type TBox } from "./layout";
-import { chartNodes, chartSem, type PieGeom } from "./chart-dl";
+import { cachedChartNodes, chartSem, type PieGeom } from "./chart-dl";
 import { shapeNodes, shapeRadius } from "./shape-dl";
 import { frameStroke, noteFrame } from "./note-frame";
 import { lineNodes } from "./line-dl";
@@ -215,11 +215,14 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
   function chartItem(it: ChartItem, id: string, box: Box): ItemInfo {
     const s0 = low.length;
     const family = glassy ? base : C ? C.note.family : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel;
-    const c = chartNodes(it, id, box, ctx, m, { V, wall, family });
+    // built once per chart key (S14.2: the item, its data with each sheet's generation, the look, the scenario's overlay)
+    const c = cachedChartNodes(it, id, box, ctx, m, { V, wall, family });
     low.push(...c.nodes);
     // the PowerPoint export: the card alone under a native chart
-    const sem = opts.sem ? chartSem(it, box, ctx, family) : null;
-    return { box, issue: c.issue, geom: c.geom, at: [s0, low.length], ...(sem ? { pptx: { kind: "chart", at: [s0, low.length], card: chartNodes(it, id, box, ctx, m, { V, wall, family, noContent: true }).nodes, chart: sem } } : {}) };
+    const sem = opts.sem ? chartSem(it, box, ctx, family, m) : null;
+    // (the card under the native chart; dividers and marks over it as plain shapes, S14.3)
+    const card = sem ? cachedChartNodes(it, id, box, ctx, m, { V, wall, family, noContent: true }) : null;
+    return { box, issue: c.issue, geom: c.geom, at: [s0, low.length], ...(sem && card ? { pptx: { kind: "chart", at: [s0, low.length], card: card.nodes, chart: sem, ...(card.overlay?.length ? { overlay: card.overlay } : {}) } } : {}) };
   }
   /* a callout or an icon (4.3; Tabler icons 4.8, M15) */
   function shapeItem(it: ShapeItem, id: string, box: Box): ItemInfo {

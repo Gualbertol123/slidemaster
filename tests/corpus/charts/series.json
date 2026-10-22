@@ -1,0 +1,353 @@
+{
+ "workbook": "report.xlsx",
+ "ops": [
+  {
+   "op": "preset.set",
+   "preset": {
+    "sheets": [
+     "SLIDE_1",
+     "SLIDE_2 panel",
+     "SLIDE_3 pair"
+    ],
+    "tables": [
+     {
+      "id": "dhnms9c",
+      "sheet": "SLIDE_1",
+      "kind": "markers",
+      "anchor": "B3",
+      "index": 0
+     },
+     {
+      "id": "ybyk4v2",
+      "sheet": "SLIDE_3 pair",
+      "kind": "markers",
+      "anchor": "B3",
+      "index": 0
+     },
+     {
+      "id": "62de08x",
+      "sheet": "SLIDE_3 pair",
+      "kind": "markers",
+      "anchor": "G3",
+      "index": 1
+     }
+    ],
+    "slides": [
+     {
+      "id": "u9t3fqb",
+      "type": "content",
+      "title": "Loans by bank",
+      "subtitle": null,
+      "tables": [
+       "dhnms9c"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "9lywu2f",
+      "type": "content",
+      "title": null,
+      "subtitle": null,
+      "tables": [
+       "ybyk4v2",
+       "62de08x"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "ch3",
+      "type": "content",
+      "title": "Deposits and other figures",
+      "subtitle": "Charts without a table",
+      "tables": [],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "co4",
+      "type": "content",
+      "title": "Callouts",
+      "subtitle": "Shapes and icons quoting cells",
+      "tables": [],
+      "layout": null,
+      "date": null,
+      "note": null
+     }
+    ]
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "u9t3fqb",
+   "id": "col1",
+   "patch": {
+    "kind": "chart",
+    "type": "column",
+    "values": {
+     "table": "dhnms9c",
+     "range": "D6:D18"
+    },
+    "title": "Loans and deposits",
+    "legendAt": "bottom",
+    "sers": {
+     "l": {
+      "n": 1,
+      "vals": [
+       {
+        "table": "dhnms9c",
+        "range": "D6:D18"
+       }
+      ]
+     },
+     "d": {
+      "n": 2,
+      "vals": [
+       {
+        "table": "dhnms9c",
+        "range": "F6:F18"
+       }
+      ]
+     }
+    },
+    "box": {
+     "x": 0,
+     "y": 0,
+     "w": 560,
+     "h": 480
+    },
+    "attach": {
+     "table": "dhnms9c",
+     "side": "right"
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "ch3",
+   "id": "clu",
+   "patch": {
+    "kind": "chart",
+    "type": "column",
+    "values": {
+     "table": "62de08x",
+     "range": "I5:I13"
+    },
+    "title": "By region, Q1–Q3",
+    "legendAt": "bottom",
+    "sers": {
+     "q1": {
+      "n": 1,
+      "vals": [
+       {
+        "table": "62de08x",
+        "range": "I5:I13"
+       }
+      ],
+      "labels": {
+       "show": [
+        "value"
+       ]
+      }
+     },
+     "q2": {
+      "n": 2,
+      "vals": [
+       {
+        "table": "62de08x",
+        "range": "J5:J13"
+       }
+      ]
+     },
+     "q3": {
+      "n": 3,
+      "vals": [
+       {
+        "table": "62de08x",
+        "range": "K5:K13"
+       }
+      ]
+     }
+    },
+    "box": {
+     "x": 570,
+     "y": 180,
+     "w": 470,
+     "h": 440
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "ch3",
+   "id": "stk",
+   "patch": {
+    "kind": "chart",
+    "type": "column",
+    "stack": "stacked",
+    "values": {
+     "table": "62de08x",
+     "range": "I5:I13"
+    },
+    "title": "Stacked",
+    "legendAt": "right",
+    "gap": 80,
+    "sers": {
+     "q1": {
+      "n": 1,
+      "vals": [
+       {
+        "table": "62de08x",
+        "range": "I5:I13"
+       }
+      ]
+     },
+     "q2": {
+      "n": 2,
+      "vals": [
+       {
+        "table": "62de08x",
+        "range": "J5:J13"
+       }
+      ]
+     },
+     "q3": {
+      "n": 3,
+      "vals": [
+       {
+        "table": "62de08x",
+        "range": "K5:K13"
+       }
+      ]
+     }
+    },
+    "box": {
+     "x": 1070,
+     "y": 180,
+     "w": 470,
+     "h": 440
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "ch3",
+   "id": "pct",
+   "patch": {
+    "kind": "chart",
+    "type": "column",
+    "stack": "percent",
+    "values": {
+     "table": "62de08x",
+     "range": "I8:I13"
+    },
+    "title": "",
+    "legendAt": "top-right",
+    "legendHide": {
+     "q2": true
+    },
+    "sers": {
+     "q1": {
+      "n": 1,
+      "vals": [
+       {
+        "table": "62de08x",
+        "range": "I8:I13"
+       }
+      ],
+      "labels": {
+       "show": [
+        "percent"
+       ]
+      }
+     },
+     "q2": {
+      "n": 2,
+      "vals": [
+       {
+        "table": "62de08x",
+        "range": "J8:J13"
+       }
+      ]
+     }
+    },
+    "box": {
+     "x": 570,
+     "y": 640,
+     "w": 970,
+     "h": 200
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "co4",
+   "id": "bar",
+   "patch": {
+    "kind": "chart",
+    "type": "bar",
+    "values": {
+     "table": "dhnms9c",
+     "range": "D6:D18"
+    },
+    "title": "Loans by bank",
+    "legendAt": "inside-tr",
+    "sers": {
+     "l": {
+      "n": 1,
+      "vals": [
+       {
+        "table": "dhnms9c",
+        "range": "D6:D18"
+       }
+      ],
+      "labels": {
+       "show": [
+        "value"
+       ],
+       "pos": "inEnd"
+      },
+      "points": {
+       "0": {
+        "color": "#A6A6A6"
+       },
+       "2": {
+        "label": null
+       }
+      }
+     },
+     "d": {
+      "n": 2,
+      "vals": [
+       {
+        "sheet": "Numbers",
+        "range": "B2:B4"
+       }
+      ],
+      "name": "From the Numbers sheet"
+     }
+    },
+    "axes": {
+     "x": {
+      "fmt": {
+       "b": true
+      }
+     },
+     "y": {
+      "grid": false
+     }
+    },
+    "box": {
+     "x": 570,
+     "y": 180,
+     "w": 970,
+     "h": 640
+    }
+   }
+  }
+ ]
+}

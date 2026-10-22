@@ -1,0 +1,22 @@
+/* the series chart's side panel (S14.5, ChartSeriesPanel.tsx) and the stage's selected point / mark */
+.chartpanel .ctypes{flex-wrap:wrap}
+.chartpanel .sec{margin:6px 0;border-top:1px solid var(--line,#e3e5ea);padding-top:4px}
+.chartpanel .sec>summary{cursor:pointer;font-weight:600;margin:2px 0}
+.chartpanel .num{width:56px}
+.chartpanel .nm{flex:1;min-width:70px}
+.chartpanel .note{color:#5B6274;font-size:11px}
+.chartpanel code{font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chartpanel .ser{border-radius:4px;padding:2px 4px}
+.chartpanel .ser.on{background:rgba(10,102,216,.08)}
+.chartpanel .ser.hid .nm{opacity:.55}
+.chartpanel .serhd{display:flex;align-items:center;gap:4px}
+.chartpanel .serbody{padding:2px 0 4px 20px}
+.chartpanel .sw{position:relative;width:16px;height:16px;flex:none}
+.chartpanel .sw input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+.chartpanel .sw i{display:block;width:16px;height:16px;border-radius:3px;border:1px solid rgba(0,0,0,.2)}
+.chartpanel .mark{cursor:pointer;border-radius:4px}
+.chartpanel .mark.on{background:rgba(10,102,216,.12)}
+.chartpanel .mark .where{color:#5B6274;font-size:11px}
+.chartpanel .pointbox{background:rgba(10,102,216,.05);padding:4px}
+.chartpanel .axis{margin:2px 0 6px}
+.slide .itembox .pointmark{position:absolute;border:2px solid #0A66D8;border-radius:4px;pointer-events:none;box-shadow:0 0 0 2px rgba(255,255,255,.8)}
