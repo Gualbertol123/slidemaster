@@ -27,7 +27,7 @@ export function slideIssues(R: RuntimeSlide, ctx: RenderCtx, items?: Record<stri
   if (R.type === "cover") return [{ cls: "", html: "Cover slide · double-click the title to edit it, or use the wizard (step 3)." }, ...out];
   if (R.type === "index") return [{ cls: "", html: `Index slide · lists ${ctx.slides.filter(s => s.type === "content").length} content slide(s) with their page numbers.` }, ...out];
   if (R.missing) out.push({ cls: "err", html: `${R.missing} table${R.missing > 1 ? "s" : ""} of this slide could not be found (sheet renamed or deleted?). Open the wizard to fix.` });
-  if (R.dropWhole) out.push({ cls: "warn", html: `${R.dropWhole > 1 ? R.dropWhole + " tables" : "A table"} of this slide shown${R.dropWhole > 1 ? "" : " with"} every row and column in this version: its deleted ones would leave none. Restore some (Cells › For this version ▾).` });
+  if (R.dropWhole) out.push({ cls: "warn", html: `${R.dropWhole > 1 ? R.dropWhole + " tables" : "A table"} of this slide shown${R.dropWhole > 1 ? "" : " with"} every row and column in this version: its deleted ones would leave none, so this version is not exported. Restore some (Cells › For this version ▾).` });
   if (!R.tables.length) out.push({ cls: "warn", html: "No tables on this slide." });
   const { boxes } = computeLayout(R, ctx);
   const sheets = new Set<Sheet>();

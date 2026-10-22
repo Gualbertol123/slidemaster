@@ -174,7 +174,7 @@ export function runtimeSlides(wb: Workbook, preset: Preset | null, workbookName:
     const S0 = tables[0] && tables[0].sheet;
     const sameSheet = tables.length > 0 && tables.every(L => L.sheet === S0);
     const R: RuntimeSlide = { id: ps.id, type: ps.type || "content", cfg: ps, tables, missing: (ps.tables || []).filter(id => !T[id]).length, title: "", subtitle: "", label: "" };
-    const nw = whole.size ? (ps.tables || []).filter(id => whole.has(id)).length : 0; if (nw) R.dropWhole = nw;
+    const ws = whole.size ? (ps.tables || []).filter(id => whole.has(id)) : []; if (ws.length) { R.dropWhole = ws.length; R.dropWholeIds = ws; }
     if (R.type === "cover") { R.title = ps.title || workbookName.replace(/\.[^.]+$/, ""); R.subtitle = ps.subtitle || ""; R.label = "Cover"; }
     else if (R.type === "index") { R.title = ps.title || "Contents"; R.subtitle = ps.subtitle || ""; R.label = "Index"; }
     else {

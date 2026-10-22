@@ -15,7 +15,8 @@ What users notice
   beside *Remove cells* (struck through on the grid, ✕ restores one), and Ribbon 2 › Cells › *For this version ▾*
   deletes rows / columns, empties cells or restores them for the version shown. That version's tables close up, its
   charts and callouts skip the deleted cells, and every export and run of that version follows; the full deck and the
-  other versions keep them. A delete that would leave a table empty is refused.
+  other versions keep them. A delete that would leave a table empty is refused; should two people's changes still
+  reach it, that version is not exported (the export names the version and the table) until some rows are restored.
 * **The fuller format painter** (S16.3, B38): new *Number* buttons – fewer / more decimals, percent, thousands –
   and the top / middle / bottom buttons now work on cells; *Clear format* clears both. The painter also copies the
   number display and the vertical position (a date keeps its own date format). Ctrl+click several ranges – on any

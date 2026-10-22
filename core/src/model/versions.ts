@@ -5,7 +5,7 @@
 import { dropHidden, emptyHide, type HideSet } from "./hidden";
 import { gToRange, rangeToG, validRange } from "./preset";
 import { colToNum, numToCol } from "../xlsx/util";
-import type { DeckVersion, Op, Preset } from "./types";
+import type { DeckVersion, Op, Preset, RuntimeSlide } from "./types";
 
 export const versionOf = (preset: Preset | null | undefined, id: string | null | undefined): DeckVersion | null =>
   id ? (preset?.versions || []).find(v => v && v.id === id) || null : null;
@@ -24,6 +24,19 @@ export function wizardVersions(list: DeckVersion[], sheets: ReadonlySet<string>)
     const drop = kept(v.drop), { drop: _d, ...rest } = v;
     return { ...rest, id: v.id, name: v.name.trim(), hide: kept(v.hide), ...(Object.keys(drop).length ? { drop } : {}) };
   });
+}
+/** AUDIT-3 DATA-8 (owner decision 2026-10-22: fail closed): a version whose deleted rows / columns would leave a table
+    of an exported slide with none is not exported at all – the stage shows such a table whole and the Issues panel
+    names it, but an export for that audience must never carry the rows it deletes. The message (naming the version,
+    each table and its slides), or null. `slides`: the slide numbers (0-based) the export holds */
+export function dropWholeRefusal(version: DeckVersion | null | undefined, rs: readonly RuntimeSlide[], preset: Preset | null | undefined, slides: readonly number[]): string | null {
+  if (!version) return null;
+  const at = new Map<string, number[]>();
+  for (const s of slides) for (const id of rs[s]?.dropWholeIds || []) (at.get(id) || at.set(id, []).get(id)!).push(s + 1);
+  if (!at.size) return null;
+  const label = (id: string) => { const d = (preset?.tables || []).find(t => t.id === id); return d?.name || d?.sheet || id; };
+  const what = [...at].map(([id, ns]) => `“${label(id)}” (slide${ns.length > 1 ? "s" : ""} ${ns.join(", ")})`).join(", ");
+  return `Version “${version.name}” deletes every row or column of ${what}: it cannot be exported. Restore some of them (Ribbon 2 › Cells › For this version ▾, or the ✦ Wizard › 4 · Versions).`;
 }
 /** a cell in a row or column the version deletes (a callout quoting it shows it empty, as a removed one) */
 export function droppedCell(v: DeckVersion | null | undefined, sheet: string, r: number, c: number): boolean {

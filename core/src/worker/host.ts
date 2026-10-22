@@ -17,7 +17,7 @@ import { sliceBoxes, sliceShared, sliceSheet, sliceTransfer, type SharedSlice, t
 import { cellInfo, sheetInfo, sheetWindow, tableSize } from "../xlsx/sheetview";
 import { detectTables } from "../xlsx/detect";
 import { defaultPreset, LCACHE, presetSheets, rangeToG, runtimeSlides } from "../model/preset";
-import { versionDrop } from "../model/versions";
+import { dropWholeRefusal, versionDrop } from "../model/versions";
 import { dropHidden } from "../model/hidden";
 import { resolveStyle } from "../model/style";
 import { tableDrawKey } from "../render/slide";
@@ -643,6 +643,11 @@ export class CoreHost {
     else if (a.scenario) { const r = this.runs.get(a.scenario); if (!r || !r.view || r.wb !== this.wb) throw new Error("this run has ended"); src = r; }
     const run = typeof src === "object" ? src : null;
     const ctx = this.ctx(a.design, a.version, a.forExport, src), glass = ctx.style.design === "glass", out: SlideList[] = [];
+    // AUDIT-3 DATA-8: an export of a version that would leave a table with no row / column is refused (fail closed)
+    if (a.forExport) {
+      const no = dropWholeRefusal(ctx.version, ctx.slides, ctx.preset, ctx.slides.flatMap((_, s) => (a.slides ? a.slides.includes(s) : !isHidden(ctx, s)) ? [s] : []));
+      if (no) throw new Error(no);
+    }
     // the PowerPoint export: the design's chart colours as the theme's accents
     const palette = a.pptx ? chartLook(ctx, "").colors.slice(0, 6) : [];
     await glassFonts(ctx);

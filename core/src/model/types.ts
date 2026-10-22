@@ -237,6 +237,7 @@ export interface RuntimeSlide {
   id: string; type: SlideType; cfg: SlideDef; tables: TableLayout[]; missing: number;
   /** tables the shown version's deleted rows / columns would leave with none (4.9, B37): drawn whole instead (a table
       never vanishes), named by the Issues panel */ dropWhole?: number;
+  /** those tables (ids): an export of the version is refused (AUDIT-3 DATA-8, model/versions.ts dropWholeRefusal) */ dropWholeIds?: string[];
   title: string; subtitle: string; label: string;
   _auto?: Layout | null;
 }

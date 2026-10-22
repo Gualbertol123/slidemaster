@@ -188,7 +188,7 @@ describe("VD-02: only that version changes – table, charts, comments, KPIs, ca
     expect(tableKey(all, A)).not.toBe(tableKey(full, F));
     expect(tableKey(chief, chief.slides[0].tables[0])).toBe(tableKey(full, F));
   });
-  it("a table the version would leave with no row (two writers' merge; the menu and the wizard refuse it) keeps every row, counted for the Issues panel", async () => {
+  it("a table the version would leave with no row (two writers' merge; the menu and the wizard refuse it): on the stage it keeps every row, counted for the Issues panel – its exports are refused (DATA-8, below)", async () => {
     const wb = await book(), p = preset();
     p.versions = [...p.versions!, { id: "vx", name: "Nothing", hide: {}, drop: { SLIDE_1: ["1:40"] } }];
     const full = ctxOf(wb, p), x = ctxOf(wb, p, "vx");
@@ -320,6 +320,28 @@ describe("VD-03: every export of that version (the worker)", () => {
     expect(await h.apply("Restore all of “All”", [V("va", { hide: null, drop: null })])).toBe(true);
     const z = unzipSync(new Uint8Array((await h.run("pptx", "excel", "va")).files[0]));
     expect(tablesOf(strFromU8(z["ppt/slides/slide1.xml"]))[0].rows).toBe(15);
+  }, 180_000);
+  it("DATA-8 (AUDIT-3): a version that would delete every row of a table is never exported – each export of it is refused, naming the version and the table; the full deck and the other versions export", async () => {
+    const p = preset();
+    p.versions = [...p.versions!, { id: "vx", name: "Nothing", hide: {}, drop: { SLIDE_1: ["1:40"] } }];
+    const deck = new FakeDeck("report.xlsx-0123456789", "report.xlsx"), h = await open(deck, p);
+    const name = (p.tables || []).find(t => t.id === T)!.name || "SLIDE_1";
+    for (const kind of ["pptx", "pdf", "png"] as const) {
+      const r = h.run(kind, "excel", "vx");
+      await expect(r, kind).rejects.toThrow(/“Nothing”/);
+      await expect(h.run(kind, "excel", "vx"), kind).rejects.toThrow(new RegExp("every row or column of “" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "”.*slides? 1, 2"));
+    }
+    await expect(h.lists("excel", "vx")).rejects.toThrow(/cannot be exported/);
+    // the stage (not an export) shows it with every row, as the Issues panel says
+    await h.show("vx");
+    expect(await h.stage(0)).toContain("Epsilon");
+    await h.show("");
+    // the full deck and the other versions: exported as before
+    expect((await h.run("pptx", "excel", "")).files.length).toBe(1);
+    expect((await h.run("pptx", "excel", "va")).files.length).toBe(1);
+    // the version restored (a row kept): exported again
+    expect(await h.apply("Restore", [V("vx", { drop: { SLIDE_1: ["1:9"] } })])).toBe(true);
+    expect((await h.run("pptx", "excel", "vx")).files.length).toBe(1);
   }, 180_000);
   it("the stage's version (inputs): the worker's slides follow the version shown, and back", async () => {
     const deck = new FakeDeck("report.xlsx-0123456789", "report.xlsx"), h = await open(deck, preset());
