@@ -12,6 +12,7 @@ import { A1, esc, fmtMB, numToCol, uid } from "@slide-builder/core/xlsx/util";
 import type { SheetInfo, SheetWindow } from "@slide-builder/core/xlsx/sheetview";
 import type { DeckVersion, Preset, SlideDef, TableDef } from "@slide-builder/core/model/types";
 import { SLIDE_RX, gToRange, rangeToG, validRange } from "@slide-builder/core/model/preset";
+import { dropBands, dropEdit, dropEmpties, dropLabel } from "@slide-builder/core/model/versions";
 import { todayLabel } from "@slide-builder/core/render/cover";
 import { Input } from "../ui/Input";
 
@@ -53,7 +54,7 @@ export function Wizard({ req }: { req: WizardReq }) {
       step: 1, sheets: new Set((P.sheets && P.sheets.length ? P.sheets : P.tables.map(t => t.sheet)).filter(n => inMeta(n) || lostLink(n))),
       tables: P.tables.filter(t => inMeta(t.sheet) || lostLink(t.sheet)), slides: P.slides.map(s => ({ ...s, tables: (s.tables || []).slice() })),
       cur: null, sel: null, suggest: {}, focusSlide: null, grids: {}, grow: false, info: {}, sizes: {}, sizeSig: "", windows: {}, failed: {}, ready: false,
-      versions: (P.versions || []).map(v => ({ ...v, hide: JSON.parse(JSON.stringify(v.hide || {})) })), vcur: null,
+      versions: (P.versions || []).map(v => ({ ...v, hide: JSON.parse(JSON.stringify(v.hide || {})), drop: JSON.parse(JSON.stringify(v.drop || {})) })), vcur: null,
       links: (P.links || []).slice(),
     };
     w.vcur = w.versions[0]?.id || null;
@@ -138,8 +139,9 @@ export function Wizard({ req }: { req: WizardReq }) {
       if (o.logo !== false) delete o.logo;
       return o;
     });
-    const versions = W.versions.filter(v => v.name.trim()).map(v => ({ id: v.id, name: v.name.trim(),
-      hide: Object.fromEntries(Object.entries(v.hide).filter(([sh, rs]) => W.sheets.has(sh) && rs.length)) }));
+    const kept = (m: Record<string, string[]> | undefined) => Object.fromEntries(Object.entries(m || {}).filter(([sh, rs]) => W.sheets.has(sh) && rs.length));
+    const versions = W.versions.filter(v => v.name.trim()).map(v => { const drop = kept(v.drop);       // (4.9: deleted rows / columns, B37)
+      return { id: v.id, name: v.name.trim(), hide: kept(v.hide), ...(Object.keys(drop).length ? { drop } : {}) }; });
     // the linked workbooks the deck draws from (a file linked but no longer used is dropped)
     const links = W.links.filter(f => [...W.sheets].some(s => parseSheetId(s).book === f));
     close({ sheets: [...W.sheets], tables: W.tables.map(t => { const o = { ...t }; if (!o.name) delete o.name; return o; }), slides, ...(versions.length ? { versions } : {}), ...(links.length ? { links } : {}) });
@@ -224,9 +226,23 @@ export function Wizard({ req }: { req: WizardReq }) {
       W.sel = null; render(); return true;
     };
     const cuts = V ? Object.entries(V.hide).flatMap(([sh, rs]) => rs.map(r => ({ sh, r }))) : [];
+    // 4.9 (B37): whole rows / columns of the selection deleted in this version – the tables close up
+    const dropSel = (kind: "r" | "c") => {
+      if (!S || !V || !W.sel) return;
+      const d = V.drop || (V.drop = {}), ns: number[] = [];
+      for (let n = kind === "r" ? W.sel.r1 : W.sel.c1; n <= (kind === "r" ? W.sel.r2 : W.sel.c2); n++) ns.push(n);
+      const next = dropEdit(d[S.name], kind, ns, true), win = W.windows[S.name];
+      // a table keeps at least one row / column (as For this version ▾ – S16.2 review): else it would leave the slides
+      const off = win && win !== "loading" ? { row: (r: number) => !!win.rows[r - win.r0]?.hidden, col: (c: number) => !!win.cols[c - win.c0]?.hidden } : undefined;
+      const bad = dropEmpties(next, tablesOf(S.name).map(t => defRange(S, t)), off);
+      if (bad) { void alertBox(`A table keeps at least one ${kind === "r" ? "row" : "column"}`, `Deleting these ${kind === "r" ? "rows" : "columns"} in “${esc(V.name)}” would leave the table <code>${esc(bad)}</code> with none: select fewer.`); return; }
+      d[S.name] = next; W.sel = null; render();
+    };
+    const drops = V ? Object.entries(V.drop || {}).flatMap(([sh, rs]) => rs.map(r => ({ sh, r }))) : [];
+    const removed = (v: DeckVersion, sh?: string) => Object.entries(v.hide).concat(Object.entries(v.drop || {})).filter(([s]) => !sh || s === sh).reduce((n, [, rs]) => n + rs.length, 0);
     return [
       <div className="wiz2 wiz4">
-        <div className="wtabs">{chosen.map(sh => <button key={sh.name} className={"wtab" + (sh.name === S?.name ? " on" : "")} onClick={() => { W.cur = sh.name; W.sel = null; render(); }}><span>{shown(sh.name)}</span><span className="badge2">{V ? (V.hide[sh.name] || []).length : 0}</span></button>)}</div>
+        <div className="wtabs">{chosen.map(sh => <button key={sh.name} className={"wtab" + (sh.name === S?.name ? " on" : "")} onClick={() => { W.cur = sh.name; W.sel = null; render(); }}><span>{shown(sh.name)}</span><span className="badge2">{V ? removed(V, sh.name) : 0}</span></button>)}</div>
         <div className="wgridwrap">{S && <SheetGrid book={wb.book} S={S} W={W} tables={tablesOf(S.name)} onAdd={cut} onPick={() => render()} />}</div>
         <div className="wside">
           <div className="lbl">Versions</div>
@@ -235,7 +251,7 @@ export function Wizard({ req }: { req: WizardReq }) {
             {W.versions.map(v => <div key={v.id} className={"wvrow" + (v.id === W.vcur ? " on" : "")} data-v={v.name} onClick={() => { W.vcur = v.id; render(); }}>
               <input type="radio" readOnly checked={v.id === W.vcur} />
               <Input className="nmin" value={v.name} onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()} onChange={e => { v.name = (e.target as HTMLInputElement).value; }} onBlur={() => render()} />
-              <span className="meta">{Object.values(v.hide).reduce((n, rs) => n + rs.length, 0) || "nothing"} removed</span>
+              <span className="meta">{removed(v) || "nothing"} removed</span>
               <button className="btn icon del" title="Delete this version" onClick={e => { e.stopPropagation(); W.versions = W.versions.filter(x => x !== v); if (W.vcur === v.id) W.vcur = W.versions[0]?.id || null; render(); }}>✕</button>
             </div>)}
           </div>
@@ -244,10 +260,14 @@ export function Wizard({ req }: { req: WizardReq }) {
             <div className="lbl" style={{ marginTop: "10px" }}>Remove cells in “{V.name}”</div>
             <div className="row"><input id="wCutRange" readOnly placeholder="drag across cells on the sheet" value={W.sel ? A1(W.sel.r1, W.sel.c1) + ":" + A1(W.sel.r2, W.sel.c2) : ""} />
               <button className="btn primary" id="wCut" disabled={!W.sel} onClick={() => W.sel && cut(A1(W.sel.r1, W.sel.c1) + ":" + A1(W.sel.r2, W.sel.c2))}>Remove</button></div>
-            <div className="meta">Removed cells are shown completely empty in this version (no value, no colour). Enter also removes the selection.</div>
+            <div className="row"><button className="btn" id="wDropRows" disabled={!W.sel} title="Delete the selected rows in this version: its tables close up" onClick={() => dropSel("r")}>Delete rows</button>
+              <button className="btn" id="wDropCols" disabled={!W.sel} title="Delete the selected columns in this version: its tables close up" onClick={() => dropSel("c")}>Delete columns</button></div>
+            <div className="meta">Removed cells are shown completely empty in this version (no value, no colour). Enter also removes the selection. Deleted rows and columns are left out of its tables, which close up (struck through on the sheet).</div>
+            <div className="wtlist" id="wDrops">{drops.map(({ sh, r }) => <div className="wcut" key={sh + r}><code>{sh}: {dropLabel(r)} deleted</code>
+              <button className="btn icon del" title="Restore these rows / columns" onClick={() => { const d = V.drop!; d[sh] = d[sh].filter(x => x !== r); if (!d[sh].length) delete d[sh]; render(); }}>✕</button></div>)}</div>
             <div className="wtlist" id="wCuts">{cuts.length ? cuts.map(({ sh, r }) => <div className="wcut" key={sh + r}><code>{sh}!{r}</code>
               <button className="btn icon del" title="Keep these cells" onClick={() => { V.hide[sh] = (V.hide[sh] || []).filter(x => x !== r); if (!V.hide[sh].length) delete V.hide[sh]; render(); }}>✕</button></div>)
-              : <div className="meta" style={{ padding: "6px 2px" }}>Nothing removed – this version shows everything.</div>}</div>
+              : !drops.length && <div className="meta" style={{ padding: "6px 2px" }}>Nothing removed – this version shows everything.</div>}</div>
           </>}
         </div>
       </div>,
@@ -515,6 +535,9 @@ function paintOverlays(S: SheetInfo, W: W, tables: TableDef[], onAdd: (r: string
   if (W.step === 4) {
     const V = W.versions.find(v => v.id === W.vcur);
     (V?.hide[S.name] || []).forEach(r => { const g = rangeToG(r), b = boxFor(grid, g.r1 + 1, g.c1 + 1, g.r2 - 1, g.c2 - 1); if (b) h += `<div class="ovb cut" style="left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px"></div>`; });
+    // deleted rows / columns (4.9, B37): struck through across the preview
+    const win = W.windows[S.name], R2 = win && win !== "loading" ? win.r1 : 0, C2 = win && win !== "loading" ? win.c1 : 0;
+    dropBands(V?.drop?.[S.name]).forEach(d => { const b = d.kind === "r" ? boxFor(grid, d.a, 1, Math.min(d.b, R2), C2) : boxFor(grid, 1, d.a, R2, Math.min(d.b, C2)); if (b) h += `<div class="ovb drop ${d.kind}" data-drop="${esc(d.entry)}" style="left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px"></div>`; });
     if (W.sel) { const b = boxFor(grid, W.sel.r1, W.sel.c1, W.sel.r2, W.sel.c2); if (b) h += `<div class="ovb sel" style="left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px"></div>`; }
     setBoxes(ov, h); return;
   }

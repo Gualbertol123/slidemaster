@@ -126,8 +126,43 @@ export function applyOp(doc: Doc, op: Op | Record<string, unknown>): boolean {
       s.tables.splice(i, 1);                                                          // its def, notes and free boxes stay
       return true;
     }
+    /* 09 §2.5 (4.9, B37): `name` on a missing id creates the version, appended, with `hide: {}`; null deletes it; `hide`
+       and `drop` merge per sheet (a sheet's list replaced whole: of two writers on one sheet the later wins, Lamport) */
+    case "version.patch": {
+      if (!okId(o.id) || !doc.preset || (o.patch !== null && !isObj(o.patch))) return false;
+      const list = doc.preset.versions || [], i = list.findIndex(v => v && v.id === o.id), p = o.patch;
+      if (p === null) {
+        if (i < 0) return false;
+        list.splice(i, 1);
+        if (list.length) doc.preset.versions = list; else delete doc.preset.versions;
+        return true;
+      }
+      if ("name" in p && !okName(p.name)) return false;                               // a version always has a name
+      if (i < 0 && !("name" in p)) return false;                                      // creating needs one
+      const v = (i < 0 ? { id: o.id, name: p.name, hide: {} } : list[i]) as unknown as Record<string, unknown>;
+      if ("name" in p) v.name = p.name;
+      if ("hide" in p) { if (p.hide === null) v.hide = {}; else sheetMerge(v, "hide", p.hide); if (!isObj(v.hide)) v.hide = {}; }
+      if ("drop" in p) { if (p.drop === null) delete v.drop; else sheetMerge(v, "drop", p.drop); if (isObj(v.drop) && !Object.keys(v.drop).length) delete v.drop; }
+      if (i < 0) { list.push(v as never); doc.preset.versions = list; }
+      return true;
+    }
   }
   return false;
+}
+/* version.patch (4.9, B37): a version's name, its emptied cells and its deleted rows / columns per sheet */
+const VERSION_KEYS = ["name", "hide", "drop"] as const;
+const okName = (x: unknown): x is string => typeof x === "string" && !!x.trim();
+/** a version's per-sheet lists (`hide`, `drop`): each sheet's list of strings replaced whole, null removes the sheet; an
+    entry that is no list of strings is ignored */
+function sheetMerge(v: Record<string, unknown>, key: string, patch: unknown) {
+  if (!isObj(patch)) return;
+  const m = (isObj(v[key]) ? v[key] : {}) as Record<string, unknown>;
+  for (const [sheet, x] of Object.entries(patch)) {
+    if (sheet === "__proto__") continue;
+    if (x === null) delete m[sheet];
+    else if (Array.isArray(x) && x.every(s => typeof s === "string")) { if (x.length) m[sheet] = [...x]; else delete m[sheet]; }
+  }
+  v[key] = m;
 }
 const okId = (x: unknown): x is string => typeof x === "string" && !!x && x !== "__proto__";
 /** a slide definition slide.add applies: an id, a type this page draws, a list of distinct table ids (a table twice on
@@ -156,6 +191,7 @@ export function knownOp(op: Op | Record<string, unknown>): boolean {
     case "slide.add": return isObj(o.slide) && SLIDE_TYPES.includes(o.slide.type as string);
     case "table.add": return isObj(o.table) && TABLE_KINDS.includes(o.table.kind as string);
     case "slide.remove": case "table.remove": return true;
+    case "version.patch": return p === null || only(VERSION_KEYS);
   }
   return false;
 }
@@ -294,6 +330,29 @@ export function inverseOf(doc: Doc, op: Op): Op | null {
       const def = doc.preset?.tables.find(x => x.id === op.id);
       if (at < 0 || !def) return null;
       return { op: "table.add", table: clone(def), slide: op.slide, at };
+    }
+    // create ↔ delete (the undo of a delete re-creates the version at the end), per sheet entry otherwise (09 §2.5)
+    case "version.patch": {
+      if (!doc.preset || !okId(op.id) || (op.patch !== null && !isObj(op.patch))) return null;
+      const cur = (doc.preset.versions || []).find(v => v && v.id === op.id) as unknown as Record<string, unknown> | undefined, p = op.patch;
+      if (!cur) return p && okName(p.name) ? { op: "version.patch", id: op.id, patch: null } : null;
+      if (p === null) {
+        if (!okName(cur.name)) return null;
+        const back: Record<string, unknown> = { name: cur.name, hide: clone(isObj(cur.hide) ? cur.hide : {}) };
+        if (isObj(cur.drop) && Object.keys(cur.drop).length) back.drop = clone(cur.drop);
+        return { op: "version.patch", id: op.id, patch: back } as Op;
+      }
+      if ("name" in p && !okName(p.name)) return null;                                 // skipped: no undo
+      const out: Record<string, unknown> = {};
+      if ("name" in p) out.name = cur.name;
+      for (const k of ["hide", "drop"] as const) {
+        if (!(k in p)) continue;
+        const was = (isObj(cur[k]) ? cur[k] : {}) as Record<string, unknown>, x = p[k];
+        // hide: null empties it – its undo puts back each sheet's list; drop: null deletes it – its undo the whole map
+        if (x === null) out[k] = k === "drop" && !Object.keys(was).length ? null : clone(was);
+        else if (isObj(x)) { const inv: Record<string, unknown> = {}; for (const s of Object.keys(x)) if (s !== "__proto__") inv[s] = was[s] === undefined ? null : clone(was[s]); out[k] = inv; }
+      }
+      return { op: "version.patch", id: op.id, patch: out } as Op;
     }
   }
   return null;

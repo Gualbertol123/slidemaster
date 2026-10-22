@@ -15,6 +15,7 @@ import { scaleColors } from "@slide-builder/core/render/scales";
 import { A1, uid, esc } from "@slide-builder/core/xlsx/util";
 import type { CellBorders, CellBorderSide, CellGrid, Op, ScaleRule, Side } from "@slide-builder/core/model/types";
 import { Dropdown } from "./Dropdown";
+import { VersionMenu } from "./VersionMenu";
 import { askAutomatic, freeLayoutOff, freeLayoutOn } from "../editor/free";
 import { ShapeTools } from "./ShapeTools";
 import { InsertSlots } from "./InsertSlots";
@@ -203,6 +204,7 @@ export function TableRibbon() {
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="2" y="2" width="12" height="12" strokeDasharray="1.5 1.5" /><path d="M2 14h12" strokeWidth="2.2" /></svg>Borders ▾</button>}>{() => T ? <BorderMenu T={T} /> : null}</Dropdown>
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="scaleBtn" disabled={!hasSel} title="Colour scale: deeper green/red the bigger the number" onClick={t}>
           <i className="scaleico" />Colour scale</button>}>{close => <ScaleMenu close={close} />}</Dropdown>
+        <VersionMenu />
       </div>
       <div className="grp">
         <button className="tb" id="sameSize" disabled={!R || R.tables.length < 2} title="Make the tables on this slide exactly the same size"
