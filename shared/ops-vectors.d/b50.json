@@ -1,0 +1,617 @@
+[
+  {
+    "name": "B50: a comment in the macro's structure (auto mode macro, sections with their rules): written, sections reordered with a threshold and a rule changed, taken off – one undo step each",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:K14"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "notes": {
+            "t1:right": {
+              "text": "",
+              "auto": {
+                "groups": [],
+                "top": 2,
+                "noun": "country",
+                "detail": "full",
+                "share": true,
+                "breadth": true,
+                "missing": true,
+                "mode": "macro",
+                "title": "Retail Loans",
+                "sections": [
+                  {
+                    "g": "Δ vs. Budget"
+                  },
+                  {
+                    "g": "Δ vs. Prev. Week"
+                  },
+                  {
+                    "g": "Δ vs. EoM Budget",
+                    "when": "monthEnd"
+                  }
+                ]
+              },
+              "bubble": true,
+              "w": 440
+            }
+          }
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "notes": {
+            "t1:right": {
+              "text": "",
+              "auto": {
+                "groups": [],
+                "top": 2,
+                "noun": "country",
+                "detail": "full",
+                "share": true,
+                "breadth": true,
+                "missing": true,
+                "mode": "macro",
+                "title": "Retail Loans",
+                "sections": [
+                  {
+                    "g": "Δ vs. Prev. Week"
+                  },
+                  {
+                    "g": "Δ vs. Budget",
+                    "alert": -0.04,
+                    "share": false
+                  },
+                  {
+                    "g": "Δ vs. EoM Budget",
+                    "when": "fromDay",
+                    "day": 20
+                  }
+                ]
+              },
+              "bubble": true,
+              "w": 440
+            }
+          }
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "notes": {
+            "t1:right": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:K14"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 3,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "notes": {
+              "t1:right": null
+            }
+          }
+        },
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "notes": {
+              "t1:right": {
+                "text": "",
+                "auto": {
+                  "groups": [],
+                  "top": 2,
+                  "noun": "country",
+                  "detail": "full",
+                  "share": true,
+                  "breadth": true,
+                  "missing": true,
+                  "mode": "macro",
+                  "title": "Retail Loans",
+                  "sections": [
+                    {
+                      "g": "Δ vs. Budget"
+                    },
+                    {
+                      "g": "Δ vs. Prev. Week"
+                    },
+                    {
+                      "g": "Δ vs. EoM Budget",
+                      "when": "monthEnd"
+                    }
+                  ]
+                },
+                "bubble": true,
+                "w": 440
+              }
+            }
+          }
+        },
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "notes": {
+              "t1:right": {
+                "text": "",
+                "auto": {
+                  "groups": [],
+                  "top": 2,
+                  "noun": "country",
+                  "detail": "full",
+                  "share": true,
+                  "breadth": true,
+                  "missing": true,
+                  "mode": "macro",
+                  "title": "Retail Loans",
+                  "sections": [
+                    {
+                      "g": "Δ vs. Prev. Week"
+                    },
+                    {
+                      "g": "Δ vs. Budget",
+                      "alert": -0.04,
+                      "share": false
+                    },
+                    {
+                      "g": "Δ vs. EoM Budget",
+                      "when": "fromDay",
+                      "day": 20
+                    }
+                  ]
+                },
+                "bubble": true,
+                "w": 440
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "B50: an existing comment keeps its settings until switched to the macro's structure; the switch and its undo restore it whole; other boxes untouched",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:K14"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans",
+            "notes": {
+              "t1:right": {
+                "text": "",
+                "auto": {
+                  "groups": [],
+                  "top": 2,
+                  "noun": "country",
+                  "detail": "full",
+                  "share": true,
+                  "breadth": true,
+                  "missing": true,
+                  "mode": "summary"
+                },
+                "bubble": true,
+                "w": 440
+              },
+              "t1:bottom": {
+                "text": "Own text"
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "notes": {
+            "t1:right": {
+              "text": "",
+              "auto": {
+                "groups": [],
+                "top": 2,
+                "noun": "country",
+                "detail": "full",
+                "share": true,
+                "breadth": true,
+                "missing": true,
+                "mode": "macro",
+                "title": "Retail Loans",
+                "sections": [
+                  {
+                    "g": "Δ vs. Budget"
+                  }
+                ]
+              },
+              "bubble": true,
+              "w": 440
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:K14"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans",
+            "notes": {
+              "t1:right": {
+                "text": "",
+                "auto": {
+                  "groups": [],
+                  "top": 2,
+                  "noun": "country",
+                  "detail": "full",
+                  "share": true,
+                  "breadth": true,
+                  "missing": true,
+                  "mode": "macro",
+                  "title": "Retail Loans",
+                  "sections": [
+                    {
+                      "g": "Δ vs. Budget"
+                    }
+                  ]
+                },
+                "bubble": true,
+                "w": 440
+              },
+              "t1:bottom": {
+                "text": "Own text"
+              }
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "notes": {
+              "t1:right": {
+                "text": "",
+                "auto": {
+                  "groups": [],
+                  "top": 2,
+                  "noun": "country",
+                  "detail": "full",
+                  "share": true,
+                  "breadth": true,
+                  "missing": true,
+                  "mode": "summary"
+                },
+                "bubble": true,
+                "w": 440
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "fold: B50 two writers change the same macro comment's sections – the later (Lamport) wins whole, in whatever order the records arrive",
+    "fold": {
+      "snapshot": {
+        "format": 5,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": {
+            "sheets": [
+              "S"
+            ],
+            "tables": [
+              {
+                "id": "t1",
+                "sheet": "S",
+                "kind": "range",
+                "range": "A1:K14"
+              }
+            ],
+            "slides": [
+              {
+                "id": "s1",
+                "type": "content",
+                "tables": [
+                  "t1"
+                ],
+                "title": "Loans",
+                "notes": {
+                  "t1:right": {
+                    "text": "",
+                    "auto": {
+                      "groups": [],
+                      "top": 2,
+                      "noun": "country",
+                      "detail": "full",
+                      "share": true,
+                      "breadth": true,
+                      "missing": true,
+                      "mode": "macro",
+                      "title": "Retail Loans",
+                      "sections": [
+                        {
+                          "g": "Δ vs. Budget"
+                        },
+                        {
+                          "g": "Δ vs. Prev. Week"
+                        },
+                        {
+                          "g": "Δ vs. EoM Budget",
+                          "when": "monthEnd"
+                        }
+                      ]
+                    },
+                    "bubble": true,
+                    "w": 440
+                  }
+                }
+              }
+            ]
+          },
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": 3,
+          "w": "bob@pc2#bbbbbbbb",
+          "s": 1,
+          "by": "bob",
+          "at": 2000,
+          "ops": [
+            {
+              "op": "slide.patch",
+              "id": "s1",
+              "patch": {
+                "notes": {
+                  "t1:right": {
+                    "text": "",
+                    "auto": {
+                      "groups": [],
+                      "top": 2,
+                      "noun": "country",
+                      "detail": "full",
+                      "share": true,
+                      "breadth": true,
+                      "missing": true,
+                      "mode": "macro",
+                      "title": "Retail Loans",
+                      "sections": [
+                        {
+                          "g": "Δ vs. Prev. Week"
+                        },
+                        {
+                          "g": "Δ vs. Budget",
+                          "alert": -0.04,
+                          "share": false
+                        },
+                        {
+                          "g": "Δ vs. EoM Budget",
+                          "when": "fromDay",
+                          "day": 20
+                        }
+                      ]
+                    },
+                    "bubble": true,
+                    "w": 440
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "l": 2,
+          "w": "anna@pc1#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 1000,
+          "ops": [
+            {
+              "op": "slide.patch",
+              "id": "s1",
+              "patch": {
+                "notes": {
+                  "t1:right": {
+                    "text": "",
+                    "auto": {
+                      "groups": [],
+                      "top": 2,
+                      "noun": "country",
+                      "detail": "full",
+                      "share": true,
+                      "breadth": true,
+                      "missing": true,
+                      "mode": "macro",
+                      "title": "Retail Loans",
+                      "sections": [
+                        {
+                          "g": "Δ vs. Budget",
+                          "when": "firstWeek"
+                        }
+                      ]
+                    },
+                    "bubble": true,
+                    "w": 440
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {},
+      "rev": 2,
+      "lamport": 3,
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:K14"
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans",
+            "notes": {
+              "t1:right": {
+                "text": "",
+                "auto": {
+                  "groups": [],
+                  "top": 2,
+                  "noun": "country",
+                  "detail": "full",
+                  "share": true,
+                  "breadth": true,
+                  "missing": true,
+                  "mode": "macro",
+                  "title": "Retail Loans",
+                  "sections": [
+                    {
+                      "g": "Δ vs. Prev. Week"
+                    },
+                    {
+                      "g": "Δ vs. Budget",
+                      "alert": -0.04,
+                      "share": false
+                    },
+                    {
+                      "g": "Δ vs. EoM Budget",
+                      "when": "fromDay",
+                      "day": 20
+                    }
+                  ]
+                },
+                "bubble": true,
+                "w": 440
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+]

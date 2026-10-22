@@ -37,7 +37,7 @@ const bytes = writePptx({ slides: lists.map(l => ({ nodes: l.dl.nodes, sem: l.se
 | `shadow` | outer, blurred: the next shape of its box gets it as `outerShdw` (the strongest of the recipe's layers; the spread as `sx`/`sy`); inset: the shape under it gets `innerShdw`; sharp (no blur): a shape of its own, the box moved and grown by the spread |
 | `text` | runs of one element (the last hit holding them) → one text box: lines by baseline, paragraphs by the hit's label (wrapped lines are one paragraph), runs per style (`sz`, `b`, `i`, colour + alpha, `spc`, `u`, `strike`, `baseline` ±), a decorative copy → the run's `outerShdw`; turned text → a turned box; titles, cover subtitles, footers, page numbers → placeholders (`title`, `ctrTitle`, `subTitle`, `ftr`, `sldNum`) |
 | `group` | its transform composes (a turn becomes the shapes' `rot`), alpha multiplies into the paints, a clip as above; a table's group ("tw" hit) becomes the table below |
-| `hit` | nothing drawn: hits mark elements (text owners), cells (kind "t") and items |
+| `hit` | nothing drawn: hits mark elements (text owners), cells (kind "t") and items; a hit of kind "bu" (id "1" / "2", only in the PowerPoint export's lists: the Excel designs' text-box bullets, B48) makes the path after it its paragraph's own bullet – `buChar` ■ / □ in the path's colour and alpha, a hanging indent to the text (PowerPoint does not turn it: the template's 10° tilt is the PDF's and PNG's only) |
 
 **Paints**: solid → `solidFill` + `alpha`; linear → `gradFill` `lin` at the direction's angle (`scaled="0"`), the stops
 moved onto the box's projection on it; radial → `gradFill` `path="circle"` from its centre (`fillToRect`), the stops
@@ -66,7 +66,10 @@ text rectangle.
 * **Made from the deck** (product owner, 2026-10-19): a slide's background is its topmost opaque full-slide rectangle or
   picture (Liquid Glass's wallpaper: the master's background); a layout takes the background all its slides share and
   the decoration they all begin with (two slides or more); slides keep only what is theirs. Placeholder templates on the
-  master and layouts sit where the deck's slides have them.
+  master and layouts sit where the deck's slides have them. The core can also name nodes a layout always carries
+  (`SlideSem.layout`, [start, end) of the top-level nodes: Excel and Excel Refined's logo and cover band, B48) – they go
+  on the layout even when the deck has one slide of that kind, and slides with other such nodes (a slide without the
+  logo) get a layout of their own ("Title Only 2").
 * Nothing outside the file: no `TargetMode="External"`, no connector shapes. ECMA-376 1st edition features only (no
   p14 / p15, no SVG) – PowerPoint 2016 reads them.
 

@@ -22,6 +22,8 @@ import { hashStr } from "../xlsx/util";
 import { mix, palette, themeOf } from "../model/style";
 import { isConsult } from "../model/designs";
 import { specOf } from "./consult-spec";
+import { ispChartColors } from "../model/isp";
+import { ISP } from "./isp";
 import { deckFmt } from "./text";
 import { fontStack } from "../model/fonts";
 import { parseColor, solid } from "../dl/color";
@@ -79,6 +81,10 @@ const HEX = /^#[0-9A-Fa-f]{6}$/;
 export interface ChartLook {
   colors: string[]; other: string | null; sep: { w: number; color: RGB; a: number }; gradient: boolean;
   family: string; ink: string; legend: "capsule" | "square" | "line"; card: "glass" | "plain" | null; pad: number;
+  /** a doughnut's hole, its share of the radius (unset: .58; the Excel designs' template: thinner, B48) */ hole?: number;
+  /** the Excel designs' template (B48 · ISP.chart, at the M14 merge): trend charts as a line only – a series' line `w` px
+      unless it sets its own, and areas drawn as lines (unset: M14's lines of 2.5 px and filled areas) */
+  trend?: { w: number; areaAsLine: boolean };
 }
 export function chartLook(ctx: RenderCtx, family: string): ChartLook {
   const d = ctx.style.design, P = palette(ctx.style);
@@ -92,9 +98,12 @@ export function chartLook(ctx: RenderCtx, family: string): ChartLook {
     return { colors: [a1, t.a2, t.c3, t.c4, "#34C759", "#FF9F0A", "#FF3B30", "#5AC8FA", "#AF52DE", "#8E8E93"], other: null,
       sep: { w: 1, color: [255, 255, 255], a: .9 }, gradient: true, family, ink: "#0B0D17", legend: "capsule", card: "glass", pad: 18 };
   }
-  // Excel: the theme's accent, then Office's chart colours; Excel Refined the same on its plain card
-  const bg = parseColor(P.bg);
-  return { colors: [P.accent, ...OFFICE.filter(c => c !== P.accent.toUpperCase())], other: null, sep: { w: 1, color: d === "clean" ? [255, 255, 255] : bg.c, a: 1 },
+  // Excel: the theme's accent, then Office's chart colours; Excel Refined the same on its plain card. With the Intesa
+  // Sanpaolo template's colours (B48, model/isp.ts): its chart palette at 25 % transparency, thinner doughnuts and its
+  // trend charts as a line only, of the template's width (ISP.chart; series charts, M14 merge)
+  const bg = parseColor(P.bg), isp = ispChartColors(ctx.style);
+  return { colors: isp || [P.accent, ...OFFICE.filter(c => c !== P.accent.toUpperCase())], other: null,
+    ...(isp ? { hole: ISP.chart.hole, trend: { w: ISP.chart.lineW, areaAsLine: ISP.chart.areaAsLine } } : {}), sep: { w: 1, color: d === "clean" ? [255, 255, 255] : bg.c, a: 1 },
     gradient: false, family, ink: "#16181D", legend: "square", card: d === "clean" ? "plain" : null, pad: d === "clean" ? 14 : 6 };
 }
 /** slice i's colour of n: its own, else the design's palette – which never gives the last slice the first one's colour
@@ -160,7 +169,8 @@ function stylesOf(it: ChartItem, ctx: RenderCtx, look: ChartLook): { base: St; l
 /** what a series chart takes of the design's look: the label and title styles, the palette, the legend's swatch, the
     gradient and the bars' corner radius (Liquid Glass's 4 px at 100 % roundness, none elsewhere) */
 function seriesStyle(look: ChartLook, lab: St, ttl: St, rk: number): SeriesStyle {
-  return { lab, ttl, family: look.family, colors: look.colors, legend: look.legend, ink: look.ink, gradient: look.gradient, radius: look.card === "glass" ? Math.round(4 * rk) : 0 };
+  return { lab, ttl, family: look.family, colors: look.colors, legend: look.legend, ink: look.ink, gradient: look.gradient, radius: look.card === "glass" ? Math.round(4 * rk) : 0,
+    ...(look.trend ? { trend: look.trend } : {}) };
 }
 export interface ChartEnv { V: GlassVars; wall: Wallpaper | null; /** the design's text-box family (slide-dl.ts) */ family: string;
   /** the card alone, without the pie, labels and legend (the PowerPoint export draws those as a native chart) */ noContent?: boolean }
@@ -243,7 +253,7 @@ export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, 
     const r = Math.max(8, Math.min(plot.w / 2 - (thin ? 30 + 4 * lab.size : 2), plot.h / 2 - (thin ? 20 + lh : 2)));
     const outer = r + (thin ? 30 + 4 * lab.size : 0), group = legendRight ? Math.min(W0, 2 * outer + 16 + lwRight) : plot.w;
     // (the pie stays inside its box however much room its outside labels ask for)
-    const cx = Math.max(X0 + r, Math.min(X0 + W0 - r, legendRight ? X0 + (W0 - group) / 2 + outer : plot.x + plot.w / 2)), cy = plot.y + plot.h / 2, ri = it.type === "donut" ? r2(r * .58) : 0;
+    const cx = Math.max(X0 + r, Math.min(X0 + W0 - r, legendRight ? X0 + (W0 - group) / 2 + outer : plot.x + plot.w / 2)), cy = plot.y + plot.h / 2, ri = it.type === "donut" ? r2(r * (look.hole ?? .58)) : 0;
     legendRight?.(Math.min(X0 + W0 - lwRight, cx + outer + 16));
     geom = { cx: r2(cx), cy: r2(cy), r: r2(r), ri, slices: parts.map(p => ({ i: p.i, a0: p.a0, a1: p.a1, label: data.slices[p.i].label, color: p.color })) };
     const sep: Paint = { solid: look.sep.color, a: look.sep.a };
@@ -322,7 +332,7 @@ export function chartSem(it: ChartItem, box: Box, ctx: RenderCtx, family: string
     show: Array.isArray(it.show) ? it.show.filter(k => k === "label" || k === "value" || k === "percent") : ["percent"],
     legend: it.legend === "bottom" || it.legend === "none" ? it.legend : "right", startAngle: Number.isFinite(it.startAngle) ? +it.startAngle! : 0,
     box: { x: box.x + pad, y: box.y + pad, w: Math.max(10, box.w - 2 * pad), h: Math.max(10, box.h - 2 * pad) },
-    sep: n > 1 ? { w: look.sep.w, color: hex(look.sep.color) } : null, fmt: first?.fmt || "General", hole: 58,
+    sep: n > 1 ? { w: look.sep.w, color: hex(look.sep.color) } : null, fmt: first?.fmt || "General", hole: Math.round((look.hole ?? .58) * 100),
   };
 }
 /** a series chart for PowerPoint (09 §4.2; S14.2 columns and bars, S14.3 lines, areas, combos on two axes): the same

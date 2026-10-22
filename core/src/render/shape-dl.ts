@@ -16,6 +16,7 @@ import { A1, colToNum, parseRange } from "../xlsx/util";
 import { CELL_TOKEN, tokenSheet } from "../model/preset";
 import { consultOptions, isConsult } from "../model/designs";
 import { specOf } from "./consult-spec";
+import { ISP } from "./isp";
 import { parseColor, solid } from "../dl/color";
 import { ICONS, iconCmds } from "./icons";
 
@@ -90,8 +91,8 @@ function lookOf(it: ShapeItem, ctx: RenderCtx, panel = false): ShapeLook {
       // a card: white on the design's tinted ground, its own tint on a white one (as the text boxes' cards)
       : { fill: C.bg === "#FFFFFF" && consultOptions(ctx).background !== "white" ? "#FFFFFF" : C.card.fill, border: null, shadow: false, glass: false, ink: C.note.ink, radius: C.look.card.radius };
   } else if (d === "glass") L = { fill: null, border: null, shadow: true, glass: true, ink: "#0B0D17", radius: Math.round(22 * rk) };
-  else if (d === "clean") L = { fill: "#FFFFFF", border: { w: 1, color: "#E1E5EC" }, shadow: true, glass: false, ink: "#16181D", radius: Math.round(8 * rk) };
-  else L = { fill: "#FFFFFF", border: { w: 1, color: "#BFBFBF" }, shadow: false, glass: false, ink: "#16181D", radius: Math.round(8 * rk) };
+  // Excel and Excel Refined: the Intesa Sanpaolo template's outlined box (B48, render/isp.ts) – white, Nero 50 % at 1 pt
+  else L = { fill: "#FFFFFF", border: { w: ISP.box.w, color: ISP.box.border }, shadow: false, glass: false, ink: "#16181D", radius: Math.round(8 * rk) };
   // the item's own settings over the design's: a fill (or none) ends the glass; a border set, or set to nothing
   if (own || none) L = { ...L, fill: own, glass: false };
   if (ownBorder !== undefined) L = { ...L, border: ownBorder };

@@ -48,15 +48,17 @@ async function deck(file: string, design: Design) {
   return { ctx, slides, build };
 }
 /** the furniture elements v3's slideMarkup wrote for weekly-options.json (cover, contents, content), by class – the
-    ones the parity tools pair with hits; recorded from slideMarkup at S4.4 (502214c) before it was removed */
+    ones the parity tools pair with hits; recorded from slideMarkup at S4.4 (502214c) before it was removed. Since B48
+    Excel and Excel Refined follow the Intesa Sanpaolo template: their cover is the template's (band, logo above the
+    title; no panel, bar or rule) and their contents rows have no dotted leader */
 const MARKUP: Record<"glass" | "excel" | "clean", Record<string, number>[]> = {
   excel: [
-    {"cvx-panel":1, "cvx-band":1, "cvx-band b2":1, "cv-block x":1, "cv-title":1, "cv-bar":1, "cv-sub":1, "cvx-rule":1, "cvx-date":1, "logowrap big":1, "logo":1},
-    {"title":1, "ix-row x":1, "ix-n":1, "ix-txt":1, "ix-t":1, "ix-s":1, "ix-lead":1, "ix-p":1, "pageno plain":1, "pageno plain footer":1, "logowrap":1, "logo":1},
+    {"cvx-panel":0, "cvx-band":1, "cvx-band b2":0, "cv-block x":1, "cv-title":1, "cv-bar":0, "cv-sub":1, "cvx-rule":0, "cvx-date":1, "logowrap big":1, "logo":1},
+    {"title":1, "ix-row x":1, "ix-n":1, "ix-txt":1, "ix-t":1, "ix-s":1, "ix-lead":0, "ix-p":1, "pageno plain":1, "pageno plain footer":1, "logowrap":1, "logo":1},
     {"title":1, "subtitle":1, "pageno plain":1, "pageno plain footer":1, "tw":2, "logowrap":1, "logo":1}],
   clean: [
-    {"cvx-panel":1, "cvx-band":1, "cvx-band b2":1, "cv-block x":1, "cv-title":1, "cv-bar":1, "cv-sub":1, "cvx-rule":1, "cvx-date":1, "logowrap big":1, "logo":1},
-    {"title":1, "ix-row x":1, "ix-n":1, "ix-txt":1, "ix-t":1, "ix-s":1, "ix-lead":1, "ix-p":1, "pageno plain":1, "pageno plain footer":1, "logowrap":1, "logo":1},
+    {"cvx-panel":0, "cvx-band":1, "cvx-band b2":0, "cv-block x":1, "cv-title":1, "cv-bar":0, "cv-sub":1, "cvx-rule":0, "cvx-date":1, "logowrap big":1, "logo":1},
+    {"title":1, "ix-row x":1, "ix-n":1, "ix-txt":1, "ix-t":1, "ix-s":1, "ix-lead":0, "ix-p":1, "pageno plain":1, "pageno plain footer":1, "logowrap":1, "logo":1},
     {"title":1, "subtitle":1, "pageno plain":1, "pageno plain footer":1, "tw":2, "tnote top free":1, "notebub x":1, "tnote right bub":1, "tnote bottom auto":1, "tnote memo free bottom":1, "logowrap":1, "logo":1}],
   glass: [
     {"gls wb chrome cv-orb":1, "gls wb chrome cv-tile":1, "gls wb chrome cv-orb small":1, "cv-block g":1, "cv-title":1, "cv-bar":1, "cv-sub":1, "gls wb chrome cv-chip":1, "gls wb chrome logowrap":1, "logo":1},
@@ -93,9 +95,10 @@ describe("the whole slide", () => {
     slides[0].title = "A very long title ".repeat(10).trim();
     const t = textsAfter(build(0).nodes, "title")[0], h = hits(build(0).nodes).find(x => x.id === "title")!;
     expect(t.src.endsWith("…")).toBe(true);
-    expect(t.w!).toBeLessThanOrEqual(1600 - 54 - 150);
+    expect(t.w!).toBeLessThanOrEqual(1600 - 70 - 70);                   // to the content area's right edge (B48 fix)
+    expect(t.size).toBeCloseTo(20 * 4 / 3 * 5 / 3, 2);                  // shrunk to the template's 20 pt first
     expect(h.label).toBe(slides[0].title);
-    expect(h.h).toBeCloseTo(lu(1.4 * 44), 2);                        // the page's line-height 1.4 (body font: 13px/1.4)
+    expect(h.h).toBeCloseTo(lu(1.4 * 26 * 4 / 3 * 5 / 3), 1);       // the template's 26 pt at 4/3 (B48); the page's line-height 1.4
     void ctx;
   });
   it("text boxes: padding, the fitted size (the largest from the start, 1 px steps, whose text fits), pre-wrap lines, the side's alignment", async () => {
@@ -127,12 +130,33 @@ describe("the whole slide", () => {
     }
   });
   it("a cover without a subtitle: the subtitle is its min-height, 36 px, the block above it in place", async () => {
-    const { slides, build } = await deck("weekly-options.json", "excel");
+    const { slides, build } = await deck("weekly-options.json", "glass");
     const cover = slides.findIndex(S => S.type === "cover");
     slides[cover].subtitle = "";
     const sub = hits(build(cover).nodes).find(h => h.id === "cv-sub")!;
     expect(sub.h).toBe(36);
     expect(sub.y + sub.h).toBeCloseTo(730, 6);
+  });
+  it("the Excel designs' cover (B48, the Intesa Sanpaolo template): the band, the logo above the title, an empty subtitle a line high under the title", async () => {
+    for (const design of ["excel", "clean"] as Design[]) {
+      const { slides, build } = await deck("weekly-options.json", design);
+      const cover = slides.findIndex(S => S.type === "cover");
+      slides[cover].subtitle = "";
+      const nodes = build(cover).nodes, hs = hits(nodes), at = (id: string) => hs.find(h => h.id === id)!;
+      const band = flat(nodes).find(n => n.t === "path") as Extract<Node, { t: "path" }>;
+      expect(band.fill).toEqual({ solid: [0, 58, 121], a: .75 });                       // Blu at 75 % opacity
+      expect(band.d[0]).toEqual(["M", 0, 0]);
+      expect(at("logo").x).toBeCloseTo(283.36, 1); expect(at("logo").y).toBeCloseTo(337.76, 1);
+      expect(at("logo").y + at("logo").h).toBeLessThan(at("cv-title").y);
+      // (the frames' tops 2.851 in and 3.880 in; the line boxes' tops put the baselines where PowerPoint draws them)
+      expect(at("cv-title").x).toBeCloseTo(283.36, 1); expect(at("cv-title").y).toBeCloseTo(2.851 * 160, -1);
+      const sub = at("cv-sub");
+      expect(sub.h).toBeCloseTo(lu(1.3 * 16 * 4 / 3 * 5 / 3), 1);
+      expect(sub.y).toBeCloseTo(3.88 * 160, -1);                       // the template's place, not under the title (B48 review, 5)
+      expect(sub.y).toBeGreaterThan(at("cv-title").y + at("cv-title").h);
+      const title = textsAfter(nodes, "cv-title")[0];
+      expect([title.size, title.weight, title.fill]).toEqual([57.778, 700, { solid: [0, 58, 121] }]);
+    }
   });
   it("a text box's line ends: spaces before a line break count for the alignment while they fit, beyond the box they hang", async () => {
     const { ctx, slides } = await deck("weekly-options.json", "clean");

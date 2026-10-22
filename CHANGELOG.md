@@ -64,6 +64,29 @@ What users notice
   marked for 4.6 and later once (the format guard's one-time wait, 4.6.0; Decisions 2026-10-21). An export started in
   those seconds waits for that save, so **the first export right after adding a deck's first chart may take ~25 s**;
   later saves and exports are as fast as before (a PowerPoint deck of 20 slides with 6 combined charts: about 2 s).
+* **Excel and Excel Refined in the Intesa Sanpaolo template** (B48): the cover has the template's blue band, the deck's
+  logo above the title, the title in 26 pt bold blue and the subtitle in grey; titles and subtitles, the page number
+  (top right; on by default unless the deck turned it off, none on the cover), the logo (bottom right), Century Gothic, the contents slide, bullets as tilted squares, outlined boxes and
+  the template's colours follow it. Long titles shrink to fit before they are cut. Liquid Glass and the consulting
+  designs are unchanged.
+* **Comment borders** (B49): a comment's box gets a border of the weight and colour you pick, or none (in Excel and
+  Excel Refined a border without a colour takes the template's grey, #7F7F7F).
+* **Comments as the macro writes them** (B50): vs Budget – Budget Performance and vs Previous Week – Weekly Momentum,
+  with the top contributors, the concentration ("largely driven by …"), the downside and the alerts (−5 % vs Budget,
+  −1 % week on week; editable); each section can still be added or removed, and has a rule: always, only in the last
+  week of the month, only in the first week, or from day N (e.g. "vs monthly Budget" only at the end of the month).
+  Comments written before keep their text until you switch them.
+* **Charts in the template** (Excel and Excel Refined, with the Aurora or Intesa Sanpaolo colour theme): every chart
+  starts in the template's chart colours (its blue first, at 25 % transparency), lines are drawn 2 pt wide, an area chart
+  is drawn as lines – stacked areas as stacked lines, each on the series below it – and doughnuts are thinner; the same
+  in PowerPoint (a native line chart). Liquid Glass and the consulting designs draw charts as before.
+* **Chart colours** (owner's decision, 2026-10-21): a chart starts in its design's colours and follows the design you
+  switch to; a colour you set for a series, a point or a slice stays in every design. ↺ beside a series' colour gives it
+  the design's colour again (as slices and points already had).
+* **A 4.6.0 window on a 4.7 deck** (both read format 5): it keeps every border, macro comment and chart as saved, but
+  shows a macro comment as a summary, draws no comment border, has no default page number in Excel, and draws a series
+  chart as 4.6 drew charts (a pie of the cells the chart was first made from), without its series, axes, legend
+  settings or marks – update to 4.7.
 
 For the maintainer
 * A deck holding any of the new chart fields (`sers`, `groups`, `axes`, `marks`, `legendHide`, `titleFmt`, …) is
@@ -72,9 +95,13 @@ For the maintainer
 * `tools/pptxcheck.py` checks the chart kinds of every export (`kinds`), and on Windows `plots` compares PowerPoint's
   own plot areas, axis bounds and mark ends with the export's (`node tools/m14-package.mjs --out DIR` makes the
   package).
-* The page grows by about 140 KB (4,115,984 bytes; `app/tests/page-budget/m14.json`).
+* B48–B50 (branch `v4/B48-B50-isp`) and M14 merged: the template's chart rules live in `render/isp.ts` (`ISP.chart`)
+  and reach the charts through `chartLook` (`ChartLook.hole`, `ChartLook.trend`); `core/tests/dlhash.test.ts` keeps
+  Liquid Glass and the consulting designs as they were (its fixture re-recorded for M14's embedded chart workbooks only).
+* The page grows by about 150 KB for M14 and 41 KB for B48–B50: 4,167,645 bytes (`app/tests/page-budget/m14.json`,
+  `b48.json`, `b49-b50.json`).
 
-## 4.6.0 - unreleased (PLAN M13; prepared 2026-10-21, dated at the tag)
+## 4.6.0 - 2026-10-21 (PLAN M13)
 
 What users notice
 * **The share goes from 4.0 straight to 4.6**: users also get everything listed for 4.1–4.5 in CHANGELOG.md (never released

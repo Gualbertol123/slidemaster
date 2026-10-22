@@ -212,7 +212,7 @@ function groupsXml(B: BarsSem, face: (css: string) => string): string {
     const ids = g.axis === "y2" ? `<c:axId val="510003"/><c:axId val="510004"/>` : `<c:axId val="510001"/><c:axId val="510002"/>`;
     const sers = g.series.map(k => serXml(g.kind, B.series[k], k, cat, n, numToCol(k + first), face, B.dir === "col")).join("");
     if (g.kind === "scatter") return `<c:scatterChart><c:scatterStyle val="lineMarker"/><c:varyColors val="0"/>${sers}${ids}</c:scatterChart>`;
-    if (g.kind === "line") return `<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>${sers}<c:marker val="1"/>${ids}</c:lineChart>`;
+    if (g.kind === "line") return `<c:lineChart><c:grouping val="${g.grouping === "stacked" || g.grouping === "percentStacked" ? g.grouping : "standard"}"/><c:varyColors val="0"/>${sers}<c:marker val="1"/>${ids}</c:lineChart>`;
     if (g.kind === "area") return `<c:areaChart><c:grouping val="${g.grouping}"/><c:varyColors val="0"/>${sers}${ids}</c:areaChart>`;
     return `<c:barChart><c:barDir val="${B.dir}"/><c:grouping val="${g.grouping}"/><c:varyColors val="0"/>${sers}<c:gapWidth val="${Math.round(g.gap)}"/>${g.overlap ? `<c:overlap val="${Math.round(g.overlap)}"/>` : ""}${ids}</c:barChart>`;
   }).join("");

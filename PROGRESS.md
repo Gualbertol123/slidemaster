@@ -182,6 +182,42 @@ numbers measured twice). Measured numbers go into the step's line.
   S14.P step that commits the page (M14-M15-split.md §1). Ticked at that merge: verified: tests ✓ clean clone ✓
   review ✓.
 
+### B48–B50 · The Intesa Sanpaolo template, comment borders, the macro's comments (product owner 2026-10-21, B48–B50 approved; branch `v4/B48-B50-isp` = `v4/isp-template` + `v4/isp-comments` on main)
+- [ ] B48 · Excel and Excel Refined follow the template (cover, contents, titles, page number, logo, bullets, boxes,
+  palette; docs/RENDERING.md) — d86a56a, review REQUEST CHANGES (10 findings) → "B48 · … (review fixes)": one scale
+  (× 4/3 for positions, type and lines), the cover's subtitle at 3.880 in, native PowerPoint bullets (`buChar`; the
+  upright bullet is an accepted difference), the logo and cover band on the layouts (`SlideSem.layout`), "- " before
+  a figure stays a minus, parity entries per deck / version / file (`elements` / `text` pinned by digest here; the
+  environment's kinds pinned on the reference PC with `tools/pin-accepted.mjs`), `core/tests/dlhash.test.ts`,
+  export-check's scoped "GT B48", `app/tests/page-budget/b48.json` (provisional, 21,422 bytes: decision before the
+  merge), the swatches' narrow subscription. Ticked when the orchestrator's runs and the re-review pass.
+  Then c773d66 (the source note beside the footer, titles shrink before "…"), 06b31a9 (the page number on by default,
+  top right). Page budget: b48.json 21,422 + b49-b50.json 20,049 (measured, 4,017,563 bytes).
+- [ ] B49 · Comment borders (weight, colour, none; `Note.frame`, V5_NOTE, vectors `shared/ops-vectors.d/b49.json`; PDF
+  and PowerPoint: an outline grouped with its text box) — dbedb1d, 24426cd; review APPROVE (3 low follow-ups); merge
+  with B48 5f69878 (the template's outline is the default, a user's border wins; `note-frame.test.ts`), 218eed0 (the
+  default colour #7F7F7F in Excel and Excel Refined). Ticked when the orchestrator's runs pass.
+- [ ] B50 · Comments in the macro's structure (`core/src/model/comment-macro.ts`: vs Budget – Budget Performance,
+  vs Previous Week – Weekly Momentum, contributors, concentration, downside, alerts −5 % / −1 %; the sample text of the
+  owner's macro reproduced exactly in `comment-macro.test.ts`; sections with include rules: always, last week of the
+  month, first week, from day N; thresholds per section; vectors `b50.json`) — 6659c1b, 0e31e52; review REQUEST
+  CHANGES (8) → fixed → APPROVE. Older pages: a 4.6.0 window shows a macro comment as a summary and no border, keeps
+  both (CHANGELOG 4.7.0). Ticked when the orchestrator's runs pass.
+  - **Done at the M14 merge (B48 review, 6; "Merge main (4.6.0, B48–B50) into v4/M14-charts; the template in the
+    charts"):** the template's "trend charts as a line only" – M14's series charts take `chartLook`'s template palette
+    and `ChartLook.trend` (`ISP.chart.lineW`, now unrounded: exactly 2 pt in PowerPoint; `ISP.chart.areaAsLine`) in Excel
+    and Excel Refined where the template's colours apply (Aurora / Intesa Sanpaolo theme, as B48's palette and hole):
+    lines 3.33 px unless a series sets its own width; area series drawn and exported as line series – stacked (100 %)
+    areas as a stacked (100 %) `c:lineChart` on the band tops, unless an ordinary line shares their axis (then they stay
+    areas); doughnuts thinner (B48's `hole`). Liquid Glass and the consulting designs unchanged (`dlhash.test.ts`;
+    its fixture re-recorded only for `charts.json|{glass,mckinsey,bain}|pptx`: M14's S14.6 embedded workbook of every
+    pie – number formats as cell styles – changes those .pptx bytes, the display lists and looks are the same). Expected conflicts (none came: these merged cleanly; the chart snapshots re-recorded, only their excel / clean entries moved): `chartLook` in `render/chart-dl.ts` (B48 adds the template's palette and the
+    doughnut's `hole`), `render/shape-dl.ts` `lookOf` (B48 gives Excel Refined the template's outlined box instead of
+    its shadow and #E1E5EC border – deliberate, the owner's template), their snapshots
+    (`core/tests/__snapshots__/chart-dl.test.ts.snap`, `shape-dl.test.ts.snap`: re-record and check only the excel /
+    clean entries move), and `core/tests/fixtures/dlhash-b48-base.json` (re-record with `DLHASH_WRITE=1`: M14 and M15
+    change Liquid Glass and the consulting designs' charts, lines and icons by design).
+
 ### M14 · Charts (4.7.0; B30, B31; docs/next/09 §8, ADR-015 amended)
 - [x] S14.0 · Gates first (export-check gates PowerPoint "opened", `has_chart` / `has_table`; AUDIT-2 VER-3) – built in
   S14.P (e9f8ac0, c6c74a4; on main by PR #28); on the branch the gate grew `kinds` (`tools/real-charts.mjs`, S14.6
@@ -218,10 +254,11 @@ numbers measured twice). Measured numbers go into the step's line.
   once on its own; ticked when the orchestrator's full e2e run passes it. Measured (review 4): a chart change from
   the panel, Enter → pixels p95 75–110 ms against a cell's 25 ms (Measurements · M14) – 09 §7.4 gates no chart-panel
   keypress, but it is over the 50 ms keypress budget's spirit: looked at in S14.6 (⏱) – the item op's path to the stage
-- **Risk (page total, S14.5 review 5):** M14 already uses ~137 KB of its page share against the plan's ~115 KB for the
-  whole milestone, and S14.6 adds about 15 KB more (~152 KB); with M15's ~+600 KB the merged page comes to about
-  4.73 MB, above the ~4.7 MB the owner expects (2026-10-21 "by measurement"). For the owner to see before M15 measures:
-  either the total is accepted by measurement, or a part is cut (M15's vendored icon set is the large one)
+- **Risk (page total, S14.5 review 5; updated at the merge of main 4.6.0 + B48–B50):** the page is 4,167,645 bytes
+  (≈ 4.17 MB) before M15 – base 3,976,092 + B48 21,422 + B49–B50 20,049 + M14's share 150,082 (`m14.json` 155,082);
+  with M15's ~+600 KB the merged page comes to about 4.77 MB, above the ~4.7 MB the owner expects (2026-10-21 "by
+  measurement"). For the owner to see before M15 measures: either the total is accepted by measurement, or a part is
+  cut (M15's vendored icon set is the large one)
 - [x] S14.6 · PowerPoint ⏱ (PX-05, PX-06) – 53cdf19, review fixes a04cc63; reviews: S14.6 (findings 1–9) → fixed →
   APPROVE; runs: pending (export-check `kinds`, the full bench's `pptx_combo_ms`); PX-05 / PX-06 on the owner's PC
   (Waiting for). Every chart type is a native chart; the corpus test
@@ -623,6 +660,12 @@ numbers measured twice). Measured numbers go into the step's line.
   page, packed and inflated on first use (option A); `v4/*` branches may be pushed.
 - 2026-10-21 · **PowerPoint** (product owner: "ensure all of these new changes work with the powerpoint export as
   well"): every new feature is checked in the PowerPoint export (`core/tests/pptx-m13.test.ts` for M13).
+- 2026-10-21 · **Chart colours** (product owner, Q3: "have default colours, then allow to change"): a chart starts in
+  its design's palette (Excel and Excel Refined: the template's, B48; Liquid Glass and the consulting designs: their
+  own) and follows the design while no colour is set; a colour the user sets – a series', a point's, a pie slice's, a
+  marker's – is kept in every design. M14 already behaved so (a series' or point's own colour wins in `seriesLayout`, a
+  slice's in `colourOf`; nothing writes the palette into the deck); the merge adds ↺ beside a series' colour (back to
+  the design's, as slices and points had) and the test (`app/tests/chart-panel.test.tsx` "colours (owner Q3…)").
 - 2026-10-21 · **Charts saved before 4.7 without series** (M14 milestone review 9; recorded by the agent under the
   owner's "i approve everything" of the same day – the owner may overrule it): a chart without `sers` draws exactly as
   before 4.7 whatever its `type` says – a donut as a donut, every other type (an old "column", "bar" or "line", which
@@ -630,6 +673,17 @@ numbers measured twice). Measured numbers go into the step's line.
   the type the chart draws (Pie), so choosing Column or any other series type gives it its first series from its own
   numbers (`typePatch`; `app/tests/chart-panel.test.tsx` "an old chart saved as type column…"); the user never has to
   switch to Pie and back.
+- 2026-10-21 · **B48–B50: the Intesa Sanpaolo template, comment borders, the macro's comments** (product owner: "the
+  excel and excel refined will have to follow this template. this makes very little changes, and much from now should
+  be preserved, but for instance the first slide should change. 2. make the borders of the auto comments editable in
+  thickness and colour. 3. in this docx file is the macro formula a friend of mine has used to make the auto comments.
+  i want you to replicate it exactly in structure but also keeping the current setups' modularity between adding and
+  removing sections in a comment, for instance i may want the delta vs monthly budget to only be included at the end of
+  the month, not the beginning"). The template and the macro stay out of the repository (the logo comes from the
+  deck's setting). Defaults taken where the owner did not answer (stated to them): type scaled × 4/3 to look as on the
+  template's 10-inch page; PowerPoint bullets upright (PDF/PNG tilted 10°); long titles shrink before "…"; page number
+  on, top right; the contents' "XX" = the page number; "0,0 %" kept; a clause without data left out; "the same week in
+  <year − 1>"; a new comment beside its own table in the macro's structure. Page budget by measurement (b48.json).
 
 ## Waiting for
 
@@ -672,9 +726,16 @@ numbers measured twice). Measured numbers go into the step's line.
   (Decisions 2026-10-21 "Format guard: the one-time wait stays"); written in CHANGELOG 4.7.0 ("the first export right
   after adding a deck's first chart may take ~25 s"); the remedy (the export reads the in-memory document instead of
   waiting for that save) is proposed for a later milestone. Owner: accept both, or ask for the fixes.
-  **Page total risk** (M14 review 11): M14's share is 139,892 bytes against the plan's ~115 KB; with M15's expected
-  ~600 KB the merged page comes to about 4.73 MB against the ~4.7 MB the owner expects – to see before M15 measures
-  (accept by measurement, or cut: M15's vendored icon set is the large part).
+  **Page total risk** (M14 review 11; updated at the merge of main 4.6.0 + B48–B50): the page is 4,167,645 bytes
+  (≈ 4.17 MB) before M15, M14's share 150,082 bytes (`m14.json` 155,082) against the plan's ~115 KB; with M15's
+  expected ~600 KB the merged page comes to about 4.77 MB against the ~4.7 MB the owner expects – to see before M15
+  measures (accept by measurement, or cut: M15's vendored icon set is the large part).
+  **Merge of main (4.6.0, B48–B50; 71d8806)** – "Merge main (4.6.0, B48–B50) into v4/M14-charts; the template in the
+  charts": the template's palette, line width and areas as lines in M14's series charts in Excel and Excel Refined
+  (B48–B50 · B48's open item), Q3's colours checked (Decisions 2026-10-21 "Chart colours"), one CHANGELOG 4.7.0
+  section; runs here: core and app vitest in full, tsc, pptxcheck on chart PowerPoint files in Excel and Excel
+  Refined. Pending (the orchestrator): e2e, bench, parity / dlparity (Excel and Excel Refined charts now draw in the
+  template), export-check (its B48 GT scope and M14 kinds together), AUDIT §0.
   **Route to M15** (the orchestrator): rename M15's `tests/corpus/charts/lines.json` deck (e.g. `line-items.json`, its
   tests and README entry: an add/add clash with M14's since a04c5ff); the chart-marks icon change at
   `core/src/render/chart-marks.ts:150` ("MERGE M15": a vendored icon through `vendoredNodes`); the slide-finding loop
@@ -1180,6 +1241,7 @@ One table per parallel milestone (S14.P), so M14 and M15 never append to the sam
 | S14.6 | built page (bytes; not committed) | 4,115,246 (S14.5 review built 4,113,104: +2,142; M14's share 139,154, within m14.json 140,896 – no raise; limit 4,116,988: 1,742 left) | – |
 | S14.6 review | built page (bytes; not committed) | 4,115,984 (S14.6 built 4,115,246: +738; M14's share 139,892, within m14.json 140,896 – no raise; limit 4,116,988: 1,004 left) | – |
 | S14.7 | built page, **committed** (`npm run build` at the root, after main's S14.P merge and the close-out; the build test "up to date" + page budget passes), bytes | 4,115,984 (= base 3,976,092 + M14's share 139,892; within m14.json 140,896, so not raised – 1,004 left; limit 4,116,988) | 4,115,984 (rebuilt: the same sha256) |
+| merge main 4.6.0 + B48–B50 | built page, **committed** (the merge with the template in the charts and the series colour's ↺; `npm run build` twice, sha256 9aefd7ef…ca2919 both times), bytes | 4,167,645 (= base 3,976,092 + b48 21,422 + b49-b50 20,049 + M14's share 150,082; over the old limit 4,158,459 – `m14.json` set to 150,082 + 5,000 = 155,082, owner 2026-10-21 "by measurement"; new limit 4,173,645) | 4,167,645 (the same sha256) |
 
 ### Measurements · M15 (4.8.0)
 M15 appends here only.

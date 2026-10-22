@@ -1,6 +1,7 @@
 /* Deck style = built-in defaults ← shared defaults (config.json) ← this workbook's style. */
 import type { ColorKey, Design, Look, Footer, PageNumbers, Style, StylePatch, TextFmt, TextRole, Theme } from "./types";
 import { cleanConsult, isConsult, isDesign } from "./designs";
+import { isIsp, ISP_THEME, ISP_THEME_IDS } from "./isp";
 
 export const BUILTIN_PN: PageNumbers = { on: false, start: 1, pos: "br", font: "auto", size: 16, format: "n", style: "capsule", cover: false };
 export const BUILTIN_FOOTER: Footer = { on: false, text: "", pos: "bl", size: 14, style: "plain", cover: false };
@@ -14,6 +15,12 @@ function applyLook(s: Style, l: Look) {
   // text styles: an entry for a kind of text replaces the earlier layer's entry as a whole
   if (l.text && typeof l.text === "object") for (const r of TEXT_ROLES) { const f = l.text[r]; if (f && typeof f === "object") s.text[r] = cleanFmt(f); }
 }
+/** the design style layers resolve to – resolveStyle's, without the rest (a narrow subscription of the page's, B48) */
+export function designOf(...layers: (StylePatch | null | undefined)[]): Design {
+  let d: unknown = BUILTIN_STYLE.design;
+  for (const l of layers) if (l && l.design !== undefined && l.design !== null) d = l.design;
+  return isDesign(d) ? d : "glass";
+}
 export function resolveStyle(...layers: (StylePatch | null | undefined)[]): Style {
   const s: Style = { ...BUILTIN_STYLE, pn: { ...BUILTIN_PN }, footer: { ...BUILTIN_FOOTER }, theme: { ...BUILTIN_STYLE.theme }, text: {}, colors: {} };
   for (const l of layers) {
@@ -24,6 +31,9 @@ export function resolveStyle(...layers: (StylePatch | null | undefined)[]): Styl
     applyLook(s, l);
   }
   if (!isDesign(s.design)) s.design = "glass";                          // an unknown design (a newer page's) shows as Liquid Glass
+  // Excel and Excel Refined (the Intesa Sanpaolo template, B48): the page number is on by default, as on the template
+  // (top right: render/pagenumbers.ts pageNoGeom; not on the cover, pn.cover's default) – unless a layer set it, on or off
+  if (isIsp(s.design) && !layers.some(l => l && l.pn && l.pn.on !== undefined && l.pn.on !== null)) s.pn.on = true;
   // the consulting designs keep their own palette: the shared colour theme is not theirs (08 §6 Q4); a theme set for
   // the design itself (Design… › "This design") still applies below
   if (isConsult(s.design)) s.theme = { ...CONSULT_THEME_REF[s.design] };
@@ -66,8 +76,11 @@ const CONSULT_THEME_REF: Record<"mckinsey" | "bain", Theme> = {
 export const BUILTIN_THEME: Theme = { id: "aurora", c1: "", c2: "", c3: "", c4: "", a1: "", a2: "" };
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 /** the theme's colours: a built-in theme by id, or "custom" with the stored colours (missing ones from Aurora) */
-export function themeOf(s: Style): ThemeDef {
+export function themeOf(s: Pick<Style, "theme"> & Partial<Pick<Style, "design">>): ThemeDef {
   const t = s.theme || BUILTIN_THEME, base = THEMES.find(x => x.id === t.id) || CONSULT_THEMES.find(x => x.id === t.id);
+  // Excel and Excel Refined follow the Intesa Sanpaolo template (B48): the default theme and "Intesa Sanpaolo" are its
+  // colours there (model/isp.ts); the theme keeps its id and name (the Design… menu still shows it chosen)
+  if (base && isIsp(s.design) && ISP_THEME_IDS.includes(base.id)) return { ...base, ...ISP_THEME };
   if (base) return base;
   const A = THEMES[0], pick = (k: "c1" | "c2" | "c3" | "c4" | "a1" | "a2") => HEX.test(t[k] || "") ? t[k].toUpperCase() : A[k];
   const a1 = pick("a1");

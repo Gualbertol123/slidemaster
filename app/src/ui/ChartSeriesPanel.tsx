@@ -80,6 +80,8 @@ function SeriesPanel({ c, id, sel }: { c: ChartItem; id: string; sel: ItemSel })
         return <div key={sid} className={"ser" + (on ? " on" : "") + (s.hide ? " hid" : "")} data-ser={sid}>
           <div className="serhd">
             <label className="sw" title="The series' colour"><Input type="color" value={colorOf(sid)} onCommit={e => set("Series colour", seriesPatch(c, sid, { color: (e.target as HTMLInputElement).value.toUpperCase() }))} /><i style={{ background: colorOf(sid) }} /></label>
+            {/* (Q3, owner 2026-10-21: the design's colours by default, a colour set here kept in every design – and ↺ back to the design's) */}
+            {typeof s.color === "string" && <button className="btn small" data-a="sreset" title="The design's colour again" onClick={() => set("Series colour of the design", seriesPatch(c, sid, { color: null }))}>↺</button>}
             <Field className="nm" data-a="name" title="The series' name (Enter to apply); empty = the text beside its cells" value={name} placeholder={s.name && typeof s.name === "object" ? "From " + refText(s.name) : "From the cells"}
               onCommit={v => set("Series name", seriesPatch(c, sid, { name: v.trim() || null }))} />
             <button className="btn small" data-a="up" disabled={k === 0} title="One place up" onClick={() => set("Series order", moveSeriesPatch(c, sid, -1))}>↑</button>

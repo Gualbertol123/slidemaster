@@ -156,7 +156,8 @@ describe("the chart corpus as PowerPoint files (S14.6, PX-05 / PX-06)", () => {
     const s = strFromU8(unzipSync(pptxOf(lists))["ppt/slides/slide1.xml"]);
     const grp = /<p:grpSp><p:nvGrpSpPr><p:cNvPr id="\d+" name="Chart ref \d+"\/>.*?<p:graphicFrame>.*$/.exec(s)![0];
     // the shapes over the native chart, in document order (later = on top): their names and texts
-    const seq = [...grp.matchAll(/<p:sp><p:nvSpPr><p:cNvPr id="\d+" name="([^"]+)"\/>(.*?)<\/p:sp>/g)].map(m => /<a:t>(EARLY|LATE)<\/a:t>/.exec(m[2])?.[1] ?? m[1].replace(/ \d+$/, ""));
+    const seq = [...grp.matchAll(/<p:sp><p:nvSpPr><p:cNvPr id="\d+" name="([^"]+)"\/>(.*?)<\/p:sp>/g)].map(m => /<a:t>(EARLY|LATE)<\/a:t>/.exec(m[2])?.[1] ?? m[1].replace(/ \d+$/, ""))
+      .filter(x => x !== "Slide Number");            // (Excel's page number, on by default since B48: after the chart's group)
     const at = (x: string) => seq.indexOf(x);
     // marks in id order: aa (EARLY), ia, ib (icons), start (arrow), ta, tb (texts), zy (line, bar tick, diamond), zz (LATE)
     expect(at("EARLY")).toBeGreaterThanOrEqual(0);

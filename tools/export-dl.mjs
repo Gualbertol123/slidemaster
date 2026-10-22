@@ -66,7 +66,7 @@ function resolveFonts(nodes, fonts, missing) {
 }
 const dataUrlBytes = src => { const i = src.indexOf(","), b64 = src.slice(i + 1); return new Uint8Array(Buffer.from(src.slice(0, i).includes(";base64") ? b64 : decodeURIComponent(b64), src.slice(0, i).includes(";base64") ? "base64" : "latin1")); };
 
-export { goldenTexts, matchTexts, ownPdfText, squash } from "./parity.mjs";
+export { goldenItems, goldenTexts, matchTexts, ownPdfText, squash } from "./parity.mjs";
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   fs.mkdirSync(OUT, { recursive: true });

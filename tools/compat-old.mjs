@@ -24,7 +24,7 @@
             old page opens the deck (format 5), edits a cell and is left alone past the compaction margin -> every M14
             item is byte-equal (JSON) in the folded deck and in every snapshot written after them; the old page's edit
             kept when it compacted. The 4.6 pages read format 5: 4.6 (e6c1c4f, the M13 merge) does not know the 4.7 keys
-            in knownOp, 4.6p (6392856, main with S14.P) knows them and stores a whole series entry – `total` inside a
+            in knownOp, 4.6p (v4.6.0 = 6392856, main with S14.P, + the dated CHANGELOG) knows them and stores a whole series entry – `total` inside a
             series survives only because of that. For 4.0–4.5 (format 5 refused) the case checks the same with the open
             refused. Cases a–d also make the M14 objects (missing46 checks them)
    The old pages are driven through Playwright (open, Continue, a cell typed, ✦ Wizard -> Finish); the 4.6 page's
@@ -53,7 +53,7 @@ const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const flag = k => process.argv.includes(k);
-const REFS = { "4.0": "v4.0.0", "4.1": "061a5b3", "4.4": "a1d3aba", "4.5": "637f7b4", "4.6": "e6c1c4f", "4.6p": "6392856" };
+const REFS = { "4.0": "v4.0.0", "4.1": "061a5b3", "4.4": "a1d3aba", "4.5": "637f7b4", "4.6": "e6c1c4f", "4.6p": "v4.6.0" };   // (4.6p: the released 4.6.0 – 6392856, main with S14.P, + the dated CHANGELOG)
 /** the versions that read format 5 (4.6.0, M13's format guard): cases a–d expect a refusal, so only cp02 and m14 run */
 const READS_V5 = new Set(["4.6", "4.6p"]);
 const VERSIONS = arg("--versions", "4.0,4.1,4.4,4.5,4.6,4.6p").split(",").filter(Boolean);

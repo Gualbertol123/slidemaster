@@ -96,6 +96,7 @@ export interface SeriesLayout {
   issue: string | null;
   /* S14.3 */
   /** each series' kind and value axis */ kinds: Kind[]; axes: Axis[];
+  /** the template's stacked areas drawn as stacked lines (series indexes; their line group is stacked as the chart) */ stackLines: number[];
   /** the secondary value axis (right), when a shown series stands on it */ y2: ValAxis | null;
   /** the bar groups: per axis, its series (indexes) and overlap (100 with targets) */ barGroups: { axis: Axis; series: number[]; overlap: number }[];
   /** lines and areas */ traces: Trace[];
@@ -110,7 +111,8 @@ export interface SeriesLayout {
   fall: { steps: (Step | null)[]; colors: Record<StepKind, string>; legend: StepKind[] } | null;
   /** a waterfall's connectors (drawn under the data, as under the native chart) */ connectors: { x1: number; x2: number; y: number; line: LineSem }[];
 }
-export interface SeriesStyle { lab: St; ttl: St; family: string; colors: string[]; legend: "capsule" | "square" | "line"; ink: string; gradient: boolean; radius: number }
+export interface SeriesStyle { lab: St; ttl: St; family: string; colors: string[]; legend: "capsule" | "square" | "line"; ink: string; gradient: boolean; radius: number;
+  /** the Excel designs' template (ChartLook.trend): the lines' default width, areas as lines */ trend?: { w: number; areaAsLine: boolean } }
 
 /** the kind of chart group a series is drawn in: a horizontal bar chart's are all bars; a scatter series is not a combo
     member (09 §2.2: scatter is a chart of its own type, S14.4) – in a combo it draws as a line */
@@ -132,6 +134,15 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   const kinds: Kind[] = ser.map(s => scatter ? "line" : fall ? "bar" : kindOf(s, dir));
   // the axis each series stands on: y2 only beside a y series (Excel's secondary axis needs a primary one)
   const anyY = dir === "bar" || ser.some(s => s.axis !== "y2"), axes: Axis[] = ser.map(s => anyY && dir === "col" && !scatter && !fall && s.axis === "y2" ? "y2" : "y");
+  // the Excel designs' template (B48 · ISP.chart): trend charts as a line only – an area series is drawn and exported as a
+  // line series; stacked (100 %) areas as a stacked (100 %) line chart, each line on the top of the series below it, as
+  // PowerPoint stacks one – unless an ordinary line series shares their axis (one chart group cannot be both
+  // stacked and not): those areas stay areas
+  const stackL = new Set<number>();
+  if (sty.trend?.areaAsLine) {
+    const conv = ser.map((_, k) => k).filter(k => kinds[k] === "area" && (mode === "none" || !ser.some((__, j) => kinds[j] === "line" && axes[j] === axes[k])));
+    for (const k of conv) { kinds[k] = "line"; if (mode !== "none") stackL.add(k); }
+  }
   const W = fall ? waterfallSteps(ser[0]) : null, Wc = W ? waterfallColors(ctx, sty.ink, sty.colors[0]) : null;
   const has2 = axes.includes("y2");
   const { x: X0, y: Y0, w: W0, h: H0 } = frame;
@@ -152,7 +163,7 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   // (a waterfall's columns are stacked in PowerPoint: listed bottom-up beside the plot too)
   const at = legendAtOf(it), up = (dir === "bar" || fall || mode !== "none" && kinds.every(k => k !== "line")) && at !== "top" && at !== "bottom";
   const markers = ser.map((s, k) => kinds[k] === "line" ? scatter ? scatterMarker(s.src, colors[k], "#FFFFFF") : markerOf(s.src.marker, colors[k], "#FFFFFF") : null);
-  const strokes = ser.map((s, k) => kinds[k] === "line" && (!scatter || scatterLine(s.src)) ? lineStyleOf(s.src.line, colors[k]) : null);
+  const strokes = ser.map((s, k) => kinds[k] === "line" && (!scatter || scatterLine(s.src)) ? lineStyleOf(s.src.line, colors[k], sty.trend?.w) : null);
   // (a scatter series without a line: its marker alone; a waterfall: Increase, Decrease, Total – legendHide "up" / "down"
   // / "total")
   const entries = shownEntries(it, W && Wc ? (["up", "down", "total"] as const).filter(kd => W.steps.some(st => st?.kind === kd)).map((kd): LegendEntry => ({ key: kd, label: STEP_NAMES[kd], color: Wc[kd] }))
@@ -166,7 +177,7 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   // per axis: its bars (stacked as the chart says), areas (the same), lines, targets – the values its scale must hold
   const per = (["y", "y2"] as Axis[]).map(ax => {
     const idx = ser.map((_, k) => k).filter(k => axes[k] === ax);
-    const bi = idx.filter(k => kinds[k] === "bar"), ai = idx.filter(k => kinds[k] === "area"), li = idx.filter(k => kinds[k] === "line");
+    const bi = idx.filter(k => kinds[k] === "bar"), ai = idx.filter(k => kinds[k] === "area" || stackL.has(k)), li = idx.filter(k => kinds[k] === "line" && !stackL.has(k));
     const sb = stackBars(bi.map(k => ser[k].vals), mode), sa = stackAreas(ai.map(k => ser[k].vals), mode);
     let lo = Infinity, hi = -Infinity;
     if (bi.length) { lo = sb.lo; hi = sb.hi; }
@@ -276,9 +287,19 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   // areas and lines (vertical charts): a point per category centre; a scatter point at its x
   const cx = (i: number) => plot.x + (i + .5) * slot, traces: Trace[] = [];
   const xp = (x: number) => { const S = xAxis!.scale, t = Math.max(0, Math.min(1, (x - S.min) / (S.max - S.min || 1))); return plot.x + t * plot.w; };
+  const lineTrace = (k: number, ax: Axis, pts: ({ x: number; y: number; lo: number; v: number } | null)[]) => {
+    const s = ser[k], smooth = !!s.src.smooth;
+    const d = strokes[k] ? runs(pts).filter(r => r.length > 1).map(r => linePath(r as Pt[], smooth)) : [];
+    const mk = markers[k], rr = mk ? markerPx(mk) / 2 + mk.w / 2 : (strokes[k]?.w ?? 2) / 2;
+    traces.push({ s: k, kind: "line", axis: ax, d, stroke: strokes[k], smooth, marker: mk, fill: colors[k], pts });
+    pts.forEach((p, i) => { if (p) { const pc = s.src.points?.[String(i - s.start)]?.marker; anchors[k][i] = { x: p.x, y: p.y, top: p.y, r: rr, color: typeof pc === "string" && HEX.test(pc) ? pc.toUpperCase() : mk?.color || colors[k] }; } });
+  };
   for (const P of per) {
     const vp = vps[P.ax];
     P.ai.forEach((k, j) => {
+      // (the template's stacked area as a line: at the top of its band, a blank a gap – as PowerPoint's stacked line chart,
+      // whose series above still stand on the ones below)
+      if (stackL.has(k)) { lineTrace(k, P.ax, P.sa.bands[j].map((b, i) => b.blank ? null : { x: cx(i), y: vp(b.hi), lo: 0, v: b.v })); return; }
       // (a blank is zero, as PowerPoint draws it: one band across every category)
       const pts = P.sa.bands[j].map((b, i) => ({ x: cx(i), y: vp(b.hi), lo: vp(b.lo), v: b.v, ...(b.blank ? { blank: true } : {}) }));
       const d = runs<Pt & { lo: number }>(pts).filter(r => r.length > 1).map(r => [...linePath(r, false), ...r.slice().reverse().map((p): PathCmd => ["L", r2(p.x), r2(p.lo)]), ["Z"] as PathCmd]);
@@ -290,15 +311,11 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     const vp = vps[P.ax];
     for (const k of P.li) {
       // (a scatter point at its x on the numeric axis; one without an x is not drawn)
-      const s = ser[k], smooth = !!s.src.smooth, xs = scatter ? s.xs || [] : null;
+      const s = ser[k], xs = scatter ? s.xs || [] : null;
       // (a scatter point whose x is outside the x axis's bounds – `axes.x` narrower than the data – is not drawn and breaks
       // the line, as Excel and PowerPoint leave it out; S14.4 review 2)
       const out = (x: number) => { const S = xAxis!.scale; return x < S.min - 1e-9 * Math.max(1, Math.abs(S.min)) || x > S.max + 1e-9 * Math.max(1, Math.abs(S.max)); };
-      const pts = s.vals.map((v, i) => v === null || xs && (xs[i] === null || xs[i] === undefined || out(xs[i]!)) ? null : { x: xs ? xp(xs[i]!) : cx(i), y: vp(v), lo: 0, v });
-      const d = strokes[k] ? runs(pts).filter(r => r.length > 1).map(r => linePath(r as Pt[], smooth)) : [];
-      const mk = markers[k], rr = mk ? markerPx(mk) / 2 + mk.w / 2 : (strokes[k]?.w ?? 2) / 2;
-      traces.push({ s: k, kind: "line", axis: P.ax, d, stroke: strokes[k], smooth, marker: mk, fill: colors[k], pts });
-      pts.forEach((p, i) => { if (p) { const pc = s.src.points?.[String(i - s.start)]?.marker; anchors[k][i] = { x: p.x, y: p.y, top: p.y, r: rr, color: typeof pc === "string" && HEX.test(pc) ? pc.toUpperCase() : mk?.color || colors[k] }; } });
+      lineTrace(k, P.ax, s.vals.map((v, i) => v === null || xs && (xs[i] === null || xs[i] === undefined || out(xs[i]!)) ? null : { x: xs ? xp(xs[i]!) : cx(i), y: vp(v), lo: 0, v }));
     }
   }
   // the areas first, then the bars, then the lines (09 §3.1)
@@ -448,7 +465,7 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   return { data, dir, mode, gap, overlap, title, titleSt, titleBox, plot, scale, num, valSt, catSt, valShow, catShow, skip, look,
     grid: typeof A.y?.grid === "boolean" ? A.y.grid : look.gridOn, colors, bars, labs, legend, ticks: tk, labels, issue,
     hidden: ser.flatMap((s, k) => entries.some(e => e.key === s.id) ? [] : [k]),
-    kinds, axes, y2, barGroups, traces, groupLabels, dividers, rule, gradient: sty.gradient, marks: { nodes: mk.nodes, under: mk.under, hits: mk.hits, arrows: mk.arrows },
+    kinds, axes, stackLines: [...stackL], y2, barGroups, traces, groupLabels, dividers, rule, gradient: sty.gradient, marks: { nodes: mk.nodes, under: mk.under, hits: mk.hits, arrows: mk.arrows },
     xAxis, connectors: W ? connectors(bars, W.steps, vps.y, connectorLine(ser[0].src, look.line?.color)) : [],
     fall: W && Wc ? { steps: W.steps, colors: Wc, legend: entries.filter(e => !legend.cut?.includes(e.key)).map(e => e.key as StepKind) } : null };
 }
@@ -628,7 +645,8 @@ export function seriesSem(L: SeriesLayout): BarsSem {
     const ai = of("area"), li = of("line"), bg = L.barGroups.find(g => g.axis === ax);
     if (ai.length) groups.push({ kind: "area", axis: ax, grouping: L.mode === "none" ? "standard" : grouping, gap: 0, overlap: 0, series: ai });
     if (bg) groups.push({ kind: "bar", axis: ax, grouping, gap: L.gap, overlap: bg.overlap, series: bg.series.flatMap(k => companion.has(k) ? [k, companion.get(k)!] : [k]) });
-    if (li.length) groups.push({ kind: "line", axis: ax, grouping: "standard", gap: 0, overlap: 0, series: li });
+    // (the template's stacked areas as lines: a stacked / 100 % stacked line chart – never beside ordinary lines on one axis)
+    if (li.length) groups.push({ kind: "line", axis: ax, grouping: li.some(k => L.stackLines.includes(k)) ? grouping : "standard", gap: 0, overlap: 0, series: li });
   }
   const lp = L.legend.at === "right" ? "r" : L.legend.at === "left" ? "l" : L.legend.at === "top" ? "t" : L.legend.at === "top-right" ? "tr" : L.legend.at === "inside-tl" || L.legend.at === "inside-tr" ? "r" : "b";
   const y2 = L.y2, X = L.xAxis;

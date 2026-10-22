@@ -65,13 +65,15 @@ const STY: SeriesStyle = { lab: { family: "Arial", size: 14, weight: 400, italic
   family: "Arial", colors: ["#111111", "#222222", "#333333"], legend: "square", ink: "#000000", gradient: false, radius: 0 };
 
 /** the lines deck (tests/corpus/charts/lines.json, workbook loans-weekly.xlsx) in a design: its context and each slide's list */
-async function deck(design: Design, opts: { sheet?: (n: string, S: Sheet | null) => Sheet | null; scenario?: string; patch?: Record<string, Partial<ChartItem>> } = {}) {
+async function deck(design: Design, opts: { sheet?: (n: string, S: Sheet | null) => Sheet | null; scenario?: string; patch?: Record<string, Partial<ChartItem>>; theme?: string } = {}) {
   const d = JSON.parse(fs.readFileSync(DECK, "utf8")) as { workbook: string; ops: Op[] };
   const wb = await readWorkbook(ab(path.join(BOOKS, d.workbook)));
   const ops = d.ops.map(o => o.op === "item.patch" && opts.patch?.[o.id] ? { ...o, patch: { ...o.patch, ...opts.patch[o.id] } } as Op : o);
   const { doc: view, skipped } = applyOps(emptyDoc("W.xlsx"), ops);
   expect(skipped).toEqual([]);
-  const style = resolveStyle({}, { ...view.style, design }), slides = runtimeSlides(wb, view.preset, "W.xlsx", design);
+  // (theme: a colour theme the user picked – in Excel, one other than Aurora / Intesa Sanpaolo leaves the template's
+  // chart rules out, B48: M14's own areas and colours)
+  const style = resolveStyle({}, { ...view.style, design, ...(opts.theme ? { theme: { id: opts.theme, c1: "", c2: "", c3: "", c4: "", a1: "", a2: "" } } : {}) }), slides = runtimeSlides(wb, view.preset, "W.xlsx", design);
   const own = (n: string) => wb.sheets.find(s => s.name === n) || null;
   const ctx: RenderCtx = { style, edits: {}, slides, preset: view.preset || null, workbook: "W.xlsx", logoSrc: "", sheet: n => opts.sheet ? opts.sheet(n, own(n)) : own(n), version: null, forExport: true, ...(opts.scenario ? { scenario: opts.scenario } : {}) };
   const lists = slides.map((R, i) => slideToDisplayList(R, i, ctx, R.tables.map(L => excelToDisplayList(L, ctx, M)), computeLayout(R, ctx).boxes, { wall: null, logo: null }, M, "1 October 2026", { sem: true }));
@@ -284,7 +286,8 @@ describe("lines and areas in every design (CT-01), the chart corpus's lines deck
     expect(flat(nodes).filter(n => n.t === "line" && n.x2 - n.x1 >= 16 && n.x2 - n.x1 <= 18).length).toBe(3);
   });
   it("a stacked area chart: closed paths, each on the one below, alpha .85; SME drawn but out of the legend", async () => {
-    const { item } = await deck("excel"), { nodes, info } = item("ar");
+    // (Excel with a colour theme of the user's: the template's "areas as lines" does not apply – see the next test)
+    const { item } = await deck("excel", { theme: "forest" }), { nodes, info } = item("ar");
     const areas = flat(nodes).filter((n): n is PathNode => n.t === "path" && !!n.fill && "solid" in n.fill && n.fill.a === .85);
     expect(areas).toHaveLength(3);
     expect(areas.every(a => a.d[a.d.length - 1][0] === "Z")).toBe(true);
@@ -298,6 +301,37 @@ describe("lines and areas in every design (CT-01), the chart corpus's lines deck
     expect(x).toMatch(/<c:legendEntry><c:idx val="2"\/><c:delete val="1"\/><\/c:legendEntry>/);
     expect(x).toContain('<a:solidFill><a:srgbClr val="4472C4"><a:alpha val="85000"/></a:srgbClr></a:solidFill>');
     expect(x.match(/<c:areaChart>.*<\/c:areaChart>/)![0]).not.toContain("<c:dLblPos");   // an area's labels take no position
+  });
+  it("the Excel designs' template (B48 · ISP.chart, M14 merge): trend charts as a line only – the stacked areas as stacked lines of the template's width, in its palette; the slide and PowerPoint alike", async () => {
+    for (const design of ["excel", "clean"] as Design[]) {
+      const { item } = await deck(design), { nodes, info } = item("ar");
+      const P = flat(nodes).filter((n): n is PathNode => n.t === "path");
+      expect(P.filter(p => p.fill && "solid" in p.fill && p.fill.a === .85)).toEqual([]);           // no area
+      const lines = P.filter(p => p.stroke && !p.fill);
+      expect(lines).toHaveLength(3);
+      expect(lines.every(l => Math.abs(l.stroke!.w - 10 / 3) < 1e-3)).toBe(true);                    // 1.5 pt on the template = 3.33 px
+      // each on the top of the series below it (Retail, Corporate, SME), as the areas were
+      const yAt = (p: PathNode) => p.d[0][2] as number;
+      expect(yAt(lines[1])).toBeLessThan(yAt(lines[0]));
+      expect(yAt(lines[2])).toBeLessThan(yAt(lines[1]));
+      // the template's palette (25 % transparency: blue #406B9B first) – and PowerPoint's chart the same: a stacked line
+      // chart, no area chart, the template's colours and width
+      expect(JSON.stringify(lines[0].stroke!.paint)).toBe(JSON.stringify({ solid: [0x40, 0x6B, 0x9B] }));
+      const x = xml(semOf(info));
+      expect(x).not.toContain("<c:areaChart>");
+      expect(x).toContain('<c:lineChart><c:grouping val="stacked"/><c:varyColors val="0"/>');
+      expect(x).toContain('<a:ln w="25400" cap="rnd"><a:solidFill><a:srgbClr val="406B9B"/>');
+      expect(x).toContain('<a:srgbClr val="F18B40"/>');
+      // the line chart's own lines: the template's width too
+      const ln = flat(item("ln").nodes).filter((n): n is PathNode => n.t === "path" && !!n.stroke && !n.fill);
+      expect(ln.filter(l => !l.stroke!.dash).every(l => Math.abs(l.stroke!.w - 10 / 3) < 1e-3)).toBe(true);
+    }
+    // Liquid Glass and the consulting designs: areas stay areas, lines 2.5 px (M14)
+    for (const design of ["glass", "mckinsey", "bain"] as Design[]) {
+      const { item } = await deck(design), { nodes, info } = item("ar");
+      expect(flat(nodes).filter(n => n.t === "path" && !!n.fill && "solid" in n.fill && n.fill.a === .85)).toHaveLength(3);
+      expect(xml(semOf(info))).toContain('<c:areaChart><c:grouping val="stacked"/>');
+    }
   });
 });
 
@@ -485,7 +519,8 @@ describe("S14.3 review: the export as the slide", () => {
 
   it("(2) an area's blank is drawn as zero on the slide – one band, no label, no hit there – and cached as a blank, which PowerPoint draws as zero", async () => {
     // Corporate's Mar (D3) blank in the stacked areas: its band drops onto Retail's top there
-    const { item, lists } = await deck("excel", { sheet: blanks("3,4") }), { nodes, info } = item("ar");
+    // (Excel with a colour theme of the user's: M14's areas – the template draws them as lines)
+    const { item, lists } = await deck("excel", { sheet: blanks("3,4"), theme: "forest" }), { nodes, info } = item("ar");
     if (process.env.CHART_PPTX_OUT) fs.writeFileSync(path.join(process.env.CHART_PPTX_OUT, "area-blank-excel.pptx"), pptxOf(lists));
     const areas = flat(nodes).filter((n): n is PathNode => n.t === "path" && !!n.fill && "solid" in n.fill && n.fill.a === .85);
     expect(areas).toHaveLength(3);                                         // not broken into two runs
@@ -540,7 +575,7 @@ describe("S14.3 review: the export as the slide", () => {
     if (at.startsWith("inside")) expect(x).toMatch(/<c:legend>.*<c:overlay val="1"\/>/);
   });
   it("(1) a legend of bars only is written as S14.2 wrote it (the slide's box)", async () => {
-    const { item } = await deck("excel"), L = item("ar");
+    const { item } = await deck("excel", { theme: "forest" }), L = item("ar");
     const ch = semOf(L.info), lg = ch.bars!.legend!;
     // (the stacked areas' legend: squares only – no line entry, so the box is the slide's own)
     const pg = L.list.nodes.slice(L.info.at[0], L.info.at[1]);
@@ -627,7 +662,9 @@ describe("the cache and the PowerPoint files", () => {
     const charts = Object.keys(z).filter(n => /^ppt\/charts\/chart\d+\.xml$/.test(n)).sort();
     expect(charts).toHaveLength(5);
     const kinds = charts.map(n => [...strFromU8(z[n]).matchAll(/<c:(lineChart|areaChart|barChart)>/g)].map(m => m[1]).join("+")).sort();
-    expect(kinds).toEqual(["areaChart", "barChart+lineChart", "barChart+lineChart", "lineChart", "lineChart+barChart"]);
+    // (Excel and Excel Refined: the template's stacked areas are a stacked line chart)
+    expect(kinds).toEqual(design === "excel" || design === "clean" ? ["barChart+lineChart", "barChart+lineChart", "lineChart", "lineChart", "lineChart+barChart"]
+      : ["areaChart", "barChart+lineChart", "barChart+lineChart", "lineChart", "lineChart+barChart"]);
     for (const n of Object.keys(z).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n))) {
       const s = strFromU8(z[n]);
       expect(s).not.toContain("<p:cxnSp");

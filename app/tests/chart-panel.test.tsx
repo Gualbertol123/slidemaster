@@ -17,7 +17,7 @@ vi.mock("../src/render/wall", async orig => ({ ...(await orig() as object), appl
 import { App } from "../src/ui/App";
 import { ItemPanel } from "../src/ui/ItemPanel";
 import { get } from "../src/state/store";
-import { change, gotoSlide, openLocalFile, undo } from "../src/state/app";
+import { change, gotoSlide, openLocalFile, styleChange, undo } from "../src/state/app";
 import { insertChartRefs, itemOf, itemPatch, selectItem } from "../src/editor/charts";
 import {
   addGroupPatch, addMarkPatch, addSeriesPatch, allSeries, axisPatch, labelsPatch, legendHidePatch, moveSeriesPatch, newEntryId, pointPatch, refPatch,
@@ -385,5 +385,31 @@ describe("the chart panel on the page (CT-08)", () => {
     if (process.env.CHART_PANEL_TIMES) fs.appendFileSync(process.env.CHART_PANEL_TIMES, `chart panel: ${onKeys} draws on 20 keypresses; its draw on a chart change: p50 ${sortedT[Math.floor(sortedT.length / 2)]?.toFixed(2)} ms, p95 ${p95.toFixed(2)} ms, max ${sortedT[sortedT.length - 1]?.toFixed(2)} ms (${times.length} draws)\n`);
     expect(times.length).toBeGreaterThanOrEqual(10);                              // (changes close together draw once)
     expect(p95).toBeLessThan(50);
+  });
+
+  it("colours (owner Q3, 2026-10-21: \"have default colours, then allow to change\"): a series starts in the design's palette; a colour set here stays in every design; ↺ gives the design's back", async () => {
+    const sw = (sid: string) => (q(`[data-ser="${sid}"] .serhd input[type="color"]`) as HTMLInputElement).value.toUpperCase();
+    // (the chart selected again after the design changes: a design draws its own slides)
+    const design = async (d: "excel" | "glass") => {
+      const h = history(); await act(async () => { styleChange("Design", { design: d }); }); await confirmed(h + 1);
+      await act(async () => { selectItem(id); }); await vi.waitFor(() => expect(document.getElementById("chartSeriesPanel")).toBeTruthy());
+    };
+    await design("excel");
+    // (Excel: the template's palette – its blue at 25 % first, B48)
+    await vi.waitFor(() => expect(sw("s1")).toBe("#406B9B"));
+    expect(it_().sers!.s1.color).toBeUndefined();
+    let h = history();
+    const el = q(`[data-ser="${s2}"] .serhd input[type="color"]`) as HTMLInputElement;
+    await act(async () => { el.value = "#123456"; fireEvent(el, new Event("change", { bubbles: true })); }); await confirmed(h + 1);
+    expect(it_().sers![s2].color).toBe("#123456");
+    await design("glass");
+    // the unset series takes Liquid Glass's palette, the one the user set stays
+    await vi.waitFor(() => expect(sw("s1")).not.toBe("#406B9B"));
+    expect(sw(s2)).toBe("#123456");
+    expect(q('[data-ser="s1"] [data-a="sreset"]')).toBeNull();
+    h = history();
+    await act(async () => { fireEvent.click(q(`[data-ser="${s2}"] [data-a="sreset"]`)); }); await confirmed(h + 1);
+    expect(it_().sers![s2].color).toBeUndefined();
+    expect(get().deck.history.undoLabel).toBe("Series colour of the design");
   });
 });

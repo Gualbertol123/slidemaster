@@ -63,8 +63,8 @@ describe("slide layout with text boxes, alignment and fixed scale", () => {
   });
   it("alignment left/right and a fixed scale", () => {
     const T = fakeTable([[1]], 300, 100);
-    expect(computeLayout(slide([T], { align: "left" }), ctx()).boxes[0].x).toBeCloseTo(50);
-    const r = computeLayout(slide([T], { align: "right" }), ctx()).boxes[0]; expect(r.x + r.w).toBeCloseTo(1550);
+    expect(computeLayout(slide([T], { align: "left" }), ctx()).boxes[0].x).toBeCloseTo(70);            // the Excel designs: the template's margins (B48)
+    const r = computeLayout(slide([T], { align: "right" }), ctx()).boxes[0]; expect(r.x + r.w).toBeCloseTo(1530);
     const f = computeLayout(slide([T], { scale: .5 }), ctx()); expect(f.boxes[0].scale).toBeCloseTo(.5); expect(f.reduced).toBe(false);
     const big = computeLayout(slide([T], { scale: 50 }), ctx()); expect(big.reduced).toBe(true); expect(big.boxes[0].scale).toBeCloseTo(big.fit);
   });
@@ -125,8 +125,8 @@ describe("round 4: themes, gridlines, painted conditional formats, vertical alig
   it("tables can sit at the top, middle or bottom of the content area", () => {
     const T = fakeTable([[1, 2, 3], [4, 5, 6], [7, 8, 9]], 300, 90);
     const y = (valign?: string) => computeLayout(slide([T], { valign, scale: 1 }), ctx()).boxes[0].y;
-    expect(y("top")).toBe(104);
-    expect(y("bottom")).toBeCloseTo(104 + 718 - 90, 5);
-    expect(y("middle")).toBeCloseTo(104 + (718 - 90) / 2, 5);
+    expect(y("top")).toBe(130);            // under the template's title (B48)
+    expect(y("bottom")).toBeCloseTo(130 + 692 - 90, 5);
+    expect(y("middle")).toBeCloseTo(130 + (692 - 90) / 2, 5);
   });
 });
