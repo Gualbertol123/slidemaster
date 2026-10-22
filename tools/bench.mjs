@@ -305,14 +305,18 @@ async function run(browser, port) {
     const thumbs = await thumbScroll(browser, page);
     await page.locator("#sbSave").filter({ hasText: "✓ Saved" }).waitFor({ timeout: 20000 }); await sleep(300);
     const ltThumbs = (await longTasks()).map(x => x.d);
-    // ---- the icon picker (S15.2, 09 §7.4), when the build has it: Insert shape ▾ › More icons… on deck20's second slide.
+    // ---- the icon picker (S15.2, 09 §7.4), when the build has it: Shapes & icons… (4.12; before it Insert shape ▾ ›
+    // More icons…) on deck20's second slide.
     // The set's first use in the core worker, cold (inflate + index: the worker's own time for the first answer, the
     // grid's data-ms), then 2 untimed and 20 timed keystrokes – from the key to the first frame after the grid shows that
     // query's hits (its data-q) – p95; closed without inserting anything
     let icons = null;
-    if ((await page.content()).includes("moreIcons")) {
+    if (/moreIcons|iconShapes/.test(await page.content())) {
       await page.locator(".thumb").nth(1).click(); await page.waitForFunction(() => window.__sbTest.stageIdle(), null, { timeout: 60000 });
-      await page.click("#shapeBtn"); await page.click("#moreIcons");
+      await page.click("#shapeBtn");
+      // (a build before 4.12: its dropdown's More icons… first)
+      await page.locator("#moreIcons, #iconPicker").first().waitFor({ timeout: 10000 });
+      if (await page.locator("#moreIcons").count()) await page.click("#moreIcons");
       await page.locator('#iconGrid[data-first="1"]').waitFor({ timeout: 60000 });
       // a cold first use only if nothing inflated the set before (a Tabler icon on deck20 would): else not measured
       const { firstUse, coldSet } = await page.evaluate(() => { const g = document.querySelector("#iconGrid").dataset; return { firstUse: +g.ms, coldSet: g.cold === "1" }; });
@@ -521,7 +525,7 @@ async function dragFrames(browser, page, withFree = false) {
       await drag("free text box move", await at('#stage .tnote:has-text("Source: monthly figures")'), 40, 20);
       const tb = await at('#stage .tnote:has-text("Source: monthly figures")');
       await drag("free text box edge", { x: tb.b.x + tb.b.width - 2, y: tb.y }, 60, 0);
-      await page.click("#shapeBtn"); await page.click('.shapemenu [data-shape="pill"]');
+      await page.click("#shapeBtn"); await page.click('.shapemenu [data-shape="pill"], #iconShapes [data-shape="pill"]');   // (before 4.12: the dropdown)
       await page.locator(".itembox[data-kind=shape]").waitFor(); await idle();
       await drag("free callout move", await at(".itembox[data-kind=shape]"), -50, -30);
       const cb = await at(".itembox[data-kind=shape]");

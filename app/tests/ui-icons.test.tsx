@@ -76,7 +76,7 @@ describe("UI icons (S15.6, B35)", () => {
       ['[data-addnote="top"]', "arrow-up", ""], ['[data-addnote="left"]', "arrow-left", ""], ["#commentBtn", "message-plus", "Comment…"],
       ["#noteAttach", "link", "Attach"], ["#noteDelete", "trash", ""], ["#noteBubble", "message-circle", ""], ["#slideNotes", "notes", "Notes"],
       ["#logoToggle", "photo", "Logo"],
-      ["#shapeBtn", "shape", "Insert shape ▾"], ["#lineBtn", "arrow-up-right", "Insert line ▾"]];
+      ["#shapeBtn", "shape", "Shapes & icons…"], ["#lineBtn", "arrow-up-right", "Insert line ▾"]];
     for (const [sel, n, label] of expected) {
       const b = container.querySelector<HTMLButtonElement>(sel);
       expect(b, sel).toBeTruthy();

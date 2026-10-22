@@ -1,5 +1,5 @@
 /* S14.P: the shared UI slots M14 and M15 fill without editing the same lines – the ribbon's Insert entries
-   (InsertSlots.tsx: Insert chart ▾, then Insert shape ▾, the ids the e2e tests click) and the side panel of the selected
+   (InsertSlots.tsx: Insert chart ▾, then Shapes & icons… – Insert shape ▾ before 4.12 –, the ids the e2e tests click) and the side panel of the selected
    item (ItemPanel.tsx: nothing without a selected item). */
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";

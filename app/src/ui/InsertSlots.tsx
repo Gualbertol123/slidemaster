@@ -9,7 +9,7 @@ import { LineInsert } from "./LineTools";
 export const INSERT_SLOTS: (() => ReactElement | null)[] = [
   ChartInsert,                                    // M14: Insert chart ▾
   /* ---- M14 above this line, M15 below it ---- */
-  ShapeInsert,                                    // M15: Insert shape ▾ (icons, More icons…)
+  ShapeInsert,                                    // M15: Shapes & icons… (4.12: one window, icons and shapes)
   LineInsert,                                     // M15: Insert line ▾ (S15.3)
 ];
 export function InsertSlots() {

@@ -3,6 +3,24 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.12.0 - unreleased
+
+What users notice
+* **One window for icons and shapes.** *Insert shape ▾* (a menu of six shapes, 17 built-in icons and *More icons…*) is
+  now one button, *Shapes & icons…*, that opens one large window: about 6,200 icons to search by name or tag (English
+  or Italian), by category, outline or filled, with the new icon's colour, size and line; the shapes that carry text
+  sit in a column at its side – a **text box** (new: no fill, no border, text on the left), rectangle, rounded
+  rectangle, pill, circle, arrow and speech bubble. In a narrower window (up to about 1,100 px) that column sits above
+  the icons. The window fits screens from 1024 × 768 to 1920 × 1080, its icons in as many columns as fit.
+* **The 17 built-in icons are no longer offered** – each has the same picture among the new icons (e.g. *warning* →
+  *alert triangle*, *bank* → *building bank*, *pin* → *map pin*). Decks that already have them are unchanged: they are
+  drawn, exported to PDF, PNG and PowerPoint and edited exactly as before (colour, size, place, undo). *Change icon…* on
+  one opens the new window at its counterpart.
+* The keyboard in the window: the search box has the focus; ↓ goes into the icons, the arrow keys, Home, End and
+  Page Up / Down move through them (↑ from the first row back to the search), Enter inserts, Tab stays in the window,
+  Escape closes it and gives the focus back to the button.
+* No change to the deck format: a deck made with 4.12 opens in 4.11 (a text box is a rectangle without fill or border).
+
 ## 4.11.0 - 2026-10-22 (B53: chart labels)
 
 What users notice

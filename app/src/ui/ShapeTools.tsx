@@ -1,13 +1,12 @@
-/* Callouts on ribbon 2 (S9.4, B17; 07 §3): Insert shape ▾ (six shapes, the built-in icons, More icons… – the Tabler
-   icon picker, S15.2) and, while a shape is selected, its fill, border and text (an icon: its colour, another icon, its
+/* Callouts on ribbon 2 (S9.4, B17; 07 §3): Shapes & icons… (4.12: one window – the Tabler icons, the six shapes and
+   a text box at its side, IconPicker.tsx; the 17 built-in icons are no longer offered, the decks that have them draw
+   them as before) and, while a shape is selected, its fill, border and text (an icon: its colour, another icon, its
    size and line width) – each change one item.patch (one undo step). Its text is edited on the slide
    (double-click, Enter); {Sheet!C7} quotes a cell, which follows reloads and scenarios. */
 import { setDialogs, useStore } from "../state/store";
 import type { Op, RuntimeSlide, ShapeItem } from "@slide-builder/core/model/types";
-import { ICON_NAMES, iconCmds } from "@slide-builder/core/render/icons";
-import { arrowCmds, bubbleCmds, ellipseCmds, iconStroke } from "@slide-builder/core/render/shape-dl";
-import type { PathCmd } from "@slide-builder/core/dl/types";
-import { insertShape, itemOf, itemPatch } from "../editor/charts";
+import { iconStroke } from "@slide-builder/core/render/shape-dl";
+import { itemOf, itemPatch } from "../editor/charts";
 import { setStage, useStage } from "../stage/data";
 import { Dropdown } from "./Dropdown";
 import { Input } from "./Input";
@@ -20,29 +19,12 @@ import { change } from "../state/app";
 import { freeOp } from "../stage/drags";
 import { isIsp, ISP_FILLS } from "@slide-builder/core/model/isp";
 
-const SHAPES: [ShapeItem["shape"], string][] = [["rect", "Rectangle"], ["round", "Rounded rectangle"], ["pill", "Pill"], ["circle", "Circle"], ["arrow", "Arrow"], ["bubble", "Speech bubble"]];
-const d = (cmds: PathCmd[]) => cmds.map(c => c[0] + c.slice(1).join(" ")).join(" ");
-const PREVIEW: Record<string, string> = {
-  rect: d([["M", 2, 6], ["L", 22, 6], ["L", 22, 18], ["L", 2, 18], ["Z"]]), round: "M6 6h12a4 4 0 0 1 4 4v4a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4v-4a4 4 0 0 1 4-4z",
-  pill: "M8 7h8a5 5 0 0 1 0 10H8a5 5 0 0 1 0-10z", circle: d(ellipseCmds(3, 3, 18, 18)), arrow: d(arrowCmds(2, 5, 20, 14)), bubble: d(bubbleCmds(2, 3, 20, 13, 3, { x: 7, y: 21 })),
-};
-/** Insert shape ▾: the ribbon's shape entry, one of the Insert slots (InsertSlots.tsx, S14.P) */
+/** Shapes & icons…: the ribbon's one entry for icons, shapes and text boxes, one of the Insert slots (InsertSlots.tsx,
+    S14.P) – it opens the icon and shape window (IconPicker.tsx: the Tabler icons, the shapes and a text box at its side) */
 export function ShapeInsert() {
   const R = useCurSlide();
-  return <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="shapeBtn" disabled={!R} title="A callout: a shape or an icon, with text that can quote cells ({Sheet!C7})" onClick={t}>
-    <Ic n="shape" />Insert shape ▾</button>}>
-    {close => <ShapeMenu close={close} />}</Dropdown>;
-}
-export function ShapeMenu({ close }: { close: () => void }) {
-  return <div className="shapemenu">
-    <div className="hd">Shapes <small>with text; {"{Sheet!C7}"} quotes a cell</small></div>
-    <div className="grid">{SHAPES.map(([s, l]) => <button key={s} data-shape={s} title={l} onClick={() => { close(); insertShape(s); }}>
-      <svg viewBox="0 0 24 24"><path d={PREVIEW[s]} fill="#E8EEF8" stroke="#0A66D8" strokeWidth="1.3" /></svg></button>)}</div>
-    <div className="hd">Icons</div>
-    <div className="grid">{ICON_NAMES.map(n => <button key={n} data-icon={n} title={n.replace("-", " ")} onClick={() => { close(); insertShape("icon", n); }}>
-      <svg viewBox="0 0 24 24"><path d={d(iconCmds(n, 0, 0, 1))} fill="#1F2430" fillRule="evenodd" /></svg></button>)}</div>
-    <div className="wide"><button id="moreIcons" title="About 6,200 icons (Tabler Icons): search by name or tag, by category" onClick={() => { close(); openIconPicker({ mode: "insert" }); }}>More icons…</button></div>
-  </div>;
+  return <button className="tb" id="shapeBtn" disabled={!R} aria-haspopup="dialog" title="Icons (about 6,200 to search), shapes and text boxes – with text that can quote cells ({Sheet!C7})"
+    onClick={() => openIconPicker({ mode: "insert" })}><Ic n="shape" />Shapes &amp; icons…</button>;
 }
 
 const FILLS = ["#FFFFFF", "#F2F2F2", "#FFF4D6", "#E8F1FF", "#E6F6EC", "#FDE8E6", "#0A2A66", "#2251FF", "#1E8E3E", "#CC0000", "#F28C00", "#1F2430"];
