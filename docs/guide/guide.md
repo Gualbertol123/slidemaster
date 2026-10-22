@@ -346,17 +346,20 @@ a chart of its own numbers, and can go back). *Stack*: *Side by side*, *Stacked*
   PowerPoint stacks a whole chart.
 
 ### Shapes and icons (callouts)
-*Insert shape ▾* adds a rectangle, rounded rectangle, pill, circle, arrow or speech bubble, or one of 17 icons. Double-
-click (or Enter) to write its text. *Quote a cell…* picks a cell on a sheet and adds it as `{Sheet!C7}`: the shape shows
+*Shapes & icons…* (4.12) opens one window: the icons in the middle, and at its side a text box (no fill, no border), a
+rectangle, rounded rectangle, pill, circle, arrow or speech bubble. Double-click a shape (or Enter) to write its text. *Quote a cell…* picks a cell on a sheet and adds it as `{Sheet!C7}`: the shape shows
 the cell as the workbook formats it, and follows reloads and scenarios (`{'Sheet name'!C7}` for a name with spaces,
 `{[Peers.xlsx]Peer!F7}` for a linked workbook). With a shape selected, ribbon 2 sets its fill, border (colour, weight,
 dashed, dotted, none) and text (size, bold, colour, alignment). Without a fill of its own a shape takes the design's
 material (glass, a framed box, a card).
 
-**Icons (4.8).** *Insert shape ▾ › More icons…*: about 6,200 icons (Tabler Icons), searched by name in English or
-Italian – "banca", "obiettivo", "freccia su", "stretta di mano" –, *Outline* or *Filled*, by category or *Recent*, in
-the colour, size and line chosen there (no internet needed). A selected icon has *Change icon…*, its size and line
-width. An icon this version does not have shows an info icon (i) and an Issues line.
+**Icons (4.8; one window since 4.12).** *Shapes & icons…*: about 6,200 icons (Tabler Icons), searched by name in English
+or Italian – "banca", "obiettivo", "freccia su", "stretta di mano" –, *Outline* or *Filled*, by category or *Recent*, in
+the colour, size and line chosen there (no internet needed). The keyboard works too: ↓ from the search box into the
+icons, the arrow keys, Enter to insert, Esc to close. A selected icon has *Change icon…*, its size and line width. The
+17 built-in icons of earlier versions are no longer offered (each has the same picture among the 6,200); slides that
+have them keep them, drawn and exported as before. An icon this version does not have shows an info icon (i) and an
+Issues line.
 
 **Lines (4.8).** *Insert line ▾*: line, arrow, double arrow, elbow, curve, bracket, range marker, limiter, divider,
 callout line. Drag the line to move it, its round handles to move its ends (Shift: straight, 45° or upright), the
