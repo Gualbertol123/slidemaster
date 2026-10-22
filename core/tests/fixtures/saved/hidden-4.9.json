@@ -1,0 +1,254 @@
+{
+  "about": "A deck as 4.9 (M16, S16.1) saves it: a format-5 snapshot and the journal records of two writers past its frontier, holding rows and columns hidden per slide (09 §2.5, slide.patch map `hidden`, B36; HR-01, HR-02) on report.xlsx: one table on two slides, each slide hiding its own rows / columns, two writers at once on one table, an unhide, an Unhide all, and two tables of one slide. Made by hand for S16.1; added, never edited.",
+  "snapshot": {
+    "format": 5,
+    "gen": 2,
+    "workbook": "report.xlsx",
+    "lamport": 4,
+    "rev": 3,
+    "frontier": {
+      "anna@pc1#aaaaaaaa": 1630,
+      "bob@pc2#bbbbbbbb": 512
+    },
+    "seen": {
+      "anna@pc1#aaaaaaaa": 3,
+      "bob@pc2#bbbbbbbb": 1
+    },
+    "updated": 1792000000000,
+    "updatedBy": "anna",
+    "log": [
+      {
+        "rev": 2,
+        "by": "bob",
+        "at": 1791999990000
+      },
+      {
+        "rev": 3,
+        "by": "anna",
+        "at": 1792000000000
+      }
+    ],
+    "at": 1792000005000,
+    "by": "anna",
+    "doc": {
+      "schema": 3,
+      "workbook": "report.xlsx",
+      "rev": 3,
+      "preset": {
+        "sheets": [
+          "SLIDE_1",
+          "SLIDE_2 panel",
+          "SLIDE_3 pair"
+        ],
+        "tables": [
+          {
+            "id": "dhnms9c",
+            "sheet": "SLIDE_1",
+            "kind": "markers",
+            "anchor": "B3",
+            "index": 0
+          },
+          {
+            "id": "ybyk4v2",
+            "sheet": "SLIDE_3 pair",
+            "kind": "markers",
+            "anchor": "B3",
+            "index": 0
+          },
+          {
+            "id": "62de08x",
+            "sheet": "SLIDE_3 pair",
+            "kind": "markers",
+            "anchor": "G3",
+            "index": 1
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "title": "Loans",
+            "tables": [
+              "dhnms9c"
+            ],
+            "hidden": {
+              "dhnms9c:r6": true
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "title": "Loans, every bank",
+            "tables": [
+              "dhnms9c"
+            ],
+            "items": {
+              "c1": {
+                "kind": "chart",
+                "type": "pie",
+                "values": {
+                  "table": "dhnms9c",
+                  "range": "D6:D11"
+                },
+                "show": [
+                  "label",
+                  "percent"
+                ],
+                "legend": "right",
+                "box": {
+                  "x": 980,
+                  "y": 250,
+                  "w": 560,
+                  "h": 420
+                }
+              }
+            }
+          },
+          {
+            "id": "s3",
+            "type": "content",
+            "title": "Pair",
+            "tables": [
+              "ybyk4v2",
+              "62de08x"
+            ]
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    }
+  },
+  "records": [
+    {
+      "l": 5,
+      "w": "anna@pc1#aaaaaaaa",
+      "s": 4,
+      "by": "anna",
+      "at": 1792000065000,
+      "ops": [
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "hidden": {
+              "dhnms9c:r7": true,
+              "dhnms9c:cE": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "l": 6,
+      "w": "bob@pc2#bbbbbbbb",
+      "s": 2,
+      "by": "bob",
+      "at": 1792000066000,
+      "ops": [
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "hidden": {
+              "dhnms9c:r10": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "l": 7,
+      "w": "bob@pc2#bbbbbbbb",
+      "s": 3,
+      "by": "bob",
+      "at": 1792000067000,
+      "ops": [
+        {
+          "op": "slide.patch",
+          "id": "s2",
+          "patch": {
+            "hidden": {
+              "dhnms9c:cG": true,
+              "dhnms9c:r8": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "l": 8,
+      "w": "anna@pc1#aaaaaaaa",
+      "s": 5,
+      "by": "anna",
+      "at": 1792000068000,
+      "ops": [
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "hidden": {
+              "dhnms9c:r6": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "l": 9,
+      "w": "bob@pc2#bbbbbbbb",
+      "s": 4,
+      "by": "bob",
+      "at": 1792000069000,
+      "ops": [
+        {
+          "op": "slide.patch",
+          "id": "s2",
+          "patch": {
+            "hidden": {
+              "dhnms9c:cG": null,
+              "dhnms9c:r8": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "l": 10,
+      "w": "anna@pc1#aaaaaaaa",
+      "s": 6,
+      "by": "anna",
+      "at": 1792000070000,
+      "ops": [
+        {
+          "op": "slide.patch",
+          "id": "s2",
+          "patch": {
+            "hidden": {
+              "dhnms9c:r12": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "l": 11,
+      "w": "bob@pc2#bbbbbbbb",
+      "s": 5,
+      "by": "bob",
+      "at": 1792000071000,
+      "ops": [
+        {
+          "op": "slide.patch",
+          "id": "s3",
+          "patch": {
+            "hidden": {
+              "ybyk4v2:r6": true,
+              "62de08x:cJ": true
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

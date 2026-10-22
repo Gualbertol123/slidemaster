@@ -1,6 +1,6 @@
 {
   "name": "@slide-builder/app",
-  "version": "4.8.0",
+  "version": "4.9.0",
   "private": true,
   "type": "module",
   "description": "Slide Builder browser app. `npm run build` writes ../helper/slide_builder.html (one self-contained file).",
@@ -15,7 +15,7 @@
     "bench": "vitest run --project react --silent=false tests/renders.test.tsx"
   },
   "dependencies": {
-    "@slide-builder/core": "4.8.0",
+    "@slide-builder/core": "4.9.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "zustand": "5.0.15"

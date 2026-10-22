@@ -27,6 +27,15 @@
             in knownOp, 4.6p (v4.6.0 = 6392856, main with S14.P, + the dated CHANGELOG) knows them and stores a whole series entry – `total` inside a
             series survives only because of that. For 4.0–4.5 (format 5 refused) the case checks the same with the open
             refused. Cases a–d also make the M14 objects (missing46 checks them)
+     m15    (4.8, AUDIT-3 VER-4) the new page makes M15 objects – a line (route, ends, style with heads, a label) and a
+            Tabler icon with its stroke – on the second content slide (the deck stays format 5); the old page opens it,
+            edits a cell, runs ✦ Wizard -> Finish (a whole preset.set) and is left alone past the compaction margin ->
+            the line and the icon byte-equal (JSON) in the folded deck. 4.0–4.5: refused (409), nothing changed
+     m16    (4.9, AUDIT-3 COMPAT-1 / VER-4) the new page makes 4.9 objects – a version with a deleted row (version.patch
+            drop) and a hidden row on the first content slide (slide.patch hidden) – which raise the deck to FORMAT 6
+            (incident-format-6.json); the old page (4.6–4.8 read format 5, not 6; 4.0–4.5 neither) opens the deck, and
+            if it gets in, Continue and ✦ Wizard -> Finish -> PASS only when the open is refused (409, a clear wall),
+            the snapshot unchanged by it, and `drop` / `hidden` byte-equal in the folded deck
    The old pages are driven through Playwright (open, Continue, a cell typed, ✦ Wizard -> Finish); the 4.6 page's
    objects are made with the page's own change() (window.__sbTest.change: the op path of its buttons). Direct API
    probes are sent from inside the old page with its own headers (X-SB-Token from its meta tag, X-SB-Formats, no
@@ -35,8 +44,8 @@
    No network: the helpers run with SLIDEBUILDER_NO_NET=1 and the browser aborts every request that is not to
    127.0.0.1. Prints one RESULT line per version x case and writes a JSON report.
 
-   node tools/compat-old.mjs [--versions 4.0,4.1,4.4,4.5] [--pythons "python3.12,py38/bin/python"] [--new-python python3]
-        [--cases cp02,a,b,c,d] [--modes journal,lean-lock] [--port 8961] [--out compat-old.json]
+   node tools/compat-old.mjs [--versions 4.0,4.1,4.4,4.5,4.6,4.6p,4.7,4.8] [--pythons "python3.12,py38/bin/python"] [--new-python python3]
+        [--cases cp02,a,b,c,d,m14,m15,m16] [--modes journal,lean-lock] [--port 8961] [--out compat-old.json]
         [--worktrees <dir>] [--keep-worktrees] [--keep-data] [--bump-wait-s N]
    --pythons: the interpreters for the OLD helpers (each version runs once per interpreter; "py -3.8" works on
    Windows). --bump-wait-s sets SLIDEBUILDER_TEST_BUMP_WAIT_S on the 4.6 helper only (default: unset = the real
@@ -53,17 +62,19 @@ const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const flag = k => process.argv.includes(k);
-const REFS = { "4.0": "v4.0.0", "4.1": "061a5b3", "4.4": "a1d3aba", "4.5": "637f7b4", "4.6": "e6c1c4f", "4.6p": "v4.6.0", "4.7": "v4.7.0" };   // (4.6p: the released 4.6.0 – 6392856, main with S14.P, + the dated CHANGELOG; 4.7: the released 4.7.0, M14)
-/** a release tag not yet made in this clone (4.8.0's merge was prepared before the 4.7.0 tag): the commit it will name –
-    M14's head d327882, "M14 · 4.7.0: dated, runs recorded" (logged when used) */
-const REF_FALLBACK = { "v4.7.0": "d327882" };
-/** the versions that read format 5 (4.6.0, M13's format guard): cases a–d expect a refusal, so only cp02 and m14 run */
-const READS_V5 = new Set(["4.6", "4.6p", "4.7"]);
-const VERSIONS = arg("--versions", "4.0,4.1,4.4,4.5,4.6,4.6p,4.7").split(",").filter(Boolean);
+const REFS = { "4.0": "v4.0.0", "4.1": "061a5b3", "4.4": "a1d3aba", "4.5": "637f7b4", "4.6": "e6c1c4f", "4.6p": "v4.6.0", "4.7": "v4.7.0",   // (4.6p: the released 4.6.0 – 6392856, main with S14.P, + the dated CHANGELOG; 4.7: the released 4.7.0, M14)
+  "4.8": "v4.8.0" };   // (4.8: the released 4.8.0, M15 – main's 36d689a)
+/** a release tag not yet made in this clone (4.8.0's merge was prepared before the 4.7.0 tag, 4.9.0's before the 4.8.0
+    tag): the commit it will name – M14's head d327882, "M14 · 4.7.0: dated, runs recorded"; main's 36d689a, the merge of
+    M15 for 4.8.0 (logged when used) */
+const REF_FALLBACK = { "v4.7.0": "d327882", "v4.8.0": "36d689a" };
+/** the versions that read format 5 (4.6.0, M13's format guard): cases a–d expect a refusal, so only cp02, m14, m15 and m16 run */
+const READS_V5 = new Set(["4.6", "4.6p", "4.7", "4.8"]);
+const VERSIONS = arg("--versions", "4.0,4.1,4.4,4.5,4.6,4.6p,4.7,4.8").split(",").filter(Boolean);
 const DEFAULT_PY = process.platform === "win32" ? "python" : "python3";
 const PYTHONS = arg("--pythons", DEFAULT_PY).split(",").filter(Boolean);
 const NEW_PY = arg("--new-python", DEFAULT_PY);
-const CASES = arg("--cases", "cp02,a,b,c,d,m14").split(",").filter(Boolean);
+const CASES = arg("--cases", "cp02,a,b,c,d,m14,m15,m16").split(",").filter(Boolean);
 const MODES = arg("--modes", "journal,lean-lock").split(",").filter(Boolean);
 const OUT = path.resolve(arg("--out", path.join(os.tmpdir(), "sb-compat-old", "compat-old.json")));
 const WT = path.resolve(arg("--worktrees", path.join(os.tmpdir(), "sb-compat-old", "worktrees")));
@@ -75,7 +86,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const t0 = Date.now();
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(1).padStart(6)}s]`, ...a);
 const sha = b => createHash("sha256").update(b).digest("hex");
-const MARKER5 = "incident-format-5.json";
+const MARKER5 = "incident-format-5.json", MARKER6 = "incident-format-6.json";
 
 // ---- the core's fold and guard (bundled from this checkout: the same code the 4.6 page runs)
 const { build } = require(require.resolve("esbuild", { paths: [path.join(ROOT, "app")] }));
@@ -758,6 +769,113 @@ async function caseD(run, oldDir, py, decksToAge) {
   result(run, "d", allPass && out.length > 0, out.length ? out : "no deck to age (a and b failed)");
 }
 
+/** m15 (AUDIT-3 VER-4): M15's line and icon through an old page's edit, wizard Finish and compaction */
+const m15Items = (doc, slide) => Object.fromEntries(["cpLine", "cpIcon"].map(k => [k, JSON.stringify(doc.preset?.slides.find(s => s.id === slide)?.items?.[k] ?? null)]));
+async function caseM15(run, oldDir, py) {
+  const env = scenarioEnv(run.version + "-m15");
+  const anna = await startHelper({ dir: ROOT, py: NEW_PY, port: nextPort(), user: "anna", env, extra: ext46 });
+  let a, b, bob, w;
+  try {
+    a = await openPage(anna, "4.9");
+    await wizardNew(a);
+    const pre = await a.page.evaluate(() => window.__sbTest.preset());
+    const content = pre.slides.filter(s => s.type === "content"), s1 = content[1] || pre.slides[pre.slides.length - 1];
+    const steps = [
+      ["Line", [{ op: "item.patch", slide: s1.id, id: "cpLine", patch: { kind: "line", route: "elbow", a: { x: 100, y: 600 }, b: { x: 500, y: 700 }, mid: 0.4, bend: "hv",
+        style: { color: "#1F3864", w: 2, dash: "dashed", heads: { b: "triangle" } }, text: "CP-01 {SLIDE_1!C6}", box: { x: 99, y: 599, w: 402, h: 102 } } }]],
+      ["Icon", [{ op: "item.patch", slide: s1.id, id: "cpIcon", patch: { kind: "shape", shape: "icon", icon: "tabler:chart-bar", stroke: 1.5, fill: "#C00000", box: { x: 600, y: 600, w: 48, h: 48 } } }]],
+    ];
+    for (const [l, ops] of steps) { if (!await change(a, l, ops)) throw new Error("the 4.9 page refused " + l); await sleep(150); }
+    const dir = deckDir(env);
+    if (!await waitFor(() => readJson(path.join(dir, "snapshot.json")).format === 5, 90_000, 500)) throw new Error("the 4.9 page did not raise the deck to 5");
+    if (!await waitSaved(a, 60_000)) throw new Error("the 4.9 page did not save its objects");
+    await closePage(a); a = null;
+    await sleep(3000);
+    const before = deckDoc(dir), want = m15Items(before.doc, s1.id), snapSha0 = sha(fs.readFileSync(path.join(dir, "snapshot.json")));
+    if (Object.values(want).includes("null")) throw new Error("the 4.9 deck lacks the line or the icon");
+    w = watchDeck(env);
+    bob = await startHelper({ dir: oldDir, py, port: nextPort(), user: "bob", env });
+    b = await openPage(bob, run.version);
+    const resp = b.page.waitForResponse(r => r.url().endsWith("/api/decks/open"), { timeout: 30_000 });
+    await openWorkbook(b);
+    const openStatus = (await resp).status();
+    await sleep(2000);
+    let editHow = "not offered", wiz = "not run", saved = false, comp = null;
+    const continued = await b.page.locator('[data-a="continue"]').isVisible().catch(() => false);
+    if (openStatus < 400 && continued) {
+      await b.page.click('[data-a="continue"]');
+      await b.page.locator("#fileName").filter({ hasText: fileNameRe("report.xlsx") }).waitFor({ timeout: 30_000 }).catch(() => {});
+      editHow = await editCell(b, "Gamma", "Old" + run.version.replace(/\W/g, ""), "C8");
+      try { wiz = await wizardFinish(b); } catch (e) { wiz = "ERROR " + e.message.slice(0, 140); }
+      saved = await waitSaved(b, 20_000);
+      const gen0 = readJson(path.join(dir, "snapshot.json")).gen;
+      comp = await waitFor(() => { const s = readJson(path.join(dir, "snapshot.json")); return s.gen > gen0 && s.by === "bob" ? s : null; }, 150_000, 1000);
+    }
+    w.stop();
+    const after = deckDoc(dir), got = m15Items(after.doc, s1.id);
+    const changed = Object.keys(want).filter(k => got[k] !== want[k]);
+    const obs = { openStatus, continueOffered: continued, edit: editHow, wizard: wiz, saved, oldCompacted: comp ? { gen: comp.gen, format: comp.format } : null,
+      formatNow: after.snap.format, m15ItemsChanged: changed, oldEdit: after.doc.edits?.SLIDE_1?.C8?.text ?? null,
+      snapshotUnchanged: openStatus >= 400 ? sha(fs.readFileSync(path.join(dir, "snapshot.json"))) === snapSha0 : undefined, pageErrors: b.errors.slice(0, 4).map(e => e.slice(0, 140)) };
+    const pass = !changed.length && after.snap.format === 5 && (openStatus >= 400 ? obs.snapshotUnchanged === true : !wiz.startsWith("ERROR"));
+    result(run, "m15", pass, obs);
+  } finally { if (w) w.stop(); await closePage(a); await closePage(b); await stopHelper(anna); await stopHelper(bob); }
+}
+
+/** m16 (AUDIT-3 COMPAT-1, VER-4): 4.9's version drop and slide hidden raise the deck to format 6; every older page is
+    refused, and the 4.9 data survives whatever it tries (Continue, wizard Finish) */
+async function caseM16(run, oldDir, py) {
+  const env = scenarioEnv(run.version + "-m16");
+  const anna = await startHelper({ dir: ROOT, py: NEW_PY, port: nextPort(), user: "anna", env, extra: ext46 });
+  let a, b, bob, w;
+  try {
+    a = await openPage(anna, "4.9");
+    await wizardNew(a);
+    const pre = await a.page.evaluate(() => window.__sbTest.preset());
+    const s1 = pre.slides.filter(s => s.type === "content")[0], t0 = s1.tables[0];
+    const steps = [
+      ["New version", [{ op: "version.patch", id: "vAll", patch: { name: "All", hide: {}, drop: { SLIDE_1: ["5:5"] } } }]],
+      ["Hide row", [{ op: "slide.patch", id: s1.id, patch: { hidden: { [t0 + ":r6"]: true } } }]],
+    ];
+    for (const [l, ops] of steps) { if (!await change(a, l, ops)) throw new Error("the 4.9 page refused " + l); await sleep(200); }
+    const dir = deckDir(env);
+    if (!await waitFor(() => readJson(path.join(dir, "snapshot.json")).format === 6, 90_000, 500)) throw new Error("the 4.9 page did not raise the deck to 6 (format " + readJson(path.join(dir, "snapshot.json")).format + ")");
+    if (!await waitSaved(a, 60_000)) throw new Error("the 4.9 page did not save its objects");
+    await closePage(a); a = null;
+    await sleep(2000);
+    const pick = doc => ({ drop: JSON.stringify(doc.preset?.versions?.find(x => x.id === "vAll")?.drop ?? null),
+      hidden: JSON.stringify(doc.preset?.slides.find(s => s.id === s1.id)?.hidden ?? null) });
+    const want = pick(deckDoc(dir).doc), snapSha0 = sha(fs.readFileSync(path.join(dir, "snapshot.json")));
+    if (want.drop === "null" || want.hidden === "null") throw new Error("the 4.9 deck lacks drop or hidden");
+    w = watchDeck(env);
+    bob = await startHelper({ dir: oldDir, py, port: nextPort(), user: "bob", env });
+    b = await openPage(bob, run.version);
+    const resp = b.page.waitForResponse(r => r.url().endsWith("/api/decks/open"), { timeout: 30_000 });
+    await openWorkbook(b);
+    const r = await resp, openStatus = r.status();
+    let openError = ""; try { openError = (await r.json()).error || ""; } catch { /* not JSON */ }
+    await sleep(2000);
+    let wiz = "not run", saved = null;
+    const continued = await b.page.locator('[data-a="continue"]').isVisible().catch(() => false);
+    if (openStatus < 400 && continued) {
+      await b.page.click('[data-a="continue"]');
+      await b.page.locator(".thumb").first().waitFor({ timeout: 30_000 }).catch(() => {});
+      try { wiz = await wizardFinish(b); } catch (e) { wiz = "ERROR " + e.message.slice(0, 140); }
+      saved = await waitSaved(b, 30_000);
+      await sleep(3000);
+    }
+    const toast = (await toastText(b)).slice(0, 200);
+    w.stop();
+    const after = deckDoc(dir), got = pick(after.doc);
+    const obs = { openStatus, openError: openError.slice(0, 160), toast, continueOffered: continued, wizard: wiz, saved, want, got,
+      formatNow: after.snap.format, marker6: fs.existsSync(path.join(dir, MARKER6)), snapshotUnchanged: sha(fs.readFileSync(path.join(dir, "snapshot.json"))) === snapSha0,
+      recordsByOld: [...w.recs.values()].filter(x => x.by === "bob").length, versionsAfter: after.doc.preset?.versions, pageErrors: b.errors.slice(0, 4).map(e => e.slice(0, 140)) };
+    const pass = openStatus === 409 && !continued && obs.snapshotUnchanged && obs.recordsByOld === 0 && want.drop === got.drop && want.hidden === got.hidden
+      && after.snap.format === 6 && obs.marker6;
+    result(run, "m16", pass, obs);
+  } finally { if (w) w.stop(); await closePage(a); await closePage(b); await stopHelper(anna); await stopHelper(bob); }
+}
+
 // ================================================================ main
 let failed = false;
 try {
@@ -774,6 +892,8 @@ try {
       const step = async (name, f) => { try { return await f(); } catch (e) { result(run, name, false, "ERROR " + (e.stack || e.message).split("\n").slice(0, 3).join(" | ")); return null; } };
       if (CASES.includes("cp02")) await step("CP-02", () => caseCP02(run, oldDir, py));
       if (CASES.includes("m14")) await step("m14", () => caseM14(run, oldDir, py));
+      if (CASES.includes("m15")) await step("m15", () => caseM15(run, oldDir, py));
+      if (CASES.includes("m16")) await step("m16", () => caseM16(run, oldDir, py));
       if (READS_V5.has(v)) { if (!flag("--keep-data")) for (const e of envs.splice(0)) fs.rmSync(e.base, { recursive: true, force: true }); continue; }
       const aged = [];
       if (CASES.includes("a") || CASES.includes("d")) { const r = await step("a", () => caseA(run, oldDir, py)); if (r) aged.push({ ...r, label: "a (made by 4.6)" }); }

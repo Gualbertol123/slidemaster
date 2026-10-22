@@ -81,7 +81,9 @@ function show(s: StageSlide | null, n = issued) {
   setStage(clear ? { shown: s, drag: null } : { shown: s });
 }
 const sameSlide = (a: StageSlide | null, b: StageSlide | null) => a === b || (!!a && !!b && a.id === b.id && a.slide === b.slide && a.layers.length === b.layers.length
-  && a.layers.every((l, i) => l.key === b.layers[i].key && JSON.stringify(l.box) === JSON.stringify(b.layers[i].box)));
+  && a.layers.every((l, i) => l.key === b.layers[i].key && JSON.stringify(l.box) === JSON.stringify(b.layers[i].box))
+  // (B51: the contents slide's parts – a free layout switched on draws the same pixels, and shows their handles)
+  && JSON.stringify(a.parts ?? null) === JSON.stringify(b.parts ?? null));
 /** the worker sent the slide on the stage after a change, or after a workbook started (it draws the stage's last request
     at once); one that is not the current slide yet – the page has not taken the new workbook's slides – waits for it */
 let early: StageSlide | null = null;

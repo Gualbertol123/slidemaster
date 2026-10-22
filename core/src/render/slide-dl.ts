@@ -21,7 +21,7 @@ import { cssLinear, glassBox, glassVars, type Wallpaper } from "./glass-dl";
 import { halfLeading, lu, primaryFamily, type Metrics, type TableDL } from "./excel-dl";
 import { pageNoFor, pageNoGeom, footerGeom, pageNumber, pnFmt, isHidden } from "./pagenumbers";
 import { contrastVars, memoPart, noteParts, slideHasLogo, themeVars, type NotePart } from "./slide";
-import { areaFor, itemBoxOf, KPI_LINE, NAVY_BAND, SIGNAL_AREA, slideFacts, tableH, tableW, type TBox } from "./layout";
+import { areaFor, freeOf, itemBoxOf, KPI_LINE, NAVY_BAND, SIGNAL_AREA, slideFacts, tableH, tableW, type TBox } from "./layout";
 import { cachedChartNodes, chartSem, type PieGeom } from "./chart-dl";
 import { shapeNodes, shapeRadius } from "./shape-dl";
 import { frameStroke, noteFrame } from "./note-frame";
@@ -36,6 +36,8 @@ import { consultOptions, isConsult } from "../model/designs";
 import { isIsp, ISP_GREY } from "../model/isp";
 import { ISP, tiltedSquare } from "./isp";
 import { specOf, type DesignSpec, type Stroke as SpecStroke, type TextSpec } from "./consult-spec";
+import { partBox, partTransform, savedPart, type ContentsPart } from "./contents";
+import type { Placement } from "./glass-dl";
 
 export const SLIDE_FONT = { glass: `-apple-system,"SF Pro Display","Segoe UI","Helvetica Neue",Inter,Arial,sans-serif`, excel: `"Century Gothic","CenturyGothic","URW Gothic","AppleGothic",Arial,sans-serif` };
 const GLASS_ROW_FONT = `-apple-system,"SF Pro Text","Segoe UI",Arial,sans-serif`;
@@ -53,6 +55,8 @@ export interface SlideImages {
 export interface ItemInfo { box: Box; issue: string | null; geom: PieGeom | null; /** its nodes: [start, end) in the slide's list */ at: [number, number];
   /** what the PowerPoint export makes of it (asked with `sem`, 07 §4.1) */ pptx?: ItemSem }
 export interface SlideDL extends TableDL { items: Record<string, ItemInfo>;
+  /** a contents slide in a free layout (B51): where its title and its list are drawn (the stage's handles) */
+  parts?: Partial<Record<ContentsPart, Box>>;
   /** asked with `sem`, the Excel designs only (B48 review, 3): the nodes [start, end) of the template's furniture – the
       logo, the cover's band – that the PowerPoint export always puts on the slide's layout (pptx/writer.ts) */
   layout?: [number, number] }
@@ -152,9 +156,11 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
   const inPanel = (x: number) => O?.headline === "panel" && R.type === "content" && x < SIGNAL_AREA.panel;
   const images: Record<string, string> = {};
   const low: Node[] = [], z3: Node[] = [], z5: Node[] = [];
+  /** (B51) the title's and subtitle's text, by their hit: what their part's box holds; the parts drawn (free layout) */
+  const tight = new Map<Node, Box>(), parts: Partial<Record<ContentsPart, Box>> = {};
   const hit = (cls: string, x: number, y: number, w: number, h: number, text?: string): Node => ({ t: "hit", kind: "f", id: cls, x: r2(x), y: r2(y), w: r2(w), h: r2(h), ...(text !== undefined ? { label: text } : {}) });
-  const chrome = (cls: string, x: number, y: number, w: number, h: number, r: number, content: Node[] = [], text?: string) =>
-    glassBox(cls.replace(/^gls wb /, ""), x, y, w, h, r, V, place, wall, { content, hit: { kind: "f", id: cls, ...(text !== undefined ? { label: text } : {}) } });
+  const chrome = (cls: string, x: number, y: number, w: number, h: number, r: number, content: Node[] = [], text?: string, pl: Placement = place) =>
+    glassBox(cls.replace(/^gls wb /, ""), x, y, w, h, r, V, pl, wall, { content, hit: { kind: "f", id: cls, ...(text !== undefined ? { label: text } : {}) } });
 
   // the slide's own colour (the Excel designs', a consulting design's ground; Liquid Glass: its wallpaper, none) – the
   // background drawn here and the ground under a line's label (lineItem)
@@ -179,13 +185,9 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
   if (cover) { if (C) consultCover(C); else if (isp) ispCover(); else coverNodes(); }
   else if (C) { if (R.type === "index") consultIndex(C); else consultContent(C); }
   else if (isp) { if (R.type === "index") ispIndex(); else ispTitles(); }
-  else {
-    oneLine("title", slideTextFmt(ctx, R, "title"), R.title, glassy ? 58 : 54, glassy ? 20 : 16, glassy ? 170 : 150,
-      { family: base, size: glassy ? 48 : 44, weight: 700, italic: false, color: glassy ? solid("#0B0D17") : solid(x1), ls: glassy ? -1 : 0 }, glassy);
-    if (R.subtitle) oneLine("subtitle", slideTextFmt(ctx, R, "subtitle"), R.subtitle, glassy ? 60 : 56, titleGeom(R, ctx).subTop, glassy ? 170 : 150,
-      { family: base, size: glassy ? 19 : 18, weight: glassy ? 520 : 400, italic: false, color: glassy ? { solid: [18, 22, 44], a: .62 } : solid("#5B6B82"), ls: 0 }, false);
-  }
-  if (R.type === "index" && !C && !isp) indexNodes();
+  else if (R.type === "index") movable("title", plainTitles);
+  else plainTitles();
+  if (R.type === "index" && !C && !isp) movable("toc", indexNodes);
   if (pageNo !== null) pageNoNodes(pageNo, false);
   const fg = footerGeom(ctx, idx, glassy, !!logo, cover, pageNo, today);
   if (fg) pageNoNodes(fg.label, true);
@@ -210,7 +212,32 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     if (info) items[id] = info;
   }
   if (logo && !isp) logoNodes(logo);
-  return { nodes: [...low, ...z3, ...z5], images, items, ...(opts.sem && isp && lay1 > lay0 ? { layout: [lay0, lay1] as [number, number] } : {}) };
+  return { nodes: [...low, ...z3, ...z5], images, items, ...(opts.sem && isp && lay1 > lay0 ? { layout: [lay0, lay1] as [number, number] } : {}),
+    ...(Object.keys(parts).length ? { parts } : {}) };
+
+  /* the title and subtitle of a content or contents slide of Liquid Glass and Excel Clean */
+  function plainTitles() {
+    oneLine("title", slideTextFmt(ctx, R, "title"), R.title, glassy ? 58 : 54, glassy ? 20 : 16, glassy ? 170 : 150,
+      { family: base, size: glassy ? 48 : 44, weight: 700, italic: false, color: glassy ? solid("#0B0D17") : solid(x1), ls: glassy ? -1 : 0 }, glassy);
+    if (R.subtitle) oneLine("subtitle", slideTextFmt(ctx, R, "subtitle"), R.subtitle, glassy ? 60 : 56, titleGeom(R, ctx).subTop, glassy ? 170 : 150,
+      { family: base, size: glassy ? 19 : 18, weight: glassy ? 520 : 400, italic: false, color: glassy ? { solid: [18, 22, 44], a: .62 } : solid("#5B6B82"), ls: 0 }, false);
+  }
+  /* a part of the contents slide (B51, render/contents.ts): drawn where the design puts it; moved in the design's free
+     layout – the nodes it added (the low ones and the z-index 3 ones) in a group that takes them to the saved place, a
+     glass card drawn again for its new place (its frosted wallpaper is the slide's under it). Never moved: as before */
+  function movable(part: ContentsPart, draw: (pl: Placement) => void) {
+    const l0 = low.length, z0 = z3.length;
+    draw(place);
+    if (!freeOf(R, ctx)) return;
+    const hits = [...low.slice(l0), ...z3.slice(z0)].flatMap(n => n.t === "hit" && n.kind === "f" ? [{ ...n, ...tight.get(n) }] : []);
+    const D = partBox(hits, part); if (!D) return;
+    const e = savedPart(R, ctx, part), M = e ? partTransform(D, e) : null;
+    parts[part] = M ? { x: M[0] * D.x + M[4], y: M[3] * D.y + M[5], w: M[0] * D.w, h: M[3] * D.h } : D;
+    if (!M) return;
+    if (glassy) { low.length = l0; z3.length = z0; draw({ x: M[4], y: M[5], scale: M[0] }); }
+    if (low.length > l0) low.push({ t: "group", transform: M, children: low.splice(l0) });
+    if (z3.length > z0) z3.push({ t: "group", transform: M, children: z3.splice(z0) });
+  }
 
   /* ---- items ---- */
   /** the colour under a point (a line's label, a line's middle): Consulting Red's message panel, a consulting design's
@@ -280,8 +307,9 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     }
     const shown = T.ellipsis(plain, st, w), tw = T.adv(shown, st);
     const tx = f.align === "right" ? x + w - tw : f.align === "center" ? x + (w - tw) / 2 : x;
-    const n = T.node(shown, tw > w ? x : tx, T.baseline(st1, top, lh), st);
-    low.push(hit(cls, x, top, w, lh, plain), { t: "group", clip: { x, y: top, w, h: lh }, children: shadow ? [{ ...n, y: n.y + 1, fill: { solid: [255, 255, 255], a: .6 }, decorative: true }, n] : [n] });
+    const n = T.node(shown, tw > w ? x : tx, T.baseline(st1, top, lh), st), h = hit(cls, x, top, w, lh, plain);
+    if (R.type === "index" && (cls === "title" || cls === "subtitle")) tight.set(h, { x: tw > w ? x : tx, y: top, w: Math.min(w, Math.max(tw, lh)), h: lh });   // (an empty one: a square to grab)
+    low.push(h, { t: "group", clip: { x, y: top, w, h: lh }, children: shadow ? [{ ...n, y: n.y + 1, fill: { solid: [255, 255, 255], a: .6 }, decorative: true }, n] : [n] });
   }
 
   /* lines of text in a block of width w from top: returns the nodes and the block's height */
@@ -485,18 +513,26 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     // the heading in the dark header band, as the content slides (the band's background option)
     const hSt: TStyle = { ...specSt(I.heading), color: solid(acc(dark ? L.dark.title : L.light.title)) }, band: Node = { t: "rect", x: 0, y: 0, w: 1600, h: 0, fill: solid(L.band) };
     if (dark) low.push(band);
-    oneLine("title", f, R.title, x0, I.heading.y, x0, hSt, false, S.title.lh || INHERITED);
-    let y = I.heading.y + T.lineH(withFmt(hSt, f), f.lh ? +f.lh : S.title.lh || INHERITED);
-    if (R.subtitle) {
-      const sf = slideTextFmt(ctx, R, "subtitle"), s0 = { ...specSt(S.subtitle), color: solid(acc(dark ? L.dark.sub : L.light.sub)) };
-      oneLine("subtitle", sf, R.subtitle, x0, y + 8, x0, s0, false, S.subtitle.lh || INHERITED);
-      y += 8 + T.lineH(withFmt(s0, sf), sf.lh ? +sf.lh : S.subtitle.lh || INHERITED);
-    }
+    let y = 0;
+    movable("title", () => {
+      oneLine("title", f, R.title, x0, I.heading.y, x0, hSt, false, S.title.lh || INHERITED);
+      y = I.heading.y + T.lineH(withFmt(hSt, f), f.lh ? +f.lh : S.title.lh || INHERITED);
+      if (R.subtitle) {
+        const sf = slideTextFmt(ctx, R, "subtitle"), s0 = { ...specSt(S.subtitle), color: solid(acc(dark ? L.dark.sub : L.light.sub)) };
+        oneLine("subtitle", sf, R.subtitle, x0, y + 8, x0, s0, false, S.subtitle.lh || INHERITED);
+        y += 8 + T.lineH(withFmt(s0, sf), sf.lh ? +sf.lh : S.subtitle.lh || INHERITED);
+      }
+    });
     if (I.headingRule) { y += 16; low.push(specRule(x0, right, y, I.headingRule)); }
     if (dark) { (band as RectNode).h = Math.round(y + 26); y += 26; }
+    movable("toc", () => consultRows(S, Math.max(I.top, y + 30)));
+  }
+  /** the consulting contents' rows from top0 */
+  function consultRows(S: DesignSpec, top0: number) {
+    const I = S.index, x0 = I.heading.x, right = 1600 - x0, ink = S.look.flat.ink, L = LK!;
     const items: { n: number; title: string; sub: string; page: string }[] = [], subs = R.cfg.subs !== false;
     ctx.slides.forEach((Sl, i) => { if (Sl.type === "content" && !isHidden(ctx, i)) items.push({ n: items.length + 1, title: Sl.title, sub: subs ? Sl.subtitle || "" : "", page: String(pageNumber(ctx, i)) }); });
-    const xf = deckFmt(ctx, "index"), row: TextFmt = { ...xf, size: undefined, align: undefined }, top0 = Math.max(I.top, y + 30);
+    const xf = deckFmt(ctx, "index"), row: TextFmt = { ...xf, size: undefined, align: undefined };
     if (!items.length) {
       const st = withFmt({ ...specSt(I.entry), color: solid(ink) }, row), lh = T.lineH(st, INHERITED), t = "No content slides yet";
       low.push(hit("ix-empty", x0, top0, T.adv(t, st), lh, t), T.node(t, x0, T.baseline(st, top0, lh), st));
@@ -584,13 +620,21 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
   function ispIndex() {
     const I = ISP.index, f = slideTextFmt(ctx, R, "title");
     const hSt: TStyle = { family: base, size: ISP.title.size, weight: 700, italic: false, color: solid(x1), ls: 0 };
-    oneLine("title", f, R.title, I.x, I.top, 150, hSt, false);
-    let top0 = Math.max(I.rowTop, I.top + T.lineH(withFmt(hSt, f), f.lh ? +f.lh : INHERITED) + 8);
-    if (R.subtitle) {
-      const sf = slideTextFmt(ctx, R, "subtitle"), s0: TStyle = { family: base, size: ISP.sub.size, weight: 400, italic: false, color: solid(ISP_GREY), ls: 0 };
-      oneLine("subtitle", sf, R.subtitle, I.x, top0 - 8, 150, s0, false);
-      top0 += T.lineH(withFmt(s0, sf), sf.lh ? +sf.lh : INHERITED);
-    }
+    let top0 = 0;
+    movable("title", () => {
+      oneLine("title", f, R.title, I.x, I.top, 150, hSt, false);
+      top0 = Math.max(I.rowTop, I.top + T.lineH(withFmt(hSt, f), f.lh ? +f.lh : INHERITED) + 8);
+      if (R.subtitle) {
+        const sf = slideTextFmt(ctx, R, "subtitle"), s0: TStyle = { family: base, size: ISP.sub.size, weight: 400, italic: false, color: solid(ISP_GREY), ls: 0 };
+        oneLine("subtitle", sf, R.subtitle, I.x, top0 - 8, 150, s0, false);
+        top0 += T.lineH(withFmt(s0, sf), sf.lh ? +sf.lh : INHERITED);
+      }
+    });
+    movable("toc", () => ispRows(top0));
+  }
+  /** the template's contents rows from top0 */
+  function ispRows(top0: number) {
+    const I = ISP.index;
     const items: { n: number; title: string; sub: string; page: string }[] = [], subs = R.cfg.subs !== false;
     ctx.slides.forEach((S, i) => { if (S.type === "content" && !isHidden(ctx, i)) items.push({ n: items.length + 1, title: S.title, sub: subs ? S.subtitle || "" : "", page: String(pageNumber(ctx, i)) }); });
     const xf = deckFmt(ctx, "index"), row: TextFmt = { ...xf, size: undefined, align: undefined };
@@ -673,7 +717,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     }
   }
 
-  function indexNodes() {
+  function indexNodes(pl: Placement = place) {
     const items: { n: number; title: string; sub: string; page: string }[] = [], subs = R.cfg.subs !== false;
     ctx.slides.forEach((S, i) => { if (S.type === "content" && !isHidden(ctx, i)) items.push({ n: items.length + 1, title: S.title, sub: subs ? S.subtitle || "" : "", page: String(pageNumber(ctx, i)) }); });
     if (!items.length) {
@@ -691,7 +735,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     [items.slice(0, per), items.slice(per)].forEach((list, k) => {
       if (!list.length) return;
       const x = x0 + k * (colW + 40), H = list.length * rowH + 28;
-      if (g) low.push(...chrome("gls wb chrome card ix-card", x, top, colW, H, Math.round(30 * rk)));
+      if (g) low.push(...chrome("gls wb chrome card ix-card", x, top, colW, H, Math.round(30 * rk), [], undefined, pl));
       list.forEach((it, j) => {
         const y = top + 14 + j * rowH, rx = x + 24, rw = colW - 48;
         const out: Node[] = [];

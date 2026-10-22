@@ -2,7 +2,7 @@
    (lamport, writer, seq) order, one copy per (writer, seq) – the same document on every PC that has read the same
    records (invariant 2). The operations themselves are applied by ops.ts, the only implementation of their
    semantics; the helper never looks inside a record. */
-import { applyOp, docNeedsV5 } from "./ops";
+import { applyOp, docNeedsV5, docNeedsV6 } from "./ops";
 import type { Op, WorkbookDoc } from "./types";
 
 /** one journal record: `l` Lamport time, `w` writer (page session), `s` its sequence number (1, 2, …), `by` the
@@ -11,11 +11,14 @@ export interface DeckRecord { l: number; w: string; s: number; by?: string | nul
 export interface LogEntry { rev: number; by: string | null; at: number | null }
 /** data/v4/decks/<key>/snapshot.json */
 /** the snapshot formats this page reads (sent as X-SB-Deck-Formats): 5 = the deck holds what 4.0–4.5 do not know
-    (ADR-019); the 4.6 helper refuses a format-5 deck to a page that does not send it */
-export const DECK_FORMATS = [4, 5] as const;
+    (ADR-019); the 4.6 helper refuses a format-5 deck to a page that does not send it. 6 = what 4.6–4.8 do not know
+    (4.9: ADR-019 amendment of 2026-10-22); the 4.9 helper refuses a format-6 deck to a page that does not send 6 */
+export const DECK_FORMATS = [4, 5, 6] as const;
+export type DeckFormat = 4 | 5 | 6;
 export interface DeckSnapshot {
-  /** 4, or 5 once the deck holds what 4.0.0 does not know (ADR-019: raised by DocSync.upgrade, never lowered) */
-  format: 4 | 5; gen: number; workbook: string;
+  /** 4, or 5 once the deck holds what 4.0.0 does not know, 6 once it holds what 4.8.0 does not know (ADR-019: raised
+      by DocSync.upgrade, never lowered) */
+  format: DeckFormat; gen: number; workbook: string;
   /** the highest Lamport time folded in */ lamport: number;
   /** revisions so far: v3's rev at migration + one per record folded since */ rev: number;
   /** byte offsets per journal (file name without .log): the records before them are in `doc` */
@@ -108,8 +111,9 @@ export function fold(snap: Pick<DeckSnapshot, "doc" | "lamport" | "rev" | "seen"
 export function nextSnapshot(cur: DeckSnapshot, f: Folded, frontier: Record<string, number>): DeckSnapshot {
   const { rev, updated, updatedBy, log, ...rest } = f.doc;
   const doc = { ...rest, rev } as WorkbookDoc;
-  // a deck once at format 5 stays there; one that now holds 4.6 content goes to 5 (DocSync raised it first, ADR-019)
-  const format = Math.max(cur.format || 4, docNeedsV5(doc) ? 5 : 4) as 4 | 5;
+  // a deck once at format 5 (6) stays there; one that now holds 4.6 (4.9) content goes to 5 (6) (DocSync raised it
+  // first, ADR-019)
+  const format = Math.max(cur.format || 4, docNeedsV6(doc) ? 6 : docNeedsV5(doc) ? 5 : 4) as DeckFormat;
   const out: DeckSnapshot = { format, gen: cur.gen + 1, workbook: cur.workbook, lamport: f.lamport, rev, frontier: { ...cur.frontier, ...frontier }, seen: f.seen, doc };
   if (updated != null) out.updated = updated;
   if (updatedBy != null) out.updatedBy = updatedBy;

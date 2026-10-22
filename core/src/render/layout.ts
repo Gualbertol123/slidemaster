@@ -178,13 +178,15 @@ export function freeOf(R: RuntimeSlide, ctx: RenderCtx): FreeLayout | null {
   const f = R.cfg?.free?.[ctx.style.design];
   return f && f.on === true && f.items && typeof f.items === "object" && !Array.isArray(f.items) ? f : null;
 }
-/** the keys of a free layout's boxes: a table, a text box (its key in SlideDef.notes), a slide item */
-export const freeKey = { table: (R: RuntimeSlide, i: number) => "t:" + (R.tables[i].id || R.tables[i].def?.id || String(i)), note: (key: string) => "n:" + key, item: (id: string) => "i:" + id };
+/** the keys of a free layout's boxes: a table, a text box (its key in SlideDef.notes), a slide item; (4.9, B51) a part of
+    the contents slide – its title ("c:title") and its list ("c:toc"), render/contents.ts */
+export const freeKey = { table: (R: RuntimeSlide, i: number) => "t:" + (R.tables[i].id || R.tables[i].def?.id || String(i)), note: (key: string) => "n:" + key, item: (id: string) => "i:" + id,
+  part: (id: "title" | "toc") => "c:" + id };
 /** how far a saved box may reach (a shared document's numbers; boxes drawn past the slide's edge stay where they are, so
     switching on moves nothing – the drags keep what they move on the slide) */
 const FREE_MAX = 10 * SLIDE_W;
 /** a saved box: finite numbers within FREE_MAX, a positive size; a table's scale at least 0.05 */
-function freeEntry(e: unknown): (NoteBox & { scale?: number }) | null {
+export function freeEntry(e: unknown): (NoteBox & { scale?: number }) | null {
   const b = e as Record<string, unknown> | null;
   if (!b || typeof b !== "object" || ![b.x, b.y, b.w, b.h].every(v => typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= FREE_MAX) || (b.w as number) <= 0 || (b.h as number) <= 0) return null;
   const sc = typeof b.scale === "number" && Number.isFinite(b.scale) && b.scale >= .05 ? { scale: b.scale } : {};
@@ -299,6 +301,10 @@ export function freeBoxes(R: RuntimeSlide, ctx: RenderCtx): FreeLayout["items"] 
     const a = pt(f?.a) ?? sh(pt(it.a)), b = pt(f?.b) ?? sh(pt(it.b));
     if (a && b) out[freeKey.item(id)] = { ...e, a, b };
   }
+  // (B51) the contents slide's parts: their saved boxes as they are (a part never moved has none: drawn where the design
+  // puts it) – switching the free layout on again must not lose them
+  const saved = R.cfg?.free?.[slideCtx(ctx, R).style.design]?.items;
+  if (saved && typeof saved === "object") for (const p of ["title", "toc"] as const) { const e = freeEntry(saved[freeKey.part(p)]); if (e) out[freeKey.part(p)] = e; }
   return out;
 }
 

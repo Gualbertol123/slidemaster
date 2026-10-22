@@ -17,11 +17,13 @@ import { TARBALL, VERSION, untar } from "./vendor-tabler.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 /** the Tabler outline icons the app's toolbars use (sorted) */
-export const NAMES = ["align-box-center-bottom", "align-box-center-middle", "align-box-center-top", "align-center", "align-left", "align-right", "arrow-back-up", "arrow-down", "arrow-forward-up", "arrow-left",
-  "arrow-right", "arrow-up", "arrow-up-right", "arrows-exchange", "border-all", "border-inner", "bucket-droplet", "chart-pie", "chevron-down",
-  "dimensions", "folder-open", "layout-align-bottom", "layout-align-center", "layout-align-left", "layout-align-middle",
-  "layout-align-right", "layout-align-top", "line", "line-height", "link", "message-circle", "message-plus", "minus", "notes", "paint", "pencil", "photo",
-  "plus", "quote", "refresh", "restore", "settings", "shape", "square", "table-plus", "trash", "wand", "x"];
+export const NAMES = ["align-box-center-bottom", "align-box-center-middle", "align-box-center-top", "align-center",
+  "align-left", "align-right", "arrow-back-up", "arrow-down", "arrow-forward-up", "arrow-left", "arrow-narrow-left",
+  "arrow-right", "arrow-up", "arrow-up-right", "arrows-exchange", "border-all", "border-inner", "bucket-droplet",
+  "chart-pie", "chevron-down", "dimensions", "eye-off", "folder-open", "layout-align-bottom", "layout-align-center",
+  "layout-align-left", "layout-align-middle", "layout-align-right", "layout-align-top", "line", "line-height", "link",
+  "message-circle", "message-plus", "minus", "notes", "paint", "pencil", "photo", "plus", "quote", "refresh",
+  "restore", "settings", "shape", "square", "table-minus", "table-plus", "trash", "wand", "x"];
 
 const integrity = (/** @type {Buffer} */ b) => "sha512-" + createHash("sha512").update(b).digest("base64");
 
