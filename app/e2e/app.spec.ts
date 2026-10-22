@@ -817,8 +817,9 @@ test.describe.serial("two people, one shared folder", () => {
     expect(Math.abs(altX - (tableX + 3 / s))).toBeLessThan(.6);
     expect(altX * 4 % 1).toBe(0);                                                          // on 1/4 px
     expect(Math.abs(a.shown - altX)).toBeLessThan(.1);                                     // dropped = previewed
-    // without Alt, 2 screen px off: onto the table's left edge, its guide drawn
-    const b = await drag((tableX - altX) * s + 2, 30, false);
+    // without Alt, 1 slide px off (in slide px, not screen px: at a smaller stage – CI's – 2 screen px came to ~4 slide
+    // px, nearer another target 3.8 px away): onto the table's left edge, its guide drawn
+    const b = await drag((tableX - altX + 1) * s, 30, false);
     expect(b.guides).toBeGreaterThan(0);
     await pollFile(() => note().x !== altX, { timeout: 10_000 }).toBe(true);
     const saved = note();
