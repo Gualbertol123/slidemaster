@@ -18,6 +18,7 @@ import { FontPicker, openFontManager } from "./FontPicker";
 import { Input } from "./Input";
 import { useCtx, useCurSlide, useDesign } from "./hooks";
 import { Ic } from "./Ic";
+import { OverflowBar } from "./OverflowBar";
 import { isIsp, ISP_FILLS, ISP_TEXT } from "@slide-builder/core/model/isp";
 
 const FILLS: [string, string][] = [["#34C759", "Green (positive)"], ["#FF3B30", "Red (negative)"], ["#FF9500", "Orange"], ["#FFCC00", "Yellow"], ["#007AFF", "Blue"], ["#5856D6", "Indigo"],
@@ -67,12 +68,12 @@ export function Ribbon() {
   // the number display of the cells (4.9): the active cell's code; off for anything but cells
   const num = cells ? numShown(activeItem()) : null, nb = (props: Record<string, unknown>) => tb({ off: !cells, ...props });
   return (
-    <nav className="ribbon">
-      <div className="grp">
+    <OverflowBar className="ribbon">
+      <div className="grp" data-prio="2">
         <button className="tb" id="undoBtn" title="Undo (Ctrl+Z) – only your own changes" disabled={!canUndo} onClick={() => undo(false)}><Ic n="arrow-back-up" /></button>
         <button className="tb" id="redoBtn" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={() => undo(true)}><Ic n="arrow-forward-up" /></button>
       </div>
-      <div className="grp textgrp">
+      <div className="grp textgrp" data-prio="0">
         <span className={"target" + (t ? " on" : "")} id="textTarget" title={t ? "The text controls change: " + t.label : "Click a cell, a text box, a title or a subtitle on the slide"}>{t ? t.label : "No text selected"}</span>
         <FontPicker id="fontBtn" disabled={!has} value={f?.font ?? null} placeholder={cells && c.style.design === "excel" ? "Font from Excel" : "Design font"}
           title="Font (more fonts: Google Fonts or your own files)" onPick={v => t?.apply("Font", { font: v })} />
@@ -81,13 +82,13 @@ export function Ribbon() {
           onCommit={v => { const n = parseFloat(v.replace(",", ".")); if (isFinite(n) && n > 0) t?.apply("Text size", { pt: n }); }} />
         <button {...tb({ id: "sizeUp", title: "Larger text" })} onClick={() => stepSize(1)}>A+</button>
       </div>
-      <div className="grp">
+      <div className="grp" data-prio="0">
         <button {...tb({ id: "boldBtn", title: "Bold (Ctrl+B)", active: !!f?.b })} onClick={() => t?.apply("Bold", { b: !f!.b })}><b>B</b></button>
         <button {...tb({ id: "italBtn", title: "Italic (Ctrl+I)", active: !!f?.i })} onClick={() => t?.apply("Italic", { i: !f!.i })}><i style={{ fontFamily: "Georgia,serif" }}>I</i></button>
         <Dropdown button={(_o, tg) => <button className="tb colorbtn" id="inkBtn" disabled={!has} title="Text colour" onClick={tg}><span>A</span><i className="sw" style={{ background: f?.color || "#0B0D17" }} /></button>}>{close => t ? <InkMenu t={t} close={close} /> : null}</Dropdown>
         <Dropdown button={(_o, tg) => <button className="tb colorbtn" id="fillBtn" disabled={!cells} title={cells ? "Cell colour (replaces the Excel colour) or highlight" : "Cell colour – for table cells (text boxes: Bubble)"} onClick={tg}><Ic n="bucket-droplet" /><i className="sw" style={{ background: fillSw || "linear-gradient(90deg,#34C759 50%,#FF3B30 50%)" }} /></button>}>{close => <FillMenu close={close} />}</Dropdown>
       </div>
-      <div className="grp">
+      <div className="grp" data-prio="3">
         {(["left", "center", "right"] as const).map(a => <button key={a} {...tb({ "data-align": a, off: t?.can.align === false, title: a === "center" ? "Centre" : "Align " + a, active: f?.align === a })} onClick={() => t?.apply("Alignment", { align: a })}>
           <Ic n={`align-${a}`} /></button>)}
         <button {...tb({ "data-align": "auto", off: t?.can.align === false, title: cells ? "Alignment from Excel" : "Alignment of the design", style: { fontSize: "11px" }, active: has && !f?.align })} onClick={() => t?.apply("Alignment", { align: null })}>Auto</button>
@@ -104,23 +105,23 @@ export function Ribbon() {
         {(["top", "middle", "bottom"] as const).map(v => <button key={v} {...tb({ "data-valign": v, off: !t?.can.valign, title: t?.can.valign ? "Text at the " + v : "Vertical position – for text boxes", active: f?.valign === v })}
           onClick={() => t?.apply("Vertical alignment", { valign: f?.valign === v ? null : v })}><Ic n={VALIGN_ICON[v]} /></button>)}
       </div>
-      <div className="grp">
+      <div className="grp" data-prio="4">
         <button {...tb({ id: "clearFmt", title: "Remove your formatting from the selected text (back to the text style)" })} onClick={() => t?.clear()}>Clear format</button>
         <button className={"tb" + (painter ? " on" : "")} id="painterBtn" disabled={!cells && !item && !painter} title="Copy the format of table cells (or of a chart, callout, icon or line): click, then click or drag over the cells (objects of the same kind) to paste. Ctrl+click several, then let go of Ctrl, to paste onto all of them at once. Double-click to paste several times; Esc stops."
           onClick={() => painter ? stopPainter() : startPainter(false)} onDoubleClick={() => startPainter(true)}>
           <Ic n="paint" />Format</button>
       </div>
-      <div className="grp numgrp" title="Number display of the selected cells (over Excel's format)">
+      <div className="grp numgrp" data-prio="5" title="Number display of the selected cells (over Excel's format)">
         <button {...nb({ id: "numDecDown", title: "Fewer decimals" })} onClick={() => stepNumber("dec-", activeItem())}><Ic n="arrow-narrow-left" />.0</button>
         <button {...nb({ id: "numDecUp", title: "More decimals" })} onClick={() => stepNumber("dec+", activeItem())}>.00</button>
         <button {...nb({ id: "numPct", title: "Percent (on / off)", active: !!num && numHas(num, "pct") })} onClick={() => stepNumber("pct", activeItem())}>%</button>
         <button {...nb({ id: "numThou", title: "Thousands separator (on / off)", active: !!num && numHas(num, "thou") })} onClick={() => stepNumber("thou", activeItem())}>000</button>
       </div>
-      <div className="grp">
+      <div className="grp" data-prio="1">
         <button className="tb" id="textStylesBtn" disabled={!open} title="Fonts, sizes and colours of ALL titles, subtitles, tables, text boxes, contents and page numbers in this deck – and the font library" onClick={() => openFontManager("styles")}>
           <span className="aa">Aa</span>Text styles…</button>
       </div>
-    </nav>
+    </OverflowBar>
   );
 }
 

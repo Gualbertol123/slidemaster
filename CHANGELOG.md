@@ -3,6 +3,36 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.12.0 - unreleased
+
+What users notice
+* **Ctrl + mouse wheel zooms the slide, not the page** (the owner's request of 2026-10-22): over the slide the point
+  under the pointer stays where it is; a trackpad pinch does the same. Over the side panel and the toolbars Ctrl + wheel
+  zooms the slide too (about its middle); the page itself never zooms any more, in a dialog neither. 25 % to 400 %.
+* **Ctrl + + / Ctrl + − / Ctrl + 0** step the slide's zoom in and out and fit it to the window (the + key of an Italian
+  keyboard and the numeric pad's too). Zoomed in, the mouse wheel scrolls the slide, Shift + wheel sideways.
+* **The zoom is in the status bar**: − , the zoom (a click: 100 %), + and Fit. Fit is how every window starts; a window
+  resized at Fit fits again, a chosen zoom stays. The zoom is your view only – not saved in the deck, not seen by
+  colleagues, not kept for the next time.
+* Zoomed in, the selection rings and the handles keep their size on screen; drags, snapping, resizing, label drags and
+  typing on the slide work as at any zoom.
+* **The toolbars fit the window** (1024 px wide and up; Windows' 125 % and 150 % display scaling too): the top bar and the
+  text toolbar stay on one row, the layout toolbar on at most two. When a window is too narrow, groups first show their
+  icons alone (each button keeps its name as a tooltip), then the least used groups move into **More ▾** at the end of
+  the row – click it to use them. Nothing runs off the window's edge any more (before, Options and Export could be cut
+  off on a small screen), and a menu opened near the edge stays inside the window.
+* **The side panel folds to a thin rail** (« on its head, » on the rail to open it again): the slides by number, New
+  slide, and the slide gets the room. Below 1100 px wide it starts folded until you open it; your choice is kept in
+  this browser, like its width.
+* The status bar's texts give way on a narrow window; the save state and the zoom always show.
+
+Under the hood
+* app/src/stage/zoom.ts (the zoom's maths, the wheel and the keys), app/src/ui/OverflowBar.tsx (the toolbars' plan:
+  measured, compact, More ▾), app/src/ui/NavRail.tsx; the zoom left the personal prefs (a zoom an older page kept there is
+  not read). No change to the slides, the exports or the deck's format.
+* Tests: tests/zoom.test.tsx, tests/responsive.test.tsx, e2e/responsive.spec.ts (RZ-01–RZ-03, its own workbook
+  tests/fixtures/Zoom.xlsx); page budget page-budget/responsive.json.
+
 ## 4.11.0 - 2026-10-22 (B53: chart labels)
 
 What users notice

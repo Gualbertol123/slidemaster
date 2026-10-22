@@ -23,11 +23,39 @@ export function saveNav(w: number | null) {
   try { if (w === null) localStorage.removeItem(KEY); else localStorage.setItem(KEY, String(Math.round(w))); } catch { /* blocked: this session only */ }
 }
 
+/** the window's width, followed */
+function useWin(): number {
+  const [win, setWin] = useState(() => innerWidth);
+  useEffect(() => { const f = () => setWin(innerWidth); addEventListener("resize", f); return () => removeEventListener("resize", f); }, []);
+  return win;
+}
+
+/* The rail (4.12, the owner's request "the toolbars at the top and on the left should adapt responsively"): the panel
+   folds to a thin rail – the slides' numbers, New slide, the button that opens it again – and the stage takes the room.
+   Until the person chooses, it follows the window: a rail below NAV_AUTO_RAIL px, open above; a choice (the « / »
+   button) is kept in this browser like the width (localStorage, a convenience) and then holds at every width. */
+export const NAV_RAIL = 48, NAV_AUTO_RAIL = 1100;
+const RAIL_KEY = "sbNavRail";
+export type RailPref = "rail" | "open" | null;
+/** the choice this browser keeps (null: none – the window decides) */
+export function loadRail(): RailPref {
+  try { const v = localStorage.getItem(RAIL_KEY); return v === "rail" || v === "open" ? v : null; } catch { return null; }
+}
+export function saveRail(v: RailPref) {
+  try { if (v === null) localStorage.removeItem(RAIL_KEY); else localStorage.setItem(RAIL_KEY, v); } catch { /* blocked: this session only */ }
+}
+/** whether the panel is a rail: the person's choice, else the window's width */
+export const isRail = (pref: RailPref, win: number) => pref === "rail" || (pref === null && win < NAV_AUTO_RAIL);
+/** whether the panel is a rail now, and the toggle (the other state, chosen and kept) */
+export function useNavRail(): [boolean, () => void] {
+  const [pref, setPref] = useState<RailPref>(loadRail), win = useWin(), rail = isRail(pref, win);
+  return [rail, () => { const v: RailPref = rail ? "open" : "rail"; setPref(v); saveRail(v); }];
+}
+
 /** the panel's width (clamped to the window as it is now) and its setter (`commit`: kept for the next time) */
 export function useNavWidth(): [number, (w: number | null, commit?: boolean) => void] {
   const [w, setW] = useState(loadNav);
-  const [win, setWin] = useState(() => innerWidth);
-  useEffect(() => { const f = () => setWin(innerWidth); addEventListener("resize", f); return () => removeEventListener("resize", f); }, []);
+  const win = useWin();
   const set = (v: number | null, commit = false) => {
     const n = v === null ? NAV_DEFAULT : clampNav(v);
     setW(n);
@@ -36,8 +64,8 @@ export function useNavWidth(): [number, (w: number | null, commit?: boolean) => 
   return [clampNav(w, win), set];
 }
 
-/** the panel's grid columns (App.tsx's .main) */
-export const navColumns = (w: number) => w + "px minmax(0,1fr)";
+/** the panel's grid columns (App.tsx's .main; `rail`: folded) */
+export const navColumns = (w: number, rail = false) => (rail ? NAV_RAIL : w) + "px minmax(0,1fr)";
 
 /** the grip on the panel's edge: drag to resize, double-click for the default width; focusable – ←/→ 16 px, Home the
     narrowest, End half the window, Enter the usual width. While dragged the width is drawn straight into the page (the
@@ -75,3 +103,4 @@ export function NavGrip({ width, set }: { width: number; set: (w: number | null,
     aria-controls="sideNav" aria-valuenow={width} aria-valuemin={NAV_MIN} aria-valuemax={Math.max(NAV_MIN, Math.floor(innerWidth / 2))}
     title="Drag to widen the panel · double-click: the usual width · ←/→ with the keyboard" onPointerDown={down} onDoubleClick={() => set(null, true)} onKeyDown={key} />;
 }
+

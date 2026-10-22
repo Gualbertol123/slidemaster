@@ -15,6 +15,7 @@ import { DESIGNS, isConsult } from "@slide-builder/core/model/designs";
 import { Input } from "./Input";
 import { useStyle } from "./hooks";
 import { Ic } from "./Ic";
+import { OverflowBar } from "./OverflowBar";
 import { openLicences } from "./notices";
 import { ask } from "../state/dialogs";
 
@@ -29,7 +30,7 @@ function OpenMenu() {
   const [files, setFiles] = useState<FileInfo[] | null>(null);
   const load = () => { setFiles(null); void backend.files().then(setFiles).catch(() => setFiles([])); };
   return (
-    <Dropdown onOpen={load} button={(_o, toggle) => (
+    <Dropdown onOpen={load} prio={0} button={(_o, toggle) => (
       <button className="btn" id="openBtn" title="Open a workbook from the folder or browse" onClick={toggle}>
         <Ic n="folder-open" />Open
       </button>)}>
@@ -87,7 +88,7 @@ function Options() {
   const pn = (patch: Partial<PageNumbers>, coalesce?: string) => styleChange("Page numbers", { pn: patch }, coalesce);
   const ft = st.footer, fo = (patch: Partial<Footer>, coalesce?: string) => styleChange("Footer", { footer: patch }, coalesce);
   return (
-    <Dropdown right menuClass="optmenu" button={(_o, toggle) => <button className="btn" id="optBtn" title="Page numbers and logo" disabled={!has} onClick={toggle}><Ic n="settings" />Options</button>}>
+    <Dropdown right menuClass="optmenu" prio={3} button={(_o, toggle) => <button className="btn" id="optBtn" title="Page numbers and logo" disabled={!has} onClick={toggle}><Ic n="settings" />Options</button>}>
       {() => <>
         <div className="optnote">Colour theme, colours and fonts: <a href="#" onClick={e => { e.preventDefault(); openFontManager("colors"); }}>Design…</a></div>
         <div className="sep" />
@@ -186,7 +187,7 @@ function ExportButton() {
   const vname = vf.length > 1 ? "PDF + PowerPoint" : vf[0] === "pptx" ? "PowerPoint" : "PDF", per = vf.length;
   const fmt = (f: Formats, label: string) => <button key={f.join()} data-x={"vfmt-" + f.join("-")} className={f.join() === vf.join() ? "picked" : ""} onClick={() => setVf(f)}>{label}</button>;
   return (
-    <Dropdown right style={{ display: "flex" }} button={(_o, toggle) => <>
+    <Dropdown right style={{ display: "flex" }} prio={0} button={(_o, toggle) => <>
       <button className="btn primary split" id="exportBtn" disabled={!can} onClick={() => void doExport("pdf")}>{exporting ? <><span className="spin" />Rendering…</> : "Export PDF"}</button>
       <button className="btn primary caret" id="exportMenuBtn" disabled={!can} title="More exports: PowerPoint, images, versions" onClick={toggle}><Ic n="chevron-down" /></button>
     </>}>
@@ -227,7 +228,7 @@ function ExportButton() {
 function VersionPicker() {
   const vs = useStore(s => s.doc.view?.preset?.versions) || [], version = useStore(s => s.deck.version);
   if (!vs.length) return null;
-  return <label className="verpick" title="Version shown on screen (Wizard › Versions); exports: Export ▾ › every version">
+  return <label className="verpick" data-prio="2" title="Version shown on screen (Wizard › Versions); exports: Export ▾ › every version">
     <span>Version</span><select id="versionSel" value={version} onChange={e => showVersion((e.target as HTMLSelectElement).value)}>
       <option value="">Full deck</option>{vs.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>;
 }
@@ -237,7 +238,7 @@ function Others() {
   const here = others.filter(o => file && o.workbook === file.name);
   if (!here.length) return null;
   const names = [...new Set(here.map(o => o.user + (o.user === me ? " (another window)" : "")))];
-  return <span className="presence" id="presence" title={"Also editing this workbook: " + names.join(", ") + "\nChanges are merged automatically; the same cell edited by two people keeps the last change."}>
+  return <span className="presence" id="presence" data-prio="5" title={"Also editing this workbook: " + names.join(", ") + "\nChanges are merged automatically; the same cell edited by two people keeps the last change."}>
     {names.slice(0, 3).map(n => <i key={n}>{n.slice(0, 2).toUpperCase()}</i>)}<span>{names.length === 1 ? names[0] + " is also here" : names.length + " others here"}</span>
   </span>;
 }
@@ -246,34 +247,34 @@ export function Topbar() {
   const st = useStyle(), has = useStore(s => s.doc.open), f = useStore(s => s.deck.file), n = useStore(s => s.deck.slides.length);
   const wb = useStore(s => !!s.deck.wb), opening = useStore(s => s.deck.opening);
   return (
-    <header className="topbar">
-      <div className="brand"><i />Slide Builder</div>
+    <OverflowBar tag="header" className="topbar" moreClass="btn">
+      <div className="brand" data-prio="6"><i />Slide Builder</div>
       <OpenMenu />
       <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xlsb,.xls" hidden onChange={e => { const t = e.target as HTMLInputElement; const file = t.files?.[0]; if (file) void guard(() => openLocalFile(file)); t.value = ""; }} />
-      <button className="btn icon" id="reloadBtn" title="Reload the workbook from disk (after saving in Excel)" disabled={f?.src !== "folder"} onClick={() => void guard(reloadWorkbook)}><Ic n="refresh" /></button>
+      <button className="btn icon" id="reloadBtn" data-prio="3" title="Reload the workbook from disk (after saving in Excel)" disabled={f?.src !== "folder"} onClick={() => void guard(reloadWorkbook)}><Ic n="refresh" /></button>
       <button className="btn" id="wizardBtn" disabled={!wb} title="Choose sheets and tables, arrange slides, cover and index" onClick={() => void guard(openWizard)}><Ic n="wand" />Wizard</button>
-      <div className="fname" id="fileName">{opening ? <>Opening <b>{opening}</b>…</> : f ? <><b>{f.name}</b> · {n} slide{n === 1 ? "" : "s"}{f.src === "upload" ? " · not in the folder" : f.src === "local" ? " · preview only" : ""}</> : "No workbook"}</div>
+      <div className="fname" id="fileName" data-flex="90">{opening ? <>Opening <b>{opening}</b>…</> : f ? <><b>{f.name}</b> · {n} slide{n === 1 ? "" : "s"}{f.src === "upload" ? " · not in the folder" : f.src === "local" ? " · preview only" : ""}</> : "No workbook"}</div>
       <VersionPicker />
       <Others />
-      <div className="spacer" />
-      <div className="seg" title="Slide design (saved with this workbook)">
+      <div className="spacer" data-flex="0" />
+      <div className="seg" data-prio="2" title="Slide design (saved with this workbook)">
         {([["glass", <><span className="lg">Liquid </span>Glass</>, "Liquid Glass: light glass surfaces over a coloured background"], ["excel", "Excel", "Excel: the workbook's tables exactly as they are, no decoration added – your text boxes, comments, notes, charts and callouts are drawn too"], ["clean", <><span className="lg">Excel </span>Refined</>, "Excel Refined: the workbook's tables in one consistent, polished style"],
           ["mckinsey", <><span className="lg">Consulting </span>Navy</>, "Consulting Navy: a consulting-report look – serif action titles, hairline rules, navy and blue"],
           ["bain", <><span className="lg">Consulting </span>Red</>, "Consulting Red: a consulting-report look – bold red accents, black table headers, takeaway boxes"]] as const).map(([d, l, t]) =>
           <button key={d} data-design={d} disabled={!has} title={t} className={st.design === d ? "on" : ""} onClick={() => styleChange("Design", { design: d })}>{l}</button>)}
       </div>
-      <button className="btn" id="themeBtn" disabled={!has} title="Colour theme, your own colours, text styles and fonts – for every design" onClick={() => openFontManager("colors")}>
+      <button className="btn" id="themeBtn" data-prio="3" disabled={!has} title="Colour theme, your own colours, text styles and fonts – for every design" onClick={() => openFontManager("colors")}>
         <i className="thdot" style={{ background: `conic-gradient(${themeOf(st).c1},${themeOf(st).c2},${themeOf(st).c3},${themeOf(st).c4},${themeOf(st).c1})` }} /><span className="lbl2">Design…</span></button>
-      {st.design === "glass" && <div className="seg" id="glassSeg" title="Strength of the glass effect">
+      {st.design === "glass" && <div className="seg" id="glassSeg" data-prio="4" title="Strength of the glass effect">
         {(["subtle", "medium", "strong"] as const).map(g => <button key={g} data-glass={g} disabled={!has} className={st.glass === g ? "on" : ""} onClick={() => styleChange("Glass strength", { glass: g })}>{g[0].toUpperCase() + g.slice(1)}</button>)}
       </div>}
-      {st.design === "glass" && <div className="colorctl" id="colorCtl" title="Background colour: from plain white to full colour">
+      {st.design === "glass" && <div className="colorctl" id="colorCtl" data-prio="4" title="Background colour: from plain white to full colour">
         <span className="lbl">Colour</span><Input type="range" id="colorRange" min="0" max="100" step="5" disabled={!has} value={st.color} onChange={e => { const v = +(e.target as HTMLInputElement).value; document.getElementById("colorVal")!.textContent = v + "%"; debounced("color", () => styleChange("Background colour", { color: v }, "color")); }} /><span id="colorVal" className="cv">{st.color}%</span>
       </div>}
       <Options />
       <ServerPill />
       <ExportButton />
-    </header>
+    </OverflowBar>
   );
 }
 export { setPrefs };
