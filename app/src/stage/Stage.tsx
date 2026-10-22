@@ -55,6 +55,8 @@ if (typeof addEventListener === "function") {
   addEventListener("contextmenu", release, true);
   addEventListener("pointermove", e => { if (held && e.buttons === 0) release(); }, true);
 }
+/** the main button is held (a drag may be under way: stage/zoom.ts does not zoom then) */
+export const isHeld = () => held;
 /** fit now, or – while the main button is held – when it is released (the latest call wins) */
 export function fitOrDefer(now: () => void) { if (held) refit = now; else now(); }
 

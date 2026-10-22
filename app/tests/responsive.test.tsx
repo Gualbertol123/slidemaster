@@ -107,6 +107,7 @@ describe("a toolbar measured in the page", () => {
     const { container: c } = render(<div><OverflowBar className="ribbon"><div className="grp">A</div></OverflowBar><p id="out">x</p></div>);
     const nav = c.querySelector("nav.ribbon.obar") as HTMLElement, more = c.querySelector(".obmore") as HTMLButtonElement;
     expect(more.getAttribute("aria-expanded")).toBe("false");
+    expect(more.hasAttribute("aria-haspopup")).toBe(false);          // (it opens the bar, not a menu)
     Object.defineProperty(nav, "offsetHeight", { configurable: true, value: 43 });
     act(() => { fireEvent.click(more); });
     expect(nav.hasAttribute("data-more")).toBe(true);
@@ -173,15 +174,19 @@ describe("the side panel's rail", () => {
     useStore.setState(initialState());
     patch("doc", { open: true });
     patch("deck", { slides: [{ id: "a" }, { id: "b" }, { id: "c" }] as never, cur: 1 });
-    const toggle = vi.fn();
+    const toggle = vi.fn(), seen: string[] = [];
+    Element.prototype.scrollIntoView = function (this: Element) { seen.push(this.textContent || ""); };
     const { container: c } = render(<NavRail toggle={toggle} />);
+    expect(seen).toEqual(["2"]);                                // the current slide's number in view
     const nums = [...c.querySelectorAll(".railslide")];
     expect(nums.map(b => b.textContent)).toEqual(["1", "2", "3"]);
     expect(nums[1].classList.contains("on")).toBe(true);
     act(() => { fireEvent.click(nums[2]); });
     expect(get().deck.cur).toBe(2);
+    expect(seen.at(-1)).toBe("3");
     act(() => { fireEvent.click(c.querySelector("#navRailBtn")!); });
     expect(toggle).toHaveBeenCalledTimes(1);
     expect((c.querySelector("#railNewSlide") as HTMLButtonElement).disabled).toBe(false);
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
   });
 });

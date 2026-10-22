@@ -8,7 +8,9 @@ Releases are made with `docs/next/release-checklist.md`.
 What users notice
 * **Ctrl + mouse wheel zooms the slide, not the page** (the owner's request of 2026-10-22): over the slide the point
   under the pointer stays where it is; a trackpad pinch does the same. Over the side panel and the toolbars Ctrl + wheel
-  zooms the slide too (about its middle); the page itself never zooms any more, in a dialog neither. 25 % to 400 %.
+  zooms the slide too (about its middle); with a deck open the page itself never zooms any more, in a dialog neither
+  (on the start page, with no deck, Ctrl + wheel and Ctrl + + / − / 0 are the browser's own page zoom as before). While
+  a mouse button is held (a drag) the zoom waits. 25 % to 400 %.
 * **Ctrl + + / Ctrl + − / Ctrl + 0** step the slide's zoom in and out and fit it to the window (the + key of an Italian
   keyboard and the numeric pad's too). Zoomed in, the mouse wheel scrolls the slide, Shift + wheel sideways.
 * **The zoom is in the status bar**: − , the zoom (a click: 100 %), + and Fit. Fit is how every window starts; a window

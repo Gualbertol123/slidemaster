@@ -115,7 +115,7 @@ export function OverflowBar({ tag = "nav", className, id, moreClass = "tb", rows
   return <div className="obslot" ref={slot}>
     <Tag className={className + " obar"} id={id} ref={bar as never} data-max-rows={rows} {...(open ? { "data-more": "" } : {})}>
       {children}
-      <button type="button" className={moreClass + " obmore"} data-more-btn="" aria-expanded={open} aria-haspopup="true"
+      <button type="button" className={moreClass + " obmore"} data-more-btn="" aria-expanded={open}
         title={open ? "Hide the tools that do not fit in this window" : "The tools that do not fit in this window"} onClick={toggle}>More<span className="obcaret">▾</span></button>
     </Tag>
   </div>;

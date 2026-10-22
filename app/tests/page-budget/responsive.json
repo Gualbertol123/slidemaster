@@ -1,4 +1,4 @@
 {
-  "bytes": 13500,
-  "why": "4.12 responsive zoom (the owner's request of 2026-10-22: Ctrl + wheel zooms the slide, not the page; the toolbars and the side panel adapt to the window): by measurement on v4/responsive-zoom – the page built from its base (main 161adb7, the 4.11.0 page, 4,948,634 bytes) is 4,961,979 bytes (+13,345): stage/zoom.ts (the wheel, the keys, the anchored zoom), ui/OverflowBar.tsx (compact groups, More ▾), ui/NavRail.tsx and the rail, the status bar's zoom, their CSS; rounded up to the next 500."
+  "bytes": 14000,
+  "why": "4.12 responsive zoom (the owner's request of 2026-10-22: Ctrl + wheel zooms the slide, not the page; the toolbars and the side panel adapt to the window): by measurement on v4/responsive-zoom – the page built from its base (main 161adb7, the 4.11.0 page, 4,948,634 bytes) is 4,962,165 bytes with PR #39's review fixes (+13,531; first measured +13,345 before them: no zoom while a button is held, no anchor left behind, the browser's own zoom on the start page, the rail's current slide in view): stage/zoom.ts (the wheel, the keys, the anchored zoom), ui/OverflowBar.tsx (compact groups, More ▾), ui/NavRail.tsx and the rail, the status bar's zoom, their CSS; rounded up to the next 500."
 }

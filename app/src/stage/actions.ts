@@ -4,7 +4,6 @@
 import { isLookText } from "../editor/look";
 import { get, patch, patchAll, toast } from "../state/store";
 import { change } from "../state/app";
-import { zoomTo } from "./zoom";
 import type { Note, Op, RuntimeSlide, Side } from "@slide-builder/core/model/types";
 import { MEMO_KEY } from "@slide-builder/core/render/layout";
 import { activeItem, curSlide } from "../editor/edit";
@@ -12,8 +11,6 @@ import { editorClosed, setStage, stage } from "./data";
 
 /** the zoom factor of the slide on screen */
 export const slideScale = () => stage().scale;
-/** zoom by factor f about the stage's middle (stage/zoom.ts: the wheel, the keys, the status bar's − / +) */
-export function zoomBy(f: number) { zoomTo(slideScale() * f); }
 
 /* ---- editors */
 /** types into the active cell (F2, or a typed character that starts the text) */

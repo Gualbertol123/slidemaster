@@ -7,7 +7,7 @@ import { get, initialState, patch, setDialogs, useStore } from "../src/state/sto
 import { setStage, useStage } from "../src/stage/data";
 import {
   anchorAt, clampZoom, installZoom, onWheel, scrollFor, slideOrigin, stageExtent, stepZoom, takePendingAnchor, wheelAction, wheelFactor, wheelPx,
-  zoomKey, ZOOM_MAX, ZOOM_MIN, ZOOM_STEPS,
+  zoomKey, zoomTo, ZOOM_MAX, ZOOM_MIN, ZOOM_STEPS,
 } from "../src/stage/zoom";
 
 describe("zoom maths", () => {
@@ -87,13 +87,15 @@ describe("the wheel and the keys", () => {
   const wheel = (target: Element, init: WheelEventInit) => { const e = new WheelEvent("wheel", { bubbles: true, cancelable: true, ...init }); target.dispatchEvent(e); return e; };
   const key = (init: KeyboardEventInit, target: Element = document.body) => { const e = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init }); target.dispatchEvent(e); return e; };
 
-  it("what a wheel does: Ctrl or ⌘ zooms (a pinch is Ctrl + wheel), a plain wheel is the browser's; no slide or a dialog: the page's zoom only cancelled", () => {
+  it("what a wheel does: Ctrl or ⌘ zooms (a pinch is Ctrl + wheel), a plain wheel is the browser's; no slide: the browser's page zoom; a dialog or a held button: the page's zoom only cancelled", () => {
     const t = document.body;
     expect(wheelAction({ ctrlKey: true, metaKey: false, target: t }, true, false)).toBe("zoom");
     expect(wheelAction({ ctrlKey: false, metaKey: true, target: t }, true, false)).toBe("zoom");
     expect(wheelAction({ ctrlKey: false, metaKey: false, target: t }, true, false)).toBe(null);
-    expect(wheelAction({ ctrlKey: true, metaKey: false, target: t }, false, false)).toBe("block");
+    expect(wheelAction({ ctrlKey: true, metaKey: false, target: t }, false, false)).toBe(null);
+    expect(wheelAction({ ctrlKey: true, metaKey: false, target: t }, false, true)).toBe(null);
     expect(wheelAction({ ctrlKey: true, metaKey: false, target: t }, true, true)).toBe("block");
+    expect(wheelAction({ ctrlKey: true, metaKey: false, target: t }, true, false, true)).toBe("block");
   });
   it("Ctrl + wheel over the slide: cancelled (the page never zooms), the slide zoomed once a frame, anchored at the pointer", () => {
     const e1 = wheel(stageEl.querySelector("#cell")!, { ctrlKey: true, deltaY: -100, clientX: 600, clientY: 300 });
@@ -131,12 +133,44 @@ describe("the wheel and the keys", () => {
     expect(d.defaultPrevented).toBe(true);
     expect(get().ui.zoom).toBe("fit");
   });
-  it("no deck: the page's zoom is cancelled, nothing else", () => {
+  it("no deck (the start page): Ctrl + wheel and the zoom keys are the browser's own page zoom – not cancelled", () => {
     patch("deck", { slides: [] });
     const e = wheel(stageEl, { ctrlKey: true, deltaY: -100 });
     runFrames();
-    expect(e.defaultPrevented).toBe(true);
+    expect(e.defaultPrevented).toBe(false);
+    for (const k of [{ key: "=", code: "Equal" }, { key: "-", code: "Minus" }, { key: "0", code: "Digit0" }]) expect(key({ ...k, ctrlKey: true }).defaultPrevented).toBe(false);
     expect(get().ui.zoom).toBe("fit");
+  });
+  it("a button held (a drag measured its scale when it started): Ctrl + wheel and the keys cancelled, the slide not zoomed – also a wheel summed before the press", () => {
+    const press = (type: string) => window.dispatchEvent(new MouseEvent(type, { button: 0 }));
+    wheel(stageEl, { ctrlKey: true, deltaY: -100, clientX: 600, clientY: 300 });    // waits for its frame…
+    press("pointerdown");                                                          // …a drag starts first
+    try {
+      runFrames();
+      expect(get().ui.zoom).toBe("fit");
+      const e = wheel(stageEl, { ctrlKey: true, deltaY: -100, clientX: 600, clientY: 300 });
+      runFrames();
+      expect(e.defaultPrevented).toBe(true);
+      expect(key({ key: "=", code: "Equal", ctrlKey: true }).defaultPrevented).toBe(true);
+      expect(get().ui.zoom).toBe("fit");
+      expect(takePendingAnchor()).toBe(null);
+    } finally { press("pointerup"); }
+    wheel(stageEl, { ctrlKey: true, deltaY: -100, clientX: 600, clientY: 300 });    // released: zooms again
+    runFrames();
+    expect(get().ui.zoom).toBeGreaterThan(.5);
+  });
+  it("a zoom to the scale drawn already (100 % when Fit is 100 %) leaves no anchor behind: the next wheel anchors at its own pointer", () => {
+    setStage({ scale: 1 });
+    zoomTo(1, { x: 400, y: 150 });                         // a click on 100 %: Fit → 1, nothing drawn anew
+    expect(get().ui.zoom).toBe(1);
+    expect(takePendingAnchor()).toBe(null);
+    zoomTo(1.25);                                          // and a zoom not drawn yet, then back to the drawn scale
+    zoomTo(1);
+    expect(get().ui.zoom).toBe(1);
+    expect(takePendingAnchor()).toBe(null);
+    wheel(stageEl, { ctrlKey: true, deltaY: -100, clientX: 1100, clientY: 600 });
+    runFrames();
+    expect(takePendingAnchor()).toMatchObject({ px: 800, py: 500 });
   });
 
   it("the zoom keys: = and + in, − out, 0 Fit, the numeric pad's too – by the key typed (an Italian keyboard's + key); never with Alt (AltGr)", () => {

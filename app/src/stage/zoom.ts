@@ -3,8 +3,9 @@
    person's prefs, never sent to anybody: every window starts at Fit.
    - Ctrl (⌘) + wheel – and a trackpad pinch, which the browser reports as Ctrl + wheel – zooms the slide in smooth
      multiplicative steps, the point under the pointer staying where it is; over the panels and toolbars it zooms the
-     slide about the stage's middle; the page itself never zooms (the event is cancelled wherever it happens, a dialog
-     included – there nothing else happens);
+     slide about the stage's middle; over a deck the page itself never zooms (the event is cancelled wherever it
+     happens, a dialog included – there nothing else happens; so too while a button is held: a drag keeps the scale it
+     started with); with no deck on screen (the start page) Ctrl + wheel and the keys are the browser's own page zoom;
    - Ctrl + = / + and Ctrl + − step along ZOOM_STEPS about the stage's middle, Ctrl + 0 is Fit (by the key typed: an
      Italian keyboard's + key too; and the numeric pad's);
    - zoomed in, the stage scrolls: a plain wheel pans it up and down, Shift + wheel sideways (the browser's own
@@ -14,6 +15,7 @@
 import { get } from "../state/store";
 import { setZoom } from "../state/app";
 import { stage } from "./data";
+import { isHeld } from "./Stage";
 
 export const ZOOM_MIN = .25, ZOOM_MAX = 4;
 /** the steps of the − / + buttons and keys (Chrome's own ladder, 25 % … 400 %) */
@@ -81,6 +83,9 @@ export function zoomTo(z: number, at?: { x: number; y: number }) {
     pending = anchorAt(px, py, el.scrollLeft, el.scrollTop, cw, ch, s0);
   }
   if (Math.abs(s1 - curScale()) < 1e-4 && get().ui.zoom !== "fit") { if (pendingS === null) pending = null; return; }   // (at a limit)
+  // the scale drawn already (100 % pressed when Fit is 100 %, or back where a zoom not drawn yet started): the stage draws
+  // nothing new and takes no anchor – none is left waiting for the next zoom
+  if (Math.abs(s1 - s0) < 1e-4) { pending = null; pendingS = null; setZoom(s1); return; }
   pendingS = s1;
   setZoom(s1);
 }
@@ -90,20 +95,25 @@ export const zoomFit = () => { pending = null; pendingS = null; setZoom("fit"); 
 
 /* ---- the wheel: a pinch or Ctrl + wheel arrives as many small events – they are summed and applied once a frame */
 let acc = 1, accAt: { x: number; y: number } | null = null, frame = 0;
-const flush = () => { frame = 0; const f = acc, at = accAt; acc = 1; accAt = null; zoomTo(curScale() * f, at ?? undefined); };
+const flush = () => { frame = 0; const f = acc, at = accAt; acc = 1; accAt = null; if (!isHeld()) zoomTo(curScale() * f, at ?? undefined); };
 
+/** a deck on screen (none: the start page – the browser's own zoom works there) */
+const hasSlide = () => get().deck.slides.length > 0 && !!stageEl();
 /** a modal (a dialog, the wizard) is open: the slide is not zoomed under it */
 const modalOpen = () => { const D = get().ui.dialogs; return !!(D.dialog || D.wizard || D.tables || D.textStyles || D.comment || D.scenario || D.pick || D.setups); };
 
 /** what a wheel event does: "zoom" the slide (at the pointer when it is over the stage), "block" the page's zoom only,
-    or nothing (null: the browser scrolls as usual) */
-export function wheelAction(e: { ctrlKey: boolean; metaKey: boolean; target: EventTarget | null }, hasSlide: boolean, modal: boolean): "zoom" | "block" | null {
+    or nothing (null: the browser's own – a plain wheel scrolls; with no slide on screen, the start page, Ctrl + wheel
+    is the browser's page zoom, for those who need it larger). A dialog over a deck, or a button held (a drag measured
+    its scale when it started: a zoom now would drop the shape off the pointer): blocked */
+export function wheelAction(e: { ctrlKey: boolean; metaKey: boolean; target: EventTarget | null }, hasSlide: boolean, modal: boolean, held = false): "zoom" | "block" | null {
   if (!e.ctrlKey && !e.metaKey) return null;
-  if (!hasSlide || modal) return "block";
+  if (!hasSlide) return null;
+  if (modal || held) return "block";
   return "zoom";
 }
 export function onWheel(e: WheelEvent) {
-  const what = wheelAction(e, get().deck.slides.length > 0 && !!stageEl(), modalOpen());
+  const what = wheelAction(e, hasSlide(), modalOpen(), isHeld());
   if (!what) return;
   e.preventDefault();                                          // the page never zooms
   if (what === "block") return;
@@ -124,9 +134,9 @@ export function zoomKey(e: { ctrlKey: boolean; metaKey: boolean; altKey: boolean
 }
 /** the keys' handler: true when it took the key */
 export function onZoomKey(e: KeyboardEvent): boolean {
-  const z = zoomKey(e); if (!z) return false;
-  e.preventDefault();                                          // the page never zooms – in a field or a dialog too
-  if (modalOpen() || !get().deck.slides.length || !stageEl()) return true;
+  const z = zoomKey(e); if (!z || !hasSlide()) return false;   // the start page: the browser's own zoom
+  e.preventDefault();                                          // over a deck the page never zooms – in a field or a dialog too
+  if (modalOpen() || isHeld()) return true;
   if (z === "fit") zoomFit(); else zoomStep(z === "in" ? 1 : -1);
   return true;
 }
