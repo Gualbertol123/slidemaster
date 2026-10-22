@@ -1,5 +1,5 @@
 /* Selection (Excel-like) and cell edits expressed as operations. */
-import { get, patch, toast } from "../state/store";
+import { get, patch, toast, type Sel } from "../state/store";
 import { esc } from "@slide-builder/core/xlsx/util";
 import { change, core, ctx, hasWorkbookText, workbookText } from "../state/app";
 import type { Item, TableLayout } from "@slide-builder/core/xlsx/types";
@@ -17,19 +17,40 @@ function gridOf(T: GridLayout) {
 export function itemAt(T: TableLayout, r: number, c: number) { return gridOf(T).get(r + "," + c) || T.items.find(it => it.b.src.r === r && it.b.src.c === c); }
 export const curSlide = () => get().deck.slides[get().deck.cur];
 export function selTable() { const { sel } = get().selection; return sel ? curSlide()?.tables[sel.t] : undefined; }
+/** the cells of the current range (the table tools – borders, merges, charts, rows – act on these) */
 export function selItems(): Item[] {
   const sel = get().selection.sel, T = selTable(); if (!sel || !T) return [];
   return T.items.filter(it => it.b.r <= sel.r2 && it.b.r2 >= sel.r1 && it.b.c <= sel.c2 && it.b.c2 >= sel.c1);
 }
+/** the cells of every selected range – the current one and the earlier Ctrl+click ones (S16.3, 09 §9 Q19), each cell once:
+    the format painter and the ribbon's text, colour and number controls act on these (S16.3 review, 2) */
+export function selCells(): Item[] {
+  const sel = get().selection.sel, T = selTable(); if (!sel || !T) return [];
+  const ranges = selRanges(sel);
+  return T.items.filter(it => ranges.some(g => it.b.r <= g.r2 && it.b.r2 >= g.r1 && it.b.c <= g.c2 && it.b.c2 >= g.c1));
+}
+export type CellRange = { r1: number; r2: number; c1: number; c2: number };
+/** the ranges of a selection: the earlier Ctrl+click ones, then the current one */
+export const selRanges = (sel: Sel): CellRange[] => [...(sel.more || []), { r1: sel.r1, r2: sel.r2, c1: sel.c1, c2: sel.c2 }];
 export function activeItem(): Item | null { const T = selTable(), { sel } = get().selection; return sel && T ? itemAt(T, sel.ar, sel.ac) || null : null; }
-export function setSel(t: number, anchor: { r: number; c: number }, active: { r: number; c: number }) {
+/** `more`: the selection's other ranges (Ctrl+click), kept while the current one is dragged or Shift-extended */
+export function setSel(t: number, anchor: { r: number; c: number }, active: { r: number; c: number }, more?: CellRange[]) {
   const T = curSlide()?.tables[t]; if (!T) return;
   const a = itemAt(T, anchor.r, anchor.c), b = itemAt(T, active.r, active.c); if (!a || !b) return;
   let r1 = Math.min(a.b.r, b.b.r), r2 = Math.max(a.b.r2, b.b.r2), c1 = Math.min(a.b.c, b.b.c), c2 = Math.max(a.b.c2, b.b.c2);
   for (let k = 0; k < 4; k++) for (const it of T.items) if (it.b.r <= r2 && it.b.r2 >= r1 && it.b.c <= c2 && it.b.c2 >= c1) { r1 = Math.min(r1, it.b.r); r2 = Math.max(r2, it.b.r2); c1 = Math.min(c1, it.b.c); c2 = Math.max(c2, it.b.c2); }
   // one update: the stage paints the cells and takes the mark off a text box that was selected
-  patch("selection", { sel: { t, anchor: { r: a.b.r, c: a.b.c }, ar: b.b.r, ac: b.b.c, r1, r2, c1, c2 }, noteSel: null, textSel: null, itemSel: null });
+  patch("selection", { sel: { t, anchor: { r: a.b.r, c: a.b.c }, ar: b.b.r, ac: b.b.c, r1, r2, c1, c2, ...(more?.length ? { more } : {}) }, noteSel: null, textSel: null, itemSel: null });
 }
+/** Ctrl+click: a new range in the same table, the selected ones kept (another table: a new selection) */
+export function addSel(t: number, cell: { r: number; c: number }) {
+  const cur = get().selection.sel, more = cur && cur.t === t ? selRanges(cur) : undefined;
+  setSel(t, cell, cell, more);
+  // the first Ctrl+click of a multi-selection (not the painter's targets) says what reaches every range (S16.3 second review, 6)
+  if (more && !cur!.more?.length && !get().selection.painter) toast(MULTI_NOTE);
+}
+/** what a multi-selection's ranges get: the text, colour and number controls act on all of them, the table tools on the current one */
+export const MULTI_NOTE = "Several ranges selected: font, size, bold, italic, text colour, alignment, cell colour, highlight, number display and Clear formatting change all of them. Borders, merges, roles, rows and columns, charts and the other table tools change only the current range (the last one clicked).";
 export function clearSel() { patch("selection", { sel: null }); }
 export function moveSel(dr: number, dc: number, extend: boolean) {
   const sel = get().selection.sel, T = selTable(); if (!sel || !T) return;
@@ -43,10 +64,15 @@ export function moveSel(dr: number, dc: number, extend: boolean) {
 export function selectAll() { const sel = get().selection.sel, T = selTable(); if (!sel || !T) return; setSel(sel.t, { r: T.rows[0], c: T.cols[0] }, { r: T.rows[T.rows.length - 1], c: T.cols[T.cols.length - 1] }); }
 
 /* ---- edits ---- */
-const KEYS = ["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role"] as const;
+const KEYS = ["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role", "valign", "num"] as const;
 export function editOf(it: Item): CellEdit { return (ctx().edits[it.L!.sheet.name] || {})[keyOf(it)] || {}; }
 /** fn changes a copy of each selected cell's edit; the differences become cell.patch operations */
 export function applySel(label: string, fn: (e: CellEdit, it: Item) => void, items = selItems(), extra: Op[] = []) {
+  const ops = selOps(fn, items);
+  if (ops.length || extra.length) change(label, [...ops, ...extra]);
+}
+/** the cell.patch operations fn makes of the cells (none applied: the caller sends them, as one undo step) */
+export function selOps(fn: (e: CellEdit, it: Item) => void, items: Item[]): Op[] {
   const ops: Op[] = [];
   for (const it of items) {
     const before = editOf(it), after: CellEdit = { ...before };
@@ -55,7 +81,7 @@ export function applySel(label: string, fn: (e: CellEdit, it: Item) => void, ite
     for (const k of KEYS) { const a = (before as Record<string, unknown>)[k], b = (after as Record<string, unknown>)[k]; if (a !== b) patch[k] = b === undefined ? null : b; }
     if (Object.keys(patch).length) ops.push({ op: "cell.patch", sheet: it.L!.sheet.name, ref: keyOf(it), patch } as Op);
   }
-  if (ops.length || extra.length) change(label, [...ops, ...extra]);
+  return ops;
 }
 /** the cell's Excel value as CE-09 records it: the workbook's own text, also while a preview shows another (S8.4) */
 const excelValue = (it: Item) => workbookText(it.L!.sheet.name, keyOf(it), it.text);

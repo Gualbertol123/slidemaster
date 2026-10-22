@@ -1,0 +1,1216 @@
+[
+  {
+    "name": "slide.patch hidden (S16.1, B36) hides a row of a table on one slide; the other slide showing the table keeps it",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:D9"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "F1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t2"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans again"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "hidden": {
+            "t1:r3": true
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:D9"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "F1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t2"
+            ],
+            "title": "Loans",
+            "hidden": {
+              "t1:r3": true
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans again"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "hidden": {
+              "t1:r3": null
+            }
+          }
+        }
+      ],
+      "needsV5": [
+        true
+      ],
+      "docNeedsV5": true
+    }
+  },
+  {
+    "name": "slide.patch hidden: rows and a column in one patch (one undo step), the entries already there kept",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:D9"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "F1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t2"
+            ],
+            "title": "Loans",
+            "hidden": {
+              "t1:r3": true
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans again"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "hidden": {
+            "t1:r5": true,
+            "t1:r6": true,
+            "t1:cC": true
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:D9"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "F1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t2"
+            ],
+            "title": "Loans",
+            "hidden": {
+              "t1:r3": true,
+              "t1:r5": true,
+              "t1:r6": true,
+              "t1:cC": true
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans again"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "hidden": {
+              "t1:r5": null,
+              "t1:r6": null,
+              "t1:cC": null
+            }
+          }
+        }
+      ],
+      "needsV5": [
+        true
+      ],
+      "docNeedsV5": true
+    }
+  },
+  {
+    "name": "slide.patch hidden: null on an entry unhides that row; the map goes when it is empty (S16.1)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:D9"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "F1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t2"
+            ],
+            "title": "Loans",
+            "hidden": {
+              "t1:r3": true,
+              "t1:cC": true
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans again",
+            "hidden": {
+              "t1:r4": true
+            }
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "hidden": {
+            "t1:r3": null
+          }
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s2",
+        "patch": {
+          "hidden": {
+            "t1:r4": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:D9"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "F1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t2"
+            ],
+            "title": "Loans",
+            "hidden": {
+              "t1:cC": true
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans again"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 2,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "hidden": {
+              "t1:r3": true
+            }
+          }
+        },
+        {
+          "op": "slide.patch",
+          "id": "s2",
+          "patch": {
+            "hidden": {
+              "t1:r4": true
+            }
+          }
+        }
+      ],
+      "needsV5": [
+        true,
+        true
+      ],
+      "docNeedsV5": true
+    }
+  },
+  {
+    "name": "slide.patch hidden: Unhide all on this table clears that table's entries only (another table's stay)",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:D9"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "F1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t2"
+            ],
+            "title": "Loans",
+            "hidden": {
+              "t1:r3": true,
+              "t1:cC": true,
+              "t2:r2": true
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans again"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "hidden": {
+            "t1:r3": null,
+            "t1:cC": null
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:D9"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "F1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t2"
+            ],
+            "title": "Loans",
+            "hidden": {
+              "t2:r2": true
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans again"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "hidden": {
+              "t1:r3": true,
+              "t1:cC": true
+            }
+          }
+        }
+      ],
+      "needsV5": [
+        true
+      ],
+      "docNeedsV5": true
+    }
+  },
+  {
+    "name": "slide.patch hidden: null clears every hidden row and column of the slide; the inverse restores each entry",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:D9"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "F1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t2"
+            ],
+            "title": "Loans",
+            "hidden": {
+              "t1:r3": true,
+              "t2:cG": true
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans again"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "hidden": null
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:D9"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "F1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t2"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans again"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [],
+      "inverses": [
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "hidden": {
+              "t1:r3": true,
+              "t2:cG": true
+            }
+          }
+        }
+      ],
+      "needsV5": [
+        true
+      ],
+      "docNeedsV5": false
+    }
+  },
+  {
+    "name": "slide.patch hidden on a slide that is not there is skipped (no inverse); a __proto__ entry is never stored",
+    "doc": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:D9"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "F1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t2"
+            ],
+            "title": "Loans"
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans again"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    },
+    "ops": [
+      {
+        "op": "slide.patch",
+        "id": "gone",
+        "patch": {
+          "hidden": {
+            "t1:r3": true
+          }
+        }
+      },
+      {
+        "op": "slide.patch",
+        "id": "s1",
+        "patch": {
+          "hidden": {
+            "__proto__": true,
+            "t1:r2": true
+          }
+        }
+      }
+    ],
+    "expect": {
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:D9"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "F1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t2"
+            ],
+            "title": "Loans",
+            "hidden": {
+              "t1:r2": true
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans again"
+          }
+        ]
+      },
+      "style": {},
+      "edits": {},
+      "applied": 1,
+      "skipped": [
+        0
+      ],
+      "inverses": [
+        null,
+        {
+          "op": "slide.patch",
+          "id": "s1",
+          "patch": {
+            "hidden": {
+              "t1:r2": null
+            }
+          }
+        }
+      ],
+      "needsV5": [
+        true,
+        true
+      ],
+      "docNeedsV5": true
+    }
+  },
+  {
+    "name": "fold: two writers hide two rows of one table on one slide – both win, in either order (S16.1)",
+    "fold": {
+      "snapshot": {
+        "format": 5,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": {
+            "sheets": [
+              "S"
+            ],
+            "tables": [
+              {
+                "id": "t1",
+                "sheet": "S",
+                "kind": "range",
+                "range": "A1:D9"
+              },
+              {
+                "id": "t2",
+                "sheet": "S",
+                "kind": "markers",
+                "anchor": "F1",
+                "index": 0
+              }
+            ],
+            "slides": [
+              {
+                "id": "s1",
+                "type": "content",
+                "tables": [
+                  "t1",
+                  "t2"
+                ],
+                "title": "Loans"
+              },
+              {
+                "id": "s2",
+                "type": "content",
+                "tables": [
+                  "t1"
+                ],
+                "title": "Loans again"
+              }
+            ]
+          },
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": 1,
+          "w": "anna@pc#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 1000,
+          "ops": [
+            {
+              "op": "slide.patch",
+              "id": "s1",
+              "patch": {
+                "hidden": {
+                  "t1:r3": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "l": 2,
+          "w": "bob@pc#bbbbbbbb",
+          "s": 1,
+          "by": "bob",
+          "at": 2000,
+          "ops": [
+            {
+              "op": "slide.patch",
+              "id": "s1",
+              "patch": {
+                "hidden": {
+                  "t1:r7": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {},
+      "rev": 2,
+      "lamport": 2,
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:D9"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "F1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t2"
+            ],
+            "title": "Loans",
+            "hidden": {
+              "t1:r3": true,
+              "t1:r7": true
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans again"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "fold: one writer hides a row, another unhides it later (Lamport) – the later one wins in either order (S16.1)",
+    "fold": {
+      "snapshot": {
+        "format": 5,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": {
+            "sheets": [
+              "S"
+            ],
+            "tables": [
+              {
+                "id": "t1",
+                "sheet": "S",
+                "kind": "range",
+                "range": "A1:D9"
+              },
+              {
+                "id": "t2",
+                "sheet": "S",
+                "kind": "markers",
+                "anchor": "F1",
+                "index": 0
+              }
+            ],
+            "slides": [
+              {
+                "id": "s1",
+                "type": "content",
+                "tables": [
+                  "t1",
+                  "t2"
+                ],
+                "title": "Loans"
+              },
+              {
+                "id": "s2",
+                "type": "content",
+                "tables": [
+                  "t1"
+                ],
+                "title": "Loans again"
+              }
+            ]
+          },
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": 2,
+          "w": "bob@pc#bbbbbbbb",
+          "s": 1,
+          "by": "bob",
+          "at": 2000,
+          "ops": [
+            {
+              "op": "slide.patch",
+              "id": "s1",
+              "patch": {
+                "hidden": {
+                  "t1:r3": null
+                }
+              }
+            }
+          ]
+        },
+        {
+          "l": 1,
+          "w": "anna@pc#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 1000,
+          "ops": [
+            {
+              "op": "slide.patch",
+              "id": "s1",
+              "patch": {
+                "hidden": {
+                  "t1:r3": true,
+                  "t1:r4": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {},
+      "rev": 2,
+      "lamport": 2,
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:D9"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "F1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t2"
+            ],
+            "title": "Loans",
+            "hidden": {
+              "t1:r4": true
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans again"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "fold: two writers hide rows on two slides showing the same table – each slide keeps its own (S16.1)",
+    "fold": {
+      "snapshot": {
+        "format": 5,
+        "gen": 1,
+        "workbook": "W.xlsx",
+        "lamport": 0,
+        "rev": 0,
+        "frontier": {},
+        "doc": {
+          "schema": 3,
+          "workbook": "W.xlsx",
+          "rev": 0,
+          "preset": {
+            "sheets": [
+              "S"
+            ],
+            "tables": [
+              {
+                "id": "t1",
+                "sheet": "S",
+                "kind": "range",
+                "range": "A1:D9"
+              },
+              {
+                "id": "t2",
+                "sheet": "S",
+                "kind": "markers",
+                "anchor": "F1",
+                "index": 0
+              }
+            ],
+            "slides": [
+              {
+                "id": "s1",
+                "type": "content",
+                "tables": [
+                  "t1",
+                  "t2"
+                ],
+                "title": "Loans"
+              },
+              {
+                "id": "s2",
+                "type": "content",
+                "tables": [
+                  "t1"
+                ],
+                "title": "Loans again"
+              }
+            ]
+          },
+          "style": {},
+          "edits": {}
+        }
+      },
+      "records": [
+        {
+          "l": 1,
+          "w": "anna@pc#aaaaaaaa",
+          "s": 1,
+          "by": "anna",
+          "at": 1000,
+          "ops": [
+            {
+              "op": "slide.patch",
+              "id": "s1",
+              "patch": {
+                "hidden": {
+                  "t1:r3": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "l": 2,
+          "w": "bob@pc#bbbbbbbb",
+          "s": 1,
+          "by": "bob",
+          "at": 2000,
+          "ops": [
+            {
+              "op": "slide.patch",
+              "id": "s2",
+              "patch": {
+                "hidden": {
+                  "t1:cB": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "edits": {},
+      "rev": 2,
+      "lamport": 2,
+      "preset": {
+        "sheets": [
+          "S"
+        ],
+        "tables": [
+          {
+            "id": "t1",
+            "sheet": "S",
+            "kind": "range",
+            "range": "A1:D9"
+          },
+          {
+            "id": "t2",
+            "sheet": "S",
+            "kind": "markers",
+            "anchor": "F1",
+            "index": 0
+          }
+        ],
+        "slides": [
+          {
+            "id": "s1",
+            "type": "content",
+            "tables": [
+              "t1",
+              "t2"
+            ],
+            "title": "Loans",
+            "hidden": {
+              "t1:r3": true
+            }
+          },
+          {
+            "id": "s2",
+            "type": "content",
+            "tables": [
+              "t1"
+            ],
+            "title": "Loans again",
+            "hidden": {
+              "t1:cB": true
+            }
+          }
+        ]
+      }
+    }
+  }
+]

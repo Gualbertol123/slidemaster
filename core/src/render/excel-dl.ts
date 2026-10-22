@@ -18,6 +18,7 @@
    Where v3 is not followed, on purpose (PLAN S3.3's border widths; to be shown in G1): "hair" is a 0.5 px solid line
    (v3: CSS 1 px dotted) and dashDot / dashDotDot / slantDashDot have dash-dot patterns (v3: CSS dashed). */
 import { platform, type LinesReq, type RunMetrics, type RunReq } from "../platform";
+import { cfIconRoom, cfLookOf, cfNodes } from "./cf-dl";
 import { BW } from "../xlsx/layout";
 import type { BorderSide, Item, Para, Pic, Rect, TableLayout } from "../xlsx/types";
 import { fontStack } from "../model/fonts";
@@ -125,6 +126,7 @@ export function excelToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics, o
     for (const side of ["top", "left", "right", "bottom"] as const) { const b = it[side]; if (b) nodes.push(...borderNodes(side, b, it.bx, it.by, it.bw, it.bh)); }
   }
   nodes.push(...cellGridNodes(items, (it, side) => !!it.cgx?.[side]));
+  nodes.push(...cfNodes(items, cfLookOf(ctx)));
   if (!opts.noText) for (const it of items) if (it.text) nodes.push(...cellText(it, ctx, m));
   for (const r of L.rects) nodes.push(...shapeNodes(r, rr));
   for (const tb of L.texts as Rect[]) nodes.push(...textBoxNodes(tb, rr, m));
@@ -206,7 +208,7 @@ export function cellText(it: Item, ctx: RenderCtx, m: Metrics, look: CellLook = 
   const x = it.bx, y = it.by, w = it.tw || it.bw, h = it.bh;
   const out: Node[] = [{ t: "hit", kind: "t", id: `${it.b.r},${it.b.c}`, x, y, w, h, label: collapse(String(it.text)).trim() }];
   const ind = it.indent ? 3 + it.indent * 9 : 3;
-  const pl = it.indent && it.align !== "right" ? ind : 3, pr = it.indent && it.align === "right" ? ind : 3;
+  const pl = (it.indent && it.align !== "right" ? ind : 3) + cfIconRoom(it), pr = it.indent && it.align === "right" ? ind : 3;
   const pb = it.valign === "bottom" || !it.valign ? 1 : 0;
   if (it.rot) return [...out, ...rotatedText(it, size, family, font, color, b, i, m, { pl, pr, pb }, deco)];
   const cx = x + pl, cw = Math.max(0, w - pl - pr), ch = Math.max(0, h - pb), lh = lu(1.15 * size);

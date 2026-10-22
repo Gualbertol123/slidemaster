@@ -15,10 +15,12 @@ import { scaleColors } from "@slide-builder/core/render/scales";
 import { A1, uid, esc } from "@slide-builder/core/xlsx/util";
 import type { CellBorders, CellBorderSide, CellGrid, Op, ScaleRule, Side } from "@slide-builder/core/model/types";
 import { Dropdown } from "./Dropdown";
+import { VersionMenu } from "./VersionMenu";
 import { askAutomatic, freeLayoutOff, freeLayoutOn } from "../editor/free";
 import { ShapeTools } from "./ShapeTools";
 import { InsertSlots } from "./InsertSlots";
 import { AddTableMenu } from "./AddTable";
+import { HideMenu } from "./HideMenu";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
 import { Ic } from "./Ic";
 
@@ -193,6 +195,7 @@ export function TableRibbon() {
         <SizeBox label="H" title="Height of the selected rows (Enter to apply)" disabled={!hasSel} values={T ? rows.map(r => shownRowH(T, r)) : []} onSet={v => T && setRowHeight(T, rows, v)} />
         <button className="tb" id="sizeReset" disabled={!hasSel} title="Back to the widths and heights from Excel for the selected columns and rows"
           onClick={() => { if (T) resetCellSizes(T, cols, rows); }}>Excel size</button>
+        <HideMenu />
         <Dropdown button={(_o, t) => <button className="tb" id="roleBtn" disabled={!hasSel} title="Role of the selected cells: how Liquid Glass draws them" onClick={t}>Role: {role ? ROLES.find(r => r[0] === role)?.[1] : "–"} ▾</button>}>
           {close => <>{ROLES.map(([k, l, t]) => <button key={k} data-role={k} className={role === k ? "picked" : ""} onClick={() => { close(); applySel("Role: " + l, e => { if (k === "auto") delete e.role; else e.role = k; }); }}>{l}<small>{t}</small></button>)}</>}
         </Dropdown>
@@ -202,6 +205,7 @@ export function TableRibbon() {
           <Ic n="border-all" />Borders ▾</button>}>{() => T ? <BorderMenu T={T} /> : null}</Dropdown>
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="scaleBtn" disabled={!hasSel} title="Colour scale: deeper green/red the bigger the number" onClick={t}>
           <i className="scaleico" />Colour scale</button>}>{close => <ScaleMenu close={close} />}</Dropdown>
+        <VersionMenu />
       </div>
       <div className="grp">
         <button className="tb" id="sameSize" disabled={!R || R.tables.length < 2} title="Make the tables on this slide exactly the same size"
@@ -221,7 +225,7 @@ export function TableRibbon() {
           <Ic n="border-inner" />Gridlines</button>}>
           {close => R && tIdx >= 0 ? <GridMenu close={close} T={R.tables[tIdx]} /> : null}</Dropdown>
         <button className="tb" id="tablesDlg" disabled={!anyTables} title="Match sizes of tables on several slides, copy column widths between tables" onClick={() => setDialogs({ tables: true })}>Sizes…</button>
-        <button className={"tb" + (free ? " on" : "")} id="freeLayout" disabled={!R || R.type !== "content"} title={free ? "Back to the automatic layout of this slide (the free places are kept)" : "Free layout: move and resize the tables, text boxes, charts and shapes of this slide one by one (in this design; Alt while dragging: no snapping)"}
+        <button className={"tb" + (free ? " on" : "")} id="freeLayout" disabled={!R || R.type === "cover"} title={free ? "Back to the automatic layout of this slide (the free places are kept)" : R?.type === "index" ? "Free layout: move and resize the contents list and its title, the text boxes, charts and shapes of this slide one by one (in this design; Alt while dragging: no snapping)" : "Free layout: move and resize the tables, text boxes, charts and shapes of this slide one by one (in this design; Alt while dragging: no snapping)"}
           onClick={() => R && (free ? freeLayoutOff(R) : freeLayoutOn(R))}>Free layout</button>
         <button className="tb" id="resetLayout" title={free ? "Back to the automatic layout of this slide" : "Automatic table positions for this slide (in this design)"} disabled={!(R && (free || sizingOf(R, c).layout))} onClick={() => R && (free ? void askAutomatic(R) : slidePatch("Reset layout", sizingPatch(R, c, { scale: sizingOf(R, c).scale })))}>Reset layout</button>
       </div>

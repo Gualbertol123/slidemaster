@@ -740,8 +740,11 @@ test.describe.serial("two people, one shared folder", () => {
     await expect.poll(() => note.textContent(), { timeout: 10_000 }).not.toBe(before);
     // stretch the comment by its bottom edge: it snaps to the bottom of a table, with a guide line
     const nb = (await note.boundingBox())!, tw = (await page.locator("#stage .slide > .tw").nth(0).boundingBox())!;   // the comment spans both tables: shorten it to the first one
+    // (the edge, grabbed 2 screen px above it, is let go 4 SLIDE px below the table, inside the 8 px snap whatever the
+    // stage's scale: "+ 3 screen px" put it 5 screen px = 8.6 slide px below at the 0.58 scale this window gives now)
+    const sc = (await page.locator("#stage .slide").boundingBox())!.width / 1600;
     await page.mouse.move(nb.x + nb.width / 2, nb.y + nb.height - 2); await page.mouse.down();
-    await page.mouse.move(nb.x + nb.width / 2, tw.y + tw.height + 3, { steps: 6 });
+    await page.mouse.move(nb.x + nb.width / 2, tw.y + tw.height - 2 + 4 * sc, { steps: 6 });
     await expect(page.locator("#stage .snapline.h")).toBeVisible();
     await page.mouse.up();
     await pollFile(() => (Object.values(wdoc().preset.slides[0].notes).find((n: any) => n.auto) as any).h, { timeout: 10_000 }).toBeGreaterThan(0);
@@ -2572,6 +2575,78 @@ test.describe.serial("two people, one shared folder", () => {
     for (let i = 0; i < 5; i++) await page.click("#undoBtn");
     await expect.poll(() => undoSteps()).toBe(u0);
     await pollFile(() => doc().preset.slides[k].hide ?? null, { timeout: 10_000 }).toBeNull();
+    await saved(page);
+  });
+
+  test("Delete slide and Duplicate slide (S13.7, owner Q12): the slide list's menu; the copy exports as the original but its number (PDF, PNG, PowerPoint); Delete asks (the key too); one undo step each", async ({ page }) => {
+    await openApp(page, ANNA);
+    await openWorkbook(page, "report.xlsx"); await continueOpen(page, "report.xlsx");
+    await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
+    const undoSteps = () => page.evaluate(() => (window as any).__sbTest.history().undo as number);
+    const change = (label: string, ops: object[]) => page.evaluate(([l, o]) => (window as any).__sbTest.change(l, o), [label, ops] as const);
+    const read = (f: string) => fs.readFileSync(path.join(root(), "export", f));
+    const ids = () => (doc().preset.slides as any[]).map(s => s.id as string);
+    const slides0 = doc().preset.slides as any[], n = slides0.length, ids0 = ids(), u0 = await undoSteps();
+    const k = slides0.findIndex(s => s.type === "content" && s.tables.length), id = slides0[k].id;
+    // page numbers on every slide, and a title only this slide has
+    await change("Page numbers", [{ op: "style.patch", patch: { pn: { on: true, format: "nN", cover: true } } }]);
+    await change("Title", [{ op: "slide.patch", id, patch: { title: "Dup me" } }]);
+    await expect.poll(() => undoSteps()).toBe(u0 + 2);
+    // a cover or contents slide: Duplicate is off (the wizard keeps one of each)
+    const special = slides0.findIndex(s => s.type !== "content");
+    if (special >= 0) {
+      await page.locator(`.thumb[data-i="${special}"]`).click({ button: "right" });
+      await expect(page.locator("#ctxDupSlide")).toBeDisabled();
+      await page.keyboard.press("Escape");
+    }
+    // right-click › Duplicate slide: the copy right after it, shown, a new id; everything else the same
+    await page.locator(`.thumb[data-i="${k}"]`).click({ button: "right" });
+    await page.click("#ctxDupSlide");
+    await expect(page.locator("#slideMenu")).toHaveCount(0);
+    await pollFile(() => ids().length, { timeout: 10_000 }).toBe(n + 1);
+    await expect(page.locator(`.thumb.on[data-i="${k + 1}"]`)).toBeVisible();
+    const [a, b] = [doc().preset.slides[k], doc().preset.slides[k + 1]];
+    expect(b.id).not.toBe(a.id); expect(new Set(ids()).size).toBe(n + 1);
+    expect({ ...b, id: a.id }).toEqual(a);                                               // (no items here: nothing renamed)
+    await expect.poll(() => undoSteps()).toBe(u0 + 3);
+    await saved(page);
+    // the exports: one page more; the copy's page is the original's but its number
+    const same = (t: string) => t.replace(/(^|\D)\d+\s*\/\s*\d+(?=\D|$)/g, "$1#");
+    const pdf = pdfPageTexts(read((await exported(page, () => page.click("#exportBtn")))[0]));
+    expect(pdf).toHaveLength(n + 1);
+    expect(pdf[k]).toContain("Dup me"); expect(pdf[k]).toMatch(new RegExp(`(^|\\D)${k + 1}\\s*/\\s*${n + 1}(\\D|$)`));
+    expect(pdf[k + 1]).toMatch(new RegExp(`(^|\\D)${k + 2}\\s*/\\s*${n + 1}(\\D|$)`));
+    expect(same(pdf[k + 1])).toBe(same(pdf[k]));
+    expect(await fromMenu(page, "png-all")).toHaveLength(n + 1);
+    const [pptx] = await fromMenu(page, "pptx");
+    expect(pptxSlides(read(pptx))).toBe(n + 1);
+    const pt = pptxTexts(read(pptx));
+    expect(pt[k]).toContain("Dup me");
+    expect(same(pt[k + 1])).toBe(same(pt[k]));
+    // Delete on the selected thumbnail asks: Cancel keeps it
+    await page.locator(`.thumb[data-i="${k + 1}"]`).click(); await page.locator(`.thumb.on[data-i="${k + 1}"]`).waitFor();
+    await page.locator(`.thumb[data-i="${k + 1}"]`).press("Delete");
+    await expect(page.locator(".dlg")).toContainText("Delete slide “Dup me”?");
+    await expect(page.locator(".dlg")).toContainText("in the deck");
+    await page.click('[data-a="cancel"]');
+    await expect(page.locator(".dlg")).toHaveCount(0);
+    expect(ids().length).toBe(n + 1);
+    // the menu's Delete slide › Delete: removed, its tables stay in the deck
+    const tables = (doc().preset.tables as any[]).map(t => t.id);
+    await page.locator(`.thumb[data-i="${k + 1}"]`).click({ button: "right" });
+    await page.click("#ctxDelSlide");
+    await page.click('[data-a="ok"]');
+    await pollFile(() => ids(), { timeout: 10_000 }).toEqual(ids0);
+    expect((doc().preset.tables as any[]).map(t => t.id)).toEqual(tables);
+    await expect(page.locator(".thumb")).toHaveCount(n);
+    await expect.poll(() => undoSteps()).toBe(u0 + 4);
+    // undo: the delete (the copy is back where it was), the duplicate, the title, the page numbers
+    await page.click("#undoBtn"); await pollFile(() => ids().length, { timeout: 10_000 }).toBe(n + 1);
+    expect(doc().preset.slides[k + 1].id).toBe(b.id);
+    await page.click("#undoBtn"); await pollFile(() => ids(), { timeout: 10_000 }).toEqual(ids0);
+    await page.click("#undoBtn"); await page.click("#undoBtn");
+    await expect.poll(() => undoSteps()).toBe(u0);
+    await pollFile(() => doc().preset.slides[k].title ?? null, { timeout: 10_000 }).toBe(slides0[k].title ?? null);
     await saved(page);
   });
 

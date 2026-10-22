@@ -26,6 +26,7 @@ import { cardsToDisplayList } from "./consult-cards";
 import { rulesToDisplayList } from "./consult-rules";
 import { specOf } from "./consult-spec";
 import type { RenderCtx } from "./context";
+import { cfOver } from "./cf-dl";
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 /** the exhibits' colours (concepts.mjs, round 4: no table background – the slide is tinted –, dark tabular numbers,
@@ -52,9 +53,8 @@ const rect = (x: number, y: number, w: number, h: number, color: string): Node =
 /** a consulting table as its options say (consultOptions: tables "exhibit" | "cards" | "rules", numbers "full" | "compact") */
 export function consultToDisplayList(L: TableLayout, ctx: RenderCtx, m: Metrics, opts: { noText?: boolean } = {}, plan?: GlassPlan): TableDL {
   const o = consultOptions(ctx);
-  if (o.tables === "cards") return cardsToDisplayList(L, ctx, m, opts, plan);
-  if (o.tables === "rules") return rulesToDisplayList(L, ctx, m, opts);
-  return exhibitToDisplayList(L, ctx, m, opts, o.numbers);
+  // (S16.4) Excel's data bars and icons over each of them, at the cells' boxes
+  return cfOver(o.tables === "cards" ? cardsToDisplayList(L, ctx, m, opts, plan) : o.tables === "rules" ? rulesToDisplayList(L, ctx, m, opts) : exhibitToDisplayList(L, ctx, m, opts, o.numbers), L, ctx);
 }
 /** a text clipped at its column (a long label never runs into the numbers) */
 const clipTo = (n: Node, x: number, y: number, w: number, h: number): Node => ({ t: "group", clip: { x, y, w: Math.max(0, w), h }, children: [n] });

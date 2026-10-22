@@ -1,0 +1,507 @@
+[
+ {
+  "name": "M16 cell.patch sets valign and num (S16.3, B38: the vertical position and the number display of a cell)",
+  "doc": {
+   "preset": null,
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "cell.patch",
+    "sheet": "S1",
+    "ref": "D8",
+    "patch": {
+     "valign": "top",
+     "num": "#,##0.0"
+    }
+   }
+  ],
+  "expect": {
+   "preset": null,
+   "style": {},
+   "edits": {
+    "S1": {
+     "D8": {
+      "valign": "top",
+      "num": "#,##0.0"
+     }
+    }
+   },
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "cell.patch",
+     "sheet": "S1",
+     "ref": "D8",
+     "patch": {
+      "valign": null,
+      "num": null
+     }
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "docNeedsV5": true
+  }
+ },
+ {
+  "name": "M16 cell.patch changes valign and num over the other keys; the undo gives back the previous values",
+  "doc": {
+   "preset": null,
+   "style": {},
+   "edits": {
+    "S1": {
+     "D8": {
+      "b": true,
+      "valign": "top",
+      "num": "0%"
+     }
+    }
+   }
+  },
+  "ops": [
+   {
+    "op": "cell.patch",
+    "sheet": "S1",
+    "ref": "D8",
+    "patch": {
+     "valign": "bottom",
+     "num": "0.0%"
+    }
+   }
+  ],
+  "expect": {
+   "preset": null,
+   "style": {},
+   "edits": {
+    "S1": {
+     "D8": {
+      "b": true,
+      "valign": "bottom",
+      "num": "0.0%"
+     }
+    }
+   },
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "cell.patch",
+     "sheet": "S1",
+     "ref": "D8",
+     "patch": {
+      "valign": "top",
+      "num": "0%"
+     }
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "docNeedsV5": true
+  }
+ },
+ {
+  "name": "M16 cell.patch null clears valign and num; the cell keeps its other keys (a 4.0 deck again)",
+  "doc": {
+   "preset": null,
+   "style": {},
+   "edits": {
+    "S1": {
+     "D8": {
+      "sz": 14,
+      "valign": "middle",
+      "num": "#,##0"
+     }
+    }
+   }
+  },
+  "ops": [
+   {
+    "op": "cell.patch",
+    "sheet": "S1",
+    "ref": "D8",
+    "patch": {
+     "valign": null,
+     "num": null
+    }
+   }
+  ],
+  "expect": {
+   "preset": null,
+   "style": {},
+   "edits": {
+    "S1": {
+     "D8": {
+      "sz": 14
+     }
+    }
+   },
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "cell.patch",
+     "sheet": "S1",
+     "ref": "D8",
+     "patch": {
+      "valign": "middle",
+      "num": "#,##0"
+     }
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "docNeedsV5": false
+  }
+ },
+ {
+  "name": "M16 cell.patch clearing a cell's only keys removes the cell and the sheet map",
+  "doc": {
+   "preset": null,
+   "style": {},
+   "edits": {
+    "S1": {
+     "E9": {
+      "num": "0.00"
+     }
+    }
+   }
+  },
+  "ops": [
+   {
+    "op": "cell.patch",
+    "sheet": "S1",
+    "ref": "E9",
+    "patch": {
+     "num": null
+    }
+   },
+   {
+    "op": "cell.patch",
+    "sheet": "S2",
+    "ref": "F9",
+    "patch": {
+     "valign": "top"
+    }
+   },
+   {
+    "op": "cell.patch",
+    "sheet": "S2",
+    "ref": "F9",
+    "patch": {
+     "valign": null
+    }
+   }
+  ],
+  "expect": {
+   "preset": null,
+   "style": {},
+   "edits": {},
+   "applied": 3,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "cell.patch",
+     "sheet": "S1",
+     "ref": "E9",
+     "patch": {
+      "num": "0.00"
+     }
+    },
+    {
+     "op": "cell.patch",
+     "sheet": "S2",
+     "ref": "F9",
+     "patch": {
+      "valign": null
+     }
+    },
+    {
+     "op": "cell.patch",
+     "sheet": "S2",
+     "ref": "F9",
+     "patch": {
+      "valign": "top"
+     }
+    }
+   ],
+   "needsV5": [
+    true,
+    true,
+    true
+   ],
+   "docNeedsV5": false
+  }
+ },
+ {
+  "name": "M16 the painter's paste on a multi-selection: one record of cell.patch ops on two ranges (one undo step)",
+  "doc": {
+   "preset": null,
+   "style": {},
+   "edits": {
+    "S1": {
+     "D8": {
+      "color": "#C00000"
+     }
+    }
+   }
+  },
+  "ops": [
+   {
+    "op": "cell.patch",
+    "sheet": "S1",
+    "ref": "D8",
+    "patch": {
+     "num": "0.0%",
+     "valign": "middle",
+     "font": "Arial"
+    }
+   },
+   {
+    "op": "cell.patch",
+    "sheet": "S1",
+    "ref": "E8",
+    "patch": {
+     "num": "0.0%",
+     "valign": "middle",
+     "font": "Arial"
+    }
+   },
+   {
+    "op": "cell.patch",
+    "sheet": "S1",
+    "ref": "G12",
+    "patch": {
+     "num": "0.0%",
+     "valign": "middle",
+     "font": "Arial"
+    }
+   }
+  ],
+  "expect": {
+   "preset": null,
+   "style": {},
+   "edits": {
+    "S1": {
+     "D8": {
+      "color": "#C00000",
+      "num": "0.0%",
+      "valign": "middle",
+      "font": "Arial"
+     },
+     "E8": {
+      "num": "0.0%",
+      "valign": "middle",
+      "font": "Arial"
+     },
+     "G12": {
+      "num": "0.0%",
+      "valign": "middle",
+      "font": "Arial"
+     }
+    }
+   },
+   "applied": 3,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "cell.patch",
+     "sheet": "S1",
+     "ref": "D8",
+     "patch": {
+      "num": null,
+      "valign": null,
+      "font": null
+     }
+    },
+    {
+     "op": "cell.patch",
+     "sheet": "S1",
+     "ref": "E8",
+     "patch": {
+      "num": null,
+      "valign": null,
+      "font": null
+     }
+    },
+    {
+     "op": "cell.patch",
+     "sheet": "S1",
+     "ref": "G12",
+     "patch": {
+      "num": null,
+      "valign": null,
+      "font": null
+     }
+    }
+   ],
+   "needsV5": [
+    true,
+    true,
+    true
+   ],
+   "docNeedsV5": true
+  }
+ },
+ {
+  "name": "fold: M16 two writers, one cell - valign from one and num from the other both win (per key)",
+  "fold": {
+   "snapshot": {
+    "format": 5,
+    "gen": 1,
+    "workbook": "W.xlsx",
+    "lamport": 0,
+    "rev": 0,
+    "frontier": {},
+    "doc": {
+     "schema": 3,
+     "workbook": "W.xlsx",
+     "rev": 0,
+     "preset": null,
+     "style": {},
+     "edits": {}
+    }
+   },
+   "records": [
+    {
+     "l": 1,
+     "w": "anna@pc1#aaaaaaaa",
+     "s": 1,
+     "by": "anna",
+     "at": 1000,
+     "ops": [
+      {
+       "op": "cell.patch",
+       "sheet": "S",
+       "ref": "D8",
+       "patch": {
+        "valign": "top"
+       }
+      }
+     ]
+    },
+    {
+     "l": 2,
+     "w": "bob@pc2#bbbbbbbb",
+     "s": 1,
+     "by": "bob",
+     "at": 2000,
+     "ops": [
+      {
+       "op": "cell.patch",
+       "sheet": "S",
+       "ref": "D8",
+       "patch": {
+        "num": "#,##0.00"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "expect": {
+   "edits": {
+    "S": {
+     "D8": {
+      "valign": "top",
+      "num": "#,##0.00"
+     }
+    }
+   },
+   "rev": 2,
+   "lamport": 2,
+   "updatedBy": "bob",
+   "updated": 2000
+  }
+ },
+ {
+  "name": "fold: M16 two writers set the same cell's num - the later Lamport time wins, whatever the arrival order",
+  "fold": {
+   "snapshot": {
+    "format": 5,
+    "gen": 1,
+    "workbook": "W.xlsx",
+    "lamport": 0,
+    "rev": 0,
+    "frontier": {},
+    "doc": {
+     "schema": 3,
+     "workbook": "W.xlsx",
+     "rev": 0,
+     "preset": null,
+     "style": {},
+     "edits": {
+      "S": {
+       "D8": {
+        "num": "0"
+       }
+      }
+     }
+    }
+   },
+   "records": [
+    {
+     "l": 3,
+     "w": "bob@pc2#bbbbbbbb",
+     "s": 1,
+     "by": "bob",
+     "at": 1000,
+     "ops": [
+      {
+       "op": "cell.patch",
+       "sheet": "S",
+       "ref": "D8",
+       "patch": {
+        "num": "0.0%"
+       }
+      }
+     ]
+    },
+    {
+     "l": 2,
+     "w": "anna@pc1#aaaaaaaa",
+     "s": 1,
+     "by": "anna",
+     "at": 2000,
+     "ops": [
+      {
+       "op": "cell.patch",
+       "sheet": "S",
+       "ref": "D8",
+       "patch": {
+        "num": "#,##0"
+       }
+      },
+      {
+       "op": "cell.patch",
+       "sheet": "S",
+       "ref": "D8",
+       "patch": {
+        "valign": "bottom"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "expect": {
+   "edits": {
+    "S": {
+     "D8": {
+      "num": "0.0%",
+      "valign": "bottom"
+     }
+    }
+   },
+   "rev": 2,
+   "lamport": 3,
+   "updatedBy": "bob",
+   "updated": 1000
+  }
+ }
+]

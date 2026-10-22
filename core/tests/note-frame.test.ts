@@ -94,7 +94,7 @@ async function open(deck: FakeDeck, preset: Preset) {
   const port = new Port<PageMethods, CoreMethods, CoreEvents, PageEvents>(a);
   port.handle("deckSnapshot", () => api.snapshot("")); port.handle("deckTail", x => api.tail(x.key, x.since));
   port.handle("deckAppend", x => api.append(x.key, x.writer, x.record)); port.handle("deckCompact", x => api.compact(x.key, x.baseGen, x.snapshot));
-  port.handle("deckRotate", x => api.rotate(x.key, x.writer)); port.handle("deckFormat5", x => api.format5(x.key));
+  port.handle("deckRotate", x => api.rotate(x.key, x.writer)); port.handle("deckFormat5", x => api.format5(x.key, x.format));
   port.handle("deckPrepare", () => null); port.handle("digitWidth", () => 0); port.handle("convertPicture", () => null); port.handle("analyzeImages", () => []);
   port.handle("linkedWorkbook", () => null);
   for (const e of ["slices", "stage", "doc"] as const) port.on(e, () => undefined);

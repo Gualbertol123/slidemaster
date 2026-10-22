@@ -192,6 +192,8 @@ export interface StageSlide {
   /** the slide's items as drawn (4.3): box, a chart's geometry (the stage picks a slice by it), the Issues line of a
       source that is missing or empty */
   items?: Record<string, import("../render/slide-dl").ItemInfo>;
+  /** a contents slide in a free layout (B51): where its title and its list are drawn */
+  parts?: import("../render/slide-dl").SlideDL["parts"];
 }
 /** calls the worker makes */
 export interface PageMethods {
@@ -202,8 +204,8 @@ export interface PageMethods {
   deckCompact(a: { key: string; baseGen: number; snapshot: DeckSnapshot }): { gen: number };
   deckRotate(a: { key: string; writer: string }): { deleted: string[] };
   deckPrepare(a: { key: string; writer: string }): unknown;
-  /** ADR-019: the deck's format-5 marker (decks.mark_format5) */
-  deckFormat5(a: { key: string }): { created?: boolean; at?: number | null; now?: number | null };
+  /** ADR-019: the deck's format-5 marker (decks.mark_format5), or with `format` 6 its format-6 marker */
+  deckFormat5(a: { key: string; format?: 5 | 6 }): { created?: boolean; at?: number | null; now?: number | null };
   digitWidth(a: { font: string }): number;
   /** text measured with the page's fonts for the display list (decision 2026-10-12, 3): one call per measuring round of a table */
   measureRuns(a: { runs: import("../platform").RunReq[] }): import("../platform").RunMetrics[];

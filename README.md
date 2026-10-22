@@ -451,6 +451,7 @@ data/
 │  ├─ lock                         compaction / migration lock
 │  ├─ incident-<journal>-<offset>.json  a corrupt frame: the deck is read-only until the maintainer looks
 │  ├─ incident-format-5.json       the deck holds Slide Builder 4.6 objects (ADR-019): read-only in 4.0–4.5 only
+│  ├─ incident-format-6.json       the deck holds Slide Builder 4.9 objects (ADR-019 amendment): read-only in 4.0–4.8
 │  ├─ moved-from-v3.json · rolled-back.json   written by the migration / a rollback
 ├─ v4/deleted/<key>~<ms>/          a deleted setup (B44, deckbin.py): deck/ (the deck's folder as it was), backups/,
 │                                  v3.json (its frozen v3 file), deleted.json {workbook, gen, slides, tables, by, at};
@@ -578,7 +579,9 @@ Current formats: `SCHEMA = {workbook: 3, config: 3, prefs: 1}` (`helper/slidebui
 the deck holds objects 4.0 does not know (charts, callouts, free layout, looks, cell gridlines or borders and every
 later addition). A 4.6 page raises a deck to 5 before it writes such an object (marker `incident-format-5.json`, a
 23 s wait, then the snapshot again at format 5; ARCHITECTURE §6.5, ADR-019): 4.0–4.5 then show it read-only
-("a journal of this deck is damaged" – it means "update Slide Builder"), and it never goes back to 4.
+("a journal of this deck is damaged" – it means "update Slide Builder"), and it never goes back to 4. A 4.9 page raises
+a deck to 6 the same way before it writes what 4.8 does not know (rows or columns deleted for a version, hidden rows or
+columns, cell vertical position or number display; marker `incident-format-6.json`): 4.0–4.8 then show it read-only.
 * **older file** → under its lock: re-read, copy to `backups/upgrades/…`, apply `@step(kind, n)` functions
   n → n+1 in order, write atomically (no step is defined yet). `store.upgrade_all()` runs at every start-up.
 * **newer file** (written by an already-updated PC) → never changed; HTTP 409 "restart Slide Builder".

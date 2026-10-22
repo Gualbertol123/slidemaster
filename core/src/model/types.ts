@@ -150,11 +150,14 @@ export interface SlideDef {
   /** this slide's own parts of a consulting design's look, over the deck's (B29, 08 §2.8); an entry is replaced whole by
       slide.patch */ looks?: Partial<Record<Design, Partial<import("./designs").ConsultOptions>>>;
   /** hidden in these designs (4.6, B47): left out of their exports, page numbers and contents; merged per design */ hide?: Partial<Record<Design, true>>;
+  /** rows / columns of its tables hidden on this slide only (4.9, B36, 09 §2.5): "<tableId>:r<sheet row>",
+      "<tableId>:c<COLUMN>"; closed up in every export; merged per row / column */ hidden?: Record<string, true>;
 }
 /** how one design shows a slide's tables: arrangement and weights, fixed scale, alignment */
 export interface SlideSizing { layout?: Layout; scale?: number; align?: "left" | "center" | "right"; valign?: "top" | "middle" | "bottom" }
-/** a named version of the deck (e.g. "Chief", "All"): the cells removed from it, per sheet ("C5:D9" ranges) */
-export interface DeckVersion { id: string; name: string; hide: Record<string, string[]> }
+/** a named version of the deck (e.g. "Chief", "All"): the cells removed from it, per sheet ("C5:D9" ranges); and (4.9,
+    B37, 09 §2.5) the rows / columns it deletes, per sheet ("5:7" rows, "C:D" columns: its tables close up) */
+export interface DeckVersion { id: string; name: string; hide: Record<string, string[]>; drop?: Record<string, string[]> }
 export interface Preset { sheets: string[]; tables: TableDef[]; slides: SlideDef[]; version?: number; updated?: number;
   /** named versions for export (wizard › Versions) */ versions?: DeckVersion[];
   /** linked workbooks (4.2, B22): file names in the same folder whose sheets the deck draws from, named by the sheet id
@@ -181,7 +184,9 @@ export type StylePatch = Partial<Omit<Style, "pn" | "footer" | "theme" | "text" 
 
 /** fill = highlight (a capsule in Liquid Glass); bg = cell colour that replaces the Excel colour ("none" removes it) */
 export interface CellEdit { text?: string; orig?: string; font?: string; sz?: number; b?: boolean; i?: boolean; color?: string; fill?: string; bg?: string;
-  /** conditional formatting copied with the format painter: the rules of "Sheet!A1" applied to this cell ("none" = no rules) */ cf?: string; align?: string; role?: string }
+  /** conditional formatting copied with the format painter: the rules of "Sheet!A1" applied to this cell ("none" = no rules) */ cf?: string; align?: string; role?: string;
+  /** 4.9 (S16.3, B38; 09 §9 Q9): the text's vertical position in the cell, over Excel's */ valign?: "top" | "middle" | "bottom";
+  /** 4.9: the number display, an Excel format code over the workbook's (render/numdisplay.ts: decimals, %, thousands) */ num?: string }
 export type Edits = Record<string, Record<string, CellEdit>>;
 
 /** data formats this page reads and writes – the same numbers as SCHEMA in helper/slidebuilder/upgrade.py
@@ -206,7 +211,7 @@ export type ItemPatch = Nullable<Partial<ItemFields>> & { kind?: ItemKind; color
   legendHide?: Record<string, true | null> | null; titleFmt?: Record<string, unknown> | null };
 export type Op =
   | { op: "preset.set"; preset: Preset | null }
-  | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "valign" | "scale" | "subs">> & { notes?: Record<string, Note | null> | null; sizes?: Partial<Record<Design, SlideSizing | null>> | null; fmt?: Partial<Record<SlideTextKey, TextFmt | null>> | null; free?: Partial<Record<Design, FreeLayout | null>> | null; looks?: Partial<Record<Design, Partial<import("./designs").ConsultOptions> | null>> | null; hide?: Partial<Record<Design, true | null>> | null } }
+  | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "valign" | "scale" | "subs">> & { notes?: Record<string, Note | null> | null; sizes?: Partial<Record<Design, SlideSizing | null>> | null; fmt?: Partial<Record<SlideTextKey, TextFmt | null>> | null; free?: Partial<Record<Design, FreeLayout | null>> | null; looks?: Partial<Record<Design, Partial<import("./designs").ConsultOptions> | null>> | null; hide?: Partial<Record<Design, true | null>> | null; hidden?: Record<string, true | null> | null } }
   | { op: "table.patch"; id: string; patch: { name?: string | null; gridH?: "on" | "off" | null; gridV?: "on" | "off" | null; cols?: Record<string, number | null> | null; rows?: Record<string, number | null> | null; scales?: Record<string, ScaleRule | null> | null; merges?: Record<string, "merge" | "split" | null> | null; sizes?: Partial<Record<Design, TableSizes | null>> | null; cellGrid?: Record<string, CellGrid | null> | null; borders?: Record<string, CellBorders | null> | null } }
   | { op: "cell.patch"; sheet: string; ref: string; patch: Nullable<CellEdit> }
   /** field-level patch of one slide item; `patch: null` deletes it; a patch with `kind` on a missing id creates it */
@@ -221,11 +226,18 @@ export type Op =
       the end); skipped when the table is on that slide already */
   | { op: "table.add"; table: TableDef; slide: string; at?: number }
   /** the inverse of table.add: the id leaves the slide's tables; the def stays in preset.tables */
-  | { op: "table.remove"; id: string; slide: string };
+  | { op: "table.remove"; id: string; slide: string }
+  /** a version (4.9, B37, 09 §2.5): `name` on a missing id creates it (appended, `hide: {}`); `null` deletes it; `hide` /
+      `drop` merged per sheet (a sheet's list replaced whole, null removes it); `hide: null` empties it */
+  | { op: "version.patch"; id: string; patch: VersionPatch | null; /** a create: its index (the undo of a delete; else the end) */ at?: number };
+export type VersionPatch = { name?: string; hide?: Record<string, string[] | null> | null; drop?: Record<string, string[] | null> | null };
 
 /* ---- runtime ---- */
 export interface RuntimeSlide {
   id: string; type: SlideType; cfg: SlideDef; tables: TableLayout[]; missing: number;
+  /** tables the shown version's deleted rows / columns would leave with none (4.9, B37): drawn whole instead (a table
+      never vanishes), named by the Issues panel */ dropWhole?: number;
+  /** those tables (ids): an export of the version is refused (AUDIT-3 DATA-8, model/versions.ts dropWholeRefusal) */ dropWholeIds?: string[];
   title: string; subtitle: string; label: string;
   _auto?: Layout | null;
 }

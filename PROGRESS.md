@@ -217,6 +217,17 @@ numbers measured twice). Measured numbers go into the step's line.
     (`core/tests/__snapshots__/chart-dl.test.ts.snap`, `shape-dl.test.ts.snap`: re-record and check only the excel /
     clean entries move), and `core/tests/fixtures/dlhash-b48-base.json` (re-record with `DLHASH_WRITE=1`: M14 and M15
     change Liquid Glass and the consulting designs' charts, lines and icons by design).
+- [x] B51 · The contents slide's title and list move and resize freely in a free layout (product owner 2026-10-22: "move
+  the index and its title freely around the slide like a table in free layout mode"; branch `v4/B51-toc-move` on
+  `v4/M16-tables` + `m16/audit-fixes`) — 074f702 (runs: by the orchestrator). Boxes `c:title` / `c:toc` of the slide's
+  `free` entry (no new op or key; `render/contents.ts`), drawn as a group to the saved place and scale in every design
+  (never moved: the display list unchanged – the five designs' corpus hashes compared); format 6 for a free entry
+  holding one (`needsV6` / `docNeedsV6`; vectors `b51.json`); stage handles and `freePart` (one undo step); PDF and
+  PowerPoint where dropped (title placeholder, text boxes; EMU). Tests: core `b51-contents.test.ts`, app
+  `b51-contents.test.tsx`, e2e B51-01; page +7,113 bytes (`page-budget/b51.json`).
+
+### S13.7 · Delete slide and Duplicate slide (after M13 closed; ships with the next release, 4.7.0 in CHANGELOG; owner Q12)
+- [x] S13.7 · Delete slide and Duplicate slide (c47d59a; merged into `v4/M16-tables`, its CHANGELOG block moved to 4.9.0 – 4.7.0 is dated; runs: by the orchestrator) (owner Q12, 2026-10-21; branch `v4/slide-menu`) — the slide list's right-click menu (`#ctxDupSlide`, `#ctxDelSlide`) and Delete in the slide list (on the slide shown); one `slide.add` / `slide.remove` each (no new op or key: the guard, inverses and vectors of S13.3 hold). The copy: core `model/slidecopy.ts` (items under new ids, the free boxes and attached line ends renamed). Decided: content slides only are duplicated (the wizard keeps one cover / contents); any slide but the last may be deleted, after a question. +2,156 bytes page (`page-budget/s13-7.json`, measured again on main 71d8806). Review: REQUEST CHANGES → "S13.7 · … (review fixes)": CHANGELOG bullet moved from the dated 4.6.0 notes to 4.7.0 (its own block, as B48–B50), Delete acts on `deck.cur`, `duplicateSlide` checks `doc.open`, one `slide.add` vector of a duplicated slide in `ops-vectors.json`, a comment pointing M15 at `slidecopy.ts`. Awaiting the orchestrator's checks (e2e `Delete slide and Duplicate slide`) and the second review.
 
 ### M14 · Charts (4.7.0; B30, B31; docs/next/09 §8, ADR-015 amended)
 - [x] S14.0 · Gates first (export-check gates PowerPoint "opened", `has_chart` / `has_table`; AUDIT-2 VER-3) – built in
@@ -357,14 +368,45 @@ numbers measured twice). Measured numbers go into the step's line.
 
 
 ### M16 · Tables: hidden rows, delete-versions, painter, Excel conditional formats (4.9.0; B36–B39; docs/next/09 §8)
-- [ ] S16.1 · Hidden set in `buildLayout` ⏱ (HR-01, HR-02)
-- [ ] S16.2 · Delete-versions (VD-01…VD-03)
-- [ ] S16.3 · Painter (PT-01…PT-03)
-- [ ] S16.4 · Excel conditional formats ⏱ (XC-01, XC-02)
-- [ ] S16.5 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.9.0; 🚦 G11
+- [x] S16.1 · Hidden set in `buildLayout` ⏱ (HR-01, HR-02) — a901c22 (branch m16/hidden-rebased), merged into `v4/M16-tables`; runs: by the orchestrator.
+  On M14: `chartHide` moved to render/chart-data.ts (M14's chart cell rules) and applied to the series charts too
+  (values, targets, x values, categories, header labels; seriesData's key holds the version and the slide's set).
+  Page +10,978 over M14 (≤ m16-hidden.json 11,000).
+- [x] S16.2 · Delete-versions (VD-01…VD-03) — 9985882 (branch m16/delete-versions-rebased), merged into `v4/M16-tables`; runs: by the orchestrator. Page +14,763 (≤ 15,000).
+- [x] S16.3 · Painter (PT-01…PT-03) — 3b36d7e "S16.3 · Format painter (review fixes)" (branch m16/painter-main, re-check
+  approved), merged into `v4/M16-tables`; runs: by the orchestrator. Review findings left on purpose: 3 – pressing the
+  vertical position the design already draws stores nothing (the ribbon compares with `drawnVAlign`; locked by
+  core/tests/cells-m16.test.ts); 4 – the Selection rewrite in Stage.tsx is a scope deviation, accepted, no bug.
+  Page: +12,802 bytes on the integration (+12,796 on its own branch over main 71d8806) – over m16-painter.json 12,500
+  (set at +11,999 before the last review fixes); not raised, the orchestrator decides.
+- [x] S16.4 · Excel conditional formats ⏱ (XC-01, XC-02) — 35e1af7 (branch m16/excel-cf-main), merged into `v4/M16-tables`; runs: by the orchestrator. Page +64,746 on the integration (≤ 65,000).
+  - For S16.5 (review of S16.4): owner sign-off on two plan deviations – `expression` rules use xlsx/cf.ts's own
+    evaluator, not the formula engine (tables are laid out synchronously; the engine is not on the page; an unknown
+    function is listed as "not reproduced"); page budget m16-cf.json 65,000 bytes (+64,697 measured after the re-check fix), against the plan's ≈ 25 KB
+    (the code ships twice: page and worker script). app/e2e/cf.spec.ts: 2 passed (re-check fix run, this PC's Chromium). Not yet verified: XC-01's
+    comparison with Excel (skipped until the owner PC's cf-rules.excel.json is committed). The B48 hash re-record
+    (ebb3df9) comes from the colour scale on D6:J15 of edge-formats.xlsx, "not reproduced" before – not from `$K6<0`,
+    which main already evaluated. Re-check fix: a chart's labels and a text box's {Sheet!C7} keep a text edit made on the
+    text the rules show (xlsx/cf.ts editedCellText; chart-dl.ts, shape-dl.ts), as the tables' origMatches. Branch: m16/excel-cf-main.
+- [x] S16.5 · Close — 4.9.0 on `v4/release-4.9.0` from origin/main 36d689a (4.8.0): c984e75 "Merge v4/M16-tables (M16
+  S16.1–S16.4, S13.7, M17 audit fixes)", 012678c "Merge v4/B51-toc-move", 30c1d4d "Merge v4/M16-tables (04fbb2e: the M16 fixer's e2e / parity /
+  HiddenMarks fixes)", e9cc3e5, 4ca8278 (M16's new buttons on Tabler icons, B35; B51's
+  resize test on the 1/4 px grid) (the stage's hold ends on a context
+  menu / a pointer moving with no button down – the M15 speed-fix review, `app/tests/stage-held.test.tsx`) and "4.9.0 ·
+  versions, CHANGELOG, PROGRESS" (versions 4.9.0; CHANGELOG 4.9.0 dated 2026-10-22, one section with S16.1–S16.4,
+  S13.7, format 6, DATA-8, B51; `tools/compat-old.mjs` 4.8 → `v4.8.0`, falling back to 36d689a while the tag is not
+  made; release-checklist §2a with m15 / m16 and `--versions …,4.7,4.8`). At the merge: needsV6's frozen V48 lists
+  checked equal to 4.8.0's `core/src/model/ops.ts` lists (key by key); M15's lines hand a click to S16.3's painter
+  (`stage/lines.tsx`); B51's part drag on M15's snapping. Page 4,874,382 bytes against the budget 4,887,562 (new
+  `page-budget/m17.json` 5,500 by measurement: M17 +5,198; S16.3's +12,802 over m16-painter.json 12,500 left as is –
+  the total passes). AUDIT §0 ×2, CP-01, e2e; verified: tests ✓ clean clone ✓ review ✓ – runs: by the orchestrator.
+  🚦 G11 by the orchestrator / owner.
 
 ### M17 · Independent persistence and compatibility audit of 4.6–4.9
-- [ ] M17 · AUDIT-3.md (09 §6 line by line, CP-01 by the auditor)
+- [x] M17 · AUDIT-3.md (09 §6 line by line, CP-01 by the auditor) — fixes on `v4/M16-tables`: 700e1e8 COMPAT-1 (format
+  6, ADR-019 amended 2026-10-22), da47311 DATA-8, 89c0131 VEC-1, 48d86c5 VEC-2, 6abda01 UNDO-1, a353842 (the page),
+  b1fbd41 (capture-v3 reads format 6), 88f30b5 and 4a1a914 (review of COMPAT-1); merged into `v4/release-4.9.0`
+  (c984e75). runs: by the orchestrator.
 
 ## Decisions
 

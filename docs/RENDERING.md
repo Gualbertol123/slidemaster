@@ -311,6 +311,17 @@ false` draws the logo without its glass bubble.
   covering the source cell and evaluates them on the target's value, relative references shifted like
   Excel copies them; `"none"` removes the cell's own rules. The painter also adds a colour-scale rule over
   the painted range and copies the text colour without the conditional colour (`Item.baseColor`).
+  Since S16.4 the painted rules also carry their data bar, icon, hidden value, number format, bold, italic,
+  underline and strike. Limit: a painted rule's borders are not drawn, and the borders of the cell's own
+  workbook rules stay (also with `"none"`): a rule's border moves to the cells around it when the table is
+  laid out, and painting does not lay the table out again.
+* **Conditional formats and text edits** – a text edit holds while its `orig` is the cell's text as shown
+  or, for an edit saved by 4.6–4.8, its text without the conditional formats' number format or hidden
+  value (`Item.rawText`, `origMatches`). Date rules and `TODAY()` read the workbook's day (`Shared.today`,
+  fixed when the workbook is read), never the clock while drawing.
+* **Conditional formats in PowerPoint (consulting designs)** – McKinsey and Bain draw a data bar as a 2 px
+  line under the value, over the cell: in PowerPoint it is placed after the table (over the `a:tbl`), as on
+  the slide. The other designs put their full-height bars under the table, with the cell's fill dropped.
 * **Vertical alignment** – `SlideDef.valign` (`top|middle|bottom`) places the bands in `computeLayout`.
 * **Text boxes** – `Note.valign` (flex `justify-content`) and `Note.bubble` (a `.notebub` glass card or
   framed box behind the text, drawn by slide-dl; the box gets 20 px more height).

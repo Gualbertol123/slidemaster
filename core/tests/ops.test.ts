@@ -504,3 +504,31 @@ describe("a deck saved with M15's lines and a Tabler icon (fixtures/saved/lines-
     expect(f.doc.preset!.slides[0].free!.glass!.items["i:l1"]).toEqual({ x: 299, y: 519, w: 402, h: 2, a: { x: 300, y: 520 }, b: { x: 700, y: 520 } });
   });
 });
+
+describe("needsV6 / docNeedsV6 (AUDIT-3 COMPAT-1: what 4.8.0 does not apply whole)", () => {
+  it("4.9's ops and keys need format 6; 4.6–4.8's do not", async () => {
+    const { needsV6, docNeedsV6 } = await import("../src/model/ops");
+    const yes = [
+      { op: "version.patch", id: "v1", patch: { drop: { S: ["5:5"] } } }, { op: "version.patch", id: "v2", patch: { name: "All", hide: {} } },
+      { op: "version.patch", id: "v1", patch: null }, { op: "slide.patch", id: "s1", patch: { hidden: { "t1:r2": true } } },
+      { op: "cell.patch", sheet: "S", ref: "A1", patch: { valign: "top" } }, { op: "cell.patch", sheet: "S", ref: "A1", patch: { num: "0%" } },
+      { op: "preset.set", preset: { slides: [{ id: "s1", hidden: { "t1:r2": true } }] } }, { op: "preset.set", preset: { versions: [{ id: "v", drop: { S: ["1:1"] } }] } },
+      { op: "slide.add", after: null, slide: { id: "s2", type: "content", tables: [], hidden: { "t1:r2": true } } },
+      { op: "item.patch", slide: "s1", id: "x", patch: { kind: "table3d" } }, { op: "some.future" },
+    ];
+    const no = [
+      { op: "slide.patch", id: "s1", patch: { title: "T", hide: { glass: true }, free: {}, looks: {} } }, { op: "cell.patch", sheet: "S", ref: "A1", patch: { b: true } },
+      { op: "table.patch", id: "t1", patch: { borders: {} } }, { op: "item.patch", slide: "s1", id: "l", patch: { kind: "line", route: "straight", sers: { a: { points: [{ total: true }] } } } },
+      { op: "item.patch", slide: "s1", id: "l", patch: null }, { op: "preset.set", preset: { versions: [{ id: "v", name: "All", hide: { S: ["A1"] } }] } },
+      { op: "slide.add", after: null, slide: { id: "s2", type: "content", tables: [] } }, { op: "slide.remove", id: "s2" }, { op: "table.remove", slide: "s1", id: "t1" },
+      { op: "style.patch", patch: { design: "x" } },
+    ];
+    for (const o of yes) expect([o, needsV6(o)]).toEqual([o, true]);
+    for (const o of no) expect([o, needsV6(o)]).toEqual([o, false]);
+    const doc = (preset: unknown, edits = {}) => ({ preset, edits }) as never;
+    expect(docNeedsV6(doc({ slides: [], tables: [], sheets: [], versions: [{ id: "v", name: "A", hide: {}, drop: { S: ["1:1"] } }] }))).toBe(true);
+    expect(docNeedsV6(doc({ slides: [{ id: "s", hidden: { "t:r1": true } }] }))).toBe(true);
+    expect(docNeedsV6(doc(null, { S: { A1: { num: "0%" } } }))).toBe(true);
+    expect(docNeedsV6(doc({ slides: [{ id: "s", hidden: {}, items: { c: {} } }], versions: [{ id: "v", name: "A", hide: {}, drop: {} }] }, { S: { A1: { b: true } } }))).toBe(false);
+  });
+});

@@ -210,7 +210,7 @@ class DeckTests(DeckBase):
         with open(p, "rb") as f:
             self.assertEqual(f.read(), b'{"format": 4, "gen": ')     # nothing was written
         with open(p, "w") as f:
-            json.dump({"format": 6, "gen": 3}, f)             # (5 is read since 4.6: ADR-019)
+            json.dump({"format": 7, "gen": 3}, f)             # (5 is read since 4.6, 6 since 4.9: ADR-019)
         with self.assertRaises(decks.DeckError) as e:
             decks.read_snapshot(self.key)
         self.assertEqual(e.exception.status, 409)                     # too new: restart
@@ -966,7 +966,7 @@ class FormatGuardTests(DeckBase):
         self.assertEqual(decks.read_snapshot(self.key)["gen"], 2)
         decks.compact(self.key, 2, dict(down, format=5))               # (5 -> 5: no wait)
         self.assertEqual(decks.read_snapshot(self.key)["format"], 5)
-        for bad in (6, None, "5"):
+        for bad in (7, None, "5"):
             with self.assertRaises(decks.DeckError) as e:
                 decks.compact(self.key, 3, dict(down, gen=4, format=bad))
             self.assertEqual(e.exception.status, 400, bad)
@@ -1027,7 +1027,7 @@ class FormatGuardTests(DeckBase):
 
     def test_a_newer_format_is_still_refused(self):
         snap = decks.read_snapshot(self.key)
-        decks.write_snapshot(self.key, dict(snap, format=6))
+        decks.write_snapshot(self.key, dict(snap, format=7))
         with self.assertRaises(decks.DeckError) as e:
             decks.read_snapshot(self.key)
         self.assertEqual(e.exception.status, 409)
@@ -1052,6 +1052,91 @@ class FormatGuardTests(DeckBase):
                 decks.check_page(self.key, {4}, snap)
             self.assertEqual(e.exception.status, 409)
             self.assertIn("reload the page", e.exception.args[0])
+
+
+class Format6Tests(DeckBase):
+    """AUDIT-3 COMPAT-1 (ADR-019 amendment of 2026-10-22): 4.9 objects raise the deck to format 6 the way 4.6's raised
+    it to 5 - its own marker, which every 4.0-4.8 helper takes for an incident, the wait, never lowered; a page that does
+    not read 6 (a 4.6-4.8 page: X-SB-Deck-Formats 4,5) is refused"""
+
+    def raise_to_6(self):
+        decks.mark_format5(self.key, fmt=6)
+        snap = decks.read_snapshot(self.key)
+        with mock.patch.object(decks, "BUMP_WAIT_S", 0):
+            decks.compact(self.key, snap["gen"], dict(snap, gen=snap["gen"] + 1, format=6))
+        return decks.read_snapshot(self.key)
+
+    def test_the_marker_is_an_incident_to_4_0_to_4_8_only(self):
+        self.assertEqual(decks.MARKER6, "incident-format-6.json")
+        self.assertFalse(decks._is_incident(decks.MARKER6))
+        self.assertFalse(decks._is_incident(decks.MARKER5))
+        self.assertTrue(decks._is_incident("incident-x-1.json"))
+        # 4.6.0-4.8.0's rule (v4.6.0:helper/slidebuilder/decks.py _is_incident) and 4.0-4.5's (every incident- file)
+        old46 = lambda n: n.startswith("incident-") and n.endswith(".json") and n != "incident-format-5.json"
+        self.assertTrue(old46(decks.MARKER6))
+        m = decks.mark_format5(self.key, fmt=6)
+        self.assertTrue(m["created"])
+        self.assertTrue(decks.is_format6(self.key))
+        self.assertFalse(decks.is_format5(self.key))
+        with open(decks.deck_dir(self.key, decks.MARKER6), encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["format"], 6)
+        decks.reset()
+        decks._look(self.key, 0)                                         # this helper: no incident, not read-only
+        self.assertIsNone(decks._readonly.get(self.key))
+        with self.assertRaises(decks.DeckError) as e:
+            decks.mark_format5(self.key, fmt=7)
+        self.assertEqual(e.exception.status, 400)
+
+    def test_a_raise_to_6_needs_its_marker_and_the_wait_and_is_never_lowered(self):
+        snap = decks.read_snapshot(self.key)
+        raise_to_5(self.key)
+        snap = decks.read_snapshot(self.key)
+        up = dict(snap, gen=snap["gen"] + 1, format=6)
+        with self.assertRaises(decks.DeckError) as e:
+            decks.compact(self.key, snap["gen"], up)                      # the format-5 marker is not the format-6 one
+        self.assertEqual(e.exception.status, 409)
+        self.assertIn("4.9", e.exception.args[0])
+        self.assertTrue(decks.is_format6(self.key))
+        at = decks.mark_format5(self.key, fmt=6)["at"]
+        with mock.patch.object(decks, "server_ms", return_value=at + 21500):
+            with self.assertRaises(decks.DeckError):
+                decks.compact(self.key, snap["gen"], up)
+        with mock.patch.object(decks, "server_ms", return_value=at + 22000):
+            decks.compact(self.key, snap["gen"], up)
+        cur = decks.read_snapshot(self.key)
+        self.assertEqual(cur["format"], 6)
+        for low in (5, 4):
+            with self.assertRaises(decks.DeckError) as e:
+                decks.compact(self.key, cur["gen"], dict(cur, gen=cur["gen"] + 1, format=low))
+            self.assertEqual(e.exception.status, 400)
+            self.assertIn("4.9", e.exception.args[0])
+        decks.compact(self.key, cur["gen"], dict(cur, gen=cur["gen"] + 1))      # 6 -> 6: no wait
+        # removed by hand: written again on the next read
+        os.remove(decks.deck_dir(self.key, decks.MARKER6))
+        self.assertEqual(decks.read_snapshot(self.key)["format"], 6)
+        self.assertTrue(decks.is_format6(self.key))
+
+    def test_a_4_6_to_4_8_page_is_refused_on_a_format_6_deck(self):
+        self.assertEqual(decks.page_formats("4,5,6"), {4, 5, 6})
+        raise_to_5(self.key)
+        decks.check_page(self.key, {4, 5})                               # format 5: the 4.6-4.8 page works
+        self.raise_to_6()
+        decks.check_page(self.key, {4, 5, 6})
+        decks.reset()
+        for snap in (None, decks.read_snapshot(self.key)):
+            for formats in ({4, 5}, {4}, set()):
+                with self.assertRaises(decks.DeckError) as e:
+                    decks.check_page(self.key, formats, snap)
+                self.assertEqual(e.exception.status, 409)
+                self.assertIn("reload the page", e.exception.args[0])
+
+    def test_a_format_4_deck_goes_straight_to_6(self):
+        self.raise_to_6()
+        self.assertEqual(decks.read_snapshot(self.key)["format"], 6)
+        self.assertFalse(decks.is_format5(self.key))
+        decks.reset()
+        with self.assertRaises(decks.DeckError):
+            decks.check_page(self.key, {4, 5})
 
 
 class SavedFormat5Tests(TempDirs):
