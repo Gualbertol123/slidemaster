@@ -71,6 +71,10 @@ describe("Hide rows and columns on a slide (S16.1, HR-01)", () => {
     expect(parseFloat(mark.style.top) + parseFloat(mark.style.height) / 2).toBeCloseTo(T0().rowY.get(10)!, 3);
     expect(document.querySelector(".hidrcnote")?.textContent).toBe("Σ incl. hidden rows");
     expect(document.getElementById("hideBtn")!.textContent).toMatch(/^Hide \(2\)/);
+    // the mark is clicked where it is drawn – over the table, whose hit area (.hits, ui.css) would take the click: the
+    // marks' layer is above it (HR-01 on CI: "<div class=hits> intercepts pointer events")
+    const hitsZ = +/\.slide \.hits\{[^}]*z-index:(\d+)/.exec(fs.readFileSync(path.join(here, "../src/styles/ui.css"), "utf8"))![1];
+    expect(+(mark.closest(".hidrcs") as HTMLElement).style.zIndex).toBeGreaterThan(hitsZ);
     // undo: one step
     await act(async () => undo(false)); await confirmed(h0);
     expect(hiddenOf()).toBeUndefined();

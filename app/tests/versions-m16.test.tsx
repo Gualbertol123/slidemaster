@@ -88,7 +88,7 @@ describe("For this version ▾ (S16.2, VD-01)", () => {
 
   it("Delete columns, Empty cells, Restore selection across the gap, Restore all – one step each", async () => {
     const h0 = history(), cols0 = T0().cols.length;
-    await pick(6, 7);                                                 // column G (Since)
+    await pick(6, 7);                                                 // column G (Deposits' Δ w/w)
     await choose("vDropCols");
     await confirmed(h0 + 1);
     expect(version()!.drop).toEqual({ SLIDE_1: ["10:11", "G"] });
@@ -109,6 +109,20 @@ describe("For this version ▾ (S16.2, VD-01)", () => {
     expect(version()).toEqual({ id: "va", name: "All", hide: {} });
     expect(get().deck.history.undoLabel).toBe("Restore all of “All”");
     await vi.waitFor(() => expect(T0().cols.length).toBe(cols0 + 0));
+  });
+
+  it("Delete columns names the SHEET column: “Since” is I (Excel's hidden H between it and G is not counted out)", async () => {
+    // (VD-01's e2e expected G for Since: the fixture's header is C Bank … G Δ w/w, H Share (hidden), I Since, J Note)
+    const h0 = history();
+    const T = T0(), ci = T.cols.indexOf(9);
+    expect(T.cols).not.toContain(8);                                  // H is hidden: not one of the table's columns
+    expect(ci).toBeGreaterThan(0);
+    await pick(6, 9);                                                 // Alpha's Since
+    await choose("vDropCols");
+    await confirmed(h0 + 1);
+    expect(version()!.drop).toEqual({ SLIDE_1: ["I"] });
+    await act(async () => undo(false)); await confirmed(h0);
+    expect(version()!.drop).toBeUndefined();
   });
 
   it("a table keeps a row: the menu refuses to delete them all; a merge that does (two writers) keeps the table whole and the Issues panel says so", async () => {

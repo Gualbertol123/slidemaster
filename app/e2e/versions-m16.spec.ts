@@ -120,6 +120,8 @@ test.describe.serial("delete-versions (S16.2)", () => {
     let si = -1;
     for (let i = 0; i < await page.locator(".thumb").count() && si < 0; i++) {
       await page.locator(".thumb").nth(i).click(); await page.locator(`.thumb.on[data-i="${i}"]`).waitFor();
+      // (the stage keeps the previous slide until this one arrives: its Alpha is not this slide's)
+      await expect.poll(() => page.evaluate(() => (window as any).__sbTest.stageIdle() as boolean)).toBe(true);
       if (await cell(page, "Alpha").first().waitFor({ timeout: 4000 }).then(() => true, () => false)) si = i;
     }
     expect(si).toBeGreaterThanOrEqual(0);
@@ -129,18 +131,19 @@ test.describe.serial("delete-versions (S16.2)", () => {
     await page.selectOption("#versionSel", { label: "VD" });
     await expect(cell(page, "Epsilon")).toHaveCount(0);
     await expect(cell(page, "Alpha")).toHaveCount(1);
-    // For this version ▾: Delete columns (Since, G), one step; undo, redo
+    // For this version ▾: Delete columns (Since: sheet column I – the fixture's H "Share" is hidden, so I sits next to G
+    // on the slide; the version stores the sheet's letter, app/tests/versions-m16 pins it), one step; undo, redo
     const u0 = await undoSteps(page);
     await select(page, "Since");
     await forVersion(page, "vDropCols");
-    await pollFile(() => byName("VD").drop, { timeout: 10_000 }).toEqual({ SLIDE_1: ["10:11", "G"] });
+    await pollFile(() => byName("VD").drop, { timeout: 10_000 }).toEqual({ SLIDE_1: ["10:11", "I"] });
     await expect(cell(page, "Since")).toHaveCount(0);
     await expect.poll(() => undoSteps(page)).toBe(u0 + 1);
     await page.keyboard.press("Control+z");
     await pollFile(() => byName("VD").drop, { timeout: 10_000 }).toEqual({ SLIDE_1: ["10:11"] });
     await expect(cell(page, "Since")).toHaveCount(1);
     await page.keyboard.press("Control+y");
-    await pollFile(() => byName("VD").drop, { timeout: 10_000 }).toEqual({ SLIDE_1: ["10:11", "G"] });
+    await pollFile(() => byName("VD").drop, { timeout: 10_000 }).toEqual({ SLIDE_1: ["10:11", "I"] });
     // Empty cells: Alpha's Loans emptied in place
     await select(page, "Alpha");
     await forVersion(page, "vEmpty");
@@ -150,12 +153,12 @@ test.describe.serial("delete-versions (S16.2)", () => {
     const bob = await browser.newPage();
     await openReport(bob, BOB);
     await change(bob, "Delete rows", [{ op: "version.patch", id: byName("VD").id, patch: { drop: { "SLIDE_3 pair": ["6"] } } }]);
-    await pollFile(() => byName("VD").drop, { timeout: 15_000 }).toEqual({ SLIDE_1: ["10:11", "G"], "SLIDE_3 pair": ["6"] });
+    await pollFile(() => byName("VD").drop, { timeout: 15_000 }).toEqual({ SLIDE_1: ["10:11", "I"], "SLIDE_3 pair": ["6"] });
     await bob.close();
-    // Restore selection across the closed-up gap (Gamma … Eta): rows 10–11 come back, G stays deleted
+    // Restore selection across the closed-up gap (Gamma … Eta): rows 10–11 come back, I stays deleted
     await select(page, "Gamma", "Eta");
     await forVersion(page, "vRestoreSel");
-    await pollFile(() => byName("VD").drop?.SLIDE_1, { timeout: 10_000 }).toEqual(["G"]);
+    await pollFile(() => byName("VD").drop?.SLIDE_1, { timeout: 10_000 }).toEqual(["I"]);
     await expect(cell(page, "Epsilon")).toHaveCount(1);
     expect(errors).toEqual([]);
   });
@@ -191,6 +194,11 @@ test.describe.serial("delete-versions (S16.2)", () => {
     for (const box of await page.locator("#scDesigns input").all()) await box.setChecked((await box.getAttribute("data-design")) === "excel");
     for (const box of await page.locator("#scVersions input").all()) await box.setChecked((await box.getAttribute("data-version")) === byName("VD").id);
     await page.locator("#scPdf").setChecked(true); await page.locator("#scPptx").setChecked(true);
+    await page.click("#scRun");
+    // the gate (RC-06) stops first: the fixture's TOTAL, SLIDE_1!D19 = SUM(D6:D18), was written by openpyxl without a
+    // saved value (Excel "empty"), so the engine's sum differs from it – run anyway (the cell is marked, the rows are not)
+    await expect(page.locator("#scGate")).toContainText("SLIDE_1!D19", { timeout: 30_000 });
+    await page.check("#scAnyway");
     await page.click("#scRun");
     await expect(page.locator("#scRunStatus")).toContainText("Done: 2 of 2 values · 4 files", { timeout: 120_000 });
     const runFiles = fs.readdirSync(path.join(root(), "export")).filter(f => /^VD (one|two)\b.*VD.*Excel\.(pdf|pptx)$/.test(f));
