@@ -19,9 +19,11 @@ export class FakeDeck {
   private current = new Map<string, string>();      // writer -> its open journal
   private next = new Map<string, number>();
   private clock = Date.now();          // the file server's ms, as `at` is
-  calls = { append: 0, tail: 0, compact: 0, snapshot: 0, rotate: 0, format5: 0 };
+  calls = { append: 0, tail: 0, compact: 0, snapshot: 0, rotate: 0, format5: 0, format6: 0 };
   /** incident-format-5.json (ADR-019): when it was written (server ms) */
   marker: number | null = null;
+  /** incident-format-6.json (ADR-019 amendment of 2026-10-22, 4.9): when it was written (server ms) */
+  marker6: number | null = null;
   /** every call, in order (the bump's sequence) */
   log: string[] = [];
   /** every complete record ever written (journals deleted since included) */
@@ -80,17 +82,18 @@ export class FakeDeck {
     this.calls.compact++; this.log.push("compact:" + s.format);
     if (this.readonly) throw status(423, this.readonly);
     if (s.gen !== baseGen + 1) throw status(400, "gen");
-    if (s.format !== 4 && s.format !== 5) throw status(400, "format");
+    if (s.format !== 4 && s.format !== 5 && s.format !== 6) throw status(400, "format");
     if (this.snap.gen !== baseGen) throw status(409, "compacted meanwhile");
     for (const [j, off] of Object.entries(this.snap.frontier)) {
       if (s.frontier[j] === undefined ? this.journals.has(j) : s.frontier[j] < off) throw status(409, "behind");
     }
     if (s.lamport < this.snap.lamport || s.rev < this.snap.rev) throw status(409, "behind");
-    if (this.snap.format === 5 && s.format !== 5) throw status(400, "this deck uses Slide Builder 4.6 objects");   // never lowered
-    if (s.format === 5 && this.snap.format !== 5) {
+    if (s.format < this.snap.format) throw status(400, "this deck uses Slide Builder 4.6 objects");   // never lowered
+    if (s.format > this.snap.format && s.format >= 5) {
       // the marker first, and the bump's wait from it (decks.compact): else 409, the page asks again and waits
-      if (this.marker == null) { this.marker = this.now(); throw status(409, "the deck is being prepared"); }
-      if (this.clock - this.marker < this.bumpWaitMs) throw status(409, "the deck is being prepared");
+      const k = s.format === 6 ? "marker6" : "marker";
+      if (this[k] == null) { this[k] = this.now(); throw status(409, "the deck is being prepared"); }
+      if (this.clock - this[k]! < this.bumpWaitMs) throw status(409, "the deck is being prepared");
     }
     // a frontier past the complete records would hide records never folded: the helper's readers would skip them
     for (const [j, off] of Object.entries(s.frontier)) {
@@ -100,13 +103,14 @@ export class FakeDeck {
     this.snap = clone({ ...s, at: this.now() });
     return { gen: s.gen };
   }
-  /** POST /api/decks/<key>/format5: the marker (O_EXCL: the first one stays) */
-  doFormat5() {
-    this.calls.format5++; this.log.push("format5");
-    const created = this.marker == null;
-    if (created) this.marker = this.now();
+  /** POST /api/decks/<key>/format5 (format6): the marker (O_EXCL: the first one stays) */
+  doFormat5(format: 5 | 6 = 5) {
+    const k = format === 6 ? "marker6" : "marker";
+    this.calls[format === 6 ? "format6" : "format5"]++; this.log.push("format" + format);
+    const created = this[k] == null;
+    if (created) this[k] = this.now();
     this.fresh = true;
-    return { created, at: this.marker!, now: this.clock };
+    return { created, at: this[k]!, now: this.clock };
   }
   doRotate(writer: string) {
     this.calls.rotate++;
@@ -128,7 +132,7 @@ export class FakeDeck {
       append: async (_k, writer, record) => this.doAppend(writer, record, this.failures.shift()),
       compact: async (_k, baseGen, s) => this.doCompact(baseGen, s),
       rotate: async (_k, writer) => this.doRotate(writer),
-      format5: async () => this.doFormat5(),
+      format5: async (_k, format) => this.doFormat5(format),
     };
   }
   open(writer: string, withTail = true) {

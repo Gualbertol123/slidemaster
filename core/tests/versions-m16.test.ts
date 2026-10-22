@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { strFromU8, unzipSync } from "fflate";
 import { loadVectors } from "./vectors";
 import { readWorkbook } from "../src/xlsx/workbook";
-import { applyOp, applyOps, docNeedsV5, inverseOf, knownOp, needsV5 } from "../src/model/ops";
+import { applyOp, applyOps, docNeedsV5, docNeedsV6, inverseOf, knownOp, needsV5, needsV6 } from "../src/model/ops";
 import { fold, nextSnapshot } from "../src/model/fold";
 import { runtimeSlides } from "../src/model/preset";
 import { dropBands, dropCount, dropEdit, dropEmpties, dropLabel, droppedCell, hideWithout, versionDrop, versionOp } from "../src/model/versions";
@@ -76,8 +76,11 @@ describe("the op: version.patch (shared/ops-vectors.d/m16-versions.json)", () =>
   for (const v of mine.filter(x => !x.fold)) it(v.name + " – known, format 5 (needsV5 / docNeedsV5), undone by its inverses", () => {
     for (const op of v.ops) expect(knownOp(op), JSON.stringify(op)).toBe(true);
     expect(v.ops.map((op: Op) => needsV5(op))).toEqual(v.expect.needsV5);
+    // 4.9's ops and keys: format 6 exactly where format 5 (AUDIT-3 COMPAT-1; 4.6–4.8 do not know them either)
+    expect(v.ops.map((op: Op) => needsV6(op))).toEqual(v.expect.needsV6 ?? v.expect.needsV5);
     const { doc } = applyOps(v.doc, v.ops);
     expect(docNeedsV5(doc)).toBe(v.expect.docNeedsV5);
+    expect(docNeedsV6(doc)).toBe(v.expect.docNeedsV6 ?? v.expect.docNeedsV5);
     const d = structuredClone(v.doc), inv: Op[] = [];
     for (const op of v.ops) { const i = inverseOf(d, op); if (i) inv.unshift(i); applyOp(d, op); }
     for (const i of inv) applyOp(d, i);
@@ -97,11 +100,12 @@ describe("the op: version.patch (shared/ops-vectors.d/m16-versions.json)", () =>
 });
 
 describe("a deck saved by 4.9 with delete-versions (fixtures/saved/versions-4.9.json, added, never edited)", () => {
-  it("two writers' records fold in any order; on two sheets both win, on one sheet the later list; a 4.9 page compacts them at format 5", async () => {
+  it("two writers' records fold in any order; on two sheets both win, on one sheet the later list; a 4.9 page compacts them at format 6 (AUDIT-3 COMPAT-1)", async () => {
     const saved = JSON.parse(fs.readFileSync(path.join(here, "fixtures", "saved", "versions-4.9.json"), "utf8"));
     const { snapshot: snap, records: recs } = saved as { snapshot: any; records: any[] };
     expect(recs.every(r => r.ops.every(knownOp))).toBe(true);
     expect(recs.every(r => r.ops.some(needsV5))).toBe(true);
+    expect(recs.every(r => r.ops.some(needsV6))).toBe(true);
     const f = fold(snap, recs), p = f.doc.preset!;
     expect([f.doc.rev, f.lamport, f.doc.updatedBy]).toEqual([12, 13, "anna"]);
     expect(fold(snap, [...recs].reverse()).doc).toEqual(f.doc);
@@ -111,7 +115,7 @@ describe("a deck saved by 4.9 with delete-versions (fixtures/saved/versions-4.9.
       { id: "vall", name: "All", hide: { SLIDE_1: ["D6"] }, drop: { SLIDE_1: ["10:12"], "SLIDE_3 pair": ["6"] } },
     ]);
     const next = nextSnapshot(snap, f, {});
-    expect(next.format).toBe(5);
+    expect(next.format).toBe(6);                                            // 4.9 objects: format 6 (AUDIT-3 COMPAT-1)
     expect(next.doc.preset).toEqual(p);
     expect(docNeedsV5(next.doc)).toBe(true);
     const wb = await book(), full = runtimeSlides(wb, p, "report.xlsx", "excel"), all = runtimeSlides(wb, p, "report.xlsx", "excel", { drop: versionDrop(p, "vall") });
@@ -241,7 +245,7 @@ async function open(deck: FakeDeck, p: Preset) {
   const port = new Port<PageMethods, CoreMethods, CoreEvents, PageEvents>(a);
   port.handle("deckSnapshot", () => api.snapshot("")); port.handle("deckTail", x => api.tail(x.key, x.since));
   port.handle("deckAppend", x => api.append(x.key, x.writer, x.record)); port.handle("deckCompact", x => api.compact(x.key, x.baseGen, x.snapshot));
-  port.handle("deckRotate", x => api.rotate(x.key, x.writer)); port.handle("deckFormat5", x => api.format5(x.key));
+  port.handle("deckRotate", x => api.rotate(x.key, x.writer)); port.handle("deckFormat5", x => api.format5(x.key, x.format));
   port.handle("deckPrepare", () => null); port.handle("digitWidth", () => 0); port.handle("convertPicture", () => null); port.handle("analyzeImages", () => []);
   port.handle("linkedWorkbook", () => null);
   for (const e of ["slices", "stage", "doc"] as const) port.on(e, () => undefined);
@@ -343,4 +347,15 @@ describe("VD-03: every export of that version (the worker)", () => {
     await h.show("");
     expect(await h.stage(0)).toContain("Gamma");
   }, 120_000);
+});
+
+describe("the wizard's Finish copies each version whole (AUDIT-3 COMPAT-1)", () => {
+  it("a key of a later release survives; drop and hide keep only the deck's sheets; empty drop left out", async () => {
+    const { wizardVersions } = await import("../src/model/versions");
+    const list = [{ id: "v1", name: " All ", hide: { S: ["A1"], Gone: ["B2"] }, drop: { S: ["5:5"], Gone: ["1:1"] }, later: { x: 1 } },
+      { id: "v2", name: "Chief", hide: {}, drop: { Gone: ["2:2"] } }, { id: "v3", name: "  ", hide: {} }] as never[];
+    expect(wizardVersions(list, new Set(["S"]))).toEqual([
+      { id: "v1", name: "All", hide: { S: ["A1"] }, drop: { S: ["5:5"] }, later: { x: 1 } },
+      { id: "v2", name: "Chief", hide: {} }]);
+  });
 });

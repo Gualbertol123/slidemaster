@@ -13,10 +13,14 @@
    one there – the deck at rest); the helper takes it only if nobody compacted meanwhile (compare-and-set on gen).
    A deck that is about to receive, or already holds, what 4.0.0 does not know whole (model/ops.ts needsV5) is first
    raised to snapshot format 5 (upgrade: ADR-019 and its amendment), so that no 4.0–4.5 window can read, fold or
-   overwrite it. */
+   overwrite it; one that is about to receive, or holds, what 4.8.0 does not know whole (needsV6: 4.9's hidden rows,
+   versions' deleted rows, cell valign / num) is raised to format 6 the same way (AUDIT-3 COMPAT-1), so that no
+   4.0–4.8 window can. */
 import type { Op, WorkbookDoc } from "../model/types";
-import { applyOps, inverseOf, applyOp, knownOp, needsV5, docNeedsV5 } from "../model/ops";
+import { applyOps, inverseOf, applyOp, knownOp, needsV5, docNeedsV5, needsV6, docNeedsV6 } from "../model/ops";
 import { firstCopy, fold, nextSnapshot, recordId, validRecord, type DeckRecord, type DeckSnapshot, type Folded } from "../model/fold";
+/** a format the guard raises a deck to */
+export type RaisedFormat = 5 | 6;
 
 export interface TailJournal { offset: number; records: DeckRecord[]; /** each record's end offset */ ends?: number[] }
 export interface TailResult { journals: Record<string, TailJournal>; gen: number | null; readonly?: string;
@@ -34,9 +38,10 @@ export interface DeckApi {
   rotate(key: string, writer: string): Promise<{ deleted: string[] }>;
   /** open this writer's journal ahead of its first append (the append then costs write + flush only) */
   prepare?(key: string, writer: string): Promise<unknown>;
-  /** ADR-019: the deck's marker incident-format-5.json (every 4.0–4.5 helper then takes the deck for read-only);
-      `at` when it was written and `now`, the file server's ms (an existing one is fine: created false) */
-  format5(key: string): Promise<{ created?: boolean; at?: number | null; now?: number | null; /** ms the helper waits (its own wall) */ wait?: number }>;
+  /** ADR-019: the deck's marker incident-format-5.json (every 4.0–4.5 helper then takes the deck for read-only) or,
+      `format` 6, incident-format-6.json (every 4.0–4.8 helper); `at` when it was written and `now`, the file server's
+      ms (an existing one is fine: created false) */
+  format5(key: string, format?: RaisedFormat): Promise<{ created?: boolean; at?: number | null; now?: number | null; /** ms the helper waits (its own wall) */ wait?: number }>;
 }
 
 export type SaveState = "saved" | "pending" | "saving" | "error" | "local" | "outdated" | "readonly";
@@ -242,13 +247,13 @@ export class DocSync {
     if (this.state === "outdated" || this.state === "readonly" || this.disposed) return;
     if (!this.inflight) {
       if (!this.pending.length || this.sending) return;          // (sending: a bump before this record is under way)
-      if (this.bump || this.dueV5(this.pending)) {
+      if (this.bump || this.due(this.pending)) {
         // ADR-019: the deck raised to format 5 first; the record waits in the queue meanwhile (more ops may join it)
         this.sending = true;
         const prev = this.view, before: [SaveState, string] = [this.state, this.error];
         if (this.api.served) { this.state = "saving"; this.emit(prev, false, undefined, before); }
         let ok = false;
-        try { ok = await this.upgrade(); if (!ok) throw new Error("The deck could not be prepared for Slide Builder 4.6 objects – trying again."); }
+        try { ok = await this.upgrade(Math.max(this.due(this.pending), 5) as RaisedFormat); if (!ok) throw new Error("The deck could not be prepared for Slide Builder 4.6 objects – trying again."); }
         catch (e) { this.sending = false; this.failed(e, prev, before); return; }
         this.sending = false;
         if (this.disposed || this.inflight || !this.pending.length) return;
@@ -297,37 +302,44 @@ export class DocSync {
   private sending = false;
 
   /* ---------------------------------------------------------------- the format guard (ADR-019) */
-  /** the deck is still format 4 but `ops` (or, without them, its snapshot or a record past it) hold what 4.0.0 does
-      not apply whole */
-  private dueV5(ops?: Op[]): boolean {
-    if (!this.api.served || this.snap.format >= 5) return false;
-    if (ops) return ops.some(needsV5);
-    if (docNeedsV5(this.snap.doc)) return true;
-    for (const e of this.entries.values()) if (e.rec.ops.some(needsV5)) return true;
-    return false;
+  /** the format the deck must be raised to (0: none): it is below 5 (6) but `ops` (or, without them, its snapshot or
+      a record past it) hold what 4.0.0 (4.8.0) does not apply whole */
+  private due(ops?: Op[]): 0 | RaisedFormat {
+    const f = this.snap.format;
+    if (!this.api.served || f >= 6) return 0;
+    const need = (o: Op) => needsV6(o) ? 6 : f < 5 && needsV5(o) ? 5 : 0;
+    let t = 0;
+    if (ops) for (const o of ops) t = Math.max(t, need(o));
+    else {
+      t = docNeedsV6(this.snap.doc) ? 6 : f < 5 && docNeedsV5(this.snap.doc) ? 5 : 0;
+      for (const e of this.entries.values()) for (const o of e.rec.ops) if (t < 6) t = Math.max(t, need(o));
+    }
+    return t > f ? t as RaisedFormat : 0;
   }
   /** the bump in progress (tests), or null */
   get upgrading(): Promise<boolean> | null { return this.bump; }
-  /** raise the deck to format 5 (one bump at a time; true when it is format 5 now). ADR-019, amended 2026-10-21:
+  /** raise the deck to format 5, or `to` 6 (one bump at a time; true when it is that format now). ADR-019, amended
+      2026-10-21 (and 2026-10-22: format 6 the same way, its marker incident-format-6.json, for 4.6–4.8):
       1. the helper writes incident-format-5.json: every 4.0–4.5 helper takes the deck for read-only from its next look
-         at the deck's folder;
+         at the deck's folder (6: incident-format-6.json, every 4.0–4.8 helper);
       2. wait BUMP_WAIT_MS from the marker's time (an old page may still append until then: a wizard preset.set too),
          then ask for the marker again (the helper lists the journals afresh; a marker removed meanwhile is written
          again, and waited for);
       3. tail until no journal was skipped: the records of that gap are read;
-      4. compare-and-set: the snapshot as it is, gen + 1, format 5 (it folds nothing; on 409 – compacted meanwhile, or
+      4. compare-and-set: the snapshot as it is, gen + 1, format 5 / 6 (it folds nothing; on 409 – compacted meanwhile, or
          the helper finds the marker too young – reload and from 1 again: the marker's wait is then what is left);
       5. only then the record is appended (flush), with a Lamport time BUMP_LAMPORT above everything seen (rebase:
          every page that sees the deck go 4 -> 5 jumps, and one that opens a deck raised moments ago: BUMP_FRESH_MS). */
-  upgrade(): Promise<boolean> {
-    if (this.snap.format >= 5) return Promise.resolve(true);
-    return this.bump ||= this.raise().finally(() => { this.bump = null; });
+  upgrade(to: RaisedFormat = 5): Promise<boolean> {
+    if (this.snap.format >= to) return Promise.resolve(true);
+    if (this.bump) return this.bump.then(ok => ok && this.upgrade(to));      // (a bump to 5 under way, 6 needed: then 6)
+    return this.bump = this.raise(to).finally(() => { this.bump = null; });
   }
-  private async raise(): Promise<boolean> {
+  private async raise(to: RaisedFormat): Promise<boolean> {
     const prev = this.view;
     for (let round = 0; round < 10 && !this.disposed; round++) {
       for (let i = 0, waited = false; i < 4; i++) {
-        const m = await this.api.format5(this.key);
+        const m = await (to === 5 ? this.api.format5(this.key) : this.api.format5(this.key, to));
         // the helper's own wait when shorter (its test setting; the 4.6 helper refuses the raise before it anyway);
         // one that is not a finite number ≥ 0 is ignored
         const mw = m?.wait;
@@ -346,8 +358,8 @@ export class DocSync {
       }
       if (!t || t.skipped?.length) return false;          // (the record waits; flush tries again later)
       if (t.gen != null && t.gen > this.snap.gen) await this.loadSnapshot();
-      if (this.snap.format < 5) {
-        const next: DeckSnapshot = { ...this.snap, gen: this.snap.gen + 1, format: 5 };
+      if (this.snap.format < to) {
+        const next: DeckSnapshot = { ...this.snap, gen: this.snap.gen + 1, format: to };
         try { await this.api.compact(this.key, this.snap.gen, next); }
         catch (e) {
           if ((e as { status?: number }).status !== 409) throw e;
@@ -367,8 +379,9 @@ export class DocSync {
   private sleep(ms: number) { return new Promise<void>(r => setTimeout(r, ms)); }
   /** a page with the deck open raises it as soon as it holds 4.6 content (at open, or a 4.3–4.5 page's record read) */
   private bumpIfDue() {
-    if (!this.autoBump || this.bump || this.state === "readonly" || this.state === "outdated" || this.retired || this.disposed || !this.dueV5()) return;
-    void this.upgrade().catch(e => {
+    const to = this.autoBump && !this.bump && this.state !== "readonly" && this.state !== "outdated" && !this.retired && !this.disposed ? this.due() : 0;
+    if (!to) return;
+    void this.upgrade(to).catch(e => {
       const prev = this.view, before: [SaveState, string] = [this.state, this.error], status = (e as { status?: number }).status;
       if (status === 409) { this.state = "outdated"; this.error = (e as Error).message || OUTDATED; }
       else if (status === 423) { this.state = "readonly"; this.error = (e as Error).message; }
@@ -412,7 +425,7 @@ export class DocSync {
       compaction's answer may arrive after a newer snapshot was loaded). */
   private rebase(s: DeckSnapshot) {
     if (s.gen <= this.snap.gen) return;
-    const raised = s.format >= 5 && this.snap.format < 5;
+    const raised = s.format >= 5 && s.format > this.snap.format;
     this.snap = s;
     for (const [j, off] of Object.entries(s.frontier)) this.offsets[j] = Math.max(this.offsets[j] || 0, off);
     for (const [id, e] of this.entries) if (e.at.some(p => this.covered(p)) || e.rec.s <= (s.seen?.[e.rec.w] || 0)) this.entries.delete(id);
@@ -453,7 +466,7 @@ export class DocSync {
       if (!next) { if (by.size) this.recompute(); return null; }
       if (next.format > this.snap.format) {
         // the fold holds 4.6 content: the deck is raised first (marker, wait, CAS), then folded on the new snapshot
-        if (!await this.upgrade()) return null;
+        if (!await this.upgrade(next.format as RaisedFormat)) return null;
         next = this.candidate();
         if (!next) return null;
       }

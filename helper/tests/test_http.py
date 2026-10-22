@@ -412,6 +412,31 @@ class DeckFormatHttpTests(HttpBase):
         self.assertEqual((st, m["created"]), (200, False))
         self.assertEqual([(d["key"], d["format"]) for d in self.jreq("GET", "/api/decks")[1]["decks"]], [(key, 5)])
 
+    def test_a_4_6_to_4_8_page_is_refused_on_a_format_6_deck(self):
+        # AUDIT-3 COMPAT-1: the 4.9 page raises to 6 (format6: incident-format-6.json); a page sending "4,5" gets 409
+        v49 = {"X-SB-Deck-Formats": "4,5,6"}
+        r = self.open(v49)
+        key, w = r["key"], r["writer"]
+        base = "/api/decks/" + key
+        st, m = self.jreq("POST", base + "/format6", {}, headers=v49)
+        self.assertEqual((st, m["created"]), (200, True))
+        self.assertTrue(os.path.exists(decks.deck_dir(key, decks.MARKER6)))
+        snap = self.jreq("GET", base + "/snapshot", headers=v49)[1]["snapshot"]
+        with mock.patch.object(decks, "BUMP_WAIT_S", 0):
+            self.assertEqual(self.jreq("POST", base + "/compact", {"baseGen": 1, "snapshot": dict(snap, gen=2, format=6)}, headers=v49)[0], 200)
+        for headers in ({}, self.NEW):
+            for method, path, body in [("POST", "/api/decks/open", {"workbook": "W.xlsx"}), ("GET", base + "/snapshot", None),
+                                       ("GET", base + "/tail?since={}", None),
+                                       ("POST", base + "/append", {"writer": w, "record": {"w": w, "s": 1, "l": 1, "ops": []}})]:
+                st, e = self.jreq(method, path, body, headers=headers)
+                self.assertEqual(st, 409, (path, headers, e))
+                self.assertIn("reload the page", e["error"])
+        self.assertEqual(self.open(v49)["snapshot"]["format"], 6)
+        cur = decks.read_snapshot(key)
+        st, e = self.jreq("POST", base + "/compact", {"baseGen": 2, "snapshot": dict(cur, gen=3, format=5)}, headers=v49)
+        self.assertEqual(st, 400)
+        self.assertIn("4.9", e["error"])
+
     def test_an_old_token_is_refused_first(self):
         key = self.open()["key"]
         st, _ = self.jreq("POST", "/api/decks/%s/append" % key, {"writer": "a@b#abcdefgh", "record": {}}, token=False, headers={"X-SB-Token": "the-token-of-the-helper-before-the-restart"})

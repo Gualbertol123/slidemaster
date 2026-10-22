@@ -32,11 +32,18 @@ What users notice
   Delete key on a selected slide in the list) asks first; the slide's tables stay in the deck (*Add table* puts them on
   a slide again). Each is one undo step. The cover and the contents slide are not duplicated (the deck keeps one of
   each), and the last slide of a deck is not deleted.
-  A deck with a duplicated slide still opens in 4.6.0 (no new op or key).
+  A deck with a duplicated slide still opens in 4.6.0 (no new op or key) – unless the slide has hidden rows (below).
+* **Decks that use 4.9's tables open read-only in 4.0–4.8** (AUDIT-3 COMPAT-1): rows or columns deleted for a version,
+  hidden rows or columns, a cell's vertical position or number display. Before the first such change a 4.9 window
+  prepares the deck (about 23 s of "Saving…", once per deck); from then on older windows show it read-only and ask to
+  update – before, a 4.6–4.8 window's wizard could erase a version's deleted rows, and its exports showed them.
+  `Update Slide Builder.bat --use 4.6–4.8` names these decks and asks first.
 
 For the maintainer
 * New keys and ops – `slide.patch` `hidden`, `version.patch` (a version's `drop`), `cell.patch` `valign` / `num` – are
-  format 5 (vectors `shared/ops-vectors.d/m16-*.json`; saved fixtures `hidden-4.9.json`, `versions-4.9.json`,
+  **format 6** (ADR-019 amendment of 2026-10-22: `needsV6` / `docNeedsV6` from 4.8.0's frozen lists, marker
+  `incident-format-6.json`, `X-SB-Deck-Formats: 4,5,6`, route `POST /api/decks/<key>/format6`; CP-01 cases `m15`,
+  `m16`) (vectors `shared/ops-vectors.d/m16-*.json`; saved fixtures `hidden-4.9.json`, `versions-4.9.json`,
   `cells-4.9.json`, `cf-edits-4.8.json`).
 * Integration on M14 (branch `v4/M16-tables`): S16.1's chart rule (`chartHide`) lives in `render/chart-data.ts` and
   covers the series charts too; S16.4's `editedCellText` is used by `chart-data.ts`'s `shown`.

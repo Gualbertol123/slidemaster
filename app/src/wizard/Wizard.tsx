@@ -12,7 +12,7 @@ import { A1, esc, fmtMB, numToCol, uid } from "@slide-builder/core/xlsx/util";
 import type { SheetInfo, SheetWindow } from "@slide-builder/core/xlsx/sheetview";
 import type { DeckVersion, Preset, SlideDef, TableDef } from "@slide-builder/core/model/types";
 import { SLIDE_RX, gToRange, rangeToG, validRange } from "@slide-builder/core/model/preset";
-import { dropBands, dropEdit, dropEmpties, dropLabel } from "@slide-builder/core/model/versions";
+import { dropBands, dropEdit, dropEmpties, dropLabel, wizardVersions } from "@slide-builder/core/model/versions";
 import { todayLabel } from "@slide-builder/core/render/cover";
 import { Input } from "../ui/Input";
 
@@ -139,9 +139,7 @@ export function Wizard({ req }: { req: WizardReq }) {
       if (o.logo !== false) delete o.logo;
       return o;
     });
-    const kept = (m: Record<string, string[]> | undefined) => Object.fromEntries(Object.entries(m || {}).filter(([sh, rs]) => W.sheets.has(sh) && rs.length));
-    const versions = W.versions.filter(v => v.name.trim()).map(v => { const drop = kept(v.drop);       // (4.9: deleted rows / columns, B37)
-      return { id: v.id, name: v.name.trim(), hide: kept(v.hide), ...(Object.keys(drop).length ? { drop } : {}) }; });
+    const versions = wizardVersions(W.versions, W.sheets);       // (4.9: deleted rows / columns, B37; each version whole)
     // the linked workbooks the deck draws from (a file linked but no longer used is dropped)
     const links = W.links.filter(f => [...W.sheets].some(s => parseSheetId(s).book === f));
     close({ sheets: [...W.sheets], tables: W.tables.map(t => { const o = { ...t }; if (!o.name) delete o.name; return o; }), slides, ...(versions.length ? { versions } : {}), ...(links.length ? { links } : {}) });

@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { strFromU8, unzipSync } from "fflate";
 import { loadVectors } from "./vectors";
 import { deckOf } from "./corpus-deck";
-import { applyOps, docNeedsV5, knownOp, needsV5 } from "../src/model/ops";
+import { applyOps, docNeedsV5, docNeedsV6, knownOp, needsV5, needsV6 } from "../src/model/ops";
 import { fold, nextSnapshot } from "../src/model/fold";
 import { drawnVAlign, effFmt, effItems, keyOf } from "../src/render/edits";
 import { MAX_DEC, numHas, stepNum } from "../src/render/numdisplay";
@@ -39,7 +39,10 @@ describe("the ops: cell.patch valign / num (m16-cells.json; the guard)", () => {
   for (const v of mine.filter(x => !x.fold)) it(v.name + ": knownOp, needsV5 and the document's docNeedsV5", () => {
     for (const op of v.ops) expect(knownOp(op)).toBe(true);
     expect(v.ops.map((op: Op) => needsV5(op))).toEqual(v.expect.needsV5);
+    // 4.9's ops and keys: format 6 exactly where format 5 (AUDIT-3 COMPAT-1; 4.6–4.8 do not know them either)
+    expect(v.ops.map((op: Op) => needsV6(op))).toEqual(v.expect.needsV6 ?? v.expect.needsV5);
     expect(docNeedsV5(applyOps(v.doc, v.ops).doc)).toBe(v.expect.docNeedsV5);
+    expect(docNeedsV6(applyOps(v.doc, v.ops).doc)).toBe(v.expect.docNeedsV6 ?? v.expect.docNeedsV5);
   });
   it("4.0.0 does not know the keys: needsV5 by themselves, with a 4.0 key beside them too", () => {
     expect(needsV5(C("A1", { valign: "top" }))).toBe(true);
@@ -220,7 +223,7 @@ async function exporter(deck: FakeDeck, preset: Preset) {
   const port = new Port<PageMethods, CoreMethods, CoreEvents, PageEvents>(a);
   port.handle("deckSnapshot", () => api.snapshot("")); port.handle("deckTail", x => api.tail(x.key, x.since));
   port.handle("deckAppend", x => api.append(x.key, x.writer, x.record)); port.handle("deckCompact", x => api.compact(x.key, x.baseGen, x.snapshot));
-  port.handle("deckRotate", x => api.rotate(x.key, x.writer)); port.handle("deckFormat5", x => api.format5(x.key));
+  port.handle("deckRotate", x => api.rotate(x.key, x.writer)); port.handle("deckFormat5", x => api.format5(x.key, x.format));
   port.handle("deckPrepare", () => null); port.handle("digitWidth", () => 0); port.handle("convertPicture", () => null); port.handle("analyzeImages", () => []);
   port.handle("linkedWorkbook", () => null);
   for (const e of ["slices", "stage", "doc"] as const) port.on(e, () => undefined);
@@ -273,17 +276,18 @@ describe("PowerPoint: native table cells take the number display and the vertica
 });
 
 describe("a deck saved with cell number displays and vertical positions (fixtures/saved/cells-4.9.json, added, never edited)", () => {
-  it("its records fold in any order, are known whole, need format 5; the next snapshot stays format 5 and keeps the keys", () => {
+  it("its records fold in any order, are known whole, need format 6 (AUDIT-3 COMPAT-1); the next snapshot is format 6 and keeps the keys", () => {
     const saved = JSON.parse(fs.readFileSync(path.join(here, "fixtures", "saved", "cells-4.9.json"), "utf8"));
     const { snapshot: snap, records: recs } = saved as { snapshot: any; records: any[] };
     expect(recs.every(r => r.ops.every(knownOp))).toBe(true);
     expect(recs.every(r => r.ops.some(needsV5))).toBe(true);
+    expect(recs.every(r => r.ops.some(needsV6))).toBe(true);
     const f = fold(snap, recs);
     expect(fold(snap, [...recs].reverse()).doc).toEqual(f.doc);
     expect(fold(snap, [...recs.slice(2), ...recs.slice(0, 2)]).doc).toEqual(f.doc);
     expect(docNeedsV5(f.doc)).toBe(true);
     const next = nextSnapshot(snap, f, {});
-    expect(next.format).toBe(5);
+    expect(next.format).toBe(6);                                            // 4.9 objects: format 6 (AUDIT-3 COMPAT-1)
     expect(next.doc.edits).toEqual(f.doc.edits);
     // two writers on one cell: bob's valign and anna's later num both kept; their same key: the later Lamport time
     expect(f.doc.edits.LOANS_DEPOSITS.D8).toEqual({ b: true, valign: "top", num: "#,##0.0" });

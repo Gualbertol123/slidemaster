@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { strFromU8, unzipSync } from "fflate";
 import { loadVectors } from "./vectors";
 import { readWorkbook } from "../src/xlsx/workbook";
-import { applyOp, applyOps, docNeedsV5, emptyDoc, inverseOf, knownOp, needsV5 } from "../src/model/ops";
+import { applyOp, applyOps, docNeedsV5, docNeedsV6, emptyDoc, inverseOf, knownOp, needsV5, needsV6 } from "../src/model/ops";
 import { fold, nextSnapshot } from "../src/model/fold";
 import { HMARK, LCACHE, resolveTable, runtimeSlides } from "../src/model/preset";
 import { dropHidden, hiddenEntries, hiddenKey, hideFor, hideKey, parseHiddenKey, slideHidden } from "../src/model/hidden";
@@ -71,8 +71,11 @@ describe("the op: slide.patch map `hidden` (shared/ops-vectors.d/m16-hidden.json
   for (const v of mine.filter(x => !x.fold)) it(v.name + " – known, format 5 (needsV5 / docNeedsV5)", () => {
     for (const op of v.ops) expect(knownOp(op), JSON.stringify(op)).toBe(true);
     expect(v.ops.map((op: Op) => needsV5(op))).toEqual(v.expect.needsV5);
+    // 4.9's ops and keys: format 6 exactly where format 5 (AUDIT-3 COMPAT-1; 4.6–4.8 do not know them either)
+    expect(v.ops.map((op: Op) => needsV6(op))).toEqual(v.expect.needsV6 ?? v.expect.needsV5);
     const { doc } = applyOps(v.doc, v.ops);
     expect(docNeedsV5(doc)).toBe(v.expect.docNeedsV5);
+    expect(docNeedsV6(doc)).toBe(v.expect.docNeedsV6 ?? v.expect.docNeedsV5);
     // undo: the inverses in reverse order give the document back
     const d = structuredClone(v.doc), inv: Op[] = [];
     for (const op of v.ops) { const i = inverseOf(d, op); if (i) inv.unshift(i); applyOp(d, op); }
@@ -100,18 +103,19 @@ describe("the op: slide.patch map `hidden` (shared/ops-vectors.d/m16-hidden.json
 });
 
 describe("a deck saved by 4.9 with hidden rows (fixtures/saved/hidden-4.9.json, added, never edited)", () => {
-  it("two writers' records fold in any order; each slide keeps its own set; a 4.9 page compacts them; format 5; the layouts follow", async () => {
+  it("two writers' records fold in any order; each slide keeps its own set; a 4.9 page compacts them; format 6 (AUDIT-3 COMPAT-1); the layouts follow", async () => {
     const saved = JSON.parse(fs.readFileSync(path.join(here, "fixtures", "saved", "hidden-4.9.json"), "utf8"));
     const { snapshot: snap, records: recs } = saved as { snapshot: any; records: any[] };
     expect(recs.every(r => r.ops.every(knownOp))).toBe(true);
     expect(recs.every(r => r.ops.some(needsV5))).toBe(true);
+    expect(recs.every(r => r.ops.some(needsV6))).toBe(true);
     const f = fold(snap, recs), p = f.doc.preset!;
     expect([f.doc.rev, f.lamport, f.doc.updatedBy]).toEqual([10, 11, "bob"]);
     expect(fold(snap, [...recs].reverse()).doc).toEqual(f.doc);
     expect(fold(snap, [...recs.slice(4), ...recs.slice(0, 4)]).doc).toEqual(f.doc);
     expect(p.slides.map(s => s.hidden)).toEqual([{ [T + ":r7"]: true, [T + ":cE"]: true, [T + ":r10"]: true }, { [T + ":r12"]: true }, { "ybyk4v2:r6": true, "62de08x:cJ": true }]);
     const next = nextSnapshot(snap, f, {});
-    expect(next.format).toBe(5);
+    expect(next.format).toBe(6);                                            // 4.9 objects: format 6 (AUDIT-3 COMPAT-1)
     expect(next.doc.preset).toEqual(p);
     expect(docNeedsV5(next.doc)).toBe(true);
     const wb = await book(), [a, b, c] = runtimeSlides(wb, p, "report.xlsx", "excel");
@@ -356,7 +360,7 @@ async function open(deck: FakeDeck, p: Preset) {
   const port = new Port<PageMethods, CoreMethods, CoreEvents, PageEvents>(a);
   port.handle("deckSnapshot", () => api.snapshot("")); port.handle("deckTail", x => api.tail(x.key, x.since));
   port.handle("deckAppend", x => api.append(x.key, x.writer, x.record)); port.handle("deckCompact", x => api.compact(x.key, x.baseGen, x.snapshot));
-  port.handle("deckRotate", x => api.rotate(x.key, x.writer)); port.handle("deckFormat5", x => api.format5(x.key));
+  port.handle("deckRotate", x => api.rotate(x.key, x.writer)); port.handle("deckFormat5", x => api.format5(x.key, x.format));
   port.handle("deckPrepare", () => null); port.handle("digitWidth", () => 0); port.handle("convertPicture", () => null); port.handle("analyzeImages", () => []);
   port.handle("linkedWorkbook", () => null);
   for (const e of ["slices", "stage", "doc"] as const) port.on(e, () => undefined);

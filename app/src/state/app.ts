@@ -47,7 +47,7 @@ export function core(): CorePort {
   port.handle("deckCompact", a => backend.deckCompact(a.key, a.baseGen, a.snapshot));
   port.handle("deckRotate", a => backend.deckRotate(a.key, a.writer));
   port.handle("deckPrepare", a => backend.deckPrepare(a.key, a.writer));
-  port.handle("deckFormat5", a => backend.deckFormat5(a.key));
+  port.handle("deckFormat5", a => backend.deckFormat5(a.key, a.format));
   port.handle("digitWidth", a => browserText.maxDigitWidth(a.font));
   // the display list's text, measured with the page's fonts (decision 2026-10-12, 3; browserText answers synchronously)
   port.handle("measureRuns", a => {
@@ -593,8 +593,9 @@ export async function saveStyleAsDefault() {
     snapshot). The open deck through the worker, the others each with a DocSync of their own here, for this only. */
 export async function prepareRollback() {
   if (!backend.served) return;
-  // ADR-019: decks at format 5 hold 4.6 objects – read-only in 4.0–4.5, and Slide Builder 3 drops those objects
-  const v5 = (list: SetupInfo[]) => list.filter(d => d.format === 5 && !d.rolledBack).map(d => esc(d.workbook));
+  // ADR-019: decks at format 5 hold 4.6 objects – read-only in 4.0–4.5, and Slide Builder 3 drops those objects (6: 4.9
+  // objects, read-only in 4.0–4.8)
+  const v5 = (list: SetupInfo[]) => list.filter(d => (d.format || 0) >= 5 && !d.rolledBack).map(d => esc(d.workbook));
   const marked = v5(await backend.decks().catch(() => []));
   const go = await ask("Prepare rollback", "Every Slide Builder 4 deck is saved and its changes folded into its snapshot. Afterwards " +
     "the maintainer can give decks back to Slide Builder 3 with <b>Update Slide Builder.bat --rollback</b>. Nothing else changes." +
@@ -604,7 +605,7 @@ export async function prepareRollback() {
   if (go !== "go") return;
   const api: DeckApi = { served: true, snapshot: k => backend.deckSnapshot(k), tail: (k, s) => backend.deckTail(k, s),
     append: (k, w, r) => backend.deckAppend(k, w, r), compact: (k, g, s) => backend.deckCompact(k, g, s), rotate: (k, w) => backend.deckRotate(k, w),
-    format5: k => backend.deckFormat5(k) };
+    format5: (k, f) => backend.deckFormat5(k, f) };
   const failed: string[] = [];
   let done = 0;
   // every deck once (what is old enough is folded at once), then ONE wait for the compaction margin (records younger

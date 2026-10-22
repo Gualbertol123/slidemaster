@@ -526,7 +526,7 @@ export class CoreHost {
       compact: (key, baseGen, snapshot) => self.port.call("deckCompact", { key, baseGen, snapshot }),
       rotate: (key, writer) => self.port.call("deckRotate", { key, writer }),
       prepare: (key, writer) => self.port.call("deckPrepare", { key, writer }),
-      format5: key => self.port.call("deckFormat5", { key }),
+      format5: (key, format) => self.port.call("deckFormat5", format ? { key, format } : { key }),
     };
   })();
   /** the page's last presence heartbeat said this page is the only one with the deck open */

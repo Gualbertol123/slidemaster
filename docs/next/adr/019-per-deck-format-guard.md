@@ -115,3 +115,26 @@ was restarted on 4.6 already gets 403 "forbidden (token)"; `X-SB-Deck-Formats` (
 tested with a valid token (`helper/tests/test_http.py` `DeckFormatHttpTests`).
 
 **Test setting (2026-10-21).** `SLIDEBUILDER_TEST_BUMP_WAIT_S` shortens the helper's wait (`decks.BUMP_WAIT_S`), and `mark_format5` tells the page its value (`wait`, ms): the page waits the shorter of its own 23 s and the helper's. Only the e2e helpers set it (`app/playwright.config.ts`, 2 s; `tools/compat-old.mjs --bump-wait-s`, the 4.6 helper only); it must never be set on a shared folder in use, as a 4.0–4.5 page could then append after the raise. Since the milestone review (finding 3) the helper honours it only together with `SLIDEBUILDER_NO_NET=1` (which both of those set) and only as a finite number of seconds from 0 to 23 (`decks.read_test_bump_wait`); anything else is ignored with a log line. When it is in effect the helper logs a loud warning at start-up and `/api/health` reports it (`testBumpWaitS`, s). The page in turn ignores a `wait` that is not a finite number ≥ 0 (`DocSync.raise`).
+
+**Amendment 2026-10-22: format 6 for 4.9 objects (AUDIT-3 COMPAT-1).** 4.9 first reused format 5, as §1 of 09 allowed
+("reuse format 5 … and extend `knownOp`"). The M17 audit showed that `knownOp` is not enough: a 4.6.0–4.8.0 page reads
+a format-5 deck, skips `version.patch` and the slide map `hidden`, and its wizard's Finish writes the whole preset
+(`preset.set`, each version rebuilt as `{id, name, hide}`) – the version's deleted rows (`drop`), and before a 4.9
+compaction the version itself and the slides' hidden rows, are erased for everybody; its exports show the deleted /
+hidden rows. So 4.9 raises a deck to **format 6** exactly the way 4.6 raised to 5, before it writes anything 4.8.0 does
+not apply whole (`core/src/model/ops.ts` `needsV6` / `docNeedsV6`, built from 4.8.0's FROZEN lists `V48_*` as
+`needsV5` is from 4.0.0's): `version.patch` (any: 4.6–4.8 skip the op, so a version made or renamed by it would be
+lost to their wizard too), a slide's `hidden`, a version's `drop`, cell `valign` / `num`, a `slide.add` carrying
+`hidden`, a `preset.set` holding them. The sequence is the one above with its own marker **`incident-format-6.json`**
+(every 4.0–4.8 helper takes it for an incident – 4.6–4.8's `_is_incident` excepts `incident-format-5.json` only –
+and their `READ_FORMATS` (4, 5) refuse the format-6 snapshot: 409 on open / snapshot, 400 on a compaction), the same
+`BUMP_WAIT_MS` / `BUMP_WAIT_S` = 23 s wait (the old helpers' listing and refresh intervals are unchanged), the tail,
+the CAS to `format: 6` (409 while the marker is younger than the wait), the Lamport jump (`BUMP_LAMPORT`; also when a
+page sees the deck go 5 → 6), never lowered (400), the marker written again on a format-6 snapshot read without it.
+A format-4 deck that receives a 4.9 object goes to 6 at once (one marker: format 6's also stops 4.0–4.5).
+`X-SB-Deck-Formats` is `4,5,6` from 4.9; a page that does not send 6 (a 4.6–4.8 page left open while its helper was
+restarted on 4.9) gets 409 on a format-6 deck (`decks.check_page`). `SLIDEBUILDER_TEST_BUMP_WAIT_S` shortens both
+raises. The 4.9 wizard copies each version whole (`model/versions.ts` `wizardVersions`), so a later key survives it.
+`update.py --use 4.6–4.8` names the format-6 decks (read-only there) and asks; below 4.6 they are named with the
+format-5 ones. Verified against the real 4.6.0 and 4.8 pages and helpers by `tools/compat-old.mjs` cases `m15` /
+`m16` (VER-4). Cost: once per deck, the same ≈ 23 s of "Saving…" on the first 4.9 edit.

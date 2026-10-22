@@ -136,6 +136,13 @@ keys (`hidden`), new ops (`slide.add`, `table.add`, `version.patch`). A 4.0–4.
 * The 4.5 `knownOp` stays: it still protects a 4.5 page from a 4.7 object in a deck that a 4.6 page left at format 5
   (impossible by (a), kept as a second wall). Each later release that adds ops either reuses format 5 (4.5 pages are
   already locked out of such decks) **and** extends `knownOp`, or bumps to 6 the same way.
+* **4.9 bumps to 6** (AUDIT-3 COMPAT-1, owner decision 2026-10-22; ADR-019 amendment of that date): reusing 5 was not
+  enough – a 4.6–4.8 page's wizard writes the whole preset and erased 4.9's deleted rows (`drop`) and hidden rows, and
+  its exports showed them. `needsV6` / `docNeedsV6` (4.8.0's frozen lists) raise a deck holding `version.patch`, slide
+  `hidden`, version `drop` or cell `valign` / `num` to format 6 (marker `incident-format-6.json`, the same 23 s wait,
+  tail, CAS, Lamport jump); 4.0–4.8 then show it read-only. Every later release that adds what 4.8 cannot keep whole
+  either reuses 6 **and** extends `knownOp`, or bumps to 7 – and checks the old pages' **whole-value writes** (the
+  wizard's `preset.set`, `slide.add` copies), not only their folds (CP-01 cases `m15` / `m16`).
 
 User-visible: B41 (a deck that uses charts, callouts, free layout, looks, cell gridlines / borders or any 4.6 object
 opens only in 4.6 and later; older windows show it read-only). Decks with none of them – everything the share's 4.0 has

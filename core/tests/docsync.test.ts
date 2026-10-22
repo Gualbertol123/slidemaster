@@ -634,3 +634,70 @@ describe("DocSync v4: the per-deck format guard (ADR-019 and its amendment)", ()
     b.dispose();
   });
 });
+
+describe("DocSync v4: format 6 for 4.9 objects (ADR-019 amendment of 2026-10-22, AUDIT-3 COMPAT-1)", () => {
+  const preset = { op: "preset.set", preset: { sheets: ["S"], slides: [{ id: "s1", type: "content", title: "T", tables: ["t1"] }], tables: [{ id: "t1", sheet: "S", kind: "range", range: "A1:B2" }],
+    versions: [{ id: "v1", name: "All", hide: {} }] } } as unknown as Op;
+  const chart = { op: "item.patch", slide: "s1", id: "c1", patch: { kind: "shape", shape: "rect", box: { x: 0, y: 0, w: 10, h: 10 } } } as Op;
+  const drop = { op: "version.patch", id: "v1", patch: { drop: { S: ["2:2"] } } } as unknown as Op;
+  const hidden = { op: "slide.patch", id: "s1", patch: { hidden: { "t1:r2": true } } } as Op;
+  const u = (deck: FakeDeck, who: string, api: DeckApi = deck.api(), o: Record<string, unknown> = {}) =>
+    new DocSync(api, "W.xlsx", deck.open(writer(who)), who, { autoTail: false, compactMargin: 0, bumpWaitMs: 0, ...o });
+  const waits = (s: DocSync, deck?: FakeDeck) => { const w: number[] = []; (s as unknown as { sleep: (ms: number) => Promise<void> }).sleep = async ms => { w.push(ms); deck?.advance(ms); }; return w; };
+  /** a format-5 deck (a 4.6 object in it), as 4.6–4.8 read it */
+  async function deck5() {
+    const deck = new FakeDeck(), a = u(deck, "anna");
+    a.apply([preset]); await a.flush();
+    a.apply([chart]); await a.flush();
+    expect(deck.snap.format).toBe(5);
+    return { deck, a };
+  }
+  it("COMPAT-1: a version's deleted rows raise a format-5 deck to 6 first – marker, wait, tail, CAS, then the record above a 4.6–4.8 page's gap preset.set", async () => {
+    const { deck, a } = await deck5();
+    const old = writer("old48"), base = deck.api();
+    // a 4.8 page's wizard Finish in the gap (its helper has not seen incident-format-6.json yet): the preset without drop
+    const api: DeckApi = { ...base, format5: async (k, f) => { const r = await base.format5(k, f); if (r.created) deck.doAppend(old, { l: 60, w: old, s: 1, by: "old", ops: [preset] }); return r; } };
+    const b = u(deck, "bea", api, { bumpWaitMs: 40 }), w = waits(b, deck);
+    deck.log.length = 0;
+    b.apply([drop]); await b.flush();
+    expect(deck.log).toEqual(["format6", "append" /* the old page's */, "format6", "tail", "compact:6", "append"]);
+    expect(w).toEqual([40]);
+    expect(deck.snap.format).toBe(6); expect(deck.marker6).not.toBeNull();
+    expect(deck.records().find(r => r.w === b.writer)!.l).toBeGreaterThan(60);
+    await a.poll(); await b.poll();
+    expect(a.view.preset!.versions![0].drop).toEqual({ S: ["2:2"] });          // the old preset.set folds first: drop survives
+    expect(b.view).toEqual(a.view);
+    expect(await b.compact()).not.toBeNull(); expect(deck.snap.format).toBe(6);  // and stays 6
+  });
+  it("a slide's hidden rows and a cell's valign / num raise a format-4 deck straight to 6 (one bump, one marker)", async () => {
+    for (const op of [hidden, cell("A1", { valign: "top" }), cell("A2", { num: "0.0%" })]) {
+      const deck = new FakeDeck(), a = u(deck, "anna");
+      a.apply([{ ...preset, preset: { ...(preset as unknown as { preset: object }).preset, versions: undefined } } as unknown as Op]); await a.flush();
+      expect(deck.snap.format).toBe(4);
+      deck.log.length = 0;
+      a.apply([op]); await a.flush();
+      expect(deck.log).toEqual(["format6", "tail", "compact:6", "append"]);
+      expect(deck.snap.format).toBe(6); expect(deck.marker).toBeNull();
+    }
+  });
+  it("4.6–4.8 objects alone stay format 5; an op 4.8 applies whole raises nothing more", async () => {
+    const { deck, a } = await deck5();
+    deck.log.length = 0;
+    a.apply([cell("A1", { b: true }), { op: "slide.patch", id: "s1", patch: { title: "T2", hide: { glass: true } } } as Op]); await a.flush();
+    expect(deck.log).toEqual(["append"]);
+    expect(await a.compact()).not.toBeNull(); expect(deck.snap.format).toBe(5); expect(deck.calls.format6).toBe(0);
+  });
+  it("a format-5 deck whose journal (or snapshot) already holds 4.9 content is raised to 6 when a 4.9 page opens it", async () => {
+    const { deck } = await deck5();
+    const p = writer("p49");
+    deck.doAppend(p, { l: 9, w: p, s: 1, by: "p49", ops: [hidden] });
+    const b = u(deck, "bea", deck.api(), { bumpOnOpen: true });
+    expect(await b.upgrading).toBe(true);
+    expect(deck.snap.format).toBe(6); expect(deck.calls.format6).toBe(1);
+  });
+  it("never lowered: the helper refuses a format-5 snapshot on a format-6 deck", async () => {
+    const { deck, a } = await deck5();
+    a.apply([drop]); await a.flush();
+    expect(() => deck.doCompact(deck.snap.gen, { ...deck.snap, gen: deck.snap.gen + 1, format: 5 })).toThrow(/4.6 objects/);
+  });
+});

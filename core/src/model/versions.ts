@@ -15,6 +15,16 @@ export function versionDrop(preset: Preset | null | undefined, id: string | null
   return d && typeof d === "object" && Object.keys(d).length ? d : undefined;
 }
 
+/** the wizard's Finish: its versions for the preset (named ones; each sheet's lists only for sheets the deck still uses,
+    empty ones left out). Each version is copied whole ({...v}): a key of a later release survives this page's whole
+    preset.set (AUDIT-3 COMPAT-1: 4.6–4.8 rebuilt {id, name, hide} and lost 4.9's `drop`) */
+export function wizardVersions(list: DeckVersion[], sheets: ReadonlySet<string>): DeckVersion[] {
+  const kept = (m: Record<string, string[]> | undefined) => Object.fromEntries(Object.entries(m || {}).filter(([sh, rs]) => sheets.has(sh) && rs.length));
+  return list.filter(v => v.name.trim()).map(v => {
+    const drop = kept(v.drop), { drop: _d, ...rest } = v;
+    return { ...rest, id: v.id, name: v.name.trim(), hide: kept(v.hide), ...(Object.keys(drop).length ? { drop } : {}) };
+  });
+}
 /** a cell in a row or column the version deletes (a callout quoting it shows it empty, as a removed one) */
 export function droppedCell(v: DeckVersion | null | undefined, sheet: string, r: number, c: number): boolean {
   const list = v?.drop?.[sheet]; if (!list) return false;

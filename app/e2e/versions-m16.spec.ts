@@ -113,8 +113,9 @@ test.describe.serial("delete-versions (S16.2)", () => {
     await expect(page.locator("#wDrops .wcut")).toHaveCount(1);
     await page.click('[data-a="finish"]');
     await pollFile(() => byName("VD")?.drop, { timeout: 10_000 }).toEqual({ SLIDE_1: ["10:11"] });
-    // the deck now holds a deleted row: format 5 (the guard)
-    await pollFile(() => fs.existsSync(path.join(deckDir("report.xlsx")!, "incident-format-5.json")), { timeout: 30_000 }).toBe(true);
+    // the deck now holds a deleted row: format 6 (the guard, AUDIT-3 COMPAT-1: 4.6–4.8 pages are locked out too)
+    await pollFile(() => fs.existsSync(path.join(deckDir("report.xlsx")!, "incident-format-6.json")), { timeout: 30_000 }).toBe(true);
+    await pollFile(() => JSON.parse(fs.readFileSync(path.join(deckDir("report.xlsx")!, "snapshot.json"), "utf8")).format, { timeout: 30_000 }).toBe(6);
     // the bank table's slide; the full deck shows Epsilon, "VD" does not
     let si = -1;
     for (let i = 0; i < await page.locator(".thumb").count() && si < 0; i++) {

@@ -151,8 +151,9 @@ test.describe.serial("hidden rows and columns per slide (S16.1)", () => {
     await pollFile(() => Object.keys(hiddenOf(S.id) || {}).length, { timeout: 10_000 }).toBe(2);
     await page.click("#redoBtn");
     await pollFile(() => hiddenOf(S.id), { timeout: 10_000 }).toBeNull();
-    // the deck holds a key 4.0.0 does not know: format 5
-    await pollFile(() => JSON.parse(fs.readFileSync(path.join(deckDir("report.xlsx")!, "snapshot.json"), "utf8")).format, { timeout: 15_000 }).toBe(5);
+    // the deck holds a key 4.8.0 does not know: format 6 (AUDIT-3 COMPAT-1), its marker incident-format-6.json
+    await pollFile(() => JSON.parse(fs.readFileSync(path.join(deckDir("report.xlsx")!, "snapshot.json"), "utf8")).format, { timeout: 15_000 }).toBe(6);
+    expect(fs.existsSync(path.join(deckDir("report.xlsx")!, "incident-format-6.json"))).toBe(true);
     await saved(page);
   });
 

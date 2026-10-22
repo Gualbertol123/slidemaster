@@ -50,7 +50,8 @@ export interface Backend {
   deckRotate(key: string, writer: string): Promise<{ deleted: string[] }>;
   deckPrepare(key: string, writer: string): Promise<unknown>;
   /** ADR-019: the deck is about to hold 4.6 objects – its marker (every 4.0–4.5 helper then takes it for read-only) */
-  deckFormat5(key: string): Promise<{ created?: boolean; at?: number | null; now?: number | null }>;
+  /** ADR-019: the deck's format marker (5, or 6 for 4.9 objects: incident-format-6.json) */
+  deckFormat5(key: string, format?: 5 | 6): Promise<{ created?: boolean; at?: number | null; now?: number | null }>;
   /** every deck on the share (Prepare rollback, Saved setups): what it holds as of its snapshot */
   decks(): Promise<SetupInfo[]>;
   /** B44: a deck deleted – kept as a backup on the share, an empty one in its place (409 while another window has it
@@ -176,7 +177,7 @@ export const helper: Backend = {
   // opening a journal twice is harmless (the helper keeps one handle per writer): asked again like a read
   deckPrepare: (key, writer) => json(req(deckPath(key) + "/prepare", { method: "POST", json: { writer }, idempotent: true })),
   // (an existing marker is fine: asked again like a read)
-  deckFormat5: key => json(req(deckPath(key) + "/format5", { method: "POST", json: {}, idempotent: true })),
+  deckFormat5: (key, format) => json(req(deckPath(key) + (format === 6 ? "/format6" : "/format5"), { method: "POST", json: {}, idempotent: true })),
   async decks() { return (await json<{ decks: SetupInfo[] }>(req("/api/decks"))).decks || []; },
   deleteDeck: (key, client) => json(req(deckPath(key) + "/delete", { method: "POST", json: { client } })),
   async deletedDecks() { return (await json<{ deleted: DeletedSetup[] }>(req("/api/decks/deleted"))).deleted || []; },
