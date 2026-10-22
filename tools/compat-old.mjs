@@ -44,8 +44,8 @@
    No network: the helpers run with SLIDEBUILDER_NO_NET=1 and the browser aborts every request that is not to
    127.0.0.1. Prints one RESULT line per version x case and writes a JSON report.
 
-   node tools/compat-old.mjs [--versions 4.0,4.1,4.4,4.5] [--pythons "python3.12,py38/bin/python"] [--new-python python3]
-        [--cases cp02,a,b,c,d] [--modes journal,lean-lock] [--port 8961] [--out compat-old.json]
+   node tools/compat-old.mjs [--versions 4.0,4.1,4.4,4.5,4.6,4.6p,4.7,4.8] [--pythons "python3.12,py38/bin/python"] [--new-python python3]
+        [--cases cp02,a,b,c,d,m14,m15,m16] [--modes journal,lean-lock] [--port 8961] [--out compat-old.json]
         [--worktrees <dir>] [--keep-worktrees] [--keep-data] [--bump-wait-s N]
    --pythons: the interpreters for the OLD helpers (each version runs once per interpreter; "py -3.8" works on
    Windows). --bump-wait-s sets SLIDEBUILDER_TEST_BUMP_WAIT_S on the 4.6 helper only (default: unset = the real
