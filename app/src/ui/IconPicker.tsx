@@ -44,21 +44,16 @@ export function rememberIcon(id: string) {
 }
 
 /** the grid's tile (px); without a measured grid (jsdom) COLS × VIEW_ROWS. A new search's hits are drawn first in the
-    rows that hold about DRAW tiles (asked with the hits, as in 4.8's 10 × 12), the rest of the rows in view a frame later,
-    once their tiles have come: a bigger window costs the keystroke nothing (09 §7.4, icon_picker_p95_ms) */
-export const COLS = 10, TILE = 46, VIEW_ROWS = 8, DRAW = 120;
-/** the first part of a new search's grid: whole rows, about DRAW tiles */
-const firstPart = (cols: number) => cols * Math.ceil(DRAW / cols);
+    rows that hold about FIRST tiles (asked with the hits; 4.8's grid drew 90), the rest of the rows in view when no key came
+    for REST_MS, once their tiles have come: a bigger window costs the keystroke nothing (09 §7.4, icon_picker_p95_ms) */
+export const COLS = 10, TILE = 46, VIEW_ROWS = 8, FIRST = 90, REST_MS = 400;
+/** the first part of a new search's grid: whole rows, about FIRST tiles */
+const firstPart = (cols: number) => cols * Math.ceil(FIRST / cols);
 const INKS = ["#0B0D17", "#5B6274", "#1C4F8C", "#2251FF", "#1E8E3E", "#C42B1C", "#B25000", "#FFFFFF"];
 const SIZES = [32, 48, 64, 96, 128], WIDTHS = [1, 1.5, 2, 2.5, 3];
 /** the picker's own measurement (09 §7.4, keystroke → results drawn): the last search's times, ms */
 export const pickerStats = { lastMs: 0, workerMs: 0, firstUse: 0 };
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
-/** `f` at the next frame (a timer where there are no frames); returns its cancel */
-const afterFrame = (f: () => void) => {
-  if (typeof requestAnimationFrame === "function") { const r = requestAnimationFrame(f); return () => cancelAnimationFrame(r); }
-  const t = setTimeout(f, 16); return () => clearTimeout(t);
-};
 
 export function IconPickerHost() {
   const req = usePicker(s => s.req);
@@ -153,7 +148,7 @@ function IconPicker({ req }: { req: PickerReq }) {
   // a new search draws its first rows first (limit), the others once their tiles are here
   const ids = limit < inView.length ? inView.slice(0, limit) : inView;
   // the rows scrolled into view: their tiles asked once. After a new search, the rows past its first part are asked
-  // (and drawn) only after the frame that shows that part: the keystroke's frame stays as small as 4.8's grid
+  // (and drawn) once the typing pauses (REST_MS): each keystroke draws no more than 4.8's grid did
   useEffect(() => {
     const more = () => {
       const miss = inView.filter(id => !tiles.current.has(id) && !asked.current.has(id));
@@ -163,9 +158,8 @@ function IconPicker({ req }: { req: PickerReq }) {
         .catch(() => setLimit(Infinity));
     };
     if (limit === Infinity) { more(); return; }
-    let t: ReturnType<typeof setTimeout> | undefined;
-    const f = afterFrame(() => { t = setTimeout(more, 0); });
-    return () => { f(); clearTimeout(t); };
+    const t = setTimeout(more, REST_MS);
+    return () => clearTimeout(t);
   }, [inView, limit]);
   // the arrow keys: the tile they moved to takes the focus once its row is drawn
   useLayoutEffect(() => {
