@@ -1,4 +1,7 @@
 /* The icon picker (IconPicker.tsx, S15.2): its own sheet, put in by the picker while it is open */
+/* no backdrop blur behind this dialog (ui.css .modal has one): each keystroke redraws the grid above it, and the
+   blur of the whole page under it was re-rasterised every frame – the frame after the hits came ≈ 50–100 ms late (09 §7.4) */
+#iconPicker.modal{backdrop-filter:none;background:rgba(18,22,34,.42)}
 .icdlg{width:min(860px,96vw);max-height:92vh}
 .ictools{display:flex;gap:8px;align-items:center;padding:0 18px 10px}
 .icsearch{flex:1;height:32px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font:inherit}

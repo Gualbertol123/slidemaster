@@ -120,6 +120,8 @@ export class Tabler {
   private readonly oldText: (string | undefined)[];
   /** per icon: what the search matches beyond the name – its tags and its old names */
   private readonly findText: string[];
+  /** per icon: "-" + name + "-" (built once: the search matches whole name words against it, per keystroke) */
+  private readonly dashed: string[];
   private readonly at = new Map<string, number>();
   private readonly alias: Record<TablerStyle, Map<string, number>> = { outline: new Map(), filled: new Map() };
   private readonly span: Record<TablerStyle, Int32Array>;
@@ -148,6 +150,7 @@ export class Tabler {
       if (!(this.oldText[to] ?? "\n").includes("\n" + from + "\n")) this.oldText[to] = (this.oldText[to] ?? "\n") + from + "\n";
     }
     this.findText = this.tagText.map((t, i) => this.oldText[i] ? t + this.oldText[i]!.slice(1) : t);   // an old name finds its icon
+    this.dashed = this.names.map(x => "-" + x + "-");
     this.span = { outline: new Int32Array(2 * n).fill(-1), filled: new Int32Array(2 * n).fill(-1) };
     for (const [s, bit] of [["outline", 1], ["filled", 2]] as const) for (let i = 0; i < n; i++) if (this.sets[i] & bit) {
       const len = r.u(); this.span[s][2 * i] = r.p; this.span[s][2 * i + 1] = len; r.p += len;
@@ -188,7 +191,7 @@ export class Tabler {
     const hits: [number, number][] = [];
     for (let i = 0; i < this.names.length; i++) {
       if (!(this.sets[i] & bit) || (ci >= 0 && this.cat[i] !== ci)) continue;
-      const name = this.names[i], nm = "-" + name + "-", tg = this.findText[i];
+      const name = this.names[i], nm = this.dashed[i], tg = this.findText[i];
       let score = name === whole ? -100 : exact.get(name) ?? 0;
       for (const { w, alts } of words) {
         let s = nm.includes("-" + w + "-") ? 0 : nm.includes("-" + w) ? 1 : tg.includes("\n" + w + "\n") ? 2 : tg.includes("\n" + w) ? 3 : name.includes(w) ? 4 : tg.includes(w) ? 5 : 9;

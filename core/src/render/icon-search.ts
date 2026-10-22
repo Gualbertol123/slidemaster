@@ -30,11 +30,18 @@ export const svgD = (d: PathCmd[]) => d.map(c => c[0] === "Z" ? "Z" : c[0] + c.s
 /** the icon id of a name in a style */
 export const iconId = (style: IconStyle, name: string) => (style === "filled" ? "tabler-filled:" : "tabler:") + name;
 
+/** the set's tiles made so far, by id (an icon's paths never change: each tile's SVG path data is written once, not per
+    keystroke) */
+const madeBy = new WeakMap<object, Map<string, IconTile>>();
 /** the tiles of these ids (a built-in name draws its own outline; an id the set does not have is `missing`) */
 export function iconTiles(ids: string[]): Record<string, IconTile> {
-  const out: Record<string, IconTile> = {}, cat = ids.some(id => id.startsWith("tabler")) ? iconCatalog() : null;
+  const out: Record<string, IconTile> = {}, cat = ids.some(id => typeof id === "string" && id.startsWith("tabler")) ? iconCatalog() : null;
+  let made = cat ? madeBy.get(cat) : undefined;
+  if (cat && !made) madeBy.set(cat, made = new Map());
   for (const id of ids.slice(0, 400)) {
     if (typeof id !== "string" || out[id]) continue;
+    const had = made?.get(id);
+    if (had) { out[id] = had; continue; }
     const m = /^(tabler|tabler-filled):(.+)$/.exec(id);
     if (!m) {
       out[id] = Object.prototype.hasOwnProperty.call(ICONS, id) ? { id, paths: [{ d: svgD(iconCmds(id, 0, 0, 1)), stroke: false, fill: true, alpha: 1, evenodd: true }] } : { id, paths: [], missing: true };
@@ -42,6 +49,7 @@ export function iconTiles(ids: string[]): Record<string, IconTile> {
     }
     const p = cat?.icon(m[1] === "tabler" ? "outline" : "filled", m[2]);
     out[id] = p ? { id, paths: p.map(x => ({ d: svgD(x.d), stroke: x.paint.stroke, fill: x.paint.fill, alpha: x.paint.alpha })) } : { id, paths: [], missing: true };
+    made?.set(id, out[id]);
   }
   return out;
 }

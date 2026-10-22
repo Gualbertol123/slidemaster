@@ -6,7 +6,7 @@
    data asked as they scroll in. A new icon takes the picker's colour, size and outline width (remembered, as the
    recent icons, in this user's preferences); a changed icon keeps its own, and its tiles are drawn at its own line width.
    Mode "pick" hands the chosen id to its caller (09 §3.5: an icon for a chart mark, M14) and changes nothing itself. */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { create } from "zustand";
 import type { Prefs, ShapeItem } from "@slide-builder/core/model/types";
 import { iconStroke } from "@slide-builder/core/render/shape-dl";
@@ -51,6 +51,11 @@ export function TileSvg({ tile, stroke }: { tile: IconTile | undefined; stroke: 
   return <svg viewBox="0 0 24 24" aria-hidden="true">{tile?.paths.map((p, k) => <path key={k} d={p.d} fill={p.fill ? "currentColor" : "none"} stroke={p.stroke ? "currentColor" : "none"}
     strokeWidth={p.stroke ? stroke : undefined} strokeLinecap="round" strokeLinejoin="round" fillRule={p.evenodd ? "evenodd" : undefined} opacity={p.alpha < 1 ? p.alpha : undefined} />)}</svg>;
 }
+/** one tile of the grid: drawn again only when its icon's paths, its line width or its title change (a keystroke
+    re-renders the picker; the tiles that stay in view are not built again) */
+const Tile = memo(function Tile({ id, title, tile, stroke, onPick }: { id: string; title: string; tile: IconTile | undefined; stroke: number; onPick: (id: string) => void }) {
+  return <button className="ictile" data-icon={id} title={title} onClick={() => onPick(id)}><TileSvg tile={tile} stroke={stroke} /></button>;
+});
 const label = (id: string) => id.replace(/^tabler(-filled)?:/, "").replace(/-/g, " ");
 
 function IconPicker({ req }: { req: PickerReq }) {
@@ -74,13 +79,15 @@ function IconPicker({ req }: { req: PickerReq }) {
   const close = closeIconPicker;
 
   useEffect(() => { setTimeout(() => input.current?.focus(), 20); }, []);
-  // a search per change of the words, the set or the category: the worker answers the hits and the first screen's tiles
-  useEffect(() => {
+  // a search per change of the words, the set or the category: the worker answers the hits and the first screen's tiles.
+  // Asked in the commit of the keystroke's own render (a layout effect), not after its frame: the worker starts at once
+  useLayoutEffect(() => {
     const n = ++seq.current;
-    void core().call("iconSearch", { query: q, style, category, draw: DRAW, also: recent }).then((a: IconSearchAnswer | null) => {
+    void core().call("iconSearch", { query: q, style, category, draw: DRAW, also: recent.filter(id => !tiles.current.has(id)) }).then((a: IconSearchAnswer | null) => {
       if (n !== seq.current) return;
       if (!a) { setState("none"); return; }
-      for (const [id, t] of Object.entries(a.tiles)) tiles.current.set(id, t);
+      // a tile already held is kept (the same icon's same paths): its memoised tile is not drawn again
+      for (const [id, t] of Object.entries(a.tiles)) if (!tiles.current.has(id)) tiles.current.set(id, t);
       pickerStats.workerMs = a.ms; if (a.first) pickerStats.firstUse = a.ms;
       setAns({ names: a.names, categories: a.categories, version: a.version, q, style, ms: a.ms, first: a.first, cold: a.cold }); setState("ready"); setTop(0);
       if (scroller.current) scroller.current.scrollTop = 0;
@@ -113,8 +120,9 @@ function IconPicker({ req }: { req: PickerReq }) {
     else if (req.mode === "replace") itemPatch("Change icon", req.id, { icon: id });
     else insertShape("icon", id, { size, ...(color ? { fill: color } : {}), ...(id.startsWith("tabler:") && stroke !== 2 ? { stroke } : {}) });
   };
-  const tile = (id: string, name?: string) => <button key={id} className="ictile" data-icon={id} title={name ?? label(id)} onClick={() => pick(id)}>
-    <TileSvg tile={tiles.current.get(id)} stroke={stroke} /></button>;
+  const pickRef = useRef(pick); pickRef.current = pick;
+  const onTile = useMemo(() => (id: string) => pickRef.current(id), []);
+  const tile = (id: string, name?: string) => <Tile key={id} id={id} title={name ?? label(id)} tile={tiles.current.get(id)} stroke={stroke} onPick={onTile} />;
   const ink = color ?? "#1F2430";
 
   return <div className="modal" id="iconPicker" onKeyDown={e => { e.stopPropagation(); if (e.key === "Escape") close(); }}
