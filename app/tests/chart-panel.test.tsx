@@ -371,6 +371,7 @@ describe("the chart panel on the page (CT-08)", () => {
     // measured 0; at most the one draw of a store change that reaches it); when the chart itself changes (20 changes of
     // an axis) the panel's own draw – React's Profiler time of ItemPanel, not keypress → pixels (that is the bench's,
     // tools/bench.mjs) – stays far below 09 §7.4's 50 ms
+    const h0 = history();
     const times: number[] = [];
     const { unmount } = render(<Profiler id="p" onRender={(_id, _ph, actual) => times.push(actual)}><ItemPanel /></Profiler>);
     const first = times.length;
@@ -385,6 +386,8 @@ describe("the chart panel on the page (CT-08)", () => {
     if (process.env.CHART_PANEL_TIMES) fs.appendFileSync(process.env.CHART_PANEL_TIMES, `chart panel: ${onKeys} draws on 20 keypresses; its draw on a chart change: p50 ${sortedT[Math.floor(sortedT.length / 2)]?.toFixed(2)} ms, p95 ${p95.toFixed(2)} ms, max ${sortedT[sortedT.length - 1]?.toFixed(2)} ms (${times.length} draws)\n`);
     expect(times.length).toBeGreaterThanOrEqual(10);                              // (changes close together draw once)
     expect(p95).toBeLessThan(50);
+    // (the 40 changes confirmed before the next test reads the history: the last could land in its count)
+    await confirmed(h0 + 40);
   });
 
   it("colours (owner Q3, 2026-10-21: \"have default colours, then allow to change\"): a series starts in the design's palette; a colour set here stays in every design; ↺ gives the design's back", async () => {
