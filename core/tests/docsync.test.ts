@@ -695,6 +695,34 @@ describe("DocSync v4: format 6 for 4.9 objects (ADR-019 amendment of 2026-10-22,
     expect(await b.upgrading).toBe(true);
     expect(deck.snap.format).toBe(6); expect(deck.calls.format6).toBe(1);
   });
+  it("review: a 4.9 op that joins the queue during a 4 -> 5 raise raises the deck on to 6 before the record is appended", async () => {
+    const deck = new FakeDeck(), a = u(deck, "anna", deck.api(), { bumpWaitMs: 40 });
+    a.apply([preset]); await a.flush();
+    expect(deck.snap.format).toBe(4);
+    let joined = false;
+    (a as unknown as { sleep: (ms: number) => Promise<void> }).sleep = async ms => { deck.advance(ms); if (!joined) { joined = true; a.apply([drop]); } };
+    deck.log.length = 0;
+    a.apply([chart]); await a.flush();
+    const log = deck.log.join(" ");
+    expect(log).toMatch(/^format5 .*compact:5 .*format6 .*compact:6 append$/);
+    expect(deck.snap.format).toBe(6); expect(deck.marker6).not.toBeNull();
+    expect(deck.records().filter(r => r.w === a.writer).length).toBe(2);       // the preset, then chart + drop in one record
+    expect(a.state).toBe("saved");
+  });
+  it("review: two 4.9 writers raising the same deck at once both save; the deck ends at format 6", async () => {
+    const { deck } = await deck5();
+    const mk = (w: string) => u(deck, w, deck.api(), { bumpWaitMs: 40 });
+    const a = mk("ann2"), b = mk("bea");
+    for (const s of [a, b]) (s as unknown as { sleep: (ms: number) => Promise<void> }).sleep = async ms => { await new Promise(r => setTimeout(r, 1)); deck.advance(ms); };
+    a.apply([drop]); b.apply([hidden]);
+    await Promise.all([a.flush(), b.flush()]);
+    expect(deck.snap.format).toBe(6);
+    expect([a.state, b.state]).toEqual(["saved", "saved"]);
+    await a.poll(); await b.poll();
+    expect(a.view.preset!.versions![0].drop).toEqual({ S: ["2:2"] });
+    expect(a.view.preset!.slides[0].hidden).toEqual({ "t1:r2": true });
+    expect(b.view).toEqual(a.view);
+  });
   it("never lowered: the helper refuses a format-5 snapshot on a format-6 deck", async () => {
     const { deck, a } = await deck5();
     a.apply([drop]); await a.flush();

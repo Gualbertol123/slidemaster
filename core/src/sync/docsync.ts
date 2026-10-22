@@ -252,8 +252,17 @@ export class DocSync {
         this.sending = true;
         const prev = this.view, before: [SaveState, string] = [this.state, this.error];
         if (this.api.served) { this.state = "saving"; this.emit(prev, false, undefined, before); }
-        let ok = false;
-        try { ok = await this.upgrade(Math.max(this.due(this.pending), 5) as RaisedFormat); if (!ok) throw new Error("The deck could not be prepared for Slide Builder 4.6 objects – trying again."); }
+        // ops that join the queue during the wait are checked again before the record is sealed: a 4.9 op joining a
+        // 4 -> 5 raise raises the deck on to 6 first (review of M17's COMPAT-1 fix)
+        try {
+          for (let to = Math.max(this.due(this.pending), 5) as RaisedFormat; ; ) {
+            if (!await this.upgrade(to)) throw new Error(`The deck could not be prepared for Slide Builder 4.${to === 6 ? 9 : 6} objects – trying again.`);
+            if (this.disposed || this.inflight || !this.pending.length) break;
+            const next = this.due(this.pending);
+            if (!next) break;
+            to = next;
+          }
+        }
         catch (e) { this.sending = false; this.failed(e, prev, before); return; }
         this.sending = false;
         if (this.disposed || this.inflight || !this.pending.length) return;

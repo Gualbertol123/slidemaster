@@ -136,5 +136,11 @@ A format-4 deck that receives a 4.9 object goes to 6 at once (one marker: format
 restarted on 4.9) gets 409 on a format-6 deck (`decks.check_page`). `SLIDEBUILDER_TEST_BUMP_WAIT_S` shortens both
 raises. The 4.9 wizard copies each version whole (`model/versions.ts` `wizardVersions`), so a later key survives it.
 `update.py --use 4.6–4.8` names the format-6 decks (read-only there) and asks; below 4.6 they are named with the
-format-5 ones. Verified against the real 4.6.0 and 4.8 pages and helpers by `tools/compat-old.mjs` cases `m15` /
-`m16` (VER-4). Cost: once per deck, the same ≈ 23 s of "Saving…" on the first 4.9 edit.
+format-5 ones. Checked against the real older pages and helpers with `tools/compat-old.mjs` cases `m15` / `m16`
+(VER-4) on 2026-10-22, Linux, old helpers on Python 3.13, the 4.9 helper on Python 3.8, with the shortened wait
+`--bump-wait-s 2` (reports `cp01-m16fix.json`, `cp01-m16fix-b.json` in the session scratchpad): `m15` and `m16` PASS
+against 4.6p (v4.6.0) and 4.8 (b9edb02); `m16` PASS against 4.0 (v4.0.0), 4.5 (637f7b4) and 4.7 (d327882) – each
+old page's open refused with 409 ("saved by a newer Slide Builder (format 6)"), nothing written, `drop` / `hidden`
+intact. Not run: `m15` against 4.0–4.7, the real 23 s wait, lean-lock storage mode, a CP-01 case with an old page
+holding the deck open *during* the raise to 6 (covered by the DocSync and helper unit tests only), Windows / the
+share. Cost: once per deck, the same ≈ 23 s of "Saving…" on the first 4.9 edit.

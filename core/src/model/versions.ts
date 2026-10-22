@@ -36,7 +36,7 @@ export function dropWholeRefusal(version: DeckVersion | null | undefined, rs: re
   if (!at.size) return null;
   const label = (id: string) => { const d = (preset?.tables || []).find(t => t.id === id); return d?.name || d?.sheet || id; };
   const what = [...at].map(([id, ns]) => `“${label(id)}” (slide${ns.length > 1 ? "s" : ""} ${ns.join(", ")})`).join(", ");
-  return `Version “${version.name}” deletes every row or column of ${what}: it cannot be exported. Restore some of them (Ribbon 2 › Cells › For this version ▾, or the ✦ Wizard › 4 · Versions).`;
+  return `Version “${version.name}” deletes every row or column of ${what}: it cannot be exported. Restore some (Cells › For this version ▾).`;
 }
 /** a cell in a row or column the version deletes (a callout quoting it shows it empty, as a removed one) */
 export function droppedCell(v: DeckVersion | null | undefined, sheet: string, r: number, c: number): boolean {
