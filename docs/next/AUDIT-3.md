@@ -172,7 +172,7 @@ reproduction for the orchestrator to route.
 * *Proposed fix.* Per 09 §1's own rule "or bumps to 6 the same way": `needsV6(op)` / `docNeedsV6(doc)` for
   `version.patch`, a version's `drop`, a slide's `hidden` (and cell `num`, which changes what a number shows);
   `upgrade()` writes `incident-format-6.json` (an incident for every 4.0–4.8 helper → read-only) and CAS-writes the
-  snapshot with `format: 6`; helper `READ_FORMATS = {4, 5, 6}`, refuses lowering 6, 409 for a page without
+  snapshot with `format: 6`; helper `READ_FORMATS = (4, 5, 6)`, refuses lowering 6, 409 for a page without
   `X-SB-Deck-Formats: 4,5,6`; CP-01 gets a case for 4.6p / 4.7 / 4.8 (VER-4). And in 4.9's own wizard: spread the
   version (`{...v, name, hide, drop}`), so a later key survives it.
 
@@ -227,12 +227,12 @@ compacted by that page). The 4.9.0 release must contain 4.8.0 and the painter's 
 
 ## 10. Resolution (2026-10-22)
 
-Every finding is closed. The fixes were made on `m16/audit-fixes` (merged into `v4/M16-tables` and `v4/B51-toc-move`);
+Every finding is closed. The fixes were made on `m16/audit-fixes` (merged into `v4/M16-tables`, and up to b1fbd41 into `v4/B51-toc-move`; the review fixes 88f30b5 / 4a1a914 reach B51 through `v4/release-4.9.0`);
 the 4.9.0 release is put together on the integration branch `v4/release-4.9.0`.
 
 | Finding | State | Fix | Commits |
 |---|---|---|---|
-| **COMPAT-1** (high) | fixed | 4.9 objects raise the deck to **format 6** the way 4.6 raised to 5 (ADR-019 amended 2026-10-22): `needsV6` / `docNeedsV6` from 4.8.0's frozen lists (`version.patch`, slide `hidden`, version `drop`, cell `valign` / `num`, and a `slide.add` / `preset.set` carrying them), marker `incident-format-6.json`, `X-SB-Deck-Formats: 4,5,6`, `POST /api/decks/<key>/format6`, helper `READ_FORMATS = {4, 5, 6}` (compaction never lowers 6), `update.py --use 4.6–4.8` names the format-6 decks. 4.0–4.8 now open such decks read-only. The 4.9 wizard copies each version whole (`wizardVersions`), so a later key survives it. Review fix: an op that joins the queue during a 4 → 5 raise is checked again and the deck raised on to 6 before its record is sealed; tests pin the 5 → 6 Lamport jump and a real CAS collision of two raising writers | 700e1e8, review fix 88f30b5, tests 4a1a914 |
+| **COMPAT-1** (high) | fixed | 4.9 objects raise the deck to **format 6** the way 4.6 raised to 5 (ADR-019 amended 2026-10-22): `needsV6` / `docNeedsV6` from 4.8.0's frozen lists (`version.patch`, slide `hidden`, version `drop`, cell `valign` / `num`, and a `slide.add` / `preset.set` carrying them), marker `incident-format-6.json`, `X-SB-Deck-Formats: 4,5,6`, `POST /api/decks/<key>/format6`, helper `READ_FORMATS = (4, 5, 6)` (compaction never lowers 6), `update.py --use 4.6–4.8` names the format-6 decks. 4.0–4.8 now open such decks read-only. The 4.9 wizard copies each version whole (`wizardVersions`), so a later key survives it. Review fix: an op that joins the queue during a 4 → 5 raise is checked again and the deck raised on to 6 before its record is sealed; tests pin the 5 → 6 Lamport jump and a real CAS collision of two raising writers | 700e1e8, review fix 88f30b5, tests 4a1a914 |
 | **DATA-8** (medium) | fixed (owner: fail closed) | every export of a version that would delete every row or column of a table – PDF, PNG, PowerPoint, every-version export, Run for each value – is refused with a message naming the version, the table and its slides (`dropWholeRefusal`); the stage still draws the table whole and the Issues panel names it; the full deck and the other versions export as before | da47311 |
 | **VER-4** (medium) | fixed | `tools/compat-old.mjs` gets the cases **m15** (a line and a Tabler icon kept byte-equal through an old page's edit, wizard Finish and compaction) and **m16** (4.9 objects raise to format 6; an old page must be refused, the snapshot unchanged, `drop` / `hidden` byte-equal), and the old versions 4.7 (d327882) and 4.8 (b9edb02) | 700e1e8 |
 | VEC-1 (low) | fixed | an ops vector setting and clearing a waterfall series' `points[i].total`, with its inverses (`shared/ops-vectors.d/m14.json`) | 89c0131 |

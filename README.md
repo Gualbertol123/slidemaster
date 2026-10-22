@@ -81,7 +81,7 @@ of Slide Builder that do not know a format open the deck **read-only** (or are r
 damaging it. 4.6 introduced format 5 (charts, callouts, free layout and the other 4.6 objects: 4.0–4.5 lock out);
 **4.9 introduces format 6** for its table features – rows / columns deleted for a version, hidden rows / columns, a
 cell's vertical position or number display, a moved contents slide (AUDIT-3 COMPAT-1: a 4.6–4.8 window could
-otherwise erase a version's deleted rows and export rows meant to be hidden). **4.6–4.8 refuse format-6 decks.**
+otherwise erase a version's deleted rows and export rows meant to be hidden). **4.0–4.8 cannot change format-6 decks**: their helpers refuse them (409), and a window left open turns read-only.
 So the share must be **updated for everyone together**: on update day every window is closed, the share moves to
 4.9, and nobody keeps running an older copy. A deck is raised only on its first new-feature save (about 23–25 s of
 "Saving…", once per deck); decks that never use the new features keep opening in older versions. Never delete a
@@ -89,11 +89,11 @@ deck's `incident-format-5.json` / `incident-format-6.json`. `Update Slide Builde
 decks that version would only show read-only and asks first.
 
 **CP-01 – the compatibility check against the real old versions** is `tools/compat-old.mjs` (release checklist §2a).
-It checks out the real 4.0, 4.1, 4.4, 4.5, 4.6, 4.6p, 4.7 and 4.8, runs each old helper and page beside this
+It checks out the real older versions (4.0, 4.1, 4.4, 4.5, 4.6 and 4.6p by default; 4.7 and 4.8 with `--versions`), runs each old helper and page beside this
 checkout's on the same deck, and checks that nothing new is lost (cases cp02, a–d, m14, m15, m16). Run it **before
 every release that adds an op, a key or a format**, and at every milestone close; it takes about 35 minutes per
 Python with the real wait (`--bump-wait-s N` shortens it for a quick look, but only the real wait counts). On the
-owner's PC: `node tools/compat-old.mjs --pythons "py -3.8,py -3.12" --new-python python --out
+owner's PC: `node tools/compat-old.mjs --versions 4.0,4.1,4.4,4.5,4.6,4.6p,4.7,4.8 --pythons "py -3.8,py -3.12" --new-python python --out
 $env:TEMP\compat-old.json` – every `RESULT` line must say PASS.
 
 **Open items that only the owner's Windows PC can do** (the list is kept in PROGRESS *Waiting for*)
@@ -153,7 +153,7 @@ designs, charts and callouts, free layout, borders and PowerPoint export – see
   another). **Excel's conditional formats** – colour scales, data bars, icon sets, top/bottom, duplicates, dates and
   the other rule types – drawn as in Excel, in every design and export (in PowerPoint a real table with the bars and
   icons as shapes). **Delete slide** and **Duplicate slide** from the slide list, as in PowerPoint. The **contents
-  slide's list and title can be moved and resized** in free layout (B51). Decks using any of this are **format 6**:
+  slide's list and title can be moved and resized** in free layout. Decks using any of this are **format 6**:
   4.0–4.8 open them read-only and ask to update, so the whole team moves to 4.9 together (§2.3, *Handover*).
 
 The reference below lists every feature as it stands in 4.9.0.
@@ -235,12 +235,12 @@ Cells › *Hide ▾* hides rows or columns of a table on that slide only. The co
 in free layout.
 
 **Charts, shapes, lines and icons** – charts of every common type (4.7, §1.1 above), callouts, shapes, lines and
-arrows attachable to objects, about 6,200 icons (*Insert shape ▾ › More icons…*); snapping for every object (Alt:
+arrows (*Insert line ▾*; hold Ctrl while dragging an end to attach it to an object), about 6,200 icons (*Insert shape ▾ › More icons…*); snapping for every object (Alt:
 none).
 
 **Export** – PDF *text & tables* (vector, default), PDF *as pictures* (lossless PNG pages at 2×, "192 dpi",
 file name "(images)"), current slide PDF, current/every slide PNG (4800 × 2700), *Copy current slide*, every
-version, **PowerPoint** (*Export ▾ › PowerPoint*: real tables, native charts with their data, shapes – never pictures of
+version, **PowerPoint** (*Export ▾ › PowerPoint · all slides* or *· current slide*: real tables, native charts with their data, shapes – never pictures of
 tables or charts). Written by the page itself (§10): nothing to install; from disk the files are downloads.
 *Report a problem with this export…* writes a JSON report to `export\feedback\`.
 

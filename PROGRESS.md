@@ -729,7 +729,7 @@ numbers measured twice). Measured numbers go into the step's line.
 - **Close-out of 4.6–4.9 (branch `v4/closeout`, 2026-10-22): what is done, and what is left for the owner only.**
   **Done:** 4.6.0 ([PR #29](https://github.com/Gualbertol123/slidemaster/pull/29), tag v4.6.0); B48–B50
   ([PR #30](https://github.com/Gualbertol123/slidemaster/pull/30)); **4.7.0** M14 charts
-  ([PR #31](https://github.com/Gualbertol123/slidemaster/pull/31), d327882, tag v4.7.0); **4.8.0** M15 lines, icons,
+  ([PR #31](https://github.com/Gualbertol123/slidemaster/pull/31), merged dd73b07, tag v4.7.0); **4.8.0** M15 lines, icons,
   snapping ([PR #32](https://github.com/Gualbertol123/slidemaster/pull/32), merged into main 36d689a, not tagged
   yet); 4.9.0 M16 tables + S13.7 Delete / Duplicate slide + B51 movable contents slide, put together on
   `v4/release-4.9.0`; the M17 audit (`docs/next/AUDIT-3.md`) with every finding resolved – COMPAT-1 format 6
@@ -746,7 +746,7 @@ numbers measured twice). Measured numbers go into the step's line.
     `core/tests/cf-m16.test.ts` skips the comparison with Excel).
   - **The guide PDF**: the committed one is still the 4.6 build (Segoe UI); on a Windows PC with Segoe UI:
     `node docs/guide/build.mjs guide`, commit the new `docs/guide/Slide Builder 4 – guide.pdf`.
-  - **CP-01 with the real 23 s wait** on Windows: `node tools/compat-old.mjs --pythons "py -3.8,py -3.12"
+  - **CP-01 with the real 23 s wait** on Windows: `node tools/compat-old.mjs --versions 4.0,4.1,4.4,4.5,4.6,4.6p,4.7,4.8 --pythons "py -3.8,py -3.12"
     --new-python python --out $env:TEMP\compat-old.json` (every RESULT PASS, incl. m15 / m16 vs 4.6p, 4.7, 4.8).
   - Known and accepted: the cold PowerPoint export takes ~25 s right after a deck's first 4.6-or-later object (the
     format guard's one-time wait; Decisions 2026-10-21) – accept again or ask for the in-memory export.
