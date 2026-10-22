@@ -23,6 +23,7 @@ import { AddTableMenu } from "./AddTable";
 import { HideMenu } from "./HideMenu";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
 import { Ic } from "./Ic";
+import { OverflowBar } from "./OverflowBar";
 
 const uniq = (a: number[]) => [...new Set(a.map(v => Math.round(v)))];
 
@@ -188,8 +189,8 @@ export function TableRibbon() {
   const sz = R ? sizingOf(R, c) : null, align = sz?.align || "center", free = !!R && !!freeOf(R, c);
   // (since 4.3 raw Excel draws the user's text boxes, comments and notes too: B19)
   return (
-    <nav className="ribbon ribbon2">
-      <div className="grp" title="Size of the selected columns and rows, in table pixels (Excel at 100 %). Or drag a border on the slide; double-click a border for the Excel size.">
+    <OverflowBar className="ribbon ribbon2" rows={2}>
+      <div className="grp" data-prio="1" title="Size of the selected columns and rows, in table pixels (Excel at 100 %). Or drag a border on the slide; double-click a border for the Excel size.">
         <span className="lbl">Cells</span>
         <SizeBox label="W" title="Width of the selected columns (Enter to apply)" disabled={!hasSel} values={T ? cols.map(c => shownColW(T, c)) : []} onSet={v => T && setColWidth(T, cols, v)} />
         <SizeBox label="H" title="Height of the selected rows (Enter to apply)" disabled={!hasSel} values={T ? rows.map(r => shownRowH(T, r)) : []} onSet={v => T && setRowHeight(T, rows, v)} />
@@ -201,13 +202,16 @@ export function TableRibbon() {
         </Dropdown>
         {mergedInSel().length ? <button className="tb mergebtn" id="unmergeBtn" title="Split the merged cells in the selection" onClick={unmergeSel}>Unmerge</button>
           : <button className="tb mergebtn" id="mergeBtn" title="Merge the selected cells (the top-left value is kept)" disabled={!canMerge()} onClick={mergeSel}>Merge</button>}
+      </div>
+      {/* the cells' look: a group of its own, so that a narrow window can put it into More ▾ (4.12) */}
+      <div className="grp" data-prio="4">
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="bordersBtn" disabled={!(hasSel && T?.def)} title="Borders of the selected cells, as in Excel – on the slide only (the workbook is not changed)" onClick={t}>
           <Ic n="border-all" />Borders ▾</button>}>{() => T ? <BorderMenu T={T} /> : null}</Dropdown>
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="scaleBtn" disabled={!hasSel} title="Colour scale: deeper green/red the bigger the number" onClick={t}>
           <i className="scaleico" />Colour scale</button>}>{close => <ScaleMenu close={close} />}</Dropdown>
         <VersionMenu />
       </div>
-      <div className="grp">
+      <div className="grp" data-prio="3">
         <button className="tb" id="sameSize" disabled={!R || R.tables.length < 2} title="Make the tables on this slide exactly the same size"
           onClick={() => { const r = makeSameSize(currentTableRefs(), { width: true, height: true, target: "largest" }); if (!r.ok) toast(esc(r.why)); }}><Ic n="dimensions" />Same size</button>
         <Dropdown button={(_o, t) => <button className="tb" id="posBtn" disabled={!R || !R.tables.length || free} title={free ? "In a free layout each table is placed by dragging it (Free layout off: the automatic positions)" : "Position of the tables on the slide"} onClick={t}>
@@ -229,14 +233,14 @@ export function TableRibbon() {
           onClick={() => R && (free ? freeLayoutOff(R) : freeLayoutOn(R))}>Free layout</button>
         <button className="tb" id="resetLayout" title={free ? "Back to the automatic layout of this slide" : "Automatic table positions for this slide (in this design)"} disabled={!(R && (free || sizingOf(R, c).layout))} onClick={() => R && (free ? void askAutomatic(R) : slidePatch("Reset layout", sizingPatch(R, c, { scale: sizingOf(R, c).scale })))}>Reset layout</button>
       </div>
-      <div className="grp">
+      <div className="grp" data-prio="0">
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="addTable" disabled={!open} title="Add a table of the workbook to this slide: the deck's tables, or new from cells" onClick={t}>
           <Ic n="table-plus" />Add table ▾</button>}>
           {close => <AddTableMenu close={close} />}</Dropdown>
         <InsertSlots />{/* Insert chart ▾, Shapes & icons… … (InsertSlots.tsx: one entry per kind, S14.P) */}
       </div>
       <ShapeTools />
-      <div className="grp">
+      <div className="grp" data-prio="2">
         <span className="lbl">Text box</span>
         {(["top", "bottom", "left", "right"] as const).map(sd => <button key={sd} className="tb" data-addnote={sd} disabled={!R || tIdx < 0} title={`Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd} of the table`} onClick={() => addNote(sd)}>
           <Ic n={sd === "top" ? "arrow-up" : sd === "bottom" ? "arrow-down" : sd === "left" ? "arrow-left" : "arrow-right"} /></button>)}
@@ -246,7 +250,7 @@ export function TableRibbon() {
         <button className="tb" id="noteAttach" disabled={!(note && note.x != null) || noteSel === "slide:notes"} title="Put the moved text box back next to its table (drag a text box to place it anywhere)" onClick={attachNote}><Ic n="link" />Attach</button>
         <button className="tb" id="noteDelete" disabled={!note} title="Delete the selected text box (Del)" onClick={() => patchNote("Remove text box", null)}><Ic n="trash" /></button>
       </div>
-      <div className="grp">
+      <div className="grp" data-prio="5">
         <button className={"tb" + (R?.cfg.notes?.["slide:notes"] ? " on" : "")} id="slideNotes" disabled={!R} title={"Notes section of this slide (sources, footnotes…): starts where the footer is – drag it anywhere, e.g. next to the page number"} onClick={addSlideNotes}><Ic n="notes" />Notes</button>
         <button className={"tb" + (logoOn ? " on" : "")} id="logoToggle" disabled={!R || !logoName} title={R && !logoOn ? "The logo is hidden on this slide – click to show it" : "Hide the logo on this slide"}
           onClick={() => slidePatch(logoOn ? "Hide logo" : "Show logo", { logo: logoOn ? false : null })}><Ic n="photo" />Logo</button>
@@ -254,6 +258,6 @@ export function TableRibbon() {
           onClick={() => slidePatch(R.cfg.subs !== false ? "Hide subtitles in contents" : "Show subtitles in contents", { subs: R.cfg.subs !== false ? false : null })}>Subtitles</button>}
       </div>
       {isConsult(st.design) && <LookGroup />}
-    </nav>
+    </OverflowBar>
   );
 }

@@ -296,3 +296,45 @@ body.painting .slide .hits{cursor:copy}
 .thumb.hid .cap .n{text-decoration:line-through}
 .thumb .cap .hidmark{background:#EEF0F4;color:var(--mute)}
 .stagehid{position:absolute;left:8px;top:8px;z-index:5;pointer-events:none;font:600 11.5px var(--font);padding:3px 9px;border-radius:8px;background:rgba(20,24,40,.72);color:#fff}
+/* the side panel folded to a rail (4.12, ui/NavRail.tsx): « on its head folds it, » on the rail opens it */
+.navhd .newslide{margin-left:auto}
+.railbtn{border:0;background:none;color:var(--mute);font:600 16px/1 var(--font);width:26px;height:24px;border-radius:6px;cursor:pointer;margin-left:4px;flex:none}
+.railbtn:hover{background:#F1F3F6;color:var(--ink)}
+.nav.rail > :not(.navrail){display:none}
+.navrail{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0 8px;min-height:0;flex:1}
+.navrail .railbtn{margin:0}
+.railnew,.railitem{width:32px;height:28px;flex:none;border:1px solid var(--line2);border-radius:7px;background:#fff;color:var(--accent);font:600 16px/1 var(--font);cursor:pointer}
+.railnew:disabled{color:var(--mute);cursor:default;opacity:.5}
+.railslides{display:flex;flex-direction:column;align-items:center;gap:4px;overflow:auto;min-height:0;flex:1;width:100%;padding:2px 0}
+.railslide{width:32px;height:24px;flex:none;border:1px solid transparent;border-radius:6px;background:none;color:var(--mute);font:600 12px var(--font);cursor:pointer}
+.railslide:hover{background:#F1F3F6}
+.railslide.on{background:var(--accent-soft);color:var(--accent);border-color:#C7DBF6}
+/* toolbars that keep their rows – one, the layout ribbon two (4.12, ui/OverflowBar.tsx): compact (icons alone, no small labels), then the least
+   needed groups in More ▾ – which lays the bar over what is below it, those groups (in full) on the rows under the first */
+.obslot{position:relative;min-width:0}
+.obar{flex-wrap:nowrap;min-width:0;row-gap:6px}
+.obar[data-wrap]{flex-wrap:wrap}
+.obar[data-measure]{flex-wrap:nowrap}
+.obar > *{flex-shrink:0}
+.obar > [data-flex]{flex-shrink:1}
+.obar:not([data-measure]):not([data-more]) > [data-ovf]{display:none}
+.obar:not([data-has-more]):not([data-measure]) > .obmore{display:none}
+.obar > .obmore{margin-left:auto;gap:4px;font-weight:600}
+.obar > .obmore .obcaret{font-size:10px}
+.obar[data-more] > .obmore{background:var(--accent-soft);border-color:#C7DBF6;color:var(--accent)}
+.obar[data-more]{position:absolute;left:0;right:0;top:0;z-index:80;flex-wrap:wrap;box-shadow:0 14px 30px rgba(20,24,40,.18)}
+.obar[data-more]::after{content:"";order:1;flex-basis:100%;height:0}
+.obar[data-more] > [data-ovf]{order:2}
+.ribbon > .grp:last-of-type{border-right:0}
+.obar[data-more] > [data-ovf].grp{border-right:0;padding:2px 8px 2px 0}
+.obar > [data-compact]:not([data-ovf]) .tb:has(> svg.ic):not(.colorbtn):not(#numDecDown),.obar > [data-compact].tb:not([data-ovf]):has(> svg.ic),.obar > [data-compact]:not([data-ovf]) .btn:has(> svg.ic),.obar > [data-compact].btn:not([data-ovf]):has(> svg.ic){font-size:0;gap:0}
+.obar > [data-compact]:not([data-ovf]) .btn:has(> svg.ic),.obar > [data-compact].btn:not([data-ovf]):has(> svg.ic){width:32px;padding:0;justify-content:center}
+.obar > [data-compact].grp:not([data-ovf]) > .lbl{display:none}
+.obar > [data-compact]:not([data-ovf]) .target{width:96px}
+.obar > [data-compact]:not([data-ovf]) .tb.fontbtn{width:132px}
+/* zoomed in past 100 % (4.12) the handles and the selection's rings keep their size on screen (--hk: 1 / the zoom, at
+   most 1 – Stage.tsx): what is on the slide grows, what is drawn to work on it does not */
+.slide .itembox .size,.slide .hbox .size,.slide .hbox .addnote{scale:var(--hk,1)}
+.slide .hbox .grip{scale:var(--hk,1);transform-origin:0 100%}
+.slide .itembox.sel,.slide .tnote.sel,#stage .slide .tsel,#stage .slide .tsel:hover{outline-width:calc(2px * var(--hk,1));outline-offset:calc(2px * var(--hk,1))}
+.slide .hbox.active{outline-width:calc(2px * var(--hk,1));outline-offset:calc(4px * var(--hk,1))}

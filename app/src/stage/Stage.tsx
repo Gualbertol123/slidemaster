@@ -36,6 +36,7 @@ import { Items } from "./items";
 import { Lines } from "./lines";
 import { SnapGuides } from "./guides";
 import { HiddenMarks } from "./HiddenMarks";
+import { clampZoom, scrollFor, slideOrigin, stageExtent, takePendingAnchor } from "./zoom";
 
 const SIDES: Side[] = ["top", "bottom", "left", "right"];
 
@@ -54,10 +55,12 @@ if (typeof addEventListener === "function") {
   addEventListener("contextmenu", release, true);
   addEventListener("pointermove", e => { if (held && e.buttons === 0) release(); }, true);
 }
+/** the main button is held (a drag may be under way: stage/zoom.ts does not zoom then) */
+export const isHeld = () => held;
 /** fit now, or – while the main button is held – when it is released (the latest call wins) */
 export function fitOrDefer(now: () => void) { if (held) refit = now; else now(); }
 
-/** the stage's frame: fits the slide into the space (or shows it at the chosen zoom) */
+/** the stage's frame: fits the slide into the space (or shows it at the chosen zoom, scrolled: 4.12) */
 export function Stage() {
   const host = useRef<HTMLDivElement>(null);
   const zoom = useStore(s => s.ui.zoom), fitTick = useStage(s => s.fitTick);
@@ -70,11 +73,24 @@ export function Stage() {
     addEventListener("resize", measure);
     return () => { ro?.disconnect(); removeEventListener("resize", measure); if (refit === now) refit = null; };
   }, [fitTick]);
-  const [cw, ch] = size, fit = Math.min((cw - 56) / 1600, (ch - 64) / 900), s = zoom === "fit" ? (fit > 0 ? fit : 1) : zoom;
-  useEffect(() => { if (useStage.getState().scale !== s) setStage({ scale: s }); }, [s]);
+  const [cw, ch] = size, fit = Math.min((cw - 56) / 1600, (ch - 64) / 900), s = zoom === "fit" ? (fit > 0 ? fit : 1) : clampZoom(zoom);
+  // the scale the drags divide by (stage().scale) is the one drawn – before the next pointer or wheel event reads it
+  useLayoutEffect(() => { if (useStage.getState().scale !== s) setStage({ scale: s }); }, [s]);
+  // a zoom anchored at a point (stage/zoom.ts): scrolled so that the slide point stays under it. The scroll bars the zoom
+  // brings change the space: measured again first (a synchronous render before the paint), then scrolled
+  useLayoutEffect(() => {
+    const el = host.current; if (!el) return;
+    if (el.clientWidth !== cw || el.clientHeight !== ch) { setSize([el.clientWidth, el.clientHeight]); return; }
+    const a = takePendingAnchor(); if (!a || zoom === "fit") return;
+    const to = scrollFor(a, cw, ch, s);
+    el.scrollLeft = to.left; el.scrollTop = to.top;
+  }, [s, cw, ch]);
+  const o = slideOrigin(cw, ch, s), ext = stageExtent(cw, ch, s);
   return (
-    <div id="stage" ref={host} style={{ position: "absolute", inset: "0", overflow: zoom === "fit" ? "hidden" : "auto" }}>
-      <Wrap s={s} left={Math.max(16, (cw - 1600 * s) / 2)} top={Math.max(16, (ch - 900 * s) / 2)} />
+    <div id="stage" ref={host} data-zoom={zoom === "fit" ? "fit" : String(Math.round(s * 100))} style={{ position: "absolute", inset: "0", overflow: zoom === "fit" ? "hidden" : "auto" }}>
+      {/* zoomed in, the slide and its margins are what the stage scrolls over */}
+      {zoom !== "fit" && <div className="stagesizer" style={{ width: ext.w, height: ext.h }} />}
+      <Wrap s={s} left={o.left} top={o.top} />
       <PainterCursor />
     </div>
   );
@@ -107,7 +123,7 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
   const frame = slideFrame(R, c), vars = Object.fromEntries(frame.vars);
   return (
     <div className="stagewrap" style={{ left, top, width: 1600 * s, height: 900 * s }}>
-      <div ref={slideRef} className={frame.className} style={{ transform: `scale(${s})`, ...vars }}
+      <div ref={slideRef} className={frame.className} style={{ transform: `scale(${s})`, ...vars, ...{ "--hk": Math.min(1, 1 / s) } as React.CSSProperties }}
         onPointerDown={e => {
           // a click on the empty slide clears every selection
           if ((e.target as Element).closest(".hits,.tnote,.hbox,.itembox,.linehit,.linehandle,[data-edit]")) return;
