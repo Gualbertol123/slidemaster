@@ -1,1 +1,283 @@
-[]
+[
+ {
+  "name": "M14 item.patch sers: a waterfall's points[i].total (4.7, AUDIT-3 VEC-1) set on two points, then cleared on one – the series entry replaced whole each time; each inverse puts the entry back as it was",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "Weekly"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "c1": {
+        "kind": "chart",
+        "type": "waterfall",
+        "values": {
+         "sheet": "Weekly",
+         "range": "C5:F5"
+        },
+        "labels": {
+         "sheet": "Weekly",
+         "range": "C4:F4"
+        },
+        "box": {
+         "x": 120,
+         "y": 180,
+         "w": 1360,
+         "h": 620
+        },
+        "sers": {
+         "w1": {
+          "n": 1,
+          "vals": [
+           {
+            "sheet": "Weekly",
+            "range": "C5:H5"
+           }
+          ],
+          "points": {
+           "0": {
+            "color": "#1F3864"
+           }
+          }
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "c1",
+    "patch": {
+     "sers": {
+      "w1": {
+       "n": 1,
+       "vals": [
+        {
+         "sheet": "Weekly",
+         "range": "C5:H5"
+        }
+       ],
+       "points": {
+        "0": {
+         "color": "#1F3864"
+        },
+        "3": {
+         "total": true
+        }
+       }
+      }
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "c1",
+    "patch": {
+     "sers": {
+      "w1": {
+       "n": 1,
+       "vals": [
+        {
+         "sheet": "Weekly",
+         "range": "C5:H5"
+        }
+       ],
+       "points": {
+        "0": {
+         "color": "#1F3864"
+        },
+        "3": {
+         "total": true
+        },
+        "5": {
+         "total": true,
+         "color": "#00B050"
+        }
+       }
+      }
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "c1",
+    "patch": {
+     "sers": {
+      "w1": {
+       "n": 1,
+       "vals": [
+        {
+         "sheet": "Weekly",
+         "range": "C5:H5"
+        }
+       ],
+       "points": {
+        "0": {
+         "color": "#1F3864"
+        },
+        "5": {
+         "total": true,
+         "color": "#00B050"
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "Weekly"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "c1": {
+        "kind": "chart",
+        "type": "waterfall",
+        "values": {
+         "sheet": "Weekly",
+         "range": "C5:F5"
+        },
+        "labels": {
+         "sheet": "Weekly",
+         "range": "C4:F4"
+        },
+        "box": {
+         "x": 120,
+         "y": 180,
+         "w": 1360,
+         "h": 620
+        },
+        "sers": {
+         "w1": {
+          "n": 1,
+          "vals": [
+           {
+            "sheet": "Weekly",
+            "range": "C5:H5"
+           }
+          ],
+          "points": {
+           "0": {
+            "color": "#1F3864"
+           },
+           "5": {
+            "total": true,
+            "color": "#00B050"
+           }
+          }
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 3,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "item.patch",
+     "slide": "s1",
+     "id": "c1",
+     "patch": {
+      "sers": {
+       "w1": {
+        "n": 1,
+        "vals": [
+         {
+          "sheet": "Weekly",
+          "range": "C5:H5"
+         }
+        ],
+        "points": {
+         "0": {
+          "color": "#1F3864"
+         }
+        }
+       }
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "s1",
+     "id": "c1",
+     "patch": {
+      "sers": {
+       "w1": {
+        "n": 1,
+        "vals": [
+         {
+          "sheet": "Weekly",
+          "range": "C5:H5"
+         }
+        ],
+        "points": {
+         "0": {
+          "color": "#1F3864"
+         },
+         "3": {
+          "total": true
+         }
+        }
+       }
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "s1",
+     "id": "c1",
+     "patch": {
+      "sers": {
+       "w1": {
+        "n": 1,
+        "vals": [
+         {
+          "sheet": "Weekly",
+          "range": "C5:H5"
+         }
+        ],
+        "points": {
+         "0": {
+          "color": "#1F3864"
+         },
+         "3": {
+          "total": true
+         },
+         "5": {
+          "total": true,
+          "color": "#00B050"
+         }
+        }
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+]

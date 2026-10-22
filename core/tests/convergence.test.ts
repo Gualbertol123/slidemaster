@@ -44,7 +44,7 @@ class Net {
       append: (_k, w, r) => this.hold(() => d.doAppend(w, JSON.parse(JSON.stringify(r)), this.rand() < this.failRate ? failures[Math.floor(this.rand() * 4)] : undefined)),
       compact: (_k, g, s) => this.hold(() => d.doCompact(g, JSON.parse(JSON.stringify(s)))),
       rotate: (_k, w) => this.hold(() => d.doRotate(w)),
-      format5: () => this.hold(() => d.doFormat5()),
+      format5: (_k, f) => this.hold(() => d.doFormat5(f)),
     };
   }
   deliverOne() {

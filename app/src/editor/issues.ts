@@ -4,6 +4,7 @@ import type { Sheet } from "@slide-builder/core/xlsx/types";
 import type { RuntimeSlide } from "@slide-builder/core/model/types";
 import { tableName } from "@slide-builder/core/model/preset";
 import { computeLayout, sizingOf } from "@slide-builder/core/render/layout";
+import { origMatches } from "@slide-builder/core/render/edits";
 import type { RenderCtx } from "@slide-builder/core/render/context";
 import { kindText, knownKind, laterKindsIssue } from "./item-text";
 
@@ -26,6 +27,7 @@ export function slideIssues(R: RuntimeSlide, ctx: RenderCtx, items?: Record<stri
   if (R.type === "cover") return [{ cls: "", html: "Cover slide · double-click the title to edit it, or use the wizard (step 3)." }, ...out];
   if (R.type === "index") return [{ cls: "", html: `Index slide · lists ${ctx.slides.filter(s => s.type === "content").length} content slide(s) with their page numbers.` }, ...out];
   if (R.missing) out.push({ cls: "err", html: `${R.missing} table${R.missing > 1 ? "s" : ""} of this slide could not be found (sheet renamed or deleted?). Open the wizard to fix.` });
+  if (R.dropWhole) out.push({ cls: "warn", html: `${R.dropWhole > 1 ? R.dropWhole + " tables" : "A table"} of this slide shown${R.dropWhole > 1 ? "" : " with"} every row and column in this version: its deleted ones would leave none, so this version is not exported. Restore some (Cells › For this version ▾).` });
   if (!R.tables.length) out.push({ cls: "warn", html: "No tables on this slide." });
   const { boxes } = computeLayout(R, ctx);
   const sheets = new Set<Sheet>();
@@ -42,11 +44,11 @@ export function slideIssues(R: RuntimeSlide, ctx: RenderCtx, items?: Record<stri
     const D = S.drawing;
     if (D.charts.length) out.push({ cls: "warn", html: `Chart${D.charts.length > 1 ? "s" : ""} on ${esc(S.name)} not reproduced: ${D.charts.map(esc).join(", ")}. In Excel: copy the chart › Paste Special › Picture (PNG) inside the table area.` });
     if (D.unsupported.length) out.push({ cls: "warn", html: `Picture${D.unsupported.length > 1 ? "s" : ""} on ${esc(S.name)} that could not be read: ${D.unsupported.map(esc).join(", ")}` });
-    if (S.unsupportedCF.size) out.push({ cls: "warn", html: `Not reproduced on ${esc(S.name)}: ${[...S.unsupportedCF].join(", ")} conditional formats` });
+    if (S.unsupportedCF.size) out.push({ cls: "warn", html: `Conditional formats not reproduced on ${esc(S.name)}: ${esc([...S.unsupportedCF].join(", "))}` });
     const cells = ctx.edits[S.name] || {}, n = Object.keys(cells).length;
     if (n) {
       const all = R.tables.filter(T => T.sheet === S).flatMap(T => T.items);
-      const stale = Object.entries(cells).filter(([k, e]) => e.text !== undefined && all.some(it => A1(it.b.src.r, it.b.src.c) === k) && !all.some(it => A1(it.b.src.r, it.b.src.c) === k && it.text === e.orig)).length;
+      const stale = Object.entries(cells).filter(([k, e]) => e.text !== undefined && all.some(it => A1(it.b.src.r, it.b.src.c) === k) && !all.some(it => A1(it.b.src.r, it.b.src.c) === k && origMatches(e, it))).length;
       out.push({ cls: "", html: `${n} edited cell${n > 1 ? "s" : ""} on ${esc(S.name)}` + (stale ? ` · <span class="warn">${stale} text edit${stale > 1 ? "s" : ""} paused: the Excel value changed (rows inserted above the table, or new figures)</span>` : "") });
     }
   }

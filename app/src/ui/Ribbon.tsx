@@ -5,11 +5,12 @@ import { isLookText, LOOK_TEXT_LABEL } from "../editor/look";
 import { useEffect, useState } from "react";
 import { get, useStore } from "../state/store";
 import { core, undo } from "../state/app";
-import { activeItem, applySel, commitText, curSlide, selItems, editOf } from "../editor/edit";
+import { activeItem, applySel, commitText, curSlide, selCells, selItems, editOf } from "../editor/edit";
 import { kindText } from "../editor/item-text";
 import { startPainter, stopPainter } from "../editor/painter";
-import { SLIDE_TEXT_LABEL, stepSize, textTarget, type TextTarget, type VAlign } from "../editor/textfmt";
-import { effFmt, effText, keyOf } from "@slide-builder/core/render/edits";
+import { numShown, SLIDE_TEXT_LABEL, stepNumber, stepSize, textTarget, type Align, type TextTarget, type VAlign } from "../editor/textfmt";
+import { numHas } from "@slide-builder/core/render/numdisplay";
+import { effFmt, effText, keyOf, origMatches } from "@slide-builder/core/render/edits";
 import { A1 } from "@slide-builder/core/xlsx/util";
 import { Dropdown } from "./Dropdown";
 import { Field } from "./Field";
@@ -38,8 +39,8 @@ function InkMenu({ t, close }: { t: TextTarget; close: () => void }) {
   </>;
 }
 function FillMenu({ close }: { close: () => void }) {
-  const bg = (v: string | null) => applySel(v === null ? "Excel cell colour" : "Cell colour", e => { if (v === null) delete e.bg; else { e.bg = v; delete e.fill; } });
-  const hl = (v: string | null) => applySel(v === null ? "Remove highlight" : "Highlight", e => { if (v === null) delete e.fill; else e.fill = v; });
+  const bg = (v: string | null) => applySel(v === null ? "Excel cell colour" : "Cell colour", e => { if (v === null) delete e.bg; else { e.bg = v; delete e.fill; } }, selCells());
+  const hl = (v: string | null) => applySel(v === null ? "Remove highlight" : "Highlight", e => { if (v === null) delete e.fill; else e.fill = v; }, selCells());
   const isp = isIsp(useDesign());
   return <div className="fillmenu">
     <div className="hd">Cell colour <small>replaces the colour from Excel (in Liquid Glass: the colour of the block)</small></div>
@@ -57,12 +58,14 @@ const VALIGN_ICON = { top: "align-box-center-top", middle: "align-box-center-mid
 
 export function Ribbon() {
   const canUndo = useStore(s => s.deck.history.undo > 0), canRedo = useStore(s => s.deck.history.redo > 0);
-  const painter = useStore(s => !!s.selection.painter), open = useStore(s => s.doc.open);
+  const painter = useStore(s => !!s.selection.painter), open = useStore(s => s.doc.open), item = useStore(s => !!s.selection.itemSel);
   useStore(s => s.selection); useCurSlide();                 // what the text target is computed from
   const c = useCtx();
   const t = textTarget(), has = !!t, f = t?.shown, cells = t?.kind === "cells";
   const fillSw = cells ? (() => { const x = effFmt(c, activeItem()!); return x.bg && x.bg !== "none" ? x.bg : x.fill && x.fill !== "none" ? x.fill : null; })() : null;
   const tb = ({ active, off, ...props }: Record<string, unknown>) => ({ className: "tb" + (active ? " on" : ""), disabled: !has || !!off, ...props });
+  // the number display of the cells (4.9): the active cell's code; off for anything but cells
+  const num = cells ? numShown(activeItem()) : null, nb = (props: Record<string, unknown>) => tb({ off: !cells, ...props });
   return (
     <nav className="ribbon">
       <div className="grp">
@@ -103,9 +106,15 @@ export function Ribbon() {
       </div>
       <div className="grp">
         <button {...tb({ id: "clearFmt", title: "Remove your formatting from the selected text (back to the text style)" })} onClick={() => t?.clear()}>Clear format</button>
-        <button className={"tb" + (painter ? " on" : "")} id="painterBtn" disabled={!cells && !painter} title="Copy the format of table cells: click, then click or drag over the cells to paste. Double-click to paste several times; Esc stops."
+        <button className={"tb" + (painter ? " on" : "")} id="painterBtn" disabled={!cells && !item && !painter} title="Copy the format of table cells (or of a chart, callout, icon or line): click, then click or drag over the cells (objects of the same kind) to paste. Ctrl+click several, then let go of Ctrl, to paste onto all of them at once. Double-click to paste several times; Esc stops."
           onClick={() => painter ? stopPainter() : startPainter(false)} onDoubleClick={() => startPainter(true)}>
           <Ic n="paint" />Format</button>
+      </div>
+      <div className="grp numgrp" title="Number display of the selected cells (over Excel's format)">
+        <button {...nb({ id: "numDecDown", title: "Fewer decimals" })} onClick={() => stepNumber("dec-", activeItem())}>←.0</button>
+        <button {...nb({ id: "numDecUp", title: "More decimals" })} onClick={() => stepNumber("dec+", activeItem())}>.00</button>
+        <button {...nb({ id: "numPct", title: "Percent (on / off)", active: !!num && numHas(num, "pct") })} onClick={() => stepNumber("pct", activeItem())}>%</button>
+        <button {...nb({ id: "numThou", title: "Thousands separator (on / off)", active: !!num && numHas(num, "thou") })} onClick={() => stepNumber("thou", activeItem())}>000</button>
       </div>
       <div className="grp">
         <button className="tb" id="textStylesBtn" disabled={!open} title="Fonts, sizes and colours of ALL titles, subtitles, tables, text boxes, contents and page numbers in this deck – and the font library" onClick={() => openFontManager("styles")}>
@@ -149,7 +158,7 @@ export function FxBar() {
 }
 
 export function selStatus(): string {
-  const R = curSlide(), it = activeItem(), its = selItems(), { selection: { noteSel, textSel, itemSel }, deck } = get();
+  const R = curSlide(), it = activeItem(), its = selCells(), { selection: { noteSel, textSel, itemSel }, deck } = get();
   if (!R) return "";
   // a slide item: its kind's words (editor/item-text.ts; M14 and M15 each in their own file)
   if (itemSel && R.cfg.items?.[itemSel.id]) { const it = R.cfg.items[itemSel.id]; return kindText(it).status(it, itemSel); }
@@ -157,6 +166,8 @@ export function selStatus(): string {
   if (textSel && isLookText(textSel)) return `${LOOK_TEXT_LABEL[textSel]} selected · its font, size and colour above, its parts in the Headline group (this slide)`;
   if (textSel) return `${SLIDE_TEXT_LABEL[textSel]} selected · double-click or Enter to edit the text`;
   if (!it) return `Slide ${deck.cur + 1} of ${deck.slides.length}`;
-  const e = editOf(it);
-  return `${its.length} cell${its.length > 1 ? "s" : ""} selected` + (e.text !== undefined && e.orig !== it.text ? " · text edit paused (Excel value changed)" : e.text !== undefined ? ` · Excel value: “${it.text}”` : "");
+  const e = editOf(it), n = (get().selection.sel?.more?.length ?? 0) + 1;
+  // several Ctrl+click ranges: which controls reach them all (S16.3 second review, 6)
+  if (n > 1) return `${its.length} cells in ${n} ranges selected · text, colour and number controls: all ranges · borders, merges, roles, rows, columns, charts: the current range only`;
+  return `${its.length} cell${its.length > 1 ? "s" : ""} selected` + (e.text !== undefined && !origMatches(e, it) ? " · text edit paused (Excel value changed)" : e.text !== undefined ? ` · Excel value: “${it.text}”` : "");
 }

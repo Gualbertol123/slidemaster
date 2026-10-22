@@ -18,6 +18,7 @@ import { computeLayout } from "@slide-builder/core/render/layout";
 import { slideCtx } from "@slide-builder/core/render/look";
 import { kindText } from "../editor/item-text";
 import { selectItem } from "../editor/charts";
+import { paintItem } from "../editor/painter";
 import { anchorList, endOps, lineNow, midFor, midOps, moveOps, nearestAnchor, snap45, type LineNow } from "../editor/lines";
 import { slideScale } from "./actions";
 import { snapTargets } from "./drags";
@@ -46,6 +47,8 @@ export function Lines({ m, R, s }: { m: StageModel; R: RuntimeSlide; s: number }
   function start(e: React.PointerEvent, id: string, L: LineNow, handle: Handle) {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
+    // the format painter holding a line's look (4.9, as items.tsx): this line takes it (Ctrl: noted, pasted with the others)
+    if (paintItem(id, e.ctrlKey || e.metaKey)) return;
     if (handle === "body") selectItem(id); else patch("selection", { itemSel: { id, slice: null, handle } });
     const sc = slideScale(), sx = e.clientX, sy = e.clientY, a0 = L.a, b0 = L.b, mid0 = routeOf(L.it, a0, b0).mid;
     let cur: Live = { id, handle, a: a0, b: b0, anchor: null, moved: false, marks: null }, at: Anchor | null = null, anchors: ReturnType<typeof anchorList> | null = null;

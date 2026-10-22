@@ -6,6 +6,9 @@ import { get, toast } from "../state/store";
 import { change, focusSlide, style } from "../state/app";
 import { DESIGNS } from "@slide-builder/core/model/designs";
 import { curSlide } from "./edit";
+import { confirmBox } from "../state/dialogs";
+import { esc } from "@slide-builder/core/xlsx/util";
+import { copySlide } from "@slide-builder/core/model/slidecopy";
 import type { Preset, SlideDef, TableDef } from "@slide-builder/core/model/types";
 
 /** an id no other page makes: random, 10 base-36 characters after the prefix (a slide.add or a new table.add with an id
@@ -65,4 +68,41 @@ export function hideSlide(id: string, every = false): boolean {
   const patch = every ? (all ? null : Object.fromEntries(DESIGNS.map(x => [x, true as const]))) : { [d]: on ? null : true as const };
   return change(every ? (all ? "Show in every design" : "Hide in every design") : on ? "Show slide" : "Hide slide",
     [{ op: "slide.patch", id: R.id, patch: { hide: patch } }]);
+}
+
+/* Delete slide and Duplicate slide (S13.7, owner Q12; the slide list's menu, Delete on a selected thumbnail): each one
+   operation, so one undo step – slide.remove (its inverse puts the definition back where it was) and slide.add of a copy
+   right after the slide. By id, not position: another writer's slide.add / slide.remove while the menu or the question is
+   open moves the slides. Only content slides are duplicated: the wizard keeps one cover and one contents slide (it finds
+   and toggles the first of each), so a second one would be left behind by it. Any slide may be deleted but the last one:
+   a deck with no slide has no thumbnail to right-click for New slide. */
+
+/** Duplicate slide: a copy of content slide `id` right after it (core model/slidecopy.ts: its items under new ids), shown
+    (one slide.add) */
+export function duplicateSlide(id: string): string | null {
+  const p = get().doc.view?.preset, s = p?.slides.find(x => x.id === id);
+  if (!p || !s || !get().doc.open) return null;
+  if (s.type !== "content") { toast("Only content slides are duplicated: the deck keeps one cover and one contents slide."); return null; }
+  const nid = newId("s", x => p.slides.some(t => t.id === x));
+  focusSlide(nid);
+  if (change("Duplicate slide", [{ op: "slide.add", slide: copySlide(s, nid, t => newId("i", t)), after: id }])) return nid;
+  focusSlide(null);
+  return null;
+}
+
+/** Delete slide: asks first, then removes slide `id` (one slide.remove); its tables stay in the deck. The slide after it
+    is shown then (the one before when it was the last) */
+export async function deleteSlide(id: string): Promise<boolean> {
+  const R = get().deck.slides.find(x => x.id === id);
+  if (!R || !get().doc.open) return false;
+  if (get().deck.slides.length < 2) { toast("A deck keeps at least one slide: add another one first."); return false; }
+  const n = (R.cfg.tables || []).length;
+  const html = `Delete slide “${esc(R.label)}”?` + (n ? ` Its table${n > 1 ? "s stay" : " stays"} in the deck (Add table puts ${n > 1 ? "them" : "it"} on a slide again).` : "") + " Undo brings the slide back.";
+  if (!await confirmBox("Delete slide", html, "Delete", true)) return false;
+  const slides = get().deck.slides, i = slides.findIndex(x => x.id === id);       // (another writer may have moved or removed it meanwhile)
+  if (i < 0 || slides.length < 2) return false;
+  focusSlide((slides[i + 1] || slides[i - 1]).id);
+  if (change("Delete slide", [{ op: "slide.remove", id }])) return true;
+  focusSlide(null);
+  return false;
 }

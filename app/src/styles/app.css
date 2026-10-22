@@ -231,6 +231,8 @@ body.painting .slide .hits{cursor:copy}
 .wov .ovb.cut{border:2px solid #D92D20;background:repeating-linear-gradient(135deg,rgba(217,45,32,.18) 0 6px,rgba(217,45,32,.06) 6px 12px)}
 #wCutRange{flex:1}
 .menu button:disabled{opacity:.45;cursor:default}
+.wov .ovb.drop{pointer-events:none;--k:#D92D20;background:linear-gradient(var(--d,180deg),transparent calc(50% - 1px),var(--k) 0 calc(50% + 1px),transparent 0),rgba(217,45,32,.10)}
+.wov .ovb.drop.c{--d:90deg}   /* 4.9 (B37): rows / columns deleted in the version, struck through */
 .wov .ovb.ghost,.wov .ovb.cut{pointer-events:none}        /* step 4: cells inside tables are picked through the outlines */
 /* the stage (S4.1): the slide is drawn by SVG layers; .ovl holds what you point at – the text layer (transparent
    elements over the drawn texts: select, double-click, read), text boxes, the tables' hit areas and handles. As in v3

@@ -4,10 +4,10 @@
 import type { CellEdit, Op, SlideDef, TableDef, WorkbookDoc, StylePatch } from "./types";
 
 const SLIDE_KEYS = ["title", "subtitle", "date", "note", "logo", "layout", "align", "scale", "valign", "subs"] as const;
-const SLIDE_MAPS = ["notes", "fmt", "sizes", "free", "looks", "hide"] as const;
+const SLIDE_MAPS = ["notes", "fmt", "sizes", "free", "looks", "hide", "hidden"] as const;
 const TABLE_KEYS = ["name", "gridH", "gridV"] as const;
 const TABLE_MAPS = ["cols", "rows", "scales", "merges", "sizes", "cellGrid", "borders"] as const;
-const CELL_KEYS = ["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role"] as const;
+const CELL_KEYS = ["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role", "valign", "num"] as const;
 const STYLE_MAPS = ["pn", "footer", "theme", "text", "colors", "designs"] as const;
 const STYLE_KEYS = ["design", "glass", "color", "logo", "radius", "contrast", "logoBubble"] as const;
 /* slide items (07 §2.2): plain keys of every kind, and the map-merge keys. 09 §2.10's whole item.patch row (S14.P, for
@@ -126,8 +126,45 @@ export function applyOp(doc: Doc, op: Op | Record<string, unknown>): boolean {
       s.tables.splice(i, 1);                                                          // its def, notes and free boxes stay
       return true;
     }
+    /* 09 §2.5 (4.9, B37): `name` on a missing id creates the version, appended (or at `at`), with `hide: {}`; null deletes it; `hide`
+       and `drop` merge per sheet (a sheet's list replaced whole: of two writers on one sheet the later wins, Lamport) */
+    case "version.patch": {
+      if (!okId(o.id) || !doc.preset || (o.patch !== null && !isObj(o.patch))) return false;
+      const list = doc.preset.versions || [], i = list.findIndex(v => v && v.id === o.id), p = o.patch;
+      if (p === null) {
+        if (i < 0) return false;
+        list.splice(i, 1);
+        if (list.length) doc.preset.versions = list; else delete doc.preset.versions;
+        return true;
+      }
+      if ("name" in p && !okName(p.name)) return false;                               // a version always has a name
+      if (i < 0 && !("name" in p)) return false;                                      // creating needs one
+      const v = (i < 0 ? { id: o.id, name: p.name, hide: {} } : list[i]) as unknown as Record<string, unknown>;
+      if ("name" in p) v.name = p.name;
+      if ("hide" in p) { if (p.hide === null) v.hide = {}; else sheetMerge(v, "hide", p.hide); if (!isObj(v.hide)) v.hide = {}; }
+      if ("drop" in p) { if (p.drop === null) delete v.drop; else sheetMerge(v, "drop", p.drop); if (isObj(v.drop) && !Object.keys(v.drop).length) delete v.drop; }
+      // a create goes at `at` (0..length, an integer: the undo of a delete puts the version back at its place, AUDIT-3
+      // UNDO-1), else at the end
+      if (i < 0) { const at = typeof o.at === "number" && Number.isInteger(o.at) && o.at >= 0 && o.at <= list.length ? o.at : list.length; list.splice(at, 0, v as never); doc.preset.versions = list; }
+      return true;
+    }
   }
   return false;
+}
+/* version.patch (4.9, B37): a version's name, its emptied cells and its deleted rows / columns per sheet */
+const VERSION_KEYS = ["name", "hide", "drop"] as const;
+const okName = (x: unknown): x is string => typeof x === "string" && !!x.trim();
+/** a version's per-sheet lists (`hide`, `drop`): each sheet's list of strings replaced whole, null removes the sheet; an
+    entry that is no list of strings is ignored */
+function sheetMerge(v: Record<string, unknown>, key: string, patch: unknown) {
+  if (!isObj(patch)) return;
+  const m = (isObj(v[key]) ? v[key] : {}) as Record<string, unknown>;
+  for (const [sheet, x] of Object.entries(patch)) {
+    if (sheet === "__proto__") continue;
+    if (x === null) delete m[sheet];
+    else if (Array.isArray(x) && x.every(s => typeof s === "string")) { if (x.length) m[sheet] = [...x]; else delete m[sheet]; }
+  }
+  v[key] = m;
 }
 const okId = (x: unknown): x is string => typeof x === "string" && !!x && x !== "__proto__";
 /** a slide definition slide.add applies: an id, a type this page draws, a list of distinct table ids (a table twice on
@@ -156,6 +193,7 @@ export function knownOp(op: Op | Record<string, unknown>): boolean {
     case "slide.add": return isObj(o.slide) && SLIDE_TYPES.includes(o.slide.type as string);
     case "table.add": return isObj(o.table) && TABLE_KINDS.includes(o.table.kind as string);
     case "slide.remove": case "table.remove": return true;
+    case "version.patch": return p === null || only(VERSION_KEYS);
   }
   return false;
 }
@@ -209,6 +247,50 @@ function presetNeedsV5(p: Record<string, unknown>): boolean {
 export function docNeedsV5(doc: Pick<WorkbookDoc, "preset" | "edits">): boolean {
   if (isObj(doc.preset) && presetNeedsV5(doc.preset as unknown as Record<string, unknown>)) return true;
   for (const sheet of Object.values(doc.edits || {})) for (const e of Object.values(sheet || {})) if (holds(e, V5_CELL)) return true;
+  return false;
+}
+/* ---- format 6 (ADR-019 amendment of 2026-10-22, AUDIT-3 COMPAT-1) ----
+   4.6.0–4.8.0 read format 5 but fold 4.9's objects as nothing: their wizard's whole preset.set then erases a version's
+   `drop` and the slides' `hidden`, and their exports show the deleted / hidden rows. A deck that receives or holds
+   anything 4.8.0 does not apply whole is raised to format 6 the same way as to 5 (marker incident-format-6.json – an
+   incident to every 4.0–4.8 helper –, the wait, tail, CAS, the Lamport jump). 4.8.0's lists, FROZEN (git show
+   v4/M15-lines-icons:core/src/model/ops.ts:6-23, its knownOp) – never add to them: later keys go to the lists at the
+   top, and are then needsV6 by themselves. */
+const V48_SLIDE = [...V40_SLIDE, "free", "looks", "hide"], V48_TABLE = [...V40_TABLE, "cellGrid", "borders"];
+const V48_CELL = V40_CELL, V48_STYLE = V40_STYLE;          // (4.8.0's cell and style keys are 4.0.0's)
+const V48_ITEM = ["kind", "type", "values", "labels", "series", "title", "legend", "show", "startAngle", "box", "attach",
+  "shape", "icon", "text", "fill", "border", "radius", "tail", "stack", "gap", "overlap", "legendAt", "frame", "titleRule", "plot",
+  "route", "a", "b", "mid", "bend", "ends", "style", "stroke", "colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt"];
+const V48_ITEM_KINDS = ["chart", "shape", "line"], V48_SLIDE_TYPES = ["cover", "index", "content"], V48_TABLE_KINDS = ["markers", "range"];
+/** what a document holds that 4.8.0 does not know (4.9: a slide's hidden rows / columns, a version's deleted ones, cell
+    valign / num): a deck holding a non-empty one is format 6 */
+const V6_SLIDE = ["hidden"], V6_VERSION = ["drop"], V6_CELL = ["valign", "num"];
+/** an op 4.8.0 does not apply whole: the deck must be format 6 before it is appended. version.patch (4.9: 4.6–4.8 skip
+    it, so its versions – name and hide too – would be lost to their wizard's preset.set) and every op 4.8 lacks; every
+    key outside 4.8's lists (hidden, valign, num …); a slide.add / preset.set carrying such content */
+export function needsV6(op: Op | Record<string, unknown>): boolean {
+  const o = op as Record<string, unknown>, p = o.patch;
+  switch (o.op) {
+    case "preset.set": return isObj(o.preset) && presetNeedsV6(o.preset);
+    case "slide.patch": return outside(p, V48_SLIDE);
+    case "table.patch": return outside(p, V48_TABLE);
+    case "cell.patch": return outside(p, V48_CELL);
+    case "style.patch": return outside(p, V48_STYLE);
+    case "item.patch": return p !== null && (!isObj(p) || outside(p, V48_ITEM) || ("kind" in p && !V48_ITEM_KINDS.includes(p.kind as string)));
+    case "slide.add": return !isObj(o.slide) || !V48_SLIDE_TYPES.includes(o.slide.type as string) || holds(o.slide, V6_SLIDE);
+    case "table.add": return !isObj(o.table) || !V48_TABLE_KINDS.includes(o.table.kind as string);
+    case "slide.remove": case "table.remove": return false;
+  }
+  return true;
+}
+function presetNeedsV6(p: Record<string, unknown>): boolean {
+  const some = (k: string, keys: readonly string[]) => Array.isArray(p[k]) && (p[k] as unknown[]).some(x => holds(x, keys));
+  return some("slides", V6_SLIDE) || some("versions", V6_VERSION);
+}
+/** the same on a document (fold.ts nextSnapshot writes such a deck as format 6; a 4.9 page opening one below 6 raises it) */
+export function docNeedsV6(doc: Pick<WorkbookDoc, "preset" | "edits">): boolean {
+  if (isObj(doc.preset) && presetNeedsV6(doc.preset as unknown as Record<string, unknown>)) return true;
+  for (const sheet of Object.values(doc.edits || {})) for (const e of Object.values(sheet || {})) if (holds(e, V6_CELL)) return true;
   return false;
 }
 const isBox = (b: unknown) => isObj(b) && ["x", "y", "w", "h"].every(k => typeof b[k] === "number" && Number.isFinite(b[k])) && (b.w as number) > 0 && (b.h as number) > 0;
@@ -294,6 +376,29 @@ export function inverseOf(doc: Doc, op: Op): Op | null {
       const def = doc.preset?.tables.find(x => x.id === op.id);
       if (at < 0 || !def) return null;
       return { op: "table.add", table: clone(def), slide: op.slide, at };
+    }
+    // create ↔ delete (the undo of a delete re-creates the version at the end), per sheet entry otherwise (09 §2.5)
+    case "version.patch": {
+      if (!doc.preset || !okId(op.id) || (op.patch !== null && !isObj(op.patch))) return null;
+      const vs = doc.preset.versions || [], at = vs.findIndex(v => v && v.id === op.id), cur = vs[at] as unknown as Record<string, unknown> | undefined, p = op.patch;
+      if (!cur) return p && okName(p.name) ? { op: "version.patch", id: op.id, patch: null } : null;
+      if (p === null) {
+        if (!okName(cur.name)) return null;
+        const back: Record<string, unknown> = { name: cur.name, hide: clone(isObj(cur.hide) ? cur.hide : {}) };
+        if (isObj(cur.drop) && Object.keys(cur.drop).length) back.drop = clone(cur.drop);
+        return { op: "version.patch", id: op.id, patch: back, at } as Op;            // back at its place (UNDO-1)
+      }
+      if ("name" in p && !okName(p.name)) return null;                                 // skipped: no undo
+      const out: Record<string, unknown> = {};
+      if ("name" in p) out.name = cur.name;
+      for (const k of ["hide", "drop"] as const) {
+        if (!(k in p)) continue;
+        const was = (isObj(cur[k]) ? cur[k] : {}) as Record<string, unknown>, x = p[k];
+        // hide: null empties it – its undo puts back each sheet's list; drop: null deletes it – its undo the whole map
+        if (x === null) out[k] = k === "drop" && !Object.keys(was).length ? null : clone(was);
+        else if (isObj(x)) { const inv: Record<string, unknown> = {}; for (const s of Object.keys(x)) if (s !== "__proto__") inv[s] = was[s] === undefined ? null : clone(was[s]); out[k] = inv; }
+      }
+      return { op: "version.patch", id: op.id, patch: out } as Op;
     }
   }
   return null;

@@ -60,7 +60,7 @@ export function readStylesBin(bytes: Uint8Array, color: ColorFn, numFmts: Record
         rawXfs.push([fmt, font, fill, border, rot, indent, al]);
         break;
       }
-      case Rt.DXF: dxfs.push(readDxf(r, c)); break;
+      case Rt.DXF: dxfs.push(readDxf(r, c, numFmts)); break;
     }
   }
   for (const [fmt, font, fill, border, rot, indent, al] of rawXfs) xfs.push({
@@ -73,7 +73,7 @@ export function readStylesBin(bytes: Uint8Array, color: ColorFn, numFmts: Record
 
 /** BrtDXF (2.4.353): properties (XFProp, 2.5.164) as the .xlsx reader takes a <dxf>: the fill (pattern, then the
     background colour or else the foreground one), the font colour, bold and italic */
-function readDxf(r: Records, c: (a: ColorAttrs | null, fb: string | null) => string | null): Dxf {
+function readDxf(r: Records, c: (a: ColorAttrs | null, fb: string | null) => string | null, numFmts: Record<string, string> = {}): Dxf {
   r.u16(); r.u16();
   const n = r.u16(), o: Dxf = {};
   let pattern = -1, fg: string | null = null, bg: string | null = null, fill = false;
@@ -87,6 +87,15 @@ function readDxf(r: Records, c: (a: ColorAttrs | null, fb: string | null) => str
       case 0x05: { const col = c(readColor(r), null); if (col) o.color = col; break; }
       case 0x19: o.b = r.u16() >= 700; break;
       case 0x1c: o.i = r.u8() !== 0; break;
+      // (S16.4) underline, strike, the number format, the border sides (XFPropBorder: colour, style)
+      case 0x1a: o.u = r.u16() !== 0; break;
+      case 0x1d: o.s = r.u8() !== 0; break;
+      case 0x26: { const id = r.u16(); o.fmt = cb >= 10 ? r.wstr() : numFmts[String(id)] || "General"; break; }
+      case 0x06: case 0x07: case 0x08: case 0x09: {
+        const col = c(readColor(r), "#000000"), st = BORDER[r.u16()] || "none";
+        if (st !== "none") (o.border ||= {})[(["top", "bottom", "left", "right"] as const)[type - 6]] = { style: st, color: col || "#000000" };
+        break;
+      }
     }
     r.p = end;
   }

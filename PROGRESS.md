@@ -218,6 +218,9 @@ numbers measured twice). Measured numbers go into the step's line.
     clean entries move), and `core/tests/fixtures/dlhash-b48-base.json` (re-record with `DLHASH_WRITE=1`: M14 and M15
     change Liquid Glass and the consulting designs' charts, lines and icons by design).
 
+### S13.7 · Delete slide and Duplicate slide (after M13 closed; ships with the next release, 4.7.0 in CHANGELOG; owner Q12)
+- [x] S13.7 · Delete slide and Duplicate slide (c47d59a; merged into `v4/M16-tables`, its CHANGELOG block moved to 4.9.0 – 4.7.0 is dated; runs: by the orchestrator) (owner Q12, 2026-10-21; branch `v4/slide-menu`) — the slide list's right-click menu (`#ctxDupSlide`, `#ctxDelSlide`) and Delete in the slide list (on the slide shown); one `slide.add` / `slide.remove` each (no new op or key: the guard, inverses and vectors of S13.3 hold). The copy: core `model/slidecopy.ts` (items under new ids, the free boxes and attached line ends renamed). Decided: content slides only are duplicated (the wizard keeps one cover / contents); any slide but the last may be deleted, after a question. +2,156 bytes page (`page-budget/s13-7.json`, measured again on main 71d8806). Review: REQUEST CHANGES → "S13.7 · … (review fixes)": CHANGELOG bullet moved from the dated 4.6.0 notes to 4.7.0 (its own block, as B48–B50), Delete acts on `deck.cur`, `duplicateSlide` checks `doc.open`, one `slide.add` vector of a duplicated slide in `ops-vectors.json`, a comment pointing M15 at `slidecopy.ts`. Awaiting the orchestrator's checks (e2e `Delete slide and Duplicate slide`) and the second review.
+
 ### M14 · Charts (4.7.0; B30, B31; docs/next/09 §8, ADR-015 amended)
 - [x] S14.0 · Gates first (export-check gates PowerPoint "opened", `has_chart` / `has_table`; AUDIT-2 VER-3) – built in
   S14.P (e9f8ac0, c6c74a4; on main by PR #28); on the branch the gate grew `kinds` (`tools/real-charts.mjs`, S14.6
@@ -357,10 +360,26 @@ numbers measured twice). Measured numbers go into the step's line.
 
 
 ### M16 · Tables: hidden rows, delete-versions, painter, Excel conditional formats (4.9.0; B36–B39; docs/next/09 §8)
-- [ ] S16.1 · Hidden set in `buildLayout` ⏱ (HR-01, HR-02)
-- [ ] S16.2 · Delete-versions (VD-01…VD-03)
-- [ ] S16.3 · Painter (PT-01…PT-03)
-- [ ] S16.4 · Excel conditional formats ⏱ (XC-01, XC-02)
+- [x] S16.1 · Hidden set in `buildLayout` ⏱ (HR-01, HR-02) — a901c22 (branch m16/hidden-rebased), merged into `v4/M16-tables`; runs: by the orchestrator.
+  On M14: `chartHide` moved to render/chart-data.ts (M14's chart cell rules) and applied to the series charts too
+  (values, targets, x values, categories, header labels; seriesData's key holds the version and the slide's set).
+  Page +10,978 over M14 (≤ m16-hidden.json 11,000).
+- [x] S16.2 · Delete-versions (VD-01…VD-03) — 9985882 (branch m16/delete-versions-rebased), merged into `v4/M16-tables`; runs: by the orchestrator. Page +14,763 (≤ 15,000).
+- [x] S16.3 · Painter (PT-01…PT-03) — 3b36d7e "S16.3 · Format painter (review fixes)" (branch m16/painter-main, re-check
+  approved), merged into `v4/M16-tables`; runs: by the orchestrator. Review findings left on purpose: 3 – pressing the
+  vertical position the design already draws stores nothing (the ribbon compares with `drawnVAlign`; locked by
+  core/tests/cells-m16.test.ts); 4 – the Selection rewrite in Stage.tsx is a scope deviation, accepted, no bug.
+  Page: +12,802 bytes on the integration (+12,796 on its own branch over main 71d8806) – over m16-painter.json 12,500
+  (set at +11,999 before the last review fixes); not raised, the orchestrator decides.
+- [x] S16.4 · Excel conditional formats ⏱ (XC-01, XC-02) — 35e1af7 (branch m16/excel-cf-main), merged into `v4/M16-tables`; runs: by the orchestrator. Page +64,746 on the integration (≤ 65,000).
+  - For S16.5 (review of S16.4): owner sign-off on two plan deviations – `expression` rules use xlsx/cf.ts's own
+    evaluator, not the formula engine (tables are laid out synchronously; the engine is not on the page; an unknown
+    function is listed as "not reproduced"); page budget m16-cf.json 65,000 bytes (+64,697 measured after the re-check fix), against the plan's ≈ 25 KB
+    (the code ships twice: page and worker script). app/e2e/cf.spec.ts: 2 passed (re-check fix run, this PC's Chromium). Not yet verified: XC-01's
+    comparison with Excel (skipped until the owner PC's cf-rules.excel.json is committed). The B48 hash re-record
+    (ebb3df9) comes from the colour scale on D6:J15 of edge-formats.xlsx, "not reproduced" before – not from `$K6<0`,
+    which main already evaluated. Re-check fix: a chart's labels and a text box's {Sheet!C7} keep a text edit made on the
+    text the rules show (xlsx/cf.ts editedCellText; chart-dl.ts, shape-dl.ts), as the tables' origMatches. Branch: m16/excel-cf-main.
 - [ ] S16.5 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.9.0; 🚦 G11
 
 ### M17 · Independent persistence and compatibility audit of 4.6–4.9

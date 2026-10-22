@@ -8,7 +8,7 @@ import { Stage } from "../stage/Stage";
 import { zoomBy } from "../stage/actions";
 import { useStage } from "../stage/data";
 import { mountThumbs } from "../editor/thumbs";
-import { hideSlide, newSlide } from "../editor/slides";
+import { deleteSlide, duplicateSlide, hideSlide, newSlide } from "../editor/slides";
 import { hiddenIn } from "@slide-builder/core/render/pagenumbers";
 import { DESIGNS } from "@slide-builder/core/model/designs";
 import { clearPreview } from "../editor/scenario";
@@ -55,11 +55,14 @@ export function Thumbs() {
       e.preventDefault();
       const i = Number((e.target as Element).closest?.(".thumb")?.getAttribute("data-i") ?? -1);
       if (i >= 0) gotoSlide(i);
-      setMenu({ x: Math.min(e.clientX, innerWidth - 210), y: Math.min(e.clientY, innerHeight - 130), id: slides[i]?.id ?? null });
+      setMenu({ x: Math.min(e.clientX, innerWidth - 210), y: Math.min(e.clientY, innerHeight - 200), id: slides[i]?.id ?? null });
     }}>
       {menu && <div className="menu ctxmenu" id="slideMenu" style={{ left: menu.x + "px", top: menu.y + "px" }}>
         <button id="ctxNewSlide" onClick={() => { setMenu(null); newSlide(); }}>New slide<small>Ctrl+M</small></button>
         {mR && <>
+          {/* S13.7 (owner Q12): a copy after it (content slides: the wizard keeps one cover and one contents); delete asks */}
+          <button id="ctxDupSlide" disabled={mR.type !== "content"} title={mR.type !== "content" ? "Only content slides are duplicated" : undefined} onClick={() => { setMenu(null); duplicateSlide(mR.id); }}>Duplicate slide</button>
+          <button id="ctxDelSlide" disabled={slides.length < 2} onClick={() => { setMenu(null); void deleteSlide(mR.id); }}>Delete slide<small>Delete</small></button>
           <button id="ctxHideSlide" onClick={() => { setMenu(null); hideSlide(mR.id); }}>{hiddenIn(mR.cfg, d) ? "Show slide" : "Hide slide"}<small>this design</small></button>
           <button id="ctxHideAll" onClick={() => { setMenu(null); hideSlide(mR.id, true); }}>{DESIGNS.every(x => hiddenIn(mR.cfg, x)) ? "Show in every design" : "Hide in every design"}</button></>}</div>}
       {slides.map((R, i) => {

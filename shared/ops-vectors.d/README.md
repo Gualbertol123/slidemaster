@@ -11,3 +11,6 @@ Each file is a JSON array of cases in the format of `shared/ops-vectors.json` (a
 `expect`; a fold case: `name`, `fold`, `expect`). `core/tests/vectors.ts` reads the main file and then every
 `*.json` here in name order; a name used twice anywhere fails the run. `helper/tests/test_migrate.py` checks that each
 file is such an array with unique names (the helper itself applies no operation).
+
+4.9 (M16): each step its own `m16-<step>.json` – `m16-hidden.json` (S16.1), `m16-versions.json` (S16.2),
+`m16-cells.json` (S16.3), `m16-slides.json` (S13.7's duplicated slide, moved out of the main file by AUDIT-3 VEC-2).

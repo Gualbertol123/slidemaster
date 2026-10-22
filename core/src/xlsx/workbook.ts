@@ -14,12 +14,14 @@ import { xattrs, xdec, parseSSTRich } from "./strings";
 import type { Range } from "./util";
 import { platform, type XmlElement } from "../platform";
 import { parseSheetId, sheetId } from "../calc/refs";
-import type { Border, CFRule, ColInfo, Dxf, Font, Progress, Script, Shared, Sheet, SheetMeta, Workbook, Xf } from "./types";
+import type { Border, ColInfo, Dxf, Font, Progress, Script, Shared, Sheet, SheetMeta, Workbook, Xf } from "./types";
 import type { RowColumns } from "./sheetstore";
 import { readWorkbookBin, readWorkbookInfoBin, readSupTabsBin, type BinWorkbookInfo } from "./xlsb/workbook";
 import { readStylesBin } from "./xlsb/styles";
 import { readSstBin } from "./xlsb/strings";
 import { BinSheetReader } from "./xlsb/sheet";
+import { readCFXml } from "./cf-read";
+import { todaySerial } from "./cf";
 
 export { xdec, xattrs, parseSST, parseSSTRich, richRuns } from "./strings";
 const entrySize = (f: ZipEntry | null) => f?.size || 0;
@@ -40,7 +42,8 @@ export function isEncryptedPackage(bytes: Uint8Array): boolean {
   return false;
 }
 
-export async function indexWorkbook(buf: ArrayBuffer): Promise<Workbook> {
+/** opts.today: the day conditional formats take as today (an Excel serial; tests) – else this PC's date, now */
+export async function indexWorkbook(buf: ArrayBuffer, opts: { today?: number } = {}): Promise<Workbook> {
   const head = new Uint8Array(buf, 0, Math.min(8, buf.byteLength));
   if (head[0] === 0xD0 && head[1] === 0xCF && head[2] === 0x11 && head[3] === 0xE0) {
     // an encrypted .xlsx is a compound file with an "EncryptedPackage" stream: Excel cannot convert it without the
@@ -110,7 +113,7 @@ export async function indexWorkbook(buf: ArrayBuffer): Promise<Workbook> {
   const wb: Workbook = {
     zip, wbRels, meta, skipped, hiddenSheets: skipped.filter(s => s.why === "hidden").map(s => s.name), hiddenMeta,
     extLinks: Object.values(wbRels).filter(r => /externalLink/.test(r.type)).length, externals, names,
-    sheets: [], shared: null, linked: new Map(), total, ssSize, big: total > BIG_BYTES || buf.byteLength > 6 * 1048576,
+    sheets: [], shared: null, linked: new Map(), today: opts.today ?? todaySerial(), total, ssSize, big: total > BIG_BYTES || buf.byteLength > 6 * 1048576,
     isLoaded: n => wb.sheets.some(S => S.name === n),
     ensure: (names, progress) => ensureSheets(wb, names, progress),
   };
@@ -138,7 +141,7 @@ export function readHiddenSheets(wb: Workbook, file: string | null = null): Prom
   }
   return p;
 }
-export async function readWorkbook(buf: ArrayBuffer): Promise<Workbook> { const wb = await indexWorkbook(buf); await wb.ensure(wb.meta.map(m => m.name)); return wb; }
+export async function readWorkbook(buf: ArrayBuffer, opts: { today?: number } = {}): Promise<Workbook> { const wb = await indexWorkbook(buf, opts); await wb.ensure(wb.meta.map(m => m.name)); return wb; }
 
 /** a linked workbook joins `wb` (S7.3, ADR-014): its visible sheets are listed in `wb.meta` under their sheet ids
     "[file]Sheet" (read on demand like the others, into `wb.sheets`), its hidden and skipped sheets in `wb.skipped`;
@@ -228,6 +231,11 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
       const f = kid(d, "font"); const o: Dxf = {};
       const fill = parseFill(kid(d, "fill"), true); if (fill) o.fill = fill;
       if (f) { const c = color(kid(f, "color"), null); if (c) o.color = c; if (kid(f, "b")) o.b = on(kid(f, "b")); if (kid(f, "i")) o.i = on(kid(f, "i")); }
+      // (S16.4) underline, strike, the number format and the border sides a rule sets
+      if (f && kid(f, "u")) o.u = kid(f, "u")!.getAttribute("val") !== "none";
+      if (f && kid(f, "strike")) o.s = on(kid(f, "strike"));
+      const nf = kid(d, "numFmt"); if (nf) o.fmt = nf.getAttribute("formatCode") || numFmts[nf.getAttribute("numFmtId") || ""] || "General";
+      const bd = parseBorder(kid(d, "border")); if (Object.keys(bd).length) o.border = bd;
       return o;
     });
   }
@@ -240,7 +248,7 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
       return m > 3 ? Math.round(m) : 7;
     } catch { return 7; }
   })();
-  wb.shared = { sst, sstRuns, xfs, dxfs, defaultFont, color, theme, mdw };
+  wb.shared = { sst, sstRuns, xfs, dxfs, defaultFont, color, theme, mdw, today: wb.today ?? todaySerial() };
   FONT_SCRIPTS.set(wb.shared, sss);
   return wb.shared;
 }
@@ -412,21 +420,7 @@ export async function parseSheet(zip: Zip, sh: SheetMeta, bytes: Uint8Array, ctx
   else { const pace = pacer(); while (!scan.run(4000)) { tick(Math.min(.95, scan.progress)); const w = pace(); if (w) await w; } }
   const { cells: store, rows } = scan.finish();
   const merges: Range[] = []; { const re = /<(?:\w+:)?mergeCell\b[^>]*?\bref="([^"]+)"/g; let q: RegExpExecArray | null; while ((q = re.exec(xml))) merges.push(parseRange(q[1])); }
-  const cfRules: CFRule[] = [], unsupportedCF = new Set<string>();
-  {
-    const re = /<(?:\w+:)?conditionalFormatting\b([^>]*)>([\s\S]*?)<\/(?:\w+:)?conditionalFormatting>/g; let q: RegExpExecArray | null;
-    while ((q = re.exec(xml))) {
-      const ranges = (xattrs(q[1]).sqref || "").split(/\s+/).filter(Boolean).map(parseRange);
-      const rr = /<(?:\w+:)?cfRule\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:\w+:)?cfRule>)/g; let k: RegExpExecArray | null;
-      while ((k = rr.exec(q[2]))) {
-        const a = xattrs(k[1]), type = a.type;
-        if (!["cellIs", "expression"].includes(type)) unsupportedCF.add(type);
-        const formulas: string[] = []; const fr = /<(?:\w+:)?formula(?:\s[^>]*)?>([^<]*)<\/(?:\w+:)?formula>/g; let f: RegExpExecArray | null; while ((f = fr.exec(k[2] || ""))) formulas.push(xdec(f[1]));
-        cfRules.push({ ranges, type, op: a.operator ?? null, priority: +(a.priority || 999), stop: a.stopIfTrue === "1", dxf: ctx.dxfs[+a.dxfId] || null, formulas });
-      }
-    }
-  }
-  cfRules.sort((a, b) => a.priority - b.priority);
+  const { cfRules, unsupportedCF } = readCFXml(xml, ctx);
   return finishSheet(zip, sh, ctx, store, rows, { colRanges, merges, cfRules, unsupportedCF, defColW, defRowH, zeroH });
 }
 /** the parts both formats share: drawings (XML in both), the Sheet facade, its title and table regions */
