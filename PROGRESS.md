@@ -388,10 +388,25 @@ numbers measured twice). Measured numbers go into the step's line.
     (ebb3df9) comes from the colour scale on D6:J15 of edge-formats.xlsx, "not reproduced" before – not from `$K6<0`,
     which main already evaluated. Re-check fix: a chart's labels and a text box's {Sheet!C7} keep a text edit made on the
     text the rules show (xlsx/cf.ts editedCellText; chart-dl.ts, shape-dl.ts), as the tables' origMatches. Branch: m16/excel-cf-main.
-- [ ] S16.5 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.9.0; 🚦 G11
+- [x] S16.5 · Close — 4.9.0 on `v4/release-4.9.0` from origin/main 36d689a (4.8.0): c984e75 "Merge v4/M16-tables (M16
+  S16.1–S16.4, S13.7, M17 audit fixes)", 012678c "Merge v4/B51-toc-move", 30c1d4d "Merge v4/M16-tables (04fbb2e: the M16 fixer's e2e / parity /
+  HiddenMarks fixes)", e9cc3e5, 4ca8278 (M16's new buttons on Tabler icons, B35; B51's
+  resize test on the 1/4 px grid) (the stage's hold ends on a context
+  menu / a pointer moving with no button down – the M15 speed-fix review, `app/tests/stage-held.test.tsx`) and "4.9.0 ·
+  versions, CHANGELOG, PROGRESS" (versions 4.9.0; CHANGELOG 4.9.0 dated 2026-10-22, one section with S16.1–S16.4,
+  S13.7, format 6, DATA-8, B51; `tools/compat-old.mjs` 4.8 → `v4.8.0`, falling back to 36d689a while the tag is not
+  made; release-checklist §2a with m15 / m16 and `--versions …,4.7,4.8`). At the merge: needsV6's frozen V48 lists
+  checked equal to 4.8.0's `core/src/model/ops.ts` lists (key by key); M15's lines hand a click to S16.3's painter
+  (`stage/lines.tsx`); B51's part drag on M15's snapping. Page 4,874,382 bytes against the budget 4,887,562 (new
+  `page-budget/m17.json` 5,500 by measurement: M17 +5,198; S16.3's +12,802 over m16-painter.json 12,500 left as is –
+  the total passes). AUDIT §0 ×2, CP-01, e2e; verified: tests ✓ clean clone ✓ review ✓ – runs: by the orchestrator.
+  🚦 G11 by the orchestrator / owner.
 
 ### M17 · Independent persistence and compatibility audit of 4.6–4.9
-- [ ] M17 · AUDIT-3.md (09 §6 line by line, CP-01 by the auditor)
+- [x] M17 · AUDIT-3.md (09 §6 line by line, CP-01 by the auditor) — fixes on `v4/M16-tables`: 700e1e8 COMPAT-1 (format
+  6, ADR-019 amended 2026-10-22), da47311 DATA-8, 89c0131 VEC-1, 48d86c5 VEC-2, 6abda01 UNDO-1, a353842 (the page),
+  b1fbd41 (capture-v3 reads format 6), 88f30b5 and 4a1a914 (review of COMPAT-1); merged into `v4/release-4.9.0`
+  (c984e75). runs: by the orchestrator.
 
 ## Decisions
 

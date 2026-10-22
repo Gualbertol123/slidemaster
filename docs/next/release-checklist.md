@@ -24,7 +24,8 @@ npm run test:e2e && npm run parity
 
 ### 2a. The format guard against the real older versions (CP-01, CP-02; ADR-019)
 `tools/compat-old.mjs` makes git worktrees of v4.0.0, 4.1 (`061a5b3`), 4.4 (`a1d3aba`), 4.5 (`637f7b4`), 4.6 (`e6c1c4f`, the
-M13 merge) and 4.6p (`6392856`, main with S14.P – the 4.6.0 page that knows the 4.7 keys), starts each
+M13 merge), 4.6p (`6392856`, main with S14.P – the 4.6.0 page that knows the 4.7 keys), 4.7 (`v4.7.0`, else `d327882`)
+and 4.8 (`v4.8.0`, else `36d689a`, main's merge of M15), starts each
 old helper with its own committed page next to this checkout's helper on the same workbook and data folders (fresh
 temporary ones per case; ports 8961 and up, never 8951/8952), and drives both pages with Playwright, without network.
 Cases per version: CP-02 (a deck without 4.6 objects stays format 4 and opens, edits and compacts in the old version;
@@ -36,18 +37,23 @@ compact / rotate / idle loop; cases a–d also make every M14 (4.7) chart object
 M14 object (series with per-point colours, labels, targets, a waterfall's `points[i].total`, scatter x values; groups,
 axes, marks, `legendHide`, `titleFmt`, the new types, a series added by its own record), the old page opens the deck,
 edits a cell and is left alone until it compacts the whole new journal: every M14 item byte-equal (JSON) in the deck and
-in every snapshot it wrote (4.0–4.5: refused, nothing changed; 4.6 / 4.6p read format 5 and only run CP-02 and m14).
+in every snapshot it wrote (4.0–4.5: refused, nothing changed). (m15, from 4.8) the new page makes a line and a Tabler
+icon (the deck stays format 5); the old page opens it, edits a cell, runs the wizard's Finish and is left alone past the
+compaction margin: the line and the icon byte-equal in the folded deck. (m16, from 4.9, AUDIT-3 COMPAT-1) the new page
+deletes a row for a version and hides a row on a slide, which raise the deck to format 6 (`incident-format-6.json`):
+every old version's open is refused (409), the snapshot unchanged, `drop` / `hidden` byte-equal. 4.6, 4.6p, 4.7 and
+4.8 read format 5 and only run CP-02, m14, m15 and m16.
 One `RESULT` line per version and case, a JSON report; exit code 1 when one fails.
 Takes about 35 minutes per Python (the real 23 s bump wait; `--bump-wait-s N` shortens the 4.6 side only).
 ```
-node tools/compat-old.mjs --pythons "python3.8,python3.12" --out /tmp/compat-old.json
+node tools/compat-old.mjs --versions 4.0,4.1,4.4,4.5,4.6,4.6p,4.7,4.8 --pythons "python3.8,python3.12" --out /tmp/compat-old.json
 ```
 On Windows (PowerShell 5.1; `py -3.8` and `py -3.12` from the Python launcher):
 ```
-node tools/compat-old.mjs --pythons "py -3.8,py -3.12" --new-python python --out $env:TEMP\compat-old.json
+node tools/compat-old.mjs --versions 4.0,4.1,4.4,4.5,4.6,4.6p,4.7,4.8 --pythons "py -3.8,py -3.12" --new-python python --out $env:TEMP\compat-old.json
 ```
-- [ ] every `RESULT` line says PASS (per version 4.0–4.5: CP-02, m14, a, b-journal, c-journal, b-lean-lock, c-lean-lock,
-  d; 4.6 and 4.6p: CP-02, m14).
+- [ ] every `RESULT` line says PASS (per version 4.0–4.5: CP-02, m14, m15, m16, a, b-journal, c-journal, b-lean-lock,
+  c-lean-lock, d; 4.6, 4.6p, 4.7 and 4.8: CP-02, m14, m15, m16).
 
 ## 3. The release ZIP
 ```

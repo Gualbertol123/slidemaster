@@ -3,7 +3,7 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## 4.9.0 - unreleased (PLAN M16: tables; B36–B39; docs/next/09 §3)
+## 4.9.0 - 2026-10-22 (PLAN M16: tables; B36–B39; S13.7; M17 audit fixes (docs/next/AUDIT-3.md); B51; docs/next/09 §3)
 
 What users notice
 * **Hidden rows and columns per slide** (S16.1, B36): Ribbon 2 › Cells › *Hide ▾* – *Hide rows*, *Hide columns*,
@@ -16,7 +16,8 @@ What users notice
   deletes rows / columns, empties cells or restores them for the version shown. That version's tables close up, its
   charts and callouts skip the deleted cells, and every export and run of that version follows; the full deck and the
   other versions keep them. A delete that would leave a table empty is refused; should two people's changes still
-  reach it, that version is not exported (the export names the version and the table) until some rows are restored.
+  reach it, that version is not exported (the export names the version and the table) until some rows are restored
+  (AUDIT-3 DATA-8). Undoing a version's delete puts the version back at its place in the list (UNDO-1).
 * **The fuller format painter** (S16.3, B38): new *Number* buttons – fewer / more decimals, percent, thousands –
   and the top / middle / bottom buttons now work on cells; *Clear format* clears both. The painter also copies the
   number display and the vertical position (a date keeps its own date format). Ctrl+click several ranges – on any
@@ -40,11 +41,15 @@ What users notice
   step and is kept per slide and design; PDF, PNG and PowerPoint draw them where they were dropped (in PowerPoint the
   title stays the slide's title placeholder, the entries text boxes). The list still follows the deck – new, renamed or
   hidden slides and the page numbers. A contents slide never moved looks exactly as before, in every design.
-* **Decks that use 4.9's tables open read-only in 4.0–4.8** (AUDIT-3 COMPAT-1): rows or columns deleted for a version,
-  hidden rows or columns, a cell's vertical position or number display, a moved contents list or title. Before the first such change a 4.9 window
-  prepares the deck (about 23 s of "Saving…", once per deck); from then on older windows show it read-only and ask to
-  update – before, a 4.6–4.8 window's wizard could erase a version's deleted rows, and its exports showed them.
-  `Update Slide Builder.bat --use 4.6–4.8` names these decks and asks first.
+* **Decks using 4.9 features can't be opened by 4.6–4.8 (nor 4.0–4.5): update everyone together** (AUDIT-3
+  COMPAT-1, format 6). The 4.9 features are rows or columns deleted for a version, hidden rows or columns, a cell's
+  vertical position or number display, a moved contents list or title; older windows show such a deck read-only and
+  ask to update. Before the first such change a 4.9 window prepares the deck (about 23 s of "Saving…", once per deck); from then on older windows show it read-only and ask to
+  update – without this, a 4.6–4.8 window's wizard could erase a version's deleted rows, and its exports showed them.
+  `Update Slide Builder.bat --use 4.6–4.8` names these decks and asks first. On update day close every Slide Builder
+  window on every PC, as for 4.8 (`docs/next/release-checklist.md` §6).
+* **The slide no longer stays at its old size after a right-click** (the M15 speed fix's review): the slide keeps its
+  size only while the left button is held; a context menu, or a button let go outside the window, fits it again.
 
 For the maintainer
 * New keys and ops – `slide.patch` `hidden`, `version.patch` (a version's `drop`), `cell.patch` `valign` / `num` – are
@@ -52,12 +57,17 @@ For the maintainer
   `incident-format-6.json`, `X-SB-Deck-Formats: 4,5,6`, route `POST /api/decks/<key>/format6`; CP-01 cases `m15`,
   `m16`) (vectors `shared/ops-vectors.d/m16-*.json`; saved fixtures `hidden-4.9.json`, `versions-4.9.json`,
   `cells-4.9.json`, `cf-edits-4.8.json`).
-* Integration on M14 (branch `v4/M16-tables`): S16.1's chart rule (`chartHide`) lives in `render/chart-data.ts` and
-  covers the series charts too; S16.4's `editedCellText` is used by `chart-data.ts`'s `shown`.
+* Integration on M14 and M15 (branch `v4/M16-tables`, release branch `v4/release-4.9.0`): S16.1's chart rule (`chartHide`) lives in `render/chart-data.ts` and
+  covers the series charts too; S16.4's `editedCellText` is used by `chart-data.ts`'s `shown`; S16.3's painter takes a
+  line's look on M15's lines too (`stage/lines.tsx`); B51's parts snap with M15's snapping (`stage/drags.ts` `freePart`);
+  M16's Hide ▾, For this version ▾ and fewer-decimals buttons take Tabler icons (B35's rule).
+* M17 audit fixes (docs/next/AUDIT-3.md): COMPAT-1 (format 6; `tools/capture-v3.mjs` reads it), DATA-8, UNDO-1, VEC-1
+  (a waterfall's `points[i].total` vector), VEC-2 (S13.7's vector in `m16-slides.json`); CP-01 (`tools/compat-old.mjs`)
+  now runs against 4.7 (`v4.7.0`) and 4.8 (`v4.8.0`, else `36d689a`) as well.
 * B51: the contents slide's parts are boxes of the slide's existing `free` entry (keys `c:title`, `c:toc`, with their
   `scale`; `render/contents.ts`) – no new op or key; a free entry holding one is format 6 (`needsV6` / `docNeedsV6`:
   4.6–4.8 keep it but draw the contents unmoved) (vectors `shared/ops-vectors.d/b51.json`).
-* Page budget parts: `m16-hidden.json`, `m16-versions.json`, `m16-painter.json`, `m16-cf.json`, `s13-7.json`, `b51.json`.
+* Page budget parts: `m16-hidden.json`, `m16-versions.json`, `m16-painter.json`, `m16-cf.json`, `s13-7.json`, `b51.json`, `m17.json` (the release page 4,874,382 bytes against 4,887,562).
 
 ## 4.8.0 - 2026-10-22 (PLAN M15: lines, icons, snapping; B32–B35)
 
