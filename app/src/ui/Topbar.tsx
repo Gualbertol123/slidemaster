@@ -14,6 +14,7 @@ import { THEMES, themeOf } from "@slide-builder/core/model/style";
 import { DESIGNS, isConsult } from "@slide-builder/core/model/designs";
 import { Input } from "./Input";
 import { useStyle } from "./hooks";
+import { Ic } from "./Ic";
 import { openLicences } from "./notices";
 import { ask } from "../state/dialogs";
 
@@ -30,7 +31,7 @@ function OpenMenu() {
   return (
     <Dropdown onOpen={load} button={(_o, toggle) => (
       <button className="btn" id="openBtn" title="Open a workbook from the folder or browse" onClick={toggle}>
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1.75 4.25c0-.83.67-1.5 1.5-1.5h3l1.5 1.5h5c.83 0 1.5.67 1.5 1.5v6c0 .83-.67 1.5-1.5 1.5h-9.5c-.83 0-1.5-.67-1.5-1.5z" /></svg>Open
+        <Ic n="folder-open" />Open
       </button>)}>
       {close => <>
         {backend.served && <>
@@ -86,7 +87,7 @@ function Options() {
   const pn = (patch: Partial<PageNumbers>, coalesce?: string) => styleChange("Page numbers", { pn: patch }, coalesce);
   const ft = st.footer, fo = (patch: Partial<Footer>, coalesce?: string) => styleChange("Footer", { footer: patch }, coalesce);
   return (
-    <Dropdown right menuClass="optmenu" button={(_o, toggle) => <button className="btn" id="optBtn" title="Page numbers and logo" disabled={!has} onClick={toggle}>⚙ Options</button>}>
+    <Dropdown right menuClass="optmenu" button={(_o, toggle) => <button className="btn" id="optBtn" title="Page numbers and logo" disabled={!has} onClick={toggle}><Ic n="settings" />Options</button>}>
       {() => <>
         <div className="optnote">Colour theme, colours and fonts: <a href="#" onClick={e => { e.preventDefault(); openFontManager("colors"); }}>Design…</a></div>
         <div className="sep" />
@@ -187,7 +188,7 @@ function ExportButton() {
   return (
     <Dropdown right style={{ display: "flex" }} button={(_o, toggle) => <>
       <button className="btn primary split" id="exportBtn" disabled={!can} onClick={() => void doExport("pdf")}>{exporting ? <><span className="spin" />Rendering…</> : "Export PDF"}</button>
-      <button className="btn primary caret" id="exportMenuBtn" disabled={!can} onClick={toggle}>▾</button>
+      <button className="btn primary caret" id="exportMenuBtn" disabled={!can} title="More exports: PowerPoint, images, versions" onClick={toggle}><Ic n="chevron-down" /></button>
     </>}>
       {close => <>
         <div className="hd">PDF – all slides, {backend.served ? "saved in the export folder" : "downloaded"}</div>
@@ -206,7 +207,7 @@ function ExportButton() {
         {item("png-current", "PNG · current slide", undefined, close)}
         {item("png-all", "PNG · every slide", undefined, close)}
         <div className="sep" />
-        <div className="hd">Versions (✦ Wizard › Versions)</div>
+        <div className="hd">Versions (Wizard › Versions)</div>
         <div className="optrow vfmt" id="vFormats">{fmt(["pdf"], "PDF")}{fmt(["pptx"], "PowerPoint")}{fmt(["pdf", "pptx"], "PDF + PowerPoint")}</div>
         <button data-x="versions" disabled={!versions.length} onClick={() => { close(); void exportVersions(null, vf); }}>{vname} · every version<small>{versions.map(v => v.name).join(", ") || "none yet"} · this design{per > 1 ? ` · ${per * versions.length} files` : ""}</small></button>
         <button data-x="versions-2" disabled={!versions.length} onClick={() => { close(); void exportVersions(["glass", "excel"], vf); }}>{vname} · every version × Liquid Glass + Excel<small>{2 * per * versions.length} files</small></button>
@@ -226,7 +227,7 @@ function ExportButton() {
 function VersionPicker() {
   const vs = useStore(s => s.doc.view?.preset?.versions) || [], version = useStore(s => s.deck.version);
   if (!vs.length) return null;
-  return <label className="verpick" title="Version shown on screen (✦ Wizard › Versions); exports: Export ▾ › every version">
+  return <label className="verpick" title="Version shown on screen (Wizard › Versions); exports: Export ▾ › every version">
     <span>Version</span><select id="versionSel" value={version} onChange={e => showVersion((e.target as HTMLSelectElement).value)}>
       <option value="">Full deck</option>{vs.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>;
 }
@@ -249,8 +250,8 @@ export function Topbar() {
       <div className="brand"><i />Slide Builder</div>
       <OpenMenu />
       <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xlsb,.xls" hidden onChange={e => { const t = e.target as HTMLInputElement; const file = t.files?.[0]; if (file) void guard(() => openLocalFile(file)); t.value = ""; }} />
-      <button className="btn icon" id="reloadBtn" title="Reload the workbook from disk (after saving in Excel)" disabled={f?.src !== "folder"} onClick={() => void guard(reloadWorkbook)}>↻</button>
-      <button className="btn" id="wizardBtn" disabled={!wb} title="Choose sheets and tables, arrange slides, cover and index" onClick={() => void guard(openWizard)}>✦ Wizard</button>
+      <button className="btn icon" id="reloadBtn" title="Reload the workbook from disk (after saving in Excel)" disabled={f?.src !== "folder"} onClick={() => void guard(reloadWorkbook)}><Ic n="refresh" /></button>
+      <button className="btn" id="wizardBtn" disabled={!wb} title="Choose sheets and tables, arrange slides, cover and index" onClick={() => void guard(openWizard)}><Ic n="wand" />Wizard</button>
       <div className="fname" id="fileName">{opening ? <>Opening <b>{opening}</b>…</> : f ? <><b>{f.name}</b> · {n} slide{n === 1 ? "" : "s"}{f.src === "upload" ? " · not in the folder" : f.src === "local" ? " · preview only" : ""}</> : "No workbook"}</div>
       <VersionPicker />
       <Others />

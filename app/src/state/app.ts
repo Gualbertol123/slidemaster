@@ -318,11 +318,11 @@ async function presetBox(name: string, p: Preset, canDelete: boolean): Promise<"
 /** B44: a workbook's saved setup deleted on the share – for everybody, kept there as a backup (⚙ Options ›
     Administration › Saved setups restores it); refused while a window has it open. True when it was deleted. */
 export async function deleteSetup(key: string, workbook: string, what: string): Promise<boolean> {
-  const ok = await confirmBox("Delete the saved setup?", `The setup of <b>${esc(workbook)}</b> (${esc(what)}) – its tables, slides, design, versions and comments – is deleted <b>for everybody</b>. The workbook itself is not changed; opening it starts the wizard as for a new file.<br><br>A backup is kept: <b>⚙ Options › Administration › Saved setups</b> can restore it.`, "Delete setup", true);
+  const ok = await confirmBox("Delete the saved setup?", `The setup of <b>${esc(workbook)}</b> (${esc(what)}) – its tables, slides, design, versions and comments – is deleted <b>for everybody</b>. The workbook itself is not changed; opening it starts the wizard as for a new file.<br><br>A backup is kept: <b>Options › Administration › Saved setups</b> can restore it.`, "Delete setup", true);
   if (!ok) return false;
   try { await backend.deleteDeck(key, get().prefs.client); }
   catch (e) { await alertBox("The setup was not deleted", esc((e as Error).message || String(e))); return false; }
-  toast(`The setup of “${esc(workbook)}” was deleted – a backup is kept (⚙ Options › Administration › Saved setups).`);
+  toast(`The setup of “${esc(workbook)}” was deleted – a backup is kept (Options › Administration › Saved setups).`);
   return true;
 }
 

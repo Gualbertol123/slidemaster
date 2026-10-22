@@ -103,6 +103,7 @@ export function effects(outer?: Shadow, inner?: Shadow): string {
 
 /* ---- geometry ---- */
 function geom(g: Geom, w: number, h: number): string {
+  if ("parts" in g && g.parts?.length) return partsGeom(g, w, h);
   if ("prst" in g) return `<a:prstGeom prst="${g.prst}"><a:avLst>${Object.entries(g.adj || {}).map(([n, v]) => `<a:gd name="${n}" fmla="val ${Math.round(v)}"/>`).join("")}</a:avLst></a:prstGeom>`;
   const W = Math.max(1, E(w)), H = Math.max(1, E(h));
   const pt = (x: number, y: number) => `<a:pt x="${E(x)}" y="${E(y)}"/>`;
@@ -230,4 +231,16 @@ export function elXml(el: El, ids: Ids, refs: Refs): string {
 /** a shape tree's opening (its own group, id 1) and its elements */
 export function spTree(els: El[], refs: Refs, ids = new Ids()): string {
   return `<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>${els.map(e => elXml(e, ids, refs)).join("")}</p:spTree>`;
+}
+
+/* ---- M15 (S15.2; 09 §4.3): appended, the lines above stay S14.P's (M14-M15-split §2) ---- */
+/** an icon's custom geometry: its parts, one a:path each, filled or not (fill="none"), stroked or not (stroke="0") – an
+    outline icon's open strokes beside its filled dots in one shape. geom() hands a geometry with `parts` here */
+function partsGeom(g: Extract<Geom, { path: PathCmd[] }>, w: number, h: number): string {
+  const W = Math.max(1, E(w)), H = Math.max(1, E(h));
+  const pt = (x: number, y: number) => `<a:pt x="${E(x)}" y="${E(y)}"/>`;
+  const body = (d: PathCmd[]) => d.map((c: PathCmd) => c[0] === "M" ? `<a:moveTo>${pt(c[1], c[2])}</a:moveTo>` : c[0] === "L" ? `<a:lnTo>${pt(c[1], c[2])}</a:lnTo>`
+    : c[0] === "C" ? `<a:cubicBezTo>${pt(c[1], c[2])}${pt(c[3], c[4])}${pt(c[5], c[6])}</a:cubicBezTo>` : "<a:close/>").join("");
+  const paths = (g.parts || []).map(p => `<a:path w="${W}" h="${H}"${p.fill ? "" : ' fill="none"'}${p.stroke ? "" : ' stroke="0"'}>${body(p.d)}</a:path>`).join("");
+  return `<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst>${paths}</a:pathLst></a:custGeom>`;
 }

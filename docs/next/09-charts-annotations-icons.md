@@ -561,9 +561,11 @@ per-slice colours do today); in Liquid Glass and the consulting designs the same
   does not have shows the built-in "info" **and an Issues line** ("Icon 'x' is not in the icon set") instead of today's
   silent fallback (`shape-dl.ts:122`). Tabler's SVG uses arcs (`a`) and relative commands: `tools/vendor-tabler.mjs`
   converts every path to the display list's absolute `M L C Z` at vendor time (arcs to cubics, ≤ 90° each), so the
-  renderer only scales. Colour = the item's `fill` (its ink), else the design's ink as built-in icons today.
+  renderer only scales. *(amended: ADR-020 2026-10-21 – as built, the vendor step makes every command absolute and keeps
+  arcs (and quadratics) in the packed data, lossless and 17 % smaller; `core/src/icons/index.ts` converts them to cubics
+  of ≤ 90° when an icon is first drawn, so the display list still gets only `M L C Z`.)* Colour = the item's `fill` (its ink), else the design's ink as built-in icons today.
 * **The picker** (`app/src/ui/IconPicker.tsx`, opened from *Insert shape ▾ › More icons…* and from a chart mark): a
-  search box (name and tags, prefix and substring, Italian synonyms not provided – Q11), a category list (41), a grid
+  search box (name and tags, prefix and substring; Italian search words added by Q11's decision, `core/src/icons/search-it.ts`), a category list (41), a grid
   of results drawn as inline SVG from the same path data, outline / filled switch, colour and size of the inserted
   icon. Virtualised: only the visible tiles (≈ 120) are drawn. The search runs in the core worker over the index (§7.4
   budget), so the page holds no copy of the set.
@@ -720,9 +722,14 @@ Where PowerPoint draws differently, and what the slide does about it (S14.3 revi
 
 ### 4.3 Lines, icons, conditional formats in PowerPoint
 * **Lines** (F9): `p:sp` with `a:prstGeom prst="line"` for straight ones (flipH / flipV for direction) and an open
-  `custGeom` for elbow / curve / bracket; style on `a:ln` (`w`, `a:prstDash`, `a:solidFill`, `a:round` / `a:miter`)
+  `custGeom` for elbow / curve / bracket; style on `a:ln` (`w`, `a:custDash`, `a:solidFill`, `a:round` / `a:miter`)
   and **native arrowheads** `a:headEnd` / `a:tailEnd` (`triangle`, `arrow`, `stealth`, `oval`, `diamond`; the limiter's
-  `bar` as a short perpendicular segment in the same `custGeom`). **Never `p:cxnSp`**: an attached line is a plain
+  `bar` as a short perpendicular segment in the same `custGeom`, or – beside a dashed route or a native end – a solid
+  round-capped shape of its own grouped with it). Dashes are written as `a:custDash` (S15.5, owner's open question 1):
+  the presets cannot give our dotted (1:2) and dash-dot (4:2:1:2) patterns (`sysDot` is 1:1, `dot` 1:3, `dashDot`
+  4:3:1:3), and one writer (`pptx/drawingml.ts` `ln`, shared by every shape) keeps every dash exact; dashed (4:3) is the
+  `dash` preset's pattern, so it looks the same. A custom path never starts or ends on a segment of no length (an elbow
+  bent at an end, a bracket of depth 0): PowerPoint aims a native end along that segment. **Never `p:cxnSp`**: an attached line is a plain
   shape at the place it was exported (PowerPoint does not keep it attached – the owner's rule, stated in the report).
   The label is a text box grouped with the line.
 * **Icons**: `custGeom` from the same path data; outline icons as stroked open paths (`a:ln` width, `cap="rnd"`,
@@ -902,7 +909,9 @@ columns), CH-01 (+ types), CL-01 (+ Tabler icons), FL-02 (+ snapping targets), E
 * **ADR-015** gets an amendment (series, groups, axes, marks; PowerPoint mapping §4.2) when M14 starts; ADR-017 one
   for snapping and the 1/4 px rule (M15).
 No other dependency is added: the charts, lines, snapping, CF and painter are our code; `@tabler/icons` is a
-**dev-dependency** read by the vendor script (the page carries the converted data, not the package).
+**dev-dependency** read by the vendor script (the page carries the converted data, not the package). *(amended: ADR-020 2026-10-21 – as built, `@tabler/icons` is no dependency at all, not even a dev-dependency:
+`tools/vendor-tabler.mjs` and `tools/vendor-ui-icons.mjs` fetch the 3.49.0 release tarball and check it against the
+registry's integrity; nothing is installed.)*
 
 ---
 
@@ -994,7 +1003,8 @@ Effort (one engineer, the rhythm of M7–M11): M13 2 weeks, M14 5, M15 4, M16 4,
 10. **Tabler in the app's toolbars (B35)**: replace today's toolbar icons and symbols with Tabler icons? Proposed: yes,
     in M15, as one consistent look (you judge it at G10).
 11. **Icon search language**: Tabler's names and tags are English. Enough, or should Italian search words be added
-    (≈ 300 common ones, maintained by us)?
+    (≈ 300 common ones, maintained by us)? *(decided 2026-10-21: add them – S15.2, `core/src/icons/search-it.ts`,
+    ADR-020 amendment.)*
 12. **Slide list**: with *New slide*, also *Delete slide* and *Duplicate slide* in the slide list's right-click menu?
 13. **Two people restyling one line at once**: the whole style is one value (the last one wins). Fine for lines?
 14. **Format 5 forever?** Deleting every 4.6 object leaves the deck at format 5. Want a command "make readable by

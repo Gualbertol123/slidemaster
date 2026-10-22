@@ -1,0 +1,226 @@
+{
+ "workbook": "report.xlsx",
+ "ops": [
+  {
+   "op": "preset.set",
+   "preset": {
+    "sheets": [
+     "SLIDE_1"
+    ],
+    "tables": [
+     {
+      "id": "dhnms9c",
+      "sheet": "SLIDE_1",
+      "kind": "markers",
+      "anchor": "B3",
+      "index": 0
+     }
+    ],
+    "slides": [
+     {
+      "id": "u9t3fqb",
+      "type": "content",
+      "title": "Loans by bank",
+      "subtitle": null,
+      "tables": [
+       "dhnms9c"
+      ],
+      "layout": null,
+      "date": null,
+      "note": null
+     },
+     {
+      "id": "ic2",
+      "type": "content",
+      "title": "Icons",
+      "subtitle": "Tabler icons beside the built-in ones",
+      "tables": [],
+      "layout": null,
+      "date": null,
+      "note": null
+     }
+    ]
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "u9t3fqb",
+   "id": "t1",
+   "patch": {
+    "kind": "shape",
+    "shape": "icon",
+    "icon": "tabler:building-bank",
+    "box": {
+     "x": 1420,
+     "y": 120,
+     "w": 96,
+     "h": 96
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "ic2",
+   "id": "a1",
+   "patch": {
+    "kind": "shape",
+    "shape": "icon",
+    "icon": "tabler:building-bank",
+    "box": {
+     "x": 120,
+     "y": 260,
+     "w": 96,
+     "h": 96
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "ic2",
+   "id": "a2",
+   "patch": {
+    "kind": "shape",
+    "shape": "icon",
+    "icon": "tabler:target",
+    "box": {
+     "x": 260,
+     "y": 260,
+     "w": 96,
+     "h": 96
+    },
+    "stroke": 1
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "ic2",
+   "id": "a3",
+   "patch": {
+    "kind": "shape",
+    "shape": "icon",
+    "icon": "tabler:arrow-up-right",
+    "box": {
+     "x": 400,
+     "y": 260,
+     "w": 96,
+     "h": 96
+    },
+    "stroke": 3,
+    "fill": "#C42B1C"
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "ic2",
+   "id": "a4",
+   "patch": {
+    "kind": "shape",
+    "shape": "icon",
+    "icon": "tabler:accessible",
+    "box": {
+     "x": 540,
+     "y": 260,
+     "w": 96,
+     "h": 96
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "ic2",
+   "id": "a5",
+   "patch": {
+    "kind": "shape",
+    "shape": "icon",
+    "icon": "tabler:brand-parsinta",
+    "box": {
+     "x": 680,
+     "y": 260,
+     "w": 96,
+     "h": 96
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "ic2",
+   "id": "f1",
+   "patch": {
+    "kind": "shape",
+    "shape": "icon",
+    "icon": "tabler-filled:star",
+    "box": {
+     "x": 820,
+     "y": 260,
+     "w": 96,
+     "h": 96
+    },
+    "fill": "#1C4F8C"
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "ic2",
+   "id": "f2",
+   "patch": {
+    "kind": "shape",
+    "shape": "icon",
+    "icon": "tabler-filled:heart",
+    "box": {
+     "x": 960,
+     "y": 260,
+     "w": 64,
+     "h": 64
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "ic2",
+   "id": "b1",
+   "patch": {
+    "kind": "shape",
+    "shape": "icon",
+    "icon": "target",
+    "box": {
+     "x": 120,
+     "y": 480,
+     "w": 96,
+     "h": 96
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "ic2",
+   "id": "b2",
+   "patch": {
+    "kind": "shape",
+    "shape": "icon",
+    "icon": "arrow-up",
+    "box": {
+     "x": 260,
+     "y": 480,
+     "w": 96,
+     "h": 96
+    }
+   }
+  },
+  {
+   "op": "item.patch",
+   "slide": "ic2",
+   "id": "x1",
+   "patch": {
+    "kind": "shape",
+    "shape": "icon",
+    "icon": "tabler:no-such-icon",
+    "box": {
+     "x": 400,
+     "y": 480,
+     "w": 96,
+     "h": 96
+    }
+   }
+  }
+ ]
+}

@@ -1,24 +1,34 @@
 /* The stage's slide items (S9.3, B16): over each chart a transparent box that selects it (a click on a slice selects
    that slice too: the worker's pie geometry, core render/chart-dl.ts sliceAt), moves it (a drag of its body) and resizes
    it (its corner; in a free layout, B18, also an edge). The pixels are the item's own layer (Stage.tsx Layers), shifted while it moves. */
-import { useStore } from "../state/store";
+import { memo } from "react";
+import { useStore, type ItemSel } from "../state/store";
 import type { RuntimeSlide } from "@slide-builder/core/model/types";
 import { sliceAt } from "@slide-builder/core/render/chart-dl";
 import { selectItem } from "../editor/charts";
 import { kindText } from "../editor/item-text";
 import { itemMove, itemResize, noteEdge, type DragPreview } from "./drags";
 import { slideScale } from "./actions";
-import { setStage } from "./data";
+import { setStage, useStage } from "./data";
 import { chartHitAt, selectedHit } from "./chart-hits";
 import type { StageModel } from "./model";
 
 export function Items({ m, R, drag, free }: { m: StageModel; R: RuntimeSlide; drag: DragPreview | null; free: boolean }) {
-  const itemSel = useStore(s => s.selection.itemSel);
-  // what a moving item snaps to: the tables, the text boxes, the other items
-  const others = (self: string) => [...m.tables.map(t => t.box), ...m.notes.map(n => n.box), ...m.items.filter(p => p.id !== self).map(p => p.box)];
+  const itemSel = useStore(s => s.selection.itemSel), sc = useStage(st => st.scale);
+  // each box drawn again only when its own state changes: a drag's frame redraws the moving one, not all the others
+  // (60 objects: S15.4's snap_drag_frame_ms)
   return <>{m.items.map(p => {
-    const d = drag?.kind === "item" && drag.id === p.id ? drag : null, b = d ? d.box : p.box, on = itemSel?.id === p.id;
-    return <div key={p.id} className={"itembox" + (on ? " sel" : "") + (d?.moved ? " moving" : "") + (p.info?.issue ? " broken" : "")} data-item={p.id} data-kind={R.cfg.items?.[p.id]?.kind}
+    const d = drag?.kind === "item" && drag.id === p.id ? drag : null, on = itemSel?.id === p.id;
+    return <ItemBox key={p.id} p={p} m={m} R={R} free={free} d={d} sel={on ? itemSel : null} sc={sc} />;
+  })}</>;
+}
+type ItemPlace = StageModel["items"][number];
+/** `sc`: the stage's scale (a selected slice's ring keeps its screen size) */
+const ItemBox = memo(function ItemBox({ p, m, R, free, d, sel }: { p: ItemPlace; m: StageModel; R: RuntimeSlide; free: boolean; d: (DragPreview & { kind: "item" }) | null; sel: ItemSel | null; sc: number }) {
+  // what a moving item snaps to: the tables, the text boxes, the other items
+  const others = (self: string) => [...m.tables.map(t => t.box), ...m.notes.map(n => n.box), ...m.items.filter(x => x.id !== self).map(x => x.box)];
+  const b = d ? d.box : p.box, on = !!sel, itemSel = sel;
+  return <div className={"itembox" + (on ? " sel" : "") + (d?.moved ? " moving" : "") + (p.info?.issue ? " broken" : "")} data-item={p.id} data-kind={R.cfg.items?.[p.id]?.kind}
       title={p.info?.issue ? itemTitle(R, p.id, p.info.issue) : undefined}
       style={{ left: b.x, top: b.y, width: b.w, height: b.h }}
       onPointerMove={free ? e => { if (!(e.buttons & 1)) { const ed = noteEdge(e.currentTarget, e.nativeEvent, true, "top"); e.currentTarget.style.cursor = ed ? (ed === "l" || ed === "r" ? "ew-resize" : "ns-resize") : ""; } } : undefined}
@@ -40,8 +50,7 @@ export function Items({ m, R, drag, free }: { m: StageModel; R: RuntimeSlide; dr
       {on && itemSel?.slice !== null && itemSel?.slice !== undefined && p.info?.geom && <SliceMark g={p.info.geom} i={itemSel.slice} box={b} />}
       {on && (itemSel?.point || itemSel?.mark) && p.layer && !d?.moved && <PointMark nodes={p.layer.nodes} id={p.id} sel={itemSel} box={b} />}
     </div>;
-  })}</>;
-}
+});
 /** a broken item's tooltip: its kind's name (editor/item-text.ts) and the problem */
 const itemTitle = (R: RuntimeSlide, id: string, issue: string) => { const it = R.cfg.items?.[id]; return (it ? kindText(it).name(it) : "Object") + ": " + issue; };
 /** the selected slice: a ring at the edge of its arc */

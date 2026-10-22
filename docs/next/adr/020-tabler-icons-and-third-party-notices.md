@@ -48,3 +48,56 @@ Load the SVG files at run time from the helper (needs the package on the share a
 font (text, not shapes, in PDF and PowerPoint; rejected); only a curated subset (the owner asked for the full set; the
 whole set costs ≈ 0.6 MB, kept); another set (Lucide ISC ≈ 1,600 icons; Material Symbols Apache-2.0, larger) – the owner
 named Tabler.
+
+## Amendment 2026-10-21 (S15.1, as built; the owner's decision of 2026-10-21: option A, the set inside the page)
+* **No devDependency.** `tools/vendor-tabler.mjs` reads the npm release tarball itself (`icons-3.49.0.tgz`, fetched
+  once, or given on the command line) and stops unless it has the registry's `dist.integrity`
+  (`sha512-l+GnSkFE…anc6lw==`, pinned in the script). `aliases.json` is not in the npm package: it is read from the
+  release tag `v3.49.0` (commit `bbed884d`) and must have that tree's git blob id (`6a8ea732…`). Nothing enters
+  `package.json` or the lock; tests never touch the network.
+* **One packed binary, `core/src/icons/data.ts`** (not `tabler-data.ts` with three strings): names (front-coded),
+  categories, a tag dictionary, the alias table and every icon's paths, on a 1/1000 grid of the 24 × 24 box as zig-zag
+  varint deltas with byte opcodes, zlib level 9, base64. Tabler writes at most three decimals, so the data is
+  **lossless**; the script stops if a number is off the grid.
+* **Arcs and quadratics are kept in the data** and turned into cubics (≤ 90° per arc, the exact cubic for Q) by the
+  decoder in `core/src/icons/index.ts` when an icon is first drawn. The display list still receives only `M L C Z`, and
+  the renderer only scales. Converted at vendor time, the arcs' control points fall off any grid, and the data is 21 %
+  larger (617 KB against 509 KB of base64).
+* **The invisible frame is not in Tabler's nodes files** (the script checks this against every SVG file).
+  `stroke="none"` therefore marks a real part of 13 outline icons (the percentage-* pies). It is kept, filled and not
+  stroked. Each path carries its paint: stroked, stroked and filled (the dots drawn with fill="currentColor"), filled
+  only, or half ink (brand-parsinta's `opacity=".5"`). Filled icons are filled with the nonzero rule.
+* **Only the workers import `core/src/icons/`** (`core/src/workers/main.ts` calls `installTabler`, which registers the
+  set with `render/icons.ts` `setVendoredIcons`). The page's own bundle has no copy: a test checks the imports, and the
+  notices test checks the bundle.
+* **The hash is checked against an independent value** (S15.1 review): `tools/vendor-tabler.mjs` pins the packed
+  binary by hand (`PACKED`: 868,542 bytes, sha256 `982d079a…`; it does not depend on zlib) and stops before writing
+  `data.ts` if its output differs. `core/tests/icons.test.ts` reads `PACKED` from the script and checks what the
+  committed data inflates to; it also asserts the zlib bytes' sha256 literally (Node 22.22's zlib 1.3.1 – another zlib
+  build may deflate differently, so regenerating `data.ts` is a deliberate step).
+* **One entry point registers the set** (`installTabler`): the workers and every core test and benchmark
+  (`core/tests/setup-icons.ts`, both vitest configs). The Node tools get their display lists from the page's worker.
+* **Old names are their own field** (`oldNames`), searched with the tags but not returned by `tags()`;
+  `category()`, `tags()` and `oldNames()` resolve an old name as `icon()` does.
+* **Measured (S15.1):** the set holds 5,184 outline and 1,054 filled icons, 41 categories, 7,596 distinct tags and 63 + 3
+  aliases. Its sizes are 868,542 bytes packed, 381,825 zlib and 509,100 base64. The page grows by **514,930 bytes**:
+  3,964,345 bytes built from `v4/M14-M15-prep`, 4,479,275 with S15.1. Inflating and indexing the set the first time
+  took about 90 ms in Node. Every icon of both sets drawn through the display list and `dl/svg.ts`, then rasterised
+  with resvg at 96 px, matches the release's own SVG file within 64/255 per pixel in 6,226 of 6,238 icons. In the
+  other 12, at most 10 pixels differ, by at most 96/255.
+
+## Amendment 2026-10-21 (S15.2 · Italian search words; 09 §9 Q11, the owner's decision of 2026-10-21)
+* **Source.** Tabler's names and tags are English. `core/src/icons/search-it.ts` adds Italian search words, written and
+  maintained by us (not part of the Tabler release, not in `data.ts`, not touched by `tools/vendor-tabler.mjs`): 338
+  words and phrases on 245 lines, chosen for a bank's planning slides (banca, conto, mutuo, risparmio, obiettivo,
+  previsione, grafico, torta …) and general use (freccia, su, giù, avviso, persona, calendario, lucchetto …). Each line
+  is the Italian word with its forms or synonyms ("/"-separated; a phrase may have spaces, "stretta di mano"), then its
+  targets, best first: a Tabler icon name, or an English word that is a whole word of icon names or a tag.
+* **Search.** The query is folded (lower case, accents off: "città" = "citta"); a listed phrase counts as one word,
+  Italian articles and prepositions between words are dropped. An Italian word matches its targets as whole name words
+  or tags; the icons its targets name rank first, in the list's order ("banca" → building-bank, "freccia su" →
+  arrow-up), before ordinary name and tag matches. English search is unchanged; a word neither language knows finds
+  nothing.
+* **Maintenance.** Add or change a line, then run `npx vitest run tests/icons-it.test.ts` in `core/`: it fails on a
+  target the set does not have, a word listed twice, or a count outside 250–400 (raise the bound deliberately). On a
+  Tabler update the same test names any target the new release renamed or dropped; fix the line, not the data.

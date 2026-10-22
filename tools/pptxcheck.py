@@ -30,6 +30,20 @@ check needs PowerPoint (Windows, COM through PowerShell). The helper stays stand
             (HasChart) per slide as python-pptx – a failure, never a count. Each report says `ppt`: opened / failed /
             absent (no PowerPoint here: 1, 2, 4 and python-pptx's part of 5 run) / skipped (--no-ppt). Also in (1): no
             chart formula (c:f) names another file (09 §4.2: no external links)
+        (6) icons (4.8, M15 S15.2; 09 §4.3, check_icons): every shape or group named "Icon n" is native custom geometry –
+            each of its shapes a:custGeom (never a preset), no picture (p:pic, a:blipFill) –, a shape without fill
+            (an outline icon) has a line, and every drawn line of an icon has round caps and joins (a:ln cap="rnd",
+            a:round); with --expect, each slide holds exactly the entries' `icons` (tools/real-icons.mjs: the core's
+            Tabler icons; a built-in icon or a name the set lacks stays the built-in shape, not named "Icon")
+        (7) lines (4.8, M15 S15.3; 09 §4.3, LN-03, check_lines): every shape or group named "Line n" is plain shapes – no
+            connector (p:cxnSp), no picture –; its stroke a:prstGeom "line" or an open a:custGeom (fill="none") with a
+            drawn a:ln whose ends (a:headEnd / a:tailEnd) are DrawingML's types; with --expect, each slide holds exactly
+            the entries' `lines` (tools/real-icons.mjs linesOf: the core's line items) and, where the entry gives them
+            (S15.5), exactly its `heads` (native a:headEnd / a:tailEnd of a type other than none, over its lines) and
+            `dashed` (lines with a dashed stroke: a:custDash or an a:prstDash other than solid); a native end never
+            sits on a custom path's segment of no length (PowerPoint aims it along that segment); where an entry gives
+            `quarter` (shape name prefixes), every shape or group so named has its a:off / a:ext on the 1/4 px grid
+            (1,905 EMU, 09 §2.6)
         exit 1 when any check fails; --json writes every file's report (the content of (2) included)
     python tools/pptxcheck.py info a.pptx [...]      the report of (1) and (2) as JSON, nothing checked
 """
@@ -744,6 +758,8 @@ def check(paths, slides=None, ppt=True, report=None, sources=None, expect=None):
         exp = (expect or {}).get(p, (expect or {}).get(os.path.abspath(p)))
         if exp is not None:
             bad = bad + real_objects(rep["content"], exp, "python-pptx reads")
+        bad = bad + check_icons(p, exp, rep)            # (6) M15: the icons (its own function below)
+        bad = bad + check_lines(p, exp, rep)            # (7) M15: the lines (its own function below)
         src = (sources or {}).get(p) or (sources or {}).get(os.path.abspath(p))
         if src and rep["content"]:
             for k, spec in enumerate(src["charts"]):
@@ -800,11 +816,259 @@ def check(paths, slides=None, ppt=True, report=None, sources=None, expect=None):
         ok = ok and not bad
         print(("PASS " if not bad else "FAIL ") + os.path.basename(p) + ("" if not bad else ": " + "; ".join(bad[:4])))
     if not use_ppt and ppt:
-        print("(PowerPoint is not available here: checks 1–2, 4 and python-pptx's real tables and charts (5) only; on a PC with PowerPoint, 3 and 5 are gates)")
+        print("(PowerPoint is not available here: checks 1–2, 4, python-pptx's real tables and charts (5), the icons (6) and the lines (7) only; on a PC with PowerPoint, 3 and 5 are gates)")
     if report:
         with open(report, "w", encoding="utf-8") as f:
             json.dump(reports, f, ensure_ascii=False, indent=1)
     return ok
+
+
+# ---- M15 (4.8; S15.2 review, 1): the icon block of the gate, its own functions (M14-M15-split §2) ----
+def _slide_parts(z):
+    """the slide parts in the file's order (presentation.xml's sldIdLst)"""
+    pres = ET.fromstring(z.read("ppt/presentation.xml"))
+    rels = {r.get("Id"): r.get("Target") for r in ET.fromstring(z.read("ppt/_rels/presentation.xml.rels")).findall("rel:Relationship", NS)}
+    return [posixpath.normpath(posixpath.join("ppt", rels[s.get("{%s}id" % NS["r"])])) for s in pres.findall("p:sldIdLst/p:sldId", NS)]
+
+
+ICON_NAME = re.compile(r"^Icon \d+$")
+
+
+def _icon_problems(el, where):
+    """what is wrong with one icon (an "Icon n" shape, or a group of them): its shapes custom geometry, no picture, an
+    outline shape stroked, every drawn line round-capped and round-joined"""
+    bad = []
+    if el.find(".//p:pic", NS) is not None or el.tag == P + "pic":
+        bad.append("%s: a picture" % where)
+    if el.find(".//a:blipFill", NS) is not None:
+        bad.append("%s: a picture fill (a:blipFill)" % where)
+    shapes = [el] if el.tag == P + "sp" else el.findall(".//p:sp", NS)
+    if not shapes:
+        bad.append("%s: no shape" % where)
+    for sp in shapes:
+        pr = sp.find("p:spPr", NS)
+        if pr is None or pr.find("a:custGeom", NS) is None:
+            bad.append("%s: not custom geometry (%s)" % (where, "a preset" if pr is not None and pr.find("a:prstGeom", NS) is not None else "no a:custGeom"))
+            continue
+        if not pr.findall("a:custGeom/a:pathLst/a:path", NS):
+            bad.append("%s: custom geometry without a path" % where)
+        ln = pr.find("a:ln", NS)
+        drawn = ln is not None and ln.find("a:noFill", NS) is None
+        if pr.find("a:noFill", NS) is not None and not drawn:
+            bad.append("%s: an outline icon (noFill) without a line" % where)
+        if drawn and (ln.get("cap") != "rnd" or ln.find("a:round", NS) is None):
+            bad.append("%s: its line is not round-capped and round-joined (cap=%s, %s)" % (where, ln.get("cap"), "a:round" if ln.find("a:round", NS) is not None else "no a:round"))
+    return bad
+
+
+def icons(path):
+    """per slide (in the file's order) its icons: the outermost shapes and groups named "Icon n" (a half-ink icon is a
+    group "Icon" of shapes "Icon"), each with its problems"""
+    z = zipfile.ZipFile(path)
+    out = []
+    for part in _slide_parts(z):
+        found = []
+
+        def walk(e):
+            for ch in e:
+                if ch.tag in (P + "sp", P + "grpSp", P + "pic"):
+                    nv = ch.find("./*/p:cNvPr", NS)
+                    if nv is not None and ICON_NAME.match(nv.get("name") or ""):
+                        found.append(ch)
+                        continue
+                if ch.tag == P + "grpSp":
+                    walk(ch)
+        tree = ET.fromstring(z.read(part)).find("p:cSld/p:spTree", NS)
+        walk(tree if tree is not None else [])
+        out.append(found)
+    return out
+
+
+def check_icons(path, expect=None, rep=None):
+    """(6) the icons of a file: each one native custom geometry with round strokes (_icon_problems); with `expect`
+    ({slide, icons} entries, the core's count, tools/real-icons.mjs) each slide holds exactly that many, a slide not
+    listed none. `rep` (a report) gets the counts per slide"""
+    try:
+        per = icons(path)
+    except (KeyError, zipfile.BadZipFile, ET.ParseError) as e:
+        return ["icons not read: %s" % e]
+    if rep is not None:
+        rep["icons"] = [len(x) for x in per]
+    bad = []
+    for i, found in enumerate(per):
+        for k, el in enumerate(found):
+            bad.extend(_icon_problems(el, "slide %d, icon %d" % (i + 1, k + 1)))
+    if expect is not None:
+        want = {e["slide"]: e.get("icons") or 0 for e in expect}
+        for n in sorted(set(want) | set(range(1, len(per) + 1))):
+            have = len(per[n - 1]) if 0 < n <= len(per) else 0
+            if have != want.get(n, 0):
+                bad.append("slide %d: %d icon(s), the export draws %d" % (n, have, want.get(n, 0)))
+    return bad
+# ---- end of M15's icon block ----
+
+
+# ---- M15 (4.8; S15.3): the line block of the gate (LN-03), its own functions ----
+LINE_NAME = re.compile(r"^Line \d+$")
+LINE_ENDS = {"none", "triangle", "stealth", "diamond", "oval", "arrow"}
+
+
+def _line_problems(el, where):
+    """what is wrong with one line (a "Line n" shape, or its group with its ticks and label): plain shapes only, its
+    stroke a line preset or an open custom geometry with a drawn a:ln, its ends DrawingML's own"""
+    bad = []
+    if el.tag == P + "cxnSp" or el.find(".//p:cxnSp", NS) is not None:
+        bad.append("%s: a connector shape (p:cxnSp)" % where)
+    if el.tag == P + "pic" or el.find(".//p:pic", NS) is not None or el.find(".//a:blipFill", NS) is not None:
+        bad.append("%s: a picture" % where)
+    shapes = [el] if el.tag == P + "sp" else el.findall(".//p:sp", NS)
+    strokes = 0
+    for sp in shapes:
+        pr = sp.find("p:spPr", NS)
+        if pr is None:
+            continue
+        prst = pr.find("a:prstGeom", NS)
+        paths = pr.findall("a:custGeom/a:pathLst/a:path", NS)
+        is_stroke = (prst is not None and prst.get("prst") == "line") or (paths and all(x.get("fill") == "none" for x in paths))
+        if not is_stroke:
+            continue                                    # the label's background and its text box
+        strokes += 1
+        ln = pr.find("a:ln", NS)
+        if ln is None or ln.find("a:noFill", NS) is not None or not int(ln.get("w") or 0):
+            bad.append("%s: a stroke without a drawn line" % where)
+            continue
+        for tag in ("a:headEnd", "a:tailEnd"):
+            e = ln.find(tag, NS)
+            if e is not None and e.get("type") not in LINE_ENDS:
+                bad.append("%s: %s type %s" % (where, tag, e.get("type")))
+            # (S15.5 review 1) PowerPoint aims a native end along the path's first / last segment: never one of no length
+            if e is not None and (e.get("type") or "none") != "none" and paths and _end_segment_empty(paths, tag == "a:headEnd"):
+                bad.append("%s: its %s sits on a segment of no length" % (where, tag))
+    if not strokes:
+        bad.append("%s: no line shape (a:prstGeom line or an open a:custGeom)" % where)
+    return bad
+
+
+def _end_segment_empty(paths, first):
+    """True when the open path's first (or last) segment is a lnTo to the point it starts from"""
+    cmds = [c for c in paths[0 if first else -1] if c.tag in (A + "moveTo", A + "lnTo", A + "cubicBezTo")]
+    pts = [[(int(q.get("x") or 0), int(q.get("y") or 0)) for q in c.findall("a:pt", NS)] for c in cmds]
+    if len(cmds) < 2 or not all(pts):
+        return False
+    if first:
+        return cmds[1].tag == A + "lnTo" and pts[1][0] == pts[0][-1]
+    return cmds[-1].tag == A + "lnTo" and pts[-1][0] == pts[-2][-1]
+
+
+def _quarter_problems(path, expect):
+    """(S15.5 review 4) the 1/4 px grid (1/4 px = 1,905 EMU): on each slide whose entry gives `quarter` (shape
+    name prefixes, e.g. ["Callout", "Icon"]), every shape or group so named ("<prefix> n") has its a:off and a:ext on it
+    (09 §2.6)"""
+    want = {e["slide"]: e["quarter"] for e in expect or [] if e.get("quarter")}
+    if not want:
+        return []
+    z, bad = zipfile.ZipFile(path), []
+    parts = _slide_parts(z)
+    for n, prefixes in sorted(want.items()):
+        if not 0 < n <= len(parts):
+            bad.append("slide %d: not in the file (quarter)" % n)
+            continue
+        name = re.compile(r"^(%s) \d+$" % "|".join(re.escape(x) for x in prefixes))
+        found = 0
+        for el in ET.fromstring(z.read(parts[n - 1])).iter():
+            if el.tag not in (P + "sp", P + "grpSp"):
+                continue
+            nv = el.find("./*/p:cNvPr", NS)
+            if nv is None or not name.match(nv.get("name") or ""):
+                continue
+            x = el.find("p:spPr/a:xfrm", NS)
+            if x is None:
+                x = el.find("p:grpSpPr/a:xfrm", NS)
+            if x is None:
+                continue
+            found += 1
+            off, ext = x.find("a:off", NS), x.find("a:ext", NS)
+            vals = [int(off.get("x")), int(off.get("y")), int(ext.get("cx")), int(ext.get("cy"))] if off is not None and ext is not None else []
+            if not vals or any(v % 1905 for v in vals):
+                bad.append("slide %d, %s: a:off / a:ext %s not on the 1/4 px grid (1,905 EMU)" % (n, nv.get("name"), vals))
+        if not found:
+            bad.append("slide %d: no shape named %s (quarter)" % (n, " / ".join(prefixes)))
+    return bad
+
+
+def lines(path):
+    """per slide (in the file's order) its lines: the outermost shapes and groups named "Line n", connectors too (named
+    or not: a connector is never allowed)"""
+    z = zipfile.ZipFile(path)
+    out = []
+    for part in _slide_parts(z):
+        found = []
+
+        def walk(e):
+            for ch in e:
+                if ch.tag in (P + "sp", P + "grpSp", P + "pic", P + "cxnSp"):
+                    nv = ch.find("./*/p:cNvPr", NS)
+                    if ch.tag == P + "cxnSp" or (nv is not None and LINE_NAME.match(nv.get("name") or "")):
+                        found.append(ch)
+                        continue
+                if ch.tag == P + "grpSp":
+                    walk(ch)
+        tree = ET.fromstring(z.read(part)).find("p:cSld/p:spTree", NS)
+        walk(tree if tree is not None else [])
+        out.append(found)
+    return out
+
+
+def _line_facts(el):
+    """(native heads, dashed) of one line: its a:headEnd / a:tailEnd of a type other than none, and 1 when a stroke of
+    it is dashed (a:custDash, or an a:prstDash other than solid)"""
+    heads, dashed = 0, 0
+    for ln in el.iter(A + "ln"):
+        for tag in ("a:headEnd", "a:tailEnd"):
+            e = ln.find(tag, NS)
+            if e is not None and (e.get("type") or "none") != "none":
+                heads += 1
+        pd = ln.find("a:prstDash", NS)
+        if ln.find("a:custDash", NS) is not None or (pd is not None and pd.get("val") not in (None, "solid")):
+            dashed = 1
+    return heads, dashed
+
+
+def check_lines(path, expect=None, rep=None):
+    """(7) the lines of a file: each one plain shapes with a drawn stroke and native ends (_line_problems); with `expect`
+    ({slide, lines} entries, tools/real-icons.mjs linesOf) each slide holds exactly that many, a slide not listed none"""
+    try:
+        per = lines(path)
+    except (KeyError, zipfile.BadZipFile, ET.ParseError) as e:
+        return ["lines not read: %s" % e]
+    facts = [[_line_facts(el) for el in found] for found in per]
+    if rep is not None:
+        rep["lines"] = [len(x) for x in per]
+        rep["line_heads"] = [sum(h for h, _ in f) for f in facts]
+        rep["lines_dashed"] = [sum(d for _, d in f) for f in facts]
+    bad = []
+    for i, found in enumerate(per):
+        for k, el in enumerate(found):
+            bad.extend(_line_problems(el, "slide %d, line %d" % (i + 1, k + 1)))
+    if expect is not None:
+        want = {e["slide"]: e.get("lines") or 0 for e in expect}
+        for n in sorted(set(want) | set(range(1, len(per) + 1))):
+            have = len(per[n - 1]) if 0 < n <= len(per) else 0
+            if have != want.get(n, 0):
+                bad.append("slide %d: %d line(s), the export draws %d" % (n, have, want.get(n, 0)))
+        # the native ends and the dashed lines, where the expectation counts them (S15.5)
+        for e in expect:
+            n = e["slide"]
+            f = facts[n - 1] if 0 < n <= len(facts) else []
+            for key, idx, what in (("heads", 0, "native line end(s)"), ("dashed", 1, "dashed line(s)")):
+                if key in e and sum(x[idx] for x in f) != e[key]:
+                    bad.append("slide %d: %d %s, the export draws %d" % (n, sum(x[idx] for x in f), what, e[key]))
+        try:
+            bad.extend(_quarter_problems(path, expect))
+        except (KeyError, zipfile.BadZipFile, ET.ParseError, ValueError) as e:
+            bad.append("the 1/4 px grid not read: %s" % e)
+    return bad
+# ---- end of M15's line block ----
 
 
 def main(argv):

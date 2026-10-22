@@ -3,8 +3,9 @@
    Licences (app/src/ui/notices-data.ts, inflated only when that opens).
    The entries come from what the page and the core worker REALLY bundle: both are bundled here as app/vite.config.ts
    bundles them, and every package esbuild's metafile shows bytes from gets its licence file from node_modules; every
-   inlined WASM folder (core/src/…/wasm/) needs an entry in VENDORED below and all its LICENSE-* / COPYING-* files.
-   A package without a licence file, or a WASM folder or licence file nobody listed, stops the script.
+   inlined WASM folder (core/src/…/wasm/) and the vendored icon set (core/src/icons/, S15.1) needs an entry in VENDORED
+   below and all its LICENSE-* / COPYING-* files.
+   A package without a licence file, or a vendored folder or licence file nobody listed, stops the script.
    app/tests/notices.test.ts and helper/tests/test_release.py fail when the committed files are out of date.
        node tools/notices.mjs            write both files
        node tools/notices.mjs --check    exit 1 when either is out of date */
@@ -17,8 +18,11 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const NOTICES_FILE = "THIRD-PARTY-NOTICES.txt", PAGE_FILE = "app/src/ui/notices-data.ts", APACHE = "tools/licenses/Apache-2.0.txt";
 export const isLicence = (/** @type {string} */ f) => /^(LICEN[CS]E|COPYING)([-.].*)?$/i.test(f);
 
-/* the inlined WASM engines: folder → what is in it (the version is checked against the vendored file's header) */
+/* the inlined WASM engines and the icon set: folder → what is in it (the version is checked against the vendored file's header) */
 const VENDORED = {
+  "core/src/icons": [
+    { name: "@tabler/icons", version: "3.49.0", check: ["data.ts", "@tabler/icons@3.49.0"], licence: "MIT",
+      what: "the icon set (converted by tools/vendor-tabler.mjs)", url: "https://github.com/tabler/tabler-icons", file: "LICENSE-tabler" }],
   "core/src/calc/wasm": [
     { name: "IronCalc", version: "0.9.0", check: ["ironcalc-wasm.ts", "@ironcalc/wasm@0.9.0"], licence: "MIT (chosen; or Apache-2.0, text below)",
       what: "the formula engine (WebAssembly)", url: "https://github.com/ironcalc/IronCalc", file: "LICENSE-ironcalc" }],
@@ -77,7 +81,7 @@ export async function bundled(root = ROOT) {
         if (!p.where.includes(where)) p.where.push(where);
         packages.set(m[2], p);
       }
-      const w = /(?:^|\/)(core\/src\/(?:[^/]+\/)*wasm)\/[^/]+$/.exec(f);
+      const w = /(?:^|\/)(core\/src\/(?:(?:[^/]+\/)*wasm|icons))\/[^/]+$/.exec(f);
       if (w && !(wasmWhere.get(w[1]) || []).includes(where)) wasmWhere.set(w[1], [...(wasmWhere.get(w[1]) || []), where]);
     }
   }
@@ -105,7 +109,7 @@ export async function notices(root = ROOT) {
   }
   for (const dir of [...wasmDirs].sort()) {
     const known = /** @type {Record<string, typeof VENDORED["core/src/calc/wasm"]>} */ (VENDORED)[dir];
-    if (!known) throw new Error(`${dir}: an inlined WASM folder with no entry in tools/notices.mjs VENDORED`);
+    if (!known) throw new Error(`${dir}: an inlined vendored folder with no entry in tools/notices.mjs VENDORED`);
     const files = fs.readdirSync(path.join(root, dir)).filter(isLicence).sort();
     const unlisted = files.filter(f => !known.some(k => k.file === f));
     if (unlisted.length) throw new Error(`${dir}: ${unlisted.join(", ")} not listed in tools/notices.mjs VENDORED`);

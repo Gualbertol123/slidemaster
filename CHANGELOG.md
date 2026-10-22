@@ -3,9 +3,80 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## 4.8.0 - unreleased (PLAN M15: lines, icons, snapping; B32–B35)
+## 4.8.0 - 2026-10-22 (PLAN M15: lines, icons, snapping; B32–B35)
 
-(M15 writes this section on its own branch, v4/M15-lines-icons-snapping.)
+What users notice
+* **About 6,200 icons** (B34; Tabler Icons 3.49.0, MIT – named in the notices): ribbon 2 › *Insert shape ▾* ›
+  **More icons…** opens a picker – search by name or tag (English words, e.g. "bank", "arrow up"), outline or filled,
+  41 categories, the icons used last – and puts the icon on the slide in the colour, size (32–128 px) and line width
+  (1–3) chosen there. A selected icon has *Change icon…* (another one, same colour, size and place), its size and its
+  line width on the ribbon; each change is one undo step. The icons are in Slide Builder itself: no internet needed.
+  The 17 icons of earlier versions are still in the menu and look as before.
+* **Search the icons in Italian too** (09 §9 Q11): about 300 common Italian words – "banca", "obiettivo", "grafico",
+  "freccia su", "stretta di mano", "città" or "citta" – find their icons first, beside the English names and tags.
+* **Icons in charts** (4.7's chart marks): a chart's icon mark with a Tabler name (the reference chart's targets) now
+  draws that Tabler icon – its lines with round ends, its filled dots – instead of the built-in icon of the same name,
+  on the slide, in the PDF and as shapes over the PowerPoint chart.
+* **Icons in PowerPoint are shapes**: each icon is an editable PowerPoint shape (custom geometry: its lines with round
+  ends, or its filled outline, in its colour) – never a picture; in the PDF and on screen it is drawn as on the slide.
+* **An icon Slide Builder does not have** (a deck from a newer version, a mistyped name) shows the ⓘ icon and a line in
+  the Issues panel naming it, instead of standing in silently. Older versions (4.6, 4.7) show ⓘ for the new icons
+  without that line – open such decks in 4.8.
+* **Lines and arrows** (B33): ribbon 2 › **Insert line ▾** – a line, an arrow, a double arrow, an elbow arrow, a curved
+  arrow, a bracket, a range marker (ticks at its ends and a label above it), a limiter, a dashed divider and a thin
+  callout line. Drag a line to move it, its round handles to move its ends (Shift: straight, 45° or upright), its
+  middle handle to move an elbow's bend or bend a curve or a bracket. **Hold Ctrl while dragging an end** to attach it
+  to a table, a text box, a shape or an icon: it then follows that object when it moves, in every design and in free
+  layout; *Detach* frees both ends. The ribbon sets its kind, colour, weight, dashes, the end at each side (arrow, open
+  arrow, stealth, dot, diamond, tick) and a label, which can quote a cell like a callout ({Sheet!C7}). Each change is
+  one undo step. If an attached end's object is deleted, the end stays where it was and the Issues panel says "Line n:
+  its end lost its object". A line without its own colour takes the colour the deck sets for text boxes (else the
+  design's ink); on a dark slide colour it is light, so it shows. A label sits on the colour under it – the slide, a
+  consulting design's dark band or Consulting Red's panel – in white where the line's ink would not read there; a line
+  in a light colour (white, light grey) whose label sits on a light ground has its label in the design's ink, so it
+  reads.
+* **Lines in PowerPoint are ordinary line shapes** with PowerPoint's own arrowheads – never connectors and never
+  pictures – placed where the line is drawn on the slide (PowerPoint does not keep them attached). Their labels are
+  text boxes grouped with them. Dashes are kept, and the ticks of a range marker or limiter stay solid with round ends
+  as on the slide (beside a dashed line or an arrowhead they are a small shape of their own in the same group). In the
+  PDF and on screen they are drawn as on the slide. Older versions (4.6, 4.7) do not show the new lines – open such
+  decks in 4.8.
+* **Lines in a free layout and older windows**: a 4.6 or 4.7 window that switches the free layout of a slide with a
+  line off and on again saves the line's place without its ends. 4.8 then draws that line with its own ends moved as
+  its box moved: a line whose ends were dragged in the free layout loses that shape (its ends attached to objects still
+  follow them). Moving objects in 4.6 or 4.7 keeps it. Close every older window on update day (below).
+* **Snapping for every object** (B32): moving or resizing a table in free layout, a text box, the notes section, a
+  chart, a shape, an icon or a line (its ends, its bend, the whole line) lines up with the slide's edges, its centre
+  lines and margins, the other objects' edges and centres, the tables' column and row borders and the other lines'
+  ends. Every line it matches is shown in pink (a centre dashed); it also offers **equal spacing** (the two equal gaps
+  are marked with their size in px) and, when resizing, **the same width or height** as another object (both marked).
+  The pull is 8 px on screen at any zoom. **Hold Alt to drag without snapping** – now for every object in every layout
+  (text boxes used to snap with Alt held outside free layout). The guides are only on screen, never in the PDF or
+  PowerPoint file.
+* **Objects stay exactly where they are dropped**: positions and sizes are saved on a 1/4 px grid, the same number the
+  screen showed while dragging, so the PDF and PowerPoint place them identically (no half-pixel jump on drop) – also
+  for a table pushed against the slide's right or bottom edge in free layout, a table resized by its top or bottom
+  edge onto a guide, and an elbow's bend. An object saved by an earlier version moves by at most 1/8 px the first time
+  it is dragged (only the values the drag changes; nothing moves when a deck is just opened).
+* **One look for the toolbars' icons** (B35): the buttons of the top bar and both ribbons (undo, alignment, spacing,
+  format painter, borders, position, text boxes, shapes, lines, zoom …) show Tabler icons in place of the hand-drawn
+  icons and symbols (↻ ✦ ⚙ ⤺ 🗑 ⇄ …), all the same size and in the buttons' text colour. The buttons keep their words
+  and their tooltips; nothing moved. Messages that named a button by its old symbol (✦ Wizard, ⚙ Options) now name it
+  by its words.
+
+For the maintainer
+* **Update day (4.6 / 4.7 → 4.8): every Slide Builder window and black window is closed on every PC before the
+  update** (`docs/next/release-checklist.md` §6). Lines, Tabler icons and an icon's line width are 4.6 objects
+  (ADR-019): a deck holding them is marked for 4.6 before the first one is saved, as in 4.6 (once per deck, about 25
+  seconds of "Saving…"). 4.6 and 4.7 open such decks and keep the new objects but do not draw the lines and show ⓘ
+  for the Tabler icons; 4.0–4.5 open them read-only – never delete their `incident-format-5.json`.
+* **The Tabler set is inside the page** (`core/src/icons/data.ts`, ≈ 0.5 MB of the page, deflated; ADR-020
+  amended): no network, no npm package. `node tools/vendor-tabler.mjs` / `tools/vendor-ui-icons.mjs` rebuild it from
+  the 3.49.0 release tarball, checked against the registry's integrity; `THIRD-PARTY-NOTICES.txt` names Tabler Icons
+  (MIT).
+* **The PowerPoint gate** (`tools/pptxcheck.py`) checks two more things: (6) every icon is a custom-geometry shape, never
+  a picture, round line ends; (7) every line is plain line shapes with PowerPoint's own ends – no connector
+  (`p:cxnSp`), no picture – and the shapes a check names for the 1/4 px grid sit on multiples of 1,905 EMU.
 
 ## 4.7.0 - 2026-10-22 (PLAN M14: charts; B30, B31; docs/next/09; ADR-015 amended 2026-10-21)
 

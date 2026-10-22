@@ -32,8 +32,22 @@ import { editOf, stageModel, type NotePlace, type Rect, type StageModel } from "
 import { PlainLayer, TableLayer, type Box } from "./SlideSvg";
 import { CellEditor, ItemEditor, NoteEditor, TextEditor } from "./editors";
 import { Items } from "./items";
+import { Lines } from "./lines";
+import { SnapGuides } from "./guides";
 
 const SIDES: Side[] = ["top", "bottom", "left", "right"];
+
+/* While a button is held the slide keeps its size: a press that selects something can change the ribbon (a shape's
+   tools join it and it wraps to another row), and the slide fitted again at once would jump under the pointer as a drag
+   starts – and every text of the slide would be laid out again in the drag's first frame (Chromium lays SVG text out
+   again when its scale changes: 40+ ms with 60 objects, S15.4's snap_drag_frame_ms). The space is measured again when
+   the button is released */
+let held = false, refit: (() => void) | null = null;
+if (typeof addEventListener === "function") {
+  addEventListener("pointerdown", () => { held = true; }, true);
+  const up = () => { held = false; const f = refit; refit = null; f?.(); };
+  addEventListener("pointerup", up, true); addEventListener("pointercancel", up, true); addEventListener("blur", up);
+}
 
 /** the stage's frame: fits the slide into the space (or shows it at the chosen zoom) */
 export function Stage() {
@@ -41,11 +55,12 @@ export function Stage() {
   const zoom = useStore(s => s.ui.zoom), fitTick = useStage(s => s.fitTick);
   const [size, setSize] = useState<[number, number]>([0, 0]);
   useLayoutEffect(() => {
-    const el = host.current!, measure = () => setSize(z => z[0] === el.clientWidth && z[1] === el.clientHeight ? z : [el.clientWidth, el.clientHeight]);
-    measure();
+    const el = host.current!, now = () => setSize(z => z[0] === el.clientWidth && z[1] === el.clientHeight ? z : [el.clientWidth, el.clientHeight]);
+    const measure = () => { if (held) refit = now; else now(); };
+    now();
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure); ro?.observe(el);
     addEventListener("resize", measure);
-    return () => { ro?.disconnect(); removeEventListener("resize", measure); };
+    return () => { ro?.disconnect(); removeEventListener("resize", measure); if (refit === now) refit = null; };
   }, [fitTick]);
   const [cw, ch] = size, fit = Math.min((cw - 56) / 1600, (ch - 64) / 900), s = zoom === "fit" ? (fit > 0 ? fit : 1) : zoom;
   useEffect(() => { if (useStage.getState().scale !== s) setStage({ scale: s }); }, [s]);
@@ -78,14 +93,16 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
       selectSlideText("title"); setStage({ editor: { kind: "text", key: "title" } });
     }
   }, [m]);
-  if (!live || !R || !m) return null;
+  // (a line is not a box: stage/lines.tsx; the other kinds' boxes: stage/items.tsx)
+  const boxItems = useMemo(() => m ? { ...m, items: m.items.filter(p => R?.cfg.items?.[p.id]?.kind !== "line") } : null, [m]);
+  if (!live || !R || !m || !boxItems) return null;
   const frame = slideFrame(R, c), vars = Object.fromEntries(frame.vars);
   return (
     <div className="stagewrap" style={{ left, top, width: 1600 * s, height: 900 * s }}>
       <div ref={slideRef} className={frame.className} style={{ transform: `scale(${s})`, ...vars }}
         onPointerDown={e => {
           // a click on the empty slide clears every selection
-          if ((e.target as Element).closest(".hits,.tnote,.hbox,.itembox,[data-edit]")) return;
+          if ((e.target as Element).closest(".hits,.tnote,.hbox,.itembox,.linehit,.linehandle,[data-edit]")) return;
           const { sel, noteSel, textSel, itemSel } = get().selection;
           if (sel || noteSel || textSel || itemSel) patch("selection", { sel: null, textSel: null, noteSel: null, itemSel: null });
         }}>
@@ -93,7 +110,8 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
         <div className="ovl">
           <TextLayer hits={m.hits} />
           <Notes m={m} R={R} drag={drag} freeLayout={!!freeOf(R, c)} />
-          <Items m={m} R={R} drag={drag} free={!!freeOf(R, c)} />
+          <Items m={boxItems} R={R} drag={drag} free={!!freeOf(R, c)} />
+          <Lines m={m} R={R} s={s} />{/* lines (S15.3): their bands and handles; Items draws the boxes of the other kinds */}
           {m.tables.map(t => <TableHits key={t.i} i={t.i} R={R} c={c} box={boxOf(t.i, t.box, drag)} s={s} />)}
           {m.tables.map(t => <HBox key={t.i} i={t.i} R={R} c={c} m={m} box={boxOf(t.i, t.box, drag)} drag={drag} slide={slideRef} />)}
           <Selection m={m} s={s} drag={drag} />
@@ -159,7 +177,8 @@ const TextLayer = memo(function TextLayer({ hits }: { hits: StageModel["hits"] }
 /* ---- text boxes: the box to select, move, stretch and double-click; its bubble; the hint of an empty one */
 function Notes({ m, R, drag, freeLayout }: { m: StageModel; R: RuntimeSlide; drag: DragPreview | null; freeLayout: boolean }) {
   const noteSel = useStore(s => s.selection.noteSel);
-  const others = (self: string) => [...m.notes.filter(n => n.part.key !== self).map(n => n.box), ...m.hits.filter(h => /^pageno\b|^footer\b/.test(h.id)), ...m.items.map(p => p.box)];
+  // (the tables, the items and the lines' ends come from the slide: drags.ts snapTargets)
+  const others = (self: string) => [...m.notes.filter(n => n.part.key !== self).map(n => n.box), ...m.hits.filter(h => /^pageno\b|^footer\b/.test(h.id))];
   return <>{m.notes.map(p => {
     const key = p.part.key, d = drag?.kind === "note" && drag.key === key ? drag : null, b = d ? d.box : resized(p, drag);
     // a free layout (B18): every text box but the notes section has its own box, stretched by any edge
@@ -283,14 +302,11 @@ function Selection({ m, s, drag }: { m: StageModel; s: number; drag: DragPreview
 /* ---- guides: where a table will go (grip), what a text box lines up with */
 function Guides({ drag, s }: { drag: DragPreview | null; s: number }) {
   if (drag?.kind === "grip") return <div className="dropmark" style={drag.mark ? { display: "block", left: drag.mark.x, top: drag.mark.y, width: drag.mark.w, height: drag.mark.h } : undefined} />;
-  if (drag?.kind === "resize" && !drag.done && (drag.v != null || drag.h != null)) return <>
-    {drag.v != null && <div className="snapline v" style={{ display: "block", left: drag.v, width: 1.5 / Math.min(1, s) }} />}
-    {drag.h != null && <div className="snapline h" style={{ display: "block", top: drag.h, height: 1.5 / Math.min(1, s) }} />}
-  </>;
+  // the snapping marks (S15.4, 09 §5.2: every matched line, equal gaps and sizes – stage/guides.tsx)
+  if (drag?.kind === "resize" && !drag.done && drag.marks) return <SnapGuides marks={drag.marks} s={s} />;
   if ((drag?.kind === "note" || drag?.kind === "item") && !drag.done) return <>
     {drag.kind === "item" && !drag.moved && <div className="itemguide" style={{ left: drag.box.x, top: drag.box.y, width: drag.box.w, height: drag.box.h }} />}
-    {drag.v !== null && <div className="snapline v" style={{ display: "block", left: drag.v, width: 1.5 / Math.min(1, s) }} />}
-    {drag.h !== null && <div className="snapline h" style={{ display: "block", top: drag.h, height: 1.5 / Math.min(1, s) }} />}
+    <SnapGuides marks={drag.marks} s={s} />
   </>;
   return <div className="dropmark" />;
 }

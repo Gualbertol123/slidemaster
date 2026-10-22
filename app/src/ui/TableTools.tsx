@@ -20,6 +20,7 @@ import { ShapeTools } from "./ShapeTools";
 import { InsertSlots } from "./InsertSlots";
 import { AddTableMenu } from "./AddTable";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
+import { Ic } from "./Ic";
 
 const uniq = (a: number[]) => [...new Set(a.map(v => Math.round(v)))];
 
@@ -58,7 +59,7 @@ function ScaleMenu({ close }: { close: () => void }) {
     <div className="row" style={{ justifyContent: "flex-end", marginTop: "8px" }}><button className="btn primary" id="scaleApply" disabled={!sel || (!fill && !ink)} onClick={apply}>Apply to selection</button></div>
     {rules.length > 0 && <><div className="sep" /><div className="hd">On this table</div>
       {rules.map(([id, r]) => <div className="scalerule" key={id}><code>{r.range}</code> · {r.dir === "row" ? "rows" : r.dir === "col" ? "columns" : "whole range"} · {r.mode === "zero" ? "± around zero" : "low → high"} · {[r.fill && "cell", r.ink && "number"].filter(Boolean).join(" + ")}{r.invert ? " · reversed" : ""}
-        <button className="btn icon" title="Remove" onClick={() => remove(id)}>✕</button></div>)}</>}
+        <button className="btn icon" title="Remove" onClick={() => remove(id)}><Ic n="x" /></button></div>)}</>}
   </div>;
 }
 
@@ -198,26 +199,26 @@ export function TableRibbon() {
         {mergedInSel().length ? <button className="tb mergebtn" id="unmergeBtn" title="Split the merged cells in the selection" onClick={unmergeSel}>Unmerge</button>
           : <button className="tb mergebtn" id="mergeBtn" title="Merge the selected cells (the top-left value is kept)" disabled={!canMerge()} onClick={mergeSel}>Merge</button>}
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="bordersBtn" disabled={!(hasSel && T?.def)} title="Borders of the selected cells, as in Excel – on the slide only (the workbook is not changed)" onClick={t}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="2" y="2" width="12" height="12" strokeDasharray="1.5 1.5" /><path d="M2 14h12" strokeWidth="2.2" /></svg>Borders ▾</button>}>{() => T ? <BorderMenu T={T} /> : null}</Dropdown>
+          <Ic n="border-all" />Borders ▾</button>}>{() => T ? <BorderMenu T={T} /> : null}</Dropdown>
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="scaleBtn" disabled={!hasSel} title="Colour scale: deeper green/red the bigger the number" onClick={t}>
           <i className="scaleico" />Colour scale</button>}>{close => <ScaleMenu close={close} />}</Dropdown>
       </div>
       <div className="grp">
         <button className="tb" id="sameSize" disabled={!R || R.tables.length < 2} title="Make the tables on this slide exactly the same size"
-          onClick={() => { const r = makeSameSize(currentTableRefs(), { width: true, height: true, target: "largest" }); if (!r.ok) toast(esc(r.why)); }}>⇔ Same size</button>
+          onClick={() => { const r = makeSameSize(currentTableRefs(), { width: true, height: true, target: "largest" }); if (!r.ok) toast(esc(r.why)); }}><Ic n="dimensions" />Same size</button>
         <Dropdown button={(_o, t) => <button className="tb" id="posBtn" disabled={!R || !R.tables.length || free} title={free ? "In a free layout each table is placed by dragging it (Free layout off: the automatic positions)" : "Position of the tables on the slide"} onClick={t}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 1.5v13" /><rect x="3" y="3.5" width="10" height="3" /><rect x="4.5" y="9.5" width="7" height="3" /></svg>Position ▾</button>}>
+          <Ic n="layout-align-center" />Position ▾</button>}>
           {close => <div className="posmenu" onClick={e => { if ((e.target as Element).closest("button")) close(); }}><div className="hd">Across the slide</div><div className="row">
         {(["left", "center", "right"] as const).map(a => <button key={a} className={"tb" + (align === a ? " on" : "")} data-talign={a} disabled={!R || !R.tables.length} title={`Align the tables ${a === "center" ? "in the centre" : "to the " + a}`} onClick={() => alignTables(a)}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">{a === "left" ? <><path d="M2 1.5v13" /><rect x="4" y="3.5" width="9" height="3" /><rect x="4" y="9.5" width="6" height="3" /></> : a === "center" ? <><path d="M8 1.5v13" /><rect x="3" y="3.5" width="10" height="3" /><rect x="4.5" y="9.5" width="7" height="3" /></> : <><path d="M14 1.5v13" /><rect x="3" y="3.5" width="9" height="3" /><rect x="6" y="9.5" width="6" height="3" /></>}</svg></button>)}
+          <Ic n={`layout-align-${a}`} /></button>)}
           </div><div className="hd">Up and down</div><div className="row">
         {(["top", "middle", "bottom"] as const).map(v => <button key={v} className={"tb" + (sz?.valign === v ? " on" : "")} data-tvalign={v} disabled={!R || !R.tables.length}
           title={sz?.valign === v ? "Back to the default position (click again)" : `Move the tables to the ${v === "middle" ? "middle" : v} of the slide`} onClick={() => valignTables(sz?.valign === v ? null : v)}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">{v === "top" ? <><path d="M1.5 2h13" /><rect x="3.5" y="4" width="3" height="9" /><rect x="9.5" y="4" width="3" height="6" /></> : v === "middle" ? <><path d="M1.5 8h13" /><rect x="3.5" y="3" width="3" height="10" /><rect x="9.5" y="4.5" width="3" height="7" /></> : <><path d="M1.5 14h13" /><rect x="3.5" y="3" width="3" height="9" /><rect x="9.5" y="6" width="3" height="6" /></>}</svg></button>)}
+          <Ic n={`layout-align-${v}`} /></button>)}
           </div></div>}
         </Dropdown>
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="gridBtn" disabled={!(tIdx >= 0 && R?.tables[tIdx]?.def)} title="Add or remove horizontal / vertical gridlines of the table, or lines on the selected cells" onClick={t}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="1.5" y="2.5" width="13" height="11" /><path d="M1.5 6.2h13M1.5 9.8h13M5.8 2.5v11M10.2 2.5v11" /></svg>Gridlines</button>}>
+          <Ic n="border-inner" />Gridlines</button>}>
           {close => R && tIdx >= 0 ? <GridMenu close={close} T={R.tables[tIdx]} /> : null}</Dropdown>
         <button className="tb" id="tablesDlg" disabled={!anyTables} title="Match sizes of tables on several slides, copy column widths between tables" onClick={() => setDialogs({ tables: true })}>Sizes…</button>
         <button className={"tb" + (free ? " on" : "")} id="freeLayout" disabled={!R || R.type !== "content"} title={free ? "Back to the automatic layout of this slide (the free places are kept)" : "Free layout: move and resize the tables, text boxes, charts and shapes of this slide one by one (in this design; Alt while dragging: no snapping)"}
@@ -226,7 +227,7 @@ export function TableRibbon() {
       </div>
       <div className="grp">
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="addTable" disabled={!open} title="Add a table of the workbook to this slide: the deck's tables, or new from cells" onClick={t}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="1.5" y="2.5" width="13" height="11" /><path d="M1.5 6h13M6 6v7.5" /></svg>Add table ▾</button>}>
+          <Ic n="table-plus" />Add table ▾</button>}>
           {close => <AddTableMenu close={close} />}</Dropdown>
         <InsertSlots />{/* Insert chart ▾, Insert shape ▾ … (InsertSlots.tsx: one entry per kind, S14.P) */}
       </div>
@@ -234,17 +235,17 @@ export function TableRibbon() {
       <div className="grp">
         <span className="lbl">Text box</span>
         {(["top", "bottom", "left", "right"] as const).map(sd => <button key={sd} className="tb" data-addnote={sd} disabled={!R || tIdx < 0} title={`Add a text box ${sd === "top" ? "above" : sd === "bottom" ? "below" : "on the " + sd} of the table`} onClick={() => addNote(sd)}>
-          {sd === "top" ? "↑" : sd === "bottom" ? "↓" : sd === "left" ? "←" : "→"}</button>)}
-        <button className={"tb" + (note?.bubble ? " on" : "")} id="noteBubble" disabled={!note} title="Bubble around the selected text box, like the tables (glass card / framed box)" onClick={() => note && patchNote(note.bubble ? "Text box without bubble" : "Text box in a bubble", { bubble: !note.bubble })}>◯</button>
+          <Ic n={sd === "top" ? "arrow-up" : sd === "bottom" ? "arrow-down" : sd === "left" ? "arrow-left" : "arrow-right"} /></button>)}
+        <button className={"tb" + (note?.bubble ? " on" : "")} id="noteBubble" disabled={!note} title="Bubble around the selected text box, like the tables (glass card / framed box)" onClick={() => note && patchNote(note.bubble ? "Text box without bubble" : "Text box in a bubble", { bubble: !note.bubble })}><Ic n="message-circle" /></button>
         <button className={"tb" + (note?.auto ? " on" : "")} id="commentBtn" disabled={!R || !R.tables.length} title={"Automated comment: a commentary written from the table's numbers (headline, main contributors, downside), updated when the numbers change"}
-          onClick={() => setDialogs({ comment: { table: noteSel ? Math.max(0, R!.tables.findIndex(t => (t.id || "") === noteSel.split(":")[0])) : Math.max(0, tIdx) } })}>✎ Comment…</button>
-        <button className="tb" id="noteAttach" disabled={!(note && note.x != null) || noteSel === "slide:notes"} title="Put the moved text box back next to its table (drag a text box to place it anywhere)" onClick={attachNote}>⤺ Attach</button>
-        <button className="tb" id="noteDelete" disabled={!note} title="Delete the selected text box (Del)" onClick={() => patchNote("Remove text box", null)}>🗑</button>
+          onClick={() => setDialogs({ comment: { table: noteSel ? Math.max(0, R!.tables.findIndex(t => (t.id || "") === noteSel.split(":")[0])) : Math.max(0, tIdx) } })}><Ic n="message-plus" />Comment…</button>
+        <button className="tb" id="noteAttach" disabled={!(note && note.x != null) || noteSel === "slide:notes"} title="Put the moved text box back next to its table (drag a text box to place it anywhere)" onClick={attachNote}><Ic n="link" />Attach</button>
+        <button className="tb" id="noteDelete" disabled={!note} title="Delete the selected text box (Del)" onClick={() => patchNote("Remove text box", null)}><Ic n="trash" /></button>
       </div>
       <div className="grp">
-        <button className={"tb" + (R?.cfg.notes?.["slide:notes"] ? " on" : "")} id="slideNotes" disabled={!R} title={"Notes section of this slide (sources, footnotes…): starts where the footer is – drag it anywhere, e.g. next to the page number"} onClick={addSlideNotes}>✎ Notes</button>
+        <button className={"tb" + (R?.cfg.notes?.["slide:notes"] ? " on" : "")} id="slideNotes" disabled={!R} title={"Notes section of this slide (sources, footnotes…): starts where the footer is – drag it anywhere, e.g. next to the page number"} onClick={addSlideNotes}><Ic n="notes" />Notes</button>
         <button className={"tb" + (logoOn ? " on" : "")} id="logoToggle" disabled={!R || !logoName} title={R && !logoOn ? "The logo is hidden on this slide – click to show it" : "Hide the logo on this slide"}
-          onClick={() => slidePatch(logoOn ? "Hide logo" : "Show logo", { logo: logoOn ? false : null })}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="3.5" width="13" height="9" rx="2" /><path d="m3.5 10.5 3-3 2 2 1.5-1.5 2.5 2.5" /></svg>Logo</button>
+          onClick={() => slidePatch(logoOn ? "Hide logo" : "Show logo", { logo: logoOn ? false : null })}><Ic n="photo" />Logo</button>
         {R?.type === "index" && <button className={"tb" + (R.cfg.subs !== false ? " on" : "")} id="ixSubs" title={R.cfg.subs !== false ? "Hide the slide subtitles in the contents list" : "Show the slide subtitles in the contents list"}
           onClick={() => slidePatch(R.cfg.subs !== false ? "Hide subtitles in contents" : "Show subtitles in contents", { subs: R.cfg.subs !== false ? false : null })}>Subtitles</button>}
       </div>

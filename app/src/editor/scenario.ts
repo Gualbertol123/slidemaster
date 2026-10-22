@@ -47,7 +47,7 @@ export async function resolveInput(text: string): Promise<Resolved> {
   const sheet = names.find(n => n === c.sheet) ?? names.find(n => n.toLowerCase() === c.sheet.toLowerCase());
   const book = parseSheetId(c.sheet).book;
   if (!sheet) return { ok: false, why: book && !wb.meta.some(m => m.linked?.toLowerCase() === book.toLowerCase())
-    ? `No sheet “${c.sheet}”: a linked workbook's sheets are known once the deck links it (✦ Wizard › 1 · + Add a linked workbook).`
+    ? `No sheet “${c.sheet}”: a linked workbook's sheets are known once the deck links it (Wizard › 1 · + Add a linked workbook).`
     : `No sheet “${c.sheet}” in this workbook${wb.meta.some(m => m.linked) ? " or its linked workbooks" : ""}.` };
   // a large workbook reads only the slides' sheets at first: the input's sheet is read now (its cell's type decides how
   // a value goes in – an unread sheet would look empty and send numbers in as text)

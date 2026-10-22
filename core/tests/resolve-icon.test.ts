@@ -1,10 +1,11 @@
 /* S14.P: icon names across sets (render/icons.ts resolveIcon; 09 §2.4, §3.5): tabler:x → the vendored icon when present,
    else the built-in x, else "info" marked missing. */
-import { afterEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { ICON_NAMES, resolveIcon, setVendoredIcons } from "../src/render/icons";
 import type { PathCmd } from "../src/dl/types";
 
-afterEach(() => setVendoredIcons(null));
+// these cases are about resolveIcon itself: without the set tests/setup-icons.ts registers (S15.1 review), or with a stub
+beforeEach(() => setVendoredIcons(null));
 describe("resolveIcon", () => {
   it("built-in names draw themselves; without the vendored set a Tabler name falls back to the built-in of that name", () => {
     for (const n of ICON_NAMES) expect(resolveIcon(n)).toEqual({ src: "builtin", name: n, asked: n, missing: false });

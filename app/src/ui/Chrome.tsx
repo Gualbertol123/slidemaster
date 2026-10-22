@@ -15,6 +15,7 @@ import { clearPreview } from "../editor/scenario";
 import { slideIssues } from "../editor/issues";
 import { openLicences } from "./notices";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
+import { Ic } from "./Ic";
 import { selStatus } from "./Ribbon";
 import { esc } from "@slide-builder/core/xlsx/util";
 import type { RuntimeSlide } from "@slide-builder/core/model/types";
@@ -144,8 +145,8 @@ export function Canvas() {
       </div>}
       <ScenarioBanner />
       {has && <div className="zoomctl" id="zoomctl" style={{ display: "flex" }}>
-        <button id="zoomOut" title="Zoom out" onClick={() => zoomBy(1 / 1.25)}>−</button><ZoomVal />
-        <button id="zoomIn" title="Zoom in" onClick={() => zoomBy(1.25)}>+</button>
+        <button id="zoomOut" title="Zoom out" onClick={() => zoomBy(1 / 1.25)}><Ic n="minus" /></button><ZoomVal />
+        <button id="zoomIn" title="Zoom in" onClick={() => zoomBy(1.25)}><Ic n="plus" /></button>
         <button id="zoomFit" title="Fit" style={{ width: "auto", padding: "0 8px" }} onClick={() => setZoom("fit")}>Fit</button>
       </div>}
     </section>

@@ -16,6 +16,7 @@
      becomes a preset geometry holding its text. */
 import type { DisplayList, Matrix, Node, Paint, PathCmd, RGB, Stop, Stroke } from "../dl/types";
 import type { Heads } from "../model/types";
+import type { LineSem } from "../render/line-dl";
 import { mul, pathBox, radii, rrectPath } from "../dl/geom";
 import type { ChartSem } from "./chart-sem";
 export type { ChartSem, FontSem } from "./chart-sem";
@@ -30,7 +31,10 @@ export interface LineEnd { type: "triangle" | "stealth" | "diamond" | "oval" | "
 export interface Line { w: number; paint: Paint; dash?: number[]; cap?: "butt" | "round" | "square"; join?: "miter" | "round" | "bevel"; head?: LineEnd; tail?: LineEnd }
 /** an outer or inner shadow: offset, blur px, colour and alpha; sx / sy: the shadow's size against the shape's (spread) */
 export interface Shadow { dx: number; dy: number; blur: number; c: RGB; a: number; sx?: number; sy?: number }
-export type Geom = { prst: string; adj?: Record<string, number> } | { path: PathCmd[]; open?: boolean };
+export type Geom = { prst: string; adj?: Record<string, number> } | { path: PathCmd[]; open?: boolean;
+  /** (S15.2, icons) the same outline as several a:path of one custGeom, each filled and / or stroked: an outline icon's
+      open strokes beside its filled dots in one shape. `path` is their concatenation */ parts?: GeomPart[] };
+export interface GeomPart { d: PathCmd[]; fill: boolean; stroke: boolean }
 export type Placeholder = "title" | "ctrTitle" | "subTitle" | "body" | "ftr" | "sldNum";
 export interface ShapeEl { k: "sp"; box: Box; rot?: number; flipH?: boolean; flipV?: boolean; geom: Geom; fill?: Paint | null; line?: Line | null;
   outer?: Shadow; inner?: Shadow; text?: TextBody; name?: string; ph?: Placeholder;
@@ -56,9 +60,11 @@ export type ItemSem =
   /** a chart: its card, the native chart (chart-sem.ts), and (4.7, M14) what is drawn over it – marks, dividers, the
       title rule – as plain shapes in the chart's group, never pictures */
   | { kind: "chart"; at: [number, number]; card: DisplayList; chart: ChartSem; overlay?: DisplayList }
-  | { kind: "shape"; at: [number, number]; shape: string; box: Box; tail?: { x: number; y: number } | null; radius: number }
-  /** a line (4.8, M15; 09 §4.3): its heads, written as native a:headEnd / a:tailEnd (no connector shape) */
-  | { kind: "line"; at: [number, number]; heads: Heads | null };
+  | { kind: "shape"; at: [number, number]; shape: string; box: Box; tail?: { x: number; y: number } | null; radius: number;
+      /** a Tabler icon (4.8, S15.2): written as custom geometry from its paths, never a picture (iconEls) */ icon?: "tabler" | "tabler-filled" }
+  /** a line (4.8, M15; 09 §4.3): its heads, written as native a:headEnd / a:tailEnd (no connector shape); `line` (S15.3)
+      its geometry at the resolved ends, its stroke and its label's nodes (render/line-dl.ts LineSem) */
+  | { kind: "line"; at: [number, number]; heads: Heads | null; line?: LineSem };
 export interface SlideSem { type: "cover" | "index" | "content"; items: Record<string, ItemSem>; /** the design's chart / accent colours */ palette: string[];
   /** the top-level nodes [start, end) the slide's layout carries, never the slide (B48 review, 3: the Excel designs' logo
       and cover band – on the layout even when the deck has one slide of that kind) */
@@ -185,8 +191,12 @@ class Walker {
       this.prims.push({ p: "el", el: { k: "grp", name: "Chart " + id, children: [...card, { k: "chart", box: it.chart.box, chart: it.chart, name: "Chart" }, ...over] } });
       return;
     }
+    if (it.kind === "shape" && it.icon) { this.prims.push(...iconEls(nodes, c).map(el => ({ p: "el" as const, el }))); return; }
+    // a line (S15.3): its own shape from its geometry, its label (background and text box) walked alone
+    if (it.kind === "line" && it.line) { this.prims.push(...lineEls(it.line, assemble(this.sub(() => this.walk(it.line!.label, c)))).map(el => ({ p: "el" as const, el }))); return; }
     const prims = this.sub(() => this.walk(nodes, c));
-    const els = it.kind === "line" ? lineEls(assemble(prims), it) : callout(assemble(prims), it);
+    // (a line's member without its geometry – S14.P's – : its nodes' shapes, grouped)
+    const els = it.kind === "line" ? group(assemble(prims), "Line") : callout(assemble(prims), it);
     this.prims.push(...els.map(el => ({ p: "el" as const, el })));
   }
 
@@ -737,11 +747,65 @@ function isSeam(d: PathCmd[], b: Box) {
   return d.length <= 14 && d[0][0] === "M" && d[d.length - 1][0] === "Z" && d.slice(1, -1).every(c => c[0] === "L") && b.w > 0 && b.h > 0;
 }
 
-/* ---- lines (4.8, M15; 09 §4.3) ---- */
-/** a line item's elements: S14.P keeps its shapes as drawn, grouped (M15 turns the stroke's head paths into the line's
-    native a:headEnd / a:tailEnd, Line.head / tail) */
-function lineEls(els: El[], _it: Extract<ItemSem, { kind: "line" }>): El[] {
-  return els.length > 1 ? [{ k: "grp", name: "Line", children: els }] : els;
+/* ---- lines (4.8, M15 S15.3 / S15.5; 09 §4.3, LN-03) ---- */
+/** a line item's elements: one plain shape named "Line" – never a connector (p:cxnSp), and an attached line is written
+    where it is drawn (PowerPoint does not keep it attached) –: a straight one `a:prstGeom prst="line"` in its bounds,
+    flipped so that its first point is end a (flipH / flipV), any other route an open `a:custGeom`; its stroke on `a:ln`
+    (width, colour, dash, cap, join) with native a:headEnd (end a) / a:tailEnd (end b). The limiter's ticks ("bar"
+    heads, which PowerPoint has no end for) are drawn solid with round caps, as the slide draws them (render/heads.ts):
+    segments of the same custom geometry – its a:ln round-capped, which the ticks then cover at the ends – only beside a
+    straight solid route with no native end; else a shape of their own beside it (an a:ln is the shape's: a dashed
+    route would dash its ticks, a native end would land on a tick, an elbow's joins would turn round). Its label's
+    background and text box are grouped with it ("Line") */
+const group = (els: El[], name: string): El[] => els.length > 1 ? [{ k: "grp", name, children: els }] : els;
+function lineEls(L: LineSem, label: El[]): El[] {
+  const st = L.stroke, line: Line = { w: st.w, paint: st.paint, ...(st.dash ? { dash: st.dash } : {}), ...(st.cap ? { cap: st.cap } : {}), ...(st.join ? { join: st.join } : {}) };
+  const end = (h: typeof L.head): LineEnd | undefined => h && h !== "bar" && h !== "none" ? { type: h, ...(L.size ? { size: L.size } : {}) } : undefined;
+  const head = end(L.head), tail = end(L.tail), native = !!(head || tail);
+  const shape = (d: PathCmd[], ln: Line): ShapeEl => { const b = pathBox(d); return { k: "sp", box: b, geom: { path: d.map(p => shiftCmd(p, -b.x, -b.y)), open: true }, fill: null, line: ln, name: "Line" }; };
+  const out: El[] = [];
+  const ticks = L.bars.length > 0, together = ticks && L.straight && !native && !line.dash;
+  if (L.straight && !together) {
+    const { a, b } = L, box = { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) };
+    out.push({ k: "sp", box, ...(b.x < a.x ? { flipH: true } : {}), ...(b.y < a.y ? { flipV: true } : {}), geom: { prst: "line" }, fill: null, line: { ...line, ...(head ? { head } : {}), ...(tail ? { tail } : {}) }, name: "Line" });
+  } else if (together) out.push(shape([...L.route, ...L.bars.flat()], { ...line, cap: "round" }));
+  else out.push(shape(L.route, { ...line, ...(head ? { head } : {}), ...(tail ? { tail } : {}) }));
+  // the ticks on their own: solid, round caps and joins (as drawn)
+  if (ticks && !together) { const { dash: _d, ...solidLn } = line; out.push(shape(L.bars.flat(), { ...solidLn, cap: "round", join: "round" })); }
+  out.push(...label);
+  return group(out, "Line");
+}
+
+/* ---- icons (4.8, S15.2; 09 §4.3) ---- */
+const samePaint = (a: Paint | undefined, b: Paint | undefined) => !a || !b || JSON.stringify(a) === JSON.stringify(b);
+const sameStroke = (a: Stroke | undefined, b: Stroke | undefined) => !a || !b || JSON.stringify(a) === JSON.stringify(b);
+/** a Tabler icon's elements: its paths as custom geometry (never a picture, never a preset that only looks alike) – one
+    shape of several a:path while they share their ink and width (an outline icon's strokes beside its filled dots: one
+    shape), another where they differ (a path at half ink); outline paths noFill with round caps and joins
+    (`a:ln cap="rnd"`, `a:round`), filled ones solidFill. Several shapes are grouped as "Icon" */
+function iconEls(nodes: DisplayList, c: Ctx): El[] {
+  const s = decompose(c.M).sx, out: ShapeEl[] = [];
+  let cur: { parts: GeomPart[]; fill?: Paint; stroke?: Stroke } | null = null;
+  const flush = () => {
+    if (!cur) return;
+    const all = cur.parts.flatMap(p => p.d), b = pathBox(all);
+    if (b.w > 0 || b.h > 0) {
+      const parts = cur.parts.map(p => ({ ...p, d: p.d.map(x => shiftCmd(x, -b.x, -b.y)) }));
+      out.push({ k: "sp", box: b, geom: { path: parts.flatMap(p => p.d), open: !cur.fill, parts }, fill: cur.fill ? mulPaint(cur.fill, c.alpha) : null,
+        line: cur.stroke ? lineOf(cur.stroke, s, c.alpha) : null, name: "Icon" });
+    }
+    cur = null;
+  };
+  for (const n of nodes) {
+    if (n.t !== "path" || (!n.fill && !n.stroke)) continue;
+    if (cur && !(samePaint(cur.fill, n.fill) && sameStroke(cur.stroke, n.stroke))) flush();
+    cur ??= { parts: [] };
+    cur.parts.push({ d: mapPath(c.M, n.d), fill: !!n.fill, stroke: !!n.stroke });
+    if (n.fill) cur.fill = n.fill;
+    if (n.stroke) cur.stroke = n.stroke;
+  }
+  flush();
+  return out.length > 1 ? [{ k: "grp", name: "Icon", children: out }] : out;
 }
 
 /* ---- callouts ---- */

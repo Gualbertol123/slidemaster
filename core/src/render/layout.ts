@@ -15,6 +15,10 @@ import { commentText } from "./comment";
 import { exhibitFacts, exhibitGeom, exhibitOf, type Exhibit, type ExFacts } from "./exhibit";
 
 export const SLIDE_W = 1600, SLIDE_H = 900;
+/** where a drag drops a position or a size (09 §2.6, F8): on 1/4 px – exact in binary floating point and in PowerPoint's
+    EMU (1/4 px = 1,905 EMU), so the page's preview, the saved JSON, the PDF and the PowerPoint file show the same number
+    on every PC. One function for the preview and the op builders (stage/drags.ts, editor/lines.ts) */
+export const snapRound = (v: number) => Math.round(v * 4) / 4;
 export const GX = 36, GY = 28, MAXK = 2.0;
 export function areaFor(R: RuntimeSlide, ctx0?: RenderCtx) {
   const ctx = ctx0 && slideCtx(ctx0, R);
@@ -283,6 +287,18 @@ export function freeBoxes(R: RuntimeSlide, ctx: RenderCtx): FreeLayout["items"] 
     for (const [id, n] of Object.entries(b.items || {})) out[freeKey.item(id)] = box(n);
   });
   for (const id of Object.keys(R.cfg.items || {})) if (!out[freeKey.item(id)]) { const b = itemBoxOf(R, id, boxes, ctx); if (b) out[freeKey.item(id)] = box(b); }
+  // a line's entry also carries its ends in this design (09 §2.3; plan-M15 risk 1): where they are saved now, so that
+  // switching on moves nothing (an attached end keeps following its object)
+  for (const [id, it] of Object.entries(R.cfg.items || {})) {
+    const e = out[freeKey.item(id)], f = freeOf(R, ctx)?.items[freeKey.item(id)];
+    if (it?.kind !== "line" || !e) continue;
+    const pt = (p: unknown) => { const q = p as { x: number; y: number } | null; return q && Number.isFinite(q.x) && Number.isFinite(q.y) ? { x: q.x, y: q.y } : null; };
+    // (an entry an older page saved with its box only: the ends moved as its box moved, as render/line-dl.ts savedEnds)
+    const fb = f && !pt(f.a) && Number.isFinite(f.x) && Number.isFinite(f.y) && it.box ? { x: f.x - it.box.x, y: f.y - it.box.y } : { x: 0, y: 0 };
+    const sh = (p: { x: number; y: number } | null) => p && { x: p.x + fb.x, y: p.y + fb.y };
+    const a = pt(f?.a) ?? sh(pt(it.a)), b = pt(f?.b) ?? sh(pt(it.b));
+    if (a && b) out[freeKey.item(id)] = { ...e, a, b };
+  }
   return out;
 }
 

@@ -2,7 +2,7 @@
    chart, target, bell, pin, bulb, lock – 17). Each is an outline on a 24 × 24 grid made of the display list's own path commands
    (M, L, C, Z: circles as four cubics, arcs as polygons), filled with the even-odd rule so holes stay open – so no two
    filled parts overlap (an overlap would be a hole). */
-import type { PathCmd } from "../dl/types";
+import type { Paint, PathCmd, PathNode, RGB } from "../dl/types";
 
 type Sub = [number, number][] | PathCmd[];
 const K = 0.5523;
@@ -57,16 +57,21 @@ export function iconCmds(name: string, x: number, y: number, s: number): PathCmd
    unknown name to "info" – marked `missing`, so the Issues panel can name it (09 §3.5) instead of today's silent
    fallback. M14's reference chart (tabler:target) therefore draws without M15. */
 export type IconSet = "tabler" | "tabler-filled";
-/** the vendored set's outline or filled icon on the 24 × 24 grid (absolute M L C Z), or null when it has no such name */
-export type VendoredIcons = (set: IconSet, name: string) => PathCmd[][] | null;
+/** how one path of a vendored icon is painted (S15.1): an outline icon's paths are stroked, a few also filled (its dots)
+    or only filled (the percentage pies), one at half ink (brand-parsinta); a filled icon's paths are filled */
+export interface IconPaint { stroke: boolean; fill: boolean; alpha: number }
+/** the vendored set's outline or filled icon on the 24 × 24 grid (absolute M L C Z), with each path's paint (without it:
+    outline icons stroked, filled ones filled), or null when it has no such name */
+export type VendoredIcons = (set: IconSet, name: string) => PathCmd[][] | { paths: PathCmd[][]; paint: IconPaint[] } | null;
 let vendored: VendoredIcons | null = null;
-/** M15: register (or, with null, remove) the vendored Tabler set */
+/** M15: register (or, with null, remove) the vendored Tabler set (core/src/icons/index.ts installTabler, in the workers) */
 export function setVendoredIcons(f: VendoredIcons | null) { vendored = f; }
 export type ResolvedIcon =
   /** a built-in icon (iconCmds draws it, filled even-odd); `missing`: the asked name is known nowhere, "info" stands in */
   | { src: "builtin"; name: string; asked: string; missing: boolean }
-  /** a vendored Tabler icon: its paths on the 24 grid (outline icons are stroked, filled ones filled; 09 §3.5) */
-  | { src: IconSet; name: string; asked: string; missing: false; paths: PathCmd[][] };
+  /** a vendored Tabler icon: its paths on the 24 grid and, when the set gives it, how each is painted (09 §3.5; without
+      it outline icons are stroked, filled ones filled: vendoredNodes) */
+  | { src: IconSet; name: string; asked: string; missing: false; paths: PathCmd[][]; paint?: IconPaint[] };
 const has = (name: string) => Object.prototype.hasOwnProperty.call(ICONS, name);
 /** what an icon name draws: tabler:x → the vendored icon when present, else the built-in x, else "info" */
 export function resolveIcon(name: unknown): ResolvedIcon {
@@ -74,8 +79,43 @@ export function resolveIcon(name: unknown): ResolvedIcon {
   const m = /^(tabler|tabler-filled):(.+)$/.exec(asked);
   const bare = m ? m[2] : asked;
   if (m) {
-    const paths = vendored ? vendored(m[1] as IconSet, bare) : null;
-    if (paths && paths.length) return { src: m[1] as IconSet, name: bare, asked, missing: false, paths };
+    const v = vendored ? vendored(m[1] as IconSet, bare) : null, paths = Array.isArray(v) ? v : v ? v.paths : null;
+    if (paths && paths.length) return { src: m[1] as IconSet, name: bare, asked, missing: false, paths, ...(Array.isArray(v) || !v ? {} : { paint: v.paint }) };
   }
   return has(bare) ? { src: "builtin", name: bare, asked, missing: false } : { src: "builtin", name: "info", asked, missing: true };
 }
+
+/** a vendored icon's display-list paths (09 §3.5): its 24 × 24 grid scaled by s with the grid's top left at (x, y), in
+    `ink`; stroked paths `stroke` wide at 24 (Tabler's 2 by default) with round caps and joins, filled ones nonzero */
+export function vendoredNodes(r: Extract<ResolvedIcon, { paths: PathCmd[][] }>, x: number, y: number, s: number, ink: RGB, stroke = 2): PathNode[] {
+  const r3 = (v: number) => Math.round(v * 1000) / 1000 || 0;
+  return r.paths.map((d, k) => {
+    const p = r.paint?.[k] ?? { stroke: r.src === "tabler", fill: r.src !== "tabler", alpha: 1 }, paint: Paint = p.alpha < 1 ? { solid: ink, a: p.alpha } : { solid: ink };
+    const n: PathNode = { t: "path", d: d.map(c => c[0] === "Z" ? ["Z"] : [c[0], ...c.slice(1).map((v, i) => r3((i % 2 ? y : x) + (v as number) * s))] as PathCmd) };
+    if (p.fill) n.fill = paint;
+    if (p.stroke) n.stroke = { w: r3(stroke * s), paint, cap: "round", join: "round" };
+    return n;
+  });
+}
+
+/* ---- the icon picker's catalogue (S15.2; 09 §3.5) ----
+   The picker searches in the core worker over the set's index (the page holds no copy of the set): installTabler
+   registers the set here too, and the host answers "iconSearch" / "iconTiles" from it (render/icon-search.ts). The page's
+   in-thread fallback (no worker) has none registered: the picker then says the icon set needs the worker. */
+export type IconStyle = "outline" | "filled";
+export interface IconHit { name: string; category: string; outline: boolean; filled: boolean }
+/** what the picker reads of a vendored set (core/src/icons Tabler has this shape) */
+export interface IconCatalog {
+  readonly version: string;
+  readonly categories: string[];
+  search(query: string, o?: { style?: IconStyle; category?: string; limit?: number }): IconHit[];
+  icon(style: IconStyle, name: string): { d: PathCmd[]; paint: IconPaint }[] | null;
+}
+let catalog: (() => IconCatalog) | null = null, catalogLoaded: () => boolean = () => false;
+/** M15: register (or, with null, remove) the catalogue; `get` inflates the set on its first call, `loaded` says whether
+    it has been (the first-use budget is a cold one, 09 §7.4) */
+export function setIconCatalog(get: (() => IconCatalog) | null, loaded: () => boolean = () => false) { catalog = get; catalogLoaded = get ? loaded : () => false; }
+/** whether the registered catalogue's set is inflated already */
+export const iconCatalogLoaded = () => catalogLoaded();
+/** the registered catalogue (inflated now if it was not), or null without one */
+export const iconCatalog = (): IconCatalog | null => catalog ? catalog() : null;

@@ -307,14 +307,54 @@ numbers measured twice). Measured numbers go into the step's line.
   instead of stroking every path (`core/src/render/chart-marks.ts`, the "MERGE M15" note). verified: tests ✓ clean clone ✓ review ✓ (4.7.0 runs 2026-10-22 on a clean clone of f79c768 and on the working tree at 26cf08e: core 1,207, app 103, helper 368 on 3.12 and 3.8, e2e 45/45 with CT-08 and the S14.7 spec, parity and dlparity 0 not accepted, sp/dlcheck all 8 node types, export-check 15/15; bench by CI – here `pptx_combo_ms` 899 ms of 3,619)
 
 ### M15 · Lines, icons, snapping (4.8.0; B32–B35; docs/next/09 §8, ADR-020, ADR-017 amended)
-- [ ] S15.1 · `Stroke.join` and the icon data (Tabler 3.49.0 vendored, hash test, notices entry) – `Stroke.join` is in
-  S14.P; left for the branch: the icon data, its hash test and notices entry, `m15.json`'s page budget measured
-- [ ] S15.2 · Icon items and picker ⏱ (IC-01, IC-02)
-- [ ] S15.3 · Line items ⏱ (LN-01, LN-02)
-- [ ] S15.4 · Snapping ⏱ (SN-01…SN-04)
-- [ ] S15.5 · PowerPoint lines and icons (LN-03)
-- [ ] S15.6 · UI icons (B35)
-- [ ] S15.7 · Close — AUDIT §0 ×2, CP-01, CHANGELOG 4.8.0; 🚦 G10
+- [x] S15.1 · `Stroke.join` and the icon data (Tabler 3.49.0 vendored, hash test, notices entry) — ee464e2, 1fdbf1e.
+  `Stroke.join` from S14.P; the set packed into `core/src/icons/data.ts`, inflated on first use in the worker, its own
+  sha256 test, one registration, old names apart; `m15.json` set by measurement (514,930 for the set). Reviews:
+  REQUEST CHANGES → fixed (1fdbf1e) → APPROVE. PR: pending (the owner opens it). runs: by the orchestrator
+- [x] S15.2 · Icon items and picker ⏱ (IC-01, IC-02) — 893bcd6, 41581f4, f647ed7 (Italian search words, 09 §9 Q11). The picker (search, 41 categories, recent,
+  outline / filled, colour, size, line), Change icon…, the item's `stroke`, the pick mode for M14, the PowerPoint gate
+  (6). Reviews: REQUEST CHANGES → fixed (41581f4) → APPROVE. Page +17,053. PR: pending. runs: by the orchestrator
+- [x] S15.3 · Line items ⏱ (LN-01, LN-02) — d519ae9 (follow-ups in 878a549). Ten kinds, end and middle handles, Ctrl
+  attach in automatic and free layout, Detach, labels quoting cells, the PowerPoint lines and the gate (7). Reviews:
+  APPROVE with findings → fixed in 878a549 (S15.5) → APPROVE. Page +38,405. PR: pending. runs: by the orchestrator
+- [x] S15.4 · Snapping ⏱ (SN-01…SN-04) — 7cb0c9e (follow-ups in 878a549). Every object, guides, equal spacing and
+  size, Alt everywhere, 1/4 px. Reviews: APPROVE with findings → fixed in 878a549 → APPROVE. Page +5,735. PR: pending.
+  runs: by the orchestrator
+- [x] S15.5 · PowerPoint lines and icons (LN-03) — 878a549, 229e937. Native ends, solid tick shapes beside dashes,
+  custDash, the label's ground and ink, `lines-bent-ends`; pptxcheck 14/14 (python-pptx). Reviews: REQUEST CHANGES →
+  fixed (229e937) → APPROVE; recheck APPROVE (nit: the label-ink line in CHANGELOG – done at the close). Page +1,961,
+  +1,008. PR: pending. runs: by the orchestrator
+- [x] S15.6 · UI icons (B35) — 9931300. 48 Tabler outline icons in `app/src/ui/ui-icons.ts`, one `Ic` component.
+  Review: APPROVE (low findings: the zoom ± alignment and the subset test's every point – done at the close; chart-pie
+  after M14 merges – Waiting for). Page +3,025. PR: pending. runs: by the orchestrator
+- [x] S15.7 · Close — the milestone review (REQUEST CHANGES: 11 findings) fixed or recorded in "M15 · close-out:
+  milestone review fixes, CHANGELOG, PROGRESS" (merge of main de7d759 before it): three Playwright tests (IC-01,
+  LN-01/LN-02, SN-02), the 4.6/4.7 free-layout fallback pinned (core line-items test), the `Ic` alignment, the subset
+  test on every point, the glyph-free messages and README, the 09 amendment notes, CHANGELOG 4.8.0 complete; the page
+  rebuilt and committed (4,549,684 bytes) and `m15.json` re-based on main's page (587,394). The rest under Waiting for
+  (M15). AUDIT §0 ×2, e2e ×2, bench ×2, CP-01: runs: by the orchestrator. 🚦 G10 waived by the product owner
+  ("i approve everything", Decisions 2026-10-21); the owner's PC checks are listed under Waiting for.
+- [x] S15.8 · 4.8.0 on M14 (4.7.0) – b9edb02 "Merge v4/M14-charts (4.7.0) into v4/M15-lines-icons" and "M15 · 4.8.0: versions,
+  CHANGELOG, PROGRESS" (2026-10-22). Conflicts: the corpus deck add/add (M14 keeps `tests/corpus/charts/lines.json`, the
+  chart deck; M15's line deck is now `line-items.json`, with `core/tests/real-lines.test.ts` and the corpus README),
+  imports in `Ribbon.tsx`, `ShapeTools.tsx`, `slide-dl.ts`, `pptx/scene.ts` (M14's `overlayEls` and `SlideSem.layout`
+  beside M15's icon / line semantics), PROGRESS Waiting for (both kept). Done at the merge (Waiting for · M15 "after M14
+  merges"): a chart's icon mark draws a vendored icon through `vendoredNodes` (per-path paint; `chart-lines.test.ts`
+  "an icon mark draws a vendored icon through vendoredNodes"), so the reference chart's `tabler:target` marks are the
+  Tabler target (stroked, round) – the chart-lines snapshots re-recorded for those paths only; `#chartBtn` takes
+  `<Ic n="chart-pie" />` and the subset test checks every toolbar button; pptxcheck's "PowerPoint is not available" line
+  names (6) and (7); `snap.test.ts` SN-03 also runs Consulting Navy (Excel's B48 outline, 2.222 px, is off the 1/4 px
+  grid: its box is still exact, its inset rect within 0.005 px). `dlhash-b48-base.json` unchanged (it passes).
+  In the 4.8.0 commit, from the first run of M15's e2e specs (the close-out's three were never run): a line's end and
+  middle handles took no pointer (`.ovl` is `pointer-events: none`; `stage/lines.tsx` now sets `auto` on them – LN-02's
+  Ctrl-attach was impossible by mouse); the LN-01/LN-02 spec counted the + button's box and its text as one undo step
+  (two: addNote, then the text); SN-01 clicks the first table's "+ above" (its "+ below" is covered by the second table's "+
+  above" in the weekly deck); FL-02's snap onto the first table's edge lands on the 1/4 px grid, within 1/8 px of that
+  edge (S15.4 by design). e2e here (16 specs: the M15 ones with SN-01/SN-02, CT-08, FL-01/FL-02, CH and CL and their
+  prerequisites, no page errors): 16/16. SN-04 is a bench row (`snap_drag_frame_ms`), not a spec: by the orchestrator.
+  Page 4,755,112 bytes against base + b48 + b49-b50 + m14 + m15 = 4,769,135 (`m15.json` unchanged). Versions 4.8.0;
+  `tools/compat-old.mjs` 4.7 → `v4.7.0` (falls back to d327882 while the tag is not made). runs: by the orchestrator
+
 
 ### M16 · Tables: hidden rows, delete-versions, painter, Excel conditional formats (4.9.0; B36–B39; docs/next/09 §8)
 - [ ] S16.1 · Hidden set in `buildLayout` ⏱ (HR-01, HR-02)
@@ -685,6 +725,43 @@ numbers measured twice). Measured numbers go into the step's line.
   <year − 1>"; a new comment beside its own table in the macro's structure. Page budget by measurement (b48.json).
 
 ## Waiting for
+
+- **M15 · 4.8.0, branch `v4/M15-lines-icons`, close-out (S15.7), 2026-10-21.** The milestone review (REQUEST
+  CHANGES, 11 findings; the code sound, every step APPROVE) is fixed in the close-out commit where it could be: the
+  three Playwright tests (finding 1), the page rebuilt and committed (2), `m15.json` re-based on main's page (3), the
+  4.6/4.7 free-layout note in CHANGELOG and its test (5), the stale CHANGELOG line and the label-ink line (6), the 09
+  amendment notes (7), the glyph-free UI text and README (8), the `Ic` alignment and the subset test (9). Waiting:
+  - **For the orchestrator (the runs):** the e2e suite ×2 with the three new tests and the existing SN-01/SN-03,
+    FL-02/FL-03 and Alt tests (run 1 and run 2 counts); `npm run bench` ×2 for `icon_first_use_ms` (150 ms),
+    `icon_picker_p95_ms` (50 ms), `snap_drag_frame_ms` (16 ms) and deck20 open with the icon set (400 ms) – until then
+    `tools/bench.mjs` counts them as Infinity (finding 4); AUDIT §0 ×2 on clean clones (check, helper on 3.12 and
+    3.8, parity, dlparity, export-check over the five designs, pptxcheck 14/14); CP-01 with a deck holding an attached
+    line in free layout, a Tabler icon with `stroke` and snapped 1/4 px boxes against the real 4.0.0 / 4.1 / 4.4 / 4.5
+    helpers and pages, and in a 4.6 page (lines invisible, records kept, no compaction). Then the verification lines
+    and runs of S15.1–S15.7 above.
+  - **After M14 merges into this branch (finding 11, and 3, 9):** resolve the shared lines (`tools/bench.mjs`
+    `longest_task_ms`, `core/src/rpc/messages.ts`, the `shared/ops-vectors.d` list); `#chartBtn` to `<Ic n="chart-pie" />`
+    and drop the `:not(#chartBtn)` in `app/tests/ui-icons.test.tsx`; the "PowerPoint is not available" line of
+    `tools/pptxcheck.py` to name checks (6) and (7); `export-check --decks` able to pick the chart-corpus decks; check
+    base + m14 + m15 (today 3,976,092 + 110,000 + 587,394 = 4,673,486) against the merged page; check
+    `docs/next/M14-M15-split.md` §6–§7 against the merged state; rerun the narrow tests.
+  - **For the product owner (G10 questions):** (a) **curly brackets** (09 §3.4): not built – `LineItem` has no key to
+    choose one (a new key is a 09 §9 decision); is B33 / LN-01 complete without them? (b) **Q11, Italian words in the
+    icon search** (09 §2.10 said it would be asked at S15.2; not asked): the search knows Tabler's English names and
+    tags only – add an Italian synonym list or not? (c) **the dashed limiter on PowerPoint 2016**: its ticks are a
+    solid shape of their own beside the dashed line – judge on the PC whether it reads as on the slide; (d) **labels
+    on Consulting Navy's index band and on Excel / Clean's gradient covers** (S15.5): the label's ground there is the
+    slide colour, not the band or gradient under it – acceptable, or follow the band?
+  - **🚦 G10 on the owner's PC** (waived – "i approve everything" – but these are the checks only the PC can do):
+    PowerPoint `ppt: opened` for lines-{5 designs}, lines-5-designs, lines-ticks, lines-bent-ends, icons-{5},
+    icons-5-designs and snap-quarter-px; by eye, every arrowhead along its end segment, dashed range ticks solid, icons
+    custom geometry with round caps; export-check with no `--decks` option (with `--decks none` it exports 0 files and
+    still looks like a pass); handles, guides, equal spacing and Alt in all five designs; the toolbar icons in light
+    and dark and the zoom ± alignment; B35 and LN-01 judged without curly brackets.
+  - **Known limit (finding 5, not fixable in old pages):** a 4.6 / 4.7 window that switches free layout off and on on
+    a slide with a line saves the line's box without its ends; 4.8 falls back to its own ends moved by the box
+    (`core/src/render/line-dl.ts` savedEnds; pinned in `core/tests/line-items.test.ts` "known limit (M15 review 5)").
+    CHANGELOG 4.8.0 says so; the close-every-window rule of update day covers it.
 
 - **M14 · 4.7.0, branch `v4/M14-charts`, for the product owner (PR after B48–B50's and before M15's; merge; tag and
   share update), 2026-10-21.** S14.0–S14.6 (f65be42, a04c5ff, 9d03dc2, 2f1ab48, cf04788, 40902d1, e7dd112, 53cdf19,
@@ -1248,3 +1325,39 @@ M15 appends here only.
 | Step | What | Run 1 | Run 2 |
 |---|---|---|---|
 | S14.P | page budget part `app/tests/page-budget/m15.json` (set by measurement at S15.1, owner 2026-10-21: icons in the page, packed, inflated on first use), bytes | 0 | – |
+| S15.1 | the page with the Tabler set (bytes; built, not committed): from `v4/M14-M15-prep` 3,964,345 → with S15.1 | 4,479,275 (+514,930) | – |
+| S15.1 | the Tabler data (`core/src/icons/data.ts`): packed · zlib · base64, bytes | 868,542 · 381,825 · 509,100 | – |
+| S15.1 | page budget part `m15.json`, bytes: the measured set + 45,070 for M15's code (plan-M15 estimates; B35 not included) | 560,000 | – |
+| S15.1 | first use, cold, in Node (atob + inflate + index), ms · 7 search keystrokes, ms | ≈ 90 · ≈ 40 | – |
+| S15.1 | one-off: every icon (6,238) through `resolveIcon` → `vendoredNodes` → `validate` → `dl/svg.ts`, resvg at 96 px against the release's SVG file: icons with a pixel off by > 64/255 · the largest difference | 12 (≤ 10 px each) · 96/255 | – |
+| S15.1 review | worker start, the bundled `core/src/workers/main.ts` compiled and run in a fresh V8 context (Node 22.22, no code cache), mean of 6 medians of 20: `v4/M14-M15-prep` → with the set, ms (in the worker, off the page's thread) | 58.4 → 63.5 (≈ +5) | – |
+| S15.1 review | the page's thread: the worker script as the page's string literal (app/vite.config.ts) compiled and run, as above: prep → with the set, ms | 35.6 → 34.8 (no change within noise) | – |
+| S15.1 review | deck20 open (`tools/bench.mjs`, < 400 ms) in Chromium: for the orchestrator's bench run; the 09 §7.4 icon entries stay skipped until S15.2 | – | – |
+| S15.1 review | first use, cold, in Node (`decode64` + index; 3 runs) · 7 search keystrokes, ms | 67–83 · 32–51 | – |
+| S15.1 review | every icon (6,238) through `resolveIcon` → `vendoredNodes` → `validate` → `dl/svg.ts`, now repeatable: `TABLER_FULL=1 npx vitest run tests/icons.test.ts` in core/ · errors | 6,238 · 0 | – |
+| S15.1 review | the page (built, not committed): S15.1 → with the review fixes, bytes | 4,479,275 → 4,479,545 (+270) | – |
+| S15.2 | the page (built, not committed): S15.1 → with the icon items and the picker, bytes | 4,479,545 → 4,495,767 (+16,222) | 4,495,767 (rebuilt) |
+| S15.2 | ⏱ `core/bench/lines-m15.bench.test.ts` (speed factor 2.00 here): the set's first use, cold, in the process (`decode64` + index; limit 150 ms) · a fresh inflate · the picker's keystroke in the worker (search + the first screen's 120 tiles as path data), p95 · median, ms | 67.5 · 68.3 · 10.19 · 4.07 | – |
+| S15.2 | ⏱ in Chromium (`tools/bench.mjs` icon picker: the worker's first answer, cold; the key → the hits drawn, p95 < 50 ms): for the orchestrator's bench run | – | – |
+| S15.2 | one-off: Tabler icons whose fill differs between the nonzero rule (SVG, the display list) and even-odd (what PowerPoint may use for an a:path of several subpaths), 48 × 48 samples per icon, filled paths of both sets | 0 | – |
+| S15.2 | the page with the review fixes (the picker's pick mode, Escape, an item's own width; the cold flag) · the step in all, bytes. Over plan-M15's 12–15 KB estimate for the step (the picker's UI); within m15.json's total of 560,000 | 4,495,767 → 4,496,598 (+831) · +17,053 | – |
+| S15.2 | the PowerPoint gate's icons (pptxcheck (6), tools/real-icons.mjs): corpus `charts/icons.json` (1 + 7 Tabler icons, 3 built-in drawn) in the five designs · `icons-5-designs.pptx` (2 per slide); custom geometry, round lines, no picture, counts exact (python-pptx here; PowerPoint on the owner's PC) | 5 / 5 PASS · PASS | – |
+| S15.3 | the page (built, not committed): S15.2 → with the line items (core line-dl in the worker and in the page's in-thread core; the stage's handles, Insert line ▾, the line ribbon; the PowerPoint lines of S15.5's plan done here), bytes. Over plan-M15's 15 KB for the step (+ 4 KB of S15.5): M15's part is now 570,658 against m15.json's 560,000 (10,658 over; the page's total budget, 4,646,092, holds) – the owner or the close decides whether m15.json grows | 4,496,598 → 4,535,003 (+38,405) | 4,535,003 (rebuilt) |
+| S15.3 | ⏱ `core/bench/lines-m15.bench.test.ts`: 20 lines (every route, heads, dashes, a label each, 5 attached) – the slide with them less without, median of 20 (limit 3 ms × the speed factor) · glass · excel, ms | 1.01 · 1.00 (factor 2.00) | 0.92 · 0.88 (factor 1.85) |
+| S15.3 | the PowerPoint gate's lines (pptxcheck (7), real-icons.mjs linesOf): corpus `charts/lines.json` (1 + 11 lines) in the five designs · `lines-5-designs.pptx` (5 per slide); plain shapes (a:prstGeom line / open a:custGeom), native a:headEnd / a:tailEnd, no p:cxnSp, no picture, counts exact (python-pptx here; PowerPoint on the owner's PC) | 5 / 5 PASS · PASS | – |
+| S15.4 | the page (built, not committed): S15.3 → with snapping (core render/snap.ts in the page, stage/guides.tsx, the drags), bytes. Within plan-M15's 6 KB for the step; M15's part is now 576,393 against m15.json's 560,000 (16,393 over; the page's total budget, 4,646,092, holds) – the owner or the close decides whether m15.json grows | 4,535,003 → 4,540,738 (+5,735) | – |
+| S15.4 | ⏱ `core/bench/lines-m15.bench.test.ts`: snapping's core part per drag frame, 60 objects (44 boxes, 2 tables of 12 × 30 cells, 14 lines; 209 x targets): a move and a resize frame, the slower, median of 20 drags (limit 1 ms × the speed factor) · targets collected once at pointer-down, ms | 0.120 · 0.165 (factor 2.00) | 0.069 · 0.146 |
+| S15.4 | ⏱ `tools/bench.mjs` snap_drag_frame_ms: deck20's second slide + 56 shapes, one moved across them and resized by its corner with snapping on, the most work between two frames (limit 16 ms) | (the orchestrator's bench run) | – |
+| S15.4 | SN-03 PowerPoint part: `snap-quarter-px.pptx` (core/tests/snap.test.ts PPTX_OUT; a shape at 1/4 px in Excel and Liquid Glass, automatic and free layout) – pptxcheck, and python-pptx reading back a:off / a:ext = the display list's numbers × 7,620, each a multiple of 1,905 EMU | PASS · 4 / 4 | – |
+| S15.5 | the page (built, not committed): S15.4 → with S15.5 and the S15.3 / S15.4 review follow-ups (limiter ticks, the label's ground, the ink per theme, the stroke under a head at a bend; the free table at the slide's edge and by its top / bottom edge, the elbow's bend on 1/4 px, targets at pointer-down), bytes. M15's part 578,354 (the page less the prep page's 3,964,345): `m15.json` raised to 583,354 by measurement (+5,000; the owner's decision of 2026-10-21) | 4,540,738 → 4,542,699 (+1,961) | 4,542,699 (rebuilt) |
+| S15.5 | LN-03 through the gate: pptxcheck (7) also counts each slide's native ends (a:headEnd / a:tailEnd, not none) and dashed lines against the core's (real-icons.mjs linesOf `heads`, `dashed`); files in the scratchpad `m15-pptx/`: lines-{excel,glass,clean,mckinsey,bain} (1 + 11 lines, 1 + 8 heads, 0 + 3 dashed), lines-5-designs, lines-ticks (a dashed range and an elbow limiter: ticks a solid round-capped shape of their own), icons-{5 designs}, snap-quarter-px – python-pptx here, PowerPoint on the owner's PC | 13 / 13 PASS | – |
+| S15.5 | ⏱ `core/bench/lines-m15.bench.test.ts` after the follow-ups (the ink read from the theme per line): 20 lines · snapping's core part per drag frame, 60 objects · glass · excel, ms | lines 0.92 · 1.05, snap 0.101 (factor 1.98–2.00) | lines 0.92 · 1.03, snap 0.106 |
+| S15.5 | Waiting for (09 §3.4, S15.3 review 7): curly brackets are not built – `LineItem` has no key to choose one (a new key needs a 09 §9 decision); LN-01 is complete without them only if the owner agrees | – | – |
+| S15.5 review | the page (built, not committed): S15.5 → with its review fixes (a line's file path without repeated points, the ink from the ground the line crosses, Consulting Red's cover band), bytes. M15's part 579,362, within `m15.json`'s 583,354 (not raised) | 4,542,699 → 4,543,707 (+1,008) | 4,543,707 (rebuilt) |
+| S15.5 review | pptxcheck (7) also fails a native end on a custom path's segment of no length, and checks the 1/4 px grid (1,905 EMU) of the shapes an entry names (`quarter`, e.g. snap-quarter-px's "Callout"s); new file lines-bent-ends (elbows bent at an end, hv / vh, mid 0 / 1, and a bracket of depth 0, 10 native ends) | 14 / 14 PASS (python-pptx) | – |
+| S15.5 review | ⏱ `core/bench/lines-m15.bench.test.ts` after the review fixes: 20 lines · snapping's core part per drag frame, ms | lines 1.09 · 1.01 (limit 3 × 2.00), snap 0.074 (limit 1 × 1.90) | – |
+| S15.6 | the page (built, not committed): S15.5 review → with the toolbar icons (48 Tabler outline icons, `Ic`), bytes. The "before" is the S15.5 review's rebuilt page (its +1,008 is that row's review fixes). M15's part against the prep page 582,387, within `m15.json`'s 583,354 | 4,543,707 → 4,546,732 (+3,025) | – |
+| S15.7 | the page built at the close and committed (`helper/slide_builder.html`), bytes: the S15.6 page + main's +2,945 (merge de7d759: main's committed page 3,964,345 → 3,967,290) + the close's fixes (+7) | 4,549,684 | (the orchestrator's clean-clone build) |
+| S15.7 | page budget part `m15.json` re-based (milestone review 3): M15's part = the close's page less main's page at 6392856 (3,967,290) = 582,394, + 5,000 (the owner's rule) · total with base and M14 | 587,394 · 4,673,486 | – |
+| S15.7 | ⏱ `tools/bench.mjs` `icon_first_use_ms` (< 150) · `icon_picker_p95_ms` (< 50) · `snap_drag_frame_ms` (< 16) · deck20 open with the icon set (< 400), Chromium, ms | (the orchestrator's bench run) | (the orchestrator's bench run) |
+| S15.7 | e2e (the suite, with IC-01, LN-01/LN-02, SN-02 new and SN-01/SN-03, FL-02/FL-03, Alt) · AUDIT §0 · CP-01 | runs: pending | runs: pending |

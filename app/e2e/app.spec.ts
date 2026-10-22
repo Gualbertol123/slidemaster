@@ -779,6 +779,65 @@ test.describe.serial("two people, one shared folder", () => {
     await pollFile(() => { const n: any = Object.values(notes()).find((x: any) => x.text === "Source: ECB"); return n && n.x; }, { timeout: 10_000 }).toBeUndefined();
   });
 
+  test("snapping (S15.4, SN-01/SN-03): a text box outside a free layout snaps, Alt turns it off; dropped = previewed = saved = reopened, on 1/4 px", async ({ page }) => {
+    await openApp(page, BOB);
+    await expect(page.locator(".thumb")).toHaveCount(1);                                   // weekly.xlsx (last file)
+    const wdoc = () => deckDoc("weekly.xlsx");
+    const note = () => Object.values(wdoc().preset.slides[0].notes || {}).find((x: any) => x.text === "Snap SN-03") as any;
+    await page.locator("#stage .stagewrap").hover();
+    // (+ above the first table: the second table's "+ above" covers the first one's "+ below" – the weekly deck's
+    // tables sit close together)
+    await page.locator('#stage .hbox[data-i="0"] .addnote.top').click();
+    await expect(page.locator("textarea.note-edit")).toBeVisible();
+    await page.keyboard.type("Snap SN-03"); await page.keyboard.press("Control+Enter");
+    await pollFile(() => !!note(), { timeout: 10_000 }).toBe(true);
+    const box = page.locator("#stage .tnote", { hasText: "Snap SN-03" });
+    await expect(box).toBeVisible();
+    // no free layout in any design: the automatic layout's text box
+    expect(Object.values(wdoc().preset.slides[0].free || {}).some((f: any) => f?.on)).toBe(false);
+    const slide = await boxOf(page.locator("#stage .slide")), s = slide.width / 1600;
+    const sx = (b: { x: number }) => (b.x - slide.x) / s;                                  // screen → slide px
+    const tableX = sx(await boxOf(page.locator('#stage .slide > .tw[data-i="0"]')));
+    /** a drag of the box by its body (dx, dy screen px), Alt or not: its left edge in slide px while the preview is shown */
+    const drag = async (dx: number, dy: number, alt: boolean) => {
+      const b = await boxOf(box);
+      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); if (alt) await page.keyboard.down("Alt");
+      await page.mouse.down(); await page.mouse.move(b.x + b.width / 2 + dx, b.y + b.height / 2 + dy, { steps: 8 });
+      const shown = sx(await boxOf(page.locator("#stage .tnote", { hasText: "Snap SN-03" }).first()));
+      const guides = await page.locator("#stage .snapline.v").count();
+      await page.mouse.up(); if (alt) await page.keyboard.up("Alt");
+      return { shown, guides };
+    };
+    // Alt: 3 screen px right of the table's left edge, stays there – no guide
+    const x0 = sx(await boxOf(box));
+    const a = await drag((tableX - x0) * s + 3, 40, true);
+    expect(a.guides).toBe(0);
+    await pollFile(() => note()?.x != null, { timeout: 10_000 }).toBe(true);
+    const altX = note().x;
+    expect(Math.abs(altX - (tableX + 3 / s))).toBeLessThan(.6);
+    expect(altX * 4 % 1).toBe(0);                                                          // on 1/4 px
+    expect(Math.abs(a.shown - altX)).toBeLessThan(.1);                                     // dropped = previewed
+    // without Alt, 1 slide px off (in slide px, not screen px: at a smaller stage – CI's – 2 screen px came to ~4 slide
+    // px, nearer another target 3.8 px away): onto the table's left edge, its guide drawn
+    const b = await drag((tableX - altX + 1) * s, 30, false);
+    expect(b.guides).toBeGreaterThan(0);
+    await pollFile(() => note().x !== altX, { timeout: 10_000 }).toBe(true);
+    const saved = note();
+    expect(Math.abs(saved.x - tableX)).toBeLessThan(.3);
+    expect(saved.x * 4 % 1).toBe(0); expect(saved.y * 4 % 1).toBe(0);
+    expect(Math.abs(b.shown - saved.x)).toBeLessThan(.1);
+    // reopened: drawn where it was saved
+    await openApp(page, BOB);
+    await expect(page.locator(".thumb")).toHaveCount(1);
+    const slide2 = await boxOf(page.locator("#stage .slide")), s2 = slide2.width / 1600, again = await boxOf(page.locator("#stage .tnote", { hasText: "Snap SN-03" }));
+    expect(Math.abs((again.x - slide2.x) / s2 - saved.x)).toBeLessThan(.1);
+    expect(Math.abs((again.y - slide2.y) / s2 - saved.y)).toBeLessThan(.1);
+    expect(note()).toMatchObject({ x: saved.x, y: saved.y });
+    // gone again (the later tests of weekly.xlsx count its text boxes)
+    await page.locator("#stage .tnote", { hasText: "Snap SN-03" }).click(); await page.click("#noteDelete");
+    await pollFile(() => !!note(), { timeout: 10_000 }).toBe(false);
+  });
+
   test("notes section of a slide: where the footer is, movable next to the page number; raw Excel draws it too (B19); menus open", async ({ page }) => {
     await openApp(page, BOB);
     await expect(page.locator(".thumb")).toHaveCount(1);
@@ -1271,6 +1330,200 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator("#issues")).toContainText("Callout 1: Nowhere!B2 not found (shown as #REF)");
     // removed again (the Run tests export this deck)
     for (const sel of [".itembox[data-kind=shape]:not([data-item=\"" + id + "\"])", `.itembox[data-item="${id}"]`]) { await page.locator(sel).click({ position: { x: 3, y: 3 } }); await page.keyboard.press("Delete"); }
+    await expect(page.locator(".itembox")).toHaveCount(0);
+    await pollFile(() => Object.keys(items())).toEqual([]);
+    await lastFileSaved("anna", "Banks.xlsx");
+  });
+
+  /* M15 (4.8): the E rows of docs/next/09 §7.1 that the core tests cannot reach – IC-01, LN-01 / LN-02 and SN-02 (the
+     M15 milestone review's finding 1). Each one starts and ends with Banks.xlsx's first slide as it was. */
+  test("icons (S15.2, IC-01, B34): More icons… – search, a category, colour, size and line chosen there; changed on the ribbon; Change icon…; saved", async ({ page }) => {
+    await openApp(page, ANNA);
+    await openWorkbook(page, "Banks.xlsx"); await continueOpen(page, "Banks.xlsx");
+    await expect(page.locator("#stage .slide .t", { hasText: /^1761$/ })).toHaveCount(1, { timeout: 20_000 });
+    const items = () => (deckDoc("Banks.xlsx").preset.slides[0].items || {}) as Record<string, any>;
+    expect(Object.keys(items())).toEqual([]);
+    // the picker: the whole set (inflated on first use in the core worker), then "bank", best first
+    await page.click("#shapeBtn"); await page.click("#moreIcons");
+    await expect(page.locator("#iconPicker")).toBeVisible();
+    await expect(page.locator("#iconGrid")).toHaveAttribute("data-n", /^[1-9]\d{3}$/, { timeout: 20_000 });
+    await page.fill("#iconSearch", "bank");
+    await expect(page.locator("#iconGrid")).toHaveAttribute("data-q", "bank", { timeout: 10_000 });
+    await expect(page.locator("#iconGrid .ictile").first()).toHaveAttribute("data-icon", "tabler:building-bank");
+    const all = +(await page.locator("#iconGrid").getAttribute("data-n"))!;
+    // a category narrows the hits (building-bank is in Buildings)
+    await page.click('#iconCats [data-cat="Buildings"]');
+    await expect(page.locator('#iconCats [data-cat="Buildings"]')).toHaveClass(/\bon\b/);
+    await expect(page.locator("#iconPicker .ichd").last()).toContainText("in Buildings", { timeout: 10_000 });
+    expect(+(await page.locator("#iconGrid").getAttribute("data-n"))!).toBeLessThanOrEqual(all);
+    await expect(page.locator('#iconGrid [data-icon="tabler:building-bank"]')).toBeVisible();
+    // the new icon's colour, size and line width, then the icon: one item, as chosen
+    await page.click('#iconPicker [data-iccolor="#1C4F8C"]');
+    await page.click('#iconSize [data-size="96"]');
+    await page.click('#iconWidth [data-width="1.5"]');
+    await page.click('#iconGrid [data-icon="tabler:building-bank"]');
+    await expect(page.locator("#iconPicker")).toHaveCount(0);
+    await pollFile(() => Object.values(items()).length, { timeout: 10_000 }).toBe(1);
+    const id = Object.keys(items())[0];
+    expect(items()[id]).toEqual({ kind: "shape", shape: "icon", icon: "tabler:building-bank", fill: "#1C4F8C", stroke: 1.5, box: { x: 752, y: 402, w: 96, h: 96 } });
+    await expect(page.locator(`#stage svg.layer.item[data-item="${id}"] path`).first()).toBeAttached({ timeout: 10_000 });
+    // the ribbon: colour, size (from its centre), line width – one change each, one undo step each
+    await expect(page.locator("#shapeTools")).toBeVisible();
+    await page.click("#shapeFill"); await page.click('[data-fill="#CC0000"]');
+    await pollFile(() => items()[id].fill).toBe("#CC0000");
+    await page.click("#iconSizeBtn"); await page.click('[data-isize="128"]');
+    await pollFile(() => items()[id].box).toEqual({ x: 736, y: 386, w: 128, h: 128 });
+    await page.click("#iconWidthBtn"); await page.click('[data-iwidth="2.5"]');
+    await pollFile(() => items()[id].stroke).toBe(2.5);
+    await page.click("#undoBtn");
+    await pollFile(() => items()[id].stroke).toBe(1.5);
+    // Change icon…: another icon, the same colour, size and place
+    await page.click("#iconChange");
+    await expect(page.locator("#iconPicker")).toBeVisible();
+    await page.fill("#iconSearch", "home");
+    await expect(page.locator("#iconGrid")).toHaveAttribute("data-q", "home", { timeout: 10_000 });
+    await page.click('#iconGrid [data-icon="tabler:home"]');
+    await pollFile(() => items()[id]).toEqual({ kind: "shape", shape: "icon", icon: "tabler:home", fill: "#CC0000", stroke: 1.5, box: { x: 736, y: 386, w: 128, h: 128 } });
+    // removed again (the Run tests export this deck)
+    await page.locator(`.itembox[data-item="${id}"]`).click({ position: { x: 3, y: 3 } }); await page.keyboard.press("Delete");
+    await expect(page.locator(".itembox")).toHaveCount(0);
+    await pollFile(() => Object.keys(items())).toEqual([]);
+    await lastFileSaved("anna", "Banks.xlsx");
+  });
+
+  test("lines (S15.3, LN-01/LN-02, B33): Insert line › Arrow; an end Ctrl-attached to a table follows it in automatic and in free layout; Shift 45°; one undo step each", async ({ page }) => {
+    await openApp(page, ANNA);
+    await openWorkbook(page, "Banks.xlsx"); await continueOpen(page, "Banks.xlsx");
+    await expect(page.locator("#stage .slide .t", { hasText: /^1761$/ })).toHaveCount(1, { timeout: 20_000 });
+    const slide0 = () => deckDoc("Banks.xlsx").preset.slides[0], items = () => (slide0().items || {}) as Record<string, any>;
+    const undoSteps = () => page.evaluate(() => (window as any).__sbTest.history().undo as number);
+    const idle = () => page.waitForFunction(() => (window as any).__sbTest.stageIdle());
+    const S = async () => { const b = await boxOf(page.locator("#stage .slide")); return { x: b.x, y: b.y, s: b.width / 1600 }; };
+    /** the table's left middle, slide px (where an end attached at "l" is drawn) */
+    const tableL = async () => { const s = await S(), t = await boxOf(page.locator('#stage .slide > .tw[data-i="0"]')); return { x: (t.x - s.x) / s.s, y: (t.y + t.height / 2 - s.y) / s.s }; };
+    const toScreen = async (p: { x: number; y: number }) => { const s = await S(); return { x: s.x + p.x * s.s, y: s.y + p.y * s.s }; };
+    const drag = async (from: { x: number; y: number }, to: { x: number; y: number }, key?: "Control" | "Shift" | "Alt") => {
+      await page.mouse.move(from.x, from.y); if (key) await page.keyboard.down(key);
+      await page.mouse.down(); await page.mouse.move(to.x, to.y, { steps: 10 });
+      const anchor = await page.locator("#stage .lineanchor").count();
+      await page.mouse.up(); if (key) await page.keyboard.up(key);
+      return anchor;
+    };
+    const mid = async (l: Locator) => { const b = await boxOf(l); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
+    expect(Object.keys(items())).toEqual([]);
+    const u0 = await undoSteps();
+    // LN-01: Insert line › Arrow – a straight line with an arrowhead at its end, in the middle of the slide, selected
+    await page.click("#lineBtn"); await page.click('.linemenu [data-line="arrow"]');
+    await pollFile(() => Object.values(items()).map(i => i.kind), { timeout: 10_000 }).toEqual(["line"]);
+    const id = Object.keys(items())[0];
+    expect(items()[id]).toMatchObject({ kind: "line", route: "straight", a: { x: 640, y: 450 }, b: { x: 960, y: 450 }, style: { heads: { b: "triangle" } } });
+    await expect(page.locator("#lineTools")).toBeVisible();
+    /** the line's ends as the stage draws them (slide px; its hit path: "M x y L x y") */
+    const ends = async () => { const n = (await page.locator(`#stage g[data-line="${id}"] path.linehit`).getAttribute("d"))!.match(/-?\d+(\.\d+)?/g)!.map(Number); return { a: { x: n[0], y: n[1] }, b: { x: n[n.length - 2], y: n[n.length - 1] } }; };
+    await expect.poll(() => ends()).toEqual({ a: { x: 640, y: 450 }, b: { x: 960, y: 450 } });
+    // LN-02: its end dragged with Ctrl near the table's left middle – the anchor is shown, the end attached there
+    const t0 = await tableL(), near = await toScreen({ x: t0.x + 4, y: t0.y + 3 });
+    expect(await drag(await mid(page.locator(`.linehandle.b[data-item="${id}"]`)), near, "Control")).toBe(1);
+    await pollFile(() => items()[id].ends, { timeout: 10_000 }).toEqual({ b: { to: "t:" + slide0().tables[0], at: "l" } });
+    await expect.poll(() => undoSteps()).toBe(u0 + 2);
+    await idle();
+    const e1 = await ends();
+    expect(Math.abs(e1.b.x - t0.x)).toBeLessThan(6); expect(Math.abs(e1.b.y - t0.y)).toBeLessThan(6);
+    expect(e1.a).toEqual({ x: 640, y: 450 });
+    /** the end follows the table: it moved by as much as the table's left middle did since `t`, `e` */
+    const follows = (t: { x: number; y: number }, e: typeof e1) => expect.poll(async () => {
+      const t2 = await tableL(), e2 = await ends();
+      return [Math.abs(e2.b.x - e.b.x - (t2.x - t.x)) < 1.5, Math.abs(e2.b.y - e.b.y - (t2.y - t.y)) < 1.5, e2.a];
+    }, { timeout: 10_000 }).toEqual([true, true, e.a]);
+    // automatic layout: a text box above the table moves the table down – the attached end goes with it
+    await page.locator("#stage .stagewrap").hover();
+    await page.locator('#stage .hbox[data-i="0"] .addnote.top').click();
+    await expect(page.locator("textarea.note-edit")).toBeVisible();
+    await page.keyboard.type("LN-02 above"); await page.keyboard.press("Control+Enter");
+    await expect.poll(() => undoSteps()).toBe(u0 + 4);                     // the + button's box, then its text: two steps
+    await idle();
+    await expect.poll(async () => Math.abs((await tableL()).y - t0.y), { timeout: 10_000 }).toBeGreaterThan(2);
+    await follows(t0, e1);
+    // free layout (nothing moves when it is switched on), the table dragged by its grip (Alt: no snapping) – the end follows
+    const t1 = await tableL(), e2 = await ends();
+    await page.click("#freeLayout");
+    await pollFile(() => Object.values(slide0().free || {}).some((f: any) => f?.on), { timeout: 10_000 }).toBe(true);
+    await expect.poll(() => undoSteps()).toBe(u0 + 5);
+    await idle();
+    expect(await ends()).toEqual(e2);
+    const g = await mid(page.locator('#stage .hbox[data-i="0"] .grip'));
+    await drag(g, { x: g.x + 60, y: g.y + 40 }, "Alt");
+    await expect.poll(() => undoSteps()).toBe(u0 + 6);
+    await idle();
+    await expect.poll(async () => (await tableL()).x - t1.x, { timeout: 10_000 }).toBeGreaterThan(20);
+    await follows(t1, e2);
+    // Shift: the free end a at 45° from b (the line selected again: a click on it)
+    const e3 = await ends();
+    const on = await toScreen({ x: e3.a.x + (e3.b.x - e3.a.x) * .1, y: e3.a.y + (e3.b.y - e3.a.y) * .1 });
+    await page.mouse.click(on.x, on.y);
+    await expect(page.locator(`.linehandle.a[data-item="${id}"]`)).toBeVisible();
+    const bs = await toScreen(e3.b);
+    await drag(await mid(page.locator(`.linehandle.a[data-item="${id}"]`)), { x: bs.x - 150, y: bs.y - 140 }, "Shift");
+    await expect.poll(() => undoSteps()).toBe(u0 + 7);
+    await idle();
+    const e4 = await ends();
+    expect(e4.a.x).toBeLessThan(e4.b.x); expect(e4.a.y).toBeLessThan(e4.b.y);
+    expect(Math.abs(Math.abs(e4.b.x - e4.a.x) - Math.abs(e4.b.y - e4.a.y))).toBeLessThan(.6);
+    expect(e4.a.x * 4 % 1).toBe(0); expect(e4.a.y * 4 % 1).toBe(0);                     // saved on 1/4 px
+    // one undo step: the end back where it was
+    await page.click("#undoBtn");
+    await expect.poll(() => undoSteps()).toBe(u0 + 6);
+    await expect.poll(async () => (await ends()).a).toEqual(e3.a);
+    // everything undone, step by step: no line, no text box, no free layout (the Run tests export this deck)
+    while (await undoSteps() > u0) { const n = await undoSteps(); await page.click("#undoBtn"); await expect.poll(() => undoSteps()).toBe(n - 1); }
+    await pollFile(() => Object.keys(items()), { timeout: 10_000 }).toEqual([]);
+    await pollFile(() => Object.values(slide0().free || {}).some((f: any) => f?.on), { timeout: 10_000 }).toBe(false);
+    await pollFile(() => Object.values(slide0().notes || {}).some((n: any) => n?.text === "LN-02 above"), { timeout: 10_000 }).toBe(false);
+    await lastFileSaved("anna", "Banks.xlsx");
+  });
+
+  test("equal spacing (S15.4, SN-02, B32): three shapes – the equal gaps marked while dragging, the drop on them; Alt drops on 1/4 px", async ({ page }) => {
+    await openApp(page, ANNA);
+    await openWorkbook(page, "Banks.xlsx"); await continueOpen(page, "Banks.xlsx");
+    await expect(page.locator("#stage .slide .t", { hasText: /^1761$/ })).toHaveCount(1, { timeout: 20_000 });
+    const slide0 = () => deckDoc("Banks.xlsx").preset.slides[0], items = () => (slide0().items || {}) as Record<string, any>;
+    const idle = () => page.waitForFunction(() => (window as any).__sbTest.stageIdle());
+    expect(Object.keys(items())).toEqual([]);
+    for (let k = 1; k <= 3; k++) {
+      await page.click("#shapeBtn"); await page.click('.shapemenu [data-shape="rect"]');
+      await pollFile(() => Object.keys(items()).length, { timeout: 10_000 }).toBe(k);
+    }
+    const [A, B, C] = Object.keys(items());
+    // placed below the table, in a row: A and B 120 px apart, C further right (one change, as the page makes it)
+    const y = 780, at = (x: number) => ({ x, y, w: 120, h: 80 });
+    await page.evaluate(([sid, ps]) => (window as any).__sbTest.change("Place shapes", (ps as readonly (readonly [string, object])[]).map(([id, box]) => ({ op: "item.patch", slide: sid, id, patch: { box } }))),
+      [slide0().id, [[A, at(100)], [B, at(340)], [C, at(700)]]] as const);
+    await pollFile(() => items()[C].box, { timeout: 10_000 }).toEqual(at(700));
+    await idle();
+    const s = (await boxOf(page.locator("#stage .slide"))).width / 1600;
+    const body = async (id: string) => { const b = await boxOf(page.locator(`.itembox[data-item="${id}"]`)); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
+    // C dragged to 3 screen px right of the equal gap (B's right edge + 120 = 580): two gap markers, each "120 px"
+    const from = await body(C);
+    await page.mouse.move(from.x, from.y); await page.mouse.down();
+    await page.mouse.move(from.x + (580 - 700) * s + 3, from.y, { steps: 10 });
+    await expect.poll(() => page.locator("#stage .snapgap").count()).toBeGreaterThanOrEqual(2);
+    expect(await page.locator("#stage .snaptip", { hasText: /^120 px$/ }).count()).toBeGreaterThanOrEqual(2);
+    await page.mouse.up();
+    await pollFile(() => items()[C].box, { timeout: 10_000 }).toEqual(at(580));
+    await expect(page.locator("#stage .snapgap")).toHaveCount(0);                          // only while dragging
+    await idle();
+    // with Alt: no snapping, no marker; dropped where the pointer left it, on 1/4 px
+    const f2 = await body(C);
+    await page.mouse.move(f2.x, f2.y); await page.keyboard.down("Alt"); await page.mouse.down();
+    await page.mouse.move(f2.x + 37.3, f2.y + 11.7, { steps: 10 });
+    await expect(page.locator("#stage .snapgap")).toHaveCount(0);
+    await page.mouse.up(); await page.keyboard.up("Alt");
+    await pollFile(() => items()[C].box.x !== 580, { timeout: 10_000 }).toBe(true);
+    const c = items()[C].box;
+    expect(Math.abs(c.x - (580 + 37.3 / s))).toBeLessThan(.6); expect(Math.abs(c.y - (y + 11.7 / s))).toBeLessThan(.6);
+    for (const v of [c.x, c.y, c.w, c.h]) expect(v * 4 % 1).toBe(0);
+    // removed again (the Run tests export this deck)
+    for (const id of [A, B, C]) { await page.locator(`.itembox[data-item="${id}"]`).click({ position: { x: 3, y: 3 } }); await page.keyboard.press("Delete"); }
     await expect(page.locator(".itembox")).toHaveCount(0);
     await pollFile(() => Object.keys(items())).toEqual([]);
     await lastFileSaved("anna", "Banks.xlsx");
@@ -1827,7 +2080,9 @@ test.describe.serial("two people, one shared folder", () => {
     // its left edge dropped 3 screen px beside the first table's: snapped onto it; with Alt it stays where it was dropped
     const near = async (alt: boolean) => { const b = box("t:" + id1), a = box("t:" + id0); await drag(await mid('#stage .hbox[data-i="1"] .grip'), (a.x - b.x) * s + 3, 0, alt); };
     await near(false);
-    await pollFile(() => box("t:" + id1).x, { timeout: 10_000 }).toBe(a0.x);
+    // (onto its edge on the 1/4 px grid – 4.8, S15.4 SN-03: the first table's automatic-layout x is off the grid, so the
+    // drop lands within 1/8 px of it)
+    await pollFile(() => { const x = box("t:" + id1).x; return Math.abs(x - a0.x) <= .125 && x * 4 % 1 === 0; }, { timeout: 10_000 }).toBe(true);
     await step();
     await drag(await mid('#stage .hbox[data-i="1"] .grip'), 40, 0, true); await step();
     await near(true);

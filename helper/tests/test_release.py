@@ -315,23 +315,24 @@ class NoticesTest(unittest.TestCase):
         self.assertTrue({"react", "react-dom", "scheduler", "zustand", "fflate"} <= seen, seen)    # scheduler through react-dom
 
     def test_vendored_licences_have_an_entry(self):
-        """every licence file next to an inlined WASM (core/src/**/wasm/) is reproduced whole, and so is the Apache-2.0 text"""
+        """every licence file next to an inlined WASM (core/src/**/wasm/) or the icon set (core/src/icons/) is reproduced
+        whole, and so is the Apache-2.0 text"""
         text = self.read("THIRD-PARTY-NOTICES.txt")
         found = []
         for base, _dirs, files in os.walk(os.path.join(REPO, "core", "src")):
-            if os.path.basename(base) != "wasm":
-                continue
             rel = os.path.relpath(base, REPO).replace(os.sep, "/")
+            if os.path.basename(base) != "wasm" and rel != "core/src/icons":
+                continue
             lic = sorted(f for f in files if f.startswith(("LICENSE", "COPYING")))
             self.assertTrue(lic, rel + " has no licence file")
             for f in lic:
                 found.append(f)
                 self.assertIn("(%s/%s)" % (rel, f), text)
                 self.assertIn(self.read(*(rel.split("/") + [f])).strip(), text, f)
-        self.assertEqual(sorted(found), ["COPYING-harfbuzz", "LICENSE-harfbuzzjs", "LICENSE-ironcalc"])
+        self.assertEqual(sorted(found), ["COPYING-harfbuzz", "LICENSE-harfbuzzjs", "LICENSE-ironcalc", "LICENSE-tabler"])
         self.assertIn(self.read("tools", "licenses", "Apache-2.0.txt").strip(), text)
         self.assertIn("IronCalc's WebAssembly has Rust libraries (crates) compiled in", text)   # (their own notices: AUDIT-2 LIC-1, open)
-        self.assertTrue({"IronCalc", "harfbuzzjs", "HarfBuzz", "Apache-2.0"} <= set(self.sections()))
+        self.assertTrue({"IronCalc", "harfbuzzjs", "HarfBuzz", "@tabler/icons", "Apache-2.0"} <= set(self.sections()))
 
     def test_windows_dlls_folder_counts_as_standard_library(self):
         """Windows CPython keeps compiled stdlib modules (unicodedata.pyd, _socket.pyd) in <base_prefix>\\DLLs"""

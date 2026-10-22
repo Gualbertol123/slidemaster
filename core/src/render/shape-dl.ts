@@ -18,7 +18,7 @@ import { consultOptions, isConsult } from "../model/designs";
 import { specOf } from "./consult-spec";
 import { ISP } from "./isp";
 import { parseColor, solid } from "../dl/color";
-import { ICONS, iconCmds } from "./icons";
+import { iconCmds, resolveIcon, vendoredNodes, type IconSet } from "./icons";
 
 const r2 = (v: number) => Math.round(v * 100) / 100 || 0;
 const HEX = /^#[0-9A-Fa-f]{6}$/;
@@ -74,6 +74,9 @@ export function bubbleCmds(x: number, y: number, w: number, h: number, r: number
   return d;
 }
 
+/** an outline icon's stroke width at 24 px (09 §2.4: 1–3, default 2; a value out of range is clamped) */
+export const iconStroke = (v: unknown) => typeof v === "number" && Number.isFinite(v) ? Math.max(1, Math.min(3, v)) : 2;
+
 /* ---- look per design ---- */
 interface ShapeLook { fill: string | null; border: { w: number; color: string; dash?: number[] } | null; shadow: boolean; glass: boolean; ink: string; radius: number }
 function lookOf(it: ShapeItem, ctx: RenderCtx, panel = false): ShapeLook {
@@ -109,7 +112,7 @@ const luminance = (hex: string) => { const [r, g, b] = parseColor(hex).c; return
 export interface ShapeEnv { V: GlassVars; wall: Wallpaper | null; /** on Consulting Red's message panel (slide-dl.ts inPanel) */ panel?: boolean }
 /** a shape item → the nodes of its shape (the item's hit first), the box its text goes in, its text with the cell
     references replaced, and the Issues line of references that could not be read */
-export function shapeNodes(it: ShapeItem, id: string, box: Box, ctx: RenderCtx, env: ShapeEnv): { nodes: Node[]; text: string; textBox: Box; ink: string; issue: string | null } {
+export function shapeNodes(it: ShapeItem, id: string, box: Box, ctx: RenderCtx, env: ShapeEnv): { nodes: Node[]; text: string; textBox: Box; ink: string; issue: string | null; /** a Tabler icon's set (its PowerPoint shape, scene.ts iconEls) */ icon?: IconSet } {
   const { x, y, w, h } = box, L = lookOf(it, ctx, !!env.panel), shape = it.shape;
   const ref = calloutText(typeof it.text === "string" ? it.text : "", ctx);
   const hitNode: Node = { t: "hit", kind: "item", id, x: r2(x), y: r2(y), w: r2(w), h: r2(h), label: ref.text };
@@ -119,11 +122,17 @@ export function shapeNodes(it: ShapeItem, id: string, box: Box, ctx: RenderCtx, 
   const rectR = shape === "rect" ? 0 : shape === "pill" ? h / 2 : shape === "circle" ? Math.min(w, h) / 2 : L.radius;
   const rectLike = shape === "rect" || shape === "round" || shape === "pill" || (shape === "circle" && Math.abs(w - h) < .5);
   if (shape === "icon") {
-    // an icon: the built-in outline scaled into the box, filled with the text colour (an own fill colours it)
-    const name = typeof it.icon === "string" && Object.prototype.hasOwnProperty.call(ICONS, it.icon) ? it.icon : "info", s = Math.min(w, h) / 24, ox = x + (w - 24 * s) / 2, oy = y + (h - 24 * s) / 2;
+    // an icon (09 §2.4, §3.5): a built-in outline filled even-odd, or a Tabler icon – its outline paths stroked `stroke`
+    // wide at 24 (1–3, default 2) with round caps and joins, its filled ones filled – scaled into the box's square; the
+    // ink is the item's fill, else its text colour, else the design's. A name the set does not have draws "info" and
+    // gives the Issues line (never a silent stand-in)
+    const r = resolveIcon(it.icon), s = Math.min(w, h) / 24, ox = x + (w - 24 * s) / 2, oy = y + (h - 24 * s) / 2;
     const ink = typeof it.fill === "string" && HEX.test(it.fill) ? it.fill.toUpperCase() : typeof it.fmt?.color === "string" && HEX.test(it.fmt.color) ? it.fmt.color : env.panel ? "#FFFFFF" : isConsult(ctx.style.design) ? specOf(ctx).accent : L.ink;
-    nodes.push(hitNode, { t: "path", d: iconCmds(name, ox, oy, s), fill: solid(ink), rule: "evenodd" });
-    return { nodes, text: "", textBox: box, ink, issue: null };
+    nodes.push(hitNode);
+    if (r.src === "builtin") nodes.push({ t: "path", d: iconCmds(r.name, ox, oy, s), fill: solid(ink), rule: "evenodd" });
+    else nodes.push(...vendoredNodes(r, ox, oy, s, parseColor(ink).c, iconStroke(it.stroke)));
+    const issue = r.missing && typeof it.icon === "string" && it.icon ? `the icon “${it.icon.slice(0, 80)}” is not in the icon set` : null;
+    return { nodes, text: "", textBox: box, ink, issue, ...(r.src !== "builtin" ? { icon: r.src } : {}) };
   }
   if (L.glass && rectLike) {
     const rr = Math.max(0, Math.min(rectR, w / 2, h / 2));

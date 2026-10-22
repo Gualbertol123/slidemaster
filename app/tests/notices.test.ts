@@ -18,7 +18,8 @@ describe("third-party notices", () => {
     const b = await bundled(ROOT), text = committed();
     expect([...b.packages.keys()].sort()).toEqual(expect.arrayContaining(["fflate", "react", "react-dom", "scheduler", "zustand"]));
     for (const [name, p] of b.packages) expect(text, `${name} ${p.version} has no entry: node tools/notices.mjs`).toMatch(new RegExp(`^## ${re(name)} ${re(p.version)} `, "m"));
-    expect([...b.wasmDirs].sort()).toEqual(["core/src/calc/wasm", "core/src/text/wasm"]);
+    expect([...b.wasmDirs].sort()).toEqual(["core/src/calc/wasm", "core/src/icons", "core/src/text/wasm"]);
+    expect(b.wasmWhere.get("core/src/icons")).toEqual(["the core worker"]);   // the page's own bundle never carries the icon set
     for (const d of b.wasmDirs) {
       const lic = fs.readdirSync(path.join(ROOT, d)).filter(isLicence);
       expect(lic.length).toBeGreaterThan(0);

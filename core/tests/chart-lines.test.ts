@@ -12,7 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { strFromU8, unzipSync } from "fflate";
-import { validate, type DisplayList, type HitNode, type LineNode, type Node, type PathNode, type RectNode, type TextNode } from "../src/dl/types";
+import { validate, type DisplayList, type HitNode, type LineNode, type Node, type PathCmd, type PathNode, type RectNode, type TextNode } from "../src/dl/types";
 import { readWorkbook } from "../src/xlsx/workbook";
 import { applyOps, emptyDoc } from "../src/model/ops";
 import { itemSheets, runtimeSlides } from "../src/model/preset";
@@ -26,7 +26,8 @@ import { linePath, markerOf, markerPx, polyHitsBox, runs, strokeNear } from "../
 import { stackAreas } from "../src/render/chart-area";
 import { seriesLayout, seriesSem, type SeriesStyle } from "../src/render/chart-series";
 import { lineKeyExtra } from "../src/render/chart-legend";
-import { setVendoredIcons } from "../src/render/icons";
+import { resolveIcon, setVendoredIcons } from "../src/render/icons";
+import { installTabler } from "../src/icons";
 import { glassVars } from "../src/render/glass-dl";
 import { chartWorkbook, chartXml } from "../src/pptx/chart";
 import { writePptx } from "../src/pptx/writer";
@@ -183,9 +184,11 @@ describe("the reference chart (09 §3.3): the owner's \"Loans Volume – Weekly 
     const head = paths.find(p => p.fill && !p.stroke && p.d.length === 4)!;
     expect(head.d[0]).toEqual(["M", arrow.x1, r1(arrow.y1 - 6)]);
     expect(arrow.y1 - 6).toBeGreaterThan(y0 + markerPx(markerOf({ size: 9 }, "#000000", "#FFFFFF")!) / 2);
-    // the icons (tabler:target → the built-in target until M15 registers the set) and the texts above the target bars
-    const icons = paths.filter(p => p.rule === "evenodd");
-    expect(icons).toHaveLength(2);
+    // the icons (tabler:target: since the merge with M15 the vendored Tabler target – stroked, round – no built-in
+    // even-odd shape) and the texts above the target bars
+    const nT = (resolveIcon("tabler:target") as { paths: PathCmd[][] }).paths.length;
+    expect(paths.filter(p => p.rule === "evenodd")).toHaveLength(0);
+    expect(paths.filter(p => !p.fill && p.stroke?.cap === "round" && p.stroke.join === "round" && p.stroke.w === 2.167)).toHaveLength(2 * nT);
     const t1 = T.find(t => t.src === "11.624" && t.size === 22)!, t2 = T.find(t => t.src === "12.000" && t.size === 22)!;
     expect(t1.y).toBeLessThan(outlines[0].y);
     expect(t2.y).toBeLessThan(outlines[1].y);
@@ -236,7 +239,8 @@ describe("the reference chart (09 §3.3): the owner's \"Loans Volume – Weekly 
     // shape with a native head from the chart's semantics, not its display list's line and triangle
     if (info.pptx?.kind !== "chart") throw new Error();
     const over = info.pptx.overlay!;
-    expect(over.map(n => n.t)).toEqual(["line", "path", "path", "text", "text"]);
+    const nT = (resolveIcon("tabler:target") as { paths: PathCmd[][] }).paths.length;    // the two vendored targets' paths
+    expect(over.map(n => n.t)).toEqual(["line", ...Array(2 * nT).fill("path"), "text", "text"]);
     expect(ch.arrows).toHaveLength(1);
     expect(ch.arrows![0]).toMatchObject({ head: "triangle" });
     expect(ch.arrows![0].tail).toBeUndefined();
@@ -450,7 +454,7 @@ describe("category groups, per-point looks and labels (CT-05), sources (CT-03)",
 });
 
 describe("marks follow the data (CT-06): a reload, a scenario's value, a version's removed cell", () => {
-  afterEach(() => setVendoredIcons(null));
+  afterEach(() => installTabler());     // the set as tests/setup-icons.ts registers it (the workers' set)
   const arrowTop = (nodes: DisplayList) => flat(nodes).find((n): n is LineNode => n.t === "line" && n.x1 === n.x2 && n.stroke.w === 1.5 && !n.stroke.dash)!.y1;
   it("a scenario's Q3 value moves the arrow's tip and its label; a reloaded Targets sheet changes the text marks and the targets", async () => {
     const a = await deck("excel"), base = a.item("ref").nodes;
@@ -485,7 +489,7 @@ describe("marks follow the data (CT-06): a reload, a scenario's value, a version
     const out = chartNodes({ ...it, title: "Vendored" }, "ref", it.box, a.ctx, M, { V: glassVars(a.ctx), wall: null, family: "Arial" });
     const strokes = flat(out.nodes).filter((n): n is PathNode => n.t === "path" && !!n.stroke && n.d.length === 2);
     expect(strokes).toHaveLength(2);
-    expect(strokes[0].stroke).toMatchObject({ w: 2.17, cap: "round", join: "round" });
+    expect(strokes[0].stroke).toMatchObject({ w: 2.167, cap: "round", join: "round" });
     const bad: ChartItem = { ...it, marks: { ...it.marks!, ib: { ...it.marks!.ib, icon: "tabler:nope" }, x: { kind: "text", text: "?", a: { s: "gone", i: 0 } } } };
     const b = chartNodes(bad, "ref", it.box, a.ctx, M, { V: glassVars(a.ctx), wall: null, family: "Arial" });
     expect(b.issue).toBe("mark 'ib': icon 'tabler:nope' not found; mark 'x': series 'gone' not found");
@@ -493,6 +497,20 @@ describe("marks follow the data (CT-06): a reload, a scenario's value, a version
     const hid = chartNodes({ ...it, sers: { ...it.sers!, act: { ...it.sers!.act, hide: true } } }, "ref", it.box, a.ctx, M, { V: glassVars(a.ctx), wall: null, family: "Arial" });
     expect(hid.issue).toBeNull();
     expect(flat(hid.nodes).filter(n => n.t === "hit" && n.kind === "mark").map(n => (n as HitNode).id)).toEqual(["ref:start"]);
+  });
+  it("an icon mark draws a vendored icon through vendoredNodes: each path painted as the set says (M14 × M15 merge)", async () => {
+    // an outline icon with a stroked ring, a filled-only dot and a half-ink stroked path (brand-parsinta's kind)
+    const ring: PathCmd[] = [["M", 2, 12], ["L", 22, 12]], dot: PathCmd[] = [["M", 11, 11], ["L", 13, 11], ["L", 13, 13], ["Z"]], half: PathCmd[] = [["M", 12, 2], ["L", 12, 22]];
+    setVendoredIcons((set, name) => set === "tabler" && name === "target"
+      ? { paths: [ring, dot, half], paint: [{ stroke: true, fill: false, alpha: 1 }, { stroke: false, fill: true, alpha: 1 }, { stroke: true, fill: false, alpha: .5 }] } : null);
+    const a = await deck("excel"), it = a.it("ref");
+    const out = chartNodes({ ...it, title: "Painted" }, "ref", it.box, a.ctx, M, { V: glassVars(a.ctx), wall: null, family: "Arial" });
+    const P = flat(out.nodes).filter((n): n is PathNode => n.t === "path" && (n.d.length === 2 || n.d.length === 4) && (n.d[0][1] === n.d[1][1] || n.d[0][2] === n.d[1][2]));
+    const filled = P.filter(n => n.fill && !n.stroke && n.d.length === 4), halfInk = P.filter(n => n.stroke && "a" in n.stroke.paint && n.stroke.paint.a === .5);
+    expect(filled).toHaveLength(2);                        // the dot of each of the two target icons, filled, not stroked
+    expect(halfInk).toHaveLength(2);                       // the half-ink path at alpha .5
+    expect(halfInk[0].stroke).toMatchObject({ cap: "round", join: "round" });
+    expect(P.filter(n => n.stroke && !("a" in n.stroke.paint && n.stroke.paint.a !== undefined) && n.d.length === 2)).toHaveLength(2);
   });
   it("marks at data coordinates: a band between two categories and values, a reference line at a value on the right axis", async () => {
     const { item } = await deck("excel"), { nodes } = item("cb");

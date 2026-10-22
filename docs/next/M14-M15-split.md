@@ -71,3 +71,74 @@ only when an unchanged line stands between them, so these splits keep the two me
   with `pptx`), not from the deck's JSON. A missing sheet's table, hidden slides and slides or tables added by
   `slide.add` / `table.add` are therefore counted the way the export draws them, and pptxcheck (5) asks for exactly
   those counts.
+
+## 4. Recorded in M15 (S15.2 review)
+
+* **The icon block of the PowerPoint gate is M15's own:** `check_icons()` in `tools/pptxcheck.py` (check (6), between
+  separator lines before `main`, one call line in `check()`), `tools/real-icons.mjs` (the core's Tabler icons per slide,
+  merged into realObjectsOf's entries as `icons`: one import line and one line after `pageRealObjects` in
+  `tools/export-check.mjs`), the corpus deck `tests/corpus/charts/icons.json` (its paragraph above the README's table).
+* **`drawingml.ts`:** M15 adds one guard line at the top of `geom()` (`parts` → `partsGeom`, appended at the end of the
+  file); the rest of `geom()` is S14.P's.
+* **`rpc/messages.ts`:** M15's calls are `M15CoreMethods` in `rpc/messages-m15.ts`; `CoreMethods` extends it (one import
+  line, the interface's first line). M14 adds its own methods at the end of `CoreMethods` as before.
+* **The icon picker** (`app/src/ui/IconPicker.tsx`) has a mode `{ mode: "pick"; onPick; title? }` for a chart mark's
+  icon (09 §3.5): M14 calls `openIconPicker` and makes the change itself, without editing the picker.
+* **`recentIcons` and `iconOpts`** are typed in `IconPicker.tsx` (the helper keeps a preference key it does not know):
+  a candidate for `Prefs` in `model/types.ts` after both merges.
+
+
+## 5. Recorded in M15 (S15.3)
+
+* **Shared lines S15.3 touched** (each M15's own words or one line, for the merge that comes second):
+  - `render/slide-dl.ts`: the `line-dl` import line and the body of `lineItem` (M15's branch); the dispatch is unchanged.
+    A line's `ItemInfo.box` is the bounds of what it draws (its stage layer), not its saved `box`.
+  - `pptx/scene.ts` (M15's): the `line` member of `ItemSem` gains `line?: LineSem` (its geometry at the resolved ends and
+    its label's nodes); a member without it (S14.P's) still becomes its nodes' shapes, grouped "Line".
+  - `stage/Stage.tsx` (M15's) hands `stage/items.tsx` (M14's) the items that are not lines; lines are `stage/lines.tsx`.
+    `items.tsx` is not edited.
+  - `ui/InsertSlots.tsx`: one entry line below the separator (`LineInsert`); `app/tests/slots.test.tsx` (S14.P's)
+    names it in its two expectations – the one test line M14 might also touch if it adds an Insert entry.
+  - `core/tests/item-kinds.test.ts` (S14.P's): its "a line draws nothing until M15" case now says what S15.3 draws.
+  - `tools/pptxcheck.py`: check (7) `check_lines()` in its own block after the icon block, one call line in `check()`,
+    its paragraph in the module's docstring after (6); `tools/real-icons.mjs` `linesOf` / `pageLines` / `withLines`
+    (appended), one import line and one line in `tools/export-check.mjs` after the icons'.
+* **A line's free-layout place** (09 §2.3, plan-M15 risk 1): `freeBoxes` (`render/layout.ts`, M15's) saves a line's
+  ends with its bounds, and a free entry an older page wrote with its box only (no `a` / `b`) moves the ends as its box
+  moved (`line-dl.ts` `savedEnds`), so nothing jumps when a 4.6 / 4.7 page switched free layout on.
+* **A bracket is square only**: 09 §2.3 mentions a curly one, but `LineItem` has no field to choose it (types.ts is
+  S14.P's); a curly bracket needs a key (a decision under 09 §9).
+
+## 6. Recorded in M15 (S15.5, with the S15.3 / S15.4 follow-ups)
+
+* **Shared lines S15.5 touched**:
+  - `render/slide-dl.ts`: the slide's background colour is one const `slideBg` (declared just above "the background"),
+    the two background lines use it, and `groundAt` (the colour under a line's label: Consulting Red's panel, a
+    consulting design's dark band, else `slideBg`) sits at the top of the items' section, before `chartItem`. `chartItem`
+    and the dispatch are unchanged.
+  - `tools/pptxcheck.py` (M15's line block): `_line_facts` and the `heads` / `dashed` comparison in `check_lines`, two
+    report keys (`line_heads`, `lines_dashed`); `tools/real-icons.mjs` `linesOf` / `withLines` carry `heads` and `dashed`.
+    An expectation without them is checked as before (M14's entries are unaffected).
+  - `tools/bench.mjs`: only the `snapFrames` scenario (its comment, and a click that selects the item when its corner
+    handle is not drawn).
+  - `app/e2e/app.spec.ts`: one test added after "the + button puts a text box there at once…" (weekly.xlsx; it deletes
+    its text box at the end).
+  - S15.5 review fixes: `render/slide-dl.ts` `groundAt` gains one line (a consulting cover: Consulting Red's band, else
+    `slideBg`), and a line's ink now follows `groundAt` at its middle (line-dl.ts `lineColor`'s optional `ground`);
+    `tools/pptxcheck.py` (M15's line block) gains `_end_segment_empty` and `_quarter_problems` (the `quarter` key, called
+    from `check_lines`; an expectation without it is checked as before).
+
+## 7. Recorded in M15 (S15.7, the close-out)
+
+* **Shared lines the close touched** (for the M14 merge):
+  - `app/e2e/app.spec.ts`: three tests added after "callouts (S9.4, CL-01, CL-02, B17)…" – IC-01, LN-01/LN-02, SN-02
+    (Banks.xlsx's first slide; each removes or undoes what it added).
+  - `app/src/ui/Ic.tsx` (`vertical-align: middle`), `app/tests/ui-icons.test.tsx` and its snapshot; the messages of
+    `app/src/ui/Topbar.tsx` (two strings), `app/src/editor/export.ts`, `app/src/editor/scenario.ts`,
+    `app/src/state/app.ts` (the old ✦ / ⚙ symbols dropped from their text only).
+  - `README.md` (the glyphs of §2 and the window sketch), `CHANGELOG.md` (4.8.0 only), `PROGRESS.md` (M15 rows, the
+    "Measurements · M15" table, one Waiting for entry), `app/tests/page-budget/m15.json`.
+  - `helper/slide_builder.html` rebuilt and committed: after the M14 merge it is rebuilt again (§1).
+* **Left for after the M14 merge** (PROGRESS Waiting for, M15 close-out): `#chartBtn` → `chart-pie`, the
+  `tools/pptxcheck.py` "PowerPoint is not available" line naming (6) and (7), `export-check --decks` for the
+  chart-corpus decks, and the page total base + m14 + m15 against the merged page.

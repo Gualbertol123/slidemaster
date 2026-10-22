@@ -198,7 +198,7 @@ export async function exportVersions(designs: Design[] | null, formats: Formats 
   const { file } = get().deck;
   if (!get().deck.slides.length || !file || get().ui.exporting) return;
   const versions = get().doc.view?.preset?.versions || [];
-  if (!versions.length) { toast("No versions yet: open the ✦ Wizard › 4 · Versions to create them (e.g. Chief and All)."); return; }
+  if (!versions.length) { toast("No versions yet: open the Wizard › 4 · Versions to create them (e.g. Chief and All)."); return; }
   // a design whose every slide is hidden (S13.6): skipped with a note; all of them: refused before any job starts
   const shown = shownDesigns(designs || [style().design]);
   if (!shown.list.length) { toast("Every slide is hidden in " + esc(shown.skipped.map(d => DESIGN_LABEL[d]).join(", ")) + ": show one (right-click it in the slide list) to export.", [], true); return; }

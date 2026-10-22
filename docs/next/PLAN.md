@@ -796,7 +796,7 @@ with the `AUDIT.md` §0 protocol twice on clean clones.
 ### M13–M17 · Charts, lines and annotations, snapping, icons, hidden rows, delete-versions, painter, Excel conditional formats, new slides (4.6–4.9)
 
 Designed in `09-charts-annotations-icons.md` (approved 2026-10-20) and ADR-019, ADR-020; the steps with their Read / Do /
-Done when are in **09 §8**. Branches `v4/M13-guard-slides`, `v4/M14-charts`, `v4/M15-lines-icons-snapping`,
+Done when are in **09 §8**. Branches `v4/M13-guard-slides`, `v4/M14-charts`, `v4/M15-lines-icons`,
 `v4/M16-tables-versions-cf`, `v4/M17-audit`; every milestone ends with the `AUDIT.md` §0 protocol twice on clean clones
 and CP-01 (the real 4.0.0, 4.1, 4.4 and 4.5 helpers and pages against the new objects).
 

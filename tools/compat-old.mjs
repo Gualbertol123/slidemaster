@@ -53,10 +53,13 @@ const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const flag = k => process.argv.includes(k);
-const REFS = { "4.0": "v4.0.0", "4.1": "061a5b3", "4.4": "a1d3aba", "4.5": "637f7b4", "4.6": "e6c1c4f", "4.6p": "v4.6.0" };   // (4.6p: the released 4.6.0 – 6392856, main with S14.P, + the dated CHANGELOG)
+const REFS = { "4.0": "v4.0.0", "4.1": "061a5b3", "4.4": "a1d3aba", "4.5": "637f7b4", "4.6": "e6c1c4f", "4.6p": "v4.6.0", "4.7": "v4.7.0" };   // (4.6p: the released 4.6.0 – 6392856, main with S14.P, + the dated CHANGELOG; 4.7: the released 4.7.0, M14)
+/** a release tag not yet made in this clone (4.8.0's merge was prepared before the 4.7.0 tag): the commit it will name –
+    M14's head d327882, "M14 · 4.7.0: dated, runs recorded" (logged when used) */
+const REF_FALLBACK = { "v4.7.0": "d327882" };
 /** the versions that read format 5 (4.6.0, M13's format guard): cases a–d expect a refusal, so only cp02 and m14 run */
-const READS_V5 = new Set(["4.6", "4.6p"]);
-const VERSIONS = arg("--versions", "4.0,4.1,4.4,4.5,4.6,4.6p").split(",").filter(Boolean);
+const READS_V5 = new Set(["4.6", "4.6p", "4.7"]);
+const VERSIONS = arg("--versions", "4.0,4.1,4.4,4.5,4.6,4.6p,4.7").split(",").filter(Boolean);
 const DEFAULT_PY = process.platform === "win32" ? "python" : "python3";
 const PYTHONS = arg("--pythons", DEFAULT_PY).split(",").filter(Boolean);
 const NEW_PY = arg("--new-python", DEFAULT_PY);
@@ -92,8 +95,13 @@ function worktree(v) {
   const dir = path.join(WT, "old-" + v);
   if (fs.existsSync(path.join(dir, "helper", "slide_builder.py"))) return dir;
   fs.mkdirSync(WT, { recursive: true });
-  const r = spawnSync("git", ["worktree", "add", "--detach", dir, REFS[v]], { cwd: ROOT, encoding: "utf8" });
-  if (r.status !== 0) throw new Error("git worktree add " + REFS[v] + ": " + r.stderr);
+  let ref = REFS[v];
+  if (REF_FALLBACK[ref] && spawnSync("git", ["rev-parse", "--verify", "--quiet", ref + "^{commit}"], { cwd: ROOT }).status !== 0) {
+    log(`(tag ${ref} not in this clone: using ${REF_FALLBACK[ref]})`);
+    ref = REF_FALLBACK[ref];
+  }
+  const r = spawnSync("git", ["worktree", "add", "--detach", dir, ref], { cwd: ROOT, encoding: "utf8" });
+  if (r.status !== 0) throw new Error("git worktree add " + ref + ": " + r.stderr);
   madeTrees.push(dir);
   return dir;
 }
@@ -704,9 +712,9 @@ async function caseM14(run, oldDir, py) {
       bytes: Object.fromEntries(M14_IDS.map(k => [k, want[k].length])), pageErrors: b.errors.slice(0, 4).map(e => e.slice(0, 140)) };
     // refused (4.0–4.5): nothing changed; opened (4.6 pages): the M14 items equal, and the old edit kept wherever the
     // old page compacted (a page that turned read-only on the 4.7 keys compacts nothing and keeps nothing of its own)
-    // (4.6p must compact – it knows every 4.7 key –, so its snapshot holding the M14 items is the point of the case)
+    // (4.6p and 4.7 must compact – they know every 4.7 key –, so its snapshot holding the M14 items is the point of the case)
     const pass = !changed.length && !snapsBad.length && after.snap.format === 5
-      && (openStatus >= 400 ? obs.snapshotUnchanged === true : (!comp || oldEdit === wantEdit)) && (run.version !== "4.6p" || !!comp);
+      && (openStatus >= 400 ? obs.snapshotUnchanged === true : (!comp || oldEdit === wantEdit)) && (!["4.6p", "4.7"].includes(run.version) || !!comp);
     result(run, "m14", pass, obs);
   } finally { if (w) w.stop(); await closePage(a); await closePage(b); await stopHelper(anna); await stopHelper(bob); }
 }

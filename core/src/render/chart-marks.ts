@@ -18,7 +18,7 @@ import type { Node, PathCmd, Stroke } from "../dl/types";
 import type { RenderCtx } from "./context";
 import type { Metrics } from "./excel-dl";
 import { headGeom, headed } from "./heads";
-import { iconCmds, resolveIcon } from "./icons";
+import { iconCmds, resolveIcon, vendoredNodes } from "./icons";
 import { calloutText } from "./shape-dl";
 import { lineH, lum, textNode, type St } from "./chart-font";
 import { dashOf, lineStyleOf } from "./chart-lines";
@@ -147,13 +147,8 @@ export function markNodes(it: ChartItem, id: string, F: MarkFrame, ctx: RenderCt
         const ic = resolveIcon(k.icon), x0 = a.x - size / 2, y0 = a.top + dy - size, s = size / 24;
         if (ic.missing) out.issues.push(`mark '${mid}': icon '${ic.asked}' not found`);
         if (ic.src === "builtin") nodes.push({ t: "path", d: iconCmds(ic.name, r2(x0), r2(y0), s), fill: solid(color), rule: "evenodd" });
-        // MERGE M15 (S14.3 review 7): M15's icons.ts gives vendored icons per-path paint (filled parts, half-alpha paths)
-        // and `vendoredNodes(ic, x0, y0, s, ink, stroke)`; at the merge this loop becomes
-        // `nodes.push(...vendoredNodes(ic, r2(x0), r2(y0), s, parseColor(color).c))` – it strokes every path until then
-        else for (const p of ic.paths) {
-          const d: PathCmd[] = p.map(c => c[0] === "Z" ? c : [c[0], ...c.slice(1).map((v, j) => r2((j % 2 ? y0 : x0) + (v as number) * s))] as PathCmd);
-          nodes.push(ic.src === "tabler-filled" ? { t: "path", d, fill: solid(color) } : { t: "path", d, stroke: { w: r2(2 * s), paint: solid(color), cap: "round", join: "round" } });
-        }
+        // a vendored Tabler icon (M15): each path painted as the set says (filled dots, half-ink paths; S14.3 review 7)
+        else nodes.push(...vendoredNodes(ic, r2(x0), r2(y0), s, parseColor(color).c));
         break;
       }
       case "text": {
