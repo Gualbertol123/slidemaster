@@ -229,7 +229,7 @@ export type Op =
   | { op: "table.remove"; id: string; slide: string }
   /** a version (4.9, B37, 09 §2.5): `name` on a missing id creates it (appended, `hide: {}`); `null` deletes it; `hide` /
       `drop` merged per sheet (a sheet's list replaced whole, null removes it); `hide: null` empties it */
-  | { op: "version.patch"; id: string; patch: VersionPatch | null };
+  | { op: "version.patch"; id: string; patch: VersionPatch | null; /** a create: its index (the undo of a delete; else the end) */ at?: number };
 export type VersionPatch = { name?: string; hide?: Record<string, string[] | null> | null; drop?: Record<string, string[] | null> | null };
 
 /* ---- runtime ---- */

@@ -70,7 +70,7 @@ const V = (id: string, patch: Record<string, unknown> | null): Op => ({ op: "ver
 describe("the op: version.patch (shared/ops-vectors.d/m16-versions.json)", () => {
   const mine = loadVectors().filter(v => /^(version\.patch|versions with only|fold: .*(\(S16\.2\)|version))/.test(v.name));
   it("the file has its cases, and the runner reads them (ops.test.ts runs every case)", () => {
-    expect(mine.length).toBe(21);
+    expect(mine.length).toBe(22);
     expect(mine.filter(v => v.fold).length).toBe(5);
   });
   for (const v of mine.filter(x => !x.fold)) it(v.name + " – known, format 5 (needsV5 / docNeedsV5), undone by its inverses", () => {
@@ -84,10 +84,8 @@ describe("the op: version.patch (shared/ops-vectors.d/m16-versions.json)", () =>
     const d = structuredClone(v.doc), inv: Op[] = [];
     for (const op of v.ops) { const i = inverseOf(d, op); if (i) inv.unshift(i); applyOp(d, op); }
     for (const i of inv) applyOp(d, i);
-    // (an undone delete re-creates the version at the end: the same versions, by id)
-    const byId = (p: Preset | null) => Object.fromEntries((p?.versions || []).map(x => [x.id, x]));
-    expect(byId(d.preset)).toEqual(byId(v.doc.preset));
-    expect({ ...d.preset, versions: undefined }).toEqual({ ...v.doc.preset, versions: undefined });
+    // (an undone delete re-creates the version at its place: AUDIT-3 UNDO-1 – the same versions in the same order)
+    expect(d.preset).toEqual(v.doc.preset);
   });
   it("knownOp: a later key is not known whole (a page never compacts it away); needsV5 for every version.patch", () => {
     expect(knownOp(V("v", { name: "X", cells: {} }))).toBe(false);
@@ -379,5 +377,31 @@ describe("the wizard's Finish copies each version whole (AUDIT-3 COMPAT-1)", () 
     expect(wizardVersions(list, new Set(["S"]))).toEqual([
       { id: "v1", name: "All", hide: { S: ["A1"] }, drop: { S: ["5:5"] }, later: { x: 1 } },
       { id: "v2", name: "Chief", hide: {} }]);
+  });
+});
+
+describe("UNDO-1 (AUDIT-3): undoing a version's delete puts it back where it was", () => {
+  it("the inverse of a delete carries the index (`at`); a create with `at` inserts there, without it (or out of range) at the end", () => {
+    const p = preset();
+    p.versions = [structuredClone(CHIEF), { id: "vm", name: "Middle", hide: {} }, structuredClone(ALL)];
+    const d = { preset: p, style: {}, edits: {} } as never as Parameters<typeof applyOp>[0];
+    const del = V("vm", null), inv = inverseOf(d, del)!;
+    expect(inv).toEqual({ op: "version.patch", id: "vm", patch: { name: "Middle", hide: {} }, at: 1 });
+    expect(applyOp(d, del)).toBe(true);
+    expect(d.preset!.versions!.map(v => v.id)).toEqual(["vc", "va"]);
+    expect(inverseOf(d, inv)).toEqual(del);
+    expect(applyOp(d, inv)).toBe(true);
+    expect(d.preset!.versions!.map(v => v.id)).toEqual(["vc", "vm", "va"]);           // back at its place, not at the end
+    for (const [at, ids] of [[0, ["vn", "vc", "vm", "va"]], [3, ["vc", "vm", "va", "vn"]], [9, ["vc", "vm", "va", "vn"]], [-1, ["vc", "vm", "va", "vn"]], [1.5, ["vc", "vm", "va", "vn"]]] as const) {
+      const e = structuredClone(d) as typeof d;
+      expect(applyOp(e, { ...V("vn", { name: "New" }), at } as Op)).toBe(true);
+      expect(e.preset!.versions!.map(v => v.id), String(at)).toEqual(ids);
+    }
+    // the first version deleted and undone: first again; the last: last
+    for (const [id, i] of [["vc", 0], ["va", 2]] as const) {
+      const e = structuredClone(d) as typeof d, x = inverseOf(e, V(id, null))!;
+      applyOp(e, V(id, null)); applyOp(e, x);
+      expect(e.preset!.versions!.map(v => v.id).indexOf(id)).toBe(i);
+    }
   });
 });

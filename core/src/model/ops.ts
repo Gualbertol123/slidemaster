@@ -126,7 +126,7 @@ export function applyOp(doc: Doc, op: Op | Record<string, unknown>): boolean {
       s.tables.splice(i, 1);                                                          // its def, notes and free boxes stay
       return true;
     }
-    /* 09 §2.5 (4.9, B37): `name` on a missing id creates the version, appended, with `hide: {}`; null deletes it; `hide`
+    /* 09 §2.5 (4.9, B37): `name` on a missing id creates the version, appended (or at `at`), with `hide: {}`; null deletes it; `hide`
        and `drop` merge per sheet (a sheet's list replaced whole: of two writers on one sheet the later wins, Lamport) */
     case "version.patch": {
       if (!okId(o.id) || !doc.preset || (o.patch !== null && !isObj(o.patch))) return false;
@@ -143,7 +143,9 @@ export function applyOp(doc: Doc, op: Op | Record<string, unknown>): boolean {
       if ("name" in p) v.name = p.name;
       if ("hide" in p) { if (p.hide === null) v.hide = {}; else sheetMerge(v, "hide", p.hide); if (!isObj(v.hide)) v.hide = {}; }
       if ("drop" in p) { if (p.drop === null) delete v.drop; else sheetMerge(v, "drop", p.drop); if (isObj(v.drop) && !Object.keys(v.drop).length) delete v.drop; }
-      if (i < 0) { list.push(v as never); doc.preset.versions = list; }
+      // a create goes at `at` (0..length, an integer: the undo of a delete puts the version back at its place, AUDIT-3
+      // UNDO-1), else at the end
+      if (i < 0) { const at = typeof o.at === "number" && Number.isInteger(o.at) && o.at >= 0 && o.at <= list.length ? o.at : list.length; list.splice(at, 0, v as never); doc.preset.versions = list; }
       return true;
     }
   }
@@ -380,13 +382,13 @@ export function inverseOf(doc: Doc, op: Op): Op | null {
     // create ↔ delete (the undo of a delete re-creates the version at the end), per sheet entry otherwise (09 §2.5)
     case "version.patch": {
       if (!doc.preset || !okId(op.id) || (op.patch !== null && !isObj(op.patch))) return null;
-      const cur = (doc.preset.versions || []).find(v => v && v.id === op.id) as unknown as Record<string, unknown> | undefined, p = op.patch;
+      const vs = doc.preset.versions || [], at = vs.findIndex(v => v && v.id === op.id), cur = vs[at] as unknown as Record<string, unknown> | undefined, p = op.patch;
       if (!cur) return p && okName(p.name) ? { op: "version.patch", id: op.id, patch: null } : null;
       if (p === null) {
         if (!okName(cur.name)) return null;
         const back: Record<string, unknown> = { name: cur.name, hide: clone(isObj(cur.hide) ? cur.hide : {}) };
         if (isObj(cur.drop) && Object.keys(cur.drop).length) back.drop = clone(cur.drop);
-        return { op: "version.patch", id: op.id, patch: back } as Op;
+        return { op: "version.patch", id: op.id, patch: back, at } as Op;            // back at its place (UNDO-1)
       }
       if ("name" in p && !okName(p.name)) return null;                                 // skipped: no undo
       const out: Record<string, unknown> = {};

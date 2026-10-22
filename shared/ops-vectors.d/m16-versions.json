@@ -1508,7 +1508,7 @@
   }
  },
  {
-  "name": "version.patch null deletes a version; the undo re-creates it, at the end, with its lists",
+  "name": "version.patch null deletes a version; the undo re-creates it at its place (`at`, AUDIT-3 UNDO-1), with its lists",
   "doc": {
    "preset": {
     "sheets": [
@@ -1631,13 +1631,187 @@
         "10:12"
        ]
       }
-     }
+     },
+     "at": 0
     }
    ],
    "needsV5": [
     true
    ],
    "docNeedsV5": false
+  }
+ },
+ {
+  "name": "version.patch with `at` (AUDIT-3 UNDO-1): a delete and its undo put the version back at its index; a create at 1 goes between",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      },
+      "drop": {
+       "S": [
+        "10:12"
+       ]
+      }
+     },
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "version.patch",
+    "id": "v1",
+    "patch": null
+   },
+   {
+    "op": "version.patch",
+    "id": "v1",
+    "patch": {
+     "name": "Chief",
+     "hide": {}
+    },
+    "at": 1
+   },
+   {
+    "op": "version.patch",
+    "id": "v3",
+    "patch": {
+     "name": "Board"
+    },
+    "at": 1
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v2",
+      "name": "All",
+      "hide": {
+       "S": [
+        "C5:D6"
+       ]
+      },
+      "drop": {
+       "S": [
+        "10:12"
+       ]
+      }
+     },
+     {
+      "id": "v3",
+      "name": "Board",
+      "hide": {}
+     },
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {}
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 3,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "version.patch",
+     "id": "v1",
+     "patch": {
+      "name": "Chief",
+      "hide": {}
+     },
+     "at": 1
+    },
+    {
+     "op": "version.patch",
+     "id": "v1",
+     "patch": null
+    },
+    {
+     "op": "version.patch",
+     "id": "v3",
+     "patch": null
+    }
+   ],
+   "needsV5": [
+    true,
+    true,
+    true
+   ],
+   "docNeedsV5": true
   }
  },
  {
@@ -1734,7 +1908,8 @@
      "patch": {
       "name": "Chief",
       "hide": {}
-     }
+     },
+     "at": 0
     }
    ],
    "needsV5": [
