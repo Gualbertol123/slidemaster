@@ -60,7 +60,8 @@ export function NavGrip({ width, set }: { width: number; set: (w: number | null,
       el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); el.removeEventListener("pointercancel", up); el.removeEventListener("lostpointercapture", up);
       if (frame) { cancelAnimationFrame(frame); frame = 0; }
       document.body.classList.remove("navsizing");
-      if (last !== w0) { draw(); set(last, true); }
+      draw();                                                     // even back at w0: a frame may have drawn another width
+      if (last !== w0) set(last, true);
     };
     el.addEventListener("pointermove", move); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); el.addEventListener("lostpointercapture", up);
   };

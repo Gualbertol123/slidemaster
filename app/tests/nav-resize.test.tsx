@@ -74,6 +74,19 @@ describe("the side panel's width", () => {
     expect(width(c)).toBe(360);
   });
 
+  it("a drag that ends back where it started redraws (a frame had drawn another width)", async () => {
+    localStorage.setItem("sbNavWidth", "280");
+    const { container: c } = render(<Host />);
+    const g = c.querySelector("#navGrip") as HTMLElement;
+    act(() => { fireEvent.pointerDown(g, { button: 0, clientX: 280, pointerId: 1 }); fireEvent.pointerMove(g, { clientX: 330, pointerId: 1 }); });
+    await act(() => new Promise((r) => setTimeout(r, 20)));       // the frame draws 330
+    expect(g.style.left).toBe("330px");
+    act(() => { fireEvent.pointerMove(g, { clientX: 80, pointerId: 1 }); fireEvent.pointerUp(g, { clientX: 80, pointerId: 1 }); });
+    expect(width(c)).toBe(280);
+    expect(g.style.left).toBe("280px");
+    expect(g.getAttribute("aria-valuenow")).toBe("280");
+  });
+
   it("the keyboard: focusable, ←/→ 16 px (kept), Home the narrowest, End half the window, Enter the usual width; ARIA", () => {
     const { container: c } = render(<Host />);
     const g = c.querySelector("#navGrip") as HTMLElement;
