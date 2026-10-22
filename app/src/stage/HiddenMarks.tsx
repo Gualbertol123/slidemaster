@@ -54,7 +54,8 @@ export const HiddenMarks = memo(function HiddenMarks({ m, R, c }: { m: StageMode
     const rows = gaps(id, "r", T.rows, r => rowAt.get(r) ?? 0, H, h.rows, T.g.r1, T.g.r2);
     const cols = gaps(id, "c", T.cols, col => colAt.get(col) ?? 0, W, h.cols, T.g.c1, T.g.c2);
     const k = 1 / (t.box.scale || 1);
-    return <div key={t.i} className="hidrcs" data-t={t.i} style={{ position: "absolute", pointerEvents: "none", ...box }}>
+    // above the table's hit area (.hits, z-index 40): the marks lie over the table and take their own clicks
+    return <div key={t.i} className="hidrcs" data-t={t.i} style={{ position: "absolute", pointerEvents: "none", zIndex: 41, ...box }}>
       {rows.map(g => <div key={"r" + g.at} className="hidrc hrow" data-keys={g.keys.join(" ")} title={`${g.keys.length === 1 ? "1 row" : g.keys.length + " rows"} hidden here – click to show`}
         onPointerDown={stop} onClick={e => { stop(e); unhide(R, g.keys, unhideLabel(g.keys)); }}
         style={{ position: "absolute", left: -10 * k, width: W + 20 * k, top: g.at - 4 * k, height: 8 * k, cursor: "pointer", pointerEvents: "auto", borderTop: `${1.5 * k}px solid ${INK}`, borderBottom: `${1.5 * k}px solid ${INK}`, boxSizing: "border-box", background: "rgba(47,111,237,.10)" }} />)}
