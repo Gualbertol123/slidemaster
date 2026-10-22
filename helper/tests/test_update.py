@@ -313,8 +313,11 @@ class UseBelowFormat5Test(unittest.TestCase):
         self.assertIn("These 1 deck(s) use Slide Builder 4.10 objects", out)
         self.assertIn("  Targets.xlsx", out)
         self.assertEqual(calls[-1][0], "refused")
-        calls, out = self.use("4.8.0", "n")                                      # 4.6-4.8: named with the 4.9 ones
-        self.assertIn("Targets.xlsx", out)
+        # 4.6-4.8: named once, as holding 4.10 objects – also when the deck went 6 -> 7 (both markers)
+        write(self.root, {d + "Targets.xlsx-0123456789/incident-format-6.json": "{}"})
+        calls, out = self.use("4.8.0", "n")
+        self.assertIn("These 1 deck(s) use Slide Builder 4.10 objects", out)
+        self.assertEqual(out.count("  Targets.xlsx"), 1)
         self.assertEqual(calls[-1][0], "refused")
         calls, out = self.use("4.10.0", "n")
         self.assertEqual(calls, ["activate"])

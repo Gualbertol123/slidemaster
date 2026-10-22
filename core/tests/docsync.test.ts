@@ -795,6 +795,19 @@ describe("DocSync v4: format 7 for 4.10 chart marks (ADR-019 amendment for B52)"
     await b.flush();
     expect(d2.log).toEqual(["append"]); expect(d2.snap.format).toBe(6);
   });
+  it("review: a format-5 deck goes straight to 7 – one marker (format 7's), one CAS, the Lamport jump above a 4.6–4.9 page's records", async () => {
+    const deck = new FakeDeck(), a = u(deck, "anna");
+    a.apply([preset]); await a.flush();
+    a.apply([chart]); await a.flush();
+    expect(deck.snap.format).toBe(5);
+    const f5 = deck.calls.format5, before = Math.max(...deck.records().map(r => r.l));
+    deck.log.length = 0;
+    a.apply([ref]); await a.flush();
+    expect(deck.log).toEqual(["format7", "tail", "compact:7", "append"]);
+    expect(deck.snap.format).toBe(7); expect(deck.marker6).toBeNull(); expect(deck.marker7).not.toBeNull();
+    expect(deck.calls.format5).toBe(f5); expect(deck.calls.format6).toBe(0);
+    expect(deck.records().filter(r => r.w === a.writer).slice(-1)[0].l).toBeGreaterThanOrEqual(before + BUMP_LAMPORT);
+  });
   it("re-check: a 4.10 op that joins the queue during a raise to 6 raises the deck on to 7 before the record is appended (two Lamport jumps)", async () => {
     const deck = new FakeDeck(), a = u(deck, "anna", deck.api(), { bumpWaitMs: 40 });
     a.apply([preset]); await a.flush();

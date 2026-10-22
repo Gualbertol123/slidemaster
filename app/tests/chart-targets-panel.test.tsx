@@ -14,7 +14,7 @@ import { App } from "../src/ui/App";
 import { get } from "../src/state/store";
 import { gotoSlide, openLocalFile, undo } from "../src/state/app";
 import { insertChartRefs, itemOf, selectItem } from "../src/editor/charts";
-import { addChangePatch, addGapPatch, addRefPatch, markOnPatch, oneCell, refPatch, removeSeriesPatch } from "../src/editor/chart-panel";
+import { addChangePatch, addGapPatch, addRefPatch, markOnPatch, oneCell, refPatch, removeRefPatch, removeSeriesPatch } from "../src/editor/chart-panel";
 import { applyRef } from "../src/editor/chart-send";
 import type { ChartItem, ChartMark, ItemPatch, Op } from "@slide-builder/core/model/types";
 import { applyOps, emptyDoc, inverseOf, needsV7 } from "@slide-builder/core/model/ops";
@@ -53,6 +53,14 @@ describe("the builders (editor/chart-panel.ts): one marks entry each, undone by 
     expect(off.marks![rid].off).toBe(true);
     expect(markOnPatch(off, rid, true)).toEqual({ marks: { [rid]: { kind: "ref", value: { sheet: "Targets", range: "B3" } } } });
     expect([oneCell({ what: "ref-add" }), oneCell({ what: "ref-value", mark: "r" }), oneCell({ what: "vals", ser: "s" })]).toEqual([true, true, false]);
+  });
+  it("removeRefPatch: the line and every gap arrow to it, nothing else; undone by its inverse", () => {
+    const r = roundTrip(line, addRefPatch(line, 5)), rid = only(r, "ref")[0];
+    const g = roundTrip(roundTrip(r, addGapPatch(r)), addChangePatch(r));
+    const p = removeRefPatch(g, rid);
+    expect(Object.entries(p.marks!).map(([k, v]) => [g.marks![k].kind, v])).toEqual([["ref", null], ["gap", null]]);
+    const d0 = docWith(g), o = { op: "item.patch", slide: "s", id: "c", patch: p } as Op, inv = inverseOf(d0, o)!;
+    expect(applyOps(applyOps(d0, [o]).doc, [inv]).doc.preset!.slides[0].items!.c).toEqual(itemIn(d0));
   });
   it("a gap arrow needs a reference line (to the first one, from the last point or the selected one); change pills on the first line series", () => {
     expect(addGapPatch(line)).toBeNull();
@@ -180,5 +188,17 @@ describe("the targets on the page", () => {
     await step(() => check(q('#chartTargets [data-a="tvalues"]'), false), "No point values");
     // the generic Marks list does not list the targets
     expect(panel().querySelectorAll("#chartMarks .mark").length).toBe(0);
+  }, 30_000);
+  it("review: removing a reference line removes the gap arrows to it – one step; undo puts both back", async () => {
+    const [rid] = only(it_(), "ref");
+    await step(async () => { fireEvent.click(q("#chartAddGap")); }, "Add gap arrow");
+    const gaps = () => Object.entries(it_().marks || {}).filter(([, k]) => k.kind === "gap" && k.ref === rid).length;
+    expect(gaps()).toBeGreaterThan(0);
+    await step(async () => { fireEvent.click(q(`[data-ref="${rid}"] [data-a="remove"]`)); }, "Remove reference line");
+    expect(it_().marks?.[rid]).toBeUndefined(); expect(gaps()).toBe(0);
+    expect(Object.values(it_().marks || {}).some(k => k.kind === "change")).toBe(true);     // the pills stay
+    const h = history();
+    await act(async () => undo(false)); await confirmed(h - 1);
+    expect(it_().marks?.[rid]?.kind).toBe("ref"); expect(gaps()).toBeGreaterThan(0);
   }, 30_000);
 });

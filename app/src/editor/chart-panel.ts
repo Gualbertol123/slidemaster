@@ -205,6 +205,11 @@ export function addChangePatch(it: ChartItem, sid?: string | null): ItemPatch | 
   if (!s) return null;
   return { marks: { [newEntryId(it.marks, "p")]: { kind: "change", a: { s, i: -1 }, caption: "Change" } } };
 }
+/** a reference line removed – with the gap arrows that point to it (they would point at nothing), in one patch */
+export function removeRefPatch(it: ChartItem, id: string): ItemPatch {
+  const gaps = Object.entries(it.marks || {}).filter(([, k]) => k && typeof k === "object" && k.kind === "gap" && k.ref === id).map(([g]) => g);
+  return { marks: Object.fromEntries([id, ...gaps].map(k => [k, null])) };
+}
 /** an extra switched on or off: kept either way (`off`) */
 export const markOnPatch = (it: ChartItem, id: string, on: boolean) => markPatch(it, id, { off: on ? null : true });
 

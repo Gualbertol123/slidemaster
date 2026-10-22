@@ -124,6 +124,16 @@ axis's line group and reach from the first to the last category's centre – on 
 both agree; an Issues line notes that PowerPoint draws such a left-axis line under right-axis columns. The slide's own
 line node is left out of the PowerPoint overlay (`MarksOut.native`). Never a picture, never `p:cxnSp`, no external link.
 
+**Review of B52 (2026-10-22).** One chart group per type and axis pair: with a right axis, the reference lines join the
+left (or right) axis's own standard line group – never a second `c:lineChart` on the same axes (PowerPoint would repair
+or merge it); on an axis whose lines PowerPoint stacks (the template's stacked areas drawn as stacked lines) a reference
+line cannot be a series there, so it is a plain line shape of the overlay, at the same place, with an Issues line. A
+100 % axis shows shares: a reference line (and a gap arrow to it) is not drawn there, with an Issues line. A stacked
+series' points stand on the stack's top, not on its own value: a gap arrow from it would measure the wrong thing, so it
+is not drawn, with an Issues line (change pills keep the series' own changes, placed by its drawn points). A value or
+name cell the shown version empties (its removed cells) hides that line and the gaps to it, with an Issues line. Removing
+a reference line in the panel removes its gap arrows in the same patch (one undo step).
+
 **Format.** The entries fit inside `marks`, which 4.9 stores – but 4.9 does not *draw* them (`chart-marks.ts`
 `default: continue`), and its panel lists them as marks it cannot show: a deck holding one is raised to **format 7**
 (ADR-019 amendment of the same day).

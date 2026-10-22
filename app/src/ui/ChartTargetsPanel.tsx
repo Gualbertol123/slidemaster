@@ -11,7 +11,7 @@ import { chartLook } from "@slide-builder/core/render/chart-dl";
 import { seriesData } from "@slide-builder/core/render/chart-data";
 import { targetLook } from "@slide-builder/core/render/chart-targets";
 import { refText } from "../editor/charts";
-import { addChangePatch, addGapPatch, addRefPatch, allSeries, labelsPatch, markOnPatch, markPatch, numOrNull, refMarks, removeMarkPatch, type ChartRefWhat } from "../editor/chart-panel";
+import { addChangePatch, addGapPatch, addRefPatch, allSeries, labelsPatch, markOnPatch, markPatch, numOrNull, refMarks, removeMarkPatch, removeRefPatch, type ChartRefWhat } from "../editor/chart-panel";
 import { Input } from "./Input";
 import { Field } from "./Field";
 
@@ -35,7 +35,9 @@ export function ChartTargets({ c, id, set, sel }: { c: ChartItem; id: string; se
   const sers = allSeries(c).filter(([, s]) => !s.hide), look = targetLook(ctx(), chartLook(ctx(), "Arial").ink);
   const mp = (label: string, mid: string, p: Partial<Record<keyof ChartMark, unknown>>) => set(label, markPatch(c, mid, p));
   const on = (mid: string, k: ChartMark, what: string) => <label className="chk" title="Shown (off: kept, not drawn)"><Input type="checkbox" data-a="on" checked={!k.off} onCommit={e => set(((e.target as HTMLInputElement).checked ? "Show " : "Hide ") + what, markOnPatch(c, mid, (e.target as HTMLInputElement).checked))} /></label>;
-  const del = (mid: string, what: string) => <button className="btn small" data-a="remove" title={"Remove this " + what} onClick={() => set("Remove " + what, removeMarkPatch(mid))}>×</button>;
+  // (a reference line goes with its gap arrows: one step)
+  const del = (mid: string, what: string) => <button className="btn small" data-a="remove" title={"Remove this " + what + (what === "reference line" ? " (and its gap arrows)" : "")}
+    onClick={() => set("Remove " + what, what === "reference line" ? removeRefPatch(c, mid) : removeMarkPatch(mid))}>×</button>;
   const serSel = (mid: string, k: ChartMark, a: string, what: string) => <select data-a={a} title="The series it stands on" value={k.a && "s" in k.a ? k.a.s : ""} onChange={e => mp(what + " series", mid, { a: { s: (e.target as HTMLSelectElement).value, i: k.a && "s" in k.a ? k.a.i : -1 } })}>
     {sers.map(([sid, s]) => <option key={sid} value={sid}>{typeof s.name === "string" && s.name ? s.name : sid}</option>)}</select>;
   // (the first value of the first series: a typed line's starting value)

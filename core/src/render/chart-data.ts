@@ -52,7 +52,7 @@ export function shown(S: Sheet, r: number, c: number, ctx: RenderCtx): string {
   return editedCellText(S, r, c, t, e);
 }
 /** the version's removed cells of a sheet: is (r, c) one of them */
-function removedOf(ctx: RenderCtx, S: Sheet): (r: number, c: number) => boolean {
+export function removedOf(ctx: RenderCtx, S: Sheet): (r: number, c: number) => boolean {
   const cut = (ctx.version?.hide[S.name] || []).map(parseRange);
   return (r, c) => cut.some(x => r >= x.r1 && r <= x.r2 && c >= x.c1 && c <= x.c2);
 }

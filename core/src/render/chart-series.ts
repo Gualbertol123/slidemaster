@@ -204,10 +204,13 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   const refVals = refOk ? refValues(it, ctx, ser[0]?.fmt || "General") : [];
   if (!refOk && marksOf(it).some(([, k]) => k.kind === "ref" || k.kind === "gap" || k.kind === "change"))
     refIssues.push("reference lines, gap arrows and change pills are drawn on column, line, area and combo charts only");
+  // (a 100 % axis shows shares: an absolute value has no place on it – the line, and a gap arrow to it, are not drawn)
+  const refOff = new Set<string>();
   for (const r of refVals) {
     if (r.issue) refIssues.push(r.issue);
-    if (r.v === null) continue;
+    if (r.v === null) { refOff.add(r.id); continue; }
     const P = r.axis === "y2" && has2 ? P2 : P1;
+    if (P.percent) { refIssues.push(`reference line '${r.id}' is not drawn on a 100 % axis`); refOff.add(r.id); r.v = null; continue; }
     P.lo = Math.min(P.lo, r.v); P.hi = Math.max(P.hi, r.v);
   }
   const tlook = targetLook(ctx, sty.ink);
@@ -484,12 +487,17 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     if (r.v === null) continue;
     const line = refStyle(r, tlook), dash = dashOf(line), y = (r.axis === "y2" && y2 ? vps.y2 : vps.y)(r.v);
     const [x1, x2] = refSpan === "full" || N < 2 ? [plot.x, plot.x + plot.w] : [plot.x + slot / 2, plot.x + plot.w - slot / 2];
+    const axis = r.axis === "y2" && y2 ? "y2" : "y";
+    // (PowerPoint: a series of the native chart – but one chart group per type and axis: on an axis whose lines PowerPoint
+    // stacks, the line is a plain line shape of the overlay instead, review of B52)
+    const series = refSpan === "full" || !ser.some((_, k) => axes[k] === axis && stackL.has(k));
+    if (!series) refIssues.push(`reference line '${r.id}' is a line shape in PowerPoint, not a series: the lines on its axis are stacked`);
     refs.push({ id: r.id, v: r.v, y: r2(y), x1: r2(x1), x2: r2(x2), line, stroke: { w: line.w, paint: solid(line.color), cap: "butt", ...(dash ? { dash } : {}) },
-      name: r.name, text: r.text, fmt: r.fmt, axis: r.axis === "y2" && y2 ? "y2" : "y", label: refLab(r) });
+      name: r.name, text: r.text, fmt: r.fmt, axis, label: refLab(r), series });
   }
   if (refs.length && N < 2) refIssues.push("a reference line needs two categories to be drawn in PowerPoint");
   // (PowerPoint draws the right axis's chart groups over the left axis's: a left-axis reference line under right-axis columns)
-  if (refSpan === "centres" && refs.some(r => r.axis === "y") && ser.some((_, k) => axes[k] === "y2" && kinds[k] === "bar"))
+  if (refSpan === "centres" && refs.some(r => r.axis === "y" && r.series) && ser.some((_, k) => axes[k] === "y2" && kinds[k] === "bar"))
     refIssues.push("a reference line on the left axis is drawn under the right axis's columns in PowerPoint");
   const refLabelX = r2(plot.x + plot.w + (y2?.show ? Math.max(...y2.ticks.map(t => tw(t.text, y2!.st))) + 8 : 0) + 6);
   // the marks, in data coordinates
@@ -498,8 +506,9 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     // (a hidden series is not drawn: its marks are not either, and that is no mistake – no anchors, no Issues line)
     series: new Map([...Object.keys(it.sers || {}).map((k): [string, { anchors: (Anchor | null)[]; start: number }] => [k, { anchors: [], start: 0 }]), ...ser.map((s, k): [string, { anchors: (Anchor | null)[]; start: number }] => [s.id, { anchors: anchors[k], start: s.start }])]),
     vp: (v, ax) => ax === "y2" && !y2 ? null : vps[ax](v), ink: sty.ink, lab: sty.lab, withFmt, ...(xAxis ? { xp } : {}),
-    ...(refOk ? { targets: { plot, slot, ink: sty.ink, lab: sty.lab, withFmt, look: tlook, refs: new Map(refs.map(r => [r.id, r])), refLabelX,
-      series: new Map(ser.map((s, k) => [s.id, { anchors: anchors[k], vals: s.vals, start: s.start, fmt: s.fmt }])) } } : {}),
+    ...(refOk ? { targets: { plot, slot, ink: sty.ink, lab: sty.lab, withFmt, look: tlook, refs: new Map(refs.map(r => [r.id, r])), refOff, refLabelX,
+      // (a stacked series' points stand on the stack's top, not on its own value: stacked)
+      series: new Map(ser.map((s, k) => [s.id, { anchors: anchors[k], vals: s.vals, start: s.start, fmt: s.fmt, stacked: stackL.has(k) || (mode !== "none" && kinds[k] !== "line") }])) } } : {}),
   };
   const mk = markNodes(it, id, F, ctx, m);
   const extra = data0.series.slice(ser.length).map(s => `'${s.name}' is not drawn: a waterfall draws one series`);
@@ -686,6 +695,7 @@ export function seriesSem(L: SeriesLayout): BarsSem {
   // axis "on tick marks" (midCat) and a hidden value axis with the primary one's bounds; else on its own axis's lines
   const refIdx: number[] = [];
   for (const r of L.refs) {
+    if (!r.series) continue;                          // (a line shape of the overlay: chart-targets.ts refNodes)
     refIdx.push(ser.length);
     ser.push({ name: r.name || "Reference", values: L.data.cats.map(() => r.v), color: r.line.color, fmt: r.fmt, points: [], labels: null, type: "line", axis: L.refSpan === "full" ? "y2" : r.axis,
       smooth: false, stroke: r.line, marker: null, markers: [], f: L.data.cats.map((_, i) => i ? "{TOP}" : null) });
@@ -699,10 +709,10 @@ export function seriesSem(L: SeriesLayout): BarsSem {
     if (ai.length) groups.push({ kind: "area", axis: ax, grouping: L.mode === "none" ? "standard" : grouping, gap: 0, overlap: 0, series: ai });
     if (bg) groups.push({ kind: "bar", axis: ax, grouping, gap: L.gap, overlap: bg.overlap, series: bg.series.flatMap(k => companion.has(k) ? [k, companion.get(k)!] : [k]) });
     // (the template's stacked areas as lines: a stacked / 100 % stacked line chart – never beside ordinary lines on one axis)
-    if (li.length) groups.push({ kind: "line", axis: ax, grouping: li.some(k => L.stackLines.includes(k)) ? grouping : "standard", gap: 0, overlap: 0, series: li });
-    // (B52) reference lines on this axis's own line group (a chart with a right axis): their own standard line group
+    // (B52) reference lines of this axis (a chart with a right axis) join its standard line group – PowerPoint keeps one
+    // chart group per type and axis (review of B52); its stacked lines never have one (seriesLayout: a line shape then)
     const ri = L.refSpan === "centres" ? refIdx.filter(k => ser[k].axis === ax) : [];
-    if (ri.length) groups.push({ kind: "line", axis: ax, grouping: "standard", gap: 0, overlap: 0, series: ri });
+    if (li.length || ri.length) groups.push({ kind: "line", axis: ax, grouping: li.some(k => L.stackLines.includes(k)) ? grouping : "standard", gap: 0, overlap: 0, series: [...li, ...ri] });
   }
   const refAxis = L.refSpan === "full" && refIdx.length > 0 && !L.xAxis;
   if (refAxis) groups.push({ kind: "line", axis: "y2", grouping: "standard", gap: 0, overlap: 0, series: refIdx });

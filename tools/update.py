@@ -841,10 +841,11 @@ def use_version(root, ver, stamp, yes=False):
     except (OSError, ValueError, KeyError) as e:
         raise SystemExit("Version %s is damaged (%s) - not used. Install it again with --release %s." % (ver, e, ver))
     marked = format5_decks(root) if version_key(ver)[:3] < FORMAT5_SINCE else []
-    marked6 = format5_decks(root, (FORMAT6_MARKER, FORMAT7_MARKER)) if FORMAT5_SINCE <= version_key(ver)[:3] < FORMAT6_SINCE else []
-    marked7 = format5_decks(root, (FORMAT7_MARKER,)) if FORMAT6_SINCE <= version_key(ver)[:3] < FORMAT7_SINCE else []
+    # (B52) a format-7 deck is named once, as holding 4.10 objects (read-only in 4.6-4.9); format-6 decks as 4.9's
+    marked7 = format5_decks(root, (FORMAT7_MARKER,)) if FORMAT5_SINCE <= version_key(ver)[:3] < FORMAT7_SINCE else []
+    marked6 = [wb for wb in format5_decks(root, (FORMAT6_MARKER,)) if wb not in marked7] if FORMAT5_SINCE <= version_key(ver)[:3] < FORMAT6_SINCE else []
     if marked7:
-        # the same for 4.10's objects (format 7, B52): read-only in 4.9
+        # the same for 4.10's objects (format 7, B52): read-only in 4.6-4.9
         say("These %d deck(s) use Slide Builder 4.10 objects (reference lines, gap arrows or change pills on a chart). "
             "In version %s they open read-only:" % (len(marked7), ver))
         for wb in marked7:

@@ -193,6 +193,48 @@ describe("each extra on its own (modular)", () => {
     expect(L.marks.arrows[0].a.x).toBeLessThan(L.traces[0].pts[3]!.x);
     expect(texts(nodes)).not.toContain("Off (kept) 12.000");
   });
+  it("review of B52: on stacked lines (the template's stacked areas) beside a right axis a reference line is a line shape in PowerPoint, with an Issues line – never a second line group", async () => {
+    const { ctx, it, item } = await deck("excel");
+    const W = (r: string) => ({ sheet: "Weekly", range: r }), T = { sheet: "Targets", range: "B3" };
+    const c: ChartItem = { ...it("tl"), type: "combo", stack: "stacked", axes: undefined, sers: { a: { n: 1, type: "area", vals: [W("C5:F5")] }, b: { n: 2, type: "area", vals: [W("C5:F5")] },
+      c: { n: 3, type: "column", axis: "y2", vals: [W("C5:F5")] } }, marks: { r: { kind: "ref", value: T } } };
+    const L0 = seriesLayout(c, c.box, ctx, M, { ...STY, trend: { w: 2, areaAsLine: true } }, "x");
+    if ("why" in L0) throw new Error(L0.why);
+    const L = L0 as SeriesLayout;
+    expect(L.stackLines.length).toBe(2);                                       // (the template: stacked areas as stacked lines)
+    expect(L.refs.map(r => [r.id, r.series])).toEqual([["r", false]]);
+    expect(L.issue).toContain("reference line 'r' is a line shape in PowerPoint, not a series: the lines on its axis are stacked");
+    expect(L.marks.native).toEqual([]);                                          // its line stays in the overlay
+    const { seriesSem } = await import("../src/render/chart-series");
+    const B = seriesSem(L);
+    expect(B.series.length).toBe(3);
+    expect(B.groups!.filter(g => g.kind === "line" && g.axis === "y").length).toBe(1);
+    void item;
+  });
+  it("review of B52: a 100 % axis draws no reference line (nor a gap arrow to it) – one Issues line", async () => {
+    const { ctx, it } = await deck("excel");
+    const c: ChartItem = { ...it("tl"), type: "column", stack: "percent", axes: undefined, sers: { ...it("tl").sers, b: { n: 2, vals: [{ sheet: "Weekly", range: "C5:F5" }] } } };
+    const L = layoutOf(c, ctx);
+    expect(L.refs).toEqual([]);
+    expect(L.scale.max).toBeLessThanOrEqual(1);
+    expect(L.issue).toBe("reference line 'r1' is not drawn on a 100 % axis; reference line 'r2' is not drawn on a 100 % axis");
+  });
+  it("review of B52: on a stacked series the gap arrow is not drawn (its point is the stack's top), with an Issues line", async () => {
+    const { ctx, it } = await deck("excel");
+    const c: ChartItem = { ...it("tl"), type: "column", stack: "stacked", axes: undefined, sers: { ...it("tl").sers, b: { n: 2, vals: [{ sheet: "Weekly", range: "C5:F5" }] } } };
+    const L = layoutOf(c, ctx);
+    expect(L.marks.arrows).toEqual([]);
+    expect(L.issue).toContain("gap 'xg': not drawn on a stacked series (its points stand on the stack, not on its values)");
+  });
+  it("review of B52: a budget cell the shown version empties hides its line and the gap arrow to it – one Issues line", async () => {
+    const { ctx, it, item } = await deck("excel");
+    const L = layoutOf(it("tl"), { ...ctx, version: { id: "v", name: "No budget", hide: { Targets: ["B3"] } } });
+    expect(L.refs.map(r => r.id)).toEqual(["r2"]);
+    expect(L.marks.arrows).toEqual([]);
+    expect(L.issue).toBe("reference line 'r1': Targets!B3 is emptied by the version shown");
+    expect(layoutOf(it("tl"), ctx).refs.length).toBe(2);                           // (the full deck keeps it)
+    void item;
+  });
   it("signed(): + / − / none for 0, in the format of the absolute value", () => {
     // (the decimal separator is the workbook's: the last one read here is Italian)
     expect([signed(12.5, "0.0"), signed(-3, "#,##0"), signed(0, "0")]).toEqual([expect.stringMatching(/^\+12[.,]5$/), NEG + "3", "0"]);
@@ -237,11 +279,19 @@ describe("every design: the target-lines deck", () => {
     expect(ov.filter(n => n.t === "rect" && !!n.r).length).toBe(3);
     const bytes = pptxOf(lists), z = unzipSync(bytes);
     const charts = Object.keys(z).filter(n => /^ppt\/charts\/chart\d+\.xml$/.test(n)).sort();
-    expect(charts.map(n => [...strFromU8(z[n]).matchAll(/<c:(lineChart|barChart)>/g)].map(m => m[1]).join("+")).sort()).toEqual(["lineChart+lineChart", "lineChart+lineChart+barChart"]);
+    expect(charts.map(n => [...strFromU8(z[n]).matchAll(/<c:(lineChart|barChart)>/g)].map(m => m[1]).join("+")).sort()).toEqual(["lineChart+barChart", "lineChart+lineChart"]);
     const slides = Object.keys(z).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n)).map(n => strFromU8(z[n]));
     for (const s of slides) { expect(s).not.toContain("<p:cxnSp"); expect(s).not.toContain("<p:pic"); }
     expect(slides[0]).toContain('prst="roundRect"'); expect(slides[0]).toMatch(/<a:tailEnd type="triangle"/);
     expect(slides[0]).toContain(NEG + "348"); expect(slides[0]).toContain("EoM budget 11.790");
+    // (review of B52) one chart group per type and axis pair: slide 2's reference lines join its left axis's line group
+    const B2 = semOf(item("tc").info).bars!;
+    expect(B2.groups!.map(g => [g.kind, g.axis, g.series])).toEqual([["line", "y", [0, 2, 3]], ["bar", "y2", [1]]]);
+    expect(B2.series.slice(2).map(s => s.name)).toEqual(["Floor (typed)", "Budget"]);
+    for (const n of charts) {
+      const seen = [...strFromU8(z[n]).matchAll(/<c:(lineChart|barChart|areaChart)>[\s\S]*?<c:axId val="(\d+)"\/>/g)].map(m => m[1] + "@" + m[2]);
+      expect(new Set(seen).size, n).toBe(seen.length);
+    }
     expect(Object.keys(z).some(n => n.endsWith(".rels") && /TargetMode="External"/.test(strFromU8(z[n])))).toBe(false);
     expect(Buffer.from(pptxOf(lists)).equals(Buffer.from(bytes))).toBe(true);
     if (process.env.CHART_PPTX_OUT) fs.writeFileSync(path.join(process.env.CHART_PPTX_OUT, `target-lines-${design}.pptx`), bytes);

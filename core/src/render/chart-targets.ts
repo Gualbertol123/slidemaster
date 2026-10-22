@@ -19,7 +19,7 @@ import type { Node, Stroke } from "../dl/types";
 import type { RenderCtx } from "./context";
 import type { Metrics } from "./excel-dl";
 import type { LineSem } from "../pptx/chart-sem";
-import { refTarget, shown } from "./chart-data";
+import { refTarget, removedOf, shown } from "./chart-data";
 import { tickText } from "./chart-axes";
 import { dashOf, lineStyleOf } from "./chart-lines";
 import { font, lineH, textNode, type St } from "./chart-font";
@@ -54,11 +54,13 @@ export interface RefVal { id: string; k: ChartMark; v: number | null; text: stri
   /** why it is not drawn ("" = a gap: nothing to say) */ issue?: string }
 const isRef = (x: unknown): x is DataRef => !!x && typeof x === "object" && typeof (x as DataRef).range === "string";
 /** the first cell of a DataRef: its number (null: text, blank, an error), the cell's format, its text */
-function cellOf(ref: DataRef, ctx: RenderCtx): { v: number | null; fmt: string; text: string; source: string } | null {
+function cellOf(ref: DataRef, ctx: RenderCtx): { v: number | null; fmt: string; text: string; source: string; gone: boolean } | null {
   const T = refTarget(ref, ctx);
   if (!T.S || !T.g) return null;
-  const c = T.S.get(T.g.r1, T.g.c1), v = c && c.t === "n" && typeof c.v === "number" && Number.isFinite(c.v) ? c.v : null;
-  return { v, fmt: c?.fmt || "General", text: shown(T.S, T.g.r1, T.g.c1, ctx).trim(), source: T.source };
+  // (a cell the shown version empties is no number: the line is not drawn, as a series gets a gap there)
+  const gone = removedOf(ctx, T.S)(T.g.r1, T.g.c1);
+  const c = T.S.get(T.g.r1, T.g.c1), v = !gone && c && c.t === "n" && typeof c.v === "number" && Number.isFinite(c.v) ? c.v : null;
+  return { v, fmt: c?.fmt || "General", text: gone ? "" : shown(T.S, T.g.r1, T.g.c1, ctx).trim(), source: T.source, gone };
 }
 /** the marks of the chart that are on, in id order (a later id on top) */
 export const marksOf = (it: ChartItem) => Object.entries(it.marks && typeof it.marks === "object" ? it.marks : {})
@@ -75,6 +77,7 @@ export function refValues(it: ChartItem, ctx: RenderCtx, fallbackFmt: string): R
     if (isRef(k.value)) {
       const c = cellOf(k.value, ctx);
       if (!c) r.issue = `reference line '${id}': ${refTarget(k.value, ctx).source} not found`;
+      else if (c.gone) r.issue = `reference line '${id}': ${c.source} is emptied by the version shown`;
       else if (c.v === null) r.issue = `reference line '${id}': no number in ${c.source}`;
       else { r.v = c.v; r.fmt = num || c.fmt; }
     } else if (typeof k.value === "number" && Number.isFinite(k.value)) r.v = k.value;
@@ -89,7 +92,8 @@ export function refValues(it: ChartItem, ctx: RenderCtx, fallbackFmt: string): R
 
 /** a reference line as drawn: its value's place, look, label */
 export interface RefLine { id: string; v: number; y: number; x1: number; x2: number; line: LineSem; stroke: Stroke; name: string; text: string; fmt: string; axis: "y" | "y2";
-  label: { text: string; st: St; pos: "right" | "left" | "above" } | null }
+  label: { text: string; st: St; pos: "right" | "left" | "above" } | null;
+  /** a series of the native PowerPoint chart (else a plain line shape of its overlay) */ series: boolean }
 /** a reference line's label: what it shows, in its style (the line's colour, bold unless its fmt says) */
 export function refLabel(r: RefVal, color: string, lab: St, withFmt: (st: St, f: ChartMark["fmt"]) => St): { text: string; st: St; pos: "right" | "left" | "above" } | null {
   const show = r.k.show || "both";
@@ -119,11 +123,12 @@ export function signColor(k: ChartMark, d: number, look: TargetLook, own: string
 }
 
 /** a series' points (x, y, the marker's radius) and values by category of the chart, its first category, its format */
-export interface SerPts { anchors: ({ x: number; y: number; r: number } | null)[]; vals: (number | null)[]; start: number; fmt: string }
+export interface SerPts { anchors: ({ x: number; y: number; r: number } | null)[]; vals: (number | null)[]; start: number; fmt: string;
+  /** its points stand on a stack's top (a stacked column, area or line), not on its own value */ stacked?: boolean }
 /** what the targets need of the chart's layout (a part of chart-marks.ts MarkFrame) */
 export interface TargetFrame {
   plot: { x: number; y: number; w: number; h: number }; slot: number; ink: string; lab: St; withFmt: (st: St, f: ChartMark["fmt"]) => St;
-  /** the reference lines as drawn (seriesLayout), by id */ refs: Map<string, RefLine>;
+  /** the reference lines as drawn (seriesLayout), by id; those not drawn (no value, a 100 % axis: said once there) */ refs: Map<string, RefLine>; refOff?: Set<string>;
   /** the series drawn, by id */ series: Map<string, SerPts>;
   look: TargetLook;
 }
@@ -143,7 +148,7 @@ export function refNodes(R: RefLine, m: Metrics, labelX: number): TargetOut {
     else if (L.pos === "left") nodes.push(textNode(m, L.text, R.x1 + 4, R.y - lh - 2, L.st, "left"));
     else nodes.push(textNode(m, L.text, R.x2 - 4, R.y - lh - 2, L.st, "right"));
   }
-  return { nodes, issues: [], native: [line] };
+  return { nodes, issues: [], native: R.series ? [line] : [] };
 }
 /** the last point of a series with a value (i -1), or point i (counted in its group) */
 function pointOf(S: SerPts, i: number): number | null {
@@ -160,7 +165,9 @@ export function gapNodes(id: string, k: ChartMark, F: TargetFrame, m: Metrics): 
   const sid = k.a && "s" in k.a ? String(k.a.s) : firstSeries(F), S = sid ? F.series.get(sid) : undefined;
   if (!S) { out.issues.push(`gap '${id}': series '${sid ?? ""}' not found`); return out; }
   const R = typeof k.ref === "string" ? F.refs.get(k.ref) : undefined;
-  if (!R) { out.issues.push(`gap '${id}': reference line '${k.ref ?? ""}' not found`); return out; }
+  if (!R) { if (!(typeof k.ref === "string" && F.refOff?.has(k.ref))) out.issues.push(`gap '${id}': reference line '${k.ref ?? ""}' not found`); return out; }
+  // (a stacked series' point stands on the stack's top: the arrow from there would not measure its own value – review of B52)
+  if (S.stacked) { out.issues.push(`gap '${id}': not drawn on a stacked series (its points stand on the stack, not on its values)`); return out; }
   const i = pointOf(S, k.a && "s" in k.a ? +k.a.i : -1);
   if (i === null) return out;                                   // a gap in the data: nothing to point at
   const p = S.anchors[i]!, v = S.vals[i]!, d = v - R.v;
