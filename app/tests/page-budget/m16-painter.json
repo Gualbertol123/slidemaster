@@ -1,4 +1,4 @@
 {
-  "bytes": 12500,
-  "why": "S16.3 (4.9.0, B38: number display, cell vertical alignment, the fuller painter, multi-selection paste): measured +12,001 bytes with npm run build on m16/painter-main over origin/main 71d8806 (B48-B50 merged; 4,017,563 -> 4,029,564), rounded up to the next 500. (On cb9cb8a it was +11,999.) Set by measurement (plan-M16: about +12 KB expected)."
+  "bytes": 13000,
+  "why": "S16.3 (4.9.0, B38: number display, cell vertical alignment, the fuller painter, multi-selection paste): measured +12,001 bytes with npm run build on m16/painter-main over origin/main 71d8806 (B48-B50 merged; 4,017,563 -> 4,029,564); the review fixes (3b36d7e: Ctrl let go before the mouse, the multi-range toast and status line) bring it to +12,802 measured on v4/release-4.9.0 (2026-10-22); rounded up to the next 500. (On cb9cb8a it was +11,999.) Set by measurement (plan-M16: about +12 KB expected; owner: page budgets by measurement)."
 }
