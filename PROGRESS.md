@@ -217,6 +217,14 @@ numbers measured twice). Measured numbers go into the step's line.
     (`core/tests/__snapshots__/chart-dl.test.ts.snap`, `shape-dl.test.ts.snap`: re-record and check only the excel /
     clean entries move), and `core/tests/fixtures/dlhash-b48-base.json` (re-record with `DLHASH_WRITE=1`: M14 and M15
     change Liquid Glass and the consulting designs' charts, lines and icons by design).
+- [x] B51 · The contents slide's title and list move and resize freely in a free layout (product owner 2026-10-22: "move
+  the index and its title freely around the slide like a table in free layout mode"; branch `v4/B51-toc-move` on
+  `v4/M16-tables` + `m16/audit-fixes`) — 074f702 (runs: by the orchestrator). Boxes `c:title` / `c:toc` of the slide's
+  `free` entry (no new op or key; `render/contents.ts`), drawn as a group to the saved place and scale in every design
+  (never moved: the display list unchanged – the five designs' corpus hashes compared); format 6 for a free entry
+  holding one (`needsV6` / `docNeedsV6`; vectors `b51.json`); stage handles and `freePart` (one undo step); PDF and
+  PowerPoint where dropped (title placeholder, text boxes; EMU). Tests: core `b51-contents.test.ts`, app
+  `b51-contents.test.tsx`, e2e B51-01; page +7,113 bytes (`page-budget/b51.json`).
 
 ### S13.7 · Delete slide and Duplicate slide (after M13 closed; ships with the next release, 4.7.0 in CHANGELOG; owner Q12)
 - [x] S13.7 · Delete slide and Duplicate slide (c47d59a; merged into `v4/M16-tables`, its CHANGELOG block moved to 4.9.0 – 4.7.0 is dated; runs: by the orchestrator) (owner Q12, 2026-10-21; branch `v4/slide-menu`) — the slide list's right-click menu (`#ctxDupSlide`, `#ctxDelSlide`) and Delete in the slide list (on the slide shown); one `slide.add` / `slide.remove` each (no new op or key: the guard, inverses and vectors of S13.3 hold). The copy: core `model/slidecopy.ts` (items under new ids, the free boxes and attached line ends renamed). Decided: content slides only are duplicated (the wizard keeps one cover / contents); any slide but the last may be deleted, after a question. +2,156 bytes page (`page-budget/s13-7.json`, measured again on main 71d8806). Review: REQUEST CHANGES → "S13.7 · … (review fixes)": CHANGELOG bullet moved from the dated 4.6.0 notes to 4.7.0 (its own block, as B48–B50), Delete acts on `deck.cur`, `duplicateSlide` checks `doc.open`, one `slide.add` vector of a duplicated slide in `ops-vectors.json`, a comment pointing M15 at `slidecopy.ts`. Awaiting the orchestrator's checks (e2e `Delete slide and Duplicate slide`) and the second review.
