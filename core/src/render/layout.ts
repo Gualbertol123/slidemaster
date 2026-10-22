@@ -285,6 +285,10 @@ export function freeBoxes(R: RuntimeSlide, ctx: RenderCtx): FreeLayout["items"] 
     for (const [id, n] of Object.entries(b.items || {})) out[freeKey.item(id)] = box(n);
   });
   for (const id of Object.keys(R.cfg.items || {})) if (!out[freeKey.item(id)]) { const b = itemBoxOf(R, id, boxes, ctx); if (b) out[freeKey.item(id)] = box(b); }
+  // (B51) the contents slide's parts: their saved boxes as they are (a part never moved has none: drawn where the design
+  // puts it) – switching the free layout on again must not lose them
+  const saved = R.cfg?.free?.[slideCtx(ctx, R).style.design]?.items;
+  if (saved && typeof saved === "object") for (const p of ["title", "toc"] as const) { const e = freeEntry(saved[freeKey.part(p)]); if (e) out[freeKey.part(p)] = e; }
   return out;
 }
 

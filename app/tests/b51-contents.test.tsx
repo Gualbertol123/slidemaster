@@ -81,6 +81,18 @@ describe("B51: the contents slide's title and list dragged in a free layout", ()
     expect(entry()!.items["c:toc"]).toEqual(L);                       // the list stays
     await vi.waitFor(() => { const b = boxOf(part("title")!); expect(b.w).toBeCloseTo(T0.w * .75, 3); expect(b.h).toBeCloseTo(T0.h * .75, 3); }, { timeout: 10_000 });
 
+    // Free layout off, then on again (review): the parts keep their places – their boxes are carried through
+    await act(async () => { fireEvent.click(btn); }); await confirmed(h0 + 4);
+    expect(entry()!.on).toBe(false);
+    await vi.waitFor(() => expect(part("toc")).toBeNull());
+    await act(async () => { fireEvent.click(btn); }); await confirmed(h0 + 5);
+    expect(entry()!.on).toBe(true);
+    expect(entry()!.items["c:toc"]).toEqual(L); expect(entry()!.items["c:title"]).toEqual(T);
+    await vi.waitFor(() => { const b = boxOf(part("toc")!); expect(b.x).toBeCloseTo(L.x, 3); expect(b.y).toBeCloseTo(L.y, 3); }, { timeout: 10_000 });
+    await act(async () => undo(false)); await confirmed(h0 + 4);
+    await act(async () => undo(false)); await confirmed(h0 + 3);
+    expect(entry()!.on).toBe(true);
+
     // a click on a grip is not a drag: nothing written
     await act(async () => { fireEvent.pointerDown(grip, at(10, 10)); fireEvent.pointerUp(window, at(11, 10)); }); await settle();
     expect(history()).toBe(h0 + 3);

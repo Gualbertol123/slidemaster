@@ -17,7 +17,7 @@ import { runtimeSlides } from "../src/model/preset";
 import { resolveStyle } from "../src/model/style";
 import { excelToDisplayList, type Metrics } from "../src/render/excel-dl";
 import { slideToDisplayList } from "../src/render/slide-dl";
-import { computeLayout, freeKey } from "../src/render/layout";
+import { computeLayout, freeBoxes, freeKey } from "../src/render/layout";
 import { partBox, partOf, partTransform } from "../src/render/contents";
 import { chartLook } from "../src/render/chart-dl";
 import { wrapLines } from "../src/text/lines";
@@ -98,6 +98,17 @@ describe("the parts (render/contents.ts)", () => {
     expect(partTransform(D, { x: 150, y: 250, w: 400 })).toEqual([1, 0, 0, 1, 50, 50]);
     expect(partTransform(D, { x: 0, y: 0, w: 200 })).toEqual([.5, 0, 0, .5, -50, -100]);
     expect(partTransform(D, { x: 0, y: 0, w: 1, scale: 2 })).toEqual([2, 0, 0, 2, -200, -400]);
+  });
+});
+
+describe("switching the free layout on again keeps the parts' places (review)", () => {
+  it("freeBoxes carries the saved c: boxes (with their scale) through; a bad or empty one is left out", async () => {
+    const { ix, slides, ctx } = await deck("excel");
+    const R = slides[ix], T = { x: 900, y: 700, w: 300, h: 60, scale: .6 }, L = { x: 40, y: 30, w: 800, h: 300 };
+    const withSaved = (items: Record<string, unknown>) => ({ ...R, cfg: { ...R.cfg, free: { excel: { on: true, items } } } }) as typeof R;
+    expect(freeBoxes(withSaved({ "c:title": T, "c:toc": L }), ctx)).toEqual({ "c:title": T, "c:toc": L });
+    expect(freeBoxes(withSaved({ "c:title": { x: "a" }, "c:toc": null }), ctx)).toEqual({});
+    expect(freeBoxes(R, ctx)).toEqual({});
   });
 });
 
@@ -189,7 +200,7 @@ describe("the PowerPoint export: the moved parts where the slide draws them", ()
   const shapes = (xml: string) => [...xml.matchAll(/<p:sp>([\s\S]*?)<\/p:sp>/g)].map(m => ({
     ph: /<p:ph type="(\w+)"/.exec(m[1])?.[1] ?? null, x: +(/<a:off x="(-?\d+)"/.exec(m[1])?.[1] ?? NaN), y: +(/<a:off x="-?\d+" y="(-?\d+)"/.exec(m[1])?.[1] ?? NaN),
     text: [...m[1].matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(t => t[1]).join(""), sz: [...m[1].matchAll(/sz="(\d+)"/g)].map(t => +t[1]) }));
-  for (const design of ["excel", "clean", "glass", "mckinsey"] as Design[]) {
+  for (const design of ["excel", "clean", "glass", "mckinsey", "bain"] as Design[]) {
     it(`${design}: the title a placeholder 200 × 600 px further (EMU); the rows' texts at 0.8 from the list's new corner; no connector, no picture more`, async () => {
       const a = await pptx(design, false), b = await pptx(design, true, `b51-${design}.pptx`);
       const s0 = shapes(a.xml), s1 = shapes(b.xml);
