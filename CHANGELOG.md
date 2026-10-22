@@ -3,6 +3,21 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.10.2 - 2026-10-22
+
+What users notice
+* **The side panel is wider and can be resized.** The panel left of the slide (the slides, a chart's settings, Issues)
+  is now 340 px wide instead of 250; drag its edge by the slide to make it wider or narrower (from 280 px up to half the
+  window) – the width is remembered in this browser, and a double-click on the edge goes back to the usual width. The
+  edge also works from the keyboard (Tab to it, ←/→, Home, End, Enter for the usual width). The slide fits itself to
+  the space that is left: on wide 16:9 screens it keeps its size; on taller 16:10 or 4:3 windows the wider panel can
+  make the slide smaller (about 9 % on a 1280×1024 screen, more on narrower ones) – drag the edge back to give it the
+  room again.
+* **A chart's panel is no longer squashed.** The chart types are a grid of equal buttons that never overlap; text boxes
+  take the room left on their row and are no longer cut off; Min, Max and Step of an axis sit in three tidy columns; the
+  small buttons of a series, a reference line, a gap arrow or change pills stay on their row (the × is never alone on
+  a line). With a chart selected, the side panel scrolls as one page, so the end of a long chart panel is reachable.
+
 ## 4.10.1 - 2026-10-22
 
 What users notice

@@ -1,0 +1,4 @@
+{
+  "bytes": 5500,
+  "why": "4.10.2 (the owner's report 2026-10-22: the chart panel \"too squashed\" at 250 px): by measurement on v4/panel-width – the page built from its base (main c504829, the 4.10.1 page, 4,921,812 bytes) is 4,926,961 bytes (+5,149): the side panel's width and grip (ui/NavResize.tsx: drag drawn per frame, keyboard, ARIA) and the chart panel's layout rules (chart-panel.css, ui.css); rounded up to the next 500."
+}

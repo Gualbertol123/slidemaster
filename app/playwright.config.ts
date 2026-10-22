@@ -15,7 +15,7 @@ const root = path.join(tmp, "root"), data = path.join(tmp, "data");
 if (fresh) {
   fs.mkdirSync(root, { recursive: true }); fs.mkdirSync(data, { recursive: true });
   // Banks.xlsx and Peers.xlsx link to each other (S7.3, tests/corpus/workbooks/recalc); Targets.xlsx: B52-01's own deck
-  for (const f of ["report.xlsx", "plain.xlsx", "big.xlsx", "weekly.xlsx", "Banks.xlsx", "Peers.xlsx", "Gate.xlsx", "Targets.xlsx"]) fs.copyFileSync(path.join(__dirname, "tests/fixtures", f), path.join(root, f));
+  for (const f of ["report.xlsx", "plain.xlsx", "big.xlsx", "weekly.xlsx", "Banks.xlsx", "Peers.xlsx", "Gate.xlsx", "Targets.xlsx", "Panel.xlsx"]) fs.copyFileSync(path.join(__dirname, "tests/fixtures", f), path.join(root, f));
 }
 process.env.SB_E2E_TMP = tmp; process.env.SB_E2E_ROOT = root; process.env.SB_E2E_DATA = data;
 // the browser: CHROME, else Playwright's own Chromium (npx playwright install chromium), the same on every OS

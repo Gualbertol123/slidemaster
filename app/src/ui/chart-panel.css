@@ -1,15 +1,47 @@
 /* the series chart's side panel (S14.5, ChartSeriesPanel.tsx) and the stage's selected point / mark */
-.chartpanel .ctypes{flex-wrap:wrap}
+/* (4.10.2, the owner's report: "too squashed") the panel from 280 px up: no control overlaps another, no box is cut off,
+   a row's small buttons stay with it. The boxes take the room left (flex-basis small, min-width 0); the small buttons
+   keep their size (flex:none) */
+.chartpanel input:not([type=checkbox]):not([type=radio]):not([type=color]),.chartpanel select{min-width:0;max-width:100%;height:26px;border:1px solid var(--line2,#D5D8DF);border-radius:6px;background:#fff;padding:0 6px}
+.chartpanel .btn.small{height:26px;padding:0 8px;font-size:12px;gap:4px;flex:none}
+.chartpanel .serhd .btn.small,.chartpanel [data-a=remove]{width:26px;padding:0;justify-content:center}
+.chartpanel .seg.small{height:auto;min-height:28px;max-width:100%;flex-wrap:wrap}
+.chartpanel .seg.small button{padding:3px 8px;min-height:26px}
+/* with a chart's panel the side panel scrolls as one page (a long panel ran under the status bar): the slides a strip
+   at the top (their own scroll), then the whole panel, then Issues */
+.nav:has(> .chartpanel){overflow-y:auto;overflow-x:hidden}
+.nav:has(> .chartpanel) > *{flex-shrink:0}
+.nav:has(> .chartpanel) > .thumbs{flex:0 0 auto;max-height:170px}
+/* the chart type: a grid of equal buttons that wraps, on its own line under its label */
+.chartpanel .typerow > .lbl{flex-basis:100%;width:auto}
+.chartpanel .ctypes{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:4px;flex:1 1 100%;width:100%;height:auto;border:0;border-radius:0;overflow:visible;background:none}
+.chartpanel .ctypes button{min-width:0;height:28px;padding:0 4px;border:1px solid var(--line2,#D5D8DF);border-radius:6px;background:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chartpanel .ctypes button.on{background:var(--accent-soft);border-color:#C7DBF6}
+.chartpanel .row > select{flex:0 1 auto}
+.chartpanel #chartTargets .row > select{flex:1 1 auto}
+.chartpanel .row > code{flex:0 1 auto;min-width:0}
+/* a row's × (remove) keeps the top right corner: the row wraps beside it, never leaving it alone on a line */
+.chartpanel .row:has(> [data-a=remove]){position:relative;padding-right:32px}
+.chartpanel .row > [data-a=remove]{position:absolute;right:0;top:0}
+/* Min / Max / Step: three equal columns, the label above its box */
+.chartpanel .mms{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 8px;margin:4px 0}
+.chartpanel .mms label{display:flex;flex-direction:column;gap:1px;min-width:0}
+.chartpanel .mms .lbl{width:auto;font-size:11px}
+.chartpanel .mms .num{width:100%}
+/* narrow: a box's label on its own line, the box the whole width */
+@container chartpanel (max-width:300px){
+  .chartpanel .row:has(> .nm,> .ctitle) > .lbl:first-child{flex-basis:100%;width:auto}
+}
 .chartpanel .sec{margin:6px 0;border-top:1px solid var(--line,#e3e5ea);padding-top:4px}
 .chartpanel .sec>summary{cursor:pointer;font-weight:600;margin:2px 0}
 .chartpanel .num{width:56px}
-.chartpanel .nm{flex:1;min-width:70px}
+.chartpanel .nm{flex:1 1 60px;min-width:0}
 .chartpanel .note{color:#5B6274;font-size:11px}
-.chartpanel code{font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chartpanel code{font-size:11px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chartpanel .ser{border-radius:4px;padding:2px 4px}
 .chartpanel .ser.on{background:rgba(10,102,216,.08)}
 .chartpanel .ser.hid .nm{opacity:.55}
-.chartpanel .serhd{display:flex;align-items:center;gap:4px}
+.chartpanel .serhd{display:flex;align-items:center;gap:4px;min-width:0}
 .chartpanel .serbody{padding:2px 0 4px 20px}
 .chartpanel .sw{position:relative;width:16px;height:16px;flex:none}
 .chartpanel .sw input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
@@ -24,3 +56,5 @@
 .chartpanel #chartTargets .sub{display:block;font-size:11px;color:#5B6274;margin:6px 0 2px}
 .chartpanel #chartTargets .ref,.chartpanel #chartTargets .gap,.chartpanel #chartTargets .chg{border-left:2px solid var(--line,#e3e5ea);padding:2px 0 4px 6px;margin:2px 0}
 .chartpanel #chartTargets .hid .row>*:not(.chk){opacity:.55}
+/* the number-format boxes of a gap arrow / change pills: wide enough for their "as the cell(s)" placeholder */
+.chartpanel #chartTargets .num[data-a=gnum],.chartpanel #chartTargets .num[data-a=cnum]{width:88px;flex:none}
