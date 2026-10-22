@@ -195,6 +195,11 @@ test.describe.serial("delete-versions (S16.2)", () => {
     for (const box of await page.locator("#scVersions input").all()) await box.setChecked((await box.getAttribute("data-version")) === byName("VD").id);
     await page.locator("#scPdf").setChecked(true); await page.locator("#scPptx").setChecked(true);
     await page.click("#scRun");
+    // the gate (RC-06) stops first: the fixture's TOTAL, SLIDE_1!D19 = SUM(D6:D18), was written by openpyxl without a
+    // saved value (Excel "empty"), so the engine's sum differs from it – run anyway (the cell is marked, the rows are not)
+    await expect(page.locator("#scGate")).toContainText("SLIDE_1!D19", { timeout: 30_000 });
+    await page.check("#scAnyway");
+    await page.click("#scRun");
     await expect(page.locator("#scRunStatus")).toContainText("Done: 2 of 2 values · 4 files", { timeout: 120_000 });
     const runFiles = fs.readdirSync(path.join(root(), "export")).filter(f => /^VD (one|two)\b.*VD.*Excel\.(pdf|pptx)$/.test(f));
     expect(runFiles.length).toBe(4);
