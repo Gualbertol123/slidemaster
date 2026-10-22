@@ -7,7 +7,7 @@ import { Topbar } from "./Topbar";
 import { Ribbon, FxBar } from "./Ribbon";
 import { Busy, Canvas, DeckHealth, Issues, Status, Thumbs, Toast } from "./Chrome";
 import { ItemPanel } from "./ItemPanel";
-import { NavGrip, useNavWidth } from "./NavResize";
+import { NavGrip, navColumns, useNavWidth } from "./NavResize";
 import { PickCellsDialog } from "./PickCells";
 import { SetupsDialog } from "./Setups";
 import { TableRibbon } from "./TableTools";
@@ -43,8 +43,8 @@ export function App() {
           <TableRibbon />
           <FxBar />
         </div>
-        <div className="main" style={{ gridTemplateColumns: navW + "px minmax(0,1fr)" }}>
-          <aside className="nav">
+        <div className="main" style={{ gridTemplateColumns: navColumns(navW) }}>
+          <aside className="nav" id="sideNav">
             <div className="navhd"><span>SLIDES <span id="slideCount" style={{ fontWeight: "500", marginLeft: "4px" }}>{count || ""}</span></span>
               <button className="newslide" id="newSlide" disabled={!open} title="A blank slide after the selected one (Ctrl+M)" onClick={() => newSlide()}>+ New slide</button></div>
             <Thumbs />

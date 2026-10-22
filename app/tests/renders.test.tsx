@@ -6,7 +6,7 @@
    The chrome modules are wrapped in React Profilers; the thumbnails and the wallpaper draw on canvas/DOM that jsdom
    does not have, so they are left out (they are not React components). */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -119,5 +119,23 @@ describe("render counts", () => {
     await settle();
     report("a toast");
     expect(updated()).toEqual(["Toast"]);
+  });
+
+  it("dragging the side panel's grip re-renders nothing until the release (4.10.2 review): one commit then", async () => {
+    try { localStorage.removeItem("sbNavWidth"); } catch { /* none */ }
+    const g = document.querySelector("#navGrip") as HTMLElement, main = document.querySelector(".main") as HTMLElement;
+    const x0 = parseFloat(g.style.left);
+    counts.clear();
+    await act(async () => { fireEvent.pointerDown(g, { button: 0, clientX: x0, pointerId: 1 }); });
+    for (let i = 1; i <= 8; i++) await act(async () => { fireEvent.pointerMove(g, { clientX: x0 + i * 5, pointerId: 1 }); await new Promise(r => setTimeout(r, 20)); });
+    report("drag the grip, 8 moves");
+    expect(updated()).toEqual([]);
+    expect(main.style.gridTemplateColumns).toBe(`${x0 + 40}px minmax(0,1fr)`);    // drawn without React
+    expect(g.style.left).toBe(`${x0 + 40}px`);
+    await act(async () => { fireEvent.pointerUp(g, { clientX: x0 + 40, pointerId: 1 }); });
+    await settle();
+    expect(localStorage.getItem("sbNavWidth")).toBe(String(x0 + 40));
+    expect(main.style.gridTemplateColumns).toBe(`${x0 + 40}px minmax(0,1fr)`);
+    try { localStorage.removeItem("sbNavWidth"); } catch { /* none */ }
   });
 });

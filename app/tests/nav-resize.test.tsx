@@ -54,6 +54,49 @@ describe("the side panel's width", () => {
     expect(localStorage.getItem("sbNavWidth")).toBeNull();
   });
 
+  it("a plain click on the grip (no move) does not overwrite a kept width", () => {
+    localStorage.setItem("sbNavWidth", "500");
+    const { container: c } = render(<Host />);
+    const g = c.querySelector("#navGrip")!;
+    act(() => { fireEvent.pointerDown(g, { button: 0, clientX: 500, pointerId: 1 }); fireEvent.pointerUp(g, { clientX: 500, pointerId: 1 }); });
+    expect(width(c)).toBe(500);
+    expect(localStorage.getItem("sbNavWidth")).toBe("500");
+    expect(document.body.classList.contains("navsizing")).toBe(false);
+  });
+
+  it("a lost pointer capture ends the drag (no col-resize cursor left behind)", () => {
+    const { container: c } = render(<Host />);
+    const g = c.querySelector("#navGrip")!;
+    act(() => { fireEvent.pointerDown(g, { button: 0, clientX: 340, pointerId: 1 }); fireEvent.pointerMove(g, { clientX: 360, pointerId: 1 }); });
+    expect(document.body.classList.contains("navsizing")).toBe(true);
+    act(() => { fireEvent(g, new Event("lostpointercapture")); });
+    expect(document.body.classList.contains("navsizing")).toBe(false);
+    expect(width(c)).toBe(360);
+  });
+
+  it("the keyboard: focusable, ←/→ 16 px (kept), Home the narrowest, End half the window, Enter the usual width; ARIA", () => {
+    const { container: c } = render(<Host />);
+    const g = c.querySelector("#navGrip") as HTMLElement;
+    expect(g.tabIndex).toBe(0);
+    expect([g.getAttribute("role"), g.getAttribute("aria-label"), g.getAttribute("aria-valuemin"), g.getAttribute("aria-valuemax"), g.getAttribute("aria-valuenow"), g.getAttribute("aria-controls")])
+      .toEqual(["separator", "Side panel width", "280", "683", "340", "sideNav"]);
+    act(() => { fireEvent.keyDown(g, { key: "ArrowRight" }); });
+    expect(width(c)).toBe(356);
+    expect(localStorage.getItem("sbNavWidth")).toBe("356");
+    act(() => { fireEvent.keyDown(g, { key: "ArrowLeft" }); });
+    act(() => { fireEvent.keyDown(g, { key: "ArrowLeft" }); });
+    expect(width(c)).toBe(324);
+    act(() => { fireEvent.keyDown(g, { key: "Home" }); });
+    expect(width(c)).toBe(280);
+    act(() => { fireEvent.keyDown(g, { key: "ArrowLeft" }); });
+    expect(width(c)).toBe(280);
+    act(() => { fireEvent.keyDown(g, { key: "End" }); });
+    expect([width(c), g.getAttribute("aria-valuenow"), localStorage.getItem("sbNavWidth")]).toEqual([683, "683", "683"]);
+    act(() => { fireEvent.keyDown(g, { key: "Enter" }); });
+    expect(width(c)).toBe(340);
+    expect(localStorage.getItem("sbNavWidth")).toBeNull();
+  });
+
   it("a kept width wider than this window shows as half of it (and is kept for a wider one)", () => {
     localStorage.setItem("sbNavWidth", "900");
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1200 });

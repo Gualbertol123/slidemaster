@@ -56,3 +56,5 @@
 .chartpanel #chartTargets .sub{display:block;font-size:11px;color:#5B6274;margin:6px 0 2px}
 .chartpanel #chartTargets .ref,.chartpanel #chartTargets .gap,.chartpanel #chartTargets .chg{border-left:2px solid var(--line,#e3e5ea);padding:2px 0 4px 6px;margin:2px 0}
 .chartpanel #chartTargets .hid .row>*:not(.chk){opacity:.55}
+/* the number-format boxes of a gap arrow / change pills: wide enough for their "as the cell(s)" placeholder */
+.chartpanel #chartTargets .num[data-a=gnum],.chartpanel #chartTargets .num[data-a=cnum]{width:88px;flex:none}

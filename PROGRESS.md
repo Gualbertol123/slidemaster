@@ -267,7 +267,7 @@ numbers measured twice). Measured numbers go into the step's line.
   chart selected the side panel scrolls as one page (it ran under the status bar). The other item tools (table, shapes,
   lines, icons, text box) are in the ribbon, not the side panel: unchanged. Slide rendering unchanged. Tests: app
   `nav-resize.test.tsx`, e2e `panel-width.spec.ts` PW-01 (1366×768, own workbook `tests/fixtures/Panel.xlsx`, a copy
-  of Targets.xlsx); page budget `page-budget/x4102.json` (+4,138 by measurement). Versions 4.10.2 (CHANGELOG dated
+  of Targets.xlsx); page budget `page-budget/x4102.json` (+5,149 by measurement). Versions 4.10.2 (CHANGELOG dated
   2026-10-22).
 
 ### S13.7 · Delete slide and Duplicate slide (after M13 closed; ships with the next release, 4.7.0 in CHANGELOG; owner Q12)
