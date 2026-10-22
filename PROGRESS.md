@@ -218,6 +218,9 @@ numbers measured twice). Measured numbers go into the step's line.
     clean entries move), and `core/tests/fixtures/dlhash-b48-base.json` (re-record with `DLHASH_WRITE=1`: M14 and M15
     change Liquid Glass and the consulting designs' charts, lines and icons by design).
 
+### S13.7 · Delete slide and Duplicate slide (after M13 closed; ships with the next release, 4.7.0 in CHANGELOG; owner Q12)
+- [ ] S13.7 · Delete slide and Duplicate slide (owner Q12, 2026-10-21; branch `v4/slide-menu`) — the slide list's right-click menu (`#ctxDupSlide`, `#ctxDelSlide`) and Delete in the slide list (on the slide shown); one `slide.add` / `slide.remove` each (no new op or key: the guard, inverses and vectors of S13.3 hold). The copy: core `model/slidecopy.ts` (items under new ids, the free boxes and attached line ends renamed). Decided: content slides only are duplicated (the wizard keeps one cover / contents); any slide but the last may be deleted, after a question. +2,156 bytes page (`page-budget/s13-7.json`, measured again on main 71d8806). Review: REQUEST CHANGES → "S13.7 · … (review fixes)": CHANGELOG bullet moved from the dated 4.6.0 notes to 4.7.0 (its own block, as B48–B50), Delete acts on `deck.cur`, `duplicateSlide` checks `doc.open`, one `slide.add` vector of a duplicated slide in `ops-vectors.json`, a comment pointing M15 at `slidecopy.ts`. Awaiting the orchestrator's checks (e2e `Delete slide and Duplicate slide`) and the second review.
+
 ### M14 · Charts (4.7.0; B30, B31; docs/next/09 §8, ADR-015 amended)
 - [x] S14.0 · Gates first (export-check gates PowerPoint "opened", `has_chart` / `has_table`; AUDIT-2 VER-3) – built in
   S14.P (e9f8ac0, c6c74a4; on main by PR #28); on the branch the gate grew `kinds` (`tools/real-charts.mjs`, S14.6
