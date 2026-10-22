@@ -77,9 +77,11 @@ describe("B51: the contents slide's title and list dragged in a free layout", ()
     await confirmed(h0 + 3);
     expect(get().deck.history.undoLabel).toBe("Resize title");
     const T = entry()!.items["c:title"]!;
-    expect(T.scale).toBeCloseTo(.75, 6); expect(T.x).toBeCloseTo(T0.x, 6); expect(T.w).toBeCloseTo(T0.w * .75, 6); expect(T.h).toBeCloseTo(T0.h * .75, 6);
+    // (4.9, on M15's snapping: the width is put on 1/4 px – "kept exactly as dropped" – and the scale follows from it)
+    expect(Math.abs(T.w - T0.w * .75)).toBeLessThanOrEqual(.125); expect(Number.isInteger(T.w * 4)).toBe(true);
+    expect(T.scale).toBeCloseTo(T.w / T0.w, 6); expect(T.x).toBeCloseTo(T0.x, 6); expect(T.h).toBeCloseTo(T.w * T0.h / T0.w, 6);
     expect(entry()!.items["c:toc"]).toEqual(L);                       // the list stays
-    await vi.waitFor(() => { const b = boxOf(part("title")!); expect(b.w).toBeCloseTo(T0.w * .75, 3); expect(b.h).toBeCloseTo(T0.h * .75, 3); }, { timeout: 10_000 });
+    await vi.waitFor(() => { const b = boxOf(part("title")!); expect(b.w).toBeCloseTo(T.w, 3); expect(b.h).toBeCloseTo(T.h, 3); }, { timeout: 10_000 });
 
     // Free layout off, then on again (review): the parts keep their places – their boxes are carried through
     await act(async () => { fireEvent.click(btn); }); await confirmed(h0 + 4);

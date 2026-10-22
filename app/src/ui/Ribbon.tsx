@@ -111,7 +111,7 @@ export function Ribbon() {
           <Ic n="paint" />Format</button>
       </div>
       <div className="grp numgrp" title="Number display of the selected cells (over Excel's format)">
-        <button {...nb({ id: "numDecDown", title: "Fewer decimals" })} onClick={() => stepNumber("dec-", activeItem())}>←.0</button>
+        <button {...nb({ id: "numDecDown", title: "Fewer decimals" })} onClick={() => stepNumber("dec-", activeItem())}><Ic n="arrow-narrow-left" />.0</button>
         <button {...nb({ id: "numDecUp", title: "More decimals" })} onClick={() => stepNumber("dec+", activeItem())}>.00</button>
         <button {...nb({ id: "numPct", title: "Percent (on / off)", active: !!num && numHas(num, "pct") })} onClick={() => stepNumber("pct", activeItem())}>%</button>
         <button {...nb({ id: "numThou", title: "Thousands separator (on / off)", active: !!num && numHas(num, "thou") })} onClick={() => stepNumber("thou", activeItem())}>000</button>

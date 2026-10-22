@@ -2,6 +2,7 @@
    this slide only (the same table on another slide keeps its rows); each one undo step (editor/hidden.ts). */
 import { useStore } from "../state/store";
 import { Dropdown } from "./Dropdown";
+import { Ic } from "./Ic";
 import { useCurSlide } from "./hooks";
 import { hiddenCount, hideSel, hideTarget, unhideAll } from "../editor/hidden";
 import { selTable } from "../editor/edit";
@@ -11,7 +12,7 @@ export function HideMenu() {
   const T = sel ? selTable() : undefined, can = !!(T?.def && sel), n = hiddenCount(R, hideTarget());
   return (
     <Dropdown button={(_o, t) => <button className="tb" id="hideBtn" disabled={!can && !n} title="Hide the selected rows or columns on this slide only (every export closes them up; the workbook is not changed)" onClick={t}>
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="1.5" y="2.5" width="13" height="11" /><path d="M1.5 7h13M1.5 8.6h13" /></svg>Hide{n ? ` (${n})` : ""} ▾</button>}>
+      <Ic n="eye-off" />Hide{n ? ` (${n})` : ""} ▾</button>}>
       {close => <>
         <button id="hideRows" disabled={!can} onClick={() => { close(); hideSel("r"); }}>Hide rows<small>The selected rows, on this slide only</small></button>
         <button id="hideCols" disabled={!can} onClick={() => { close(); hideSel("c"); }}>Hide columns<small>The selected columns, on this slide only</small></button>

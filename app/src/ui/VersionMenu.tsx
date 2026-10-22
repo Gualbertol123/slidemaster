@@ -3,6 +3,7 @@
    (editor/versions.ts). Disabled with the full deck shown. */
 import { useStore } from "../state/store";
 import { Dropdown } from "./Dropdown";
+import { Ic } from "./Ic";
 import { forVersion } from "../editor/versions";
 import { selCols, selRows } from "../editor/tables";
 import { dropCount, versionOf } from "@slide-builder/core/model/versions";
@@ -15,7 +16,7 @@ export function VersionMenu() {
   const s = (k: number, one: string) => `${k} ${one}${k === 1 ? "" : "s"}`;
   return (
     <Dropdown button={(_o, t) => <button className="tb" id="versionBtn" disabled={!v} title={v ? `Delete rows or columns, or empty cells, in “${v.name}” only (the full deck and the other versions keep them)` : "Choose a version first (Version in the top bar)"} onClick={t}>
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="1.5" y="2.5" width="13" height="11" /><path d="M1.5 8h13M5 5.5l6 5M11 5.5l-6 5" /></svg>For this version ▾</button>}>
+      <Ic n="table-minus" />For this version ▾</button>}>
       {close => v && <>
         <button id="vDropRows" disabled={!n.r} onClick={() => { close(); forVersion("dropRows"); }}>Delete rows<small>{n.r ? `${s(n.r, "row")} selected` : "Select cells first"} – the table closes up in “{v.name}”</small></button>
         <button id="vDropCols" disabled={!n.c} onClick={() => { close(); forVersion("dropCols"); }}>Delete columns<small>{n.c ? `${s(n.c, "column")} selected` : "Select cells first"}</small></button>
