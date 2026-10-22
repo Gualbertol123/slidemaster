@@ -75,13 +75,101 @@ For the maintainer
   a picture, round line ends; (7) every line is plain line shapes with PowerPoint's own ends – no connector
   (`p:cxnSp`), no picture – and the shapes a check names for the 1/4 px grid sit on multiples of 1,905 EMU.
 
-## 4.7.0 - unreleased (PLAN M14: charts; B30, B31)
+## 4.7.0 - 2026-10-22 (PLAN M14: charts; B30, B31; docs/next/09; ADR-015 amended 2026-10-21)
 
-(M14 writes this section on its own branch, v4/M14-charts. Shared preparation of both, S14.P, nothing users notice: the
-data model of 09 §2.2 / §2.3 and its ops, `Stroke.join` in every backend, the arrowheads, the PowerPoint gate of 09 §7.2,
-the per-kind item code paths, the page budget per milestone.)
+What users notice
+* **New chart types** (B30): column and bar (clustered, stacked, 100 %), line (straight or smoothed; circle, square,
+  diamond or triangle markers; a blank cell leaves a gap), area (standard, stacked, 100 %; a blank cell is drawn at
+  zero, as Excel and PowerPoint draw it), scatter (points at their x and y on a numeric x axis, an optional straight or
+  smoothed line), waterfall (steps floating on the running total in the design's positive and negative colours, columns
+  marked "a total" standing on the axis, thin connectors, values shown by default; legend Increase / Decrease / Total)
+  and combined charts – columns, lines and areas together, each series on the left value axis or on a second one on the
+  right (drawn only while a shown series uses it). In every design (Liquid Glass: gradient bars with a rounded end, on
+  its glass card).
+* **Several series per chart**, each from its own cells: any sheet, another slide's table, a linked workbook. Hidden
+  rows are left out; a version's removed cells and text cells are gaps. **Category groups** side by side on one axis
+  (for example the weeks, then the month-end targets), with a divider between them and, when named, their names in a
+  second row of labels.
+* **Axes** with Excel's automatic bounds and steps, or their own minimum, maximum, step and number format; gridlines on
+  request; gap width and overlap as Excel. **Data labels** (value, name, category, percent; outside or inside the end,
+  centre, inside the base; above, below, left, right or centred on a line's points – one that would overlap its
+  neighbour, a bar or the line moves to the other side or is left out). **"Actual inside target"** columns: the value
+  filled, its target outlined over it at the same width, the label "97 %" (value ÷ target). **Per-point** colours,
+  marker colours and labels (or none).
+* **The legend** (B31) right, left, top, bottom, top right or inside the plot; one entry or all of it hidden.
+* **Annotations that follow the data**: an arrow from the axis to a point, a line or a band at values, an icon or a text
+  (which can quote cells, as callouts do) above a column – they move with a reload, a scenario's value or a version.
+* **The chart's side panel**: the type switch offers every chart type (a pie or donut becomes a series chart of its own
+  numbers, keeping its slice colours as the points' colours and its name and value labels, and can go back); the series
+  list – add a series from cells chosen in the sheet view (any sheet, a linked workbook's too), remove, move up or down,
+  its name (typed or from a cell), colour, numbers, x values, targets, type and axis in a combined chart, smoothed line
+  and markers, labels and their place, hidden; the selected point's colour, marker colour, label and, in a waterfall,
+  "a total"; each axis; the legend; category groups; marks at the selected point; a frame and a line under the title.
+  A click on a point or a mark selects it (a ring shows it; the status line names it). Each change is one undo step;
+  two people changing two different series at once both keep their change, as do two people adding a series, a group
+  or a mark at the same time; on the same series the later change wins.
+* A stack per series is not offered: PowerPoint stacks a whole chart, never one series apart (the panel shows it
+  switched off and says why); the chart's own Stack setting is there.
+* **Charts made by earlier versions** look exactly as before: a chart without series draws as a pie (or a donut)
+  whatever type it was saved with; the panel shows it as the pie it draws, and choosing Column (or any series type)
+  gives it its first series.
+* **Issues line**: when a series on the left axis runs under a series on the right axis, the Issues panel says that
+  PowerPoint will draw the right axis's series on top (the slide draws them in the list's order).
+* The owner's "Loans Volume – Weekly Evolution" chart is rebuilt in the chart corpus (`tests/corpus/charts/lines.json`).
+* **PowerPoint export** of every chart type – column, bar, line, area, scatter, combined on two axes, waterfall, pie,
+  donut – as a native PowerPoint chart drawn where the slide draws it (the same plot area, axis bounds, bars, labels and
+  legend), its data in the embedded workbook: *Edit Data* shows each value with its own number format, and on a
+  waterfall moves its columns when a value changes (while each step keeps its side of zero). Named groups are
+  multi-level categories; targets an outlined series over the actual one; a waterfall the classic stacked construction
+  every PowerPoint opens. Arrows and lines on a chart are PowerPoint lines with PowerPoint's own arrowheads (triangle,
+  open arrow, stealth, oval, diamond; small / medium / large); dividers, bands, icons and texts are plain shapes over
+  the chart in its group. No picture, no connector shape, no link to the workbook.
+* **Italian separators in PowerPoint charts**: numbers inside a PowerPoint chart (axes, labels taken from the cells,
+  *Edit Data*) are shown with the separators of the computer that opens the file, as Excel does – on an Italian
+  Windows 11.576 and 2,5 %, on an English one 11,576 and 2.5 %. The slide, the PDF and the PNG always show the
+  workbook's Italian separators; the "97 %" of "actual inside target" is written as text, the same everywhere.
+* **The first save after a deck's first chart may take about 25 seconds** ("Saving…"): a deck holding a 4.7 chart is
+  marked for 4.6 and later once (the format guard's one-time wait, 4.6.0; Decisions 2026-10-21). An export started in
+  those seconds waits for that save, so **the first export right after adding a deck's first chart may take ~25 s**;
+  later saves and exports are as fast as before (a PowerPoint deck of 20 slides with 6 combined charts: about 2 s).
+* **Excel and Excel Refined in the Intesa Sanpaolo template** (B48): the cover has the template's blue band, the deck's
+  logo above the title, the title in 26 pt bold blue and the subtitle in grey; titles and subtitles, the page number
+  (top right; on by default unless the deck turned it off, none on the cover), the logo (bottom right), Century Gothic, the contents slide, bullets as tilted squares, outlined boxes and
+  the template's colours follow it. Long titles shrink to fit before they are cut. Liquid Glass and the consulting
+  designs are unchanged.
+* **Comment borders** (B49): a comment's box gets a border of the weight and colour you pick, or none (in Excel and
+  Excel Refined a border without a colour takes the template's grey, #7F7F7F).
+* **Comments as the macro writes them** (B50): vs Budget – Budget Performance and vs Previous Week – Weekly Momentum,
+  with the top contributors, the concentration ("largely driven by …"), the downside and the alerts (−5 % vs Budget,
+  −1 % week on week; editable); each section can still be added or removed, and has a rule: always, only in the last
+  week of the month, only in the first week, or from day N (e.g. "vs monthly Budget" only at the end of the month).
+  Comments written before keep their text until you switch them.
+* **Charts in the template** (Excel and Excel Refined, with the Aurora or Intesa Sanpaolo colour theme): every chart
+  starts in the template's chart colours (its blue first, at 25 % transparency), lines are drawn 2 pt wide, an area chart
+  is drawn as lines – stacked areas as stacked lines, each on the series below it – and doughnuts are thinner; the same
+  in PowerPoint (a native line chart). Liquid Glass and the consulting designs draw charts as before.
+* **Chart colours** (owner's decision, 2026-10-21): a chart starts in its design's colours and follows the design you
+  switch to; a colour you set for a series, a point or a slice stays in every design. ↺ beside a series' colour gives it
+  the design's colour again (as slices and points already had).
+* **A 4.6.0 window on a 4.7 deck** (both read format 5): it keeps every border, macro comment and chart as saved, but
+  shows a macro comment as a summary, draws no comment border, has no default page number in Excel, and draws a series
+  chart as 4.6 drew charts (a pie of the cells the chart was first made from), without its series, axes, legend
+  settings or marks – update to 4.7.
 
-## 4.6.0 - unreleased (PLAN M13; prepared 2026-10-21, dated at the tag)
+For the maintainer
+* A deck holding any of the new chart fields (`sers`, `groups`, `axes`, `marks`, `legendHide`, `titleFmt`, …) is
+  format 5 (ADR-019): 4.0–4.5 refuse it; a 4.6 page opens it, keeps every chart field byte for byte when it edits and
+  compacts (CP-01 case m14, `tools/compat-old.mjs`).
+* `tools/pptxcheck.py` checks the chart kinds of every export (`kinds`), and on Windows `plots` compares PowerPoint's
+  own plot areas, axis bounds and mark ends with the export's (`node tools/m14-package.mjs --out DIR` makes the
+  package).
+* B48–B50 (branch `v4/B48-B50-isp`) and M14 merged: the template's chart rules live in `render/isp.ts` (`ISP.chart`)
+  and reach the charts through `chartLook` (`ChartLook.hole`, `ChartLook.trend`); `core/tests/dlhash.test.ts` keeps
+  Liquid Glass and the consulting designs as they were (its fixture re-recorded for M14's embedded chart workbooks only).
+* The page grows by about 150 KB for M14 and 41 KB for B48–B50: 4,167,645 bytes (`app/tests/page-budget/m14.json`,
+  `b48.json`, `b49-b50.json`).
+
+## 4.6.0 - 2026-10-21 (PLAN M13)
 
 What users notice
 * **The share goes from 4.0 straight to 4.6**: users also get everything listed for 4.1–4.5 in CHANGELOG.md (never released

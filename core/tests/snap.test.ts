@@ -165,7 +165,7 @@ describe("dropped = saved = exported (SN-03, the core's part)", () => {
     const at = { x: 100.25, y: 200.5, w: 300.75, h: 120.25 }, freeAt = { x: 412.75, y: 610.25, w: 250.5, h: 90.75 };
     let checked = 0;
     const all: { nodes: Node[]; sem: SlideSem }[] = [];
-    for (const free of [false, true]) for (const design of ["excel", "glass"] as Design[]) {
+    for (const free of [false, true]) for (const design of ["excel", "mckinsey", "glass"] as Design[]) {
       const ops: Op[] = [...d.ops, { op: "item.patch", slide: SLIDE, id: "sq", patch: { kind: "shape", shape: "rect", box: at } } as Op,
         ...(free ? [{ op: "slide.patch", id: SLIDE, patch: { free: { [design]: { on: true, items: { "i:sq": freeAt } } } } } as Op] : [])];
       const view = applyOps(emptyDoc("W.xlsx"), ops).doc, style = resolveStyle({}, { ...view.style, design });
@@ -183,8 +183,16 @@ describe("dropped = saved = exported (SN-03, the core's part)", () => {
       const r = dl.nodes.slice(dl.items.sq.at[0], dl.items.sq.at[1]).find(n => n.t === "rect") as Extract<Node, { t: "rect" }> | undefined;
       // (Liquid Glass draws the box as its glass card: in PowerPoint a group at exactly the box)
       if (!r) { const off = `<a:off x="${want.x * EMU}" y="${want.y * EMU}"/><a:ext cx="${want.w * EMU}" cy="${want.h * EMU}"/>`; expect(xml.includes(off), `${design} free=${free}: ${off}`).toBe(true); continue; }
-      checked++;
       const sw = r.stroke ? r.stroke.w : 0;
+      // (Excel since B48, merged with M14: the template's outline, 2.222 px – 5/3 pt × 4/3 –, is off the 1/4 px grid, so
+      // the rect inset by half of it cannot be EMU exact; its box above is the saved one, and the drawn rect is within the
+      // display list's 0.01 px of it. A grid-width outline – Consulting Navy here – keeps the whole claim.)
+      if (!Number.isInteger(sw * 4)) {
+        [r.x - sw / 2, r.y - sw / 2, r.w + sw, r.h + sw].forEach((v, k) => expect(Math.abs(v - [want.x, want.y, want.w, want.h][k])).toBeLessThanOrEqual(.005 + 1e-9));
+        all.pop();                                     // (not in pptxcheck's 1/4 px file either)
+        continue;
+      }
+      checked++;
       expect([r.x - sw / 2, r.y - sw / 2, r.w + sw, r.h + sw], `${design} free=${free}`).toEqual([want.x, want.y, want.w, want.h]);
       const off = `<a:off x="${r.x * EMU}" y="${r.y * EMU}"/><a:ext cx="${r.w * EMU}" cy="${r.h * EMU}"/>`;
       expect(xml.includes(off), `${design} free=${free}: ${off}`).toBe(true);
@@ -197,6 +205,6 @@ describe("dropped = saved = exported (SN-03, the core's part)", () => {
       const f = path.join(process.env.PPTX_OUT, "snap-quarter-px.pptx");
       fs.writeFileSync(f, writePptx({ slides: all, image: () => new Uint8Array(0), face: css => pptxFamily(css), title: "Snap", design: "Excel" }));
       fs.writeFileSync(path.join(process.env.PPTX_OUT, "snap-quarter-px.expect.json"), JSON.stringify({ [f]: all.map((_, k) => ({ slide: k + 1, tables: 1, charts: 0, lines: 0, quarter: ["Callout"] })) }));
-    }                                                  // Excel's rect, automatic and free
+    }                                                  // Consulting Navy's rect and Liquid Glass's card, automatic and free
   });
 });

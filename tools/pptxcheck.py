@@ -17,8 +17,12 @@ check needs PowerPoint (Windows, COM through PowerShell). The helper stays stand
         (3) PowerPoint (unless --no-ppt, or no PowerPoint): Presentations.Open read-only without a window – a file
             it cannot read raises in automation (not every repair does: (1)'s lint covers those) –; the slide count and every shape's text read back and
             compared with (2)
-        (4) with --sources ({file: {workbook, charts: [{slide, sheet, range}]}}): each chart's cached values equal the
-            workbook's cells (openpyxl, the values Excel saved; text, blank and hidden cells skipped as the chart skips them)
+        (4) with --sources ({file: {workbook, charts: [{slide, sheet, range, start?, before?, name?, axis?, mask?}]}}): one series of the
+            chart (named `name`, when given) holds the workbook's cells at their category positions – the cells' first at
+            category `start` (default 0) plus the visible cells of the ranges `before` ([{sheet, range}]: the category
+            groups' before its own), a blank cell a gap there, and no value outside them
+            (openpyxl, the values Excel saved; hidden cells skipped as the chart skips them). A pie may instead hold the
+            cells' numbers with blanks and text left out (the old reading)
         (5) real objects, gated (S14.P; AUDIT-2 VER-3, PX-02 / PX-03, 09 §7.2): with --expect ({file: [{slide, tables,
             charts}]}, tools/real-objects.mjs: what the core's own export draws) each slide holds exactly those real
             tables (python-pptx has_table) and native charts (has_chart), a slide not listed none;
@@ -89,13 +93,31 @@ C = "{%s}" % NS["c"]
 C_ORDER = {
     "pieChart": ["varyColors", "ser", "dLbls", "firstSliceAng", "extLst"],
     "doughnutChart": ["varyColors", "ser", "dLbls", "firstSliceAng", "holeSize", "extLst"],
-    "ser": ["idx", "order", "tx", "spPr", "explosion", "dPt", "dLbls", "cat", "val", "extLst"],
     "dPt": ["idx", "invertIfNegative", "marker", "bubble3D", "explosion", "spPr", "pictureOptions", "extLst"],
     "dLbls": ["dLbl", "delete", "numFmt", "spPr", "txPr", "dLblPos", "showLegendKey", "showVal", "showCatName", "showSerName", "showPercent", "showBubbleSize", "separator", "showLeaderLines", "leaderLines", "extLst"],
     "dLbl": ["idx", "delete", "layout", "tx", "numFmt", "spPr", "txPr", "dLblPos", "showLegendKey", "showVal", "showCatName", "showSerName", "showPercent", "showBubbleSize", "separator", "extLst"],
-    "chart": ["title", "autoTitleDeleted", "pivotFmts", "view3D", "floor", "sideWall", "backWall", "plotArea", "legend", "plotVisOnly", "dispBlanksAs", "extLst"],
+    "chart": ["title", "autoTitleDeleted", "pivotFmts", "view3D", "floor", "sideWall", "backWall", "plotArea", "legend", "plotVisOnly", "dispBlanksAs", "showDLblsOverMax", "extLst"],
     "chartSpace": ["date1904", "lang", "roundedCorners", "AlternateContent", "clrMapOvr", "pivotSource", "protection", "chart", "spPr", "txPr", "externalData", "printSettings", "userShapes", "extLst"],
     "legend": ["legendPos", "legendEntry", "layout", "overlay", "spPr", "txPr", "extLst"],
+    # column and bar charts (4.7, S14.2; 09 §4.2): the bar group, its axes, a manual layout, a title, a hidden legend
+    # entry (the plot area and each chart group's c:ser: chart_order below)
+    "barChart": ["barDir", "grouping", "varyColors", "ser", "dLbls", "gapWidth", "overlap", "serLines", "axId", "extLst"],
+    "catAx": ["axId", "scaling", "delete", "axPos", "majorGridlines", "minorGridlines", "title", "numFmt", "majorTickMark", "minorTickMark", "tickLblPos", "spPr", "txPr",
+              "crossAx", "crosses", "crossesAt", "auto", "lblAlgn", "lblOffset", "tickLblSkip", "tickMarkSkip", "noMultiLvlLbl", "extLst"],
+    "valAx": ["axId", "scaling", "delete", "axPos", "majorGridlines", "minorGridlines", "title", "numFmt", "majorTickMark", "minorTickMark", "tickLblPos", "spPr", "txPr",
+              "crossAx", "crosses", "crossesAt", "crossBetween", "majorUnit", "minorUnit", "dispUnits", "extLst"],
+    "scaling": ["logBase", "orientation", "max", "min", "extLst"],
+    "manualLayout": ["layoutTarget", "xMode", "yMode", "wMode", "hMode", "x", "y", "w", "h", "extLst"],
+    "title": ["tx", "layout", "overlay", "spPr", "txPr", "extLst"],
+    "legendEntry": ["idx", "delete", "txPr", "extLst"],
+    # line and area charts, a line's marker, multi-level categories (4.7, S14.3; 09 §4.2)
+    "lineChart": ["grouping", "varyColors", "ser", "dLbls", "dropLines", "hiLowLines", "upDownBars", "marker", "smooth", "axId", "extLst"],
+    "areaChart": ["grouping", "varyColors", "ser", "dLbls", "dropLines", "axId", "extLst"],
+    "marker": ["symbol", "size", "spPr", "extLst"],
+    "multiLvlStrRef": ["f", "multiLvlStrCache", "extLst"],
+    "multiLvlStrCache": ["ptCount", "lvl", "extLst"],
+    # scatter charts (4.7, S14.4; 09 §4.2)
+    "scatterChart": ["scatterStyle", "varyColors", "ser", "dLbls", "axId", "extLst"],
 }
 LN_TAGS = ("ln", "lnL", "lnR", "lnT", "lnB")
 
@@ -244,6 +266,7 @@ def structure(path, slides=None):
     for n, root in xml.items():
         if re.match(r"ppt/(slides|slideLayouts|slideMasters|charts)/[^/]+\.xml$", n):
             bad.extend(lint(n, root))
+            bad.extend(chart_order(n, root))            # (1) M14: per parent (its own function below)
         if not n.endswith(".rels"):
             continue
         rids = [r.get("Id") for r in root.findall("rel:Relationship", NS)]
@@ -262,7 +285,7 @@ def structure(path, slides=None):
         return bad + ["no ppt/presentation.xml"], facts
     sz = pres.find("p:sldSz", NS)
     if sz is None or (int(sz.get("cx")), int(sz.get("cy"))) != SLIDE_SIZE:
-        bad.append("slide size %s, not 16:9 12192000 × 6858000" % (None if sz is None else (sz.get("cx"), sz.get("cy"))))
+        bad.append("slide size %s, not 16:9 12192000 × 6858000" % ((None if sz is None else (sz.get("cx"), sz.get("cy"))),))
     ids = pres.findall("p:sldIdLst/p:sldId", NS)
     facts["slides"] = len(ids)
     if slides is not None and len(ids) != slides:
@@ -342,7 +365,11 @@ def _shape_texts(shape, out, info):
         ch = shape.chart
         plot = ch.plots[0]
         info["charts"].append({"type": str(ch.chart_type), "title": ch.chart_title.text_frame.text if ch.has_title else "",
-                               "categories": [str(c) for c in plot.categories], "values": list(plot.series[0].values)})
+                               "categories": [str(c) for c in plot.categories], "values": list(plot.series[0].values),
+                               # (4.7, S14.2) every series of every plot: its name and cached values (None = a gap)
+                               "series": [dict({"name": s.name, "values": list(s.values)}, **scatter_xs(s)) for pl in ch.plots for s in pl.series],
+                               # (4.7, S14.3) each chart group's kind (BarPlot, LinePlot, AreaPlot …) and the category levels
+                               "plots": [type(pl).__name__ for pl in ch.plots], "levels": plot.categories.depth})
         return
     if shape.shape_type == 13:
         info["pictures"] += 1
@@ -443,13 +470,240 @@ def source_values(workbook, sheet, rng):
     wb = openpyxl.load_workbook(workbook, data_only=True)
     ws = wb[sheet]
     out = []
-    for row in ws[rng]:
+    cells = ws[rng]
+    # (a single cell is a Cell, a row or a column a tuple of cells, a rectangle a tuple of rows)
+    for row in (cells if isinstance(cells, tuple) else ((cells,),)):
         for c in (row if isinstance(row, tuple) else (row,)):
             if ws.row_dimensions[c.row].hidden or ws.column_dimensions[c.column_letter].hidden:
                 continue
             if isinstance(c.value, (int, float)) and not isinstance(c.value, bool):
                 out.append(float(c.value))
     return out
+
+
+def source_cells(workbook, sheet, rng):
+    """a range's cells as a chart reads them, by position: rows then columns, hidden rows / columns skipped, a number as a
+    float, anything else (blank, text) None"""
+    import openpyxl
+    wb = openpyxl.load_workbook(workbook, data_only=True)
+    ws = wb[sheet]
+    cells = ws[rng]
+    out = []
+    for row in (cells if isinstance(cells, tuple) else ((cells,),)):
+        for c in (row if isinstance(row, tuple) else (row,)):
+            if ws.row_dimensions[c.row].hidden or ws.column_dimensions[c.column_letter].hidden:
+                continue
+            out.append(float(c.value) if isinstance(c.value, (int, float)) and not isinstance(c.value, bool) else None)
+    return out
+
+
+def scatter_xs(series):
+    """(4.7, S14.4) a scatter series' cached x values (None = no point), read from its c:xVal – python-pptx reads only the
+    y values; {} for any other series"""
+    xv = series._element.find(C + "xVal")
+    if xv is None:
+        return {}
+    cache = xv.find(".//" + C + "numCache")
+    if cache is None:
+        return {"xs": []}
+    n = int(cache.find(C + "ptCount").get("val"))
+    out = [None] * n
+    for pt in cache.findall(C + "pt"):
+        out[int(pt.get("idx"))] = float(pt.find(C + "v").text)
+    return {"xs": out}
+
+
+def series_at(values, cells, start):
+    """(4) a series' cached values hold the cells at categories start… (a blank cell is a gap) and nothing elsewhere (4.7,
+    S14.3 review 4: a series cached under the wrong categories – off by its group's start – fails)"""
+    # (cells past the cache's end may only be gaps: a cache's ptCount can stop at its last point)
+    if start < 0 or len(values) < start + len(cells) and any(w is not None for w in cells[max(0, len(values) - start):]):
+        return False
+    for i, v in enumerate(values):
+        w = cells[i - start] if start <= i < start + len(cells) else None
+        if (v is None) != (w is None):
+            return False
+        if w is not None and abs(float(v) - w) > 1e-12 * max(1.0, abs(w)):
+            return False
+    return True
+
+
+# ---- M14 (4.7; S14.2 review, 4): the chart part's order checks that depend on the parent, its own function ----
+# a choice of the schema: one rank for every chart group and every axis of a plot area
+C_SLOT = dict([(k, "CHART") for k in ("areaChart", "area3DChart", "lineChart", "line3DChart", "stockChart", "radarChart", "scatterChart", "pieChart", "pie3DChart",
+                                      "doughnutChart", "barChart", "bar3DChart", "ofPieChart", "surfaceChart", "surface3DChart", "bubbleChart")]
+              + [(k, "AXIS") for k in ("valAx", "catAx", "dateAx", "serAx")])
+# each chart group's own series type (ECMA-376 part 1, CT_PieSer, CT_BarSer, CT_LineSer, CT_AreaSer): a pie's c:ser takes
+# no invertIfNegative, a bar's no explosion, an area's no marker
+_PIE_SER = ["idx", "order", "tx", "spPr", "explosion", "dPt", "dLbls", "cat", "val", "extLst"]
+C_PARENT_ORDER = {
+    "plotArea": ["layout", "CHART", "AXIS", "dTable", "spPr", "extLst"],
+    "pieChart/ser": _PIE_SER,
+    "doughnutChart/ser": _PIE_SER,
+    "barChart/ser": ["idx", "order", "tx", "spPr", "invertIfNegative", "pictureOptions", "dPt", "dLbls", "trendline", "errBars", "cat", "val", "shape", "extLst"],
+    "lineChart/ser": ["idx", "order", "tx", "spPr", "marker", "dPt", "dLbls", "trendline", "errBars", "cat", "val", "smooth", "extLst"],
+    "areaChart/ser": ["idx", "order", "tx", "spPr", "pictureOptions", "dPt", "dLbls", "trendline", "errBars", "cat", "val", "extLst"],
+    # (4.7, S14.4) CT_ScatterSer
+    "scatterChart/ser": ["idx", "order", "tx", "spPr", "marker", "dPt", "dLbls", "trendline", "errBars", "xVal", "yVal", "smooth", "extLst"],
+}
+
+
+def chart_order(name, root):
+    """(1) a chart part's children whose order depends on the parent (4.7, S14.2 review 4): the plot area's (its chart
+    groups, then its axes) and each chart group's c:ser, by the group's own series type; a c:ser under any other group is
+    not checked. The problems as lint() words them"""
+    out = []
+    if root.tag != C + "chartSpace":
+        return out
+
+    def check(e, key, label):
+        seq, last = C_PARENT_ORDER[key], -1
+        for ch in e:
+            n = _local(ch.tag)
+            n = C_SLOT.get(n, n) if key == "plotArea" else n
+            if n not in seq:
+                out.append("%s: <c:%s> in <c:%s>" % (name, n, label))
+                continue
+            if seq.index(n) < last:
+                out.append("%s: <c:%s> after a later child in <c:%s>" % (name, n, label))
+            last = max(last, seq.index(n))
+    for pa in root.iter(C + "plotArea"):
+        check(pa, "plotArea", "plotArea")
+        for g in pa:
+            key = _local(g.tag) + "/ser"
+            if key in C_PARENT_ORDER:
+                for ser in g.findall("c:ser", NS):
+                    check(ser, key, "ser> of <c:" + _local(g.tag))
+    return out[:20]
+
+
+PS_PLOTS = r"""
+$ErrorActionPreference = "Stop"
+$job = Get-Content -Raw -Encoding UTF8 $args[0] | ConvertFrom-Json
+$was = $true; try { [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application") | Out-Null } catch { $was = $false }
+$app = New-Object -ComObject PowerPoint.Application
+$out = @{ file = $job.file; ok = $false; charts = @(); error = "" }
+function charts($shapes, $n, [ref]$acc) {
+  # (S14.6 review 5) the arrow and line marks beside a chart in its group: their boxes and flips (their ends)
+  $lines = @()
+  foreach ($sh in $shapes) {
+    if ($sh.Type -ne 6 -and $sh.Name -match '^(Arrow|Line) \d+$') { $lines += @{ name = $sh.Name; left = $sh.Left; top = $sh.Top; width = $sh.Width; height = $sh.Height; flipH = [int]$sh.HorizontalFlip; flipV = [int]$sh.VerticalFlip } }
+  }
+  foreach ($sh in $shapes) {
+    if ($sh.Type -eq 6) { charts $sh.GroupItems $n $acc; continue }
+    if (-not $sh.HasChart) { continue }
+    $ch = $sh.Chart; $pa = $ch.PlotArea
+    $c = @{ slide = $n; left = $sh.Left; top = $sh.Top; width = $sh.Width; height = $sh.Height; inLeft = $pa.InsideLeft; inTop = $pa.InsideTop; inWidth = $pa.InsideWidth; inHeight = $pa.InsideHeight; ymin = $null; ymax = $null; y2min = $null; y2max = $null; lines = $lines }
+    try { $ax = $ch.Axes(2, 1); $c.ymin = $ax.MinimumScale; $c.ymax = $ax.MaximumScale } catch {}
+    try { $ax = $ch.Axes(2, 2); $c.y2min = $ax.MinimumScale; $c.y2max = $ax.MaximumScale } catch {}
+    $acc.Value += $c
+  }
+}
+try {
+  $p = $app.Presentations.Open($job.file, -1, 0, 0)
+  $acc = @()
+  foreach ($s in $p.Slides) {
+    charts $s.Shapes $s.SlideIndex ([ref]$acc)
+    if ($job.png) { $s.Export((Join-Path $job.png ("slide-" + $s.SlideIndex + ".png")), "PNG", 1600, 900) }
+  }
+  $out.charts = $acc; $p.Close(); $out.ok = $true
+} catch { $out.error = $_.Exception.Message } finally { if (-not $was) { $app.Quit() | Out-Null } }
+ConvertTo-Json -Depth 6 -InputObject $out | Out-File -Encoding UTF8 $args[1]
+"""
+
+
+def plots(path, expect, png=None, timeout=600):
+    """PX-06 (4.7, S14.6; 09 §4.2), Windows with PowerPoint only: the marks over a native chart land on its data when
+    PowerPoint's plot is the slide's plot – each chart of `expect` ([{slide, frame, plot, val, val2?, arrows}], slide px;
+    written by core/tests/pptx-charts-m14.test.ts beside each file as <name>.plots.json) is found by its frame, and
+    PowerPoint's inner plot area (PlotArea.Inside*, points; 1 px = 0.6 pt) must be within 2 px of `plot`, its value axes'
+    bounds (MinimumScale / MaximumScale) the drawn ones, and each arrow / line mark's two ends (its line shape's box and
+    flips) within 2 px of the slide's `a` and `b` (compare_plots). `png`: a folder for every slide exported by PowerPoint at 1600 × 900
+    (Slide.Export) to look at. Returns (problems, PowerPoint's charts)"""
+    if not powerpoint_available():
+        return ["PowerPoint is not available here (PX-06 runs on Windows with PowerPoint)"], []
+    d = tempfile.mkdtemp(prefix="pptxcheck-plots-")
+    script, job, res = os.path.join(d, "plots.ps1"), os.path.join(d, "job.json"), os.path.join(d, "out.json")
+    with open(script, "w", encoding="utf-8-sig") as f:
+        f.write(PS_PLOTS)
+    if png:
+        os.makedirs(png, exist_ok=True)
+    with open(job, "w", encoding="utf-8") as f:
+        json.dump({"file": os.path.abspath(path), "png": os.path.abspath(png) if png else ""}, f)
+    try:
+        subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, job, res], capture_output=True, text=True, timeout=timeout)
+        with open(res, encoding="utf-8-sig") as f:
+            r = json.load(f)
+    except (OSError, ValueError, subprocess.TimeoutExpired) as e:
+        return ["PowerPoint: no answer (%s)" % e], []
+    if not r.get("ok"):
+        return ["PowerPoint: %s" % (r.get("error") or "not opened")], []
+    got = r.get("charts") or []
+    got = got if isinstance(got, list) else [got]
+    return compare_plots(expect, got), got
+
+
+def _px(pt):
+    return (pt or 0) / 0.6
+
+
+def line_ends(ln):
+    """a line shape's two ends in slide px from PowerPoint's Left / Top / Width / Height (points) and its flips: unflipped
+    it runs from the box's top-left to its bottom-right; HorizontalFlip / VerticalFlip (msoTrue = -1) swap the sides –
+    as pptx/chart-overlay.ts writes it (flipH when b is left of a, flipV when b is above a)"""
+    x0, y0 = _px(ln.get("left")), _px(ln.get("top"))
+    x1, y1 = x0 + _px(ln.get("width")), y0 + _px(ln.get("height"))
+    if ln.get("flipH"):
+        x0, x1 = x1, x0
+    if ln.get("flipV"):
+        y0, y1 = y1, y0
+    return (x0, y0), (x1, y1)
+
+
+def compare_marks(arrows, lines, tol=2.0):
+    """(S14.6 review 5) each expected arrow / line mark ({a, b}, slide px) against PowerPoint's line shapes of the chart's
+    group (line_ends): one shape each, its first end on `a` and its second on `b` within `tol` px (the heads sit on the
+    ends, so a swapped line is a wrong arrow); no shape left over. Returns the problems"""
+    lines = lines if isinstance(lines, list) else ([lines] if lines else [])
+    left, bad = list(range(len(lines))), []
+    ends = [line_ends(l) for l in lines]
+    for k, e in enumerate(arrows or []):
+        a, b = (e["a"]["x"], e["a"]["y"]), (e["b"]["x"], e["b"]["y"])
+        off = lambda j: max(abs(ends[j][0][0] - a[0]), abs(ends[j][0][1] - a[1]), abs(ends[j][1][0] - b[0]), abs(ends[j][1][1] - b[1]))
+        best = min(left, key=off) if left else None
+        if best is None or off(best) > tol:
+            near = "" if best is None else ": the nearest, %s, runs %s → %s (%.1f px off)" % (lines[best].get("name", "?"), tuple(round(v, 1) for v in ends[best][0]), tuple(round(v, 1) for v in ends[best][1]), off(best))
+            bad.append("mark %d %s → %s: no line shape on it%s" % (k + 1, a, b, near))
+            continue
+        left.remove(best)
+    for j in left:
+        bad.append("%s: a line shape no mark of the slide has" % lines[j].get("name", "?"))
+    return bad
+
+
+def compare_plots(expect, got):
+    """PX-06's comparison (plots(), separate so that it runs without PowerPoint): `expect` as <name>.plots.json, `got`
+    PowerPoint's charts as PS_PLOTS reports them (points). Returns the problems"""
+    px = _px
+    bad = []
+    for k, e in enumerate(expect):
+        F = e["frame"]
+        mine = [c for c in got if c["slide"] == e["slide"] and abs(px(c["left"]) - F["x"]) <= 2 and abs(px(c["top"]) - F["y"]) <= 2]
+        if not mine:
+            bad.append("chart %d (slide %d): no native chart at its frame (%.0f, %.0f)" % (k + 1, e["slide"], F["x"], F["y"]))
+            continue
+        c, P = mine[0], e["plot"]
+        at = {"x": px(c["left"] + c["inLeft"]), "y": px(c["top"] + c["inTop"]), "w": px(c["inWidth"]), "h": px(c["inHeight"])}
+        off = max(abs(at[q] - P[q]) for q in "xywh")
+        if off > 2:
+            bad.append("chart %d (slide %d): PowerPoint's plot %s is %.1f px off the slide's %s" % (k + 1, e["slide"], {q: round(v, 1) for q, v in at.items()}, off, P))
+        for key, lo, hi in (("val", "ymin", "ymax"), ("val2", "y2min", "y2max")):
+            V = e.get(key)
+            if V and (c.get(lo) is None or abs(c[lo] - V["min"]) > 1e-9 * max(1, abs(V["min"])) or abs(c[hi] - V["max"]) > 1e-9 * max(1, abs(V["max"]))):
+                bad.append("chart %d (slide %d): PowerPoint's %s axis %s–%s, drawn %s–%s" % (k + 1, e["slide"], "second" if key == "val2" else "value", c.get(lo), c.get(hi), V["min"], V["max"]))
+        # (S14.6 review 5: the marks – the plan's "within 2 px at 1600" – each arrow's ends on the slide's)
+        bad.extend("chart %d (slide %d): %s" % (k + 1, e["slide"], m) for m in compare_marks(e.get("arrows") or [], c.get("lines") or []))
+    return bad
 
 
 def real_objects(rep_content, expect, who):
@@ -467,7 +721,22 @@ def real_objects(rep_content, expect, who):
             have = (len(s["charts"]) if k == "charts" else s["tables"]) if s else 0
             if have != w:
                 bad.append("slide %d: %s %d %s(s), the export draws %d" % (n, who, have, word, w))
+        # (4.7, S14.6, PX-05: tools/real-charts.mjs) each native chart's chart groups, as the core writes them
+        kinds = (want.get(n) or {}).get("kinds")
+        if kinds is not None and s is not None:
+            got = sorted(chart_kinds(c) for c in s["charts"])
+            if got != sorted(kinds):
+                bad.append("slide %d: %s chart types %s, the export writes %s" % (n, who, got, sorted(kinds)))
     return bad
+
+
+PLOT_KIND = {"BarPlot": "bar", "LinePlot": "line", "AreaPlot": "area", "XyPlot": "scatter", "PiePlot": "pie", "DoughnutPlot": "doughnut"}
+
+
+def chart_kinds(chart):
+    """a chart of the content (2) as tools/real-charts.mjs names it: its plots' kinds in order, joined ("bar+line"). (5)
+    compares them per slide, sorted, when an --expect entry has `kinds` (4.7, S14.6, PX-05: every chart type native)"""
+    return "+".join(PLOT_KIND.get(p, p) for p in chart.get("plots") or [])
 
 
 def check(paths, slides=None, ppt=True, report=None, sources=None, expect=None):
@@ -496,11 +765,29 @@ def check(paths, slides=None, ppt=True, report=None, sources=None, expect=None):
             for k, spec in enumerate(src["charts"]):
                 found = [c for s in rep["content"]["slides"][spec["slide"] - 1:spec["slide"]] for c in s["charts"]]
                 want = source_values(src["workbook"], spec["sheet"], spec["range"])
+                cells = source_cells(src["workbook"], spec["sheet"], spec["range"])
+                # (4.7, S14.4 review 5: `mask` {sheet, range} – a scatter series' x cells: a y cell whose x is blank or text
+                # has no point, so no cache)
+                if spec.get("mask"):
+                    m = source_cells(src["workbook"], spec["mask"]["sheet"], spec["mask"]["range"])
+                    cells = [c if k < len(m) and m[k] is not None else None for k, c in enumerate(cells)]
+                # (a group's start: `start` plus the visible cells of the category ranges `before` it – hidden rows and
+                # columns skipped, as the chart skips them; S14.3 re-check)
+                start = int(spec.get("start") or 0) + sum(len(source_cells(src["workbook"], b["sheet"], b["range"])) for b in spec.get("before") or [])
+                name = spec.get("name")
                 # (the cache keeps Excel's 15 significant digits: equal within that)
                 same = lambda a, b: len(a) == len(b) and all(abs(float(x) - y) <= 1e-12 * max(1.0, abs(y)) for x, y in zip(a, b))
-                mine = [c for c in found if same(c["values"], want)]
+                # (4.7, S14.3: one series of the chart – a combo's line, a group's columns – at its categories, from its
+                # group's start; a pie as before)
+                pie = lambda c: "PIE" in c["type"] or "DOUGHNUT" in c["type"]
+                # (4.7, S14.4: `axis: "x"` – a scatter series' x values, against its own c:xVal cache)
+                key = "xs" if spec.get("axis") == "x" else "values"
+                mine = [c for c in found
+                        if any(key in x and series_at(list(x[key]), cells, start) and (name is None or x.get("name") == name) for x in (c.get("series") or [{"values": c["values"]}]))
+                        or (pie(c) and not start and name is None and same(c["values"], want))]
                 if not mine:
-                    bad.append("chart %d (slide %d, %s!%s): no chart with the cells' values %s" % (k + 1, spec["slide"], spec["sheet"], spec["range"], want[:4]))
+                    bad.append("chart %d (slide %d, %s!%s%s): no series with the cells' values %s at categories %d…"
+                               % (k + 1, spec["slide"], spec["sheet"], spec["range"], " '%s'" % name if name else "", cells[:4], start))
         if use_ppt:
             o = opened.get(os.path.abspath(p).lower())
             if not o or not o.get("ok"):
@@ -529,7 +816,7 @@ def check(paths, slides=None, ppt=True, report=None, sources=None, expect=None):
         ok = ok and not bad
         print(("PASS " if not bad else "FAIL ") + os.path.basename(p) + ("" if not bad else ": " + "; ".join(bad[:4])))
     if not use_ppt and ppt:
-        print("(PowerPoint is not available here: checks 1–2, 4 and python-pptx's real tables and charts (5) only; on a PC with PowerPoint, 3 and 5 are gates)")
+        print("(PowerPoint is not available here: checks 1–2, 4, python-pptx's real tables and charts (5), the icons (6) and the lines (7) only; on a PC with PowerPoint, 3 and 5 are gates)")
     if report:
         with open(report, "w", encoding="utf-8") as f:
             json.dump(reports, f, ensure_ascii=False, indent=1)
@@ -796,7 +1083,18 @@ def main(argv):
     c.add_argument("--expect")
     i = sub.add_parser("info")
     i.add_argument("files", nargs="+")
+    m = sub.add_parser("plots", help="PX-06 (S14.6): PowerPoint's plot areas and axis bounds against the slide's (Windows)")
+    m.add_argument("files", nargs="+")
+    m.add_argument("--png", help="a folder: every slide exported by PowerPoint (1600 × 900)")
     a = ap.parse_args(argv)
+    if a.cmd == "plots":
+        ok = True
+        for p in a.files:
+            with open(re.sub(r"\.pptx$", "", p) + ".plots.json", encoding="utf-8") as f:
+                bad, _ = plots(p, json.load(f), os.path.join(a.png, os.path.splitext(os.path.basename(p))[0]) if a.png else None)
+            print(("PASS " if not bad else "FAIL ") + os.path.basename(p) + ("" if not bad else ": " + "; ".join(bad[:4])))
+            ok = ok and not bad
+        return 0 if ok else 1
     if a.cmd == "info":
         out = []
         for p in a.files:

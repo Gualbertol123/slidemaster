@@ -11,13 +11,14 @@ import { insertShape, itemOf, itemPatch } from "../editor/charts";
 import { setStage, useStage } from "../stage/data";
 import { Dropdown } from "./Dropdown";
 import { Input } from "./Input";
-import { useCurSlide } from "./hooks";
+import { useCurSlide, useDesign } from "./hooks";
 import { Ic } from "./Ic";
 import { openIconPicker } from "./IconPicker";
 import { LineTools } from "./LineTools";
 import { freeKey } from "@slide-builder/core/render/layout";
 import { change } from "../state/app";
 import { freeOp } from "../stage/drags";
+import { isIsp, ISP_FILLS } from "@slide-builder/core/model/isp";
 
 const SHAPES: [ShapeItem["shape"], string][] = [["rect", "Rectangle"], ["round", "Rounded rectangle"], ["pill", "Pill"], ["circle", "Circle"], ["arrow", "Arrow"], ["bubble", "Speech bubble"]];
 const d = (cmds: PathCmd[]) => cmds.map(c => c[0] + c.slice(1).join(" ")).join(" ");
@@ -48,7 +49,7 @@ const FILLS = ["#FFFFFF", "#F2F2F2", "#FFF4D6", "#E8F1FF", "#E6F6EC", "#FDE8E6",
 const INKS = ["#0B0D17", "#5B6274", "#FFFFFF", "#1C4F8C", "#2251FF", "#1E8E3E", "#C42B1C", "#B25000"];
 /** the selected shape's controls (only while one is selected) */
 export function ShapeTools() {
-  const itemSel = useStore(s => s.selection.itemSel), R = useCurSlide();
+  const itemSel = useStore(s => s.selection.itemSel), R = useCurSlide(), isp = isIsp(useDesign());
   const it = itemOf(itemSel?.id, R);
   // a line's controls in the same place (S15.3)
   if (it?.kind === "line") return <LineTools />;
@@ -62,6 +63,7 @@ export function ShapeTools() {
     <Dropdown button={(_o, t) => <button className="tb colorbtn" id="shapeFill" title={icon ? "Colour of the icon" : "Fill of the shape"} onClick={t}><Ic n="bucket-droplet" /><i className="sw" style={{ background: it.fill && it.fill !== "none" ? it.fill : "linear-gradient(135deg,#fff 45%,#cfd8e6 55%)" }} /></button>}>
       {close => <>
         <div className="hd">{icon ? "Icon colour" : "Fill"}</div>{sw(FILLS, c => set(icon ? "Icon colour" : "Shape fill", { fill: c }), "data-fill", close)}
+        {isp && <><div className="hd">Template fills <small>Intesa Sanpaolo: 25, 50 or 75 % transparency</small></div>{sw(ISP_FILLS.map(([c]) => c), c => set(icon ? "Icon colour" : "Shape fill", { fill: c }), "data-fill", close)}</>}
         <div className="wide"><button data-fill="" onClick={() => { close(); set("Fill of the design", { fill: null }); }}>{icon ? "Text colour" : "The design's (glass, card…)"}</button>
           {!icon && <button data-fill="none" onClick={() => { close(); set("No fill", { fill: "none" }); }}>No fill</button>}
           <label className="custom">Custom…<Input type="color" value={it.fill && it.fill !== "none" ? it.fill : "#FFFFFF"} onCommit={e => { close(); set("Shape fill", { fill: (e.target as HTMLInputElement).value.toUpperCase() }); }} /></label></div>

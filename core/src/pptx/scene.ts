@@ -20,6 +20,7 @@ import type { LineSem } from "../render/line-dl";
 import { mul, pathBox, radii, rrectPath } from "../dl/geom";
 import type { ChartSem } from "./chart-sem";
 export type { ChartSem, FontSem } from "./chart-sem";
+import { overlayEls } from "./chart-overlay";   // M14 (S14.6): a chart's arrow marks with native ends, in the overlay's order
 
 /* ---- the scene ---- */
 export interface Box { x: number; y: number; w: number; h: number }
@@ -41,8 +42,10 @@ export interface ShapeEl { k: "sp"; box: Box; rot?: number; flipH?: boolean; fli
 export interface PicEl { k: "pic"; box: Box; rot?: number; flipH?: boolean; flipV?: boolean; image: string; crop?: Crop; geom?: Geom; alpha?: number; outer?: Shadow; name?: string }
 export interface Crop { l: number; t: number; r: number; b: number }
 export interface TextBody { paras: Para[]; anchor: "t" | "ctr" | "b"; ins: [number, number, number, number]; wrap: boolean }
-/** a paragraph: its lines (each a list of runs), alignment, line pitch px (exact spacing), space before px */
-export interface Para { align: "l" | "ctr" | "r"; runs: Run[]; pitch: number; before: number }
+/** a paragraph: its lines (each a list of runs), alignment, line pitch px (exact spacing), space before px; a bulleted
+    paragraph (B48 review, 2: the Excel designs' text-box bullets) its native bullet – level 1 a filled square, level 2
+    an outline one, in its colour – with the text's left margin and the bullet's (negative) indent from it, px */
+export interface Para { align: "l" | "ctr" | "r"; runs: Run[]; pitch: number; before: number; bu?: { level: 1 | 2; c: RGB; a: number }; marL?: number; indent?: number }
 export interface Run { text: string; css: string; size: number; b: boolean; i: boolean; color: RGB; a: number; ls?: number; u?: boolean; s?: boolean;
   /** superscript (+) / subscript (−), % of the size */ baseline?: number; shadow?: Shadow; /** a soft line break before this run */ br?: boolean }
 export interface Cell { text?: TextBody; fill?: Paint | null; l?: Line | null; r?: Line | null; t?: Line | null; b?: Line | null; span?: [number, number]; merged?: boolean;
@@ -62,7 +65,10 @@ export type ItemSem =
   /** a line (4.8, M15; 09 §4.3): its heads, written as native a:headEnd / a:tailEnd (no connector shape); `line` (S15.3)
       its geometry at the resolved ends, its stroke and its label's nodes (render/line-dl.ts LineSem) */
   | { kind: "line"; at: [number, number]; heads: Heads | null; line?: LineSem };
-export interface SlideSem { type: "cover" | "index" | "content"; items: Record<string, ItemSem>; /** the design's chart / accent colours */ palette: string[] }
+export interface SlideSem { type: "cover" | "index" | "content"; items: Record<string, ItemSem>; /** the design's chart / accent colours */ palette: string[];
+  /** the top-level nodes [start, end) the slide's layout carries, never the slide (B48 review, 3: the Excel designs' logo
+      and cover band – on the layout even when the deck has one slide of that kind) */
+  layout?: [number, number] }
 
 /* ---- walking the display list ---- */
 type Clip = { box: Box; r: number } | { path: PathCmd[]; box: Box };
@@ -74,7 +80,12 @@ type Prim =
   | { p: "el"; el: El }
   | { p: "text"; run: TRun; owner: Owner | null }
   | { p: "hit"; owner: Owner }
+  /** a paragraph's bullet (a "bu" hit and the path after it): the paragraph's own bullet in PowerPoint */
+  | { p: "bullet"; owner: Owner | null; bu: Bullet; el: El }
   | { p: "shadow"; box: Box; r: number; dx: number; dy: number; blur: number; spread: number; c: RGB; a: number; inset: boolean };
+
+/** a bullet drawn in the display list (a hit of kind "bu", id "1" / "2", then its path): its level, box and colour */
+interface Bullet { level: 1 | 2; box: Box; c: RGB; a: number }
 
 const ID: Matrix = [1, 0, 0, 1, 0, 0];
 const OWNERS = new Set(["f", "t", "tbox", "item"]);
@@ -141,13 +152,19 @@ function rectGeom(w: number, h: number, q: [number, number, number, number]): Ge
 /** the display list's nodes → primitives in drawing order (shapes, text runs, hits, shadows) */
 class Walker {
   prims: Prim[] = [];
+  /** with `split`: the primitives of the nodes `sem.layout` names (the layout's) */
+  fixed: Prim[] = [];
   private owner: Owner | null = null;
   private seq = 0;
-  constructor(private readonly sem: SlideSem | null, private readonly images: (id: string) => boolean) {}
+  /** a "bu" hit seen: the next path is that bullet's square */
+  private bullet: 1 | 2 | null = null;
+  constructor(private readonly sem: SlideSem | null, private readonly images: (id: string) => boolean, private readonly split = false) {}
 
   walk(nodes: DisplayList, c: Ctx, top = false) {
+    const L = top && this.split ? this.sem?.layout : undefined;
     for (let i = 0; i < nodes.length; i++) {
       const n = nodes[i];
+      if (L && i >= L[0] && i < L[1]) { this.fixed.push(...this.sub(() => this.node(n, c))); continue; }
       // an item of the slide (chart, callout): its run of nodes as one element
       const item = top && this.sem ? Object.entries(this.sem.items).find(([, it]) => it.at[0] === i && it.at[1] > i) : undefined;
       if (item) { this.item(item[0], item[1], nodes.slice(i, item[1].at[1]), c); i = item[1].at[1] - 1; continue; }
@@ -170,7 +187,7 @@ class Walker {
       const prims = this.sub(() => this.walk(it.card, c));
       const card = assemble(prims);
       // over the native chart: its overlay's shapes (lines with native heads, icons, texts), in the chart's group
-      const over = it.overlay?.length ? assemble(this.sub(() => this.walk(it.overlay!, c))) : [];
+      const over = overlayEls(it.overlay || [], it.chart, ns => assemble(this.sub(() => this.walk(ns, c))));
       this.prims.push({ p: "el", el: { k: "grp", name: "Chart " + id, children: [...card, { k: "chart", box: it.chart.box, chart: it.chart, name: "Chart" }, ...over] } });
       return;
     }
@@ -186,6 +203,8 @@ class Walker {
   node(n: Node, c: Ctx) {
     switch (n.t) {
       case "hit": {
+        // a paragraph's bullet (slide-dl.ts, the Excel designs' text boxes; only in the PowerPoint export's lists)
+        if (n.kind === "bu") { this.bullet = n.id === "2" ? 2 : 1; return; }
         const o: Owner = { n: this.seq++, kind: n.kind, id: n.id, box: this.boxOf(n, c.M), label: n.label ?? "" };
         if (OWNERS.has(n.kind) && n.id !== "tw") this.owner = o;
         if (n.kind === "t") this.prims.push({ p: "hit", owner: o });
@@ -297,7 +316,16 @@ class Walker {
     if (b.w <= 0 && b.h <= 0) return;
     const pre = presetOf(d);
     const line: Line | null = n.stroke ? lineOf(n.stroke, s, c.alpha) : null;
-    this.prims.push({ p: "el", el: { k: "sp", box: b, geom: pre ? { prst: pre.prst } : { path: d.map(p => shiftCmd(p, -b.x, -b.y)) }, fill: n.fill ? mulPaint(n.fill, c.alpha) : null, line } });
+    const el: ShapeEl = { k: "sp", box: b, geom: pre ? { prst: pre.prst } : { path: d.map(p => shiftCmd(p, -b.x, -b.y)) }, fill: n.fill ? mulPaint(n.fill, c.alpha) : null, line };
+    const level = this.bullet;
+    this.bullet = null;
+    if (level) {
+      // the square of a bullet: its paragraph's bullet, in the colour it is drawn in (the shape stays only if no text box takes it)
+      const { c: col, a } = mainColour(n.fill ? mulPaint(n.fill, c.alpha) : mulPaint(n.stroke!.paint, c.alpha));
+      this.prims.push({ p: "bullet", owner: this.owner, bu: { level, box: b, c: col, a }, el });
+      return;
+    }
+    this.prims.push({ p: "el", el });
   }
   private image(n: Extract<Node, { t: "image" }>, c: Ctx) {
     if (n.w <= 0 || n.h <= 0 || !this.images(n.id)) return;
@@ -357,7 +385,7 @@ const squash = (t: string) => t.replace(/\s+/g, "");
 
 /** a text body for runs in a frame: paragraphs (the label's lines tell hard breaks from wrapping), alignment and the
     insets that put the first baseline where the display list has it */
-export function textBody(runs0: TRun[], frame: Box, label: string, opts: { wrap: boolean; /** a one-line paragraph's pitch */ one?: number } = { wrap: true }): { body: TextBody; frame: Box } {
+export function textBody(runs0: TRun[], frame: Box, label: string, opts: { wrap: boolean; /** a one-line paragraph's pitch */ one?: number; /** the paragraphs' bullets */ bullets?: Bullet[] } = { wrap: true }): { body: TextBody; frame: Box } {
   // a title's decorative copy (its text shadow): the shadow of the run it copies
   const deco = runs0.filter(r => r.decorative), runs = runs0.filter(r => !r.decorative);
   const lines = linesOf(runs);
@@ -377,14 +405,27 @@ export function textBody(runs0: TRun[], frame: Box, label: string, opts: { wrap:
     groups[groups.length - 1].push(l); acc += text(l);
     if (acc === want[k]) { k++; acc = ""; }
   }
+  // each bullet's paragraph: the one whose first line has the bullet beside it (its centre near the line's x-height); the
+  // paragraph then starts at its bullet (`hang` px before its text), as PowerPoint's hanging indent puts it
+  const buOf = new Map<(typeof lines)[number][], Bullet>();
+  for (const b of opts.bullets || []) {
+    const cy = b.box.y + b.box.h / 2;
+    let best: (typeof lines)[number][] | null = null, dist = Infinity;
+    for (const g of groups) { const l = g[0], d = Math.abs(l.y - .36 * l.size - cy); if (d < dist && d <= .6 * l.size && b.box.x < l.x0) { best = g; dist = d; } }
+    if (best && !buOf.has(best)) buOf.set(best, b);
+  }
+  const hangOf = (g: (typeof lines)[number][]) => { const b = buOf.get(g); return b ? Math.max(0, Math.min(...g.map(l => l.x0)) - b.box.x) : 0; };
+  const lineHang = new Map<(typeof lines)[number], number>();
+  for (const g of groups) { const h = hangOf(g); for (const l of g) lineHang.set(l, h); }
+  const left = (l: (typeof lines)[number]) => l.x0 - (lineHang.get(l) || 0);
   // the frame: wide enough for its widest line (+2 % for PowerPoint's own metrics), and the insets from it
-  const x0 = Math.min(...lines.map(l => l.x0)), x1 = Math.max(...lines.map(l => l.x1));
+  const x0 = Math.min(...lines.map(left)), x1 = Math.max(...lines.map(l => l.x1));
   let F = { ...frame };
   if (x0 < F.x) { F.w += F.x - x0; F.x = x0; }
   if (x1 > F.x + F.w) F.w = x1 - F.x;
   // a paragraph's alignment: the edge its lines keep to (within half an em: a cell's padding), else centred, else left
   const alignOf = (ls: typeof lines): "l" | "ctr" | "r" => {
-    const lg = ls.map(l => l.x0 - F.x), rg = ls.map(l => F.x + F.w - l.x1), e = Math.max(2, .5 * ls[0].size);
+    const lg = ls.map(l => left(l) - F.x), rg = ls.map(l => F.x + F.w - l.x1), e = Math.max(2, .5 * ls[0].size);
     const spread = (v: number[]) => Math.max(...v) - Math.min(...v);
     if (ls.length > 1 && spread(lg) < 1.5 && spread(rg) >= 1.5) return "l";
     if (ls.length > 1 && spread(rg) < 1.5 && spread(lg) >= 1.5) return "r";
@@ -410,11 +451,12 @@ export function textBody(runs0: TRun[], frame: Box, label: string, opts: { wrap:
       });
     });
     const before = prevLast ? Math.max(0, g[0].y - prevLast.y - pitch) : 0;
-    paras.push({ align: alignOf(g), runs: runsOut, pitch: r2(pitch), before: r2(before) });
+    const bu = buOf.get(g), hang = hangOf(g);
+    paras.push({ align: alignOf(g), runs: runsOut, pitch: r2(pitch), before: r2(before), ...(bu ? { bu: { level: bu.level, c: bu.c, a: bu.a }, indent: -r2(hang) } : {}) });
     prevLast = g[g.length - 1];
   }
   // left / right insets for text that sits away from the frame's edge
-  const lg = Math.max(0, Math.min(...lines.map(l => l.x0 - F.x))), rg = Math.max(0, Math.min(...lines.map(l => F.x + F.w - l.x1)));
+  const lg = Math.max(0, Math.min(...lines.map(l => left(l) - F.x))), rg = Math.max(0, Math.min(...lines.map(l => F.x + F.w - l.x1)));
   const allL = paras.every(p => p.align === "l"), allR = paras.every(p => p.align === "r");
   const insL = allL ? lg : 0, insR = allR ? rg : 0;
   // the slack: a wrapped paragraph may need a little more room in PowerPoint's metrics
@@ -422,6 +464,8 @@ export function textBody(runs0: TRun[], frame: Box, label: string, opts: { wrap:
   if (allR) F = { ...F, x: F.x - slack, w: F.w + slack };
   else if (paras.every(p => p.align === "ctr")) F = { ...F, x: F.x - slack / 2, w: F.w + slack };
   else F = { ...F, w: F.w + slack };
+  // a bulleted paragraph's text margin: from the inset to its text (its bullet `indent` before it)
+  groups.forEach((g, k) => { const p = paras[k]; if (p.bu) p.marL = r2(Math.max(0, Math.min(...g.map(l => l.x0)) - F.x - insL)); });
   // the top inset: the first line's top where PowerPoint then draws its baseline on the display list's
   const top = lines[0].y - baselineIn(paras[0].pitch, lines[0].size);
   if (top < F.y) { F.h += F.y - top; F.y = top; }
@@ -442,7 +486,7 @@ const NAMES: Record<string, string> = { title: "Title", subtitle: "Subtitle", "c
 /** primitives → elements: texts gathered by their element into text boxes, shadows given to the shapes that cast them */
 export function assemble(prims: Prim[]): El[] {
   const out: (El | null)[] = [], shapes: { at: number; el: ShapeEl | PicEl }[] = [];
-  const textAt = new Map<number, { owner: Owner | null; runs: TRun[] }>(), loose: number[] = [];
+  const textAt = new Map<number, { owner: Owner | null; runs: TRun[]; bullets: Bullet[] }>(), loose: number[] = [];
   const pendingOuter: { sh: Extract<Prim, { p: "shadow" }>; from: number }[] = [];
   for (const pr of prims) {
     if (pr.p === "el") {
@@ -474,18 +518,51 @@ export function assemble(prims: Prim[]): El[] {
         if (s && s.el.k === "sp" && pr.blur > .01 && (!s.el.inner || s.el.inner.a * s.el.inner.blur < pr.a * pr.blur))
           s.el.inner = { dx: pr.dx, dy: pr.dy, blur: pr.blur, c: pr.c, a: pr.a };
       } else pendingOuter.push({ sh: pr, from: out.length });
-    } else if (pr.p === "text") {
+    } else if (pr.p === "text" || pr.p === "bullet") {
+      // a bullet without a text box of its own stays the shape it is drawn as
+      if (pr.p === "bullet" && !pr.owner) { out.push(pr.el); continue; }
       const key = pr.owner ? pr.owner.n : -1 - loose.length;
       let g = textAt.get(key);
-      if (!g) { g = { owner: pr.owner, runs: [] }; textAt.set(key, g); out.push({ k: "sp", box: { x: 0, y: 0, w: 0, h: 0 }, geom: { prst: "rect" }, name: "text:" + key } as ShapeEl); if (!pr.owner) loose.push(key); }
-      g.runs.push(pr.run);
+      if (!g) { g = { owner: pr.owner, runs: [], bullets: [] }; textAt.set(key, g); out.push({ k: "sp", box: { x: 0, y: 0, w: 0, h: 0 }, geom: { prst: "rect" }, name: "text:" + key } as ShapeEl); if (!pr.owner) loose.push(key); }
+      if (pr.p === "bullet") g.bullets.push(pr.bu); else g.runs.push(pr.run);
     }
   }
-  return out.map(el => {
+  const owners: (Owner | null)[] = [];
+  return frameGroups(out.map((el, i) => {
     if (!el || el.k !== "sp" || !el.name?.startsWith("text:")) return el;
     const g = textAt.get(+el.name.slice(5))!;
-    return textBox(g.runs, g.owner);
-  }).filter((e): e is El => !!e);
+    owners[i] = g.owner;
+    return g.runs.length ? textBox(g.runs, g.owner, g.bullets) : null;
+  }), owners).filter((e): e is El => !!e);
+}
+/** a text box's border (B49, render/note-frame.ts): the outline-only shape just before a text box ("tnote …") that lies
+    inside the box becomes one group with it, "Text box": its native outline (a:ln) at the box, the text over it, moved
+    together in PowerPoint. (The text box keeps its own frame and insets: an outline on it would sit on its PowerPoint
+    frame, which is wider than the box by the slack wrapped text needs.) */
+function frameGroups(els: (El | null)[], owners: (Owner | null)[]): (El | null)[] {
+  const out = [...els];
+  out.forEach((el, i) => {
+    const o = owners[i];
+    if (!el || el.k !== "sp" || !o || !/^tnote\b/.test(o.id)) return;
+    // back from the text box over what its text drew inside the box (a consulting heading's accent bar) to the border
+    const mid: number[] = [];
+    for (let j = i - 1; j >= 0; j--) {
+      const f = out[j];
+      if (!f) continue;
+      if (f.k === "sp" && !f.fill && f.line && "solid" in f.line.paint && !f.text && !f.seg && !f.rot && !f.fromShadow && inside(f.box, o.box, f.line.w + .5)) {
+        out[j] = null; mid.forEach(k => { out[k] = null; });
+        // the text inside the border: the text box's slack for PowerPoint's wrapping (textBody) never past the line
+        const a = f.box.x + f.line.w / 2, b = f.box.x + f.box.w - f.line.w / 2, t = { ...el };
+        if (t.box.x < a && t.text) { const dx = a - t.box.x; t.box = { ...t.box, x: a, w: t.box.w - dx }; t.text = { ...t.text, ins: [r2(Math.max(0, t.text.ins[0] - dx)), t.text.ins[1], t.text.ins[2], t.text.ins[3]] }; }
+        if (t.box.x + t.box.w > b && b > t.box.x) { const dx = t.box.x + t.box.w - b; t.box = { ...t.box, w: b - t.box.x }; if (t.text) t.text = { ...t.text, ins: [t.text.ins[0], t.text.ins[1], r2(Math.max(0, t.text.ins[2] - dx)), t.text.ins[3]] }; }
+        out[i] = { k: "grp", name: "Text box", children: [{ ...f, name: "Border" }, ...mid.reverse().map(k => els[k]!), t] };
+        return;
+      }
+      if ((f.k !== "sp" && f.k !== "pic") || !inside(f.box, o.box, 1) || boxNear(f.box, o.box, 1.5) || mid.length >= 8) return;
+      mid.push(j);
+    }
+  });
+  return out;
 }
 /** a thin solid rectangle with nothing else to it (a highlight line) */
 const hairline = (e: ShapeEl) => !e.text && !e.line && !e.outer && !e.inner && !e.rot && !e.seg && e.box.h <= 2.5 && e.box.w > 4 * e.box.h
@@ -497,7 +574,7 @@ function giveOuter(el: ShapeEl | PicEl, s: { dx: number; dy: number; blur: numbe
   el.outer = { dx: s.dx, dy: s.dy, blur: s.blur, c: s.c, a: Math.min(1, s.a), ...(Math.abs(sx - 1) > .005 ? { sx: Math.max(.5, sx) } : {}), ...(Math.abs(sy - 1) > .005 ? { sy: Math.max(.5, sy) } : {}) };
 }
 /** the text box of an element's runs: the element's box, or the runs' own extent */
-function textBox(runs: TRun[], owner: Owner | null): ShapeEl {
+function textBox(runs: TRun[], owner: Owner | null, bullets: Bullet[] = []): ShapeEl {
   const rot = runs.find(r => Math.abs(r.rot) > .01);
   if (rot) {
     // turned text (a cell's rotated text): one line, the box turned about its centre
@@ -511,7 +588,7 @@ function textBox(runs: TRun[], owner: Owner | null): ShapeEl {
   const minX = Math.min(...runs.map(r => r.x)), maxX = Math.max(...runs.map(r => r.x + r.w));
   const minY = Math.min(...runs.map(r => r.y - r.size)), maxY = Math.max(...runs.map(r => r.y + r.size * .3));
   const frame = owner ? owner.box : { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-  const { body, frame: F } = textBody(runs, frame, owner?.label ?? runs.map(r => r.text).join(""), { wrap: !!owner });
+  const { body, frame: F } = textBody(runs, frame, owner?.label ?? runs.map(r => r.text).join(""), { wrap: !!owner, bullets });
   const ph = placeholderOf(owner);
   return { k: "sp", box: F, geom: { prst: "rect" }, fill: null, line: null, text: body, name: owner ? NAMES[owner.id] || (ph ? ph === "sldNum" ? "Slide Number" : "Footer" : "Text") : "Text", ...(ph ? { ph } : {}) };
 }
@@ -776,4 +853,10 @@ export function sceneOf(nodes: DisplayList, sem: SlideSem | null, images: (id: s
   const w = new Walker(sem, images);
   w.walk(nodes, { M: ID, alpha: 1, clip: null }, true);
   return assemble(w.prims);
+}
+/** the same, with the elements of the nodes `sem.layout` names apart (`fixed`: the slide's layout carries them) */
+export function sceneParts(nodes: DisplayList, sem: SlideSem | null, images: (id: string) => boolean): { els: El[]; fixed: El[] } {
+  const w = new Walker(sem, images, true);
+  w.walk(nodes, { M: ID, alpha: 1, clip: null }, true);
+  return { els: assemble(w.prims), fixed: assemble(w.fixed) };
 }

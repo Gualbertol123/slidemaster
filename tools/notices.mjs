@@ -55,9 +55,10 @@ its MIT / Apache-2.0 licence below. A list of those libraries with their own not
 /** packages (name → {dir, version, where}) and inlined WASM folders (repo-relative) in the page's and the worker's bundles */
 export async function bundled(root = ROOT) {
   const { build } = await import("esbuild");
-  // the page's build-time modules (the worker string, CSS ?raw) carry no package code of their own
+  // the page's build-time modules (the worker string, CSS ?raw, a component's own stylesheet – M14's chart-panel.css)
+  // carry no package code of their own
   const stub = { name: "stub", setup(/** @type {any} */ b) {
-    b.onResolve({ filter: /^virtual:core-worker$|\?raw$/ }, (/** @type {any} */ a) => ({ path: a.path, namespace: "stub" }));
+    b.onResolve({ filter: /^virtual:core-worker$|\?raw$|\.css$/ }, (/** @type {any} */ a) => ({ path: a.path, namespace: "stub" }));
     b.onLoad({ filter: /.*/, namespace: "stub" }, () => ({ contents: "export default ''", loader: "js" }));
   } };
   const common = { bundle: true, write: false, metafile: true, logLevel: "silent", absWorkingDir: root, format: "iife", target: "es2022", minify: true };

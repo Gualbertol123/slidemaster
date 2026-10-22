@@ -4,6 +4,7 @@ import { setDialogs, useStore } from "../state/store";
 import { insertChartFromSelection } from "../editor/charts";
 import { Dropdown } from "./Dropdown";
 import { useCurSlide } from "./hooks";
+import { Ic } from "./Ic";
 
 /** Insert chart ▾: from the selected cells (beside their table), or cells chosen in the sheet view – any sheet the wizard
     lists, a sheet on no slide too, never a hidden one (WB-18); no cell names typed (product owner 2026-10-19) */
@@ -17,6 +18,6 @@ function ChartMenu({ close }: { close: () => void }) {
 export function ChartInsert() {
   const R = useCurSlide();
   return <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="chartBtn" disabled={!R} title="A pie or donut chart of cells of the workbook: it follows the workbook when it changes" onClick={t}>
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="8" cy="8" r="6.2" /><path d="M8 1.8V8l5.3 3.1" /></svg>Insert chart ▾</button>}>
+    <Ic n="chart-pie" />Insert chart ▾</button>}>
     {close => <ChartMenu close={close} />}</Dropdown>;
 }

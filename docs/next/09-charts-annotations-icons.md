@@ -172,14 +172,15 @@ export interface ChartSeries {
   group?: string;                              // the category group the values stand on (default: the first)
   type?: SeriesType;                           // combo: this series' type (else the chart's)
   axis?: "y" | "y2";                           // the value axis (y2 = right)
-  stack?: string;                              // series with the same stack key stack (column / bar / area)
+  stack?: string;                              // series with the same stack key stack (column / bar / area) – not offered by the panel (S14.5): PowerPoint's native charts stack a whole chart group, never one series apart
   color?: string; line?: LineStyle; fill?: "solid" | "none";
   smooth?: boolean;                            // line / scatter: smoothed (Catmull–Rom, §3.2)
   marker?: { shape?: "circle" | "square" | "diamond" | "triangle" | "none"; size?: number; color?: string };
   labels?: { show: ("value" | "name" | "category" | "percent" | "ofTarget")[];
              pos?: "above" | "below" | "left" | "right" | "center" | "inEnd" | "inBase" | "outEnd";
              fmt?: TextFmt; num?: string /* number format code; else the cells' */ };
-  points?: Record<string /* index */, { color?: string; marker?: string /* hex */; label?: string | null /* null = none */ }>;
+  points?: Record<string /* index */, { color?: string; marker?: string /* hex */; label?: string | null /* null = none */;
+                                        total?: boolean /* waterfall: a total column (§3.2; S14.4) */ }>;
   hide?: boolean;                              // kept, not drawn
 }
 export interface ChartGroup { n: number; cats: DataRef | string[]; divider?: LineOrNone | null; label?: string }
@@ -204,8 +205,16 @@ export interface ChartMark { kind: "arrow" | "line" | "band" | "icon" | "text";
 
 * **Old charts** (no `sers`): exactly as today – `values` / `labels` / `series` / `legend` / `colors` keep their meaning;
   a pie stays a pie. A chart switched to a series chart in the panel gets `sers: {s1: {n: 1, vals: [values]}}`, and
-  `values` is kept (so the item stays valid for the code that requires it). `legend` keeps its three values;
+  `values` is kept (so the item stays valid for the code that requires it). As built (S14.5 review 6): the pie's own
+  slice colours (`colors[i]`) become `s1.points[i].color` and its labels (`show`: "label" → category, "value" → value)
+  `s1.labels`; its "percent" (a share of the whole pie) has no column / line counterpart and is not carried; slices
+  without a colour of their own start from the design's series colour. `legend` keeps its three values;
   `legendAt` (new key) wins when set.
+* **Ids of new entries** (S14.5 review 1): a series, group or mark the panel adds gets a random id (`s` / `g` / `m` + 5
+  base-36 characters, as `newItemId` for items), so two people adding one at once both keep theirs (item.patch
+  replaces a whole entry: a shared next id `s2` would let the later one overwrite the earlier). Two entries two writers
+  would make equal keep a fixed id: the type switch's first series `s1`, a chart's first group `g1` (its present
+  categories).
 * **Different sources in one chart** (the owner's "series from different tables, sheets or linked workbooks"): every
   `DataRef` (each `vals` entry, `target`, `xs`, a group's `cats`, a series `name`) names its own sheet id or table. A
   series may join several rectangles (`vals: [Weekly!C5:F5]`, or `[Targets!B3, [Budget.xlsx]Plan!D9]`). Category
@@ -230,7 +239,9 @@ export interface ChartMark { kind: "arrow" | "line" | "band" | "icon" | "text";
 * **Ops**: `item.patch` with `ITEM_KEYS += stack, gap, overlap, legendAt, frame, titleRule, plot` (and new values of
   `type`) and `ITEM_MAPS += sers, groups, axes, marks, legendHide, titleFmt`. Merge: per entry (a whole series / group /
   axis / mark); inverse: per entry, as `colors`. A series' `points` live inside the series, so two people editing points
-  of **one** series at once: the last one wins (as two people editing one `free` entry today; Q13).
+  of **one** series at once: the last one wins (as two people editing one `free` entry today; Q13) – this includes a
+  point's colour set by one and the series' cells (or order, name, axis) changed by the other: the panel sends the whole
+  series entry, so one of the two changes is lost (S14.5 review 7; undo and the other's redo bring it back).
 
 ### 2.3 Lines and annotations on the slide (F9)
 
@@ -657,14 +668,57 @@ paths (no font, no picture). `pdfcheck.py` and the GF facts are unchanged.
 | scatter | `c:scatterChart` `scatterStyle` lineMarker / smoothMarker |
 | combo, second axis | several chart groups in one `c:plotArea`; the secondary group on its own `c:valAx` (`crosses max`, right) and a hidden second `c:catAx` (`delete 1`), as Excel writes combos |
 | category groups | one `c:catAx` with all categories (both groups' names); each series cached with blanks (`c:ptCount` full, points only where it has values) – the same as Excel's combo of the owner's chart; the divider is a line shape over the chart (below) |
-| waterfall | `c:barChart` stacked with an invisible base series (`noFill`), up / down / total series coloured – the classic Excel 2013 construction (chartex `cx:waterfall` is a 2016 part PowerPoint 2016 reads, but python-pptx and older viewers do not; Q4) |
+| waterfall | `c:barChart` stacked with an invisible base series (`noFill`), up / down / total series coloured – the classic Excel 2013 construction (chartex `cx:waterfall` is a 2016 part PowerPoint 2016 reads, but python-pptx and older viewers do not; Q4). As built (S14.4): a column across zero puts its part below zero in a second series of its colour (stacked columns stack negatives downwards); two invisible series of a `c:lineChart` on the same axes carry the values themselves (Edit Data, `--sources`) and the data labels – each a rich-text label centred on a point at the label's centre as the slide draws it (a stacked column has no outside end); the connectors are lines on the card under the chart, as on the slide (never connector shapes), in the design's axis-line colour. S14.4 review (in S14.5): a label stays inside the plot (beyond the column's other end, else inside its end, else clamped), so no carrier point lies outside the axis's fixed bounds (PowerPoint drops such a label); the construction columns of the embedded workbook are **formulas** over the values column and a "Running total" column (`fullCalcOnLoad`), so Edit Data moves the columns when a value changes – **known limit**: as long as each step keeps its side of zero (a step that newly crosses zero, or turns into a kind the chart did not have, needs a new export), and the labels stay the export's texts; in Liquid Glass a column across zero is two segments whose stops are the slide's one gradient split at zero |
+| scatter (as built, S14.4) | `c:scatterChart` `lineMarker` on two `c:valAx` (the x one at the bottom, both `crossBetween midCat`, labels `low`) with the drawn bounds and units; each series' x and y cached (`c:xVal` / `c:yVal`) from its own two columns of the embedded workbook (x, y); a series without a line has `a:ln noFill`; labels: value = y, category = x (Excel's X value); a point whose x is outside a fixed `axes.x` range is left out on the slide too (S14.4 review 2), as PowerPoint does |
 | per-point colour, marker, label | `c:dPt` (`spPr`, `c:marker`), `c:dLbl` per point; a custom label text (`ofTarget`, a hidden one) as a rich-text `c:dLbl/c:tx/c:rich` – static text written from our value, refreshed at every export |
 | "actual inside target" | two bar series on the same axis with `overlap 100` (`gapWidth` / `overlap` belong to the `c:barChart`, so both bars have one width): the **actual** series first (filled), the **target** series after it (`noFill` + outline, drawn on top so its outline shows); the percentage as the actual's rich-text label `inEnd` |
-| axes | `c:valAx` `min` / `max` / `majorUnit`, `numFmt formatCode` (the cells' code; PowerPoint shows it with the viewer's separators, as Excel would), `majorGridlines` only when `grid`, `c:txPr` bold / colour for the category labels |
+| axes | `c:valAx` `min` / `max` / `majorUnit`, `numFmt formatCode` (the cells' code; PowerPoint shows it with the viewer's separators, as Excel would – see "Italian separators" below), `majorGridlines` only when `grid`, `c:txPr` bold / colour for the category labels |
 | legend | `c:legend` `legendPos` r / l / t / b / tr; inside = `c:layout` manual; a hidden entry = `c:legendEntry/c:delete 1`; none = no `c:legend` |
 | title, rule, frame | `c:title` rich text; the chart space `spPr` outline = the frame; the title rule = a line shape |
 | marks (arrows, lines, bands, icons, texts) and dividers | **plain shapes over the chart in the chart's group** (`p:sp` lines with `a:headEnd` / `a:tailEnd`, icons as `custGeom`, texts as text boxes). To land on the data, the writer fixes the plot area (`c:plotArea/c:layout/c:manualLayout` `layoutTarget inner`; x / y / w / h are fractions of the **chart space**, i.e. our plot rectangle divided by the chart's box) and every axis's min / max / unit, and puts line points at category centres (`c:crossBetween between`, as the display list does; `dispBlanksAs gap` as `pptx/chart.ts:56` writes today), so PowerPoint's plot is our plot: a point is where we drew it. pptxcheck verifies it on Windows by exporting each chart slide from PowerPoint (COM `Slide.Export` PNG) and comparing the mark anchors with the drawn points (≤ 2 px at 1600) |
 | data | the embedded workbook (`embeddings/…xlsx`) gets every series' cached values in columns (categories in A, one column per series, blanks where a series has none, targets as their own columns), so **Edit Data** shows them; `--sources` in pptxcheck checks the caches against the workbook cells (each series against its own sheet / linked workbook). **No external links**: every `c:f` points into the embedded workbook (`Sheet1!$B$2:$B$7`), never at `[Budget.xlsx]Plan!D9` – a series from a linked workbook is a column of the embedded one; pptxcheck asserts that no `c:f` names a file and that no relationship is `TargetMode="External"` |
+
+As built in S14.6 (PX-05, PX-06):
+* **Marks' arrowheads are native.** An arrow or line mark is one `p:sp` (`a:prstGeom prst="line"`, flipH / flipV so
+  its first point is end a) from end a to end b, not shortened, with `a:headEnd` (end a) / `a:tailEnd` (end b) of the
+  mark's heads and size (`ChartSem.arrows`, `pptx/chart-overlay.ts`). The export's overlay leaves out those lines'
+  display-list nodes (the slide still draws the heads with `render/heads.ts`). A limiter's `bar` has no native end, so
+  its tick stays a shape of the overlay. Each line shape keeps the mark's place in the stacking order, as on the slide
+  (marks in id order, a later id on top): `ArrowSem.at` is the count of overlay nodes under it, and `overlayEls`
+  writes the overlay in slices around the arrows (S14.6 review 6). A text or icon mark of a later id is over the
+  arrow, and a limiter's bar tick is over its line.
+* **The embedded workbook carries the number formats.** Each value cell has the format of its cache (a point's own
+  `formatCode` where it has one, otherwise the series'; a scatter series' x cells the x format) as a cell style
+  (`numFmt` ids from 164). Edit Data shows the values as the slide does.
+* **Italian separators.** The format codes are written as Excel stores them (`#,##0.0`: comma = thousands, point =
+  decimal; the file format is locale-free). PowerPoint and Excel show them with the separators of the computer that
+  opens the file. On an Italian Windows that is 11.576 and 2,5 %, as on the slide; on an English Windows it is 11,576
+  and 2.5 %. LibreOffice on this Linux machine is English, so its renders show the English separators. Our own texts
+  are written as static rich text and look the same everywhere: the `ofTarget` labels "97 %", the waterfall's labels,
+  and the marks' texts. Nothing in the file pins a locale (`c:lang` stays `en-US`, as Excel writes it), so the export
+  never changes a number's meaning, only how it is displayed.
+* **Checks.** `core/tests/pptx-charts-m14.test.ts` runs the whole chart corpus in every design and checks: the chart
+  kinds, caches equal to the embedded cells and their formats, native ends, no `p:cxnSp`, no link. pptxcheck (5)
+  compares each chart's groups with the core's (`tools/real-charts.mjs` → `kinds` in `--expect`; export-check passes
+  them). `pptxcheck.py plots` (PX-06, Windows) reads PowerPoint's plot areas (`PlotArea.Inside*`) and axis bounds and
+  requires them within 2 px of the slide's (`<file>.plots.json`). It also reads each arrow / line mark's shape in the
+  chart's group (`Left` / `Top` / `Width` / `Height` and the flips) and requires its two ends within 2 px of the
+  mark's `a` and `b` (S14.6 review 5; `compare_marks`, unit-tested with PowerPoint's answer faked). It also exports
+  each slide at 1600 px (`--png`) so the marks can be looked at.
+
+Where PowerPoint draws differently, and what the slide does about it (S14.3 review, 2026-10-21):
+* **Draw order of a combo.** PowerPoint draws every chart group on the secondary axis over those on the primary one;
+  the slide draws areas, then columns, then lines (§3.1), whatever their axis. When a left axis's line or columns overlap
+  a right axis's columns or area, the two differ; the chart gets an Issues line naming both series (the user can move
+  the line to the right axis, or the columns to the left one).
+* **Blanks in an area.** PowerPoint's area charts ignore `dispBlanksAs gap` and drop to zero at a blank; the slide draws
+  an area's blank as zero too (no label, mark anchor or hit there). Lines keep their gaps.
+* **Legend keys.** PowerPoint (and LibreOffice) draw a line series' legend key much wider than the slide's 16 px swatch;
+  a legend box sized from the slide's entries loses its line entries. The writer widens the legend's manual box by
+  PowerPoint's line-key width per line entry (one row of a top / bottom legend: per entry; a column: once), keeping the
+  box's centre (top / bottom) or its outer edge (right / left).
+* **Single-slot columns.** Clustered column series that never share a category (category groups) stand at overlap 100,
+  centred on their categories, in both.
 
 ### 4.3 Lines, icons, conditional formats in PowerPoint
 * **Lines** (F9): `p:sp` with `a:prstGeom prst="line"` for straight ones (flipH / flipV for direction) and an open

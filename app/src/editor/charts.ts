@@ -13,9 +13,9 @@ export const newItemId = () => "i" + Math.random().toString(36).slice(2, 9);
 export const itemOf = (id: string | null | undefined, R: RuntimeSlide | null = curSlide()): Item | null => (id && R?.cfg.items?.[id]) || null;
 /** the selected item (and slice) of the current slide */
 export const selectedItem = () => { const s = get().selection.itemSel; return s ? { ...s, it: itemOf(s.id) } : null; };
-/** selects item `id` (null clears); a slice of a chart with `slice` */
-export function selectItem(id: string | null, slice: number | null = null) {
-  patch("selection", id ? { itemSel: { id, slice }, sel: null, noteSel: null, textSel: null } : { itemSel: null });
+/** selects item `id` (null clears); a slice of a chart with `slice`; a series chart's point or mark (S14.5) */
+export function selectItem(id: string | null, slice: number | null = null, more: { point?: { s: string; i: number } | null; mark?: string | null } = {}) {
+  patch("selection", id ? { itemSel: { id, slice, ...(more.point ? { point: more.point } : {}), ...(more.mark ? { mark: more.mark } : {}) }, sel: null, noteSel: null, textSel: null } : { itemSel: null });
 }
 /** one change of item `id` of the current slide */
 export function itemPatch(label: string, id: string, p: ItemPatch | null) {

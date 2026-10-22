@@ -4,7 +4,9 @@
    * its selectable text against the goldens (GT, decision 2026-10-12, 5): every golden text of each slide on its
      page, nothing else, the page count = the slide count (since 4.3, B19: a raw Excel slide with the user's text boxes,
      comments or notes section equals Excel Refined's golden text – both draw the same tables and objects – and is
-     listed as such);
+     listed as such; since B48, Excel and Excel Refined follow the Intesa Sanpaolo template: a slide whose text equals
+     the golden's with the template's bullets and contents marks as squares, and with the page number the template has
+     on by default, is listed as "GT B48", ispGoldenTexts);
    * GF budgets (PLAN Part F): Excel designs < 40 KB per slide, Liquid Glass < 80 KB per slide + 190 KB per document,
      Consulting Navy / Red (M7b, 08 §4.3) < 40 KB per slide + 150 KB per document – gated on deck20 (the 20-slide
      reference, as the bench); for decks of 1–3 slides the fonts and the wallpaper, a cost per document, can exceed it:
@@ -34,7 +36,8 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { BOOKS, DECKS, deckList, deckOps, load, openBrowser, startHelper } from "./capture-v3.mjs";
-import { goldenTexts, matchTexts, ownPdfText, squash } from "./export-dl.mjs";
+import { pageChartKinds, withChartKinds } from "./real-charts.mjs";   // M14 (S14.6): each chart's native kinds, pptxcheck (5)
+import { goldenItems, goldenTexts, matchTexts, ownPdfText, squash } from "./export-dl.mjs";
 import { speedFactor } from "./calibrate.mjs";
 import { pageRealObjects } from "./real-objects.mjs";
 import { pageIcons, withIcons } from "./real-icons.mjs";   // M15 (S15.2): the icons, pptxcheck (6)
@@ -55,20 +58,102 @@ export const BUDGET = {
   pptx: { size: { excel: [15 * 1024, 0], clean: [15 * 1024, 0], glass: [120 * 1024, 400 * 1024], mckinsey: [15 * 1024, 0], bain: [15 * 1024, 0] },
     time: { excel: 1500, clean: 1500, glass: 3000, mckinsey: 1500, bain: 1500 } },
 };
+/** B48's expected text difference (the Intesa Sanpaolo template in Excel and Excel Refined, product owner 2026-10-21;
+    B48 review, 8) – the only one, scoped to these two designs: their goldens' texts as the template draws them. A text
+    box's paragraph starting "- " / "• " / "◦ " (not a minus before a figure: core render/slide-dl.ts ISP_BULLET) shows its
+    bullet as a square, not as text – unless its box is right-aligned or centred, where it stays text (so each text box
+    is taken in whichever form the page has); the contents rows' numbers ("01", class ix-n) are squares and each row
+    reads page then entry (ix-p before ix-t); a title or subtitle the template's larger type (26 / 16 pt × 4/3) cuts
+    with an ellipsis is taken as cut (its beginning and "…"; owner's question in the B48 report). The page number, on by
+    default in these two designs since B48 (core model/style.ts, owner-approved; the goldens predate it): `pageNo`, the
+    label the core itself draws on that slide (pageNumbersOf), is one more text of the slide – exactly that label, and
+    only where the core draws one. Every other text difference still fails. A slide that matches only so is
+    listed ("GT B48") */
+const ISP_BULLET = /^([ \t]+)?(- (?!\s*[\d.,€$£%])|• |◦ )/;
+export function ispGoldenTexts(deck, design, version, n, pageText = null, pageNo = null) {
+  if (design !== "excel" && design !== "clean") return null;
+  const items = goldenItems(deck, design, version, n);
+  if (!items) return null;
+  const page = pageText === null ? null : squash(pageText), out = [];
+  for (const i of items) {
+    if (/^ix-n\b/.test(i.cls)) continue;
+    if (/^ix-p\b/.test(i.cls)) {
+      // the page before its row's entry (and the entry's subtitle)
+      let k = out.length; while (k > 0 && /^ix-s\b/.test(out[k - 1].cls)) k--;
+      if (k > 0 && /^ix-t\b/.test(out[k - 1].cls)) k--;
+      out.splice(k, 0, i); continue;
+    }
+    if (/^tnote\b/.test(i.cls)) {
+      const drawn = i.text.split("\n").map(l => l.replace(ISP_BULLET, "")).join("\n");
+      out.push({ ...i, text: page !== null && !page.includes(squash(drawn)) && page.includes(squash(i.text)) ? i.text : drawn });
+      continue;
+    }
+    if (/^(title|subtitle)\b/.test(i.cls) && page !== null && !page.includes(squash(i.text))) {
+      const t = squash(i.text);
+      let k = t.length - 1; while (k >= 8 && !page.includes(t.slice(0, k) + "...")) k--;
+      if (k >= 8) { out.push({ ...i, text: t.slice(0, k) + "..." }); continue; }
+    }
+    out.push(i);
+  }
+  return [...out.map(i => i.text), ...(pageNo ? [pageNo] : [])];
+}
+/** each slide's page number as the core draws it, in the export's order (null where it has none): the label of its
+    "pageno" hit (not the footer's). Self-contained: its source is what the page runs (pagePageNumbers) */
+export function pageNumbersOf(lists) {
+  const find = ns => { for (const x of ns || []) { if (x && x.t === "hit" && /\bpageno\b/.test(x.id) && !/\bfooter\b/.test(x.id)) return x.label || null; if (x && x.t === "group") { const r = find(x.children); if (r) return r; } } return null; };
+  return lists.map(l => find(l.dl.nodes));
+}
+/** the script page.evaluate runs in the page (after load): the current deck's page numbers in `design` (the export's lists) */
+export const pagePageNumbers = design => `(async () => (${pageNumbersOf})(await window.__sbTest.slideLists(${JSON.stringify({ design, version: "", forExport: true, thumb: false })})))()`;
+/** the B48 forms a slide's text may take in Excel and Excel Refined: the template's bullets and contents marks, without
+    and – where the core draws one (B48: on by default) – with the slide's page number */
+const ispForms = (deck, design, n, pageText, pageNo) => [null, ...(pageNo ? [pageNo] : [])].map(pn => ispGoldenTexts(deck, design, "full", n, pageText, pn)).filter(Boolean);
 /** the chart corpus (M9): decks with charts and callouts, PowerPoint pass only (they have no v3 goldens) */
 const CHART_DECKS = path.join(REPO, "tests", "corpus", "charts");
 /** each chart of a deck as pptxcheck compares it: its slide (1-based), the sheet and range of its values. Read from the
     deck's preset.set and item.patch ops: slide n is the preset's n-th slide, so a deck with hidden slides or slides
     added by slide.add would number them wrongly – the chart corpus has neither (the real-objects counts of (5) come from
     the core and have no such limit) */
-function chartSources(deck) {
+/** what pptxcheck --sources checks of a deck's charts: an old chart's values range; a series chart's (4.7, S14.3 review 4)
+    each shown series of one range on one of the deck workbook's sheets, at its category group's first category
+    (`start`: the groups before it, in their order, by their ranges' cells) and by its own name when it has one */
+export function chartSources(deck) {
   const preset = deck.ops.find(o => o.op === "preset.set")?.preset || {}, tables = new Map((preset.tables || []).map(t => [t.id, t.sheet]));
-  const out = [];
-  (preset.slides || []).forEach((s, i) => { for (const it of Object.values(s.items || {})) if (it?.kind === "chart" && it.values?.range) out.push({ slide: i + 1, sheet: it.values.table ? tables.get(it.values.table) : it.values.sheet, range: it.values.range }); });
-  for (const o of deck.ops) if (o.op === "item.patch" && o.patch?.kind === "chart" && o.patch.values?.range) {
-    const i = (preset.slides || []).findIndex(s => s.id === o.slide);
-    out.push({ slide: i + 1, sheet: o.patch.values.table ? tables.get(o.patch.values.table) : o.patch.values.sheet, range: o.patch.values.range });
-  }
+  const out = [], sheetOf = r => r.table ? tables.get(r.table) : r.sheet;
+  const add = (slide, it) => {
+    if (it.values?.range) out.push({ slide, sheet: sheetOf(it.values), range: it.values.range });
+    if (!it.sers || typeof it.sers !== "object") return;
+    // (a scatter chart reads no category groups: its points stand on its x axis – S14.4)
+    const groups = Object.entries(it.type === "scatter" ? {} : it.groups || {}).filter(([, g]) => g && typeof g === "object").sort(([a, p], [b, q]) => (+p.n || 0) - (+q.n || 0) || (a < b ? -1 : a > b ? 1 : 0));
+    // (a group's start: the categories of the groups before it – an inline list's length here; a range's cells counted
+    // by pptxcheck, which skips hidden rows and columns as the chart does: `before` – S14.3 re-check)
+    const startOf = gid => {
+      let at = 0; const before = [];
+      for (const [id, g] of groups) {
+        if (id === gid) break;
+        if (Array.isArray(g.cats)) at += g.cats.length;
+        else if (g.cats?.range && sheetOf(g.cats)) before.push({ sheet: sheetOf(g.cats), range: g.cats.range });
+      }
+      return { start: at, ...(before.length ? { before } : {}) };
+    };
+    // (the series in their order – n, then id; a waterfall draws, and so caches, its first one only: S14.4 review 5)
+    let list = Object.entries(it.sers).filter(([, s]) => s && typeof s === "object" && !s.hide && Array.isArray(s.vals))
+      .sort(([a, p], [b, q]) => (Number.isFinite(+p.n) ? +p.n : 0) - (Number.isFinite(+q.n) ? +q.n : 0) || (a < b ? -1 : a > b ? 1 : 0)).map(([, s]) => s);
+    if (it.type === "waterfall") list = list.slice(0, 1);
+    for (const s of list) {
+      if (s.vals.length !== 1) continue;
+      const r = s.vals[0], sheet = r && sheetOf(r);
+      if (!sheet || !r.range || sheet.startsWith("[")) continue;          // (a linked workbook's: not the deck's book)
+      // (a scatter series' x values, against its c:xVal cache – S14.4; its y values only where an x cell has a number: a
+      // point without its x is cached in neither – `mask`, S14.4 review 5)
+      const x = it.type === "scatter" && Array.isArray(s.xs) && s.xs.length === 1 ? s.xs[0] : null, xs = x && sheetOf(x);
+      out.push({ slide, sheet, range: r.range, ...(groups.length ? startOf(groups.some(([id]) => id === s.group) ? s.group : groups[0][0]) : { start: 0 }), ...(typeof s.name === "string" ? { name: s.name } : {}),
+        ...(xs && x.range && !xs.startsWith("[") ? { mask: { sheet: xs, range: x.range } } : {}) });
+      if (xs && x.range && !xs.startsWith("[")) out.push({ slide, sheet: xs, range: x.range, start: 0, axis: "x", ...(typeof s.name === "string" ? { name: s.name } : {}) });
+    }
+  };
+  (preset.slides || []).forEach((s, i) => { for (const it of Object.values(s.items || {})) if (it?.kind === "chart") add(i + 1, it); });
+  for (const o of deck.ops) if (o.op === "item.patch" && o.patch?.kind === "chart") add((preset.slides || []).findIndex(s => s.id === o.slide) + 1, o.patch);
   return out;
 }
 /** clicks an export and waits for its toast; returns the files it saved (the names the page was given back) and the
@@ -106,6 +191,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       for (const design of DESIGNS) {
         await deckOps(h, file, [{ op: "style.patch", patch: { design } }]);
         const slides = await load(page, h, file, "");
+        // B48: the page number the core draws on each slide (Excel and Excel Refined: on by default), for ispGoldenTexts
+        const pageNos = design === "excel" || design === "clean" ? await page.evaluate(pagePageNumbers(design)) : [];
         if (PPTX) {
           // the real tables and native charts each slide of the file must hold: as many as the core's own PowerPoint
           // export draws (tools/real-objects.mjs: a missing sheet's table, hidden slides, slide.add / table.add all
@@ -117,11 +204,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
           if (x.files.length !== 1) throw new Error(`${id} · ${design}: ${x.files.length} PowerPoint files`);
           const f = path.join(OUT, `${id}-${design}.pptx`); fs.copyFileSync(x.files[0], f);
           pptx.push({ deck: id, design, slides, file: f, name: path.basename(x.files[0]), ms: Math.round(x.ms), bytes: fs.statSync(f).size, toast: x.toast,
-            workbook: path.join(BOOKS, deck.workbook), charts: chartSources(deck), real });
+            workbook: path.join(BOOKS, deck.workbook), charts: chartSources(deck), real: withChartKinds(real, await page.evaluate(pageChartKinds(design))), pageNos });
           console.log(`${id} · ${design}: PowerPoint ${(fs.statSync(f).size / 1024).toFixed(1)} KB, ${Math.round(x.ms)} ms`);
         }
         if (chartsOnly) continue;
-        const r = { deck: id, design, slides };
+        const r = { deck: id, design, slides, pageNos };
         const n = await exportOnce(page, h, () => page.click("#exportBtn"));
         if (n.files.length !== 1) throw new Error(`${id} · ${design}: ${n.files.length} files`);
         r.file = path.join(OUT, `${id}-${design}.pdf`); fs.copyFileSync(n.files[0], r.file);
@@ -169,6 +256,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
         const refined = goldenTexts(r.deck, "clean", "full", p + 1), m2 = refined && matchTexts(pageText, refined);
         if (m2 && !m2.missing.length && !m2.extra) { (r.b19 ||= []).push(p + 1); return; }
       }
+      // B48: the template's bullets and contents marks (ispGoldenTexts) – raw Excel also as Excel Refined's (B19)
+      for (const d of r.design === "excel" ? ["excel", "clean"] : r.design === "clean" ? ["clean"] : []) for (const w of ispForms(r.deck, d, p + 1, pageText, r.pageNos[p])) {
+        const m3 = matchTexts(pageText, w);
+        if (!m3.missing.length && !m3.extra) { (r.b48 ||= []).push(p + 1); return; }
+      }
       bad.push(`slide ${p + 1}: ${missing.length ? `missing ${JSON.stringify(missing.slice(0, 3))}` : ""}${extra ? ` not in the goldens: ${JSON.stringify(extra.slice(0, 60))}` : ""}`);
     });
     r.gt = bad.length ? bad : "equal";
@@ -188,6 +280,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   console.log(`calibration ${speed.ms.toFixed(1)} ms: time limits × ${speed.factor.toFixed(2)}`);
   const b19 = results.filter(r => r.b19).map(r => `${r.deck} slide ${r.b19.join(", ")}`);
   if (b19.length) console.log(`GT B19: raw Excel equal to Excel Refined's golden text (the user's objects drawn): ${b19.join("; ")}`);
+  const b48 = results.filter(r => r.b48).map(r => `${r.deck} · ${r.design} slide ${r.b48.join(", ")}`);
+  if (b48.length) console.log(`GT B48: equal to the golden text as the Intesa Sanpaolo template draws it (bullets and contents marks as squares, the page number on by default): ${b48.join("; ")}`);
   console.log(`${results.length} PDFs: GT ${results.filter(r => r.gt === "equal").length} equal · size ${results.filter(r => r.sizeOk).length} within budget · ${OUT}`);
 
   // PowerPoint (B21): pptxcheck 1–3, GT, the charts' values, budgets
@@ -223,6 +317,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
         const m = gt(want);
         if (!m.missing.length && !m.extra) return;
         if (p.design === "excel") { const refined = goldenTexts(p.deck, "clean", "full", i + 1), m2 = refined && gt(refined); if (m2 && !m2.missing.length && !m2.extra) return; }
+        // B48 (ispGoldenTexts): the template's bullets are the paragraphs' own, its contents marks shapes – not text
+        for (const d of p.design === "excel" ? ["excel", "clean"] : p.design === "clean" ? ["clean"] : []) for (const w of ispForms(p.deck, d, i + 1, s.texts.join("\n"), p.pageNos[i])) {
+          const m3 = gt(w);
+          if (!m3.missing.length && !m3.extra) { (p.b48 ||= []).push(i + 1); return; }
+        }
         bad.push(`slide ${i + 1}: ${m.missing.length ? `missing ${JSON.stringify(m.missing.slice(0, 3))}` : ""}${m.extra ? ` not in the goldens: ${JSON.stringify(m.extra.slice(0, 60))}` : ""}`);
       });
       p.gt = bad.length ? bad : "equal"; p.check = R.ok ? "ok" : R.problems;
@@ -239,6 +338,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       if (p.deck === "deck20" && p.ms > tlim * 1.1) { ok = false; console.log(`PPTX TIME FAIL ${tag}: ${p.ms} ms > ${tlim} ms + 10 %`); }
     }
     fs.writeFileSync(path.join(OUT, "export-check-pptx.json"), JSON.stringify(pptx.map(p => ({ ...p, file: path.basename(p.file) })), null, 1));
+    const pb48 = pptx.filter(p => p.b48).map(p => `${p.deck} · ${p.design} slide ${p.b48.join(", ")}`);
+    if (pb48.length) console.log(`PPTX GT B48: equal to the golden text as the Intesa Sanpaolo template draws it (its bullets, contents marks and page number): ${pb48.join("; ")}`);
     const d20 = pptx.filter(p => p.deck === "deck20").map(p => `${p.design} ${(p.bytes / 1024).toFixed(0)} KB / ${p.ms} ms`).join(", ");
     const absent = pptx.some(p => p.ppt === "absent" || p.ppt === "skipped");
     console.log(`${pptx.length} PowerPoint files: checked ${pptx.filter(p => p.check === "ok").length} ok (${pptx.filter(p => p.powerpoint).length} opened in PowerPoint${absent ? "; PowerPoint not here: structure, python-pptx's real tables and charts only – the open / HasTable / HasChart gate runs on a PC with PowerPoint" : ", every one gated"}) · GT ${pptx.filter(p => p.gt === "equal").length} equal · size ${pptx.filter(p => p.sizeOk).length} within budget${d20 ? ` · deck20: ${d20}` : ""}`);

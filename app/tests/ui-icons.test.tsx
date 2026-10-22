@@ -85,8 +85,8 @@ describe("UI icons (S15.6, B35)", () => {
       if (!label) expect(b!.title, `${sel}: an icon-only button is named by its title`).not.toBe("");
     }
     // every icon in the toolbars is from the subset, and no Unicode symbol is left as a button's icon
-    // (Insert chart ▾ is M14's file, InsertChart.tsx: it takes "chart-pie" from the subset when M14 has merged)
-    for (const s of container.querySelectorAll("button:not(#chartBtn) svg")) expect(s.classList.contains("ic"), s.outerHTML.slice(0, 80)).toBe(true);
+    // (Insert chart ▾, M14's InsertChart.tsx, takes "chart-pie" from the subset since the merge with M14)
+    for (const s of container.querySelectorAll("button svg")) expect(s.classList.contains("ic"), s.outerHTML.slice(0, 80)).toBe(true);
     for (const b of container.querySelectorAll("button")) expect(b.textContent, b.id).not.toMatch(/[↻✦⚙⤺🗑⇄⇔⌗✎▢◼▬↺✕◯↑↓←→]/u);
     // a few buttons as they are drawn
     const snap = ["#undoBtn", "#wizardBtn", "#noteDelete", '[data-valign="middle"]'].map(s => container.querySelector(s)!.outerHTML.replace(/ title="[^"]*"/, ""));

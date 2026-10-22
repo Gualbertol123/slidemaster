@@ -20,7 +20,7 @@ import { titleGeom } from "../src/render/text";
 import { specOf, type DesignSpec } from "../src/render/consult-spec";
 import { wrapLines } from "../src/text/lines";
 import type { RenderCtx } from "../src/render/context";
-import type { Design, Note, Op } from "../src/model/types";
+import type { Design, Note, Op, StylePatch } from "../src/model/types";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DECKS = path.join(here, "../../tests/corpus/decks"), BOOKS = path.join(here, "../../tests/corpus/workbooks");
@@ -36,11 +36,11 @@ const textsAfter = (l: DisplayList, cls: string) => { const all = flat(l), k = a
 const rgb = (hex: string) => parseColor(hex).c;
 const isFill = (n: Node, hex: string) => (n.t === "rect" || n.t === "text") && !!n.fill && "solid" in n.fill && n.fill.solid.join() === rgb(hex).join();
 
-async function deck(file: string, design: Design) {
+async function deck(file: string, design: Design, over: StylePatch = {}) {
   const d = JSON.parse(fs.readFileSync(path.join(DECKS, file), "utf8")) as { workbook: string; ops: Op[] };
   const wb = await readWorkbook(ab(path.join(BOOKS, d.workbook)));
   const view = applyOps(emptyDoc("W.xlsx"), d.ops).doc;
-  const style = resolveStyle({}, view.style, { design });             // the design resolved with the deck (its own palette)
+  const style = resolveStyle({}, view.style, { design, ...over });             // the design resolved with the deck (its own palette)
   const slides = runtimeSlides(wb, view.preset, "W.xlsx", design);
   const ctx: RenderCtx = { style, edits: view.edits || {}, slides, preset: view.preset || null, workbook: "W.xlsx", logoSrc: "logo.png", sheet: n => wb.sheets.find(s => s.name === n) || null, version: null };
   const build = (i: number, c: RenderCtx = ctx) => {
@@ -60,7 +60,9 @@ const DECOR = (S: DesignSpec) => new Set(["cvx-panel", "cvx-band b2", "cvx-rule"
 describe("consulting designs: the slide furniture", () => {
   for (const design of CONSULT) for (const file of ["weekly-options.json", "weekly-comments.json", "report.json"]) it(`${design} · ${file}: every slide validates, eight node types, the band, the rules, Excel Refined's hits`, async () => {
     const { ctx, slides, build } = await deck(file, design), S = specOf(ctx);
-    const clean = await deck(file, "clean");
+    // Excel Refined with the page number as the consulting design has it (B48: on by default in Excel Refined only, so
+    // its "pageno plain" hit is compared only where the deck turned the page number on)
+    const clean = await deck(file, "clean", { pn: { on: ctx.style.pn.on } });
     for (let i = 0; i < slides.length; i++) {
       const R = slides[i], dl = build(i).nodes, all = flat(dl);
       expect(validate(dl), `${design} slide ${i + 1}`).toEqual([]);

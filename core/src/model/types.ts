@@ -35,7 +35,10 @@ export interface Note { text: string; font?: string; size?: number; /** line spa
   /** draw the text box as a card (glass bubble / Excel-style box) */ bubble?: boolean;
   /** placed freely on the slide at x/y (slide px) after being moved; unset = next to its table */ x?: number; y?: number;
   /** left/right box only: a column beside ALL the tables of the slide, as tall as all of them */ span?: boolean;
-  /** automated comment: the text is written from the table's numbers with these settings (model/comment.ts) */ auto?: import("./comment").CommentCfg }
+  /** automated comment: the text is written from the table's numbers with these settings (model/comment.ts) */ auto?: import("./comment").CommentCfg;
+  /** the box's border (B49, 2026-10-21; render/note-frame.ts): unset = the design's own (a bubble's frame, else none), "none" =
+      no border, else its weight px and colour (unset colour = the design's). Inside the `notes` map: a deck holding one
+      is format 5 (ops.ts V5_NOTE) */ frame?: LineOrNone }
 /* ---- slide items (4.3, B16/B17; docs/next/07 §2.2, ADR-015): charts and callouts, drawn in every design ---- */
 /** cells an item reads: a sheet id ("Sheet" or "[File.xlsx]Sheet") + one A1 rectangle, or a table of the deck + a range inside its sheet */
 export type DataRef = { sheet: string; range: string } | { table: string; range: string };
@@ -69,8 +72,9 @@ export interface ChartSeries {
   labels?: { show: ("value" | "name" | "category" | "percent" | "ofTarget")[];
     pos?: "above" | "below" | "left" | "right" | "center" | "inEnd" | "inBase" | "outEnd";
     fmt?: TextFmt; /** a number format code; else the cells' */ num?: string };
-  /** per point, by index: colour, marker colour (hex), label text (null = none) */
-  points?: Record<string, { color?: string; marker?: string; label?: string | null }>;
+  /** per point, by index: colour, marker colour (hex), label text (null = none); `total`: a waterfall's total column,
+      standing on the axis (Excel's "Set as total"; 09 §2.2, §3.2) */
+  points?: Record<string, { color?: string; marker?: string; label?: string | null; total?: boolean }>;
   /** kept, not drawn */ hide?: boolean;
 }
 /** a list of categories on the x axis; groups stand side by side, an optional divider between them */

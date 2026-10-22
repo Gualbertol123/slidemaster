@@ -12,7 +12,7 @@
    are drawn over the tables and text boxes, in every design (B16, B17).
    Coordinates are slide px (1600 × 900). */
 import { parseColor, solid } from "../dl/color";
-import type { Node, Paint, RectNode, TextNode } from "../dl/types";
+import type { Node, Paint, PathCmd, RectNode, TextNode } from "../dl/types";
 import { fontStack } from "../model/fonts";
 import type { Note, RuntimeSlide, TextFmt } from "../model/types";
 import type { RenderCtx } from "./context";
@@ -22,8 +22,9 @@ import { halfLeading, lu, primaryFamily, type Metrics, type TableDL } from "./ex
 import { pageNoFor, pageNoGeom, footerGeom, pageNumber, pnFmt, isHidden } from "./pagenumbers";
 import { contrastVars, memoPart, noteParts, slideHasLogo, themeVars, type NotePart } from "./slide";
 import { areaFor, itemBoxOf, KPI_LINE, NAVY_BAND, SIGNAL_AREA, slideFacts, tableH, tableW, type TBox } from "./layout";
-import { chartNodes, chartSem, type PieGeom } from "./chart-dl";
+import { cachedChartNodes, chartSem, type PieGeom } from "./chart-dl";
 import { shapeNodes, shapeRadius } from "./shape-dl";
+import { frameStroke, noteFrame } from "./note-frame";
 import { lineEnds, lineNodes } from "./line-dl";
 import type { ItemSem } from "../pptx/scene";
 import type { Box, ChartItem, LineItem, ShapeItem } from "../model/types";
@@ -32,11 +33,14 @@ import { deckFmt, hasMarkup, slideTextFmt, titleGeom } from "./text";
 import { todayLabel } from "./cover";
 import { breakRuns, collapse } from "../text/lines";
 import { consultOptions, isConsult } from "../model/designs";
+import { isIsp, ISP_GREY } from "../model/isp";
+import { ISP, tiltedSquare } from "./isp";
 import { specOf, type DesignSpec, type Stroke as SpecStroke, type TextSpec } from "./consult-spec";
 
 export const SLIDE_FONT = { glass: `-apple-system,"SF Pro Display","Segoe UI","Helvetica Neue",Inter,Arial,sans-serif`, excel: `"Century Gothic","CenturyGothic","URW Gothic","AppleGothic",Arial,sans-serif` };
 const GLASS_ROW_FONT = `-apple-system,"SF Pro Text","Segoe UI",Arial,sans-serif`;
-const NOTE_FONT = { excel: `'Century Gothic','URW Gothic',Arial,sans-serif`, clean: `'Segoe UI',Calibri,Arial,sans-serif` };
+// (Excel Refined's text boxes were in Segoe UI; since B48 both Excel designs write in the template's Century Gothic)
+const NOTE_FONT = { excel: `'Century Gothic','URW Gothic',Arial,sans-serif`, clean: `'Century Gothic','URW Gothic',Arial,sans-serif` };
 
 /** what the slide needs besides its tables: the wallpaper (Liquid Glass) and the logo's picture with its size */
 export interface SlideImages {
@@ -48,7 +52,10 @@ export interface SlideImages {
     picking), the Issues line of a source that is missing or empty */
 export interface ItemInfo { box: Box; issue: string | null; geom: PieGeom | null; /** its nodes: [start, end) in the slide's list */ at: [number, number];
   /** what the PowerPoint export makes of it (asked with `sem`, 07 §4.1) */ pptx?: ItemSem }
-export interface SlideDL extends TableDL { items: Record<string, ItemInfo> }
+export interface SlideDL extends TableDL { items: Record<string, ItemInfo>;
+  /** asked with `sem`, the Excel designs only (B48 review, 3): the nodes [start, end) of the template's furniture – the
+      logo, the cover's band – that the PowerPoint export always puts on the slide's layout (pptx/writer.ts) */
+  layout?: [number, number] }
 
 /* ---- text ---- */
 /** the line height the slide's texts inherit where slide.css sets none: the page's body is font: 13px/1.4 (ui.css) */
@@ -93,6 +100,9 @@ const figure = (c: { text: string; v: number | null }, signed: boolean) => {
 };
 /** a text box paragraph drawn as a bullet in the consulting designs ("- " or "• " at its start) */
 const BULLET = /^(- |• )/;
+/** the Excel designs' bullets (B48): a paragraph starting "- " / "• " (indented, or "◦ ": the second level). A "- "
+    before a figure is a minus, not a bullet ("- 12 mln", "- €3", "- ,5": B48 review, 7) */
+export const ISP_BULLET = /^([ \t]+)?(- (?!\s*[\d.,€$£%])|• |◦ )/;
 
 class Typesetter {
   constructor(private m: Metrics) {}
@@ -130,7 +140,7 @@ class Typesetter {
 /** `opts.sem`: each item also says what the PowerPoint export makes of it (ItemInfo.pptx) */
 export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx, tables: TableDL[], boxes: TBox[], img: SlideImages, m: Metrics, today = todayLabel(), opts: { sem?: boolean } = {}): SlideDL {
   const ctx = slideCtx(ctx0, R);                                // the slide's own look (B29)
-  const T = new Typesetter(m), d = ctx.style.design, glassy = d === "glass", rk = ctx.style.radius / 100;
+  const T = new Typesetter(m), d = ctx.style.design, glassy = d === "glass", rk = ctx.style.radius / 100, isp = isIsp(d);
   const V = glassVars(ctx), tv = themeVars(ctx), place = { x: 0, y: 0, scale: 1 }, wall = img.wall?.blur ?? null;
   const base = glassy ? SLIDE_FONT.glass : SLIDE_FONT.excel;
   const x1 = tv["--x1"] || "#1C4F8C";
@@ -161,15 +171,21 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
   const pageNo = pageNoFor(ctx, idx), logo = slideHasLogo(R) ? img.logo : null, cover = R.type === "cover";
   // a page number in the top-left corner pushes the title to the right
   const shift = pageNo !== null && ctx.style.pn.pos === "tl" ? pageNoGeom(ctx, pageNo, glassy, !!logo, cover).w + 22 : 0;
-  if (cover) { if (C) consultCover(C); else coverNodes(); }
+  // the Excel designs (the Intesa Sanpaolo template, B48): the logo first, under the furniture – decoration every slide of
+  // a kind begins with, which the PowerPoint export puts on that kind's layout (pptx/writer.ts)
+  const lay0 = low.length;
+  if (logo && isp) logoNodes(logo);
+  let lay1 = low.length;                                        // (the cover's band joins it: ispCover)
+  if (cover) { if (C) consultCover(C); else if (isp) ispCover(); else coverNodes(); }
   else if (C) { if (R.type === "index") consultIndex(C); else consultContent(C); }
+  else if (isp) { if (R.type === "index") ispIndex(); else ispTitles(); }
   else {
     oneLine("title", slideTextFmt(ctx, R, "title"), R.title, glassy ? 58 : 54, glassy ? 20 : 16, glassy ? 170 : 150,
       { family: base, size: glassy ? 48 : 44, weight: 700, italic: false, color: glassy ? solid("#0B0D17") : solid(x1), ls: glassy ? -1 : 0 }, glassy);
     if (R.subtitle) oneLine("subtitle", slideTextFmt(ctx, R, "subtitle"), R.subtitle, glassy ? 60 : 56, titleGeom(R, ctx).subTop, glassy ? 170 : 150,
       { family: base, size: glassy ? 19 : 18, weight: glassy ? 520 : 400, italic: false, color: glassy ? { solid: [18, 22, 44], a: .62 } : solid("#5B6B82"), ls: 0 }, false);
   }
-  if (R.type === "index" && !C) indexNodes();
+  if (R.type === "index" && !C && !isp) indexNodes();
   if (pageNo !== null) pageNoNodes(pageNo, false);
   const fg = footerGeom(ctx, idx, glassy, !!logo, cover, pageNo, today);
   if (fg) pageNoNodes(fg.label, true);
@@ -182,7 +198,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     }
     for (const part of noteParts(R, i, ctx)) { const nb = b?.notes[part.side]; if (nb) noteNodes(part, nb); }
   });
-  const memo = memoPart(R, ctx);
+  const memo = memoPart(R, ctx, { today });
   if (memo) noteNodes(memo, memo.box);
   // the slide's items, in their order (the later on top): beside their table or where they were put
   const items: Record<string, ItemInfo> = {};
@@ -193,8 +209,8 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     const info = it.kind === "chart" ? chartItem(it, id, box) : it.kind === "shape" ? shapeItem(it, id, box) : it.kind === "line" ? lineItem(it, id, box) : null;
     if (info) items[id] = info;
   }
-  if (logo) logoNodes(logo);
-  return { nodes: [...low, ...z3, ...z5], images, items };
+  if (logo && !isp) logoNodes(logo);
+  return { nodes: [...low, ...z3, ...z5], images, items, ...(opts.sem && isp && lay1 > lay0 ? { layout: [lay0, lay1] as [number, number] } : {}) };
 
   /* ---- items ---- */
   /** the colour under a point (a line's label, a line's middle): Consulting Red's message panel, a consulting design's
@@ -212,11 +228,14 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
   function chartItem(it: ChartItem, id: string, box: Box): ItemInfo {
     const s0 = low.length;
     const family = glassy ? base : C ? C.note.family : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel;
-    const c = chartNodes(it, id, box, ctx, m, { V, wall, family });
+    // built once per chart key (S14.2: the item, its data with each sheet's generation, the look, the scenario's overlay)
+    const c = cachedChartNodes(it, id, box, ctx, m, { V, wall, family });
     low.push(...c.nodes);
     // the PowerPoint export: the card alone under a native chart
-    const sem = opts.sem ? chartSem(it, box, ctx, family) : null;
-    return { box, issue: c.issue, geom: c.geom, at: [s0, low.length], ...(sem ? { pptx: { kind: "chart", at: [s0, low.length], card: chartNodes(it, id, box, ctx, m, { V, wall, family, noContent: true }).nodes, chart: sem } } : {}) };
+    const sem = opts.sem ? chartSem(it, box, ctx, family, m) : null;
+    // (the card under the native chart; dividers and marks over it as plain shapes, S14.3)
+    const card = sem ? cachedChartNodes(it, id, box, ctx, m, { V, wall, family, noContent: true }) : null;
+    return { box, issue: c.issue, geom: c.geom, at: [s0, low.length], ...(sem && card ? { pptx: { kind: "chart", at: [s0, low.length], card: card.nodes, chart: sem, ...(card.overlay?.length ? { overlay: card.overlay } : {}) } } : {}) };
   }
   /* a callout or an icon (4.3; Tabler icons 4.8, M15) */
   function shapeItem(it: ShapeItem, id: string, box: Box): ItemInfo {
@@ -247,12 +266,21 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
   }
 
   /* a nowrap line with an ellipsis in a box from left to 1600 − right (titles), the inherited line height unless set */
-  function oneLine(cls: string, f: TextFmt, text: string, left: number, top: number, right: number, st0: TStyle, shadow: boolean, lh0 = INHERITED) {
+  function oneLine(cls: string, f: TextFmt, text: string, left: number, top: number, right: number, st0: TStyle, shadow: boolean, lh0 = INHERITED, fit = 0) {
     // a page number in the top-left corner: both texts start at 56 + its width + 22 (v3's slideMarkup's inline left)
-    const st = withFmt(st0, f), x = shift ? 56 + shift : left, w = 1600 - right - x, lh = T.lineH(st, f.lh ? +f.lh : lh0);
-    const plain = collapse(text).trim(), shown = T.ellipsis(plain, st, w), tw = T.adv(shown, st);
+    const st1 = withFmt(st0, f), x = shift ? 56 + shift : left, w = 1600 - right - x, lh = T.lineH(st1, f.lh ? +f.lh : lh0);
+    const plain = collapse(text).trim();
+    // `fit` (the Excel designs, B48 fix): a line too long for the box shrinks in 0.5 px steps, down to that size, on the
+    // same baseline – every size measured in the same round, as a text box's fitting
+    let st = st1;
+    if (fit && st1.size > fit) {
+      const sizes: number[] = []; for (let z = st1.size; z > fit; z = r2(z - .5)) sizes.push(z); sizes.push(fit);
+      const fits = sizes.map(z => T.adv(plain, { ...st1, size: z }) <= w + .01);
+      st = { ...st1, size: sizes[fits.indexOf(true) < 0 ? sizes.length - 1 : fits.indexOf(true)] };
+    }
+    const shown = T.ellipsis(plain, st, w), tw = T.adv(shown, st);
     const tx = f.align === "right" ? x + w - tw : f.align === "center" ? x + (w - tw) / 2 : x;
-    const n = T.node(shown, tw > w ? x : tx, T.baseline(st, top, lh), st);
+    const n = T.node(shown, tw > w ? x : tx, T.baseline(st1, top, lh), st);
     low.push(hit(cls, x, top, w, lh, plain), { t: "group", clip: { x, y: top, w, h: lh }, children: shadow ? [{ ...n, y: n.y + 1, fill: { solid: [255, 255, 255], a: .6 }, decorative: true }, n] : [n] });
   }
 
@@ -505,6 +533,96 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
       low.push(hit("ix-row x", x, y, colW, ch, label([nTxt, tTitle, tSub, it.page].filter(Boolean).join("\n"))), ...out);
     }));
   }
+  /* ---- Excel and Excel Refined: the Intesa Sanpaolo template (B48, render/isp.ts) ---- */
+  /** a content slide's title (26 pt bold, the accent – the template's Blu) and subtitle (16 pt, Nero 50 %) */
+  function ispTitles() {
+    // to the content area's right edge, clear of a page number at the top right; too long: smaller, then cut (B48 fix)
+    const right = 1600 - ISP.area.x - ISP.area.w, pn = pageNo !== null && (ctx.style.pn.pos === "br" || ctx.style.pn.pos === "tr") ? pageNoGeom(ctx, pageNo, false, !!logo, cover) : null;
+    oneLine("title", slideTextFmt(ctx, R, "title"), R.title, ISP.title.x, ISP.title.top, pn ? Math.max(right, 1600 - pn.left + ISP.row.gap) : right,
+      { family: base, size: ISP.title.size, weight: 700, italic: false, color: solid(x1), ls: 0 }, false, INHERITED, ISP.title.min);
+    if (R.subtitle) oneLine("subtitle", slideTextFmt(ctx, R, "subtitle"), R.subtitle, ISP.title.x, titleGeom(R, ctx).subTop, right,
+      { family: base, size: ISP.sub.size, weight: 400, italic: false, color: solid(ISP_GREY), ls: 0 }, false, INHERITED, ISP.sub.min);
+  }
+
+  /** the template's cover (page 1): the blue diagonal band at the top left, the deck's logo (logoNodes), the title and
+      subtitle left-aligned under it; the cover's own note over the title and its date under the subtitle, small */
+  function ispCover() {
+    const K = ISP.cover, c = R.cfg, date = c.date || today, note = c.note || "", t = R.title || "";
+    const tf: TextFmt = { ...slideTextFmt(ctx, R, "title"), size: c.fmt?.title?.size }, sf = slideTextFmt(ctx, R, "subtitle");
+    const nf = c.fmt?.note || {}, df = c.fmt?.date || {}, al = (f: TextFmt) => f.align || "left";
+    const band = K.band, xs = band.map(p => p[0]), ys = band.map(p => p[1]);
+    low.push(hit("cvx-band", 0, 0, Math.max(...xs), Math.max(...ys)),
+      { t: "path", d: [...band.map(([x, y], i) => [i ? "L" : "M", x, y] as ["M" | "L", number, number]), ["Z"]], fill: { solid: parseColor(x1).c, a: K.bandAlpha } });
+    lay1 = low.length;                                          // the band is the cover layout's, with the logo
+
+    const X = K.title.x, W = K.title.w;
+    const kSt = withFmt({ family: base, size: K.note.size, weight: 700, italic: false, color: solid(x1), ls: K.note.ls }, nf);
+    const tSt = withFmt({ family: base, size: tf.size || K.title.size, weight: 700, italic: false, color: solid(x1), ls: 0 }, { ...tf, size: undefined });
+    const sSt = withFmt({ family: base, size: K.sub.size, weight: 400, italic: false, color: solid(ISP_GREY), ls: 0 }, sf);
+    const dSt = withFmt({ family: base, size: K.date.size, weight: 400, italic: false, color: solid(ISP_GREY), ls: 0 }, df);
+    const kick = note.trim() ? block([{ text: collapse(note).trim().toUpperCase(), st: kSt }], X, 0, W, nf.lh ? +nf.lh : INHERITED, al(nf), false) : null;
+    const tl = block([{ text: collapse(t).trim(), st: tSt }], X, 0, W, tf.lh ? +tf.lh : K.title.lh, al(tf), false);
+    const sb = block([{ text: collapse(R.subtitle || "").trim(), st: sSt }], X, 0, W, sf.lh ? +sf.lh : K.sub.lh, al(sf), false);
+    // an empty title or subtitle keeps a line's height (its editor on the stage)
+    const tH = Math.max(tl.h, T.lineH(tSt, tf.lh ? +tf.lh : K.title.lh)), sH = Math.max(sb.h, T.lineH(sSt, sf.lh ? +sf.lh : K.sub.lh));
+    const dH = T.lineH(dSt, df.lh ? +df.lh : INHERITED), dw = T.adv(date, dSt);
+    const shiftY = (ns: Node[], dy: number) => ns.map(nd => nd.t === "text" ? { ...nd, y: r2(nd.y + dy) } : nd);
+    let y = K.title.top;
+    const inner: Node[] = [];
+    if (kick) { inner.push(hit("cv-kicker", X, y - kick.h - K.note.gap, W, kick.h, note.toUpperCase()), ...shiftY(kick.nodes, y - kick.h - K.note.gap)); }
+    const y0 = kick ? y - kick.h - K.note.gap : y;
+    // the subtitle where the template has it (3.880 in), lower only when a long title reaches down to it (B48 review, 5)
+    inner.push(hit("cv-title", X, y, W, tH, label(t)), ...shiftY(tl.nodes, y)); y = r2(Math.max(K.sub.top, y + tH + K.sub.gap));
+    inner.push(hit("cv-sub", X, y, W, sH, label(R.subtitle || "")), ...shiftY(sb.nodes, y)); y += sH + K.date.gap;
+    inner.push(hit("cvx-date", X, y, dw, dH, date), T.node(date, X, T.baseline(dSt, y, dH), dSt));
+    z3.push(hit("cv-block x", X, y0, W, y - y0, label([note ? note.toUpperCase() : "", t, R.subtitle || ""].filter(Boolean).join("\n"))), ...inner);
+  }
+
+  /** the template's contents ("INDICE", page 2): the heading, then a row per content slide – a tilted square in the
+      marks' column, the page ("XX") bold in the accent, the entry, its subtitle after it in grey; rows closer, then two
+      columns, when they do not fit above the content area's foot */
+  function ispIndex() {
+    const I = ISP.index, f = slideTextFmt(ctx, R, "title");
+    const hSt: TStyle = { family: base, size: ISP.title.size, weight: 700, italic: false, color: solid(x1), ls: 0 };
+    oneLine("title", f, R.title, I.x, I.top, 150, hSt, false);
+    let top0 = Math.max(I.rowTop, I.top + T.lineH(withFmt(hSt, f), f.lh ? +f.lh : INHERITED) + 8);
+    if (R.subtitle) {
+      const sf = slideTextFmt(ctx, R, "subtitle"), s0: TStyle = { family: base, size: ISP.sub.size, weight: 400, italic: false, color: solid(ISP_GREY), ls: 0 };
+      oneLine("subtitle", sf, R.subtitle, I.x, top0 - 8, 150, s0, false);
+      top0 += T.lineH(withFmt(s0, sf), sf.lh ? +sf.lh : INHERITED);
+    }
+    const items: { n: number; title: string; sub: string; page: string }[] = [], subs = R.cfg.subs !== false;
+    ctx.slides.forEach((S, i) => { if (S.type === "content" && !isHidden(ctx, i)) items.push({ n: items.length + 1, title: S.title, sub: subs ? S.subtitle || "" : "", page: String(pageNumber(ctx, i)) }); });
+    const xf = deckFmt(ctx, "index"), row: TextFmt = { ...xf, size: undefined, align: undefined };
+    if (!items.length) {
+      const st = withFmt({ family: base, size: I.size, weight: 400, italic: false, color: solid(ISP_GREY), ls: 0 }, row), lh = T.lineH(st, INHERITED), t = "No content slides yet";
+      low.push(hit("ix-empty", I.rowX, top0, T.adv(t, st), lh, t), T.node(t, I.rowX, T.baseline(st, top0, lh), st));
+      return;
+    }
+    // the template's pitch while the rows fit, closer down to minPitch, then two columns
+    const avail = ISP.area.bottom - top0, n = items.length;
+    let pitch = Math.min(I.pitch, Math.floor(avail / n)), two = false;
+    if (pitch < I.minPitch) { two = true; pitch = Math.min(I.pitch, Math.floor(avail / Math.ceil(n / 2))); }
+    const per = two ? Math.ceil(n / 2) : n, k = Math.min(1, pitch / I.pitch), size = xf.size || (k < 1 ? r2(I.size * k) : I.size);
+    const eSt = withFmt({ family: base, size, weight: 400, italic: false, color: solid("#000000"), ls: 0 }, row);
+    const pSt: TStyle = { ...eSt, weight: 700, color: solid(x1), tnum: true }, sSt: TStyle = { ...eSt, size: r2(eSt.size * .75), color: solid(ISP_GREY) };
+    const off = I.rowX - I.markX, colW = two ? 690 : 1450 - I.markX + off / 2, x0 = two ? 110 : I.markX - off / 2, side = r2(size * .75);
+    const markPaint = { solid: parseColor(x1).c, a: ISP.bullet.alpha };
+    [items.slice(0, per), items.slice(per)].forEach((list, c) => list.forEach((it, j) => {
+      const left = x0 + c * (colW + 40), y = top0 + j * pitch, mx = left + off / 2, tx = mx + off, right = left + colW, by = T.baseline(eSt, y, pitch), out: Node[] = [];
+      const cy = r2(by - .35 * eSt.size);
+      out.push(hit("ix-n", r2(mx - side / 2), r2(cy - side / 2), side, side, String(it.n).padStart(2, "0")), { t: "path", d: tiltedSquare(mx, cy, side), fill: markPaint });
+      const pw = T.adv(it.page, pSt), gap = T.adv(" ", eSt), room = Math.max(0, right - tx - pw - gap);
+      out.push(hit("ix-p", tx, y, pw, pitch, it.page), T.node(it.page, tx, by, pSt));
+      const ex = tx + pw + gap, tTitle = collapse(it.title).trim(), tSub = collapse(it.sub).trim(), tShown = T.ellipsis(tTitle, eSt, room), tw = Math.min(room, T.adv(tShown, eSt));
+      const sx = ex + tw + 14, sRoom = Math.max(0, right - sx), sShown = tSub && sRoom > 0 ? T.ellipsis(tSub, sSt, sRoom) : "", sw = sShown ? Math.min(sRoom, T.adv(sShown, sSt)) : 0;
+      out.push(hit("ix-txt", ex, y, (sw ? sx + sw : ex + tw) - ex, pitch, label(tTitle + (tSub ? "\n" + tSub : ""))), hit("ix-t", ex, y, tw, pitch, tTitle));
+      if (tShown) out.push(T.node(tShown, ex, by, eSt));
+      if (tSub) out.push(hit("ix-s", sx, y, sw, pitch, tSub), ...(sShown ? [T.node(sShown, sx, by, sSt)] : []));
+      low.push(hit("ix-row x", left, y, colW, pitch, label([it.page, tTitle, tSub].filter(Boolean).join("\n"))), ...out);
+    }));
+  }
+
   function coverNodes() {
     const c = R.cfg, date = c.date || today, note = c.note || "", t = R.title || "";
     const tf: TextFmt = { ...slideTextFmt(ctx, R, "title"), size: c.fmt?.title?.size }, sf = slideTextFmt(ctx, R, "subtitle");
@@ -641,6 +759,10 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
 
   function noteNodes(part: NotePart, nb: { x: number; y: number; w: number; h: number }) {
     const n = part.n, { x, y, w, h } = nb;
+    // the box's own border (B49, note-frame.ts): on a box with text; an Excel bubble's frame takes it, else drawn after
+    // the bubble as a stroke inside the box's edges
+    const fr = part.txt.trim() ? noteFrame(n.frame, d) : null, line = fr && fr !== "none" ? fr : null;
+    let framed = false;
     if (part.bubble) {
       if (glassy) low.push(...glassBox("card notebub", x, y, w, h, part.bubble.r, V, place, wall, { hit: { kind: "f", id: part.bubble.cls } }));
       else if (C) {
@@ -652,10 +774,31 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
       } else {
         // the framed box as Chromium paints an unscaled box: its edges on whole pixels (the hit keeps the layout's box)
         const X = Math.round(x), Y = Math.round(y), W = Math.round(x + w) - X, H = Math.round(y + h) - Y, r = part.bubble.r, clean = d === "clean";
-        const sh = (dy: number, blur: number, spread: number, c: [number, number, number], a: number): Node => ({ t: "shadow", x: X, y: Y, w: W, h: H, r, dx: 0, dy, blur, spread, c, a });
-        low.push(hit(part.bubble.cls, x, y, w, h), ...(clean ? [sh(8, 24, -12, [20, 30, 60], .18), sh(1, 3, 0, [20, 30, 60], .06)] : [sh(1, 2, 0, [0, 0, 0], .08)]),
-          { t: "rect", x: X + .5, y: Y + .5, w: Math.max(0, W - 1), h: Math.max(0, H - 1), r: Math.max(0, r - .5), fill: solid("#FFFFFF"), stroke: { w: 1, paint: solid(clean ? "#E1E5EC" : "#BFBFBF") } });
+        // Excel and Excel Refined (B48): the Intesa Sanpaolo template's outlined box – white, Nero 50 % at 1 pt, square;
+        // a border the user set (B49) takes its place (its width and colour) – the white box, then that outline on its own,
+        // which the PowerPoint export groups with the text box (pptx/scene.ts frameGroups); "none" leaves the box unframed
+        if (isp) {
+          const bw = line ? line.w : fr === "none" ? 0 : ISP.box.w, k = bw / 2;
+          low.push(hit(part.bubble.cls, x, y, w, h), line
+            ? { t: "rect", x: X, y: Y, w: W, h: H, fill: solid("#FFFFFF") }
+            : { t: "rect", x: X + k, y: Y + k, w: Math.max(0, W - bw), h: Math.max(0, H - bw), fill: solid("#FFFFFF"), ...(bw ? { stroke: { w: bw, paint: solid(ISP.box.border) } } : {}) });
+          if (line) low.push({ t: "rect", x: X + k, y: Y + k, w: Math.max(0, W - bw), h: Math.max(0, H - bw), stroke: frameStroke(line) });
+        } else {
+          const sh = (dy: number, blur: number, spread: number, c: [number, number, number], a: number): Node => ({ t: "shadow", x: X, y: Y, w: W, h: H, r, dx: 0, dy, blur, spread, c, a });
+          // its frame: the design's 1 px line, the box's own border (B49) or none
+          const sw = line ? line.w : fr === "none" ? 0 : 1, k = sw / 2;
+          low.push(hit(part.bubble.cls, x, y, w, h), ...(clean ? [sh(8, 24, -12, [20, 30, 60], .18), sh(1, 3, 0, [20, 30, 60], .06)] : [sh(1, 2, 0, [0, 0, 0], .08)]),
+            sw ? { t: "rect", x: X + k, y: Y + k, w: Math.max(0, W - sw), h: Math.max(0, H - sw), r: Math.max(0, r - k), fill: solid("#FFFFFF"), stroke: line ? frameStroke(line) : { w: 1, paint: solid(clean ? "#E1E5EC" : "#BFBFBF") } }
+              : { t: "rect", x: X, y: Y, w: W, h: H, r, fill: solid("#FFFFFF") });
+        }
+        framed = true;
       }
+    }
+    if (line && !framed) {
+      // around the box (a glass card's corners), its stroke inside the edges; the PowerPoint export makes it a shape with
+      // that outline, grouped with the text box (pptx/scene.ts frameGroups)
+      const k = line.w / 2, r = part.bubble && glassy ? Math.max(0, part.bubble.r - k) : 0;
+      low.push({ t: "rect", x: r2(x + k), y: r2(y + k), w: r2(Math.max(0, w - line.w)), h: r2(Math.max(0, h - line.w)), ...(r ? { r } : {}), stroke: frameStroke(line) });
     }
     // the box: padding 4 / 6 px (10 / 18 with a bubble), the fitted font size, a flex column
     const bub = part.cls.includes(" bub"), padY = bub ? (C ? (part.memo ? 4 : C.card.padY) : 10) : 4, padX = bub ? (C ? C.card.padX : 18) : 6;
@@ -663,7 +806,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     const kick = !!C && part.memo && bub;
     const start = n.size || (C ? (part.memo ? (kick ? C.memo.kicker.size : C.memo.size) : C.note.size) : part.memo ? 13 : 18);
     const align = n.align || (part.memo ? "left" : part.side === "left" ? "right" : "left"), lh = n.lh || (C ? (part.memo ? C.memo.lh || C.note.lh : C.note.lh) : 1.28), auto = part.cls.includes(" auto"), pre = !auto;
-    const cx = x + padX, cw = Math.max(0, w - 2 * padX), txt = part.txt;
+    const cx = x + padX, cw = Math.max(0, w - 2 * padX), txt = part.txt, ispBullets = isp && align !== "right" && align !== "center";
     // the box's text laid out at a font size: its blocks (paragraphs, headings, gaps) and its height
     const lay = (size: number) => {
       const st: TStyle = withFmt(C ? { family: part.memo ? C.memo.family : C.note.family, size, weight: kick ? C.memo.kicker.weight : part.memo ? C.memo.weight : 400, italic: false,
@@ -672,8 +815,8 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
         { font: n.font, b: n.b || undefined, i: n.i || undefined, color: n.color }, { size: false });
       const blocks: { nodes: Node[]; h: number; mt: number; mb: number; text?: string }[] = [];
       let text = txt;
-      if (hasMarkup(txt) || n.pgap != null || (!!C && txt.split("\n").some(l => BULLET.test(l)))) {
-        const pgap = n.pgap != null ? n.pgap * size : null, a1 = glassy ? (tv["--a1"] || "#3B82F6") : "#2F75B5";
+      if (hasMarkup(txt) || n.pgap != null || (!!C && txt.split("\n").some(l => BULLET.test(l))) || (ispBullets && txt.split("\n").some(l => ISP_BULLET.test(l)))) {
+        const pgap = n.pgap != null ? n.pgap * size : null, a1 = glassy ? (tv["--a1"] || "#3B82F6") : isp ? x1 : "#2F75B5";
         let prevNp = false;
         const lines = txt.split("\n"), texts: string[] = [];
         for (const raw of lines) {
@@ -682,6 +825,24 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
           // a consulting bullet: the spec's glyph in its colour replaces the "- " / "• ", the text hangs 0.9 em in; in a
           // right- or centre-aligned box the glyph goes inline before the first line's text (no hanging indent)
           const bullet = !!C && kind === "np" && BULLET.test(raw), hang = bullet && align !== "right" && align !== "center", ind = hang ? .9 * size : 0;
+          // the Intesa Sanpaolo template's bullets (B48, page 12): "- " / "• " a filled square tilted 10° at 25 %
+          // transparency, indented "- " / "◦ " the same square in outline; the text hangs 1 em in
+          const ib = ispBullets && kind === "np" ? ISP_BULLET.exec(raw) : null, ibLevel = ib ? (ib[1] || ib[2] === "◦ " ? 2 : 1) : 0;
+          if (ib) {
+            const iind = ISP.bullet.indent * size, ist: TStyle = part.ink ? { ...st, color: solid(part.ink) } : st;
+            const b = block(inlineRuns(raw.slice(ib[0].length), ist), cx + iind, 0, cw - iind, lh, align, pre);
+            if (b.h) {
+              const sq = r2(ISP.bullet.side * size), qy = r2(T.baseline(st, 0, T.lineH(st, lh)) - .36 * size), qx = r2(cx + .42 * size), ink = parseColor(part.ink || x1).c;
+              b.nodes.unshift(ibLevel === 1 ? { t: "path", d: tiltedSquare(qx, qy, sq), fill: { solid: ink, a: ISP.bullet.alpha } }
+                : { t: "path", d: tiltedSquare(qx, qy, r2(sq - ISP.bullet.outline * size)), stroke: { w: r2(ISP.bullet.outline * size), paint: { solid: ink, a: ISP.bullet.alpha } } });
+              // the PowerPoint export (opts.sem): a "bu" hit before the square makes it the paragraph's own bullet
+              // (pptx/scene.ts; B48 review, 2) – the stage, PDF and PNG lists have no such hit
+              if (opts.sem) b.nodes.unshift({ t: "hit", kind: "bu", id: String(ibLevel), x: r2(qx - sq / 2), y: r2(qy - sq / 2), w: sq, h: sq });
+            }
+            blocks.push({ ...b, mt: prevNp && !auto ? (pgap ?? 0) : 0, mb: 0 });
+            texts.push(b.text); prevNp = true;
+            continue;
+          }
           const body = kind === "np" ? (bullet ? raw.slice(2) : raw) : raw.slice(kind === "nh" ? 3 : 2);
           // the consulting headings: the spec's # / ## styles at the fitted size's scale (caps and letter-spacing where set)
           // in a Consulting Navy card the "# " heading is its kicker: small capitals in the accent ("WHAT IT MEANS")
@@ -721,7 +882,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     const H = blocks.reduce((s, b) => s + b.mt + b.h + b.mb, 0), free = h - 2 * padY - H;
     let yy = y + padY + (just === "end" ? free : just === "center" ? free / 2 : 0);
     const kids: Node[] = [];
-    for (const b of blocks) { yy += b.mt; kids.push(...b.nodes.map(nd => nd.t === "text" || nd.t === "rect" ? { ...nd, y: r2(nd.y + yy) } : nd)); yy += b.h + b.mb; }
+    for (const b of blocks) { yy += b.mt; kids.push(...b.nodes.map(nd => nd.t === "text" || nd.t === "rect" || (nd.t === "hit" && nd.kind === "bu") ? { ...nd, y: r2(nd.y + yy) } : nd.t === "path" ? { ...nd, d: nd.d.map(c => c.map((v, k) => typeof v === "number" && k % 2 === 0 ? r2(v + yy) : v) as PathCmd) } : nd)); yy += b.h + b.mb; }
     low.push(hit(part.cls, x, y, w, h, label(auto ? text.split("\n").map(l => collapse(l).trim()).join("\n") : text)), { t: "group", clip: { x, y, w, h }, children: kids });
   }
 
@@ -758,6 +919,12 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
       const logoHit = hit("logo", ix, iy, p.iw, ih);
       if (bubble) low.push(...chrome("gls wb chrome logowrap", lx, ly, lw, lh, Math.min(lh / 2, lh / 2 * rk), [logoHit, ...img]));
       else low.push(hit("logowrap plain", lx, ly, lw, lh), logoHit, ...img);
+    } else if (isp) {
+      // the Intesa Sanpaolo template (B48): above the cover's title, left-aligned; on the other slides at the master's
+      // bottom right
+      const K = cover ? ISP.cover.logo : null, ih = K ? K.h : ISP.logo.h, p = pic(0, 0, K ? K.maxW : ISP.logo.maxW, ih);
+      const x = K ? K.x : r2(ISP.logo.right - p.iw), y = K ? K.top : ISP.logo.top;
+      low.push(hit(cover ? "logowrap big" : "logowrap", x, y, p.iw, ih), hit("logo", x, y, p.iw, ih), ...p.nodes.map(nd => ({ ...nd, x: r2((nd as { x: number }).x + x), y: r2((nd as { y: number }).y + y) })) as Node[]);
     } else {
       // a consulting cover: bottom right (Excel's cover puts it beside its panel)
       const big = cover, ih = big ? 48 : 32, maxW = big ? 300 : 280, right = big ? (C ? 96 : 580) : 38, bottom = big ? (C ? 64 : 72) : 14;

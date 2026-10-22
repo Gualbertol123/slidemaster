@@ -128,7 +128,14 @@ function paraXml(p: Para, refs: Refs): string {
   const sp = `<a:lnSpc><a:spcPts val="${Math.max(0, Math.round(p.pitch * PT * 100))}"/></a:lnSpc>${p.before > .5 ? `<a:spcBef><a:spcPts val="${Math.round(p.before * PT * 100)}"/></a:spcBef>` : ""}`;
   const last = p.runs[p.runs.length - 1];
   const end = last ? `<a:endParaRPr lang="en-GB" sz="${sz(last.size)}" dirty="0"/>` : "";
-  return `<a:p><a:pPr algn="${p.align}" marL="0" indent="0">${sp}<a:buNone/></a:pPr>${p.runs.map(r => runXml(r, refs)).join("")}${end}</a:p>`;
+  return `<a:p><a:pPr algn="${p.align}" marL="${p.bu ? E(p.marL ?? 0) : 0}" indent="${p.bu ? E(p.indent ?? 0) : 0}">${sp}${p.bu ? buXml(p.bu) : "<a:buNone/>"}</a:pPr>${p.runs.map(r => runXml(r, refs)).join("")}${end}</a:p>`;
+}
+/** a paragraph's own bullet (B48 review, 2): a square character in its colour – filled for the first level, outlined for
+    the second – sized as the display list's square (half an em: Arial's squares are 0.457 em, so 110 %). PowerPoint
+    does not turn a bullet: the template's 10° tilt stays in the PDF and PNG (an accepted difference, RENDERING.md) */
+export const BULLET_CHAR = { 1: "\u25A0", 2: "\u25A1" } as const;
+function buXml(b: NonNullable<Para["bu"]>): string {
+  return `<a:buClr>${clr(b.c, b.a)}</a:buClr><a:buSzPct val="110000"/><a:buFont typeface="Arial"/><a:buChar char="${BULLET_CHAR[b.level]}"/>`;
 }
 export function bodyPr(t: TextBody, extra = ""): string {
   const [l, tp, r, b] = t.ins.map(E);

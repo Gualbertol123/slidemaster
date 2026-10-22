@@ -77,7 +77,13 @@ describe("designs and colours", () => {
     expect(v["--a1"]).toBe("#AA0000"); expect(v["--x1"]).toBe("#AA0000"); expect(v["--posrgb"]).toBe("0,119,182");
     expect(v["--slidebg"]).toBeUndefined();                                            // Liquid Glass: background from the theme
     expect(themeVars(ctx({ design: "clean", colors: { bg: "#F5F5F0" } }))["--slidebg"]).toBe("#F5F5F0");
-    expect(themeVars(ctx({ design: "excel" }))).toEqual({});
+    expect(themeVars(ctx({ design: "glass" }))).toEqual({});
+    // Excel and Excel Refined: the default theme is the Intesa Sanpaolo template's (B48) – its Blu as the accent
+    const th = (id: string) => ({ id, c1: "", c2: "", c3: "", c4: "", a1: "", a2: "" });
+    expect(themeVars(ctx({ design: "excel" }))["--x1"]).toBe("#003A79");
+    expect(themeVars(ctx({ design: "clean", theme: th("intesa") }))["--x1"]).toBe("#003A79");
+    expect(themeVars(ctx({ design: "excel", theme: th("ocean") }))["--x1"]).toBe("#0B4F7C");
+    expect(themeVars(ctx({ design: "glass", theme: th("intesa") }))["--x1"]).toBe("#006A35");
   });
 });
 

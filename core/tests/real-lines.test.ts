@@ -1,5 +1,5 @@
 /* S15.3 (LN-03 through the gate): the PowerPoint gate's line expectation (tools/real-icons.mjs linesOf) comes from the
-   core's own PowerPoint lists, as the icons' (real-icons.test.ts): the corpus deck tests/corpus/charts/lines.json through
+   core's own PowerPoint lists, as the icons' (real-icons.test.ts): the corpus deck tests/corpus/charts/line-items.json through
    the core worker's host – an attached callout line on the table's slide, eleven lines on the second (every route,
    heads, a limiter, a divider, labels, an end that lost its object) – counted per slide and merged into the expectation
    for pptxcheck --expect. The file holds exactly that many shapes or groups named "Line" per slide, no connector, and the
@@ -23,7 +23,7 @@ import { iconsOf, linesOf, pageLines, withIcons, withLines } from "../../tools/r
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const book = (n: string) => { const b = fs.readFileSync(path.join(here, "../../tests/corpus/workbooks", n)); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer; };
-const DECK = JSON.parse(fs.readFileSync(path.join(here, "../../tests/corpus/charts/lines.json"), "utf8")) as { workbook: string; ops: Op[] };
+const DECK = JSON.parse(fs.readFileSync(path.join(here, "../../tests/corpus/charts/line-items.json"), "utf8")) as { workbook: string; ops: Op[] };
 
 async function host() {
   const deck = new FakeDeck("report.xlsx-0123456789", "report.xlsx"), api = deck.api();

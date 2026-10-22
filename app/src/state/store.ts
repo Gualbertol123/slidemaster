@@ -36,7 +36,8 @@ export interface Dialogs {
   /** choosing cells in the sheet view (M9): a new chart's, a chart's new cells, a cell a callout quotes, a new table's (S13.4) */ pick: PickReq | null;
   /** ⚙ Options › Administration › Saved setups (B44) */ setups?: boolean;
 }
-export type PickReq = { kind: "chart" } | { kind: "chart-cells"; id: string } | { kind: "cell"; id: string } | { kind: "table" };
+export type PickReq = { kind: "chart" } | { kind: "chart-cells"; id: string } | { kind: "cell"; id: string } | { kind: "table" }
+  /** the chart panel's cells (S14.5): a series' values, x values, targets or name, a group's categories */ | { kind: "chart-ref"; id: string; ref: import("../editor/chart-panel").ChartRefWhat };
 /** the "Run for each value…" dialog's fields (M8, B15): UI state of this page, never the document; kept while the page
     is open so the dialog opens again as it was left */
 export interface ScenarioForm {

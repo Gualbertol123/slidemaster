@@ -8,6 +8,7 @@ import { cache, effItems } from "./edits";
 import { analyse, cleanHead, parseNum, shapeComment, writeComment, writeSummary, type Analysis, type CommentCfg, type Grid } from "../model/comment";
 import type { RuntimeSlide } from "../model/types";
 import { tableName } from "../model/preset";
+import { macroTitle, writeMacro } from "../model/comment-macro";
 
 export function gridOf(L: TableLayout, ctx: RenderCtx): Grid {
   return cache(L, "grid", tableKey(ctx, L), () => {
@@ -31,6 +32,7 @@ export function commentTables(R: RuntimeSlide, L: TableLayout, cfg: CommentCfg):
   return [L, ...more];
 }
 export function commentText(L: TableLayout, cfg: CommentCfg, ctx: RenderCtx, R?: RuntimeSlide): string {
+  if (cfg.mode === "macro") { const a = analysisOf(L, ctx); return shapeComment(writeMacro({ a, cfg, title: macroTitle(a, cfg, tableName(L, ctx.preset)) }), cfg); }
   if ((cfg.mode ?? "sections") === "sections") return shapeComment(writeComment(analysisOf(L, ctx), cfg, tableName(L, ctx.preset)), cfg);
   const tables = R ? commentTables(R, L, cfg) : [L];
   const parts = tables.map(T => ({ a: analysisOf(T, ctx), name: cleanHead(tableName(T, ctx.preset).replace(/\s*·.*$/, "")) }));
