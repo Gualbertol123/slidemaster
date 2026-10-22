@@ -189,6 +189,9 @@ describe("dropped = saved = exported (SN-03, the core's part)", () => {
       // display list's 0.01 px of it. A grid-width outline – Consulting Navy here – keeps the whole claim.)
       if (!Number.isInteger(sw * 4)) {
         [r.x - sw / 2, r.y - sw / 2, r.w + sw, r.h + sw].forEach((v, k) => expect(Math.abs(v - [want.x, want.y, want.w, want.h][k])).toBeLessThanOrEqual(.005 + 1e-9));
+        // (exported: PowerPoint gets the drawn rect's own numbers, as the writer rounds them to EMU)
+        const offR = `<a:off x="${E(r.x)}" y="${E(r.y)}"/><a:ext cx="${E(r.w)}" cy="${E(r.h)}"/>`;
+        expect(xml.includes(offR), `${design} free=${free}: ${offR}`).toBe(true);
         all.pop();                                     // (not in pptxcheck's 1/4 px file either)
         continue;
       }
