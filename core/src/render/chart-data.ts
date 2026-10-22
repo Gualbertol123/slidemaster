@@ -68,12 +68,11 @@ export function cellsOf(S: Sheet, g: Range, hide?: HideSet | null): [number, num
     table, e.g. a total row under it, still reads it) – and those the shown version deletes on the sheet. What the table
     closes up is read off its layout, so a set the table could not apply (it would empty it) is not applied here either.
     A chart on another slide reading the same cells keeps them (the rows are hidden on that slide only) */
-const dropOf = (ctx: RenderCtx) => (ctx.version as { drop?: Record<string, unknown> } | null | undefined)?.drop;
 /** a chart's slide: only slides that hide rows are looked at, the item by identity (a duplicated slide's chart is an
     object of its own; a copy on no slide skips nothing of a slide's) */
 const slideOf = (it: ChartItem, ctx: RenderCtx) => ctx.slides.find(R => R.cfg.hidden && R.cfg.items && Object.values(R.cfg.items).includes(it));
 export function chartHide(it: ChartItem, ctx: RenderCtx, S: Sheet, g: Range, ref: DataRef | undefined): HideSet | null {
-  const h = dropHidden(dropOf(ctx)?.[S.name]);
+  const h = dropHidden(ctx.version?.drop?.[S.name]);
   for (const L of slideOf(it, ctx)?.tables || []) {
     if (!L.hide || L.sheet.name !== S.name || !(ref && "table" in ref ? ref.table === L.def?.id : g.r1 < L.g.r2 && g.r2 > L.g.r1 && g.c1 < L.g.c2 && g.c2 > L.g.c1)) continue;
     const rows = new Set(L.rows), cols = new Set(L.cols);
@@ -89,7 +88,7 @@ function numberAt(S: Sheet, r: number, c: number, removed: (r: number, c: number
 }
 /** the label of value k of a rectangle: the labels range's cell k, else the headers beside the values – the nearest
     column on the left with text in those rows (a column of values), or the nearest row above (a row of values) */
-function labelsFor(S: Sheet, g: Range, L: ReturnType<typeof refTarget> | null, ctx: RenderCtx, hide: HideSet | null = null): (r: number, c: number, k: number) => string {
+function labelsFor(S: Sheet, g: Range, L: ReturnType<typeof refTarget> | null, ctx: RenderCtx, hide?: HideSet | null): (r: number, c: number, k: number) => string {
   const lcells = L?.S && L.g ? cellsOf(L.S, L.g, L.S === S ? hide : null) : null, col = g.c1 === g.c2 && g.r2 > g.r1;
   if (lcells) return (_r, _c, k) => lcells[k] ? shown(L!.S!, lcells[k][0], lcells[k][1], ctx).trim() : "";
   if (col) {
@@ -228,7 +227,7 @@ const SERIES = new Map<string, SeriesData>();
 export function seriesData(it: ChartItem, ctx: RenderCtx): SeriesData {
   const sheets = refSheets(it, ctx);
   // (the chart's type: a series without its own type takes the chart's – S14.2 review 2)
-  const key = JSON.stringify([it.type, it.sers, it.groups ?? null, it.labels ?? null, sheets.map(n => [n, genOf(ctx.sheet?.(n) ?? null), ctx.edits[ctx.sheet?.(n)?.name ?? n] || null]), ctx.version?.hide || null, ctx.preset?.tables || null, dropOf(ctx) || null, slideOf(it, ctx)?.cfg.hidden || null]);
+  const key = JSON.stringify([it.type, it.sers, it.groups ?? null, it.labels ?? null, sheets.map(n => [n, genOf(ctx.sheet?.(n) ?? null), ctx.edits[ctx.sheet?.(n)?.name ?? n] || null]), ctx.version, ctx.preset?.tables || null, slideOf(it, ctx)?.cfg.hidden]);
   const hit = SERIES.get(key); if (hit) return hit;
   const out = resolveSeries(it, ctx, key);
   if (SERIES.size > 200) SERIES.clear();

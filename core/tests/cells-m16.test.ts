@@ -183,7 +183,8 @@ describe("drawn: every design puts the text where its cell says (PDF and PNG dra
     expect(long.g.size).toBeLessThan(own.g.size);
     // still too wide at the smallest size: drawn inside its cell's clip, never over the next cell
     const clip = flat(long.dl).find(n => n.t === "group" && n.clip && texts(n.children).some(x => x.src === long.g.it.text));
-    const box = clip && clip.t === "group" ? clip.clip! : null;
+    // (a rectangle clip: M14 also has path clips, { d })
+    const box = clip && clip.t === "group" && clip.clip && "x" in clip.clip ? clip.clip : null;
     expect(box).toBeTruthy();
     for (const k of ["x", "y", "w", "h"] as const) expect(box![k], k).toBeCloseTo(long.g[k], 1);
     expect(long.g.w).toBeLessThan(80);
