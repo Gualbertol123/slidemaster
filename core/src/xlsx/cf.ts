@@ -1,7 +1,7 @@
 /* Excel's conditional formats, evaluated per cell (S16.4, B39; 09 §2.9, §3.10). Moved here from layout.ts and grown:
    - rules on the cell's value: cellIs (any operand formula), expression (a formula, xlsx/cf.ts's own evaluator below),
      containsText / notContainsText / beginsWith / endsWith, containsBlanks / notContainsBlanks, containsErrors /
-     notContainsErrors, timePeriod (this PC's date, as Excel);
+     notContainsErrors, timePeriod (the workbook's day: this PC's date when the workbook was read – dayOf);
    - rules on the rule's range: top10 (top / bottom, n or %), aboveAverage (above / below, or equal, standard
      deviations), duplicateValues / uniqueValues, colorScale (2 and 3 stops; min / max / num / percent / percentile /
      formula), dataBar (with the 2010 extension of an .xlsx: lengths, axis, negative colours, border, gradient,
@@ -15,7 +15,12 @@
    Deviation from 09 §2.9 (decided in S16.4): `expression` formulas are evaluated by the small evaluator here, not by
    the WASM formula engine – the tables are laid out synchronously on the page, where the engine is never loaded; the
    evaluator knows references in the sheet, operators and ≈ 50 functions; a formula it does not know is listed under
-   "not reproduced" (unsupportedOf), and a rule naming another sheet too. */
+   "not reproduced" (unsupportedOf), and a rule naming another sheet too.
+   Today (S16.4 review): timePeriod rules and TODAY() read the workbook's day (Shared.today, given to readWorkbook / set
+   from this PC's date when the workbook is read, sent to the page with the shared styles), not the clock: the tables are
+   laid out once per workbook – before any RenderCtx, shared by every design and by the page's mirror – so the day lives
+   with the workbook, which the layout caches already key on. An open deck keeps the day it was opened on (its screen
+   and its exports agree) until the workbook is read again (opened again, or its file changed). */
 import { colToNum, inRange } from "./util";
 import type { Range } from "./util";
 import type { Border, Cell, CFBarLook, CFIconLook, CFRule, CFVO, Dxf, Item, Sheet } from "./types";
@@ -168,6 +173,9 @@ const roundTo = (x: number, d: number, mode: "r" | "u" | "d") => {
 };
 /** today's Excel serial (1900 system, this PC's date) */
 export function todaySerial(now = new Date()): number { return Math.round((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - Date.UTC(1899, 11, 30)) / 864e5); }
+/** the day date rules and TODAY() take as today: the workbook's, fixed when it was read (Shared.today) – never the clock
+    while drawing, so a display list, its hash and the layout caches depend on the workbook alone (and tests give the day) */
+const dayOf = (S: Sheet) => S.ctx.today ?? (S.ctx.today = todaySerial());
 const dateOf = (n: number) => new Date(Date.UTC(1899, 11, 30) + Math.floor(n) * 864e5);
 type FImpl = (args: (Val | RangeRef)[], env: Env) => Val;
 const sv = (a: Val | RangeRef, env: Env) => deref(a, env);
@@ -213,7 +221,7 @@ const FUNCS: Record<string, FImpl> = {
   VALUE: ([a], env) => toNum(sv(a, env)),
   ROW: ([a], env) => a === undefined ? env.r : isRange(a) ? a.rg.r1 : VALUE,
   COLUMN: ([a], env) => a === undefined ? env.c : isRange(a) ? a.rg.c1 : VALUE,
-  TODAY: () => todaySerial(),
+  TODAY: (_, env) => dayOf(env.S),
   YEAR: ([a], env) => num1(n => dateOf(n).getUTCFullYear())(sv(a, env)),
   MONTH: ([a], env) => num1(n => dateOf(n).getUTCMonth() + 1)(sv(a, env)),
   DAY: ([a], env) => num1(n => dateOf(n).getUTCDate())(sv(a, env)),
@@ -401,8 +409,8 @@ function iconLook(S: Sheet, rule: CFRule, v: number): CFIconLook | null {
 
 /* ===================================================================== a cell's rules */
 const OPS: Record<string, string> = { equal: "=", notEqual: "<>", greaterThan: ">", greaterThanOrEqual: ">=", lessThan: "<", lessThanOrEqual: "<=" };
-function periodHit(p: string | undefined, d: number): boolean {
-  const t = todaySerial(), wd = dateOf(t).getUTCDay(), ws = t - wd;              // weeks from Sunday, as Excel
+function periodHit(p: string | undefined, d: number, t: number): boolean {
+  const wd = dateOf(t).getUTCDay(), ws = t - wd;              // weeks from Sunday, as Excel
   const now = dateOf(t), y = now.getUTCFullYear(), m = now.getUTCMonth(), dd = dateOf(d), dy = dd.getUTCFullYear(), dm = dd.getUTCMonth();
   const mon = (k: number) => { const q = y * 12 + m + k; return dy * 12 + dm === q; };
   d = Math.floor(d);
@@ -447,7 +455,7 @@ function ruleHit(S: Sheet, RS: Sheet, rule: CFRule, cell: Cell | null, r: number
     case "notContainsBlanks": return !(t === "blank" || (t === "s" && String(v).trim() === ""));
     case "containsErrors": return t === "e";
     case "notContainsErrors": return t !== "e";
-    case "timePeriod": return isNum && periodHit(rule.period, v as number);
+    case "timePeriod": return isNum && periodHit(rule.period, v as number, dayOf(S));
     case "top10": {
       if (!isNum) return false;
       const a = statsOf(RS, rule).nums; if (!a.length) return false;

@@ -16,7 +16,7 @@ import type { CFRule, ColInfo, Drawing, Script, Shared, Sheet, Workbook } from "
 /** sheets up to this many cells travel whole */
 export const WHOLE_CELLS = 200_000;
 
-export interface SharedSlice { xfs: Shared["xfs"]; dxfs: Shared["dxfs"]; defaultFont: Shared["defaultFont"]; theme: string[]; mdw: number }
+export interface SharedSlice { xfs: Shared["xfs"]; dxfs: Shared["dxfs"]; defaultFont: Shared["defaultFont"]; theme: string[]; mdw: number; today?: number }
 export interface SheetSlice {
   name: string; hidden: boolean; error?: string; size?: number; title: string; subtitle: string;
   defColW: number; defRowH: number; zeroH: boolean;
@@ -34,8 +34,8 @@ export interface SheetSlice {
   shared?: SharedSlice;
 }
 
-export const sliceShared = (c: Shared): SharedSlice => ({ xfs: c.xfs, dxfs: c.dxfs, defaultFont: c.defaultFont, theme: c.theme, mdw: c.mdw });
-export const hydrateShared = (s: SharedSlice): Shared => ({ sst: [], sstRuns: [], xfs: s.xfs, dxfs: s.dxfs, defaultFont: s.defaultFont, theme: s.theme, mdw: s.mdw, color: makeColor(s.theme) });
+export const sliceShared = (c: Shared): SharedSlice => ({ xfs: c.xfs, dxfs: c.dxfs, defaultFont: c.defaultFont, theme: c.theme, mdw: c.mdw, today: c.today });
+export const hydrateShared = (s: SharedSlice): Shared => ({ sst: [], sstRuns: [], xfs: s.xfs, dxfs: s.dxfs, defaultFont: s.defaultFont, theme: s.theme, mdw: s.mdw, today: s.today, color: makeColor(s.theme) });
 
 const cellCount = (S: Sheet) => S.cols?.cells.n ?? 0;
 const union = (a: Range | null, b: Range): Range => a ? { r1: Math.min(a.r1, b.r1), c1: Math.min(a.c1, b.c1), r2: Math.max(a.r2, b.r2), c2: Math.max(a.c2, b.c2) } : { ...b };

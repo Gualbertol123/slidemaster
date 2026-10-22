@@ -238,7 +238,8 @@ export function glassToDisplayList(L: import("../xlsx/types").TableLayout, ctx: 
   // painting order inside .xt (a stacking context): the elements without z-index in tree order – text boxes' cards
   // too – then the z-index 3 ones (.t cells, .tbox.gtb bodies) in tree order
   for (const e of plan.tbx) if (e.k === "shell") nodes.push(...glassBox(e.cls, r1(e.x), r1(e.y), Math.max(0, r1(e.w)), Math.max(0, r1(e.h)), +Math.max(0, e.rad).toFixed(1), V, place, wall, { tint: e.tint }));
-  nodes.push(...cfNodes(effItems(L, ctx).map(it => gItem(it, glassGeom(L, ctx))), cfLookOf(ctx)));
+  const cfs = effItems(L, ctx).filter(it => it.cfBar || it.cfIcon);
+  if (cfs.length) { const G = glassGeom(L, ctx); nodes.push(...cfNodes(cfs.map(it => gItem(it, G)), cfLookOf(ctx))); }
   if (!opts.noText) for (const t of plan.texts) nodes.push(...glassText(t, m));
   for (const e of plan.tbx) if (e.k !== "shell") nodes.push(...tboxNodes(e, m));
   return { nodes, images };

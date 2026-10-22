@@ -94,14 +94,15 @@ export function buildLayout(S: Sheet, g: Range, sizes?: Sizes): TableLayout | nu
     const baseColor = font.color || "#000000";
     const cfr = cfAt(S, b.src.r, b.src.c), cf = cfr?.dxf || null;
     if (cf) { if (cf.fill) fill = cf.fill; if (cf.color) font.color = cf.color; if (cf.b !== undefined) font.b = cf.b; if (cf.i !== undefined) font.i = cf.i; if (cf.u !== undefined) font.u = cf.u; if (cf.s !== undefined) font.s = cf.s; }
-    let text = "", nfColor: string | null = null;
-    if (cell && cell.t !== "blank") { const f = cfText(cell, cf); text = f.text; nfColor = f.color || null; if (cell.t === "e") errors.push(A1(b.src.r, b.src.c)); }
+    let text = "", raw = "", nfColor: string | null = null;
+    if (cell && cell.t !== "blank") { const f = cfText(cell, cf); text = f.text; raw = cf?.fmt ? cfText(cell, null).text : text; nfColor = f.color || null; if (cell.t === "e") errors.push(A1(b.src.r, b.src.c)); }
+    const ck = cfKeys(cfr);
     let align = xf.h || "general";
     if (align === "general") align = cell && (cell.t === "n" || cell.t === "d") ? "right" : cell && (cell.t === "b" || cell.t === "e") ? "center" : "left";
     if (align === "centerContinuous") align = "center";
     if (align === "fill" || align === "justify" || align === "distributed") align = "left";
     items.push({ ...(cell?.scr && cell.t === "s" && text === cell.v ? { scripts: cell.scr } : {}), b, bx, by, bw, bh, fill, top, left, right, bottom, text, font, color: nfColor || font.color || "#000000", align, valign: xf.v || "bottom", wrap: !!xf.wrap, indent: xf.indent || 0, rot: xf.rot || 0, isText: !!cell && cell.t === "s", merged: !!b.m,
-      baseFill: xf.fill, baseColor, cf, nfColor, ctype: cell ? cell.t : "blank", ...cfKeys(cfr) });
+      baseFill: xf.fill, baseColor, cf, nfColor, ctype: cell ? cell.t : "blank", ...ck, ...(raw !== (ck.text ?? text) ? { rawText: raw } : {}) });
   }
   cfBorders(items, rows, cols);
   // text overflow into empty neighbours (Excel behaviour for unwrapped text)

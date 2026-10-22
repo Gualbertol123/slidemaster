@@ -1,4 +1,4 @@
 {
-  "bytes": 64000,
-  "why": "M16 S16.4 (4.9.0, Excel's conditional formats, B39): measured +63,024 bytes (main's page (4.6.0 + B48–B50) built 4,017,563 → 4,080,587 with S16.4; the same +63,024 as on 4.6.0 before B48: the rule reader, the evaluator with its formula functions, the icon sets as vectors and the bars / icons layer), rounded up to the next 1,000. The plan expected ≈ 25 KB: the code ships twice, in the page and in the worker script the page carries as a string (app/vite.config.ts)."
+  "bytes": 65000,
+  "why": "M16 S16.4 (4.9.0, Excel's conditional formats, B39): measured +64,327 bytes (main's page (4.6.0 + B48–B50) built 4,017,563 → 4,081,890 with S16.4 and its review fixes; +63,024 before the review fixes: the rule reader, the evaluator with its formula functions, the icon sets as vectors and the bars / icons layer; the fixes +1,303: the workbook's day, Item.rawText and origMatches, the painted underline / strike, the .xlsb data-bar note), rounded up to the next 1,000. The plan expected ≈ 25 KB: the code ships twice, in the page and in the worker script the page carries as a string (app/vite.config.ts) – a deviation for the owner's sign-off at S16.5."
 }

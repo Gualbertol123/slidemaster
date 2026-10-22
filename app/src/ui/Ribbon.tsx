@@ -9,7 +9,7 @@ import { activeItem, applySel, commitText, curSlide, selItems, editOf } from "..
 import { kindText } from "../editor/item-text";
 import { startPainter, stopPainter } from "../editor/painter";
 import { SLIDE_TEXT_LABEL, stepSize, textTarget, type Align, type TextTarget, type VAlign } from "../editor/textfmt";
-import { effFmt, effText, keyOf } from "@slide-builder/core/render/edits";
+import { effFmt, effText, keyOf, origMatches } from "@slide-builder/core/render/edits";
 import { A1 } from "@slide-builder/core/xlsx/util";
 import { Dropdown } from "./Dropdown";
 import { Field } from "./Field";
@@ -158,5 +158,5 @@ export function selStatus(): string {
   if (textSel) return `${SLIDE_TEXT_LABEL[textSel]} selected · double-click or Enter to edit the text`;
   if (!it) return `Slide ${deck.cur + 1} of ${deck.slides.length}`;
   const e = editOf(it);
-  return `${its.length} cell${its.length > 1 ? "s" : ""} selected` + (e.text !== undefined && e.orig !== it.text ? " · text edit paused (Excel value changed)" : e.text !== undefined ? ` · Excel value: “${it.text}”` : "");
+  return `${its.length} cell${its.length > 1 ? "s" : ""} selected` + (e.text !== undefined && !origMatches(e, it) ? " · text edit paused (Excel value changed)" : e.text !== undefined ? ` · Excel value: “${it.text}”` : "");
 }

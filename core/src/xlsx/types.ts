@@ -32,7 +32,8 @@ export interface CFRule { ranges: Range[]; type: string; op: string | null; prio
   /** custom: per threshold its icon [set, index] (x14:cfIcon; NoIcons = null) */
   icons?: { set: string; cfvo: CFVO[]; reverse: boolean; showValue: boolean; custom?: ([string, number] | null)[] } }
 
-export interface Shared { sst: string[]; sstRuns?: (Script[] | undefined)[]; xfs: Xf[]; dxfs: Dxf[]; defaultFont: Font; color: ColorFn; theme: string[]; mdw: number }
+export interface Shared { sst: string[]; sstRuns?: (Script[] | undefined)[]; xfs: Xf[]; dxfs: Dxf[]; defaultFont: Font; color: ColorFn; theme: string[]; mdw: number;
+  /** the day (Excel serial) date rules and TODAY() read: fixed when the workbook is read (xlsx/cf.ts dayOf) */ today?: number }
 
 export interface AnchorPos { c: number; r: number; co: number; ro: number }
 export interface Crop { l: number; t: number; r: number; b: number }
@@ -112,6 +113,8 @@ export interface Workbook {
   linked: Map<string, Workbook>;
   sheets: Sheet[];
   shared: Shared | null;
+  /** the day conditional formats take as today (Excel serial; S16.4): given when read, else this PC's date then */
+  today?: number;
   total: number; ssSize: number; big: boolean;
   isLoaded(n: string): boolean;
   ensure(names: string[], progress?: Progress): Promise<Sheet[]>;
@@ -127,6 +130,8 @@ export interface Item {
   isText: boolean; merged: boolean; baseFill: string | null; /** font colour before conditional formatting */ baseColor?: string; cf: Dxf | null; nfColor: string | null; ctype: CellType;
   tw?: number; ov?: boolean;
   /** Excel's data bar and icon (S16.4, xlsx/cf.ts; drawn by render/cf-dl.ts); cfHide: only the bar / icon shows */ cfBar?: CFBarLook; cfIcon?: CFIconLook; cfHide?: boolean;
+  /** the value's text without the conditional formats (their number format, a hidden value), set only when it differs
+      from `text`: a text edit saved by 4.6–4.8 names it as its `orig` (render/edits.ts origMatches) */ rawText?: string;
   /* effective values after user edits */
   /** colour scale result (variable conditional formatting) */
   scaleFill?: string; scaleInk?: string;

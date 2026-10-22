@@ -38,6 +38,8 @@ function cfType(iType: number, tpl: number, param: number): { type: string; op: 
   return { type: "expression", op: null };
 }
 
+/** what "not reproduced" says of an .xlsb's data bars */
+export const XLSB_BAR_LOOK = "the 2010 look of data bars in an .xlsb (drawn as Excel 2007's)";
 /** KPISets: the 2007 sets in their ST_IconSetType order, then the 2010 ones */
 const KPI_SETS = ["3Arrows", "3ArrowsGray", "3Flags", "3TrafficLights1", "3TrafficLights2", "3Signs", "3Symbols", "3Symbols2", "4Arrows", "4ArrowsGray",
   "4RedToBlack", "4Rating", "4TrafficLights", "5Arrows", "5ArrowsGray", "5Rating", "5Quarters", "3Stars", "3Triangles", "5Boxes"];
@@ -248,6 +250,9 @@ export class BinSheetReader {
     this.colRanges.sort((a, b) => a.min - b.min);
     this.cfRules.sort((a, b) => a.priority - b.priority);
     for (const rule of this.cfRules) { const why = unsupportedOf(rule); if (why) this.unsupportedCF.add(why); }
+    // (S16.4 review) the 2010 look of a data bar (gradient, border, axis, negative colours: the x14 future records) is
+    // not read from an .xlsb: its bars are drawn as Excel 2007's – named, as the same workbook saved as .xlsx differs
+    if (this.cfRules.some(r => r.bar)) this.unsupportedCF.add(XLSB_BAR_LOOK);
     return { store, rows, colRanges: this.colRanges, merges: this.merges, cfRules: this.cfRules, unsupportedCF: this.unsupportedCF, defColW: this.defColW, defRowH: this.defRowH, zeroH: this.zeroH };
   }
 }

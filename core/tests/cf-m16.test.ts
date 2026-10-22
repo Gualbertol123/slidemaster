@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 import { strFromU8, unzipSync } from "fflate";
 import { readWorkbook } from "../src/xlsx/workbook";
 import { cfAt, evalCF, todaySerial, unsupportedOf } from "../src/xlsx/cf";
-import { cfClosure } from "../src/xlsx/slice";
+import { cfClosure, hydrateShared, sliceShared } from "../src/xlsx/slice";
 import { A1 } from "../src/xlsx/util";
 import { applyOps, emptyDoc } from "../src/model/ops";
 import { runtimeSlides } from "../src/model/preset";
@@ -27,7 +27,9 @@ import { resolveStyle } from "../src/model/style";
 import { excelToDisplayList, type Metrics } from "../src/render/excel-dl";
 import { glassToDisplayList } from "../src/render/glass-dl";
 import { consultToDisplayList } from "../src/render/consult-dl";
-import { effItems } from "../src/render/edits";
+import { effItems, effText } from "../src/render/edits";
+import { fold } from "../src/model/fold";
+import { XLSB_BAR_LOOK } from "../src/xlsx/xlsb/sheet";
 import { cfIcon, EXCEL_TONES } from "../src/render/cf-icons";
 import { sceneOf, type El } from "../src/pptx/scene";
 import { validate, type Node } from "../src/dl/types";
@@ -52,9 +54,9 @@ const flat = (ns: Node[]): Node[] => ns.flatMap(n => n.t === "group" ? [n, ...fl
 /* ---- a workbook of one sheet, in memory: the rule types the corpus has no room for ---- */
 const NS = `xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"`;
 const REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
-const DXFS = `<dxfs><dxf><fill><patternFill><bgColor rgb="FFFF0000"/></patternFill></fill></dxf><dxf><font><b/></font></dxf><dxf><font><color rgb="FF0000FF"/><strike/></font></dxf></dxfs>`;
+const DXFS = `<dxfs><dxf><fill><patternFill><bgColor rgb="FFFF0000"/></patternFill></fill></dxf><dxf><font><b/></font></dxf><dxf><font><color rgb="FF0000FF"/><strike/></font></dxf><dxf><font><u/></font></dxf></dxfs>`;
 type V = number | string | boolean | null | { e: string } | { d: number };
-async function book(rows: Record<number, Record<string, V>>, cf: string, extra = ""): Promise<Workbook> {
+async function book(rows: Record<number, Record<string, V>>, cf: string, extra = "", today?: number): Promise<Workbook> {
   const cell = (ref: string, v: V) => v === null ? `<c r="${ref}"/>` : typeof v === "number" ? `<c r="${ref}"><v>${v}</v></c>` : typeof v === "boolean" ? `<c r="${ref}" t="b"><v>${v ? 1 : 0}</v></c>`
     : typeof v === "string" ? `<c r="${ref}" t="inlineStr"><is><t>${v}</t></is></c>` : "e" in v ? `<c r="${ref}" t="e"><v>${v.e}</v></c>` : `<c r="${ref}" s="1"><v>${v.d}</v></c>`;
   const data = Object.entries(rows).map(([r, cs]) => `<row r="${r}">${Object.entries(cs).map(([c, v]) => cell(c + r, v)).join("")}</row>`).join("");
@@ -66,7 +68,7 @@ async function book(rows: Record<number, Record<string, V>>, cf: string, extra =
     "xl/styles.xml": `<styleSheet ${NS}><fonts><font><sz val="11"/><name val="Calibri"/></font></fonts><fills><fill><patternFill patternType="none"/></fill></fills><borders><border/></borders><cellXfs><xf/><xf numFmtId="14"/></cellXfs>${DXFS}</styleSheet>`,
     "xl/worksheets/sheet1.xml": `<worksheet ${NS}><sheetData>${data}</sheetData>${cf}${extra}</worksheet>`,
     "xl/worksheets/sheet2.xml": `<worksheet ${NS}><sheetData><row r="1"><c r="A1"><v>7</v></c></row></sheetData></worksheet>`,
-  }));
+  }), { today });
 }
 const col = (vals: V[], c = "A", r0 = 1) => Object.fromEntries(vals.map((v, k) => [r0 + k, { [c]: v }])) as Record<number, Record<string, V>>;
 const fills = (S: Sheet, refs: string[]) => refs.map(ref => { const m = /^([A-Z]+)(\d+)$/.exec(ref)!; return evalCF(S, +m[2], m[1].charCodeAt(0) - 64)?.fill ?? null; });
@@ -152,19 +154,35 @@ describe("evaluation (XC-01, XC-02)", () => {
     const D = (await book(col(["a", "B", "b", 3, 3, 4, null]), `<conditionalFormatting sqref="A1:A7"><cfRule type="duplicateValues" dxfId="0" priority="1"/></conditionalFormatting>`)).sheets[0];
     expect(fills(D, ["A1", "A2", "A3", "A4", "A5", "A6", "A7"])).toEqual([null, "#FF0000", "#FF0000", "#FF0000", "#FF0000", null, null]);
   });
-  it("text, blanks, errors, time periods (this PC's date)", async () => {
-    const t = todaySerial();
+  it("text, blanks, errors, time periods (the workbook's day, given when it is read)", async () => {
+    const t = 46296;                                                          // Thursday 1 October 2026
+    expect(todaySerial(new Date(2026, 9, 1, 23, 59))).toBe(t);
     const rows = col(["Alpha", "beta", "  ", null, { e: "#DIV/0!" }, { d: t }, { d: t - 1 }, { d: t - 40 }, "gamma"]);
     const S = (await book(rows, `<conditionalFormatting sqref="A1:A9"><cfRule type="endsWith" dxfId="1" priority="1" operator="endsWith" text="A"/>`
       + `<cfRule type="notContainsText" dxfId="2" priority="2" operator="notContains" text="a"/></conditionalFormatting>`
       + `<conditionalFormatting sqref="A1:A9"><cfRule type="containsBlanks" dxfId="0" priority="3"/><cfRule type="containsErrors" dxfId="0" priority="4"/>`
-      + `<cfRule type="timePeriod" dxfId="0" priority="5" timePeriod="today"/><cfRule type="timePeriod" dxfId="0" priority="6" timePeriod="yesterday"/></conditionalFormatting>`)).sheets[0];
+      + `<cfRule type="timePeriod" dxfId="0" priority="5" timePeriod="today"/><cfRule type="timePeriod" dxfId="0" priority="6" timePeriod="yesterday"/></conditionalFormatting>`, "", t)).sheets[0];
     const at = (r: number) => evalCF(S, r, 1);
     expect(at(1)).toEqual({ b: true });                                       // ends with "a" (any case); contains "a"
     expect(at(3)).toEqual({ color: "#0000FF", s: true, fill: "#FF0000" });   // blank-looking text: no "a", and blank
     expect(at(4)).toEqual({ color: "#0000FF", s: true, fill: "#FF0000" });   // empty: the same
     expect(at(5)).toEqual({ fill: "#FF0000" });                              // an error: no text rule, an error rule
     expect([6, 7, 8].map(r => at(r)?.fill ?? null)).toEqual(["#FF0000", "#FF0000", null]);
+  });
+  it("the day is the workbook's, never the clock while drawing: TODAY() and time periods follow it; the page's mirror gets it with the styles", async () => {
+    const t = 46296, rules = `<conditionalFormatting sqref="A1:A3"><cfRule type="timePeriod" dxfId="0" priority="1" timePeriod="today"/>`
+      + `<cfRule type="expression" dxfId="1" priority="2"><formula>A1&lt;TODAY()</formula></cfRule><cfRule type="timePeriod" dxfId="2" priority="3" timePeriod="thisWeek"/></conditionalFormatting>`;
+    const rows = col([{ d: t }, { d: t - 1 }, { d: t + 3 }]);
+    const on = async (day: number) => { const S = (await book(rows, rules, "", day)).sheets[0]; return [1, 2, 3].map(r => evalCF(S, r, 1)); };
+    // 1 October 2026 (a Thursday): the week runs Sunday 27 September … Saturday 3 October
+    expect(await on(t)).toEqual([{ fill: "#FF0000", color: "#0000FF", s: true }, { b: true, color: "#0000FF", s: true }, null]);
+    // the next day: no cell is today; 4 October is in the next week
+    expect(await on(t + 1)).toEqual([{ b: true, color: "#0000FF", s: true }, { b: true, color: "#0000FF", s: true }, null]);
+    const wb = await book(rows, rules, "", t);
+    expect([wb.today, wb.shared!.today, hydrateShared(sliceShared(wb.shared!)).today]).toEqual([t, t, t]);
+    // not given: this PC's date when the workbook is read, kept afterwards
+    const before = todaySerial(), now = await book(rows, rules), after = todaySerial();
+    expect([before, after]).toContain(now.shared!.today);
   });
   it("cellIs with formula operands, formula rules with functions and ranges, stopIfTrue, merged formats", async () => {
     const rows = { 1: { A: 5, B: 10, C: "x" }, 2: { A: 15, B: 10, C: "y" }, 3: { A: -2, B: 10, C: "x" }, 4: { A: 8, B: 10, C: "" } };
@@ -197,6 +215,54 @@ describe("evaluation (XC-01, XC-02)", () => {
     expect(at("G9").cf).toBeNull();                 // its own italic (below average) replaced by the painted rules
     expect(at("G10").cfIcon).toEqual({ set: "3Arrows", i: 2 });
     expect(S.name).toBe("CF rules");
+  });
+  it("painted rules look as the source's own: underline and strike too; \"none\" leaves the cell's own font (S16.4 review)", async () => {
+    // B2:C3 between the markers; B2:B3 > 0 blue + strike, B2:B3 = 7 underline, C2:C3 bold (a formula)
+    const S = (await book({ 1: { A: "x" }, 2: { B: 5, C: 6 }, 3: { B: 7, C: 8 }, 4: { D: "x" } }, `<conditionalFormatting sqref="B2:B3"><cfRule type="cellIs" dxfId="2" priority="1" operator="greaterThan"><formula>0</formula></cfRule>`
+      + `<cfRule type="cellIs" dxfId="3" priority="2" operator="equal"><formula>7</formula></cfRule></conditionalFormatting><conditionalFormatting sqref="C2:C3"><cfRule type="expression" dxfId="1" priority="3"><formula>TRUE</formula></cfRule></conditionalFormatting>`)).sheets[0];
+    const L = S.tables[0], at = (items: Item[], ref: string) => items.find(it => A1(it.b.r, it.b.c) === ref)!;
+    expect([at(L.items, "B3").font.u, at(L.items, "B3").font.s, at(L.items, "C2").font.b]).toEqual([true, true, true]);
+    const ctx: RenderCtx = { style: { ...resolveStyle({}, emptyDoc("W.xlsx").style), design: "excel" }, edits: { S: { C3: { cf: "S!B3" }, C2: { cf: "none" }, B3: { cf: "S!C2" } } }, slides: [], preset: null, workbook: "W.xlsx", logoSrc: "", sheet: () => S, version: null };
+    const items = effItems(L, ctx);
+    // C3 (8) under B3's rules: > 0 (blue, strike), not 7; its own bold gone
+    expect(at(items, "C3").font).toMatchObject({ color: "#0000FF", s: true, b: false });
+    expect(at(items, "C3").font.u).toBeFalsy();
+    // C2 painted "none": no bold; B3 (7) under C2's rule: bold, its own underline and strike gone
+    expect([at(items, "C2").font.b, at(items, "C2").cf]).toEqual([false, null]);
+    expect(at(items, "B3").font).toMatchObject({ b: true });
+    expect([at(items, "B3").font.u, at(items, "B3").font.s].map(Boolean)).toEqual([false, false]);
+    // a painted rule that underlines: B2 = 7 under the "= 7" rule, painted onto C2 (7)
+    const S3 = (await book({ 1: { A: "x" }, 2: { B: 7, C: 7 }, 3: { B: 1 }, 4: { D: "x" } }, `<conditionalFormatting sqref="B2"><cfRule type="cellIs" dxfId="3" priority="1" operator="equal"><formula>7</formula></cfRule></conditionalFormatting>`)).sheets[0];
+    const c3: RenderCtx = { ...ctx, sheet: () => S3, edits: { S: { C2: { cf: "S!B2" } } } };
+    expect([at(S3.tables[0].items, "C2").font.u, at(effItems(S3.tables[0], c3), "C2").font.u]).toEqual([false, true]);
+  });
+  it("text edits saved by 4.8 on cells whose shown text the rules now change (fixtures/saved/cf-edits-4.8.json, added, never edited)", async () => {
+    const saved = JSON.parse(fs.readFileSync(path.join(here, "fixtures", "saved", "cf-edits-4.8.json"), "utf8"));
+    const doc = fold(saved.snapshot, saved.records).doc;
+    const wb = await readWorkbook(ab(FILE)), ctx = ctxOf(wb, doc as ReturnType<typeof emptyDoc>, "excel");
+    const [T1, T2] = runtimeSlides(wb, doc.preset, "W.xlsx", "excel").map(R => R.tables[0]);
+    const one = effItems(T1, ctx), two = effItems(T2, ctx), at = (items: Item[], ref: string) => items.find(it => A1(it.b.r, it.b.c) === ref)!;
+    // H11 shows "[n/a]" (a rule's number format), the edit was made on "n/a"; D26's value is hidden (icons only), the edit on "1"
+    expect([at(T1.items, "H11").text, at(T1.items, "H11").rawText, at(T2.items, "D26").text, at(T2.items, "D26").rawText]).toEqual(["[n/a]", "n/a", "", "1"]);
+    expect([at(one, "H11").text, at(one, "H11").edited, at(one, "G5").text]).toEqual(["not applicable", true, "twelve"]);
+    expect([at(two, "D26").text, at(two, "D26").edited]).toEqual(["low", true]);
+    expect([at(two, "E26").text, !!at(two, "E26").edited]).toEqual(["", false]);    // made on a value it no longer holds: paused
+    expect(effText(ctx, at(T1.items, "H11"))).toBe("not applicable");
+    expect(effText(ctx, at(T2.items, "E26"))).toBe("");
+    // an edit made now (orig: the text as shown) holds too
+    const now = { ...ctx, edits: { "CF rules": { H11: { orig: "[n/a]", text: "now" } } } };
+    T1._cache = {};
+    expect(at(effItems(T1, now), "H11").text).toBe("now");
+    // a plain cell has no rawText (the items stay as small as before)
+    expect(T1.items.filter(it => it.rawText !== undefined).map(it => A1(it.b.r, it.b.c))).toEqual(["H11"]);
+  });
+  it("an .xlsb's data bars: drawn as Excel 2007's, named under \"not reproduced\" (S16.4 review)", async () => {
+    const X = path.join(here, "../../tests/corpus/workbooks/xlsb");
+    const bin = await readWorkbook(ab(path.join(X, "edge-xlsb.xlsb"))), xml = await readWorkbook(ab(path.join(X, "edge-xlsb.xlsx")));
+    const Sb = bin.sheets.find(S => S.name === "Values")!, Sx = xml.sheets.find(S => S.name === "Values")!;
+    expect(Sb.cfRules.some(r => r.bar) && Sx.cfRules.some(r => r.bar?.x14)).toBe(true);
+    expect([...Sb.unsupportedCF]).toContain(XLSB_BAR_LOOK);
+    expect([...Sx.unsupportedCF]).not.toContain(XLSB_BAR_LOOK);
   });
   it("a slice of a sheet keeps a range rule's whole range (its statistics)", async () => {
     const wb = await readWorkbook(ab(FILE)), S = wb.sheets[0];
@@ -270,6 +336,17 @@ describe("PowerPoint: bars under the table with the cell's fill dropped, icons o
 
 /* ---- the export: the corpus deck in the five designs, PDF and PowerPoint ---- */
 const OUT = process.env.SB_PPTX_OUT || "";
+/** the media parts each design's export has without any picture of the deck (none: no bars or icons as pictures) */
+const MEDIA: Record<Design, string[]> = { glass: [], excel: [], clean: [], mckinsey: [], bain: [] } as unknown as Record<Design, string[]>;
+/** the innermost <p:grpSp> … </p:grpSp> around index `at` of a slide's XML */
+function groupOf(x: string, at: number): string {
+  const re = /<p:grpSp>|<\/p:grpSp>/g, open: number[] = []; let m: RegExpExecArray | null;
+  while ((m = re.exec(x)) && m.index < at) { if (m[0] === "<p:grpSp>") open.push(m.index); else open.pop(); }
+  const from = open.pop(); if (from === undefined) return "";
+  re.lastIndex = from + 1; let depth = 1;
+  while ((m = re.exec(x))) { depth += m[0] === "<p:grpSp>" ? 1 : -1; if (!depth) return x.slice(from, m.index + m[0].length); }
+  return x.slice(from);
+}
 /** the PDF's fonts: the test's Carlito under the last-resort family the resolver tries first (text/resolve.ts) */
 const FONTS = [{ source: "system", file: "Carlito-Regular.ttf", family: "Arial", weight: 400, italic: false }, { source: "system", file: "Carlito-Bold.ttf", family: "Arial", weight: 700, italic: false }] as ExportJob["catalog"];
 const PNG = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="), c => c.charCodeAt(0));
@@ -302,12 +379,15 @@ describe("export: the corpus deck to PDF and PowerPoint in the five designs", ()
     if (OUT) { fs.mkdirSync(OUT, { recursive: true }); fs.writeFileSync(path.join(OUT, `cf-${design}.pdf`), new Uint8Array(pdf.files[0])); fs.writeFileSync(path.join(OUT, `cf-${design}.pptx`), new Uint8Array(pptx.files[0])); }
     expect(new TextDecoder().decode(new Uint8Array(pdf.files[0]).slice(0, 5))).toBe("%PDF-");
     const z = unzipSync(new Uint8Array(pptx.files[0])), slide = (i: number) => strFromU8(z[`ppt/slides/slide${i}.xml`]);
-    expect(Object.keys(z).some(n => /^ppt\/media\//.test(n) && !/wallpaper|image/i.test(n) && false)).toBe(false);
+    // no pictures: the deck has no logo or picture of its own, so no media part at all, and no <p:pic> in a table's group
+    expect(Object.keys(z).filter(n => /^ppt\/media\//.test(n))).toEqual(MEDIA[design]);
     for (const i of [1, 2]) {
       const x = slide(i);
       expect(x).toContain("<a:tbl>");
       expect(x).not.toContain("<p:cxnSp");
       expect(x).not.toMatch(/TargetMode="External"/);
+      const g = groupOf(x, x.indexOf("<a:tbl>"));
+      expect(g).toContain("<a:tbl>"); expect(g).not.toContain("<p:pic>");
       // the table's group: icons as custom geometry after the table frame
       const tbl = x.indexOf("<a:tbl>"), geoms = [...x.matchAll(/<a:custGeom>/g)].map(m => m.index!);
       expect(geoms.filter(g => g > tbl).length).toBeGreaterThan(i === 2 ? 40 : 5);
@@ -315,6 +395,8 @@ describe("export: the corpus deck to PDF and PowerPoint in the five designs", ()
     // the bars: shapes before the first table (under it)
     const x1 = slide(1), before = x1.slice(0, x1.indexOf("<a:tbl>"));
     if (design !== "mckinsey" && design !== "bain") expect((before.match(/<p:sp>/g) || []).length).toBeGreaterThanOrEqual(19);
+    // the consulting designs' thin bars lie under the value, over the cell: after the table, as on the slide (RENDERING.md)
+    else expect((x1.slice(x1.indexOf("</a:tbl>")).match(/<p:sp>/g) || []).length).toBeGreaterThanOrEqual(5);
     // the hidden values: "icons only" row has no 1 / 2 / 3 texts in its cells – the table's texts still hold the set names
     expect(slide(2)).toContain("3Symbols icons only");
   }, 60_000);

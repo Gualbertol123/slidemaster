@@ -157,9 +157,14 @@ function effBase(L: TableLayout, ctx: RenderCtx): Item[] {
       if (it.cfHide || it.cf?.fmt || dxf?.fmt) { const x = L.sheet.get(it.b.src.r, it.b.src.c); o.text = x && x.t !== "blank" ? cfText(x, dxf).text : ""; }
       Object.assign(o, cfKeys(res));
       o.cf = dxf; o.fill = it.baseFill; o.font.color = it.baseColor || o.font.color; o.color = it.nfColor || it.baseColor || "#000000";
-      if (dxf) { if (dxf.fill) o.fill = dxf.fill; if (dxf.color) { o.font.color = dxf.color; o.color = it.nfColor || dxf.color; } if (dxf.b !== undefined) o.font.b = dxf.b; if (dxf.i !== undefined) o.font.i = dxf.i; }
+      // (as layout.ts: bold, italic, underline and strike from the cell's own font unless a painted rule sets them. Not
+      // carried: a painted rule's borders, and the borders of the cell's own workbook rules stay – a rule's border moves to
+      // the cells around it in the layout, which the painter does not lay out again; S16.4 review, noted in RENDERING)
+      const f0 = L.sheet.xfAt(it.b.src.r, it.b.src.c).font || {}, df = L.sheet.ctx.defaultFont;
+      for (const k of ["b", "i", "u", "s"] as const) { const v = f0[k] ?? df[k]; if (v === undefined || v === null) delete o.font[k]; else o.font[k] = v; }
+      if (dxf) { if (dxf.fill) o.fill = dxf.fill; if (dxf.color) { o.font.color = dxf.color; o.color = it.nfColor || dxf.color; } if (dxf.b !== undefined) o.font.b = dxf.b; if (dxf.i !== undefined) o.font.i = dxf.i; if (dxf.u !== undefined) o.font.u = dxf.u; if (dxf.s !== undefined) o.font.s = dxf.s; }
     }
-    if (e.text !== undefined && e.orig === it.text) { o.text = e.text; o.edited = true; if (!it.text && o.text) { o.isText = !isNumText(o.text); o.ctype = o.isText ? "s" : "n"; } }
+    if (e.text !== undefined && origMatches(e, it)) { o.text = e.text; o.edited = true; if (!it.text && o.text) { o.isText = !isNumText(o.text); o.ctype = o.isText ? "s" : "n"; } }
     if (e.font) { o.font.name = e.font; o.userFont = e.font; }
     if (e.sz) o.font.sz = e.sz;
     if (e.b !== undefined) { o.font.b = e.b; o.userB = e.b; }
@@ -183,7 +188,10 @@ function paintedCF(ctx: RenderCtx, L: TableLayout, it: Item, ref: string): CFRes
   return S && at ? cfAt(L.sheet, it.b.src.r, it.b.src.c, { S, r: at.r, c: at.c }) : null;
 }
 export function cellEditOf(ctx: RenderCtx, it: Item): CellEdit { return (ctx.edits[it.L!.sheet.name] || {})[keyOf(it)] || {}; }
-export function effText(ctx: RenderCtx, it: Item): string { const e = cellEditOf(ctx, it); return e.text !== undefined && e.orig === it.text ? e.text : it.text; }
+export function effText(ctx: RenderCtx, it: Item): string { const e = cellEditOf(ctx, it); return e.text !== undefined && origMatches(e, it) ? e.text : it.text; }
+/** a text edit holds while the Excel value it was made on is the cell's: its text as shown, or – an edit saved before the
+    conditional formats showed their number format or hid the value (4.6–4.8) – its text without them (S16.4 review) */
+export const origMatches = (e: CellEdit, it: Item) => e.orig === it.text || (it.rawText !== undefined && e.orig === it.rawText);
 export function effFmt(ctx: RenderCtx, it: Item) {
   const e = cellEditOf(ctx, it);
   return { font: e.font || null, sz: e.sz || it.font.sz || 11, b: e.b !== undefined ? e.b : !!it.font.b, i: e.i !== undefined ? e.i : !!it.font.i,

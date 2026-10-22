@@ -1,0 +1,45 @@
+{
+  "about": "A deck on tests/corpus/workbooks/cf/cf-rules.xlsx as Slide Builder 4.8 saves it (format 4: no op 4.0.0 lacks), before S16.4 drew the conditional formats' number format and hidden values: text edits whose orig is the value's plain text – H11 (shown \"[n/a]\" by a rule's number format since S16.4), D26 of Icon sets (hidden by an icons-only rule since S16.4) –, one on E26 made on a value the cell no longer holds (orig \"7\", stays paused) and one on G5 (no such rule). Made by hand for the S16.4 review; added, never edited.",
+  "snapshot": {
+    "format": 4,
+    "gen": 1,
+    "workbook": "cf-rules.xlsx",
+    "lamport": 2,
+    "rev": 1,
+    "frontier": { "anna@pc1#aaaaaaaa": 0 },
+    "seen": { "anna@pc1#aaaaaaaa": 1 },
+    "updated": 1792000000000,
+    "updatedBy": "anna",
+    "log": [{ "rev": 1, "by": "anna", "at": 1792000000000 }],
+    "at": 1792000000000,
+    "by": "anna",
+    "doc": {
+      "schema": 3,
+      "workbook": "cf-rules.xlsx",
+      "rev": 1,
+      "preset": {
+        "sheets": ["CF rules", "Icon sets"],
+        "tables": [
+          { "id": "tcf", "sheet": "CF rules", "kind": "markers", "anchor": "B3", "index": 0 },
+          { "id": "tic", "sheet": "Icon sets", "kind": "markers", "anchor": "B3", "index": 0 }
+        ],
+        "slides": [
+          { "id": "s1", "type": "content", "title": null, "subtitle": null, "tables": ["tcf"], "layout": null },
+          { "id": "s2", "type": "content", "title": null, "subtitle": null, "tables": ["tic"], "layout": null }
+        ]
+      },
+      "style": {},
+      "edits": {}
+    }
+  },
+  "records": [
+    { "l": 3, "w": "anna@pc1#aaaaaaaa", "s": 2, "by": "anna", "at": 1792000060000, "ops": [
+      { "op": "cell.patch", "sheet": "CF rules", "ref": "H11", "patch": { "orig": "n/a", "text": "not applicable" } },
+      { "op": "cell.patch", "sheet": "CF rules", "ref": "G5", "patch": { "orig": "12", "text": "twelve" } }
+    ] },
+    { "l": 4, "w": "anna@pc1#aaaaaaaa", "s": 3, "by": "anna", "at": 1792000070000, "ops": [
+      { "op": "cell.patch", "sheet": "Icon sets", "ref": "D26", "patch": { "orig": "1", "text": "low" } },
+      { "op": "cell.patch", "sheet": "Icon sets", "ref": "E26", "patch": { "orig": "7", "text": "stale" } }
+    ] }
+  ]
+}

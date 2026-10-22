@@ -21,6 +21,7 @@ import { readStylesBin } from "./xlsb/styles";
 import { readSstBin } from "./xlsb/strings";
 import { BinSheetReader } from "./xlsb/sheet";
 import { readCFXml } from "./cf-read";
+import { todaySerial } from "./cf";
 
 export { xdec, xattrs, parseSST, parseSSTRich, richRuns } from "./strings";
 const entrySize = (f: ZipEntry | null) => f?.size || 0;
@@ -41,7 +42,8 @@ export function isEncryptedPackage(bytes: Uint8Array): boolean {
   return false;
 }
 
-export async function indexWorkbook(buf: ArrayBuffer): Promise<Workbook> {
+/** opts.today: the day conditional formats take as today (an Excel serial; tests) – else this PC's date, now */
+export async function indexWorkbook(buf: ArrayBuffer, opts: { today?: number } = {}): Promise<Workbook> {
   const head = new Uint8Array(buf, 0, Math.min(8, buf.byteLength));
   if (head[0] === 0xD0 && head[1] === 0xCF && head[2] === 0x11 && head[3] === 0xE0) {
     // an encrypted .xlsx is a compound file with an "EncryptedPackage" stream: Excel cannot convert it without the
@@ -111,7 +113,7 @@ export async function indexWorkbook(buf: ArrayBuffer): Promise<Workbook> {
   const wb: Workbook = {
     zip, wbRels, meta, skipped, hiddenSheets: skipped.filter(s => s.why === "hidden").map(s => s.name), hiddenMeta,
     extLinks: Object.values(wbRels).filter(r => /externalLink/.test(r.type)).length, externals, names,
-    sheets: [], shared: null, linked: new Map(), total, ssSize, big: total > BIG_BYTES || buf.byteLength > 6 * 1048576,
+    sheets: [], shared: null, linked: new Map(), today: opts.today ?? todaySerial(), total, ssSize, big: total > BIG_BYTES || buf.byteLength > 6 * 1048576,
     isLoaded: n => wb.sheets.some(S => S.name === n),
     ensure: (names, progress) => ensureSheets(wb, names, progress),
   };
@@ -139,7 +141,7 @@ export function readHiddenSheets(wb: Workbook, file: string | null = null): Prom
   }
   return p;
 }
-export async function readWorkbook(buf: ArrayBuffer): Promise<Workbook> { const wb = await indexWorkbook(buf); await wb.ensure(wb.meta.map(m => m.name)); return wb; }
+export async function readWorkbook(buf: ArrayBuffer, opts: { today?: number } = {}): Promise<Workbook> { const wb = await indexWorkbook(buf, opts); await wb.ensure(wb.meta.map(m => m.name)); return wb; }
 
 /** a linked workbook joins `wb` (S7.3, ADR-014): its visible sheets are listed in `wb.meta` under their sheet ids
     "[file]Sheet" (read on demand like the others, into `wb.sheets`), its hidden and skipped sheets in `wb.skipped`;
@@ -246,7 +248,7 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
       return m > 3 ? Math.round(m) : 7;
     } catch { return 7; }
   })();
-  wb.shared = { sst, sstRuns, xfs, dxfs, defaultFont, color, theme, mdw };
+  wb.shared = { sst, sstRuns, xfs, dxfs, defaultFont, color, theme, mdw, today: wb.today ?? todaySerial() };
   FONT_SCRIPTS.set(wb.shared, sss);
   return wb.shared;
 }

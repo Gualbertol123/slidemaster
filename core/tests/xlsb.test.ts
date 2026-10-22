@@ -11,6 +11,7 @@ import { readWorkbook } from "../src/xlsx/workbook";
 import { evalCF } from "../src/xlsx/layout";
 import { makeZip } from "./zipbuild";
 import { Records } from "../src/xlsx/xlsb/records";
+import { XLSB_BAR_LOOK } from "../src/xlsx/xlsb/sheet";
 import { readCfFormula } from "../src/xlsx/xlsb/formula";
 import { sliceBoxes, sliceShared, sliceSheet } from "../src/xlsx/slice";
 import { MirrorWorkbook } from "../src/xlsx/mirror";
@@ -42,7 +43,7 @@ function sheetData(S: Sheet) {
     // the XML reader also takes the x14 extension copy of a rule (<x14:conditionalFormatting>, its ranges in an
     // element, not an attribute) as a rule without ranges, which never applies; the binary reader skips them
     // (S16.4: and it joins a data bar's 2010 look, `bar.x14`, to its rule – the binary reader keeps the 2007 look)
-    cf: S.cfRules.filter(r => r.ranges.length).map(r => ({ ...r, dxf: dxfIx(S, r.dxf), ...(r.bar ? { bar: { ...r.bar, x14: undefined } } : {}) })), unsupportedCF: [...S.unsupportedCF].sort(),
+    cf: S.cfRules.filter(r => r.ranges.length).map(r => ({ ...r, dxf: dxfIx(S, r.dxf), ...(r.bar ? { bar: { ...r.bar, x14: undefined } } : {}) })), unsupportedCF: [...S.unsupportedCF].filter(w => w !== XLSB_BAR_LOOK).sort(),
     defColW: S.defColW, defRowH: S.defRowH, zeroH: S.zeroH, drawing: S.drawing, title: S.title, subtitle: S.subtitle,
     tables: S.tables.map(L => ({ g: L.g, rows: L.rows, cols: L.cols, W: L.W, H: L.H, items: L.items.length, errors: L.errors })),
   };
