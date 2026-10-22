@@ -726,6 +726,34 @@ numbers measured twice). Measured numbers go into the step's line.
 
 ## Waiting for
 
+- **Close-out of 4.6–4.9 (branch `v4/closeout`, 2026-10-22): what is done, and what is left for the owner only.**
+  **Done:** 4.6.0 ([PR #29](https://github.com/Gualbertol123/slidemaster/pull/29), tag v4.6.0); B48–B50
+  ([PR #30](https://github.com/Gualbertol123/slidemaster/pull/30)); **4.7.0** M14 charts
+  ([PR #31](https://github.com/Gualbertol123/slidemaster/pull/31), d327882, tag v4.7.0); **4.8.0** M15 lines, icons,
+  snapping ([PR #32](https://github.com/Gualbertol123/slidemaster/pull/32), merged into main 36d689a, not tagged
+  yet); 4.9.0 M16 tables + S13.7 Delete / Duplicate slide + B51 movable contents slide, put together on
+  `v4/release-4.9.0`; the M17 audit (`docs/next/AUDIT-3.md`) with every finding resolved – COMPAT-1 format 6
+  (700e1e8, review fix 88f30b5, tests 4a1a914; CP-01 m15 / m16 PASS vs 4.6p and 4.8, m16 vs 4.0 / 4.5 / 4.7,
+  `--bump-wait-s 2`), DATA-8 (da47311), VER-4 (the m15 / m16 cases), VEC-1 (89c0131), VEC-2 (48d86c5), UNDO-1
+  (6abda01), REL-2 and INT-1 by `v4/release-4.9.0`; the user guide brought to 4.9 (`v4/guide` cf641b0, merged
+  here); README §1.1 brought to 4.9.0 and a *Handover* section for the next maintainer. The M13–M15 entries below
+  keep their history; their PRs are merged.
+  **Left for the owner (Windows PC; the gates were waived, these checks stay):**
+  - PowerPoint: **PX-05** (every chart deck opens without a repair prompt, *Edit Data* with its number formats and
+    the waterfall's formulas), **PX-06** (`tools/pptxcheck.py plots`), **LN-03** (lines with PowerPoint's own
+    arrowheads, by eye); **CT-07** the reference chart's picture sign-off.
+  - **XC-01**: `tools/make-cf-corpus.ps1` with Excel 16, commit `cf-rules.excel.json` (until then
+    `core/tests/cf-m16.test.ts` skips the comparison with Excel).
+  - **The guide PDF**: the committed one is still the 4.6 build (Segoe UI); on a Windows PC with Segoe UI:
+    `node docs/guide/build.mjs guide`, commit the new `docs/guide/Slide Builder 4 – guide.pdf`.
+  - **CP-01 with the real 23 s wait** on Windows: `node tools/compat-old.mjs --pythons "py -3.8,py -3.12"
+    --new-python python --out $env:TEMP\compat-old.json` (every RESULT PASS, incl. m15 / m16 vs 4.6p, 4.7, 4.8).
+  - Known and accepted: the cold PowerPoint export takes ~25 s right after a deck's first 4.6-or-later object (the
+    format guard's one-time wait; Decisions 2026-10-21) – accept again or ask for the in-memory export.
+  - **Tags v4.8.0 and v4.9.0** (`docs/next/release-checklist.md` §5) after merging the 4.9.0 integration.
+  - **The share update** to 4.9 (§6): every window on every PC closed first, **the whole team updated together** –
+    4.9's table features raise decks to format 6, which 4.6–4.8 open read-only.
+
 - **M15 · 4.8.0, branch `v4/M15-lines-icons`, close-out (S15.7), 2026-10-21.** The milestone review (REQUEST
   CHANGES, 11 findings; the code sound, every step APPROVE) is fixed in the close-out commit where it could be: the
   three Playwright tests (finding 1), the page rebuilt and committed (2), `m15.json` re-based on main's page (3), the

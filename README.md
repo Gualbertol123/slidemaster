@@ -6,11 +6,12 @@ PDFs (one page per slide) or PNGs. It was built for a weekly banking report deck
 proxy, possibly restricted PowerShell, and the application living in a **shared network folder (SMB)** that
 several people use **at the same time, on the same or on different workbooks**.
 
-This README describes **Slide Builder 4** (4.0 and the unreleased 4.1). It is written for a software engineer
+This README describes **Slide Builder 4** (4.0–4.9.0; what each release added is summarised in §1.1). It is written for a software engineer
 who has to understand, run, change or replace the whole system: what the product does (§1), how it is deployed
 and run (§2), the architecture (§3), the data model (§4), every front-end and helper module (§5, §7), the
 important flows end to end (§6), the HTTP API (§8), concurrency and failure handling (§9), the export (§10),
 development and tests (§11), where to change what (§12), security (§13), gotchas (§14) and known gaps (§15).
+The next maintainer should start with the [**Handover**](#handover) section below.
 
 | Deeper document | Read it for |
 |---|---|
@@ -36,7 +37,80 @@ notice are listed per release in [`CHANGELOG.md`](CHANGELOG.md).
 [8 HTTP API](#8-http-api) · [9 Concurrency](#9-concurrency-and-failure-model) ·
 [10 Export](#10-export) · [11 Development](#11-development-and-tests) ·
 [12 Recipes](#12-where-to-change-what) · [13 Security](#13-security) · [14 Gotchas](#14-gotchas) ·
-[15 Limitations and tech debt](#15-known-limitations-and-technical-debt) · [16 Repository map](#16-repository-map)
+[15 Limitations and tech debt](#15-known-limitations-and-technical-debt) · [16 Repository map](#16-repository-map) ·
+[Handover](#handover)
+
+---
+
+## Handover
+
+For whoever maintains Slide Builder next (written at the close of the 4.6–4.9 work, 2026-10-22). The rest of this
+README is the reference; this section is the short way in.
+
+**Where things are**
+
+| Path | What it is |
+|---|---|
+| `core/` | pure TypeScript, no DOM: workbook reader, document model and operations (`core/src/model/ops.ts`, incl. the format guard's lists), layout, display list (ADR-004), PDF and PowerPoint writers (`core/src/pptx/`), IronCalc WASM, the workers (§5) |
+| `app/` | the React page; built into the **committed** `helper/slide_builder.html` (§5.5–5.7) |
+| `helper/` | the Python helper each user runs – standard library only, must stay **Python 3.8**-compatible (§7) |
+| `tools/` | release, updater, parity, bench, export and PowerPoint checks (`pptxcheck.py`, `export-check.mjs`), CP-01 (`compat-old.mjs`), licence notices (`notices.mjs`) |
+| `shared/ops-vectors.json`, `shared/ops-vectors.d/*.json` | the operation vectors every op / key must have (one file per later step) |
+| `golden/`, `*/tests/fixtures/saved/` | parity goldens and saved decks of every release – **never edit, only add** |
+| [`docs/next/`](docs/next/00-summary.md) | the rebuild's design and plans (`PLAN.md`, `09-charts-annotations-icons.md` for M14–M17), the audits ([`AUDIT.md`](docs/next/AUDIT.md), [`AUDIT-2.md`](docs/next/AUDIT-2.md), [`AUDIT-3.md`](docs/next/AUDIT-3.md) with its resolution), [`release-checklist.md`](docs/next/release-checklist.md) |
+| [`docs/next/adr/`](docs/next/adr/) | the 20 architecture decisions; the format guard is [ADR-019](docs/next/adr/019-per-deck-format-guard.md) (amended for format 6) |
+| [`PROGRESS.md`](PROGRESS.md) | every step, decision, measurement and what is still **Waiting for** someone |
+| [`CHANGELOG.md`](CHANGELOG.md) | what users notice, per release |
+| `docs/guide/` | the user guide (`guide.md` / `guide.html`, screenshots in `img/`, `shots.mjs`) and the launch slides; `build.mjs` prints the PDFs, `check.mjs` checks them (`node --test docs/guide/check.test.mjs`) |
+
+**Build, test, release** (details in §11)
+* `npm ci`, then `npm run build` – it rewrites `helper/slide_builder.html`, which is what users run: **commit it with
+  the source change**; `app/tests/build.test.ts` fails when it is stale, and the page has a size budget
+  (`app/tests/page-budget/*.json`, one part per step).
+* `npm run check` (core + app: typecheck and Vitest) · `python -m unittest discover -s helper/tests` on **Python 3.8
+  and 3.12** · `npm run test:e2e` (Playwright; ports 8951/8952, one run at a time per machine) · `npm run parity` and
+  `npm run dlparity` (full comparison only on the reference PC, text-only elsewhere) · `npm run bench` (decided on CI:
+  a timing gate fails only when it is over twice). CI runs all of these on every push (`.github/workflows/ci.yml`).
+* Release: [`docs/next/release-checklist.md`](docs/next/release-checklist.md) – versions and a dated CHANGELOG, the
+  checks on a clean clone (with CP-01, §2a), `tools/make_release.py`, a rehearsal on a copy of the share, then **§5:
+  tag `vX.Y.Z` and push it** – the `release` workflow builds and publishes the ZIP and its `.sha256` – and **§6:
+  update the team's share** with `Update Slide Builder.bat`, every Slide Builder window closed on every PC first.
+
+**The format guard and mixed versions on the share** (ADR-019). A deck is saved with a format number. Older copies
+of Slide Builder that do not know a format open the deck **read-only** (or are refused) instead of silently
+damaging it. 4.6 introduced format 5 (charts, callouts, free layout and the other 4.6 objects: 4.0–4.5 lock out);
+**4.9 introduces format 6** for its table features – rows / columns deleted for a version, hidden rows / columns, a
+cell's vertical position or number display, a moved contents slide (AUDIT-3 COMPAT-1: a 4.6–4.8 window could
+otherwise erase a version's deleted rows and export rows meant to be hidden). **4.6–4.8 refuse format-6 decks.**
+So the share must be **updated for everyone together**: on update day every window is closed, the share moves to
+4.9, and nobody keeps running an older copy. A deck is raised only on its first new-feature save (about 23–25 s of
+"Saving…", once per deck); decks that never use the new features keep opening in older versions. Never delete a
+deck's `incident-format-5.json` / `incident-format-6.json`. `Update Slide Builder.bat --use <older>` names the
+decks that version would only show read-only and asks first.
+
+**CP-01 – the compatibility check against the real old versions** is `tools/compat-old.mjs` (release checklist §2a).
+It checks out the real 4.0, 4.1, 4.4, 4.5, 4.6, 4.6p, 4.7 and 4.8, runs each old helper and page beside this
+checkout's on the same deck, and checks that nothing new is lost (cases cp02, a–d, m14, m15, m16). Run it **before
+every release that adds an op, a key or a format**, and at every milestone close; it takes about 35 minutes per
+Python with the real wait (`--bump-wait-s N` shortens it for a quick look, but only the real wait counts). On the
+owner's PC: `node tools/compat-old.mjs --pythons "py -3.8,py -3.12" --new-python python --out
+$env:TEMP\compat-old.json` – every `RESULT` line must say PASS.
+
+**Open items that only the owner's Windows PC can do** (the list is kept in PROGRESS *Waiting for*)
+* PowerPoint checks: **PX-05** (every chart deck opens without a repair prompt; *Edit Data* works, with the number
+  formats and the waterfall's formulas), **PX-06** (`tools/pptxcheck.py plots` against PowerPoint's own plot areas),
+  **LN-03** (lines are plain shapes with PowerPoint's own arrowheads, by eye on the PC).
+* **CT-07**: the sign-off of the reference chart against its picture.
+* **XC-01**: record Excel's own conditional-format colours with `tools/make-cf-corpus.ps1` (Excel 16) and commit
+  `cf-rules.excel.json`, so `core/tests/cf-m16.test.ts` compares with Excel instead of skipping.
+* **The guide PDF**: the committed `docs/guide/Slide Builder 4 – guide.pdf` is still the 4.6 build; print the 4.9
+  guide on a Windows PC with Segoe UI: `node docs/guide/build.mjs guide` (it refuses to write the PDF without the
+  fonts).
+* **Known slow first export**: the first PowerPoint (or other) export right after a deck's first 4.6-or-later object
+  can take about 25 s, because it waits for the format guard's one-time save; later exports are fast. Accepted for
+  now (Decisions 2026-10-21); the remedy – exporting from the in-memory document – is proposed for later.
+* CP-01 with the real wait on Windows and on the share; the tags **v4.8.0** and **v4.9.0** (release checklist §5);
+  the share update to 4.9 (§6).
 
 ---
 
@@ -49,6 +123,41 @@ never modified. Several users can work on the same deck at the same time.
 
 ### 1.1 Feature reference
 
+**What is new in 4.6–4.9, in plain words** (the share went from 4.0 straight to 4.6; 4.1–4.5 were never released on
+their own, so 4.6 also brought everything they added: `.xlsb` workbooks, recalculation and scenarios, the consulting
+designs, charts and callouts, free layout, borders and PowerPoint export – see [`CHANGELOG.md`](CHANGELOG.md)).
+
+* **4.6 – safer sharing and slide basics.** *The format guard*: a deck that uses something new is marked so that
+  older copies of Slide Builder can only look at it, never damage it (the first save of such a deck takes about
+  25 seconds, once). *New slide* (Ctrl+M) and *Add table*; *hide a slide* in one design or in all of them, as in
+  PowerPoint (left out of exports, page numbers and the contents slide); *Scan for "x" tables* in large workbooks;
+  *delete or restore a workbook's saved setup*; Google fonts and font previews fetched by Slide Builder itself and
+  kept on the share; *Licences…* shows the third-party licences.
+* **4.7 – charts, and the Intesa Sanpaolo template.** Column, bar, line, area, scatter, waterfall and combined
+  charts with several series from any cells (also from another workbook), two value axes, category groups, data
+  labels, "actual inside target" columns, a movable legend and notes that follow the data (arrows, lines, bands,
+  icons, texts). In PowerPoint every chart is a real PowerPoint chart whose data can be edited. The Excel and Excel
+  Refined designs can follow the **Intesa Sanpaolo template** (cover band, titles, page numbers, logo, Century
+  Gothic, the template's colours and chart colours). Automated comments get **borders** (weight and colour, or
+  none) and can be written **the way the team's macro writes them** (vs Budget, vs Previous Week, top contributors,
+  alerts; each section with a rule such as "only in the last week of the month").
+* **4.8 – lines, icons and snapping.** About 6,200 icons (Tabler Icons), searchable in English and in Italian, in any
+  colour and size. Lines and arrows of ten kinds whose ends can be attached to a table, text box, shape or icon and
+  follow it. Every object snaps to the slide's edges and centre and to other objects, with equal-spacing and
+  same-size hints (hold Alt to switch it off). Objects stay exactly where they are dropped, also in PDF and
+  PowerPoint. The toolbars use one set of icons. In PowerPoint, lines and icons are ordinary editable shapes.
+* **4.9 – tables.** **Hide rows and columns** on one slide only (the same table elsewhere keeps them). **Delete rows
+  and columns in a version** (e.g. a version for another audience): that version's slides and exports leave them
+  out; a version that would empty a table is not exported, with a message. A fuller **format painter** (decimals,
+  percent, thousands, vertical position; several ranges or objects at once; a chart's or a line's look onto
+  another). **Excel's conditional formats** – colour scales, data bars, icon sets, top/bottom, duplicates, dates and
+  the other rule types – drawn as in Excel, in every design and export (in PowerPoint a real table with the bars and
+  icons as shapes). **Delete slide** and **Duplicate slide** from the slide list, as in PowerPoint. The **contents
+  slide's list and title can be moved and resized** in free layout (B51). Decks using any of this are **format 6**:
+  4.0–4.8 open them read-only and ask to update, so the whole team moves to 4.9 together (§2.3, *Handover*).
+
+The reference below lists every feature as it stands in 4.9.0.
+
 **Workbooks**
 * `.xlsx`, `.xlsm` and (since 4.1) `.xlsb` are read by the page itself. Old `.xls` workbooks and protected
   compound files are converted to `.xlsx` by the PC's Excel (COM, through the helper); a workbook encrypted with
@@ -56,7 +165,9 @@ never modified. Several users can work on the same deck at the same time.
   its password prompt. Hidden and very hidden sheets are skipped on purpose (user requirement); chart sheets too.
 * Reads values (cached formula results – formulas are **not** recalculated), number formats (Italian
   separators, locale tags, dates), fonts, fills, borders, merges, hidden rows/columns, conditional formatting
-  (`cellIs` and simple `expression` rules), rich-text **superscripts/subscripts**, pictures (EMF/WMF/TIFF through
+  (since 4.9 every rule type Excel 2016 writes – colour scales, data bars, icon sets, top / bottom, average, unique /
+  duplicate, text, dates, blanks / errors, cell value and formula rules; what is not reproduced is listed in the
+  Issues panel), rich-text **superscripts/subscripts**, pictures (EMF/WMF/TIFF through
   the helper's conversion), shapes and text boxes. Charts are listed, not drawn.
 * Tables are found by **"x" markers** in the top-left and bottom-right corners of a region (the marker row
   and column are outside the table), or picked as ranges in the wizard (optionally "grows" to follow new rows).
@@ -66,7 +177,7 @@ is read only when selected; **Scan for "x" tables** reads the selected ones at o
 there, B43) → 2 Tables (drag or type ranges on a sheet preview, detected
 suggestions) → 3 Slides (drag tables between slides; optional cover and contents slide; logo per slide) →
 4 **Versions** (named variants of the deck in which chosen cells are removed, e.g. *Chief* = everything,
-*All* = some cells blanked).
+*All* = some cells blanked; since 4.9 also *Delete rows* / *Delete columns* for the version).
 
 **Designs** (top bar: *Liquid Glass · Excel · Excel Refined*)
 * **Excel** – the workbook's own formatting, no decoration of its own (no deck colours on tables, no glass). Title,
@@ -109,7 +220,8 @@ sign); line and paragraph spacing. The **notes section** (ribbon 2 › Notes) is
 * Amounts carry a unit ("+476 **mln**" by default). Editing a comment's text by hand turns it into fixed text.
 
 **Versions** – top bar › *Version* shows the deck as any version; removed cells are drawn empty and comments
-ignore them. Export ▾ › every version (this design, × Liquid Glass + Excel, or × all three designs) → one PDF
+ignore them; rows and columns deleted for a version (4.9, Ribbon 2 › Cells › *For this version ▾*) close up in that
+version only, and a version that would leave a table empty is not exported. Export ▾ › every version (this design, × Liquid Glass + Excel, or × all three designs) → one PDF
 each, `<workbook> - <version> - <design>.pdf`.
 
 **Deck options** (shared by everyone on the workbook) – design, glass strength, background colour, colour theme
@@ -117,9 +229,19 @@ each, `<workbook> - <version> - <design>.pdf`.
 (position, size, format, style, start), footer (`{date}`, `{workbook}`, `{title}`). *Use as default for new
 decks*. *Options › Administration › Prepare rollback* (for giving decks back to Slide Builder 3, §2.4).
 
+**Slides** – *+ New slide* / Ctrl+M, *Add table*, and in the slide list's right-click menu *Duplicate slide*,
+*Delete slide* (asks first; its tables stay in the deck), *Hide slide* / *Hide in every design*. Per slide, Ribbon 2 ›
+Cells › *Hide ▾* hides rows or columns of a table on that slide only. The contents slide's list and title move freely
+in free layout.
+
+**Charts, shapes, lines and icons** – charts of every common type (4.7, §1.1 above), callouts, shapes, lines and
+arrows attachable to objects, about 6,200 icons (*Insert shape ▾ › More icons…*); snapping for every object (Alt:
+none).
+
 **Export** – PDF *text & tables* (vector, default), PDF *as pictures* (lossless PNG pages at 2×, "192 dpi",
 file name "(images)"), current slide PDF, current/every slide PNG (4800 × 2700), *Copy current slide*, every
-version. Written by the page itself (§10): nothing to install; from disk the files are downloads.
+version, **PowerPoint** (*Export ▾ › PowerPoint*: real tables, native charts with their data, shapes – never pictures of
+tables or charts). Written by the page itself (§10): nothing to install; from disk the files are downloads.
 *Report a problem with this export…* writes a JSON report to `export\feedback\`.
 
 **Working together** – changes are merged field by field; others' changes appear within about 1–2 s with
