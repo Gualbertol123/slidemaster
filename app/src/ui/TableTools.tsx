@@ -225,7 +225,7 @@ export function TableRibbon() {
           <Ic n="border-inner" />Gridlines</button>}>
           {close => R && tIdx >= 0 ? <GridMenu close={close} T={R.tables[tIdx]} /> : null}</Dropdown>
         <button className="tb" id="tablesDlg" disabled={!anyTables} title="Match sizes of tables on several slides, copy column widths between tables" onClick={() => setDialogs({ tables: true })}>Sizes…</button>
-        <button className={"tb" + (free ? " on" : "")} id="freeLayout" disabled={!R || R.type !== "content"} title={free ? "Back to the automatic layout of this slide (the free places are kept)" : "Free layout: move and resize the tables, text boxes, charts and shapes of this slide one by one (in this design; Alt while dragging: no snapping)"}
+        <button className={"tb" + (free ? " on" : "")} id="freeLayout" disabled={!R || R.type === "cover"} title={free ? "Back to the automatic layout of this slide (the free places are kept)" : R?.type === "index" ? "Free layout: move and resize the contents list and its title, the text boxes, charts and shapes of this slide one by one (in this design; Alt while dragging: no snapping)" : "Free layout: move and resize the tables, text boxes, charts and shapes of this slide one by one (in this design; Alt while dragging: no snapping)"}
           onClick={() => R && (free ? freeLayoutOff(R) : freeLayoutOn(R))}>Free layout</button>
         <button className="tb" id="resetLayout" title={free ? "Back to the automatic layout of this slide" : "Automatic table positions for this slide (in this design)"} disabled={!(R && (free || sizingOf(R, c).layout))} onClick={() => R && (free ? void askAutomatic(R) : slidePatch("Reset layout", sizingPatch(R, c, { scale: sizingOf(R, c).scale })))}>Reset layout</button>
       </div>

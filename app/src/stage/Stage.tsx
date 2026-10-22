@@ -27,7 +27,8 @@ import { selectSlideText } from "../editor/textfmt";
 import { setStage, useStage } from "./data";
 import { addNote, editNote, openInline, pendingNote, selectNote, takePendingNote } from "./actions";
 import { borderAt, cellBox, cellFromPoint, tablePoint } from "./hit";
-import { borderDrag, freeTable, gripDrag, noteEdge, noteMove, noteStretch, resizeDrag, stretchDrag, type DragPreview } from "./drags";
+import { CONTENTS_PARTS, PART_LABEL, partOf, type ContentsPart } from "@slide-builder/core/render/contents";
+import { borderDrag, freePart, freeTable, gripDrag, noteEdge, noteMove, noteStretch, resizeDrag, stretchDrag, type DragPreview } from "./drags";
 import { editOf, stageModel, type NotePlace, type Rect, type StageModel } from "./model";
 import { PlainLayer, TableLayer, type Box } from "./SlideSvg";
 import { CellEditor, ItemEditor, NoteEditor, TextEditor } from "./editors";
@@ -115,6 +116,7 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
           <Lines m={m} R={R} s={s} />{/* lines (S15.3): their bands and handles; Items draws the boxes of the other kinds */}
           {m.tables.map(t => <TableHits key={t.i} i={t.i} R={R} c={c} box={boxOf(t.i, t.box, drag)} s={s} />)}
           {m.tables.map(t => <HBox key={t.i} i={t.i} R={R} c={c} m={m} box={boxOf(t.i, t.box, drag)} drag={drag} slide={slideRef} />)}
+          {R.type === "index" && freeOf(R, c) && CONTENTS_PARTS.map(p => <PartBox key={p} part={p} R={R} m={m} drag={drag} />)}
           <Selection m={m} s={s} drag={drag} />
           <Guides drag={drag} s={s} />
           <HiddenMarks m={m} R={R} c={c} />
@@ -287,6 +289,25 @@ function HBox({ i, R, c, m, box, drag, slide }: { i: number; R: RuntimeSlide; c:
   );
 }
 
+/* ---- a part of the contents slide in a free layout (B51): its title, its list – a table's handles (grip, corner, edges),
+   no + buttons; the box shows where it goes while it is dragged (the slide is drawn there on the drop) */
+function PartBox({ part, R, m, drag }: { part: ContentsPart; R: RuntimeSlide; m: StageModel; drag: DragPreview | null }) {
+  const now = m.parts[part]; if (!now) return null;
+  const d = drag?.kind === "part" && drag.part === part ? drag : null, b = d ? d.box : now;
+  // what it lines up with: the other part, the text boxes, the items, the page number and the footer
+  const others = (): Rect[] => [...CONTENTS_PARTS.filter(p => p !== part).flatMap(p => { const o = m.parts[p]; return o ? [o] : []; }),
+    ...m.notes.map(n => n.box), ...m.items.map(i => i.box), ...m.hits.filter(h => !partOf(h.id) && /^pageno\b|^footer\b/.test(h.id))];
+  const go = (how: "move" | "corner" | "l" | "r" | "t" | "b") => (e: React.PointerEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); freePart(R, part, how, now, others(), e.nativeEvent); };
+  const what = part === "toc" ? "the contents list" : "the title";
+  return (
+    <div className={"hbox free cpart" + (d ? " active" : "")} data-part={part} style={{ left: b.x, top: b.y, width: b.w, height: b.h }}>
+      <div className="grip" title={`Drag to move ${what} anywhere (Alt: no snapping)`} onPointerDown={go("move")}>⠿ {PART_LABEL[part]}</div>
+      <div className="size" title="Drag to resize (keeps the proportions)" onPointerDown={go("corner")} />
+      {(["l", "r", "t", "b"] as const).map(ed => <div key={ed} className={"edge " + ed} data-edge={ed} title={`Drag to make ${what} larger or smaller (its proportions kept)`} onPointerDown={go(ed)} />)}
+    </div>
+  );
+}
+
 /* ---- the selection: the selected cells (each Ctrl+click range: 4.9) and the active one, in slide px; the format painter's
    targets collected with Ctrl (dashed, pasted when Ctrl is let go) */
 function Selection({ m, s, drag }: { m: StageModel; s: number; drag: DragPreview | null }) {
@@ -316,7 +337,7 @@ function Guides({ drag, s }: { drag: DragPreview | null; s: number }) {
   if (drag?.kind === "grip") return <div className="dropmark" style={drag.mark ? { display: "block", left: drag.mark.x, top: drag.mark.y, width: drag.mark.w, height: drag.mark.h } : undefined} />;
   // the snapping marks (S15.4, 09 §5.2: every matched line, equal gaps and sizes – stage/guides.tsx)
   if (drag?.kind === "resize" && !drag.done && drag.marks) return <SnapGuides marks={drag.marks} s={s} />;
-  if ((drag?.kind === "note" || drag?.kind === "item") && !drag.done) return <>
+  if ((drag?.kind === "note" || drag?.kind === "item" || drag?.kind === "part") && !drag.done) return <>
     {drag.kind === "item" && !drag.moved && <div className="itemguide" style={{ left: drag.box.x, top: drag.box.y, width: drag.box.w, height: drag.box.h }} />}
     <SnapGuides marks={drag.marks} s={s} />
   </>;

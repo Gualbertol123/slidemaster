@@ -21,6 +21,7 @@ import { requestsIssued, setStage, stage } from "./data";
 import { slidePatch, slideScale } from "./actions";
 import { colEdges, rowEdges, type Border } from "./hit";
 import type { Rect } from "./model";
+import { PART_LABEL, savedPart, type ContentsPart } from "@slide-builder/core/render/contents";
 
 /** what a drag shows; `done`: the drag ended with a change – it stays until the slide drawn with that change arrives
     (data.ts), so nothing jumps back for a moment */
@@ -30,7 +31,9 @@ export type DragPreview = (
   | { kind: "stretch"; i: number; side: "l" | "r" | "t" | "b"; f: number; box: Rect }
   | { kind: "grip"; i: number; mark: Rect | null }
   | { kind: "note"; key: string; box: Rect; moved: boolean; /** what it lines up with (stage/guides.tsx) */ marks: SnapMarks | null }
-  | { kind: "item"; id: string; box: Rect; moved: boolean; marks: SnapMarks | null }) & { done?: boolean; /** requests sent when it ended */ after?: number };
+  | { kind: "item"; id: string; box: Rect; moved: boolean; marks: SnapMarks | null }
+  /** a part of the contents slide in a free layout (B51): its box as it will be dropped */
+  | { kind: "part"; part: ContentsPart; box: Rect; marks: SnapMarks | null }) & { done?: boolean; /** requests sent when it ended */ after?: number };
 
 /* one store update per frame, however often the pointer moves */
 let raf = 0, next: DragPreview | null = null;
@@ -43,7 +46,7 @@ function endPreview(changed = false) {
   if (raf) cancelAnimationFrame(raf);
   const last = next; raf = 0; next = null;
   if (!changed || !last || last.kind === "border" || last.kind === "grip" || last.kind === "stretch") { setStage({ drag: null }); return; }
-  const done: DragPreview = last.kind === "note" || last.kind === "item" ? { ...last, marks: null, done: true, after: requestsIssued() } : { ...last, done: true, after: requestsIssued() };
+  const done: DragPreview = last.kind === "note" || last.kind === "item" || last.kind === "part" ? { ...last, marks: null, done: true, after: requestsIssued() } : { ...last, done: true, after: requestsIssued() };
   setStage({ drag: done });
   setTimeout(() => { if (stage().drag === done) setStage({ drag: null }); }, 2000);
 }
@@ -275,6 +278,59 @@ function edgeResize(T: SnapTargets | null, box: Rect, edge: NEdge, size0: number
   size = Math.max(min, Math.min(room, snapRound(size)));
   const out = horiz ? { x: edge === "l" ? snapRound(box.x + box.w - size) : box.x, y: box.y, w: size, h: box.h } : { x: box.x, y: edge === "t" ? snapRound(box.y + box.h - size) : box.y, w: box.w, h: size };
   return { box: out, marks: T && !alt ? resizeMarks(T, out, horiz ? { x: [far ? "r" : "l"] } : { y: [far ? "b" : "t"] }, horiz ? { w: true } : { h: true }) : null };
+}
+
+/** a part of the contents slide in a free layout (B51: its title, its list) – as a table of a free layout: moved by its
+    grip, resized by its corner or an edge keeping its proportions (its scale against the design's own size of it);
+    `start`: where it is drawn now. Snaps as every object does (4.8, S15.4: snapMove / snapEdge, Alt: none) and drops on
+    1/4 px. One slide.patch on the drop: one undo step */
+export function freePart(R: RuntimeSlide, part: ContentsPart, how: "move" | "corner" | NEdge, start: Rect, others: Rect[], e: PointerEvent) {
+  if (e.button !== 0) return;
+  const c = slideCtx(ctx(), R); if (!freeOf(R, c)) return;
+  const s0 = savedPart(R, c, part)?.scale ?? 1, W = start.w / s0, H = start.h / s0, sc = slideScale(), tol = snapTol(sc), sx = e.clientX, sy = e.clientY, key = freeKey.part(part);
+  const t = snapTargets({ ...R, tables: [] }, others);
+  let box: Rect & { scale: number } = { ...start, scale: s0 }, moved0 = false, at: PointerEvent | null = null, frame = 0;
+  const solve = () => {
+    frame = 0; const ev = at; if (!ev) return; at = null;
+    const dx = (ev.clientX - sx) / sc, dy = (ev.clientY - sy) / sc, snap = !ev.altKey;
+    if (!moved0 && Math.hypot(dx, dy) < 3) return;                     // a click is not a drag
+    let marks: SnapMarks | null = null;
+    if (how === "move") {
+      const m = moved(t, { x: Math.max(0, Math.min(1600 - start.w, start.x + dx)), y: Math.max(0, Math.min(900 - start.h, start.y + dy)), w: start.w, h: start.h }, !snap, tol);
+      box = { ...box, x: m.box.x, y: m.box.y }; marks = m.marks;
+    } else if (how === "t" || how === "b") {
+      // the new height from the pointer, snapped at the moving edge, on 1/4 px – the width and the scale follow from it
+      const bottom = start.y + start.h;
+      let h = start.h + (how === "t" ? -dy : dy);
+      if (snap) h += how === "b" ? snapEdge(t, false, start.y + h, tol, { now: h, sign: 1 }) : -snapEdge(t, false, bottom - h, tol, { now: h, sign: -1 });
+      const maxH = Math.min(how === "t" ? bottom : 900 - start.y, (1600 - start.x) * H / W);
+      h = Math.max(Math.min(30 * H / W, maxH), Math.min(maxH, snapRound(h)));
+      const w = h * W / H;
+      box = { x: start.x, y: how === "t" ? snapRound(bottom - h) : start.y, w, h, scale: w / W };
+      if (snap) marks = resizeMarks(t, box, { y: [how] }, { w: true, h: true });
+    } else {
+      // the new width from the pointer (a side edge: its own axis; the corner: the larger of the two), snapped at the moving edge
+      let w = how === "corner" ? Math.max(start.w + dx, (start.h + dy) * W / H) : start.w + (how === "l" ? -dx : dx);
+      if (snap) {
+        if (how === "corner" || how === "r") w += snapEdge(t, true, start.x + w, tol, { now: w, sign: 1 });
+        else w -= snapEdge(t, true, start.x + start.w - w, tol, { now: w, sign: -1 });
+      }
+      const right = start.x + start.w;
+      const maxW = Math.min(how === "l" ? right : 1600 - start.x, (900 - start.y) * W / H);
+      w = Math.max(Math.min(30, maxW), Math.min(maxW, snapRound(w)));
+      const hh = w * H / W;
+      box = { x: how === "l" ? snapRound(right - w) : start.x, y: start.y, w, h: hh, scale: w / W };
+      if (snap) marks = resizeMarks(t, box, how === "corner" ? { x: ["r"], y: ["b"] } : { x: [how === "l" ? "l" : "r"] }, { w: true, h: true });
+    }
+    moved0 = true;
+    next = { kind: "part", part, box, marks }; setStage({ drag: next });
+  };
+  follow(ev => { at = ev; if (!frame) frame = requestAnimationFrame(solve); }, () => {
+    if (frame) { cancelAnimationFrame(frame); solve(); }                // the last position counts
+    endPreview(moved0);
+    const op = moved0 ? freeOp(R, key, box) : null;
+    if (op) change((how === "move" ? "Move " : "Resize ") + PART_LABEL[part].toLowerCase(), [op]);
+  }, () => { if (frame) cancelAnimationFrame(frame); endPreview(); });
 }
 
 export function noteStretch(R: RuntimeSlide, key: string, box: Rect, edge: NEdge, free: boolean, others: Rect[], e: PointerEvent) {

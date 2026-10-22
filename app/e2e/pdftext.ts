@@ -76,3 +76,42 @@ export function pdfPageTexts(pdf: Buffer): string[] {
     return runs.join(" ");
   });
 }
+
+/** each page's text runs with where they start (slide px: the run's origin on its baseline), decorative copies left
+    out – the page's own content stream (q / Q, cm, Tm; forms are not entered). B51: where the moved parts are drawn */
+export function pdfPageRuns(pdf: Buffer): { text: string; x: number; y: number }[][] {
+  const objs = objects(pdf), ref = (d: string, key: string) => +(new RegExp("/" + key + "\\s*(\\d+) 0 R").exec(d)?.[1] || 0);
+  const pages = [...objs.entries()].filter(([, o]) => /\/Type\s*\/Page\b/.test(o.dict)).sort((a, b) => a[0] - b[0]);
+  const resourcesOf = (d: string) => { const r = /\/Resources\s*(\d+) 0 R/.exec(d); return r ? objs.get(+r[1])!.dict : d; };
+  const fontsOf = (res: string) => { const at = res.search(/\/Font\s*<</); const body = at < 0 ? "" : /<<([^>]*)>>/.exec(res.slice(at))?.[1] || ""; return new Map([...body.matchAll(/\/(\w+)\s*(\d+) 0 R/g)].map(m => [m[1], +m[2]])); };
+  const maps = new Map<number, Map<string, string>>();
+  const fontMap = (id: number) => { let m = maps.get(id); if (!m) { const tu = ref(objs.get(id)!.dict, "ToUnicode"); m = tu ? cmap(objs.get(tu)!.stream!.toString("latin1")) : new Map(); maps.set(id, m); } return m; };
+  type M6 = [number, number, number, number, number, number];
+  const mul = (m: M6, c: M6): M6 => [m[0] * c[0] + m[1] * c[2], m[0] * c[1] + m[1] * c[3], m[2] * c[0] + m[3] * c[2], m[2] * c[1] + m[3] * c[3], m[4] * c[0] + m[5] * c[2] + c[4], m[4] * c[1] + m[5] * c[3] + c[5]];
+  return pages.map(([, p]) => {
+    const media = /\/MediaBox\s*\[\s*([\d.\s-]+)\]/.exec(p.dict)![1].trim().split(/\s+/).map(Number), k = media[2] / 1600, H = media[3];
+    const fonts = fontsOf(resourcesOf(p.dict)), out: { text: string; x: number; y: number }[] = [], stack: M6[] = [];
+    let ctm: M6 = [1, 0, 0, 1, 0, 0], at: [number, number] = [0, 0], font = new Map<string, string>(), art = 0;
+    const show = (hex: string) => (hex.match(/.{4}/g) || []).map(g => font.get(g.toLowerCase()) ?? "").join("");
+    const content = objs.get(ref(p.dict, "Contents"))!.stream!.toString("latin1");
+    const re = /\/Artifact BMC|BDC|EMC|\/(\w+) [\d.]+ Tf|<([0-9a-fA-F]*)> Tj|\[((?:\s*(?:<[0-9a-fA-F]*>|-?[\d.]+))*)\s*\] TJ|((?:-?[\d.]+\s+){6})(cm|Tm)\b|(?<![\w/.])(q|Q)(?![\w])/g;
+    for (const t of content.matchAll(re)) {
+      if (t[0] === "/Artifact BMC") { art++; continue; }
+      if (t[0] === "BDC") { continue; }
+      if (t[0] === "EMC") { if (art) art--; continue; }
+      if (t[1]) { font = fontMap(fonts.get(t[1]) || 0); continue; }
+      if (t[6] === "q") { stack.push(ctm); continue; }
+      if (t[6] === "Q") { ctm = stack.pop() ?? ctm; continue; }
+      if (t[4]) {
+        const m = t[4].trim().split(/\s+/).map(Number) as M6;
+        if (t[5] === "cm") ctm = mul(m, ctm);
+        else at = [m[4] * ctm[0] + m[5] * ctm[2] + ctm[4], m[4] * ctm[1] + m[5] * ctm[3] + ctm[5]];
+        continue;
+      }
+      if (art) continue;
+      const text = t[2] !== undefined ? show(t[2]) : [...(t[3] || "").matchAll(/<([0-9a-fA-F]*)>/g)].map(x => show(x[1])).join("");
+      if (text) out.push({ text, x: at[0] / k, y: (H - at[1]) / k });
+    }
+    return out;
+  });
+}

@@ -21,7 +21,8 @@ export interface NotePlace { part: NotePart; box: Rect; layer: StageLayer | null
 export interface FurnitureHit extends Rect { id: string; label?: string; font?: { family: string; size: number; weight: number; italic: boolean } }
 /** a slide item (4.3: a chart) where its layer is, with what the worker said of it (its geometry, an Issues line) */
 export interface ItemPlace { id: string; box: Rect; layer: StageLayer | null; info: import("@slide-builder/core/render/slide-dl").ItemInfo | null }
-export interface StageModel { tables: TablePlace[]; notes: NotePlace[]; hits: FurnitureHit[]; items: ItemPlace[] }
+export interface StageModel { tables: TablePlace[]; notes: NotePlace[]; hits: FurnitureHit[]; items: ItemPlace[];
+  /** the contents slide's title and list where they are drawn, in a free layout (B51) */ parts: NonNullable<StageSlide["parts"]> }
 
 export function stageModel(shown: StageSlide, R: RuntimeSlide, c: RenderCtx): StageModel {
   const tables: TablePlace[] = shown.layers.flatMap(l => l.table !== null && l.box ? [{ i: l.table, box: l.box }] : []);
@@ -41,7 +42,7 @@ export function stageModel(shown: StageSlide, R: RuntimeSlide, c: RenderCtx): St
   // the items the worker drew (the slide's own list: an item of a design the page has not drawn yet waits for its layer)
   const items: ItemPlace[] = shown.layers.flatMap(l => l.item && l.box ? [{ id: l.item, box: { x: l.box.x, y: l.box.y, w: l.box.w, h: l.box.h }, layer: l, info: shown.items?.[l.item] ?? null }] : [])
     .filter(p => R.cfg.items?.[p.id]);
-  return { tables, notes, hits, items };
+  return { tables, notes, hits, items, parts: shown.parts ?? {} };
 }
 
 const mul = (a: Matrix, b: Matrix): Matrix => [a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1], a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3], a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5]];

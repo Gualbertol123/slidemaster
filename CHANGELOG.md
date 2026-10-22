@@ -34,8 +34,14 @@ What users notice
   a slide again). Each is one undo step. The cover and the contents slide are not duplicated (the deck keeps one of
   each), and the last slide of a deck is not deleted.
   A deck with a duplicated slide still opens in 4.6.0 (no new op or key) – unless the slide has hidden rows (below).
+* **Move the contents and its title freely** (B51): *Free layout* now works on the contents slide too. Its list and its
+  title (with the subtitle) each get a table's handles – drag the grip to move it anywhere on the slide, the corner or
+  an edge to make it larger or smaller (its proportions kept), with the same snapping (Alt: none). Each move is one undo
+  step and is kept per slide and design; PDF, PNG and PowerPoint draw them where they were dropped (in PowerPoint the
+  title stays the slide's title placeholder, the entries text boxes). The list still follows the deck – new, renamed or
+  hidden slides and the page numbers. A contents slide never moved looks exactly as before, in every design.
 * **Decks that use 4.9's tables open read-only in 4.0–4.8** (AUDIT-3 COMPAT-1): rows or columns deleted for a version,
-  hidden rows or columns, a cell's vertical position or number display. Before the first such change a 4.9 window
+  hidden rows or columns, a cell's vertical position or number display, a moved contents list or title. Before the first such change a 4.9 window
   prepares the deck (about 23 s of "Saving…", once per deck); from then on older windows show it read-only and ask to
   update – before, a 4.6–4.8 window's wizard could erase a version's deleted rows, and its exports showed them.
   `Update Slide Builder.bat --use 4.6–4.8` names these decks and asks first.
@@ -48,7 +54,10 @@ For the maintainer
   `cells-4.9.json`, `cf-edits-4.8.json`).
 * Integration on M14 (branch `v4/M16-tables`): S16.1's chart rule (`chartHide`) lives in `render/chart-data.ts` and
   covers the series charts too; S16.4's `editedCellText` is used by `chart-data.ts`'s `shown`.
-* Page budget parts: `m16-hidden.json`, `m16-versions.json`, `m16-painter.json`, `m16-cf.json`, `s13-7.json`.
+* B51: the contents slide's parts are boxes of the slide's existing `free` entry (keys `c:title`, `c:toc`, with their
+  `scale`; `render/contents.ts`) – no new op or key; a free entry holding one is format 6 (`needsV6` / `docNeedsV6`:
+  4.6–4.8 keep it but draw the contents unmoved) (vectors `shared/ops-vectors.d/b51.json`).
+* Page budget parts: `m16-hidden.json`, `m16-versions.json`, `m16-painter.json`, `m16-cf.json`, `s13-7.json`, `b51.json`.
 
 ## 4.8.0 - 2026-10-22 (PLAN M15: lines, icons, snapping; B32–B35)
 

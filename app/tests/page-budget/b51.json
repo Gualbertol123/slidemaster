@@ -1,0 +1,4 @@
+{
+  "bytes": 7267,
+  "why": "B51 (the contents slide's title and list in a free layout, product owner 2026-10-22): by measurement on v4/B51-toc-move – the page built from its base (m16/audit-fixes a353842, the committed page) is 4,278,186 bytes, with B51 4,285,453 (+7,267; first measured +7,113, +154 for the review fix that keeps the parts' boxes when Free layout is switched on again: render/contents.ts and slide-dl's parts in the app's and the workers' bundles, the stage's PartBox and freePart)."
+}
