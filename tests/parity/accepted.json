@@ -9674,5 +9674,60 @@
   "reason": "S16.4 (Excel conditional formats, B39): colour scales are drawn on the slides now (xlsx/cf.ts), so the Issues panel no longer lists \"Not reproduced on LAYOUT: colorScale conditional formats\" for edge-formats' LAYOUT sheet; the rest of issues.json is unchanged.",
   "signedOff": "S16.4, approved M16 step (PROGRESS: merged into v4/M16-tables); recorded by the orchestrator under the owner's authorisation to record parity sign-offs for approved changes, 2026-10-22",
   "digest": "ba5abd4c743ea40b"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "edge-formats",
+  "design": "bain",
+  "version": "full",
+  "file": "issues.json",
+  "kind": "text",
+  "reason": "S16.4 (Excel conditional formats, B39): colour scales are drawn on the slides now (xlsx/cf.ts), so the Issues panel no longer lists \"Not reproduced on LAYOUT: colorScale conditional formats\" for edge-formats' LAYOUT sheet; the rest of issues.json is unchanged (the display-list run's counterpart of the parity entries above).",
+  "signedOff": "S16.4, approved M16 step (PROGRESS: merged into v4/M16-tables); recorded by the orchestrator under the owner's authorisation to record parity sign-offs for approved changes, 2026-10-22",
+  "digest": "ba5abd4c743ea40b"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "edge-formats",
+  "design": "clean",
+  "version": "full",
+  "file": "issues.json",
+  "kind": "text",
+  "reason": "S16.4 (Excel conditional formats, B39): colour scales are drawn on the slides now (xlsx/cf.ts), so the Issues panel no longer lists \"Not reproduced on LAYOUT: colorScale conditional formats\" for edge-formats' LAYOUT sheet; the rest of issues.json is unchanged (the display-list run's counterpart of the parity entries above).",
+  "signedOff": "S16.4, approved M16 step (PROGRESS: merged into v4/M16-tables); recorded by the orchestrator under the owner's authorisation to record parity sign-offs for approved changes, 2026-10-22",
+  "digest": "ba5abd4c743ea40b"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "edge-formats",
+  "design": "excel",
+  "version": "full",
+  "file": "issues.json",
+  "kind": "text",
+  "reason": "S16.4 (Excel conditional formats, B39): colour scales are drawn on the slides now (xlsx/cf.ts), so the Issues panel no longer lists \"Not reproduced on LAYOUT: colorScale conditional formats\" for edge-formats' LAYOUT sheet; the rest of issues.json is unchanged (the display-list run's counterpart of the parity entries above).",
+  "signedOff": "S16.4, approved M16 step (PROGRESS: merged into v4/M16-tables); recorded by the orchestrator under the owner's authorisation to record parity sign-offs for approved changes, 2026-10-22",
+  "digest": "ba5abd4c743ea40b"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "edge-formats",
+  "design": "glass",
+  "version": "full",
+  "file": "issues.json",
+  "kind": "text",
+  "reason": "S16.4 (Excel conditional formats, B39): colour scales are drawn on the slides now (xlsx/cf.ts), so the Issues panel no longer lists \"Not reproduced on LAYOUT: colorScale conditional formats\" for edge-formats' LAYOUT sheet; the rest of issues.json is unchanged (the display-list run's counterpart of the parity entries above).",
+  "signedOff": "S16.4, approved M16 step (PROGRESS: merged into v4/M16-tables); recorded by the orchestrator under the owner's authorisation to record parity sign-offs for approved changes, 2026-10-22",
+  "digest": "ba5abd4c743ea40b"
+ },
+ {
+  "tool": "dlparity",
+  "deck": "edge-formats",
+  "design": "mckinsey",
+  "version": "full",
+  "file": "issues.json",
+  "kind": "text",
+  "reason": "S16.4 (Excel conditional formats, B39): colour scales are drawn on the slides now (xlsx/cf.ts), so the Issues panel no longer lists \"Not reproduced on LAYOUT: colorScale conditional formats\" for edge-formats' LAYOUT sheet; the rest of issues.json is unchanged (the display-list run's counterpart of the parity entries above).",
+  "signedOff": "S16.4, approved M16 step (PROGRESS: merged into v4/M16-tables); recorded by the orchestrator under the owner's authorisation to record parity sign-offs for approved changes, 2026-10-22",
+  "digest": "ba5abd4c743ea40b"
  }
 ]

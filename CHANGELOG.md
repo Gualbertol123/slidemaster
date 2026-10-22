@@ -67,11 +67,11 @@ What users notice
   step and is kept per slide and design; PDF, PNG and PowerPoint draw them where they were dropped (in PowerPoint the
   title stays the slide's title placeholder, the entries text boxes). The list still follows the deck – new, renamed or
   hidden slides and the page numbers. A contents slide never moved looks exactly as before, in every design.
-* **Decks using 4.9 features can't be opened by 4.6–4.8 (nor 4.0–4.5): update everyone together** (AUDIT-3
-  COMPAT-1, format 6). The 4.9 features are rows or columns deleted for a version, hidden rows or columns, a cell's
-  vertical position or number display, a moved contents list or title; older windows show such a deck read-only and
-  ask to update. Before the first such change a 4.9 window prepares the deck (about 23 s of "Saving…", once per deck); from then on older windows show it read-only and ask to
-  update – without this, a 4.6–4.8 window's wizard could erase a version's deleted rows, and its exports showed them.
+* **Decks using 4.9 features open read-only in 4.0–4.8: update everyone together** (AUDIT-3 COMPAT-1, format 6).
+  The 4.9 features are rows or columns deleted for a version, hidden rows or columns, a cell's vertical position or
+  number display, a moved contents list or title. Before the first such change a 4.9 window prepares the deck (about
+  23 s of "Saving…", once per deck); from then on older windows show it read-only and ask to update – without this,
+  a 4.6–4.8 window's wizard could erase a version's deleted rows, and its exports showed them.
   `Update Slide Builder.bat --use 4.6–4.8` names these decks and asks first. On update day close every Slide Builder
   window on every PC, as for 4.8 (`docs/next/release-checklist.md` §6).
 * **The slide no longer stays at its old size after a right-click** (the M15 speed fix's review): the slide keeps its
