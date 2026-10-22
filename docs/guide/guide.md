@@ -132,8 +132,8 @@ to the deck, keyed by sheet and cell; the workbook is not touched.
   (PDF, PNG of every slide, PowerPoint, every version × design, Run for each value); page numbers and the index count
   only the slides shown. Exporting or copying the current slide still exports a hidden one. Hidden in Glass, a slide
   still shows in Navy. One undo step each.
-* **Duplicate slide, Delete slide** (4.9): right-click a slide › *Duplicate slide* puts a copy right after it (tables,
-  texts, formats, charts, callouts, free layout, looks, hidden designs) and shows it. *Delete slide* – or Delete on a slide
+* **Duplicate slide, Delete slide** (4.9): right-click a slide › *Duplicate slide* puts a copy right after it (the same
+  tables, with the slide's texts, formats, charts, callouts, notes, free layout, looks and hidden designs) and shows it. *Delete slide* – or Delete on a slide
   selected in the list – asks first; its tables stay in the deck (*Add table ▾* puts them back). The cover and the
   contents slide are not duplicated; a deck keeps at least one slide. One undo step each.
 
@@ -169,7 +169,8 @@ middle / bottom for text boxes; *Clear format*; *Format* (the format painter); *
   (on / off)* change how the selected cells show their numbers, over Excel's format; *Clear format* goes back to it.
   Top / middle / bottom now place a cell's text too. Ctrl+click several ranges: the text toolbar changes them all.
 * **Excel's conditional formats** (4.9) are drawn in every design as Excel shows them: colour scales, data bars, icon
-  sets, top / bottom, above / below average, duplicates, text, dates and formula rules. In PowerPoint the bars and
+  sets, cell-value rules (greater than, less than, between), top / bottom, above / below average, duplicates, text, blanks,
+  errors, dates and formula rules. In PowerPoint the bars and
   icons are shapes grouped with the real table. What is still not reproduced is named in the Issues panel.
 
 ### Tables
@@ -237,7 +238,7 @@ drawn, so it follows new figures, your edits and the version you look at.
   *Only in the last week of the month*, *Only in the first week of the month* or *Only from day … of the month* (e.g.
   vs monthly Budget only at month end), judged by the latest period's date in the headers ("written on" / "left out
   on" that date) –, *Alert at* (−5 % vs Budget, −1 % otherwise), a *Heading*, and *YoY clause*, *Concentration*,
-  *Downside bullet*, *Alert sentence*. Comments written before 4.7 keep their text until you switch them.
+  *Downside bullet*, *Alert sentence*. Comments inserted before 4.7 keep their kind (*Summary* or *Detailed*) until you switch them to *Report – as the macro*.
 * **Border** (4.7): *Thickness* – *Design*, *None* or 0.5–3 px – and *Colour* – *Auto* (the design's; in Excel and
   Refined the template's grey), a swatch or any colour.
 
@@ -256,7 +257,7 @@ drawn, so it follows new figures, your edits and the version you look at.
   slide back to the deck's look. One undo step each.
 * **Excel and Refined follow the Intesa Sanpaolo template** (4.7): the cover's blue band, the logo above the title (26 pt
   bold blue, the subtitle grey), the page number top right (on unless the deck turned it off; none on the cover), the
-  logo bottom right, Century Gothic, the contents slide, tilted-square bullets, outlined boxes, the template's colours.
+  logo bottom right, Century Gothic, the contents slide, tilted-square bullets (plain squares in PowerPoint), outlined boxes, the template's colours.
   Long titles shrink before they are cut. Glass, Navy and Red are unchanged.
 
 ### Design… – themes, colours, text styles, fonts
