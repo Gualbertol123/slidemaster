@@ -2,7 +2,7 @@
    like strings.ts for the XML, the superscript / subscript parts – a run is raised or lowered when its font is
    (BrtFont.sss); phonetic runs are not text. */
 import type { Script } from "../types";
-import { Records, Rt } from "./records";
+import { Records, Rt, XlsbError } from "./records";
 
 /** text as the .xlsx reader has it for the same cell: Excel writes a line feed into the XML as CR LF (and a carriage
     return as _x000D_), which that reader keeps as written (v3's) – so a line feed here becomes CR LF too */
@@ -31,7 +31,12 @@ export function readSstBin(bytes: Uint8Array, sss: number[]): { sst: string[]; r
   const r = new Records(bytes), sst: string[] = [], runs: (Script[] | undefined)[] = [];
   while (r.rec()) {
     if (r.type !== Rt.SSTItem) continue;
-    const x = readRichStr(r, sss);
+    // the cells' text: an item that cannot be read fails the workbook, naming the part, the item and the record
+    let x: ReturnType<typeof readRichStr>;
+    try { x = readRichStr(r, sss); } catch (e) {
+      if (e instanceof XlsbError) throw new XlsbError(`the shared strings (sharedStrings.bin) could not be read: item ${sst.length + 1} (BrtSSTItem): ${e.message}`);
+      throw e;
+    }
     sst.push(x.text); runs.push(x.scr);
   }
   return { sst, runs };

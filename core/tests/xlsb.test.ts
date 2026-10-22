@@ -225,3 +225,103 @@ describe("crafted workbooks", () => {
     expect(S.get(1, 2)?.v).toBe(3);
   });
 });
+
+/* 4.10.1 (owner's report 2026-10-22: a real .xlsb failed with "a string is longer than its record"): the layouts of
+   Excel's records that reach a string, crafted from MS-XLSB, and a malformed extra losing only itself */
+describe("4.10.1 · strings in Excel's records", () => {
+  const color = (r: number, g: number, b: number) => [0x05, 0xff, 0, 0, r, g, b, 0xff];
+  const prop = (type: number, data: number[]) => [...u16(type), ...u16(4 + data.length), ...data];
+  const dxf = (props: number[][]) => rec(507, [0, 0x80, 0, 0, ...u16(props.length), ...props.flat()]);
+  const XF = [...rec(617, u32(1)), ...rec(47, new Array(16).fill(0)), ...rec(618, [])];
+  const RELS = '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="r1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.bin"/></Relationships>';
+  const WBRELS = '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.bin"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.bin"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.bin"/></Relationships>';
+  const book = (o: { sheet?: number[]; dxfs?: number[][]; sst?: number[]; wb?: number[]; name?: string }) => makeZip({
+    "_rels/.rels": RELS, "xl/_rels/workbook.bin.rels": WBRELS,
+    "xl/workbook.bin": new Uint8Array([...rec(156, [...u32(0), ...u32(1), ...wstr("rId1"), ...wstr(o.name ?? "S")]), ...(o.wb || [])]),
+    "xl/styles.bin": new Uint8Array([...XF, ...rec(505, u32((o.dxfs || []).length)), ...(o.dxfs || []).flat(), ...rec(506, [])]),
+    "xl/sharedStrings.bin": new Uint8Array(o.sst || []),
+    "xl/worksheets/sheet1.bin": new Uint8Array(o.sheet || [...rec(145, []), ...rec(146, [])]),
+  });
+  const row = (r: number) => rec(0, [...u32(r), ...u32(0), ...u16(300), 0, 0, 0, ...u32(0)]);
+  const num = (c: number, v: number) => rec(5, [...u32(c), ...u32(0), ...f64(v)]);
+  /** BrtBeginCFRule (2.4.17): iType, iTemplate, dxfId, iPri, iParam, 2 reserved, flags, cbFmla1–3, strParam, rgce1–3 */
+  const cfRule = (iType: number, tpl: number, dxfId: number, param: number, str: number[], fmlas: number[][]) => rec(463, [...u32(iType), ...u32(tpl), ...u32(dxfId), ...u32(1), ...u32(param),
+    ...u32(0), ...u32(0), ...u16(2), ...[0, 1, 2].flatMap(k => u32(fmlas[k] ? fmlas[k].length + 8 : 0)), ...str, ...fmlas.flatMap(f => [...u32(f.length), ...f, ...u32(0)])]);
+  const cfBlock = (rules: number[][]) => [...rec(461, [...u32(rules.length), ...u32(0), ...u32(1), ...u32(0), ...u32(9), ...u32(0), ...u32(0)]), ...rules.flatMap(x => [...x, ...rec(464, [])]), ...rec(462, [])];
+  const sheetWith = (extra: number[]) => [...rec(145, []), ...row(0), ...num(0, 5), ...num(1, 7), ...rec(146, []), ...extra];
+
+  it("a differential format's number format (XFProp 0x26 = XLWideString; 0x29 = its id) – the owner's error", async () => {
+    // as Excel writes a rule's custom number format: the id, then the code
+    const wb = await readWorkbook(book({ dxfs: [dxf([prop(0x29, u16(164)), prop(0x26, wstr("0.0%")), prop(0x05, color(255, 0, 0))]), dxf([prop(0x29, u16(10))])] }));
+    expect(wb.sheets[0].error).toBeUndefined();
+    expect(wb.shared!.dxfs[0]).toEqual({ fmt: "0.0%", color: "#FF0000" });
+    expect(wb.shared!.dxfs[1]).toEqual({ fmt: "0.00%" });                  // a built-in format by its id alone
+  });
+  it("a text rule's strParam comes before its formulas (BrtBeginCFRule)", async () => {
+    const search = [0x17, ...u16(3), ...[..."abc"].flatMap(c => u16(c.charCodeAt(0))), 0x4c, ...u32(0), ...u16(0xc000), 0x42, 2, ...u16(82), 0x41, ...u16(3), 0x41, ...u16(38)];
+    const S = (await readWorkbook(book({ dxfs: [dxf([prop(0x05, color(255, 0, 0))])], sheet: sheetWith(cfBlock([cfRule(2, 8, 0, 0, wstr("abc"), [search])])) }))).sheets[0];
+    expect(S.cfRules[0]).toMatchObject({ type: "containsText", op: "containsText", text: "abc", formulas: ["NOT(ISERROR(SEARCH(\"abc\",A1)))"] });
+    expect(S.notRead).toBeUndefined();
+  });
+  it("shared strings: rich runs, a phonetic part, more than 255 characters, other scripts", async () => {
+    const long = "x".repeat(300) + "€";
+    const sst = [...rec(159, [...u32(3), ...u32(3)]),
+      ...rec(19, [0, ...wstr(long)]),
+      ...rec(19, [3, ...wstr("Bold part"), ...u32(2), ...u16(0), ...u16(0), ...u16(5), ...u16(0), ...wstr("ふりがな"), ...u32(0)]),   // fRichStr | fExtStr: runs, then the phonetic text and its runs
+      ...rec(19, [2, ...wstr("Città — 日本"), ...wstr("ニホン"), ...u32(0)]), ...rec(160, [])];
+    const isst = (c: number, i: number) => rec(7, [...u32(c), ...u32(0), ...u32(i)]);
+    const S = (await readWorkbook(book({ sst, name: "Città €", sheet: [...rec(145, []), ...row(0), ...isst(0, 0), ...isst(1, 1), ...isst(2, 2), ...rec(146, [])] }))).sheets[0];
+    expect(S.name).toBe("Città €");
+    expect([1, 2, 3].map(c => S.get(1, c)?.v)).toEqual([long, "Bold part", "Città — 日本"]);
+  });
+  it("a defined name or a linked book that cannot be read keeps the others' numbers (BrtName, BrtSupBookSrc)", async () => {
+    const { readWorkbookInfoBin } = await import("../src/xlsx/xlsb/workbook");
+    const name = (n: string) => rec(39, [...u32(0), 0, ...u32(0xffffffff), ...wstr(n), ...u32(0), ...u32(0)]);
+    const info = readWorkbookInfoBin(new Uint8Array([...rec(39, [...u32(0), 0, ...u32(0xffffffff), ...u32(999)]), ...name("Rate"),
+      ...rec(355, u32(0xffffffff)), ...rec(357, []), ...rec(362, [...u32(1), ...u32(1), ...u32(0), ...u32(0)])]));
+    expect(info.names.map(n => n.name)).toEqual(["", "Rate"]);
+    expect(info.books.map(b => b.kind)).toEqual(["other", "self"]);
+  });
+  it("a conditional format that cannot be read is skipped and named; the cells and the other rules stay", async () => {
+    const bad = rec(463, [...u32(1), ...u32(0), ...u32(0), ...u32(1), ...u32(5), ...u32(0), ...u32(0), ...u16(0), ...u32(0), ...u32(0), ...u32(0), ...u32(5000)]);
+    const good = cfRule(1, 0, 0, 5, u32(0xffffffff), [[0x1e, ...u16(6)]]);
+    // a colour scale's parts after the bad rule must not land on the rule before it
+    const scale = [...rec(469, []), ...rec(471, [...u32(2), ...f64(0), ...u32(0), ...u32(1), ...u32(0)]), ...rec(470, [])];
+    const S = (await readWorkbook(book({ dxfs: [dxf([prop(0x05, color(255, 0, 0))])], sheet: sheetWith([...cfBlock([good]), ...rec(461, [...u32(1), ...u32(0), ...u32(1), ...u32(0), ...u32(9), ...u32(0), ...u32(0)]), ...bad, ...scale, ...rec(464, []), ...rec(462, [])]) }))).sheets[0];
+    expect(S.error).toBeUndefined();
+    expect([S.get(1, 1)?.v, S.get(1, 2)?.v]).toEqual([5, 7]);
+    expect(S.cfRules).toHaveLength(1);
+    expect(S.cfRules[0].scale).toBeUndefined();
+    expect(S.notRead).toEqual(["a conditional format could not be read and is not drawn"]);
+  });
+  it("a differential format that cannot be read loses only itself; its rules are named", async () => {
+    const S = (await readWorkbook(book({ dxfs: [dxf([prop(0x26, [...u32(900), 0x30, 0])]), dxf([prop(0x05, color(0, 0, 255))])],
+      sheet: sheetWith(cfBlock([cfRule(1, 0, 0, 5, u32(0xffffffff), [[0x1e, ...u16(6)]]), cfRule(1, 0, 1, 5, u32(0xffffffff), [[0x1e, ...u16(6)]])])) }))).sheets[0];
+    expect(S.error).toBeUndefined();
+    expect(S.ctx.dxfs[1]).toEqual({ color: "#0000FF" });
+    expect(S.cfRules).toHaveLength(2);
+    expect(S.notRead).toEqual(["the format of a conditional format could not be read entirely (drawn with the part that could)"]);
+  });
+  it("a cell that cannot be read is named with its record; a shared string that cannot be read names the part", async () => {
+    const S = (await readWorkbook(book({ sheet: [...rec(145, []), ...row(0), ...num(0, 5), ...rec(6, [...u32(1), ...u32(0), ...u32(40), 0x41, 0]), ...num(2, 7), ...rec(146, [])] }))).sheets[0];
+    expect([S.get(1, 1)?.v, S.get(1, 2), S.get(1, 3)?.v]).toEqual([5, null, 7]);
+    expect(S.notRead).toEqual(["1 cell could not be read (BrtCellSt) and is left empty"]);
+    await expect(readWorkbook(book({ sst: [...rec(19, [0, ...wstr("ok")]), ...rec(19, [0, ...u32(70), 0x41, 0])],
+      sheet: [...rec(145, []), ...row(0), ...rec(7, [...u32(0), ...u32(0), ...u32(0)]), ...rec(146, [])] }))).rejects.toThrow(/shared strings.*item 2 \(BrtSSTItem\).*a string is longer than its record \(BrtSSTItem: 70 characters, 2 bytes left\)/);
+  });
+  it("what could not be read travels to the page with the sheet (slice)", async () => {
+    const wb = await readWorkbook(book({ sheet: [...rec(145, []), ...row(0), ...rec(6, [...u32(1), ...u32(0), ...u32(40), 0x41, 0]), ...rec(146, [])] }));
+    const { hydrateSheet } = await import("../src/xlsx/slice");
+    const back = hydrateSheet(sliceSheet(wb.sheets[0], null), wb.shared!);
+    expect(back.notRead).toEqual(wb.sheets[0].notRead);
+  });
+});
+
+describe("4.10.1 · Excel's own .xlsb files lose nothing", () => {
+  const RECALC = path.join(here, "../../tests/corpus/workbooks/recalc/xlsb");
+  const files = [...twins.map(f => path.join(TWINS, f)), ...fs.readdirSync(RECALC).filter(f => /\.xlsb$/i.test(f)).map(f => path.join(RECALC, f))];
+  it.each(files.map(f => [path.basename(f), f]))("%s: every record read", async (_n, f) => {
+    const wb = await readWorkbook(ab(f));
+    expect(wb.sheets.map(S => [S.name, S.error ?? null, S.notRead ?? null]).filter(x => x[1] || x[2])).toEqual([]);
+  }, 120_000);
+});

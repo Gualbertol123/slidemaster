@@ -30,6 +30,7 @@ export function overlaySheet(S: Sheet, changes: Map<string, CellValue>): Sheet {
     drawing: S.drawing, defColW: S.defColW, defRowH: S.defRowH, zeroH: S.zeroH, ctx: S.ctx, ...(S.error !== undefined ? { error: S.error } : {}) }, cols);
   V.cols = { cells: cols, rows: S.cols.rows }; V.hidden = S.hidden; V.size = S.size; V.unpaired = S.unpaired;
   if (S.unreadableFormulas) V.unreadableFormulas = S.unreadableFormulas;
+  if (S.notRead) V.notRead = S.notRead;
   V.title = textOf(V, 1, 1); V.subtitle = textOf(V, 2, 1); if (V.subtitle.toLowerCase() === "x") V.subtitle = "";
   V.tables = findRegions(V);
   return V;

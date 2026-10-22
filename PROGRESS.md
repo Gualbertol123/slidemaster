@@ -241,6 +241,19 @@ numbers measured twice). Measured numbers go into the step's line.
   `docsync.test.ts` format 7, helper `Format7Tests` / `DeckFormatHttpTests` / `test_update`, app
   `chart-targets-panel.test.tsx`, e2e B52-01; page budget `page-budget/b52.json`. Versions 4.10.0 (CHANGELOG dated 2026-10-22).
 
+- [x] 4.10.1 · .xlsb that failed with "a string is longer than its record" (owner's report 2026-10-22, "Dashboard.xlsb",
+  Sheets step; branch `v4/xlsb-string-fix` on main a6d5ce3) — (commit: see the branch; runs: by the orchestrator). Root
+  cause: BrtDXF's XFProp 0x26 (xfPropNumFmt) is an XLWideString filling the property (MS-XLSB 2.5.162; the id is the
+  separate 0x29, as LibreOffice reads it); S16.4 (4.9) read a 2-byte id before it, so the length read took the string's
+  first character as its high half and styles.bin – read with no recovery when the sheets are chosen – failed for every
+  workbook with a rule or table style setting a number format. Also: BrtSupBookSrc's RelID is nullable; an unreadable
+  BrtName / BrtSupBookSrc / BrtBundleSh no longer shifts the numbers of the others; a failed BrtBeginCFRule no longer
+  leaves the previous rule to take the next colour scale's parts. Resilience: styles, rules, cells and other sheet
+  records that cannot be read are skipped with a default in their place and named (`Sheet.notRead`, carried by the
+  slice, one Issues line each); the sheet list and shared strings name the part, item and record. Tests: core
+  `xlsb.test.ts` "4.10.1 ·" (crafted records + every corpus .xlsb reads with nothing skipped), app `item-text.test.ts`;
+  page budget `page-budget/x4101.json` (+9,300 by measurement). Versions 4.10.1 (CHANGELOG dated 2026-10-22).
+
 ### S13.7 · Delete slide and Duplicate slide (after M13 closed; ships with the next release, 4.7.0 in CHANGELOG; owner Q12)
 - [x] S13.7 · Delete slide and Duplicate slide (c47d59a; merged into `v4/M16-tables`, its CHANGELOG block moved to 4.9.0 – 4.7.0 is dated; verified: tests ✓ clean clone ✓ review ✓ (4.9.0: PR #33 CI 18/18 on 7a658ec – fresh checkout, e2e, parity/dlparity, bench, load, helper 3.8/3.12; reviews APPROVE incl. the integration review; CP-01 m15/m16 PASS)) (owner Q12, 2026-10-21; branch `v4/slide-menu`) — the slide list's right-click menu (`#ctxDupSlide`, `#ctxDelSlide`) and Delete in the slide list (on the slide shown); one `slide.add` / `slide.remove` each (no new op or key: the guard, inverses and vectors of S13.3 hold). The copy: core `model/slidecopy.ts` (items under new ids, the free boxes and attached line ends renamed). Decided: content slides only are duplicated (the wizard keeps one cover / contents); any slide but the last may be deleted, after a question. +2,156 bytes page (`page-budget/s13-7.json`, measured again on main 71d8806). Review: REQUEST CHANGES → "S13.7 · … (review fixes)": CHANGELOG bullet moved from the dated 4.6.0 notes to 4.7.0 (its own block, as B48–B50), Delete acts on `deck.cur`, `duplicateSlide` checks `doc.open`, one `slide.add` vector of a duplicated slide in `ops-vectors.json`, a comment pointing M15 at `slidecopy.ts`. Awaiting the orchestrator's checks (e2e `Delete slide and Duplicate slide`) and the second review.
 

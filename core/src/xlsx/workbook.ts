@@ -180,7 +180,8 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
   const numFmts: Record<string, string> = Object.assign({}, BUILTIN);
   let fonts: Font[] = [], fills: (string | null)[] = [], borders: Border[] = [], xfs: Xf[] = [], dxfs: Dxf[] = [], sss: number[] = [];
   const st = rel(/styles$/);
-  if (st && /\.bin$/i.test(st.target) && zget(zip, st.target)) ({ fonts, xfs, dxfs, sss } = readStylesBin(zip.bytes(zget(zip, st.target)!), color, numFmts));
+  let binStyles: { badDxfs: Set<number>; notRead: string[] } | null = null;
+  if (st && /\.bin$/i.test(st.target) && zget(zip, st.target)) { const b = readStylesBin(zip.bytes(zget(zip, st.target)!), color, numFmts); ({ fonts, xfs, dxfs, sss } = b); binStyles = b; }
   else if (st && zget(zip, st.target)) {
     const sx = parseXml(await zget(zip, st.target)!.async("string"));
     for (const nf of all(sx, "numFmt")) numFmts[nf.getAttribute("numFmtId") || ""] = nf.getAttribute("formatCode") || "General";
@@ -250,11 +251,14 @@ async function loadShared(wb: Workbook, progress?: Progress): Promise<Shared> {
   })();
   wb.shared = { sst, sstRuns, xfs, dxfs, defaultFont, color, theme, mdw, today: wb.today ?? todaySerial() };
   FONT_SCRIPTS.set(wb.shared, sss);
+  if (binStyles) BIN_STYLES.set(wb.shared, binStyles);
   return wb.shared;
 }
 /** per workbook (its Shared): the superscript / subscript flag of each font of styles.bin, for the rich strings of
     binary sheets */
 const FONT_SCRIPTS = new WeakMap<Shared, number[]>();
+/** per binary workbook (its Shared): the formats of styles.bin that could not be read (4.10.1: named on its sheets) */
+const BIN_STYLES = new WeakMap<Shared, { badDxfs: Set<number>; notRead: string[] }>();
 /** per binary workbook (its zip): the names and sheet table its formulas refer to (xlsb/formula.ts) */
 const BIN_INFO = new WeakMap<Zip, BinWorkbookInfo>();
 
@@ -385,12 +389,16 @@ export async function readSheet(zip: Zip, sh: SheetMeta, ctx: Shared, tick?: (f:
 }
 /** a sheet from its BIFF12 records (sheetN.bin of an .xlsb) */
 export async function parseSheetBin(zip: Zip, sh: SheetMeta, bytes: Uint8Array, ctx: Shared, tick?: (f: number) => void): Promise<Sheet> {
-  const rd = new BinSheetReader(bytes, ctx, FONT_SCRIPTS.get(ctx), BIN_INFO.get(zip), sh.name);
+  const bs = BIN_STYLES.get(ctx);
+  const rd = new BinSheetReader(bytes, ctx, FONT_SCRIPTS.get(ctx), BIN_INFO.get(zip), sh.name, bs?.badDxfs);
   if (!tick) rd.run();
   else { const pace = pacer(); while (!rd.run(20000)) { tick(Math.min(.95, rd.progress)); const w = pace(); if (w) await w; } }
   const b = rd.finish();
   const S = await finishSheet(zip, sh, ctx, b.store, b.rows, b);
   if (rd.unreadable) S.unreadableFormulas = rd.unreadable;
+  // (4.10.1) what could not be read and was skipped: the Issues panel names it
+  const notRead = [...b.notRead, ...(bs?.notRead.length ? ["the workbook's formats that could not be read (default ones used): " + bs.notRead.join(", ")] : [])];
+  if (notRead.length) S.notRead = notRead;
   return S;
 }
 /** a sheet from its inflated XML (readSheet without the inflate) */

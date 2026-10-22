@@ -22,6 +22,8 @@ export interface SheetSlice {
   defColW: number; defRowH: number; zeroH: boolean;
   colRanges: { min: number; max: number; info: ColInfo }[];
   merges: Range[]; cfRules: CFRule[]; unsupportedCF: string[]; unpaired: string[]; drawing: Drawing;
+  /** what could not be read (4.10.1; absent: nothing) */
+  notRead?: string[];
   /** the "x" regions (S.tables), rebuilt on the page over the slice */
   regions: Range[];
   /** the cells it holds: null = the whole sheet, else this rectangle (rows: all rows up to its last one) */
@@ -106,6 +108,7 @@ export function sliceSheet(S: Sheet, box: Range | null, mainShared?: Shared | nu
     name: S.name, hidden: S.hidden, ...(S.error !== undefined ? { error: S.error } : {}), ...(S.size !== undefined ? { size: S.size } : {}),
     title: S.title, subtitle: S.subtitle, defColW: S.defColW, defRowH: S.defRowH, zeroH: S.zeroH, colRanges: S.colRanges,
     merges: S.merges, cfRules: S.cfRules, unsupportedCF: [...S.unsupportedCF], unpaired: S.unpaired, drawing: S.drawing,
+    ...(S.notRead?.length ? { notRead: S.notRead } : {}),
     regions: S.tables.map(T => T.g), box,
     imgmeta: S.drawing.anchors.flatMap(A => A.objects.flatMap(o => o.kind === "pic" && o.src && IMGMETA.has(o.src) ? [[o.src, IMGMETA.get(o.src)!] as [string, ImgMeta]] : [])),
   };
@@ -165,6 +168,7 @@ export function hydrateSheet(s: SheetSlice, mainCtx: Shared): Sheet {
   if (s.cells && s.rows) S.cols = { cells: s.cells, rows: s.rows };
   S.hidden = s.hidden; if (s.size !== undefined) S.size = s.size;
   S.title = s.title; S.subtitle = s.subtitle; S.unpaired = s.unpaired;
+  if (s.notRead?.length) S.notRead = s.notRead;
   // the marker tables are laid out when first read: the worker has them already, and opening deck20 laid out all
   // 20 sheets' tables on the page's thread before the wizard (~30 ms, PLAN S2.6)
   let tables: Sheet["tables"] | null = null;

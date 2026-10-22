@@ -7,7 +7,7 @@ import { ITEM_TEXT, kindText, knownKind } from "../src/editor/item-text";
 import { CHART_TEXT } from "../src/editor/chart-text";
 import { SHAPE_TEXT } from "../src/editor/shape-text";
 import { LINE_TEXT } from "../src/editor/line-text";
-import { slideIssues } from "../src/editor/issues";
+import { notReadIssues, slideIssues } from "../src/editor/issues";
 import type { Item } from "@slide-builder/core/model/types";
 
 const box = { x: 0, y: 0, w: 10, h: 10 };
@@ -42,5 +42,12 @@ describe("item words per kind (S14.P)", () => {
       { cls: "err", html: "Chart 2: source Numbers!B9:B11 not found" },
       { cls: "warn", html: "2 objects of a newer Slide Builder (“sticker”, “connector”) on this slide: not shown or exported by this version, kept in the deck" },
     ]);
+  });
+  it("Issues: what of an .xlsb sheet could not be read, one line each with the sheet's name (4.10.1)", () => {
+    expect(notReadIssues({ name: "P&L", notRead: ["a conditional format could not be read and is not drawn", "1 cell could not be read (BrtCellSt) and is left empty"] })).toEqual([
+      { cls: "warn", html: "P&amp;L: a conditional format could not be read and is not drawn" },
+      { cls: "warn", html: "P&amp;L: 1 cell could not be read (BrtCellSt) and is left empty" },
+    ]);
+    expect(notReadIssues({ name: "S" })).toEqual([]);
   });
 });

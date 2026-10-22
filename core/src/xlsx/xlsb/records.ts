@@ -24,6 +24,18 @@ export const enum Rt {
 
 export class XlsbError extends Error {}
 
+/** the spec's names of the records a message can name (MS-XLSB 2.3.2), else the number */
+const NAMES: Record<number, string> = {
+  0: "BrtRowHdr", 1: "BrtCellBlank", 2: "BrtCellRk", 3: "BrtCellError", 4: "BrtCellBool", 5: "BrtCellReal", 6: "BrtCellSt", 7: "BrtCellIsst",
+  8: "BrtFmlaString", 9: "BrtFmlaNum", 10: "BrtFmlaBool", 11: "BrtFmlaError", 12: "BrtShortBlank", 13: "BrtShortRk", 14: "BrtShortError",
+  15: "BrtShortBool", 16: "BrtShortReal", 17: "BrtShortSt", 18: "BrtShortIsst", 19: "BrtSSTItem", 39: "BrtName", 43: "BrtFont", 44: "BrtFmt",
+  45: "BrtFill", 46: "BrtBorder", 47: "BrtXF", 60: "BrtColInfo", 62: "BrtCellRString", 156: "BrtBundleSh", 176: "BrtMergeCell",
+  355: "BrtSupBookSrc", 359: "BrtSupTabs", 362: "BrtExternSheet", 426: "BrtArrFmla", 427: "BrtShrFmla", 461: "BrtBeginConditionalFormatting",
+  463: "BrtBeginCFRule", 465: "BrtBeginIconSet", 467: "BrtBeginDatabar", 469: "BrtBeginColorScale", 471: "BrtCFVO", 485: "BrtWsFmtInfo",
+  507: "BrtDXF", 564: "BrtColor",
+};
+export const recName = (t: number) => NAMES[t] || "record " + t;
+
 /** a little-endian reader over one part's bytes; `rec()` steps from record to record */
 export class Records {
   readonly v: DataView;
@@ -55,7 +67,7 @@ export class Records {
   }
   /** bytes left in the current record */
   get left() { return this.end - this.p; }
-  private need(k: number) { if (this.p + k > this.end) throw new XlsbError("a record is shorter than its contents"); }
+  private need(k: number) { if (this.p + k > this.end) throw new XlsbError(`a record is shorter than its contents (${recName(this.type)})`); }
   u8() { this.need(1); return this.b[this.p++]; }
   u16() { this.need(2); const x = this.v.getUint16(this.p, true); this.p += 2; return x; }
   i16() { this.need(2); const x = this.v.getInt16(this.p, true); this.p += 2; return x; }
@@ -78,9 +90,10 @@ export class Records {
     return s;
   }
   /** XLWideString (2.5.168): a 32-bit character count, then the characters */
-  wstr(): string { const n = this.u32(); if (n > this.left / 2) throw new XlsbError("a string is longer than its record"); return this.chars(n); }
+  wstr(): string { const n = this.u32(); if (n > this.left / 2) throw this.tooLong(n); return this.chars(n); }
   /** XLNullableWideString (2.5.166): as wstr, 0xFFFFFFFF = none */
-  wstrNull(): string | null { const n = this.u32(); if (n === 0xffffffff) return null; if (n > this.left / 2) throw new XlsbError("a string is longer than its record"); return this.chars(n); }
+  wstrNull(): string | null { const n = this.u32(); if (n === 0xffffffff) return null; if (n > this.left / 2) throw this.tooLong(n); return this.chars(n); }
+  private tooLong(n: number) { return new XlsbError(`a string is longer than its record (${recName(this.type)}: ${n} characters, ${this.left} bytes left)`); }
 }
 const RK = new DataView(new ArrayBuffer(8));
 const UTF16 = new TextDecoder("utf-16le");

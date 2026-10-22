@@ -1,0 +1,4 @@
+{
+  "bytes": 9500,
+  "why": "4.10.1 (the owner's .xlsb that failed with \"a string is longer than its record\", 2026-10-22): by measurement on v4/xlsb-string-fix – the page built from its base (main a6d5ce3, the 4.10.0 page, 4,912,512 bytes) is 4,921,812 bytes (+9,300): the .xlsb reader's fixes and resilience (XFProp 0x26, per-record recovery in styles, sheets and the workbook's names, record names in messages, what could not be read on the sheet) in the app's and the workers' bundles, and the Issues lines; rounded up to the next 500."
+}
