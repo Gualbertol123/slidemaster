@@ -52,7 +52,7 @@ export function shown(S: Sheet, r: number, c: number, ctx: RenderCtx): string {
   return editedCellText(S, r, c, t, e);
 }
 /** the version's removed cells of a sheet: is (r, c) one of them */
-function removedOf(ctx: RenderCtx, S: Sheet): (r: number, c: number) => boolean {
+export function removedOf(ctx: RenderCtx, S: Sheet): (r: number, c: number) => boolean {
   const cut = (ctx.version?.hide[S.name] || []).map(parseRange);
   return (r, c) => cut.some(x => r >= x.r1 && r <= x.r2 && c >= x.c1 && c <= x.c2);
 }
@@ -216,6 +216,8 @@ function refSheets(it: ChartItem, ctx: RenderCtx): string[] {
   // the cells a text mark quotes ({Targets!B3}: a reload of that sheet is another key, S14.3)
   for (const k of Object.values(it.marks && typeof it.marks === "object" ? it.marks : {})) if (k && typeof k.text === "string")
     for (const t of k.text.matchAll(CELL_TOKEN)) out.add(tokenSheet(t[1]));
+  // (B52) the cells a reference line reads: its value and its name
+  for (const k of Object.values(it.marks && typeof it.marks === "object" ? it.marks : {})) if (k && typeof k === "object") { add(k.value); add(k.name); }
   out.delete("");
   return [...out].sort();
 }

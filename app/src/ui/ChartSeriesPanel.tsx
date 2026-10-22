@@ -3,7 +3,8 @@
    cells, x values, targets, name, line and marker, labels), the selected point (colour, marker, label, a waterfall's
    total), the axes (min / max / step, number format, gridlines, shown), the legend (place, hidden entries), category
    groups and their dividers, and the marks (an arrow from the floor, an icon or a text above a point, a line or a band
-   to the next point). Each control is ONE item.patch (editor/chart-panel.ts: one undo step, only the entries it
+   to the next point); 4.10 (B52): the targets – reference lines from cells, gap arrows, change pills (ChartTargetsPanel.tsx).
+   Each control is ONE item.patch (editor/chart-panel.ts: one undo step, only the entries it
    changes, so two writers on two series both win).
    Not offered: a stack per series (`sers[s].stack`) – PowerPoint's native charts stack a whole chart group, never one
    series apart, so the export could not draw it; the control is shown disabled with that reason (owner's rule: every
@@ -24,6 +25,7 @@ import {
 import { chartChange } from "../editor/chart-send";
 import { Input } from "./Input";
 import { Field } from "./Field";
+import { ChartTargets } from "./ChartTargetsPanel";
 
 const LEGEND_AT: [LegendAt, string][] = [["right", "Right"], ["left", "Left"], ["top", "Top"], ["bottom", "Bottom"], ["top-right", "Top right"], ["inside-tl", "Inside, top left"], ["inside-tr", "Inside, top right"], ["none", "None"]];
 const LABEL_SHOW = [["value", "Values"], ["name", "Series"], ["category", "Categories"], ["percent", "Shares"], ["ofTarget", "% of target"]] as const;
@@ -141,8 +143,11 @@ function SeriesPanel({ c, id, sel }: { c: ChartItem; id: string; sel: ItemSel })
       <div className="row"><button className="btn small" id="chartAddGroup" title="Categories side by side with these: another table, sheet or workbook" onClick={() => pick(id, { what: "group-add" })}>+ Add category group…</button></div>
     </details>}
 
-    <details className="sec" id="chartMarks" open={!!curMark}><summary>Marks</summary>
-      {Object.entries(c.marks || {}).filter(([, m]) => m && typeof m === "object").map(([mid, m]) => <div key={mid} className={"row mark" + (sel.mark === mid ? " on" : "")} data-mark={mid} onClick={() => selectItem(id, null, { mark: mid })}>
+    <ChartTargets c={c} id={id} set={set} sel={sel.point && !stalePoint ? sel.point : null} />
+
+    <details className="sec" id="chartMarks" open={!!curMark && !["ref", "gap", "change"].includes(curMark.kind)}><summary>Marks</summary>
+      {/* (B52's reference lines, gap arrows and change pills are under Targets) */}
+      {Object.entries(c.marks || {}).filter(([, m]) => m && typeof m === "object" && m.kind !== "ref" && m.kind !== "gap" && m.kind !== "change").map(([mid, m]) => <div key={mid} className={"row mark" + (sel.mark === mid ? " on" : "")} data-mark={mid} onClick={() => selectItem(id, null, { mark: mid })}>
         <b>{m.kind}</b><span className="where">{markAtText(c, m.a)}</span>
         {m.kind === "text" && <Field className="nm" data-a="text" title="The mark's text; {Sheet!C7} quotes a cell" value={m.text || ""} onCommit={v => set("Mark text", markPatch(c, mid, { text: v }))} />}
         {m.kind === "icon" && <Field className="nm" data-a="icon" title="The icon's name (a built-in one, or tabler:<name>)" value={m.icon || ""} onCommit={v => set("Mark icon", markPatch(c, mid, { icon: v.trim() || null }))} />}

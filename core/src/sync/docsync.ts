@@ -15,12 +15,15 @@
    raised to snapshot format 5 (upgrade: ADR-019 and its amendment), so that no 4.0–4.5 window can read, fold or
    overwrite it; one that is about to receive, or holds, what 4.8.0 does not know whole (needsV6: 4.9's hidden rows,
    versions' deleted rows, cell valign / num) is raised to format 6 the same way (AUDIT-3 COMPAT-1), so that no
-   4.0–4.8 window can. */
+   4.0–4.8 window can; one that is about to receive, or holds, what 4.9.0 does not draw whole (needsV7: 4.10's reference
+   lines, gap arrows and change pills on a chart, B52) is raised to format 7 the same way, so that no 4.0–4.9 window can. */
 import type { Op, WorkbookDoc } from "../model/types";
-import { applyOps, inverseOf, applyOp, knownOp, needsV5, docNeedsV5, needsV6, docNeedsV6 } from "../model/ops";
+import { applyOps, inverseOf, applyOp, knownOp, needsV5, docNeedsV5, needsV6, docNeedsV6, needsV7, docNeedsV7 } from "../model/ops";
 import { firstCopy, fold, nextSnapshot, recordId, validRecord, type DeckRecord, type DeckSnapshot, type Folded } from "../model/fold";
 /** a format the guard raises a deck to */
-export type RaisedFormat = 5 | 6;
+export type RaisedFormat = 5 | 6 | 7;
+/** the first Slide Builder that reads a raised format (messages) */
+const SINCE: Record<RaisedFormat, string> = { 5: "4.6", 6: "4.9", 7: "4.10" };
 
 export interface TailJournal { offset: number; records: DeckRecord[]; /** each record's end offset */ ends?: number[] }
 export interface TailResult { journals: Record<string, TailJournal>; gen: number | null; readonly?: string;
@@ -39,7 +42,8 @@ export interface DeckApi {
   /** open this writer's journal ahead of its first append (the append then costs write + flush only) */
   prepare?(key: string, writer: string): Promise<unknown>;
   /** ADR-019: the deck's marker incident-format-5.json (every 4.0–4.5 helper then takes the deck for read-only) or,
-      `format` 6, incident-format-6.json (every 4.0–4.8 helper); `at` when it was written and `now`, the file server's
+      `format` 6, incident-format-6.json (every 4.0–4.8 helper), 7: incident-format-7.json (every 4.0–4.9 helper); `at`
+      when it was written and `now`, the file server's
       ms (an existing one is fine: created false) */
   format5(key: string, format?: RaisedFormat): Promise<{ created?: boolean; at?: number | null; now?: number | null; /** ms the helper waits (its own wall) */ wait?: number }>;
 }
@@ -253,10 +257,10 @@ export class DocSync {
         const prev = this.view, before: [SaveState, string] = [this.state, this.error];
         if (this.api.served) { this.state = "saving"; this.emit(prev, false, undefined, before); }
         // ops that join the queue during the wait are checked again before the record is sealed: a 4.9 op joining a
-        // 4 -> 5 raise raises the deck on to 6 first (review of M17's COMPAT-1 fix)
+        // 4 -> 5 raise raises the deck on to 6 first, a 4.10 op joining a raise to 6 on to 7 (review of M17's COMPAT-1 fix; B52)
         try {
           for (let to = Math.max(this.due(this.pending), 5) as RaisedFormat; ; ) {
-            if (!await this.upgrade(to)) throw new Error(`The deck could not be prepared for Slide Builder 4.${to === 6 ? 9 : 6} objects – trying again.`);
+            if (!await this.upgrade(to)) throw new Error(`The deck could not be prepared for Slide Builder ${SINCE[to]} objects – trying again.`);
             if (this.disposed || this.inflight || !this.pending.length) break;
             const next = this.due(this.pending);
             if (!next) break;
@@ -315,27 +319,27 @@ export class DocSync {
       a record past it) hold what 4.0.0 (4.8.0) does not apply whole */
   private due(ops?: Op[]): 0 | RaisedFormat {
     const f = this.snap.format;
-    if (!this.api.served || f >= 6) return 0;
-    const need = (o: Op) => needsV6(o) ? 6 : f < 5 && needsV5(o) ? 5 : 0;
+    if (!this.api.served || f >= 7) return 0;
+    const need = (o: Op) => needsV7(o) ? 7 : f < 6 && needsV6(o) ? 6 : f < 5 && needsV5(o) ? 5 : 0;
     let t = 0;
     if (ops) for (const o of ops) t = Math.max(t, need(o));
     else {
-      t = docNeedsV6(this.snap.doc) ? 6 : f < 5 && docNeedsV5(this.snap.doc) ? 5 : 0;
-      for (const e of this.entries.values()) for (const o of e.rec.ops) if (t < 6) t = Math.max(t, need(o));
+      t = docNeedsV7(this.snap.doc) ? 7 : f < 6 && docNeedsV6(this.snap.doc) ? 6 : f < 5 && docNeedsV5(this.snap.doc) ? 5 : 0;
+      for (const e of this.entries.values()) for (const o of e.rec.ops) if (t < 7) t = Math.max(t, need(o));
     }
     return t > f ? t as RaisedFormat : 0;
   }
   /** the bump in progress (tests), or null */
   get upgrading(): Promise<boolean> | null { return this.bump; }
   /** raise the deck to format 5, or `to` 6 (one bump at a time; true when it is that format now). ADR-019, amended
-      2026-10-21 (and 2026-10-22: format 6 the same way, its marker incident-format-6.json, for 4.6–4.8):
+      2026-10-21 (and 2026-10-22: format 6 the same way, its marker incident-format-6.json, for 4.6–4.8; and format 7, incident-format-7.json, for 4.9 – B52):
       1. the helper writes incident-format-5.json: every 4.0–4.5 helper takes the deck for read-only from its next look
-         at the deck's folder (6: incident-format-6.json, every 4.0–4.8 helper);
+         at the deck's folder (6: incident-format-6.json, every 4.0–4.8 helper; 7: incident-format-7.json, every 4.0–4.9 helper);
       2. wait BUMP_WAIT_MS from the marker's time (an old page may still append until then: a wizard preset.set too),
          then ask for the marker again (the helper lists the journals afresh; a marker removed meanwhile is written
          again, and waited for);
       3. tail until no journal was skipped: the records of that gap are read;
-      4. compare-and-set: the snapshot as it is, gen + 1, format 5 / 6 (it folds nothing; on 409 – compacted meanwhile, or
+      4. compare-and-set: the snapshot as it is, gen + 1, format 5 / 6 / 7 (it folds nothing; on 409 – compacted meanwhile, or
          the helper finds the marker too young – reload and from 1 again: the marker's wait is then what is left);
       5. only then the record is appended (flush), with a Lamport time BUMP_LAMPORT above everything seen (rebase:
          every page that sees the deck go 4 -> 5 jumps, and one that opens a deck raised moments ago: BUMP_FRESH_MS). */

@@ -841,7 +841,17 @@ def use_version(root, ver, stamp, yes=False):
     except (OSError, ValueError, KeyError) as e:
         raise SystemExit("Version %s is damaged (%s) - not used. Install it again with --release %s." % (ver, e, ver))
     marked = format5_decks(root) if version_key(ver)[:3] < FORMAT5_SINCE else []
-    marked6 = format5_decks(root, (FORMAT6_MARKER,)) if FORMAT5_SINCE <= version_key(ver)[:3] < FORMAT6_SINCE else []
+    # (B52) a format-7 deck is named once, as holding 4.10 objects (read-only in 4.6-4.9); format-6 decks as 4.9's
+    marked7 = format5_decks(root, (FORMAT7_MARKER,)) if FORMAT5_SINCE <= version_key(ver)[:3] < FORMAT7_SINCE else []
+    marked6 = [wb for wb in format5_decks(root, (FORMAT6_MARKER,)) if wb not in marked7] if FORMAT5_SINCE <= version_key(ver)[:3] < FORMAT6_SINCE else []
+    if marked7:
+        # the same for 4.10's objects (format 7, B52): read-only in 4.6-4.9
+        say("These %d deck(s) use Slide Builder 4.10 objects (reference lines, gap arrows or change pills on a chart). "
+            "In version %s they open read-only:" % (len(marked7), ver))
+        for wb in marked7:
+            say("  " + wb)
+        if not yes and not confirm("Use version %s anyway? [y/N] " % ver):
+            raise SystemExit("Nothing was changed: version %s is not used." % ver)
     if marked6:
         # the same for 4.9's objects (format 6, AUDIT-3 COMPAT-1): read-only in 4.6-4.8
         say("These %d deck(s) use Slide Builder 4.9 objects (rows or columns deleted for a version, hidden rows or "
@@ -878,12 +888,14 @@ FORMAT5_SINCE = (4, 6, 0)            # the first version that reads decks raised
 FORMAT5_MARKER = "incident-format-5.json"
 FORMAT6_SINCE = (4, 9, 0)            # the first version that reads decks raised to format 6 (ADR-019 amendment 2026-10-22)
 FORMAT6_MARKER = "incident-format-6.json"
+FORMAT7_SINCE = (4, 10, 0)           # the first version that reads decks raised to format 7 (ADR-019 amendment for B52)
+FORMAT7_MARKER = "incident-format-7.json"
 
 
-def format5_decks(root, markers=(FORMAT5_MARKER, FORMAT6_MARKER)):
-    """the workbooks whose decks hold Slide Builder 4.6 objects (their folder has the marker, or the format-6 one: a
-    deck may go from 4 to 6 at once; a deck given back to Slide Builder 3 does not count), sorted. `markers`
-    (FORMAT6_MARKER,): the decks that hold 4.9 objects"""
+def format5_decks(root, markers=(FORMAT5_MARKER, FORMAT6_MARKER, FORMAT7_MARKER)):
+    """the workbooks whose decks hold Slide Builder 4.6 objects (their folder has the marker, or the format-6 / format-7
+    one: a deck may go from 4 to 6 or 7 at once; a deck given back to Slide Builder 3 does not count), sorted. `markers`
+    (FORMAT6_MARKER, FORMAT7_MARKER): the decks that hold 4.9 objects or later; (FORMAT7_MARKER,): 4.10 objects"""
     folder = os.path.join(data_dir(root), "v4", "decks")
     out = []
     for key in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:

@@ -39,7 +39,8 @@ function chartSheets(it: ChartItem): string[] {
     ...(Array.isArray(s.xs) ? s.xs : []));
   for (const g of Object.values(it.groups && typeof it.groups === "object" ? it.groups : {})) if (g && typeof g === "object") refs.push(g.cats);
   // (S14.3) the cells a text mark quotes, as a callout's
-  const marks = Object.values(it.marks && typeof it.marks === "object" ? it.marks : {}).flatMap(k => k && typeof k === "object" ? textSheets(k.text) : []);
+  // (B52) and the cells a reference line reads: its value and its name
+  const marks = Object.values(it.marks && typeof it.marks === "object" ? it.marks : {}).flatMap(k => k && typeof k === "object" ? [...textSheets(k.text), ...refSheet(k.value), ...refSheet(k.name)] : []);
   return [...new Set([...refs.flatMap(refSheet), ...marks])];
 }
 /* ---- M14 above this line, M15 below it ---- */

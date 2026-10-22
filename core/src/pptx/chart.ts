@@ -97,7 +97,7 @@ export function chartWorkbook(ch: ChartSem): Uint8Array {
   const fx = (t: string, row: number) => !book ? t : t.replace(/\{V\}/g, numToCol(book.values + f) + row).replace(/\{R\}/g, numToCol(nSer + f) + row).replace(/\{Rp\}/g, row > 2 ? numToCol(nSer + f) + (row - 1) : "0");
   const cell = (c: { values: (number | null)[]; f?: (string | null)[]; fmt?: (i: number) => string }, k: number, i: number) => {
     // (S14.6 review 8: the cell's attributes built whole – its reference, then its style when not General)
-    const v = c.values[i], st = styleOf(c.fmt?.(i)), at = `r="${numToCol(k + f)}${i + 2}"${st ? ` s="${st}"` : ""}`, fo = c.f?.[i];
+    const v = c.values[i], st = styleOf(c.fmt?.(i)), at = `r="${numToCol(k + f)}${i + 2}"${st ? ` s="${st}"` : ""}`, fo = c.f?.[i]?.replace(/\{TOP\}/g, `$${numToCol(k + f)}$2`);
     if (fo) return v === null || v === undefined ? `<c ${at} t="str"><f>${esc(fx(fo, i + 2))}</f><v></v></c>` : `<c ${at}><f>${esc(fx(fo, i + 2))}</f><v>${num(v)}</v></c>`;
     return v === null || v === undefined ? "" : `<c ${at}><v>${num(v)}</v></c>`;
   };
@@ -219,12 +219,12 @@ function groupsXml(B: BarsSem, face: (css: string) => string): string {
 }
 /** a value axis with the drawn bounds and unit (the secondary one on the right, crossing its hidden category axis at the
     end) */
-function valAxXml(V: ValAxisSem, id: number, cross: number, pos: string, second: boolean, face: (css: string) => string, xy = false): string {
+function valAxXml(V: ValAxisSem, id: number, cross: number, pos: string, second: boolean, face: (css: string) => string, xy = false, onTicks = false): string {
   // (a scatter chart's two value axes, S14.4: their labels at the plot's edge wherever the other axis crosses, points
   // at their values – midCat)
   return `<c:valAx><c:axId val="${id}"/><c:scaling><c:orientation val="minMax"/><c:max val="${num(V.max)}"/><c:min val="${num(V.min)}"/></c:scaling><c:delete val="${V.show ? 0 : 1}"/><c:axPos val="${pos}"/>`
     + `${V.grid ? `<c:majorGridlines><c:spPr>${lnOf(V.grid)}</c:spPr></c:majorGridlines>` : ""}<c:numFmt formatCode="${esc(V.num || "General")}" sourceLinked="0"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="${xy ? "low" : "nextTo"}"/>`
-    + `<c:spPr><a:noFill/>${lnOf(V.line)}</c:spPr>${txPr(V.font, face)}<c:crossAx val="${cross}"/><c:crosses val="${second ? "max" : "autoZero"}"/><c:crossBetween val="${xy ? "midCat" : "between"}"/><c:majorUnit val="${num(V.step)}"/></c:valAx>`;
+    + `<c:spPr><a:noFill/>${lnOf(V.line)}</c:spPr>${txPr(V.font, face)}<c:crossAx val="${cross}"/><c:crosses val="${second ? "max" : "autoZero"}"/><c:crossBetween val="${xy || onTicks ? "midCat" : "between"}"/><c:majorUnit val="${num(V.step)}"/></c:valAx>`;
 }
 /** the plot area's chart groups at the drawn rectangle, the value axes with the drawn bounds and units, the category axis
     line at zero, the legend at its drawn box */
@@ -239,7 +239,7 @@ function barXml(ch: ChartSem, B: BarsSem, rid: string, face: (css: string) => st
   const valAx = (X ? valAxXml(X, 510001, 510002, "b", false, face, true) : "") + valAxXml(V, 510002, 510001, isCol ? "l" : "b", false, face, !!X);
   // the secondary axes: a hidden category axis and the right value axis
   const second = B.val2 ? `<c:catAx><c:axId val="510003"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="1"/><c:axPos val="b"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>`
-    + `<c:crossAx val="510004"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>` + valAxXml(B.val2, 510004, 510003, "r", true, face) : "";
+    + `<c:crossAx val="510004"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>` + valAxXml(B.val2, 510004, 510003, "r", true, face, false, B.refAxis) : "";
   // the title where it is drawn (its text box's top left; PowerPoint sizes a title itself)
   const tl = B.title ? `<c:layout><c:manualLayout><c:xMode val="edge"/><c:yMode val="edge"/><c:x val="${frac((B.title.x - frame.x) / frame.w)}"/><c:y val="${frac((B.title.y - frame.y) / frame.h)}"/></c:manualLayout></c:layout>` : "";
   const title = ch.title ? `<c:title>${rich(ch.title, ch.titleFont, face)}${tl}<c:overlay val="0"/></c:title><c:autoTitleDeleted val="0"/>` : '<c:autoTitleDeleted val="1"/>';

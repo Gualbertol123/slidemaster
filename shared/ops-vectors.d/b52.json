@@ -1,0 +1,1168 @@
+[
+ {
+  "name": "B52 item.patch marks: two reference lines from cells (budget, ambition), a gap arrow to the budget and the week-on-week pills – each a whole marks entry (one undo step each); format 7",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "Weekly",
+     "Targets"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "c1": {
+        "kind": "chart",
+        "type": "line",
+        "title": "Loans Volume - Weekly Evolution",
+        "values": {
+         "sheet": "Weekly",
+         "range": "C5:F5"
+        },
+        "labels": {
+         "sheet": "Weekly",
+         "range": "C4:F4"
+        },
+        "box": {
+         "x": 120,
+         "y": 180,
+         "w": 1360,
+         "h": 620
+        },
+        "sers": {
+         "vol": {
+          "n": 1,
+          "vals": [
+           {
+            "sheet": "Weekly",
+            "range": "C5:F5"
+           }
+          ],
+          "marker": {
+           "shape": "circle",
+           "size": 9
+          },
+          "labels": {
+           "show": [
+            "value"
+           ],
+           "pos": "above"
+          }
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "c1",
+    "patch": {
+     "marks": {
+      "rb": {
+       "kind": "ref",
+       "value": {
+        "sheet": "Targets",
+        "range": "B3"
+       },
+       "name": {
+        "sheet": "Targets",
+        "range": "B2"
+       },
+       "style": {
+        "color": "#1F1F1F",
+        "w": 1.5,
+        "dash": "dashed"
+       }
+      }
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "c1",
+    "patch": {
+     "marks": {
+      "ra": {
+       "kind": "ref",
+       "value": {
+        "sheet": "Targets",
+        "range": "C3"
+       },
+       "name": "Ambition",
+       "style": {
+        "color": "#8C93A3",
+        "w": 1.5,
+        "dash": "dashed"
+       }
+      }
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "c1",
+    "patch": {
+     "marks": {
+      "gp": {
+       "kind": "gap",
+       "a": {
+        "s": "vol",
+        "i": -1
+       },
+       "ref": "rb",
+       "caption": "gap to budget",
+       "style": {
+        "heads": {
+         "a": "triangle"
+        }
+       }
+      }
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "c1",
+    "patch": {
+     "marks": {
+      "wc": {
+       "kind": "change",
+       "a": {
+        "s": "vol",
+        "i": -1
+       },
+       "caption": "Week-on-week change",
+       "pos": "axis"
+      }
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "Weekly",
+     "Targets"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "c1": {
+        "kind": "chart",
+        "type": "line",
+        "title": "Loans Volume - Weekly Evolution",
+        "values": {
+         "sheet": "Weekly",
+         "range": "C5:F5"
+        },
+        "labels": {
+         "sheet": "Weekly",
+         "range": "C4:F4"
+        },
+        "box": {
+         "x": 120,
+         "y": 180,
+         "w": 1360,
+         "h": 620
+        },
+        "sers": {
+         "vol": {
+          "n": 1,
+          "vals": [
+           {
+            "sheet": "Weekly",
+            "range": "C5:F5"
+           }
+          ],
+          "marker": {
+           "shape": "circle",
+           "size": 9
+          },
+          "labels": {
+           "show": [
+            "value"
+           ],
+           "pos": "above"
+          }
+         }
+        },
+        "marks": {
+         "rb": {
+          "kind": "ref",
+          "value": {
+           "sheet": "Targets",
+           "range": "B3"
+          },
+          "name": {
+           "sheet": "Targets",
+           "range": "B2"
+          },
+          "style": {
+           "color": "#1F1F1F",
+           "w": 1.5,
+           "dash": "dashed"
+          }
+         },
+         "ra": {
+          "kind": "ref",
+          "value": {
+           "sheet": "Targets",
+           "range": "C3"
+          },
+          "name": "Ambition",
+          "style": {
+           "color": "#8C93A3",
+           "w": 1.5,
+           "dash": "dashed"
+          }
+         },
+         "gp": {
+          "kind": "gap",
+          "a": {
+           "s": "vol",
+           "i": -1
+          },
+          "ref": "rb",
+          "caption": "gap to budget",
+          "style": {
+           "heads": {
+            "a": "triangle"
+           }
+          }
+         },
+         "wc": {
+          "kind": "change",
+          "a": {
+           "s": "vol",
+           "i": -1
+          },
+          "caption": "Week-on-week change",
+          "pos": "axis"
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 4,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "item.patch",
+     "slide": "s1",
+     "id": "c1",
+     "patch": {
+      "marks": {
+       "rb": null
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "s1",
+     "id": "c1",
+     "patch": {
+      "marks": {
+       "ra": null
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "s1",
+     "id": "c1",
+     "patch": {
+      "marks": {
+       "gp": null
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "s1",
+     "id": "c1",
+     "patch": {
+      "marks": {
+       "wc": null
+      }
+     }
+    }
+   ],
+   "needsV5": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "needsV6": [
+    false,
+    false,
+    false,
+    false
+   ],
+   "needsV7": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "docNeedsV5": true,
+   "docNeedsV6": false,
+   "docNeedsV7": true
+  }
+ },
+ {
+  "name": "B52 item.patch marks: a reference line's label to the left and its value typed (the fallback), the pills switched off (kept, `off`), the gap arrow removed – each inverse puts the entry back as it was",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "Weekly",
+     "Targets"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "c1": {
+        "kind": "chart",
+        "type": "line",
+        "title": "Loans Volume - Weekly Evolution",
+        "values": {
+         "sheet": "Weekly",
+         "range": "C5:F5"
+        },
+        "labels": {
+         "sheet": "Weekly",
+         "range": "C4:F4"
+        },
+        "box": {
+         "x": 120,
+         "y": 180,
+         "w": 1360,
+         "h": 620
+        },
+        "sers": {
+         "vol": {
+          "n": 1,
+          "vals": [
+           {
+            "sheet": "Weekly",
+            "range": "C5:F5"
+           }
+          ],
+          "marker": {
+           "shape": "circle",
+           "size": 9
+          },
+          "labels": {
+           "show": [
+            "value"
+           ],
+           "pos": "above"
+          }
+         }
+        },
+        "marks": {
+         "rb": {
+          "kind": "ref",
+          "value": {
+           "sheet": "Targets",
+           "range": "B3"
+          },
+          "name": {
+           "sheet": "Targets",
+           "range": "B2"
+          },
+          "style": {
+           "color": "#1F1F1F",
+           "w": 1.5,
+           "dash": "dashed"
+          }
+         },
+         "ra": {
+          "kind": "ref",
+          "value": {
+           "sheet": "Targets",
+           "range": "C3"
+          },
+          "name": "Ambition",
+          "style": {
+           "color": "#8C93A3",
+           "w": 1.5,
+           "dash": "dashed"
+          }
+         },
+         "gp": {
+          "kind": "gap",
+          "a": {
+           "s": "vol",
+           "i": -1
+          },
+          "ref": "rb",
+          "caption": "gap to budget",
+          "style": {
+           "heads": {
+            "a": "triangle"
+           }
+          }
+         },
+         "wc": {
+          "kind": "change",
+          "a": {
+           "s": "vol",
+           "i": -1
+          },
+          "caption": "Week-on-week change",
+          "pos": "axis"
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "c1",
+    "patch": {
+     "marks": {
+      "ra": {
+       "kind": "ref",
+       "value": 12000,
+       "name": "Ambition",
+       "style": {
+        "color": "#8C93A3",
+        "w": 1.5,
+        "dash": "dashed"
+       },
+       "pos": "left"
+      }
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "c1",
+    "patch": {
+     "marks": {
+      "wc": {
+       "kind": "change",
+       "a": {
+        "s": "vol",
+        "i": -1
+       },
+       "caption": "Week-on-week change",
+       "pos": "axis",
+       "off": true
+      }
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "c1",
+    "patch": {
+     "marks": {
+      "gp": null
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "Weekly",
+     "Targets"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "c1": {
+        "kind": "chart",
+        "type": "line",
+        "title": "Loans Volume - Weekly Evolution",
+        "values": {
+         "sheet": "Weekly",
+         "range": "C5:F5"
+        },
+        "labels": {
+         "sheet": "Weekly",
+         "range": "C4:F4"
+        },
+        "box": {
+         "x": 120,
+         "y": 180,
+         "w": 1360,
+         "h": 620
+        },
+        "sers": {
+         "vol": {
+          "n": 1,
+          "vals": [
+           {
+            "sheet": "Weekly",
+            "range": "C5:F5"
+           }
+          ],
+          "marker": {
+           "shape": "circle",
+           "size": 9
+          },
+          "labels": {
+           "show": [
+            "value"
+           ],
+           "pos": "above"
+          }
+         }
+        },
+        "marks": {
+         "rb": {
+          "kind": "ref",
+          "value": {
+           "sheet": "Targets",
+           "range": "B3"
+          },
+          "name": {
+           "sheet": "Targets",
+           "range": "B2"
+          },
+          "style": {
+           "color": "#1F1F1F",
+           "w": 1.5,
+           "dash": "dashed"
+          }
+         },
+         "ra": {
+          "kind": "ref",
+          "value": 12000,
+          "name": "Ambition",
+          "style": {
+           "color": "#8C93A3",
+           "w": 1.5,
+           "dash": "dashed"
+          },
+          "pos": "left"
+         },
+         "wc": {
+          "kind": "change",
+          "a": {
+           "s": "vol",
+           "i": -1
+          },
+          "caption": "Week-on-week change",
+          "pos": "axis",
+          "off": true
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 3,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "item.patch",
+     "slide": "s1",
+     "id": "c1",
+     "patch": {
+      "marks": {
+       "ra": {
+        "kind": "ref",
+        "value": {
+         "sheet": "Targets",
+         "range": "C3"
+        },
+        "name": "Ambition",
+        "style": {
+         "color": "#8C93A3",
+         "w": 1.5,
+         "dash": "dashed"
+        }
+       }
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "s1",
+     "id": "c1",
+     "patch": {
+      "marks": {
+       "wc": {
+        "kind": "change",
+        "a": {
+         "s": "vol",
+         "i": -1
+        },
+        "caption": "Week-on-week change",
+        "pos": "axis"
+       }
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "s1",
+     "id": "c1",
+     "patch": {
+      "marks": {
+       "gp": {
+        "kind": "gap",
+        "a": {
+         "s": "vol",
+         "i": -1
+        },
+        "ref": "rb",
+        "caption": "gap to budget",
+        "style": {
+         "heads": {
+          "a": "triangle"
+         }
+        }
+       }
+      }
+     }
+    }
+   ],
+   "needsV5": [
+    true,
+    true,
+    true
+   ],
+   "needsV6": [
+    false,
+    false,
+    false
+   ],
+   "needsV7": [
+    true,
+    true,
+    false
+   ],
+   "docNeedsV5": true,
+   "docNeedsV6": false,
+   "docNeedsV7": true
+  }
+ },
+ {
+  "name": "B52 slide.add: the slide duplicated with its chart's reference lines, gap arrow and pills (format 7); the original slide's marks then removed (null): no format 7 needed for that op (4.9 applies a removal whole)",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "Weekly",
+     "Targets"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "c1": {
+        "kind": "chart",
+        "type": "line",
+        "title": "Loans Volume - Weekly Evolution",
+        "values": {
+         "sheet": "Weekly",
+         "range": "C5:F5"
+        },
+        "labels": {
+         "sheet": "Weekly",
+         "range": "C4:F4"
+        },
+        "box": {
+         "x": 120,
+         "y": 180,
+         "w": 1360,
+         "h": 620
+        },
+        "sers": {
+         "vol": {
+          "n": 1,
+          "vals": [
+           {
+            "sheet": "Weekly",
+            "range": "C5:F5"
+           }
+          ],
+          "marker": {
+           "shape": "circle",
+           "size": 9
+          },
+          "labels": {
+           "show": [
+            "value"
+           ],
+           "pos": "above"
+          }
+         }
+        },
+        "marks": {
+         "rb": {
+          "kind": "ref",
+          "value": {
+           "sheet": "Targets",
+           "range": "B3"
+          },
+          "name": {
+           "sheet": "Targets",
+           "range": "B2"
+          },
+          "style": {
+           "color": "#1F1F1F",
+           "w": 1.5,
+           "dash": "dashed"
+          }
+         },
+         "ra": {
+          "kind": "ref",
+          "value": {
+           "sheet": "Targets",
+           "range": "C3"
+          },
+          "name": "Ambition",
+          "style": {
+           "color": "#8C93A3",
+           "w": 1.5,
+           "dash": "dashed"
+          }
+         },
+         "gp": {
+          "kind": "gap",
+          "a": {
+           "s": "vol",
+           "i": -1
+          },
+          "ref": "rb",
+          "caption": "gap to budget",
+          "style": {
+           "heads": {
+            "a": "triangle"
+           }
+          }
+         },
+         "wc": {
+          "kind": "change",
+          "a": {
+           "s": "vol",
+           "i": -1
+          },
+          "caption": "Week-on-week change",
+          "pos": "axis"
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "slide.add",
+    "after": "s1",
+    "slide": {
+     "id": "s2",
+     "type": "content",
+     "tables": [],
+     "items": {
+      "c1": {
+       "kind": "chart",
+       "type": "line",
+       "title": "Loans Volume - Weekly Evolution",
+       "values": {
+        "sheet": "Weekly",
+        "range": "C5:F5"
+       },
+       "labels": {
+        "sheet": "Weekly",
+        "range": "C4:F4"
+       },
+       "box": {
+        "x": 120,
+        "y": 180,
+        "w": 1360,
+        "h": 620
+       },
+       "sers": {
+        "vol": {
+         "n": 1,
+         "vals": [
+          {
+           "sheet": "Weekly",
+           "range": "C5:F5"
+          }
+         ],
+         "marker": {
+          "shape": "circle",
+          "size": 9
+         },
+         "labels": {
+          "show": [
+           "value"
+          ],
+          "pos": "above"
+         }
+        }
+       },
+       "marks": {
+        "rb": {
+         "kind": "ref",
+         "value": {
+          "sheet": "Targets",
+          "range": "B3"
+         },
+         "name": {
+          "sheet": "Targets",
+          "range": "B2"
+         },
+         "style": {
+          "color": "#1F1F1F",
+          "w": 1.5,
+          "dash": "dashed"
+         }
+        },
+        "ra": {
+         "kind": "ref",
+         "value": {
+          "sheet": "Targets",
+          "range": "C3"
+         },
+         "name": "Ambition",
+         "style": {
+          "color": "#8C93A3",
+          "w": 1.5,
+          "dash": "dashed"
+         }
+        },
+        "gp": {
+         "kind": "gap",
+         "a": {
+          "s": "vol",
+          "i": -1
+         },
+         "ref": "rb",
+         "caption": "gap to budget",
+         "style": {
+          "heads": {
+           "a": "triangle"
+          }
+         }
+        },
+        "wc": {
+         "kind": "change",
+         "a": {
+          "s": "vol",
+          "i": -1
+         },
+         "caption": "Week-on-week change",
+         "pos": "axis"
+        }
+       }
+      }
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "c1",
+    "patch": {
+     "marks": {
+      "rb": null,
+      "ra": null,
+      "gp": null,
+      "wc": null
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "Weekly",
+     "Targets"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "c1": {
+        "kind": "chart",
+        "type": "line",
+        "title": "Loans Volume - Weekly Evolution",
+        "values": {
+         "sheet": "Weekly",
+         "range": "C5:F5"
+        },
+        "labels": {
+         "sheet": "Weekly",
+         "range": "C4:F4"
+        },
+        "box": {
+         "x": 120,
+         "y": 180,
+         "w": 1360,
+         "h": 620
+        },
+        "sers": {
+         "vol": {
+          "n": 1,
+          "vals": [
+           {
+            "sheet": "Weekly",
+            "range": "C5:F5"
+           }
+          ],
+          "marker": {
+           "shape": "circle",
+           "size": 9
+          },
+          "labels": {
+           "show": [
+            "value"
+           ],
+           "pos": "above"
+          }
+         }
+        }
+       }
+      }
+     },
+     {
+      "id": "s2",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "c1": {
+        "kind": "chart",
+        "type": "line",
+        "title": "Loans Volume - Weekly Evolution",
+        "values": {
+         "sheet": "Weekly",
+         "range": "C5:F5"
+        },
+        "labels": {
+         "sheet": "Weekly",
+         "range": "C4:F4"
+        },
+        "box": {
+         "x": 120,
+         "y": 180,
+         "w": 1360,
+         "h": 620
+        },
+        "sers": {
+         "vol": {
+          "n": 1,
+          "vals": [
+           {
+            "sheet": "Weekly",
+            "range": "C5:F5"
+           }
+          ],
+          "marker": {
+           "shape": "circle",
+           "size": 9
+          },
+          "labels": {
+           "show": [
+            "value"
+           ],
+           "pos": "above"
+          }
+         }
+        },
+        "marks": {
+         "rb": {
+          "kind": "ref",
+          "value": {
+           "sheet": "Targets",
+           "range": "B3"
+          },
+          "name": {
+           "sheet": "Targets",
+           "range": "B2"
+          },
+          "style": {
+           "color": "#1F1F1F",
+           "w": 1.5,
+           "dash": "dashed"
+          }
+         },
+         "ra": {
+          "kind": "ref",
+          "value": {
+           "sheet": "Targets",
+           "range": "C3"
+          },
+          "name": "Ambition",
+          "style": {
+           "color": "#8C93A3",
+           "w": 1.5,
+           "dash": "dashed"
+          }
+         },
+         "gp": {
+          "kind": "gap",
+          "a": {
+           "s": "vol",
+           "i": -1
+          },
+          "ref": "rb",
+          "caption": "gap to budget",
+          "style": {
+           "heads": {
+            "a": "triangle"
+           }
+          }
+         },
+         "wc": {
+          "kind": "change",
+          "a": {
+           "s": "vol",
+           "i": -1
+          },
+          "caption": "Week-on-week change",
+          "pos": "axis"
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 2,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "slide.remove",
+     "id": "s2"
+    },
+    {
+     "op": "item.patch",
+     "slide": "s1",
+     "id": "c1",
+     "patch": {
+      "marks": {
+       "rb": {
+        "kind": "ref",
+        "value": {
+         "sheet": "Targets",
+         "range": "B3"
+        },
+        "name": {
+         "sheet": "Targets",
+         "range": "B2"
+        },
+        "style": {
+         "color": "#1F1F1F",
+         "w": 1.5,
+         "dash": "dashed"
+        }
+       },
+       "ra": {
+        "kind": "ref",
+        "value": {
+         "sheet": "Targets",
+         "range": "C3"
+        },
+        "name": "Ambition",
+        "style": {
+         "color": "#8C93A3",
+         "w": 1.5,
+         "dash": "dashed"
+        }
+       },
+       "gp": {
+        "kind": "gap",
+        "a": {
+         "s": "vol",
+         "i": -1
+        },
+        "ref": "rb",
+        "caption": "gap to budget",
+        "style": {
+         "heads": {
+          "a": "triangle"
+         }
+        }
+       },
+       "wc": {
+        "kind": "change",
+        "a": {
+         "s": "vol",
+         "i": -1
+        },
+        "caption": "Week-on-week change",
+        "pos": "axis"
+       }
+      }
+     }
+    }
+   ],
+   "needsV5": [
+    true,
+    true
+   ],
+   "needsV6": [
+    false,
+    false
+   ],
+   "needsV7": [
+    true,
+    false
+   ],
+   "docNeedsV5": true,
+   "docNeedsV6": false,
+   "docNeedsV7": true
+  }
+ }
+]

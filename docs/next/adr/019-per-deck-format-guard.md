@@ -144,3 +144,26 @@ old page's open refused with 409 ("saved by a newer Slide Builder (format 6)"), 
 intact. Not run: `m15` against 4.0–4.7, the real 23 s wait, lean-lock storage mode, a CP-01 case with an old page
 holding the deck open *during* the raise to 6 (covered by the DocSync and helper unit tests only), Windows / the
 share. Cost: once per deck, the same ≈ 23 s of "Saving…" on the first 4.9 edit.
+
+**Amendment 2026-10-22 (B52): format 7 for 4.10's chart targets.** 4.10 adds three kinds of chart mark – reference
+lines from cells, gap arrows, change pills (ADR-015 amendment) – and B52's keys on a mark (`value` … `off`). They fit in
+the `marks` map 4.9.0 already stores and merges whole, so nothing would be *lost* by a 4.9 fold; but 4.9 does not *draw*
+them (its `markNodes` skips an unknown kind: the lines, arrows and pills vanish from its screen, PDF, PNG and
+PowerPoint), it would draw a switched-off (`off`) arrow, and its panel offers to edit marks it cannot show. That is the
+"misdraw" this guard exists for, so 4.10 raises a deck to **format 7** exactly the way 4.9 raised to 6
+(`core/src/model/ops.ts` `needsV7` / `docNeedsV7`, built from 4.9.0's FROZEN mark kinds and keys `V49_MARK_KINDS` /
+`V49_MARK_KEYS`): an `item.patch` whose `marks` hold an entry of a later kind or with a later key (removing one – a null
+entry – is not: 4.9 applies that whole), a `slide.add` or `preset.set` carrying such a chart. Its own marker
+**`incident-format-7.json`** (an incident to every 4.0–4.9 helper: 4.9's `_is_incident` excepts the format-5 and
+format-6 markers only, its `READ_FORMATS` is (4, 5, 6)), the same 23 s wait, the tail, the CAS to `format: 7` (409 while
+the marker is younger than the wait), the Lamport jump (also when a page sees the deck go 6 → 7), never lowered (400),
+the marker written again on a format-7 snapshot read without it; `POST …/format7`; `X-SB-Deck-Formats` is `4,5,6,7`
+from 4.10 and a page that does not send 7 gets 409 on a format-7 deck (`decks.check_page`). DocSync's raise loop checks
+the queue again after each raise, so a 4.10 op joining a raise to 6 raises on to 7 before the record is sealed. A
+format-4 or -5 deck goes straight to 7 (one marker). `knownOp` also learns the mark kinds and keys (a later page's mark
+is not compacted by 4.10). `update.py --use 4.9` names the format-7 decks and asks; 4.6–4.8 and below 4.6 name them
+with the older ones. Tests: core `docsync.test.ts` "format 7 for 4.10 chart marks" (raise with a 4.9 page's gap record,
+straight from 4, the re-check race, the 6 → 7 Lamport jump on another page, two writers, never lowered),
+`chart-targets.test.ts` (vectors `b52.json`, needsV7, knownOp); helper `Format7Tests`, `DeckFormatHttpTests`
+(format 7), `test_update` format-7 list. Not run here: `tools/compat-old.mjs` against the real 4.9.0 page and helper (a
+case for it is the orchestrator's CP-01 run). Cost: once per deck, the same ≈ 23 s of "Saving…" on the first 4.10 edit.

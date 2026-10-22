@@ -13,6 +13,9 @@
   F14 close rows up through the very path that closes Excel's own hidden rows (buildLayout), so this file shows exactly
   what a slide with those rows hidden will show.
 * spikes/charts/books/report-drop.xlsx – the same with rows 10–12 and columns I:J (Since, Note) hidden: a delete-version.
+* spikes/charts/books/target-lines.xlsx – B52's picture (the owner's 2026-10-22 request; copied to
+  tests/corpus/workbooks/charts/): sheet Weekly (Q3, Week 37 … Week 39 and the loans volume 11,576 / 11,411 / 11,416 /
+  11,442), sheet Targets (EoM budget 11,790 and Ambition 12,000 – the cells the reference lines read).
 The two report copies are made by editing the sheet XML in the zip (every other byte kept: styles, cached formula values)."""
 import os
 import re
@@ -113,8 +116,28 @@ def hide(dst, rows, cols):
                 out.writestr(info, data)
 
 
+def targets():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Weekly"
+    ws["B2"] = "Loans volume, EUR m"
+    for col, (cat, v) in zip("CDEF", [("Q3", 11576), ("Week 37", 11411), ("Week 38", 11416), ("Week 39", 11442)]):
+        ws[col + "4"] = cat
+        ws[col + "5"] = v
+        ws[col + "5"].number_format = "#,##0"
+    ws["B5"] = "Loans"
+    t = wb.create_sheet("Targets")
+    for col, (name, target) in zip("BC", [("EoM budget", 11790), ("Ambition", 12000)]):
+        t[col + "2"] = name
+        t[col + "3"] = target
+        t[col + "3"].number_format = "#,##0"
+    t["A3"] = "Target"
+    wb.save(os.path.join(BOOKS, "target-lines.xlsx"))
+
+
 loans()
 bridge()
+targets()
 hide(os.path.join(BOOKS, "report-hidden.xlsx"), [10, 11, 12], None)
 hide(os.path.join(BOOKS, "report-drop.xlsx"), [10, 11, 12], (9, 10))
 print("written:", sorted(os.listdir(BOOKS)))

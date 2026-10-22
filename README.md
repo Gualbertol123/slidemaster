@@ -155,8 +155,13 @@ designs, charts and callouts, free layout, borders and PowerPoint export – see
   icons as shapes). **Delete slide** and **Duplicate slide** from the slide list, as in PowerPoint. The **contents
   slide's list and title can be moved and resized** in free layout. Decks using any of this are **format 6**:
   4.0–4.8 open them read-only and ask to update, so the whole team moves to 4.9 together (§2.3, *Handover*).
+* **4.10 – chart targets.** In a column, line, area or combo chart: **reference lines whose value comes from a cell**
+  (e.g. the month-end budget and the ambition, dashed across the chart with their name and value at the right), a
+  **gap arrow** from the last point to a line with the difference ("−348 gap to budget"), and **change pills** between
+  the points ("+26 (+0.2%)", green or red). Each is switched on or off and styled in the chart panel's *Targets*; in
+  PowerPoint the lines are real chart series. Decks using them open read-only in 4.9 and older: update together.
 
-The reference below lists every feature as it stands in 4.9.0.
+The reference below lists every feature as it stands in 4.10.0.
 
 **Workbooks**
 * `.xlsx`, `.xlsm` and (since 4.1) `.xlsb` are read by the page itself. Old `.xls` workbooks and protected
@@ -234,7 +239,7 @@ decks*. *Options › Administration › Prepare rollback* (for giving decks back
 Cells › *Hide ▾* hides rows or columns of a table on that slide only. The contents slide's list and title move freely
 in free layout.
 
-**Charts, shapes, lines and icons** – charts of every common type (4.7, §1.1 above), callouts, shapes, lines and
+**Charts, shapes, lines and icons** – charts of every common type (4.7, §1.1 above) with *Targets* – reference lines from a cell, a gap arrow, change pills (4.10) –, callouts, shapes, lines and
 arrows (*Insert line ▾*; hold Ctrl while dragging an end to attach it to an object), about 6,200 icons (*Insert shape ▾ › More icons…*); snapping for every object (Alt:
 none).
 

@@ -35,7 +35,17 @@
             drop) and a hidden row on the first content slide (slide.patch hidden) – which raise the deck to FORMAT 6
             (incident-format-6.json); the old page (4.6–4.8 read format 5, not 6; 4.0–4.5 neither) opens the deck, and
             if it gets in, Continue and ✦ Wizard -> Finish -> PASS only when the open is refused (409, a clear wall),
-            the snapshot unchanged by it, and `drop` / `hidden` byte-equal in the folded deck
+            the snapshot unchanged by it, and `drop` / `hidden` byte-equal in the folded deck. 4.9 (reads format 6) opens
+            it: Continue and ✦ Wizard -> Finish keep `drop` / `hidden` byte-equal, the deck stays format 6
+     m52    (4.10, B52) the new page adds a line chart and its B52 marks – a reference line whose value and name come from
+            cells, a gap arrow to it, the change pills – which raise the deck to FORMAT 7 (incident-format-7.json); the
+            old page (4.0–4.8 read at most 5, 4.9 reads 6) opens it -> PASS only when the open gets the 409 wall ("saved
+            by a newer Slide Builder (format 7)"), no Continue, no record by it, its direct calls (and the old helper's
+            with X-SB-Deck-Formats 4,5,6,7) all refused, every deck file byte-intact and the B52 chart item byte-equal.
+            m52-before (4.9 only): a format-6 deck with a chart open in the 4.9 page, which edits a cell; then the new page
+            adds the B52 marks (marker 7, raise, Lamport jump) while the 4.9 page edits and runs Finish in the gap and after
+            -> its edit from before kept, none of its records folds after the first format-7 record, no snapshot / backup
+            / compact from it after the marker, read-only, the B52 item byte-equal, format 7
    The old pages are driven through Playwright (open, Continue, a cell typed, ✦ Wizard -> Finish); the 4.6 page's
    objects are made with the page's own change() (window.__sbTest.change: the op path of its buttons). Direct API
    probes are sent from inside the old page with its own headers (X-SB-Token from its meta tag, X-SB-Formats, no
@@ -44,8 +54,8 @@
    No network: the helpers run with SLIDEBUILDER_NO_NET=1 and the browser aborts every request that is not to
    127.0.0.1. Prints one RESULT line per version x case and writes a JSON report.
 
-   node tools/compat-old.mjs [--versions 4.0,4.1,4.4,4.5,4.6,4.6p,4.7,4.8] [--pythons "python3.12,py38/bin/python"] [--new-python python3]
-        [--cases cp02,a,b,c,d,m14,m15,m16] [--modes journal,lean-lock] [--port 8961] [--out compat-old.json]
+   node tools/compat-old.mjs [--versions 4.0,4.1,4.4,4.5,4.6,4.6p,4.7,4.8,4.9] [--pythons "python3.12,py38/bin/python"] [--new-python python3]
+        [--cases cp02,a,b,c,d,m14,m15,m16,m52] [--modes journal,lean-lock] [--port 8961] [--out compat-old.json]
         [--worktrees <dir>] [--keep-worktrees] [--keep-data] [--bump-wait-s N]
    --pythons: the interpreters for the OLD helpers (each version runs once per interpreter; "py -3.8" works on
    Windows). --bump-wait-s sets SLIDEBUILDER_TEST_BUMP_WAIT_S on the 4.6 helper only (default: unset = the real
@@ -63,37 +73,44 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const flag = k => process.argv.includes(k);
 const REFS = { "4.0": "v4.0.0", "4.1": "061a5b3", "4.4": "a1d3aba", "4.5": "637f7b4", "4.6": "e6c1c4f", "4.6p": "v4.6.0", "4.7": "v4.7.0",   // (4.6p: the released 4.6.0 – 6392856, main with S14.P, + the dated CHANGELOG; 4.7: the released 4.7.0, M14)
-  "4.8": "v4.8.0" };   // (4.8: the released 4.8.0, M15 – main's 36d689a)
+  "4.8": "v4.8.0",     // (4.8: the released 4.8.0, M15 – main's 36d689a)
+  "4.9": "v4.9.0" };   // (4.9: the released 4.9.0, M16 – main's merge of its release branch, c293100 – the same tree as 7a658ec)
 /** a release tag not yet made in this clone (4.8.0's merge was prepared before the 4.7.0 tag, 4.9.0's before the 4.8.0
     tag): the commit it will name – M14's head d327882, "M14 · 4.7.0: dated, runs recorded"; main's 36d689a, the merge of
     M15 for 4.8.0 (logged when used) */
-const REF_FALLBACK = { "v4.7.0": "d327882", "v4.8.0": "36d689a" };
-/** the versions that read format 5 (4.6.0, M13's format guard): cases a–d expect a refusal, so only cp02, m14, m15 and m16 run */
-const READS_V5 = new Set(["4.6", "4.6p", "4.7", "4.8"]);
-const VERSIONS = arg("--versions", "4.0,4.1,4.4,4.5,4.6,4.6p,4.7,4.8").split(",").filter(Boolean);
+const REF_FALLBACK = { "v4.7.0": "d327882", "v4.8.0": "36d689a", "v4.9.0": "c293100" };
+/** the versions that read format 5 (4.6.0, M13's format guard): cases a–d expect a refusal, so only cp02, m14, m15, m16 and m52 run */
+const READS_V5 = new Set(["4.6", "4.6p", "4.7", "4.8", "4.9"]);
+/** the versions that read format 6 too (4.9.0, AUDIT-3 COMPAT-1): m16 expects them to open the deck and keep its 4.9
+    objects through Continue and ✦ Wizard -> Finish; m52's "before" variant runs for them (format 6 -> 7 under the page) */
+const READS_V6 = new Set(["4.9"]);
+const VERSIONS = arg("--versions", "4.0,4.1,4.4,4.5,4.6,4.6p,4.7,4.8,4.9").split(",").filter(Boolean);
 const DEFAULT_PY = process.platform === "win32" ? "python" : "python3";
 const PYTHONS = arg("--pythons", DEFAULT_PY).split(",").filter(Boolean);
 const NEW_PY = arg("--new-python", DEFAULT_PY);
-const CASES = arg("--cases", "cp02,a,b,c,d,m14,m15,m16").split(",").filter(Boolean);
+const CASES = arg("--cases", "cp02,a,b,c,d,m14,m15,m16,m52").split(",").filter(Boolean);
 const MODES = arg("--modes", "journal,lean-lock").split(",").filter(Boolean);
 const OUT = path.resolve(arg("--out", path.join(os.tmpdir(), "sb-compat-old", "compat-old.json")));
 const WT = path.resolve(arg("--worktrees", path.join(os.tmpdir(), "sb-compat-old", "worktrees")));
 const BUMP_WAIT = arg("--bump-wait-s", "");
-let port = +arg("--port", "8961");
-if (port === 8951 || port === 8952) throw new Error("ports 8951/8952 belong to the e2e helpers");
-const nextPort = () => { const p = port; port += 3; if (port > 9300) port = +arg("--port", "8961"); return p; };
+const PORT0 = +arg("--port", "8961");
+let port = PORT0;
+if (port <= 8952 && port + 339 >= 8951) throw new Error("ports 8951/8952 belong to the e2e helpers");
+/** each helper takes the first free port of p..p+19; the ports go round within PORT0..PORT0+339 (a --port above the
+    old fixed limit 9300 used to give every helper the same start port) */
+const nextPort = () => { const p = port; port += 3; if (port > PORT0 + 300) port = PORT0; return p; };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const t0 = Date.now();
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(1).padStart(6)}s]`, ...a);
 const sha = b => createHash("sha256").update(b).digest("hex");
-const MARKER5 = "incident-format-5.json", MARKER6 = "incident-format-6.json";
+const MARKER5 = "incident-format-5.json", MARKER6 = "incident-format-6.json", MARKER7 = "incident-format-7.json";
 
 // ---- the core's fold and guard (bundled from this checkout: the same code the 4.6 page runs)
 const { build } = require(require.resolve("esbuild", { paths: [path.join(ROOT, "app")] }));
 const coreJs = path.join(os.tmpdir(), "sb-compat-old", "core-" + process.pid + ".mjs");
 fs.mkdirSync(path.dirname(coreJs), { recursive: true });
 fs.writeFileSync(coreJs, (await build({
-  stdin: { contents: `export { fold, recordOrder } from "./core/src/model/fold"; export { needsV5, docNeedsV5 } from "./core/src/model/ops";`, resolveDir: ROOT, loader: "ts" },
+  stdin: { contents: `export { fold, recordOrder } from "./core/src/model/fold"; export { needsV5, docNeedsV5, needsV7 } from "./core/src/model/ops";`, resolveDir: ROOT, loader: "ts" },
   bundle: true, write: false, platform: "node", format: "esm", target: "es2022", logLevel: "error",
 })).outputFiles[0].text);
 const core = await import(pathToFileURL(coreJs).href);
@@ -213,7 +230,7 @@ const diffFiles = (a, b) => { const d = []; for (const k of new Set([...Object.k
 
 /** watches a deck folder: every snapshot version written and every record ever in a journal (journals may be deleted
     later by a rotate: the union is kept) */
-function watchDeck(env) {
+function watchDeck(env, markerName = MARKER5) {
   const w = { snaps: [], recs: new Map(), journalsSeen: new Set(), marker: null, stop: null };
   const tick = () => {
     const dir = deckDir(env); if (!dir) return;
@@ -221,7 +238,7 @@ function watchDeck(env) {
       const raw = fs.readFileSync(path.join(dir, "snapshot.json")); const h = sha(raw);
       if (!w.snaps.length || w.snaps[w.snaps.length - 1].sha !== h) { const s = JSON.parse(raw.toString("utf8")); w.snaps.push({ seenAt: Date.now(), sha: h, gen: s.gen, format: s.format, by: s.by, at: s.at }); }
     } catch { /* being replaced */ }
-    if (!w.marker && fs.existsSync(path.join(dir, MARKER5))) { try { const m = readJson(path.join(dir, MARKER5)); w.marker = { at: m.at, by: m.by, seenAt: Date.now() }; } catch { /* being written */ } }
+    if (!w.marker && fs.existsSync(path.join(dir, markerName))) { try { const m = readJson(path.join(dir, markerName)); w.marker = { at: m.at, by: m.by, seenAt: Date.now() }; } catch { /* being written */ } }
     for (const n of journals(dir)) {
       w.journalsSeen.add(n);
       try { for (const f of frames(fs.readFileSync(path.join(dir, "j", n)))) { const k = f.rec.w + "|" + f.rec.s + "|" + n; if (!w.recs.has(k)) w.recs.set(k, { ...f.rec, journal: n }); } } catch { /* gone */ }
@@ -430,14 +447,14 @@ const CONSULT = { op: "style.patch", patch: { designs: { mckinsey: { consult: { 
 /** direct API calls as the old page makes them (its token, X-SB-Formats, no X-SB-Deck-Formats), from inside the page.
     The writes are harmless if they got through (and then show): a cell Z99 = "PROBE", the current document as a
     format-4 snapshot, a rotate of the page's own writer */
-async function probeFromPage(p, key, writer, snap) {
+async function probeFromPage(p, key, writer, snap, deckFormats) {
   p.probing = true;
-  try { return await probeIn(p, key, writer, snap); } finally { await sleep(300); p.probing = false; }
+  try { return await probeIn(p, key, writer, snap, deckFormats); } finally { await sleep(300); p.probing = false; }
 }
-function probeIn(p, key, writer, snap) {
-  return p.page.evaluate(async ({ key, writer, snap }) => {
+function probeIn(p, key, writer, snap, deckFormats) {
+  return p.page.evaluate(async ({ key, writer, snap, deckFormats }) => {
     const tok = document.querySelector('meta[name="sb-token"]').content;
-    const H = { "X-SB-Token": tok, "X-SB-Formats": "workbook=3;config=3;prefs=1", "Content-Type": "application/json" };
+    const H = { "X-SB-Token": tok, "X-SB-Formats": "workbook=3;config=3;prefs=1", "Content-Type": "application/json", ...(deckFormats ? { "X-SB-Deck-Formats": deckFormats } : {}) };
     const d = "/api/decks/" + encodeURIComponent(key), out = {};
     const call = async (name, method, url, body) => {
       try { const r = await fetch(url, { method, headers: H, body: body === undefined ? undefined : JSON.stringify(body), cache: "no-store" });
@@ -452,7 +469,7 @@ function probeIn(p, key, writer, snap) {
     await call("compact", "POST", d + "/compact", { baseGen: snap.gen, snapshot: { ...snap, format: 4, gen: snap.gen + 1 } });
     await call("rotate", "POST", d + "/rotate", { writer });
     return out;
-  }, { key, writer, snap });
+  }, { key, writer, snap, deckFormats });
 }
 /** the same calls from outside a page with a given token and deck-formats header (case c: a valid token, no header) */
 async function probeDirect(h, key, writer, snap, token, deckFormats) {
@@ -870,9 +887,181 @@ async function caseM16(run, oldDir, py) {
     const obs = { openStatus, openError: openError.slice(0, 160), toast, continueOffered: continued, wizard: wiz, saved, want, got,
       formatNow: after.snap.format, marker6: fs.existsSync(path.join(dir, MARKER6)), snapshotUnchanged: sha(fs.readFileSync(path.join(dir, "snapshot.json"))) === snapSha0,
       recordsByOld: [...w.recs.values()].filter(x => x.by === "bob").length, versionsAfter: after.doc.preset?.versions, pageErrors: b.errors.slice(0, 4).map(e => e.slice(0, 140)) };
-    const pass = openStatus === 409 && !continued && obs.snapshotUnchanged && obs.recordsByOld === 0 && want.drop === got.drop && want.hidden === got.hidden
-      && after.snap.format === 6 && obs.marker6;
+    // a format-6 reader (4.9) opens the deck: Continue, ✦ Wizard -> Finish (its whole preset.set) keep drop and hidden
+    const pass = READS_V6.has(run.version)
+      ? openStatus === 200 && continued && !wiz.startsWith("ERROR") && want.drop === got.drop && want.hidden === got.hidden && after.snap.format === 6
+      : openStatus === 409 && !continued && obs.snapshotUnchanged && obs.recordsByOld === 0 && want.drop === got.drop && want.hidden === got.hidden
+        && after.snap.format === 6 && obs.marker6;
     result(run, "m16", pass, obs);
+  } finally { if (w) w.stop(); await closePage(a); await closePage(b); await stopHelper(anna); await stopHelper(bob); }
+}
+
+/** m52 (B52, 4.10): a line chart on the first content slide, then the B52 marks – a reference line whose value (and
+    name) come from cells, a gap arrow from the series' last point to it, the change pills – as the Targets panel writes
+    them (one item.patch each) */
+function m52Steps(slide, t0) {
+  const r = range => ({ table: t0, range });
+  return [
+    ["Insert chart", [{ op: "item.patch", slide, id: "cpTarget", patch: { kind: "chart", type: "line", values: r("D6:D8"), labels: r("C6:C8"),
+      box: { x: 820, y: 180, w: 700, h: 420 }, sers: { vol: { n: 1, vals: [r("D6:D8")], marker: { shape: "circle", size: 8 } } } } }]],
+    ["Reference line", [{ op: "item.patch", slide, id: "cpTarget", patch: { marks: { rb: { kind: "ref", value: r("E6"), name: r("E5"),
+      style: { color: "#1F1F1F", w: 1.5, dash: "dashed" } } } } }]],
+    ["Gap arrow", [{ op: "item.patch", slide, id: "cpTarget", patch: { marks: { gp: { kind: "gap", a: { s: "vol", i: -1 }, ref: "rb",
+      caption: "gap to budget", pct: true, style: { heads: { a: "triangle" } } } } } }]],
+    ["Change pills", [{ op: "item.patch", slide, id: "cpTarget", patch: { marks: { wc: { kind: "change", a: { s: "vol", i: -1 }, caption: "Week-on-week",
+      pos: "axis", pairs: "all" } } } }]],
+  ];
+}
+const m52Item = (doc, slide) => JSON.stringify(doc.preset?.slides.find(s => s.id === slide)?.items?.cpTarget ?? null);
+const m52Marks = doc => { try { const m = JSON.parse(doc).marks || {}; return ["rb", "gp", "wc"].filter(k => m[k]?.kind === ({ rb: "ref", gp: "gap", wc: "change" })[k]); } catch { return []; } };
+
+/** m52 (B52, 4.10; ADR-019 amendment): the new page's reference line, gap arrow and change pills raise the deck to
+    FORMAT 7 (incident-format-7.json); every older page (4.0–4.8 read at most 5, 4.9 reads 6) opens it -> PASS only when
+    the open is refused (409 "saved by a newer Slide Builder (format 7)"), the page offers no Continue, no record is
+    written by it, its direct calls (the old page's own token; 4.9's with its X-SB-Deck-Formats 4,5,6) are all refused,
+    every file of the deck byte-intact (snapshot sha256 first) and the B52 chart item byte-equal (JSON) */
+async function caseM52(run, oldDir, py) {
+  const env = scenarioEnv(run.version + "-m52");
+  const anna = await startHelper({ dir: ROOT, py: NEW_PY, port: nextPort(), user: "anna", env, extra: ext46 });
+  let a, b, bob, w;
+  try {
+    a = await openPage(anna, "4.10");
+    await wizardNew(a);
+    const pre = await a.page.evaluate(() => window.__sbTest.preset());
+    const s1 = pre.slides.filter(s => s.type === "content")[0], t0 = s1.tables[0];
+    for (const [l, ops] of m52Steps(s1.id, t0)) { if (!await change(a, l, ops)) throw new Error("the 4.10 page refused " + l); await sleep(200); }
+    const dir = deckDir(env), key = path.basename(dir);
+    if (!await waitFor(() => readJson(path.join(dir, "snapshot.json")).format === 7, 90_000, 500)) throw new Error("the 4.10 page did not raise the deck to 7 (format " + readJson(path.join(dir, "snapshot.json")).format + ")");
+    if (!await waitSaved(a, 60_000)) throw new Error("the 4.10 page did not save its objects");
+    await closePage(a); a = null;
+    await sleep(2000);
+    const want = m52Item(deckDoc(dir).doc, s1.id), snap0 = readJson(path.join(dir, "snapshot.json"));
+    const snapSha0 = sha(fs.readFileSync(path.join(dir, "snapshot.json"))), files0 = deckFiles(env, dir);
+    if (m52Marks(want).length !== 3) throw new Error("the 4.10 deck lacks a B52 mark: " + want.slice(0, 200));
+    w = watchDeck(env, MARKER7);
+    bob = await startHelper({ dir: oldDir, py, port: nextPort(), user: "bob", env });
+    b = await openPage(bob, run.version);
+    const resp = b.page.waitForResponse(r => r.url().endsWith("/api/decks/open"), { timeout: 30_000 });
+    await openWorkbook(b);
+    const r = await resp, openStatus = r.status();
+    let openError = ""; try { openError = (await r.json()).error || ""; } catch { /* not JSON */ }
+    await sleep(2000);
+    let wiz = "not run", saved = null;
+    const continued = await b.page.locator('[data-a="continue"]').isVisible().catch(() => false);
+    if (openStatus < 400 && continued) {
+      await b.page.click('[data-a="continue"]');
+      await b.page.locator(".thumb").first().waitFor({ timeout: 30_000 }).catch(() => {});
+      try { wiz = await wizardFinish(b); } catch (e) { wiz = "ERROR " + e.message.slice(0, 140); }
+      saved = await waitSaved(b, 30_000);
+      await sleep(3000);
+    }
+    const toast = (await toastText(b)).slice(0, 200);
+    // the old page's own calls (its token; 4.9's deck-formats header as its page sends it) and, for the record, the
+    // 4.10 header against the old helper: every one refused
+    const probes = await probeFromPage(b, key, "bob@pc-bob#cp52prob", snap0, READS_V6.has(run.version) ? "4,5,6" : undefined);
+    const tok = await tokenOf(bob);
+    const probesNoHeader = await probeDirect(bob, key, "bob@pc-bob#cp52prob", snap0, tok, null);
+    const probesHeader7 = await probeDirect(bob, key, "bob@pc-bob#cp52prob", snap0, tok, "4,5,6,7");
+    await sleep(1500);
+    w.stop();
+    const after = deckDoc(dir), got = m52Item(after.doc, s1.id), changed = diffFiles(files0, deckFiles(env, dir));
+    // (every call but the tail refused: a frozen old helper still serves GET …/tail – reads only, of bytes the page it
+    // serves cannot fold without the open and the snapshot, both refused; listed in the report)
+    const refused = o => Object.entries(o).every(([k, v]) => k === "tail" || /^4\d\d/.test(v));
+    const obs = { openStatus, openError: openError.slice(0, 160), toast, continueOffered: continued, wizard: wiz, saved,
+      formatNow: after.snap.format, marker7: fs.existsSync(path.join(dir, MARKER7)), snapshotUnchanged: sha(fs.readFileSync(path.join(dir, "snapshot.json"))) === snapSha0,
+      filesChanged: changed, b52ItemEqual: got === want, b52Marks: m52Marks(got), recordsByOld: [...w.recs.values()].filter(x => x.by === "bob" || /^bob/.test(x.w)).length,
+      probesFromOldPage: probes, probesOldHelperNoDeckFormats: probesNoHeader, probesOldHelperDeckFormats4567: probesHeader7,
+      pageCalls: statusCounts(b.calls), helperLog: bob.out.filter(l => /409|format/i.test(l)).slice(-4), pageErrors: b.errors.filter(e => !/409|Conflict/.test(e)).slice(0, 4).map(e => e.slice(0, 140)) };
+    const pass = openStatus === 409 && /newer Slide Builder \(format 7\)/.test(openError) && !continued && obs.snapshotUnchanged && !changed.length
+      && obs.recordsByOld === 0 && got === want && obs.b52Marks.length === 3 && after.snap.format === 7 && obs.marker7
+      && refused(probes) && refused(probesNoHeader) && refused(probesHeader7) && noProbeWritten(after.doc);
+    result(run, "m52", pass, obs);
+  } finally { if (w) w.stop(); await closePage(a); await closePage(b); await stopHelper(anna); await stopHelper(bob); }
+}
+
+/** m52-before (B52; for the format-6 readers, 4.9): a normal format-6 deck with a chart (a hidden row raises it to 6),
+    the 4.9 page has it open and edits a cell; then the new page adds the B52 marks (marker 7, wait, raise, Lamport jump)
+    while the 4.9 page edits a cell and runs ✦ Wizard -> Finish in the gap and after the raise, and is left alone past
+    the compaction margin -> its edit from before kept, none of its records after the marker folds after the first
+    format-7 record, no snapshot / backup / successful compact from it after the marker, it ends read-only, the B52
+    chart item byte-equal (JSON) and the deck format 7 */
+async function caseM52Before(run, oldDir, py) {
+  const env = scenarioEnv(run.version + "-m52b");
+  const anna = await startHelper({ dir: ROOT, py: NEW_PY, port: nextPort(), user: "anna", env, extra: ext46 });
+  const bob = await startHelper({ dir: oldDir, py, port: nextPort(), user: "bob", env });
+  let a, b, w;
+  const steps = [];
+  try {
+    a = await openPage(anna, "4.10");
+    await wizardNew(a);
+    const pre = await a.page.evaluate(() => window.__sbTest.preset());
+    const s1 = pre.slides.filter(s => s.type === "content")[0], t0 = s1.tables[0];
+    const [chartStep, ...markSteps] = m52Steps(s1.id, t0);
+    for (const [l, ops] of [chartStep, ["Hide row", [{ op: "slide.patch", id: s1.id, patch: { hidden: { [t0 + ":r9"]: true } } }]]]) {
+      if (!await change(a, l, ops)) throw new Error("the 4.10 page refused " + l); await sleep(200); }
+    const dir = deckDir(env), key = path.basename(dir);
+    if (!await waitFor(() => readJson(path.join(dir, "snapshot.json")).format === 6, 90_000, 500)) throw new Error("the deck was not raised to 6 (format " + readJson(path.join(dir, "snapshot.json")).format + ")");
+    if (!await waitSaved(a, 60_000)) throw new Error("the 4.10 page did not save");
+    w = watchDeck(env, MARKER7);
+    b = await openPage(bob, run.version);
+    await continueOpen(b);
+    steps.push("old page open (storage " + b.storage + ", writer " + b.writer + ")");
+    steps.push("edit before: " + await editCell(b, "Alpha", "OldBefore", "C6") + ", saved " + await waitSaved(b, 15_000));
+    await sleep(2500);                                                      // (the new page tails the old edit)
+    if (readJson(path.join(dir, "snapshot.json")).format !== 6) throw new Error("the deck is not format 6 before the raise");
+    const t7 = Date.now();
+    for (const [l, ops] of markSteps) { if (!await change(a, l, ops)) throw new Error("the 4.10 page refused " + l); await sleep(150); }
+    const mk = await waitFor(() => w.marker, 20_000, 100);
+    if (!mk) throw new Error("no " + MARKER7 + " after the 4.10 change");
+    steps.push(`marker after ${mk.seenAt - t7} ms`);
+    const gapStart = Date.now();
+    steps.push("gap edit: " + await editCell(b, "Gamma", "OldGap", "C8") + " -> " + (await waitSaved(b, 6000) ? "saved" : (await saveText(b)).slice(0, 80)));
+    try { steps.push("gap wizard: " + await wizardFinish(b) + " -> " + (await waitSaved(b, 6000) ? "saved" : (await saveText(b)).slice(0, 80))); }
+    catch (e) { steps.push("gap wizard: not run (" + e.message.slice(0, 220) + ")"); }
+    steps.push(`gap actions took ${Date.now() - gapStart} ms after the marker was seen`);
+    const raised = await waitFor(() => w.snaps.find(s => s.format === 7), 90_000, 250);
+    if (!raised) throw new Error("the deck was not raised to format 7");
+    steps.push(`raised to 7 (gen ${raised.gen}) ${raised.seenAt - mk.seenAt} ms after the marker`);
+    await waitSaved(a, 30_000);
+    await sleep(1500);
+    steps.push("edit after raise: " + await editCell(b, "OldBefore", "OldAfter", "C6") + " -> " + (await saveText(b)).slice(0, 100));
+    try { steps.push("wizard after raise: " + await wizardFinish(b) + " -> " + (await saveText(b)).slice(0, 100)); }
+    catch (e) { steps.push("wizard after raise: not run (" + e.message.slice(0, 220) + ")"); }
+    const probesOld = await probeFromPage(b, key, b.writer, readJson(path.join(dir, "snapshot.json")), "4,5,6");
+    const want = m52Item(deckDoc(dir).doc, s1.id);
+    await closePage(a); a = null;
+    const aloneFrom = Date.now();
+    await sleep(70_000);
+    const sv = { text: (await saveText(b)).slice(0, 160), cls: await saveClass(b) };
+    w.stop();
+    const doc = deckDoc(dir), got = m52Item(doc.doc, s1.id);
+    const recs = [...w.recs.values()];
+    const bobW = new Set(recs.filter(r => r.by === "bob" || (b.writer && r.w === b.writer)).map(r => r.w));
+    const markerAt = mk.at;
+    const recs7 = recs.filter(r => r.ops.some(o => core.needsV7(o)) && !bobW.has(r.w));
+    const first7 = recs7.slice().sort(core.recordOrder)[0];
+    const bobAll = recs.filter(r => bobW.has(r.w));
+    const bobAfter = bobAll.filter(r => (r.at ?? 0) >= markerAt);
+    const late = bobAll.filter(r => first7 && core.recordOrder(r, first7) > 0);
+    const bobSnaps = w.snaps.filter(s => s.by === "bob" && (s.at ?? 0) >= markerAt);
+    let backupsByBob = [];
+    try { const bd = path.join(env.data, "backups", "v4", key); backupsByBob = fs.readdirSync(bd).map(n => readJson(path.join(bd, n))).filter(s => s.by === "bob" && (s.at ?? 0) >= markerAt).map(s => s.gen); } catch { /* none */ }
+    const bobCompacts = b.calls.filter(c => c.path.endsWith("/compact") && c.at >= mk.seenAt && !c.probe);
+    const ro = /read-only|damaged|newer|reload/i.test(sv.text) || /err/.test(sv.cls || "");
+    const editBefore = doc.doc.edits?.SLIDE_1?.C6?.text ?? null;
+    const obs = { storage: b.storage, steps, probesFromOldPage: probesOld, oldPageState: sv,
+      oldRecords: bobAll.map(r => ({ s: r.s, l: r.l, at: r.at - markerAt, ops: r.ops.map(o => o.op).join("+"), journal: r.journal })),
+      first7: first7 ? { l: first7.l, w: first7.w.split("#")[0], at: first7.at - markerAt } : null,
+      oldRecordsFoldingAfter7: late.length, oldRecordsAfterMarker: bobAfter.length, oldSnapshotsAfterMarker: bobSnaps.map(s => s.gen), oldBackupsAfterMarker: backupsByBob,
+      oldCompactCallsAfterMarker: bobCompacts.map(c => c.status), snapshots: w.snaps.map(s => `gen ${s.gen} f${s.format} ${s.by}`),
+      editBeforeKept: editBefore, b52ItemEqual: got === want, b52Marks: m52Marks(got), formatNow: doc.snap.format, probeWritten: !noProbeWritten(doc.doc),
+      aloneSeconds: Math.round((Date.now() - aloneFrom) / 1000), pageCalls: statusCounts(b.calls, mk.seenAt), pageErrors: b.errors.slice(0, 4).map(e => e.slice(0, 140)) };
+    const wizardTried = steps.some(x => /^(gap wizard|wizard after raise): finish/.test(x));
+    obs.wizardTried = wizardTried;
+    const pass = wizardTried && ro && !late.length && !bobSnaps.length && !backupsByBob.length && !bobCompacts.some(c => c.status < 400)
+      && editBefore === "OldBefore" && got === want && m52Marks(got).length === 3 && noProbeWritten(doc.doc) && doc.snap.format === 7 && !!first7;
+    result(run, "m52-before", pass, obs);
   } finally { if (w) w.stop(); await closePage(a); await closePage(b); await stopHelper(anna); await stopHelper(bob); }
 }
 
@@ -894,6 +1083,8 @@ try {
       if (CASES.includes("m14")) await step("m14", () => caseM14(run, oldDir, py));
       if (CASES.includes("m15")) await step("m15", () => caseM15(run, oldDir, py));
       if (CASES.includes("m16")) await step("m16", () => caseM16(run, oldDir, py));
+      if (CASES.includes("m52")) await step("m52", () => caseM52(run, oldDir, py));
+      if (CASES.includes("m52") && READS_V6.has(v)) await step("m52-before", () => caseM52Before(run, oldDir, py));
       if (READS_V5.has(v)) { if (!flag("--keep-data")) for (const e of envs.splice(0)) fs.rmSync(e.base, { recursive: true, force: true }); continue; }
       const aged = [];
       if (CASES.includes("a") || CASES.includes("d")) { const r = await step("a", () => caseA(run, oldDir, py)); if (r) aged.push({ ...r, label: "a (made by 4.6)" }); }

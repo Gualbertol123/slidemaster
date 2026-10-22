@@ -19,6 +19,13 @@ const ITEM_KEYS = ["kind", "type", "values", "labels", "series", "title", "legen
   "route", "a", "b", "mid", "bend", "ends", "style", "stroke"] as const;
 const ITEM_MAPS = ["colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt"] as const;
 const ITEM_KINDS = ["chart", "shape", "line"];
+/* a chart's marks (an entry of `marks`, kept whole): the kinds and keys this page draws – 4.10 (B52) adds the reference
+   line, the gap arrow and the change pills and their keys (value … off); a later page's kind or key is not known */
+const MARK_KINDS = ["arrow", "line", "band", "icon", "text", "ref", "gap", "change"];
+const MARK_KEYS = ["kind", "a", "b", "style", "icon", "size", "text", "fmt", "dy",
+  "value", "name", "axis", "show", "pos", "ref", "caption", "num", "pct", "abs", "signs", "pairs", "off"];
+/** every mark entry of a marks map (a patch's or an item's) is one this page draws whole */
+const marksKnown = (m: unknown) => !isObj(m) || Object.values(m).every(k => k === null || !isObj(k) || (MARK_KINDS.includes(k.kind as string) && Object.keys(k).every(x => MARK_KEYS.includes(x))));
 /* slide.add / table.add (4.6, 09 §2.8): the slide types and table kinds this page draws (a later page's are skipped) */
 const SLIDE_TYPES = ["cover", "index", "content"], TABLE_KINDS = ["markers", "range"];
 const REF = /^[A-Z]{1,3}[0-9]{1,7}$/;
@@ -188,7 +195,7 @@ export function knownOp(op: Op | Record<string, unknown>): boolean {
     case "table.patch": return only(TABLE_KEYS, TABLE_MAPS);
     case "cell.patch": return only(CELL_KEYS);
     case "style.patch": return only(STYLE_KEYS, STYLE_MAPS);
-    case "item.patch": return p === null || (only(ITEM_KEYS, ITEM_MAPS) && (!("kind" in (p as object)) || ITEM_KINDS.includes((p as Record<string, unknown>).kind as string)));
+    case "item.patch": return p === null || (only(ITEM_KEYS, ITEM_MAPS) && (!("kind" in (p as object)) || ITEM_KINDS.includes((p as Record<string, unknown>).kind as string)) && marksKnown((p as Record<string, unknown>).marks));
     // (the definitions are kept whole, keys this page does not draw too; a later page's slide type or table kind is not)
     case "slide.add": return isObj(o.slide) && SLIDE_TYPES.includes(o.slide.type as string);
     case "table.add": return isObj(o.table) && TABLE_KINDS.includes(o.table.kind as string);
@@ -297,6 +304,37 @@ export function docNeedsV6(doc: Pick<WorkbookDoc, "preset" | "edits">): boolean 
   if (isObj(doc.preset) && presetNeedsV6(doc.preset as unknown as Record<string, unknown>)) return true;
   for (const sheet of Object.values(doc.edits || {})) for (const e of Object.values(sheet || {})) if (holds(e, V6_CELL)) return true;
   return false;
+}
+/* ---- format 7 (ADR-019 amendment of 2026-10-22 for B52, 4.10) ----
+   4.9.0 keeps a chart's `marks` entries whole but draws only its five kinds (chart-marks.ts `default: continue`): a
+   reference line, a gap arrow or change pills would vanish from its screen and exports, and its panel would offer to
+   change or remove marks it cannot show. A deck that receives or holds one is raised to format 7 exactly as to 6 (marker
+   incident-format-7.json – an incident to every 4.0–4.9 helper, whose _is_incident excepts the format-5 and format-6
+   markers only –, the wait, tail, CAS, the Lamport jump). 4.9.0's mark kinds and keys, FROZEN (git show
+   v4/release-4.9.0:core/src/model/types.ts ChartMark) – never add to them: later ones go to MARK_KINDS / MARK_KEYS at the
+   top, and are then needsV7 by themselves. */
+const V49_MARK_KINDS = ["arrow", "line", "band", "icon", "text"], V49_MARK_KEYS = ["kind", "a", "b", "style", "icon", "size", "text", "fmt", "dy"];
+/** a mark entry 4.9.0 does not draw whole: a later kind, or a later key on any kind (a switched-off arrow's `off`) */
+const markV7 = (k: unknown) => isObj(k) && (!V49_MARK_KINDS.includes(k.kind as string) || Object.keys(k).some(x => !V49_MARK_KEYS.includes(x)));
+const marksV7 = (m: unknown) => isObj(m) && Object.values(m).some(markV7);
+/** a slide's items map (a slide.add's, a preset's slide's) holding a chart with such a mark */
+const itemsV7 = (items: unknown) => isObj(items) && Object.values(items).some(it => isObj(it) && marksV7(it.marks));
+/** an op 4.9.0 does not apply whole: the deck must be format 7 before it is appended – an item.patch whose marks (or the
+    whole item it writes) hold a 4.10 mark, a slide.add or preset.set carrying one. Removing such a mark (its entry null)
+    is not: 4.9 applies that whole */
+export function needsV7(op: Op | Record<string, unknown>): boolean {
+  const o = op as Record<string, unknown>, p = o.patch;
+  switch (o.op) {
+    case "item.patch": return isObj(p) && marksV7(p.marks);
+    case "slide.add": return isObj(o.slide) && itemsV7(o.slide.items);
+    case "preset.set": return isObj(o.preset) && presetNeedsV7(o.preset);
+  }
+  return false;
+}
+const presetNeedsV7 = (p: Record<string, unknown>) => Array.isArray(p.slides) && (p.slides as unknown[]).some(s => isObj(s) && itemsV7(s.items));
+/** the same on a document (fold.ts nextSnapshot writes such a deck as format 7; a 4.10 page opening one below 7 raises it) */
+export function docNeedsV7(doc: Pick<WorkbookDoc, "preset" | "edits">): boolean {
+  return isObj(doc.preset) && presetNeedsV7(doc.preset as unknown as Record<string, unknown>);
 }
 const isBox = (b: unknown) => isObj(b) && ["x", "y", "w", "h"].every(k => typeof b[k] === "number" && Number.isFinite(b[k])) && (b.w as number) > 0 && (b.h as number) > 0;
 /** map merge: null deletes the map; an object sets (replaces) or deletes (null) each entry; empty maps are removed */

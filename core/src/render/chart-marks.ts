@@ -23,6 +23,7 @@ import { calloutText } from "./shape-dl";
 import { lineH, lum, textNode, type St } from "./chart-font";
 import { dashOf, lineStyleOf } from "./chart-lines";
 import { parseColor, solid } from "../dl/color";
+import { changeNodes, gapNodes, refNodes, type TargetFrame, type TargetOut } from "./chart-targets";
 
 const r2 = (v: number) => Math.round(v * 100) / 100 || 0;
 const HEX = /^#[0-9A-Fa-f]{6}$/;
@@ -38,6 +39,8 @@ export interface MarkFrame {
   /** a value on an axis → px (null: no such axis is drawn) */ vp: (v: number, axis: "y" | "y2") => number | null;
   /** a scatter chart's x value → px (S14.4): { x, y } marks stand at a number on its x axis, not on a category */ xp?: (x: number) => number;
   ink: string; lab: St; withFmt: (st: St, f: ChartMark["fmt"]) => St;
+  /** (B52) what the reference lines, gap arrows and change pills need (chart-targets.ts); unset: they are not drawn */
+  targets?: TargetFrame & { /** where a right-hand label of a reference line starts */ refLabelX: number };
 }
 /** the marks' nodes over the data, the bands under it (a band tints the plot, not the bars: on the slide and under the
     native chart), a hit per mark, the Issues lines */
@@ -45,7 +48,8 @@ export interface MarksOut { nodes: Node[]; under: Node[]; hits: Node[]; issues: 
   /** (S14.6) each arrow / line mark as the PowerPoint export writes it: one plain line shape from a to b (not shortened)
       with native a:headEnd (end a) / a:tailEnd (end b); `drop` = its nodes the export's overlay leaves out (the line and
       the heads PowerPoint draws itself – a limiter's "bar" tick stays a node: PowerPoint has no such end) */
-  arrows: MarkArrow[] }
+  arrows: MarkArrow[];
+  /** (B52) nodes the PowerPoint card leaves out: a reference line's line (the native chart draws it as a series) */ native: Node[] }
 export interface MarkArrow { a: { x: number; y: number }; b: { x: number; y: number }; stroke: Stroke; head?: Head; tail?: Head; size?: Heads["size"]; drop: Node[] }
 
 /** a place in px, or why there is none ("" = a gap: nothing to say) */
@@ -98,9 +102,25 @@ const box = (nodes: Node[]): Box | null => {
 /** every mark's nodes (in id order: a later id on top), a hit per mark, and the Issues lines (a mark whose place or icon
     is not found; a quoted cell that cannot be read) */
 export function markNodes(it: ChartItem, id: string, F: MarkFrame, ctx: RenderCtx, m: Metrics): MarksOut {
-  const out: MarksOut = { nodes: [], under: [], hits: [], issues: [], arrows: [] };
-  const list = Object.entries(it.marks && typeof it.marks === "object" ? it.marks : {}).filter(([, k]) => k && typeof k === "object").sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+  const out: MarksOut = { nodes: [], under: [], hits: [], issues: [], arrows: [], native: [] };
+  // (a mark switched off – B52's `off` – is kept, not drawn)
+  const list = Object.entries(it.marks && typeof it.marks === "object" ? it.marks : {}).filter(([, k]) => k && typeof k === "object" && !k.off).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
   for (const [mid, k] of list) {
+    // (B52) a reference line, a gap arrow, change pills: chart-targets.ts, from the layout's targets
+    if (k.kind === "ref" || k.kind === "gap" || k.kind === "change") {
+      const T = F.targets;
+      if (!T) continue;                                          // (not on this kind of chart: seriesLayout says so once)
+      let r: TargetOut;
+      if (k.kind === "ref") { const R = T.refs.get(mid); if (!R) continue; r = refNodes(R, m, T.refLabelX); }
+      else r = k.kind === "gap" ? gapNodes(mid, k, T, m) : changeNodes(mid, k, T, m);
+      out.issues.push(...r.issues);
+      if (!r.nodes.length) continue;
+      out.nodes.push(...r.nodes); out.native.push(...r.native);
+      if (r.arrow) out.arrows.push({ ...r.arrow, head: r.arrow.head as Head | undefined, tail: r.arrow.tail as Head | undefined });
+      const b = box(r.nodes);
+      if (b) out.hits.push({ t: "hit", kind: "mark", id: `${id}:${mid}`, x: r2(b.x - 2), y: r2(b.y - 2), w: r2(b.w + 4), h: r2(b.h + 4), label: k.kind });
+      continue;
+    }
     const a = placeOf(k.a, F);
     if (typeof a === "string") { if (a) out.issues.push(`mark '${mid}': ${a}`); continue; }
     const own = HEX.test(k.style?.color || "") ? k.style!.color!.toUpperCase() : HEX.test(k.fmt?.color || "") ? k.fmt!.color!.toUpperCase() : null;
