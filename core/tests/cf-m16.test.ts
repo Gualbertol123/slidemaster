@@ -28,6 +28,8 @@ import { excelToDisplayList, type Metrics } from "../src/render/excel-dl";
 import { glassToDisplayList } from "../src/render/glass-dl";
 import { consultToDisplayList } from "../src/render/consult-dl";
 import { effItems, effText } from "../src/render/edits";
+import { calloutText } from "../src/render/shape-dl";
+import { chartData } from "../src/render/chart-dl";
 import { fold } from "../src/model/fold";
 import { XLSB_BAR_LOOK } from "../src/xlsx/xlsb/sheet";
 import { cfIcon, EXCEL_TONES } from "../src/render/cf-icons";
@@ -40,7 +42,7 @@ import { FakeDeck } from "./fakedeck";
 import { makeZip } from "./zipbuild";
 import type { CoreEvents, CoreMethods, ExportJob, ExportMethods, ExportPageMethods, PageEvents, PageMethods } from "../src/rpc/messages";
 import type { RenderCtx } from "../src/render/context";
-import type { Design, Op, Preset } from "../src/model/types";
+import type { ChartItem, Design, Op, Preset } from "../src/model/types";
 import type { Item, Sheet, Workbook } from "../src/xlsx/types";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -255,6 +257,22 @@ describe("evaluation (XC-01, XC-02)", () => {
     expect(at(effItems(T1, now), "H11").text).toBe("now");
     // a plain cell has no rawText (the items stay as small as before)
     expect(T1.items.filter(it => it.rawText !== undefined).map(it => A1(it.b.r, it.b.c))).toEqual(["H11"]);
+  });
+  it("a text box's {Sheet!H11} and a chart's labels keep a text edit made on the text the rules show (S16.4 re-check)", async () => {
+    const wb = await readWorkbook(ab(FILE)), S = (n: string) => wb.sheets.find(s => s.name === n) || null;
+    const ctx = (edits: RenderCtx["edits"]): RenderCtx => ({ style: { ...resolveStyle({}, emptyDoc("W.xlsx").style), design: "excel" }, edits, slides: [], preset: null, workbook: "W.xlsx", logoSrc: "", sheet: S, version: null });
+    const box = (edits: RenderCtx["edits"]) => calloutText("{'CF rules'!H11} {'Icon sets'!D26} {'Icon sets'!E26}", ctx(edits)).text;
+    // no edits: the Excel value, without the rules' number format (as before S16.4)
+    expect(box({})).toBe("n/a 1 " + calloutText("{'Icon sets'!E26}", ctx({})).text);
+    // made now: orig is the text as the table shows it ("[n/a]"; "" for an icons-only cell)
+    const now = { "CF rules": { H11: { orig: "[n/a]", text: "now" } }, "Icon sets": { D26: { orig: "", text: "low" }, E26: { orig: "7", text: "stale" } } };
+    expect(box(now)).toBe("now low " + calloutText("{'Icon sets'!E26}", ctx({})).text);
+    // saved by 4.8: orig is the plain text
+    expect(box({ "CF rules": { H11: { orig: "n/a", text: "old" } }, "Icon sets": { D26: { orig: "1", text: "one" } } }).startsWith("old one ")).toBe(true);
+    // a chart labelled by H11
+    const chart = { kind: "chart", type: "pie", values: { sheet: "CF rules", range: "G9" }, labels: { sheet: "CF rules", range: "H11" }, box: { x: 0, y: 0, w: 400, h: 300 } } as ChartItem;
+    const label = (edits: RenderCtx["edits"]) => { const d = chartData(chart, ctx(edits)); return d.ok ? d.slices[0].label : "?"; };
+    expect([label({}), label(now), label({ "CF rules": { H11: { orig: "n/a", text: "old" } } })]).toEqual(["n/a", "now", "old"]);
   });
   it("an .xlsb's data bars: drawn as Excel 2007's, named under \"not reproduced\" (S16.4 review)", async () => {
     const X = path.join(here, "../../tests/corpus/workbooks/xlsb");

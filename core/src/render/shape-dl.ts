@@ -12,6 +12,7 @@ import type { Node, Paint, PathCmd, RGB } from "../dl/types";
 import type { RenderCtx } from "./context";
 import { glassBox, type GlassVars, type Wallpaper } from "./glass-dl";
 import { formatValue } from "../xlsx/numfmt";
+import { editedCellText } from "../xlsx/cf";
 import { A1, colToNum, parseRange } from "../xlsx/util";
 import { CELL_TOKEN, tokenSheet } from "../model/preset";
 import { consultOptions, isConsult } from "../model/designs";
@@ -35,7 +36,7 @@ export function calloutText(text: string, ctx: RenderCtx): { text: string; missi
     if ((ctx.version?.hide[S.name] || []).some(g => { const x = parseRange(g); return r >= x.r1 && r <= x.r2 && c >= x.c1 && c <= x.c2; })) return "";
     const cell = S.get(r, c), t = cell ? formatValue(cell).text : "";
     const e = ctx.edits[S.name]?.[A1(r, c)];
-    return e && e.text !== undefined && e.orig === t ? e.text : t;
+    return editedCellText(S, r, c, t, e);
   });
   return { text: out, missing };
 }

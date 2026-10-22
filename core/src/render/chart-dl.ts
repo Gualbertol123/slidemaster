@@ -16,6 +16,7 @@ import type { RenderCtx } from "./context";
 import { primaryFamily, type Metrics } from "./excel-dl";
 import { glassBox, type GlassVars, type Wallpaper } from "./glass-dl";
 import { formatValue } from "../xlsx/numfmt";
+import { editedCellText } from "../xlsx/cf";
 import { A1, numToCol, parseRange } from "../xlsx/util";
 import { mix, palette, themeOf } from "../model/style";
 import { isConsult } from "../model/designs";
@@ -56,7 +57,7 @@ export function refTarget(ref: DataRef | undefined, ctx: RenderCtx): { S: Sheet 
 function shown(S: Sheet, r: number, c: number, ctx: RenderCtx): string {
   const cell = S.get(r, c), t = cell ? formatValue(cell).text : "";
   const e = ctx.edits[S.name]?.[A1(r, c)];
-  return e && e.text !== undefined && e.orig === t ? e.text : t;
+  return editedCellText(S, r, c, t, e);
 }
 const cutOf = (ctx: RenderCtx, S: Sheet) => (ctx.version?.hide[S.name] || []).map(parseRange);
 /** the cells of a rectangle in reading order (rows, then columns), without hidden rows and columns */

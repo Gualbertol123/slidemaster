@@ -532,6 +532,20 @@ export function cfKeys(x: CFResult | null): Partial<Pick<Item, "cfBar" | "cfIcon
 }
 /** a cell's text under a rule's number format */
 export const cfText = (cell: Pick<Cell, "v" | "t" | "fmt">, dxf: Dxf | null) => formatValue(dxf?.fmt ? { ...cell, fmt: dxf.fmt } : cell);
+/** a cell's text as its table shows it (layout.ts): under its rules' number format, empty when a rule shows only the bar
+    or icon */
+export function cfShownText(S: Sheet, r: number, c: number): string {
+  const cell = S.get(r, c); if (!cell || cell.t === "blank") return "";
+  const x = cfAt(S, r, c);
+  return x?.hide ? "" : cfText(cell, x?.dxf || null).text;
+}
+/** the text a chart or a text box's {Sheet!C7} shows for a cell (plain: its formatted value): a text edit's when it was
+    made on that value or – since S16.4 the editor records the text as the table shows it – on the value under the
+    cell's conditional formats (render/edits.ts origMatches, for the tables; S16.4 re-check) */
+export function editedCellText(S: Sheet, r: number, c: number, plain: string, e: { text?: string; orig?: string } | undefined): string {
+  if (!e || e.text === undefined) return plain;
+  return e.orig === plain || (S.cfRules.length > 0 && e.orig === cfShownText(S, r, c)) ? e.text : plain;
+}
 /** a rule's border sides: they replace the cell's (each box draws its top / left, the last row / column also its bottom /
     right, layout.ts): a bottom inside the table becomes the top of the boxes below, a right the left of those on its right */
 export function cfBorders(items: Item[], rows: number[], cols: number[]) {
