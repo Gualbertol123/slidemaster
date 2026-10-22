@@ -9,9 +9,10 @@ repository.
      HTML comment of exactly these words where its text goes):
      "4.7: charts"                            part 4, Charts – M14: the new chart kinds (CHANGELOG 4.7.0)
      "4.8: lines, icons, snapping"           part 4, Shapes and icons / Free layout – M15 (CHANGELOG 4.8.0)
-     "4.9: tables"                           part 3, Cells and Tables – per-cell number display (decimals −/+, %,
-                                               thousands), vertical alignment, the painter on a multi-selection; the
-                                               slide list's Delete slide / Duplicate slide (owner decisions Q9, Q19, Q12)
+     "4.9: tables"                           part 3, three places: Slides (the slide list's Delete slide / Duplicate
+                                               slide, Q12), Cells (per-cell number display – decimals −/+, %, thousands –
+                                               and vertical alignment, Q9; the painter on a multi-selection, Q19) and
+                                               Tables (the same for whole tables)
      "template, comments B48–B50"            part 3, Automated comments and Designs – the ISP template for Excel and
                                                Excel Refined (B48), comment borders (B49), the macro comments (B50) -->
 
@@ -60,34 +61,38 @@ All workbooks live in one shared folder, for example `T:\Slide Builder\`. Its ma
 |---|---|
 | `Start Slide Builder.bat` | starts Slide Builder on your PC (use the desktop shortcut it made) |
 | `Install Slide Builder.bat` | the first-time set-up on a PC: checks Python and the folder, makes the shortcut |
-| `Update Slide Builder.bat` | for the maintainer: installs a new version for everybody |
-| `THIRD-PARTY-NOTICES.txt` | the licences of the open-source parts of Slide Builder |
-| your `.xlsx`, `.xlsm`, `.xlsb` workbooks | read, never changed |
+| `Update Slide Builder.bat` | for the maintainer: installs a new version for everybody; it runs `tools\update.py` |
+| `Start Slide Builder (v3).bat` | while it exists: Slide Builder 3 on the same data (part 9) |
+| your `.xlsx`, `.xlsm`, `.xlsb` (`.xls`) workbooks | read, never changed |
 | `export\` | where PDFs, PowerPoint files and pictures are saved |
-| `app\<version>\` | the program, one folder per installed version |
+| `app\<version>\` | the program, one folder per installed version, with its licences (`THIRD-PARTY-NOTICES.txt`) |
 | `backend\data\` | everything people changed: the decks, settings, fonts, logos, backups |
 
 ### Starting
 Double-click the desktop shortcut (or `Start Slide Builder.bat`). A black console window opens – keep it open, it
-is the small program that reads and saves files for you (the *helper*). Slide Builder then opens in its own Edge
-window, without tabs or address bar. It reopens the last workbook you used. Before any workbook is open, the start
-screen offers *Licences…*.
+is the small program that reads and saves files for you (the *helper*; if it cannot start, it says to run
+`Install Slide Builder.bat` first). Slide Builder then opens in its own Edge
+window, without tabs or address bar. It reopens the last workbook you used – unless you already opened one in the first
+moments. Starting it a second time opens the one already running (the helper uses port 8765, or the next free one up to
+8784). Before any workbook is open, the start screen offers *Open* and *Licences…*.
 
 ### Opening a workbook
 *Open* lists the workbooks of the folder, newest first, with the time they were saved and "slides by <name>" – the
-last person who changed that workbook's slides. *Browse for a workbook…* picks a file elsewhere; you can also drop a
-file anywhere on the window. *Reload "…" from disk* (and the ↻ button) reads the workbook again after it was saved in
+last person who changed that workbook's slides ("No .xlsx files next to the app" when there are none). *Browse for a
+workbook…* picks a file elsewhere; you can also drop a file anywhere on the window. A file that is not in the folder is
+handed to the helper and its name says "· not in the folder" ("· preview only" if that fails); the same file as one of
+the folder opens as that one. *Reload "…" from disk* (and the ↻ button) reads the workbook again after it was saved in
 Excel.
 
-`.xlsx`, `.xlsm` and `.xlsb` are read directly. An old `.xls`, or a file protected in a way the page cannot read, is
+`.xlsx`, `.xlsm` and `.xlsb` are read directly; a large one shows a progress bar while it is read. An old `.xls`, or a file protected in a way the page cannot read, is
 converted by the PC's Excel first ("…was converted by Excel for reading – the original file is unchanged"). A file
 encrypted with a password or a sensitivity label cannot be read; Slide Builder says so.
 
 The first time a workbook is opened, the wizard starts. If the workbook has sheets whose name contains "slide" with
 "x" tables on them, the deck is made directly at start-up and you can open the wizard later.
 
-A workbook that has a saved setup asks *Saved preset found*: *Continue with preset*, *Open editing wizard*, *Cancel*, or
-**Delete setup…** – the workbook's whole setup (tables, slides, design, versions, comments) is deleted for everybody
+A workbook that has a saved setup asks *Saved preset found*: *Continue with preset*, *Open editing wizard*, *Cancel*, or – unless
+this window has that deck open already – **Delete setup…** – the workbook's whole setup (tables, slides, design, versions, comments) is deleted for everybody
 and the wizard starts as for a new file. The workbook is not changed and a backup is kept (part 9, Saved setups).
 
 ### The wizard (✦ Wizard)
@@ -95,13 +100,14 @@ Four steps; the step buttons at the top go back and forth; ✕ or Esc asks befor
 
 1. **Sheets.** Tick the sheets to use. Sheets whose name contains "slide" are ticked for you. Each line shows the
    sheet's size, its title and how many tables were found. *Only "slide" sheets*, *All*, *None*. Hidden sheets are
-   never listed. In a large workbook only the ticked sheets are read ("not read yet"); **Scan for "x" tables** reads
+   never listed; a sheet that cannot be read is greyed, with the reason. In a large workbook only the ticked sheets are read ("not read yet"; the line "N of M · X MB to read" counts them); **Scan for "x" tables** reads
    the ticked sheets at once and shows each one's "x" tables, title and suggested tables (they are defined, as *Next*
    would). *+ Add a linked workbook…*: part 7.
 2. **Tables.** The sheet is shown like Excel. Drag across the cells of a table (or Shift+click, Shift+arrows) and
    press Enter or *Add table*; or type a range such as `C4:T56`. *grows when rows are added below* keeps a range
    table following new rows. *Use "x" tables* takes the tables marked with "x"; *Add detected tables* takes the dashed
-   suggestions. The list on the right names each table and warns about very large ones.
+   suggestions. The list on the right names each table, its range and size and the slides it is on, and warns about
+   very large ones; a click on a table in the sheet scrolls the list to it.
 3. **Slides.** Drag tables onto slides (or click a slide, then click tables). *One slide per sheet*, *+ New slide*,
    ↑ ↓ to reorder, ✕ to remove. Tick *Cover slide* (title, subtitle, date – automatic means today –, a small note)
    and *Index slide* (the list of slides with page numbers, *with subtitles* or without). *Logo* per slide.
@@ -121,8 +127,9 @@ not part of the table.
 
 ## 3. Editing
 
-The slide works like a sheet in Excel: click a cell, Shift+click or drag to select more, type to replace the text,
-F2 or a double-click to edit it, Enter / Tab to move on, Del to clear. Everything you change is stored as a change
+The slide works like a sheet in Excel: click a cell, Shift+click or drag to select more – or arrows and Shift+arrows
+(hidden rows are skipped), Ctrl+A for the whole table. Type to replace the text, F2 or a double-click to edit it,
+Enter / Shift+Enter or Tab / Shift+Tab to move on, Esc to cancel, Del to clear; Ctrl+B and Ctrl+I set bold and italic. Everything you change is stored as a change
 to the deck, keyed by sheet and cell; the workbook is not touched.
 
 ### Slides: new, hidden
@@ -134,6 +141,7 @@ to the deck, keyed by sheet and cell; the workbook is not touched.
   (PDF, PNG of every slide, PowerPoint, every version × design, Run for each value); page numbers and the index count
   only the slides shown. Exporting or copying the current slide still exports a hidden one. Hidden in Glass, a slide
   still shows in Navy. One undo step each.
+<!-- 4.9: tables -->
 
 ### The text toolbar (first row)
 One toolbar for any text: cells, a text box, the notes section, the title, subtitle, cover note or date. The grey
@@ -195,7 +203,9 @@ Table sizes belong to the design they were made in: a table can be wide in Glass
   Ctrl+Enter or a click elsewhere closes the box; Esc cancels. An empty box you never wrote in disappears.
 * Select a box to drag it anywhere (guides snap it to the tables and the slide), stretch it by its edges, give it
   a bubble (◯), put it back next to its table (⤺ *Attach*) or delete it (🗑 or Del). The text shrinks to fit.
-* **✎ Notes** adds the notes section: a text box of the slide itself, where the footer goes (sources, remarks).
+* **✎ Notes** adds the notes section: a text box of the slide itself, where the footer goes (sources, remarks). Navy
+  and Red draw text boxes as takeaway cards (bullets, a box can span columns) and the notes section as footnotes or a
+  takeaway bar.
 * Text boxes, comments and notes appear in every design, Excel included (it adds nothing of its own: the tables keep
   the workbook's colours).
 
@@ -209,13 +219,13 @@ drawn, so it follows new figures, your edits and the version you look at.
   year…); title, names at the start, bullets; length; how many names per side; ignore movements below a value; the
   unit after amounts (default "mln"); what the rows are (countries, banks…); which rows to include; where it goes
   (beside all tables, or above / below / left / right of this table), its width, a bubble. A live preview shows the
-  result. *Insert comment*, later *Update*; *Remove comment*.
-* If you edit a comment's text by hand it becomes ordinary fixed text.
+  result. *Insert comment* (greyed while no comparison is found), later *Update*; *Remove comment*.
+* If you edit a comment's text by hand it becomes ordinary fixed text; *Update* never overwrites a text you typed.
 <!-- template, comments B48–B50 -->
 
 ### Designs
 * **Glass**, **Excel**, **Refined** as in part 1.
-* **Navy** (Consulting Navy: navy and electric blue, Georgia titles, Arial text, two-line action titles, a KPI line
+* **Navy** (Consulting Navy: navy and electric blue, Georgia titles (Gelasio when the font library has it), Arial text, two-line action titles, a KPI line
   from the slide's first table on a dark band) and **Red** (Consulting Red: a red accent, Arial, a short red bar under
   the title, a message panel with the lead variance, how many rows fall short and the largest gap). Their tables are
   data exhibits: every number in right-aligned columns, with trend lines and Δ bars. Every number shown is a cell of the
@@ -232,12 +242,14 @@ drawn, so it follows new figures, your edits and the version you look at.
 * **Apply to:** *This design only* or *All designs*: each design can have its own look.
 * **Colours.** A theme – Aurora, Ocean, Forest, Sunset, Graphite, Intesa Sanpaolo or Custom (four background and two
   accent colours of your own) – gives the background of Glass and the accent of titles, cover, index and page
-  numbers. *Your colours* override single colours: accent, table text, negative, positive, slide background (Excel
-  and Refined). *Reset all to the theme*.
-* **Text styles.** Font, size, bold, italic, colour and alignment of every slide title, subtitle, table, text box,
-  contents list and page number / footer of the deck. A format you give a single cell or box stays on top.
+  numbers. Navy and Red keep their own palette: a theme chosen for *All designs* does not change them; with *This
+  design only* they take another one, and their first swatch (“This design's own colours”) goes back. *Your colours* override single colours: accent, table text, negative, positive, slide background (Excel,
+  Refined, Navy and Red). *Reset all to the theme*.
+* **Text styles.** One row per kind of text, deck-wide: slide titles, subtitles and text boxes (font, size, bold,
+  italic, colour, alignment; text boxes also line spacing), tables (the font), the contents list (font, size, colour),
+  page numbers & footer (font, bold, italic, colour). A format you give a single cell or box stays on top.
 * **Fonts.** The shared font library: add a Google font (fetched once by Slide Builder's helper into the folder,
-  then available to everybody) or upload your own font files (.ttf, .otf, .woff, .woff2); see who added each and
+  then available to everybody) or upload your own font files (.ttf, .otf, .woff, .woff2; a variable font is stored as its fixed styles); see who added each and
   remove it. If the office network refuses a download, the message says what to do (e.g. *Upload font files*). The font
   menu's previews come from a cache on the shared folder, filled once for the whole office.
 * *Use as default for new decks* makes this look the starting point of every new deck.
@@ -268,22 +280,11 @@ version you looked at last, per workbook.
   (forgotten when you open another workbook); a toast says what was undone ("Undo: Bold"). Someone else's later change is never undone by you.
   Moving a slider counts as one step.
 * **The slide list** shows a picture of every slide, *COVER* / *INDEX* tags and a yellow badge with the number of
-  warnings and errors the Issues panel has for that slide.
+  warnings and errors the Issues panel has for that slide. PgUp / PgDn or Alt+↑ / Alt+↓ go to the previous / next slide.
 * **The Issues panel** (under the list) describes the current slide: its tables (sheet, range, size), error values,
   small text, charts or pictures that cannot be shown, edited cells and paused edits, a missing logo or table. See
   part 9.
 * **The status bar** describes the selection and the keys, shows "Updated by <name> just now" and the save state.
-
-| Keys | What they do |
-|---|---|
-| Arrows, Shift+arrows, Ctrl+A | move, extend, select the table |
-| a letter, F2, double-click | edit the cell (Enter / Tab moves on, Esc cancels) |
-| Del | clear the cell, or delete the selected text box |
-| Ctrl+B, Ctrl+I | bold, italic |
-| Ctrl+Z, Ctrl+Y | undo, redo (your own changes) |
-| Ctrl+S | save now |
-| PgUp, PgDn · Ctrl+M | previous / next slide · new slide |
-| Esc | stop the format painter, close a menu or dialog |
 
 ---
 
@@ -328,8 +329,8 @@ Each design has its own free layout. One undo step each.
 * **Others' edits appear within about 1–2 seconds**, with their name in the status bar: "Updated by bob just now".
 * **"✓ Saved"** appears as soon as your change is on the shared folder. Before that you see "Unsaved changes…" or
   "Saving…". If the folder does not answer, "⚠ Not saved yet – retrying"; your change is kept and sent again.
-* **Presence.** The round initials next to the version list show who else has this workbook open ("anna is also
-  here"; "(another window)" when it is you in a second window).
+* **Presence.** The round initials next to the version list show who else has this workbook open (up to three
+  initials, then "anna is also here" or "3 others here"; "(another window)" when it is you in a second window).
 * **Two people, two things.** Changes are merged field by field: if you change a column width and a colleague the
   colour of another cell, both stay.
 * **Two people, the same thing at the same moment.** The later change in the deck's own order wins, on every PC
@@ -340,12 +341,10 @@ Each design has its own free layout. One undo step each.
   Excel." with *Reload now*.
 * **Read-only.** If a deck's file on the share is ever damaged, the deck can still be read but not changed until the
   maintainer looks at it; the status bar and the deck's health line say "read-only".
-* Somebody installed a version that changed the saved formats while you were working: the status bar asks you to
-  reload the page (F5), and Slide Builder stops saving until you do.
-* **Decks with 4.6 objects open in 4.6 and later only.** The first time a deck gets an object older versions do not
-  know (a chart, a shape, a free layout, a look, cell gridlines or borders, a hidden slide…), Slide Builder marks the deck
-  for 4.6 – once per deck, about 25 seconds of "Saving…". A window of an older version that still has it open turns
-  read-only. Decks without such objects keep opening in older versions.
+* **Updates and 4.6 objects.** Somebody installed a version that changed the saved formats while you were working: the
+  status bar asks you to reload the page (F5), and Slide Builder stops saving until you do. The first chart, shape, free
+  layout, look, cell gridline or border or hidden slide of a deck costs once about 25 seconds of "Saving…" (part 8, the
+  4.6 mark). A 4.0 or 4.1 window shows a Navy or Red deck in Glass and keeps its settings.
 
 ---
 
@@ -360,11 +359,8 @@ Each design has its own free layout. One undo step each.
 | PDF · current slide only | the slide on screen |
 | PowerPoint · all slides / current slide | a `.pptx` with editable text, real tables and charts |
 | PDF + PowerPoint · all slides / current slide | both files at once |
-| Copy current slide | a 4800 × 2700 picture on the clipboard |
-| PNG · current slide / every slide | 4800 × 2700 pictures |
-| Versions: PDF · PowerPoint · PDF + PowerPoint | the switch for the four items below |
-| every version | one file per version, in this design |
-| every version × Liquid Glass + Excel / all three / all five designs | one file per version and design |
+| Copy current slide · PNG · current slide / every slide | 4800 × 2700 pictures: on the clipboard, or as files |
+| Versions: PDF · PowerPoint · PDF + PowerPoint, then *every version* or *every version × Liquid Glass + Excel / all three / all five designs* | one file per version (in this design) or per version and design |
 | Run for each value… | one file per value of an input cell (part 7) |
 | Report a problem with this export… | a short report in `export\feedback\` |
 
@@ -377,14 +373,15 @@ PowerPoint table; pie and donut charts are PowerPoint charts with their data (*E
 text; the workbook's pictures and the logo are pictures; everything else – Glass's cards and capsules, the consulting
 designs' bars and rules – is editable shapes. Each file has a slide master and one layout per kind of slide (cover,
 contents, content), with the design's colours and fonts. No connector shapes, no links outside the file. Positions and
-sizes are the slide's, so it looks like the PDF; where it cannot be exact PowerPoint draws it its own way (a chart's
-labels, blurred shadows, a line wrapping one word earlier when a font is replaced). Fonts are named, not embedded.
+sizes are the slide's, so it looks like the PDF; PowerPoint draws a chart's labels and pie size and its shadows its own
+way. Fonts are named, not embedded.
 
 **What to expect.** 20-slide test deck: Glass PDF ≈1.4 s / 1.3 MB, Excel PDF ≈0.4 s / 0.3 MB; PowerPoint Glass ≈0.6 s /
 0.5 MB, Excel ≈0.3 s / 0.14 MB. Hidden slides are left out.
 
 **Fonts in the PDF.** The fonts used are embedded, so the PDF looks the same everywhere. A font nobody has is
-replaced by a default one, and the toast names it.
+replaced by a default one, and the toast names it. Opened from disk without the helper (part 9), the files are
+downloads instead.
 
 ---
 
@@ -401,7 +398,8 @@ deck keeps them)", and everything else opens.
 ### The Formulas line
 At the bottom of the side panel, *Check* recomputes every formula of the workbook – and of the folder's workbooks it
 links to – and compares each result with the value Excel saved in the file. Nothing is changed by the check. The line
-then reads, for example, "Formulas: 205 of 208 recompute like Excel · 3 locale-dependent (TEXT)":
+then reads, for example, "Formulas: 205 of 208 recompute like Excel · 3 locale-dependent (TEXT)" ("not checked yet"
+before, "checking…" during):
 * **recompute like Excel** – the result is Excel's own.
 * **volatile (TODAY, NOW, RAND)** – the value changes every time by nature.
 * **locale-dependent (TEXT)** – a TEXT format code written by an Excel in another language.
@@ -410,26 +408,25 @@ then reads, for example, "Formulas: 205 of 208 recompute like Excel · 3 locale-
 * **different from Excel** – shown as a warning. The slides still show Excel's saved values; tell the maintainer
   which workbook it was.
 
-The line also says how many TEXT formulas written by an Italian Excel Slide Builder formats itself ("n with TEXT in
-Italian, formatted by Slide Builder"). The page is about 2 MB bigger for this: it carries a formula engine that starts
-only when it is needed, so opening Slide Builder and a deck is as fast as before.
+Outside a scenario the slides show the values Excel saved. The formula engine starts only when needed, so opening a deck
+is as fast as before.
 
 ### Run for each value (scenarios)
-*Export ▾ › Run for each value…* sets an input cell – e.g. the bank of a dashboard's control sheet – to each value of a
-list and saves one file per value, design and version. The input cell: type it (`Control!B2`), *Select cell…* on a
-sheet, or *Pick a cell* (the cell selected on the slide). The values: typed, pasted from Excel, or *From a range…* of
-the workbook; *Treat as text*. Tick the designs, versions and files (PDF, PowerPoint); the line below counts the files.
-Slide Builder recalculates the workbook for each value; nothing is saved – the workbook and the deck stay as they are.
-A panel shows the progress, *Cancel* (after the value being made), a report per value and *Open folder*; you can keep
-working meanwhile. If a cell on the slides is one Slide Builder computes otherwise than Excel, the run stops with the
-list, unless *Run anyway and mark these cells* is ticked (they get a red corner).
+*Export ▾ › Run for each value…* sets an input cell (e.g. the bank of a control sheet) to each value of a list and saves
+one file per value, design and version; the workbook is recalculated for each value and nothing is saved.
+* **Input cell**: typed (`Control!B2`), *Select cell…*, or *Pick a cell* (the one selected on the slide). **Values**:
+  typed, pasted or *From a range…*; *Treat as text*; values that show alike get " (2)". Then designs, versions, files
+  (PDF, PowerPoint).
+* *Run*: progress, *Cancel*, a report per value, *Open folder*; you can keep working. A slide cell Slide Builder
+  computes otherwise than Excel stops the run first, unless *Run anyway and mark these cells* (red corner).
 
-**Preview** one value on the slides first: pick it beside *Preview*. A banner says "Previewing: Bank C – a scenario,
-not saved" with *Clear*; the slides, charts, formula bar and side panel show the scenario's values. Edits made meanwhile
-are ordinary edits of the deck. An ordinary export during a preview uses the workbook's own values.
+**Preview** one value beside *Preview*: a banner names it ("Previewing: Bank C – a scenario, not saved"), and slides,
+charts, formula bar and side panel show its values until *Clear*. Edits meanwhile are ordinary edits (one of a cell the
+scenario changed shows after *Clear*, and Slide Builder says so); an ordinary export uses the workbook's own values.
 
-Workbooks made with Italian Excel recalculate like Excel: `TESTO(…;"mmmm aaaa")` and the like are formatted as Italian
-Excel does. Named ranges are recalculated too. Measured: about 0.6 s for one value from the click, 3.2 s for 20 values.
+**Italian Excel and names.** `TESTO(…;"mmmm aaaa")` and the like are formatted as Italian Excel does, so titles follow a
+scenario. Named ranges are recalculated; the Formulas line lists any it cannot ("names not recalculated: …"). Measured:
+one value in about half a second from the click, 20 values in about 3.2 s.
 
 
 ---
@@ -467,26 +464,29 @@ read-only until the maintainer looks at it: nothing is guessed, nothing is lost.
 Each slide is described once as a *display list* – a list of shapes, texts and pictures. The same list draws the
 slide on screen, the thumbnails, the PNG pictures and the PDF, so what you see is what you export. Text is measured
 from the font files themselves, so line breaks are the same on every PC that has the same fonts; the side panel
-names a font that is another version on another PC ("Calibri on this PC is another version than on PC-B").
+names a font that is another version on another PC ("Calibri on this PC is another version than on PC-B"). Once the
+fonts' licence owner agrees (`slide_builder.py --allow-font-copy "<who, when>"`), the helper copies the Windows fonts a
+deck uses into the shared library, and every PC lays it out with the same files. A key press reaches the screen in
+25–42 ms (for 95 % of key presses).
 
 ### The formula engine
-The formulas are read from the workbook file and recomputed inside the page by an embedded engine (IronCalc). Excel
-is not used. The engine serves the self-check of the Formulas line (every formula cell against the value Excel saved)
-and the scenarios (Run for each value, preview); it starts only when one of these is used. Otherwise the slides show the
-values Excel saved.
+The formulas are read from the workbook file itself and recomputed inside the page by an embedded engine, IronCalc
+(open source, MIT / Apache-2.0), started on first use; Excel is not needed. It serves the self-check of the Formulas
+line and the scenarios. Otherwise the slides show Excel's saved values.
 
 ### The 4.6 mark
 A deck that holds objects older versions do not know carries a mark file, `incident-format-5.json`, in its folder
-(`backend\data\v4\decks\<deck>\`). A version before 4.6 then opens the deck read-only instead of dropping what it does
+(`backend\data\v4\decks\<deck>\`). It is written once, before the first such object is saved – the "Saving…" of about
+25 seconds (a 23-second wait, then a new snapshot). A version before 4.6 then opens the deck read-only instead of dropping what it does
 not know. Never delete this file.
 
 ### What is never done
 * The workbook is never written. Slide Builder only reads it.
-* Decks and workbooks go nowhere but the shared folder: the helper answers only on the PC itself. Only two things
-  reach the internet: `Update Slide Builder.bat` downloads a new release from GitHub, and the helper fetches a Google
-  font being added, or a font preview not yet in the shared cache (from Google's font collection on GitHub, jsDelivr,
-  Google Fonts last; a proxy can be written in `%LOCALAPPDATA%\SlideBuilder\proxy.txt` or the shared
-  `backend\data\proxy.txt`). The page itself asks nothing of the internet.
+* Decks and workbooks go nowhere but the shared folder: the helper answers only on the PC itself. What reaches
+  the internet: `Update Slide Builder.bat` downloads a new release from GitHub, and the helper fetches a Google
+  font being added or a font preview not yet in the shared cache (`backend\data\fonts\cache\`, at most 200 MB) – from
+  Google's font collection on GitHub, else jsDelivr, Google Fonts last. A proxy goes in this PC's
+  `%LOCALAPPDATA%\SlideBuilder\proxy.txt` or the shared `backend\data\proxy.txt`. The page itself asks Google for a font only when the helper cannot reach it, or when opened from disk.
 * Hidden sheets are never shown.
 
 ---
@@ -496,6 +496,8 @@ not know. Never delete this file.
 ### The Issues panel
 | Line | What it means / what to do |
 |---|---|
+| Cover slide · … / Index slide · lists N content slide(s) · Custom table layout saved | for information: nothing to do |
+| Preset: N tables · M slides · K tables not on any slide | the deck's setup; a table on no slide can be put back with *Add table ▾* |
 | Error values: D11 | the cell shows an Excel error (#N/A, #DIV/0!…); fix it in the workbook |
 | Small text (≈8.6px at 100%) | the table is shrunk a lot: enlarge it or move it to its own slide |
 | N table(s) of this slide could not be found | a sheet was renamed or deleted: open the wizard |
@@ -515,9 +517,10 @@ not know. Never delete this file.
 * **"… is protected (password or sensitivity label with encryption)"** – remove the protection or save an
   unprotected `.xlsx` copy.
 * **An old `.xls`** opens after a short "Converting … with Excel…"; this needs Excel on the PC.
+* **"Opened directly from disk: work is kept in this browser only and exports are downloaded"** – an emergency mode
+  without the helper: no folder list, no uploads, decks, preferences and Google fonts kept in this browser only. Start
+  `Start Slide Builder.bat`.
 * **"Helper not running" / "Helper stopped"** – the console window was closed: start Slide Builder again.
-* **"⚠ Not saved yet – retrying"** – the share is slow or unreachable; leave the window open, the change is kept.
-* **"Slide Builder was updated – reload the page (F5)"** – press F5.
 * **"⚠ This deck is read-only"** – call the maintainer.
 * **"A journal of this deck is damaged – tell the maintainer"** in an older version, on a deck that holds 4.6 objects:
   that version is too old – close its black window and start Slide Builder again (it starts the new version).
@@ -532,26 +535,22 @@ not know. Never delete this file.
   open in a window is not deleted – the message says who has it open.
 * **Backups.** `backend\data\backups\`: the last 30 snapshots of each deck (`v4\<deck>\`), files before a format
   upgrade (`upgrades\`), and the saved setups before each update (`before-update-<time>\`, last 5).
-* **Updating.** Run `Update Slide Builder.bat`. It downloads the newest release, checks it, installs it beside the
-  current one in `app\<version>\`, runs its self-test, and only then makes it current. Everybody then closes Slide
-  Builder, starts it again and reloads the page. Saved decks, settings, workbooks and exports are never changed by
-  an update.
-  When there is no newer release it says so (the version in use and GitHub's newest) and changes nothing. If GitHub
-  answers that its limit is used up (60 questions an hour for the whole office), the message says at what time to
-  try again; `--zip "%USERPROFILE%\Downloads\slidebuilder-<version>.zip"` (the full path to the ZIP: the update
-  runs in the Slide Builder folder) installs a ZIP downloaded with the browser instead.
-* **Update day, 4.0 → 4.6.** Every Slide Builder window and black window is closed on every PC before the update
-  (`docs/next/release-checklist.md` §6). The first release after 4.0.0 is installed by hand there (same section): the
-  share's 4.0.0 updater does not know the new way of finding releases.
-* **Rolling back the program.** `Update Slide Builder.bat --use 4.0.0` (or another installed version) makes that
-  version current again; a plain update then refuses to undo this until you choose a version on purpose. Below 4.6,
-  `--use` first names the decks that hold 4.6 objects (they open read-only there) and asks (`--yes`: named, not asked);
-  never delete their `incident-format-5.json`.
+* **Updating and rolling back.** Run `Update Slide Builder.bat`: it installs the newest release beside the current one
+  in `app\<version>\`, runs its self-test, and only then makes it current (it needs Python 3.8 or newer); everybody then restarts Slide Builder and
+  reloads the page. Decks, settings, workbooks and exports are never changed by an update; with nothing newer it says
+  so and changes nothing, and a used-up GitHub limit is one sentence with the time to try again. An update never
+  replaces `Update Slide Builder.bat` on a share that has one, and the 4.0.0 updater cannot reach later releases: both
+  by hand (`docs/next/release-checklist.md` §6). `--use <version>` goes back
+  to an installed version; below 4.6 it first names the decks with 4.6 objects (they open read-only there) – never
+  delete their `incident-format-5.json`. The other options (`--release`, `--zip`, `--yes`) and the update-day steps:
+  README §2.3–§2.4.
+* **Slide Builder 3 and older settings.** While `Start Slide Builder (v3).bat` exists it starts the newest 3.x on the
+  same data. A deck moves to 4.x on its first open there; its 3.x file is backed up and frozen. Giving a deck back:
+  *⚙ Options › Administration › Prepare rollback*, everybody closes it, then `--rollback "<workbook>"`
+  (`docs/next/cutover.md` §3). A v2 `backend\slide_builder_settings.txt` is imported once by the first helper and
+  renamed `….v2-backup.txt`.
 * **Licences.** *⚙ Options › About › Licences…* shows the licences of the third-party software (React, zustand, fflate,
-  IronCalc, harfbuzzjs / HarfBuzz); the same text is `THIRD-PARTY-NOTICES.txt`.
-* **Giving a deck back to Slide Builder 3** (until its start file is removed): *⚙ Options › Administration ›
-  Prepare rollback*, everybody closes the deck, then `Update Slide Builder.bat --rollback "<workbook>"`, and the people
-  on that deck use `Start Slide Builder (v3).bat`. Details: `docs/next/cutover.md` §3.
+  IronCalc, harfbuzzjs / HarfBuzz); the same text is `THIRD-PARTY-NOTICES.txt` in `app\<version>\`.
 
 ---
 

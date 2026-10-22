@@ -13,7 +13,8 @@
      those of 4.3–4.6 by docs/guide/shots.mjs on 4.6.0 (main, 2026-10-21).
      Placeholders for the parts merged after 4.6 – a later pass fills each in where its comment stands, and in guide.md:
      "4.7: charts" (part 4, Charts), "4.8: lines, icons, snapping" (part 4, Shapes and Free layout), "4.9: tables"
-     (part 3, Cells, Tables, Slides), "template, comments B48–B50" (part 3, Automated comments, Designs). -->
+     (part 3, three places: Slides, Cells, Tables), "template, comments B48–B50" (part 3, Automated comments, Designs).
+     guide.md has each of them at the same places, one for one; docs/guide/check.mjs checks it. -->
 
 <!-- ===================================================== COVER ===================================================== -->
 <!-- sources: helper/slidebuilder/__init__.py VERSION = "4.6.0"; CHANGELOG 4.1.0–4.6.0 (4.6.0 brings them all); the cover's
@@ -32,7 +33,7 @@
     <p class="sub">The guide: what the program does, every function it has, and how it works underneath.</p>
     <div class="caps">
       <span class="glass chip cap" data-shadow="chip">Program 4.6.0</span>
-      <span class="glass chip cap" data-shadow="chip">21 October 2026</span>
+      <span class="glass chip cap" data-shadow="chip">Guide of 21 October 2026</span>
       <span class="glass chip cap" data-shadow="chip">For the team</span>
     </div>
   </div>
@@ -74,7 +75,7 @@
   </div>
 
   <figure>
-    <div class="shot pad-t" data-crop="0 0 2000 1200" style="width:160mm;margin:5mm auto 0"><img src="img/window.jpg" alt="The Slide Builder window"><i class="co" data-at="248 -34">1</i><i class="co" data-at="337 -34">2</i><i class="co" data-at="427 -34">3</i><i class="co" data-at="516 -34">4</i><i class="co" data-at="759 -34">5</i><i class="co" data-at="1036 -34">6</i><i class="co" data-at="1390 -34">7</i><i class="co" data-at="1744 -34">8</i><i class="co" data-at="1890 -34">9</i><i class="co" data-at="-34 93">10</i><i class="co" data-at="-34 176">11</i><i class="co" data-at="-34 256">12</i><i class="co" data-at="-34 420">13</i><i class="co" data-at="-34 880">14</i><i class="co" data-at="-34 1073">15</i><i class="co" data-at="-34 1133">16</i><i class="co" data-at="472 342">17</i><i class="co" data-at="2034 1128">18</i><i class="co" data-at="-34 1183">19</i><i class="co" data-at="2034 1183">20</i>
+    <div class="shot pad-t" data-crop="0 0 2000 1200" style="width:140mm;margin:5mm auto 0"><img src="img/window.jpg" alt="The Slide Builder window"><i class="co" data-at="248 -34">1</i><i class="co" data-at="337 -34">2</i><i class="co" data-at="427 -34">3</i><i class="co" data-at="516 -34">4</i><i class="co" data-at="759 -34">5</i><i class="co" data-at="1036 -34">6</i><i class="co" data-at="1390 -34">7</i><i class="co" data-at="1744 -34">8</i><i class="co" data-at="1890 -34">9</i><i class="co" data-at="-34 93">10</i><i class="co" data-at="-34 176">11</i><i class="co" data-at="-34 256">12</i><i class="co" data-at="-34 420">13</i><i class="co" data-at="-34 880">14</i><i class="co" data-at="-34 1073">15</i><i class="co" data-at="-34 1133">16</i><i class="co" data-at="472 342">17</i><i class="co" data-at="2034 1128">18</i><i class="co" data-at="-34 1183">19</i><i class="co" data-at="2034 1183">20</i>
     </div>
     <ol class="legend c3">
       <li><span class="n">1</span><span class="ui">Open</span> – the workbooks of the folder (part 2).</li>
@@ -117,42 +118,47 @@
     <tr><th>In the folder</th><th class="wrap">What it is</th></tr>
     <tr><td><code>Start Slide Builder.bat</code></td><td class="wrap">starts Slide Builder on your PC (or use the desktop shortcut)</td></tr>
     <tr><td><code>Install Slide Builder.bat</code></td><td class="wrap">the first-time set-up on a PC: checks Python and the folder, makes the desktop shortcut, runs a self-test; nothing is downloaded, no administrator rights needed</td></tr>
-    <tr><td><code>Update Slide Builder.bat</code></td><td class="wrap">for the maintainer: installs a new version for everybody (part 9)</td></tr>
-    <tr><td><code>THIRD-PARTY-NOTICES.txt</code></td><td class="wrap">the licences of the open-source software inside Slide Builder</td></tr>
-    <tr><td>your <code>.xlsx</code> <code>.xlsm</code> <code>.xlsb</code> files</td><td class="wrap">the workbooks: read, never changed</td></tr>
+    <tr><td><code>Update Slide Builder.bat</code></td><td class="wrap">for the maintainer: installs a new version for everybody (part 9); it runs <code>tools\update.py</code></td></tr>
+    <tr><td><code>Start Slide Builder (v3).bat</code></td><td class="wrap">while it exists: Slide Builder 3 on the same data (part 9)</td></tr>
+    <tr><td>your <code>.xlsx</code> <code>.xlsm</code> <code>.xlsb</code> (<code>.xls</code>) files</td><td class="wrap">the workbooks: read, never changed</td></tr>
     <tr><td><code>export\</code></td><td class="wrap">where PDFs, PowerPoint files and pictures are saved; <code>export\feedback\</code> holds problem reports</td></tr>
-    <tr><td><code>app\&lt;version&gt;\</code></td><td class="wrap">the program, one folder per installed version; <code>app\current.json</code> says which one runs</td></tr>
+    <tr><td><code>app\&lt;version&gt;\</code></td><td class="wrap">the program, one folder per installed version, with its licences (<code>THIRD-PARTY-NOTICES.txt</code>); <code>app\current.json</code> says which one runs</td></tr>
     <tr><td><code>backend\data\</code></td><td class="wrap">everything people changed: the decks, shared settings, personal preferences, fonts, logos, backups</td></tr>
   </table>
 
-  <div class="cols">
+  <div>
+    <figure style="float:right;width:84mm;margin:3mm 0 2mm 6mm">
+      <div class="shot"><img src="img/open-menu.jpg" alt="The Open menu"></div>
+      <figcaption><b>Open.</b> The workbooks of the folder with "slides by anna", Browse, and Reload from disk.</figcaption>
+    </figure>
     <div>
       <h3>Starting</h3>
       <p>Double-click the desktop shortcut, or <code>Start Slide Builder.bat</code>. A black console window opens: keep it
-        open – it is the small program that reads and saves files for you, the <b>helper</b>. Slide Builder then opens in
-        its own Edge window, without tabs or address bar, and reopens the last workbook you used. Before a workbook is open,
-        the start screen offers <span class="ui">Licences…</span>.</p>
+        open – it is the small program that reads and saves files for you, the <b>helper</b> (if it cannot start, it says to run
+        <code>Install Slide Builder.bat</code> first). Slide Builder then opens in
+        its own Edge window, without tabs or address bar, and reopens the last workbook you used – unless you already opened one
+        in the first moments. Starting it a second time opens the one already running (the helper uses port 8765, or the next free one up to
+        8784). Before a workbook is open, the start screen offers <span class="ui">Open</span> and <span class="ui">Licences…</span>.</p>
       <h3>Opening a workbook</h3>
       <p><span class="ui">Open</span> lists the workbooks of the folder, newest first, with the time they were saved
-        and "slides by &lt;name&gt;" – the last person who changed that deck. <span class="ui">Browse for a
-        workbook…</span> picks a file elsewhere; you can also drop a file anywhere on the window.
+        and "slides by &lt;name&gt;" – the last person who changed that deck ("No .xlsx files next to the app" when there are none).
+        <span class="ui">Browse for a workbook…</span> picks a file elsewhere; you can also drop a file anywhere on the window. A file that is not
+        in the folder is handed to the helper and its name says "· not in the folder" ("· preview only" if that fails); the same file as one of
+        the folder opens as that one.
         <span class="ui">Reload "…" from disk</span> (and <span class="ui">↻</span>) reads the workbook again after it
         was saved in Excel.</p>
-      <p><code>.xlsx</code>, <code>.xlsm</code> and <code>.xlsb</code> are read directly, without Excel. An old
+      <p><code>.xlsx</code>, <code>.xlsm</code> and <code>.xlsb</code> are read directly, without Excel; a large one shows a progress bar
+        while it is read. An old
         <code>.xls</code>, or a protected file the page cannot read, is converted by the PC's Excel first ("… was converted
         by Excel for reading – the original file is unchanged"). A file encrypted with a password or a sensitivity label
         cannot be read, and Slide Builder says so. Hidden sheets are never shown.</p>
       <p>A workbook opened for the first time starts the wizard. A workbook whose sheets are named "slide…" and carry
         "x" tables gets its deck made directly at start-up; the wizard stays available.</p>
       <p>A workbook with a saved setup asks <i>Saved preset found</i>: <span class="ui">Continue with preset</span>,
-        <span class="ui">Open editing wizard</span>, <span class="ui">Cancel</span> or <span class="ui">Delete setup…</span> – the
+        <span class="ui">Open editing wizard</span>, <span class="ui">Cancel</span> or – unless this window has that deck open already – <span class="ui">Delete setup…</span> – the
         workbook's whole setup (tables, slides, design, versions, comments) is deleted <b>for everybody</b> and the wizard starts
         as for a new file. The workbook is not changed, and a backup is kept (part 9, Saved setups).</p>
     </div>
-    <figure>
-      <div class="shot"><img src="img/open-menu.jpg" alt="The Open menu"></div>
-      <figcaption><b>Open.</b> The workbooks of the folder with "slides by anna", Browse, and Reload from disk.</figcaption>
-    </figure>
   </div>
 </section>
 
@@ -167,11 +173,12 @@
     <div class="shot"><img src="img/wiz-1.jpg" alt="Wizard step 1"></div>
     <figcaption><b>1 · Sheets.</b> Tick the sheets to use; sheets whose name contains "slide" are ticked for you. Each line
       shows the size, the title and the tables found. <span class="ui">Only "slide" sheets</span>, <span class="ui">All</span>,
-      <span class="ui">None</span>, and <span class="ui">+ Add a linked workbook…</span> (part 7). In a large workbook only the
-      ticked sheets are read ("not read yet"); <span class="ui">Scan for "x" tables</span> reads the ticked sheets at once and shows
+      <span class="ui">None</span>, and <span class="ui">+ Add a linked workbook…</span> (part 7). A sheet that cannot be read is
+      greyed, with the reason. In a large workbook only the ticked sheets are read ("not read yet"; the line "N of M · X MB to read" counts them); <span class="ui">Scan for "x" tables</span> reads the ticked sheets at once and shows
       each one's "x" tables, title and suggested tables there (the "x" tables are defined, as <i>Next</i> would).</figcaption>
   </figure>
 
+  <div class="cols">
   <figure class="wiz">
     <div class="shot" data-crop="80 36 1920 720"><img src="img/wiz-2.jpg" alt="Wizard step 2">
       <i class="co" data-at="70 155">1</i><i class="co" data-at="612 222">2</i><i class="co" data-at="652 300">3</i>
@@ -182,24 +189,9 @@
       drag across its cells – or Shift+click, Shift+arrows – and press Enter. (4) Or type a range such as <code>C4:T56</code> and
       press <span class="ui">Add table</span>. (5) <span class="ui">grows when rows are added below</span> keeps a range table
       following new rows. (6) <span class="ui">Use "x" tables</span> takes the marked tables, <span class="ui">Add detected
-      tables</span> the dashed suggestions. (7) The list names each table, its range and size, and warns about very large ones;
-      ✕ removes one.</figcaption>
+      tables</span> the dashed suggestions. (7) The list names each table, its range and size, the slides it is on, and warns about very
+      large ones; ✕ removes one. A click on a table in the sheet scrolls the list to it.</figcaption>
   </figure>
-
-  <div class="box avoid" style="display:grid;grid-template-columns:62mm 1fr;gap:5mm;align-items:center">
-    <svg class="dia" viewBox="0 0 230 120" aria-label="x markers">
-      <defs><pattern id="g" width="20" height="12" patternUnits="userSpaceOnUse"><path d="M20 0H0V12" fill="none" stroke="#D9DEE8" stroke-width=".6"/></pattern></defs>
-      <rect x="0" y="0" width="230" height="120" fill="#fff"/><rect x="0" y="0" width="230" height="120" fill="url(#g)"/>
-      <rect x="40" y="24" width="160" height="72" fill="rgba(59,130,246,.10)" stroke="#3B82F6" stroke-width="1.4"/>
-      <text x="30" y="21" font-size="9" font-weight="700" fill="#C2410C" text-anchor="middle">x</text>
-      <text x="210" y="105" font-size="9" font-weight="700" fill="#C2410C" text-anchor="middle">x</text>
-      <text x="120" y="64" font-size="9" fill="#1C4F8C" text-anchor="middle">the table</text>
-    </svg>
-    <div><b>"x" markers.</b> Put an <code>x</code> in the cell just above and to the left of a table's top-left corner, and
-      another just below and to the right of its bottom-right corner. Slide Builder finds the table between them; the marker
-      row and column are not part of it. The wizard's preview marks them with a yellow "x".</div>
-  </div>
-
   <figure class="wiz">
     <div class="shot" data-crop="80 36 1920 790"><img src="img/wiz-3.jpg" alt="Wizard step 3">
       <i class="co" data-at="66 145">1</i><i class="co" data-at="492 164">2</i><i class="co" data-at="1088 164">3</i>
@@ -214,7 +206,8 @@
       or without. (8) The tables of a slide; ✕ takes one off. (9) Move a slide up or down, or remove it. (10) The logo on this
       slide or not.</figcaption>
   </figure>
-
+  </div>
+  <div class="cols">
   <figure class="wiz">
     <div class="shot" data-crop="80 36 1920 720"><img src="img/wiz-4.jpg" alt="Wizard step 4">
       <i class="co" data-at="1528 200">1</i><i class="co" data-at="1528 340">2</i><i class="co" data-at="1165 378">3</i>
@@ -226,6 +219,22 @@
       not show; (4) <span class="ui">Remove</span> (or Enter). (5) The removed ranges, each with ✕. Removed cells are drawn completely
       empty in that version: no value, no colour.</figcaption>
   </figure>
+  <div class="box avoid" style="margin-top:1.5mm">
+    <svg class="dia" viewBox="0 0 230 120" aria-label="x markers" style="width:40mm;margin:0 auto 1.5mm">
+      <defs><pattern id="g" width="20" height="12" patternUnits="userSpaceOnUse"><path d="M20 0H0V12" fill="none" stroke="#D9DEE8" stroke-width=".6"/></pattern></defs>
+      <rect x="0" y="0" width="230" height="120" fill="#fff"/><rect x="0" y="0" width="230" height="120" fill="url(#g)"/>
+      <rect x="40" y="24" width="160" height="72" fill="rgba(59,130,246,.10)" stroke="#3B82F6" stroke-width="1.4"/>
+      <text x="30" y="21" font-size="9" font-weight="700" fill="#C2410C" text-anchor="middle">x</text>
+      <text x="210" y="105" font-size="9" font-weight="700" fill="#C2410C" text-anchor="middle">x</text>
+      <text x="120" y="64" font-size="9" fill="#1C4F8C" text-anchor="middle">the table</text>
+    </svg>
+    <div><b>"x" markers.</b> Put an <code>x</code> in the cell just above and to the left of a table's top-left corner, and
+      another just below and to the right of its bottom-right corner. Slide Builder finds the table between them; the marker
+      row and column are not part of it. The wizard's preview marks them with a yellow "x".</div>
+  </div>
+  </div>
+
+
 </section>
 
 <!-- ===================================================== 3 ===================================================== -->
@@ -241,8 +250,9 @@
     <p class="lead">The slide works like a sheet in Excel. Every change is stored beside the workbook, keyed by sheet and cell.</p>
   </div></div>
 
-  <p>Click a cell, Shift+click or drag to select more, type to replace the text, F2 or a double-click to edit it, Enter or
-    Tab to move on, Del to clear. Pointing at a cell outlines it. A click on an empty part of the slide clears the selection.</p>
+  <p>Click a cell, Shift+click or drag to select more – or arrows and Shift+arrows (hidden rows are skipped), Ctrl+A for the whole table.
+    Type to replace the text, F2 or a double-click to edit it, Enter / Shift+Enter or Tab / Shift+Tab to move on, Esc to cancel, Del to clear.
+    Ctrl+B and Ctrl+I set bold and italic. Pointing at a cell outlines it. A click on an empty part of the slide clears the selection.</p>
 
   <h2>Slides: new and hidden</h2>
   <div style="display:grid;grid-template-columns:1fr 50mm 36mm;gap:4mm;align-items:start">
@@ -378,15 +388,15 @@
         whole selection; <i>+ green / − red</i> or <i>low red → high green</i>; on the cell colour or the number colour;
         <i>Reverse</i>; with a preview. <span class="ui">Apply to selection</span>. The scales of a table are listed in the same
         menu and removed with ✕.</p></div>
-      <figure><div class="shot"><img src="img/scale-menu.jpg" alt="Colour scale menu"></div></figure>
+      <figure style="width:62mm"><div class="shot"><img src="img/scale-menu.jpg" alt="Colour scale menu"></div></figure>
       <div class="entry"><h3>Sizes…</h3><p>Pick slides and tables, then <span class="ui">Make same size</span> (width, height, as the
         largest, the smallest or the first), copy column widths and row heights from one table to others, align the tables of
         the chosen slides, or <span class="ui">Reset to Excel sizes</span>.</p></div>
-      <figure><div class="shot"><img src="img/sizes.jpg" alt="Sizes dialog"></div></figure>
+      <figure style="width:56mm"><div class="shot"><img src="img/sizes.jpg" alt="Sizes dialog"></div></figure>
       <div class="entry"><h3>Add table ▾</h3><p>Lists the deck's tables – those on no slide first, each with a small sketch – and puts one
         on the current slide (on a free layout in the first empty spot). <span class="ui">New table from cells…</span> makes one from cells
         picked on a sheet. One undo step each.</p></div>
-      <figure><div class="shot"><img src="img/add-table.jpg" alt="Add table menu"></div></figure>
+      <figure style="width:62mm"><div class="shot"><img src="img/add-table.jpg" alt="Add table menu"></div></figure>
       <!-- 4.9: tables -->
     </div>
   </div>
@@ -396,7 +406,7 @@
 
 <section>
   <h2>Text boxes and the notes section</h2>
-  <figure>
+  <figure style="display:grid;grid-template-columns:112mm 1fr;gap:5mm;align-items:end">
     <div class="shot" data-crop="458 327 1873 1122"><img src="img/slide-objects.jpg" alt="A slide with a comment, a text box and the notes section">
       <i class="co" data-at="1425 448">1</i><i class="co" data-at="487 1010">2</i><i class="co" data-at="482 1074">3</i><i class="co" data-at="1700 1062">4</i>
     </div>
@@ -418,7 +428,7 @@
         <li>Click a box to select it; double-click, Enter or F2 edits it; Del deletes it. Drag it anywhere – guides snap it to the tables
           and the slide, and a moved box takes no room from the tables. Stretch it by its edges.</li>
         <li><span class="ui">✎ Notes</span> adds the notes section: a text box of the slide itself, where the footer goes.</li>
-        <li>Text boxes, comments and notes are drawn in every design. Excel adds nothing of its own: its tables keep the workbook's colours.</li>
+        <li>Text boxes, comments and notes are drawn in every design; Navy and Red draw text boxes as takeaway cards (bullets, a box can span columns) and the notes section as footnotes or a takeaway bar. Excel adds nothing of its own: its tables keep the workbook's colours.</li>
       </ul>
     </div>
   </div>
@@ -437,9 +447,9 @@
         <li>(7) Length; how many names per side (1–5); ignore movements below a value; the unit after amounts (default "mln"); what the
           rows are (countries, banks, entities…); which rows to include. Further down: where it goes (beside all tables right or left,
           or above, below, left, right of this table), its width, a bubble.</li>
-        <li>(8) The live preview, in the current design. (9) <span class="ui">Insert comment</span> – later <i>Update</i>, or
-          <i>Remove comment</i>. <i>Also on N similar tables</i> appears when other tables have the same shape.</li>
-        <li>Editing the comment's text by hand turns it into fixed text (a toast says so).</li>
+        <li>(8) The live preview, in the current design. (9) <span class="ui">Insert comment</span> (greyed while no comparison is
+          found) – later <i>Update</i>, or <i>Remove comment</i>. <i>Also on N similar tables</i> appears when other tables have the same shape.</li>
+        <li>Editing the comment's text by hand turns it into fixed text (a toast says so); Update never overwrites a text you typed.</li>
       </ul>
       <!-- template, comments B48–B50 -->
     </div>
@@ -457,14 +467,16 @@
 
 <section>
   <h2>Designs and Design…</h2>
-  <div class="fig-row" style="grid-template-columns:1fr 1fr 1fr">
+  <div class="fig-row" style="grid-template-columns:1fr 1fr 1fr;row-gap:3mm">
     <figure style="margin:0"><div class="shot"><img src="img/d-glass.jpg" alt="Glass"></div><figcaption><b>Glass</b> – glass cards, capsules, the theme's wallpaper.</figcaption></figure>
     <figure style="margin:0"><div class="shot"><img src="img/d-excel.jpg" alt="Excel"></div><figcaption><b>Excel</b> – the workbook's own formatting, no decoration added (your text boxes, comments and notes show too).</figcaption></figure>
     <figure style="margin:0"><div class="shot"><img src="img/d-refined.jpg" alt="Refined"></div><figcaption><b>Refined</b> – Excel's tables in one polished style, with your text boxes, comments and notes.</figcaption></figure>
-  </div>
-  <div class="fig-row" style="grid-template-columns:1fr 1fr;margin-top:3mm">
-    <figure style="margin:0"><div class="shot"><img src="img/d-navy.jpg" alt="Consulting Navy"></div><figcaption><b>Navy</b> (Consulting Navy) – navy and electric blue, Georgia titles, a KPI line from the slide's first table on a dark band; each table an exhibit with trend lines and Δ bars.</figcaption></figure>
+    <figure style="margin:0"><div class="shot"><img src="img/d-navy.jpg" alt="Consulting Navy"></div><figcaption><b>Navy</b> (Consulting Navy) – navy and electric blue, Georgia titles (Gelasio when the font library has it), a KPI line from the slide's first table on a dark band; each table an exhibit with trend lines and Δ bars.</figcaption></figure>
     <figure style="margin:0"><div class="shot"><img src="img/d-red.jpg" alt="Consulting Red"></div><figcaption><b>Red</b> (Consulting Red) – a red accent, Arial, a short red bar under the title and a message panel: the lead variance, how many rows fall short, the largest gap.</figcaption></figure>
+<p style="margin:0;font-size:8.4pt">The design is chosen in the top bar and shared with everybody on the workbook. Title, logo, page number and footer
+    stay in every design. Switching design shows the slides with that design's own table sizes. In Glass, <span class="ui">Subtle /
+    Medium / Strong</span> sets the glass strength and <span class="ui">Colour</span> (0–100 %) how colourful the background is; moving
+    the slider is one undo step.</p>
   </div>
   <p style="margin-top:3mm">In Navy and Red every number shown is a cell of the table – edits, versions and scenarios included. <b>The look</b> is set at the
     end of ribbon 2, in these two designs only. With nothing or a table selected: the table style (<i>Exhibit</i>, <i>Cards</i>, <i>Ruled</i>),
@@ -474,10 +486,6 @@
     sets itself); <span class="ui">Apply to all</span> makes it the deck's, <span class="ui">Deck's</span> brings the slide back to it. One undo step each.</p>
   <figure style="width:110mm"><div class="shot"><img src="img/looks.jpg" alt="The consulting look in ribbon 2"></div></figure>
   <!-- template, comments B48–B50 -->
-  <p style="margin-top:3mm">The design is chosen in the top bar and shared with everybody on the workbook. Title, logo, page number and footer
-    stay in every design. Switching design shows the slides with that design's own table sizes. In Glass, <span class="ui">Subtle /
-    Medium / Strong</span> sets the glass strength and <span class="ui">Colour</span> (0–100 %) how colourful the background is; moving
-    the slider is one undo step.</p>
 
   <div style="display:grid;grid-template-columns:1fr 92mm;gap:5mm">
     <div>
@@ -486,9 +494,11 @@
         <li>(1) <b>Apply to</b> <i>This design only</i> or <i>All designs</i>: each design can have its own look.</li>
         <li>(2) Tabs <span class="ui">Colours</span>, <span class="ui">Text styles</span>, <span class="ui">Fonts</span>.</li>
         <li>(3) <b>Colour theme</b>: Aurora, Ocean, Forest, Sunset, Graphite, Intesa Sanpaolo, or (4) Custom – four background and two
-          accent colours of your own. The theme colours the Glass background and the accent of titles, cover, index and page numbers.</li>
-        <li>(5) <b>Your colours</b> override single colours: accent, table text, negative, positive, and the slide background of Excel
-          and Refined; a colour a design does not use is greyed. Each has its own reset; (6) <span class="ui">Reset all to the theme</span>.</li>
+          accent colours of your own. The theme colours the Glass background and the accent of titles, cover, index and page numbers. Navy and Red keep their own palette:
+          a theme chosen for <i>All designs</i> does not change them; with <i>This design only</i> they take another one, and their first swatch
+          (“This design's own colours”) goes back.</li>
+        <li>(5) <b>Your colours</b> override single colours: accent, table text, negative, positive, and the slide background of Excel,
+          Refined, Navy and Red; a colour a design does not use is greyed. Each has its own reset; (6) <span class="ui">Reset all to the theme</span>.</li>
         <li>(7) <span class="ui">Use as default for new decks</span>: this look becomes the start of every new deck on the folder.</li>
       </ul>
     </div>
@@ -503,15 +513,15 @@
 
   <div class="cols">
     <figure><div class="shot"><img src="img/design-styles.jpg" alt="Text styles"></div>
-      <figcaption><b>Text styles.</b> Font, size, bold, italic, colour, alignment (and line spacing for text boxes) of all slide titles,
-        subtitles, tables, text boxes, the contents list and page numbers &amp; footer; <i>Reset</i> per row. A format given to a single cell,
+      <figcaption><b>Text styles.</b> One row per kind of text, deck-wide: slide titles, subtitles and text boxes (font, size, bold, italic,
+        colour, alignment; text boxes also line spacing), tables (the font), the contents list (font, size, colour), page numbers &amp; footer
+        (font, bold, italic, colour); <i>Reset</i> per row. A format given to a single cell,
         box or title stays on top. A larger title pushes the subtitle and tables down.</figcaption></figure>
     <figure><div class="shot"><img src="img/design-fonts.jpg" alt="Fonts"></div>
       <figcaption><b>Fonts.</b> The shared font library: add a Google font (fetched once by Slide Builder's helper into the folder, then
-        available to everybody and in exports), suggestions, or upload your own files (.ttf .otf .woff .woff2). If the office network refuses
-        a download, the message says what to do (e.g. <i>Upload font files</i>). The previews come from a cache on the shared folder, filled
-        once for the whole office. The library lists each font with a sample, its styles and who added it, and removes one after a question.
-        It is refreshed about every 30 s.</figcaption></figure>
+        available to everybody and in exports), suggestions, or upload your own files (.ttf .otf .woff .woff2; a variable font is stored as its fixed styles). If the office network refuses
+        a download, the message says what to do. Previews come from a cache on the shared folder. The library lists each font with a sample,
+        its styles and who added it, removes one after a question, and is refreshed about every 30 s.</figcaption></figure>
   </div>
 </section>
 
@@ -547,37 +557,21 @@
   <h2>Versions</h2>
   <p>The <span class="ui">Version</span> list in the top bar shows the deck as <i>Full deck</i> or as any version of wizard step 4.
     Removed cells are empty – no value, colour or highlight, borders kept – and automated comments ignore them. Slide Builder remembers the
-    version you looked at last, per workbook. Exporting every version: part 5.</p>
+    version you looked at last, per workbook. Exporting every version: part 6.</p>
 </section>
 
 <section>
   <h2>Undo, the side panel and the status bar</h2>
-  <div class="cols">
-    <div>
-      <ul>
-        <li><b>Undo / Redo</b> (↶ ↷, Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z) undo <b>only your own</b> changes, up to 200 steps (forgotten when you open another workbook); a toast
-          says what was undone ("Undo: Bold"). A colleague's later change is never undone by you. A new change clears redo.</li>
-        <li><b>The slide list</b> shows a picture of every slide, the <i>COVER</i> / <i>INDEX</i> tags and a yellow badge counting the slide's warnings.</li>
-        <li><b>The Issues panel</b> describes the current slide: each table (sheet, range, size, hidden rows, "grows") and what may be wrong (part 9).</li>
-        <li><b>The deck's health line</b>: "Deck: snapshot 6 · 3 changes since in 2 journals" (part 8).</li>
-        <li><b>The status bar</b> describes the selection ("12 cells selected") and the keys, shows "Updated by &lt;name&gt; just now" and the save
-          state (part 5). Zoom: −, +, <span class="ui">Fit</span>, 20–300 %, remembered.</li>
-      </ul>
-    </div>
-    <div>
-      <table>
-        <tr><th>Keys</th><th class="wrap">What they do</th></tr>
-        <tr><td>Arrows, Shift+arrows</td><td class="wrap">move, extend the selection (hidden rows skipped)</td></tr>
-        <tr><td>Ctrl+A</td><td class="wrap">select the whole table</td></tr>
-        <tr><td>a letter, F2, double-click</td><td class="wrap">edit the cell; Enter / Shift+Enter, Tab / Shift+Tab move on; Esc cancels</td></tr>
-        <tr><td>Del, Backspace</td><td class="wrap">clear the cell, or delete the selected text box</td></tr>
-        <tr><td>Ctrl+B, Ctrl+I · Ctrl+S</td><td class="wrap">bold, italic · save now</td></tr>
-        <tr><td>Ctrl+Z, Ctrl+Y</td><td class="wrap">undo, redo (your own changes)</td></tr>
-        <tr><td>PgUp, PgDn · Ctrl+M</td><td class="wrap">previous / next slide · new slide</td></tr>
-        <tr><td>Ctrl+Enter · Esc · Alt</td><td class="wrap">close a text box · stop the painter, close a menu · drag without snapping</td></tr>
-      </table>
-    </div>
-  </div>
+  <ul style="columns:2;column-gap:6mm">
+    <li><b>Undo / Redo</b> (↶ ↷, Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z) undo <b>only your own</b> changes, up to 200 steps (forgotten when you open another workbook); a toast
+      says what was undone ("Undo: Bold"). A colleague's later change is never undone by you. A new change clears redo.</li>
+    <li><b>The slide list</b> shows a picture of every slide, the <i>COVER</i> / <i>INDEX</i> tags and a yellow badge counting the slide's warnings.
+      PgUp / PgDn or Alt+↑ / Alt+↓ go to the previous / next slide.</li>
+    <li><b>The Issues panel</b> describes the current slide: each table (sheet, range, size, hidden rows, "grows") and what may be wrong (part 9).</li>
+    <li><b>The deck's health line</b>: "Deck: snapshot 6 · 3 changes since in 2 journals" (part 8).</li>
+    <li><b>The status bar</b> describes the selection ("12 cells selected") and the keys, shows "Updated by &lt;name&gt; just now" and the save
+      state (part 5). Zoom: −, +, <span class="ui">Fit</span>, 20–300 %, remembered.</li>
+  </ul>
 </section>
 
 <!-- ===================================================== 4 ===================================================== -->
@@ -591,8 +585,8 @@
   </div></div>
 
   <h2>Charts</h2>
-  <figure style="margin-top:0">
-    <div class="shot" data-crop="0 290 1880 1150"><img src="img/chart.jpg" alt="A chart and its side panel"><i class="co" data-at="328 410">1</i><i class="co" data-at="328 448">2</i><i class="co" data-at="328 517">3</i><i class="co" data-at="328 562">4</i><i class="co" data-at="328 606">5</i><i class="co" data-at="328 760">6</i><i class="co" data-at="328 881">7</i><i class="co" data-at="1588 448">8</i><i class="co" data-at="1846 792">9</i>
+  <figure style="margin-top:0;display:grid;grid-template-columns:120mm 1fr;gap:5mm;align-items:end">
+    <div class="shot" data-crop="0 317 1884 1133"><img src="img/chart.jpg" alt="A chart and its side panel"><i class="co" data-at="328 410">1</i><i class="co" data-at="328 448">2</i><i class="co" data-at="328 517">3</i><i class="co" data-at="328 562">4</i><i class="co" data-at="328 606">5</i><i class="co" data-at="328 760">6</i><i class="co" data-at="328 881">7</i><i class="co" data-at="1588 448">8</i><i class="co" data-at="1846 792">9</i>
     </div>
     <figcaption><b>A pie of five banks' loans</b> (the cells VUB…CIB selected, then <i>Insert chart ▾ › From the selected cells</i>), in Glass, and its
       side panel: (1) <i>Pie</i> or <i>Donut</i>; (2) the labels – names, values, percent; (3) the legend – right, below, none; (4) the title, from the
@@ -655,7 +649,8 @@
       <!-- 4.8: lines, icons, snapping -->
     </div>
     <figure style="margin-top:0"><div class="shot"><img src="img/d-glass-items.jpg" alt="A slide with a chart and a shape"></div>
-      <figcaption><b>The same slide</b> with the chart and a pill shape ("Loans up in 4 of 5 banks") moved into the free space.</figcaption></figure>
+      <figcaption><b>The same slide</b> with the chart and a pill shape moved into the free space; the shape's text is
+        <code>Total loans: {LOANS_DEPOSITS!F8}</code>, a quoted cell.</figcaption></figure>
   </div>
 </section>
 
@@ -675,7 +670,7 @@
       <div class="entry"><h3>"✓ Saved"</h3><p>appears as soon as your change is on the shared folder – usually a fraction of a second. Before
         that: "Unsaved changes…", "Saving…". If the folder does not answer: "⚠ Not saved yet – retrying"; the change is kept and sent again
         after 2, 4, 8, 16 and 32 seconds. Ctrl+S saves at once. Closing the window with unsaved changes asks first.</p></div>
-      <div class="entry"><h3>Presence</h3><p>The round initials next to the version list show who else has the workbook open (up to three; on a wide window also "anna is also here"; "(another window)" when it is you in a second window).</p></div>
+      <div class="entry"><h3>Presence</h3><p>The round initials next to the version list show who else has the workbook open (up to three initials, then "anna is also here" or "3 others here"; "(another window)" when it is you in a second window).</p></div>
       <div class="entry"><h3>Two people, two things</h3><p>Changes are merged field by field: if you set a column width and a colleague the colour
         of another cell, both stay.</p></div>
       <div class="entry"><h3>Two people, the same thing, the same moment</h3><p>The later change in the deck's own order wins, on every PC
@@ -690,10 +685,10 @@
         <figure style="margin:1mm 0 0"><div class="shot"><img src="img/banner.jpg" alt="The changed-on-disk banner"></div></figure></div>
       <div class="entry"><h3>Read-only</h3><p>If a deck's file on the share is ever damaged, the deck can still be read but not changed until the
         maintainer looks at it: a change is refused with "⚠ This deck is read-only", and the health line ends in "· read-only".</p></div>
-      <div class="entry"><h3>Slide Builder was updated</h3><p>When a newer version that changed the saved formats was installed while you worked, the status bar asks you to reload the page (F5); until then nothing more is saved.</p></div>
-      <div class="entry"><h3>Decks with 4.6 objects</h3><p>The first time a deck gets an object older versions do not know – a chart, a shape, a
-        free layout, a look, cell gridlines or borders, a hidden slide – Slide Builder marks the deck for 4.6: once per deck, about 25 seconds of
-        "Saving…". From then on it opens in 4.6 and later only; a window of an older version that still has it open turns read-only.</p></div>
+      <div class="entry"><h3>Updates and 4.6 objects</h3><p>When a newer version that changed the saved formats was installed while you
+        worked, the status bar asks you to reload the page (F5); until then nothing more is saved. The first chart, shape, free layout, look, cell
+        gridline or border or hidden slide of a deck costs once about 25 seconds of "Saving…" (part 8, the 4.6 mark). A 4.0 or 4.1 window
+        shows a Navy or Red deck in Glass and keeps its settings.</p></div>
       <div class="entry"><h3>Shared settings</h3><p>Design, colours, page numbers, footer and logo belong to the deck and are shared. The
         defaults for new decks are re-read about every 30 s.</p></div>
     </div>
@@ -714,7 +709,7 @@
     <h1>Export</h1>
     <p class="lead">Slide Builder writes PDFs, PowerPoint files and pictures itself, in the background, from the same drawing you see on screen.</p>
   </div></div>
-  <div style="display:grid;grid-template-columns:1fr 78mm;gap:5mm">
+  <div>
     <div>
       <p><span class="ui">Export PDF</span> exports the whole deck in the PDF mode you chose last (at first: text &amp; tables), with a spinner
         while it works. The ▾ beside it opens the menu:</p>
@@ -725,16 +720,17 @@
         <tr><td>PDF · current slide only</td><td class="wrap">the slide on screen</td></tr>
         <tr><td class="wrap">PowerPoint · all slides / current slide</td><td class="wrap">a <code>.pptx</code>: editable text, real tables and charts (below)</td></tr>
         <tr><td class="wrap">PDF + PowerPoint · all slides / current slide</td><td class="wrap">both files at once</td></tr>
-        <tr><td>Copy current slide</td><td class="wrap">a 4800 × 2700 picture on the clipboard, to paste anywhere</td></tr>
-        <tr><td>PNG · current slide / every slide</td><td class="wrap">4800 × 2700 pictures</td></tr>
-        <tr><td class="wrap">Versions: PDF · PowerPoint · PDF + PowerPoint</td><td class="wrap">what the four items below make</td></tr>
-        <tr><td>… · every version</td><td class="wrap">one file per version, in this design</td></tr>
-        <tr><td class="wrap">… · every version × Liquid Glass + Excel / all three designs / all five designs</td><td class="wrap">one file per version and design; a toast counts them ("Saved N files")</td></tr>
+        <tr><td class="wrap">Copy current slide · PNG · current slide / every slide</td><td class="wrap">4800 × 2700 pictures: on the clipboard, to paste anywhere, or as files</td></tr>
+        <tr><td class="wrap">Versions: PDF · PowerPoint · PDF + PowerPoint, then <i>every version</i> or <i>every version × Liquid Glass + Excel / all three designs / all five designs</i></td><td class="wrap">one file per version (in this design) or per version and design; a toast counts them ("Saved N files")</td></tr>
         <tr><td>Run for each value…</td><td class="wrap">one file per value of an input cell (part 7)</td></tr>
         <tr><td class="wrap">Report a problem with this export…</td><td class="wrap">a short report in <code>export\feedback\</code> for the maintainer</td></tr>
       </table>
       <p>Slides hidden in the design (part 3) are left out, and page numbers and the index count only the slides shown; the <i>current slide</i> items
         export the slide on screen even when it is hidden.</p>
+    </div>
+  </div>
+  <div class="cols">
+    <div>
       <h3>File names and where they go</h3>
       <p>Files are saved in the <code>export\</code> folder: <code>&lt;workbook&gt; - slides.pdf</code> (and <code>.pptx</code>); one slide:
         <code>&lt;workbook&gt; - &lt;slide&gt;.pdf</code>; pictures: <code>&lt;workbook&gt; - &lt;slide&gt;.png</code>; versions:
@@ -742,26 +738,21 @@
         (<code>&lt;value&gt; - &lt;version&gt; - &lt;design&gt;.pdf</code> with versions). A PDF of pictures adds " (images)". If a file of that name is
         open in a viewer, the new one is saved as "… (2)". A toast names the file, with <span class="ui">Open</span> and
         <span class="ui">Show folder</span>:</p>
-      <figure style="margin:1mm 0 2mm"><div class="shot" style="max-width:120mm"><img src="img/toast.jpg" alt="Export toast"></div></figure>
-    </div>
-    <figure style="margin-top:0"><div class="menu2">
-        <div class="shot half"><img src="img/export-menu.jpg" alt="The export menu, top"></div>
-        <div class="shot half low"><img src="img/export-menu.jpg" alt="The export menu, bottom"></div></div>
-      <figcaption><b>Export ▾</b>, in two halves. The <i>every version</i> items are greyed: this deck has no versions yet.</figcaption></figure>
-  </div>
-  <div class="cols">
-    <div>
+      <figure style="margin:1mm 0 2mm;display:flow-root"><div class="shot" style="max-width:96mm"><img src="img/toast.jpg" alt="Export toast"></div></figure>
       <h3>PowerPoint</h3>
       <p>Titles, subtitles, footers and page numbers are the layout's placeholders; every table is a real PowerPoint table (its cells' fills, borders
         and texts); pie and donut charts are PowerPoint charts with their data (<i>Edit Data</i> works); shapes are PowerPoint shapes holding their
         text; the workbook's pictures and the logo are pictures; everything else – Glass's frosted cards, capsules and shadows, the consulting
         designs' bars and rules – is editable shapes. Each file has a slide master and one layout per kind of slide (cover, contents, content), made
         from the deck, with the design's colours and fonts. No connector shapes, no links outside the file.</p>
-      <p>Positions and sizes are the slide's, so the file looks like the PDF. Where it cannot be exact, PowerPoint draws it its own way: a chart's
-        labels and pie size, its blur for shadows, a line that wraps one word earlier when a font is replaced. Fonts are named, not embedded: the
-        Windows fonts the designs use are on every PC, and the toast names a font of the deck's library that PowerPoint may replace.</p>
+      <p>Positions and sizes are the slide's, so the file looks like the PDF; PowerPoint draws a chart's labels and pie size and its shadows its
+        own way. Fonts are named, not embedded; the toast names a font of the deck's library that PowerPoint may replace.</p>
     </div>
     <div>
+      <figure style="width:76mm"><div class="menu2">
+        <div class="shot half"><img src="img/export-menu.jpg" alt="The export menu, top"></div>
+        <div class="shot half low"><img src="img/export-menu.jpg" alt="The export menu, bottom"></div></div>
+      <figcaption><b>Export ▾</b>, in two halves. The <i>every version</i> items are greyed: this deck has no versions yet.</figcaption></figure>
       <h3>What to expect</h3>
       <p>Unsaved changes are saved first, so the export always shows them. The work runs in the background; the window keeps responding. On
         the 20-slide test deck: a Glass PDF in about 1.4 s and 1.3 MB, an Excel PDF in about 0.4 s and 0.3 MB; a Glass PowerPoint file in about
@@ -769,15 +760,14 @@
         same deck.</p>
       <h3>Fonts and the page</h3>
       <p>Each page is exactly one 16:9 slide. The fonts used in a PDF are embedded, so it looks the same on any PC; a font nobody has is
-        replaced by a default one, and the toast names it. Slide Builder opened straight from a file on disk (an emergency mode without the
-        helper) still exports: the files are downloads instead.</p>
+        replaced by a default one, and the toast names it. Opened from disk without the helper (part 9), the files are downloads instead.</p>
     </div>
   </div>
 </section>
 
 <!-- ===================================================== 7 ===================================================== -->
 <!-- sources: CHANGELOG 4.2.0 (B15 scenarios, B22, B24, B23, Italian TEXT, defined names); docs/next/07 §2.3–§2.4; PROGRESS M7, M8
-     (S8.3 bench: scenario_one_ms ≈ 0.6 s, scenario_20_ms ≈ 3.2 s); 07 §6.2 LK-01, LK-03, RC-01, RC-02, RC-05, RC-06, SC-01–SC-09;
+     (bench: scenario_one 456 / 543 ms, PROGRESS.md clean clones c11/c12; scenario_20_ms ≈ 3.2 s); 07 §6.2 LK-01, LK-03, RC-01, RC-02, RC-05, RC-06, SC-01–SC-09;
      app/src/ui/Chrome.tsx (the Formulas line's words), ScenarioDialog.tsx -->
 <section class="part">
   <div class="opener"><div class="card glass" data-shadow="card">
@@ -812,7 +802,8 @@
     <div>
       <p>At the bottom of the side panel, <span class="ui">Check</span> recomputes every formula of the workbook – and of the folder's workbooks
         it links to – and compares each result with the value Excel saved in the file. The check changes nothing. The line then reads, for
-        example, "Formulas: 205 of 208 recompute like Excel · 3 locale-dependent (TEXT)"; <span class="ui">Check again</span> repeats it.</p>
+        example, "Formulas: 205 of 208 recompute like Excel · 3 locale-dependent (TEXT)" ("not checked yet" before, "checking…" during);
+        <span class="ui">Check again</span> repeats it.</p>
       <table>
         <tr><th>The line says</th><th class="wrap">Meaning, and what to do</th></tr>
         <tr><td>recompute like Excel</td><td class="wrap">the result equals Excel's own. Nothing to do.</td></tr>
@@ -822,9 +813,7 @@
         <tr><td class="wrap">with TEXT in Italian, formatted by Slide Builder</td><td class="wrap">TEXT codes of an Italian Excel, formatted as it does. Nothing to do.</td></tr>
         <tr><td>different from Excel</td><td class="wrap">shown as a warning: tell the maintainer which workbook it was</td></tr>
       </table>
-      <p class="note">The line also counts the TEXT formulas written by an Italian Excel that Slide Builder formats itself ("n with TEXT in Italian,
-        formatted by Slide Builder"). Outside a scenario the slides show the values Excel saved. The page is about 2 MB bigger for this: it carries a
-        formula engine that starts only when it is needed, so opening Slide Builder and a deck is as fast as before.</p>
+      <p class="note">Outside a scenario the slides show the values Excel saved. The formula engine starts only when needed, so opening a deck is as fast as before.</p>
     </div>
     <figure style="margin-top:0"><div class="shot"><img src="img/formulas.jpg" alt="The Formulas line"></div>
       <figcaption><b>Banks.xlsx</b> after <i>Check</i>, with an error value reported above it.</figcaption></figure>
@@ -835,27 +824,22 @@
   <h2>Run for each value</h2>
   <div style="display:grid;grid-template-columns:1fr 78mm;gap:5mm;align-items:start">
     <div>
-      <p><span class="ui">Export ▾ › Run for each value…</span> sets an input cell – for example the bank of a dashboard's control sheet – to each
-        value of a list, and saves one file per value, design and version. Slide Builder recalculates the workbook for each value; <b>nothing is
-        saved</b>: the workbook file and the deck stay as they are.</p>
+      <p><span class="ui">Export ▾ › Run for each value…</span> sets an input cell (e.g. the bank of a control sheet) to each value of a list
+        and saves one file per value, design and version; the workbook is recalculated for each value and <b>nothing is saved</b>.</p>
       <ul>
-        <li><b>Input cell</b>: type it (<code>Control!B2</code>), <span class="ui">Select cell…</span> on a sheet, or <span class="ui">Pick a cell</span>
-          (the cell selected on the slide). The line below says what it holds today.</li>
-        <li><b>Values</b>: typed, pasted from Excel, or <span class="ui">From a range…</span> of the workbook; <i>Treat as text</i>. Two values that
-          show alike get " (2)".</li>
-        <li><b>Designs</b>, <b>Versions</b>, <b>Files</b> (PDF, PowerPoint); the line below counts the files.</li>
-        <li><span class="ui">Run</span>: a panel shows the progress, <span class="ui">Cancel</span> (after the value being made), a report per value and
-          <span class="ui">Open folder</span>; you can keep working on the deck meanwhile.</li>
-        <li>If a cell on the slides is one Slide Builder computes otherwise than Excel, the run stops before the first value and lists it, unless
-          <i>Run anyway and mark these cells</i> is ticked (they get a red corner).</li>
+        <li><b>Input cell</b>: typed (<code>Control!B2</code>), <span class="ui">Select cell…</span>, or <span class="ui">Pick a cell</span> (the one
+          selected on the slide). <b>Values</b>: typed, pasted or <span class="ui">From a range…</span>; <i>Treat as text</i>; values that show alike
+          get " (2)". Then designs, versions, files (PDF, PowerPoint).</li>
+        <li><span class="ui">Run</span>: progress, <span class="ui">Cancel</span>, a report per value, <span class="ui">Open folder</span>; you can
+          keep working. A slide cell Slide Builder computes otherwise than Excel stops the run first, unless <i>Run anyway and mark these
+          cells</i> (red corner).</li>
       </ul>
-      <p><b>Preview</b> one value on the slides first: pick it beside <span class="ui">Preview</span>. A banner names it; the slides, charts, formula
-        bar and side panel show the scenario's values until <span class="ui">Clear</span>. Edits made meanwhile are ordinary edits of the deck (an edit of a
-        cell the scenario changed shows once the preview is cleared, and Slide Builder says so). An ordinary export during a preview uses the workbook's
-        own values, and says so.</p>
-      <p><b>Italian Excel and names.</b> <code>TESTO(…;"mmmm aaaa")</code>, <code>TESTO(x;"#.##0,0")</code> and the like are formatted as Italian Excel
-        does (month names, separators), so titles built with them follow a scenario. Named ranges are recalculated too.</p>
-      <p class="note">Measured on the test workbooks: one value in about 0.6 s from the click (the engine's start included), 20 values in about 3.2 s.</p>
+      <p><b>Preview</b> one value beside <span class="ui">Preview</span>: a banner names it, and slides, charts, formula bar and side panel show its
+        values until <span class="ui">Clear</span>. Edits meanwhile are ordinary edits (one of a cell the scenario changed shows after
+        <span class="ui">Clear</span>, and Slide Builder says so); an ordinary export uses the workbook's own values.</p>
+      <p><b>Italian Excel and names.</b> <code>TESTO(…;"mmmm aaaa")</code> and the like are formatted as Italian Excel does, so titles follow a
+        scenario. Named ranges are recalculated; the Formulas line lists any it cannot ("names not recalculated: …"). Measured: one value in
+        about half a second from the click, 20 values in about 3.2 s.</p>
     </div>
     <div>
       <figure style="margin-top:0"><div class="shot"><img src="img/scenario.jpg" alt="Run for each value"></div>
@@ -991,10 +975,12 @@
     <div>
       <p>The worker describes each slide once as a <b>display list</b>: the rectangles, lines, texts and pictures it is made of, in slide
         coordinates. The same list draws the slide on screen, the thumbnails, the PNG pictures, the PDF and the PowerPoint file – so what you
-        see is what you export. Only the tables that changed are drawn again after an edit; a key press reaches the screen in about 25–42 ms.</p>
+        see is what you export. Only the tables that changed are drawn again after an edit; a key press reaches the screen in 25–42 ms (for 95 % of key presses).</p>
       <p><b>Fonts.</b> Text is measured from the font files themselves, not by the browser, so line breaks and text-box fitting are the same
         on screen and in the PDF, and on every PC that has the same fonts. Windows fonts can differ by version between PCs; the side panel
-        names such a font ("Calibri on this PC is another version than on PC-B"), whose slides may wrap a little differently there.</p>
+        names such a font ("Calibri on this PC is another version than on PC-B"), whose slides may wrap a little differently there. Once the
+        fonts' licence owner agrees (<code>slide_builder.py --allow-font-copy "&lt;who, when&gt;"</code>), the helper copies the Windows fonts a deck
+        uses into the shared library, and every PC lays it out with the same files.</p>
     </div>
     <svg class="dia" viewBox="0 0 300 170" role="img" aria-label="One display list drives screen, pictures and PDF">
       <defs><marker id="ar3" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#1C4F8C"/></marker>
@@ -1016,15 +1002,14 @@
   </div>
 
   <h2>The formula engine</h2>
-  <p>The formulas are read from the workbook file itself (<code>.xlsx</code> and <code>.xlsb</code>) and recomputed inside the page by an
-    embedded engine, IronCalc (open source, MIT / Apache-2.0). Excel is not used and not needed. The engine starts only on first use. It serves the
-    <b>self-check</b> of the Formulas line (every formula cell recomputed and compared with the value Excel saved) and the <b>scenarios</b> (Run for
-    each value, preview). Otherwise the slides show Excel's saved values.</p>
+  <p>The formulas are read from the workbook file itself and recomputed inside the page by an embedded engine, IronCalc (open source,
+    MIT / Apache-2.0), started on first use; Excel is not needed. It serves the <b>self-check</b> of the Formulas line and the <b>scenarios</b>.
+    Otherwise the slides show Excel's saved values.</p>
 
   <h2>The 4.6 mark</h2>
   <p>A deck that holds objects older versions do not know carries a mark file, <code>incident-format-5.json</code>, in its folder
     (<code>backend\data\v4\decks\&lt;deck&gt;\</code>). It is written once, before the first such object is saved – the "Saving…" of about 25
-    seconds, which gives every open window of an older version time to notice. A version before 4.6 then opens the deck read-only instead of
+    seconds (a 23-second wait, then a new snapshot), which gives every open window of an older version time to notice. A version before 4.6 then opens the deck read-only instead of
     dropping what it does not know, and says "a journal of this deck is damaged – tell the maintainer": that message means <b>update</b>. Never delete
     the mark.</p>
 
@@ -1032,7 +1017,7 @@
   <div class="box">
     <ul style="margin:0">
       <li><b>The workbook is never written.</b> Slide Builder only reads it; everything people change lives in <code>backend\data\</code>.</li>
-      <li><b>Decks and workbooks go nowhere but the shared folder.</b> The helper answers only on the PC itself and needs a key the page receives at start. Only two things reach the internet: <code>Update Slide Builder.bat</code> downloads a new release from GitHub, and the helper fetches a Google font being added, or a font preview not yet in the shared cache (<code>backend\data\fonts\cache\</code>, at most 200 MB) – from Google's font collection on GitHub, jsDelivr, Google Fonts last. A proxy can be written in <code>%LOCALAPPDATA%\SlideBuilder\proxy.txt</code> or the shared <code>backend\data\proxy.txt</code>. The page itself asks nothing of the internet.</li>
+      <li><b>Decks and workbooks go nowhere but the shared folder.</b> The helper answers only on the PC itself and needs a key the page receives at start. What reaches the internet: <code>Update Slide Builder.bat</code> downloads a release from GitHub, and the helper fetches a Google font being added or a font preview not yet in the shared cache (<code>backend\data\fonts\cache\</code>, at most 200 MB) – from Google's font collection on GitHub, else jsDelivr, Google Fonts last. A proxy goes in this PC's <code>%LOCALAPPDATA%\SlideBuilder\proxy.txt</code> or the shared <code>backend\data\proxy.txt</code>. The page itself asks Google for a font only when the helper cannot reach it, or when opened from disk.</li>
       <li><b>Hidden sheets are never shown</b>, on purpose.</li>
     </ul>
   </div>
@@ -1048,11 +1033,17 @@
     <h1>When something looks wrong</h1>
     <p class="lead">The Issues panel, the common messages, and – for the maintainer – logs, backups, updates and roll-backs.</p>
   </div></div>
-  <div style="display:grid;grid-template-columns:1fr 52mm;gap:5mm">
+  <div>
+    <div style="float:right;width:50mm;margin:0 0 2mm 5mm">
+      <figure style="margin-top:0"><div class="shot"><img src="img/issues-logo.jpg" alt="Issues panel"></div><figcaption>The tables of a slide and a missing logo.</figcaption></figure>
+      <figure><div class="shot"><img src="img/missing-link.jpg" alt="A missing linked workbook"></div><figcaption>A linked workbook moved away.</figcaption></figure>
+    </div>
     <div>
       <h3 style="margin-top:0">The Issues panel</h3>
-      <table>
+      <div style="display:flow-root"><table>
         <tr><th>The line says</th><th class="wrap">Meaning, and what to do</th></tr>
+        <tr><td class="wrap">Cover slide · … / Index slide · lists N content slide(s) · Custom table layout saved</td><td class="wrap">for information: nothing to do</td></tr>
+        <tr><td class="wrap">Preset: N tables · M slides · K tables not on any slide</td><td class="wrap">the deck's setup; a table on no slide can be put back with <span class="ui">Add table ▾</span></td></tr>
         <tr><td>Error values: D11</td><td class="wrap">the cell shows an Excel error (#N/A, #DIV/0!…): fix it in the workbook</td></tr>
         <tr><td class="wrap">Small text (≈8.6px at 100%)</td><td class="wrap">the table is shrunk a lot: enlarge it or move it to its own slide</td></tr>
         <tr><td class="wrap">N tables of this slide could not be found</td><td class="wrap">a sheet was renamed or deleted: open the wizard</td></tr>
@@ -1067,29 +1058,23 @@
         <tr><td class="wrap">Logo "logo.png" not found in the folder</td><td class="wrap">choose the logo again in ⚙ Options</td></tr>
         <tr><td class="wrap">Linked workbook "…" not found in the folder</td><td class="wrap">put the file back in the folder</td></tr>
         <tr><td class="wrap">… on this PC is another version than on …</td><td class="wrap">a Windows font differs between PCs: slides may wrap a little differently there</td></tr>
-      </table>
-    </div>
-    <div>
-      <figure style="margin-top:0"><div class="shot"><img src="img/issues-logo.jpg" alt="Issues panel"></div><figcaption>The tables of a slide and a missing logo.</figcaption></figure>
-      <figure><div class="shot"><img src="img/missing-link.jpg" alt="A missing linked workbook"></div><figcaption>A linked workbook moved away.</figcaption></figure>
+      </table></div>
     </div>
   </div>
-  <h3>Common messages</h3>
+  <h3 style="clear:both">Common messages</h3>
   <table>
     <tr><th>Message</th><th class="wrap">What to do</th></tr>
     <tr><td class="wrap">"… is protected (password or sensitivity label with encryption)"</td><td class="wrap">remove the protection, or save an unprotected <code>.xlsx</code> copy</td></tr>
     <tr><td class="wrap">"Converting … with Excel…" (an old <code>.xls</code>)</td><td class="wrap">wait; this needs Excel on the PC. The original file stays unchanged</td></tr>
+    <tr><td class="wrap">"Opened directly from disk: work is kept in this browser only and exports are downloaded"</td><td class="wrap">an emergency mode without the helper: no folder list, no uploads, decks, preferences and Google fonts kept in this browser only. Start <code>Start Slide Builder.bat</code></td></tr>
     <tr><td class="wrap">"Helper not running" / "Helper stopped"</td><td class="wrap">the console window was closed: start Slide Builder again</td></tr>
-    <tr><td class="wrap">"⚠ Not saved yet – retrying"</td><td class="wrap">the share is slow or unreachable; leave the window open, the change is kept</td></tr>
-    <tr><td class="wrap">"Slide Builder was updated – reload the page (F5)"</td><td class="wrap">press F5</td></tr>
     <tr><td class="wrap">"⚠ This deck is read-only"</td><td class="wrap">call the maintainer</td></tr>
     <tr><td class="wrap">"a journal of this deck is damaged – tell the maintainer" in an older version, on a deck with 4.6 objects</td><td class="wrap">that version is too old: close its black window and start Slide Builder again, which starts the new version</td></tr>
     <tr><td class="wrap">Adding a Google font fails ("failed to fetch", no network…)</td><td class="wrap">the message says why and what to do; <span class="ui">Upload font files</span> always works</td></tr>
   </table>
 
   <h2>For the maintainer</h2>
-  <div class="cols">
-    <div>
+  <div style="columns:2;column-gap:6mm">
       <div class="entry"><h3>Logs and reports</h3><p>The helper writes its log in its console window, with the time of each line; there is no log
         file, so copy the lines from the window. An unexpected error shows its details there too. Users' export problem reports are in
         <code>export\feedback\</code>. A damaged journal leaves <code>incident-….json</code> in <code>backend\data\v4\decks\&lt;deck&gt;\</code>;
@@ -1100,33 +1085,28 @@
       <div class="entry"><h3>Backups</h3><p>In <code>backend\data\backups\</code>: the last 30 snapshots of every deck (<code>v4\&lt;deck&gt;\</code>),
         each file before a format upgrade (<code>upgrades\</code>), and the saved setups before each update (<code>before-update-&lt;time&gt;\</code>,
         the last 5).</p></div>
-    </div>
-    <div>
-      <div class="entry"><h3>Updating</h3><p>Run <code>Update Slide Builder.bat</code>. It downloads the newest release, checks it, installs it beside
-        the current one in <code>app\&lt;version&gt;\</code>, runs its self-test on the folder, and only then makes it current. Then everybody closes
-        Slide Builder, starts it again and reloads the page. An update never changes saved decks, settings, workbooks or exports. One update runs
-        at a time. When nothing newer exists it says so and changes nothing; a used-up GitHub limit or no network is one sentence with the time to
-        try again.</p></div>
-      <div class="entry"><h3>Update day, 4.0 → 4.6</h3><p>Every Slide Builder window and black window is closed on every PC before the update
-        (<code>docs/next/release-checklist.md</code> §6). The share's 4.0.0 updater still asks GitHub's API, so the first release after 4.0.0 is
-        installed by hand (same section).</p></div>
-      <div class="entry"><h3>Rolling back</h3><p><b>The program:</b> <code>Update Slide Builder.bat --use 4.0.0</code> (or another installed version)
-        makes it current again; after going back, a plain update refuses until you name a version on purpose. Below 4.6, <code>--use</code> first names
-        the decks that hold 4.6 objects (they open read-only there) and asks (<code>--yes</code>: named, not asked); never delete their
-        <code>incident-format-5.json</code>. <b>A deck to Slide Builder 3</b>, while
-        <code>Start Slide Builder (v3).bat</code> still exists: <span class="ui">⚙ Options › Administration › Prepare rollback</span>, everybody
-        closes the deck, then <code>Update Slide Builder.bat --rollback "&lt;workbook&gt;"</code>, and the people on that deck use the v3 start file.
-        Details: <code>docs/next/cutover.md</code> §3.</p></div>
+      <div class="entry"><h3>Updating and rolling back</h3><p>Run <code>Update Slide Builder.bat</code>: it installs the newest release
+        beside the current one in <code>app\&lt;version&gt;\</code>, runs its self-test, and only then makes it current (it needs Python 3.8 or newer); everybody then restarts
+        Slide Builder and reloads the page. Decks, settings, workbooks and exports are never changed by an update; with nothing newer it says so and changes
+        nothing, and a used-up GitHub limit is one sentence with the time to try again. An update never replaces
+        <code>Update Slide Builder.bat</code> on a share that has one, and the 4.0.0 updater cannot reach later releases: both by hand
+        (<code>docs/next/release-checklist.md</code> §6). <code>--use &lt;version&gt;</code> goes back to an installed version; below 4.6 it first names the decks with 4.6 objects (they open
+        read-only there) – never delete their <code>incident-format-5.json</code>. The other options (<code>--release</code>, <code>--zip</code>,
+        <code>--yes</code>) and the update-day steps: README §2.3–§2.4.</p></div>
+      <div class="entry"><h3>Slide Builder 3 and older settings</h3><p>While <code>Start Slide Builder (v3).bat</code> exists it starts the
+        newest 3.x on the same data. A deck moves to 4.x on its first open there; its 3.x file is backed up and frozen. Giving a deck back:
+        <span class="ui">⚙ Options › Administration › Prepare rollback</span>, everybody closes it, then <code>--rollback "&lt;workbook&gt;"</code>
+        (<code>docs/next/cutover.md</code> §3). A v2 <code>backend\slide_builder_settings.txt</code> is imported once by the first helper and
+        renamed <code>….v2-backup.txt</code>.</p></div>
       <div class="entry"><h3>Licences</h3><p><span class="ui">⚙ Options › About › Licences…</span> shows the licences of the third-party software in
-        Slide Builder (React, zustand, fflate, IronCalc, harfbuzzjs / HarfBuzz); the same text is <code>THIRD-PARTY-NOTICES.txt</code>.</p></div>
-    </div>
+        Slide Builder (React, zustand, fflate, IronCalc, harfbuzzjs / HarfBuzz); the same text is <code>THIRD-PARTY-NOTICES.txt</code> in <code>app\&lt;version&gt;\</code>.</p></div>
   </div>
 </section>
 
 <!-- ===================================================== 10 ===================================================== -->
 <!-- sources: README §1.1, §4, §6.8, §10; docs/next/07 §2.3–2.4; CHANGELOG 4.2.0–4.6.0; ADR-019 -->
 <section class="part flow">
-  <div class="opener" style="height:31mm"><div class="card glass" data-shadow="card" style="top:4mm;bottom:4mm;padding:3mm 8mm">
+  <div class="opener"><div class="card glass" data-shadow="card">
     <span class="glass chip cap num" data-shadow="chip">Part 10</span>
     <h1>Glossary</h1>
   </div></div>

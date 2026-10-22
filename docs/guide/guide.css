@@ -24,13 +24,13 @@
   @bottom-right { content: counter(page); font: 600 8pt var(--font); color: #1C4F8C; vertical-align: middle; text-align: center;
     width: 10mm; height: 5.4mm; margin-top: 5mm; border-radius: 3mm; background: linear-gradient(180deg, #EEF3FD, #E4EBFA);
     border: 1px solid #D3DDF2; }
-  @bottom-left { content: "Program 4.6.0 \00B7  21 October 2026"; font: 400 6.5pt var(--font); color: #9AA2B2; vertical-align: middle; margin-top: 5mm; }
+  @bottom-left { content: "Program 4.6.0 \00B7  guide of 21 October 2026"; font: 400 6.5pt var(--font); color: #9AA2B2; vertical-align: middle; margin-top: 5mm; }
 }
 @page cover { margin: 0; @top-left { content: none; border: 0 } @top-right { content: none; border: 0 } @bottom-right { content: none; background: none; border: 0 } @bottom-left { content: none } }
 * { box-sizing: border-box; }
 html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-body { font-variant-emoji: text; font-synthesis-weight: none; margin: 0; font: 400 9.1pt/1.42 var(--font); color: var(--ink); background: #fff; }
-p { margin: 0 0 1.6mm; }
+body { font-variant-emoji: text; font-synthesis-weight: none; margin: 0; font: 400 8.8pt/1.38 var(--font); color: var(--ink); background: #fff; }
+p { margin: 0 0 1.4mm; }
 b, strong { font-weight: 600; }
 code, .k { font: 500 8.2pt Consolas, "Cascadia Mono", monospace; background: var(--band); border: 1px solid var(--rule2); border-radius: 4px; padding: 0 3px; color: var(--x2); white-space: nowrap; }
 .ui { font-weight: 600; color: var(--x); }                      /* a label as the program shows it */
@@ -61,29 +61,31 @@ li::marker { color: var(--a1); }
 .glass.tilet { background: rgba(240,248,255,.5); }
 
 /* ---- section opener: a small slide of wallpaper with a glass card, inside the page ---- */
-.part { break-before: page; }
-.part.flow { break-before: auto; margin-top: 8mm; }
-.opener { break-inside: avoid; break-after: avoid; position: relative; height: 44mm; border-radius: var(--r); overflow: hidden; margin: 0 0 6mm;
+.part { break-before: auto; margin-top: 6mm; }
+section { display: flow-root; }                                  /* a float never leaks into the next part */
+.part.page { break-before: page; margin-top: 0; }
+.opener { break-inside: avoid; break-after: avoid; position: relative; height: 25mm; border-radius: var(--r); overflow: hidden; margin: 0 0 4.5mm;
   background: #E9EDF6 url(img/wall.jpg) center 40% / cover no-repeat; }
-.opener .card { position: absolute; left: 8mm; top: 7mm; right: 8mm; bottom: 7mm; border-radius: 14px; padding: 6mm 8mm; display: flex; flex-direction: column; justify-content: center; }
-.opener .num { align-self: flex-start; margin-bottom: 2.5mm; padding: 1mm 3.4mm; font-size: 8pt; color: var(--x); }
-.opener h1 { font: 700 25pt/1.05 var(--font); letter-spacing: -.015em; color: #0B1020; margin: 0; }
-.opener .lead { font: 400 10pt/1.35 var(--font); color: #2A3348; margin: 2mm 0 0; max-width: 150mm; }
+.opener .card { position: absolute; left: 5mm; top: 3.5mm; right: 5mm; bottom: 3.5mm; border-radius: 12px; padding: 2mm 26mm 2mm 7mm; display: flex; flex-direction: column; justify-content: center; }
+.opener .num { position: absolute; right: 7mm; top: 50%; transform: translateY(-50%); padding: 1mm 3.4mm; font-size: 8pt; color: var(--x); }
+.opener h1 { font: 700 19pt/1.05 var(--font); letter-spacing: -.015em; color: #0B1020; margin: 0; }
+.opener .lead { font: 400 9.5pt/1.3 var(--font); color: #2A3348; margin: 1.2mm 0 0; max-width: 150mm; }
 
 /* ---- body pages: the Excel Refined look – white, thin rules, the theme's accents ---- */
-h2 { font: 700 13pt/1.2 var(--font); color: var(--x); margin: 5mm 0 2mm; padding-bottom: 1.4mm; border-bottom: 1px solid var(--rule); break-after: avoid; }
+h2 { font: 700 13pt/1.2 var(--font); color: var(--x); margin: 4mm 0 2mm; padding-bottom: 1.4mm; border-bottom: 1px solid var(--rule); break-after: avoid; }
 h2::before { content: ""; display: inline-block; width: 2.4mm; height: 2.4mm; border-radius: 50%; margin: 0 2mm .5mm 0; background: linear-gradient(135deg, var(--a1), var(--a2)); vertical-align: middle; }
-h3 { font: 600 10pt/1.25 var(--font); color: var(--ink); margin: 3.4mm 0 1.2mm; break-after: avoid; }
+h3 { font: 600 10pt/1.25 var(--font); color: var(--ink); margin: 2.8mm 0 1mm; break-after: avoid; }
 .part > h2:first-of-type { margin-top: 0; }
 .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 6mm; }
 .cols3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 4mm; }
-.entry { break-inside: avoid; margin: 0 0 2.6mm; }
+.entry { break-inside: avoid; margin: 0 0 2mm; }
 .wiz .shot { width: 156mm; margin-left: auto; margin-right: auto; }
+.cols .wiz .shot { width: 100%; }
 .entry > h3 { margin-top: 0; }
 .avoid { break-inside: avoid; }
 table { width: 100%; border-collapse: collapse; margin: 1mm 0 3mm; font-size: 8.6pt; break-inside: auto; }
 th { text-align: left; font-weight: 600; color: var(--x); background: var(--band); border-top: 1px solid var(--x); border-bottom: 1px solid var(--rule); padding: 1.3mm 2mm; }
-td { border-bottom: 1px solid var(--rule2); padding: 1.1mm 2mm; vertical-align: top; }
+td { border-bottom: 1px solid var(--rule2); padding: .9mm 2mm; vertical-align: top; }
 tr { break-inside: avoid; }
 td:first-child { white-space: nowrap; }
 td.wrap, th.wrap { white-space: normal; }
@@ -94,7 +96,7 @@ td.wrap, th.wrap { white-space: normal; }
 .pos { color: var(--pos); font-weight: 600; } .neg { color: var(--neg); font-weight: 600; }
 
 /* ---- figures: real screenshots, numbered callouts drawn in the HTML ---- */
-figure { margin: 1.5mm 0 3.4mm; break-inside: avoid; }
+figure { margin: 1.2mm 0 2.6mm; break-inside: avoid; }
 figure .shot { position: relative; border: 1px solid var(--rule); border-radius: var(--r); overflow: visible; background: #fff; }
 figure .shot img { display: block; width: 100%; border-radius: calc(var(--r) - 1px); }
 figure .shot.pad-b { margin-bottom: 4.5mm; }
@@ -116,9 +118,9 @@ svg.dia { display: block; width: 100%; height: auto; font-family: var(--font); }
 svg.dia text { font-family: var(--font); }
 
 /* the glossary */
-dl.gl { display: grid; grid-template-columns: 33mm 1fr; gap: 0; margin: 0; }
-dl.gl dt { font-weight: 600; color: var(--x); padding: 1.25mm 0; border-bottom: 1px solid var(--rule2); }
-dl.gl dd { margin: 0; padding: 1.25mm 0; border-bottom: 1px solid var(--rule2); }
+dl.gl { display: grid; grid-template-columns: 30mm 1fr; gap: 0; margin: 0; font-size: 8.5pt; }
+dl.gl dt { font-weight: 600; color: var(--x); padding: .8mm 0; border-bottom: 1px solid var(--rule2); }
+dl.gl dd { margin: 0; padding: .8mm 0; border-bottom: 1px solid var(--rule2); }
 
 /* a tall menu shown in two halves side by side (Export ▾): the same picture, the lower half moved up */
 .menu2 { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; }
