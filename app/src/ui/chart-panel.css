@@ -20,3 +20,7 @@
 .chartpanel .pointbox{background:rgba(10,102,216,.05);padding:4px}
 .chartpanel .axis{margin:2px 0 6px}
 .slide .itembox .pointmark{position:absolute;border:2px solid #0A66D8;border-radius:4px;pointer-events:none;box-shadow:0 0 0 2px rgba(255,255,255,.8)}
+/* (B52) the targets: reference lines, gap arrows, change pills (ChartTargetsPanel.tsx) */
+.chartpanel #chartTargets .sub{display:block;font-size:11px;color:#5B6274;margin:6px 0 2px}
+.chartpanel #chartTargets .ref,.chartpanel #chartTargets .gap,.chartpanel #chartTargets .chg{border-left:2px solid var(--line,#e3e5ea);padding:2px 0 4px 6px;margin:2px 0}
+.chartpanel #chartTargets .hid .row>*:not(.chk){opacity:.55}

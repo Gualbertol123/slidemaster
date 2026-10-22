@@ -226,6 +226,21 @@ numbers measured twice). Measured numbers go into the step's line.
   PowerPoint where dropped (title placeholder, text boxes; EMU). Tests: core `b51-contents.test.ts`, app
   `b51-contents.test.tsx`, e2e B51-01; page +7,113 bytes (`page-budget/b51.json`).
 
+- [x] B52 · Targets on charts: reference lines whose value comes from a cell, gap arrows, change pills (product owner
+  2026-10-22, with a picture: "the budget and ambition … as two dotted lines on the same graph … all of these extras must
+  also be modular"; "the value from the budget and ambition comes from a cell on a sheet"; branch `v4/B52-target-chart`
+  on `v4/release-4.9.0`) — (commit: see the branch; runs: by the orchestrator). Three new kinds of chart mark (`ref`,
+  `gap`, `change`) in M14's `marks` map – one entry each, one undo step per control, `off` keeps one switched off –
+  drawn by `core/src/render/chart-targets.ts` from seriesLayout (lines' values from cells in the cell's format, scale
+  and right-hand room for their labels; per-design defaults incl. the B48 template); PowerPoint: reference lines as real
+  line series (embedded workbook `=$X$2` rows; secondary axes "on tick marks" for the full width), the gap arrow one
+  line shape with native ends, the pills rounded rectangles + text (ADR-015 amendment). Format 7 (ADR-019 amendment:
+  `needsV7` / `docNeedsV7`, marker `incident-format-7.json`, `/format7`, `X-SB-Deck-Formats` 4,5,6,7, update.py).
+  Vectors `b52.json`; corpus deck `tests/corpus/charts/target-lines.json` (`workbooks/charts/target-lines.xlsx`, the
+  picture's numbers). Tests: core `chart-targets.test.ts` (5 designs, snapshots, cell / scenario, PowerPoint),
+  `docsync.test.ts` format 7, helper `Format7Tests` / `DeckFormatHttpTests` / `test_update`, app
+  `chart-targets-panel.test.tsx`, e2e B52-01; page budget `page-budget/b52.json`. Versions stay 4.9.0 until the release.
+
 ### S13.7 · Delete slide and Duplicate slide (after M13 closed; ships with the next release, 4.7.0 in CHANGELOG; owner Q12)
 - [x] S13.7 · Delete slide and Duplicate slide (c47d59a; merged into `v4/M16-tables`, its CHANGELOG block moved to 4.9.0 – 4.7.0 is dated; runs: by the orchestrator) (owner Q12, 2026-10-21; branch `v4/slide-menu`) — the slide list's right-click menu (`#ctxDupSlide`, `#ctxDelSlide`) and Delete in the slide list (on the slide shown); one `slide.add` / `slide.remove` each (no new op or key: the guard, inverses and vectors of S13.3 hold). The copy: core `model/slidecopy.ts` (items under new ids, the free boxes and attached line ends renamed). Decided: content slides only are duplicated (the wizard keeps one cover / contents); any slide but the last may be deleted, after a question. +2,156 bytes page (`page-budget/s13-7.json`, measured again on main 71d8806). Review: REQUEST CHANGES → "S13.7 · … (review fixes)": CHANGELOG bullet moved from the dated 4.6.0 notes to 4.7.0 (its own block, as B48–B50), Delete acts on `deck.cur`, `duplicateSlide` checks `doc.open`, one `slide.add` vector of a duplicated slide in `ops-vectors.json`, a comment pointing M15 at `slidecopy.ts`. Awaiting the orchestrator's checks (e2e `Delete slide and Duplicate slide`) and the second review.
 

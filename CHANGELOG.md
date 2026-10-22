@@ -3,6 +3,32 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.10.0 - unreleased (B52: targets on charts)
+
+What users notice
+* **Reference lines from a cell** (B52): in a column, line, area or combo chart's panel, *Targets › + Reference line from
+  a cell…* asks for one cell in the sheet view – a budget, an ambition, on any sheet or a linked workbook – and draws a
+  line across the chart at its value, labelled at the right end with its name and value in the cell's number format
+  (the workbook's separators). The line follows the workbook: a reload, a scenario's value and *Run for each value* move
+  it. Its name can be typed or come from a cell; *+ Typed* draws one at a typed value instead. Each line has its own
+  dash (dashed, dotted, solid), colour, width and label (name and value, name, value or none; at the right end, the left
+  end or above the line), and the chart's scale makes room for it. Several lines per chart.
+* **Gap arrows** (B52): *+ Gap arrow* draws an arrow from the last point (or the selected one) to a reference line with
+  the live difference (e.g. "−348") and a caption ("gap to budget"), red below the line and green above it by default;
+  the %, the number format, the side, the arrow heads and one fixed colour can be chosen.
+* **Change pills** (B52): *+ Change pills* puts a pill between each pair of consecutive points with the change and its %
+  (e.g. "−165 (−1.4%)"), coloured by sign (own colours for a rise, a fall and no change), above the axis or under the
+  line, for every pair or the last one only, with a caption ("Week-on-week change"). *Point values* switches the line's
+  value labels on or off.
+* Every extra is switched on or off on its own (its settings kept), and each change is one undo step. Defaults follow the
+  design – the Intesa Sanpaolo template's blue, grey and green in Excel and Excel Refined.
+* **PowerPoint**: each reference line is a real series of the native chart (*Edit Data* shows its value; changing the
+  first row moves the line), the gap arrow a line with a real arrowhead, the pills rounded rectangles with text – placed
+  where the slide draws them; never pictures.
+* A deck that holds one of these is marked for Slide Builder 4.10 (format 7; the first such edit shows "Saving…" for
+  about 23 seconds once): Slide Builder 4.9 and older open it read-only and ask to update ("a journal of this deck is
+  damaged … tell the maintainer" in 4.0–4.9 means: update Slide Builder).
+
 ## 4.9.0 - 2026-10-22 (PLAN M16: tables; B36–B39; S13.7; M17 audit fixes (docs/next/AUDIT-3.md); B51; docs/next/09 §3)
 
 What users notice

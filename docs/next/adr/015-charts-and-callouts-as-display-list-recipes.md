@@ -81,3 +81,49 @@ Consequences: + one layout for screen, PDF, PNG and PowerPoint; marks follow the
 PowerPoint chart take the opening computer's separators (09 §4.2 "Italian separators"); a left-axis series under a
 right-axis one is drawn on top in PowerPoint (an Issues line says so); a waterfall step that newly crosses zero needs a
 new export.
+
+## Amendment 2026-10-22 (B52, 4.10: reference lines from cells, gap arrows, change pills)
+*Status: proposed (the owner's request B52 of 2026-10-22, with a picture: the weekly loans line against "EoM budget" and
+"Ambition" as dashed lines, the gap to budget as a red arrow, the week-on-week changes as pills).*
+
+**Reused, not added.** The three extras are three new **kinds of mark** in the chart's existing `marks` map – `ref`,
+`gap`, `change` – so they inherit everything M14 built for marks: one whole entry per extra (`item.patch` merges `marks`
+per entry: one undo step per control, two writers on two lines both win), random ids (`newEntryId`), removal with the
+series they stand on (`removeSeriesPatch`), a `hit` per mark on the stage, the chart's cache key (`chartKey` hashes the
+item; `refSheets` / `itemSheets` add the cells a line reads, so a reload, a linked workbook or a scenario's value is
+another key), and the PowerPoint overlay (`pptx/chart-overlay.ts`: the gap arrow is one more `ArrowSem` – one line shape
+with native `a:headEnd` / `a:tailEnd`; pills and labels are plain shapes and text boxes of the overlay walk). The point
+value labels are the series' own M14 labels (the panel's Targets section only offers them for the line). M14's existing
+"line at a value" mark (`kind: "line"` with one `{x, y}` place) stays as it was: its value is a typed number.
+
+**New** (all in `render/chart-targets.ts`, called by `chart-marks.ts` and laid out by `chart-series.ts` seriesLayout):
+* `ref`: `value` a DataRef (any sheet, a linked workbook, a deck table – read like a series' cells, in the cell's number
+  format, so a reload and *Run for each value* move it) or a typed number (the fallback); `name` text or a DataRef;
+  `axis`; `show` (both / name / value / none), `pos` (label at the right end – the plot leaves room for it –, the left
+  end, above the line); `style` (colour, width, dash: dashed by default). The values join their axis's automatic bounds.
+* `gap`: `a` = `{s, i}` (`i` −1 = the last point with a value), `ref` = a `ref` mark's id; label = point − line, signed
+  (+ / − U+2212), in the line's cell's format (or `num`), optional % of the line (`pct`), a caption; `signs` colour by
+  sign (the design's pos / neg, a grey for 0; own colours per sign) or `"fixed"` (`style.color`); `style.heads` (default:
+  a triangle at the point's end); `pos` right / left of the point.
+* `change`: pills between consecutive points of `a.s` (`pairs` all / last), the absolute (`abs`) and / or % (`pct`)
+  change, colours as `gap`, `pos` "axis" (a row above the plot's floor) or "line" (under the lower point), a caption.
+* `off` on any mark: kept, not drawn.
+* Defaults per design (`targetLook`): the first line the design's ink, the others its grey; the Excel designs with the
+  Intesa Sanpaolo template (B48) its blue and 50 % black, its green for a rise; Liquid Glass Apple's green / red; the
+  consulting designs their palette's pos / neg. Numbers use the workbook's separators, as every chart text.
+* Drawn on column, line, area and combo charts (an Issues line on other types); not on horizontal bars, scatter or
+  waterfall charts.
+
+**PowerPoint.** A reference line is a **real line series** of the native chart (Edit Data shows it): its value in every
+row of the embedded workbook – the first row the number in the cell's format, the others the formula `=$X$2`, so
+changing that one cell moves the whole line –, no marker, no labels, left out of the legend; its label is a text box.
+To reach across the whole plot as on the slide, the reference series stand on the **secondary axes**: a hidden category
+axis "on tick marks" (`c:crossBetween val="midCat"` on its value axis) and a hidden value axis with the primary one's
+bounds (`BarsSem.refAxis`). A chart that already has a right axis has no third pair: there the lines stand on their own
+axis's line group and reach from the first to the last category's centre – on the slide too (`refSpan: "centres"`), so
+both agree; an Issues line notes that PowerPoint draws such a left-axis line under right-axis columns. The slide's own
+line node is left out of the PowerPoint overlay (`MarksOut.native`). Never a picture, never `p:cxnSp`, no external link.
+
+**Format.** The entries fit inside `marks`, which 4.9 stores – but 4.9 does not *draw* them (`chart-marks.ts`
+`default: continue`), and its panel lists them as marks it cannot show: a deck holding one is raised to **format 7**
+(ADR-019 amendment of the same day).

@@ -33,8 +33,9 @@ import { seriesData, type SerData, type SeriesData } from "./chart-data";
 import { autoScale, axisFormat, ticks, tickText, type Scale } from "./chart-axes";
 import { barSlots, gapOf, lightOf, outerRadius, overlapOf, stackBars, type StackMode } from "./chart-bars";
 import { stackAreas } from "./chart-area";
-import { lineStroke, linePath, lineStyleOf, markerNode, markerOf, markerPx, polyHitsBox, runs, strokeNear, type Pt } from "./chart-lines";
+import { dashOf, lineStroke, linePath, lineStyleOf, markerNode, markerOf, markerPx, polyHitsBox, runs, strokeNear, type Pt } from "./chart-lines";
 import { markNodes, type Anchor, type MarkArrow, type MarkFrame } from "./chart-marks";
+import { gapLabelW, marksOf, refLabel, refStyle, refValues, targetLook, type RefLine } from "./chart-targets";
 import { scatterLine, scatterMarker, xAxisOf } from "./chart-scatter";
 import { STEP_NAMES, connectorLine, connectors, waterfallColors, waterfallSem, waterfallSteps, type Step, type StepKind } from "./chart-waterfall";
 import { legendAtOf, legendNodes, shownEntries, type LegendEntry, type LegendOut } from "./chart-legend";
@@ -104,7 +105,11 @@ export interface SeriesLayout {
   dividers: { x1: number; y1: number; x2: number; y2: number; line: LineSem }[];
   /** the title's rule (09 §3.3) */ rule: { x1: number; x2: number; y: number; line: LineSem } | null;
   /** the bars' gradient (Liquid Glass), PowerPoint's a:gradFill too (S14.2 review 1) */ gradient: boolean;
-  /** the marks' nodes (over the data), bands (under it) and hits */ marks: { nodes: Node[]; under: Node[]; hits: Node[]; arrows: MarkArrow[] };
+  /** the marks' nodes (over the data), bands (under it) and hits; `native`: nodes the PowerPoint card leaves out (a
+      reference line's line: the native chart draws it as a series, B52) */ marks: { nodes: Node[]; under: Node[]; hits: Node[]; arrows: MarkArrow[]; native: Node[] };
+  /** (B52) the reference lines as drawn, and how far they reach: across the plot ("full": PowerPoint draws them on the
+      secondary axes with the category axis "on tick marks"), or from the first to the last category's centre ("centres":
+      the chart has a right axis of its own – PowerPoint's series can reach no further) */ refs: RefLine[]; refSpan: "full" | "centres";
   /* S14.4 */
   /** a scatter chart's numeric x axis (null: a category axis) */ xAxis: (ValAxis & { show: boolean }) | null;
   /** a waterfall: each category's column (null = a gap), the up / down / total colours, the kinds its legend lists */
@@ -193,6 +198,20 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     return { ax, idx, bi, ai, li, sb, sa, lo, hi, tgt, percent, num: axisFormat(ax === "y" ? A.y : A.y2, percent, ser[idx[0]]?.fmt || "General") };
   });
   const [P1, P2] = per, num = P1.num;
+  // (B52) the reference lines (column, line, area and combo charts): their values from their cells, held by their axis's
+  // scale; the room their labels take on the right
+  const refOk = dir === "col" && !scatter && !fall, refIssues: string[] = [];
+  const refVals = refOk ? refValues(it, ctx, ser[0]?.fmt || "General") : [];
+  if (!refOk && marksOf(it).some(([, k]) => k.kind === "ref" || k.kind === "gap" || k.kind === "change"))
+    refIssues.push("reference lines, gap arrows and change pills are drawn on column, line, area and combo charts only");
+  for (const r of refVals) {
+    if (r.issue) refIssues.push(r.issue);
+    if (r.v === null) continue;
+    const P = r.axis === "y2" && has2 ? P2 : P1;
+    P.lo = Math.min(P.lo, r.v); P.hi = Math.max(P.hi, r.v);
+  }
+  const tlook = targetLook(ctx, sty.ink);
+  const refLab = (r: (typeof refVals)[number]) => refLabel(r, refStyle(r, tlook).color, sty.lab, withFmt);
   const tw = (t: string, st: St) => m.run(t, font(st)).w;
   const N = Math.max(1, data.cats.length), vlh = lineH(valSt), clh = lineH(catSt);
   // a second row of category labels: the groups' own labels (multi-level categories), when one is named
@@ -211,7 +230,13 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
       if (val2Show) y2w = Math.max(...t2.map(t => tw(t.text, val2St))) + 8;
       y2 = { scale: s2, ticks: t2, num: P2.num, st: val2St, show: val2Show, grid: A.y2?.grid === true ? look.grid : null, percent: P2.percent };
     }
-    plot = { x: area.x + yw, y: top, w: Math.max(10, area.w - yw - y2w), h };
+    // (B52) the reference lines' labels after the plot's right end, and the gap arrows' labels past their last slot
+    let room = 0;
+    for (const r of refVals) { const L = r.v !== null ? refLab(r) : null; if (L && L.pos === "right") room = Math.max(room, tw(L.text, L.st) + 8); }
+    const slot0 = Math.max(1, (area.w - yw - y2w - room) / N);
+    for (const [, k] of marksOf(it)) if (refOk && k.kind === "gap" && (k.pos || "right") === "right")
+      room = Math.max(room, gapLabelW(k, refVals.find(r => r.id === k.ref), sty.lab, withFmt, m) + Math.max(12, Math.min(36, slot0 * .25)) + 6 - slot0 / 2 - y2w);
+    plot = { x: area.x + yw, y: top, w: Math.max(10, area.w - yw - y2w - room), h };
     if (scatter) {
       // the numeric x axis: its labels centred on their ticks, the first and the last half outside the plot
       const X = xAxisOf(ser, A.x, plot.w, (f, S) => Math.max(...ticks(S).map(v => tw(tickText(v, f), catSt))));
@@ -451,21 +476,39 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     if (dir === "col") { const x = r2(plot.x + g.start * slot); dividers.push({ x1: x, y1: r2(plot.y), x2: x, y2: r2(plot.y + plot.h + catH), line: dl }); }
     else { const y = r2(plot.y + plot.h - g.start * slot); dividers.push({ x1: r2(frame.x), y1: y, x2: r2(plot.x + plot.w), y2: y, line: dl }); }
   }
+  // (B52) the reference lines: at their values, across the plot (or between the first and the last category's centres when
+  // the chart has a right axis: PowerPoint's series reach no further – refSpan), their labels after the plot's end
+  const refSpan: SeriesLayout["refSpan"] = has2 ? "centres" : "full";
+  const refs: RefLine[] = [];
+  for (const r of refVals) {
+    if (r.v === null) continue;
+    const line = refStyle(r, tlook), dash = dashOf(line), y = (r.axis === "y2" && y2 ? vps.y2 : vps.y)(r.v);
+    const [x1, x2] = refSpan === "full" || N < 2 ? [plot.x, plot.x + plot.w] : [plot.x + slot / 2, plot.x + plot.w - slot / 2];
+    refs.push({ id: r.id, v: r.v, y: r2(y), x1: r2(x1), x2: r2(x2), line, stroke: { w: line.w, paint: solid(line.color), cap: "butt", ...(dash ? { dash } : {}) },
+      name: r.name, text: r.text, fmt: r.fmt, axis: r.axis === "y2" && y2 ? "y2" : "y", label: refLab(r) });
+  }
+  if (refs.length && N < 2) refIssues.push("a reference line needs two categories to be drawn in PowerPoint");
+  // (PowerPoint draws the right axis's chart groups over the left axis's: a left-axis reference line under right-axis columns)
+  if (refSpan === "centres" && refs.some(r => r.axis === "y") && ser.some((_, k) => axes[k] === "y2" && kinds[k] === "bar"))
+    refIssues.push("a reference line on the left axis is drawn under the right axis's columns in PowerPoint");
+  const refLabelX = r2(plot.x + plot.w + (y2?.show ? Math.max(...y2.ticks.map(t => tw(t.text, y2!.st))) + 8 : 0) + 6);
   // the marks, in data coordinates
   const F: MarkFrame = {
     plot, cats: data.cats, slot, horizontal: dir === "bar", groups: new Map(data.groups.map(g => [g.id, { start: g.start, len: g.len }])),
     // (a hidden series is not drawn: its marks are not either, and that is no mistake – no anchors, no Issues line)
     series: new Map([...Object.keys(it.sers || {}).map((k): [string, { anchors: (Anchor | null)[]; start: number }] => [k, { anchors: [], start: 0 }]), ...ser.map((s, k): [string, { anchors: (Anchor | null)[]; start: number }] => [s.id, { anchors: anchors[k], start: s.start }])]),
     vp: (v, ax) => ax === "y2" && !y2 ? null : vps[ax](v), ink: sty.ink, lab: sty.lab, withFmt, ...(xAxis ? { xp } : {}),
+    ...(refOk ? { targets: { plot, slot, ink: sty.ink, lab: sty.lab, withFmt, look: tlook, refs: new Map(refs.map(r => [r.id, r])), refLabelX,
+      series: new Map(ser.map((s, k) => [s.id, { anchors: anchors[k], vals: s.vals, start: s.start, fmt: s.fmt }])) } } : {}),
   };
   const mk = markNodes(it, id, F, ctx, m);
   const extra = data0.series.slice(ser.length).map(s => `'${s.name}' is not drawn: a waterfall draws one series`);
-  const issues = [...data.issues, ...extra, ...drawOrderIssues(ser.map(s => s.name), axes, bars, traces), ...mk.issues];
+  const issues = [...data.issues, ...extra, ...drawOrderIssues(ser.map(s => s.name), axes, bars, traces), ...refIssues, ...mk.issues];
   const issue = issues.length ? issues.join("; ") : null;
   return { data, dir, mode, gap, overlap, title, titleSt, titleBox, plot, scale, num, valSt, catSt, valShow, catShow, skip, look,
     grid: typeof A.y?.grid === "boolean" ? A.y.grid : look.gridOn, colors, bars, labs, legend, ticks: tk, labels, issue,
     hidden: ser.flatMap((s, k) => entries.some(e => e.key === s.id) ? [] : [k]),
-    kinds, axes, stackLines: [...stackL], y2, barGroups, traces, groupLabels, dividers, rule, gradient: sty.gradient, marks: { nodes: mk.nodes, under: mk.under, hits: mk.hits, arrows: mk.arrows },
+    kinds, axes, stackLines: [...stackL], y2, barGroups, traces, groupLabels, dividers, rule, gradient: sty.gradient, marks: { nodes: mk.nodes, under: mk.under, hits: mk.hits, arrows: mk.arrows, native: mk.native }, refs, refSpan,
     xAxis, connectors: W ? connectors(bars, W.steps, vps.y, connectorLine(ser[0].src, look.line?.color)) : [],
     fall: W && Wc ? { steps: W.steps, colors: Wc, legend: entries.filter(e => !legend.cut?.includes(e.key)).map(e => e.key as StepKind) } : null };
 }
@@ -502,14 +545,14 @@ export function cardNodes(L: SeriesLayout): Node[] {
     `native` (the PowerPoint card, S14.6): without the arrow and line marks' lines and heads – the export writes each as
     one line shape with native ends from the chart's semantics (ChartSem.arrows, pptx/chart-overlay.ts) */
 export function overlayNodes(L: SeriesLayout, native = false): Node[] {
-  const drop = native ? new Set(L.marks.arrows.flatMap(a => a.drop)) : null;
+  const drop = native ? new Set([...L.marks.arrows.flatMap(a => a.drop), ...L.marks.native]) : null;
   return [...L.dividers.map((d): Node => ({ t: "line", x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2, stroke: lineStroke(d.line, "butt") })), ...(drop ? L.marks.nodes.filter(n => !drop.has(n)) : L.marks.nodes)];
 }
 /** (S14.6 review 6) each arrow / line mark's place in overlayNodes(L, true): the count of that overlay's nodes before it
     (the dividers, then the other marks' nodes of a lower id – and none of its own), so that the export writes it where the
     slide draws it (marks in id order, a later id on top; pptx/chart-overlay.ts overlayEls) */
 export function arrowPlaces(L: SeriesLayout): number[] {
-  const drop = new Set(L.marks.arrows.flatMap(a => a.drop)), at = new Map<Node, number>();
+  const drop = new Set([...L.marks.arrows.flatMap(a => a.drop), ...L.marks.native]), at = new Map<Node, number>();
   let kept = L.dividers.length;
   for (const n of L.marks.nodes) if (!drop.has(n)) kept++; else if (!at.has(n)) at.set(n, kept);
   return L.marks.arrows.map(a => at.get(a.drop[0]) ?? kept);
@@ -637,6 +680,16 @@ export function seriesSem(L: SeriesLayout): BarsSem {
     companion.set(k, ser.length);
     ser.push({ name: `${s.name} – target`, values: s.target.slice(), color: L.colors[k], fmt: s.fmt, points: ser[k].points.map(p => ({ i: p.i, color: p.color })), labels: null, type: "column", axis: L.axes[k], target: { w: 1.5 } });
   }));
+  // (B52) the reference lines: each a line series of its value in every category (the first row of the embedded workbook
+  // holds the number, the others "=" that cell: Edit Data moves the whole line), no marker, no labels (its label is a
+  // text box of the overlay), never in the legend. Across the plot ("full"): on the secondary axes – a hidden category
+  // axis "on tick marks" (midCat) and a hidden value axis with the primary one's bounds; else on its own axis's lines
+  const refIdx: number[] = [];
+  for (const r of L.refs) {
+    refIdx.push(ser.length);
+    ser.push({ name: r.name || "Reference", values: L.data.cats.map(() => r.v), color: r.line.color, fmt: r.fmt, points: [], labels: null, type: "line", axis: L.refSpan === "full" ? "y2" : r.axis,
+      smooth: false, stroke: r.line, marker: null, markers: [], f: L.data.cats.map((_, i) => i ? "{TOP}" : null) });
+  }
   const grouping = L.mode === "none" ? "clustered" : L.mode === "stacked" ? "stacked" : "percentStacked";
   const groups: GroupSem[] = [];
   if (L.xAxis) groups.push({ kind: "scatter", axis: "y", grouping: "standard", gap: 0, overlap: 0, series: ser.map((_, k) => k) });
@@ -647,7 +700,12 @@ export function seriesSem(L: SeriesLayout): BarsSem {
     if (bg) groups.push({ kind: "bar", axis: ax, grouping, gap: L.gap, overlap: bg.overlap, series: bg.series.flatMap(k => companion.has(k) ? [k, companion.get(k)!] : [k]) });
     // (the template's stacked areas as lines: a stacked / 100 % stacked line chart – never beside ordinary lines on one axis)
     if (li.length) groups.push({ kind: "line", axis: ax, grouping: li.some(k => L.stackLines.includes(k)) ? grouping : "standard", gap: 0, overlap: 0, series: li });
+    // (B52) reference lines on this axis's own line group (a chart with a right axis): their own standard line group
+    const ri = L.refSpan === "centres" ? refIdx.filter(k => ser[k].axis === ax) : [];
+    if (ri.length) groups.push({ kind: "line", axis: ax, grouping: "standard", gap: 0, overlap: 0, series: ri });
   }
+  const refAxis = L.refSpan === "full" && refIdx.length > 0 && !L.xAxis;
+  if (refAxis) groups.push({ kind: "line", axis: "y2", grouping: "standard", gap: 0, overlap: 0, series: refIdx });
   const lp = L.legend.at === "right" ? "r" : L.legend.at === "left" ? "l" : L.legend.at === "top" ? "t" : L.legend.at === "top-right" ? "tr" : L.legend.at === "inside-tl" || L.legend.at === "inside-tr" ? "r" : "b";
   const y2 = L.y2, X = L.xAxis;
   const out: BarsSem = {
@@ -658,8 +716,9 @@ export function seriesSem(L: SeriesLayout): BarsSem {
     plot: { x: r2(L.plot.x), y: r2(L.plot.y), w: r2(L.plot.w), h: r2(L.plot.h) },
     legend: L.legend.box ? { pos: lp, box: L.legend.ppt ?? L.legend.box, overlay: L.legend.at === "inside-tl" || L.legend.at === "inside-tr",
       // (the entries past the slide's room as well: "+N more" there, left out in PowerPoint – S14.2 review 3)
-      hide: [...L.hidden, ...L.data.series.flatMap((s, k) => L.legend.cut?.includes(s.id) ? [k] : []), ...companion.values()].sort((a, b) => a - b) } : null,
-    groups, val2: y2 ? { min: y2.scale.min, max: y2.scale.max, step: y2.scale.step, num: y2.num, grid: y2.grid, line: null, show: y2.show, font: fontSem(y2.st) } : null,
+      hide: [...L.hidden, ...L.data.series.flatMap((s, k) => L.legend.cut?.includes(s.id) ? [k] : []), ...companion.values(), ...refIdx].sort((a, b) => a - b) } : null,
+    groups, ...(refAxis ? { refAxis: true } : {}),
+    val2: refAxis ? { min: L.scale.min, max: L.scale.max, step: L.scale.step, num: L.num, grid: null, line: null, show: false, font: fontSem(L.valSt) } : y2 ? { min: y2.scale.min, max: y2.scale.max, step: y2.scale.step, num: y2.num, grid: y2.grid, line: null, show: y2.show, font: fontSem(y2.st) } : null,
     levels: L.groupLabels ? L.data.cats.map((_, i) => { const g = L.data.groups.find(x => x.start === i && x.len > 0); return g ? g.label : ""; }) : null,
     ...(X ? { xval: { min: X.scale.min, max: X.scale.max, step: X.scale.step, num: X.num, grid: X.grid, line: L.look.line, show: X.show, font: fontSem(X.st) } } : {}),
   };

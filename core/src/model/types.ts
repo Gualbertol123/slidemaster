@@ -85,10 +85,35 @@ export interface ChartAxis { show?: boolean; min?: number; max?: number; step?: 
 export type MarkAt = { s: string; i: number }
   | { g: string; edge: "start" | "end" }
   | { x: number | string; y: number; axis?: "y" | "y2" };
-/** an annotation in data coordinates (it follows the data and a scenario value) */
-export interface ChartMark { kind: "arrow" | "line" | "band" | "icon" | "text";
-  a: MarkAt; b?: MarkAt | "floor" | "ceiling";
-  style?: LineStyle & { heads?: Heads }; icon?: string; size?: number; text?: string; fmt?: TextFmt; dy?: number }
+/** an annotation in data coordinates (it follows the data and a scenario value). 4.10 (B52, ADR-015 amendment of
+    2026-10-22) adds three kinds, each an entry of the same `marks` map (on / off, styled and removed one by one):
+    * "ref": a reference line across the plot at a value read from a CELL (`value`; a typed number only as a fallback),
+      its label (name – text or a cell – and the value in the cell's number format) at its right end, left end or above;
+    * "gap": an arrow from a series' point (`a`, `i` -1 = its last point) to a reference line (`ref`, a "ref" mark's id),
+      labelled with the live difference (sign, number format, optional % of the line) and a caption;
+    * "change": pills between consecutive points of series `a.s` with the change (absolute and / or %), coloured by sign.
+    A deck holding one of them, or a B52 key on a mark, is raised to format 7 (ADR-019 amendment, ops.ts needsV7) */
+export interface ChartMark { kind: "arrow" | "line" | "band" | "icon" | "text" | "ref" | "gap" | "change";
+  /** where it stands (a "ref" stands on its value: no `a`) */ a?: MarkAt; b?: MarkAt | "floor" | "ceiling";
+  style?: LineStyle & { heads?: Heads }; icon?: string; size?: number; text?: string; fmt?: TextFmt; dy?: number;
+  /* ---- 4.10 (B52) ---- */
+  /** ref: the line's value – a cell (it follows the workbook, a reload, a scenario; shown in the cell's number format), or
+      a typed number (the fallback) */ value?: DataRef | number;
+  /** ref: its name – text, or a cell */ name?: string | DataRef;
+  /** ref: the value axis it stands on (default y) */ axis?: "y" | "y2";
+  /** ref: what its label shows ("none": no label; default both) */ show?: "both" | "name" | "value" | "none";
+  /** ref: its label's place (default right: after the line's end); gap: the side of the point the arrow and label stand
+      on (default right); change: the pills' row (default "axis": just above the plot's floor; "line": under the line) */
+  pos?: "right" | "left" | "above" | "axis" | "line";
+  /** gap: the reference line, a "ref" mark's id */ ref?: string;
+  /** gap, change: the small text beside / above the numbers ("" = none) */ caption?: string;
+  /** gap, change, ref: the numbers' format code (else the cells') */ num?: string;
+  /** gap: also the % of the line (default no); change: the % change (default yes) */ pct?: boolean;
+  /** change: the absolute change (default yes) */ abs?: boolean;
+  /** gap, change: colours by sign – unset keys the design's (its pos / neg colours, a neutral grey for 0); "fixed": the
+      mark's own colour (style.color) whatever the sign */ signs?: { pos?: string; neg?: string; zero?: string } | "fixed";
+  /** change: every pair of consecutive points, or the last pair only (default all) */ pairs?: "all" | "last";
+  /** kept, not drawn (each extra switched off in the panel keeps its settings) */ off?: boolean }
 /** the legend's place (F15); "inside-*" draws a card behind it */
 export type LegendAt = "right" | "left" | "top" | "bottom" | "top-right" | "inside-tl" | "inside-tr" | "none";
 export interface ChartItem { kind: "chart"; /** without `sers` a type other than donut draws as a pie, as before 4.7 (09 §2.2) */ type: ChartType;

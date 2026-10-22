@@ -216,6 +216,8 @@ function refSheets(it: ChartItem, ctx: RenderCtx): string[] {
   // the cells a text mark quotes ({Targets!B3}: a reload of that sheet is another key, S14.3)
   for (const k of Object.values(it.marks && typeof it.marks === "object" ? it.marks : {})) if (k && typeof k.text === "string")
     for (const t of k.text.matchAll(CELL_TOKEN)) out.add(tokenSheet(t[1]));
+  // (B52) the cells a reference line reads: its value and its name
+  for (const k of Object.values(it.marks && typeof it.marks === "object" ? it.marks : {})) if (k && typeof k === "object") { add(k.value); add(k.name); }
   out.delete("");
   return [...out].sort();
 }

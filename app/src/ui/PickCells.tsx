@@ -10,7 +10,7 @@ import type { SheetInfo } from "@slide-builder/core/xlsx/sheetview";
 import type { DataRef } from "@slide-builder/core/model/types";
 import { insertChartRefs, itemOf, itemPatch, quoteCell } from "../editor/charts";
 import { addRangeTable } from "../editor/slides";
-import { REF_HINT, REF_TITLE } from "../editor/chart-panel";
+import { REF_HINT, REF_TITLE, oneCell } from "../editor/chart-panel";
 import { applyRef } from "../editor/chart-send";
 
 const close = () => setDialogs({ pick: null });
@@ -22,7 +22,7 @@ export function PickCellsDialog() {
   // a callout's cell, a new table's range (S13.4): one step; a chart: the numbers, then their names
   // (the chart panel's cells, S14.5: one step – a series' name is one cell)
   const ref = req.kind === "chart-ref" ? req.ref : null;
-  const one = req.kind === "cell" || ref?.what === "name", table = req.kind === "table";
+  const one = req.kind === "cell" || oneCell(ref), table = req.kind === "table";
   // the sheet shown first: the chart's own (changing its cells), else the first of the list
   const start = () => {
     const it = req.kind === "chart-cells" || req.kind === "chart-ref" ? itemOf(req.id) : null, v = it?.kind === "chart" ? it.values : null;

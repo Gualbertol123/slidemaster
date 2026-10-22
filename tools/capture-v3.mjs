@@ -38,9 +38,9 @@ export const CLOCK = "2026-10-01T10:00:00+02:00";
 export const DESIGNS = ["glass", "excel", "clean"];
 const FORMATS = "workbook=3;config=3;prefs=1";
 /** the deck snapshot formats the tools read (ADR-019): they fold with this checkout's core, so a deck that holds 4.6
-    objects (format 5: the chart corpus's item.patch) or 4.9 objects (format 6, AUDIT-3 COMPAT-1) is theirs to change –
-    without it the helper answers 409 "reload" */
-const DECK_FORMATS = "4,5,6";
+    objects (format 5: the chart corpus's item.patch), 4.9 objects (format 6, AUDIT-3 COMPAT-1) or 4.10 objects (format
+    7, B52: the target-lines deck's reference lines) is theirs to change – without it the helper answers 409 "reload" */
+const DECK_FORMATS = "4,5,6,7";
 // v3's names for the parts 05 §2 lists: cells .t, cards .wb, tables .tw, text boxes .tnote (the "note" of the plan)
 // with their frames .notebub, workbook text boxes and shapes .tbox, pictures .pic, the notes section .memo, title,
 // subtitle, logo, page number, footer, cover (cv-/cvx-) and contents (ix-) parts, empty/missing markers
