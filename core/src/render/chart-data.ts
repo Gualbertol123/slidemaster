@@ -68,12 +68,13 @@ export function cellsOf(S: Sheet, g: Range, hide?: HideSet | null): [number, num
     table, e.g. a total row under it, still reads it) – and those the shown version deletes on the sheet. What the table
     closes up is read off its layout, so a set the table could not apply (it would empty it) is not applied here either.
     A chart on another slide reading the same cells keeps them (the rows are hidden on that slide only) */
+const dropOf = (ctx: RenderCtx) => (ctx.version as { drop?: Record<string, unknown> } | null | undefined)?.drop;
+/** a chart's slide: only slides that hide rows are looked at, the item by identity (a duplicated slide's chart is an
+    object of its own; a copy on no slide skips nothing of a slide's) */
+const slideOf = (it: ChartItem, ctx: RenderCtx) => ctx.slides.find(R => R.cfg.hidden && R.cfg.items && Object.values(R.cfg.items).includes(it));
 export function chartHide(it: ChartItem, ctx: RenderCtx, S: Sheet, g: Range, ref: DataRef | undefined): HideSet | null {
-  const h = dropHidden((ctx.version as { drop?: Record<string, unknown> } | null | undefined)?.drop?.[S.name]);
-  // its slide: only slides that hide rows are looked at, the item by identity (a duplicated slide's chart is an object
-  // of its own; a copy on no slide skips nothing of a slide's)
-  const R = ctx.slides.find(R => R.cfg.hidden && R.cfg.items && Object.values(R.cfg.items).includes(it));
-  for (const L of R?.tables || []) {
+  const h = dropHidden(dropOf(ctx)?.[S.name]);
+  for (const L of slideOf(it, ctx)?.tables || []) {
     if (!L.hide || L.sheet.name !== S.name || !(ref && "table" in ref ? ref.table === L.def?.id : g.r1 < L.g.r2 && g.r2 > L.g.r1 && g.c1 < L.g.c2 && g.c2 > L.g.c1)) continue;
     const rows = new Set(L.rows), cols = new Set(L.cols);
     for (let r = L.g.r1 + 1; r < L.g.r2; r++) if (!rows.has(r) && !L.sheet.rowHidden(r)) h.rows.add(r);
@@ -219,27 +220,15 @@ function refSheets(it: ChartItem, ctx: RenderCtx): string[] {
   out.delete("");
   return [...out].sort();
 }
-/** what a series chart skips of its rectangles besides Excel's hidden cells (4.9, chartHide), as a cache key */
-function hidesKey(it: ChartItem, ctx: RenderCtx): string {
-  const out: string[] = [], add = (ref: unknown) => {
-    for (const r of Array.isArray(ref) ? ref : [ref]) if (r && typeof r === "object" && typeof (r as DataRef).range === "string") {
-      const T = refTarget(r as DataRef, ctx);
-      out.push(T.S && T.g ? hideKey(chartHide(it, ctx, T.S, T.g, r as DataRef)) : "");
-    }
-  };
-  for (const [, s] of seriesList(it)) { add(s.vals); add(s.target); add(s.xs); }
-  for (const g of Object.values(it.groups || {})) if (g && typeof g === "object") add(g.cats);
-  return out.join("|");
-}
 const SERIES = new Map<string, SeriesData>();
 /** a series chart's categories, groups and series (09 §2.2): each series from its own rectangles – any sheet, any
     deck table, a linked workbook –, one value per category of its group (extra values ignored, missing ones gaps; both
     named for the Issues panel). Cached by everything it reads: the item's data keys, each sheet's generation (a
-    reload, a scenario's overlay) and edits, the version's removed cells */
+    reload, a scenario's overlay) and edits, the version's removed cells and deleted rows / columns, its slide's hidden set */
 export function seriesData(it: ChartItem, ctx: RenderCtx): SeriesData {
   const sheets = refSheets(it, ctx);
   // (the chart's type: a series without its own type takes the chart's – S14.2 review 2)
-  const key = JSON.stringify([it.type, it.sers, it.groups ?? null, it.labels ?? null, sheets.map(n => [n, genOf(ctx.sheet?.(n) ?? null), ctx.edits[ctx.sheet?.(n)?.name ?? n] || null]), ctx.version?.hide || null, ctx.preset?.tables || null, hidesKey(it, ctx)]);
+  const key = JSON.stringify([it.type, it.sers, it.groups ?? null, it.labels ?? null, sheets.map(n => [n, genOf(ctx.sheet?.(n) ?? null), ctx.edits[ctx.sheet?.(n)?.name ?? n] || null]), ctx.version?.hide || null, ctx.preset?.tables || null, dropOf(ctx) || null, slideOf(it, ctx)?.cfg.hidden || null]);
   const hit = SERIES.get(key); if (hit) return hit;
   const out = resolveSeries(it, ctx, key);
   if (SERIES.size > 200) SERIES.clear();
