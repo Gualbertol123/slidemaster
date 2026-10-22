@@ -43,13 +43,19 @@ const SIDES: Side[] = ["top", "bottom", "left", "right"];
    tools join it and it wraps to another row), and the slide fitted again at once would jump under the pointer as a drag
    starts – and every text of the slide would be laid out again in the drag's first frame (Chromium lays SVG text out
    again when its scale changes: 40+ ms with 60 objects, S15.4's snap_drag_frame_ms). The space is measured again when
-   the button is released */
+   the button is released. Only the main button holds it (a right-click opens a menu, no drag); a release the page never
+   sees (a context menu took the pointer, the button let go outside the window) ends it too: a contextmenu, or a pointer
+   moving with no button down (4.9, the M15 speed-fix review) */
 let held = false, refit: (() => void) | null = null;
+const release = () => { if (!held && !refit) return; held = false; const f = refit; refit = null; f?.(); };
 if (typeof addEventListener === "function") {
-  addEventListener("pointerdown", () => { held = true; }, true);
-  const up = () => { held = false; const f = refit; refit = null; f?.(); };
-  addEventListener("pointerup", up, true); addEventListener("pointercancel", up, true); addEventListener("blur", up);
+  addEventListener("pointerdown", e => { if (e.button === 0) held = true; }, true);
+  addEventListener("pointerup", release, true); addEventListener("pointercancel", release, true); addEventListener("blur", release);
+  addEventListener("contextmenu", release, true);
+  addEventListener("pointermove", e => { if (held && e.buttons === 0) release(); }, true);
 }
+/** fit now, or – while the main button is held – when it is released (the latest call wins) */
+export function fitOrDefer(now: () => void) { if (held) refit = now; else now(); }
 
 /** the stage's frame: fits the slide into the space (or shows it at the chosen zoom) */
 export function Stage() {
@@ -58,7 +64,7 @@ export function Stage() {
   const [size, setSize] = useState<[number, number]>([0, 0]);
   useLayoutEffect(() => {
     const el = host.current!, now = () => setSize(z => z[0] === el.clientWidth && z[1] === el.clientHeight ? z : [el.clientWidth, el.clientHeight]);
-    const measure = () => { if (held) refit = now; else now(); };
+    const measure = () => fitOrDefer(now);
     now();
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure); ro?.observe(el);
     addEventListener("resize", measure);
